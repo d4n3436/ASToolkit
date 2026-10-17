@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ASToolkit.Core/ASToolkit.Core.csproj" />
+    <Project Path="src/ASToolkit.Cli/ASToolkit.Cli.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ASToolkit.Tests/ASToolkit.Tests.csproj" />
+  </Folder>
+</Solution>

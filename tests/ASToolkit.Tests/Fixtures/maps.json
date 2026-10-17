@@ -1,0 +1,138 @@
+{
+  "Level_02.map": {
+    "count": 4655,
+    "ids": 1888099,
+    "x": 7566711.0,
+    "y": 5520880.0,
+    "payload_bytes": 37616,
+    "army": 200
+  },
+  "Level_03.map": {
+    "count": 9350,
+    "ids": 4308173,
+    "x": 20107867.0,
+    "y": 21697287.0,
+    "payload_bytes": 76564,
+    "army": 589
+  },
+  "Level_04.map": {
+    "count": 9742,
+    "ids": 4584603,
+    "x": 20794064.0,
+    "y": 19748967.0,
+    "payload_bytes": 84628,
+    "army": 731
+  },
+  "Level_05.map": {
+    "count": 14745,
+    "ids": 6760313,
+    "x": 38640549.0,
+    "y": 37172966.0,
+    "payload_bytes": 133332,
+    "army": 474
+  },
+  "Level_06.map": {
+    "count": 4069,
+    "ids": 1967957,
+    "x": 6231242.0,
+    "y": 6386172.0,
+    "payload_bytes": 41016,
+    "army": 168
+  },
+  "Level_07.map": {
+    "count": 7673,
+    "ids": 3440916,
+    "x": 14928330.0,
+    "y": 16900997.0,
+    "payload_bytes": 76996,
+    "army": 402
+  },
+  "Level_08.map": {
+    "count": 8896,
+    "ids": 4386103,
+    "x": 24176795.0,
+    "y": 23235414.0,
+    "payload_bytes": 89076,
+    "army": 259
+  },
+  "Level_09.map": {
+    "count": 10074,
+    "ids": 4997344,
+    "x": 33785441.0,
+    "y": 29296300.0,
+    "payload_bytes": 105760,
+    "army": 681
+  },
+  "Level_10.map": {
+    "count": 13672,
+    "ids": 6660210,
+    "x": 62635028.0,
+    "y": 55277880.0,
+    "payload_bytes": 135012,
+    "army": 335
+  },
+  "ADDON/Level_02.map": {
+    "count": 21354,
+    "ids": 9830054,
+    "x": 56161840.86,
+    "y": 60543206.97,
+    "payload_bytes": 177972,
+    "army": 1205
+  },
+  "ADDON/Level_03.map": {
+    "count": 18962,
+    "ids": 8414853,
+    "x": 36977675.49,
+    "y": 38314680.51,
+    "payload_bytes": 163672,
+    "army": 693
+  },
+  "ADDON/Level_04.map": {
+    "count": 5948,
+    "ids": 2716685,
+    "x": 9038424.36,
+    "y": 9409630.66,
+    "payload_bytes": 62360,
+    "army": 1230
+  },
+  "ADDON/Level_05.map": {
+    "count": 12510,
+    "ids": 6038201,
+    "x": 34374289.56,
+    "y": 32763620.41,
+    "payload_bytes": 116412,
+    "army": 677
+  },
+  "ADDON2/Level_02.map": {
+    "count": 15358,
+    "ids": 7423017,
+    "x": 31330711.98,
+    "y": 31779527.38,
+    "payload_bytes": 145192,
+    "army": 511
+  },
+  "ADDON2/Level_03.map": {
+    "count": 15045,
+    "ids": 6952758,
+    "x": 34719615.58,
+    "y": 26906871.98,
+    "payload_bytes": 135760,
+    "army": 334
+  },
+  "ADDON2/Level_04.map": {
+    "count": 10850,
+    "ids": 4884488,
+    "x": 22509679.02,
+    "y": 26509764.5,
+    "payload_bytes": 120968,
+    "army": 562
+  },
+  "ADDON2/Level_05.map": {
+    "count": 17758,
+    "ids": 8445189,
+    "x": 61879993.24,
+    "y": 38278860.05,
+    "payload_bytes": 160112,
+    "army": 1218
+  }
+}
