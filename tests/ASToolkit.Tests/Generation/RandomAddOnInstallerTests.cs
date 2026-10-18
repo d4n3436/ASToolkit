@@ -26,6 +26,7 @@ public class RandomAddOnInstallerTests : IDisposable
     public void InstallAndRemove_GameFiles_AddTheAddOnAndPutEverythingBack()
     {
         string game = CopyGame();
+        RandomAddOnInstaller.Remove(game);
         var before = Files.ToDictionary(f => f, f => File.ReadAllBytes(Path.Combine(game, f)));
 
         RandomAddOnInstaller.Install(game, addOnStyle: true, seed: 1, []);
@@ -59,6 +60,10 @@ public class RandomAddOnInstallerTests : IDisposable
             string target = Path.Combine(_folder, file);
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             File.Copy(Path.Combine(source, file), target);
+            if (File.Exists(Path.Combine(source, file + ".orig")))
+            {
+                File.Copy(Path.Combine(source, file + ".orig"), target + ".orig");
+            }
         }
 
         return _folder;
