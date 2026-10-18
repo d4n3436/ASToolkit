@@ -45,16 +45,16 @@ Objects, maps, sprites and menus use the same container. Only the four-character
 
 ```
  0        4        8       12
- +--------+--------+--------+---------------------------------------+
- | "RES " | size   | kind   | chunk | chunk | chunk | ...           |
- +--------+--------+--------+---------------------------------------+
-   "RIFF" also      "DATA"
-   works            "MAP " "VID " "MENU"
+ +--------+--------+--------+-------+----+---------------------+
+ | "RES " | size   | kind   | chunk | 00 | chunk | chunk | ... |
+ +--------+--------+--------+-------+----+---------------------+
+  "RIFF" also       DATA"
+  works             "MAP " "VID " "MENU"
 
- size = file length - 8
+ size = file length minus 8 bytes (identifier and size fields)
 ```
 
-Each chunk has an 8-byte header and a body padded to an even length.
+Each chunk has an 8-byte header and includes a pad byte if its length is not even. `size` doesn't include the pad byte.
 
 ```
  +--------+--------+----------------------------------------+
