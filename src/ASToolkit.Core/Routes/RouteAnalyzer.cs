@@ -44,7 +44,7 @@ public static class RouteAnalyzer
         public int At { get; set; }
     }
 
-    // Numbers the grid's cells through a dense rectangle, so lookups need no hashing.
+    // Dense index over the grid's bounding rectangle to avoid hashing
     private sealed class CellIndex
     {
         private readonly int[] _slots;
@@ -77,7 +77,6 @@ public static class RouteAnalyzer
         }
     }
 
-    // Holds walk distances from a search over the grid's cells; unreached cells have none.
     private sealed class DistanceMap
     {
         private readonly CellIndex _index;
@@ -736,7 +735,7 @@ public static class RouteAnalyzer
                     continue;
                 }
 
-                // A spawner keeps building its monsters once triggered; they walk its waypoints and wait at the last one.
+                // Triggered spawners keep building monsters, which walk the waypoints and wait at the last one
                 Objective? trigger = null;
                 var t = element.Program!.Trigger;
                 if (t is not null)

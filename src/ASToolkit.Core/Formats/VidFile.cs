@@ -101,7 +101,7 @@ public sealed class VidFile
         return IsAlias(target) ? new VidFrame([], [], []) : Decode(_records[target].AsSpan(FrameHeader), colors);
     }
 
-    // A frame that repeats another holds only the other frame's index.
+    // Alias frames hold only the index of the frame they repeat
     private bool IsAlias(int index) => _records[index].Length == FrameHeader + 2;
 
     private VidFrame Decode(ReadOnlySpan<byte> b, List<ushort> colors)

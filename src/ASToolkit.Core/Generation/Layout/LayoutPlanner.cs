@@ -41,7 +41,7 @@ public static class LayoutPlanner
             return null;
         }
 
-        // Walks cut corners, so a unit step covers less than a unit. A blackout's breaker lies its search walk past the trigger.
+        // Walks cut corners and cover less than a unit per step. Leave room for a blackout's search walk past the trigger.
         double maxWalk = maxElongation * Math.Sqrt(targetUnits) / WalkPerUnitStep;
         if (gate is { Kind: GateKind.Blackout, IsWing: false })
         {
@@ -64,7 +64,7 @@ public static class LayoutPlanner
         return plan;
     }
 
-    // A small hole walled in on every side can't take a roof tile, so it joins the room beside it as an alcove.
+    // Merge small enclosed holes, which can't take a roof tile, into the room beside them
     private static void FillPockets(LayoutPlan plan)
     {
         int u0 = plan.Occupancy.Keys.Min(c => c.U) - 1;
@@ -267,7 +267,6 @@ public static class LayoutPlanner
         return null;
     }
 
-    // Grows dead-end chains of halls and rooms off stations spread along the route, forking now and then.
     private static PlanRegion[] GrowBranches(Random rng, LayoutPlan plan, int branchUnits, Dictionary<Cell, int> walk, double maxWalk)
     {
         var t = plan.Theme;
@@ -418,7 +417,7 @@ public static class LayoutPlanner
         }
     }
 
-    // Moves each doorway to the nearest span of its boundary where no other wall meets it.
+    // Move each doorway to the nearest span of its boundary where no other wall meets it
     private static void AlignLinks(LayoutPlan plan)
     {
         foreach (var link in plan.Links.Where(l => l.Kind != LinkKind.Open && l.Edges.Count > 0))
@@ -486,7 +485,7 @@ public static class LayoutPlanner
         int blackout = 0;
         if (gate.Kind == GateKind.Blackout)
         {
-            // The trigger goes on the last chain link within reach of the start.
+            // Put the trigger on the last chain link within reach of the start
             var first = GetChainLink(plan, 0);
             double startOffset = first.Edges.Count > 0 ? plan.Theme.UnitPixels * (plan.Stations[0].Rects[0].W + plan.Stations[0].Rects[0].H) / 4 : 0;
             blackout = Enumerable.Range(0, count - 3).Where(b => startOffset + MeasureChain(plan, first, GetChainLink(plan, b)) <= BlackoutReach).DefaultIfEmpty(0).Max();
@@ -521,7 +520,7 @@ public static class LayoutPlanner
             return PlaceGeneratorRoom(rng, plan, cut);
         }
 
-        // Every door locks, so the open part has none but the gate itself.
+        // Turn the open part's doors into arches because every door locks
         foreach (var link in plan.Links)
         {
             if (link != gateLink && link.Kind == LinkKind.Door && !plan.Regions[link.To].IsGated)
@@ -539,7 +538,7 @@ public static class LayoutPlanner
         var hosts = new[] { cut, cut - 1, cut - 2 }.Where(k => k >= 1).Select(k => plan.Stations[k]).ToArray();
         if (gate is { Kind: GateKind.Blackout, SearchPixels: > 0 })
         {
-            // The breaker room hangs off whichever open room, often deep in a branch, lies the search walk from the trigger.
+            // Hang the breaker room off the open room that lies the search walk from the trigger
             var trigger = plan.BlackoutLink!.Edges.SelectMany(e => new[] { e.Cells.First, e.Cells.Second }).Where(plan.Occupancy.ContainsKey).Distinct();
             var walk = MeasureWalk(plan, trigger, openOnly: true);
             double Farthest(PlanRegion r) => r.Units.Where(walk.ContainsKey).Select(c => walk[c]).DefaultIfEmpty(0).Max() * plan.Theme.UnitPixels * WalkPerUnitStep;
@@ -565,7 +564,6 @@ public static class LayoutPlanner
         double BehindShare(int k) => plan.Regions.Where(r => r.Station > k).Sum(r => r.Units.Count) / (double)plan.Area;
     }
 
-    // Walking distance in units from the source units to every unit the links reach, leaving out the gated part when asked.
     private static Dictionary<Cell, int> MeasureWalk(LayoutPlan plan, IEnumerable<Cell> sources, bool openOnly)
     {
         var passable = plan.Links.Where(l => l.Kind is not (LinkKind.SecretWall or LinkKind.SpawnWall)).SelectMany(l => l.Edges).ToHashSet();
@@ -602,7 +600,7 @@ public static class LayoutPlanner
         return new Cell(r.U + r.W / 2, r.V + r.H / 2);
     }
 
-    // Keeps the region added last, through the link added last, only when no unit of it lies farther than the cap from the start.
+    // Undo the last region and link if any of its units lies past the walk cap
     private static bool TryExtendWalk(LayoutPlan plan, Dictionary<Cell, int> walk, PlanRegion region, double maxWalk)
     {
         var added = new Dictionary<Cell, int>();
@@ -790,7 +788,7 @@ public static class LayoutPlanner
         return false;
     }
 
-    // Breakable walls between two open rooms that touch but lie at least three links apart.
+    // Add breakable walls between touching open rooms at least three links apart
     private static void AddShortcuts(Random rng, LayoutPlan plan, int count)
     {
         if (count == 0)

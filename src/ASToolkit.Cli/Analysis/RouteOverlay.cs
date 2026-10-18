@@ -10,10 +10,10 @@ using SixLabors.ImageSharp.Processing;
 
 namespace ASToolkit.Cli.Analysis;
 
-// Draws a level's tour, gameplay elements and objectives over its rendered map, then crops the image to the level.
+// Draws a level's tour, elements and objectives over its map and crops the image to the level
 internal static class RouteOverlay
 {
-    // Marker and line sizes are set for a quarter of the map size and grow with the scale.
+    // Marker and line sizes are tuned for a quarter-scale map and grow with the scale
     private const double TunedScale = 0.25;
     private const int ContentThreshold = 12;
 
@@ -131,7 +131,7 @@ internal static class RouteOverlay
         float Size(double w) => Math.Max(1, MathF.Round((float)w * k));
     }
 
-    // Colors each stretch of the tour by the phase its leg walks in, splitting the tour in proportion to the legs' lengths.
+    // Color each stretch by its leg's phase, splitting the tour in proportion to leg lengths
     private static void DrawTour(IImageProcessingContext c, PointF[] tour, IReadOnlyList<RouteLeg> legs, float width)
     {
         if (tour.Length < 2)
@@ -148,7 +148,7 @@ internal static class RouteOverlay
         double legTotal = Math.Max(1, legs.Sum(l => l.Pixels));
         double total = Math.Max(1e-9, lengths[^1]);
 
-        // Each run of segments in one phase is one polyline, so its joints are drawn as joints.
+        // One polyline per phase run to keep its joints
         int start = 0;
         var current = GetPhase(0);
         for (int tourIndex = 1; tourIndex < tour.Length; tourIndex++)
@@ -183,7 +183,7 @@ internal static class RouteOverlay
         }
     }
 
-    // Numbers the sites, generators and dynamite in the order the tour reaches them. The breaker is labeled B.
+    // Number sites, generators and dynamite in tour order and label the breaker B
     private static void DrawObjectiveLabels(IImageProcessingContext c, MapImage map, IReadOnlyList<RouteObjective> objectives, Func<double, float> size, Font font)
     {
         var counts = new Dictionary<char, int>();
@@ -202,7 +202,7 @@ internal static class RouteOverlay
         }
     }
 
-    // The smallest rectangle holding every pixel that differs from the background by more than the threshold.
+    // Bounding box of the pixels that differ from the background by more than the threshold
     private static Rectangle? FindContent(Image<Rgb24> image)
     {
         int x0 = int.MaxValue, y0 = int.MaxValue, x1 = -1, y1 = -1;

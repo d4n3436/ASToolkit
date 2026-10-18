@@ -173,7 +173,7 @@ public sealed class ReferenceLevelSet
 
     private int GetHitPointTarget(int level) => (int)Math.Round(_levels[GetCampaignName(level)].Measures.HitPoints * HitPointFactor);
 
-    // Each add-on's four fighting levels are stretched over campaign levels 2 to 10 and interpolated geometrically.
+    // Interpolate each add-on's four fighting levels geometrically over campaign levels 2 to 10
     private double Blend(int level, Func<string, double> value)
     {
         double t = (level - 2) / 8.0 * 3;

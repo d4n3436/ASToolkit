@@ -24,7 +24,7 @@ public static class RandomAddOnInstaller
 
     private static readonly Encoding Latin1 = Encoding.Latin1;
 
-    // Each edit adds a branch for game type 4 next to the add-on 2 one. An edit is undone by putting the old text back.
+    // Add a game type 4 branch next to each add-on 2 branch
     private static readonly ScriptEdit[] Edits =
     [
         new("Maps/COMMON.LGC", "#define GAME_TYPE_ADDON2   3", "#define GAME_TYPE_ADDON2   3\n#define GAME_TYPE_RANDOM   4"),
@@ -184,7 +184,6 @@ public static class RandomAddOnInstaller
     private static string FormatBriefing(int number, int seed, LevelTheme theme) =>
         $"MISSION {number:00}:\r\ngenerated {(theme == LevelTheme.Lab ? "laboratory" : "military base")}\r\n\r\nDESCRIPTION:\r\nseed {seed}.\r\n";
 
-    // A level the generator did not make is the campaign's own, with its briefing.
     private static void CopyCampaignLevel(string gameFolder, int number, string target)
     {
         string maps = Path.Combine(gameFolder, "Maps");
@@ -202,7 +201,6 @@ public static class RandomAddOnInstaller
         }
     }
 
-    // The level count and the money after each level, from the campaign's table in campaign style and add-on 1's in add-on style.
     private static void WriteTable(string maps, bool addOnStyle, int count)
     {
         string path = Path.Combine(maps, "common_table.lgc");

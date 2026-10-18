@@ -160,7 +160,7 @@ public sealed class MapRenderer
         return result;
     }
 
-    // An object's color variant shifts each channel of the palette. A negative tint scales it down and a positive one adds.
+    // Negative tints scale a channel down and positive ones add to it
     private static (Rgb24[] Colors, byte[] Alphas) ApplyTint(byte[] palette, (int R, int G, int B) tint)
     {
         var colors = new Rgb24[256];
@@ -182,8 +182,7 @@ public sealed class MapRenderer
 
     private sealed record Placement(MapSprite Sprite, GameObject Object, SpriteFrame? Frame, double Left, double Top, int Width, int Height);
 
-    // Composites the sprites in strips of output rows. Each strip draws its source rows at full size with its own depth
-    // buffer, so strips run in parallel, and is then scaled into the image; strips start where output rows start.
+    // Draw strips of output rows in parallel, each at full size with its own depth buffer, then scale them into the image
     private sealed class Canvas
     {
         private readonly List<Placement> _placed;
@@ -207,7 +206,7 @@ public sealed class MapRenderer
 
         public int StripCount => (_image.Height + _stripRows - 1) / _stripRows;
 
-        // Each worker keeps a full-size strip image and depth buffer, big enough for the tallest strip, for the whole render.
+        // One full-size strip image and depth buffer per worker, sized for the tallest strip
         public StripBuffers CreateBuffers()
         {
             int rows = (int)Math.Ceiling(_stripRows / _scale) + 1;
@@ -269,10 +268,10 @@ public sealed class MapRenderer
             }
         }
 
-        // The first source row of an output row; past the last output row it is the source height.
+        // First source row of an output row, clamped to the source height
         private int GetSourceStart(int output) => Math.Min(_height, (int)Math.Ceiling(output / _scale - 1e-9));
 
-        // The engine's depth: 8 per unit of height, flat sprites 0x400 above that and standing ones 8 more per row up.
+        // Engine depth is 8 per unit of height, plus 0x400 for flat sprites and 8 more per row up for standing ones
         private void Draw(Image<Rgb24> target, Placement p, SpriteFrame frame, (int X, int Y) origin, int y0, int y1, int[] depth)
         {
             int baseDepth = (int)(p.Sprite.Z * 8);

@@ -78,7 +78,7 @@ internal static class PlayMenuPatcher
 
     private static int GetButtonNumber(byte[] record) => (int)((BinaryPrimitives.ReadUInt32LittleEndian(record.AsSpan(20)) + 128 / Directions) & 255) * Directions >> 8;
 
-    // The direction angle (0 to 255) whose frame is the number's.
+    // First direction angle (0 to 255) that shows the button's frame
     private static int GetDirection(int number) => (number * 256 + Directions - 1) / Directions;
 
     private static float GetX(byte[] record) => BinaryPrimitives.ReadSingleLittleEndian(record.AsSpan(8));
@@ -89,7 +89,7 @@ internal static class PlayMenuPatcher
 
     private static void SetUInt32(byte[] record, int offset, uint value) => BinaryPrimitives.WriteUInt32LittleEndian(record.AsSpan(offset), value);
 
-    // A button's label is a text record a few pixels off the button's center.
+    // Labels sit a few pixels off their button's center
     private static int FindLabel(List<byte[]> records, byte[] button)
     {
         int best = -1;
@@ -107,7 +107,7 @@ internal static class PlayMenuPatcher
         return best >= 0 ? best : throw new InvalidDataException("A menu button has no label.");
     }
 
-    // Keeps the label's header and swaps the zero-terminated key after the u32 that precedes it.
+    // Keep the header and replace the zero-terminated key after its u32
     private static byte[] ReplaceText(byte[] label, string key)
     {
         byte[] result = new byte[LabelOffset + 4 + key.Length + 1];

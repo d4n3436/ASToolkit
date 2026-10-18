@@ -2,8 +2,8 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace ASToolkit.Core.Rendering;
 
-// The pixels of one sprite frame, row by row from the top, each with a column and a palette index, and a depth for sprites
-// with a depth buffer. The palette is the object's tinted one, shared by all frames of the sprite and tint.
+// Pixels of one frame, row by row from the top, with a column, palette index and optional depth each.
+// The palette is the object's tinted one, shared by all frames with the same tint.
 internal sealed class SpriteFrame
 {
     public required short[] Xs { get; init; }
@@ -20,7 +20,7 @@ internal sealed class SpriteFrame
 
     public required int Rows { get; init; }
 
-    // The index of the first pixel of each row from the top, and the pixel count after the last row.
+    // Index of each row's first pixel, plus the total pixel count at the end
     public required int[] RowStarts { get; init; }
 
     public required bool IsBlended { get; init; }

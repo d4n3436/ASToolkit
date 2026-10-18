@@ -34,7 +34,7 @@ public static class LevelExtractor
             return null;
         }
 
-        // Originals leave the floor out under wall cabinets; one ring of walled cells fills those holes.
+        // Fill the floor holes the originals leave under wall cabinets
         var ring = new HashSet<Cell>();
         foreach (var cell in cells)
         {
@@ -158,7 +158,7 @@ public static class LevelExtractor
         int bestFit = -1;
         if (floor.Count > 0)
         {
-            // The tile phase is ambiguous by half a cell, which swaps the '/' and '\' wall slots; the walls decide.
+            // Let the walls pick between the two tile phases that fit the floor
             var probe = new Lattice(LabStep.X, LabStep.Y, floor[0].X - 40, floor[0].Y);
             var phases = new List<((int, int) Key, int Count, MapSprite First)>();
             var index = new Dictionary<(int, int), int>();

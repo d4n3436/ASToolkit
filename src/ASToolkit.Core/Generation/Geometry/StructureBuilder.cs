@@ -190,7 +190,7 @@ public static class StructureBuilder
             }
         }
 
-        // 503 tiles have their own 80 by 56 lattice and reach under the walls.
+        // 503 tiles use their own 80 by 56 lattice and reach under the walls
         var centers = layout.Cells.Keys.Select(l.GetCenter).ToArray();
         int i0 = (int)Math.Floor((centers.Min(p => p.X) - 160) / 80);
         int i1 = (int)Math.Floor((centers.Max(p => p.X) + 160) / 80);
@@ -266,7 +266,7 @@ public static class StructureBuilder
         return false;
     }
 
-    // Vertices where walls meet without running straight through.
+    // Posts go where walls meet but don't run straight through
     private static (int A, int B)[] FindPosts(IReadOnlyDictionary<EdgeKey, char> edges)
     {
         var vertices = new List<(int, int)>();

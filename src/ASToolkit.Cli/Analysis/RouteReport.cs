@@ -3,7 +3,7 @@ using ASToolkit.Core.Routes;
 
 namespace ASToolkit.Cli.Analysis;
 
-// One level's route analysis as routes.json stores it; the tour is a list of [x, y] world points.
+// Tour is a list of [x, y] world points
 internal sealed record RouteReport(
     string Map,
     bool Generated,

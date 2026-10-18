@@ -163,7 +163,7 @@ public static class ContentPlacer
         }
         else
         {
-            // Charges stay off the way to the key.
+            // Keep charges off the way to the key
             var key = GetKeyCell(ctx, ctx.Plan.KeyRoom);
             var fromKey = ctx.MeasureDistances(key);
             int detour = (int)(KeyWayMargin / ctx.Step);
@@ -246,7 +246,7 @@ public static class ContentPlacer
 
                 if (ctx.Level == 10 && GetDistance((placed.Value.X, placed.Value.Y), (7541, 4501)) < 150)
                 {
-                    // The level 10 script treats a 415 near (7541, 4501) specially.
+                    // Avoid the 415 spot the level 10 script handles specially
                     ctx.Map.Sprites.RemoveAt(ctx.Map.Sprites.Count - 1);
                     back.Remove(placed.Value.Cell);
                     index--;
@@ -364,7 +364,7 @@ public static class ContentPlacer
 
         int n = budget.DynamiteSites;
         double earliest = n > 4 ? EarliestSite + 0.05 : EarliestSite;
-        // After the key, sites go to the rooms a nearest-room walk reaches last.
+        // With a key room, put sites in the rooms a nearest-room walk from it reaches last
         Func<PlanRegion, double> progressOf = ctx.GetProgress;
         if (ctx.Plan.KeyRoom is not null)
         {
@@ -437,7 +437,7 @@ public static class ContentPlacer
         return sites.OrderBy(s => ctx.Distance.GetValueOrDefault(s.Cell)).ToArray();
     }
 
-    // A far wall piece becomes a monster hole, the 179 lies in front of it and the endless generators hide behind it.
+    // Turn a far wall piece into a monster hole, with the 179 in front and the endless generators behind it
     private static (double X, double Y, Cell Cell)? PlaceLabSite(PlacementContext ctx, PlanRegion region, SiteTemplate[] templates, IReadOnlyDictionary<EdgeKey, char> visibleEdges)
     {
         var cells = ctx.GetRegionCells(region).ToHashSet();
@@ -506,7 +506,7 @@ public static class ContentPlacer
         }
     }
 
-    // Crates, barrels, chairs and the bio-container are not solid but stand in the way of a site all the same.
+    // Count crates, barrels, chairs and the bio-container too, even though they aren't solid
     private static bool IsCrowded(PlacementContext ctx, double x, double y) => ctx.Map.Sprites.Any(s =>
     {
         var obj = ctx.Objects.Find(s.Id);
@@ -540,7 +540,7 @@ public static class ContentPlacer
         }
     }
 
-    // Sites come in runs of up to three; each run's charges lie together on the way to its first site.
+    // Group sites in runs of up to three and put each run's charges together before its first site
     private static void PlaceCharges(PlacementContext ctx, (double X, double Y, Cell Cell)[] sites, IReadOnlyDictionary<Cell, int> distance, Func<Cell, bool> isAllowed)
     {
         int previousDistance = 0;
@@ -723,9 +723,8 @@ public static class ContentPlacer
         return false;
     }
 
-    // Triggers sit at station doorways in the first half of the route; each spawner waits 1,000 to 3,200 pixels ahead,
-    // out of view, and its monsters come back toward the trigger, stopping 40 percent of the way. The weakest ambushes burst
-    // out of spawn closets, military sites get an ambush at their pads and two ambushes cross the mounted cannon's hall.
+    // Fill spawn closets with the weakest ambushes, then the blackout trap, military sites and the cannon hall.
+    // Trigger the rest at station doorways in the first half of the route.
     private static void PlaceAmbushes(PlacementContext ctx, LevelBudget budget, IReadOnlyDictionary<EdgeKey, int> spawnWalls,
         (double X, double Y, Cell Cell)[] sites, PlanRegion? cannonHall)
     {
@@ -758,7 +757,7 @@ public static class ContentPlacer
 
         if (ctx.Plan is { Gate: GateKind.Blackout, KeyRoom: not null } && ambushes.Count > 0)
         {
-            // The blackout breaker is a trap, and restoring the power sets off an ambush.
+            // Spring an ambush when the blackout breaker restores power
             var keyLink = ctx.Plan.Links.First(l => l.To == ctx.Plan.KeyRoom.Id);
             PlaceAmbush(ctx, ambushes[0], GetDoorwayCell(ctx, keyLink));
             ambushes.RemoveAt(0);
@@ -812,7 +811,7 @@ public static class ContentPlacer
         }
     }
 
-    // The spawner waits inside the closet; its wall blows open when the player comes near the trigger in front of it.
+    // Blow the closet wall open on the same trigger as its spawner
     private static bool PlaceClosetAmbush(PlacementContext ctx, PlanRegion closet, IReadOnlyList<KnownObject> monsters, IReadOnlyDictionary<EdgeKey, int> spawnWalls, LevelBudget budget)
     {
         int linkIndex = ctx.Plan.Links.FindIndex(l => l.To == closet.Id);
@@ -946,7 +945,7 @@ public static class ContentPlacer
         }
     }
 
-    // What a stash holds is part of the level's pickups, not added to them.
+    // Stash items come out of the level's pickups
     private static void TakeFromBudget(LevelBudget budget, KnownObject item)
     {
         if (budget.Items.TryGetValue(item, out int left) && left > 0)
@@ -955,7 +954,7 @@ public static class ContentPlacer
         }
     }
 
-    // Closets take the weapons that are early for the level first.
+    // Hand out weapons that are early for the level first
     private static KnownObject? TakeWeapon(PlacementContext ctx, LevelBudget budget)
     {
         if (budget.Weapons.Count == 0)
@@ -980,7 +979,7 @@ public static class ContentPlacer
 
     private static int CountNear(IReadOnlyList<(double X, double Y)> spots, (double X, double Y) p) => spots.Count(s => GetDistance(s, p) < WeaponSpacing);
 
-    // Weapons lie apart from each other, one in a crate for every three or so, the others in the middle side rooms.
+    // Put about a third of the weapons in crates and the rest in the middle side rooms, spaced apart
     private static void PlaceWeapons(PlacementContext ctx, LevelBudget budget, IReadOnlyList<int> crates)
     {
         var weapons = new List<KnownObject>();

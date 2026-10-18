@@ -163,7 +163,7 @@ public static class RouteGridBuilder
         }
     }
 
-    // Off the coarse grid a door or frame's dir byte gives its axis (0 is '/', 64 or 128 is '\'); a plain wall's ID does.
+    // Off the coarse grid, take a door's axis from its dir (0 is '/', 64 or 128 is '\') and a wall's from its ID
     private static EdgeKey[] GetFineLabEdges(Lattice lattice, KnownObject id, double x, double y, byte dir)
     {
         (double u, double v) = lattice.ToLattice(x, y);

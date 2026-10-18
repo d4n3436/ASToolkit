@@ -126,7 +126,7 @@ public sealed class GameMap
         BinaryPrimitives.WriteUInt32LittleEndian(head.AsSpan(20), 12);
         file.GetChunk("HEAD").Records = [head];
 
-        // Groups list sprite handles of the template map.
+        // Drop the template's groups since they reference its sprite handles
         var groups = file.FindChunk("GROU");
         groups?.Records = [EndMarker];
 

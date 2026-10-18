@@ -99,11 +99,11 @@ public static class RoofBuilder
         return structure.ToArray();
     }
 
-    // Strips start on 64-pixel boundaries, so no two strips write the same bit mask word.
+    // Keep strips on 64-pixel boundaries to stop them from sharing a bit mask word
     private static void ForEachStrip(Area area, Action<Strip> body) =>
         Parallel.For(0, (area.Width + StripWidth - 1) / StripWidth, i => body(new Strip(i * StripWidth, Math.Min(StripWidth, area.Width - i * StripWidth))));
 
-    // A military 503 is twice the size of an earth tile and fills the earth positions of the other parity.
+    // Use the other parity on military levels, where a 503 spans two earth tiles
     private static (int Cx, int Cy)[] AddGroundEarth(Random rng, MapBuilder map, BitMask floor, Area area, TileMask tile, MapSprite[] floors, LevelTheme theme)
     {
         var first = floors[0];
@@ -139,7 +139,7 @@ public static class RoofBuilder
         return grounds.ToArray();
     }
 
-    // Floor and ground earth tie at depth 1024; neighboring diamonds share a seam.
+    // Test the tile without the seam it shares with its neighbors
     private static bool TouchesFloor(BitMask floor, Area area, TileMask tile, int cx, int cy)
     {
         foreach ((int dy, int x0, int x1) in tile.Inner)
@@ -156,7 +156,7 @@ public static class RoofBuilder
         return false;
     }
 
-    // Greedy cover with lazy scores, where a candidate popped with a stale score goes back with its current one.
+    // Greedy cover with lazy scores. Requeue candidates popped with a stale score.
     private static int Cover(TileMask tile, BitMask target, BitMask forbidden, Action<int, int> place)
     {
         var blocks = target.CountBlocks(Block);
@@ -281,7 +281,7 @@ public static class RoofBuilder
 
         public void Set(int x, int y) => _bits[y * _stride + (x >> 6)] |= 1UL << x;
 
-        // Callers keep the span inside the mask, so the reads skip bounds checks.
+        // Callers must keep the span inside the mask
         public int Count(int y, int x0, int x1)
         {
             ref ulong row = ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_bits), y * _stride);
@@ -407,7 +407,7 @@ public static class RoofBuilder
             }
         }
 
-        // Counts the set pixels of the blocks a rectangle touches, so a zero means the rectangle is empty.
+        // Zero means the rectangle is empty
         public int Sum(int x0, int y0, int x1, int y1)
         {
             int bx0 = Math.Clamp(x0 / _size, 0, _width);
@@ -419,7 +419,7 @@ public static class RoofBuilder
         }
     }
 
-    // One vertical strip of the level's pixels; every pass reads only its own column and the rows above and below.
+    // Vertical strip of the level's pixels. Passes read only their own columns.
     private sealed class Raster : IDisposable
     {
         private static readonly int[] NearRows = [-StepY * 2, 0, StepY * 2];
@@ -498,7 +498,7 @@ public static class RoofBuilder
             }
         }
 
-        // Depth falls 8 per screen row along a wall, so a wall pixel stands (depth - 1024) / 8 pixels above its ground point.
+        // A wall pixel stands (depth - 1024) / 8 px above its ground point
         public void Classify(Lattice lattice, IReadOnlySet<Cell> shown, IReadOnlySet<Cell> closets, int roofDepth, BitMask target, BitMask forbidden)
         {
             for (int y = 0; y < _height; y++)
@@ -617,7 +617,7 @@ public static class RoofBuilder
             }
         }
 
-        // The rows above shown floor up to a unit's height, and a few below it, are seen; caps end the zone.
+        // Forbid rows up to a unit's height above shown floor and a few below it, stopping at caps
         private void MarkUnitZones(int roofDepth)
         {
             int[] sinceShown = new int[_width];

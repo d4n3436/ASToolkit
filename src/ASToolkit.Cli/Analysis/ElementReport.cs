@@ -2,7 +2,7 @@ using ASToolkit.Core.Routes;
 
 namespace ASToolkit.Cli.Analysis;
 
-// A gameplay element of a level in routes.json; the trigger is [x, y, radius] for spawners that have one.
+// Trigger is [x, y, radius] for spawners that have one
 internal sealed record ElementReport(
     ElementKind Kind,
     int Id,

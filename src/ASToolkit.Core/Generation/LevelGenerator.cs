@@ -26,7 +26,7 @@ public sealed class LevelGenerator
     private const int RoofSeed = 99;
     private const double LayoutFillSlack = 0.9;
 
-    // The campaign level each add-on level takes its structure from: labs with locked doors, a blackout, then fenced military levels.
+    // Campaign levels the add-on levels take their structure from
     private static readonly int[] AddOnSlots = [2, 3, 5, 8, 10];
 
     private static readonly string[] AddOnLevels =
@@ -168,7 +168,7 @@ public sealed class LevelGenerator
         return new OriginalLevel(map, model, template, LevelScriptWriter.ReadMusicLines(Path.Combine(_gameFolder, "Maps", Path.ChangeExtension(name, ".lgc"))));
     }
 
-    // Checks the level as the game reads it, through the bytes of its map and script.
+    // Check the level through its map and script bytes
     private RuleResult[] Check(GeneratedLevel level, LevelTarget target)
     {
         var map = GameMap.Parse(level.Map.ToBytes(GetOriginal(level.Level).Template));
@@ -193,9 +193,8 @@ public sealed class LevelGenerator
         var budget = BudgetPlanner.Plan(rng, level, target, _content.Value, _objects);
         int spawnClosets = theme == LevelTheme.Lab ? Math.Min(6, budget.Ambushes.Count / 3) : 0;
         int shortcuts = theme == LevelTheme.Lab ? rng.Next(3) : 0;
-        // A blackout uses the original's elongation; other levels use the mean of the original's and the add-ons'.
+        // Use the original's elongation for blackouts and its mean with the add-ons' otherwise
         double elongation = gate is { Kind: GateKind.Blackout, IsWing: false } ? target.OriginalElongation : (target.Elongation + target.OriginalElongation) / 2;
-        // Lab elongation is capped at the larger of the targets.
         double maxElongation = theme == LevelTheme.Lab ? Math.Max(target.Elongation, target.OriginalElongation) : double.PositiveInfinity;
         LayoutPlan? plan = null;
         for (int attempt = 0; plan is null; attempt++)
@@ -308,11 +307,11 @@ public sealed class LevelGenerator
         };
     }
 
-    // Broken keypads go only next to jammed doors.
+    // Keep broken keypads for jammed doors
     private static Func<KnownObject, double, bool> GetDressingDecor(ReferenceLevelSet references, LevelTheme theme) =>
         (id, z) => id != KnownObject.BrokenKeypad && references.GetThemeDecor(theme).Allows(id, z);
 
-    // Two cells deep on both sides of every doorway and around the player start.
+    // Keep two cells clear on both sides of every doorway and around the player start
     private static HashSet<Cell> GetKeepClear(FineLayout layout, Cell start, int unitCells)
     {
         var keep = new HashSet<Cell>();

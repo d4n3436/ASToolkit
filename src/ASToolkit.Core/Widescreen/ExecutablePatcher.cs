@@ -70,7 +70,7 @@ internal static class ExecutablePatcher
         return true;
     }
 
-    // The launcher stores at most 16 display modes per adapter, and each list ends with a zero
+    // The launcher holds up to 16 modes per adapter in a zero-terminated list
     private static void WriteList(Span<byte> list, ReadOnlySpan<int> values)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThan(values.Length, MaxResolutions);
