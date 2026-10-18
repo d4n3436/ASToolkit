@@ -67,6 +67,7 @@ docs/                 Documentation
 
 ## Documentation
 
+- [docs/GENERATION.md](docs/GENERATION.md) explains how the generator builds a level, stage by stage, and where to look when a level or rule goes wrong.
 - [docs/RULES.md](docs/RULES.md) lists the rules the generator follows and checks, with the measurements from the original levels behind them.
 - [docs/FORMATS.md](docs/FORMATS.md) describes the game's file formats.
 - [docs/NOTES.md](docs/NOTES.md) describes how the game's scripts behave and how the original levels are built.
