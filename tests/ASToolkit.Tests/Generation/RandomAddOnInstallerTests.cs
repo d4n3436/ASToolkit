@@ -52,6 +52,24 @@ public class RandomAddOnInstallerTests : IDisposable
         Assert.False(Directory.Exists(Path.Combine(game, "Maps", RandomAddOnInstaller.FolderName)));
     }
 
+    [Fact]
+    public void Install_PatchedMenuWithoutBackup_ThrowsAndWritesNothing()
+    {
+        string game = CopyGame();
+        RandomAddOnInstaller.Remove(game);
+        string menu = Path.Combine(game, "Maps/PlayWithAddon1.men");
+        RandomAddOnInstaller.Install(game, addOnStyle: true, seed: 1, []);
+        File.Delete(menu + ".orig");
+        RandomAddOnInstaller.Remove(game);
+        byte[] table = File.ReadAllBytes(Path.Combine(game, "Maps/common_table.lgc"));
+
+        Assert.Throws<InvalidDataException>(() => RandomAddOnInstaller.Install(game, addOnStyle: true, seed: 1, []));
+
+        Assert.False(File.Exists(menu + ".orig"));
+        Assert.Equal(table, File.ReadAllBytes(Path.Combine(game, "Maps/common_table.lgc")));
+        Assert.False(Directory.Exists(Path.Combine(game, "Maps", RandomAddOnInstaller.FolderName)));
+    }
+
     private string CopyGame()
     {
         string source = TestGameFolder.RequireFolder();

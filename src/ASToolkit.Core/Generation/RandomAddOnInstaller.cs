@@ -58,6 +58,7 @@ public static class RandomAddOnInstaller
     public static void Install(string gameFolder, bool addOnStyle, int seed, IReadOnlyList<RandomAddOnLevel> levels)
     {
         string maps = Path.Combine(gameFolder, "Maps");
+        var menus = PatchMenus(maps);
         RemoveLevels(gameFolder);
         string folder = Path.Combine(maps, FolderName);
         Directory.CreateDirectory(folder);
@@ -83,21 +84,14 @@ public static class RandomAddOnInstaller
             ScriptEditor.Apply(gameFolder, edit);
         }
 
-        foreach (string menu in PlayMenus)
+        foreach ((string path, byte[] patched) in menus)
         {
-            string path = Path.Combine(maps, menu);
-            if (!File.Exists(path))
+            if (!File.Exists(path + ".orig"))
             {
-                continue;
+                File.Copy(path, path + ".orig");
             }
 
-            string backup = path + ".orig";
-            if (!File.Exists(backup))
-            {
-                File.Copy(path, backup);
-            }
-
-            File.WriteAllBytes(path, PlayMenuPatcher.Patch(File.ReadAllBytes(backup), LabelKey));
+            File.WriteAllBytes(path, patched);
         }
     }
 
@@ -145,6 +139,22 @@ public static class RandomAddOnInstaller
         }
 
         return done;
+    }
+
+    private static (string Path, byte[] Patched)[] PatchMenus(string maps)
+    {
+        var menus = new List<(string, byte[])>();
+        foreach (string menu in PlayMenus)
+        {
+            string path = Path.Combine(maps, menu);
+            if (File.Exists(path))
+            {
+                string source = File.Exists(path + ".orig") ? path + ".orig" : path;
+                menus.Add((path, PlayMenuPatcher.Patch(File.ReadAllBytes(source), LabelKey)));
+            }
+        }
+
+        return menus.ToArray();
     }
 
     private static bool RemoveLevels(string gameFolder)

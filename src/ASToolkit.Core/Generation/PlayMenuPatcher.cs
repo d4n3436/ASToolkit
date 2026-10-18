@@ -29,6 +29,11 @@ internal static class PlayMenuPatcher
         var file = ResFile.Parse(original);
         var records = file.GetChunk("SPR ").Records;
         var buttons = records.Select((r, i) => (Index: i, Record: r)).Where(b => IsButton(b.Record)).ToList();
+        if (buttons.Any(b => GetButtonNumber(b.Record) == ButtonNumber))
+        {
+            throw new InvalidDataException($"Expected menu with button {ButtonNumber} to be available.");
+        }
+
         var candidates = buttons.Where(b => GetButtonNumber(b.Record) is 3 or 4).OrderByDescending(b => GetY(b.Record)).ToList();
         if (candidates.Count == 0)
         {
