@@ -4,7 +4,7 @@ This document describes the rules the level generator follows and checks its lev
 
 ## General information
 
-- **Hard** rules reject a level, which is then regenerated. **Soft** rules add to a score, and the generator keeps the best of a few candidates.
+- **Hard** rules reject a level, and the generator builds more candidates until one breaks none, keeping the one that breaks the fewest after 40. **Soft** rules add to a score that decides between candidates that break the same number of hard rules.
 - **Originals** gives the measured values and **n**, the number of cases behind them. A rule resting on 4 bosses is weaker than one resting on 2,130 monsters.
 - **Tour** is the walk through every objective. **p** is how far through the tour a point lies, from 0 at the start to 1 at the last objective. **px** are map pixels, and a screen is 1280 by 800.
 - IDs start with A for all levels, B for a level style, C for dynamite levels and D for uncommon items.

@@ -38,10 +38,10 @@ Run a command with `--help` to see its options.
 
 The generator builds each level around the route the player will take, following how the original levels are designed.
 
-1. **Route.** It lays out rooms and corridors and decides the order in which the player visits the objectives, such as keys, switches and the exit.
-2. **Structure.** Walls, doors, floors and roofs are built around that route in the look of the lab and military levels.
-3. **Content.** Monsters, bosses, items, ammo and decoration are placed along the route, using budgets taken from the original levels so that difficulty rises as the level goes on.
-4. **Checks.** Each candidate is tested against the rules in [docs/RULES.md](docs/RULES.md). A level that breaks a hard rule is discarded, and the best-scoring candidate of the rest is kept.
+1. **Layout.** It lays out a main route of halls and rooms with side rooms, branches and closets, and gates part of it behind locked doors, a blackout or electric fences, as the original level does.
+2. **Structure.** Walls, doors and floors are built around the layout in the look of the lab and military levels, and decoration is copied from the original levels.
+3. **Content.** Monsters, bosses, items, ammo and dynamite are placed along the route, using budgets taken from the original levels so that difficulty rises as the level goes on.
+4. **Checks.** Each candidate is tested against the rules in [docs/RULES.md](docs/RULES.md). The generator builds up to 40 candidates until one breaks no hard rule and keeps the best one, which gets a roof that hides everything outside the walkable floor.
 
 ### The RANDOM add-on
 
