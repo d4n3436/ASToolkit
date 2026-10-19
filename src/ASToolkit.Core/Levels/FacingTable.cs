@@ -25,8 +25,12 @@ public sealed class FacingTable
     {
         _objects = objects;
         _dirs = dirs;
-        _frames = dirs.Where(p => objects.Find(p.Key.Item1) is not null)
-            .ToDictionary(p => p.Key, p => p.Value.Select(d => objects.Find(p.Key.Item1)!.GetFrame(d, int.MaxValue)).ToHashSet());
+        _frames = dirs.Where(p => objects.TryFind(p.Key.Item1, out _))
+            .ToDictionary(p => p.Key, p =>
+            {
+                objects.TryFind(p.Key.Item1, out var obj);
+                return p.Value.Select(d => obj.GetFrame(d, int.MaxValue)).ToHashSet();
+            });
         _open = open;
         _leaning = leaning;
     }
@@ -67,8 +71,7 @@ public sealed class FacingTable
         {
             foreach (var levelObject in model.Objects.Where(o => o.Z < FloorHeight))
             {
-                var obj = objects.Find(levelObject.Id);
-                if (obj is null || obj.FramesPerDirection == 0)
+                if (!objects.TryFind(levelObject.Id, out var obj) || obj.FramesPerDirection == 0)
                 {
                     continue;
                 }
@@ -152,7 +155,7 @@ public sealed class FacingTable
         var wall = FindWall(edges, u, v);
         var seen = (wall.HasValue ? _dirs.GetValueOrDefault((id, wall.Value.Axis)) : _open.GetValueOrDefault(id)) ?? [];
         byte[] dirs = seen.Where(d => Fits(id, d, wall, false)).ToArray();
-        if (dirs.Length == 0 && _objects.Find(id) is { Directions: > 0 } obj)
+        if (dirs.Length == 0 && _objects.TryFind(id, out var obj) && obj.Directions > 0)
         {
             dirs = Enumerable.Range(0, obj.Directions)
                 .Select(i => (byte)(i * 256 / obj.Directions))
@@ -165,8 +168,7 @@ public sealed class FacingTable
 
     private bool Fits(KnownObject id, byte dir, (char Axis, double Distance)? wall, bool onBlood)
     {
-        var obj = _objects.Find(id);
-        if (obj is null || obj.FramesPerDirection == 0)
+        if (!_objects.TryFind(id, out var obj) || obj.FramesPerDirection == 0)
         {
             return true;
         }

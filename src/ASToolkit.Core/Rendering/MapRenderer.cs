@@ -26,7 +26,6 @@ public sealed class MapRenderer
     private const int FlatDepth = 0x400;
     private const int MaxFlatDepth = 0x7fff;
     private const int RaisedDepth = 0x3fff;
-    private const uint RaisedFlag = 0x8000;
     
     private static readonly MemoryAllocator Allocator = MemoryAllocator.Create(new MemoryAllocatorOptions { MaximumPoolSizeMegabytes = PoolMegabytes });
     private static readonly Configuration ImageConfiguration = CreateConfiguration(Environment.ProcessorCount);
@@ -56,7 +55,7 @@ public sealed class MapRenderer
     /// Renders map sprites in their file order, scaled down by a factor of at most 1, leaving out the objects the skip
     /// function picks.
     /// </summary>
-    public MapImage Render(IReadOnlyList<MapSprite> sprites, double scale = 1, Func<GameObject, bool>? skip = null)
+    public MapImage Render(IReadOnlyList<MapSprite> sprites, double scale = 1, Func<KnownObject, bool>? skip = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(scale);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(scale, 1);
@@ -64,14 +63,14 @@ public sealed class MapRenderer
         int undrawn = 0;
         foreach (var sprite in sprites)
         {
-            var obj = _objects.Find(sprite.Id);
-            if (obj is null || (skip?.Invoke(obj) ?? false))
+            if (!_objects.TryFind(sprite.Id, out var obj) || (skip?.Invoke(sprite.Id) ?? false))
             {
                 continue;
             }
 
-            var file = GetFile(obj.Path);
-            var frame = file is null ? null : GetFrame(obj, file.Value, obj.GetFrame(sprite.Dir, file.Value.FrameCount));
+            string path = _objects.GetPath(sprite.Id);
+            var file = GetFile(path);
+            var frame = file is null ? null : GetFrame(path, obj, file.Value, obj.GetFrame(sprite.Dir, file.Value.FrameCount));
             if (file is not null && frame is null)
             {
                 undrawn++;
@@ -111,17 +110,17 @@ public sealed class MapRenderer
         return path is not null && path.EndsWith(".vid", StringComparison.OrdinalIgnoreCase) ? new VidResource(File.ReadAllBytes(path)) : null;
     });
 
-    private SpriteFrame? GetFrame(GameObject obj, VidResource view, int index) =>
-        _frames.GetOrAdd(new FrameKey(obj.Path, obj.Tint, index), _ => DecodeFrame(obj, view, index));
+    private SpriteFrame? GetFrame(string path, GameObject obj, VidResource view, int index) =>
+        _frames.GetOrAdd(new FrameKey(path, obj.Tint, index), _ => DecodeFrame(path, obj, view, index));
 
-    private SpriteFrame? DecodeFrame(GameObject obj, VidResource view, int index)
+    private SpriteFrame? DecodeFrame(string path, GameObject obj, VidResource view, int index)
     {
         if (!view.HasPalette || view.Palette.Length < 1024 || index >= view.FrameCount)
         {
             return null;
         }
 
-        (var colors, byte[] alphas) = _palettes.GetOrAdd((obj.Path, obj.Tint), _ => ApplyTint(view.Palette, obj.Tint));
+        (var colors, byte[] alphas) = _palettes.GetOrAdd((path, obj.Tint), _ => ApplyTint(view.Palette, obj.Tint));
         var frame = view.GetFrame(index);
         int count = 0;
         foreach (var run in frame)
@@ -285,7 +284,7 @@ public sealed class MapRenderer
         private void Draw(Image<Rgb24> target, Placement p, SpriteFrame frame, (int X, int Y) origin, int y0, int y1, int[] depth)
         {
             int baseDepth = (int)(p.Sprite.Z * 8);
-            if ((p.Object.Flags & RaisedFlag) != 0 && baseDepth < RaisedDepth)
+            if (p.Object.Flags.HasFlag(ObjectFlags.Raised) && baseDepth < RaisedDepth)
             {
                 baseDepth += RaisedDepth;
             }

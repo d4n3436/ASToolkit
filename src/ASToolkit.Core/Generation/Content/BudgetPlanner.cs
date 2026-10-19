@@ -180,6 +180,6 @@ public static class BudgetPlanner
             return kept;
         }
 
-        int HitPoints(IEnumerable<KnownObject> monsters) => monsters.Sum(m => objects.Find(m)?.HitPoints ?? 0);
+        int HitPoints(IEnumerable<KnownObject> monsters) => monsters.Sum(m => objects.TryFind(m, out var obj) ? obj.HitPoints : 0);
     }
 }

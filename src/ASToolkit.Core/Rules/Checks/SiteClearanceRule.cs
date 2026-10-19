@@ -42,8 +42,7 @@ public sealed class SiteClearanceRule : ILevelRule
         var crowded = new List<string>();
         foreach (var sprite in context.Map.Sprites)
         {
-            var obj = context.Objects.Find(sprite.Id);
-            if (obj is null || !obj.IsSolid || !sprite.Id.IsDecor)
+            if (!context.Objects.TryFind(sprite.Id, out var obj) || !obj.IsSolid || !sprite.Id.IsDecor)
             {
                 continue;
             }

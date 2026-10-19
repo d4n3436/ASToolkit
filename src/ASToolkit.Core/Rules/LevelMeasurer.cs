@@ -24,18 +24,18 @@ public static class LevelMeasurer
         {
             if (KnownObject.Monsters.Contains(sprite.Id) || KnownObject.Bosses.Contains(sprite.Id))
             {
-                placed += objects.Find(sprite.Id)?.HitPoints ?? 0;
+                placed += objects.TryFind(sprite.Id, out var obj) ? obj.HitPoints : 0;
             }
             else if (sprite.Id == KnownObject.Spawner)
             {
                 var program = SpawnerProgram.Parse(sprite.Payload);
                 if (program is not null)
                 {
-                    spawned += program.Monsters.Sum(m => objects.Find(m)?.HitPoints ?? 0);
+                    spawned += program.Monsters.Sum(m => objects.TryFind(m, out var obj) ? obj.HitPoints : 0);
                 }
             }
 
-            if (sprite.Id.IsDecor && objects.Find(sprite.Id)?.IsBreakable == true)
+            if (sprite.Id.IsDecor && objects.TryFind(sprite.Id, out var decor) && decor.IsBreakable)
             {
                 breakables++;
             }

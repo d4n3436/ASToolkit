@@ -74,15 +74,14 @@ public static class Dresser
     /// </summary>
     public static HashSet<Cell> GetFootprint(Lattice lattice, ObjectTable objects, KnownObject id, double x, double y)
     {
-        var o = objects.Find(id);
         var cells = new HashSet<Cell>();
-        if (o is null || !o.IsSolid)
+        if (!objects.TryFind(id, out var obj) || !obj.IsSolid)
         {
             return cells;
         }
 
-        double hx = .33 * o.ExtentX + 14;
-        double hy = .33 * o.ExtentY + 14;
+        double hx = .33 * obj.ExtentX + 14;
+        double hy = .33 * obj.ExtentY + 14;
         foreach (double dx in new[] { -hx, 0, hx })
         {
             foreach (double dy in new[] { -hy, 0, hy })

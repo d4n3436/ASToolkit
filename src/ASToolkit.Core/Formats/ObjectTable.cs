@@ -1,4 +1,6 @@
 using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace ASToolkit.Core.Formats;
@@ -8,46 +10,57 @@ namespace ASToolkit.Core.Formats;
 /// </summary>
 public sealed class ObjectTable
 {
-    private const int BodySize = 688;
-    private readonly Dictionary<KnownObject, GameObject> _objects;
+    private static readonly int BodySize = Unsafe.SizeOf<GameObject>();
 
-    private ObjectTable(Dictionary<KnownObject, GameObject> objects)
+    private readonly Dictionary<KnownObject, Entry> _entries;
+
+    private ObjectTable(Dictionary<KnownObject, Entry> entries)
     {
-        _objects = objects;
+        _entries = entries;
     }
 
     /// <summary>
-    /// Gets every entry.
+    /// Gets the ID of every entry.
     /// </summary>
-    public IReadOnlyCollection<GameObject> All => _objects.Values;
+    public IReadOnlyCollection<KnownObject> Ids => _entries.Keys;
 
     /// <summary>
     /// Reads objects.res.
     /// </summary>
     public static ObjectTable Load(string path)
     {
-        var objects = new Dictionary<KnownObject, GameObject>();
+        var entries = new Dictionary<KnownObject, Entry>();
         foreach (ReadOnlySpan<byte> record in ResFile.Load(path).Chunks[0].Records)
         {
             var id = (KnownObject)BinaryPrimitives.ReadUInt32LittleEndian(record);
             int nameEnd = record[4..].IndexOf((byte)0) + 4;
-            var body = record.Slice(nameEnd + 1, BodySize);
             var spritePath = record[(nameEnd + 1 + BodySize)..^1];
-            objects[id] = new GameObject(id, GameTextEncoding.Cyrillic.GetString(record[4..nameEnd]), Encoding.Latin1.GetString(spritePath),
-                BinaryPrimitives.ReadUInt32LittleEndian(body[4..]), BinaryPrimitives.ReadUInt32LittleEndian(body[8..]),
-                BinaryPrimitives.ReadSingleLittleEndian(body[16..]), BinaryPrimitives.ReadSingleLittleEndian(body[20..]),
-                BinaryPrimitives.ReadSingleLittleEndian(body[24..]), BinaryPrimitives.ReadInt32LittleEndian(body[0x1c..]),
-                Math.Max(1, (int)BinaryPrimitives.ReadUInt32LittleEndian(body[112..])), (int)BinaryPrimitives.ReadUInt32LittleEndian(body[116..]))
-            {
-                Tint = (BinaryPrimitives.ReadInt32LittleEndian(body[0x294..]), BinaryPrimitives.ReadInt32LittleEndian(body[0x298..]), BinaryPrimitives.ReadInt32LittleEndian(body[0x29c..]))
-            };
+            entries[id] = new Entry(MemoryMarshal.Read<GameObject>(record[(nameEnd + 1)..]), GameTextEncoding.Cyrillic.GetString(record[4..nameEnd]),
+                Encoding.Latin1.GetString(spritePath));
         }
 
-        return new ObjectTable(objects);
+        return new ObjectTable(entries);
     }
 
     /// <summary>
-    /// Returns the entry for an ID, or null when the table has none.
+    /// Finds the entry for an ID, returning false when the table has none.
     /// </summary>
-    public GameObject? Find(KnownObject id) => _objects.GetValueOrDefault(id);
+    public bool TryFind(KnownObject id, out GameObject obj)
+    {
+        bool found = _entries.TryGetValue(id, out var entry);
+        obj = entry.Object;
+        return found;
+    }
+
+    /// <summary>
+    /// Returns the Russian name of an entry.
+    /// </summary>
+    public string GetName(KnownObject id) => _entries[id].Name;
+
+    /// <summary>
+    /// Returns the sprite file of an entry.
+    /// </summary>
+    public string GetPath(KnownObject id) => _entries[id].Path;
+
+    private readonly record struct Entry(GameObject Object, string Name, string Path);
 }

@@ -11,18 +11,18 @@ public class ObjectTableTests
         string game = TestGameFolder.RequireFolder();
         var table = ObjectTable.Load(Path.Combine(game, "objects.res"));
         var expected = FixtureReader.Read<List<ObjectRow>>("objects.json");
-        Assert.Equal(expected.Count, table.All.Count);
+        Assert.Equal(expected.Count, table.Ids.Count);
         foreach (var row in expected)
         {
-            var o = table.Find((KnownObject)row.Id);
-            Assert.NotNull(o);
-            Assert.Equal(row.Flags, o.Flags);
-            Assert.Equal(row.Type, o.Type);
-            Assert.Equal(row.Hp, o.HitPoints);
-            Assert.Equal(row.Path, o.Path);
-            Assert.Equal(row.Ext[0], o.ExtentX, 3);
-            Assert.Equal(row.Ext[1], o.ExtentY, 3);
-            Assert.Equal(row.Ext[2], o.ExtentZ, 3);
+            var id = (KnownObject)row.Id;
+            Assert.True(table.TryFind(id, out var obj));
+            Assert.Equal(row.Flags, (uint)obj.Flags);
+            Assert.Equal(row.Type, obj.Type);
+            Assert.Equal(row.Hp, obj.HitPoints);
+            Assert.Equal(row.Path, table.GetPath(id));
+            Assert.Equal(row.Ext[0], obj.ExtentX, 3);
+            Assert.Equal(row.Ext[1], obj.ExtentY, 3);
+            Assert.Equal(row.Ext[2], obj.ExtentZ, 3);
         }
     }
 

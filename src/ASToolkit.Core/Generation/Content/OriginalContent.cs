@@ -72,7 +72,7 @@ public sealed class OriginalContent
 
             if (KnownObject.Monsters.Contains(sprite.Id) || KnownObject.Bosses.Contains(sprite.Id))
             {
-                placedHp += objects.Find(sprite.Id)?.HitPoints ?? 0;
+                placedHp += objects.TryFind(sprite.Id, out var obj) ? obj.HitPoints : 0;
             }
 
             var program = sprite.Id == KnownObject.Spawner ? SpawnerProgram.Parse(sprite.Payload) : null;
@@ -82,7 +82,7 @@ public sealed class OriginalContent
                 if (monsters.Length > 0)
                 {
                     spawners.Add(monsters);
-                    spawnedHp += monsters.Sum(m => objects.Find(m)?.HitPoints ?? 0);
+                    spawnedHp += monsters.Sum(m => objects.TryFind(m, out var obj) ? obj.HitPoints : 0);
                 }
             }
         }

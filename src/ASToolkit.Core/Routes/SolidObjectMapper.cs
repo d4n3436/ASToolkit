@@ -17,14 +17,13 @@ public static class SolidObjectMapper
         var boxes = new List<CollisionBox>();
         foreach (var sprite in sprites)
         {
-            var o = objects.Find(sprite.Id);
-            if (o is null || !o.IsSolid || KnownObject.LabWalls.Contains(sprite.Id) || KnownObject.MilitaryWalls.Contains(sprite.Id) || KnownObject.Floors.Contains(sprite.Id))
+            if (!objects.TryFind(sprite.Id, out var obj) || !obj.IsSolid || KnownObject.LabWalls.Contains(sprite.Id) || KnownObject.MilitaryWalls.Contains(sprite.Id) || KnownObject.Floors.Contains(sprite.Id))
             {
                 continue;
             }
 
-            double hx = .33 * o.ExtentX + 14;
-            double hy = .33 * o.ExtentY + 14;
+            double hx = .33 * obj.ExtentX + 14;
+            double hy = .33 * obj.ExtentY + 14;
             boxes.Add(new CollisionBox(sprite.X - hx, sprite.X + hx, sprite.Y - hy, sprite.Y + hy));
         }
 

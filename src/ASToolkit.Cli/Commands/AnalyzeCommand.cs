@@ -69,7 +69,7 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
             if (renderer is not null)
             {
                 image = (settings.Levels is null ? "" : "gen_") + Path.ChangeExtension(maps[i], null).Replace('/', '_').Replace('\\', '_') + ".png";
-                using var rendered = renderer.Render(map.Sprites, settings.Scale, IsHidden);
+                using var rendered = renderer.Render(map.Sprites, settings.Scale, id => IsHidden(objects, id));
                 RouteOverlay.Draw(rendered, analysis, script);
                 rendered.Image.SaveAsPng(Path.Combine(settings.Out, image), PngOptions);
                 undrawn[i] = rendered.Undrawn;
@@ -120,8 +120,8 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
             : (Path.Combine(settings.Levels, map), Path.Combine(settings.Levels, script));
     }
 
-    private static bool IsHidden(GameObject obj) =>
-        obj.Name.Contains(HelperName, StringComparison.Ordinal) || obj.Path.StartsWith(EmptySpritePrefix, StringComparison.OrdinalIgnoreCase);
+    private static bool IsHidden(ObjectTable objects, KnownObject id) =>
+        objects.GetName(id).Contains(HelperName, StringComparison.Ordinal) || objects.GetPath(id).StartsWith(EmptySpritePrefix, StringComparison.OrdinalIgnoreCase);
 
     private static RouteReport ToReport(string map, bool generated, string? image, RouteAnalysis a)
     {

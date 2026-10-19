@@ -509,8 +509,7 @@ public static class ContentPlacer
     // Count crates, barrels, chairs and the bio-container too, even though they aren't solid
     private static bool IsCrowded(PlacementContext ctx, double x, double y) => ctx.Map.Sprites.Any(s =>
     {
-        var obj = ctx.Objects.Find(s.Id);
-        if (obj is null || s.Z >= ClutterHeight || obj is { IsSolid: false, ExtentZ: < StandingHeight } || !s.Id.IsDecor && s.Id != KnownObject.Crate)
+        if (!ctx.Objects.TryFind(s.Id, out var obj) || s.Z >= ClutterHeight || !obj.IsSolid && obj.ExtentZ < StandingHeight || !s.Id.IsDecor && s.Id != KnownObject.Crate)
         {
             return false;
         }
@@ -607,7 +606,7 @@ public static class ContentPlacer
     private static void PlacePlacedGroups(PlacementContext ctx, LevelBudget budget)
     {
         var groups = budget.PlacedGroups
-            .OrderBy(g => g.Sum(m => ctx.Objects.Find(m.Id)?.HitPoints ?? 0))
+            .OrderBy(g => g.Sum(m => ctx.Objects.TryFind(m.Id, out var obj) ? obj.HitPoints : 0))
             .ToArray();
         
         var rooms = ctx.Plan.Stations
@@ -729,7 +728,7 @@ public static class ContentPlacer
         (double X, double Y, Cell Cell)[] sites, PlanRegion? cannonHall)
     {
         var ambushes = budget.Ambushes
-            .OrderBy(a => a.Sum(m => ctx.Objects.Find(m)?.HitPoints ?? 0))
+            .OrderBy(a => a.Sum(m => ctx.Objects.TryFind(m, out var obj) ? obj.HitPoints : 0))
             .ToList();
         
         if (ambushes.Count == 0)

@@ -387,10 +387,10 @@ public static class LevelExtractor
                         continue;
                     }
 
-                    var o = objects.Find(t.Id);
-                    double ex = o?.ExtentX ?? 0;
-                    double ey = o?.ExtentY ?? 0;
-                    double ez = o?.ExtentZ ?? 0;
+                    objects.TryFind(t.Id, out var obj);
+                    double ex = obj.ExtentX;
+                    double ey = obj.ExtentY;
+                    double ez = obj.ExtentZ;
                     if (ez < 5 || Math.Abs(t.X - s.X) > ex + 6 || Math.Abs(t.Y - s.Y) > ey + 6)
                     {
                         continue;

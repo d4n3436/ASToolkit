@@ -237,8 +237,7 @@ public sealed class PlacementContext
     /// </summary>
     public void AddWallBox(double x, double y, KnownObject id)
     {
-        var o = Objects.Find(id);
-        if (o is null)
+        if (!Objects.TryFind(id, out var obj))
         {
             return;
         }
@@ -250,7 +249,7 @@ public sealed class PlacementContext
             _wallBoxes[bucket] = list;
         }
 
-        list.Add((x, y, o.ExtentX, o.ExtentY));
+        list.Add((x, y, obj.ExtentX, obj.ExtentY));
     }
 
     private bool IsInside(Cell c, int region)

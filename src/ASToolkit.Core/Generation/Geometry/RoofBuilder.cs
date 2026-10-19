@@ -596,7 +596,7 @@ public static class RoofBuilder
             var frame = s.Frame;
             int left = s.Left - _offset;
             int baseDepth = (int)(s.Sprite.Z * 8);
-            if ((s.Object.Flags & 0x8000) != 0 && baseDepth < 0x3fff)
+            if (s.Object.Flags.HasFlag(ObjectFlags.Raised) && baseDepth < 0x3fff)
             {
                 baseDepth += 0x3fff;
             }

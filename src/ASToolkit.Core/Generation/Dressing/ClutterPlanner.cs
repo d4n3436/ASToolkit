@@ -27,17 +27,16 @@ public static class ClutterPlanner
         var breakable = new Dictionary<KnownObject, int>();
         foreach (var sprite in original.Sprites)
         {
-            var o = objects.Find(sprite.Id);
-            if (o is null || !sprite.Id.IsDecor || NotFreestanding.Contains(sprite.Id) || sprite.Z > 2)
+            if (!objects.TryFind(sprite.Id, out var obj) || !sprite.Id.IsDecor || NotFreestanding.Contains(sprite.Id) || sprite.Z > 2)
             {
                 continue;
             }
 
-            if (o.IsSolid)
+            if (obj.IsSolid)
             {
                 solid[sprite.Id] = solid.GetValueOrDefault(sprite.Id) + 1;
             }
-            else if (o.IsBreakable)
+            else if (obj.IsBreakable)
             {
                 breakable[sprite.Id] = breakable.GetValueOrDefault(sprite.Id) + 1;
             }
@@ -139,7 +138,7 @@ public static class ClutterPlanner
             blockedFine.UnionWith(SolidObjectMapper.FindBlockedCells(fine, fineCells, SolidObjectMapper.GetCollisionBoxes(rowSprites, objects)));
         }
 
-        int present = result.Count(o => objects.Find(o.Id)?.IsBreakable == true);
+        int present = result.Count(o => objects.TryFind(o.Id, out var obj) && obj.IsBreakable);
         for (int attempt = 0; attempt < 400 && breakablePalette.Count > 0 && present < breakables; attempt++)
         {
             var id = Pick(rng, breakablePalette);
@@ -207,8 +206,7 @@ public static class ClutterPlanner
             (du, dv) = (-du, -dv);
         }
 
-        var o = objects.Find(id);
-        int stride = o is not null && Math.Max(o.ExtentX, o.ExtentY) > lattice.StepX ? 2 : 1;
+        int stride = objects.TryFind(id, out var obj) && Math.Max(obj.ExtentX, obj.ExtentY) > lattice.StepX ? 2 : 1;
         double low = clearance.TryGetClearance(id, out _, out double l) ? l : 0;
         double offset = Math.Max(0.5, low + ClearanceMargin);
         double across = wall.Axis == 'v'

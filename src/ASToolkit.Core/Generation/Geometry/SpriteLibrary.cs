@@ -26,13 +26,12 @@ public sealed class SpriteLibrary
     /// </summary>
     public (GameObject Object, VidResource View)? Find(KnownObject id)
     {
-        var obj = _objects.Find(id);
-        if (obj is null)
+        if (!_objects.TryFind(id, out var obj))
         {
             return null;
         }
 
-        var file = _files.GetOrAdd(obj.Path, relative =>
+        var file = _files.GetOrAdd(_objects.GetPath(id), relative =>
         {
             string? path = GamePath.Resolve(_gameFolder, relative);
             return path is not null && path.EndsWith(".vid", StringComparison.OrdinalIgnoreCase) ? new VidResource(File.ReadAllBytes(path)) : null;

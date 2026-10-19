@@ -129,6 +129,8 @@ Object flags.
  0x01000000   starts its animation on frame 0 instead of a random frame
 ```
 
+The entries set 16 other bits whose meaning is not known, and `ObjectFlags` leaves them unnamed.
+
 The tint changes the palette of the sprite. A negative value scales the channel to `(256 + t) / 256` of itself and a positive value adds `t`. Yellow and red monsters, and the blue survival bosses, are the same sprite with different tints.
 
 Ids that matter are named in `KnownObject` in the source (for example 9 is the player start, 419 a crate and 705 a menu button).
