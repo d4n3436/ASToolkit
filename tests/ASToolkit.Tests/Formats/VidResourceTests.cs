@@ -6,7 +6,7 @@ namespace ASToolkit.Tests.Formats;
 public class VidResourceTests
 {
     // Run-length sprites; the rest are textures, lights and additive sprites
-    private const VidFlags RunLengthRequired = VidFlags.Unknown01 | VidFlags.CurrentVersion;
+    private const VidFlags RunLengthRequired = VidFlags.Runs8Bit | VidFlags.CurrentVersion;
     private const VidFlags RunLengthOptional = VidFlags.Blended | VidFlags.Depth | VidFlags.Palette;
 
     [Fact]

@@ -116,20 +116,44 @@ Known fields of the body, counted from its first byte.
       +112   u32   direction count (at least 1)
       +116   u32   frames per direction in the first animation
       +0x294 i32 x3   color tint: red, green, blue
+      +0x2A4 f32 x3   per-channel brightness multiplier (R, G, B); 1.0 by default, mostly used by fx and ui objects
 ```
 
-Object flags.
+Both are consumed by the engine. The tint is packed and applied to the palette when the sprite is loaded (negative values scale a channel down, positive ones add to it).
+
+The brightness is kept per object and applied at draw time. Each channel is scaled by the level's light attenuation tables for the object's position and passed to the sprite blit as a three-component color modulation. Sprites with per-pixel depth and surfaces get the brightness reset to 1.0.
+
+Object flags. The first group is set in objects.res; the rest are set by the engine at run time and never appear in the file.
 
 ```
+ 0x00000001   effect: pure fx (smoke, sparks, blood, casings) with no collision
+ 0x00000002   flying: ballistic trajectory, frames advance with the velocity
+ 0x00000004   (runtime) the object has a velocity
+ 0x00000010   the animation loops; without it the object stops on its last frame
  0x00000020   solid, blocks movement
  0x00000040   breakable, blocks until shot
+ 0x00000080   stream: plays while it is alive (flame, gun smoke)
+ 0x00000200   entity: a living being; not every monster has it (e.g. bat, diver)
+ 0x00000800   unique instance, not deduplicated with objects of the same id
+ 0x00001000   (runtime) the object moves, the animation follows its speed
+ 0x00002000   ephemeral, lives for a short time
  0x00008000   drawn over everything below it (items)
  0x00010000   bobs up and down
  0x00020000   visibility depends on the level (only object 631)
+ 0x00040000   death animation: freezes on the death frame when killed
+ 0x00080000   (runtime) the sprite direction comes from the object's facing
+ 0x00100000   (runtime)
+ 0x00200000   energy projectile (plasma, lightning, acid)
+ 0x00400000   affected by gravity
+ 0x00800000   emits light; the sprite is a 2 x 2 omni-light
  0x01000000   starts its animation on frame 0 instead of a random frame
+ 0x02000000   (runtime)
+ 0x04000000   explosive: explodes when destroyed or on impact
+ 0x08000000   rocket: flies homing toward its target
+ 0x10000000   debris
+ 0x40000000   ground decal: drawn on the ground layer (blood, craters, floor tiles)
+ 0x80000000   projectile: does not collide with other projectiles
 ```
-
-The entries set 16 other bits whose meaning is not known, and `ObjectFlags` leaves them unnamed.
 
 The tint changes the palette of the sprite. A negative value scales the channel to `(256 + t) / 256` of itself and a positive value adds `t`. Yellow and red monsters, and the blue survival bosses, are the same sprite with different tints.
 
@@ -233,6 +257,7 @@ Kind `VID `. A sprite is a set of frames, laid out as animations and facings.
  | PAL  | 1,024 bytes, 256 entries of B G R X         |
  | DATA | one record per frame                        |
  | SURF | (texture sprites) the surfaces              |
+ | CADR | (a few sprites) the cached surfaces         |
  +------+---------------------------------------------+
 
  HEAD
@@ -246,16 +271,17 @@ Kind `VID `. A sprite is a set of frames, laid out as animations and facings.
 Flags. A sprite kind is a combination of them, and the values quoted in this section are such combinations.
 
 ```
- 0x01   unknown; on every sprite with frames except 0x36 and 0xB0
+ 0x01   frame records are runs of 8-bit values; sprites without it (0x36) use 16-bit runs
  0x02   blends with what lies under it, using the alpha of the palette
  0x04   per-pixel depth values
  0x08   palette
  0x10   current format version
- 0x20   unknown; on every sprite with a SURF chunk, and on 0x36 and 0xB0
- 0x40   unknown; only on 0x53, which has a CADR chunk
- 0x80   unknown; only on 0xB0
+ 0x20   has a SURF chunk with 32-bit surfaces
+ 0x40   has a CADR chunk with cached surface data (a few sprites only)
+ 0x80   omni-light: a 2 x 2 sprite whose frames are BGRA colors (only 0xB0)
  0x100  surfaces are range coded
  0x800  DXT compressed surfaces
+ 0x1000 extended format, loaded with a larger sprite class; not set on any sprite of the game
 ```
 
 The animation of an object is a table of start frames and frame counts. Frame `n` of facing `f` in animation `a` is `start(a) + f * count(a) + n`.
@@ -294,6 +320,10 @@ Other flag combinations in use:
  0x11   (UI sprites) plain RGB565, no palette
  0xB0   omni-lights, 2 x 2 header, frames of BGRA colors; created by effects, never placed
 ```
+
+### Cached sprites
+
+A few sprites (the acid explosion among them) hold their decoded frames in a `CADR` chunk instead of `DATA`: one record per frame, a 12-byte header (a zero, then u16 x, y, w and h of the frame's region) followed by the region's pixel data. A frame that repeats an earlier one carries an empty payload.
 
 A path ending in `.bmp` or `.tga` instead of `.vid` is loaded directly, with black as the color key.
 

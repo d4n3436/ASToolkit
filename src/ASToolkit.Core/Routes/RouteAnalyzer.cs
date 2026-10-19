@@ -610,7 +610,7 @@ public static class RouteAnalyzer
             foreach (var sprite in _model.Sprites)
             {
                 var i = sprite.Id;
-                if (KnownObject.Monsters.Contains(i) || i is KnownObject.Bat or KnownObject.Diver)
+                if (KnownObject.ObjectiveMonsters.Contains(i))
                 {
                     Add(ElementKind.Monster, sprite);
                 }

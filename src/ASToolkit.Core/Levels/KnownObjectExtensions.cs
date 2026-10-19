@@ -18,6 +18,8 @@ public static class KnownObjectExtensions
 
     private static readonly FrozenSet<KnownObject> BossesSet = new[] { Boss1, Boss2, Boss3, Boss4, TankBoss, RedTankWeaponBoss, PowerfulBoss3, Bat, Diver, DiverBoss, FinalMonster }.ToFrozenSet();
 
+    private static readonly FrozenSet<KnownObject> ObjectiveMonstersSet = MonstersSet.Append(Bat).Append(Diver).ToFrozenSet();
+
     private static readonly FrozenSet<KnownObject> FloorsSet = new[] { BasementFloor, Earth, BasementFloorAlt, MilitaryFloor, Grass, VolumetricGrass, FlatGrass }.ToFrozenSet();
 
     private static readonly FrozenSet<KnownObject> LabSlashSet = new[]
@@ -55,6 +57,9 @@ public static class KnownObjectExtensions
         /// <summary>Gets the IDs of the ordinary monsters.</summary>
         public static FrozenSet<KnownObject> Monsters => MonstersSet;
 
+        /// <summary>Gets the IDs of the monsters that can be a level's first objective: the ordinary monsters plus the bat and the diver.</summary>
+        public static FrozenSet<KnownObject> ObjectiveMonsters => ObjectiveMonstersSet;
+
         /// <summary>Gets the IDs of the bosses and special monsters.</summary>
         public static FrozenSet<KnownObject> Bosses => BossesSet;
 
@@ -75,9 +80,6 @@ public static class KnownObjectExtensions
 
         /// <summary>Gets the IDs of every military wall piece.</summary>
         public static FrozenSet<KnownObject> MilitaryWalls => MilitaryWallsSet;
-
-        /// <summary>Gets the IDs of the objects with a gameplay role.</summary>
-        public static FrozenSet<KnownObject> Gameplay => GameplaySet;
 
         /// <summary>
         /// Returns the ID of the pickup inside a crate payload, or 0 for an empty crate.

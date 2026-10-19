@@ -75,6 +75,24 @@ public readonly struct GameObject
     public readonly int TintBlue;
 
     /// <summary>
+    /// The multiplier of the red component of the sprite's brightness.
+    /// </summary>
+    [FieldOffset(0x2A4)]
+    public readonly float BrightnessRed;
+
+    /// <summary>
+    /// The multiplier of the green component of the sprite's brightness.
+    /// </summary>
+    [FieldOffset(0x2A8)]
+    public readonly float BrightnessGreen;
+
+    /// <summary>
+    /// The multiplier of the blue component of the sprite's brightness.
+    /// </summary>
+    [FieldOffset(0x2AC)]
+    public readonly float BrightnessBlue;
+
+    /// <summary>
     /// Gets the color shift applied to the sprite's palette per channel; a negative value darkens and a positive one adds.
     /// </summary>
     public (int R, int G, int B) Tint => (TintRed, TintGreen, TintBlue);

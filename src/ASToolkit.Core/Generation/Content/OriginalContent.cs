@@ -157,7 +157,7 @@ public sealed class OriginalContent
 
     private static IReadOnlyList<GroupMember>[] ClusterMonsters(List<MergedMapSprite> sp)
     {
-        var monsters = sp.Where(s => KnownObject.Monsters.Contains(s.Id) || s.Id is KnownObject.Bat or KnownObject.Diver).ToArray();
+        var monsters = sp.Where(s => KnownObject.ObjectiveMonsters.Contains(s.Id)).ToArray();
         bool[] seen = new bool[monsters.Length];
         var groups = new List<IReadOnlyList<GroupMember>>();
         for (int monsterIndex = 0; monsterIndex < monsters.Length; monsterIndex++)

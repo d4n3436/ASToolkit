@@ -12,9 +12,9 @@ public enum VidFlags : ushort
     None = 0,
 
     /// <summary>
-    /// Unknown. Seen on every sprite with frames except those with the flags 0x36 and 0xB0.
+    /// The frame records are runs of 8-bit values (palette indices and 8-bit depth). Sprites without the flag, such as the ones with 0x36, use 16-bit runs.
     /// </summary>
-    Unknown01 = 1 << 0,
+    Runs8Bit = 1 << 0,
 
     /// <summary>
     /// The sprite blends with what lies under it using the alpha byte of the palette instead of covering it.
@@ -37,19 +37,19 @@ public enum VidFlags : ushort
     CurrentVersion = 1 << 4,
 
     /// <summary>
-    /// Unknown. Seen on every sprite with surfaces and on those with the flags 0x36 and 0xB0.
+    /// The sprite has a SURF chunk with 32-bit surfaces.
     /// </summary>
-    Unknown20 = 1 << 5,
+    Surface = 1 << 5,
 
     /// <summary>
-    /// Unknown. Only seen on the sprite with the flags 0x53.
+    /// The sprite has a CADR chunk with cached surface data instead of frames.
     /// </summary>
-    Unknown40 = 1 << 6,
+    Cadr = 1 << 6,
 
     /// <summary>
-    /// Unknown. Only seen on the omni-lights, which have the flags 0xB0.
+    /// The sprite is an omni-light: a 2 x 2 sprite whose frames are BGRA colors.
     /// </summary>
-    Unknown80 = 1 << 7,
+    OmniLight = 1 << 7,
 
     /// <summary>
     /// The surfaces are range coded.
@@ -59,5 +59,10 @@ public enum VidFlags : ushort
     /// <summary>
     /// The surfaces are DXT compressed.
     /// </summary>
-    Dxt = 1 << 11
+    Dxt = 1 << 11,
+
+    /// <summary>
+    /// The sprite uses an extended format; the engine loads it with a larger sprite class. Not set on any sprite of the game.
+    /// </summary>
+    Extended = 1 << 12
 }
