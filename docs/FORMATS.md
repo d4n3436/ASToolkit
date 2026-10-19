@@ -164,11 +164,11 @@ Kind `MAP `. A level is a list of sprites placed in a world, plus the small chun
 `SPR ` has one record. It is an array of 28-byte entries closed by `0xFFFFFFFF`.
 
 ```
- 0        4     8   12   16   20    21   24      28
- +--------+-----+---+----+----+-----+----+-------+
- | handle | id  | x | y  | z  | dir | .. | 0     |
- | u32    | u32 |f32|f32 |f32 | u8  |pad | u32   |
- +--------+-----+---+----+----+-----+----+-------+
+ 0        4     8   12   16   20    21   24     28
+ +--------+-----+---+----+----+-----+----+------+
+ | handle | id  | x | y  | z  | dir | .. | army |
+ | u32    | u32 |f32|f32 |f32 | u8  |pad | u32  |
+ +--------+-----+---+----+----+-----+----+------+
           object id
           from objects.res
 ```
