@@ -283,6 +283,7 @@ public sealed class MapRenderer
             int flat = Math.Min(baseDepth + FlatDepth, MaxFlatDepth);
             bool standing = p.Object.ExtentY < p.Object.ExtentZ;
             (short[] xs, byte[] indices, ushort[] depths, var colors, byte[] alphas) = (frame.Xs, frame.Indices, frame.Depths, frame.Colors, frame.Alphas);
+            bool hasDepths = depths.Length > 0;
             int firstRow = Math.Clamp(y0 - origin.Y - frame.Top, 0, frame.Rows);
             int lastRow = Math.Clamp(y1 - origin.Y - frame.Top, 0, frame.Rows);
             for (int row = firstRow; row < lastRow; row++)
@@ -299,7 +300,7 @@ public sealed class MapRenderer
                         continue;
                     }
 
-                    int d = depths is not null ? baseDepth + depths[index] : rowDepth;
+                    int d = hasDepths ? baseDepth + depths[index] : rowDepth;
                     int k = depthRow + x;
                     if (frame.IsBlended)
                     {
@@ -311,7 +312,7 @@ public sealed class MapRenderer
                             under = new Rgb24(Blend(color.R, under.R, a), Blend(color.G, under.G, a), Blend(color.B, under.B, a));
                         }
                     }
-                    else if (depths is null ? depth[k] <= d : depth[k] < d)
+                    else if (!hasDepths ? depth[k] <= d : depth[k] < d)
                     {
                         pixels[x] = colors[indices[index]];
                         depth[k] = d;
