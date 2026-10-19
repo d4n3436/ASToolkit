@@ -235,19 +235,23 @@ Kind `VID `. A sprite is a set of frames, laid out as animations and facings.
 
  HEAD
  +------+-------+--------+-------+--------+
- | type | speed | frames | width | height |
+ |flags | speed | frames | width | height |
  | u16  | u16   | u16    | u16   | u16    |
  +------+-------+--------+-------+--------+
           ms per frame
 ```
 
-Type bits.
+Flags. A sprite kind is a combination of them, and the values quoted in this section are such combinations.
 
 ```
- 0x01   texture sprite (SURF atlas)
+ 0x01   unknown; on every sprite with frames except 0x36 and 0xB0
+ 0x02   blends with what lies under it, using the alpha of the palette
  0x04   per-pixel depth values
  0x08   palette
  0x10   current format version
+ 0x20   unknown; on every sprite with a SURF chunk, and on 0x36 and 0xB0
+ 0x40   unknown; only on 0x53, which has a CADR chunk
+ 0x80   unknown; only on 0xB0
  0x100  surfaces are range coded
  0x800  DXT compressed surfaces
 ```
@@ -256,7 +260,7 @@ The animation of an object is a table of start frames and frame counts. Frame `n
 
 ### Software sprites
 
-Types 0x11, 0x19, 0x1B and 0x1D hold paletted pixels in runs, one `DATA` record per frame.
+Sprites with 0x01 and 0x10 set and 0x20, 0x40 and 0x80 clear hold their pixels in runs, one `DATA` record per frame. The game has 0x11, 0x19 (0x08), 0x1B (0x08 and 0x02) and 0x1D (0x08 and 0x04). All but 0x11 are paletted.
 
 ```
  record: u32 length
@@ -267,7 +271,7 @@ Types 0x11, 0x19, 0x1B and 0x1D hold paletted pixels in runs, one `DATA` record 
            00 00                       end of row
 ```
 
-The z values are present only when the type has bit 0x04. A record of two bytes is an alias of an earlier frame.
+The z values are present only when the flags have 0x04. A record of two bytes is an alias of an earlier frame.
 
 ### Texture sprites
 
@@ -281,7 +285,7 @@ The z values are present only when the type has bit 0x04. A record of two bytes 
 
 Surfaces are ARGB4444. With bit 0x100 they are compressed by a carry-less range coder with an order-1 model of 257 symbols. A file with several surfaces shares the coder models across them.
 
-Other types in use.
+Other flag combinations in use:
 
 ```
  0x36   runs of u16 z + u16 ARGB4444; alpha is always 0 and means additive blending
@@ -369,4 +373,4 @@ The engine draws every sprite into a 16-bit z-buffer, so file order does not mat
                   flag 0x8000 adds 0x3FFF            items stay visible
 ```
 
-A pixel is written where the buffer is at or below its depth (strictly below for sprites with depth data). Sprites of type 0x02 blend with the alpha byte of the palette and do not write depth.
+A pixel is written where the buffer is at or below its depth (strictly below for sprites with depth data). Sprites with the flag 0x02 blend with the alpha byte of the palette and do not write depth.

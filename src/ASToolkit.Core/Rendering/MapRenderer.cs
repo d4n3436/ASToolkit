@@ -34,7 +34,7 @@ public sealed class MapRenderer
 
     private readonly string _gameFolder;
     private readonly ObjectTable _objects;
-    private readonly ConcurrentDictionary<string, VidFile?> _files = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, VidResource?> _files = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<FrameKey, SpriteFrame?> _frames = new();
     private readonly ConcurrentDictionary<(string Path, (int R, int G, int B) Tint), (Rgb24[] Colors, byte[] Alphas)> _palettes = new();
 
@@ -71,13 +71,13 @@ public sealed class MapRenderer
             }
 
             var file = GetFile(obj.Path);
-            var frame = file is null ? null : GetFrame(obj, file, obj.GetFrame(sprite.Dir, file.FrameCount));
+            var frame = file is null ? null : GetFrame(obj, file.Value, obj.GetFrame(sprite.Dir, file.Value.FrameCount));
             if (file is not null && frame is null)
             {
                 undrawn++;
             }
 
-            (int w, int h) = file is null ? (MissingSize, MissingSize) : (file.Width, file.Height);
+            (int w, int h) = file is null ? (MissingSize, MissingSize) : (file.Value.Width, file.Value.Height);
             placed.Add(new Placement(sprite, obj, frame, sprite.X - w / 2.0, sprite.Y - sprite.Z - h / 2.0, w, h));
         }
 
@@ -105,54 +105,63 @@ public sealed class MapRenderer
         return configuration;
     }
 
-    private VidFile? GetFile(string relative) => _files.GetOrAdd(relative, r =>
+    private VidResource? GetFile(string relative) => _files.GetOrAdd(relative, r =>
     {
         string? path = GamePath.Resolve(_gameFolder, r);
-        return path is not null && path.EndsWith(".vid", StringComparison.OrdinalIgnoreCase) ? VidFile.Load(path) : null;
+        return path is not null && path.EndsWith(".vid", StringComparison.OrdinalIgnoreCase) ? new VidResource(File.ReadAllBytes(path)) : null;
     });
 
-    private SpriteFrame? GetFrame(GameObject obj, VidFile file, int index) =>
-        _frames.GetOrAdd(new FrameKey(obj.Path, obj.Tint, index), _ => DecodeFrame(obj, file, index));
+    private SpriteFrame? GetFrame(GameObject obj, VidResource view, int index) =>
+        _frames.GetOrAdd(new FrameKey(obj.Path, obj.Tint, index), _ => DecodeFrame(obj, view, index));
 
-    private SpriteFrame? DecodeFrame(GameObject obj, VidFile file, int index)
+    private SpriteFrame? DecodeFrame(GameObject obj, VidResource view, int index)
     {
-        if (!file.HasPalette || file.Palette is not { Length: >= 1024 } palette || index >= file.FrameCount)
+        if (!view.HasPalette || view.Palette.Length < 1024 || index >= view.FrameCount)
         {
             return null;
         }
 
-        (var colors, byte[] alphas) = _palettes.GetOrAdd((obj.Path, obj.Tint), _ => ApplyTint(palette, obj.Tint));
-        (var frame, ushort[] indices) = file.DecodeColors(index);
-        int count = frame.Xs.Length;
+        (var colors, byte[] alphas) = _palettes.GetOrAdd((obj.Path, obj.Tint), _ => ApplyTint(view.Palette, obj.Tint));
+        var frame = view.GetFrame(index);
+        int count = 0;
+        foreach (var run in frame)
+        {
+            count += run.Count;
+        }
+
         var result = new SpriteFrame
         {
             Xs = new short[count],
             Indices = new byte[count],
-            Depths = file.HasDepth ? new ushort[count] : [],
+            Depths = view.HasDepth ? new ushort[count] : [],
             Colors = colors,
             Alphas = alphas,
             Top = frame.Top,
-            Rows = frame.Rows,
-            RowStarts = new int[frame.Rows + 1],
-            IsBlended = file.IsBlended
+            Rows = frame.RowCount,
+            RowStarts = new int[frame.RowCount + 1],
+            IsBlended = view.IsBlended
         };
         int row = 0;
-        for (int pixelIndex = 0; pixelIndex < count; pixelIndex++)
+        int pixelIndex = 0;
+        foreach (var run in frame)
         {
-            while (frame.Ys[pixelIndex] - frame.Top >= row)
+            while (run.Y - frame.Top >= row)
             {
                 result.RowStarts[row++] = pixelIndex;
             }
 
-            result.Xs[pixelIndex] = (short)frame.Xs[pixelIndex];
-            result.Indices[pixelIndex] = (byte)indices[pixelIndex];
-            if (result.Depths.Length > 0)
+            for (int runIndex = 0; runIndex < run.Count; runIndex++, pixelIndex++)
             {
-                result.Depths[pixelIndex] = (ushort)frame.Depths[pixelIndex];
+                result.Xs[pixelIndex] = (short)(run.X + runIndex);
+                result.Indices[pixelIndex] = (byte)run.GetColor(runIndex);
+                if (result.Depths.Length > 0)
+                {
+                    result.Depths[pixelIndex] = run.GetDepth(runIndex);
+                }
             }
         }
 
-        while (row <= frame.Rows)
+        while (row <= frame.RowCount)
         {
             result.RowStarts[row++] = count;
         }
@@ -161,14 +170,15 @@ public sealed class MapRenderer
     }
 
     // Negative tints scale a channel down and positive ones add to it
-    private static (Rgb24[] Colors, byte[] Alphas) ApplyTint(byte[] palette, (int R, int G, int B) tint)
+    private static (Rgb24[] Colors, byte[] Alphas) ApplyTint(ReadOnlyMemory<byte> palette, (int R, int G, int B) tint)
     {
         var colors = new Rgb24[256];
         byte[] alphas = new byte[256];
+        var entries = palette.Span;
         for (int index = 0; index < 256; index++)
         {
-            colors[index] = new Rgb24(Shift(palette[4 * index + 2], tint.R), Shift(palette[4 * index + 1], tint.G), Shift(palette[4 * index], tint.B));
-            alphas[index] = palette[4 * index + 3];
+            colors[index] = new Rgb24(Shift(entries[4 * index + 2], tint.R), Shift(entries[4 * index + 1], tint.G), Shift(entries[4 * index], tint.B));
+            alphas[index] = entries[4 * index + 3];
         }
 
         return (colors, alphas);

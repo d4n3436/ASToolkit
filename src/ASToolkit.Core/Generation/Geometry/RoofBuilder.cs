@@ -42,7 +42,7 @@ public static class RoofBuilder
     public static int Build(Random rng, MapBuilder map, Lattice lattice, IReadOnlySet<Cell> shown, IReadOnlySet<Cell> closets, LevelTheme theme, SpriteLibrary sprites)
     {
         var earth = sprites.Find(KnownObject.Earth) ?? throw new InvalidDataException("The earth sprite 501 is missing.");
-        var tile = new TileMask(earth.File.GetFrame(0), earth.File.Width, earth.File.Height);
+        var tile = new TileMask(earth.View.GetFrame(0), earth.View.Width, earth.View.Height);
         var floors = map.Sprites
             .Where(s => IsFloor(s.Id) && s.Z >= 0)
             .ToArray();
@@ -221,7 +221,7 @@ public static class RoofBuilder
 
     private readonly record struct Strip(int X, int Width);
 
-    private sealed record StructureSprite(MapSprite Sprite, GameObject Object, VidFile File, VidFrame Frame, byte Kind, int Left, int Top);
+    private sealed record StructureSprite(MapSprite Sprite, GameObject Object, VidResource View, VidFrame Frame, byte Kind, int Left, int Top);
 
     private sealed class TileMask
     {
@@ -230,15 +230,21 @@ public static class RoofBuilder
             int left = (int)Math.Round(-width / 2.0);
             int top = (int)Math.Round(-height / 2.0);
             
-            var rows = frame.Xs
-                .Zip(frame.Ys)
-                .GroupBy(p => p.Second)
-                .OrderBy(g => g.Key)
-                .ToArray();
-            
-            Rows = rows
-                .Select(g => (g.Key + top, g.Min(p => p.First) + left, g.Max(p => p.First) + left))
-                .ToArray();
+            var rows = new List<(int Dy, int X0, int X1)>();
+            foreach (var run in frame)
+            {
+                int last = run.X + run.Count - 1 + left;
+                if (rows.Count > 0 && rows[^1].Dy == run.Y + top)
+                {
+                    rows[^1] = (rows[^1].Dy, rows[^1].X0, last);
+                }
+                else
+                {
+                    rows.Add((run.Y + top, run.X + left, last));
+                }
+            }
+
+            Rows = rows.ToArray();
             
             Inner = Rows
                 .Skip(Seam)
@@ -450,7 +456,7 @@ public static class RoofBuilder
         {
             foreach (var sprite in structure)
             {
-                if (sprite.Left + sprite.File.Width >= _offset && sprite.Left < _offset + _width)
+                if (sprite.Left + sprite.View.Width >= _offset && sprite.Left < _offset + _width)
                 {
                     Draw(sprite);
                 }
@@ -595,24 +601,33 @@ public static class RoofBuilder
                 baseDepth += 0x3fff;
             }
 
-            bool hasDepth = s.File.HasDepth;
+            bool hasDepth = s.View.HasDepth;
             bool standing = s.Object.ExtentY < s.Object.ExtentZ;
             int flat = Math.Min(baseDepth + 0x400, 0x7fff);
-            for (int pixelIndex = 0; pixelIndex < frame.Xs.Length; pixelIndex++)
+            foreach (var run in frame)
             {
-                int x = left + frame.Xs[pixelIndex];
-                int y = s.Top + frame.Ys[pixelIndex];
-                if (x < 0 || y < 0 || x >= _width || y >= _height)
+                int y = s.Top + run.Y;
+                if (y < 0 || y >= _height)
                 {
                     continue;
                 }
 
-                int depth = hasDepth ? baseDepth + frame.Depths[pixelIndex] : standing ? flat + (frame.Rows - (frame.Ys[pixelIndex] - frame.Top)) * 8 : flat;
-                int p = y * _width + x;
-                if (hasDepth ? _depth[p] < depth : _depth[p] <= depth)
+                int rowDepth = standing ? flat + (frame.RowCount - (run.Y - frame.Top)) * 8 : flat;
+                for (int pixelIndex = 0; pixelIndex < run.Count; pixelIndex++)
                 {
-                    _depth[p] = (short)depth;
-                    _flags[p] = s.Kind;
+                    int x = left + run.X + pixelIndex;
+                    if (x < 0 || x >= _width)
+                    {
+                        continue;
+                    }
+
+                    int depth = hasDepth ? baseDepth + run.GetDepth(pixelIndex) : rowDepth;
+                    int p = y * _width + x;
+                    if (hasDepth ? _depth[p] < depth : _depth[p] <= depth)
+                    {
+                        _depth[p] = (short)depth;
+                        _flags[p] = s.Kind;
+                    }
                 }
             }
         }
