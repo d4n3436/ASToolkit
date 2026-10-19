@@ -41,7 +41,7 @@ public sealed class LevelModel
     /// <summary>
     /// Gets every placed object of the map.
     /// </summary>
-    public required IReadOnlyList<MapSprite> Sprites { get; init; }
+    public required IReadOnlyList<MergedMapSprite> Sprites { get; init; }
 
     /// <summary>
     /// Returns the share of the floor's bounding box that is floor.

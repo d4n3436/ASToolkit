@@ -19,7 +19,7 @@ public class RuleSetTests
         {
             string name = ReferenceLevelSet.GetCampaignName(level);
             var (analysis, _) = references.GetLevel(name);
-            var map = GameMap.Load(Path.Combine(game, "Maps", name));
+            var map = MapResourceBuilder.Load(Path.Combine(game, "Maps", name));
             var script = LevelScriptReader.Read(Path.Combine(game, "Maps", Path.ChangeExtension(name, ".lgc")));
             foreach (var result in RuleSet.Default.Evaluate(RuleContext.Create(map, script, analysis, objects, references.GetTarget(level))))
             {

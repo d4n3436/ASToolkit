@@ -21,7 +21,7 @@ public sealed class GeneratedLevel
     /// <summary>
     /// Gets or sets the map.
     /// </summary>
-    public required GameMap Map { get; set; }
+    public required MapResourceBuilder Map { get; set; }
 
     /// <summary>
     /// Gets the builder that holds the map's objects.

@@ -55,7 +55,7 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
                 return;
             }
 
-            var map = GameMap.Load(mapPath);
+            var map = MapResourceBuilder.Load(mapPath);
             noScript[i] = !File.Exists(scriptPath);
             var script = LevelScriptReader.Read(scriptPath);
             var analysis = RouteAnalyzer.Analyze(maps[i], map, script, objects);

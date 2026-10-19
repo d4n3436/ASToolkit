@@ -63,11 +63,11 @@ public sealed class ReferenceLevelSet
             .Concat(AddOn2)
             .ToArray();
         
-        var loaded = new (GameMap Map, RouteAnalysis Analysis, LevelMeasurement Measures, LevelModel? Model)[names.Length];
+        var loaded = new (MapResourceBuilder Map, RouteAnalysis Analysis, LevelMeasurement Measures, LevelModel? Model)[names.Length];
         Parallel.For(0, names.Length, i =>
         {
             string name = names[i];
-            var map = GameMap.Load(Path.Combine(gameFolder, "Maps", name));
+            var map = MapResourceBuilder.Load(Path.Combine(gameFolder, "Maps", name));
             var script = LevelScriptReader.Read(Path.Combine(gameFolder, "Maps", Path.ChangeExtension(name, ".lgc")));
             var analysis = RouteAnalyzer.Analyze(name, map, script, objects)
                            ?? throw new InvalidDataException($"{name} has no route.");

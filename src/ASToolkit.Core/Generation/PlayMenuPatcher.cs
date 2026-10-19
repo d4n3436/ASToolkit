@@ -26,7 +26,7 @@ internal static class PlayMenuPatcher
     /// </summary>
     public static byte[] Patch(byte[] original, string labelKey)
     {
-        var file = ResFile.Parse(original);
+        var file = ResContainerBuilder.Parse(original);
         var records = file.GetChunk("SPR ").Records;
         var buttons = records.Select((r, i) => (Index: i, Record: r)).Where(b => IsButton(b.Record)).ToList();
         if (buttons.Any(b => GetButtonNumber(b.Record) == ButtonNumber))

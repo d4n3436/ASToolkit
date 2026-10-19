@@ -104,7 +104,7 @@ public static class RoofBuilder
         Parallel.For(0, (area.Width + StripWidth - 1) / StripWidth, i => body(new Strip(i * StripWidth, Math.Min(StripWidth, area.Width - i * StripWidth))));
 
     // Use the other parity on military levels, where a 503 spans two earth tiles
-    private static (int Cx, int Cy)[] AddGroundEarth(Random rng, MapBuilder map, BitMask floor, Area area, TileMask tile, MapSprite[] floors, LevelTheme theme)
+    private static (int Cx, int Cy)[] AddGroundEarth(Random rng, MapBuilder map, BitMask floor, Area area, TileMask tile, MergedMapSprite[] floors, LevelTheme theme)
     {
         var first = floors[0];
         double ox = first.X;
@@ -221,7 +221,7 @@ public static class RoofBuilder
 
     private readonly record struct Strip(int X, int Width);
 
-    private sealed record StructureSprite(MapSprite Sprite, GameObject Object, VidResource View, VidFrame Frame, byte Kind, int Left, int Top);
+    private sealed record StructureSprite(MergedMapSprite Sprite, GameObject Object, VidResource View, VidFrame Frame, byte Kind, int Left, int Top);
 
     private sealed class TileMask
     {

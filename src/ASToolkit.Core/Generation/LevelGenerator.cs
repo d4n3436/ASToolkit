@@ -163,7 +163,7 @@ public sealed class LevelGenerator
     {
         string name = ReferenceLevelSet.GetCampaignName(level);
         byte[] template = File.ReadAllBytes(GetTemplatePath(level));
-        var map = GameMap.Parse(template);
+        var map = MapResourceBuilder.Parse(template);
         var model = LevelExtractor.Extract(name, map, _objects) ?? throw new InvalidDataException($"{name} has no floor.");
         return new OriginalLevel(map, model, template, LevelScriptWriter.ReadMusicLines(Path.Combine(_gameFolder, "Maps", Path.ChangeExtension(name, ".lgc"))));
     }
@@ -171,7 +171,7 @@ public sealed class LevelGenerator
     // Check the level through its map and script bytes
     private RuleResult[] Check(GeneratedLevel level, LevelTarget target)
     {
-        var map = GameMap.Parse(level.Map.ToBytes(GetOriginal(level.Level).Template));
+        var map = MapResourceBuilder.Parse(level.Map.ToBytes(GetOriginal(level.Level).Template));
         var script = LevelScriptReader.Parse(LevelScriptWriter.Format(level.Script));
         var analysis = RouteAnalyzer.Analyze(ReferenceLevelSet.GetCampaignName(level.Level), map, script, _objects);
         if (analysis is null)
@@ -363,5 +363,5 @@ public sealed class LevelGenerator
             : new GateRequest(rng.Next(2) == 0 ? GateKind.LockedDoors : GateKind.Blackout, 0.2 + 0.1 * rng.NextDouble(), 0, IsWing: true)
     };
 
-    private sealed record OriginalLevel(GameMap Map, LevelModel Model, byte[] Template, IReadOnlyList<string> MusicLines);
+    private sealed record OriginalLevel(MapResourceBuilder Map, LevelModel Model, byte[] Template, IReadOnlyList<string> MusicLines);
 }

@@ -12,7 +12,7 @@ public static class RouteAnalyzer
     /// <summary>
     /// Analyzes a level, or returns null when the map has no floor, no player start or nothing to do.
     /// </summary>
-    public static RouteAnalysis? Analyze(string name, GameMap map, LevelScriptSummary script, ObjectTable objects)
+    public static RouteAnalysis? Analyze(string name, MapResourceBuilder map, LevelScriptSummary script, ObjectTable objects)
     {
         var model = LevelExtractor.Extract(name, map, objects);
         if (model is null)
@@ -158,7 +158,7 @@ public static class RouteAnalyzer
 
         public RouteAnalysis? Run()
         {
-            MapSprite? start = null;
+            MergedMapSprite? start = null;
             foreach (var id in new[] { KnownObject.PlayerStart, KnownObject.PlayerStartGirl, KnownObject.Cursor })
             {
                 start = _model.Sprites.FirstOrDefault(s => s.Id == id);
@@ -688,7 +688,7 @@ public static class RouteAnalyzer
 
             return elements.ToArray();
 
-            void Add(ElementKind kind, MapSprite s, ItemCategory? category = null, KnownObject crateItem = 0, SpawnerProgram? program = null)
+            void Add(ElementKind kind, MergedMapSprite s, ItemCategory? category = null, KnownObject crateItem = 0, SpawnerProgram? program = null)
             {
                 (var c, double offset) = FindNearestReachableCell(s.X, s.Y);
                 if (c is null || !_fromStart!.ContainsKey(c.Value))

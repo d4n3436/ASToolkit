@@ -21,7 +21,7 @@ public static class ClutterPlanner
     /// <summary>
     /// Returns the solid and breakable decor IDs of a map with how often it uses each.
     /// </summary>
-    public static ((KnownObject Id, int Count)[] Solid, (KnownObject Id, int Count)[] Breakable) GetPalette(GameMap original, ObjectTable objects)
+    public static ((KnownObject Id, int Count)[] Solid, (KnownObject Id, int Count)[] Breakable) GetPalette(MapResourceBuilder original, ObjectTable objects)
     {
         var solid = new Dictionary<KnownObject, int>();
         var breakable = new Dictionary<KnownObject, int>();
@@ -126,13 +126,13 @@ public static class ClutterPlanner
                 blocked[cell] = blocked.GetValueOrDefault(cell) + 1;
             }
 
-            var rowSprites = new List<MapSprite>();
+            var rowSprites = new List<MergedMapSprite>();
             foreach ((double u, double v) in row)
             {
                 byte dir = facings.PickFacing(rng, id, edges, u, v);
                 result.Add(new PlacedDecor(id, u, v, 0, dir, new byte[8], (-2, index++), null));
                 (double x, double y) = lattice.ToWorld(u, v);
-                rowSprites.Add(new MapSprite(0, id, x, y, 0, dir, 0, []));
+                rowSprites.Add(new MergedMapSprite(0, id, x, y, 0, dir, 0, []));
             }
 
             blockedFine.UnionWith(SolidObjectMapper.FindBlockedCells(fine, fineCells, SolidObjectMapper.GetCollisionBoxes(rowSprites, objects)));
@@ -160,10 +160,10 @@ public static class ClutterPlanner
         return result.ToArray();
     }
 
-    private static IEnumerable<MapSprite> ToSprites(IEnumerable<PlacedDecor> decor, Lattice lattice) => decor.Select(o =>
+    private static IEnumerable<MergedMapSprite> ToSprites(IEnumerable<PlacedDecor> decor, Lattice lattice) => decor.Select(o =>
     {
         (double x, double y) = lattice.ToWorld(o.U, o.V);
-        return new MapSprite(0, o.Id, x, y, o.Z, o.Dir, 0, o.Payload);
+        return new MergedMapSprite(0, o.Id, x, y, o.Z, o.Dir, 0, o.Payload);
     });
 
     private static KnownObject Pick(Random rng, IReadOnlyList<(KnownObject Id, int Count)> palette)

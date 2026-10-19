@@ -12,7 +12,7 @@ public sealed class RuleContext
     /// <summary>
     /// Gets the map.
     /// </summary>
-    public required GameMap Map { get; init; }
+    public required MapResourceBuilder Map { get; init; }
 
     /// <summary>
     /// Gets the object table of the game.
@@ -47,7 +47,7 @@ public sealed class RuleContext
     /// <summary>
     /// Measures a level and returns its context.
     /// </summary>
-    public static RuleContext Create(GameMap map, LevelScriptSummary script, RouteAnalysis analysis, ObjectTable objects, LevelTarget target) => new()
+    public static RuleContext Create(MapResourceBuilder map, LevelScriptSummary script, RouteAnalysis analysis, ObjectTable objects, LevelTarget target) => new()
     {
         Map = map,
         Objects = objects,

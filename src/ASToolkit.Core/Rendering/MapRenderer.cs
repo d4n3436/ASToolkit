@@ -55,7 +55,7 @@ public sealed class MapRenderer
     /// Renders map sprites in their file order, scaled down by a factor of at most 1, leaving out the objects the skip
     /// function picks.
     /// </summary>
-    public MapImage Render(IReadOnlyList<MapSprite> sprites, double scale = 1, Func<KnownObject, bool>? skip = null)
+    public MapImage Render(IReadOnlyList<MergedMapSprite> sprites, double scale = 1, Func<KnownObject, bool>? skip = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(scale);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(scale, 1);
@@ -189,7 +189,7 @@ public sealed class MapRenderer
 
     private sealed record StripBuffers(Image<Rgb24> Source, int[] Depth);
 
-    private sealed record Placement(MapSprite Sprite, GameObject Object, SpriteFrame? Frame, double Left, double Top, int Width, int Height);
+    private sealed record Placement(MergedMapSprite Sprite, GameObject Object, SpriteFrame? Frame, double Left, double Top, int Width, int Height);
 
     // Draw strips of output rows in parallel, each at full size with its own depth buffer, then scale them into the image
     private sealed class Canvas

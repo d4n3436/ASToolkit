@@ -3,8 +3,7 @@ using System.Runtime.InteropServices;
 namespace ASToolkit.Core.Formats;
 
 /// <summary>
-/// Represents the fixed 688-byte body of an entry of objects.res, which <see cref="ObjectTable"/> keeps next to the name
-/// and the sprite path of the entry.
+/// Represents the fixed 688-byte body of an entry of objects.res.
 /// </summary>
 [StructLayout(LayoutKind.Explicit, Size = 688)]
 public readonly struct GameObject

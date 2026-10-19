@@ -13,7 +13,7 @@ public class LevelExtractorTests
         var objects = ObjectTable.Load(Path.Combine(game, "objects.res"));
         foreach (var expected in FixtureReader.Read<List<RouteFixture>>("routes.json"))
         {
-            var model = LevelExtractor.Extract(expected.Name, GameMap.Load(Path.Combine(game, "Maps", expected.Name)), objects);
+            var model = LevelExtractor.Extract(expected.Name, MapResourceBuilder.Load(Path.Combine(game, "Maps", expected.Name)), objects);
             Assert.NotNull(model);
             Assert.Equal(expected.Theme == "mil" ? LevelTheme.Military : LevelTheme.Lab, model.Theme);
             Assert.True(expected.CoarseCells == model.Cells.Count, $"{expected.Name} cells {model.Cells.Count}, expected {expected.CoarseCells}");

@@ -43,7 +43,7 @@ public sealed class OriginalContent
     /// </summary>
     public static OriginalContent Load(string gameFolder, string level, ObjectTable objects)
     {
-        var sp = GameMap.Load(Path.Combine(gameFolder, "Maps", level)).Sprites;
+        var sp = MapResourceBuilder.Load(Path.Combine(gameFolder, "Maps", level)).Sprites;
         var pickups = new Dictionary<KnownObject, int>();
         var loot = new Dictionary<KnownObject, int>();
         var bosses = new Dictionary<KnownObject, int>();
@@ -110,7 +110,7 @@ public sealed class OriginalContent
         var scenes = new List<IReadOnlyList<PropPlacement>>();
         foreach (string level in levels)
         {
-            var sp = GameMap.Load(Path.Combine(gameFolder, "Maps", level)).Sprites;
+            var sp = MapResourceBuilder.Load(Path.Combine(gameFolder, "Maps", level)).Sprites;
             foreach (var breaker in sp.Where(s => s.Id == KnownObject.Breaker))
             {
                 scenes.Add(sp.Where(o => o.Id is KnownObject.ObjectMarker or KnownObject.Shelves or KnownObject.Table or KnownObject.Cabinet or KnownObject.Transformer or KnownObject.SoldierCorpse or KnownObject.BloodPool or KnownObject.LargeBloodPool && Math.Sqrt(Math.Pow(o.X - breaker.X, 2) + Math.Pow(o.Y - breaker.Y, 2)) < 170)
@@ -129,7 +129,7 @@ public sealed class OriginalContent
         var sites = new List<SiteTemplate>();
         foreach (string level in levels)
         {
-            var sp = GameMap.Load(Path.Combine(gameFolder, "Maps", level)).Sprites;
+            var sp = MapResourceBuilder.Load(Path.Combine(gameFolder, "Maps", level)).Sprites;
             foreach (var sprite in sp.Where(s => s.Id == KnownObject.DynamiteSite))
             {
                 var members = sp
@@ -155,7 +155,7 @@ public sealed class OriginalContent
         return sites.ToArray();
     }
 
-    private static IReadOnlyList<GroupMember>[] ClusterMonsters(List<MapSprite> sp)
+    private static IReadOnlyList<GroupMember>[] ClusterMonsters(List<MergedMapSprite> sp)
     {
         var monsters = sp.Where(s => KnownObject.Monsters.Contains(s.Id) || s.Id is KnownObject.Bat or KnownObject.Diver).ToArray();
         bool[] seen = new bool[monsters.Length];

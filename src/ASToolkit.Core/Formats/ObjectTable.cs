@@ -30,9 +30,10 @@ public sealed class ObjectTable
     public static ObjectTable Load(string path)
     {
         var entries = new Dictionary<KnownObject, Entry>();
-        foreach (ReadOnlySpan<byte> record in ResFile.Load(path).Chunks[0].Records)
+        foreach (var memory in new ResContainer(File.ReadAllBytes(path)).Chunks.First().Records)
         {
-            var id = (KnownObject)BinaryPrimitives.ReadUInt32LittleEndian(record);
+            var record = memory.Span;
+            var id = (KnownObject)MemoryMarshal.Read<uint>(record);
             int nameEnd = record[4..].IndexOf((byte)0) + 4;
             var spritePath = record[(nameEnd + 1 + BodySize)..^1];
             entries[id] = new Entry(MemoryMarshal.Read<GameObject>(record[(nameEnd + 1)..]), GameTextEncoding.Cyrillic.GetString(record[4..nameEnd]),

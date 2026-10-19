@@ -30,7 +30,7 @@ public class RouteAnalyzerTests
         {
             string level = expected.Name;
             var script = LevelScriptReader.Read(Path.Combine(game, "Maps", level[..^4] + ".lgc"));
-            var a = RouteAnalyzer.Analyze(level, GameMap.Load(Path.Combine(game, "Maps", level)), script, objects);
+            var a = RouteAnalyzer.Analyze(level, MapResourceBuilder.Load(Path.Combine(game, "Maps", level)), script, objects);
             Assert.NotNull(a);
             var problems = new List<string>();
             if (a.ReachableCells != expected.Cells)

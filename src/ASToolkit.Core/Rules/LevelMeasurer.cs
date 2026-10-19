@@ -14,7 +14,7 @@ public static class LevelMeasurer
     /// <summary>
     /// Measures a level from its map, script and tour.
     /// </summary>
-    public static LevelMeasurement Measure(GameMap map, LevelScriptSummary script, RouteAnalysis analysis, ObjectTable objects)
+    public static LevelMeasurement Measure(MapResourceBuilder map, LevelScriptSummary script, RouteAnalysis analysis, ObjectTable objects)
     {
         var grid = analysis.Grid;
         int placed = 0;
@@ -71,7 +71,7 @@ public static class LevelMeasurer
         return hasDoors && hasBreaker && script.DoorsLocked ? LevelStyle.LockedDoors : LevelStyle.Ungated;
     }
 
-    private static (List<SecretCloset> Closets, int Shortcuts) FindBreakableWallUses(GameMap map, RouteGrid grid, RouteAnalysis analysis)
+    private static (List<SecretCloset> Closets, int Shortcuts) FindBreakableWallUses(MapResourceBuilder map, RouteGrid grid, RouteAnalysis analysis)
     {
         if (analysis.Tour.Count == 0)
         {

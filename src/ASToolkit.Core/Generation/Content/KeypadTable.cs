@@ -29,7 +29,7 @@ public sealed class KeypadTable
         var keyed = new Dictionary<KnownObject, int>();
         foreach (string level in levels)
         {
-            var sp = GameMap.Load(Path.Combine(gameFolder, "Maps", level)).Sprites;
+            var sp = MapResourceBuilder.Load(Path.Combine(gameFolder, "Maps", level)).Sprites;
             var keypads = sp.Where(s => s.Id is KnownObject.KeypadOn or KnownObject.KeypadOff or KnownObject.BrokenKeypad).ToArray();
             foreach (var door in sp.Where(s => Doors.Contains(s.Id)))
             {

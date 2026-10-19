@@ -12,7 +12,7 @@ public enum VidFlags : ushort
     None = 0,
 
     /// <summary>
-    /// Unknown. Set on every sprite with a <c>DATA</c> chunk of frames, including the texture ones, except those with the flags 0x36 and 0xB0.
+    /// Unknown. Seen on every sprite with frames except those with the flags 0x36 and 0xB0.
     /// </summary>
     Unknown01 = 1 << 0,
 
@@ -37,17 +37,17 @@ public enum VidFlags : ushort
     CurrentVersion = 1 << 4,
 
     /// <summary>
-    /// Unknown. Set on every sprite with a <c>SURF</c> chunk of surfaces, and on those with the flags 0x36 and 0xB0, which have none.
+    /// Unknown. Seen on every sprite with surfaces and on those with the flags 0x36 and 0xB0.
     /// </summary>
     Unknown20 = 1 << 5,
 
     /// <summary>
-    /// Unknown. Only seen on the sprite with the flags 0x53, which has a <c>CADR</c> chunk instead of frames.
+    /// Unknown. Only seen on the sprite with the flags 0x53.
     /// </summary>
     Unknown40 = 1 << 6,
 
     /// <summary>
-    /// Unknown. Only seen on the sprites with the flags 0xB0, the omni-lights.
+    /// Unknown. Only seen on the omni-lights, which have the flags 0xB0.
     /// </summary>
     Unknown80 = 1 << 7,
 

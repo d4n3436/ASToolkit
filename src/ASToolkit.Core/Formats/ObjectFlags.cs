@@ -1,7 +1,7 @@
 namespace ASToolkit.Core.Formats;
 
 /// <summary>
-/// Represents the flags of an entry of objects.res. Only the bits the toolkit knows are named; the entries set others.
+/// Represents the flags of an entry of objects.res.
 /// </summary>
 [Flags]
 public enum ObjectFlags : uint

@@ -24,7 +24,7 @@ public sealed class ArmyTable
         var counts = new Dictionary<KnownObject, List<(uint Army, int Count)>>();
         foreach (string level in levels)
         {
-            foreach (var sprite in GameMap.Load(Path.Combine(gameFolder, "Maps", level)).Sprites)
+            foreach (var sprite in MapResourceBuilder.Load(Path.Combine(gameFolder, "Maps", level)).Sprites)
             {
                 if (!counts.TryGetValue(sprite.Id, out var list))
                 {

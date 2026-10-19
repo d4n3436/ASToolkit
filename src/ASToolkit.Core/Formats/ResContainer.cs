@@ -37,9 +37,9 @@ public readonly struct ResContainer
     /// <summary>
     /// Gets the chunks the resource holds.
     /// </summary>
-    public IEnumerable<ResChunkView> Chunks => EnumerateChunks();
+    public IEnumerable<ResChunk> Chunks => EnumerateChunks();
 
-    private IEnumerable<ResChunkView> EnumerateChunks()
+    private IEnumerable<ResChunk> EnumerateChunks()
     {
         if (_data.IsEmpty)
             yield break;
@@ -52,7 +52,7 @@ public readonly struct ResContainer
             int size = (int)MemoryMarshal.Read<uint>(_data.Span[(offset + 4)..]);
             int start = offset + 8;
             
-            yield return new ResChunkView(_data.Slice(offset, size + 8));
+            yield return new ResChunk(_data.Slice(offset, size + 8));
             offset = start + ((size + 1) & ~1);
         }
     }

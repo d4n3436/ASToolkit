@@ -43,7 +43,7 @@ public sealed class DressingLibrary
         var sources = new List<LevelModel>();
         foreach (string level in levels)
         {
-            var model = LevelExtractor.Extract(level, GameMap.Load(Path.Combine(gameFolder, "Maps", level)), objects);
+            var model = LevelExtractor.Extract(level, MapResourceBuilder.Load(Path.Combine(gameFolder, "Maps", level)), objects);
             if (model is not null && model.Theme == theme && model.Edges.Count >= 100)
             {
                 sources.Add(model);

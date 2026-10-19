@@ -30,7 +30,7 @@ internal sealed class CheckCommand : Command<CheckSettings>
                 return;
             }
 
-            var map = GameMap.Load(mapPath);
+            var map = MapResourceBuilder.Load(mapPath);
             var script = LevelScriptReader.Read(Path.ChangeExtension(mapPath, ".lgc"));
             var analysis = RouteAnalyzer.Analyze(ReferenceLevelSet.GetCampaignName(levels[i]), map, script, objects);
             routed[i] = analysis is not null;

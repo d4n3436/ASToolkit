@@ -54,7 +54,7 @@ Objects, maps, sprites and menus use the same container. Only the four-character
  size = file length minus 8 bytes (identifier and size fields)
 ```
 
-Each chunk has an 8-byte header and includes a pad byte if its length is not even. `size` doesn't include the pad byte.
+Each chunk has an 8-byte header and includes a pad byte if its length is not even, except the last chunk, which has none in the game's files. The chunk's `size` doesn't include the pad byte.
 
 ```
  +--------+--------+----------------------------------------+

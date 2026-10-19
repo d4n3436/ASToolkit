@@ -1,37 +1,67 @@
+using System.Runtime.InteropServices;
+
 namespace ASToolkit.Core.Formats;
 
 /// <summary>
-/// Represents one chunk of a <see cref="ResFile"/>.
+/// Represents one chunk of a <see cref="ResContainer"/>.
 /// </summary>
-public sealed class ResChunk
+public readonly struct ResChunk
 {
-    /// <summary>
-    /// Gets the four-character chunk tag.
-    /// </summary>
-    public required string Tag { get; init; }
+    private readonly ReadOnlyMemory<byte> _data;
 
     /// <summary>
-    /// Gets or sets the header flags. Without bit 31 the flags word is the record count.
+    /// Initializes a new instance of the <see cref="ResChunk"/> structure.
     /// </summary>
-    public uint Flags { get; set; }
+    /// <param name="data">The data.</param>
+    public ResChunk(ReadOnlyMemory<byte> data)
+    {
+        _data = data;
+    }
+    
+    /// <summary>
+    /// Gets the four-byte chunk tag.
+    /// </summary>
+    public ReadOnlyMemory<byte> Tag => _data[..4];
 
     /// <summary>
-    /// Gets or sets the header value that follows the flags when bit 31 is set.
+    /// Gets the size (body - 8-byte header).
     /// </summary>
-    public uint Res { get; set; }
+    public int Size => (int)MemoryMarshal.Read<uint>(_data[4..].Span);
+    
+    /// <summary>
+    /// Gets the header flags.
+    /// </summary>
+    public uint Flags => MemoryMarshal.Read<uint>(_data[8..].Span);
+    
+    /// <summary>
+    /// Gets the header value that follows the flags when bit 31 is set.
+    /// </summary>
+    public uint Reserved => HasExtraFields ? MemoryMarshal.Read<uint>(_data[12..].Span) : 0;
+    
+    /// <summary>
+    /// Gets the number of records this chunk has.
+    /// </summary>
+    public uint Count => HasExtraFields ? MemoryMarshal.Read<uint>(_data[16..].Span) : Flags;
 
     /// <summary>
-    /// Gets or sets the records.
+    /// Enumerates over the records on this chunk.
     /// </summary>
-    public List<byte[]> Records { get; set; } = [];
+    public IEnumerable<ReadOnlyMemory<byte>> Records => EnumerateRecords();
 
-    /// <summary>
-    /// Gets or sets the bytes after the last record, or the whole body of an unparsed chunk.
-    /// </summary>
-    public byte[] Tail { get; set; } = [];
+    private IEnumerable<ReadOnlyMemory<byte>> EnumerateRecords()
+    {
+        if (_data.IsEmpty)
+            yield break;
+        
+        int start = HasExtraFields ? 20 : 12;
+        
+        for (uint i = 0; i < Count; i++)
+        {
+            int length = (int)MemoryMarshal.Read<uint>(_data[start..].Span);
+            yield return _data.Slice(start + 4, length);
+            start += 4 + length;
+        }
+    }
 
-    /// <summary>
-    /// Gets a value indicating whether the body did not parse as records and is kept whole in <see cref="Tail"/>.
-    /// </summary>
-    public bool IsUnparsed { get; init; }
+    private bool HasExtraFields => (Flags & 0x80000000) != 0;
 }

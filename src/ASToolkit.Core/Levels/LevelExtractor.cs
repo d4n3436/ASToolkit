@@ -20,7 +20,7 @@ public static class LevelExtractor
     /// <summary>
     /// Builds the model of a map, or returns null when the map has no lab or military floor.
     /// </summary>
-    public static LevelModel? Extract(string name, GameMap map, ObjectTable objects)
+    public static LevelModel? Extract(string name, MapResourceBuilder map, ObjectTable objects)
     {
         var sp = map.Sprites;
         int military = sp.Count(s => KnownObject.MilitaryWalls.Contains(s.Id));
@@ -112,7 +112,7 @@ public static class LevelExtractor
         return du < .35 ? new EdgeKey('u', (int)Math.Round(u + .25), (int)Math.Round(v - .75)) : null;
     }
 
-    private static int CountLabFit(List<MapSprite> sp, Lattice lattice)
+    private static int CountLabFit(List<MergedMapSprite> sp, Lattice lattice)
     {
         int n = 0;
         foreach (var sprite in sp)
@@ -136,7 +136,7 @@ public static class LevelExtractor
         return n;
     }
 
-    private static Lattice? ExtractLab(List<MapSprite> sp, HashSet<Cell> cells, Dictionary<EdgeKey, char> edges)
+    private static Lattice? ExtractLab(List<MergedMapSprite> sp, HashSet<Cell> cells, Dictionary<EdgeKey, char> edges)
     {
         var floor = sp.Where(s => s.Id is KnownObject.BasementFloor or KnownObject.BasementFloorAlt).ToList();
         var big = sp.Where(s => s.Id == KnownObject.MilitaryFloor).ToList();
@@ -160,7 +160,7 @@ public static class LevelExtractor
         {
             // Let the walls pick between the two tile phases that fit the floor
             var probe = new Lattice(LabStep.X, LabStep.Y, floor[0].X - 40, floor[0].Y);
-            var phases = new List<((int, int) Key, int Count, MapSprite First)>();
+            var phases = new List<((int, int) Key, int Count, MergedMapSprite First)>();
             var index = new Dictionary<(int, int), int>();
             foreach (var floorSprite in floor)
             {
@@ -256,7 +256,7 @@ public static class LevelExtractor
         return best;
     }
 
-    private static Lattice? ExtractMilitary(List<MapSprite> sp, HashSet<Cell> cells, Dictionary<EdgeKey, char> edges)
+    private static Lattice? ExtractMilitary(List<MergedMapSprite> sp, HashSet<Cell> cells, Dictionary<EdgeKey, char> edges)
     {
         var slashWalls = sp.Where(s => s.Id == KnownObject.MilitaryWallSlash).ToArray();
         if (slashWalls.Length == 0)
@@ -265,7 +265,7 @@ public static class LevelExtractor
         }
 
         var probe = new Lattice(MilitaryStep.X, MilitaryStep.Y, slashWalls[0].X, slashWalls[0].Y);
-        var firsts = new List<MapSprite>();
+        var firsts = new List<MergedMapSprite>();
         var seen = new HashSet<(int, int)>();
         foreach (var wall in slashWalls)
         {
@@ -361,13 +361,13 @@ public static class LevelExtractor
         return lattice;
     }
 
-    private static bool IsOnVertex(Lattice lattice, MapSprite s)
+    private static bool IsOnVertex(Lattice lattice, MergedMapSprite s)
     {
         (double u, double v) = lattice.ToLattice(s.X, s.Y);
         return Lattice.IsNearInteger(u) && Lattice.IsNearInteger(v);
     }
 
-    private static DecorObject[] ExtractDecor(List<MapSprite> sp, Lattice lattice, ObjectTable objects)
+    private static DecorObject[] ExtractDecor(List<MergedMapSprite> sp, Lattice lattice, ObjectTable objects)
     {
         var decor = sp.Where(s => s.Id.IsDecor).ToArray();
         var result = new List<DecorObject>(decor.Length);

@@ -485,7 +485,7 @@ Sites stay clear of solid decor through `IsCrowded`, which uses the same gap as 
 
 ## Checking and selection
 
-`LevelGenerator.Check` reads the candidate as the game would. It writes the map with the original as template, parses it back with `GameMap.Parse`, formats and parses the script with `LevelScriptReader`, and runs `RouteAnalyzer.Analyze`. A level with no route fails A2 and nothing else is checked. Otherwise `RuleSet.Default.Evaluate` runs every rule on a `RuleContext`, which adds the cell model and `LevelMeasurer`'s measures.
+`LevelGenerator.Check` reads the candidate as the game would. It writes the map with the original as template, parses it back with `MapResourceBuilder.Parse`, formats and parses the script with `LevelScriptReader`, and runs `RouteAnalyzer.Analyze`. A level with no route fails A2 and nothing else is checked. Otherwise `RuleSet.Default.Evaluate` runs every rule on a `RuleContext`, which adds the cell model and `LevelMeasurer`'s measures.
 
 Selection in `LevelGenerator.Generate` works on (hard rules broken, soft rules met).
 

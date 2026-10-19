@@ -3,7 +3,7 @@ using Xunit;
 
 namespace ASToolkit.Tests.Formats;
 
-public class GameMapTests
+public class MapResourceBuilderTests
 {
     [Fact]
     public void Load_OriginalLevels_MatchTheFixtureReader()
@@ -11,7 +11,7 @@ public class GameMapTests
         string game = TestGameFolder.RequireFolder();
         foreach ((string level, var expected) in FixtureReader.Read<Dictionary<string, MapRow>>("maps.json"))
         {
-            var map = GameMap.Load(Path.Combine(game, "Maps", level));
+            var map = MapResourceBuilder.Load(Path.Combine(game, "Maps", level));
             Assert.Equal(expected.Count, map.Sprites.Count);
             Assert.Equal(expected.Ids, map.Sprites.Sum(s => (long)s.Id));
             Assert.Equal(expected.X, map.Sprites.Sum(s => s.X), 0.1);
@@ -26,10 +26,10 @@ public class GameMapTests
     {
         string game = TestGameFolder.RequireFolder();
         string source = Path.Combine(game, "Maps", "Level_04.map");
-        var map = GameMap.Load(source);
+        var map = MapResourceBuilder.Load(source);
         string path = Path.Combine(Directory.CreateTempSubdirectory().FullName, "Level_04.map");
         map.Write(path, source);
-        var back = GameMap.Load(path);
+        var back = MapResourceBuilder.Load(path);
         Assert.Equal(map.Sprites.Count, back.Sprites.Count);
         for (int spriteIndex = 0; spriteIndex < map.Sprites.Count; spriteIndex++)
         {

@@ -30,7 +30,7 @@ public sealed class MapBuilder
     /// <summary>
     /// Gets the placed objects in order.
     /// </summary>
-    public List<MapSprite> Sprites { get; } = [];
+    public List<MergedMapSprite> Sprites { get; } = [];
 
     /// <summary>
     /// Places an object and returns its index, or -1 when a unique placement repeats an earlier one.
@@ -48,18 +48,18 @@ public sealed class MapBuilder
             : id == KnownObject.PlayerStart ? PlayerStartPayload
             : KnownObject.Monsters.Contains(id) || KnownObject.Bosses.Contains(id) ? MonsterPayload
             : new byte[8];
-        Sprites.Add(new MapSprite(_handle, id, x, y, z, (byte)(dir & 255), army ?? _armies.GetArmy(id), data));
+        Sprites.Add(new MergedMapSprite(_handle, id, x, y, z, (byte)(dir & 255), army ?? _armies.GetArmy(id), data));
         return Sprites.Count - 1;
     }
 
     /// <summary>
     /// Returns a map of the placed objects, sized to hold them.
     /// </summary>
-    public GameMap ToMap((double X, double Y) scroll)
+    public MapResourceBuilder ToMap((double X, double Y) scroll)
     {
         double maxX = Sprites.Max(s => s.X);
         double maxY = Sprites.Max(s => s.Y);
-        var map = new GameMap
+        var map = new MapResourceBuilder
         {
             Sprites = Sprites,
             Size = (Math.Ceiling((maxX + 300) / 100) * 100, Math.Ceiling((maxY + 300) / 100) * 100),

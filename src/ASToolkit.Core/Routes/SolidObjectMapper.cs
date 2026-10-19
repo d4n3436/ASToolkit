@@ -12,7 +12,7 @@ public static class SolidObjectMapper
     /// Returns the collision box of every solid object other than walls and floors. The box reaches 0.33 of the object's
     /// extent plus 14 pixels for the player's own size.
     /// </summary>
-    public static CollisionBox[] GetCollisionBoxes(IEnumerable<MapSprite> sprites, ObjectTable objects)
+    public static CollisionBox[] GetCollisionBoxes(IEnumerable<MergedMapSprite> sprites, ObjectTable objects)
     {
         var boxes = new List<CollisionBox>();
         foreach (var sprite in sprites)
