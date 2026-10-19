@@ -9,12 +9,10 @@ It is written in C# on .NET 10 and works on an installed copy of the game.
 
 ## Features
 
-- **Level generation.** Builds new levels in the style of the originals and installs them as a new add-on called RANDOM, with its own button on the play menu.
-- **Widescreen.** Adds more resolutions, a borderless window mode and a HUD that fits wide screens.
-- **Level analysis.** Works out the route a player takes through a level and draws it over an image of the map.
-- **Rule checks.** Tests levels against the rules the generator follows.
-
-The toolkit also reads the game's file formats (resource archives, maps, menus and sprites), so other tools can reuse it.
+- **Level generation:** Builds new levels in the style of the originals and installs them as a new add-on called RANDOM, with its own button on the play menu.
+- **Widescreen patch:** Adds more resolutions, a borderless window mode and a HUD that fits wide screens.
+- **Level analysis:** Works out the route a player takes through a level and draws it over an image of the map.
+- **Rule checks:** Tests levels against the rules the generator follows.
 
 ## Usage
 
@@ -24,7 +22,7 @@ dotnet run --project src/ASToolkit.Cli -- <command> --game <game folder>
 
 | Command | Description |
 |---|---|
-| `generate` | Generates levels and installs them as the RANDOM add-on |
+| `generate` | Generates random levels and installs them as the RANDOM add-on |
 | `restore` | Removes the RANDOM add-on and the changes it made |
 | `widescreen apply` | Applies the widescreen patch |
 | `widescreen restore` | Removes the widescreen patch |
@@ -34,14 +32,14 @@ dotnet run --project src/ASToolkit.Cli -- <command> --game <game folder>
 
 Run a command with `--help` to see its options.
 
-## Level generation
+## Random level generation
 
 The generator builds each level around the route the player will take, following how the original levels are designed.
 
-1. **Layout.** It lays out a main route of halls and rooms with side rooms, branches and closets, and gates part of it behind locked doors, a blackout or electric fences, as the original level does.
-2. **Structure.** Walls, doors and floors are built around the layout in the look of the lab and military levels, and decoration is copied from the original levels.
-3. **Content.** Monsters, bosses, items, ammo and dynamite are placed along the route, using budgets taken from the original levels so that difficulty rises as the level goes on.
-4. **Checks.** Each candidate is tested against the rules in [docs/RULES.md](docs/RULES.md). The generator builds up to 40 candidates until one breaks no hard rule and keeps the best one, which gets a roof that hides everything outside the walkable floor.
+1. **Layout:** It lays out a main route of halls and rooms with side rooms, branches and closets, and gates part of it behind locked doors, a blackout or electric fences, as the original level does.
+2. **Structure:** Walls, doors and floors are built around the layout in the look of the lab and military levels, and decoration is copied from the original levels.
+3. **Content:** Monsters, bosses, items, ammo and dynamite are placed along the route, using budgets taken from the original levels so that difficulty rises as the level goes on.
+4. **Checks:** Each candidate is tested against the rules in [docs/RULES.md](docs/RULES.md). The generator builds up to 40 candidates until one breaks no hard rule and keeps the best one, which gets a roof that hides everything outside the walkable floor.
 
 ### The RANDOM add-on
 
@@ -52,7 +50,7 @@ The generator builds each level around the route the player will take, following
 
 `--seed` picks the levels, and the same seed gives the same ones. `--first` and `--last` choose which campaign levels the generator replaces in campaign style. `restore` returns the game to its original state.
 
-## Widescreen
+## Widescreen patch
 
 `widescreen apply` patches the executable and a few game scripts. It requires the stock GOG 1.2 executable and keeps backups, which `widescreen restore` puts back.
 
