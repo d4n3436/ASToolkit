@@ -35,7 +35,7 @@ public sealed class MapRenderer
     private readonly ObjectTable _objects;
     private readonly ConcurrentDictionary<string, VidResource?> _files = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<FrameKey, SpriteFrame?> _frames = new();
-    private readonly ConcurrentDictionary<(string Path, (int R, int G, int B) Tint), (Rgb24[] Colors, byte[] Alphas)> _palettes = new();
+    private readonly ConcurrentDictionary<(string Path, (int R, int G, int B) Tint, (float R, float G, float B) Brightness), (Rgb24[] Colors, byte[] Alphas)> _palettes = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MapRenderer"/> class.
@@ -111,7 +111,7 @@ public sealed class MapRenderer
     });
 
     private SpriteFrame? GetFrame(string path, GameObject obj, VidResource view, int index) =>
-        _frames.GetOrAdd(new FrameKey(path, obj.Tint, index), _ => DecodeFrame(path, obj, view, index));
+        _frames.GetOrAdd(new FrameKey(path, obj.Tint, obj.Brightness, index), _ => DecodeFrame(path, obj, view, index));
 
     private SpriteFrame? DecodeFrame(string path, GameObject obj, VidResource view, int index)
     {
@@ -120,7 +120,7 @@ public sealed class MapRenderer
             return null;
         }
 
-        (var colors, byte[] alphas) = _palettes.GetOrAdd((path, obj.Tint), _ => ApplyTint(view.Palette, obj.Tint));
+        (var colors, byte[] alphas) = _palettes.GetOrAdd((path, obj.Tint, obj.Brightness), _ => ApplyTint(view.Palette, obj.Tint, obj.Brightness));
         var frame = view.GetFrame(index);
         int count = 0;
         foreach (var run in frame)
@@ -168,15 +168,17 @@ public sealed class MapRenderer
         return result;
     }
 
-    // Negative tints scale a channel down and positive ones add to it
-    private static (Rgb24[] Colors, byte[] Alphas) ApplyTint(ReadOnlyMemory<byte> palette, (int R, int G, int B) tint)
+    private static (Rgb24[] Colors, byte[] Alphas) ApplyTint(ReadOnlyMemory<byte> palette, (int R, int G, int B) tint, (float R, float G, float B) brightness)
     {
         var colors = new Rgb24[256];
         byte[] alphas = new byte[256];
         var entries = palette.Span;
         for (int index = 0; index < 256; index++)
         {
-            colors[index] = new Rgb24(Shift(entries[4 * index + 2], tint.R), Shift(entries[4 * index + 1], tint.G), Shift(entries[4 * index], tint.B));
+            colors[index] = new Rgb24(
+                Scale(Shift(entries[4 * index + 2], tint.R), brightness.R),
+                Scale(Shift(entries[4 * index + 1], tint.G), brightness.G),
+                Scale(Shift(entries[4 * index], tint.B), brightness.B));
             alphas[index] = entries[4 * index + 3];
         }
 
@@ -185,7 +187,9 @@ public sealed class MapRenderer
 
     private static byte Shift(byte c, int t) => (byte)(t < 0 ? c * (256 + t) >> 8 : Math.Min(255, c + t));
 
-    private readonly record struct FrameKey(string Path, (int R, int G, int B) Tint, int Frame);
+    private static byte Scale(byte c, float m) => (byte)Math.Clamp((int)(c * m + 0.5f), 0, 255);
+
+    private readonly record struct FrameKey(string Path, (int R, int G, int B) Tint, (float R, float G, float B) Brightness, int Frame);
 
     private sealed record StripBuffers(Image<Rgb24> Source, int[] Depth);
 

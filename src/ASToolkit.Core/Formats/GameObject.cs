@@ -98,6 +98,11 @@ public readonly struct GameObject
     public (int R, int G, int B) Tint => (TintRed, TintGreen, TintBlue);
 
     /// <summary>
+    /// Gets the per-channel (R, G, B) multipliers the engine applies to the sprite's colors when drawing it.
+    /// </summary>
+    public (float R, float G, float B) Brightness => (BrightnessRed, BrightnessGreen, BrightnessBlue);
+
+    /// <summary>
     /// Gets a value indicating whether the object stops the player.
     /// </summary>
     public bool IsSolid => Flags.HasFlag(ObjectFlags.Solid);
