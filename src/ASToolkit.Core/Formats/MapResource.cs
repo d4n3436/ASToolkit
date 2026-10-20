@@ -7,8 +7,6 @@ namespace ASToolkit.Core.Formats;
 /// </summary>
 public readonly struct MapResource
 {
-    private const int SpriteSize = 28;
-
     private readonly ResContainer _container;
     private readonly ReadOnlyMemory<byte> _rawSprites;
 
@@ -29,6 +27,12 @@ public readonly struct MapResource
     /// Gets the header.
     /// </summary>
     public MapHeader Header { get; }
+
+    /// <summary>
+    /// Gets the size in bytes the sprites in <see cref="Sprites"/>.
+    /// </summary>
+    /// <remarks>The size varies by map version.</remarks>
+    public int SpriteSize => Header.Version > 12 ? 48 : 28;
 
     /// <summary>
     /// Enumerates over the placed sprites.

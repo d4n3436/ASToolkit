@@ -78,7 +78,7 @@ public sealed class MapResourceBuilder
         for (int spriteIndex = 0; spriteIndex < Sprites.Count; spriteIndex++)
         {
             var s = Sprites[spriteIndex];
-            var e = entries.AsSpan(spriteIndex * EntrySize, EntrySize);
+            var e = entries.AsSpan(spriteIndex * EntrySize, EntrySize); // TODO: Handle AS2 map sprites and avoid hardcoding the size
             MemoryMarshal.Write(e, s.Handle);
             MemoryMarshal.Write(e[4..], (uint)s.Id);
             MemoryMarshal.Write(e[8..], (float)s.X);

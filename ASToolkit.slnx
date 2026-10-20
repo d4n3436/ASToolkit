@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/ASToolkit.Core/ASToolkit.Core.csproj" />
     <Project Path="src/ASToolkit.Cli/ASToolkit.Cli.csproj" />
+    <Project Path="src/ASToolkit.Gui/ASToolkit.Gui.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ASToolkit.Tests/ASToolkit.Tests.csproj" />

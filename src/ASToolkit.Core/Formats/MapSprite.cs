@@ -5,7 +5,7 @@ namespace ASToolkit.Core.Formats;
 /// <summary>
 /// Represents one placed object of a map.
 /// </summary>
-[StructLayout(LayoutKind.Explicit, Size = 28)]
+[StructLayout(LayoutKind.Explicit)]
 public readonly record struct MapSprite
 {
     /// <summary>
