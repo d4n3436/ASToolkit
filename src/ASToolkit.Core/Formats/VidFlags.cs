@@ -57,12 +57,37 @@ public enum VidFlags : ushort
     RangeCoded = 1 << 8,
 
     /// <summary>
+    /// Each cached frame record starts with a 12-byte vector.
+    /// </summary>
+    FrameVector = 1 << 9,
+
+    /// <summary>
+    /// The sprite stores several palettes. No sprite of the game sets it.
+    /// </summary>
+    PaletteVariants = 1 << 10,
+
+    /// <summary>
     /// The surfaces are DXT compressed.
     /// </summary>
     Dxt = 1 << 11,
 
     /// <summary>
-    /// The sprite uses an extended format; the engine loads it with a larger sprite class. Not set on any sprite of the game.
+    /// Has no known meaning. The engine never tests it, and no sprite of the game sets it.
     /// </summary>
-    Extended = 1 << 12
+    Unused = 1 << 12,
+
+    /// <summary>
+    /// The surface holds a second image under the first, which takes one more byte per pixel. No sprite of the game sets it.
+    /// </summary>
+    SecondImage = 1 << 13,
+
+    /// <summary>
+    /// The sprite is a text font the engine builds at run time. No file sets it.
+    /// </summary>
+    Font = 1 << 14,
+
+    /// <summary>
+    /// Each pixel has one more byte, which makes the color of the second image 16 bits wide. No sprite of the game sets it.
+    /// </summary>
+    SecondImageWide = 1 << 15
 }

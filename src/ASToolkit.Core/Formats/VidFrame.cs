@@ -1,5 +1,3 @@
-using System.Runtime.InteropServices;
-
 namespace ASToolkit.Core.Formats;
 
 /// <summary>
@@ -7,17 +5,39 @@ namespace ASToolkit.Core.Formats;
 /// </summary>
 public readonly struct VidFrame
 {
-    private readonly ReadOnlyMemory<byte> _rows;
+    private readonly ReadOnlyMemory<byte> _stream;
     private readonly bool _hasDepth;
     private readonly bool _isPaletted;
+    private readonly int _colorSize;
+    private readonly int _stride;
+    private readonly int _width;
+    private readonly int _left;
+    private readonly int _canvasWidth;
 
     internal VidFrame(ReadOnlyMemory<byte> rows, int top, int rowCount, bool hasDepth, bool isPaletted)
     {
-        _rows = rows;
+        _stream = rows;
         Top = top;
         RowCount = rowCount;
         _hasDepth = hasDepth;
         _isPaletted = isPaletted;
+        _colorSize = isPaletted ? 1 : 2;
+        _stride = _colorSize;
+    }
+
+    internal VidFrame(ReadOnlyMemory<byte> stream, int left, int top, int width, int rowCount, int canvasWidth, bool hasDepth, bool isPaletted, int colorSize, int stride, VidMesh mesh)
+    {
+        _stream = stream;
+        Mesh = mesh;
+        _left = left;
+        Top = top;
+        _width = width;
+        RowCount = rowCount;
+        _canvasWidth = canvasWidth;
+        _hasDepth = hasDepth;
+        _isPaletted = isPaletted;
+        _colorSize = colorSize;
+        _stride = stride;
     }
 
     /// <summary>
@@ -26,9 +46,19 @@ public readonly struct VidFrame
     public int Top { get; }
 
     /// <summary>
+    /// Gets the triangles that give the pixels a height; empty for frames that carry none.
+    /// </summary>
+    public VidMesh Mesh { get; }
+
+    /// <summary>
     /// Gets the number of rows the frame declares, including those without pixels.
     /// </summary>
     public int RowCount { get; }
+
+    /// <summary>
+    /// Gets the size in bytes of one color: one for a palette index, two for a 16-bit color, four for a 32-bit color.
+    /// </summary>
+    public int PixelSize => _colorSize;
 
     /// <summary>
     /// Returns an enumerator over the runs of the frame.
@@ -40,22 +70,17 @@ public readonly struct VidFrame
     /// </summary>
     public struct Enumerator
     {
-        private readonly ReadOnlyMemory<byte> _rows;
-        private readonly int _top;
-        private readonly int _rowCount;
-        private readonly bool _hasDepth;
-        private readonly bool _isPaletted;
+        private readonly VidFrame _frame;
         private int _position;
         private int _row;
         private int _x;
+        private int _pixel;
+        private int _pending;
+        private int _sample;
 
         internal Enumerator(VidFrame frame)
         {
-            _rows = frame._rows;
-            _top = frame.Top;
-            _rowCount = frame.RowCount;
-            _hasDepth = frame._hasDepth;
-            _isPaletted = frame._isPaletted;
+            _frame = frame;
         }
 
         /// <summary>
@@ -66,12 +91,20 @@ public readonly struct VidFrame
         /// <summary>
         /// Moves to the next run that has pixels.
         /// </summary>
-        public bool MoveNext()
+        public bool MoveNext() => _frame._width > 0 ? MoveNextLinear() : MoveNextRows();
+
+        private bool MoveNextRows()
         {
-            while (_row < _rowCount)
+            var stream = _frame._stream.Span;
+            while (_row < _frame.RowCount)
             {
-                byte skip = _rows.Span[_position];
-                byte count = _rows.Span[_position + 1];
+                if (_position + 2 > stream.Length)
+                {
+                    return false;
+                }
+
+                byte skip = stream[_position];
+                byte count = stream[_position + 1];
                 _position += 2;
                 if (skip == 0 && count == 0)
                 {
@@ -81,12 +114,18 @@ public readonly struct VidFrame
                 }
 
                 _x += skip;
-                int depthLength = _hasDepth ? 2 * count : 0;
-                int colorLength = (_isPaletted ? 1 : 2) * count;
+                int depthLength = _frame._hasDepth ? 2 * count : 0;
+                int colorLength = _frame._colorSize * count;
+                if (_position + depthLength + colorLength > stream.Length)
+                {
+                    return false;
+                }
+
                 bool found = count > 0;
                 if (found)
                 {
-                    Current = new VidRun(_x, _top + _row, count, _rows.Slice(_position, depthLength), _rows.Slice(_position + depthLength, colorLength), _isPaletted);
+                    Current = new VidRun(_x, _frame.Top + _row, count, _frame._stream.Slice(_position, depthLength), 2,
+                        _frame._stream.Slice(_position + depthLength, colorLength), _frame._colorSize, _frame._isPaletted);
                 }
 
                 _position += depthLength + colorLength;
@@ -98,6 +137,64 @@ public readonly struct VidFrame
             }
 
             return false;
+        }
+
+        private bool MoveNextLinear()
+        {
+            var stream = _frame._stream.Span;
+            while (true)
+            {
+                if (_pending == 0)
+                {
+                    if (_position + 2 > stream.Length)
+                    {
+                        return false;
+                    }
+
+                    byte skip = stream[_position];
+                    byte count = stream[_position + 1];
+                    if (skip == 0 && count == 0)
+                    {
+                        return false;
+                    }
+
+                    _position += 2;
+                    _pixel += skip;
+                    _pending = count;
+                    _sample = _position;
+                    _position += count * _frame._stride;
+                    if (_position > stream.Length)
+                    {
+                        return false;
+                    }
+
+                    continue;
+                }
+
+                int row = Math.DivRem(_pixel, _frame._width, out int column);
+                if (row >= _frame.RowCount)
+                {
+                    return false;
+                }
+
+                int length = Math.Min(_pending, _frame._width - column);
+                int x = _frame._left + column;
+                int visible = Math.Min(length, _frame._canvasWidth - x);
+                bool found = visible > 0;
+                if (found)
+                {
+                    var samples = _frame._stream.Slice(_sample, visible * _frame._stride);
+                    Current = new VidRun(x, _frame.Top + row, visible, _frame._hasDepth ? samples[(_frame._stride - 2)..] : default, _frame._stride, samples, _frame._stride, _frame._isPaletted);
+                }
+
+                _pixel += length;
+                _pending -= length;
+                _sample += length * _frame._stride;
+                if (found)
+                {
+                    return true;
+                }
+            }
         }
     }
 }

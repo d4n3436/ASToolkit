@@ -35,7 +35,7 @@ public static class LevelMeasurer
                 }
             }
 
-            if (sprite.Id.IsDecor && objects.TryFind(sprite.Id, out var decor) && decor.IsBreakable)
+            if (sprite.Id.IsDecor && objects.TryFind(sprite.Id, out var decor) && decor.IsHittable)
             {
                 breakables++;
             }

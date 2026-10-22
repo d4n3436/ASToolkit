@@ -212,9 +212,14 @@ public static class LevelExtractor
                 }
             }
 
+            if (best is null)
+            {
+                return null;
+            }
+
             foreach (var tile in big)
             {
-                (double u0, double v0) = best!.ToLattice(tile.X, tile.Y);
+                (double u0, double v0) = best.ToLattice(tile.X, tile.Y);
                 for (int u = (int)Math.Floor(u0) - 3; u < (int)Math.Floor(u0) + 4; u++)
                 {
                     for (int v = (int)Math.Floor(v0) - 3; v < (int)Math.Floor(v0) + 4; v++)

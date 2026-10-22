@@ -51,7 +51,11 @@ public readonly struct ResContainer
         {
             int size = (int)MemoryMarshal.Read<uint>(_data.Span[(offset + 4)..]);
             int start = offset + 8;
-            
+            if (size < 0 || size > _data.Length - start)
+            {
+                yield break;
+            }
+
             yield return new ResChunk(_data.Slice(offset, size + 8));
             offset = start + ((size + 1) & ~1);
         }

@@ -3,13 +3,55 @@ using System.Runtime.InteropServices;
 namespace ASToolkit.Core.Formats;
 
 /// <summary>
-/// Represents the fixed 688-byte body of an entry of objects.res.
+/// Represents the body of an entry of objects.res in the Alien Shooter 2 layout.
 /// </summary>
-[StructLayout(LayoutKind.Explicit, Size = 688)]
+[StructLayout(LayoutKind.Explicit, Size = 704)]
 public readonly struct GameObject
 {
     /// <summary>
-    /// The engine object type.
+    /// Creates a new instance of the <see cref="GameObject"/> structure from an object of the Alien Shooter 1 layout.
+    /// </summary>
+    /// <param name="old">The object.</param>
+    internal GameObject(OldGameObject old)
+    {
+        Category = old.Category;
+        Kind = old.Kind;
+        Type = old.Type;
+        Flags = old.Flags;
+        CollisionMask = old.CollisionMask;
+        ExtentX = old.ExtentX;
+        ExtentY = old.ExtentY;
+        ExtentZ = old.ExtentZ;
+        HitPoints = old.HitPoints;
+        AttachedOffsetX = old.AttachedOffsetX;
+        AttachedOffsetY = old.AttachedOffsetY;
+        AttachedOffsetZ = old.AttachedOffsetZ;
+        AttachedObject = old.AttachedObject;
+        Directions = old.Directions;
+        FramesPerDirection = old.FramesPerDirection;
+        TintRed = old.TintRed;
+        TintGreen = old.TintGreen;
+        TintBlue = old.TintBlue;
+        TintAlpha = 0;
+        BrightnessRed = old.BrightnessRed;
+        BrightnessGreen = old.BrightnessGreen;
+        BrightnessBlue = old.BrightnessBlue;
+    }
+
+    /// <summary>
+    /// The category of the object, a group bit mask.
+    /// </summary>
+    [FieldOffset(0)]
+    public readonly byte Category;
+
+    /// <summary>
+    /// The kind of the object, a group bit mask (0 plain, 2 effect, 4 attachment).
+    /// </summary>
+    [FieldOffset(1)]
+    public readonly byte Kind;
+
+    /// <summary>
+    /// The engine behavior class of the object.
     /// </summary>
     [FieldOffset(4)]
     public readonly uint Type;
@@ -19,6 +61,12 @@ public readonly struct GameObject
     /// </summary>
     [FieldOffset(8)]
     public readonly ObjectFlags Flags;
+
+    /// <summary>
+    /// The collision groups of the object. Two objects collide when their masks share a bit.
+    /// </summary>
+    [FieldOffset(12)]
+    public readonly uint CollisionMask;
 
     /// <summary>
     /// The collision extent along x.
@@ -45,51 +93,81 @@ public readonly struct GameObject
     public readonly int HitPoints;
 
     /// <summary>
+    /// The x offset of the attached object from this one.
+    /// </summary>
+    [FieldOffset(80)]
+    public readonly float AttachedOffsetX;
+
+    /// <summary>
+    /// The y offset of the attached object from this one, as stored in the file.
+    /// </summary>
+    [FieldOffset(84)]
+    public readonly float AttachedOffsetY;
+
+    /// <summary>
+    /// The height offset of the attached object from this one.
+    /// </summary>
+    [FieldOffset(88)]
+    public readonly float AttachedOffsetZ;
+
+    /// <summary>
+    /// The ID of the object the engine creates attached to this one, or zero for none.
+    /// </summary>
+    [FieldOffset(92)]
+    public readonly KnownObject AttachedObject;
+
+    /// <summary>
     /// The number of directions the sprite has frames for. Every entry of the game has at least 1.
     /// </summary>
-    [FieldOffset(112)]
+    [FieldOffset(128)]
     public readonly int Directions;
 
     /// <summary>
     /// The number of frames of the first animation in each direction.
     /// </summary>
-    [FieldOffset(116)]
+    [FieldOffset(132)]
     public readonly int FramesPerDirection;
 
     /// <summary>
     /// The color shift of the red channel of the sprite's palette.
     /// </summary>
-    [FieldOffset(0x294)]
+    [FieldOffset(676)]
     public readonly int TintRed;
 
     /// <summary>
     /// The color shift of the green channel of the sprite's palette.
     /// </summary>
-    [FieldOffset(0x298)]
+    [FieldOffset(680)]
     public readonly int TintGreen;
 
     /// <summary>
     /// The color shift of the blue channel of the sprite's palette.
     /// </summary>
-    [FieldOffset(0x29c)]
+    [FieldOffset(684)]
     public readonly int TintBlue;
+
+    /// <summary>
+    /// The shift of the alpha of the sprite; a negative value makes it more transparent. Alien Shooter 2 only.
+    /// </summary>
+    [FieldOffset(688)]
+    public readonly int TintAlpha;
 
     /// <summary>
     /// The multiplier of the red component of the sprite's brightness.
     /// </summary>
-    [FieldOffset(0x2A4)]
+    [FieldOffset(692)]
     public readonly float BrightnessRed;
 
     /// <summary>
     /// The multiplier of the green component of the sprite's brightness.
     /// </summary>
-    [FieldOffset(0x2A8)]
+    [FieldOffset(696)]
     public readonly float BrightnessGreen;
 
     /// <summary>
     /// The multiplier of the blue component of the sprite's brightness.
     /// </summary>
-    [FieldOffset(0x2AC)]
+    [FieldOffset(700)]
     public readonly float BrightnessBlue;
 
     /// <summary>
@@ -108,9 +186,9 @@ public readonly struct GameObject
     public bool IsSolid => Flags.HasFlag(ObjectFlags.Solid);
 
     /// <summary>
-    /// Gets a value indicating whether the object breaks when shot.
+    /// Gets a value indicating whether shots and explosions can reach the object.
     /// </summary>
-    public bool IsBreakable => Flags.HasFlag(ObjectFlags.Breakable);
+    public bool IsHittable => Flags.HasFlag(ObjectFlags.Hittable);
 
     /// <summary>
     /// Returns the sprite frame the engine shows for a direction byte, out of the given number of frames.

@@ -29,7 +29,7 @@ public readonly struct MapResource
     public MapHeader Header { get; }
 
     /// <summary>
-    /// Gets the size in bytes the sprites in <see cref="Sprites"/>.
+    /// Gets the size (in bytes) of the sprites on <see cref="Sprites"/>.
     /// </summary>
     /// <remarks>The size varies by map version.</remarks>
     public int SpriteSize => Header.Version > 12 ? 48 : 28;

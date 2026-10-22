@@ -42,6 +42,7 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
         var renderer = settings.NoImages ? null : new MapRenderer(settings.Game, objects);
         var reports = new RouteReport?[maps.Length];
         string?[] problems = new string?[maps.Length];
+        string?[] images = new string?[maps.Length];
         int[] undrawn = new int[maps.Length];
         bool[] noScript = new bool[maps.Length];
         
@@ -59,20 +60,26 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
             noScript[i] = !File.Exists(scriptPath);
             var script = LevelScriptReader.Read(scriptPath);
             var analysis = RouteAnalyzer.Analyze(maps[i], map, script, objects);
-            if (analysis is null)
-            {
-                problems[i] = "no route";
-                return;
-            }
 
             string? image = null;
             if (renderer is not null)
             {
                 image = (settings.Levels is null ? "" : "gen_") + Path.ChangeExtension(maps[i], null).Replace('/', '_').Replace('\\', '_') + ".png";
+                images[i] = image;
                 using var rendered = renderer.Render(map.Sprites, settings.Scale, id => IsHidden(objects, id));
-                RouteOverlay.Draw(rendered, analysis, script);
+                if (analysis is not null)
+                {
+                    RouteOverlay.Draw(rendered, analysis, script);
+                }
+
                 rendered.Image.SaveAsPng(Path.Combine(settings.Out, image), PngOptions);
                 undrawn[i] = rendered.Undrawn;
+            }
+
+            if (analysis is null)
+            {
+                problems[i] = "no route";
+                return;
             }
 
             reports[i] = ToReport(maps[i], settings.Levels is not null, image, analysis);
@@ -84,7 +91,7 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
             var r = reports[mapIndex];
             table.AddRow(Markup.Escape(maps[mapIndex]), r?.Theme.ToString() ?? "", r is null ? $"[red]{problems[mapIndex]}[/]" : $"{r.TourPixels} px",
                 r?.SpineShare.ToString("0.00") ?? "", r?.Elongation.ToString("0.00") ?? "",
-                r?.Image is null ? "" : Markup.Escape(r.Image) + (undrawn[mapIndex] > 0 ? $" [grey]({undrawn[mapIndex]} sprites undrawn)[/]" : ""));
+                images[mapIndex] is null ? "" : Markup.Escape(images[mapIndex]) + (undrawn[mapIndex] > 0 ? $" [grey]({undrawn[mapIndex]} sprites undrawn)[/]" : ""));
         }
 
         AnsiConsole.Write(table);

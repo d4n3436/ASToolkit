@@ -11,13 +11,20 @@ namespace ASToolkit.Core.Formats;
 public sealed class ObjectTable
 {
     private static readonly int BodySize = Unsafe.SizeOf<GameObject>();
+    private static readonly int OldBodySize = Unsafe.SizeOf<OldGameObject>();
 
     private readonly Dictionary<KnownObject, Entry> _entries;
 
-    private ObjectTable(Dictionary<KnownObject, Entry> entries)
+    private ObjectTable(Dictionary<KnownObject, Entry> entries, bool isAlienShooter2)
     {
         _entries = entries;
+        IsAlienShooter2 = isAlienShooter2;
     }
+
+    /// <summary>
+    /// Gets a value indicating whether the table has the longer entries of Alien Shooter 2.
+    /// </summary>
+    public bool IsAlienShooter2 { get; }
 
     /// <summary>
     /// Gets the ID of every entry.
@@ -29,18 +36,47 @@ public sealed class ObjectTable
     /// </summary>
     public static ObjectTable Load(string path)
     {
+        var records = new ResContainer(File.ReadAllBytes(path)).Chunks.First().Records;
         var entries = new Dictionary<KnownObject, Entry>();
-        foreach (var memory in new ResContainer(File.ReadAllBytes(path)).Chunks.First().Records)
+        bool anyExtended = false;
+        foreach (var memory in records)
         {
             var record = memory.Span;
             var id = (KnownObject)MemoryMarshal.Read<uint>(record);
             int nameEnd = record[4..].IndexOf((byte)0) + 4;
-            var spritePath = record[(nameEnd + 1 + BodySize)..^1];
-            entries[id] = new Entry(MemoryMarshal.Read<GameObject>(record[(nameEnd + 1)..]), GameTextEncoding.Cyrillic.GetString(record[4..nameEnd]),
-                Encoding.Latin1.GetString(spritePath));
+            int bodyStart = nameEnd + 1;
+
+            int pathEnd = record.Length - 1;
+            int pathStart = bodyStart + OldBodySize;
+            bool isOld = pathStart < pathEnd && IsPath(record[pathStart..pathEnd]);
+            GameObject obj;
+            if (isOld)
+            {
+                obj = new GameObject(MemoryMarshal.Read<OldGameObject>(record[bodyStart..pathStart]));
+            }
+            else
+            {
+                anyExtended = true;
+                pathStart = bodyStart + BodySize;
+                obj = MemoryMarshal.Read<GameObject>(record[bodyStart..pathStart]);
+            }
+
+            entries[id] = new Entry(obj, GameTextEncoding.Cyrillic.GetString(record[4..nameEnd]),
+                Encoding.Latin1.GetString(record[pathStart..pathEnd]));
         }
 
-        return new ObjectTable(entries);
+        return new ObjectTable(entries, anyExtended);
+    }
+
+    private static bool IsPath(ReadOnlySpan<byte> path)
+    {
+        foreach (byte b in path)
+        {
+            if (b is < 0x20 or > 0x7E)
+                return false;
+        }
+
+        return true;
     }
 
     /// <summary>

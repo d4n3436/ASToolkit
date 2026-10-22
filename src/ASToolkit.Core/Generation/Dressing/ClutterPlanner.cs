@@ -36,7 +36,7 @@ public static class ClutterPlanner
             {
                 solid[sprite.Id] = solid.GetValueOrDefault(sprite.Id) + 1;
             }
-            else if (obj.IsBreakable)
+            else if (obj.IsHittable)
             {
                 breakable[sprite.Id] = breakable.GetValueOrDefault(sprite.Id) + 1;
             }
@@ -138,7 +138,7 @@ public static class ClutterPlanner
             blockedFine.UnionWith(SolidObjectMapper.FindBlockedCells(fine, fineCells, SolidObjectMapper.GetCollisionBoxes(rowSprites, objects)));
         }
 
-        int present = result.Count(o => objects.TryFind(o.Id, out var obj) && obj.IsBreakable);
+        int present = result.Count(o => objects.TryFind(o.Id, out var obj) && obj.IsHittable);
         for (int attempt = 0; attempt < 400 && breakablePalette.Count > 0 && present < breakables; attempt++)
         {
             var id = Pick(rng, breakablePalette);

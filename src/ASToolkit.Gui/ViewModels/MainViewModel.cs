@@ -78,7 +78,10 @@ public partial class MainViewModel : ViewModelBase
                new($"{nameof(VidResource.Speed)}: {vid.Speed}"),
                new($"{nameof(VidResource.FrameCount)}: {vid.FrameCount}"),
                new($"{nameof(VidResource.Width)}: {vid.Width}"),
-               new($"{nameof(VidResource.Height)}: {vid.Height}")
+               new($"{nameof(VidResource.Height)}: {vid.Height}"),
+               new($"{nameof(VidResource.Format)}: {vid.Format}"),
+               new($"{nameof(VidResource.Mode)}: {vid.Mode}"),
+               new($"{nameof(VidResource.Blend)}: {vid.Blend}")
             };
             
             subNodes.Add(new Node("Header info", headerInfo));
