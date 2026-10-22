@@ -9,16 +9,10 @@ namespace ASToolkit.Core.Formats;
 internal readonly struct OldGameObject
 {
     /// <summary>
-    /// The category of the object.
+    /// The group of the object, which holds its category in the low byte and its kind in the next one.
     /// </summary>
     [FieldOffset(0)]
-    public readonly byte Category;
-
-    /// <summary>
-    /// The kind of the object.
-    /// </summary>
-    [FieldOffset(1)]
-    public readonly byte Kind;
+    public readonly uint Group;
 
     /// <summary>
     /// The engine behavior class of the object.

@@ -20,8 +20,12 @@ internal sealed class AnalyzeSettings : GameSettings
 
     [CommandOption("-s|--scale <SCALE>")]
     [Description("Image pixels per map pixel, above 0 and at most 1. Markers and lines grow with it.")]
-    [DefaultValue(0.5)]
-    public double Scale { get; init; } = 0.5;
+    [DefaultValue(1.0)]
+    public double Scale { get; init; } = 1;
+
+    [CommandOption("--game-lighting")]
+    [Description("Lights Alien Shooter 2 levels as the game does, from the ambient light of each map.")]
+    public bool GameLighting { get; init; }
 
     [CommandOption("--no-images")]
     [Description("Writes routes.json only.")]

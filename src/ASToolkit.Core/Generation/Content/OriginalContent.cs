@@ -134,7 +134,7 @@ public sealed class OriginalContent
             {
                 var members = sp
                     .Where(o => (o.Id is KnownObject.TeleportPad or KnownObject.BigMonsterHole or KnownObject.SmallMonsterHole || o.Id.IsEndlessGenerator) && Math.Sqrt(Math.Pow(o.X - sprite.X, 2) + Math.Pow(o.Y - sprite.Y, 2)) < 130)
-                    .Select(o => new SiteMember(o.Id, o.X - sprite.X, o.Y - sprite.Y, o.Z, o.Dir, o.Army,
+                    .Select(o => new SiteMember(o.Id, o.X - sprite.X, o.Y - sprite.Y, o.Z, o.Dir, o.Side,
                         o.Payload.Length <= 12 ? o.Payload : new byte[o.Id == KnownObject.TeleportPad ? 12 : 8]))
                     .ToList();
                 if (theme == LevelTheme.Lab)

@@ -166,7 +166,7 @@ public sealed class PlacementContext
     /// <summary>
     /// Places an object on a free spot of one of the cells and returns its position and cell, or null when no cell has room.
     /// </summary>
-    public (double X, double Y, Cell Cell)? Place(IReadOnlyList<Cell> cells, KnownObject id, int? dir = null, ReadOnlyMemory<byte> payload = default, uint? army = null, bool take = true)
+    public (double X, double Y, Cell Cell)? Place(IReadOnlyList<Cell> cells, KnownObject id, int? dir = null, ReadOnlyMemory<byte> payload = default, uint? side = null, bool take = true)
     {
         if (cells.Count == 0)
         {
@@ -188,7 +188,7 @@ public sealed class PlacementContext
                 Taken.Add(cells[cellIndex]);
             }
 
-            Map.Add(id, spot.Value.X, spot.Value.Y, 0, dir ?? Rng.Next(256), payload, army, unique: false);
+            Map.Add(id, spot.Value.X, spot.Value.Y, 0, dir ?? Rng.Next(256), payload, side, unique: false);
             return (spot.Value.X, spot.Value.Y, cells[cellIndex]);
         }
 

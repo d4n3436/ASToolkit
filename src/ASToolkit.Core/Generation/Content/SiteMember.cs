@@ -10,6 +10,6 @@ namespace ASToolkit.Core.Generation.Content;
 /// <param name="Dy">The y offset.</param>
 /// <param name="Z">The height.</param>
 /// <param name="Dir">The facing.</param>
-/// <param name="Army">The army field.</param>
+/// <param name="Side">The side.</param>
 /// <param name="Payload">The payload bytes.</param>
-public sealed record SiteMember(KnownObject Id, double Dx, double Dy, double Z, byte Dir, uint Army, byte[] Payload);
+public sealed record SiteMember(KnownObject Id, double Dx, double Dy, double Z, byte Dir, uint Side, byte[] Payload);

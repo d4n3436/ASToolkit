@@ -11,12 +11,8 @@ using SixLabors.ImageSharp.Processing;
 namespace ASToolkit.Core.Rendering;
 
 /// <summary>
-/// Renders maps the way the game engines draw them, with the depth buffer, the draw passes and palette blending.
+/// Renders maps the way the game engines draw them, showing the first animation frame of each object.
 /// </summary>
-/// <remarks>
-/// Draws paletted sprites, which are nearly every sprite on a level; texture and bitmap sprites are counted as undrawn.
-/// Animated objects show their first frame. Decoded frames are kept for the renderer's lifetime.
-/// </remarks>
 public sealed class MapRenderer
 {
     private const int Margin = 4;
@@ -34,6 +30,8 @@ public sealed class MapRenderer
     private const uint PlayerSide = 0;
     private const int LightPass = 7;
     private const int NeutralLight = 255;
+    private const int MaxLight = 2 * NeutralLight;
+    private const double AmbientLevel = 0.35;
     private const double RowScale = 0.70706;
     private const uint SceneryType = 8;
     private const uint InterfaceType = 10;
@@ -48,7 +46,7 @@ public sealed class MapRenderer
     private readonly ObjectTable _objects;
     private readonly ConcurrentDictionary<string, VidResource?> _files = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<FrameKey, SpriteFrame?> _frames = new();
-    private readonly ConcurrentDictionary<(string Path, (int R, int G, int B) Tint, int AlphaShift, (float R, float G, float B) Brightness), Rgba32[]> _palettes = new();
+    private readonly ConcurrentDictionary<(string Path, PackedTint Tint, bool TintsAlpha, (float R, float G, float B) Brightness), Rgba32[]> _palettes = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MapRenderer"/> class.
@@ -66,25 +64,41 @@ public sealed class MapRenderer
     public bool OmitsRemovableGroups { get; init; } = true;
 
     /// <summary>
+    /// Gets a value indicating whether the black covers of Alien Shooter 2 maps are left out, which shows the objects
+    /// outside the playable area.
+    /// </summary>
+    public bool OmitsCovers { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether Alien Shooter 2 maps are lit as the game lights them, starting from the ambient light of
+    /// the map instead of leaving the colors as they are.
+    /// </summary>
+    public bool MatchesGameLighting { get; init; }
+
+    /// <summary>
     /// Gets the color of the image where no sprite is drawn.
     /// </summary>
     public static Rgb24 Background { get; } = new(0, 0, 0);
 
     /// <summary>
     /// Renders map sprites and the objects the engine attaches to them, scaled down by a factor of at most 1, leaving out
-    /// the objects the skip function picks.
+    /// the objects the skip function picks. The ambient light of the graphics record only takes effect with
+    /// <see cref="MatchesGameLighting"/>.
     /// </summary>
-    public MapImage Render(IReadOnlyList<MergedMapSprite> sprites, double scale = 1, Func<KnownObject, bool>? skip = null)
+    public MapImage Render(IReadOnlyList<MergedMapSprite> sprites, double scale = 1, Func<KnownObject, bool>? skip = null, MapGraphics graphics = default)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(scale);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(scale, 1);
         var placed = new List<Placement>(sprites.Count);
+        bool matchesLighting = MatchesGameLighting && _objects.IsAlienShooter2;
+        var ambient = matchesLighting ? new PackedTint(graphics.AmbientNegative, graphics.AmbientPositive) : (PackedTint?)null;
         int undrawn = 0;
         foreach (var sprite in sprites)
         {
-            if (!(OmitsRemovableGroups && IsRemovableGroup(sprite.Payload)))
+            if (!(OmitsRemovableGroups && IsRemovableGroup(sprite.Payload)) && !(OmitsCovers && IsCover(sprite.Id)))
             {
-                undrawn += Place(placed, sprite.Id, sprite.X, sprite.Y, sprite.Z, sprite.Dir, sprite.Army, skip, 0);
+                var look = new SpriteLook(GetPlacementTint(sprite), new Vector3((float)sprite.ScaleX, (float)sprite.ScaleY, (float)sprite.ScaleZ));
+                undrawn += Place(placed, sprite.Id, sprite.X, sprite.Y, sprite.Z, sprite.Dir, sprite.Side, look, ambient, skip, 0);
             }
         }
 
@@ -98,11 +112,14 @@ public sealed class MapRenderer
         int width = (int)placed.Max(p => p.Left + p.Width) - x0 + Margin;
         int height = (int)placed.Max(p => p.Top + p.Height) - y0 + Margin;
         var image = new Image<Rgb24>(ImageConfiguration, Math.Max(1, (int)(width * scale)), Math.Max(1, (int)(height * scale)), Background);
-        var canvas = new Canvas(placed, x0, y0, width, height, scale, image);
+        var canvas = new Canvas(placed, x0, y0, width, height, scale, image, ambient.HasValue ? GetAmbientFill(ambient.Value) : null);
         var options = new ParallelOptions { MaxDegreeOfParallelism = Math.Min(Environment.ProcessorCount, MaxStripWorkers) };
         Parallel.For(0, canvas.StripCount, options, canvas.CreateBuffers, canvas.DrawStrip, canvas.ReleaseBuffers);
         return new MapImage { Image = image, OriginX = x0, OriginY = y0, Scale = scale, Undrawn = undrawn };
     }
+
+    private bool IsCover(KnownObject id) =>
+        _objects.IsAlienShooter2 && id is KnownObject.SoftCover or KnownObject.BlackBlock or KnownObject.SoftCoverDummy;
 
     private static bool IsRemovableGroup(ReadOnlySpan<byte> payload)
     {
@@ -134,7 +151,8 @@ public sealed class MapRenderer
         return true;
     }
 
-    private int Place(List<Placement> placed, KnownObject id, double x, double y, double z, byte dir, uint side, Func<KnownObject, bool>? skip, int attachDepth)
+    private int Place(List<Placement> placed, KnownObject id, double x, double y, double z, byte dir, uint side, SpriteLook look, PackedTint? ambient,
+        Func<KnownObject, bool>? skip, int attachDepth)
     {
         if (!_objects.TryFind(id, out var obj) || (skip?.Invoke(id) ?? false)
             || (attachDepth > 0 && obj.Flags.HasFlag(ObjectFlags.SideDependent) && side != PlayerSide))
@@ -145,10 +163,17 @@ public sealed class MapRenderer
         string path = _objects.GetPath(id);
         var file = GetFile(path);
         int frameIndex = file is null ? 0 : obj.GetFrame(dir, file.Value.FrameCount);
-        var frame = file is null ? null : GetFrame(path, obj, file.Value, frameIndex, GetRotation(obj, file.Value, path, dir));
-        (int width, int height) = frame is not null ? (frame.Width, frame.Height) : file is null ? (MissingSize, MissingSize) : (file.Value.Width, file.Value.Height);
         bool sequel = _objects.IsAlienShooter2;
-        int pass = sequel && file is not null ? GetPass(obj, file.Value) : frame is null || !frame.IsCombined ? 0 : 1;
+        int sequelPass = sequel && file is not null ? GetPass(obj, file.Value) : 0;
+        var tint = look.Tint ?? PackedTint.Pack(obj.TintRed, obj.TintGreen, obj.TintBlue, obj.TintAlpha);
+        if (ambient.HasValue && sequelPass >= LightPass && !obj.Flags.HasFlag(ObjectFlags.Unlit))
+        {
+            tint = tint.Add(ambient.Value);
+        }
+
+        var frame = file is null ? null : GetFrame(path, obj, file.Value, frameIndex, GetRotation(obj, file.Value, path, dir), tint, look.Scale);
+        (int width, int height) = frame is not null ? (frame.Width, frame.Height) : file is null ? (MissingSize, MissingSize) : (file.Value.Width, file.Value.Height);
+        int pass = sequel && file is not null ? sequelPass : frame is null || !frame.IsCombined ? 0 : 1;
         placed.Add(new Placement(obj, frame, x - width / 2.0, y - z - height / 2.0, width, height, GetBaseDepth(obj, z, sequel), !sequel && obj.ExtentY < obj.ExtentZ, pass));
         int undrawn = file is not null && frame is null ? 1 : 0;
         if (obj.AttachedObject == 0 || attachDepth >= MaxAttachDepth || !_objects.TryFind(obj.AttachedObject, out var attached))
@@ -157,7 +182,7 @@ public sealed class MapRenderer
         }
 
         var offset = GetAttachedOffset(obj, attached, file, frameIndex, dir);
-        return undrawn + Place(placed, obj.AttachedObject, x + offset.X, y + offset.Y, z + offset.Z, dir, side, skip, attachDepth + 1);
+        return undrawn + Place(placed, obj.AttachedObject, x + offset.X, y + offset.Y, z + offset.Z, dir, side, SpriteLook.Default, ambient, skip, attachDepth + 1);
     }
 
     private static Vector3 GetAttachedOffset(GameObject owner, GameObject attached, VidResource? file, int frameIndex, byte dir)
@@ -257,18 +282,27 @@ public sealed class MapRenderer
         return path is not null && path.EndsWith(".vid", StringComparison.OrdinalIgnoreCase) ? new VidResource(File.ReadAllBytes(path)) : null;
     });
 
-    private SpriteFrame? GetFrame(string path, GameObject obj, VidResource view, int index, byte rotation) =>
-        _frames.GetOrAdd(new FrameKey(path, obj.Tint, obj.TintAlpha, obj.Brightness, index, rotation), _ => rotation == 0
-            ? DecodeFrame(path, obj, view, index)
-            : DecodeRotatedFrame(path, obj, view, index, rotation));
+    private static PackedTint? GetPlacementTint(MergedMapSprite sprite) =>
+        sprite is { NegativeTint: 0, PositiveTint: 0 } ? null : new PackedTint(sprite.NegativeTint, sprite.PositiveTint);
 
-    private SpriteFrame? DecodeRotatedFrame(string path, GameObject obj, VidResource view, int index, byte rotation)
+    private static int[] GetAmbientFill(PackedTint ambient)
     {
-        var upright = GetFrame(path, obj, view, index, 0);
-        return upright is null ? null : RotateFrame(upright, view.GetFrame(index).Mesh, rotation);
+        const int level = (int)(AmbientLevel * NeutralLight);
+        return [2 * ambient.Apply(level, 16), 2 * ambient.Apply(level, 8), 2 * ambient.Apply(level, 0)];
     }
 
-    private SpriteFrame? DecodeFrame(string path, GameObject obj, VidResource view, int index)
+    private SpriteFrame? GetFrame(string path, GameObject obj, VidResource view, int index, byte rotation, PackedTint tint, Vector3 scale) =>
+        _frames.GetOrAdd(new FrameKey(path, tint, obj.Brightness, index, rotation, scale), _ => rotation == 0 && scale == Vector3.One
+            ? DecodeFrame(path, obj, view, index, tint)
+            : DecodeTransformedFrame(path, obj, view, index, rotation, tint, scale));
+
+    private SpriteFrame? DecodeTransformedFrame(string path, GameObject obj, VidResource view, int index, byte rotation, PackedTint tint, Vector3 scale)
+    {
+        var upright = GetFrame(path, obj, view, index, 0, tint, Vector3.One);
+        return upright is null ? null : TransformFrame(upright, view.GetFrame(index).Mesh, rotation, scale);
+    }
+
+    private SpriteFrame? DecodeFrame(string path, GameObject obj, VidResource view, int index, PackedTint tint)
     {
         if (index >= view.FrameCount)
         {
@@ -281,8 +315,8 @@ public sealed class MapRenderer
             return null;
         }
 
-        int alphaShift = view is { IsBlended: true, Blend: VidBlend.Alpha or VidBlend.AlphaNoDepthWrite or VidBlend.AlphaDepthWrite } ? obj.TintAlpha : 0;
-        var palette = paletted ? _palettes.GetOrAdd((path, obj.Tint, alphaShift, obj.Brightness), _ => ApplyTint(view.Palette, obj.Tint, alphaShift, obj.Brightness)) : null;
+        bool tintsAlpha = view is { IsBlended: true, Blend: VidBlend.Alpha or VidBlend.AlphaNoDepthWrite or VidBlend.AlphaDepthWrite };
+        var palette = paletted ? _palettes.GetOrAdd((path, tint, tintsAlpha, obj.Brightness), _ => ApplyTint(view.Palette, tint, tintsAlpha, obj.Brightness)) : null;
         var frame = view.GetFrame(index);
         int count = 0;
         foreach (var run in frame)
@@ -399,7 +433,7 @@ public sealed class MapRenderer
         return (ushort)Math.Clamp(FlatDepth + (float.IsNaN(z) ? 0 : (int)MathF.Round(z * DepthPerHeight)), 0, ushort.MaxValue);
     }
 
-    private static SpriteFrame RotateFrame(SpriteFrame source, VidMesh mesh, byte rotation)
+    private static SpriteFrame TransformFrame(SpriteFrame source, VidMesh mesh, byte rotation, Vector3 scale)
     {
         (double sin, double cos) = Math.SinCos(rotation * Math.PI / 128);
         int sourceWidth = source.Width;
@@ -424,7 +458,7 @@ public sealed class MapRenderer
                 }
 
                 heights[index] = source.Depths.Length > 0 ? (source.Depths[index] - FlatDepth) / (float)DepthPerHeight : 0;
-                (double turnedX, double turnedY) = TurnPoint(x + 0.5 - sourceCenterX, y + 0.5 - sourceCenterY, heights[index], sin, cos);
+                (double turnedX, double turnedY) = TurnPoint(x + 0.5 - sourceCenterX, y + 0.5 - sourceCenterY, heights[index], sin, cos, scale);
                 extentX = Math.Max(extentX, Math.Abs(turnedX));
                 extentY = Math.Max(extentY, Math.Abs(turnedY));
             }
@@ -442,8 +476,8 @@ public sealed class MapRenderer
             for (int x = 0; x < width; x++)
             {
                 double turnedX = x + 0.5 - centerX;
-                int sourceX = (int)Math.Floor(turnedX * cos + groundY * sin + sourceCenterX);
-                int sourceY = (int)Math.Floor(RowScale * (groundY * cos - turnedX * sin) + sourceCenterY);
+                int sourceX = (int)Math.Floor((turnedX * cos + groundY * sin) / scale.X + sourceCenterX);
+                int sourceY = (int)Math.Floor(RowScale * (groundY * cos - turnedX * sin) / scale.Y + sourceCenterY);
                 if ((uint)sourceX < (uint)sourceWidth && (uint)sourceY < (uint)sourceHeight)
                 {
                     int index = lookup[sourceY * sourceWidth + sourceX];
@@ -462,26 +496,27 @@ public sealed class MapRenderer
             for (int triangle = 0; triangle < mesh.TriangleCount; triangle++)
             {
                 var (a, b, c) = mesh.GetTriangle(triangle);
-                PlaceTriangle([a, b, c], sin, cos, sourceCenterX, sourceCenterY, sourceWidth, sourceHeight, centerX, centerY, width, height, lookup, target, targetHeights);
+                PlaceTriangle([a, b, c], sin, cos, scale, sourceCenterX, sourceCenterY, sourceWidth, sourceHeight, centerX, centerY, width, height, lookup, target, targetHeights);
             }
         }
 
-        return BuildFrame(source, target, width, height);
+        return BuildFrame(source, target, width, height, scale.Z);
     }
 
-    private static (double X, double Y) TurnPoint(double x, double y, double height, double sin, double cos)
+    private static (double X, double Y) TurnPoint(double x, double y, double height, double sin, double cos, Vector3 scale)
     {
-        double groundY = (y + height) / RowScale;
-        return (x * cos - groundY * sin, RowScale * (x * sin + groundY * cos) - height);
+        double groundX = x * scale.X;
+        double groundY = (y + height) / RowScale * scale.Y;
+        return (groundX * cos - groundY * sin, RowScale * (groundX * sin + groundY * cos) - height * scale.Z);
     }
 
-    private static void PlaceTriangle(VidVertex[] vertices, double sin, double cos, double sourceCenterX, double sourceCenterY, int sourceWidth, int sourceHeight,
+    private static void PlaceTriangle(VidVertex[] vertices, double sin, double cos, Vector3 scale, double sourceCenterX, double sourceCenterY, int sourceWidth, int sourceHeight,
         double centerX, double centerY, int width, int height, int[] lookup, int[] target, float[] targetHeights)
     {
         var points = new (double X, double Y)[3];
         for (int vertex = 0; vertex < 3; vertex++)
         {
-            (double turnedX, double turnedY) = TurnPoint(vertices[vertex].X - sourceCenterX, vertices[vertex].Y - sourceCenterY, vertices[vertex].Z, sin, cos);
+            (double turnedX, double turnedY) = TurnPoint(vertices[vertex].X - sourceCenterX, vertices[vertex].Y - sourceCenterY, vertices[vertex].Z, sin, cos, scale);
             points[vertex] = (turnedX + centerX, turnedY + centerY);
         }
 
@@ -528,7 +563,7 @@ public sealed class MapRenderer
         }
     }
 
-    private static SpriteFrame BuildFrame(SpriteFrame source, int[] target, int width, int height)
+    private static SpriteFrame BuildFrame(SpriteFrame source, int[] target, int width, int height, float scaleZ)
     {
         int top = 0;
         while (top < height && Array.FindIndex(target, top * width, width, index => index >= 0) < 0)
@@ -572,7 +607,7 @@ public sealed class MapRenderer
 
                 if (depths.Length > 0)
                 {
-                    depths[pixel] = source.Depths[index];
+                    depths[pixel] = (ushort)Math.Clamp(FlatDepth + (source.Depths[index] - FlatDepth) * scaleZ, 0, ushort.MaxValue);
                 }
 
                 pixel++;
@@ -619,29 +654,57 @@ public sealed class MapRenderer
 
     private static byte Expand(int value, int bits) => (byte)((value << (8 - bits)) | (value >> (2 * bits - 8)));
 
-    private static Rgba32[] ApplyTint(ReadOnlyMemory<byte> palette, (int R, int G, int B) tint, int alphaShift, (float R, float G, float B) brightness)
+    private static Rgba32[] ApplyTint(ReadOnlyMemory<byte> palette, PackedTint tint, bool tintsAlpha, (float R, float G, float B) brightness)
     {
         var colors = new Rgba32[256];
         var entries = palette.Span;
         for (int index = 0; index < 256; index++)
         {
+            byte alpha = entries[4 * index + 3];
             colors[index] = new Rgba32(
-                Scale(Shift(entries[4 * index + 2], tint.R), brightness.R),
-                Scale(Shift(entries[4 * index + 1], tint.G), brightness.G),
-                Scale(Shift(entries[4 * index], tint.B), brightness.B),
-                ShiftAlpha(entries[4 * index + 3], alphaShift));
+                Scale((byte)tint.Apply(entries[4 * index + 2], 16), brightness.R),
+                Scale((byte)tint.Apply(entries[4 * index + 1], 8), brightness.G),
+                Scale((byte)tint.Apply(entries[4 * index], 0), brightness.B),
+                tintsAlpha ? (byte)(alpha * (256 - tint.GetNegative(24)) >> 8) : alpha);
         }
 
         return colors;
     }
 
-    private static byte Shift(byte c, int t) => (byte)(t < 0 ? c * (256 + t) >> 8 : Math.Min(255, c + t));
-
-    private static byte ShiftAlpha(byte alpha, int shift) => (byte)(shift < 0 ? alpha * (255 + Math.Max(shift, -255)) / 255 : alpha);
-
     private static byte Scale(byte c, float m) => (byte)Math.Clamp((int)(c * m + 0.5f), 0, 255);
 
-    private readonly record struct FrameKey(string Path, (int R, int G, int B) Tint, int TintAlpha, (float R, float G, float B) Brightness, int Frame, byte Rotation);
+    private readonly record struct FrameKey(string Path, PackedTint Tint, (float R, float G, float B) Brightness, int Frame, byte Rotation, Vector3 Scale);
+
+    private readonly record struct SpriteLook(PackedTint? Tint, Vector3 Scale)
+    {
+        public static SpriteLook Default { get; } = new(null, Vector3.One);
+    }
+
+    private readonly record struct PackedTint(uint Negative, uint Positive)
+    {
+        public static PackedTint Pack(int red, int green, int blue, int alpha) =>
+            new(GetMagnitude(-alpha) << 24 | GetMagnitude(-red) << 16 | GetMagnitude(-green) << 8 | GetMagnitude(-blue),
+                GetMagnitude(alpha) << 24 | GetMagnitude(red) << 16 | GetMagnitude(green) << 8 | GetMagnitude(blue));
+
+        public PackedTint Add(PackedTint other) => new(AddBytes(Negative, other.Negative), AddBytes(Positive, other.Positive));
+
+        public int GetNegative(int shift) => (int)(Negative >> shift & 0xff);
+
+        public int Apply(int color, int shift) => Math.Min(255, (color * (256 - GetNegative(shift)) >> 8) + (int)(Positive >> shift & 0xff));
+
+        private static uint GetMagnitude(int value) => (uint)Math.Clamp(value, 0, 255);
+
+        private static uint AddBytes(uint first, uint second)
+        {
+            uint sum = 0;
+            for (int shift = 0; shift < 32; shift += 8)
+            {
+                sum |= Math.Min(255, (first >> shift & 0xff) + (second >> shift & 0xff)) << shift;
+            }
+
+            return sum;
+        }
+    }
 
     private sealed record StripBuffers(Image<Rgb24> Source, int[] Depth, int[] Light);
 
@@ -659,8 +722,9 @@ public sealed class MapRenderer
         private readonly Image<Rgb24> _image;
         private readonly int _stripRows;
         private readonly bool _hasLights;
+        private readonly int[] _lightFill;
 
-        public Canvas(List<Placement> placed, int x0, int y0, int width, int height, double scale, Image<Rgb24> image)
+        public Canvas(List<Placement> placed, int x0, int y0, int width, int height, double scale, Image<Rgb24> image, int[]? ambientFill)
         {
             _placed = placed;
             _origins = placed.Select(p => ((int)Math.Round(p.Left - x0), (int)Math.Round(p.Top - y0))).ToArray();
@@ -670,7 +734,8 @@ public sealed class MapRenderer
             _scale = scale;
             _image = image;
             _stripRows = Math.Max(1, (int)(StripRows * scale));
-            _hasLights = placed.Any(p => p.Pass == LightPass);
+            _hasLights = ambientFill is not null || placed.Any(p => p.Pass == LightPass);
+            _lightFill = ambientFill ?? [NeutralLight, NeutralLight, NeutralLight];
         }
 
         public int StripCount => (_image.Height + _stripRows - 1) / _stripRows;
@@ -714,7 +779,12 @@ public sealed class MapRenderer
             bool lit = !_hasLights;
             if (_hasLights)
             {
-                Array.Fill(light, NeutralLight, 0, 3 * _width * (y1 - y0));
+                for (int offset = 0; offset < 3 * _width * (y1 - y0); offset += 3)
+                {
+                    light[offset] = _lightFill[0];
+                    light[offset + 1] = _lightFill[1];
+                    light[offset + 2] = _lightFill[2];
+                }
             }
 
             foreach (int placedObjectIndex in _order)
@@ -834,15 +904,15 @@ public sealed class MapRenderer
         {
             if (blend == VidBlend.Brighten)
             {
-                light[offset] += light[offset] * over.R / 255;
-                light[offset + 1] += light[offset + 1] * over.G / 255;
-                light[offset + 2] += light[offset + 2] * over.B / 255;
+                light[offset] = Math.Min(MaxLight, light[offset] + light[offset] * over.R / 255);
+                light[offset + 1] = Math.Min(MaxLight, light[offset + 1] + light[offset + 1] * over.G / 255);
+                light[offset + 2] = Math.Min(MaxLight, light[offset + 2] + light[offset + 2] * over.B / 255);
             }
             else
             {
-                light[offset] += 2 * over.R;
-                light[offset + 1] += 2 * over.G;
-                light[offset + 2] += 2 * over.B;
+                light[offset] = Math.Min(MaxLight, light[offset] + 2 * over.R);
+                light[offset + 1] = Math.Min(MaxLight, light[offset + 1] + 2 * over.G);
+                light[offset + 2] = Math.Min(MaxLight, light[offset + 2] + 2 * over.B);
             }
         }
 

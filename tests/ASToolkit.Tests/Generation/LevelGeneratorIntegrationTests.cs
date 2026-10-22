@@ -8,7 +8,7 @@ namespace ASToolkit.Tests.Generation;
 [Trait("Category", "Integration")]
 public class LevelGeneratorIntegrationTests
 {
-    private static readonly string[] ArmySources = ["Level_02.map", "Level_04.map", "Level_07.map", "ADDON/Level_02.map", "ADDON2/Level_04.map"];
+    private static readonly string[] SideSources = ["Level_02.map", "Level_04.map", "Level_07.map", "ADDON/Level_02.map", "ADDON2/Level_04.map"];
 
     [Fact]
     public void Generate_EveryCampaignLevel_BreaksNoHardRule()
@@ -41,6 +41,6 @@ public class LevelGeneratorIntegrationTests
     {
         string game = TestGameFolder.RequireFolder();
         var objects = ObjectTable.Load(Path.Combine(game, "objects.res"));
-        return new LevelGenerator(game, objects, ReferenceLevelSet.Load(game, objects), ArmyTable.Load(game, ArmySources));
+        return new LevelGenerator(game, objects, ReferenceLevelSet.Load(game, objects), SideTable.Load(game, SideSources));
     }
 }

@@ -29,7 +29,7 @@ public sealed class MapImage : IDisposable
     public required double Scale { get; init; }
 
     /// <summary>
-    /// Gets the number of sprites left out because their sprite file has a format the renderer doesn't draw.
+    /// Gets the number of sprites left out because their sprite frame could not be decoded.
     /// </summary>
     public required int Undrawn { get; init; }
 

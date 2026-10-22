@@ -5,25 +5,27 @@ namespace ASToolkit.Core.Formats;
 /// <summary>
 /// Represents one placed object of a map.
 /// </summary>
-[StructLayout(LayoutKind.Explicit)]
+[StructLayout(LayoutKind.Explicit, Size = 48)]
 public readonly record struct MapSprite
 {
     /// <summary>
-    /// Creates a new instance of the <see cref="MapSprite"/> structure, optionally reinterpreting the values of X, Y and Z from old map versions.
+    /// Creates a new instance of the <see cref="MapSprite"/> structure from a sprite of a map before version 16, optionally
+    /// reinterpreting the values of X, Y and Z as integers.
     /// </summary>
-    /// <param name="sprite">The sprite</param>
+    /// <param name="old">The sprite.</param>
     /// <param name="reinterpret">Whether to reinterpret the values of X, Y and Z.</param>
-    public MapSprite(MapSprite sprite, bool reinterpret = false)
+    internal MapSprite(OldMapSprite old, bool reinterpret)
     {
-        Handle = sprite.Handle;
-        Id = sprite.Id;
-        X = reinterpret ? BitConverter.SingleToInt32Bits(sprite.X) : sprite.X;
-        Y = reinterpret ? BitConverter.SingleToInt32Bits(sprite.Y) : sprite.Y;
-        Z = reinterpret ? BitConverter.SingleToInt32Bits(sprite.Z) : sprite.Z;
-        Dir = sprite.Dir;
-        Pad1 = sprite.Pad1;
-        Pad2 = sprite.Pad2;
-        Army = sprite.Army;
+        Handle = old.Handle;
+        Id = old.Id;
+        X = reinterpret ? BitConverter.SingleToInt32Bits(old.X) : old.X;
+        Y = reinterpret ? BitConverter.SingleToInt32Bits(old.Y) : old.Y;
+        Z = reinterpret ? BitConverter.SingleToInt32Bits(old.Z) : old.Z;
+        Dir = old.Dir;
+        Side = old.Side;
+        ScaleX = 1;
+        ScaleY = 1;
+        ScaleZ = 1;
     }
     
     /// <summary>
@@ -60,23 +62,41 @@ public readonly record struct MapSprite
     /// The facing.
     /// </summary>
     [FieldOffset(20)]
-    public readonly byte Dir;
+    public readonly uint Dir;
 
     /// <summary>
-    /// Padding.
-    /// </summary>
-    [FieldOffset(21)]
-    public readonly short Pad1;
-
-    /// <summary>
-    /// Padding.
-    /// </summary>
-    [FieldOffset(23)]
-    public readonly byte Pad2;
-
-    /// <summary>
-    /// The side; 1 for enemies, 2 for breakable objects, 0 for the rest.
+    /// The side of the object.
     /// </summary>
     [FieldOffset(24)]
-    public readonly uint Army;
+    public readonly uint Side;
+
+    /// <summary>
+    /// The negative part of the tint of the placed object. Alien Shooter 2 only.
+    /// </summary>
+    [FieldOffset(28)]
+    public readonly uint NegativeTint;
+
+    /// <summary>
+    /// The positive part of the tint of the placed object. Alien Shooter 2 only.
+    /// </summary>
+    [FieldOffset(32)]
+    public readonly uint PositiveTint;
+
+    /// <summary>
+    /// The scale of the sprite along x. Alien Shooter 2 only.
+    /// </summary>
+    [FieldOffset(36)]
+    public readonly float ScaleX;
+
+    /// <summary>
+    /// The scale of the sprite along y. Alien Shooter 2 only.
+    /// </summary>
+    [FieldOffset(40)]
+    public readonly float ScaleY;
+
+    /// <summary>
+    /// The scale of the sprite along the height. Alien Shooter 2 only.
+    /// </summary>
+    [FieldOffset(44)]
+    public readonly float ScaleZ;
 }

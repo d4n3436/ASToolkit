@@ -44,7 +44,7 @@ public sealed class LevelGenerator
     private readonly string _gameFolder;
     private readonly ObjectTable _objects;
     private readonly ReferenceLevelSet _references;
-    private readonly ArmyTable _armies;
+    private readonly SideTable _sides;
     private readonly Lazy<OriginalContentSet> _content;
     private readonly Lazy<DressingLibrary> _labLibrary;
     private readonly Lazy<DressingLibrary> _militaryLibrary;
@@ -58,13 +58,13 @@ public sealed class LevelGenerator
     /// <summary>
     /// Initializes a new instance of the <see cref="LevelGenerator"/> class.
     /// </summary>
-    public LevelGenerator(string gameFolder, ObjectTable objects, ReferenceLevelSet references, ArmyTable armies, bool addOnStyle = false)
+    public LevelGenerator(string gameFolder, ObjectTable objects, ReferenceLevelSet references, SideTable sides, bool addOnStyle = false)
     {
         _addOnStyle = addOnStyle;
         _gameFolder = gameFolder;
         _objects = objects;
         _references = references;
-        _armies = armies;
+        _sides = sides;
         string[] sources = ReferenceLevelSet.CampaignLevels
             .Select(ReferenceLevelSet.GetCampaignName)
             .Concat(addOnStyle ? AddOnLevels : [])
@@ -211,7 +211,7 @@ public sealed class LevelGenerator
         var layout = FineLayout.Build(plan);
         StructureBuilder.PlaceLattice(layout, theme);
         StructureBuilder.AddFakeDoors(rng, layout, plan);
-        var map = new MapBuilder(_armies);
+        var map = new MapBuilder(_sides);
         var closetCells = layout.Cells.Where(p => plan.Regions[p.Value].Kind is RegionKind.SecretCloset or RegionKind.SpawnCloset).Select(p => p.Key).ToHashSet();
         var shown = layout.Cells.Keys.Where(c => !closetCells.Contains(c)).ToHashSet();
         var visibleEdges = layout.Edges

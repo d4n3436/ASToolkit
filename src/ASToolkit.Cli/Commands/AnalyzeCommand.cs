@@ -39,7 +39,7 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
         var objects = ObjectTable.Load(Path.Combine(settings.Game, "objects.res"));
         string[] maps = GetMaps(settings);
         Directory.CreateDirectory(settings.Out);
-        var renderer = settings.NoImages ? null : new MapRenderer(settings.Game, objects);
+        var renderer = settings.NoImages ? null : new MapRenderer(settings.Game, objects) { MatchesGameLighting = settings.GameLighting };
         var reports = new RouteReport?[maps.Length];
         string?[] problems = new string?[maps.Length];
         string?[] images = new string?[maps.Length];
@@ -66,7 +66,7 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
             {
                 image = (settings.Levels is null ? "" : "gen_") + Path.ChangeExtension(maps[i], null).Replace('/', '_').Replace('\\', '_') + ".png";
                 images[i] = image;
-                using var rendered = renderer.Render(map.Sprites, settings.Scale, id => IsHidden(objects, id));
+                using var rendered = renderer.Render(map.Sprites, settings.Scale, id => IsHidden(objects, id), map.Graphics);
                 if (analysis is not null)
                 {
                     RouteOverlay.Draw(rendered, analysis, script);

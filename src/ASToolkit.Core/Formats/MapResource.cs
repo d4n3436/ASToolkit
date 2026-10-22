@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace ASToolkit.Core.Formats;
@@ -18,21 +19,32 @@ public readonly struct MapResource
     {
         _container = new ResContainer(data);
         var rawHeader = _container.Chunks.First(x => x.Tag.Span.SequenceEqual("HEAD"u8)).Records.First();
-        
+
         Header = MemoryMarshal.Read<MapHeader>(rawHeader.Span);
         _rawSprites = _container.Chunks.First(x => x.Tag.Span.SequenceEqual("SPR "u8)).Records.First();
+
+        foreach (var chunk in _container.Chunks.Where(x => x.Tag.Span.SequenceEqual("GRPH"u8)))
+        {
+            Graphics = MemoryMarshal.Read<MapGraphics>(chunk.Records.First().Span);
+            return;
+        }
     }
-    
+ 
     /// <summary>
     /// Gets the header.
     /// </summary>
     public MapHeader Header { get; }
 
     /// <summary>
+    /// Gets the graphics record.
+    /// </summary>
+    public MapGraphics Graphics { get; }
+
+    /// <summary>
     /// Gets the size (in bytes) of the sprites on <see cref="Sprites"/>.
     /// </summary>
     /// <remarks>The size varies by map version.</remarks>
-    public int SpriteSize => Header.Version > 12 ? 48 : 28;
+    public int SpriteSize => Header.Version >= 16 ? Unsafe.SizeOf<MapSprite>() : Unsafe.SizeOf<OldMapSprite>();
 
     /// <summary>
     /// Enumerates over the placed sprites.
@@ -49,9 +61,9 @@ public readonly struct MapResource
         for (int index = 0; index < (_rawSprites.Length - 4) / SpriteSize; index++)
         {
             var rawSprite = _rawSprites.Slice(index * SpriteSize, SpriteSize);
-            var sprite = MemoryMarshal.Read<MapSprite>(rawSprite.Span);
-
-            yield return Header.Version >= 12 ? sprite : new MapSprite(sprite, true);
+            yield return SpriteSize == Unsafe.SizeOf<MapSprite>()
+                ? MemoryMarshal.Read<MapSprite>(rawSprite.Span)
+                : new MapSprite(MemoryMarshal.Read<OldMapSprite>(rawSprite.Span), Header.Version < 10);
         }
     }
     

@@ -286,7 +286,7 @@ public static class ContentPlacer
         {
             for (int index = 0; index < count; index++)
             {
-                var boss = ctx.Place(far.Take(Math.Max(1, far.Length / 5)).ToArray(), id, dir: 0, payload: MapBuilder.MonsterPayload, army: 1);
+                var boss = ctx.Place(far.Take(Math.Max(1, far.Length / 5)).ToArray(), id, dir: 0, payload: MapBuilder.MonsterPayload, side: 1);
                 if (boss is null)
                 {
                     continue;
@@ -491,7 +491,7 @@ public static class ContentPlacer
 
         foreach (var generator in generators)
         {
-            ctx.Map.Add(generator.Id, hx - 30 * side + ctx.Rng.NextDouble() * 16 - 8, hy - 42 + ctx.Rng.NextDouble() * 12 - 6, generator.Z, generator.Dir, generator.Payload, generator.Army, unique: false);
+            ctx.Map.Add(generator.Id, hx - 30 * side + ctx.Rng.NextDouble() * 16 - 8, hy - 42 + ctx.Rng.NextDouble() * 12 - 6, generator.Z, generator.Dir, generator.Payload, generator.Side, unique: false);
         }
 
         var floorCell = GetFloorSide(wall)!.Value;
@@ -535,7 +535,7 @@ public static class ContentPlacer
                 (mx, my) = (x, y);
             }
 
-            ctx.Map.Add(member.Id, mx, my, member.Z, member.Dir, member.Payload, member.Army, unique: false);
+            ctx.Map.Add(member.Id, mx, my, member.Z, member.Dir, member.Payload, member.Side, unique: false);
         }
     }
 
@@ -918,7 +918,7 @@ public static class ContentPlacer
         way.Add(GetCenter(ctx, path[meeting]));
         double radius = ctx.Plan.Theme.Theme == LevelTheme.Lab ? new[] { 250, 300, 350 }[ctx.Rng.Next(3)] : new[] { 300, 350, 400, 450 }[ctx.Rng.Next(4)];
         byte[] payload = SpawnerProgram.Create(monsters, (tx, ty, radius), way.TakeLast(6)).ToPayload();
-        ctx.Place([spawner], KnownObject.Spawner, dir: 0, payload: payload, army: 1, take: false);
+        ctx.Place([spawner], KnownObject.Spawner, dir: 0, payload: payload, side: 1, take: false);
         return;
 
         bool IsHidden(Cell c, double low, double high)

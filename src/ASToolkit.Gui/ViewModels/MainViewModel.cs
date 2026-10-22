@@ -115,9 +115,7 @@ public partial class MainViewModel : ViewModelBase
                     new($"{nameof(MapSprite.Y)}: {sprite.Y}"),
                     new($"{nameof(MapSprite.Z)}: {sprite.Z}"),
                     new($"{nameof(MapSprite.Dir)}: {sprite.Dir}"),
-                    new($"{nameof(MapSprite.Pad1)}: {sprite.Pad1}"),
-                    new($"{nameof(MapSprite.Pad2)}: {sprite.Pad2}"),
-                    new($"{nameof(MapSprite.Army)}: {sprite.Army}"),
+                    new($"{nameof(MapSprite.Side)}: {sprite.Side}"),
                 };
                 
                 spriteNodes.Add(new Node($"Sprite {s++}", spriteNode));

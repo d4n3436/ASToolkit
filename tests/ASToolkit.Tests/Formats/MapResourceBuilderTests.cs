@@ -17,7 +17,7 @@ public class MapResourceBuilderTests
             Assert.Equal(expected.X, map.Sprites.Sum(s => s.X), 0.1);
             Assert.Equal(expected.Y, map.Sprites.Sum(s => s.Y), 0.1);
             Assert.Equal(expected.PayloadBytes, map.Sprites.Sum(s => s.Payload.Length));
-            Assert.Equal(expected.Army, map.Sprites.Sum(s => s.Army));
+            Assert.Equal(expected.Side, map.Sprites.Sum(s => s.Side));
         }
     }
 
@@ -39,5 +39,5 @@ public class MapResourceBuilderTests
         }
     }
 
-    private sealed record MapRow(int Count, long Ids, double X, double Y, int PayloadBytes, long Army);
+    private sealed record MapRow(int Count, long Ids, double X, double Y, int PayloadBytes, long Side);
 }

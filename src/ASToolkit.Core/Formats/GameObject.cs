@@ -14,8 +14,7 @@ public readonly struct GameObject
     /// <param name="old">The object.</param>
     internal GameObject(OldGameObject old)
     {
-        Category = old.Category;
-        Kind = old.Kind;
+        Group = old.Group;
         Type = old.Type;
         Flags = old.Flags;
         CollisionMask = old.CollisionMask;
@@ -39,16 +38,10 @@ public readonly struct GameObject
     }
 
     /// <summary>
-    /// The category of the object, a group bit mask.
+    /// The group of the object, which holds its category in the low byte and its kind in the next one.
     /// </summary>
     [FieldOffset(0)]
-    public readonly byte Category;
-
-    /// <summary>
-    /// The kind of the object, a group bit mask (0 plain, 2 effect, 4 attachment).
-    /// </summary>
-    [FieldOffset(1)]
-    public readonly byte Kind;
+    public readonly uint Group;
 
     /// <summary>
     /// The engine behavior class of the object.
@@ -169,6 +162,16 @@ public readonly struct GameObject
     /// </summary>
     [FieldOffset(700)]
     public readonly float BrightnessBlue;
+
+    /// <summary>
+    /// Gets the category of the object, the low byte of the group.
+    /// </summary>
+    public byte Category => (byte)Group;
+
+    /// <summary>
+    /// Gets the kind of the object, the second byte of the group.
+    /// </summary>
+    public byte Kind => (byte)(Group >> 8);
 
     /// <summary>
     /// Gets the color shift applied to the sprite's palette per channel; a negative value darkens and a positive one adds.

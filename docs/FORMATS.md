@@ -1,6 +1,6 @@
 # Alien Shooter file formats
 
-This document describes how the games in the Alien Shooter series store their data, with enough detail to open the files by hand or with the toolkit.
+This document describes how the games in the Alien Shooter series store their data, with enough detail to open the files by hand.
 
 All integers are little-endian. Text is cp1251 (Cyrillic) unless noted. Offsets are in bytes and written in decimal unless they start with `0x`.
 
@@ -126,10 +126,7 @@ Body fields:
 
 ```
  AS1    AS2    type     field
- +0     +0     u8       category: group bit mask (see below)
- +1     +1     u8       kind: group bit mask, 0 plain, 2 effect, 4 attachment
- +2     +2     u8       unused (always 0)
- +3     +3     u8       unused (always 0)
+ +0     +0     u32      group: category in byte 0, kind in byte 1, bytes 2 and 3 always 0 (see below)
  +4     +4     u32      type: engine behavior class (see below)
  +8     +8     u32      flags (see below)
  +12    +12    u32      collision mask: two objects collide when their masks share a bit; 0 never collides
@@ -269,7 +266,7 @@ Object flags. The engine tests them on the object class and never changes them a
  0x80000000   projectile: a hit or blast from the object skips objects of its own side
 ```
 
-The side is a two-bit value in bits 11 and 12 of the state of a placed object in Alien Shooter, and a three-bit value in bits 17 to 19 in Alien Shooter 2. A placed object takes it from the `army` field of the map, and a spawned or attached object inherits the side of its parent. The flag 0x20000 hides the object while its side differs from the side of the player, which is 0 when a level starts, and the flag 0x80000000 skips objects with the same side. Sprites with the flag 0x400 pick the palette with it.
+The side is a two-bit value in bits 11 and 12 of the state of a placed object in Alien Shooter, and a three-bit value in bits 17 to 19 in Alien Shooter 2. A placed object takes it from the `side` field of the map, and a spawned or attached object inherits the side of its parent. The flag 0x20000 hides the object while its side differs from the side of the player, which is 0 when a level starts, and the flag 0x80000000 skips objects with the same side. Sprites with the flag 0x400 pick the palette with it.
 
 In Alien Shooter 2 the helper blocks of the editor (630 to 634, the pillars 1357 to 1359, the teleport markers) and the depth blocks attached to walls (2706, 1799 and the like) have the flag 0x20000 and side 2, so the game never shows them.
 
@@ -279,9 +276,9 @@ The flags 0x20000000, 0x2000 and 0x80000 work together in the Alien Shooter 2 dr
 
 The turn is part of the world matrix, so it acts on the ground plane before the view tilts it. A canvas point `(x, y)` with height `h`, measured from the center of the canvas, sits on the ground at `(x, (y + h) / 0.70706)`; that point turns by the angle and goes back to the screen as `(x', 0.70706 * y' - h)`. A flat sprite turned by 45 degrees therefore becomes a diamond as wide as its width plus its height. Object 1127, the soft black cover of Alien Shooter 2, is a single-frame sprite with this flag, and its turn is what lines its edges up with the walls.
 
-The tint changes the colors of the sprite. A negative value scales the channel to `(255 + t) / 255` of itself and a positive value adds `t`. The alpha tint scales the alpha of the sprite the same way when it is negative and has no effect when it is positive, and it only shows on sprites that blend by alpha. Of the objects with a negative alpha tint, only the acid shadow 1879 is placed in a map (five times in Level_07_2). Yellow and red monsters, and the blue survival bosses, are the same sprite with different tints.
+The tint changes the colors of the sprite. A negative value scales the channel to `(256 + t) / 256` of itself and a positive value adds `t`. The alpha tint scales the alpha of the sprite the same way when it is negative and has no effect when it is positive, and it only shows on sprites that blend by alpha. Of the objects with a negative alpha tint, only the acid shadow 1879 is placed in a map (five times in Level_07_2). Yellow and red monsters, and the blue survival bosses, are the same sprite with different tints.
 
-Ids that matter are named in `KnownObject` in the source (for example 9 is the player start, 419 a crate and 705 a menu button).
+Ids that have relevance are named in `KnownObject` in the source (for example 9 is the player start, 419 a crate and 705 a menu button).
 
 ## Maps
 
@@ -290,7 +287,7 @@ Kind `MAP `. A level is a list of sprites placed in a world, plus the small chun
 ```
  RES "MAP "
  +------+-----------------------------------------------------------+
- | GRPH | ambient light and grid data                               |
+ | GRPH | ambient light and a direction vector                      |
  | HEAD | map size, starting camera, version                        |
  | GRID | (optional) a u16 matrix, only in a few maps               |
  | SPR  | all placed sprites                                        |
@@ -307,23 +304,45 @@ Kind `MAP `. A level is a list of sprites placed in a world, plus the small chun
  +-----+-----+--------+--------+------+---------+
  | f32 | f32 | f32    | f32    | u32  | u32     |
  | map | map | camera | camera | tick | version |
- | w   | h   | x      | y      |      | = 12    |
+ | w   | h   | x      | y      |      |         |
  +-----+-----+--------+--------+------+---------+
 ```
 
-`SPR ` has one record. It is an array of 28-byte entries closed by `0xFFFFFFFF`.
+The levels of Alien Shooter are version 10 and 12, and those of Alien Shooter 2 are 18 to 20.
+
+`GRPH` has one record of 20 bytes, or 56 in Alien Shooter 2 levels. A 20-byte record ends after `len`.
 
 ```
- 0        4     8   12   16   20    21   24     28
- +--------+-----+---+----+----+-----+----+------+
- | handle | id  | x | y  | z  | dir | .. | army |
- | u32    | u32 |f32|f32 |f32 | u8  |pad | u32  |
- +--------+-----+---+----+----+-----+----+------+
-          object id
+ 0       4        8        12    16    20     24     28     32         56
+ +-------+--------+--------+-----+-----+------+------+------+----------+
+ | flags | ambient| ambient| dir | len | u32  | u32  | u32  | zeros    |
+ | u32   | tint - | tint + | u32 | f32 | = -1 | = 32 | = 40 |          |
+ +-------+--------+--------+-----+-----+------+------+------+----------+
+```
+
+The ambient tint is packed like the tint of a placed sprite and sets the ambient light (see [Lights](#lights)). Alien Shooter 2 turns the low byte of `dir`, an angle in 256ths of a turn, into a vector of length `len`; every map has `dir` 64 or 200 and `len` 0.025. It tests the value 4 of `flags` while drawing the scene, and every map stores zero there. The three fields from byte 20 are loaded and saved without being read anywhere else (the engine keeps only the low byte of the last two), and it does not read past byte 32.
+
+`SPR ` has one record. It is an array of entries closed by `0xFFFFFFFF`, 28 bytes each before version 16 and 48 bytes from version 16.
+
+```
+ 0        4     8   12   16   20    24     28       32       36    40    44    48
+ +--------+-----+---+----+----+-----+------+--------+--------+-----+-----+-----+
+ | handle | id  | x | y  | z  | dir | side | tint - | tint + | sx  | sy  | sz  |
+ | u32    | u32 |f32|f32 |f32 | u32 | u32  | u32    | u32    | f32 | f32 | f32 |
+ +--------+-----+---+----+----+-----+------+--------+--------+-----+-----+-----+
+          object id                         version 16 and later
           from objects.res
 ```
 
-Maps of version 9 and 10 (survival, the menu host maps and a few add-on maps) store x, y and z as `i32`.
+Maps before version 10 (survival, the menu host maps and a few add-on maps of Alien Shooter) store x, y and z as `i32`.
+
+The engines keep only the low byte of `dir` as the facing, and the other three bytes are zero in every map.
+
+The side goes from 0 to 7. The levels use 0 for the player and most scenery, 1 for monsters and generators, and 2 for breakable objects, walls and corpses. Alien Shooter 2 also uses 3 for allied soldiers and NPCs, and 5 and 6 for a few robots and monsters.
+
+The tint of the placed object is packed in two `u32`, with alpha, red, green and blue from the high byte down. The first holds the magnitudes of the negative channels and the second the positive ones, the same packing the engine builds from the tint of objects.res. When either is nonzero it replaces the tint of the object for that placement.
+
+`sx` and `sy` scale the sprite on the ground plane before it is turned, and `sz` scales the heights of its mesh. Maps before version 16 read as a scale of 1. About 3,000 placements of Alien Shooter 2 use another scale, from 0 to 8.
 
 `SPRD` has one record per sprite, matched by handle, and ends with an `0xFFFFFFFF` record. The payload is what makes a sprite behave.
 
@@ -428,7 +447,7 @@ The Alien Shooter 2 loader replaces 0 and -1 with 1 unless the path contains "\1
 
 Mode 4 is on 22 Alien Shooter 1 sprites with flags 0x1D, and the Alien Shooter 1 loader does not read it. No draw routine tests for it. Every sprite with mesh frames has mode 3.
 
-`blend` selects the Direct3D blend and depth setup of the draw routine. The toolkit names the values in `VidBlend`. The pair is the source and destination blend factor.
+`blend` selects the Direct3D blend and depth setup of the draw routine. The pair is the source and destination blend factor.
 
 ```
  0      alpha test; with the blended flag (and a format other than A1R5G5B5) SRCALPHA, INVSRCALPHA
@@ -654,17 +673,19 @@ Alien Shooter 2 sorts the object classes into passes when it loads their sprites
 | 9    | other sprites, unless they have the object flag 0x40000000 or `blend` 7  |
 | 4    | the rest                                                                 |
 
-Walls, floors and most props are type 8 and come first, blood and the soft black covers (1127) follow in pass 2, and monsters, pickups and other objects come in pass 3, so a cover never hides them. Inside a pass the engine goes through the cells of the level grid, rows from the top and cells from the left, and through the objects of each cell in list order; the renderer keeps the file order instead. Depending on an engine setting, passes 0 and 2 are drawn directly or baked into cached ground textures of 256 x 256 pixels that keep the depth in their alpha channel. Objects hidden by their side (flag 0x20000) are skipped in every pass.
+Walls, floors and most props are type 8 and come first, blood and the soft black covers (1127) follow in pass 2, and monsters, pickups and other objects come in pass 3, so a cover never hides them. Inside a pass the engine goes through the cells of the level grid, rows from the top and cells from the left, and through the objects of each cell in list order. Depending on an engine setting, passes 0 and 2 are drawn directly or baked into cached ground textures of 256 x 256 pixels that keep the depth in their alpha channel. Objects hidden by their side (flag 0x20000) are skipped in every pass.
 
 ### Lights
 
 After pass 5 the engine switches to a light buffer, which is on by default. It clears the buffer to the ambient color of the level scaled by 0.35 (0.3 on one hardware path) and draws pass 7 into it with the blend of each sprite. It then multiplies the scene by twice the buffer (DESTCOLOR, SRCCOLOR) and draws passes 8 to 11 on top. A light sprite therefore brightens what lies under it in proportion to its color and leaves black areas black. When the engine runs without the light buffer, it draws pass 7 straight onto the scene with the blends below.
 
-The renderer leaves out the ambient light and the shader lights and takes the buffer as 0.5, which leaves the colors as they are. A pass 7 sprite of color `c` then turns a color `d` into `d * (1 + 2c)` with `blend` 4 and `d * (1 + c)` with `blend` 5.
+The ambient color is the gray 0.35 with the ambient tint of `GRPH` applied. Each channel `c` becomes `c * (256 - n) / 256 + p`, with `n` and `p` the bytes of the negative and positive parts. The draw also adds the ambient tint, byte by byte and saturating, to the tint of every sprite in pass 7 and later whose object lacks the flag 0x800. The buffer is an 8-bit target and its channels stop at 1.
+
+A buffer of 0.5 leaves the colors as they are. Over such a buffer, a pass 7 sprite of color `c` turns a color `d` into `d * (1 + 2c)` with `blend` 4 and `d * (1 + c)` with `blend` 5.
 
 ### Blends
 
-Sprites with a `blend` value of 1, 2, 4 or 5 combine with what lies under them instead of covering it, with a depth test and no depth write. The Alien Shooter renderer draws them after the other sprites.
+Sprites with a `blend` value of 1, 2, 4 or 5 combine with what lies under them instead of covering it, with a depth test and no depth write. Alien Shooter draws them after the other sprites.
 
 ```
  blend 1   2 x source x destination
@@ -679,11 +700,13 @@ The palettes of the additive sprites already hold colors scaled by their alpha, 
 
 Alien Shooter 2 maps hide the ground around the playable rooms with black objects: 1127 (a 350 x 350 sprite with soft edges), 1710 (solid blocks) and 1711 (1127's sprite with the flag 0x8000). 1127 and 1711 turn with their facing, which lines their edges up with the walls.
 
-Covers over areas that open during play carry a name from `h1` to `h15` at the end of the payload, and the level script removes them with `EXT_KILLOBJECTS`. A map file shows the state before that, so the renderer leaves those covers out by default. The unnamed covers stay for the whole level.
+Many covers are placed at a reduced scale (see the sprite record), which keeps them inside the walls around an opening.
+
+Covers over areas that open during play carry a name from `h1` to `h15` at the end of the payload, and the level script removes them with `EXT_KILLOBJECTS`. A map file shows the state before that. The unnamed covers stay for the whole level.
 
 ## Key functions
 
-Addresses from Ghidra decompilation; the toolkit's decoders follow these.
+Addresses from Ghidra decompilation.
 
 Alien Shooter (GOG):
 

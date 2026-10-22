@@ -6,7 +6,7 @@ This covers what the toolkit's code does not say by itself, which is how the gam
 
 - Script syntax and handler names are described in [FORMATS.md](FORMATS.md#scripts-and-text).
 - The registry value `GameType` selects the flow (0 campaign, 1 survival, 2 add-on, 3 add-on 2) and `LevelNumber` the level. `MAINMENU.LGC` sets them, `SHOP.LGC` loads `Maps/[addon/|addon2/]Level_NN.map`, and `COMMON.LGC` decides what follows a level. The campaign ends after level 10 with `Level_11`, and add-ons end after level 5 with their `Level_06`.
-- Win check (`common_compaign.lgc`). No object 179 is left and no monster with army 1 is alive. Money paid after a level comes from `LevelMoney[]` in `common_table.lgc`.
+- Win check (`common_compaign.lgc`). No object 179 is left and no monster with side 1 is alive. Money paid after a level comes from `LevelMoney[]` in `common_table.lgc`.
 - Checkpoints are the `StartPlayerX/Y` values set by a trigger in `Level_NN.lgc`.
 - The logo, main menu and shop maps are identical menu-host maps with no sprites.
 
@@ -16,7 +16,7 @@ This covers what the toolkit's code does not say by itself, which is how the gam
 - The breaker (418, `F418_0`) sets `DoorsIsOpen = 1`, calls `LightOn`, swaps the 424 door panels for 423, removes paired 609 and 612 trap walls and removes nearby 180 pointers.
 - A dark start calls `LightOff(0x606060)` after `InitGame`. The level 4 blackout is a trigger that sets `DoorsIsOpen = 0`, calls `LightOff` and swaps 423 for 424.
 - The generator 415 (`F415_15`) destroys every 164 fence in the level. Level 10 has an extra hardcoded branch.
-- The `army` field of a sprite decides what can be destroyed. Breakables (barrels, monitors, crates, chairs, 609 walls) and the generator 415 use 2 in every original. Decor uses 0, and monsters, 908 and 80x generators use 1. A 415 with army 0 cannot be destroyed, and neither can its fences.
+- The `side` field of a sprite decides what can be destroyed. Breakables (barrels, monitors, crates, chairs, 609 walls) and the generator 415 use 2 in every original. Decor uses 0, and monsters, 908 and 80x generators use 1. A 415 with side 0 cannot be destroyed, and neither can its fences.
 
 ### Spawners (908)
 
@@ -28,7 +28,7 @@ This covers what the toolkit's code does not say by itself, which is how the gam
 
 ### Dynamite
 
-- A player standing on a 179 marker with a charge (301) plants it (`F179_0` in `common_event.lgc`). The blast (`F184_15`, radius 100) kills the 80x generators, the 908 spawners and the 450 teleports, turns the 616 and 612 holes into rubble (615) and kills army 1 units within 150.
+- A player standing on a 179 marker with a charge (301) plants it (`F179_0` in `common_event.lgc`). The blast (`F184_15`, radius 100) kills the 80x generators, the 908 spawners and the 450 teleports, turns the 616 and 612 holes into rubble (615) and kills side 1 units within 150.
 - In the originals there are as many charges as sites. A site is always within about 100 px of a blue 450 pad (military, with one to three invisible 80x generators on it and a 908 ambush next to it) or of a 618, 619, 616 or 612 spawn hole (labs).
 - Lab sites on levels 3 and 4 use a far-wall piece of a deep room as the hole (616, or 612 for small monsters). The 179 lies about (±25, +20) in front of it and the 80x generators about (∓30, -42) behind it under the roof.
 
@@ -63,7 +63,7 @@ This covers what the toolkit's code does not say by itself, which is how the gam
 - Monsters are placed in tight 20 px grids, clusters and lines, plus about 100 singles.
 - Breakable closets in labs are 4 to 9 cell pockets behind one 609 piece, under the roof. They hold 4 to 9 coins, ammo, a weapon or a perk.
 - The breaker hangs on a `\` wall piece (anchor + (-8, +3), dir 0) facing the room. The room is small and has 429 transformers, a 430 corpse with blood, 403 shelves and a 180 pointer. The door panels 423 and 424 sit on the door frame with the door's dir at z about 5.
-- The mounted cannon 357 appears once on each of levels 7 and 8, plus add-ons 1 and 2 levels 4 and 5. It has army 0 and needs about 120 by 90 px of free floor.
+- The mounted cannon 357 appears once on each of levels 7 and 8, plus add-ons 1 and 2 levels 4 and 5. It has side 0 and needs about 120 by 90 px of free floor.
 
 ## Route model
 

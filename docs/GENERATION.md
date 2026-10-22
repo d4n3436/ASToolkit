@@ -32,7 +32,7 @@ A generated level replaces one campaign level from 2 to 10. It takes that level'
  GeneratorFactory.Create          (src/ASToolkit.Cli/Commands)
    ObjectTable.Load               objects.res
    ReferenceLevelSet.Load         analyzes campaign 2-10 and add-on levels 2-5
-   ArmyTable.Load                 army field per object id
+   SideTable.Load                 side field per object id
         |
         v
  LevelGenerator.Generate
@@ -95,7 +95,7 @@ One `Random` runs through every stage of a candidate. The same seed and level al
 | keypads | `KeypadTable.Load` | keypad offsets next to each door kind and direction | structure, `PlaceGate` |
 | sprites | `SpriteLibrary` | `.vid` files of floors, walls and the earth tile | `RoofBuilder` |
 | original map | `LevelGenerator.GetOriginal` | the replaced campaign map, its cell model and its music lines | theme, unit count, clutter palette, script |
-| armies | `ArmyTable.Load` | the most common army value of each object id | `MapBuilder.Add` |
+| sides | `SideTable.Load` | the most common side value of each object id | `MapBuilder.Add` |
 
 ## Coordinates
 
@@ -324,7 +324,7 @@ Every other border between two regions, or between a region and empty space, bec
 
 `StructureBuilder.BuildMilitary` places 651 and 650 walls on every second fine edge, 654 where a fake door is, 652 corner posts on even vertices and 503 floor tiles on their own (80, 56) lattice wherever a tile reaches a cell. `StructureBuilder.BuildFence` puts a 653 emitter and a 164 fence 14 px above it on each unit edge of the gate link.
 
-`MapBuilder` collects the objects. `Add` drops a repeated object at the same rounded position unless `unique` is false, hands out handles, takes the army from `ArmyTable` and fills the default payloads for the player start, monsters and everything else.
+`MapBuilder` collects the objects. `Add` drops a repeated object at the same rounded position unless `unique` is false, hands out handles, takes the side from `SideTable` and fills the default payloads for the player start, monsters and everything else.
 
 ## Breaker spot
 
