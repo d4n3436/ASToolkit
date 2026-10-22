@@ -69,7 +69,7 @@ public static class RouteGridBuilder
 
             int a = (int)Math.Round(u);
             int b = (int)Math.Round(v);
-            EdgeKey[] keys = sprite.Dir is >= 64 and < 192
+            EdgeKey[] keys = sprite.Facing is >= 64 and < 192
                 ? [new EdgeKey('v', a - 1, b), new EdgeKey('v', a, b)]
                 : [new EdgeKey('u', a, b - 1), new EdgeKey('u', a, b)];
             bool holdsFence = fences.Any(f => Math.Sqrt((f.X - sprite.X) * (f.X - sprite.X) + (f.Y - sprite.Y) * (f.Y - sprite.Y)) < 40);
@@ -112,7 +112,7 @@ public static class RouteGridBuilder
                 continue;
             }
 
-            var keys = GetFineLabEdges(model.Lattice, sprite.Id, sprite.X, sprite.Y, sprite.Dir);
+            var keys = GetFineLabEdges(model.Lattice, sprite.Id, sprite.X, sprite.Y, sprite.Facing);
             switch (sprite.Id)
             {
                 case KnownObject.SmallDoorWall or KnownObject.DoubleDoorWall or KnownObject.SmallDoorWall2 or KnownObject.DoubleDoorWall2:

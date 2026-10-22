@@ -15,7 +15,7 @@ public sealed class SpawnWallRule : ILevelRule
     {
         foreach (var sprite in context.Map.Sprites.Where(s => s.Id is KnownObject.SpawnWallSlash or KnownObject.SpawnWallBack && s.Payload.Length > 8))
         {
-            int facing = ((sprite.Dir + 64) & 255) * 2 >> 8;
+            int facing = ((sprite.Facing + 64) & 255) * 2 >> 8;
             int expected = sprite.Id == KnownObject.SpawnWallSlash ? 0 : 1;
             yield return new RuleResult(Id, RuleSeverity.Hard, facing == expected, $"spawn wall {sprite.Id} at ({sprite.X:0}, {sprite.Y:0}) dir {sprite.Dir}");
         }

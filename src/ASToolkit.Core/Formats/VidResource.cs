@@ -208,6 +208,20 @@ public readonly struct VidResource
         return Vector3.Zero;
     }
 
+    /// <summary>
+    /// Returns the color of an omni-light frame as a packed red, green and blue value, or zero when the sprite is not an
+    /// omni-light.
+    /// </summary>
+    public uint GetLightColor(int index)
+    {
+        if (!Flags.HasFlag(VidFlags.OmniLight) || _frames.Length == 0 || index < 0 || _frames[0].Length < (index + 1) * sizeof(uint))
+        {
+            return 0;
+        }
+
+        return MemoryMarshal.Read<uint>(_frames[0].Span[(index * sizeof(uint))..]) & 0xffffff;
+    }
+
     private VidFrame GetCadrFrame(ReadOnlyMemory<byte> record)
     {
         int colorSize = HasPalette ? 1 : GetColorSize(Format);

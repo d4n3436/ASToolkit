@@ -93,7 +93,7 @@ public static class RoofBuilder
             var (obj, file) = found.Value;
             int left = (int)Math.Round(sprite.X - file.Width / 2.0) - area.X0;
             int top = (int)Math.Round(sprite.Y - sprite.Z - file.Height / 2.0) - area.Y0;
-            structure.Add(new StructureSprite(sprite, obj, file, file.GetFrame(obj.GetFrame(sprite.Dir, file.FrameCount)), IsFloor(sprite.Id) ? Floor : Wall, left, top));
+            structure.Add(new StructureSprite(sprite, obj, file, file.GetFrame(obj.GetFrame(sprite.Facing, file.FrameCount)), IsFloor(sprite.Id) ? Floor : Wall, left, top));
         }
 
         return structure.ToArray();

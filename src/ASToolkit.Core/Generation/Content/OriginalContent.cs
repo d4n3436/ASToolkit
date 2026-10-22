@@ -114,7 +114,7 @@ public sealed class OriginalContent
             foreach (var breaker in sp.Where(s => s.Id == KnownObject.Breaker))
             {
                 scenes.Add(sp.Where(o => o.Id is KnownObject.ObjectMarker or KnownObject.Shelves or KnownObject.Table or KnownObject.Cabinet or KnownObject.Transformer or KnownObject.SoldierCorpse or KnownObject.BloodPool or KnownObject.LargeBloodPool && Math.Sqrt(Math.Pow(o.X - breaker.X, 2) + Math.Pow(o.Y - breaker.Y, 2)) < 170)
-                    .Select(o => new PropPlacement(o.Id, o.X - breaker.X, o.Y - breaker.Y, o.Z, o.Dir)).ToArray());
+                    .Select(o => new PropPlacement(o.Id, o.X - breaker.X, o.Y - breaker.Y, o.Z, o.Facing)).ToArray());
             }
         }
 
@@ -134,7 +134,7 @@ public sealed class OriginalContent
             {
                 var members = sp
                     .Where(o => (o.Id is KnownObject.TeleportPad or KnownObject.BigMonsterHole or KnownObject.SmallMonsterHole || o.Id.IsEndlessGenerator) && Math.Sqrt(Math.Pow(o.X - sprite.X, 2) + Math.Pow(o.Y - sprite.Y, 2)) < 130)
-                    .Select(o => new SiteMember(o.Id, o.X - sprite.X, o.Y - sprite.Y, o.Z, o.Dir, o.Side,
+                    .Select(o => new SiteMember(o.Id, o.X - sprite.X, o.Y - sprite.Y, o.Z, o.Facing, o.Side,
                         o.Payload.Length <= 12 ? o.Payload : new byte[o.Id == KnownObject.TeleportPad ? 12 : 8]))
                     .ToList();
                 if (theme == LevelTheme.Lab)
@@ -148,7 +148,7 @@ public sealed class OriginalContent
                 }
 
                 int rank = members.Where(m => m.Id >= KnownObject.FirstEndlessGenerator).Select(m => m.Id - KnownObject.FirstEndlessGenerator).DefaultIfEmpty(0).Max();
-                sites.Add(new SiteTemplate(sprite.Z, sprite.Dir, rank, members));
+                sites.Add(new SiteTemplate(sprite.Z, sprite.Facing, rank, members));
             }
         }
 
@@ -184,7 +184,7 @@ public sealed class OriginalContent
 
             double cx = group.Average(k => monsters[k].X);
             double cy = group.Average(k => monsters[k].Y);
-            groups.Add(group.Select(k => new GroupMember(monsters[k].Id, monsters[k].X - cx, monsters[k].Y - cy, monsters[k].Dir)).ToArray());
+            groups.Add(group.Select(k => new GroupMember(monsters[k].Id, monsters[k].X - cx, monsters[k].Y - cy, monsters[k].Facing)).ToArray());
         }
 
         return groups.ToArray();

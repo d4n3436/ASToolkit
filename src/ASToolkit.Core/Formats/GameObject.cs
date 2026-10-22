@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace ASToolkit.Core.Formats;
@@ -32,9 +33,9 @@ public readonly struct GameObject
         TintGreen = old.TintGreen;
         TintBlue = old.TintBlue;
         TintAlpha = 0;
-        BrightnessRed = old.BrightnessRed;
-        BrightnessGreen = old.BrightnessGreen;
-        BrightnessBlue = old.BrightnessBlue;
+        ScaleX = old.ScaleX;
+        ScaleY = old.ScaleY;
+        ScaleZ = old.ScaleZ;
     }
 
     /// <summary>
@@ -146,22 +147,22 @@ public readonly struct GameObject
     public readonly int TintAlpha;
 
     /// <summary>
-    /// The multiplier of the red component of the sprite's brightness.
+    /// The scale of the object along x.
     /// </summary>
     [FieldOffset(692)]
-    public readonly float BrightnessRed;
+    public readonly float ScaleX;
 
     /// <summary>
-    /// The multiplier of the green component of the sprite's brightness.
+    /// The scale of the object along y.
     /// </summary>
     [FieldOffset(696)]
-    public readonly float BrightnessGreen;
+    public readonly float ScaleY;
 
     /// <summary>
-    /// The multiplier of the blue component of the sprite's brightness.
+    /// The scale of the object along the height.
     /// </summary>
     [FieldOffset(700)]
-    public readonly float BrightnessBlue;
+    public readonly float ScaleZ;
 
     /// <summary>
     /// Gets the category of the object, the low byte of the group.
@@ -179,9 +180,9 @@ public readonly struct GameObject
     public (int R, int G, int B) Tint => (TintRed, TintGreen, TintBlue);
 
     /// <summary>
-    /// Gets the per-channel (R, G, B) multipliers the engine applies to the sprite's colors when drawing it.
+    /// Gets the scale of the object.
     /// </summary>
-    public (float R, float G, float B) Brightness => (BrightnessRed, BrightnessGreen, BrightnessBlue);
+    public Vector3 Scale => new(ScaleX, ScaleY, ScaleZ);
 
     /// <summary>
     /// Gets a value indicating whether the object stops the player.
@@ -203,7 +204,11 @@ public readonly struct GameObject
             return 0;
         }
 
-        int index = ((dir + 128 / Directions) & 255) * Directions >> 8;
-        return Math.Min(index * FramesPerDirection, frameCount - 1);
+        return Math.Min(GetDirection(dir) * FramesPerDirection, frameCount - 1);
     }
+
+    /// <summary>
+    /// Returns the index of the direction the engine picks for a direction byte.
+    /// </summary>
+    public int GetDirection(byte dir) => ((dir + 128 / Directions) & 255) * Directions >> 8;
 }

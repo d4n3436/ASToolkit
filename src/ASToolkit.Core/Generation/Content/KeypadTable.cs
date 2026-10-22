@@ -41,14 +41,14 @@ public sealed class KeypadTable
                 }
 
                 keyed[door.Id] = keyed.GetValueOrDefault(door.Id) + 1;
-                var key = (door.Id, door.Dir, keypad.Id == KnownObject.BrokenKeypad);
+                var key = (door.Id, door.Facing, keypad.Id == KnownObject.BrokenKeypad);
                 if (!samples.TryGetValue(key, out var list))
                 {
                     list = [];
                     samples[key] = list;
                 }
 
-                list.Add(new PropPlacement(keypad.Id, keypad.X - door.X, keypad.Y - door.Y, keypad.Z, keypad.Dir));
+                list.Add(new PropPlacement(keypad.Id, keypad.X - door.X, keypad.Y - door.Y, keypad.Z, keypad.Facing));
             }
         }
 

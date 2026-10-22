@@ -14,8 +14,6 @@ namespace ASToolkit.Cli.Commands;
 
 internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
 {
-    private const string HelperName = "Пустышка";
-    private const string EmptySpritePrefix = @"vid\empt";
 
     private static readonly string[] AddOnLevels =
     [
@@ -39,7 +37,7 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
         var objects = ObjectTable.Load(Path.Combine(settings.Game, "objects.res"));
         string[] maps = GetMaps(settings);
         Directory.CreateDirectory(settings.Out);
-        var renderer = settings.NoImages ? null : new MapRenderer(settings.Game, objects) { MatchesGameLighting = settings.GameLighting };
+        var renderer = settings.NoImages ? null : new MapRenderer(settings.Game, objects) { MatchGameLighting = settings.GameLighting, OmitAmbientTint = settings.NoAmbientTint };
         var reports = new RouteReport?[maps.Length];
         string?[] problems = new string?[maps.Length];
         string?[] images = new string?[maps.Length];
@@ -66,7 +64,7 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
             {
                 image = (settings.Levels is null ? "" : "gen_") + Path.ChangeExtension(maps[i], null).Replace('/', '_').Replace('\\', '_') + ".png";
                 images[i] = image;
-                using var rendered = renderer.Render(map.Sprites, settings.Scale, id => IsHidden(objects, id), map.Graphics);
+                using var rendered = renderer.Render(map.Sprites, settings.Scale, map.Graphics);
                 if (analysis is not null)
                 {
                     RouteOverlay.Draw(rendered, analysis, script);
@@ -126,9 +124,6 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
             ? (Path.Combine(settings.Game, "Maps", map), Path.Combine(settings.Game, "Maps", script))
             : (Path.Combine(settings.Levels, map), Path.Combine(settings.Levels, script));
     }
-
-    private static bool IsHidden(ObjectTable objects, KnownObject id) =>
-        objects.GetName(id).Contains(HelperName, StringComparison.Ordinal) || objects.GetPath(id).StartsWith(EmptySpritePrefix, StringComparison.OrdinalIgnoreCase);
 
     private static RouteReport ToReport(string map, bool generated, string? image, RouteAnalysis a)
     {

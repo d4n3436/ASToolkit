@@ -132,7 +132,7 @@ public static class ClutterPlanner
                 byte dir = facings.PickFacing(rng, id, edges, u, v);
                 result.Add(new PlacedDecor(id, u, v, 0, dir, new byte[8], (-2, index++), null));
                 (double x, double y) = lattice.ToWorld(u, v);
-                rowSprites.Add(new MergedMapSprite(0, id, x, y, 0, dir, 0, []));
+                rowSprites.Add(new MergedMapSprite(0, id, (float)x, (float)y, 0, dir, 0, []));
             }
 
             blockedFine.UnionWith(SolidObjectMapper.FindBlockedCells(fine, fineCells, SolidObjectMapper.GetCollisionBoxes(rowSprites, objects)));
@@ -163,7 +163,7 @@ public static class ClutterPlanner
     private static IEnumerable<MergedMapSprite> ToSprites(IEnumerable<PlacedDecor> decor, Lattice lattice) => decor.Select(o =>
     {
         (double x, double y) = lattice.ToWorld(o.U, o.V);
-        return new MergedMapSprite(0, o.Id, x, y, o.Z, o.Dir, 0, o.Payload);
+        return new MergedMapSprite(0, o.Id, (float)x, (float)y, (float)o.Z, o.Dir, 0, o.Payload);
     });
 
     private static KnownObject Pick(Random rng, IReadOnlyList<(KnownObject Id, int Count)> palette)

@@ -111,20 +111,20 @@ internal readonly struct OldGameObject
     public readonly int TintBlue;
 
     /// <summary>
-    /// The multiplier of the red component of the sprite's brightness.
+    /// The scale of the object along x.
     /// </summary>
     [FieldOffset(676)]
-    public readonly float BrightnessRed;
+    public readonly float ScaleX;
 
     /// <summary>
-    /// The multiplier of the green component of the sprite's brightness.
+    /// The scale of the object along y.
     /// </summary>
     [FieldOffset(680)]
-    public readonly float BrightnessGreen;
+    public readonly float ScaleY;
 
     /// <summary>
-    /// The multiplier of the blue component of the sprite's brightness.
+    /// The scale of the object along the height.
     /// </summary>
     [FieldOffset(684)]
-    public readonly float BrightnessBlue;
+    public readonly float ScaleZ;
 }

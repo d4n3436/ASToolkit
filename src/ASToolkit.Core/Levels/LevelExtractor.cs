@@ -305,7 +305,7 @@ public static class LevelExtractor
             (double u, double v) = lattice.ToLattice(sprite.X, sprite.Y);
             int a = (int)Math.Round(u);
             int b = (int)Math.Round(v);
-            bool slash = sprite.Id == KnownObject.MilitaryWallSlash || (sprite.Id is KnownObject.FenceEmitter or KnownObject.MilitaryDoorWall && sprite.Dir is >= 64 and < 192);
+            bool slash = sprite.Id == KnownObject.MilitaryWallSlash || (sprite.Id is KnownObject.FenceEmitter or KnownObject.MilitaryDoorWall && sprite.Facing is >= 64 and < 192);
             char kind = sprite.Id == KnownObject.MilitaryDoorWall ? 'F' : 'W';
             if (slash)
             {
@@ -413,7 +413,7 @@ public static class LevelExtractor
             }
 
             (double u, double v) = lattice.ToLattice(s.X, s.Y);
-            result.Add(new DecorObject(s.Id, u, v, s.Z, s.Dir, s.Payload, support));
+            result.Add(new DecorObject(s.Id, u, v, s.Z, s.Facing, s.Payload, support));
         }
 
         return result.ToArray();

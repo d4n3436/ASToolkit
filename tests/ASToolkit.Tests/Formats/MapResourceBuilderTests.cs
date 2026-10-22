@@ -14,8 +14,8 @@ public class MapResourceBuilderTests
             var map = MapResourceBuilder.Load(Path.Combine(game, "Maps", level));
             Assert.Equal(expected.Count, map.Sprites.Count);
             Assert.Equal(expected.Ids, map.Sprites.Sum(s => (long)s.Id));
-            Assert.Equal(expected.X, map.Sprites.Sum(s => s.X), 0.1);
-            Assert.Equal(expected.Y, map.Sprites.Sum(s => s.Y), 0.1);
+            Assert.Equal(expected.X, map.Sprites.Sum(s => (double)s.X), 0.1);
+            Assert.Equal(expected.Y, map.Sprites.Sum(s => (double)s.Y), 0.1);
             Assert.Equal(expected.PayloadBytes, map.Sprites.Sum(s => s.Payload.Length));
             Assert.Equal(expected.Side, map.Sprites.Sum(s => s.Side));
         }

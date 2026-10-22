@@ -139,7 +139,7 @@ public static class ContentPlacer
                 continue;
             }
 
-            var keypad = keypads.Pick(rng, door.Id, door.Dir, broken: true);
+            var keypad = keypads.Pick(rng, door.Id, door.Facing, broken: true);
             if (keypad is not null)
             {
                 map.Add(KnownObject.BrokenKeypad, door.X + keypad.Dx, door.Y + keypad.Dy, keypad.Z, keypad.Dir);
@@ -974,7 +974,7 @@ public static class ContentPlacer
 
     private static List<(double X, double Y)> GetWeaponSpots(PlacementContext ctx) => ctx.Map.Sprites
         .Where(s => ItemSchedule.IsWeapon(s.Id) || (s.Id == KnownObject.Crate && ItemSchedule.IsWeapon(KnownObject.GetCrateItem(s.Payload))))
-        .Select(s => (s.X, s.Y)).ToList();
+        .Select(s => ((double)s.X, (double)s.Y)).ToList();
 
     private static int CountNear(IReadOnlyList<(double X, double Y)> spots, (double X, double Y) p) => spots.Count(s => GetDistance(s, p) < WeaponSpacing);
 

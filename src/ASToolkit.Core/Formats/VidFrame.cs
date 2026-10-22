@@ -46,6 +46,16 @@ public readonly struct VidFrame
     public int Top { get; }
 
     /// <summary>
+    /// Gets the first column of a CADR frame in canvas coordinates.
+    /// </summary>
+    public int Left => _left;
+
+    /// <summary>
+    /// Gets the number of columns of a CADR frame.
+    /// </summary>
+    public int Width => _width;
+
+    /// <summary>
     /// Gets the triangles that give the pixels a height; empty for frames that carry none.
     /// </summary>
     public VidMesh Mesh { get; }

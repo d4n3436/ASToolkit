@@ -72,7 +72,7 @@ public enum ObjectFlags : uint
     Unlit = 1 << 11,
 
     /// <summary>
-    /// The level's wind moves the object. Alien Shooter 2 reads the flag in its draw and load paths with no confirmed purpose.
+    /// The level's wind moves the object. In Alien Shooter 2 the object casts shadows, and an omni-light with the flag draws them.
     /// </summary>
     Windblown = 1 << 12,
 
@@ -127,9 +127,9 @@ public enum ObjectFlags : uint
     RandomLift = 1 << 22,
 
     /// <summary>
-    /// The object emits light; its sprite is a 2 x 2 omni-light.
+    /// A flag Alien Shooter 2 tests in its movement and collision code, with no confirmed purpose.
     /// </summary>
-    Light = 1 << 23,
+    Flag23 = 1 << 23,
 
     /// <summary>
     /// The animation of the object starts on frame 0 instead of a random frame.
