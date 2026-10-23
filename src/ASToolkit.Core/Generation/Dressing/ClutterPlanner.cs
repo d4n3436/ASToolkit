@@ -1,3 +1,4 @@
+using System.Numerics;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Routes;
@@ -27,7 +28,7 @@ public static class ClutterPlanner
         var breakable = new Dictionary<KnownObject, int>();
         foreach (var sprite in original.Sprites)
         {
-            if (!objects.TryFind(sprite.Id, out var obj) || !sprite.Id.IsDecor || NotFreestanding.Contains(sprite.Id) || sprite.Z > 2)
+            if (!objects.TryFind(sprite.Id, out var obj) || !sprite.Id.IsDecor || NotFreestanding.Contains(sprite.Id) || sprite.Position.Z > 2)
             {
                 continue;
             }
@@ -132,7 +133,7 @@ public static class ClutterPlanner
                 byte dir = facings.PickFacing(rng, id, edges, u, v);
                 result.Add(new PlacedDecor(id, u, v, 0, dir, new byte[8], (-2, index++), null));
                 (double x, double y) = lattice.ToWorld(u, v);
-                rowSprites.Add(new MergedMapSprite(0, id, (float)x, (float)y, 0, dir, 0, []));
+                rowSprites.Add(new MergedMapSprite(0, id, new Vector3((float)x, (float)y, 0), dir, 0, []));
             }
 
             blockedFine.UnionWith(SolidObjectMapper.FindBlockedCells(fine, fineCells, SolidObjectMapper.GetCollisionBoxes(rowSprites, objects)));
@@ -163,7 +164,7 @@ public static class ClutterPlanner
     private static IEnumerable<MergedMapSprite> ToSprites(IEnumerable<PlacedDecor> decor, Lattice lattice) => decor.Select(o =>
     {
         (double x, double y) = lattice.ToWorld(o.U, o.V);
-        return new MergedMapSprite(0, o.Id, (float)x, (float)y, (float)o.Z, o.Dir, 0, o.Payload);
+        return new MergedMapSprite(0, o.Id, new Vector3((float)x, (float)y, (float)o.Z), o.Dir, 0, o.Payload);
     });
 
     private static KnownObject Pick(Random rng, IReadOnlyList<(KnownObject Id, int Count)> palette)
@@ -206,7 +207,7 @@ public static class ClutterPlanner
             (du, dv) = (-du, -dv);
         }
 
-        int stride = objects.TryFind(id, out var obj) && Math.Max(obj.ExtentX, obj.ExtentY) > lattice.StepX ? 2 : 1;
+        int stride = objects.TryFind(id, out var obj) && Math.Max(obj.Size.X, obj.Size.Y) > lattice.StepX ? 2 : 1;
         double low = clearance.TryGetClearance(id, out _, out double l) ? l : 0;
         double offset = Math.Max(0.5, low + ClearanceMargin);
         double across = wall.Axis == 'v'

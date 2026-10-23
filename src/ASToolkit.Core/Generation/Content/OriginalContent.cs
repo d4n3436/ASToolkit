@@ -72,7 +72,7 @@ public sealed class OriginalContent
 
             if (KnownObject.Monsters.Contains(sprite.Id) || KnownObject.Bosses.Contains(sprite.Id))
             {
-                placedHp += objects.TryFind(sprite.Id, out var obj) ? obj.HitPoints : 0;
+                placedHp += objects.TryFind(sprite.Id, out var obj) ? obj.MaxHp : 0;
             }
 
             var program = sprite.Id == KnownObject.Spawner ? SpawnerProgram.Parse(sprite.Payload) : null;
@@ -82,7 +82,7 @@ public sealed class OriginalContent
                 if (monsters.Length > 0)
                 {
                     spawners.Add(monsters);
-                    spawnedHp += monsters.Sum(m => objects.TryFind(m, out var obj) ? obj.HitPoints : 0);
+                    spawnedHp += monsters.Sum(m => objects.TryFind(m, out var obj) ? obj.MaxHp : 0);
                 }
             }
         }
@@ -113,8 +113,8 @@ public sealed class OriginalContent
             var sp = MapResourceBuilder.Load(Path.Combine(gameFolder, "Maps", level)).Sprites;
             foreach (var breaker in sp.Where(s => s.Id == KnownObject.Breaker))
             {
-                scenes.Add(sp.Where(o => o.Id is KnownObject.ObjectMarker or KnownObject.Shelves or KnownObject.Table or KnownObject.Cabinet or KnownObject.Transformer or KnownObject.SoldierCorpse or KnownObject.BloodPool or KnownObject.LargeBloodPool && Math.Sqrt(Math.Pow(o.X - breaker.X, 2) + Math.Pow(o.Y - breaker.Y, 2)) < 170)
-                    .Select(o => new PropPlacement(o.Id, o.X - breaker.X, o.Y - breaker.Y, o.Z, o.Facing)).ToArray());
+                scenes.Add(sp.Where(o => o.Id is KnownObject.ObjectMarker or KnownObject.Shelves or KnownObject.Table or KnownObject.Cabinet or KnownObject.Transformer or KnownObject.SoldierCorpse or KnownObject.BloodPool or KnownObject.LargeBloodPool && Math.Sqrt(Math.Pow(o.Position.X - breaker.Position.X, 2) + Math.Pow(o.Position.Y - breaker.Position.Y, 2)) < 170)
+                    .Select(o => new PropPlacement(o.Id, o.Position.X - breaker.Position.X, o.Position.Y - breaker.Position.Y, o.Position.Z, o.Facing)).ToArray());
             }
         }
 
@@ -133,8 +133,8 @@ public sealed class OriginalContent
             foreach (var sprite in sp.Where(s => s.Id == KnownObject.DynamiteSite))
             {
                 var members = sp
-                    .Where(o => (o.Id is KnownObject.TeleportPad or KnownObject.BigMonsterHole or KnownObject.SmallMonsterHole || o.Id.IsEndlessGenerator) && Math.Sqrt(Math.Pow(o.X - sprite.X, 2) + Math.Pow(o.Y - sprite.Y, 2)) < 130)
-                    .Select(o => new SiteMember(o.Id, o.X - sprite.X, o.Y - sprite.Y, o.Z, o.Facing, o.Side,
+                    .Where(o => (o.Id is KnownObject.TeleportPad or KnownObject.BigMonsterHole or KnownObject.SmallMonsterHole || o.Id.IsEndlessGenerator) && Math.Sqrt(Math.Pow(o.Position.X - sprite.Position.X, 2) + Math.Pow(o.Position.Y - sprite.Position.Y, 2)) < 130)
+                    .Select(o => new SiteMember(o.Id, o.Position.X - sprite.Position.X, o.Position.Y - sprite.Position.Y, o.Position.Z, o.Facing, o.Army,
                         o.Payload.Length <= 12 ? o.Payload : new byte[o.Id == KnownObject.TeleportPad ? 12 : 8]))
                     .ToList();
                 if (theme == LevelTheme.Lab)
@@ -148,7 +148,7 @@ public sealed class OriginalContent
                 }
 
                 int rank = members.Where(m => m.Id >= KnownObject.FirstEndlessGenerator).Select(m => m.Id - KnownObject.FirstEndlessGenerator).DefaultIfEmpty(0).Max();
-                sites.Add(new SiteTemplate(sprite.Z, sprite.Facing, rank, members));
+                sites.Add(new SiteTemplate(sprite.Position.Z, sprite.Facing, rank, members));
             }
         }
 
@@ -174,7 +174,7 @@ public sealed class OriginalContent
                 var a = monsters[group[memberIndex]];
                 for (int innerMonsterIndex = 0; innerMonsterIndex < monsters.Length; innerMonsterIndex++)
                 {
-                    if (!seen[innerMonsterIndex] && Math.Sqrt(Math.Pow(monsters[innerMonsterIndex].X - a.X, 2) + Math.Pow(monsters[innerMonsterIndex].Y - a.Y, 2)) < 110)
+                    if (!seen[innerMonsterIndex] && Math.Sqrt(Math.Pow(monsters[innerMonsterIndex].Position.X - a.Position.X, 2) + Math.Pow(monsters[innerMonsterIndex].Position.Y - a.Position.Y, 2)) < 110)
                     {
                         seen[innerMonsterIndex] = true;
                         group.Add(innerMonsterIndex);
@@ -182,9 +182,9 @@ public sealed class OriginalContent
                 }
             }
 
-            double cx = group.Average(k => monsters[k].X);
-            double cy = group.Average(k => monsters[k].Y);
-            groups.Add(group.Select(k => new GroupMember(monsters[k].Id, monsters[k].X - cx, monsters[k].Y - cy, monsters[k].Facing)).ToArray());
+            double cx = group.Average(k => monsters[k].Position.X);
+            double cy = group.Average(k => monsters[k].Position.Y);
+            groups.Add(group.Select(k => new GroupMember(monsters[k].Id, monsters[k].Position.X - cx, monsters[k].Position.Y - cy, monsters[k].Facing)).ToArray());
         }
 
         return groups.ToArray();

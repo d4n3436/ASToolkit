@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace ASToolkit.Core.Formats;
@@ -9,16 +10,16 @@ namespace ASToolkit.Core.Formats;
 internal readonly struct OldGameObject
 {
     /// <summary>
-    /// The group of the object, which holds its category in the low byte and its kind in the next one.
+    /// The sprite type of the object.
     /// </summary>
     [FieldOffset(0)]
-    public readonly uint Group;
+    public readonly OldSpriteType SpriteType;
 
     /// <summary>
-    /// The engine behavior class of the object.
+    /// The sprite class of the object.
     /// </summary>
     [FieldOffset(4)]
-    public readonly uint Type;
+    public readonly SpriteClass SpriteClass;
 
     /// <summary>
     /// The object flags.
@@ -30,55 +31,31 @@ internal readonly struct OldGameObject
     /// The collision groups of the object.
     /// </summary>
     [FieldOffset(12)]
-    public readonly uint CollisionMask;
+    public readonly uint MoveMask;
 
     /// <summary>
-    /// The collision extent along x.
+    /// The size of the object along x, y and the height.
     /// </summary>
     [FieldOffset(16)]
-    public readonly float ExtentX;
+    public readonly Vector3 Size;
 
     /// <summary>
-    /// The collision extent along y.
-    /// </summary>
-    [FieldOffset(20)]
-    public readonly float ExtentY;
-
-    /// <summary>
-    /// The height.
-    /// </summary>
-    [FieldOffset(24)]
-    public readonly float ExtentZ;
-
-    /// <summary>
-    /// The hit points.
+    /// The maximum hit points.
     /// </summary>
     [FieldOffset(28)]
-    public readonly int HitPoints;
+    public readonly int MaxHp;
 
     /// <summary>
-    /// The x offset of the attached object from this one.
+    /// The offset of the linked object from this one, as stored in the file.
     /// </summary>
     [FieldOffset(64)]
-    public readonly float AttachedOffsetX;
+    public readonly Vector3 LinkOffset;
 
     /// <summary>
-    /// The y offset of the attached object from this one, as stored in the file.
-    /// </summary>
-    [FieldOffset(68)]
-    public readonly float AttachedOffsetY;
-
-    /// <summary>
-    /// The height offset of the attached object from this one.
-    /// </summary>
-    [FieldOffset(72)]
-    public readonly float AttachedOffsetZ;
-
-    /// <summary>
-    /// The ID of the object the engine creates attached to this one, or zero for none.
+    /// The ID of the object the engine creates linked to this one, or zero for none.
     /// </summary>
     [FieldOffset(76)]
-    public readonly KnownObject AttachedObject;
+    public readonly KnownObject Link;
 
     /// <summary>
     /// The highest step the object climbs, and the height a bobbing object rises and sinks by.
@@ -105,38 +82,26 @@ internal readonly struct OldGameObject
     public readonly StateValues FrameDurations;
 
     /// <summary>
-    /// The color shift of the red channel of the sprite's palette.
+    /// The gamma shift of the red channel of the sprite's palette.
     /// </summary>
     [FieldOffset(660)]
-    public readonly int TintRed;
+    public readonly int GammaRed;
 
     /// <summary>
-    /// The color shift of the green channel of the sprite's palette.
+    /// The gamma shift of the green channel of the sprite's palette.
     /// </summary>
     [FieldOffset(664)]
-    public readonly int TintGreen;
+    public readonly int GammaGreen;
 
     /// <summary>
-    /// The color shift of the blue channel of the sprite's palette.
+    /// The gamma shift of the blue channel of the sprite's palette.
     /// </summary>
     [FieldOffset(668)]
-    public readonly int TintBlue;
+    public readonly int GammaBlue;
 
     /// <summary>
-    /// The scale of the object along x.
+    /// The scale of the object along x, y and the height.
     /// </summary>
     [FieldOffset(676)]
-    public readonly float ScaleX;
-
-    /// <summary>
-    /// The scale of the object along y.
-    /// </summary>
-    [FieldOffset(680)]
-    public readonly float ScaleY;
-
-    /// <summary>
-    /// The scale of the object along the height.
-    /// </summary>
-    [FieldOffset(684)]
-    public readonly float ScaleZ;
+    public readonly Vector3 Scale;
 }

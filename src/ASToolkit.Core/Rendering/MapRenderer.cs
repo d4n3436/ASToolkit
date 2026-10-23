@@ -29,9 +29,9 @@ public sealed class MapRenderer
     private const int RaisedDepth = 0x3fff;
     private const int SequelRaisedHeight = 1000;
     private const int MaxAttachDepth = 4;
-    private const uint PlayerSide = 0;
-    private const uint SideMask = 3;
-    private const uint SequelSideMask = 7;
+    private const uint PlayerArmy = 0;
+    private const uint ArmyMask = 3;
+    private const uint SequelArmyMask = 7;
     private const int LightPass = 7;
     private const float LightBufferShare = 0.3f;
     private const float LightFalloff = 0.2f;
@@ -49,17 +49,14 @@ public sealed class MapRenderer
     private const float TopShadowHeight = 0.3f;
     private const float InitialLowestHeight = 999;
     private const int ActionStackCount = 4;
-    private const int PauseAction = 40;
-    private const int TriggerAction = 43;
-    private const int StopAction = 73;
-    private const int ScriptCheckAction = 77;
-    private const int VariableWaitAction = 79;
-    private const int HideAction = 98;
+    private const int PauseAct = 40;
+    private const int FlagmanTriggerAct = 43;
+    private const int StopStackAct = 73;
+    private const int WhileNotQuestAct = 77;
+    private const int VariableWaitAct = 79;
+    private const int SetInvisibleAct = 98;
     private const double RowScale = 0.70706;
-    private const uint SceneryType = 8;
-    private const uint InterfaceType = 10;
-    private const uint FontType = 19;
-    private const uint RegionType = 23;
+    private const SpriteClass SceneryClass = (SpriteClass)8;
     private const uint PhaseSeedStep = 0x9e3779b9;
     private const int PlayerPartCount = 12;
     private const int FemalePartOffset = KnownObject.PlayerStartGirl - KnownObject.PlayerStart;
@@ -168,7 +165,7 @@ public sealed class MapRenderer
 
         string path = _objects.GetPath(id);
         var file = GetFile(path);
-        var tint = PackedTint.Pack(obj.TintRed, obj.TintGreen, obj.TintBlue, obj.TintAlpha);
+        var tint = PackedTint.Pack(obj.GammaRed, obj.GammaGreen, obj.GammaBlue, obj.GammaAlpha);
         if (_objects.IsAlienShooter2)
         {
             tint = tint.Add(tint);
@@ -204,8 +201,8 @@ public sealed class MapRenderer
             if (!(OmitRemovableGroups && IsRemovableGroup(sprite.Payload)) && !(OmitCovers && IsCover(sprite.Id))
                 && !(OmitHiddenObjects && _objects.IsAlienShooter2 && StartsHidden(sprite.Payload)))
             {
-                var look = new SpriteLook(GetPlacementTint(sprite), new Vector3(sprite.ScaleX, sprite.ScaleY, sprite.ScaleZ));
-                undrawn += Place(scene, sprite, GetPlayerPart(sprite.Id), sprite.X, sprite.Y, sprite.Z, sprite.Facing, look, ambient, 0);
+                var look = new SpriteLook(GetPlacementTint(sprite), sprite.Scale);
+                undrawn += Place(scene, sprite, GetPlayerPart(sprite.Id), sprite.Position, sprite.Facing, look, ambient, 0);
             }
         }
 
@@ -261,14 +258,14 @@ public sealed class MapRenderer
         for (int offset = actions.Length - actionSize; offset >= 0; offset -= actionSize)
         {
             var action = MemoryMarshal.Read<MapAction>(actions[offset..]);
-            if (action.Code is PauseAction or TriggerAction or StopAction or ScriptCheckAction or VariableWaitAction)
+            if (action.Act is PauseAct or FlagmanTriggerAct or StopStackAct or WhileNotQuestAct or VariableWaitAct)
             {
                 break;
             }
 
-            if (action.Code == HideAction)
+            if (action.Act == SetInvisibleAct)
             {
-                hidden = action.First != 0;
+                hidden = action.Var1 != 0;
             }
         }
 
@@ -305,10 +302,10 @@ public sealed class MapRenderer
         return true;
     }
 
-    private int Place(SceneObjects scene, MergedMapSprite owner, KnownObject id, float x, float y, float z, byte dir, SpriteLook look, PackedTint? ambient,
+    private int Place(SceneObjects scene, MergedMapSprite owner, KnownObject id, Vector3 position, byte dir, SpriteLook look, PackedTint? ambient,
         int attachDepth)
     {
-        if (!_objects.TryFind(id, out var obj) || (OmitHiddenObjects && IsHiddenBySide(obj, owner.Side)))
+        if (!_objects.TryFind(id, out var obj) || (OmitHiddenObjects && IsHiddenByArmy(obj, owner.Army)))
         {
             return 0;
         }
@@ -319,7 +316,7 @@ public sealed class MapRenderer
         bool sequel = _objects.IsAlienShooter2;
         bool isOmniLight = sequel && file is not null && file.Value.Flags.HasFlag(VidFlags.OmniLight);
         int sequelPass = isOmniLight ? LightPass : sequel && file is not null ? GetPass(obj, file.Value) : 0;
-        var objectTint = PackedTint.Pack(obj.TintRed, obj.TintGreen, obj.TintBlue, obj.TintAlpha);
+        var objectTint = PackedTint.Pack(obj.GammaRed, obj.GammaGreen, obj.GammaBlue, obj.GammaAlpha);
         var tint = look.Tint ?? objectTint;
         if (sequel)
         {
@@ -336,12 +333,12 @@ public sealed class MapRenderer
         if (isOmniLight && ambient.HasValue)
         {
             uint[] colors = Enumerable.Range(frameIndex, timing.Count).Select(file!.Value.GetLightColor).ToArray();
-            AddLight(scene.Lights, obj, colors, timing, tint, x, y, z, look.Scale);
+            AddLight(scene.Lights, obj, colors, timing, tint, position, look.Scale);
         }
 
         if (ambient.HasValue && sequel && file is not null && IsShadowCaster(obj, file.Value))
         {
-            scene.Casters.Add(new ShadowCaster(obj, path, file.Value, x, y, z, dir, frameIndex, scale));
+            scene.Casters.Add(new ShadowCaster(obj, path, file.Value, position, dir, frameIndex, scale));
         }
 
         byte rotation = file is null ? (byte)0 : GetRotation(obj, file.Value, path, dir);
@@ -350,42 +347,41 @@ public sealed class MapRenderer
         int pass = sequel && file is not null ? sequelPass : frame is null || !frame.IsCombined ? 0 : 1;
         float bob = scene.Animates && obj.Flags.HasFlag(ObjectFlags.Bobbing) ? obj.StepHeight : 0;
         var animation = file is null || (timing.Count == 1 && bob == 0) ? null
-            : new SpriteAnimation(Enumerable.Range(frameIndex, timing.Count).Select(index => GetFrame(path, obj, file.Value, index, rotation, tint, scale)).ToArray(),
-                timing, bob, z, sequel);
-        var source = new SceneObject(id, owner, x, y, z, dir);
-        scene.Placed.Add(new Placement(obj, frame, x, y - z, width, height, GetBaseDepth(obj, z, sequel), !sequel && obj.ExtentY < obj.ExtentZ, pass, source, animation));
+            : new FrameAnimation(Enumerable.Range(frameIndex, timing.Count).Select(index => GetFrame(path, obj, file.Value, index, rotation, tint, scale)).ToArray(),
+                timing, bob, position.Z, sequel);
+        var source = new SceneObject(id, owner, position, dir);
+        scene.Placed.Add(new Placement(obj, frame, position.X, position.Y - position.Z, width, height, GetBaseDepth(obj, position.Z, sequel), !sequel && obj.Size.Y < obj.Size.Z, pass, source, animation));
         int undrawn = file is not null && frame is null ? 1 : 0;
-        if (obj.AttachedObject == 0 || attachDepth >= MaxAttachDepth || !_objects.TryFind(obj.AttachedObject, out var attached))
+        if (obj.Link == 0 || attachDepth >= MaxAttachDepth || !_objects.TryFind(obj.Link, out var attached))
         {
             return undrawn;
         }
 
-        var offset = GetAttachedOffset(obj, attached, file, frameIndex, dir);
-        return undrawn + Place(scene, owner, GetPlayerPart(obj.AttachedObject), x + offset.X, y + offset.Y, z + offset.Z, dir, SpriteLook.Default, ambient, attachDepth + 1);
+        var offset = GetLinkOffset(obj, attached, file, frameIndex, dir);
+        return undrawn + Place(scene, owner, GetPlayerPart(obj.Link), position + offset, dir, SpriteLook.Default, ambient, attachDepth + 1);
     }
 
     // Brighten the background like a light buffer at neutral gray
     private static Image<Rgb24>? DrawLight(GameObject obj, uint color, Rgb24 background)
     {
-        float radiusX = 0.5f * obj.ExtentX * obj.ScaleX;
-        float radiusY = 0.5f * obj.ExtentY * obj.ScaleY;
-        if (radiusX < 1 || radiusY < 1)
+        var radius = 0.5f * obj.Size * obj.Scale;
+        if (radius.X < 1 || radius.Y < 1)
         {
             return null;
         }
 
-        float scale = GetLightScale(radiusY);
+        float scale = GetLightScale(radius.Y);
         (int red, int green, int blue) = ((int)((color >> 16 & 0xff) * scale), (int)((color >> 8 & 0xff) * scale), (int)((color & 0xff) * scale));
-        var image = new Image<Rgb24>(ImageConfiguration, (int)Math.Ceiling(2 * radiusX), (int)Math.Ceiling(2 * radiusY), background);
+        var image = new Image<Rgb24>(ImageConfiguration, (int)Math.Ceiling(2 * radius.X), (int)Math.Ceiling(2 * radius.Y), background);
         image.ProcessPixelRows(rows =>
         {
             for (int y = 0; y < rows.Height; y++)
             {
                 var pixels = rows.GetRowSpan(y);
-                float v = (y + 0.5f - rows.Height / 2f) / radiusY;
+                float v = (y + 0.5f - rows.Height / 2f) / radius.Y;
                 for (int x = 0; x < pixels.Length; x++)
                 {
-                    int falloff = GetFalloff((x + 0.5f - pixels.Length / 2f) / radiusX, v);
+                    int falloff = GetFalloff((x + 0.5f - pixels.Length / 2f) / radius.X, v);
                     pixels[x] = new Rgb24(Brighten(background.R, falloff * red / 255), Brighten(background.G, falloff * green / 255),
                         Brighten(background.B, falloff * blue / 255));
                 }
@@ -399,13 +395,13 @@ public sealed class MapRenderer
 
     private static AnimationTiming GetTiming(GameObject obj, VidResource? file, int frameIndex, uint handle, int attachDepth)
     {
-        if (file is null || obj.Type is SceneryType or InterfaceType)
+        if (file is null || obj.SpriteClass is SceneryClass or SpriteClass.Frame)
         {
             return AnimationTiming.Static;
         }
 
         int count = Math.Min(obj.FramesPerDirection, file.Value.FrameCount - frameIndex);
-        int duration = obj.GetFrameDuration(0, file.Value.Speed);
+        int duration = obj.GetFrameDuration(SpriteAnimation.Stand, file.Value.Speed);
         if (count <= 1 || duration <= 0)
         {
             return AnimationTiming.Static;
@@ -416,8 +412,8 @@ public sealed class MapRenderer
         return new AnimationTiming(count, duration, phase);
     }
     
-    private bool IsHiddenBySide(GameObject obj, uint side) =>
-        obj.Flags.HasFlag(ObjectFlags.SideDependent) && (GetSideBits(side) != PlayerSide || (!_objects.IsAlienShooter2 && obj.Type == SceneryType));
+    private bool IsHiddenByArmy(GameObject obj, uint army) =>
+        obj.Flags.HasFlag(ObjectFlags.ArmyDependent) && (GetArmyBits(army) != PlayerArmy || (!_objects.IsAlienShooter2 && obj.SpriteClass == SceneryClass));
     
     private KnownObject GetPlayerPart(KnownObject id)
     {
@@ -436,13 +432,13 @@ public sealed class MapRenderer
         return (KnownObject)(ShowsFemalePlayer ? male + FemalePartOffset : male);
     }
 
-    private uint GetSideBits(uint side) => side & (_objects.IsAlienShooter2 ? SequelSideMask : SideMask);
+    private uint GetArmyBits(uint army) => army & (_objects.IsAlienShooter2 ? SequelArmyMask : ArmyMask);
 
-    private static Vector3 GetAttachedOffset(GameObject owner, GameObject attached, VidResource? file, int frameIndex, byte dir)
+    private static Vector3 GetLinkOffset(GameObject owner, GameObject attached, VidResource? file, int frameIndex, byte dir)
     {
         var offset = file is not null && file.Value.Flags.HasFlag(VidFlags.FrameVector)
             ? file.Value.GetFrameVector(frameIndex)
-            : new Vector3(owner.AttachedOffsetX, -owner.AttachedOffsetY, owner.AttachedOffsetZ);
+            : owner.LinkOffset with { Y = -owner.LinkOffset.Y };
         if (attached.Flags.HasFlag(ObjectFlags.FixedOffset))
         {
             return offset;
@@ -471,7 +467,7 @@ public sealed class MapRenderer
         }
 
         int mode = file.Mode is 0 or -1 && !path.Contains(@"\101.", StringComparison.OrdinalIgnoreCase) ? 1 : file.Mode;
-        if (mode == 0 || (mode == -1 && obj.ExtentY < obj.ExtentZ))
+        if (mode == 0 || (mode == -1 && obj.Size.Y < obj.Size.Z))
         {
             return 0;
         }
@@ -493,17 +489,17 @@ public sealed class MapRenderer
             return 10;
         }
 
-        if (obj.Type == SceneryType)
+        if (obj.SpriteClass == SceneryClass)
         {
             return file is { IsBlended: false, Blend: VidBlend.Alpha } ? 0 : 2;
         }
 
-        if (obj.Type == RegionType)
+        if (obj.SpriteClass == SpriteClass.Region)
         {
             return 5;
         }
 
-        if (obj.Type is InterfaceType or FontType)
+        if (obj.SpriteClass is SpriteClass.Frame or SpriteClass.Text)
         {
             return 11;
         }
@@ -544,18 +540,17 @@ public sealed class MapRenderer
         return OmitAmbientTint ? ambient.ToGray() : ambient;
     }
 
-    private static void AddLight(List<OmniLight> lights, GameObject obj, uint[] colors, AnimationTiming timing, PackedTint tint, float x, float y, float z, Vector3 scale)
+    private static void AddLight(List<OmniLight> lights, GameObject obj, uint[] colors, AnimationTiming timing, PackedTint tint, Vector3 position, Vector3 scale)
     {
-        float radiusX = 0.5f * obj.ExtentX * obj.ScaleX * scale.X;
-        float radiusY = 0.5f * obj.ExtentY * obj.ScaleY * scale.Y;
-        if (colors.All(color => color == 0) || radiusX <= 0 || radiusY <= 0)
+        var radius = 0.5f * obj.Size * obj.Scale * scale;
+        if (colors.All(color => color == 0) || radius.X <= 0 || radius.Y <= 0)
         {
             return;
         }
 
         var lightColors = colors.Select(color => color == 0 ? Vector3.Zero : new Vector3(tint.Apply((int)(color >> 16 & 0xff), 16),
             tint.Apply((int)(color >> 8 & 0xff), 8), tint.Apply((int)(color & 0xff), 0))).ToArray();
-        lights.Add(new OmniLight(x, y, z, radiusX, radiusY, lightColors, timing, obj.Flags.HasFlag(ObjectFlags.Windblown), []));
+        lights.Add(new OmniLight(position, radius.X, radius.Y, lightColors, timing, obj.Flags.HasFlag(ObjectFlags.Windblown), []));
     }
 
     // Color scale of the light quad, the falloff 10 units above the ground
@@ -579,8 +574,8 @@ public sealed class MapRenderer
         var cards = new List<ShadowCard>();
         foreach (var caster in casters)
         {
-            var offset = new Vector3(caster.X - light.X, caster.Y - light.Y, caster.Z - light.Height);
-            if (GetOctagonalLength(GetOctagonalLength(Math.Abs(offset.X), Math.Abs(offset.Y)), Math.Abs(offset.Z)) < light.RadiusX)
+            var offset = Vector3.Abs(caster.Position - light.Position);
+            if (GetOctagonalLength(GetOctagonalLength(offset.X, offset.Y), offset.Z) < light.RadiusX)
             {
                 var card = GetShadowCard(light, caster);
                 if (card is not null)
@@ -599,7 +594,7 @@ public sealed class MapRenderer
     private ShadowCard? GetShadowCard(OmniLight light, ShadowCaster caster)
     {
         var (obj, file) = (caster.Object, caster.File);
-        float towardLight = MathF.Atan2(light.X - caster.X, -(light.Y - caster.Y));
+        float towardLight = MathF.Atan2(light.Position.X - caster.Position.X, -(light.Position.Y - caster.Position.Y));
         byte away = (byte)((int)(towardLight * AngleUnitsPerRadian) + HalfTurn);
         bool rotated = obj.Flags.HasFlag(ObjectFlags.Rotated);
         int index = rotated ? obj.GetFrame((byte)(caster.Dir - away), file.FrameCount) : caster.FrameIndex;
@@ -618,13 +613,13 @@ public sealed class MapRenderer
             turn = obj.Flags.HasFlag(ObjectFlags.FreeRotation) ? caster.Dir : (byte)(caster.Dir - (obj.GetDirection((byte)(caster.Dir - away)) << 8) / Math.Max(1, obj.Directions));
         }
 
-        float lift = Math.Max(0, caster.Z);
+        float lift = Math.Max(0, caster.Position.Z);
         var scale = caster.Scale;
 
         var origin = ToScreen(0, 0);
         var columnStep = (ToScreen(frame.Width, 0) - origin) / frame.Width;
         var rowStep = (ToScreen(0, frame.RowCount) - origin) / frame.RowCount;
-        float baseDepth = DepthPerHeight * caster.Z + FlatDepth;
+        float baseDepth = DepthPerHeight * caster.Position.Z + FlatDepth;
         return new ShadowCard(GetMask(caster.Path, file, index), frame.Width, frame.RowCount, origin, columnStep, rowStep,
             DepthPerHeight * highest * TopShadowHeight * scale.Z + baseDepth, DepthPerHeight * lowest * scale.Z + baseDepth);
 
@@ -642,7 +637,7 @@ public sealed class MapRenderer
                 local += new Vector2(push * Sin(away), -push * (float)RowScale * Cos(away));
             }
 
-            return new Vector2(caster.X + local.X, (caster.Y - caster.Z) + local.Y + lift);
+            return new Vector2(caster.Position.X + local.X, (caster.Position.Y - caster.Position.Z) + local.Y + lift);
         }
     }
 
@@ -1202,17 +1197,17 @@ public sealed class MapRenderer
         public int GetIndex(int time) => Count == 1 ? 0 : (Phase + time / Duration) % Count;
     }
 
-    internal sealed record SpriteAnimation(SpriteFrame?[] Frames, AnimationTiming Timing, float Bob, float Z, bool Sequel);
+    internal sealed record FrameAnimation(SpriteFrame?[] Frames, AnimationTiming Timing, float Bob, float Z, bool Sequel);
 
     internal readonly record struct PlacementState(SpriteFrame? Frame, int X, int Y, int BaseDepth);
 
-    internal sealed record OmniLight(float X, float Y, float Height, float RadiusX, float RadiusY, Vector3[] Colors, AnimationTiming Timing, bool CastsShadows,
+    internal sealed record OmniLight(Vector3 Position, float RadiusX, float RadiusY, Vector3[] Colors, AnimationTiming Timing, bool CastsShadows,
         ShadowCard[] Shadows)
     {
         public Vector3 GetColor(int? time) => Colors[time is not null ? Timing.GetIndex(time.Value) : 0];
     }
 
-    private sealed record ShadowCaster(GameObject Object, string Path, VidResource File, float X, float Y, float Z, byte Dir, int FrameIndex, Vector3 Scale);
+    private sealed record ShadowCaster(GameObject Object, string Path, VidResource File, Vector3 Position, byte Dir, int FrameIndex, Vector3 Scale);
 
     internal sealed record ShadowCard(bool[] Mask, int Columns, int Rows, Vector2 Origin, Vector2 ColumnStep, Vector2 RowStep, float TopDepth, float BottomDepth);
 
@@ -1221,10 +1216,10 @@ public sealed class MapRenderer
     internal sealed record StripBuffers(Rgb24[] Source, int[] Depth, Rgb24[] Light, int[] Sums, Rgb24[] Row);
 
     // The sprite canvas is centered on X and ScreenY, the world y minus the height
-    internal sealed record Placement(GameObject Object, SpriteFrame? Frame, float X, float ScreenY, int Width, int Height, int BaseDepth, bool IsStanding,
-        int Pass, SceneObject? Source, SpriteAnimation? Animation)
+    internal sealed record Placement(GameObject Object, SpriteFrame? Frame, float ScreenX, float ScreenY, int Width, int Height, int BaseDepth, bool IsStanding,
+        int Pass, SceneObject? Source, FrameAnimation? Animation)
     {
-        public double Left => X - Width / 2.0;
+        public double Left => ScreenX - Width / 2.0;
 
         public double Top => ScreenY - Height / 2.0;
 
@@ -1256,7 +1251,7 @@ public sealed class MapRenderer
                 }
             }
 
-            return new PlacementState(frame, (int)Math.Round(X - width / 2.0 - left), (int)Math.Round(screenY - height / 2.0 - top) - lift, baseDepth);
+            return new PlacementState(frame, (int)Math.Round(ScreenX - width / 2.0 - left), (int)Math.Round(screenY - height / 2.0 - top) - lift, baseDepth);
         }
 
         public int GetAnimationKey(int time) =>
@@ -1313,7 +1308,7 @@ public sealed class MapRenderer
             _background = background;
             _colors = colors;
             var shift = new Vector2(_left, 0);
-            _lights = lights.Select(light => light with { X = light.X - _left, Shadows = light.Shadows.Select(card => card with { Origin = card.Origin - shift }).ToArray() })
+            _lights = lights.Select(light => light with { Position = light.Position - new Vector3(_left, 0, 0), Shadows = light.Shadows.Select(card => card with { Origin = card.Origin - shift }).ToArray() })
                 .ToArray();
             _strips = new List<int>[StripCount];
             for (int strip = 0; strip < _strips.Length; strip++)
@@ -1561,13 +1556,14 @@ public sealed class MapRenderer
 
         private void AddLight(Rgb24[] buffer, int[] depth, OmniLight light, Vector3 color, int y0, int y1)
         {
-            float centerY = light.Y - light.Height + LightQuadDrop;
+            float centerY = light.Position.Y - light.Position.Z + LightQuadDrop;
             int top = Math.Max(y0, (int)Math.Floor(centerY - light.RadiusY));
             int bottom = Math.Min(y1, (int)Math.Ceiling(centerY + light.RadiusY));
-            int left = Math.Max(0, (int)Math.Floor(light.X - light.RadiusX));
-            int right = Math.Min(_width, (int)Math.Ceiling(light.X + light.RadiusX));
+            int left = Math.Max(0, (int)Math.Floor(light.Position.X - light.RadiusX));
+            int right = Math.Min(_width, (int)Math.Ceiling(light.Position.X + light.RadiusX));
             float scale = GetLightScale(light.RadiusY);
-            (int red, int green, int blue) = ((int)(color.X * scale), (int)(color.Y * scale), (int)(color.Z * scale));
+            var scaled = color * scale;
+            (int red, int green, int blue) = ((int)scaled.X, (int)scaled.Y, (int)scaled.Z);
             int strongest = Math.Max(red, Math.Max(green, blue));
             if (top >= bottom || left >= right || strongest == 0)
             {
@@ -1585,7 +1581,7 @@ public sealed class MapRenderer
                         continue;
                     }
 
-                    int falloff = GetFalloff((x + 0.5f - light.X) / light.RadiusX, v);
+                    int falloff = GetFalloff((x + 0.5f - light.Position.X) / light.RadiusX, v);
                     if (falloff * strongest <= LightAlphaReference * 255)
                     {
                         continue;
@@ -1635,7 +1631,7 @@ public sealed class MapRenderer
                     continue;
                 }
 
-                float determinant = card.ColumnStep.X * card.RowStep.Y - card.ColumnStep.Y * card.RowStep.X;
+                float determinant = Vector2.Cross(card.ColumnStep, card.RowStep);
                 if (determinant == 0)
                 {
                     continue;
@@ -1646,8 +1642,8 @@ public sealed class MapRenderer
                     for (int x = cardLeft; x < cardRight; x++)
                     {
                         var delta = new Vector2(x + 0.5f, y + 0.5f) - card.Origin;
-                        float column = (delta.X * card.RowStep.Y - delta.Y * card.RowStep.X) / determinant;
-                        float row = (card.ColumnStep.X * delta.Y - card.ColumnStep.Y * delta.X) / determinant;
+                        float column = Vector2.Cross(delta, card.RowStep) / determinant;
+                        float row = Vector2.Cross(card.ColumnStep, delta) / determinant;
                         if (column < 0 || row < 0 || column >= card.Columns || row >= card.Rows || !card.Mask[(int)row * card.Columns + (int)column])
                         {
                             continue;

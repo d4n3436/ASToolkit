@@ -80,8 +80,8 @@ public static class Dresser
             return cells;
         }
 
-        double hx = .33 * obj.ExtentX + 14;
-        double hy = .33 * obj.ExtentY + 14;
+        double hx = .33 * obj.Size.X + 14;
+        double hy = .33 * obj.Size.Y + 14;
         foreach (double dx in new[] { -hx, 0, hx })
         {
             foreach (double dy in new[] { -hy, 0, hy })

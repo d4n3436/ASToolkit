@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace ASToolkit.Core.Formats;
@@ -21,22 +22,10 @@ internal readonly struct OldMapSprite
     public readonly KnownObject Id;
 
     /// <summary>
-    /// The x position in map pixels.
+    /// The position in map pixels, with the height above the floor.
     /// </summary>
     [FieldOffset(8)]
-    public readonly float X;
-
-    /// <summary>
-    /// The y position in map pixels.
-    /// </summary>
-    [FieldOffset(12)]
-    public readonly float Y;
-
-    /// <summary>
-    /// The height above the floor.
-    /// </summary>
-    [FieldOffset(16)]
-    public readonly float Z;
+    public readonly Vector3 Position;
 
     /// <summary>
     /// The facing field.
@@ -45,8 +34,8 @@ internal readonly struct OldMapSprite
     public readonly uint Dir;
 
     /// <summary>
-    /// The side of the object.
+    /// The army of the object.
     /// </summary>
     [FieldOffset(24)]
-    public readonly uint Side;
+    public readonly uint Army;
 }

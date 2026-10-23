@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace ASToolkit.Core.Formats;
@@ -21,16 +22,10 @@ public readonly struct MapHeader
     public readonly float MapH;
 
     /// <summary>
-    /// The camera starting X position.
+    /// The starting position of the camera.
     /// </summary>
     [FieldOffset(8)]
-    public readonly float CameraX;
-
-    /// <summary>
-    /// The camera starting Y position.
-    /// </summary>
-    [FieldOffset(12)]
-    public readonly float CameraY;
+    public readonly Vector2 Camera;
 
     /// <summary>
     /// The tick value.

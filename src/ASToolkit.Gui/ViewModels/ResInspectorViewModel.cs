@@ -94,8 +94,7 @@ public partial class ResInspectorViewModel : ViewModelBase
             {
                 new($"{nameof(MapResource.Header.MapW)}: {map.Header.MapW}"),
                 new($"{nameof(MapResource.Header.MapH)}: {map.Header.MapH}"),
-                new($"{nameof(MapResource.Header.CameraX)}: {map.Header.CameraX}"),
-                new($"{nameof(MapResource.Header.CameraY)}: {map.Header.CameraY}"),
+                new($"{nameof(MapResource.Header.Camera)}: {map.Header.Camera}"),
                 new($"{nameof(MapResource.Header.Tick)}: {map.Header.Tick}"),
                 new($"{nameof(MapResource.Header.Version)}: {map.Header.Version}"),
             };
@@ -111,11 +110,9 @@ public partial class ResInspectorViewModel : ViewModelBase
                 {
                     new($"{nameof(MapSprite.Handle)}: {sprite.Handle}"),
                     new($"{nameof(MapSprite.Id)}: {sprite.Id}"),
-                    new($"{nameof(MapSprite.X)}: {sprite.X}"),
-                    new($"{nameof(MapSprite.Y)}: {sprite.Y}"),
-                    new($"{nameof(MapSprite.Z)}: {sprite.Z}"),
+                    new($"{nameof(MapSprite.Position)}: {sprite.Position}"),
                     new($"{nameof(MapSprite.Dir)}: {sprite.Dir}"),
-                    new($"{nameof(MapSprite.Side)}: {sprite.Side}"),
+                    new($"{nameof(MapSprite.Army)}: {sprite.Army}"),
                 };
                 
                 spriteNodes.Add(new Node($"Sprite {s++}", spriteNode));

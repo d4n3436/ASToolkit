@@ -173,7 +173,7 @@ public static class RouteAnalyzer
                 return null;
             }
 
-            var (startCell, _) = FindNearestReachableCell(start.X, start.Y);
+            var (startCell, _) = FindNearestReachableCell(start.Position.X, start.Position.Y);
             if (startCell is null)
             {
                 return null;
@@ -690,7 +690,7 @@ public static class RouteAnalyzer
 
             void Add(ElementKind kind, MergedMapSprite s, ItemCategory? category = null, KnownObject crateItem = 0, SpawnerProgram? program = null)
             {
-                (var c, double offset) = FindNearestReachableCell(s.X, s.Y);
+                (var c, double offset) = FindNearestReachableCell(s.Position.X, s.Position.Y);
                 if (c is null || !_fromStart!.ContainsKey(c.Value))
                 {
                     return;
@@ -700,8 +700,8 @@ public static class RouteAnalyzer
                 {
                     Kind = kind,
                     Id = s.Id,
-                    X = (int)Math.Round(s.X),
-                    Y = (int)Math.Round(s.Y),
+                    X = (int)Math.Round(s.Position.X),
+                    Y = (int)Math.Round(s.Position.Y),
                     Cell = c.Value,
                     Hidden = offset > 30,
                     Category = category,

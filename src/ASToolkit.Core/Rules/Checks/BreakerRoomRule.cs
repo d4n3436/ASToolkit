@@ -54,7 +54,7 @@ public sealed class BreakerRoomRule : ILevelRule
                     $"back wall {onBackWall}, {run.Length} pieces long (at least {minRun}), ends in corners {enclosed}, open floor {front} cells in front and {side} beside");
             }
 
-            int transformers = context.Map.Sprites.Count(s => s.Id == KnownObject.Transformer && RuleMath.GetDistance(s.X, s.Y, breaker.X, breaker.Y) <= RoomReach);
+            int transformers = context.Map.Sprites.Count(s => s.Id == KnownObject.Transformer && RuleMath.GetDistance(s.Position.X, s.Position.Y, breaker.X, breaker.Y) <= RoomReach);
             yield return new RuleResult("D1.2", RuleSeverity.Soft, transformers >= 2, $"{transformers} transformers in the breaker room");
             int traps = a.Elements.Count(e => e is { Kind: ElementKind.Spawner, Program.Trigger: not null }
                                               && RuleMath.GetDistance(e.Program.Trigger.Value.X, e.Program.Trigger.Value.Y, breaker.X, breaker.Y) <= RoomReach);

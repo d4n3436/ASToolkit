@@ -48,7 +48,7 @@ public sealed class MapScene
         var shift = new Vector2(Left, Top);
         _lights = lights.Select(light => light with
         {
-            X = light.X - Left, Y = light.Y - Top, Shadows = light.Shadows.Select(card => card with { Origin = card.Origin - shift }).ToArray()
+            Position = light.Position - new Vector3(Left, Top, 0), Shadows = light.Shadows.Select(card => card with { Origin = card.Origin - shift }).ToArray()
         }).ToArray();
         _lightBounds = _lights.Select(GetBounds).ToArray();
         _columns = Math.Max(1, (Width + CellSize - 1) / CellSize);
@@ -261,7 +261,7 @@ public sealed class MapScene
         foreach (var frame in p.GetFrames())
         {
             (int width, int height) = frame is null ? (p.Width, p.Height) : (frame.Width, frame.Height);
-            var frameBounds = new Rectangle((int)Math.Round(p.X - width / 2.0 - Left), (int)Math.Round(p.ScreenY - height / 2.0 - Top) - reach, width, height + 2 * reach);
+            var frameBounds = new Rectangle((int)Math.Round(p.ScreenX - width / 2.0 - Left), (int)Math.Round(p.ScreenY - height / 2.0 - Top) - reach, width, height + 2 * reach);
             bounds = bounds.IsEmpty ? frameBounds : Rectangle.Union(bounds, frameBounds);
         }
 
@@ -270,8 +270,8 @@ public sealed class MapScene
 
     private static Rectangle GetBounds(OmniLight light)
     {
-        float centerY = light.Y - light.Height + LightQuadDrop;
-        return Rectangle.FromLTRB((int)Math.Floor(light.X - light.RadiusX), (int)Math.Floor(centerY - light.RadiusY), (int)Math.Ceiling(light.X + light.RadiusX) + 1,
+        float centerY = light.Position.Y - light.Position.Z + LightQuadDrop;
+        return Rectangle.FromLTRB((int)Math.Floor(light.Position.X - light.RadiusX), (int)Math.Floor(centerY - light.RadiusY), (int)Math.Ceiling(light.Position.X + light.RadiusX) + 1,
             (int)Math.Ceiling(centerY + light.RadiusY) + 1);
     }
 }

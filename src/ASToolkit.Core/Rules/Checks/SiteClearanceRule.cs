@@ -20,15 +20,15 @@ public sealed class SiteClearanceRule : ILevelRule
     /// </summary>
     public static double MeasureGap(GameObject obj, double objectX, double objectY, double x, double y)
     {
-        double dx = Math.Max(0, Math.Abs(objectX - x) - obj.ExtentX / 2);
-        double dy = Math.Max(0, Math.Abs(objectY - y) - obj.ExtentY / 2);
+        double dx = Math.Max(0, Math.Abs(objectX - x) - obj.Size.X / 2);
+        double dy = Math.Max(0, Math.Abs(objectY - y) - obj.Size.Y / 2);
         return Math.Sqrt(dx * dx + dy * dy);
     }
 
     /// <summary>
     /// Returns the smallest gap the originals leave between an object's footprint and a site.
     /// </summary>
-    public static double GetMinGap(GameObject obj) => Math.Max(obj.ExtentX, obj.ExtentY) >= LargeExtent ? LargeGap : SmallGap;
+    public static double GetMinGap(GameObject obj) => Math.Max(obj.Size.X, obj.Size.Y) >= LargeExtent ? LargeGap : SmallGap;
 
     /// <inheritdoc/>
     public IEnumerable<RuleResult> Evaluate(RuleContext context)
@@ -47,9 +47,9 @@ public sealed class SiteClearanceRule : ILevelRule
                 continue;
             }
 
-            if (sites.Any(site => MeasureGap(obj, sprite.X, sprite.Y, site.X, site.Y) < GetMinGap(obj)))
+            if (sites.Any(site => MeasureGap(obj, sprite.Position.X, sprite.Position.Y, site.Position.X, site.Position.Y) < GetMinGap(obj)))
             {
-                crowded.Add($"{sprite.Id} at ({sprite.X:0}, {sprite.Y:0})");
+                crowded.Add($"{sprite.Id} at ({sprite.Position.X:0}, {sprite.Position.Y:0})");
             }
         }
 

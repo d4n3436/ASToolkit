@@ -1,4 +1,6 @@
+using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
 
 namespace ASToolkit.Core.Formats;
 
@@ -10,22 +12,18 @@ public readonly record struct MapSprite
 {
     /// <summary>
     /// Creates a new instance of the <see cref="MapSprite"/> structure from a sprite of a map before version 16, optionally
-    /// reinterpreting the values of X, Y and Z as integers.
+    /// reinterpreting the position as integers.
     /// </summary>
     /// <param name="old">The sprite.</param>
-    /// <param name="reinterpret">Whether to reinterpret the values of X, Y and Z.</param>
+    /// <param name="reinterpret">Whether to reinterpret the position.</param>
     internal MapSprite(OldMapSprite old, bool reinterpret)
     {
         Handle = old.Handle;
         Id = old.Id;
-        X = reinterpret ? BitConverter.SingleToInt32Bits(old.X) : old.X;
-        Y = reinterpret ? BitConverter.SingleToInt32Bits(old.Y) : old.Y;
-        Z = reinterpret ? BitConverter.SingleToInt32Bits(old.Z) : old.Z;
+        Position = reinterpret ? Vector128.ConvertToSingle(old.Position.AsVector128().AsInt32()).AsVector3() : old.Position;
         Dir = old.Dir;
-        Side = old.Side;
-        ScaleX = 1;
-        ScaleY = 1;
-        ScaleZ = 1;
+        Army = old.Army;
+        Scale = Vector3.One;
     }
     
     /// <summary>
@@ -41,22 +39,10 @@ public readonly record struct MapSprite
     public readonly KnownObject Id;
 
     /// <summary>
-    /// The x position in map pixels.
+    /// The position in map pixels, with the height above the floor.
     /// </summary>
     [FieldOffset(8)]
-    public readonly float X;
-
-    /// <summary>
-    /// The y position in map pixels.
-    /// </summary>
-    [FieldOffset(12)]
-    public readonly float Y;
-
-    /// <summary>
-    /// The height above the floor; negative values raise built-in doors.
-    /// </summary>
-    [FieldOffset(16)]
-    public readonly float Z;
+    public readonly Vector3 Position;
 
     /// <summary>
     /// The facing.
@@ -65,10 +51,10 @@ public readonly record struct MapSprite
     public readonly uint Dir;
 
     /// <summary>
-    /// The side of the object.
+    /// The army of the object.
     /// </summary>
     [FieldOffset(24)]
-    public readonly uint Side;
+    public readonly uint Army;
 
     /// <summary>
     /// The negative part of the tint of the placed object. Alien Shooter 2 only.
@@ -83,20 +69,8 @@ public readonly record struct MapSprite
     public readonly uint PositiveTint;
 
     /// <summary>
-    /// The scale of the sprite along x. Alien Shooter 2 only.
+    /// The scale of the sprite along x, y and the height. Alien Shooter 2 only.
     /// </summary>
     [FieldOffset(36)]
-    public readonly float ScaleX;
-
-    /// <summary>
-    /// The scale of the sprite along y. Alien Shooter 2 only.
-    /// </summary>
-    [FieldOffset(40)]
-    public readonly float ScaleY;
-
-    /// <summary>
-    /// The scale of the sprite along the height. Alien Shooter 2 only.
-    /// </summary>
-    [FieldOffset(44)]
-    public readonly float ScaleZ;
+    public readonly Vector3 Scale;
 }

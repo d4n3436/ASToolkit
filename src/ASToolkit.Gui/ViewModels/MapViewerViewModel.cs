@@ -125,7 +125,7 @@ public partial class MapViewerViewModel : ViewModelBase
         var found = scene.FindObject(point.X, point.Y, point.Time);
         Status = found is null ? $"{position}    {_summary}"
             : $"{position}    object {(int)found.Id} {_objects.GetName(found.Id)} [{_objects.GetPath(found.Id)}]    " +
-              $"position ({found.X:0}, {found.Y:0}, {found.Z:0})    facing {found.Facing}";
+              $"position ({found.Position.X:0}, {found.Position.Y:0}, {found.Position.Z:0})    facing {found.Facing}";
     }
 
     [RelayCommand]

@@ -14,10 +14,10 @@ public class MapResourceBuilderTests
             var map = MapResourceBuilder.Load(Path.Combine(game, "Maps", level));
             Assert.Equal(expected.Count, map.Sprites.Count);
             Assert.Equal(expected.Ids, map.Sprites.Sum(s => (long)s.Id));
-            Assert.Equal(expected.X, map.Sprites.Sum(s => (double)s.X), 0.1);
-            Assert.Equal(expected.Y, map.Sprites.Sum(s => (double)s.Y), 0.1);
+            Assert.Equal(expected.X, map.Sprites.Sum(s => (double)s.Position.X), 0.1);
+            Assert.Equal(expected.Y, map.Sprites.Sum(s => (double)s.Position.Y), 0.1);
             Assert.Equal(expected.PayloadBytes, map.Sprites.Sum(s => s.Payload.Length));
-            Assert.Equal(expected.Side, map.Sprites.Sum(s => s.Side));
+            Assert.Equal(expected.Side, map.Sprites.Sum(s => s.Army));
         }
     }
 
@@ -34,7 +34,7 @@ public class MapResourceBuilderTests
         for (int spriteIndex = 0; spriteIndex < map.Sprites.Count; spriteIndex++)
         {
             Assert.Equal(map.Sprites[spriteIndex].Id, back.Sprites[spriteIndex].Id);
-            Assert.Equal(map.Sprites[spriteIndex].X, back.Sprites[spriteIndex].X);
+            Assert.Equal(map.Sprites[spriteIndex].Position.X, back.Sprites[spriteIndex].Position.X);
             Assert.Equal(map.Sprites[spriteIndex].Payload, back.Sprites[spriteIndex].Payload);
         }
     }

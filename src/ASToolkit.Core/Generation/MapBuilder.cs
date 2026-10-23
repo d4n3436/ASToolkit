@@ -1,3 +1,4 @@
+using System.Numerics;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 
@@ -15,16 +16,16 @@ public sealed class MapBuilder
     /// </summary>
     public static readonly byte[] MonsterPayload = Convert.FromHexString("000000000000000003000000");
 
-    private readonly SideTable _sides;
+    private readonly ArmyTable _armies;
     private readonly HashSet<(KnownObject, long, long, long)> _placed = [];
     private uint _handle = 0x10000000;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MapBuilder"/> class.
     /// </summary>
-    public MapBuilder(SideTable sides)
+    public MapBuilder(ArmyTable armies)
     {
-        _sides = sides;
+        _armies = armies;
     }
 
     /// <summary>
@@ -35,7 +36,7 @@ public sealed class MapBuilder
     /// <summary>
     /// Places an object and returns its index, or -1 when a unique placement repeats an earlier one.
     /// </summary>
-    public int Add(KnownObject id, double x, double y, double z = 0, int dir = 0, ReadOnlyMemory<byte> payload = default, uint? side = null, bool unique = true)
+    public int Add(KnownObject id, double x, double y, double z = 0, int dir = 0, ReadOnlyMemory<byte> payload = default, uint? army = null, bool unique = true)
     {
         var key = (id, (long)Math.Round(x), (long)Math.Round(y), (long)Math.Round(z));
         if (!_placed.Add(key) && unique)
@@ -48,17 +49,17 @@ public sealed class MapBuilder
             : id == KnownObject.PlayerStart ? PlayerStartPayload
             : KnownObject.Monsters.Contains(id) || KnownObject.Bosses.Contains(id) ? MonsterPayload
             : new byte[8];
-        Sprites.Add(new MergedMapSprite(_handle, id, (float)x, (float)y, (float)z, (byte)(dir & 255), side ?? _sides.GetSide(id), data));
+        Sprites.Add(new MergedMapSprite(_handle, id, new Vector3((float)x, (float)y, (float)z), (byte)(dir & 255), army ?? _armies.GetArmy(id), data));
         return Sprites.Count - 1;
     }
 
     /// <summary>
     /// Returns a map of the placed objects, sized to hold them.
     /// </summary>
-    public MapResourceBuilder ToMap((double X, double Y) scroll)
+    public MapResourceBuilder ToMap(Vector2 scroll)
     {
-        double maxX = Sprites.Max(s => s.X);
-        double maxY = Sprites.Max(s => s.Y);
+        double maxX = Sprites.Max(s => s.Position.X);
+        double maxY = Sprites.Max(s => s.Position.Y);
         var map = new MapResourceBuilder
         {
             Sprites = Sprites,

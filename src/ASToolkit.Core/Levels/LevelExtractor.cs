@@ -123,7 +123,7 @@ public static class LevelExtractor
                 continue;
             }
 
-            (double u, double v) = lattice.ToLattice(sprite.X, sprite.Y);
+            (double u, double v) = lattice.ToLattice(sprite.Position.X, sprite.Position.Y);
             bool fits = slash
                 ? Lattice.IsNearInteger(u - .25) && Lattice.IsNearInteger(v - .25)
                 : Lattice.IsNearInteger(u + .25) && Lattice.IsNearInteger(v - .75);
@@ -159,12 +159,12 @@ public static class LevelExtractor
         if (floor.Count > 0)
         {
             // Let the walls pick between the two tile phases that fit the floor
-            var probe = new Lattice(LabStep.X, LabStep.Y, floor[0].X - 40, floor[0].Y);
+            var probe = new Lattice(LabStep.X, LabStep.Y, floor[0].Position.X - 40, floor[0].Position.Y);
             var phases = new List<((int, int) Key, int Count, MergedMapSprite First)>();
             var index = new Dictionary<(int, int), int>();
             foreach (var floorSprite in floor)
             {
-                (double u, double v) = probe.ToLattice(floorSprite.X, floorSprite.Y);
+                (double u, double v) = probe.ToLattice(floorSprite.Position.X, floorSprite.Position.Y);
                 var key = ((int)Math.Round((u - Math.Floor(u)) * 8) % 8, (int)Math.Round((v - Math.Floor(v)) * 8) % 8);
                 if (index.TryGetValue(key, out int i))
                 {
@@ -181,7 +181,7 @@ public static class LevelExtractor
             {
                 foreach (int dx in new[] { 40, 0 })
                 {
-                    var candidate = new Lattice(LabStep.X, LabStep.Y, phase.First.X - dx, phase.First.Y);
+                    var candidate = new Lattice(LabStep.X, LabStep.Y, phase.First.Position.X - dx, phase.First.Position.Y);
                     int fit = CountLabFit(sp, candidate);
                     if (fit > bestFit)
                     {
@@ -193,7 +193,7 @@ public static class LevelExtractor
 
             foreach (var floorSprite in floor)
             {
-                cells.Add(best!.GetCell(floorSprite.X, floorSprite.Y));
+                cells.Add(best!.GetCell(floorSprite.Position.X, floorSprite.Position.Y));
             }
         }
         else
@@ -202,7 +202,7 @@ public static class LevelExtractor
             {
                 foreach ((int dx, int dy) in new[] { (20, 0), (20, 28), (-20, 0), (-20, 28) })
                 {
-                    var candidate = new Lattice(LabStep.X, LabStep.Y, wall.X - dx, wall.Y - dy);
+                    var candidate = new Lattice(LabStep.X, LabStep.Y, wall.Position.X - dx, wall.Position.Y - dy);
                     int fit = CountLabFit(sp, candidate);
                     if (fit > bestFit)
                     {
@@ -219,13 +219,13 @@ public static class LevelExtractor
 
             foreach (var tile in big)
             {
-                (double u0, double v0) = best.ToLattice(tile.X, tile.Y);
+                (double u0, double v0) = best.ToLattice(tile.Position.X, tile.Position.Y);
                 for (int u = (int)Math.Floor(u0) - 3; u < (int)Math.Floor(u0) + 4; u++)
                 {
                     for (int v = (int)Math.Floor(v0) - 3; v < (int)Math.Floor(v0) + 4; v++)
                     {
                         (double x, double y) = best.ToWorld(u + .5, v + .5);
-                        if (Math.Abs(x - tile.X) / 80 + Math.Abs(y - tile.Y) / 56 <= 1.0)
+                        if (Math.Abs(x - tile.Position.X) / 80 + Math.Abs(y - tile.Position.Y) / 56 <= 1.0)
                         {
                             cells.Add(new Cell(u, v));
                         }
@@ -248,7 +248,7 @@ public static class LevelExtractor
                 _ => 'W'
             };
             
-            foreach (var key in GetLabEdges(best!, sprite.Id, sprite.X, sprite.Y))
+            foreach (var key in GetLabEdges(best!, sprite.Id, sprite.Position.X, sprite.Position.Y))
             {
                 bool has = edges.TryGetValue(key, out char current);
                 if (kind == 'D' || !has || (current == 'W' && kind == 'F'))
@@ -269,12 +269,12 @@ public static class LevelExtractor
             return null;
         }
 
-        var probe = new Lattice(MilitaryStep.X, MilitaryStep.Y, slashWalls[0].X, slashWalls[0].Y);
+        var probe = new Lattice(MilitaryStep.X, MilitaryStep.Y, slashWalls[0].Position.X, slashWalls[0].Position.Y);
         var firsts = new List<MergedMapSprite>();
         var seen = new HashSet<(int, int)>();
         foreach (var wall in slashWalls)
         {
-            (double u, double v) = probe.ToLattice(wall.X, wall.Y);
+            (double u, double v) = probe.ToLattice(wall.Position.X, wall.Position.Y);
             if (seen.Add(((int)Math.Round((u - Math.Floor(u)) * 8) % 8, (int)Math.Round((v - Math.Floor(v)) * 8) % 8)))
             {
                 firsts.Add(wall);
@@ -285,7 +285,7 @@ public static class LevelExtractor
         int bestFit = -1;
         foreach (var first in firsts.Take(8))
         {
-            var candidate = new Lattice(MilitaryStep.X, MilitaryStep.Y, first.X, first.Y);
+            var candidate = new Lattice(MilitaryStep.X, MilitaryStep.Y, first.Position.X, first.Position.Y);
             int fit = sp.Count(s => s.Id is KnownObject.MilitaryWallBack or KnownObject.MilitaryWallSlash && IsOnVertex(candidate, s));
             if (fit > bestFit)
             {
@@ -302,7 +302,7 @@ public static class LevelExtractor
                 continue;
             }
 
-            (double u, double v) = lattice.ToLattice(sprite.X, sprite.Y);
+            (double u, double v) = lattice.ToLattice(sprite.Position.X, sprite.Position.Y);
             int a = (int)Math.Round(u);
             int b = (int)Math.Round(v);
             bool slash = sprite.Id == KnownObject.MilitaryWallSlash || (sprite.Id is KnownObject.FenceEmitter or KnownObject.MilitaryDoorWall && sprite.Facing is >= 64 and < 192);
@@ -325,14 +325,14 @@ public static class LevelExtractor
             return lattice;
         }
 
-        var tileSet = tiles.Select(t => ((long)Math.Round(t.X), (long)Math.Round(t.Y))).ToHashSet();
-        var us = tiles.Select(t => lattice.ToLattice(t.X, t.Y)).ToArray();
+        var tileSet = tiles.Select(t => ((long)Math.Round(t.Position.X), (long)Math.Round(t.Position.Y))).ToHashSet();
+        var us = tiles.Select(t => lattice.ToLattice(t.Position.X, t.Position.Y)).ToArray();
         int uMin = (int)Math.Floor(us.Min(p => p.U)) - 3;
         int uMax = (int)Math.Ceiling(us.Max(p => p.U)) + 3;
         int vMin = (int)Math.Floor(us.Min(p => p.V)) - 3;
         int vMax = (int)Math.Ceiling(us.Max(p => p.V)) + 3;
-        double tx0 = tiles[0].X;
-        double ty0 = tiles[0].Y;
+        double tx0 = tiles[0].Position.X;
+        double ty0 = tiles[0].Position.Y;
         for (int u = uMin; u < uMax; u++)
         {
             for (int v = vMin; v < vMax; v++)
@@ -368,7 +368,7 @@ public static class LevelExtractor
 
     private static bool IsOnVertex(Lattice lattice, MergedMapSprite s)
     {
-        (double u, double v) = lattice.ToLattice(s.X, s.Y);
+        (double u, double v) = lattice.ToLattice(s.Position.X, s.Position.Y);
         return Lattice.IsNearInteger(u) && Lattice.IsNearInteger(v);
     }
 
@@ -380,28 +380,28 @@ public static class LevelExtractor
         {
             var s = decor[decorObjectIndex];
             int? support = null;
-            if (s.Z > 2)
+            if (s.Position.Z > 2)
             {
                 int bestIndex = -1;
                 double bestDistance = double.MaxValue;
                 for (int innerDecorObjectIndex = 0; innerDecorObjectIndex < decor.Length; innerDecorObjectIndex++)
                 {
                     var t = decor[innerDecorObjectIndex];
-                    if (innerDecorObjectIndex == decorObjectIndex || t.Z >= s.Z - 2)
+                    if (innerDecorObjectIndex == decorObjectIndex || t.Position.Z >= s.Position.Z - 2)
                     {
                         continue;
                     }
 
                     objects.TryFind(t.Id, out var obj);
-                    double ex = obj.ExtentX;
-                    double ey = obj.ExtentY;
-                    double ez = obj.ExtentZ;
-                    if (ez < 5 || Math.Abs(t.X - s.X) > ex + 6 || Math.Abs(t.Y - s.Y) > ey + 6)
+                    double ex = obj.Size.X;
+                    double ey = obj.Size.Y;
+                    double ez = obj.Size.Z;
+                    if (ez < 5 || Math.Abs(t.Position.X - s.Position.X) > ex + 6 || Math.Abs(t.Position.Y - s.Position.Y) > ey + 6)
                     {
                         continue;
                     }
 
-                    double d = Math.Abs(t.X - s.X) + Math.Abs(t.Y - s.Y);
+                    double d = Math.Abs(t.Position.X - s.Position.X) + Math.Abs(t.Position.Y - s.Position.Y);
                     if (d < bestDistance)
                     {
                         bestDistance = d;
@@ -412,8 +412,8 @@ public static class LevelExtractor
                 support = bestIndex;
             }
 
-            (double u, double v) = lattice.ToLattice(s.X, s.Y);
-            result.Add(new DecorObject(s.Id, u, v, s.Z, s.Facing, s.Payload, support));
+            (double u, double v) = lattice.ToLattice(s.Position.X, s.Position.Y);
+            result.Add(new DecorObject(s.Id, u, v, s.Position.Z, s.Facing, s.Payload, support));
         }
 
         return result.ToArray();

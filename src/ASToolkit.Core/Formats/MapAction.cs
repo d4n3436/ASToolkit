@@ -9,26 +9,26 @@ namespace ASToolkit.Core.Formats;
 public readonly struct MapAction
 {
     /// <summary>
-    /// The action code.
+    /// The action.
     /// </summary>
     [FieldOffset(0)]
-    public readonly int Code;
+    public readonly int Act;
 
     /// <summary>
     /// The first argument.
     /// </summary>
     [FieldOffset(4)]
-    public readonly int First;
+    public readonly int Var1;
 
     /// <summary>
     /// The second argument.
     /// </summary>
     [FieldOffset(8)]
-    public readonly int Second;
+    public readonly int Var2;
 
     /// <summary>
     /// The third argument.
     /// </summary>
     [FieldOffset(12)]
-    public readonly int Third;
+    public readonly int Var3;
 }

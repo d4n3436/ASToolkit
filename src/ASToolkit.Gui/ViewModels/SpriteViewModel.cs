@@ -80,13 +80,13 @@ public partial class SpriteViewModel : ViewModelBase
         string sprite = _sprite.HasValue
             ? $"{_sprite.Value.Flags}  {_sprite.Value.FrameCount} frames  {_sprite.Value.Width}x{_sprite.Value.Height}  {_sprite.Value.Speed} ms"
             : "missing";
-        Title = $"{(int)source.Id}  {objects.GetName(source.Id)}\n{objects.GetPath(source.Id)}  type {obj.Type}  flags 0x{(uint)obj.Flags:x}\nsprite {sprite}";
+        Title = $"{(int)source.Id}  {objects.GetName(source.Id)}\n{objects.GetPath(source.Id)}  class {obj.SpriteClass}  flags 0x{(uint)obj.Flags:x}\nsprite {sprite}";
         States.Clear();
         for (int state = 0; state < StateValues.Count; state++)
         {
             if (obj.FrameCounts[state] > 0)
             {
-                States.Add(new AnimationState(state, obj.FrameCounts[state]));
+                States.Add(new AnimationState((SpriteAnimation)state, obj.FrameCounts[state]));
             }
         }
 

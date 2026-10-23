@@ -14,8 +14,8 @@ public sealed class ThemeDecorRule : ILevelRule
     public IEnumerable<RuleResult> Evaluate(RuleContext context)
     {
         string[] foreign = context.Map.Sprites
-            .Where(s => s.Id.IsDecor && !context.Target.ThemeDecor.Allows(s.Id, s.Z))
-            .Select(s => $"{s.Id} at z {s.Z:0}")
+            .Where(s => s.Id.IsDecor && !context.Target.ThemeDecor.Allows(s.Id, s.Position.Z))
+            .Select(s => $"{s.Id} at z {s.Position.Z:0}")
             .Distinct()
             .Order()
             .ToArray();

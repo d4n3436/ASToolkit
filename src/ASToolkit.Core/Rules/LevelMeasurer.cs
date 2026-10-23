@@ -24,14 +24,14 @@ public static class LevelMeasurer
         {
             if (KnownObject.Monsters.Contains(sprite.Id) || KnownObject.Bosses.Contains(sprite.Id))
             {
-                placed += objects.TryFind(sprite.Id, out var obj) ? obj.HitPoints : 0;
+                placed += objects.TryFind(sprite.Id, out var obj) ? obj.MaxHp : 0;
             }
             else if (sprite.Id == KnownObject.Spawner)
             {
                 var program = SpawnerProgram.Parse(sprite.Payload);
                 if (program is not null)
                 {
-                    spawned += program.Monsters.Sum(m => objects.TryFind(m, out var obj) ? obj.HitPoints : 0);
+                    spawned += program.Monsters.Sum(m => objects.TryFind(m, out var obj) ? obj.MaxHp : 0);
                 }
             }
 
@@ -85,7 +85,7 @@ public static class LevelMeasurer
         
         var itemsByCell = map.Sprites
             .Where(s => ItemCategorizer.GetCategory(s.Id) is not null || (s.Id == KnownObject.Crate && KnownObject.GetCrateItem(s.Payload) != 0))
-            .ToLookup(s => lattice.GetCell(s.X, s.Y), s => s.Id == KnownObject.Crate ? KnownObject.GetCrateItem(s.Payload) : s.Id);
+            .ToLookup(s => lattice.GetCell(s.Position.X, s.Position.Y), s => s.Id == KnownObject.Crate ? KnownObject.GetCrateItem(s.Payload) : s.Id);
         
         var items = itemsByCell
             .Select(g => g.Key)
@@ -97,7 +97,7 @@ public static class LevelMeasurer
         
         var spawners = map.Sprites
             .Where(s => s.Id == KnownObject.Spawner)
-            .Select(s => lattice.GetCell(s.X, s.Y))
+            .Select(s => lattice.GetCell(s.Position.X, s.Position.Y))
             .ToHashSet();
         
         var open = Flood(grid, [analysis.Tour[0]], IsClosed);
@@ -114,7 +114,7 @@ public static class LevelMeasurer
 
             (double mu, double mv) = edge.Axis == 'v' ? (edge.A + .5, (double)edge.B) : (edge.A, edge.B + .5);
             (double mx, double my) = lattice.ToWorld(mu, mv);
-            int wall = Array.FindIndex(breakableWalls, w => Math.Abs(w.X - mx) < 50 && Math.Abs(w.Y - my) < 50);
+            int wall = Array.FindIndex(breakableWalls, w => Math.Abs(w.Position.X - mx) < 50 && Math.Abs(w.Position.Y - my) < 50);
             if (wall < 0)
             {
                 continue;

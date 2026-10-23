@@ -88,7 +88,7 @@ public sealed class ReferenceLevelSet
             {
                 foreach (var sprite in map.Sprites.Where(s => s.Id.IsDecor))
                 {
-                    campaignDecor[analysis.Theme].Add(sprite.Id, sprite.Z);
+                    campaignDecor[analysis.Theme].Add(sprite.Id, sprite.Position.Z);
                 }
             }
         }

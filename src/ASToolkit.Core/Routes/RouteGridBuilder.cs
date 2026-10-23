@@ -61,7 +61,7 @@ public static class RouteGridBuilder
                 continue;
             }
 
-            (double u, double v) = model.Lattice.ToLattice(sprite.X, sprite.Y);
+            (double u, double v) = model.Lattice.ToLattice(sprite.Position.X, sprite.Position.Y);
             if (!Lattice.IsNearInteger(u) || !Lattice.IsNearInteger(v))
             {
                 continue;
@@ -72,7 +72,7 @@ public static class RouteGridBuilder
             EdgeKey[] keys = sprite.Facing is >= 64 and < 192
                 ? [new EdgeKey('v', a - 1, b), new EdgeKey('v', a, b)]
                 : [new EdgeKey('u', a, b - 1), new EdgeKey('u', a, b)];
-            bool holdsFence = fences.Any(f => Math.Sqrt((f.X - sprite.X) * (f.X - sprite.X) + (f.Y - sprite.Y) * (f.Y - sprite.Y)) < 40);
+            bool holdsFence = fences.Any(f => Math.Sqrt((f.Position.X - sprite.Position.X) * (f.Position.X - sprite.Position.X) + (f.Position.Y - sprite.Position.Y) * (f.Position.Y - sprite.Position.Y)) < 40);
             foreach (var key in keys)
             {
                 coarse[key] = 'G';
@@ -112,7 +112,7 @@ public static class RouteGridBuilder
                 continue;
             }
 
-            var keys = GetFineLabEdges(model.Lattice, sprite.Id, sprite.X, sprite.Y, sprite.Facing);
+            var keys = GetFineLabEdges(model.Lattice, sprite.Id, sprite.Position.X, sprite.Position.Y, sprite.Facing);
             switch (sprite.Id)
             {
                 case KnownObject.SmallDoorWall or KnownObject.DoubleDoorWall or KnownObject.SmallDoorWall2 or KnownObject.DoubleDoorWall2:
@@ -125,7 +125,7 @@ public static class RouteGridBuilder
                     break;
                 case KnownObject.DoubleDoorFrame or KnownObject.SmallDoorFrame:
                     doors.UnionWith(keys);
-                    Put(edges, keys, sprite.Z <= -40 ? 'O' : 'F');
+                    Put(edges, keys, sprite.Position.Z <= -40 ? 'O' : 'F');
                     break;
                 case KnownObject.BreakableWall or KnownObject.BreakableWall2 or KnownObject.SpawnWallSlash or KnownObject.SpawnWallBack or KnownObject.SmallMonsterHole or KnownObject.BigMonsterHole:
                     Put(edges, keys, 'S');

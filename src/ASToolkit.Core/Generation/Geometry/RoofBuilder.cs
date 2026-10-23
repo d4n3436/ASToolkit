@@ -44,13 +44,13 @@ public static class RoofBuilder
         var earth = sprites.Find(KnownObject.Earth) ?? throw new InvalidDataException("The earth sprite 501 is missing.");
         var tile = new TileMask(earth.View.GetFrame(0), earth.View.Width, earth.View.Height);
         var floors = map.Sprites
-            .Where(s => IsFloor(s.Id) && s.Z >= 0)
+            .Where(s => IsFloor(s.Id) && s.Position.Z >= 0)
             .ToArray();
         
-        double minX = floors.Min(s => s.X) - Margin;
-        double maxX = floors.Max(s => s.X) + Margin;
-        double minY = floors.Min(s => s.Y) - Margin;
-        double maxY = floors.Max(s => s.Y) + Margin;
+        double minX = floors.Min(s => s.Position.X) - Margin;
+        double maxX = floors.Max(s => s.Position.X) + Margin;
+        double minY = floors.Min(s => s.Position.Y) - Margin;
+        double maxY = floors.Max(s => s.Position.Y) + Margin;
         var area = new Area((int)Math.Floor(minX), (int)Math.Floor(minY - Margin), (int)Math.Ceiling(maxX - minX), (int)Math.Ceiling(maxY - minY + Margin));
         var structure = GetStructure(map, sprites, area);
 
@@ -91,8 +91,8 @@ public static class RoofBuilder
             }
 
             var (obj, file) = found.Value;
-            int left = (int)Math.Round(sprite.X - file.Width / 2.0) - area.X0;
-            int top = (int)Math.Round(sprite.Y - sprite.Z - file.Height / 2.0) - area.Y0;
+            int left = (int)Math.Round(sprite.Position.X - file.Width / 2.0) - area.X0;
+            int top = (int)Math.Round(sprite.Position.Y - sprite.Position.Z - file.Height / 2.0) - area.Y0;
             structure.Add(new StructureSprite(sprite, obj, file, file.GetFrame(obj.GetFrame(sprite.Facing, file.FrameCount)), IsFloor(sprite.Id) ? Floor : Wall, left, top));
         }
 
@@ -107,10 +107,10 @@ public static class RoofBuilder
     private static (int Cx, int Cy)[] AddGroundEarth(Random rng, MapBuilder map, BitMask floor, Area area, TileMask tile, MergedMapSprite[] floors, LevelTheme theme)
     {
         var first = floors[0];
-        double ox = first.X;
-        double oy = first.Y;
+        double ox = first.Position.X;
+        double oy = first.Position.Y;
         int parity = theme == LevelTheme.Lab ? 0 : 1;
-        var taken = floors.Select(s => ((int)Math.Round((s.X - ox) / StepX), (int)Math.Round((s.Y - oy) / StepY))).ToHashSet();
+        var taken = floors.Select(s => ((int)Math.Round((s.Position.X - ox) / StepX), (int)Math.Round((s.Position.Y - oy) / StepY))).ToHashSet();
         int i0 = (int)Math.Floor((area.X0 - ox) / StepX) - 2;
         int i1 = (int)Math.Ceiling((area.X0 + area.Width - ox) / StepX) + 2;
         int j0 = (int)Math.Floor((area.Y0 - oy) / StepY) - 2;
@@ -595,14 +595,14 @@ public static class RoofBuilder
         {
             var frame = s.Frame;
             int left = s.Left - _offset;
-            int baseDepth = (int)(s.Sprite.Z * 8);
+            int baseDepth = (int)(s.Sprite.Position.Z * 8);
             if (s.Object.Flags.HasFlag(ObjectFlags.Raised) && baseDepth < 0x3fff)
             {
                 baseDepth += 0x3fff;
             }
 
             bool hasDepth = s.View.HasDepth;
-            bool standing = s.Object.ExtentY < s.Object.ExtentZ;
+            bool standing = s.Object.Size.Y < s.Object.Size.Z;
             int flat = Math.Min(baseDepth + 0x400, 0x7fff);
             foreach (var run in frame)
             {

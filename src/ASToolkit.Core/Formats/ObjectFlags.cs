@@ -97,9 +97,9 @@ public enum ObjectFlags : uint
     Bobbing = 1 << 16,
 
     /// <summary>
-    /// The object is hidden unless its side matches the side of the player.
+    /// The object is hidden unless its army matches the army of the player.
     /// </summary>
-    SideDependent = 1 << 17,
+    ArmyDependent = 1 << 17,
 
     /// <summary>
     /// The animation freezes on the death frame when the object is killed, instead of disappearing.
@@ -167,7 +167,7 @@ public enum ObjectFlags : uint
     GroundDecal = 1 << 30,
 
     /// <summary>
-    /// A hit or blast from the object skips objects of its own side.
+    /// A hit or blast from the object skips objects of its own army.
     /// </summary>
     Projectile = (uint)1 << 31
 }

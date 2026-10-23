@@ -9,48 +9,45 @@ namespace ASToolkit.Core.Formats;
 [StructLayout(LayoutKind.Explicit, Size = 704)]
 public readonly struct GameObject
 {
+    private const uint ShiftedTypeMask = 0x7F;
+    private const uint SharedTypeMask = ~0xFFu;
+
     /// <summary>
     /// Creates a new instance of the <see cref="GameObject"/> structure from an object of the Alien Shooter 1 layout.
     /// </summary>
     /// <param name="old">The object.</param>
     internal GameObject(OldGameObject old)
     {
-        Group = old.Group;
-        Type = old.Type;
+        SpriteType = ConvertSpriteType(old.SpriteType);
+        SpriteClass = old.SpriteClass;
         Flags = old.Flags;
-        CollisionMask = old.CollisionMask;
-        ExtentX = old.ExtentX;
-        ExtentY = old.ExtentY;
-        ExtentZ = old.ExtentZ;
-        HitPoints = old.HitPoints;
-        AttachedOffsetX = old.AttachedOffsetX;
-        AttachedOffsetY = old.AttachedOffsetY;
-        AttachedOffsetZ = old.AttachedOffsetZ;
-        AttachedObject = old.AttachedObject;
+        MoveMask = old.MoveMask;
+        Size = old.Size;
+        MaxHp = old.MaxHp;
+        LinkOffset = old.LinkOffset;
+        Link = old.Link;
         StepHeight = old.StepHeight;
         Directions = old.Directions;
         FrameCounts = old.FrameCounts;
         FrameDurations = old.FrameDurations;
-        TintRed = old.TintRed;
-        TintGreen = old.TintGreen;
-        TintBlue = old.TintBlue;
-        TintAlpha = 0;
-        ScaleX = old.ScaleX;
-        ScaleY = old.ScaleY;
-        ScaleZ = old.ScaleZ;
+        GammaRed = old.GammaRed;
+        GammaGreen = old.GammaGreen;
+        GammaBlue = old.GammaBlue;
+        GammaAlpha = 0;
+        Scale = old.Scale;
     }
 
     /// <summary>
-    /// The group of the object, which holds its category in the low byte and its kind in the next one.
+    /// The sprite type of the object.
     /// </summary>
     [FieldOffset(0)]
-    public readonly uint Group;
+    public readonly SpriteType SpriteType;
 
     /// <summary>
-    /// The engine behavior class of the object.
+    /// The sprite class of the object.
     /// </summary>
     [FieldOffset(4)]
-    public readonly uint Type;
+    public readonly SpriteClass SpriteClass;
 
     /// <summary>
     /// The object flags.
@@ -62,55 +59,31 @@ public readonly struct GameObject
     /// The collision groups of the object. Two objects collide when their masks share a bit.
     /// </summary>
     [FieldOffset(12)]
-    public readonly uint CollisionMask;
+    public readonly uint MoveMask;
 
     /// <summary>
-    /// The collision extent along x.
+    /// The size of the object along x, y and the height.
     /// </summary>
     [FieldOffset(16)]
-    public readonly float ExtentX;
+    public readonly Vector3 Size;
 
     /// <summary>
-    /// The collision extent along y.
-    /// </summary>
-    [FieldOffset(20)]
-    public readonly float ExtentY;
-
-    /// <summary>
-    /// The height.
-    /// </summary>
-    [FieldOffset(24)]
-    public readonly float ExtentZ;
-
-    /// <summary>
-    /// The hit points.
+    /// The maximum hit points.
     /// </summary>
     [FieldOffset(28)]
-    public readonly int HitPoints;
+    public readonly int MaxHp;
 
     /// <summary>
-    /// The x offset of the attached object from this one.
+    /// The offset of the linked object from this one, as stored in the file.
     /// </summary>
     [FieldOffset(80)]
-    public readonly float AttachedOffsetX;
+    public readonly Vector3 LinkOffset;
 
     /// <summary>
-    /// The y offset of the attached object from this one, as stored in the file.
-    /// </summary>
-    [FieldOffset(84)]
-    public readonly float AttachedOffsetY;
-
-    /// <summary>
-    /// The height offset of the attached object from this one.
-    /// </summary>
-    [FieldOffset(88)]
-    public readonly float AttachedOffsetZ;
-
-    /// <summary>
-    /// The ID of the object the engine creates attached to this one, or zero for none.
+    /// The ID of the object the engine creates linked to this one, or zero for none.
     /// </summary>
     [FieldOffset(92)]
-    public readonly KnownObject AttachedObject;
+    public readonly KnownObject Link;
 
     /// <summary>
     /// The highest step the object climbs, and the height a bobbing object rises and sinks by.
@@ -137,71 +110,44 @@ public readonly struct GameObject
     public readonly StateValues FrameDurations;
 
     /// <summary>
-    /// The color shift of the red channel of the sprite's palette.
+    /// The gamma shift of the red channel of the sprite's palette.
     /// </summary>
     [FieldOffset(676)]
-    public readonly int TintRed;
+    public readonly int GammaRed;
 
     /// <summary>
-    /// The color shift of the green channel of the sprite's palette.
+    /// The gamma shift of the green channel of the sprite's palette.
     /// </summary>
     [FieldOffset(680)]
-    public readonly int TintGreen;
+    public readonly int GammaGreen;
 
     /// <summary>
-    /// The color shift of the blue channel of the sprite's palette.
+    /// The gamma shift of the blue channel of the sprite's palette.
     /// </summary>
     [FieldOffset(684)]
-    public readonly int TintBlue;
+    public readonly int GammaBlue;
 
     /// <summary>
-    /// The shift of the alpha of the sprite; a negative value makes it more transparent. Alien Shooter 2 only.
+    /// The gamma shift of the alpha of the sprite. Alien Shooter 2 only.
     /// </summary>
     [FieldOffset(688)]
-    public readonly int TintAlpha;
+    public readonly int GammaAlpha;
 
     /// <summary>
-    /// The scale of the object along x.
+    /// The scale of the object along x, y and the height.
     /// </summary>
     [FieldOffset(692)]
-    public readonly float ScaleX;
+    public readonly Vector3 Scale;
 
     /// <summary>
-    /// The scale of the object along y.
+    /// Gets the gamma shift applied to the sprite's palette per channel.
     /// </summary>
-    [FieldOffset(696)]
-    public readonly float ScaleY;
+    public (int R, int G, int B) Gamma => (GammaRed, GammaGreen, GammaBlue);
 
     /// <summary>
-    /// The scale of the object along the height.
+    /// Gets the number of frames of the standing animation in each direction.
     /// </summary>
-    [FieldOffset(700)]
-    public readonly float ScaleZ;
-
-    /// <summary>
-    /// Gets the category of the object, the low byte of the group.
-    /// </summary>
-    public byte Category => (byte)Group;
-
-    /// <summary>
-    /// Gets the kind of the object, the second byte of the group.
-    /// </summary>
-    public byte Kind => (byte)(Group >> 8);
-
-    /// <summary>
-    /// Gets the color shift applied to the sprite's palette per channel; a negative value darkens and a positive one adds.
-    /// </summary>
-    public (int R, int G, int B) Tint => (TintRed, TintGreen, TintBlue);
-
-    /// <summary>
-    /// Gets the scale of the object.
-    /// </summary>
-    public Vector3 Scale => new(ScaleX, ScaleY, ScaleZ);
-
-    /// <summary>
-    /// Gets the number of frames of the first animation state in each direction.
-    /// </summary>
-    public int FramesPerDirection => FrameCounts[0];
+    public int FramesPerDirection => FrameCounts[(int)SpriteAnimation.Stand];
 
     /// <summary>
     /// Gets a value indicating whether the object stops the player.
@@ -234,10 +180,10 @@ public readonly struct GameObject
     /// <summary>
     /// Returns the sprite frame that starts an animation state.
     /// </summary>
-    public int GetStateStart(int state)
+    public int GetStateStart(SpriteAnimation animation)
     {
         int start = 0;
-        for (int previous = 0; previous < state; previous++)
+        for (int previous = 0; previous < (int)animation; previous++)
         {
             start += FrameCounts[previous] * Directions;
         }
@@ -248,5 +194,9 @@ public readonly struct GameObject
     /// <summary>
     /// Returns the frame duration of an animation state in milliseconds, given the speed of the sprite.
     /// </summary>
-    public int GetFrameDuration(int state, int spriteSpeed) => FrameDurations[state] == 0 ? spriteSpeed : FrameDurations[state];
+    public int GetFrameDuration(SpriteAnimation animation, int spriteSpeed) =>
+        FrameDurations[(int)animation] == 0 ? spriteSpeed : FrameDurations[(int)animation];
+
+    private static SpriteType ConvertSpriteType(OldSpriteType old) =>
+        (SpriteType)((((uint)old & ShiftedTypeMask) << 1) | ((uint)old & SharedTypeMask));
 }

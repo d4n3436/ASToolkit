@@ -34,7 +34,7 @@ public sealed class KeypadTable
             foreach (var door in sp.Where(s => Doors.Contains(s.Id)))
             {
                 doors[door.Id] = doors.GetValueOrDefault(door.Id) + 1;
-                var keypad = keypads.FirstOrDefault(k => Math.Sqrt(Math.Pow(k.X - door.X, 2) + Math.Pow(k.Y - door.Y, 2)) < Reach);
+                var keypad = keypads.FirstOrDefault(k => Math.Sqrt(Math.Pow(k.Position.X - door.Position.X, 2) + Math.Pow(k.Position.Y - door.Position.Y, 2)) < Reach);
                 if (keypad is null)
                 {
                     continue;
@@ -48,7 +48,7 @@ public sealed class KeypadTable
                     samples[key] = list;
                 }
 
-                list.Add(new PropPlacement(keypad.Id, keypad.X - door.X, keypad.Y - door.Y, keypad.Z, keypad.Facing));
+                list.Add(new PropPlacement(keypad.Id, keypad.Position.X - door.Position.X, keypad.Position.Y - door.Position.Y, keypad.Position.Z, keypad.Facing));
             }
         }
 

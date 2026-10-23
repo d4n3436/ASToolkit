@@ -142,7 +142,7 @@ public static class ContentPlacer
             var keypad = keypads.Pick(rng, door.Id, door.Facing, broken: true);
             if (keypad is not null)
             {
-                map.Add(KnownObject.BrokenKeypad, door.X + keypad.Dx, door.Y + keypad.Dy, keypad.Z, keypad.Dir);
+                map.Add(KnownObject.BrokenKeypad, door.Position.X + keypad.Dx, door.Position.Y + keypad.Dy, keypad.Z, keypad.Dir);
             }
         }
     }
@@ -286,7 +286,7 @@ public static class ContentPlacer
         {
             for (int index = 0; index < count; index++)
             {
-                var boss = ctx.Place(far.Take(Math.Max(1, far.Length / 5)).ToArray(), id, dir: 0, payload: MapBuilder.MonsterPayload, side: 1);
+                var boss = ctx.Place(far.Take(Math.Max(1, far.Length / 5)).ToArray(), id, dir: 0, payload: MapBuilder.MonsterPayload, army: 1);
                 if (boss is null)
                 {
                     continue;
@@ -467,7 +467,7 @@ public static class ContentPlacer
 
         var wall = walls[ctx.Rng.Next(walls.Length)];
         ((double hx, double hy), bool slash) = StructureBuilder.GetLabPosition(ctx.Layout.Lattice, wall);
-        int index = ctx.Map.Sprites.FindIndex(s => s.Id is KnownObject.LabWallSlash or KnownObject.LabWallBack && Math.Abs(s.X - hx) < 1 && Math.Abs(s.Y - hy) < 1);
+        int index = ctx.Map.Sprites.FindIndex(s => s.Id is KnownObject.LabWallSlash or KnownObject.LabWallBack && Math.Abs(s.Position.X - hx) < 1 && Math.Abs(s.Position.Y - hy) < 1);
         if (index < 0)
         {
             return null;
@@ -491,7 +491,7 @@ public static class ContentPlacer
 
         foreach (var generator in generators)
         {
-            ctx.Map.Add(generator.Id, hx - 30 * side + ctx.Rng.NextDouble() * 16 - 8, hy - 42 + ctx.Rng.NextDouble() * 12 - 6, generator.Z, generator.Dir, generator.Payload, generator.Side, unique: false);
+            ctx.Map.Add(generator.Id, hx - 30 * side + ctx.Rng.NextDouble() * 16 - 8, hy - 42 + ctx.Rng.NextDouble() * 12 - 6, generator.Z, generator.Dir, generator.Payload, generator.Army, unique: false);
         }
 
         var floorCell = GetFloorSide(wall)!.Value;
@@ -509,12 +509,12 @@ public static class ContentPlacer
     // Count crates, barrels, chairs and the bio-container too, even though they aren't solid
     private static bool IsCrowded(PlacementContext ctx, double x, double y) => ctx.Map.Sprites.Any(s =>
     {
-        if (!ctx.Objects.TryFind(s.Id, out var obj) || s.Z >= ClutterHeight || !obj.IsSolid && obj.ExtentZ < StandingHeight || !s.Id.IsDecor && s.Id != KnownObject.Crate)
+        if (!ctx.Objects.TryFind(s.Id, out var obj) || s.Position.Z >= ClutterHeight || !obj.IsSolid && obj.Size.Z < StandingHeight || !s.Id.IsDecor && s.Id != KnownObject.Crate)
         {
             return false;
         }
 
-        double gap = SiteClearanceRule.MeasureGap(obj, s.X, s.Y, x, y);
+        double gap = SiteClearanceRule.MeasureGap(obj, s.Position.X, s.Position.Y, x, y);
         return gap < SiteClearanceRule.GetMinGap(obj);
     });
 
@@ -535,7 +535,7 @@ public static class ContentPlacer
                 (mx, my) = (x, y);
             }
 
-            ctx.Map.Add(member.Id, mx, my, member.Z, member.Dir, member.Payload, member.Side, unique: false);
+            ctx.Map.Add(member.Id, mx, my, member.Z, member.Dir, member.Payload, member.Army, unique: false);
         }
     }
 
@@ -606,7 +606,7 @@ public static class ContentPlacer
     private static void PlacePlacedGroups(PlacementContext ctx, LevelBudget budget)
     {
         var groups = budget.PlacedGroups
-            .OrderBy(g => g.Sum(m => ctx.Objects.TryFind(m.Id, out var obj) ? obj.HitPoints : 0))
+            .OrderBy(g => g.Sum(m => ctx.Objects.TryFind(m.Id, out var obj) ? obj.MaxHp : 0))
             .ToArray();
         
         var rooms = ctx.Plan.Stations
@@ -728,7 +728,7 @@ public static class ContentPlacer
         (double X, double Y, Cell Cell)[] sites, PlanRegion? cannonHall)
     {
         var ambushes = budget.Ambushes
-            .OrderBy(a => a.Sum(m => ctx.Objects.TryFind(m, out var obj) ? obj.HitPoints : 0))
+            .OrderBy(a => a.Sum(m => ctx.Objects.TryFind(m, out var obj) ? obj.MaxHp : 0))
             .ToList();
         
         if (ambushes.Count == 0)
@@ -918,7 +918,7 @@ public static class ContentPlacer
         way.Add(GetCenter(ctx, path[meeting]));
         double radius = ctx.Plan.Theme.Theme == LevelTheme.Lab ? new[] { 250, 300, 350 }[ctx.Rng.Next(3)] : new[] { 300, 350, 400, 450 }[ctx.Rng.Next(4)];
         byte[] payload = SpawnerProgram.Create(monsters, (tx, ty, radius), way.TakeLast(6)).ToPayload();
-        ctx.Place([spawner], KnownObject.Spawner, dir: 0, payload: payload, side: 1, take: false);
+        ctx.Place([spawner], KnownObject.Spawner, dir: 0, payload: payload, army: 1, take: false);
         return;
 
         bool IsHidden(Cell c, double low, double high)
@@ -974,7 +974,7 @@ public static class ContentPlacer
 
     private static List<(double X, double Y)> GetWeaponSpots(PlacementContext ctx) => ctx.Map.Sprites
         .Where(s => ItemSchedule.IsWeapon(s.Id) || (s.Id == KnownObject.Crate && ItemSchedule.IsWeapon(KnownObject.GetCrateItem(s.Payload))))
-        .Select(s => ((double)s.X, (double)s.Y)).ToList();
+        .Select(s => ((double)s.Position.X, (double)s.Position.Y)).ToList();
 
     private static int CountNear(IReadOnlyList<(double X, double Y)> spots, (double X, double Y) p) => spots.Count(s => GetDistance(s, p) < WeaponSpacing);
 
@@ -1001,13 +1001,13 @@ public static class ContentPlacer
                 break;
             }
 
-            if (KnownObject.GetCrateItem(s.Payload) != 0 || CountNear(spots, (s.X, s.Y)) > 0)
+            if (KnownObject.GetCrateItem(s.Payload) != 0 || CountNear(spots, (s.Position.X, s.Position.Y)) > 0)
             {
                 continue;
             }
 
             ctx.Map.Sprites[crate] = s with { Payload = CreateCratePayload(weapons[index]) };
-            spots.Add((s.X, s.Y));
+            spots.Add((s.Position.X, s.Position.Y));
             weapons.RemoveAt(index);
             inCrates--;
         }

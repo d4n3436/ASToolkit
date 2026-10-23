@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace ASToolkit.Core.Formats;
@@ -23,7 +24,7 @@ public sealed class MapResourceBuilder
     /// <summary>
     /// Gets or sets the camera position at the start.
     /// </summary>
-    public (double X, double Y) Scroll { get; set; }
+    public Vector2 Scroll { get; set; }
 
     /// <summary>
     /// Gets the graphics record the map was read with.
@@ -50,18 +51,19 @@ public sealed class MapResourceBuilder
         var map = new MapResourceBuilder
         {
             Size = (resource.Header.MapW, resource.Header.MapH),
-            Scroll = (resource.Header.CameraX, resource.Header.CameraY),
+            Scroll = resource.Header.Camera,
             Graphics = resource.Graphics
         };
         foreach (var sprite in resource.Sprites)
         {
-            if (!IsSane(sprite.X) || !IsSane(sprite.Y) || !IsSane(sprite.Z))
+            var position = sprite.Position;
+            if (!IsSane(position.X) || !IsSane(position.Y) || !IsSane(position.Z))
             {
                 continue;
             }
 
-            map.Sprites.Add(new MergedMapSprite(sprite.Handle, sprite.Id, sprite.X, sprite.Y, sprite.Z, sprite.Dir, sprite.Side,
-                payloads.TryGetValue(sprite.Handle, out var payload) ? payload.ToArray() : new byte[8], sprite.NegativeTint, sprite.PositiveTint, sprite.ScaleX, sprite.ScaleY, sprite.ScaleZ));
+            map.Sprites.Add(new MergedMapSprite(sprite.Handle, sprite.Id, position, sprite.Dir, sprite.Army,
+                payloads.TryGetValue(sprite.Handle, out var payload) ? payload.ToArray() : new byte[8], sprite.NegativeTint, sprite.PositiveTint) { Scale = sprite.Scale });
         }
 
         return map;
@@ -86,11 +88,9 @@ public sealed class MapResourceBuilder
             var e = entries.AsSpan(spriteIndex * EntrySize, EntrySize); // TODO: Handle AS2 map sprites and avoid hardcoding the size
             MemoryMarshal.Write(e, s.Handle);
             MemoryMarshal.Write(e[4..], (uint)s.Id);
-            MemoryMarshal.Write(e[8..], s.X);
-            MemoryMarshal.Write(e[12..], s.Y);
-            MemoryMarshal.Write(e[16..], s.Z);
+            MemoryMarshal.Write(e[8..], s.Position);
             MemoryMarshal.Write(e[20..], s.Dir);
-            MemoryMarshal.Write(e[24..], s.Side);
+            MemoryMarshal.Write(e[24..], s.Army);
             byte[] payload = new byte[4 + s.Payload.Length];
             MemoryMarshal.Write(payload, s.Handle);
             s.Payload.CopyTo(payload, 4);
@@ -105,8 +105,7 @@ public sealed class MapResourceBuilder
         var head = headArr.AsSpan();
         MemoryMarshal.Write(head, (float)Size.Width);
         MemoryMarshal.Write(head[4..], (float)Size.Height);
-        MemoryMarshal.Write(head[8..], (float)Scroll.X);
-        MemoryMarshal.Write(head[12..], (float)Scroll.Y);
+        MemoryMarshal.Write(head[8..], Scroll);
         MemoryMarshal.Write(head[16..], 1999);
         MemoryMarshal.Write(head[20..], 12);
         file.GetChunk("HEAD").Records = [headArr];
