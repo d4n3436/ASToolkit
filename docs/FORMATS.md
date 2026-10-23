@@ -53,7 +53,7 @@ Screens/                screenshots the game writes                         (AS1
 Vengeance (2006) is an earlier build of Alien Shooter 2. Its files differ in these ways.
 
 - Sprite headers are 10, 14, 22 or 34 bytes. The 426-byte header with the sprite tool's data is Alien Shooter 2 only.
-- Most cached sprites have the depth flag 0x04, which the Alien Shooter 2 files dropped.
+- Most cached sprites have the depth flag 0x04, with two depth bytes after the color of each pixel. The Alien Shooter 2 files dropped both from 580 sprites, which have the flags 0x48 instead of 0x4C.
 - Sprite `mode` keeps the values 0 and -1 that the Alien Shooter 2 loader rewrites to 1.
 - `Vid/fast_load.vid` and `Vid/fast_load_data.vid` are not `RES` containers. They are the sprite cache the header key refers to.
 - In `1195.vid` and `1196.vid` the PAL chunk size is 20 bytes short, so a chunk walk cannot reach the `CADR` chunk.
@@ -149,14 +149,14 @@ Body fields:
  +64    +80    f32 x3   offset of the attached object from this one (x, y, z; Alien Shooter 2 flips the sign of y on load)
  +76    +92    i32      object id of the attached object (a player body part, a weapon, a muzzle flash); the engine resolves it to the object itself after the load
  +80    +96    f32      height above the terrain the object keeps when it is not flying; 0 for none
- +84    +100   f32      highest step up the object can climb while following the terrain
+ +84    +100   f32      highest step up the object can climb while following the terrain; also the height a bobbing object rises and sinks by
  +88    +104   f32      deepest drop the object can walk off while following the terrain
  +92    +108   i32      lifetime in milliseconds; 999999 means forever
  +96    +112   -        16 bytes the reader skips (always 0)
  +112   +128   u32      direction count (at least 1)
  +116   +132   i32 x17  frames per direction of each animation state
  +184   +200   i32 x17  sound id of each state (an index into the SFX chunk)
- +252   +268   i32 x17  frame duration of each state in milliseconds; 0 uses the speed in the sprite header
+ +252   +268   i32 x17  frame duration of each state in milliseconds; the reader replaces 0 with the speed in the sprite header
  +320   +336   f32 x17  x offset of the object created in the state, rotated with the facing
  +388   +404   f32 x17  y offset of the object created in the state, rotated with the facing
  +456   +472   f32 x17  height offset of the object created in the state
@@ -169,8 +169,6 @@ Body fields:
 ```
 
 An object has 17 animation states, numbered 0 to 16. The engine treats states below 15 as alive and 15 and above as the end of the object. The monsters of the data use an id for the body, the next one for its death effect and the one after for its corpse, with the death effect named in state 15 of the body.
-
-How the engine reads these (from the object record readers): the first four body bytes (`category`, `kind`, two unused) are read as a **single packed u32**: `category` is its low byte and `kind` its second byte. The record reader also applies the load-time transforms shown above: the `x0.001`, `x1e-6`, and `256 / value` scalings, and a `~1e6` sentinel for "no limit".
 
 A spawned object starts at the speed in the record, the movement step raises the speed by the acceleration until it reaches that value and lowers it by the deceleration when the object stops, and the vertical speed feeds the height. Alien Shooter 2 picks the initial speed and the initial vertical speed at random between the minimum and the maximum of the record.
 
@@ -225,8 +223,6 @@ The type tells the engine how to treat the object:
 
 An object id is its index in the object table. Unknown ids resolve to a fallback object. The lookup by id masks it to 11 bits.
 
-Both are consumed by the engine. The tint is packed with its clamped values and applied when the sprite is drawn: negative values scale a channel down, positive ones add to it.
-
 The scale is kept per object and multiplied into the scale of the placement when the engine builds the world matrix of the sprite. It sizes the sprite along x, y and the height (a menu button of 1.1 x 1, a volume bar of 1 x 1.35, a small explosion of 0.65). Alien Shooter resets it to 1.0 for sprites with per-pixel depth and surfaces. On omni-lights the x and y values scale the radius of the light (see [Lights](#lights)).
 
 Object flags. The engine tests them on the object class and never changes them at run time. The Alien Shooter files set only part of them, and the Alien Shooter 2 files set the rest.
@@ -236,7 +232,7 @@ Object flags. The engine tests them on the object class and never changes them a
  0x00000002   flying: leaves the ground and falls with the first gravity constant
  0x00000004   heavy: falls with the second gravity constant; this flag and 0x02 also mark the object as moving
  0x00000008   outline: blocks movement along its footprint outline, sampled every 8 units
- 0x00000010   the animation loops; without it the object stops on its last frame
+ 0x00000010   the animation step runs the queued actions of the object on every frame instead of only past the last frame (see the animation step under the sprite format)
  0x00000020   solid, blocks movement
  0x00000040   hittable: indexed for hit and blast queries, so shots and explosions can reach it
  0x00000080   stream: plays while it is alive (flame, gun smoke)
@@ -248,8 +244,8 @@ Object flags. The engine tests them on the object class and never changes them a
  0x00002000   free rotation: the sprite keeps one frame and the draw rotates it by the facing
  0x00004000   touchable: receives a touch message when another object overlaps it
  0x00008000   raised: drawn over everything below it (items); Alien Shooter adds 0x3FFF to the depth, Alien Shooter 2 adds 1000 to the height and to y, which keeps the screen position
- 0x00010000   bobs up and down
- 0x00020000   side dependent: hidden unless its side matches the side of the player; Alien Shooter compares two bits of the side and Alien Shooter 2 three, and the player is on side 0
+ 0x00010000   bobs up and down by w = sin(2π * ((tick >> 3) & 255) / 256) times the field at +84 (+100); Alien Shooter 2 adds w to the height when it places the sprite, and Alien Shooter adds 8 * w, truncated, to the depth and moves the sprite up by an eighth of that
+ 0x00020000   side dependent: hidden while its side differs from the side of the player
  0x00040000   death animation: freezes on the death frame when killed
  0x00080000   tracks motion: the facing follows the movement or the target
  0x00100000   homing: steers toward its target while it moves
@@ -270,15 +266,15 @@ The side is a two-bit value in bits 11 and 12 of the state of a placed object in
 
 In Alien Shooter 2 the helper blocks of the editor (630 to 634, the pillars 1357 to 1359, the teleport markers) and the depth blocks attached to walls (2706, 1799 and the like) have the flag 0x20000 and side 2, so the game never shows them.
 
+In Alien Shooter the only object with the flag 0x20000 is the depth blocker 631. The maps place it on side 0, which matches the side of the player, but it is type 8 scenery. Alien Shooter draws scenery only by baking it into the terrain when the level loads. The bake skips objects with the flag 0x20000, which keeps 631 off the screen.
+
 The gravity constants are the third and fourth floats of the `CNST` record: 174 and 84 in Alien Shooter, 174 and 800 in Alien Shooter 2.
 
 The flags 0x20000000, 0x2000 and 0x80000 work together in the Alien Shooter 2 draw. Without 0x2000 the draw shows the direction frame closest to the facing and turns the sprite by the remainder, `facing - index * 256 / directions` in 256ths of a turn. With 0x2000 it turns a single frame by the whole facing. With 0x80000 the angle comes from the movement or the target, and a still object takes the whole facing. No sprite turns when its `mode` is 0, or -1 with a standing footprint, which after the loader leaves only 101.vid.
 
 The turn is part of the world matrix, so it acts on the ground plane before the view tilts it. A canvas point `(x, y)` with height `h`, measured from the center of the canvas, sits on the ground at `(x, (y + h) / 0.70706)`; that point turns by the angle and goes back to the screen as `(x', 0.70706 * y' - h)`. A flat sprite turned by 45 degrees therefore becomes a diamond as wide as its width plus its height. Object 1127, the soft black cover of Alien Shooter 2, is a single-frame sprite with this flag, and its turn is what lines its edges up with the walls.
 
-The tint changes the colors of the sprite. A negative value scales the channel to `(256 + t) / 256` of itself and a positive value adds `t`. Alien Shooter 2 applies the tint when it draws the sprite, as a diffuse color of `255 - n` and a specular color of `p`, which turns a channel `c` into `c * (255 - n) / 255 + p`. The tint it uses is the tint of the placement (the per-side tint of the object when the placement has none) plus the tint of the object, added byte by byte and saturating. On placements without their own tint, the object tint counts twice. Sprites in pass 7 and later also get the ambient tint, unless the object has the flag 0x800. The alpha tint scales the alpha of the sprite the same way when it is negative and has no effect when it is positive, and it only shows on sprites that blend by alpha. Of the objects with a negative alpha tint, only the acid shadow 1879 is placed in a map (five times in Level_07_2). Yellow and red monsters, and the blue survival bosses, are the same sprite with different tints.
-
-Ids that have relevance are named in `KnownObject` in the source (for example 9 is the player start, 419 a crate and 705 a menu button).
+The tint changes the colors of the sprite. A negative value scales the channel to `(256 + t) / 256` of itself and a positive value adds `t`. Alien Shooter 2 applies the tint when it draws the sprite, as a diffuse color of `255 - n` and a specular color of `p`, which turns a channel `c` into `c * (255 - n) / 255 + p`. The tint it uses is the tint of the placement (the per-side tint of the object when the placement has none) plus the tint of the object, added byte by byte and saturating. On placements without their own tint, the object tint counts twice. The alpha tint scales the alpha of the sprite the same way when it is negative and has no effect when it is positive, and it only shows on sprites that blend by alpha. Of the objects with a negative alpha tint, only the acid shadow 1879 is placed in a map (five times in Level_07_2). Yellow and red monsters, and the blue survival bosses, are the same sprite with different tints.
 
 ## Maps
 
@@ -339,6 +335,8 @@ Maps before version 10 (survival, the menu host maps and a few add-on maps of Al
 The engines keep only the low byte of `dir` as the facing, and the other three bytes are zero in every map.
 
 The side goes from 0 to 7. The levels use 0 for the player and most scenery, 1 for monsters and generators, and 2 for breakable objects, walls and corpses. Alien Shooter 2 also uses 3 for allied soldiers and NPCs, and 5 and 6 for a few robots and monsters.
+
+Alien Shooter maps place the player as the legs (9), or the female player legs (549) in the first level of the second add-on, which still attach the male torso (11). The start script in `COMMON.LGC` destroys the placed player and creates object 9. When the `PlayerSex` profile value is female, the script swaps the objects 9 to 20 for 549 to 560 and 352 for 358 with `VID_EXCHANGEVID`.
 
 The tint of the placed object is packed in two `u32`, with alpha, red, green and blue from the high byte down. The first holds the magnitudes of the negative channels and the second the positive ones, the same packing the engine builds from the tint of objects.res. When either is nonzero it replaces the tint of the object for that placement.
 
@@ -456,7 +454,7 @@ The files use 0x29 for the paletted sprites and 0x15, 0x17, 0x19 and 0x1a for th
  6        light glow; the draw routine can return a bounding rectangle widened up to 128 pixels
 ```
 
-The Alien Shooter 2 loader replaces 0 and -1 with 1 unless the path contains "\101." (101.vid, the only file that keeps 0), so the Alien Shooter 2 files store 1 where Vengeance's store 0 or -1. Vengeance's loader keeps the stored value.
+The Alien Shooter 2 loader replaces 0 and -1 with 1 unless the path contains "\101." (101.vid, the only file that keeps 0).
 
 Mode 4 is on 22 Alien Shooter 1 sprites with flags 0x1D, and the Alien Shooter 1 loader does not read it. No draw routine tests for it. Every sprite with mesh frames has mode 3.
 
@@ -472,7 +470,9 @@ Mode 4 is on 22 Alien Shooter 1 sprites with flags 0x1D, and the Alien Shooter 1
  7      like 0, drawn with depth writes; no sprite of the game
 ```
 
-The draw method sets no depth test state, so every blend is tested against the depth buffer. Depth is written only for 0 (when the sprite has no flag 0x02) and 7. The files use 0, 1, 2, 4 and 6.
+The depth test is ALWAYS for blend 4, blend 7 and mode 6, which draws them over everything already drawn, and GREATEREQUAL for the rest. Depth is written only for 0 (when the sprite has no flag 0x02) and 7. The files use 0, 1, 2, 4 and 6. Alien Shooter draws its blended sprites after the other sprites.
+
+The palettes of the additive sprites already hold colors scaled by their alpha, so the color is added as it is. Object 1306 (fog clouds) has blend 2 and an R5G6B5 format without alpha, which is why it shows as dark blobs when drawn as an opaque sprite.
 
 The Alien Shooter 2 engine skips most of the rest of the record, which the sprite tool wrote.
 
@@ -498,7 +498,7 @@ When the FILETIME of a sprite equals the first 8 bytes of `fast_load.vid`, the l
                           f32, f32   lowest and highest vertex depth; 0.0012 and 10.0 without a mesh
 ```
 
-Only Vengeance ships `fast_load.vid` and `fast_load_data.vid`, where 847 of 979 sprites match. The Alien Shooter 2 keys never match. The engine reads the two i32 at +0x22 and +0x26, keeps the second in the sprite, and skips the remaining 384 bytes without using them. No code that uses the stored value was found, and the rest of the tail has no known meaning.
+Only Vengeance ships `fast_load.vid` and `fast_load_data.vid`, where 847 of 979 sprites match. The Alien Shooter 2 keys never match. No code that uses the stored value at +0x26 was found, and the rest of the tail has no known meaning.
 
 Flags. A sprite kind is a combination of them, and the values quoted in this section are such combinations.
 
@@ -521,7 +521,9 @@ Flags. A sprite kind is a combination of them, and the values quoted in this sec
  0x8000 one more byte per CADR pixel; with 0x2000 the two bytes are the 16-bit color of the second image, alone the byte is skipped; no sprite of the game
 ```
 
-The animation of an object is a table of start frames and frame counts. Frame `n` of facing `f` in animation `a` is `start(a) + f * count(a) + n`.
+The animation of an object is a table of start frames and frame counts. Frame `n` of facing `f` in animation `a` is `start(a) + f * count(a) + n`, where `start(a)` adds up the frame counts of the earlier states times the direction count.
+
+In Alien Shooter, the animation step moves an object to its next frame each time the game tick (in milliseconds) passes a multiple of the frame duration of its state, so every object with the same duration changes frame at the same moment. After the last frame of the state the step goes back to the first. Past the last frame, or on every frame with the flag 0x10, the step also runs the next queued action of the object or sends it an end-of-animation message; what each object type does with that message was not traced.
 
 ### Software sprites
 
@@ -542,20 +544,21 @@ The z values are present only when the flags have 0x04. A record of two bytes is
 
 ```
  SURF record:  u16 count
-               count * ( u16 width | u16 height | u32 raw size )
-               surface data
+               count * ( u16 width | u16 height | u32 raw size | surface data )
 
- DATA entry (36 bytes):  8 bytes unused | x | y | w | h | hotspot x | hotspot y | surface
+ DATA entry (36 bytes):  8 bytes unknown | x | y | w | h | left | top | surface
 ```
 
-Surfaces are ARGB4444. With bit 0x100 they are compressed by a carry-less range coder with an order-1 model of 257 symbols. A file with several surfaces shares the coder models across them.
+Surfaces are ARGB4444 and their raw size is `width * height * 2`. The single `DATA` record holds one entry per frame. `x`, `y`, `w` and `h` select the frame in the surface, and `left` and `top` place it on the sprite canvas.
+
+With bit 0x100 the surface data is compressed by a carry-less range coder with an order-1 model of 257 symbols, where symbol 256 ends the data. A file with several surfaces shares the coder models across them, and each compressed surface starts right after the end of the one before. The decoded bytes hold the low bytes of all pixels first and the high bytes second.
 
 Other flag combinations in use:
 
 ```
  0x36   runs of u16 z + u16 ARGB4444; alpha is always 0 and means additive blending
  0x11   (UI sprites) plain RGB565, no palette
- 0xB0   omni-lights, 2 x 2 header, frames of BGRA colors; created by effects, never placed
+ 0xB0   omni-lights (flag 0x80); created by effects, never placed
 ```
 
 ### Cached sprites
@@ -576,15 +579,13 @@ Alien Shooter 2 keeps the frames of most sprites in a `CADR` chunk instead of `D
 
 A vertex is one u32 with three 10-bit fields and a 2-bit scale in the top bits. The engine reads the field at bit 20 as `(v >> 20 & 0x3ff) / (1 << (v >> 30)) - 32` to find the lowest and highest values of the mesh. The frames of mode 3 sprites carry the mesh, apart from the empty ones, and the counts are zero in all other frames.
 
-The runs describe the region as one raster, `width` pixels per row. A run skips `skip` pixels, which are transparent, then holds `count` pixels, and may continue onto the next row. The frame ends at the `00 00` pair. The record has nothing after it, and a record that is only the 12-byte header is an empty frame. The engine blits the region at `(x, y)`.
+The runs describe the region as one raster, `width` pixels per row. A run skips `skip` pixels, which are transparent, then holds `count` pixels, and may continue onto the next row. The frame ends at the `00 00` pair, and the record has nothing after it. The engine blits the region at `(x, y)`.
 
 A pixel is `format` sized (see `HEAD`), and a palette index when the sprite has a palette. After the color come one byte for each of the flags 0x2000 and 0x8000, and then two bytes of depth with the flag 0x04, which the CADR decoder skips. The 16-bit and 32-bit formats have no palette. Alien Shooter 2 tints them at draw time like the other sprites. About fifty Alien Shooter 2 sprites, mostly shadows, glows and level props, use them. A zero pixel is transparent.
 
 The vertices of a mode 3 frame give each pixel its height. A vertex is the column and row on the canvas in its first two 10-bit fields, and the third field is the height described above. The pixel height is interpolated over the triangles, and the depth of the pixel is `0x400 + 8 * height`, which is what Vengeance stores per pixel for the same sprites (a fit over the 22,365 pixels of 1780.vid frame 0 gives 8.05 * height + 1023.9).
 
 A record of four bytes is an alias, the u32 index of an earlier frame to repeat. All 240 in the games point backwards. A record that is only the 12-byte header, with every field zero, is an empty frame.
-
-580 of the sprites with flags 0x48 in Alien Shooter 2 have 0x4C in Vengeance, so their frames carry two depth bytes per pixel that the Alien Shooter 2 files left out. The depth follows the color in every sprite, and every record of both games ends exactly at its `00 00` pair.
 
 A path ending in `.bmp` or `.tga` instead of `.vid` is loaded directly, with black as the color key.
 
@@ -690,17 +691,30 @@ Walls, floors and most props are type 8 and come first, blood and the soft black
 
 ### Lights
 
-Alien Shooter 2 lights the scene in one of two ways, picked from the shader support of the video card.
+Alien Shooter 2 lights the scene by the graphics detail level, which `SetGraphDetail` (script function 149) sets. The engine lowers any request above 5 to 5 before it picks a level, and it falls back to 3 when the card lacks a D24S8 depth-stencil format. The menu maps the High and Medium settings to 5 and Low to 3. The level 8 and 9 branches below exist in the code, but no setting reaches them.
 
-With pixel shader 2.0, the usual case, the engine draws passes 0 to 5 into a scene texture whose alpha channel keeps the height of each pixel over 512 (at least 2). It then copies the texture onto the screen through the ambient light of `GRPH`, turning each channel `c` into `c * (255 - n) / 255 + p`, with `n` and `p` the bytes of the negative and positive parts. Pass 7 follows straight on the screen, where omni-lights add their light (below) and the other sprites use their blends. Passes 8 to 11 come last.
+```
+ 0       LOWEST, taken when the light texture cannot be created
+ 3       LOW, light buffer
+ 5       MEDIUM, light buffer
+ 8, 9    HIGH and HIGHEST, pixel shader 2.0 scene texture
+```
 
-On older cards the engine switches to a light buffer after pass 5. It clears the buffer to the gray 0.35 (0.3 on one hardware path) with the ambient tint applied as `c * (256 - n) / 256 + p`, draws pass 7 into it with the blend of each sprite, multiplies the scene by twice the buffer (DESTCOLOR, SRCCOLOR) and draws passes 8 to 11 on top. The buffer is an 8-bit target and its channels stop at 1. A buffer of 0.5 leaves the colors as they are; over it, a pass 7 sprite of color `c` turns a color `d` into `d * (1 + 2c)` with `blend` 4 and `d * (1 + c)` with `blend` 5.
+The Low setting also hides the objects listed in `LowDetailVids` of `CONST.LGC`, such as the fog clouds 1306, and Low and Medium hide those in `MediumDetailVids`, such as the small shadow 108.
 
-In both cases the draw adds the ambient tint, byte by byte and saturating, to the tint of every sprite in pass 7 and later whose object lacks the flag 0x800.
+With the light buffer the engine draws passes 0 to 5 straight on the screen. It then clears the buffer to white through the ambient tint of `GRPH`, `255 * (256 - n) / 256 + p` with `n` and `p` the bytes of the negative and positive parts, times 0.3 (0.35 below level 5). Pass 7 goes into the buffer with the blend of each sprite, and the buffer is an 8-bit target whose channels stop at 1. A screen quad then multiplies the scene by twice the buffer (DESTCOLOR, SRCCOLOR), with the positive ambient added to the buffer as the specular color, and a second untextured white quad (DESTCOLOR, ONE) doubles the result again. Each step saturates, which leaves a scene color `d` under a buffer `b` at `min(1, 2 * min(1, 2 * d * min(1, b + p)))`. Passes 8 to 11 come last.
 
-An omni-light is an object whose sprite has the flag 0x80. Its class always goes to pass 7, and an object with a light-only sprite is usually attached to a visible lamp. The light takes its color from the current frame, skipping frames whose color is black. The tint of the placement (or of the object when the placement has none) is added, saturating, to the tint of the object, plus the ambient tint unless the object has the flag 0x800, and the sum is applied to the color as `c * (256 - n) / 256 + p`. The light covers an ellipse on screen centered on `(x, y - z)`, with radii `ExtentX * ScaleX / 2` and `ExtentY * ScaleY / 2` of the object, each times the scale of the placement.
+The draw adds the ambient tint, byte by byte and saturating, to the tint of every sprite in pass 7 and later whose object lacks the flag 0x800.
 
-With pixel shader 2.0 the engine draws the ellipse as a quad with the technique `DrawLight20` and adds the result (ONE, ONE). For a pixel `(px, py)` of the scene color `s` and height `h`, and a light at height `z` with radii `rx` and `ry`:
+An omni-light is an object whose sprite has the flag 0x80. Its class always goes to pass 7, and an object with a light-only sprite is usually attached to a visible lamp. The light takes its color from the current frame, skipping frames whose color is black. Its tint is built like the tint of any sprite in pass 7 and applied to the color as `c * (256 - n) / 256 + p`. The light covers an ellipse on screen centered on `(x, y - z)`, with radii `ExtentX * ScaleX / 2` and `ExtentY * ScaleY / 2` of the object, each times the scale of the placement.
+
+At levels 1 to 5 the engine draws the light as a quad from `(x - rx, y - z - ry + 10)` to `(x + rx, y - z + ry + 10)` and adds it to the buffer (ONE, ONE) without a depth test. The quad carries a 64 x 64 falloff texture and the color of the light times `0.2 / ((10 / ry)² + 0.2)`, with the largest channel as its alpha, and an alpha test drops texels whose alpha falls below 3 (4 below level 5). For a point `(u, v)` of the quad from -1 to 1 across each side:
+
+```
+ falloff = clamp((0.2 / (u² + (v / 0.70706)² + 0.04) - 0.2) * 256 / 5, 0, 255)
+```
+
+At levels 8 and 9 the engine draws passes 0 to 5 into a scene texture whose alpha channel keeps the height of each pixel over 512, copies it onto the screen through the ambient light as `c * (255 - n) / 255 + p` and draws pass 7 on top, where the omni-lights use the technique `DrawLight20` and add (ONE, ONE). For a pixel `(px, py)` of the scene color `s` and height `h`, and a light at height `z` with radii `rx` and `ry`:
 
 ```
  cx = (px - x) / rx
@@ -724,19 +738,6 @@ The card is the frame of the caster, mapped to the screen through its bounding r
 - The corners land at `(x, y - z)` and then move down by the height above the terrain.
 - The top corners get the height `0.3 * highest` and the bottom ones the lowest vertex, both times the z scale. The depth test then keeps the card on the floor around a caster and off the walls behind it.
 
-### Blends
-
-Sprites with a `blend` value of 1, 2, 4 or 5 combine with what lies under them instead of covering it, with a depth test and no depth write. Alien Shooter draws them after the other sprites.
-
-```
- blend 1   2 x source x destination
- blend 2   destination + source
- blend 4   destination + source
- blend 5   source x destination + destination
-```
-
-The palettes of the additive sprites already hold colors scaled by their alpha, so the color is added as it is. Object 1306 (fog clouds) is a surface sprite with blend 2 and no alpha, which is why it shows as dark blobs when drawn as an opaque sprite.
-
 ### Black covers
 
 Alien Shooter 2 maps hide the ground around the playable rooms with black objects: 1127 (a 350 x 350 sprite with soft edges), 1710 (solid blocks) and 1711 (1127's sprite with the flag 0x8000). 1127 and 1711 turn with their facing, which lines their edges up with the walls.
@@ -755,11 +756,14 @@ Alien Shooter (GOG):
 - `FUN_00413c30` - reads one object record
 - `FUN_0040fc40` - finds a placed object by category and kind mask, id, type, side and state
 - `FUN_0043f200` - creates a placed object, applying the spawn flags
+- `FUN_00442ad0` - sets the side of an object and hides it when the flag 0x20000 asks for it
+- `FUN_00419b80` - bakes a scenery object into the terrain tiles, skipping objects with the flag 0x20000
 - `FUN_00447fe0` - creates a projectile, with its initial speed and vertical speed
 - `FUN_0043fb10` - moves an object one step, applying gravity, homing and wind
 - `FUN_00443810` - tests the collision mask of an object
 - `FUN_00448130` - updates the motion of an object, with ground bounce and rocket height
 - `FUN_00440110` - advances the animation of an object
+- `FUN_00416860` - draws a software sprite into the z-buffer, applying the raised and bobbing flags
 - `FUN_0043f820` - moves an object toward its rest height above the terrain
 - `FUN_0044def0` - moves an attached object to its owner plus the offset in the record
 - `FUN_00445770` - creates the attached object of a new object
@@ -776,6 +780,7 @@ Alien Shooter 2 (Reloaded, GOG):
 - `FUN_00456cd0` - reads a `.vid` file and builds its frames into surfaces
 - `FUN_00457890` - places and draws a sprite frame, using `mode` and `blend`
 - `FUN_00458220` - sets the Direct3D blend and depth state of a sprite
+- `FUN_00414b60` - sets the graphics detail level
 - `FUN_0045a120` - puts the class of a sprite in its draw pass
 - `FUN_00415840` - draws a frame of the level, with its passes and the light buffer it blends onto the scene
 - `FUN_004493a0` - draws one pass, cell by cell of the level grid

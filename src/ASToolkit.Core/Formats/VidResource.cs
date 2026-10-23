@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -15,6 +16,7 @@ public readonly struct VidResource
     private const int CadrAlias = 4;
     private const int ModeOffset = 14;
     private const int BlendOffset = 18;
+    private const int SurfaceHeader = 8;
 
     private readonly VidHeader _header;
     private readonly VidPixelFormat _format;
@@ -22,6 +24,7 @@ public readonly struct VidResource
     private readonly VidBlend _blend;
     private readonly ReadOnlyMemory<byte>[] _frames;
     private readonly ReadOnlyMemory<byte>[] _cadrRecords;
+    private readonly ReadOnlyMemory<byte> _surfaces;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="VidResource"/> structure.
@@ -36,6 +39,7 @@ public readonly struct VidResource
         _mode = head.Length >= ModeOffset + 4 ? MemoryMarshal.Read<int>(head[ModeOffset..]) : 0;
         _blend = head.Length >= BlendOffset + 4 ? (VidBlend)MemoryMarshal.Read<uint>(head[BlendOffset..]) : VidBlend.Alpha;
         Palette = GetFirstRecord(container, "PAL "u8);
+        _surfaces = GetFirstRecord(container, "SURF"u8);
 
         _frames = [];
         _cadrRecords = [];
@@ -206,6 +210,101 @@ public readonly struct VidResource
         }
 
         return Vector3.Zero;
+    }
+
+    /// <summary>
+    /// Returns the textures of a sprite with surfaces, decompressing range coded ones, or an empty array when the sprite has
+    /// none or they cannot be read.
+    /// </summary>
+    public VidSurface[] DecodeSurfaces()
+    {
+        if (!Flags.HasFlag(VidFlags.Surface) || Flags.HasFlag(VidFlags.Dxt) || _surfaces.Length < sizeof(ushort))
+        {
+            return [];
+        }
+
+        if (!Flags.HasFlag(VidFlags.RangeCoded))
+        {
+            return ReadSurfaces([]);
+        }
+
+        var models = ArrayPool<FrequencyModel>.Shared.Rent(RangeDecoder.ModelCount);
+        try
+        {
+            var span = models.AsSpan(0, RangeDecoder.ModelCount);
+            foreach (ref var model in span)
+            {
+                model.Reset();
+            }
+
+            return ReadSurfaces(span);
+        }
+        finally
+        {
+            ArrayPool<FrequencyModel>.Shared.Return(models);
+        }
+    }
+
+    private VidSurface[] ReadSurfaces(Span<FrequencyModel> models)
+    {
+        var data = _surfaces.Span;
+        var surfaces = new VidSurface[MemoryMarshal.Read<ushort>(data)];
+        int position = sizeof(ushort);
+        for (int index = 0; index < surfaces.Length; index++)
+        {
+            if (position + SurfaceHeader > data.Length)
+            {
+                return [];
+            }
+
+            int width = MemoryMarshal.Read<ushort>(data[position..]);
+            int height = MemoryMarshal.Read<ushort>(data[(position + 2)..]);
+            int size = (int)MemoryMarshal.Read<uint>(data[(position + 4)..]);
+            position += SurfaceHeader;
+            if (width == 0 || height == 0 || size != width * height * sizeof(ushort))
+            {
+                return [];
+            }
+
+            if (models.IsEmpty)
+            {
+                if (position + size > data.Length)
+                {
+                    return [];
+                }
+
+                surfaces[index] = new VidSurface(width, height, _surfaces.Slice(position, size));
+                position += size;
+                continue;
+            }
+
+            byte[] pixels = new byte[size];
+            if (!RangeDecoder.TryDecode(data[position..], pixels, models, out int used))
+            {
+                return [];
+            }
+
+            surfaces[index] = new VidSurface(width, height, pixels);
+            position += used;
+        }
+
+        return surfaces;
+    }
+
+    /// <summary>
+    /// Attempts to get where a frame of a sprite with surfaces lies in its textures, or null when the sprite has no such frame.
+    /// </summary>
+    public bool TryGetTextureFrame(int index, out VidTextureFrame frame)
+    {
+        frame = default;
+        int size = Unsafe.SizeOf<VidTextureFrame>();
+        if (!Flags.HasFlag(VidFlags.Surface) || _frames.Length == 0 || index < 0 || _frames[0].Length < (index + 1) * size)
+        {
+            return false;
+        }
+
+        frame = MemoryMarshal.Read<VidTextureFrame>(_frames[0].Span[(index * size)..]);
+        return true;
     }
 
     /// <summary>

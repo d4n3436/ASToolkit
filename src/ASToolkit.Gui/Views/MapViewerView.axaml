@@ -1,0 +1,78 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ASToolkit.Gui.ViewModels"
+             xmlns:models="using:ASToolkit.Gui.Models"
+             xmlns:controls="using:ASToolkit.Gui.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1600" d:DesignHeight="900"
+             x:Class="ASToolkit.Gui.Views.MapViewerView"
+             x:DataType="vm:MapViewerViewModel"
+             x:CompileBindings="True">
+
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Padding="4,3" BorderThickness="0,0,0,1" Background="{StaticResource ToolbarBrush}" BorderBrush="{StaticResource FrameBrush}">
+            <WrapPanel Orientation="Horizontal">
+                <WrapPanel.Styles>
+                    <Style Selector="WrapPanel > :is(Control)">
+                        <Setter Property="Margin" Value="0,0,6,0" />
+                        <Setter Property="VerticalAlignment" Value="Center" />
+                    </Style>
+                </WrapPanel.Styles>
+                <Button Content="open game folder" Command="{Binding SelectGameFolderCommand}" />
+                <ComboBox ItemsSource="{Binding Maps}" SelectedItem="{Binding SelectedMap}" MinWidth="200" IsEnabled="{Binding !IsLoading}" />
+                <CheckBox Content="game lighting" IsChecked="{Binding MatchGameLighting}" IsVisible="{Binding IsAlienShooter2}" />
+                <CheckBox Content="no ambient tint" IsChecked="{Binding OmitAmbientTint}" IsVisible="{Binding IsAlienShooter2}"
+                          IsEnabled="{Binding MatchGameLighting}" />
+                <CheckBox Content="hide covers" IsChecked="{Binding OmitCovers}" IsVisible="{Binding IsAlienShooter2}" />
+                <CheckBox Content="show hidden objects and helpers" IsChecked="{Binding ShowsHiddenObjects}" />
+                <CheckBox Content="female player" IsChecked="{Binding ShowsFemalePlayer}" IsVisible="{Binding !IsAlienShooter2}" />
+                <CheckBox Content="remove script groups" IsChecked="{Binding OmitRemovableGroups}" />
+                <CheckBox Content="animate" IsChecked="{Binding Animates}" />
+                <Button Content="fit" MinWidth="60" HorizontalContentAlignment="Center" Click="OnFitClick" />
+            </WrapPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Padding="4,2" Background="{StaticResource WindowBrush}">
+            <TextBlock Text="{Binding Status}" TextTrimming="CharacterEllipsis" />
+        </Border>
+
+        <DockPanel DockPanel.Dock="Right" Width="320" Background="{StaticResource WindowBrush}">
+            <Border DockPanel.Dock="Top" Padding="6,3" BorderThickness="1,0,0,1" BorderBrush="{StaticResource FrameBrush}">
+                <TextBlock Text="animations" />
+            </Border>
+            <Border Padding="8,6" BorderThickness="1,0,0,0" BorderBrush="{StaticResource FrameBrush}" DataContext="{Binding Sprite}">
+                <StackPanel x:DataType="vm:SpriteViewModel" Spacing="6">
+                    <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
+                    <Border Background="#303030" Height="300">
+                        <Image Source="{Binding Frame}" Width="{Binding FrameWidth}" Height="{Binding FrameHeight}" Stretch="Fill"
+                               RenderOptions.BitmapInterpolationMode="None" />
+                    </Border>
+                    <DockPanel>
+                        <TextBlock Text="animation" VerticalAlignment="Center" Width="110" />
+                        <ComboBox ItemsSource="{Binding States}" SelectedItem="{Binding SelectedState}" HorizontalAlignment="Stretch">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="models:AnimationState">
+                                    <TextBlock Text="{Binding Label}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </DockPanel>
+                    <DockPanel>
+                        <TextBlock Text="direction" VerticalAlignment="Center" Width="110" />
+                        <NumericUpDown Value="{Binding Direction}" Minimum="0" Maximum="{Binding MaxDirection}" Increment="1" FormatString="0" />
+                    </DockPanel>
+                    <CheckBox Content="play" IsChecked="{Binding IsPlaying}" />
+                    <TextBlock Text="{Binding Info}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </DockPanel>
+
+        <Panel>
+            <controls:MapCanvas x:Name="Map" Scene="{Binding Scene}" Animates="{Binding Animates}"
+                                HoverCommand="{Binding HoverCommand}" SelectCommand="{Binding SelectCommand}" />
+            <TextBlock Text="Loading…" IsVisible="{Binding IsLoading}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Foreground="White" FontSize="20" />
+        </Panel>
+    </DockPanel>
+</UserControl>

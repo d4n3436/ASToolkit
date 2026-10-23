@@ -13,13 +13,13 @@ using SixLabors.ImageSharp.Processing;
 namespace ASToolkit.Core.Rendering;
 
 /// <summary>
-/// Renders maps the way the game engines draw them, showing the first animation frame of each object.
+/// Renders maps the way the game engines draw them.
 /// </summary>
 public sealed class MapRenderer
 {
-    private const int Margin = 4;
+    internal const int Margin = 4;
     private const int StripRows = 16;
-    private const int MaxStripWorkers = 8;
+    internal const int MaxStripWorkers = 8;
     private const int PoolMegabytes = 32;
     private const int MissingSize = 8;
     private const int FlatDepth = 0x400;
@@ -33,10 +33,13 @@ public sealed class MapRenderer
     private const uint SideMask = 3;
     private const uint SequelSideMask = 7;
     private const int LightPass = 7;
-    private const float LightStrength = 0.2f;
-    private const float LightBias = 0.2f;
-    private const float MinLightHeight = 2;
-    private const float LightDepthReach = 150;
+    private const float LightBufferShare = 0.3f;
+    private const float LightFalloff = 0.2f;
+    private const float LightFalloffBias = 0.04f;
+    private const float LightFalloffScale = 256 / 5f;
+    private const float LightTextureRowScale = 0.7070602f;
+    internal const float LightQuadDrop = 10;
+    private const int LightAlphaReference = 2;
     private const float OctagonalMajor = 0.961f;
     private const float OctagonalMinor = 0.398f;
     private const double AngleUnitsPerRadian = 40.74366760253906;
@@ -52,16 +55,19 @@ public sealed class MapRenderer
     private const int ScriptCheckAction = 77;
     private const int VariableWaitAction = 79;
     private const int HideAction = 98;
-    private const float LightHeightRange = 512;
     private const double RowScale = 0.70706;
     private const uint SceneryType = 8;
     private const uint InterfaceType = 10;
     private const uint FontType = 19;
     private const uint RegionType = 23;
+    private const uint PhaseSeedStep = 0x9e3779b9;
+    private const int PlayerPartCount = 12;
+    private const int FemalePartOffset = KnownObject.PlayerStartGirl - KnownObject.PlayerStart;
+    private const uint PhaseSeedFactor = 2654435761;
     
     private static readonly MemoryAllocator Allocator = MemoryAllocator.Create(new MemoryAllocatorOptions { MaximumPoolSizeMegabytes = PoolMegabytes });
     private static readonly Configuration ImageConfiguration = CreateConfiguration(Environment.ProcessorCount);
-    private static readonly Configuration StripConfiguration = CreateConfiguration(1);
+    private static readonly float[] Sine = Enumerable.Range(0, 256).Select(angle => (float)Math.Sin(angle * Math.PI / 128)).ToArray();
 
     private readonly string _gameFolder;
     private readonly ObjectTable _objects;
@@ -69,6 +75,7 @@ public sealed class MapRenderer
     private readonly ConcurrentDictionary<FrameKey, SpriteFrame?> _frames = new();
     private readonly ConcurrentDictionary<(string Path, PackedTint Tint, bool TintsAlpha), Rgba32[]> _palettes = new();
     private readonly ConcurrentDictionary<(string Path, int Frame), bool[]> _masks = new();
+    private readonly ConcurrentDictionary<string, VidSurface[]> _surfaces = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MapRenderer"/> class.
@@ -86,9 +93,15 @@ public sealed class MapRenderer
     public bool OmitRemovableGroups { get; init; } = true;
 
     /// <summary>
-    /// Gets a value indicating whether the Alien Shooter 2 sprites that hide themselves when the level starts are left out.
+    /// Gets a value indicating whether the objects the game keeps hidden are left out, such as map editor helpers and the
+    /// Alien Shooter 2 sprites that hide themselves when the level starts.
     /// </summary>
     public bool OmitHiddenObjects { get; init; } = true;
+
+    /// <summary>
+    /// Gets a value indicating whether Alien Shooter maps show the player the way the game shows a female player.
+    /// </summary>
+    public bool ShowsFemalePlayer { get; init; }
 
     /// <summary>
     /// Gets a value indicating whether the black covers of Alien Shooter 2 maps are left out, which shows the objects
@@ -120,7 +133,70 @@ public sealed class MapRenderer
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(scale);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(scale, 1);
-        var scene = new SceneObjects(new List<Placement>(sprites.Count), [], []);
+        var scene = CreateScene(sprites, graphics, false);
+        if (scene.IsEmpty)
+        {
+            return new MapImage { Image = new Image<Rgb24>(ImageConfiguration, 640, 360, Background), OriginX = 0, OriginY = 0, Scale = scale, Undrawn = scene.Undrawn };
+        }
+
+        var image = new Image<Rgb24>(ImageConfiguration, Math.Max(1, (int)(scene.Width * scale)), Math.Max(1, (int)(scene.Height * scale)), Background);
+        scene.Render((row, pixels) => pixels.CopyTo(image.DangerousGetPixelRowMemory(row).Span), new Rectangle(0, 0, image.Width, image.Height), scale, null);
+        return new MapImage { Image = image, OriginX = scene.Left, OriginY = scene.Top, Scale = scale, Undrawn = scene.Undrawn };
+    }
+
+    /// <summary>
+    /// Creates the animated scene of map sprites and the objects the engine attaches to them. The ambient light of the graphics
+    /// record only takes effect with <see cref="MatchGameLighting"/>.
+    /// </summary>
+    public MapScene CreateScene(IReadOnlyList<MergedMapSprite> sprites, MapGraphics graphics = default) => CreateScene(sprites, graphics, true);
+
+    /// <summary>
+    /// Returns the sprite of an object, or null when the object or its sprite file is missing.
+    /// </summary>
+    public VidResource? GetSprite(KnownObject id) => _objects.TryFind(id, out _) ? GetFile(_objects.GetPath(id)) : null;
+
+    /// <summary>
+    /// Draws one frame of the sprite of an object over a background color, the way the engine draws it into the map, or the
+    /// light of the frame on the background for an omni-light. Returns null when the frame cannot be decoded.
+    /// </summary>
+    public Image<Rgb24>? DrawFrame(KnownObject id, int frameIndex, Rgb24 background)
+    {
+        if (!_objects.TryFind(id, out var obj))
+        {
+            return null;
+        }
+
+        string path = _objects.GetPath(id);
+        var file = GetFile(path);
+        var tint = PackedTint.Pack(obj.TintRed, obj.TintGreen, obj.TintBlue, obj.TintAlpha);
+        if (_objects.IsAlienShooter2)
+        {
+            tint = tint.Add(tint);
+        }
+
+        if (file is not null && file.Value.Flags.HasFlag(VidFlags.OmniLight))
+        {
+            return DrawLight(obj, file.Value.GetLightColor(frameIndex), background);
+        }
+
+        var frame = file is null ? null : GetFrame(path, obj, file.Value, frameIndex, 0, tint, GetObjectScale(obj, file));
+        if (frame is null)
+        {
+            return null;
+        }
+
+        var image = new Image<Rgb24>(ImageConfiguration, frame.Width, frame.Height, background);
+        var placement = new Placement(obj, frame, frame.Width / 2f, frame.Height / 2f, frame.Width, frame.Height, 0, false, 0, null!, null);
+        var state = new PlacementState(frame, 0, 0, 0);
+        var canvas = new Canvas([placement], [state], [], [], new Rectangle(0, 0, frame.Width, frame.Height), 1, frame.Width, frame.Height, null,
+            (row, pixels) => pixels.CopyTo(image.DangerousGetPixelRowMemory(row).Span), background);
+        canvas.DrawAll();
+        return image;
+    }
+
+    private MapScene CreateScene(IReadOnlyList<MergedMapSprite> sprites, MapGraphics graphics, bool animates)
+    {
+        var scene = new SceneObjects(new List<Placement>(sprites.Count), [], [], animates);
         var ambient = MatchGameLighting && _objects.IsAlienShooter2 ? GetAmbient(graphics) : (PackedTint?)null;
         int undrawn = 0;
         foreach (var sprite in sprites)
@@ -129,26 +205,12 @@ public sealed class MapRenderer
                 && !(OmitHiddenObjects && _objects.IsAlienShooter2 && StartsHidden(sprite.Payload)))
             {
                 var look = new SpriteLook(GetPlacementTint(sprite), new Vector3(sprite.ScaleX, sprite.ScaleY, sprite.ScaleZ));
-                undrawn += Place(scene, sprite.Id, sprite.X, sprite.Y, sprite.Z, sprite.Facing, sprite.Side, look, ambient, 0);
+                undrawn += Place(scene, sprite, GetPlayerPart(sprite.Id), sprite.X, sprite.Y, sprite.Z, sprite.Facing, look, ambient, 0);
             }
         }
 
-        var placed = scene.Placed;
-        var lights = scene.Lights.Select(light => light.CastsShadows ? light with { Shadows = GetShadows(light, scene.Casters) } : light).ToList();
-        if (placed.Count == 0)
-        {
-            return new MapImage { Image = new Image<Rgb24>(ImageConfiguration, 640, 360, Background), OriginX = 0, OriginY = 0, Scale = scale, Undrawn = undrawn };
-        }
-
-        int x0 = (int)placed.Min(p => p.Left) - Margin;
-        int y0 = (int)placed.Min(p => p.Top) - Margin;
-        int width = (int)placed.Max(p => p.Left + p.Width) - x0 + Margin;
-        int height = (int)placed.Max(p => p.Top + p.Height) - y0 + Margin;
-        var image = new Image<Rgb24>(ImageConfiguration, Math.Max(1, (int)(width * scale)), Math.Max(1, (int)(height * scale)), Background);
-        var canvas = new Canvas(placed, lights, x0, y0, width, height, scale, image, ambient);
-        var options = new ParallelOptions { MaxDegreeOfParallelism = Math.Min(Environment.ProcessorCount, MaxStripWorkers) };
-        Parallel.For(0, canvas.StripCount, options, canvas.CreateBuffers, canvas.DrawStrip, canvas.ReleaseBuffers);
-        return new MapImage { Image = image, OriginX = x0, OriginY = y0, Scale = scale, Undrawn = undrawn };
+        var lights = scene.Lights.Select(light => light.CastsShadows ? light with { Shadows = GetShadows(light, scene.Casters) } : light).ToArray();
+        return new MapScene(scene.Placed.ToArray(), lights, ambient, undrawn);
     }
 
     private bool IsCover(KnownObject id) =>
@@ -243,10 +305,10 @@ public sealed class MapRenderer
         return true;
     }
 
-    private int Place(SceneObjects scene, KnownObject id, float x, float y, float z, byte dir, uint side, SpriteLook look, PackedTint? ambient,
+    private int Place(SceneObjects scene, MergedMapSprite owner, KnownObject id, float x, float y, float z, byte dir, SpriteLook look, PackedTint? ambient,
         int attachDepth)
     {
-        if (!_objects.TryFind(id, out var obj) || (obj.Flags.HasFlag(ObjectFlags.SideDependent) && GetSideBits(side) != PlayerSide))
+        if (!_objects.TryFind(id, out var obj) || (OmitHiddenObjects && IsHiddenBySide(obj, owner.Side)))
         {
             return 0;
         }
@@ -270,9 +332,11 @@ public sealed class MapRenderer
         }
 
         var scale = look.Scale * GetObjectScale(obj, file);
+        var timing = scene.Animates ? GetTiming(obj, file, frameIndex, owner.Handle, attachDepth) : AnimationTiming.Static;
         if (isOmniLight && ambient.HasValue)
         {
-            AddLight(scene.Lights, obj, file!.Value.GetLightColor(frameIndex), tint, x, y, z, look.Scale);
+            uint[] colors = Enumerable.Range(frameIndex, timing.Count).Select(file!.Value.GetLightColor).ToArray();
+            AddLight(scene.Lights, obj, colors, timing, tint, x, y, z, look.Scale);
         }
 
         if (ambient.HasValue && sequel && file is not null && IsShadowCaster(obj, file.Value))
@@ -280,10 +344,16 @@ public sealed class MapRenderer
             scene.Casters.Add(new ShadowCaster(obj, path, file.Value, x, y, z, dir, frameIndex, scale));
         }
 
-        var frame = file is null ? null : GetFrame(path, obj, file.Value, frameIndex, GetRotation(obj, file.Value, path, dir), tint, scale);
+        byte rotation = file is null ? (byte)0 : GetRotation(obj, file.Value, path, dir);
+        var frame = file is null ? null : GetFrame(path, obj, file.Value, frameIndex, rotation, tint, scale);
         (int width, int height) = frame is not null ? (frame.Width, frame.Height) : file is null ? (MissingSize, MissingSize) : (file.Value.Width, file.Value.Height);
         int pass = sequel && file is not null ? sequelPass : frame is null || !frame.IsCombined ? 0 : 1;
-        scene.Placed.Add(new Placement(obj, frame, x - width / 2.0, y - z - height / 2.0, width, height, GetBaseDepth(obj, z, sequel), !sequel && obj.ExtentY < obj.ExtentZ, pass));
+        float bob = scene.Animates && obj.Flags.HasFlag(ObjectFlags.Bobbing) ? obj.StepHeight : 0;
+        var animation = file is null || (timing.Count == 1 && bob == 0) ? null
+            : new SpriteAnimation(Enumerable.Range(frameIndex, timing.Count).Select(index => GetFrame(path, obj, file.Value, index, rotation, tint, scale)).ToArray(),
+                timing, bob, z, sequel);
+        var source = new SceneObject(id, owner, x, y, z, dir);
+        scene.Placed.Add(new Placement(obj, frame, x, y - z, width, height, GetBaseDepth(obj, z, sequel), !sequel && obj.ExtentY < obj.ExtentZ, pass, source, animation));
         int undrawn = file is not null && frame is null ? 1 : 0;
         if (obj.AttachedObject == 0 || attachDepth >= MaxAttachDepth || !_objects.TryFind(obj.AttachedObject, out var attached))
         {
@@ -291,7 +361,79 @@ public sealed class MapRenderer
         }
 
         var offset = GetAttachedOffset(obj, attached, file, frameIndex, dir);
-        return undrawn + Place(scene, obj.AttachedObject, x + offset.X, y + offset.Y, z + offset.Z, dir, side, SpriteLook.Default, ambient, attachDepth + 1);
+        return undrawn + Place(scene, owner, GetPlayerPart(obj.AttachedObject), x + offset.X, y + offset.Y, z + offset.Z, dir, SpriteLook.Default, ambient, attachDepth + 1);
+    }
+
+    // Brighten the background like a light buffer at neutral gray
+    private static Image<Rgb24>? DrawLight(GameObject obj, uint color, Rgb24 background)
+    {
+        float radiusX = 0.5f * obj.ExtentX * obj.ScaleX;
+        float radiusY = 0.5f * obj.ExtentY * obj.ScaleY;
+        if (radiusX < 1 || radiusY < 1)
+        {
+            return null;
+        }
+
+        float scale = GetLightScale(radiusY);
+        (int red, int green, int blue) = ((int)((color >> 16 & 0xff) * scale), (int)((color >> 8 & 0xff) * scale), (int)((color & 0xff) * scale));
+        var image = new Image<Rgb24>(ImageConfiguration, (int)Math.Ceiling(2 * radiusX), (int)Math.Ceiling(2 * radiusY), background);
+        image.ProcessPixelRows(rows =>
+        {
+            for (int y = 0; y < rows.Height; y++)
+            {
+                var pixels = rows.GetRowSpan(y);
+                float v = (y + 0.5f - rows.Height / 2f) / radiusY;
+                for (int x = 0; x < pixels.Length; x++)
+                {
+                    int falloff = GetFalloff((x + 0.5f - pixels.Length / 2f) / radiusX, v);
+                    pixels[x] = new Rgb24(Brighten(background.R, falloff * red / 255), Brighten(background.G, falloff * green / 255),
+                        Brighten(background.B, falloff * blue / 255));
+                }
+            }
+        });
+
+        return image;
+    }
+
+    private static byte Brighten(byte color, int light) => (byte)Math.Min(255, color + 2 * color * light / 255);
+
+    private static AnimationTiming GetTiming(GameObject obj, VidResource? file, int frameIndex, uint handle, int attachDepth)
+    {
+        if (file is null || obj.Type is SceneryType or InterfaceType)
+        {
+            return AnimationTiming.Static;
+        }
+
+        int count = Math.Min(obj.FramesPerDirection, file.Value.FrameCount - frameIndex);
+        int duration = obj.GetFrameDuration(0, file.Value.Speed);
+        if (count <= 1 || duration <= 0)
+        {
+            return AnimationTiming.Static;
+        }
+
+        uint seed = (handle + (uint)attachDepth * PhaseSeedStep) * PhaseSeedFactor;
+        int phase = obj.Flags.HasFlag(ObjectFlags.StartsOnFirstFrame) ? 0 : (int)((seed >> 8) % (uint)count);
+        return new AnimationTiming(count, duration, phase);
+    }
+    
+    private bool IsHiddenBySide(GameObject obj, uint side) =>
+        obj.Flags.HasFlag(ObjectFlags.SideDependent) && (GetSideBits(side) != PlayerSide || (!_objects.IsAlienShooter2 && obj.Type == SceneryType));
+    
+    private KnownObject GetPlayerPart(KnownObject id)
+    {
+        if (_objects.IsAlienShooter2)
+        {
+            return id;
+        }
+
+        int male = (int)id >= (int)KnownObject.PlayerStartGirl && (int)id <= (int)KnownObject.PlayerStartGirl + PlayerPartCount - 1
+            ? (int)id - FemalePartOffset : (int)id;
+        if (male is < (int)KnownObject.PlayerStart or >= (int)KnownObject.PlayerStart + PlayerPartCount)
+        {
+            return id;
+        }
+
+        return (KnownObject)(ShowsFemalePlayer ? male + FemalePartOffset : male);
     }
 
     private uint GetSideBits(uint side) => side & (_objects.IsAlienShooter2 ? SequelSideMask : SideMask);
@@ -310,7 +452,7 @@ public sealed class MapRenderer
         return new Vector3((float)(offset.X * cos - offset.Y * sin), (float)(offset.X * sin + offset.Y * cos), offset.Z);
     }
 
-    private static int GetBaseDepth(GameObject obj, float z, bool sequel)
+    internal static int GetBaseDepth(GameObject obj, float z, bool sequel)
     {
         int depth = (int)(z * DepthPerHeight);
         if (!obj.Flags.HasFlag(ObjectFlags.Raised))
@@ -402,21 +544,28 @@ public sealed class MapRenderer
         return OmitAmbientTint ? ambient.ToGray() : ambient;
     }
 
-    private static void AddLight(List<OmniLight> lights, GameObject obj, uint color, PackedTint tint, float x, float y, float z, Vector3 scale)
+    private static void AddLight(List<OmniLight> lights, GameObject obj, uint[] colors, AnimationTiming timing, PackedTint tint, float x, float y, float z, Vector3 scale)
     {
         float radiusX = 0.5f * obj.ExtentX * obj.ScaleX * scale.X;
         float radiusY = 0.5f * obj.ExtentY * obj.ScaleY * scale.Y;
-        if (color == 0 || radiusX <= 0 || radiusY <= 0)
+        if (colors.All(color => color == 0) || radiusX <= 0 || radiusY <= 0)
         {
             return;
         }
 
-        var lightColor = new Vector3(GetLightChannel(tint.Apply((int)(color >> 16 & 0xff), 16)), GetLightChannel(tint.Apply((int)(color >> 8 & 0xff), 8)),
-            GetLightChannel(tint.Apply((int)(color & 0xff), 0)));
-        lights.Add(new OmniLight(x, y, z, radiusX, radiusY, lightColor, obj.Flags.HasFlag(ObjectFlags.Windblown), []));
+        var lightColors = colors.Select(color => color == 0 ? Vector3.Zero : new Vector3(tint.Apply((int)(color >> 16 & 0xff), 16),
+            tint.Apply((int)(color >> 8 & 0xff), 8), tint.Apply((int)(color & 0xff), 0))).ToArray();
+        lights.Add(new OmniLight(x, y, z, radiusX, radiusY, lightColors, timing, obj.Flags.HasFlag(ObjectFlags.Windblown), []));
     }
 
-    private static float GetLightChannel(int value) => (float)(value / 255.0 * LightStrength);
+    // Color scale of the light quad, the falloff 10 units above the ground
+    private static float GetLightScale(float radiusY) => LightFalloff / (MathF.Pow(LightQuadDrop / radiusY, 2) + LightFalloff);
+
+    private static int GetFalloff(float x, float y)
+    {
+        float row = y / LightTextureRowScale;
+        return (int)MathF.Round(Math.Clamp((LightFalloff / (x * x + row * row + LightFalloffBias) - LightFalloff) * LightFalloffScale, 0, 255));
+    }
 
     private Vector3 GetObjectScale(GameObject obj, VidResource? file) =>
         !_objects.IsAlienShooter2 && file is not null && file.Value.HasDepth && file.Value.Flags.HasFlag(VidFlags.Surface) ? Vector3.One : obj.Scale;
@@ -471,6 +620,14 @@ public sealed class MapRenderer
 
         float lift = Math.Max(0, caster.Z);
         var scale = caster.Scale;
+
+        var origin = ToScreen(0, 0);
+        var columnStep = (ToScreen(frame.Width, 0) - origin) / frame.Width;
+        var rowStep = (ToScreen(0, frame.RowCount) - origin) / frame.RowCount;
+        float baseDepth = DepthPerHeight * caster.Z + FlatDepth;
+        return new ShadowCard(GetMask(caster.Path, file, index), frame.Width, frame.RowCount, origin, columnStep, rowStep,
+            DepthPerHeight * highest * TopShadowHeight * scale.Z + baseDepth, DepthPerHeight * lowest * scale.Z + baseDepth);
+
         Vector2 ToScreen(float column, float row)
         {
             var local = new Vector2((column - file.Width / 2 + frame.Left) * scale.X, (row - lift - file.Height / 2 + frame.Top) * scale.Y);
@@ -487,13 +644,6 @@ public sealed class MapRenderer
 
             return new Vector2(caster.X + local.X, (caster.Y - caster.Z) + local.Y + lift);
         }
-
-        var origin = ToScreen(0, 0);
-        var columnStep = (ToScreen(frame.Width, 0) - origin) / frame.Width;
-        var rowStep = (ToScreen(0, frame.RowCount) - origin) / frame.RowCount;
-        float baseDepth = DepthPerHeight * caster.Z + FlatDepth;
-        return new ShadowCard(GetMask(caster.Path, file, index), frame.Width, frame.RowCount, origin, columnStep, rowStep,
-            DepthPerHeight * highest * TopShadowHeight * scale.Z + baseDepth, DepthPerHeight * lowest * scale.Z + baseDepth);
     }
 
     private static (float Highest, float Lowest) GetHeightRange(VidMesh mesh)
@@ -554,6 +704,11 @@ public sealed class MapRenderer
             return null;
         }
 
+        if (view.Flags.HasFlag(VidFlags.Surface) && !view.Flags.HasFlag(VidFlags.Cadr))
+        {
+            return DecodeTextureFrame(path, view, index, tint);
+        }
+
         bool paletted = view.HasPalette;
         if (paletted && view.Palette.Length < 1024)
         {
@@ -587,6 +742,7 @@ public sealed class MapRenderer
             IsBlended = view.IsBlended,
             Blend = view.Blend,
             WritesDepth = view.Blend != VidBlend.AlphaNoDepthWrite,
+            TestsDepth = TestsDepth(view),
             IsPaletted = paletted
         };
         int row = 0;
@@ -629,6 +785,69 @@ public sealed class MapRenderer
 
         return result;
     }
+
+    private SpriteFrame? DecodeTextureFrame(string path, VidResource view, int index, PackedTint tint)
+    {
+        var surfaces = _surfaces.GetOrAdd(path, _ => view.DecodeSurfaces());
+        if (!view.TryGetTextureFrame(index, out var entry) || (uint)entry.Surface >= (uint)surfaces.Length || entry.Width <= 0 || entry.Height <= 0)
+        {
+            return null;
+        }
+
+        var surface = surfaces[entry.Surface];
+        var pixels = surface.Pixels;
+        bool tintsAlpha = view is { IsBlended: true, Blend: VidBlend.Alpha or VidBlend.AlphaNoDepthWrite or VidBlend.AlphaDepthWrite };
+        bool sequel = _objects.IsAlienShooter2;
+        int left = entry.Left;
+        int top = entry.Top;
+        var xs = new List<short>();
+        var colors = new List<Rgba32>();
+        int[] rowStarts = new int[entry.Height + 1];
+        for (int row = 0; row < entry.Height; row++)
+        {
+            rowStarts[row] = xs.Count;
+            int sourceY = entry.Y + row;
+            for (int column = 0; column < entry.Width && sourceY < surface.Height; column++)
+            {
+                int sourceX = entry.X + column;
+                if (sourceX >= surface.Width)
+                {
+                    break;
+                }
+
+                var color = DecodeA4R4G4B4(pixels[sourceY * surface.Width + sourceX]);
+                if (color.A > 0)
+                {
+                    xs.Add((short)(left + column));
+                    colors.Add(sequel ? ModulateColor(color, tint, tintsAlpha) : color);
+                }
+            }
+        }
+
+        rowStarts[entry.Height] = xs.Count;
+        return new SpriteFrame
+        {
+            Xs = xs.ToArray(),
+            Indices = [],
+            Depths = [],
+            Colors = colors.ToArray(),
+            Width = view.Width,
+            Height = view.Height,
+            Top = top,
+            Rows = entry.Height,
+            RowStarts = rowStarts,
+            IsBlended = true,
+            Blend = view.Blend,
+            WritesDepth = false,
+            TestsDepth = TestsDepth(view),
+            IsPaletted = false
+        };
+    }
+
+    // Turn the depth test off for light glows, blend 7 and mode 6 sprites like Alien Shooter 2. Keep it on for unlit renders,
+    // which have no light buffer to take the glows.
+    private bool TestsDepth(VidResource view) =>
+        !_objects.IsAlienShooter2 || !MatchGameLighting || !(view.Blend is VidBlend.AdditiveLight or VidBlend.AlphaDepthWrite || view.Mode == 6);
 
     private static float[] RasterizeHeights(VidMesh mesh, int width, int height)
     {
@@ -876,6 +1095,7 @@ public sealed class MapRenderer
             IsBlended = source.IsBlended,
             Blend = source.Blend,
             WritesDepth = source.WritesDepth,
+            TestsDepth = source.TestsDepth,
             IsPaletted = source.IsPaletted
         };
     }
@@ -928,6 +1148,8 @@ public sealed class MapRenderer
         return colors;
     }
 
+    internal delegate void RowWriter(int row, ReadOnlySpan<Rgb24> pixels);
+
     private readonly record struct FrameKey(string Path, PackedTint Tint, int Frame, byte Rotation, Vector3 Scale);
 
     private readonly record struct SpriteLook(PackedTint? Tint, Vector3 Scale)
@@ -935,7 +1157,7 @@ public sealed class MapRenderer
         public static SpriteLook Default { get; } = new(null, Vector3.One);
     }
 
-    private readonly record struct PackedTint(uint Negative, uint Positive)
+    internal readonly record struct PackedTint(uint Negative, uint Positive)
     {
         public static PackedTint Pack(int red, int green, int blue, int alpha) =>
             new(GetMagnitude(-alpha) << 24 | GetMagnitude(-red) << 16 | GetMagnitude(-green) << 8 | GetMagnitude(-blue),
@@ -973,149 +1195,319 @@ public sealed class MapRenderer
         }
     }
 
-    private sealed record OmniLight(float X, float Y, float Height, float RadiusX, float RadiusY, Vector3 Color, bool CastsShadows, ShadowCard[] Shadows);
+    internal readonly record struct AnimationTiming(int Count, int Duration, int Phase)
+    {
+        public static AnimationTiming Static { get; } = new(1, 1, 0);
+
+        public int GetIndex(int time) => Count == 1 ? 0 : (Phase + time / Duration) % Count;
+    }
+
+    internal sealed record SpriteAnimation(SpriteFrame?[] Frames, AnimationTiming Timing, float Bob, float Z, bool Sequel);
+
+    internal readonly record struct PlacementState(SpriteFrame? Frame, int X, int Y, int BaseDepth);
+
+    internal sealed record OmniLight(float X, float Y, float Height, float RadiusX, float RadiusY, Vector3[] Colors, AnimationTiming Timing, bool CastsShadows,
+        ShadowCard[] Shadows)
+    {
+        public Vector3 GetColor(int? time) => Colors[time is not null ? Timing.GetIndex(time.Value) : 0];
+    }
 
     private sealed record ShadowCaster(GameObject Object, string Path, VidResource File, float X, float Y, float Z, byte Dir, int FrameIndex, Vector3 Scale);
 
-    private sealed record ShadowCard(bool[] Mask, int Columns, int Rows, Vector2 Origin, Vector2 ColumnStep, Vector2 RowStep, float TopDepth, float BottomDepth);
+    internal sealed record ShadowCard(bool[] Mask, int Columns, int Rows, Vector2 Origin, Vector2 ColumnStep, Vector2 RowStep, float TopDepth, float BottomDepth);
 
-    private sealed record SceneObjects(List<Placement> Placed, List<OmniLight> Lights, List<ShadowCaster> Casters);
+    private sealed record SceneObjects(List<Placement> Placed, List<OmniLight> Lights, List<ShadowCaster> Casters, bool Animates);
 
-    private sealed record StripBuffers(Image<Rgb24> Source, int[] Depth, int[] Light);
+    internal sealed record StripBuffers(Rgb24[] Source, int[] Depth, Rgb24[] Light, int[] Sums, Rgb24[] Row);
 
-    private sealed record Placement(GameObject Object, SpriteFrame? Frame, double Left, double Top, int Width, int Height, int BaseDepth, bool IsStanding, int Pass);
-
-    // Draw strips of output rows in parallel, each at full size with its own depth buffer, then scale them into the image
-    private sealed class Canvas
+    // The sprite canvas is centered on X and ScreenY, the world y minus the height
+    internal sealed record Placement(GameObject Object, SpriteFrame? Frame, float X, float ScreenY, int Width, int Height, int BaseDepth, bool IsStanding,
+        int Pass, SceneObject? Source, SpriteAnimation? Animation)
     {
-        private readonly List<Placement> _placed;
-        private readonly (int X, int Y)[] _origins;
-        private readonly int[] _order;
-        private readonly int _width;
-        private readonly int _height;
-        private readonly double _scale;
-        private readonly Image<Rgb24> _image;
-        private readonly int _stripRows;
-        private readonly PackedTint? _ambient;
-        private readonly OmniLight[] _lights;
+        public double Left => X - Width / 2.0;
 
-        public Canvas(List<Placement> placed, IReadOnlyList<OmniLight> lights, int x0, int y0, int width, int height, double scale, Image<Rgb24> image, PackedTint? ambient)
+        public double Top => ScreenY - Height / 2.0;
+
+        public PlacementState GetState(int? time, int left, int top)
         {
-            _placed = placed;
-            _origins = placed.Select(p => ((int)Math.Round(p.Left - x0), (int)Math.Round(p.Top - y0))).ToArray();
-            _order = Enumerable.Range(0, placed.Count).OrderBy(index => placed[index].Pass).ToArray();
-            _width = width;
-            _height = height;
-            _scale = scale;
-            _image = image;
-            _stripRows = Math.Max(1, (int)(StripRows * scale));
-            _ambient = ambient;
-            _lights = lights.Select(light => light with { X = light.X - x0, Y = light.Y - y0, Shadows = light.Shadows.Select(card => card with { Origin = card.Origin - new Vector2(x0, y0) }).ToArray() }).ToArray();
+            if (time is null || Animation is null)
+            {
+                return new PlacementState(Frame, (int)Math.Round(Left - left), (int)Math.Round(Top - top), BaseDepth);
+            }
+
+            var frame = Animation.Frames[Animation.Timing.GetIndex(time.Value)];
+            (int width, int height) = frame is null ? (Width, Height) : (frame.Width, frame.Height);
+            float screenY = ScreenY;
+            int baseDepth = BaseDepth;
+            int lift = 0;
+            if (Animation.Bob != 0)
+            {
+                float wave = Sine[(time.Value >> 3) & 255] * Animation.Bob;
+                if (Animation.Sequel)
+                {
+                    screenY -= wave;
+                    baseDepth = GetBaseDepth(Object, Animation.Z + wave, true);
+                }
+                else if (!Object.Flags.HasFlag(ObjectFlags.Raised) || (int)(Animation.Z * DepthPerHeight) >= RaisedDepth)
+                {
+                    int depth = (int)(Sine[(time.Value >> 3) & 255] * (double)Animation.Bob * DepthPerHeight);
+                    baseDepth += depth;
+                    lift = depth / DepthPerHeight;
+                }
+            }
+
+            return new PlacementState(frame, (int)Math.Round(X - width / 2.0 - left), (int)Math.Round(screenY - height / 2.0 - top) - lift, baseDepth);
         }
 
-        public int StripCount => (_image.Height + _stripRows - 1) / _stripRows;
+        public int GetAnimationKey(int time) =>
+            Animation is null ? 0 : Animation.Timing.GetIndex(time) << 8 | (Animation.Bob == 0 ? 0 : (time >> 3) & 255);
 
-        // One full-size strip image and depth buffer per worker, sized for the tallest strip
+        public IEnumerable<SpriteFrame?> GetFrames() => Animation?.Frames ?? [Frame];
+
+        public int GetBobReach() => Animation is null ? 0 : (int)Math.Ceiling(Math.Abs(Animation.Bob)) + 1;
+
+        public int GetPixelDepth(SpriteFrame frame, int baseDepth, int row, int index) =>
+            frame.Depths.Length > 0 ? baseDepth + frame.Depths[index]
+            : IsStanding ? Math.Min(baseDepth + FlatDepth, MaxFlatDepth) + (frame.Rows - row) * DepthPerHeight : Math.Min(baseDepth + FlatDepth, MaxFlatDepth);
+    }
+
+    // Draws an output area in strips of rows in parallel. Each strip is drawn at full size with its own depth buffer, then
+    // every output pixel takes the average of the source pixels it covers.
+    internal sealed class Canvas
+    {
+        private readonly Placement[] _placed;
+        private readonly PlacementState[] _states;
+        private readonly List<int>[] _strips;
+        private readonly OmniLight[] _lights;
+        private readonly Vector3[] _colors;
+        private readonly Rectangle _area;
+        private readonly double _scale;
+        private readonly int _left;
+        private readonly int _width;
+        private readonly int _height;
+        private readonly int[] _columnStarts;
+        private readonly int _stripRows;
+        private readonly PackedTint? _ambient;
+        private readonly RowWriter _writer;
+        private readonly Rgb24 _background;
+
+        public Canvas(Placement[] placed, PlacementState[] states, OmniLight[] lights, Vector3[] colors, Rectangle area, double scale, int sceneWidth, int sceneHeight,
+            PackedTint? ambient, RowWriter writer, Rgb24 background)
+        {
+            _placed = placed;
+            _states = states;
+            _area = area;
+            _scale = scale;
+            _height = sceneHeight;
+            _left = GetSourceStart(area.Left, sceneWidth);
+            _width = GetSourceStart(area.Right, sceneWidth) - _left;
+            _columnStarts = new int[area.Width + 1];
+            for (int column = 0; column <= area.Width; column++)
+            {
+                _columnStarts[column] = GetSourceStart(area.Left + column, sceneWidth) - _left;
+            }
+
+            _stripRows = Math.Max(1, (int)(StripRows * scale));
+            _ambient = ambient;
+            _writer = writer;
+            _background = background;
+            _colors = colors;
+            var shift = new Vector2(_left, 0);
+            _lights = lights.Select(light => light with { X = light.X - _left, Shadows = light.Shadows.Select(card => card with { Origin = card.Origin - shift }).ToArray() })
+                .ToArray();
+            _strips = new List<int>[StripCount];
+            for (int strip = 0; strip < _strips.Length; strip++)
+            {
+                _strips[strip] = [];
+            }
+
+            for (int index = 0; index < placed.Length; index++)
+            {
+                AddToStrips(index);
+            }
+        }
+
+        public int StripCount => (_area.Height + _stripRows - 1) / _stripRows;
+
+        public void DrawAll()
+        {
+            var buffers = CreateBuffers();
+            for (int strip = 0; strip < StripCount; strip++)
+            {
+                DrawStrip(strip, null, buffers);
+            }
+
+            ReleaseBuffers(buffers);
+        }
+
+        // One full-size strip and depth buffer per worker, sized for the tallest strip
         public StripBuffers CreateBuffers()
         {
             int rows = (int)Math.Ceiling(_stripRows / _scale) + 1;
-            return new StripBuffers(new Image<Rgb24>(StripConfiguration, _width, rows), ArrayPool<int>.Shared.Rent(_width * rows),
-                _ambient.HasValue ? ArrayPool<int>.Shared.Rent(3 * _width * rows) : []);
+            return new StripBuffers(ArrayPool<Rgb24>.Shared.Rent(Math.Max(1, _width * rows)), ArrayPool<int>.Shared.Rent(Math.Max(1, _width * rows)),
+                _ambient.HasValue ? ArrayPool<Rgb24>.Shared.Rent(Math.Max(1, _width * rows)) : [], ArrayPool<int>.Shared.Rent(3 * _area.Width + 3),
+                ArrayPool<Rgb24>.Shared.Rent(_area.Width + 1));
         }
 
         public void ReleaseBuffers(StripBuffers buffers)
         {
-            buffers.Source.Dispose();
+            ArrayPool<Rgb24>.Shared.Return(buffers.Source);
             ArrayPool<int>.Shared.Return(buffers.Depth);
             if (_ambient.HasValue)
             {
-                ArrayPool<int>.Shared.Return(buffers.Light);
+                ArrayPool<Rgb24>.Shared.Return(buffers.Light);
             }
+
+            ArrayPool<int>.Shared.Return(buffers.Sums);
+            ArrayPool<Rgb24>.Shared.Return(buffers.Row);
         }
 
-        public StripBuffers DrawStrip(int strip, ParallelLoopState state, StripBuffers buffers)
+        public StripBuffers DrawStrip(int strip, ParallelLoopState? state, StripBuffers buffers)
         {
-            int out0 = strip * _stripRows;
-            int out1 = Math.Min(_image.Height, out0 + _stripRows);
-            int y0 = GetSourceStart(out0);
-            int y1 = GetSourceStart(out1);
-            if (y1 <= y0)
+            int out0 = _area.Top + strip * _stripRows;
+            int out1 = Math.Min(_area.Bottom, out0 + _stripRows);
+            int y0 = GetSourceStart(out0, _height);
+            int y1 = GetSourceStart(out1, _height);
+            (var source, int[] depth, var light, _, _) = buffers;
+            if (y1 > y0 && _width > 0)
             {
-                return buffers;
-            }
-
-            (var source, int[] depth, int[] light) = buffers;
-            for (int row = 0; row < y1 - y0; row++)
-            {
-                source.DangerousGetPixelRowMemory(row).Span.Fill(Background);
-            }
-
-            Array.Clear(depth, 0, _width * (y1 - y0));
-            bool lit = !_ambient.HasValue;
-            foreach (int placedObjectIndex in _order)
-            {
-                var p = _placed[placedObjectIndex];
-                if (!lit && p.Pass >= LightPass)
+                source.AsSpan(0, _width * (y1 - y0)).Fill(_background);
+                Array.Clear(depth, 0, _width * (y1 - y0));
+                bool lighting = _ambient.HasValue;
+                bool started = false;
+                foreach (int index in _strips[strip])
                 {
-                    LightScene(source, depth, light, y0, y1);
-                    lit = true;
+                    var p = _placed[index];
+                    if (lighting && p.Pass >= LightPass && !started)
+                    {
+                        StartLight(light, depth, y0, y1);
+                        started = true;
+                    }
+
+                    if (lighting && p.Pass > LightPass)
+                    {
+                        ApplyLight(source, light, y0, y1);
+                        lighting = false;
+                    }
+
+                    var frame = _states[index].Frame!;
+                    int top = _states[index].Y + frame.Top;
+                    if (top < y1 && top + frame.Rows > y0)
+                    {
+                        Draw(started && lighting ? light : source, p, _states[index], y0, y1, depth);
+                    }
                 }
 
-                var frame = p.Frame;
-                if (frame is not null && _origins[placedObjectIndex].Y + frame.Top < y1 && _origins[placedObjectIndex].Y + frame.Top + frame.Rows > y0)
+                if (lighting)
                 {
-                    Draw(source, p, frame, _origins[placedObjectIndex], y0, y1, depth);
+                    if (!started)
+                    {
+                        StartLight(light, depth, y0, y1);
+                    }
+
+                    ApplyLight(source, light, y0, y1);
                 }
             }
 
-            if (!lit)
+            for (int output = out0; output < out1; output++)
             {
-                LightScene(source, depth, light, y0, y1);
-            }
-
-            if (_scale < 1)
-            {
-                using var scaled = source.Clone(StripConfiguration, c => c.Crop(new Rectangle(0, 0, _width, y1 - y0)).Resize(_image.Width, out1 - out0, KnownResamplers.Box));
-                CopyRows(scaled, out0);
-            }
-            else
-            {
-                CopyRows(source, out0, out1 - out0);
+                WriteRow(output, buffers, y0, y1);
             }
 
             return buffers;
         }
 
-        private void CopyRows(Image<Rgb24> strip, int out0, int? rows = null)
+        private void AddToStrips(int index)
         {
-            for (int row = 0; row < (rows ?? strip.Height); row++)
+            var frame = _states[index].Frame;
+            if (frame is null || frame.Rows == 0)
             {
-                strip.DangerousGetPixelRowMemory(row).Span.CopyTo(_image.DangerousGetPixelRowMemory(out0 + row).Span);
+                return;
+            }
+
+            int x = _states[index].X;
+            int top = _states[index].Y + frame.Top;
+            if (x >= _left + _width || x + frame.Width <= _left)
+            {
+                return;
+            }
+
+            int first = (int)Math.Floor(top * _scale) - 1 - _area.Top;
+            int last = (int)Math.Floor((top + frame.Rows) * _scale) + 1 - _area.Top;
+            if (last < 0 || first >= _area.Height)
+            {
+                return;
+            }
+
+            for (int strip = Math.Max(0, first) / _stripRows; strip <= Math.Min(_area.Height - 1, last) / _stripRows; strip++)
+            {
+                _strips[strip].Add(index);
             }
         }
 
-        // First source row of an output row, clamped to the source height
-        private int GetSourceStart(int output) => Math.Min(_height, (int)Math.Ceiling(output / _scale - 1e-9));
+        private void WriteRow(int output, StripBuffers buffers, int y0, int y1)
+        {
+            var row = buffers.Row.AsSpan(0, _area.Width);
+            int first = Math.Max(y0, GetSourceStart(output, _height)) - y0;
+            int last = Math.Min(y1, GetSourceStart(output + 1, _height)) - y0;
+            if (_scale == 1 && last - first == 1 && _width == _area.Width)
+            {
+                buffers.Source.AsSpan(first * _width, _width).CopyTo(row);
+                _writer(output - _area.Top, row);
+                return;
+            }
+
+            var sums = buffers.Sums.AsSpan(0, 3 * _area.Width);
+            sums.Clear();
+            for (int sourceRow = first; sourceRow < last; sourceRow++)
+            {
+                var pixels = buffers.Source.AsSpan(sourceRow * _width, _width);
+                for (int column = 0; column < _area.Width; column++)
+                {
+                    for (int x = _columnStarts[column]; x < _columnStarts[column + 1]; x++)
+                    {
+                        sums[3 * column] += pixels[x].R;
+                        sums[3 * column + 1] += pixels[x].G;
+                        sums[3 * column + 2] += pixels[x].B;
+                    }
+                }
+            }
+
+            for (int column = 0; column < _area.Width; column++)
+            {
+                int count = (last - first) * (_columnStarts[column + 1] - _columnStarts[column]);
+                row[column] = count <= 0 ? _background
+                    : new Rgb24((byte)((sums[3 * column] + count / 2) / count), (byte)((sums[3 * column + 1] + count / 2) / count),
+                        (byte)((sums[3 * column + 2] + count / 2) / count));
+            }
+
+            _writer(output - _area.Top, row);
+        }
+
+        // First source pixel of an output pixel, clamped to the size of the scene
+        private int GetSourceStart(int output, int limit) => Math.Min(limit, (int)Math.Ceiling(output / _scale - 1e-9));
 
         // Engine depth is 8 per unit of height, plus 0x400 for flat sprites and 8 more per row up for standing ones
-        private void Draw(Image<Rgb24> target, Placement p, SpriteFrame frame, (int X, int Y) origin, int y0, int y1, int[] depth)
+        private void Draw(Rgb24[] target, Placement p, PlacementState state, int y0, int y1, int[] depth)
         {
-            int baseDepth = p.BaseDepth;
+            var frame = state.Frame!;
+            int baseDepth = state.BaseDepth;
             int flat = Math.Min(baseDepth + FlatDepth, MaxFlatDepth);
             bool standing = p.IsStanding;
             (short[] xs, byte[] indices, ushort[] depths, var colors) = (frame.Xs, frame.Indices, frame.Depths, frame.Colors);
             bool hasDepths = depths.Length > 0;
-            int firstRow = Math.Clamp(y0 - origin.Y - frame.Top, 0, frame.Rows);
-            int lastRow = Math.Clamp(y1 - origin.Y - frame.Top, 0, frame.Rows);
+            int firstRow = Math.Clamp(y0 - state.Y - frame.Top, 0, frame.Rows);
+            int lastRow = Math.Clamp(y1 - state.Y - frame.Top, 0, frame.Rows);
+            int left = state.X - _left;
             for (int row = firstRow; row < lastRow; row++)
             {
-                int y = origin.Y + frame.Top + row;
-                var pixels = target.DangerousGetPixelRowMemory(y - y0).Span;
+                int y = state.Y + frame.Top + row;
                 int depthRow = (y - y0) * _width;
+                var pixels = target.AsSpan(depthRow, _width);
                 int rowDepth = standing ? flat + (frame.Rows - row) * 8 : flat;
                 for (int index = frame.RowStarts[row]; index < frame.RowStarts[row + 1]; index++)
                 {
-                    int x = origin.X + xs[index];
+                    int x = left + xs[index];
                     if ((uint)x >= (uint)_width)
                     {
                         continue;
@@ -1126,7 +1518,7 @@ public sealed class MapRenderer
                     int ci = frame.IsPaletted ? indices[index] : index;
                     if (frame.IsCombined)
                     {
-                        if (depth[k] <= d)
+                        if (!frame.TestsDepth || depth[k] <= d)
                         {
                             ref var under = ref pixels[x];
                             under = Combine(frame.Blend, colors[ci], under);
@@ -1134,7 +1526,7 @@ public sealed class MapRenderer
                     }
                     else if (frame.IsBlended)
                     {
-                        if (depth[k] <= d)
+                        if (!frame.TestsDepth || depth[k] <= d)
                         {
                             var color = colors[ci];
                             float a = color.A / 255f;
@@ -1142,7 +1534,7 @@ public sealed class MapRenderer
                             under = new Rgb24(Blend(color.R, under.R, a), Blend(color.G, under.G, a), Blend(color.B, under.B, a));
                         }
                     }
-                    else if (!hasDepths ? depth[k] <= d : depth[k] < d)
+                    else if (!frame.TestsDepth || (!hasDepths ? depth[k] <= d : depth[k] < d))
                     {
                         if (frame.IsPaletted || colors[ci].A > 0)
                         {
@@ -1157,76 +1549,65 @@ public sealed class MapRenderer
             }
         }
 
-        private void LightScene(Image<Rgb24> target, int[] depth, int[] sum, int y0, int y1)
+        private void StartLight(Rgb24[] light, int[] depth, int y0, int y1)
         {
             var ambient = _ambient!.Value;
-            int rows = y1 - y0;
-            for (int row = 0; row < rows; row++)
+            light.AsSpan(0, (y1 - y0) * _width).Fill(new Rgb24(GetBufferAmbient(ambient, 16), GetBufferAmbient(ambient, 8), GetBufferAmbient(ambient, 0)));
+            for (int lightIndex = 0; lightIndex < _lights.Length; lightIndex++)
             {
-                var pixels = target.DangerousGetPixelRowMemory(row).Span;
-                for (int x = 0; x < _width; x++)
-                {
-                    int offset = 3 * (row * _width + x);
-                    var color = pixels[x];
-                    sum[offset] = GetAmbientColor(color.R, ambient, 16);
-                    sum[offset + 1] = GetAmbientColor(color.G, ambient, 8);
-                    sum[offset + 2] = GetAmbientColor(color.B, ambient, 0);
-                }
+                AddLight(light, depth, _lights[lightIndex], _colors[lightIndex], y0, y1);
+            }
+        }
+
+        private void AddLight(Rgb24[] buffer, int[] depth, OmniLight light, Vector3 color, int y0, int y1)
+        {
+            float centerY = light.Y - light.Height + LightQuadDrop;
+            int top = Math.Max(y0, (int)Math.Floor(centerY - light.RadiusY));
+            int bottom = Math.Min(y1, (int)Math.Ceiling(centerY + light.RadiusY));
+            int left = Math.Max(0, (int)Math.Floor(light.X - light.RadiusX));
+            int right = Math.Min(_width, (int)Math.Ceiling(light.X + light.RadiusX));
+            float scale = GetLightScale(light.RadiusY);
+            (int red, int green, int blue) = ((int)(color.X * scale), (int)(color.Y * scale), (int)(color.Z * scale));
+            int strongest = Math.Max(red, Math.Max(green, blue));
+            if (top >= bottom || left >= right || strongest == 0)
+            {
+                return;
             }
 
-            foreach (var light in _lights)
+            bool[] shadowed = GetShadowedPixels(light, depth, left, top, right, bottom, y0);
+            for (int y = top; y < bottom; y++)
             {
-                float centerY = light.Y - light.Height;
-                int top = Math.Max(y0, (int)Math.Floor(centerY - light.RadiusY));
-                int bottom = Math.Min(y1, (int)Math.Ceiling(centerY + light.RadiusY));
-                int left = Math.Max(0, (int)Math.Floor(light.X - light.RadiusX));
-                int right = Math.Min(_width, (int)Math.Ceiling(light.X + light.RadiusX));
-                if (top >= bottom || left >= right)
+                float v = (y + 0.5f - centerY) / light.RadiusY;
+                for (int x = left; x < right; x++)
                 {
-                    continue;
-                }
-
-                bool[] shadowed = GetShadowedPixels(light, depth, left, top, right, bottom, y0);
-                int lightDepth = (int)(DepthPerHeight * (light.Height + LightDepthReach)) + FlatDepth;
-                for (int y = top; y < bottom; y++)
-                {
-                    var pixels = target.DangerousGetPixelRowMemory(y - y0).Span;
-                    float groundY = (float)((y + 0.5 - centerY) / RowScale - light.Height);
-                    for (int x = left; x < right; x++)
+                    if (shadowed.Length > 0 && shadowed[(y - top) * (right - left) + x - left])
                     {
-                        int k = (y - y0) * _width + x;
-                        if (depth[k] > lightDepth || (shadowed.Length > 0 && shadowed[(y - top) * (right - left) + x - left]))
-                        {
-                            continue;
-                        }
-
-                        float height = GetSceneHeight(depth[k]);
-                        float cx = (x + 0.5f - light.X) / light.RadiusX;
-                        float cy = (groundY + height) / light.RadiusY;
-                        float cz = (light.Height - height) / light.RadiusY;
-                        float intensity = 1 / (cx * cx + cy * cy + cz * cz + LightBias * LightBias) - 1;
-                        if (intensity <= 0)
-                        {
-                            continue;
-                        }
-
-                        var color = pixels[x];
-                        int offset = 3 * k;
-                        sum[offset] += (int)Math.Min(255, color.R * light.Color.X * intensity);
-                        sum[offset + 1] += (int)Math.Min(255, color.G * light.Color.Y * intensity);
-                        sum[offset + 2] += (int)Math.Min(255, color.B * light.Color.Z * intensity);
+                        continue;
                     }
+
+                    int falloff = GetFalloff((x + 0.5f - light.X) / light.RadiusX, v);
+                    if (falloff * strongest <= LightAlphaReference * 255)
+                    {
+                        continue;
+                    }
+
+                    ref var pixel = ref buffer[(y - y0) * _width + x];
+                    pixel = new Rgb24((byte)Math.Min(255, pixel.R + falloff * red / 255), (byte)Math.Min(255, pixel.G + falloff * green / 255),
+                        (byte)Math.Min(255, pixel.B + falloff * blue / 255));
                 }
             }
+        }
 
-            for (int row = 0; row < rows; row++)
+        private void ApplyLight(Rgb24[] target, Rgb24[] light, int y0, int y1)
+        {
+            var ambient = _ambient!.Value;
+            (int red, int green, int blue) = (ambient.GetPositive(16), ambient.GetPositive(8), ambient.GetPositive(0));
+            int count = (y1 - y0) * _width;
+            for (int pixel = 0; pixel < count; pixel++)
             {
-                var pixels = target.DangerousGetPixelRowMemory(row).Span;
-                for (int x = 0; x < _width; x++)
-                {
-                    int offset = 3 * (row * _width + x);
-                    pixels[x] = new Rgb24((byte)Math.Min(255, sum[offset]), (byte)Math.Min(255, sum[offset + 1]), (byte)Math.Min(255, sum[offset + 2]));
-                }
+                var color = target[pixel];
+                var factor = light[pixel];
+                target[pixel] = new Rgb24(ApplyLight(color.R, factor.R, red), ApplyLight(color.G, factor.G, green), ApplyLight(color.B, factor.B, blue));
             }
         }
 
@@ -1243,11 +1624,17 @@ public sealed class MapRenderer
             {
                 var columnEnd = card.ColumnStep * card.Columns;
                 var rowEnd = card.RowStep * card.Rows;
-                var corners = new[] { card.Origin, card.Origin + columnEnd, card.Origin + rowEnd, card.Origin + columnEnd + rowEnd };
-                int cardLeft = Math.Max(left, (int)Math.Floor(corners.Min(corner => corner.X)));
-                int cardRight = Math.Min(right, (int)Math.Ceiling(corners.Max(corner => corner.X)));
-                int cardTop = Math.Max(top, (int)Math.Floor(corners.Min(corner => corner.Y)));
-                int cardBottom = Math.Min(bottom, (int)Math.Ceiling(corners.Max(corner => corner.Y)));
+                var lowest = Vector2.Min(Vector2.Min(card.Origin, card.Origin + columnEnd), Vector2.Min(card.Origin + rowEnd, card.Origin + columnEnd + rowEnd));
+                var highest = Vector2.Max(Vector2.Max(card.Origin, card.Origin + columnEnd), Vector2.Max(card.Origin + rowEnd, card.Origin + columnEnd + rowEnd));
+                int cardLeft = Math.Max(left, (int)Math.Floor(lowest.X));
+                int cardRight = Math.Min(right, (int)Math.Ceiling(highest.X));
+                int cardTop = Math.Max(top, (int)Math.Floor(lowest.Y));
+                int cardBottom = Math.Min(bottom, (int)Math.Ceiling(highest.Y));
+                if (cardLeft >= cardRight || cardTop >= cardBottom)
+                {
+                    continue;
+                }
+
                 float determinant = card.ColumnStep.X * card.RowStep.Y - card.ColumnStep.Y * card.RowStep.X;
                 if (determinant == 0)
                 {
@@ -1278,14 +1665,11 @@ public sealed class MapRenderer
             return shadowed;
         }
 
-        private static int GetAmbientColor(byte color, PackedTint ambient, int shift) =>
-            color * (255 - ambient.GetNegative(shift)) / 255 + ambient.GetPositive(shift);
+        private static byte GetBufferAmbient(PackedTint ambient, int shift) =>
+            (byte)(Math.Min(255, 255 * (256 - ambient.GetNegative(shift)) / 256 + ambient.GetPositive(shift)) * LightBufferShare);
 
-        private static float GetSceneHeight(int depth)
-        {
-            float height = Math.Clamp((depth - FlatDepth) / (float)DepthPerHeight, MinLightHeight, LightHeightRange);
-            return MathF.Round(height / LightHeightRange * 255) / 255 * LightHeightRange;
-        }
+        // Multiply the scene by twice the buffer plus the positive ambient, then double it like the second engine quad
+        private static byte ApplyLight(byte color, byte light, int positive) => (byte)Math.Min(255, 2 * Math.Min(255, 2 * color * Math.Min(255, light + positive) / 255));
 
         private static Rgb24 Combine(VidBlend blend, Rgba32 over, Rgb24 under) => blend switch
         {

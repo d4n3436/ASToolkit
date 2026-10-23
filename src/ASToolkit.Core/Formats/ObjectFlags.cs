@@ -32,9 +32,9 @@ public enum ObjectFlags : uint
     Outline = 1 << 3,
 
     /// <summary>
-    /// The animation loops; without the flag the object stops on its last frame.
+    /// The animation step runs the queued actions of the object on every frame.
     /// </summary>
-    Loop = 1 << 4,
+    ActsEveryFrame = 1 << 4,
 
     /// <summary>
     /// The object blocks movement.

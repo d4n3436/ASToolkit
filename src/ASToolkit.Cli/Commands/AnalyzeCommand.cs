@@ -87,9 +87,10 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
         for (int mapIndex = 0; mapIndex < maps.Length; mapIndex++)
         {
             var r = reports[mapIndex];
+            string? image = images[mapIndex];
             table.AddRow(Markup.Escape(maps[mapIndex]), r?.Theme.ToString() ?? "", r is null ? $"[red]{problems[mapIndex]}[/]" : $"{r.TourPixels} px",
                 r?.SpineShare.ToString("0.00") ?? "", r?.Elongation.ToString("0.00") ?? "",
-                images[mapIndex] is null ? "" : Markup.Escape(images[mapIndex]) + (undrawn[mapIndex] > 0 ? $" [grey]({undrawn[mapIndex]} sprites undrawn)[/]" : ""));
+                image is null ? "" : Markup.Escape(image) + (undrawn[mapIndex] > 0 ? $" [grey]({undrawn[mapIndex]} sprites undrawn)[/]" : ""));
         }
 
         AnsiConsole.Write(table);

@@ -3,14 +3,13 @@
         xmlns:vm="using:ASToolkit.Gui.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="600"
+        mc:Ignorable="d" d:DesignWidth="1600" d:DesignHeight="900"
         x:Class="ASToolkit.Gui.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         x:CompileBindings="True"
-        Title="ASToolkit.Gui"
-        Width="900"
-        Height="600"
-        CanResize="False">
+        Title="ASToolkit"
+        Width="1600"
+        Height="900">
 
     <Design.DataContext>
         <!-- This only sets the DataContext for the previewer in an IDE,
@@ -18,25 +17,19 @@
         <vm:MainViewModel />
     </Design.DataContext>
 
-    <ScrollViewer>
-        <StackPanel>
-            <Border Margin="5" CornerRadius="10" Background="Gray">
-                <TextBlock Margin="5" FontSize="24" HorizontalAlignment="Center" Text="RES File inspector"></TextBlock>
-            </Border>
-        
-            <Button HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{Binding OpenButtonMargin}"
-                    Command="{Binding OpenFileAsync}" Content="Open File">
-                <Button.RenderTransform>
-                    <ScaleTransform ScaleX="1.5" ScaleY="1.5"></ScaleTransform>
-                </Button.RenderTransform>
-            </Button>
-            <TreeView Margin="10" ItemsSource="{Binding Nodes}">
-                <TreeView.ItemTemplate>
-                    <TreeDataTemplate ItemsSource="{Binding SubNodes}">
-                        <TextBlock Text="{Binding Title}"/>
-                    </TreeDataTemplate>
-                </TreeView.ItemTemplate>
-            </TreeView>
-        </StackPanel>
-    </ScrollViewer>
+    <TabControl SelectedIndex="{Binding SelectedTab}" Padding="0">
+        <TabControl.Styles>
+            <Style Selector="TabItem">
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="MinHeight" Value="30" />
+                <Setter Property="Padding" Value="10,0" />
+            </Style>
+        </TabControl.Styles>
+        <TabItem Header="RES file inspector">
+            <ContentControl Content="{Binding Inspector}" />
+        </TabItem>
+        <TabItem Header="Map viewer">
+            <ContentControl Content="{Binding Viewer}" />
+        </TabItem>
+    </TabControl>
 </Window>

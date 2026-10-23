@@ -10,6 +10,7 @@ It is written in C# on .NET 10 and works on an installed copy of the game.
 ## Features
 
 - **Level generation:** Builds new levels in the style of the originals and installs them as a new add-on called RANDOM, with its own button on the play menu.
+- **Map viewer:** A map viewer that faithfully recreates the Alien Shooter 1/2 rendering engines and supports both games
 - **Widescreen patch:** Adds more resolutions, a borderless window mode and a HUD that fits wide screens.
 - **Level analysis:** Works out the route a player takes through a level and draws it over an image of the map.
 - **Rule checks:** Tests levels against the rules the generator follows.
@@ -54,11 +55,16 @@ The generator builds each level around the route the player will take, following
 
 `widescreen apply` patches the executable and a few game scripts. It requires the stock GOG 1.2 executable and keeps backups, which `widescreen restore` puts back.
 
+## Toolkit GUI
+
+A GUI for the toolkit is included on the repo (the `ASToolkit.Gui` project). It currently has a RES file inspector and a map viewer.
+
 ## Project layout
 
 ```
 src/ASToolkit.Core    File formats, level generation, rules, route analysis and patchers
 src/ASToolkit.Cli     The ascli program
+src/ASToolkit.Gui     A GUI for the toolkit
 tests/                Unit tests
 docs/                 Documentation
 ```

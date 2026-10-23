@@ -2,13 +2,89 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="ASToolkit.Gui.App"
              xmlns:local="using:ASToolkit.Gui"
-             RequestedThemeVariant="Light">
+             RequestedThemeVariant="Dark">
 
     <Application.DataTemplates>
         <local:ViewLocator />
     </Application.DataTemplates>
 
+    <Application.Resources>
+        <Color x:Key="WindowColor">#202326</Color>
+        <Color x:Key="ToolbarColor">#292C30</Color>
+        <Color x:Key="FrameColor">#4D5156</Color>
+        <Color x:Key="FieldColor">#141618</Color>
+        <Color x:Key="TextColor">#FCFCFC</Color>
+        <Color x:Key="CheckColor">#FCFCFC</Color>
+        <Color x:Key="HighlightColor">#3DAEE9</Color>
+        <Color x:Key="ButtonTopColor">#2E3236</Color>
+        <Color x:Key="ButtonBottomColor">#292C30</Color>
+        <Color x:Key="ButtonHoverTopColor">#353A3F</Color>
+        <Color x:Key="ButtonHoverBottomColor">#2F3337</Color>
+        <Color x:Key="ButtonPressedColor">#1E5774</Color>
+
+        <SolidColorBrush x:Key="WindowBrush" Color="{StaticResource WindowColor}" />
+        <SolidColorBrush x:Key="ToolbarBrush" Color="{StaticResource ToolbarColor}" />
+        <SolidColorBrush x:Key="FrameBrush" Color="{StaticResource FrameColor}" />
+        <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextColor}" />
+        <LinearGradientBrush x:Key="QtButtonBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Offset="0" Color="{StaticResource ButtonTopColor}" />
+            <GradientStop Offset="1" Color="{StaticResource ButtonBottomColor}" />
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="QtButtonHoverBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Offset="0" Color="{StaticResource ButtonHoverTopColor}" />
+            <GradientStop Offset="1" Color="{StaticResource ButtonHoverBottomColor}" />
+        </LinearGradientBrush>
+        <SolidColorBrush x:Key="QtButtonPressedBrush" Color="{StaticResource ButtonPressedColor}" />
+
+        <StaticResource x:Key="ButtonBackground" ResourceKey="QtButtonBrush" />
+        <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="QtButtonHoverBrush" />
+        <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="QtButtonPressedBrush" />
+        <SolidColorBrush x:Key="ButtonForeground" Color="{StaticResource TextColor}" />
+        <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="{StaticResource TextColor}" />
+        <SolidColorBrush x:Key="ButtonForegroundPressed" Color="{StaticResource TextColor}" />
+        <SolidColorBrush x:Key="ButtonBorderBrush" Color="{StaticResource FrameColor}" />
+        <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="{StaticResource HighlightColor}" />
+        <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="{StaticResource FrameColor}" />
+
+        <SolidColorBrush x:Key="ComboBoxBackground" Color="{StaticResource FieldColor}" />
+        <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="{StaticResource FieldColor}" />
+        <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="{StaticResource FieldColor}" />
+        <SolidColorBrush x:Key="ComboBoxBackgroundFocused" Color="{StaticResource FieldColor}" />
+        <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="{StaticResource FrameColor}" />
+        <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="{StaticResource HighlightColor}" />
+        <SolidColorBrush x:Key="ComboBoxBorderBrushPressed" Color="{StaticResource HighlightColor}" />
+
+        <SolidColorBrush x:Key="TextControlBackground" Color="{StaticResource FieldColor}" />
+        <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="{StaticResource FieldColor}" />
+        <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="{StaticResource FieldColor}" />
+        <SolidColorBrush x:Key="TextControlBorderBrush" Color="{StaticResource FrameColor}" />
+        <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="{StaticResource HighlightColor}" />
+        <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="{StaticResource HighlightColor}" />
+
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillUnchecked" Color="{StaticResource FieldColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillUncheckedPointerOver" Color="{StaticResource FieldColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillUncheckedPressed" Color="{StaticResource FieldColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{StaticResource FieldColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPointerOver" Color="{StaticResource FieldColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPressed" Color="{StaticResource FieldColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUnchecked" Color="{StaticResource FrameColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUncheckedPointerOver" Color="{StaticResource HighlightColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUncheckedPressed" Color="{StaticResource FrameColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeChecked" Color="{StaticResource FrameColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeCheckedPointerOver" Color="{StaticResource HighlightColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeCheckedPressed" Color="{StaticResource FrameColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="{StaticResource CheckColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPointerOver" Color="{StaticResource CheckColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPressed" Color="{StaticResource CheckColor}" />
+        <SolidColorBrush x:Key="CheckBoxForegroundUnchecked" Color="{StaticResource TextColor}" />
+        <SolidColorBrush x:Key="CheckBoxForegroundChecked" Color="{StaticResource TextColor}" />
+    </Application.Resources>
+
     <Application.Styles>
-        <FluentTheme />
+        <FluentTheme DensityStyle="Compact" />
+        <Style Selector="Window">
+        <Setter Property="Background" Value="{StaticResource WindowBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        </Style>
     </Application.Styles>
 </Application>

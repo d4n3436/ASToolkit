@@ -17,7 +17,14 @@ public class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow { DataContext = new MainViewModel(), };
+            var viewModel = new MainViewModel();
+            if (desktop.Args?.Length > 0 && Directory.Exists(desktop.Args[0]))
+            {
+                viewModel.Viewer.OpenGame(desktop.Args[0], desktop.Args.Length > 1 ? desktop.Args[1] : null);
+                viewModel.SelectedTab = 1;
+            }
+
+            desktop.MainWindow = new MainWindow { DataContext = viewModel };
         }
 
         base.OnFrameworkInitializationCompleted();

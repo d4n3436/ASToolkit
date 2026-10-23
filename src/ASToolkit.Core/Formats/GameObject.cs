@@ -27,8 +27,10 @@ public readonly struct GameObject
         AttachedOffsetY = old.AttachedOffsetY;
         AttachedOffsetZ = old.AttachedOffsetZ;
         AttachedObject = old.AttachedObject;
+        StepHeight = old.StepHeight;
         Directions = old.Directions;
-        FramesPerDirection = old.FramesPerDirection;
+        FrameCounts = old.FrameCounts;
+        FrameDurations = old.FrameDurations;
         TintRed = old.TintRed;
         TintGreen = old.TintGreen;
         TintBlue = old.TintBlue;
@@ -111,16 +113,28 @@ public readonly struct GameObject
     public readonly KnownObject AttachedObject;
 
     /// <summary>
+    /// The highest step the object climbs, and the height a bobbing object rises and sinks by.
+    /// </summary>
+    [FieldOffset(100)]
+    public readonly float StepHeight;
+
+    /// <summary>
     /// The number of directions the sprite has frames for. Every entry of the game has at least 1.
     /// </summary>
     [FieldOffset(128)]
     public readonly int Directions;
 
     /// <summary>
-    /// The number of frames of the first animation in each direction.
+    /// The number of frames in each direction of each animation state.
     /// </summary>
     [FieldOffset(132)]
-    public readonly int FramesPerDirection;
+    public readonly StateValues FrameCounts;
+
+    /// <summary>
+    /// The frame duration of each animation state in milliseconds, or 0 for the speed of the sprite.
+    /// </summary>
+    [FieldOffset(268)]
+    public readonly StateValues FrameDurations;
 
     /// <summary>
     /// The color shift of the red channel of the sprite's palette.
@@ -185,6 +199,11 @@ public readonly struct GameObject
     public Vector3 Scale => new(ScaleX, ScaleY, ScaleZ);
 
     /// <summary>
+    /// Gets the number of frames of the first animation state in each direction.
+    /// </summary>
+    public int FramesPerDirection => FrameCounts[0];
+
+    /// <summary>
     /// Gets a value indicating whether the object stops the player.
     /// </summary>
     public bool IsSolid => Flags.HasFlag(ObjectFlags.Solid);
@@ -211,4 +230,23 @@ public readonly struct GameObject
     /// Returns the index of the direction the engine picks for a direction byte.
     /// </summary>
     public int GetDirection(byte dir) => ((dir + 128 / Directions) & 255) * Directions >> 8;
+
+    /// <summary>
+    /// Returns the sprite frame that starts an animation state.
+    /// </summary>
+    public int GetStateStart(int state)
+    {
+        int start = 0;
+        for (int previous = 0; previous < state; previous++)
+        {
+            start += FrameCounts[previous] * Directions;
+        }
+
+        return start;
+    }
+
+    /// <summary>
+    /// Returns the frame duration of an animation state in milliseconds, given the speed of the sprite.
+    /// </summary>
+    public int GetFrameDuration(int state, int spriteSpeed) => FrameDurations[state] == 0 ? spriteSpeed : FrameDurations[state];
 }

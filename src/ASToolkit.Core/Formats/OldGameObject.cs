@@ -81,16 +81,28 @@ internal readonly struct OldGameObject
     public readonly KnownObject AttachedObject;
 
     /// <summary>
+    /// The highest step the object climbs, and the height a bobbing object rises and sinks by.
+    /// </summary>
+    [FieldOffset(84)]
+    public readonly float StepHeight;
+
+    /// <summary>
     /// The number of directions the sprite has frames for.
     /// </summary>
     [FieldOffset(112)]
     public readonly int Directions;
 
     /// <summary>
-    /// The number of frames of the first animation in each direction.
+    /// The number of frames in each direction of each animation state.
     /// </summary>
     [FieldOffset(116)]
-    public readonly int FramesPerDirection;
+    public readonly StateValues FrameCounts;
+
+    /// <summary>
+    /// The frame duration of each animation state in milliseconds, or 0 for the speed of the sprite.
+    /// </summary>
+    [FieldOffset(252)]
+    public readonly StateValues FrameDurations;
 
     /// <summary>
     /// The color shift of the red channel of the sprite's palette.
