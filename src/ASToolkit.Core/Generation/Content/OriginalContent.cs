@@ -30,7 +30,7 @@ public sealed class OriginalContent
     public required int HitPoints { get; init; }
 
     /// <summary>Gets the share of the hit points spawners bring.</summary>
-    public required double SpawnedShare { get; init; }
+    public required float SpawnedShare { get; init; }
 
     /// <summary>Gets the number of mounted cannons.</summary>
     public required int MountedCannons { get; init; }
@@ -96,7 +96,7 @@ public sealed class OriginalContent
             CrateLoot = loot,
             Bosses = bosses,
             HitPoints = placedHp + spawnedHp,
-            SpawnedShare = spawnedHp / (double)Math.Max(1, placedHp + spawnedHp),
+            SpawnedShare = spawnedHp / (float)Math.Max(1, placedHp + spawnedHp),
             MountedCannons = sp.Count(s => s.Id == KnownObject.MountedCannon),
             Generators = sp.Count(s => s.Id == KnownObject.Generator)
         };
@@ -113,7 +113,7 @@ public sealed class OriginalContent
             var sp = MapResourceBuilder.Load(Path.Combine(gameFolder, "Maps", level)).Sprites;
             foreach (var breaker in sp.Where(s => s.Id == KnownObject.Breaker))
             {
-                scenes.Add(sp.Where(o => o.Id is KnownObject.ObjectMarker or KnownObject.Shelves or KnownObject.Table or KnownObject.Cabinet or KnownObject.Transformer or KnownObject.SoldierCorpse or KnownObject.BloodPool or KnownObject.LargeBloodPool && Math.Sqrt(Math.Pow(o.Position.X - breaker.Position.X, 2) + Math.Pow(o.Position.Y - breaker.Position.Y, 2)) < 170)
+                scenes.Add(sp.Where(o => o.Id is KnownObject.ObjectMarker or KnownObject.Shelves or KnownObject.Table or KnownObject.Cabinet or KnownObject.Transformer or KnownObject.SoldierCorpse or KnownObject.BloodPool or KnownObject.LargeBloodPool && MathF.Sqrt(MathF.Pow(o.Position.X - breaker.Position.X, 2) + MathF.Pow(o.Position.Y - breaker.Position.Y, 2)) < 170)
                     .Select(o => new PropPlacement(o.Id, o.Position.X - breaker.Position.X, o.Position.Y - breaker.Position.Y, o.Position.Z, o.Facing)).ToArray());
             }
         }
@@ -133,7 +133,7 @@ public sealed class OriginalContent
             foreach (var sprite in sp.Where(s => s.Id == KnownObject.DynamiteSite))
             {
                 var members = sp
-                    .Where(o => (o.Id is KnownObject.TeleportPad or KnownObject.BigMonsterHole or KnownObject.SmallMonsterHole || o.Id.IsEndlessGenerator) && Math.Sqrt(Math.Pow(o.Position.X - sprite.Position.X, 2) + Math.Pow(o.Position.Y - sprite.Position.Y, 2)) < 130)
+                    .Where(o => (o.Id is KnownObject.TeleportPad or KnownObject.BigMonsterHole or KnownObject.SmallMonsterHole || o.Id.IsEndlessGenerator) && MathF.Sqrt(MathF.Pow(o.Position.X - sprite.Position.X, 2) + MathF.Pow(o.Position.Y - sprite.Position.Y, 2)) < 130)
                     .Select(o => new SiteMember(o.Id, o.Position.X - sprite.Position.X, o.Position.Y - sprite.Position.Y, o.Position.Z, o.Facing, o.Army,
                         o.Payload.Length <= 12 ? o.Payload : new byte[o.Id == KnownObject.TeleportPad ? 12 : 8]))
                     .ToList();
@@ -174,7 +174,7 @@ public sealed class OriginalContent
                 var a = monsters[group[memberIndex]];
                 for (int innerMonsterIndex = 0; innerMonsterIndex < monsters.Length; innerMonsterIndex++)
                 {
-                    if (!seen[innerMonsterIndex] && Math.Sqrt(Math.Pow(monsters[innerMonsterIndex].Position.X - a.Position.X, 2) + Math.Pow(monsters[innerMonsterIndex].Position.Y - a.Position.Y, 2)) < 110)
+                    if (!seen[innerMonsterIndex] && MathF.Sqrt(MathF.Pow(monsters[innerMonsterIndex].Position.X - a.Position.X, 2) + MathF.Pow(monsters[innerMonsterIndex].Position.Y - a.Position.Y, 2)) < 110)
                     {
                         seen[innerMonsterIndex] = true;
                         group.Add(innerMonsterIndex);
@@ -182,8 +182,8 @@ public sealed class OriginalContent
                 }
             }
 
-            double cx = group.Average(k => monsters[k].Position.X);
-            double cy = group.Average(k => monsters[k].Position.Y);
+            float cx = group.Average(k => monsters[k].Position.X);
+            float cy = group.Average(k => monsters[k].Position.Y);
             groups.Add(group.Select(k => new GroupMember(monsters[k].Id, monsters[k].Position.X - cx, monsters[k].Position.Y - cy, monsters[k].Facing)).ToArray());
         }
 

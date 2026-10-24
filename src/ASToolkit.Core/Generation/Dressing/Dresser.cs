@@ -72,7 +72,7 @@ public static class Dresser
     /// <summary>
     /// Returns the cells a solid object's collision box touches, sampled at its corners, edge midpoints and center.
     /// </summary>
-    public static HashSet<Cell> GetFootprint(Lattice lattice, ObjectTable objects, KnownObject id, double x, double y)
+    public static HashSet<Cell> GetFootprint(Lattice lattice, ObjectTable objects, KnownObject id, float x, float y)
     {
         var cells = new HashSet<Cell>();
         if (!objects.TryFind(id, out var obj) || !obj.IsSolid)
@@ -80,11 +80,11 @@ public static class Dresser
             return cells;
         }
 
-        double hx = .33 * obj.Size.X + 14;
-        double hy = .33 * obj.Size.Y + 14;
-        foreach (double dx in new[] { -hx, 0, hx })
+        float hx = 0.33f * obj.Size.X + 14;
+        float hy = 0.33f * obj.Size.Y + 14;
+        foreach (float dx in new[] { -hx, 0, hx })
         {
-            foreach (double dy in new[] { -hy, 0, hy })
+            foreach (float dy in new[] { -hy, 0, hy })
             {
                 cells.Add(lattice.GetCell(x + dx, y + dy));
             }
@@ -103,7 +103,7 @@ public static class Dresser
         var footprints = new Dictionary<PlacedDecor, HashSet<Cell>>(ReferenceEqualityComparer.Instance);
         foreach (var placedObject in placed)
         {
-            (double x, double y) = lattice.ToWorld(placedObject.U, placedObject.V);
+            (float x, float y) = lattice.ToWorld(placedObject.U, placedObject.V);
             var fp = GetFootprint(lattice, objects, placedObject.Id, x, y);
             if (fp.Count > 0)
             {

@@ -7,9 +7,9 @@ namespace ASToolkit.Core.Rules.Checks;
 /// </summary>
 public sealed class WallClearanceRule : ILevelRule
 {
-    private const double FloorHeight = 5;
-    private const double Tolerance = 0.05;
-    private const double MaxCloseShare = 0.12;
+    private const float FloorHeight = 5;
+    private const float Tolerance = 0.05f;
+    private const float MaxCloseShare = 0.12f;
 
     /// <inheritdoc/>
     public string Id => "A14";
@@ -29,13 +29,13 @@ public sealed class WallClearanceRule : ILevelRule
         var inWall = new List<string>();
         foreach (var levelObject in model.Objects.Where(o => o.Z < FloorHeight))
         {
-            if (!table.TryGetClearance(levelObject.Id, out double minimum, out double low))
+            if (!table.TryGetClearance(levelObject.Id, out float minimum, out float low))
             {
                 continue;
             }
 
-            double d = WallClearanceTable.MeasureDistance(model.Edges, levelObject.U, levelObject.V);
-            if (double.IsInfinity(d))
+            float d = WallClearanceTable.MeasureDistance(model.Edges, levelObject.U, levelObject.V);
+            if (float.IsInfinity(d))
             {
                 continue;
             }
@@ -48,7 +48,7 @@ public sealed class WallClearanceRule : ILevelRule
 
             if (d < minimum - Tolerance)
             {
-                (double x, double y) = model.Lattice.ToWorld(levelObject.U, levelObject.V);
+                (float x, float y) = model.Lattice.ToWorld(levelObject.U, levelObject.V);
                 inWall.Add($"{levelObject.Id} at ({x:0}, {y:0})");
             }
         }

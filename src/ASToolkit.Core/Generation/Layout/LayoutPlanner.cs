@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Drawing;
 using ASToolkit.Core.Levels;
 
 namespace ASToolkit.Core.Generation.Layout;
@@ -8,28 +9,28 @@ namespace ASToolkit.Core.Generation.Layout;
 /// </summary>
 public static class LayoutPlanner
 {
-    private const double LabChainPerSpine = 0.65;
-    private const double MilitaryChainPerSpine = 0.9;
-    private const double MaxStationShare = 0.58;
-    private const double WalkPerUnitStep = 0.8;
-    private const double BranchShare = 0.6;
-    private const double ForkChance = 0.35;
-    private const double MaxAspectStretch = 0.6;
+    private const float LabChainPerSpine = 0.65f;
+    private const float MilitaryChainPerSpine = 0.9f;
+    private const float MaxStationShare = 0.58f;
+    private const float WalkPerUnitStep = 0.8f;
+    private const float BranchShare = 0.6f;
+    private const float ForkChance = 0.35f;
+    private const float MaxAspectStretch = 0.6f;
     private const int MaxPocketUnits = 2;
     private const int MaxBranchTries = 160;
-    private const double BlackoutReach = 1700;
+    private const float BlackoutReach = 1700;
     private static readonly (int U, int V)[] Headings = [(1, 0), (0, 1), (-1, 0), (0, -1)];
-    private static readonly (int W, int H)[] ClosetSizes = [(2, 3), (3, 2), (3, 3), (2, 2)];
+    private static readonly Size[] ClosetSizes = [new(2, 3), new(3, 2), new(3, 3), new(2, 2)];
 
     /// <summary>
     /// Plans a layout of about the target area inside a box that it fills to about the given share, with a main route
     /// as long as the given elongation times the square root of the area and no room walked farther than the maximum
     /// elongation allows, or returns null when the attempt boxed itself in.
     /// </summary>
-    public static LayoutPlan? Plan(Random rng, ThemeSettings theme, int targetUnits, double fill, double elongation, double maxElongation, GateRequest? gate, int secretClosets, int spawnClosets, int shortcuts)
+    public static LayoutPlan? Plan(Random rng, ThemeSettings theme, int targetUnits, float fill, float elongation, float maxElongation, GateRequest? gate, int secretClosets, int spawnClosets, int shortcuts)
     {
         var plan = new LayoutPlan(theme);
-        double spine = elongation * Math.Sqrt(targetUnits);
+        float spine = elongation * MathF.Sqrt(targetUnits);
         GrowStations(rng, plan, (int)(targetUnits * MaxStationShare), spine * (theme.Theme == LevelTheme.Lab ? LabChainPerSpine : MilitaryChainPerSpine), targetUnits / fill);
         if (plan.Stations.Count < 5)
         {
@@ -42,7 +43,7 @@ public static class LayoutPlanner
         }
 
         // Walks cut corners and cover less than a unit per step. Leave room for a blackout's search walk past the trigger.
-        double maxWalk = maxElongation * Math.Sqrt(targetUnits) / WalkPerUnitStep;
+        float maxWalk = maxElongation * MathF.Sqrt(targetUnits) / WalkPerUnitStep;
         if (gate is { Kind: GateKind.Blackout, IsWing: false })
         {
             maxWalk = Math.Max(maxWalk, (BlackoutReach + gate.SearchPixels) / (theme.UnitPixels * WalkPerUnitStep));
@@ -145,7 +146,7 @@ public static class LayoutPlanner
     /// <summary>
     /// Returns the walking length along the main route between two links, in pixels.
     /// </summary>
-    public static double MeasureChain(LayoutPlan plan, PlanLink from, PlanLink to)
+    public static float MeasureChain(LayoutPlan plan, PlanLink from, PlanLink to)
     {
         int a = plan.Stations.FindIndex(s => s.Id == from.To);
         int b = plan.Stations.FindIndex(s => s.Id == to.From);
@@ -154,7 +155,7 @@ public static class LayoutPlanner
             return 0;
         }
 
-        double units = 0;
+        float units = 0;
         var previous = GetMidpoint(from.Edges);
         for (int index = a; index <= b; index++)
         {
@@ -170,13 +171,13 @@ public static class LayoutPlanner
     private static PlanLink GetChainLink(LayoutPlan plan, int station) =>
         plan.Links.First(l => l.From == plan.Stations[station].Id && l.To == plan.Stations[station + 1].Id);
 
-    private static (double U, double V) GetMidpoint(IReadOnlyList<EdgeKey> edges)
+    private static (float U, float V) GetMidpoint(IReadOnlyList<EdgeKey> edges)
     {
-        double u = 0;
-        double v = 0;
+        float u = 0;
+        float v = 0;
         foreach (var edge in edges)
         {
-            (double eu, double ev) = edge.Axis == 'u' ? (edge.A, edge.B + .5) : (edge.A + .5, (double)edge.B);
+            (float eu, float ev) = edge.Axis == 'u' ? (edge.A, edge.B + 0.5f) : (edge.A + 0.5f, (float)edge.B);
             u += eu;
             v += ev;
         }
@@ -186,13 +187,13 @@ public static class LayoutPlanner
 
     private static int Next(Random rng, (int Min, int Max) range) => rng.Next(range.Min, range.Max + 1);
 
-    private static void GrowStations(Random rng, LayoutPlan plan, int stationUnits, double chainUnits, double boxUnits)
+    private static void GrowStations(Random rng, LayoutPlan plan, int stationUnits, float chainUnits, float boxUnits)
     {
         var t = plan.Theme;
         var first = new UnitRect(0, 0, Next(rng, (t.RoomSize.Min, (t.RoomSize.Min + t.RoomSize.Max) / 2)), Next(rng, (t.RoomSize.Min, (t.RoomSize.Min + t.RoomSize.Max) / 2)));
-        double aspect = 1 + MaxAspectStretch * rng.NextDouble();
-        int boxW = Math.Max(first.W + 2, (int)Math.Round(Math.Sqrt(boxUnits * aspect)));
-        int boxH = Math.Max(first.H + 2, (int)Math.Round(boxUnits / boxW));
+        float aspect = 1 + MaxAspectStretch * rng.NextSingle();
+        int boxW = Math.Max(first.W + 2, (int)MathF.Round(MathF.Sqrt(boxUnits * aspect)));
+        int boxH = Math.Max(first.H + 2, (int)MathF.Round(boxUnits / boxW));
         if (rng.Next(2) == 0)
         {
             (boxW, boxH) = (boxH, boxW);
@@ -202,15 +203,15 @@ public static class LayoutPlanner
         plan.Stations.Add(plan.AddRegion(RegionKind.Station, first, 0, null));
         int heading = rng.Next(4);
         int area = first.Area;
-        double chain = 0;
-        var entry = (U: first.U + first.W / 2.0, V: first.V + first.H / 2.0);
+        float chain = 0;
+        var entry = (U: first.U + first.W / 2.0f, V: first.V + first.H / 2.0f);
         for (int tries = 0; area < stationUnits && chain < chainUnits && tries < 400; tries++)
         {
             var previous = plan.Stations[^1];
-            bool isHall = !previous.IsHall || rng.NextDouble() < 0.3;
+            bool isHall = !previous.IsHall || rng.NextSingle() < 0.3f;
             int length = isHall ? Next(rng, t.HallLength) : Next(rng, t.RoomSize);
             int width = isHall ? Next(rng, t.HallWidth) : Next(rng, t.RoomSize);
-            int turn = rng.NextDouble() < 0.35 ? rng.Next(2) == 0 ? 1 : 3 : 0;
+            int turn = rng.NextSingle() < 0.35f ? rng.Next(2) == 0 ? 1 : 3 : 0;
             UnitRect? placed = null;
             foreach (int candidateHeading in new[] { (heading + turn) % 4, heading, (heading + 1) % 4, (heading + 3) % 4 })
             {
@@ -231,8 +232,8 @@ public static class LayoutPlanner
             plan.Stations.Add(station);
             area += placed.Value.Area;
             var kind = plan.Theme.Theme == LevelTheme.Lab
-                ? Pick(rng, (LinkKind.Door, 0.45), (LinkKind.Arch, 0.45), (LinkKind.Open, 0.10))
-                : Pick(rng, (LinkKind.Arch, 0.8), (LinkKind.Open, 0.2));
+                ? Pick(rng, (LinkKind.Door, 0.45f), (LinkKind.Arch, 0.45f), (LinkKind.Open, 0.10f))
+                : Pick(rng, (LinkKind.Arch, 0.8f), (LinkKind.Open, 0.2f));
             AddLink(rng, plan, previous, station, previous.Rects[0].GetSharedEdges(placed.Value), kind);
             var exit = GetMidpoint(plan.Links[^1].Boundary);
             chain += Math.Abs(exit.U - entry.U) + Math.Abs(exit.V - entry.V);
@@ -267,7 +268,7 @@ public static class LayoutPlanner
         return null;
     }
 
-    private static PlanRegion[] GrowBranches(Random rng, LayoutPlan plan, int branchUnits, Dictionary<Cell, int> walk, double maxWalk)
+    private static PlanRegion[] GrowBranches(Random rng, LayoutPlan plan, int branchUnits, Dictionary<Cell, int> walk, float maxWalk)
     {
         var t = plan.Theme;
         var all = new List<PlanRegion>();
@@ -286,8 +287,8 @@ public static class LayoutPlanner
             int budget = (branchUnits - all.Sum(r => r.Units.Count)) / (count - grown);
             for (int tries = 0; area < budget && tries < MaxBranchTries; tries++)
             {
-                var previous = branch.Count == 0 ? plan.Stations[host] : rng.NextDouble() < ForkChance ? branch[rng.Next(branch.Count)] : branch[^1];
-                bool isHall = branch.Count > 0 && !previous.IsHall && rng.NextDouble() < 0.4;
+                var previous = branch.Count == 0 ? plan.Stations[host] : rng.NextSingle() < ForkChance ? branch[rng.Next(branch.Count)] : branch[^1];
+                bool isHall = branch.Count > 0 && !previous.IsHall && rng.NextSingle() < 0.4f;
                 int length = isHall ? Next(rng, t.HallLength) : Next(rng, t.RoomSize);
                 int width = isHall ? Next(rng, t.HallWidth) : Next(rng, t.RoomSize);
                 UnitRect? placed = null;
@@ -307,8 +308,8 @@ public static class LayoutPlanner
 
                 var region = plan.AddRegion(RegionKind.SideRoom, placed.Value, host, previous.Id, isHall);
                 var kind = t.Theme == LevelTheme.Lab
-                    ? Pick(rng, (LinkKind.Door, branch.Count == 0 ? 0.6 : 0.4), (LinkKind.Arch, 0.5), (LinkKind.Open, branch.Count == 0 ? 0 : 0.1))
-                    : Pick(rng, (LinkKind.Arch, 0.8), (LinkKind.Open, 0.2));
+                    ? Pick(rng, (LinkKind.Door, branch.Count == 0 ? 0.6f : 0.4f), (LinkKind.Arch, 0.5f), (LinkKind.Open, branch.Count == 0 ? 0 : 0.1f))
+                    : Pick(rng, (LinkKind.Arch, 0.8f), (LinkKind.Open, 0.2f));
                 AddLink(rng, plan, previous, region, previous.Rects[0].GetSharedEdges(placed.Value), kind);
                 if (!TryExtendWalk(plan, walk, region, maxWalk))
                 {
@@ -330,7 +331,7 @@ public static class LayoutPlanner
         return all.ToArray();
     }
 
-    private static void AddSideRooms(Random rng, LayoutPlan plan, int targetUnits, IReadOnlyList<PlanRegion> branches, Dictionary<Cell, int> walk, double maxWalk)
+    private static void AddSideRooms(Random rng, LayoutPlan plan, int targetUnits, IReadOnlyList<PlanRegion> branches, Dictionary<Cell, int> walk, float maxWalk)
     {
         var t = plan.Theme;
         for (int tries = 0; plan.Area < targetUnits && tries < 6000; tries++)
@@ -351,8 +352,8 @@ public static class LayoutPlanner
 
             int shared = plan.Links[^1].Boundary.Length;
             var kind = t.Theme == LevelTheme.Lab
-                ? Pick(rng, (LinkKind.Door, 0.62), (LinkKind.Arch, 0.3), (LinkKind.Open, host.Kind == RegionKind.SideRoom ? 0.08 : 0))
-                : Pick(rng, (LinkKind.Arch, 0.8), (LinkKind.Open, shared <= 6 ? 0.2 : 0));
+                ? Pick(rng, (LinkKind.Door, 0.62f), (LinkKind.Arch, 0.3f), (LinkKind.Open, host.Kind == RegionKind.SideRoom ? 0.08f : 0))
+                : Pick(rng, (LinkKind.Arch, 0.8f), (LinkKind.Open, shared <= 6 ? 0.2f : 0));
             SetLinkKind(rng, plan, plan.Links[^1], kind);
         }
     }
@@ -398,7 +399,7 @@ public static class LayoutPlanner
         int width = kind switch
         {
             LinkKind.Arch => Math.Max(2, Math.Min(Next(rng, plan.Theme.ArchWidth), inner.Length)),
-            LinkKind.Door => inner.Length >= 2 && rng.NextDouble() < 0.45 ? 2 : 1,
+            LinkKind.Door => inner.Length >= 2 && rng.NextSingle() < 0.45f ? 2 : 1,
             _ => 1
         };
         link.Kind = kind;
@@ -463,10 +464,10 @@ public static class LayoutPlanner
         int Region(int u, int v) => plan.Occupancy.GetValueOrDefault(new Cell(u, v), -1);
     }
 
-    private static LinkKind Pick(Random rng, params (LinkKind Kind, double Weight)[] choices)
+    private static LinkKind Pick(Random rng, params (LinkKind Kind, float Weight)[] choices)
     {
-        double roll = rng.NextDouble() * choices.Sum(c => c.Weight);
-        foreach ((var kind, double weight) in choices)
+        float roll = rng.NextSingle() * choices.Sum(c => c.Weight);
+        foreach ((var kind, float weight) in choices)
         {
             roll -= weight;
             if (roll < 0)
@@ -487,7 +488,7 @@ public static class LayoutPlanner
         {
             // Put the trigger on the last chain link within reach of the start
             var first = GetChainLink(plan, 0);
-            double startOffset = first.Edges.Count > 0 ? plan.Theme.UnitPixels * (plan.Stations[0].Rects[0].W + plan.Stations[0].Rects[0].H) / 4 : 0;
+            float startOffset = first.Edges.Count > 0 ? plan.Theme.UnitPixels * (plan.Stations[0].Rects[0].W + plan.Stations[0].Rects[0].H) / 4 : 0;
             blackout = Enumerable.Range(0, count - 3).Where(b => startOffset + MeasureChain(plan, first, GetChainLink(plan, b)) <= BlackoutReach).DefaultIfEmpty(0).Max();
         }
 
@@ -502,7 +503,7 @@ public static class LayoutPlanner
             cut = cuts.OrderBy(k => Math.Abs(BehindShare(k) - gate.Share)).First();
             if (gate.Kind == GateKind.Fences)
             {
-                cut = cuts.Where(k => Math.Abs(BehindShare(k) - gate.Share) <= 0.08).DefaultIfEmpty(cut).Max();
+                cut = cuts.Where(k => Math.Abs(BehindShare(k) - gate.Share) <= 0.08f).DefaultIfEmpty(cut).Max();
             }
         }
 
@@ -541,7 +542,7 @@ public static class LayoutPlanner
             // Hang the breaker room off the open room that lies the search walk from the trigger
             var trigger = plan.BlackoutLink!.Edges.SelectMany(e => new[] { e.Cells.First, e.Cells.Second }).Where(plan.Occupancy.ContainsKey).Distinct();
             var walk = MeasureWalk(plan, trigger, openOnly: true);
-            double Farthest(PlanRegion r) => r.Units.Where(walk.ContainsKey).Select(c => walk[c]).DefaultIfEmpty(0).Max() * plan.Theme.UnitPixels * WalkPerUnitStep;
+            float Farthest(PlanRegion r) => r.Units.Where(walk.ContainsKey).Select(c => walk[c]).DefaultIfEmpty(0).Max() * plan.Theme.UnitPixels * WalkPerUnitStep;
             hosts = plan.Regions.Where(r => r.Kind is RegionKind.Station or RegionKind.SideRoom && !r.IsGated && r.Station > blackout)
                 .OrderBy(r => Math.Abs(Farthest(r) - gate.SearchPixels)).Take(6).ToArray();
         }
@@ -561,7 +562,7 @@ public static class LayoutPlanner
 
         return false;
         
-        double BehindShare(int k) => plan.Regions.Where(r => r.Station > k).Sum(r => r.Units.Count) / (double)plan.Area;
+        float BehindShare(int k) => plan.Regions.Where(r => r.Station > k).Sum(r => r.Units.Count) / (float)plan.Area;
     }
 
     private static Dictionary<Cell, int> MeasureWalk(LayoutPlan plan, IEnumerable<Cell> sources, bool openOnly)
@@ -601,7 +602,7 @@ public static class LayoutPlanner
     }
 
     // Undo the last region and link if any of its units lies past the walk cap
-    private static bool TryExtendWalk(LayoutPlan plan, Dictionary<Cell, int> walk, PlanRegion region, double maxWalk)
+    private static bool TryExtendWalk(LayoutPlan plan, Dictionary<Cell, int> walk, PlanRegion region, float maxWalk)
     {
         var added = new Dictionary<Cell, int>();
         var queue = new Queue<Cell>();
@@ -652,9 +653,9 @@ public static class LayoutPlanner
     {
         var t = plan.Theme;
         var start = GetChainLink(plan, 0);
-        double chain = MeasureChain(plan, start, GetChainLink(plan, plan.Stations.Count - 2));
+        float chain = MeasureChain(plan, start, GetChainLink(plan, plan.Stations.Count - 2));
         int[] hosts = Enumerable.Range(1, plan.Stations.Count - 3)
-            .OrderBy(k => Math.Abs(MeasureChain(plan, start, GetChainLink(plan, k)) - 0.3 * chain)).Take(4).ToArray();
+            .OrderBy(k => Math.Abs(MeasureChain(plan, start, GetChainLink(plan, k)) - 0.3f * chain)).Take(4).ToArray();
         foreach (int innerHost in hosts)
         {
             var host = plan.Stations[innerHost];
@@ -689,7 +690,7 @@ public static class LayoutPlanner
                 previous = region;
             }
 
-            if (area >= wingUnits * 0.6)
+            if (area >= wingUnits * 0.6f)
             {
                 return true;
             }
@@ -764,12 +765,12 @@ public static class LayoutPlanner
     private static bool PlaceGeneratorRoom(Random rng, LayoutPlan plan, int cut)
     {
         var start = GetChainLink(plan, 0);
-        double chain = MeasureChain(plan, start, GetChainLink(plan, plan.Stations.Count - 2));
+        float chain = MeasureChain(plan, start, GetChainLink(plan, plan.Stations.Count - 2));
         var gateLink = plan.GateLink!;
         int[] candidates = Enumerable.Range(1, cut)
             .Where(k => MeasureChain(plan, GetChainLink(plan, k - 1), gateLink) >= 900)
-            .OrderBy(k => MeasureChain(plan, start, GetChainLink(plan, k - 1)) < 0.1 * chain ? 1 : 0)
-            .ThenBy(k => Math.Abs(MeasureChain(plan, start, GetChainLink(plan, k - 1)) - 0.15 * chain))
+            .OrderBy(k => MeasureChain(plan, start, GetChainLink(plan, k - 1)) < 0.1f * chain ? 1 : 0)
+            .ThenBy(k => Math.Abs(MeasureChain(plan, start, GetChainLink(plan, k - 1)) - 0.15f * chain))
             .ToArray();
         int size = plan.Theme.Theme == LevelTheme.Lab ? 5 : 3;
         foreach (int candidate in candidates)

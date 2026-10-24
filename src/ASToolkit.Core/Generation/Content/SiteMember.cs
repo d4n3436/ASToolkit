@@ -12,4 +12,4 @@ namespace ASToolkit.Core.Generation.Content;
 /// <param name="Dir">The facing.</param>
 /// <param name="Army">The army.</param>
 /// <param name="Payload">The payload bytes.</param>
-public sealed record SiteMember(KnownObject Id, double Dx, double Dy, double Z, byte Dir, uint Army, byte[] Payload);
+public sealed record SiteMember(KnownObject Id, float Dx, float Dy, float Z, byte Dir, uint Army, byte[] Payload);

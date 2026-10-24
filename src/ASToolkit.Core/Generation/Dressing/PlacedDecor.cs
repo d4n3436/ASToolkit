@@ -13,4 +13,4 @@ namespace ASToolkit.Core.Generation.Dressing;
 /// <param name="Payload">The payload bytes.</param>
 /// <param name="Source">The source level and object index it was copied from.</param>
 /// <param name="Support">The source level and object index of the object it stands on, or null.</param>
-public sealed record PlacedDecor(KnownObject Id, double U, double V, double Z, byte Dir, byte[] Payload, (int Level, int Index) Source, (int Level, int Index)? Support);
+public sealed record PlacedDecor(KnownObject Id, float U, float V, float Z, byte Dir, byte[] Payload, (int Level, int Index) Source, (int Level, int Index)? Support);

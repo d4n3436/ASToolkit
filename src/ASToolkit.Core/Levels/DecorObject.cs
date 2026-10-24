@@ -12,4 +12,4 @@ namespace ASToolkit.Core.Levels;
 /// <param name="Dir">The facing.</param>
 /// <param name="Payload">The payload bytes.</param>
 /// <param name="SupportIndex">The index of the object it stands on, -1 when it stands on nothing found, or null when it stands on the floor.</param>
-public sealed record DecorObject(KnownObject Id, double U, double V, double Z, byte Dir, byte[] Payload, int? SupportIndex);
+public sealed record DecorObject(KnownObject Id, float U, float V, float Z, byte Dir, byte[] Payload, int? SupportIndex);

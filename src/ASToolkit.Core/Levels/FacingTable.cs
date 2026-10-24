@@ -7,13 +7,13 @@ namespace ASToolkit.Core.Levels;
 /// </summary>
 public sealed class FacingTable
 {
-    private const double Reach = 1.5;
+    private const float Reach = 1.5f;
     private const int SearchCells = 2;
-    private const double FloorHeight = 5;
+    private const float FloorHeight = 5;
     private const int MinSamples = 5;
-    private const double LeanDistance = 1;
-    private const double LeanShare = 0.4;
-    private const double LeanContrast = 4;
+    private const float LeanDistance = 1;
+    private const float LeanShare = 0.4f;
+    private const float LeanContrast = 4;
 
     private readonly ObjectTable _objects;
     private readonly Dictionary<(KnownObject Id, char Axis), List<byte>> _dirs;
@@ -93,7 +93,7 @@ public sealed class FacingTable
             
             int otherTotal = others.Sum(p => p.Total);
             int otherNear = others.Sum(p => p.Near);
-            if (total >= MinSamples && near >= LeanShare * total && otherTotal >= MinSamples && otherNear * LeanContrast < otherTotal * (near / (double)total))
+            if (total >= MinSamples && near >= LeanShare * total && otherTotal >= MinSamples && otherNear * LeanContrast < otherTotal * (near / (float)total))
             {
                 leaning.Add((id, frame));
             }
@@ -105,11 +105,11 @@ public sealed class FacingTable
     /// <summary>
     /// Returns the axis and distance of the nearest wall within one and a half cells of a point, or null when there is none.
     /// </summary>
-    public static (char Axis, double Distance)? FindWall(IReadOnlyDictionary<EdgeKey, char> edges, double u, double v)
+    public static (char Axis, float Distance)? FindWall(IReadOnlyDictionary<EdgeKey, char> edges, float u, float v)
     {
-        int cu = (int)Math.Floor(u);
-        int cv = (int)Math.Floor(v);
-        double best = Reach;
+        int cu = (int)MathF.Floor(u);
+        int cv = (int)MathF.Floor(v);
+        float best = Reach;
         char? axis = null;
         for (int a = cu - SearchCells; a <= cu + SearchCells + 1; a++)
         {
@@ -117,8 +117,8 @@ public sealed class FacingTable
             {
                 if (edges.TryGetValue(new EdgeKey('u', a, b), out char k1) && k1 == 'W')
                 {
-                    double dv = Math.Max(0, Math.Max(b - v, v - (b + 1)));
-                    double d = Math.Sqrt((u - a) * (u - a) + dv * dv);
+                    float dv = Math.Max(0, Math.Max(b - v, v - (b + 1)));
+                    float d = MathF.Sqrt((u - a) * (u - a) + dv * dv);
                     if (d < best)
                     {
                         (best, axis) = (d, 'u');
@@ -127,8 +127,8 @@ public sealed class FacingTable
 
                 if (edges.TryGetValue(new EdgeKey('v', a, b), out char k2) && k2 == 'W')
                 {
-                    double du = Math.Max(0, Math.Max(a - u, u - (a + 1)));
-                    double d = Math.Sqrt((v - b) * (v - b) + du * du);
+                    float du = Math.Max(0, Math.Max(a - u, u - (a + 1)));
+                    float d = MathF.Sqrt((v - b) * (v - b) + du * du);
                     if (d < best)
                     {
                         (best, axis) = (d, 'v');
@@ -144,13 +144,13 @@ public sealed class FacingTable
     /// Returns whether an object with a facing at a point faces as the originals turn it against the nearest wall, and
     /// whether a frame they mostly lean on a wall has one to lean on, unless it lies on a blood pool as a fresh kill.
     /// </summary>
-    public bool Fits(KnownObject id, byte dir, IReadOnlyDictionary<EdgeKey, char> edges, double u, double v, bool onBlood = false) =>
+    public bool Fits(KnownObject id, byte dir, IReadOnlyDictionary<EdgeKey, char> edges, float u, float v, bool onBlood = false) =>
         Fits(id, dir, FindWall(edges, u, v), onBlood);
 
     /// <summary>
     /// Returns a facing the originals give an object in a like spot that fits, or any fitting facing when they have none.
     /// </summary>
-    public byte PickFacing(Random rng, KnownObject id, IReadOnlyDictionary<EdgeKey, char> edges, double u, double v)
+    public byte PickFacing(Random rng, KnownObject id, IReadOnlyDictionary<EdgeKey, char> edges, float u, float v)
     {
         var wall = FindWall(edges, u, v);
         var seen = (wall.HasValue ? _dirs.GetValueOrDefault((id, wall.Value.Axis)) : _open.GetValueOrDefault(id)) ?? [];
@@ -166,7 +166,7 @@ public sealed class FacingTable
         return dirs.Length > 0 ? dirs[rng.Next(dirs.Length)] : (byte)rng.Next(256);
     }
 
-    private bool Fits(KnownObject id, byte dir, (char Axis, double Distance)? wall, bool onBlood)
+    private bool Fits(KnownObject id, byte dir, (char Axis, float Distance)? wall, bool onBlood)
     {
         if (!_objects.TryFind(id, out var obj) || obj.FramesPerDirection == 0)
         {

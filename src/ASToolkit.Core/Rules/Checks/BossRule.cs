@@ -19,6 +19,6 @@ public sealed class BossRule : ILevelRule
         }
 
         var boss = context.Analysis.Objectives.FirstOrDefault(o => o.Kind == ObjectiveKind.Boss);
-        yield return new RuleResult(Id, RuleSeverity.Soft, boss is not null && boss.Progress >= 0.55, $"boss at {boss?.Progress:0.00}");
+        yield return new RuleResult(Id, RuleSeverity.Soft, boss is not null && boss.Progress >= 0.55f, $"boss at {boss?.Progress:0.00}");
     }
 }

@@ -7,8 +7,8 @@ namespace ASToolkit.Core.Rules.Checks;
 /// </summary>
 public sealed class WeaponRule : ILevelRule
 {
-    private const double Spacing = 600;
-    private const double NearestSoft = 500;
+    private const float Spacing = 600;
+    private const float NearestSoft = 500;
 
     /// <inheritdoc/>
     public string Id => "D7";
@@ -30,7 +30,7 @@ public sealed class WeaponRule : ILevelRule
 
         int crowded = weapons.Max(w => weapons.Count(o => RuleMath.GetDistance(o.X, o.Y, w.X, w.Y) < Spacing));
         yield return new RuleResult("D7.2", RuleSeverity.Hard, crowded <= 2, $"at most {crowded} weapons within {Spacing} px of each other");
-        double nearest = weapons.Min(w => weapons.Where(o => o != w).Min(o => RuleMath.GetDistance(o.X, o.Y, w.X, w.Y)));
+        float nearest = weapons.Min(w => weapons.Where(o => o != w).Min(o => RuleMath.GetDistance(o.X, o.Y, w.X, w.Y)));
         yield return new RuleResult("D7.2", RuleSeverity.Soft, nearest >= NearestSoft, $"closest two weapons {nearest:0} px apart");
     }
 }

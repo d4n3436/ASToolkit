@@ -13,6 +13,6 @@ public sealed class TourLengthRule : ILevelRule
     {
         int tour = context.Analysis.RoutePixels;
         int reference = context.Target.ReferenceTourPixels;
-        yield return new RuleResult(Id, RuleSeverity.Soft, tour >= 0.7 * reference && tour <= 1.3 * reference, $"tour {tour}, reference {reference}");
+        yield return new RuleResult(Id, RuleSeverity.Soft, tour >= 0.7f * reference && tour <= 1.3f * reference, $"tour {tour}, reference {reference}");
     }
 }

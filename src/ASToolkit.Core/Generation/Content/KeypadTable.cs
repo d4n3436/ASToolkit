@@ -7,13 +7,13 @@ namespace ASToolkit.Core.Generation.Content;
 /// </summary>
 public sealed class KeypadTable
 {
-    private const double Reach = 30;
+    private const float Reach = 30;
     private static readonly KnownObject[] Doors = [KnownObject.SmallDoor, KnownObject.DoubleDoor, KnownObject.DoubleDoorFrame, KnownObject.SmallDoorFrame];
 
     private readonly Dictionary<(KnownObject Door, byte DoorDir, bool Broken), List<PropPlacement>> _samples;
-    private readonly Dictionary<KnownObject, double> _shares;
+    private readonly Dictionary<KnownObject, float> _shares;
 
-    private KeypadTable(Dictionary<(KnownObject, byte, bool), List<PropPlacement>> samples, Dictionary<KnownObject, double> shares)
+    private KeypadTable(Dictionary<(KnownObject, byte, bool), List<PropPlacement>> samples, Dictionary<KnownObject, float> shares)
     {
         _samples = samples;
         _shares = shares;
@@ -34,7 +34,7 @@ public sealed class KeypadTable
             foreach (var door in sp.Where(s => Doors.Contains(s.Id)))
             {
                 doors[door.Id] = doors.GetValueOrDefault(door.Id) + 1;
-                var keypad = keypads.FirstOrDefault(k => Math.Sqrt(Math.Pow(k.Position.X - door.Position.X, 2) + Math.Pow(k.Position.Y - door.Position.Y, 2)) < Reach);
+                var keypad = keypads.FirstOrDefault(k => MathF.Sqrt(MathF.Pow(k.Position.X - door.Position.X, 2) + MathF.Pow(k.Position.Y - door.Position.Y, 2)) < Reach);
                 if (keypad is null)
                 {
                     continue;
@@ -52,13 +52,13 @@ public sealed class KeypadTable
             }
         }
 
-        return new KeypadTable(samples, doors.ToDictionary(p => p.Key, p => keyed.GetValueOrDefault(p.Key) / (double)p.Value));
+        return new KeypadTable(samples, doors.ToDictionary(p => p.Key, p => keyed.GetValueOrDefault(p.Key) / (float)p.Value));
     }
 
     /// <summary>
     /// Returns the share of the originals' doors of a kind that have a keypad.
     /// </summary>
-    public double GetShare(KnownObject door) => _shares.GetValueOrDefault(door);
+    public float GetShare(KnownObject door) => _shares.GetValueOrDefault(door);
 
     /// <summary>
     /// Returns a keypad placement relative to a door, taken from a door of the same kind and facing in the originals,

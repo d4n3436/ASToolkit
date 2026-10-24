@@ -81,8 +81,8 @@ public static class ItemSchedule
     /// </summary>
     public static KnownObject[] CreateStash(int level, Random rng, Func<KnownObject?> takeWeapon)
     {
-        double roll = rng.NextDouble();
-        if (roll is >= 0.63 and < 0.89)
+        float roll = rng.NextSingle();
+        if (roll is >= 0.63f and < 0.89f)
         {
             var weapon = takeWeapon();
             if (weapon is not null)
@@ -92,19 +92,19 @@ public static class ItemSchedule
                     .ToArray();
             }
 
-            roll = rng.NextDouble() * 0.74;
-            if (roll >= 0.63)
+            roll = rng.NextSingle() * 0.74f;
+            if (roll >= 0.63f)
             {
-                roll = 0.89;
+                roll = 0.89f;
             }
         }
 
-        if (roll < 0.42)
+        if (roll < 0.42f)
         {
             return Enumerable.Repeat(KnownObject.Money, rng.Next(3, 13)).ToArray();
         }
 
-        if (roll < 0.63)
+        if (roll < 0.63f)
         {
             var weapons = GetWeapons(level, 1);
             int kinds = rng.Next(1, 3);

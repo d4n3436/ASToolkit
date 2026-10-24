@@ -5,7 +5,7 @@ namespace ASToolkit.Core.Rules.Checks;
 /// </summary>
 public sealed class MonsterSplitRule : ILevelRule
 {
-    private const double Tolerance = 0.3;
+    private const float Tolerance = 0.3f;
 
     /// <inheritdoc/>
     public string Id => "A5";
@@ -13,8 +13,8 @@ public sealed class MonsterSplitRule : ILevelRule
     /// <inheritdoc/>
     public IEnumerable<RuleResult> Evaluate(RuleContext context)
     {
-        double spawned = context.Measurement.SpawnedShare;
-        double chance = context.Target.AmbushChance;
+        float spawned = context.Measurement.SpawnedShare;
+        float chance = context.Target.AmbushChance;
         yield return new RuleResult(Id, RuleSeverity.Soft, Math.Abs(spawned - chance) <= Tolerance, $"ambush share {spawned:P0}, chance {chance:P0}");
     }
 }

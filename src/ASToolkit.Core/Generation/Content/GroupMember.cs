@@ -9,4 +9,4 @@ namespace ASToolkit.Core.Generation.Content;
 /// <param name="Dx">The x offset.</param>
 /// <param name="Dy">The y offset.</param>
 /// <param name="Dir">The facing.</param>
-public readonly record struct GroupMember(KnownObject Id, double Dx, double Dy, byte Dir);
+public readonly record struct GroupMember(KnownObject Id, float Dx, float Dy, byte Dir);

@@ -10,4 +10,4 @@ namespace ASToolkit.Core.Generation.Content;
 /// <param name="Dy">The y offset.</param>
 /// <param name="Z">The height.</param>
 /// <param name="Dir">The facing.</param>
-public sealed record PropPlacement(KnownObject Id, double Dx, double Dy, double Z, byte Dir);
+public sealed record PropPlacement(KnownObject Id, float Dx, float Dy, float Z, byte Dir);

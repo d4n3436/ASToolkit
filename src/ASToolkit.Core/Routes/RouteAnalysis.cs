@@ -21,7 +21,7 @@ public sealed class RouteAnalysis
     /// <summary>
     /// Gets the length of one cell step in pixels.
     /// </summary>
-    public required double Step { get; init; }
+    public required float Step { get; init; }
 
     /// <summary>
     /// Gets the number of cells reachable from the start.
@@ -41,7 +41,7 @@ public sealed class RouteAnalysis
     /// <summary>
     /// Gets the share of the tour that walks over cells it already covered.
     /// </summary>
-    public required double RevisitShare { get; init; }
+    public required float RevisitShare { get; init; }
 
     /// <summary>
     /// Gets the tour's stretches, merged by gate state.
@@ -94,14 +94,14 @@ public sealed class RouteAnalysis
             return [];
         }
 
-        double[] lengths = new double[points.Length];
+        float[] lengths = new float[points.Length];
         for (int pointIndex = 1; pointIndex < points.Length; pointIndex++)
         {
             lengths[pointIndex] = lengths[pointIndex - 1] + Vector2.Distance(points[pointIndex], points[pointIndex - 1]);
         }
 
-        double legTotal = Math.Max(1, Legs.Sum(leg => leg.Pixels));
-        double total = Math.Max(1e-9, lengths[^1]);
+        float legTotal = Math.Max(1, Legs.Sum(leg => leg.Pixels));
+        float total = Math.Max(1e-9f, lengths[^1]);
         var runs = new List<TourRun>();
         int start = 0;
         var current = GetPhase(0);
@@ -120,8 +120,8 @@ public sealed class RouteAnalysis
 
         RoutePhase GetPhase(int point)
         {
-            double share = lengths[point] / total;
-            double walked = 0;
+            float share = lengths[point] / total;
+            float walked = 0;
             var phase = RoutePhase.Free;
             foreach (var leg in Legs)
             {

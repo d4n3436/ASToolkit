@@ -22,8 +22,8 @@ public static class SolidObjectMapper
                 continue;
             }
 
-            double hx = 0.33 * obj.Size.X + 14;
-            double hy = 0.33 * obj.Size.Y + 14;
+            float hx = 0.33f * obj.Size.X + 14;
+            float hy = 0.33f * obj.Size.Y + 14;
             boxes.Add(new CollisionBox(sprite.Position.X - hx, sprite.Position.X + hx, sprite.Position.Y - hy, sprite.Position.Y + hy));
         }
 
@@ -40,10 +40,10 @@ public static class SolidObjectMapper
         {
             var b = boxes[boxIndex];
             var corners = new[] { lattice.ToLattice(b.MinX, b.MinY), lattice.ToLattice(b.MinX, b.MaxY), lattice.ToLattice(b.MaxX, b.MinY), lattice.ToLattice(b.MaxX, b.MaxY) };
-            int u0 = (int)Math.Floor(corners.Min(c => c.U));
-            int u1 = (int)Math.Floor(corners.Max(c => c.U));
-            int v0 = (int)Math.Floor(corners.Min(c => c.V));
-            int v1 = (int)Math.Floor(corners.Max(c => c.V));
+            int u0 = (int)MathF.Floor(corners.Min(c => c.U));
+            int u1 = (int)MathF.Floor(corners.Max(c => c.U));
+            int v0 = (int)MathF.Floor(corners.Min(c => c.V));
+            int v1 = (int)MathF.Floor(corners.Max(c => c.V));
             for (int u = u0; u <= u1; u++)
             {
                 for (int v = v0; v <= v1; v++)
@@ -73,7 +73,7 @@ public static class SolidObjectMapper
             {
                 for (int innerIndex = 0; innerIndex < 4; innerIndex++)
                 {
-                    (double x, double y) = lattice.ToWorld(cell.U + (index + .5) / 4, cell.V + (innerIndex + .5) / 4);
+                    (float x, float y) = lattice.ToWorld(cell.U + (index + 0.5f) / 4, cell.V + (innerIndex + 0.5f) / 4);
                     if (IsCovered(boxes, list, x, y))
                     {
                         covered++;
@@ -90,7 +90,7 @@ public static class SolidObjectMapper
         return blocked;
     }
 
-    private static bool IsCovered(IReadOnlyList<CollisionBox> boxes, List<int> indexes, double x, double y)
+    private static bool IsCovered(IReadOnlyList<CollisionBox> boxes, List<int> indexes, float x, float y)
     {
         foreach (int index in indexes)
         {

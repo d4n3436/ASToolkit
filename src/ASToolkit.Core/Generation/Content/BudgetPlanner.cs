@@ -8,7 +8,7 @@ namespace ASToolkit.Core.Generation.Content;
 /// </summary>
 public static class BudgetPlanner
 {
-    private const double ItemJitter = 0.1;
+    private const float ItemJitter = 0.1f;
     private static readonly HashSet<KnownObject> CampaignBosses = [KnownObject.Boss1, KnownObject.Boss2, KnownObject.Boss3, KnownObject.Boss4, KnownObject.TankBoss, KnownObject.RedTankWeaponBoss, KnownObject.PowerfulBoss3, KnownObject.DiverBoss, KnownObject.FinalMonster];
     private static readonly HashSet<KnownObject> DroppedFromGroups = [KnownObject.Boss1, KnownObject.Boss4, KnownObject.PowerfulBoss3, KnownObject.RedTankWeaponBoss, KnownObject.TankBoss, KnownObject.Boss2];
 
@@ -17,7 +17,7 @@ public static class BudgetPlanner
     /// </summary>
     public static LevelBudget Plan(Random rng, int level, LevelTarget target, OriginalContentSet content, ObjectTable objects)
     {
-        double hpTarget = target.HitPoints * (0.9 + 0.2 * rng.NextDouble());
+        float hpTarget = target.HitPoints * (0.9f + 0.2f * rng.NextSingle());
         var campaign = content.GetLevel(ReferenceLevelSet.GetCampaignName(level));
         var pickupSource = content.GetLevel(target.ContentLevel);
         var sources = content.Levels
@@ -28,7 +28,7 @@ public static class BudgetPlanner
         {
             sources = content.Levels
                 .Where(l => l.HitPoints > 0)
-                .OrderBy(l => Math.Abs(Math.Log(l.HitPoints / hpTarget)))
+                .OrderBy(l => Math.Abs(MathF.Log(l.HitPoints / hpTarget)))
                 .Take(3)
                 .ToArray();
         }
@@ -41,7 +41,7 @@ public static class BudgetPlanner
             .ToArray();
         
         var smallSpawners = spawnerPool
-            .Where(p => HitPoints(p.List) <= Math.Max(hpTarget * 0.22, 1))
+            .Where(p => HitPoints(p.List) <= Math.Max(hpTarget * 0.22f, 1))
             .ToArray();
         
         var spawners = (smallSpawners.Length > 0 ? smallSpawners : spawnerPool).ToArray();
@@ -51,14 +51,14 @@ public static class BudgetPlanner
             .ToArray();
         
         var smallGroups = groupPool
-            .Where(p => HitPoints(p.Group.Select(m => m.Id)) <= Math.Max(hpTarget * 0.12, 1))
+            .Where(p => HitPoints(p.Group.Select(m => m.Id)) <= Math.Max(hpTarget * 0.12f, 1))
             .ToArray();
         
         var groups = (smallGroups.Length > 0 ? smallGroups : groupPool).ToArray();
         rng.Shuffle(spawners);
         rng.Shuffle(groups);
 
-        double ambushChance = Math.Clamp(campaign.SpawnedShare, 0.05, 0.95);
+        float ambushChance = Math.Clamp(campaign.SpawnedShare, 0.05f, 0.95f);
         var ambushes = new List<IReadOnlyList<KnownObject>>();
         var placed = new List<IReadOnlyList<GroupMember>>();
         int ambushHp = 0;
@@ -67,7 +67,7 @@ public static class BudgetPlanner
         int nextGroup = 0;
         for (int index = 0; ambushHp + placedHp < hpTarget && index < 5000; index++)
         {
-            bool ambush = spawners.Length > 0 && (groups.Length == 0 || rng.NextDouble() < ambushChance);
+            bool ambush = spawners.Length > 0 && (groups.Length == 0 || rng.NextSingle() < ambushChance);
             int hp;
             if (ambush)
             {
@@ -116,8 +116,8 @@ public static class BudgetPlanner
                 continue;
             }
 
-            double n = count * (1 - ItemJitter + 2 * ItemJitter * rng.NextDouble());
-            int whole = (int)n + (rng.NextDouble() < n - (int)n ? 1 : 0);
+            float n = count * (1 - ItemJitter + 2 * ItemJitter * rng.NextSingle());
+            int whole = (int)n + (rng.NextSingle() < n - (int)n ? 1 : 0);
             for (int thirdIndex = 0; thirdIndex < whole; thirdIndex++)
             {
                 var replaced = ItemSchedule.Replace(item, level, rng);

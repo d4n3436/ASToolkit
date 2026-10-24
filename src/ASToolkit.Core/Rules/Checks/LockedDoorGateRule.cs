@@ -21,12 +21,12 @@ public sealed class LockedDoorGateRule : ILevelRule
 
         var a = context.Analysis;
         yield return new RuleResult("B1.1", RuleSeverity.Hard,
-            context.Measurement.Style == LevelStyle.LockedDoors && Math.Abs((a.Gating.LockedShare ?? 0) - t.LockedShare!.Value) <= 0.1,
+            context.Measurement.Style == LevelStyle.LockedDoors && Math.Abs((a.Gating.LockedShare ?? 0) - t.LockedShare!.Value) <= 0.1f,
             $"locked {a.Gating.LockedShare:P0}, target {t.LockedShare:P0}");
         int? walk = a.Legs.Count > 0 && a.Legs[0].Phase == RoutePhase.DoorsLocked ? a.Legs[0].Pixels : null;
         if (t.WalkToBreakerPixels is not null)
         {
-            yield return new RuleResult("B1.2", RuleSeverity.Soft, walk is not null && RuleMath.IsWithin(walk.Value, t.WalkToBreakerPixels.Value, 0.3),
+            yield return new RuleResult("B1.2", RuleSeverity.Soft, walk is not null && RuleMath.IsWithin(walk.Value, t.WalkToBreakerPixels.Value, 0.3f),
                 $"walk to breaker {walk}, target {t.WalkToBreakerPixels}");
         }
 

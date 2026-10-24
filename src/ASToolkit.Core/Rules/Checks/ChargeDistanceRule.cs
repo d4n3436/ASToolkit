@@ -22,7 +22,7 @@ public sealed class ChargeDistanceRule : ILevelRule
         var sites = elements.Where(e => e.Kind == ElementKind.DynamiteSite).ToArray();
         foreach (var charge in elements.Where(e => e is { Kind: ElementKind.Pickup, Category: ItemCategory.Dynamite }))
         {
-            double nearest = sites.Length == 0 ? 0 : sites.Min(s => RuleMath.GetDistance(s.X, s.Y, charge.X, charge.Y));
+            float nearest = sites.Length == 0 ? 0 : sites.Min(s => RuleMath.GetDistance(s.X, s.Y, charge.X, charge.Y));
             yield return new RuleResult(Id, RuleSeverity.Hard, nearest is >= 250 and <= 3200, $"charge {nearest:0} px from the nearest site");
         }
     }

@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Numerics;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
@@ -36,9 +37,9 @@ public sealed class MapBuilder
     /// <summary>
     /// Places an object and returns its index, or -1 when a unique placement repeats an earlier one.
     /// </summary>
-    public int Add(KnownObject id, double x, double y, double z = 0, int dir = 0, ReadOnlyMemory<byte> payload = default, uint? army = null, bool unique = true)
+    public int Add(KnownObject id, float x, float y, float z = 0, int dir = 0, ReadOnlyMemory<byte> payload = default, uint? army = null, bool unique = true)
     {
-        var key = (id, (long)Math.Round(x), (long)Math.Round(y), (long)Math.Round(z));
+        var key = (id, (long)MathF.Round(x), (long)MathF.Round(y), (long)MathF.Round(z));
         if (!_placed.Add(key) && unique)
         {
             return -1;
@@ -58,12 +59,12 @@ public sealed class MapBuilder
     /// </summary>
     public MapResourceBuilder ToMap(Vector2 scroll)
     {
-        double maxX = Sprites.Max(s => s.Position.X);
-        double maxY = Sprites.Max(s => s.Position.Y);
+        float maxX = Sprites.Max(s => s.Position.X);
+        float maxY = Sprites.Max(s => s.Position.Y);
         var map = new MapResourceBuilder
         {
             Sprites = Sprites,
-            Size = (Math.Ceiling((maxX + 300) / 100) * 100, Math.Ceiling((maxY + 300) / 100) * 100),
+            Size = new SizeF(MathF.Ceiling((maxX + 300) / 100) * 100, MathF.Ceiling((maxY + 300) / 100) * 100),
             Scroll = scroll
         };
         return map;

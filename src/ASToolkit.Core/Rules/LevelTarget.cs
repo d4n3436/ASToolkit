@@ -17,7 +17,7 @@ public sealed class LevelTarget
     public required LevelStyle Style { get; init; }
 
     /// <summary>Gets the share of the floor that solid objects block.</summary>
-    public required double BlockedShare { get; init; }
+    public required float BlockedShare { get; init; }
 
     /// <summary>Gets the number of breakable objects.</summary>
     public required int Breakables { get; init; }
@@ -26,16 +26,16 @@ public sealed class LevelTarget
     public required int ReferenceTourPixels { get; init; }
 
     /// <summary>Gets the highest share of the tour that may walk over covered ground.</summary>
-    public required double RevisitCeiling { get; init; }
+    public required float RevisitCeiling { get; init; }
 
     /// <summary>Gets the total monster hit points aimed for.</summary>
     public required int HitPoints { get; init; }
 
     /// <summary>Gets the share of the level behind locked doors, or null.</summary>
-    public double? LockedShare { get; init; }
+    public float? LockedShare { get; init; }
 
     /// <summary>Gets the share of the level behind fences, or null.</summary>
-    public double? FencedOffShare { get; init; }
+    public float? FencedOffShare { get; init; }
 
     /// <summary>Gets the walk from the start to the breaker with the doors locked, or null.</summary>
     public int? WalkToBreakerPixels { get; init; }
@@ -56,10 +56,10 @@ public sealed class LevelTarget
     public required bool HasMountedCannon { get; init; }
 
     /// <summary>Gets the chance that a monster group comes from an ambush rather than being placed.</summary>
-    public required double AmbushChance { get; init; }
+    public required float AmbushChance { get; init; }
 
     /// <summary>Gets the median tour progress of the placed monsters, or null when there are fewer than four.</summary>
-    public double? PlacedMonsterProgress { get; init; }
+    public float? PlacedMonsterProgress { get; init; }
 
     /// <summary>Gets the number of weapons, loose and in crates.</summary>
     public required int Weapons { get; init; }
@@ -74,19 +74,19 @@ public sealed class LevelTarget
     public required int BreakerWallRun { get; init; }
 
     /// <summary>Gets the share of the floor's bounding box that is floor.</summary>
-    public required double BoxFill { get; init; }
+    public required float BoxFill { get; init; }
 
     /// <summary>Gets the blended share of the tour that the walk from the start to its farthest point takes.</summary>
-    public required double SpineShare { get; init; }
+    public required float SpineShare { get; init; }
 
     /// <summary>Gets the share of the tour that the walk from the start to its farthest point takes in the campaign original.</summary>
-    public required double OriginalSpineShare { get; init; }
+    public required float OriginalSpineShare { get; init; }
 
     /// <summary>Gets the blended walk from the start to the farthest point of the tour, over the square root of the floor area.</summary>
-    public required double Elongation { get; init; }
+    public required float Elongation { get; init; }
 
     /// <summary>Gets the walk from the start to the farthest point of the tour, over the square root of the floor area, in the campaign original.</summary>
-    public required double OriginalElongation { get; init; }
+    public required float OriginalElongation { get; init; }
 
     /// <summary>Gets the decor the campaign uses on levels of the theme, with the heights it places each at.</summary>
     public required DecorHeightTable ThemeDecor { get; init; }

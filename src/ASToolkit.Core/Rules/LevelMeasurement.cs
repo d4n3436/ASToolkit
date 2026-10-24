@@ -9,7 +9,7 @@ public sealed class LevelMeasurement
     public required LevelStyle Style { get; init; }
 
     /// <summary>Gets the share of the floor that solid objects block.</summary>
-    public required double BlockedShare { get; init; }
+    public required float BlockedShare { get; init; }
 
     /// <summary>Gets the number of breakable objects.</summary>
     public required int Breakables { get; init; }
@@ -18,7 +18,7 @@ public sealed class LevelMeasurement
     public required int HitPoints { get; init; }
 
     /// <summary>Gets the share of the hit points that spawners bring.</summary>
-    public required double SpawnedShare { get; init; }
+    public required float SpawnedShare { get; init; }
 
     /// <summary>Gets the small rooms with items behind breakable walls.</summary>
     public required IReadOnlyList<SecretCloset> SecretClosets { get; init; }

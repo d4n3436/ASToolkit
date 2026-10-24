@@ -54,5 +54,5 @@ public class ObjectTableTests
         Assert.Equal(table.IsAlienShooter2 ? 0 : 33, legs.LinkOffset.Z);
     }
 
-    private sealed record ObjectRow(int Id, uint Flags, uint Type, IReadOnlyList<double> Ext, int Hp, string Path);
+    private sealed record ObjectRow(int Id, uint Flags, uint Type, IReadOnlyList<float> Ext, int Hp, string Path);
 }

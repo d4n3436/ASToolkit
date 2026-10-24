@@ -1,3 +1,4 @@
+using System.Drawing;
 using ASToolkit.Core.Generation.Layout;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Formats;
@@ -19,20 +20,20 @@ public static class StructureBuilder
     /// </summary>
     public static void PlaceLattice(FineLayout layout, LevelTheme theme)
     {
-        (double sx, double sy) = theme == LevelTheme.Lab ? LevelExtractor.LabStep : LevelExtractor.MilitaryStep;
+        (float sx, float sy) = theme == LevelTheme.Lab ? LevelExtractor.LabStep : LevelExtractor.MilitaryStep;
         var probe = new Lattice(sx, sy);
         
         var points = layout.Cells.Keys
             .Select(c => probe.ToWorld(c.U, c.V))
             .ToArray();
         
-        double ox = -points.Min(p => p.X) + 500;
-        double oy = -points.Min(p => p.Y) + 500;
+        float ox = -points.Min(p => p.X) + 500;
+        float oy = -points.Min(p => p.Y) + 500;
         if (theme == LevelTheme.Lab)
         {
-            ox = 40 * Math.Ceiling(ox / 40);
-            oy = 28 * Math.Ceiling(oy / 28);
-            if (((long)Math.Floor((ox + 40) / 40) + (long)Math.Floor(oy / 28)) % 2 == 0)
+            ox = 40 * MathF.Ceiling(ox / 40);
+            oy = 28 * MathF.Ceiling(oy / 28);
+            if (((long)MathF.Floor((ox + 40) / 40) + (long)MathF.Floor(oy / 28)) % 2 == 0)
             {
                 oy += 28;
             }
@@ -71,7 +72,7 @@ public static class StructureBuilder
         foreach (var candidate in candidates.Where(k => !HasMeetingWall(layout.Edges, k)).Take(count))
         {
             var previous = GetPreviousEdge(candidate);
-            if (!military && candidateSet.Contains(previous) && !HasMeetingWall(layout.Edges, previous) && !layout.FakeDoors.ContainsKey(previous) && rng.NextDouble() < 0.5)
+            if (!military && candidateSet.Contains(previous) && !HasMeetingWall(layout.Edges, previous) && !layout.FakeDoors.ContainsKey(previous) && rng.NextSingle() < 0.5f)
             {
                 layout.FakeDoors[candidate] = true;
             }
@@ -89,7 +90,7 @@ public static class StructureBuilder
     {
         foreach (var cell in layout.Cells.Keys.OrderBy(c => c.U).ThenBy(c => c.V))
         {
-            (double x, double y) = layout.Lattice.GetCenter(cell);
+            (float x, float y) = layout.Lattice.GetCenter(cell);
             map.Add(KnownObject.BasementFloor, x, y, 0, rng.Next(256));
         }
 
@@ -97,7 +98,7 @@ public static class StructureBuilder
         var skip = layout.FakeDoors.Where(p => p.Value).Select(p => GetPreviousEdge(p.Key)).ToHashSet();
         foreach ((var edge, char kind) in edges)
         {
-            ((double x, double y), bool slash) = GetLabPosition(layout.Lattice, edge);
+            ((float x, float y), bool slash) = GetLabPosition(layout.Lattice, edge);
             if (kind == 'e' || skip.Contains(edge))
             {
                 continue;
@@ -136,7 +137,7 @@ public static class StructureBuilder
 
         foreach ((int a, int b) in FindPosts(edges))
         {
-            (double x, double y) = layout.Lattice.ToWorld(a + .25, b + .25);
+            (float x, float y) = layout.Lattice.ToWorld(a + 0.25f, b + 0.25f);
             map.Add(KnownObject.LabBeam, x, y, 0, BeamDirs[rng.Next(BeamDirs.Length)]);
         }
 
@@ -151,7 +152,7 @@ public static class StructureBuilder
         var l = layout.Lattice;
         foreach (var edge in edges.Keys)
         {
-            double x, y;
+            float x, y;
             KnownObject id;
             int dir;
             if (edge.Axis == 'v' && IsEven(edge.A))
@@ -185,17 +186,17 @@ public static class StructureBuilder
         {
             if (IsEven(a) && IsEven(b))
             {
-                (double x, double y) = l.ToWorld(a, b - 1);
+                (float x, float y) = l.ToWorld(a, b - 1);
                 map.Add(KnownObject.MilitaryCorner, x, y, 0, CornerDirs[rng.Next(CornerDirs.Length)]);
             }
         }
 
         // 503 tiles use their own 80 by 56 lattice and reach under the walls
         var centers = layout.Cells.Keys.Select(l.GetCenter).ToArray();
-        int i0 = (int)Math.Floor((centers.Min(p => p.X) - 160) / 80);
-        int i1 = (int)Math.Floor((centers.Max(p => p.X) + 160) / 80);
-        int j0 = (int)Math.Floor((centers.Min(p => p.Y) - 112) / 56);
-        int j1 = (int)Math.Floor((centers.Max(p => p.Y) + 112) / 56);
+        int i0 = (int)MathF.Floor((centers.Min(p => p.X) - 160) / 80);
+        int i1 = (int)MathF.Floor((centers.Max(p => p.X) + 160) / 80);
+        int j0 = (int)MathF.Floor((centers.Min(p => p.Y) - 112) / 56);
+        int j1 = (int)MathF.Floor((centers.Max(p => p.Y) + 112) / 56);
         for (int index = i0; index <= i1; index++)
         {
             for (int innerIndex = j0; innerIndex <= j1; innerIndex++)
@@ -205,8 +206,8 @@ public static class StructureBuilder
                     continue;
                 }
 
-                double x = 80 * index;
-                double y = 56 * innerIndex;
+                float x = 80 * index;
+                float y = 56 * innerIndex;
                 bool covers = false;
                 foreach (int dx in new[] { -80, -40, 0, 40, 80 })
                 {
@@ -231,7 +232,7 @@ public static class StructureBuilder
     {
         foreach (var unitEdge in unitEdges)
         {
-            ((double x, double y), int dir) = unitEdge.Axis == 'v' ? (lattice.ToWorld(unitCells * unitEdge.A + 1, unitCells * unitEdge.B), 128) : (lattice.ToWorld(unitCells * unitEdge.A, unitCells * unitEdge.B + 1), 0);
+            ((float x, float y), int dir) = unitEdge.Axis == 'v' ? (lattice.ToWorld(unitCells * unitEdge.A + 1, unitCells * unitEdge.B), 128) : (lattice.ToWorld(unitCells * unitEdge.A, unitCells * unitEdge.B + 1), 0);
             map.Add(KnownObject.FenceEmitter, x, y, 0, dir);
             map.Add(KnownObject.Fence, x, y - 14, 0, dir);
         }
@@ -240,8 +241,8 @@ public static class StructureBuilder
     /// <summary>
     /// Returns the map position of a lab wall piece on an edge and whether it runs along '/'.
     /// </summary>
-    public static ((double X, double Y) Position, bool Slash) GetLabPosition(Lattice l, EdgeKey k) =>
-        k.Axis == 'v' ? (l.ToWorld(k.A + .25, k.B + .25), true) : (l.ToWorld(k.A - .25, k.B + .75), false);
+    public static (PointF Position, bool Slash) GetLabPosition(Lattice l, EdgeKey k) =>
+        k.Axis == 'v' ? (l.ToWorld(k.A + 0.25f, k.B + 0.25f), true) : (l.ToWorld(k.A - 0.25f, k.B + 0.75f), false);
 
     /// <summary>
     /// Returns the edge before an edge along its own direction.

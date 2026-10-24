@@ -10,7 +10,7 @@ namespace ASToolkit.Core.Generation.Dressing;
 /// </summary>
 public static class ClutterPlanner
 {
-    private const double ClearanceMargin = 0.02;
+    private const float ClearanceMargin = 0.02f;
     private const int MaxRowTries = 5000;
     private const int MaxFailedRows = 1500;
     private static readonly HashSet<KnownObject> NotFreestanding =
@@ -63,7 +63,7 @@ public static class ClutterPlanner
     /// </summary>
     public static PlacedDecor[] AddClutter(Random rng, IReadOnlyList<PlacedDecor> decor, IReadOnlySet<Cell> floor, IReadOnlySet<Cell> candidates,
         IReadOnlyDictionary<EdgeKey, char> edges, IReadOnlySet<Cell> keepClear, Cell start, Lattice lattice, ObjectTable objects,
-        IReadOnlyList<(KnownObject Id, int Count)> solidPalette, IReadOnlyList<(KnownObject Id, int Count)> breakablePalette, double blockedShare, int breakables, WallClearanceTable clearance, FacingTable facings)
+        IReadOnlyList<(KnownObject Id, int Count)> solidPalette, IReadOnlyList<(KnownObject Id, int Count)> breakablePalette, float blockedShare, int breakables, WallClearanceTable clearance, FacingTable facings)
     {
         var fine = lattice.Halve();
         var fineCells = new HashSet<Cell>();
@@ -83,7 +83,7 @@ public static class ClutterPlanner
         var blocked = new Dictionary<Cell, int>();
         foreach (var decorObject in decor)
         {
-            (double x, double y) = lattice.ToWorld(decorObject.U, decorObject.V);
+            (float x, float y) = lattice.ToWorld(decorObject.U, decorObject.V);
             foreach (var cell in Dresser.GetFootprint(lattice, objects, decorObject.Id, x, y))
             {
                 blocked[cell] = blocked.GetValueOrDefault(cell) + 1;
@@ -107,9 +107,9 @@ public static class ClutterPlanner
             var id = Pick(rng, solidPalette);
             var row = PlanRow(rng, wallCells, wallSet, edges, lattice, objects, id, clearance);
             var footprint = new HashSet<Cell>();
-            foreach ((double u, double v) in row)
+            foreach ((float u, float v) in row)
             {
-                (double x, double y) = lattice.ToWorld(u, v);
+                (float x, float y) = lattice.ToWorld(u, v);
                 footprint.UnionWith(Dresser.GetFootprint(lattice, objects, id, x, y).Where(floor.Contains));
             }
 
@@ -128,11 +128,11 @@ public static class ClutterPlanner
             }
 
             var rowSprites = new List<MergedMapSprite>();
-            foreach ((double u, double v) in row)
+            foreach ((float u, float v) in row)
             {
                 byte dir = facings.PickFacing(rng, id, edges, u, v);
                 result.Add(new PlacedDecor(id, u, v, 0, dir, new byte[8], (-2, index++), null));
-                (double x, double y) = lattice.ToWorld(u, v);
+                (float x, float y) = lattice.ToWorld(u, v);
                 rowSprites.Add(new MergedMapSprite(0, id, new Vector3((float)x, (float)y, 0), dir, 0, []));
             }
 
@@ -144,14 +144,14 @@ public static class ClutterPlanner
         {
             var id = Pick(rng, breakablePalette);
             var row = PlanRow(rng, wallCells, wallSet, edges, lattice, objects, id, clearance);
-            var cells = row.Select(p => new Cell((int)Math.Floor(p.U), (int)Math.Floor(p.V))).ToArray();
+            var cells = row.Select(p => new Cell((int)MathF.Floor(p.U), (int)MathF.Floor(p.V))).ToArray();
             
             if (row.Length == 0 || cells.Any(c => keepClear.Contains(c) || blocked.ContainsKey(c) || !floor.Contains(c)))
             {
                 continue;
             }
 
-            foreach ((double u, double v) in row.Take(breakables - present))
+            foreach ((float u, float v) in row.Take(breakables - present))
             {
                 result.Add(new PlacedDecor(id, u, v, 0, facings.PickFacing(rng, id, edges, u, v), id == KnownObject.Crate ? new byte[12] : new byte[8], (-2, index++), null));
                 present++;
@@ -163,7 +163,7 @@ public static class ClutterPlanner
 
     private static IEnumerable<MergedMapSprite> ToSprites(IEnumerable<PlacedDecor> decor, Lattice lattice) => decor.Select(o =>
     {
-        (double x, double y) = lattice.ToWorld(o.U, o.V);
+        (float x, float y) = lattice.ToWorld(o.U, o.V);
         return new MergedMapSprite(0, o.Id, new Vector3((float)x, (float)y, (float)o.Z), o.Dir, 0, o.Payload);
     });
 
@@ -182,7 +182,7 @@ public static class ClutterPlanner
         return palette[^1].Id;
     }
 
-    private static (double U, double V)[] PlanRow(Random rng, Cell[] wallCells, IReadOnlySet<Cell> wallSet, IReadOnlyDictionary<EdgeKey, char> edges, Lattice lattice,
+    private static (float U, float V)[] PlanRow(Random rng, Cell[] wallCells, IReadOnlySet<Cell> wallSet, IReadOnlyDictionary<EdgeKey, char> edges, Lattice lattice,
         ObjectTable objects, KnownObject id, WallClearanceTable clearance)
     {
         if (wallCells.Length == 0)
@@ -208,17 +208,17 @@ public static class ClutterPlanner
         }
 
         int stride = objects.TryFind(id, out var obj) && Math.Max(obj.Size.X, obj.Size.Y) > lattice.StepX ? 2 : 1;
-        double low = clearance.TryGetClearance(id, out _, out double l) ? l : 0;
-        double offset = Math.Max(0.5, low + ClearanceMargin);
-        double across = wall.Axis == 'v'
+        float low = clearance.TryGetClearance(id, out _, out float l) ? l : 0;
+        float offset = Math.Max(0.5f, low + ClearanceMargin);
+        float across = wall.Axis == 'v'
             ? wall.B + (first.V >= wall.B ? offset : -offset)
             : wall.A + (first.U >= wall.A ? offset : -offset);
-        var row = new List<(double U, double V)>();
+        var row = new List<(float U, float V)>();
         int length = rng.Next(2, 6);
         for (int index = 0; index < length; index++)
         {
             var c = new Cell(first.U + du * stride * index, first.V + dv * stride * index);
-            (double U, double V) p = wall.Axis == 'v' ? (c.U + 0.5, across) : (across, c.V + 0.5);
+            (float U, float V) p = wall.Axis == 'v' ? (c.U + 0.5f, across) : (across, c.V + 0.5f);
             if (!wallSet.Contains(c) || WallClearanceTable.MeasureDistance(edges, p.U, p.V) < low)
             {
                 break;

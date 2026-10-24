@@ -31,7 +31,7 @@ internal sealed class WalkWorld
 
     public WalkGrid BuildGrid(GameObject walker, int timeLine, IReadOnlySet<uint> pressed)
     {
-        var grid = new WalkGrid((int)Math.Ceiling(_map.Size.Width / WalkGrid.CellSize), (int)Math.Ceiling(_map.Size.Height / WalkGrid.CellSize), walker.StepHeight,
+        var grid = new WalkGrid((int)MathF.Ceiling(_map.Size.Width / WalkGrid.CellSize), (int)MathF.Ceiling(_map.Size.Height / WalkGrid.CellSize), walker.StepHeight,
             walker.DropHeight);
         var standing = new List<SpritePart>();
         foreach (var sprite in _map.Sprites.Where(sprite => sprite.Id != KnownObject.SequelPlayer))

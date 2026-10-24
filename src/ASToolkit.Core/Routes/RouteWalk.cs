@@ -21,7 +21,7 @@ internal sealed class RouteWalk
     private readonly List<RouteSegment> _segments = [];
     private readonly List<ProgressionStep> _order = [];
     private WalkingUnit? _controlled;
-    private double _walked;
+    private float _walked;
     private int _unreached;
     private int _begun;
 
@@ -61,7 +61,7 @@ internal sealed class RouteWalk
             WalkStep(_steps[index]);
         }
 
-        return new WalkedRoute { Segments = _segments, Steps = _order, WalkedPixels = (int)Math.Round(_walked), UnreachedSteps = _unreached };
+        return new WalkedRoute { Segments = _segments, Steps = _order, WalkedPixels = (int)MathF.Round(_walked), UnreachedSteps = _unreached };
     }
 
     private void WalkStep(ProgressionStep step)
@@ -69,8 +69,8 @@ internal sealed class RouteWalk
         TakeSkip(step);
         int first = _segments.Count;
         int timeLine = Math.Max(step.TimeLine, _begun);
-        bool reached = TryReach(step, timeLine, out double length);
-        while (!reached && _pending.Count > 0 && TryVisitTrigger(step, timeLine, out double triggerLength))
+        bool reached = TryReach(step, timeLine, out float length);
+        while (!reached && _pending.Count > 0 && TryVisitTrigger(step, timeLine, out float triggerLength))
         {
             _walked += triggerLength;
             reached = TryReach(step, timeLine, out length);
@@ -119,7 +119,7 @@ internal sealed class RouteWalk
         _order.Add(new ProgressionStep(skip.Destination, 0, skip.Label, step.TimeLine));
     }
 
-    private bool TryReach(ProgressionStep target, int timeLine, out double length)
+    private bool TryReach(ProgressionStep target, int timeLine, out float length)
     {
         float reach = GetReach(target);
         if (_player.TryWalk(target.Position, reach, timeLine, _segments, out length))
@@ -136,7 +136,7 @@ internal sealed class RouteWalk
         return TryTakeControl(target, timeLine, out length);
     }
 
-    private bool TryTakeControl(ProgressionStep step, int timeLine, out double length)
+    private bool TryTakeControl(ProgressionStep step, int timeLine, out float length)
     {
         _controlled = null;
         length = 0;
@@ -159,7 +159,7 @@ internal sealed class RouteWalk
     }
 
     // Goes to the trigger area from which the step can be reached once the triggers have opened what they open
-    private bool TryVisitTrigger(ProgressionStep step, int timeLine, out double length)
+    private bool TryVisitTrigger(ProgressionStep step, int timeLine, out float length)
     {
         length = 0;
         foreach (bool isStrict in new[] { true, false })
@@ -198,7 +198,7 @@ internal sealed class RouteWalk
         var walkedSteps = new List<ProgressionStep>();
         foreach (var detourStep in detour.Steps)
         {
-            if (!TryReach(detourStep, timeLine, out double length))
+            if (!TryReach(detourStep, timeLine, out float length))
             {
                 break;
             }

@@ -8,8 +8,8 @@ namespace ASToolkit.Core.Rules.Checks;
 /// </summary>
 public sealed class SiteShapeRule : ILevelRule
 {
-    private const double LabReach = 150;
-    private const double MilitaryReach = 260;
+    private const float LabReach = 150;
+    private const float MilitaryReach = 260;
 
     /// <inheritdoc/>
     public string Id => "C6";
@@ -23,10 +23,10 @@ public sealed class SiteShapeRule : ILevelRule
             .Where(e => lab ? e.Kind is ElementKind.MonsterHole or ElementKind.SpawnWall or ElementKind.PowerTrap : e.Kind == ElementKind.TeleportPad)
             .ToArray();
         
-        double reach = lab ? LabReach : MilitaryReach;
+        float reach = lab ? LabReach : MilitaryReach;
         foreach (var site in elements.Where(e => e.Kind == ElementKind.DynamiteSite))
         {
-            double nearest = anchors.Length == 0 ? double.PositiveInfinity : anchors.Min(a => RuleMath.GetDistance(a.X, a.Y, site.X, site.Y));
+            float nearest = anchors.Length == 0 ? float.PositiveInfinity : anchors.Min(a => RuleMath.GetDistance(a.X, a.Y, site.X, site.Y));
             string anchor = lab ? "monster hole" : "teleport pad";
             yield return new RuleResult(Id, RuleSeverity.Hard, nearest <= reach, $"site at ({site.X}, {site.Y}) {nearest:0} px from the nearest {anchor}");
         }

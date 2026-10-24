@@ -8,7 +8,7 @@ namespace ASToolkit.Core.Rules.Checks;
 /// </summary>
 public sealed class SecretClosetRule : ILevelRule
 {
-    private const double MaxWeaponShare = 0.5;
+    private const float MaxWeaponShare = 0.5f;
 
     /// <inheritdoc/>
     public string Id => "D4";
@@ -27,9 +27,9 @@ public sealed class SecretClosetRule : ILevelRule
         yield return new RuleResult("D4.1", RuleSeverity.Soft, Math.Abs(closets.Count - target) <= 2, $"{closets.Count} secret closets, target {target}");
         if (closets.Count >= 3)
         {
-            double first = closets.Min(c => c.Progress);
-            double last = closets.Max(c => c.Progress);
-            yield return new RuleResult("D4.2", RuleSeverity.Soft, first <= 0.3 && last >= 0.7, $"closets from {first:0.00} to {last:0.00}");
+            float first = closets.Min(c => c.Progress);
+            float last = closets.Max(c => c.Progress);
+            yield return new RuleResult("D4.2", RuleSeverity.Soft, first <= 0.3f && last >= 0.7f, $"closets from {first:0.00} to {last:0.00}");
         }
 
         if (closets.Count > 0)

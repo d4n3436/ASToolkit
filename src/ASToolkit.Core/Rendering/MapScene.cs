@@ -122,7 +122,7 @@ public sealed class MapScene
     /// every object on its first frame when the time is null. The area is in scaled pixels from the top left corner of the scene,
     /// and its top left pixel goes to the start of the buffer.
     /// </summary>
-    public void Render(Memory<Bgra32> pixels, int stride, Rectangle area, double scale, int? time) =>
+    public void Render(Memory<Bgra32> pixels, int stride, Rectangle area, float scale, int? time) =>
         Render((row, colors) =>
         {
             var target = pixels.Span.Slice(row * stride, colors.Length);
@@ -199,12 +199,12 @@ public sealed class MapScene
         }
     }
 
-    internal void Render(RowWriter writer, Rectangle area, double scale, int? time)
+    internal void Render(RowWriter writer, Rectangle area, float scale, int? time)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(scale);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(scale, 1);
-        var source = Rectangle.FromLTRB((int)Math.Floor(area.Left / scale), (int)Math.Floor(area.Top / scale), (int)Math.Ceiling(area.Right / scale) + 1,
-            (int)Math.Ceiling(area.Bottom / scale) + 1);
+        var source = Rectangle.FromLTRB((int)MathF.Floor(area.Left / scale), (int)MathF.Floor(area.Top / scale), (int)MathF.Ceiling(area.Right / scale) + 1,
+            (int)MathF.Ceiling(area.Bottom / scale) + 1);
         int[] indices = Query(source);
         var placed = indices.Select(index => _placed[index]).ToArray();
         var states = placed.Select(p => p.GetState(time, Left, Top)).ToArray();
@@ -261,7 +261,7 @@ public sealed class MapScene
         foreach (var frame in p.GetFrames())
         {
             (int width, int height) = frame is null ? (p.Width, p.Height) : (frame.Width, frame.Height);
-            var frameBounds = new Rectangle((int)Math.Round(p.ScreenX - width / 2.0 - Left), (int)Math.Round(p.ScreenY - height / 2.0 - Top) - reach, width, height + 2 * reach);
+            var frameBounds = new Rectangle((int)MathF.Round(p.ScreenX - width / 2.0f - Left), (int)MathF.Round(p.ScreenY - height / 2.0f - Top) - reach, width, height + 2 * reach);
             bounds = bounds.IsEmpty ? frameBounds : Rectangle.Union(bounds, frameBounds);
         }
 
@@ -271,7 +271,7 @@ public sealed class MapScene
     private static Rectangle GetBounds(OmniLight light)
     {
         float centerY = light.Position.Y - light.Position.Z + LightQuadDrop;
-        return Rectangle.FromLTRB((int)Math.Floor(light.Position.X - light.RadiusX), (int)Math.Floor(centerY - light.RadiusY), (int)Math.Ceiling(light.Position.X + light.RadiusX) + 1,
-            (int)Math.Ceiling(centerY + light.RadiusY) + 1);
+        return Rectangle.FromLTRB((int)MathF.Floor(light.Position.X - light.RadiusX), (int)MathF.Floor(centerY - light.RadiusY), (int)MathF.Ceiling(light.Position.X + light.RadiusX) + 1,
+            (int)MathF.Ceiling(centerY + light.RadiusY) + 1);
     }
 }

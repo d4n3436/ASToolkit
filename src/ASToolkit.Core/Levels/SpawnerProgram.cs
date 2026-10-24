@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Drawing;
 using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Levels;
@@ -47,7 +48,7 @@ public sealed class SpawnerProgram
     /// <summary>
     /// Gets the waypoints of the spawned monsters in payload order.
     /// </summary>
-    public IEnumerable<(int X, int Y)> Waypoints => Actions.Where(a => a.Op == SpawnerAction.Move).Select(a => (a.A, a.B));
+    public IEnumerable<Point> Waypoints => Actions.Where(a => a.Op == SpawnerAction.Move).Select(a => new Point(a.A, a.B));
 
     /// <summary>
     /// Parses a spawner payload, or returns null when it is too short.
@@ -80,10 +81,10 @@ public sealed class SpawnerProgram
     /// Creates a program that waits for its trigger, builds the monsters in order and sends them along the waypoints,
     /// the first waypoint being the first destination.
     /// </summary>
-    public static SpawnerProgram Create(IEnumerable<KnownObject> monsters, (double X, double Y, double Radius) trigger, IEnumerable<(double X, double Y)> waypoints)
+    public static SpawnerProgram Create(IEnumerable<KnownObject> monsters, (float X, float Y, float Radius) trigger, IEnumerable<PointF> waypoints)
     {
         var actions = new List<SpawnerAction>();
-        foreach ((double x, double y) in waypoints.Reverse())
+        foreach ((float x, float y) in waypoints.Reverse())
         {
             actions.Add(new SpawnerAction(SpawnerAction.Move, (int)x, (int)y, 0));
         }

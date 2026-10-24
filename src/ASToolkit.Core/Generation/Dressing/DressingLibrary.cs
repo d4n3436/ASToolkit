@@ -8,8 +8,8 @@ namespace ASToolkit.Core.Generation.Dressing;
 /// </summary>
 public sealed class DressingLibrary
 {
-    private const double CopyTolerance = 0.05;
-    private const double FloorHeight = 5;
+    private const float CopyTolerance = 0.05f;
+    private const float FloorHeight = 5;
 
     private readonly List<LevelModel> _sources;
     private readonly List<Dictionary<Cell, List<int>>> _objectsByCell;
@@ -36,7 +36,7 @@ public sealed class DressingLibrary
     /// <summary>
     /// Builds the library from the original levels of a theme, keeping only the allowed decor.
     /// </summary>
-    public static DressingLibrary Build(string gameFolder, ObjectTable objects, LevelTheme theme, IEnumerable<string> levels, Func<KnownObject, double, bool> isAllowed,
+    public static DressingLibrary Build(string gameFolder, ObjectTable objects, LevelTheme theme, IEnumerable<string> levels, Func<KnownObject, float, bool> isAllowed,
         WallClearanceTable clearance, FacingTable facings)
     {
         int[] sizes = theme == LevelTheme.Lab ? [3, 2, 1] : [4, 2];
@@ -63,7 +63,7 @@ public sealed class DressingLibrary
                     continue;
                 }
 
-                var c = new Cell((int)Math.Floor(m.Objects[levelObjectIndex].U), (int)Math.Floor(m.Objects[levelObjectIndex].V));
+                var c = new Cell((int)MathF.Floor(m.Objects[levelObjectIndex].U), (int)MathF.Floor(m.Objects[levelObjectIndex].V));
                 if (!cellObjects.TryGetValue(c, out var list))
                 {
                     list = [];
@@ -151,7 +151,7 @@ public sealed class DressingLibrary
                 foreach (int index in indexes)
                 {
                     var o = m.Objects[index];
-                    (double u, double v) = (o.U - source.U + corner.U, o.V - source.V + corner.V);
+                    (float u, float v) = (o.U - source.U + corner.U, o.V - source.V + corner.V);
                     if (IsTooCloseToWall(o, m.Edges, edges, u, v) || o.Z < FloorHeight && !_facings.Fits(o.Id, o.Dir, edges, u, v))
                     {
                         continue;
@@ -186,14 +186,14 @@ public sealed class DressingLibrary
         return true;
     }
 
-    private bool IsTooCloseToWall(DecorObject o, IReadOnlyDictionary<EdgeKey, char> sourceEdges, IReadOnlyDictionary<EdgeKey, char> edges, double u, double v)
+    private bool IsTooCloseToWall(DecorObject o, IReadOnlyDictionary<EdgeKey, char> sourceEdges, IReadOnlyDictionary<EdgeKey, char> edges, float u, float v)
     {
-        if (!_clearance.TryGetClearance(o.Id, out _, out double low))
+        if (!_clearance.TryGetClearance(o.Id, out _, out float low))
         {
             return false;
         }
 
-        double target = WallClearanceTable.MeasureDistance(edges, u, v);
+        float target = WallClearanceTable.MeasureDistance(edges, u, v);
         return target < low && target < WallClearanceTable.MeasureDistance(sourceEdges, o.U, o.V) - CopyTolerance;
     }
 

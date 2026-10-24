@@ -10,7 +10,7 @@ namespace ASToolkit.Core.Rules.Checks;
 /// </summary>
 public sealed class BreakerRoomRule : ILevelRule
 {
-    private const double RoomReach = 400;
+    private const float RoomReach = 400;
     private const int OpenEndDistance = 3;
     private const int MinWallRun = 4;
 
@@ -20,7 +20,7 @@ public sealed class BreakerRoomRule : ILevelRule
     /// <summary>
     /// Returns the length in wall pieces of the back wall a breaker hangs on, or 0 when it hangs on none.
     /// </summary>
-    public static int MeasureWallRun(LevelModel model, double x, double y)
+    public static int MeasureWallRun(LevelModel model, float x, float y)
     {
         var c = model.Lattice.GetCell(x, y);
         var wall = new EdgeKey('u', c.U + 1, c.V);

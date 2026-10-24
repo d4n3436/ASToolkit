@@ -47,11 +47,11 @@ public static class RoofBuilder
             .Where(s => IsFloor(s.Id) && s.Position.Z >= 0)
             .ToArray();
         
-        double minX = floors.Min(s => s.Position.X) - Margin;
-        double maxX = floors.Max(s => s.Position.X) + Margin;
-        double minY = floors.Min(s => s.Position.Y) - Margin;
-        double maxY = floors.Max(s => s.Position.Y) + Margin;
-        var area = new Area((int)Math.Floor(minX), (int)Math.Floor(minY - Margin), (int)Math.Ceiling(maxX - minX), (int)Math.Ceiling(maxY - minY + Margin));
+        float minX = floors.Min(s => s.Position.X) - Margin;
+        float maxX = floors.Max(s => s.Position.X) + Margin;
+        float minY = floors.Min(s => s.Position.Y) - Margin;
+        float maxY = floors.Max(s => s.Position.Y) + Margin;
+        var area = new Area((int)MathF.Floor(minX), (int)MathF.Floor(minY - Margin), (int)MathF.Ceiling(maxX - minX), (int)MathF.Ceiling(maxY - minY + Margin));
         var structure = GetStructure(map, sprites, area);
 
         var floor = new BitMask(area.Width, area.Height);
@@ -91,8 +91,8 @@ public static class RoofBuilder
             }
 
             var (obj, file) = found.Value;
-            int left = (int)Math.Round(sprite.Position.X - file.Width / 2.0) - area.X0;
-            int top = (int)Math.Round(sprite.Position.Y - sprite.Position.Z - file.Height / 2.0) - area.Y0;
+            int left = (int)MathF.Round(sprite.Position.X - file.Width / 2.0f) - area.X0;
+            int top = (int)MathF.Round(sprite.Position.Y - sprite.Position.Z - file.Height / 2.0f) - area.Y0;
             structure.Add(new StructureSprite(sprite, obj, file, file.GetFrame(obj.GetFrame(sprite.Facing, file.FrameCount)), IsFloor(sprite.Id) ? Floor : Wall, left, top));
         }
 
@@ -107,14 +107,14 @@ public static class RoofBuilder
     private static (int Cx, int Cy)[] AddGroundEarth(Random rng, MapBuilder map, BitMask floor, Area area, TileMask tile, MergedMapSprite[] floors, LevelTheme theme)
     {
         var first = floors[0];
-        double ox = first.Position.X;
-        double oy = first.Position.Y;
+        float ox = first.Position.X;
+        float oy = first.Position.Y;
         int parity = theme == LevelTheme.Lab ? 0 : 1;
-        var taken = floors.Select(s => ((int)Math.Round((s.Position.X - ox) / StepX), (int)Math.Round((s.Position.Y - oy) / StepY))).ToHashSet();
-        int i0 = (int)Math.Floor((area.X0 - ox) / StepX) - 2;
-        int i1 = (int)Math.Ceiling((area.X0 + area.Width - ox) / StepX) + 2;
-        int j0 = (int)Math.Floor((area.Y0 - oy) / StepY) - 2;
-        int j1 = (int)Math.Ceiling((area.Y0 + area.Height - oy) / StepY) + 2;
+        var taken = floors.Select(s => ((int)MathF.Round((s.Position.X - ox) / StepX), (int)MathF.Round((s.Position.Y - oy) / StepY))).ToHashSet();
+        int i0 = (int)MathF.Floor((area.X0 - ox) / StepX) - 2;
+        int i1 = (int)MathF.Ceiling((area.X0 + area.Width - ox) / StepX) + 2;
+        int j0 = (int)MathF.Floor((area.Y0 - oy) / StepY) - 2;
+        int j1 = (int)MathF.Ceiling((area.Y0 + area.Height - oy) / StepY) + 2;
         var grounds = new List<(int, int)>();
         for (int index = i0; index <= i1; index++)
         {
@@ -125,9 +125,9 @@ public static class RoofBuilder
                     continue;
                 }
 
-                double x = ox + StepX * index;
-                double y = oy + StepY * innerIndex;
-                (int cx, int cy) = ((int)Math.Round(x), (int)Math.Round(y));
+                float x = ox + StepX * index;
+                float y = oy + StepY * innerIndex;
+                (int cx, int cy) = ((int)MathF.Round(x), (int)MathF.Round(y));
                 if (!TouchesFloor(floor, area, tile, cx, cy))
                 {
                     grounds.Add((cx, cy));
@@ -227,8 +227,8 @@ public static class RoofBuilder
     {
         public TileMask(VidFrame frame, int width, int height)
         {
-            int left = (int)Math.Round(-width / 2.0);
-            int top = (int)Math.Round(-height / 2.0);
+            int left = (int)MathF.Round(-width / 2.0f);
+            int top = (int)MathF.Round(-height / 2.0f);
             
             var rows = new List<(int Dy, int X0, int X1)>();
             foreach (var run in frame)
@@ -509,13 +509,13 @@ public static class RoofBuilder
         {
             for (int y = 0; y < _height; y++)
             {
-                double wy = _y0 + y;
+                float wy = _y0 + y;
                 var lastCell = new Cell(int.MinValue, int.MinValue);
                 (bool Shown, bool Closet) lastIn = default;
                 for (int x = 0; x < _width; x++)
                 {
                     int p = y * _width + x;
-                    double wx = _x0 + x;
+                    float wx = _x0 + x;
                     var cell = lattice.GetCell(wx, wy);
                     if (cell != lastCell)
                     {
@@ -539,7 +539,7 @@ public static class RoofBuilder
                             _flags[p] |= Target;
                             break;
                         case Wall:
-                            double ground = wy + (_depth[p] - GroundDepth) / 8.0;
+                            float ground = wy + (_depth[p] - GroundDepth) / 8.0f;
                             bool cap = _depth[p] > roofDepth;
                             int probe = cap ? CapProbe : GroundProbe;
                             bool front = shown.Contains(lattice.GetCell(wx, ground + probe));

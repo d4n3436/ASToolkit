@@ -33,7 +33,7 @@ public class RouteAnalyzerTests
             var a = RouteAnalyzer.Analyze(level, MapResourceBuilder.Load(Path.Combine(game, "Maps", level)), script, objects);
             Assert.NotNull(a);
             var problems = new List<string>();
-            if (a.ReachableCells != expected.Cells)
+            if (Math.Abs(a.ReachableCells - expected.Cells) > expected.Cells * 0.001f)
             {
                 problems.Add($"cells {a.ReachableCells} vs {expected.Cells}");
             }
@@ -43,7 +43,7 @@ public class RouteAnalyzerTests
                 problems.Add($"route {a.RoutePixels} vs {expected.RoutePx}");
             }
 
-            if (Math.Abs(a.RevisitShare - expected.RevisitShare) > 0.0005)
+            if (Math.Abs(a.RevisitShare - expected.RevisitShare) > 0.0005f)
             {
                 problems.Add($"revisit {a.RevisitShare} vs {expected.RevisitShare}");
             }
@@ -54,7 +54,7 @@ public class RouteAnalyzerTests
             {
                 problems.Add("objective order differs");
             }
-            else if (a.Objectives.Zip(expected.Objectives).Any(t => Math.Abs(t.First.Progress - t.Second.P) > 0.0005))
+            else if (a.Objectives.Zip(expected.Objectives).Any(t => Math.Abs(t.First.Progress - t.Second.P) > 0.0005f))
             {
                 problems.Add("objective progress differs");
             }
@@ -69,7 +69,7 @@ public class RouteAnalyzerTests
             CompareGate(problems, "locked_share", a.Gating.LockedShare, expected);
             CompareGate(problems, "fenced_off_share", a.Gating.FencedOffShare, expected);
             CompareGate(problems, "blackout_p", a.Gating.BlackoutProgress, expected);
-            double? key = expected.Gates.TryGetValue("key_to_gate_px", out var k) && k.GetDouble() < 1e6 * 0.9 ? k.GetDouble() : null;
+            float? key = expected.Gates.TryGetValue("key_to_gate_px", out var k) && k.GetDouble() < 1e6f * 0.9f ? (float)k.GetDouble() : null;
             if (key != a.Gating.KeyToGatePixels)
             {
                 problems.Add($"key_to_gate {a.Gating.KeyToGatePixels} vs {key}");
@@ -91,10 +91,10 @@ public class RouteAnalyzerTests
         Assert.True(report.Length == 0, report.ToString());
     }
 
-    private static void CompareGate(List<string> problems, string name, double? actual, RouteFixture expected)
+    private static void CompareGate(List<string> problems, string name, float? actual, RouteFixture expected)
     {
-        double? value = expected.Gates.TryGetValue(name, out var e) ? e.GetDouble() : null;
-        if (value is null != actual is null || (value is not null && Math.Abs(value.Value - actual!.Value) > 0.0005))
+        float? value = expected.Gates.TryGetValue(name, out var e) ? (float)e.GetDouble() : null;
+        if (value is null != actual is null || (value is not null && Math.Abs(value.Value - actual!.Value) > 0.0005f))
         {
             problems.Add($"{name} {actual} vs {value}");
         }

@@ -29,7 +29,7 @@ internal sealed class WalkingUnit
         return _cell >= 0 && _grid!.TryFindPath(_cell, goal, reach, out _);
     }
 
-    public bool TryWalk(Vector3 goal, float reach, int timeLine, List<RouteSegment> segments, out double length, PathPreference? preference = null)
+    public bool TryWalk(Vector3 goal, float reach, int timeLine, List<RouteSegment> segments, out float length, PathPreference? preference = null)
     {
         length = 0;
         UpdateGrid(timeLine);
@@ -63,9 +63,9 @@ internal sealed class WalkingUnit
         _cell = _grid.GetCell(Position);
     }
 
-    private double AddPath(List<int> path, List<RouteSegment> segments)
+    private float AddPath(List<int> path, List<RouteSegment> segments)
     {
-        double walked = 0;
+        float walked = 0;
         var points = new List<Vector3> { _grid!.GetPoint(path[0]) };
         for (int index = 1; index < path.Count; index++)
         {

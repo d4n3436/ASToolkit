@@ -13,12 +13,12 @@ public sealed class ReferenceLevelSet
     /// <summary>
     /// Represents the weight of the add-ons in the tour length mix.
     /// </summary>
-    public const double AddOnWeight = 2.0 / 3.0;
+    public const float AddOnWeight = 2.0f / 3.0f;
 
     /// <summary>
     /// Represents how much more monster hit points a generated level has than the campaign level it replaces.
     /// </summary>
-    public const double HitPointFactor = 1.15;
+    public const float HitPointFactor = 1.15f;
 
     private static readonly string[] AddOn1 = ["ADDON/Level_02.map", "ADDON/Level_03.map", "ADDON/Level_04.map", "ADDON/Level_05.map"];
     private static readonly string[] AddOn2 = ["ADDON2/Level_02.map", "ADDON2/Level_03.map", "ADDON2/Level_04.map", "ADDON2/Level_05.map"];
@@ -135,8 +135,8 @@ public sealed class ReferenceLevelSet
             Style = m.Style,
             BlockedShare = m.BlockedShare,
             Breakables = m.Breakables,
-            ReferenceTourPixels = (int)Math.Round(Blend(level, n => _levels[n].Analysis.RoutePixels)),
-            RevisitCeiling = Math.Clamp(a.RevisitShare + 0.03, 0.06, 0.16),
+            ReferenceTourPixels = (int)MathF.Round(Blend(level, n => _levels[n].Analysis.RoutePixels)),
+            RevisitCeiling = Math.Clamp(a.RevisitShare + 0.03f, 0.06f, 0.16f),
             HitPoints = hitPoints ?? GetHitPointTarget(level),
             LockedShare = m.Style == LevelStyle.LockedDoors ? a.Gating.LockedShare : null,
             FencedOffShare = a.Gating.FencedOffShare,
@@ -146,7 +146,7 @@ public sealed class ReferenceLevelSet
             SecretClosets = m.SecretClosets.Count,
             HasBoss = a.Elements.Any(e => e.Kind == ElementKind.Boss),
             HasMountedCannon = a.Elements.Any(e => e.Kind == ElementKind.MountedCannon),
-            AmbushChance = Math.Clamp(m.SpawnedShare, 0.05, 0.95),
+            AmbushChance = Math.Clamp(m.SpawnedShare, 0.05f, 0.95f),
             PlacedMonsterProgress = PlacedGroupRule.GetMedianProgress(a),
             Weapons = (contentLevel is not null && _levels.TryGetValue(contentLevel, out var content) ? content.Analysis : a).Elements.Count(e => e.Kind is ElementKind.Pickup or ElementKind.Crate && e.Category == ItemCategory.Weapon),
             Generators = a.Elements.Count(e => e.Kind == ElementKind.Generator),
@@ -164,25 +164,25 @@ public sealed class ReferenceLevelSet
         };
     }
 
-    private static double GetSpineShare(RouteAnalysis a) => a.SpinePixels / (double)Math.Max(1, a.RoutePixels);
+    private static float GetSpineShare(RouteAnalysis a) => a.SpinePixels / (float)Math.Max(1, a.RoutePixels);
 
     /// <summary>
     /// Returns the walk from the start to the farthest point of the tour over the square root of the floor area.
     /// </summary>
-    public static double GetElongation(RouteAnalysis a) => a.SpinePixels / (a.Step * Math.Sqrt(Math.Max(1, a.ReachableCells)));
+    public static float GetElongation(RouteAnalysis a) => a.SpinePixels / (a.Step * MathF.Sqrt(Math.Max(1, a.ReachableCells)));
 
-    private int GetHitPointTarget(int level) => (int)Math.Round(_levels[GetCampaignName(level)].Measures.HitPoints * HitPointFactor);
+    private int GetHitPointTarget(int level) => (int)MathF.Round(_levels[GetCampaignName(level)].Measures.HitPoints * HitPointFactor);
 
     // Interpolate each add-on's four fighting levels geometrically over campaign levels 2 to 10
-    private double Blend(int level, Func<string, double> value)
+    private float Blend(int level, Func<string, float> value)
     {
-        double t = (level - 2) / 8.0 * 3;
+        float t = (level - 2) / 8.0f * 3;
         int i = Math.Min(2, (int)t);
-        double f = t - i;
-        double addOn = Math.Sqrt(Interpolate(AddOn1) * Interpolate(AddOn2));
-        double campaign = value(GetCampaignName(level));
-        return Math.Exp(Math.Log(campaign) * (1 - AddOnWeight) + Math.Log(addOn) * AddOnWeight);
+        float f = t - i;
+        float addOn = MathF.Sqrt(Interpolate(AddOn1) * Interpolate(AddOn2));
+        float campaign = value(GetCampaignName(level));
+        return MathF.Exp(MathF.Log(campaign) * (1 - AddOnWeight) + MathF.Log(addOn) * AddOnWeight);
         
-        double Interpolate(string[] addOnLevels) => Math.Exp(Math.Log(value(addOnLevels[i])) * (1 - f) + Math.Log(value(addOnLevels[i + 1])) * f);
+        float Interpolate(string[] addOnLevels) => MathF.Exp(MathF.Log(value(addOnLevels[i])) * (1 - f) + MathF.Log(value(addOnLevels[i + 1])) * f);
     }
 }

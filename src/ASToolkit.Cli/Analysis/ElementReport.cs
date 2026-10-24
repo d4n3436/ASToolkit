@@ -10,7 +10,7 @@ internal sealed record ElementReport(
     int Y,
     bool Hidden,
     int CrateItem,
-    double Progress,
+    float Progress,
     int Distance,
     int BranchDepth,
     int[] Trigger);

@@ -56,7 +56,7 @@ public sealed class RouteElement
     /// <summary>
     /// Gets or sets the share of the tour walked when the player first gets near the element.
     /// </summary>
-    public double Progress { get; set; }
+    public float Progress { get; set; }
 
     /// <summary>
     /// Gets or sets the walking distance from the tour, in pixels.
@@ -71,7 +71,7 @@ public sealed class RouteElement
     /// <summary>
     /// Gets or sets the progress of a spawner's trigger, or null.
     /// </summary>
-    public double? TriggerProgress { get; set; }
+    public float? TriggerProgress { get; set; }
 
     /// <summary>
     /// Gets or sets the branch depth of a spawner's trigger, or null.

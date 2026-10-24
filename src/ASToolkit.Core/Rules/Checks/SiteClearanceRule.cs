@@ -8,9 +8,9 @@ namespace ASToolkit.Core.Rules.Checks;
 /// </summary>
 public sealed class SiteClearanceRule : ILevelRule
 {
-    private const double LargeExtent = 40;
-    private const double SmallGap = 16;
-    private const double LargeGap = 30;
+    private const float LargeExtent = 40;
+    private const float SmallGap = 16;
+    private const float LargeGap = 30;
 
     /// <inheritdoc/>
     public string Id => "C7";
@@ -18,17 +18,17 @@ public sealed class SiteClearanceRule : ILevelRule
     /// <summary>
     /// Returns the distance from a point to the footprint of an object.
     /// </summary>
-    public static double MeasureGap(GameObject obj, double objectX, double objectY, double x, double y)
+    public static float MeasureGap(GameObject obj, float objectX, float objectY, float x, float y)
     {
-        double dx = Math.Max(0, Math.Abs(objectX - x) - obj.Size.X / 2);
-        double dy = Math.Max(0, Math.Abs(objectY - y) - obj.Size.Y / 2);
-        return Math.Sqrt(dx * dx + dy * dy);
+        float dx = Math.Max(0, Math.Abs(objectX - x) - obj.Size.X / 2);
+        float dy = Math.Max(0, Math.Abs(objectY - y) - obj.Size.Y / 2);
+        return MathF.Sqrt(dx * dx + dy * dy);
     }
 
     /// <summary>
     /// Returns the smallest gap the originals leave between an object's footprint and a site.
     /// </summary>
-    public static double GetMinGap(GameObject obj) => Math.Max(obj.Size.X, obj.Size.Y) >= LargeExtent ? LargeGap : SmallGap;
+    public static float GetMinGap(GameObject obj) => Math.Max(obj.Size.X, obj.Size.Y) >= LargeExtent ? LargeGap : SmallGap;
 
     /// <inheritdoc/>
     public IEnumerable<RuleResult> Evaluate(RuleContext context)

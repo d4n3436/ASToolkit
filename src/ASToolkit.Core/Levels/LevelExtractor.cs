@@ -1,3 +1,4 @@
+using System.Drawing;
 using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Levels;
@@ -10,12 +11,12 @@ public static class LevelExtractor
     /// <summary>
     /// Represents the lab lattice step.
     /// </summary>
-    public static readonly (double X, double Y) LabStep = (40, 28);
+    public static readonly PointF LabStep = new(40, 28);
 
     /// <summary>
     /// Represents the military fine lattice step.
     /// </summary>
-    public static readonly (double X, double Y) MilitaryStep = (45, 32);
+    public static readonly PointF MilitaryStep = new(45, 32);
 
     /// <summary>
     /// Builds the model of a map, or returns null when the map has no lab or military floor.
@@ -70,7 +71,7 @@ public static class LevelExtractor
     /// <summary>
     /// Returns the edges a lab wall piece covers. A piece off the lattice covers none, and double doors and frames cover two.
     /// </summary>
-    public static IEnumerable<EdgeKey> GetLabEdges(Lattice lattice, KnownObject id, double x, double y)
+    public static IEnumerable<EdgeKey> GetLabEdges(Lattice lattice, KnownObject id, float x, float y)
     {
         var key = GetLabEdge(lattice, id, x, y);
         if (key is null)
@@ -89,27 +90,27 @@ public static class LevelExtractor
     /// <summary>
     /// Returns the edge of a lab wall piece. Pieces placed off the lattice snap to the nearest edge of their direction.
     /// </summary>
-    public static EdgeKey? GetLabEdge(Lattice lattice, KnownObject id, double x, double y)
+    public static EdgeKey? GetLabEdge(Lattice lattice, KnownObject id, float x, float y)
     {
-        (double u, double v) = lattice.ToLattice(x, y);
-        if (Lattice.IsNearInteger(u - .25) && Lattice.IsNearInteger(v - .25))
+        (float u, float v) = lattice.ToLattice(x, y);
+        if (Lattice.IsNearInteger(u - 0.25f) && Lattice.IsNearInteger(v - 0.25f))
         {
-            return new EdgeKey('v', (int)Math.Round(u - .25), (int)Math.Round(v - .25));
+            return new EdgeKey('v', (int)MathF.Round(u - 0.25f), (int)MathF.Round(v - 0.25f));
         }
 
-        if (Lattice.IsNearInteger(u + .25) && Lattice.IsNearInteger(v - .75))
+        if (Lattice.IsNearInteger(u + 0.25f) && Lattice.IsNearInteger(v - 0.75f))
         {
-            return new EdgeKey('u', (int)Math.Round(u + .25), (int)Math.Round(v - .75));
+            return new EdgeKey('u', (int)MathF.Round(u + 0.25f), (int)MathF.Round(v - 0.75f));
         }
 
-        double dv = Math.Abs(v - .25 - Math.Round(v - .25));
-        double du = Math.Abs(u + .25 - Math.Round(u + .25));
+        float dv = Math.Abs(v - 0.25f - MathF.Round(v - 0.25f));
+        float du = Math.Abs(u + 0.25f - MathF.Round(u + 0.25f));
         if (KnownObject.LabSlash.Contains(id) || (!KnownObject.LabBack.Contains(id) && dv <= du))
         {
-            return dv < .35 ? new EdgeKey('v', (int)Math.Round(u - .25), (int)Math.Round(v - .25)) : null;
+            return dv < 0.35f ? new EdgeKey('v', (int)MathF.Round(u - 0.25f), (int)MathF.Round(v - 0.25f)) : null;
         }
 
-        return du < .35 ? new EdgeKey('u', (int)Math.Round(u + .25), (int)Math.Round(v - .75)) : null;
+        return du < 0.35f ? new EdgeKey('u', (int)MathF.Round(u + 0.25f), (int)MathF.Round(v - 0.75f)) : null;
     }
 
     private static int CountLabFit(List<MergedMapSprite> sp, Lattice lattice)
@@ -123,10 +124,10 @@ public static class LevelExtractor
                 continue;
             }
 
-            (double u, double v) = lattice.ToLattice(sprite.Position.X, sprite.Position.Y);
+            (float u, float v) = lattice.ToLattice(sprite.Position.X, sprite.Position.Y);
             bool fits = slash
-                ? Lattice.IsNearInteger(u - .25) && Lattice.IsNearInteger(v - .25)
-                : Lattice.IsNearInteger(u + .25) && Lattice.IsNearInteger(v - .75);
+                ? Lattice.IsNearInteger(u - 0.25f) && Lattice.IsNearInteger(v - 0.25f)
+                : Lattice.IsNearInteger(u + 0.25f) && Lattice.IsNearInteger(v - 0.75f);
             if (fits)
             {
                 n++;
@@ -164,8 +165,8 @@ public static class LevelExtractor
             var index = new Dictionary<(int, int), int>();
             foreach (var floorSprite in floor)
             {
-                (double u, double v) = probe.ToLattice(floorSprite.Position.X, floorSprite.Position.Y);
-                var key = ((int)Math.Round((u - Math.Floor(u)) * 8) % 8, (int)Math.Round((v - Math.Floor(v)) * 8) % 8);
+                (float u, float v) = probe.ToLattice(floorSprite.Position.X, floorSprite.Position.Y);
+                var key = ((int)MathF.Round((u - MathF.Floor(u)) * 8) % 8, (int)MathF.Round((v - MathF.Floor(v)) * 8) % 8);
                 if (index.TryGetValue(key, out int i))
                 {
                     phases[i] = (key, phases[i].Count + 1, phases[i].First);
@@ -219,13 +220,13 @@ public static class LevelExtractor
 
             foreach (var tile in big)
             {
-                (double u0, double v0) = best.ToLattice(tile.Position.X, tile.Position.Y);
-                for (int u = (int)Math.Floor(u0) - 3; u < (int)Math.Floor(u0) + 4; u++)
+                (float u0, float v0) = best.ToLattice(tile.Position.X, tile.Position.Y);
+                for (int u = (int)MathF.Floor(u0) - 3; u < (int)MathF.Floor(u0) + 4; u++)
                 {
-                    for (int v = (int)Math.Floor(v0) - 3; v < (int)Math.Floor(v0) + 4; v++)
+                    for (int v = (int)MathF.Floor(v0) - 3; v < (int)MathF.Floor(v0) + 4; v++)
                     {
-                        (double x, double y) = best.ToWorld(u + .5, v + .5);
-                        if (Math.Abs(x - tile.Position.X) / 80 + Math.Abs(y - tile.Position.Y) / 56 <= 1.0)
+                        (float x, float y) = best.ToWorld(u + 0.5f, v + 0.5f);
+                        if (Math.Abs(x - tile.Position.X) / 80 + Math.Abs(y - tile.Position.Y) / 56 <= 1.0f)
                         {
                             cells.Add(new Cell(u, v));
                         }
@@ -274,8 +275,8 @@ public static class LevelExtractor
         var seen = new HashSet<(int, int)>();
         foreach (var wall in slashWalls)
         {
-            (double u, double v) = probe.ToLattice(wall.Position.X, wall.Position.Y);
-            if (seen.Add(((int)Math.Round((u - Math.Floor(u)) * 8) % 8, (int)Math.Round((v - Math.Floor(v)) * 8) % 8)))
+            (float u, float v) = probe.ToLattice(wall.Position.X, wall.Position.Y);
+            if (seen.Add(((int)MathF.Round((u - MathF.Floor(u)) * 8) % 8, (int)MathF.Round((v - MathF.Floor(v)) * 8) % 8)))
             {
                 firsts.Add(wall);
             }
@@ -302,9 +303,9 @@ public static class LevelExtractor
                 continue;
             }
 
-            (double u, double v) = lattice.ToLattice(sprite.Position.X, sprite.Position.Y);
-            int a = (int)Math.Round(u);
-            int b = (int)Math.Round(v);
+            (float u, float v) = lattice.ToLattice(sprite.Position.X, sprite.Position.Y);
+            int a = (int)MathF.Round(u);
+            int b = (int)MathF.Round(v);
             bool slash = sprite.Id == KnownObject.MilitaryWallSlash || (sprite.Id is KnownObject.FenceEmitter or KnownObject.MilitaryDoorWall && sprite.Facing is >= 64 and < 192);
             char kind = sprite.Id == KnownObject.MilitaryDoorWall ? 'F' : 'W';
             if (slash)
@@ -325,31 +326,31 @@ public static class LevelExtractor
             return lattice;
         }
 
-        var tileSet = tiles.Select(t => ((long)Math.Round(t.Position.X), (long)Math.Round(t.Position.Y))).ToHashSet();
+        var tileSet = tiles.Select(t => ((long)MathF.Round(t.Position.X), (long)MathF.Round(t.Position.Y))).ToHashSet();
         var us = tiles.Select(t => lattice.ToLattice(t.Position.X, t.Position.Y)).ToArray();
-        int uMin = (int)Math.Floor(us.Min(p => p.U)) - 3;
-        int uMax = (int)Math.Ceiling(us.Max(p => p.U)) + 3;
-        int vMin = (int)Math.Floor(us.Min(p => p.V)) - 3;
-        int vMax = (int)Math.Ceiling(us.Max(p => p.V)) + 3;
-        double tx0 = tiles[0].Position.X;
-        double ty0 = tiles[0].Position.Y;
+        int uMin = (int)MathF.Floor(us.Min(p => p.U)) - 3;
+        int uMax = (int)MathF.Ceiling(us.Max(p => p.U)) + 3;
+        int vMin = (int)MathF.Floor(us.Min(p => p.V)) - 3;
+        int vMax = (int)MathF.Ceiling(us.Max(p => p.V)) + 3;
+        float tx0 = tiles[0].Position.X;
+        float ty0 = tiles[0].Position.Y;
         for (int u = uMin; u < uMax; u++)
         {
             for (int v = vMin; v < vMax; v++)
             {
-                (double x, double y) = lattice.ToWorld(u + .5, v + .5);
-                double p = (x - tx0) / 80;
-                double q = (y - ty0) / 56;
-                double ta = (p - q) / 2;
-                double tb = (p + q) / 2;
+                (float x, float y) = lattice.ToWorld(u + 0.5f, v + 0.5f);
+                float p = (x - tx0) / 80;
+                float q = (y - ty0) / 56;
+                float ta = (p - q) / 2;
+                float tb = (p + q) / 2;
                 bool covered = false;
-                foreach (double roundedA in new[] { Math.Floor(ta), Math.Ceiling(ta) })
+                foreach (float roundedA in new[] { MathF.Floor(ta), MathF.Ceiling(ta) })
                 {
-                    foreach (double roundedB in new[] { Math.Floor(tb), Math.Ceiling(tb) })
+                    foreach (float roundedB in new[] { MathF.Floor(tb), MathF.Ceiling(tb) })
                     {
-                        double cx = tx0 + 80 * (roundedA + roundedB);
-                        double cy = ty0 + 56 * (roundedB - roundedA);
-                        if (tileSet.Contains(((long)Math.Round(cx), (long)Math.Round(cy))) && Math.Abs(x - cx) / 80 + Math.Abs(y - cy) / 56 <= 1.0)
+                        float cx = tx0 + 80 * (roundedA + roundedB);
+                        float cy = ty0 + 56 * (roundedB - roundedA);
+                        if (tileSet.Contains(((long)MathF.Round(cx), (long)MathF.Round(cy))) && Math.Abs(x - cx) / 80 + Math.Abs(y - cy) / 56 <= 1.0f)
                         {
                             covered = true;
                         }
@@ -368,7 +369,7 @@ public static class LevelExtractor
 
     private static bool IsOnVertex(Lattice lattice, MergedMapSprite s)
     {
-        (double u, double v) = lattice.ToLattice(s.Position.X, s.Position.Y);
+        (float u, float v) = lattice.ToLattice(s.Position.X, s.Position.Y);
         return Lattice.IsNearInteger(u) && Lattice.IsNearInteger(v);
     }
 
@@ -383,7 +384,7 @@ public static class LevelExtractor
             if (s.Position.Z > 2)
             {
                 int bestIndex = -1;
-                double bestDistance = double.MaxValue;
+                float bestDistance = float.MaxValue;
                 for (int innerDecorObjectIndex = 0; innerDecorObjectIndex < decor.Length; innerDecorObjectIndex++)
                 {
                     var t = decor[innerDecorObjectIndex];
@@ -393,15 +394,15 @@ public static class LevelExtractor
                     }
 
                     objects.TryFind(t.Id, out var obj);
-                    double ex = obj.Size.X;
-                    double ey = obj.Size.Y;
-                    double ez = obj.Size.Z;
+                    float ex = obj.Size.X;
+                    float ey = obj.Size.Y;
+                    float ez = obj.Size.Z;
                     if (ez < 5 || Math.Abs(t.Position.X - s.Position.X) > ex + 6 || Math.Abs(t.Position.Y - s.Position.Y) > ey + 6)
                     {
                         continue;
                     }
 
-                    double d = Math.Abs(t.Position.X - s.Position.X) + Math.Abs(t.Position.Y - s.Position.Y);
+                    float d = Math.Abs(t.Position.X - s.Position.X) + Math.Abs(t.Position.Y - s.Position.Y);
                     if (d < bestDistance)
                     {
                         bestDistance = d;
@@ -412,7 +413,7 @@ public static class LevelExtractor
                 support = bestIndex;
             }
 
-            (double u, double v) = lattice.ToLattice(s.Position.X, s.Position.Y);
+            (float u, float v) = lattice.ToLattice(s.Position.X, s.Position.Y);
             result.Add(new DecorObject(s.Id, u, v, s.Position.Z, s.Facing, s.Payload, support));
         }
 

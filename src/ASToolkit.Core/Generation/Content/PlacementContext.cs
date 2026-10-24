@@ -1,3 +1,4 @@
+using System.Drawing;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Generation.Geometry;
 using ASToolkit.Core.Generation.Layout;
@@ -11,7 +12,7 @@ namespace ASToolkit.Core.Generation.Content;
 /// </summary>
 public sealed class PlacementContext
 {
-    private readonly Dictionary<(int, int), List<(double X, double Y, double Ex, double Ey)>> _wallBoxes = [];
+    private readonly Dictionary<(int, int), List<(float X, float Y, float Ex, float Ey)>> _wallBoxes = [];
     private readonly IReadOnlySet<Cell> _blocked;
 
     /// <summary>
@@ -71,17 +72,17 @@ public sealed class PlacementContext
     public int RouteLength { get; }
 
     /// <summary>Gets the length of one cell step in pixels.</summary>
-    public double Step => Layout.Lattice.CellStep;
+    public float Step => Layout.Lattice.CellStep;
 
     /// <summary>
     /// Returns how far along the route a cell lies, from 0 at the start to 1 at the farthest cell.
     /// </summary>
-    public double GetProgress(Cell c) => Distance.GetValueOrDefault(c) / (double)Math.Max(1, RouteLength);
+    public float GetProgress(Cell c) => Distance.GetValueOrDefault(c) / (float)Math.Max(1, RouteLength);
 
     /// <summary>
     /// Returns how far along the route a region begins.
     /// </summary>
-    public double GetProgress(PlanRegion region) => GetRegionCells(region).Where(Distance.ContainsKey).Select(GetProgress).DefaultIfEmpty(0).Min();
+    public float GetProgress(PlanRegion region) => GetRegionCells(region).Where(Distance.ContainsKey).Select(GetProgress).DefaultIfEmpty(0).Min();
 
     /// <summary>
     /// Returns the cells of a region in a stable order.
@@ -121,9 +122,9 @@ public sealed class PlacementContext
     /// <summary>
     /// Returns whether a point lies within a margin of a wall piece's collision box.
     /// </summary>
-    public bool IsInWall(double x, double y, double margin = 6)
+    public bool IsInWall(float x, float y, float margin = 6)
     {
-        (int bx, int by) = ((int)Math.Floor(x / 100), (int)Math.Floor(y / 100));
+        (int bx, int by) = ((int)MathF.Floor(x / 100), (int)MathF.Floor(y / 100));
         for (int index = -1; index <= 1; index++)
         {
             for (int innerIndex = -1; innerIndex <= 1; innerIndex++)
@@ -133,7 +134,7 @@ public sealed class PlacementContext
                     continue;
                 }
 
-                foreach ((double wx, double wy, double ex, double ey) in boxes)
+                foreach ((float wx, float wy, float ex, float ey) in boxes)
                 {
                     if (Math.Abs(x - wx) < ex + margin && Math.Abs(y - wy) < ey + margin)
                     {
@@ -149,14 +150,14 @@ public sealed class PlacementContext
     /// <summary>
     /// Returns a random point inside a cell clear of walls, or null when twelve tries fail.
     /// </summary>
-    public (double X, double Y)? FindSpot(Cell c, double margin = 6)
+    public PointF? FindSpot(Cell c, float margin = 6)
     {
         for (int index = 0; index < 12; index++)
         {
-            (double x, double y) = Layout.Lattice.ToWorld(c.U + 0.3 + 0.4 * Rng.NextDouble(), c.V + 0.3 + 0.4 * Rng.NextDouble());
+            (float x, float y) = Layout.Lattice.ToWorld(c.U + 0.3f + 0.4f * Rng.NextSingle(), c.V + 0.3f + 0.4f * Rng.NextSingle());
             if (!IsInWall(x, y, margin))
             {
-                return (x, y);
+                return new PointF(x, y);
             }
         }
 
@@ -166,7 +167,7 @@ public sealed class PlacementContext
     /// <summary>
     /// Places an object on a free spot of one of the cells and returns its position and cell, or null when no cell has room.
     /// </summary>
-    public (double X, double Y, Cell Cell)? Place(IReadOnlyList<Cell> cells, KnownObject id, int? dir = null, ReadOnlyMemory<byte> payload = default, uint? army = null, bool take = true)
+    public (float X, float Y, Cell Cell)? Place(IReadOnlyList<Cell> cells, KnownObject id, int? dir = null, ReadOnlyMemory<byte> payload = default, uint? army = null, bool take = true)
     {
         if (cells.Count == 0)
         {
@@ -235,14 +236,14 @@ public sealed class PlacementContext
     /// <summary>
     /// Records a wall piece's collision box for later placements to keep clear of.
     /// </summary>
-    public void AddWallBox(double x, double y, KnownObject id)
+    public void AddWallBox(float x, float y, KnownObject id)
     {
         if (!Objects.TryFind(id, out var obj))
         {
             return;
         }
 
-        var bucket = ((int)Math.Floor(x / 100), (int)Math.Floor(y / 100));
+        var bucket = ((int)MathF.Floor(x / 100), (int)MathF.Floor(y / 100));
         if (!_wallBoxes.TryGetValue(bucket, out var list))
         {
             list = [];

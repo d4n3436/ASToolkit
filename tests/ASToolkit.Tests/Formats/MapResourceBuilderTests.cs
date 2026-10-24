@@ -14,8 +14,8 @@ public class MapResourceBuilderTests
             var map = MapResourceBuilder.Load(Path.Combine(game, "Maps", level));
             Assert.Equal(expected.Count, map.Sprites.Count);
             Assert.Equal(expected.Ids, map.Sprites.Sum(s => (long)s.Id));
-            Assert.Equal(expected.X, map.Sprites.Sum(s => (double)s.Position.X), 0.1);
-            Assert.Equal(expected.Y, map.Sprites.Sum(s => (double)s.Position.Y), 0.1);
+            Assert.Equal(expected.X, map.Sprites.Sum(s => (float)s.Position.X), 0.1f);
+            Assert.Equal(expected.Y, map.Sprites.Sum(s => (float)s.Position.Y), 0.1f);
             Assert.Equal(expected.PayloadBytes, map.Sprites.Sum(s => s.Payload.Length));
             Assert.Equal(expected.Side, map.Sprites.Sum(s => s.Army));
         }
@@ -39,5 +39,5 @@ public class MapResourceBuilderTests
         }
     }
 
-    private sealed record MapRow(int Count, long Ids, double X, double Y, int PayloadBytes, long Side);
+    private sealed record MapRow(int Count, long Ids, float X, float Y, int PayloadBytes, long Side);
 }

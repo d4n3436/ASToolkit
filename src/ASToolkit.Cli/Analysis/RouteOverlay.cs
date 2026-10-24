@@ -14,7 +14,7 @@ namespace ASToolkit.Cli.Analysis;
 internal static class RouteOverlay
 {
     // Marker and line sizes are tuned for a quarter-scale map and grow with the scale
-    private const double TunedScale = 0.25;
+    private const float TunedScale = 0.25f;
     private const int ContentThreshold = 12;
 
     private static readonly Color Start = Color.FromRgb(0, 255, 0);
@@ -109,7 +109,7 @@ internal static class RouteOverlay
 
             if (script.Blackout is not null)
             {
-                c.Draw(Blackout, Size(3), Square(map.ToImage(script.Blackout.Value.X, script.Blackout.Value.Y), Size(6)));
+                c.Draw(Blackout, Size(3), Square(map.ToImage(script.Blackout.Value.Center.X, script.Blackout.Value.Center.Y), Size(6)));
             }
 
             DrawObjectiveLabels(c, map, analysis.Objectives, Size, LabelFamily.Value.CreateFont(Math.Max(10, MathF.Round(11 * k)), FontStyle.Bold));
@@ -132,11 +132,11 @@ internal static class RouteOverlay
 
         return;
 
-        float Size(double w) => Math.Max(1, MathF.Round((float)w * k));
+        float Size(float w) => Math.Max(1, MathF.Round((float)w * k));
     }
 
     // Number sites, generators and dynamite in tour order and label the breaker B
-    private static void DrawObjectiveLabels(IImageProcessingContext c, MapImage map, IReadOnlyList<RouteObjective> objectives, Func<double, float> size, Font font)
+    private static void DrawObjectiveLabels(IImageProcessingContext c, MapImage map, IReadOnlyList<RouteObjective> objectives, Func<float, float> size, Font font)
     {
         var counts = new Dictionary<char, int>();
         foreach (var objective in objectives.Where(o => ObjectiveLetters.ContainsKey(o.Kind)).OrderBy(o => o.Progress))

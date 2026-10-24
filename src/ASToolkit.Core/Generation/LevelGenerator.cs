@@ -25,7 +25,7 @@ public sealed class LevelGenerator
     private const int MaxCandidates = 40;
     private const int MaxBreakerRetries = 20;
     private const int RoofSeed = 99;
-    private const double LayoutFillSlack = 0.9;
+    private const float LayoutFillSlack = 0.9f;
 
     // Campaign levels the add-on levels take their structure from
     private static readonly int[] AddOnSlots = [2, 3, 5, 8, 10];
@@ -107,7 +107,7 @@ public sealed class LevelGenerator
         ArgumentOutOfRangeException.ThrowIfLessThan(number, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(number, AddOnLevelCount);
         string[] names = [$"ADDON/Level_{number:00}.map", $"ADDON2/Level_{number:00}.map"];
-        int hitPoints = (int)Math.Round(Math.Sqrt(names.Aggregate(1.0, (product, n) => product * Math.Max(1, _content.Value.GetLevel(n).HitPoints))));
+        int hitPoints = (int)MathF.Round(MathF.Sqrt(names.Aggregate(1.0f, (product, n) => product * Math.Max(1, _content.Value.GetLevel(n).HitPoints))));
         var target = _references.GetTarget(AddOnSlots[number - 1], hitPoints, names[Math.Abs(seed) % 2]);
         var level = Generate(seed, AddOnSlots[number - 1], target);
         level.AddOnNumber = number;
@@ -195,8 +195,8 @@ public sealed class LevelGenerator
         int spawnClosets = theme == LevelTheme.Lab ? Math.Min(6, budget.Ambushes.Count / 3) : 0;
         int shortcuts = theme == LevelTheme.Lab ? rng.Next(3) : 0;
         // Use the original's elongation for blackouts and its mean with the add-ons' otherwise
-        double elongation = gate is { Kind: GateKind.Blackout, IsWing: false } ? target.OriginalElongation : (target.Elongation + target.OriginalElongation) / 2;
-        double maxElongation = theme == LevelTheme.Lab ? Math.Max(target.Elongation, target.OriginalElongation) : double.PositiveInfinity;
+        float elongation = gate is { Kind: GateKind.Blackout, IsWing: false } ? target.OriginalElongation : (target.Elongation + target.OriginalElongation) / 2;
+        float maxElongation = theme == LevelTheme.Lab ? Math.Max(target.Elongation, target.OriginalElongation) : float.PositiveInfinity;
         LayoutPlan? plan = null;
         for (int attempt = 0; plan is null; attempt++)
         {
@@ -205,7 +205,7 @@ public sealed class LevelGenerator
                 throw new InvalidOperationException($"No layout for level {level}.");
             }
 
-            int targetUnits = (int)(originalUnits * (0.9 + 0.15 * rng.NextDouble()));
+            int targetUnits = (int)(originalUnits * (0.9f + 0.15f * rng.NextSingle()));
             plan = LayoutPlanner.Plan(rng, settings, targetUnits, target.BoxFill * LayoutFillSlack, elongation, maxElongation, gate, theme == LevelTheme.Lab ? target.SecretClosets : 0, spawnClosets, shortcuts);
         }
 
@@ -248,11 +248,11 @@ public sealed class LevelGenerator
         if (breaker is not null && plan.KeyRoom is not null)
         {
             var room = layout.GetRegionCells(plan.KeyRoom.Id).ToHashSet();
-            decor = decor.Where(o => !room.Contains(new Cell((int)Math.Floor(o.U), (int)Math.Floor(o.V)))).ToList();
+            decor = decor.Where(o => !room.Contains(new Cell((int)MathF.Floor(o.U), (int)MathF.Floor(o.V)))).ToList();
             for (int propIndex = 0; propIndex < breaker.Props.Count; propIndex++)
             {
                 var p = breaker.Props[propIndex];
-                (double u, double v) = layout.Lattice.ToLattice(breaker.X + p.Dx, breaker.Y + p.Dy);
+                (float u, float v) = layout.Lattice.ToLattice(breaker.Position.X + p.Dx, breaker.Position.Y + p.Dy);
                 decor.Add(new PlacedDecor(p.Id, u, v, p.Z, p.Dir, new byte[8], (-1, propIndex), null));
             }
         }
@@ -271,12 +271,12 @@ public sealed class LevelGenerator
 
         var clutterCells = floor.Where(c => !excluded.Contains(layout.Cells[c])).ToHashSet();
         var (solid, breakable) = ClutterPlanner.GetPalette(originalMap, _objects);
-        double blockedShare = target.BlockedShare * (0.95 + 0.2 * rng.NextDouble());
+        float blockedShare = target.BlockedShare * (0.95f + 0.2f * rng.NextSingle());
         kept = ClutterPlanner.AddClutter(rng, kept, floor, clutterCells, layout.Edges, keepClear, start, layout.Lattice, _objects, solid, breakable, blockedShare, target.Breakables, target.WallClearance, target.Facings);
         (kept, var blocked) = Dresser.ClearAndConnect(kept, floor, layout.Edges, keepClear, start, layout.Lattice, _objects);
         foreach (var keptObject in kept)
         {
-            (double x, double y) = layout.Lattice.ToWorld(keptObject.U, keptObject.V);
+            (float x, float y) = layout.Lattice.ToWorld(keptObject.U, keptObject.V);
             map.Add(keptObject.Id, x, y, keptObject.Z, keptObject.Dir, keptObject.Payload, unique: false);
         }
 
@@ -285,7 +285,7 @@ public sealed class LevelGenerator
             .Where(c => !blocked.ContainsKey(c) && !layout.IsWalled(c))
             .OrderBy(c => Math.Abs(c.U - start.U) + Math.Abs(c.V - start.V))
             .FirstOrDefault(c => !context.IsInWall(layout.Lattice.GetCenter(c).X, layout.Lattice.GetCenter(c).Y, 20), start);
-        (double px, double py) = layout.Lattice.GetCenter(player);
+        (float px, float py) = layout.Lattice.GetCenter(player);
         map.Add(KnownObject.PlayerStart, px, py, 0, 96);
         context.Taken.Add(player);
 
@@ -309,7 +309,7 @@ public sealed class LevelGenerator
     }
 
     // Keep broken keypads for jammed doors
-    private static Func<KnownObject, double, bool> GetDressingDecor(ReferenceLevelSet references, LevelTheme theme) =>
+    private static Func<KnownObject, float, bool> GetDressingDecor(ReferenceLevelSet references, LevelTheme theme) =>
         (id, z) => id != KnownObject.BrokenKeypad && references.GetThemeDecor(theme).Allows(id, z);
 
     // Keep two cells clear on both sides of every doorway and around the player start
@@ -356,12 +356,12 @@ public sealed class LevelGenerator
 
     private static GateRequest ChooseGate(Random rng, LevelTarget target, LevelTheme theme) => target.Style switch
     {
-        LevelStyle.LockedDoors => new GateRequest(GateKind.LockedDoors, target.LockedShare ?? 0.5, 0),
+        LevelStyle.LockedDoors => new GateRequest(GateKind.LockedDoors, target.LockedShare ?? 0.5f, 0),
         LevelStyle.Blackout => new GateRequest(GateKind.Blackout, 0, 5200),
-        LevelStyle.Fenced => new GateRequest(GateKind.Fences, target.FencedOffShare ?? 0.4, 0),
+        LevelStyle.Fenced => new GateRequest(GateKind.Fences, target.FencedOffShare ?? 0.4f, 0),
         _ => theme == LevelTheme.Military
-            ? new GateRequest(GateKind.Fences, 0.2 + 0.1 * rng.NextDouble(), 0, IsWing: true)
-            : new GateRequest(rng.Next(2) == 0 ? GateKind.LockedDoors : GateKind.Blackout, 0.2 + 0.1 * rng.NextDouble(), 0, IsWing: true)
+            ? new GateRequest(GateKind.Fences, 0.2f + 0.1f * rng.NextSingle(), 0, IsWing: true)
+            : new GateRequest(rng.Next(2) == 0 ? GateKind.LockedDoors : GateKind.Blackout, 0.2f + 0.1f * rng.NextSingle(), 0, IsWing: true)
     };
 
     private sealed record OriginalLevel(MapResourceBuilder Map, LevelModel Model, byte[] Template, IReadOnlyList<string> MusicLines);

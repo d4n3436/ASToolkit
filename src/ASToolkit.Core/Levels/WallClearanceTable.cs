@@ -8,13 +8,13 @@ namespace ASToolkit.Core.Levels;
 public sealed class WallClearanceTable
 {
     private const int MinSamples = 20;
-    private const double LowQuantile = 0.05;
+    private const float LowQuantile = 0.05f;
     private const int SearchCells = 3;
-    private const double FloorHeight = 5;
+    private const float FloorHeight = 5;
 
-    private readonly Dictionary<KnownObject, (double Minimum, double Low)> _byId;
+    private readonly Dictionary<KnownObject, (float Minimum, float Low)> _byId;
 
-    private WallClearanceTable(Dictionary<KnownObject, (double, double)> byId)
+    private WallClearanceTable(Dictionary<KnownObject, (float, float)> byId)
     {
         _byId = byId;
     }
@@ -24,13 +24,13 @@ public sealed class WallClearanceTable
     /// </summary>
     public static WallClearanceTable Build(IEnumerable<LevelModel> models)
     {
-        var samples = new Dictionary<KnownObject, List<double>>();
+        var samples = new Dictionary<KnownObject, List<float>>();
         foreach (var model in models)
         {
             foreach (var levelObject in model.Objects.Where(o => o.Z < FloorHeight))
             {
-                double d = MeasureDistance(model.Edges, levelObject.U, levelObject.V);
-                if (double.IsInfinity(d))
+                float d = MeasureDistance(model.Edges, levelObject.U, levelObject.V);
+                if (float.IsInfinity(d))
                 {
                     continue;
                 }
@@ -45,11 +45,11 @@ public sealed class WallClearanceTable
             }
         }
 
-        var byId = new Dictionary<KnownObject, (double, double)>();
+        var byId = new Dictionary<KnownObject, (float, float)>();
         foreach ((var id, var list) in samples)
         {
             list.Sort();
-            double low = list.Count >= MinSamples ? list[(int)(LowQuantile * list.Count)] : list[0];
+            float low = list.Count >= MinSamples ? list[(int)(LowQuantile * list.Count)] : list[0];
             byId[id] = (list[0], low);
         }
 
@@ -59,25 +59,25 @@ public sealed class WallClearanceTable
     /// <summary>
     /// Returns the distance from a point to the nearest wall, door or fence edge within three cells, or infinity when there is none.
     /// </summary>
-    public static double MeasureDistance(IReadOnlyDictionary<EdgeKey, char> edges, double u, double v)
+    public static float MeasureDistance(IReadOnlyDictionary<EdgeKey, char> edges, float u, float v)
     {
-        int cu = (int)Math.Floor(u);
-        int cv = (int)Math.Floor(v);
-        double best = double.PositiveInfinity;
+        int cu = (int)MathF.Floor(u);
+        int cv = (int)MathF.Floor(v);
+        float best = float.PositiveInfinity;
         for (int a = cu - SearchCells; a <= cu + SearchCells + 1; a++)
         {
             for (int b = cv - SearchCells; b <= cv + SearchCells + 1; b++)
             {
                 if (edges.TryGetValue(new EdgeKey('u', a, b), out char k1) && k1 != 'e')
                 {
-                    double dv = Math.Max(0, Math.Max(b - v, v - (b + 1)));
-                    best = Math.Min(best, Math.Sqrt((u - a) * (u - a) + dv * dv));
+                    float dv = Math.Max(0, Math.Max(b - v, v - (b + 1)));
+                    best = Math.Min(best, MathF.Sqrt((u - a) * (u - a) + dv * dv));
                 }
 
                 if (edges.TryGetValue(new EdgeKey('v', a, b), out char k2) && k2 != 'e')
                 {
-                    double du = Math.Max(0, Math.Max(a - u, u - (a + 1)));
-                    best = Math.Min(best, Math.Sqrt((v - b) * (v - b) + du * du));
+                    float du = Math.Max(0, Math.Max(a - u, u - (a + 1)));
+                    best = Math.Min(best, MathF.Sqrt((v - b) * (v - b) + du * du));
                 }
             }
         }
@@ -88,7 +88,7 @@ public sealed class WallClearanceTable
     /// <summary>
     /// Returns the closest any original puts an object to a wall, and the distance 95% of them keep, or false for an object the originals don't place.
     /// </summary>
-    public bool TryGetClearance(KnownObject id, out double minimum, out double low)
+    public bool TryGetClearance(KnownObject id, out float minimum, out float low)
     {
         bool found = _byId.TryGetValue(id, out var c);
         (minimum, low) = c;

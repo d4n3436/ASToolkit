@@ -9,7 +9,7 @@ internal sealed record RouteFixture(
     int CoarseEdges,
     int Cells,
     int RoutePx,
-    double RevisitShare,
+    float RevisitShare,
     Dictionary<string, JsonElement> Gates,
     IReadOnlyList<LegFixture> Legs,
     IReadOnlyList<ObjectiveFixture> Objectives,
@@ -17,6 +17,6 @@ internal sealed record RouteFixture(
 
 internal sealed record LegFixture(string Phase, int Px);
 
-internal sealed record ObjectiveFixture(string Kind, double X, double Y, double P);
+internal sealed record ObjectiveFixture(string Kind, float X, float Y, float P);
 
-internal sealed record CheckpointFixture(double X, double Y, double P);
+internal sealed record CheckpointFixture(float X, float Y, float P);

@@ -8,7 +8,7 @@ namespace ASToolkit.Core.Rules.Checks;
 public sealed class PlacedGroupRule : ILevelRule
 {
     private const int MinMonsters = 4;
-    private const double Tolerance = 0.25;
+    private const float Tolerance = 0.25f;
 
     /// <inheritdoc/>
     public string Id => "A10";
@@ -16,22 +16,22 @@ public sealed class PlacedGroupRule : ILevelRule
     /// <summary>
     /// Returns the median tour progress of a level's placed monsters, or null when it has fewer than four.
     /// </summary>
-    public static double? GetMedianProgress(RouteAnalysis analysis)
+    public static float? GetMedianProgress(RouteAnalysis analysis)
     {
-        double[] placed = analysis.Elements
+        float[] placed = analysis.Elements
             .Where(e => e.Kind == ElementKind.Monster)
             .Select(e => e.Progress)
             .Order()
             .ToArray();
         
-        return placed.Length < MinMonsters ? null : RuleMath.GetQuantile(placed, .5);
+        return placed.Length < MinMonsters ? null : RuleMath.GetQuantile(placed, 0.5f);
     }
 
     /// <inheritdoc/>
     public IEnumerable<RuleResult> Evaluate(RuleContext context)
     {
-        double? target = context.Target.PlacedMonsterProgress;
-        double? median = GetMedianProgress(context.Analysis);
+        float? target = context.Target.PlacedMonsterProgress;
+        float? median = GetMedianProgress(context.Analysis);
         if (target is null || median is null)
         {
             yield break;

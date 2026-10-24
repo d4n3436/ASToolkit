@@ -9,7 +9,7 @@ namespace ASToolkit.Core.Rules.Checks;
 /// </summary>
 public sealed class MountedCannonRule : ILevelRule
 {
-    private const double FreeRadius = 100;
+    private const float FreeRadius = 100;
 
     /// <inheritdoc/>
     public string Id => "D5";
@@ -24,19 +24,19 @@ public sealed class MountedCannonRule : ILevelRule
             yield break;
         }
 
-        yield return new RuleResult(Id, RuleSeverity.Soft, cannons is [{ Progress: >= 0.15 and <= 0.8 }],
-            $"cannons at {string.Join(", ", cannons.Select(c => c.Progress.ToString("0.00")))}");
+        yield return new RuleResult(Id, RuleSeverity.Soft, cannons is [{ Progress: >= 0.15f and <= 0.8f }],
+            $"cannons at {string.Join(", ", cannons.Select(c => c.Progress.ToString("0.00f")))}");
         var grid = context.Analysis.Grid;
         foreach (var cannon in cannons)
         {
-            double clear = grid.BlockedCells.Select(c => GetDistance(grid.Lattice, c, cannon)).DefaultIfEmpty(double.PositiveInfinity).Min();
+            float clear = grid.BlockedCells.Select(c => GetDistance(grid.Lattice, c, cannon)).DefaultIfEmpty(float.PositiveInfinity).Min();
             yield return new RuleResult(Id, RuleSeverity.Soft, clear >= FreeRadius, $"nearest solid object {clear:0} px from the cannon, at least {FreeRadius}");
         }
     }
 
-    private static double GetDistance(Lattice lattice, Cell c, RouteElement cannon)
+    private static float GetDistance(Lattice lattice, Cell c, RouteElement cannon)
     {
-        (double x, double y) = lattice.GetCenter(c);
+        (float x, float y) = lattice.GetCenter(c);
         return RuleMath.GetDistance(x, y, cannon.X, cannon.Y);
     }
 }

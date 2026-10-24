@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using PointF = System.Drawing.PointF;
 using ASToolkit.Core.Formats;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Advanced;
@@ -25,7 +26,7 @@ public sealed class MapRenderer
     private const int FlatDepth = 0x400;
     private const int MaxFlatDepth = 0x7fff;
     private const int DepthPerHeight = 8;
-    private const double MeshTolerance = 0.01;
+    private const float MeshTolerance = 0.01f;
     private const int RaisedDepth = 0x3fff;
     private const int SequelRaisedHeight = 1000;
     private const int MaxAttachDepth = 4;
@@ -42,7 +43,7 @@ public sealed class MapRenderer
     private const int LightAlphaReference = 2;
     private const float OctagonalMajor = 0.961f;
     private const float OctagonalMinor = 0.398f;
-    private const double AngleUnitsPerRadian = 40.74366760253906;
+    private const float AngleUnitsPerRadian = 40.74366760253906f;
     private const int HalfTurn = 0x80;
     private const float FlatShadowRatio = 1.8f;
     private const float FlatShadowPush = 0.6f;
@@ -55,7 +56,7 @@ public sealed class MapRenderer
     private const int WhileNotQuestAct = 77;
     private const int VariableWaitAct = 79;
     private const int SetInvisibleAct = 98;
-    private const double RowScale = 0.70706;
+    private const float RowScale = 0.70706f;
     private const uint PhaseSeedStep = 0x9e3779b9;
     private const int PlayerPartCount = 12;
     private const int FemalePartOffset = KnownObject.PlayerStartGirl - KnownObject.PlayerStart;
@@ -63,7 +64,7 @@ public sealed class MapRenderer
     
     private static readonly MemoryAllocator Allocator = MemoryAllocator.Create(new MemoryAllocatorOptions { MaximumPoolSizeMegabytes = PoolMegabytes });
     private static readonly Configuration ImageConfiguration = CreateConfiguration(Environment.ProcessorCount);
-    private static readonly float[] Sine = Enumerable.Range(0, 256).Select(angle => (float)Math.Sin(angle * Math.PI / 128)).ToArray();
+    private static readonly float[] Sine = Enumerable.Range(0, 256).Select(angle => (float)MathF.Sin(angle * MathF.PI / 128)).ToArray();
 
     private readonly string _gameFolder;
     private readonly ObjectTable _objects;
@@ -125,7 +126,7 @@ public sealed class MapRenderer
     /// Renders map sprites and the objects the engine attaches to them, scaled down by a factor of at most 1. The ambient
     /// light of the graphics record only takes effect with <see cref="MatchGameLighting"/>.
     /// </summary>
-    public MapImage Render(IReadOnlyList<MergedMapSprite> sprites, double scale = 1, MapGraphics graphics = default)
+    public MapImage Render(IReadOnlyList<MergedMapSprite> sprites, float scale = 1, MapGraphics graphics = default)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(scale);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(scale, 1);
@@ -398,7 +399,7 @@ public sealed class MapRenderer
 
         float scale = GetLightScale(radius.Y);
         (int red, int green, int blue) = ((int)((color >> 16 & 0xff) * scale), (int)((color >> 8 & 0xff) * scale), (int)((color & 0xff) * scale));
-        var image = new Image<Rgb24>(ImageConfiguration, (int)Math.Ceiling(2 * radius.X), (int)Math.Ceiling(2 * radius.Y), background);
+        var image = new Image<Rgb24>(ImageConfiguration, (int)MathF.Ceiling(2 * radius.X), (int)MathF.Ceiling(2 * radius.Y), background);
         image.ProcessPixelRows(rows =>
         {
             for (int y = 0; y < rows.Height; y++)
@@ -470,7 +471,7 @@ public sealed class MapRenderer
             return offset;
         }
 
-        (double sin, double cos) = Math.SinCos(dir * Math.PI / 128);
+        (float sin, float cos) = MathF.SinCos(dir * MathF.PI / 128);
         return new Vector3((float)(offset.X * cos - offset.Y * sin), (float)(offset.X * sin + offset.Y * cos), offset.Z);
     }
 
@@ -877,8 +878,8 @@ public sealed class MapRenderer
         for (int triangle = 0; triangle < mesh.TriangleCount; triangle++)
         {
             var (a, b, c) = mesh.GetTriangle(triangle);
-            double area = (b.Y - c.Y) * (double)(a.X - c.X) + (c.X - b.X) * (double)(a.Y - c.Y);
-            if (Math.Abs(area) < 1e-9)
+            float area = (b.Y - c.Y) * (float)(a.X - c.X) + (c.X - b.X) * (float)(a.Y - c.Y);
+            if (Math.Abs(area) < 1e-9f)
             {
                 continue;
             }
@@ -891,11 +892,11 @@ public sealed class MapRenderer
             {
                 for (int x = minX; x <= maxX; x++)
                 {
-                    double px = x + 0.5;
-                    double py = y + 0.5;
-                    double weightA = ((b.Y - c.Y) * (px - c.X) + (c.X - b.X) * (py - c.Y)) / area;
-                    double weightB = ((c.Y - a.Y) * (px - c.X) + (a.X - c.X) * (py - c.Y)) / area;
-                    double weightC = 1 - weightA - weightB;
+                    float px = x + 0.5f;
+                    float py = y + 0.5f;
+                    float weightA = ((b.Y - c.Y) * (px - c.X) + (c.X - b.X) * (py - c.Y)) / area;
+                    float weightB = ((c.Y - a.Y) * (px - c.X) + (a.X - c.X) * (py - c.Y)) / area;
+                    float weightC = 1 - weightA - weightB;
                     if (weightA < -MeshTolerance || weightB < -MeshTolerance || weightC < -MeshTolerance)
                     {
                         continue;
@@ -922,17 +923,17 @@ public sealed class MapRenderer
 
     private static SpriteFrame TransformFrame(SpriteFrame source, VidMesh mesh, byte rotation, Vector3 scale)
     {
-        (double sin, double cos) = Math.SinCos(rotation * Math.PI / 128);
+        (float sin, float cos) = MathF.SinCos(rotation * MathF.PI / 128);
         int sourceWidth = source.Width;
         int sourceHeight = source.Height;
-        double sourceCenterX = sourceWidth / 2.0;
-        double sourceCenterY = sourceHeight / 2.0;
+        float sourceCenterX = sourceWidth / 2.0f;
+        float sourceCenterY = sourceHeight / 2.0f;
         int count = source.Xs.Length;
         int[] lookup = new int[sourceWidth * sourceHeight];
         Array.Fill(lookup, -1);
         float[] heights = new float[count];
-        double extentX = 1;
-        double extentY = 1;
+        float extentX = 1;
+        float extentY = 1;
         for (int row = 0; row < source.Rows; row++)
         {
             int y = source.Top + row;
@@ -945,26 +946,26 @@ public sealed class MapRenderer
                 }
 
                 heights[index] = source.Depths.Length > 0 ? (source.Depths[index] - FlatDepth) / (float)DepthPerHeight : 0;
-                (double turnedX, double turnedY) = TurnPoint(x + 0.5 - sourceCenterX, y + 0.5 - sourceCenterY, heights[index], sin, cos, scale);
+                (float turnedX, float turnedY) = TurnPoint(x + 0.5f - sourceCenterX, y + 0.5f - sourceCenterY, heights[index], sin, cos, scale);
                 extentX = Math.Max(extentX, Math.Abs(turnedX));
                 extentY = Math.Max(extentY, Math.Abs(turnedY));
             }
         }
 
-        int width = 2 * (int)Math.Ceiling(extentX) + 2;
-        int height = 2 * (int)Math.Ceiling(extentY) + 2;
-        double centerX = width / 2.0;
-        double centerY = height / 2.0;
+        int width = 2 * (int)MathF.Ceiling(extentX) + 2;
+        int height = 2 * (int)MathF.Ceiling(extentY) + 2;
+        float centerX = width / 2.0f;
+        float centerY = height / 2.0f;
         int[] target = new int[width * height];
         Array.Fill(target, -1);
         for (int y = 0; y < height; y++)
         {
-            double groundY = (y + 0.5 - centerY) / RowScale;
+            float groundY = (y + 0.5f - centerY) / RowScale;
             for (int x = 0; x < width; x++)
             {
-                double turnedX = x + 0.5 - centerX;
-                int sourceX = (int)Math.Floor((turnedX * cos + groundY * sin) / scale.X + sourceCenterX);
-                int sourceY = (int)Math.Floor(RowScale * (groundY * cos - turnedX * sin) / scale.Y + sourceCenterY);
+                float turnedX = x + 0.5f - centerX;
+                int sourceX = (int)MathF.Floor((turnedX * cos + groundY * sin) / scale.X + sourceCenterX);
+                int sourceY = (int)MathF.Floor(RowScale * (groundY * cos - turnedX * sin) / scale.Y + sourceCenterY);
                 if ((uint)sourceX < (uint)sourceWidth && (uint)sourceY < (uint)sourceHeight)
                 {
                     int index = lookup[sourceY * sourceWidth + sourceX];
@@ -990,50 +991,50 @@ public sealed class MapRenderer
         return BuildFrame(source, target, width, height, scale.Z);
     }
 
-    private static (double X, double Y) TurnPoint(double x, double y, double height, double sin, double cos, Vector3 scale)
+    private static PointF TurnPoint(float x, float y, float height, float sin, float cos, Vector3 scale)
     {
-        double groundX = x * scale.X;
-        double groundY = (y + height) / RowScale * scale.Y;
-        return (groundX * cos - groundY * sin, RowScale * (groundX * sin + groundY * cos) - height * scale.Z);
+        float groundX = x * scale.X;
+        float groundY = (y + height) / RowScale * scale.Y;
+        return new PointF(groundX * cos - groundY * sin, RowScale * (groundX * sin + groundY * cos) - height * scale.Z);
     }
 
-    private static void PlaceTriangle(VidVertex[] vertices, double sin, double cos, Vector3 scale, double sourceCenterX, double sourceCenterY, int sourceWidth, int sourceHeight,
-        double centerX, double centerY, int width, int height, int[] lookup, int[] target, float[] targetHeights)
+    private static void PlaceTriangle(VidVertex[] vertices, float sin, float cos, Vector3 scale, float sourceCenterX, float sourceCenterY, int sourceWidth, int sourceHeight,
+        float centerX, float centerY, int width, int height, int[] lookup, int[] target, float[] targetHeights)
     {
-        var points = new (double X, double Y)[3];
+        var points = new PointF[3];
         for (int vertex = 0; vertex < 3; vertex++)
         {
-            (double turnedX, double turnedY) = TurnPoint(vertices[vertex].X - sourceCenterX, vertices[vertex].Y - sourceCenterY, vertices[vertex].Z, sin, cos, scale);
-            points[vertex] = (turnedX + centerX, turnedY + centerY);
+            (float turnedX, float turnedY) = TurnPoint(vertices[vertex].X - sourceCenterX, vertices[vertex].Y - sourceCenterY, vertices[vertex].Z, sin, cos, scale);
+            points[vertex] = new PointF(turnedX + centerX, turnedY + centerY);
         }
 
-        double area = (points[1].Y - points[2].Y) * (points[0].X - points[2].X) + (points[2].X - points[1].X) * (points[0].Y - points[2].Y);
-        if (Math.Abs(area) < 1e-9)
+        float area = (points[1].Y - points[2].Y) * (points[0].X - points[2].X) + (points[2].X - points[1].X) * (points[0].Y - points[2].Y);
+        if (Math.Abs(area) < 1e-9f)
         {
             return;
         }
 
-        int minX = Math.Max(0, (int)Math.Floor(Math.Min(points[0].X, Math.Min(points[1].X, points[2].X))));
-        int maxX = Math.Min(width - 1, (int)Math.Ceiling(Math.Max(points[0].X, Math.Max(points[1].X, points[2].X))));
-        int minY = Math.Max(0, (int)Math.Floor(Math.Min(points[0].Y, Math.Min(points[1].Y, points[2].Y))));
-        int maxY = Math.Min(height - 1, (int)Math.Ceiling(Math.Max(points[0].Y, Math.Max(points[1].Y, points[2].Y))));
+        int minX = Math.Max(0, (int)MathF.Floor(Math.Min(points[0].X, Math.Min(points[1].X, points[2].X))));
+        int maxX = Math.Min(width - 1, (int)MathF.Ceiling(Math.Max(points[0].X, Math.Max(points[1].X, points[2].X))));
+        int minY = Math.Max(0, (int)MathF.Floor(Math.Min(points[0].Y, Math.Min(points[1].Y, points[2].Y))));
+        int maxY = Math.Min(height - 1, (int)MathF.Ceiling(Math.Max(points[0].Y, Math.Max(points[1].Y, points[2].Y))));
         for (int y = minY; y <= maxY; y++)
         {
             for (int x = minX; x <= maxX; x++)
             {
-                double px = x + 0.5;
-                double py = y + 0.5;
-                double weightA = ((points[1].Y - points[2].Y) * (px - points[2].X) + (points[2].X - points[1].X) * (py - points[2].Y)) / area;
-                double weightB = ((points[2].Y - points[0].Y) * (px - points[2].X) + (points[0].X - points[2].X) * (py - points[2].Y)) / area;
-                double weightC = 1 - weightA - weightB;
+                float px = x + 0.5f;
+                float py = y + 0.5f;
+                float weightA = ((points[1].Y - points[2].Y) * (px - points[2].X) + (points[2].X - points[1].X) * (py - points[2].Y)) / area;
+                float weightB = ((points[2].Y - points[0].Y) * (px - points[2].X) + (points[0].X - points[2].X) * (py - points[2].Y)) / area;
+                float weightC = 1 - weightA - weightB;
                 if (weightA < -MeshTolerance || weightB < -MeshTolerance || weightC < -MeshTolerance)
                 {
                     continue;
                 }
 
                 float z = (float)(weightA * vertices[0].Z + weightB * vertices[1].Z + weightC * vertices[2].Z);
-                int sourceX = (int)Math.Floor(weightA * vertices[0].X + weightB * vertices[1].X + weightC * vertices[2].X);
-                int sourceY = (int)Math.Floor(weightA * vertices[0].Y + weightB * vertices[1].Y + weightC * vertices[2].Y);
+                int sourceX = (int)MathF.Floor(weightA * vertices[0].X + weightB * vertices[1].X + weightC * vertices[2].X);
+                int sourceY = (int)MathF.Floor(weightA * vertices[0].Y + weightB * vertices[1].Y + weightC * vertices[2].Y);
                 int cell = y * width + x;
                 if ((uint)sourceX >= (uint)sourceWidth || (uint)sourceY >= (uint)sourceHeight || z <= targetHeights[cell])
                 {
@@ -1245,15 +1246,15 @@ public sealed class MapRenderer
     internal sealed record Placement(GameObject Object, SpriteFrame? Frame, float ScreenX, float ScreenY, int Width, int Height, int BaseDepth, bool IsStanding,
         int Pass, SceneObject? Source, FrameAnimation? Animation)
     {
-        public double Left => ScreenX - Width / 2.0;
+        public float Left => ScreenX - Width / 2.0f;
 
-        public double Top => ScreenY - Height / 2.0;
+        public float Top => ScreenY - Height / 2.0f;
 
         public PlacementState GetState(int? time, int left, int top)
         {
             if (time is null || Animation is null)
             {
-                return new PlacementState(Frame, (int)Math.Round(Left - left), (int)Math.Round(Top - top), BaseDepth);
+                return new PlacementState(Frame, (int)MathF.Round(Left - left), (int)MathF.Round(Top - top), BaseDepth);
             }
 
             var frame = Animation.Frames[Animation.Timing.GetIndex(time.Value)];
@@ -1271,13 +1272,13 @@ public sealed class MapRenderer
                 }
                 else if (!Object.Flags.HasFlag(ObjectFlags.Raised) || (int)(Animation.Z * DepthPerHeight) >= RaisedDepth)
                 {
-                    int depth = (int)(Sine[(time.Value >> 3) & 255] * (double)Animation.Bob * DepthPerHeight);
+                    int depth = (int)(Sine[(time.Value >> 3) & 255] * (float)Animation.Bob * DepthPerHeight);
                     baseDepth += depth;
                     lift = depth / DepthPerHeight;
                 }
             }
 
-            return new PlacementState(frame, (int)Math.Round(ScreenX - width / 2.0 - left), (int)Math.Round(screenY - height / 2.0 - top) - lift, baseDepth);
+            return new PlacementState(frame, (int)MathF.Round(ScreenX - width / 2.0f - left), (int)MathF.Round(screenY - height / 2.0f - top) - lift, baseDepth);
         }
 
         public int GetAnimationKey(int time) =>
@@ -1285,7 +1286,7 @@ public sealed class MapRenderer
 
         public IEnumerable<SpriteFrame?> GetFrames() => Animation?.Frames ?? [Frame];
 
-        public int GetBobReach() => Animation is null ? 0 : (int)Math.Ceiling(Math.Abs(Animation.Bob)) + 1;
+        public int GetBobReach() => Animation is null ? 0 : (int)MathF.Ceiling(Math.Abs(Animation.Bob)) + 1;
 
         public int GetPixelDepth(SpriteFrame frame, int baseDepth, int row, int index) =>
             frame.Depths.Length > 0 ? baseDepth + frame.Depths[index]
@@ -1302,7 +1303,7 @@ public sealed class MapRenderer
         private readonly OmniLight[] _lights;
         private readonly Vector3[] _colors;
         private readonly Rectangle _area;
-        private readonly double _scale;
+        private readonly float _scale;
         private readonly int _left;
         private readonly int _width;
         private readonly int _height;
@@ -1312,7 +1313,7 @@ public sealed class MapRenderer
         private readonly RowWriter _writer;
         private readonly Rgb24 _background;
 
-        public Canvas(Placement[] placed, PlacementState[] states, OmniLight[] lights, Vector3[] colors, Rectangle area, double scale, int sceneWidth, int sceneHeight,
+        public Canvas(Placement[] placed, PlacementState[] states, OmniLight[] lights, Vector3[] colors, Rectangle area, float scale, int sceneWidth, int sceneHeight,
             PackedTint? ambient, RowWriter writer, Rgb24 background)
         {
             _placed = placed;
@@ -1364,7 +1365,7 @@ public sealed class MapRenderer
         // One full-size strip and depth buffer per worker, sized for the tallest strip
         public StripBuffers CreateBuffers()
         {
-            int rows = (int)Math.Ceiling(_stripRows / _scale) + 1;
+            int rows = (int)MathF.Ceiling(_stripRows / _scale) + 1;
             return new StripBuffers(ArrayPool<Rgb24>.Shared.Rent(Math.Max(1, _width * rows)), ArrayPool<int>.Shared.Rent(Math.Max(1, _width * rows)),
                 _ambient.HasValue ? ArrayPool<Rgb24>.Shared.Rent(Math.Max(1, _width * rows)) : [], ArrayPool<int>.Shared.Rent(3 * _area.Width + 3),
                 ArrayPool<Rgb24>.Shared.Rent(_area.Width + 1));
@@ -1453,8 +1454,8 @@ public sealed class MapRenderer
                 return;
             }
 
-            int first = (int)Math.Floor(top * _scale) - 1 - _area.Top;
-            int last = (int)Math.Floor((top + frame.Rows) * _scale) + 1 - _area.Top;
+            int first = (int)MathF.Floor(top * _scale) - 1 - _area.Top;
+            int last = (int)MathF.Floor((top + frame.Rows) * _scale) + 1 - _area.Top;
             if (last < 0 || first >= _area.Height)
             {
                 return;
@@ -1506,7 +1507,7 @@ public sealed class MapRenderer
         }
 
         // First source pixel of an output pixel, clamped to the size of the scene
-        private int GetSourceStart(int output, int limit) => Math.Min(limit, (int)Math.Ceiling(output / _scale - 1e-9));
+        private int GetSourceStart(int output, int limit) => Math.Min(limit, (int)MathF.Ceiling(output / _scale - 1e-9f));
 
         // Engine depth is 8 per unit of height, plus 0x400 for flat sprites and 8 more per row up for standing ones
         private void Draw(Rgb24[] target, Placement p, PlacementState state, int y0, int y1, int[] depth)
@@ -1583,10 +1584,10 @@ public sealed class MapRenderer
         private void AddLight(Rgb24[] buffer, int[] depth, OmniLight light, Vector3 color, int y0, int y1)
         {
             float centerY = light.Position.Y - light.Position.Z + LightQuadDrop;
-            int top = Math.Max(y0, (int)Math.Floor(centerY - light.RadiusY));
-            int bottom = Math.Min(y1, (int)Math.Ceiling(centerY + light.RadiusY));
-            int left = Math.Max(0, (int)Math.Floor(light.Position.X - light.RadiusX));
-            int right = Math.Min(_width, (int)Math.Ceiling(light.Position.X + light.RadiusX));
+            int top = Math.Max(y0, (int)MathF.Floor(centerY - light.RadiusY));
+            int bottom = Math.Min(y1, (int)MathF.Ceiling(centerY + light.RadiusY));
+            int left = Math.Max(0, (int)MathF.Floor(light.Position.X - light.RadiusX));
+            int right = Math.Min(_width, (int)MathF.Ceiling(light.Position.X + light.RadiusX));
             float scale = GetLightScale(light.RadiusY);
             var scaled = color * scale;
             (int red, int green, int blue) = ((int)scaled.X, (int)scaled.Y, (int)scaled.Z);
@@ -1648,10 +1649,10 @@ public sealed class MapRenderer
                 var rowEnd = card.RowStep * card.Rows;
                 var lowest = Vector2.Min(Vector2.Min(card.Origin, card.Origin + columnEnd), Vector2.Min(card.Origin + rowEnd, card.Origin + columnEnd + rowEnd));
                 var highest = Vector2.Max(Vector2.Max(card.Origin, card.Origin + columnEnd), Vector2.Max(card.Origin + rowEnd, card.Origin + columnEnd + rowEnd));
-                int cardLeft = Math.Max(left, (int)Math.Floor(lowest.X));
-                int cardRight = Math.Min(right, (int)Math.Ceiling(highest.X));
-                int cardTop = Math.Max(top, (int)Math.Floor(lowest.Y));
-                int cardBottom = Math.Min(bottom, (int)Math.Ceiling(highest.Y));
+                int cardLeft = Math.Max(left, (int)MathF.Floor(lowest.X));
+                int cardRight = Math.Min(right, (int)MathF.Ceiling(highest.X));
+                int cardTop = Math.Max(top, (int)MathF.Floor(lowest.Y));
+                int cardBottom = Math.Min(bottom, (int)MathF.Ceiling(highest.Y));
                 if (cardLeft >= cardRight || cardTop >= cardBottom)
                 {
                     continue;

@@ -141,15 +141,15 @@ public partial class MapViewerViewModel : ViewModelBase
             return;
         }
 
-        string position = $"screen ({scene.Left + point.X}, {scene.Top + point.Y})";
-        string? overlay = DescribeOverlay(new Vector2(scene.Left + point.X, scene.Top + point.Y), point.Zoom);
+        string position = $"screen ({scene.Left + point.Position.X}, {scene.Top + point.Position.Y})";
+        string? overlay = DescribeOverlay(new Vector2(scene.Left + point.Position.X, scene.Top + point.Position.Y), point.Zoom);
         if (overlay is not null)
         {
             Status = $"{position}    {overlay}";
             return;
         }
 
-        var found = scene.FindObject(point.X, point.Y, point.Time);
+        var found = scene.FindObject(point.Position.X, point.Position.Y, point.Time);
         Status = found is null ? $"{position}    {_summary}"
             : $"{position}    object {(int)found.Id} {_objects.GetName(found.Id)} [{_objects.GetPath(found.Id)}]    " +
               $"position ({found.Position.X:0}, {found.Position.Y:0}, {found.Position.Z:0})    facing {found.Facing}";
@@ -201,7 +201,7 @@ public partial class MapViewerViewModel : ViewModelBase
     [RelayCommand]
     public void Select(ScenePoint point)
     {
-        var found = Scene?.FindObject(point.X, point.Y, point.Time);
+        var found = Scene?.FindObject(point.Position.X, point.Position.Y, point.Time);
         if (found is not null && _renderer is not null && _objects is not null)
         {
             Sprite.Show(_renderer, _objects, found);

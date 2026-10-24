@@ -31,11 +31,11 @@ public sealed class AmbushPlacementRule : ILevelRule
             {
                 side++;
             }
-            else if (spawner.Progress > spawner.TriggerProgress + 0.03)
+            else if (spawner.Progress > spawner.TriggerProgress + 0.03f)
             {
                 ahead++;
             }
-            else if (spawner.Progress < spawner.TriggerProgress - 0.03)
+            else if (spawner.Progress < spawner.TriggerProgress - 0.03f)
             {
                 behind++;
             }
@@ -63,16 +63,16 @@ public sealed class AmbushPlacementRule : ILevelRule
         }
 
         int n = spawners.Length;
-        yield return new RuleResult(Id, RuleSeverity.Hard, behind <= 0.25 * n, $"behind {behind} of {n}");
-        yield return new RuleResult(Id, RuleSeverity.Soft, ahead + side >= 0.85 * n, $"ahead {ahead}, side room {side} of {n}");
-        yield return new RuleResult(Id, RuleSeverity.Soft, level <= 0.05 * n, $"at the trigger {level} of {n}");
+        yield return new RuleResult(Id, RuleSeverity.Hard, behind <= 0.25f * n, $"behind {behind} of {n}");
+        yield return new RuleResult(Id, RuleSeverity.Soft, ahead + side >= 0.85f * n, $"ahead {ahead}, side room {side} of {n}");
+        yield return new RuleResult(Id, RuleSeverity.Soft, level <= 0.05f * n, $"at the trigger {level} of {n}");
         if (open > 0)
         {
-            yield return new RuleResult(Id, RuleSeverity.Soft, inView <= 0.1 * open, $"within a screen of the trigger {inView} of {open}");
-            yield return new RuleResult(Id, RuleSeverity.Soft, inRange >= 0.8 * open, $"900-3500 px from the trigger {inRange} of {open}");
+            yield return new RuleResult(Id, RuleSeverity.Soft, inView <= 0.1f * open, $"within a screen of the trigger {inView} of {open}");
+            yield return new RuleResult(Id, RuleSeverity.Soft, inRange >= 0.8f * open, $"900-3500 px from the trigger {inRange} of {open}");
         }
     }
 
-    private static bool IsNear(RouteElement e, IReadOnlyList<RouteElement> others, double distance) =>
+    private static bool IsNear(RouteElement e, IReadOnlyList<RouteElement> others, float distance) =>
         others.Any(o => Math.Abs(o.X - e.X) < distance && Math.Abs(o.Y - e.Y) < distance);
 }

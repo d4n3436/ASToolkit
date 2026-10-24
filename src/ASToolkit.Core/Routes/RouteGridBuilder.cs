@@ -61,18 +61,18 @@ public static class RouteGridBuilder
                 continue;
             }
 
-            (double u, double v) = model.Lattice.ToLattice(sprite.Position.X, sprite.Position.Y);
+            (float u, float v) = model.Lattice.ToLattice(sprite.Position.X, sprite.Position.Y);
             if (!Lattice.IsNearInteger(u) || !Lattice.IsNearInteger(v))
             {
                 continue;
             }
 
-            int a = (int)Math.Round(u);
-            int b = (int)Math.Round(v);
+            int a = (int)MathF.Round(u);
+            int b = (int)MathF.Round(v);
             EdgeKey[] keys = sprite.Facing is >= 64 and < 192
                 ? [new EdgeKey('v', a - 1, b), new EdgeKey('v', a, b)]
                 : [new EdgeKey('u', a, b - 1), new EdgeKey('u', a, b)];
-            bool holdsFence = fences.Any(f => Math.Sqrt((f.Position.X - sprite.Position.X) * (f.Position.X - sprite.Position.X) + (f.Position.Y - sprite.Position.Y) * (f.Position.Y - sprite.Position.Y)) < 40);
+            bool holdsFence = fences.Any(f => MathF.Sqrt((f.Position.X - sprite.Position.X) * (f.Position.X - sprite.Position.X) + (f.Position.Y - sprite.Position.Y) * (f.Position.Y - sprite.Position.Y)) < 40);
             foreach (var key in keys)
             {
                 coarse[key] = 'G';
@@ -164,21 +164,21 @@ public static class RouteGridBuilder
     }
 
     // Off the coarse grid, take a door's axis from its dir (0 is '/', 64 or 128 is '\') and a wall's from its ID
-    private static EdgeKey[] GetFineLabEdges(Lattice lattice, KnownObject id, double x, double y, byte dir)
+    private static EdgeKey[] GetFineLabEdges(Lattice lattice, KnownObject id, float x, float y, byte dir)
     {
-        (double u, double v) = lattice.ToLattice(x, y);
-        double slashU = 2 * (u - .25);
-        double slashV = 2 * (v - .25);
-        double backU = 2 * (u + .25);
-        double backV = 2 * (v - .75);
-        double dv = Math.Abs(slashV - Math.Round(slashV));
-        double du = Math.Abs(backU - Math.Round(backU));
+        (float u, float v) = lattice.ToLattice(x, y);
+        float slashU = 2 * (u - 0.25f);
+        float slashV = 2 * (v - 0.25f);
+        float backU = 2 * (u + 0.25f);
+        float backV = 2 * (v - 0.75f);
+        float dv = Math.Abs(slashV - MathF.Round(slashV));
+        float du = Math.Abs(backU - MathF.Round(backU));
         bool slash;
-        if (Lattice.IsNearInteger(u - .25) && Lattice.IsNearInteger(v - .25))
+        if (Lattice.IsNearInteger(u - 0.25f) && Lattice.IsNearInteger(v - 0.25f))
         {
             slash = true;
         }
-        else if (Lattice.IsNearInteger(u + .25) && Lattice.IsNearInteger(v - .75))
+        else if (Lattice.IsNearInteger(u + 0.25f) && Lattice.IsNearInteger(v - 0.75f))
         {
             slash = false;
         }
@@ -195,13 +195,13 @@ public static class RouteGridBuilder
         var keys = new List<EdgeKey>(n);
         if (slash)
         {
-            if (dv > .45)
+            if (dv > 0.45f)
             {
                 return keys.ToArray();
             }
 
-            int u0 = (int)Math.Round(slashU);
-            int fixedV = (int)Math.Round(slashV);
+            int u0 = (int)MathF.Round(slashU);
+            int fixedV = (int)MathF.Round(slashV);
             for (int index = 2 - n; index < 2; index++)
             {
                 keys.Add(new EdgeKey('v', u0 + index, fixedV));
@@ -209,13 +209,13 @@ public static class RouteGridBuilder
         }
         else
         {
-            if (du > .45)
+            if (du > 0.45f)
             {
                 return keys.ToArray();
             }
 
-            int fixedU = (int)Math.Round(backU);
-            int v0 = (int)Math.Round(backV);
+            int fixedU = (int)MathF.Round(backU);
+            int v0 = (int)MathF.Round(backV);
             for (int index = 2 - n; index < 2; index++)
             {
                 keys.Add(new EdgeKey('u', fixedU, v0 + index));

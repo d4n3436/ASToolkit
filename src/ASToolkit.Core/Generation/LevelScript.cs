@@ -1,3 +1,5 @@
+using System.Drawing;
+
 namespace ASToolkit.Core.Generation;
 
 /// <summary>
@@ -18,10 +20,10 @@ public sealed class LevelScript
     /// <summary>
     /// Gets or sets the point that turns the lights off and locks the doors, or null.
     /// </summary>
-    public (double X, double Y)? Blackout { get; set; }
+    public PointF? Blackout { get; set; }
 
     /// <summary>
     /// Gets or sets the point that moves the respawn point, or null.
     /// </summary>
-    public (double X, double Y)? Checkpoint { get; set; }
+    public PointF? Checkpoint { get; set; }
 }

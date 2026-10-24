@@ -7,4 +7,4 @@ namespace ASToolkit.Core.Rules;
 /// </summary>
 /// <param name="Progress">The tour progress of its items.</param>
 /// <param name="Items">The pickup IDs inside, crate contents included.</param>
-public sealed record SecretCloset(double Progress, IReadOnlyList<KnownObject> Items);
+public sealed record SecretCloset(float Progress, IReadOnlyList<KnownObject> Items);

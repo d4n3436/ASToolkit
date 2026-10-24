@@ -8,8 +8,8 @@ namespace ASToolkit.Core.Rules.Checks;
 /// </summary>
 public sealed class WallFacingRule : ILevelRule
 {
-    private const double FloorHeight = 5;
-    private const double BloodReach = 0.15;
+    private const float FloorHeight = 5;
+    private const float BloodReach = 0.15f;
 
     /// <inheritdoc/>
     public string Id => "A17";
@@ -27,7 +27,7 @@ public sealed class WallFacingRule : ILevelRule
         var wrong = new List<string>();
         foreach (var levelObject in model.Objects.Where(o => o.Z < FloorHeight && !context.Target.Facings.Fits(o.Id, o.Dir, model.Edges, o.U, o.V, IsOnBlood(o))))
         {
-            (double x, double y) = model.Lattice.ToWorld(levelObject.U, levelObject.V);
+            (float x, float y) = model.Lattice.ToWorld(levelObject.U, levelObject.V);
             wrong.Add($"{levelObject.Id} at ({x:0}, {y:0}) dir {levelObject.Dir}");
         }
 

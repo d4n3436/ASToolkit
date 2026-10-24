@@ -21,8 +21,8 @@ public sealed class MildGateRule : ILevelRule
         var a = context.Analysis;
         var style = context.Measurement.Style;
         var key = a.Objectives.FirstOrDefault(o => o.Kind is ObjectiveKind.Breaker or ObjectiveKind.Generator);
-        double share = a.Gating.LockedShare ?? a.Gating.FencedOffShare ?? 0;
-        yield return new RuleResult(Id, RuleSeverity.Hard, style != LevelStyle.Ungated && share is >= 0.15 and <= 0.35 && key is not null && key.Progress <= 0.4,
+        float share = a.Gating.LockedShare ?? a.Gating.FencedOffShare ?? 0;
+        yield return new RuleResult(Id, RuleSeverity.Hard, style != LevelStyle.Ungated && share is >= 0.15f and <= 0.35f && key is not null && key.Progress <= 0.4f,
             $"style {style}, gated {share:P0}, key at {key?.Progress:0.00}");
         if (style == LevelStyle.LockedDoors)
         {

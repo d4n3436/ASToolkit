@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Drawing;
 
 namespace ASToolkit.Core.Formats;
 
@@ -19,7 +20,7 @@ public sealed class MapResourceBuilder
     /// <summary>
     /// Gets or sets the map width and height in pixels.
     /// </summary>
-    public (double Width, double Height) Size { get; set; }
+    public SizeF Size { get; set; }
 
     /// <summary>
     /// Gets or sets the camera position at the start.
@@ -50,7 +51,7 @@ public sealed class MapResourceBuilder
 
         var map = new MapResourceBuilder
         {
-            Size = (resource.Header.MapW, resource.Header.MapH),
+            Size = new SizeF(resource.Header.MapW, resource.Header.MapH),
             Scroll = resource.Header.Camera,
             Graphics = resource.Graphics
         };
@@ -117,5 +118,5 @@ public sealed class MapResourceBuilder
         return file.Build();
     }
 
-    private static bool IsSane(double v) => double.IsFinite(v) && Math.Abs(v) < 1e6;
+    private static bool IsSane(float v) => float.IsFinite(v) && Math.Abs(v) < 1e6f;
 }

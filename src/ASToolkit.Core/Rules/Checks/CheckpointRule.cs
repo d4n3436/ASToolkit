@@ -14,8 +14,8 @@ public sealed class CheckpointRule : ILevelRule
         var checkpoints = context.Analysis.Checkpoints;
         if (context.Target.HasCheckpoint)
         {
-            yield return new RuleResult(Id, RuleSeverity.Hard, checkpoints.Any(c => c.Progress is >= 0.08 and <= 0.5),
-                $"checkpoints at {string.Join(", ", checkpoints.Select(c => c.Progress.ToString("0.00")))}");
+            yield return new RuleResult(Id, RuleSeverity.Hard, checkpoints.Any(c => c.Progress is >= 0.08f and <= 0.5f),
+                $"checkpoints at {string.Join(", ", checkpoints.Select(c => c.Progress.ToString("0.00f")))}");
         }
         else
         {

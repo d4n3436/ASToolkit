@@ -13,7 +13,7 @@ public sealed class AmbushTimingRule : ILevelRule
     /// <inheritdoc/>
     public IEnumerable<RuleResult> Evaluate(RuleContext context)
     {
-        double[] triggers = context.Analysis.Elements
+        float[] triggers = context.Analysis.Elements
             .Where(e => e is { Kind: ElementKind.Spawner, TriggerProgress: not null })
             .Select(e => e.TriggerProgress!.Value)
             .Order()
@@ -24,9 +24,9 @@ public sealed class AmbushTimingRule : ILevelRule
             yield break;
         }
 
-        double late = triggers.Count(p => p > 0.75) / (double)triggers.Length;
-        double low = RuleMath.GetQuantile(triggers, .25);
-        double high = RuleMath.GetQuantile(triggers, .75);
-        yield return new RuleResult(Id, RuleSeverity.Soft, low >= 0.0 && high <= 0.5 && late <= 0.1, $"middle half {low:0.00}-{high:0.00}, past 0.75 {late:P0}");
+        float late = triggers.Count(p => p > 0.75f) / (float)triggers.Length;
+        float low = RuleMath.GetQuantile(triggers, 0.25f);
+        float high = RuleMath.GetQuantile(triggers, 0.75f);
+        yield return new RuleResult(Id, RuleSeverity.Soft, low >= 0.0f && high <= 0.5f && late <= 0.1f, $"middle half {low:0.00}-{high:0.00}, past 0.75 {late:P0}");
     }
 }

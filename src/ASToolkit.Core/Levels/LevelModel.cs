@@ -46,10 +46,10 @@ public sealed class LevelModel
     /// <summary>
     /// Returns the share of the floor's bounding box that is floor.
     /// </summary>
-    public double GetBoxFill()
+    public float GetBoxFill()
     {
         int width = Cells.Max(c => c.U) - Cells.Min(c => c.U) + 1;
         int height = Cells.Max(c => c.V) - Cells.Min(c => c.V) + 1;
-        return Cells.Count / (double)(width * height);
+        return Cells.Count / (float)(width * height);
     }
 }

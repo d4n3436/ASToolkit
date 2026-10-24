@@ -7,7 +7,7 @@ namespace ASToolkit.Core.Rules.Checks;
 /// </summary>
 public sealed class GeneratorRule : ILevelRule
 {
-    private const double AmbushReach = 300;
+    private const float AmbushReach = 300;
 
     /// <inheritdoc/>
     public string Id => "D2";

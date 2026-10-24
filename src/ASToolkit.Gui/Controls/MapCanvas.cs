@@ -301,7 +301,7 @@ public sealed class MapCanvas : Control
     private void RunCommand(ICommand? command, Point position)
     {
         var scenePosition = ToScene(position);
-        var point = new ScenePoint((int)Math.Floor(scenePosition.X), (int)Math.Floor(scenePosition.Y), Time, _zoom);
+        var point = new ScenePoint(new System.Drawing.Point((int)Math.Floor(scenePosition.X), (int)Math.Floor(scenePosition.Y)), Time, _zoom);
         if (command?.CanExecute(point) == true)
         {
             command.Execute(point);
@@ -553,7 +553,7 @@ public sealed class MapCanvas : Control
             _time = time;
         }
 
-        public override void Run() => Scene.Render(_tile.Pixels, _tile.Area.Width, _tile.Area, _tile.Scale, _time);
+        public override void Run() => Scene.Render(_tile.Pixels, _tile.Area.Width, _tile.Area, (float)_tile.Scale, _time);
 
         public override string ToString() => $"Tile {_tile.Area} at scale {_tile.Scale}";
 
@@ -630,7 +630,7 @@ public sealed class MapCanvas : Control
             foreach (var area in areas)
             {
                 int start = (area.Top - tile.Area.Top) * tile.Area.Width + area.Left - tile.Area.Left;
-                Scene.Render(tile.Pixels.AsMemory(start), tile.Area.Width, area, tile.Scale, _time);
+                Scene.Render(tile.Pixels.AsMemory(start), tile.Area.Width, area, (float)tile.Scale, _time);
             }
         }
 

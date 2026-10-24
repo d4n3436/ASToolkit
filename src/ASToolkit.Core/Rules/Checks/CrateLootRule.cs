@@ -7,9 +7,9 @@ namespace ASToolkit.Core.Rules.Checks;
 /// </summary>
 public sealed class CrateLootRule : ILevelRule
 {
-    private static readonly (ItemCategory Category, double Low, double High)[] Shares =
+    private static readonly (ItemCategory Category, float Low, float High)[] Shares =
     [
-        (ItemCategory.Ammo, .25, .40), (ItemCategory.Armor, .40, .50), (ItemCategory.Weapon, .30, .40), (ItemCategory.Health, .15, .25)
+        (ItemCategory.Ammo, 0.25f, 0.40f), (ItemCategory.Armor, 0.40f, 0.50f), (ItemCategory.Weapon, 0.30f, 0.40f), (ItemCategory.Health, 0.15f, 0.25f)
     ];
 
     /// <inheritdoc/>
@@ -21,13 +21,13 @@ public sealed class CrateLootRule : ILevelRule
         var elements = context.Analysis.Elements;
         int dynamiteInCrates = elements.Count(e => e is { Kind: ElementKind.Crate, Category: ItemCategory.Dynamite });
         yield return new RuleResult(Id, RuleSeverity.Hard, dynamiteInCrates == 0, $"dynamite in crates {dynamiteInCrates}");
-        foreach ((var category, double low, double high) in Shares)
+        foreach ((var category, float low, float high) in Shares)
         {
             int inCrates = elements.Count(e => e.Kind == ElementKind.Crate && e.Category == category);
             int total = inCrates + elements.Count(e => e.Kind == ElementKind.Pickup && e.Category == category);
             if (total >= 4)
             {
-                double share = inCrates / (double)total;
+                float share = inCrates / (float)total;
                 yield return new RuleResult(Id, RuleSeverity.Soft, share >= low && share <= high, $"{category} in crates {share:P0}, target {low:P0}-{high:P0}");
             }
         }

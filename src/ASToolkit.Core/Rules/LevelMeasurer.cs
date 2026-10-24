@@ -45,10 +45,10 @@ public static class LevelMeasurer
         return new LevelMeasurement
         {
             Style = DetectStyle(script, analysis),
-            BlockedShare = grid.BlockedCells.Count / (double)Math.Max(1, grid.Cells.Count + grid.BlockedCells.Count),
+            BlockedShare = grid.BlockedCells.Count / (float)Math.Max(1, grid.Cells.Count + grid.BlockedCells.Count),
             Breakables = breakables,
             HitPoints = placed + spawned,
-            SpawnedShare = spawned / (double)Math.Max(1, placed + spawned),
+            SpawnedShare = spawned / (float)Math.Max(1, placed + spawned),
             SecretClosets = closets,
             Shortcuts = shortcuts
         };
@@ -112,8 +112,8 @@ public static class LevelMeasurer
                 continue;
             }
 
-            (double mu, double mv) = edge.Axis == 'v' ? (edge.A + .5, (double)edge.B) : (edge.A, edge.B + .5);
-            (double mx, double my) = lattice.ToWorld(mu, mv);
+            (float mu, float mv) = edge.Axis == 'v' ? (edge.A + 0.5f, (float)edge.B) : (edge.A, edge.B + 0.5f);
+            (float mx, float my) = lattice.ToWorld(mu, mv);
             int wall = Array.FindIndex(breakableWalls, w => Math.Abs(w.Position.X - mx) < 50 && Math.Abs(w.Position.Y - my) < 50);
             if (wall < 0)
             {
@@ -140,7 +140,7 @@ public static class LevelMeasurer
             if (pocket.Count <= MaxClosetCells && pocket.Overlaps(items) && !pocket.Overlaps(spawners))
             {
                 var cells = pocket.OrderBy(c => c.U).ThenBy(c => c.V).ToArray();
-                double progress = cells.SelectMany(c => progressByCell[c]).DefaultIfEmpty(0).Average();
+                float progress = cells.SelectMany(c => progressByCell[c]).DefaultIfEmpty(0).Average();
                 closets.Add(new SecretCloset(progress, cells.SelectMany(c => itemsByCell[c]).ToArray()));
             }
         }

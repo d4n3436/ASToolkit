@@ -7,4 +7,4 @@ namespace ASToolkit.Core.Generation.Content;
 /// <param name="Dir">The marker facing.</param>
 /// <param name="Rank">The highest endless generator of the site, 800 being rank 0.</param>
 /// <param name="Members">The pads and generators around the marker.</param>
-public sealed record SiteTemplate(double Z, byte Dir, int Rank, IReadOnlyList<SiteMember> Members);
+public sealed record SiteTemplate(float Z, byte Dir, int Rank, IReadOnlyList<SiteMember> Members);

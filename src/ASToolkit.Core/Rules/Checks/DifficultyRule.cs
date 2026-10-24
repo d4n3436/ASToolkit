@@ -13,6 +13,6 @@ public sealed class DifficultyRule : ILevelRule
     {
         int hp = context.Measurement.HitPoints;
         int target = context.Target.HitPoints;
-        yield return new RuleResult(Id, RuleSeverity.Soft, RuleMath.IsWithin(hp, target, 0.15), $"HP {hp}, target {target}");
+        yield return new RuleResult(Id, RuleSeverity.Soft, RuleMath.IsWithin(hp, target, 0.15f), $"HP {hp}, target {target}");
     }
 }

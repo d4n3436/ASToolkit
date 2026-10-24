@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Drawing;
 using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Routes;
@@ -27,7 +28,7 @@ public static partial class LevelScriptReader
         var checkpoints = new List<TriggerArea>();
         foreach (Match match in DistanceBlock.Matches(text))
         {
-            var area = new TriggerArea(int.Parse(match.Groups[1].ValueSpan), int.Parse(match.Groups[2].ValueSpan), int.Parse(match.Groups[3].ValueSpan));
+            var area = new TriggerArea(new Point(int.Parse(match.Groups[1].ValueSpan), int.Parse(match.Groups[2].ValueSpan)), int.Parse(match.Groups[3].ValueSpan));
             string body = match.Groups[4].Value;
             if (body.Contains("LightOff", StringComparison.Ordinal))
             {

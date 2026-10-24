@@ -27,5 +27,5 @@ public sealed record ThemeSettings(
     /// <summary>
     /// Gets the walking length of one unit in map pixels.
     /// </summary>
-    public double UnitPixels => Theme == LevelTheme.Lab ? Math.Sqrt(40 * 40 + 28 * 28) : 2 * Math.Sqrt(22.5 * 22.5 + 16 * 16);
+    public float UnitPixels => Theme == LevelTheme.Lab ? MathF.Sqrt(40 * 40 + 28 * 28) : 2 * MathF.Sqrt(22.5f * 22.5f + 16 * 16);
 }

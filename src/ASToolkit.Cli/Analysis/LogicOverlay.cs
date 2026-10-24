@@ -14,7 +14,7 @@ namespace ASToolkit.Cli.Analysis;
 internal static class LogicOverlay
 {
     // Marker and line sizes are tuned for a quarter-scale map and grow with the scale
-    private const double TunedScale = 0.25;
+    private const float TunedScale = 0.25f;
 
     private static readonly Color Walked = Color.FromRgb(0, 255, 255);
     private static readonly Color Teleport = Color.FromRgb(80, 140, 255);
@@ -96,7 +96,7 @@ internal static class LogicOverlay
 
         return;
 
-        float Size(double width) => Math.Max(1, MathF.Round((float)width * k));
+        float Size(float width) => Math.Max(1, MathF.Round((float)width * k));
     }
 
     private static PointF ToImage(MapImage map, Vector3 point) => map.ToImage(point.X, point.Y, point.Z);

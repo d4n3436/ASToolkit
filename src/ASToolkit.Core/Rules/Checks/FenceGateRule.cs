@@ -20,10 +20,10 @@ public sealed class FenceGateRule : ILevelRule
         }
 
         var a = context.Analysis;
-        yield return new RuleResult("B4.1", RuleSeverity.Hard, Math.Abs((a.Gating.FencedOffShare ?? 0) - t.FencedOffShare!.Value) <= 0.1,
+        yield return new RuleResult("B4.1", RuleSeverity.Hard, Math.Abs((a.Gating.FencedOffShare ?? 0) - t.FencedOffShare!.Value) <= 0.1f,
             $"fenced off {a.Gating.FencedOffShare:P0}, target {t.FencedOffShare:P0}");
         var generator = a.Objectives.FirstOrDefault(o => o.Kind == ObjectiveKind.Generator);
-        yield return new RuleResult("B4.2", RuleSeverity.Hard, generator?.Progress is >= 0.08 and <= 0.3, $"first generator at {generator?.Progress:0.00}");
+        yield return new RuleResult("B4.2", RuleSeverity.Hard, generator?.Progress is >= 0.08f and <= 0.3f, $"first generator at {generator?.Progress:0.00}");
         int? keyToGate = a.Gating.KeyToGatePixels;
         yield return new RuleResult("B4.3", RuleSeverity.Hard, keyToGate >= 800, $"generator to fence {keyToGate}");
     }

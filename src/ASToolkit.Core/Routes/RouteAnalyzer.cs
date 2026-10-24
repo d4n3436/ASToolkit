@@ -1,3 +1,4 @@
+using System.Drawing;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 
@@ -31,13 +32,13 @@ public static class RouteAnalyzer
 
         public required Cell Cell { get; init; }
 
-        public required double X { get; init; }
+        public required float X { get; init; }
 
-        public required double Y { get; init; }
+        public required float Y { get; init; }
 
-        public double Reach { get; set; }
+        public float Reach { get; set; }
 
-        public List<(double X, double Y)> Points { get; init; } = [];
+        public List<PointF> Points { get; init; } = [];
 
         public Objective? Need { get; init; }
 
@@ -126,7 +127,7 @@ public static class RouteAnalyzer
 
     private sealed class TourBuilder
     {
-        private static readonly Dictionary<ObjectiveKind, double> ReachByKind = new()
+        private static readonly Dictionary<ObjectiveKind, float> ReachByKind = new()
         {
             [ObjectiveKind.DynamiteSite] = 40,
             [ObjectiveKind.Breaker] = 40,
@@ -141,7 +142,7 @@ public static class RouteAnalyzer
         private readonly RouteGrid _grid;
         private readonly LevelScriptSummary _script;
         private readonly Lattice _lattice;
-        private readonly double _step;
+        private readonly float _step;
         private readonly CellIndex _index;
         private readonly Queue<Cell> _queue = new();
         private DistanceMap? _fromStart;
@@ -194,7 +195,7 @@ public static class RouteAnalyzer
             (Cell Cell, int Radius)? blackout = null;
             if (_script.Blackout is not null && hasDoors)
             {
-                var (bc, _) = FindNearestReachableCell(_script.Blackout.Value.X, _script.Blackout.Value.Y);
+                var (bc, _) = FindNearestReachableCell(_script.Blackout.Value.Center.X, _script.Blackout.Value.Center.Y);
                 if (bc is not null)
                 {
                     blackout = (bc.Value, _script.Blackout.Value.Radius);
@@ -206,7 +207,7 @@ public static class RouteAnalyzer
             bool usedSecrets = false;
             bool forcedGates = false;
             var todo = new List<Objective>(objectives);
-            var done = new List<(Objective? Objective, ObjectiveKind Kind, double X, double Y, int At)>();
+            var done = new List<(Objective? Objective, ObjectiveKind Kind, float X, float Y, int At)>();
             var path = new List<Cell> { s0 };
             var legs = new List<(RoutePhase Phase, int Cells)>();
             var current = s0;
@@ -264,12 +265,12 @@ public static class RouteAnalyzer
                 if (blackout is not null && !doorsLocked)
                 {
                     (var bc, int radius) = blackout.Value;
-                    int within = Math.Max(1, (int)Math.Round(radius / _step));
+                    int within = Math.Max(1, (int)MathF.Round(radius / _step));
                     if (leg.Any(c => Math.Abs(c.U - bc.U) + Math.Abs(c.V - bc.V) <= within))
                     {
                         doorsLocked = true;
                         blackout = null;
-                        done.Add((null, ObjectiveKind.Blackout, _script.Blackout!.Value.X, _script.Blackout.Value.Y, path.Count));
+                        done.Add((null, ObjectiveKind.Blackout, _script.Blackout!.Value.Center.X, _script.Blackout.Value.Center.Y, path.Count));
                     }
                 }
 
@@ -277,14 +278,14 @@ public static class RouteAnalyzer
                 int legBase = path.Count - 1;
                 path.AddRange(leg.Skip(1));
                 current = next.Cell;
-                var probes = new List<(int Index, double X, double Y)>();
+                var probes = new List<(int Index, float X, float Y)>();
                 for (int legIndex = 0; legIndex < leg.Length; legIndex += 2)
                 {
-                    (double x, double y) = _lattice.GetCenter(leg[legIndex]);
+                    (float x, float y) = _lattice.GetCenter(leg[legIndex]);
                     probes.Add((legIndex, x, y));
                 }
 
-                (double lx, double ly) = _lattice.GetCenter(leg[^1]);
+                (float lx, float ly) = _lattice.GetCenter(leg[^1]);
                 probes.Add((leg.Length - 1, lx, ly));
                 var passed = new List<(int Hit, Objective Objective)>();
                 foreach (var objective in todo)
@@ -385,8 +386,8 @@ public static class RouteAnalyzer
             foreach (var element in elements)
             {
                 element.Progress = Progress(element.Cell);
-                element.BranchDepth = (int)Math.Round(branch.GetValueOrDefault(element.Cell) * _step);
-                element.Distance = (int)Math.Round(fromStart[element.Cell] * _step);
+                element.BranchDepth = (int)MathF.Round(branch.GetValueOrDefault(element.Cell) * _step);
+                element.Distance = (int)MathF.Round(fromStart[element.Cell] * _step);
                 var trigger = element.Kind == ElementKind.Spawner ? element.Program?.Trigger : null;
                 if (trigger is not null)
                 {
@@ -394,8 +395,8 @@ public static class RouteAnalyzer
                     if (tc is not null && fromStart.ContainsKey(tc.Value))
                     {
                         element.TriggerProgress = Progress(tc.Value);
-                        element.TriggerBranchDepth = (int)Math.Round(branch.GetValueOrDefault(tc.Value) * _step);
-                        element.TriggerDistance = (int)Math.Round(Math.Sqrt(Math.Pow(element.X - trigger.Value.X, 2) + Math.Pow(element.Y - trigger.Value.Y, 2)));
+                        element.TriggerBranchDepth = (int)MathF.Round(branch.GetValueOrDefault(tc.Value) * _step);
+                        element.TriggerDistance = (int)MathF.Round(MathF.Sqrt(MathF.Pow(element.X - trigger.Value.X, 2) + MathF.Pow(element.Y - trigger.Value.Y, 2)));
                     }
                 }
             }
@@ -403,7 +404,7 @@ public static class RouteAnalyzer
             var merged = new List<RouteLeg>();
             foreach ((var phase, int cells) in legs)
             {
-                int px = (int)Math.Round(cells * _step);
+                int px = (int)MathF.Round(cells * _step);
                 if (merged.Count > 0 && merged[^1].Phase == phase)
                 {
                     merged[^1] = merged[^1] with { Pixels = merged[^1].Pixels + px };
@@ -417,10 +418,10 @@ public static class RouteAnalyzer
             var checkpoints = new List<RouteCheckpoint>();
             foreach (var checkpoint in _script.Checkpoints)
             {
-                var (c, _) = FindNearestReachableCell(checkpoint.X, checkpoint.Y);
+                var (c, _) = FindNearestReachableCell(checkpoint.Center.X, checkpoint.Center.Y);
                 if (c is not null && fromStart.ContainsKey(c.Value))
                 {
-                    checkpoints.Add(new RouteCheckpoint(checkpoint.X, checkpoint.Y, Progress(c.Value)));
+                    checkpoints.Add(new RouteCheckpoint(checkpoint.Center.X, checkpoint.Center.Y, Progress(c.Value)));
                 }
             }
 
@@ -430,11 +431,11 @@ public static class RouteAnalyzer
                 Theme = _model.Theme,
                 Step = _step,
                 ReachableCells = _grid.Cells.Count(fromStart.ContainsKey),
-                RoutePixels = (int)Math.Round(walked * _step),
-                SpinePixels = (int)Math.Round(Math.Max(1, path.Select(c => fromStart.GetValueOrDefault(c)).DefaultIfEmpty().Max()) * _step),
-                RevisitShare = Math.Round(1 - unique.Count / (double)Math.Max(1, path.Count), 3),
+                RoutePixels = (int)MathF.Round(walked * _step),
+                SpinePixels = (int)MathF.Round(Math.Max(1, path.Select(c => fromStart.GetValueOrDefault(c)).DefaultIfEmpty().Max()) * _step),
+                RevisitShare = MathF.Round(1 - unique.Count / (float)Math.Max(1, path.Count), 3),
                 Legs = merged,
-                Objectives = done.Select(d => new RouteObjective(d.Kind, d.X, d.Y, Math.Round(d.At / (double)Math.Max(1, walked), 3))).ToArray(),
+                Objectives = done.Select(d => new RouteObjective(d.Kind, d.X, d.Y, MathF.Round(d.At / (float)Math.Max(1, walked), 3))).ToArray(),
                 Elements = elements,
                 Gating = MeasureGates(s0, elements, Progress),
                 Checkpoints = checkpoints,
@@ -445,7 +446,7 @@ public static class RouteAnalyzer
 
             bool IsOpened(Objective o) => o.Need is null || !todo.Contains(o.Need);
 
-            double Progress(Cell c) => Math.Round(projection.GetValueOrDefault(c) / (double)Math.Max(1, walked), 3);
+            float Progress(Cell c) => MathF.Round(projection.GetValueOrDefault(c) / (float)Math.Max(1, walked), 3);
         }
 
         private bool IsBlocked(EdgeKey k, bool secretsClosed, bool doorsLocked, bool fencesUp)
@@ -543,14 +544,14 @@ public static class RouteAnalyzer
             return projection;
         }
 
-        private static int? FindHit(List<(int Index, double X, double Y)> probes, Objective o)
+        private static int? FindHit(List<(int Index, float X, float Y)> probes, Objective o)
         {
-            double r = o.Reach;
-            foreach ((int index, double x, double y) in probes)
+            float r = o.Reach;
+            foreach ((int index, float x, float y) in probes)
             {
-                foreach ((double px, double py) in o.Points)
+                foreach ((float px, float py) in o.Points)
                 {
-                    if (Math.Abs(x - px) <= r && Math.Abs(y - py) <= r && Math.Sqrt((x - px) * (x - px) + (y - py) * (y - py)) <= r)
+                    if (Math.Abs(x - px) <= r && Math.Abs(y - py) <= r && MathF.Sqrt((x - px) * (x - px) + (y - py) * (y - py)) <= r)
                     {
                         return index;
                     }
@@ -560,7 +561,7 @@ public static class RouteAnalyzer
             return null;
         }
 
-        private (Cell? Cell, double Offset) FindNearestReachableCell(double x, double y)
+        private (Cell? Cell, float Offset) FindNearestReachableCell(float x, float y)
         {
             var c = _lattice.GetCell(x, y);
             if (IsInPool(c))
@@ -571,7 +572,7 @@ public static class RouteAnalyzer
             for (int index = 1; index < 8; index++)
             {
                 Cell? best = null;
-                double bestDistance = double.MaxValue;
+                float bestDistance = float.MaxValue;
                 for (int du = -index; du <= index; du++)
                 {
                     for (int dv = -index; dv <= index; dv++)
@@ -582,8 +583,8 @@ public static class RouteAnalyzer
                             continue;
                         }
 
-                        (double cx, double cy) = _lattice.GetCenter(n);
-                        double d = Math.Sqrt((cx - x) * (cx - x) + (cy - y) * (cy - y));
+                        (float cx, float cy) = _lattice.GetCenter(n);
+                        float d = MathF.Sqrt((cx - x) * (cx - x) + (cy - y) * (cy - y));
                         if (d < bestDistance)
                         {
                             bestDistance = d;
@@ -690,7 +691,7 @@ public static class RouteAnalyzer
 
             void Add(ElementKind kind, MergedMapSprite s, ItemCategory? category = null, KnownObject crateItem = 0, SpawnerProgram? program = null)
             {
-                (var c, double offset) = FindNearestReachableCell(s.Position.X, s.Position.Y);
+                (var c, float offset) = FindNearestReachableCell(s.Position.X, s.Position.Y);
                 if (c is null || !_fromStart!.ContainsKey(c.Value))
                 {
                     return;
@@ -700,8 +701,8 @@ public static class RouteAnalyzer
                 {
                     Kind = kind,
                     Id = s.Id,
-                    X = (int)Math.Round(s.Position.X),
-                    Y = (int)Math.Round(s.Position.Y),
+                    X = (int)MathF.Round(s.Position.X),
+                    Y = (int)MathF.Round(s.Position.Y),
                     Cell = c.Value,
                     Hidden = offset > 30,
                     Category = category,
@@ -748,8 +749,8 @@ public static class RouteAnalyzer
                     }
                 }
 
-                var points = new List<(double X, double Y)> { (element.X, element.Y) };
-                points.AddRange(element.Program.Waypoints.Select(w => ((double)w.X, (double)w.Y)));
+                var points = new List<PointF> { new(element.X, element.Y) };
+                points.AddRange(element.Program.Waypoints.Select(w => new PointF(w.X, w.Y)));
                 for (int index = points.Count - 1; index >= 0; index--)
                 {
                     var (wc, _) = FindNearestReachableCell(points[index].X, points[index].Y);
@@ -759,8 +760,8 @@ public static class RouteAnalyzer
                         {
                             Kind = ObjectiveKind.Spawned,
                             Cell = wc.Value,
-                            X = Math.Round(points[index].X),
-                            Y = Math.Round(points[index].Y),
+                            X = MathF.Round(points[index].X),
+                            Y = MathF.Round(points[index].Y),
                             Points = points,
                             Need = trigger
                         });
@@ -791,20 +792,20 @@ public static class RouteAnalyzer
 
                 if (objective.Points.Count == 0)
                 {
-                    objective.Points.Add((objective.X, objective.Y));
+                    objective.Points.Add(new PointF(objective.X, objective.Y));
                 }
             }
 
             return objectives.ToArray();
         }
 
-        private GateMeasurement MeasureGates(Cell start, IReadOnlyList<RouteElement> elements, Func<Cell, double> progress)
+        private GateMeasurement MeasureGates(Cell start, IReadOnlyList<RouteElement> elements, Func<Cell, float> progress)
         {
             var fromStart = _fromStart!;
-            double? lockedShare = null;
-            double? fencedOffShare = null;
+            float? lockedShare = null;
+            float? fencedOffShare = null;
             int? keyToGate = null;
-            double? blackoutProgress = null;
+            float? blackoutProgress = null;
             IReadOnlyList<int> breakerFromBlackout = [];
             var breakers = elements.Where(e => e.Kind == ElementKind.Breaker).ToArray();
             bool hasDoors = _grid.Edges.Values.Any(v => v == 'D');
@@ -812,7 +813,7 @@ public static class RouteAnalyzer
             if ((_script.DoorsLocked || _script.Blackout is not null) && hasDoors)
             {
                 var zone = Search([start], doorsShut);
-                lockedShare = Math.Round(1 - zone.Count / (double)Math.Max(1, fromStart.Count), 3);
+                lockedShare = MathF.Round(1 - zone.Count / (float)Math.Max(1, fromStart.Count), 3);
                 var doorCells = _grid.Edges.Where(e => e.Value == 'D')
                     .SelectMany(e => new[] { e.Key.Cells.First, e.Key.Cells.Second })
                     .Where(zone.ContainsKey).ToArray();
@@ -823,10 +824,10 @@ public static class RouteAnalyzer
 
                 if (_script.Blackout is not null)
                 {
-                    var (bc, _) = FindNearestReachableCell(_script.Blackout.Value.X, _script.Blackout.Value.Y);
+                    var (bc, _) = FindNearestReachableCell(_script.Blackout.Value.Center.X, _script.Blackout.Value.Center.Y);
                     var fromBlackout = bc is null ? new DistanceMap(_index) : Search([bc.Value], doorsShut);
                     blackoutProgress = bc is null ? 0 : progress(bc.Value);
-                    breakerFromBlackout = breakers.Select(b => (int)Math.Round(fromBlackout.GetValueOrDefault(b.Cell, -1) * _step)).ToArray();
+                    breakerFromBlackout = breakers.Select(b => (int)MathF.Round(fromBlackout.GetValueOrDefault(b.Cell, -1) * _step)).ToArray();
                 }
             }
 
@@ -834,7 +835,7 @@ public static class RouteAnalyzer
             {
                 Func<EdgeKey, bool> fenced = k => IsBlocked(k, false, false, true);
                 var zone = Search([start], fenced);
-                fencedOffShare = Math.Round(1 - zone.Count / (double)Math.Max(1, fromStart.Count), 3);
+                fencedOffShare = MathF.Round(1 - zone.Count / (float)Math.Max(1, fromStart.Count), 3);
                 var fenceCells = _grid.FenceEdges.SelectMany(k => new[] { k.Cells.First, k.Cells.Second }).Where(zone.ContainsKey).ToArray();
                 var generators = elements.Where(e => e.Kind == ElementKind.Generator && zone.ContainsKey(e.Cell)).Select(e => e.Cell).ToArray();
                 if (fenceCells.Length > 0 && generators.Length > 0)
@@ -864,7 +865,7 @@ public static class RouteAnalyzer
                 }
             }
 
-            return best == int.MaxValue ? null : (int)Math.Round(best * _step);
+            return best == int.MaxValue ? null : (int)MathF.Round(best * _step);
         }
     }
 }

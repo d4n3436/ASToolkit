@@ -185,12 +185,12 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
     private static RouteReport ToReport(string map, bool generated, string? image, RouteAnalysis a)
     {
         var lattice = a.Grid.Lattice;
-        var elements = a.Elements.Select(e => new ElementReport(e.Kind, (int)e.Id, e.X, e.Y, e.Hidden, (int)e.CrateItem, Math.Round(e.Progress, 4), e.Distance, e.BranchDepth,
+        var elements = a.Elements.Select(e => new ElementReport(e.Kind, (int)e.Id, e.X, e.Y, e.Hidden, (int)e.CrateItem, MathF.Round(e.Progress, 4), e.Distance, e.BranchDepth,
             e.Program?.Trigger is { } trigger ? [trigger.X, trigger.Y, trigger.Radius] : [])).ToArray();
         
-        int[][] tour = a.Tour.Select(lattice.GetCenter).Select(p => new[] { (int)Math.Round(p.X), (int)Math.Round(p.Y) }).ToArray();
-        return new RouteReport(map, generated, image, a.Theme, a.RoutePixels, a.SpinePixels, Math.Round(a.SpinePixels / (double)Math.Max(1, a.RoutePixels), 4),
-            Math.Round(ReferenceLevelSet.GetElongation(a), 4), Math.Round(a.RevisitShare, 4), a.ReachableCells, a.Legs, a.Objectives, a.Checkpoints, elements,
+        int[][] tour = a.Tour.Select(lattice.GetCenter).Select(p => new[] { (int)MathF.Round(p.X), (int)MathF.Round(p.Y) }).ToArray();
+        return new RouteReport(map, generated, image, a.Theme, a.RoutePixels, a.SpinePixels, MathF.Round(a.SpinePixels / (float)Math.Max(1, a.RoutePixels), 4),
+            MathF.Round(ReferenceLevelSet.GetElongation(a), 4), MathF.Round(a.RevisitShare, 4), a.ReachableCells, a.Legs, a.Objectives, a.Checkpoints, elements,
             a.Gating, a.FallbackUsage, tour);
     }
 }

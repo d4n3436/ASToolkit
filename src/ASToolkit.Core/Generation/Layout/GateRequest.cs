@@ -7,4 +7,4 @@ namespace ASToolkit.Core.Generation.Layout;
 /// <param name="Share">The share of the area behind the gate.</param>
 /// <param name="SearchPixels">For a blackout, the walk from the trigger to the breaker; otherwise 0.</param>
 /// <param name="IsWing">A value indicating whether the gate closes a branch off the route instead of the rest of the route.</param>
-public sealed record GateRequest(GateKind Kind, double Share, double SearchPixels, bool IsWing = false);
+public sealed record GateRequest(GateKind Kind, float Share, float SearchPixels, bool IsWing = false);

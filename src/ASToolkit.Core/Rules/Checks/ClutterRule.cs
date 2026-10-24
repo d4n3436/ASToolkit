@@ -13,8 +13,8 @@ public sealed class ClutterRule : ILevelRule
     {
         var m = context.Measurement;
         var t = context.Target;
-        yield return new RuleResult(Id, RuleSeverity.Hard, m.BlockedShare >= 0.6 * t.BlockedShare, $"blocked {m.BlockedShare:P1}, floor {0.6 * t.BlockedShare:P1}");
-        yield return new RuleResult(Id, RuleSeverity.Soft, RuleMath.IsWithin(m.BlockedShare, t.BlockedShare, 0.3), $"blocked {m.BlockedShare:P1}, target {t.BlockedShare:P1}");
-        yield return new RuleResult(Id, RuleSeverity.Soft, RuleMath.IsWithin(m.Breakables, t.Breakables, 0.3), $"breakables {m.Breakables}, target {t.Breakables}");
+        yield return new RuleResult(Id, RuleSeverity.Hard, m.BlockedShare >= 0.6f * t.BlockedShare, $"blocked {m.BlockedShare:P1}, floor {0.6 * t.BlockedShare:P1}");
+        yield return new RuleResult(Id, RuleSeverity.Soft, RuleMath.IsWithin(m.BlockedShare, t.BlockedShare, 0.3f), $"blocked {m.BlockedShare:P1}, target {t.BlockedShare:P1}");
+        yield return new RuleResult(Id, RuleSeverity.Soft, RuleMath.IsWithin(m.Breakables, t.Breakables, 0.3f), $"breakables {m.Breakables}, target {t.Breakables}");
     }
 }

@@ -137,7 +137,7 @@ public static class LevelLogicReader
 
     private static ScriptMarker CreateAreaMarker(ScriptMarkerKind kind, TriggerArea area, string label)
     {
-        var center = new Vector3(area.X, area.Y, 0);
+        var center = new Vector3(area.Center.X, area.Center.Y, 0);
         return new ScriptMarker(kind, center, area.Radius, center, label);
     }
 }

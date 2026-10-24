@@ -7,14 +7,14 @@ namespace ASToolkit.Core.Levels;
 /// </summary>
 public sealed class DecorHeightTable
 {
-    private const double Tolerance = 3;
+    private const float Tolerance = 3;
 
-    private readonly Dictionary<KnownObject, (double Min, double Max)> _ranges = [];
+    private readonly Dictionary<KnownObject, (float Min, float Max)> _ranges = [];
 
     /// <summary>
     /// Records an object placed at a height.
     /// </summary>
-    public void Add(KnownObject id, double z)
+    public void Add(KnownObject id, float z)
     {
         _ranges[id] = _ranges.TryGetValue(id, out var r) ? (Math.Min(r.Min, z), Math.Max(r.Max, z)) : (z, z);
     }
@@ -27,5 +27,5 @@ public sealed class DecorHeightTable
     /// <summary>
     /// Returns whether the levels use an object at about the given height.
     /// </summary>
-    public bool Allows(KnownObject id, double z) => _ranges.TryGetValue(id, out var r) && z >= r.Min - Tolerance && z <= r.Max + Tolerance;
+    public bool Allows(KnownObject id, float z) => _ranges.TryGetValue(id, out var r) && z >= r.Min - Tolerance && z <= r.Max + Tolerance;
 }
