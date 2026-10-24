@@ -23,6 +23,14 @@ public sealed class MapCanvas : Control
 
     public static readonly StyledProperty<bool> AnimatesProperty = AvaloniaProperty.Register<MapCanvas, bool>(nameof(Animates), true);
 
+    public static readonly StyledProperty<MapOverlay?> OverlayProperty = AvaloniaProperty.Register<MapCanvas, MapOverlay?>(nameof(Overlay));
+
+    public static readonly StyledProperty<bool> ShowsHelpersProperty = AvaloniaProperty.Register<MapCanvas, bool>(nameof(ShowsHelpers));
+
+    public static readonly StyledProperty<bool> ShowsScriptMarkersProperty = AvaloniaProperty.Register<MapCanvas, bool>(nameof(ShowsScriptMarkers));
+
+    public static readonly StyledProperty<bool> ShowsRouteProperty = AvaloniaProperty.Register<MapCanvas, bool>(nameof(ShowsRoute));
+
     public static readonly StyledProperty<ICommand?> HoverCommandProperty = AvaloniaProperty.Register<MapCanvas, ICommand?>(nameof(HoverCommand));
 
     public static readonly StyledProperty<ICommand?> SelectCommandProperty = AvaloniaProperty.Register<MapCanvas, ICommand?>(nameof(SelectCommand));
@@ -76,6 +84,42 @@ public sealed class MapCanvas : Control
     {
         get => GetValue(AnimatesProperty);
         set => SetValue(AnimatesProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets what is drawn over the scene.
+    /// </summary>
+    public MapOverlay? Overlay
+    {
+        get => GetValue(OverlayProperty);
+        set => SetValue(OverlayProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the sprites the game never shows are marked with circles.
+    /// </summary>
+    public bool ShowsHelpers
+    {
+        get => GetValue(ShowsHelpersProperty);
+        set => SetValue(ShowsHelpersProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the script events and their trigger areas are drawn.
+    /// </summary>
+    public bool ShowsScriptMarkers
+    {
+        get => GetValue(ShowsScriptMarkersProperty);
+        set => SetValue(ShowsScriptMarkersProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the tour or the quest order of the level is drawn.
+    /// </summary>
+    public bool ShowsRoute
+    {
+        get => GetValue(ShowsRouteProperty);
+        set => SetValue(ShowsRouteProperty, value);
     }
 
     /// <summary>
@@ -140,6 +184,8 @@ public sealed class MapCanvas : Control
                 }
             }
         }
+
+        DrawOverlay(context, scene);
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -152,6 +198,11 @@ public sealed class MapCanvas : Control
             UpdateTimer();
             InvalidateVisual();
             Pump();
+        }
+        else if (change.Property == OverlayProperty || change.Property == ShowsHelpersProperty || change.Property == ShowsScriptMarkersProperty
+                 || change.Property == ShowsRouteProperty)
+        {
+            InvalidateVisual();
         }
         else if (change.Property == AnimatesProperty)
         {
@@ -250,10 +301,36 @@ public sealed class MapCanvas : Control
     private void RunCommand(ICommand? command, Point position)
     {
         var scenePosition = ToScene(position);
-        var point = new ScenePoint((int)Math.Floor(scenePosition.X), (int)Math.Floor(scenePosition.Y), Time);
+        var point = new ScenePoint((int)Math.Floor(scenePosition.X), (int)Math.Floor(scenePosition.Y), Time, _zoom);
         if (command?.CanExecute(point) == true)
         {
             command.Execute(point);
+        }
+    }
+
+    private void DrawOverlay(DrawingContext context, MapScene scene)
+    {
+        var overlay = Overlay;
+        if (overlay is null)
+        {
+            return;
+        }
+
+        var painter = new OverlayPainter(context, point => new Point((point.X - scene.Left - _offset.X) * _zoom, (point.Y - scene.Top - _offset.Y) * _zoom),
+            new Rect(Bounds.Size), _zoom);
+        if (ShowsRoute)
+        {
+            painter.DrawRoute(overlay);
+        }
+
+        if (ShowsScriptMarkers)
+        {
+            painter.DrawMarkers(overlay.Logic.Markers);
+        }
+
+        if (ShowsHelpers)
+        {
+            painter.DrawHelpers(overlay.Helpers);
         }
     }
 

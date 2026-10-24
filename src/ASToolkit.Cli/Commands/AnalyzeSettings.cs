@@ -7,7 +7,7 @@ namespace ASToolkit.Cli.Commands;
 internal sealed class AnalyzeSettings : GameSettings
 {
     [CommandArgument(0, "[MAPS]")]
-    [Description("The maps to analyze, relative to the Maps folder, such as Level_03.map or ADDON/Level_02.map. Defaults to campaign levels 2 to 10 and the levels 2 to 5 of both add-ons; with --levels, to the campaign levels found there.")]
+    [Description("The maps to analyze, relative to the Maps folder, such as Level_03.map or ADDON/Level_02.map. Defaults to campaign levels 2 to 10 and the levels 2 to 5 of both add-ons, or to every Level_*.map of Alien Shooter 2; with --levels, to the campaign levels found there.")]
     public string[] Maps { get; init; } = [];
 
     [CommandOption("-o|--out <FOLDER>", true)]

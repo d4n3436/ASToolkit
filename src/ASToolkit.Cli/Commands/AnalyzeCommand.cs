@@ -4,6 +4,7 @@ using ASToolkit.Core.Formats;
 using ASToolkit.Core.Rendering;
 using ASToolkit.Core.Routes;
 using ASToolkit.Core.Rules;
+using ASToolkit.Core.Scripting;
 using ASToolkit.Cli.Analysis;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
@@ -35,6 +36,11 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
     public override int Execute(CommandContext context, AnalyzeSettings settings, CancellationToken cancellationToken)
     {
         var objects = ObjectTable.Load(Path.Combine(settings.Game, "objects.res"));
+        if (objects.IsAlienShooter2)
+        {
+            return ExecuteSequel(settings, objects, cancellationToken);
+        }
+
         string[] maps = GetMaps(settings);
         Directory.CreateDirectory(settings.Out);
         var renderer = settings.NoImages ? null : new MapRenderer(settings.Game, objects) { MatchGameLighting = settings.GameLighting, OmitAmbientTint = settings.NoAmbientTint };
@@ -103,6 +109,56 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
         File.WriteAllText(json, JsonSerializer.Serialize(reports.OfType<RouteReport>(), JsonOptions));
         AnsiConsole.MarkupLine($"Wrote [green]{Markup.Escape(json)}[/].");
         return problems.All(p => p is null) ? 0 : 1;
+    }
+
+    private static int ExecuteSequel(AnalyzeSettings settings, ObjectTable objects, CancellationToken cancellationToken)
+    {
+        string folder = settings.Levels ?? Path.Combine(settings.Game, "Maps");
+        string[] maps = settings.Maps.Length > 0 ? settings.Maps
+            : Directory.EnumerateFiles(folder, "Level_*.map").Select(Path.GetFileName).OfType<string>()
+                .Where(name => !name.Contains("_temp", StringComparison.OrdinalIgnoreCase)).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        Directory.CreateDirectory(settings.Out);
+        var quests = QuestBook.Load(settings.Game);
+        var renderer = settings.NoImages ? null : new MapRenderer(settings.Game, objects) { MatchGameLighting = settings.GameLighting, OmitAmbientTint = settings.NoAmbientTint };
+        var reports = new WalkReport?[maps.Length];
+        var options = new ParallelOptions { MaxDegreeOfParallelism = MaxLevelsAtOnce, CancellationToken = cancellationToken };
+        AnsiConsole.Status().Start("Analyzing the levels", _ => Parallel.For(0, maps.Length, options, i =>
+        {
+            string mapPath = Path.Combine(folder, maps[i]);
+            if (!File.Exists(mapPath))
+            {
+                return;
+            }
+
+            var map = MapResourceBuilder.Load(mapPath);
+            var logic = LevelLogicReader.Read(mapPath, map, objects, quests);
+            var walk = WalkedRouteBuilder.Build(settings.Game, map, objects, logic);
+            string? image = null;
+            if (renderer is not null)
+            {
+                image = Path.ChangeExtension(maps[i], null).Replace('/', '_').Replace('\\', '_') + ".png";
+                using var rendered = renderer.Render(map.Sprites, settings.Scale, map.Graphics);
+                LogicOverlay.Draw(rendered, logic, walk);
+                rendered.Image.SaveAsPng(Path.Combine(settings.Out, image), PngOptions);
+            }
+
+            reports[i] = new WalkReport(maps[i], image, walk?.WalkedPixels ?? 0, walk?.UnreachedSteps ?? 0, (walk?.Steps ?? logic.Progression).Select(step => step.Label).ToArray(),
+                logic.Markers.Count);
+        }));
+
+        var table = new Table().AddColumns("Map", "Quest steps", "Walked", "Unreached", "Script events", "Image");
+        for (int mapIndex = 0; mapIndex < maps.Length; mapIndex++)
+        {
+            var report = reports[mapIndex];
+            table.AddRow(Markup.Escape(maps[mapIndex]), report is null ? "[red]missing[/]" : report.Steps.Length.ToString(), report is null ? "" : $"{report.WalkedPixels} px",
+                report is null ? "" : report.UnreachedSteps > 0 ? $"[yellow]{report.UnreachedSteps}[/]" : "0", report?.Markers.ToString() ?? "", Markup.Escape(report?.Image ?? ""));
+        }
+
+        AnsiConsole.Write(table);
+        string json = Path.Combine(settings.Out, "routes.json");
+        File.WriteAllText(json, JsonSerializer.Serialize(reports.OfType<WalkReport>(), JsonOptions));
+        AnsiConsole.MarkupLine($"Wrote [green]{Markup.Escape(json)}[/].");
+        return reports.All(report => report is not null) ? 0 : 1;
     }
 
     private static string[] GetMaps(AnalyzeSettings settings)

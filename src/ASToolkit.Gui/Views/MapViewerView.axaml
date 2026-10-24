@@ -28,6 +28,9 @@
                 <CheckBox Content="show hidden objects and helpers" IsChecked="{Binding ShowsHiddenObjects}" />
                 <CheckBox Content="female player" IsChecked="{Binding ShowsFemalePlayer}" IsVisible="{Binding !IsAlienShooter2}" />
                 <CheckBox Content="remove script groups" IsChecked="{Binding OmitRemovableGroups}" />
+                <CheckBox Content="helpers" IsChecked="{Binding ShowsHelpers}" />
+                <CheckBox Content="script markers" IsChecked="{Binding ShowsScriptMarkers}" />
+                <CheckBox Content="route" IsChecked="{Binding ShowsRoute}" />
                 <CheckBox Content="animate" IsChecked="{Binding Animates}" />
                 <Button Content="fit" MinWidth="60" HorizontalContentAlignment="Center" Click="OnFitClick" />
             </WrapPanel>
@@ -69,7 +72,8 @@
         </DockPanel>
 
         <Panel>
-            <controls:MapCanvas x:Name="Map" Scene="{Binding Scene}" Animates="{Binding Animates}"
+            <controls:MapCanvas x:Name="Map" Scene="{Binding Scene}" Animates="{Binding Animates}" Overlay="{Binding Overlay}"
+                                ShowsHelpers="{Binding ShowsHelpers}" ShowsScriptMarkers="{Binding ShowsScriptMarkers}" ShowsRoute="{Binding ShowsRoute}"
                                 HoverCommand="{Binding HoverCommand}" SelectCommand="{Binding SelectCommand}" />
             <TextBlock Text="Loading…" IsVisible="{Binding IsLoading}" HorizontalAlignment="Center" VerticalAlignment="Center"
                        Foreground="White" FontSize="20" />

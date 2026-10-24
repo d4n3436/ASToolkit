@@ -6,4 +6,5 @@ namespace ASToolkit.Gui.Models;
 /// <param name="X">The x position in scene pixels.</param>
 /// <param name="Y">The y position in scene pixels.</param>
 /// <param name="Time">The game time in milliseconds, or null when the scene is shown without animation.</param>
-public sealed record ScenePoint(int X, int Y, int? Time);
+/// <param name="Zoom">The screen pixels per scene pixel.</param>
+public sealed record ScenePoint(int X, int Y, int? Time, double Zoom);

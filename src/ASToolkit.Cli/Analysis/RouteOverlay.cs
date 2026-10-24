@@ -60,7 +60,7 @@ internal static class RouteOverlay
         [ObjectiveKind.Dynamite] = 'D'
     };
 
-    private static readonly Lazy<FontFamily> LabelFamily = new(() => SystemFonts.Families.OrderBy(f => f.Name, StringComparer.Ordinal).First(HasLabelGlyphs));
+    private static readonly Lazy<FontFamily> LabelFamily = new(() => SystemFonts.Families.OrderBy(f => f.Name).First(HasLabelGlyphs));
 
     public static void Draw(MapImage map, RouteAnalysis analysis, LevelScriptSummary script)
     {
@@ -72,7 +72,11 @@ internal static class RouteOverlay
         
         map.Image.Mutate(c =>
         {
-            DrawTour(c, tour, analysis.Legs, Size(3));
+            foreach (var run in analysis.GetTourRuns())
+            {
+                c.DrawLine(PhaseColors[run.Phase], Size(3), run.Points.Select(p => map.ToImage(p.X, p.Y)).ToArray());
+            }
+
             foreach (var element in analysis.Elements.Where(e => e.Program?.Trigger is not null))
             {
                 var t = element.Program!.Trigger!.Value;
@@ -129,58 +133,6 @@ internal static class RouteOverlay
         return;
 
         float Size(double w) => Math.Max(1, MathF.Round((float)w * k));
-    }
-
-    // Color each stretch by its leg's phase, splitting the tour in proportion to leg lengths
-    private static void DrawTour(IImageProcessingContext c, PointF[] tour, IReadOnlyList<RouteLeg> legs, float width)
-    {
-        if (tour.Length < 2)
-        {
-            return;
-        }
-
-        double[] lengths = new double[tour.Length];
-        for (int tourIndex = 1; tourIndex < tour.Length; tourIndex++)
-        {
-            lengths[tourIndex] = lengths[tourIndex - 1] + Math.Sqrt(Math.Pow(tour[tourIndex].X - tour[tourIndex - 1].X, 2) + Math.Pow(tour[tourIndex].Y - tour[tourIndex - 1].Y, 2));
-        }
-
-        double legTotal = Math.Max(1, legs.Sum(l => l.Pixels));
-        double total = Math.Max(1e-9, lengths[^1]);
-
-        // One polyline per phase run to keep its joints
-        int start = 0;
-        var current = GetPhase(0);
-        for (int tourIndex = 1; tourIndex < tour.Length; tourIndex++)
-        {
-            var phase = GetPhase(tourIndex);
-            if (phase != current || tourIndex == tour.Length - 1)
-            {
-                c.DrawLine(PhaseColors[current], width, tour[start..(tourIndex + 1)]);
-                start = tourIndex;
-                current = phase;
-            }
-        }
-
-        return;
-
-        RoutePhase GetPhase(int point)
-        {
-            double share = lengths[point] / total;
-            double walked = 0;
-            var phase = RoutePhase.Free;
-            foreach (var leg in legs)
-            {
-                phase = leg.Phase;
-                walked += leg.Pixels / legTotal;
-                if (share < walked)
-                {
-                    break;
-                }
-            }
-
-            return phase;
-        }
     }
 
     // Number sites, generators and dynamite in tour order and label the breaker B

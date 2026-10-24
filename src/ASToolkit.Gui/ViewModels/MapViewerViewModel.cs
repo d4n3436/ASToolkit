@@ -1,6 +1,9 @@
 using System.Collections.ObjectModel;
+using System.Numerics;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Rendering;
+using ASToolkit.Core.Routes;
+using ASToolkit.Core.Scripting;
 using ASToolkit.Gui.Core;
 using ASToolkit.Gui.Models;
 using Avalonia.Platform.Storage;
@@ -16,8 +19,11 @@ public partial class MapViewerViewModel : ViewModelBase
 {
     private const string ObjectsFile = "objects.res";
     private const string MapsFolder = "Maps";
+    private const double HoverDistance = 6;
 
+    private readonly Dictionary<string, MapOverlay> _overlays = new(StringComparer.OrdinalIgnoreCase);
     private ObjectTable? _objects;
+    private QuestBook _quests = QuestBook.Empty;
     private MapRenderer? _renderer;
     private string _summary = "";
     private int _loadVersion;
@@ -36,6 +42,9 @@ public partial class MapViewerViewModel : ViewModelBase
 
     [ObservableProperty]
     public partial MapScene? Scene { get; set; }
+
+    [ObservableProperty]
+    public partial MapOverlay? Overlay { get; set; }
 
     [ObservableProperty]
     public partial bool IsAlienShooter2 { get; set; }
@@ -67,6 +76,15 @@ public partial class MapViewerViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool OmitRemovableGroups { get; set; } = true;
 
+    [ObservableProperty]
+    public partial bool ShowsHelpers { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool ShowsScriptMarkers { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool ShowsRoute { get; set; } = true;
+
     [RelayCommand]
     public async Task SelectGameFolderAsync()
     {
@@ -91,6 +109,8 @@ public partial class MapViewerViewModel : ViewModelBase
         }
 
         _objects = ObjectTable.Load(objectsPath);
+        _quests = QuestBook.Load(folder);
+        _overlays.Clear();
         _renderer = null;
         GameFolder = folder;
         IsAlienShooter2 = _objects.IsAlienShooter2;
@@ -122,10 +142,60 @@ public partial class MapViewerViewModel : ViewModelBase
         }
 
         string position = $"screen ({scene.Left + point.X}, {scene.Top + point.Y})";
+        string? overlay = DescribeOverlay(new Vector2(scene.Left + point.X, scene.Top + point.Y), point.Zoom);
+        if (overlay is not null)
+        {
+            Status = $"{position}    {overlay}";
+            return;
+        }
+
         var found = scene.FindObject(point.X, point.Y, point.Time);
         Status = found is null ? $"{position}    {_summary}"
             : $"{position}    object {(int)found.Id} {_objects.GetName(found.Id)} [{_objects.GetPath(found.Id)}]    " +
               $"position ({found.Position.X:0}, {found.Position.Y:0}, {found.Position.Z:0})    facing {found.Facing}";
+    }
+
+    private string? DescribeOverlay(Vector2 position, double zoom)
+    {
+        var overlay = Overlay;
+        if (overlay is null || _objects is null)
+        {
+            return null;
+        }
+
+        float reach = (float)(HoverDistance / zoom);
+        if (ShowsHelpers)
+        {
+            var helper = overlay.Helpers.FirstOrDefault(helper =>
+                Vector2.Distance(ToScreen(helper.Sprite.Position), position) <= reach);
+            if (helper is not null)
+            {
+                string name = _objects.TryFind(helper.Sprite.Id, out _) ? _objects.GetName(helper.Sprite.Id) : "unknown object";
+                return $"{helper.Kind.ToString().ToLowerInvariant()} helper {(int)helper.Sprite.Id} {name}    army {helper.Sprite.Army}";
+            }
+        }
+
+        if (ShowsRoute)
+        {
+            var step = (overlay.Walk?.Steps ?? overlay.Logic.Progression).Select((step, index) => (Step: step, Index: index))
+                .FirstOrDefault(entry => Vector2.Distance(ToScreen(entry.Step.Position), position) <= reach);
+            if (step.Step is not null)
+            {
+                return $"step {step.Index + 1}: {step.Step.Label}";
+            }
+        }
+
+        if (!ShowsScriptMarkers)
+        {
+            return null;
+        }
+
+        var marker = overlay.Logic.Markers
+            .Where(marker => Vector2.Distance(ToScreen(marker.Position), position) <= Math.Max(reach, marker.Radius) || Vector2.Distance(ToScreen(marker.Source), position) <= reach)
+            .OrderByDescending(marker => marker.Kind)
+            .ThenBy(marker => marker.Radius)
+            .FirstOrDefault();
+        return marker is null ? null : $"{marker.Kind.ToString().ToLowerInvariant()}: {marker.Label}";
     }
 
     [RelayCommand]
@@ -179,10 +249,11 @@ public partial class MapViewerViewModel : ViewModelBase
         Status = $"Loading {map}";
         try
         {
-            (int spriteCount, var scene) = await Task.Run(() =>
+            string path = Path.Combine(mapsPath, map);
+            (var resource, var scene) = await Task.Run(() =>
             {
-                var resource = MapResourceBuilder.Load(Path.Combine(mapsPath, map));
-                return (resource.Sprites.Count, renderer.CreateScene(resource.Sprites, resource.Graphics));
+                var loaded = MapResourceBuilder.Load(path);
+                return (loaded, renderer.CreateScene(loaded.Sprites, loaded.Graphics));
             });
             if (version != _loadVersion)
             {
@@ -190,15 +261,35 @@ public partial class MapViewerViewModel : ViewModelBase
             }
 
             _summary = scene.IsEmpty ? "This map has no sprites"
-                : $"{spriteCount} sprites, {scene.ObjectCount} objects drawn, {scene.AnimatedCount} animated, {scene.Undrawn} sprite frames not decoded";
+                : $"{resource.Sprites.Count} sprites, {scene.ObjectCount} objects drawn, {scene.AnimatedCount} animated, {scene.Undrawn} sprite frames not decoded";
+            if (!_overlays.TryGetValue(map, out var overlay))
+            {
+                Overlay = null;
+            }
+
             Scene = scene;
             Status = _summary;
+            IsLoading = false;
+            if (overlay is null)
+            {
+                var quests = _quests;
+                overlay = await Task.Run(() => CreateOverlay(game, map, path, resource, objects, quests, renderer));
+                if (version != _loadVersion)
+                {
+                    return;
+                }
+
+                _overlays[map] = overlay;
+            }
+
+            Overlay = overlay;
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
         {
             if (version == _loadVersion)
             {
                 Scene = null;
+                Overlay = null;
                 Status = $"{map} cannot be opened: {exception.Message}";
             }
         }
@@ -209,5 +300,20 @@ public partial class MapViewerViewModel : ViewModelBase
                 IsLoading = false;
             }
         }
+    }
+
+    private static Vector2 ToScreen(Vector3 point) => new(point.X, point.Y - point.Z);
+
+    private static MapOverlay CreateOverlay(string game, string map, string mapPath, MapResourceBuilder resource, ObjectTable objects, QuestBook quests,
+        MapRenderer renderer)
+    {
+        string? scriptPath = LevelLogicReader.FindLevelScript(mapPath);
+        var logic = LevelLogicReader.Read(mapPath, resource, objects, quests);
+        var route = RouteAnalyzer.Analyze(map, resource, scriptPath is null ? new LevelScriptSummary() : LevelScriptReader.Read(scriptPath), objects);
+        return new MapOverlay
+        {
+            Logic = logic, Helpers = renderer.GetHelpers(resource.Sprites), Route = route, TourRuns = route?.GetTourRuns() ?? [],
+            Walk = objects.IsAlienShooter2 ? WalkedRouteBuilder.Build(game, resource, objects, logic) : null
+        };
     }
 }
