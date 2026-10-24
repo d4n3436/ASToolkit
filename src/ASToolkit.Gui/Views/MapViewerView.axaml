@@ -25,13 +25,13 @@
                 <CheckBox Content="no ambient tint" IsChecked="{Binding OmitAmbientTint}" IsVisible="{Binding IsAlienShooter2}"
                           IsEnabled="{Binding MatchGameLighting}" />
                 <CheckBox Content="hide covers" IsChecked="{Binding OmitCovers}" IsVisible="{Binding IsAlienShooter2}" />
-                <CheckBox Content="show hidden objects and helpers" IsChecked="{Binding ShowsHiddenObjects}" />
-                <CheckBox Content="female player" IsChecked="{Binding ShowsFemalePlayer}" IsVisible="{Binding !IsAlienShooter2}" />
+                <CheckBox Content="show hidden objects and helpers" IsChecked="{Binding ShowHiddenObjects}" />
+                <CheckBox Content="female player" IsChecked="{Binding ShowFemalePlayer}" IsVisible="{Binding !IsAlienShooter2}" />
                 <CheckBox Content="remove script groups" IsChecked="{Binding OmitRemovableGroups}" />
-                <CheckBox Content="helpers" IsChecked="{Binding ShowsHelpers}" />
-                <CheckBox Content="script markers" IsChecked="{Binding ShowsScriptMarkers}" />
-                <CheckBox Content="route" IsChecked="{Binding ShowsRoute}" />
-                <CheckBox Content="animate" IsChecked="{Binding Animates}" />
+                <CheckBox Content="helpers" IsChecked="{Binding ShowHelpers}" />
+                <CheckBox Content="script markers" IsChecked="{Binding ShowScriptMarkers}" />
+                <CheckBox Content="route" IsChecked="{Binding ShowRoute}" />
+                <CheckBox Content="animate" IsChecked="{Binding Animate}" />
                 <Button Content="fit" MinWidth="60" HorizontalContentAlignment="Center" Click="OnFitClick" />
             </WrapPanel>
         </Border>
@@ -72,8 +72,8 @@
         </DockPanel>
 
         <Panel>
-            <controls:MapCanvas x:Name="Map" Scene="{Binding Scene}" Animates="{Binding Animates}" Overlay="{Binding Overlay}"
-                                ShowsHelpers="{Binding ShowsHelpers}" ShowsScriptMarkers="{Binding ShowsScriptMarkers}" ShowsRoute="{Binding ShowsRoute}"
+            <controls:MapCanvas x:Name="Map" Scene="{Binding Scene}" Animate="{Binding Animate}" Overlay="{Binding Overlay}"
+                                ShowHelpers="{Binding ShowHelpers}" ShowScriptMarkers="{Binding ShowScriptMarkers}" ShowRoute="{Binding ShowRoute}"
                                 HoverCommand="{Binding HoverCommand}" SelectCommand="{Binding SelectCommand}" />
             <TextBlock Text="Loading…" IsVisible="{Binding IsLoading}" HorizontalAlignment="Center" VerticalAlignment="Center"
                        Foreground="White" FontSize="20" />

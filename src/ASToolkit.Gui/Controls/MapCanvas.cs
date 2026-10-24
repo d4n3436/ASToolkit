@@ -21,15 +21,15 @@ public sealed class MapCanvas : Control
 {
     public static readonly StyledProperty<MapScene?> SceneProperty = AvaloniaProperty.Register<MapCanvas, MapScene?>(nameof(Scene));
 
-    public static readonly StyledProperty<bool> AnimatesProperty = AvaloniaProperty.Register<MapCanvas, bool>(nameof(Animates), true);
+    public static readonly StyledProperty<bool> AnimateProperty = AvaloniaProperty.Register<MapCanvas, bool>(nameof(Animate), true);
 
     public static readonly StyledProperty<MapOverlay?> OverlayProperty = AvaloniaProperty.Register<MapCanvas, MapOverlay?>(nameof(Overlay));
 
-    public static readonly StyledProperty<bool> ShowsHelpersProperty = AvaloniaProperty.Register<MapCanvas, bool>(nameof(ShowsHelpers));
+    public static readonly StyledProperty<bool> ShowHelpersProperty = AvaloniaProperty.Register<MapCanvas, bool>(nameof(ShowHelpers));
 
-    public static readonly StyledProperty<bool> ShowsScriptMarkersProperty = AvaloniaProperty.Register<MapCanvas, bool>(nameof(ShowsScriptMarkers));
+    public static readonly StyledProperty<bool> ShowScriptMarkersProperty = AvaloniaProperty.Register<MapCanvas, bool>(nameof(ShowScriptMarkers));
 
-    public static readonly StyledProperty<bool> ShowsRouteProperty = AvaloniaProperty.Register<MapCanvas, bool>(nameof(ShowsRoute));
+    public static readonly StyledProperty<bool> ShowRouteProperty = AvaloniaProperty.Register<MapCanvas, bool>(nameof(ShowRoute));
 
     public static readonly StyledProperty<ICommand?> HoverCommandProperty = AvaloniaProperty.Register<MapCanvas, ICommand?>(nameof(HoverCommand));
 
@@ -80,10 +80,10 @@ public sealed class MapCanvas : Control
     /// <summary>
     /// Gets or sets a value indicating whether the objects of the scene animate.
     /// </summary>
-    public bool Animates
+    public bool Animate
     {
-        get => GetValue(AnimatesProperty);
-        set => SetValue(AnimatesProperty, value);
+        get => GetValue(AnimateProperty);
+        set => SetValue(AnimateProperty, value);
     }
 
     /// <summary>
@@ -98,28 +98,28 @@ public sealed class MapCanvas : Control
     /// <summary>
     /// Gets or sets a value indicating whether the sprites the game never shows are marked with circles.
     /// </summary>
-    public bool ShowsHelpers
+    public bool ShowHelpers
     {
-        get => GetValue(ShowsHelpersProperty);
-        set => SetValue(ShowsHelpersProperty, value);
+        get => GetValue(ShowHelpersProperty);
+        set => SetValue(ShowHelpersProperty, value);
     }
 
     /// <summary>
     /// Gets or sets a value indicating whether the script events and their trigger areas are drawn.
     /// </summary>
-    public bool ShowsScriptMarkers
+    public bool ShowScriptMarkers
     {
-        get => GetValue(ShowsScriptMarkersProperty);
-        set => SetValue(ShowsScriptMarkersProperty, value);
+        get => GetValue(ShowScriptMarkersProperty);
+        set => SetValue(ShowScriptMarkersProperty, value);
     }
 
     /// <summary>
     /// Gets or sets a value indicating whether the tour or the quest order of the level is drawn.
     /// </summary>
-    public bool ShowsRoute
+    public bool ShowRoute
     {
-        get => GetValue(ShowsRouteProperty);
-        set => SetValue(ShowsRouteProperty, value);
+        get => GetValue(ShowRouteProperty);
+        set => SetValue(ShowRouteProperty, value);
     }
 
     /// <summary>
@@ -140,7 +140,7 @@ public sealed class MapCanvas : Control
         set => SetValue(SelectCommandProperty, value);
     }
 
-    private int? Time => Animates ? (int)_clock.ElapsedMilliseconds : null;
+    private int? Time => Animate ? (int)_clock.ElapsedMilliseconds : null;
 
     /// <summary>
     /// Zooms and moves the view so the whole scene fits.
@@ -199,12 +199,12 @@ public sealed class MapCanvas : Control
             InvalidateVisual();
             Pump();
         }
-        else if (change.Property == OverlayProperty || change.Property == ShowsHelpersProperty || change.Property == ShowsScriptMarkersProperty
-                 || change.Property == ShowsRouteProperty)
+        else if (change.Property == OverlayProperty || change.Property == ShowHelpersProperty || change.Property == ShowScriptMarkersProperty
+                 || change.Property == ShowRouteProperty)
         {
             InvalidateVisual();
         }
-        else if (change.Property == AnimatesProperty)
+        else if (change.Property == AnimateProperty)
         {
             ClearTiles();
             UpdateTimer();
@@ -318,17 +318,17 @@ public sealed class MapCanvas : Control
 
         var painter = new OverlayPainter(context, point => new Point((point.X - scene.Left - _offset.X) * _zoom, (point.Y - scene.Top - _offset.Y) * _zoom),
             new Rect(Bounds.Size), _zoom);
-        if (ShowsRoute)
+        if (ShowRoute)
         {
             painter.DrawRoute(overlay);
         }
 
-        if (ShowsScriptMarkers)
+        if (ShowScriptMarkers)
         {
             painter.DrawMarkers(overlay.Logic.Markers);
         }
 
-        if (ShowsHelpers)
+        if (ShowHelpers)
         {
             painter.DrawHelpers(overlay.Helpers);
         }
@@ -336,7 +336,7 @@ public sealed class MapCanvas : Control
 
     private void UpdateTimer()
     {
-        if (Animates && Scene?.IsAnimated == true && _attached)
+        if (Animate && Scene?.IsAnimated == true && _attached)
         {
             _timer.Start();
         }

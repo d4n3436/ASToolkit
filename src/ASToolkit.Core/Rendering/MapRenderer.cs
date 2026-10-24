@@ -9,7 +9,6 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Advanced;
 using SixLabors.ImageSharp.Memory;
 using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
 
 namespace ASToolkit.Core.Rendering;
 
@@ -98,7 +97,7 @@ public sealed class MapRenderer
     /// <summary>
     /// Gets a value indicating whether Alien Shooter maps show the player the way the game shows a female player.
     /// </summary>
-    public bool ShowsFemalePlayer { get; init; }
+    public bool ShowFemalePlayer { get; init; }
 
     /// <summary>
     /// Gets a value indicating whether the black covers of Alien Shooter 2 maps are left out, which shows the objects
@@ -199,9 +198,9 @@ public sealed class MapRenderer
         return image;
     }
 
-    private MapScene CreateScene(IReadOnlyList<MergedMapSprite> sprites, MapGraphics graphics, bool animates)
+    private MapScene CreateScene(IReadOnlyList<MergedMapSprite> sprites, MapGraphics graphics, bool animate)
     {
-        var scene = new SceneObjects(new List<Placement>(sprites.Count), [], [], animates);
+        var scene = new SceneObjects(new List<Placement>(sprites.Count), [], [], animate);
         var ambient = MatchGameLighting && _objects.IsAlienShooter2 ? GetAmbient(graphics) : (PackedTint?)null;
         int undrawn = 0;
         foreach (var sprite in sprites)
@@ -356,7 +355,7 @@ public sealed class MapRenderer
         }
 
         var scale = look.Scale * GetObjectScale(obj, file);
-        var timing = scene.Animates ? GetTiming(obj, file, frameIndex, owner.Handle, attachDepth) : AnimationTiming.Static;
+        var timing = scene.Animate ? GetTiming(obj, file, frameIndex, owner.Handle, attachDepth) : AnimationTiming.Static;
         if (isOmniLight && ambient.HasValue)
         {
             uint[] colors = Enumerable.Range(frameIndex, timing.Count).Select(file!.Value.GetLightColor).ToArray();
@@ -372,7 +371,7 @@ public sealed class MapRenderer
         var frame = file is null ? null : GetFrame(path, obj, file.Value, frameIndex, rotation, tint, scale);
         (int width, int height) = frame is not null ? (frame.Width, frame.Height) : file is null ? (MissingSize, MissingSize) : (file.Value.Width, file.Value.Height);
         int pass = sequel && file is not null ? sequelPass : frame is null || !frame.IsCombined ? 0 : 1;
-        float bob = scene.Animates && obj.Flags.HasFlag(ObjectFlags.Bobbing) ? obj.StepHeight : 0;
+        float bob = scene.Animate && obj.Flags.HasFlag(ObjectFlags.Bobbing) ? obj.StepHeight : 0;
         var animation = file is null || (timing.Count == 1 && bob == 0) ? null
             : new FrameAnimation(Enumerable.Range(frameIndex, timing.Count).Select(index => GetFrame(path, obj, file.Value, index, rotation, tint, scale)).ToArray(),
                 timing, bob, position.Z, sequel);
@@ -456,7 +455,7 @@ public sealed class MapRenderer
             return id;
         }
 
-        return (KnownObject)(ShowsFemalePlayer ? male + FemalePartOffset : male);
+        return (KnownObject)(ShowFemalePlayer ? male + FemalePartOffset : male);
     }
 
     private uint GetArmyBits(uint army) => army & (_objects.IsAlienShooter2 ? SequelArmyMask : ArmyMask);
@@ -1238,7 +1237,7 @@ public sealed class MapRenderer
 
     internal sealed record ShadowCard(bool[] Mask, int Columns, int Rows, Vector2 Origin, Vector2 ColumnStep, Vector2 RowStep, float TopDepth, float BottomDepth);
 
-    private sealed record SceneObjects(List<Placement> Placed, List<OmniLight> Lights, List<ShadowCaster> Casters, bool Animates);
+    private sealed record SceneObjects(List<Placement> Placed, List<OmniLight> Lights, List<ShadowCaster> Casters, bool Animate);
 
     internal sealed record StripBuffers(Rgb24[] Source, int[] Depth, Rgb24[] Light, int[] Sums, Rgb24[] Row);
 

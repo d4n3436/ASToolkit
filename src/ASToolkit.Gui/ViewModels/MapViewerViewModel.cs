@@ -56,10 +56,10 @@ public partial class MapViewerViewModel : ViewModelBase
     public partial string Status { get; set; } = "Open a game folder to view its maps";
 
     [ObservableProperty]
-    public partial bool Animates { get; set; } = true;
+    public partial bool Animate { get; set; } = true;
 
     [ObservableProperty]
-    public partial bool MatchGameLighting { get; set; }
+    public partial bool MatchGameLighting { get; set; } = true;
 
     [ObservableProperty]
     public partial bool OmitAmbientTint { get; set; }
@@ -68,22 +68,22 @@ public partial class MapViewerViewModel : ViewModelBase
     public partial bool OmitCovers { get; set; }
 
     [ObservableProperty]
-    public partial bool ShowsHiddenObjects { get; set; }
+    public partial bool ShowHiddenObjects { get; set; }
 
     [ObservableProperty]
-    public partial bool ShowsFemalePlayer { get; set; }
+    public partial bool ShowFemalePlayer { get; set; }
 
     [ObservableProperty]
     public partial bool OmitRemovableGroups { get; set; } = true;
 
     [ObservableProperty]
-    public partial bool ShowsHelpers { get; set; } = true;
+    public partial bool ShowHelpers { get; set; } = true;
 
     [ObservableProperty]
-    public partial bool ShowsScriptMarkers { get; set; } = true;
+    public partial bool ShowScriptMarkers { get; set; } = true;
 
     [ObservableProperty]
-    public partial bool ShowsRoute { get; set; } = true;
+    public partial bool ShowRoute { get; set; } = true;
 
     [RelayCommand]
     public async Task SelectGameFolderAsync()
@@ -164,7 +164,7 @@ public partial class MapViewerViewModel : ViewModelBase
         }
 
         float reach = (float)(HoverDistance / zoom);
-        if (ShowsHelpers)
+        if (ShowHelpers)
         {
             var helper = overlay.Helpers.FirstOrDefault(helper =>
                 Vector2.Distance(ToScreen(helper.Sprite.Position), position) <= reach);
@@ -175,7 +175,7 @@ public partial class MapViewerViewModel : ViewModelBase
             }
         }
 
-        if (ShowsRoute)
+        if (ShowRoute)
         {
             var step = (overlay.Walk?.Steps ?? overlay.Logic.Progression).Select((step, index) => (Step: step, Index: index))
                 .FirstOrDefault(entry => Vector2.Distance(ToScreen(entry.Step.Position), position) <= reach);
@@ -185,7 +185,7 @@ public partial class MapViewerViewModel : ViewModelBase
             }
         }
 
-        if (!ShowsScriptMarkers)
+        if (!ShowScriptMarkers)
         {
             return null;
         }
@@ -216,9 +216,9 @@ public partial class MapViewerViewModel : ViewModelBase
 
     partial void OnOmitCoversChanged(bool value) => ResetRenderer();
 
-    partial void OnShowsHiddenObjectsChanged(bool value) => ResetRenderer();
+    partial void OnShowHiddenObjectsChanged(bool value) => ResetRenderer();
 
-    partial void OnShowsFemalePlayerChanged(bool value) => ResetRenderer();
+    partial void OnShowFemalePlayerChanged(bool value) => ResetRenderer();
 
     partial void OnOmitRemovableGroupsChanged(bool value) => ResetRenderer();
 
@@ -242,15 +242,15 @@ public partial class MapViewerViewModel : ViewModelBase
         int version = ++_loadVersion;
         var renderer = _renderer ??= new MapRenderer(game, objects)
         {
-            MatchGameLighting = MatchGameLighting, OmitAmbientTint = OmitAmbientTint, OmitCovers = OmitCovers, OmitHiddenObjects = !ShowsHiddenObjects,
-            ShowsFemalePlayer = ShowsFemalePlayer, OmitRemovableGroups = OmitRemovableGroups
+            MatchGameLighting = MatchGameLighting, OmitAmbientTint = OmitAmbientTint, OmitCovers = OmitCovers, OmitHiddenObjects = !ShowHiddenObjects,
+            ShowFemalePlayer = ShowFemalePlayer, OmitRemovableGroups = OmitRemovableGroups
         };
         IsLoading = true;
         Status = $"Loading {map}";
         try
         {
             string path = Path.Combine(mapsPath, map);
-            (var resource, var scene) = await Task.Run(() =>
+            var (resource, scene) = await Task.Run(() =>
             {
                 var loaded = MapResourceBuilder.Load(path);
                 return (loaded, renderer.CreateScene(loaded.Sprites, loaded.Graphics));
