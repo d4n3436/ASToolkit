@@ -167,6 +167,16 @@ public readonly struct GameObject
     public bool IsHittable => Flags.HasFlag(ObjectFlags.Hittable);
 
     /// <summary>
+    /// Tells whether the object stands in the way of a walking unit as a box, which excludes scenery, units, aircraft, cannons,
+    /// objects that break and non-solid helper dummies.
+    /// </summary>
+    /// <param name="walker">The walking unit.</param>
+    public bool Blocks(GameObject walker) =>
+        SpriteClass != SpriteClass.Scenery && (MoveMask & walker.MoveMask) != 0 && !SpriteType.HasFlag(SpriteType.Unit)
+        && !(SpriteType.HasFlag(SpriteType.Dummy) && !IsSolid) && !SpriteType.HasFlag(SpriteType.Avia) && !SpriteType.HasFlag(SpriteType.Cannon)
+        && !(IsHittable && MaxHp > 0);
+
+    /// <summary>
     /// Returns the sprite frame the engine shows for a direction byte, out of the given number of frames.
     /// </summary>
     public int GetFrame(byte dir, int frameCount)

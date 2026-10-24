@@ -30,6 +30,7 @@ dotnet run --project src/ASToolkit.Cli -- <command> --game <game folder>
 | `preview` | Generates one level into a map file |
 | `analyze` | Draws the route through original or generated levels |
 | `check` | Checks campaign levels 2 to 10 against the level rules |
+| `inspect object`, `sprites`, `stacks`, `vid` | Prints the objects, sprites, action stacks and sprite files of a game |
 
 Run a command with `--help` to see its options.
 

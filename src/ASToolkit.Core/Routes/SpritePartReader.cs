@@ -4,8 +4,10 @@ using ASToolkit.Core.Rendering;
 
 namespace ASToolkit.Core.Routes;
 
-// Reads the objects a placed sprite puts in the world and the height points of their frames, keeping each file and frame it reads
-internal sealed class SpritePartReader
+/// <summary>
+/// Provides the reading of the objects a placed sprite puts in the world and of the height points of their frames.
+/// </summary>
+public sealed class SpritePartReader
 {
     private const int MaxLinkDepth = 4;
     private const int CellSize = WalkGrid.CellSize;
@@ -19,13 +21,18 @@ internal sealed class SpritePartReader
     private readonly Dictionary<string, VidResource?> _files = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<(string Path, int Frame), List<(float X, float Y, short Height)>> _points = [];
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SpritePartReader"/> class.
+    /// </summary>
+    /// <param name="gameFolder">The game folder, which holds the sprite files.</param>
+    /// <param name="objects">The object table of the game.</param>
     public SpritePartReader(string gameFolder, ObjectTable objects)
     {
         _gameFolder = gameFolder;
         _objects = objects;
     }
 
-    public IEnumerable<SpritePart> GetParts(MergedMapSprite sprite)
+    internal IEnumerable<SpritePart> GetParts(MergedMapSprite sprite)
     {
         var id = sprite.Id;
         var position = sprite.Position;
@@ -47,7 +54,7 @@ internal sealed class SpritePartReader
         }
     }
 
-    public List<(float X, float Y, short Height)> GetHeightPoints(SpritePart part)
+    internal List<(float X, float Y, short Height)> GetHeightPoints(SpritePart part)
     {
         if (!_points.TryGetValue((part.Path, part.Frame), out var points))
         {
@@ -70,7 +77,12 @@ internal sealed class SpritePartReader
         return file;
     }
 
-    private static List<(float X, float Y, short Height)> ReadHeightPoints(VidResource vid, int frameIndex)
+    /// <summary>
+    /// Reads the cells a frame raises, with the offset of each cell from the center of the sprite and its height.
+    /// </summary>
+    /// <param name="vid">The sprite file.</param>
+    /// <param name="frameIndex">The frame index.</param>
+    public static List<(float X, float Y, short Height)> ReadHeightPoints(VidResource vid, int frameIndex)
     {
         bool usesDepth = vid is { HasDepth: true, HasPalette: true } && vid.Flags.HasFlag(VidFlags.Runs8Bit);
         var frame = usesDepth ? vid.GetRunFrame(frameIndex) : vid.GetFrame(frameIndex);

@@ -6,7 +6,6 @@ namespace ASToolkit.Core.Scripting;
 // Holds the sprites the readers of one level look up and the events they collect
 internal sealed class ScriptContext
 {
-    private const SpriteClass SceneryClass = (SpriteClass)8;
     private const int MaxLinkDepth = 4;
 
     private readonly Dictionary<KnownObject, List<MergedMapSprite>> _spritesById;
@@ -180,7 +179,7 @@ internal sealed class ScriptContext
 
         for (int depth = 0; depth < MaxLinkDepth; depth++)
         {
-            if (obj.IsSolid || (obj.SpriteClass != SceneryClass && Objects.TryFind(KnownObject.SequelPlayer, out var player) && (obj.MoveMask & player.MoveMask) != 0))
+            if (obj.IsSolid || (obj.SpriteClass != SpriteClass.Scenery && Objects.TryFind(KnownObject.SequelPlayer, out var player) && (obj.MoveMask & player.MoveMask) != 0))
             {
                 return true;
             }

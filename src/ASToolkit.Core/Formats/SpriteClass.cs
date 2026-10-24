@@ -41,6 +41,11 @@ public enum SpriteClass : uint
     Primitive = 6,
 
     /// <summary>
+    /// A scenery sprite.
+    /// </summary>
+    Scenery = 8,
+
+    /// <summary>
     /// A sprite.
     /// </summary>
     Sprite = 9,

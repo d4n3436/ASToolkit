@@ -21,6 +21,14 @@ app.Configure(config =>
         widescreen.AddCommand<WidescreenApplyCommand>("apply").WithDescription("Adds widescreen resolutions, a borderless window and a HUD that fits them.");
         widescreen.AddCommand<WidescreenRestoreCommand>("restore").WithDescription("Puts the executable, HUD and camera scripts back.");
     });
+    config.AddBranch("inspect", inspect =>
+    {
+        inspect.SetDescription("Prints the objects, sprites, action stacks and sprite files of a game.");
+        inspect.AddCommand<InspectObjectCommand>("object").WithDescription("Prints every field of an object, its link chain and whether it blocks the player.");
+        inspect.AddCommand<InspectSpritesCommand>("sprites").WithDescription("Lists the sprites of a map with their army, facing, sprite name and the openings the scripts give them.");
+        inspect.AddCommand<InspectStacksCommand>("stacks").WithDescription("Lists the action stacks of the sprites of a map in run order.");
+        inspect.AddCommand<InspectVidCommand>("vid").WithDescription("Prints the flags, format, frames, depth histogram and height points of a sprite file.");
+    });
     config.AddCommand<AnalyzeCommand>("analyze").WithDescription("Analyzes the routes of original or generated levels into routes.json and map images with the tour drawn on them.");
 });
 

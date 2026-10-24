@@ -56,7 +56,6 @@ public sealed class MapRenderer
     private const int VariableWaitAct = 79;
     private const int SetInvisibleAct = 98;
     private const double RowScale = 0.70706;
-    private const SpriteClass SceneryClass = (SpriteClass)8;
     private const uint PhaseSeedStep = 0x9e3779b9;
     private const int PlayerPartCount = 12;
     private const int FemalePartOffset = KnownObject.PlayerStartGirl - KnownObject.PlayerStart;
@@ -232,7 +231,7 @@ public sealed class MapRenderer
         {
             SpriteClass.Building => HelperKind.Spawner,
             SpriteClass.Sprite => HelperKind.Trigger,
-            SceneryClass => HelperKind.Blocker,
+            SpriteClass.Scenery => HelperKind.Blocker,
             _ => HelperKind.Other
         };
     }
@@ -422,7 +421,7 @@ public sealed class MapRenderer
 
     private static AnimationTiming GetTiming(GameObject obj, VidResource? file, int frameIndex, uint handle, int attachDepth)
     {
-        if (file is null || obj.SpriteClass is SceneryClass or SpriteClass.Frame)
+        if (file is null || obj.SpriteClass is SpriteClass.Scenery or SpriteClass.Frame)
         {
             return AnimationTiming.Static;
         }
@@ -440,7 +439,7 @@ public sealed class MapRenderer
     }
     
     private bool IsHiddenByArmy(GameObject obj, uint army) =>
-        obj.Flags.HasFlag(ObjectFlags.ArmyDependent) && (GetArmyBits(army) != PlayerArmy || (!_objects.IsAlienShooter2 && obj.SpriteClass == SceneryClass));
+        obj.Flags.HasFlag(ObjectFlags.ArmyDependent) && (GetArmyBits(army) != PlayerArmy || (!_objects.IsAlienShooter2 && obj.SpriteClass == SpriteClass.Scenery));
     
     private KnownObject GetPlayerPart(KnownObject id)
     {
@@ -516,7 +515,7 @@ public sealed class MapRenderer
             return 10;
         }
 
-        if (obj.SpriteClass == SceneryClass)
+        if (obj.SpriteClass == SpriteClass.Scenery)
         {
             return file is { IsBlended: false, Blend: VidBlend.Alpha } ? 0 : 2;
         }

@@ -10,7 +10,6 @@ internal sealed class WalkWorld
     private const float LinkReach = 24;
     private const float AreaMargin = 0.96f;
     private const float MinimumAreaReach = 6;
-    private const SpriteClass SceneryClass = (SpriteClass)8;
 
     private readonly MapResourceBuilder _map;
     private readonly LevelLogic _logic;
@@ -57,14 +56,14 @@ internal sealed class WalkWorld
                 }
                 else if (!isOpen && RaisesGround(part.Object) && !IsDestructible(part.Object))
                 {
-                    grid.Stamp(_parts.GetHeightPoints(part), part.Position, part.Scale, part.Object.SpriteClass == SceneryClass);
+                    grid.Stamp(_parts.GetHeightPoints(part), part.Position, part.Scale, part.Object.SpriteClass == SpriteClass.Scenery);
                 }
             }
         }
 
         var walkerHalf = new Vector2(walker.Size.X * walker.Scale.X, walker.Size.Y * walker.Scale.Y) * 0.5f;
         grid.SetGround(walkerHalf);
-        foreach (var part in standing.Where(part => BlocksWalker(part.Object, walker)))
+        foreach (var part in standing.Where(part => part.Object.Blocks(walker)))
         {
             var size = part.Object.Size * part.Object.Scale * part.Scale;
             grid.Block(part.Position, size * 0.5f, size.Z, walkerHalf, walker.Size.Z * walker.Scale.Z);
@@ -84,13 +83,8 @@ internal sealed class WalkWorld
     {
         var file = part.File!.Value;
         bool isSurface = file.Flags.HasFlag(VidFlags.Surface) && !file.Flags.HasFlag(VidFlags.Cadr);
-        return isSurface || (!RaisesGround(part.Object) && part.Object.SpriteClass == SceneryClass);
+        return isSurface || (!RaisesGround(part.Object) && part.Object.SpriteClass == SpriteClass.Scenery && !(file.Flags.HasFlag(VidFlags.Cadr) && file.Flags.HasFlag(VidFlags.Blended)));
     }
 
     private static bool IsDestructible(GameObject obj) => obj is { IsHittable: true, MaxHp: > 0 };
-
-    private static bool BlocksWalker(GameObject obj, GameObject walker) =>
-        obj.SpriteClass != SceneryClass && (obj.MoveMask & walker.MoveMask) != 0 && !obj.SpriteType.HasFlag(SpriteType.Unit)
-        && !(obj.SpriteType.HasFlag(SpriteType.Dummy) && !obj.IsSolid) && !obj.SpriteType.HasFlag(SpriteType.Avia) && !obj.SpriteType.HasFlag(SpriteType.Cannon)
-        && !IsDestructible(obj);
 }
