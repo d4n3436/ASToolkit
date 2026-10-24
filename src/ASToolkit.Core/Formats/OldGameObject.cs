@@ -64,6 +64,12 @@ internal readonly struct OldGameObject
     public readonly float StepHeight;
 
     /// <summary>
+    /// The deepest drop the object walks off.
+    /// </summary>
+    [FieldOffset(88)]
+    public readonly float DropHeight;
+
+    /// <summary>
     /// The number of directions the sprite has frames for.
     /// </summary>
     [FieldOffset(112)]

@@ -1,7 +1,7 @@
 namespace ASToolkit.Core.Formats;
 
 /// <summary>
-/// Represents the flags in the header of a sprite.
+/// Specifies the flags in the header of a sprite.
 /// </summary>
 [Flags]
 public enum VidFlags : ushort

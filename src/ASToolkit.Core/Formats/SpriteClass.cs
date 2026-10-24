@@ -1,7 +1,7 @@
 namespace ASToolkit.Core.Formats;
 
 /// <summary>
-/// Represents the sprite class of an entry of objects.res.
+/// Specifies the sprite class of an entry of objects.res.
 /// </summary>
 public enum SpriteClass : uint
 {

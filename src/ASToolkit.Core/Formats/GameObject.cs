@@ -27,6 +27,7 @@ public readonly struct GameObject
         LinkOffset = old.LinkOffset;
         Link = old.Link;
         StepHeight = old.StepHeight;
+        DropHeight = old.DropHeight;
         Directions = old.Directions;
         FrameCounts = old.FrameCounts;
         FrameDurations = old.FrameDurations;
@@ -90,6 +91,12 @@ public readonly struct GameObject
     /// </summary>
     [FieldOffset(100)]
     public readonly float StepHeight;
+
+    /// <summary>
+    /// The deepest drop the object walks off.
+    /// </summary>
+    [FieldOffset(104)]
+    public readonly float DropHeight;
 
     /// <summary>
     /// The number of directions the sprite has frames for. Every entry of the game has at least 1.

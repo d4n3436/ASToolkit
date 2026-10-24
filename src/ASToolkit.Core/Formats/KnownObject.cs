@@ -470,6 +470,12 @@ public enum KnownObject
     /// <summary>The soft black cover that hides ground outside the rooms in Alien Shooter 2.</summary>
     SoftCover = 1127,
 
+    /// <summary>The player legs that the Alien Shooter 2 levels place and the start script takes as the player.</summary>
+    SequelPlayer = 250,
+
+    /// <summary>The dummy whose death moves the place where the player comes back in Alien Shooter 2.</summary>
+    RespawnPost = 1359,
+
     /// <summary>The solid black block that hides ground outside the rooms in Alien Shooter 2.</summary>
     BlackBlock = 1710,
 

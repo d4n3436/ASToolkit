@@ -148,6 +148,16 @@ public readonly struct VidResource
             return default;
         }
 
+        return GetRunFrame(index);
+    }
+
+    /// <summary>
+    /// Returns the run-length pixels of a frame from the <c>DATA</c> records, which sprites with <c>CADR</c> records keep as well,
+    /// following frames that repeat another one.
+    /// </summary>
+    /// <param name="index">The frame index.</param>
+    public VidFrame GetRunFrame(int index)
+    {
         if ((uint)index >= (uint)_frames.Length)
         {
             return default;

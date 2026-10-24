@@ -1,7 +1,7 @@
 namespace ASToolkit.Core.Formats;
 
 /// <summary>
-/// Represents an animation state of an object.
+/// Specifies an animation state of an object.
 /// </summary>
 public enum SpriteAnimation
 {
