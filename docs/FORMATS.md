@@ -297,7 +297,7 @@ Object flags. The engine tests them on the object class and never changes them a
 
 The army is a two-bit value in bits 11 and 12 of the state of a placed object in Alien Shooter, and a three-bit value in bits 17 to 19 in Alien Shooter 2. A placed object takes it from the `army` field of the map, and a spawned or linked object inherits the army of its parent. The flag 0x20000 hides the object while its army differs from the army of the player, which is 0 when a level starts, and the flag 0x80000000 skips objects with the same army. Sprites with the flag 0x400 pick the palette with it.
 
-In Alien Shooter 2 the helper blocks of the editor (630 to 634, the pillars 1357 to 1359, the teleport markers) and the depth blocks linked to walls (2706, 1799 and the like) have the flag 0x20000 and army 2, so the game never shows them.
+In Alien Shooter 2 the helper blocks of the editor (630 to 634, the pillars 1357 to 1359, the teleport markers) and the depth blocks linked to walls (2706, 1799 and the like) have the flag 0x20000 and army 2, so the game never shows them. The blocks 630 to 632 are named dummies for Z, and 633 and 634 are named blocks for monsters and for the player. A hidden object still raises the height grids. The blocks 630 to 632 are solid, with a `moveMask` of 15, and each frame is a silhouette of tall depth heights, so they raise the grids like walls. The editor puts them at a negative height, such as -77 for the 632 beside the sandbags and barbed wire of the barricades of level 7_2, which leaves a raised block of about 40 beside objects with a `moveMask` of 0.
 
 In Alien Shooter the only object with the flag 0x20000 is the depth blocker 631. The maps place it in army 0, which matches the army of the player, but it is scenery of `spriteClass` 8. Alien Shooter draws scenery only by baking it into the terrain when the level loads. The bake skips objects with the flag 0x20000, which keeps 631 off the screen.
 
@@ -318,7 +318,7 @@ Kind `MAP `. A level is a list of sprites placed in a world, plus the small chun
  +------+-----------------------------------------------------------+
  | GRPH | ambient light and a direction vector                      |
  | HEAD | map size, starting camera, version                        |
- | GRID | (optional) a u16 matrix, only in a few maps               |
+ | GRID | (optional) the painted height grid, see Movement           |
  | SPR  | all placed sprites                                        |
  | SPRD | one extra-data record per sprite                          |
  | PLAY | player slots, empty in every map                          |
@@ -389,9 +389,9 @@ The tint of the placed object is packed in two `u32`, with alpha, red, green and
  +------+------------------------------------------------------------+
 ```
 
-A spawner payload is a small program. See [NOTES.md](NOTES.md#spawners-908).
+In Alien Shooter the payload of a sprite with behavior, such as a spawner (908) or a spawn wall, is one action stack: a `u32` entry count followed by the entries. [NOTES.md](NOTES.md#spawners-908) describes the spawners.
 
-In Alien Shooter 2 the payload of a sprite with behavior starts with its action stacks:
+In Alien Shooter 2 the payload of a sprite with behavior starts with its action stacks and ends with its name:
 
 ```
  u16      last stack run
@@ -400,9 +400,50 @@ In Alien Shooter 2 the payload of a sprite with behavior starts with its action 
  per stack:
    u32    entry count
    entry  (u32 act, i32 var1, i32 var2, i32 var3) * entry count
+ u32      value count, 0 or 1
+ u32      values * value count
+ char[]   name, cp1251, NUL-terminated
 ```
 
-Each update the engine steps to the next of the four stacks, wrapping around, and runs it from its last entry until it waits, which makes the stacks run side by side. `ACT_SET_INVISIBLE` (98) hides the object and its linked chain when `var1` is nonzero and shows it otherwise. `ACT_PAUSE` (40), `ACT_FLAGMAN_TRIGGER` (43, wait for the player within a radius), `ACT_STOP_STACK` (73), `ACT_WHILE_NOT_QUEST` (77, wait until a quest reaches a state) and 79 (wait until a script variable equals a value) make the stack wait, and the other actions run at once. A sprite that the stacks hide before they first wait, taken in that order starting after the last stack run, starts the level hidden. That covers 299 placements across the Alien Shooter 2 maps: red alarm lamps and lights, alarm glows, helper arrows and markers, exit zones, Spinner holes and mobile teleport generators, which the level scripts show later.
+The name is often a note of the level designer, such as "Установка динамита" (dynamite placement). A name in square brackets, such as `[gate]` or `[explosive]`, is the name a quest of `levels.cfg` refers to. A name from `h1` to `h20` marks the sprites that `EXT_KILLOBJECTS` removes (see [Black covers](#black-covers)). A pickup names the items it holds, such as `Obj_money2`.
+
+A stack runs from its last entry. Each update the engine steps to the next of the four stacks, wrapping around, takes the last entry off it and acts on it, which makes the stacks run side by side. Only `ACT_FLAGMAN_TRIGGER`, `ACT_WHILE_NOT_QUEST` and 79 let the stack go on in the same update once they pass, and every other entry ends it. A wait that is not over goes back on the stack and the engine tries it again later. `ACT_STOP_STACK` (73) stays on the stack, and the entries under it are left for the units the sprite builds, which take the `ACT_MOVE` (33) entries as waypoints.
+
+| act | name | effect |
+|---|---|---|
+| 0 to 16 | | plays the `ANI_` animation of that number on the sprite. When `var1` is an object id, it plays it on the sprite of that object nearest to (`var2`, `var3`) instead, or nearest to the sprite when both are 0, such as the death of a gate. It does nothing when there is none |
+| 35 | `ACT_BUILD_UNIT` | builds the object `var1` |
+| 40 | `ACT_PAUSE` | waits `var1` plus a random part of `var2` milliseconds |
+| 43 | `ACT_FLAGMAN_TRIGGER` | waits until the player is closer than `var3` to (`var1`, `var2`), measured as `0.961 * max(|dx|, |dy|) + 0.398 * min(|dx|, |dy|)` (`FUN_00401f50`), which is between 0.96 and 1.04 times the straight distance |
+| 77 | `ACT_WHILE_NOT_QUEST` | waits until quest `var1`\_`var2` is active (state exactly `QS_BEGUN`). `var3` is not read |
+| 78 | `ACT_SET_QUEST` | starts quest `var1`\_`var2` (sets it to `QS_BEGUN`). `var3` is not read |
+| 79 | | waits until the script variable `Action<var1>` equals `var2` |
+| 91 | `ACT_SET_GOAL_COOR` | sets the goal point, which the teleports, lifts and teleport script events send the player to |
+| 98 | `ACT_SET_INVISIBLE` | hides the object and its linked chain when `var1` is nonzero and shows it otherwise |
+| 115, 116 | `ACT_SET_DIALOG`, `ACT_SET_FLAGMAN_DIALOG` | plays dialog `var1` of `Text/dialogs.txt` on the sprite or on the player |
+| 131 | `ACT_SCRIPT_VAR` | sets `Action<var1>` to `var2`, or adds `var2` when `var3` is 1 |
+| 134 | `ACT_DESTROY_UNIT` | destroys the sprite itself when `var1` is -1, or the object `var1` at (`var2`, `var3`) |
+| 136 | `ACT_SCRIPT_EVENT` | calls the script function `ScriptEvent<var1>(sprite, var2, var3)` |
+
+The level scripts read the `Action<n>` variables each tick in `CompaignGameTact` (`common_compaign.lgc`) and reset them.
+
+| variable | effect |
+|---|---|
+| `Action1` | plays music `n` |
+| `Action2`, `Action3` | gives experience or money |
+| `Action4` | gives the item with base id `n` |
+| `Action5` | removes the sprites named `h<n>` with `EXT_KILLOBJECTS` |
+| `Action6` | opens the shop |
+| `Action8`, `Action9` | wins the level, after the win text or at once |
+| `Action10` and up | read by single levels |
+
+`ScriptEvent11` to `ScriptEvent13` (`util_teleport.lgc`) teleport the player to the goal point of the sprite. `ScriptEvent15` (`util_car.lgc`) gives the player control of the first sprite of the object `var2` from any distance, as the panel of level 11 does with the robot 3040. `ScriptEvent16` (`common_compaign.lgc`) starts a data download on level 10 while the player stays within the trigger area of a question mark sprite, and the name of that sprite is the value that `Action10` takes when the download ends. The fifth download begins the quest 1_58, which wins the level two seconds later.
+
+The level script of level 6 lets the player press the space bar once the quest 1_84 has begun, which fades the screen out and moves the player to (15744, 1761) with `ACT_CHANGE_COOR`, as the teleport marker does.
+
+In Alien Shooter 2 the player is object 250. A respawn post (1359) records the place where the player comes back when it dies (`F1359_15`), and a trigger of its own stack plays its death animation.
+
+A sprite that the stacks hide before they first wait, taken in that order starting after the last stack run, starts the level hidden. That covers 299 placements across the Alien Shooter 2 maps: red alarm lamps and lights, alarm glows, helper arrows and markers, exit zones, Spinner holes and mobile teleport generators, which the level scripts show later.
 
 ### Coordinates and direction
 
@@ -433,6 +474,24 @@ The direction byte `dir` (0 to 255) picks the frame of a sprite that has several
 ```
 
 The half-step offset `128 / dirs` centers each facing on its angle.
+
+### Movement and collision
+
+Alien Shooter 2 keeps two height grids over the map, one `i16` per cell of 8 by 8 pixels and `map w / 8` cells per row. Both start at 0 when a map loads. The first takes the `GRID` chunk when the map has one, which only the menu, logo, slide and end maps do. The map editor writes the chunk only when a cell of the first grid is above 0.
+
+Objects with the flag 0x20 (solid) raise the grids with the heights of their sprites, and objects with the flag 0x08 (outline), such as the trees, raise them along their footprint outline. For each frame the engine samples the pixels into 8 pixel cells. A pixel in row `r` with the height `h` lands in the cell of row `r + h` and the cell keeps the highest `h`. The height is `depth / 8 - 128` for a paletted sprite with 8-bit runs and depth (flags 0x08, 0x01 and 0x04), read from its `DATA` runs even when it also has a `CADR` chunk. It comes from the triangles for another sprite with a `CADR` mesh, interpolated across each triangle for every covered pixel, and it is 0 for a covered pixel of a frame without triangles. Each cell becomes a point at `(column * 8 - width / 2, row * 8 - height / 2)` from the center of the sprite. When an object is placed or changes its frame, every point of the frame, scaled by the placement scale and moved to the object, raises the cell under it to the height of the object plus `h`. Objects of `spriteClass` 8 raise the first grid and the others raise the second one.
+
+```
+ depth sprite, side view        height grid, top view
+   ____                          . . 9 9 9 . .
+  |    |  h = 90 (wall top)      . . 9 9 9 . .
+  |    |                         . . 9 9 9 . .
+  |____|  h = 0 (floor)          . . . . . . .   cell = 8 x 8 pixels
+```
+
+An object that follows the terrain (flag 0x200) reads the cells of both grids under its footprint, half its `VID_SIZE_X` and `VID_SIZE_Y` less 3 pixels on each side when they are above 3. It visits the cells row by row and, in each cell, the first grid and then the second one, keeping the highest height seen so far. A height within 7 of that running maximum, before it is raised, also sets the ground. The ground is the last height set that way, or the running maximum when none was. A raised cell that comes after lower cells and has no cell near its height after it is therefore left out, and a footprint can graze the edge of a wall. The tick function of a moving object (`FUN_0043a720`) reads the ground under its center as the higher of the two cells under that point (`FUN_0047fe70`). The engine refuses a step when the ground of the footprint at the new position, which reaches about 9 pixels ahead of the center, is above the height of the object by more than the highest step at body offset +100 (10 for the player, object 250) or drops below it by more than the deepest drop at +104 (55 for the player). Any other object stops where a cell under its footprint is above its height.
+
+Moving objects also stop at each other, and a linked object (`VID_LINK`) collides like a placed one, such as the dummy block 2648 that each closed electric door 2645 carries. Two objects collide when their `moveMask` values share a bit, their footprints overlap on x and y with half of `VID_SIZE_X` and `VID_SIZE_Y` each, and their heights overlap. An oriented box (flag 0x100) uses 0.6 of its width and 0.3 of its length instead, moved along its facing. Units of `spriteClass` 7 in the same army (bits 17 to 19 of the state) pass through each other unless the moving one has the flag 0x40.
 
 ## Sprites (.vid)
 
@@ -673,6 +732,24 @@ C-like scripting language in plain text in cp1251, compiled when a map loads.
 
 Engine functions are declared in `EXPORT.LGC` as `extern Name(args) <builtin>;`. The registry values `GameType` and `LevelNumber` choose the level flow. [NOTES.md](NOTES.md#scripts) describes the handlers that matter.
 
+### Quests (levels.cfg)
+
+Alien Shooter 2 keeps the quests of the campaign in `levels.cfg`, one `Key=Value` block per quest between `;****` lines. The engine writes the same keys when it saves the file. The map sprites start quests and wait for them with `ACT_SET_QUEST` and `ACT_WHILE_NOT_QUEST`, and the scripts read and set them with `EXT_GETQUESTSSTATE` and `EXT_SETQUESTSTATE`.
+
+```
+ Quest=1_1_3                         LevelNum, line 1, quest 3; line 1 is the main story
+ LevelNum=1
+ TimeLine=2                          the place of the quest in the story
+ AddExperienceMAIN=100               also AddMoneyMAIN, AddItemMAIN, RemItem
+ NextQuests=1004                     line * 1000 + quest
+ ChangeStateItem=QS_BEGUN CSI_DEATH gate
+ Comment=Найти ворота                designer note
+```
+
+The states are `QS_NOTBEGUN` (0), `QS_BEGUN` (1), `QS_COMPLETED` (2), `QS_FAILED` (4) and `QS_NOTACTUAL` (32). Starting a quest can set quests with an earlier `TimeLine` to `QS_NOTACTUAL`. `ChangeStateItem` takes a state, an event (`CSI_DEATH`, `CSI_TAKE`, `CSI_HAVE` or `CSI_BIRTH`) and a name. The name is the bracketed name of a map sprite (see [Maps](#maps)), an item name, an object id or `m0` to `m9`. When the event happens to that name, the quest goes to the state, so `QS_BEGUN CSI_DEATH m3` starts the quest once the sprites named `m3` are destroyed. The names `m0` to `m9` only take `QS_BEGUN`. `LineQuests` takes a line and a quest as `line * 1000 + number`, like `NextQuests`, and links the quest to a quest of that line, whose `TimeLine` is checked before the events apply. `SetFlagmanCoord` takes a state and four numbers, such as `QS_BEGUN 4177 6948 0 150`. A nonzero `WinOnBegin` wins the level as soon as the quest starts. Other keys are `BeginNext`, `UnactualNext`, `Accomplished`, `SetInfoQuest`, `SndBegun` and `SndComplete`.
+
+The title the game shows is the section `<1_1_3>` of `Text/mission.txt`. The dialogs of `ACT_SET_DIALOG` are the sections `<n>` of `Text/dialogs.txt`, whose lines start with tags such as `<Font=10>`, `<Icon=391,3>` and `<Speech=Speech\001_2.ogg>`.
+
 ### Strings and text
 
 ```
@@ -777,7 +854,7 @@ Alien Shooter 2 maps hide the ground around the playable rooms with black object
 
 Many covers are placed at a reduced scale (see the sprite record), which keeps them inside the walls around an opening.
 
-Covers over areas that open during play carry a name from `h1` to `h15` at the end of the payload, and the level script removes them with `EXT_KILLOBJECTS`. A map file shows the state before that. The unnamed covers stay for the whole level.
+Covers over areas that open during play carry a name from `h1` to `h20` at the end of the payload, and the campaign script removes them with `EXT_KILLOBJECTS` when a map sprite sets `Action5`. A map file shows the state before that. The unnamed covers stay for the whole level.
 
 ## Key functions
 
@@ -814,7 +891,7 @@ Alien Shooter 2 (Reloaded, GOG):
 - `FUN_00457890` - places and draws a sprite frame, using `mode` and `blend`
 - `FUN_00458220` - sets the Direct3D blend and depth state of a sprite
 - `FUN_00414b60` - sets the graphics detail level
-- `FUN_0045a120` - puts the class of a sprite in its draw pass
+- `FUN_0045a120` - puts the class of a sprite in its draw pass and samples the height points of a `CADR` sprite
 - `FUN_00415840` - draws a frame of the level, with its passes and the light buffer it blends onto the scene
 - `FUN_004493a0` - draws one pass, cell by cell of the level grid
 - `FUN_00453c20` - draws an omni-light object and works out its color, tint and radius
@@ -831,11 +908,30 @@ Alien Shooter 2 (Reloaded, GOG):
 - `FUN_0043f2f0` - sets the army of an object and hides it when the flag 0x20000 asks for it
 - `FUN_004514f0` - reads one object record
 - `FUN_004422d0` - spawns the child objects of an animation state
-- `FUN_0043b680` - applies the blast: damage roll, radius and push
+- `FUN_0043b680` - ends an animation step of an object, running its action stacks and applying the blast with its damage roll, radius and push
+- `FUN_00448300` - finds the placed object of an id or mask nearest to a point
+- `FUN_004686d0` - finds a quest by line and number
+- `FUN_0046ec30` - sets the state of a quest
+- `FUN_0046ee20` - starts a quest with its sound, info text, starting quests and win
+- `FUN_0046f950` - applies a `ChangeStateItem` event (a sprite name, an object id or a named monster) to the quests
+- `FUN_00470240` - reads one key of a quest of `levels.cfg`
+- `FUN_00468cb0` - writes the quests to `levels.cfg`
 - `FUN_00404170` - creates a placed object and rolls its initial vertical speed
 - `FUN_00439a50` - rolls the initial speed of a placed object
 - `FUN_0043f4e0` - sets the facing of an object
 - `FUN_00440000` - tests the collision of an object
+- `FUN_00403fb0` - tests whether the footprints of two objects overlap
+- `FUN_00444f90` - tests the footprints of two objects when one is an oriented box
+- `FUN_00403f60` - tests whether the heights of two objects overlap
+- `FUN_00480640` - tests a step of an object against the height grids
+- `FUN_00480050` - returns the ground height under the footprint of an object
+- `FUN_0047fc80` - tests whether a point is below the height grids
+- `FUN_0047fb90` - creates the two height grids of a map
+- `FUN_00453060` - samples the height points of a sprite with depth
+- `FUN_004523b0` - raises the height grids with the points of the current frame of an object
+- `FUN_00480e30`, `FUN_00480ec0` - raise one cell of the first or the second height grid
+- `FUN_0047c830` - loads a map, reading the `GRID` chunk into the first height grid
+- `FUN_0047e320` - saves a map, writing the first height grid as the `GRID` chunk
 - `FUN_0040ecf0` - sends the touch message
 
 Alien Shooter Vengeance:
