@@ -148,6 +148,14 @@ public sealed class MapRenderer
     public MapScene CreateScene(IReadOnlyList<MergedMapSprite> sprites, MapGraphics graphics = default) => CreateScene(sprites, graphics, true);
 
     /// <summary>
+    /// Returns the map sprites that the game never shows, such as script dummies, monster generators and blocks.
+    /// </summary>
+    public HelperMarker[] GetHelpers(IReadOnlyList<MergedMapSprite> sprites) => 
+        sprites.Where(IsHelper)
+            .Select(sprite => new HelperMarker(sprite, GetHelperKind(sprite.Id)))
+            .ToArray();
+
+    /// <summary>
     /// Returns the sprite of an object, or null when the object or its sprite file is missing.
     /// </summary>
     public VidResource? GetSprite(KnownObject id) => _objects.TryFind(id, out _) ? GetFile(_objects.GetPath(id)) : null;
@@ -208,6 +216,25 @@ public sealed class MapRenderer
 
         var lights = scene.Lights.Select(light => light.CastsShadows ? light with { Shadows = GetShadows(light, scene.Casters) } : light).ToArray();
         return new MapScene(scene.Placed.ToArray(), lights, ambient, undrawn);
+    }
+
+    private bool IsHelper(MergedMapSprite sprite) =>
+        !_objects.TryFind(sprite.Id, out var obj) || GetFile(_objects.GetPath(sprite.Id)) is null || IsHiddenByArmy(obj, sprite.Army);
+
+    private HelperKind GetHelperKind(KnownObject id)
+    {
+        if (!_objects.TryFind(id, out var obj) || GetFile(_objects.GetPath(id)) is null)
+        {
+            return HelperKind.Missing;
+        }
+
+        return obj.SpriteClass switch
+        {
+            SpriteClass.Building => HelperKind.Spawner,
+            SpriteClass.Sprite => HelperKind.Trigger,
+            SceneryClass => HelperKind.Blocker,
+            _ => HelperKind.Other
+        };
     }
 
     private bool IsCover(KnownObject id) =>
@@ -434,7 +461,7 @@ public sealed class MapRenderer
 
     private uint GetArmyBits(uint army) => army & (_objects.IsAlienShooter2 ? SequelArmyMask : ArmyMask);
 
-    private static Vector3 GetLinkOffset(GameObject owner, GameObject attached, VidResource? file, int frameIndex, byte dir)
+    internal static Vector3 GetLinkOffset(GameObject owner, GameObject attached, VidResource? file, int frameIndex, byte dir)
     {
         var offset = file is not null && file.Value.Flags.HasFlag(VidFlags.FrameVector)
             ? file.Value.GetFrameVector(frameIndex)
@@ -844,7 +871,7 @@ public sealed class MapRenderer
     private bool TestsDepth(VidResource view) =>
         !_objects.IsAlienShooter2 || !MatchGameLighting || !(view.Blend is VidBlend.AdditiveLight or VidBlend.AlphaDepthWrite || view.Mode == 6);
 
-    private static float[] RasterizeHeights(VidMesh mesh, int width, int height)
+    internal static float[] RasterizeHeights(VidMesh mesh, int width, int height)
     {
         float[] heights = new float[width * height];
         Array.Fill(heights, float.NaN);

@@ -1,3 +1,4 @@
+using System.Numerics;
 using ASToolkit.Core.Levels;
 
 namespace ASToolkit.Core.Routes;
@@ -81,4 +82,58 @@ public sealed class RouteAnalysis
     /// Gets the routing grid.
     /// </summary>
     public required RouteGrid Grid { get; init; }
+
+    /// <summary>
+    /// Returns the tour split into stretches by gate state, splitting it in proportion to the lengths of the legs.
+    /// </summary>
+    public TourRun[] GetTourRuns()
+    {
+        var points = Tour.Select(cell => Grid.Lattice.GetCenter(cell)).Select(center => new Vector2((float)center.X, (float)center.Y)).ToArray();
+        if (points.Length < 2)
+        {
+            return [];
+        }
+
+        double[] lengths = new double[points.Length];
+        for (int pointIndex = 1; pointIndex < points.Length; pointIndex++)
+        {
+            lengths[pointIndex] = lengths[pointIndex - 1] + Vector2.Distance(points[pointIndex], points[pointIndex - 1]);
+        }
+
+        double legTotal = Math.Max(1, Legs.Sum(leg => leg.Pixels));
+        double total = Math.Max(1e-9, lengths[^1]);
+        var runs = new List<TourRun>();
+        int start = 0;
+        var current = GetPhase(0);
+        for (int pointIndex = 1; pointIndex < points.Length; pointIndex++)
+        {
+            var phase = GetPhase(pointIndex);
+            if (phase != current || pointIndex == points.Length - 1)
+            {
+                runs.Add(new TourRun(current, points[start..(pointIndex + 1)]));
+                start = pointIndex;
+                current = phase;
+            }
+        }
+
+        return runs.ToArray();
+
+        RoutePhase GetPhase(int point)
+        {
+            double share = lengths[point] / total;
+            double walked = 0;
+            var phase = RoutePhase.Free;
+            foreach (var leg in Legs)
+            {
+                phase = leg.Phase;
+                walked += leg.Pixels / legTotal;
+                if (share < walked)
+                {
+                    break;
+                }
+            }
+
+            return phase;
+        }
+    }
 }
