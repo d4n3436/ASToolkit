@@ -7,7 +7,7 @@ namespace ASToolkit.Core.Formats;
 /// Represents the body of an entry of objects.res in the Alien Shooter 1 layout.
 /// </summary>
 [StructLayout(LayoutKind.Explicit, Size = 688)]
-internal readonly struct OldGameObject
+internal readonly struct AlienShooterGameObject
 {
     /// <summary>
     /// The sprite type of the object.

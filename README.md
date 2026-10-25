@@ -9,11 +9,11 @@ It is written in C# on .NET 10 and works on an installed copy of the game.
 
 ## Features
 
-- **Level generation:** Builds new levels in the style of the originals and installs them as a new add-on called RANDOM, with its own button on the play menu.
-- **Map viewer:** A map viewer that faithfully recreates the Alien Shooter 1/2 rendering engines and supports both games
-- **Widescreen patch:** Adds more resolutions, a borderless window mode and a HUD that fits wide screens.
-- **Level analysis:** Works out the route a player takes through a level and draws it over an image of the map.
-- **Rule checks:** Tests levels against the rules the generator follows.
+- **Level generation:** Builds new levels in the style of the originals and installs them as a new add-on called RANDOM, with its own button on the play menu
+- **Map viewer:** A map viewer that faithfully recreates the Alien Shooter 1/2 rendering engines and supports both games plus spin-offs
+- **Widescreen patch:** Adds more resolutions, a borderless window mode and a HUD that fits wide screens
+- **Level analysis:** Works out the route a player takes through a level and draws it over an image of the map
+- **Rule checks:** Tests levels against the rules the generator follows
 
 ## Usage
 

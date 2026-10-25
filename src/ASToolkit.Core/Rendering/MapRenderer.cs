@@ -205,12 +205,15 @@ public sealed class MapRenderer
         int undrawn = 0;
         foreach (var sprite in sprites)
         {
-            if (!(OmitRemovableGroups && IsRemovableGroup(sprite.Payload)) && !(OmitCovers && IsCover(sprite.Id))
-                && !(OmitHiddenObjects && _objects.IsAlienShooter2 && StartsHidden(sprite.Payload)))
+            if (OmitRemovableGroups && IsRemovableGroup(sprite.Payload) ||
+                OmitCovers && IsCover(sprite.Id) ||
+                OmitHiddenObjects && _objects.IsAlienShooter2 && StartsHidden(sprite.Payload))
             {
-                var look = new SpriteLook(GetPlacementTint(sprite), sprite.Scale);
-                undrawn += Place(scene, sprite, GetPlayerPart(sprite.Id), sprite.Position, sprite.Facing, look, ambient, 0);
+                continue;
             }
+            
+            var look = new SpriteLook(GetPlacementTint(sprite), sprite.Scale);
+            undrawn += Place(scene, sprite, GetPlayerPart(sprite.Id), sprite.Position, sprite.Facing, look, ambient, 0);
         }
 
         var lights = scene.Lights.Select(light => light.CastsShadows ? light with { Shadows = GetShadows(light, scene.Casters) } : light).ToArray();

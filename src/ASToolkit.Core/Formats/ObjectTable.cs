@@ -10,7 +10,10 @@ namespace ASToolkit.Core.Formats;
 public sealed class ObjectTable
 {
     private static readonly int BodySize = Unsafe.SizeOf<GameObject>();
-    private static readonly int OldBodySize = Unsafe.SizeOf<OldGameObject>();
+    private static readonly int AlienShooterBodySize = Unsafe.SizeOf<AlienShooterGameObject>();
+    private static readonly int ZombieShooterBodySize = Unsafe.SizeOf<ZombieShooterGameObject>();
+    private static readonly int ZombieShooter2BodySize = Unsafe.SizeOf<ZombieShooter2GameObject>();
+    private static readonly int[] BodySizes = [AlienShooterBodySize, ZombieShooterBodySize, BodySize, ZombieShooter2BodySize];
 
     private readonly Dictionary<KnownObject, Entry> _entries;
 
@@ -36,42 +39,71 @@ public sealed class ObjectTable
     public static ObjectTable Load(string path)
     {
         var records = new ResContainer(File.ReadAllBytes(path)).Chunks.First().Records;
+        int bodySize = FindBodySize(records.First().Span);
+        bool anyExtended = bodySize == BodySize || bodySize == ZombieShooter2BodySize;
         var entries = new Dictionary<KnownObject, Entry>();
-        bool anyExtended = false;
         foreach (var memory in records)
         {
             var record = memory.Span;
             var id = (KnownObject)MemoryMarshal.Read<uint>(record);
             int nameEnd = record[4..].IndexOf((byte)0) + 4;
             int bodyStart = nameEnd + 1;
+            int pathStart = bodyStart + bodySize;
+            var body = record[bodyStart..pathStart];
 
-            int pathEnd = record.Length - 1;
-            int pathStart = bodyStart + OldBodySize;
-            bool isOld = pathStart < pathEnd && IsPath(record[pathStart..pathEnd]);
             GameObject obj;
-            if (isOld)
+            if (bodySize == AlienShooterBodySize)
             {
-                obj = new GameObject(MemoryMarshal.Read<OldGameObject>(record[bodyStart..pathStart]));
+                obj = new GameObject(MemoryMarshal.Read<AlienShooterGameObject>(body));
+            }
+            else if (bodySize == ZombieShooterBodySize)
+            {
+                obj = new GameObject(MemoryMarshal.Read<ZombieShooterGameObject>(body));
+            }
+            else if (bodySize == ZombieShooter2BodySize)
+            {
+                obj = new GameObject(MemoryMarshal.Read<ZombieShooter2GameObject>(body));
             }
             else
             {
-                anyExtended = true;
-                pathStart = bodyStart + BodySize;
-                obj = MemoryMarshal.Read<GameObject>(record[bodyStart..pathStart]);
+                obj = ReadAlienShooter2(body);
             }
 
             entries[id] = new Entry(obj, GameTextEncoding.Cyrillic.GetString(record[4..nameEnd]),
-                Encoding.Latin1.GetString(record[pathStart..pathEnd]));
+                Encoding.Latin1.GetString(record[pathStart..^1]));
         }
 
         return new ObjectTable(entries, anyExtended);
+    }
+
+    private static GameObject ReadAlienShooter2(ReadOnlySpan<byte> body)
+    {
+        var obj = MemoryMarshal.Read<GameObject>(body);
+        obj.Opacity = 255;
+        return obj;
+    }
+
+    private static int FindBodySize(ReadOnlySpan<byte> record)
+    {
+        int nameEnd = record[4..].IndexOf((byte)0) + 4;
+        int bodyStart = nameEnd + 1;
+        int pathEnd = record.Length - 1;
+        foreach (int size in BodySizes)
+        {
+            if (bodyStart + size < pathEnd && IsPath(record[(bodyStart + size)..pathEnd]))
+            {
+                return size;
+            }
+        }
+
+        return BodySize;
     }
 
     private static bool IsPath(ReadOnlySpan<byte> path)
     {
         foreach (byte b in path)
         {
-            if (b is < 0x20 or > 0x7E)
+            if (!(char.IsAsciiLetterOrDigit((char)b) || b is (byte)'\\' or (byte)'/' or (byte)'.' or (byte)'_' or (byte)'-' or (byte)' ' or (byte)'(' or (byte)')'))
                 return false;
         }
 

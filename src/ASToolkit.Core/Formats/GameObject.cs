@@ -7,35 +7,84 @@ namespace ASToolkit.Core.Formats;
 /// Represents the body of an entry of objects.res in the Alien Shooter 2 layout.
 /// </summary>
 [StructLayout(LayoutKind.Explicit, Size = 704)]
-public readonly struct GameObject
+public struct GameObject
 {
     private const uint ShiftedTypeMask = 0x7F;
     private const uint SharedTypeMask = ~0xFFu;
 
-    /// <summary>
-    /// Creates a new instance of the <see cref="GameObject"/> structure from an object of the Alien Shooter 1 layout.
-    /// </summary>
-    /// <param name="old">The object.</param>
-    internal GameObject(OldGameObject old)
+    internal GameObject(AlienShooterGameObject obj)
     {
-        SpriteType = ConvertSpriteType(old.SpriteType);
-        SpriteClass = old.SpriteClass;
-        Flags = old.Flags;
-        MoveMask = old.MoveMask;
-        Size = old.Size;
-        MaxHp = old.MaxHp;
-        LinkOffset = old.LinkOffset;
-        Link = old.Link;
-        StepHeight = old.StepHeight;
-        DropHeight = old.DropHeight;
-        Directions = old.Directions;
-        FrameCounts = old.FrameCounts;
-        FrameDurations = old.FrameDurations;
-        GammaRed = old.GammaRed;
-        GammaGreen = old.GammaGreen;
-        GammaBlue = old.GammaBlue;
+        SpriteType = ConvertSpriteType(obj.SpriteType);
+        SpriteClass = obj.SpriteClass;
+        Flags = obj.Flags;
+        MoveMask = obj.MoveMask;
+        Size = obj.Size;
+        MaxHp = obj.MaxHp;
+        MaxSpeed = 0;
+        MaxZSpeed = 0;
+        LinkOffset = obj.LinkOffset;
+        Link = obj.Link;
+        StepHeight = obj.StepHeight;
+        DropHeight = obj.DropHeight;
+        Directions = obj.Directions;
+        FrameCounts = obj.FrameCounts;
+        FrameDurations = obj.FrameDurations;
+        GammaRed = obj.GammaRed;
+        GammaGreen = obj.GammaGreen;
+        GammaBlue = obj.GammaBlue;
         GammaAlpha = 0;
-        Scale = old.Scale;
+        Scale = obj.Scale;
+        Opacity = 255;
+    }
+
+    internal GameObject(ZombieShooterGameObject obj)
+    {
+        SpriteType = ConvertSpriteType(obj.SpriteType);
+        SpriteClass = obj.SpriteClass;
+        Flags = obj.Flags;
+        MoveMask = obj.MoveMask;
+        Size = obj.Size;
+        MaxHp = obj.MaxHp;
+        MaxSpeed = obj.MaxSpeed;
+        MaxZSpeed = obj.MaxZSpeed;
+        LinkOffset = obj.LinkOffset;
+        Link = obj.Link;
+        StepHeight = obj.StepHeight;
+        DropHeight = obj.DropHeight;
+        Directions = obj.Directions;
+        FrameCounts = obj.FrameCounts;
+        FrameDurations = obj.FrameDurations;
+        GammaRed = obj.GammaRed;
+        GammaGreen = obj.GammaGreen;
+        GammaBlue = obj.GammaBlue;
+        GammaAlpha = obj.GammaAlpha;
+        Scale = obj.Scale;
+        Opacity = 255;
+    }
+
+    internal GameObject(ZombieShooter2GameObject obj)
+    {
+        SpriteType = obj.SpriteType;
+        SpriteClass = obj.SpriteClass;
+        Flags = obj.Flags;
+        MoveMask = obj.MoveMask;
+        Size = obj.Size;
+        MaxHp = obj.MaxHp;
+        MaxSpeed = obj.MaxSpeed;
+        MaxZSpeed = obj.MaxZSpeed;
+        LinkOffset = obj.LinkOffset;
+        Link = obj.Link;
+        StepHeight = obj.StepHeight;
+        DropHeight = obj.DropHeight;
+        Directions = obj.Directions;
+        FrameCounts = obj.FrameCounts;
+        FrameDurations = obj.FrameDurations;
+        GammaRed = obj.GammaRed;
+        GammaGreen = obj.GammaGreen;
+        GammaBlue = obj.GammaBlue;
+        GammaAlpha = obj.GammaAlpha;
+        Scale = obj.Scale;
+        Opacity = obj.Opacity;
     }
 
     /// <summary>
@@ -73,6 +122,24 @@ public readonly struct GameObject
     /// </summary>
     [FieldOffset(28)]
     public readonly int MaxHp;
+
+    /// <summary>
+    /// The maximum of the initial speed range, in milli-units; the speed is the minimum.
+    /// </summary>
+    [FieldOffset(36)]
+    public readonly float MaxSpeed;
+
+    /// <summary>
+    /// The maximum of the initial vertical speed range, in milli-units.
+    /// </summary>
+    [FieldOffset(44)]
+    public readonly float MaxZSpeed;
+
+    /// <summary>
+    /// The opacity of the sprite, 0 to 255.
+    /// </summary>
+    [FieldOffset(48)]
+    public int Opacity;
 
     /// <summary>
     /// The offset of the linked object from this one, as stored in the file.
@@ -135,7 +202,7 @@ public readonly struct GameObject
     public readonly int GammaBlue;
 
     /// <summary>
-    /// The gamma shift of the alpha of the sprite. Alien Shooter 2 only.
+    /// The gamma shift of the alpha of the sprite; negative on smoke, steam and shadows. Zero in Alien Shooter 1.
     /// </summary>
     [FieldOffset(688)]
     public readonly int GammaAlpha;

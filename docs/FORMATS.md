@@ -170,6 +170,13 @@ Body fields:
 
 The names come from `EXPORT.LGC` of Alien Shooter 2. The one of Alien Shooter has no `VID_SIZE_*`, `VID_ZSPEED`, `VID_DEATHRANGE`, `VID_DAMAGE_MAX`, `VID_CHILD_X` or `VID_SCALE_*`.
 
+Zombie Shooter 2 (Alien Shooter spinoff) carries an extra field, inserted between AS2's VID_GAMMA alpha and scale.
+
+```
+ ZS2     type     field
+ +692    i32      opacity of the sprite, 0 to 255 in the low byte, the other three unused; 255 on solid objects, lower on explosions, bullets, blood, glows and the other effects, 0 on the hidden ones
+```
+
 An object has 17 animation states, numbered 0 to 16. The scripts name them with `ANI_` constants:
 
 | state | names                                    |
