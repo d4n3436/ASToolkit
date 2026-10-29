@@ -23,7 +23,7 @@ public static class LevelExtractor
     /// </summary>
     public static LevelModel? Extract(string name, MapResourceBuilder map, ObjectTable objects)
     {
-        var sp = map.Sprites;
+        var sp = OrderSprites(map.Sprites).ToList();
         int military = sp.Count(s => KnownObject.MilitaryWalls.Contains(s.Id));
         int lab = sp.Count(s => s.Id is KnownObject.LabWallSlash or KnownObject.LabWallBack or KnownObject.LabWall2Slash or KnownObject.LabWall2Back);
         bool isMilitary = military > lab;
@@ -67,6 +67,17 @@ public static class LevelExtractor
             Sprites = sp
         };
     }
+
+    /// <summary>
+    /// Returns sprites ordered by ID, row, column, height, facing and army.
+    /// </summary>
+    public static IEnumerable<MergedMapSprite> OrderSprites(IEnumerable<MergedMapSprite> sprites) => sprites
+        .OrderBy(sprite => (int)sprite.Id)
+        .ThenBy(sprite => MathF.Round(sprite.Position.Y * 16))
+        .ThenBy(sprite => MathF.Round(sprite.Position.X * 16))
+        .ThenBy(sprite => sprite.Position.Z)
+        .ThenBy(sprite => sprite.Dir)
+        .ThenBy(sprite => sprite.Army);
 
     /// <summary>
     /// Returns the edges that the wall, door and frame pieces of a lab cover, as the extractor reads them.

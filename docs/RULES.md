@@ -132,7 +132,7 @@ Electric fences (164 in 653 frames) shut off part of the base until a generator 
 The win needs a charge (301) planted at every site (179). A site shuts down a monster hole with endless generators (80x) behind it in labs, or teleport pads (450) with their generators in military levels.
 
 - **C1 (Hard)** The number of sites is the original's (level 3 has 1, level 4 has 3, level 7 has 1, level 8 has 6, level 9 has 9). On campaign levels the number of charges equals the number of sites.
-- **C2 (Hard)** Sites come late. The first is at p 0.40 or later and the median at p 0.60 or later. Every campaign original passes, with first sites at 0.41 to 1.0, a 10th percentile of 0.46 and a median of 0.73. The add-ons plant their first site as early as p 0.10, so the rule is for campaign levels.
+- **C2 (Hard)** Sites come late. The first is at p 0.38 or later and the median at p 0.60 or later. Every campaign original passes, with first sites at 0.39 to 1.0, a 10th percentile of 0.48 and a median of 0.76. The add-ons plant their first site as early as p 0.10, so the rule is for campaign levels.
   - On gated levels the generator ranks site rooms by a greedy nearest-room walk from the key room, which is how the tour sweeps after the key, and puts sites in the rooms that walk reaches last. Charges are placed by distance from the key room and keep off the way from the start to it.
 - **C3 (Soft)** Charges come in batches. Each batch lies in one spot and holds as many charges as the run of sites that follows it on the tour. Level 8 has 3 charges, 3 sites, 3 charges and 3 sites.
 - **C4 (Hard)** A charge lies 250 to 3,200 px in a straight line from the nearest site. The originals have 276 to 3,072 px, with a median near 1,200.

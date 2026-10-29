@@ -47,14 +47,19 @@ public sealed class RuleContext
     /// <summary>
     /// Measures a level and returns its context.
     /// </summary>
-    public static RuleContext Create(MapResourceBuilder map, LevelScriptSummary script, RouteAnalysis analysis, ObjectTable objects, LevelTarget target) => new()
+    public static RuleContext Create(MapResourceBuilder map, LevelScriptSummary script, RouteAnalysis analysis, ObjectTable objects, LevelTarget target)
     {
-        Map = map,
-        Objects = objects,
-        Model = LevelExtractor.Extract(analysis.Name, map, objects),
-        Script = script,
-        Analysis = analysis,
-        Measurement = LevelMeasurer.Measure(map, script, analysis, objects),
-        Target = target
-    };
+        var ordered = new MapResourceBuilder { Size = map.Size, Scroll = map.Scroll, Graphics = map.Graphics };
+        ordered.Sprites.AddRange(LevelExtractor.OrderSprites(map.Sprites));
+        return new RuleContext
+        {
+            Map = ordered,
+            Objects = objects,
+            Model = LevelExtractor.Extract(analysis.Name, ordered, objects),
+            Script = script,
+            Analysis = analysis,
+            Measurement = LevelMeasurer.Measure(ordered, script, analysis, objects),
+            Target = target
+        };
+    }
 }

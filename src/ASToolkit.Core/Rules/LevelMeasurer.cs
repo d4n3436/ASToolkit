@@ -79,7 +79,7 @@ public static class LevelMeasurer
         }
 
         var lattice = grid.Lattice;
-        var breakableWalls = map.Sprites
+        var breakableWalls = LevelExtractor.OrderSprites(map.Sprites)
             .Where(s => s.Id is KnownObject.BreakableWall or KnownObject.BreakableWall2)
             .ToArray();
         

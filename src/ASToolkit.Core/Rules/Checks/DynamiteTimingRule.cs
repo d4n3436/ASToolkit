@@ -27,7 +27,7 @@ public sealed class DynamiteTimingRule : ILevelRule
         if (sites.Length > 0)
         {
             float median = RuleMath.GetQuantile(sites, 0.5f);
-            yield return new RuleResult(Id, RuleSeverity.Hard, sites[0] >= 0.4f && median >= 0.6f, $"first site {sites[0]:0.00}, median {median:0.00}");
+            yield return new RuleResult(Id, RuleSeverity.Hard, sites[0] >= 0.38f && median >= 0.6f, $"first site {sites[0]:0.00}, median {median:0.00}");
         }
     }
 }
