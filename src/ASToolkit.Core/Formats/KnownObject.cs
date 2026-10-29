@@ -23,17 +23,29 @@ public enum KnownObject
     /// <summary>The green slug monster.</summary>
     Slug = 40,
 
+    /// <summary>The slug corpse.</summary>
+    SlugCorpse = 42,
+
     /// <summary>The yellow slug monster.</summary>
     YellowSlug = 43,
 
     /// <summary>The red slug monster.</summary>
     RedSlug = 46,
 
+    /// <summary>The frozen slug.</summary>
+    FrozenSlug = 49,
+
     /// <summary>The green monster of kind 1.</summary>
     Monster1 = 50,
 
+    /// <summary>The first monster's corpse.</summary>
+    Monster1Corpse = 52,
+
     /// <summary>The yellow monster of kind 1.</summary>
     YellowMonster1 = 53,
+
+    /// <summary>The yellow first monster's corpse.</summary>
+    YellowMonster1Corpse = 55,
 
     /// <summary>The red monster of kind 1.</summary>
     RedMonster1 = 56,
@@ -74,14 +86,47 @@ public enum KnownObject
     /// <summary>The red tank-weapon monster.</summary>
     RedTankWeaponMonster = 96,
 
+    /// <summary>The small shadow.</summary>
+    SmallShadow = 108,
+
     /// <summary>The dried red blood pool.</summary>
     BloodPool = 110,
+
+    /// <summary>The small dried blood pool.</summary>
+    SmallBloodPool = 120,
+
+    /// <summary>The wall-mounted objects.</summary>
+    WallObjects = 130,
+
+    /// <summary>The wall inscriptions.</summary>
+    WallInscriptions = 131,
+
+    /// <summary>The small blast mark.</summary>
+    BlastMark = 133,
+
+    /// <summary>The big computer.</summary>
+    BigComputer = 135,
+
+    /// <summary>The electric panel.</summary>
+    ElectricPanel = 136,
+
+    /// <summary>The small built-in shadow.</summary>
+    EmbeddedShadow = 144,
 
     /// <summary>The flying gibs.</summary>
     FlyingGibs = 151,
 
+    /// <summary>The gibs lying on the floor.</summary>
+    LyingGibs = 152,
+
+    /// <summary>The vertical dried blood pool.</summary>
+    VerticalBloodPool = 154,
+
     /// <summary>The big explosion.</summary>
     BigExplosion = 157,
+
+    /// <summary>The computer wreckage lying on the floor.</summary>
+    ComputerWreck = 161,
 
     /// <summary>The electric fence.</summary>
     Fence = 164,
@@ -218,14 +263,50 @@ public enum KnownObject
     /// <summary>The mounted cannon the player can man.</summary>
     MountedCannon = 357,
 
+    /// <summary>The red container.</summary>
+    Container = 400,
+
+    /// <summary>The barrel.</summary>
+    Barrel = 401,
+
+    /// <summary>The cylinder.</summary>
+    Cylinder = 402,
+
     /// <summary>The storage shelves.</summary>
     Shelves = 403,
 
     /// <summary>The table.</summary>
     Table = 404,
 
+    /// <summary>The monitor.</summary>
+    Monitor = 405,
+
+    /// <summary>The dead monitor.</summary>
+    MonitorDead = 406,
+
+    /// <summary>The chair.</summary>
+    Chair = 407,
+
+    /// <summary>The scattered paper.</summary>
+    ScatteredPaper = 408,
+
+    /// <summary>The drinking water cylinder.</summary>
+    WaterCylinder = 409,
+
+    /// <summary>The computer.</summary>
+    Computer = 410,
+
+    /// <summary>The dead computer.</summary>
+    ComputerDead = 411,
+
+    /// <summary>The plant.</summary>
+    Plant = 412,
+
     /// <summary>The cabinet.</summary>
     Cabinet = 413,
+
+    /// <summary>The experiment flasks.</summary>
+    ExperimentFlasks = 414,
 
     /// <summary>The military base generator.</summary>
     Generator = 415,
@@ -248,6 +329,15 @@ public enum KnownObject
     /// <summary>The broken keypad of a jammed door.</summary>
     BrokenKeypad = 425,
 
+    /// <summary>The test tubes.</summary>
+    TestTubes = 426,
+
+    /// <summary>The lab equipment.</summary>
+    LabEquipment = 427,
+
+    /// <summary>The boxes.</summary>
+    Boxes = 428,
+
     /// <summary>The electric transformer.</summary>
     Transformer = 429,
 
@@ -256,6 +346,27 @@ public enum KnownObject
 
     /// <summary>The scientist corpse.</summary>
     ScientistCorpse = 431,
+
+    /// <summary>The radioactive barrel.</summary>
+    RadioactiveBarrel = 435,
+
+    /// <summary>The radioactive flask.</summary>
+    RadioactiveFlask = 436,
+
+    /// <summary>The missile on the military base.</summary>
+    Missile = 437,
+
+    /// <summary>The cargo truck.</summary>
+    Truck = 440,
+
+    /// <summary>The second container.</summary>
+    Container2 = 441,
+
+    /// <summary>The second container's other variant.</summary>
+    Container2Alt = 442,
+
+    /// <summary>The large bio-container.</summary>
+    BioContainer = 443,
 
     /// <summary>The monster teleport pad.</summary>
     TeleportPad = 450,
@@ -383,6 +494,9 @@ public enum KnownObject
     /// <summary>The torn lattice wall.</summary>
     TornLattice = 662,
 
+    /// <summary>The street lamp.</summary>
+    StreetLamp = 663,
+
     /// <summary>The windows.</summary>
     Windows = 664,
 
@@ -392,23 +506,89 @@ public enum KnownObject
     /// <summary>The books.</summary>
     Books = 667,
 
+    /// <summary>The gym equipment.</summary>
+    GymEquipment = 668,
+
     /// <summary>The toilet.</summary>
     Toilet = 670,
 
     /// <summary>The wooden door.</summary>
     WoodenDoor = 671,
 
+    /// <summary>The petrol generator.</summary>
+    PetrolGenerator = 672,
+
+    /// <summary>The telephone.</summary>
+    Telephone = 673,
+
+    /// <summary>The record player.</summary>
+    RecordPlayer = 674,
+
+    /// <summary>The trash can.</summary>
+    TrashCan = 675,
+
+    /// <summary>The television.</summary>
+    Television = 676,
+
+    /// <summary>The new chair.</summary>
+    NewChair = 678,
+
     /// <summary>The menu button.</summary>
     MenuButton = 705,
 
+    /// <summary>The flying rock debris.</summary>
+    RockDebris = 782,
+
+    /// <summary>The rock debris lying on the floor.</summary>
+    LyingRockDebris = 783,
+
     /// <summary>The first endless monster generator.</summary>
     FirstEndlessGenerator = 800,
+
+    /// <summary>The yellow first endless generator.</summary>
+    YellowEndlessGenerator1 = 801,
+
+    /// <summary>The second endless generator.</summary>
+    EndlessGenerator2 = 803,
+
+    /// <summary>The yellow second endless generator.</summary>
+    YellowEndlessGenerator2 = 804,
+
+    /// <summary>The red second endless generator.</summary>
+    RedEndlessGenerator2 = 805,
+
+    /// <summary>The third endless generator.</summary>
+    EndlessGenerator3 = 806,
+
+    /// <summary>The yellow third endless generator.</summary>
+    YellowEndlessGenerator3 = 807,
+
+    /// <summary>The red third endless generator.</summary>
+    RedEndlessGenerator3 = 808,
+
+    /// <summary>The fifth endless generator.</summary>
+    EndlessGenerator5 = 809,
+
+    /// <summary>The yellow fifth endless generator.</summary>
+    YellowEndlessGenerator5 = 810,
+
+    /// <summary>The red fifth endless generator.</summary>
+    RedEndlessGenerator5 = 811,
+
+    /// <summary>The sixth endless generator.</summary>
+    EndlessGenerator6 = 812,
+
+    /// <summary>The yellow sixth endless generator.</summary>
+    YellowEndlessGenerator6 = 813,
 
     /// <summary>The last endless monster generator.</summary>
     LastEndlessGenerator = 814,
 
     /// <summary>The boss of level 1.</summary>
     Boss1 = 850,
+
+    /// <summary>The first boss's death remains.</summary>
+    Boss1Death = 851,
 
     /// <summary>The boss of level 2.</summary>
     Boss2 = 853,
@@ -433,6 +613,9 @@ public enum KnownObject
 
     /// <summary>The diver monster.</summary>
     Diver = 885,
+
+    /// <summary>The diver corpse.</summary>
+    DiverCorpse = 887,
 
     /// <summary>The diver with the boss weapon.</summary>
     DiverBoss = 890,
@@ -463,6 +646,12 @@ public enum KnownObject
 
     /// <summary>The large dried red blood pool.</summary>
     LargeBloodPool = 916,
+
+    /// <summary>The first monster's corpse without blood.</summary>
+    Monster1CorpseNoBlood = 917,
+
+    /// <summary>The dried red and green blood pool.</summary>
+    GreenBloodPool = 918,
 
     /// <summary>The monster of the last map.</summary>
     FinalMonster = 925,

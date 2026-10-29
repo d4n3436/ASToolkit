@@ -39,21 +39,21 @@ A generated level replaces one campaign level from 2 to 10. It takes that level'
    level target from ReferenceLevelSet.GetTarget
         |
         v
- +-- candidate loop, batches of 6 in parallel, at most 40 ---------------+
- |                                                                       |
- |  Build, one seed per candidate                                        |
- |    1  gate request and budget         ChooseGate, BudgetPlanner       |
- |    2  layout plan in units            LayoutPlanner.Plan              |
- |    3  cells, walls, floors            FineLayout, StructureBuilder    |
- |    4  breaker spot                    ContentPlacer.ChooseBreakerSpot |
- |    5  decor and clutter               Dresser, ClutterPlanner         |
- |    6  player start, content, script   PlacementContext, ContentPlacer |
- |                                                                       |
- |  Check                                                                |
- |    map and script bytes -> RouteAnalyzer -> RuleSet.Default           |
- |                                                                       |
- |  scored by hard rules broken, then soft rules met                     |
- +-----------------------------------------------------------------------+
+ +-- candidate loop, batches of 6 in parallel, at most 40 ----------------------+
+ |                                                                              |
+ |  Build, one seed per candidate                                               |
+ |    1  gate request and budget         ChooseGate, BudgetPlanner              |
+ |    2  layout plan in units            LayoutPlanner.Plan                     |
+ |    3  cells, walls, floors            FineLayout, StructureBuilder           |
+ |    4  breaker spot                    ContentPlacer.ChooseBreakerSpot        |
+ |    5  decor, character, clutter       Dresser, RoomDecorator, ClutterPlanner |
+ |    6  player start, content, script   PlacementContext, ContentPlacer        |
+ |                                                                              |
+ |  Check                                                                       |
+ |    map and script bytes -> RouteAnalyzer -> RuleSet.Default                  |
+ |                                                                              |
+ |  scored by hard rules broken, then soft rules met                            |
+ +------------------------------------------------------------------------------+
         | best candidate
         v
  RoofBuilder.Build, its own seed
@@ -141,6 +141,7 @@ Three stages describe edges with different letters. `FineLayout` holds the gener
 |---|---|---|---|
 | W | wall | wall | 1 |
 | D | single door | door | 2 |
+| O | open doorway frame (an arch) | | 0 |
 | E, e | the two halves of a double door | | 2 |
 | S | breakable wall | secret or spawn wall, monster hole | 1 |
 | T | spawn wall | | 1 |
@@ -200,6 +201,15 @@ A wing gate closes a side branch and leaves the main route open, which is what r
 
 `LayoutPlanner.Plan` builds a `LayoutPlan` on the unit grid. A plan is a list of `PlanRegion` rectangles joined by `PlanLink`s. Regions have a `RegionKind`, links a `LinkKind`.
 
+The room sizes and connections come from a `LayoutStyleProfile`, chosen by `--layout room|open` (default `room`) and passed by `LevelGenerator`.
+
+| style | rooms | connections |
+|---|---|---|
+| `Room` | the theme's room size | the theme's weights, given in each step below |
+| `Open` | 2.4 times the theme's room size, and half of the rooms 28 to 44 units | labs door 0.08, arch 0.40, open 0.52; military arch 0.45, open 0.55 |
+
+`RoomCap`, the square root of the station area over 5 and at least 6 units, caps every room.
+
 ```
               side room           side room
                  |                    |
@@ -236,12 +246,12 @@ The planner runs these steps in order. Each returns null when it boxes itself in
 - The first room is a random size from the low half of the room range. A bounding box of `targetUnits / fill` units with an aspect of 1 to 1.6, turned at random, is placed around it. Every later region must stay inside it (`LayoutPlan.Bounds`, rule A15).
 - Each next station is a hall after a room, and after a hall a hall with a 30% chance, otherwise a room. It goes on in the current heading, turning left or right with a 35% chance, and tries the other headings when blocked.
 - `FindStationRect` slides the rectangle along the previous station until it shares at least `MinShared` (3) unit edges and lies on free units.
-- Chain links in labs are a door (45%), an arch (45%) or fully open (10%), and in military levels an arch (80%) or open (20%).
-- Growth stops once stations hold 58% of the target, once the chain walk reaches the spine length (elongation × √targetUnits, times 0.65 for labs and 0.9 for military) or after 400 tries. Fewer than 5 stations fails.
+- Chain links are drawn from the style profile's connection weights. An arch drawn on a boundary too narrow for two units becomes a door on labs and an opening on military levels.
+- Growth stops once stations hold 58% of the target, once the chain walk reaches the spine length (elongation × √targetUnits, times 0.65 for labs and 0.9 for military) or after 400 tries. Fewer than 5 stations fails. On a locked-door level the chain runs at least the original's walk to the breaker over 0.55.
 
 ### 2. Wing
 
-For a wing gate, `GrowWing` grows a chain of alternating halls and rooms off a station about 30% along the route. Its first link is a door. It is kept when it reaches 60% of its share and rolled back otherwise, and the next of four hosts is tried.
+For a wing gate, `GrowWing` grows a chain of alternating halls and rooms off a station about 45% along the route. Its first link is a door. It is kept when it reaches 60% of its share and rolled back otherwise, and the next of four hosts is tried.
 
 ### 3. Walk cap
 
@@ -249,11 +259,13 @@ The walk from the start to any unit may not exceed `maxElongation × √targetUn
 
 ### 4. Branches
 
-`GrowBranches` spends 60% of the remaining area on one to three dead-end branches off random stations. Each branch grows from its last region, or with a 35% chance forks from an earlier one. Branch links in labs lean toward doors at the branch entrance.
+On a locked-door level, `FindGateStation` first picks the station whose exit lies at 0.8 of the original's walk to the breaker along the chain. Branches, and side rooms for their first 4,000 tries, grow only from the stations after it.
+
+`GrowBranches` spends 60% of the remaining area on one to three dead-end branches off random stations. Each branch grows from its last region, or with a 35% chance forks from an earlier one. Branch links are drawn from the style profile's connection weights.
 
 ### 5. Side rooms
 
-`AddSideRooms` attaches rooms until the plan reaches the target area or 6,000 tries. Hosts are drawn with stations three times as likely as branch regions or side rooms of stations. `TryAttachRoom` places a room flush against a random side of the host with at least 3 shared edges. Lab side rooms get a door (62%), an arch (30%) or, off another side room, an open boundary (8%).
+`AddSideRooms` attaches rooms until the plan reaches the target area or 6,000 tries. Hosts are drawn with stations three times as likely as branch regions or side rooms of stations. `TryAttachRoom` places a room flush against a random side of the host with at least 3 shared edges. Side-room links are drawn from the style profile's connection weights.
 
 ### 6. Gate
 
@@ -261,22 +273,24 @@ The walk from the start to any unit may not exceed `maxElongation × √targetUn
 
 | gate | cut | key room |
 |---|---|---|
-| locked doors | the link that leaves the share of the area behind it closest to the gate share | a 4 to 6 unit side room off the last open station or one of the two before it |
+| locked doors | among the links that leave a share within 0.05 of the gate share behind them, the one whose chain walk is closest to the original's walk to the breaker, or else the link whose share is closest. The plan fails when the chain walk to the cut is under half the original's walk to the breaker | a 4 to 6 unit side room off the last open station or one of the two before it, at least half the original's walk to the breaker from the start |
 | blackout | the trigger is the last chain link within 1,700 px of the start; the cut is the link whose walk from the trigger is closest to `SearchPixels` | a 4 to 6 unit room off one of the six open regions whose farthest point lies closest to the search walk from the trigger |
-| fences | the largest cut whose behind share is within 0.08 of the gate share | `PlaceGeneratorRoom`, a room (lab 5 to 7, military 3 to 5 units) off a station at least 900 px of chain walk before the fence, preferring about 15% along the route |
-| wing | the wing's first link, and for a blackout the trigger is the first chain link | a 4 to 6 unit room off the wing's host station |
+| fences | the largest cut whose behind share is within 0.08 of the gate share | `PlaceGeneratorRoom`, a room (lab 5 to 7, military 3 to 5 units) off a station at least 900 px of chain walk before the fence, preferring the station halfway to the cut |
+| wing | the wing's first link, and for a blackout the trigger is the last chain link before the host within 1,700 px of the start | a 4 to 6 unit room off the wing's host station |
 
 Every region past the cut, or in the wing, is marked `IsGated`. For fences the gate link becomes a one-edge `Fence`. For locked doors and blackouts every door link outside the gated part becomes an arch, so the doors that lock are the gate and those behind it, and the gate link becomes a door. A blackout also records `BlackoutLink`, the link the trigger sits in.
 
-### 7. Closets and shortcuts
+### 7. Closets, shortcuts and loops
 
 - `AddClosets` adds secret closets (2 by 2 to 3 by 3 units, off stations and side rooms) and spawn closets (off the first half of the stations after the start). Each is linked by one edge of `SecretWall` or `SpawnWall`, and only the host may touch it.
 - `AddShortcuts` adds breakable walls between two open rooms that share at least 3 edges and lie at least 3 links apart, on the same side of the blackout trigger. Rule D4.4 allows at most 2.
+- `AddLoops` links touching lab rooms that no link joins yet, one loop per 8 rooms and at most 6. Both rooms lie on the same side of the gate and of the blackout trigger, and neither is the key room or the last station. The link is an arch in the open part and is drawn from the side-room weights behind the gate. A link that would shorten the walk from the start to the key room is dropped. The originals have 1 to 6 loops on campaign labs.
 
 ### 8. Clean-up
 
 - `FillPockets` gives enclosed holes of up to 2 units to the neighbor that touches them most, since a walled-in hole cannot take a roof tile.
-- `AlignLinks` moves each doorway along its boundary to the nearest span where no other wall meets it, narrowing it when no span is wide enough.
+- `AlignLinks` moves each doorway along its boundary to the nearest span where no other wall meets it, narrowing it when no span is wide enough. It keeps one edge of wall at both ends of the boundary when a span allows it, as every door of the campaign labs has.
+- `SpaceDoors` moves a lab door or arch that stands closer than 160 px to another one to the clear span of its boundary that lies farthest from the others. The closest doorways of the campaign labs are 119 px apart.
 
 ## Fine layout and structure
 
@@ -290,14 +304,15 @@ Every region past the cut, or in the wing, is marked `IsGated`. For fences the g
 | `Door`, one edge | `D` |
 | `SecretWall` | `S` |
 | `SpawnWall` | `T` |
-| `Arch`, `Open`, `Fence` | open |
+| `Arch` | `O`, an open doorway frame |
+| `Open`, `Fence` | open |
 
 Every other border between two regions, or between a region and empty space, becomes a `W` edge. Edges inside a region do not exist.
 
 ### Placement on the map
 
 - `StructureBuilder.PlaceLattice` picks the lattice origin so every cell lies at least 500 px into the map. On labs the origin snaps to the (40, 28) grid with the parity the floor tiles use (see [NOTES.md](NOTES.md#lab-lattice)).
-- `StructureBuilder.AddFakeDoors` turns 2 to 5 far walls of hall stations into closed doors that lead nowhere, where no other wall meets them. On labs half of those with a matching neighbor become double. On military levels only even edges qualify.
+- `StructureBuilder.AddFakeDoors` turns 2 to 5 far walls of hall stations into closed doors that lead nowhere, where no other wall meets them and at least 160 px from any door, arch or other fake door. On labs half of those with a matching neighbor become double. On military levels only even edges qualify.
 
 ### Visible edges
 
@@ -314,7 +329,8 @@ Every other border between two regions, or between a region and empty space, bec
 | `D` | 606 frame and 605 door |
 | `S` | 609 breakable wall |
 | `T` | 618 (`/`) or 619 (`\`, dir 64) spawn wall |
-| `W` with a fake door | 608 or 606 frame and 611 or 617 jammed door |
+| `O` | per run of edges, 608 frames with a raised 611 at z −70 on each pair and a 606 frame with a raised 617 at z −63 on a single edge left over |
+| `W` with a fake door | 608 or 606 frame and 611 or 617 jammed door, at z 0 or, half of the time, stuck at z −13 to −35 |
 | `W` | 601 (`/`) or 602 (`\`) wall, direction from `LabWallDirs` |
 | corner | 604 beam where walls meet and do not run straight through (`FindPosts`) |
 
@@ -324,7 +340,7 @@ Every other border between two regions, or between a region and empty space, bec
 
 `StructureBuilder.BuildMilitary` places 651 and 650 walls on every second fine edge, 654 where a fake door is, 652 corner posts on even vertices and 503 floor tiles on their own (80, 56) lattice wherever a tile reaches a cell. `StructureBuilder.BuildFence` puts a 653 emitter and a 164 fence 14 px above it on each unit edge of the gate link.
 
-`MapBuilder` collects the objects. `Add` drops a repeated object at the same rounded position unless `unique` is false, hands out handles, takes the side from `SideTable` and fills the default payloads for the player start, monsters and everything else.
+`MapBuilder` collects the objects. `Add` drops a repeated object at the same rounded position unless `unique` is false, hands out handles, takes the side from `SideTable` and fills the default payloads, 20 bytes with two items for the player start, 12 bytes for monsters and bosses and 8 zero bytes for everything else.
 
 ## Breaker spot
 
@@ -359,8 +375,20 @@ The props replace whatever decor the dressing put in the key room. Rule D1 check
 
 - `DressingLibrary.Build` indexes every window of the originals of the theme by `GetWallKey`, a string of the edges around and inside it. Window sizes are 3, 2 and 1 cells on labs and 4 and 2 on military levels. Sources with fewer than 100 edges are left out, and so are decor objects the theme filter rejects (anything the reference levels do not use at that height, and broken keypads).
 - `Dress` walks the cells in (U, V) order and covers each uncovered one with the largest window that lies inside the floor, touches no covered cell and has a match.
-- `DressingLibrary.TryCopy` copies the objects of the matched window. An object is dropped when it would stand closer to a wall than 95% of the originals keep it and than it stood in its source (rule A14), or when a floor object would face the walls in a way no original does (rule A17). Crates lose their loot.
+- `DressingLibrary.TryCopy` copies the objects of the matched window. An object is dropped when it would stand closer to a wall than 95% of the originals keep it and than it stood in its source (rule A14), or when a floor object would face the walls in a way no original does (rule A17). Crates lose their loot and get the 12 zero bytes of an empty crate, as do the crates `RoomDecorator` adds.
 - `Dresser.KeepSupported` drops stacked objects whose support was not copied, such as a monitor without its desk.
+
+### Character
+
+`RoomDecorator` adds to the copied decor. It draws from its own random stream, seeded from the layout, and places only decor the theme's height table allows.
+
+Before the first `ClearAndConnect`, `RoomDecorator.Decorate`:
+
+- Thins the dried blood to 5% of the floor cells and the corpses to 0.2%.
+- Gives each room of at least 20 cells, except the start, the last station and the key room, a cluster of 1 to 8 pieces of one decor family near a random cell. The family is the one whose pieces the room already holds most of (office, lab or storage on labs; storage, armory or office on military), or the next one in turn.
+- Puts 2 or 3 dried blood pools in the last two stations and a corpse in the last one.
+
+Before the second `ClearAndConnect`, `RoomDecorator.PlaceComputerTables` puts a table under every computer that has none next to it (rule A18). The clearing pass removes a table that blocks a keep-clear cell or the way, and `RemoveComputersOffTables` then removes the computers left without a table next to them.
 
 ### Keeping the way clear
 
@@ -451,7 +479,7 @@ Sites stay clear of solid decor through `IsCrowded`, which uses the same gap as 
 - When the level has no boss the strongest group goes in the last station.
 - The tip of each branch takes the group whose rank best matches the tip's progress.
 - Every other group goes in a room whose progress is within 0.2 of the group's rank, from 0 for the weakest to 1 for the strongest (rule A10).
-- `TryPlaceGroup` anchors the group's original shape at a free cell at least 900 px from the start and keeps it when 80% of the members land on reachable floor outside closets and walls. After 40 failed anchors the members are scattered one by one.
+- `TryPlaceGroup` anchors the group's original shape at a free cell at least 900 px from the start and keeps it when 80% of the members land on reachable floor outside closets and walls and at least 12 px from any monster already placed. After 40 failed anchors the members are scattered one by one, each on a free cell of its own.
 
 ### Ambushes
 
@@ -468,7 +496,7 @@ Sites stay clear of solid decor through `IsCrowded`, which uses the same gap as 
 ### Stashes and items
 
 - `PlaceStashes` fills each secret closet with `ItemSchedule.CreateStash`, a money pile, an ammunition cache, a weapon with some ammunition or a perk with some money. Stash items count against the budget (rule D4), and `TakeWeapon` gives closets the weapons that are early for the level first.
-- `PlaceItems` shuffles the remaining items. `PlaceWeapons` first replaces weapons the level may not have yet, puts about 35% of the weapons in empty crates and the rest in side rooms at progress 0.25 to 0.75, keeping weapons 600 px apart where it can (rule D7). Crates then take 32% of the ammunition, 45% of the armor and 20% of the health (rule A8). Everything else, dynamite excepted, goes on free cells of random rooms.
+- `PlaceItems` shuffles the remaining items. `PlaceWeapons` first replaces weapons the level may not have yet, puts about 35% of the weapons in empty crates and the rest in side rooms at progress 0.25 to 0.75, keeping weapons 600 px apart where it can (rule D7). Crates then take 32% of the ammunition, 45% of the armor and 20% of the health (rule A8). The rest of the loot, dynamite excepted, goes in piles by category (money 8, ammo 3, bonus 2, and armor, health and implants one by one) in the side rooms whose progress lies closest to the category's (0.48 to 0.60), deeper side rooms first.
 
 ### Checkpoint
 
@@ -554,6 +582,7 @@ The table lists the stage and code that a level relies on to pass each rule. Thr
 | A15 | layout fill | layout | bounding box in `GrowStations`, `FillPockets` |
 | A16 | spine share | layout | elongation inputs, chain length in `GrowStations`, walk cap |
 | A17 | wall facing | dressing | `FacingTable` in `TryCopy`, `AddClutter` and `PlaceBosses` |
+| A18 | decor context | dressing | `RoomDecorator.PlaceComputerTables` |
 | B1 | locked doors | gate | `LayoutPlanner.PlaceGate`, key room near the cut |
 | B2 | blackout | gate | `BlackoutReach`, `SearchPixels`, blackout branch of `PlaceGate` |
 | B4 | fences | gate | `PlaceGate` fence cut, `PlaceGeneratorRoom` |

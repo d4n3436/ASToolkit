@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using ASToolkit.Core.Generation.Layout;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -21,6 +22,10 @@ internal sealed class GenerateSettings : GameSettings
     [CommandOption("--addon-style")]
     [Description("Generate the five levels of an add-on instead of the ten of the campaign; --first and --last are ignored. Either way the levels become the RANDOM add-on on the play menu.")]
     public bool AddOnStyle { get; init; }
+
+    [CommandOption("--layout <STYLE>")]
+    [Description("The layout style, room for a complex of rooms of varied sizes or open for bigger rooms joined by wide connections. Defaults to room.")]
+    public LayoutStyle Layout { get; init; } = LayoutStyle.Room;
 
     public override ValidationResult Validate()
     {

@@ -8,7 +8,7 @@ internal sealed class PreviewCommand : Command<PreviewSettings>
 {
     public override int Execute(CommandContext context, PreviewSettings settings, CancellationToken cancellationToken)
     {
-        var (generator, _, _) = GeneratorFactory.Create(settings.Game, settings.AddOnStyle);
+        var (generator, _, _) = GeneratorFactory.Create(settings.Game, settings.AddOnStyle, settings.Layout);
         var level = settings.AddOnStyle ? generator.GenerateAddOn(settings.Seed, settings.Level) : generator.Generate(settings.Seed, settings.Level);
         level.Write(settings.Out, settings.AddOnStyle ? generator.GetAddOnTemplatePath(settings.Level) : generator.GetTemplatePath(settings.Level));
         AnsiConsole.MarkupLine($"Wrote [green]{Markup.Escape(settings.Out)}[/]: {level.Plan.Stations.Count} stations, {level.Plan.Regions.Count} regions, {level.Map.Sprites.Count} objects, gate {level.Plan.Gate}, HP {level.Budget.PlacedHitPoints + level.Budget.AmbushHitPoints} of {level.Budget.TargetHitPoints}, roof misses {level.RoofResidual} px.");

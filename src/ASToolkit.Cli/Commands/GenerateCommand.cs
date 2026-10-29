@@ -9,7 +9,7 @@ internal sealed class GenerateCommand : Command<GenerateSettings>
 {
     public override int Execute(CommandContext context, GenerateSettings settings, CancellationToken cancellationToken)
     {
-        var (generator, _, _) = GeneratorFactory.Create(settings.Game, settings.AddOnStyle);
+        var (generator, _, _) = GeneratorFactory.Create(settings.Game, settings.AddOnStyle, settings.Layout);
         var table = new Table().AddColumns("Level", "Gate", "Hard rules broken", "Soft rules met", "Roof misses");
         int broken = 0;
         int[] levels = settings.AddOnStyle

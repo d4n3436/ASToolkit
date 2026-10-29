@@ -62,7 +62,7 @@ This covers what the toolkit's code does not say by itself, which is how the gam
 
 - Wall collision reaches into the neighboring cell. A cell with no wall on its own edges can still lie inside a neighbor's wall box (±40 by 28 for lab walls), and the engine pushes anything spawned there through the wall. Players, monsters, items and spawners must clear the boxes.
 - Originals keep spawners 1,000 to 3,000 px from their trigger, or behind 618 and 619 spawn walls when closer.
-- Monsters are placed in tight 20 px grids, clusters and lines, plus about 100 singles.
+- Monsters are placed in tight 20 px grids, clusters and lines, plus about 100 singles. No two of them stand closer than 12 px.
 - Breakable closets in labs are 4 to 9 cell pockets behind one 609 piece, under the roof. They hold 4 to 9 coins, ammo, a weapon or a perk.
 - The breaker hangs on a `\` wall piece (anchor + (-8, +3), dir 0) facing the room. The room is small and has 429 transformers, a 430 corpse with blood, 403 shelves and a 180 pointer. The door panels 423 and 424 sit on the door frame with the door's dir at z about 5.
 - The mounted cannon 357 appears once on each of levels 7 and 8, plus add-ons 1 and 2 levels 4 and 5. It has side 0 and needs about 120 by 90 px of free floor.

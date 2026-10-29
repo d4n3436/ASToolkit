@@ -45,6 +45,7 @@ public sealed class LevelGenerator
     private readonly string _gameFolder;
     private readonly ObjectTable _objects;
     private readonly ReferenceLevelSet _references;
+    private readonly LayoutStyle _style;
     private readonly ArmyTable _armies;
     private readonly Lazy<OriginalContentSet> _content;
     private readonly Lazy<DressingLibrary> _labLibrary;
@@ -59,12 +60,13 @@ public sealed class LevelGenerator
     /// <summary>
     /// Initializes a new instance of the <see cref="LevelGenerator"/> class.
     /// </summary>
-    public LevelGenerator(string gameFolder, ObjectTable objects, ReferenceLevelSet references, ArmyTable armies, bool addOnStyle = false)
+    public LevelGenerator(string gameFolder, ObjectTable objects, ReferenceLevelSet references, ArmyTable armies, bool addOnStyle = false, LayoutStyle style = LayoutStyle.Room)
     {
         _addOnStyle = addOnStyle;
         _gameFolder = gameFolder;
         _objects = objects;
         _references = references;
+        _style = style;
         _armies = armies;
         string[] sources = ReferenceLevelSet.CampaignLevels
             .Select(ReferenceLevelSet.GetCampaignName)
@@ -206,21 +208,33 @@ public sealed class LevelGenerator
             }
 
             int targetUnits = (int)(originalUnits * (0.9f + 0.15f * rng.NextSingle()));
-            plan = LayoutPlanner.Plan(rng, settings, targetUnits, target.BoxFill * LayoutFillSlack, elongation, maxElongation, gate, theme == LevelTheme.Lab ? target.SecretClosets : 0, spawnClosets, shortcuts);
+            plan = LayoutPlanner.Plan(rng, settings, LayoutStyleProfile.FromStyle(_style), targetUnits, target.BoxFill * LayoutFillSlack, elongation, maxElongation, gate, theme == LevelTheme.Lab ? target.SecretClosets : 0, spawnClosets, shortcuts);
         }
 
         var layout = FineLayout.Build(plan);
         StructureBuilder.PlaceLattice(layout, theme);
         StructureBuilder.AddFakeDoors(rng, layout, plan);
         var map = new MapBuilder(_armies);
-        var closetCells = layout.Cells.Where(p => plan.Regions[p.Value].Kind is RegionKind.SecretCloset or RegionKind.SpawnCloset).Select(p => p.Key).ToHashSet();
-        var shown = layout.Cells.Keys.Where(c => !closetCells.Contains(c)).ToHashSet();
+        var closetCells = layout.Cells
+            .Where(p => plan.Regions[p.Value].Kind is RegionKind.SecretCloset or RegionKind.SpawnCloset)
+            .Select(p => p.Key)
+            .ToHashSet();
+        
+        var shown = layout.Cells.Keys
+            .Where(c => !closetCells.Contains(c))
+            .ToHashSet();
+        
         var visibleEdges = layout.Edges
             .Where(p => shown.Contains(p.Key.Cells.First) || shown.Contains(p.Key.Cells.Second))
-            .OrderBy(p => p.Key.Axis).ThenBy(p => p.Key.A).ThenBy(p => p.Key.B)
-            .ToDictionary(p => p.Key, p => p.Value);
+            .OrderBy(p => p.Key.Axis)
+            .ThenBy(p => p.Key.A)
+            .ThenBy(p => p.Key.B)
+            .ToDictionary();
+        
         var spawnWalls = theme == LevelTheme.Lab ? StructureBuilder.BuildLab(rng, map, layout, visibleEdges) : [];
-        ContentPlacer.PlaceBrokenKeypads(rng, map, _keypads.Value);
+        var placedEdges = theme == LevelTheme.Lab ? LevelExtractor.ReadLabEdges(layout.Lattice, map.Sprites) : layout.Edges;
+        ContentPlacer.PlaceBrokenKeypads(rng, map, _keypads.Value, layout.Lattice, target.Facings, placedEdges);
+        
         if (theme == LevelTheme.Military)
         {
             StructureBuilder.BuildMilitary(rng, map, layout, visibleEdges);
@@ -257,6 +271,7 @@ public sealed class LevelGenerator
             }
         }
 
+        RoomDecorator.Decorate(theme, plan, layout, decor, floor, keepClear, target.ThemeDecor, target.Facings);
         var (kept, _) = Dresser.ClearAndConnect(decor, floor, layout.Edges, keepClear, start, layout.Lattice, _objects);
         var excluded = new HashSet<int> { plan.Stations[0].Id };
         if (budget.Bosses.Count > 0)
@@ -272,9 +287,10 @@ public sealed class LevelGenerator
         var clutterCells = floor.Where(c => !excluded.Contains(layout.Cells[c])).ToHashSet();
         var (solid, breakable) = ClutterPlanner.GetPalette(originalMap, _objects);
         float blockedShare = target.BlockedShare * (0.95f + 0.2f * rng.NextSingle());
-        kept = ClutterPlanner.AddClutter(rng, kept, floor, clutterCells, layout.Edges, keepClear, start, layout.Lattice, _objects, solid, breakable, blockedShare, target.Breakables, target.WallClearance, target.Facings);
-        (kept, var blocked) = Dresser.ClearAndConnect(kept, floor, layout.Edges, keepClear, start, layout.Lattice, _objects);
-        foreach (var keptObject in kept)
+        var cluttered = ClutterPlanner.AddClutter(rng, kept, floor, clutterCells, layout.Edges, keepClear, start, layout.Lattice, _objects, solid, breakable, blockedShare, target.Breakables, target.WallClearance, target.Facings).ToList();
+        RoomDecorator.PlaceComputerTables(theme, plan, layout, cluttered, target.ThemeDecor, target.Facings);
+        (kept, var blocked) = Dresser.ClearAndConnect(cluttered, floor, layout.Edges, keepClear, start, layout.Lattice, _objects);
+        foreach (var keptObject in RoomDecorator.RemoveComputersOffTables(kept))
         {
             (float x, float y) = layout.Lattice.ToWorld(keptObject.U, keptObject.V);
             map.Add(keptObject.Id, x, y, keptObject.Z, keptObject.Dir, keptObject.Payload, unique: false);
@@ -356,7 +372,7 @@ public sealed class LevelGenerator
 
     private static GateRequest ChooseGate(Random rng, LevelTarget target, LevelTheme theme) => target.Style switch
     {
-        LevelStyle.LockedDoors => new GateRequest(GateKind.LockedDoors, target.LockedShare ?? 0.5f, 0),
+        LevelStyle.LockedDoors => new GateRequest(GateKind.LockedDoors, target.LockedShare ?? 0.5f, 0, WalkPixels: target.WalkToBreakerPixels ?? 0),
         LevelStyle.Blackout => new GateRequest(GateKind.Blackout, 0, 5200),
         LevelStyle.Fenced => new GateRequest(GateKind.Fences, target.FencedOffShare ?? 0.4f, 0),
         _ => theme == LevelTheme.Military

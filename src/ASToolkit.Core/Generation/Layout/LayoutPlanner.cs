@@ -19,6 +19,16 @@ public static class LayoutPlanner
     private const int MaxPocketUnits = 2;
     private const int MaxBranchTries = 160;
     private const float BlackoutReach = 1700;
+    private const float MinDoorGap = 160;
+    private const float ChainShareOfBreakerWalk = 0.8f;
+    private const float MinBreakerWalkShare = 0.5f;
+    private const float LockedShareBand = 0.05f;
+    private const float BreakerChainShare = 0.55f;
+    private const float PixelsPerOpenStation = 700;
+    private const float WingHostShare = 0.45f;
+    private const int OpenHostTries = 4000;
+    private const int RoomsPerLoop = 8;
+    private const int MaxLoops = 6;
     private static readonly (int U, int V)[] Headings = [(1, 0), (0, 1), (-1, 0), (0, -1)];
     private static readonly Size[] ClosetSizes = [new(2, 3), new(3, 2), new(3, 3), new(2, 2)];
 
@@ -27,11 +37,17 @@ public static class LayoutPlanner
     /// as long as the given elongation times the square root of the area and no room walked farther than the maximum
     /// elongation allows, or returns null when the attempt boxed itself in.
     /// </summary>
-    public static LayoutPlan? Plan(Random rng, ThemeSettings theme, int targetUnits, float fill, float elongation, float maxElongation, GateRequest? gate, int secretClosets, int spawnClosets, int shortcuts)
+    public static LayoutPlan? Plan(Random rng, ThemeSettings theme, LayoutStyleProfile profile, int targetUnits, float fill, float elongation, float maxElongation, GateRequest? gate, int secretClosets, int spawnClosets, int shortcuts)
     {
-        var plan = new LayoutPlan(theme);
+        var plan = new LayoutPlan(theme, profile) { RoomCap = Math.Max(6, (int)MathF.Sqrt(targetUnits * MaxStationShare / 5)) };
         float spine = elongation * MathF.Sqrt(targetUnits);
-        GrowStations(rng, plan, (int)(targetUnits * MaxStationShare), spine * (theme.Theme == LevelTheme.Lab ? LabChainPerSpine : MilitaryChainPerSpine), targetUnits / fill);
+        float chainUnits = spine * (theme.Theme == LevelTheme.Lab ? LabChainPerSpine : MilitaryChainPerSpine);
+        if (gate is { Kind: GateKind.LockedDoors, IsWing: false })
+        {
+            chainUnits = MathF.Max(chainUnits, gate.WalkPixels / (BreakerChainShare * theme.UnitPixels));
+        }
+
+        GrowStations(rng, plan, (int)(targetUnits * MaxStationShare), chainUnits, targetUnits / fill);
         if (plan.Stations.Count < 5)
         {
             return null;
@@ -49,9 +65,10 @@ public static class LayoutPlanner
             maxWalk = Math.Max(maxWalk, (BlackoutReach + gate.SearchPixels) / (theme.UnitPixels * WalkPerUnitStep));
         }
 
+        int firstHost = gate is { Kind: GateKind.LockedDoors, IsWing: false, WalkPixels: > 0 } ? FindGateStation(plan, gate.WalkPixels) + 1 : 0;
         var walk = MeasureWalk(plan, [GetStartUnit(plan)], openOnly: false);
-        var branches = GrowBranches(rng, plan, (int)((targetUnits - plan.Area) * BranchShare), walk, maxWalk);
-        AddSideRooms(rng, plan, targetUnits, branches, walk, maxWalk);
+        var branches = GrowBranches(rng, plan, (int)((targetUnits - plan.Area) * BranchShare), walk, maxWalk, firstHost);
+        AddSideRooms(rng, plan, targetUnits, branches, walk, maxWalk, firstHost);
         if (gate is not null && !(gate.IsWing ? PlaceWingGate(rng, plan, gate) : PlaceGate(rng, plan, gate)))
         {
             return null;
@@ -60,8 +77,10 @@ public static class LayoutPlanner
         AddClosets(rng, plan, secretClosets, RegionKind.SecretCloset, LinkKind.SecretWall, plan.Regions.Where(r => r.Kind is RegionKind.Station or RegionKind.SideRoom).ToArray());
         AddClosets(rng, plan, spawnClosets, RegionKind.SpawnCloset, LinkKind.SpawnWall, plan.Stations.Skip(1).Take(Math.Max(1, plan.Stations.Count / 2)).ToArray());
         AddShortcuts(rng, plan, shortcuts);
+        AddLoops(rng, plan);
         FillPockets(plan);
         AlignLinks(plan);
+        SpaceDoors(plan);
         return plan;
     }
 
@@ -209,8 +228,9 @@ public static class LayoutPlanner
         {
             var previous = plan.Stations[^1];
             bool isHall = !previous.IsHall || rng.NextSingle() < 0.3f;
-            int length = isHall ? Next(rng, t.HallLength) : Next(rng, t.RoomSize);
-            int width = isHall ? Next(rng, t.HallWidth) : Next(rng, t.RoomSize);
+            int size = PickRoomSize(rng, plan);
+            int length = isHall ? Next(rng, t.HallLength) : size;
+            int width = isHall ? Next(rng, t.HallWidth) : size;
             int turn = rng.NextSingle() < 0.35f ? rng.Next(2) == 0 ? 1 : 3 : 0;
             UnitRect? placed = null;
             foreach (int candidateHeading in new[] { (heading + turn) % 4, heading, (heading + 1) % 4, (heading + 3) % 4 })
@@ -231,9 +251,7 @@ public static class LayoutPlanner
             var station = plan.AddRegion(RegionKind.Station, placed.Value, plan.Stations.Count, null, isHall);
             plan.Stations.Add(station);
             area += placed.Value.Area;
-            var kind = plan.Theme.Theme == LevelTheme.Lab
-                ? Pick(rng, (LinkKind.Door, 0.45f), (LinkKind.Arch, 0.45f), (LinkKind.Open, 0.10f))
-                : Pick(rng, (LinkKind.Arch, 0.8f), (LinkKind.Open, 0.2f));
+            var kind = PickLink(rng, plan, LinkContext.Chain);
             AddLink(rng, plan, previous, station, previous.Rects[0].GetSharedEdges(placed.Value), kind);
             var exit = GetMidpoint(plan.Links[^1].Boundary);
             chain += Math.Abs(exit.U - entry.U) + Math.Abs(exit.V - entry.V);
@@ -259,7 +277,7 @@ public static class LayoutPlanner
                 r = new UnitRect(u, heading.V > 0 ? p.V + p.H : p.V - length, width, length);
             }
 
-            if (p.GetSharedEdges(r).Length >= ms && plan.IsFree(r))
+            if (p.GetSharedEdges(r).Length >= ms && plan.IsFree(r) && !plan.TouchesOtherAtCorner(r, previous.Id))
             {
                 return r;
             }
@@ -268,12 +286,24 @@ public static class LayoutPlanner
         return null;
     }
 
-    private static PlanRegion[] GrowBranches(Random rng, LayoutPlan plan, int branchUnits, Dictionary<Cell, int> walk, float maxWalk)
+    // Returns the station, one per PixelsPerOpenStation of the walk to the breaker or later, whose exit lies closest to ChainShareOfBreakerWalk of that walk
+    private static int FindGateStation(LayoutPlan plan, float walkPixels)
+    {
+        var first = GetChainLink(plan, 0);
+        int last = Math.Max(1, plan.Stations.Count - 3);
+        int earliest = Math.Clamp((int)(walkPixels / PixelsPerOpenStation), 1, last);
+        return Enumerable.Range(earliest, last - earliest + 1)
+            .OrderBy(k => Math.Abs(MeasureChain(plan, first, GetChainLink(plan, k)) - walkPixels * ChainShareOfBreakerWalk))
+            .First();
+    }
+
+    private static PlanRegion[] GrowBranches(Random rng, LayoutPlan plan, int branchUnits, Dictionary<Cell, int> walk, float maxWalk, int firstHost)
     {
         var t = plan.Theme;
         var all = new List<PlanRegion>();
         int count = Math.Clamp(branchUnits / (4 * t.RoomSize.Max * t.RoomSize.Max), 1, 3);
-        int[] hosts = Enumerable.Range(1, Math.Max(1, plan.Stations.Count - 2)).OrderBy(_ => rng.Next()).ToArray();
+        int firstBranchHost = Math.Max(1, firstHost);
+        int[] hosts = Enumerable.Range(firstBranchHost, Math.Max(1, plan.Stations.Count - 1 - firstBranchHost)).OrderBy(_ => rng.Next()).ToArray();
         int grown = 0;
         foreach (int host in hosts)
         {
@@ -289,8 +319,9 @@ public static class LayoutPlanner
             {
                 var previous = branch.Count == 0 ? plan.Stations[host] : rng.NextSingle() < ForkChance ? branch[rng.Next(branch.Count)] : branch[^1];
                 bool isHall = branch.Count > 0 && !previous.IsHall && rng.NextSingle() < 0.4f;
-                int length = isHall ? Next(rng, t.HallLength) : Next(rng, t.RoomSize);
-                int width = isHall ? Next(rng, t.HallWidth) : Next(rng, t.RoomSize);
+                int size = PickRoomSize(rng, plan);
+                int length = isHall ? Next(rng, t.HallLength) : size;
+                int width = isHall ? Next(rng, t.HallWidth) : size;
                 UnitRect? placed = null;
                 foreach (int candidateHeading in Enumerable.Range(0, 4).OrderBy(_ => rng.Next()))
                 {
@@ -307,9 +338,7 @@ public static class LayoutPlanner
                 }
 
                 var region = plan.AddRegion(RegionKind.SideRoom, placed.Value, host, previous.Id, isHall);
-                var kind = t.Theme == LevelTheme.Lab
-                    ? Pick(rng, (LinkKind.Door, branch.Count == 0 ? 0.6f : 0.4f), (LinkKind.Arch, 0.5f), (LinkKind.Open, branch.Count == 0 ? 0 : 0.1f))
-                    : Pick(rng, (LinkKind.Arch, 0.8f), (LinkKind.Open, 0.2f));
+                var kind = PickLink(rng, plan, LinkContext.Branch, branch.Count);
                 AddLink(rng, plan, previous, region, previous.Rects[0].GetSharedEdges(placed.Value), kind);
                 if (!TryExtendWalk(plan, walk, region, maxWalk))
                 {
@@ -331,9 +360,8 @@ public static class LayoutPlanner
         return all.ToArray();
     }
 
-    private static void AddSideRooms(Random rng, LayoutPlan plan, int targetUnits, IReadOnlyList<PlanRegion> branches, Dictionary<Cell, int> walk, float maxWalk)
+    private static void AddSideRooms(Random rng, LayoutPlan plan, int targetUnits, IReadOnlyList<PlanRegion> branches, Dictionary<Cell, int> walk, float maxWalk, int firstHost)
     {
-        var t = plan.Theme;
         for (int tries = 0; plan.Area < targetUnits && tries < 6000; tries++)
         {
             var hosts = plan.Stations
@@ -341,19 +369,19 @@ public static class LayoutPlanner
                 .Concat(plan.Stations)
                 .Concat(branches)
                 .Concat(plan.Regions.Where(r => r.Kind == RegionKind.SideRoom && plan.Regions[r.Host!.Value].Kind == RegionKind.Station))
+                .Where(r => r.Station >= firstHost || tries >= OpenHostTries)
                 .ToArray();
-            
+
+
             var host = hosts[rng.Next(hosts.Length)];
-            var room = TryAttachRoom(rng, plan, host, Next(rng, t.RoomSize), Next(rng, t.RoomSize), RegionKind.SideRoom);
+            int sideSize = PickRoomSize(rng, plan);
+            var room = TryAttachRoom(rng, plan, host, sideSize, sideSize, RegionKind.SideRoom);
             if (room is null || !TryExtendWalk(plan, walk, room, maxWalk))
             {
                 continue;
             }
 
-            int shared = plan.Links[^1].Boundary.Length;
-            var kind = t.Theme == LevelTheme.Lab
-                ? Pick(rng, (LinkKind.Door, 0.62f), (LinkKind.Arch, 0.3f), (LinkKind.Open, host.Kind == RegionKind.SideRoom ? 0.08f : 0))
-                : Pick(rng, (LinkKind.Arch, 0.8f), (LinkKind.Open, shared <= 6 ? 0.2f : 0));
+            var kind = PickLink(rng, plan, LinkContext.Side);
             SetLinkKind(rng, plan, plan.Links[^1], kind);
         }
     }
@@ -370,27 +398,27 @@ public static class LayoutPlanner
             _ => new UnitRect(rng.Next(hr.U - w + 3, Math.Max(hr.U - w + 3, hr.U + hr.W - 3) + 1), hr.V - h, w, h)
         };
         var shared = hr.GetSharedEdges(r);
-        if (!plan.IsFree(r) || shared.Length < 3)
+        if (!plan.IsFree(r) || shared.Length < 3 || plan.TouchesOtherAtCorner(r, host.Id))
         {
             return null;
         }
 
         var room = plan.AddRegion(kind, r, host.Station, host.Id);
-        AddLink(rng, plan, host, room, shared, LinkKind.Arch, allowDoor: false);
+        AddLink(rng, plan, host, room, shared, LinkKind.Arch);
         return room;
     }
 
-    private static void AddLink(Random rng, LayoutPlan plan, PlanRegion from, PlanRegion to, EdgeKey[] boundary, LinkKind kind, bool allowDoor = true)
+    private static void AddLink(Random rng, LayoutPlan plan, PlanRegion from, PlanRegion to, EdgeKey[] boundary, LinkKind kind)
     {
         var link = new PlanLink { From = from.Id, To = to.Id, Kind = kind, Edges = [], Boundary = boundary };
         plan.Links.Add(link);
-        SetLinkKind(rng, plan, link, kind, allowDoor);
+        SetLinkKind(rng, plan, link, kind);
     }
 
     private static void SetLinkKind(Random rng, LayoutPlan plan, PlanLink link, LinkKind kind, bool allowDoor = true)
     {
         var all = link.Boundary;
-        var inner = all.Length > 2 ? all[1..^1] : all;
+        var inner = GetInnerBoundary(all);
         if (kind == LinkKind.Arch && inner.Length < 2)
         {
             kind = plan.Theme.Theme == LevelTheme.Lab && allowDoor ? LinkKind.Door : LinkKind.Open;
@@ -398,7 +426,7 @@ public static class LayoutPlanner
 
         int width = kind switch
         {
-            LinkKind.Arch => Math.Max(2, Math.Min(Next(rng, plan.Theme.ArchWidth), inner.Length)),
+            LinkKind.Arch => Math.Min(Next(rng, plan.Theme.ArchWidth), inner.Length),
             LinkKind.Door => inner.Length >= 2 && rng.NextSingle() < 0.45f ? 2 : 1,
             _ => 1
         };
@@ -418,30 +446,106 @@ public static class LayoutPlanner
         }
     }
 
-    // Move each doorway to the nearest span of its boundary where no other wall meets it
+    // Move each lab door or arch that stands closer than MinDoorGap to another one to the farthest clear span of its boundary
+    private static void SpaceDoors(LayoutPlan plan)
+    {
+        if (plan.Theme.Theme != LevelTheme.Lab)
+        {
+            return;
+        }
+
+        var doorLinks = plan.Links.Where(l => l is { Kind: LinkKind.Door or LinkKind.Arch, Edges.Count: > 0 }).ToList();
+        foreach (var link in doorLinks)
+        {
+            float current = MeasureDoorGap(doorLinks, link, link.Edges);
+            if (current >= MinDoorGap)
+            {
+                continue;
+            }
+
+            var inner = GetInnerBoundary(link.Boundary);
+            int width = link.Edges.Count;
+            var spans = Enumerable.Range(0, inner.Length - width + 1)
+                .Where(i => IsClear(plan, inner.AsSpan(i, width)))
+                .Select(i => (Index: i, Gap: MeasureDoorGap(doorLinks, link, inner.AsSpan(i, width).ToArray())))
+                .OrderByDescending(s => s.Gap)
+                .ToArray();
+
+            if (spans.Length > 0 && spans[0].Gap > current)
+            {
+                link.Edges = inner.Skip(spans[0].Index).Take(width).ToList();
+            }
+        }
+    }
+
+    private static float MeasureDoorGap(List<PlanLink> doorLinks, PlanLink link, IReadOnlyList<EdgeKey> edges)
+    {
+        float gap = float.MaxValue;
+        foreach (var other in doorLinks.Where(o => o != link))
+        {
+            foreach (var edge in edges)
+            {
+                var position = GetLabDoorPosition(edge);
+                foreach (var otherEdge in other.Edges)
+                {
+                    var otherPosition = GetLabDoorPosition(otherEdge);
+                    float dx = position.X - otherPosition.X;
+                    float dy = position.Y - otherPosition.Y;
+                    gap = MathF.Min(gap, MathF.Sqrt(dx * dx + dy * dy));
+                }
+            }
+        }
+
+        return gap;
+    }
+
+    private static PointF GetLabDoorPosition(EdgeKey edge) =>
+        edge.Axis == 'v' ? ConvertToLabPixels(edge.A + 0.25f, edge.B + 0.25f) : ConvertToLabPixels(edge.A - 0.25f, edge.B + 0.75f);
+
+    private static PointF ConvertToLabPixels(float a, float b) => new(40f * (a + b), 28f * (b - a));
+
+    private static EdgeKey[] GetInnerBoundary(EdgeKey[] boundary) => boundary.Length > 2 ? boundary[1..^1] : boundary;
+
+    // Move each doorway to the nearest span of its boundary where no other wall meets it, keeping a wall piece at both ends when it can
     private static void AlignLinks(LayoutPlan plan)
     {
         foreach (var link in plan.Links.Where(l => l.Kind != LinkKind.Open && l.Edges.Count > 0))
         {
-            if (IsClear(plan, CollectionsMarshal.AsSpan(link.Edges)))
+            var inner = GetInnerBoundary(link.Boundary);
+            if (inner.Contains(link.Edges[0]) && inner.Contains(link.Edges[^1]) && IsClear(plan, CollectionsMarshal.AsSpan(link.Edges)))
             {
                 continue;
             }
 
             int start = Array.IndexOf(link.Boundary, link.Edges[0]);
-            for (int width = link.Edges.Count; width >= 1; width--)
+            foreach (var span in new[] { inner, link.Boundary })
             {
-                int[] spans = Enumerable.Range(0, link.Boundary.Length - width + 1)
-                    .Where(i => IsClear(plan, link.Boundary.AsSpan(i, width)))
-                    .OrderBy(i => Math.Abs(i - start))
-                    .ToArray();
-                if (spans.Length > 0)
+                if (TryAlignLink(plan, link, span, start))
                 {
-                    link.Edges = link.Boundary.Skip(spans[0]).Take(width).ToList();
                     break;
                 }
             }
         }
+    }
+
+    private static bool TryAlignLink(LayoutPlan plan, PlanLink link, EdgeKey[] boundary, int start)
+    {
+        int offset = Array.IndexOf(link.Boundary, boundary[0]);
+        for (int width = link.Edges.Count; width >= 1; width--)
+        {
+            int[] spans = Enumerable.Range(0, boundary.Length - width + 1)
+                .Where(i => IsClear(plan, boundary.AsSpan(i, width)))
+                .OrderBy(i => Math.Abs(i + offset - start))
+                .ToArray();
+
+            if (spans.Length > 0)
+            {
+                link.Edges = boundary.Skip(spans[0]).Take(width).ToList();
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool IsClear(LayoutPlan plan, ReadOnlySpan<EdgeKey> span)
@@ -462,6 +566,40 @@ public static class LayoutPlanner
 
         return true;
         int Region(int u, int v) => plan.Occupancy.GetValueOrDefault(new Cell(u, v), -1);
+    }
+
+    private enum LinkContext { Chain, Branch, Side }
+
+    private static int PickRoomSize(Random rng, LayoutPlan plan)
+    {
+        var profile = plan.Profile;
+        var range = plan.Theme.RoomSize;
+        int size = Next(rng, ((int)MathF.Round(range.Min * profile.SizeScale), (int)MathF.Round(range.Max * profile.SizeScale)));
+        return Math.Min(plan.RoomCap, rng.NextSingle() < profile.BigRoomChance ? Next(rng, profile.BigRoom) : size);
+    }
+
+    private static LinkKind PickLink(Random rng, LayoutPlan plan, LinkContext context, int branchIndex = 0)
+    {
+        bool lab = plan.Theme.Theme == LevelTheme.Lab;
+        if (plan.Profile.PrefersWideLinks)
+        {
+            return lab
+                ? Pick(rng, (LinkKind.Arch, 0.40f), (LinkKind.Open, 0.52f), (LinkKind.Door, 0.08f))
+                : Pick(rng, (LinkKind.Arch, 0.45f), (LinkKind.Open, 0.55f));
+        }
+
+        return context switch
+        {
+            LinkContext.Chain => lab
+                ? Pick(rng, (LinkKind.Door, 0.45f), (LinkKind.Arch, 0.45f))
+                : Pick(rng, (LinkKind.Arch, 0.8f), (LinkKind.Open, 0.2f)),
+            LinkContext.Branch => lab
+                ? Pick(rng, (LinkKind.Door, branchIndex == 0 ? 0.6f : 0.4f), (LinkKind.Arch, 0.5f))
+                : Pick(rng, (LinkKind.Arch, 0.8f), (LinkKind.Open, 0.2f)),
+            _ => lab
+                ? Pick(rng, (LinkKind.Door, 0.62f), (LinkKind.Arch, 0.3f))
+                : Pick(rng, (LinkKind.Arch, 0.8f), (LinkKind.Open, 0.2f))
+        };
     }
 
     private static LinkKind Pick(Random rng, params (LinkKind Kind, float Weight)[] choices)
@@ -505,6 +643,21 @@ public static class LayoutPlanner
             {
                 cut = cuts.Where(k => Math.Abs(BehindShare(k) - gate.Share) <= 0.08f).DefaultIfEmpty(cut).Max();
             }
+            else if (gate.WalkPixels > 0)
+            {
+                // Among the cuts within LockedShareBand of the share, take the one closest to the walk to the breaker
+                int[] inBand = cuts.Where(k => Math.Abs(BehindShare(k) - gate.Share) <= LockedShareBand).ToArray();
+                var first = GetChainLink(plan, 0);
+                if (inBand.Length > 0)
+                {
+                    cut = inBand.OrderBy(k => Math.Abs(MeasureChain(plan, first, GetChainLink(plan, k)) - gate.WalkPixels)).First();
+                }
+
+                if (MeasureChain(plan, first, GetChainLink(plan, cut)) < gate.WalkPixels * MinBreakerWalkShare)
+                {
+                    return false;
+                }
+            }
         }
 
         foreach (var region in plan.Regions)
@@ -547,13 +700,28 @@ public static class LayoutPlanner
                 .OrderBy(r => Math.Abs(Farthest(r) - gate.SearchPixels)).Take(6).ToArray();
         }
 
-        foreach (var host in hosts)
+        for (int hostIndex = 0; hostIndex < hosts.Length; hostIndex++)
         {
-            for (int attempt = 0; attempt < 60; attempt++)
+            var host = hosts[hostIndex];
+            // Try the gate station three times, the last time with smaller rooms
+            int rounds = hostIndex == 0 ? 3 : 1;
+            for (int round = 0; round < rounds; round++)
             {
-                var room = TryAttachRoom(rng, plan, host, Next(rng, (4, 6)), Next(rng, (4, 6)), RegionKind.SideRoom);
-                if (room is not null)
+                (int Min, int Max) size = hostIndex == 0 && round == 2 ? (4, 5) : (4, 6);
+                for (int attempt = 0; attempt < 60; attempt++)
                 {
+                    var room = TryAttachRoom(rng, plan, host, Next(rng, size), Next(rng, size), RegionKind.SideRoom);
+                    if (room is null)
+                    {
+                        continue;
+                    }
+
+                    if (gate.WalkPixels > 0 && MeasureWalkTo(plan, room) < gate.WalkPixels * MinBreakerWalkShare)
+                    {
+                        RemoveLastRegion(plan);
+                        continue;
+                    }
+
                     plan.KeyRoom = room;
                     return true;
                 }
@@ -561,7 +729,7 @@ public static class LayoutPlanner
         }
 
         return false;
-        
+
         float BehindShare(int k) => plan.Regions.Where(r => r.Station > k).Sum(r => r.Units.Count) / (float)plan.Area;
     }
 
@@ -639,14 +807,26 @@ public static class LayoutPlanner
             return true;
         }
 
-        foreach (var unit in region.Units)
+        RemoveLastRegion(plan);
+        return false;
+    }
+
+    private static void RemoveLastRegion(LayoutPlan plan)
+    {
+        foreach (var unit in plan.Regions[^1].Units)
         {
             plan.Occupancy.Remove(unit);
         }
 
         plan.Links.RemoveAt(plan.Links.Count - 1);
         plan.Regions.RemoveAt(plan.Regions.Count - 1);
-        return false;
+    }
+
+    // Returns the walk in pixels from the start to the nearest unit of a region
+    private static float MeasureWalkTo(LayoutPlan plan, PlanRegion region)
+    {
+        var walk = MeasureWalk(plan, [GetStartUnit(plan)], openOnly: false);
+        return region.Units.Where(walk.ContainsKey).Select(unit => walk[unit]).DefaultIfEmpty(0).Min() * plan.Theme.UnitPixels * WalkPerUnitStep;
     }
 
     private static bool GrowWing(Random rng, LayoutPlan plan, int wingUnits)
@@ -654,8 +834,12 @@ public static class LayoutPlanner
         var t = plan.Theme;
         var start = GetChainLink(plan, 0);
         float chain = MeasureChain(plan, start, GetChainLink(plan, plan.Stations.Count - 2));
+        
         int[] hosts = Enumerable.Range(1, plan.Stations.Count - 3)
-            .OrderBy(k => Math.Abs(MeasureChain(plan, start, GetChainLink(plan, k)) - 0.3f * chain)).Take(4).ToArray();
+            .OrderBy(k => Math.Abs(MeasureChain(plan, start, GetChainLink(plan, k)) - WingHostShare * chain))
+            .Take(4)
+            .ToArray();
+        
         foreach (int innerHost in hosts)
         {
             var host = plan.Stations[innerHost];
@@ -746,7 +930,13 @@ public static class LayoutPlanner
 
         if (gate.Kind == GateKind.Blackout)
         {
-            plan.BlackoutLink = GetChainLink(plan, 0);
+            var firstLink = GetChainLink(plan, 0);
+            int trigger = Enumerable.Range(0, Math.Max(1, host.Station))
+                .Where(k => MeasureChain(plan, firstLink, GetChainLink(plan, k)) <= BlackoutReach)
+                .DefaultIfEmpty(0)
+                .Max();
+
+            plan.BlackoutLink = GetChainLink(plan, trigger);
         }
 
         for (int attempt = 0; attempt < 80; attempt++)
@@ -765,13 +955,14 @@ public static class LayoutPlanner
     private static bool PlaceGeneratorRoom(Random rng, LayoutPlan plan, int cut)
     {
         var start = GetChainLink(plan, 0);
-        float chain = MeasureChain(plan, start, GetChainLink(plan, plan.Stations.Count - 2));
         var gateLink = plan.GateLink!;
+        int mid = Math.Max(1, cut / 2);
+        
         int[] candidates = Enumerable.Range(1, cut)
             .Where(k => MeasureChain(plan, GetChainLink(plan, k - 1), gateLink) >= 900)
-            .OrderBy(k => MeasureChain(plan, start, GetChainLink(plan, k - 1)) < 0.1f * chain ? 1 : 0)
-            .ThenBy(k => Math.Abs(MeasureChain(plan, start, GetChainLink(plan, k - 1)) - 0.15f * chain))
+            .OrderBy(k => Math.Abs(k - mid))
             .ToArray();
+        
         int size = plan.Theme.Theme == LevelTheme.Lab ? 5 : 3;
         foreach (int candidate in candidates)
         {
@@ -797,7 +988,75 @@ public static class LayoutPlanner
             return;
         }
 
-        var boundaries = new Dictionary<(int, int), List<EdgeKey>>();
+        int blackout = plan.BlackoutLink is null ? int.MaxValue : plan.Regions[plan.BlackoutLink.From].Station;
+        var candidates = FindBoundaries(plan)
+            .Where(p => p.Value.Count >= 3 && IsOpenRoom(plan.Regions[p.Key.First]) && IsOpenRoom(plan.Regions[p.Key.Second]) && IsSameSide(p.Key.First, p.Key.Second)
+                        && CountHops(plan, p.Key.First, p.Key.Second) >= 3)
+            .ToArray();
+
+        rng.Shuffle(candidates);
+
+        foreach (((int a, int b), var edges) in candidates.Take(count))
+        {
+            var sorted = SortEdges(edges);
+            plan.Links.Add(new PlanLink { From = a, To = b, Kind = LinkKind.SecretWall, Edges = [sorted[sorted.Length / 2]], Boundary = sorted });
+        }
+
+        return;
+
+        bool IsSameSide(int a, int b) => plan.Regions[a].Station > blackout == plan.Regions[b].Station > blackout;
+
+        bool IsOpenRoom(PlanRegion r) => r.Kind is RegionKind.Station or RegionKind.SideRoom && !r.IsGated && r != plan.KeyRoom;
+    }
+
+    // Link touching lab rooms on the same side of the gate that no link joins yet, one loop per RoomsPerLoop rooms, keeping the walk to the key room
+    private static void AddLoops(Random rng, LayoutPlan plan)
+    {
+        if (plan.Theme.Theme != LevelTheme.Lab)
+        {
+            return;
+        }
+
+        int rooms = plan.Regions.Count(r => r.Kind is RegionKind.Station or RegionKind.SideRoom or RegionKind.Wing);
+        int count = Math.Clamp(rooms / RoomsPerLoop, 1, MaxLoops);
+        int blackout = plan.BlackoutLink is null ? int.MaxValue : plan.Regions[plan.BlackoutLink.From].Station;
+        var last = plan.Stations[^1];
+        var candidates = FindBoundaries(plan)
+            .Select(p => (Pair: p.Key, Edges: GetLongestLine(p.Value)))
+            .Where(p => p.Edges.Length >= plan.Theme.MinShared && CanLoop(plan.Regions[p.Pair.First]) && CanLoop(plan.Regions[p.Pair.Second])
+                        && plan.Regions[p.Pair.First].IsGated == plan.Regions[p.Pair.Second].IsGated
+                        && plan.Regions[p.Pair.First].Station > blackout == plan.Regions[p.Pair.Second].Station > blackout
+                        && CountHops(plan, p.Pair.First, p.Pair.Second) >= 2)
+            .ToArray();
+
+        rng.Shuffle(candidates);
+        float keyWalk = plan.KeyRoom is null ? 0 : MeasureWalkTo(plan, plan.KeyRoom);
+        foreach (((int a, int b), var edges) in candidates)
+        {
+            if (count == 0)
+            {
+                break;
+            }
+
+            var kind = plan.Regions[a].IsGated ? PickLink(rng, plan, LinkContext.Side) : LinkKind.Arch;
+            AddLink(rng, plan, plan.Regions[a], plan.Regions[b], edges, kind);
+            if (plan.KeyRoom is not null && MeasureWalkTo(plan, plan.KeyRoom) < keyWalk)
+            {
+                plan.Links.RemoveAt(plan.Links.Count - 1);
+                continue;
+            }
+
+            count--;
+        }
+
+        return;
+
+        bool CanLoop(PlanRegion r) => r.Kind is RegionKind.Station or RegionKind.SideRoom or RegionKind.Wing && r != plan.KeyRoom && r != last;
+    }
+
+    private static Dictionary<(int First, int Second), List<EdgeKey>> FindBoundaries(LayoutPlan plan)
+    {
+        var boundaries = new Dictionary<(int First, int Second), List<EdgeKey>>();
         foreach ((var unit, int area) in plan.Occupancy.OrderBy(p => p.Key.U).ThenBy(p => p.Key.V))
         {
             foreach (var (n, k) in EdgeKey.GetNeighbors(unit))
@@ -817,26 +1076,15 @@ public static class LayoutPlanner
             }
         }
 
-        int blackout = plan.BlackoutLink is null ? int.MaxValue : plan.Regions[plan.BlackoutLink.From].Station;
-        var candidates = boundaries
-            .Where(p => p.Value.Count >= 3 && IsOpenRoom(plan.Regions[p.Key.Item1]) && IsOpenRoom(plan.Regions[p.Key.Item2]) && IsSameSide(p.Key.Item1, p.Key.Item2)
-                        && CountHops(plan, p.Key.Item1, p.Key.Item2) >= 3)
-            .ToArray();
-        
-        rng.Shuffle(candidates);
-        
-        foreach (((int a, int b), var edges) in candidates.Take(count))
-        {
-            var sorted = edges.OrderBy(k => k.Axis).ThenBy(k => k.A).ThenBy(k => k.B).ToArray();
-            plan.Links.Add(new PlanLink { From = a, To = b, Kind = LinkKind.SecretWall, Edges = [sorted[sorted.Length / 2]], Boundary = sorted });
-        }
-
-        return;
-
-        bool IsSameSide(int a, int b) => plan.Regions[a].Station > blackout == plan.Regions[b].Station > blackout;
-        
-        bool IsOpenRoom(PlanRegion r) => r.Kind is RegionKind.Station or RegionKind.SideRoom && !r.IsGated && r != plan.KeyRoom;
+        return boundaries;
     }
+
+    private static EdgeKey[] GetLongestLine(List<EdgeKey> edges) => edges
+        .GroupBy(k => (k.Axis, Line: k.Axis == 'v' ? k.B : k.A))
+        .Select(line => SortEdges(line))
+        .MaxBy(line => line.Length)!;
+
+    private static EdgeKey[] SortEdges(IEnumerable<EdgeKey> edges) => edges.OrderBy(k => k.Axis).ThenBy(k => k.A).ThenBy(k => k.B).ToArray();
 
     private static int CountHops(LayoutPlan plan, int from, int to)
     {
@@ -881,7 +1129,7 @@ public static class LayoutPlanner
                 (0, -1) when hr.W - w - 1 >= 1 => new UnitRect(rng.Next(hr.U + 1, hr.U + hr.W - w), hr.V - h, w, h),
                 _ => null
             };
-            if (r is null || !plan.IsFree(r.Value))
+            if (r is null || !plan.IsFree(r.Value) || plan.TouchesOtherAtCorner(r.Value, host.Id))
             {
                 continue;
             }

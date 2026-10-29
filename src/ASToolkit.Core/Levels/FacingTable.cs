@@ -166,6 +166,22 @@ public sealed class FacingTable
         return dirs.Length > 0 ? dirs[rng.Next(dirs.Length)] : (byte)rng.Next(256);
     }
 
+    /// <summary>
+    /// Returns a value indicating whether the originals support a facing for the object in that spot.
+    /// </summary>
+    public bool HasFacing(KnownObject id, IReadOnlyDictionary<EdgeKey, char> edges, float u, float v)
+    {
+        var wall = FindWall(edges, u, v);
+        var seen = (wall.HasValue ? _dirs.GetValueOrDefault((id, wall.Value.Axis)) : _open.GetValueOrDefault(id)) ?? [];
+        if (seen.Any(d => Fits(id, d, wall, false)))
+        {
+            return true;
+        }
+
+        return _objects.TryFind(id, out var obj) && obj.Directions > 0
+            && Enumerable.Range(0, obj.Directions).Select(i => (byte)(i * 256 / obj.Directions)).Any(d => Fits(id, d, wall, false));
+    }
+
     private bool Fits(KnownObject id, byte dir, (char Axis, float Distance)? wall, bool onBlood)
     {
         if (!_objects.TryFind(id, out var obj) || obj.FramesPerDirection == 0)

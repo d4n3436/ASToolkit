@@ -33,6 +33,7 @@ public sealed class RuleSet
         new LayoutFillRule(),
         new SpineShareRule(),
         new WallFacingRule(),
+        new ComputerOnTableRule(),
         new LockedDoorGateRule(),
         new BlackoutGateRule(),
         new FenceGateRule(),

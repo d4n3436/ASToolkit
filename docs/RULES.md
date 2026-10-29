@@ -11,6 +11,8 @@ This document describes the rules the level generator follows and checks its lev
 
 Where the originals vary a lot from level to level (monster split, clutter, fences, closets), the target is per level. It is taken from the campaign level that the generated level replaces (section E). Other ranges pool all 17 originals, which are campaign levels 2 to 10 and both add-ons.
 
+The placement of loose loot off the main route, the density of the dried blood and the props of each room have no rule. They are described in [GENERATION.md](GENERATION.md) and stay within the decor rules A13, A14 and A17.
+
 ---
 
 ## A. All levels
@@ -86,6 +88,9 @@ The mildest gate in the originals is level 6's fences, at 14%.
 **A17 Decor faces its walls (Hard).** A floor object (z below 5) within 1.5 cells of a wall has a frame that the originals of the theme use for that object against walls of that direction (checked with at least 5 samples). A frame the originals lean on a wall must have a wall within 1 cell.
 - Leaning frames are those the originals put within 1 cell of a wall at least 40% of the time, and four times as often as the object's other frames. That picks the soldier corpse 430 frames 0 and 1 (slumped on `/` and `\` walls) and one board variant (668 frame 3).
 - A leaning corpse in the open is allowed when it lies on a blood pool (110 or 916). The campaign does this five times.
+
+**A18 Decor context (Soft).** Every computer sits on a table, within 2 cells of one.
+- The campaign labs keep every computer (410 or 411) on a table (404). The check allows 2 cells, the distance of one original dead computer from its table.
 
 ---
 

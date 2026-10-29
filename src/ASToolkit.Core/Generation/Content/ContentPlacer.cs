@@ -16,6 +16,8 @@ namespace ASToolkit.Core.Generation.Content;
 public static class ContentPlacer
 {
     private const float EarliestSite = 0.6f;
+    private const float StationProgressPenalty = 0.1f;
+    private const float MinMonsterGap = 12;
     private const float MinSiteStartProgress = 0.3f;
     private const int BreakerFront = 3;
     private const int BreakerSide = 2;
@@ -131,7 +133,7 @@ public static class ContentPlacer
     /// <summary>
     /// Puts a broken keypad next to jammed doors, as often as the originals do.
     /// </summary>
-    public static void PlaceBrokenKeypads(Random rng, MapBuilder map, KeypadTable keypads)
+    public static void PlaceBrokenKeypads(Random rng, MapBuilder map, KeypadTable keypads, Lattice lattice, FacingTable facings, IReadOnlyDictionary<EdgeKey, char> edges)
     {
         foreach (var door in map.Sprites.Where(s => s.Id is KnownObject.DoubleDoorFrame or KnownObject.SmallDoorFrame).ToArray())
         {
@@ -143,7 +145,15 @@ public static class ContentPlacer
             var keypad = keypads.Pick(rng, door.Id, door.Facing, broken: true);
             if (keypad is not null)
             {
-                map.Add(KnownObject.BrokenKeypad, door.Position.X + keypad.Dx, door.Position.Y + keypad.Dy, keypad.Z, keypad.Dir);
+                float x = door.Position.X + keypad.Dx;
+                float y = door.Position.Y + keypad.Dy;
+                (float u, float v) = lattice.ToLattice(x, y);
+                if (!facings.HasFacing(KnownObject.BrokenKeypad, edges, u, v))
+                {
+                    continue;
+                }
+
+                map.Add(KnownObject.BrokenKeypad, x, y, keypad.Z, facings.PickFacing(rng, KnownObject.BrokenKeypad, edges, u, v));
             }
         }
     }
@@ -197,6 +207,10 @@ public static class ContentPlacer
 
     private static PlanRegion[] GetRooms(PlacementContext ctx) =>
         ctx.Plan.Regions.Where(r => r.Kind is RegionKind.Station or RegionKind.SideRoom or RegionKind.Wing && r != ctx.Plan.KeyRoom).ToArray();
+
+    // Returns 2 for a side room off another side room and 1 for any other room
+    private static int GetRoomDepth(PlacementContext ctx, PlanRegion r) =>
+        r is { Kind: RegionKind.SideRoom, Host: not null } && ctx.Plan.Regions[r.Host.Value].Kind == RegionKind.SideRoom ? 2 : 1;
 
     private static PointF GetCenter(PlacementContext ctx, Cell c) => ctx.Layout.Lattice.GetCenter(c);
 
@@ -374,7 +388,11 @@ public static class ContentPlacer
         }
 
         var ordered = (ctx.Plan.KeyRoom is null ? ctx.Plan.Stations : GetRooms(ctx).Where(r => ctx.GetProgress(r) >= MinSiteStartProgress)).OrderBy(progressOf).ToArray();
-        
+        if (ordered.Length == 0)
+        {
+            ordered = ctx.Plan.Stations.ToArray();
+        }
+
         var regions = ordered.Where(r => progressOf(r) >= earliest).ToArray();
         if (regions.Length == 0)
         {
@@ -510,7 +528,7 @@ public static class ContentPlacer
     // Count crates, barrels, chairs and the bio-container too, even though they aren't solid
     private static bool IsCrowded(PlacementContext ctx, float x, float y) => ctx.Map.Sprites.Any(s =>
     {
-        if (!ctx.Objects.TryFind(s.Id, out var obj) || s.Position.Z >= ClutterHeight || !obj.IsSolid && obj.Size.Z < StandingHeight || !s.Id.IsDecor && s.Id != KnownObject.Crate)
+        if (!ctx.Objects.TryFind(s.Id, out var obj) || s.Position.Z >= ClutterHeight || obj is { IsSolid: false, Size.Z: < StandingHeight } || !s.Id.IsDecor && s.Id != KnownObject.Crate)
         {
             return false;
         }
@@ -646,7 +664,7 @@ public static class ContentPlacer
                 foreach (var group in groups[groupIndex])
                 {
                     var r = candidates[ctx.Rng.Next(candidates.Length)];
-                    ctx.Place(ctx.GetFreeCells(r).Where(c => GetDistance(GetCenter(ctx, c), start) >= 900).ToArray(), group.Id, group.Dir, MapBuilder.MonsterPayload, 1, take: false);
+                    ctx.Place(ctx.GetFreeCells(r).Where(c => GetDistance(GetCenter(ctx, c), start) >= 900).ToArray(), group.Id, group.Dir, MapBuilder.MonsterPayload, 1);
                 }
             }
         }
@@ -684,6 +702,9 @@ public static class ContentPlacer
     private static int GetFarthestDistance(PlacementContext ctx, PlanRegion region) =>
         ctx.GetRegionCells(region).Select(c => ctx.Distance.GetValueOrDefault(c)).DefaultIfEmpty(0).Max();
 
+    private static bool IsNearMonster(PlacementContext ctx, float x, float y) =>
+        ctx.Map.Sprites.Any(s => s.Army == 1 && MathF.Abs(s.Position.X - x) < MinMonsterGap && MathF.Abs(s.Position.Y - y) < MinMonsterGap);
+
     private static bool TryPlaceGroup(PlacementContext ctx, IReadOnlyList<GroupMember> group, IReadOnlyList<PlanRegion> regions, PointF start)
     {
         for (int attempt = 0; attempt < 40; attempt++)
@@ -703,7 +724,7 @@ public static class ContentPlacer
                 float y = ay + member.Dy;
                 var c = ctx.Layout.Lattice.GetCell(x, y);
                 bool closet = ctx.Layout.Cells.TryGetValue(c, out int region) && ctx.Plan.Regions[region].Kind is RegionKind.SecretCloset or RegionKind.SpawnCloset;
-                if (ctx.Distance.ContainsKey(c) && !closet && !ctx.IsInWall(x, y, 2) && GetDistance(new PointF(x, y), start) >= 900)
+                if (ctx.Distance.ContainsKey(c) && !closet && !ctx.IsInWall(x, y, 2) && !IsNearMonster(ctx, x, y) && GetDistance(new PointF(x, y), start) >= 900)
                 {
                     spots.Add((member, x, y));
                 }
@@ -1014,7 +1035,11 @@ public static class ContentPlacer
         }
 
         var rooms = GetRooms(ctx);
-        var middle = rooms.Where(r => ctx.GetProgress(r) is >= 0.25f and <= 0.75f && r.Kind == RegionKind.SideRoom).ToArray();
+        var middle = rooms.Where(r => ctx.GetProgress(r) is >= 0.25f and <= 0.75f && r.Kind == RegionKind.SideRoom)
+            .OrderBy(r => Math.Abs(ctx.GetProgress(r) - 0.4f))
+            .ThenByDescending(r => GetRoomDepth(ctx, r))
+            .ToArray();
+        
         foreach (var item in weapons)
         {
             if (!ItemSchedule.IsWeapon(item))
@@ -1086,11 +1111,45 @@ public static class ContentPlacer
             }
         }
 
-        var rooms = GetRooms(ctx);
-        foreach (var item in items.Where(i => i != KnownObject.Dynamite))
+        // Place the loose items of each category in piles near its progress, mostly off the main route
+        foreach ((var category, float target, int pile) in new[]
         {
-            var r = rooms[ctx.Rng.Next(rooms.Length)];
-            ctx.Place(ctx.GetFreeCells(r), item, dir: 0);
+            (ItemCategory.Money, 0.48f, 8),
+            (ItemCategory.Ammo, 0.56f, 3),
+            (ItemCategory.Armor, 0.57f, 1),
+            (ItemCategory.Health, 0.60f, 1),
+            (ItemCategory.Implant, 0.50f, 1),
+            (ItemCategory.Bonus, 0.50f, 2)
+        })
+        {
+            var ofCategory = items.Where(i => i != KnownObject.Dynamite && ItemCategorizer.GetCategory(i) == category).ToArray();
+            PlaceCategory(ctx, ofCategory, target, pile);
+        }
+    }
+
+    // Place items in piles of the given size in the side rooms closest to the target progress, or in any room when there are no side rooms
+    private static void PlaceCategory(PlacementContext ctx, KnownObject[] items, float target, int pile)
+    {
+        if (items.Length == 0)
+        {
+            return;
+        }
+
+        var rooms = GetRooms(ctx);
+        var sideRooms = rooms
+            .Where(r => r.Kind == RegionKind.SideRoom)
+            .ToArray();
+        
+        var pool = (sideRooms.Length > 0 ? sideRooms : rooms)
+            .OrderBy(r => Math.Abs(ctx.GetProgress(r) - target) + (r.Kind == RegionKind.Station ? StationProgressPenalty : 0))
+            .ThenByDescending(r => GetRoomDepth(ctx, r))
+            .ToArray();
+
+        int span = Math.Max(1, pool.Length / 2);
+        for (int itemIndex = 0; itemIndex < items.Length; itemIndex++)
+        {
+            var room = pool[itemIndex / pile % span];
+            ctx.Place(ctx.GetFreeCells(room), items[itemIndex], dir: 0);
         }
     }
 

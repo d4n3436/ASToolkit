@@ -10,15 +10,26 @@ public sealed class LayoutPlan
     /// <summary>
     /// Initializes a new instance of the <see cref="LayoutPlan"/> class.
     /// </summary>
-    public LayoutPlan(ThemeSettings theme)
+    public LayoutPlan(ThemeSettings theme, LayoutStyleProfile profile)
     {
         Theme = theme;
+        Profile = profile;
     }
 
     /// <summary>
     /// Gets the theme settings.
     /// </summary>
     public ThemeSettings Theme { get; }
+
+    /// <summary>
+    /// Gets the room sizing and connection weights the layout is built with.
+    /// </summary>
+    public LayoutStyleProfile Profile { get; }
+
+    /// <summary>
+    /// Gets or sets the largest size of a room, in units.
+    /// </summary>
+    public int RoomCap { get; set; }
 
     /// <summary>
     /// Gets the regions; a region's ID is its index.
@@ -103,6 +114,25 @@ public sealed class LayoutPlan
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Returns whether a unit diagonal to a corner of a rectangle belongs to a region other than the given one.
+    /// </summary>
+    public bool TouchesOtherAtCorner(UnitRect r, int exceptId)
+    {
+        foreach (int u in (int[])[r.U - 1, r.U + r.W])
+        {
+            foreach (int v in (int[])[r.V - 1, r.V + r.H])
+            {
+                if (Occupancy.TryGetValue(new Cell(u, v), out int id) && id != exceptId)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
