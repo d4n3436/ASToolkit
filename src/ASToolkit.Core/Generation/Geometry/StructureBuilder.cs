@@ -10,6 +10,11 @@ namespace ASToolkit.Core.Generation.Geometry;
 /// </summary>
 public static class StructureBuilder
 {
+    private const int RaisedDoubleDoorZ = -70;
+    private const int RaisedSmallDoorZ = -63;
+    private const float StuckDoorChance = 0.5f;
+    private const float MinFakeDoorGap = 160;
+    private static readonly (int Min, int Max) StuckDoorZ = (13, 35);
     private static readonly int[] LabWallDirs = [0, 0, 0, 0, 0, 0, 128, 128, 128, 64, 64, 32];
     private static readonly int[] MilitaryWallDirs = [0, 0, 0, 0, 0, 85, 85, 170];
     private static readonly int[] BeamDirs = [128, 128, 0];
@@ -69,8 +74,26 @@ public static class StructureBuilder
         rng.Shuffle(candidates);
         var candidateSet = candidates.ToHashSet();
         int count = rng.Next(2, 6);
-        foreach (var candidate in candidates.Where(k => !HasMeetingWall(layout.Edges, k)).Take(count))
+        var doors = layout.Edges
+            .Where(p => p.Value is 'D' or 'E' or 'e' or 'O')
+            .Select(p => GetEdgeCenter(layout.Lattice, p.Key))
+            .ToList();
+
+        foreach (var candidate in candidates.Where(k => !HasMeetingWall(layout.Edges, k)))
         {
+            if (count == 0)
+            {
+                break;
+            }
+
+            var center = GetEdgeCenter(layout.Lattice, candidate);
+            if (doors.Any(door => MathF.Sqrt((door.X - center.X) * (door.X - center.X) + (door.Y - center.Y) * (door.Y - center.Y)) < MinFakeDoorGap))
+            {
+                continue;
+            }
+
+            count--;
+            doors.Add(center);
             var previous = GetPreviousEdge(candidate);
             if (!military && candidateSet.Contains(previous) && !HasMeetingWall(layout.Edges, previous) && !layout.FakeDoors.ContainsKey(previous) && rng.NextSingle() < 0.5f)
             {
@@ -95,11 +118,22 @@ public static class StructureBuilder
         }
 
         var spawnWalls = new Dictionary<EdgeKey, int>();
-        var skip = layout.FakeDoors.Where(p => p.Value).Select(p => GetPreviousEdge(p.Key)).ToHashSet();
+        var skip = layout.FakeDoors
+            .Where(p => p.Value)
+            .Select(p => GetPreviousEdge(p.Key))
+            .ToHashSet();
+
+        foreach ((var piece, bool isDouble) in GetArchPieces(edges))
+        {
+            ((float x, float y), bool slash) = GetLabPosition(layout.Lattice, piece);
+            map.Add(isDouble ? KnownObject.DoubleDoorWall : KnownObject.SmallDoorWall, x, y, 0, slash ? 0 : 128);
+            map.Add(isDouble ? KnownObject.DoubleDoorFrame : KnownObject.SmallDoorFrame, x, y, isDouble ? RaisedDoubleDoorZ : RaisedSmallDoorZ, slash ? 0 : 128);
+        }
+
         foreach ((var edge, char kind) in edges)
         {
             ((float x, float y), bool slash) = GetLabPosition(layout.Lattice, edge);
-            if (kind == 'e' || skip.Contains(edge))
+            if (kind is 'e' or 'O' || skip.Contains(edge))
             {
                 continue;
             }
@@ -124,7 +158,8 @@ public static class StructureBuilder
                     if (layout.FakeDoors.TryGetValue(edge, out bool isDouble))
                     {
                         map.Add(isDouble ? KnownObject.DoubleDoorWall : KnownObject.SmallDoorWall, x, y, 0, slash ? 0 : 128);
-                        map.Add(isDouble ? KnownObject.DoubleDoorFrame : KnownObject.SmallDoorFrame, x, y, 0, slash ? 0 : 128);
+                        int z = rng.NextSingle() < StuckDoorChance ? -rng.Next(StuckDoorZ.Min, StuckDoorZ.Max + 1) : 0;
+                        map.Add(isDouble ? KnownObject.DoubleDoorFrame : KnownObject.SmallDoorFrame, x, y, z, slash ? 0 : 128);
                     }
                     else
                     {
@@ -150,6 +185,7 @@ public static class StructureBuilder
     public static void BuildMilitary(Random rng, MapBuilder map, FineLayout layout, IReadOnlyDictionary<EdgeKey, char> edges)
     {
         var l = layout.Lattice;
+        var arches = edges.Where(p => p.Value == 'O').Select(p => p.Key).ToHashSet();
         foreach (var edge in edges.Keys)
         {
             float x, y;
@@ -157,12 +193,23 @@ public static class StructureBuilder
             int dir;
             if (edge.Axis == 'v' && IsEven(edge.A))
             {
+                // A wall piece spans the two unit edges around this one, and arches stay open
+                if (CrossesArch(arches, 'v', edge.A, edge.B))
+                {
+                    continue;
+                }
+
                 (x, y) = l.ToWorld(edge.A + 1, edge.B);
                 id = KnownObject.MilitaryWallSlash;
                 dir = 128;
             }
             else if (edge.Axis == 'u' && IsEven(edge.B))
             {
+                if (CrossesArch(arches, 'u', edge.A, edge.B))
+                {
+                    continue;
+                }
+
                 (x, y) = l.ToWorld(edge.A, edge.B + 1);
                 id = KnownObject.MilitaryWallBack;
                 dir = 0;
@@ -237,6 +284,69 @@ public static class StructureBuilder
             map.Add(KnownObject.Fence, x, y - 14, 0, dir);
         }
     }
+
+    // Returns whether a wall piece on the given edge crosses an open arch
+    private static bool CrossesArch(HashSet<EdgeKey> arches, char axis, int a, int b)
+    {
+        for (int offset = -1; offset <= 2; offset++)
+        {
+            var key = axis == 'v' ? new EdgeKey('v', a + offset, b) : new EdgeKey('u', a, b + offset);
+            if (arches.Contains(key))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // An open doorway is a pair of edges under one sunken double frame, or a single edge under a single one
+    private static IEnumerable<(EdgeKey Piece, bool IsDouble)> GetArchPieces(IReadOnlyDictionary<EdgeKey, char> edges)
+    {
+        var lines = new Dictionary<(char Axis, int Line), List<EdgeKey>>();
+        foreach ((var key, char kind) in edges)
+        {
+            if (kind != 'O')
+            {
+                continue;
+            }
+
+            var line = key.Axis == 'v' ? ('v', key.B) : ('u', key.A);
+            if (lines.TryGetValue(line, out var run))
+            {
+                run.Add(key);
+            }
+            else
+            {
+                lines[line] = [key];
+            }
+        }
+
+        foreach (var line in lines.Values)
+        {
+            var sorted = line.OrderBy(GetLinePosition).ToArray();
+            int runStart = 0;
+            for (int index = 1; index <= sorted.Length; index++)
+            {
+                if (index < sorted.Length && GetLinePosition(sorted[index]) == GetLinePosition(sorted[index - 1]) + 1)
+                {
+                    continue;
+                }
+
+                for (int pieceIndex = runStart; pieceIndex < index; pieceIndex += 2)
+                {
+                    yield return pieceIndex + 1 < index ? (sorted[pieceIndex + 1], true) : (sorted[pieceIndex], false);
+                }
+
+                runStart = index;
+            }
+        }
+    }
+
+    private static int GetLinePosition(EdgeKey edge) => edge.Axis == 'v' ? edge.A : edge.B;
+
+    private static PointF GetEdgeCenter(Lattice lattice, EdgeKey edge) =>
+        edge.Axis == 'v' ? lattice.ToWorld(edge.A + 0.5f, edge.B) : lattice.ToWorld(edge.A, edge.B + 0.5f);
 
     /// <summary>
     /// Returns the map position of a lab wall piece on an edge and whether it runs along '/'.

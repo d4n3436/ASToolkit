@@ -69,6 +69,39 @@ public static class LevelExtractor
     }
 
     /// <summary>
+    /// Returns the edges that the wall, door and frame pieces of a lab cover, as the extractor reads them.
+    /// </summary>
+    public static Dictionary<EdgeKey, char> ReadLabEdges(Lattice lattice, IEnumerable<MergedMapSprite> sprites)
+    {
+        var edges = new Dictionary<EdgeKey, char>();
+        foreach (var sprite in sprites)
+        {
+            if (!KnownObject.LabWalls.Contains(sprite.Id) || sprite.Id is KnownObject.LabBeam or KnownObject.LabBeam2)
+            {
+                continue;
+            }
+
+            char kind = sprite.Id switch
+            {
+                KnownObject.SmallDoor or KnownObject.DoubleDoor => 'D',
+                KnownObject.DoubleDoorFrame or KnownObject.SmallDoorFrame => 'F',
+                _ => 'W'
+            };
+
+            foreach (var key in GetLabEdges(lattice, sprite.Id, sprite.Position.X, sprite.Position.Y))
+            {
+                bool has = edges.TryGetValue(key, out char current);
+                if (kind == 'D' || !has || (current == 'W' && kind == 'F'))
+                {
+                    edges[key] = has && current == 'D' ? 'D' : kind;
+                }
+            }
+        }
+
+        return edges;
+    }
+
+    /// <summary>
     /// Returns the edges a lab wall piece covers. A piece off the lattice covers none, and double doors and frames cover two.
     /// </summary>
     public static IEnumerable<EdgeKey> GetLabEdges(Lattice lattice, KnownObject id, float x, float y)
@@ -235,28 +268,9 @@ public static class LevelExtractor
             }
         }
 
-        foreach (var sprite in sp)
+        foreach ((var key, char kind) in ReadLabEdges(best!, sp))
         {
-            if (!KnownObject.LabWalls.Contains(sprite.Id) || sprite.Id is KnownObject.LabBeam or KnownObject.LabBeam2)
-            {
-                continue;
-            }
-
-            char kind = sprite.Id switch
-            {
-                KnownObject.SmallDoor or KnownObject.DoubleDoor => 'D',
-                KnownObject.DoubleDoorFrame or KnownObject.SmallDoorFrame => 'F',
-                _ => 'W'
-            };
-            
-            foreach (var key in GetLabEdges(best!, sprite.Id, sprite.Position.X, sprite.Position.Y))
-            {
-                bool has = edges.TryGetValue(key, out char current);
-                if (kind == 'D' || !has || (current == 'W' && kind == 'F'))
-                {
-                    edges[key] = has && current == 'D' ? 'D' : kind;
-                }
-            }
+            edges[key] = kind;
         }
 
         return best;

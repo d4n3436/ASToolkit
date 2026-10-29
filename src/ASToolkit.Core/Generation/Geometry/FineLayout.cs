@@ -5,7 +5,7 @@ namespace ASToolkit.Core.Generation.Geometry;
 
 /// <summary>
 /// Represents a layout on the theme's cell lattice. Edge kinds are 'W' wall, 'D' single door, 'E' and 'e' the two halves of
-/// a double door, 'S' breakable wall and 'T' spawn wall.
+/// a double door, 'O' open doorway frame, 'S' breakable wall and 'T' spawn wall.
 /// </summary>
 public sealed class FineLayout
 {
@@ -105,6 +105,13 @@ public sealed class FineLayout
                     foreach (var innerFineCell in fine)
                     {
                         kinds[innerFineCell] = 'D';
+                    }
+
+                    break;
+                case LinkKind.Arch:
+                    foreach (var archFineCell in fine)
+                    {
+                        kinds[archFineCell] = 'O';
                     }
 
                     break;

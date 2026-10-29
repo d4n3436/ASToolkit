@@ -42,6 +42,8 @@ This covers what the toolkit's code does not say by itself, which is how the gam
 - Original rooms leave the floor tile out under wall cabinets.
 - A door is a wall with a gap (606 or 608) with the door (605 or 607) on the same spot. On the `/` axis both use dir 0. On the `\` axis the wall uses 128 and the door 128 (605) or 64 (607).
 - Double doors have a 608 frame and a 607 or 611 door that span two wall edges, the anchor edge and the previous one along the run, which holds no wall piece. Single doors (606, 605, 617) cover one edge.
+- Embedded doors stand open at z −66 to −72 (611) or −61 to −65 (617), stuck half open at −13 to −35, or shut at 0. Campaign labs have about as many open single ones as open double ones.
+- Every door of the campaign labs has at least one wall piece between it and the nearest wall junction along its line, and no two doorways stand closer than 119 px.
 - The floor tiles fit two origins half a cell apart, and the two swap the `/` and `\` slots. The wall pieces decide which origin a level uses.
 
 ### Military lattice
@@ -72,6 +74,7 @@ The route analysis walks a model of the level the way a player would. It is used
 - **Cells.** Lab cells come from the 500 and 502 floors. Military cells come from the 503 floors and are split in two. Lab walls standing on 503 floor use the lab lattice.
 - **Routing grid.** It is twice as fine as the cells. Pieces half a cell off the grid snap to its lines. A piece covers its real length, which is 2 fine edges, or 4 for double doors and frames.
 - **Edge kinds in labs.** W is a wall. D is a door (605, 607) that blocks while doors are locked. F is a closed or jammed embedded door (z 0, or -13 to -35) that blocks. O is an open doorway, either a raised embedded door (z at or below -40) or an empty 606 or 608 frame. S is a last-resort passage (609 and 625 secret walls, 618 and 619 spawn walls, 612 and 616 holes). B is a broken wall (610, 626).
+- **Door axis.** Off the coarse grid a door faces 0 on a '/' wall and 64 or 128 on a '\\' wall. A door with another facing takes the axis that its position fits best.
 - **Military.** Frames 653 are open. The ones with a fence 164 standing in them are gates.
 - **Solid objects.**
   - Every object with flag 0x20 blocks, and flag 0x40 objects block until shot but are passable in the model.

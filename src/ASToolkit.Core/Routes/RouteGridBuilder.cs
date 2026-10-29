@@ -151,6 +151,8 @@ public static class RouteGridBuilder
         return edges;
     }
 
+    private static float GetMiss(float t) => Math.Abs(t - MathF.Round(t));
+
     private static void Put(Dictionary<EdgeKey, char> edges, IReadOnlyList<EdgeKey> keys, char kind)
     {
         foreach (var key in keys)
@@ -184,7 +186,12 @@ public static class RouteGridBuilder
         }
         else if (id is KnownObject.SmallDoor or KnownObject.SmallDoorWall or KnownObject.DoubleDoor or KnownObject.DoubleDoorWall or KnownObject.DoubleDoorFrame or KnownObject.SmallDoorFrame or KnownObject.SmallDoorWall2 or KnownObject.DoubleDoorWall2)
         {
-            slash = dir is < 32 or >= 224;
+            slash = dir switch
+            {
+                < 16 or >= 240 => true,
+                >= 48 and < 144 => false,
+                _ => GetMiss(u - 0.25f) + GetMiss(v - 0.25f) < GetMiss(u + 0.25f) + GetMiss(v - 0.75f)
+            };
         }
         else
         {
