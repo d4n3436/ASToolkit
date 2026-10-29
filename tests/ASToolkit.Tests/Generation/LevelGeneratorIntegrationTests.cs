@@ -15,13 +15,16 @@ public class LevelGeneratorIntegrationTests
     {
         var generator = CreateGenerator();
         var broken = new List<string>();
+        var truncated = new List<string>();
         foreach (int level in ReferenceLevelSet.CampaignLevels)
         {
             var generated = generator.Generate(11, level);
             broken.AddRange(generated.Results.Where(r => r is { Severity: RuleSeverity.Hard, Passed: false }).Select(r => $"L{level} {r.Id}: {r.Detail}"));
+            truncated.AddRange(generated.Map.Sprites.Where(s => s.Payload.Length < 8).Select(s => $"L{level} {s.Id} at ({s.Position.X:0}, {s.Position.Y:0}): {s.Payload.Length} bytes"));
         }
 
         Assert.Empty(broken);
+        Assert.Empty(truncated);
     }
 
     [Fact]

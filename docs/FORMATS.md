@@ -391,12 +391,25 @@ The tint of the placed object is packed in two `u32`, with alpha, red, green and
  |      | 12 bytes              monsters                             |
  |      | 20 bytes              the player (object 9)                |
  |      | 220-268 bytes         script spawners (object 908)         |
- |      | other sizes           crates, teleports, spawn walls       |
+ |      | 12-20 bytes           crates (object 419)                  |
+ |      | other sizes           teleports, spawn walls               |
  |      | 12 bytes + name       Alien Shooter 2, see Drawing a level |
  +------+------------------------------------------------------------+
 ```
 
-In Alien Shooter the payload of a sprite with behavior, such as a spawner (908) or a spawn wall, is one action stack: a `u32` entry count followed by the entries. [NOTES.md](NOTES.md#spawners-908) describes the spawners.
+In Alien Shooter every payload has the same layout:
+
+```
+ u32      entry count
+ entry    (u32 act, i32 a, i32 b, i32 c) * entry count
+ u32      item count
+ u32      item ids * item count
+ u32      3 on most monsters, spawners and teleports (450), 0 on crates and player starts; absent on other sprites
+```
+
+The 8 zero bytes of most sprites are an empty stack and an empty item list. A monster is `00000000 00000000 03000000`, and the player start carries two items (`02000000 05010000 05010000`). A crate holds its loot in the item list, one item in most and two in a few, and an empty crate is 12 zero bytes. A spawner (908) or a spawn wall keeps its program in the stack. [NOTES.md](NOTES.md#spawners-908) describes the spawners.
+
+The engine reads the fields in order without checking them against the size of the record. A payload shorter than its fields is read on into the next record. A stack runs from its last entry, and the engine acts on an entry whose act is 0x11 or above. Its action switch looks only at the low byte of the act, and an act above 255 runs the action of its low byte.
 
 In Alien Shooter 2 the payload of a sprite with behavior starts with its action stacks and ends with its name:
 

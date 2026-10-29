@@ -20,10 +20,10 @@ This covers what the toolkit's code does not say by itself, which is how the gam
 
 ### Spawners (908)
 
-- The payload is an action stack that runs from the end. It is a u32 count, then (op, a, b, c) entries, then a trailer of `00000000 03000000`.
+- The payload is an action stack that runs from the end. It is a u32 count, then (op, a, b, c) entries, then an empty item list and a 3, `00000000 03000000` (see [FORMATS.md](FORMATS.md#maps) for the layout).
 - `ACT_FLAGMAN_TRIGGER` (43, x, y, r) waits until the player is within r. `ACT_BUILD_UNIT` (35, id) builds a monster and `ACT_PAUSE` (40) waits between units. `ACT_STOP_STACK` (73) ends the stack. `ACT_MOVE` (33, x, y) entries are copied to the spawned units as waypoints, and the first one is their final destination.
 - Most monsters in the originals come from spawners. Level 6 has 9 placed monsters and 462 spawned ones, and level 10 has 62 and 1,408.
-- A crate (419) payload of (0, 1, item, 0) holds its loot.
+- A crate (419) holds its loot in the item list of its payload, as (0, 1, item, 0) for one item or (0, 2, item, item, 0) for two. An empty crate is 12 zero bytes.
 - Spawn closets use a 618 (`/`, sprite 601) or 619 (`\`, sprite 602) wall whose payload is `[ACT_STOP_STACK, 15 (ANI_DEATH), ACT_FLAGMAN_TRIGGER x y r]` plus 4 zero bytes. It explodes through `F618_15` and has a 908 inside on the same trigger.
 
 ### Dynamite
