@@ -50,7 +50,7 @@ public sealed class MapBuilder
             : id == KnownObject.PlayerStart ? PlayerStartPayload
             : KnownObject.Monsters.Contains(id) || KnownObject.Bosses.Contains(id) ? MonsterPayload
             : new byte[8];
-        Sprites.Add(new MergedMapSprite(_handle, id, new Vector3((float)x, (float)y, (float)z), (byte)(dir & 255), army ?? _armies.GetArmy(id), data));
+        Sprites.Add(new MergedMapSprite(_handle, id, new Vector3(x, y, z), (byte)(dir & 255), army ?? _armies.GetArmy(id), data));
         return Sprites.Count - 1;
     }
 

@@ -15,7 +15,7 @@ public sealed class PlanRegion
     /// <summary>
     /// Gets the role of the region.
     /// </summary>
-    public required RegionKind Kind { get; init; }
+    public required RegionKind Kind { get; set; }
 
     /// <summary>
     /// Gets the rectangles the region covers.
@@ -30,12 +30,12 @@ public sealed class PlanRegion
     /// <summary>
     /// Gets the index of the station the region belongs to, which for a station is its own.
     /// </summary>
-    public required int Station { get; init; }
+    public required int Station { get; set; }
 
     /// <summary>
     /// Gets the region this one hangs off, or null for a station.
     /// </summary>
-    public int? Host { get; init; }
+    public int? Host { get; set; }
 
     /// <summary>
     /// Gets a value indicating whether the region is a hall segment.

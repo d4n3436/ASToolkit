@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using ASToolkit.Core.Generation;
-using ASToolkit.Core.Generation.Layout;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -13,16 +12,12 @@ internal sealed class PreviewSettings : GameSettings
     public int Seed { get; init; }
 
     [CommandOption("-l|--level <LEVEL>", true)]
-    [Description("The campaign level, 2 to 10, or the add-on level, 1 to 5.")]
+    [Description("The campaign level, 1 to 10, or the add-on level, 1 to 5.")]
     public int Level { get; init; }
 
     [CommandOption("--addon-style")]
     [Description("Generate an add-on level, 1 to 5, instead of a campaign level.")]
     public bool AddOnStyle { get; init; }
-
-    [CommandOption("--layout <STYLE>")]
-    [Description("The layout style, room for a complex of rooms of varied sizes or open for bigger rooms joined by wide connections. Defaults to room.")]
-    public LayoutStyle Layout { get; init; } = LayoutStyle.Room;
 
     [CommandOption("-o|--out <MAP>", true)]
     [Description("The map file to write; the script is written next to it.")]
@@ -38,6 +33,6 @@ internal sealed class PreviewSettings : GameSettings
 
         return AddOnStyle
             ? Level is >= 1 and <= LevelGenerator.AddOnLevelCount ? ValidationResult.Success() : ValidationResult.Error("The add-on level must be 1 to 5.")
-            : Level is >= 2 and <= 10 ? ValidationResult.Success() : ValidationResult.Error("The level must be 2 to 10.");
+            : Level is >= 1 and <= 10 ? ValidationResult.Success() : ValidationResult.Error("The level must be 1 to 10.");
     }
 }

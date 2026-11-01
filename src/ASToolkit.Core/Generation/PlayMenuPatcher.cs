@@ -97,10 +97,16 @@ internal static class PlayMenuPatcher
         for (int recordIndex = 0; recordIndex < records.Count; recordIndex++)
         {
             byte[] r = records[recordIndex];
-            if (r.Length > LabelOffset + 4 && (KnownObject)BinaryPrimitives.ReadUInt32LittleEndian(r.AsSpan(4)) == KnownObject.MenuLabel
-                                           && Math.Abs(GetX(r) - GetX(button)) <= 5 && Math.Abs(GetY(r) - GetY(button)) is var d and <= 3 && d < distance)
+            if (r.Length <= LabelOffset + 4 || (KnownObject)BinaryPrimitives.ReadUInt32LittleEndian(r.AsSpan(4)) != KnownObject.MenuLabel
+                                            || Math.Abs(GetX(r) - GetX(button)) > 5)
             {
-                (best, distance) = (recordIndex, d);
+                continue;
+            }
+
+            float gap = Math.Abs(GetY(r) - GetY(button));
+            if (gap <= 3 && gap < distance)
+            {
+                (best, distance) = (recordIndex, gap);
             }
         }
 

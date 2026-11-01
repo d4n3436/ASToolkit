@@ -108,7 +108,13 @@ public sealed class SpritePartReader
             }
         }
 
-        return cells.Select(pair => ((float)(pair.Key % FrameCells * CellSize - vid.Width / 2), (float)(pair.Key / FrameCells * CellSize - vid.Height / 2), pair.Value)).ToList();
+        int halfWidth = vid.Width / 2;
+        int halfHeight = vid.Height / 2;
+        return cells.Select(pair =>
+        {
+            (int row, int column) = Math.DivRem(pair.Key, FrameCells);
+            return ((float)(column * CellSize - halfWidth), (float)(row * CellSize - halfHeight), pair.Value);
+        }).ToList();
     }
 
     private static int GetMeshHeight(float[] heights, int width, int x, int y)

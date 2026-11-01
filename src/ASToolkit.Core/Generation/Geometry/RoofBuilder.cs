@@ -55,26 +55,29 @@ public static class RoofBuilder
         var structure = GetStructure(map, sprites, area);
 
         var floor = new BitMask(area.Width, area.Height);
-        ForEachStrip(area, strip =>
+        var rasters = Enumerable.Range(0, (area.Width + StripWidth - 1) / StripWidth)
+            .Select(index => new Raster(new Strip(index * StripWidth, Math.Min(StripWidth, area.Width - index * StripWidth)), area))
+            .ToArray();
+        foreach (var raster in rasters)
         {
-            using var raster = new Raster(strip, area);
             raster.Draw(structure);
             raster.CopyFloor(floor);
-        });
+        }
 
         var grounds = AddGroundEarth(rng, map, floor, area, tile, floors, theme);
         int roofZ = theme == LevelTheme.Lab ? LabRoofZ : MilitaryRoofZ;
         var target = new BitMask(area.Width, area.Height);
         var forbidden = new BitMask(area.Width, area.Height);
-        ForEachStrip(area, strip =>
+        foreach (var raster in rasters)
         {
-            using var raster = new Raster(strip, area);
-            raster.Draw(structure);
             raster.MarkGround(tile, grounds);
             raster.Classify(lattice, shown, closets, GroundDepth + 8 * roofZ, target, forbidden);
-        });
+            raster.Dispose();
+        }
 
-        return Cover(tile, target, forbidden, (cx, cy) => map.Add(KnownObject.Earth, cx + area.X0, cy + area.Y0 + roofZ, roofZ, rng.Next(256), unique: false));
+        void Place(int cx, int cy) => map.Add(KnownObject.Earth, cx + area.X0, cy + area.Y0 + roofZ, roofZ, rng.Next(256), unique: false);
+        CoverLattice(tile, target, forbidden, area, floors[0], theme == LevelTheme.Lab ? 0 : 1, Place);
+        return Cover(tile, target, forbidden, Place);
     }
 
     private static bool IsFloor(KnownObject id) => id is KnownObject.BasementFloor or KnownObject.BasementFloorAlt or KnownObject.MilitaryFloor;
@@ -98,10 +101,6 @@ public static class RoofBuilder
 
         return structure.ToArray();
     }
-
-    // Keep strips on 64-pixel boundaries to stop them from sharing a bit mask word
-    private static void ForEachStrip(Area area, Action<Strip> body) =>
-        Parallel.For(0, (area.Width + StripWidth - 1) / StripWidth, i => body(new Strip(i * StripWidth, Math.Min(StripWidth, area.Width - i * StripWidth))));
 
     // Use the other parity on military levels, where a 503 spans two earth tiles
     private static (int Cx, int Cy)[] AddGroundEarth(Random rng, MapBuilder map, BitMask floor, Area area, TileMask tile, MergedMapSprite[] floors, LevelTheme theme)
@@ -156,16 +155,51 @@ public static class RoofBuilder
         return false;
     }
 
+    // Lay tiles on the ground tiles' lattice wherever they clear the forbidden pixels
+    private static void CoverLattice(TileMask tile, BitMask target, BitMask forbidden, Area area, MergedMapSprite first, int parity, Action<int, int> place)
+    {
+        float ox = first.Position.X - area.X0;
+        float oy = first.Position.Y - area.Y0;
+        int i0 = (int)MathF.Floor((tile.HalfWidth - ox) / StepX);
+        int i1 = (int)MathF.Floor((target.Width - tile.HalfWidth - ox) / StepX);
+        int j0 = (int)MathF.Ceiling((-tile.Top - oy) / StepY);
+        int j1 = (int)MathF.Floor((target.Height - 1 - tile.Bottom - oy) / StepY);
+        for (int j = j0; j <= j1; j++)
+        {
+            for (int i = i0; i <= i1; i++)
+            {
+                (int cx, int cy) = ((int)MathF.Round(ox + StepX * i), (int)MathF.Round(oy + StepY * j));
+                if (((i + j) & 1) != parity || cx < tile.HalfWidth || cx >= target.Width - tile.HalfWidth || target.Count(tile, cx, cy) == 0 || forbidden.Any(tile, cx, cy))
+                {
+                    continue;
+                }
+
+                foreach ((int dy, int x0, int x1) in tile.Rows)
+                {
+                    target.Clear(cy + dy, cx + x0, cx + x1);
+                }
+
+                place(cx, cy);
+            }
+        }
+    }
+
     // Greedy cover with lazy scores. Requeue candidates popped with a stale score.
     private static int Cover(TileMask tile, BitMask target, BitMask forbidden, Action<int, int> place)
     {
         var blocks = target.CountBlocks(Block);
         int rowCount = Math.Max(0, (target.Height - tile.Bottom + tile.Top + CandidateStep - 1) / CandidateStep);
         var found = new (int Cx, int Score)[rowCount][];
-        Parallel.For(0, rowCount, i =>
+        for (int i = 0; i < rowCount; i++)
         {
             int cy = -tile.Top + i * CandidateStep;
             var list = new List<(int, int)>();
+            if (blocks.Sum(0, cy + tile.Top, target.Width - 1, cy + tile.Bottom) == 0)
+            {
+                found[i] = [];
+                continue;
+            }
+
             for (int cx = tile.HalfWidth; cx < target.Width - tile.HalfWidth; cx += CandidateStep)
             {
                 if (blocks.Sum(cx - tile.HalfWidth, cy + tile.Top, cx + tile.HalfWidth, cy + tile.Bottom) == 0 || forbidden.Any(tile, cx, cy))
@@ -181,7 +215,7 @@ public static class RoofBuilder
             }
 
             found[i] = list.ToArray();
-        });
+        }
 
         var queue = new PriorityQueue<(int Cx, int Cy), int>(found.Sum(l => l.Length));
         for (int index = 0; index < rowCount; index++)

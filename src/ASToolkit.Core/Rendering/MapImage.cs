@@ -36,7 +36,7 @@ public sealed class MapImage : IDisposable
     /// <summary>
     /// Returns the image position of a world point at a height.
     /// </summary>
-    public PointF ToImage(float x, float y, float z = 0) => new((float)((x - OriginX) * Scale), (float)((y - z - OriginY) * Scale));
+    public PointF ToImage(float x, float y, float z = 0) => new((x - OriginX) * Scale, (y - z - OriginY) * Scale);
 
     /// <inheritdoc/>
     public void Dispose() => Image.Dispose();

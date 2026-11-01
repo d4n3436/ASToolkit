@@ -8,6 +8,10 @@ namespace ASToolkit.Core.Routes;
 /// </summary>
 public static class RouteGridBuilder
 {
+    private const float ChainLinkReach = 120;
+    private const int ChainLinkEdges = 4;
+    private const float DiagonalTolerance = 8;
+
     private static readonly Dictionary<char, int> Rank = new() { ['W'] = 0, ['F'] = 1, ['O'] = 2, ['B'] = 2, ['S'] = 2, ['D'] = 3 };
 
     /// <summary>
@@ -23,9 +27,64 @@ public static class RouteGridBuilder
             ? BuildMilitaryEdges(model, fenceEdges)
             : BuildLabEdges(model);
 
+        if (model.Theme == LevelTheme.Outdoor)
+        {
+            AddChainLinkEdges(fine, edges, model.Sprites);
+        }
+
         var blocked = SolidObjectMapper.FindBlockedCells(fine, cells, SolidObjectMapper.GetCollisionBoxes(model.Sprites, objects));
         cells.ExceptWith(blocked);
         return new RouteGrid { Lattice = fine, Cells = cells, Edges = edges, FenceEdges = fenceEdges, BlockedCells = blocked };
+    }
+
+    // Wall off 4 fine edges per chain-link piece, along the diagonal to its nearest fence neighbor
+    private static void AddChainLinkEdges(Lattice fine, Dictionary<EdgeKey, char> edges, IReadOnlyList<MergedMapSprite> sprites)
+    {
+        var fences = sprites.Where(sprite => sprite.Id is KnownObject.LatticeWall or KnownObject.LatticeFence or KnownObject.TornLattice).ToArray();
+        var walls = sprites.Where(sprite => KnownObject.LabWalls.Contains(sprite.Id)).ToArray();
+        foreach (var fence in fences)
+        {
+            if (fence.Id == KnownObject.TornLattice)
+            {
+                continue;
+            }
+
+            var neighbor = FindNearestOnDiagonal(fence, fences, ChainLinkReach) ?? FindNearestOnDiagonal(fence, walls, float.PositiveInfinity);
+            if (neighbor is null)
+            {
+                continue;
+            }
+
+            bool slash = (neighbor.Position.X - fence.Position.X) * (neighbor.Position.Y - fence.Position.Y) < 0;
+            (float u, float v) = fine.ToLattice(fence.Position.X, fence.Position.Y);
+            for (int index = 0; index < ChainLinkEdges; index++)
+            {
+                var key = slash
+                    ? new EdgeKey('v', (int)MathF.Round(u - ChainLinkEdges / 2f) + index, (int)MathF.Round(v))
+                    : new EdgeKey('u', (int)MathF.Round(u), (int)MathF.Round(v - ChainLinkEdges / 2f) + index);
+                edges.TryAdd(key, 'W');
+            }
+        }
+    }
+
+    private static MergedMapSprite? FindNearestOnDiagonal(MergedMapSprite from, IEnumerable<MergedMapSprite> sprites, float reach)
+    {
+        MergedMapSprite? nearest = null;
+        float best = reach;
+        foreach (var sprite in sprites)
+        {
+            float dx = sprite.Position.X - from.Position.X;
+            float dy = sprite.Position.Y - from.Position.Y;
+            float distance = MathF.Sqrt(dx * dx + dy * dy);
+            bool diagonal = MathF.Abs(MathF.Abs(dy) * LevelExtractor.LabStep.X - MathF.Abs(dx) * LevelExtractor.LabStep.Y) < DiagonalTolerance * distance;
+            if (diagonal && distance > 1 && distance < best)
+            {
+                nearest = sprite;
+                best = distance;
+            }
+        }
+
+        return nearest;
     }
 
     private static HashSet<Cell> SplitCells(IEnumerable<Cell> cells)
@@ -112,7 +171,7 @@ public static class RouteGridBuilder
                 continue;
             }
 
-            var keys = GetFineLabEdges(model.Lattice, sprite.Id, sprite.Position.X, sprite.Position.Y, sprite.Facing);
+            var keys = GetFineLabEdges(model.Lattice, sprite.Id, sprite.Position.X, sprite.Position.Y, sprite.Facing, model.Theme == LevelTheme.Outdoor);
             switch (sprite.Id)
             {
                 case KnownObject.SmallDoorWall or KnownObject.DoubleDoorWall or KnownObject.SmallDoorWall2 or KnownObject.DoubleDoorWall2:
@@ -166,7 +225,7 @@ public static class RouteGridBuilder
     }
 
     // Off the coarse grid, take a door's axis from its dir (0 is '/', 64 or 128 is '\') and a wall's from its ID
-    private static EdgeKey[] GetFineLabEdges(Lattice lattice, KnownObject id, float x, float y, byte dir)
+    private static EdgeKey[] GetFineLabEdges(Lattice lattice, KnownObject id, float x, float y, byte dir, bool outdoor)
     {
         (float u, float v) = lattice.ToLattice(x, y);
         float slashU = 2 * (u - 0.25f);
@@ -175,16 +234,24 @@ public static class RouteGridBuilder
         float backV = 2 * (v - 0.75f);
         float dv = Math.Abs(slashV - MathF.Round(slashV));
         float du = Math.Abs(backU - MathF.Round(backU));
+        bool door = id is KnownObject.SmallDoor or KnownObject.SmallDoorWall or KnownObject.DoubleDoor or KnownObject.DoubleDoorWall or KnownObject.DoubleDoorFrame or KnownObject.SmallDoorFrame
+            or KnownObject.SmallDoorWall2 or KnownObject.DoubleDoorWall2;
         bool slash;
-        if (Lattice.IsNearInteger(u - 0.25f) && Lattice.IsNearInteger(v - 0.25f))
+        // Trust the piece ID of plain walls, and of every piece outdoors
+        bool plain = id is KnownObject.LabWallSlash or KnownObject.LabWallBack or KnownObject.LabWall2Slash or KnownObject.LabWall2Back;
+        if ((outdoor || plain) && (KnownObject.LabSlash.Contains(id) || KnownObject.LabBack.Contains(id)))
+        {
+            slash = KnownObject.LabSlash.Contains(id);
+        }
+        else if (!(outdoor && door) && Lattice.IsNearInteger(u - 0.25f) && Lattice.IsNearInteger(v - 0.25f))
         {
             slash = true;
         }
-        else if (Lattice.IsNearInteger(u + 0.25f) && Lattice.IsNearInteger(v - 0.75f))
+        else if (!(outdoor && door) && Lattice.IsNearInteger(u + 0.25f) && Lattice.IsNearInteger(v - 0.75f))
         {
             slash = false;
         }
-        else if (id is KnownObject.SmallDoor or KnownObject.SmallDoorWall or KnownObject.DoubleDoor or KnownObject.DoubleDoorWall or KnownObject.DoubleDoorFrame or KnownObject.SmallDoorFrame or KnownObject.SmallDoorWall2 or KnownObject.DoubleDoorWall2)
+        else if (door)
         {
             slash = dir switch
             {

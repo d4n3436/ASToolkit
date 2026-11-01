@@ -1,4 +1,5 @@
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Generation.Content;
 using ASToolkit.Core.Generation.Geometry;
 using ASToolkit.Core.Generation.Layout;
 using ASToolkit.Core.Levels;
@@ -6,26 +7,29 @@ using ASToolkit.Core.Levels;
 namespace ASToolkit.Core.Generation.Dressing;
 
 /// <summary>
-/// Provides the blood density, room signatures and battle aftermath of a level's decor.
+/// Provides the blood density and battle aftermath of a level's decor and the stripes in front of its missiles.
 /// </summary>
 public static class RoomDecorator
 {
-    private const float BloodPerCell = 0.05f;
-    private const float CorpsePerCell = 0.002f;
-    private const int MinRoomCells = 20;
+    private const int BloodSource = -5;
     private const int PlantSource = -3;
-    private static readonly (int Du, int Dv)[] Adjacent = [(0, 0), (-1, 0), (1, 0), (0, -1), (0, 1)];
+    private const float BloodReach = 40;
+    private const float MissileReach = 120;
+    private const int GibCount = 3;
+    private const float MissileMarkReach = 90;
+    private const float WallSignHeight = 60;
+    private const float WallSignReach = 0.8f;
+    private const int MarkSource = -6;
 
     private static readonly KnownObject[] BloodIds = [KnownObject.SmallBloodPool, KnownObject.BloodPool, KnownObject.VerticalBloodPool, KnownObject.LargeBloodPool];
     private static readonly KnownObject[] CorpseIds = [KnownObject.ScientistCorpse, KnownObject.SoldierCorpse];
 
-    private sealed record Family(KnownObject[] Pieces, KnownObject[] Detect);
-
     /// <summary>
-    /// Thins the blood and corpses, adds pieces of one decor family to each room and leaves blood and a corpse in the last two stations.
+    /// Thins the blood and the corpses to their rates per floor cell, leaves blood in the last two stations with a corpse and gibs in the
+    /// last one, and lays every corpse on blood.
     /// </summary>
     public static void Decorate(LevelTheme theme, LayoutPlan plan, FineLayout layout, List<PlacedDecor> decor,
-        IReadOnlySet<Cell> floor, IReadOnlySet<Cell> keepClear, DecorHeightTable themeDecor, FacingTable facings)
+        IReadOnlySet<Cell> floor, IReadOnlySet<Cell> keepClear, DecorHeightTable themeDecor, FacingTable facings, float corpseRate, float bloodRate)
     {
         var random = CreateRandom(theme, plan);
         var taken = new HashSet<Cell>();
@@ -35,19 +39,15 @@ public static class RoomDecorator
         }
 
         int index = 0;
-
+        var corpsesBefore = decor.Where(piece => CorpseIds.Contains(piece.Id)).ToArray();
         var blood = decor
-            .Where(piece => BloodIds.Contains(piece.Id))
+            .Where(piece => BloodIds.Contains(piece.Id) && !corpsesBefore.Any(corpse => IsNear(layout.Lattice, piece, corpse, BloodReach)))
             .ToArray();
         
-        int bloodCap = (int)(floor.Count * BloodPerCell);
+        int bloodCap = (int)(floor.Count * bloodRate);
         if (blood.Length > bloodCap)
         {
-            var drop = new HashSet<PlacedDecor>();
-            while (drop.Count < blood.Length - bloodCap)
-            {
-                drop.Add(blood[random.Next(blood.Length)]);
-            }
+            var drop = blood.OrderBy(_ => random.Next()).Take(blood.Length - bloodCap).ToHashSet();
 
             foreach (var cell in blood.Where(drop.Contains).Select(GetCell).Distinct())
             {
@@ -61,63 +61,12 @@ public static class RoomDecorator
             .Where(piece => CorpseIds.Contains(piece.Id))
             .ToArray();
         
-        int corpseCap = (int)(floor.Count * CorpsePerCell);
+        int corpseCap = (int)(floor.Count * corpseRate);
         if (corpses.Length > corpseCap)
         {
-            var drop = new HashSet<PlacedDecor>();
-            while (drop.Count < corpses.Length - corpseCap)
-            {
-                drop.Add(corpses[random.Next(corpses.Length)]);
-            }
+            var drop = corpses.OrderBy(_ => random.Next()).Take(corpses.Length - corpseCap).ToHashSet();
 
             decor.RemoveAll(drop.Contains);
-        }
-
-        // Give each room a cluster of pieces of the family its decor shows, or of the next family in turn
-        var families = GetFamilies(theme)
-            .OrderBy(_ => random.Next())
-            .ToArray();
-        
-        int schedule = 0;
-        var rooms = plan.Regions
-            .Where(r => r.Kind is RegionKind.Station or RegionKind.SideRoom or RegionKind.Wing
-                && r.Id != plan.Stations[0].Id && r.Id != plan.Stations[^1].Id && r.Id != plan.KeyRoom?.Id)
-            .Where(r => layout.GetRegionCells(r.Id).Count >= MinRoomCells)
-            .ToArray();
-        
-        foreach (var region in rooms)
-        {
-            var cells = layout.GetRegionCells(region.Id);
-            var family = DetectFamily(decor, cells, families) ?? families[(schedule++) % families.Length];
-            int pieces = Math.Clamp(cells.Count / 80, 1, 8);
-            var free = cells.Where(cell => IsUsable(cell) && !taken.Contains(cell)).ToList();
-            if (free.Count == 0)
-            {
-                continue;
-            }
-
-            var anchor = free[random.Next(free.Count)];
-            for (int pieceIndex = 0; pieceIndex < pieces; pieceIndex++)
-            {
-                if (free.Count == 0)
-                {
-                    break;
-                }
-
-                int best = 0;
-                for (int candidate = 1; candidate < free.Count; candidate++)
-                {
-                    float bestDistance = Math.Abs(free[best].U - anchor.U) + Math.Abs(free[best].V - anchor.V);
-                    float distance = Math.Abs(free[candidate].U - anchor.U) + Math.Abs(free[candidate].V - anchor.V) + random.NextSingle() * 0.5f;
-                    if (distance < bestDistance)
-                    {
-                        best = candidate;
-                    }
-                }
-
-                Add(family.Pieces[random.Next(family.Pieces.Length)], free[best]);
-                free.RemoveAt(best);
-            }
         }
 
         // Leave blood in the last two stations and a corpse in the last one
@@ -136,9 +85,22 @@ public static class RoomDecorator
                 Add(KnownObject.SmallBloodPool, spots[spot]);
             }
 
-            if (station == denIndex && spots.Length > bloodCount)
+            if (station == denIndex && spots.Length > 0)
             {
-                Add(theme == LevelTheme.Lab ? KnownObject.ScientistCorpse : KnownObject.SoldierCorpse, spots[bloodCount]);
+                Add(theme == LevelTheme.Lab ? KnownObject.ScientistCorpse : KnownObject.SoldierCorpse, spots[0]);
+                for (int gib = 1; gib <= GibCount && gib < spots.Length; gib++)
+                {
+                    Add(KnownObject.FlyingGibs, spots[gib]);
+                }
+            }
+        }
+
+        // Lay every corpse on blood
+        foreach (var corpse in decor.Where(piece => CorpseIds.Contains(piece.Id)).ToArray())
+        {
+            if (!decor.Any(piece => BloodIds.Contains(piece.Id) && IsNear(layout.Lattice, piece, corpse, BloodReach)) && themeDecor.Contains(KnownObject.SmallBloodPool))
+            {
+                decor.Add(new PlacedDecor(KnownObject.SmallBloodPool, corpse.U, corpse.V, themeDecor.GetMiddleHeight(KnownObject.SmallBloodPool), 0, [], (BloodSource, index++), null));
             }
         }
 
@@ -154,6 +116,12 @@ public static class RoomDecorator
             }
 
             byte dir = facings.PickFacing(random, id, layout.Edges, cell.U + 0.5f, cell.V + 0.5f);
+            if (!facings.Fits(id, dir, layout.Edges, cell.U + 0.5f, cell.V + 0.5f) || !facings.IsByWall(id, layout.Edges, cell.U + 0.5f, cell.V + 0.5f)
+                || id.IsWallMounted && !facings.Hangs(id, dir, themeDecor.GetMiddleHeight(id), layout.Edges, cell.U + 0.5f, cell.V + 0.5f))
+            {
+                return;
+            }
+
             byte[] payload = id == KnownObject.Crate ? new byte[12] : [];
             decor.Add(new PlacedDecor(id, cell.U + 0.5f, cell.V + 0.5f, themeDecor.GetMiddleHeight(id), dir, payload, (PlantSource, index++), null));
             taken.Add(cell);
@@ -161,37 +129,55 @@ public static class RoomDecorator
     }
 
     /// <summary>
-    /// Puts a table under every computer that has none next to it.
+    /// Lays the floor stripes of an original missile three with the same facing in front of missile threes that have none, as often as
+    /// the originals do, where every stripe lands on open floor.
     /// </summary>
-    public static void PlaceComputerTables(LevelTheme theme, LayoutPlan plan, FineLayout layout, List<PlacedDecor> decor,
-        DecorHeightTable themeDecor, FacingTable facings)
+    public static void MarkMissiles(Random rng, List<PlacedDecor> decor, IReadOnlyDictionary<byte, List<IReadOnlyList<PropPlacement>>> marks, float share,
+        IReadOnlySet<Cell> floor, IReadOnlySet<Cell> keepClear, Lattice lattice)
     {
-        var random = CreateRandom(theme, plan);
-        foreach (var computer in decor.Where(piece => piece.Id is KnownObject.Computer or KnownObject.ComputerDead).ToArray())
+        int index = 0;
+        var missiles = decor.Where(piece => piece.Id == KnownObject.Missile).ToList();
+        var seen = new HashSet<PlacedDecor>(ReferenceEqualityComparer.Instance);
+        foreach (var middle in missiles.Where(piece => missiles.Count(other => !ReferenceEquals(other, piece) && IsNear(lattice, piece, other, MissileReach)) == 2).ToArray())
         {
-            var cell = GetCell(computer);
-            if (HasAdjacent(decor, KnownObject.Table, cell) || !themeDecor.Contains(KnownObject.Table))
+            var three = missiles.Where(other => IsNear(lattice, middle, other, MissileReach)).ToArray();
+            if (three.Any(seen.Contains))
             {
                 continue;
             }
 
-            byte dir = facings.PickFacing(random, KnownObject.Table, layout.Edges, cell.U + 0.5f, cell.V + 0.5f);
-            decor.Add(new PlacedDecor(KnownObject.Table, cell.U + 0.5f, cell.V + 0.5f, themeDecor.GetMiddleHeight(KnownObject.Table), dir, [], (PlantSource, decor.Count), null));
+            seen.UnionWith(three);
+            if (decor.Any(piece => piece.Id == KnownObject.WallInscriptions && three.Any(missile => IsNear(lattice, piece, missile, MissileMarkReach)))
+                || rng.NextSingle() >= share || !marks.TryGetValue(three[0].Dir, out var scenes))
+            {
+                continue;
+            }
+
+            var center = three.MinBy(piece => three.Sum(other => Distance(lattice, piece, other)))!;
+            (float x, float y) = lattice.ToWorld(center.U, center.V);
+            var stripes = scenes[rng.Next(scenes.Count)]
+                .Select(prop => (Prop: prop, Position: lattice.ToLattice(x + prop.Dx, y + prop.Dy)))
+                .ToArray();
+            if (stripes.All(stripe => floor.Contains(GetCell(stripe.Position.U, stripe.Position.V)) && !keepClear.Contains(GetCell(stripe.Position.U, stripe.Position.V))))
+            {
+                decor.AddRange(stripes.Select(stripe => new PlacedDecor(stripe.Prop.Id, stripe.Position.U, stripe.Position.V, stripe.Prop.Z, stripe.Prop.Dir, [], (MarkSource, index++), null)));
+            }
         }
     }
 
     /// <summary>
-    /// Returns the decor without the computers that have no table next to them.
+    /// Returns the decor of a military level without the floor stripes that lie away from any missile and the wall signs off a wall.
     /// </summary>
-    public static PlacedDecor[] RemoveComputersOffTables(IReadOnlyList<PlacedDecor> decor)
+    public static IEnumerable<PlacedDecor> RemoveStrayMarks(LevelTheme theme, IReadOnlyList<PlacedDecor> decor, IReadOnlyDictionary<EdgeKey, char> edges, Lattice lattice)
     {
-        var tables = decor
-            .Where(piece => piece.Id == KnownObject.Table)
-            .ToList();
+        if (theme != LevelTheme.Military)
+        {
+            return decor;
+        }
 
-        return decor
-            .Where(piece => piece.Id is not (KnownObject.Computer or KnownObject.ComputerDead) || HasAdjacent(tables, KnownObject.Table, GetCell(piece)))
-            .ToArray();
+        var missiles = decor.Where(piece => piece.Id == KnownObject.Missile).ToArray();
+        return decor.Where(piece => piece.Id != KnownObject.WallInscriptions
+            || (piece.Z < WallSignHeight ? missiles.Any(missile => IsNear(lattice, piece, missile, MissileMarkReach)) : FacingTable.FindWall(edges, piece.U, piece.V)?.Distance <= WallSignReach));
     }
 
     // Seed a stream of its own from the layout
@@ -206,57 +192,21 @@ public static class RoomDecorator
         return new Random(seed);
     }
 
-    private static Cell GetCell(PlacedDecor piece) => new((int)MathF.Floor(piece.U), (int)MathF.Floor(piece.V));
+    private static Cell GetCell(PlacedDecor piece) => GetCell(piece.U, piece.V);
 
-    private static bool HasAdjacent(List<PlacedDecor> decor, KnownObject id, Cell center)
+    private static Cell GetCell(float u, float v) => new((int)MathF.Floor(u), (int)MathF.Floor(v));
+
+    private static float Distance(Lattice lattice, PlacedDecor piece, PlacedDecor other)
     {
-        foreach ((int du, int dv) in Adjacent)
-        {
-            var cell = new Cell(center.U + du, center.V + dv);
-            if (decor.Any(piece => piece.Id == id && GetCell(piece) == cell))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        (float x, float y) = lattice.ToWorld(piece.U, piece.V);
+        (float ox, float oy) = lattice.ToWorld(other.U, other.V);
+        return MathF.Sqrt((x - ox) * (x - ox) + (y - oy) * (y - oy));
     }
 
-    private static Family? DetectFamily(List<PlacedDecor> decor, IReadOnlyList<Cell> cells, Family[] families)
+    private static bool IsNear(Lattice lattice, PlacedDecor piece, PlacedDecor other, float reach)
     {
-        var cellSet = cells.ToHashSet();
-        int best = 0;
-        Family? bestFamily = null;
-        foreach (var family in families)
-        {
-            int count = 0;
-            foreach (var piece in decor)
-            {
-                if (cellSet.Contains(GetCell(piece)) && family.Detect.Contains(piece.Id))
-                {
-                    count++;
-                }
-            }
-
-            if (count > best)
-            {
-                best = count;
-                bestFamily = family;
-            }
-        }
-
-        return bestFamily;
+        (float x, float y) = lattice.ToWorld(piece.U, piece.V);
+        (float ox, float oy) = lattice.ToWorld(other.U, other.V);
+        return (x - ox) * (x - ox) + (y - oy) * (y - oy) <= reach * reach;
     }
-
-    private static Family[] GetFamilies(LevelTheme theme) => theme == LevelTheme.Lab ?
-        [
-            new Family([KnownObject.Table, KnownObject.Chair, KnownObject.ComputerDead, KnownObject.Cabinet, KnownObject.Chair, KnownObject.ScatteredPaper, KnownObject.Plant], [KnownObject.Table, KnownObject.Chair, KnownObject.Cabinet]),
-            new Family([KnownObject.TestTubes, KnownObject.Cylinder, KnownObject.Computer, KnownObject.Cabinet, KnownObject.WallInscriptions, KnownObject.MonitorDead], [KnownObject.TestTubes, KnownObject.Cylinder]),
-            new Family([KnownObject.Barrel, KnownObject.Shelves, KnownObject.Crate, KnownObject.Cylinder, KnownObject.WaterCylinder], [KnownObject.Barrel, KnownObject.Shelves, KnownObject.Crate])
-        ] :
-        [
-            new Family([KnownObject.Crate, KnownObject.Barrel, KnownObject.Shelves, KnownObject.Cylinder], [KnownObject.Crate, KnownObject.Barrel, KnownObject.Shelves]),
-            new Family([KnownObject.Crate, KnownObject.Cylinder, KnownObject.RadioactiveBarrel, KnownObject.Shelves], [KnownObject.RadioactiveBarrel, KnownObject.Crate]),
-            new Family([KnownObject.Table, KnownObject.Chair, KnownObject.ComputerDead, KnownObject.Cabinet], [KnownObject.Table, KnownObject.Chair, KnownObject.Cabinet])
-        ];
 }

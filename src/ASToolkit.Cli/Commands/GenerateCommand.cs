@@ -1,5 +1,4 @@
 using ASToolkit.Core.Generation;
-using ASToolkit.Core.Rules;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -9,8 +8,8 @@ internal sealed class GenerateCommand : Command<GenerateSettings>
 {
     public override int Execute(CommandContext context, GenerateSettings settings, CancellationToken cancellationToken)
     {
-        var (generator, _, _) = GeneratorFactory.Create(settings.Game, settings.AddOnStyle, settings.Layout);
-        var table = new Table().AddColumns("Level", "Gate", "Hard rules broken", "Soft rules met", "Roof misses");
+        var (generator, _, _) = GeneratorFactory.Create(settings.Game, settings.AddOnStyle);
+        var table = new Table().AddColumns("Level", "Gate", "Tour", "Walked back", "Unreached", "Roof misses");
         int broken = 0;
         int[] levels = settings.AddOnStyle
             ? Enumerable.Range(1, LevelGenerator.AddOnLevelCount).ToArray()
@@ -19,7 +18,7 @@ internal sealed class GenerateCommand : Command<GenerateSettings>
         int done = 0;
         AnsiConsole.Status().Start($"Generating {levels.Length} levels", status =>
         {
-            var options = new ParallelOptions { CancellationToken = cancellationToken };
+            var options = new ParallelOptions { CancellationToken = cancellationToken, MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) };
             Parallel.For(0, levels.Length, options, i =>
             {
                 generatedLevels[i] = settings.AddOnStyle ? generator.GenerateAddOn(settings.Seed, levels[i]) : generator.Generate(settings.Seed, levels[i]);
@@ -31,24 +30,23 @@ internal sealed class GenerateCommand : Command<GenerateSettings>
         {
             int level = levels[levelIndex];
             var generated = generatedLevels[levelIndex];
-            var hard = generated.Results.Where(r => r is { Severity: RuleSeverity.Hard, Passed: false }).ToArray();
-            var soft = generated.Results.Where(r => r.Severity == RuleSeverity.Soft).ToArray();
-            if (hard.Length > 0)
+            int unreached = generated.Analysis?.FallbackUsage.Unreached ?? 0;
+            if (unreached > 0)
             {
                 broken++;
             }
 
-            table.AddRow($"{RandomAddOnInstaller.FolderName}/Level_{level:00}.map", generated.Plan.Gate?.ToString() ?? "none",
-                hard.Length == 0 ? "[green]none[/]" : $"[red]{Markup.Escape(string.Join(", ", hard.Select(r => r.Id).Distinct()))}[/]",
-                $"{soft.Count(r => r.Passed)} of {soft.Length}", $"{generated.RoofResidual} px");
+            table.AddRow($"{RandomAddOnInstaller.FolderName}/Level_{level:00}.map", generated.Plan?.Gate?.ToString() ?? "none",
+                $"{generated.Analysis?.RoutePixels ?? 0} px", $"{generated.Analysis?.RevisitShare ?? 0:P0}",
+                unreached == 0 ? "[green]none[/]" : $"[red]{unreached}[/]", $"{generated.RoofResidual} px");
         }
 
         RandomAddOnInstaller.Install(settings.Game, settings.AddOnStyle, settings.Seed,
-            levels.Select((n, i) => new RandomAddOnLevel(n, generatedLevels[i], settings.AddOnStyle ? generator.GetAddOnTemplatePath(n) : generator.GetTemplatePath(n))).ToArray());
+            levels.Select((n, i) => new RandomAddOnLevel(n, generatedLevels[i], generator.GetTemplatePath(generatedLevels[i]))).ToArray());
         AnsiConsole.Write(table);
         if (broken > 0)
         {
-            AnsiConsole.MarkupLine($"[red]{broken} level(s) break a hard rule after every candidate; they were installed anyway.[/]");
+            AnsiConsole.MarkupLine($"[red]{broken} level(s) leave objectives out of reach on every layout; they were installed anyway.[/]");
             return 1;
         }
 

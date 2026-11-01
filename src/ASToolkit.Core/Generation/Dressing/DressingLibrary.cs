@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 
@@ -10,17 +11,23 @@ public sealed class DressingLibrary
 {
     private const float CopyTolerance = 0.05f;
     private const float FloorHeight = 5;
+    private const int StripeFrameWidth = 16;
+    private const int FirstStripeFrame = 6;
+    private const int LastStripeFrame = 9;
 
     private readonly List<LevelModel> _sources;
+    private readonly ConcurrentDictionary<(int Source, int Index), Cell[]> _footprints = new();
     private readonly List<Dictionary<Cell, List<int>>> _objectsByCell;
     private readonly Dictionary<(int Size, string Key), List<(int Source, Cell Corner)>> _windows;
     private readonly WallClearanceTable _clearance;
     private readonly FacingTable _facings;
+    private readonly ObjectTable _objects;
 
     private DressingLibrary(List<LevelModel> sources, List<Dictionary<Cell, List<int>>> objectsByCell, Dictionary<(int, string), List<(int, Cell)>> windows, int[] sizes,
-        WallClearanceTable clearance, FacingTable facings)
+        WallClearanceTable clearance, FacingTable facings, ObjectTable objects)
     {
         _facings = facings;
+        _objects = objects;
         _sources = sources;
         _objectsByCell = objectsByCell;
         _windows = windows;
@@ -49,6 +56,7 @@ public sealed class DressingLibrary
                 sources.Add(model);
             }
         }
+
 
         var byCell = new List<Dictionary<Cell, List<int>>>();
         var windows = new Dictionary<(int, string), List<(int, Cell)>>();
@@ -95,7 +103,7 @@ public sealed class DressingLibrary
             }
         }
 
-        return new DressingLibrary(sources, byCell, windows, sizes, clearance, facings);
+        return new DressingLibrary(sources, byCell, windows, sizes, clearance, facings, objects);
     }
 
     /// <summary>
@@ -125,20 +133,51 @@ public sealed class DressingLibrary
     }
 
     /// <summary>
-    /// Copies the objects of a random source window with the same walls into the target window, and returns whether any
-    /// source window matched. An object that would stand closer to a wall than in its source and than the originals usually
-    /// allow, or that would face the walls in a way no original does, is left out.
+    /// Copies the objects of a random source window with the same walls, and none of its cells used before, into the target
+    /// window, and returns whether any source window matched. An object that would stand closer to a wall than in its source and than
+    /// the originals usually allow, that would face the walls in a way the originals rarely or never do, or that would stand away from walls
+    /// where the originals nearly always stand it by one, is left out. With cells to keep clear, windows whose solid pieces stay off them
+    /// come first.
     /// </summary>
-    public bool TryCopy(Random rng, IReadOnlyDictionary<EdgeKey, char> edges, Cell corner, int size, out List<PlacedDecor> placed)
+    public bool TryCopy(Random rng, IReadOnlyDictionary<EdgeKey, char> edges, Cell corner, int size, ISet<(int Source, Cell Cell)> used, out List<PlacedDecor> placed,
+        IReadOnlySet<Cell>? keepClear = null)
     {
         placed = [];
-        if (!_windows.TryGetValue((size, GetWallKey(edges, corner, size)), out var matches))
+        if (!_windows.TryGetValue((size, GetWallKey(edges, corner, size)), out var all))
         {
             return false;
         }
 
-        (int si, var source) = matches[rng.Next(matches.Count)];
-        var m = _sources[si];
+        (int Source, Cell Corner)? pick = null;
+        int best = int.MaxValue;
+        int start = rng.Next(all.Count);
+        for (int step = 0; step < all.Count && best > 0; step++)
+        {
+            var match = all[(start + step) % all.Count];
+            if (GetCells(match.Corner, size).Any(cell => used.Contains((match.Source, cell))))
+            {
+                continue;
+            }
+
+            int tier = keepClear is not null && BlocksCells(match.Source, match.Corner, corner, size, keepClear) ? 1 : 0;
+            if (tier < best)
+            {
+                pick = match;
+                best = tier;
+            }
+        }
+
+        if (pick is null)
+        {
+            return false;
+        }
+
+        (int si, var source) = pick.Value;
+        foreach (var cell in GetCells(source, size))
+        {
+            used.Add((si, cell));
+        }
+
         for (int du = 0; du < size; du++)
         {
             for (int dv = 0; dv < size; dv++)
@@ -150,21 +189,67 @@ public sealed class DressingLibrary
 
                 foreach (int index in indexes)
                 {
-                    var o = m.Objects[index];
-                    (float u, float v) = (o.U - source.U + corner.U, o.V - source.V + corner.V);
-                    if (IsTooCloseToWall(o, m.Edges, edges, u, v) || o.Z < FloorHeight && !_facings.Fits(o.Id, o.Dir, edges, u, v))
-                    {
-                        continue;
-                    }
-
-                    byte[] payload = o.Id == KnownObject.Crate ? new byte[12] : o.Payload;
-                    (int, int)? support = o.SupportIndex is >= 0 ? (si, o.SupportIndex.Value) : null;
-                    placed.Add(new PlacedDecor(o.Id, u, v, o.Z, o.Dir, payload, (si, index), support));
+                    PlaceObject(si, index, source, corner, edges, placed);
                 }
             }
         }
 
         return true;
+    }
+
+    private bool PlaceObject(int si, int index, Cell source, Cell corner, IReadOnlyDictionary<EdgeKey, char> edges, List<PlacedDecor> result)
+    {
+        var m = _sources[si];
+        var o = m.Objects[index];
+        (float u, float v) = (o.U - source.U + corner.U, o.V - source.V + corner.V);
+        if (IsStripe(o) || IsHung(o) && !IsHungAsInSource(o, m.Edges, edges, u, v) || IsTooCloseToWall(o, m.Edges, edges, u, v) || !HasSameWalls(o, m, edges, source, corner) || (o.Z < FloorHeight || o.Id.IsWallMounted) && !(_facings.Fits(o.Id, o.Dir, edges, u, v) && _facings.IsCommon(o.Id, o.Dir, edges, u, v) && _facings.IsByWall(o.Id, edges, u, v))
+            || o.Id.IsWallMounted && !_facings.Hangs(o.Id, o.Dir, o.Z, edges, u, v))
+        {
+            return false;
+        }
+
+        byte[] payload = o.Id == KnownObject.Crate ? new byte[12] : o.Payload;
+        (int, int)? support = o.SupportIndex is >= 0 ? (si, o.SupportIndex.Value) : null;
+        result.Add(new PlacedDecor(o.Id, u, v, o.Z, o.Dir, payload, (si, index), support));
+        return true;
+    }
+
+    // Return whether a solid piece of a source window would cover one of the cells once copied to the target corner
+    private bool BlocksCells(int si, Cell sourceCorner, Cell corner, int size, IReadOnlySet<Cell> cells)
+    {
+        foreach (var cell in GetCells(sourceCorner, size))
+        {
+            if (_objectsByCell[si].TryGetValue(cell, out var indexes) && indexes.Any(index => BlocksFootprint(si, index, sourceCorner, corner, cells)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool BlocksFootprint(int si, int index, Cell sourceCorner, Cell corner, IReadOnlySet<Cell> cells)
+    {
+        var footprint = _footprints.GetOrAdd((si, index), key =>
+        {
+            var o = _sources[key.Source].Objects[key.Index];
+            (float x, float y) = _sources[key.Source].Lattice.ToWorld(o.U, o.V);
+            return Dresser.GetFootprint(_sources[key.Source].Lattice, _objects, o.Id, x, y).ToArray();
+        });
+        return footprint.Any(c => cells.Contains(new Cell(c.U - sourceCorner.U + corner.U, c.V - sourceCorner.V + corner.V)));
+    }
+
+    // Leave floor stripes (131 frames 6 to 9) to the door, missile and cannon scenes
+    private static bool IsStripe(DecorObject o) => o is { Id: KnownObject.WallInscriptions, Z: < FloorHeight } && o.Dir / StripeFrameWidth is >= FirstStripeFrame and <= LastStripeFrame;
+
+    private static bool IsHung(DecorObject o) => o.Id is KnownObject.WallObjects or KnownObject.WallInscriptions && o.Z > FloorHeight;
+
+    // Keep a hung object on the same side of a wall and as far from it as in its source
+    private static bool IsHungAsInSource(DecorObject o, IReadOnlyDictionary<EdgeKey, char> sourceEdges, IReadOnlyDictionary<EdgeKey, char> edges, float u, float v)
+    {
+        var source = FacingTable.FindWall(sourceEdges, o.U, o.V);
+        var target = FacingTable.FindWall(edges, u, v);
+        return source is not null && target is not null && source.Value.Side == target.Value.Side && MathF.Abs(source.Value.Distance - target.Value.Distance) <= CopyTolerance;
     }
 
     /// <summary>
@@ -186,6 +271,17 @@ public sealed class DressingLibrary
         return true;
     }
 
+    private static IEnumerable<Cell> GetCells(Cell corner, int size)
+    {
+        for (int u = corner.U; u < corner.U + size; u++)
+        {
+            for (int v = corner.V; v < corner.V + size; v++)
+            {
+                yield return new Cell(u, v);
+            }
+        }
+    }
+
     private bool IsTooCloseToWall(DecorObject o, IReadOnlyDictionary<EdgeKey, char> sourceEdges, IReadOnlyDictionary<EdgeKey, char> edges, float u, float v)
     {
         if (!_clearance.TryGetClearance(o.Id, out _, out float low))
@@ -196,6 +292,29 @@ public sealed class DressingLibrary
         float target = WallClearanceTable.MeasureDistance(edges, u, v);
         return target < low && target < WallClearanceTable.MeasureDistance(sourceEdges, o.U, o.V) - CopyTolerance;
     }
+
+    // Keep a solid piece only where no wall it does not cross in its source runs through its footprint
+    private bool HasSameWalls(DecorObject o, LevelModel source, IReadOnlyDictionary<EdgeKey, char> edges, Cell sourceCorner, Cell corner)
+    {
+        (float x, float y) = source.Lattice.ToWorld(o.U, o.V);
+        var footprint = Dresser.GetFootprint(source.Lattice, _objects, o.Id, x, y);
+        foreach (var cell in footprint)
+        {
+            var sourceNeighbors = EdgeKey.GetNeighbors(cell);
+            var targetNeighbors = EdgeKey.GetNeighbors(new Cell(cell.U - sourceCorner.U + corner.U, cell.V - sourceCorner.V + corner.V));
+            for (int index = 0; index < 4; index++)
+            {
+                if (footprint.Contains(sourceNeighbors[index].Cell) && !IsWall(source.Edges, sourceNeighbors[index].Edge) && IsWall(edges, targetNeighbors[index].Edge))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsWall(IReadOnlyDictionary<EdgeKey, char> edges, EdgeKey k) => edges.TryGetValue(k, out char kind) && kind is 'W' or 'D' or 'S';
 
     private static char Classify(IReadOnlyDictionary<EdgeKey, char> edges, EdgeKey k) =>
         edges.TryGetValue(k, out char kind) ? kind is 'D' or 'E' or 'e' ? '2' : '1' : '0';

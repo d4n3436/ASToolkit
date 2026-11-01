@@ -42,7 +42,7 @@ public static class KnownObjectExtensions
 
     private static readonly FrozenSet<KnownObject> GameplaySet = new[] 
     {
-        Cursor, UndefinedObject7, UndefinedObject8, PlayerStart, PlayerStartGirl, DynamiteSite, ObjectMarker, Fence, Generator, GeneratorDead, Breaker,
+        Cursor, UndefinedObject7, UndefinedObject8, PlayerStart, PlayerStartFemaleLegs, DynamiteSite, ObjectMarker, Fence, Generator, GeneratorDead, Breaker,
         KeypadOn, KeypadOff, MountedCannon, TeleportPad, SilentTeleportPad, GeneratorSound, Spawner, ShakeDummy, SpawnDummy, ShootHere, ShootHereSpawner,
         PutDynamiteHere, PutDynamiteHereSpawner, BigExplosion, ExplosionSpark, FlyingGibs
     }.Concat(Enumerable.Range((int)FirstEndlessGenerator, LastEndlessGenerator - FirstEndlessGenerator + 1).Select(id => (KnownObject)id)).ToFrozenSet();
@@ -97,6 +97,9 @@ public static class KnownObjectExtensions
 
         /// <summary>Gets a value indicating whether the ID is an endless monster generator.</summary>
         public bool IsEndlessGenerator => id is >= FirstEndlessGenerator and <= LastEndlessGenerator;
+
+        /// <summary>Gets a value indicating whether the ID hangs on a wall above the floor.</summary>
+        public bool IsWallMounted => id is KnownObject.Monitor or MonitorDead;
 
         /// <summary>Gets a value indicating whether the ID is set dressing.</summary>
         public bool IsDecor =>

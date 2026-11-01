@@ -30,5 +30,8 @@ public enum ObjectiveKind
     Dynamite,
 
     /// <summary>Pass the blackout trigger.</summary>
-    Blackout
+    Blackout,
+
+    /// <summary>Reach the exit.</summary>
+    Exit
 }

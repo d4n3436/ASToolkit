@@ -137,7 +137,7 @@ internal static partial class LevelScriptBlockReader
             int bodyStart = SkipSpace(text, close + 1);
             int bodyEnd = FindStatementEnd(text, bodyStart);
             string body = bodyStart < text.Length && text[bodyStart] == '{' ? text[(bodyStart + 1)..bodyEnd] : text[bodyStart..Math.Min(text.Length, bodyEnd + 1)];
-            ReadBlocks(body, [.. conditions, text[(open + 1)..close]], blocks);
+            ReadBlocks(body, conditions.Append(text[(open + 1)..close]).ToList(), blocks);
             position = bodyEnd + 1;
         }
 

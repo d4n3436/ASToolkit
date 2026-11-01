@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Rendering;
 using ASToolkit.Core.Routes;
-using ASToolkit.Core.Rules;
+using ASToolkit.Core.Reference;
 using ASToolkit.Core.Scripting;
 using ASToolkit.Cli.Analysis;
 using SixLabors.ImageSharp;
@@ -186,7 +186,7 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
     {
         var lattice = a.Grid.Lattice;
         var elements = a.Elements.Select(e => new ElementReport(e.Kind, (int)e.Id, e.X, e.Y, e.Hidden, (int)e.CrateItem, MathF.Round(e.Progress, 4), e.Distance, e.BranchDepth,
-            e.Program?.Trigger is { } trigger ? [trigger.X, trigger.Y, trigger.Radius] : [])).ToArray();
+            e.Program?.Trigger is null ? [] : [e.Program.Trigger.Value.X, e.Program.Trigger.Value.Y, e.Program.Trigger.Value.Radius])).ToArray();
         
         int[][] tour = a.Tour.Select(lattice.GetCenter).Select(p => new[] { (int)MathF.Round(p.X), (int)MathF.Round(p.Y) }).ToArray();
         return new RouteReport(map, generated, image, a.Theme, a.RoutePixels, a.SpinePixels, MathF.Round(a.SpinePixels / (float)Math.Max(1, a.RoutePixels), 4),

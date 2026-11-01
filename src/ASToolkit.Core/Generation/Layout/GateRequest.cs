@@ -8,4 +8,5 @@ namespace ASToolkit.Core.Generation.Layout;
 /// <param name="SearchPixels">For a blackout, the walk from the trigger to the breaker; otherwise 0.</param>
 /// <param name="WalkPixels">For locked doors, the walk from the start to the breaker; otherwise 0.</param>
 /// <param name="IsWing">A value indicating whether the gate closes a branch off the route instead of the rest of the route.</param>
-public sealed record GateRequest(GateKind Kind, float Share, float SearchPixels, bool IsWing = false, int WalkPixels = 0);
+/// <param name="KeyProgress">For fences, the share of the tour walked before the first generator; otherwise 0.</param>
+public sealed record GateRequest(GateKind Kind, float Share, float SearchPixels, bool IsWing = false, int WalkPixels = 0, float KeyProgress = 0);

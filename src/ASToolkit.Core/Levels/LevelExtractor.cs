@@ -19,11 +19,16 @@ public static class LevelExtractor
     public static readonly PointF MilitaryStep = new(45, 32);
 
     /// <summary>
-    /// Builds the model of a map, or returns null when the map has no lab or military floor.
+    /// Builds the model of a map, or returns null when the map has no floor.
     /// </summary>
     public static LevelModel? Extract(string name, MapResourceBuilder map, ObjectTable objects)
     {
         var sp = OrderSprites(map.Sprites).ToList();
+        if (sp.Any(s => s.Id is KnownObject.Grass or KnownObject.VolumetricGrass or KnownObject.FlatGrass))
+        {
+            return ExtractOutdoor(name, sp, map.Size, objects);
+        }
+
         int military = sp.Count(s => KnownObject.MilitaryWalls.Contains(s.Id));
         int lab = sp.Count(s => s.Id is KnownObject.LabWallSlash or KnownObject.LabWallBack or KnownObject.LabWall2Slash or KnownObject.LabWall2Back);
         bool isMilitary = military > lab;
@@ -78,6 +83,17 @@ public static class LevelExtractor
         .ThenBy(sprite => sprite.Position.Z)
         .ThenBy(sprite => sprite.Dir)
         .ThenBy(sprite => sprite.Army);
+
+    /// <summary>
+    /// Returns the lattice of a military level's walls and the edges its wall, door and fence pieces cover, as the extractor reads them, or
+    /// null when it has no walls.
+    /// </summary>
+    public static (Lattice Lattice, Dictionary<EdgeKey, char> Edges)? ReadMilitaryEdges(IEnumerable<MergedMapSprite> sprites)
+    {
+        var edges = new Dictionary<EdgeKey, char>();
+        var lattice = ExtractMilitary(OrderSprites(sprites).ToList(), [], edges);
+        return lattice is null ? null : (lattice, edges);
+    }
 
     /// <summary>
     /// Returns the edges that the wall, door and frame pieces of a lab cover, as the extractor reads them.
@@ -243,20 +259,7 @@ public static class LevelExtractor
         }
         else
         {
-            foreach (var wall in sp.Where(s => KnownObject.LabWalls.Contains(s.Id) && s.Id is not (KnownObject.LabBeam or KnownObject.LabBeam2)).Take(40))
-            {
-                foreach ((int dx, int dy) in new[] { (20, 0), (20, 28), (-20, 0), (-20, 28) })
-                {
-                    var candidate = new Lattice(LabStep.X, LabStep.Y, wall.Position.X - dx, wall.Position.Y - dy);
-                    int fit = CountLabFit(sp, candidate);
-                    if (fit > bestFit)
-                    {
-                        best = candidate;
-                        bestFit = fit;
-                    }
-                }
-            }
-
+            best = FitLabLattice(sp);
             if (best is null)
             {
                 return null;
@@ -285,6 +288,61 @@ public static class LevelExtractor
         }
 
         return best;
+    }
+
+    private static Lattice? FitLabLattice(List<MergedMapSprite> sp)
+    {
+        Lattice? best = null;
+        int bestFit = -1;
+        foreach (var wall in sp.Where(s => KnownObject.LabWalls.Contains(s.Id) && s.Id is not (KnownObject.LabBeam or KnownObject.LabBeam2)).Take(40))
+        {
+            foreach ((int dx, int dy) in new[] { (20, 0), (20, 28), (-20, 0), (-20, 28) })
+            {
+                var candidate = new Lattice(LabStep.X, LabStep.Y, wall.Position.X - dx, wall.Position.Y - dy);
+                int fit = CountLabFit(sp, candidate);
+                if (fit > bestFit)
+                {
+                    best = candidate;
+                    bestFit = fit;
+                }
+            }
+        }
+
+        return best;
+    }
+
+    private static LevelModel? ExtractOutdoor(string name, List<MergedMapSprite> sp, SizeF size, ObjectTable objects)
+    {
+        var lattice = FitLabLattice(sp);
+        if (lattice is null)
+        {
+            return null;
+        }
+
+        var corners = new[] { lattice.ToLattice(0, 0), lattice.ToLattice(size.Width, 0), lattice.ToLattice(0, size.Height), lattice.ToLattice(size.Width, size.Height) };
+        var cells = new HashSet<Cell>();
+        for (int u = (int)MathF.Floor(corners.Min(c => c.U)); u <= (int)MathF.Ceiling(corners.Max(c => c.U)); u++)
+        {
+            for (int v = (int)MathF.Floor(corners.Min(c => c.V)); v <= (int)MathF.Ceiling(corners.Max(c => c.V)); v++)
+            {
+                (float x, float y) = lattice.ToWorld(u + 0.5f, v + 0.5f);
+                if (x >= 0 && x <= size.Width && y >= 0 && y <= size.Height)
+                {
+                    cells.Add(new Cell(u, v));
+                }
+            }
+        }
+
+        return new LevelModel
+        {
+            Name = name,
+            Theme = LevelTheme.Outdoor,
+            Lattice = lattice,
+            Cells = cells,
+            Edges = ReadLabEdges(lattice, sp),
+            Objects = ExtractDecor(sp, lattice, objects),
+            Sprites = sp
+        };
     }
 
     private static Lattice? ExtractMilitary(List<MergedMapSprite> sp, HashSet<Cell> cells, Dictionary<EdgeKey, char> edges)

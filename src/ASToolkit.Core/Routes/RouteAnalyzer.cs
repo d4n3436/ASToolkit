@@ -125,6 +125,8 @@ public static class RouteAnalyzer
         public int GetValueOrDefault(Cell c, int fallback = 0) => TryGetValue(c, out int d) ? d : fallback;
     }
 
+    private readonly record struct Gates(bool SecretsClosed, bool DoorsLocked, bool FencesUp);
+
     private sealed class TourBuilder
     {
         private static readonly Dictionary<ObjectiveKind, float> ReachByKind = new()
@@ -160,7 +162,7 @@ public static class RouteAnalyzer
         public RouteAnalysis? Run()
         {
             MergedMapSprite? start = null;
-            foreach (var id in new[] { KnownObject.PlayerStart, KnownObject.PlayerStartGirl, KnownObject.Cursor })
+            foreach (var id in new[] { KnownObject.PlayerStart, KnownObject.PlayerStartFemaleLegs, KnownObject.Cursor })
             {
                 start = _model.Sprites.FirstOrDefault(s => s.Id == id);
                 if (start is not null)
@@ -181,7 +183,7 @@ public static class RouteAnalyzer
             }
 
             var s0 = startCell.Value;
-            var fromStart = Search([s0], k => IsBlocked(k, false, false, false));
+            var fromStart = Search([s0], default);
             _fromStart = fromStart;
             var elements = CollectElements();
             var objectives = CollectObjectives(elements);
@@ -215,7 +217,7 @@ public static class RouteAnalyzer
 
             while (todo.Count > 0)
             {
-                Func<EdgeKey, bool> gate = k => IsBlocked(k, !secretsAllowed, doorsLocked, fencesUp);
+                var gate = new Gates(!secretsAllowed, doorsLocked, fencesUp);
                 var fromCurrent = Search([current], gate);
                 if (todo.All(o => o.Kind != ObjectiveKind.DynamiteSite))
                 {
@@ -228,6 +230,11 @@ public static class RouteAnalyzer
                 }
 
                 var reachable = todo.Where(o => fromCurrent.ContainsKey(o.Cell) && (o.Kind != ObjectiveKind.DynamiteSite || carried > 0) && IsOpened(o)).ToArray();
+                if (reachable.Any(o => o.Kind != ObjectiveKind.Exit))
+                {
+                    reachable = reachable.Where(o => o.Kind != ObjectiveKind.Exit).ToArray();
+                }
+
                 if (reachable.Length == 0)
                 {
                     if (!secretsAllowed)
@@ -248,7 +255,9 @@ public static class RouteAnalyzer
                     break;
                 }
 
-                var keys = reachable.Where(o => (doorsLocked && o.Kind == ObjectiveKind.Breaker) || (fencesUp && o.Kind == ObjectiveKind.Generator)).ToArray();
+                // Head for the breaker or generator first only while it gates an objective
+                bool gating = todo.Any(o => o.Kind is not (ObjectiveKind.Breaker or ObjectiveKind.Generator or ObjectiveKind.Exit) && !fromCurrent.ContainsKey(o.Cell));
+                var keys = gating ? reachable.Where(o => (doorsLocked && o.Kind == ObjectiveKind.Breaker) || (fencesUp && o.Kind == ObjectiveKind.Generator)).ToArray() : [];
                 var pool = keys.Length > 0 ? keys : reachable;
                 var next = pool[0];
                 foreach (var objective in pool)
@@ -259,7 +268,7 @@ public static class RouteAnalyzer
                     }
                 }
 
-                var toNext = Search([next.Cell], gate);
+                var toNext = Search(next.Kind == ObjectiveKind.Exit ? FindExitCells(next) : [next.Cell], gate);
                 var leg = Walk(current, toNext, gate);
                 var phase = doorsLocked ? RoutePhase.DoorsLocked : fencesUp ? RoutePhase.FencesUp : RoutePhase.Free;
                 if (blackout is not null && !doorsLocked)
@@ -290,7 +299,7 @@ public static class RouteAnalyzer
                 var passed = new List<(int Hit, Objective Objective)>();
                 foreach (var objective in todo)
                 {
-                    if (ReferenceEquals(objective, next))
+                    if (ReferenceEquals(objective, next) || objective.Kind == ObjectiveKind.Exit)
                     {
                         continue;
                     }
@@ -361,6 +370,11 @@ public static class RouteAnalyzer
                 {
                     fencesUp = false;
                 }
+
+                if (next.Kind == ObjectiveKind.Exit)
+                {
+                    break;
+                }
             }
 
             int walked = path.Count - 1;
@@ -374,7 +388,7 @@ public static class RouteAnalyzer
                 }
             }
 
-            var branch = Search(unique, k => IsBlocked(k, false, false, false));
+            var branch = Search(unique, default);
             var position = new Dictionary<Cell, int>();
             for (int cellIndex = 0; cellIndex < path.Count; cellIndex++)
             {
@@ -446,12 +460,34 @@ public static class RouteAnalyzer
 
             bool IsOpened(Objective o) => o.Need is null || !todo.Contains(o.Need);
 
+
             float Progress(Cell c) => MathF.Round(projection.GetValueOrDefault(c) / (float)Math.Max(1, walked), 3);
         }
 
-        private bool IsBlocked(EdgeKey k, bool secretsClosed, bool doorsLocked, bool fencesUp)
+        // Collect the cells within the exit's radius that the player reaches without crossing a wall
+        private List<Cell> FindExitCells(Objective exit)
         {
-            if (fencesUp && _grid.FenceEdges.Contains(k))
+            var found = new List<Cell> { exit.Cell };
+            var seen = new HashSet<Cell> { exit.Cell };
+            for (int index = 0; index < found.Count; index++)
+            {
+                foreach (var (neighbor, edge) in EdgeKey.GetNeighbors(found[index]))
+                {
+                    (float x, float y) = _lattice.GetCenter(neighbor);
+                    bool inRange = MathF.Sqrt((x - exit.X) * (x - exit.X) + (y - exit.Y) * (y - exit.Y)) <= exit.Reach;
+                    if (inRange && _index.Find(neighbor) >= 0 && !_grid.Edges.ContainsKey(edge) && seen.Add(neighbor))
+                    {
+                        found.Add(neighbor);
+                    }
+                }
+            }
+
+            return found;
+        }
+
+        private bool IsBlocked(EdgeKey k, Gates gates)
+        {
+            if (gates.FencesUp && _grid.FenceEdges.Contains(k))
             {
                 return true;
             }
@@ -461,10 +497,10 @@ public static class RouteAnalyzer
                 return false;
             }
 
-            return RouteGrid.IsBlocking(kind) || (secretsClosed && kind == 'S') || (doorsLocked && kind == 'D');
+            return RouteGrid.IsBlocking(kind) || (gates.SecretsClosed && kind == 'S') || (gates.DoorsLocked && kind == 'D');
         }
 
-        private DistanceMap Search(IEnumerable<Cell> sources, Func<EdgeKey, bool> isBlocked)
+        private DistanceMap Search(IEnumerable<Cell> sources, Gates gates)
         {
             var distance = new DistanceMap(_index);
             foreach (var source in sources)
@@ -481,7 +517,7 @@ public static class RouteAnalyzer
                 int d = distance[c];
                 foreach (var (n, k) in EdgeKey.GetNeighbors(c))
                 {
-                    if (distance.IsUnreached(n) && !isBlocked(k))
+                    if (distance.IsUnreached(n) && !IsBlocked(k, gates))
                     {
                         distance.TryAdd(n, d + 1);
                         _queue.Enqueue(n);
@@ -492,7 +528,7 @@ public static class RouteAnalyzer
             return distance;
         }
 
-        private static Cell[] Walk(Cell from, DistanceMap toTarget, Func<EdgeKey, bool> isBlocked)
+        private Cell[] Walk(Cell from, DistanceMap toTarget, Gates gates)
         {
             var walk = new List<Cell> { from };
             while (toTarget.GetValueOrDefault(walk[^1]) > 0)
@@ -501,7 +537,7 @@ public static class RouteAnalyzer
                 bool moved = false;
                 foreach (var (n, k) in EdgeKey.GetNeighbors(walk[^1]))
                 {
-                    if (toTarget.TryGetValue(n, out int there) && there == here - 1 && !isBlocked(k))
+                    if (toTarget.TryGetValue(n, out int there) && there == here - 1 && !IsBlocked(k, gates))
                     {
                         walk.Add(n);
                         moved = true;
@@ -783,6 +819,16 @@ public static class RouteAnalyzer
                 }
             }
 
+            if (_script.Exit is not null)
+            {
+                var exit = _script.Exit.Value;
+                var (ec, _) = FindNearestReachableCell(exit.Center.X, exit.Center.Y);
+                if (ec is not null && _fromStart!.ContainsKey(ec.Value))
+                {
+                    objectives.Add(new Objective { Kind = ObjectiveKind.Exit, Cell = ec.Value, X = exit.Center.X, Y = exit.Center.Y, Reach = exit.Radius });
+                }
+            }
+
             foreach (var objective in objectives)
             {
                 if (objective.Reach == 0)
@@ -809,7 +855,7 @@ public static class RouteAnalyzer
             IReadOnlyList<int> breakerFromBlackout = [];
             var breakers = elements.Where(e => e.Kind == ElementKind.Breaker).ToArray();
             bool hasDoors = _grid.Edges.Values.Any(v => v == 'D');
-            Func<EdgeKey, bool> doorsShut = k => IsBlocked(k, false, true, false);
+            var doorsShut = new Gates(false, true, false);
             if ((_script.DoorsLocked || _script.Blackout is not null) && hasDoors)
             {
                 var zone = Search([start], doorsShut);
@@ -833,7 +879,7 @@ public static class RouteAnalyzer
 
             if (elements.Any(e => e.Kind == ElementKind.Fence))
             {
-                Func<EdgeKey, bool> fenced = k => IsBlocked(k, false, false, true);
+                var fenced = new Gates(false, false, true);
                 var zone = Search([start], fenced);
                 fencedOffShare = MathF.Round(1 - zone.Count / (float)Math.Max(1, fromStart.Count), 3);
                 var fenceCells = _grid.FenceEdges.SelectMany(k => new[] { k.Cells.First, k.Cells.Second }).Where(zone.ContainsKey).ToArray();

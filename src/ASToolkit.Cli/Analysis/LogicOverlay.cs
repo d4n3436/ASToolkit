@@ -43,7 +43,7 @@ internal static class LogicOverlay
 
     public static void Draw(MapImage map, LevelLogic logic, WalkedRoute? walk)
     {
-        float k = (float)(map.Scale / TunedScale);
+        float k = map.Scale / TunedScale;
         var font = LabelFamily.Value.CreateFont(Math.Max(10, MathF.Round(11 * k)), FontStyle.Bold);
         map.Image.Mutate(context =>
         {
@@ -53,7 +53,7 @@ internal static class LogicOverlay
                 var center = ToImage(map, marker.Position);
                 if (marker.Radius > 0)
                 {
-                    context.Draw(color, Size(1), new EllipsePolygon(center, Math.Max(Size(3), (float)(marker.Radius * map.Scale))));
+                    context.Draw(color, Size(1), new EllipsePolygon(center, Math.Max(Size(3), marker.Radius * map.Scale)));
                 }
                 else
                 {
@@ -96,7 +96,7 @@ internal static class LogicOverlay
 
         return;
 
-        float Size(float width) => Math.Max(1, MathF.Round((float)width * k));
+        float Size(float width) => Math.Max(1, MathF.Round(width * k));
     }
 
     private static PointF ToImage(MapImage map, Vector3 point) => map.ToImage(point.X, point.Y, point.Z);

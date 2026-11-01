@@ -9391,19 +9391,19 @@
         "kind": "monsters",
         "x": 1564,
         "y": 3131,
-        "p": 0.409
+        "p": 0.407
       },
       {
         "kind": "monsters",
         "x": 1295,
         "y": 3106,
-        "p": 0.409
+        "p": 0.411
       },
       {
         "kind": "monsters",
         "x": 1438,
         "y": 3153,
-        "p": 0.409
+        "p": 0.412
       },
       {
         "kind": "monsters",
@@ -10872,7 +10872,7 @@
     "theme": "lab",
     "coarse_cells": 4110,
     "coarse_edges": 581,
-    "cells": 9154,
+    "cells": 9077,
     "route_px": 18603,
     "revisit_share": 0.02,
     "gates": {},
@@ -14540,7 +14540,7 @@
     "theme": "lab",
     "coarse_cells": 7338,
     "coarse_edges": 1043,
-    "cells": 24223,
+    "cells": 20843,
     "route_px": 20019,
     "revisit_share": 0.076,
     "gates": {},
@@ -14796,14 +14796,14 @@
     "theme": "lab",
     "coarse_cells": 5682,
     "coarse_edges": 934,
-    "cells": 12314,
-    "route_px": 6323,
-    "revisit_share": 0.015,
+    "cells": 11850,
+    "route_px": 7251,
+    "revisit_share": 0,
     "gates": {},
     "legs": [
       {
         "phase": "free",
-        "px": 6324
+        "px": 7251
       }
     ],
     "objectives": [
@@ -14811,163 +14811,163 @@
         "kind": "trigger",
         "x": 3306,
         "y": 2395,
-        "p": 0.193
+        "p": 0.168
       },
       {
         "kind": "trigger",
         "x": 3280,
         "y": 2392,
-        "p": 0.201
+        "p": 0.175
       },
       {
         "kind": "trigger",
         "x": 3280,
         "y": 2392,
-        "p": 0.201
+        "p": 0.175
       },
       {
         "kind": "trigger",
         "x": 3280,
         "y": 2392,
-        "p": 0.201
+        "p": 0.175
       },
       {
         "kind": "trigger",
         "x": 3280,
         "y": 2392,
-        "p": 0.239
+        "p": 0.209
       },
       {
         "kind": "trigger",
         "x": 3306,
         "y": 2395,
-        "p": 0.239
+        "p": 0.209
       },
       {
         "kind": "trigger",
         "x": 2682,
         "y": 1987,
-        "p": 0.293
+        "p": 0.256
       },
       {
         "kind": "trigger",
         "x": 2682,
         "y": 1987,
-        "p": 0.359
+        "p": 0.313
       },
       {
         "kind": "spawned",
         "x": 4277,
         "y": 3099,
-        "p": 0.359
+        "p": 0.313
       },
       {
         "kind": "spawned",
         "x": 4277,
         "y": 3099,
-        "p": 0.359
+        "p": 0.313
       },
       {
         "kind": "monsters",
         "x": 2077,
         "y": 1423,
-        "p": 0.444
+        "p": 0.387
       },
       {
         "kind": "monsters",
         "x": 2019,
         "y": 1472,
-        "p": 0.444
+        "p": 0.387
       },
       {
         "kind": "monsters",
         "x": 1962,
         "y": 1504,
-        "p": 0.452
+        "p": 0.394
       },
       {
         "kind": "monsters",
         "x": 2011,
         "y": 1384,
-        "p": 0.459
+        "p": 0.401
       },
       {
         "kind": "monsters",
         "x": 1900,
         "y": 1470,
-        "p": 0.459
+        "p": 0.401
       },
       {
         "kind": "monsters",
         "x": 2205,
         "y": 1627,
-        "p": 0.459
+        "p": 0.401
       },
       {
         "kind": "monsters",
         "x": 1966,
         "y": 1347,
-        "p": 0.475
+        "p": 0.414
       },
       {
         "kind": "monsters",
         "x": 1851,
         "y": 1427,
-        "p": 0.483
+        "p": 0.421
       },
       {
         "kind": "monsters",
         "x": 2020,
         "y": 1145,
-        "p": 0.498
+        "p": 0.434
       },
       {
         "kind": "monsters",
         "x": 1700,
         "y": 1251,
-        "p": 0.514
+        "p": 0.448
       },
       {
         "kind": "monsters",
         "x": 1910,
         "y": 1376,
-        "p": 0.529
+        "p": 0.461
       },
       {
         "kind": "monsters",
         "x": 1515,
         "y": 1444,
-        "p": 0.61
+        "p": 0.532
       },
       {
         "kind": "spawned",
         "x": 1190,
         "y": 1916,
-        "p": 0.656
+        "p": 0.593
       },
       {
         "kind": "spawned",
         "x": 836,
         "y": 1808,
-        "p": 0.695
+        "p": 0.66
       },
       {
         "kind": "spawned",
         "x": 1022,
         "y": 1740,
-        "p": 0.718
+        "p": 0.721
       },
       {
         "kind": "spawned",
         "x": 2181,
         "y": 706,
-        "p": 0.934
+        "p": 0.956
       },
       {
         "kind": "spawned",
         "x": 2321,
         "y": 659,
-        "p": 0.95
+        "p": 0.976
       },
       {
         "kind": "spawned",
@@ -16221,7 +16221,7 @@
     "theme": "lab",
     "coarse_cells": 13110,
     "coarse_edges": 1533,
-    "cells": 22815,
+    "cells": 22719,
     "route_px": 33715,
     "revisit_share": 0.045,
     "gates": {},

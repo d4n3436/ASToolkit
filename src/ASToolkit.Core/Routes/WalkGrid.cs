@@ -49,11 +49,15 @@ internal sealed class WalkGrid
 
     public int GetCell(Vector3 point) => GetCell((int)MathF.Floor(point.X / CellSize), (int)MathF.Floor(point.Y / CellSize));
 
-    public Vector3 GetPoint(int cell) => new((cell % Columns + 0.5f) * CellSize, (cell / Columns + 0.5f) * CellSize, _standing[cell]);
+    public Vector3 GetPoint(int cell)
+    {
+        (int row, int column) = Math.DivRem(cell, Columns);
+        return new Vector3((column + 0.5f) * CellSize, (row + 0.5f) * CellSize, _standing[cell]);
+    }
 
     public void Stamp(IEnumerable<(float X, float Y, short Height)> points, Vector3 position, Vector3 scale, bool isScenery)
     {
-        var heights = isScenery ? _sceneryHeights : _objectHeights;
+        short[] heights = isScenery ? _sceneryHeights : _objectHeights;
         foreach (var point in points)
         {
             int cell = GetCell(new Vector3(position.X + point.X * scale.X, position.Y + point.Y * scale.Y, 0));
@@ -206,7 +210,7 @@ internal sealed class WalkGrid
             }
 
             GetNext(cell, next);
-            foreach (var (neighbor, step) in next)
+            foreach ((int neighbor, int step) in next)
             {
                 if (costs[neighbor] > cost + step)
                 {
@@ -254,7 +258,7 @@ internal sealed class WalkGrid
             }
 
             GetNext(cell, next);
-            foreach (var (neighbor, _) in next)
+            foreach ((int neighbor, int _) in next)
             {
                 if (!failed.Contains(neighbor) && visited.Add(neighbor))
                 {
@@ -274,7 +278,12 @@ internal sealed class WalkGrid
     // Takes the cell nearest to the target that the accept test allows, or the nearest one when the preference is not strict and none is allowed
     private int ChooseEnd(List<int> reached, PathPreference preference)
     {
-        var nearest = reached.OrderBy(cell => Vector2.Distance(new Vector2((cell % Columns + 0.5f) * CellSize, (cell / Columns + 0.5f) * CellSize), new Vector2(preference.Target.X, preference.Target.Y))).ToList();
+        var target = new Vector2(preference.Target.X, preference.Target.Y);
+        var nearest = reached.OrderBy(cell =>
+        {
+            var point = GetPoint(cell);
+            return Vector2.Distance(new Vector2(point.X, point.Y), target);
+        }).ToList();
         foreach (int cell in nearest.Where(cell => preference.Accept(GetPoint(cell))))
         {
             return cell;

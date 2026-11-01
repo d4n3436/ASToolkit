@@ -14,7 +14,6 @@ app.Configure(config =>
     config.AddCommand<GenerateCommand>("generate").WithDescription("Generates levels into the game as the RANDOM add-on and adds it to the play menu.");
     config.AddCommand<RestoreCommand>("restore").WithDescription("Removes the RANDOM add-on and the script and menu changes it made.");
     config.AddCommand<PreviewCommand>("preview").WithDescription("Generates one level into a map file.");
-    config.AddCommand<CheckCommand>("check").WithDescription("Checks campaign levels 2 to 10 against the level rules.");
     config.AddBranch("widescreen", widescreen =>
     {
         widescreen.SetDescription("Adds or removes the widescreen mod.");
@@ -23,10 +22,13 @@ app.Configure(config =>
     });
     config.AddBranch("inspect", inspect =>
     {
-        inspect.SetDescription("Prints the objects, sprites, action stacks and sprite files of a game.");
+        inspect.SetDescription("Prints the objects, sprites, action stacks, sprite files and level places of a game.");
         inspect.AddCommand<InspectObjectCommand>("object").WithDescription("Prints every field of an object, its link chain and whether it blocks the player.");
         inspect.AddCommand<InspectSpritesCommand>("sprites").WithDescription("Lists the sprites of a map with their army, facing, sprite name and the openings the scripts give them.");
         inspect.AddCommand<InspectStacksCommand>("stacks").WithDescription("Lists the action stacks of the sprites of a map in run order.");
+        inspect.AddCommand<InspectLevelCommand>("level").WithDescription("Surveys levels into their places, connections and gates, with an image of the places.");
+        inspect.AddCommand<InspectRoomsCommand>("rooms").WithDescription("Writes a cropped image of every room of the original levels with its role and type, and the tables of types by role and level.");
+        inspect.AddCommand<InspectDesignCommand>("design").WithDescription("Measures the design of the original levels and of generated ones, such as furniture, pickups, walls and pacing, into design.tsv and design.md.");
         inspect.AddCommand<InspectVidCommand>("vid").WithDescription("Prints the flags, format, frames, depth histogram and height points of a sprite file.");
     });
     config.AddCommand<AnalyzeCommand>("analyze").WithDescription("Analyzes the routes of original or generated levels into routes.json and map images with the tour drawn on them.");

@@ -8,6 +8,14 @@ namespace ASToolkit.Core.Generation.Content;
 /// </summary>
 public sealed class OriginalContent
 {
+    private const float CannonSceneReach = 230;
+    private const float DoorMarkReach = 60;
+    private const float MissileReach = 120;
+    private const float MissileMarkReach = 90;
+    private const float WallSignHeight = 60;
+
+    private static readonly HashSet<KnownObject> DoorIds = [KnownObject.SmallDoor, KnownObject.DoubleDoor, KnownObject.SmallDoorFrame, KnownObject.DoubleDoorFrame, KnownObject.FenceEmitter];
+
     /// <summary>Gets the level name.</summary>
     public required string Name { get; init; }
 
@@ -105,7 +113,7 @@ public sealed class OriginalContent
     /// <summary>
     /// Returns the props within 170 pixels of each breaker of the given levels.
     /// </summary>
-    public static IReadOnlyList<PropPlacement>[] LoadBreakerScenes(string gameFolder, IEnumerable<string> levels)
+    public static IReadOnlyList<IReadOnlyList<PropPlacement>> LoadBreakerScenes(string gameFolder, IEnumerable<string> levels)
     {
         var scenes = new List<IReadOnlyList<PropPlacement>>();
         foreach (string level in levels)
@@ -119,6 +127,104 @@ public sealed class OriginalContent
         }
 
         return scenes.ToArray();
+    }
+
+    /// <summary>
+    /// Returns the floor stripes (131) within 230 pixels of each mounted cannon of the given levels.
+    /// </summary>
+    public static IReadOnlyList<IReadOnlyList<PropPlacement>> LoadCannonScenes(string gameFolder, IEnumerable<string> levels)
+    {
+        var scenes = new List<IReadOnlyList<PropPlacement>>();
+        foreach (string level in levels)
+        {
+            var sp = MapResourceBuilder.Load(Path.Combine(gameFolder, "Maps", level)).Sprites;
+            foreach (var cannon in sp.Where(s => s.Id == KnownObject.MountedCannon))
+            {
+                scenes.Add(sp.Where(o => o.Id == KnownObject.WallInscriptions && MathF.Sqrt(MathF.Pow(o.Position.X - cannon.Position.X, 2) + MathF.Pow(o.Position.Y - cannon.Position.Y, 2)) < CannonSceneReach)
+                    .Select(o => new PropPlacement(o.Id, o.Position.X - cannon.Position.X, o.Position.Y - cannon.Position.Y, o.Position.Z, o.Facing)).ToArray());
+            }
+        }
+
+        return scenes.Where(scene => scene.Count > 0).ToArray();
+    }
+
+    /// <summary>
+    /// Returns the floor stripes (131) within 90 pixels of each missile three of the given levels, placed from the middle missile and
+    /// keyed by its facing, and the share of the threes that have any.
+    /// </summary>
+    public static (Dictionary<byte, List<IReadOnlyList<PropPlacement>>> Marks, float Share) LoadMissileMarks(string gameFolder, IEnumerable<string> levels)
+    {
+        var marks = new Dictionary<byte, List<IReadOnlyList<PropPlacement>>>();
+        int threes = 0;
+        foreach (string level in levels)
+        {
+            var sp = MapResourceBuilder.Load(Path.Combine(gameFolder, "Maps", level)).Sprites;
+            var stripes = sp.Where(s => s is { Id: KnownObject.WallInscriptions, Position.Z: < WallSignHeight }).ToArray();
+            var left = sp.Where(s => s.Id == KnownObject.Missile).ToList();
+            while (left.Count > 0)
+            {
+                var group = new List<MergedMapSprite> { left[0] };
+                left.RemoveAt(0);
+                for (int index = 0; index < group.Count; index++)
+                {
+                    var joined = left.Where(s => GetDistance(s, group[index]) <= MissileReach).ToArray();
+                    group.AddRange(joined);
+                    left.RemoveAll(joined.Contains);
+                }
+
+                if (group.Count != 3)
+                {
+                    continue;
+                }
+
+                threes++;
+                var middle = group.MinBy(s => group.Sum(other => GetDistance(s, other)))!;
+                var near = stripes.Where(s => group.Any(missile => GetDistance(s, missile) <= MissileMarkReach))
+                    .Select(o => new PropPlacement(o.Id, o.Position.X - middle.Position.X, o.Position.Y - middle.Position.Y, o.Position.Z, o.Facing)).ToArray();
+                if (near.Length == 0)
+                {
+                    continue;
+                }
+
+                if (!marks.TryGetValue(middle.Facing, out var list))
+                {
+                    list = [];
+                    marks[middle.Facing] = list;
+                }
+
+                list.Add(near);
+            }
+        }
+
+        return (marks, marks.Values.Sum(list => list.Count) / (float)Math.Max(1, threes));
+    }
+
+    /// <summary>
+    /// Returns the wall marks (131) within 60 pixels of each door of a map, keyed by the door's ID and facing, and the share of its doors that have any.
+    /// </summary>
+    public static (Dictionary<(KnownObject Id, byte Dir), List<IReadOnlyList<PropPlacement>>> Marks, float Share) LoadDoorMarks(MapResourceBuilder map)
+    {
+        var marks = new Dictionary<(KnownObject, byte), List<IReadOnlyList<PropPlacement>>>();
+        var doors = map.Sprites.Where(s => DoorIds.Contains(s.Id)).ToArray();
+        foreach (var door in doors)
+        {
+            var near = map.Sprites.Where(o => o.Id == KnownObject.WallInscriptions && MathF.Sqrt(MathF.Pow(o.Position.X - door.Position.X, 2) + MathF.Pow(o.Position.Y - door.Position.Y, 2)) < DoorMarkReach)
+                .Select(o => new PropPlacement(o.Id, o.Position.X - door.Position.X, o.Position.Y - door.Position.Y, o.Position.Z, o.Facing)).ToArray();
+            if (near.Length == 0)
+            {
+                continue;
+            }
+
+            if (!marks.TryGetValue((door.Id, door.Facing), out var list))
+            {
+                list = [];
+                marks[(door.Id, door.Facing)] = list;
+            }
+
+            list.Add(near);
+        }
+
+        return (marks, marks.Values.Sum(list => list.Count) / (float)Math.Max(1, doors.Length));
     }
 
     /// <summary>
@@ -148,14 +254,14 @@ public sealed class OriginalContent
                 }
 
                 int rank = members.Where(m => m.Id >= KnownObject.FirstEndlessGenerator).Select(m => m.Id - KnownObject.FirstEndlessGenerator).DefaultIfEmpty(0).Max();
-                sites.Add(new SiteTemplate(sprite.Position.Z, sprite.Facing, rank, members));
+                sites.Add(new SiteTemplate(sprite.Position.Z, sprite.Facing, rank, members, level));
             }
         }
 
         return sites.ToArray();
     }
 
-    private static IReadOnlyList<GroupMember>[] ClusterMonsters(List<MergedMapSprite> sp)
+    private static IReadOnlyList<IReadOnlyList<GroupMember>> ClusterMonsters(List<MergedMapSprite> sp)
     {
         var monsters = sp.Where(s => KnownObject.ObjectiveMonsters.Contains(s.Id)).ToArray();
         bool[] seen = new bool[monsters.Length];
@@ -189,4 +295,6 @@ public sealed class OriginalContent
 
         return groups.ToArray();
     }
+
+    private static float GetDistance(MergedMapSprite a, MergedMapSprite b) => MathF.Sqrt(MathF.Pow(a.Position.X - b.Position.X, 2) + MathF.Pow(a.Position.Y - b.Position.Y, 2));
 }

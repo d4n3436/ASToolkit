@@ -51,13 +51,36 @@ public static class LevelScriptWriter
             "  int i;",
             "  iff(1)",
             "  {",
-            "    InitGame();",
+            "    InitGame();"
+        };
+        if (script.Exit is not null)
+        {
+            lines.Add("    PlayMusicFile(\"music\\\\wind.ogg\",1);");
+        }
+
+        lines.AddRange(
+        [
             $"    DoorsIsOpen = {(script.DoorsOpen ? 1 : 0)};",
             "  }",
             "  if( GameTact() )",
             "    return;",
-            "  CompaignGameTact();"
-        };
+            script.Exit is null ? "  CompaignGameTact();" : "//  CompaignGameTact();"
+        ]);
+        if (script.Exit is not null)
+        {
+            var exit = script.Exit.Value;
+            lines.AddRange(
+            [
+                $"  iff( SizeTo(Flagman(0),{exit.Center.X},{exit.Center.Y}) < {exit.Radius} )",
+                "  {",
+                "    Win();",
+                "    while( MenuFind(3,999999) )",
+                "      Destroy( MenuFind(3,999999) );",
+                "    LoadNextMap( \"maps\\\\shop.map\" );",
+                "  }"
+            ]);
+        }
+
         if (script.Blackout is not null)
         {
             (int x, int y) = ((int)script.Blackout.Value.X, (int)script.Blackout.Value.Y);

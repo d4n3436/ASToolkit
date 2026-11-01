@@ -104,8 +104,8 @@ public sealed class MapResourceBuilder
         file.GetChunk("SPRD").Records = payloads;
         byte[] headArr = new byte[24];
         var head = headArr.AsSpan();
-        MemoryMarshal.Write(head, (float)Size.Width);
-        MemoryMarshal.Write(head[4..], (float)Size.Height);
+        MemoryMarshal.Write(head, Size.Width);
+        MemoryMarshal.Write(head[4..], Size.Height);
         MemoryMarshal.Write(head[8..], Scroll);
         MemoryMarshal.Write(head[16..], 1999);
         MemoryMarshal.Write(head[20..], 12);

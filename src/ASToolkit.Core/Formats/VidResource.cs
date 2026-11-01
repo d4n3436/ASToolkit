@@ -347,7 +347,7 @@ public readonly struct VidResource
 
         var cadr = MemoryMarshal.Read<CadrHeader>(record.Span[start..]);
         int pixels = start + Unsafe.SizeOf<CadrHeader>() + 2 * cadr.IndexCount + 4 * cadr.VertexCount;
-        int rowCount = Math.Min((int)cadr.Height, Height - cadr.Top);
+        int rowCount = Math.Min(cadr.Height, Height - cadr.Top);
         if (cadr.Width == 0 || rowCount <= 0 || pixels > record.Length)
         {
             return default;

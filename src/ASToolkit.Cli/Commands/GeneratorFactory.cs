@@ -1,7 +1,6 @@
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Generation;
-using ASToolkit.Core.Generation.Layout;
-using ASToolkit.Core.Rules;
+using ASToolkit.Core.Reference;
 using Spectre.Console;
 
 namespace ASToolkit.Cli.Commands;
@@ -15,11 +14,11 @@ internal static class GeneratorFactory
         "ADDON2/Level_01.map", "ADDON2/Level_02.map", "ADDON2/Level_03.map", "ADDON2/Level_04.map", "ADDON2/Level_05.map"
     ];
 
-    public static (LevelGenerator Generator, ReferenceLevelSet References, ObjectTable Objects) Create(string game, bool addOnStyle = false, LayoutStyle style = LayoutStyle.Room)
+    public static (LevelGenerator Generator, ReferenceLevelSet References, ObjectTable Objects) Create(string game, bool addOnStyle = false)
     {
         var objects = ObjectTable.Load(Path.Combine(game, "objects.res"));
         var references = AnsiConsole.Status().Start("Analyzing the original levels", _ => ReferenceLevelSet.Load(game, objects, addOnStyle));
         var armies = ArmyTable.Load(game, ArmySources);
-        return (new LevelGenerator(game, objects, references, armies, addOnStyle, style), references, objects);
+        return (new LevelGenerator(game, objects, references, armies, addOnStyle), references, objects);
     }
 }

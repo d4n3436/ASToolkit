@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Collections.Concurrent;
 using System.Numerics;
 using ASToolkit.Core.Formats;
@@ -5,9 +6,12 @@ using ASToolkit.Core.Generation.Content;
 using ASToolkit.Core.Generation.Dressing;
 using ASToolkit.Core.Generation.Geometry;
 using ASToolkit.Core.Generation.Layout;
+using ASToolkit.Core.Generation.Outdoor;
 using ASToolkit.Core.Levels;
+using ASToolkit.Core.Rooms;
 using ASToolkit.Core.Routes;
-using ASToolkit.Core.Rules;
+using ASToolkit.Core.Reference;
+using ASToolkit.Core.Survey;
 
 namespace ASToolkit.Core.Generation;
 
@@ -21,14 +25,30 @@ public sealed class LevelGenerator
     /// </summary>
     public const int AddOnLevelCount = 5;
 
-    private const int Candidates = 6;
-    private const int MaxCandidates = 40;
+    private const float BreakerSceneReach = 130;
+    private const int MaxLayouts = 8;
+
+    private const int SeedPrime = 7919;
+    private const int BudgetSalt = 17;
+    private const int ContentSalt = 101;
     private const int MaxBreakerRetries = 20;
+    private const float GeneratorMargin = 0.04f;
+    private const float FloorMiss = 0.15f;
+    private static readonly (float Min, float Max) GeneratorBand = (0.08f, 0.3f);
     private const int RoofSeed = 99;
-    private const float LayoutFillSlack = 0.9f;
+    private const float BlackoutSearchPixels = 5200;
+    private const int MaxPlanAttempts = 200;
+    private const int OwnProfileAttempts = 50;
+    private const float GateClearance = 100;
+    private const float SiteClearance = 150;
+    private const float LaneClearance = 100;
+    private const float LaneStep = 40;
+    private const float DecorFloorHeight = 5;
+    private const float BloodReach = 0.15f;
+    private const float ClearanceTolerance = 0.05f;
 
     // Campaign levels the add-on levels take their structure from
-    private static readonly int[] AddOnSlots = [2, 3, 5, 8, 10];
+    private static readonly int[][] AddOnSlots = [[1, 4, 5, 3, 9], [1, 5, 5, 8, 5]];
 
     private static readonly string[] AddOnLevels =
     [
@@ -36,6 +56,7 @@ public sealed class LevelGenerator
         "ADDON2/Level_01.map", "ADDON2/Level_02.map", "ADDON2/Level_03.map", "ADDON2/Level_04.map", "ADDON2/Level_05.map"
     ];
 
+    private static readonly string[] LabLevels = ["Level_02.map", "Level_03.map", "Level_04.map", "Level_05.map"];
     private static readonly string[] LabSiteLevels = ["Level_03.map", "Level_04.map"];
     private static readonly string[] MilitarySiteLevels = ["Level_07.map", "Level_08.map", "Level_09.map"];
     private static readonly string[] AddOnLabSiteLevels = ["ADDON/Level_01.map", "ADDON/Level_02.map", "ADDON/Level_03.map"];
@@ -45,28 +66,33 @@ public sealed class LevelGenerator
     private readonly string _gameFolder;
     private readonly ObjectTable _objects;
     private readonly ReferenceLevelSet _references;
-    private readonly LayoutStyle _style;
     private readonly ArmyTable _armies;
     private readonly Lazy<OriginalContentSet> _content;
     private readonly Lazy<DressingLibrary> _labLibrary;
     private readonly Lazy<DressingLibrary> _militaryLibrary;
-    private readonly Lazy<IReadOnlyList<PropPlacement>[]> _breakerScenes;
+    private readonly Lazy<RoomFurnisher> _militaryFurnisher;
+    private readonly Lazy<RoomFurnisher> _labFurnisher;
+    private readonly Lazy<IReadOnlyList<IReadOnlyList<PropPlacement>>> _breakerScenes;
+    private readonly Lazy<IReadOnlyList<IReadOnlyList<PropPlacement>>> _cannonScenes;
+    private readonly Lazy<(Dictionary<byte, List<IReadOnlyList<PropPlacement>>> Marks, float Share)> _missileMarks;
+    private readonly OutdoorLevelBuilder _outdoor;
     private readonly Lazy<SiteTemplate[]> _labSites;
     private readonly Lazy<SiteTemplate[]> _militarySites;
     private readonly Lazy<SpriteLibrary> _sprites;
     private readonly Lazy<KeypadTable> _keypads;
+    private readonly Lazy<LevelProfile[]> _labProfiles;
+    private readonly Lazy<LevelProfile[]> _militaryProfiles;
     private readonly ConcurrentDictionary<int, Lazy<OriginalLevel>> _originals = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="LevelGenerator"/> class.
     /// </summary>
-    public LevelGenerator(string gameFolder, ObjectTable objects, ReferenceLevelSet references, ArmyTable armies, bool addOnStyle = false, LayoutStyle style = LayoutStyle.Room)
+    public LevelGenerator(string gameFolder, ObjectTable objects, ReferenceLevelSet references, ArmyTable armies, bool addOnStyle = false)
     {
         _addOnStyle = addOnStyle;
         _gameFolder = gameFolder;
         _objects = objects;
         _references = references;
-        _style = style;
         _armies = armies;
         string[] sources = ReferenceLevelSet.CampaignLevels
             .Select(ReferenceLevelSet.GetCampaignName)
@@ -74,11 +100,19 @@ public sealed class LevelGenerator
             .ToArray();
         
         _content = new Lazy<OriginalContentSet>(() => OriginalContentSet.Load(gameFolder, sources, objects));
-        _labLibrary = new Lazy<DressingLibrary>(() => DressingLibrary.Build(gameFolder, objects, LevelTheme.Lab, sources, GetDressingDecor(references, LevelTheme.Lab), references.GetWallClearance(LevelTheme.Lab), references.GetFacings(LevelTheme.Lab)));
-        _militaryLibrary = new Lazy<DressingLibrary>(() => DressingLibrary.Build(gameFolder, objects, LevelTheme.Military, sources, GetDressingDecor(references, LevelTheme.Military), references.GetWallClearance(LevelTheme.Military), references.GetFacings(LevelTheme.Military)));
+        _labFurnisher = new Lazy<RoomFurnisher>(() => CreateFurnisher(references, objects, LevelTheme.Lab));
+        _militaryFurnisher = new Lazy<RoomFurnisher>(() => CreateFurnisher(references, objects, LevelTheme.Military));
+        _labLibrary = new Lazy<DressingLibrary>(() => DressingLibrary.Build(gameFolder, objects, LevelTheme.Lab, sources, GetWallDressing(references, LevelTheme.Lab), references.GetWallClearance(LevelTheme.Lab), references.GetFacings(LevelTheme.Lab)));
+        _militaryLibrary = new Lazy<DressingLibrary>(() => DressingLibrary.Build(gameFolder, objects, LevelTheme.Military, sources, GetWallDressing(references, LevelTheme.Military), references.GetWallClearance(LevelTheme.Military), references.GetFacings(LevelTheme.Military)));
         _sprites = new Lazy<SpriteLibrary>(() => new SpriteLibrary(gameFolder, objects));
         _keypads = new Lazy<KeypadTable>(() => KeypadTable.Load(gameFolder, sources));
-        _breakerScenes = new Lazy<IReadOnlyList<PropPlacement>[]>(() => OriginalContent.LoadBreakerScenes(gameFolder, ["Level_02.map", "Level_03.map", "Level_04.map"]));
+        _labProfiles = new Lazy<LevelProfile[]>(() => LabLevels.Select(name => LevelProfile.Measure(references.GetSurvey(name), ThemeSettings.Lab)).ToArray());
+        _militaryProfiles = new Lazy<LevelProfile[]>(() => references.LevelNames.Order().Select(references.GetSurvey).Where(survey => survey.Theme == LevelTheme.Military)
+            .Select(survey => LevelProfile.Measure(survey, ThemeSettings.Military)).ToArray());
+        _breakerScenes = new Lazy<IReadOnlyList<IReadOnlyList<PropPlacement>>>(() => OriginalContent.LoadBreakerScenes(gameFolder, ["Level_02.map", "Level_03.map", "Level_04.map"]));
+        _outdoor = new OutdoorLevelBuilder(armies);
+        _cannonScenes = new Lazy<IReadOnlyList<IReadOnlyList<PropPlacement>>>(() => OriginalContent.LoadCannonScenes(gameFolder, ["Level_08.map"]));
+        _missileMarks = new Lazy<(Dictionary<byte, List<IReadOnlyList<PropPlacement>>>, float)>(() => OriginalContent.LoadMissileMarks(gameFolder, ["Level_06.map", "Level_07.map", "Level_08.map", "Level_09.map", "Level_10.map"]));
         _labSites = new Lazy<SiteTemplate[]>(() => OriginalContent.LoadDynamiteSites(gameFolder, addOnStyle ? LabSiteLevels.Concat(AddOnLabSiteLevels).ToArray() : LabSiteLevels, LevelTheme.Lab));
         _militarySites = new Lazy<SiteTemplate[]>(() => OriginalContent.LoadDynamiteSites(gameFolder, addOnStyle ? MilitarySiteLevels.Concat(AddOnMilitarySiteLevels).ToArray() : MilitarySiteLevels, LevelTheme.Military));
     }
@@ -89,15 +123,15 @@ public sealed class LevelGenerator
     public string GetTemplatePath(int level) => Path.Combine(_gameFolder, "Maps", ReferenceLevelSet.GetCampaignName(level));
 
     /// <summary>
-    /// Generates candidates of a level and returns the one that breaks no hard rule and meets the most soft rules, or the
-    /// one that breaks the fewest hard rules when none passes.
+    /// Generates a level in one pass, drawing its layout again when the tour cannot reach every objective.
     /// </summary>
     public GeneratedLevel Generate(int seed, int level) => Generate(seed, level, _references.GetTarget(level));
 
     /// <summary>
-    /// Generates an add-on level, numbered 1 to 5. It takes its structure from a campaign level, and its monsters and
-    /// pickups from the same level of one of the two add-ons, whose hit points it matches on average. It needs the
-    /// generator to have been created in add-on style.
+    /// Generates an add-on level, numbered 1 to 5. The seed's parity picks the add-on it follows. Level 1 is outdoor like that
+    /// add-on's level 1, and the others take their structure from the campaign level closest to that add-on's level, and their
+    /// monsters, pickups and design targets from that level, with the hit points of both add-ons' level on average. It needs
+    /// the generator to have been created in add-on style.
     /// </summary>
     public GeneratedLevel GenerateAddOn(int seed, int number)
     {
@@ -110,54 +144,103 @@ public sealed class LevelGenerator
         ArgumentOutOfRangeException.ThrowIfGreaterThan(number, AddOnLevelCount);
         string[] names = [$"ADDON/Level_{number:00}.map", $"ADDON2/Level_{number:00}.map"];
         int hitPoints = (int)MathF.Round(MathF.Sqrt(names.Aggregate(1.0f, (product, n) => product * Math.Max(1, _content.Value.GetLevel(n).HitPoints))));
-        var target = _references.GetTarget(AddOnSlots[number - 1], hitPoints, names[Math.Abs(seed) % 2]);
-        var level = Generate(seed, AddOnSlots[number - 1], target);
+        int addOn = Math.Abs(seed) % 2;
+        int slot = AddOnSlots[addOn][number - 1];
+        var target = _references.GetTarget(slot, hitPoints, names[addOn]);
+        var level = Generate(seed, slot, target);
         level.AddOnNumber = number;
+        level.Template = slot == 1 ? names[addOn] : $"ADDON/Level_{number:00}.map";
         return level;
     }
 
     /// <summary>
-    /// Returns the original map an add-on level takes its other chunks from.
+    /// Returns the original map a generated level takes its other chunks from.
     /// </summary>
-    public string GetAddOnTemplatePath(int number) => Path.Combine(_gameFolder, "Maps", $"ADDON/Level_{number:00}.map");
+    public string GetTemplatePath(GeneratedLevel level) => Path.Combine(_gameFolder, "Maps", level.Template);
 
+    // Build the level on the first layout whose objectives the tour reaches without secret walls or forced gates
     private GeneratedLevel Generate(int seed, int level, LevelTarget target)
     {
-        GeneratedLevel? best = null;
-        (int Hard, int Soft) bestScore = (int.MaxValue, -1);
-        for (int first = 0; first < MaxCandidates && !(first >= Candidates && bestScore.Hard == 0); first += Candidates)
+        GeneratedLevel best = null!;
+        for (int layoutIndex = 0; layoutIndex < MaxLayouts; layoutIndex++)
         {
-            int start = first;
-            var batch = new (GeneratedLevel Level, RuleResult[] Results)[Math.Min(Candidates, MaxCandidates - first)];
-            Parallel.For(0, batch.Length, i =>
+            best = BuildAnalyzed(GetLayoutSeed(seed, level, layoutIndex), level, target);
+            if (best.Theme == LevelTheme.Outdoor || best.Analysis?.FallbackUsage is { UsedSecretWalls: false, ForcedGates: false, Unreached: 0 })
             {
-                int k = start + i;
-                var built = Build(new Random(seed * 100_000 + level * 100 + k), level, target);
-                batch[i] = (built, Check(built, target));
-            });
-
-            for (int batchIndex = 0; batchIndex < batch.Length; batchIndex++)
-            {
-                if (first + batchIndex >= Candidates && bestScore.Hard == 0)
-                {
-                    break;
-                }
-
-                var (candidate, results) = batch[batchIndex];
-                (int Hard, int Soft) score = (results.Count(r => r is { Severity: RuleSeverity.Hard, Passed: false }), results.Count(r => r is { Severity: RuleSeverity.Soft, Passed: true }));
-                if (score.Hard < bestScore.Hard || (score.Hard == bestScore.Hard && score.Soft > bestScore.Soft))
-                {
-                    best = candidate;
-                    bestScore = score;
-                    best.Results = results;
-                }
+                break;
             }
         }
 
-        best!.RoofResidual = RoofBuilder.Build(new Random(seed * 100_000 + level * 100 + RoofSeed), best.Builder, best.Layout.Lattice, best.Shown,
-            best.Layout.Cells.Keys.Where(c => !best.Shown.Contains(c)).ToHashSet(), best.Theme, _sprites.Value);
+        if (best.Theme == LevelTheme.Outdoor)
+        {
+            return best;
+        }
+
+        best.RoofResidual = RoofBuilder.Build(new Random(seed * 100_000 + level * 100 + RoofSeed), best.Builder, best.Lattice, best.Shown, best.Hidden,
+            best.Theme == LevelTheme.Military ? LevelTheme.Military : LevelTheme.Lab, _sprites.Value);
         best.Map = best.Builder.ToMap(best.Map.Scroll);
         return best;
+    }
+
+    // Hang the wall dressing and lay the gore of copied windows, furnish every room from its type's recipe away from the breaker and the
+    // fence gates, stand the breaker's scene, mark the missiles and keep the floor joined
+    private (PlacedDecor[] Decor, Dictionary<Cell, int> Blocked) Dress(Random rng, LevelTheme theme, LayoutPlan plan, FineLayout layout, MapBuilder map,
+        HashSet<Cell> floor, HashSet<Cell> keepClear, Cell start, BreakerSpot? breaker, IReadOnlyDictionary<EdgeKey, char> placedEdges, LevelTarget target,
+        MapResourceBuilder originalMap, LevelModel original)
+    {
+        bool isLab = theme == LevelTheme.Lab;
+        var (wallLattice, walls) = isLab ? (layout.Lattice, placedEdges) : LevelExtractor.ReadMilitaryEdges(map.Sprites) ?? (layout.Lattice, placedEdges);
+        var dressing = Dresser.Dress(rng, isLab ? _labLibrary.Value : _militaryLibrary.Value, floor, layout.Edges, keepClear: keepClear).ToList();
+        (float corpseRate, float bloodRate) = MeasureGore(originalMap, original);
+        RoomDecorator.Decorate(theme, plan, layout, dressing, floor, keepClear, target.ThemeDecor, target.Facings, corpseRate, bloodRate);
+        var decor = KeepPlacedAsOriginals(dressing, layout.Lattice, wallLattice, walls, target).ToList();
+        var clear = new HashSet<Cell>(keepClear);
+        if (breaker is not null && plan.KeyRoom is not null)
+        {
+            clear.UnionWith(layout.GetRegionCells(plan.KeyRoom.Id).Where(cell => IsNearBreaker(layout.Lattice.GetCenter(cell), breaker.Position)));
+        }
+
+        var gates = map.Sprites.Where(sprite => sprite.Id == KnownObject.FenceEmitter).Select(sprite => layout.Lattice.ToLattice(sprite.Position.X, sprite.Position.Y)).ToArray();
+        clear.UnionWith(floor.Where(cell => gates.Any(gate => IsWithin(layout.Lattice, cell, (gate.U, gate.V, GateClearance)))));
+        var furnisher = isLab ? _labFurnisher.Value : _militaryFurnisher.Value;
+        var (_, furniture) = furnisher.Furnish(rng, plan, layout, _references.GetAtlas(target.OriginalSurvey.Name), clear, wallLattice, walls, target.Facings, target.WallClearance);
+        decor.AddRange(furniture);
+        AddBreakerScene(decor, plan, layout, breaker);
+        var (kept, blocked) = Dresser.ClearAndConnect(decor, floor, layout.Edges, keepClear, start, layout.Lattice, _objects, 0);
+        var marked = kept.ToList();
+        RoomDecorator.MarkMissiles(rng, marked, _missileMarks.Value.Marks, _missileMarks.Value.Share, floor, keepClear, layout.Lattice);
+        var placed = KeepPlacedAsOriginals(RoomDecorator.RemoveStrayMarks(theme, marked, layout.Edges, layout.Lattice).ToArray(), layout.Lattice, wallLattice, walls, target);
+        return (Dresser.KeepSupported(placed.ToArray()), blocked);
+    }
+
+    private static RoomFurnisher CreateFurnisher(ReferenceLevelSet references, ObjectTable objects, LevelTheme setting) =>
+        new(RoomRecipe.Measure(references.LevelNames.Where(name => references.GetSurvey(name).Setting == setting).SelectMany(name => references.GetAtlas(name).Rooms),
+                references.GetSurvey(references.LevelNames.First()).Lattice),
+            objects, GetDressingDecor(references, setting), references.GetThemeDecor(setting).GetMiddleHeight, references.GetSurvey(references.LevelNames.First()).Lattice);
+
+    private static (float Corpses, float Blood) MeasureGore(MapResourceBuilder originalMap, LevelModel original)
+    {
+        float cells = Math.Max(1, original.Cells.Count);
+        return (originalMap.Sprites.Count(sprite => sprite.Id is KnownObject.ScientistCorpse or KnownObject.SoldierCorpse) / cells,
+            originalMap.Sprites.Count(sprite => sprite.Id is KnownObject.SmallBloodPool or KnownObject.BloodPool or KnownObject.VerticalBloodPool or KnownObject.LargeBloodPool) / cells);
+    }
+
+    // Clear the breaker's surroundings in its room and stand the breaker's scene there
+    private static void AddBreakerScene(List<PlacedDecor> decor, LayoutPlan plan, FineLayout layout, BreakerSpot? breaker)
+    {
+        if (breaker is null || plan.KeyRoom is null)
+        {
+            return;
+        }
+
+        var room = layout.GetRegionCells(plan.KeyRoom.Id).ToHashSet();
+        decor.RemoveAll(piece => room.Contains(GetCell(piece)) && IsNearBreaker(layout.Lattice, piece, breaker.Position));
+        for (int propIndex = 0; propIndex < breaker.Props.Count; propIndex++)
+        {
+            var prop = breaker.Props[propIndex];
+            (float u, float v) = layout.Lattice.ToLattice(breaker.Position.X + prop.Dx, breaker.Position.Y + prop.Dy);
+            decor.Add(new PlacedDecor(prop.Id, u, v, prop.Z, prop.Dir, new byte[8], (-1, propIndex), null));
+        }
     }
 
     private OriginalLevel GetOriginal(int level) => _originals.GetOrAdd(level, l => new Lazy<OriginalLevel>(() => LoadOriginal(l))).Value;
@@ -171,49 +254,147 @@ public sealed class LevelGenerator
         return new OriginalLevel(map, model, template, LevelScriptWriter.ReadMusicLines(Path.Combine(_gameFolder, "Maps", Path.ChangeExtension(name, ".lgc"))));
     }
 
-    // Check the level through its map and script bytes
-    private RuleResult[] Check(GeneratedLevel level, LevelTarget target)
+    // Analyze the level's route through its map and script bytes
+    private GeneratedLevel Analyze(GeneratedLevel level)
     {
         var map = MapResourceBuilder.Parse(level.Map.ToBytes(GetOriginal(level.Level).Template));
         var script = LevelScriptReader.Parse(LevelScriptWriter.Format(level.Script));
-        var analysis = RouteAnalyzer.Analyze(ReferenceLevelSet.GetCampaignName(level.Level), map, script, _objects);
-        if (analysis is null)
-        {
-            return [new RuleResult("A2", RuleSeverity.Hard, false, "no route")];
-        }
-
-        level.Analysis = analysis;
-        return RuleSet.Default.Evaluate(RuleContext.Create(map, script, analysis, _objects, target));
+        level.Analysis = RouteAnalyzer.Analyze(ReferenceLevelSet.GetCampaignName(level.Level), map, script, _objects);
+        return level;
     }
 
-    private GeneratedLevel Build(Random rng, int level, LevelTarget target, int retries = 0)
+    // Drop decor that faces its wall or stands as close to one as no original piece of its kind does, judged on the lattice the walls are read on
+    private static IEnumerable<PlacedDecor> KeepPlacedAsOriginals(IReadOnlyList<PlacedDecor> decor, Lattice lattice, Lattice wallLattice, IReadOnlyDictionary<EdgeKey, char> edges,
+        LevelTarget target)
     {
+        var pools = decor.Where(piece => KnownObject.BloodPools.Contains(piece.Id)).ToArray();
+        foreach (var piece in decor)
+        {
+            bool low = piece.Z < DecorFloorHeight;
+            bool onBlood = pools.Any(pool => Math.Abs(pool.U - piece.U) < BloodReach && Math.Abs(pool.V - piece.V) < BloodReach);
+            var point = lattice.ToWorld(piece.U, piece.V);
+            (float u, float v) = wallLattice.ToLattice(point.X, point.Y);
+            if ((low || piece.Id.IsWallMounted) && !target.Facings.Fits(piece.Id, piece.Dir, edges, u, v, onBlood)
+                || piece.Id.IsWallMounted && !target.Facings.Hangs(piece.Id, piece.Dir, piece.Z, edges, u, v)
+                || low && target.WallClearance.TryGetClearance(piece.Id, out float minimum, out _) && WallClearanceTable.MeasureDistance(edges, u, v) < minimum - ClearanceTolerance)
+            {
+                continue;
+            }
+
+            yield return piece;
+        }
+    }
+
+    private static int GetLayoutSeed(int seed, int level, int layoutIndex) => seed * 100_000 + level * 100 + layoutIndex;
+
+    // Draw the layout and structure from the layout seed, and the budget and the decor and content from streams of their own
+    private GeneratedLevel Build(int layoutSeed, int level, LevelTarget target, int? generatorRoom = null) =>
+        Build(new Random(layoutSeed), new Random(unchecked(layoutSeed * SeedPrime + BudgetSalt)), new Random(unchecked(layoutSeed * SeedPrime + ContentSalt)), level, target,
+            generatorRoom);
+
+    // Build and analyze a level, and build it again with its generator moved when the tour reaches the first one outside the originals' band,
+    // keeping the build whose first generator falls nearer the band
+    private GeneratedLevel BuildAnalyzed(int layoutSeed, int level, LevelTarget target)
+    {
+        var built = Analyze(Build(layoutSeed, level, target));
+        int? generatorRoom = FindGeneratorRoom(built, target);
+        if (generatorRoom is null)
+        {
+            return built;
+        }
+
+        var moved = Analyze(Build(layoutSeed, level, target, generatorRoom));
+        return MeasureBandMiss(moved) <= MeasureBandMiss(built) ? moved : built;
+    }
+
+    private static float MeasureBandMiss(GeneratedLevel level)
+    {
+        var first = level.Analysis?.Objectives.FirstOrDefault(objective => objective.Kind == ObjectiveKind.Generator);
+        return first is null ? float.MaxValue : Math.Max(0, Math.Max(GeneratorBand.Min - first.Progress, first.Progress - GeneratorBand.Max));
+    }
+
+    // Pick the generator room whose walk from the start, scaled by how the tour walked to the first generator, comes nearest the original's
+    // share of the tour
+    private static int? FindGeneratorRoom(GeneratedLevel level, LevelTarget target)
+    {
+        var plan = level.Plan;
+        var analysis = level.Analysis;
+        if (plan is null || analysis is null || plan.Gate != GateKind.Fences || plan.KeyRoom is null || plan.GeneratorRooms.Count <= 1)
+        {
+            return null;
+        }
+
+        var key = plan.KeyRoom;
+        var first = analysis.Objectives.FirstOrDefault(objective => objective.Kind == ObjectiveKind.Generator);
+        if (first is null || first.Progress >= GeneratorBand.Min && first.Progress <= GeneratorBand.Max)
+        {
+            return null;
+        }
+
+        float walk = plan.GeneratorRooms.First(candidate => candidate.Room == key).WalkPixels;
+        float routePerWalk = first.Progress * analysis.RoutePixels / Math.Max(1, walk);
+        float share = Math.Clamp(target.OriginalSurvey.Landmarks.Where(l => l.Kind == LandmarkKind.Generator).Select(l => l.Route / (float)Math.Max(1, target.OriginalSurvey.Signature.TourPixels))
+            .DefaultIfEmpty(0).Min(), GeneratorBand.Min + GeneratorMargin, GeneratorBand.Max - GeneratorMargin);
+        var best = plan.GeneratorRooms.MinBy(candidate => Math.Abs(candidate.WalkPixels * routePerWalk - share * analysis.RoutePixels));
+        return best.Room == key ? null : best.Room.Id;
+    }
+
+    private GeneratedLevel Build(Random layoutRng, Random budgetRng, Random contentRng, int level, LevelTarget target, int? generatorRoom = null, int retries = 0)
+    {
+        if (level == 1)
+        {
+            return BuildOutdoor(layoutRng, target);
+        }
+
         var (originalMap, original, _, musicLines) = GetOriginal(level);
         var theme = original.Theme;
         var settings = theme == LevelTheme.Lab ? ThemeSettings.Lab : ThemeSettings.Military;
         int originalUnits = theme == LevelTheme.Lab ? original.Cells.Count : original.Cells.Count / 4;
-        var gate = ChooseGate(rng, target, theme);
-        var budget = BudgetPlanner.Plan(rng, level, target, _content.Value, _objects);
+        var gate = ChooseGate(layoutRng, target, theme);
+        var budget = BudgetPlanner.Plan(budgetRng, level, target, _content.Value, _objects);
         int spawnClosets = theme == LevelTheme.Lab ? Math.Min(6, budget.Ambushes.Count / 3) : 0;
-        int shortcuts = theme == LevelTheme.Lab ? rng.Next(3) : 0;
-        // Use the original's elongation for blackouts and its mean with the add-ons' otherwise
-        float elongation = gate is { Kind: GateKind.Blackout, IsWing: false } ? target.OriginalElongation : (target.Elongation + target.OriginalElongation) / 2;
-        float maxElongation = theme == LevelTheme.Lab ? Math.Max(target.Elongation, target.OriginalElongation) : float.PositiveInfinity;
+        int shortcuts = theme == LevelTheme.Lab ? layoutRng.Next(3) : 0;
         LayoutPlan? plan = null;
+        var profile = LevelProfile.Measure(_references.GetSurvey(ReferenceLevelSet.GetCampaignName(level)), settings);
+        var own = target.ContentLevel != ReferenceLevelSet.GetCampaignName(level) && target.OriginalSurvey.Theme == theme ? LevelProfile.Measure(target.OriginalSurvey, settings) : null;
+        if (theme == LevelTheme.Lab && own is { Halls.Count: 0 } && gate is not { Kind: GateKind.Blackout, IsWing: false })
+        {
+            own = null;
+        }
+
+        var pool = theme == LevelTheme.Lab ? _labProfiles.Value : _militaryProfiles.Value;
+        var request = new LayoutRequest(gate, theme == LevelTheme.Lab ? target.SecretClosets : 0, spawnClosets, shortcuts, theme == LevelTheme.Military ? target.OriginalPens : 0);
+        // Draw again once with the floor scaled when the built rooms miss the original's room floor
+        float floorScale = 1;
+        bool rescaled = false;
         for (int attempt = 0; plan is null; attempt++)
         {
-            if (attempt == 200)
+            if (attempt == MaxPlanAttempts)
             {
                 throw new InvalidOperationException($"No layout for level {level}.");
             }
 
-            int targetUnits = (int)(originalUnits * (0.9f + 0.15f * rng.NextSingle()));
-            plan = LayoutPlanner.Plan(rng, settings, LayoutStyleProfile.FromStyle(_style), targetUnits, target.BoxFill * LayoutFillSlack, elongation, maxElongation, gate, theme == LevelTheme.Lab ? target.SecretClosets : 0, spawnClosets, shortcuts);
+            int targetUnits = (int)(originalUnits * (0.9f + 0.15f * layoutRng.NextSingle()) * floorScale);
+            var source = own is not null && attempt < OwnProfileAttempts ? own : profile;
+            var drawn = source == own ? own.Sample(layoutRng, [own], targetUnits, gate.IsWing ? gate.Share : 0) : profile.Sample(layoutRng, pool, targetUnits, gate.IsWing ? gate.Share : 0);
+            plan = LayoutBuilder.Build(layoutRng, drawn, request);
+            float built = plan?.Regions.Where(region => region.Kind is RegionKind.Station or RegionKind.SideRoom or RegionKind.Wing or RegionKind.Pen).Sum(region => region.Units.Count) ?? 0;
+            if (plan is not null && !rescaled && MathF.Abs(built / source.Units - 1) > FloorMiss)
+            {
+                floorScale = source.Units / built;
+                rescaled = true;
+                plan = null;
+            }
+        }
+
+        if (generatorRoom is not null)
+        {
+            plan.KeyRoom = plan.Regions[generatorRoom.Value];
         }
 
         var layout = FineLayout.Build(plan);
         StructureBuilder.PlaceLattice(layout, theme);
-        StructureBuilder.AddFakeDoors(rng, layout, plan);
+        StructureBuilder.AddFakeDoors(layoutRng, layout, plan);
         var map = new MapBuilder(_armies);
         var closetCells = layout.Cells
             .Where(p => plan.Regions[p.Value].Kind is RegionKind.SecretCloset or RegionKind.SpawnCloset)
@@ -231,77 +412,73 @@ public sealed class LevelGenerator
             .ThenBy(p => p.Key.B)
             .ToDictionary();
         
-        var spawnWalls = theme == LevelTheme.Lab ? StructureBuilder.BuildLab(rng, map, layout, visibleEdges) : [];
+        var closetEdges = layout.Edges
+            .Where(p => !visibleEdges.ContainsKey(p.Key) && (closetCells.Contains(p.Key.Cells.First) || closetCells.Contains(p.Key.Cells.Second)))
+            .OrderBy(p => p.Key.Axis)
+            .ThenBy(p => p.Key.A)
+            .ThenBy(p => p.Key.B)
+            .ToDictionary();
+        
+        var spawnWalls = theme == LevelTheme.Lab ? StructureBuilder.BuildLab(layoutRng, map, layout, visibleEdges, contentRng, closetEdges) : [];
         var placedEdges = theme == LevelTheme.Lab ? LevelExtractor.ReadLabEdges(layout.Lattice, map.Sprites) : layout.Edges;
-        ContentPlacer.PlaceBrokenKeypads(rng, map, _keypads.Value, layout.Lattice, target.Facings, placedEdges);
+        ContentPlacer.PlaceBrokenKeypads(contentRng, map, _keypads.Value, layout.Lattice, target.Facings, placedEdges);
+        (var doorMarks, float doorMarkShare) = OriginalContent.LoadDoorMarks(originalMap);
+        ContentPlacer.PlaceDoorMarks(contentRng, map, layout.Lattice, placedEdges, doorMarks, doorMarkShare);
         
         if (theme == LevelTheme.Military)
         {
-            StructureBuilder.BuildMilitary(rng, map, layout, visibleEdges);
+            StructureBuilder.BuildMilitary(layoutRng, map, layout, visibleEdges);
         }
 
         if (plan is { Gate: GateKind.Fences, GateLink: not null })
         {
-            StructureBuilder.BuildFence(map, layout.Lattice, plan.GateLink.Edges, settings.UnitCells);
+            foreach (var fence in plan.Links.Where(link => link.Kind == LinkKind.Fence))
+            {
+                StructureBuilder.BuildFence(map, layout.Lattice, fence.Edges, settings.UnitCells);
+            }
         }
-
 
         var startRoom = layout.GetRegionCells(plan.Stations[0].Id).ToArray();
         var start = startRoom[startRoom.Length / 2];
         var breaker = plan.Gate is GateKind.LockedDoors or GateKind.Blackout
-            ? ContentPlacer.ChooseBreakerSpot(rng, plan, layout, _breakerScenes.Value, _objects, target.WallClearance, target.Facings)
+            ? ContentPlacer.ChooseBreakerSpot(layoutRng, plan, layout, placedEdges, _breakerScenes.Value, _objects, target.WallClearance, target.Facings)
             : null;
+        
         if (breaker is null && plan.Gate is GateKind.LockedDoors or GateKind.Blackout && retries < MaxBreakerRetries)
         {
-            return Build(rng, level, target, retries + 1);
+            return Build(layoutRng, budgetRng, contentRng, level, target, generatorRoom, retries + 1);
         }
 
         var floor = layout.Cells.Keys.Where(c => !closetCells.Contains(c)).ToHashSet();
-        var decor = Dresser.Dress(rng, theme == LevelTheme.Lab ? _labLibrary.Value : _militaryLibrary.Value, floor, layout.Edges).ToList();
         var keepClear = GetKeepClear(layout, start, settings.UnitCells);
-        if (breaker is not null && plan.KeyRoom is not null)
+
+        var encounters = EncounterProfile.Measure(_references.GetSurvey(target.ContentLevel), _references.GetLevel(target.ContentLevel).Analysis, _objects);
+
+        // Lay out the cannon and the sites before the decor
+        PlacedSites? placedSites = null;
+        if (theme == LevelTheme.Military)
         {
-            var room = layout.GetRegionCells(plan.KeyRoom.Id).ToHashSet();
-            decor = decor.Where(o => !room.Contains(new Cell((int)MathF.Floor(o.U), (int)MathF.Floor(o.V)))).ToList();
-            for (int propIndex = 0; propIndex < breaker.Props.Count; propIndex++)
-            {
-                var p = breaker.Props[propIndex];
-                (float u, float v) = layout.Lattice.ToLattice(breaker.Position.X + p.Dx, breaker.Position.Y + p.Dy);
-                decor.Add(new PlacedDecor(p.Id, u, v, p.Z, p.Dir, new byte[8], (-1, propIndex), null));
-            }
+            var early = new PlacementContext(contentRng, level, plan, layout, map, _objects, start, new HashSet<Cell>(), keepClear);
+            placedSites = ContentPlacer.PlaceMilitarySites(early, budget, _militarySites.Value, _cannonScenes.Value, encounters);
+            var siteSpots = GetSiteSpots(map, layout.Lattice, placedSites);
+            keepClear.UnionWith(layout.Cells.Keys.Where(c => siteSpots.Any(spot => IsWithin(layout.Lattice, c, spot))));
         }
 
-        RoomDecorator.Decorate(theme, plan, layout, decor, floor, keepClear, target.ThemeDecor, target.Facings);
-        var (kept, _) = Dresser.ClearAndConnect(decor, floor, layout.Edges, keepClear, start, layout.Lattice, _objects);
-        var excluded = new HashSet<int> { plan.Stations[0].Id };
-        if (budget.Bosses.Count > 0)
+        var (decor, blocked) = Dress(contentRng, theme, plan, layout, map, floor, keepClear, start, breaker, placedEdges, target, originalMap, original);
+        foreach (var piece in decor)
         {
-            excluded.Add(plan.Stations[^1].Id);
+            (float x, float y) = layout.Lattice.ToWorld(piece.U, piece.V);
+            map.Add(piece.Id, x, y, piece.Z, piece.Dir, piece.Payload, unique: false);
         }
 
-        if (plan.KeyRoom is not null)
-        {
-            excluded.Add(plan.KeyRoom.Id);
-        }
-
-        var clutterCells = floor.Where(c => !excluded.Contains(layout.Cells[c])).ToHashSet();
-        var (solid, breakable) = ClutterPlanner.GetPalette(originalMap, _objects);
-        float blockedShare = target.BlockedShare * (0.95f + 0.2f * rng.NextSingle());
-        var cluttered = ClutterPlanner.AddClutter(rng, kept, floor, clutterCells, layout.Edges, keepClear, start, layout.Lattice, _objects, solid, breakable, blockedShare, target.Breakables, target.WallClearance, target.Facings).ToList();
-        RoomDecorator.PlaceComputerTables(theme, plan, layout, cluttered, target.ThemeDecor, target.Facings);
-        (kept, var blocked) = Dresser.ClearAndConnect(cluttered, floor, layout.Edges, keepClear, start, layout.Lattice, _objects);
-        foreach (var keptObject in RoomDecorator.RemoveComputersOffTables(kept))
-        {
-            (float x, float y) = layout.Lattice.ToWorld(keptObject.U, keptObject.V);
-            map.Add(keptObject.Id, x, y, keptObject.Z, keptObject.Dir, keptObject.Payload, unique: false);
-        }
-
-        var context = new PlacementContext(rng, level, plan, layout, map, _objects, start, blocked.Keys.ToHashSet(), keepClear);
+        var context = new PlacementContext(contentRng, level, plan, layout, map, _objects, start, blocked.Keys.ToHashSet(), keepClear);
         var player = startRoom
             .Where(c => !blocked.ContainsKey(c) && !layout.IsWalled(c))
             .OrderBy(c => Math.Abs(c.U - start.U) + Math.Abs(c.V - start.V))
             .FirstOrDefault(c => !context.IsInWall(layout.Lattice.GetCenter(c).X, layout.Lattice.GetCenter(c).Y, 20), start);
+        
         (float px, float py) = layout.Lattice.GetCenter(player);
+        
         map.Add(KnownObject.PlayerStart, px, py, 0, 96);
         context.Taken.Add(player);
 
@@ -309,46 +486,91 @@ public sealed class LevelGenerator
         {
             MusicLines = musicLines
         };
-        ContentPlacer.Place(context, budget, target.HasCheckpoint, target.Style == LevelStyle.Blackout, script, breaker, theme == LevelTheme.Lab ? _labSites.Value : _militarySites.Value, visibleEdges, spawnWalls, _keypads.Value, target.Facings);
+        
+        ContentPlacer.Place(context, budget, target.HasCheckpoint, target.Style == LevelStyle.Blackout, script, breaker, theme == LevelTheme.Lab ? _labSites.Value : _militarySites.Value,
+            visibleEdges, placedEdges, spawnWalls, _keypads.Value, target.Facings, _cannonScenes.Value, encounters, placedSites);
+        
         return new GeneratedLevel
         {
             Level = level,
-            Map = map.ToMap(new Vector2((float)Math.Max(0, px - 400), (float)Math.Max(0, py - 300))),
+            Map = map.ToMap(new Vector2(Math.Max(0, px - 400), Math.Max(0, py - 300))),
             Script = script,
             Plan = plan,
             Layout = layout,
             Budget = budget,
             Builder = map,
             Shown = shown,
+            Hidden = layout.Cells.Keys.Where(c => !shown.Contains(c)).ToHashSet(),
+            Template = ReferenceLevelSet.GetCampaignName(level),
+            Lattice = layout.Lattice,
             Theme = theme
         };
+    }
+
+    private GeneratedLevel BuildOutdoor(Random rng, LevelTarget target)
+    {
+        string name = target.ContentLevel;
+        var style = name.StartsWith("ADDON2/", StringComparison.Ordinal) ? OutdoorStyle.City : name.StartsWith("ADDON/", StringComparison.Ordinal) ? OutdoorStyle.Compound : OutdoorStyle.Campaign;
+        var original = MapResourceBuilder.Load(Path.Combine(_gameFolder, "Maps", name));
+        string scriptPath = Path.Combine(_gameFolder, "Maps", Path.ChangeExtension(name, ".lgc"));
+        var music = LevelScriptWriter.ReadMusicLines(scriptPath);
+        var level = _outdoor.Build(rng, style, original, LevelScriptReader.Read(scriptPath).Exit, music);
+        level.Template = name;
+        return level;
     }
 
     // Keep broken keypads for jammed doors
     private static Func<KnownObject, float, bool> GetDressingDecor(ReferenceLevelSet references, LevelTheme theme) =>
         (id, z) => id != KnownObject.BrokenKeypad && references.GetThemeDecor(theme).Allows(id, z);
 
-    // Keep two cells clear on both sides of every doorway and around the player start
-    private static HashSet<Cell> GetKeepClear(FineLayout layout, Cell start, int unitCells)
+    // Copy only what hangs on walls or lies on the floor, the furniture being the furnisher's
+    private static Func<KnownObject, float, bool> GetWallDressing(ReferenceLevelSet references, LevelTheme theme) =>
+        (id, z) => GetDressingDecor(references, theme)(id, z) && PartFinder.GetFamily(id) is null && id != KnownObject.ScatteredPaper;
+
+    // Keep the floor clear around every site and pad, and along the line from the cannon to its kill zone
+    private static List<(float U, float V, float Reach)> GetSiteSpots(MapBuilder map, Lattice lattice, PlacedSites placed)
     {
-        var keep = new HashSet<Cell>();
-        foreach (var edges in layout.LinkEdges)
+        var spots = map.Sprites
+            .Where(sprite => sprite.Id is KnownObject.DynamiteSite or KnownObject.TeleportPad)
+            .Select(sprite => lattice.ToLattice(sprite.Position.X, sprite.Position.Y))
+            .Select(point => (point.U, point.V, SiteClearance))
+            .ToList();
+        int cannon = map.Sprites.FindIndex(sprite => sprite.Id == KnownObject.MountedCannon);
+        if (placed.Cannon is not null && cannon >= 0)
         {
-            foreach (var edge in edges)
+            var from = map.Sprites[cannon].Position;
+            var to = placed.Cannon.Value.Far;
+            int steps = (int)(MathF.Sqrt(MathF.Pow(to.X - from.X, 2) + MathF.Pow(to.Y - from.Y, 2)) / LaneStep);
+            for (int step = 0; step <= steps; step++)
             {
-                foreach (var cell in new[] { edge.Cells.First, edge.Cells.Second })
-                {
-                    for (int index = -1; index <= unitCells; index++)
-                    {
-                        for (int innerIndex = -1; innerIndex <= unitCells; innerIndex++)
-                        {
-                            keep.Add(new Cell(cell.U + index, cell.V + innerIndex));
-                        }
-                    }
-                }
+                float t = step / (float)Math.Max(1, steps);
+                (float u, float v) = lattice.ToLattice(from.X + t * (to.X - from.X), from.Y + t * (to.Y - from.Y));
+                spots.Add((u, v, LaneClearance));
             }
         }
 
+        return spots;
+    }
+
+    private static bool IsWithin(Lattice lattice, Cell cell, (float U, float V, float Reach) spot)
+    {
+        (float x, float y) = lattice.GetCenter(cell);
+        (float sx, float sy) = lattice.ToWorld(spot.U, spot.V);
+        return (x - sx) * (x - sx) + (y - sy) * (y - sy) <= spot.Reach * spot.Reach;
+    }
+
+    private static Cell GetCell(PlacedDecor piece) => new((int)MathF.Floor(piece.U), (int)MathF.Floor(piece.V));
+
+    private static bool IsNearBreaker(Lattice lattice, PlacedDecor piece, PointF breaker) => IsNearBreaker(lattice.ToWorld(piece.U, piece.V), breaker);
+
+    private static bool IsNearBreaker(PointF point, PointF breaker) =>
+        MathF.Abs(point.X - breaker.X) < BreakerSceneReach && MathF.Abs(point.Y - breaker.Y) < BreakerSceneReach;
+
+    // Keep clear the cells on both sides of every doorway, as close as the originals stand furniture to one, the cell in front of each fake
+    // door and a square around the start
+    private static HashSet<Cell> GetKeepClear(FineLayout layout, Cell start, int unitCells)
+    {
+        var keep = layout.LinkEdges.SelectMany(edges => edges).SelectMany(edge => new[] { edge.Cells.First, edge.Cells.Second }).ToHashSet();
         foreach ((var edge, bool isDouble) in layout.FakeDoors)
         {
             var doors = isDouble ? new[] { edge, StructureBuilder.GetPreviousEdge(edge) } : [edge];
@@ -373,12 +595,19 @@ public sealed class LevelGenerator
     private static GateRequest ChooseGate(Random rng, LevelTarget target, LevelTheme theme) => target.Style switch
     {
         LevelStyle.LockedDoors => new GateRequest(GateKind.LockedDoors, target.LockedShare ?? 0.5f, 0, WalkPixels: target.WalkToBreakerPixels ?? 0),
-        LevelStyle.Blackout => new GateRequest(GateKind.Blackout, 0, 5200),
-        LevelStyle.Fenced => new GateRequest(GateKind.Fences, target.FencedOffShare ?? 0.4f, 0),
+        LevelStyle.Blackout => new GateRequest(GateKind.Blackout, target.OriginalSurvey.Gates.FirstOrDefault(g => g.Kind == LevelStyle.Blackout)?.GatedShare ?? 0, BlackoutSearchPixels),
+        LevelStyle.Fenced => new GateRequest(GateKind.Fences, target.FencedOffShare ?? 0.4f, 0,
+            KeyProgress: target.OriginalSurvey.Landmarks.Where(l => l.Kind == LandmarkKind.Generator).Select(l => l.Route / (float)Math.Max(1, target.OriginalSurvey.Signature.TourPixels)).DefaultIfEmpty(0).Min()),
         _ => theme == LevelTheme.Military
             ? new GateRequest(GateKind.Fences, 0.2f + 0.1f * rng.NextSingle(), 0, IsWing: true)
-            : new GateRequest(rng.Next(2) == 0 ? GateKind.LockedDoors : GateKind.Blackout, 0.2f + 0.1f * rng.NextSingle(), 0, IsWing: true)
+            : ChooseLabWing(rng)
     };
+
+    private static GateRequest ChooseLabWing(Random rng)
+    {
+        var kind = rng.Next(2) == 0 ? GateKind.LockedDoors : GateKind.Blackout;
+        return new GateRequest(kind, 0.2f + 0.1f * rng.NextSingle(), kind == GateKind.Blackout ? BlackoutSearchPixels : 0, IsWing: true);
+    }
 
     private sealed record OriginalLevel(MapResourceBuilder Map, LevelModel Model, byte[] Template, IReadOnlyList<string> MusicLines);
 }

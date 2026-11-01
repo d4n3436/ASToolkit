@@ -1,5 +1,6 @@
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Rules;
+using ASToolkit.Core.Levels;
+using ASToolkit.Core.Reference;
 
 namespace ASToolkit.Core.Generation.Content;
 
@@ -41,24 +42,24 @@ public static class BudgetPlanner
             .ToArray();
         
         var smallSpawners = spawnerPool
-            .Where(p => HitPoints(p.List) <= Math.Max(hpTarget * 0.22f, 1))
+            .Where(p => GetHitPoints(p.List) <= Math.Max(hpTarget * 0.22f, 1))
             .ToArray();
         
-        var spawners = (smallSpawners.Length > 0 ? smallSpawners : spawnerPool).ToArray();
+        var spawners = smallSpawners.Length > 0 ? smallSpawners : spawnerPool;
         
         var groupPool = sources
             .SelectMany(s => s.PlacedGroups.Select(g => (Source: s, Group: g)))
             .ToArray();
         
         var smallGroups = groupPool
-            .Where(p => HitPoints(p.Group.Select(m => m.Id)) <= Math.Max(hpTarget * 0.12f, 1))
+            .Where(p => GetHitPoints(p.Group.Select(m => m.Id)) <= Math.Max(hpTarget * 0.12f, 1))
             .ToArray();
         
-        var groups = (smallGroups.Length > 0 ? smallGroups : groupPool).ToArray();
+        var groups = smallGroups.Length > 0 ? smallGroups : groupPool;
         rng.Shuffle(spawners);
         rng.Shuffle(groups);
 
-        float ambushChance = Math.Clamp(campaign.SpawnedShare, 0.05f, 0.95f);
+        float ambushChance = Math.Clamp(campaign.SpawnedShare, 0.5f, 0.95f);
         var ambushes = new List<IReadOnlyList<KnownObject>>();
         var placed = new List<IReadOnlyList<GroupMember>>();
         int ambushHp = 0;
@@ -67,7 +68,7 @@ public static class BudgetPlanner
         int nextGroup = 0;
         for (int index = 0; ambushHp + placedHp < hpTarget && index < 5000; index++)
         {
-            bool ambush = spawners.Length > 0 && (groups.Length == 0 || rng.NextSingle() < ambushChance);
+            bool ambush = spawners.Length > 0 && (groups.Length == 0 || (ambushHp < campaign.SpawnedShare * hpTarget && rng.NextSingle() < ambushChance));
             int hp;
             if (ambush)
             {
@@ -79,35 +80,41 @@ public static class BudgetPlanner
                 }
 
                 ambushes.Add(cleaned);
-                hp = HitPoints(cleaned);
+                hp = GetHitPoints(cleaned);
                 ambushHp += hp;
             }
             else
             {
                 var (_, group) = groups[nextGroup++ % groups.Length];
-                var cleaned = new List<GroupMember>();
-                foreach (var member in group)
-                {
-                    var id = Clean([member.Id]);
-                    if (id.Count == 1)
-                    {
-                        cleaned.Add(member with { Id = id[0] });
-                    }
-                }
-
+                var cleaned = CleanGroup(group);
                 if (cleaned.Count == 0)
                 {
                     continue;
                 }
 
                 placed.Add(cleaned);
-                hp = HitPoints(cleaned.Select(m => m.Id));
+                hp = GetHitPoints(cleaned.Select(m => m.Id));
                 placedHp += hp;
             }
 
         }
 
         ambushes.AddRange(campaign.SpawnerLists.Where(list => list.Any(CampaignBosses.Contains)));
+
+        // Open the level with the smallest placed group when the draws gave it none
+        var smallest = placed.Count != 0 ? null : groups
+                .Select(g => CleanGroup(g.Group))
+                .Where(g => g.Count > 0)
+                .MinBy(g => GetHitPoints(g.Select(m => m.Id)));
+        
+        if (smallest is not null)
+        {
+            placed.Add(smallest);
+            placedHp += GetHitPoints(smallest.Select(m => m.Id));
+        }
+
+        // Build plain monsters in place of endless generators
+        ambushes = ambushes.Select(IReadOnlyList<KnownObject> (list) => list.Select(id => id.IsEndlessGenerator ? KnownObject.Monster1 : id).ToList()).ToList();
         var items = new Dictionary<KnownObject, int>();
         foreach ((var item, int count) in pickupSource.Pickups.Concat(pickupSource.CrateLoot).OrderBy(p => p.Key))
         {
@@ -158,6 +165,21 @@ public static class BudgetPlanner
             AmbushHitPoints = ambushHp
         };
 
+        List<GroupMember> CleanGroup(IEnumerable<GroupMember> group)
+        {
+            var cleaned = new List<GroupMember>();
+            foreach (var member in group)
+            {
+                var id = Clean([member.Id]);
+                if (id.Count == 1)
+                {
+                    cleaned.Add(member with { Id = id[0] });
+                }
+            }
+
+            return cleaned;
+        }
+
         List<KnownObject> Clean(IEnumerable<KnownObject> monsters)
         {
             var kept = new List<KnownObject>();
@@ -180,6 +202,6 @@ public static class BudgetPlanner
             return kept;
         }
 
-        int HitPoints(IEnumerable<KnownObject> monsters) => monsters.Sum(m => objects.TryFind(m, out var obj) ? obj.MaxHp : 0);
+        int GetHitPoints(IEnumerable<KnownObject> monsters) => monsters.Sum(m => objects.TryFind(m, out var obj) ? obj.MaxHp : 0);
     }
 }

@@ -395,8 +395,8 @@ public enum KnownObject
     /// <summary>The flat grass tile with alpha.</summary>
     FlatGrass = 507,
 
-    /// <summary>The female player's start marker.</summary>
-    PlayerStartGirl = 549,
+    /// <summary>The female player legs, placed as a player start.</summary>
+    PlayerStartFemaleLegs = 549,
 
     /// <summary>The lab wall that runs along '/'.</summary>
     LabWallSlash = 601,
@@ -669,5 +669,5 @@ public enum KnownObject
     BlackBlock = 1710,
 
     /// <summary>The dummy that shows the sprite of the soft cover over everything below it in Alien Shooter 2.</summary>
-    SoftCoverDummy = 1711,
+    SoftCoverDummy = 1711
 }

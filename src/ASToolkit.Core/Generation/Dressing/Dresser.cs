@@ -9,12 +9,17 @@ namespace ASToolkit.Core.Generation.Dressing;
 /// </summary>
 public static class Dresser
 {
+    private const float PlayerRadius = 14;
+
     /// <summary>
-    /// Covers the cells with copied windows, largest first, and drops objects whose support was not copied.
+    /// Covers the cells with copied windows, largest first and each source cell once, and drops objects whose support was not copied.
+    /// With cells to keep clear, windows whose solid pieces stay off them come first. Cells already dressed are skipped.
     /// </summary>
-    public static PlacedDecor[] Dress(Random rng, DressingLibrary library, IReadOnlySet<Cell> cells, IReadOnlyDictionary<EdgeKey, char> edges)
+    public static PlacedDecor[] Dress(Random rng, DressingLibrary library, IReadOnlySet<Cell> cells, IReadOnlyDictionary<EdgeKey, char> edges,
+        IReadOnlySet<Cell>? keepClear = null, IReadOnlySet<Cell>? dressed = null)
     {
-        var covered = new HashSet<Cell>();
+        var covered = new HashSet<Cell>(dressed ?? new HashSet<Cell>());
+        var used = new HashSet<(int, Cell)>();
         var placed = new List<PlacedDecor>();
         foreach (var corner in cells.OrderBy(c => c.U).ThenBy(c => c.V))
         {
@@ -25,12 +30,8 @@ public static class Dresser
 
             foreach (int windowSize in library.WindowSizes)
             {
-                if (!DressingLibrary.IsWindowInside(cells, corner, windowSize) || HasCovered(covered, corner, windowSize))
-                {
-                    continue;
-                }
-
-                if (!library.TryCopy(rng, edges, corner, windowSize, out var copied))
+                if (!DressingLibrary.IsWindowInside(cells, corner, windowSize) || HasCovered(covered, corner, windowSize)
+                    || !library.TryCopy(rng, edges, corner, windowSize, used, out var copied, keepClear))
                 {
                     continue;
                 }
@@ -70,9 +71,9 @@ public static class Dresser
     }
 
     /// <summary>
-    /// Returns the cells a solid object's collision box touches, sampled at its corners, edge midpoints and center.
+    /// Returns the cells a solid object's collision box, grown by a margin, touches, sampled at its corners, edge midpoints and center.
     /// </summary>
-    public static HashSet<Cell> GetFootprint(Lattice lattice, ObjectTable objects, KnownObject id, float x, float y)
+    public static HashSet<Cell> GetFootprint(Lattice lattice, ObjectTable objects, KnownObject id, float x, float y, float grow = PlayerRadius)
     {
         var cells = new HashSet<Cell>();
         if (!objects.TryFind(id, out var obj) || !obj.IsSolid)
@@ -80,8 +81,8 @@ public static class Dresser
             return cells;
         }
 
-        float hx = 0.33f * obj.Size.X + 14;
-        float hy = 0.33f * obj.Size.Y + 14;
+        float hx = 0.33f * obj.Size.X + grow;
+        float hy = 0.33f * obj.Size.Y + grow;
         foreach (float dx in new[] { -hx, 0, hx })
         {
             foreach (float dy in new[] { -hy, 0, hy })
@@ -94,24 +95,25 @@ public static class Dresser
     }
 
     /// <summary>
-    /// Drops solid objects that touch the cells to keep clear, then removes solid objects until every cell is reachable from
-    /// the start. Returns the objects kept and how many solid objects cover each cell.
+    /// Drops solid objects whose collision box, grown by a margin, touches the cells to keep clear, then removes solid objects until
+    /// every cell is reachable from the start. Returns the objects kept and how many solid objects cover each cell.
     /// </summary>
     public static (PlacedDecor[] Kept, Dictionary<Cell, int> Blocked) ClearAndConnect(
-        IReadOnlyList<PlacedDecor> placed, IReadOnlySet<Cell> cells, IReadOnlyDictionary<EdgeKey, char> edges, IReadOnlySet<Cell> keepClear, Cell start, Lattice lattice, ObjectTable objects)
+        IReadOnlyList<PlacedDecor> placed, IReadOnlySet<Cell> cells, IReadOnlyDictionary<EdgeKey, char> edges, IReadOnlySet<Cell> keepClear, Cell start, Lattice lattice, ObjectTable objects,
+        float grow = PlayerRadius)
     {
         var footprints = new Dictionary<PlacedDecor, HashSet<Cell>>(ReferenceEqualityComparer.Instance);
         foreach (var placedObject in placed)
         {
             (float x, float y) = lattice.ToWorld(placedObject.U, placedObject.V);
-            var fp = GetFootprint(lattice, objects, placedObject.Id, x, y);
+            var fp = GetFootprint(lattice, objects, placedObject.Id, x, y, grow);
             if (fp.Count > 0)
             {
                 footprints[placedObject] = fp;
             }
         }
 
-        placed = placed.Where(o => !footprints.TryGetValue(o, out var fp) || !fp.Overlaps(keepClear)).ToArray();
+        placed = placed.Where(o => !footprints.TryGetValue(o, out var fp) || !fp.Any(keepClear.Contains)).ToArray();
         var floor = new HashSet<Cell>(cells);
         while (true)
         {
@@ -127,14 +129,14 @@ public static class Dresser
                 }
             }
 
-            var seen = Flood(floor, edges, start, c => blocked.ContainsKey(c));
+            var seen = Flood(floor, edges, start, blocked.ContainsKey);
             var target = floor.Where(c => !seen.Contains(c) && !blocked.ContainsKey(c)).OrderBy(c => c.U).ThenBy(c => c.V).Cast<Cell?>().FirstOrDefault();
             if (target is null)
             {
                 return (KeepSupported(placed), blocked);
             }
 
-            var path = FindPath(floor, edges, start, target.Value);
+            var path = FindPath(floor, edges, start, target.Value, blocked);
             if (path.Length == 0)
             {
                 floor.Remove(target.Value);
@@ -142,7 +144,7 @@ public static class Dresser
             }
 
             var onPath = path.ToHashSet();
-            placed = placed.Where(o => !footprints.TryGetValue(o, out var fp) || !fp.Overlaps(onPath)).ToArray();
+            placed = placed.Where(o => !footprints.TryGetValue(o, out var fp) || !fp.Any(onPath.Contains)).ToArray();
         }
     }
 
@@ -183,14 +185,17 @@ public static class Dresser
         return seen;
     }
 
-    private static Cell[] FindPath(IReadOnlySet<Cell> floor, IReadOnlyDictionary<EdgeKey, char> edges, Cell from, Cell to)
+    // Find the way from one cell to another through the fewest blocked cells
+    private static Cell[] FindPath(IReadOnlySet<Cell> floor, IReadOnlyDictionary<EdgeKey, char> edges, Cell from, Cell to, IReadOnlyDictionary<Cell, int> blocked)
     {
+        var cost = new Dictionary<Cell, int> { [from] = 0 };
         var previous = new Dictionary<Cell, Cell> { [from] = from };
-        var queue = new Queue<Cell>();
-        queue.Enqueue(from);
+        var queue = new LinkedList<Cell>();
+        queue.AddFirst(from);
         while (queue.Count > 0)
         {
-            var c = queue.Dequeue();
+            var c = queue.First!.Value;
+            queue.RemoveFirst();
             if (c == to)
             {
                 break;
@@ -198,10 +203,26 @@ public static class Dresser
 
             foreach (var (n, k) in EdgeKey.GetNeighbors(c))
             {
-                if (floor.Contains(n) && !previous.ContainsKey(n) && !IsWall(edges, k))
+                if (!floor.Contains(n) || IsWall(edges, k))
                 {
-                    previous[n] = c;
-                    queue.Enqueue(n);
+                    continue;
+                }
+
+                int step = blocked.ContainsKey(n) ? 1 : 0;
+                if (cost.TryGetValue(n, out int known) && known <= cost[c] + step)
+                {
+                    continue;
+                }
+
+                cost[n] = cost[c] + step;
+                previous[n] = c;
+                if (step == 0)
+                {
+                    queue.AddFirst(n);
+                }
+                else
+                {
+                    queue.AddLast(n);
                 }
             }
         }
@@ -223,3 +244,4 @@ public static class Dresser
 
     private static bool IsWall(IReadOnlyDictionary<EdgeKey, char> edges, EdgeKey k) => edges.TryGetValue(k, out char kind) && RouteGrid.IsBlocking(kind);
 }
+

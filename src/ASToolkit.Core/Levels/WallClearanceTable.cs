@@ -46,7 +46,7 @@ public sealed class WallClearanceTable
         }
 
         var byId = new Dictionary<KnownObject, (float, float)>();
-        foreach ((var id, var list) in samples)
+        foreach (var (id, list) in samples)
         {
             list.Sort();
             float low = list.Count >= MinSamples ? list[(int)(LowQuantile * list.Count)] : list[0];

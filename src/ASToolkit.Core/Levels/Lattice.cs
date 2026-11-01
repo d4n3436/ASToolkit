@@ -51,11 +51,11 @@ public sealed class Lattice
     /// <summary>
     /// Returns the lattice coordinates of a map position.
     /// </summary>
-    public (float U, float V) ToLattice(float x, float y)
+    public GridPoint ToLattice(float x, float y)
     {
         float p = (x - OriginX) / StepX;
         float q = (y - OriginY) / StepY;
-        return ((p - q) / 2, (p + q) / 2);
+        return new GridPoint((p - q) / 2, (p + q) / 2);
     }
 
     /// <summary>

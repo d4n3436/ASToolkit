@@ -58,12 +58,12 @@ public sealed class MapRenderer
     private const float RowScale = 0.70706f;
     private const uint PhaseSeedStep = 0x9e3779b9;
     private const int PlayerPartCount = 12;
-    private const int FemalePartOffset = KnownObject.PlayerStartGirl - KnownObject.PlayerStart;
+    private const int FemalePartOffset = KnownObject.PlayerStartFemaleLegs - KnownObject.PlayerStart;
     private const uint PhaseSeedFactor = 2654435761;
     
     private static readonly MemoryAllocator Allocator = MemoryAllocator.Create(new MemoryAllocatorOptions { MaximumPoolSizeMegabytes = PoolMegabytes });
     private static readonly Configuration ImageConfiguration = CreateConfiguration(Environment.ProcessorCount);
-    private static readonly float[] Sine = Enumerable.Range(0, 256).Select(angle => (float)MathF.Sin(angle * MathF.PI / 128)).ToArray();
+    private static readonly float[] Sine = Enumerable.Range(0, 256).Select(angle => MathF.Sin(angle * MathF.PI / 128)).ToArray();
 
     private readonly string _gameFolder;
     private readonly ObjectTable _objects;
@@ -451,7 +451,7 @@ public sealed class MapRenderer
             return id;
         }
 
-        int male = (int)id >= (int)KnownObject.PlayerStartGirl && (int)id <= (int)KnownObject.PlayerStartGirl + PlayerPartCount - 1
+        int male = (int)id >= (int)KnownObject.PlayerStartFemaleLegs && (int)id <= (int)KnownObject.PlayerStartFemaleLegs + PlayerPartCount - 1
             ? (int)id - FemalePartOffset : (int)id;
         if (male is < (int)KnownObject.PlayerStart or >= (int)KnownObject.PlayerStart + PlayerPartCount)
         {
@@ -474,7 +474,7 @@ public sealed class MapRenderer
         }
 
         (float sin, float cos) = MathF.SinCos(dir * MathF.PI / 128);
-        return new Vector3((float)(offset.X * cos - offset.Y * sin), (float)(offset.X * sin + offset.Y * cos), offset.Z);
+        return new Vector3(offset.X * cos - offset.Y * sin, offset.X * sin + offset.Y * cos, offset.Z);
     }
 
     internal static int GetBaseDepth(GameObject obj, float z, bool sequel)
@@ -644,6 +644,8 @@ public sealed class MapRenderer
 
         float lift = Math.Max(0, caster.Position.Z);
         var scale = caster.Scale;
+        int halfWidth = file.Width / 2;
+        int halfHeight = file.Height / 2;
 
         var origin = ToScreen(0, 0);
         var columnStep = (ToScreen(frame.Width, 0) - origin) / frame.Width;
@@ -654,7 +656,7 @@ public sealed class MapRenderer
 
         Vector2 ToScreen(float column, float row)
         {
-            var local = new Vector2((column - file.Width / 2 + frame.Left) * scale.X, (row - lift - file.Height / 2 + frame.Top) * scale.Y);
+            var local = new Vector2((column - halfWidth + frame.Left) * scale.X, (row - lift - halfHeight + frame.Top) * scale.Y);
             if (!flat || rotated)
             {
                 local = Turn(local, turn);
@@ -663,7 +665,7 @@ public sealed class MapRenderer
             if (flat)
             {
                 float push = highest * FlatShadowPush;
-                local += new Vector2(push * Sin(away), -push * (float)RowScale * Cos(away));
+                local += new Vector2(push * Sin(away), -push * RowScale * Cos(away));
             }
 
             return new Vector2(caster.Position.X + local.X, (caster.Position.Y - caster.Position.Z) + local.Y + lift);
@@ -712,7 +714,7 @@ public sealed class MapRenderer
 
     private SpriteFrame? GetFrame(string path, GameObject obj, VidResource view, int index, byte rotation, PackedTint tint, Vector3 scale) =>
         _frames.GetOrAdd(new FrameKey(path, tint, index, rotation, scale), _ => rotation == 0 && scale == Vector3.One
-            ? DecodeFrame(path, obj, view, index, tint)
+            ? DecodeFrame(path, view, index, tint)
             : DecodeTransformedFrame(path, obj, view, index, rotation, tint, scale));
 
     private SpriteFrame? DecodeTransformedFrame(string path, GameObject obj, VidResource view, int index, byte rotation, PackedTint tint, Vector3 scale)
@@ -721,7 +723,7 @@ public sealed class MapRenderer
         return upright is null ? null : TransformFrame(upright, view.GetFrame(index).Mesh, rotation, scale);
     }
 
-    private SpriteFrame? DecodeFrame(string path, GameObject obj, VidResource view, int index, PackedTint tint)
+    private SpriteFrame? DecodeFrame(string path, VidResource view, int index, PackedTint tint)
     {
         if (index >= view.FrameCount)
         {
@@ -904,7 +906,7 @@ public sealed class MapRenderer
                         continue;
                     }
 
-                    float z = (float)(weightA * a.Z + weightB * b.Z + weightC * c.Z);
+                    float z = weightA * a.Z + weightB * b.Z + weightC * c.Z;
                     ref float cell = ref heights[y * width + x];
                     if (float.IsNaN(cell) || z > cell)
                     {
@@ -1034,7 +1036,7 @@ public sealed class MapRenderer
                     continue;
                 }
 
-                float z = (float)(weightA * vertices[0].Z + weightB * vertices[1].Z + weightC * vertices[2].Z);
+                float z = weightA * vertices[0].Z + weightB * vertices[1].Z + weightC * vertices[2].Z;
                 int sourceX = (int)MathF.Floor(weightA * vertices[0].X + weightB * vertices[1].X + weightC * vertices[2].X);
                 int sourceY = (int)MathF.Floor(weightA * vertices[0].Y + weightB * vertices[1].Y + weightC * vertices[2].Y);
                 int cell = y * width + x;
@@ -1274,7 +1276,7 @@ public sealed class MapRenderer
                 }
                 else if (!Object.Flags.HasFlag(ObjectFlags.Raised) || (int)(Animation.Z * DepthPerHeight) >= RaisedDepth)
                 {
-                    int depth = (int)(Sine[(time.Value >> 3) & 255] * (float)Animation.Bob * DepthPerHeight);
+                    int depth = (int)(Sine[(time.Value >> 3) & 255] * Animation.Bob * DepthPerHeight);
                     baseDepth += depth;
                     lift = depth / DepthPerHeight;
                 }
@@ -1358,7 +1360,7 @@ public sealed class MapRenderer
             var buffers = CreateBuffers();
             for (int strip = 0; strip < StripCount; strip++)
             {
-                DrawStrip(strip, null, buffers);
+                DrawStrip(strip, buffers);
             }
 
             ReleaseBuffers(buffers);
@@ -1386,7 +1388,7 @@ public sealed class MapRenderer
             ArrayPool<Rgb24>.Shared.Return(buffers.Row);
         }
 
-        public StripBuffers DrawStrip(int strip, ParallelLoopState? state, StripBuffers buffers)
+        public StripBuffers DrawStrip(int strip, StripBuffers buffers)
         {
             int out0 = _area.Top + strip * _stripRows;
             int out1 = Math.Min(_area.Bottom, out0 + _stripRows);
@@ -1474,7 +1476,7 @@ public sealed class MapRenderer
             var row = buffers.Row.AsSpan(0, _area.Width);
             int first = Math.Max(y0, GetSourceStart(output, _height)) - y0;
             int last = Math.Min(y1, GetSourceStart(output + 1, _height)) - y0;
-            if (_scale == 1 && last - first == 1 && _width == _area.Width)
+            if (_scale >= 1 && last - first == 1 && _width == _area.Width)
             {
                 buffers.Source.AsSpan(first * _width, _width).CopyTo(row);
                 _writer(output - _area.Top, row);

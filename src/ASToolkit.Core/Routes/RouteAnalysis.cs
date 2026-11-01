@@ -88,7 +88,7 @@ public sealed class RouteAnalysis
     /// </summary>
     public TourRun[] GetTourRuns()
     {
-        var points = Tour.Select(cell => Grid.Lattice.GetCenter(cell)).Select(center => new Vector2((float)center.X, (float)center.Y)).ToArray();
+        var points = Tour.Select(cell => Grid.Lattice.GetCenter(cell)).Select(center => new Vector2(center.X, center.Y)).ToArray();
         if (points.Length < 2)
         {
             return [];

@@ -86,7 +86,8 @@ internal sealed class OverlayPainter
         [ObjectiveKind.DynamiteSite] = 'S',
         [ObjectiveKind.Breaker] = 'B',
         [ObjectiveKind.Generator] = 'G',
-        [ObjectiveKind.Dynamite] = 'D'
+        [ObjectiveKind.Dynamite] = 'D',
+        [ObjectiveKind.Exit] = 'E'
     };
 
     private readonly DrawingContext _context;
@@ -188,7 +189,7 @@ internal sealed class OverlayPainter
         {
             char letter = ObjectiveLetters[objective.Kind];
             counts[letter] = counts.GetValueOrDefault(letter) + 1;
-            DrawLabel(letter == 'B' ? "B" : $"{letter}{counts[letter]}", _toView(new Vector2((float)objective.X, (float)objective.Y)));
+            DrawLabel(letter is 'B' or 'E' ? letter.ToString() : $"{letter}{counts[letter]}", _toView(new Vector2(objective.X, objective.Y)));
         }
 
         if (runs.Count == 0)
@@ -199,7 +200,7 @@ internal sealed class OverlayPainter
         var start = runs[0].Points[0];
         DrawCircle(null, new Pen(Brushes.Lime, 3), _toView(start), EndRadius);
         var last = route.Objectives.MaxBy(objective => objective.Progress);
-        DrawCircle(null, new Pen(Brushes.Red, 3), _toView(last is null ? start : new Vector2((float)last.X, (float)last.Y)), EndRadius);
+        DrawCircle(null, new Pen(Brushes.Red, 3), _toView(last is null ? start : new Vector2(last.X, last.Y)), EndRadius);
     }
 
     private void DrawWalk(WalkedRoute walk)

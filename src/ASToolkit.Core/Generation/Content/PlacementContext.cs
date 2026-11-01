@@ -12,6 +12,9 @@ namespace ASToolkit.Core.Generation.Content;
 /// </summary>
 public sealed class PlacementContext
 {
+    private const float RoofSight = 90;
+    private const float SightStep = 6;
+
     private readonly Dictionary<(int, int), List<(float X, float Y, float Ex, float Ey)>> _wallBoxes = [];
     private readonly IReadOnlySet<Cell> _blocked;
 
@@ -61,6 +64,9 @@ public sealed class PlacementContext
 
     /// <summary>Gets the player start cell.</summary>
     public Cell Start { get; }
+
+    /// <summary>Gets the fights placed so far.</summary>
+    public List<PlacedFight> Fights { get; } = [];
 
     /// <summary>Gets the cells already holding something.</summary>
     public HashSet<Cell> Taken { get; }
@@ -145,6 +151,25 @@ public sealed class PlacementContext
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Returns whether the camera sees a floor point, with open floor below it on screen up to the roof height and no wall or roof
+    /// drawn over it.
+    /// </summary>
+    public bool IsVisible(float x, float y)
+    {
+        for (float d = 0; d <= RoofSight; d += SightStep)
+        {
+            var cell = Layout.Lattice.GetCell(x, y + d);
+            if (!Layout.Cells.TryGetValue(cell, out int region) || Plan.Regions[region].Kind is RegionKind.SecretCloset or RegionKind.SpawnCloset
+                || d > 0 && IsInWall(x, y + d, 0))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>

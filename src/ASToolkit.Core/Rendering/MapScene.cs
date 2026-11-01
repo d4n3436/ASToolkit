@@ -218,7 +218,7 @@ public sealed class MapScene
         }
 
         var options = new ParallelOptions { MaxDegreeOfParallelism = Math.Min(Environment.ProcessorCount, MaxStripWorkers) };
-        Parallel.For(0, canvas.StripCount, options, canvas.CreateBuffers, canvas.DrawStrip, canvas.ReleaseBuffers);
+        Parallel.For(0, canvas.StripCount, options, canvas.CreateBuffers, (strip, _, buffers) => canvas.DrawStrip(strip, buffers), canvas.ReleaseBuffers);
     }
 
     // Indices of the placements that may reach into an area, in draw order

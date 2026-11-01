@@ -11,8 +11,10 @@ namespace ASToolkit.Core.Generation.Geometry;
 public static class StructureBuilder
 {
     private const int RaisedDoubleDoorZ = -70;
+    private const int SunkenWallZ = -7;
     private const int RaisedSmallDoorZ = -63;
     private const float StuckDoorChance = 0.5f;
+    private const float FramedShare = 0.7f;
     private const float MinFakeDoorGap = 160;
     private static readonly (int Min, int Max) StuckDoorZ = (13, 35);
     private static readonly int[] LabWallDirs = [0, 0, 0, 0, 0, 0, 128, 128, 128, 64, 64, 32];
@@ -107,9 +109,11 @@ public static class StructureBuilder
     }
 
     /// <summary>
-    /// Builds the lab floors, walls, doors and posts of the visible edges and returns the sprite index of each spawn wall.
+    /// Builds the lab floors, walls, doors and posts of the visible edges, then the walls, sunk under the roof and without posts, that
+    /// close the closets off from the void, and returns the sprite index of each spawn wall.
     /// </summary>
-    public static Dictionary<EdgeKey, int> BuildLab(Random rng, MapBuilder map, FineLayout layout, IReadOnlyDictionary<EdgeKey, char> edges)
+    public static Dictionary<EdgeKey, int> BuildLab(Random rng, MapBuilder map, FineLayout layout, IReadOnlyDictionary<EdgeKey, char> edges,
+        Random closetRng, IReadOnlyDictionary<EdgeKey, char> closetEdges)
     {
         foreach (var cell in layout.Cells.Keys.OrderBy(c => c.U).ThenBy(c => c.V))
         {
@@ -176,11 +180,18 @@ public static class StructureBuilder
             map.Add(KnownObject.LabBeam, x, y, 0, BeamDirs[rng.Next(BeamDirs.Length)]);
         }
 
+        foreach (var edge in closetEdges.Where(p => p.Value == 'W').Select(p => p.Key))
+        {
+            ((float x, float y), bool slash) = GetLabPosition(layout.Lattice, edge);
+            map.Add(slash ? KnownObject.LabWallSlash : KnownObject.LabWallBack, x, y, SunkenWallZ, LabWallDirs[closetRng.Next(LabWallDirs.Length)]);
+        }
+
+
         return spawnWalls;
     }
 
     /// <summary>
-    /// Builds the military walls, posts and floor tiles of the visible edges.
+    /// Builds the military walls, doorway frames, posts and floor tiles of the visible edges.
     /// </summary>
     public static void BuildMilitary(Random rng, MapBuilder map, FineLayout layout, IReadOnlyDictionary<EdgeKey, char> edges)
     {
@@ -193,24 +204,26 @@ public static class StructureBuilder
             int dir;
             if (edge.Axis == 'v' && IsEven(edge.A))
             {
-                // A wall piece spans the two unit edges around this one, and arches stay open
+                // Span this edge and the next with a wall piece, leaving arches open and framing the ones a single piece wide
+                (x, y) = l.ToWorld(edge.A + 1, edge.B);
                 if (CrossesArch(arches, 'v', edge.A, edge.B))
                 {
+                    AddFrame(rng, map, arches, 'v', edge.A, edge.B, x, y, 128);
                     continue;
                 }
 
-                (x, y) = l.ToWorld(edge.A + 1, edge.B);
                 id = KnownObject.MilitaryWallSlash;
                 dir = 128;
             }
             else if (edge.Axis == 'u' && IsEven(edge.B))
             {
+                (x, y) = l.ToWorld(edge.A, edge.B + 1);
                 if (CrossesArch(arches, 'u', edge.A, edge.B))
                 {
+                    AddFrame(rng, map, arches, 'u', edge.A, edge.B, x, y, 0);
                     continue;
                 }
 
-                (x, y) = l.ToWorld(edge.A, edge.B + 1);
                 id = KnownObject.MilitaryWallBack;
                 dir = 0;
             }
@@ -285,10 +298,20 @@ public static class StructureBuilder
         }
     }
 
+    // Frame most arches one wall piece wide with walls on both sides
+    private static void AddFrame(Random rng, MapBuilder map, HashSet<EdgeKey> arches, char axis, int a, int b, float x, float y, int dir)
+    {
+        EdgeKey Along(int offset) => axis == 'v' ? new EdgeKey('v', a + offset, b) : new EdgeKey('u', a, b + offset);
+        if (arches.Contains(Along(0)) && arches.Contains(Along(1)) && !arches.Contains(Along(-1)) && !arches.Contains(Along(2)) && rng.NextSingle() < FramedShare)
+        {
+            map.Add(KnownObject.FenceEmitter, x, y, 0, dir);
+        }
+    }
+
     // Returns whether a wall piece on the given edge crosses an open arch
     private static bool CrossesArch(HashSet<EdgeKey> arches, char axis, int a, int b)
     {
-        for (int offset = -1; offset <= 2; offset++)
+        for (int offset = 0; offset <= 1; offset++)
         {
             var key = axis == 'v' ? new EdgeKey('v', a + offset, b) : new EdgeKey('u', a, b + offset);
             if (arches.Contains(key))

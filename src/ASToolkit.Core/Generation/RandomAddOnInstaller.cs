@@ -182,7 +182,7 @@ public static class RandomAddOnInstaller
     private static string GetBriefingPath(string gameFolder, int number) => Path.Combine(gameFolder, "Text", $"random_level_{number:00}.txt");
 
     private static string FormatBriefing(int number, int seed, LevelTheme theme) =>
-        $"MISSION {number:00}:\r\ngenerated {(theme == LevelTheme.Lab ? "laboratory" : "military base")}\r\n\r\nDESCRIPTION:\r\nseed {seed}.\r\n";
+        $"MISSION {number:00}:\r\ngenerated {theme switch { LevelTheme.Lab => "laboratory", LevelTheme.Military => "military base", _ => "outskirts" }}\r\n\r\nDESCRIPTION:\r\nseed {seed}.\r\n";
 
     private static void CopyCampaignLevel(string gameFolder, int number, string target)
     {

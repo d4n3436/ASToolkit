@@ -1,4 +1,6 @@
 using ASToolkit.Core.Levels;
+using ASToolkit.Core.Rooms;
+using ASToolkit.Core.Survey;
 
 namespace ASToolkit.Core.Generation.Layout;
 
@@ -10,26 +12,15 @@ public sealed class LayoutPlan
     /// <summary>
     /// Initializes a new instance of the <see cref="LayoutPlan"/> class.
     /// </summary>
-    public LayoutPlan(ThemeSettings theme, LayoutStyleProfile profile)
+    public LayoutPlan(ThemeSettings theme)
     {
         Theme = theme;
-        Profile = profile;
     }
 
     /// <summary>
     /// Gets the theme settings.
     /// </summary>
     public ThemeSettings Theme { get; }
-
-    /// <summary>
-    /// Gets the room sizing and connection weights the layout is built with.
-    /// </summary>
-    public LayoutStyleProfile Profile { get; }
-
-    /// <summary>
-    /// Gets or sets the largest size of a room, in units.
-    /// </summary>
-    public int RoomCap { get; set; }
 
     /// <summary>
     /// Gets the regions; a region's ID is its index.
@@ -67,6 +58,11 @@ public sealed class LayoutPlan
     public PlanRegion? KeyRoom { get; set; }
 
     /// <summary>
+    /// Gets or sets the rooms a fenced level's generator may stand in, with the walk in pixels from the start to the back of each.
+    /// </summary>
+    public IReadOnlyList<(PlanRegion Room, float WalkPixels)> GeneratorRooms { get; set; } = [];
+
+    /// <summary>
     /// Gets or sets the link the blackout trigger sits in.
     /// </summary>
     public PlanLink? BlackoutLink { get; set; }
@@ -81,10 +77,31 @@ public sealed class LayoutPlan
     /// </summary>
     public int Area => Occupancy.Count;
 
+
     /// <summary>
     /// Gets or sets the box every region must stay inside, or null for no limit.
     /// </summary>
     public UnitRect? Bounds { get; set; }
+
+    /// <summary>
+    /// Reads the roles of the rooms from the link graph.
+    /// </summary>
+    public RoomRoleMap MeasureRoles()
+    {
+        var rooms = Regions.Where(region => region.Kind is RegionKind.Station or RegionKind.SideRoom or RegionKind.Wing or RegionKind.Pen).ToDictionary(region => region.Id);
+        return RoomRoleMap.Measure(rooms.Keys, Links.Select(link => (link.From, link.To)), Stations[0].Id, Stations[^1].Id, room => rooms[room].IsHall,
+            room => rooms[room].Units.Count, room => rooms[room].Station, KeyRoom?.Id);
+    }
+
+    /// <summary>
+    /// Returns the zone a region lies in.
+    /// </summary>
+    public GateZone GetZone(PlanRegion region) => region.Kind is RegionKind.SecretCloset or RegionKind.SecretRoom ? GateZone.Secret : !region.IsGated ? GateZone.Open : Gate switch
+    {
+        GateKind.Fences => GateZone.Fenced,
+        GateKind.Blackout => GateZone.Blackout,
+        _ => GateZone.Locked
+    };
 
     /// <summary>
     /// Returns whether a rectangle lies inside the bounds.
@@ -150,6 +167,19 @@ public sealed class LayoutPlan
         }
 
         return region;
+    }
+
+    /// <summary>
+    /// Adds a rectangle of units to a region.
+    /// </summary>
+    public void ExtendRegion(PlanRegion region, UnitRect rect)
+    {
+        region.Rects.Add(rect);
+        foreach (var unit in rect.Units)
+        {
+            Occupancy[unit] = region.Id;
+            region.Units.Add(unit);
+        }
     }
 
     /// <summary>

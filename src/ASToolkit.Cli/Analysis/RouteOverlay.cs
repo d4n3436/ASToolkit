@@ -57,16 +57,17 @@ internal static class RouteOverlay
         [ObjectiveKind.DynamiteSite] = 'S',
         [ObjectiveKind.Breaker] = 'B',
         [ObjectiveKind.Generator] = 'G',
-        [ObjectiveKind.Dynamite] = 'D'
+        [ObjectiveKind.Dynamite] = 'D',
+        [ObjectiveKind.Exit] = 'E'
     };
 
     private static readonly Lazy<FontFamily> LabelFamily = new(() => SystemFonts.Families.OrderBy(f => f.Name).First(HasLabelGlyphs));
 
     public static void Draw(MapImage map, RouteAnalysis analysis, LevelScriptSummary script)
     {
-        float k = (float)(map.Scale / TunedScale);
+        float k = map.Scale / TunedScale;
         var tour = analysis.Tour
-            .Select(c => analysis.Grid.Lattice.GetCenter(c))
+            .Select(analysis.Grid.Lattice.GetCenter)
             .Select(p => map.ToImage(p.X, p.Y))
             .ToArray();
         
@@ -84,7 +85,7 @@ internal static class RouteOverlay
                 c.DrawLine(Trigger, Size(1), map.ToImage(element.X, element.Y), trigger);
                 if (t.Radius > 0)
                 {
-                    c.Draw(Trigger, Size(1), new EllipsePolygon(trigger, (float)(t.Radius * map.Scale)));
+                    c.Draw(Trigger, Size(1), new EllipsePolygon(trigger, t.Radius * map.Scale));
                 }
             }
 
@@ -132,10 +133,10 @@ internal static class RouteOverlay
 
         return;
 
-        float Size(float w) => Math.Max(1, MathF.Round((float)w * k));
+        float Size(float w) => Math.Max(1, MathF.Round(w * k));
     }
 
-    // Number sites, generators and dynamite in tour order and label the breaker B
+    // Number sites, generators and dynamite in tour order, and label the breaker B and the exit E
     private static void DrawObjectiveLabels(IImageProcessingContext c, MapImage map, IReadOnlyList<RouteObjective> objectives, Func<float, float> size, Font font)
     {
         var counts = new Dictionary<char, int>();
@@ -143,7 +144,7 @@ internal static class RouteOverlay
         {
             char letter = ObjectiveLetters[objective.Kind];
             counts[letter] = counts.GetValueOrDefault(letter) + 1;
-            string text = letter == 'B' ? "B" : $"{letter}{counts[letter]}";
+            string text = letter is 'B' or 'E' ? letter.ToString() : $"{letter}{counts[letter]}";
             var at = map.ToImage(objective.X, objective.Y);
             var bounds = TextMeasurer.MeasureBounds(text, new TextOptions(font));
             float pad = size(2);
@@ -155,7 +156,7 @@ internal static class RouteOverlay
     }
 
     // Bounding box of the pixels that differ from the background by more than the threshold
-    private static Rectangle? FindContent(Image<Rgb24> image)
+    internal static Rectangle? FindContent(Image<Rgb24> image)
     {
         int x0 = int.MaxValue, y0 = int.MaxValue, x1 = -1, y1 = -1;
         var b = MapRenderer.Background;
@@ -180,5 +181,5 @@ internal static class RouteOverlay
 
     private static bool HasLabelGlyphs(FontFamily family) =>
         family.TryGetMetrics(FontStyle.Bold, out var metrics)
-        && "SGBD0123456789".All(c => metrics.TryGetGlyphMetrics(new CodePoint(c), TextAttributes.None, TextDecorations.None, LayoutMode.HorizontalTopBottom, ColorFontSupport.None, out _));
+        && "SGBDE0123456789".All(c => metrics.TryGetGlyphMetrics(new CodePoint(c), TextAttributes.None, TextDecorations.None, LayoutMode.HorizontalTopBottom, ColorFontSupport.None, out _));
 }
