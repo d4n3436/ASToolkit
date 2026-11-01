@@ -268,7 +268,7 @@ public sealed class LevelGenerator
             }
 
             (float u, float v) = layout.Lattice.ToLattice(x, y);
-            decor.Add(new PlacedDecor(prop.Id, u, v, prop.Z, prop.Dir, new byte[8], (-1, propIndex), null));
+            decor.Add(new PlacedDecor(prop.Id, u, v, prop.Z, prop.Dir, new byte[8], (-1, propIndex), null, SpriteSource.CopiedScene));
             occupancy.Add(prop.Id, x, y, prop.Z);
         }
     }
@@ -451,6 +451,7 @@ public sealed class LevelGenerator
         }
 
         StructureBuilder.BuildRoof(roofRng, theme, layout, shown, map);
+        map.Source = SpriteSource.Model;
 
         var startRoom = layout.GetRegionCells(plan.Stations[0].Id).ToArray();
         var start = startRoom[startRoom.Length / 2];
@@ -488,7 +489,7 @@ public sealed class LevelGenerator
         foreach (var piece in decor)
         {
             (float x, float y) = layout.Lattice.ToWorld(piece.U, piece.V);
-            map.Add(piece.Id, x, y, piece.Z, piece.Dir, piece.Payload, unique: false);
+            map.Add(piece.Id, x, y, piece.Z, piece.Dir, piece.Payload, unique: false, source: piece.Origin);
         }
 
         var context = new PlacementContext(contentRng, level, plan, layout, map, _objects, start, blocked.Keys.ToHashSet(), keepClear, occupancy, companionsOf);
@@ -520,7 +521,8 @@ public sealed class LevelGenerator
             Budget = budget,
             Template = ReferenceLevelSet.GetCampaignName(level),
             Lattice = layout.Lattice,
-            Theme = theme
+            Theme = theme,
+            Provenance = map.GetProvenance()
         };
     }
 

@@ -217,7 +217,7 @@ public static class ContentPlacer
                 (float u, float v) = lattice.ToLattice(door.Position.X + mark.Dx, door.Position.Y + mark.Dy);
                 if (edges.MeasureClearance(u, v) < DoorMarkWallReach)
                 {
-                    map.Add(mark.Id, door.Position.X + mark.Dx, door.Position.Y + mark.Dy, mark.Z, mark.Dir, unique: false);
+                    map.Add(mark.Id, door.Position.X + mark.Dx, door.Position.Y + mark.Dy, mark.Z, mark.Dir, unique: false, source: SpriteSource.CopiedScene);
                 }
             }
         }
@@ -246,7 +246,7 @@ public static class ContentPlacer
                     continue;
                 }
 
-                map.Add(KnownObject.BrokenKeypad, x, y, keypad.Z, facings.PickFacing(rng, KnownObject.BrokenKeypad, edges, u, v));
+                map.Add(KnownObject.BrokenKeypad, x, y, keypad.Z, facings.PickFacing(rng, KnownObject.BrokenKeypad, edges, u, v), source: SpriteSource.Relation);
             }
         }
     }
@@ -389,7 +389,7 @@ public static class ContentPlacer
                 if (ctx.Level == 10 && GetDistance(new PointF(placed.Value.X, placed.Value.Y), new PointF(7541, 4501)) < 150)
                 {
                     // Avoid the 415 spot the level 10 script handles specially
-                    ctx.Map.Sprites.RemoveAt(ctx.Map.Sprites.Count - 1);
+                    ctx.Map.RemoveLast();
                     back.Remove(placed.Value.Cell);
                     index--;
                     continue;
@@ -536,7 +536,7 @@ public static class ContentPlacer
                             if (ctx.Layout.Cells.ContainsKey(ctx.Layout.Lattice.GetCell(x + stripe.Dx, y + stripe.Dy)) && !ctx.IsInWall(x + stripe.Dx, y + stripe.Dy, 0)
                                 && ctx.Occupancy.Fits(stripe.Id, x + stripe.Dx, y + stripe.Dy, stripe.Z))
                             {
-                                ctx.Map.Add(stripe.Id, x + stripe.Dx, y + stripe.Dy, stripe.Z, stripe.Dir, unique: false);
+                                ctx.Map.Add(stripe.Id, x + stripe.Dx, y + stripe.Dy, stripe.Z, stripe.Dir, unique: false, source: SpriteSource.CopiedScene);
                                 ctx.Occupancy.Add(stripe.Id, x + stripe.Dx, y + stripe.Dy, stripe.Z);
                             }
                         }
@@ -761,7 +761,7 @@ public static class ContentPlacer
         foreach (var generator in generators.Take(Math.Max(0, ctx.EndlessGeneratorsLeft)))
         {
             ctx.EndlessGeneratorsLeft--;
-            ctx.Map.Add(generator.Id, hx - 30 * side + ctx.Rng.NextSingle() * 16 - 8, hy - 42 + ctx.Rng.NextSingle() * 12 - 6, generator.Z, generator.Dir, generator.Payload, generator.Army, unique: false);
+            ctx.Map.Add(generator.Id, hx - 30 * side + ctx.Rng.NextSingle() * 16 - 8, hy - 42 + ctx.Rng.NextSingle() * 12 - 6, generator.Z, generator.Dir, generator.Payload, generator.Army, unique: false, source: SpriteSource.CopiedScene);
         }
 
         var floorCell = GetFloorSide(wall)!.Value;
@@ -1043,7 +1043,7 @@ public static class ContentPlacer
 
     private static void StampSite(PlacementContext ctx, SiteTemplate template, float x, float y, float shrink)
     {
-        ctx.Map.Add(KnownObject.DynamiteSite, x, y, template.Z, template.Dir, unique: false);
+        ctx.Map.Add(KnownObject.DynamiteSite, x, y, template.Z, template.Dir, unique: false, source: SpriteSource.CopiedScene);
 
         // Keep the pads at the original's spacing, mirrored about the site
         foreach (var member in template.Members)
@@ -1070,7 +1070,7 @@ public static class ContentPlacer
                 }
             }
 
-            ctx.Map.Add(member.Id, mx, my, member.Z, member.Dir, member.Payload, member.Army, unique: false);
+            ctx.Map.Add(member.Id, mx, my, member.Z, member.Dir, member.Payload, member.Army, unique: false, source: SpriteSource.CopiedScene);
             ctx.Occupancy.Add(member.Id, mx, my, member.Z);
         }
 
@@ -1195,7 +1195,7 @@ public static class ContentPlacer
             {
                 foreach ((var member, float x, float y) in spots)
                 {
-                    ctx.Map.Add(member.Id, x, y, 0, member.Dir, MapBuilder.MonsterPayload, 1, unique: false);
+                    ctx.Map.Add(member.Id, x, y, 0, member.Dir, MapBuilder.MonsterPayload, 1, unique: false, source: SpriteSource.CopiedFormation);
                     ctx.Occupancy.Add(member.Id, x, y, 0);
                 }
 
@@ -1444,7 +1444,7 @@ public static class ContentPlacer
         {
             byte[] payload = SpawnerProgram.Create(chunks[chunkIndex], (tx, ty, radius), way).ToPayload();
             (float sx, float sy) = GetCenter(ctx, spots[chunkIndex % spots.Length]);
-            ctx.Map.Add(KnownObject.Spawner, sx, sy, 0, 0, payload, 1, unique: false);
+            ctx.Map.Add(KnownObject.Spawner, sx, sy, 0, 0, payload, 1, unique: false, source: SpriteSource.CopiedFormation);
             ctx.AddCompanions(KnownObject.Spawner, sx, sy, 0);
         }
 
@@ -1483,7 +1483,7 @@ public static class ContentPlacer
         foreach (var chunk in chunks)
         {
             var added = SpawnerProgram.Create(chunk, (trigger.X, trigger.Y, trigger.Radius), program.Waypoints.Select(point => new PointF(point.X, point.Y)));
-            ctx.Map.Add(KnownObject.Spawner, sprite.Position.X, sprite.Position.Y, 0, 0, added.ToPayload(), 1, unique: false);
+            ctx.Map.Add(KnownObject.Spawner, sprite.Position.X, sprite.Position.Y, 0, 0, added.ToPayload(), 1, unique: false, source: SpriteSource.CopiedFormation);
         }
 
         var cell = ctx.Layout.Lattice.GetCell(trigger.X, trigger.Y);

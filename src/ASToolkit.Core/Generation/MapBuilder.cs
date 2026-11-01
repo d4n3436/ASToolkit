@@ -19,6 +19,7 @@ public sealed class MapBuilder
 
     private readonly ArmyTable _armies;
     private readonly HashSet<(KnownObject, long, long, long)> _placed = [];
+    private readonly List<SpriteSource> _sources = [];
     private uint _handle = 0x10000000;
 
     /// <summary>
@@ -35,9 +36,14 @@ public sealed class MapBuilder
     public List<MergedMapSprite> Sprites { get; } = [];
 
     /// <summary>
+    /// Gets or sets the source of the sprites added without one.
+    /// </summary>
+    public SpriteSource Source { get; set; }
+
+    /// <summary>
     /// Places an object and returns its index, or -1 when a unique placement repeats an earlier one.
     /// </summary>
-    public int Add(KnownObject id, float x, float y, float z = 0, int dir = 0, ReadOnlyMemory<byte> payload = default, uint? army = null, bool unique = true)
+    public int Add(KnownObject id, float x, float y, float z = 0, int dir = 0, ReadOnlyMemory<byte> payload = default, uint? army = null, bool unique = true, SpriteSource? source = null)
     {
         var key = (id, (long)MathF.Round(x), (long)MathF.Round(y), (long)MathF.Round(z));
         if (!_placed.Add(key) && unique)
@@ -51,8 +57,23 @@ public sealed class MapBuilder
             : KnownObject.Monsters.Contains(id) || KnownObject.Bosses.Contains(id) ? MonsterPayload
             : new byte[8];
         Sprites.Add(new MergedMapSprite(_handle, id, new Vector3(x, y, z), (byte)(dir & 255), army ?? _armies.GetArmy(id), data));
+        _sources.Add(source ?? Source);
         return Sprites.Count - 1;
     }
+
+    /// <summary>
+    /// Removes the sprite added last.
+    /// </summary>
+    public void RemoveLast()
+    {
+        Sprites.RemoveAt(Sprites.Count - 1);
+        _sources.RemoveAt(_sources.Count - 1);
+    }
+
+    /// <summary>
+    /// Returns the number of sprites from each source.
+    /// </summary>
+    public IReadOnlyDictionary<SpriteSource, int> GetProvenance() => _sources.CountBy(source => source).ToDictionary();
 
     /// <summary>
     /// Returns a map of the placed objects, sized to hold them.

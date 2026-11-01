@@ -35,6 +35,8 @@ public sealed class DesignMeasurer
     private const float MonitorFurnitureReach = 25;
     private const float InsideShare = 0.12f;
     private const int OffRouteWalk = 200;
+    private const int ReliefWindows = 10;
+    private const int MinWallLineCells = 3;
 
     private static readonly HashSet<KnownObject> Computers = [KnownObject.Computer, KnownObject.ComputerDead];
     private static readonly HashSet<KnownObject> Pads = [KnownObject.TeleportPad, KnownObject.SilentTeleportPad];
@@ -113,6 +115,18 @@ public sealed class DesignMeasurer
         var boxes = _model.Objects.Where(piece => piece.Id == KnownObject.Boxes).ToArray();
         var spawners = _analysis.Elements.Where(element => element.Kind == ElementKind.Spawner && element.Program is not null).Select(element => element.Program!).ToArray();
         var deskTops = _model.Objects.Where(piece => DeskTops.Contains(piece.Id)).ToArray();
+        var sections = new SectionMeasurer(_survey).Measure();
+        var beats = new BeatMeasurer(_survey, sections).Measure();
+        var gates = _survey.Gates
+            .Where(gate => gate.KeyPlace is not null && gate.KeyRoute is not null)
+            .Select(gate => (Gate: gate, Lock: sections.FirstOrDefault(section => IsClosedBy(gate.Kind, section.Boundary))))
+            .Where(pair => pair.Lock is not null)
+            .ToArray();
+        var climaxes = beats.Where(beat => beat.Kind is BeatKind.Fight or BeatKind.Ambush or BeatKind.Boss)
+            .GroupBy(beat => beat.Section)
+            .Where(group => group.Count() >= 2)
+            .Select(group => group.MaxBy(beat => beat.HitPoints))
+            .ToArray();
         return new DesignMeasures
         {
             Signature = _survey.Signature,
@@ -146,6 +160,7 @@ public sealed class DesignMeasurer
             RoomProportion = MeasureRoomProportion(),
             Spread = MeasureSpread(),
             Graph = _model.Theme == LevelTheme.Lab ? RoomGraph.Build(_survey) : null,
+            Architecture = _model.Theme == LevelTheme.Lab ? MeasureArchitecture() : null,
             RepeatedRooms = CountRepeatedRooms(),
             FightGap = MeasureFightGap(),
             SpawnedPerThousand = spawners.Length == 0 ? null : 1000f * spawners.Sum(program => program.Monsters.Count()) / Math.Max(1, spawners.Sum(program => program.Monsters.Sum(GetHitPoints))),
@@ -166,9 +181,83 @@ public sealed class DesignMeasurer
             HealthInCrates = CountInCrates(ItemCategory.Health),
             AmmoInCrates = CountInCrates(ItemCategory.Ammo),
             ArmorInCrates = CountInCrates(ItemCategory.Armor),
-            PileSize = loose.Length == 0 ? null : (float)loose.Length / loose.Select(item => new PointF(item.Position.X, item.Position.Y)).ToArray().Cluster(PileReach).Count
+            PileSize = loose.Length == 0 ? null : (float)loose.Length / loose.Select(item => new PointF(item.Position.X, item.Position.Y)).ToArray().Cluster(PileReach).Count,
+            Sections = sections,
+            Beats = beats,
+            LocksSeenBeforeKeys = new MeasureShare(gates.Count(pair => GetPlace(pair.Lock!.Boundary!.Value.FromPlace).FirstVisit < pair.Gate.KeyRoute), gates.Length),
+            KeysBeforeLocks = new MeasureShare(gates.Count(pair => pair.Gate.Kind != LevelStyle.Blackout && sections.First(section => section.Places.Contains(pair.Gate.KeyPlace!.Value)).Index < pair.Lock!.Index),
+                gates.Count(pair => pair.Gate.Kind != LevelStyle.Blackout)),
+            ClimaxPosition = climaxes.Length == 0 ? null : climaxes.Select(beat => beat.Position).Order().ElementAt(climaxes.Length / 2),
+            ReliefAfterClimaxes = new MeasureShare(climaxes.Count(IsRelieved), climaxes.Length),
+            ArchetypeChanges = CountArchetypeChanges(sections)
         };
     }
+
+    private LevelPlace GetPlace(int place) => _survey.Places[place - 1];
+
+    private LevelArchitecture MeasureArchitecture()
+    {
+        var placeOf = _survey.Places.SelectMany(place => place.Cells.Select(cell => (Cell: cell, place.Id))).ToDictionary(entry => entry.Cell, entry => entry.Id);
+        var cells = placeOf.Keys.ToArray();
+        int box = (cells.Max(cell => cell.U) - cells.Min(cell => cell.U) + 1) * (cells.Max(cell => cell.V) - cells.Min(cell => cell.V) + 1);
+        var lines = new Dictionary<(char Axis, int Line), int>();
+        foreach (var cell in cells)
+        {
+            int place = placeOf[cell];
+            CountWall(placeOf.GetValueOrDefault(cell with { U = cell.U + 1 }) != place, ('u', cell.U + 1));
+            CountWall(placeOf.GetValueOrDefault(cell with { V = cell.V + 1 }) != place, ('v', cell.V + 1));
+            CountWall(!placeOf.ContainsKey(cell with { U = cell.U - 1 }), ('u', cell.U));
+            CountWall(!placeOf.ContainsKey(cell with { V = cell.V - 1 }), ('v', cell.V));
+        }
+
+        var corners = cells.SelectMany(cell => new[] { cell, cell with { U = cell.U + 1 }, cell with { V = cell.V + 1 }, new Cell(cell.U + 1, cell.V + 1) }).ToHashSet();
+        int notches = corners.Count(corner => new[] { corner, corner with { U = corner.U - 1 }, corner with { V = corner.V - 1 }, new Cell(corner.U - 1, corner.V - 1) }
+            .Count(placeOf.ContainsKey) == 3);
+        int floor = _survey.Places.Sum(place => place.AreaPixels);
+        return new LevelArchitecture
+        {
+            Compactness = cells.Length / (float)box,
+            WallLinesPerThousandCells = 1000f * lines.Values.Count(edges => edges >= MinWallLineCells) / cells.Length,
+            CorridorShare = _survey.Places.Where(place => place.Kind == PlaceKind.Corridor).Sum(place => place.AreaPixels) / (float)Math.Max(1, floor),
+            HallArea = MedianArea(PlaceKind.Hall),
+            RoomArea = MedianArea(PlaceKind.Room),
+            ClosetArea = MedianArea(PlaceKind.SecretCloset, PlaceKind.SpawnCloset, PlaceKind.Nook),
+            NotchesPerSide = notches / 4f
+        };
+
+        void CountWall(bool isWall, (char Axis, int Line) line)
+        {
+            if (isWall)
+            {
+                lines[line] = lines.GetValueOrDefault(line) + 1;
+            }
+        }
+    }
+
+    private float? MedianArea(params PlaceKind[] kinds)
+    {
+        int[] areas = _survey.Places.Where(place => kinds.Contains(place.Kind)).Select(place => place.AreaPixels).Order().ToArray();
+        return areas.Length == 0 ? null : areas[areas.Length / 2];
+    }
+
+    private bool IsRelieved(LevelBeat climax)
+    {
+        int window = _survey.Signature.TourPixels / ReliefWindows;
+        var fights = _survey.Encounters.Where(fight => fight.HitPoints > 0).ToArray();
+        int before = fights.Where(fight => fight.Route <= climax.Route && climax.Route - fight.Route <= window).Sum(fight => fight.HitPoints);
+        int after = fights.Where(fight => fight.Route > climax.Route && fight.Route - climax.Route <= window).Sum(fight => fight.HitPoints);
+        return after < before;
+    }
+
+    private static MeasureShare CountArchetypeChanges(LevelSection[] sections)
+    {
+        var big = sections.Where(section => section.FloorShare >= SectionMeasurer.MajorShare).ToArray();
+        return new MeasureShare(big.Zip(big.Skip(1)).Count(pair => pair.First.Archetype != pair.Second.Archetype), Math.Max(0, big.Length - 1));
+    }
+
+    private static bool IsClosedBy(LevelStyle gate, SectionBoundary? boundary) => boundary is not null && (gate == LevelStyle.Fenced
+        ? boundary.Value.Kind == BoundaryKind.Fence
+        : boundary.Value.Kind is BoundaryKind.LockedDoor or BoundaryKind.Blackout);
 
     private PointF[] Find(KnownObject id) => _positions[id].ToArray();
 

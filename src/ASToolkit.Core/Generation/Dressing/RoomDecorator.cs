@@ -103,7 +103,7 @@ public static class RoomDecorator
         {
             if (!decor.Any(piece => piece.Id.IsBlood && IsNear(layout.Lattice, piece, corpse, BloodReach)) && themeDecor.Contains(KnownObject.SmallBloodPool))
             {
-                decor.Add(new PlacedDecor(KnownObject.SmallBloodPool, corpse.U, corpse.V, themeDecor.GetMiddleHeight(KnownObject.SmallBloodPool), 0, [], (BloodSource, index++), null));
+                decor.Add(new PlacedDecor(KnownObject.SmallBloodPool, corpse.U, corpse.V, themeDecor.GetMiddleHeight(KnownObject.SmallBloodPool), 0, [], (BloodSource, index++), null, SpriteSource.Model));
             }
         }
 
@@ -134,7 +134,7 @@ public static class RoomDecorator
 
             occupancy.Add(id, x, y, z);
             byte[] payload = id == KnownObject.Crate ? KnownObject.CreateEmptyCratePayload() : [];
-            decor.Add(new PlacedDecor(id, cell.U + 0.5f, cell.V + 0.5f, z, dir, payload, (PlantSource, index++), null));
+            decor.Add(new PlacedDecor(id, cell.U + 0.5f, cell.V + 0.5f, z, dir, payload, (PlantSource, index++), null, SpriteSource.Model));
             taken.Add(cell);
         }
     }
@@ -171,7 +171,7 @@ public static class RoomDecorator
                 .ToArray();
             if (stripes.All(stripe => floor.Contains(GetCell(stripe.Position.U, stripe.Position.V)) && !keepClear.Contains(GetCell(stripe.Position.U, stripe.Position.V))))
             {
-                decor.AddRange(stripes.Select(stripe => new PlacedDecor(stripe.Prop.Id, stripe.Position.U, stripe.Position.V, stripe.Prop.Z, stripe.Prop.Dir, [], (MarkSource, index++), null)));
+                decor.AddRange(stripes.Select(stripe => new PlacedDecor(stripe.Prop.Id, stripe.Position.U, stripe.Position.V, stripe.Prop.Z, stripe.Prop.Dir, [], (MarkSource, index++), null, SpriteSource.CopiedScene)));
             }
         }
     }

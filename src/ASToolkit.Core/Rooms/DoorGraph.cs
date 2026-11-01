@@ -7,6 +7,8 @@ namespace ASToolkit.Core.Rooms;
 /// </summary>
 public sealed class DoorGraph
 {
+    private const int ShapeHashRounds = 3;
+
     private readonly int[] _rooms;
     private readonly Dictionary<int, HashSet<int>> _neighbors;
 
@@ -170,8 +172,46 @@ public sealed class DoorGraph
         return count;
     }
 
-    // Split the graph into biconnected blocks with Tarjan's edge stack
-    private List<HashSet<int>> FindBlocks()
+    /// <summary>
+    /// Returns the graph of the given rooms and the doors between them.
+    /// </summary>
+    public DoorGraph GetSubgraph(IReadOnlySet<int> rooms)
+    {
+        int[] kept = _rooms.Where(rooms.Contains).ToArray();
+        return new DoorGraph(kept, kept.ToDictionary(room => room, room => _neighbors[room].Where(rooms.Contains).ToHashSet()));
+    }
+
+    /// <summary>
+    /// Returns the number of independent cycles of the graph.
+    /// </summary>
+    public int CountLoops() => _neighbors.Values.Sum(neighbors => neighbors.Count) / 2 - _rooms.Length + CountComponents();
+
+    /// <summary>
+    /// Returns a hash of the graph's shape that equal graphs share, from three rounds of Weisfeiler-Lehman relabeling.
+    /// </summary>
+    public ulong ComputeShapeHash()
+    {
+        var labels = _rooms.ToDictionary(room => room, room => (ulong)_neighbors[room].Count);
+        for (int round = 0; round < ShapeHashRounds; round++)
+        {
+            labels = _rooms.ToDictionary(room => room, room => _neighbors[room]
+                .Select(next => labels[next])
+                .Order()
+                .Aggregate(Mix(labels[room]), (hash, label) => Mix(hash ^ label)));
+        }
+
+        return labels.Values.Order().Aggregate(Mix((ulong)_rooms.Length), (hash, label) => Mix(hash ^ label));
+    }
+
+    /// <summary>
+    /// Returns the number of neighbors of each room, from fewest to most.
+    /// </summary>
+    public int[] GetDegrees() => _rooms.Select(room => _neighbors[room].Count).Order().ToArray();
+
+    /// <summary>
+    /// Returns the rooms of each biconnected block of the graph.
+    /// </summary>
+    public List<HashSet<int>> FindBlocks()
     {
         var blocks = new List<HashSet<int>>();
         var order = new Dictionary<int, int>();
@@ -219,6 +259,13 @@ public sealed class DoorGraph
                 }
             }
         }
+    }
+
+    private static ulong Mix(ulong value)
+    {
+        value = (value ^ (value >> 30)) * 0xBF58476D1CE4E5B9;
+        value = (value ^ (value >> 27)) * 0x94D049BB133111EB;
+        return value ^ (value >> 31);
     }
 
     private List<int> FillComponent(int first, HashSet<int> seen)

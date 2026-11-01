@@ -256,4 +256,44 @@ public sealed class DesignMeasures
     /// Gets the loose pickups per pile, or null without loose pickups.
     /// </summary>
     public required float? PileSize { get; init; }
+
+    /// <summary>
+    /// Gets how a lab's places form one building, or null for other themes.
+    /// </summary>
+    public required LevelArchitecture? Architecture { get; init; }
+
+    /// <summary>
+    /// Gets the sections of the level along its tour.
+    /// </summary>
+    public required IReadOnlyList<LevelSection> Sections { get; init; }
+
+    /// <summary>
+    /// Gets the beats of the level in tour order.
+    /// </summary>
+    public required IReadOnlyList<LevelBeat> Beats { get; init; }
+
+    /// <summary>
+    /// Gets the gates whose first closed boundary the tour reaches before their key.
+    /// </summary>
+    public required MeasureShare LocksSeenBeforeKeys { get; init; }
+
+    /// <summary>
+    /// Gets the locked-door and fence gates whose key lies in a section before their first closed boundary.
+    /// </summary>
+    public required MeasureShare KeysBeforeLocks { get; init; }
+
+    /// <summary>
+    /// Gets the median position in its section of the largest fight of each section with two or more fights.
+    /// </summary>
+    public required float? ClimaxPosition { get; init; }
+
+    /// <summary>
+    /// Gets the section climaxes followed by fewer fight hit points in the next tenth of the tour than in the tenth before.
+    /// </summary>
+    public required MeasureShare ReliefAfterClimaxes { get; init; }
+
+    /// <summary>
+    /// Gets the pairs of consecutive sections holding 5% of the floor or more whose forms differ.
+    /// </summary>
+    public required MeasureShare ArchetypeChanges { get; init; }
 }

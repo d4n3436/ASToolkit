@@ -3,9 +3,11 @@ using System.Text;
 using ASToolkit.Cli.Analysis;
 using ASToolkit.Core.Design;
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Generation;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Rendering;
 using ASToolkit.Core.Reference;
+using ASToolkit.Core.Survey;
 using SixLabors.ImageSharp;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -25,6 +27,13 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         "ADDON2/Level_02.map", "ADDON2/Level_03.map", "ADDON2/Level_04.map", "ADDON2/Level_05.map"
     ];
 
+    private static readonly (string Title, string Folder, string Money, int Levels)[] Campaigns =
+    [
+        ("Campaign", "", "LevelMoney", 10), ("Add-on 1", "ADDON/", "LevelMoneyAddon", 5), ("Add-on 2", "ADDON2/", "LevelMoneyAddon2", 5)
+    ];
+
+    private static readonly string[] Prices = ["WeaponPrice", "AmmoPrice", "ItemPrice", "GettingAmmo"];
+
     private static readonly KnownObject[] TallFurniture = [KnownObject.Cabinet, KnownObject.Table, KnownObject.Shelves, KnownObject.BigComputer];
     private static readonly KnownObject[] FacedFurniture = [KnownObject.Cabinet, KnownObject.Table, KnownObject.Container, KnownObject.Shelves];
 
@@ -34,7 +43,7 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         var objects = ObjectTable.Load(Path.Combine(settings.Game, "objects.res"));
         var campaign = ReferenceLevelSet.CampaignLevels.Select(level => (Name: ReferenceLevelSet.GetCampaignName(level), Path: Path.Combine(settings.Game, "Maps", ReferenceLevelSet.GetCampaignName(level)))).ToList();
         var addOns = AddOnLevels.Select(name => (Name: name, Path: Path.Combine(settings.Game, "Maps", name))).ToList();
-        var generated = Generate(settings, cancellationToken);
+        var (generated, provenance) = Generate(settings, cancellationToken);
         var renderer = settings.Images ? new MapRenderer(settings.Game, objects) : null;
 
         var all = campaign.Concat(addOns).Concat(generated).ToArray();
@@ -61,6 +70,13 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         }));
 
         WriteLevels(settings, all.Select(entry => entry.Name).ToArray(), measures);
+        WriteSections(settings, all.Select(entry => entry.Name).ToArray(), levels, campaign.Count + addOns.Count);
+        if (generated.Count > 0)
+        {
+            WriteProvenance(settings, generated.Select(entry => entry.Name).ToArray(), provenance);
+        }
+
+        WriteCampaigns(settings, loader, all.Select(entry => entry.Name).Zip(levels).Where(pair => pair.Second is not null).ToDictionary(pair => pair.First, pair => pair.Second!.Survey));
         var campaignLevels = levels.Take(campaign.Count).OfType<ReferenceLevel>().ToArray();
         var addOnLevels = levels.Skip(campaign.Count).Take(addOns.Count).OfType<ReferenceLevel>().ToArray();
         var generatedLevels = levels.Skip(campaign.Count + addOns.Count).OfType<ReferenceLevel>().ToArray();
@@ -71,6 +87,7 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         var addOnMeasures = measures.Skip(campaign.Count).Take(addOns.Count).OfType<DesignMeasures>().ToArray();
         var candidates = measures.Skip(campaign.Count + addOns.Count).OfType<DesignMeasures>().ToArray();
         var rows = BuildGapRows(originals, addOnMeasures, candidates);
+        AddNoveltyRows(rows, all.Select(entry => entry.Name).ToArray(), levels, campaign.Count, addOns.Count);
         WriteGaps(settings, rows, candidates.Length);
 
         var table = new Table().AddColumns("Measure", "Campaign", "Add-ons", $"Generated ({settings.Seeds} seeds)");
@@ -80,16 +97,17 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         }
 
         AnsiConsole.Write(table);
-        AnsiConsole.MarkupLine($"Wrote design.tsv, design.md and relations.md to [green]{Markup.Escape(settings.Out)}[/].");
+        AnsiConsole.MarkupLine($"Wrote design.tsv, design.md, relations.md, sections.md campaign.md and provenance.md to [green]{Markup.Escape(settings.Out)}[/].");
         return measures.All(measure => measure is not null) ? 0 : 1;
     }
 
-    private static List<(string Name, string Path)> Generate(InspectDesignSettings settings, CancellationToken cancellationToken)
+    private static (List<(string Name, string Path)> Levels, IReadOnlyDictionary<SpriteSource, int>[] Provenance) Generate(InspectDesignSettings settings,
+        CancellationToken cancellationToken)
     {
         var levels = new List<(string Name, string Path)>();
         if (settings.Seeds == 0)
         {
-            return levels;
+            return (levels, []);
         }
 
         var (generator, _, _) = GeneratorFactory.Create(settings.Game);
@@ -101,16 +119,16 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
             levels.Add(($"seed_{seed}/{ReferenceLevelSet.GetCampaignName(level)}", Path.Combine(folder, ReferenceLevelSet.GetCampaignName(level))));
         }
 
+        var provenance = new IReadOnlyDictionary<SpriteSource, int>[jobs.Length];
         var options = new ParallelOptions { MaxDegreeOfParallelism = MaxLevelsAtOnce, CancellationToken = cancellationToken };
         AnsiConsole.Status().Start("Generating the levels", _ => Parallel.For(0, jobs.Length, options, index =>
         {
-            if (!File.Exists(levels[index].Path))
-            {
-                generator.Generate(jobs[index].Seed, jobs[index].Level).Write(levels[index].Path, generator.GetTemplatePath(jobs[index].Level));
-            }
+            var level = generator.Generate(jobs[index].Seed, jobs[index].Level);
+            level.Write(levels[index].Path, generator.GetTemplatePath(jobs[index].Level));
+            provenance[index] = level.Provenance;
         }));
 
-        return levels;
+        return (levels, provenance);
     }
 
     private static void WriteLevels(InspectDesignSettings settings, string[] names, DesignMeasures?[] measures)
@@ -199,7 +217,19 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         rows.Add(("tour gap between fights with 5% of the hit points, median of levels", Format(Median(originals, measure => measure.FightGap)), Format(Median(addOns, measure => measure.FightGap)),
             Format(Median(candidates, measure => measure.FightGap))));
         AddShare("dynamite sites on screen 0.2 of the tour before they are reached", measure => measure.SitesPassedEarly);
+        AddShare("gates whose first closed boundary the tour reaches before the key", measure => measure.LocksSeenBeforeKeys);
+        AddShare("locked-door and fence gates with the key in a section before their first closed boundary", measure => measure.KeysBeforeLocks);
+        AddMedian("largest fight's position in its section, median of levels", measure => measure.ClimaxPosition);
+        AddShare("section climaxes with fewer hit points in the next tenth of the tour", measure => measure.ReliefAfterClimaxes);
+        AddShare("consecutive sections of 5% or more with different forms", measure => measure.ArchetypeChanges);
         AddMedian("lab door-graph cycles, median of levels", measure => measure.Graph?.Cycles);
+        AddMedian("lab floor share of the bounding box, median of levels", measure => measure.Architecture?.Compactness);
+        AddMedian("lab wall lines of 3+ cells per 1,000 cells, median of levels", measure => measure.Architecture?.WallLinesPerThousandCells);
+        AddMedian("lab corridor share of the floor, median of levels", measure => measure.Architecture?.CorridorShare);
+        AddMedian("lab median hall area (px²), median of levels", measure => measure.Architecture?.HallArea);
+        AddMedian("lab median room area (px²), median of levels", measure => measure.Architecture?.RoomArea);
+        AddMedian("lab median closet and nook area (px²), median of levels", measure => measure.Architecture?.ClosetArea);
+        AddMedian("lab outline notches per side, median of levels", measure => measure.Architecture?.NotchesPerSide);
         AddMedian("lab main body share of the floor, median of levels", measure => measure.Graph?.MainBodyShare);
         AddMedian("lab largest branch share of the floor, median of levels", measure => measure.Graph?.LargestBranchShare);
         AddMedian("lab hub rooms from the start, median of levels", measure => measure.Graph?.HubHops);
@@ -351,11 +381,164 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         File.WriteAllText(Path.Combine(settings.Out, "design.md"), text.ToString());
     }
 
-    private static float? Median(DesignMeasures[] measures, Func<DesignMeasures, float?> get)
+    private static void WriteSections(InspectDesignSettings settings, string[] names, ReferenceLevel?[] levels, int originals)
     {
-        float[] sorted = measures.Select(get).OfType<float>().Order().ToArray();
+        var text = new StringBuilder();
+        text.AppendLine("| map | theme | sections | at least 5% | largest share | loops inside | deepest pod | median compactness | shared blocks | boundaries | forms (share) |");
+        text.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|");
+        var rows = new List<(string Name, LevelTheme Theme, LevelSection[] Sections)>();
+        for (int index = 0; index < names.Length; index++)
+        {
+            var level = levels[index];
+            if (level is not null)
+            {
+                rows.Add((names[index], level.Survey.Theme, new SectionMeasurer(level.Survey).Measure()));
+            }
+        }
+
+        foreach (var row in rows.Take(originals))
+        {
+            text.AppendLine($"| {row.Name} | {row.Theme} | {row.Sections.Length} | {CountBigSections(row.Sections)} | {Format(row.Sections.Max(section => section.FloorShare))} | "
+                + $"{Format(row.Sections.Sum(section => section.Loops))} | {Format(row.Sections.Max(section => section.PodDepth))} | "
+                + $"{Format(Median(row.Sections.Select(section => section.Compactness)))} | {Format(row.Sections.Sum(section => section.SharedBlocks))} | {FormatBoundaries(row.Sections)} | "
+                + $"{string.Join(" ", row.Sections.Select(section => $"{section.Archetype} {Format(section.FloorShare)}"))} |");
+        }
+
+        foreach (var group in rows.Skip(originals).GroupBy(row => Path.GetFileName(row.Name)).OrderBy(group => group.Key, StringComparer.Ordinal))
+        {
+            var levelSections = group.Select(row => row.Sections).ToArray();
+            text.AppendLine($"| generated {group.Key} ({levelSections.Length} seeds) | {group.First().Theme} | {FormatRange(levelSections.Select(sections => sections.Length).ToArray())} | "
+                + $"{FormatRange(levelSections.Select(CountBigSections).ToArray())} | {FormatRange(levelSections.Select(sections => sections.Max(section => section.FloorShare)).ToArray())} | "
+                + $"{FormatRange(levelSections.Select(sections => sections.Sum(section => section.Loops)).ToArray())} | {FormatRange(levelSections.Select(sections => sections.Max(section => section.PodDepth)).ToArray())} | "
+                + $"{FormatRange(levelSections.Select(sections => Median(sections.Select(section => section.Compactness)) ?? 0).ToArray())} | "
+                + $"{FormatRange(levelSections.Select(sections => sections.Sum(section => section.SharedBlocks)).ToArray())} | {FormatBoundaries(levelSections.SelectMany(sections => sections).ToArray())} | "
+                + $"{FormatArchetypes(levelSections.SelectMany(sections => sections).ToArray())} |");
+        }
+
+        File.WriteAllText(Path.Combine(settings.Out, "sections.md"), text.ToString());
+    }
+
+    private static void AddNoveltyRows(List<(string Measure, string Original, string AddOn, string Candidate)> rows, string[] names, ReferenceLevel?[] levels, int campaign, int addOns)
+    {
+        var originals = Enumerable.Range(0, campaign + addOns).Where(index => levels[index] is not null).Select(index => (names[index], levels[index]!.Model, levels[index]!.Survey)).ToArray();
+        var novelty = new NoveltyMeasurer(originals);
+        var copied = new MeasureShare[names.Length];
+        var equal = new string?[names.Length];
+        Parallel.For(0, names.Length, index =>
+        {
+            var level = levels[index];
+            if (level is not null)
+            {
+                copied[index] = novelty.CountCopiedPieces(names[index], level.Model);
+                equal[index] = novelty.FindEqualDoorGraph(names[index], level.Survey);
+            }
+        });
+
+        rows.Add(("decor past blood and shadows, and monsters, in groups of 3+ with 2+ ids matching another original within 2 px", Format(Sum(copied.Take(campaign))),
+            Format(Sum(copied.Skip(campaign).Take(addOns))), Format(Sum(copied.Skip(campaign + addOns)))));
+        rows.Add(("levels whose door graph has the shape of another original's", CountEqual(equal.Take(campaign)), CountEqual(equal.Skip(campaign).Take(addOns)),
+            CountEqual(equal.Skip(campaign + addOns))));
+
+        static MeasureShare Sum(IEnumerable<MeasureShare> shares) => shares.Aggregate(default(MeasureShare), (total, share) => total + share);
+
+        static string CountEqual(IEnumerable<string?> found)
+        {
+            string[] matches = found.OfType<string>().ToArray();
+            return matches.Length == 0 ? "0" : $"{matches.Length} ({string.Join(", ", matches.Distinct())})";
+        }
+    }
+
+    private static void WriteProvenance(InspectDesignSettings settings, string[] names, IReadOnlyDictionary<SpriteSource, int>[] provenance)
+    {
+        var sources = Enum.GetValues<SpriteSource>();
+        var text = new StringBuilder();
+        text.AppendLine($"| level | {string.Join(" | ", sources)} | copied share of the pieces past the layout |");
+        text.AppendLine($"|---|{string.Concat(sources.Select(_ => "---|"))}---|");
+        var rows = names.Zip(provenance).GroupBy(pair => Path.GetFileName(pair.First)).OrderBy(group => group.Key, StringComparer.Ordinal)
+            .Select(group => (Name: group.Key, Counts: sources.Select(source => group.Sum(pair => pair.Second.GetValueOrDefault(source))).ToArray()))
+            .ToList();
+        rows.Add(("all", sources.Select((_, index) => rows.Sum(row => row.Counts[index])).ToArray()));
+        foreach ((string name, int[] counts) in rows)
+        {
+            int copied = sources.Select((source, index) => source is SpriteSource.CopiedWindow or SpriteSource.CopiedPart or SpriteSource.CopiedScene or SpriteSource.CopiedFormation
+                ? counts[index] : 0).Sum();
+            text.AppendLine($"| {name} | {string.Join(" | ", counts.Select(Format))} | {Format(copied / (float)Math.Max(1, counts.Sum() - counts[(int)SpriteSource.Layout]))} |");
+        }
+
+        File.WriteAllText(Path.Combine(settings.Out, "provenance.md"), text.ToString());
+    }
+
+    private static void WriteCampaigns(InspectDesignSettings settings, LevelLoader loader, Dictionary<string, LevelSurvey> surveys)
+    {
+        var table = GameTable.Load(Path.Combine(settings.Game, "Maps", "common_table.lgc"));
+        var text = new StringBuilder();
+        foreach ((string title, string folder, string money, int count) in Campaigns)
+        {
+            var levels = new List<LevelSurvey>();
+            for (int number = 1; number <= count; number++)
+            {
+                string name = folder + ReferenceLevelSet.GetCampaignName(number);
+                if (!surveys.TryGetValue(name, out var survey))
+                {
+                    var loaded = loader.Load(name, Path.Combine(settings.Game, "Maps", name));
+                    if (loaded is null)
+                    {
+                        break;
+                    }
+
+                    survey = loaded.Survey;
+                }
+
+                levels.Add(survey);
+            }
+
+            text.AppendLine($"## {title}");
+            text.AppendLine();
+            text.AppendLine("| level | theme | gate | hit points | spawned share | monster kinds | new monster kinds | floor (px²) | tour (px) | sections | health | armor | ammo | cash | new weapons | new weapons before their ammo | end money |");
+            text.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+            foreach (var level in new CampaignMeasurer(table.GetArray(money)).Measure(levels))
+            {
+                text.AppendLine($"| {level.Level} | {level.Theme} | {level.GateStyle} | {Format(level.HitPoints)} | {Format(level.SpawnedShare)} | {level.MonsterKinds.Count} | "
+                    + $"{string.Join(", ", level.NewMonsterKinds)} | {Format(level.FloorPixels)} | {Format(level.TourPixels)} | {level.Sections} | {Format(level.Pickups.GetValueOrDefault(ItemCategory.Health))} | "
+                    + $"{Format(level.Pickups.GetValueOrDefault(ItemCategory.Armor))} | {Format(level.Pickups.GetValueOrDefault(ItemCategory.Ammo))} | {Format(level.Money)} | "
+                    + $"{string.Join(", ", level.NewWeapons)} | {level.NewWeaponsBeforeAmmo} | {Format(level.EndMoney)} |");
+            }
+
+            text.AppendLine();
+        }
+
+        text.AppendLine("## Prices");
+        text.AppendLine();
+        foreach (string name in Prices)
+        {
+            text.AppendLine($"- {name}: {string.Join(", ", table.GetArray(name).Select(Format))}");
+        }
+
+        File.WriteAllText(Path.Combine(settings.Out, "campaign.md"), text.ToString());
+    }
+
+    private static int CountBigSections(LevelSection[] sections) => sections.Count(section => section.FloorShare >= SectionMeasurer.MajorShare);
+
+    private static string FormatArchetypes(LevelSection[] sections) => string.Join(", ", sections
+        .Where(section => section.FloorShare >= SectionMeasurer.MajorShare)
+        .GroupBy(section => section.Archetype)
+        .OrderBy(group => group.Key)
+        .Select(group => $"{group.Key} {group.Count()}"));
+
+    private static string FormatBoundaries(LevelSection[] sections) => string.Join(", ", sections
+        .Select(section => section.Boundary)
+        .OfType<SectionBoundary>()
+        .GroupBy(boundary => boundary.Kind)
+        .OrderBy(group => group.Key)
+        .Select(group => $"{group.Key} {group.Count()}"));
+
+    private static float? Median(IEnumerable<float> values)
+    {
+        float[] sorted = values.Order().ToArray();
         return sorted.Length == 0 ? null : sorted[sorted.Length / 2];
     }
+
+    private static float? Median(DesignMeasures[] measures, Func<DesignMeasures, float?> get) => Median(measures.Select(get).OfType<float>());
 
     private static string GetFileName(string name) => Path.ChangeExtension(name, null).Replace('/', '_').Replace('\\', '_');
 
@@ -366,6 +549,8 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
     private static string Format(int? value) => value is null ? "-" : Format(value.Value);
 
     private static string Format(float? value) => value is null ? "-" : value.Value.ToString("0.###", CultureInfo.InvariantCulture);
+
+    private static string FormatRange(float[] values) => values.Length == 0 ? "-" : values.Max() - values.Min() < 0.005f ? Format(values[0]) : $"{Format(values.Min())} to {Format(values.Max())}";
 
     private static string FormatRange(int[] values) => values.Length == 0 ? "-" : values.Min() == values.Max() ? Format(values[0]) : $"{Format(values.Min())} to {Format(values.Max())}";
 }

@@ -137,6 +137,9 @@ public static class KnownObjectExtensions
         /// <summary>Gets a value indicating whether the ID is an ammunition pickup.</summary>
         public bool IsAmmo => id is >= ShotgunAmmo and <= MagmaMinigunAmmo;
 
+        /// <summary>Gets the ammunition pickup of a weapon pickup, or null when the ID is not a weapon.</summary>
+        public KnownObject? WeaponAmmo => id.IsWeapon ? id - Shotgun + ShotgunAmmo : null;
+
         /// <summary>Gets the furniture family of the piece, or null when it belongs to none.</summary>
         public PieceFamily? Family => id switch
         {

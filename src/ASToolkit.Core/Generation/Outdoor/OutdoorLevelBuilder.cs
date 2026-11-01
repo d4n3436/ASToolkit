@@ -86,6 +86,7 @@ public sealed class OutdoorLevelBuilder
         }
         while (style == OutdoorStyle.Campaign && script.Exit is not null && Distance(new PointF(script.Exit.Value.Center.X, script.Exit.Value.Center.Y), start) < MinExitLine && ++tries < CompoundTries);
 
+        site.Map.Source = SpriteSource.Layout;
         site.LayGround(original, style);
         var map = site.Map.ToMap(new Vector2(0, Math.Max(0, size.Height - 600)));
         map.Size = size;
@@ -96,7 +97,8 @@ public sealed class OutdoorLevelBuilder
             Lattice = lattice,
             Template = ReferenceLevelSet.GetCampaignName(1),
             Theme = LevelTheme.Outdoor,
-            Script = script
+            Script = script,
+            Provenance = site.Map.GetProvenance()
         };
     }
 
@@ -135,7 +137,7 @@ public sealed class OutdoorLevelBuilder
             var origin = new PointF(originalBreach!.Position.X, originalBreach.Position.Y);
             foreach (var sprite in original.Sprites.Where(s => s.Id is KnownObject.Barrel or KnownObject.Cylinder && Distance(new PointF(s.Position.X, s.Position.Y), origin) < BreachReach))
             {
-                site.Map.Add(sprite.Id, wall.X + sprite.Position.X - origin.X, wall.Y + sprite.Position.Y - origin.Y, sprite.Position.Z, (int)sprite.Dir, unique: false);
+                site.Map.Add(sprite.Id, wall.X + sprite.Position.X - origin.X, wall.Y + sprite.Position.Y - origin.Y, sprite.Position.Z, (int)sprite.Dir, unique: false, source: SpriteSource.CopiedScene);
             }
 
             var exit = originalExit!.Value;
@@ -150,6 +152,7 @@ public sealed class OutdoorLevelBuilder
         site.Road = (start, site.Gate ?? start);
         site.AddYardScenes(yard, original, copiesBreach ? new PointF(originalBreach!.Position.X, originalBreach.Position.Y) : null);
         site.AddLamps();
+        site.Map.Source = SpriteSource.Model;
         if (style == OutdoorStyle.Campaign)
         {
             site.AddMoneyRow(big ?? exitBuilding.Value, 4);
@@ -197,6 +200,7 @@ public sealed class OutdoorLevelBuilder
         }
 
         var start = new PointF(Margin * 2.5f, Margin * 2);
+        site.Map.Source = SpriteSource.Model;
         site.Map.Add(KnownObject.PlayerStartFemaleLegs, start.X, start.Y, 0, 130);
         foreach (var item in new[] { KnownObject.Shotgun, KnownObject.Shotgun, KnownObject.GrenadeLauncher, KnownObject.LifeImplant, KnownObject.StrengthImplant })
         {
@@ -531,7 +535,8 @@ public sealed class OutdoorLevelBuilder
 
                     foreach (var spot in spots)
                     {
-                        Map.Add(spot.Sprite.Id, spot.X, spot.Y, spot.Sprite.Position.Z, (int)spot.Sprite.Dir, spot.Sprite.Id == KnownObject.Crate ? KnownObject.CreateEmptyCratePayload() : default, unique: false);
+                        Map.Add(spot.Sprite.Id, spot.X, spot.Y, spot.Sprite.Position.Z, (int)spot.Sprite.Dir, spot.Sprite.Id == KnownObject.Crate ? KnownObject.CreateEmptyCratePayload() : default, unique: false,
+                            source: SpriteSource.CopiedScene);
                     }
 
                     _taken.UnionWith(cells);

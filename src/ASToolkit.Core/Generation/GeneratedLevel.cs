@@ -68,6 +68,11 @@ public sealed class GeneratedLevel
     public RouteAnalysis? Analysis { get; set; }
 
     /// <summary>
+    /// Gets the number of sprites of the level from each source.
+    /// </summary>
+    public required IReadOnlyDictionary<SpriteSource, int> Provenance { get; init; }
+
+    /// <summary>
     /// Writes the map and its script next to it, taking the other map chunks from a template map.
     /// </summary>
     public void Write(string mapPath, string templatePath)

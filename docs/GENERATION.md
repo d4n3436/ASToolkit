@@ -121,11 +121,79 @@ Measured on the ten lab originals (campaign levels 2 to 5, add-on 1 levels 2 to 
 - The main body holds 58 to 80% of the floor, and no branch holds more than 20%. It runs through the large rooms, a median of 144 units against 36 in the branches, and 11 of the 17 halls lie on it. The cycles lie in the main body, apart from one in level 3's key branch and two in a branch of add-on 2 level 5.
 - Branches are trees of up to 9 rooms and 9 rooms deep that split up to 4 ways. The loot branches (the monster-free branches of the patterns below) add up to 0 to 13 rooms a level, entered through locked or jammed doors on levels 3 and 4.
 - The campaign keeps objectives in the main body or one room off it. Level 3's key branch is the exception, with the breaker and the charge 3 rooms in. Add-on 1 level 2 puts its breaker and its charges and site at the ends of branches 2 to 5 rooms deep.
-- The gate splits the level into two sections. Once the tour enters the second, it never walks back into a room of the first on levels 2, 3 and 4, and re-enters one room (6% of the rest of the tour) on add-on 1 level 2. On level 3 and add-on 1 level 2 the tour walks back out of the key branch (4 and 5 rooms) before the second section starts. Level 4's blackout search runs through the main body (7 of its 8 rooms), and the locked labs keep the key in a branch off the hub.
+- The gate splits the level into two parts. Once the tour enters the second, it never walks back into a room of the first on levels 2, 3 and 4, and re-enters one room (6% of the rest of the tour) on add-on 1 level 2. On level 3 and add-on 1 level 2 the tour walks back out of the key branch (4 and 5 rooms) before the second section starts. Level 4's blackout search runs through the main body (7 of its 8 rooms), and the locked labs keep the key in a branch off the hub.
 - Ambushes on levels 2 to 4 spawn only into rooms the tour walks after the trigger, as level 4's breaker trap does into P9. Level 5 spawns two small ones (10% of its ambush hit points) into rooms the tour has left for good. Every triggered spawner stands in a closet, on the main body or one room off it, apart from two 2 rooms off on add-on 2 level 5. Their monsters stop a median 17% of the way to the trigger (quartiles 9 and 31%).
 - A notch is a part of a room's bounding box outside the room at least 2 cells across and 4% of the box. Narrower jogs are wall slivers. Notches sit at corners (143 of 149) and take 6 to 23% of the box (deciles 1 and 9), with a short side of 2 to 11 units.
 - Shape follows size. Over the ten levels, rooms under 100,000 px² have no notch 83% of the time, rooms of 100,000 to 400,000 px² 42% and larger rooms 26%, and 63% of the large rooms have two or more notches. Room areas run from 15 to 298 units (deciles 1 and 9).
 - 60% of the notches open outside where the building's outline steps, 23% hold a neighboring room, 13% a solid block and 3% a closet.
+
+### Sections
+
+A section is a run of the tour after which no earlier place is visited again (`SectionMeasurer`). It holds the places the tour visits in that run and the untoured places nearest to them through any connection. Level 3 leaves 37% of its floor off the tour. A boundary is the step of the tour from one section into the next, and a pod's depth counts the doors between a room and the section's body, the biconnected blocks on the way from where the tour enters the section to where it leaves.
+
+| level | sections | 5% or more | largest share | loops inside | deepest pod | boundaries | forms of the sections of 5% or more, in tour order |
+|---|---|---|---|---|---|---|---|
+| 2 | 5 | 3 | 0.55 | 1 | 2 | passage 3, locked door 1 | Wing 0.55, Room 0.25, Room 0.11 |
+| 3 | 15 | 4 | 0.46 | 3 | 5 | passage 12, locked door 2 | Complex 0.46, Hall 0.11, Room 0.08, Room 0.11 |
+| 4 | 5 | 3 | 0.67 | 4 | 3 | passage 2, locked door 2 | Wing 0.22, Room 0.05, Wing 0.67 |
+| 5 | 9 | 7 | 0.28 | 1 | 3 | passage 8 | Wing 0.24, Room 0.06, Room 0.14, Room 0.08, Room 0.09, Hall 0.28, Room 0.08 |
+| 6 | 4 | 2 | 0.83 | 1 | 3 | passage 2, fence 1 | Wing 0.83, Room 0.11 |
+| 7 | 2 | 1 | 0.98 | 0 | 3 | passage 1 | Sprawl 0.98 |
+| 8 | 2 | 2 | 0.85 | 0 | 4 | passage 1 | Sprawl 0.85, Hall 0.14 |
+| 9 | 1 | 1 | 1.00 | 0 | 1 | - | Sprawl 1.00 |
+| 10 | 7 | 2 | 0.82 | 0 | 2 | passage 3, fence 3 | Hall 0.10, Sprawl 0.82 |
+| add-on 1 level 2 | 3 | 3 | 0.88 | 3 | 5 | passage 1, locked door 1 | Hall 0.06, Complex 0.88, Room 0.06 |
+| add-on 1 level 3 | 2 | 2 | 0.74 | 0 | 2 | passage 1 | Hall 0.74, Room 0.26 |
+| add-on 1 level 4 | 11 | 8 | 0.30 | 0 | 1 | passage 10 | Room 0.09, Room 0.05, Hall 0.08, Room 0.15, Room 0.08, Room 0.06, Room 0.11, Room 0.30 |
+| add-on 1 level 5 | 3 | 3 | 0.40 | 0 | 2 | passage 2 | Hall 0.28, Room 0.32, Room 0.40 |
+| add-on 2 level 2 | 4 | 3 | 0.68 | 0 | 2 | passage 3 | Room 0.06, Sprawl 0.68, Room 0.21 |
+| add-on 2 level 3 | 1 | 1 | 1.00 | 4 | 5 | - | Complex 1.00 |
+| add-on 2 level 4 | 2 | 1 | 0.96 | 0 | 4 | passage 1 | Sprawl 0.96 |
+| add-on 2 level 5 | 7 | 5 | 0.36 | 0 | 8 | passage 6 | Room 0.06, Sprawl 0.34, Hall 0.36, Room 0.12, Room 0.12 |
+
+- The labs are journeys of small sections around one large one. Levels 3 and 5 have 15 and 9 sections, level 3's locked wing a chain of single rooms after its Complex, and level 5 one room after another between a Wing and a Hall. Levels 2 and 4 have 5.
+- Military levels are one Sprawl yard holding 0.82 to 1.00 of the floor, with fences as boundaries on levels 6 and 10.
+- Pods run 1 to 5 rooms deep on the campaign labs and 8 on add-on 2 level 5.
+- 11 of the 16 pairs of consecutive campaign sections of 5% or more differ in form.
+
+**Forms.** The form of a section follows four rules over its features, applied in order.
+
+| form | rule | sections (lab, military) |
+|---|---|---|
+| Hall | halls and yards hold half the floor or more | 7, 4 |
+| Room | 3 rooms or fewer, closets and nooks not counted | 46, 11 |
+| Complex | 3 loops or more | 3, 0 |
+| Sprawl | the floor covers under 45% of the bounding box | 2, 5 |
+| Wing | anything else | 4, 1 |
+
+The rules agree with a k-medoids clustering (k = 5, eight standardized features) of the 26 sections with three places or more.
+
+**Beats.** `BeatMeasurer` reads the fights, keys, locks, pickups, set pieces and goals of a level as beats along its tour, each with its section, position in the section and fight intensity (hit points within 800 px of tour on either side, per tour pixel). Measured on campaign levels 2 to 10:
+- The largest fight of a section with two or more fights sits early in it, at a median position of 0.30.
+- 14 of the 16 section climaxes are followed by fewer hit points in the next tenth of the tour than in the tenth before.
+- The tour reaches the first boundary each gate closes before the gate's key on all 5 gated levels, and the breaker or generator of all 4 locked-door and fence gates lies in a section before that boundary. The blackout breaker of level 4 lies two sections past it.
+- 7 of the 8 weapons new to the campaign come after the first pickup of their ammo in the level that brings them. Only level 10's magma minigun comes first.
+
+### Campaign curves
+
+`ascli inspect design` writes these per-level curves of the campaign and both add-ons to `campaign.md`. Hit points count standing and spawned monsters, money counts the cash pickups at 50 each, and end money comes from the level money tables of `common_table.lgc`.
+
+| level | campaign hit points | spawned | end money | add-on 1 hit points | end money | add-on 2 hit points | end money |
+|---|---|---|---|---|---|---|---|
+| 1 | 0 | 0 | 100 | 564 | 100 | 7,852 | 100 |
+| 2 | 336 | 0 | 100 | 7,958 | 850 | 52,910 | 850 |
+| 3 | 1,682 | 0.14 | 350 | 60,409 | 4,800 | 115,556 | 4,800 |
+| 4 | 6,526 | 0.66 | 1,000 | 243,363 | 10,000 | 909,459 | 10,000 |
+| 5 | 21,261 | 0.89 | 2,800 | 331,465 | 18,000 | 1,043,200 | 18,000 |
+| 6 | 27,894 | 0.95 | 5,500 | | | | |
+| 7 | 52,923 | 0.94 | 9,000 | | | | |
+| 8 | 197,861 | 0.87 | 18,000 | | | | |
+| 9 | 1,036,618 | 0.88 | 29,000 | | | | |
+| 10 | 745,142 | 1.00 | 32,000 | | | | |
+
+- The add-ons are shorter and harder. Each covers the campaign's arc of monsters, weapons and money in 5 levels. Add-on 1 passes the hit points of campaign level 8 at its level 4, and add-on 2 those of campaign level 10 at its level 4.
+- The campaign brings in about one weapon a level from level 2 to 10. Add-on 1 hands out four at its level 2, and add-on 2 seven by its level 3.
+- New monster kinds come in steps. Each campaign lab level adds one to four, and levels 6 and 8 add the weapon monsters and the tank weapon monsters. Add-on 1 meets by its level 3 the kinds of campaign levels 5, 6 and 8, and add-on 2 by its level 2 those of level 6.
 
 ### Rooms
 
@@ -308,7 +376,7 @@ Measured on campaign levels 2 to 10. "On screen" means within the 1,280 by 800 s
 
 ### Where generated levels differ
 
-`ascli inspect design --seeds 10` measures the decor, pickups, pacing and room graph of campaign levels 2 to 10, add-on levels 2 to 5 and 10 seeds of each generated campaign level, and writes this table to `design.md`. Frames count as rare when the campaign uses them under 5% of the time against that wall side.
+`ascli inspect design --seeds 10` measures the decor, pickups, pacing, room graph, sections, beats, architecture and novelty of campaign levels 2 to 10, add-on levels 2 to 5 and 10 seeds of each generated campaign level, and writes this table to `design.md`. It also writes `sections.md`, `campaign.md` and `provenance.md`. Frames count as rare when the campaign uses them under 5% of the time against that wall side. The novelty rows compare each level with every original but itself and leave out blood and shadows.
 
 | measure | campaign | add-ons | generated (90 levels) |
 |---|---|---|---|
@@ -368,7 +436,19 @@ Measured on campaign levels 2 to 10. "On screen" means within the 1,280 by 800 s
 | levels with repeated room layouts | 0 of 9 | 0 of 8 | 0 of 90 |
 | tour gap between fights with 5% of the hit points, median of levels | 0.102 | 0.096 | 0.066 |
 | dynamite sites on screen 0.2 of the tour before they are reached | 10 of 20 (50%) | 4 of 28 (14%) | 75 of 200 (38%) |
+| gates whose first closed boundary the tour reaches before the key | 5 of 5 (100%) | 1 of 1 (100%) | 56 of 57 (98%) |
+| locked-door and fence gates with the key in a section before their first closed boundary | 4 of 4 (100%) | - | 57 of 57 (100%) |
+| largest fight's position in its section, median of levels | 0.295 | 0.001 | 0.308 |
+| section climaxes with fewer hit points in the next tenth of the tour | 14 of 16 (88%) | 13 of 18 (72%) | 116 of 143 (81%) |
+| consecutive sections of 5% or more with different forms | 11 of 16 (69%) | 11 of 18 (61%) | 99 of 141 (70%) |
 | lab door-graph cycles, median of levels | 6 | 1 | 3 |
+| lab floor share of the bounding box, median of levels | 0.451 | 0.479 | 0.396 |
+| lab wall lines of 3+ cells per 1,000 cells, median of levels | 12.153 | 5.237 | 9.835 |
+| lab corridor share of the floor, median of levels | 0 | 0 | 0 |
+| lab median hall area (px²), median of levels | 365120 | 591360 | 443520 |
+| lab median room area (px²), median of levels | 118720 | 436800 | 94080 |
+| lab median closet and nook area (px²), median of levels | 13440 | 13440 | 13440 |
+| lab outline notches per side, median of levels | 28.75 | 19 | 17 |
 | lab main body share of the floor, median of levels | 0.647 | 0.69 | 0.356 |
 | lab largest branch share of the floor, median of levels | 0.143 | 0.142 | 0.316 |
 | lab hub rooms from the start, median of levels | 1 | 1 | 1 |
@@ -387,8 +467,12 @@ Measured on campaign levels 2 to 10. "On screen" means within the 1,280 by 800 s
 | fifth of the tour with the most hit points, median of levels | 2 | 1 | 2 |
 | spawned monsters per 1,000 spawned hit points, median of levels | 17.528 | 9.08 | 16.387 |
 | largest spawner (monsters), median of levels | 61 | 126 | 57 |
+| decor past blood and shadows, and monsters, in groups of 3+ with 2+ ids matching another original within 2 px | 353 of 4,778 (7%) | 244 of 7,896 (3%) | 16,689 of 41,477 (40%) |
+| levels whose door graph has the shape of another original's | 2 (Level_09.map, Level_08.map) | 0 | 8 (Level_08.map) |
 
-Generated levels keep blocking floor pieces and monitors off doorways, stand no piece inside another and keep pickups out from under pieces as the campaign does, and stand boxes on furniture about as often (78% against 79%). They leave scattered paper away from tables more often (68% within 60 px of one against 90%), hang monitors against cabinets or shelves more often (11% within 25 px against 4%), stand shelves and cabinets against near walls more often, stand fewer missiles in triplets (19% against all), leave lab big computers without a chair (47% have one, against all of level 5's) and less loose money off the route (63% against 76%), put fewer hit points around the cannon, start the first fight later in the tour, space their big fights closer together and leave more floor off the tour. Their labs have fewer door-graph cycles, fewer bare rooms and a larger largest branch than the campaign's.
+Generated levels keep blocking floor pieces and monitors off doorways, stand no piece inside another and keep pickups out from under pieces as the campaign does, and stand boxes on furniture about as often (78% against 79%). They leave scattered paper away from tables more often (68% within 60 px of one against 90%), hang monitors against cabinets or shelves more often (11% within 25 px against 4%), stand shelves and cabinets against near walls more often, stand fewer missiles in triplets (19% against all), leave lab big computers without a chair (47% have one, against all of level 5's) and less loose money off the route (63% against 76%), put fewer hit points around the cannon, start the first fight later in the tour, space their big fights closer together and leave more floor off the tour. Their labs have fewer door-graph cycles, fewer bare rooms and a larger largest branch than the campaign's, and simpler outlines (17 notches a side against 28.75). 40% of their decor and monsters sit in groups that repeat an original, against 7% of the campaign's that repeat another original, and 8 of their 90 door graphs have the shape of level 8's.
+
+**Provenance.** `GeneratedLevel.Provenance` counts the sprites of a generated level by where they came from, and `provenance.md` sums them per level. Over 10 seeds of the campaign, 84% of the sprites past the walls, floor and roof are copied from the originals. Wall windows give 48% of them, furniture parts 24%, monster formations and spawners 10%, and scenes and sites 1.5%. Relations give 8% and the generator's own rules 9%.
 
 ## Overview
 

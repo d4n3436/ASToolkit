@@ -99,6 +99,11 @@ public class LevelGeneratorIntegrationTests
 
     private static void FindFaults(GeneratedLevel level, string name, ConcurrentBag<string> faults)
     {
+        if (level.Provenance.Values.Sum() != level.Map.Sprites.Count)
+        {
+            faults.Add($"{name}: provenance of {level.Provenance.Values.Sum()} sprites for {level.Map.Sprites.Count}");
+        }
+
         var analysis = level.Analysis;
         if (analysis is null)
         {

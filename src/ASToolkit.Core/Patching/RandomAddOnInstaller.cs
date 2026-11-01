@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.RegularExpressions;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Generation;
@@ -206,7 +205,7 @@ public static class RandomAddOnInstaller
         string path = Path.Combine(maps, "common_table.lgc");
         string text = StripTable(Latin1.GetString(File.ReadAllBytes(path)));
         string newline = text.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
-        int[] money = ReadTable(text, addOnStyle ? "LevelMoneyAddon" : "LevelMoney");
+        var money = GameTable.Parse(text).GetArray(addOnStyle ? "LevelMoneyAddon" : "LevelMoney");
         string block = string.Join(newline, TableStart, $"#define RANDOM_LEVELS {count}", $"static int LevelMoneyRandom[] = {{ {string.Join(" ,", money)} }};", TableEnd, "");
         if (!text.EndsWith('\n'))
         {
@@ -227,19 +226,5 @@ public static class RandomAddOnInstaller
 
         end = text.IndexOf('\n', end);
         return text[..start] + (end < 0 ? "" : text[(end + 1)..]);
-    }
-
-    private static int[] ReadTable(string text, string name)
-    {
-        var match = Regex.Match(text, $@"\b{name}\[\]\s*=\s*\{{([^}}]*)\}}");
-        if (!match.Success)
-        {
-            throw new InvalidDataException($"common_table.lgc has no {name} table.");
-        }
-
-        return match.Groups[1].Value
-            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-            .Select(int.Parse)
-            .ToArray();
     }
 }

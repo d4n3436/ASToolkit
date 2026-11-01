@@ -212,7 +212,7 @@ public sealed class DressingLibrary
 
         byte[] payload = o.Id == KnownObject.Crate ? KnownObject.CreateEmptyCratePayload() : o.Payload;
         (int, int)? support = o.SupportIndex is >= 0 ? (si, o.SupportIndex.Value) : null;
-        result.Add(new PlacedDecor(o.Id, u, v, o.Z, o.Dir, payload, (si, index), support));
+        result.Add(new PlacedDecor(o.Id, u, v, o.Z, o.Dir, payload, (si, index), support, SpriteSource.CopiedWindow));
         return true;
     }
 

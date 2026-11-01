@@ -750,6 +750,13 @@ C-like scripting language in plain text in cp1251, compiled when a map loads.
  F419_15() { ... }                 handler F<object id>_<event> of an object
 ```
 
+Tables are integer arrays with an optional size, filled in braces and split across lines freely, with `//` and `/* */` comments anywhere:
+
+```
+static int LevelMoney[] = {100 ,100 , 350 ,1000, 2800, 5500, 9000,18000,29000,32000,   0,   0 };
+static int WeaponPrice[11] = { 0,0,200,350,1000,2500,4800,8000,15800,25400,900 };
+```
+
 Engine functions are declared in `EXPORT.LGC` as `extern Name(args) <builtin>;`. The registry values `GameType` and `LevelNumber` choose the level flow. [NOTES.md](NOTES.md#scripts) describes the handlers that matter.
 
 ### Quests (levels.cfg)

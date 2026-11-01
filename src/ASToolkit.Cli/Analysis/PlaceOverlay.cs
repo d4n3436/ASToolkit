@@ -46,11 +46,14 @@ internal static class PlaceOverlay
     {
         var lattice = survey.Lattice;
         var font = LabelFamily.Value.CreateFont(Math.Max(10, 26 * map.Scale), FontStyle.Bold);
+        var sectionOf = new SectionMeasurer(survey).Measure()
+            .SelectMany(section => section.Places.Select(place => (Place: place, section.Index)))
+            .ToDictionary(entry => entry.Place, entry => entry.Index);
         map.Image.Mutate<Rgb24>(context =>
         {
             foreach (var place in survey.Places)
             {
-                var color = Palette[(place.Id - 1) % Palette.Length].WithAlpha(IsOffRoute(place.Id) ? 0.12f : 0.22f);
+                var color = (sectionOf.TryGetValue(place.Id, out int section) ? Palette[section % Palette.Length] : Color.Gray).WithAlpha(IsOffRoute(place.Id) ? 0.12f : 0.22f);
                 var placeCells = place.Cells;
                 var cells = placeCells.Select(IPath (cell) => new Polygon(new LinearLineSegment(Corner(cell.U, cell.V), Corner(cell.U + 1, cell.V), Corner(cell.U + 1, cell.V + 1),
                     Corner(cell.U, cell.V + 1)))).ToArray();
@@ -86,7 +89,7 @@ internal static class PlaceOverlay
 
             foreach (var place in survey.Places)
             {
-                string label = place.Id.ToString();
+                string label = sectionOf.TryGetValue(place.Id, out int section) ? $"{place.Id}/{section + 1}" : place.Id.ToString();
                 var at = map.ToImage(place.Center.X, place.Center.Y);
                 var bounds = TextMeasurer.MeasureBounds(label, new TextOptions(font));
                 context.Fill(Color.Black.WithAlpha(0.75f), new RectangularPolygon(at.X - bounds.Width / 2 - 3, at.Y - bounds.Height / 2 - 3, bounds.Width + 6, bounds.Height + 6));
@@ -118,7 +121,7 @@ internal static class PlaceOverlay
         var font = LabelFamily.Value.CreateFont(LegendFontSize, FontStyle.Bold);
         var rows = new List<(Color Color, char Shape, string Text)>
         {
-            (Color.White, 'n', "place on the route"),
+            (Color.White, 'n', "place/section on the route"),
             (Color.Orange, 'n', "place the route never enters"),
             (Color.White, '-', "the tour")
         };

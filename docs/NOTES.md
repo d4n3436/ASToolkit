@@ -6,7 +6,9 @@ This covers what the toolkit's code does not say by itself, which is how the gam
 
 - Script syntax and handler names are described in [FORMATS.md](FORMATS.md#scripts-and-text).
 - The registry value `GameType` selects the flow (0 campaign, 1 survival, 2 add-on, 3 add-on 2) and `LevelNumber` the level. `MAINMENU.LGC` sets them, `SHOP.LGC` loads `Maps/[addon/|addon2/]Level_NN.map`, and `COMMON.LGC` decides what follows a level. The campaign ends after level 10 with `Level_11`, and add-ons end after level 5 with their `Level_06`.
-- `common_compaign.lgc` wins the level once no object 179 is left and no monster with side 1 is alive. Money paid after a level comes from `LevelMoney[]` in `common_table.lgc`.
+- `common_compaign.lgc` wins the level once no object 179 is left and no monster with side 1 is alive. Money paid after a level comes from `LevelMoney[]` in `common_table.lgc` (100, 100, 350, 1,000, 2,800, 5,500, 9,000, 18,000, 29,000 and 32,000), or `LevelMoneyAddon[]` and `LevelMoneyAddon2[]` in the add-ons (100, 850, 4,800, 10,000 and 18,000 for their five levels).
+- `common_table.lgc` also holds the shop's tables, indexed by weapon slot (`WeaponPrice`, `AmmoPrice`, `GettingAmmo`) and by implant (`ItemPrice` for 720 to 731). Weapons 262 to 269 cost 200, 350, 1,000, 2,500, 4,800, 8,000, 15,800 and 25,400.
+- The cash pickup 241 adds 50 to `PlayerMoney` (`F241_0` in `ITEMS.LGC`). Ammo pickups 302 to 309 belong to weapons 262 to 269 in order.
 - Checkpoints are the `StartPlayerX/Y` values set by a trigger in `Level_NN.lgc`.
 - The logo, main menu and shop maps are identical menu-host maps with no sprites.
 
@@ -25,6 +27,7 @@ This covers what the toolkit's code does not say by itself, which is how the gam
 - `ACT_BUILD_UNIT` builds the monster at the spawner's own position. When the spot is taken the build fails and the entry is tried again on the next update. A monster that cannot walk off holds the spawner back. After a build, the entries below `ACT_STOP_STACK` are copied onto the new monster (`Action` case 0x4b in `FUN_00440830`).
 - Level 4's spawners at z 10 build endless generators (800, 801 and 803), which keep making monsters until a blast kills them. No other spawner of the originals builds one.
 - Most monsters in the originals come from spawners. Level 6 has 9 placed monsters and 462 spawned ones, and level 10 has 62 and 1,408.
+- One spawner of add-on 2 level 4 builds unit 3596 after its 30 tank monsters. objects.res has no 3596.
 - A crate (419) holds its loot in the item list of its payload, as (0, 1, item, 0) for one item or (0, 2, item, item, 0) for two. An empty crate is 12 zero bytes.
 - Spawn closets use a 618 (`/`, sprite 601) or 619 (`\`, sprite 602) wall whose payload is `[ACT_STOP_STACK, 15 (ANI_DEATH), ACT_FLAGMAN_TRIGGER x y r]` plus 4 zero bytes. It explodes through `F618_15` and has a 908 inside on the same trigger.
 
@@ -71,7 +74,7 @@ This covers what the toolkit's code does not say by itself, which is how the gam
 - Floor pieces keep off doorways. All but the closest 5% of the solid ones stand 60 px or more from a doorway on campaign labs and 177 px on military levels, and of the hittable ones 70 and 109 px. One of 46 monitors hangs within 40 px of a doorway.
 - In campaign labs, shadows (144) lie under furniture, about one for each table, computer or piece of lab equipment and two for each bio container, and darken secret closets. 87% of scattered papers (408) lie within 45 px of a chair and 68% of a table.
 - A spawner releases at most 51 to 74 monsters. Big waves come from several spawners on one trigger. Level 7 has 13 spawners on 5 triggers, level 10 has 25 on one. Military triggers reach 100 to 150 px.
-- Breakable closets in labs are 4 to 9 cell pockets behind one 609 piece, under the roof. They hold 4 to 9 coins, ammo, a weapon or a perk.
+- Breakable closets in labs are 4 to 9 cell pockets behind one 609 piece, under the roof. They hold 4 to 9 cash pickups, ammo, a weapon or a perk.
 - The breaker hangs on a `\` wall piece (anchor + (-8, +3), dir 0) facing the room. The room is small and has 429 transformers, a 430 corpse with blood, 403 shelves and a 180 pointer. The door panels 423 and 424 sit on the door frame with the door's dir at z about 5.
 - The mounted cannon 357 appears once on each of levels 7 and 8, plus add-ons 1 and 2 levels 4 and 5. It has side 0 and needs about 120 by 90 px of free floor.
 
@@ -111,6 +114,15 @@ A place is a part of the floor enclosed by doors and walls. Floor is the walkabl
 - **Open plans.** Military levels, outdoor maps and doorless labs have no doors to bound their rooms. Places are cut at gaps in a wall line up to 240 px wide, along the line of a wall stub carried across the floor for up to 300 px, and where the floor narrows to less than 60% of its widest part. A narrowing cut needs a wall that ends or turns at both of its ends, seen past up to 2 cells of floor hole, and may shift up to 4 cells to find one. Floor that is never walked and holds under one object per 300 cells is left out of the places. Places under 50k px² merge into the neighbor they open on, also across a fence gate.
 - **Connections.** Opening, doorway, door, locked door, jammed door, breakable wall, spawn wall, monster hole, broken wall, fence frame and fence.
 - **Encounters.** Placed monsters within 130 px of each other form a group. Spawners that share a trigger form one ambush.
+
+### Sections and beats
+
+`SectionMeasurer` splits a surveyed level into sections along the tour, and `BeatMeasurer` reads its fights, keys, locks, pickups, set pieces and goals as beats in them. [GENERATION.md](GENERATION.md#sections) lists the sections of the originals and what the beats show.
+
+- **Commit points.** The tour commits after a visit when no place visited up to it is visited again. The visits between two commit points form a section, in tour order.
+- **Untoured places.** Each place the tour never enters joins the section of the nearest toured place, reached through connections of any kind, the earlier section on a tie.
+- **Boundaries.** A locked door, a fence standing in its frame, or a broken or breakable wall between the two places names the boundary. An open fence frame is a passage. Otherwise a step into the locked, dark or fenced zone names it, then a corridor on either side, and a passage otherwise.
+- **Forms.** Hall when halls and yards hold half the section's floor or more, Room with 3 rooms or fewer, Complex with 3 loops or more, Sprawl when the floor covers under 45% of the section's bounding box, and Wing otherwise.
 
 ## Alien Shooter 2 walk
 

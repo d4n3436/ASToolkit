@@ -489,13 +489,13 @@ public sealed class RoomFurnisher
             foreach (var piece in pieces)
             {
                 (float pu, float pv) = lattice.ToLattice(x0 + piece.X, y0 + piece.Y);
-                placed.Add(new PlacedDecor(piece.Id, pu, pv, piece.Z, piece.Facing, piece.Id == KnownObject.Crate ? KnownObject.CreateEmptyCratePayload() : piece.Payload, (SourceLevel, placed.Count), null));
+                placed.Add(new PlacedDecor(piece.Id, pu, pv, piece.Z, piece.Facing, piece.Id == KnownObject.Crate ? KnownObject.CreateEmptyCratePayload() : piece.Payload, (SourceLevel, placed.Count), null, SpriteSource.CopiedPart));
             }
 
             foreach (var companion in inRoom)
             {
                 (float pu, float pv) = lattice.ToLattice(x0 + companion.X, y0 + companion.Y);
-                placed.Add(new PlacedDecor(companion.Id, pu, pv, companion.Z, companion.Facing, [], (SourceLevel, placed.Count), null));
+                placed.Add(new PlacedDecor(companion.Id, pu, pv, companion.Z, companion.Facing, [], (SourceLevel, placed.Count), null, SpriteSource.Relation));
             }
 
             return true;

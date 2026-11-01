@@ -13,4 +13,5 @@ namespace ASToolkit.Core.Generation.Dressing;
 /// <param name="Payload">The payload bytes.</param>
 /// <param name="Source">The source level and object index the object was copied from.</param>
 /// <param name="Support">The source level and object index of what the object stands on, or null.</param>
-public sealed record PlacedDecor(KnownObject Id, float U, float V, float Z, byte Dir, byte[] Payload, (int Level, int Index) Source, (int Level, int Index)? Support);
+/// <param name="Origin">Where the generator got the object from.</param>
+public sealed record PlacedDecor(KnownObject Id, float U, float V, float Z, byte Dir, byte[] Payload, (int Level, int Index) Source, (int Level, int Index)? Support, SpriteSource Origin);
