@@ -1,6 +1,5 @@
 using System.Numerics;
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Routes;
 
 namespace ASToolkit.Core.Scripting;
 

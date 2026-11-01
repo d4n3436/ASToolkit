@@ -4,9 +4,7 @@ using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Rendering;
 using ASToolkit.Core.Rooms;
-using ASToolkit.Core.Routes;
 using ASToolkit.Core.Reference;
-using ASToolkit.Core.Survey;
 using SixLabors.ImageSharp;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -42,6 +40,7 @@ internal sealed class InspectRoomsCommand : Command<InspectRoomsSettings>
         var themes = new LevelTheme[maps.Length];
         var lattices = new Lattice?[maps.Length];
         var options = new ParallelOptions { MaxDegreeOfParallelism = MaxLevelsAtOnce, CancellationToken = cancellationToken };
+        var loader = new LevelLoader(objects);
         AnsiConsole.Status().Start("Reading the rooms", _ => Parallel.For(0, maps.Length, options, mapIndex =>
         {
             string mapPath = Path.Combine(settings.Levels ?? Path.Combine(settings.Game, "Maps"), maps[mapIndex]);
@@ -50,25 +49,23 @@ internal sealed class InspectRoomsCommand : Command<InspectRoomsSettings>
                 return;
             }
 
-            var map = MapResourceBuilder.Load(mapPath);
-            var script = LevelScriptReader.Read(Path.ChangeExtension(mapPath, ".lgc"));
-            var analysis = RouteAnalyzer.Analyze(maps[mapIndex], map, script, objects);
-            if (analysis is null)
+            var level = loader.Load(maps[mapIndex], mapPath);
+            if (level is null)
             {
                 return;
             }
 
-            var survey = LevelSurveyor.Survey(map, script, analysis, objects);
-            var atlas = RoomAtlas.Read(survey, analysis.Grid.Edges, map.Sprites, settings.Levels is null);
+            var survey = level.Survey;
+            var atlas = settings.Levels is null ? level.Atlas : RoomAtlas.Read(survey, level.Analysis.Grid.Edges, level.Map.Sprites, objects, isOriginal: false);
             atlases[mapIndex] = atlas;
             themes[mapIndex] = survey.Setting;
             lattices[mapIndex] = survey.Lattice;
-            using var rendered = renderer.Render(map.Sprites, settings.Scale, map.Graphics);
+            using var rendered = renderer.Render(level.Map.Sprites, settings.Scale, level.Map.Graphics);
             var sheet = new RoomSheet();
             string name = Path.ChangeExtension(maps[mapIndex], null).Replace('/', '_');
             foreach (var room in atlas.Rooms.Where(room => room.IsRoom))
             {
-                var tile = sheet.Add(rendered, survey.Lattice, analysis.Grid.Edges, room);
+                var tile = sheet.Add(rendered, survey.Lattice, level.Analysis.Grid.Edges, room);
                 if (settings.Crops)
                 {
                     tile.SaveAsPng(Path.Combine(crops, $"{name}_P{room.Place.Id}.png"));

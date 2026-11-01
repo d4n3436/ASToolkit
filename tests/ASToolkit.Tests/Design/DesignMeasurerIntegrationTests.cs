@@ -1,6 +1,5 @@
 using ASToolkit.Core.Design;
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Routes;
 using ASToolkit.Core.Reference;
 using Xunit;
 
@@ -13,12 +12,13 @@ public class DesignMeasurerIntegrationTests
     {
         string game = TestGameFolder.RequireFolder();
         var objects = ObjectTable.Load(Path.Combine(game, "objects.res"));
+        var loader = new LevelLoader(objects);
         return ReferenceLevelSet.CampaignLevels.Select(level =>
         {
-            string path = Path.Combine(game, "Maps", ReferenceLevelSet.GetCampaignName(level));
-            var measures = DesignMeasurer.Measure(Path.GetFileName(path), MapResourceBuilder.Load(path), LevelScriptReader.Read(Path.ChangeExtension(path, ".lgc")), objects);
-            Assert.NotNull(measures);
-            return measures;
+            string name = ReferenceLevelSet.GetCampaignName(level);
+            var loaded = loader.Load(name, Path.Combine(game, "Maps", name));
+            Assert.NotNull(loaded);
+            return DesignMeasurer.Measure(loaded.Model, loaded.Analysis, loaded.Survey, objects);
         }).ToArray();
     });
 

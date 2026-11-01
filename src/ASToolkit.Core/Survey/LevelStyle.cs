@@ -1,4 +1,4 @@
-namespace ASToolkit.Core.Reference;
+namespace ASToolkit.Core.Survey;
 
 /// <summary>
 /// Defines how a level gates its route.

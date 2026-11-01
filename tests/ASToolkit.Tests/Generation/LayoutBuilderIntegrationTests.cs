@@ -3,6 +3,7 @@ using ASToolkit.Core.Formats;
 using ASToolkit.Core.Generation.Layout;
 using ASToolkit.Core.Reference;
 using Xunit;
+using ASToolkit.Core.Survey;
 
 namespace ASToolkit.Tests.Generation;
 

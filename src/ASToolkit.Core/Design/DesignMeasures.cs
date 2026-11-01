@@ -168,6 +168,16 @@ public sealed class DesignMeasures
     public required float? FightGap { get; init; }
 
     /// <summary>
+    /// Gets how many monsters the level's spawners release for every 1,000 hit points they release, or null when the level has no spawner.
+    /// </summary>
+    public required float? SpawnedPerThousand { get; init; }
+
+    /// <summary>
+    /// Gets how many monsters the level's largest spawner releases, or null when the level has no spawner.
+    /// </summary>
+    public required float? LargestSpawner { get; init; }
+
+    /// <summary>
     /// Gets dynamite sites on screen more than 0.2 of the tour before the route reaches them.
     /// </summary>
     public required MeasureShare SitesPassedEarly { get; init; }

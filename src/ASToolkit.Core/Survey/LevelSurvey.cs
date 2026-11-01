@@ -1,5 +1,4 @@
 using ASToolkit.Core.Levels;
-using ASToolkit.Core.Reference;
 
 namespace ASToolkit.Core.Survey;
 
@@ -89,6 +88,15 @@ public sealed class LevelSurvey
     /// Gets the groups of places off the route.
     /// </summary>
     public required IReadOnlyList<LevelBranch> Branches { get; init; }
+
+    /// <summary>
+    /// Returns the openings of the connections as segments on the map.
+    /// </summary>
+    public Doorway[] GetDoorways() => Connections
+        .SelectMany(connection => connection.Edges.Select(run => new Doorway(run.Axis == 'v'
+            ? new MapSegment(Lattice.ToWorld(run.From, run.Line), Lattice.ToWorld(run.To + 1, run.Line))
+            : new MapSegment(Lattice.ToWorld(run.Line, run.From), Lattice.ToWorld(run.Line, run.To + 1)), connection.Kind)))
+        .ToArray();
 
     /// <summary>
     /// Returns the place at a map point or the nearest one within 10 cells, or 0 when there is none.

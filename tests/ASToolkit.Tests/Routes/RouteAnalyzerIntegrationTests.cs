@@ -3,6 +3,7 @@ using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Routes;
 using Xunit;
+using ASToolkit.Core.Scripting;
 
 namespace ASToolkit.Tests.Routes;
 

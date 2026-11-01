@@ -1,4 +1,5 @@
 using ASToolkit.Core.Levels;
+using ASToolkit.Core.Rooms;
 using ASToolkit.Core.Routes;
 using ASToolkit.Core.Survey;
 
@@ -137,17 +138,19 @@ public sealed class RoomGraph
     public static RoomGraph Build(LevelSurvey survey)
     {
         var places = survey.Places.ToDictionary(place => place.Id);
-        (int[] rooms, var neighbors) = FindDoorGraph(survey);
-        (int start, int end) = FindEnds(survey);
-        var body = FindMainBody(rooms, neighbors, start, end);
+        var graph = DoorGraph.Create(survey);
+        var rooms = graph.Rooms;
+        var neighbors = graph.Neighbors;
+        (int start, int end) = DoorGraph.FindEnds(survey);
+        var body = graph.FindMainBody(start, end);
         var depth = neighbors.MeasureHops(body);
         float floor = Math.Max(1, rooms.Sum(room => (float)places[room].AreaPixels));
         int edges = neighbors.Values.Sum(set => set.Count) / 2;
-        int components = CountComponents(rooms, neighbors, []);
+        int components = graph.CountComponents();
 
         var objectivePlaces = survey.Landmarks.Where(landmark => Objectives.Contains(landmark.Kind)).Select(landmark => landmark.Place).ToHashSet();
         var fightPlaces = survey.Encounters.Select(encounter => encounter.Place).ToHashSet();
-        var branches = FindBranches(rooms, neighbors, body);
+        var branches = graph.FindBranches(body);
         int hub = rooms.MaxBy(room => (neighbors[room].Count, -depth.GetValueOrDefault(room, int.MaxValue / 2)))!;
         var large = branches.Where(branch => branch.Count >= 2).ToArray();
         float[] stretches = rooms.Select(room => places[room]).Select(place => Math.Max(place.LengthPixels, place.WidthPixels) / (float)Math.Max(1, Math.Min(place.LengthPixels, place.WidthPixels))).ToArray();
@@ -156,9 +159,9 @@ public sealed class RoomGraph
         (int? reentries, float? reentryShare) = MeasureSectionReentry(survey);
         return new RoomGraph
         {
-            Rooms = rooms.Length,
+            Rooms = rooms.Count,
             SmallRooms = rooms.Count(room => places[room].AreaPixels < SmallRoomPixels),
-            Cycles = edges - rooms.Length + components,
+            Cycles = edges - rooms.Count + components,
             MainBodyShare = body.Sum(room => places[room].AreaPixels) / floor,
             HubDoors = neighbors[hub].Count,
             HubHops = neighbors.MeasureHops([start]).GetValueOrDefault(hub, -1),
@@ -169,7 +172,7 @@ public sealed class RoomGraph
             LootRooms = branches.Where(branch => !branch.Any(objectivePlaces.Contains) && !branch.Any(fightPlaces.Contains)).Sum(branch => branch.Count),
             ObjectiveDepths = survey.Landmarks.Where(landmark => Objectives.Contains(landmark.Kind)).Select(landmark => depth.GetValueOrDefault(landmark.Place, -1)).Order().ToArray(),
             
-            SquareShare = stretches.Count(stretch => stretch < SquareStretch) / (float)Math.Max(1, rooms.Length),
+            SquareShare = stretches.Count(stretch => stretch < SquareStretch) / (float)Math.Max(1, rooms.Count),
             SmallRectangleShare = GetRectangleShare(survey, notches, 0, MidRoomPixels),
             MidRectangleShare = GetRectangleShare(survey, notches, MidRoomPixels, LargeRoomPixels),
             LargeRectangleShare = GetRectangleShare(survey, notches, LargeRoomPixels, int.MaxValue),
@@ -180,150 +183,6 @@ public sealed class RoomGraph
             AbandonedAmbushShare = MeasureAbandonedAmbushes(survey),
             BareRooms = rooms.Count(room => places[room].Kind == PlaceKind.Room && places[room].FurniturePieces < BareFurniture)
         };
-    }
-
-    // Join the rooms other than closets through every connection a player walks
-    internal static (int[] Rooms, Dictionary<int, HashSet<int>> Neighbors) FindDoorGraph(LevelSurvey survey)
-    {
-        int[] rooms = survey.Places
-            .Where(place => place.Kind is not (PlaceKind.SecretCloset or PlaceKind.SpawnCloset))
-            .Select(place => place.Id)
-            .ToArray();
-        
-        var roomSet = rooms.ToHashSet();
-        var neighbors = rooms.ToDictionary(room => room, _ => new HashSet<int>());
-        foreach (var connection in survey.Connections)
-        {
-            if (connection.Kind is not (ConnectionKind.SecretWall or ConnectionKind.SpawnWall or ConnectionKind.MonsterHole) && connection.A != connection.B
-                && roomSet.Contains(connection.A) && roomSet.Contains(connection.B))
-            {
-                neighbors[connection.A].Add(connection.B);
-                neighbors[connection.B].Add(connection.A);
-            }
-        }
-
-        return (rooms, neighbors);
-    }
-
-    internal static (int Start, int End) FindEnds(LevelSurvey survey) =>
-        (survey.Landmarks.First(landmark => landmark.Kind == LandmarkKind.PlayerStart).Place,
-            survey.Landmarks.FirstOrDefault(landmark => landmark.Kind == LandmarkKind.RouteEnd)?.Place ?? survey.Route[^1].Place);
-
-    // Take the rooms of the biconnected blocks on the block-cut tree path from the start to the end
-    internal static HashSet<int> FindMainBody(int[] rooms, Dictionary<int, HashSet<int>> neighbors, int start, int end)
-    {
-        if (start == end)
-        {
-            return [start];
-        }
-
-        var blocks = FindBlocks(rooms, neighbors);
-        var tree = new Dictionary<(bool Block, int Id), List<(bool Block, int Id)>>();
-        for (int index = 0; index < blocks.Count; index++)
-        {
-            foreach (int room in blocks[index])
-            {
-                Link((true, index), (false, room));
-                Link((false, room), (true, index));
-            }
-        }
-
-        var previous = new Dictionary<(bool Block, int Id), (bool Block, int Id)>();
-        var queue = new Queue<(bool Block, int Id)>([(false, start)]);
-        previous[(false, start)] = (false, start);
-        while (queue.Count > 0)
-        {
-            var node = queue.Dequeue();
-            foreach (var next in tree.GetValueOrDefault(node, []))
-            {
-                if (previous.TryAdd(next, node))
-                {
-                    queue.Enqueue(next);
-                }
-            }
-        }
-
-        var body = new HashSet<int> { start };
-        if (!previous.ContainsKey((false, end)))
-        {
-            return body;
-        }
-
-        for (var node = (false, end); node != (false, start); node = previous[node])
-        {
-            if (node.Item1)
-            {
-                body.UnionWith(blocks[node.Item2]);
-            }
-            else
-            {
-                body.Add(node.Item2);
-            }
-        }
-
-        return body;
-
-        void Link((bool, int) from, (bool, int) to)
-        {
-            if (!tree.TryGetValue(from, out var list))
-            {
-                list = [];
-                tree[from] = list;
-            }
-
-            list.Add(to);
-        }
-    }
-
-    // Split the graph into biconnected blocks with Tarjan's edge stack
-    private static List<HashSet<int>> FindBlocks(int[] rooms, Dictionary<int, HashSet<int>> neighbors)
-    {
-        var blocks = new List<HashSet<int>>();
-        var order = new Dictionary<int, int>();
-        var low = new Dictionary<int, int>();
-        var stack = new Stack<(int, int)>();
-        foreach (int room in rooms)
-        {
-            if (!order.ContainsKey(room))
-            {
-                Visit(room, -1);
-            }
-        }
-
-        return blocks;
-
-        void Visit(int room, int parent)
-        {
-            order[room] = low[room] = order.Count;
-            foreach (int next in neighbors[room])
-            {
-                if (!order.TryGetValue(next, out int value))
-                {
-                    stack.Push((room, next));
-                    Visit(next, room);
-                    low[room] = Math.Min(low[room], low[next]);
-                    if (low[next] >= order[room])
-                    {
-                        var block = new HashSet<int>();
-                        (int, int) edge;
-                        do
-                        {
-                            edge = stack.Pop();
-                            block.Add(edge.Item1);
-                            block.Add(edge.Item2);
-                        }
-                        while (edge != (room, next));
-
-                        blocks.Add(block);
-                    }
-                }
-                else if (next != parent && value < order[room])
-                {
-                    stack.Push((room, next));
-                    low[room] = Math.Min(low[room], value);
-                }
-            }
-        }
     }
 
     private static float? GetRectangleShare(LevelSurvey survey, Dictionary<int, (int Count, int Outside)> notches, int minPixels, int maxPixels)
@@ -432,61 +291,6 @@ public sealed class RoomGraph
     }
 
     private static Cell[] GetSides(Cell cell) => [cell with { U = cell.U + 1 }, cell with { U = cell.U - 1 }, cell with { V = cell.V + 1 }, cell with { V = cell.V - 1 }];
-
-    private static int CountComponents(int[] rooms, Dictionary<int, HashSet<int>> neighbors, HashSet<int> excluded)
-    {
-        var seen = new HashSet<int>(excluded);
-        int count = 0;
-        foreach (int room in rooms)
-        {
-            if (seen.Add(room))
-            {
-                count++;
-                FillComponent(room, neighbors, seen);
-            }
-        }
-
-        return count;
-    }
-
-    private static List<int> FillComponent(int first, Dictionary<int, HashSet<int>> neighbors, HashSet<int> seen)
-    {
-        var component = new List<int> { first };
-        var queue = new Queue<int>([first]);
-        while (queue.Count > 0)
-        {
-            foreach (int next in neighbors[queue.Dequeue()])
-            {
-                if (seen.Add(next))
-                {
-                    component.Add(next);
-                    queue.Enqueue(next);
-                }
-            }
-        }
-
-        return component;
-    }
-
-    // Group the rooms off the main body into branches, each joined to the body through one of its rooms
-    internal static List<List<int>> FindBranches(int[] rooms, Dictionary<int, HashSet<int>> neighbors, HashSet<int> body)
-    {
-        var branches = new List<List<int>>();
-        var seen = new HashSet<int>(body);
-        foreach (int room in rooms)
-        {
-            if (seen.Add(room))
-            {
-                var branch = FillComponent(room, neighbors, seen);
-                if (branch.Any(member => neighbors[member].Overlaps(body)))
-                {
-                    branches.Add(branch);
-                }
-            }
-        }
-
-        return branches;
-    }
 
     // Count the rooms of the first section the tour walks after the second starts, at the first locked-door visit of a blackout or
     // the first new room after the key

@@ -4,6 +4,7 @@ using ASToolkit.Core.Rooms;
 using ASToolkit.Core.Routes;
 using ASToolkit.Core.Survey;
 using Xunit;
+using ASToolkit.Core.Scripting;
 
 namespace ASToolkit.Tests.Rooms;
 
@@ -82,6 +83,6 @@ public class RoomAtlasIntegrationTests
         var script = LevelScriptReader.Read(Path.Combine(maps, Path.ChangeExtension(level, ".lgc")));
         var analysis = RouteAnalyzer.Analyze(level, map, script, Objects.Value)!;
         var survey = LevelSurveyor.Survey(map, script, analysis, Objects.Value);
-        return (RoomAtlas.Read(survey, analysis.Grid.Edges, map.Sprites), survey);
+        return (RoomAtlas.Read(survey, analysis.Grid.Edges, map.Sprites, Objects.Value), survey);
     }
 }

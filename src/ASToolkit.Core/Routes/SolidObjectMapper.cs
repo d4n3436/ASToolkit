@@ -22,9 +22,7 @@ public static class SolidObjectMapper
                 continue;
             }
 
-            float hx = 0.33f * obj.Size.X + 14;
-            float hy = 0.33f * obj.Size.Y + 14;
-            boxes.Add(new CollisionBox(sprite.Position.X - hx, sprite.Position.X + hx, sprite.Position.Y - hy, sprite.Position.Y + hy));
+            boxes.Add(CollisionBox.Create(obj, sprite.Position.X, sprite.Position.Y, CollisionBox.ExtentShare, CollisionBox.PlayerRadius));
         }
 
         return boxes.ToArray();

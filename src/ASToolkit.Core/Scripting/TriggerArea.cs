@@ -1,5 +1,5 @@
 using System.Drawing;
-namespace ASToolkit.Core.Routes;
+namespace ASToolkit.Core.Scripting;
 
 /// <summary>
 /// Represents a script trigger that fires when the player comes within a radius of a point.

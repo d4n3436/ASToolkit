@@ -1,8 +1,9 @@
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Routes;
+using ASToolkit.Core.Scripting;
 
-namespace ASToolkit.Core.Reference;
+namespace ASToolkit.Core.Survey;
 
 /// <summary>
 /// Provides the measurement of a level besides its tour.

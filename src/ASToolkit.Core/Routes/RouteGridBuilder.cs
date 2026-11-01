@@ -12,8 +12,6 @@ public static class RouteGridBuilder
     private const int ChainLinkEdges = 4;
     private const float DiagonalTolerance = 8;
 
-    private static readonly Dictionary<EdgeKind, int> Rank = new() { [EdgeKind.Wall] = 0, [EdgeKind.ShutDoor] = 1, [EdgeKind.Doorway] = 2, [EdgeKind.BrokenWall] = 2, [EdgeKind.SecretWall] = 2, [EdgeKind.Door] = 3 };
-
     /// <summary>
     /// Builds the routing grid of a level.
     /// </summary>
@@ -25,7 +23,7 @@ public static class RouteGridBuilder
         
         var edges = model.Theme == LevelTheme.Military
             ? BuildMilitaryEdges(model, fenceEdges)
-            : BuildLabEdges(model);
+            : LevelExtractor.ReadFineLabEdges(model.Lattice, model.Sprites, model.Theme == LevelTheme.Outdoor);
 
         if (model.Theme == LevelTheme.Outdoor)
         {
@@ -159,143 +157,4 @@ public static class RouteGridBuilder
         return edges;
     }
 
-    private static Dictionary<EdgeKey, EdgeKind> BuildLabEdges(LevelModel model)
-    {
-        var edges = new Dictionary<EdgeKey, EdgeKind>();
-        var frames = new HashSet<EdgeKey>();
-        var doors = new HashSet<EdgeKey>();
-        foreach (var sprite in model.Sprites)
-        {
-            if (!KnownObject.LabWalls.Contains(sprite.Id) || sprite.Id is KnownObject.LabBeam or KnownObject.LabBeam2)
-            {
-                continue;
-            }
-
-            var keys = GetFineLabEdges(model.Lattice, sprite.Id, sprite.Position.X, sprite.Position.Y, sprite.Facing, model.Theme == LevelTheme.Outdoor);
-            switch (sprite.Id)
-            {
-                case KnownObject.SmallDoorWall or KnownObject.DoubleDoorWall or KnownObject.SmallDoorWall2 or KnownObject.DoubleDoorWall2:
-                    frames.UnionWith(keys);
-                    Put(edges, keys, EdgeKind.Wall);
-                    break;
-                case KnownObject.SmallDoor or KnownObject.DoubleDoor:
-                    doors.UnionWith(keys);
-                    Put(edges, keys, EdgeKind.Door);
-                    break;
-                case KnownObject.DoubleDoorFrame or KnownObject.SmallDoorFrame:
-                    doors.UnionWith(keys);
-                    Put(edges, keys, sprite.Position.Z <= -40 ? EdgeKind.Doorway : EdgeKind.ShutDoor);
-                    break;
-                case KnownObject.BreakableWall or KnownObject.BreakableWall2 or KnownObject.SpawnWallSlash or KnownObject.SpawnWallBack or KnownObject.SmallMonsterHole or KnownObject.BigMonsterHole:
-                    Put(edges, keys, EdgeKind.SecretWall);
-                    break;
-                case KnownObject.BrokenWall or KnownObject.BrokenWall2:
-                    Put(edges, keys, EdgeKind.BrokenWall);
-                    break;
-                default:
-                    Put(edges, keys, EdgeKind.Wall);
-                    break;
-            }
-        }
-
-        frames.ExceptWith(doors);
-        foreach (var frame in frames)
-        {
-            if (edges.TryGetValue(frame, out EdgeKind kind) && kind == EdgeKind.Wall)
-            {
-                edges[frame] = EdgeKind.Doorway;
-            }
-        }
-
-        return edges;
-    }
-
-    private static float GetMiss(float t) => Math.Abs(t - MathF.Round(t));
-
-    private static void Put(Dictionary<EdgeKey, EdgeKind> edges, IReadOnlyList<EdgeKey> keys, EdgeKind kind)
-    {
-        foreach (var key in keys)
-        {
-            int current = edges.TryGetValue(key, out EdgeKind existing) ? Rank[existing] : -1;
-            if (Rank[kind] >= current)
-            {
-                edges[key] = kind;
-            }
-        }
-    }
-
-    // Off the coarse grid, take a door's axis from its dir (0 is '/', 64 or 128 is '\') and a wall's from its ID
-    private static EdgeKey[] GetFineLabEdges(Lattice lattice, KnownObject id, float x, float y, byte dir, bool outdoor)
-    {
-        (float u, float v) = lattice.ToLattice(x, y);
-        float slashU = 2 * (u - 0.25f);
-        float slashV = 2 * (v - 0.25f);
-        float backU = 2 * (u + 0.25f);
-        float backV = 2 * (v - 0.75f);
-        float dv = Math.Abs(slashV - MathF.Round(slashV));
-        float du = Math.Abs(backU - MathF.Round(backU));
-        bool door = id is KnownObject.SmallDoor or KnownObject.SmallDoorWall or KnownObject.DoubleDoor or KnownObject.DoubleDoorWall or KnownObject.DoubleDoorFrame or KnownObject.SmallDoorFrame
-            or KnownObject.SmallDoorWall2 or KnownObject.DoubleDoorWall2;
-        bool slash;
-        // Trust the piece ID of plain walls, and of every piece outdoors
-        bool plain = id is KnownObject.LabWallSlash or KnownObject.LabWallBack or KnownObject.LabWall2Slash or KnownObject.LabWall2Back;
-        if ((outdoor || plain) && (KnownObject.LabSlash.Contains(id) || KnownObject.LabBack.Contains(id)))
-        {
-            slash = KnownObject.LabSlash.Contains(id);
-        }
-        else if (!(outdoor && door) && Lattice.IsNearInteger(u - 0.25f) && Lattice.IsNearInteger(v - 0.25f))
-        {
-            slash = true;
-        }
-        else if (!(outdoor && door) && Lattice.IsNearInteger(u + 0.25f) && Lattice.IsNearInteger(v - 0.75f))
-        {
-            slash = false;
-        }
-        else if (door)
-        {
-            slash = dir switch
-            {
-                < 16 or >= 240 => true,
-                >= 48 and < 144 => false,
-                _ => GetMiss(u - 0.25f) + GetMiss(v - 0.25f) < GetMiss(u + 0.25f) + GetMiss(v - 0.75f)
-            };
-        }
-        else
-        {
-            slash = KnownObject.LabSlash.Contains(id) || (!KnownObject.LabBack.Contains(id) && dv <= du);
-        }
-
-        int n = KnownObject.LabDouble.Contains(id) ? 4 : 2;
-        var keys = new List<EdgeKey>(n);
-        if (slash)
-        {
-            if (dv > 0.45f)
-            {
-                return keys.ToArray();
-            }
-
-            int u0 = (int)MathF.Round(slashU);
-            int fixedV = (int)MathF.Round(slashV);
-            for (int index = 2 - n; index < 2; index++)
-            {
-                keys.Add(new EdgeKey('v', u0 + index, fixedV));
-            }
-        }
-        else
-        {
-            if (du > 0.45f)
-            {
-                return keys.ToArray();
-            }
-
-            int fixedU = (int)MathF.Round(backU);
-            int v0 = (int)MathF.Round(backV);
-            for (int index = 2 - n; index < 2; index++)
-            {
-                keys.Add(new EdgeKey('u', fixedU, v0 + index));
-            }
-        }
-
-        return keys.ToArray();
-    }
 }

@@ -34,7 +34,6 @@ public sealed class DesignMeasurer
     private const float MonitorDoorwayReach = 40;
     private const float MonitorFurnitureReach = 25;
     private const float InsideShare = 0.12f;
-    private const float CollisionShare = 0.33f;
     private const int OffRouteWalk = 200;
 
     private static readonly HashSet<KnownObject> Computers = [KnownObject.Computer, KnownObject.ComputerDead];
@@ -42,8 +41,6 @@ public sealed class DesignMeasurer
     private static readonly HashSet<KnownObject> TallFurniture = [KnownObject.Cabinet, KnownObject.Shelves];
     private static readonly HashSet<KnownObject> BoxSupports = [KnownObject.Shelves, KnownObject.Cabinet, KnownObject.Table];
     private static readonly HashSet<KnownObject> DeskTops = [KnownObject.TestTubes, KnownObject.LabEquipment, KnownObject.Computer, KnownObject.ComputerDead];
-    private static readonly HashSet<ConnectionKind> Passages =
-        [ConnectionKind.Doorway, ConnectionKind.Door, ConnectionKind.LockedDoor, ConnectionKind.BrokenWall, ConnectionKind.FenceFrame, ConnectionKind.Fence];
     private static readonly HashSet<KnownObject> OfficeDecor = [KnownObject.Computer, KnownObject.ComputerDead, KnownObject.TestTubes, KnownObject.LabEquipment, KnownObject.ScatteredPaper];
 
     private static readonly HashSet<KnownObject> Furniture =
@@ -96,19 +93,6 @@ public sealed class DesignMeasurer
         new DesignMeasurer(model, analysis, survey, objects).Measure();
 
     /// <summary>
-    /// Measures a level from its map and script, or returns null when it has no route.
-    /// </summary>
-    /// <param name="name">The map name.</param>
-    /// <param name="map">The map.</param>
-    /// <param name="script">The level script.</param>
-    /// <param name="objects">The game objects.</param>
-    public static DesignMeasures? Measure(string name, MapResourceBuilder map, LevelScriptSummary script, ObjectTable objects)
-    {
-        var analysis = RouteAnalyzer.Analyze(name, map, script, objects);
-        return analysis is null ? null : Measure(analysis.Model, analysis, LevelSurveyor.Survey(map, script, analysis, objects), objects);
-    }
-
-    /// <summary>
     /// Measures the level.
     /// </summary>
     public DesignMeasures Measure()
@@ -124,9 +108,10 @@ public sealed class DesignMeasurer
         var cannon = Find(KnownObject.MountedCannon).Select(point => (PointF?)point).FirstOrDefault();
         var doorways = GetDoorways();
         var floorPieces = _model.Objects.Where(piece => piece.Z < FloorHeight).ToArray();
-        var blocking = floorPieces.Where(piece => IsSolid(piece.Id) || IsHittable(piece.Id)).ToArray();
+        var blocking = floorPieces.Where(piece => _objects.GetBlocking(piece.Id) != BlockingClass.WalkThrough).ToArray();
         var monitors = _model.Objects.Where(piece => piece.Id.IsWallMounted).ToArray();
         var boxes = _model.Objects.Where(piece => piece.Id == KnownObject.Boxes).ToArray();
+        var spawners = _analysis.Elements.Where(element => element.Kind == ElementKind.Spawner && element.Program is not null).Select(element => element.Program!).ToArray();
         var deskTops = _model.Objects.Where(piece => DeskTops.Contains(piece.Id)).ToArray();
         return new DesignMeasures
         {
@@ -151,7 +136,7 @@ public sealed class DesignMeasurer
             HealthAfterFights = new MeasureShare(_survey.Items.Count(item => item is { Category: ItemCategory.Health, After: not null }),
                 _survey.Items.Count(item => item.Category == ItemCategory.Health)),
             ShelvesGrouped = CountGrouped(Find(KnownObject.Shelves)),
-            LongestCabinetRun = Cluster(Find(KnownObject.Cabinet), GroupReach).Select(group => group.Count).DefaultIfEmpty(0).Max(),
+            LongestCabinetRun = Find(KnownObject.Cabinet).Cluster(GroupReach).Select(group => group.Count).DefaultIfEmpty(0).Max(),
             MissilesInTriplets = CountTriplets(Find(KnownObject.Missile)),
             MirroredPads = CountMirroredPads(),
             CannonStripes = cannon is null ? null : Find(KnownObject.WallInscriptions).Count(point => Distance(point, cannon.Value) <= StripeReach),
@@ -163,9 +148,11 @@ public sealed class DesignMeasurer
             Graph = _model.Theme == LevelTheme.Lab ? RoomGraph.Build(_survey) : null,
             RepeatedRooms = CountRepeatedRooms(),
             FightGap = MeasureFightGap(),
+            SpawnedPerThousand = spawners.Length == 0 ? null : 1000f * spawners.Sum(program => program.Monsters.Count()) / Math.Max(1, spawners.Sum(program => program.Monsters.Sum(GetHitPoints))),
+            LargestSpawner = spawners.Length == 0 ? null : spawners.Max(program => program.Monsters.Count()),
             SitesPassedEarly = CountSitesPassedEarly(),
-            SolidNearDoorways = CountNearDoorways(floorPieces.Where(piece => IsSolid(piece.Id)).Select(GetPoint).ToArray(), doorways, DoorwayReach),
-            HittableNearDoorways = CountNearDoorways(floorPieces.Where(piece => IsHittable(piece.Id)).Select(GetPoint).ToArray(), doorways, DoorwayReach),
+            SolidNearDoorways = CountNearDoorways(floorPieces.Where(piece => _objects.GetBlocking(piece.Id) == BlockingClass.Solid).Select(GetPoint).ToArray(), doorways, DoorwayReach),
+            HittableNearDoorways = CountNearDoorways(floorPieces.Where(piece => _objects.GetBlocking(piece.Id) == BlockingClass.Hittable).Select(GetPoint).ToArray(), doorways, DoorwayReach),
             MonitorsNearDoorways = CountNearDoorways(monitors.Select(GetPoint).ToArray(), doorways, MonitorDoorwayReach),
             PiecesInsideOthers = CountInsideOthers(blocking),
             PickupsUnderPieces = CountUnder(loose, blocking),
@@ -179,7 +166,7 @@ public sealed class DesignMeasurer
             HealthInCrates = CountInCrates(ItemCategory.Health),
             AmmoInCrates = CountInCrates(ItemCategory.Ammo),
             ArmorInCrates = CountInCrates(ItemCategory.Armor),
-            PileSize = loose.Length == 0 ? null : (float)loose.Length / Cluster(loose.Select(item => new PointF(item.Position.X, item.Position.Y)).ToArray(), PileReach).Count
+            PileSize = loose.Length == 0 ? null : (float)loose.Length / loose.Select(item => new PointF(item.Position.X, item.Position.Y)).ToArray().Cluster(PileReach).Count
         };
     }
 
@@ -189,44 +176,27 @@ public sealed class DesignMeasurer
 
     private PointF GetPoint(DecorObject piece) => _model.Lattice.ToWorld(piece.U, piece.V);
 
-    private bool IsSolid(KnownObject id) => _objects.TryFind(id, out var obj) && obj.IsSolid;
+    private MapSegment[] GetDoorways() => _survey.GetDoorways().Where(doorway => doorway.Kind.IsPassage).Select(doorway => doorway.Span).ToArray();
 
-    private bool IsHittable(KnownObject id) => _objects.TryFind(id, out var obj) && !obj.IsSolid && obj.IsHittable;
+    private static MeasureShare CountNearDoorways(PointF[] points, MapSegment[] doorways, float reach) =>
+        new(points.Count(point => doorways.Any(doorway => doorway.MeasureDistance(point) <= reach)), points.Length);
 
-    private (PointF From, PointF To)[] GetDoorways() =>
-        _survey.Connections.Where(connection => Passages.Contains(connection.Kind)).SelectMany(connection => connection.Edges)
-            .Select(run => run.Axis == 'v'
-                ? (_survey.Lattice.ToWorld(run.From, run.Line), _survey.Lattice.ToWorld(run.To + 1, run.Line))
-                : (_survey.Lattice.ToWorld(run.Line, run.From), _survey.Lattice.ToWorld(run.Line, run.To + 1)))
-            .ToArray();
-
-    private static MeasureShare CountNearDoorways(PointF[] points, (PointF From, PointF To)[] doorways, float reach) =>
-        new(points.Count(point => doorways.Any(doorway => GetDistanceToSegment(point, doorway.From, doorway.To) <= reach)), points.Length);
-
-    private (PointF Center, SizeF Half)[] GetBoxes(DecorObject[] pieces, float share)
+    private CollisionBox[] GetBoxes(DecorObject[] pieces, float share) => pieces.Select(piece =>
     {
-        var boxes = new (PointF Center, SizeF Half)[pieces.Length];
-        for (int index = 0; index < pieces.Length; index++)
-        {
-            _objects.TryFind(pieces[index].Id, out var obj);
-            boxes[index] = (GetPoint(pieces[index]), new SizeF(share * obj.Size.X, share * obj.Size.Y));
-        }
-
-        return boxes;
-    }
+        _objects.TryFind(piece.Id, out var obj);
+        var point = GetPoint(piece);
+        return CollisionBox.Create(obj, point.X, point.Y, share, 0);
+    }).ToArray();
 
     private MeasureShare CountInsideOthers(DecorObject[] pieces)
     {
         var boxes = GetBoxes(pieces, InsideShare);
-
         int inside = 0;
         for (int index = 0; index < boxes.Length; index++)
         {
             for (int otherIndex = 0; otherIndex < boxes.Length; otherIndex++)
             {
-                var (center, half) = boxes[index];
-                var (otherCenter, otherHalf) = boxes[otherIndex];
-                if (otherIndex != index && Math.Abs(center.X - otherCenter.X) < half.Width + otherHalf.Width && Math.Abs(center.Y - otherCenter.Y) < half.Height + otherHalf.Height)
+                if (otherIndex != index && boxes[index].Overlaps(boxes[otherIndex]))
                 {
                     inside++;
                     break;
@@ -239,9 +209,8 @@ public sealed class DesignMeasurer
 
     private MeasureShare CountUnder(LevelItem[] items, DecorObject[] pieces)
     {
-        var boxes = GetBoxes(pieces, CollisionShare);
-
-        int under = items.Count(item => boxes.Any(box => Math.Abs(item.Position.X - box.Center.X) < box.Half.Width && Math.Abs(item.Position.Y - box.Center.Y) < box.Half.Height));
+        var boxes = GetBoxes(pieces, CollisionBox.ExtentShare);
+        int under = items.Count(item => boxes.Any(box => Math.Abs(item.Position.X - box.X) < box.HalfWidth && Math.Abs(item.Position.Y - box.Y) < box.HalfHeight));
         return new MeasureShare(under, items.Length);
     }
 
@@ -251,18 +220,7 @@ public sealed class DesignMeasurer
     private WallSample GetWallSample(KnownObject id, byte dir, float x, float y)
     {
         var cell = _model.Lattice.GetCell(x, y);
-        var neighbors = EdgeKey.GetNeighbors(cell);
-        var sides = WallSides.None;
-        WallSides[] order = [WallSides.UpperBack, WallSides.LowerBack, WallSides.LowerSlash, WallSides.UpperSlash];
-        for (int index = 0; index < 4; index++)
-        {
-            var (neighbor, edge) = neighbors[index];
-            bool wall = _model.Edges.TryGetValue(edge, out EdgeKind kind) ? kind.IsClosed : !_model.Cells.Contains(neighbor);
-            if (wall)
-            {
-                sides |= order[index];
-            }
-        }
+        var sides = _model.Edges.GetWalledSides(cell, _model.Cells.Contains, static kind => kind.IsClosed);
 
         bool open = sides == WallSides.None;
         for (int du = -2; du <= 2 && open; du++)
@@ -328,7 +286,7 @@ public sealed class DesignMeasurer
 
     private static MeasureShare CountPiles(IReadOnlyList<LevelItem> items)
     {
-        var piles = Cluster(items.Select(item => new PointF(item.Position.X, item.Position.Y)).ToArray(), PileReach);
+        var piles = items.Select(item => new PointF(item.Position.X, item.Position.Y)).ToArray().Cluster(PileReach);
         return new MeasureShare(piles.Count(pile => pile.Count >= 2), piles.Count);
     }
 
@@ -337,13 +295,13 @@ public sealed class DesignMeasurer
 
     private static MeasureShare CountTriplets(IReadOnlyList<PointF> points)
     {
-        var groups = Cluster(points, MissileReach);
+        var groups = points.Cluster(MissileReach);
         return new MeasureShare(groups.Where(group => group.Count == 3).Sum(group => group.Count), points.Count);
     }
 
     private MeasureShare CountMirroredPads()
     {
-        var groups = Cluster(Pads.SelectMany(Find).ToArray(), PadReach).Where(group => group.Count >= 2).ToArray();
+        var groups = Pads.SelectMany(Find).ToArray().Cluster(PadReach).Where(group => group.Count >= 2).ToArray();
         int mirrored = 0;
         foreach (var group in groups)
         {
@@ -491,41 +449,7 @@ public sealed class DesignMeasurer
         return new MeasureShare(early, sites.Length);
     }
 
-    private static List<List<PointF>> Cluster(IReadOnlyList<PointF> points, float reach)
-    {
-        var groups = new List<List<PointF>>();
-        var left = new List<PointF>(points);
-        while (left.Count > 0)
-        {
-            var group = new List<PointF> { left[^1] };
-            left.RemoveAt(left.Count - 1);
-            for (int index = 0; index < group.Count; index++)
-            {
-                var point = group[index];
-                for (int other = left.Count - 1; other >= 0; other--)
-                {
-                    if (Distance(left[other], point) <= reach)
-                    {
-                        group.Add(left[other]);
-                        left.RemoveAt(other);
-                    }
-                }
-            }
-
-            groups.Add(group);
-        }
-
-        return groups;
-    }
-
-    private static float GetDistanceToSegment(PointF point, PointF from, PointF to)
-    {
-        float dx = to.X - from.X;
-        float dy = to.Y - from.Y;
-        float length = dx * dx + dy * dy;
-        float t = length <= 0 ? 0 : Math.Clamp(((point.X - from.X) * dx + (point.Y - from.Y) * dy) / length, 0, 1);
-        return Distance(point, new PointF(from.X + t * dx, from.Y + t * dy));
-    }
-
     private static float Distance(PointF first, PointF second) => MathF.Sqrt((first.X - second.X) * (first.X - second.X) + (first.Y - second.Y) * (first.Y - second.Y));
+
+    private int GetHitPoints(KnownObject id) => _objects.TryFind(id, out var obj) ? obj.MaxHp : 0;
 }

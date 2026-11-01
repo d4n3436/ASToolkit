@@ -17,6 +17,11 @@ public readonly record struct WallGaps(float MinusU, float PlusU, float MinusV, 
     public const float Far = 200;
 
     /// <summary>
+    /// Represents the wall side of each direction, in the order of the gaps.
+    /// </summary>
+    public static readonly WallSides[] Sides = [WallSides.LowerBack, WallSides.UpperBack, WallSides.UpperSlash, WallSides.LowerSlash];
+
+    /// <summary>
     /// Gets the distances in the order lower u, higher u, lower v, higher v.
     /// </summary>
     public float this[int direction] => direction switch { 0 => MinusU, 1 => PlusU, 2 => MinusV, _ => PlusV };
@@ -32,32 +37,14 @@ public readonly record struct WallGaps(float MinusU, float PlusU, float MinusV, 
     public static WallGaps Measure(Lattice lattice, IReadOnlySet<Cell> cells, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float x, float y)
     {
         (float u, float v) = lattice.ToLattice(x, y);
-        var cell = new Cell((int)MathF.Floor(u), (int)MathF.Floor(v));
         float step = lattice.CellStep;
-        return new WallGaps(
-            Walk(cell, -1, 0, u - cell.U),
-            Walk(cell, 1, 0, cell.U + 1 - u),
-            Walk(cell, 0, -1, v - cell.V),
-            Walk(cell, 0, 1, cell.V + 1 - v));
+        int reach = (int)MathF.Ceiling(Far / step) + 1;
+        return new WallGaps(Walk(WallSides.LowerBack), Walk(WallSides.UpperBack), Walk(WallSides.UpperSlash), Walk(WallSides.LowerSlash));
 
-        float Walk(Cell from, int du, int dv, float first)
+        float Walk(WallSides side)
         {
-            float distance = first * step;
-            var at = from;
-            while (distance < Far)
-            {
-                var next = new Cell(at.U + du, at.V + dv);
-                var edge = du > 0 ? new EdgeKey('u', next.U, next.V) : du < 0 ? new EdgeKey('u', at.U, at.V) : dv > 0 ? new EdgeKey('v', next.U, next.V) : new EdgeKey('v', at.U, at.V);
-                if (!cells.Contains(next) || edges.ContainsKey(edge))
-                {
-                    return distance;
-                }
-
-                distance += step;
-                at = next;
-            }
-
-            return Far;
+            var hit = edges.CastRay(u, v, side, cells.Contains, reach);
+            return hit is null ? Far : Math.Min(hit.Value.Distance * step, Far);
         }
     }
 }

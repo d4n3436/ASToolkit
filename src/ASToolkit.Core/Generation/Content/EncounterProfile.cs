@@ -1,3 +1,4 @@
+using System.Drawing;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Rooms;
@@ -11,6 +12,8 @@ namespace ASToolkit.Core.Generation.Content;
 /// </summary>
 public sealed class EncounterProfile
 {
+    private const float PileReach = 45;
+
     private EncounterProfile()
     {
     }
@@ -44,6 +47,26 @@ public sealed class EncounterProfile
     /// Gets the room that holds the checkpoint, or <see langword="null"/> for a level without one.
     /// </summary>
     public required ObjectiveRoom? CheckpointRoom { get; init; }
+
+    /// <summary>
+    /// Gets how the original lays the pickups of each category.
+    /// </summary>
+    public required IReadOnlyDictionary<ItemCategory, PickupStyle> PickupStyles { get; init; }
+
+    /// <summary>
+    /// Gets how many monsters the original's largest spawner releases, 0 when the original has no spawner.
+    /// </summary>
+    public required int LargestSpawner { get; init; }
+
+    /// <summary>
+    /// Gets how many endless generators the original holds.
+    /// </summary>
+    public required int EndlessGenerators { get; init; }
+
+    /// <summary>
+    /// Gets the trigger radius of each spawner of the original.
+    /// </summary>
+    public required IReadOnlyList<int> TriggerRadii { get; init; }
 
     /// <summary>
     /// Gets the shares of the tour walked before each generator, in tour order.
@@ -80,6 +103,10 @@ public sealed class EncounterProfile
             PickupRooms = Enum.GetValues<ItemCategory>().ToDictionary(category => category, IReadOnlyList<ObjectiveRoom> (category) => MeasureRooms(element =>
                 element is { Kind: ElementKind.Pickup } && element.Category == category && element.Id != KnownObject.Dynamite && Read(survey.FindPlace(element.X, element.Y)).Zone != GateZone.Secret)),
             CheckpointRoom = MeasureCheckpoint(),
+            EndlessGenerators = analysis.Elements.Count(element => element.Kind == ElementKind.EndlessGenerator),
+            LargestSpawner = analysis.Elements.Where(element => element.Program is not null).Select(element => element.Program!.Monsters.Count()).DefaultIfEmpty(0).Max(),
+            TriggerRadii = analysis.Elements.Where(element => element.Program?.Trigger is not null).Select(element => element.Program!.Trigger!.Value.Radius).ToArray(),
+            PickupStyles = Enum.GetValues<ItemCategory>().ToDictionary(category => category, category => MeasurePickups(survey, analysis.Model, category)),
             GeneratorProgress = survey.Landmarks.Where(landmark => landmark.Kind == LandmarkKind.Generator).Select(landmark => landmark.Route / Math.Max(1f, survey.Signature.TourPixels)).Order().ToArray()
         };
 
@@ -107,5 +134,20 @@ public sealed class EncounterProfile
             bool nextDoor = survey.Connections.Any(connection => (connection.A, connection.B) == (fight.Place, fight.Trigger) || (connection.A, connection.B) == (fight.Trigger, fight.Place));
             return new Encounter(role, zone, isSpawned, fight.HitPoints / total, fight.Progress, triggerRole, triggerZone, fight.Trigger == fight.Place, nextDoor);
         }
+    }
+
+    // Group the loose pickups of a category into piles and read each pile's walls at its first pickup
+    private static PickupStyle MeasurePickups(LevelSurvey survey, LevelModel model, ItemCategory category)
+    {
+        var items = survey.Items.Where(item => item.Category == category && item.Id != KnownObject.Dynamite).ToArray();
+        var piles = items.Where(item => !item.InCrate).Select(item => new PointF(item.Position.X, item.Position.Y)).ToArray().Cluster(PileReach);
+        var spots = piles.Select(pile =>
+        {
+            var cell = model.Lattice.GetCell(pile[0].X, pile[0].Y);
+            var sides = model.Edges.GetWalledSides(cell, model.Cells.Contains, static kind => kind.IsClosed);
+            return sides.IsCorner ? PartSpot.Corner : sides != WallSides.None ? PartSpot.Wall : PartSpot.Center;
+        }).ToArray();
+        
+        return new PickupStyle(items.Length == 0 ? 0 : items.Count(item => item.InCrate) / (float)items.Length, piles.Select(pile => pile.Count).ToArray(), spots);
     }
 }

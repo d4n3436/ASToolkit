@@ -1,4 +1,5 @@
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Levels;
 
 namespace ASToolkit.Core.Design;
 
@@ -14,10 +15,7 @@ public readonly record struct WallSample(KnownObject Id, byte Dir, WallSides Sid
     /// <summary>
     /// Gets a value indicating whether two neighboring walls meet at the cell.
     /// </summary>
-    public bool Corner => (Sides & (WallSides.UpperBack | WallSides.UpperSlash)) == WallSides.Far
-                          || (Sides & (WallSides.UpperSlash | WallSides.LowerBack)) == (WallSides.UpperSlash | WallSides.LowerBack)
-                          || (Sides & WallSides.Near) == WallSides.Near
-                          || (Sides & (WallSides.LowerSlash | WallSides.UpperBack)) == (WallSides.LowerSlash | WallSides.UpperBack);
+    public bool Corner => Sides.IsCorner;
 
     /// <summary>
     /// Gets a value indicating whether only far walls touch the cell.

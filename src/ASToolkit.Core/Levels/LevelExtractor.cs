@@ -8,6 +8,10 @@ namespace ASToolkit.Core.Levels;
 /// </summary>
 public static class LevelExtractor
 {
+    private const float CoarseSnap = 0.35f;
+    private const float FineSnap = 0.45f;
+    private static readonly Dictionary<EdgeKind, int> Rank = new() { [EdgeKind.Wall] = 0, [EdgeKind.ShutDoor] = 1, [EdgeKind.Doorway] = 2, [EdgeKind.BrokenWall] = 2, [EdgeKind.SecretWall] = 2, [EdgeKind.Door] = 3 };
+
     /// <summary>
     /// Builds the model of a map, or returns null when the map has no floor.
     /// </summary>
@@ -86,11 +90,22 @@ public static class LevelExtractor
     }
 
     /// <summary>
-    /// Returns the edges that the wall, door and frame pieces of a lab cover, as the extractor reads them.
+    /// Returns the cell edges that the wall, door and frame pieces of a lab cover, with their kinds.
     /// </summary>
-    public static Dictionary<EdgeKey, EdgeKind> ReadLabEdges(Lattice lattice, IEnumerable<MergedMapSprite> sprites)
+    public static Dictionary<EdgeKey, EdgeKind> ReadLabEdges(Lattice lattice, IEnumerable<MergedMapSprite> sprites, bool outdoor) =>
+        ReadLabEdges(lattice, sprites, outdoor, 1);
+
+    /// <summary>
+    /// Returns the edges of the half-step lattice that the wall, door and frame pieces of a lab cover, with their kinds.
+    /// </summary>
+    public static Dictionary<EdgeKey, EdgeKind> ReadFineLabEdges(Lattice lattice, IEnumerable<MergedMapSprite> sprites, bool outdoor) =>
+        ReadLabEdges(lattice, sprites, outdoor, 2);
+
+    private static Dictionary<EdgeKey, EdgeKind> ReadLabEdges(Lattice lattice, IEnumerable<MergedMapSprite> sprites, bool outdoor, int scale)
     {
         var edges = new Dictionary<EdgeKey, EdgeKind>();
+        var frames = new HashSet<EdgeKey>();
+        var doors = new HashSet<EdgeKey>();
         foreach (var sprite in sprites)
         {
             if (!KnownObject.LabWalls.Contains(sprite.Id) || sprite.Id is KnownObject.LabBeam or KnownObject.LabBeam2)
@@ -98,69 +113,117 @@ public static class LevelExtractor
                 continue;
             }
 
-            EdgeKind kind = sprite.Id switch
+            var keys = GetLabEdges(lattice, sprite.Id, sprite.Position.X, sprite.Position.Y, sprite.Facing, outdoor, scale);
+            switch (sprite.Id)
             {
-                KnownObject.SmallDoor or KnownObject.DoubleDoor => EdgeKind.Door,
-                KnownObject.DoubleDoorFrame or KnownObject.SmallDoorFrame => EdgeKind.ShutDoor,
-                _ => EdgeKind.Wall
-            };
+                case KnownObject.SmallDoorWall or KnownObject.DoubleDoorWall or KnownObject.SmallDoorWall2 or KnownObject.DoubleDoorWall2:
+                    frames.UnionWith(keys);
+                    Put(edges, keys, EdgeKind.Wall);
+                    break;
+                case KnownObject.SmallDoor or KnownObject.DoubleDoor:
+                    doors.UnionWith(keys);
+                    Put(edges, keys, EdgeKind.Door);
+                    break;
+                case KnownObject.DoubleDoorFrame or KnownObject.SmallDoorFrame:
+                    doors.UnionWith(keys);
+                    Put(edges, keys, sprite.Position.Z <= -40 ? EdgeKind.Doorway : EdgeKind.ShutDoor);
+                    break;
+                case KnownObject.BreakableWall or KnownObject.BreakableWall2 or KnownObject.SpawnWallSlash or KnownObject.SpawnWallBack or KnownObject.SmallMonsterHole or KnownObject.BigMonsterHole:
+                    Put(edges, keys, EdgeKind.SecretWall);
+                    break;
+                case KnownObject.BrokenWall or KnownObject.BrokenWall2:
+                    Put(edges, keys, EdgeKind.BrokenWall);
+                    break;
+                default:
+                    Put(edges, keys, EdgeKind.Wall);
+                    break;
+            }
+        }
 
-            foreach (var key in GetLabEdges(lattice, sprite.Id, sprite.Position.X, sprite.Position.Y))
+        frames.ExceptWith(doors);
+        foreach (var frame in frames)
+        {
+            if (edges.TryGetValue(frame, out EdgeKind kind) && kind == EdgeKind.Wall)
             {
-                bool has = edges.TryGetValue(key, out EdgeKind current);
-                if (kind == EdgeKind.Door || !has || (current == EdgeKind.Wall && kind == EdgeKind.ShutDoor))
-                {
-                    edges[key] = has && current == EdgeKind.Door ? EdgeKind.Door : kind;
-                }
+                edges[frame] = EdgeKind.Doorway;
             }
         }
 
         return edges;
     }
 
-    /// <summary>
-    /// Returns the edges a lab wall piece covers. A piece off the lattice covers none, and double doors and frames cover two.
-    /// </summary>
-    public static IEnumerable<EdgeKey> GetLabEdges(Lattice lattice, KnownObject id, float x, float y)
-    {
-        var key = GetLabEdge(lattice, id, x, y);
-        if (key is null)
-        {
-            yield break;
-        }
+    private static float GetMiss(float t) => Math.Abs(t - MathF.Round(t));
 
-        var k = key.Value;
-        yield return k;
-        if (KnownObject.LabDouble.Contains(id))
+    private static void Put(Dictionary<EdgeKey, EdgeKind> edges, IReadOnlyList<EdgeKey> keys, EdgeKind kind)
+    {
+        foreach (var key in keys)
         {
-            yield return k.Axis == 'v' ? new EdgeKey('v', k.A - 1, k.B) : new EdgeKey('u', k.A, k.B - 1);
+            int current = edges.TryGetValue(key, out EdgeKind existing) ? Rank[existing] : -1;
+            if (Rank[kind] >= current)
+            {
+                edges[key] = kind;
+            }
         }
     }
 
-    /// <summary>
-    /// Returns the edge of a lab wall piece. Pieces placed off the lattice snap to the nearest edge of their direction.
-    /// </summary>
-    public static EdgeKey? GetLabEdge(Lattice lattice, KnownObject id, float x, float y)
+    // Off the coarse grid, take a door's axis from its dir (0 is '/', 64 or 128 is '\') and a wall's from its ID, then round it to the lattice
+    // of the scale
+    private static EdgeKey[] GetLabEdges(Lattice lattice, KnownObject id, float x, float y, byte dir, bool outdoor, int scale)
     {
         (float u, float v) = lattice.ToLattice(x, y);
-        if (Lattice.IsNearInteger(u - 0.25f) && Lattice.IsNearInteger(v - 0.25f))
+        float slashV = 2 * (v - 0.25f);
+        float backU = 2 * (u + 0.25f);
+        float dv = Math.Abs(slashV - MathF.Round(slashV));
+        float du = Math.Abs(backU - MathF.Round(backU));
+        bool door = id is KnownObject.SmallDoor or KnownObject.SmallDoorWall or KnownObject.DoubleDoor or KnownObject.DoubleDoorWall or KnownObject.DoubleDoorFrame or KnownObject.SmallDoorFrame
+            or KnownObject.SmallDoorWall2 or KnownObject.DoubleDoorWall2;
+        bool slash;
+        // Trust the piece ID of plain walls, and of every piece outdoors
+        bool plain = id is KnownObject.LabWallSlash or KnownObject.LabWallBack or KnownObject.LabWall2Slash or KnownObject.LabWall2Back;
+        if ((outdoor || plain) && (KnownObject.LabSlash.Contains(id) || KnownObject.LabBack.Contains(id)))
         {
-            return new EdgeKey('v', (int)MathF.Round(u - 0.25f), (int)MathF.Round(v - 0.25f));
+            slash = KnownObject.LabSlash.Contains(id);
+        }
+        else if (!(outdoor && door) && Lattice.IsNearInteger(u - 0.25f) && Lattice.IsNearInteger(v - 0.25f))
+        {
+            slash = true;
+        }
+        else if (!(outdoor && door) && Lattice.IsNearInteger(u + 0.25f) && Lattice.IsNearInteger(v - 0.75f))
+        {
+            slash = false;
+        }
+        else if (door)
+        {
+            slash = dir switch
+            {
+                < 16 or >= 240 => true,
+                >= 48 and < 144 => false,
+                _ => GetMiss(u - 0.25f) + GetMiss(v - 0.25f) < GetMiss(u + 0.25f) + GetMiss(v - 0.75f)
+            };
+        }
+        else
+        {
+            slash = KnownObject.LabSlash.Contains(id) || (!KnownObject.LabBack.Contains(id) && dv <= du);
         }
 
-        if (Lattice.IsNearInteger(u + 0.25f) && Lattice.IsNearInteger(v - 0.75f))
+        float tolerance = scale == 1 ? CoarseSnap : FineSnap;
+        int count = scale * (KnownObject.LabDouble.Contains(id) ? 2 : 1);
+        float line = slash ? scale * (v - 0.25f) : scale * (u + 0.25f);
+        if (Math.Abs(line - MathF.Round(line)) > tolerance)
         {
-            return new EdgeKey('u', (int)MathF.Round(u + 0.25f), (int)MathF.Round(v - 0.75f));
+            return [];
         }
 
-        float dv = Math.Abs(v - 0.25f - MathF.Round(v - 0.25f));
-        float du = Math.Abs(u + 0.25f - MathF.Round(u + 0.25f));
-        if (KnownObject.LabSlash.Contains(id) || (!KnownObject.LabBack.Contains(id) && dv <= du))
+        var keys = new EdgeKey[count];
+        int fixedLine = (int)MathF.Round(line);
+        int start = (int)MathF.Round(slash ? scale * (u - 0.25f) : scale * (v - 0.75f));
+        for (int index = 0; index < count; index++)
         {
-            return dv < 0.35f ? new EdgeKey('v', (int)MathF.Round(u - 0.25f), (int)MathF.Round(v - 0.25f)) : null;
+            int along = start + scale - count + index;
+            keys[index] = slash ? new EdgeKey('v', along, fixedLine) : new EdgeKey('u', fixedLine, along);
         }
 
-        return du < 0.35f ? new EdgeKey('u', (int)MathF.Round(u + 0.25f), (int)MathF.Round(v - 0.75f)) : null;
+        return keys;
     }
 
     private static int CountLabFit(List<MergedMapSprite> sp, Lattice lattice)
@@ -272,7 +335,7 @@ public static class LevelExtractor
             }
         }
 
-        foreach ((var key, EdgeKind kind) in ReadLabEdges(best!, sp))
+        foreach ((var key, EdgeKind kind) in ReadLabEdges(best!, sp, outdoor: false))
         {
             edges[key] = kind;
         }
@@ -329,7 +392,7 @@ public static class LevelExtractor
             Theme = LevelTheme.Outdoor,
             Lattice = lattice,
             Cells = cells,
-            Edges = ReadLabEdges(lattice, sp),
+            Edges = ReadLabEdges(lattice, sp, outdoor: true),
             Objects = ExtractDecor(sp, lattice, objects),
             Sprites = sp
         };
@@ -467,39 +530,7 @@ public static class LevelExtractor
         for (int decorObjectIndex = 0; decorObjectIndex < decor.Length; decorObjectIndex++)
         {
             var s = decor[decorObjectIndex];
-            int? support = null;
-            if (s.Position.Z > 2)
-            {
-                int bestIndex = -1;
-                float bestDistance = float.MaxValue;
-                for (int innerDecorObjectIndex = 0; innerDecorObjectIndex < decor.Length; innerDecorObjectIndex++)
-                {
-                    var t = decor[innerDecorObjectIndex];
-                    if (innerDecorObjectIndex == decorObjectIndex || t.Position.Z >= s.Position.Z - 2)
-                    {
-                        continue;
-                    }
-
-                    objects.TryFind(t.Id, out var obj);
-                    float ex = obj.Size.X;
-                    float ey = obj.Size.Y;
-                    float ez = obj.Size.Z;
-                    if (ez < 5 || Math.Abs(t.Position.X - s.Position.X) > ex + 6 || Math.Abs(t.Position.Y - s.Position.Y) > ey + 6)
-                    {
-                        continue;
-                    }
-
-                    float d = Math.Abs(t.Position.X - s.Position.X) + Math.Abs(t.Position.Y - s.Position.Y);
-                    if (d < bestDistance)
-                    {
-                        bestDistance = d;
-                        bestIndex = innerDecorObjectIndex;
-                    }
-                }
-
-                support = bestIndex;
-            }
-
+            int? support = objects.FindSupport(decor, decorObjectIndex);
             (float u, float v) = lattice.ToLattice(s.Position.X, s.Position.Y);
             result.Add(new DecorObject(s.Id, u, v, s.Position.Z, s.Facing, s.Payload, support));
         }

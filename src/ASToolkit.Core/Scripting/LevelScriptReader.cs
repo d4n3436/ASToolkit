@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 using System.Drawing;
 using ASToolkit.Core.Formats;
 
-namespace ASToolkit.Core.Routes;
+namespace ASToolkit.Core.Scripting;
 
 /// <summary>
 /// Provides the reading of level scripts.

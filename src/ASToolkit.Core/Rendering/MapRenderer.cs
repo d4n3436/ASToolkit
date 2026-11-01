@@ -25,7 +25,6 @@ public sealed class MapRenderer
     private const int FlatDepth = 0x400;
     private const int MaxFlatDepth = 0x7fff;
     private const int DepthPerHeight = 8;
-    private const float MeshTolerance = 0.01f;
     private const int RaisedDepth = 0x3fff;
     private const int SequelRaisedHeight = 1000;
     private const int MaxAttachDepth = 4;
@@ -386,7 +385,7 @@ public sealed class MapRenderer
             return undrawn;
         }
 
-        var offset = GetLinkOffset(obj, attached, file, frameIndex, dir);
+        var offset = obj.GetLinkOffset(attached, file, frameIndex, dir);
         return undrawn + Place(scene, owner, GetPlayerPart(obj.Link), position + offset, dir, SpriteLook.Default, ambient, attachDepth + 1);
     }
 
@@ -462,20 +461,6 @@ public sealed class MapRenderer
     }
 
     private uint GetArmyBits(uint army) => army & (_objects.IsAlienShooter2 ? SequelArmyMask : ArmyMask);
-
-    internal static Vector3 GetLinkOffset(GameObject owner, GameObject attached, VidResource? file, int frameIndex, byte dir)
-    {
-        var offset = file is not null && file.Value.Flags.HasFlag(VidFlags.FrameVector)
-            ? file.Value.GetFrameVector(frameIndex)
-            : owner.LinkOffset with { Y = -owner.LinkOffset.Y };
-        if (attached.Flags.HasFlag(ObjectFlags.FixedOffset))
-        {
-            return offset;
-        }
-
-        (float sin, float cos) = MathF.SinCos(dir * MathF.PI / 128);
-        return new Vector3(offset.X * cos - offset.Y * sin, offset.X * sin + offset.Y * cos, offset.Z);
-    }
 
     internal static int GetBaseDepth(GameObject obj, float z, bool sequel)
     {
@@ -752,7 +737,7 @@ public sealed class MapRenderer
         }
 
         bool meshDepth = !view.HasDepth && frame.Mesh.TriangleCount > 0;
-        float[] meshHeights = meshDepth ? RasterizeHeights(frame.Mesh, view.Width, view.Height) : [];
+        float[] meshHeights = meshDepth ? frame.Mesh.RasterizeHeights(view.Width, view.Height) : [];
         var pixelColors = palette ?? new Rgba32[count];
         var result = new SpriteFrame
         {
@@ -875,50 +860,6 @@ public sealed class MapRenderer
     private bool TestsDepth(VidResource view) =>
         !_objects.IsAlienShooter2 || !MatchGameLighting || !(view.Blend is VidBlend.AdditiveLight or VidBlend.AlphaDepthWrite || view.Mode == 6);
 
-    internal static float[] RasterizeHeights(VidMesh mesh, int width, int height)
-    {
-        float[] heights = new float[width * height];
-        Array.Fill(heights, float.NaN);
-        for (int triangle = 0; triangle < mesh.TriangleCount; triangle++)
-        {
-            var (a, b, c) = mesh.GetTriangle(triangle);
-            float area = (b.Y - c.Y) * (float)(a.X - c.X) + (c.X - b.X) * (float)(a.Y - c.Y);
-            if (Math.Abs(area) < 1e-9f)
-            {
-                continue;
-            }
-
-            int minX = Math.Max(0, Math.Min(a.X, Math.Min(b.X, c.X)));
-            int maxX = Math.Min(width - 1, Math.Max(a.X, Math.Max(b.X, c.X)));
-            int minY = Math.Max(0, Math.Min(a.Y, Math.Min(b.Y, c.Y)));
-            int maxY = Math.Min(height - 1, Math.Max(a.Y, Math.Max(b.Y, c.Y)));
-            for (int y = minY; y <= maxY; y++)
-            {
-                for (int x = minX; x <= maxX; x++)
-                {
-                    float px = x + 0.5f;
-                    float py = y + 0.5f;
-                    float weightA = ((b.Y - c.Y) * (px - c.X) + (c.X - b.X) * (py - c.Y)) / area;
-                    float weightB = ((c.Y - a.Y) * (px - c.X) + (a.X - c.X) * (py - c.Y)) / area;
-                    float weightC = 1 - weightA - weightB;
-                    if (weightA < -MeshTolerance || weightB < -MeshTolerance || weightC < -MeshTolerance)
-                    {
-                        continue;
-                    }
-
-                    float z = weightA * a.Z + weightB * b.Z + weightC * c.Z;
-                    ref float cell = ref heights[y * width + x];
-                    if (float.IsNaN(cell) || z > cell)
-                    {
-                        cell = z;
-                    }
-                }
-            }
-        }
-
-        return heights;
-    }
-
     private static ushort GetMeshDepth(float[] heights, int width, int x, int y)
     {
         float z = (uint)(y * width + x) < (uint)heights.Length ? heights[y * width + x] : float.NaN;
@@ -1031,7 +972,7 @@ public sealed class MapRenderer
                 float weightA = ((points[1].Y - points[2].Y) * (px - points[2].X) + (points[2].X - points[1].X) * (py - points[2].Y)) / area;
                 float weightB = ((points[2].Y - points[0].Y) * (px - points[2].X) + (points[0].X - points[2].X) * (py - points[2].Y)) / area;
                 float weightC = 1 - weightA - weightB;
-                if (weightA < -MeshTolerance || weightB < -MeshTolerance || weightC < -MeshTolerance)
+                if (weightA < -VidMesh.Tolerance || weightB < -VidMesh.Tolerance || weightC < -VidMesh.Tolerance)
                 {
                     continue;
                 }

@@ -1,4 +1,6 @@
-namespace ASToolkit.Core.Generation;
+using ASToolkit.Core.Generation;
+
+namespace ASToolkit.Core.Patching;
 
 /// <summary>
 /// Represents a generated level and where it goes in the random add-on.

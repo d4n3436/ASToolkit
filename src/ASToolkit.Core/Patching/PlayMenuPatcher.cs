@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 using System.Text;
 using ASToolkit.Core.Formats;
 
-namespace ASToolkit.Core.Generation;
+namespace ASToolkit.Core.Patching;
 
 /// <summary>
 /// Provides the adding of the generated add-on's button to the play menus. A button is a sprite record of object 705

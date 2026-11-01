@@ -3,9 +3,8 @@ using System.Text;
 using ASToolkit.Cli.Analysis;
 using ASToolkit.Core.Design;
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Survey;
+using ASToolkit.Core.Levels;
 using ASToolkit.Core.Rendering;
-using ASToolkit.Core.Routes;
 using ASToolkit.Core.Reference;
 using SixLabors.ImageSharp;
 using Spectre.Console;
@@ -18,6 +17,7 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
     private const int MaxLevelsAtOnce = 3;
     private const float RareFrameShare = 0.05f;
     private const int MinFrameSamples = 5;
+    private const float MinWallShare = 0.3f;
 
     private static readonly string[] AddOnLevels =
     [
@@ -38,23 +38,35 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         var renderer = settings.Images ? new MapRenderer(settings.Game, objects) : null;
 
         var all = campaign.Concat(addOns).Concat(generated).ToArray();
+        var loader = new LevelLoader(objects);
         var measures = new DesignMeasures?[all.Length];
+        var levels = new ReferenceLevel?[all.Length];
         var options = new ParallelOptions { MaxDegreeOfParallelism = MaxLevelsAtOnce, CancellationToken = cancellationToken };
         AnsiConsole.Status().Start("Measuring the levels", _ => Parallel.For(0, all.Length, options, index =>
         {
-            var map = MapResourceBuilder.Load(all[index].Path);
-            var script = LevelScriptReader.Read(Path.ChangeExtension(all[index].Path, ".lgc"));
-            measures[index] = DesignMeasurer.Measure(all[index].Name, map, script, objects);
-            var analysis = renderer is null ? null : RouteAnalyzer.Analyze(all[index].Name, map, script, objects);
-            if (renderer is not null && analysis is not null)
+            var level = loader.Load(all[index].Name, all[index].Path);
+            if (level is null)
             {
-                using var rendered = renderer.Render(map.Sprites, settings.Scale, map.Graphics);
-                PlaceOverlay.Draw(rendered, LevelSurveyor.Survey(map, script, analysis, objects), analysis);
+                return;
+            }
+
+            levels[index] = level;
+            measures[index] = DesignMeasurer.Measure(level.Model, level.Analysis, level.Survey, objects);
+            if (renderer is not null)
+            {
+                using var rendered = renderer.Render(level.Map.Sprites, settings.Scale, level.Map.Graphics);
+                PlaceOverlay.Draw(rendered, level.Survey, level.Analysis);
                 rendered.Image.SaveAsPng(Path.Combine(settings.Out, GetFileName(all[index].Name) + "_places.png"));
             }
         }));
 
         WriteLevels(settings, all.Select(entry => entry.Name).ToArray(), measures);
+        var campaignLevels = levels.Take(campaign.Count).OfType<ReferenceLevel>().ToArray();
+        var addOnLevels = levels.Skip(campaign.Count).Take(addOns.Count).OfType<ReferenceLevel>().ToArray();
+        var generatedLevels = levels.Skip(campaign.Count + addOns.Count).OfType<ReferenceLevel>().ToArray();
+        var campaignRelations = ObjectRelationTable.Build(campaignLevels, objects);
+        WriteRelations(settings, campaignRelations, ObjectRelationTable.Build(addOnLevels, objects), ObjectRelationTable.Build(generatedLevels, objects),
+            [campaignRelations.CountCrowded(campaignLevels, objects), campaignRelations.CountCrowded(addOnLevels, objects), campaignRelations.CountCrowded(generatedLevels, objects)]);
         var originals = measures.Take(campaign.Count).OfType<DesignMeasures>().ToArray();
         var addOnMeasures = measures.Skip(campaign.Count).Take(addOns.Count).OfType<DesignMeasures>().ToArray();
         var candidates = measures.Skip(campaign.Count + addOns.Count).OfType<DesignMeasures>().ToArray();
@@ -68,7 +80,7 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         }
 
         AnsiConsole.Write(table);
-        AnsiConsole.MarkupLine($"Wrote design.tsv and design.md to [green]{Markup.Escape(settings.Out)}[/].");
+        AnsiConsole.MarkupLine($"Wrote design.tsv, design.md and relations.md to [green]{Markup.Escape(settings.Out)}[/].");
         return measures.All(measure => measure is not null) ? 0 : 1;
     }
 
@@ -204,6 +216,8 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         AddMedian("tour share re-walked, median of levels", measure => measure.Signature.RevisitShare);
         AddMedian("first fight, share of the tour, median of levels", measure => measure.Signature.FirstFight);
         AddMedian("fifth of the tour with the most hit points, median of levels", measure => FindPeakFifth(measure.Signature.HitPointsByFifth));
+        AddMedian("spawned monsters per 1,000 spawned hit points, median of levels", measure => measure.SpawnedPerThousand);
+        AddMedian("largest spawner (monsters), median of levels", measure => measure.LargestSpawner);
         return rows;
 
         void AddMedian(string name, Func<DesignMeasures, float?> get) =>
@@ -255,6 +269,74 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         var samples = measure.Walls.Where(sample => sample.Id == id && rare.ContainsKey((id, sample.Single))).ToArray();
         return new MeasureShare(samples.Count(sample => rare[(id, sample.Single)].Contains(sample.Dir)), samples.Length);
     }
+
+    // Compare each relation the campaign shows with the same relation in the add-ons and the generated levels, then the door clearances
+    private static void WriteRelations(InspectDesignSettings settings, ObjectRelationTable campaign, ObjectRelationTable addOns, ObjectRelationTable generated,
+        (int Crowded, int Count)[] crowded)
+    {
+        var text = new StringBuilder();
+        text.AppendLine("| theme | object | stands by | campaign | lift | add-ons | generated |");
+        text.AppendLine("|---|---|---|---|---|---|---|");
+        foreach (var theme in new[] { LevelTheme.Lab, LevelTheme.Military })
+        {
+            foreach (var relations in campaign.GetRelations(theme))
+            {
+                foreach (var anchor in relations.Anchors)
+                {
+                    text.AppendLine(CultureInfo.InvariantCulture, $"| {theme} | {relations.Id} | {anchor.Id} | {anchor.Share:P0} of {relations.Count} | {anchor.Lift:0} | {FormatShare(addOns, theme, relations.Id, anchor.Id)} | {FormatShare(generated, theme, relations.Id, anchor.Id)} |");
+                }
+
+                if (relations.WallShare >= 2 * relations.RandomWallShare && relations.WallShare >= MinWallShare)
+                {
+                    text.AppendLine(CultureInfo.InvariantCulture, $"| {theme} | {relations.Id} | a wall | {relations.WallShare:P0} of {relations.Count} | {relations.WallShare / Math.Max(relations.RandomWallShare, 0.01f):0} | {FormatWallShare(addOns, theme, relations.Id)} | {FormatWallShare(generated, theme, relations.Id)} |");
+                }
+            }
+        }
+
+        text.AppendLine();
+        text.AppendLine("| theme | floor pieces | closest to a doorway, all but 5% | add-ons | generated |");
+        text.AppendLine("|---|---|---|---|---|");
+        foreach (var theme in new[] { LevelTheme.Lab, LevelTheme.Military })
+        {
+            foreach (var blocking in new[] { BlockingClass.Solid, BlockingClass.Hittable })
+            {
+                text.AppendLine(CultureInfo.InvariantCulture, $"| {theme} | {blocking} | {FormatDistance(campaign.GetDoorClearance(theme, blocking))} | {FormatDistance(addOns.GetDoorClearance(theme, blocking))} | {FormatDistance(generated.GetDoorClearance(theme, blocking))} |");
+            }
+        }
+
+        text.AppendLine();
+        text.AppendLine("| measure | campaign | add-ons | generated |");
+        text.AppendLine("|---|---|---|---|");
+        text.AppendLine(CultureInfo.InvariantCulture,
+            $"| pieces closer to another than the campaign stands the pair | {string.Join(" | ", crowded.Select(entry => $"{entry.Crowded:N0} of {entry.Count:N0} ({entry.Crowded / (float)Math.Max(1, entry.Count):P0})"))} |");
+        text.AppendLine();
+        text.AppendLine("| theme | anchor | companion | per anchor | add-ons | generated |");
+        text.AppendLine("|---|---|---|---|---|---|");
+        foreach (var theme in new[] { LevelTheme.Lab, LevelTheme.Military })
+        {
+            foreach (var anchor in Enum.GetValues<KnownObject>().Where(id => id.Family is not null || id == KnownObject.Spawner))
+            {
+                foreach (var companion in campaign.GetCompanions(theme, anchor))
+                {
+                    text.AppendLine(CultureInfo.InvariantCulture,
+                        $"| {theme} | {anchor} | {companion.Id} | {companion.Rate:0.00} | {addOns.GetCompanionRate(theme, anchor, companion.Id):0.00} | {generated.GetCompanionRate(theme, anchor, companion.Id):0.00} |");
+                }
+            }
+        }
+
+        File.WriteAllText(Path.Combine(settings.Out, "relations.md"), text.ToString());
+    }
+
+    private static string FormatShare(ObjectRelationTable table, LevelTheme theme, KnownObject id, KnownObject anchor) =>
+        table.GetRelations(theme, id) is null ? "-" : table.GetAnchorShare(theme, id, anchor).ToString("P0", CultureInfo.InvariantCulture);
+
+    private static string FormatWallShare(ObjectRelationTable table, LevelTheme theme, KnownObject id)
+    {
+        var relations = table.GetRelations(theme, id);
+        return relations is null ? "-" : relations.WallShare.ToString("P0", CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatDistance(float? distance) => distance is null ? "-" : $"{distance.Value:0} px";
 
     private static void WriteGaps(InspectDesignSettings settings, List<(string Measure, string Original, string AddOn, string Candidate)> rows, int candidates)
     {

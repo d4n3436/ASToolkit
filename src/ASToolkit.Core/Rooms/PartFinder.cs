@@ -39,11 +39,13 @@ internal sealed class PartFinder
 
     private readonly Lattice _lattice;
     private readonly IReadOnlyDictionary<EdgeKey, EdgeKind> _edges;
+    private readonly ObjectTable _objects;
 
-    public PartFinder(Lattice lattice, IReadOnlyDictionary<EdgeKey, EdgeKind> edges)
+    public PartFinder(Lattice lattice, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, ObjectTable objects)
     {
         _lattice = lattice;
         _edges = edges;
+        _objects = objects;
     }
 
     public (IReadOnlyList<RoomPart> Parts, IReadOnlyDictionary<KnownObject, int> Scatter) Find((string Map, int Place) room, IReadOnlyList<Cell> cells, IReadOnlyList<MergedMapSprite> pieces)
@@ -63,6 +65,17 @@ internal sealed class PartFinder
             }
         }
 
+        int[] reachRoots = Enumerable.Range(0, furniture.Length).Select(index => FindRoot(root, index)).ToArray();
+        var sprites = furniture.Select(entry => entry.Piece).ToArray();
+        int?[] supports = Enumerable.Range(0, furniture.Length).Select(index => _objects.FindSupport(sprites, index)).ToArray();
+        for (int index = 0; index < furniture.Length; index++)
+        {
+            if (supports[index] >= 0)
+            {
+                root[FindRoot(root, index)] = FindRoot(root, supports[index]!.Value);
+            }
+        }
+
         var set = cells.ToHashSet();
         var acrossU = MeasureWallDistance(set, 'u');
         var acrossV = MeasureWallDistance(set, 'v');
@@ -70,6 +83,8 @@ internal sealed class PartFinder
         foreach (var group in Enumerable.Range(0, furniture.Length).GroupBy(index => FindRoot(root, index)))
         {
             var members = group.Select(index => furniture[index]).OrderBy(entry => entry.Piece.Position.X).ThenBy(entry => entry.Piece.Position.Y).ToArray();
+            var grounded = group.Where(index => supports[index] is null).Select(index => reachRoots[index]).ToHashSet();
+            var standing = group.Where(index => grounded.Count == 0 || grounded.Contains(reachRoots[index])).Select(index => furniture[index].Family!.Value);
             var spots = members.Select(entry => GetSpot(entry.Piece, acrossU, acrossV)).ToArray();
             var first = members[0].Piece.Position;
             parts.Add(new RoomPart
@@ -77,7 +92,7 @@ internal sealed class PartFinder
                 Room = room,
                 Origin = new PointF(first.X, first.Y),
                 Spot = spots.All(spot => spot == PartSpot.Corner) ? PartSpot.Corner : spots.Count(spot => spot != PartSpot.Center) * 2 >= spots.Length ? PartSpot.Wall : PartSpot.Center,
-                Families = members.Select(entry => entry.Family!.Value).Distinct().Order().ToArray(),
+                Families = standing.Distinct().Order().ToArray(),
                 Pieces = members.Select(entry => new PartPiece(entry.Piece.Id, entry.Piece.Position.X - first.X, entry.Piece.Position.Y - first.Y, entry.Piece.Position.Z,
                     entry.Piece.Facing, entry.Piece.Payload, WallGaps.Measure(_lattice, set, _edges, entry.Piece.Position.X, entry.Piece.Position.Y))).ToArray()
             });

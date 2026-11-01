@@ -7,32 +7,29 @@ namespace ASToolkit.Core.Levels;
 /// </summary>
 public sealed class FacingTable
 {
-    private const float Reach = 1.5f;
-    private const int SearchCells = 2;
     private const float FloorHeight = 5;
     private const int MinSamples = 5;
     private const float LeanDistance = 1;
     private const float LeanShare = 0.4f;
     private const float LeanContrast = 4;
     private const float RareShare = 0.05f;
-    private const float DistanceSlack = 0.05f;
     private const int MinDistanceSamples = 3;
     private const float LowQuantile = 0.1f;
     private const float HeightSlack = 3;
     private const float WallShare = 0.9f;
 
     private readonly ObjectTable _objects;
-    private readonly Dictionary<(KnownObject Id, WallSide Side), List<byte>> _dirs;
-    private readonly Dictionary<(KnownObject Id, WallSide Side), Dictionary<int, int>> _frames;
+    private readonly Dictionary<(KnownObject Id, WallSides Side), List<byte>> _dirs;
+    private readonly Dictionary<(KnownObject Id, WallSides Side), Dictionary<int, int>> _frames;
     private readonly Dictionary<KnownObject, List<byte>> _open;
     private readonly IReadOnlySet<(KnownObject Id, int Frame)> _leaning;
-    private readonly Dictionary<(KnownObject Id, WallSide Side, int Frame), List<(float Distance, float Z)>> _placements;
-    private readonly Dictionary<(KnownObject Id, WallSide Side, int Frame), (float Min, float Max, int Count)> _distances;
-    private readonly Dictionary<(KnownObject Id, WallSide Side), float> _lowDistances;
+    private readonly Dictionary<(KnownObject Id, WallSides Side, int Frame), List<(float Distance, float Z)>> _placements;
+    private readonly Dictionary<(KnownObject Id, WallSides Side, int Frame), (float Min, float Max, int Count)> _distances;
+    private readonly Dictionary<(KnownObject Id, WallSides Side), float> _lowDistances;
     private readonly Dictionary<KnownObject, float> _wallReaches;
 
-    private FacingTable(ObjectTable objects, Dictionary<(KnownObject, WallSide), List<byte>> dirs, Dictionary<KnownObject, List<byte>> open,
-        IReadOnlySet<(KnownObject, int)> leaning, Dictionary<(KnownObject, WallSide, int), List<(float, float)>> placements)
+    private FacingTable(ObjectTable objects, Dictionary<(KnownObject, WallSides), List<byte>> dirs, Dictionary<KnownObject, List<byte>> open,
+        IReadOnlySet<(KnownObject, int)> leaning, Dictionary<(KnownObject, WallSides, int), List<(float, float)>> placements)
     {
         _distances = placements.ToDictionary(p => p.Key, p => (p.Value.Min(m => m.Item1), p.Value.Max(m => m.Item1), p.Value.Count));
         _lowDistances = placements
@@ -65,14 +62,14 @@ public sealed class FacingTable
     /// </summary>
     public static FacingTable Build(IEnumerable<LevelModel> models, ObjectTable objects, IReadOnlySet<(KnownObject Id, int Frame)> leaning)
     {
-        var dirs = new Dictionary<(KnownObject, WallSide), List<byte>>();
+        var dirs = new Dictionary<(KnownObject, WallSides), List<byte>>();
         var open = new Dictionary<KnownObject, List<byte>>();
-        var placements = new Dictionary<(KnownObject, WallSide, int), List<(float, float)>>();
+        var placements = new Dictionary<(KnownObject, WallSides, int), List<(float, float)>>();
         foreach (var model in models)
         {
             foreach (var levelObject in model.Objects.Where(o => o.Z < FloorHeight || o.Id.IsWallMounted))
             {
-                var wall = FindWall(model.Edges, levelObject.U, levelObject.V);
+                var wall = model.Edges.FindNearestWall(levelObject.U, levelObject.V);
                 if (wall.HasValue)
                 {
                     Add(dirs, (levelObject.Id, wall.Value.Side), levelObject.Dir);
@@ -113,7 +110,7 @@ public sealed class FacingTable
 
                 var key = (levelObject.Id, obj.GetFrame(levelObject.Dir, int.MaxValue));
                 (int total, int near) = counts.GetValueOrDefault(key);
-                bool leans = FindWall(model.Edges, levelObject.U, levelObject.V) is { Distance: < LeanDistance };
+                bool leans = model.Edges.FindNearestWall(levelObject.U, levelObject.V) is { Distance: < LeanDistance };
                 counts[key] = (total + 1, near + (leans ? 1 : 0));
             }
         }
@@ -140,61 +137,24 @@ public sealed class FacingTable
     /// <summary>
     /// Returns the side and distance of the nearest wall within one and a half cells of a point, or null when there is none.
     /// </summary>
-    public static (WallSide Side, float Distance)? FindWall(IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v) => FindEdge(edges, u, v, wallsOnly: true);
-
-    private static (WallSide Side, float Distance)? FindEdge(IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v, bool wallsOnly)
-    {
-        int cu = (int)MathF.Floor(u);
-        int cv = (int)MathF.Floor(v);
-        float best = Reach;
-        WallSide? side = null;
-        for (int a = cu - SearchCells; a <= cu + SearchCells + 1; a++)
-        {
-            for (int b = cv - SearchCells; b <= cv + SearchCells + 1; b++)
-            {
-                if (edges.TryGetValue(new EdgeKey('u', a, b), out var k1) && (k1 == EdgeKind.Wall || !wallsOnly))
-                {
-                    float dv = Math.Max(0, Math.Max(b - v, v - (b + 1)));
-                    float d = MathF.Sqrt((u - a) * (u - a) + dv * dv);
-                    if (d < best)
-                    {
-                        (best, side) = (d, u >= a ? WallSide.LowerU : WallSide.UpperU);
-                    }
-                }
-
-                if (edges.TryGetValue(new EdgeKey('v', a, b), out var k2) && (k2 == EdgeKind.Wall || !wallsOnly))
-                {
-                    float du = Math.Max(0, Math.Max(a - u, u - (a + 1)));
-                    float d = MathF.Sqrt((v - b) * (v - b) + du * du);
-                    if (d < best)
-                    {
-                        (best, side) = (d, v >= b ? WallSide.LowerV : WallSide.UpperV);
-                    }
-                }
-            }
-        }
-
-        return side.HasValue ? (side.Value, best) : null;
-    }
-
     /// <summary>
     /// Returns whether an object with a facing at a point faces as the originals turn it against the nearest wall, stands off that
     /// wall as they stand it when it is solid, and whether a frame they mostly lean on a wall has one to lean on, unless it lies on a
     /// blood pool as a fresh kill.
     /// </summary>
     public bool Fits(KnownObject id, byte dir, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v, bool onBlood = false) =>
-        Fits(id, dir, FindWall(edges, u, v), onBlood);
+        Fits(id, dir, edges.FindNearestWall(u, v), onBlood);
 
     /// <summary>
     /// Returns whether an object stands within reach of a wall at a point, or the originals stand it away from walls at least one time in ten.
     /// </summary>
     public bool IsByWall(KnownObject id, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v) =>
-        !_wallReaches.TryGetValue(id, out float reach) || FindWall(edges, u, v)?.Distance <= reach + DistanceSlack;
+        !_wallReaches.TryGetValue(id, out float reach) || edges.FindNearestWall(u, v)?.Distance <= reach + EdgeMapExtensions.WallSlack;
 
     /// <summary>
     /// Returns the distance from a wall side that nine in ten of the originals' objects keep, or null when they have too few against it.
     /// </summary>
-    public float? GetLowDistance(KnownObject id, WallSide side) => _lowDistances.TryGetValue((id, side), out float distance) ? distance : null;
+    public float? GetLowDistance(KnownObject id, WallSides side) => _lowDistances.TryGetValue((id, side), out float distance) ? distance : null;
 
     /// <summary>
     /// Returns whether a wall-mounted object hangs on a wall side, with a frame, distance and height that one of the originals
@@ -202,22 +162,22 @@ public sealed class FacingTable
     /// </summary>
     public bool Hangs(KnownObject id, byte dir, float z, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v)
     {
-        var wall = FindWall(edges, u, v);
-        if (!wall.HasValue || FindEdge(edges, u, v, wallsOnly: false)?.Distance < wall.Value.Distance || !_objects.TryFind(id, out var obj))
+        var wall = edges.FindNearestWall(u, v);
+        if (!wall.HasValue || edges.FindNearestEdge(u, v)?.Distance < wall.Value.Distance || !_objects.TryFind(id, out var obj))
         {
             return false;
         }
 
         var key = (id, wall.Value.Side, obj.GetFrame(dir, int.MaxValue));
         return _placements.TryGetValue(key, out var samples)
-            && samples.Any(sample => MathF.Abs(sample.Distance - wall.Value.Distance) <= DistanceSlack && MathF.Abs(sample.Z - z) <= HeightSlack);
+            && samples.Any(sample => MathF.Abs(sample.Distance - wall.Value.Distance) <= EdgeMapExtensions.WallSlack && MathF.Abs(sample.Z - z) <= HeightSlack);
     }
 
     /// <summary>
     /// Returns whether the originals give an object with a facing at a point that frame at least one time in twenty against the
     /// same side of a wall.
     /// </summary>
-    public bool IsCommon(KnownObject id, byte dir, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v) => IsCommon(id, dir, FindWall(edges, u, v));
+    public bool IsCommon(KnownObject id, byte dir, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v) => IsCommon(id, dir, edges.FindNearestWall(u, v));
 
     /// <summary>
     /// Returns a facing the originals give an object in a like spot, drawn by how often they give it, or any fitting facing
@@ -225,7 +185,7 @@ public sealed class FacingTable
     /// </summary>
     public byte PickFacing(Random rng, KnownObject id, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v)
     {
-        var wall = FindWall(edges, u, v);
+        var wall = edges.FindNearestWall(u, v);
         var seen = (wall.HasValue ? _dirs.GetValueOrDefault((id, wall.Value.Side)) : _open.GetValueOrDefault(id)) ?? [];
         Span<sbyte> passes = stackalloc sbyte[256];
         int count = 0;
@@ -271,7 +231,7 @@ public sealed class FacingTable
     /// </summary>
     public bool HasFacing(KnownObject id, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v)
     {
-        var wall = FindWall(edges, u, v);
+        var wall = edges.FindNearestWall(u, v);
         var seen = (wall.HasValue ? _dirs.GetValueOrDefault((id, wall.Value.Side)) : _open.GetValueOrDefault(id)) ?? [];
         if (seen.Any(d => Fits(id, d, wall, false)))
         {
@@ -282,7 +242,7 @@ public sealed class FacingTable
             && Enumerable.Range(0, obj.Directions).Select(i => (byte)(i * 256 / obj.Directions)).Any(d => Fits(id, d, wall, false));
     }
 
-    private bool IsCommon(KnownObject id, byte dir, (WallSide Side, float Distance)? wall)
+    private bool IsCommon(KnownObject id, byte dir, (WallSides Side, float Distance)? wall)
     {
         if (!wall.HasValue || !_objects.TryFind(id, out var obj) || obj.FramesPerDirection == 0 || !_frames.TryGetValue((id, wall.Value.Side), out var frames))
         {
@@ -293,7 +253,7 @@ public sealed class FacingTable
         return total < MinSamples || frames.GetValueOrDefault(obj.GetFrame(dir, int.MaxValue)) >= RareShare * total;
     }
 
-    private bool Fits(KnownObject id, byte dir, (WallSide Side, float Distance)? wall, bool onBlood)
+    private bool Fits(KnownObject id, byte dir, (WallSides Side, float Distance)? wall, bool onBlood)
     {
         if (!_objects.TryFind(id, out var obj) || obj.FramesPerDirection == 0)
         {
@@ -307,7 +267,7 @@ public sealed class FacingTable
         }
 
         if (obj.IsSolid && wall.HasValue && _distances.TryGetValue((id, wall.Value.Side, frame), out var range) && range.Count >= MinDistanceSamples
-            && (wall.Value.Distance < range.Min - DistanceSlack || wall.Value.Distance > range.Max + DistanceSlack))
+            && (wall.Value.Distance < range.Min - EdgeMapExtensions.WallSlack || wall.Value.Distance > range.Max + EdgeMapExtensions.WallSlack))
         {
             return false;
         }

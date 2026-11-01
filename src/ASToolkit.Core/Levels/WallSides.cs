@@ -1,4 +1,4 @@
-namespace ASToolkit.Core.Design;
+namespace ASToolkit.Core.Levels;
 
 /// <summary>
 /// Specifies the walls around a floor cell.

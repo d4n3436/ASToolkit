@@ -10,6 +10,7 @@ namespace ASToolkit.Core.Generation.Content;
 public static class BudgetPlanner
 {
     private const float ItemJitter = 0.1f;
+    private const float DensitySlack = 1.5f;
     private static readonly HashSet<KnownObject> CampaignBosses = [KnownObject.Boss1, KnownObject.Boss2, KnownObject.Boss3, KnownObject.Boss4, KnownObject.TankBoss, KnownObject.RedTankWeaponBoss, KnownObject.PowerfulBoss3, KnownObject.DiverBoss, KnownObject.FinalMonster];
     private static readonly HashSet<KnownObject> DroppedFromGroups = [KnownObject.Boss1, KnownObject.Boss4, KnownObject.PowerfulBoss3, KnownObject.RedTankWeaponBoss, KnownObject.TankBoss, KnownObject.Boss2];
 
@@ -46,6 +47,12 @@ public static class BudgetPlanner
             .ToArray();
         
         var spawners = smallSpawners.Length > 0 ? smallSpawners : spawnerPool;
+        float density = GetDensity(campaign.SpawnerLists.SelectMany(list => list).ToArray());
+        var alike = spawners.Where(p => GetDensity(p.List) <= density * DensitySlack && GetDensity(p.List) >= density / DensitySlack).ToArray();
+        if (density > 0 && alike.Length > 0)
+        {
+            spawners = alike;
+        }
         
         var groupPool = sources
             .SelectMany(s => s.PlacedGroups.Select(g => (Source: s, Group: g)))
@@ -203,5 +210,8 @@ public static class BudgetPlanner
         }
 
         int GetHitPoints(IEnumerable<KnownObject> monsters) => monsters.Sum(m => objects.TryFind(m, out var obj) ? obj.MaxHp : 0);
+
+        // Count the monsters for every hit point they bring
+        float GetDensity(IReadOnlyList<KnownObject> monsters) => monsters.Count / (float)Math.Max(1, GetHitPoints(monsters));
     }
 }

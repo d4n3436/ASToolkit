@@ -1,4 +1,3 @@
-using ASToolkit.Core.Design;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Survey;
 
@@ -9,9 +8,9 @@ namespace ASToolkit.Core.Rooms;
 /// </summary>
 public sealed class RoomRoleMap
 {
-    private readonly Dictionary<int, HashSet<int>> _neighbors;
+    private readonly IReadOnlyDictionary<int, HashSet<int>> _neighbors;
 
-    private RoomRoleMap(Dictionary<int, HashSet<int>> neighbors)
+    private RoomRoleMap(IReadOnlyDictionary<int, HashSet<int>> neighbors)
     {
         _neighbors = neighbors;
     }
@@ -78,10 +77,10 @@ public sealed class RoomRoleMap
     public static RoomRoleMap Measure(LevelSurvey survey)
     {
         var places = survey.Places.ToDictionary(place => place.Id);
-        (int[] rooms, var neighbors) = RoomGraph.FindDoorGraph(survey);
-        (int start, int end) = RoomGraph.FindEnds(survey);
+        var graph = DoorGraph.Create(survey);
+        (int start, int end) = DoorGraph.FindEnds(survey);
         int? key = survey.Gates.FirstOrDefault(gate => gate.KeyPlace is not null)?.KeyPlace;
-        return Measure(rooms, neighbors, start, end, room => places[room].Kind == PlaceKind.Hall, room => places[room].AreaPixels,
+        return Measure(graph, start, end, room => places[room].Kind == PlaceKind.Hall, room => places[room].AreaPixels,
             room => places[room].FirstVisit ?? int.MaxValue, key);
     }
 
@@ -106,13 +105,14 @@ public sealed class RoomRoleMap
             neighbors[b].Add(a);
         }
 
-        return Measure(rooms.ToArray(), neighbors, start, end, isHall, area, order, key);
+        return Measure(new DoorGraph(rooms.ToArray(), neighbors), start, end, isHall, area, order, key);
     }
 
-    private static RoomRoleMap Measure(int[] rooms, Dictionary<int, HashSet<int>> neighbors, int start, int end, Func<int, bool> isHall, Func<int, int> area,
+    private static RoomRoleMap Measure(DoorGraph graph, int start, int end, Func<int, bool> isHall, Func<int, int> area,
         Func<int, int> order, int? key)
     {
-        var body = RoomGraph.FindMainBody(rooms, neighbors, start, end);
+        var neighbors = graph.Neighbors;
+        var body = graph.FindMainBody(start, end);
         var path = neighbors.FindPath(start, end);
         if (path.Count == 0)
         {
@@ -135,7 +135,7 @@ public sealed class RoomRoleMap
             HubRooms = hubRooms,
             HallRooms = hallRooms,
             BodyRooms = body.Where(room => room != start && room != neck && (hall is null || !isHall(room)) && !hubRooms.Contains(room) && !hallRooms.Contains(room)).ToArray(),
-            Branches = RoomGraph.FindBranches(rooms, neighbors, body).Select(branch => OrderFromRoot(branch, neighbors, body, order)).ToArray(),
+            Branches = graph.FindBranches(body).Select(branch => OrderFromRoot(branch, neighbors, body, order)).ToArray(),
             Key = key,
             Path = path
         };
@@ -213,7 +213,7 @@ public sealed class RoomRoleMap
     }
 
     // Walk a branch outward from the rooms that open onto the main body
-    private static List<int> OrderFromRoot(List<int> branch, Dictionary<int, HashSet<int>> neighbors, HashSet<int> body, Func<int, int> order)
+    private static List<int> OrderFromRoot(List<int> branch, IReadOnlyDictionary<int, HashSet<int>> neighbors, HashSet<int> body, Func<int, int> order)
     {
         var members = branch.ToHashSet();
         var ordered = branch.Where(room => neighbors[room].Overlaps(body)).OrderBy(order).ToList();

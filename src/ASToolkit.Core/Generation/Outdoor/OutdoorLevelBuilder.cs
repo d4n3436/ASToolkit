@@ -4,8 +4,8 @@ using ASToolkit.Core.Formats;
 using ASToolkit.Core.Generation.Geometry;
 using ASToolkit.Core.Generation.Layout;
 using ASToolkit.Core.Levels;
-using ASToolkit.Core.Routes;
 using ASToolkit.Core.Reference;
+using ASToolkit.Core.Scripting;
 
 namespace ASToolkit.Core.Generation.Outdoor;
 
@@ -227,14 +227,6 @@ public sealed class OutdoorLevelBuilder
     }
 
     private static float Distance(PointF a, PointF b) => MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
-
-    private static float DistanceToSegment(PointF p, PointF a, PointF b)
-    {
-        float dx = b.X - a.X, dy = b.Y - a.Y;
-        float length = dx * dx + dy * dy;
-        float t = length == 0 ? 0 : Math.Clamp(((p.X - a.X) * dx + (p.Y - a.Y) * dy) / length, 0, 1);
-        return Distance(p, new PointF(a.X + t * dx, a.Y + t * dy));
-    }
 
     // Step from one roof row to another two cells at a time, ending on the far row
     private static IEnumerable<float> GetRoofRows(float from, float to, float step)
@@ -680,7 +672,7 @@ public sealed class OutdoorLevelBuilder
         {
             float length = Math.Max(1, Distance(start, gate));
             var end = new PointF(start.X + (start.X - gate.X) / length * RoadOvershoot, start.Y + (start.Y - gate.Y) / length * RoadOvershoot);
-            return DistanceToSegment(point, end, gate) < RoadHalfWidth;
+            return new MapSegment(end, gate).MeasureDistance(point) < RoadHalfWidth;
         }
 
         private bool IsAgainstWall(UnitRect yard, float x, float y)

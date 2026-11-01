@@ -59,13 +59,18 @@ This covers what the toolkit's code does not say by itself, which is how the gam
 - Roof tiles (501) lie at z 90 on labs and 95 on military levels, on top of the walls. Their offsets vary by about 18 px between patches and fit no single lattice.
 - Doors, jammed doors and monster holes nearly always have floor behind them. In campaign levels 2 to 10 that holds for 75 of 80 jammed doors and every door and monster hole.
 - The engine sorts by y. A tile at (y - 80, z - 80) lands on the same screen position and is drawn before the walls.
-- Decor with z above 0 stands on whatever is under it, such as a monitor on a desk.
+- Decor with z above 0 stands on whatever is under it, such as a monitor on a desk. In campaign levels 2 to 10, 73 of 92 boxes (428) stand on shelves, a cabinet or a table, 34 of 37 lab test tubes at a table and all 16 pieces of lab equipment on one.
+- Bio containers (443) and trucks (440) are walk-through sprites. A solid Z dummy (631) under each carries the collision. All 44 campaign bio containers have one, and 15 of 16 trucks.
+- Crates (419) carry the unit sprite type, as monsters do.
 
 ### Placement
 
-- Wall collision reaches into the neighboring cell. A cell with no wall on its own edges can still lie inside a neighbor's wall box (±40 by 28 for lab walls), and the engine pushes anything spawned there through the wall. Players, monsters, items and spawners must clear the boxes.
+- Wall collision reaches into the neighboring cell. A cell with no wall on its own edges can still lie inside a neighbor's wall box (±40 by 28 for lab walls), and the engine pushes anything spawned there through the wall. Players, monsters and spawners must clear the boxes. Pickups placed in the map need not: 200 of the 469 pickups of campaign levels 2 to 10 lie inside a wall box. 18 of about 1,000 loose pickups outside secret closets lie under a roof, most of them money.
 - Originals keep spawners 1,000 to 3,000 px from their trigger, or behind 618 and 619 spawn walls when closer.
 - Monsters are placed in tight 20 px grids, clusters and lines, plus about 100 singles. No two of them stand closer than 12 px.
+- Floor pieces keep off doorways. All but the closest 5% of the solid ones stand 60 px or more from a doorway on campaign labs and 177 px on military levels, and of the hittable ones 70 and 109 px. One of 46 monitors hangs within 40 px of a doorway.
+- In campaign labs, shadows (144) lie under furniture, about one for each table, computer or piece of lab equipment and two for each bio container, and darken secret closets. 87% of scattered papers (408) lie within 45 px of a chair and 68% of a table.
+- A spawner releases at most 51 to 74 monsters. Big waves come from several spawners on one trigger. Level 7 has 13 spawners on 5 triggers, level 10 has 25 on one. Military triggers reach 100 to 150 px.
 - Breakable closets in labs are 4 to 9 cell pockets behind one 609 piece, under the roof. They hold 4 to 9 coins, ammo, a weapon or a perk.
 - The breaker hangs on a `\` wall piece (anchor + (-8, +3), dir 0) facing the room. The room is small and has 429 transformers, a 430 corpse with blood, 403 shelves and a 180 pointer. The door panels 423 and 424 sit on the door frame with the door's dir at z about 5.
 - The mounted cannon 357 appears once on each of levels 7 and 8, plus add-ons 1 and 2 levels 4 and 5. It has side 0 and needs about 120 by 90 px of free floor.

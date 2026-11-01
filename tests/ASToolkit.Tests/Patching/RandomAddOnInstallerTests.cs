@@ -1,8 +1,8 @@
 using System.Text;
-using ASToolkit.Core.Generation;
 using Xunit;
+using ASToolkit.Core.Patching;
 
-namespace ASToolkit.Tests.Generation;
+namespace ASToolkit.Tests.Patching;
 
 public class RandomAddOnInstallerTests : IDisposable
 {

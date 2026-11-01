@@ -4,6 +4,7 @@ using ASToolkit.Core.Formats;
 using ASToolkit.Core.Generation.Geometry;
 using ASToolkit.Core.Generation.Layout;
 using ASToolkit.Core.Levels;
+using ASToolkit.Core.Reference;
 using ASToolkit.Core.Rooms;
 
 namespace ASToolkit.Core.Generation.Dressing;
@@ -28,13 +29,11 @@ public sealed class RoomFurnisher
     private static readonly float MaxSizeLog = MathF.Log(3);
     private const int SourceLevel = -2;
     private const float FloorHeight = 5;
-    private const float ClearanceSlack = 0.05f;
     private static readonly (float Min, float Max) DensityJitter = (0.8f, 1.2f);
 
     private readonly Dictionary<RoomType, (RoomRecipe Recipe, RecipePart[] Parts)> _recipes;
     private readonly ObjectTable _objects;
     private readonly Func<KnownObject, float, bool> _allows;
-    private readonly Func<KnownObject, float> _heightOf;
     private readonly Lattice _lattice;
     private readonly Dictionary<KnownObject, float> _spans;
 
@@ -44,12 +43,10 @@ public sealed class RoomFurnisher
     /// <param name="recipes">The recipes of the setting's room types.</param>
     /// <param name="objects">The object table.</param>
     /// <param name="allows">Returns whether the level may hold an object at a height.</param>
-    /// <param name="heightOf">Returns the height to lay a scattered object at.</param>
     /// <param name="lattice">A lattice with the axes of the rooms' walls.</param>
-    public RoomFurnisher(IEnumerable<RoomRecipe> recipes, ObjectTable objects, Func<KnownObject, float, bool> allows, Func<KnownObject, float> heightOf, Lattice lattice)
+    public RoomFurnisher(IEnumerable<RoomRecipe> recipes, ObjectTable objects, Func<KnownObject, float, bool> allows, Lattice lattice)
     {
         _objects = objects;
-        _heightOf = heightOf;
         _allows = allows;
         _lattice = lattice;
         var measured = recipes.ToArray();
@@ -65,12 +62,15 @@ public sealed class RoomFurnisher
     /// <param name="layout">The fine layout.</param>
     /// <param name="original">The rooms of the original level.</param>
     /// <param name="keepClear">The cells to keep free of solid pieces.</param>
+    /// <param name="occupancy">The objects already standing and the doorways to keep clear.</param>
+    /// <param name="companionsOf">Returns the objects that lie by an anchor object in the level.</param>
     /// <param name="wallLattice">The lattice the built walls are read on.</param>
     /// <param name="walls">The edges of the walls as built.</param>
     /// <param name="facings">How the originals turn pieces against walls.</param>
     /// <param name="clearance">How close the originals stand pieces to walls.</param>
     public (Dictionary<int, RoomType> Types, List<PlacedDecor> Decor) Furnish(Random rng, LayoutPlan plan, FineLayout layout, RoomAtlas original,
-        IReadOnlySet<Cell> keepClear, Lattice wallLattice, IReadOnlyDictionary<EdgeKey, EdgeKind> walls, FacingTable facings, WallClearanceTable clearance)
+        IReadOnlySet<Cell> keepClear, LevelOccupancy occupancy, Func<KnownObject, IReadOnlyList<ObjectCompanion>> companionsOf, Lattice wallLattice, IReadOnlyDictionary<EdgeKey, EdgeKind> walls, FacingTable facings,
+        WallClearanceTable clearance)
     {
         var own = Prepare(RoomRecipe.Measure(original.Rooms, layout.Lattice));
         var types = AssignTypes(rng, plan, layout, original);
@@ -124,15 +124,15 @@ public sealed class RoomFurnisher
             {
                 if (room.Picks.TryDequeue(out var pick))
                 {
-                    room.Pieces += TryPlace(rng, layout, keepClear, room, pick.Part, standing, placed, pick.Example);
+                    room.Pieces += TryPlace(rng, layout, keepClear, occupancy, companionsOf, room, pick.Part, standing, placed, pick.Example);
                     continue;
                 }
 
                 bool fromLevel = rng.NextSingle() < OwnShare;
-                int count = TryPlace(rng, layout, keepClear, room, Draw(rng, fromLevel ? room.Parts : room.Pooled), standing, placed);
+                int count = TryPlace(rng, layout, keepClear, occupancy, companionsOf, room, Draw(rng, fromLevel ? room.Parts : room.Pooled), standing, placed);
                 if (count == 0 && fromLevel)
                 {
-                    count = TryPlace(rng, layout, keepClear, room, Draw(rng, room.Pooled), standing, placed);
+                    count = TryPlace(rng, layout, keepClear, occupancy, companionsOf, room, Draw(rng, room.Pooled), standing, placed);
                 }
 
                 room.Pieces += count;
@@ -142,7 +142,6 @@ public sealed class RoomFurnisher
 
         foreach (var room in rooms)
         {
-            Scatter(rng, layout.Lattice, room.Cells, room.Taken, room.Recipe, room.Units, standing, placed);
         }
 
         return (types, placed);
@@ -333,7 +332,7 @@ public sealed class RoomFurnisher
 
     // Copy into the room the given example or else one of the part's examples, never a group of three or more pieces twice in a level or
     // more than twice from one original room into one room, nor past the level's cap of any piece, and return the number of pieces placed
-    private int TryPlace(Random rng, FineLayout layout, IReadOnlySet<Cell> keepClear, Room room, RecipePart part, Standing standing, List<PlacedDecor> placed,
+    private int TryPlace(Random rng, FineLayout layout, IReadOnlySet<Cell> keepClear, LevelOccupancy occupancy, Func<KnownObject, IReadOnlyList<ObjectCompanion>> companionsOf, Room room, RecipePart part, Standing standing, List<PlacedDecor> placed,
         RoomPart? first = null)
     {
         for (int attempt = 0; attempt < ExampleTries; attempt++)
@@ -341,7 +340,7 @@ public sealed class RoomFurnisher
             var example = attempt == 0 && first is not null ? first : Pick(rng, part);
             bool tracked = example.Pieces.Count >= MinTrackedPieces;
             if (tracked && (room.Used.Contains(example) || room.Sources.GetValueOrDefault(example.Room) >= MaxPartsPerSource) || !room.IsWithinCaps(example)
-                || !TryPlace(rng, layout, keepClear, room, example, part, standing, placed))
+                || !TryPlace(rng, layout, keepClear, occupancy, companionsOf, room, example, part, standing, placed))
             {
                 continue;
             }
@@ -361,7 +360,7 @@ public sealed class RoomFurnisher
 
     // Stand the part, as often as its kind stands in rows, a spacing away along the walls from one of its kind against the same walls, or
     // else stand the piece against the most walls at its walls' distances in a cell by those walls, then check every piece
-    private bool TryPlace(Random rng, FineLayout layout, IReadOnlySet<Cell> keepClear, Room room, RoomPart example, RecipePart kind, Standing standing,
+    private bool TryPlace(Random rng, FineLayout layout, IReadOnlySet<Cell> keepClear, LevelOccupancy occupancy, Func<KnownObject, IReadOnlyList<ObjectCompanion>> companionsOf, Room room, RoomPart example, RecipePart kind, Standing standing,
         List<PlacedDecor> placed)
     {
         var lattice = layout.Lattice;
@@ -419,6 +418,7 @@ public sealed class RoomFurnisher
             var origin = lattice.ToWorld(u, v);
             return new PointF(origin.X - pieces[anchor].X, origin.Y - pieces[anchor].Y);
         });
+        var companions = DrawCompanions(rng, pieces, companionsOf);
         foreach ((float x0, float y0) in rng.NextSingle() < kind.RowShare ? rows.Concat(cells) : cells.Concat(rows))
         {
             var footprints = new HashSet<Cell>();
@@ -457,13 +457,34 @@ public sealed class RoomFurnisher
                 footprints.UnionWith(footprint);
             }
 
-            if (!fits || !KeepsFloorJoined(room.Cells, room.Taken, footprints))
+            var inRoom = companions.Where(companion => room.Cells.Contains(lattice.GetCell(x0 + companion.X, y0 + companion.Y))).ToArray();
+            if (!fits || companions.Except(inRoom).Any(companion => _objects.GetBlocking(companion.Id) != BlockingClass.WalkThrough))
+            {
+                continue;
+            }
+
+            foreach (var companion in inRoom)
+            {
+                var footprint = Dresser.GetFootprint(lattice, _objects, companion.Id, x0 + companion.X, y0 + companion.Y, 0);
+                footprint.IntersectWith(room.Cells);
+                footprints.UnionWith(footprint);
+            }
+
+            var group = pieces.Select(piece => (piece.Id, X: x0 + piece.X, Y: y0 + piece.Y, piece.Z))
+                .Concat(inRoom.Select(companion => (companion.Id, X: x0 + companion.X, Y: y0 + companion.Y, companion.Z)))
+                .ToArray();
+            if (!KeepsFloorJoined(room.Cells, room.Taken, footprints) || !occupancy.FitsAll(group))
             {
                 continue;
             }
 
             room.Taken.UnionWith(footprints);
             room.Boxes.AddRange(spans);
+            foreach (var (id, x, y, z) in group)
+            {
+                occupancy.Add(id, x, y, z);
+            }
+
             room.AddOrigin(row, new PointF(x0, y0));
             foreach (var piece in pieces)
             {
@@ -471,10 +492,34 @@ public sealed class RoomFurnisher
                 placed.Add(new PlacedDecor(piece.Id, pu, pv, piece.Z, piece.Facing, piece.Id == KnownObject.Crate ? KnownObject.CreateEmptyCratePayload() : piece.Payload, (SourceLevel, placed.Count), null));
             }
 
+            foreach (var companion in inRoom)
+            {
+                (float pu, float pv) = lattice.ToLattice(x0 + companion.X, y0 + companion.Y);
+                placed.Add(new PlacedDecor(companion.Id, pu, pv, companion.Z, companion.Facing, [], (SourceLevel, placed.Count), null));
+            }
+
             return true;
         }
 
         return false;
+    }
+
+    // Draw the companions of every piece at their anchors' rates
+    private static List<PartPiece> DrawCompanions(Random rng, IReadOnlyList<PartPiece> pieces, Func<KnownObject, IReadOnlyList<ObjectCompanion>> companionsOf)
+    {
+        var drawn = new List<PartPiece>();
+        foreach (var piece in pieces)
+        {
+            foreach (var companion in companionsOf(piece.Id))
+            {
+                foreach (var sample in companion.Draw(rng, piece.Facing))
+                {
+                    drawn.Add(new PartPiece(companion.Id, piece.X + sample.Dx, piece.Y + sample.Dy, piece.Z + sample.Dz, sample.Facing, [], default));
+                }
+            }
+        }
+
+        return drawn;
     }
 
     // The floor of a room being furnished, its recipe and the parts drawn for it, what stands on it, and the level's use of examples and
@@ -553,11 +598,11 @@ public sealed class RoomFurnisher
         }
 
         // Return the cells with a wall or the room's edge on every given side, the sides numbered as in WallGaps
-        public Cell[] GetWallCells(int[] sides) => Floor.Where(cell => sides.All(side =>
+        public Cell[] GetWallCells(int[] sides) => Floor.Where(cell =>
         {
-            var (neighbor, edge) = EdgeKey.GetNeighbors(cell)[side switch { 0 => 1, 1 => 0, 2 => 3, _ => 2 }];
-            return !Cells.Contains(neighbor) || _edges.ContainsKey(edge);
-        })).ToArray();
+            var walled = _edges.GetWalledSides(cell, Cells.Contains, static _ => true);
+            return sides.All(side => walled.HasFlag(WallGaps.Sides[side]));
+        }).ToArray();
     }
 
     // The floor a piece takes along the lattice axes, in map pixels
@@ -574,7 +619,7 @@ public sealed class RoomFurnisher
             (float u, float v) = Lattice.ToLattice(x, y);
             return Facings.Fits(id, facing, Walls, u, v)
                    && !(id.IsWallMounted && !Facings.Hangs(id, facing, z, Walls, u, v))
-                   && !(z < FloorHeight && Clearance.TryGetClearance(id, out float minimum, out _) && WallClearanceTable.MeasureDistance(Walls, u, v) < minimum - ClearanceSlack);
+                   && !(z < FloorHeight && Clearance.TryGetClearance(id, out float minimum, out _) && Walls.MeasureClearance(u, v) < minimum - EdgeMapExtensions.WallSlack);
         }
     }
 
@@ -616,27 +661,5 @@ public sealed class RoomFurnisher
         }
 
         return reached.Count == free.Count;
-    }
-
-    // Lay papers on free floor at the recipe's rate, each turned and stood as the originals allow there
-    private void Scatter(Random rng, Lattice layoutLattice, HashSet<Cell> cells, HashSet<Cell> taken, RoomRecipe recipe, float units, Standing standing, List<PlacedDecor> placed)
-    {
-        if (!recipe.ScatterRates.TryGetValue(KnownObject.ScatteredPaper, out float rate))
-        {
-            return;
-        }
-
-        var free = cells.Where(cell => !taken.Contains(cell)).ToArray();
-        int count = Math.Min(free.Length, (int)MathF.Round(rate * units * (DensityJitter.Min + (DensityJitter.Max - DensityJitter.Min) * rng.NextSingle())));
-        float z = _heightOf(KnownObject.ScatteredPaper);
-        foreach (var cell in free.OrderBy(_ => rng.Next()).Take(count))
-        {
-            (float u, float v, byte facing) = (cell.U + rng.NextSingle(), cell.V + rng.NextSingle(), (byte)rng.Next(256));
-            var point = layoutLattice.ToWorld(u, v);
-            if (standing.Allows(KnownObject.ScatteredPaper, facing, z, point.X, point.Y))
-            {
-                placed.Add(new PlacedDecor(KnownObject.ScatteredPaper, u, v, z, facing, [], (SourceLevel, placed.Count), null));
-            }
-        }
     }
 }

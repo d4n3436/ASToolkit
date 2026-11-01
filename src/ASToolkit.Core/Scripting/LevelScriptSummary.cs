@@ -1,4 +1,4 @@
-namespace ASToolkit.Core.Routes;
+namespace ASToolkit.Core.Scripting;
 
 /// <summary>
 /// Represents what a level script sets up for the route.

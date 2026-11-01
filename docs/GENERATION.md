@@ -211,7 +211,7 @@ Two examples of each type, with the room outlined in yellow, walls inside it in 
 
 ### Recipes
 
-A recipe says how the originals furnish a type of room. `PartFinder` groups each room's furniture into parts by the pairs the originals build, a table with its chair (within 70 px), computer (45) or labware (50), cabinets and shelves into bands (60 to 100), crates and boxes into stacks (55), containers into rows (90), server banks in spaced rows (150), a wall computer with its chair (60), barrels and cylinders (45). A part stands against a wall, in a corner (two walls within 2 cells) or in the open. Papers and corpses are scattered and counted per area. `RoomRecipe.Measure` pools the parts of a type's rooms, kept apart for labs and military settings, into each kind of part's rate per 100,000 px² of floor, the share of rooms that hold one, where it stands, how far apart two stand in a room and how often the nearest one stands along a lattice axis (in a row), and its examples with their geometry. A kind held by 75% of the rooms or more is required. `ascli inspect rooms` writes the full tables to `recipes.md`.
+A recipe says how the originals furnish a type of room. `PartFinder` groups each room's furniture into parts by the pairs the originals build, a table with its chair (within 70 px), computer (45) or labware (50), cabinets and shelves into bands (60 to 100), crates and boxes into stacks (55), containers into rows (90), server banks in spaced rows (150), a wall computer with its chair (60), barrels and cylinders (45). A piece standing on another joins the other's part (`ObjectTableExtensions.FindSupport`), and a part is named after the groups with a piece on the floor (boxes on a cabinet make a cabinet part). A part stands against a wall, in a corner (two walls within 2 cells) or in the open. Papers and corpses are counted per area. `RoomRecipe.Measure` pools the parts of a type's rooms, kept apart for labs and military settings, into each kind of part's rate per 100,000 px² of floor, the share of rooms that hold one, where it stands, how far apart two stand in a room and how often the nearest one stands along a lattice axis (in a row), and its examples with their geometry. A kind held by 75% of the rooms or more is required. `ascli inspect rooms` writes the full tables to `recipes.md`.
 
 The defining parts of the lab types (campaign and add-ons):
 
@@ -312,81 +312,83 @@ Measured on campaign levels 2 to 10. "On screen" means within the 1,280 by 800 s
 
 | measure | campaign | add-ons | generated (90 levels) |
 |---|---|---|---|
-| chairs within 60 px of a table | 154 of 178 (87%) | 343 of 353 (97%) | 1,444 of 1,703 (85%) |
-| tables with a chair within 60 px | 152 of 172 (88%) | 353 of 411 (86%) | 1,440 of 1,583 (91%) |
-| test tubes within 60 px of a table | 71 of 74 (96%) | 130 of 131 (99%) | 395 of 419 (94%) |
-| lab equipment within 60 px of a table | 27 of 27 (100%) | 57 of 58 (98%) | 178 of 178 (100%) |
-| scattered paper within 60 px of a table | 83 of 92 (90%) | 239 of 366 (65%) | 168 of 965 (17%) |
-| computers away from walls | 18 of 122 (15%) | 170 of 209 (81%) | 384 of 1,160 (33%) |
-| lab big computers with a chair within 200 px | 52 of 52 (100%) | 19 of 31 (61%) | 210 of 378 (56%) |
-| corpses on blood (40 px) | 155 of 164 (95%) | 235 of 251 (94%) | 1,349 of 1,349 (100%) |
-| office and lab decor in passages | 0 of 322 (0%) | 186 of 764 (24%) | 65 of 2,722 (2%) |
-| office and lab decor in storage rooms | 10 of 322 (3%) | 35 of 764 (5%) | 118 of 2,722 (4%) |
-| Cabinet against far walls only | 173 of 207 (84%) | 442 of 588 (75%) | 1,347 of 1,914 (70%) |
-| Cabinet against near walls only | 15 of 207 (7%) | 14 of 588 (2%) | 282 of 1,914 (15%) |
-| Table against far walls only | 106 of 163 (65%) | 49 of 410 (12%) | 800 of 1,583 (51%) |
-| Table against near walls only | 20 of 163 (12%) | 20 of 410 (5%) | 187 of 1,583 (12%) |
-| Shelves against far walls only | 125 of 214 (58%) | 89 of 159 (56%) | 890 of 2,153 (41%) |
-| Shelves against near walls only | 56 of 214 (26%) | 9 of 159 (6%) | 750 of 2,153 (35%) |
-| BigComputer against far walls only | 49 of 71 (69%) | 23 of 31 (74%) | 418 of 584 (72%) |
-| BigComputer against near walls only | 3 of 71 (4%) | 1 of 31 (3%) | 38 of 584 (7%) |
-| Cabinet in a frame used under 5% against its wall | 6 of 171 (4%) | 117 of 430 (27%) | 93 of 1,506 (6%) |
-| Table in a frame used under 5% against its wall | 0 of 125 (0%) | 21 of 68 (31%) | 6 of 980 (1%) |
-| Container in a frame used under 5% against its wall | 0 of 32 (0%) | 4 of 15 (27%) | 13 of 293 (4%) |
-| Shelves in a frame used under 5% against its wall | 3 of 176 (2%) | 24 of 94 (26%) | 33 of 1,634 (2%) |
-| loose money against a wall | 87 of 100 (87%) | 99 of 226 (44%) | 1,128 of 1,510 (75%) |
-| loose money in a corner | 43 of 100 (43%) | 34 of 226 (15%) | 652 of 1,510 (43%) |
-| loose health against a wall | 84 of 128 (66%) | 51 of 156 (33%) | 664 of 1,293 (51%) |
-| loose ammo against a wall | 88 of 164 (54%) | 128 of 287 (45%) | 1,555 of 2,143 (73%) |
-| loose armor against a wall | 9 of 19 (47%) | 5 of 18 (28%) | 158 of 225 (70%) |
-| pickup piles of two or more (45 px) | 120 of 217 (55%) | 111 of 544 (20%) | 1,224 of 3,077 (40%) |
-| health placed after a fight | 70 of 163 (43%) | 93 of 174 (53%) | 758 of 1,573 (48%) |
-| ammo placed before a fight | 68 of 257 (26%) | 107 of 361 (30%) | 856 of 3,028 (28%) |
-| loose money over 200 px of walk off the route | 91 of 119 (76%) | 172 of 226 (76%) | 1,015 of 1,510 (67%) |
-| health in crates | 35 of 163 (21%) | 18 of 174 (10%) | 280 of 1,573 (18%) |
-| ammo in crates | 93 of 257 (36%) | 74 of 361 (20%) | 885 of 3,028 (29%) |
-| armor in crates | 18 of 39 (46%) | 12 of 30 (40%) | 163 of 388 (42%) |
-| loose pickups per pile (45 px), median of levels | 2.174 | 1.475 | 2.077 |
-| solid floor pieces within 30 px of a doorway | 6 of 1,155 (1%) | 2 of 2,506 (0%) | 105 of 10,783 (1%) |
-| hittable floor pieces within 30 px of a doorway | 2 of 965 (0%) | 2 of 1,922 (0%) | 166 of 9,767 (2%) |
-| monitors within 40 px of a doorway | 1 of 46 (2%) | 9 of 189 (5%) | 82 of 492 (17%) |
-| solid or hittable floor pieces standing inside another | 0 of 2,120 (0%) | 40 of 4,428 (1%) | 26 of 20,550 (0%) |
-| loose pickups under a solid or hittable piece | 1 of 469 (0%) | 2 of 750 (0%) | 119 of 5,617 (2%) |
-| monitors within 25 px of a cabinet or shelves | 2 of 46 (4%) | 0 of 189 (0%) | 46 of 492 (9%) |
-| monitors standing on a piece | 18 of 46 (39%) | 106 of 189 (56%) | 270 of 492 (55%) |
-| boxes on shelves, a cabinet or a table | 73 of 92 (79%) | 104 of 121 (86%) | 196 of 958 (20%) |
-| test tubes, lab equipment and computers standing on a piece | 221 of 230 (96%) | 393 of 398 (99%) | 1,686 of 1,757 (96%) |
-| shelves with another shelf within 70 px | 14 of 217 (6%) | 11 of 160 (7%) | 33 of 2,153 (2%) |
-| longest cabinet run | 5 | 32 | 8 |
-| missiles in triplets | 9 of 9 (100%) | 18 of 73 (25%) | 12 of 98 (12%) |
-| pad groups mirrored about their middle | 5 of 5 (100%) | 2 of 4 (50%) | 45 of 55 (82%) |
+| chairs within 60 px of a table | 154 of 178 (87%) | 343 of 353 (97%) | 1,386 of 1,703 (81%) |
+| tables with a chair within 60 px | 152 of 172 (88%) | 353 of 411 (86%) | 1,372 of 1,524 (90%) |
+| test tubes within 60 px of a table | 71 of 74 (96%) | 130 of 131 (99%) | 392 of 413 (95%) |
+| lab equipment within 60 px of a table | 27 of 27 (100%) | 57 of 58 (98%) | 163 of 163 (100%) |
+| scattered paper within 60 px of a table | 83 of 92 (90%) | 239 of 366 (65%) | 593 of 876 (68%) |
+| computers away from walls | 18 of 122 (15%) | 170 of 209 (81%) | 261 of 1,191 (22%) |
+| lab big computers with a chair within 200 px | 52 of 52 (100%) | 19 of 31 (61%) | 188 of 397 (47%) |
+| corpses on blood (40 px) | 155 of 164 (95%) | 235 of 251 (94%) | 1,398 of 1,398 (100%) |
+| office and lab decor in passages | 0 of 322 (0%) | 186 of 764 (24%) | 52 of 2,643 (2%) |
+| office and lab decor in storage rooms | 10 of 322 (3%) | 35 of 764 (5%) | 118 of 2,643 (4%) |
+| Cabinet against far walls only | 173 of 207 (84%) | 442 of 588 (75%) | 1,342 of 1,865 (72%) |
+| Cabinet against near walls only | 15 of 207 (7%) | 14 of 588 (2%) | 349 of 1,865 (19%) |
+| Table against far walls only | 106 of 163 (65%) | 49 of 410 (12%) | 905 of 1,524 (59%) |
+| Table against near walls only | 20 of 163 (12%) | 20 of 410 (5%) | 232 of 1,524 (15%) |
+| Shelves against far walls only | 125 of 214 (58%) | 89 of 159 (56%) | 796 of 2,074 (38%) |
+| Shelves against near walls only | 56 of 214 (26%) | 9 of 159 (6%) | 794 of 2,074 (38%) |
+| BigComputer against far walls only | 49 of 71 (69%) | 23 of 31 (74%) | 442 of 549 (81%) |
+| BigComputer against near walls only | 3 of 71 (4%) | 1 of 31 (3%) | 37 of 549 (7%) |
+| Cabinet in a frame used under 5% against its wall | 6 of 171 (4%) | 117 of 430 (27%) | 84 of 1,602 (5%) |
+| Table in a frame used under 5% against its wall | 0 of 125 (0%) | 21 of 68 (31%) | 1 of 1,131 (0%) |
+| Container in a frame used under 5% against its wall | 0 of 32 (0%) | 4 of 15 (27%) | 7 of 254 (3%) |
+| Shelves in a frame used under 5% against its wall | 3 of 176 (2%) | 24 of 94 (26%) | 11 of 1,587 (1%) |
+| loose money against a wall | 87 of 100 (87%) | 96 of 226 (42%) | 1,131 of 1,337 (85%) |
+| loose money in a corner | 43 of 100 (43%) | 32 of 226 (14%) | 634 of 1,337 (47%) |
+| loose health against a wall | 84 of 128 (66%) | 51 of 156 (33%) | 855 of 1,302 (66%) |
+| loose ammo against a wall | 88 of 164 (54%) | 128 of 287 (45%) | 1,147 of 1,868 (61%) |
+| loose armor against a wall | 9 of 19 (47%) | 5 of 18 (28%) | 119 of 216 (55%) |
+| pickup piles of two or more (45 px) | 120 of 217 (55%) | 111 of 544 (20%) | 1,202 of 2,567 (47%) |
+| health placed after a fight | 70 of 163 (43%) | 93 of 174 (53%) | 817 of 1,646 (50%) |
+| ammo placed before a fight | 68 of 257 (26%) | 107 of 361 (30%) | 844 of 3,053 (28%) |
+| loose money over 200 px of walk off the route | 91 of 119 (76%) | 172 of 226 (76%) | 844 of 1,337 (63%) |
+| health in crates | 35 of 163 (21%) | 18 of 174 (10%) | 344 of 1,646 (21%) |
+| ammo in crates | 93 of 257 (36%) | 74 of 361 (20%) | 1,185 of 3,053 (39%) |
+| armor in crates | 18 of 39 (46%) | 12 of 30 (40%) | 175 of 391 (45%) |
+| loose pickups per pile (45 px), median of levels | 2.174 | 1.475 | 1.931 |
+| solid floor pieces within 30 px of a doorway | 6 of 1,155 (1%) | 2 of 2,506 (0%) | 0 of 10,549 (0%) |
+| hittable floor pieces within 30 px of a doorway | 2 of 965 (0%) | 2 of 1,922 (0%) | 0 of 9,745 (0%) |
+| monitors within 40 px of a doorway | 1 of 46 (2%) | 9 of 189 (5%) | 0 of 483 (0%) |
+| solid or hittable floor pieces standing inside another | 0 of 2,120 (0%) | 40 of 4,428 (1%) | 0 of 20,294 (0%) |
+| loose pickups under a solid or hittable piece | 1 of 469 (0%) | 2 of 750 (0%) | 1 of 5,095 (0%) |
+| monitors within 25 px of a cabinet or shelves | 2 of 46 (4%) | 0 of 189 (0%) | 54 of 483 (11%) |
+| monitors standing on a piece | 18 of 46 (39%) | 106 of 189 (56%) | 248 of 483 (51%) |
+| boxes on shelves, a cabinet or a table | 73 of 92 (79%) | 104 of 121 (86%) | 303 of 388 (78%) |
+| test tubes, lab equipment and computers standing on a piece | 221 of 230 (96%) | 393 of 398 (99%) | 1,698 of 1,767 (96%) |
+| shelves with another shelf within 70 px | 14 of 217 (6%) | 11 of 160 (7%) | 24 of 2,074 (1%) |
+| longest cabinet run | 5 | 32 | 11 |
+| missiles in triplets | 9 of 9 (100%) | 18 of 73 (25%) | 18 of 97 (19%) |
+| pad groups mirrored about their middle | 5 of 5 (100%) | 2 of 4 (50%) | 39 of 53 (74%) |
 | wall inscriptions within 230 px of the cannon | 16, 27 | 23, 27, 30, 67 | 21 to 27 |
-| open floor around the cannon (px) | 137, 213 | 174, 181, 259, 339 | 132 to 289 |
-| hit points within 1,200 px of the cannon | 54,759 of 235,784 (23%) | 1,096,014 of 2,356,627 (47%) | 391,977 of 2,848,727 (14%) |
-| walk from the start to the cannon (px) | 4,114, 5,329 | 2,148, 3,672, 4,279, 6,006 | 3,534 to 4,804 |
+| open floor around the cannon (px) | 137, 213 | 174, 181, 259, 339 | 133 to 289 |
+| hit points within 1,200 px of the cannon | 54,759 of 235,784 (23%) | 1,096,014 of 2,356,627 (47%) | 417,634 of 2,262,252 (18%) |
+| walk from the start to the cannon (px) | 4,114, 5,329 | 2,148, 3,672, 4,279, 6,006 | 3,534 to 4,749 |
 | room length over width, median of levels | 1.36 | 1.4 | 1.34 |
 | levels with repeated room layouts | 0 of 9 | 0 of 8 | 0 of 90 |
-| tour gap between fights with 5% of the hit points, median of levels | 0.102 | 0.096 | 0.056 |
-| dynamite sites on screen 0.2 of the tour before they are reached | 10 of 20 (50%) | 4 of 28 (14%) | 94 of 200 (47%) |
+| tour gap between fights with 5% of the hit points, median of levels | 0.102 | 0.096 | 0.066 |
+| dynamite sites on screen 0.2 of the tour before they are reached | 10 of 20 (50%) | 4 of 28 (14%) | 75 of 200 (38%) |
 | lab door-graph cycles, median of levels | 6 | 1 | 3 |
-| lab main body share of the floor, median of levels | 0.647 | 0.69 | 0.587 |
-| lab largest branch share of the floor, median of levels | 0.143 | 0.142 | 0.203 |
+| lab main body share of the floor, median of levels | 0.647 | 0.69 | 0.356 |
+| lab largest branch share of the floor, median of levels | 0.143 | 0.142 | 0.316 |
 | lab hub rooms from the start, median of levels | 1 | 1 | 1 |
-| lab deepest objective in rooms off the main body, median of levels | 1 | 0 | 1 |
+| lab deepest objective in rooms off the main body, median of levels | 1 | 0 | 3 |
 | lab square rooms, median of levels | 0.25 | 0.125 | 0.167 |
-| lab small rooms with no notch, median of levels | 0.7 | 1 | 0.864 |
-| lab mid rooms with no notch, median of levels | 0.167 | 0.75 | 0.2 |
+| lab small rooms with no notch, median of levels | 0.7 | 1 | 0.889 |
+| lab mid rooms with no notch, median of levels | 0.167 | 0.75 | 0.182 |
 | lab large rooms with no notch, median of levels | 0 | 0.3 | 0 |
-| lab notches open outside, median of levels | 0.733 | 0.818 | 0.688 |
+| lab notches open outside, median of levels | 0.733 | 0.818 | 0.667 |
 | lab ambush hit points into rooms the tour has left, median of levels | 0 | 0 | 0 |
-| lab first-section rooms re-entered after the gate, median of levels | 0 | 1 | 1 |
-| lab bare rooms, median of levels | 8 | 1 | 2 |
-| floor off the tour, median of levels | 0.12 | 0.086 | 0.177 |
-| tour share re-walked, median of levels | 0.066 | 0.047 | 0.048 |
-| first fight, share of the tour, median of levels | 0.058 | 0.001 | 0.077 |
-| fifth of the tour with the most hit points, median of levels | 2 | 1 | 3 |
+| lab first-section rooms re-entered after the gate, median of levels | 0 | 1 | 0 |
+| lab bare rooms, median of levels | 8 | 1 | 3 |
+| floor off the tour, median of levels | 0.12 | 0.086 | 0.16 |
+| tour share re-walked, median of levels | 0.066 | 0.047 | 0.054 |
+| first fight, share of the tour, median of levels | 0.058 | 0.001 | 0.097 |
+| fifth of the tour with the most hit points, median of levels | 2 | 1 | 2 |
+| spawned monsters per 1,000 spawned hit points, median of levels | 17.528 | 9.08 | 16.387 |
+| largest spawner (monsters), median of levels | 61 | 126 | 57 |
 
-Generated levels hang monitors beside doorways (17% within 40 px against 2%) and against cabinets or shelves (9% against 4%), stand boxes away from the furniture they belong on (20% on shelves, a cabinet or a table against 79%), and leave hittable pieces in doorways and pickups under pieces eight to ten times as often as the campaign. They also leave scattered paper away from tables (17% by one against 90%) and lab big computers without a chair (56% have one, against all of level 5's), rarely stand missiles in triplets, put fewer hit points around the cannon, space their big fights closer together and leave more floor off the tour. Their labs have fewer door-graph cycles and a larger largest branch than the campaign's.
+Generated levels keep blocking floor pieces and monitors off doorways, stand no piece inside another and keep pickups out from under pieces as the campaign does, and stand boxes on furniture about as often (78% against 79%). They leave scattered paper away from tables more often (68% within 60 px of one against 90%), hang monitors against cabinets or shelves more often (11% within 25 px against 4%), stand shelves and cabinets against near walls more often, stand fewer missiles in triplets (19% against all), leave lab big computers without a chair (47% have one, against all of level 5's) and less loose money off the route (63% against 76%), put fewer hit points around the cannon, start the first fight later in the tour, space their big fights closer together and leave more floor off the tour. Their labs have fewer door-graph cycles, fewer bare rooms and a larger largest branch than the campaign's.
 
 ## Overview
 
@@ -452,7 +454,8 @@ A level draws from four `Random` streams. The layout seed drives the gate, the l
 | content pool | `OriginalContentSet.Load` | placed groups, spawner lists, pickups, crate loot and bosses of each original | `BudgetPlanner` |
 | room atlases | `ReferenceLevelSet.GetAtlas` | each original's rooms with their roles, types and parts | `RoomFurnisher` |
 | lab recipes | `RoomRecipe.Measure` | the parts of each room type over the lab-setting originals | `RoomFurnisher` |
-| dressing libraries | `DressingLibrary.Build` | decor of the originals of each theme, indexed by wall windows | `Dresser.Dress` |
+| dressing libraries | `DressingLibrary.Build` | decor of the originals of each theme, indexed by wall windows, without the companions lying by their anchors | `Dresser.Dress` |
+| object relations | `ObjectRelationTable.Build` | anchors, companions, pair spacings and door clearances of every object in the campaign (and the add-ons in add-on style) | occupancy, `RoomFurnisher`, `PlacementContext.AddCompanions`, `DressingLibrary.Build` |
 | breaker scenes | `OriginalContent.LoadBreakerScenes` | props within 170 px of the breakers of levels 2 to 4 | `ChooseBreakerSpot` |
 | dynamite sites | `OriginalContent.LoadDynamiteSites` | 179 markers with their pads, holes and endless generators, levels 3 and 4 (lab) and 7 to 9 (military), plus add-on levels in add-on style | `PlaceSites` |
 | keypads | `KeypadTable.Load` | keypad offsets next to each door kind and direction | structure, `PlaceGate` |
@@ -545,7 +548,7 @@ A wing gate closes a side branch and leaves the main route open.
 
 1. **Hit points.** The aim is the target's hit points times 0.9 to 1.1.
 2. **Source levels.** Original levels (the campaign, plus the add-ons in add-on style) whose hit points lie within a third and three times the aim. When fewer than two qualify, the three closest on a log scale.
-3. **Pools.** Spawner lists from the sources worth at most 22% of the aim, and placed groups worth at most 12%. When none is small enough, the whole pool is used. Both pools are shuffled.
+3. **Pools.** Spawner lists from the sources worth at most 22% of the aim, and placed groups worth at most 12%. When none is small enough, the whole pool is used. Spawner lists then keep to those with 1/1.5 to 1.5 times as many monsters per hit point as the replaced level's own lists, when any does. Both pools are shuffled.
 4. **Drawing.** Until the aim is reached, each draw is an ambush while the ambushes hold less than the replaced level's spawned share of the aim, with that share as the chance (at least 0.5, at most 0.95), otherwise a placed group. A level whose original spawns nothing gets placed groups only. Pools are taken in order and wrap around.
 5. **Cleaning.** Divers become red tank-weapon monsters, the diver boss and the bosses in `DroppedFromGroups` are dropped from groups and ambushes, and bats are capped at 2 × (level − 1).
 6. **Boss ambushes.** Spawner lists of the replaced level that contain a campaign boss are added as they are.
@@ -721,23 +724,37 @@ When no wall qualifies, `Build` starts the level over with the same random sourc
 
 Labs and military levels are dressed the same way, each from its own setting's atlas and recipes (see [Rooms](#rooms) and [Recipes](#recipes)).
 
-1. `Dresser.Dress` covers the floor with windows copied from the originals with the same walls (`DressingLibrary.TryCopy`), keeping only wall dressing, blood, rubble and marks (no furniture or papers) that face and clear the walls as the originals do.
-2. `RoomDecorator.Decorate` thins blood and corpses to the original's rates per floor cell, lays blood in the last two stations with a corpse and gibs in the last, and puts every corpse on blood.
-3. `RoomFurnisher.Furnish` types and furnishes every room, below. The breaker's surroundings in its room and 100 px around every fence gate stay clear of it.
-4. The breaker's scene stands in the key room, `Dresser.ClearAndConnect` checks the floor joins up, `RoomDecorator.MarkMissiles` lays the originals' floor stripes in front of missile threes as often as they do, and `KeepPlacedAsOriginals` drops any piece that faces or stands off its walls in a way the originals do not.
+Every piece goes through the level's occupancy ([Keeping the way clear](#keeping-the-way-clear)). Before any decor it reserves the keep-clear cells, the breaker's surroundings in its room and 100 px around every fence gate.
+
+1. `Dresser.Dress` covers the floor with windows copied from the originals with the same walls (`DressingLibrary.TryCopy`), keeping only wall dressing, blood, rubble and marks (no furniture, missile stripes or companions lying by their anchors) that face and clear the walls as the originals do, of the objects the level's original holds, and whose support the window copies. A window is copied only when all its pieces fit.
+2. `RoomDecorator.Decorate` thins blood and corpses to the original's rates per floor cell, with what lies on them, lays blood in the last two stations with a corpse and gibs in the last, and puts every corpse on blood.
+3. `RoomFurnisher.Furnish` types and furnishes every room, below.
+4. The breaker's scene stands in the key room, each prop where it fits, and `RoomDecorator.MarkMissiles` lays the originals' floor stripes in front of missile threes as often as they do.
 
 ### Furnishing
 
 - **Type.** Roles come from the plan's link graph, read the same way as the originals' (`RoomRoleMap`). Halls stay halls, and the key room takes the type of the original's breaker room. Every other room takes the type of the original room of its role nearest it in area, within a factor of 3 and each original room once. An empty type (passage, bare or the level 10 arena) goes only to a room with two doors or more. The rooms left over, once every room has had its own role's pick, take the furnished original room of any role nearest them in area, unused ones within the factor of 3 first.
 - **Density.** A room holds as many pieces for its area as the original's rooms of its type, or the setting's when the original has none, give or take 20%, and at least 3.
-- **Parts.** Each room draws its parts up front, the required parts of the type first and then parts by their rate until they reach the room's density, three in four from the original level's own rooms of the type and the rest from every original of the setting. They are placed largest first, the rooms taking turns one part each. A part is copied whole from an example. Its pieces keep their offsets, facings and heights, and crates lose their loot. No group of three or more pieces is used twice in a level, a room takes at most two parts from one original room, and no piece goes past the original's count for the floor.
-- **Spot.** A part's anchor, the piece against the most walls, stands in a cell with walls on the sides it stood by, at the same distance from them, and a wall part farther than 60 px from every wall keeps its nearest one. As often as its kind stands in rows in the originals (the recipe's row share, 83% of office wall screens, 76% of server banks, 25% of lab barrels, every military missile), a part whose kind already stands against the same walls tries the spots one measured spacing from those along the walls first, and then up to 30 distinct cells by its walls. Each piece must keep its distance to the walls the part stands against and stay no closer than in its source to any other, turn and stand as the facing and clearance tables allow (judged against the walls as built and read back, `LevelExtractor.ReadLabEdges` and `ReadMilitaryEdges`, as the route analysis reads them), keep its footprint off the keep-clear cells, stay clear of the pieces already placed, and leave the room's free floor joined.
+- **Parts.** Each room draws its parts up front, the required parts of the type first and then parts by their rate until they reach the room's density, three in four from the original level's own rooms of the type and the rest from every campaign original of the setting (every original in add-on style). They are placed largest first, the rooms taking turns one part each. A part is copied whole from an example. Its pieces keep their offsets, facings and heights, and crates lose their loot. No group of three or more pieces is used twice in a level, a room takes at most two parts from one original room, and no piece goes past the original's count for the floor.
+- **Spot.** A part's anchor, the piece against the most walls, stands in a cell with walls on the sides it stood by, at the same distance from them, and a wall part farther than 60 px from every wall keeps its nearest one. As often as its kind stands in rows in the originals (the recipe's row share, 83% of office wall screens, 76% of server banks, 25% of lab barrels, every military missile), a part whose kind already stands against the same walls tries the spots one measured spacing from those along the walls first, and then up to 30 distinct cells by its walls. Each piece must keep its distance to the walls the part stands against and stay no closer than in its source to any other, turn and stand as the facing and clearance tables allow (judged against the walls as built and read back, `LevelExtractor.ReadLabEdges` and `ReadMilitaryEdges`, as the route analysis reads them), keep its footprint off the keep-clear cells, stay clear of the pieces already placed, and leave the room's free floor joined. The part goes in only when all its pieces fit the occupancy together.
 - **Footprints.** A piece takes a box along the lattice axes as wide as the originals mostly stand two of a kind side by side (the median distance to the nearest one along an axis, the wider axis, 67 px for tables, 42 for cabinets, 87 for shelves and 77 for containers), or its collision box when no original stands two side by side. Toward a wall the box reaches no farther than the piece stood from that wall in its source. Pieces of different parts never overlap their boxes. Against the keep-clear cells and for the joined floor a piece counts only the cells its collision box covers, without the player's 14 px margin.
-- **Scatter.** Papers lie on free floor at the type's rate, where the facing and clearance tables allow them.
+- **Companions.** Each piece brings the objects the originals lay by its kind far more often than chance (`ObjectRelationTable.GetCompanions`). An object counts for the anchor nearest it, and companions are drawn at the anchor's rate, each at the offset and facing of a different one lying by an anchor of the nearest facing. Shadows (144) lie under furniture, papers by chairs and tables, and every bio container and truck gets the Z dummy (631) that carries its collision. A companion off the room's floor is left out, and the part fails when that companion blocks the player. Companions fit the occupancy with their part, and only those the level's original holds come.
 
 ### Keeping the way clear
 
-`LevelGenerator.GetKeepClear` marks the cells on both sides of every doorway, the cell in front of each fake door and a square around the start, and the military content stage adds the floor around sites, pads and the cannon's line of fire. `Dresser.ClearAndConnect` removes solid objects whose footprint touches one, then, from the start, removes the solid objects on the least-blocked path to every floor cell not reached, until every free cell is reached. It returns the blocked cells the content stage avoids.
+`LevelGenerator.GetKeepClear` marks the cells on both sides of every doorway, the cell in front of each fake door and a square around the start, and the military content stage adds the floor around sites, pads and the cannon's line of fire.
+
+`LevelGenerator.CreateOccupancy` starts a `LevelOccupancy` after the structure, with the plan's doors, arches and fence gates as its doorways and the originals' door clearance for solid and hittable floor pieces (`ObjectRelationTable.GetDoorClearance`, the distance all but the closest 5% keep). It reserves the keep-clear cells. Every placer asks `Fits` before it places an object and calls `Add` after.
+
+- A floor piece that blocks the player stays its class's clearance from every doorway and out of the boxes (0.12 of the size) of the floor pieces already standing.
+- A wall-hung piece keeps the hittable clearance from every doorway and stays out of the boxes of the standing floor pieces.
+- A solid piece stays off the reserved cells and leaves every open floor cell joined to the start, judged within 3 cells around it first and over the whole floor when that finds no way around.
+- A pickup stays out of the collision boxes of the standing pieces, and a unit 12 px from every other unit.
+- `FitsAll` takes a group (a furniture part or a dressing window) whole, its solid pieces together leaving the floor joined.
+- Two pieces that block the player at the same height (floor or raised) keep their centers apart along at least one axis by the share of their summed sizes the campaign's closest pair of the two ids keeps, at most one half.
+- `HasRoomAround` keeps a point 16 px from the solid or tall floor pieces around it, or 30 px from pieces 40 px or larger.
+
+The content stage avoids the cells under the solid decor `Dress` returns.
 
 ## Content
 
@@ -748,11 +765,13 @@ Labs and military levels are dressed the same way, each from its own setting's a
 | member | meaning |
 |---|---|
 | `Taken` | cells already holding something, seeded with the blocked and keep-clear cells |
+| `Occupancy` | the level's occupancy, shared with the dressing |
 | `Distance` | walking distance in cells from the start, every door open, blocked cells excluded |
 | `GetProgress` | `Distance` over the longest distance, from 0 at the start to 1 at the farthest cell |
 | `IsInWall` | whether a point lies inside a wall piece's collision box plus a margin |
 | `GetFreeCells` | region cells that are not taken, have no wall on their edges and are reachable |
-| `Place` | places an object on a free spot of one of up to 25 random cells |
+| `Place` | places an object on a free spot of one of up to 25 random cells, where it fits the occupancy |
+| `AddCompanions` | lays the companions of a placed object (rock debris at lab spawners) on visible floor where they fit |
 | `Fights` | the fights placed so far, with their progress, hit points and region |
 
 `GetProgress` is distance from the start, which is not the same as the tour progress `p` the route analysis measures. On branched or gated levels a cell near the start can come late in the tour, and the reverse.
@@ -806,13 +825,13 @@ The generated rooms get their roles from `LayoutPlan.MeasureRoles`, the same map
 
 The originals stand the cannon at one end of their largest place, with 1 to 4 of the level's sites, the pads and 5 to 8 spawners 950 to 1,600 px away at the other end.
 
-`PlaceMountedCannons` looks through the stations at progress 0.15 to 0.8, those with floor 3,600 px of walk from the start first and then largest first. `HallAxis` measures each along its longer side, with the end the walk enters from at 1 and the far end at −1. A cell qualifies at progress 0.75 or earlier, at least 3,600 px of walk from the start, on the entry half at 0.3 or more, at least 1,000 px from the kill zone (the hall cell nearest −0.85 on the axis), with a 5 by 5 ring of points out to 180 px of free floor clear of walls. Cells nearest 0.6 go first. A second pass drops the entry half and kill zone distance and shrinks the ring to 90 px. The full square of floor stripes (131) around the level 8 cannon goes around it. Placed groups keep 600 px from the cannon.
+`PlaceMountedCannons` looks through the stations at progress 0.15 to 0.8, those with floor 3,600 px of walk from the start first and then largest first. `HallAxis` measures each along its longer side, with the end the walk enters from at 1 and the far end at −1. A cell qualifies at progress 0.75 or earlier, at least 3,600 px of walk from the start, on the entry half at 0.3 or more, at least 1,000 px from the kill zone (the hall cell nearest −0.85 on the axis), with a 5 by 5 ring of points out to 180 px of free floor clear of walls. Cells nearest 0.6 go first. A second pass drops the entry half and kill zone distance and shrinks the ring to 90 px. The full square of floor stripes (131) around the level 8 cannon goes around it, each stripe where it fits the occupancy. Placed groups keep 600 px from the cannon.
 
 ### Dynamite sites
 
 `PlaceSites` places the target's number of 179 sites.
 
-1. Templates are filtered by `SiteRankCap`, the highest endless generator a level may use, and narrowed to those of the replaced original when it has any.
+1. Templates are filtered by `SiteRankCap`, the highest endless generator a level may use, and narrowed to those of the replaced original when it has any. The sites together hold no more endless generators than the original does, the first sites placed taking theirs first.
 2. Each site takes the original's site room of the same rank. The rooms outside a wing other than the key room are ordered by the room the original room's earlier sites landed in, then by zone, then by role, then rooms holding no other original room's sites first, then by progress nearest the original's. The sites of one original room stay together, and different original rooms get different rooms. Without an original site room the target progress spreads from 0.6 to 1.
 3. On military levels with a cannon, the 35% of the sites (1 to 4) whose target progress lies nearest the kill zone's move into the kill zone, within 450 px of it.
 4. On labs, `PlaceLabSite` tries the ordered rooms in turn for a far wall with void behind it and wall on both sides. The wall piece becomes a 616 or 612 hole, the 179 goes at an offset of (±25, +20) from it, and the template's endless generators (or an 800 when it has none) hide at about (∓30, −42), behind it under the roof (see [NOTES.md](NOTES.md#dynamite)).
@@ -823,7 +842,7 @@ The originals stand the cannon at one end of their largest place, with 1 to 4 of
    - A room with no candidate tries its cells with pads 0.85 to 1.5 cells off a far wall, then the walls of the next ordered rooms, and only then open floor.
 6. Otherwise `StampSite` copies a template around a free cell clear of walls, its generators at their original offsets (shrunk to 0.3 on labs) and its pads at theirs, mirrored about the site. Other members are pulled in to 0.3 of their offset when they would land off the floor or in a wall, and left out when they still would. `GetSiteCells` ranks the room's cells from its far end, or from the kill zone. `OrientPads` turns the template a quarter at a time in lattice space until every pad stands 0.85 to 1.5 cells off a far wall. Every cell is tried that way before pads stand in the open, and a site without pads comes last. A site keeps 250 px from other sites, and a site with pads outside the kill zone first looks for a spot 520 px from any other pad. `IsPadSpot` puts every pad, at a site or in a placed group, on reachable floor 20 px clear of the wall boxes, in view, at least 80 px from any other pad, and in the open or at least 0.85 cells off a far wall. A placed group that finds no spot leaves its pads out.
 
-Sites stay clear of solid decor through `IsCrowded`, by the originals' gap: 16 px, or 30 px for pieces 40 px or larger.
+Sites stay clear of solid and tall decor through `LevelOccupancy.HasRoomAround`, by the originals' gap.
 
 ### Charges
 
@@ -835,16 +854,20 @@ Sites stay clear of solid decor through `IsCrowded`, by the originals' gap: 16 p
 
 - **Standing groups.** The groups, sorted by hit points, take the original's standing fights of the same rank. Each fight holds one room. The rooms are ordered by the room the fight already holds, then by role (a mismatch counts 2) and zone (1), then rooms no other fight holds first, then progress nearest the fight's. The first of up to four rooms with a free cell 900 px from the start where `TryPlaceGroup` succeeds takes the group, or else the group is scattered in the first.
 - `TryPlaceGroup` anchors the group's original shape at a free cell at least 900 px from the start and keeps it when 80% of the members land on reachable floor outside closets and walls, within a walk of 1.4 times their straight distance from the anchor plus two cells, and at least 12 px from any monster already placed. After 40 failed anchors the members are scattered one by one, each on a free cell of its own.
-- **Ambushes.** The ambushes, sorted by hit points, take the original's spawned fights by rank, and ambushes that share a fight merge into one spawner. A closet fight takes the next spawn closet through `PlaceClosetAmbush`: the spawner inside the closet, the trigger two cells beyond the floor cell in front of its wall, a waypoint 500 to 800 px on along the route, and a spawn wall payload that blows the wall open on the same trigger. Any other fight takes the first of its six best rooms, ordered as standing groups' are, that has free floor the walk from the start reaches no sooner than the trigger, and its spawner stands only there. With none, the first room keeps the fight and the trigger moves to its entrance.
+- **Ambushes.** The ambushes, sorted by hit points, take the original's spawned fights by rank, and ambushes that share a fight make one wave. A wave's monsters are dealt out to as few spawners as hold them at the size of the original's largest spawner, every spawner on the wave's trigger and each with every kind of the wave's monsters. A closet fight takes the next spawn closet through `PlaceClosetAmbush`, with the spawner inside the closet, the trigger two cells beyond the floor cell in front of its wall, a waypoint 500 to 800 px on along the route, and a spawn wall payload that blows the wall open on the same trigger. Any other fight takes the first of its six best rooms, ordered as standing groups' are, that has free floor the walk from the start reaches no sooner than the trigger, and its spawner stands only there. With none, the first room keeps the fight and the trigger moves to its entrance. A wave with no such floor at all gets its spawners beside the spawner placed last, on that spawner's trigger.
 - **Triggers.** A fight triggered in its own room keeps its trigger there. One triggered next door takes the neighbor that best plays the trigger room's role and zone, the nearest first. One triggered from afar takes one shared room per trigger role and zone (level 10's bays all wake from one hall). The trigger goes on the trigger room's free cell whose progress lies nearest the fight's.
-- **Spawners** stand off the screen around the trigger, at least 640 px across or 400 px up or down, on one of the four such cells farthest from it, or else on the room's farthest cell. `PlaceAmbush` writes the program. The monsters walk back along the shortest path and stop 40% of the way to the trigger. Trigger radius is 250 to 350 px on labs and 300 to 450 px on military levels.
+- **Spawners** stand off the screen around the trigger, at least 640 px across or 400 px up or down, on one of the four such cells farthest from it, or else on the room's farthest cell, the spawners of one wave on consecutive cells. `PlaceAmbush` writes the program. The monsters walk back along the shortest path and stop 40% of the way to the trigger. Each wave's trigger radius is one of the original's spawners', 150 px when it has none, and a closet's spawners stand on the closet cells nearest its wall.
 
 `SpawnerProgram.Create` writes the 908 payload, the trigger, the monsters and up to six waypoints (see [NOTES.md](NOTES.md#spawners-908)).
 
 ### Stashes and items
 
-- `PlaceStashes` fills each secret closet with `ItemSchedule.CreateStash`, a money pile, an ammunition cache, a weapon with some ammunition or a perk with some money. Stash items count against the budget, and `TakeWeapon` gives closets the weapons that are early for the level first.
-- `PlaceItems` shuffles the remaining items. `PlaceWeapons` first replaces weapons the level may not have yet, puts about 35% of the weapons in empty crates and the rest in side rooms at progress 0.25 to 0.75, keeping weapons 600 px apart where it can. Crates then take 32% of the ammunition, 45% of the armor and 20% of the health. The rest, dynamite excepted, goes in piles by category (money 8, ammo 3, armor, health and bonus 2, implants one by one). The piles map to the original's pickups of the category by rank, and each takes the first of four rooms, ordered as charges are (without the walk), where `PlacePile` finds a spot. `PlacePile` lays a pile within 16 px around a spot clear of the wall boxes in a cell with a wall on at least one side, two for money where it can. Every spot of a pile, and the fallback cell of an item no pile takes, must be visible. `PlacementContext.IsVisible` takes a point as visible when the ground straight below it on screen, up to the roof height of 90 px, is shown floor with no wall box in the way. The originals leave 18 of about 1,000 loose pickups outside secret closets under a roof, most of them money.
+- `PlaceStashes` fills each secret closet with `ItemSchedule.CreateStash`, a money pile, an ammunition cache, a weapon with some ammunition or a perk with some money, each item where it fits. Stash items count against the budget, and `TakeWeapon` gives closets the weapons that are early for the level first.
+- `EncounterProfile` measures, per category, how the original lays its pickups, the share in crates, the size of each loose pile (pickups of the category within 45 px of each other) and the pile's spot (corner, wall or open).
+- `PlaceWeapons` replaces weapons the level may not have yet, puts the original's share of weapons in empty crates and the rest in side rooms at progress 0.25 to 0.75, 600 px apart where it can.
+- `PlaceItems` shuffles the remaining items and puts the original's share of each category in crates. The rest, dynamite excepted, goes in piles, each the size and spot of one of the original's piles of the category, mapped to them by rank.
+- Each pile takes the first of four rooms, ordered as charges are (without the walk), where `PlacePile` finds a free cell of the pile's spot, then a wall cell for a corner pile, then any cell, and last any of the ordered rooms. It lays the pile within 16 px around a point 0.15 cells or more from every wall edge, inside the cell unless the pile lies in the open, visible and clear of the standing pieces.
+- `PlacementContext.IsVisible` takes a point as visible when the ground straight below it on screen, up to the roof height of 90 px, is shown floor with no wall edge crossed.
 
 ### Checkpoint
 
@@ -870,20 +893,24 @@ Layout `k`'s seed is `seed × 100000 + level × 100 + k`. The budget's stream is
 
 ### Guarantees
 
-Every level keeps these, each in the step that creates it. `LevelGeneratorIntegrationTests` asserts the route ones over seeds 1 to 10 of the campaign and the add-ons.
+Every level keeps these, each in the step that creates it. `LevelGeneratorIntegrationTests` asserts the route ones over seeds 1 to 10 of the campaign and the add-ons, and the doorway, spacing, pickup and roof ones over seeds 1 to 10 of campaign levels 2 to 10 and of the add-on lab and military levels.
 
 | guarantee | stage | code |
 |---|---|---|
-| every objective reachable, no gate forced, no secret wall needed outside level 1 | layout, dressing | `LayoutBuilder` joins, `Dresser.ClearAndConnect`, `GetKeepClear`; `Generate` takes the next layout otherwise |
+| every objective reachable, no gate forced, no secret wall needed outside level 1 | layout, dressing | `LayoutBuilder` joins, `LevelOccupancy.Fits`, `GetKeepClear`; `Generate` takes the next layout otherwise |
 | locked doors: the breaker's room open before the gate, the breaker on the wall nearest a door into the locked part (within 400 px, or 100 px of the nearest wall) | layout, breaker spot | `LayKey`, `LockSections`, `ChooseBreakerSpot` |
 | blackout: the trigger at the hub's exit, the breaker off the block room farthest by walk | gate | `PlaceBlackout`, `LengthenSearch` |
 | fences: the fenced part within 0.06 of the original's share, every generator 900 px of walk or more from every fence where its room allows | gate, content | `PlaceFences`, `PlaceGate` |
 | the breaker on a back wall of 4 pieces or more that ends in corners, judged on the walls as built, with open floor in front and beside | breaker spot | `ChooseBreakerSpot` |
 | one charge per site, on a free spot 150 px or more from every site | content | `PlaceCharges` |
-| sites clear of solid decor by the originals' gap | content | `IsCrowded`, `MeasureSiteGap` |
+| sites clear of solid decor by the originals' gap | content | `LevelOccupancy.HasRoomAround` |
+| floor pieces that block the player and wall-hung pieces off doorways by the originals' door clearance, no pickup under a floor piece that blocks the player | dressing, content | `LevelOccupancy` |
+| two pieces that block the player at one height no closer than the originals stand the two ids | dressing, content | `LevelOccupancy`, parts copied whole |
+| raised pieces without support no more often than in the campaign | dressing | `PartFinder`, `Dresser.KeepSupported` |
+| the roof covers no floor outside secret and spawn closets | structure | `StructureBuilder.BuildRoof` |
 | sites shaped as their templates, pads off far walls | content | `PlaceLabSite`, `StampSite` |
-| decor faces and stands off its walls as the originals turn and stand it, judged on the walls as built (add-on 2's gym equipment fails on 2 of 50 add-on levels, read back on a lattice a fraction of a cell off the layout's) | dressing, content | `RoomFurnisher`, `KeepPlacedAsOriginals` over all decor at the end of `Dress`, the breaker props' fit, the bosses' gore |
-| decor of the level's setting only | dressing | `GetDressingDecor` |
+| decor faces and stands off its walls as the originals turn and stand it, judged on the walls as built (add-on 2's gym equipment fails on 2 of 50 add-on levels, read back on a lattice a fraction of a cell off the layout's) | dressing, content | `RoomFurnisher`, `DressingLibrary.TryCopy`, `RoomDecorator`, the breaker props' fit, the bosses' gore |
+| decor of the level's setting only, and only objects the level's original holds | dressing | `GetDressingDecor`, `Dresser.Dress`, the companions |
 | no wave from floor the walk passes before its trigger | content | `PlaceEncounters` |
 | a checkpoint on the walk to the strongest fight when the original has one | content, script | `PlaceCheckpoint` |
 | the budget's bosses, generators and weapons | content | `PlaceBosses`, `PlaceGate`, `PlaceWeapons` |

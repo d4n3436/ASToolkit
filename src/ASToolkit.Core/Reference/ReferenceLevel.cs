@@ -3,6 +3,7 @@ using ASToolkit.Core.Levels;
 using ASToolkit.Core.Rooms;
 using ASToolkit.Core.Routes;
 using ASToolkit.Core.Survey;
+using ASToolkit.Core.Scripting;
 
 namespace ASToolkit.Core.Reference;
 

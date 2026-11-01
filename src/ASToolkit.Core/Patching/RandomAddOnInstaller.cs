@@ -2,9 +2,9 @@ using System.Text;
 using System.Text.RegularExpressions;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
-using ASToolkit.Core.Patching;
+using ASToolkit.Core.Generation;
 
-namespace ASToolkit.Core.Generation;
+namespace ASToolkit.Core.Patching;
 
 /// <summary>
 /// Provides the installation of generated levels as a third add-on next to the game's two. Its levels are

@@ -22,16 +22,14 @@ public static class ContentPlacer
     private const float HiddenSpawnY = 400;
     private const int SpawnerChoices = 4;
     private const float ChargeSiteGap = 150;
+    private const int RayCells = 8;
     private const float ChargeLead = 0.1f;
     private const int ChargeSpotChoices = 1;
     private const float LateSite = 0.6f;
-    private const float MinMonsterGap = 12;
     private const int BreakerFront = 3;
     private const int BreakerSide = 2;
     private const int BreakerOpenEnd = 3;
     private const float BreakerPropFloor = 5;
-    private const float ClutterHeight = 5;
-    private const float StandingHeight = 20;
     private const int BreakerWallRun = 4;
     private const float BreakerGateReach = 400;
     private const float BreakerGateSlack = 100;
@@ -63,10 +61,11 @@ public static class ContentPlacer
     private const float FarEndWeight = 1.5f;
     private const int PileRoomTries = 4;
     private const int SpawnRoomTries = 6;
-    private const float LargeSiteExtent = 40;
-    private const float SmallSiteGap = 16;
-    private const float LargeSiteGap = 30;
-    private const float PileWallMargin = 2;
+    private const int DefaultTriggerRadius = 150;
+    private const int PileSpotTries = 12;
+    private const float PileSpotStart = 0.05f;
+    private const float PileSpotSpread = 0.9f;
+    private const float PileClearance = 0.15f;
     private const float PadSpacing = 520;
     private const float PadGap = 80;
     private const float PadWallDistance = 0.85f;
@@ -77,9 +76,10 @@ public static class ContentPlacer
     private static readonly KnownObject[] GorePools = [KnownObject.SmallBloodPool, KnownObject.BloodPool];
     private const float DefaultCheckpoint = 0.3f;
 
+    private static readonly ItemCategory[] PileCategories = [ItemCategory.Ammo, ItemCategory.Armor, ItemCategory.Health, ItemCategory.Money, ItemCategory.Implant, ItemCategory.Bonus];
+
     private static readonly (float Dx, float Dy)[] PileOffsets = [(0, 0), (14, 6), (-12, 8), (4, -10), (-6, -4), (16, -6), (-16, 0), (8, 12)];
     private const float DoorMarkWallReach = 1;
-    private const float WeaponCrateShare = 0.35f;
     private static readonly int[] SiteRankCap = [0, 0, 3, 6, 6, 8, 9, 10, 11, 14, 14];
 
     /// <summary>
@@ -215,7 +215,7 @@ public static class ContentPlacer
             foreach (var mark in options[rng.Next(options.Count)])
             {
                 (float u, float v) = lattice.ToLattice(door.Position.X + mark.Dx, door.Position.Y + mark.Dy);
-                if (WallClearanceTable.MeasureDistance(edges, u, v) < DoorMarkWallReach)
+                if (edges.MeasureClearance(u, v) < DoorMarkWallReach)
                 {
                     map.Add(mark.Id, door.Position.X + mark.Dx, door.Position.Y + mark.Dy, mark.Z, mark.Dir, unique: false);
                 }
@@ -291,7 +291,7 @@ public static class ContentPlacer
 
         (float u, float v) = lattice.ToLattice(x, y);
         return facings.Fits(p.Id, p.Dir, edges, u, v)
-               && (!clearance.TryGetClearance(p.Id, out float minimum, out _) || WallClearanceTable.MeasureDistance(edges, u, v) >= minimum);
+               && (!clearance.TryGetClearance(p.Id, out float minimum, out _) || edges.MeasureClearance(u, v) >= minimum);
     }
 
     private static int CountOpenCells(FineLayout layout, Cell start, int du, int dv) =>
@@ -458,7 +458,7 @@ public static class ContentPlacer
                     float distance = 60 + 120 * ctx.Rng.NextSingle();
                     (float x, float y) = (boss.Value.X + MathF.Cos(angle) * distance, boss.Value.Y + MathF.Sin(angle) * distance * 0.7f);
                     (float u, float v) = ctx.Layout.Lattice.ToLattice(x, y);
-                    if (ctx.Layout.Cells.ContainsKey(ctx.Layout.Lattice.GetCell(x, y)) && !ctx.IsInWall(x, y) && WallClearanceTable.MeasureDistance(ctx.Layout.Edges, u, v) >= GoreClearance)
+                    if (ctx.Layout.Cells.ContainsKey(ctx.Layout.Lattice.GetCell(x, y)) && !ctx.IsInWall(x, y) && ctx.Layout.Edges.MeasureClearance(u, v) >= GoreClearance)
                     {
                         var pool = GorePools[ctx.Rng.Next(GorePools.Length)];
                         ctx.Map.Add(pool, x, y, 0, facings.PickFacing(ctx.Rng, pool, ctx.Layout.Edges, u, v), unique: false);
@@ -527,14 +527,17 @@ public static class ContentPlacer
                     }
 
                     ctx.Map.Add(KnownObject.MountedCannon, x, y, 0, ctx.Rng.Next(2) == 0 ? 0 : 128, unique: false);
+                    ctx.Occupancy.Add(KnownObject.MountedCannon, x, y, 0);
                     ctx.Taken.UnionWith(ring.Select(r => r.Cell));
                     if (scenes.Count > 0)
                     {
                         foreach (var stripe in scenes[ctx.Rng.Next(scenes.Count)])
                         {
-                            if (ctx.Layout.Cells.ContainsKey(ctx.Layout.Lattice.GetCell(x + stripe.Dx, y + stripe.Dy)) && !ctx.IsInWall(x + stripe.Dx, y + stripe.Dy, 0))
+                            if (ctx.Layout.Cells.ContainsKey(ctx.Layout.Lattice.GetCell(x + stripe.Dx, y + stripe.Dy)) && !ctx.IsInWall(x + stripe.Dx, y + stripe.Dy, 0)
+                                && ctx.Occupancy.Fits(stripe.Id, x + stripe.Dx, y + stripe.Dy, stripe.Z))
                             {
                                 ctx.Map.Add(stripe.Id, x + stripe.Dx, y + stripe.Dy, stripe.Z, stripe.Dir, unique: false);
+                                ctx.Occupancy.Add(stripe.Id, x + stripe.Dx, y + stripe.Dy, stripe.Z);
                             }
                         }
                     }
@@ -550,6 +553,7 @@ public static class ContentPlacer
     private static (float X, float Y, Cell Cell)[] PlaceSites(PlacementContext ctx, LevelBudget budget, IReadOnlyList<SiteTemplate> templates, IReadOnlyDictionary<EdgeKey, EdgeKind> visibleEdges,
         (PlanRegion Hall, PointF Far)? cannon, EncounterProfile encounters)
     {
+        ctx.EndlessGeneratorsLeft = encounters.EndlessGenerators;
         var sites = new List<(float X, float Y, Cell Cell)>();
         if (budget.DynamiteSites == 0 || templates.Count == 0)
         {
@@ -651,7 +655,7 @@ public static class ContentPlacer
                     foreach (var cell in pool)
                     {
                         (float x, float y) = GetCenter(ctx, cell);
-                        if (ctx.IsInWall(x, y, 20) || IsCrowded(ctx, x, y) || sites.Any(other => GetDistance(new PointF(other.X, other.Y), new PointF(x, y)) < SiteSpacing))
+                        if (ctx.IsInWall(x, y, 20) || !ctx.Occupancy.HasRoomAround(x, y) || sites.Any(other => GetDistance(new PointF(other.X, other.Y), new PointF(x, y)) < SiteSpacing))
                         {
                             continue;
                         }
@@ -722,7 +726,7 @@ public static class ContentPlacer
         walls = walls.Where(k =>
         {
             ((float x, float y), bool isSlash) = StructureBuilder.GetLabPosition(ctx.Layout.Lattice, k);
-            return !IsCrowded(ctx, x + 25 * (isSlash ? 1 : -1), y + 20);
+            return ctx.Occupancy.HasRoomAround(x + 25 * (isSlash ? 1 : -1), y + 20);
         }).ToArray();
         
         if (walls.Length == 0)
@@ -754,8 +758,9 @@ public static class ContentPlacer
             generators = [new SiteMember(KnownObject.FirstEndlessGenerator, 0, 0, 0, 0, 1, new byte[8])];
         }
 
-        foreach (var generator in generators)
+        foreach (var generator in generators.Take(Math.Max(0, ctx.EndlessGeneratorsLeft)))
         {
+            ctx.EndlessGeneratorsLeft--;
             ctx.Map.Add(generator.Id, hx - 30 * side + ctx.Rng.NextSingle() * 16 - 8, hy - 42 + ctx.Rng.NextSingle() * 12 - 6, generator.Z, generator.Dir, generator.Payload, generator.Army, unique: false);
         }
 
@@ -830,7 +835,7 @@ public static class ContentPlacer
                     float siteV = v ?? cell.V + 0.5f - meanV;
                     (float x, float y) = lattice.ToWorld(siteU, siteV);
                     var siteCell = lattice.GetCell(x, y);
-                    if (!cells.Contains(siteCell) || !ctx.IsFree(siteCell) || ctx.IsInWall(x, y, 20) || IsCrowded(ctx, x, y) || !HasRoom(siteU, siteV)
+                    if (!cells.Contains(siteCell) || !ctx.IsFree(siteCell) || ctx.IsInWall(x, y, 20) || !ctx.Occupancy.HasRoomAround(x, y) || !HasRoom(siteU, siteV)
                         || sites.Any(other => GetDistance(new PointF(other.X, other.Y), new PointF(x, y)) < SiteSpacing)
                         || cannon is not null && GetDistance(new PointF(x, y), cannon.Value.Far) >= KillZoneReach
                         || !pads.All(pad => IsWallPad(siteU + pad.U, siteV + pad.V)))
@@ -908,7 +913,7 @@ public static class ContentPlacer
 
             foreach ((char edgeAxis, int sign) in new[] { ('u', 1), ('u', -1), ('v', 1), ('v', -1) })
             {
-                (float distance, EdgeKind kind) = CastRay(edges, ctx.Layout.FakeDoors, u, v, edgeAxis, sign);
+                (float distance, EdgeKind kind) = CastRay(ctx, edges, u, v, edgeAxis, sign);
                 if (kind != EdgeKind.Wall && distance < OpeningReach || distance < GetGap(edgeAxis, sign) - WallGapSlack)
                 {
                     return false;
@@ -923,21 +928,19 @@ public static class ContentPlacer
     private static float GetGap(char edgeAxis, int sign) => (edgeAxis == 'u') == (sign > 0) ? FarWallGap : NearWallGap;
 
     // Count a fake door as an opening
-    private static (float Distance, EdgeKind Kind) CastRay(IReadOnlyDictionary<EdgeKey, EdgeKind> edges, IReadOnlyDictionary<EdgeKey, bool> fakeDoors, float u, float v, char edgeAxis, int sign)
+    private static (float Distance, EdgeKind Kind) CastRay(PlacementContext ctx, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v, char edgeAxis, int sign)
     {
-        for (int step = 0; step < 8; step++)
+        var side = edgeAxis == 'u' ? sign > 0 ? WallSides.UpperBack : WallSides.LowerBack : sign > 0 ? WallSides.LowerSlash : WallSides.UpperSlash;
+        var hit = edges.CastRay(u, v, side, ctx.Layout.Cells.ContainsKey, RayCells);
+        if (hit is null)
         {
-            var edge = edgeAxis == 'u'
-                ? new EdgeKey('u', sign > 0 ? (int)MathF.Floor(u) + 1 + step : (int)MathF.Floor(u) - step, (int)MathF.Floor(v))
-                : new EdgeKey('v', (int)MathF.Floor(u), sign > 0 ? (int)MathF.Floor(v) + 1 + step : (int)MathF.Floor(v) - step);
-            if (edges.TryGetValue(edge, out EdgeKind kind))
-            {
-                bool door = fakeDoors.ContainsKey(edge) || fakeDoors.ContainsKey(StructureBuilder.GetPreviousEdge(edge)) || fakeDoors.ContainsKey(edgeAxis == 'u' ? new EdgeKey('u', edge.A, edge.B + 1) : new EdgeKey('v', edge.A + 1, edge.B));
-                return (MathF.Abs((edgeAxis == 'u' ? edge.A : edge.B) - (edgeAxis == 'u' ? u : v)), door ? EdgeKind.Door : kind);
-            }
+            return (float.MaxValue, EdgeKind.Wall);
         }
 
-        return (float.MaxValue, EdgeKind.Wall);
+        var (distance, edge, kind) = hit.Value;
+        var fakeDoors = ctx.Layout.FakeDoors;
+        bool door = fakeDoors.ContainsKey(edge) || fakeDoors.ContainsKey(StructureBuilder.GetPreviousEdge(edge)) || fakeDoors.ContainsKey(edgeAxis == 'u' ? new EdgeKey('u', edge.A, edge.B + 1) : new EdgeKey('v', edge.A + 1, edge.B));
+        return (distance, door ? EdgeKind.Door : kind == EdgeKind.None ? EdgeKind.Wall : kind);
     }
 
     private static PointF? FindCannon(PlacementContext ctx)
@@ -1024,7 +1027,7 @@ public static class ContentPlacer
         bool IsAgainstFarWall(float px, float py)
         {
             (float u, float v) = lattice.ToLattice(px, py);
-            return FacingTable.FindWall(ctx.Layout.Edges, u, v) is { Side: WallSide.UpperU or WallSide.LowerV, Distance: <= PadWallReach };
+            return ctx.Layout.Edges.FindNearestWall(u, v) is { Side: WallSides.UpperBack or WallSides.UpperSlash, Distance: <= PadWallReach };
         }
     }
 
@@ -1032,22 +1035,11 @@ public static class ContentPlacer
     private static bool IsPadSpot(PlacementContext ctx, float x, float y)
     {
         (float u, float v) = ctx.Layout.Lattice.ToLattice(x, y);
-        var wall = FacingTable.FindWall(ctx.Layout.Edges, u, v);
+        var wall = ctx.Layout.Edges.FindNearestWall(u, v);
         return ctx.Distance.ContainsKey(ctx.Layout.Lattice.GetCell(x, y)) && !ctx.IsInWall(x, y, PadWallMargin) && ctx.IsVisible(x, y)
-            && (!wall.HasValue || wall.Value.Side is WallSide.UpperU or WallSide.LowerV && wall.Value.Distance >= PadWallDistance)
+            && (!wall.HasValue || wall.Value.Side is WallSides.UpperBack or WallSides.UpperSlash && wall.Value.Distance >= PadWallDistance)
             && !ctx.Map.Sprites.Any(s => s.Id is KnownObject.TeleportPad or KnownObject.SilentTeleportPad && GetDistance(new PointF(s.Position.X, s.Position.Y), new PointF(x, y)) < PadGap);
     }
-
-    private static bool IsCrowded(PlacementContext ctx, float x, float y) => ctx.Map.Sprites.Any(s =>
-    {
-        if (!s.Id.IsDecor && s.Id != KnownObject.Crate || s.Position.Z >= ClutterHeight || !ctx.Objects.TryFind(s.Id, out var obj) || obj is { IsSolid: false, Size.Z: < StandingHeight })
-        {
-            return false;
-        }
-
-        float gap = MeasureSiteGap(obj, s.Position.X, s.Position.Y, x, y);
-        return gap < GetSiteGap(obj);
-    });
 
     private static void StampSite(PlacementContext ctx, SiteTemplate template, float x, float y, float shrink)
     {
@@ -1056,6 +1048,16 @@ public static class ContentPlacer
         // Keep the pads at the original's spacing, mirrored about the site
         foreach (var member in template.Members)
         {
+            if (member.Id.IsEndlessGenerator)
+            {
+                if (ctx.EndlessGeneratorsLeft <= 0)
+                {
+                    continue;
+                }
+
+                ctx.EndlessGeneratorsLeft--;
+            }
+
             float factor = member.Id == KnownObject.TeleportPad ? 1 : shrink;
             float mx = x + member.Dx * factor;
             float my = y + member.Dy * factor;
@@ -1069,6 +1071,7 @@ public static class ContentPlacer
             }
 
             ctx.Map.Add(member.Id, mx, my, member.Z, member.Dir, member.Payload, member.Army, unique: false);
+            ctx.Occupancy.Add(member.Id, mx, my, member.Z);
         }
 
         return;
@@ -1149,21 +1152,7 @@ public static class ContentPlacer
         }
     }
 
-    // Measure the distance from a point to the footprint of an object
-    internal static float MeasureSiteGap(GameObject obj, float objectX, float objectY, float x, float y)
-    {
-        float dx = Math.Max(0, Math.Abs(objectX - x) - obj.Size.X / 2);
-        float dy = Math.Max(0, Math.Abs(objectY - y) - obj.Size.Y / 2);
-        return MathF.Sqrt(dx * dx + dy * dy);
-    }
-
-    // Return the smallest gap the originals leave between an object's footprint and a site
-    internal static float GetSiteGap(GameObject obj) => Math.Max(obj.Size.X, obj.Size.Y) >= LargeSiteExtent ? LargeSiteGap : SmallSiteGap;
-
     private static Cell GetKeyCell(PlacementContext ctx, PlanRegion keyRoom) => ctx.GetRegionCells(keyRoom).First(ctx.Distance.ContainsKey);
-
-    private static bool IsNearMonster(PlacementContext ctx, float x, float y) =>
-        ctx.Map.Sprites.Any(s => s.Army == 1 && MathF.Abs(s.Position.X - x) < MinMonsterGap && MathF.Abs(s.Position.Y - y) < MinMonsterGap);
 
     private static bool HasGroupRoom(PlacementContext ctx, PlanRegion region, PointF start) =>
         ctx.GetFreeCells(region).Any(c => GetDistance(GetCenter(ctx, c), start) >= GroupStartGap);
@@ -1194,7 +1183,7 @@ public static class ContentPlacer
                 var c = ctx.Layout.Lattice.GetCell(x, y);
                 bool closet = ctx.Layout.Cells.TryGetValue(c, out int region) && ctx.Plan.Regions[region].Kind is RegionKind.SecretCloset or RegionKind.SpawnCloset;
                 bool open = near.TryGetValue(c, out int steps) && steps * ctx.Step <= GroupDetour * GetDistance(new PointF(x, y), new PointF(ax, ay)) + 2 * ctx.Step;
-                if (open && !closet && !ctx.IsInWall(x, y, 2) && !IsNearMonster(ctx, x, y) && GetDistance(new PointF(x, y), start) >= 900
+                if (open && !closet && !ctx.IsInWall(x, y, 2) && ctx.Occupancy.Fits(member.Id, x, y, 0) && GetDistance(new PointF(x, y), start) >= 900
                     && (member.Id != KnownObject.TeleportPad || IsPadSpot(ctx, x, y)))
                 {
                     spots.Add((member, x, y));
@@ -1207,6 +1196,7 @@ public static class ContentPlacer
                 foreach ((var member, float x, float y) in spots)
                 {
                     ctx.Map.Add(member.Id, x, y, 0, member.Dir, MapBuilder.MonsterPayload, 1, unique: false);
+                    ctx.Occupancy.Add(member.Id, x, y, 0);
                 }
 
                 return r;
@@ -1295,8 +1285,10 @@ public static class ContentPlacer
         foreach (var wave in waves)
         {
             var monsters = wave.SelectMany(index => ambushes[index]).ToList();
+            var chunks = Split(monsters, profile.LargestSpawner);
+            int radius = profile.TriggerRadii.Count == 0 ? DefaultTriggerRadius : profile.TriggerRadii[ctx.Rng.Next(profile.TriggerRadii.Count)];
             var fight = spawned.Length == 0 ? null : spawned[wave.Key];
-            if (fight is { Role: RoomRole.Closet } && closets.TryDequeue(out var closet) && PlaceClosetAmbush(ctx, closet, monsters, spawnWalls, budget))
+            if (fight is { Role: RoomRole.Closet } && closets.TryDequeue(out var closet) && PlaceClosetAmbush(ctx, closet, chunks, radius, spawnWalls, budget))
             {
                 ctx.Fights.Add(new PlacedFight(ctx.GetProgress(closet), GetHitPoints(monsters), closet.Id));
                 continue;
@@ -1331,11 +1323,16 @@ public static class ContentPlacer
             
             if (cells.Length == 0)
             {
-                AddToLastSpawner(ctx, monsters);
+                AddToLastSpawner(ctx, chunks);
                 continue;
             }
 
-            PlaceAmbush(ctx, monsters, trigger, hidden.Length > 0 ? hidden[ctx.Rng.Next(Math.Min(hidden.Length, SpawnerChoices))] : cells[0]);
+            var spots = hidden.Length > 0 ? hidden : cells;
+            int first = ctx.Rng.Next(Math.Min(spots.Length, SpawnerChoices));
+            for (int chunkIndex = 0; chunkIndex < chunks.Count; chunkIndex++)
+            {
+                PlaceAmbush(ctx, chunks[chunkIndex], trigger, spots[(first + chunkIndex) % spots.Length], radius);
+            }
         }
 
         return;
@@ -1401,10 +1398,24 @@ public static class ContentPlacer
             .FirstOrDefault() ?? GetTriggerCell(room);
     }
 
+    // Deal the monsters of a wave out to as few spawners as hold them at the original's largest, mixing every kind into each
+    private static IReadOnlyList<IReadOnlyList<KnownObject>> Split(IReadOnlyList<KnownObject> monsters, int largest)
+    {
+        int count = largest <= 0 ? 1 : Math.Max(1, (monsters.Count + largest - 1) / largest);
+        var chunks = Enumerable.Range(0, count).Select(_ => new List<KnownObject>()).ToArray();
+        for (int index = 0; index < monsters.Count; index++)
+        {
+            chunks[index % count].Add(monsters[index]);
+        }
+
+        return chunks;
+    }
+
     private static int GetRank(int index, int count, int ranks) => count <= 1 ? ranks - 1 : (int)MathF.Round(index * (ranks - 1) / (float)(count - 1));
 
-    // Blow the closet wall open on the same trigger as its spawner
-    private static bool PlaceClosetAmbush(PlacementContext ctx, PlanRegion closet, IReadOnlyList<KnownObject> monsters, IReadOnlyDictionary<EdgeKey, int> spawnWalls, LevelBudget budget)
+    // Blow the closet wall open on the same trigger as its spawners
+    private static bool PlaceClosetAmbush(PlacementContext ctx, PlanRegion closet, IReadOnlyList<IReadOnlyList<KnownObject>> chunks, int radius,
+        IReadOnlyDictionary<EdgeKey, int> spawnWalls, LevelBudget budget)
     {
         int linkIndex = ctx.Plan.Links.FindIndex(l => l.To == closet.Id);
         var hole = ctx.Layout.LinkEdges[linkIndex][0];
@@ -1418,7 +1429,6 @@ public static class ContentPlacer
         var front = new Cell(outside.U + 2 * (outside.U - inside.U), outside.V + 2 * (outside.V - inside.V));
         var trigger = ctx.Layout.Cells.ContainsKey(front) ? front : outside;
         (float tx, float ty) = GetCenter(ctx, trigger);
-        float radius = new[] { 180, 220, 260 }[ctx.Rng.Next(3)];
         var cells = ctx.GetRegionCells(closet);
         int triggerDistance = ctx.Distance.GetValueOrDefault(trigger);
         var onRoute = ctx.Plan.Stations.Select(r => r.Id).ToHashSet();
@@ -1429,9 +1439,15 @@ public static class ContentPlacer
             .Select(p => (Cell?)p.Key).FirstOrDefault();
         
         List<PointF> way = onward is null ? [new PointF(tx, ty)] : [new PointF(tx, ty), GetCenter(ctx, onward.Value)];
-        byte[] payload = SpawnerProgram.Create(monsters, (tx, ty, radius), way).ToPayload();
-        (float sx, float sy) = GetCenter(ctx, inside);
-        ctx.Map.Add(KnownObject.Spawner, sx, sy, 0, 0, payload, 1, unique: false);
+        var spots = cells.OrderBy(cell => Math.Abs(cell.U - inside.U) + Math.Abs(cell.V - inside.V)).ToArray();
+        for (int chunkIndex = 0; chunkIndex < chunks.Count; chunkIndex++)
+        {
+            byte[] payload = SpawnerProgram.Create(chunks[chunkIndex], (tx, ty, radius), way).ToPayload();
+            (float sx, float sy) = GetCenter(ctx, spots[chunkIndex % spots.Length]);
+            ctx.Map.Add(KnownObject.Spawner, sx, sy, 0, 0, payload, 1, unique: false);
+            ctx.AddCompanions(KnownObject.Spawner, sx, sy, 0);
+        }
+
         var wallProgram = new SpawnerProgram
         {
             Actions = [new StackAction((int)ActionCode.StopStack, 0, 0, 0), new StackAction(15, 0, 0, 0), new StackAction((int)ActionCode.FlagmanTrigger, (int)tx, (int)ty, (int)radius)],
@@ -1442,18 +1458,18 @@ public static class ContentPlacer
         {
             foreach (var item in ItemSchedule.CreateStash(ctx.Level, ctx.Rng, () => TakeWeapon(ctx, budget)).Take(2))
             {
-                var c = cells[ctx.Rng.Next(cells.Count)];
-                (float x, float y) = GetCenter(ctx, c);
-                ctx.Map.Add(item, x, y, 0, 0, unique: false);
-                TakeFromBudget(budget, item);
+                if (ctx.Place(cells, item, dir: 0, take: false) is not null)
+                {
+                    TakeFromBudget(budget, item);
+                }
             }
         }
 
         return true;
     }
 
-    // Give an ambush with nowhere ahead of its trigger to spawn to the spawner placed last
-    private static void AddToLastSpawner(PlacementContext ctx, IReadOnlyList<KnownObject> monsters)
+    // Give an ambush with nowhere ahead of its trigger spawners of its own beside the spawner placed last, on that spawner's trigger
+    private static void AddToLastSpawner(PlacementContext ctx, IReadOnlyList<IReadOnlyList<KnownObject>> chunks)
     {
         int index = ctx.Map.Sprites.FindLastIndex(sprite => sprite.Id == KnownObject.Spawner && SpawnerProgram.Parse(sprite.Payload)?.Trigger is not null);
         if (index < 0)
@@ -1464,16 +1480,20 @@ public static class ContentPlacer
         var sprite = ctx.Map.Sprites[index];
         var program = SpawnerProgram.Parse(sprite.Payload)!;
         var trigger = program.Trigger!.Value;
-        var merged = SpawnerProgram.Create(program.Monsters.Concat(monsters), (trigger.X, trigger.Y, trigger.Radius), program.Waypoints.Select(point => new PointF(point.X, point.Y)));
-        ctx.Map.Sprites[index] = sprite with { Payload = merged.ToPayload() };
+        foreach (var chunk in chunks)
+        {
+            var added = SpawnerProgram.Create(chunk, (trigger.X, trigger.Y, trigger.Radius), program.Waypoints.Select(point => new PointF(point.X, point.Y)));
+            ctx.Map.Add(KnownObject.Spawner, sprite.Position.X, sprite.Position.Y, 0, 0, added.ToPayload(), 1, unique: false);
+        }
+
         var cell = ctx.Layout.Lattice.GetCell(trigger.X, trigger.Y);
         if (ctx.Layout.Cells.TryGetValue(cell, out int region))
         {
-            ctx.Fights.Add(new PlacedFight(ctx.GetProgress(cell), monsters.Sum(m => ctx.Objects.TryFind(m, out var obj) ? obj.MaxHp : 0), region));
+            ctx.Fights.Add(new PlacedFight(ctx.GetProgress(cell), chunks.Sum(chunk => chunk.Sum(m => ctx.Objects.TryFind(m, out var obj) ? obj.MaxHp : 0)), region));
         }
     }
 
-    private static void PlaceAmbush(PlacementContext ctx, IReadOnlyList<KnownObject> monsters, Cell trigger, Cell spawner)
+    private static void PlaceAmbush(PlacementContext ctx, IReadOnlyList<KnownObject> monsters, Cell trigger, Cell spawner, int radius)
     {
         (float tx, float ty) = GetCenter(ctx, trigger);
         var path = ctx.FindPath(spawner, trigger);
@@ -1487,9 +1507,12 @@ public static class ContentPlacer
         }
 
         way.Add(GetCenter(ctx, path[meeting]));
-        float radius = ctx.Plan.Theme.Theme == LevelTheme.Lab ? new[] { 250, 300, 350 }[ctx.Rng.Next(3)] : new[] { 300, 350, 400, 450 }[ctx.Rng.Next(4)];
         byte[] payload = SpawnerProgram.Create(monsters, (tx, ty, radius), way.TakeLast(6)).ToPayload();
-        ctx.Place([spawner], KnownObject.Spawner, dir: 0, payload: payload, army: 1, take: false);
+        var placed = ctx.Place([spawner], KnownObject.Spawner, dir: 0, payload: payload, army: 1, take: false);
+        if (placed is not null)
+        {
+            ctx.AddCompanions(KnownObject.Spawner, placed.Value.X, placed.Value.Y, 0);
+        }
         if (ctx.Layout.Cells.TryGetValue(trigger, out int region))
         {
             ctx.Fights.Add(new PlacedFight(ctx.GetProgress(trigger), monsters.Sum(m => ctx.Objects.TryFind(m, out var obj) ? obj.MaxHp : 0), region));
@@ -1503,10 +1526,10 @@ public static class ContentPlacer
             var cells = ctx.GetRegionCells(closet);
             foreach (var item in ItemSchedule.CreateStash(ctx.Level, ctx.Rng, () => TakeWeapon(ctx, budget)))
             {
-                var c = cells[ctx.Rng.Next(cells.Count)];
-                (float x, float y) = ctx.Layout.Lattice.ToWorld(c.U + 0.3f + 0.4f * ctx.Rng.NextSingle(), c.V + 0.3f + 0.4f * ctx.Rng.NextSingle());
-                ctx.Map.Add(item, x, y, 0, 0, unique: false);
-                TakeFromBudget(budget, item);
+                if (ctx.Place(cells, item, dir: 0, take: false) is not null)
+                {
+                    TakeFromBudget(budget, item);
+                }
             }
         }
     }
@@ -1546,8 +1569,8 @@ public static class ContentPlacer
 
     private static int CountNear(IReadOnlyList<PointF> spots, PointF p) => spots.Count(s => GetDistance(s, p) < WeaponSpacing);
 
-    // Put about a third of the weapons in crates and the rest in the middle side rooms, spaced apart
-    private static void PlaceWeapons(PlacementContext ctx, LevelBudget budget, IReadOnlyList<int> crates)
+    // Put the original's share of the weapons in crates and the rest in the middle side rooms, spaced apart
+    private static void PlaceWeapons(PlacementContext ctx, LevelBudget budget, IReadOnlyList<int> crates, float crateShare)
     {
         var weapons = new List<KnownObject>();
         foreach (var weapon in budget.Weapons)
@@ -1559,7 +1582,7 @@ public static class ContentPlacer
 
         budget.Weapons.Clear();
         var spots = GetWeaponSpots(ctx);
-        int inCrates = (int)MathF.Round(weapons.Count(item => item.IsWeapon) * WeaponCrateShare);
+        int inCrates = (int)MathF.Round(weapons.Count(item => item.IsWeapon) * crateShare);
         foreach (int crate in crates)
         {
             var s = ctx.Map.Sprites[crate];
@@ -1641,13 +1664,13 @@ public static class ContentPlacer
         
         int[] crateOrder = crates.ToArray();
         ctx.Rng.Shuffle(crateOrder);
-        PlaceWeapons(ctx, budget, crateOrder.ToArray());
+        PlaceWeapons(ctx, budget, crateOrder.ToArray(), encounters.PickupStyles[ItemCategory.Weapon].CrateShare);
         crateOrder = crateOrder.Where(i => KnownObject.GetCrateItem(ctx.Map.Sprites[i].Payload) == 0).ToArray();
         int nextCrate = 0;
-        foreach ((var category, float share) in new[] { (ItemCategory.Ammo, 0.32f), (ItemCategory.Armor, 0.45f), (ItemCategory.Health, 0.2f) })
+        foreach (var category in PileCategories)
         {
-            var ofCategory = items.Where(item => item.PickupCategory == category).ToArray();
-            foreach (var item in ofCategory.Take((int)MathF.Round(ofCategory.Length * share)))
+            var ofCategory = items.Where(item => item != KnownObject.Dynamite && item.PickupCategory == category).ToArray();
+            foreach (var item in ofCategory.Take((int)MathF.Round(ofCategory.Length * encounters.PickupStyles[category].CrateShare)))
             {
                 if (nextCrate >= crateOrder.Length)
                 {
@@ -1660,65 +1683,53 @@ public static class ContentPlacer
             }
         }
 
-        foreach ((var category, int pile) in new[]
-        {
-            (ItemCategory.Money, 8),
-            (ItemCategory.Ammo, 3),
-            (ItemCategory.Armor, 2),
-            (ItemCategory.Health, 2),
-            (ItemCategory.Implant, 1),
-            (ItemCategory.Bonus, 2)
-        })
+        foreach (var category in PileCategories)
         {
             var ofCategory = items
                 .Where(item => item != KnownObject.Dynamite && item.PickupCategory == category)
                 .ToArray();
             
-            PlaceCategory(ctx, ofCategory, pile, category == ItemCategory.Money, encounters.PickupRooms[category], encounters.IsGated);
+            PlaceCategory(ctx, ofCategory, encounters.PickupStyles[category], encounters.PickupRooms[category], encounters.IsGated);
         }
     }
 
-    // Put the piles of one category in rooms of the original's pickup rooms' zones and roles, the piles of one original room together
-    private static void PlaceCategory(PlacementContext ctx, KnownObject[] items, int pile, bool corners, IReadOnlyList<ObjectiveRoom> pickupRooms, bool isZoned)
+    // Put the piles of one category in rooms of the original's pickup rooms' zones and roles, the piles of one original room together, each
+    // pile as large and lying where one of the original's piles of the category does
+    private static void PlaceCategory(PlacementContext ctx, KnownObject[] items, PickupStyle style, IReadOnlyList<ObjectiveRoom> pickupRooms, bool isZoned)
     {
+        var heaps = new List<KnownObject[]>();
+        for (int taken = 0; taken < items.Length;)
+        {
+            int size = style.PileSizes.Count == 0 ? 1 : style.PileSizes[ctx.Rng.Next(style.PileSizes.Count)];
+            heaps.Add(items.Skip(taken).Take(size).ToArray());
+            taken += size;
+        }
+
         var rooms = GetRoleRooms(ctx);
         var originals = pickupRooms.SelectMany(room => Enumerable.Repeat(room, room.Count)).ToArray();
         var held = new Dictionary<ObjectiveRoom, PlanRegion>(ReferenceEqualityComparer.Instance);
-        int piles = (items.Length + pile - 1) / pile;
-        for (int pileIndex = 0; pileIndex < piles; pileIndex++)
+        for (int pileIndex = 0; pileIndex < heaps.Count; pileIndex++)
         {
-            var heap = items
-                .Skip(pileIndex * pile)
-                .Take(pile)
-                .ToArray();
-            
-            var original = originals.Length == 0 ? null : originals[GetRank(pileIndex, piles, originals.Length)];
-            var candidates = OrderObjectiveRooms(ctx, rooms, held, original, original?.Progress ?? (pileIndex + 0.5f) / piles, [], isZoned);
-            var room = candidates.Take(PileRoomTries).FirstOrDefault(candidate => PlacePile(ctx, candidate, heap, corners, null));
-            if (room is null)
-            {
-                room = candidates[0];
-                foreach (var item in heap)
-                {
-                    var cells = ctx.GetFreeCells(room);
-                    var seen = cells.Where(c => ctx.IsVisible(GetCenter(ctx, c).X, GetCenter(ctx, c).Y)).ToArray();
-                    ctx.Place(seen.Length > 0 ? seen : cells, item, dir: 0);
-                }
-            }
-
-            if (original is not null)
+            PartSpot? spot = style.PileSpots.Count == 0 ? null : style.PileSpots[ctx.Rng.Next(style.PileSpots.Count)];
+            var original = originals.Length == 0 ? null : originals[GetRank(pileIndex, heaps.Count, originals.Length)];
+            var candidates = OrderObjectiveRooms(ctx, rooms, held, original, original?.Progress ?? (pileIndex + 0.5f) / heaps.Count, [], isZoned);
+            var spots = spot == PartSpot.Corner ? new PartSpot?[] { PartSpot.Corner, PartSpot.Wall, null } : [spot, null];
+            var room = spots.Select(kind => candidates.Take(PileRoomTries).FirstOrDefault(candidate => PlacePile(ctx, candidate, heaps[pileIndex], kind))).FirstOrDefault(found => found is not null)
+                       ?? candidates.FirstOrDefault(candidate => PlacePile(ctx, candidate, heaps[pileIndex], null));
+            if (original is not null && room is not null)
             {
                 held[original] = room;
             }
         }
     }
 
-    private static bool PlacePile(PlacementContext ctx, PlanRegion room, KnownObject[] heap, bool corner, float? after)
+    // Lay a pile on a free cell of a room with the walls of the spot, any cell when no spot is asked for
+    private static bool PlacePile(PlacementContext ctx, PlanRegion room, KnownObject[] heap, PartSpot? spot)
     {
         var cells = ctx.GetRegionCells(room)
-            .Where(c => !ctx.Taken.Contains(c) && ctx.Distance.ContainsKey(c) && (after is null || ctx.GetProgress(c) >= after.Value))
-            .Select(c => (Cell: c, Walls: CountWalls(ctx, c), Spot: ctx.FindSpot(c, PileWallMargin)))
-            .Where(p => p is { Walls: > 0, Spot: not null } && ctx.IsVisible(p.Spot.Value.X, p.Spot.Value.Y))
+            .Where(c => !ctx.Taken.Contains(c) && ctx.Distance.ContainsKey(c) && (spot is null || GetSpot(ctx, c) == spot))
+            .Select(c => (Cell: c, Point: FindPileSpot(ctx, c)))
+            .Where(p => p.Point is not null && ctx.IsVisible(p.Point.Value.X, p.Point.Value.Y) && ctx.Occupancy.Fits(heap[0], p.Point.Value.X, p.Point.Value.Y, 0))
             .ToArray();
         
         if (cells.Length == 0)
@@ -1726,35 +1737,48 @@ public static class ContentPlacer
             return false;
         }
 
-        var best = corner && cells.Any(p => p.Walls >= 2) ? cells.Where(p => p.Walls >= 2).ToArray() : cells;
-        var (cell, _, spot) = best[ctx.Rng.Next(best.Length)];
-        (float x, float y) = (spot!.Value.X, spot.Value.Y);
+        var (cell, point) = cells[ctx.Rng.Next(cells.Length)];
+        (float x, float y) = (point!.Value.X, point.Value.Y);
         var offsets = PileOffsets
-            .Where(o => !ctx.IsInWall(x + o.Dx, y + o.Dy, PileWallMargin) && ctx.IsVisible(x + o.Dx, y + o.Dy))
+            .Where(o => IsClearOfWalls(ctx, x + o.Dx, y + o.Dy) && ctx.IsVisible(x + o.Dx, y + o.Dy) && ctx.Occupancy.Fits(heap[0], x + o.Dx, y + o.Dy, 0)
+                        && (spot is null or PartSpot.Center || ctx.Layout.Lattice.GetCell(x + o.Dx, y + o.Dy) == cell))
             .DefaultIfEmpty((0, 0))
             .ToArray();
         for (int index = 0; index < heap.Length; index++)
         {
             (float dx, float dy) = offsets[index % offsets.Length];
             ctx.Map.Add(heap[index], x + dx, y + dy, 0, 0, unique: false);
+            ctx.Occupancy.Add(heap[index], x + dx, y + dy, 0);
         }
 
         ctx.Taken.Add(cell);
         return true;
     }
 
-    private static int CountWalls(PlacementContext ctx, Cell c)
+    private static PointF? FindPileSpot(PlacementContext ctx, Cell cell)
     {
-        int walls = 0;
-        foreach (var (neighbor, edge) in EdgeKey.GetNeighbors(c))
+        for (int index = 0; index < PileSpotTries; index++)
         {
-            if ((ctx.Layout.Edges.TryGetValue(edge, out EdgeKind kind) && kind.IsClosed) || !ctx.Layout.Cells.ContainsKey(neighbor))
+            var point = ctx.Layout.Lattice.ToWorld(cell.U + PileSpotStart + PileSpotSpread * ctx.Rng.NextSingle(), cell.V + PileSpotStart + PileSpotSpread * ctx.Rng.NextSingle());
+            if (IsClearOfWalls(ctx, point.X, point.Y))
             {
-                walls++;
+                return point;
             }
         }
 
-        return walls;
+        return null;
+    }
+
+    private static bool IsClearOfWalls(PlacementContext ctx, float x, float y)
+    {
+        (float u, float v) = ctx.Layout.Lattice.ToLattice(x, y);
+        return ctx.Layout.Edges.MeasureClearance(u, v) >= PileClearance;
+    }
+
+    private static PartSpot GetSpot(PlacementContext ctx, Cell cell)
+    {
+        var sides = ctx.Layout.Edges.GetWalledSides(cell, ctx.Layout.Cells.ContainsKey, static kind => kind.IsClosed);
+        return sides.IsCorner ? PartSpot.Corner : sides != WallSides.None ? PartSpot.Wall : PartSpot.Center;
     }
 
     // Put the checkpoint on the walk to the biggest fight, in a room of the original's checkpoint room's zone and role, nearest its progress

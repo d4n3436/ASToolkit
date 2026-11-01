@@ -1,6 +1,6 @@
 using ASToolkit.Core.Formats;
 
-namespace ASToolkit.Core.Reference;
+namespace ASToolkit.Core.Survey;
 
 /// <summary>
 /// Represents a small room with items behind a breakable wall.

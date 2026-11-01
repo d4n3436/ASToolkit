@@ -2,7 +2,6 @@ using ASToolkit.Cli.Analysis;
 using ASToolkit.Core.Survey;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Rendering;
-using ASToolkit.Core.Routes;
 using ASToolkit.Core.Reference;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
@@ -32,6 +31,7 @@ internal sealed class InspectLevelCommand : Command<InspectLevelSettings>
         string?[] problems = new string?[maps.Length];
         var surveys = new LevelSurvey?[maps.Length];
         var options = new ParallelOptions { MaxDegreeOfParallelism = MaxLevelsAtOnce, CancellationToken = cancellationToken };
+        var loader = new LevelLoader(objects);
         AnsiConsole.Status().Start("Surveying the levels", _ => Parallel.For(0, maps.Length, options, mapIndex =>
         {
             string folder = settings.Levels ?? Path.Combine(settings.Game, "Maps");
@@ -42,22 +42,20 @@ internal sealed class InspectLevelCommand : Command<InspectLevelSettings>
                 return;
             }
 
-            var map = MapResourceBuilder.Load(mapPath);
-            var script = LevelScriptReader.Read(Path.ChangeExtension(mapPath, ".lgc"));
-            var analysis = RouteAnalyzer.Analyze(maps[mapIndex], map, script, objects);
-            if (analysis is null)
+            var level = loader.Load(maps[mapIndex], mapPath);
+            if (level is null)
             {
                 problems[mapIndex] = "no route";
                 return;
             }
 
-            var survey = LevelSurveyor.Survey(map, script, analysis, objects);
+            var survey = level.Survey;
             surveys[mapIndex] = survey;
             if (renderer is not null)
             {
                 string name = (settings.Levels is null ? "" : "gen_") + Path.ChangeExtension(maps[mapIndex], null).Replace('/', '_').Replace('\\', '_');
-                using var rendered = renderer.Render(map.Sprites, settings.Scale, map.Graphics);
-                PlaceOverlay.Draw(rendered, survey, analysis);
+                using var rendered = renderer.Render(level.Map.Sprites, settings.Scale, level.Map.Graphics);
+                PlaceOverlay.Draw(rendered, survey, level.Analysis);
                 rendered.Image.SaveAsPng(Path.Combine(settings.Out, name + "_places.png"), PngOptions);
             }
         }));

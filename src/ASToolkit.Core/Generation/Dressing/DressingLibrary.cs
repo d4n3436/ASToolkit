@@ -10,7 +10,6 @@ namespace ASToolkit.Core.Generation.Dressing;
 /// </summary>
 public sealed class DressingLibrary
 {
-    private const float CopyTolerance = 0.05f;
     private const float FloorHeight = 5;
     private const int StripeFrameWidth = 16;
     private const int FirstStripeFrame = 6;
@@ -49,15 +48,16 @@ public sealed class DressingLibrary
     {
         int[] sizes = theme == LevelTheme.Lab ? [3, 2, 1] : [4, 2];
         var sources = new List<LevelModel>();
+        var companionTests = new List<Func<KnownObject, float, float, bool>>();
         foreach (string level in levels)
         {
             var model = references.GetLevel(level).Model;
             if (model.Theme == theme && model.Edges.Count >= 100)
             {
                 sources.Add(model);
+                companionTests.Add(references.Relations.GetCompanionTest(theme, references.GetLevel(level)));
             }
         }
-
 
         var byCell = new List<Dictionary<Cell, List<int>>>();
         var windows = new Dictionary<(int, string), List<(int, Cell)>>();
@@ -67,7 +67,9 @@ public sealed class DressingLibrary
             var cellObjects = new Dictionary<Cell, List<int>>();
             for (int levelObjectIndex = 0; levelObjectIndex < m.Objects.Count; levelObjectIndex++)
             {
-                if (!isAllowed(m.Objects[levelObjectIndex].Id, m.Objects[levelObjectIndex].Z))
+                var levelObject = m.Objects[levelObjectIndex];
+                var point = m.Lattice.ToWorld(levelObject.U, levelObject.V);
+                if (!isAllowed(levelObject.Id, levelObject.Z) || companionTests[sourceIndex](levelObject.Id, point.X, point.Y))
                 {
                     continue;
                 }
@@ -247,9 +249,9 @@ public sealed class DressingLibrary
     // Keep a hung object on the same side of a wall and as far from it as in its source
     private static bool IsHungAsInSource(DecorObject o, IReadOnlyDictionary<EdgeKey, EdgeKind> sourceEdges, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v)
     {
-        var source = FacingTable.FindWall(sourceEdges, o.U, o.V);
-        var target = FacingTable.FindWall(edges, u, v);
-        return source is not null && target is not null && source.Value.Side == target.Value.Side && MathF.Abs(source.Value.Distance - target.Value.Distance) <= CopyTolerance;
+        var source = sourceEdges.FindNearestWall(o.U, o.V);
+        var target = edges.FindNearestWall(u, v);
+        return source is not null && target is not null && source.Value.Side == target.Value.Side && MathF.Abs(source.Value.Distance - target.Value.Distance) <= EdgeMapExtensions.WallSlack;
     }
 
     /// <summary>
@@ -289,8 +291,8 @@ public sealed class DressingLibrary
             return false;
         }
 
-        float target = WallClearanceTable.MeasureDistance(edges, u, v);
-        return target < low && target < WallClearanceTable.MeasureDistance(sourceEdges, o.U, o.V) - CopyTolerance;
+        float target = edges.MeasureClearance(u, v);
+        return target < low && target < sourceEdges.MeasureClearance(o.U, o.V) - EdgeMapExtensions.WallSlack;
     }
 
     // Keep a solid piece only where no wall it does not cross in its source runs through its footprint

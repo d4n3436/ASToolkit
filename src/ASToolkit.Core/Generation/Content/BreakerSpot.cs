@@ -1,5 +1,6 @@
 using System.Drawing;
 using ASToolkit.Core.Levels;
+using ASToolkit.Core.Generation.Dressing;
 
 namespace ASToolkit.Core.Generation.Content;
 

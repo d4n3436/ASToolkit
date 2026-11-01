@@ -1,6 +1,5 @@
 using System.Numerics;
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Rendering;
 
 namespace ASToolkit.Core.Routes;
 
@@ -48,7 +47,7 @@ public sealed class SpritePartReader
                 yield break;
             }
 
-            position += MapRenderer.GetLinkOffset(obj, linked, file, frame, sprite.Facing);
+            position += obj.GetLinkOffset(linked, file, frame, sprite.Facing);
             scale = Vector3.One;
             id = obj.Link;
         }
@@ -86,7 +85,7 @@ public sealed class SpritePartReader
     {
         bool usesDepth = vid is { HasDepth: true, HasPalette: true } && vid.Flags.HasFlag(VidFlags.Runs8Bit);
         var frame = usesDepth ? vid.GetRunFrame(frameIndex) : vid.GetFrame(frameIndex);
-        float[] meshHeights = !usesDepth && frame.Mesh.TriangleCount > 0 ? MapRenderer.RasterizeHeights(frame.Mesh, vid.Width, vid.Height) : [];
+        float[] meshHeights = !usesDepth && frame.Mesh.TriangleCount > 0 ? frame.Mesh.RasterizeHeights(vid.Width, vid.Height) : [];
         var cells = new Dictionary<int, short>();
         foreach (var run in frame)
         {

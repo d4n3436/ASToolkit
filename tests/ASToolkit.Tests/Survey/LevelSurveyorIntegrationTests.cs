@@ -2,6 +2,7 @@ using ASToolkit.Core.Formats;
 using ASToolkit.Core.Survey;
 using ASToolkit.Core.Routes;
 using Xunit;
+using ASToolkit.Core.Scripting;
 
 namespace ASToolkit.Tests.Survey;
 

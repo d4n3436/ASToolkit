@@ -283,4 +283,21 @@ public struct GameObject
 
     private static SpriteType ConvertSpriteType(OldSpriteType old) =>
         (SpriteType)((((uint)old & ShiftedTypeMask) << 1) | ((uint)old & SharedTypeMask));
+
+    /// <summary>
+    /// Returns the offset of an attached object from the object, turned by a facing unless the attached object keeps a fixed offset.
+    /// </summary>
+    public readonly Vector3 GetLinkOffset(GameObject attached, VidResource? file, int frameIndex, byte dir)
+    {
+        var offset = file is not null && file.Value.Flags.HasFlag(VidFlags.FrameVector)
+            ? file.Value.GetFrameVector(frameIndex)
+            : LinkOffset with { Y = -LinkOffset.Y };
+        if (attached.Flags.HasFlag(ObjectFlags.FixedOffset))
+        {
+            return offset;
+        }
+
+        (float sin, float cos) = MathF.SinCos(dir * MathF.PI / 128);
+        return new Vector3(offset.X * cos - offset.Y * sin, offset.X * sin + offset.Y * cos, offset.Z);
+    }
 }

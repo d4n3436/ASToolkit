@@ -1,6 +1,6 @@
 using ASToolkit.Core.Formats;
 
-namespace ASToolkit.Core.Generation.Content;
+namespace ASToolkit.Core.Generation.Dressing;
 
 /// <summary>
 /// Represents a prop of an original breaker room, relative to the breaker.

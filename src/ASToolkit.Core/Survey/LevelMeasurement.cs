@@ -1,4 +1,4 @@
-namespace ASToolkit.Core.Reference;
+namespace ASToolkit.Core.Survey;
 
 /// <summary>
 /// Represents the measurements of a level besides its tour.

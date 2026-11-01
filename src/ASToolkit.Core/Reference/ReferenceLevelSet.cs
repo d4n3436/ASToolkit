@@ -27,13 +27,19 @@ public sealed class ReferenceLevelSet
     private readonly Dictionary<LevelTheme, FacingTable> _facings;
 
     private ReferenceLevelSet(Dictionary<string, ReferenceLevel> levels, Dictionary<LevelTheme, DecorHeightTable> campaignDecor,
-        Dictionary<LevelTheme, WallClearanceTable> wallClearance, Dictionary<LevelTheme, FacingTable> facings)
+        Dictionary<LevelTheme, WallClearanceTable> wallClearance, Dictionary<LevelTheme, FacingTable> facings, ObjectRelationTable relations)
     {
         _levels = levels;
         _campaignDecor = campaignDecor;
         _wallClearance = wallClearance;
         _facings = facings;
+        Relations = relations;
     }
+
+    /// <summary>
+    /// Gets how the objects of the campaign levels, or of every level in add-on style, stand by each other, walls and doorways.
+    /// </summary>
+    public ObjectRelationTable Relations { get; }
 
     /// <summary>
     /// Gets the indoor campaign levels, 2 to 10, the ones with lab or military floor.
@@ -60,27 +66,12 @@ public sealed class ReferenceLevelSet
             .Concat(AddOn2)
             .ToArray();
         
+        var loader = new LevelLoader(objects);
         var loaded = new ReferenceLevel[names.Length];
         Parallel.For(0, names.Length, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) }, i =>
         {
             string name = names[i];
-            var map = MapResourceBuilder.Load(Path.Combine(gameFolder, "Maps", name));
-            var script = LevelScriptReader.Read(Path.Combine(gameFolder, "Maps", Path.ChangeExtension(name, ".lgc")));
-            var analysis = RouteAnalyzer.Analyze(name, map, script, objects)
-                           ?? throw new InvalidDataException($"{name} has no route.");
-            var measures = LevelMeasurer.Measure(map, script, analysis, objects);
-            var survey = LevelSurveyor.Survey(map, script, analysis, objects, measures);
-            loaded[i] = new ReferenceLevel
-            {
-                Name = name,
-                Map = map,
-                Script = script,
-                Analysis = analysis,
-                Measures = measures,
-                Model = analysis.Model,
-                Survey = survey,
-                Atlas = RoomAtlas.Read(survey, analysis.Grid.Edges, map.Sprites)
-            };
+            loaded[i] = loader.Load(name, Path.Combine(gameFolder, "Maps", name)) ?? throw new InvalidDataException($"{name} has no route.");
         });
 
         foreach (var level in loaded)
@@ -101,7 +92,8 @@ public sealed class ReferenceLevelSet
         var leaning = FacingTable.FindLeaningFrames(models, objects);
         var facings = Themes
             .ToDictionary(t => t, t => FacingTable.Build(models.Where(m => m.Theme == t), objects, leaning));
-        return new ReferenceLevelSet(levels, campaignDecor, wallClearance, facings);
+        var followed = loaded.Where(level => addOnStyle || campaign.Contains(level.Name));
+        return new ReferenceLevelSet(levels, campaignDecor, wallClearance, facings, ObjectRelationTable.Build(followed, objects));
     }
 
     /// <summary>

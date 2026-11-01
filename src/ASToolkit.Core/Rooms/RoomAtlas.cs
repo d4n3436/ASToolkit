@@ -88,11 +88,13 @@ public sealed class RoomAtlas
     /// <param name="survey">The survey of the level, named by its map.</param>
     /// <param name="edges">The edges of the level's routing grid.</param>
     /// <param name="sprites">The sprites of the level.</param>
+    /// <param name="objects">The game objects.</param>
     /// <param name="isOriginal">Whether the level is an original, whose rooms read by eye take their types from the corrections.</param>
-    public static RoomAtlas Read(LevelSurvey survey, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, IReadOnlyList<MergedMapSprite> sprites, bool isOriginal = true)
+    public static RoomAtlas Read(LevelSurvey survey, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, IReadOnlyList<MergedMapSprite> sprites, ObjectTable objects,
+        bool isOriginal = true)
     {
         var roles = RoomRoleMap.Measure(survey);
-        var finder = new PartFinder(survey.Lattice, edges);
+        var finder = new PartFinder(survey.Lattice, edges, objects);
         var pieces = sprites
             .Where(sprite => IsPiece(sprite.Id))
             .Select(sprite => (Sprite: sprite, Place: survey.FindPlace(sprite.Position.X, sprite.Position.Y)))

@@ -1,5 +1,4 @@
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Generation.Content;
 using ASToolkit.Core.Generation.Geometry;
 using ASToolkit.Core.Generation.Layout;
 using ASToolkit.Core.Levels;
@@ -18,7 +17,6 @@ public static class RoomDecorator
     private const int GibCount = 3;
     private const float MissileMarkReach = 90;
     private const float WallSignHeight = 60;
-    private const float WallSignReach = 0.8f;
     private const int MarkSource = -6;
 
 
@@ -27,7 +25,7 @@ public static class RoomDecorator
     /// last one, and lays every corpse on blood.
     /// </summary>
     public static void Decorate(LevelTheme theme, LayoutPlan plan, FineLayout layout, List<PlacedDecor> decor,
-        IReadOnlySet<Cell> floor, IReadOnlySet<Cell> keepClear, DecorHeightTable themeDecor, FacingTable facings, float corpseRate, float bloodRate)
+        IReadOnlySet<Cell> floor, IReadOnlySet<Cell> keepClear, LevelOccupancy occupancy, DecorHeightTable themeDecor, FacingTable facings, float corpseRate, float bloodRate)
     {
         var random = CreateRandom(theme, plan);
         var taken = new HashSet<Cell>();
@@ -65,6 +63,13 @@ public static class RoomDecorator
             var drop = corpses.OrderBy(_ => random.Next()).Take(corpses.Length - corpseCap).ToHashSet();
 
             decor.RemoveAll(drop.Contains);
+        }
+
+        var supported = Dresser.KeepSupported(decor);
+        if (supported.Length < decor.Count)
+        {
+            decor.Clear();
+            decor.AddRange(supported);
         }
 
         // Leave blood in the last two stations and a corpse in the last one
@@ -120,8 +125,16 @@ public static class RoomDecorator
                 return;
             }
 
+            (float x, float y) = layout.Lattice.ToWorld(cell.U + 0.5f, cell.V + 0.5f);
+            float z = themeDecor.GetMiddleHeight(id);
+            if (!occupancy.Fits(id, x, y, z))
+            {
+                return;
+            }
+
+            occupancy.Add(id, x, y, z);
             byte[] payload = id == KnownObject.Crate ? KnownObject.CreateEmptyCratePayload() : [];
-            decor.Add(new PlacedDecor(id, cell.U + 0.5f, cell.V + 0.5f, themeDecor.GetMiddleHeight(id), dir, payload, (PlantSource, index++), null));
+            decor.Add(new PlacedDecor(id, cell.U + 0.5f, cell.V + 0.5f, z, dir, payload, (PlantSource, index++), null));
             taken.Add(cell);
         }
     }
@@ -164,19 +177,9 @@ public static class RoomDecorator
     }
 
     /// <summary>
-    /// Returns the decor of a military level without the floor stripes that lie away from any missile and the wall signs off a wall.
+    /// Returns whether an object at a height is one of the floor stripes laid in front of missiles.
     /// </summary>
-    public static IEnumerable<PlacedDecor> RemoveStrayMarks(LevelTheme theme, IReadOnlyList<PlacedDecor> decor, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, Lattice lattice)
-    {
-        if (theme != LevelTheme.Military)
-        {
-            return decor;
-        }
-
-        var missiles = decor.Where(piece => piece.Id == KnownObject.Missile).ToArray();
-        return decor.Where(piece => piece.Id != KnownObject.WallInscriptions
-            || (piece.Z < WallSignHeight ? missiles.Any(missile => IsNear(lattice, piece, missile, MissileMarkReach)) : FacingTable.FindWall(edges, piece.U, piece.V)?.Distance <= WallSignReach));
-    }
+    public static bool IsMissileMark(KnownObject id, float z) => id == KnownObject.WallInscriptions && z < WallSignHeight;
 
     // Seed a stream of its own from the layout
     private static Random CreateRandom(LevelTheme theme, LayoutPlan plan)

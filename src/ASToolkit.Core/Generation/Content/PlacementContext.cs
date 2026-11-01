@@ -3,6 +3,7 @@ using ASToolkit.Core.Formats;
 using ASToolkit.Core.Generation.Geometry;
 using ASToolkit.Core.Generation.Layout;
 using ASToolkit.Core.Levels;
+using ASToolkit.Core.Reference;
 
 namespace ASToolkit.Core.Generation.Content;
 
@@ -16,12 +17,21 @@ public sealed class PlacementContext
 
     private readonly Dictionary<(int, int), List<(float X, float Y, float Ex, float Ey)>> _wallBoxes = [];
     private readonly IReadOnlySet<Cell> _blocked;
+    private readonly Func<KnownObject, IReadOnlyList<ObjectCompanion>> _companionsOf;
+
+    /// <summary>
+    /// Gets the objects standing on the level's floor and the doorways kept clear of them.
+    /// </summary>
+    public LevelOccupancy Occupancy { get; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PlacementContext"/> class.
     /// </summary>
-    public PlacementContext(Random rng, int level, LayoutPlan plan, FineLayout layout, MapBuilder map, ObjectTable objects, Cell start, IReadOnlySet<Cell> blocked, IReadOnlySet<Cell> keepClear)
+    public PlacementContext(Random rng, int level, LayoutPlan plan, FineLayout layout, MapBuilder map, ObjectTable objects, Cell start, IReadOnlySet<Cell> blocked, IReadOnlySet<Cell> keepClear,
+        LevelOccupancy occupancy, Func<KnownObject, IReadOnlyList<ObjectCompanion>> companionsOf)
     {
+        _companionsOf = companionsOf;
+        Occupancy = occupancy;
         Rng = rng;
         Level = level;
         Plan = plan;
@@ -63,6 +73,9 @@ public sealed class PlacementContext
 
     /// <summary>Gets the player start cell.</summary>
     public Cell Start { get; }
+
+    /// <summary>Gets or sets how many more endless generators the level may hold.</summary>
+    public int EndlessGeneratorsLeft { get; set; }
 
     /// <summary>Gets the fights placed so far.</summary>
     public List<PlacedFight> Fights { get; } = [];
@@ -158,14 +171,17 @@ public sealed class PlacementContext
     /// </summary>
     public bool IsVisible(float x, float y)
     {
+        var previous = Layout.Lattice.GetCell(x, y);
         for (float d = 0; d <= RoofSight; d += SightStep)
         {
             var cell = Layout.Lattice.GetCell(x, y + d);
             if (!Layout.Cells.TryGetValue(cell, out int region) || Plan.Regions[region].Kind is RegionKind.SecretCloset or RegionKind.SpawnCloset
-                || d > 0 && IsInWall(x, y + d, 0))
+                || cell != previous && !IsOpenStep(previous, cell))
             {
                 return false;
             }
+
+            previous = cell;
         }
 
         return true;
@@ -203,10 +219,12 @@ public sealed class PlacementContext
         foreach (int cellIndex in order.Take(25))
         {
             var spot = FindSpot(cells[cellIndex]);
-            if (spot is null)
+            if (spot is null || !Occupancy.Fits(id, spot.Value.X, spot.Value.Y, 0))
             {
                 continue;
             }
+
+            Occupancy.Add(id, spot.Value.X, spot.Value.Y, 0);
 
             if (take)
             {
@@ -218,6 +236,26 @@ public sealed class PlacementContext
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Lays the companions of an object placed at a map point, each where it lands on visible floor and fits.
+    /// </summary>
+    public void AddCompanions(KnownObject anchor, float x, float y, byte facing)
+    {
+        foreach (var companion in _companionsOf(anchor))
+        {
+            foreach (var sample in companion.Draw(Rng, facing))
+            {
+                float cx = x + sample.Dx;
+                float cy = y + sample.Dy;
+                if (IsVisible(cx, cy) && !IsInWall(cx, cy, 0) && Occupancy.Fits(companion.Id, cx, cy, sample.Dz))
+                {
+                    Occupancy.Add(companion.Id, cx, cy, sample.Dz);
+                    Map.Add(companion.Id, cx, cy, sample.Dz, sample.Facing, unique: false);
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -284,6 +322,35 @@ public sealed class PlacementContext
             if (Layout.Cells.GetValueOrDefault(n, -1) != region)
             {
                 return false;
+            }
+        }
+
+        return true;
+    }
+
+    // Step to a side neighbor across no wall, or to a corner neighbor through either side neighbor
+    private bool IsOpenStep(Cell from, Cell to)
+    {
+        int du = to.U - from.U;
+        int dv = to.V - from.V;
+        if (Math.Abs(du) + Math.Abs(dv) == 1)
+        {
+            return !ShowsWallBetween(from, to);
+        }
+
+        var first = new Cell(from.U + du, from.V);
+        var second = new Cell(from.U, from.V + dv);
+        return Layout.Cells.ContainsKey(first) && !ShowsWallBetween(from, first) && !ShowsWallBetween(first, to)
+               || Layout.Cells.ContainsKey(second) && !ShowsWallBetween(from, second) && !ShowsWallBetween(second, to);
+    }
+
+    private bool ShowsWallBetween(Cell cell, Cell neighbor)
+    {
+        foreach (var (next, edge) in EdgeKey.GetNeighbors(cell))
+        {
+            if (next == neighbor)
+            {
+                return Layout.Edges.TryGetValue(edge, out EdgeKind kind) && kind.ShowsWall;
             }
         }
 
