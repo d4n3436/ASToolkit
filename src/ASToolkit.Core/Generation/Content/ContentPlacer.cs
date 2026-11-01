@@ -6,7 +6,6 @@ using ASToolkit.Core.Generation.Layout;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Rooms;
 using ASToolkit.Core.Survey;
-using ASToolkit.Core.Reference;
 
 namespace ASToolkit.Core.Generation.Content;
 
@@ -81,6 +80,8 @@ public static class ContentPlacer
     private static readonly (float Dx, float Dy)[] PileOffsets = [(0, 0), (14, 6), (-12, 8), (4, -10), (-6, -4), (16, -6), (-16, 0), (8, 12)];
     private const float DoorMarkWallReach = 1;
     private static readonly int[] SiteRankCap = [0, 0, 3, 6, 6, 8, 9, 10, 11, 14, 14];
+    private static readonly KnownObject[] Perks = [KnownObject.GreenArmor, KnownObject.YellowArmor, KnownObject.RedArmor, KnownObject.Invulnerability, KnownObject.Medkit, KnownObject.Drone,
+        KnownObject.ExtraLife, KnownObject.LifeImplant, KnownObject.StrengthImplant, KnownObject.SpeedImplant, KnownObject.AccuracyImplant];
 
     /// <summary>
     /// Chooses the far wall of the key room the breaker hangs on, judged on the walls as built, nearest the locked door it opens first,
@@ -386,7 +387,7 @@ public static class ContentPlacer
                     break;
                 }
 
-                if (ctx.Level == 10 && GetDistance(new PointF(placed.Value.X, placed.Value.Y), new PointF(7541, 4501)) < 150)
+                if (ctx.Brief.Level == 10 && GetDistance(new PointF(placed.Value.X, placed.Value.Y), new PointF(7541, 4501)) < 150)
                 {
                     // Avoid the 415 spot the level 10 script handles specially
                     ctx.Map.RemoveLast();
@@ -560,13 +561,13 @@ public static class ContentPlacer
             return [];
         }
 
-        var allowed = templates.Where(t => t.Rank <= SiteRankCap[ctx.Level]).ToArray();
+        var allowed = templates.Where(t => t.Rank <= SiteRankCap[ctx.Brief.Level]).ToArray();
         if (allowed.Length == 0)
         {
             allowed = templates.ToArray();
         }
 
-        var own = allowed.Where(t => t.Level == ReferenceLevelSet.GetCampaignName(ctx.Level)).ToArray();
+        var own = allowed.Where(t => t.Level == ctx.Brief.DonorLevel).ToArray();
         if (own.Length > 0)
         {
             allowed = own;
@@ -742,7 +743,7 @@ public static class ContentPlacer
             return null;
         }
 
-        var hole = ctx.Level >= 3 || ctx.Rng.Next(2) == 0 ? KnownObject.BigMonsterHole : KnownObject.SmallMonsterHole;
+        var hole = ctx.Brief.Level >= 3 || ctx.Rng.Next(2) == 0 ? KnownObject.BigMonsterHole : KnownObject.SmallMonsterHole;
         ctx.Map.Sprites[index] = ctx.Map.Sprites[index] with { Id = hole, Dir = (byte)(slash ? 0 : 128) };
         int side = slash ? 1 : -1;
         (float sx, float sy) = (hx + 25 * side, hy + 20);
@@ -1456,7 +1457,7 @@ public static class ContentPlacer
         ctx.Map.Sprites[wallIndex] = ctx.Map.Sprites[wallIndex] with { Payload = wallProgram.ToPayload() };
         if (ctx.Rng.NextSingle() < 0.3f)
         {
-            foreach (var item in ItemSchedule.CreateStash(ctx.Level, ctx.Rng, () => TakeWeapon(ctx, budget)).Take(2))
+            foreach (var item in CreateStash(ctx, budget).Take(2))
             {
                 if (ctx.Place(cells, item, dir: 0, take: false) is not null)
                 {
@@ -1524,7 +1525,7 @@ public static class ContentPlacer
         foreach (var closet in ctx.Plan.Regions.Where(r => r.Kind is RegionKind.SecretCloset or RegionKind.SecretRoom))
         {
             var cells = ctx.GetRegionCells(closet);
-            foreach (var item in ItemSchedule.CreateStash(ctx.Level, ctx.Rng, () => TakeWeapon(ctx, budget)))
+            foreach (var item in CreateStash(ctx, budget))
             {
                 if (ctx.Place(cells, item, dir: 0, take: false) is not null)
                 {
@@ -1543,7 +1544,54 @@ public static class ContentPlacer
         }
     }
 
-    // Hand out weapons that are early for the level first
+    // Return the contents of a secret closet in the shares the originals use, a money pile, an ammunition cache, a weapon with some of its
+    // ammunition or a single perk the level holds, and one of the others when no weapon is left
+    private static KnownObject[] CreateStash(PlacementContext ctx, LevelBudget budget)
+    {
+        var rng = ctx.Rng;
+        float roll = rng.NextSingle();
+        if (roll is >= 0.63f and < 0.89f)
+        {
+            var weapon = TakeWeapon(ctx, budget);
+            if (weapon is not null)
+            {
+                return Enumerable.Repeat(weapon.Value.WeaponAmmo!.Value, rng.Next(0, 5))
+                    .Prepend(weapon.Value)
+                    .ToArray();
+            }
+
+            roll = rng.NextSingle() * 0.74f;
+            if (roll >= 0.63f)
+            {
+                roll = 0.89f;
+            }
+        }
+
+        var arsenal = ctx.Brief.Arsenal;
+        if (roll < 0.42f || (roll < 0.63f && arsenal.Count == 0))
+        {
+            return Enumerable.Repeat(KnownObject.Money, rng.Next(3, 13)).ToArray();
+        }
+
+        if (roll < 0.63f)
+        {
+            int kinds = rng.Next(1, 3);
+            var chosen = Enumerable.Range(0, kinds).Select(_ => arsenal[rng.Next(arsenal.Count)].WeaponAmmo!.Value).ToArray();
+            return Enumerable.Range(0, rng.Next(2, 5)).Select(index => chosen[index % chosen.Length]).ToArray();
+        }
+
+        var perks = budget.Items
+            .Where(item => item.Value > 0 && Perks.Contains(item.Key))
+            .Select(item => item.Key)
+            .Order()
+            .ToArray();
+
+        return perks.Length == 0
+            ? Enumerable.Repeat(KnownObject.Money, rng.Next(3, 13)).ToArray()
+            : Enumerable.Repeat(KnownObject.Money, rng.Next(0, 4)).Prepend(perks[rng.Next(perks.Length)]).ToArray();
+    }
+
+    // Hand out the level's new weapons first
     private static KnownObject? TakeWeapon(PlacementContext ctx, LevelBudget budget)
     {
         if (budget.Weapons.Count == 0)
@@ -1551,7 +1599,7 @@ public static class ContentPlacer
             return null;
         }
 
-        int index = budget.Weapons.FindIndex(w => !ItemSchedule.IsAllowed(w, ctx.Level));
+        int index = budget.Weapons.FindIndex(ctx.Brief.NewWeapons.Contains);
         if (index < 0)
         {
             index = ctx.Rng.Next(budget.Weapons.Count);
@@ -1572,14 +1620,7 @@ public static class ContentPlacer
     // Put the original's share of the weapons in crates and the rest in the middle side rooms, spaced apart
     private static void PlaceWeapons(PlacementContext ctx, LevelBudget budget, IReadOnlyList<int> crates, float crateShare)
     {
-        var weapons = new List<KnownObject>();
-        foreach (var weapon in budget.Weapons)
-        {
-            var replacement = ItemSchedule.IsAllowed(weapon, ctx.Level) ? weapon
-                : ItemSchedule.GetWeapons(ctx.Level).Where(a => !weapons.Contains(a) && !budget.Weapons.Contains(a)).DefaultIfEmpty(ItemSchedule.GetAmmo(weapon)).Last();
-            weapons.Add(replacement);
-        }
-
+        var weapons = budget.Weapons.ToList();
         budget.Weapons.Clear();
         var spots = GetWeaponSpots(ctx);
         int inCrates = (int)MathF.Round(weapons.Count(item => item.IsWeapon) * crateShare);

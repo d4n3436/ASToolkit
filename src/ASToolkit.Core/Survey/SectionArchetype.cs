@@ -1,7 +1,7 @@
 namespace ASToolkit.Core.Survey;
 
 /// <summary>
-/// Specifies the form of a section of a level.
+/// Specifies the form of a section of a level, from a few rooms to a hall with side rooms, a compact wing, a looped complex or a loose sprawl.
 /// </summary>
 public enum SectionArchetype
 {

@@ -19,7 +19,7 @@ public sealed record CampaignMeasurement
     public required string Map { get; init; }
 
     /// <summary>
-    /// Gets the theme of the level.
+    /// Gets the theme of the level's floor.
     /// </summary>
     public required LevelTheme Theme { get; init; }
 
@@ -69,6 +69,11 @@ public sealed record CampaignMeasurement
     public required IReadOnlyDictionary<ItemCategory, int> Pickups { get; init; }
 
     /// <summary>
+    /// Gets the pickups of the level by object, crates included.
+    /// </summary>
+    public required IReadOnlyDictionary<KnownObject, int> Items { get; init; }
+
+    /// <summary>
     /// Gets the money the level's cash pickups hold.
     /// </summary>
     public required int Money { get; init; }
@@ -89,7 +94,7 @@ public sealed record CampaignMeasurement
     public required int NewWeaponsBeforeAmmo { get; init; }
 
     /// <summary>
-    /// Gets the money the game gives at the end of the level.
+    /// Gets the money the game pays at the end of the level, or 0 for the last level of the campaign.
     /// </summary>
     public required int EndMoney { get; init; }
 }

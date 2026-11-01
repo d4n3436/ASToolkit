@@ -11,6 +11,6 @@ internal static class GeneratorFactory
     {
         var objects = ObjectTable.Load(Path.Combine(game, "objects.res"));
         var references = AnsiConsole.Status().Start("Analyzing the original levels", _ => ReferenceLevelSet.Load(game, objects));
-        return (new LevelGenerator(game, objects, references, new StyleFitter(objects).Fit(references, style)), references, objects);
+        return (new LevelGenerator(game, objects, references, new StyleFitter(objects, GameTable.Load(Path.Combine(game, "Maps", "common_table.lgc"))).Fit(references, style)), references, objects);
     }
 }

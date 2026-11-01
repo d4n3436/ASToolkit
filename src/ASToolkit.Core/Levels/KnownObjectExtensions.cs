@@ -16,7 +16,7 @@ public static class KnownObjectExtensions
         RedWeaponMonster, TankMonster, YellowTankMonster, RedTankMonster, TankWeaponMonster, YellowTankWeaponMonster, RedTankWeaponMonster
     }.ToFrozenSet();
 
-    private static readonly FrozenSet<KnownObject> BossesSet = new[] { Boss1, Boss2, Boss3, Boss4, TankBoss, RedTankWeaponBoss, PowerfulBoss3, Bat, Diver, DiverBoss, FinalMonster }.ToFrozenSet();
+    private static readonly FrozenSet<KnownObject> BossesSet = new[] { Boss1, Boss2, Boss3, Boss4, TankBoss, BlueTankWeaponBoss, PowerfulBoss3, Bat, Diver, DiverBoss, FinalMonster }.ToFrozenSet();
 
     private static readonly FrozenSet<KnownObject> ObjectiveMonstersSet = MonstersSet.Append(Bat).Append(Diver).ToFrozenSet();
 

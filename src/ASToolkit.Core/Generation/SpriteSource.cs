@@ -1,7 +1,8 @@
 namespace ASToolkit.Core.Generation;
 
 /// <summary>
-/// Specifies where the generator got a sprite of a level from.
+/// Specifies whether the generator built a sprite of a level from its layout or a model, or copied it from an original level as part of a wall
+/// window, furniture part, set piece or monster formation.
 /// </summary>
 public enum SpriteSource
 {

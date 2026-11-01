@@ -6,7 +6,7 @@ This covers what the toolkit's code does not say by itself, which is how the gam
 
 - Script syntax and handler names are described in [FORMATS.md](FORMATS.md#scripts-and-text).
 - The registry value `GameType` selects the flow (0 campaign, 1 survival, 2 add-on, 3 add-on 2) and `LevelNumber` the level. `MAINMENU.LGC` sets them, `SHOP.LGC` loads `Maps/[addon/|addon2/]Level_NN.map`, and `COMMON.LGC` decides what follows a level. The campaign ends after level 10 with `Level_11`, and add-ons end after level 5 with their `Level_06`.
-- `common_compaign.lgc` wins the level once no object 179 is left and no monster with side 1 is alive. Money paid after a level comes from `LevelMoney[]` in `common_table.lgc` (100, 100, 350, 1,000, 2,800, 5,500, 9,000, 18,000, 29,000 and 32,000), or `LevelMoneyAddon[]` and `LevelMoneyAddon2[]` in the add-ons (100, 850, 4,800, 10,000 and 18,000 for their five levels).
+- `common_compaign.lgc` wins the level once no object 179 is left and no monster with side 1 is alive. At the end of level N, `COMMON.LGC` pays `LevelMoney[N]` from `common_table.lgc`, or `LevelMoneyAddon[N]` and `LevelMoneyAddon2[N]` in the add-ons, and `LevelNumber` starts at 1. The campaign pays 100, 350, 1,000, 2,800, 5,500, 9,000, 18,000, 29,000 and 32,000 after levels 1 to 9 and nothing after level 10, and both add-ons pay 850, 4,800, 10,000 and 18,000 after levels 1 to 4. Entry 0 (100 in every table) is never paid, and a new game starts with 20 (`MAINMENU.LGC`).
 - `common_table.lgc` also holds the shop's tables, indexed by weapon slot (`WeaponPrice`, `AmmoPrice`, `GettingAmmo`) and by implant (`ItemPrice` for 720 to 731). Weapons 262 to 269 cost 200, 350, 1,000, 2,500, 4,800, 8,000, 15,800 and 25,400.
 - The cash pickup 241 adds 50 to `PlayerMoney` (`F241_0` in `ITEMS.LGC`). Ammo pickups 302 to 309 belong to weapons 262 to 269 in order.
 - Checkpoints are the `StartPlayerX/Y` values set by a trigger in `Level_NN.lgc`.
@@ -26,6 +26,7 @@ This covers what the toolkit's code does not say by itself, which is how the gam
 - `ACT_FLAGMAN_TRIGGER` (43, x, y, r) waits until the player is within r. `ACT_BUILD_UNIT` (35, id) builds a monster and `ACT_PAUSE` (40) waits between units. `ACT_STOP_STACK` (73) ends the stack. `ACT_MOVE` (33, x, y) entries are copied to the spawned units as waypoints, and the first one is their final destination.
 - `ACT_BUILD_UNIT` builds the monster at the spawner's own position. When the spot is taken the build fails and the entry is tried again on the next update. A monster that cannot walk off holds the spawner back. After a build, the entries below `ACT_STOP_STACK` are copied onto the new monster (`Action` case 0x4b in `FUN_00440830`).
 - Level 4's spawners at z 10 build endless generators (800, 801 and 803), which keep making monsters until a blast kills them. No other spawner of the originals builds one.
+- Unit 866, a tank-weapon boss tinted blue (gamma −255, −120, 90) like the other units from 856 to 867, appears only in level 10, where one spawner builds it once.
 - Most monsters in the originals come from spawners. Level 6 has 9 placed monsters and 462 spawned ones, and level 10 has 62 and 1,408.
 - One spawner of add-on 2 level 4 builds unit 3596 after its 30 tank monsters. objects.res has no 3596.
 - A crate (419) holds its loot in the item list of its payload, as (0, 1, item, 0) for one item or (0, 2, item, item, 0) for two. An empty crate is 12 zero bytes.
@@ -50,6 +51,8 @@ This covers what the toolkit's code does not say by itself, which is how the gam
 - Embedded doors stand open at z −66 to −72 (611) or −61 to −65 (617), stuck half open at −13 to −35, or shut at 0.
 - Every door of the campaign labs has at least one wall piece between it and the nearest wall junction along its line, and no two doorways stand closer than 119 px.
 - The floor tiles fit two origins half a cell apart, and the two swap the `/` and `\` slots. The wall pieces decide which origin a level uses.
+
+- Add-on 1 level 4 and add-on 2 level 5 lay the second lab wall set (620 to 622) over military floor 503, with no military wall at all.
 
 ### Military lattice
 

@@ -36,9 +36,9 @@ public class LayoutBuilderIntegrationTests
         for (int index = 0; index < LabLevels.Length; index++)
         {
             int level = LabLevels[index];
-            var target = references.GetTarget(level);
-            var original = RoomGraph.Build(target.OriginalSurvey);
-            var gate = CreateGate(target);
+            var reference = references.GetLevel(ReferenceLevelSet.GetCampaignName(level));
+            var original = RoomGraph.Build(reference.Survey);
+            var gate = CreateGate(reference);
             var rooms = new List<int>();
             var hubs = new List<int>();
             for (int seed = 1; seed <= 10; seed++)
@@ -80,10 +80,10 @@ public class LayoutBuilderIntegrationTests
         Assert.Empty(misses);
     }
 
-    private static GateRequest CreateGate(LevelTarget target) => target.Style switch
+    private static GateRequest CreateGate(ReferenceLevel reference) => reference.Measures.Style switch
     {
-        LevelStyle.LockedDoors => new GateRequest(GateKind.LockedDoors, target.LockedShare ?? 0.5f, 0),
-        LevelStyle.Blackout => new GateRequest(GateKind.Blackout, target.OriginalSurvey.Gates.First(gate => gate.Kind == LevelStyle.Blackout).GatedShare, 5200),
+        LevelStyle.LockedDoors => new GateRequest(GateKind.LockedDoors, reference.Analysis.Gating.LockedShare ?? 0.5f, 0),
+        LevelStyle.Blackout => new GateRequest(GateKind.Blackout, reference.Survey.Gates.First(gate => gate.Kind == LevelStyle.Blackout).GatedShare, 5200),
         _ => new GateRequest(GateKind.LockedDoors, 0.25f, 0, IsWing: true)
     };
 

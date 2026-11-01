@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Collections.Concurrent;
 using System.Numerics;
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Generation.Campaign;
 using ASToolkit.Core.Generation.Content;
 using ASToolkit.Core.Generation.Dressing;
 using ASToolkit.Core.Generation.Geometry;
@@ -21,10 +22,6 @@ namespace ASToolkit.Core.Generation;
 /// </summary>
 public sealed class LevelGenerator
 {
-    /// <summary>
-    /// Represents the number of levels in an add-on.
-    /// </summary>
-    public const int AddOnLevelCount = 5;
 
     private const float BreakerSceneReach = 130;
     private const int MaxLayouts = 8;
@@ -33,20 +30,17 @@ public sealed class LevelGenerator
     private const int BudgetSalt = 17;
     private const int ContentSalt = 101;
     private const int RoofSalt = 211;
+    private const int CampaignSalt = 307;
     private const int MaxBreakerRetries = 20;
     private const float GeneratorMargin = 0.04f;
     private const float FloorMiss = 0.15f;
     private static readonly (float Min, float Max) GeneratorBand = (0.08f, 0.3f);
     private const float BlackoutSearchPixels = 5200;
     private const int MaxPlanAttempts = 200;
-    private const int OwnProfileAttempts = 50;
     private const float GateClearance = 100;
     private const float SiteClearance = 150;
     private const float LaneClearance = 100;
     private const float LaneStep = 40;
-
-    // Campaign levels the add-on levels take their structure from
-    private static readonly int[][] AddOnSlots = [[1, 4, 5, 3, 9], [1, 5, 5, 8, 5]];
 
     private static readonly string[] AddOnLevels =
     [
@@ -61,6 +55,7 @@ public sealed class LevelGenerator
     private static readonly string[] AddOnMilitarySiteLevels = ["ADDON/Level_04.map", "ADDON/Level_05.map", "ADDON2/Level_04.map"];
 
     private readonly StyleModel _model;
+    private readonly CampaignPlanner _planner;
     private readonly string _gameFolder;
     private readonly ObjectTable _objects;
     private readonly ReferenceLevelSet _references;
@@ -79,7 +74,7 @@ public sealed class LevelGenerator
     private readonly Lazy<KeypadTable> _keypads;
     private readonly Lazy<LevelProfile[]> _labProfiles;
     private readonly Lazy<LevelProfile[]> _militaryProfiles;
-    private readonly ConcurrentDictionary<int, Lazy<OriginalLevel>> _originals = new();
+    private readonly ConcurrentDictionary<string, Lazy<OriginalLevel>> _originals = new();
     private readonly ConcurrentDictionary<(string Name, ThemeSettings Settings), Lazy<LevelProfile>> _profiles = new();
     private readonly ConcurrentDictionary<string, Lazy<EncounterProfile>> _encounters = new();
 
@@ -89,6 +84,7 @@ public sealed class LevelGenerator
     public LevelGenerator(string gameFolder, ObjectTable objects, ReferenceLevelSet references, StyleModel model)
     {
         _model = model;
+        _planner = new CampaignPlanner(model.Campaign);
         _gameFolder = gameFolder;
         _objects = objects;
         _references = references;
@@ -116,40 +112,21 @@ public sealed class LevelGenerator
     }
 
     /// <summary>
-    /// Returns the original map a generated level takes its other chunks from.
-    /// </summary>
-    public string GetTemplatePath(int level) => Path.Combine(_gameFolder, "Maps", ReferenceLevelSet.GetCampaignName(level));
-
-    /// <summary>
     /// Generates a level in one pass, drawing its layout again when the tour cannot reach every objective.
     /// </summary>
-    public GeneratedLevel Generate(int seed, int level) => Generate(seed, level, _references.GetTarget(level));
+    public GeneratedLevel Generate(int seed, int level)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(level, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(level, _model.Campaign.LevelCount);
+        var generated = Generate(seed, Plan(seed).Levels[level - 1]);
+        generated.AddOnNumber = _model.Style == GenerationStyle.AddOn ? level : null;
+        return generated;
+    }
 
     /// <summary>
-    /// Generates an add-on level, numbered 1 to 5. The seed's parity picks the add-on it follows. Level 1 is outdoor like that
-    /// add-on's level 1, and the others take their structure from the campaign level closest to that add-on's level, and their
-    /// monsters, pickups and design targets from that level, with the hit points of both add-ons' level on average. It needs
-    /// the generator to have been created in add-on style.
+    /// Draws the briefs of the campaign a seed generates.
     /// </summary>
-    public GeneratedLevel GenerateAddOn(int seed, int number)
-    {
-        if (_model.Style != GenerationStyle.AddOn)
-        {
-            throw new InvalidOperationException("The generator was not created in add-on style.");
-        }
-
-        ArgumentOutOfRangeException.ThrowIfLessThan(number, 1);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(number, AddOnLevelCount);
-        string[] names = [$"ADDON/Level_{number:00}.map", $"ADDON2/Level_{number:00}.map"];
-        int hitPoints = (int)MathF.Round(MathF.Sqrt(names.Aggregate(1.0f, (product, n) => product * Math.Max(1, _content.Value.GetLevel(n).HitPoints))));
-        int addOn = Math.Abs(seed) % 2;
-        int slot = AddOnSlots[addOn][number - 1];
-        var target = _references.GetTarget(slot, hitPoints, names[addOn]);
-        var level = Generate(seed, slot, target);
-        level.AddOnNumber = number;
-        level.Template = slot == 1 ? names[addOn] : $"ADDON/Level_{number:00}.map";
-        return level;
-    }
+    public CampaignPlan Plan(int seed) => _planner.Plan(new Random(unchecked(seed * SeedPrime + CampaignSalt)));
 
     /// <summary>
     /// Returns the original map a generated level takes its other chunks from.
@@ -157,12 +134,12 @@ public sealed class LevelGenerator
     public string GetTemplatePath(GeneratedLevel level) => Path.Combine(_gameFolder, "Maps", level.Template);
 
     // Build the level on the first layout whose objectives the tour reaches without secret walls or forced gates
-    private GeneratedLevel Generate(int seed, int level, LevelTarget target)
+    private GeneratedLevel Generate(int seed, LevelBrief brief)
     {
         GeneratedLevel best = null!;
         for (int layoutIndex = 0; layoutIndex < MaxLayouts; layoutIndex++)
         {
-            best = BuildAnalyzed(GetLayoutSeed(seed, level, layoutIndex), level, target);
+            best = BuildAnalyzed(GetLayoutSeed(seed, brief.Level, layoutIndex), brief);
             if (best.Theme == LevelTheme.Outdoor || best.Analysis?.FallbackUsage is { UsedSecretWalls: false, ForcedGates: false, Unreached: 0 })
             {
                 break;
@@ -175,7 +152,7 @@ public sealed class LevelGenerator
     // Hang the wall dressing and lay the gore of copied windows, furnish every room from its type's recipe away from the breaker and the
     // fence gates, stand the breaker's scene, mark the missiles and keep the floor joined
     private (PlacedDecor[] Decor, Dictionary<Cell, int> Blocked) Dress(Random rng, LevelTheme theme, LayoutPlan plan, FineLayout layout, MapBuilder map,
-        LevelOccupancy occupancy, IReadOnlySet<KnownObject> held, Func<KnownObject, IReadOnlyList<ObjectCompanion>> companionsOf, HashSet<Cell> floor, HashSet<Cell> keepClear, BreakerSpot? breaker, IReadOnlyDictionary<EdgeKey, EdgeKind> placedEdges, LevelTarget target,
+        LevelOccupancy occupancy, IReadOnlySet<KnownObject> held, Func<KnownObject, IReadOnlyList<ObjectCompanion>> companionsOf, HashSet<Cell> floor, HashSet<Cell> keepClear, BreakerSpot? breaker, IReadOnlyDictionary<EdgeKey, EdgeKind> placedEdges, LevelBrief brief,
         MapResourceBuilder originalMap, LevelModel original)
     {
         bool isLab = theme == LevelTheme.Lab;
@@ -195,7 +172,7 @@ public sealed class LevelGenerator
         (float corpseRate, float bloodRate) = MeasureGore(originalMap, original);
         RoomDecorator.Decorate(theme, plan, layout, decor, floor, keepClear, occupancy, _model.GetDecorHeights(theme), _model.GetFacings(theme), corpseRate, bloodRate);
         var furnisher = isLab ? _labFurnisher.Value : _militaryFurnisher.Value;
-        var (_, furniture) = furnisher.Furnish(rng, plan, layout, _references.GetAtlas(target.OriginalSurvey.Name), clear, occupancy, companionsOf, wallLattice, walls, _model.GetFacings(theme), _model.GetWallClearance(theme));
+        var (_, furniture) = furnisher.Furnish(rng, plan, layout, _references.GetAtlas(brief.DonorLevel), clear, occupancy, companionsOf, wallLattice, walls, _model.GetFacings(theme), _model.GetWallClearance(theme));
         decor.AddRange(furniture);
         RoomDecorator.MarkMissiles(rng, decor, _missileMarks.Value.Marks, _missileMarks.Value.Share, floor, keepClear, layout.Lattice);
         var placed = decor.ToArray();
@@ -281,43 +258,46 @@ public sealed class LevelGenerator
     private EncounterProfile GetEncounters(string name) =>
         _encounters.GetOrAdd(name, key => new Lazy<EncounterProfile>(() => EncounterProfile.Measure(_references.GetSurvey(key), _references.GetLevel(key).Analysis, _objects))).Value;
 
-    private OriginalLevel GetOriginal(int level) => _originals.GetOrAdd(level, l => new Lazy<OriginalLevel>(() => LoadOriginal(l))).Value;
+    // Write a level over its donor, or in add-on style over add-on 1's level of its number
+    private string GetTemplateName(LevelBrief brief) => _model.Style == GenerationStyle.AddOn ? $"ADDON/{ReferenceLevelSet.GetCampaignName(brief.Level)}" : brief.DonorLevel;
 
-    private OriginalLevel LoadOriginal(int level)
+    private OriginalLevel GetOriginal(string name) => _originals.GetOrAdd(name, key => new Lazy<OriginalLevel>(() => LoadOriginal(key))).Value;
+
+    private OriginalLevel LoadOriginal(string name)
     {
-        string name = ReferenceLevelSet.GetCampaignName(level);
         var reference = _references.GetLevel(name);
-        return new OriginalLevel(reference.Map, reference.Model, File.ReadAllBytes(GetTemplatePath(level)), LevelScriptWriter.ReadMusicLines(Path.Combine(_gameFolder, "Maps", Path.ChangeExtension(name, ".lgc"))));
+        return new OriginalLevel(reference.Map, reference.Model, File.ReadAllBytes(Path.Combine(_gameFolder, "Maps", name)),
+            LevelScriptWriter.ReadMusicLines(Path.Combine(_gameFolder, "Maps", Path.ChangeExtension(name, ".lgc"))));
     }
 
     // Analyze the level's route through its map and script bytes
     private GeneratedLevel Analyze(GeneratedLevel level)
     {
-        var map = MapResourceBuilder.Parse(level.Map.ToBytes(GetOriginal(level.Level).Template));
+        var map = MapResourceBuilder.Parse(level.Map.ToBytes(GetOriginal(level.Template).Template));
         var script = LevelScriptReader.Parse(LevelScriptWriter.Format(level.Script));
-        level.Analysis = RouteAnalyzer.Analyze(ReferenceLevelSet.GetCampaignName(level.Level), map, script, _objects);
+        level.Analysis = RouteAnalyzer.Analyze(level.Template, map, script, _objects);
         return level;
     }
 
     private static int GetLayoutSeed(int seed, int level, int layoutIndex) => seed * 100_000 + level * 100 + layoutIndex;
 
     // Draw the layout and structure from the layout seed, and the budget, the decor and content and the roof from streams of their own
-    private GeneratedLevel Build(int layoutSeed, int level, LevelTarget target, int? generatorRoom = null) =>
+    private GeneratedLevel Build(int layoutSeed, LevelBrief brief, int? generatorRoom = null) =>
         Build(new Random(layoutSeed), new Random(unchecked(layoutSeed * SeedPrime + BudgetSalt)), new Random(unchecked(layoutSeed * SeedPrime + ContentSalt)),
-            new Random(unchecked(layoutSeed * SeedPrime + RoofSalt)), level, target, generatorRoom);
+            new Random(unchecked(layoutSeed * SeedPrime + RoofSalt)), brief, generatorRoom);
 
     // Build and analyze a level, and build it again with its generator moved when the tour reaches the first one outside the originals' band,
     // keeping the build whose first generator falls nearer the band
-    private GeneratedLevel BuildAnalyzed(int layoutSeed, int level, LevelTarget target)
+    private GeneratedLevel BuildAnalyzed(int layoutSeed, LevelBrief brief)
     {
-        var built = Analyze(Build(layoutSeed, level, target));
-        int? generatorRoom = FindGeneratorRoom(built, target);
+        var built = Analyze(Build(layoutSeed, brief));
+        int? generatorRoom = FindGeneratorRoom(built, _references.GetSurvey(brief.DonorLevel));
         if (generatorRoom is null)
         {
             return built;
         }
 
-        var moved = Analyze(Build(layoutSeed, level, target, generatorRoom));
+        var moved = Analyze(Build(layoutSeed, brief, generatorRoom));
         return MeasureBandMiss(moved) <= MeasureBandMiss(built) ? moved : built;
     }
 
@@ -329,7 +309,7 @@ public sealed class LevelGenerator
 
     // Pick the generator room whose walk from the start, scaled by how the tour walked to the first generator, comes nearest the original's
     // share of the tour
-    private static int? FindGeneratorRoom(GeneratedLevel level, LevelTarget target)
+    private static int? FindGeneratorRoom(GeneratedLevel level, LevelSurvey donor)
     {
         var plan = level.Plan;
         var analysis = level.Analysis;
@@ -347,37 +327,34 @@ public sealed class LevelGenerator
 
         float walk = plan.GeneratorRooms.First(candidate => candidate.Room == key).WalkPixels;
         float routePerWalk = first.Progress * analysis.RoutePixels / Math.Max(1, walk);
-        float share = Math.Clamp(target.OriginalSurvey.Landmarks.Where(l => l.Kind == LandmarkKind.Generator).Select(l => l.Route / (float)Math.Max(1, target.OriginalSurvey.Signature.TourPixels))
+        float share = Math.Clamp(donor.Landmarks.Where(l => l.Kind == LandmarkKind.Generator).Select(l => l.Route / (float)Math.Max(1, donor.Signature.TourPixels))
             .DefaultIfEmpty(0).Min(), GeneratorBand.Min + GeneratorMargin, GeneratorBand.Max - GeneratorMargin);
         var best = plan.GeneratorRooms.MinBy(candidate => Math.Abs(candidate.WalkPixels * routePerWalk - share * analysis.RoutePixels));
         return best.Room == key ? null : best.Room.Id;
     }
 
-    private GeneratedLevel Build(Random layoutRng, Random budgetRng, Random contentRng, Random roofRng, int level, LevelTarget target, int? generatorRoom = null, int retries = 0)
+    private GeneratedLevel Build(Random layoutRng, Random budgetRng, Random contentRng, Random roofRng, LevelBrief brief, int? generatorRoom = null, int retries = 0)
     {
-        if (level == 1)
+        if (brief.Level == 1)
         {
-            return BuildOutdoor(layoutRng, target);
+            return BuildOutdoor(layoutRng, brief);
         }
 
-        var (originalMap, original, _, musicLines) = GetOriginal(level);
-        var theme = original.Theme;
+        var (originalMap, original, _, _) = GetOriginal(brief.DonorLevel);
+        string template = GetTemplateName(brief);
+        var donor = _references.GetLevel(brief.DonorLevel);
+        var theme = brief.Theme;
         var settings = theme == LevelTheme.Lab ? ThemeSettings.Lab : ThemeSettings.Military;
         int originalUnits = theme == LevelTheme.Lab ? original.Cells.Count : original.Cells.Count / 4;
-        var gate = ChooseGate(layoutRng, target, theme);
-        var budget = BudgetPlanner.Plan(budgetRng, level, target, _content.Value, _objects);
+        var gate = ChooseGate(layoutRng, brief, donor, theme);
+        int dynamiteSites = donor.Analysis.Elements.Count(element => element.Kind == ElementKind.DynamiteSite);
+        var budget = BudgetPlanner.Plan(budgetRng, brief, dynamiteSites, _content.Value, _objects);
         int spawnClosets = theme == LevelTheme.Lab ? Math.Min(6, budget.Ambushes.Count / 3) : 0;
         int shortcuts = theme == LevelTheme.Lab ? layoutRng.Next(3) : 0;
         LayoutPlan? plan = null;
-        var profile = GetProfile(_references.GetSurvey(ReferenceLevelSet.GetCampaignName(level)), settings);
-        var own = target.ContentLevel != ReferenceLevelSet.GetCampaignName(level) && target.OriginalSurvey.Theme == theme ? GetProfile(target.OriginalSurvey, settings) : null;
-        if (theme == LevelTheme.Lab && own is { Halls.Count: 0 } && gate is not { Kind: GateKind.Blackout, IsWing: false })
-        {
-            own = null;
-        }
-
+        var profile = GetProfile(donor.Survey, settings);
         var pool = theme == LevelTheme.Lab ? _labProfiles.Value : _militaryProfiles.Value;
-        var request = new LayoutRequest(gate, theme == LevelTheme.Lab ? target.SecretClosets : 0, spawnClosets, shortcuts, theme == LevelTheme.Military ? target.OriginalPens : 0);
+        var request = new LayoutRequest(gate, theme == LevelTheme.Lab ? brief.SecretClosets : 0, spawnClosets, shortcuts, theme == LevelTheme.Military && gate is not null ? CountPens(donor.Analysis, donor.Survey) : 0);
         // Draw again once with the floor scaled when the built rooms miss the original's room floor
         float floorScale = 1;
         bool rescaled = false;
@@ -385,17 +362,16 @@ public sealed class LevelGenerator
         {
             if (attempt == MaxPlanAttempts)
             {
-                throw new InvalidOperationException($"No layout for level {level}.");
+                throw new InvalidOperationException($"No layout for level {brief.Level}.");
             }
 
             int targetUnits = (int)(originalUnits * (0.9f + 0.15f * layoutRng.NextSingle()) * floorScale);
-            var source = own is not null && attempt < OwnProfileAttempts ? own : profile;
-            var drawn = source == own ? own.Sample(layoutRng, [own], targetUnits, gate.IsWing ? gate.Share : 0) : profile.Sample(layoutRng, pool, targetUnits, gate.IsWing ? gate.Share : 0);
+            var drawn = profile.Sample(layoutRng, pool, targetUnits, gate is { IsWing: true } ? gate.Share : 0);
             plan = LayoutBuilder.Build(layoutRng, drawn, request);
             float built = plan?.Regions.Where(region => region.Kind is RegionKind.Station or RegionKind.SideRoom or RegionKind.Wing or RegionKind.Pen).Sum(region => region.Units.Count) ?? 0;
-            if (plan is not null && !rescaled && MathF.Abs(built / source.Units - 1) > FloorMiss)
+            if (plan is not null && !rescaled && MathF.Abs(built / profile.Units - 1) > FloorMiss)
             {
-                floorScale = source.Units / built;
+                floorScale = profile.Units / built;
                 rescaled = true;
                 plan = null;
             }
@@ -463,7 +439,7 @@ public sealed class LevelGenerator
         
         if (breaker is null && plan.Gate is GateKind.LockedDoors or GateKind.Blackout && retries < MaxBreakerRetries)
         {
-            return Build(layoutRng, budgetRng, contentRng, roofRng, level, target, generatorRoom, retries + 1);
+            return Build(layoutRng, budgetRng, contentRng, roofRng, brief, generatorRoom, retries + 1);
         }
 
         var floor = layout.Cells.Keys.Where(c => !closetCells.Contains(c)).ToHashSet();
@@ -473,13 +449,13 @@ public sealed class LevelGenerator
         var held = originalMap.Sprites.Select(sprite => sprite.Id).ToHashSet();
         Func<KnownObject, IReadOnlyList<ObjectCompanion>> companionsOf = anchor => _model.Relations.GetCompanions(theme, anchor).Where(companion => held.Contains(companion.Id)).ToArray();
 
-        var encounters = GetEncounters(target.ContentLevel);
+        var encounters = GetEncounters(brief.DonorLevel);
 
         // Lay out the cannon and the sites before the decor
         PlacedSites? placedSites = null;
         if (theme == LevelTheme.Military)
         {
-            var early = new PlacementContext(contentRng, level, plan, layout, map, _objects, start, new HashSet<Cell>(), keepClear, occupancy, companionsOf);
+            var early = new PlacementContext(contentRng, brief, plan, layout, map, _objects, start, new HashSet<Cell>(), keepClear, occupancy, companionsOf);
             placedSites = ContentPlacer.PlaceMilitarySites(early, budget, _militarySites.Value, _cannonScenes.Value, encounters);
             var siteSpots = GetSiteSpots(map, layout.Lattice, placedSites);
             var siteCells = layout.Cells.Keys.Where(c => siteSpots.Any(spot => IsWithin(layout.Lattice, c, spot))).ToArray();
@@ -487,14 +463,14 @@ public sealed class LevelGenerator
             occupancy.Reserve(siteCells);
         }
 
-        var (decor, blocked) = Dress(contentRng, theme, plan, layout, map, occupancy, held, companionsOf, floor, keepClear, breaker, placedEdges, target, originalMap, original);
+        var (decor, blocked) = Dress(contentRng, theme, plan, layout, map, occupancy, held, companionsOf, floor, keepClear, breaker, placedEdges, brief, originalMap, original);
         foreach (var piece in decor)
         {
             (float x, float y) = layout.Lattice.ToWorld(piece.U, piece.V);
             map.Add(piece.Id, x, y, piece.Z, piece.Dir, piece.Payload, unique: false, source: piece.Origin);
         }
 
-        var context = new PlacementContext(contentRng, level, plan, layout, map, _objects, start, blocked.Keys.ToHashSet(), keepClear, occupancy, companionsOf);
+        var context = new PlacementContext(contentRng, brief, plan, layout, map, _objects, start, blocked.Keys.ToHashSet(), keepClear, occupancy, companionsOf);
         var player = startRoom
             .Where(c => !blocked.ContainsKey(c) && !layout.IsWalled(c))
             .OrderBy(c => Math.Abs(c.U - start.U) + Math.Abs(c.V - start.V))
@@ -507,30 +483,30 @@ public sealed class LevelGenerator
 
         var script = new LevelScript
         {
-            MusicLines = musicLines
+            MusicLines = GetOriginal(template).MusicLines
         };
         
-        ContentPlacer.Place(context, budget, target.HasCheckpoint, target.Style == LevelStyle.Blackout, script, breaker, theme == LevelTheme.Lab ? _labSites.Value : _militarySites.Value,
+        ContentPlacer.Place(context, budget, donor.Analysis.Checkpoints.Count > 0, brief.GateStyle == LevelStyle.Blackout, script, breaker, theme == LevelTheme.Lab ? _labSites.Value : _militarySites.Value,
             visibleEdges, placedEdges, spawnWalls, _keypads.Value, _model.GetFacings(theme), _cannonScenes.Value, encounters, placedSites);
         
         return new GeneratedLevel
         {
-            Level = level,
+            Level = brief.Level,
             Map = map.ToMap(new Vector2(Math.Max(0, px - 400), Math.Max(0, py - 300))),
             Script = script,
             Plan = plan,
             Layout = layout,
             Budget = budget,
-            Template = ReferenceLevelSet.GetCampaignName(level),
+            Template = template,
             Lattice = layout.Lattice,
             Theme = theme,
             Provenance = map.GetProvenance()
         };
     }
 
-    private GeneratedLevel BuildOutdoor(Random rng, LevelTarget target)
+    private GeneratedLevel BuildOutdoor(Random rng, LevelBrief brief)
     {
-        string name = target.ContentLevel;
+        string name = brief.DonorLevel;
         var style = name.StartsWith("ADDON2/", StringComparison.Ordinal) ? OutdoorStyle.City : name.StartsWith("ADDON/", StringComparison.Ordinal) ? OutdoorStyle.Compound : OutdoorStyle.Campaign;
         var original = _references.GetLevel(name);
         var music = LevelScriptWriter.ReadMusicLines(Path.Combine(_gameFolder, "Maps", Path.ChangeExtension(name, ".lgc")));
@@ -608,16 +584,28 @@ public sealed class LevelGenerator
         return keep;
     }
 
-    private static GateRequest ChooseGate(Random rng, LevelTarget target, LevelTheme theme) => target.Style switch
+    // Take the gated shares, the walk to the breaker and the generator's place on the tour from the donor, and leave an ungated military level open
+    private static GateRequest? ChooseGate(Random rng, LevelBrief brief, ReferenceLevel donor, LevelTheme theme) => brief.GateStyle switch
     {
-        LevelStyle.LockedDoors => new GateRequest(GateKind.LockedDoors, target.LockedShare ?? 0.5f, 0, WalkPixels: target.WalkToBreakerPixels ?? 0),
-        LevelStyle.Blackout => new GateRequest(GateKind.Blackout, target.OriginalSurvey.Gates.FirstOrDefault(g => g.Kind == LevelStyle.Blackout)?.GatedShare ?? 0, BlackoutSearchPixels),
-        LevelStyle.Fenced => new GateRequest(GateKind.Fences, target.FencedOffShare ?? 0.4f, 0,
-            KeyProgress: target.OriginalSurvey.Landmarks.Where(l => l.Kind == LandmarkKind.Generator).Select(l => l.Route / (float)Math.Max(1, target.OriginalSurvey.Signature.TourPixels)).DefaultIfEmpty(0).Min()),
-        _ => theme == LevelTheme.Military
-            ? new GateRequest(GateKind.Fences, 0.2f + 0.1f * rng.NextSingle(), 0, IsWing: true)
-            : ChooseLabWing(rng)
+        LevelStyle.LockedDoors => new GateRequest(GateKind.LockedDoors, donor.Analysis.Gating.LockedShare ?? 0.5f, 0, WalkPixels: GetWalkToBreaker(donor.Analysis)),
+        LevelStyle.Blackout => new GateRequest(GateKind.Blackout, donor.Survey.Gates.FirstOrDefault(g => g.Kind == LevelStyle.Blackout)?.GatedShare ?? 0, BlackoutSearchPixels),
+        LevelStyle.Fenced => new GateRequest(GateKind.Fences, donor.Analysis.Gating.FencedOffShare ?? 0.4f, 0,
+            KeyProgress: donor.Survey.Landmarks.Where(l => l.Kind == LandmarkKind.Generator).Select(l => l.Route / (float)Math.Max(1, donor.Survey.Signature.TourPixels)).DefaultIfEmpty(0).Min()),
+        _ => theme == LevelTheme.Military ? null : ChooseLabWing(rng)
     };
+
+    private static int GetWalkToBreaker(RouteAnalysis analysis) => analysis.Legs.Count > 0 && analysis.Legs[0].Phase == RoutePhase.DoorsLocked ? analysis.Legs[0].Pixels : 0;
+
+    // Count the places holding spawners that open on the rest of the level only through fences
+    private static int CountPens(RouteAnalysis analysis, LevelSurvey survey) => analysis.Elements
+        .Where(element => element.Kind == ElementKind.Spawner)
+        .Select(element => survey.FindPlace(element.X, element.Y))
+        .Distinct()
+        .Count(place =>
+        {
+            var links = survey.Connections.Where(connection => connection.A == place || connection.B == place).ToArray();
+            return links.Length > 0 && links.All(connection => connection.Kind == ConnectionKind.Fence);
+        });
 
     private static GateRequest ChooseLabWing(Random rng)
     {

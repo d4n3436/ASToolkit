@@ -1,6 +1,6 @@
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
-using ASToolkit.Core.Reference;
+using ASToolkit.Core.Generation.Campaign;
 
 namespace ASToolkit.Core.Generation.Content;
 
@@ -9,19 +9,17 @@ namespace ASToolkit.Core.Generation.Content;
 /// </summary>
 public static class BudgetPlanner
 {
-    private const float ItemJitter = 0.1f;
     private const float DensitySlack = 1.5f;
-    private static readonly HashSet<KnownObject> CampaignBosses = [KnownObject.Boss1, KnownObject.Boss2, KnownObject.Boss3, KnownObject.Boss4, KnownObject.TankBoss, KnownObject.RedTankWeaponBoss, KnownObject.PowerfulBoss3, KnownObject.DiverBoss, KnownObject.FinalMonster];
-    private static readonly HashSet<KnownObject> DroppedFromGroups = [KnownObject.Boss1, KnownObject.Boss4, KnownObject.PowerfulBoss3, KnownObject.RedTankWeaponBoss, KnownObject.TankBoss, KnownObject.Boss2];
+    private static readonly HashSet<KnownObject> CampaignBosses = [KnownObject.Boss1, KnownObject.Boss2, KnownObject.Boss3, KnownObject.Boss4, KnownObject.TankBoss, KnownObject.BlueTankWeaponBoss, KnownObject.PowerfulBoss3, KnownObject.DiverBoss, KnownObject.FinalMonster];
+    private static readonly HashSet<KnownObject> DroppedFromGroups = [KnownObject.Boss1, KnownObject.Boss4, KnownObject.PowerfulBoss3, KnownObject.BlueTankWeaponBoss, KnownObject.TankBoss, KnownObject.Boss2];
 
     /// <summary>
     /// Plans the budget of a level.
     /// </summary>
-    public static LevelBudget Plan(Random rng, int level, LevelTarget target, OriginalContentSet content, ObjectTable objects)
+    public static LevelBudget Plan(Random rng, LevelBrief brief, int dynamiteSites, OriginalContentSet content, ObjectTable objects)
     {
-        float hpTarget = target.HitPoints * (0.9f + 0.2f * rng.NextSingle());
-        var campaign = content.GetLevel(ReferenceLevelSet.GetCampaignName(level));
-        var pickupSource = content.GetLevel(target.ContentLevel);
+        float hpTarget = brief.HitPoints * (0.9f + 0.2f * rng.NextSingle());
+        var campaign = content.GetLevel(brief.DonorLevel);
         var sources = content.Levels
             .Where(l => l.HitPoints >= hpTarget / 3 && l.HitPoints <= hpTarget * 3)
             .ToArray();
@@ -35,7 +33,7 @@ public static class BudgetPlanner
                 .ToArray();
         }
 
-        int batCap = 2 * (level - 1);
+        int batCap = 2 * (brief.Level - 1);
         int bats = 0;
 
         var spawnerPool = sources
@@ -66,7 +64,7 @@ public static class BudgetPlanner
         rng.Shuffle(spawners);
         rng.Shuffle(groups);
 
-        float ambushChance = Math.Clamp(campaign.SpawnedShare, 0.5f, 0.95f);
+        float ambushChance = Math.Clamp(brief.SpawnedShare, 0.5f, 0.95f);
         var ambushes = new List<IReadOnlyList<KnownObject>>();
         var placed = new List<IReadOnlyList<GroupMember>>();
         int ambushHp = 0;
@@ -75,7 +73,7 @@ public static class BudgetPlanner
         int nextGroup = 0;
         for (int index = 0; ambushHp + placedHp < hpTarget && index < 5000; index++)
         {
-            bool ambush = spawners.Length > 0 && (groups.Length == 0 || (ambushHp < campaign.SpawnedShare * hpTarget && rng.NextSingle() < ambushChance));
+            bool ambush = spawners.Length > 0 && (groups.Length == 0 || (ambushHp < brief.SpawnedShare * hpTarget && rng.NextSingle() < ambushChance));
             int hp;
             if (ambush)
             {
@@ -122,40 +120,11 @@ public static class BudgetPlanner
 
         // Build plain monsters in place of endless generators
         ambushes = ambushes.Select(IReadOnlyList<KnownObject> (list) => list.Select(id => id.IsEndlessGenerator ? KnownObject.Monster1 : id).ToList()).ToList();
-        var items = new Dictionary<KnownObject, int>();
-        foreach ((var item, int count) in pickupSource.Pickups.Concat(pickupSource.CrateLoot).OrderBy(p => p.Key))
+        var items = brief.Pickups.ToDictionary();
+        if (dynamiteSites > 0)
         {
-            if (item == KnownObject.Dynamite || item.IsWeapon)
-            {
-                continue;
-            }
-
-            float n = count * (1 - ItemJitter + 2 * ItemJitter * rng.NextSingle());
-            int whole = (int)n + (rng.NextSingle() < n - (int)n ? 1 : 0);
-            for (int thirdIndex = 0; thirdIndex < whole; thirdIndex++)
-            {
-                var replaced = ItemSchedule.Replace(item, level, rng);
-                items[replaced] = items.GetValueOrDefault(replaced) + 1;
-            }
+            items[KnownObject.Dynamite] = dynamiteSites;
         }
-
-        foreach (var weapon in ItemSchedule.GetWeapons(level))
-        {
-            var ammo = ItemSchedule.GetAmmo(weapon);
-            items[ammo] = Math.Max(2, items.GetValueOrDefault(ammo));
-        }
-
-        if (target.DynamiteSites > 0)
-        {
-            items[KnownObject.Dynamite] = target.DynamiteSites;
-        }
-
-        var weapons = pickupSource.Pickups
-            .Concat(pickupSource.CrateLoot)
-            .Where(p => p.Key.IsWeapon)
-            .OrderBy(p => p.Key)
-            .SelectMany(p => Enumerable.Repeat(p.Key, p.Value))
-            .ToArray();
 
         return new LevelBudget
         {
@@ -164,8 +133,8 @@ public static class BudgetPlanner
             Ambushes = ambushes,
             Bosses = campaign.Bosses.Where(p => CampaignBosses.Contains(p.Key)).ToDictionary(p => p.Key, p => p.Value),
             Items = items,
-            Weapons = weapons.ToList(),
-            DynamiteSites = target.DynamiteSites,
+            Weapons = brief.Weapons.ToList(),
+            DynamiteSites = dynamiteSites,
             MountedCannons = campaign.MountedCannons,
             Generators = campaign.Generators,
             PlacedHitPoints = placedHp,

@@ -8,14 +8,17 @@ namespace ASToolkit.Core.Survey;
 /// </summary>
 public sealed class CampaignMeasurer
 {
-    private const int CashValue = 50;
+    /// <summary>
+    /// Represents the money a cash pickup holds.
+    /// </summary>
+    public const int CashValue = 50;
 
     private readonly IReadOnlyList<int> _endMoney;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CampaignMeasurer"/> class.
     /// </summary>
-    /// <param name="endMoney">The money the game gives at the end of each level, from level 1.</param>
+    /// <param name="endMoney">The money table of the campaign, indexed by the number of the level that ends.</param>
     public CampaignMeasurer(IReadOnlyList<int> endMoney) => _endMoney = endMoney;
 
     /// <summary>
@@ -63,7 +66,7 @@ public sealed class CampaignMeasurer
             {
                 Level = index + 1,
                 Map = survey.Name,
-                Theme = survey.Theme,
+                Theme = survey.Setting,
                 GateStyle = survey.Style,
                 HitPoints = hitPoints,
                 SpawnedShare = hitPoints == 0 ? 0 : spawned / (float)hitPoints,
@@ -73,11 +76,12 @@ public sealed class CampaignMeasurer
                 TourPixels = survey.Signature.TourPixels,
                 Sections = new SectionMeasurer(survey).Measure().Length,
                 Pickups = survey.Items.Where(item => item.Category is not null).GroupBy(item => item.Category!.Value).ToDictionary(group => group.Key, group => group.Count()),
+                Items = survey.Items.Where(item => item.Id.IsPickup).CountBy(item => item.Id).ToDictionary(),
                 Money = CashValue * survey.Items.Count(item => item.Id == KnownObject.Money),
                 Weapons = weapons,
                 NewWeapons = newWeapons,
                 NewWeaponsBeforeAmmo = newWeapons.Count(weapon => FindFirstRoute(survey, weapon) < FindFirstRoute(survey, weapon.WeaponAmmo!.Value)),
-                EndMoney = index < _endMoney.Count ? _endMoney[index] : 0
+                EndMoney = index + 1 < levels.Count && index + 1 < _endMoney.Count ? _endMoney[index + 1] : 0
             };
         }
 

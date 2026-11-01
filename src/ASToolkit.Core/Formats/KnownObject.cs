@@ -602,8 +602,8 @@ public enum KnownObject
     /// <summary>The tank monster used as a boss.</summary>
     TankBoss = 863,
 
-    /// <summary>The red tank-weapon monster used as a boss.</summary>
-    RedTankWeaponBoss = 866,
+    /// <summary>The blue tank-weapon monster used as a boss.</summary>
+    BlueTankWeaponBoss = 866,
 
     /// <summary>The more powerful boss of level 3.</summary>
     PowerfulBoss3 = 867,

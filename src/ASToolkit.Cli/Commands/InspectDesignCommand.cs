@@ -5,6 +5,7 @@ using ASToolkit.Cli.Analysis;
 using ASToolkit.Core.Design;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Generation;
+using ASToolkit.Core.Generation.Campaign;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Rendering;
 using ASToolkit.Core.Reference;
@@ -33,6 +34,8 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         ("Campaign", "", "LevelMoney", 10), ("Add-on 1", "ADDON/", "LevelMoneyAddon", 5), ("Add-on 2", "ADDON2/", "LevelMoneyAddon2", 5)
     ];
 
+    private const int PlannedCampaigns = 100;
+
     private static readonly string[] Prices = ["WeaponPrice", "AmmoPrice", "ItemPrice", "GettingAmmo"];
 
     private static readonly KnownObject[] TallFurniture = [KnownObject.Cabinet, KnownObject.Table, KnownObject.Shelves, KnownObject.BigComputer];
@@ -47,7 +50,7 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         var references = settings.Seeds > 0 || settings.LeaveOneOut
             ? AnsiConsole.Status().Start("Analyzing the original levels", _ => ReferenceLevelSet.Load(settings.Game, objects))
             : null;
-        var fitter = new StyleFitter(objects);
+        var fitter = new StyleFitter(objects, GameTable.Load(Path.Combine(settings.Game, "Maps", "common_table.lgc")));
         var (generated, provenance, _) = references is null
             ? ([], [], [])
             : Generate(new LevelGenerator(settings.Game, objects, references, fitter.Fit(references, GenerationStyle.Campaign)), settings.Out, settings.Seeds, false, cancellationToken);
@@ -72,7 +75,11 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
             WriteProvenance(settings, generated.Select(entry => entry.Name).ToArray(), provenance);
         }
 
-        WriteCampaigns(settings, loader, all.Select(entry => entry.Name).Zip(levels).Where(pair => pair.Second is not null).ToDictionary(pair => pair.First, pair => pair.Second!.Survey));
+        var styles = references is null
+            ? []
+            : new[] { GenerationStyle.Campaign, GenerationStyle.AddOn }.Select(style => (Style: style, Model: fitter.Fit(references, style).Campaign)).ToArray();
+
+        WriteCampaigns(settings, loader, all.Select(entry => entry.Name).Zip(levels).Where(pair => pair.Second is not null).ToDictionary(pair => pair.First, pair => pair.Second!.Survey), styles);
         var campaignLevels = levels.Take(campaign.Count).OfType<ReferenceLevel>().ToArray();
         var addOnLevels = levels.Skip(campaign.Count).Take(addOns.Count).OfType<ReferenceLevel>().ToArray();
         var generatedLevels = levels.Skip(campaign.Count + addOns.Count).OfType<ReferenceLevel>().ToArray();
@@ -217,7 +224,7 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
             try
             {
                 var level = generator.Generate(jobs[index].Seed, jobs[index].Level);
-                level.Write(levels[index].Path, generator.GetTemplatePath(jobs[index].Level));
+                level.Write(levels[index].Path, generator.GetTemplatePath(level));
                 provenance[index] = level.Provenance;
             }
             catch (Exception exception) when (skipsFailures)
@@ -593,7 +600,7 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         File.WriteAllText(Path.Combine(settings.Out, "provenance.md"), text.ToString());
     }
 
-    private static void WriteCampaigns(InspectDesignSettings settings, LevelLoader loader, Dictionary<string, LevelSurvey> surveys)
+    private static void WriteCampaigns(InspectDesignSettings settings, LevelLoader loader, Dictionary<string, LevelSurvey> surveys, IReadOnlyList<(GenerationStyle Style, CampaignModel Model)> styles)
     {
         var table = GameTable.Load(Path.Combine(settings.Game, "Maps", "common_table.lgc"));
         var text = new StringBuilder();
@@ -632,6 +639,11 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
             text.AppendLine();
         }
 
+        foreach ((var style, var model) in styles)
+        {
+            WriteCampaignModel(text, style, model);
+        }
+
         text.AppendLine("## Prices");
         text.AppendLine();
         foreach (string name in Prices)
@@ -640,6 +652,77 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         }
 
         File.WriteAllText(Path.Combine(settings.Out, "campaign.md"), text.ToString());
+    }
+
+    private static void WriteCampaignModel(StringBuilder text, GenerationStyle style, CampaignModel model)
+    {
+        text.AppendLine($"## {style} model");
+        text.AppendLine();
+        text.AppendLine("| parameter | value | samples | backed off |");
+        text.AppendLine("|---|---|---|---|");
+        var lines = new (string Name, FittedValue<LinearFit> Fit)[]
+        {
+            ("ln hit points", model.HitPoints), ("log-odds of the spawned share", model.SpawnedShare), ("ln floor (px²)", model.FloorPixels), ("ln end money, by ln level", model.EndMoney),
+            ("weapon first level by price rank", model.WeaponLevels), ("repeated weapons", model.RepeatedWeapons), ("secret closets per Mpx² of lab walls", model.SecretClosets)
+        }.Concat(model.PickupRates.Select(pair => ($"{pair.Key} per Mpx²", pair.Value)))
+            .Concat(model.PickupShares.Select(pair => ($"{pair.Key} share of its category", pair.Value)));
+
+        foreach ((string name, var fit) in lines)
+        {
+            text.AppendLine($"| {name} | {Format(fit.Value.Intercept)} + {Format(fit.Value.Slope)} × level ± {Format(fit.Value.Spread)} | {fit.Samples} | {(fit.IsBackedOff ? "flat" : "")} |");
+        }
+
+        text.AppendLine($"| lab share | {Format(model.LabShare.Value)} | {model.LabShare.Samples} | |");
+        text.AppendLine($"| affordability | {Format(model.Affordability.Value)} | {model.Affordability.Samples} | |");
+        text.AppendLine($"| ammo by age (next, newest, older) | {string.Join(", ", model.AmmoAges.Value.Select(share => Format(share)))} | {model.AmmoAges.Samples} | |");
+        foreach ((var theme, var gates) in model.Gates.OrderBy(pair => pair.Key))
+        {
+            text.AppendLine($"| {theme} gates | {string.Join(", ", gates.Value.Select(gate => $"{gate.GateStyle} {Format(gate.Share)}"))} | {gates.Samples} | |");
+        }
+
+        text.AppendLine();
+        var planner = new CampaignPlanner(model);
+        var plans = Enumerable.Range(1, PlannedCampaigns)
+            .Select(seed => planner.Plan(new Random(seed)).Levels)
+            .ToArray();
+
+        text.AppendLine($"Medians of {PlannedCampaigns} planned campaigns, with the fitted line of the hit points:");
+        text.AppendLine();
+        text.AppendLine("| level | lab share | commonest gate | hit points | line | spawned share | floor (px²) | secret closets | health | armor | ammo | cash | weapons | end money | commonest donor |");
+        text.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+        for (int index = 1; index < model.LevelCount; index++)
+        {
+            var briefs = plans.Select(plan => plan[index]).ToArray();
+            int CountOf(LevelBrief brief, ItemCategory category) => brief.Pickups.Where(pair => pair.Key.PickupCategory == category).Sum(pair => pair.Value);
+            text.AppendLine($"| {index + 1} | {Format(briefs.Count(brief => brief.Theme == LevelTheme.Lab) / (float)briefs.Length)} | {briefs.CountBy(brief => brief.GateStyle).MaxBy(pair => pair.Value).Key} | "
+                + $"{Format(Median(briefs.Select(brief => brief.HitPoints)))} | {Format((int)MathF.Exp(model.HitPoints.Value.Evaluate(index + 1)))} | {Format(Median(briefs.Select(brief => brief.SpawnedShare)))} | "
+                + $"{Format(Median(briefs.Select(brief => brief.FloorPixels)))} | {Format(Median(briefs.Select(brief => brief.SecretClosets)))} | {Format(Median(briefs.Select(brief => CountOf(brief, ItemCategory.Health))))} | "
+                + $"{Format(Median(briefs.Select(brief => CountOf(brief, ItemCategory.Armor))))} | {Format(Median(briefs.Select(brief => CountOf(brief, ItemCategory.Ammo))))} | "
+                + $"{Format(Median(briefs.Select(brief => CountOf(brief, ItemCategory.Money) * model.CashValue)))} | {Format(Median(briefs.Select(brief => brief.Weapons.Count)))} | "
+                + $"{Format(Median(briefs.Select(brief => brief.EndMoney)))} | "
+                + $"{briefs.CountBy(brief => brief.DonorLevel).MaxBy(pair => pair.Value).Key} |");
+        }
+
+        text.AppendLine();
+        text.AppendLine("| weapon | price | first level, median of the campaigns that bring it | campaigns that bring it |");
+        text.AppendLine("|---|---|---|---|");
+        foreach (var weapon in model.Weapons)
+        {
+            int[] firsts = plans
+                .Select(plan => plan.FirstOrDefault(brief => brief.NewWeapons.Contains(weapon))?.Level ?? 0)
+                .Where(level => level > 0)
+                .ToArray();
+
+            text.AppendLine($"| {weapon} | {Format(model.WeaponPrices[weapon])} | {Format(Median(firsts))} | {firsts.Length} |");
+        }
+
+        text.AppendLine();
+    }
+
+    private static int? Median(IEnumerable<int> values)
+    {
+        int[] sorted = values.Order().ToArray();
+        return sorted.Length == 0 ? null : sorted[sorted.Length / 2];
     }
 
     private static int CountBigSections(LevelSection[] sections) => sections.Count(section => section.FloorShare >= SectionMeasurer.MajorShare);

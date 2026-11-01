@@ -176,20 +176,23 @@ The rules agree with a k-medoids clustering (k = 5, eight standardized features)
 
 ### Campaign curves
 
-`ascli inspect design` writes these per-level curves of the campaign and both add-ons to `campaign.md`. Hit points count standing and spawned monsters, money counts the cash pickups at 50 each, and end money comes from the level money tables of `common_table.lgc`.
+`ascli inspect design` writes these per-level curves of the campaign and both add-ons to `campaign.md`. Hit points count standing and spawned monsters, money counts the cash pickups at 50 each, and end money is what the level money tables of `common_table.lgc` pay at the end of the level, nothing after the last.
 
 | level | campaign hit points | spawned | end money | add-on 1 hit points | end money | add-on 2 hit points | end money |
 |---|---|---|---|---|---|---|---|
-| 1 | 0 | 0 | 100 | 564 | 100 | 7,852 | 100 |
-| 2 | 336 | 0 | 100 | 7,958 | 850 | 52,910 | 850 |
-| 3 | 1,682 | 0.14 | 350 | 60,409 | 4,800 | 115,556 | 4,800 |
-| 4 | 6,526 | 0.66 | 1,000 | 243,363 | 10,000 | 909,459 | 10,000 |
-| 5 | 21,261 | 0.89 | 2,800 | 331,465 | 18,000 | 1,043,200 | 18,000 |
-| 6 | 27,894 | 0.95 | 5,500 | | | | |
-| 7 | 52,923 | 0.94 | 9,000 | | | | |
-| 8 | 197,861 | 0.87 | 18,000 | | | | |
-| 9 | 1,036,618 | 0.88 | 29,000 | | | | |
-| 10 | 745,142 | 1.00 | 32,000 | | | | |
+| 1 | 0 | 0 | 100 | 564 | 850 | 7,852 | 850 |
+| 2 | 336 | 0 | 350 | 7,958 | 4,800 | 52,910 | 4,800 |
+| 3 | 1,682 | 0.14 | 1,000 | 60,409 | 10,000 | 115,556 | 10,000 |
+| 4 | 6,526 | 0.66 | 2,800 | 243,363 | 18,000 | 909,459 | 18,000 |
+| 5 | 21,261 | 0.89 | 5,500 | 331,465 | 0 | 1,043,200 | 0 |
+| 6 | 27,894 | 0.95 | 9,000 | | | | |
+| 7 | 52,923 | 0.94 | 18,000 | | | | |
+| 8 | 197,861 | 0.87 | 29,000 | | | | |
+| 9 | 1,036,618 | 0.88 | 32,000 | | | | |
+| 10 | 745,142 | 1.00 | 0 | | | | |
+
+- Every campaign puts its lab levels before its military ones. The theme is the floor's. Add-on 1 level 4 and add-on 2 level 5 lay lab walls on military floor (see [NOTES.md](NOTES.md#lab-lattice)), and both add-ons run lab at levels 2 and 3 and military at 4 and 5.
+- Every campaign brings its weapons in shop-price order, except the campaign's plasma rifle in a level 4 spawn closet, a level before the rocket launcher.
 
 - The add-ons are shorter and harder. Each covers the campaign's arc of monsters, weapons and money in 5 levels. Add-on 1 passes the hit points of campaign level 8 at its level 4, and add-on 2 those of campaign level 10 at its level 4.
 - The campaign brings in about one weapon a level from level 2 to 10. Add-on 1 hands out four at its level 2, and add-on 2 seven by its level 3.
@@ -476,7 +479,7 @@ Generated levels keep blocking floor pieces and monitors off doorways, stand no 
 
 ## Overview
 
-A generated level replaces one campaign level from 1 to 10. Levels 2 to 10 take the original's theme (lab or military), its gate style and its measured targets, and are built around a main route that meets them. Level 1 is an outdoor level built after the original level 1 ([Level 1](#level-1-1)). Every level is built once, each step keeping its own guarantees, and read back with the same route analysis that measures the originals. A layout whose tour cannot reach every objective is drawn again.
+A generated level is one level of a campaign drawn from the style's campaign model. Levels 2 and later take the theme, gate style, hit points, pickups and weapons of their brief and the rest from a donor original, and are built around a main route that meets them. Level 1 is an outdoor level built after the original level 1 ([Level 1](#level-1-1)). Every level is built once, each step keeping its own guarantees, and read back with the same route analysis that measures the originals. A layout whose tour cannot reach every objective is drawn again.
 
 ```
  ascli generate / ascli preview
@@ -489,7 +492,7 @@ A generated level replaces one campaign level from 1 to 10. Levels 2 to 10 take 
         |
         v
  LevelGenerator.Generate
-   level target from ReferenceLevelSet.GetTarget
+   level brief from CampaignPlanner.Plan
         |
         v
  +-- each layout k until the tour reaches every objective, at most 8 ----------+
@@ -530,11 +533,11 @@ A level draws from four `Random` streams. The layout seed drives the gate, the l
 
 `LevelGenerator` builds its sources once, on first use, and shares them across levels. Each one comes from the reference levels, which `ReferenceLevelSet.Load` reads and analyzes once, except the sprites and the template bytes, which are read from the game folder.
 
-A generator follows one `GenerationStyle`. `StyleFitter.Fit` fits a `StyleModel` to the style's fitting levels, campaign levels 1 to 10 in campaign style and every original in add-on style, and the generator takes its theme decor, wall clearance, facings and object relations from it. The content pool, recipes, dressing libraries, profiles, breaker scenes, missile marks and dynamite sites draw only on the fitting levels other than campaign level 1. `StyleFitter.Fit` can leave originals out. `ascli inspect design --leave-one-out` refits and regenerates without each campaign original in turn and writes `leave-one-out.md`.
+A generator follows one `GenerationStyle`. `StyleFitter.Fit` fits a `StyleModel` to the style's fitting levels, campaign levels 1 to 10 in campaign style and every original in add-on style, and the generator takes its campaign model, theme decor, wall clearance, facings and object relations from it. The content pool, recipes, dressing libraries, profiles, breaker scenes, missile marks and dynamite sites draw only on the fitting levels other than campaign level 1. `StyleFitter.Fit` can leave originals out. `ascli inspect design --leave-one-out` refits and regenerates without each campaign original in turn and writes `leave-one-out.md`.
 
 | source | built by | from | read by |
 |---|---|---|---|
-| level targets | `ReferenceLevelSet.Load` | route analysis and measures of every campaign and add-on level | `GetTarget`, every stage |
+| campaign model | `CampaignFitter.Fit` | the campaign measurements of the style's own campaigns and the shop and money tables | `CampaignPlanner` |
 | theme decor | `StyleModel.GetDecorHeights` | decor ids and heights of the fitting levels | dressing filter |
 | wall clearance | `WallClearanceTable.Build` | distance of each decor object to the nearest wall in the fitting levels | dressing, breaker props |
 | facings | `FacingTable.Build` | the directions the fitting levels give decor against each wall side | dressing, boss props |
@@ -546,7 +549,7 @@ A generator follows one `GenerationStyle`. `StyleFitter.Fit` fits a `StyleModel`
 | breaker scenes | `OriginalContent.LoadBreakerScenes` | props within 170 px of the breakers of levels 2 to 4 | `ChooseBreakerSpot` |
 | dynamite sites | `OriginalContent.LoadDynamiteSites` | 179 markers with their pads, holes and endless generators, levels 3 and 4 (lab) and 7 to 9 (military), plus add-on levels in add-on style | `PlaceSites` |
 | keypads | `KeypadTable.Load` | keypad offsets next to each door kind and direction | structure, `PlaceGate` |
-| original map | `LevelGenerator.GetOriginal` | the replaced campaign map, its cell model and its music lines | theme, unit count, dressing, script |
+| original map | `LevelGenerator.GetOriginal` | the donor's map, its cell model and its music lines | unit count, dressing, script |
 | armies | `ArmyTable.Load` | the most common army of each object id in campaign levels 2 to 10 and the add-on levels | `MapBuilder.Add` |
 
 ## Coordinates
@@ -606,26 +609,53 @@ Every stage describes edges with `EdgeKind`. `FineLayout` holds the generated wa
 
 ## Target and budget
 
-### Level target
+### Campaign plan
 
-`ReferenceLevelSet.GetTarget` returns a `LevelTarget` measured from the campaign level being replaced, with its style, gate shares, walk to the breaker, dynamite sites, secret closets, checkpoint, weapons, pens and survey.
+`CampaignFitter.Fit` fits a `CampaignModel` to the style's own campaigns, the campaign in campaign style and both add-ons in add-on style. Levels 2 and later give the curves, by level number. A line takes 8 samples or more, and with fewer it is flat at the mean (`FittedValue.IsBackedOff`). A campaign fit never takes an add-on sample.
 
-| target | source |
+| parameter | form | campaign | add-ons |
+|---|---|---|---|
+| hit points | ln, a line by level | 4.51 + 0.96 × level ± 0.53 | 7.77 + 1.18 × level ± 0.87 |
+| spawned share | log-odds, a line by level | −3.43 + 0.76 × level ± 1.45 | 2.62 − 0.32 × level ± 1.27 |
+| floor | ln of square pixels, a line by level | 14.44 + 0.17 × level ± 0.37 | 15.91 + 0.00 × level ± 0.30 |
+| end money | ln, a line by ln of the level, levels 1 to the last but one | 4.20 + 2.79 × ln level ± 0.27 | 6.81 + 2.20 × ln level ± 0.10 |
+| lab share | share of levels 2 and later with lab floor | 0.44 | 0.50 |
+| gate styles | share per theme, in the order the campaigns introduce them | lab locked doors 0.5, blackout 0.25, ungated 0.25; military fenced | lab ungated 0.75, blackout 0.25; military ungated 0.75, fenced 0.25 |
+| weapons | first level by place in the price order, a line | 0.64 + 1.02 × rank ± 1.38 | 0.43 + 0.46 × rank ± 0.56 |
+| affordability | least share of a new weapon's price the end money and cash of the levels before it reach | 0.53 | 0.26 |
+| repeated weapons | pickups of older weapons, a line by level | 1.18 − 0.07 × level ± 1.15 | 0.8 + 0.2 × level ± 1.81 |
+| pickups | count per million square pixels of floor for health, armor, ammunition, cash, implants and bonuses, a line by level each | cash 12.5 − 1.40 × level | cash 8.6 − 1.37 × level |
+| pickup ids | share of each health, armor, implant and bonus id in its category, a line by level each | | |
+| ammunition | share by the age of its weapon, the next weapon first, then the newest | 0.09, 0.31, 0.08, 0.15, 0.19, 0.04, 0.15 | 0.04, 0.30, 0.18, 0.21, 0.14, 0.14 |
+| secret closets | count per million square pixels of floor on lab walls, flat | 1.38 ± 0.42 (4 levels) | 0.43 ± 0.39 (6 levels) |
+
+`CampaignPlanner.Plan` draws a `CampaignPlan` of one `LevelBrief` per level, 10 in campaign style and 5 in add-on style. `LevelGenerator.Plan` draws it from the seed, and every level of a seed belongs to the same campaign.
+
+- **Themes.** The lab levels come first, as many as the lab share of levels 2 and later gives, one more or one fewer at random, with at least one level of each theme.
+- **Gates.** Each level draws a gate style from its theme's shares, and the drawn styles of each theme run in the order the campaigns introduce them, locked doors before blackout before ungated in the campaign's labs.
+- **Hit points and end money.** Each level draws one value around the line, and the values are handed out from the lowest, neither falling from one level to the next. The last level pays nothing.
+- **Size and counts.** Each level draws its floor, its spawned share, its pickup counts per category and, on lab walls, its secret closets.
+- **Weapons.** One level is drawn around the line for each place in the price order, and the sorted levels go to the weapons from the cheapest. A weapon comes no earlier than the level whose end money and cash before it reach the affordability share of its price, level 1's cash being its original's. A weapon whose level passes the last does not come. Each level also takes repeated pickups of older weapons.
+- **Pickup ids.** Health, armor, implants and bonuses take ids by the share lines at the level, and ammunition takes its weapon by age over the weapons so far and the next one.
+- **Donor.** Each level after the first names the campaign original of its theme nearest in log hit points, of the same gate style when there is one (`LevelBrief.DonorLevel`). Level 1 copies one of the style's first-level originals.
+
+The layout builder lays out only campaign profiles. The donors are campaign levels 2 to 10 in both styles, and the planned floor waits for the section layout. Until then the brief and the donor share the level.
+
+| from the brief | from the donor |
 |---|---|
-| `HitPoints` | the original's monster hit points times `HitPointFactor` (1.15) |
-| `ContentLevel` | the level whose pickups and weapons the generated level copies, the original by default |
+| theme and gate style, hit points and spawned share, secret closets, weapons and the closets' choice of new weapons, pickups, end money in the installed table | layout profile and floor units, gate shares, walk to the breaker and the generator's place, dynamite sites, checkpoint, pens, bosses, mounted cannons, fence generators, monster pools by spawner density, fights, pickup styles, room atlas, dressing, gore, door marks, template map and music |
 
 ### Gate request
 
-`LevelGenerator.ChooseGate` turns the target's style into a `GateRequest`.
+`LevelGenerator.ChooseGate` turns the brief's gate style into a `GateRequest`, with the shares and walks of the donor.
 
 | style | gate | share behind the gate | notes |
 |---|---|---|---|
-| `LockedDoors` | locked doors | the original's locked share, or 0.5 | |
+| `LockedDoors` | locked doors | the donor's locked share, or 0.5 | |
 | `Blackout` | blackout | 0 | `SearchPixels` 5,200, the walk from the trigger to the breaker |
-| `Fenced` | fences | the original's fenced-off share, or 0.4 | |
+| `Fenced` | fences | the donor's fenced-off share, or 0.4 | |
 | `Ungated`, lab | locked doors or blackout, at random | 0.2 to 0.3 | `IsWing`, a gated branch off the route; a blackout has `SearchPixels` 5,200 |
-| `Ungated`, military | fences | 0.2 to 0.3 | `IsWing` |
+| `Ungated`, military | none | | |
 
 A wing gate closes a side branch and leaves the main route open.
 
@@ -633,33 +663,31 @@ A wing gate closes a side branch and leaves the main route open.
 
 `BudgetPlanner.Plan` returns the `LevelBudget`, the monsters, pickups and counts the content stage places.
 
-1. **Hit points.** The aim is the target's hit points times 0.9 to 1.1.
+1. **Hit points.** The aim is the brief's hit points times 0.9 to 1.1.
 2. **Source levels.** Original levels (the campaign, plus the add-ons in add-on style) whose hit points lie within a third and three times the aim. When fewer than two qualify, the three closest on a log scale.
-3. **Pools.** Spawner lists from the sources worth at most 22% of the aim, and placed groups worth at most 12%. When none is small enough, the whole pool is used. Spawner lists then keep to those with 1/1.5 to 1.5 times as many monsters per hit point as the replaced level's own lists, when any does. Both pools are shuffled.
-4. **Drawing.** Until the aim is reached, each draw is an ambush while the ambushes hold less than the replaced level's spawned share of the aim, with that share as the chance (at least 0.5, at most 0.95), otherwise a placed group. A level whose original spawns nothing gets placed groups only. Pools are taken in order and wrap around.
+3. **Pools.** Spawner lists from the sources worth at most 22% of the aim, and placed groups worth at most 12%. When none is small enough, the whole pool is used. Spawner lists then keep to those with 1/1.5 to 1.5 times as many monsters per hit point as the donor's own lists, when any does. Both pools are shuffled.
+4. **Drawing.** Until the aim is reached, each draw is an ambush while the ambushes hold less than the brief's spawned share of the aim, with that share as the chance (at least 0.5, at most 0.95), otherwise a placed group. A level whose brief spawns nothing gets placed groups only. Pools are taken in order and wrap around.
 5. **Cleaning.** Divers become red tank-weapon monsters, the diver boss and the bosses in `DroppedFromGroups` are dropped from groups and ambushes, and bats are capped at 2 × (level − 1).
-6. **Boss ambushes.** Spawner lists of the replaced level that contain a campaign boss are added as they are.
+6. **Boss ambushes.** Spawner lists of the donor that contain a campaign boss are added as they are.
 7. **Endless generators.** Every endless generator (800 to 814) in an ambush list becomes a monster 50.
 8. **Opening group.** When the draws give the level no placed group, it gets the smallest of the pool.
-9. **Items.** The content level's floor pickups and crate loot, each count varied by up to 10% and each item passed through `ItemSchedule.Replace`, which swaps an item the campaign has yet to introduce for an allowed one. Weapons and dynamite are left out here. Every weapon allowed on the level gets at least 2 of its ammunition, and dynamite equals the target's site count.
-10. **Weapons.** The content level's weapons, loose and in crates, kept in a separate list for `PlaceWeapons` and the closets.
-11. **Counts.** Bosses, mounted cannons and fence generators are the replaced level's.
-
-`ItemSchedule` holds the first level of every pickup, the stash shares of secret closets and the weapon to ammunition mapping (ammo id is weapon id + 40).
+9. **Items.** The brief's pickups, and one dynamite for each of the donor's dynamite sites.
+10. **Weapons.** The brief's weapons, kept in a separate list for `PlaceWeapons` and the closets.
+11. **Counts.** Bosses, mounted cannons and fence generators are the donor's.
 
 ## Layout plan
 
 A `LayoutPlan` lies on the unit grid and holds `PlanRegion`s of one or more rectangles joined by `PlanLink`s, each region with a `RegionKind` and each link with a `LinkKind`. The roles are drawn first, and every edge between them is laid as a contact. The roles come from an original's survey (`LevelProfile`), the counts and areas are drawn around them (`LevelProfile.Sample`), and `LayoutBuilder.Build` places the rooms with three primitives, a row packed along a side of a hall, a block that divides one rectangle into rooms, and a chain grown outward. A contact the graph did not ask for stays a wall. Labs and military levels go through the same builder, each in its own units.
 
-`LevelGenerator.Build` draws a profile and builds it, up to 200 times, with a new floor target each time (the original's floor times 0.9 to 1.05). After that it throws "No layout for level N". When the first built plan's rooms miss the original's room floor by more than 15%, it draws again with the target scaled by the miss.
+`LevelGenerator.Build` draws a profile and builds it, up to 200 times, with a new floor target each time (the donor's floor times 0.9 to 1.05). After that it throws "No layout for level N". When the first built plan's rooms miss the original's room floor by more than 15%, it draws again with the target scaled by the miss.
 
 | input | labs | military |
 |---|---|---|
 | unit | one lab cell, 2,240 px², sides of 48.8 px | 2 by 2 military cells, 11,520 px², sides of 110 px |
-| secret closets | the original's count | none |
+| secret closets | the brief's count | none |
 | spawn closets | the number of ambushes / 3, at most 6 | none |
 | shortcuts | 0 to 2 | none |
-| pens | none | the original's (level 10 has 8) |
+| pens | none | the donor's when the level has a gate (level 10 has 8) |
 
 ### Profile
 
@@ -878,7 +906,7 @@ On military levels `PlaceMilitarySites` places the cannon and the sites before t
 
 ### Content by role
 
-`EncounterProfile` reads the content level's original by the roles (`RoomRoleMap`) and gate zones of its rooms:
+`EncounterProfile` reads the donor by the roles (`RoomRoleMap`) and gate zones of its rooms:
 
 | member | what it holds |
 |---|---|
@@ -949,9 +977,9 @@ Sites stay clear of solid and tall decor through `LevelOccupancy.HasRoomAround`,
 
 ### Stashes and items
 
-- `PlaceStashes` fills each secret closet with `ItemSchedule.CreateStash`, a money pile, an ammunition cache, a weapon with some ammunition or a perk with some money, each item where it fits. Stash items count against the budget, and `TakeWeapon` gives closets the weapons that are early for the level first.
+- `PlaceStashes` fills each secret closet with `CreateStash`, a money pile, an ammunition cache for the weapons the campaign has brought, a weapon with some ammunition or one of the level's perks with some money, each item where it fits. Stash items count against the budget, and `TakeWeapon` gives closets the level's new weapons first.
 - `EncounterProfile` measures, per category, how the original lays its pickups, the share in crates, the size of each loose pile (pickups of the category within 45 px of each other) and the pile's spot (corner, wall or open).
-- `PlaceWeapons` replaces weapons the level may not have yet, puts the original's share of weapons in empty crates and the rest in side rooms at progress 0.25 to 0.75, 600 px apart where it can.
+- `PlaceWeapons` puts the original's share of weapons in empty crates and the rest in side rooms at progress 0.25 to 0.75, 600 px apart where it can.
 - `PlaceItems` shuffles the remaining items and puts the original's share of each category in crates. The rest, dynamite excepted, goes in piles, each the size and spot of one of the original's piles of the category, mapped to them by rank.
 - Each pile takes the first of four rooms, ordered as charges are (without the walk), where `PlacePile` finds a free cell of the pile's spot, then a wall cell for a corner pile, then any cell, and last any of the ordered rooms. It lays the pile within 16 px around a point 0.15 cells or more from every wall edge, inside the cell unless the pile lies in the open, visible and clear of the standing pieces.
 - `PlacementContext.IsVisible` takes a point as visible when the ground straight below it on screen, up to the roof height of 90 px, is shown floor with no wall edge crossed.
@@ -1031,9 +1059,9 @@ These measure how close a level comes to its original and are not guaranteed. `a
 
 ## Add-on style and installation
 
-`GenerateAddOn` picks one add-on by the seed's parity and follows its levels. Level 1 is outdoor in that add-on's style, and levels 2 to 5 take their structure from the campaign level closest to that add-on's level (`AddOnSlots`, add-on 1 4, 5, 3 and 9, add-on 2 5, 5, 8 and 5) and their pickups and design targets from that add-on level. The hit point target is the geometric mean of the same level in both add-ons. Each level is written over that add-on's map of the same number (`GeneratedLevel.Template`). The generator must be created with the add-on style's model, whose fitting levels add the add-on levels to every fitted table and pool.
+In add-on style the campaign model is fitted to both add-ons and plans 5 levels (see [Campaign plan](#campaign-plan)). Level 1 copies the first level of either add-on, and levels 2 to 5 are written over add-on 1's map of the same number (`GeneratedLevel.Template`). The generator must be created with the add-on style's model, whose fitting levels add the add-on levels to every fitted table and pool.
 
-`RandomAddOnInstaller.Install` writes the levels to `Maps/RANDOM`, their briefings, money table, script branches and play menu button. The [README](../README.md#the-random-add-on) describes the result.
+`RandomAddOnInstaller.Install` writes the levels to `Maps/RANDOM`, their briefings, the money table with the plan's end money, script branches and play menu button. The [README](../README.md#the-random-add-on) describes the result.
 
 ## Debugging
 

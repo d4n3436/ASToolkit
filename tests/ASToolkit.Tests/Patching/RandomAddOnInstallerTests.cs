@@ -1,4 +1,5 @@
 using System.Text;
+using ASToolkit.Core.Formats;
 using ASToolkit.Core.Reference;
 using Xunit;
 using ASToolkit.Core.Patching;
@@ -30,17 +31,18 @@ public class RandomAddOnInstallerTests : IDisposable
         RandomAddOnInstaller.Remove(game);
         var before = Files.ToDictionary(f => f, f => File.ReadAllBytes(Path.Combine(game, f)));
 
-        RandomAddOnInstaller.Install(game, GenerationStyle.AddOn, seed: 1, []);
+        RandomAddOnInstaller.Install(game, GenerationStyle.AddOn, seed: 1, [], [700, 3000, 9000, 15000, 0]);
 
         string common = Encoding.Latin1.GetString(File.ReadAllBytes(Path.Combine(game, "Maps/COMMON.LGC")));
         Assert.Contains("GAME_TYPE_RANDOM", common);
         Assert.Contains("#define RANDOM_LEVELS 5", File.ReadAllText(Path.Combine(game, "Maps/common_table.lgc"), Encoding.Latin1));
+        Assert.Equal([100, 700, 3000, 9000, 15000], GameTable.Load(Path.Combine(game, "Maps/common_table.lgc")).GetArray("LevelMoneyRandom").Take(5));
         Assert.Contains("Addon3=GENERATED", File.ReadAllText(Path.Combine(game, "strings.ini"), Encoding.Latin1));
         Assert.Contains("Addon3", Encoding.Latin1.GetString(File.ReadAllBytes(Path.Combine(game, "Maps/PlayWithAddon1.men"))));
         Assert.True(File.Exists(Path.Combine(game, "Maps", RandomAddOnInstaller.FolderName, "Level_05.map")));
         Assert.False(File.Exists(Path.Combine(game, "Maps", RandomAddOnInstaller.FolderName, "Level_06.map")));
 
-        RandomAddOnInstaller.Install(game, GenerationStyle.Campaign, seed: 1, []);
+        RandomAddOnInstaller.Install(game, GenerationStyle.Campaign, seed: 1, [], []);
         Assert.Contains("#define RANDOM_LEVELS 10", File.ReadAllText(Path.Combine(game, "Maps/common_table.lgc"), Encoding.Latin1));
         Assert.True(File.Exists(Path.Combine(game, "Maps", RandomAddOnInstaller.FolderName, "Level_10.map")));
 
@@ -59,12 +61,12 @@ public class RandomAddOnInstallerTests : IDisposable
         string game = CopyGame();
         RandomAddOnInstaller.Remove(game);
         string menu = Path.Combine(game, "Maps/PlayWithAddon1.men");
-        RandomAddOnInstaller.Install(game, GenerationStyle.AddOn, seed: 1, []);
+        RandomAddOnInstaller.Install(game, GenerationStyle.AddOn, seed: 1, [], [700, 3000, 9000, 15000, 0]);
         File.Delete(menu + ".orig");
         RandomAddOnInstaller.Remove(game);
         byte[] table = File.ReadAllBytes(Path.Combine(game, "Maps/common_table.lgc"));
 
-        Assert.Throws<InvalidDataException>(() => RandomAddOnInstaller.Install(game, GenerationStyle.AddOn, seed: 1, []));
+        Assert.Throws<InvalidDataException>(() => RandomAddOnInstaller.Install(game, GenerationStyle.AddOn, seed: 1, [], [700, 3000, 9000, 15000, 0]));
 
         Assert.False(File.Exists(menu + ".orig"));
         Assert.Equal(table, File.ReadAllBytes(Path.Combine(game, "Maps/common_table.lgc")));

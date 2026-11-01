@@ -1,7 +1,6 @@
 using System.Text;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
-using ASToolkit.Core.Generation;
 using ASToolkit.Core.Reference;
 
 namespace ASToolkit.Core.Patching;
@@ -17,7 +16,6 @@ public static class RandomAddOnInstaller
     /// </summary>
     public const string FolderName = "RANDOM";
 
-    private const int CampaignLevelCount = 10;
     private const string LabelKey = "Addon3";
     private const string TableStart = "// >>> generator: random add-on";
     private const string TableEnd = "// <<< generator";
@@ -55,14 +53,19 @@ public static class RandomAddOnInstaller
     /// the add-on. Campaign style (every level a campaign one, those not generated copied from the campaign) has ten
     /// levels, add-on style five. Anything installed before is replaced.
     /// </summary>
-    public static void Install(string gameFolder, GenerationStyle style, int seed, IReadOnlyList<RandomAddOnLevel> levels)
+    /// <param name="gameFolder">The game folder.</param>
+    /// <param name="style">The style of the levels.</param>
+    /// <param name="seed">The seed the levels were generated from.</param>
+    /// <param name="levels">The generated levels.</param>
+    /// <param name="endMoney">The money paid at the end of each level, from level 1.</param>
+    public static void Install(string gameFolder, GenerationStyle style, int seed, IReadOnlyList<RandomAddOnLevel> levels, IReadOnlyList<int> endMoney)
     {
         string maps = Path.Combine(gameFolder, "Maps");
         var menus = PatchMenus(maps);
         RemoveLevels(gameFolder);
         string folder = Path.Combine(maps, FolderName);
         Directory.CreateDirectory(folder);
-        int count = style == GenerationStyle.AddOn ? LevelGenerator.AddOnLevelCount : CampaignLevelCount;
+        int count = style.LevelCount;
         for (int number = 1; number <= count; number++)
         {
             string target = Path.Combine(folder, $"Level_{number:00}.map");
@@ -78,7 +81,7 @@ public static class RandomAddOnInstaller
             }
         }
 
-        WriteTable(maps, style, count);
+        WriteTable(maps, style, count, endMoney);
         foreach (var edit in Edits)
         {
             ScriptEditor.Apply(gameFolder, edit);
@@ -201,12 +204,18 @@ public static class RandomAddOnInstaller
         }
     }
 
-    private static void WriteTable(string maps, GenerationStyle style, int count)
+    // Pay the given money at the end of each level but the last, the table being indexed by the number of the level that ends
+    private static void WriteTable(string maps, GenerationStyle style, int count, IReadOnlyList<int> endMoney)
     {
         string path = Path.Combine(maps, "common_table.lgc");
         string text = StripTable(Latin1.GetString(File.ReadAllBytes(path)));
         string newline = text.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
-        var money = GameTable.Parse(text).GetArray(style == GenerationStyle.AddOn ? "LevelMoneyAddon" : "LevelMoney");
+        int[] money = GameTable.Parse(text).GetArray(style == GenerationStyle.AddOn ? "LevelMoneyAddon" : "LevelMoney").ToArray();
+        for (int level = 1; level < Math.Min(count, money.Length); level++)
+        {
+            money[level] = level <= endMoney.Count ? endMoney[level - 1] : money[level];
+        }
+
         string block = string.Join(newline, TableStart, $"#define RANDOM_LEVELS {count}", $"static int LevelMoneyRandom[] = {{ {string.Join(" ,", money)} }};", TableEnd, "");
         if (!text.EndsWith('\n'))
         {

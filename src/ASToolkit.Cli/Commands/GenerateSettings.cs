@@ -33,7 +33,7 @@ internal sealed class GenerateSettings : GameSettings
             return game;
         }
 
-        return AddOnStyle || First is >= 1 and <= 10 && Last is >= 1 and <= 10 && First <= Last
+        return AddOnStyle || First >= 1 && Last <= GenerationStyle.Campaign.LevelCount && First <= Last
             ? ValidationResult.Success()
             : ValidationResult.Error("The levels must lie between 1 and 10.");
     }

@@ -4,7 +4,8 @@ using ASToolkit.Core.Levels;
 namespace ASToolkit.Core.Reference;
 
 /// <summary>
-/// Represents what a generator follows of a style, fitted from the original levels of that style.
+/// Represents everything a generator takes from the original levels of a style, the campaign model and, per theme, the decor heights, wall
+/// clearances, wall facings and object relations.
 /// </summary>
 public sealed class StyleModel
 {
@@ -16,7 +17,7 @@ public sealed class StyleModel
     /// Initializes a new instance of the <see cref="StyleModel"/> class.
     /// </summary>
     public StyleModel(GenerationStyle style, IReadOnlyList<string> fittingLevels, ObjectRelationTable relations, IReadOnlyDictionary<LevelTheme, DecorHeightTable> decorHeights,
-        IReadOnlyDictionary<LevelTheme, WallClearanceTable> wallClearance, IReadOnlyDictionary<LevelTheme, FacingTable> facings)
+        IReadOnlyDictionary<LevelTheme, WallClearanceTable> wallClearance, IReadOnlyDictionary<LevelTheme, FacingTable> facings, CampaignModel campaign)
     {
         Style = style;
         FittingLevels = fittingLevels;
@@ -24,12 +25,18 @@ public sealed class StyleModel
         _decorHeights = decorHeights.ToFrozenDictionary();
         _wallClearance = wallClearance.ToFrozenDictionary();
         _facings = facings.ToFrozenDictionary();
+        Campaign = campaign;
     }
 
     /// <summary>
     /// Gets the style of the model.
     /// </summary>
     public GenerationStyle Style { get; }
+
+    /// <summary>
+    /// Gets the campaign model of the style.
+    /// </summary>
+    public CampaignModel Campaign { get; }
 
     /// <summary>
     /// Gets the original levels the model is fitted to, in order.

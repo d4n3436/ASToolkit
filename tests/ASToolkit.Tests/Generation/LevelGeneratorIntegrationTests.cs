@@ -34,9 +34,9 @@ public class LevelGeneratorIntegrationTests
     public void GenerateAddOn_Seeds_ReachEveryObjective()
     {
         var generator = CreateGenerator(GenerationStyle.AddOn);
-        var jobs = Enumerable.Range(1, Seeds).SelectMany(seed => Enumerable.Range(1, LevelGenerator.AddOnLevelCount).Select(level => (Seed: seed, Level: level))).ToArray();
+        var jobs = Enumerable.Range(1, Seeds).SelectMany(seed => Enumerable.Range(1, GenerationStyle.AddOn.LevelCount).Select(level => (Seed: seed, Level: level))).ToArray();
         var broken = new ConcurrentBag<string>();
-        Parallel.ForEach(jobs, job => FindFaults(generator.GenerateAddOn(job.Seed, job.Level), $"seed {job.Seed} add-on level {job.Level}", broken));
+        Parallel.ForEach(jobs, job => FindFaults(generator.Generate(job.Seed, job.Level), $"seed {job.Seed} add-on level {job.Level}", broken));
 
         Assert.Empty(broken);
     }
@@ -56,11 +56,11 @@ public class LevelGeneratorIntegrationTests
     public void GenerateAddOn_Seeds_PlaceDecorAsTheOriginals()
     {
         var (generator, objects, references, model) = CreateSources(GenerationStyle.AddOn);
-        var jobs = Enumerable.Range(1, Seeds).SelectMany(seed => Enumerable.Range(1, LevelGenerator.AddOnLevelCount).Select(level => (Seed: seed, Level: level))).ToArray();
+        var jobs = Enumerable.Range(1, Seeds).SelectMany(seed => Enumerable.Range(1, GenerationStyle.AddOn.LevelCount).Select(level => (Seed: seed, Level: level))).ToArray();
         var broken = new ConcurrentBag<string>();
         Parallel.ForEach(jobs, job =>
         {
-            var level = generator.GenerateAddOn(job.Seed, job.Level);
+            var level = generator.Generate(job.Seed, job.Level);
             if (level.Theme != LevelTheme.Outdoor)
             {
                 FindDecorFaults(level, $"seed {job.Seed} add-on level {job.Level}", objects, model.Relations, broken);
@@ -91,8 +91,9 @@ public class LevelGeneratorIntegrationTests
         string folder = Directory.CreateTempSubdirectory().FullName;
         string first = Path.Combine(folder, "a.map");
         string second = Path.Combine(folder, "b.map");
-        generator.Generate(3, 6).Write(first, generator.GetTemplatePath(6));
-        generator.Generate(3, 6).Write(second, generator.GetTemplatePath(6));
+        var level = generator.Generate(3, 6);
+        level.Write(first, generator.GetTemplatePath(level));
+        generator.Generate(3, 6).Write(second, generator.GetTemplatePath(level));
         Assert.Equal(File.ReadAllBytes(first), File.ReadAllBytes(second));
         Assert.Equal(File.ReadAllBytes(Path.ChangeExtension(first, ".lgc")), File.ReadAllBytes(Path.ChangeExtension(second, ".lgc")));
     }
@@ -234,7 +235,7 @@ public class LevelGeneratorIntegrationTests
         string game = TestGameFolder.RequireFolder();
         var objects = ObjectTable.Load(Path.Combine(game, "objects.res"));
         var references = ReferenceLevelSet.Load(game, objects);
-        var model = new StyleFitter(objects).Fit(references, style);
+        var model = new StyleFitter(objects, GameTable.Load(Path.Combine(game, "Maps", "common_table.lgc"))).Fit(references, style);
         return (new LevelGenerator(game, objects, references, model), objects, references, model);
     }
 }

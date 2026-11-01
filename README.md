@@ -38,19 +38,20 @@ Run a command with `--help` to see its options.
 
 The generator builds each level around the route the player will take, following how the original levels are designed.
 
-1. **Layout:** It lays out a main route of halls and rooms with side rooms, branches and closets, and gates part of it behind locked doors, a blackout or electric fences, as the original level does.
-2. **Structure:** Walls, doors and floors are built around the layout in the look of the lab and military levels, and decoration is copied from the original levels.
-3. **Content:** Monsters, bosses, items, ammo and dynamite are placed along the route, using budgets taken from the original levels so that difficulty rises as the level goes on. Fights come where the original level puts them, and furniture, pickups and gore are arranged the way the originals arrange them.
-4. **Read back:** Each level is built once, every step keeping its own guarantees, then read back with the route analysis that measures the original levels. Layouts whose route cannot reach every objective are drawn again. Levels get a roof that hides everything outside the walkable floor.
+1. **Campaign:** It draws the whole campaign first, from curves fitted to the original campaigns, giving each level its theme, gate, monster hit points, weapons, pickups and end-of-level money.
+2. **Layout:** It lays out a main route of halls and rooms with side rooms, branches and closets, and gates part of it behind locked doors, a blackout or electric fences, as the original level does.
+3. **Structure:** Walls, doors and floors are built around the layout in the look of the lab and military levels, and decoration is copied from the original levels.
+4. **Content:** Monsters, bosses, items, ammo and dynamite are placed along the route to the hit points and pickups the campaign gives the level, with difficulty rising as the level goes on. Fights come where the original level puts them, and furniture, pickups and gore are arranged the way the originals arrange them.
+5. **Read back:** Each level is built once, every step keeping its own guarantees, then read back with the route analysis that measures the original levels. Layouts whose route cannot reach every objective are drawn again. Levels get a roof that hides everything outside the walkable floor.
 
 ### The RANDOM add-on
 
 `generate` writes the levels into the game as a new add-on and adds a button for it to the play menu. Both styles produce the same add-on.
 
 - **Campaign style** has ten levels, like the main campaign.
-- **Add-on style** (`--addon-style`) has five levels, like the official add-ons. The seed's parity picks which add-on they follow.
+- **Add-on style** (`--addon-style`) has five levels, shorter and harder like the official add-ons.
 
-`--seed` picks the levels, and the same seed gives the same ones. `--first` and `--last` choose which campaign levels the generator replaces in campaign style. `restore` returns the game to its original state.
+`--seed` picks the campaign, its threat, weapons, pickups and end-of-level money, and the same seed gives the same one. `--first` and `--last` choose which campaign levels the generator replaces in campaign style. `restore` returns the game to its original state.
 
 ## Widescreen patch
 

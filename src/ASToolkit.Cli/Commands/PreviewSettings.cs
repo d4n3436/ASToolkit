@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using ASToolkit.Core.Generation;
 using ASToolkit.Core.Reference;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -35,7 +34,7 @@ internal sealed class PreviewSettings : GameSettings
         }
 
         return AddOnStyle
-            ? Level is >= 1 and <= LevelGenerator.AddOnLevelCount ? ValidationResult.Success() : ValidationResult.Error("The add-on level must be 1 to 5.")
-            : Level is >= 1 and <= 10 ? ValidationResult.Success() : ValidationResult.Error("The level must be 1 to 10.");
+            ? Level >= 1 && Level <= GenerationStyle.AddOn.LevelCount ? ValidationResult.Success() : ValidationResult.Error("The add-on level must be 1 to 5.")
+            : Level >= 1 && Level <= GenerationStyle.Campaign.LevelCount ? ValidationResult.Success() : ValidationResult.Error("The level must be 1 to 10.");
     }
 }

@@ -1,7 +1,8 @@
 namespace ASToolkit.Core.Survey;
 
 /// <summary>
-/// Represents something that happens to the player at one point of a level's tour.
+/// Represents a fight, key, lock, reward, set piece or goal at one point of a level's tour, with the section that holds it, its place in that
+/// section and the fight intensity around it.
 /// </summary>
 /// <param name="Kind">The kind of the beat.</param>
 /// <param name="Section">The index of the section that holds the beat.</param>

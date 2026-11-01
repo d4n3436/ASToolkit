@@ -126,11 +126,14 @@ public sealed class LevelOccupancy
     });
 
     /// <summary>
-    /// Returns whether a group of objects placed together fits, each one on its own and the solid ones together leaving the floor joined.
+    /// Returns whether a group of objects placed together fits, each one on its own and beside the others, and the solid ones together leaving
+    /// the floor joined.
     /// </summary>
     public bool FitsAll(IReadOnlyList<(KnownObject Id, float X, float Y, float Z)> pieces)
     {
         var cells = new HashSet<Cell>();
+        var standing = new List<(KnownObject Id, GameObject Object, float X, float Y)>();
+        var raised = new List<(KnownObject Id, GameObject Object, float X, float Y)>();
         foreach ((var id, float x, float y, float z) in pieces)
         {
             if (!Fits(id, x, y, z))
@@ -138,7 +141,20 @@ public sealed class LevelOccupancy
                 return false;
             }
 
-            if (_objects.TryFind(id, out var obj) && obj.IsSolid)
+            if (IsUnit(id) || id.PickupCategory is not null || _objects.GetBlocking(id) == BlockingClass.WalkThrough || !_objects.TryFind(id, out var obj))
+            {
+                continue;
+            }
+
+            bool isRaised = z >= FloorHeight;
+            var others = isRaised ? raised : standing;
+            if (IsCrowded(id, obj, x, y, others, isRaised))
+            {
+                return false;
+            }
+
+            others.Add((id, obj, x, y));
+            if (obj.IsSolid)
             {
                 cells.UnionWith(GetCells(obj, x, y));
             }

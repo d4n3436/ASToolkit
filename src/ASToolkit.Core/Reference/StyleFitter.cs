@@ -4,7 +4,8 @@ using ASToolkit.Core.Levels;
 namespace ASToolkit.Core.Reference;
 
 /// <summary>
-/// Provides the fitting of a style model to the original levels of a style.
+/// Provides the fitting of a style model to the original levels of a style, with the option of leaving some originals out to test how much
+/// generation depends on each.
 /// </summary>
 public sealed class StyleFitter
 {
@@ -17,11 +18,18 @@ public sealed class StyleFitter
     ];
 
     private readonly ObjectTable _objects;
+    private readonly CampaignFitter _campaign;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="StyleFitter"/> class.
     /// </summary>
-    public StyleFitter(ObjectTable objects) => _objects = objects;
+    /// <param name="objects">The game's object table.</param>
+    /// <param name="table">The game's shop and money tables.</param>
+    public StyleFitter(ObjectTable objects, GameTable table)
+    {
+        _objects = objects;
+        _campaign = new CampaignFitter(table);
+    }
 
     /// <summary>
     /// Returns the original levels a style is fitted to in order, the campaign's ten and in add-on style both add-ons' five after them.
@@ -71,6 +79,7 @@ public sealed class StyleFitter
             ObjectRelationTable.Build(levels, _objects),
             decorHeights,
             Themes.ToDictionary(theme => theme, theme => WallClearanceTable.Build(models.Where(model => model.Theme == theme))),
-            Themes.ToDictionary(theme => theme, theme => FacingTable.Build(models.Where(model => model.Theme == theme), _objects, leaning)));
+            Themes.ToDictionary(theme => theme, theme => FacingTable.Build(models.Where(model => model.Theme == theme), _objects, leaning)),
+            _campaign.Fit(references, style, excluded));
     }
 }

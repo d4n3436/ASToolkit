@@ -1,0 +1,183 @@
+using ASToolkit.Core.Formats;
+using ASToolkit.Core.Levels;
+using ASToolkit.Core.Survey;
+
+namespace ASToolkit.Core.Reference;
+
+/// <summary>
+/// Provides the fitting of a campaign model to a style's original campaigns, measuring each level's threat, size, gate, weapons, pickups and
+/// end money and fitting a line or a set of shares to each over the levels.
+/// </summary>
+public sealed class CampaignFitter
+{
+    private const float MinSpawnedShare = 0.02f;
+    private const float PixelsPerRate = 1_000_000;
+    private const int FirstWeaponSlot = 2;
+
+    private static readonly ItemCategory[] RatedCategories = [ItemCategory.Health, ItemCategory.Armor, ItemCategory.Ammo, ItemCategory.Money, ItemCategory.Implant, ItemCategory.Bonus];
+    private static readonly ItemCategory[] SharedCategories = [ItemCategory.Health, ItemCategory.Armor, ItemCategory.Implant, ItemCategory.Bonus];
+    private static readonly (string Folder, string Money)[] Campaign = [("", "LevelMoney")];
+    private static readonly (string Folder, string Money)[] AddOns = [("ADDON/", "LevelMoneyAddon"), ("ADDON2/", "LevelMoneyAddon2")];
+
+    private readonly GameTable _table;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CampaignFitter"/> class.
+    /// </summary>
+    /// <param name="table">The game's shop and money tables.</param>
+    public CampaignFitter(GameTable table) => _table = table;
+
+    /// <summary>
+    /// Fits the campaign model of a style to its campaigns, leaving the excluded levels out.
+    /// </summary>
+    public CampaignModel Fit(ReferenceLevelSet references, GenerationStyle style, IReadOnlyCollection<string> excluded)
+    {
+        int levelCount = style.LevelCount;
+        var campaigns = (style == GenerationStyle.AddOn ? AddOns : Campaign)
+            .Select(campaign => new CampaignMeasurer(_table.GetArray(campaign.Money)).Measure(Enumerable.Range(1, levelCount)
+                .Select(number => references.GetSurvey(campaign.Folder + ReferenceLevelSet.GetCampaignName(number)))
+                .ToArray()))
+            .ToArray();
+
+        var weaponPrices = _table.GetArray("WeaponPrice");
+        var weapons = Enumerable.Range((int)KnownObject.Shotgun, KnownObject.MagmaMinigun - KnownObject.Shotgun + 1)
+            .Cast<KnownObject>()
+            .OrderBy(weapon => weaponPrices[GetSlot(weapon)])
+            .ToArray();
+
+        var kept = campaigns
+            .SelectMany(levels => levels)
+            .Where(level => !excluded.Contains(level.Map))
+            .ToArray();
+
+        var indoor = kept
+            .Where(level => level.Level > 1)
+            .ToArray();
+
+        var labs = indoor
+            .Where(level => references.GetSurvey(level.Map).Theme == LevelTheme.Lab)
+            .ToArray();
+
+        return new CampaignModel
+        {
+            LevelCount = levelCount,
+            CashValue = CampaignMeasurer.CashValue,
+            HitPoints = LinearFit.Fit(indoor.Select(level => (X: (float)level.Level, Y: MathF.Log(Math.Max(1, level.HitPoints)))).ToArray()),
+            SpawnedShare = LinearFit.Fit(indoor.Select(level => (X: (float)level.Level, Y: GetLogOdds(level.SpawnedShare))).ToArray()),
+            FloorPixels = LinearFit.Fit(indoor.Select(level => (X: (float)level.Level, Y: MathF.Log(level.FloorPixels))).ToArray()),
+            EndMoney = LinearFit.Fit(campaigns.SelectMany(levels => levels).Where(level => level.Level < levelCount).Select(level => (X: MathF.Log(level.Level), Y: MathF.Log(level.EndMoney))).ToArray()),
+            LabShare = new FittedValue<float>(indoor.Count(level => level.Theme == LevelTheme.Lab) / (float)Math.Max(1, indoor.Length), indoor.Length, IsBackedOff: false),
+            Gates = FitGates(indoor),
+            Weapons = weapons,
+            WeaponPrices = weapons.ToDictionary(weapon => weapon, weapon => weaponPrices[GetSlot(weapon)]),
+            WeaponLevels = LinearFit.Fit(FitWeaponLevels(campaigns, weapons, excluded)),
+            Affordability = FitAffordability(campaigns, weaponPrices, excluded),
+            RepeatedWeapons = LinearFit.Fit(indoor.Select(level => (X: (float)level.Level, Y: (float)(level.Items.Where(item => item.Key.IsWeapon).Sum(item => item.Value) - level.NewWeapons.Count))).ToArray()),
+            PickupRates = RatedCategories.ToDictionary(category => category, category => LinearFit.Fit(indoor
+                .Select(level => (X: (float)level.Level, Y: level.Pickups.GetValueOrDefault(category) * PixelsPerRate / level.FloorPixels))
+                .ToArray())),
+            PickupShares = FitPickupShares(indoor),
+            AmmoAges = FitAmmoAges(campaigns, weapons, excluded),
+            SecretClosets = LinearFit.Fit(labs.Select(level => (X: (float)level.Level, Y: references.GetLevel(level.Map).Measures.SecretClosets.Count * PixelsPerRate / level.FloorPixels)).ToArray()),
+            Donors = Enumerable.Range(2, 9)
+                .Select(ReferenceLevelSet.GetCampaignName)
+                .Where(name => !excluded.Contains(name))
+                .Select(name => CreateDonor(references.GetLevel(name)))
+                .ToArray(),
+            FirstLevels = (style == GenerationStyle.AddOn ? AddOns : Campaign)
+                .Select(campaign => CreateDonor(references.GetLevel(campaign.Folder + ReferenceLevelSet.GetCampaignName(1))))
+                .ToArray()
+        };
+    }
+
+    private static int GetSlot(KnownObject weapon) => weapon - KnownObject.Shotgun + FirstWeaponSlot;
+
+    private static float GetLogOdds(float share)
+    {
+        float clamped = Math.Clamp(share, MinSpawnedShare, 1 - MinSpawnedShare);
+        return MathF.Log(clamped / (1 - clamped));
+    }
+
+    private static DonorCandidate CreateDonor(ReferenceLevel level) =>
+        new(level.Name, level.Survey.Theme, level.Survey.Style, level.Measures.HitPoints, CampaignMeasurer.CashValue * level.Survey.Items.Count(item => item.Id == KnownObject.Money));
+
+    // Order each theme's gate styles by the first level that shows them, the commoner first on one level
+    private static Dictionary<LevelTheme, FittedValue<IReadOnlyList<GateShare>>> FitGates(IReadOnlyList<CampaignMeasurement> levels) => levels
+        .GroupBy(level => level.Theme)
+        .ToDictionary(theme => theme.Key, theme => new FittedValue<IReadOnlyList<GateShare>>(theme
+            .GroupBy(level => level.GateStyle)
+            .OrderBy(gate => gate.Min(level => level.Level))
+            .ThenByDescending(gate => gate.Count())
+            .Select(gate => new GateShare(gate.Key, gate.Count() / (float)theme.Count()))
+            .ToArray(), theme.Count(), IsBackedOff: false));
+
+    private static (float X, float Y)[] FitWeaponLevels(IReadOnlyList<CampaignMeasurement[]> campaigns, KnownObject[] weapons, IReadOnlyCollection<string> excluded) => campaigns
+        .SelectMany(levels => levels)
+        .Where(level => !excluded.Contains(level.Map))
+        .SelectMany(level => level.NewWeapons.Select(weapon => (X: (float)(Array.IndexOf(weapons, weapon) + 1), Y: (float)level.Level)))
+        .ToArray();
+
+    // Measure how much of each new weapon's price the money paid and picked up on the levels before its own comes to
+    private static FittedValue<float> FitAffordability(IReadOnlyList<CampaignMeasurement[]> campaigns, IReadOnlyList<int> weaponPrices, IReadOnlyCollection<string> excluded)
+    {
+        var shares = new List<float>();
+        foreach (var levels in campaigns)
+        {
+            int earned = 0;
+            foreach (var level in levels)
+            {
+                if (level.Level > 1 && !excluded.Contains(level.Map))
+                {
+                    shares.AddRange(level.NewWeapons.Select(weapon => earned / (float)weaponPrices[GetSlot(weapon)]));
+                }
+
+                earned += level.EndMoney + level.Money;
+            }
+        }
+
+        return new FittedValue<float>(shares.DefaultIfEmpty(0).Min(), shares.Count, IsBackedOff: false);
+    }
+
+    private static Dictionary<KnownObject, FittedValue<LinearFit>> FitPickupShares(IReadOnlyList<CampaignMeasurement> levels) => levels
+        .SelectMany(level => level.Items.Keys)
+        .Where(id => SharedCategories.Contains(id.PickupCategory.GetValueOrDefault(ItemCategory.Weapon)))
+        .Distinct()
+        .Order()
+        .ToDictionary(id => id, id => LinearFit.Fit(levels
+            .Where(level => level.Pickups.GetValueOrDefault(id.PickupCategory!.Value) > 0)
+            .Select(level => (X: (float)level.Level, Y: level.Items.GetValueOrDefault(id) / (float)level.Pickups[id.PickupCategory!.Value]))
+            .ToArray()));
+
+    // Count each level's ammunition by the age of its weapon in the price order, next to the newest weapon the campaign has brought so far
+    private static FittedValue<IReadOnlyList<float>> FitAmmoAges(IReadOnlyList<CampaignMeasurement[]> campaigns, KnownObject[] weapons, IReadOnlyCollection<string> excluded)
+    {
+        var counts = new List<int>();
+        int total = 0;
+        foreach (var levels in campaigns)
+        {
+            int newest = -1;
+            foreach (var level in levels)
+            {
+                newest = level.Weapons.Select(weapon => Array.IndexOf(weapons, weapon)).Append(newest).Max();
+                if (level.Level == 1 || excluded.Contains(level.Map))
+                {
+                    continue;
+                }
+
+                foreach ((var id, int count) in level.Items.Where(item => item.Key.IsAmmo))
+                {
+                    int age = Math.Max(-1, newest - Array.IndexOf(weapons, id - KnownObject.ShotgunAmmo + KnownObject.Shotgun)) + 1;
+                    while (counts.Count <= age)
+                    {
+                        counts.Add(0);
+                    }
+
+                    counts[age] += count;
+                    total += count;
+                }
+            }
+        }
+
+        return new FittedValue<IReadOnlyList<float>>(counts.Select(count => count / (float)Math.Max(1, total)).ToArray(), total, IsBackedOff: false);
+    }
+}

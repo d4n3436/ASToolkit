@@ -1,5 +1,6 @@
 using System.Drawing;
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Generation.Campaign;
 using ASToolkit.Core.Generation.Geometry;
 using ASToolkit.Core.Generation.Layout;
 using ASToolkit.Core.Levels;
@@ -27,13 +28,13 @@ public sealed class PlacementContext
     /// <summary>
     /// Initializes a new instance of the <see cref="PlacementContext"/> class.
     /// </summary>
-    public PlacementContext(Random rng, int level, LayoutPlan plan, FineLayout layout, MapBuilder map, ObjectTable objects, Cell start, IReadOnlySet<Cell> blocked, IReadOnlySet<Cell> keepClear,
+    public PlacementContext(Random rng, LevelBrief brief, LayoutPlan plan, FineLayout layout, MapBuilder map, ObjectTable objects, Cell start, IReadOnlySet<Cell> blocked, IReadOnlySet<Cell> keepClear,
         LevelOccupancy occupancy, Func<KnownObject, IReadOnlyList<ObjectCompanion>> companionsOf)
     {
         _companionsOf = companionsOf;
         Occupancy = occupancy;
         Rng = rng;
-        Level = level;
+        Brief = brief;
         Plan = plan;
         Layout = layout;
         Map = map;
@@ -56,8 +57,8 @@ public sealed class PlacementContext
     /// <summary>Gets the random source.</summary>
     public Random Rng { get; }
 
-    /// <summary>Gets the campaign level number.</summary>
-    public int Level { get; }
+    /// <summary>Gets the brief of the level.</summary>
+    public LevelBrief Brief { get; }
 
     /// <summary>Gets the layout plan.</summary>
     public LayoutPlan Plan { get; }
