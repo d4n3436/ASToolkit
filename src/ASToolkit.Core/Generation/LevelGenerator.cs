@@ -31,11 +31,11 @@ public sealed class LevelGenerator
     private const int SeedPrime = 7919;
     private const int BudgetSalt = 17;
     private const int ContentSalt = 101;
+    private const int RoofSalt = 211;
     private const int MaxBreakerRetries = 20;
     private const float GeneratorMargin = 0.04f;
     private const float FloorMiss = 0.15f;
     private static readonly (float Min, float Max) GeneratorBand = (0.08f, 0.3f);
-    private const int RoofSeed = 99;
     private const float BlackoutSearchPixels = 5200;
     private const int MaxPlanAttempts = 200;
     private const int OwnProfileAttempts = 50;
@@ -78,8 +78,6 @@ public sealed class LevelGenerator
     private readonly OutdoorLevelBuilder _outdoor;
     private readonly Lazy<SiteTemplate[]> _labSites;
     private readonly Lazy<SiteTemplate[]> _militarySites;
-    private readonly Lazy<RoofBuilder> _labRoof;
-    private readonly Lazy<RoofBuilder> _militaryRoof;
     private readonly Lazy<KeypadTable> _keypads;
     private readonly Lazy<LevelProfile[]> _labProfiles;
     private readonly Lazy<LevelProfile[]> _militaryProfiles;
@@ -107,9 +105,6 @@ public sealed class LevelGenerator
         _militaryFurnisher = new Lazy<RoomFurnisher>(() => CreateFurnisher(references, objects, LevelTheme.Military));
         _labLibrary = new Lazy<DressingLibrary>(() => DressingLibrary.Build(references, objects, LevelTheme.Lab, sources, GetWallDressing(references, LevelTheme.Lab), references.GetWallClearance(LevelTheme.Lab), references.GetFacings(LevelTheme.Lab)));
         _militaryLibrary = new Lazy<DressingLibrary>(() => DressingLibrary.Build(references, objects, LevelTheme.Military, sources, GetWallDressing(references, LevelTheme.Military), references.GetWallClearance(LevelTheme.Military), references.GetFacings(LevelTheme.Military)));
-        var sprites = new Lazy<SpriteLibrary>(() => new SpriteLibrary(gameFolder, objects));
-        _labRoof = new Lazy<RoofBuilder>(() => new RoofBuilder(LevelTheme.Lab, sprites.Value));
-        _militaryRoof = new Lazy<RoofBuilder>(() => new RoofBuilder(LevelTheme.Military, sprites.Value));
         _keypads = new Lazy<KeypadTable>(() => KeypadTable.Load(references, sources));
         _labProfiles = new Lazy<LevelProfile[]>(() => LabLevels.Select(name => GetProfile(references.GetSurvey(name), ThemeSettings.Lab)).ToArray());
         _militaryProfiles = new Lazy<LevelProfile[]>(() => references.LevelNames.Order().Select(references.GetSurvey).Where(survey => survey.Theme == LevelTheme.Military)
@@ -176,15 +171,6 @@ public sealed class LevelGenerator
             }
         }
 
-        if (best.Theme == LevelTheme.Outdoor)
-        {
-            return best;
-        }
-
-        var layout = best.Layout ?? throw new InvalidOperationException("Expected an indoor level to have a layout.");
-        var roof = best.Theme == LevelTheme.Military ? _militaryRoof.Value : _labRoof.Value;
-        best.RoofResidual = roof.Build(new Random(seed * 100_000 + level * 100 + RoofSeed), layout, best.Shown, best.Hidden, best.Builder);
-        best.Map = best.Builder.ToMap(best.Map.Scroll);
         return best;
     }
 
@@ -297,10 +283,10 @@ public sealed class LevelGenerator
 
     private static int GetLayoutSeed(int seed, int level, int layoutIndex) => seed * 100_000 + level * 100 + layoutIndex;
 
-    // Draw the layout and structure from the layout seed, and the budget and the decor and content from streams of their own
+    // Draw the layout and structure from the layout seed, and the budget, the decor and content and the roof from streams of their own
     private GeneratedLevel Build(int layoutSeed, int level, LevelTarget target, int? generatorRoom = null) =>
-        Build(new Random(layoutSeed), new Random(unchecked(layoutSeed * SeedPrime + BudgetSalt)), new Random(unchecked(layoutSeed * SeedPrime + ContentSalt)), level, target,
-            generatorRoom);
+        Build(new Random(layoutSeed), new Random(unchecked(layoutSeed * SeedPrime + BudgetSalt)), new Random(unchecked(layoutSeed * SeedPrime + ContentSalt)),
+            new Random(unchecked(layoutSeed * SeedPrime + RoofSalt)), level, target, generatorRoom);
 
     // Build and analyze a level, and build it again with its generator moved when the tour reaches the first one outside the originals' band,
     // keeping the build whose first generator falls nearer the band
@@ -349,7 +335,7 @@ public sealed class LevelGenerator
         return best.Room == key ? null : best.Room.Id;
     }
 
-    private GeneratedLevel Build(Random layoutRng, Random budgetRng, Random contentRng, int level, LevelTarget target, int? generatorRoom = null, int retries = 0)
+    private GeneratedLevel Build(Random layoutRng, Random budgetRng, Random contentRng, Random roofRng, int level, LevelTarget target, int? generatorRoom = null, int retries = 0)
     {
         if (level == 1)
         {
@@ -448,6 +434,8 @@ public sealed class LevelGenerator
             }
         }
 
+        StructureBuilder.BuildRoof(roofRng, theme, layout, shown, map);
+
         var startRoom = layout.GetRegionCells(plan.Stations[0].Id).ToArray();
         var start = startRoom[startRoom.Length / 2];
         var breaker = plan.Gate is GateKind.LockedDoors or GateKind.Blackout
@@ -456,7 +444,7 @@ public sealed class LevelGenerator
         
         if (breaker is null && plan.Gate is GateKind.LockedDoors or GateKind.Blackout && retries < MaxBreakerRetries)
         {
-            return Build(layoutRng, budgetRng, contentRng, level, target, generatorRoom, retries + 1);
+            return Build(layoutRng, budgetRng, contentRng, roofRng, level, target, generatorRoom, retries + 1);
         }
 
         var floor = layout.Cells.Keys.Where(c => !closetCells.Contains(c)).ToHashSet();
@@ -508,9 +496,6 @@ public sealed class LevelGenerator
             Plan = plan,
             Layout = layout,
             Budget = budget,
-            Builder = map,
-            Shown = shown,
-            Hidden = layout.Cells.Keys.Where(c => !shown.Contains(c)).ToHashSet(),
             Template = ReferenceLevelSet.GetCampaignName(level),
             Lattice = layout.Lattice,
             Theme = theme

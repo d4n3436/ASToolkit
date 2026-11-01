@@ -57,6 +57,7 @@ This covers what the toolkit's code does not say by itself, which is how the gam
 ### Roofs and stacking
 
 - Roof tiles (501) lie at z 90 on labs and 95 on military levels, on top of the walls. Their offsets vary by about 18 px between patches and fit no single lattice.
+- Doors, jammed doors and monster holes nearly always have floor behind them. In campaign levels 2 to 10 that holds for 75 of 80 jammed doors and every door and monster hole.
 - The engine sorts by y. A tile at (y - 80, z - 80) lands on the same screen position and is drawn before the walls.
 - Decor with z above 0 stands on whatever is under it, such as a monitor on a desk.
 

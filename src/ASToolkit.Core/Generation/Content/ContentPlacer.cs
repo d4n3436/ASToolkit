@@ -1040,7 +1040,7 @@ public static class ContentPlacer
 
     private static bool IsCrowded(PlacementContext ctx, float x, float y) => ctx.Map.Sprites.Any(s =>
     {
-        if (!ctx.Objects.TryFind(s.Id, out var obj) || s.Position.Z >= ClutterHeight || obj is { IsSolid: false, Size.Z: < StandingHeight } || !s.Id.IsDecor && s.Id != KnownObject.Crate)
+        if (!s.Id.IsDecor && s.Id != KnownObject.Crate || s.Position.Z >= ClutterHeight || !ctx.Objects.TryFind(s.Id, out var obj) || obj is { IsSolid: false, Size.Z: < StandingHeight })
         {
             return false;
         }

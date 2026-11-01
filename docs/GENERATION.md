@@ -18,10 +18,9 @@ The guarantees every level keeps are in [One pass and guarantees](#one-pass-and-
 10. [Content](#content)
 11. [Script](#script)
 12. [One pass and guarantees](#one-pass-and-guarantees)
-13. [Roof](#roof)
-14. [Level 1](#level-1-1)
-15. [Add-on style and installation](#add-on-style-and-installation)
-16. [Debugging](#debugging)
+13. [Level 1](#level-1-1)
+14. [Add-on style and installation](#add-on-style-and-installation)
+15. [Debugging](#debugging)
 
 ## Original levels
 
@@ -411,7 +410,7 @@ A generated level replaces one campaign level from 1 to 10. Levels 2 to 10 take 
  |  Build                                                                       |
  |    1  gate request and budget         ChooseGate, BudgetPlanner              |
  |    2  layout plan in units            LevelProfile.Sample, LayoutBuilder     |
- |    3  cells, walls, floors            FineLayout, StructureBuilder           |
+ |    3  cells, walls, floors, roof      FineLayout, StructureBuilder           |
  |    4  breaker spot                    ContentPlacer.ChooseBreakerSpot        |
  |    5  room types and furniture        RoomFurnisher, Dresser, RoomDecorator  |
  |    6  player start, content, script   PlacementContext, ContentPlacer        |
@@ -420,9 +419,6 @@ A generated level replaces one campaign level from 1 to 10. Levels 2 to 10 take 
  |    map and script bytes -> RouteAnalyzer                                     |
  |    fenced: build again with the generator moved when it misses its band      |
  +------------------------------------------------------------------------------+
-        |
-        v
- RoofBuilder.Build, its own seed
         |
         v
  GeneratedLevel.Write / RandomAddOnInstaller.Install
@@ -438,11 +434,10 @@ A generated level replaces one campaign level from 1 to 10. Levels 2 to 10 take 
 | `Builder`, `Map` | all | the placed objects and the map they make |
 | `Script` | content | doors, blackout and checkpoint for the `.lgc` |
 | `Analysis` | analysis | route tour, objectives, legs and fallbacks |
-| `RoofResidual` | roof | target pixels the roof could not cover |
 
 ### Randomness
 
-A level draws from three `Random` streams. The layout seed drives the gate, the layout plan, the fake doors, the structure and the breaker spot. A second stream seeded from it drives the budget, and a third drives the closets' outer walls, the keypads, the door marks, the dressing and the content. The same seed and level always give the same files, which `LevelGeneratorIntegrationTests` checks. A change to the dressing or the content keeps every layout unless it leaves an objective out of reach and `Generate` takes the next one. A change to the budget can move the layouts through the number of spawn closets it sets.
+A level draws from four `Random` streams. The layout seed drives the gate, the layout plan, the fake doors, the structure and the breaker spot. Streams seeded from it drive the budget, the roof tile directions, and the closets' outer walls, the keypads, the door marks, the dressing and the content. The same seed and level always give the same files, which `LevelGeneratorIntegrationTests` checks. A change to the dressing or the content keeps every layout unless it leaves an objective out of reach and `Generate` takes the next one. A change to the budget can move the layouts through the number of spawn closets it sets.
 
 ## Reference data
 
@@ -461,7 +456,6 @@ A level draws from three `Random` streams. The layout seed drives the gate, the 
 | breaker scenes | `OriginalContent.LoadBreakerScenes` | props within 170 px of the breakers of levels 2 to 4 | `ChooseBreakerSpot` |
 | dynamite sites | `OriginalContent.LoadDynamiteSites` | 179 markers with their pads, holes and endless generators, levels 3 and 4 (lab) and 7 to 9 (military), plus add-on levels in add-on style | `PlaceSites` |
 | keypads | `KeypadTable.Load` | keypad offsets next to each door kind and direction | structure, `PlaceGate` |
-| sprites | `SpriteLibrary` | `.vid` files of floors, walls and the earth tile | `RoofBuilder` |
 | original map | `LevelGenerator.GetOriginal` | the replaced campaign map, its cell model and its music lines | theme, unit count, dressing, script |
 | armies | `ArmyTable.Load` | the most common army of each object id in campaign levels 2 to 10 and the add-on levels | `MapBuilder.Add` |
 
@@ -682,7 +676,7 @@ Every other border between two regions, or between a region and empty space, bec
 
 | edge | objects |
 |---|---|
-| floor cell | 500 floor, random direction |
+| cell within two steps of a layout cell | 500 floor, random direction |
 | `DoubleDoor` | 608 frame and 607 door |
 | `Door` | 606 frame and 605 door |
 | `SecretWall` | 609 breakable wall |
@@ -698,11 +692,18 @@ The closets' outer edges, which border no shown cell, then get 601 and 602 walls
 
 ### Military structure
 
-`StructureBuilder.BuildMilitary` places 651 and 650 walls on every second fine edge, 654 where a fake door is, a 653 frame in seven of ten arches one wall piece wide, 652 corner posts on even vertices and 503 floor tiles on their own (80, 56) lattice wherever a tile reaches a cell. `StructureBuilder.BuildFence` puts a 653 emitter and a 164 fence 14 px above it on each unit edge of every fence link, the gate's and the pens'.
+`StructureBuilder.BuildMilitary` places 651 and 650 walls on every second fine edge, 654 where a fake door is, a 653 frame in seven of ten arches one wall piece wide, 652 corner posts on even vertices and 503 floor tiles on their own (80, 56) lattice wherever a tile stands in a cell within two steps of a layout cell. `StructureBuilder.BuildFence` puts a 653 emitter and a 164 fence 14 px above it on each unit edge of every fence link, the gate's and the pens'.
 
 `ContentPlacer.PlaceDoorMarks` copies the wall marks (131) the original has within 60 px of its doors onto doors of the same ID and facing, as often as the original marks its doors.
 
 `MapBuilder` collects the objects. `Add` drops a repeated object at the same rounded position unless `unique` is false, hands out handles, takes the army from `ArmyTable` and fills the default payloads, 20 bytes with two items for the player start, 12 bytes for monsters and bosses and 8 zero bytes for everything else.
+
+### Roof
+
+`StructureBuilder.BuildRoof` ends the structure. Roof tiles (501) at z 90 (lab) or 95 (military) go on every cell that is not shown within 300 px of the layout.
+
+- **Labs.** Each cell gets one tile 17 px below its center.
+- **Military.** Each cell within two steps of a shown cell gets four tiles, 5 px left and right and 4 px up and down from its center. Farther out, tiles go on the earth lattice (40 by 28 px half steps, odd parity).
 
 ## Breaker spot
 
@@ -903,31 +904,6 @@ These measure how close a level comes to its original and are not guaranteed. `a
 | first generator | first generator | 0.10 to 0.29 of the tour |
 | floor blocked by solid decor | blocked share | 0.02 to 0.16 |
 | floor's mean distance from its middle over a disc's | spread | 1.20 to 1.81 |
-
-## Roof
-
-`RoofBuilder.Build` runs once, after the route analysis, with its own seed. The analysis never sees the earth tiles. It hides everything outside the walkable floor under 501 earth tiles, working from the layout and from the first frames of the theme's earth, floor and plain wall sprites.
-
-1. **Shapes.** Floor tiles, cell diamonds and the walls on edges with exactly one shown side are laid out as screen columns. A wall stands where its sprite stands and rises to its sprite's top. The part above the roof height is its cap.
-2. **Ground earth.** Earth tiles at z 0 fill the earth lattice positions (40 by 28 px half steps) whose tile touches no visible floor.
-3. **Classes.** Each screen column is painted far to near and split into target and forbidden rows.
-
-| pixels | class |
-|---|---|
-| shown floor, up to 96 px above it and 8 px below it | forbidden |
-| wall face whose front cell is shown | forbidden |
-| closet floor, other floor and up to 96 px above closets | target |
-| wall face whose front cell is not shown | target |
-| empty ground next to floor that the ground earth does not cover | target |
-| wall cap | neither, and it ends the 96 px zones |
-
-Past the ends of its edge, a wall face belongs to the cell in front of its base.
-
-4. **Tiles.** Roof tiles lie at z 90 (lab) or 95 (military), shifted down by their height so they appear on the same screen spot. They never come within a pixel of forbidden rows.
-   1. Every earth lattice position whose tile covers target and clears the forbidden rows gets a tile.
-   2. Rounds with falling thresholds then add tiles near the remaining target. Each slides up to half a tile from its lattice position, vertically from its own column or from a nearby cell corner, or sideways. The slide that covers the most target is taken while it reaches the round's threshold.
-
-`RoofResidual` is the number of target pixels left uncovered. `generate` and `preview` print it as "roof misses".
 
 ## Level 1
 

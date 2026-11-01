@@ -13,7 +13,7 @@ internal sealed class PreviewCommand : Command<PreviewSettings>
         string layout = level is { Plan: not null, Budget: not null }
             ? $"{level.Plan.Stations.Count} stations, {level.Plan.Regions.Count} regions, gate {level.Plan.Gate}, HP {level.Budget.PlacedHitPoints + level.Budget.AmbushHitPoints} of {level.Budget.TargetHitPoints}, "
             : "outdoor, ";
-        AnsiConsole.MarkupLine($"Wrote [green]{Markup.Escape(settings.Out)}[/]: {layout}{level.Map.Sprites.Count} objects, roof misses {level.RoofResidual} px.");
+        AnsiConsole.MarkupLine($"Wrote [green]{Markup.Escape(settings.Out)}[/]: {layout}{level.Map.Sprites.Count} objects.");
         return 0;
     }
 }

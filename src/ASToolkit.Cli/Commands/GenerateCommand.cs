@@ -9,7 +9,7 @@ internal sealed class GenerateCommand : Command<GenerateSettings>
     public override int Execute(CommandContext context, GenerateSettings settings, CancellationToken cancellationToken)
     {
         var (generator, _, _) = GeneratorFactory.Create(settings.Game, settings.AddOnStyle);
-        var table = new Table().AddColumns("Level", "Gate", "Tour", "Walked back", "Unreached", "Roof misses");
+        var table = new Table().AddColumns("Level", "Gate", "Tour", "Walked back", "Unreached");
         int broken = 0;
         int[] levels = settings.AddOnStyle
             ? Enumerable.Range(1, LevelGenerator.AddOnLevelCount).ToArray()
@@ -38,7 +38,7 @@ internal sealed class GenerateCommand : Command<GenerateSettings>
 
             table.AddRow($"{RandomAddOnInstaller.FolderName}/Level_{level:00}.map", generated.Plan?.Gate?.ToString() ?? "none",
                 $"{generated.Analysis?.RoutePixels ?? 0} px", $"{generated.Analysis?.RevisitShare ?? 0:P0}",
-                unreached == 0 ? "[green]none[/]" : $"[red]{unreached}[/]", $"{generated.RoofResidual} px");
+                unreached == 0 ? "[green]none[/]" : $"[red]{unreached}[/]");
         }
 
         RandomAddOnInstaller.Install(settings.Game, settings.AddOnStyle, settings.Seed,

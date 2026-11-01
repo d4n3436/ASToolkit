@@ -6,21 +6,32 @@ using ASToolkit.Core.Formats;
 namespace ASToolkit.Core.Generation.Geometry;
 
 /// <summary>
-/// Provides the walls, floors, fake doors and fences of a level.
+/// Provides the floors, walls, fake doors, fences and roof of a level.
 /// </summary>
 public static class StructureBuilder
 {
     private const int RaisedDoubleDoorZ = -70;
-    internal const int SunkenWallZ = -7;
+    private const int SunkenWallZ = -7;
     private const int RaisedSmallDoorZ = -63;
     private const float StuckDoorChance = 0.5f;
     private const float FramedShare = 0.7f;
     private const float MinFakeDoorGap = 160;
+    private const int LabRoofZ = 90;
+    private const int MilitaryRoofZ = 95;
+    private const int LabFloorReach = 2;
+    private const int MilitaryFloorReach = 2;
+    private const float RoofMargin = 300;
+    private const int MilitaryEdgingSteps = 2;
+    private const float EarthStepX = 40;
+    private const float EarthStepY = 28;
     private static readonly (int Min, int Max) StuckDoorZ = (13, 35);
     private static readonly int[] LabWallDirs = [0, 0, 0, 0, 0, 0, 128, 128, 128, 64, 64, 32];
     private static readonly int[] MilitaryWallDirs = [0, 0, 0, 0, 0, 85, 85, 170];
     private static readonly int[] BeamDirs = [128, 128, 0];
     private static readonly int[] CornerDirs = [0, 0, 85];
+    private static readonly SizeF LabRoofShift = new(0, 17);
+    private static readonly SizeF[] MilitaryCellFill = [new(-5, 0), new(5, 0), new(0, -4), new(0, 4)];
+    private static readonly (int U, int V)[] Around = [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1)];
 
     /// <summary>
     /// Places the lattice with every cell at positive map coordinates and lab floors on the ground tile phase.
@@ -115,11 +126,8 @@ public static class StructureBuilder
     public static Dictionary<EdgeKey, int> BuildLab(Random rng, MapBuilder map, FineLayout layout, IReadOnlyDictionary<EdgeKey, EdgeKind> edges,
         Random closetRng, IReadOnlyDictionary<EdgeKey, EdgeKind> closetEdges)
     {
-        foreach (var cell in layout.Cells.Keys.OrderBy(c => c.U).ThenBy(c => c.V))
-        {
-            (float x, float y) = layout.Lattice.GetCenter(cell);
-            map.Add(KnownObject.BasementFloor, x, y, 0, rng.Next(256));
-        }
+        var floor = GetCellsWithin(layout.Cells.Keys, LabFloorReach).Keys.OrderBy(c => c.U).ThenBy(c => c.V);
+        AddTiles(rng, map, KnownObject.BasementFloor, 0, floor.Select(layout.Lattice.GetCenter));
 
         var spawnWalls = new Dictionary<EdgeKey, int>();
         var skip = layout.FakeDoors
@@ -185,7 +193,6 @@ public static class StructureBuilder
             ((float x, float y), bool slash) = GetLabPosition(layout.Lattice, edge);
             map.Add(slash ? KnownObject.LabWallSlash : KnownObject.LabWallBack, x, y, SunkenWallZ, LabWallDirs[closetRng.Next(LabWallDirs.Length)]);
         }
-
 
         return spawnWalls;
     }
@@ -253,6 +260,7 @@ public static class StructureBuilder
 
         // 503 tiles use their own 80 by 56 lattice and reach under the walls
         var centers = layout.Cells.Keys.Select(l.GetCenter).ToArray();
+        var near = GetCellsWithin(layout.Cells.Keys, MilitaryFloorReach);
         int i0 = (int)MathF.Floor((centers.Min(p => p.X) - 160) / 80);
         int i1 = (int)MathF.Floor((centers.Max(p => p.X) + 160) / 80);
         int j0 = (int)MathF.Floor((centers.Min(p => p.Y) - 112) / 56);
@@ -268,16 +276,7 @@ public static class StructureBuilder
 
                 float x = 80 * index;
                 float y = 56 * innerIndex;
-                bool covers = false;
-                foreach (int dx in new[] { -80, -40, 0, 40, 80 })
-                {
-                    foreach (int dy in new[] { -56, -28, 0, 28, 56 })
-                    {
-                        covers |= layout.Cells.ContainsKey(l.GetCell(x + dx, y + dy));
-                    }
-                }
-
-                if (covers)
+                if (near.ContainsKey(l.GetCell(x, y)))
                 {
                     map.Add(KnownObject.MilitaryFloor, x, y, 0, rng.Next(256));
                 }
@@ -431,5 +430,74 @@ public static class StructureBuilder
         }
 
         return posts.ToArray();
+    }
+
+    /// <summary>
+    /// Adds roof tiles over the cells that are not shown, out to a margin around the layout.
+    /// </summary>
+    public static void BuildRoof(Random rng, LevelTheme theme, FineLayout layout, IReadOnlySet<Cell> shown, MapBuilder map)
+    {
+        int z = theme == LevelTheme.Lab ? LabRoofZ : MilitaryRoofZ;
+        var lattice = layout.Lattice;
+        var centers = layout.Cells.Keys.Select(lattice.GetCenter).ToArray();
+        var area = RectangleF.FromLTRB(centers.Min(center => center.X) - RoofMargin, centers.Min(center => center.Y) - RoofMargin,
+            centers.Max(center => center.X) + RoofMargin, centers.Max(center => center.Y) + RoofMargin + z);
+        
+        var corners = new[] { lattice.GetCell(area.Left, area.Top), lattice.GetCell(area.Right, area.Top), lattice.GetCell(area.Left, area.Bottom), lattice.GetCell(area.Right, area.Bottom) };
+        var hidden = Enumerable.Range(corners.Min(corner => corner.U), corners.Max(corner => corner.U) - corners.Min(corner => corner.U) + 1)
+            .SelectMany(u => Enumerable.Range(corners.Min(corner => corner.V), corners.Max(corner => corner.V) - corners.Min(corner => corner.V) + 1).Select(v => new Cell(u, v)))
+            .Where(cell => !shown.Contains(cell) && area.Contains(lattice.GetCenter(cell)))
+            .ToArray();
+        
+        if (theme == LevelTheme.Lab)
+        {
+            AddTiles(rng, map, KnownObject.Earth, z, hidden.Select(cell => lattice.GetCenter(cell) + LabRoofShift));
+            return;
+        }
+
+        var steps = GetCellsWithin(shown, MilitaryEdgingSteps);
+        var edging = hidden.Where(steps.ContainsKey).SelectMany(cell => MilitaryCellFill.Select(offset => lattice.GetCenter(cell) + offset));
+        int left = (int)MathF.Floor(area.Left / EarthStepX);
+        int right = (int)MathF.Ceiling(area.Right / EarthStepX);
+        int top = (int)MathF.Floor(area.Top / EarthStepY);
+        int bottom = (int)MathF.Ceiling(area.Bottom / EarthStepY);
+        var far = Enumerable.Range(left, right - left + 1)
+            .SelectMany(column => Enumerable.Range(top, bottom - top + 1).Where(row => ((column + row) & 1) == 1).Select(row => new PointF(EarthStepX * column, EarthStepY * row)))
+            .Where(spot => !steps.TryGetValue(lattice.GetCell(spot.X, spot.Y), out int step) || step == MilitaryEdgingSteps);
+        
+        AddTiles(rng, map, KnownObject.Earth, z, edging.Concat(far));
+    }
+
+    private static Dictionary<Cell, int> GetCellsWithin(IEnumerable<Cell> cells, int reach)
+    {
+        var steps = cells.ToDictionary(cell => cell, _ => 0);
+        var frontier = steps.Keys.ToArray();
+        for (int step = 1; step <= reach; step++)
+        {
+            var next = new List<Cell>();
+            foreach (var cell in frontier)
+            {
+                foreach ((int du, int dv) in Around)
+                {
+                    var neighbor = new Cell(cell.U + du, cell.V + dv);
+                    if (steps.TryAdd(neighbor, step))
+                    {
+                        next.Add(neighbor);
+                    }
+                }
+            }
+
+            frontier = next.ToArray();
+        }
+
+        return steps;
+    }
+
+    private static void AddTiles(Random rng, MapBuilder map, KnownObject id, int z, IEnumerable<PointF> spots)
+    {
+        foreach (var spot in spots)
+        {
+            map.Add(id, spot.X, spot.Y, z, rng.Next(256), unique: false);
+        }
     }
 }

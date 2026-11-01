@@ -93,9 +93,6 @@ public sealed class OutdoorLevelBuilder
         {
             Level = 1,
             Map = map,
-            Builder = site.Map,
-            Shown = site.Ground.Where(cell => !site.Interiors.Contains(cell)).ToHashSet(),
-            Hidden = site.Interiors,
             Lattice = lattice,
             Template = ReferenceLevelSet.GetCampaignName(1),
             Theme = LevelTheme.Outdoor,

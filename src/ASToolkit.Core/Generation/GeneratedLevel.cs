@@ -18,24 +18,9 @@ public sealed class GeneratedLevel
     public required int Level { get; init; }
 
     /// <summary>
-    /// Gets or sets the map.
+    /// Gets the map.
     /// </summary>
-    public required MapResourceBuilder Map { get; set; }
-
-    /// <summary>
-    /// Gets the builder that holds the map's objects.
-    /// </summary>
-    public required MapBuilder Builder { get; init; }
-
-    /// <summary>
-    /// Gets the floor cells outside the closets.
-    /// </summary>
-    public required IReadOnlySet<Cell> Shown { get; init; }
-
-    /// <summary>
-    /// Gets the cells the roof covers besides the ones outside the shown floor.
-    /// </summary>
-    public required IReadOnlySet<Cell> Hidden { get; init; }
+    public required MapResourceBuilder Map { get; init; }
 
     /// <summary>
     /// Gets or sets the original map, relative to the Maps folder, that the level is written over.
@@ -56,11 +41,6 @@ public sealed class GeneratedLevel
     /// Gets or sets the number of the add-on level this level replaces, or null for a campaign level.
     /// </summary>
     public int? AddOnNumber { get; set; }
-
-    /// <summary>
-    /// Gets or sets the number of pixels the roof should hide but cannot.
-    /// </summary>
-    public int RoofResidual { get; set; }
 
     /// <summary>
     /// Gets the script.
