@@ -140,7 +140,7 @@ public sealed class RoomGraph
         (int[] rooms, var neighbors) = FindDoorGraph(survey);
         (int start, int end) = FindEnds(survey);
         var body = FindMainBody(rooms, neighbors, start, end);
-        var depth = MeasureHops(neighbors, body);
+        var depth = neighbors.MeasureHops(body);
         float floor = Math.Max(1, rooms.Sum(room => (float)places[room].AreaPixels));
         int edges = neighbors.Values.Sum(set => set.Count) / 2;
         int components = CountComponents(rooms, neighbors, []);
@@ -161,7 +161,7 @@ public sealed class RoomGraph
             Cycles = edges - rooms.Length + components,
             MainBodyShare = body.Sum(room => places[room].AreaPixels) / floor,
             HubDoors = neighbors[hub].Count,
-            HubHops = MeasureHops(neighbors, [start]).GetValueOrDefault(hub, -1),
+            HubHops = neighbors.MeasureHops([start]).GetValueOrDefault(hub, -1),
             LargeBranches = large.Length,
             LargeBranchesOnHub = large.Count(branch => branch.Any(room => neighbors[room].Contains(hub))),
             LargestBranchShare = branches.Select(branch => branch.Sum(room => places[room].AreaPixels) / floor).DefaultIfEmpty(0).Max(),
@@ -324,25 +324,6 @@ public sealed class RoomGraph
                 }
             }
         }
-    }
-
-    private static Dictionary<int, int> MeasureHops(Dictionary<int, HashSet<int>> neighbors, IEnumerable<int> sources)
-    {
-        var hops = sources.ToDictionary(room => room, _ => 0);
-        var queue = new Queue<int>(hops.Keys);
-        while (queue.Count > 0)
-        {
-            int room = queue.Dequeue();
-            foreach (int next in neighbors[room])
-            {
-                if (hops.TryAdd(next, hops[room] + 1))
-                {
-                    queue.Enqueue(next);
-                }
-            }
-        }
-
-        return hops;
     }
 
     private static float? GetRectangleShare(LevelSurvey survey, Dictionary<int, (int Count, int Outside)> notches, int minPixels, int maxPixels)

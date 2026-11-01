@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Drawing;
+using System.Runtime.InteropServices;
 using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Levels;
@@ -9,12 +10,14 @@ namespace ASToolkit.Core.Levels;
 /// </summary>
 public sealed class SpawnerProgram
 {
+    private const int ActionSize = 16;
+
     private static readonly byte[] DefaultTrailer = [0, 0, 0, 0, 3, 0, 0, 0];
 
     /// <summary>
     /// Gets the actions in payload order.
     /// </summary>
-    public required IReadOnlyList<SpawnerAction> Actions { get; init; }
+    public required IReadOnlyList<StackAction> Actions { get; init; }
 
     /// <summary>
     /// Gets the bytes after the actions.
@@ -24,7 +27,7 @@ public sealed class SpawnerProgram
     /// <summary>
     /// Gets the monsters the spawner builds, in order.
     /// </summary>
-    public IEnumerable<KnownObject> Monsters => Actions.Where(a => a.Op == SpawnerAction.Build).Select(a => (KnownObject)a.A);
+    public IEnumerable<KnownObject> Monsters => Actions.Where(action => action.Act == (int)ActionCode.BuildUnit).Select(action => (KnownObject)action.Var1);
 
     /// <summary>
     /// Gets the trigger point and radius, or null when the spawner starts at once.
@@ -35,9 +38,9 @@ public sealed class SpawnerProgram
         {
             foreach (var action in Actions)
             {
-                if (action.Op == SpawnerAction.Trigger)
+                if (action.Act == (int)ActionCode.FlagmanTrigger)
                 {
-                    return (action.A, action.B, action.C);
+                    return (action.Var1, action.Var2, action.Var3);
                 }
             }
 
@@ -48,7 +51,7 @@ public sealed class SpawnerProgram
     /// <summary>
     /// Gets the waypoints of the spawned monsters in payload order.
     /// </summary>
-    public IEnumerable<Point> Waypoints => Actions.Where(a => a.Op == SpawnerAction.Move).Select(a => new Point(a.A, a.B));
+    public IEnumerable<Point> Waypoints => Actions.Where(action => action.Act == (int)ActionCode.Move).Select(action => new Point(action.Var1, action.Var2));
 
     /// <summary>
     /// Parses a spawner payload, or returns null when it is too short.
@@ -61,20 +64,14 @@ public sealed class SpawnerProgram
         }
 
         int count = (int)BinaryPrimitives.ReadUInt32LittleEndian(payload);
-        if (count < 0 || 4 + 16 * count > payload.Length)
+        int end = sizeof(int) + ActionSize * count;
+        if (count < 0 || end > payload.Length)
         {
             return null;
         }
 
-        var actions = new SpawnerAction[count];
-        for (int index = 0; index < count; index++)
-        {
-            var a = payload.Slice(4 + 16 * index, 16);
-            actions[index] = new SpawnerAction(BinaryPrimitives.ReadInt32LittleEndian(a), BinaryPrimitives.ReadInt32LittleEndian(a[4..]),
-                BinaryPrimitives.ReadInt32LittleEndian(a[8..]), BinaryPrimitives.ReadInt32LittleEndian(a[12..]));
-        }
-
-        return new SpawnerProgram { Actions = actions, Trailer = payload[(4 + 16 * count)..].ToArray() };
+        var actions = MemoryMarshal.Cast<byte, StackAction>(payload[sizeof(int)..end]).ToArray();
+        return new SpawnerProgram { Actions = actions, Trailer = payload[end..].ToArray() };
     }
 
     /// <summary>
@@ -83,19 +80,19 @@ public sealed class SpawnerProgram
     /// </summary>
     public static SpawnerProgram Create(IEnumerable<KnownObject> monsters, (float X, float Y, float Radius) trigger, IEnumerable<PointF> waypoints)
     {
-        var actions = new List<SpawnerAction>();
+        var actions = new List<StackAction>();
         foreach ((float x, float y) in waypoints.Reverse())
         {
-            actions.Add(new SpawnerAction(SpawnerAction.Move, (int)x, (int)y, 0));
+            actions.Add(new StackAction((int)ActionCode.Move, (int)x, (int)y, 0));
         }
 
-        actions.Add(new SpawnerAction(SpawnerAction.Stop, 0, 0, 0));
+        actions.Add(new StackAction((int)ActionCode.StopStack, 0, 0, 0));
         foreach (var monster in monsters)
         {
-            actions.Add(new SpawnerAction(SpawnerAction.Build, (int)monster, 0, 0));
+            actions.Add(new StackAction((int)ActionCode.BuildUnit, (int)monster, 0, 0));
         }
 
-        actions.Add(new SpawnerAction(SpawnerAction.Trigger, (int)trigger.X, (int)trigger.Y, (int)trigger.Radius));
+        actions.Add(new StackAction((int)ActionCode.FlagmanTrigger, (int)trigger.X, (int)trigger.Y, (int)trigger.Radius));
         return new SpawnerProgram { Actions = actions, Trailer = DefaultTrailer };
     }
 
@@ -104,18 +101,16 @@ public sealed class SpawnerProgram
     /// </summary>
     public byte[] ToPayload()
     {
-        byte[] bytes = new byte[4 + 16 * Actions.Count + Trailer.Length];
+        int end = sizeof(int) + ActionSize * Actions.Count;
+        byte[] bytes = new byte[end + Trailer.Length];
         BinaryPrimitives.WriteUInt32LittleEndian(bytes, (uint)Actions.Count);
         for (int actionIndex = 0; actionIndex < Actions.Count; actionIndex++)
         {
-            var a = bytes.AsSpan(4 + 16 * actionIndex, 16);
-            BinaryPrimitives.WriteInt32LittleEndian(a, Actions[actionIndex].Op);
-            BinaryPrimitives.WriteInt32LittleEndian(a[4..], Actions[actionIndex].A);
-            BinaryPrimitives.WriteInt32LittleEndian(a[8..], Actions[actionIndex].B);
-            BinaryPrimitives.WriteInt32LittleEndian(a[12..], Actions[actionIndex].C);
+            var action = Actions[actionIndex];
+            MemoryMarshal.Write(bytes.AsSpan(sizeof(int) + ActionSize * actionIndex), in action);
         }
 
-        Trailer.CopyTo(bytes, 4 + 16 * Actions.Count);
+        Trailer.CopyTo(bytes, end);
         return bytes;
     }
 }

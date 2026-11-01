@@ -251,7 +251,7 @@ public sealed class MapRenderer
 
         int lastStack = MemoryMarshal.Read<int>(payload) & 0xffff;
         int stackCount = Math.Min(MemoryMarshal.Read<int>(payload[sizeof(int)..]), ActionStackCount);
-        int actionSize = Unsafe.SizeOf<MapAction>();
+        int actionSize = Unsafe.SizeOf<StackAction>();
         Span<(int Start, int Length)> stacks = stackalloc (int, int)[ActionStackCount];
         int position = 2 * sizeof(int);
         for (int stack = 0; stack < stackCount; stack++)
@@ -286,7 +286,7 @@ public sealed class MapRenderer
     {
         for (int offset = actions.Length - actionSize; offset >= 0; offset -= actionSize)
         {
-            var action = MemoryMarshal.Read<MapAction>(actions[offset..]);
+            var action = MemoryMarshal.Read<StackAction>(actions[offset..]);
             if (action.Act is PauseAct or FlagmanTriggerAct or StopStackAct or WhileNotQuestAct or VariableWaitAct)
             {
                 break;

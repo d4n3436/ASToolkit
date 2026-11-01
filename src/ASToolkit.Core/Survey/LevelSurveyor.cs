@@ -74,11 +74,21 @@ public sealed class LevelSurveyor
         new LevelSurveyor(map, script, analysis, objects).Survey();
 
     /// <summary>
+    /// Surveys a level with the given measurements.
+    /// </summary>
+    public static LevelSurvey Survey(MapResourceBuilder map, LevelScriptSummary script, RouteAnalysis analysis, ObjectTable objects, LevelMeasurement measurement) =>
+        new LevelSurveyor(map, script, analysis, objects).Survey(measurement);
+
+    /// <summary>
     /// Surveys the level.
     /// </summary>
-    public LevelSurvey Survey()
+    public LevelSurvey Survey() => Survey(LevelMeasurer.Measure(_map, _script, _analysis, _objects));
+
+    /// <summary>
+    /// Surveys the level with the given measurements.
+    /// </summary>
+    public LevelSurvey Survey(LevelMeasurement measurement)
     {
-        var measurement = LevelMeasurer.Measure(_map, _script, _analysis, _objects);
         var setting = FindSetting();
         bool openPlan = setting != LevelTheme.Lab || !_grid.Edges.Values.Any(kind => kind is EdgeKind.Door or EdgeKind.Doorway or EdgeKind.ShutDoor);
         var segmenter = new PlaceSegmenter((int)(MaxOpeningPixels / _step), (int)(MaxStubPixels / _step), (int)MathF.Ceiling(MinPlacePixels / CellArea),
@@ -136,18 +146,18 @@ public sealed class LevelSurveyor
 
         var tiles = _map.Sprites
             .Where(sprite => sprite is { Id: KnownObject.Earth, Position.Z: > 40 })
-            .ToLookup(sprite => ((int)MathF.Floor(sprite.Position.X / 80), (int)MathF.Floor((sprite.Position.Y - sprite.Position.Z) / 56)));
+            .ToLookup(sprite => ((int)MathF.Floor(sprite.Position.X / (2 * Lattice.LabStep.X)), (int)MathF.Floor((sprite.Position.Y - sprite.Position.Z) / (2 * Lattice.LabStep.Y))));
 
         foreach (var cell in _grid.Cells)
         {
             (float x, float y) = _lattice.GetCenter(cell);
-            int column = (int)MathF.Floor(x / 80), row = (int)MathF.Floor(y / 56);
+            int column = (int)MathF.Floor(x / (2 * Lattice.LabStep.X)), row = (int)MathF.Floor(y / (2 * Lattice.LabStep.Y));
             bool covered = false;
             for (int dx = -1; dx <= 1 && !covered; dx++)
             {
                 for (int dy = -1; dy <= 1 && !covered; dy++)
                 {
-                    covered = tiles[(column + dx, row + dy)].Any(tile => MathF.Abs(tile.Position.X - x) / 40 + MathF.Abs(tile.Position.Y - tile.Position.Z - y) / 28 <= RoofReach);
+                    covered = tiles[(column + dx, row + dy)].Any(tile => MathF.Abs(tile.Position.X - x) / Lattice.LabStep.X + MathF.Abs(tile.Position.Y - tile.Position.Z - y) / Lattice.LabStep.Y <= RoofReach);
                 }
             }
 

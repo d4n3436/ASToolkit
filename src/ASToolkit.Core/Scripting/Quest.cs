@@ -17,7 +17,7 @@ public sealed record Quest(int Line, int Sub, int TimeLine, string Title, IReadO
     public string Key => $"{Line}_{Sub}";
 
     /// <summary>
-    /// Gets the quests that follow this one.
+    /// Gets the quests that follow this quest.
     /// </summary>
     public IReadOnlyList<(int Line, int Sub)> NextQuests { get; init; } = [];
 }

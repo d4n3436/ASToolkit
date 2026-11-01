@@ -45,7 +45,7 @@ internal sealed class StackReader
 
     private float Radius => _area?.Radius ?? 0;
 
-    public void Read(ReadOnlySpan<MapAction> stack)
+    public void Read(ReadOnlySpan<StackAction> stack)
     {
         Wait(null, null, null);
         for (int index = stack.Length - 1; index >= 0; index--)
@@ -59,7 +59,7 @@ internal sealed class StackReader
         Flush();
     }
 
-    private bool ReadAction(MapAction action)
+    private bool ReadAction(StackAction action)
     {
         switch ((ActionCode)action.Act)
         {
@@ -218,7 +218,7 @@ internal sealed class StackReader
         }
     }
 
-    private void AddDestroyEffect(MapAction action)
+    private void AddDestroyEffect(StackAction action)
     {
         if (action.Var1 == SelfTarget)
         {
@@ -256,7 +256,7 @@ internal sealed class StackReader
         }
     }
 
-    private void AddAnimationEffect(MapAction action)
+    private void AddAnimationEffect(StackAction action)
     {
         var animation = (SpriteAnimation)action.Act;
         bool other = action.Var1 > 0 && _context.Objects.TryFind((KnownObject)action.Var1, out _);

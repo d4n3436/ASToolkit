@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
+using ASToolkit.Core.Reference;
 
 namespace ASToolkit.Core.Generation.Dressing;
 
@@ -43,15 +44,15 @@ public sealed class DressingLibrary
     /// <summary>
     /// Builds the library from the original levels of a theme, keeping only the allowed decor.
     /// </summary>
-    public static DressingLibrary Build(string gameFolder, ObjectTable objects, LevelTheme theme, IEnumerable<string> levels, Func<KnownObject, float, bool> isAllowed,
+    public static DressingLibrary Build(ReferenceLevelSet references, ObjectTable objects, LevelTheme theme, IEnumerable<string> levels, Func<KnownObject, float, bool> isAllowed,
         WallClearanceTable clearance, FacingTable facings)
     {
         int[] sizes = theme == LevelTheme.Lab ? [3, 2, 1] : [4, 2];
         var sources = new List<LevelModel>();
         foreach (string level in levels)
         {
-            var model = LevelExtractor.Extract(level, MapResourceBuilder.Load(Path.Combine(gameFolder, "Maps", level)), objects);
-            if (model is not null && model.Theme == theme && model.Edges.Count >= 100)
+            var model = references.GetLevel(level).Model;
+            if (model.Theme == theme && model.Edges.Count >= 100)
             {
                 sources.Add(model);
             }
@@ -136,11 +137,10 @@ public sealed class DressingLibrary
     /// Copies the objects of a random source window with the same walls, and none of its cells used before, into the target
     /// window, and returns whether any source window matched. An object that would stand closer to a wall than in its source and than
     /// the originals usually allow, that would face the walls in a way the originals rarely or never do, or that would stand away from walls
-    /// where the originals nearly always stand it by one, is left out. With cells to keep clear, windows whose solid pieces stay off them
-    /// come first.
+    /// where the originals nearly always stand it by one, is left out. Windows whose solid pieces stay off the cells to keep clear come first.
     /// </summary>
     public bool TryCopy(Random rng, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, Cell corner, int size, ISet<(int Source, Cell Cell)> used, out List<PlacedDecor> placed,
-        IReadOnlySet<Cell>? keepClear = null)
+        IReadOnlySet<Cell> keepClear)
     {
         placed = [];
         if (!_windows.TryGetValue((size, GetWallKey(edges, corner, size)), out var all))
@@ -159,7 +159,7 @@ public sealed class DressingLibrary
                 continue;
             }
 
-            int tier = keepClear is not null && BlocksCells(match.Source, match.Corner, corner, size, keepClear) ? 1 : 0;
+            int tier = BlocksCells(match.Source, match.Corner, corner, size, keepClear) ? 1 : 0;
             if (tier < best)
             {
                 pick = match;

@@ -23,7 +23,7 @@ public partial class ResInspectorViewModel : ViewModelBase
     [ObservableProperty]
     public partial Thickness OpenButtonMargin { get; set; } = new(200);
 
-    private byte[]? _currentBytes;
+    private byte[] _currentBytes = [];
 
     [ObservableProperty]
     public partial string? CurrentName { get; set; }

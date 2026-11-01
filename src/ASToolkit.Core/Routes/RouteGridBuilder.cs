@@ -76,7 +76,7 @@ public static class RouteGridBuilder
             float dx = sprite.Position.X - from.Position.X;
             float dy = sprite.Position.Y - from.Position.Y;
             float distance = MathF.Sqrt(dx * dx + dy * dy);
-            bool diagonal = MathF.Abs(MathF.Abs(dy) * LevelExtractor.LabStep.X - MathF.Abs(dx) * LevelExtractor.LabStep.Y) < DiagonalTolerance * distance;
+            bool diagonal = MathF.Abs(MathF.Abs(dy) * Lattice.LabStep.X - MathF.Abs(dx) * Lattice.LabStep.Y) < DiagonalTolerance * distance;
             if (diagonal && distance > 1 && distance < best)
             {
                 nearest = sprite;

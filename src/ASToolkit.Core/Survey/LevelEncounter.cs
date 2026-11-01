@@ -13,17 +13,17 @@ public sealed class LevelEncounter
     public required int Id { get; init; }
 
     /// <summary>
-    /// Gets how its monsters come.
+    /// Gets how the fight's monsters come.
     /// </summary>
     public required EncounterKind Kind { get; init; }
 
     /// <summary>
-    /// Gets the place its monsters stand in or come from.
+    /// Gets the place the fight's monsters stand in or come from.
     /// </summary>
     public required int Place { get; init; }
 
     /// <summary>
-    /// Gets how far along the route, in map pixels, it starts.
+    /// Gets how far along the route, in map pixels, the fight starts.
     /// </summary>
     public required int Route { get; init; }
 
@@ -33,7 +33,7 @@ public sealed class LevelEncounter
     public required int Count { get; init; }
 
     /// <summary>
-    /// Gets the hit points of all its monsters together.
+    /// Gets the hit points of all the fight's monsters together.
     /// </summary>
     public required int HitPoints { get; init; }
 
@@ -43,12 +43,12 @@ public sealed class LevelEncounter
     public required IReadOnlyList<MonsterCount> Monsters { get; init; }
 
     /// <summary>
-    /// Gets how its monsters are laid out.
+    /// Gets how the fight's monsters are laid out.
     /// </summary>
     public required EncounterFormation Formation { get; init; }
 
     /// <summary>
-    /// Gets where in its place it lies, for placed groups and bosses.
+    /// Gets where the fight lies in its place, for placed groups and bosses.
     /// </summary>
     public PlaceSpot? Spot { get; init; }
 
@@ -83,7 +83,7 @@ public sealed class LevelEncounter
     public LandmarkKind? NearKey { get; init; }
 
     /// <summary>
-    /// Gets the place of the dynamite site that shuts it, or null.
+    /// Gets the place of the dynamite site that shuts the fight, or null.
     /// </summary>
     public int? ShutBy { get; init; }
 

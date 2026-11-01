@@ -11,6 +11,6 @@ namespace ASToolkit.Core.Generation.Dressing;
 /// <param name="Z">The height.</param>
 /// <param name="Dir">The facing.</param>
 /// <param name="Payload">The payload bytes.</param>
-/// <param name="Source">The source level and object index it was copied from.</param>
-/// <param name="Support">The source level and object index of the object it stands on, or null.</param>
+/// <param name="Source">The source level and object index the object was copied from.</param>
+/// <param name="Support">The source level and object index of what the object stands on, or null.</param>
 public sealed record PlacedDecor(KnownObject Id, float U, float V, float Z, byte Dir, byte[] Payload, (int Level, int Index) Source, (int Level, int Index)? Support);

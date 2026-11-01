@@ -39,12 +39,12 @@ public sealed class LevelPlace
     public required PlaceUse Use { get; init; }
 
     /// <summary>
-    /// Gets the number of furniture pieces in it.
+    /// Gets the number of furniture pieces in the place.
     /// </summary>
     public required int FurniturePieces { get; init; }
 
     /// <summary>
-    /// Gets the facts that hold for it.
+    /// Gets the facts that hold for the place.
     /// </summary>
     public required PlaceTags Tags { get; init; }
 
@@ -54,12 +54,12 @@ public sealed class LevelPlace
     public required int AreaPixels { get; init; }
 
     /// <summary>
-    /// Gets the longer side of its lattice box in map pixels.
+    /// Gets the longer side of the place's lattice box in map pixels.
     /// </summary>
     public required int LengthPixels { get; init; }
 
     /// <summary>
-    /// Gets the shorter side of its lattice box in map pixels.
+    /// Gets the shorter side of the place's lattice box in map pixels.
     /// </summary>
     public required int WidthPixels { get; init; }
 
@@ -74,7 +74,7 @@ public sealed class LevelPlace
     public int? FirstVisit { get; init; }
 
     /// <summary>
-    /// Gets the number of times the route enters it.
+    /// Gets the number of times the route enters the place.
     /// </summary>
     public required int Visits { get; init; }
 
@@ -84,17 +84,17 @@ public sealed class LevelPlace
     public int? Detour { get; init; }
 
     /// <summary>
-    /// Gets the place it's entered from.
+    /// Gets the place the route enters the place from.
     /// </summary>
     public int? EnteredFrom { get; init; }
 
     /// <summary>
-    /// Gets the hit points of its fights.
+    /// Gets the hit points of the place's fights.
     /// </summary>
     public required int ThreatHitPoints { get; init; }
 
     /// <summary>
-    /// Gets the share of its cells that solid objects block.
+    /// Gets the share of the place's cells that solid objects block.
     /// </summary>
     public required float BlockedShare { get; init; }
 }

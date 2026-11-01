@@ -245,7 +245,7 @@ public sealed class LayoutBuilder
             
             int? stop = _key is not null && side == keySide ? _key.Bounds.U : null;
             bool[] narrow = items.Select((item, index) => corridors.Contains(item.Branch) && items.Take(index).All(other => other.Branch != item.Branch)).ToArray();
-            var laid = LayRow(_hub, side, items.Select(item => item.Area).ToArray(), RowGap, Role.Row, 0, items.Select(item => item.Branch).ToArray(), stop, narrow);
+            var laid = LayRow(_hub, side, items.Select(item => item.Area).ToArray(), RowGap, Role.Row, 0, items.Select(item => item.Branch).ToArray(), narrow, stop);
             
             foreach (var entrances in laid.OfType<Piece>().Where(piece => piece.Branch >= 0).GroupBy(piece => piece.Branch))
             {
@@ -341,9 +341,9 @@ public sealed class LayoutBuilder
         int[] rooms = _profile.HallRooms.OrderBy(_ => _rng.Next()).ToArray();
         var gap = _profile.HasPods ? PodGap : RowGap;
         int[] nearRooms = rooms.Where((_, index) => index % 2 == 0).ToArray();
-        var near = LayRow(hall, along ? Side.Top : Side.Left, nearRooms, gap, Role.Row, 1);
+        var near = LayRow(hall, along ? Side.Top : Side.Left, nearRooms, gap, Role.Row, 1, Enumerable.Repeat(-1, nearRooms.Length).ToArray(), new bool[nearRooms.Length]);
         int[] farRooms = rooms.Where((_, index) => index % 2 == 1).Concat(nearRooms.Where((_, index) => near[index] is null)).ToArray();
-        var far = LayRow(hall, along ? Side.Bottom : Side.Right, farRooms, gap, Role.Row, 1).OfType<Piece>().ToArray();
+        var far = LayRow(hall, along ? Side.Bottom : Side.Right, farRooms, gap, Role.Row, 1, Enumerable.Repeat(-1, farRooms.Length).ToArray(), new bool[farRooms.Length]).OfType<Piece>().ToArray();
         if (endsBody)
         {
             var laid = near.OfType<Piece>().Concat(far).DefaultIfEmpty(hall);
@@ -430,7 +430,7 @@ public sealed class LayoutBuilder
             for (int flank = 0; flank < 2; flank++)
             {
                 int[] areas = order.Where((_, index) => index % 2 == flank).ToArray();
-                var laid = LayRow(root, flanks[flank], areas, RowGap, Role.Branch, root.Section, areas.Select(_ => branch).ToArray());
+                var laid = LayRow(root, flanks[flank], areas, RowGap, Role.Branch, root.Section, areas.Select(_ => branch).ToArray(), new bool[areas.Length]);
                 rest.AddRange(areas.Where((_, index) => laid[index] is null));
             }
 
@@ -469,7 +469,7 @@ public sealed class LayoutBuilder
     }
 
     // Pack rooms end to end along a side of a hall and return the room laid for each area, or null where the side ran out
-    private Piece?[] LayRow(Piece hall, Side side, int[] areas, (int Min, int Max) gap, Role role, int section, int[]? branches = null, int? stop = null, bool[]? corridors = null)
+    private Piece?[] LayRow(Piece hall, Side side, int[] areas, (int Min, int Max) gap, Role role, int section, IReadOnlyList<int> branches, IReadOnlyList<bool> corridors, int? stop = null)
     {
         var laid = new Piece?[areas.Length];
         var hb = hall.Bounds;
@@ -480,7 +480,7 @@ public sealed class LayoutBuilder
         {
             for (int attempt = 0; attempt < RowTries; attempt++)
             {
-                bool corridor = corridors?[index] == true;
+                bool corridor = corridors[index];
                 int length = Math.Clamp((int)MathF.Round(areas[index] / (float)CorridorWidth), CorridorLength.Min, CorridorLength.Max);
                 (int w, int h) = !corridor ? DrawSize(areas[index]) : across ? (CorridorWidth, length) : (length, CorridorWidth);
                 int room = end - cursor;
@@ -505,7 +505,7 @@ public sealed class LayoutBuilder
 
                 if (IsFree(rect) && CountContacts(rect).GetValueOrDefault(hall) >= MinShared)
                 {
-                    laid[index] = AddPiece(role, rect, section, branches?[index] ?? -1);
+                    laid[index] = AddPiece(role, rect, section, branches[index]);
                     laid[index]!.IsCorridor = corridor;
                     Join(hall, laid[index]!);
                     cursor += span + _rng.Next(gap.Min, gap.Max + 1);
@@ -990,8 +990,8 @@ public sealed class LayoutBuilder
             neighbors[second].Add(first);
         }
 
-        var path = FindPath(neighbors, _regions[_start!].Id, _regions[end].Id);
-        if (path is null)
+        var path = neighbors.FindPath(_regions[_start!].Id, _regions[end].Id);
+        if (path.Count == 0)
         {
             return false;
         }
@@ -1029,7 +1029,7 @@ public sealed class LayoutBuilder
             return false;
         }
 
-        var depth = MeasureHops(neighbors, path[0]);
+        var depth = neighbors.MeasureHops([path[0]]);
         foreach ((int first, int second) in lines.Keys.Where(key => !linked.Contains(key)))
         {
             (int from, int to) = depth[first] <= depth[second] ? (first, second) : (second, first);
@@ -1044,50 +1044,6 @@ public sealed class LayoutBuilder
             linked.Add(key);
             AddLink(from, to, lines[key], LinkKind.Arch);
         }
-    }
-
-    private static List<int>? FindPath(Dictionary<int, List<int>> neighbors, int from, int to)
-    {
-        var previous = new Dictionary<int, int> { [from] = from };
-        var queue = new Queue<int>([from]);
-        while (queue.Count > 0 && !previous.ContainsKey(to))
-        {
-            int at = queue.Dequeue();
-            foreach (int next in neighbors[at].Where(next => previous.TryAdd(next, at)))
-            {
-                queue.Enqueue(next);
-            }
-        }
-
-        if (!previous.ContainsKey(to))
-        {
-            return null;
-        }
-
-        var path = new List<int> { to };
-        while (path[^1] != from)
-        {
-            path.Add(previous[path[^1]]);
-        }
-
-        path.Reverse();
-        return path;
-    }
-
-    private static Dictionary<int, int> MeasureHops(Dictionary<int, List<int>> neighbors, int from)
-    {
-        var hops = new Dictionary<int, int> { [from] = 0 };
-        var queue = new Queue<int>([from]);
-        while (queue.Count > 0)
-        {
-            int at = queue.Dequeue();
-            foreach (int next in neighbors[at].Where(next => hops.TryAdd(next, hops[at] + 1)))
-            {
-                queue.Enqueue(next);
-            }
-        }
-
-        return hops;
     }
 
     // Lock the neck and every branch off the hub, leaving the start, the hub and the breaker's room open, then open loot branches while more
@@ -1688,7 +1644,7 @@ public sealed class LayoutBuilder
     private static PointF GetLabDoorPosition(EdgeKey edge) =>
         edge.Axis == 'v' ? ConvertToLabPixels(edge.A + 0.25f, edge.B + 0.25f) : ConvertToLabPixels(edge.A - 0.25f, edge.B + 0.75f);
 
-    private static PointF ConvertToLabPixels(float a, float b) => new(40f * (a + b), 28f * (b - a));
+    private static PointF ConvertToLabPixels(float a, float b) => new(Lattice.LabStep.X * (a + b), Lattice.LabStep.Y * (b - a));
 
     private static EdgeKey[] GetInnerBoundary(EdgeKey[] boundary) => boundary.Length > 2 ? boundary[1..^1] : boundary;
 

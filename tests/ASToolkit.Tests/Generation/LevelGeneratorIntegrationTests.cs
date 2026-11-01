@@ -14,8 +14,6 @@ public class LevelGeneratorIntegrationTests
     private const int Seeds = 10;
     private const float DecorFloorHeight = 5;
 
-    private static readonly string[] ArmySources = ["Level_02.map", "Level_04.map", "Level_07.map", "ADDON/Level_02.map", "ADDON2/Level_04.map"];
-
     [Fact]
     public void Generate_CampaignSeeds_ReachEveryObjective()
     {
@@ -92,6 +90,6 @@ public class LevelGeneratorIntegrationTests
     {
         string game = TestGameFolder.RequireFolder();
         var objects = ObjectTable.Load(Path.Combine(game, "objects.res"));
-        return new LevelGenerator(game, objects, ReferenceLevelSet.Load(game, objects, addOnStyle), ArmyTable.Load(game, ArmySources), addOnStyle);
+        return new LevelGenerator(game, objects, ReferenceLevelSet.Load(game, objects, addOnStyle), addOnStyle);
     }
 }

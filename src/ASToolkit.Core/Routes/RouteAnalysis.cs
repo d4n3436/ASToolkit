@@ -19,6 +19,11 @@ public sealed class RouteAnalysis
     public required LevelTheme Theme { get; init; }
 
     /// <summary>
+    /// Gets the model of the level the tour was planned on.
+    /// </summary>
+    public required LevelModel Model { get; init; }
+
+    /// <summary>
     /// Gets the length of one cell step in pixels.
     /// </summary>
     public required float Step { get; init; }

@@ -1,5 +1,6 @@
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
+using ASToolkit.Core.Reference;
 
 namespace ASToolkit.Core.Generation;
 
@@ -19,12 +20,12 @@ public sealed class ArmyTable
     /// <summary>
     /// Reads the most common army of every object ID from the given original maps.
     /// </summary>
-    public static ArmyTable Load(string gameFolder, IEnumerable<string> levels)
+    public static ArmyTable Load(ReferenceLevelSet references, IEnumerable<string> levels)
     {
         var counts = new Dictionary<KnownObject, List<(uint Army, int Count)>>();
         foreach (string level in levels)
         {
-            foreach (var sprite in MapResourceBuilder.Load(Path.Combine(gameFolder, "Maps", level)).Sprites)
+            foreach (var sprite in references.GetLevel(level).Map.Sprites)
             {
                 if (!counts.TryGetValue(sprite.Id, out var list))
                 {

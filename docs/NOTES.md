@@ -76,7 +76,7 @@ The route analysis walks a model of the level the way a player would.
 - **Cells.** Lab cells come from the 500 and 502 floors. Military cells come from the 503 floors and are split in two. Lab walls standing on 503 floor use the lab lattice.
 - **Outdoor.** A map with grass decals (505, 506, 507) is outdoor. Only the three level 1 maps have them. Every lab cell inside the map bounds is floor, on the lab lattice that fits the most wall pieces. Buildings are lab walls 620 and 621 on lattices of their own, some half a cell off. A wall piece's ID sets its axis, and a door's facing sets its own. Chain-link 660 and the gate 661 are solid and span 2 lab edges. Each is a wall of 4 routing edges along the diagonal to its nearest chain-link piece. The torn piece 662 is open.
 - **Routing grid.** It is twice as fine as the cells. Pieces half a cell off the grid snap to its lines. A piece covers its real length, which is 2 fine edges, or 4 for double doors and frames.
-- **Edge kinds in labs.** W is a wall. D is a door (605, 607) that blocks while doors are locked. F is a closed or jammed embedded door (z 0, or -13 to -35) that blocks. O is an open doorway, either a raised embedded door (z at or below -40) or an empty 606 or 608 frame. S is a last-resort passage (609 and 625 secret walls, 618 and 619 spawn walls, 612 and 616 holes). B is a broken wall (610, 626).
+- **Edges in labs.** A door (605, 607) blocks while doors are locked. A closed or jammed embedded door (z 0, or -13 to -35) always blocks. An open doorway is either a raised embedded door (z at or below -40) or an empty 606 or 608 frame. Secret walls (609, 625), spawn walls (618, 619) and holes (612, 616) are last-resort passages. A broken wall (610, 626) is open.
 - **Door axis.** Off the coarse grid a door faces 0 on a '/' wall and 64 or 128 on a '\\' wall. A door with another facing takes the axis that its position fits best.
 - **Military.** Frames 653 are open. The ones with a fence 164 standing in them are gates.
 - **Solid objects.**
@@ -89,7 +89,7 @@ The route analysis walks a model of the level the way a player would.
   - Objectives are every charge pickup (40 px), every 179 site (while carrying a charge), the breaker (40 px), every generator (250 px), every 908 trigger (its radius), every placed monster (350 px), every spawner's group (350 px of the spawner or its waypoints) and the bosses.
   - A level whose script wins on reaching a point has that point as its exit (its radius). The tour heads there only when no other objective is reachable, and it ends on entering that radius on the exit's side of the walls. On the campaign level 1 that side is inside a building behind a 625 wall.
   - A spawner's group opens when its trigger fires, or at the start for a spawner without a trigger.
-  - S edges are used only when nothing else is reachable.
+  - Last-resort passages are used only when nothing else is reachable.
 - The tour is greedy and runs longer than an expert's route.
 - The door panels 423, 424 and 425 are decoration. 425 is the broken embedded-door panel.
 

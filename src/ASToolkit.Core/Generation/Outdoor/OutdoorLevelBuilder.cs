@@ -65,7 +65,7 @@ public sealed class OutdoorLevelBuilder
     public GeneratedLevel Build(Random rng, OutdoorStyle style, MapResourceBuilder original, TriggerArea? originalExit, IReadOnlyList<string> musicLines)
     {
         var size = original.Size;
-        var lattice = new Lattice(LevelExtractor.LabStep.X, LevelExtractor.LabStep.Y, size.Width / 2, size.Height / 2);
+        var lattice = new Lattice(Lattice.LabStep.X, Lattice.LabStep.Y, size.Width / 2, size.Height / 2);
         var start = new PointF(Margin * 1.5f, size.Height - Margin * 1.5f);
         OutdoorSite site;
         LevelScript script;

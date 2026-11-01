@@ -8,7 +8,7 @@ namespace ASToolkit.Core.Generation.Layout;
 public sealed class PlanRegion
 {
     /// <summary>
-    /// Gets the region ID, its index in the plan.
+    /// Gets the region ID, the region's index in the plan.
     /// </summary>
     public required int Id { get; init; }
 
@@ -33,7 +33,7 @@ public sealed class PlanRegion
     public required int Station { get; set; }
 
     /// <summary>
-    /// Gets the region this one hangs off, or null for a station.
+    /// Gets the region this region hangs off, or null for a station.
     /// </summary>
     public int? Host { get; set; }
 

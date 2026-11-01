@@ -13,12 +13,12 @@ public sealed class LevelLandmark
     public required LandmarkKind Kind { get; init; }
 
     /// <summary>
-    /// Gets the place it lies in.
+    /// Gets the place the landmark lies in.
     /// </summary>
     public required int Place { get; init; }
 
     /// <summary>
-    /// Gets how far along the route, in map pixels, the route reaches it.
+    /// Gets how far along the route, in map pixels, the route reaches the landmark.
     /// </summary>
     public required int Route { get; init; }
 
@@ -28,7 +28,7 @@ public sealed class LevelLandmark
     public required Point Position { get; init; }
 
     /// <summary>
-    /// Gets the measures around it by name.
+    /// Gets the measures around the landmark by name.
     /// </summary>
     public required IReadOnlyDictionary<string, int> Facts { get; init; }
 }

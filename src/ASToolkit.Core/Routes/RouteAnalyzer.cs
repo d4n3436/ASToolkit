@@ -443,6 +443,7 @@ public static class RouteAnalyzer
             {
                 Name = _model.Name,
                 Theme = _model.Theme,
+                Model = _model,
                 Step = _step,
                 ReachableCells = _grid.Cells.Count(fromStart.ContainsKey),
                 RoutePixels = (int)MathF.Round(walked * _step),

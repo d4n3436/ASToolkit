@@ -1,5 +1,6 @@
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
+using ASToolkit.Core.Reference;
 
 namespace ASToolkit.Core.Generation.Content;
 
@@ -47,15 +48,14 @@ public sealed class OriginalContent
     /// <summary>
     /// Reads the content of an original level.
     /// </summary>
-    public static OriginalContent Load(string gameFolder, string level, ObjectTable objects)
+    public static OriginalContent Load(ReferenceLevel level)
     {
-        var sp = MapResourceBuilder.Load(Path.Combine(gameFolder, "Maps", level)).Sprites;
+        var sp = level.Map.Sprites;
+        var measures = level.Measures;
         var pickups = new Dictionary<KnownObject, int>();
         var loot = new Dictionary<KnownObject, int>();
         var bosses = new Dictionary<KnownObject, int>();
         var spawners = new List<IReadOnlyList<KnownObject>>();
-        int placedHp = 0;
-        int spawnedHp = 0;
         foreach (var sprite in sp)
         {
             if (sprite.Id.IsPickup)
@@ -76,11 +76,6 @@ public sealed class OriginalContent
                 bosses[sprite.Id] = bosses.GetValueOrDefault(sprite.Id) + 1;
             }
 
-            if (KnownObject.Monsters.Contains(sprite.Id) || KnownObject.Bosses.Contains(sprite.Id))
-            {
-                placedHp += objects.TryFind(sprite.Id, out var obj) ? obj.MaxHp : 0;
-            }
-
             var program = sprite.Id == KnownObject.Spawner ? SpawnerProgram.Parse(sprite.Payload) : null;
             if (program is not null)
             {
@@ -88,21 +83,20 @@ public sealed class OriginalContent
                 if (monsters.Length > 0)
                 {
                     spawners.Add(monsters);
-                    spawnedHp += monsters.Sum(m => objects.TryFind(m, out var obj) ? obj.MaxHp : 0);
                 }
             }
         }
 
         return new OriginalContent
         {
-            Name = level,
+            Name = level.Name,
             PlacedGroups = ClusterMonsters(sp),
             SpawnerLists = spawners,
             Pickups = pickups,
             CrateLoot = loot,
             Bosses = bosses,
-            HitPoints = placedHp + spawnedHp,
-            SpawnedShare = spawnedHp / (float)Math.Max(1, placedHp + spawnedHp),
+            HitPoints = measures.HitPoints,
+            SpawnedShare = measures.SpawnedShare,
             MountedCannons = sp.Count(s => s.Id == KnownObject.MountedCannon),
             Generators = sp.Count(s => s.Id == KnownObject.Generator)
         };
@@ -111,12 +105,12 @@ public sealed class OriginalContent
     /// <summary>
     /// Returns the props within 170 pixels of each breaker of the given levels.
     /// </summary>
-    public static IReadOnlyList<IReadOnlyList<PropPlacement>> LoadBreakerScenes(string gameFolder, IEnumerable<string> levels)
+    public static IReadOnlyList<IReadOnlyList<PropPlacement>> LoadBreakerScenes(ReferenceLevelSet references, IEnumerable<string> levels)
     {
         var scenes = new List<IReadOnlyList<PropPlacement>>();
         foreach (string level in levels)
         {
-            var sp = MapResourceBuilder.Load(Path.Combine(gameFolder, "Maps", level)).Sprites;
+            var sp = references.GetLevel(level).Map.Sprites;
             foreach (var breaker in sp.Where(s => s.Id == KnownObject.Breaker))
             {
                 scenes.Add(sp.Where(o => o.Id is KnownObject.ObjectMarker or KnownObject.Shelves or KnownObject.Table or KnownObject.Cabinet or KnownObject.Transformer or KnownObject.SoldierCorpse or KnownObject.BloodPool or KnownObject.LargeBloodPool && MathF.Sqrt(MathF.Pow(o.Position.X - breaker.Position.X, 2) + MathF.Pow(o.Position.Y - breaker.Position.Y, 2)) < 170)
@@ -130,12 +124,12 @@ public sealed class OriginalContent
     /// <summary>
     /// Returns the floor stripes (131) within 230 pixels of each mounted cannon of the given levels.
     /// </summary>
-    public static IReadOnlyList<IReadOnlyList<PropPlacement>> LoadCannonScenes(string gameFolder, IEnumerable<string> levels)
+    public static IReadOnlyList<IReadOnlyList<PropPlacement>> LoadCannonScenes(ReferenceLevelSet references, IEnumerable<string> levels)
     {
         var scenes = new List<IReadOnlyList<PropPlacement>>();
         foreach (string level in levels)
         {
-            var sp = MapResourceBuilder.Load(Path.Combine(gameFolder, "Maps", level)).Sprites;
+            var sp = references.GetLevel(level).Map.Sprites;
             foreach (var cannon in sp.Where(s => s.Id == KnownObject.MountedCannon))
             {
                 scenes.Add(sp.Where(o => o.Id == KnownObject.WallInscriptions && MathF.Sqrt(MathF.Pow(o.Position.X - cannon.Position.X, 2) + MathF.Pow(o.Position.Y - cannon.Position.Y, 2)) < CannonSceneReach)
@@ -150,13 +144,13 @@ public sealed class OriginalContent
     /// Returns the floor stripes (131) within 90 pixels of each missile three of the given levels, placed from the middle missile and
     /// keyed by its facing, and the share of the threes that have any.
     /// </summary>
-    public static (Dictionary<byte, List<IReadOnlyList<PropPlacement>>> Marks, float Share) LoadMissileMarks(string gameFolder, IEnumerable<string> levels)
+    public static (Dictionary<byte, List<IReadOnlyList<PropPlacement>>> Marks, float Share) LoadMissileMarks(ReferenceLevelSet references, IEnumerable<string> levels)
     {
         var marks = new Dictionary<byte, List<IReadOnlyList<PropPlacement>>>();
         int threes = 0;
         foreach (string level in levels)
         {
-            var sp = MapResourceBuilder.Load(Path.Combine(gameFolder, "Maps", level)).Sprites;
+            var sp = references.GetLevel(level).Map.Sprites;
             var stripes = sp.Where(s => s is { Id: KnownObject.WallInscriptions, Position.Z: < WallSignHeight }).ToArray();
             var left = sp.Where(s => s.Id == KnownObject.Missile).ToList();
             while (left.Count > 0)
@@ -228,12 +222,12 @@ public sealed class OriginalContent
     /// <summary>
     /// Returns every dynamite site of the given levels with the pads and generators within 130 pixels of it.
     /// </summary>
-    public static SiteTemplate[] LoadDynamiteSites(string gameFolder, IEnumerable<string> levels, LevelTheme theme)
+    public static SiteTemplate[] LoadDynamiteSites(ReferenceLevelSet references, IEnumerable<string> levels, LevelTheme theme)
     {
         var sites = new List<SiteTemplate>();
         foreach (string level in levels)
         {
-            var sp = MapResourceBuilder.Load(Path.Combine(gameFolder, "Maps", level)).Sprites;
+            var sp = references.GetLevel(level).Map.Sprites;
             foreach (var sprite in sp.Where(s => s.Id == KnownObject.DynamiteSite))
             {
                 var members = sp

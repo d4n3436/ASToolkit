@@ -50,7 +50,7 @@ public readonly struct SpriteProgram
     /// Returns the entries of an action stack in file order.
     /// </summary>
     /// <param name="index">The stack index.</param>
-    public ReadOnlySpan<MapAction> GetStack(int index)
+    public ReadOnlySpan<StackAction> GetStack(int index)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(index);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, StackCount);
@@ -58,11 +58,11 @@ public readonly struct SpriteProgram
         int position = _firstStack;
         for (int stack = 0; stack < index; stack++)
         {
-            position += sizeof(int) + MemoryMarshal.Read<int>(payload[position..]) * Unsafe.SizeOf<MapAction>();
+            position += sizeof(int) + MemoryMarshal.Read<int>(payload[position..]) * Unsafe.SizeOf<StackAction>();
         }
 
         int count = MemoryMarshal.Read<int>(payload[position..]);
-        return MemoryMarshal.Cast<byte, MapAction>(payload.Slice(position + sizeof(int), count * Unsafe.SizeOf<MapAction>()));
+        return MemoryMarshal.Cast<byte, StackAction>(payload.Slice(position + sizeof(int), count * Unsafe.SizeOf<StackAction>()));
     }
 
     /// <summary>
@@ -130,12 +130,12 @@ public readonly struct SpriteProgram
 
         int count = MemoryMarshal.Read<int>(payload[position..]);
         position += sizeof(int);
-        if (count < 0 || position + count * Unsafe.SizeOf<MapAction>() > payload.Length)
+        if (count < 0 || position + count * Unsafe.SizeOf<StackAction>() > payload.Length)
         {
             return false;
         }
 
-        position += count * Unsafe.SizeOf<MapAction>();
+        position += count * Unsafe.SizeOf<StackAction>();
         empty = count == 0;
         return true;
     }

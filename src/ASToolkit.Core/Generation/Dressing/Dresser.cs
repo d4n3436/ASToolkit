@@ -12,12 +12,12 @@ public static class Dresser
 
     /// <summary>
     /// Covers the cells with copied windows, largest first and each source cell once, and drops objects whose support was not copied.
-    /// With cells to keep clear, windows whose solid pieces stay off them come first. Cells already dressed are skipped.
+    /// Windows whose solid pieces stay off the cells to keep clear come first.
     /// </summary>
     public static PlacedDecor[] Dress(Random rng, DressingLibrary library, IReadOnlySet<Cell> cells, IReadOnlyDictionary<EdgeKey, EdgeKind> edges,
-        IReadOnlySet<Cell>? keepClear = null, IReadOnlySet<Cell>? dressed = null)
+        IReadOnlySet<Cell> keepClear)
     {
-        var covered = new HashSet<Cell>(dressed ?? new HashSet<Cell>());
+        var covered = new HashSet<Cell>();
         var used = new HashSet<(int, Cell)>();
         var placed = new List<PlacedDecor>();
         foreach (var corner in cells.OrderBy(c => c.U).ThenBy(c => c.V))

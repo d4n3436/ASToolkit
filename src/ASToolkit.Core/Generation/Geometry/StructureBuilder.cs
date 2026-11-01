@@ -11,7 +11,7 @@ namespace ASToolkit.Core.Generation.Geometry;
 public static class StructureBuilder
 {
     private const int RaisedDoubleDoorZ = -70;
-    private const int SunkenWallZ = -7;
+    internal const int SunkenWallZ = -7;
     private const int RaisedSmallDoorZ = -63;
     private const float StuckDoorChance = 0.5f;
     private const float FramedShare = 0.7f;
@@ -27,7 +27,7 @@ public static class StructureBuilder
     /// </summary>
     public static void PlaceLattice(FineLayout layout, LevelTheme theme)
     {
-        (float sx, float sy) = theme == LevelTheme.Lab ? LevelExtractor.LabStep : LevelExtractor.MilitaryStep;
+        (float sx, float sy) = theme == LevelTheme.Lab ? Lattice.LabStep : Lattice.MilitaryStep;
         var probe = new Lattice(sx, sy);
         
         var points = layout.Cells.Keys
@@ -38,11 +38,11 @@ public static class StructureBuilder
         float oy = -points.Min(p => p.Y) + 500;
         if (theme == LevelTheme.Lab)
         {
-            ox = 40 * MathF.Ceiling(ox / 40);
-            oy = 28 * MathF.Ceiling(oy / 28);
-            if (((long)MathF.Floor((ox + 40) / 40) + (long)MathF.Floor(oy / 28)) % 2 == 0)
+            ox = sx * MathF.Ceiling(ox / sx);
+            oy = sy * MathF.Ceiling(oy / sy);
+            if (((long)MathF.Floor((ox + sx) / sx) + (long)MathF.Floor(oy / sy)) % 2 == 0)
             {
-                oy += 28;
+                oy += sy;
             }
         }
 

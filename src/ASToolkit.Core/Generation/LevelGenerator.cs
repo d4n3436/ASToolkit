@@ -78,43 +78,48 @@ public sealed class LevelGenerator
     private readonly OutdoorLevelBuilder _outdoor;
     private readonly Lazy<SiteTemplate[]> _labSites;
     private readonly Lazy<SiteTemplate[]> _militarySites;
-    private readonly Lazy<SpriteLibrary> _sprites;
+    private readonly Lazy<RoofBuilder> _labRoof;
+    private readonly Lazy<RoofBuilder> _militaryRoof;
     private readonly Lazy<KeypadTable> _keypads;
     private readonly Lazy<LevelProfile[]> _labProfiles;
     private readonly Lazy<LevelProfile[]> _militaryProfiles;
     private readonly ConcurrentDictionary<int, Lazy<OriginalLevel>> _originals = new();
+    private readonly ConcurrentDictionary<(string Name, ThemeSettings Settings), Lazy<LevelProfile>> _profiles = new();
+    private readonly ConcurrentDictionary<string, Lazy<EncounterProfile>> _encounters = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="LevelGenerator"/> class.
     /// </summary>
-    public LevelGenerator(string gameFolder, ObjectTable objects, ReferenceLevelSet references, ArmyTable armies, bool addOnStyle = false)
+    public LevelGenerator(string gameFolder, ObjectTable objects, ReferenceLevelSet references, bool addOnStyle = false)
     {
         _addOnStyle = addOnStyle;
         _gameFolder = gameFolder;
         _objects = objects;
         _references = references;
-        _armies = armies;
+        _armies = ArmyTable.Load(references, ReferenceLevelSet.CampaignLevels.Select(ReferenceLevelSet.GetCampaignName).Concat(AddOnLevels));
         string[] sources = ReferenceLevelSet.CampaignLevels
             .Select(ReferenceLevelSet.GetCampaignName)
             .Concat(addOnStyle ? AddOnLevels : [])
             .ToArray();
         
-        _content = new Lazy<OriginalContentSet>(() => OriginalContentSet.Load(gameFolder, sources, objects));
+        _content = new Lazy<OriginalContentSet>(() => OriginalContentSet.Load(references, sources));
         _labFurnisher = new Lazy<RoomFurnisher>(() => CreateFurnisher(references, objects, LevelTheme.Lab));
         _militaryFurnisher = new Lazy<RoomFurnisher>(() => CreateFurnisher(references, objects, LevelTheme.Military));
-        _labLibrary = new Lazy<DressingLibrary>(() => DressingLibrary.Build(gameFolder, objects, LevelTheme.Lab, sources, GetWallDressing(references, LevelTheme.Lab), references.GetWallClearance(LevelTheme.Lab), references.GetFacings(LevelTheme.Lab)));
-        _militaryLibrary = new Lazy<DressingLibrary>(() => DressingLibrary.Build(gameFolder, objects, LevelTheme.Military, sources, GetWallDressing(references, LevelTheme.Military), references.GetWallClearance(LevelTheme.Military), references.GetFacings(LevelTheme.Military)));
-        _sprites = new Lazy<SpriteLibrary>(() => new SpriteLibrary(gameFolder, objects));
-        _keypads = new Lazy<KeypadTable>(() => KeypadTable.Load(gameFolder, sources));
-        _labProfiles = new Lazy<LevelProfile[]>(() => LabLevels.Select(name => LevelProfile.Measure(references.GetSurvey(name), ThemeSettings.Lab)).ToArray());
+        _labLibrary = new Lazy<DressingLibrary>(() => DressingLibrary.Build(references, objects, LevelTheme.Lab, sources, GetWallDressing(references, LevelTheme.Lab), references.GetWallClearance(LevelTheme.Lab), references.GetFacings(LevelTheme.Lab)));
+        _militaryLibrary = new Lazy<DressingLibrary>(() => DressingLibrary.Build(references, objects, LevelTheme.Military, sources, GetWallDressing(references, LevelTheme.Military), references.GetWallClearance(LevelTheme.Military), references.GetFacings(LevelTheme.Military)));
+        var sprites = new Lazy<SpriteLibrary>(() => new SpriteLibrary(gameFolder, objects));
+        _labRoof = new Lazy<RoofBuilder>(() => new RoofBuilder(LevelTheme.Lab, sprites.Value));
+        _militaryRoof = new Lazy<RoofBuilder>(() => new RoofBuilder(LevelTheme.Military, sprites.Value));
+        _keypads = new Lazy<KeypadTable>(() => KeypadTable.Load(references, sources));
+        _labProfiles = new Lazy<LevelProfile[]>(() => LabLevels.Select(name => GetProfile(references.GetSurvey(name), ThemeSettings.Lab)).ToArray());
         _militaryProfiles = new Lazy<LevelProfile[]>(() => references.LevelNames.Order().Select(references.GetSurvey).Where(survey => survey.Theme == LevelTheme.Military)
-            .Select(survey => LevelProfile.Measure(survey, ThemeSettings.Military)).ToArray());
-        _breakerScenes = new Lazy<IReadOnlyList<IReadOnlyList<PropPlacement>>>(() => OriginalContent.LoadBreakerScenes(gameFolder, ["Level_02.map", "Level_03.map", "Level_04.map"]));
-        _outdoor = new OutdoorLevelBuilder(armies);
-        _cannonScenes = new Lazy<IReadOnlyList<IReadOnlyList<PropPlacement>>>(() => OriginalContent.LoadCannonScenes(gameFolder, ["Level_08.map"]));
-        _missileMarks = new Lazy<(Dictionary<byte, List<IReadOnlyList<PropPlacement>>>, float)>(() => OriginalContent.LoadMissileMarks(gameFolder, ["Level_06.map", "Level_07.map", "Level_08.map", "Level_09.map", "Level_10.map"]));
-        _labSites = new Lazy<SiteTemplate[]>(() => OriginalContent.LoadDynamiteSites(gameFolder, addOnStyle ? LabSiteLevels.Concat(AddOnLabSiteLevels).ToArray() : LabSiteLevels, LevelTheme.Lab));
-        _militarySites = new Lazy<SiteTemplate[]>(() => OriginalContent.LoadDynamiteSites(gameFolder, addOnStyle ? MilitarySiteLevels.Concat(AddOnMilitarySiteLevels).ToArray() : MilitarySiteLevels, LevelTheme.Military));
+            .Select(survey => GetProfile(survey, ThemeSettings.Military)).ToArray());
+        _breakerScenes = new Lazy<IReadOnlyList<IReadOnlyList<PropPlacement>>>(() => OriginalContent.LoadBreakerScenes(references, ["Level_02.map", "Level_03.map", "Level_04.map"]));
+        _outdoor = new OutdoorLevelBuilder(_armies);
+        _cannonScenes = new Lazy<IReadOnlyList<IReadOnlyList<PropPlacement>>>(() => OriginalContent.LoadCannonScenes(references, ["Level_08.map"]));
+        _missileMarks = new Lazy<(Dictionary<byte, List<IReadOnlyList<PropPlacement>>>, float)>(() => OriginalContent.LoadMissileMarks(references, ["Level_06.map", "Level_07.map", "Level_08.map", "Level_09.map", "Level_10.map"]));
+        _labSites = new Lazy<SiteTemplate[]>(() => OriginalContent.LoadDynamiteSites(references, addOnStyle ? LabSiteLevels.Concat(AddOnLabSiteLevels).ToArray() : LabSiteLevels, LevelTheme.Lab));
+        _militarySites = new Lazy<SiteTemplate[]>(() => OriginalContent.LoadDynamiteSites(references, addOnStyle ? MilitarySiteLevels.Concat(AddOnMilitarySiteLevels).ToArray() : MilitarySiteLevels, LevelTheme.Military));
     }
 
     /// <summary>
@@ -176,8 +181,9 @@ public sealed class LevelGenerator
             return best;
         }
 
-        best.RoofResidual = RoofBuilder.Build(new Random(seed * 100_000 + level * 100 + RoofSeed), best.Builder, best.Lattice, best.Shown, best.Hidden,
-            best.Theme == LevelTheme.Military ? LevelTheme.Military : LevelTheme.Lab, _sprites.Value);
+        var layout = best.Layout ?? throw new InvalidOperationException("Expected an indoor level to have a layout.");
+        var roof = best.Theme == LevelTheme.Military ? _militaryRoof.Value : _labRoof.Value;
+        best.RoofResidual = roof.Build(new Random(seed * 100_000 + level * 100 + RoofSeed), layout, best.Shown, best.Hidden, best.Builder);
         best.Map = best.Builder.ToMap(best.Map.Scroll);
         return best;
     }
@@ -190,7 +196,7 @@ public sealed class LevelGenerator
     {
         bool isLab = theme == LevelTheme.Lab;
         var (wallLattice, walls) = isLab ? (layout.Lattice, placedEdges) : LevelExtractor.ReadMilitaryEdges(map.Sprites) ?? (layout.Lattice, placedEdges);
-        var dressing = Dresser.Dress(rng, isLab ? _labLibrary.Value : _militaryLibrary.Value, floor, layout.Edges, keepClear: keepClear).ToList();
+        var dressing = Dresser.Dress(rng, isLab ? _labLibrary.Value : _militaryLibrary.Value, floor, layout.Edges, keepClear).ToList();
         (float corpseRate, float bloodRate) = MeasureGore(originalMap, original);
         RoomDecorator.Decorate(theme, plan, layout, dressing, floor, keepClear, target.ThemeDecor, target.Facings, corpseRate, bloodRate);
         var decor = KeepPlacedAsOriginals(dressing, layout.Lattice, wallLattice, walls, target).ToList();
@@ -243,15 +249,19 @@ public sealed class LevelGenerator
         }
     }
 
+    private LevelProfile GetProfile(LevelSurvey survey, ThemeSettings settings) =>
+        _profiles.GetOrAdd((survey.Name, settings), key => new Lazy<LevelProfile>(() => LevelProfile.Measure(survey, key.Settings))).Value;
+
+    private EncounterProfile GetEncounters(string name) =>
+        _encounters.GetOrAdd(name, key => new Lazy<EncounterProfile>(() => EncounterProfile.Measure(_references.GetSurvey(key), _references.GetLevel(key).Analysis, _objects))).Value;
+
     private OriginalLevel GetOriginal(int level) => _originals.GetOrAdd(level, l => new Lazy<OriginalLevel>(() => LoadOriginal(l))).Value;
 
     private OriginalLevel LoadOriginal(int level)
     {
         string name = ReferenceLevelSet.GetCampaignName(level);
-        byte[] template = File.ReadAllBytes(GetTemplatePath(level));
-        var map = MapResourceBuilder.Parse(template);
-        var model = LevelExtractor.Extract(name, map, _objects) ?? throw new InvalidDataException($"{name} has no floor.");
-        return new OriginalLevel(map, model, template, LevelScriptWriter.ReadMusicLines(Path.Combine(_gameFolder, "Maps", Path.ChangeExtension(name, ".lgc"))));
+        var reference = _references.GetLevel(name);
+        return new OriginalLevel(reference.Map, reference.Model, File.ReadAllBytes(GetTemplatePath(level)), LevelScriptWriter.ReadMusicLines(Path.Combine(_gameFolder, "Maps", Path.ChangeExtension(name, ".lgc"))));
     }
 
     // Analyze the level's route through its map and script bytes
@@ -355,8 +365,8 @@ public sealed class LevelGenerator
         int spawnClosets = theme == LevelTheme.Lab ? Math.Min(6, budget.Ambushes.Count / 3) : 0;
         int shortcuts = theme == LevelTheme.Lab ? layoutRng.Next(3) : 0;
         LayoutPlan? plan = null;
-        var profile = LevelProfile.Measure(_references.GetSurvey(ReferenceLevelSet.GetCampaignName(level)), settings);
-        var own = target.ContentLevel != ReferenceLevelSet.GetCampaignName(level) && target.OriginalSurvey.Theme == theme ? LevelProfile.Measure(target.OriginalSurvey, settings) : null;
+        var profile = GetProfile(_references.GetSurvey(ReferenceLevelSet.GetCampaignName(level)), settings);
+        var own = target.ContentLevel != ReferenceLevelSet.GetCampaignName(level) && target.OriginalSurvey.Theme == theme ? GetProfile(target.OriginalSurvey, settings) : null;
         if (theme == LevelTheme.Lab && own is { Halls.Count: 0 } && gate is not { Kind: GateKind.Blackout, IsWing: false })
         {
             own = null;
@@ -452,7 +462,7 @@ public sealed class LevelGenerator
         var floor = layout.Cells.Keys.Where(c => !closetCells.Contains(c)).ToHashSet();
         var keepClear = GetKeepClear(layout, start, settings.UnitCells);
 
-        var encounters = EncounterProfile.Measure(_references.GetSurvey(target.ContentLevel), _references.GetLevel(target.ContentLevel).Analysis, _objects);
+        var encounters = GetEncounters(target.ContentLevel);
 
         // Lay out the cannon and the sites before the decor
         PlacedSites? placedSites = null;
@@ -511,10 +521,9 @@ public sealed class LevelGenerator
     {
         string name = target.ContentLevel;
         var style = name.StartsWith("ADDON2/", StringComparison.Ordinal) ? OutdoorStyle.City : name.StartsWith("ADDON/", StringComparison.Ordinal) ? OutdoorStyle.Compound : OutdoorStyle.Campaign;
-        var original = MapResourceBuilder.Load(Path.Combine(_gameFolder, "Maps", name));
-        string scriptPath = Path.Combine(_gameFolder, "Maps", Path.ChangeExtension(name, ".lgc"));
-        var music = LevelScriptWriter.ReadMusicLines(scriptPath);
-        var level = _outdoor.Build(rng, style, original, LevelScriptReader.Read(scriptPath).Exit, music);
+        var original = _references.GetLevel(name);
+        var music = LevelScriptWriter.ReadMusicLines(Path.Combine(_gameFolder, "Maps", Path.ChangeExtension(name, ".lgc")));
+        var level = _outdoor.Build(rng, style, original.Map, original.Script.Exit, music);
         level.Template = name;
         return level;
     }

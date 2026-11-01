@@ -26,7 +26,7 @@ public sealed class PlaceConnection
     public required ConnectionKind Kind { get; init; }
 
     /// <summary>
-    /// Gets the grid edges it crosses.
+    /// Gets the grid edges the connection crosses.
     /// </summary>
     public required IReadOnlyList<EdgeRun> Edges { get; init; }
 }

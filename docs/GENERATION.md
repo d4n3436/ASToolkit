@@ -399,8 +399,7 @@ A generated level replaces one campaign level from 1 to 10. Levels 2 to 10 take 
         v
  GeneratorFactory.Create          (src/ASToolkit.Cli/Commands)
    ObjectTable.Load               objects.res
-   ReferenceLevelSet.Load         analyzes campaign 2-10 and add-on levels 2-5
-   SideTable.Load                 side field per object id
+   ReferenceLevelSet.Load         reads and analyzes every campaign and add-on level once
         |
         v
  LevelGenerator.Generate
@@ -447,11 +446,11 @@ A level draws from three `Random` streams. The layout seed drives the gate, the 
 
 ## Reference data
 
-`LevelGenerator` loads its sources once, on first use, and shares them across levels. Each one is read from the game folder.
+`LevelGenerator` builds its sources once, on first use, and shares them across levels. Each one comes from the reference levels, which `ReferenceLevelSet.Load` reads and analyzes once, except the sprites and the template bytes, which are read from the game folder.
 
 | source | built by | from | read by |
 |---|---|---|---|
-| level targets | `ReferenceLevelSet.Load` | route analysis and measures of campaign 2 to 10 and add-on levels 2 to 5 | `GetTarget`, every stage |
+| level targets | `ReferenceLevelSet.Load` | route analysis and measures of every campaign and add-on level | `GetTarget`, every stage |
 | theme decor | `ReferenceLevelSet.GetThemeDecor` | decor ids and heights of the campaign (and the add-ons in add-on style) | dressing filter |
 | wall clearance | `WallClearanceTable.Build` | distance of each decor object to the nearest wall in the originals | dressing, breaker props |
 | facings | `FacingTable.Build` | the directions the originals give decor against each wall side | dressing, boss props |
@@ -464,7 +463,7 @@ A level draws from three `Random` streams. The layout seed drives the gate, the 
 | keypads | `KeypadTable.Load` | keypad offsets next to each door kind and direction | structure, `PlaceGate` |
 | sprites | `SpriteLibrary` | `.vid` files of floors, walls and the earth tile | `RoofBuilder` |
 | original map | `LevelGenerator.GetOriginal` | the replaced campaign map, its cell model and its music lines | theme, unit count, dressing, script |
-| sides | `SideTable.Load` | the most common side value of each object id | `MapBuilder.Add` |
+| armies | `ArmyTable.Load` | the most common army of each object id in campaign levels 2 to 10 and the add-on levels | `MapBuilder.Add` |
 
 ## Coordinates
 
@@ -504,23 +503,22 @@ The two upper edges of a cell are its far walls, the ones that face the camera. 
 
 ### Edge kinds
 
-Three stages describe edges with different letters. `FineLayout` holds the generated walls, `RouteGrid` holds what the route analysis reads back from the map, and `DressingLibrary` reduces both kinds of model to three classes to match windows.
+Every stage describes edges with `EdgeKind`. `FineLayout` holds the generated walls, `RouteGrid` holds what the route analysis reads back from the map, and `DressingLibrary.GetWallKey` reduces both to three classes to match windows.
 
-| letter | `FineLayout.Edges` (generation) | `RouteGrid.Edges` (route analysis) | `DressingLibrary.GetWallKey` |
+| `EdgeKind` | `FineLayout.Edges` (generation) | `RouteGrid.Edges` (route analysis) | window class |
 |---|---|---|---|
-| W | wall | wall | 1 |
-| D | single door | door | 2 |
-| O | open doorway frame (an arch) | | 0 |
-| E, e | the two halves of a double door | | 2 |
-| S | breakable wall | secret or spawn wall, monster hole | 1 |
-| T | spawn wall | | 1 |
-| F | | closed or jammed door | |
-| O | | open doorway | |
-| B | | broken wall | |
-| G | | military fence frame | |
-| none | open | open | 0 |
+| `Wall` | wall | wall | 1 |
+| `Door` | single door | door | 2 |
+| `Doorway` | open doorway frame (an arch) | open doorway | 1 |
+| `DoubleDoor`, `DoubleDoorEnd` | the two halves of a double door | | 2 |
+| `SecretWall` | breakable wall | secret or spawn wall, monster hole | 1 |
+| `SpawnWall` | spawn wall | | 1 |
+| `ShutDoor` | | closed or jammed door | 1 |
+| `BrokenWall` | | broken wall | 1 |
+| `FenceFrame` | | military fence frame | 1 |
+| no edge | open | open | 0 |
 
-`RouteGrid.IsBlocking` treats only W and F as blocking. Generation uses it for its own distances, paths and connectivity checks, where every door, breakable wall and spawn wall counts as open. The route analysis sees the level as the player meets it, with doors locked until the breaker and S edges used only as a last resort (see [NOTES.md](NOTES.md#route-model)).
+`EdgeKind.BlocksWalking` treats only walls and shut doors as blocking. Generation uses it for its own distances, paths and connectivity checks, where every door, breakable wall and spawn wall counts as open. The route analysis sees the level as the player meets it, with doors locked until the breaker and secret walls, spawn walls and holes used only as a last resort (see [NOTES.md](NOTES.md#route-model)).
 
 ## Target and budget
 
@@ -660,14 +658,14 @@ A draw that cannot place its neck, key room or gate returns null and the next at
 
 | link | cell edges |
 |---|---|
-| `Door`, two edges | `E` on the second, `e` on the first (a double door) |
-| `Door`, one edge | `D` |
-| `SecretWall` | `S` |
-| `SpawnWall` | `T` |
-| `Arch` | `O`, an open doorway frame |
+| `Door`, two edges | `DoubleDoor` on the second, `DoubleDoorEnd` on the first |
+| `Door`, one edge | `Door` |
+| `SecretWall` | `SecretWall` |
+| `SpawnWall` | `SpawnWall` |
+| `Arch` | `Doorway`, an open doorway frame |
 | `Open`, `Fence` | open |
 
-Every other border between two regions, or between a region and empty space, becomes a `W` edge. Edges inside a region do not exist.
+Every other border between two regions, or between a region and empty space, becomes a `Wall` edge. Edges inside a region do not exist.
 
 ### Placement on the map
 
@@ -685,13 +683,13 @@ Every other border between two regions, or between a region and empty space, bec
 | edge | objects |
 |---|---|
 | floor cell | 500 floor, random direction |
-| `E` | 608 frame and 607 door |
-| `D` | 606 frame and 605 door |
-| `S` | 609 breakable wall |
-| `T` | 618 (`/`) or 619 (`\`, dir 64) spawn wall |
-| `O` | per run of edges, 608 frames with a raised 611 at z −70 on each pair and a 606 frame with a raised 617 at z −63 on a single edge left over |
-| `W` with a fake door | 608 or 606 frame and 611 or 617 jammed door, at z 0 or, half of the time, stuck at z −13 to −35 |
-| `W` | 601 (`/`) or 602 (`\`) wall, direction from `LabWallDirs` |
+| `DoubleDoor` | 608 frame and 607 door |
+| `Door` | 606 frame and 605 door |
+| `SecretWall` | 609 breakable wall |
+| `SpawnWall` | 618 (`/`) or 619 (`\`, dir 64) spawn wall |
+| `Doorway` | per run of edges, 608 frames with a raised 611 at z −70 on each pair and a 606 frame with a raised 617 at z −63 on a single edge left over |
+| `Wall` with a fake door | 608 or 606 frame and 611 or 617 jammed door, at z 0 or, half of the time, stuck at z −13 to −35 |
+| `Wall` | 601 (`/`) or 602 (`\`) wall, direction from `LabWallDirs` |
 | corner | 604 beam where walls meet and do not run straight through (`FindPosts`) |
 
 The closets' outer edges, which border no shown cell, then get 601 and 602 walls from the content stream, sunk to z −7 so the roof covers their tops, with no beams. Each secret and spawn closet is walled on every side.
@@ -704,7 +702,7 @@ The closets' outer edges, which border no shown cell, then get 601 and 602 walls
 
 `ContentPlacer.PlaceDoorMarks` copies the wall marks (131) the original has within 60 px of its doors onto doors of the same ID and facing, as often as the original marks its doors.
 
-`MapBuilder` collects the objects. `Add` drops a repeated object at the same rounded position unless `unique` is false, hands out handles, takes the side from `SideTable` and fills the default payloads, 20 bytes with two items for the player start, 12 bytes for monsters and bosses and 8 zero bytes for everything else.
+`MapBuilder` collects the objects. `Add` drops a repeated object at the same rounded position unless `unique` is false, hands out handles, takes the army from `ArmyTable` and fills the default payloads, 20 bytes with two items for the player start, 12 bytes for monsters and bosses and 8 zero bytes for everything else.
 
 ## Breaker spot
 
@@ -908,25 +906,28 @@ These measure how close a level comes to its original and are not guaranteed. `a
 
 ## Roof
 
-`RoofBuilder.Build` runs once, after the route analysis, with its own seed. The analysis never sees the earth tiles. It hides everything outside the walkable floor under 501 earth tiles.
+`RoofBuilder.Build` runs once, after the route analysis, with its own seed. The analysis never sees the earth tiles. It hides everything outside the walkable floor under 501 earth tiles, working from the layout and from the first frames of the theme's earth, floor and plain wall sprites.
 
-1. **Ground earth.** Earth tiles at z 0 fill the tile lattice positions whose tile does not touch any floor pixel.
-2. **Raster.** Floors and walls are drawn once into a depth buffer in 128 px strips, as the engine sorts them, and the strips are kept for the classes.
-3. **Classes.** Each pixel becomes a target, a forbidden pixel or neither.
+1. **Shapes.** Floor tiles, cell diamonds and the walls on edges with exactly one shown side are laid out as screen columns. A wall stands where its sprite stands and rises to its sprite's top. The part above the roof height is its cap.
+2. **Ground earth.** Earth tiles at z 0 fill the earth lattice positions (40 by 28 px half steps) whose tile touches no visible floor.
+3. **Classes.** Each screen column is painted far to near and split into target and forbidden rows.
 
-| pixel | class |
+| pixels | class |
 |---|---|
-| floor of a shown cell, or up to 96 px above it and 8 px below it | forbidden |
-| face of a wall seen from shown floor | forbidden |
-| floor of a closet or of a cell that is not shown | target |
-| wall seen only from outside | target |
-| empty pixel near floor that the ground earth does not cover | target |
-| wall cap above the roof height | neither, and it ends the 96 px zone |
+| shown floor, up to 96 px above it and 8 px below it | forbidden |
+| wall face whose front cell is shown | forbidden |
+| closet floor, other floor and up to 96 px above closets | target |
+| wall face whose front cell is not shown | target |
+| empty ground next to floor that the ground earth does not cover | target |
+| wall cap | neither, and it ends the 96 px zones |
 
-4. **Lattice.** Roof tiles go on the ground tiles' lattice wherever they cover target pixels and no forbidden pixel, which covers most of the void.
-5. **Cover.** A greedy cover of the pixels left places roof tiles at z 90 (lab) or 95 (military), shifted down by their height so they appear on the same screen spot. Candidates lie on a 2 px grid in the rows that still hold target pixels, never overlap a forbidden pixel and are taken best first by how many target pixels they cover, with stale scores re-queued.
+Past the ends of its edge, a wall face belongs to the cell in front of its base.
 
-`RoofResidual` is the number of target pixels left uncovered. `generate` and `preview` print it as "roof misses". A large value means the walls leave gaps a tile cannot fill without covering visible floor.
+4. **Tiles.** Roof tiles lie at z 90 (lab) or 95 (military), shifted down by their height so they appear on the same screen spot. They never come within a pixel of forbidden rows.
+   1. Every earth lattice position whose tile covers target and clears the forbidden rows gets a tile.
+   2. Rounds with falling thresholds then add tiles near the remaining target. Each slides up to half a tile from its lattice position, vertically from its own column or from a nearby cell corner, or sideways. The slide that covers the most target is taken while it reaches the round's threshold.
+
+`RoofResidual` is the number of target pixels left uncovered. `generate` and `preview` print it as "roof misses".
 
 ## Level 1
 

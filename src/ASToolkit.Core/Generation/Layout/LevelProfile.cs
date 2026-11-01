@@ -176,7 +176,7 @@ public sealed class LevelProfile
     }
 
     /// <summary>
-    /// Draws a profile with room counts within one of this one's and areas from the rooms of the same role in a pool, scaled to this
+    /// Draws a profile with room counts within one of this profile's and areas from the rooms of the same role in a pool, scaled to this
     /// profile's floor by role and to a floor area, with its largest branch grown to a share of the floor when one is given.
     /// </summary>
     public LevelProfile Sample(Random rng, IReadOnlyList<LevelProfile> pool, int units, float wingShare = 0)

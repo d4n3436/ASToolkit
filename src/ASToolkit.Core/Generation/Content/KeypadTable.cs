@@ -1,5 +1,6 @@
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
+using ASToolkit.Core.Reference;
 
 namespace ASToolkit.Core.Generation.Content;
 
@@ -22,14 +23,14 @@ public sealed class KeypadTable
     /// <summary>
     /// Records every keypad next to a door in the given levels.
     /// </summary>
-    public static KeypadTable Load(string gameFolder, IEnumerable<string> levels)
+    public static KeypadTable Load(ReferenceLevelSet references, IEnumerable<string> levels)
     {
         var samples = new Dictionary<(KnownObject, byte, bool), List<PropPlacement>>();
         var doors = new Dictionary<KnownObject, int>();
         var keyed = new Dictionary<KnownObject, int>();
         foreach (string level in levels)
         {
-            var sp = MapResourceBuilder.Load(Path.Combine(gameFolder, "Maps", level)).Sprites;
+            var sp = references.GetLevel(level).Map.Sprites;
             var keypads = sp.Where(s => s.Id is KnownObject.KeypadOn or KnownObject.KeypadOff or KnownObject.BrokenKeypad).ToArray();
             foreach (var door in sp.Where(s => s.Id.IsDoor))
             {

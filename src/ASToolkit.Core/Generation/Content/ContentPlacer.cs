@@ -1434,7 +1434,7 @@ public static class ContentPlacer
         ctx.Map.Add(KnownObject.Spawner, sx, sy, 0, 0, payload, 1, unique: false);
         var wallProgram = new SpawnerProgram
         {
-            Actions = [new SpawnerAction(SpawnerAction.Stop, 0, 0, 0), new SpawnerAction(15, 0, 0, 0), new SpawnerAction(SpawnerAction.Trigger, (int)tx, (int)ty, (int)radius)],
+            Actions = [new StackAction((int)ActionCode.StopStack, 0, 0, 0), new StackAction(15, 0, 0, 0), new StackAction((int)ActionCode.FlagmanTrigger, (int)tx, (int)ty, (int)radius)],
             Trailer = new byte[4]
         };
         ctx.Map.Sprites[wallIndex] = ctx.Map.Sprites[wallIndex] with { Payload = wallProgram.ToPayload() };

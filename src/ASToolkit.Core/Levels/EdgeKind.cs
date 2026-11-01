@@ -14,10 +14,10 @@ public enum EdgeKind : byte
     /// <summary>A working door.</summary>
     Door,
 
-    /// <summary>The first half of a double door the layout plans.</summary>
+    /// <summary>The first half of a double door.</summary>
     DoubleDoor,
 
-    /// <summary>The second half of a double door the layout plans.</summary>
+    /// <summary>The second half of a double door.</summary>
     DoubleDoorEnd,
 
     /// <summary>A door frame without a door, or a door that stays raised.</summary>
@@ -29,7 +29,7 @@ public enum EdgeKind : byte
     /// <summary>A wall that opens, breakable or blown open by an ambush, or a monster hole.</summary>
     SecretWall,
 
-    /// <summary>A wall the layout blows open when its ambush starts.</summary>
+    /// <summary>A wall that blows open when its ambush starts.</summary>
     SpawnWall,
 
     /// <summary>A broken wall the player walks through.</summary>

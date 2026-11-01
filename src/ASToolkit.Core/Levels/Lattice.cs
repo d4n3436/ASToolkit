@@ -8,6 +8,16 @@ namespace ASToolkit.Core.Levels;
 public sealed class Lattice
 {
     /// <summary>
+    /// Represents the lab lattice step.
+    /// </summary>
+    public static readonly PointF LabStep = new(40, 28);
+
+    /// <summary>
+    /// Represents the military fine lattice step.
+    /// </summary>
+    public static readonly PointF MilitaryStep = new(45, 32);
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="Lattice"/> class.
     /// </summary>
     public Lattice(float stepX, float stepY, float originX = 0, float originY = 0)

@@ -10,7 +10,15 @@ public sealed class LevelSurvey
 {
     private const int SearchCells = 10;
 
-    private Dictionary<Cell, int>? _placeOf;
+    private readonly Lazy<Dictionary<Cell, int>> _placeOf;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="LevelSurvey"/> class.
+    /// </summary>
+    public LevelSurvey()
+    {
+        _placeOf = new Lazy<Dictionary<Cell, int>>(IndexPlaces);
+    }
 
     /// <summary>
     /// Gets the map name.
@@ -23,7 +31,7 @@ public sealed class LevelSurvey
     public required LevelTheme Theme { get; init; }
 
     /// <summary>
-    /// Gets the theme its floor shows, military for a level of lab walls on military floor.
+    /// Gets the theme the level's floor shows, military for a level of lab walls on military floor.
     /// </summary>
     public required LevelTheme Setting { get; init; }
 
@@ -89,12 +97,8 @@ public sealed class LevelSurvey
     /// <param name="y">The map y.</param>
     public int FindPlace(float x, float y)
     {
-        _placeOf ??= Places
-            .SelectMany(place => place.Cells.Select(cell => (Cell: cell, place.Id)))
-            .ToDictionary(entry => entry.Cell, entry => entry.Id);
-        
         var at = Lattice.GetCell(x, y);
-        if (_placeOf.TryGetValue(at, out int found))
+        if (_placeOf.Value.TryGetValue(at, out int found))
         {
             return found;
         }
@@ -108,7 +112,7 @@ public sealed class LevelSurvey
                 for (int dv = -radius; dv <= radius; dv++)
                 {
                     var cell = new Cell(at.U + du, at.V + dv);
-                    if (!_placeOf.TryGetValue(cell, out int place))
+                    if (!_placeOf.Value.TryGetValue(cell, out int place))
                     {
                         continue;
                     }
@@ -131,4 +135,6 @@ public sealed class LevelSurvey
 
         return 0;
     }
+
+    private Dictionary<Cell, int> IndexPlaces() => Places.SelectMany(place => place.Cells.Select(cell => (Cell: cell, place.Id))).ToDictionary(entry => entry.Cell, entry => entry.Id);
 }

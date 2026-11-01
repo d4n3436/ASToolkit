@@ -1,4 +1,4 @@
-using ASToolkit.Core.Formats;
+using ASToolkit.Core.Reference;
 
 namespace ASToolkit.Core.Generation.Content;
 
@@ -20,8 +20,8 @@ public sealed class OriginalContentSet
     /// <summary>
     /// Reads the content of the given levels.
     /// </summary>
-    public static OriginalContentSet Load(string gameFolder, IEnumerable<string> levels, ObjectTable objects) =>
-        new(levels.Select(l => OriginalContent.Load(gameFolder, l, objects)).ToArray());
+    public static OriginalContentSet Load(ReferenceLevelSet references, IEnumerable<string> levels) =>
+        new(levels.Select(level => OriginalContent.Load(references.GetLevel(level))).ToArray());
 
     /// <summary>
     /// Returns the content of a level by name.

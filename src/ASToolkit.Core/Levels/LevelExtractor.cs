@@ -9,16 +9,6 @@ namespace ASToolkit.Core.Levels;
 public static class LevelExtractor
 {
     /// <summary>
-    /// Represents the lab lattice step.
-    /// </summary>
-    public static readonly PointF LabStep = new(40, 28);
-
-    /// <summary>
-    /// Represents the military fine lattice step.
-    /// </summary>
-    public static readonly PointF MilitaryStep = new(45, 32);
-
-    /// <summary>
     /// Builds the model of a map, or returns null when the map has no floor.
     /// </summary>
     public static LevelModel? Extract(string name, MapResourceBuilder map, ObjectTable objects)
@@ -91,7 +81,7 @@ public static class LevelExtractor
     public static (Lattice Lattice, Dictionary<EdgeKey, EdgeKind> Edges)? ReadMilitaryEdges(IEnumerable<MergedMapSprite> sprites)
     {
         var edges = new Dictionary<EdgeKey, EdgeKind>();
-        var lattice = ExtractMilitary(OrderSprites(sprites).ToList(), [], edges);
+        var lattice = ReadMilitaryWalls(OrderSprites(sprites).ToList(), edges);
         return lattice is null ? null : (lattice, edges);
     }
 
@@ -220,7 +210,7 @@ public static class LevelExtractor
         if (floor.Count > 0)
         {
             // Let the walls pick between the two tile phases that fit the floor
-            var probe = new Lattice(LabStep.X, LabStep.Y, floor[0].Position.X - 40, floor[0].Position.Y);
+            var probe = new Lattice(Lattice.LabStep.X, Lattice.LabStep.Y, floor[0].Position.X - 40, floor[0].Position.Y);
             var phases = new List<((int, int) Key, int Count, MergedMapSprite First)>();
             var index = new Dictionary<(int, int), int>();
             foreach (var floorSprite in floor)
@@ -242,7 +232,7 @@ public static class LevelExtractor
             {
                 foreach (int dx in new[] { 40, 0 })
                 {
-                    var candidate = new Lattice(LabStep.X, LabStep.Y, phase.First.Position.X - dx, phase.First.Position.Y);
+                    var candidate = new Lattice(Lattice.LabStep.X, Lattice.LabStep.Y, phase.First.Position.X - dx, phase.First.Position.Y);
                     int fit = CountLabFit(sp, candidate);
                     if (fit > bestFit)
                     {
@@ -298,7 +288,7 @@ public static class LevelExtractor
         {
             foreach ((int dx, int dy) in new[] { (20, 0), (20, 28), (-20, 0), (-20, 28) })
             {
-                var candidate = new Lattice(LabStep.X, LabStep.Y, wall.Position.X - dx, wall.Position.Y - dy);
+                var candidate = new Lattice(Lattice.LabStep.X, Lattice.LabStep.Y, wall.Position.X - dx, wall.Position.Y - dy);
                 int fit = CountLabFit(sp, candidate);
                 if (fit > bestFit)
                 {
@@ -347,13 +337,24 @@ public static class LevelExtractor
 
     private static Lattice? ExtractMilitary(List<MergedMapSprite> sp, HashSet<Cell> cells, Dictionary<EdgeKey, EdgeKind> edges)
     {
+        var lattice = ReadMilitaryWalls(sp, edges);
+        if (lattice is not null)
+        {
+            AddMilitaryFloor(sp, lattice, cells);
+        }
+
+        return lattice;
+    }
+
+    private static Lattice? ReadMilitaryWalls(List<MergedMapSprite> sp, Dictionary<EdgeKey, EdgeKind> edges)
+    {
         var slashWalls = sp.Where(s => s.Id == KnownObject.MilitaryWallSlash).ToArray();
         if (slashWalls.Length == 0)
         {
             return null;
         }
 
-        var probe = new Lattice(MilitaryStep.X, MilitaryStep.Y, slashWalls[0].Position.X, slashWalls[0].Position.Y);
+        var probe = new Lattice(Lattice.MilitaryStep.X, Lattice.MilitaryStep.Y, slashWalls[0].Position.X, slashWalls[0].Position.Y);
         var firsts = new List<MergedMapSprite>();
         var seen = new HashSet<(int, int)>();
         foreach (var wall in slashWalls)
@@ -369,7 +370,7 @@ public static class LevelExtractor
         int bestFit = -1;
         foreach (var first in firsts.Take(8))
         {
-            var candidate = new Lattice(MilitaryStep.X, MilitaryStep.Y, first.Position.X, first.Position.Y);
+            var candidate = new Lattice(Lattice.MilitaryStep.X, Lattice.MilitaryStep.Y, first.Position.X, first.Position.Y);
             int fit = sp.Count(s => s.Id is KnownObject.MilitaryWallBack or KnownObject.MilitaryWallSlash && IsOnVertex(candidate, s));
             if (fit > bestFit)
             {
@@ -403,10 +404,15 @@ public static class LevelExtractor
             }
         }
 
+        return lattice;
+    }
+
+    private static void AddMilitaryFloor(List<MergedMapSprite> sp, Lattice lattice, HashSet<Cell> cells)
+    {
         var tiles = sp.Where(s => s.Id == KnownObject.MilitaryFloor).ToArray();
         if (tiles.Length == 0)
         {
-            return lattice;
+            return;
         }
 
         var tileSet = tiles.Select(t => ((long)MathF.Round(t.Position.X), (long)MathF.Round(t.Position.Y))).ToHashSet();
@@ -446,8 +452,6 @@ public static class LevelExtractor
                 }
             }
         }
-
-        return lattice;
     }
 
     private static bool IsOnVertex(Lattice lattice, MergedMapSprite s)

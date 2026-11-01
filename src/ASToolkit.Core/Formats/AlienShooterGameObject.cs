@@ -46,13 +46,13 @@ internal readonly struct AlienShooterGameObject
     public readonly int MaxHp;
 
     /// <summary>
-    /// The offset of the linked object from this one, as stored in the file.
+    /// The offset of the linked object from this object, as stored in the file.
     /// </summary>
     [FieldOffset(64)]
     public readonly Vector3 LinkOffset;
 
     /// <summary>
-    /// The ID of the object the engine creates linked to this one, or zero for none.
+    /// The ID of the object the engine creates linked to this object, or zero for none.
     /// </summary>
     [FieldOffset(76)]
     public readonly KnownObject Link;

@@ -1,4 +1,5 @@
 using ASToolkit.Core.Design;
+using ASToolkit.Core.Levels;
 using ASToolkit.Core.Survey;
 
 namespace ASToolkit.Core.Rooms;
@@ -112,7 +113,12 @@ public sealed class RoomRoleMap
         Func<int, int> order, int? key)
     {
         var body = RoomGraph.FindMainBody(rooms, neighbors, start, end);
-        var path = FindPath(neighbors, start, end);
+        var path = neighbors.FindPath(start, end);
+        if (path.Count == 0)
+        {
+            throw new InvalidOperationException("Expected the end room to be reachable from the start.");
+        }
+
         int? hall = path.Cast<int?>().FirstOrDefault(room => isHall(room!.Value));
         int hub = hall ?? start;
         int neck = path[Math.Min(path.Count - 1, path.IndexOf(hub) + 1)];
@@ -204,29 +210,6 @@ public sealed class RoomRoleMap
 
         var owner = Branches.FirstOrDefault(branch => branch.Contains(id));
         return owner is null ? RoomRole.Body : owner[0] == id ? RoomRole.BranchRoot : RoomRole.Branch;
-    }
-
-    private static List<int> FindPath(Dictionary<int, HashSet<int>> neighbors, int from, int to)
-    {
-        var previous = new Dictionary<int, int> { [from] = from };
-        var queue = new Queue<int>([from]);
-        while (queue.Count > 0)
-        {
-            int at = queue.Dequeue();
-            foreach (int next in neighbors[at].Where(next => previous.TryAdd(next, at)))
-            {
-                queue.Enqueue(next);
-            }
-        }
-
-        var path = new List<int> { to };
-        while (path[^1] != from)
-        {
-            path.Add(previous[path[^1]]);
-        }
-
-        path.Reverse();
-        return path;
     }
 
     // Walk a branch outward from the rooms that open onto the main body

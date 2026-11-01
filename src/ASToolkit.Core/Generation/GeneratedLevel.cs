@@ -53,7 +53,7 @@ public sealed class GeneratedLevel
     public required LevelTheme Theme { get; init; }
 
     /// <summary>
-    /// Gets or sets the number of the add-on level this replaces, or null for a campaign level.
+    /// Gets or sets the number of the add-on level this level replaces, or null for a campaign level.
     /// </summary>
     public int? AddOnNumber { get; set; }
 
@@ -83,7 +83,7 @@ public sealed class GeneratedLevel
     public LevelBudget? Budget { get; init; }
 
     /// <summary>
-    /// Gets or sets the route analysis of the level, once checked.
+    /// Gets or sets the route analysis of the level, or null when the level is not analyzed.
     /// </summary>
     public RouteAnalysis? Analysis { get; set; }
 

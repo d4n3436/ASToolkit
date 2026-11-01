@@ -4,7 +4,7 @@ namespace ASToolkit.Gui.Models;
 
 public class Node
 {
-    public ObservableCollection<Node>? SubNodes { get; }
+    public ObservableCollection<Node> SubNodes { get; } = [];
     
     public string Title { get; }
   

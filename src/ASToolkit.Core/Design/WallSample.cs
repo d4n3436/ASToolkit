@@ -8,7 +8,7 @@ namespace ASToolkit.Core.Design;
 /// <param name="Id">The object ID.</param>
 /// <param name="Dir">The facing.</param>
 /// <param name="Sides">The walls of the cell.</param>
-/// <param name="IsOpen">Whether the 5 by 5 cells around it are floor with no wall in its own cell.</param>
+/// <param name="IsOpen">Whether the 5 by 5 cells around the object are floor with no wall in the object's own cell.</param>
 public readonly record struct WallSample(KnownObject Id, byte Dir, WallSides Sides, bool IsOpen)
 {
     /// <summary>

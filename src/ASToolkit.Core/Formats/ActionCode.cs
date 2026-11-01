@@ -1,4 +1,4 @@
-namespace ASToolkit.Core.Scripting;
+namespace ASToolkit.Core.Formats;
 
 /// <summary>
 /// Specifies the code of an entry of a sprite action stack.

@@ -1,7 +1,4 @@
-using System.Buffers;
-using System.Numerics;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
+using System.Drawing;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 
@@ -10,717 +7,185 @@ namespace ASToolkit.Core.Generation.Geometry;
 /// <summary>
 /// Provides the earth that covers everything around the walkable floor.
 /// </summary>
-public static class RoofBuilder
+public sealed class RoofBuilder
 {
-    private const int GroundDepth = 1024;
     private const int StepX = 40;
     private const int StepY = 28;
     private const int Margin = 300;
-    private const int GroundProbe = 6;
-    private const int CapProbe = 16;
-    private const int UnitHeight = 96;
-    private const int UnitDrop = 8;
-    private const int CandidateStep = 2;
     private const int Seam = 3;
-    private const int Block = 8;
-    private const int StripWidth = 128;
-    private const int LabRoofZ = 90;
-    private const int MilitaryRoofZ = 95;
-    private const byte None = 0;
-    private const byte Floor = 1;
-    private const byte Wall = 2;
-    private const byte KindMask = 3;
-    private const byte Ground = 4;
-    private const byte Forbidden = 8;
-    private const byte Target = 16;
-    private const byte ShownFloor = 32;
-    private const byte ClosetFloor = 64;
+    private const int WallOverlap = 10;
+
+    private static readonly int[] Rounds = [0, 256, 64, 16, 4, 1];
+    private static readonly (int Dx, int Dy)[] Sideways = Enumerable.Range(1, StepX / 2).SelectMany(step => new[] { (2 * step, 0), (-2 * step, 0) }).ToArray();
+
+    private readonly bool _lab;
+    private readonly int _roofZ;
+    private readonly KnownObject _floorId;
+    private readonly ColumnProfile _tile;
+    private readonly ColumnProfile _inner;
+    private readonly ColumnProfile _floor;
+    private readonly ColumnProfile _cell;
+    private readonly ColumnProfile _shownCell;
+    private readonly ColumnProfile _slash;
+    private readonly ColumnProfile _back;
+    private readonly ColumnProfile _sunkenSlash;
+    private readonly ColumnProfile _sunkenBack;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RoofBuilder"/> class.
+    /// </summary>
+    public RoofBuilder(LevelTheme theme, SpriteLibrary sprites)
+    {
+        _lab = theme == LevelTheme.Lab;
+        _roofZ = _lab ? 90 : 95;
+        _floorId = _lab ? KnownObject.BasementFloor : KnownObject.MilitaryFloor;
+        var step = _lab ? Lattice.LabStep : Lattice.MilitaryStep;
+        _tile = ColumnProfile.Read(sprites, KnownObject.Earth);
+        _inner = _tile.Shrink(Seam);
+        _floor = ColumnProfile.Read(sprites, _floorId);
+        _cell = ColumnProfile.CreateDiamond((int)step.X, (int)step.Y, 0);
+        _shownCell = ColumnProfile.CreateDiamond((int)step.X, (int)step.Y, 1);
+        _slash = ColumnProfile.Read(sprites, _lab ? KnownObject.LabWallSlash : KnownObject.MilitaryWallSlash, _roofZ);
+        _back = ColumnProfile.Read(sprites, _lab ? KnownObject.LabWallBack : KnownObject.MilitaryWallBack, _roofZ);
+        _sunkenSlash = ColumnProfile.Read(sprites, KnownObject.LabWallSlash, _roofZ - StructureBuilder.SunkenWallZ);
+        _sunkenBack = ColumnProfile.Read(sprites, KnownObject.LabWallBack, _roofZ - StructureBuilder.SunkenWallZ);
+    }
 
     /// <summary>
     /// Adds the earth tiles to a map and returns the number of pixels left uncovered.
     /// </summary>
-    public static int Build(Random rng, MapBuilder map, Lattice lattice, IReadOnlySet<Cell> shown, IReadOnlySet<Cell> closets, LevelTheme theme, SpriteLibrary sprites)
+    public int Build(Random rng, FineLayout layout, IReadOnlySet<Cell> shown, IReadOnlySet<Cell> closets, MapBuilder map)
     {
-        var earth = sprites.Find(KnownObject.Earth) ?? throw new InvalidDataException("The earth sprite 501 is missing.");
-        var tile = new TileMask(earth.View.GetFrame(0), earth.View.Width, earth.View.Height);
-        var floors = map.Sprites
-            .Where(s => IsFloor(s.Id) && s.Position.Z >= 0)
+        var lattice = layout.Lattice;
+        var floors = map.Sprites.Where(sprite => sprite.Id == _floorId).Select(sprite => new PointF(sprite.Position.X, sprite.Position.Y)).ToArray();
+        float minX = floors.Min(floor => floor.X) - Margin;
+        float minY = floors.Min(floor => floor.Y) - Margin;
+        var area = new Rectangle((int)MathF.Floor(minX), (int)MathF.Floor(minY - Margin),
+            (int)MathF.Ceiling(floors.Max(floor => floor.X) + Margin - minX), (int)MathF.Ceiling(floors.Max(floor => floor.Y) + Margin - minY + Margin));
+        var shapes = floors.Select(floor => CreateShape(_floor, floor, PixelKind.Floor))
+            .Concat(layout.Cells.Keys.OrderBy(shown.Contains).Select(cell => shown.Contains(cell)
+                ? CreateShape(_shownCell, lattice.GetCenter(cell), PixelKind.ShownFloor)
+                : CreateShape(_cell, lattice.GetCenter(cell), closets.Contains(cell) ? PixelKind.ClosetFloor : PixelKind.Floor)))
+            .Concat(layout.Edges.Keys
+                .Where(edge => shown.Contains(edge.Cells.First) != shown.Contains(edge.Cells.Second))
+                .Select(edge => CreateWall(lattice, edge, shown, false))
+                .Concat(layout.Edges
+                    .Where(pair => _lab && pair.Value == EdgeKind.Wall && !shown.Contains(pair.Key.Cells.First) && !shown.Contains(pair.Key.Cells.Second)
+                        && (closets.Contains(pair.Key.Cells.First) || closets.Contains(pair.Key.Cells.Second)))
+                    .Select(pair => CreateWall(lattice, pair.Key, shown, true)))
+                .OrderBy(shape => shape.Top))
             .ToArray();
-        
-        float minX = floors.Min(s => s.Position.X) - Margin;
-        float maxX = floors.Max(s => s.Position.X) + Margin;
-        float minY = floors.Min(s => s.Position.Y) - Margin;
-        float maxY = floors.Max(s => s.Position.Y) + Margin;
-        var area = new Area((int)MathF.Floor(minX), (int)MathF.Floor(minY - Margin), (int)MathF.Ceiling(maxX - minX), (int)MathF.Ceiling(maxY - minY + Margin));
-        var structure = GetStructure(map, sprites, area);
 
-        var floor = new BitMask(area.Width, area.Height);
-        var rasters = Enumerable.Range(0, (area.Width + StripWidth - 1) / StripWidth)
-            .Select(index => new Raster(new Strip(index * StripWidth, Math.Min(StripWidth, area.Width - index * StripWidth)), area))
+        (float ox, float oy) = (floors[0].X, floors[0].Y);
+        var taken = floors.Select(floor => ((int)MathF.Round((floor.X - ox) / StepX), (int)MathF.Round((floor.Y - oy) / StepY))).ToHashSet();
+        var classifier = new RoofClassifier(area, lattice, shown, WallOverlap);
+        var visible = classifier.GetFloor(shapes);
+        var spots = new List<(PointF Spot, int Row)>();
+        var bare = new List<RoofShape>();
+        for (int column = (int)MathF.Floor((area.Left - ox) / StepX) - 2; column <= (int)MathF.Ceiling((area.Right - ox) / StepX) + 2; column++)
+        {
+            for (int row = (int)MathF.Floor((area.Top - oy) / StepY) - 2; row <= (int)MathF.Ceiling((area.Bottom - oy) / StepY) + 2; row++)
+            {
+                var spot = new PointF(ox + StepX * column, oy + StepY * row);
+                (int left, int top) = _inner.GetOrigin(spot.X, spot.Y);
+                if (((column + row) & 1) != (_lab ? 0 : 1))
+                {
+                    continue;
+                }
+
+                spots.Add((spot, row));
+                if (!taken.Contains((column, row)) && visible.Measure(_inner, left, top) > 0)
+                {
+                    bare.Add(CreateShape(_tile, spot, PixelKind.Bare));
+                }
+                else if (!taken.Contains((column, row)))
+                {
+                    map.Add(KnownObject.Earth, spot.X, spot.Y, 0, rng.Next(256), unique: false);
+                }
+            }
+        }
+
+        var (target, forbidden) = classifier.Classify(bare.Concat(shapes).ToArray());
+        var order = spots.OrderBy(entry => entry.Row).ThenBy(entry => entry.Spot.X).Select(entry => entry.Spot).ToArray();
+        int[] bounds = new int[order.Length];
+        bounds.AsSpan().Fill(int.MaxValue);
+        foreach (int least in Rounds)
+        {
+            for (int index = 0; index < order.Length; index++)
+            {
+                (int left, int top) = _tile.GetOrigin(order[index].X, order[index].Y);
+                if (least > 0 && bounds[index] == int.MaxValue && !IsTargetNear(target, left, top))
+                {
+                    bounds[index] = 0;
+                }
+
+                while (least == 0 || bounds[index] >= least)
+                {
+                    (int dx, int dy, int covered) = FindBest(target, forbidden, left, top, least == 0 ? [(0, 0)] : GetSlides(lattice, order[index].X));
+                    bounds[index] = least > 0 ? covered : bounds[index];
+                    if (covered < Math.Max(1, least))
+                    {
+                        break;
+                    }
+
+                    target.Remove(_tile, left + dx, top + dy);
+                    map.Add(KnownObject.Earth, order[index].X + dx, order[index].Y + dy + _roofZ, _roofZ, rng.Next(256), unique: false);
+                }
+            }
+        }
+
+        return target.Count;
+    }
+
+    // Slide vertically, also below the nearby cell corners where walls meet, and sideways
+    private static (int Dx, int Dy)[] GetSlides(Lattice lattice, float x) =>
+        Enumerable.Range((int)MathF.Ceiling((x - StepX - lattice.OriginX) / lattice.StepX), (int)(2 * StepX / lattice.StepX) + 1)
+            .Select(corner => 2 * (int)MathF.Round((lattice.OriginX + lattice.StepX * corner - x) / 2))
+            .Where(dx => Math.Abs(dx) <= StepX)
+            .Prepend(0)
+            .Distinct()
+            .SelectMany(dx => Enumerable.Range(-StepY / 2, StepY + 1).Select(step => (dx, 2 * step)))
+            .Concat(Sideways)
             .ToArray();
-        foreach (var raster in rasters)
+
+    // Keep a pixel away from forbidden rows to absorb the engine's rounding of sprite positions
+    private (int Dx, int Dy, int Covered) FindBest(ColumnRuns target, ColumnRuns forbidden, int left, int top, (int Dx, int Dy)[] slides)
+    {
+        var best = (Dx: 0, Dy: 0, Covered: 0);
+        foreach ((int dx, int dy) in slides)
         {
-            raster.Draw(structure);
-            raster.CopyFloor(floor);
+            int covered = target.Measure(_tile, left + dx, top + dy);
+            if (covered > best.Covered && !forbidden.Touches(_tile, left + dx, top + dy, 1))
+            {
+                best = (dx, dy, covered);
+            }
         }
 
-        var grounds = AddGroundEarth(rng, map, floor, area, tile, floors, theme);
-        int roofZ = theme == LevelTheme.Lab ? LabRoofZ : MilitaryRoofZ;
-        var target = new BitMask(area.Width, area.Height);
-        var forbidden = new BitMask(area.Width, area.Height);
-        foreach (var raster in rasters)
-        {
-            raster.MarkGround(tile, grounds);
-            raster.Classify(lattice, shown, closets, GroundDepth + 8 * roofZ, target, forbidden);
-            raster.Dispose();
-        }
-
-        void Place(int cx, int cy) => map.Add(KnownObject.Earth, cx + area.X0, cy + area.Y0 + roofZ, roofZ, rng.Next(256), unique: false);
-        CoverLattice(tile, target, forbidden, area, floors[0], theme == LevelTheme.Lab ? 0 : 1, Place);
-        return Cover(tile, target, forbidden, Place);
+        return best;
     }
 
-    private static bool IsFloor(KnownObject id) => id is KnownObject.BasementFloor or KnownObject.BasementFloorAlt or KnownObject.MilitaryFloor;
+    private bool IsTargetNear(ColumnRuns target, int left, int top) =>
+        target.Measure(_tile, left - StepX, top - StepY, 2 * StepY) > 0 || target.Measure(_tile, left, top - StepY, 2 * StepY) > 0
+        || target.Measure(_tile, left + StepX, top - StepY, 2 * StepY) > 0;
 
-    private static StructureSprite[] GetStructure(MapBuilder map, SpriteLibrary sprites, Area area)
+    // Stand each military piece, which spans two edges, on the vertex after its even edge, and lower sunken closet walls by their sink
+    private RoofShape CreateWall(Lattice lattice, EdgeKey edge, IReadOnlySet<Cell> shown, bool sunken)
     {
-        var structure = new List<StructureSprite>();
-        foreach (var sprite in map.Sprites.Where(s => IsFloor(s.Id) || KnownObject.LabWalls.Contains(s.Id) || KnownObject.MilitaryWalls.Contains(s.Id)))
-        {
-            var found = sprites.Find(sprite.Id);
-            if (!found.HasValue)
-            {
-                continue;
-            }
-
-            var (obj, file) = found.Value;
-            int left = (int)MathF.Round(sprite.Position.X - file.Width / 2.0f) - area.X0;
-            int top = (int)MathF.Round(sprite.Position.Y - sprite.Position.Z - file.Height / 2.0f) - area.Y0;
-            structure.Add(new StructureSprite(sprite, obj, file, file.GetFrame(obj.GetFrame(sprite.Facing, file.FrameCount)), IsFloor(sprite.Id) ? Floor : Wall, left, top));
-        }
-
-        return structure.ToArray();
+        var (first, second) = edge.Cells;
+        bool slash = edge.Axis == 'v';
+        int along = (slash ? edge.A : edge.B) & 1;
+        var position = _lab ? StructureBuilder.GetLabPosition(lattice, edge).Position
+            : slash ? lattice.ToWorld(edge.A + 1 - along, edge.B) : lattice.ToWorld(edge.A, edge.B + 1 - along);
+        bool frontShown = shown.Contains(lattice.GetCenter(first).Y > lattice.GetCenter(second).Y ? first : second);
+        int start = (int)MathF.Round(lattice.ToWorld(edge.A, edge.B).X);
+        var profile = sunken ? slash ? _sunkenSlash : _sunkenBack : slash ? _slash : _back;
+        var wall = CreateShape(profile, new PointF(position.X, position.Y - (sunken ? StructureBuilder.SunkenWallZ : 0)), frontShown ? PixelKind.ShownFace : PixelKind.HiddenFace);
+        return wall with { From = start - WallOverlap, To = start + (int)lattice.StepX + WallOverlap };
     }
 
-    // Use the other parity on military levels, where a 503 spans two earth tiles
-    private static (int Cx, int Cy)[] AddGroundEarth(Random rng, MapBuilder map, BitMask floor, Area area, TileMask tile, MergedMapSprite[] floors, LevelTheme theme)
+    private static RoofShape CreateShape(ColumnProfile profile, PointF position, PixelKind kind)
     {
-        var first = floors[0];
-        float ox = first.Position.X;
-        float oy = first.Position.Y;
-        int parity = theme == LevelTheme.Lab ? 0 : 1;
-        var taken = floors.Select(s => ((int)MathF.Round((s.Position.X - ox) / StepX), (int)MathF.Round((s.Position.Y - oy) / StepY))).ToHashSet();
-        int i0 = (int)MathF.Floor((area.X0 - ox) / StepX) - 2;
-        int i1 = (int)MathF.Ceiling((area.X0 + area.Width - ox) / StepX) + 2;
-        int j0 = (int)MathF.Floor((area.Y0 - oy) / StepY) - 2;
-        int j1 = (int)MathF.Ceiling((area.Y0 + area.Height - oy) / StepY) + 2;
-        var grounds = new List<(int, int)>();
-        for (int index = i0; index <= i1; index++)
-        {
-            for (int innerIndex = j0; innerIndex <= j1; innerIndex++)
-            {
-                if (((index + innerIndex) & 1) != parity || taken.Contains((index, innerIndex)))
-                {
-                    continue;
-                }
-
-                float x = ox + StepX * index;
-                float y = oy + StepY * innerIndex;
-                (int cx, int cy) = ((int)MathF.Round(x), (int)MathF.Round(y));
-                if (!TouchesFloor(floor, area, tile, cx, cy))
-                {
-                    grounds.Add((cx, cy));
-                    map.Add(KnownObject.Earth, x, y, 0, rng.Next(256), unique: false);
-                }
-            }
-        }
-
-        return grounds.ToArray();
-    }
-
-    // Test the tile without the seam it shares with its neighbors
-    private static bool TouchesFloor(BitMask floor, Area area, TileMask tile, int cx, int cy)
-    {
-        foreach ((int dy, int x0, int x1) in tile.Inner)
-        {
-            int y = cy + dy - area.Y0;
-            int from = Math.Max(0, cx + x0 - area.X0);
-            int to = Math.Min(area.Width - 1, cx + x1 - area.X0);
-            if (y >= 0 && y < area.Height && from <= to && floor.Count(y, from, to) > 0)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    // Lay tiles on the ground tiles' lattice wherever they clear the forbidden pixels
-    private static void CoverLattice(TileMask tile, BitMask target, BitMask forbidden, Area area, MergedMapSprite first, int parity, Action<int, int> place)
-    {
-        float ox = first.Position.X - area.X0;
-        float oy = first.Position.Y - area.Y0;
-        int i0 = (int)MathF.Floor((tile.HalfWidth - ox) / StepX);
-        int i1 = (int)MathF.Floor((target.Width - tile.HalfWidth - ox) / StepX);
-        int j0 = (int)MathF.Ceiling((-tile.Top - oy) / StepY);
-        int j1 = (int)MathF.Floor((target.Height - 1 - tile.Bottom - oy) / StepY);
-        for (int j = j0; j <= j1; j++)
-        {
-            for (int i = i0; i <= i1; i++)
-            {
-                (int cx, int cy) = ((int)MathF.Round(ox + StepX * i), (int)MathF.Round(oy + StepY * j));
-                if (((i + j) & 1) != parity || cx < tile.HalfWidth || cx >= target.Width - tile.HalfWidth || target.Count(tile, cx, cy) == 0 || forbidden.Any(tile, cx, cy))
-                {
-                    continue;
-                }
-
-                foreach ((int dy, int x0, int x1) in tile.Rows)
-                {
-                    target.Clear(cy + dy, cx + x0, cx + x1);
-                }
-
-                place(cx, cy);
-            }
-        }
-    }
-
-    // Greedy cover with lazy scores. Requeue candidates popped with a stale score.
-    private static int Cover(TileMask tile, BitMask target, BitMask forbidden, Action<int, int> place)
-    {
-        var blocks = target.CountBlocks(Block);
-        int rowCount = Math.Max(0, (target.Height - tile.Bottom + tile.Top + CandidateStep - 1) / CandidateStep);
-        var found = new (int Cx, int Score)[rowCount][];
-        for (int i = 0; i < rowCount; i++)
-        {
-            int cy = -tile.Top + i * CandidateStep;
-            var list = new List<(int, int)>();
-            if (blocks.Sum(0, cy + tile.Top, target.Width - 1, cy + tile.Bottom) == 0)
-            {
-                found[i] = [];
-                continue;
-            }
-
-            for (int cx = tile.HalfWidth; cx < target.Width - tile.HalfWidth; cx += CandidateStep)
-            {
-                if (blocks.Sum(cx - tile.HalfWidth, cy + tile.Top, cx + tile.HalfWidth, cy + tile.Bottom) == 0 || forbidden.Any(tile, cx, cy))
-                {
-                    continue;
-                }
-
-                int score = target.Count(tile, cx, cy);
-                if (score > 0)
-                {
-                    list.Add((cx, score));
-                }
-            }
-
-            found[i] = list.ToArray();
-        }
-
-        var queue = new PriorityQueue<(int Cx, int Cy), int>(found.Sum(l => l.Length));
-        for (int index = 0; index < rowCount; index++)
-        {
-            foreach ((int cx, int score) in found[index])
-            {
-                queue.Enqueue((cx, -tile.Top + index * CandidateStep), -score);
-            }
-        }
-
-        while (queue.TryDequeue(out var c, out int negative))
-        {
-            int score = target.Count(tile, c.Cx, c.Cy);
-            if (score == 0)
-            {
-                continue;
-            }
-
-            if (score < -negative)
-            {
-                queue.Enqueue(c, -score);
-                continue;
-            }
-
-            foreach ((int dy, int x0, int x1) in tile.Rows)
-            {
-                target.Clear(c.Cy + dy, c.Cx + x0, c.Cx + x1);
-            }
-
-            place(c.Cx, c.Cy);
-        }
-
-        return target.CountAll();
-    }
-
-    private readonly record struct Area(int X0, int Y0, int Width, int Height);
-
-    private readonly record struct Strip(int X, int Width);
-
-    private sealed record StructureSprite(MergedMapSprite Sprite, GameObject Object, VidResource View, VidFrame Frame, byte Kind, int Left, int Top);
-
-    private sealed class TileMask
-    {
-        public TileMask(VidFrame frame, int width, int height)
-        {
-            int left = (int)MathF.Round(-width / 2.0f);
-            int top = (int)MathF.Round(-height / 2.0f);
-            
-            var rows = new List<(int Dy, int X0, int X1)>();
-            foreach (var run in frame)
-            {
-                int last = run.X + run.Count - 1 + left;
-                if (rows.Count > 0 && rows[^1].Dy == run.Y + top)
-                {
-                    rows[^1] = (rows[^1].Dy, rows[^1].X0, last);
-                }
-                else
-                {
-                    rows.Add((run.Y + top, run.X + left, last));
-                }
-            }
-
-            Rows = rows.ToArray();
-            
-            Inner = Rows
-                .Skip(Seam)
-                .SkipLast(Seam)
-                .Select(r => (r.Dy, r.X0 + Seam, r.X1 - Seam)).Where(r => r.Item2 <= r.Item3)
-                .ToArray();
-            
-            HalfWidth = Rows.Max(r => Math.Max(-r.X0, r.X1)) + 1;
-            Top = Rows.Min(r => r.Dy);
-            Bottom = Rows.Max(r => r.Dy);
-        }
-
-        public (int Dy, int X0, int X1)[] Rows { get; }
-
-        public (int Dy, int X0, int X1)[] Inner { get; }
-
-        public int HalfWidth { get; }
-
-        public int Top { get; }
-
-        public int Bottom { get; }
-    }
-
-    private sealed class BitMask
-    {
-        private readonly ulong[] _bits;
-        private readonly int _stride;
-
-        public BitMask(int width, int height)
-        {
-            Width = width;
-            Height = height;
-            _stride = (width + 63) >> 6;
-            _bits = new ulong[_stride * height];
-        }
-
-        public int Width { get; }
-
-        public int Height { get; }
-
-        public void Set(int x, int y) => _bits[y * _stride + (x >> 6)] |= 1UL << x;
-
-        // Callers must keep the span inside the mask
-        public int Count(int y, int x0, int x1)
-        {
-            ref ulong row = ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_bits), y * _stride);
-            int w0 = x0 >> 6;
-            int w1 = x1 >> 6;
-            ulong first = ~0UL << x0;
-            ulong last = ~0UL >> (~x1 & 63);
-            if (w0 == w1)
-            {
-                return BitOperations.PopCount(Unsafe.Add(ref row, w0) & first & last);
-            }
-
-            int total = BitOperations.PopCount(Unsafe.Add(ref row, w0) & first) + BitOperations.PopCount(Unsafe.Add(ref row, w1) & last);
-            for (int index = w0 + 1; index < w1; index++)
-            {
-                total += BitOperations.PopCount(Unsafe.Add(ref row, index));
-            }
-
-            return total;
-        }
-
-        public int Count(TileMask tile, int cx, int cy)
-        {
-            int total = 0;
-            foreach ((int dy, int x0, int x1) in tile.Rows)
-            {
-                total += Count(cy + dy, cx + x0, cx + x1);
-            }
-
-            return total;
-        }
-
-        public bool Any(TileMask tile, int cx, int cy)
-        {
-            foreach ((int dy, int x0, int x1) in tile.Rows)
-            {
-                if (Count(cy + dy, cx + x0, cx + x1) > 0)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        public void Clear(int y, int x0, int x1)
-        {
-            var row = _bits.AsSpan(y * _stride, _stride);
-            int w0 = x0 >> 6;
-            int w1 = x1 >> 6;
-            ulong first = ~0UL << x0;
-            ulong last = ~0UL >> (~x1 & 63);
-            if (w0 == w1)
-            {
-                row[w0] &= ~(first & last);
-                return;
-            }
-
-            row[w0] &= ~first;
-            row[w1] &= ~last;
-            row[(w0 + 1)..w1].Clear();
-        }
-
-        public int CountAll()
-        {
-            int total = 0;
-            foreach (ulong word in _bits)
-            {
-                total += BitOperations.PopCount(word);
-            }
-
-            return total;
-        }
-
-        public SummedArea CountBlocks(int size)
-        {
-            var area = new SummedArea((Width + size - 1) / size, (Height + size - 1) / size, size);
-            for (int y = 0; y < Height; y++)
-            {
-                for (int index = 0; index < _stride; index++)
-                {
-                    ulong word = _bits[y * _stride + index];
-                    while (word != 0)
-                    {
-                        area.Add(((index << 6) + BitOperations.TrailingZeroCount(word)) / size, y / size);
-                        word &= word - 1;
-                    }
-                }
-            }
-
-            area.Accumulate();
-            return area;
-        }
-    }
-
-    private sealed class SummedArea
-    {
-        private readonly int[] _sums;
-        private readonly int _width;
-        private readonly int _height;
-        private readonly int _size;
-
-        public SummedArea(int width, int height, int size)
-        {
-            _width = width;
-            _height = height;
-            _size = size;
-            _sums = new int[(width + 1) * (height + 1)];
-        }
-
-        public void Add(int bx, int by) => _sums[(by + 1) * (_width + 1) + bx + 1]++;
-
-        public void Accumulate()
-        {
-            int stride = _width + 1;
-            for (int y = 1; y <= _height; y++)
-            {
-                for (int x = 1; x <= _width; x++)
-                {
-                    int p = y * stride + x;
-                    _sums[p] += _sums[p - 1] + _sums[p - stride] - _sums[p - stride - 1];
-                }
-            }
-        }
-
-        // Zero means the rectangle is empty
-        public int Sum(int x0, int y0, int x1, int y1)
-        {
-            int bx0 = Math.Clamp(x0 / _size, 0, _width);
-            int by0 = Math.Clamp(y0 / _size, 0, _height);
-            int bx1 = Math.Clamp(x1 / _size + 1, 0, _width);
-            int by1 = Math.Clamp(y1 / _size + 1, 0, _height);
-            int stride = _width + 1;
-            return _sums[by1 * stride + bx1] - _sums[by0 * stride + bx1] - _sums[by1 * stride + bx0] + _sums[by0 * stride + bx0];
-        }
-    }
-
-    // Vertical strip of the level's pixels. Passes read only their own columns.
-    private sealed class Raster : IDisposable
-    {
-        private static readonly int[] NearRows = [-StepY * 2, 0, StepY * 2];
-
-        private readonly short[] _depth;
-        private readonly byte[] _flags;
-        private readonly int _offset;
-        private readonly int _width;
-        private readonly int _height;
-        private readonly int _x0;
-        private readonly int _y0;
-
-        public Raster(Strip strip, Area area)
-        {
-            _offset = strip.X;
-            _width = strip.Width;
-            _height = area.Height;
-            _x0 = area.X0 + strip.X;
-            _y0 = area.Y0;
-            int length = _width * _height;
-            _depth = ArrayPool<short>.Shared.Rent(length);
-            _depth.AsSpan(0, length).Fill(GroundDepth);
-            _flags = ArrayPool<byte>.Shared.Rent(length);
-            _flags.AsSpan(0, length).Clear();
-        }
-
-        public void Draw(StructureSprite[] structure)
-        {
-            foreach (var sprite in structure)
-            {
-                if (sprite.Left + sprite.View.Width >= _offset && sprite.Left < _offset + _width)
-                {
-                    Draw(sprite);
-                }
-            }
-        }
-
-        public void CopyFloor(BitMask floor)
-        {
-            for (int y = 0; y < _height; y++)
-            {
-                for (int x = 0; x < _width; x++)
-                {
-                    if ((_flags[y * _width + x] & KindMask) == Floor)
-                    {
-                        floor.Set(_offset + x, y);
-                    }
-                }
-            }
-        }
-
-        public void MarkGround(TileMask tile, (int Cx, int Cy)[] grounds)
-        {
-            foreach ((int cx, int cy) in grounds)
-            {
-                if (cx + tile.HalfWidth < _x0 || cx - tile.HalfWidth >= _x0 + _width)
-                {
-                    continue;
-                }
-
-                foreach ((int dy, int x0, int x1) in tile.Rows)
-                {
-                    int y = cy + dy - _y0;
-                    if (y < 0 || y >= _height)
-                    {
-                        continue;
-                    }
-
-                    int from = Math.Max(0, cx + x0 - _x0);
-                    int to = Math.Min(_width - 1, cx + x1 - _x0);
-                    for (int x = from; x <= to; x++)
-                    {
-                        _flags[y * _width + x] |= Ground;
-                    }
-                }
-            }
-        }
-
-        // A wall pixel stands (depth - 1024) / 8 px above its ground point
-        public void Classify(Lattice lattice, IReadOnlySet<Cell> shown, IReadOnlySet<Cell> closets, int roofDepth, BitMask target, BitMask forbidden)
-        {
-            for (int y = 0; y < _height; y++)
-            {
-                float wy = _y0 + y;
-                var lastCell = new Cell(int.MinValue, int.MinValue);
-                (bool Shown, bool Closet) lastIn = default;
-                for (int x = 0; x < _width; x++)
-                {
-                    int p = y * _width + x;
-                    float wx = _x0 + x;
-                    var cell = lattice.GetCell(wx, wy);
-                    if (cell != lastCell)
-                    {
-                        lastCell = cell;
-                        lastIn = (shown.Contains(cell), closets.Contains(cell));
-                    }
-
-                    int kind = _flags[p] & KindMask;
-                    if (kind != Wall && lastIn.Closet)
-                    {
-                        _flags[p] |= ClosetFloor | Target;
-                        continue;
-                    }
-
-                    switch (kind)
-                    {
-                        case Floor when lastIn.Shown:
-                            _flags[p] |= ShownFloor | Forbidden;
-                            break;
-                        case Floor:
-                            _flags[p] |= Target;
-                            break;
-                        case Wall:
-                            float ground = wy + (_depth[p] - GroundDepth) / 8.0f;
-                            bool cap = _depth[p] > roofDepth;
-                            int probe = cap ? CapProbe : GroundProbe;
-                            bool front = shown.Contains(lattice.GetCell(wx, ground + probe));
-                            bool back = shown.Contains(lattice.GetCell(wx, ground - probe));
-                            bool visible = cap ? front || back : front;
-                            if (visible && !cap)
-                            {
-                                _flags[p] |= Forbidden;
-                            }
-                            else if (!visible && !cap)
-                            {
-                                _flags[p] |= Target;
-                            }
-
-                            break;
-                        default:
-                            if ((_flags[p] & Ground) == 0 && IsNearFloor(x, y))
-                            {
-                                _flags[p] |= Target;
-                            }
-
-                            break;
-                    }
-                }
-            }
-
-            MarkUnitZones(roofDepth);
-
-            for (int y = 0; y < _height; y++)
-            {
-                for (int x = 0; x < _width; x++)
-                {
-                    byte f = _flags[y * _width + x];
-                    if ((f & Forbidden) != 0)
-                    {
-                        forbidden.Set(_offset + x, y);
-                    }
-                    else if ((f & Target) != 0)
-                    {
-                        target.Set(_offset + x, y);
-                    }
-                }
-            }
-        }
-
-        public void Dispose()
-        {
-            ArrayPool<short>.Shared.Return(_depth);
-            ArrayPool<byte>.Shared.Return(_flags);
-        }
-
-        private void Draw(StructureSprite s)
-        {
-            var frame = s.Frame;
-            int left = s.Left - _offset;
-            int baseDepth = (int)(s.Sprite.Position.Z * 8);
-            if (s.Object.Flags.HasFlag(ObjectFlags.Raised) && baseDepth < 0x3fff)
-            {
-                baseDepth += 0x3fff;
-            }
-
-            bool hasDepth = s.View.HasDepth;
-            bool standing = s.Object.Size.Y < s.Object.Size.Z;
-            int flat = Math.Min(baseDepth + 0x400, 0x7fff);
-            foreach (var run in frame)
-            {
-                int y = s.Top + run.Y;
-                if (y < 0 || y >= _height)
-                {
-                    continue;
-                }
-
-                int rowDepth = standing ? flat + (frame.RowCount - (run.Y - frame.Top)) * 8 : flat;
-                for (int pixelIndex = 0; pixelIndex < run.Count; pixelIndex++)
-                {
-                    int x = left + run.X + pixelIndex;
-                    if (x < 0 || x >= _width)
-                    {
-                        continue;
-                    }
-
-                    int depth = hasDepth ? baseDepth + run.GetDepth(pixelIndex) : rowDepth;
-                    int p = y * _width + x;
-                    if (hasDepth ? _depth[p] < depth : _depth[p] <= depth)
-                    {
-                        _depth[p] = (short)depth;
-                        _flags[p] = s.Kind;
-                    }
-                }
-            }
-        }
-
-        // Forbid rows up to a unit's height above shown floor and a few below it, stopping at caps
-        private void MarkUnitZones(int roofDepth)
-        {
-            int[] sinceShown = new int[_width];
-            int[] sinceCloset = new int[_width];
-            sinceShown.AsSpan().Fill(int.MaxValue);
-            sinceCloset.AsSpan().Fill(int.MaxValue);
-            for (int y = _height - 1; y >= 0; y--)
-            {
-                for (int x = 0; x < _width; x++)
-                {
-                    int p = y * _width + x;
-                    bool cap = IsCap(p, roofDepth);
-                    sinceShown[x] = (_flags[p] & ShownFloor) != 0 ? 0 : cap || sinceShown[x] == int.MaxValue ? int.MaxValue : sinceShown[x] + 1;
-                    sinceCloset[x] = (_flags[p] & ClosetFloor) != 0 ? 0 : cap || sinceCloset[x] == int.MaxValue ? int.MaxValue : sinceCloset[x] + 1;
-                    if (sinceShown[x] <= UnitHeight && !cap)
-                    {
-                        _flags[p] |= Forbidden;
-                    }
-                    else if (sinceCloset[x] <= UnitHeight && !cap && (_flags[p] & Forbidden) == 0)
-                    {
-                        _flags[p] |= Target;
-                    }
-                }
-            }
-
-            sinceShown.AsSpan().Fill(int.MaxValue);
-            for (int y = 0; y < _height; y++)
-            {
-                for (int x = 0; x < _width; x++)
-                {
-                    int p = y * _width + x;
-                    sinceShown[x] = (_flags[p] & ShownFloor) != 0 ? 0 : sinceShown[x] == int.MaxValue ? int.MaxValue : sinceShown[x] + 1;
-                    if (sinceShown[x] <= UnitDrop && !IsCap(p, roofDepth))
-                    {
-                        _flags[p] |= Forbidden;
-                    }
-                }
-            }
-        }
-
-        private bool IsCap(int p, int roofDepth) => (_flags[p] & KindMask) == Wall && _depth[p] > roofDepth;
-
-        private bool IsNearFloor(int x, int y)
-        {
-            foreach (int dy in NearRows)
-            {
-                int yy = y + dy;
-                if (yy >= 0 && yy < _height && (_flags[yy * _width + x] & KindMask) != None)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
+        (int left, int top) = profile.GetOrigin(position.X, position.Y);
+        return new RoofShape(profile, left, top, kind);
     }
 }

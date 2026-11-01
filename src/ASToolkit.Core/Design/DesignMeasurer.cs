@@ -70,7 +70,7 @@ public sealed class DesignMeasurer
     private readonly LevelSurvey _survey;
     private readonly ObjectTable _objects;
     private readonly ILookup<KnownObject, PointF> _positions;
-    private HashSet<int>? _storagePlaces;
+    private readonly Lazy<HashSet<int>> _storagePlaces;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DesignMeasurer"/> class.
@@ -86,6 +86,7 @@ public sealed class DesignMeasurer
         _survey = survey;
         _objects = objects;
         _positions = model.Sprites.ToLookup(sprite => sprite.Id, sprite => new PointF(sprite.Position.X, sprite.Position.Y));
+        _storagePlaces = new Lazy<HashSet<int>>(FindStoragePlaces);
     }
 
     /// <summary>
@@ -104,8 +105,7 @@ public sealed class DesignMeasurer
     public static DesignMeasures? Measure(string name, MapResourceBuilder map, LevelScriptSummary script, ObjectTable objects)
     {
         var analysis = RouteAnalyzer.Analyze(name, map, script, objects);
-        var model = analysis is null ? null : LevelExtractor.Extract(name, map, objects);
-        return analysis is null || model is null ? null : Measure(model, analysis, LevelSurveyor.Survey(map, script, analysis, objects), objects);
+        return analysis is null ? null : Measure(analysis.Model, analysis, LevelSurveyor.Survey(map, script, analysis, objects), objects);
     }
 
     /// <summary>
@@ -304,23 +304,20 @@ public sealed class DesignMeasurer
         return new MeasureShare(count, decor.Length);
     }
 
-    private bool IsStorage(LevelPlace place)
-    {
-        if (_storagePlaces is null)
-        {
-            var storage = new Dictionary<int, int>();
-            var furniture = new Dictionary<int, int>();
-            foreach (var sprite in _model.Sprites.Where(sprite => Storage.Contains(sprite.Id) || Furniture.Contains(sprite.Id)))
-            {
-                int at = _survey.FindPlace(sprite.Position.X, sprite.Position.Y);
-                var counts = Storage.Contains(sprite.Id) ? storage : furniture;
-                counts[at] = counts.GetValueOrDefault(at) + 1;
-            }
+    private bool IsStorage(LevelPlace place) => _storagePlaces.Value.Contains(place.Id);
 
-            _storagePlaces = storage.Where(pair => pair.Value >= StorageDominance * (pair.Value + furniture.GetValueOrDefault(pair.Key))).Select(pair => pair.Key).ToHashSet();
+    private HashSet<int> FindStoragePlaces()
+    {
+        var storage = new Dictionary<int, int>();
+        var furniture = new Dictionary<int, int>();
+        foreach (var sprite in _model.Sprites.Where(sprite => Storage.Contains(sprite.Id) || Furniture.Contains(sprite.Id)))
+        {
+            int at = _survey.FindPlace(sprite.Position.X, sprite.Position.Y);
+            var counts = Storage.Contains(sprite.Id) ? storage : furniture;
+            counts[at] = counts.GetValueOrDefault(at) + 1;
         }
 
-        return _storagePlaces.Contains(place.Id);
+        return storage.Where(pair => pair.Value >= StorageDominance * (pair.Value + furniture.GetValueOrDefault(pair.Key))).Select(pair => pair.Key).ToHashSet();
     }
 
     private MeasureShare CountItems(IReadOnlyList<LevelItem> items, ItemCategory category, Func<WallSample, bool> predicate)

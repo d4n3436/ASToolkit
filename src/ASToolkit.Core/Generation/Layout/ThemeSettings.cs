@@ -24,7 +24,8 @@ public sealed record ThemeSettings(
     /// <summary>
     /// Gets the walking length of one unit in map pixels.
     /// </summary>
-    public float UnitPixels => Theme == LevelTheme.Lab ? MathF.Sqrt(40 * 40 + 28 * 28) : 2 * MathF.Sqrt(45 * 45 + 32 * 32);
+    public float UnitPixels => Theme == LevelTheme.Lab ? MathF.Sqrt(Lattice.LabStep.X * Lattice.LabStep.X + Lattice.LabStep.Y * Lattice.LabStep.Y)
+        : 2 * MathF.Sqrt(Lattice.MilitaryStep.X * Lattice.MilitaryStep.X + Lattice.MilitaryStep.Y * Lattice.MilitaryStep.Y);
 
     /// <summary>
     /// Gets the floor area of one unit in pixels.

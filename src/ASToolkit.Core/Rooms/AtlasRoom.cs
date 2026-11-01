@@ -34,22 +34,22 @@ public sealed class AtlasRoom
     public required RoomType? Side { get; init; }
 
     /// <summary>
-    /// Gets the type its contents suggest.
+    /// Gets the type the room's contents suggest.
     /// </summary>
     public required RoomType ProposedType { get; init; }
 
     /// <summary>
-    /// Gets the number of rooms it opens onto.
+    /// Gets the number of rooms the room opens onto.
     /// </summary>
     public required int Doors { get; init; }
 
     /// <summary>
-    /// Gets the share of its cell box its cells fill.
+    /// Gets the share of the room's cell box its cells fill.
     /// </summary>
     public required float Fill { get; init; }
 
     /// <summary>
-    /// Gets the number of pieces of each object in it.
+    /// Gets the number of pieces of each object in the room.
     /// </summary>
     public required IReadOnlyDictionary<KnownObject, int> Pieces { get; init; }
 
@@ -64,12 +64,12 @@ public sealed class AtlasRoom
     public required int Desks { get; init; }
 
     /// <summary>
-    /// Gets the groups of furniture in it.
+    /// Gets the groups of furniture in the room.
     /// </summary>
     public required IReadOnlyList<RoomPart> Parts { get; init; }
 
     /// <summary>
-    /// Gets the number of each scattered piece in it, papers and corpses.
+    /// Gets the number of each scattered piece in the room, papers and corpses.
     /// </summary>
     public required IReadOnlyDictionary<KnownObject, int> Scatter { get; init; }
 }
