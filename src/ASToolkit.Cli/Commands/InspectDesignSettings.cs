@@ -15,6 +15,10 @@ internal sealed class InspectDesignSettings : GameSettings
     [DefaultValue(10)]
     public int Seeds { get; init; } = 10;
 
+    [CommandOption("--leave-one-out")]
+    [Description("Also refits the generator without each campaign original in turn, generates the seeds again and writes leave-one-out.md with the rows that left the originals' range.")]
+    public bool LeaveOneOut { get; init; }
+
     [CommandOption("--images")]
     [Description("Writes an image of the places of every measured level.")]
     public bool Images { get; init; }

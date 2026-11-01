@@ -46,9 +46,11 @@ internal static class PlaceOverlay
     {
         var lattice = survey.Lattice;
         var font = LabelFamily.Value.CreateFont(Math.Max(10, 26 * map.Scale), FontStyle.Bold);
+
         var sectionOf = new SectionMeasurer(survey).Measure()
             .SelectMany(section => section.Places.Select(place => (Place: place, section.Index)))
             .ToDictionary(entry => entry.Place, entry => entry.Index);
+
         map.Image.Mutate<Rgb24>(context =>
         {
             foreach (var place in survey.Places)

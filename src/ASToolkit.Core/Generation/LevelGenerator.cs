@@ -60,7 +60,7 @@ public sealed class LevelGenerator
     private static readonly string[] AddOnLabSiteLevels = ["ADDON/Level_01.map", "ADDON/Level_02.map", "ADDON/Level_03.map"];
     private static readonly string[] AddOnMilitarySiteLevels = ["ADDON/Level_04.map", "ADDON/Level_05.map", "ADDON2/Level_04.map"];
 
-    private readonly bool _addOnStyle;
+    private readonly StyleModel _model;
     private readonly string _gameFolder;
     private readonly ObjectTable _objects;
     private readonly ReferenceLevelSet _references;
@@ -86,33 +86,33 @@ public sealed class LevelGenerator
     /// <summary>
     /// Initializes a new instance of the <see cref="LevelGenerator"/> class.
     /// </summary>
-    public LevelGenerator(string gameFolder, ObjectTable objects, ReferenceLevelSet references, bool addOnStyle = false)
+    public LevelGenerator(string gameFolder, ObjectTable objects, ReferenceLevelSet references, StyleModel model)
     {
-        _addOnStyle = addOnStyle;
+        _model = model;
         _gameFolder = gameFolder;
         _objects = objects;
         _references = references;
         _armies = ArmyTable.Load(references, ReferenceLevelSet.CampaignLevels.Select(ReferenceLevelSet.GetCampaignName).Concat(AddOnLevels));
-        string[] sources = ReferenceLevelSet.CampaignLevels
-            .Select(ReferenceLevelSet.GetCampaignName)
-            .Concat(addOnStyle ? AddOnLevels : [])
-            .ToArray();
-        
+        bool addOnStyle = model.Style == GenerationStyle.AddOn;
+        string[] sources = model.FittingLevels.Where(name => name != ReferenceLevelSet.GetCampaignName(1)).ToArray();
+
         _content = new Lazy<OriginalContentSet>(() => OriginalContentSet.Load(references, sources));
-        _labFurnisher = new Lazy<RoomFurnisher>(() => CreateFurnisher(references, objects, LevelTheme.Lab, sources));
-        _militaryFurnisher = new Lazy<RoomFurnisher>(() => CreateFurnisher(references, objects, LevelTheme.Military, sources));
-        _labLibrary = new Lazy<DressingLibrary>(() => DressingLibrary.Build(references, objects, LevelTheme.Lab, sources, GetWallDressing(references, LevelTheme.Lab), references.GetWallClearance(LevelTheme.Lab), references.GetFacings(LevelTheme.Lab)));
-        _militaryLibrary = new Lazy<DressingLibrary>(() => DressingLibrary.Build(references, objects, LevelTheme.Military, sources, GetWallDressing(references, LevelTheme.Military), references.GetWallClearance(LevelTheme.Military), references.GetFacings(LevelTheme.Military)));
+        _labFurnisher = new Lazy<RoomFurnisher>(() => CreateFurnisher(references, model, objects, LevelTheme.Lab, sources));
+        _militaryFurnisher = new Lazy<RoomFurnisher>(() => CreateFurnisher(references, model, objects, LevelTheme.Military, sources));
+        _labLibrary = new Lazy<DressingLibrary>(() => DressingLibrary.Build(references, model.Relations, objects, LevelTheme.Lab, sources, GetWallDressing(model, LevelTheme.Lab),
+            model.GetWallClearance(LevelTheme.Lab), model.GetFacings(LevelTheme.Lab)));
+        _militaryLibrary = new Lazy<DressingLibrary>(() => DressingLibrary.Build(references, model.Relations, objects, LevelTheme.Military, sources, GetWallDressing(model, LevelTheme.Military),
+            model.GetWallClearance(LevelTheme.Military), model.GetFacings(LevelTheme.Military)));
         _keypads = new Lazy<KeypadTable>(() => KeypadTable.Load(references, sources));
-        _labProfiles = new Lazy<LevelProfile[]>(() => LabLevels.Select(name => GetProfile(references.GetSurvey(name), ThemeSettings.Lab)).ToArray());
-        _militaryProfiles = new Lazy<LevelProfile[]>(() => references.LevelNames.Order().Select(references.GetSurvey).Where(survey => survey.Theme == LevelTheme.Military)
+        _labProfiles = new Lazy<LevelProfile[]>(() => Fitted(LabLevels).Select(name => GetProfile(references.GetSurvey(name), ThemeSettings.Lab)).ToArray());
+        _militaryProfiles = new Lazy<LevelProfile[]>(() => references.LevelNames.Where(model.FittingLevels.Contains).Order().Select(references.GetSurvey).Where(survey => survey.Theme == LevelTheme.Military)
             .Select(survey => GetProfile(survey, ThemeSettings.Military)).ToArray());
-        _breakerScenes = new Lazy<IReadOnlyList<IReadOnlyList<PropPlacement>>>(() => OriginalContent.LoadBreakerScenes(references, ["Level_02.map", "Level_03.map", "Level_04.map"]));
+        _breakerScenes = new Lazy<IReadOnlyList<IReadOnlyList<PropPlacement>>>(() => OriginalContent.LoadBreakerScenes(references, Fitted(["Level_02.map", "Level_03.map", "Level_04.map"])));
         _outdoor = new OutdoorLevelBuilder(_armies);
-        _cannonScenes = new Lazy<IReadOnlyList<IReadOnlyList<PropPlacement>>>(() => OriginalContent.LoadCannonScenes(references, ["Level_08.map"]));
-        _missileMarks = new Lazy<(Dictionary<byte, List<IReadOnlyList<PropPlacement>>>, float)>(() => OriginalContent.LoadMissileMarks(references, ["Level_06.map", "Level_07.map", "Level_08.map", "Level_09.map", "Level_10.map"]));
-        _labSites = new Lazy<SiteTemplate[]>(() => OriginalContent.LoadDynamiteSites(references, addOnStyle ? LabSiteLevels.Concat(AddOnLabSiteLevels).ToArray() : LabSiteLevels, LevelTheme.Lab));
-        _militarySites = new Lazy<SiteTemplate[]>(() => OriginalContent.LoadDynamiteSites(references, addOnStyle ? MilitarySiteLevels.Concat(AddOnMilitarySiteLevels).ToArray() : MilitarySiteLevels, LevelTheme.Military));
+        _cannonScenes = new Lazy<IReadOnlyList<IReadOnlyList<PropPlacement>>>(() => OriginalContent.LoadCannonScenes(references, Fitted(["Level_08.map"])));
+        _missileMarks = new Lazy<(Dictionary<byte, List<IReadOnlyList<PropPlacement>>>, float)>(() => OriginalContent.LoadMissileMarks(references, Fitted(["Level_06.map", "Level_07.map", "Level_08.map", "Level_09.map", "Level_10.map"])));
+        _labSites = new Lazy<SiteTemplate[]>(() => OriginalContent.LoadDynamiteSites(references, Fitted(addOnStyle ? LabSiteLevels.Concat(AddOnLabSiteLevels).ToArray() : LabSiteLevels), LevelTheme.Lab));
+        _militarySites = new Lazy<SiteTemplate[]>(() => OriginalContent.LoadDynamiteSites(references, Fitted(addOnStyle ? MilitarySiteLevels.Concat(AddOnMilitarySiteLevels).ToArray() : MilitarySiteLevels), LevelTheme.Military));
     }
 
     /// <summary>
@@ -133,7 +133,7 @@ public sealed class LevelGenerator
     /// </summary>
     public GeneratedLevel GenerateAddOn(int seed, int number)
     {
-        if (!_addOnStyle)
+        if (_model.Style != GenerationStyle.AddOn)
         {
             throw new InvalidOperationException("The generator was not created in add-on style.");
         }
@@ -193,9 +193,9 @@ public sealed class LevelGenerator
         occupancy.Reserve(clear);
         decor.AddRange(Dresser.Dress(rng, isLab ? _labLibrary.Value : _militaryLibrary.Value, floor, layout.Edges, keepClear, layout.Lattice, occupancy, held));
         (float corpseRate, float bloodRate) = MeasureGore(originalMap, original);
-        RoomDecorator.Decorate(theme, plan, layout, decor, floor, keepClear, occupancy, target.ThemeDecor, target.Facings, corpseRate, bloodRate);
+        RoomDecorator.Decorate(theme, plan, layout, decor, floor, keepClear, occupancy, _model.GetDecorHeights(theme), _model.GetFacings(theme), corpseRate, bloodRate);
         var furnisher = isLab ? _labFurnisher.Value : _militaryFurnisher.Value;
-        var (_, furniture) = furnisher.Furnish(rng, plan, layout, _references.GetAtlas(target.OriginalSurvey.Name), clear, occupancy, companionsOf, wallLattice, walls, target.Facings, target.WallClearance);
+        var (_, furniture) = furnisher.Furnish(rng, plan, layout, _references.GetAtlas(target.OriginalSurvey.Name), clear, occupancy, companionsOf, wallLattice, walls, _model.GetFacings(theme), _model.GetWallClearance(theme));
         decor.AddRange(furniture);
         RoomDecorator.MarkMissiles(rng, decor, _missileMarks.Value.Marks, _missileMarks.Value.Share, floor, keepClear, layout.Lattice);
         var placed = decor.ToArray();
@@ -226,7 +226,7 @@ public sealed class LevelGenerator
         var clearances = new Dictionary<BlockingClass, float>();
         foreach (var blocking in new[] { BlockingClass.Solid, BlockingClass.Hittable })
         {
-            float? clearance = _references.Relations.GetDoorClearance(theme, blocking);
+            float? clearance = _model.Relations.GetDoorClearance(theme, blocking);
             if (clearance is not null)
             {
                 clearances[blocking] = clearance.Value;
@@ -234,13 +234,15 @@ public sealed class LevelGenerator
         }
 
         return new LevelOccupancy(_objects, lattice, floor, layout.Edges, start, doorways, clearances,
-            (id, other, raised) => _references.Relations.GetSpacing(theme, id, other, raised));
+            (id, other, raised) => _model.Relations.GetSpacing(theme, id, other, raised));
     }
 
-    private static RoomFurnisher CreateFurnisher(ReferenceLevelSet references, ObjectTable objects, LevelTheme setting, IReadOnlyList<string> sources) =>
+    private string[] Fitted(string[] levels) => levels.Where(_model.FittingLevels.Contains).ToArray();
+
+    private static RoomFurnisher CreateFurnisher(ReferenceLevelSet references, StyleModel model, ObjectTable objects, LevelTheme setting, IReadOnlyList<string> sources) =>
         new(RoomRecipe.Measure(sources.Where(name => references.GetSurvey(name).Setting == setting).SelectMany(name => references.GetAtlas(name).Rooms),
                 references.GetSurvey(references.LevelNames.First()).Lattice),
-            objects, GetDressingDecor(references, setting), references.GetSurvey(references.LevelNames.First()).Lattice);
+            objects, GetDressingDecor(model, setting), references.GetSurvey(references.LevelNames.First()).Lattice);
 
     private static (float Corpses, float Blood) MeasureGore(MapResourceBuilder originalMap, LevelModel original)
     {
@@ -433,7 +435,7 @@ public sealed class LevelGenerator
         
         var spawnWalls = theme == LevelTheme.Lab ? StructureBuilder.BuildLab(layoutRng, map, layout, visibleEdges, contentRng, closetEdges) : [];
         var placedEdges = theme == LevelTheme.Lab ? LevelExtractor.ReadLabEdges(layout.Lattice, map.Sprites, outdoor: false) : layout.Edges;
-        ContentPlacer.PlaceBrokenKeypads(contentRng, map, _keypads.Value, layout.Lattice, target.Facings, placedEdges);
+        ContentPlacer.PlaceBrokenKeypads(contentRng, map, _keypads.Value, layout.Lattice, _model.GetFacings(theme), placedEdges);
         (var doorMarks, float doorMarkShare) = OriginalContent.LoadDoorMarks(originalMap);
         ContentPlacer.PlaceDoorMarks(contentRng, map, layout.Lattice, placedEdges, doorMarks, doorMarkShare);
         
@@ -456,7 +458,7 @@ public sealed class LevelGenerator
         var startRoom = layout.GetRegionCells(plan.Stations[0].Id).ToArray();
         var start = startRoom[startRoom.Length / 2];
         var breaker = plan.Gate is GateKind.LockedDoors or GateKind.Blackout
-            ? ContentPlacer.ChooseBreakerSpot(layoutRng, plan, layout, placedEdges, _breakerScenes.Value, _objects, target.WallClearance, target.Facings)
+            ? ContentPlacer.ChooseBreakerSpot(layoutRng, plan, layout, placedEdges, _breakerScenes.Value, _objects, _model.GetWallClearance(theme), _model.GetFacings(theme))
             : null;
         
         if (breaker is null && plan.Gate is GateKind.LockedDoors or GateKind.Blackout && retries < MaxBreakerRetries)
@@ -469,7 +471,7 @@ public sealed class LevelGenerator
         var occupancy = CreateOccupancy(theme, plan, layout, floor, start);
         occupancy.Reserve(keepClear);
         var held = originalMap.Sprites.Select(sprite => sprite.Id).ToHashSet();
-        Func<KnownObject, IReadOnlyList<ObjectCompanion>> companionsOf = anchor => _references.Relations.GetCompanions(theme, anchor).Where(companion => held.Contains(companion.Id)).ToArray();
+        Func<KnownObject, IReadOnlyList<ObjectCompanion>> companionsOf = anchor => _model.Relations.GetCompanions(theme, anchor).Where(companion => held.Contains(companion.Id)).ToArray();
 
         var encounters = GetEncounters(target.ContentLevel);
 
@@ -509,7 +511,7 @@ public sealed class LevelGenerator
         };
         
         ContentPlacer.Place(context, budget, target.HasCheckpoint, target.Style == LevelStyle.Blackout, script, breaker, theme == LevelTheme.Lab ? _labSites.Value : _militarySites.Value,
-            visibleEdges, placedEdges, spawnWalls, _keypads.Value, target.Facings, _cannonScenes.Value, encounters, placedSites);
+            visibleEdges, placedEdges, spawnWalls, _keypads.Value, _model.GetFacings(theme), _cannonScenes.Value, encounters, placedSites);
         
         return new GeneratedLevel
         {
@@ -538,12 +540,12 @@ public sealed class LevelGenerator
     }
 
     // Keep broken keypads for jammed doors
-    private static Func<KnownObject, float, bool> GetDressingDecor(ReferenceLevelSet references, LevelTheme theme) =>
-        (id, z) => id != KnownObject.BrokenKeypad && references.GetThemeDecor(theme).Allows(id, z);
+    private static Func<KnownObject, float, bool> GetDressingDecor(StyleModel model, LevelTheme theme) =>
+        (id, z) => id != KnownObject.BrokenKeypad && model.GetDecorHeights(theme).Allows(id, z);
 
     // Copy only what hangs on walls or lies on the floor, the furniture being the furnisher's and the missile marks the decorator's
-    private static Func<KnownObject, float, bool> GetWallDressing(ReferenceLevelSet references, LevelTheme theme) =>
-        (id, z) => GetDressingDecor(references, theme)(id, z) && id.Family is null && !RoomDecorator.IsMissileMark(id, z);
+    private static Func<KnownObject, float, bool> GetWallDressing(StyleModel model, LevelTheme theme) =>
+        (id, z) => GetDressingDecor(model, theme)(id, z) && id.Family is null && !RoomDecorator.IsMissileMark(id, z);
 
     // Keep the floor clear around every site and pad, and along the line from the cannon to its kill zone
     private static List<(float U, float V, float Reach)> GetSiteSpots(MapBuilder map, Lattice lattice, PlacedSites placed)

@@ -380,67 +380,67 @@ Measured on campaign levels 2 to 10. "On screen" means within the 1,280 by 800 s
 
 | measure | campaign | add-ons | generated (90 levels) |
 |---|---|---|---|
-| chairs within 60 px of a table | 154 of 178 (87%) | 343 of 353 (97%) | 1,386 of 1,703 (81%) |
-| tables with a chair within 60 px | 152 of 172 (88%) | 353 of 411 (86%) | 1,372 of 1,524 (90%) |
-| test tubes within 60 px of a table | 71 of 74 (96%) | 130 of 131 (99%) | 392 of 413 (95%) |
-| lab equipment within 60 px of a table | 27 of 27 (100%) | 57 of 58 (98%) | 163 of 163 (100%) |
-| scattered paper within 60 px of a table | 83 of 92 (90%) | 239 of 366 (65%) | 593 of 876 (68%) |
-| computers away from walls | 18 of 122 (15%) | 170 of 209 (81%) | 261 of 1,191 (22%) |
-| lab big computers with a chair within 200 px | 52 of 52 (100%) | 19 of 31 (61%) | 188 of 397 (47%) |
-| corpses on blood (40 px) | 155 of 164 (95%) | 235 of 251 (94%) | 1,398 of 1,398 (100%) |
-| office and lab decor in passages | 0 of 322 (0%) | 186 of 764 (24%) | 52 of 2,643 (2%) |
-| office and lab decor in storage rooms | 10 of 322 (3%) | 35 of 764 (5%) | 118 of 2,643 (4%) |
-| Cabinet against far walls only | 173 of 207 (84%) | 442 of 588 (75%) | 1,342 of 1,865 (72%) |
-| Cabinet against near walls only | 15 of 207 (7%) | 14 of 588 (2%) | 349 of 1,865 (19%) |
-| Table against far walls only | 106 of 163 (65%) | 49 of 410 (12%) | 905 of 1,524 (59%) |
-| Table against near walls only | 20 of 163 (12%) | 20 of 410 (5%) | 232 of 1,524 (15%) |
-| Shelves against far walls only | 125 of 214 (58%) | 89 of 159 (56%) | 796 of 2,074 (38%) |
-| Shelves against near walls only | 56 of 214 (26%) | 9 of 159 (6%) | 794 of 2,074 (38%) |
-| BigComputer against far walls only | 49 of 71 (69%) | 23 of 31 (74%) | 442 of 549 (81%) |
-| BigComputer against near walls only | 3 of 71 (4%) | 1 of 31 (3%) | 37 of 549 (7%) |
-| Cabinet in a frame used under 5% against its wall | 6 of 171 (4%) | 117 of 430 (27%) | 84 of 1,602 (5%) |
-| Table in a frame used under 5% against its wall | 0 of 125 (0%) | 21 of 68 (31%) | 1 of 1,131 (0%) |
-| Container in a frame used under 5% against its wall | 0 of 32 (0%) | 4 of 15 (27%) | 7 of 254 (3%) |
-| Shelves in a frame used under 5% against its wall | 3 of 176 (2%) | 24 of 94 (26%) | 11 of 1,587 (1%) |
-| loose money against a wall | 87 of 100 (87%) | 96 of 226 (42%) | 1,131 of 1,337 (85%) |
-| loose money in a corner | 43 of 100 (43%) | 32 of 226 (14%) | 634 of 1,337 (47%) |
-| loose health against a wall | 84 of 128 (66%) | 51 of 156 (33%) | 855 of 1,302 (66%) |
-| loose ammo against a wall | 88 of 164 (54%) | 128 of 287 (45%) | 1,147 of 1,868 (61%) |
-| loose armor against a wall | 9 of 19 (47%) | 5 of 18 (28%) | 119 of 216 (55%) |
-| pickup piles of two or more (45 px) | 120 of 217 (55%) | 111 of 544 (20%) | 1,202 of 2,567 (47%) |
-| health placed after a fight | 70 of 163 (43%) | 93 of 174 (53%) | 817 of 1,646 (50%) |
-| ammo placed before a fight | 68 of 257 (26%) | 107 of 361 (30%) | 844 of 3,053 (28%) |
-| loose money over 200 px of walk off the route | 91 of 119 (76%) | 172 of 226 (76%) | 844 of 1,337 (63%) |
-| health in crates | 35 of 163 (21%) | 18 of 174 (10%) | 344 of 1,646 (21%) |
-| ammo in crates | 93 of 257 (36%) | 74 of 361 (20%) | 1,185 of 3,053 (39%) |
+| chairs within 60 px of a table | 154 of 178 (87%) | 343 of 353 (97%) | 1,396 of 1,730 (81%) |
+| tables with a chair within 60 px | 152 of 172 (88%) | 353 of 411 (86%) | 1,376 of 1,523 (90%) |
+| test tubes within 60 px of a table | 71 of 74 (96%) | 130 of 131 (99%) | 337 of 358 (94%) |
+| lab equipment within 60 px of a table | 27 of 27 (100%) | 57 of 58 (98%) | 150 of 150 (100%) |
+| scattered paper within 60 px of a table | 83 of 92 (90%) | 239 of 366 (65%) | 633 of 915 (69%) |
+| computers away from walls | 18 of 122 (15%) | 170 of 209 (81%) | 242 of 1,198 (20%) |
+| lab big computers with a chair within 200 px | 52 of 52 (100%) | 19 of 31 (61%) | 241 of 425 (57%) |
+| corpses on blood (40 px) | 155 of 164 (95%) | 235 of 251 (94%) | 1,377 of 1,377 (100%) |
+| office and lab decor in passages | 0 of 322 (0%) | 186 of 764 (24%) | 53 of 2,621 (2%) |
+| office and lab decor in storage rooms | 10 of 322 (3%) | 35 of 764 (5%) | 118 of 2,621 (5%) |
+| Cabinet against far walls only | 173 of 207 (84%) | 442 of 588 (75%) | 1,325 of 1,857 (71%) |
+| Cabinet against near walls only | 15 of 207 (7%) | 14 of 588 (2%) | 349 of 1,857 (19%) |
+| Table against far walls only | 106 of 163 (65%) | 49 of 410 (12%) | 917 of 1,523 (60%) |
+| Table against near walls only | 20 of 163 (12%) | 20 of 410 (5%) | 236 of 1,523 (15%) |
+| Shelves against far walls only | 125 of 214 (58%) | 89 of 159 (56%) | 784 of 2,053 (38%) |
+| Shelves against near walls only | 56 of 214 (26%) | 9 of 159 (6%) | 810 of 2,053 (39%) |
+| BigComputer against far walls only | 49 of 71 (69%) | 23 of 31 (74%) | 475 of 582 (82%) |
+| BigComputer against near walls only | 3 of 71 (4%) | 1 of 31 (3%) | 32 of 582 (5%) |
+| Cabinet in a frame used under 5% against its wall | 6 of 171 (4%) | 117 of 430 (27%) | 70 of 1,573 (4%) |
+| Table in a frame used under 5% against its wall | 0 of 125 (0%) | 21 of 68 (31%) | 1 of 1,146 (0%) |
+| Container in a frame used under 5% against its wall | 0 of 32 (0%) | 4 of 15 (27%) | 8 of 260 (3%) |
+| Shelves in a frame used under 5% against its wall | 3 of 176 (2%) | 24 of 94 (26%) | 12 of 1,587 (1%) |
+| loose money against a wall | 87 of 100 (87%) | 96 of 226 (42%) | 1,113 of 1,317 (85%) |
+| loose money in a corner | 43 of 100 (43%) | 32 of 226 (14%) | 582 of 1,317 (44%) |
+| loose health against a wall | 84 of 128 (66%) | 51 of 156 (33%) | 857 of 1,305 (66%) |
+| loose ammo against a wall | 88 of 164 (54%) | 128 of 287 (45%) | 1,130 of 1,864 (61%) |
+| loose armor against a wall | 9 of 19 (47%) | 5 of 18 (28%) | 114 of 216 (53%) |
+| pickup piles of two or more (45 px) | 120 of 217 (55%) | 111 of 544 (20%) | 1,238 of 2,624 (47%) |
+| health placed after a fight | 70 of 163 (43%) | 93 of 174 (53%) | 780 of 1,652 (47%) |
+| ammo placed before a fight | 68 of 257 (26%) | 107 of 361 (30%) | 885 of 3,058 (29%) |
+| loose money over 200 px of walk off the route | 91 of 119 (76%) | 172 of 226 (76%) | 830 of 1,317 (63%) |
+| health in crates | 35 of 163 (21%) | 18 of 174 (10%) | 347 of 1,652 (21%) |
+| ammo in crates | 93 of 257 (36%) | 74 of 361 (20%) | 1,194 of 3,058 (39%) |
 | armor in crates | 18 of 39 (46%) | 12 of 30 (40%) | 175 of 391 (45%) |
-| loose pickups per pile (45 px), median of levels | 2.174 | 1.475 | 1.931 |
-| solid floor pieces within 30 px of a doorway | 6 of 1,155 (1%) | 2 of 2,506 (0%) | 0 of 10,549 (0%) |
-| hittable floor pieces within 30 px of a doorway | 2 of 965 (0%) | 2 of 1,922 (0%) | 0 of 9,745 (0%) |
-| monitors within 40 px of a doorway | 1 of 46 (2%) | 9 of 189 (5%) | 0 of 483 (0%) |
-| solid or hittable floor pieces standing inside another | 0 of 2,120 (0%) | 40 of 4,428 (1%) | 0 of 20,294 (0%) |
-| loose pickups under a solid or hittable piece | 1 of 469 (0%) | 2 of 750 (0%) | 1 of 5,095 (0%) |
-| monitors within 25 px of a cabinet or shelves | 2 of 46 (4%) | 0 of 189 (0%) | 54 of 483 (11%) |
-| monitors standing on a piece | 18 of 46 (39%) | 106 of 189 (56%) | 248 of 483 (51%) |
-| boxes on shelves, a cabinet or a table | 73 of 92 (79%) | 104 of 121 (86%) | 303 of 388 (78%) |
-| test tubes, lab equipment and computers standing on a piece | 221 of 230 (96%) | 393 of 398 (99%) | 1,698 of 1,767 (96%) |
-| shelves with another shelf within 70 px | 14 of 217 (6%) | 11 of 160 (7%) | 24 of 2,074 (1%) |
-| longest cabinet run | 5 | 32 | 11 |
-| missiles in triplets | 9 of 9 (100%) | 18 of 73 (25%) | 18 of 97 (19%) |
-| pad groups mirrored about their middle | 5 of 5 (100%) | 2 of 4 (50%) | 39 of 53 (74%) |
+| loose pickups per pile (45 px), median of levels | 2.174 | 1.475 | 1.923 |
+| solid floor pieces within 30 px of a doorway | 6 of 1,155 (1%) | 2 of 2,506 (0%) | 0 of 10,390 (0%) |
+| hittable floor pieces within 30 px of a doorway | 2 of 965 (0%) | 2 of 1,922 (0%) | 0 of 9,571 (0%) |
+| monitors within 40 px of a doorway | 1 of 46 (2%) | 9 of 189 (5%) | 0 of 478 (0%) |
+| solid or hittable floor pieces standing inside another | 0 of 2,120 (0%) | 40 of 4,428 (1%) | 0 of 19,961 (0%) |
+| loose pickups under a solid or hittable piece | 1 of 469 (0%) | 2 of 750 (0%) | 3 of 5,071 (0%) |
+| monitors within 25 px of a cabinet or shelves | 2 of 46 (4%) | 0 of 189 (0%) | 50 of 478 (10%) |
+| monitors standing on a piece | 18 of 46 (39%) | 106 of 189 (56%) | 249 of 478 (52%) |
+| boxes on shelves, a cabinet or a table | 73 of 92 (79%) | 104 of 121 (86%) | 297 of 380 (78%) |
+| test tubes, lab equipment and computers standing on a piece | 221 of 230 (96%) | 393 of 398 (99%) | 1,652 of 1,706 (97%) |
+| shelves with another shelf within 70 px | 14 of 217 (6%) | 11 of 160 (7%) | 30 of 2,053 (1%) |
+| longest cabinet run | 5 | 32 | 7 |
+| missiles in triplets | 9 of 9 (100%) | 18 of 73 (25%) | 12 of 79 (15%) |
+| pad groups mirrored about their middle | 5 of 5 (100%) | 2 of 4 (50%) | 39 of 49 (80%) |
 | wall inscriptions within 230 px of the cannon | 16, 27 | 23, 27, 30, 67 | 21 to 27 |
-| open floor around the cannon (px) | 137, 213 | 174, 181, 259, 339 | 133 to 289 |
-| hit points within 1,200 px of the cannon | 54,759 of 235,784 (23%) | 1,096,014 of 2,356,627 (47%) | 417,634 of 2,262,252 (18%) |
-| walk from the start to the cannon (px) | 4,114, 5,329 | 2,148, 3,672, 4,279, 6,006 | 3,534 to 4,749 |
+| open floor around the cannon (px) | 137, 213 | 174, 181, 259, 339 | 129 to 289 |
+| hit points within 1,200 px of the cannon | 54,759 of 235,784 (23%) | 1,096,014 of 2,356,627 (47%) | 355,255 of 2,116,187 (17%) |
+| walk from the start to the cannon (px) | 4,114, 5,329 | 2,148, 3,672, 4,279, 6,006 | 3,644 to 4,859 |
 | room length over width, median of levels | 1.36 | 1.4 | 1.34 |
 | levels with repeated room layouts | 0 of 9 | 0 of 8 | 0 of 90 |
-| tour gap between fights with 5% of the hit points, median of levels | 0.102 | 0.096 | 0.066 |
-| dynamite sites on screen 0.2 of the tour before they are reached | 10 of 20 (50%) | 4 of 28 (14%) | 75 of 200 (38%) |
-| gates whose first closed boundary the tour reaches before the key | 5 of 5 (100%) | 1 of 1 (100%) | 56 of 57 (98%) |
-| locked-door and fence gates with the key in a section before their first closed boundary | 4 of 4 (100%) | - | 57 of 57 (100%) |
-| largest fight's position in its section, median of levels | 0.295 | 0.001 | 0.308 |
-| section climaxes with fewer hit points in the next tenth of the tour | 14 of 16 (88%) | 13 of 18 (72%) | 116 of 143 (81%) |
-| consecutive sections of 5% or more with different forms | 11 of 16 (69%) | 11 of 18 (61%) | 99 of 141 (70%) |
+| tour gap between fights with 5% of the hit points, median of levels | 0.102 | 0.096 | 0.069 |
+| dynamite sites on screen 0.2 of the tour before they are reached | 10 of 20 (50%) | 4 of 28 (14%) | 79 of 200 (40%) |
+| gates whose first closed boundary the tour reaches before the key | 5 of 5 (100%) | 1 of 1 (100%) | 45 of 49 (92%) |
+| locked-door and fence gates with the key in a section before their first closed boundary | 4 of 4 (100%) | - | 49 of 49 (100%) |
+| largest fight's position in its section, median of levels | 0.295 | 0.001 | 0.317 |
+| section climaxes with fewer hit points in the next tenth of the tour | 14 of 16 (88%) | 13 of 18 (72%) | 111 of 129 (86%) |
+| consecutive sections of 5% or more with different forms | 11 of 16 (69%) | 11 of 18 (61%) | 89 of 122 (73%) |
 | lab door-graph cycles, median of levels | 6 | 1 | 3 |
 | lab floor share of the bounding box, median of levels | 0.451 | 0.479 | 0.396 |
 | lab wall lines of 3+ cells per 1,000 cells, median of levels | 12.153 | 5.237 | 9.835 |
@@ -449,30 +449,30 @@ Measured on campaign levels 2 to 10. "On screen" means within the 1,280 by 800 s
 | lab median room area (px²), median of levels | 118720 | 436800 | 94080 |
 | lab median closet and nook area (px²), median of levels | 13440 | 13440 | 13440 |
 | lab outline notches per side, median of levels | 28.75 | 19 | 17 |
-| lab main body share of the floor, median of levels | 0.647 | 0.69 | 0.356 |
-| lab largest branch share of the floor, median of levels | 0.143 | 0.142 | 0.316 |
+| lab main body share of the floor, median of levels | 0.647 | 0.69 | 0.521 |
+| lab largest branch share of the floor, median of levels | 0.143 | 0.142 | 0.283 |
 | lab hub rooms from the start, median of levels | 1 | 1 | 1 |
-| lab deepest objective in rooms off the main body, median of levels | 1 | 0 | 3 |
+| lab deepest objective in rooms off the main body, median of levels | 1 | 0 | 2 |
 | lab square rooms, median of levels | 0.25 | 0.125 | 0.167 |
 | lab small rooms with no notch, median of levels | 0.7 | 1 | 0.889 |
 | lab mid rooms with no notch, median of levels | 0.167 | 0.75 | 0.182 |
 | lab large rooms with no notch, median of levels | 0 | 0.3 | 0 |
 | lab notches open outside, median of levels | 0.733 | 0.818 | 0.667 |
 | lab ambush hit points into rooms the tour has left, median of levels | 0 | 0 | 0 |
-| lab first-section rooms re-entered after the gate, median of levels | 0 | 1 | 0 |
+| lab first-section rooms re-entered after the gate, median of levels | 0 | 1 | 1 |
 | lab bare rooms, median of levels | 8 | 1 | 3 |
-| floor off the tour, median of levels | 0.12 | 0.086 | 0.16 |
-| tour share re-walked, median of levels | 0.066 | 0.047 | 0.054 |
-| first fight, share of the tour, median of levels | 0.058 | 0.001 | 0.097 |
-| fifth of the tour with the most hit points, median of levels | 2 | 1 | 2 |
-| spawned monsters per 1,000 spawned hit points, median of levels | 17.528 | 9.08 | 16.387 |
-| largest spawner (monsters), median of levels | 61 | 126 | 57 |
-| decor past blood and shadows, and monsters, in groups of 3+ with 2+ ids matching another original within 2 px | 353 of 4,778 (7%) | 244 of 7,896 (3%) | 16,689 of 41,477 (40%) |
-| levels whose door graph has the shape of another original's | 2 (Level_09.map, Level_08.map) | 0 | 8 (Level_08.map) |
+| floor off the tour, median of levels | 0.12 | 0.086 | 0.218 |
+| tour share re-walked, median of levels | 0.066 | 0.047 | 0.048 |
+| first fight, share of the tour, median of levels | 0.058 | 0.001 | 0.102 |
+| fifth of the tour with the most hit points, median of levels | 2 | 1 | 3 |
+| spawned monsters per 1,000 spawned hit points, median of levels | 17.528 | 9.08 | 17.182 |
+| largest spawner (monsters), median of levels | 61 | 126 | 54 |
+| decor past blood and shadows, and monsters, in groups of 3+ with 2+ ids matching another original within 2 px | 353 of 4,778 (7%) | 244 of 7,896 (3%) | 16,430 of 40,931 (40%) |
+| levels whose door graph has the shape of another original's | 2 (Level_09.map, Level_08.map) | 0 | 6 (Level_08.map) |
 
-Generated levels keep blocking floor pieces and monitors off doorways, stand no piece inside another and keep pickups out from under pieces as the campaign does, and stand boxes on furniture about as often (78% against 79%). They leave scattered paper away from tables more often (68% within 60 px of one against 90%), hang monitors against cabinets or shelves more often (11% within 25 px against 4%), stand shelves and cabinets against near walls more often, stand fewer missiles in triplets (19% against all), leave lab big computers without a chair (47% have one, against all of level 5's) and less loose money off the route (63% against 76%), put fewer hit points around the cannon, start the first fight later in the tour, space their big fights closer together and leave more floor off the tour. Their labs have fewer door-graph cycles, fewer bare rooms and a larger largest branch than the campaign's, and simpler outlines (17 notches a side against 28.75). 40% of their decor and monsters sit in groups that repeat an original, against 7% of the campaign's that repeat another original, and 8 of their 90 door graphs have the shape of level 8's.
+Generated levels keep blocking floor pieces and monitors off doorways, stand no piece inside another and keep pickups out from under pieces as the campaign does, and stand boxes on furniture about as often (78% against 79%). They leave scattered paper away from tables more often (69% within 60 px of one against 90%), hang monitors against cabinets or shelves more often (10% within 25 px against 4%), stand shelves and cabinets against near walls more often, stand fewer missiles in triplets (15% against all), leave lab big computers without a chair (57% have one, against all of level 5's) and less loose money off the route (63% against 76%), put fewer hit points around the cannon, start the first fight later in the tour, space their big fights closer together and leave more floor off the tour. Their labs have fewer door-graph cycles, fewer bare rooms and a larger largest branch than the campaign's, and simpler outlines (17 notches a side against 28.75). 40% of their decor and monsters sit in groups that repeat an original, against 7% of the campaign's that repeat another original, and 6 of their 90 door graphs have the shape of level 8's.
 
-**Provenance.** `GeneratedLevel.Provenance` counts the sprites of a generated level by where they came from, and `provenance.md` sums them per level. Over 10 seeds of the campaign, 84% of the sprites past the walls, floor and roof are copied from the originals. Wall windows give 48% of them, furniture parts 24%, monster formations and spawners 10%, and scenes and sites 1.5%. Relations give 8% and the generator's own rules 9%.
+**Provenance.** `GeneratedLevel.Provenance` counts the sprites of a generated level by where they came from, and `provenance.md` sums them per level. Over 10 seeds of the campaign, 84% of the sprites past the walls, floor and roof are copied from the originals. Wall windows give 48% of them, furniture parts 24%, monster formations and spawners 10%, and scenes and sites 1.4%. Relations give 7.5% and the generator's own rules 9%.
 
 ## Overview
 
@@ -485,6 +485,7 @@ A generated level replaces one campaign level from 1 to 10. Levels 2 to 10 take 
  GeneratorFactory.Create          (src/ASToolkit.Cli/Commands)
    ObjectTable.Load               objects.res
    ReferenceLevelSet.Load         reads and analyzes every campaign and add-on level once
+   StyleFitter.Fit                fits the style model to the style's original levels
         |
         v
  LevelGenerator.Generate
@@ -529,17 +530,19 @@ A level draws from four `Random` streams. The layout seed drives the gate, the l
 
 `LevelGenerator` builds its sources once, on first use, and shares them across levels. Each one comes from the reference levels, which `ReferenceLevelSet.Load` reads and analyzes once, except the sprites and the template bytes, which are read from the game folder.
 
+A generator follows one `GenerationStyle`. `StyleFitter.Fit` fits a `StyleModel` to the style's fitting levels, campaign levels 1 to 10 in campaign style and every original in add-on style, and the generator takes its theme decor, wall clearance, facings and object relations from it. The content pool, recipes, dressing libraries, profiles, breaker scenes, missile marks and dynamite sites draw only on the fitting levels other than campaign level 1. `StyleFitter.Fit` can leave originals out. `ascli inspect design --leave-one-out` refits and regenerates without each campaign original in turn and writes `leave-one-out.md`.
+
 | source | built by | from | read by |
 |---|---|---|---|
 | level targets | `ReferenceLevelSet.Load` | route analysis and measures of every campaign and add-on level | `GetTarget`, every stage |
-| theme decor | `ReferenceLevelSet.GetThemeDecor` | decor ids and heights of the campaign (and the add-ons in add-on style) | dressing filter |
-| wall clearance | `WallClearanceTable.Build` | distance of each decor object to the nearest wall in the originals | dressing, breaker props |
-| facings | `FacingTable.Build` | the directions the originals give decor against each wall side | dressing, boss props |
+| theme decor | `StyleModel.GetDecorHeights` | decor ids and heights of the fitting levels | dressing filter |
+| wall clearance | `WallClearanceTable.Build` | distance of each decor object to the nearest wall in the fitting levels | dressing, breaker props |
+| facings | `FacingTable.Build` | the directions the fitting levels give decor against each wall side | dressing, boss props |
 | content pool | `OriginalContentSet.Load` | placed groups, spawner lists, pickups, crate loot and bosses of each original | `BudgetPlanner` |
 | room atlases | `ReferenceLevelSet.GetAtlas` | each original's rooms with their roles, types and parts | `RoomFurnisher` |
 | lab recipes | `RoomRecipe.Measure` | the parts of each room type over the lab-setting originals | `RoomFurnisher` |
 | dressing libraries | `DressingLibrary.Build` | decor of the originals of each theme, indexed by wall windows, without the companions lying by their anchors | `Dresser.Dress` |
-| object relations | `ObjectRelationTable.Build` | anchors, companions, pair spacings and door clearances of every object in the campaign (and the add-ons in add-on style) | occupancy, `RoomFurnisher`, `PlacementContext.AddCompanions`, `DressingLibrary.Build` |
+| object relations | `ObjectRelationTable.Build` | anchors, companions, pair spacings and door clearances of every object in the fitting levels | occupancy, `RoomFurnisher`, `PlacementContext.AddCompanions`, `DressingLibrary.Build` |
 | breaker scenes | `OriginalContent.LoadBreakerScenes` | props within 170 px of the breakers of levels 2 to 4 | `ChooseBreakerSpot` |
 | dynamite sites | `OriginalContent.LoadDynamiteSites` | 179 markers with their pads, holes and endless generators, levels 3 and 4 (lab) and 7 to 9 (military), plus add-on levels in add-on style | `PlaceSites` |
 | keypads | `KeypadTable.Load` | keypad offsets next to each door kind and direction | structure, `PlaceGate` |
@@ -605,7 +608,7 @@ Every stage describes edges with `EdgeKind`. `FineLayout` holds the generated wa
 
 ### Level target
 
-`ReferenceLevelSet.GetTarget` returns a `LevelTarget` measured from the campaign level being replaced, with its style, gate shares, walk to the breaker, dynamite sites, secret closets, checkpoint, weapons, pens and survey, and the setting's decor, wall clearance and facing tables.
+`ReferenceLevelSet.GetTarget` returns a `LevelTarget` measured from the campaign level being replaced, with its style, gate shares, walk to the breaker, dynamite sites, secret closets, checkpoint, weapons, pens and survey.
 
 | target | source |
 |---|---|
@@ -695,7 +698,7 @@ In the lab originals every room that touches a hub has a door to it, a branch's 
 Each body role keeps the original's count within one and draws its areas from the same role of every profile in the pool, scaled to the original's floor for that role and to the floor target. Branches keep the original's shapes (rooms and entrances), one shape fewer or one more, with roots and tails drawn from the pool's branch roots and tails. For a wing gate the largest branch grows to the asked share and the other rooms off the halls shrink to keep the floor.
 
 - Labs pool campaign levels 2 to 5. Add-on levels first sample their own original's profile (50 draws) when it has a hub hall, or when it is a compound with a blackout on the route, and fall back to the campaign slot's profile. A compound is an original with no hall on its main path (add-on 1 level 2, add-on 2 levels 3 and 5). Its start stands in for the hub, and every main-body room past the neck goes into the block.
-- Military levels pool every military original, campaign levels 6 to 10, add-on 1 level 5 and add-on 2 level 4. The originals with lab walls on military floor (add-on 1 level 4, add-on 2 level 5) survey as labs and serve only their own add-on slots.
+- Military levels pool the military fitting levels, campaign levels 6 to 10, and in add-on style add-on 1 level 5 and add-on 2 level 4 too. The originals with lab walls on military floor (add-on 1 level 4, add-on 2 level 5) survey as labs and serve only their own add-on slots.
 
 ### Building
 
@@ -1028,7 +1031,7 @@ These measure how close a level comes to its original and are not guaranteed. `a
 
 ## Add-on style and installation
 
-`GenerateAddOn` picks one add-on by the seed's parity and follows its levels. Level 1 is outdoor in that add-on's style, and levels 2 to 5 take their structure from the campaign level closest to that add-on's level (`AddOnSlots`, add-on 1 4, 5, 3 and 9, add-on 2 5, 5, 8 and 5) and their pickups and design targets from that add-on level. The hit point target is the geometric mean of the same level in both add-ons. Each level is written over that add-on's map of the same number (`GeneratedLevel.Template`). The generator must be created in add-on style, which also adds the add-on levels to the content pool, the dressing libraries, the theme decor and the dynamite sites.
+`GenerateAddOn` picks one add-on by the seed's parity and follows its levels. Level 1 is outdoor in that add-on's style, and levels 2 to 5 take their structure from the campaign level closest to that add-on's level (`AddOnSlots`, add-on 1 4, 5, 3 and 9, add-on 2 5, 5, 8 and 5) and their pickups and design targets from that add-on level. The hit point target is the geometric mean of the same level in both add-ons. Each level is written over that add-on's map of the same number (`GeneratedLevel.Template`). The generator must be created with the add-on style's model, whose fitting levels add the add-on levels to every fitted table and pool.
 
 `RandomAddOnInstaller.Install` writes the levels to `Maps/RANDOM`, their briefings, money table, script branches and play menu button. The [README](../README.md#the-random-add-on) describes the result.
 

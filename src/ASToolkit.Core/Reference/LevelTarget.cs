@@ -38,15 +38,6 @@ public sealed class LevelTarget
     /// <summary>Gets the number of weapons, loose and in crates.</summary>
     public required int Weapons { get; init; }
 
-    /// <summary>Gets the decor the campaign uses on levels of the theme, with the heights it places each at.</summary>
-    public required DecorHeightTable ThemeDecor { get; init; }
-
-    /// <summary>Gets how close the originals of the theme place each decor object to a wall.</summary>
-    public required WallClearanceTable WallClearance { get; init; }
-
-    /// <summary>Gets the facings the originals of the theme give each decor object against walls.</summary>
-    public required FacingTable Facings { get; init; }
-
     /// <summary>Gets the number of fenced pens holding spawners in the campaign original.</summary>
     public required int OriginalPens { get; init; }
 

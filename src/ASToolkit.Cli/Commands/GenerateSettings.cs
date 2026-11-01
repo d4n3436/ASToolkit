@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using ASToolkit.Core.Reference;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -21,6 +22,8 @@ internal sealed class GenerateSettings : GameSettings
     [CommandOption("--addon-style")]
     [Description("Generate the five levels of an add-on instead of the ten of the campaign; --first and --last are ignored. Either way the levels become the RANDOM add-on on the play menu.")]
     public bool AddOnStyle { get; init; }
+
+    public GenerationStyle Style => AddOnStyle ? GenerationStyle.AddOn : GenerationStyle.Campaign;
 
     public override ValidationResult Validate()
     {

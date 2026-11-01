@@ -20,7 +20,10 @@ public sealed class BeatMeasurer
     {
         _survey = survey;
         _sections = sections;
-        _sectionOf = sections.SelectMany(section => section.Places.Select(place => (Place: place, section.Index))).ToDictionary(entry => entry.Place, entry => entry.Index);
+
+        _sectionOf = sections
+            .SelectMany(section => section.Places.Select(place => (Place: place, section.Index)))
+            .ToDictionary(entry => entry.Place, entry => entry.Index);
     }
 
     /// <summary>
@@ -33,7 +36,10 @@ public sealed class BeatMeasurer
             return [];
         }
 
-        var fights = _survey.Encounters.Where(encounter => encounter.HitPoints > 0).ToArray();
+        var fights = _survey.Encounters
+            .Where(encounter => encounter.HitPoints > 0)
+            .ToArray();
+
         var beats = new List<LevelBeat>();
         foreach (var fight in fights)
         {

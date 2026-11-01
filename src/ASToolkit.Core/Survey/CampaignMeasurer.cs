@@ -29,12 +29,36 @@ public sealed class CampaignMeasurer
         for (int index = 0; index < levels.Count; index++)
         {
             var survey = levels[index];
-            var fights = survey.Encounters.Where(encounter => encounter.HitPoints > 0).ToArray();
+
+            var fights = survey.Encounters
+                .Where(encounter => encounter.HitPoints > 0)
+                .ToArray();
+
             int hitPoints = fights.Sum(fight => fight.HitPoints);
-            int spawned = fights.Where(fight => fight.Kind is EncounterKind.Ambush or EncounterKind.Spawner or EncounterKind.EndlessGenerators).Sum(fight => fight.HitPoints);
-            var kinds = fights.SelectMany(fight => fight.Monsters).Select(monster => monster.Id).Where(id => KnownObject.Monsters.Contains(id) || KnownObject.Bosses.Contains(id)).Distinct().Order().ToArray();
-            var weapons = survey.Items.Where(item => item.Id.IsWeapon).Select(item => item.Id).Distinct().Order().ToArray();
-            var newWeapons = weapons.Where(seenWeapons.Add).ToArray();
+
+            int spawned = fights
+                .Where(fight => fight.Kind is EncounterKind.Ambush or EncounterKind.Spawner or EncounterKind.EndlessGenerators)
+                .Sum(fight => fight.HitPoints);
+
+            var kinds = fights
+                .SelectMany(fight => fight.Monsters)
+                .Select(monster => monster.Id)
+                .Where(id => KnownObject.Monsters.Contains(id) || KnownObject.Bosses.Contains(id))
+                .Distinct()
+                .Order()
+                .ToArray();
+
+            var weapons = survey.Items
+                .Where(item => item.Id.IsWeapon)
+                .Select(item => item.Id)
+                .Distinct()
+                .Order()
+                .ToArray();
+
+            var newWeapons = weapons
+                .Where(seenWeapons.Add)
+                .ToArray();
+
             measurements[index] = new CampaignMeasurement
             {
                 Level = index + 1,

@@ -2,6 +2,7 @@ using System.Text;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Generation;
+using ASToolkit.Core.Reference;
 
 namespace ASToolkit.Core.Patching;
 
@@ -54,14 +55,14 @@ public static class RandomAddOnInstaller
     /// the add-on. Campaign style (every level a campaign one, those not generated copied from the campaign) has ten
     /// levels, add-on style five. Anything installed before is replaced.
     /// </summary>
-    public static void Install(string gameFolder, bool addOnStyle, int seed, IReadOnlyList<RandomAddOnLevel> levels)
+    public static void Install(string gameFolder, GenerationStyle style, int seed, IReadOnlyList<RandomAddOnLevel> levels)
     {
         string maps = Path.Combine(gameFolder, "Maps");
         var menus = PatchMenus(maps);
         RemoveLevels(gameFolder);
         string folder = Path.Combine(maps, FolderName);
         Directory.CreateDirectory(folder);
-        int count = addOnStyle ? LevelGenerator.AddOnLevelCount : CampaignLevelCount;
+        int count = style == GenerationStyle.AddOn ? LevelGenerator.AddOnLevelCount : CampaignLevelCount;
         for (int number = 1; number <= count; number++)
         {
             string target = Path.Combine(folder, $"Level_{number:00}.map");
@@ -77,7 +78,7 @@ public static class RandomAddOnInstaller
             }
         }
 
-        WriteTable(maps, addOnStyle, count);
+        WriteTable(maps, style, count);
         foreach (var edit in Edits)
         {
             ScriptEditor.Apply(gameFolder, edit);
@@ -200,12 +201,12 @@ public static class RandomAddOnInstaller
         }
     }
 
-    private static void WriteTable(string maps, bool addOnStyle, int count)
+    private static void WriteTable(string maps, GenerationStyle style, int count)
     {
         string path = Path.Combine(maps, "common_table.lgc");
         string text = StripTable(Latin1.GetString(File.ReadAllBytes(path)));
         string newline = text.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
-        var money = GameTable.Parse(text).GetArray(addOnStyle ? "LevelMoneyAddon" : "LevelMoney");
+        var money = GameTable.Parse(text).GetArray(style == GenerationStyle.AddOn ? "LevelMoneyAddon" : "LevelMoney");
         string block = string.Join(newline, TableStart, $"#define RANDOM_LEVELS {count}", $"static int LevelMoneyRandom[] = {{ {string.Join(" ,", money)} }};", TableEnd, "");
         if (!text.EndsWith('\n'))
         {

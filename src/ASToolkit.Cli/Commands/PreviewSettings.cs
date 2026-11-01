@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using ASToolkit.Core.Generation;
+using ASToolkit.Core.Reference;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -18,6 +19,8 @@ internal sealed class PreviewSettings : GameSettings
     [CommandOption("--addon-style")]
     [Description("Generate an add-on level, 1 to 5, instead of a campaign level.")]
     public bool AddOnStyle { get; init; }
+
+    public GenerationStyle Style => AddOnStyle ? GenerationStyle.AddOn : GenerationStyle.Campaign;
 
     [CommandOption("-o|--out <MAP>", true)]
     [Description("The map file to write; the script is written next to it.")]

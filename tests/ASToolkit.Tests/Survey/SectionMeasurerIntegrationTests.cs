@@ -61,9 +61,16 @@ public class SectionMeasurerIntegrationTests
     {
         var survey = Load(level);
         var sections = new SectionMeasurer(survey).Measure();
-        var toured = survey.Route.Select(visit => visit.Place).Where(place => place >= 1 && place <= survey.Places.Count).ToHashSet();
 
-        var sectioned = sections.SelectMany(section => section.Places).ToArray();
+        var toured = survey.Route
+            .Select(visit => visit.Place)
+            .Where(place => place >= 1 && place <= survey.Places.Count)
+            .ToHashSet();
+
+        var sectioned = sections
+            .SelectMany(section => section.Places)
+            .ToArray();
+
         Assert.Equal(sectioned.Length, sectioned.Distinct().Count());
         Assert.Subset(sectioned.ToHashSet(), toured);
         Assert.All(sections, section => Assert.Equal(section.Places[0], section.Entrance));

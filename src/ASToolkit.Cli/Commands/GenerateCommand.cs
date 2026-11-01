@@ -9,7 +9,7 @@ internal sealed class GenerateCommand : Command<GenerateSettings>
 {
     public override int Execute(CommandContext context, GenerateSettings settings, CancellationToken cancellationToken)
     {
-        var (generator, _, _) = GeneratorFactory.Create(settings.Game, settings.AddOnStyle);
+        var (generator, _, _) = GeneratorFactory.Create(settings.Game, settings.Style);
         var table = new Table().AddColumns("Level", "Gate", "Tour", "Walked back", "Unreached");
         int broken = 0;
         int[] levels = settings.AddOnStyle
@@ -42,7 +42,7 @@ internal sealed class GenerateCommand : Command<GenerateSettings>
                 unreached == 0 ? "[green]none[/]" : $"[red]{unreached}[/]");
         }
 
-        RandomAddOnInstaller.Install(settings.Game, settings.AddOnStyle, settings.Seed,
+        RandomAddOnInstaller.Install(settings.Game, settings.Style, settings.Seed,
             levels.Select((n, i) => new RandomAddOnLevel(n, generatedLevels[i], generator.GetTemplatePath(generatedLevels[i]))).ToArray());
         AnsiConsole.Write(table);
         if (broken > 0)

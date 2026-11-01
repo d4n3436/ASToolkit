@@ -117,16 +117,20 @@ public sealed class DesignMeasurer
         var deskTops = _model.Objects.Where(piece => DeskTops.Contains(piece.Id)).ToArray();
         var sections = new SectionMeasurer(_survey).Measure();
         var beats = new BeatMeasurer(_survey, sections).Measure();
+
         var gates = _survey.Gates
             .Where(gate => gate.KeyPlace is not null && gate.KeyRoute is not null)
             .Select(gate => (Gate: gate, Lock: sections.FirstOrDefault(section => IsClosedBy(gate.Kind, section.Boundary))))
             .Where(pair => pair.Lock is not null)
             .ToArray();
-        var climaxes = beats.Where(beat => beat.Kind is BeatKind.Fight or BeatKind.Ambush or BeatKind.Boss)
+
+        var climaxes = beats
+            .Where(beat => beat.Kind is BeatKind.Fight or BeatKind.Ambush or BeatKind.Boss)
             .GroupBy(beat => beat.Section)
             .Where(group => group.Count() >= 2)
             .Select(group => group.MaxBy(beat => beat.HitPoints))
             .ToArray();
+
         return new DesignMeasures
         {
             Signature = _survey.Signature,
@@ -197,7 +201,10 @@ public sealed class DesignMeasurer
 
     private LevelArchitecture MeasureArchitecture()
     {
-        var placeOf = _survey.Places.SelectMany(place => place.Cells.Select(cell => (Cell: cell, place.Id))).ToDictionary(entry => entry.Cell, entry => entry.Id);
+        var placeOf = _survey.Places
+            .SelectMany(place => place.Cells.Select(cell => (Cell: cell, place.Id)))
+            .ToDictionary(entry => entry.Cell, entry => entry.Id);
+
         var cells = placeOf.Keys.ToArray();
         int box = (cells.Max(cell => cell.U) - cells.Min(cell => cell.U) + 1) * (cells.Max(cell => cell.V) - cells.Min(cell => cell.V) + 1);
         var lines = new Dictionary<(char Axis, int Line), int>();
@@ -210,7 +217,10 @@ public sealed class DesignMeasurer
             CountWall(!placeOf.ContainsKey(cell with { V = cell.V - 1 }), ('v', cell.V));
         }
 
-        var corners = cells.SelectMany(cell => new[] { cell, cell with { U = cell.U + 1 }, cell with { V = cell.V + 1 }, new Cell(cell.U + 1, cell.V + 1) }).ToHashSet();
+        var corners = cells
+            .SelectMany(cell => new[] { cell, cell with { U = cell.U + 1 }, cell with { V = cell.V + 1 }, new Cell(cell.U + 1, cell.V + 1) })
+            .ToHashSet();
+
         int notches = corners.Count(corner => new[] { corner, corner with { U = corner.U - 1 }, corner with { V = corner.V - 1 }, new Cell(corner.U - 1, corner.V - 1) }
             .Count(placeOf.ContainsKey) == 3);
         int floor = _survey.Places.Sum(place => place.AreaPixels);
@@ -243,15 +253,28 @@ public sealed class DesignMeasurer
     private bool IsRelieved(LevelBeat climax)
     {
         int window = _survey.Signature.TourPixels / ReliefWindows;
-        var fights = _survey.Encounters.Where(fight => fight.HitPoints > 0).ToArray();
-        int before = fights.Where(fight => fight.Route <= climax.Route && climax.Route - fight.Route <= window).Sum(fight => fight.HitPoints);
-        int after = fights.Where(fight => fight.Route > climax.Route && fight.Route - climax.Route <= window).Sum(fight => fight.HitPoints);
+
+        var fights = _survey.Encounters
+            .Where(fight => fight.HitPoints > 0)
+            .ToArray();
+
+        int before = fights
+            .Where(fight => fight.Route <= climax.Route && climax.Route - fight.Route <= window)
+            .Sum(fight => fight.HitPoints);
+
+        int after = fights
+            .Where(fight => fight.Route > climax.Route && fight.Route - climax.Route <= window)
+            .Sum(fight => fight.HitPoints);
+
         return after < before;
     }
 
     private static MeasureShare CountArchetypeChanges(LevelSection[] sections)
     {
-        var big = sections.Where(section => section.FloorShare >= SectionMeasurer.MajorShare).ToArray();
+        var big = sections
+            .Where(section => section.FloorShare >= SectionMeasurer.MajorShare)
+            .ToArray();
+
         return new MeasureShare(big.Zip(big.Skip(1)).Count(pair => pair.First.Archetype != pair.Second.Archetype), Math.Max(0, big.Length - 1));
     }
 

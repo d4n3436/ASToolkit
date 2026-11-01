@@ -43,7 +43,7 @@ public sealed class DressingLibrary
     /// <summary>
     /// Builds the library from the original levels of a theme, keeping only the allowed decor.
     /// </summary>
-    public static DressingLibrary Build(ReferenceLevelSet references, ObjectTable objects, LevelTheme theme, IEnumerable<string> levels, Func<KnownObject, float, bool> isAllowed,
+    public static DressingLibrary Build(ReferenceLevelSet references, ObjectRelationTable relations, ObjectTable objects, LevelTheme theme, IEnumerable<string> levels, Func<KnownObject, float, bool> isAllowed,
         WallClearanceTable clearance, FacingTable facings)
     {
         int[] sizes = theme == LevelTheme.Lab ? [3, 2, 1] : [4, 2];
@@ -55,7 +55,7 @@ public sealed class DressingLibrary
             if (model.Theme == theme && model.Edges.Count >= 100)
             {
                 sources.Add(model);
-                companionTests.Add(references.Relations.GetCompanionTest(theme, references.GetLevel(level)));
+                companionTests.Add(relations.GetCompanionTest(theme, references.GetLevel(level)));
             }
         }
 

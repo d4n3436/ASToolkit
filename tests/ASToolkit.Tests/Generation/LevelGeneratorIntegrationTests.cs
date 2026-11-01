@@ -33,7 +33,7 @@ public class LevelGeneratorIntegrationTests
     [Fact]
     public void GenerateAddOn_Seeds_ReachEveryObjective()
     {
-        var generator = CreateGenerator(addOnStyle: true);
+        var generator = CreateGenerator(GenerationStyle.AddOn);
         var jobs = Enumerable.Range(1, Seeds).SelectMany(seed => Enumerable.Range(1, LevelGenerator.AddOnLevelCount).Select(level => (Seed: seed, Level: level))).ToArray();
         var broken = new ConcurrentBag<string>();
         Parallel.ForEach(jobs, job => FindFaults(generator.GenerateAddOn(job.Seed, job.Level), $"seed {job.Seed} add-on level {job.Level}", broken));
@@ -44,10 +44,10 @@ public class LevelGeneratorIntegrationTests
     [Fact]
     public void Generate_CampaignSeeds_PlaceDecorAsTheOriginals()
     {
-        var (generator, objects, references) = CreateSources(addOnStyle: false);
+        var (generator, objects, references, model) = CreateSources(GenerationStyle.Campaign);
         var jobs = Enumerable.Range(1, Seeds).SelectMany(seed => Enumerable.Range(2, 9).Select(level => (Seed: seed, Level: level))).ToArray();
         var broken = new ConcurrentBag<string>();
-        Parallel.ForEach(jobs, job => FindDecorFaults(generator.Generate(job.Seed, job.Level), $"seed {job.Seed} level {job.Level}", objects, references.Relations, broken));
+        Parallel.ForEach(jobs, job => FindDecorFaults(generator.Generate(job.Seed, job.Level), $"seed {job.Seed} level {job.Level}", objects, model.Relations, broken));
 
         Assert.True(broken.IsEmpty, string.Join(Environment.NewLine, broken.Order()));
     }
@@ -55,7 +55,7 @@ public class LevelGeneratorIntegrationTests
     [Fact]
     public void GenerateAddOn_Seeds_PlaceDecorAsTheOriginals()
     {
-        var (generator, objects, references) = CreateSources(addOnStyle: true);
+        var (generator, objects, references, model) = CreateSources(GenerationStyle.AddOn);
         var jobs = Enumerable.Range(1, Seeds).SelectMany(seed => Enumerable.Range(1, LevelGenerator.AddOnLevelCount).Select(level => (Seed: seed, Level: level))).ToArray();
         var broken = new ConcurrentBag<string>();
         Parallel.ForEach(jobs, job =>
@@ -63,7 +63,7 @@ public class LevelGeneratorIntegrationTests
             var level = generator.GenerateAddOn(job.Seed, job.Level);
             if (level.Theme != LevelTheme.Outdoor)
             {
-                FindDecorFaults(level, $"seed {job.Seed} add-on level {job.Level}", objects, references.Relations, broken);
+                FindDecorFaults(level, $"seed {job.Seed} add-on level {job.Level}", objects, model.Relations, broken);
             }
         });
 
@@ -73,7 +73,7 @@ public class LevelGeneratorIntegrationTests
     [Fact]
     public void Generate_CampaignSeeds_LeaveNoMoreRaisedPiecesUnsupportedThanTheCampaign()
     {
-        var (generator, objects, references) = CreateSources(addOnStyle: false);
+        var (generator, objects, references, _) = CreateSources(GenerationStyle.Campaign);
         var campaign = references.LevelNames.Where(name => !name.Contains('/') && name != "Level_01.map").Select(name => CountSupport(references.GetLevel(name).Map, objects)).ToArray();
         var jobs = Enumerable.Range(1, Seeds).SelectMany(seed => Enumerable.Range(2, 9).Select(level => (Seed: seed, Level: level))).ToArray();
         var generated = new ConcurrentBag<(int Raised, int Unsupported)>();
@@ -227,13 +227,14 @@ public class LevelGeneratorIntegrationTests
         return (raised, unsupported);
     }
 
-    private static LevelGenerator CreateGenerator(bool addOnStyle = false) => CreateSources(addOnStyle).Generator;
+    private static LevelGenerator CreateGenerator(GenerationStyle style = GenerationStyle.Campaign) => CreateSources(style).Generator;
 
-    private static (LevelGenerator Generator, ObjectTable Objects, ReferenceLevelSet References) CreateSources(bool addOnStyle)
+    private static (LevelGenerator Generator, ObjectTable Objects, ReferenceLevelSet References, StyleModel Model) CreateSources(GenerationStyle style)
     {
         string game = TestGameFolder.RequireFolder();
         var objects = ObjectTable.Load(Path.Combine(game, "objects.res"));
-        var references = ReferenceLevelSet.Load(game, objects, addOnStyle);
-        return (new LevelGenerator(game, objects, references, addOnStyle), objects, references);
+        var references = ReferenceLevelSet.Load(game, objects);
+        var model = new StyleFitter(objects).Fit(references, style);
+        return (new LevelGenerator(game, objects, references, model), objects, references, model);
     }
 }

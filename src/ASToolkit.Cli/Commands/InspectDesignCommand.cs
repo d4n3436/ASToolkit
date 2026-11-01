@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using ASToolkit.Cli.Analysis;
@@ -43,29 +44,24 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         var objects = ObjectTable.Load(Path.Combine(settings.Game, "objects.res"));
         var campaign = ReferenceLevelSet.CampaignLevels.Select(level => (Name: ReferenceLevelSet.GetCampaignName(level), Path: Path.Combine(settings.Game, "Maps", ReferenceLevelSet.GetCampaignName(level)))).ToList();
         var addOns = AddOnLevels.Select(name => (Name: name, Path: Path.Combine(settings.Game, "Maps", name))).ToList();
-        var (generated, provenance) = Generate(settings, cancellationToken);
+        var references = settings.Seeds > 0 || settings.LeaveOneOut
+            ? AnsiConsole.Status().Start("Analyzing the original levels", _ => ReferenceLevelSet.Load(settings.Game, objects))
+            : null;
+        var fitter = new StyleFitter(objects);
+        var (generated, provenance, _) = references is null
+            ? ([], [], [])
+            : Generate(new LevelGenerator(settings.Game, objects, references, fitter.Fit(references, GenerationStyle.Campaign)), settings.Out, settings.Seeds, false, cancellationToken);
         var renderer = settings.Images ? new MapRenderer(settings.Game, objects) : null;
 
         var all = campaign.Concat(addOns).Concat(generated).ToArray();
         var loader = new LevelLoader(objects);
-        var measures = new DesignMeasures?[all.Length];
-        var levels = new ReferenceLevel?[all.Length];
-        var options = new ParallelOptions { MaxDegreeOfParallelism = MaxLevelsAtOnce, CancellationToken = cancellationToken };
-        AnsiConsole.Status().Start("Measuring the levels", _ => Parallel.For(0, all.Length, options, index =>
+        var (levels, measures) = AnsiConsole.Status().Start("Measuring the levels", _ => Measure(all, loader, objects, cancellationToken, level =>
         {
-            var level = loader.Load(all[index].Name, all[index].Path);
-            if (level is null)
-            {
-                return;
-            }
-
-            levels[index] = level;
-            measures[index] = DesignMeasurer.Measure(level.Model, level.Analysis, level.Survey, objects);
             if (renderer is not null)
             {
                 using var rendered = renderer.Render(level.Map.Sprites, settings.Scale, level.Map.Graphics);
                 PlaceOverlay.Draw(rendered, level.Survey, level.Analysis);
-                rendered.Image.SaveAsPng(Path.Combine(settings.Out, GetFileName(all[index].Name) + "_places.png"));
+                rendered.Image.SaveAsPng(Path.Combine(settings.Out, GetFileName(level.Name) + "_places.png"));
             }
         }));
 
@@ -86,7 +82,8 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         var originals = measures.Take(campaign.Count).OfType<DesignMeasures>().ToArray();
         var addOnMeasures = measures.Skip(campaign.Count).Take(addOns.Count).OfType<DesignMeasures>().ToArray();
         var candidates = measures.Skip(campaign.Count + addOns.Count).OfType<DesignMeasures>().ToArray();
-        var rows = BuildGapRows(originals, addOnMeasures, candidates);
+        var bands = new List<(string Name, Func<DesignMeasures[], float?> Value)>();
+        var rows = BuildGapRows(originals, addOnMeasures, candidates, bands);
         AddNoveltyRows(rows, all.Select(entry => entry.Name).ToArray(), levels, campaign.Count, addOns.Count);
         WriteGaps(settings, rows, candidates.Length);
 
@@ -97,38 +94,145 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         }
 
         AnsiConsole.Write(table);
-        AnsiConsole.MarkupLine($"Wrote design.tsv, design.md, relations.md, sections.md campaign.md and provenance.md to [green]{Markup.Escape(settings.Out)}[/].");
+        AnsiConsole.MarkupLine($"Wrote design.tsv, design.md, relations.md, sections.md, campaign.md and provenance.md to [green]{Markup.Escape(settings.Out)}[/].");
+        if (settings.LeaveOneOut && references is not null)
+        {
+            var full = generated
+                .Select(entry => entry.Name)
+                .Zip(measures.Skip(campaign.Count + addOns.Count))
+                .Where(pair => pair.Second is not null)
+                .ToDictionary(pair => pair.First, pair => pair.Second!);
+
+            LeaveOneOut(settings, objects, references, fitter, loader, bands, originals, full, cancellationToken);
+        }
+
         return measures.All(measure => measure is not null) ? 0 : 1;
     }
 
-    private static (List<(string Name, string Path)> Levels, IReadOnlyDictionary<SpriteSource, int>[] Provenance) Generate(InspectDesignSettings settings,
-        CancellationToken cancellationToken)
+    private static (ReferenceLevel?[] Levels, DesignMeasures?[] Measures) Measure((string Name, string Path)[] entries, LevelLoader loader, ObjectTable objects,
+        CancellationToken cancellationToken, Action<ReferenceLevel> onLoaded)
     {
-        var levels = new List<(string Name, string Path)>();
-        if (settings.Seeds == 0)
+        var levels = new ReferenceLevel?[entries.Length];
+        var measures = new DesignMeasures?[entries.Length];
+        var options = new ParallelOptions { MaxDegreeOfParallelism = MaxLevelsAtOnce, CancellationToken = cancellationToken };
+        Parallel.For(0, entries.Length, options, index =>
         {
-            return (levels, []);
+            var level = loader.Load(entries[index].Name, entries[index].Path);
+            if (level is not null)
+            {
+                levels[index] = level;
+                measures[index] = DesignMeasurer.Measure(level.Model, level.Analysis, level.Survey, objects);
+                onLoaded(level);
+            }
+        });
+
+        return (levels, measures);
+    }
+
+    private static void LeaveOneOut(InspectDesignSettings settings, ObjectTable objects, ReferenceLevelSet references, StyleFitter fitter, LevelLoader loader,
+        List<(string Name, Func<DesignMeasures[], float?> Value)> rows, DesignMeasures[] originals, Dictionary<string, DesignMeasures> full, CancellationToken cancellationToken)
+    {
+        var text = new StringBuilder();
+        text.AppendLine("| left out | levels that failed | rows that left the originals' range over the same levels (full fit, left out, range) |");
+        text.AppendLine("|---|---|---|");
+
+        var bands = rows
+            .Select(row => originals.Select(original => row.Value([original])).OfType<float>().ToArray())
+            .Select(values => values.Length == 0 ? ((float Min, float Max)?)null : (values.Min(), values.Max()))
+            .ToArray();
+
+        foreach (string excluded in StyleFitter.GetFittingLevels(GenerationStyle.Campaign))
+        {
+            var generator = new LevelGenerator(settings.Game, objects, references, fitter.Fit(references, GenerationStyle.Campaign, [excluded]));
+            string folder = Path.Combine(settings.Out, "leave-one-out", Path.GetFileNameWithoutExtension(excluded));
+            var (levels, _, failures) = Generate(generator, folder, settings.Seeds, true, cancellationToken);
+
+            var written = levels
+                .Where(level => File.Exists(level.Path))
+                .ToArray();
+
+            var measured = AnsiConsole.Status().Start($"Measuring without {excluded}", _ => Measure(written, loader, objects, cancellationToken, _ => { }).Measures)
+                .Zip(written)
+                .Where(pair => pair.First is not null && full.ContainsKey(pair.Second.Name))
+                .ToArray();
+
+            var measures = measured
+                .Select(pair => pair.First!)
+                .ToArray();
+
+            var fullMeasures = measured
+                .Select(pair => full[pair.Second.Name])
+                .ToArray();
+
+            var left = new List<string>();
+            for (int index = 0; index < rows.Count; index++)
+            {
+                var band = bands[index];
+                float? fitted = rows[index].Value(fullMeasures);
+                float? value = rows[index].Value(measures);
+                if (band is not null && fitted is not null && value is not null && IsWithin(fitted.Value, band.Value) && !IsWithin(value.Value, band.Value))
+                {
+                    left.Add($"{rows[index].Name} ({Format(fitted)}, {Format(value)}, {Format(band.Value.Min)} to {Format(band.Value.Max)})");
+                }
+            }
+
+            var failed = levels
+                .Zip(failures)
+                .Where(pair => pair.Second is not null)
+                .GroupBy(pair => (Level: Path.GetFileName(pair.First.Path), Reason: pair.Second))
+                .Select(group => $"{group.Key.Level} ×{group.Count()} ({group.Key.Reason})")
+                .ToArray();
+
+            text.AppendLine($"| {excluded} | {(failed.Length == 0 ? "none" : string.Join(", ", failed))} | {(left.Count == 0 ? "none" : string.Join("; ", left))} |");
         }
 
-        var (generator, _, _) = GeneratorFactory.Create(settings.Game);
-        var jobs = Enumerable.Range(1, settings.Seeds).SelectMany(seed => ReferenceLevelSet.CampaignLevels.Select(level => (Seed: seed, Level: level))).ToArray();
+        File.WriteAllText(Path.Combine(settings.Out, "leave-one-out.md"), text.ToString());
+        AnsiConsole.MarkupLine($"Wrote leave-one-out.md to [green]{Markup.Escape(settings.Out)}[/].");
+
+        static bool IsWithin(float value, (float Min, float Max) band) => value >= band.Min && value <= band.Max;
+    }
+
+    private static (List<(string Name, string Path)> Levels, IReadOnlyDictionary<SpriteSource, int>[] Provenance, string?[] Failures) Generate(LevelGenerator generator,
+        string folder, int seeds, bool skipsFailures, CancellationToken cancellationToken)
+    {
+        var levels = new List<(string Name, string Path)>();
+
+        var jobs = Enumerable.Range(1, seeds)
+            .SelectMany(seed => ReferenceLevelSet.CampaignLevels.Select(level => (Seed: seed, Level: level)))
+            .ToArray();
+
         foreach ((int seed, int level) in jobs)
         {
-            string folder = Path.Combine(settings.Out, $"seed_{seed}");
-            Directory.CreateDirectory(folder);
-            levels.Add(($"seed_{seed}/{ReferenceLevelSet.GetCampaignName(level)}", Path.Combine(folder, ReferenceLevelSet.GetCampaignName(level))));
+            string seedFolder = Path.Combine(folder, $"seed_{seed}");
+            Directory.CreateDirectory(seedFolder);
+            levels.Add(($"seed_{seed}/{ReferenceLevelSet.GetCampaignName(level)}", Path.Combine(seedFolder, ReferenceLevelSet.GetCampaignName(level))));
         }
 
         var provenance = new IReadOnlyDictionary<SpriteSource, int>[jobs.Length];
+        var failures = new string?[jobs.Length];
         var options = new ParallelOptions { MaxDegreeOfParallelism = MaxLevelsAtOnce, CancellationToken = cancellationToken };
         AnsiConsole.Status().Start("Generating the levels", _ => Parallel.For(0, jobs.Length, options, index =>
         {
-            var level = generator.Generate(jobs[index].Seed, jobs[index].Level);
-            level.Write(levels[index].Path, generator.GetTemplatePath(jobs[index].Level));
-            provenance[index] = level.Provenance;
+            File.Delete(levels[index].Path);
+            try
+            {
+                var level = generator.Generate(jobs[index].Seed, jobs[index].Level);
+                level.Write(levels[index].Path, generator.GetTemplatePath(jobs[index].Level));
+                provenance[index] = level.Provenance;
+            }
+            catch (Exception exception) when (skipsFailures)
+            {
+                provenance[index] = new Dictionary<SpriteSource, int>();
+
+                var site = new StackTrace(exception).GetFrames()
+                    .Select(frame => frame.GetMethod())
+                    .FirstOrDefault(method => method?.DeclaringType?.Namespace?.StartsWith("ASToolkit", StringComparison.Ordinal) == true);
+
+                failures[index] = $"{exception.GetType().Name} in {site?.DeclaringType?.Name}.{site?.Name}";
+            }
         }));
 
-        return (levels, provenance);
+        return (levels, provenance, failures);
     }
 
     private static void WriteLevels(InspectDesignSettings settings, string[] names, DesignMeasures?[] measures)
@@ -157,7 +261,8 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         File.WriteAllText(Path.Combine(settings.Out, "design.tsv"), text.ToString());
     }
 
-    private static List<(string Measure, string Original, string AddOn, string Candidate)> BuildGapRows(DesignMeasures[] originals, DesignMeasures[] addOns, DesignMeasures[] candidates)
+    private static List<(string Measure, string Original, string AddOn, string Candidate)> BuildGapRows(DesignMeasures[] originals, DesignMeasures[] addOns, DesignMeasures[] candidates,
+        List<(string Name, Func<DesignMeasures[], float?> Value)> numeric)
     {
         var rows = new List<(string, string, string, string)>();
         AddShare("chairs within 60 px of a table", measure => measure.ChairsAtTables);
@@ -250,11 +355,17 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         AddMedian("largest spawner (monsters), median of levels", measure => measure.LargestSpawner);
         return rows;
 
-        void AddMedian(string name, Func<DesignMeasures, float?> get) =>
+        void AddMedian(string name, Func<DesignMeasures, float?> get)
+        {
             rows.Add((name, Format(Median(originals, get)), Format(Median(addOns, get)), Format(Median(candidates, get))));
+            numeric.Add((name, measures => Median(measures, get)));
+        }
 
-        void AddShare(string name, Func<DesignMeasures, MeasureShare> get) =>
+        void AddShare(string name, Func<DesignMeasures, MeasureShare> get)
+        {
             rows.Add((name, Format(Sum(originals, get)), Format(Sum(addOns, get)), Format(Sum(candidates, get))));
+            numeric.Add((name, measures => Sum(measures, get).Value));
+        }
 
         void AddList(string name, Func<DesignMeasures, int?> get) =>
             rows.Add((name, string.Join(", ", originals.Select(get).OfType<int>().Order().Select(Format)), string.Join(", ", addOns.Select(get).OfType<int>().Order().Select(Format)),
@@ -406,7 +517,10 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
 
         foreach (var group in rows.Skip(originals).GroupBy(row => Path.GetFileName(row.Name)).OrderBy(group => group.Key, StringComparer.Ordinal))
         {
-            var levelSections = group.Select(row => row.Sections).ToArray();
+            var levelSections = group
+                .Select(row => row.Sections)
+                .ToArray();
+
             text.AppendLine($"| generated {group.Key} ({levelSections.Length} seeds) | {group.First().Theme} | {FormatRange(levelSections.Select(sections => sections.Length).ToArray())} | "
                 + $"{FormatRange(levelSections.Select(CountBigSections).ToArray())} | {FormatRange(levelSections.Select(sections => sections.Max(section => section.FloorShare)).ToArray())} | "
                 + $"{FormatRange(levelSections.Select(sections => sections.Sum(section => section.Loops)).ToArray())} | {FormatRange(levelSections.Select(sections => sections.Max(section => section.PodDepth)).ToArray())} | "
@@ -420,7 +534,11 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
 
     private static void AddNoveltyRows(List<(string Measure, string Original, string AddOn, string Candidate)> rows, string[] names, ReferenceLevel?[] levels, int campaign, int addOns)
     {
-        var originals = Enumerable.Range(0, campaign + addOns).Where(index => levels[index] is not null).Select(index => (names[index], levels[index]!.Model, levels[index]!.Survey)).ToArray();
+        var originals = Enumerable.Range(0, campaign + addOns)
+            .Where(index => levels[index] is not null)
+            .Select(index => (names[index], levels[index]!.Model, levels[index]!.Survey))
+            .ToArray();
+
         var novelty = new NoveltyMeasurer(originals);
         var copied = new MeasureShare[names.Length];
         var equal = new string?[names.Length];
@@ -454,14 +572,21 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         var text = new StringBuilder();
         text.AppendLine($"| level | {string.Join(" | ", sources)} | copied share of the pieces past the layout |");
         text.AppendLine($"|---|{string.Concat(sources.Select(_ => "---|"))}---|");
-        var rows = names.Zip(provenance).GroupBy(pair => Path.GetFileName(pair.First)).OrderBy(group => group.Key, StringComparer.Ordinal)
+
+        var rows = names
+            .Zip(provenance)
+            .GroupBy(pair => Path.GetFileName(pair.First))
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
             .Select(group => (Name: group.Key, Counts: sources.Select(source => group.Sum(pair => pair.Second.GetValueOrDefault(source))).ToArray()))
             .ToList();
+
         rows.Add(("all", sources.Select((_, index) => rows.Sum(row => row.Counts[index])).ToArray()));
         foreach ((string name, int[] counts) in rows)
         {
-            int copied = sources.Select((source, index) => source is SpriteSource.CopiedWindow or SpriteSource.CopiedPart or SpriteSource.CopiedScene or SpriteSource.CopiedFormation
-                ? counts[index] : 0).Sum();
+            int copied = sources
+                .Select((source, index) => source is SpriteSource.CopiedWindow or SpriteSource.CopiedPart or SpriteSource.CopiedScene or SpriteSource.CopiedFormation ? counts[index] : 0)
+                .Sum();
+
             text.AppendLine($"| {name} | {string.Join(" | ", counts.Select(Format))} | {Format(copied / (float)Math.Max(1, counts.Sum() - counts[(int)SpriteSource.Layout]))} |");
         }
 

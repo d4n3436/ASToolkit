@@ -25,8 +25,15 @@ public sealed class NoveltyMeasurer
     /// </summary>
     public NoveltyMeasurer(IReadOnlyList<(string Name, LevelModel Model, LevelSurvey Survey)> originals)
     {
-        _names = originals.Select(original => original.Name).ToArray();
-        _graphs = originals.Select(original => DoorGraph.Create(original.Survey)).Select(graph => (graph.ComputeShapeHash(), graph.GetDegrees())).ToArray();
+        _names = originals
+            .Select(original => original.Name)
+            .ToArray();
+
+        _graphs = originals
+            .Select(original => DoorGraph.Create(original.Survey))
+            .Select(graph => (graph.ComputeShapeHash(), graph.GetDegrees()))
+            .ToArray();
+
         for (int original = 0; original < originals.Count; original++)
         {
             var pieces = GetPieces(originals[original].Model);
@@ -81,7 +88,10 @@ public sealed class NoveltyMeasurer
                         continue;
                     }
 
-                    var group = neighbors[first].Where(other => HasPiece(original, other.Id, anchor.X + other.Point.X - first.Point.X, anchor.Y + other.Point.Y - first.Point.Y)).ToArray();
+                    var group = neighbors[first]
+                        .Where(other => HasPiece(original, other.Id, anchor.X + other.Point.X - first.Point.X, anchor.Y + other.Point.Y - first.Point.Y))
+                        .ToArray();
+
                     if (group.Length + 1 >= MinGroup)
                     {
                         copied.Add(first);

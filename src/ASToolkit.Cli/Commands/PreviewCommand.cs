@@ -7,7 +7,7 @@ internal sealed class PreviewCommand : Command<PreviewSettings>
 {
     public override int Execute(CommandContext context, PreviewSettings settings, CancellationToken cancellationToken)
     {
-        var (generator, _, _) = GeneratorFactory.Create(settings.Game, settings.AddOnStyle);
+        var (generator, _, _) = GeneratorFactory.Create(settings.Game, settings.Style);
         var level = settings.AddOnStyle ? generator.GenerateAddOn(settings.Seed, settings.Level) : generator.Generate(settings.Seed, settings.Level);
         level.Write(settings.Out, generator.GetTemplatePath(level));
         string layout = level is { Plan: not null, Budget: not null }

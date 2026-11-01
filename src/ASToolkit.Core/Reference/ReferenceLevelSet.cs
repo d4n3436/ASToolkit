@@ -19,27 +19,10 @@ public sealed class ReferenceLevelSet
     private static readonly string[] AddOn1 = ["ADDON/Level_02.map", "ADDON/Level_03.map", "ADDON/Level_04.map", "ADDON/Level_05.map"];
     private static readonly string[] AddOn2 = ["ADDON2/Level_02.map", "ADDON2/Level_03.map", "ADDON2/Level_04.map", "ADDON2/Level_05.map"];
     private static readonly string[] FirstLevels = ["Level_01.map", "ADDON/Level_01.map", "ADDON2/Level_01.map"];
-    private static readonly LevelTheme[] Themes = [LevelTheme.Lab, LevelTheme.Military, LevelTheme.Outdoor];
 
     private readonly Dictionary<string, ReferenceLevel> _levels;
-    private readonly Dictionary<LevelTheme, DecorHeightTable> _campaignDecor;
-    private readonly Dictionary<LevelTheme, WallClearanceTable> _wallClearance;
-    private readonly Dictionary<LevelTheme, FacingTable> _facings;
 
-    private ReferenceLevelSet(Dictionary<string, ReferenceLevel> levels, Dictionary<LevelTheme, DecorHeightTable> campaignDecor,
-        Dictionary<LevelTheme, WallClearanceTable> wallClearance, Dictionary<LevelTheme, FacingTable> facings, ObjectRelationTable relations)
-    {
-        _levels = levels;
-        _campaignDecor = campaignDecor;
-        _wallClearance = wallClearance;
-        _facings = facings;
-        Relations = relations;
-    }
-
-    /// <summary>
-    /// Gets how the objects of the campaign levels, or of every level in add-on style, stand by each other, walls and doorways.
-    /// </summary>
-    public ObjectRelationTable Relations { get; }
+    private ReferenceLevelSet(Dictionary<string, ReferenceLevel> levels) => _levels = levels;
 
     /// <summary>
     /// Gets the indoor campaign levels, 2 to 10, the ones with lab or military floor.
@@ -52,13 +35,11 @@ public sealed class ReferenceLevelSet
     public static string GetCampaignName(int level) => $"Level_{level:00}.map";
 
     /// <summary>
-    /// Analyzes the campaign levels, the fighting levels of both add-ons and the three level 1 maps; in add-on style the add-ons' decor
-    /// is allowed too.
+    /// Analyzes the campaign levels, the fighting levels of both add-ons and the three level 1 maps.
     /// </summary>
-    public static ReferenceLevelSet Load(string gameFolder, ObjectTable objects, bool addOnStyle = false)
+    public static ReferenceLevelSet Load(string gameFolder, ObjectTable objects)
     {
         var levels = new Dictionary<string, ReferenceLevel>();
-        var campaignDecor = Themes.ToDictionary(theme => theme, _ => new DecorHeightTable());
         var campaign = CampaignLevels.Select(GetCampaignName).ToHashSet();
         string[] names = campaign
             .Concat(FirstLevels)
@@ -77,23 +58,9 @@ public sealed class ReferenceLevelSet
         foreach (var level in loaded)
         {
             levels[level.Name] = level;
-            if (addOnStyle || campaign.Contains(level.Name) || level.Name == FirstLevels[0])
-            {
-                foreach (var sprite in level.Map.Sprites.Where(s => s.Id.IsDecor))
-                {
-                    campaignDecor[level.Analysis.Theme].Add(sprite.Id, sprite.Position.Z);
-                }
-            }
         }
 
-        var models = loaded.Select(level => level.Model).ToArray();
-        var wallClearance = Themes
-            .ToDictionary(t => t, t => WallClearanceTable.Build(models.Where(m => m.Theme == t)));
-        var leaning = FacingTable.FindLeaningFrames(models, objects);
-        var facings = Themes
-            .ToDictionary(t => t, t => FacingTable.Build(models.Where(m => m.Theme == t), objects, leaning));
-        var followed = loaded.Where(level => addOnStyle || campaign.Contains(level.Name));
-        return new ReferenceLevelSet(levels, campaignDecor, wallClearance, facings, ObjectRelationTable.Build(followed, objects));
+        return new ReferenceLevelSet(levels);
     }
 
     /// <summary>
@@ -117,21 +84,6 @@ public sealed class ReferenceLevelSet
     public RoomAtlas GetAtlas(string name) => _levels[name].Atlas;
 
     /// <summary>
-    /// Returns the decor the campaign uses on levels of a theme, with the heights it places each at.
-    /// </summary>
-    public DecorHeightTable GetThemeDecor(LevelTheme theme) => _campaignDecor[theme];
-
-    /// <summary>
-    /// Returns how close the originals of a theme place each decor object to a wall.
-    /// </summary>
-    public WallClearanceTable GetWallClearance(LevelTheme theme) => _wallClearance[theme];
-
-    /// <summary>
-    /// Returns how the original levels of a theme turn decor against walls.
-    /// </summary>
-    public FacingTable GetFacings(LevelTheme theme) => _facings[theme];
-
-    /// <summary>
     /// Returns the targets for a generated campaign level, with the hit points and the level whose pickups it copies replaced when given.
     /// That level also sets the design targets when it is a reference level, and the floor furniture blocks on a lab level.
     /// </summary>
@@ -153,9 +105,6 @@ public sealed class ReferenceLevelSet
             DynamiteSites = a.Elements.Count(e => e.Kind == ElementKind.DynamiteSite),
             SecretClosets = m.SecretClosets.Count,
             Weapons = (contentLevel is not null && _levels.TryGetValue(contentLevel, out var weaponSource) ? weaponSource.Analysis : a).Elements.Count(e => e.Kind is ElementKind.Pickup or ElementKind.Crate && e.Category == ItemCategory.Weapon),
-            ThemeDecor = GetThemeDecor(a.Theme),
-            WallClearance = GetWallClearance(a.Theme),
-            Facings = GetFacings(a.Theme),
             OriginalPens = CountPens(_levels[designName].Analysis, _levels[designName].Survey),
             OriginalSurvey = _levels[designName].Survey
         };

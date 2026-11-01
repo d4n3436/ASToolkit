@@ -7,10 +7,10 @@ namespace ASToolkit.Cli.Commands;
 
 internal static class GeneratorFactory
 {
-    public static (LevelGenerator Generator, ReferenceLevelSet References, ObjectTable Objects) Create(string game, bool addOnStyle = false)
+    public static (LevelGenerator Generator, ReferenceLevelSet References, ObjectTable Objects) Create(string game, GenerationStyle style = GenerationStyle.Campaign)
     {
         var objects = ObjectTable.Load(Path.Combine(game, "objects.res"));
-        var references = AnsiConsole.Status().Start("Analyzing the original levels", _ => ReferenceLevelSet.Load(game, objects, addOnStyle));
-        return (new LevelGenerator(game, objects, references, addOnStyle), references, objects);
+        var references = AnsiConsole.Status().Start("Analyzing the original levels", _ => ReferenceLevelSet.Load(game, objects));
+        return (new LevelGenerator(game, objects, references, new StyleFitter(objects).Fit(references, style)), references, objects);
     }
 }
