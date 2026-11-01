@@ -30,12 +30,20 @@ public sealed class DesignMeasurer
     private const int RepeatMinMatches = 6;
     private const float RepeatTolerance = 4;
     private const float StorageDominance = 0.6f;
+    private const float DoorwayReach = 30;
+    private const float MonitorDoorwayReach = 40;
+    private const float MonitorFurnitureReach = 25;
+    private const float InsideShare = 0.12f;
+    private const float CollisionShare = 0.33f;
+    private const int OffRouteWalk = 200;
 
-    private static readonly HashSet<KnownObject> Chairs = [KnownObject.Chair, KnownObject.NewChair];
     private static readonly HashSet<KnownObject> Computers = [KnownObject.Computer, KnownObject.ComputerDead];
-    private static readonly HashSet<KnownObject> Corpses = [KnownObject.SoldierCorpse, KnownObject.ScientistCorpse];
-    private static readonly HashSet<KnownObject> Blood = [KnownObject.BloodPool, KnownObject.SmallBloodPool, KnownObject.LargeBloodPool, KnownObject.VerticalBloodPool];
     private static readonly HashSet<KnownObject> Pads = [KnownObject.TeleportPad, KnownObject.SilentTeleportPad];
+    private static readonly HashSet<KnownObject> TallFurniture = [KnownObject.Cabinet, KnownObject.Shelves];
+    private static readonly HashSet<KnownObject> BoxSupports = [KnownObject.Shelves, KnownObject.Cabinet, KnownObject.Table];
+    private static readonly HashSet<KnownObject> DeskTops = [KnownObject.TestTubes, KnownObject.LabEquipment, KnownObject.Computer, KnownObject.ComputerDead];
+    private static readonly HashSet<ConnectionKind> Passages =
+        [ConnectionKind.Doorway, ConnectionKind.Door, ConnectionKind.LockedDoor, ConnectionKind.BrokenWall, ConnectionKind.FenceFrame, ConnectionKind.Fence];
     private static readonly HashSet<KnownObject> OfficeDecor = [KnownObject.Computer, KnownObject.ComputerDead, KnownObject.TestTubes, KnownObject.LabEquipment, KnownObject.ScatteredPaper];
 
     private static readonly HashSet<KnownObject> Furniture =
@@ -111,9 +119,15 @@ public sealed class DesignMeasurer
             .ToArray();
 
         var tables = Find(KnownObject.Table);
-        var chairs = Chairs.SelectMany(Find).ToArray();
+        var chairs = Find(id => id.IsChair);
         var loose = _survey.Items.Where(item => !item.InCrate).ToArray();
         var cannon = Find(KnownObject.MountedCannon).Select(point => (PointF?)point).FirstOrDefault();
+        var doorways = GetDoorways();
+        var floorPieces = _model.Objects.Where(piece => piece.Z < FloorHeight).ToArray();
+        var blocking = floorPieces.Where(piece => IsSolid(piece.Id) || IsHittable(piece.Id)).ToArray();
+        var monitors = _model.Objects.Where(piece => piece.Id.IsWallMounted).ToArray();
+        var boxes = _model.Objects.Where(piece => piece.Id == KnownObject.Boxes).ToArray();
+        var deskTops = _model.Objects.Where(piece => DeskTops.Contains(piece.Id)).ToArray();
         return new DesignMeasures
         {
             Signature = _survey.Signature,
@@ -124,7 +138,7 @@ public sealed class DesignMeasurer
             PaperOnTables = CountNear(Find(KnownObject.ScatteredPaper), tables, TableReach),
             ComputersAwayFromWalls = CountAwayFromWalls(Computers.SelectMany(Find).ToArray()),
             BigComputersWithChairs = _model.Theme == LevelTheme.Lab ? CountNear(Find(KnownObject.BigComputer), chairs, BigComputerReach) : default,
-            CorpsesOnBlood = CountNear(Corpses.SelectMany(Find).ToArray(), Blood.SelectMany(Find).ToArray(), BloodReach),
+            CorpsesOnBlood = CountNear(Find(id => id.IsCorpse), Find(id => id.IsBlood), BloodReach),
             OfficeDecorInPassages = CountInPlaces(place => place.Kind is PlaceKind.Hall or PlaceKind.Corridor or PlaceKind.Yard or PlaceKind.Nook),
             OfficeDecorInStorage = CountInPlaces(IsStorage),
             Walls = walls,
@@ -149,11 +163,90 @@ public sealed class DesignMeasurer
             Graph = _model.Theme == LevelTheme.Lab ? RoomGraph.Build(_survey) : null,
             RepeatedRooms = CountRepeatedRooms(),
             FightGap = MeasureFightGap(),
-            SitesPassedEarly = CountSitesPassedEarly()
+            SitesPassedEarly = CountSitesPassedEarly(),
+            SolidNearDoorways = CountNearDoorways(floorPieces.Where(piece => IsSolid(piece.Id)).Select(GetPoint).ToArray(), doorways, DoorwayReach),
+            HittableNearDoorways = CountNearDoorways(floorPieces.Where(piece => IsHittable(piece.Id)).Select(GetPoint).ToArray(), doorways, DoorwayReach),
+            MonitorsNearDoorways = CountNearDoorways(monitors.Select(GetPoint).ToArray(), doorways, MonitorDoorwayReach),
+            PiecesInsideOthers = CountInsideOthers(blocking),
+            PickupsUnderPieces = CountUnder(loose, blocking),
+            MonitorsOnTallFurniture = CountNear(monitors.Select(GetPoint).ToArray(), TallFurniture.SelectMany(Find).ToArray(), MonitorFurnitureReach),
+            MonitorsOnSupports = new MeasureShare(monitors.Count(piece => piece.SupportIndex >= 0), monitors.Length),
+            BoxesOnFurniture = new MeasureShare(boxes.Count(piece => piece.SupportIndex >= 0 && BoxSupports.Contains(_model.Objects[piece.SupportIndex.Value].Id)), boxes.Length),
+            DeskTopsOnSupports = new MeasureShare(deskTops.Count(piece => piece.SupportIndex >= 0), deskTops.Length),
+            AmmoBeforeFights = new MeasureShare(_survey.Items.Count(item => item is { Category: ItemCategory.Ammo, Before: not null }),
+                _survey.Items.Count(item => item.Category == ItemCategory.Ammo)),
+            MoneyOffRoute = new MeasureShare(loose.Count(item => item.Category == ItemCategory.Money && item.OffRoute > OffRouteWalk), loose.Count(item => item.Category == ItemCategory.Money)),
+            HealthInCrates = CountInCrates(ItemCategory.Health),
+            AmmoInCrates = CountInCrates(ItemCategory.Ammo),
+            ArmorInCrates = CountInCrates(ItemCategory.Armor),
+            PileSize = loose.Length == 0 ? null : (float)loose.Length / Cluster(loose.Select(item => new PointF(item.Position.X, item.Position.Y)).ToArray(), PileReach).Count
         };
     }
 
     private PointF[] Find(KnownObject id) => _positions[id].ToArray();
+
+    private PointF[] Find(Func<KnownObject, bool> matches) => _positions.Where(group => matches(group.Key)).SelectMany(group => group).ToArray();
+
+    private PointF GetPoint(DecorObject piece) => _model.Lattice.ToWorld(piece.U, piece.V);
+
+    private bool IsSolid(KnownObject id) => _objects.TryFind(id, out var obj) && obj.IsSolid;
+
+    private bool IsHittable(KnownObject id) => _objects.TryFind(id, out var obj) && !obj.IsSolid && obj.IsHittable;
+
+    private (PointF From, PointF To)[] GetDoorways() =>
+        _survey.Connections.Where(connection => Passages.Contains(connection.Kind)).SelectMany(connection => connection.Edges)
+            .Select(run => run.Axis == 'v'
+                ? (_survey.Lattice.ToWorld(run.From, run.Line), _survey.Lattice.ToWorld(run.To + 1, run.Line))
+                : (_survey.Lattice.ToWorld(run.Line, run.From), _survey.Lattice.ToWorld(run.Line, run.To + 1)))
+            .ToArray();
+
+    private static MeasureShare CountNearDoorways(PointF[] points, (PointF From, PointF To)[] doorways, float reach) =>
+        new(points.Count(point => doorways.Any(doorway => GetDistanceToSegment(point, doorway.From, doorway.To) <= reach)), points.Length);
+
+    private (PointF Center, SizeF Half)[] GetBoxes(DecorObject[] pieces, float share)
+    {
+        var boxes = new (PointF Center, SizeF Half)[pieces.Length];
+        for (int index = 0; index < pieces.Length; index++)
+        {
+            _objects.TryFind(pieces[index].Id, out var obj);
+            boxes[index] = (GetPoint(pieces[index]), new SizeF(share * obj.Size.X, share * obj.Size.Y));
+        }
+
+        return boxes;
+    }
+
+    private MeasureShare CountInsideOthers(DecorObject[] pieces)
+    {
+        var boxes = GetBoxes(pieces, InsideShare);
+
+        int inside = 0;
+        for (int index = 0; index < boxes.Length; index++)
+        {
+            for (int otherIndex = 0; otherIndex < boxes.Length; otherIndex++)
+            {
+                var (center, half) = boxes[index];
+                var (otherCenter, otherHalf) = boxes[otherIndex];
+                if (otherIndex != index && Math.Abs(center.X - otherCenter.X) < half.Width + otherHalf.Width && Math.Abs(center.Y - otherCenter.Y) < half.Height + otherHalf.Height)
+                {
+                    inside++;
+                    break;
+                }
+            }
+        }
+
+        return new MeasureShare(inside, boxes.Length);
+    }
+
+    private MeasureShare CountUnder(LevelItem[] items, DecorObject[] pieces)
+    {
+        var boxes = GetBoxes(pieces, CollisionShare);
+
+        int under = items.Count(item => boxes.Any(box => Math.Abs(item.Position.X - box.Center.X) < box.Half.Width && Math.Abs(item.Position.Y - box.Center.Y) < box.Half.Height));
+        return new MeasureShare(under, items.Length);
+    }
+
+    private MeasureShare CountInCrates(ItemCategory category) =>
+        new(_survey.Items.Count(item => item.Category == category && item.InCrate), _survey.Items.Count(item => item.Category == category));
 
     private WallSample GetWallSample(KnownObject id, byte dir, float x, float y)
     {
@@ -164,7 +257,7 @@ public sealed class DesignMeasurer
         for (int index = 0; index < 4; index++)
         {
             var (neighbor, edge) = neighbors[index];
-            bool wall = _model.Edges.TryGetValue(edge, out char kind) ? kind is 'W' or 'F' or 'S' : !_model.Cells.Contains(neighbor);
+            bool wall = _model.Edges.TryGetValue(edge, out EdgeKind kind) ? kind.IsClosed : !_model.Cells.Contains(neighbor);
             if (wall)
             {
                 sides |= order[index];
@@ -426,6 +519,15 @@ public sealed class DesignMeasurer
         }
 
         return groups;
+    }
+
+    private static float GetDistanceToSegment(PointF point, PointF from, PointF to)
+    {
+        float dx = to.X - from.X;
+        float dy = to.Y - from.Y;
+        float length = dx * dx + dy * dy;
+        float t = length <= 0 ? 0 : Math.Clamp(((point.X - from.X) * dx + (point.Y - from.Y) * dy) / length, 0, 1);
+        return Distance(point, new PointF(from.X + t * dx, from.Y + t * dy));
     }
 
     private static float Distance(PointF first, PointF second) => MathF.Sqrt((first.X - second.X) * (first.X - second.X) + (first.Y - second.Y) * (first.Y - second.Y));

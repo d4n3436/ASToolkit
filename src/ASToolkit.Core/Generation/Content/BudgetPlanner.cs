@@ -118,7 +118,7 @@ public static class BudgetPlanner
         var items = new Dictionary<KnownObject, int>();
         foreach ((var item, int count) in pickupSource.Pickups.Concat(pickupSource.CrateLoot).OrderBy(p => p.Key))
         {
-            if (item == KnownObject.Dynamite || ItemSchedule.IsWeapon(item))
+            if (item == KnownObject.Dynamite || item.IsWeapon)
             {
                 continue;
             }
@@ -145,7 +145,7 @@ public static class BudgetPlanner
 
         var weapons = pickupSource.Pickups
             .Concat(pickupSource.CrateLoot)
-            .Where(p => ItemSchedule.IsWeapon(p.Key))
+            .Where(p => p.Key.IsWeapon)
             .OrderBy(p => p.Key)
             .SelectMany(p => Enumerable.Repeat(p.Key, p.Value))
             .ToArray();

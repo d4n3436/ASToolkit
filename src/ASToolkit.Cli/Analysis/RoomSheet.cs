@@ -31,7 +31,7 @@ internal sealed class RoomSheet
     private readonly List<Image<Rgb24>> _tiles = [];
     private readonly Font _font = LabelFamily.Value.CreateFont(FontSize, FontStyle.Bold);
 
-    public Image<Rgb24> Add(MapImage map, Lattice lattice, IReadOnlyDictionary<EdgeKey, char> edges, AtlasRoom room)
+    public Image<Rgb24> Add(MapImage map, Lattice lattice, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, AtlasRoom room)
     {
         var corners = room.Place.Cells.SelectMany(cell => new[] { (cell.U, cell.V), (cell.U + 1, cell.V), (cell.U, cell.V + 1), (cell.U + 1, cell.V + 1) })
             .Select(corner => ToImage(map, lattice, corner.Item1, corner.Item2)).ToArray();
@@ -52,7 +52,7 @@ internal sealed class RoomSheet
                 foreach (var (neighbor, edge) in EdgeKey.GetNeighbors(cell))
                 {
                     bool inside = cells.Contains(neighbor);
-                    if (inside && !(edges.TryGetValue(edge, out char kind) && kind is 'W' or 'F'))
+                    if (inside && !(edges.TryGetValue(edge, out EdgeKind kind) && kind.BlocksWalking))
                     {
                         continue;
                     }

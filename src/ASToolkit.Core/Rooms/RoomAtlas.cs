@@ -20,8 +20,6 @@ public sealed class RoomAtlas
 
     private static readonly HashSet<KnownObject> Stock = [KnownObject.Crate, KnownObject.Barrel, KnownObject.RadioactiveBarrel];
 
-    private static readonly HashSet<KnownObject> DeskTops = [KnownObject.Monitor, KnownObject.MonitorDead, KnownObject.Computer, KnownObject.ComputerDead];
-
     private static readonly (RoomType Type, int Weight, int Least, KnownObject[] Ids)[] Groups =
     [
         (RoomType.Lab, 1, 2, [KnownObject.TestTubes, KnownObject.LabEquipment, KnownObject.ExperimentFlasks, KnownObject.RadioactiveFlask]),
@@ -91,7 +89,7 @@ public sealed class RoomAtlas
     /// <param name="edges">The edges of the level's routing grid.</param>
     /// <param name="sprites">The sprites of the level.</param>
     /// <param name="isOriginal">Whether the level is an original, whose rooms read by eye take their types from the corrections.</param>
-    public static RoomAtlas Read(LevelSurvey survey, IReadOnlyDictionary<EdgeKey, char> edges, IReadOnlyList<MergedMapSprite> sprites, bool isOriginal = true)
+    public static RoomAtlas Read(LevelSurvey survey, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, IReadOnlyList<MergedMapSprite> sprites, bool isOriginal = true)
     {
         var roles = RoomRoleMap.Measure(survey);
         var finder = new PartFinder(survey.Lattice, edges);
@@ -179,7 +177,7 @@ public sealed class RoomAtlas
             .ToArray();
         
         var tops = pieces
-            .Where(piece => DeskTops.Contains(piece.Id))
+            .Where(piece => piece.Id.Family == PieceFamily.Computer)
             .Select(piece => piece.Position)
             .ToArray();
         

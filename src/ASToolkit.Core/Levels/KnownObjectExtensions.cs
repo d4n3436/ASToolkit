@@ -47,6 +47,9 @@ public static class KnownObjectExtensions
         PutDynamiteHere, PutDynamiteHereSpawner, BigExplosion, ExplosionSpark, FlyingGibs
     }.Concat(Enumerable.Range((int)FirstEndlessGenerator, LastEndlessGenerator - FirstEndlessGenerator + 1).Select(id => (KnownObject)id)).ToFrozenSet();
 
+    private const int EmptyCratePayloadSize = 12;
+    private const int CratePayloadSize = 16;
+
     private static readonly KnownObject[] BloodPoolArray = [BloodPool, LargeBloodPool];
 
     extension(KnownObject)
@@ -82,10 +85,26 @@ public static class KnownObjectExtensions
         public static FrozenSet<KnownObject> MilitaryWalls => MilitaryWallsSet;
 
         /// <summary>
+        /// Returns the payload of an empty crate.
+        /// </summary>
+        public static byte[] CreateEmptyCratePayload() => new byte[EmptyCratePayloadSize];
+
+        /// <summary>
+        /// Returns the payload of a crate holding a pickup.
+        /// </summary>
+        public static byte[] CreateCratePayload(KnownObject item)
+        {
+            byte[] payload = new byte[CratePayloadSize];
+            BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4), 1);
+            BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8), (uint)item);
+            return payload;
+        }
+
+        /// <summary>
         /// Returns the ID of the pickup inside a crate payload, or 0 for an empty crate.
         /// </summary>
         public static KnownObject GetCrateItem(ReadOnlySpan<byte> payload) =>
-            payload.Length >= 16 && BinaryPrimitives.ReadUInt32LittleEndian(payload[4..]) == 1
+            payload.Length >= CratePayloadSize && BinaryPrimitives.ReadUInt32LittleEndian(payload[4..]) == 1
                 ? (KnownObject)BinaryPrimitives.ReadUInt32LittleEndian(payload[8..])
                 : 0;
     }
@@ -97,6 +116,63 @@ public static class KnownObjectExtensions
 
         /// <summary>Gets a value indicating whether the ID is an endless monster generator.</summary>
         public bool IsEndlessGenerator => id is >= FirstEndlessGenerator and <= LastEndlessGenerator;
+
+        /// <summary>Gets the category of the pickup, or null when the ID is not a pickup.</summary>
+        public ItemCategory? PickupCategory => id switch
+        {
+            Health or BigHealth or MegaHealth or Medkit or ExtraLife => ItemCategory.Health,
+            >= GreenArmor and <= Invulnerability => ItemCategory.Armor,
+            >= ShotgunAmmo and <= MagmaMinigunAmmo => ItemCategory.Ammo,
+            >= Shotgun and <= MagmaMinigun => ItemCategory.Weapon,
+            Dynamite => ItemCategory.Dynamite,
+            Money => ItemCategory.Money,
+            >= LifeImplant and <= AccuracyImplant => ItemCategory.Implant,
+            Drone or SpeedUp or SlowDown or FreezeMonsters or Bomb or SecondBomb or Adrenaline or Flashlight or NightVision => ItemCategory.Bonus,
+            _ => null
+        };
+
+        /// <summary>Gets a value indicating whether the ID is a weapon pickup.</summary>
+        public bool IsWeapon => id is >= Shotgun and <= MagmaMinigun;
+
+        /// <summary>Gets a value indicating whether the ID is an ammunition pickup.</summary>
+        public bool IsAmmo => id is >= ShotgunAmmo and <= MagmaMinigunAmmo;
+
+        /// <summary>Gets the furniture family of the piece, or null when it belongs to none.</summary>
+        public PieceFamily? Family => id switch
+        {
+            Table => PieceFamily.Table,
+            Chair or NewChair => PieceFamily.Chair,
+            KnownObject.Monitor or MonitorDead or Computer or ComputerDead => PieceFamily.Computer,
+            Cabinet => PieceFamily.Cabinet,
+            Shelves => PieceFamily.Shelf,
+            Crate => PieceFamily.Crate,
+            Boxes => PieceFamily.Boxes,
+            Barrel or RadioactiveBarrel => PieceFamily.Barrel,
+            Cylinder => PieceFamily.Cylinder,
+            Container or Container2 or Container2Alt => PieceFamily.Container,
+            Truck => PieceFamily.Truck,
+            Missile => PieceFamily.Missile,
+            TestTubes or LabEquipment or ExperimentFlasks or RadioactiveFlask => PieceFamily.Labware,
+            BigComputer => PieceFamily.Console,
+            BioContainer => PieceFamily.Bank,
+            Transformer or ElectricPanel or PetrolGenerator => PieceFamily.Machine,
+            Plant => PieceFamily.Plant,
+            WaterCylinder => PieceFamily.Water,
+            StreetLamp or Windows or Boards or Books or GymEquipment or Toilet or Telephone or RecordPlayer or TrashCan or Television => PieceFamily.Household,
+            _ => null
+        };
+
+        /// <summary>Gets a value indicating whether the ID is a blood pool.</summary>
+        public bool IsBlood => id is SmallBloodPool or BloodPool or VerticalBloodPool or LargeBloodPool;
+
+        /// <summary>Gets a value indicating whether the ID is a corpse.</summary>
+        public bool IsCorpse => id is ScientistCorpse or SoldierCorpse;
+
+        /// <summary>Gets a value indicating whether the ID is a chair.</summary>
+        public bool IsChair => id is Chair or NewChair;
+
+        /// <summary>Gets a value indicating whether the ID is a lab door or door frame.</summary>
+        public bool IsDoor => id is SmallDoor or DoubleDoor or SmallDoorFrame or DoubleDoorFrame;
 
         /// <summary>Gets a value indicating whether the ID hangs on a wall above the floor.</summary>
         public bool IsWallMounted => id is KnownObject.Monitor or MonitorDead;

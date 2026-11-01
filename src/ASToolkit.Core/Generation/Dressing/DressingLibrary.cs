@@ -109,7 +109,7 @@ public sealed class DressingLibrary
     /// <summary>
     /// Returns the walls and doors around a window as a key; walls of any kind count alike, and so do doors.
     /// </summary>
-    public static string GetWallKey(IReadOnlyDictionary<EdgeKey, char> edges, Cell corner, int size)
+    public static string GetWallKey(IReadOnlyDictionary<EdgeKey, EdgeKind> edges, Cell corner, int size)
     {
         Span<char> key = stackalloc char[2 * size * (size + 1)];
         int i = 0;
@@ -139,7 +139,7 @@ public sealed class DressingLibrary
     /// where the originals nearly always stand it by one, is left out. With cells to keep clear, windows whose solid pieces stay off them
     /// come first.
     /// </summary>
-    public bool TryCopy(Random rng, IReadOnlyDictionary<EdgeKey, char> edges, Cell corner, int size, ISet<(int Source, Cell Cell)> used, out List<PlacedDecor> placed,
+    public bool TryCopy(Random rng, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, Cell corner, int size, ISet<(int Source, Cell Cell)> used, out List<PlacedDecor> placed,
         IReadOnlySet<Cell>? keepClear = null)
     {
         placed = [];
@@ -197,7 +197,7 @@ public sealed class DressingLibrary
         return true;
     }
 
-    private bool PlaceObject(int si, int index, Cell source, Cell corner, IReadOnlyDictionary<EdgeKey, char> edges, List<PlacedDecor> result)
+    private bool PlaceObject(int si, int index, Cell source, Cell corner, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, List<PlacedDecor> result)
     {
         var m = _sources[si];
         var o = m.Objects[index];
@@ -208,7 +208,7 @@ public sealed class DressingLibrary
             return false;
         }
 
-        byte[] payload = o.Id == KnownObject.Crate ? new byte[12] : o.Payload;
+        byte[] payload = o.Id == KnownObject.Crate ? KnownObject.CreateEmptyCratePayload() : o.Payload;
         (int, int)? support = o.SupportIndex is >= 0 ? (si, o.SupportIndex.Value) : null;
         result.Add(new PlacedDecor(o.Id, u, v, o.Z, o.Dir, payload, (si, index), support));
         return true;
@@ -245,7 +245,7 @@ public sealed class DressingLibrary
     private static bool IsHung(DecorObject o) => o.Id is KnownObject.WallObjects or KnownObject.WallInscriptions && o.Z > FloorHeight;
 
     // Keep a hung object on the same side of a wall and as far from it as in its source
-    private static bool IsHungAsInSource(DecorObject o, IReadOnlyDictionary<EdgeKey, char> sourceEdges, IReadOnlyDictionary<EdgeKey, char> edges, float u, float v)
+    private static bool IsHungAsInSource(DecorObject o, IReadOnlyDictionary<EdgeKey, EdgeKind> sourceEdges, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v)
     {
         var source = FacingTable.FindWall(sourceEdges, o.U, o.V);
         var target = FacingTable.FindWall(edges, u, v);
@@ -282,7 +282,7 @@ public sealed class DressingLibrary
         }
     }
 
-    private bool IsTooCloseToWall(DecorObject o, IReadOnlyDictionary<EdgeKey, char> sourceEdges, IReadOnlyDictionary<EdgeKey, char> edges, float u, float v)
+    private bool IsTooCloseToWall(DecorObject o, IReadOnlyDictionary<EdgeKey, EdgeKind> sourceEdges, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v)
     {
         if (!_clearance.TryGetClearance(o.Id, out _, out float low))
         {
@@ -294,7 +294,7 @@ public sealed class DressingLibrary
     }
 
     // Keep a solid piece only where no wall it does not cross in its source runs through its footprint
-    private bool HasSameWalls(DecorObject o, LevelModel source, IReadOnlyDictionary<EdgeKey, char> edges, Cell sourceCorner, Cell corner)
+    private bool HasSameWalls(DecorObject o, LevelModel source, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, Cell sourceCorner, Cell corner)
     {
         (float x, float y) = source.Lattice.ToWorld(o.U, o.V);
         var footprint = Dresser.GetFootprint(source.Lattice, _objects, o.Id, x, y);
@@ -314,8 +314,8 @@ public sealed class DressingLibrary
         return true;
     }
 
-    private static bool IsWall(IReadOnlyDictionary<EdgeKey, char> edges, EdgeKey k) => edges.TryGetValue(k, out char kind) && kind is 'W' or 'D' or 'S';
+    private static bool IsWall(IReadOnlyDictionary<EdgeKey, EdgeKind> edges, EdgeKey k) => edges.TryGetValue(k, out EdgeKind kind) && kind is EdgeKind.Wall or EdgeKind.Door or EdgeKind.SecretWall;
 
-    private static char Classify(IReadOnlyDictionary<EdgeKey, char> edges, EdgeKey k) =>
-        edges.TryGetValue(k, out char kind) ? kind is 'D' or 'E' or 'e' ? '2' : '1' : '0';
+    private static char Classify(IReadOnlyDictionary<EdgeKey, EdgeKind> edges, EdgeKey k) =>
+        edges.TryGetValue(k, out EdgeKind kind) ? kind is EdgeKind.Door or EdgeKind.DoubleDoor or EdgeKind.DoubleDoorEnd ? '2' : '1' : '0';
 }

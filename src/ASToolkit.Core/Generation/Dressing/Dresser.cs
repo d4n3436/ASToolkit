@@ -1,6 +1,5 @@
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
-using ASToolkit.Core.Routes;
 
 namespace ASToolkit.Core.Generation.Dressing;
 
@@ -15,7 +14,7 @@ public static class Dresser
     /// Covers the cells with copied windows, largest first and each source cell once, and drops objects whose support was not copied.
     /// With cells to keep clear, windows whose solid pieces stay off them come first. Cells already dressed are skipped.
     /// </summary>
-    public static PlacedDecor[] Dress(Random rng, DressingLibrary library, IReadOnlySet<Cell> cells, IReadOnlyDictionary<EdgeKey, char> edges,
+    public static PlacedDecor[] Dress(Random rng, DressingLibrary library, IReadOnlySet<Cell> cells, IReadOnlyDictionary<EdgeKey, EdgeKind> edges,
         IReadOnlySet<Cell>? keepClear = null, IReadOnlySet<Cell>? dressed = null)
     {
         var covered = new HashSet<Cell>(dressed ?? new HashSet<Cell>());
@@ -99,7 +98,7 @@ public static class Dresser
     /// every cell is reachable from the start. Returns the objects kept and how many solid objects cover each cell.
     /// </summary>
     public static (PlacedDecor[] Kept, Dictionary<Cell, int> Blocked) ClearAndConnect(
-        IReadOnlyList<PlacedDecor> placed, IReadOnlySet<Cell> cells, IReadOnlyDictionary<EdgeKey, char> edges, IReadOnlySet<Cell> keepClear, Cell start, Lattice lattice, ObjectTable objects,
+        IReadOnlyList<PlacedDecor> placed, IReadOnlySet<Cell> cells, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, IReadOnlySet<Cell> keepClear, Cell start, Lattice lattice, ObjectTable objects,
         float grow = PlayerRadius)
     {
         var footprints = new Dictionary<PlacedDecor, HashSet<Cell>>(ReferenceEqualityComparer.Instance);
@@ -164,7 +163,7 @@ public static class Dresser
         return false;
     }
 
-    private static HashSet<Cell> Flood(IReadOnlySet<Cell> floor, IReadOnlyDictionary<EdgeKey, char> edges, Cell start, Func<Cell, bool> isBlocked)
+    private static HashSet<Cell> Flood(IReadOnlySet<Cell> floor, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, Cell start, Func<Cell, bool> isBlocked)
     {
         var seen = new HashSet<Cell> { start };
         var queue = new Queue<Cell>();
@@ -186,7 +185,7 @@ public static class Dresser
     }
 
     // Find the way from one cell to another through the fewest blocked cells
-    private static Cell[] FindPath(IReadOnlySet<Cell> floor, IReadOnlyDictionary<EdgeKey, char> edges, Cell from, Cell to, IReadOnlyDictionary<Cell, int> blocked)
+    private static Cell[] FindPath(IReadOnlySet<Cell> floor, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, Cell from, Cell to, IReadOnlyDictionary<Cell, int> blocked)
     {
         var cost = new Dictionary<Cell, int> { [from] = 0 };
         var previous = new Dictionary<Cell, Cell> { [from] = from };
@@ -242,6 +241,6 @@ public static class Dresser
         return path.ToArray();
     }
 
-    private static bool IsWall(IReadOnlyDictionary<EdgeKey, char> edges, EdgeKey k) => edges.TryGetValue(k, out char kind) && RouteGrid.IsBlocking(kind);
+    private static bool IsWall(IReadOnlyDictionary<EdgeKey, EdgeKind> edges, EdgeKey k) => edges.TryGetValue(k, out EdgeKind kind) && kind.BlocksWalking;
 }
 

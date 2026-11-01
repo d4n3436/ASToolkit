@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using System.Drawing;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Generation.Dressing;
@@ -7,7 +6,6 @@ using ASToolkit.Core.Generation.Layout;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Rooms;
 using ASToolkit.Core.Survey;
-using ASToolkit.Core.Routes;
 using ASToolkit.Core.Reference;
 
 namespace ASToolkit.Core.Generation.Content;
@@ -88,7 +86,7 @@ public static class ContentPlacer
     /// Chooses the far wall of the key room the breaker hangs on, judged on the walls as built, nearest the locked door it opens first,
     /// with the original breaker room props that fit best.
     /// </summary>
-    public static BreakerSpot? ChooseBreakerSpot(Random rng, LayoutPlan plan, FineLayout layout, IReadOnlyDictionary<EdgeKey, char> built,
+    public static BreakerSpot? ChooseBreakerSpot(Random rng, LayoutPlan plan, FineLayout layout, IReadOnlyDictionary<EdgeKey, EdgeKind> built,
         IReadOnlyList<IReadOnlyList<PropPlacement>> scenes, ObjectTable objects, WallClearanceTable clearance, FacingTable facings)
     {
         var room = plan.KeyRoom;
@@ -99,7 +97,7 @@ public static class ContentPlacer
 
         var cells = layout.GetRegionCells(room.Id).ToHashSet();
         (EdgeKey Wall, int Front, int Side)[] backWalls = built
-            .Where(p => p is { Value: 'W', Key.Axis: 'u' } && cells.Contains(new Cell(p.Key.A - 1, p.Key.B)) && !cells.Contains(new Cell(p.Key.A, p.Key.B)))
+            .Where(p => p is { Value: EdgeKind.Wall, Key.Axis: 'u' } && cells.Contains(new Cell(p.Key.A - 1, p.Key.B)) && !cells.Contains(new Cell(p.Key.A, p.Key.B)))
             .Select(p => p.Key).OrderBy(k => k.A).ThenBy(k => k.B)
             .Select(k => (k, CountOpenCells(layout, new Cell(k.A - 1, k.B), -1, 0), CountOpenCells(layout, new Cell(k.A - 1, k.B), 0, 1)))
             .ToArray();
@@ -203,7 +201,7 @@ public static class ContentPlacer
     /// <summary>
     /// Copies the original's wall marks onto doors with the same ID and facing, as often as the original marks its doors.
     /// </summary>
-    public static void PlaceDoorMarks(Random rng, MapBuilder map, Lattice lattice, IReadOnlyDictionary<EdgeKey, char> edges,
+    public static void PlaceDoorMarks(Random rng, MapBuilder map, Lattice lattice, IReadOnlyDictionary<EdgeKey, EdgeKind> edges,
         IReadOnlyDictionary<(KnownObject Id, byte Dir), List<IReadOnlyList<PropPlacement>>> marks, float share)
     {
         foreach (var door in map.Sprites.Where(s => marks.ContainsKey((s.Id, s.Facing))).ToArray())
@@ -228,7 +226,7 @@ public static class ContentPlacer
     /// <summary>
     /// Puts a broken keypad next to jammed doors, as often as the originals do.
     /// </summary>
-    public static void PlaceBrokenKeypads(Random rng, MapBuilder map, KeypadTable keypads, Lattice lattice, FacingTable facings, IReadOnlyDictionary<EdgeKey, char> edges)
+    public static void PlaceBrokenKeypads(Random rng, MapBuilder map, KeypadTable keypads, Lattice lattice, FacingTable facings, IReadOnlyDictionary<EdgeKey, EdgeKind> edges)
     {
         foreach (var door in map.Sprites.Where(s => s.Id is KnownObject.DoubleDoorFrame or KnownObject.SmallDoorFrame).ToArray())
         {
@@ -257,7 +255,7 @@ public static class ContentPlacer
     /// Places the gate keys, bosses, mounted cannon, dynamite, monsters, ambushes, stashes, pickups and the checkpoint.
     /// </summary>
     public static void Place(PlacementContext ctx, LevelBudget budget, bool hasCheckpoint, bool blackoutIsCheckpoint, LevelScript script, BreakerSpot? breaker,
-        IReadOnlyList<SiteTemplate> siteTemplates, IReadOnlyDictionary<EdgeKey, char> visibleEdges, IReadOnlyDictionary<EdgeKey, char> builtEdges, IReadOnlyDictionary<EdgeKey, int> spawnWalls, KeypadTable keypads, FacingTable facings,
+        IReadOnlyList<SiteTemplate> siteTemplates, IReadOnlyDictionary<EdgeKey, EdgeKind> visibleEdges, IReadOnlyDictionary<EdgeKey, EdgeKind> builtEdges, IReadOnlyDictionary<EdgeKey, int> spawnWalls, KeypadTable keypads, FacingTable facings,
         IReadOnlyList<IReadOnlyList<PropPlacement>> cannonScenes, EncounterProfile encounters, PlacedSites? placed)
     {
         PlaceGate(ctx, budget, script, breaker, keypads, encounters.GeneratorProgress, facings);
@@ -281,10 +279,10 @@ public static class ContentPlacer
         EncounterProfile encounters)
     {
         var cannon = PlaceMountedCannons(ctx, budget, cannonScenes);
-        return new PlacedSites(cannon, PlaceSites(ctx, budget, siteTemplates, new Dictionary<EdgeKey, char>(), cannon, encounters));
+        return new PlacedSites(cannon, PlaceSites(ctx, budget, siteTemplates, new Dictionary<EdgeKey, EdgeKind>(), cannon, encounters));
     }
 
-    private static bool IsWallFit(Lattice lattice, IReadOnlyDictionary<EdgeKey, char> edges, WallClearanceTable clearance, FacingTable facings, PropPlacement p, float x, float y)
+    private static bool IsWallFit(Lattice lattice, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, WallClearanceTable clearance, FacingTable facings, PropPlacement p, float x, float y)
     {
         if (p.Z >= BreakerPropFloor)
         {
@@ -332,11 +330,11 @@ public static class ContentPlacer
         {
             ctx.Map.Add(KnownObject.Breaker, breaker.Position.X, breaker.Position.Y);
             ctx.Taken.Add(new Cell(breaker.Wall.A - 1, breaker.Wall.B));
-            foreach ((var edge, char kind) in ctx.Layout.Edges.Where(p => p.Value is 'D' or 'E').OrderBy(p => p.Key.Axis).ThenBy(p => p.Key.A).ThenBy(p => p.Key.B))
+            foreach ((var edge, EdgeKind kind) in ctx.Layout.Edges.Where(p => p.Value is EdgeKind.Door or EdgeKind.DoubleDoor).OrderBy(p => p.Key.Axis).ThenBy(p => p.Key.A).ThenBy(p => p.Key.B))
             {
                 ((float x, float y), bool slash) = StructureBuilder.GetLabPosition(ctx.Layout.Lattice, edge);
-                var door = kind == 'D' ? KnownObject.SmallDoor : KnownObject.DoubleDoor;
-                byte doorDir = (byte)(slash ? 0 : kind == 'D' ? 128 : 64);
+                var door = kind == EdgeKind.Door ? KnownObject.SmallDoor : KnownObject.DoubleDoor;
+                byte doorDir = (byte)(slash ? 0 : kind == EdgeKind.Door ? 128 : 64);
                 var keypad = keypads.Pick(ctx.Rng, door, doorDir, broken: false) ?? new PropPlacement(0, 0, 0, 5, doorDir);
                 ctx.Map.Add(plan.Gate == GateKind.LockedDoors ? KnownObject.KeypadOff : KnownObject.KeypadOn, x + keypad.Dx, y + keypad.Dy, keypad.Z, keypad.Dir);
             }
@@ -429,7 +427,7 @@ public static class ContentPlacer
     }
 
     // Put bosses in the largest dead-end room outside a wing well along the walk, or else the last station
-    private static void PlaceBosses(PlacementContext ctx, LevelBudget budget, FacingTable facings, IReadOnlyDictionary<EdgeKey, char> builtEdges)
+    private static void PlaceBosses(PlacementContext ctx, LevelBudget budget, FacingTable facings, IReadOnlyDictionary<EdgeKey, EdgeKind> builtEdges)
     {
         var final = ctx.Plan.Regions
             .Where(r => r.Kind is RegionKind.Station or RegionKind.SideRoom && r.Id != ctx.Plan.KeyRoom?.Id && !IsInWing(ctx, r) && (ctx.Plan.Theme.Theme != LevelTheme.Lab || IsNearBody(ctx, r)))
@@ -549,7 +547,7 @@ public static class ContentPlacer
         return null;
     }
 
-    private static (float X, float Y, Cell Cell)[] PlaceSites(PlacementContext ctx, LevelBudget budget, IReadOnlyList<SiteTemplate> templates, IReadOnlyDictionary<EdgeKey, char> visibleEdges,
+    private static (float X, float Y, Cell Cell)[] PlaceSites(PlacementContext ctx, LevelBudget budget, IReadOnlyList<SiteTemplate> templates, IReadOnlyDictionary<EdgeKey, EdgeKind> visibleEdges,
         (PlanRegion Hall, PointF Far)? cannon, EncounterProfile encounters)
     {
         var sites = new List<(float X, float Y, Cell Cell)>();
@@ -705,7 +703,7 @@ public static class ContentPlacer
         .ToArray();
 
     // Turn a far wall piece into a monster hole, with the 179 in front and the endless generators behind it
-    private static (float X, float Y, Cell Cell)? PlaceLabSite(PlacementContext ctx, PlanRegion region, SiteTemplate[] templates, IReadOnlyDictionary<EdgeKey, char> visibleEdges)
+    private static (float X, float Y, Cell Cell)? PlaceLabSite(PlacementContext ctx, PlanRegion region, SiteTemplate[] templates, IReadOnlyDictionary<EdgeKey, EdgeKind> visibleEdges)
     {
         var cells = ctx.GetRegionCells(region).ToHashSet();
 
@@ -769,7 +767,7 @@ public static class ContentPlacer
         {
             var (c1, c2) = k.Cells;
             var (floor, outside) = k.Axis == 'v' ? (c2, c1) : (c1, c2);
-            return visibleEdges.GetValueOrDefault(k) == 'W' && cells.Contains(floor) && !ctx.Layout.Cells.ContainsKey(outside) ? floor : null;
+            return visibleEdges.GetValueOrDefault(k) == EdgeKind.Wall && cells.Contains(floor) && !ctx.Layout.Cells.ContainsKey(outside) ? floor : null;
         }
     }
 
@@ -890,7 +888,7 @@ public static class ContentPlacer
             var edge = edgeAxis == 'u'
                 ? new EdgeKey('u', sign > 0 ? cell.U + 1 : cell.U, cell.V)
                 : new EdgeKey('v', cell.U, sign > 0 ? cell.V + 1 : cell.V);
-            if (edges.GetValueOrDefault(edge) != 'W')
+            if (edges.GetValueOrDefault(edge) != EdgeKind.Wall)
             {
                 return null;
             }
@@ -910,8 +908,8 @@ public static class ContentPlacer
 
             foreach ((char edgeAxis, int sign) in new[] { ('u', 1), ('u', -1), ('v', 1), ('v', -1) })
             {
-                (float distance, char kind) = CastRay(edges, ctx.Layout.FakeDoors, u, v, edgeAxis, sign);
-                if (kind != 'W' && distance < OpeningReach || distance < GetGap(edgeAxis, sign) - WallGapSlack)
+                (float distance, EdgeKind kind) = CastRay(edges, ctx.Layout.FakeDoors, u, v, edgeAxis, sign);
+                if (kind != EdgeKind.Wall && distance < OpeningReach || distance < GetGap(edgeAxis, sign) - WallGapSlack)
                 {
                     return false;
                 }
@@ -925,21 +923,21 @@ public static class ContentPlacer
     private static float GetGap(char edgeAxis, int sign) => (edgeAxis == 'u') == (sign > 0) ? FarWallGap : NearWallGap;
 
     // Count a fake door as an opening
-    private static (float Distance, char Kind) CastRay(IReadOnlyDictionary<EdgeKey, char> edges, IReadOnlyDictionary<EdgeKey, bool> fakeDoors, float u, float v, char edgeAxis, int sign)
+    private static (float Distance, EdgeKind Kind) CastRay(IReadOnlyDictionary<EdgeKey, EdgeKind> edges, IReadOnlyDictionary<EdgeKey, bool> fakeDoors, float u, float v, char edgeAxis, int sign)
     {
         for (int step = 0; step < 8; step++)
         {
             var edge = edgeAxis == 'u'
                 ? new EdgeKey('u', sign > 0 ? (int)MathF.Floor(u) + 1 + step : (int)MathF.Floor(u) - step, (int)MathF.Floor(v))
                 : new EdgeKey('v', (int)MathF.Floor(u), sign > 0 ? (int)MathF.Floor(v) + 1 + step : (int)MathF.Floor(v) - step);
-            if (edges.TryGetValue(edge, out char kind))
+            if (edges.TryGetValue(edge, out EdgeKind kind))
             {
                 bool door = fakeDoors.ContainsKey(edge) || fakeDoors.ContainsKey(StructureBuilder.GetPreviousEdge(edge)) || fakeDoors.ContainsKey(edgeAxis == 'u' ? new EdgeKey('u', edge.A, edge.B + 1) : new EdgeKey('v', edge.A + 1, edge.B));
-                return (MathF.Abs((edgeAxis == 'u' ? edge.A : edge.B) - (edgeAxis == 'u' ? u : v)), door ? 'D' : kind);
+                return (MathF.Abs((edgeAxis == 'u' ? edge.A : edge.B) - (edgeAxis == 'u' ? u : v)), door ? EdgeKind.Door : kind);
             }
         }
 
-        return (float.MaxValue, 'W');
+        return (float.MaxValue, EdgeKind.Wall);
     }
 
     private static PointF? FindCannon(PlacementContext ctx)
@@ -1233,7 +1231,7 @@ public static class ContentPlacer
 
             foreach (var (next, edge) in EdgeKey.GetNeighbors(cell))
             {
-                if (ctx.Distance.ContainsKey(next) && !steps.ContainsKey(next) && !(ctx.Layout.Edges.TryGetValue(edge, out char kind) && RouteGrid.IsBlocking(kind)))
+                if (ctx.Distance.ContainsKey(next) && !steps.ContainsKey(next) && !(ctx.Layout.Edges.TryGetValue(edge, out EdgeKind kind) && kind.BlocksWalking))
                 {
                     steps[next] = steps[cell] + 1;
                     queue.Enqueue(next);
@@ -1542,7 +1540,7 @@ public static class ContentPlacer
     }
 
     private static List<PointF> GetWeaponSpots(PlacementContext ctx) => ctx.Map.Sprites
-        .Where(s => ItemSchedule.IsWeapon(s.Id) || (s.Id == KnownObject.Crate && ItemSchedule.IsWeapon(KnownObject.GetCrateItem(s.Payload))))
+        .Where(s => s.Id.IsWeapon || (s.Id == KnownObject.Crate && KnownObject.GetCrateItem(s.Payload).IsWeapon))
         .Select(s => new PointF(s.Position.X, s.Position.Y))
         .ToList();
 
@@ -1561,11 +1559,11 @@ public static class ContentPlacer
 
         budget.Weapons.Clear();
         var spots = GetWeaponSpots(ctx);
-        int inCrates = (int)MathF.Round(weapons.Count(ItemSchedule.IsWeapon) * WeaponCrateShare);
+        int inCrates = (int)MathF.Round(weapons.Count(item => item.IsWeapon) * WeaponCrateShare);
         foreach (int crate in crates)
         {
             var s = ctx.Map.Sprites[crate];
-            int index = weapons.FindIndex(ItemSchedule.IsWeapon);
+            int index = weapons.FindIndex(item => item.IsWeapon);
             if (inCrates == 0 || index < 0)
             {
                 break;
@@ -1576,7 +1574,7 @@ public static class ContentPlacer
                 continue;
             }
 
-            ctx.Map.Sprites[crate] = s with { Payload = CreateCratePayload(weapons[index]) };
+            ctx.Map.Sprites[crate] = s with { Payload = KnownObject.CreateCratePayload(weapons[index]) };
             spots.Add(new PointF(s.Position.X, s.Position.Y));
             weapons.RemoveAt(index);
             inCrates--;
@@ -1590,7 +1588,7 @@ public static class ContentPlacer
         
         foreach (var item in weapons)
         {
-            if (!ItemSchedule.IsWeapon(item))
+            if (!item.IsWeapon)
             {
                 ctx.Place(ctx.GetFreeCells(rooms[ctx.Rng.Next(rooms.Length)]), item, dir: 0);
                 continue;
@@ -1626,14 +1624,6 @@ public static class ContentPlacer
         }
     }
 
-    private static byte[] CreateCratePayload(KnownObject item)
-    {
-        byte[] payload = new byte[16];
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4), 1);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8), (uint)item);
-        return payload;
-    }
-
     private static void PlaceItems(PlacementContext ctx, LevelBudget budget, EncounterProfile encounters)
     {
         var items = budget.Items
@@ -1656,7 +1646,7 @@ public static class ContentPlacer
         int nextCrate = 0;
         foreach ((var category, float share) in new[] { (ItemCategory.Ammo, 0.32f), (ItemCategory.Armor, 0.45f), (ItemCategory.Health, 0.2f) })
         {
-            var ofCategory = items.Where(i => ItemCategorizer.GetCategory(i) == category).ToArray();
+            var ofCategory = items.Where(item => item.PickupCategory == category).ToArray();
             foreach (var item in ofCategory.Take((int)MathF.Round(ofCategory.Length * share)))
             {
                 if (nextCrate >= crateOrder.Length)
@@ -1665,7 +1655,7 @@ public static class ContentPlacer
                 }
 
                 int index = crateOrder[nextCrate++];
-                ctx.Map.Sprites[index] = ctx.Map.Sprites[index] with { Payload = CreateCratePayload(item) };
+                ctx.Map.Sprites[index] = ctx.Map.Sprites[index] with { Payload = KnownObject.CreateCratePayload(item) };
                 items.Remove(item);
             }
         }
@@ -1681,7 +1671,7 @@ public static class ContentPlacer
         })
         {
             var ofCategory = items
-                .Where(i => i != KnownObject.Dynamite && ItemCategorizer.GetCategory(i) == category)
+                .Where(item => item != KnownObject.Dynamite && item.PickupCategory == category)
                 .ToArray();
             
             PlaceCategory(ctx, ofCategory, pile, category == ItemCategory.Money, encounters.PickupRooms[category], encounters.IsGated);
@@ -1758,7 +1748,7 @@ public static class ContentPlacer
         int walls = 0;
         foreach (var (neighbor, edge) in EdgeKey.GetNeighbors(c))
         {
-            if ((ctx.Layout.Edges.TryGetValue(edge, out char kind) && kind is 'W' or 'F' or 'S') || !ctx.Layout.Cells.ContainsKey(neighbor))
+            if ((ctx.Layout.Edges.TryGetValue(edge, out EdgeKind kind) && kind.IsClosed) || !ctx.Layout.Cells.ContainsKey(neighbor))
             {
                 walls++;
             }

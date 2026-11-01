@@ -15,6 +15,7 @@ public sealed class RoomGraph
     private const int MidRoomPixels = 100000;
     private const int LargeRoomPixels = 400000;
     private const int MinNotchSide = 2;
+    private const int BareFurniture = 3;
     private const float MinNotchShare = 0.04f;
 
     private static readonly LandmarkKind[] Objectives = [LandmarkKind.Breaker, LandmarkKind.DynamiteCharges, LandmarkKind.DynamiteSite, LandmarkKind.Boss, LandmarkKind.Generator];
@@ -177,7 +178,7 @@ public sealed class RoomGraph
             SectionReentries = reentries,
             SectionReentryShare = reentryShare,
             AbandonedAmbushShare = MeasureAbandonedAmbushes(survey),
-            BareRooms = rooms.Count(room => places[room].Kind == PlaceKind.Room && places[room].Furnishing == PlaceFurnishing.Bare)
+            BareRooms = rooms.Count(room => places[room].Kind == PlaceKind.Room && places[room].FurniturePieces < BareFurniture)
         };
     }
 

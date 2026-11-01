@@ -1,7 +1,7 @@
-namespace ASToolkit.Core.Routes;
+namespace ASToolkit.Core.Levels;
 
 /// <summary>
-/// Defines the groups of pickups.
+/// Specifies the groups of pickups.
 /// </summary>
 public enum ItemCategory
 {

@@ -342,6 +342,21 @@ Measured on campaign levels 2 to 10. "On screen" means within the 1,280 by 800 s
 | loose armor against a wall | 9 of 19 (47%) | 5 of 18 (28%) | 158 of 225 (70%) |
 | pickup piles of two or more (45 px) | 120 of 217 (55%) | 111 of 544 (20%) | 1,224 of 3,077 (40%) |
 | health placed after a fight | 70 of 163 (43%) | 93 of 174 (53%) | 758 of 1,573 (48%) |
+| ammo placed before a fight | 68 of 257 (26%) | 107 of 361 (30%) | 856 of 3,028 (28%) |
+| loose money over 200 px of walk off the route | 91 of 119 (76%) | 172 of 226 (76%) | 1,015 of 1,510 (67%) |
+| health in crates | 35 of 163 (21%) | 18 of 174 (10%) | 280 of 1,573 (18%) |
+| ammo in crates | 93 of 257 (36%) | 74 of 361 (20%) | 885 of 3,028 (29%) |
+| armor in crates | 18 of 39 (46%) | 12 of 30 (40%) | 163 of 388 (42%) |
+| loose pickups per pile (45 px), median of levels | 2.174 | 1.475 | 2.077 |
+| solid floor pieces within 30 px of a doorway | 6 of 1,155 (1%) | 2 of 2,506 (0%) | 105 of 10,783 (1%) |
+| hittable floor pieces within 30 px of a doorway | 2 of 965 (0%) | 2 of 1,922 (0%) | 166 of 9,767 (2%) |
+| monitors within 40 px of a doorway | 1 of 46 (2%) | 9 of 189 (5%) | 82 of 492 (17%) |
+| solid or hittable floor pieces standing inside another | 0 of 2,120 (0%) | 40 of 4,428 (1%) | 26 of 20,550 (0%) |
+| loose pickups under a solid or hittable piece | 1 of 469 (0%) | 2 of 750 (0%) | 119 of 5,617 (2%) |
+| monitors within 25 px of a cabinet or shelves | 2 of 46 (4%) | 0 of 189 (0%) | 46 of 492 (9%) |
+| monitors standing on a piece | 18 of 46 (39%) | 106 of 189 (56%) | 270 of 492 (55%) |
+| boxes on shelves, a cabinet or a table | 73 of 92 (79%) | 104 of 121 (86%) | 196 of 958 (20%) |
+| test tubes, lab equipment and computers standing on a piece | 221 of 230 (96%) | 393 of 398 (99%) | 1,686 of 1,757 (96%) |
 | shelves with another shelf within 70 px | 14 of 217 (6%) | 11 of 160 (7%) | 33 of 2,153 (2%) |
 | longest cabinet run | 5 | 32 | 8 |
 | missiles in triplets | 9 of 9 (100%) | 18 of 73 (25%) | 12 of 98 (12%) |
@@ -372,7 +387,7 @@ Measured on campaign levels 2 to 10. "On screen" means within the 1,280 by 800 s
 | first fight, share of the tour, median of levels | 0.058 | 0.001 | 0.077 |
 | fifth of the tour with the most hit points, median of levels | 2 | 1 | 3 |
 
-Generated levels leave scattered paper away from tables (17% by one against 90%) and lab big computers without a chair (56% have one, against all of level 5's), rarely stand missiles in triplets, put fewer hit points around the cannon, space their big fights closer together and leave more floor off the tour. Their labs have fewer door-graph cycles and a larger largest branch than the campaign's.
+Generated levels hang monitors beside doorways (17% within 40 px against 2%) and against cabinets or shelves (9% against 4%), stand boxes away from the furniture they belong on (20% on shelves, a cabinet or a table against 79%), and leave hittable pieces in doorways and pickups under pieces eight to ten times as often as the campaign. They also leave scattered paper away from tables (17% by one against 90%) and lab big computers without a chair (56% have one, against all of level 5's), rarely stand missiles in triplets, put fewer hit points around the cannon, space their big fights closer together and leave more floor off the tour. Their labs have fewer door-graph cycles and a larger largest branch than the campaign's.
 
 ## Overview
 

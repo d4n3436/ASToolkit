@@ -33,7 +33,7 @@ public static class LevelExtractor
         int lab = sp.Count(s => s.Id is KnownObject.LabWallSlash or KnownObject.LabWallBack or KnownObject.LabWall2Slash or KnownObject.LabWall2Back);
         bool isMilitary = military > lab;
         var cells = new HashSet<Cell>();
-        var edges = new Dictionary<EdgeKey, char>();
+        var edges = new Dictionary<EdgeKey, EdgeKind>();
         var lattice = isMilitary ? ExtractMilitary(sp, cells, edges) : ExtractLab(sp, cells, edges);
         if (lattice is null)
         {
@@ -88,9 +88,9 @@ public static class LevelExtractor
     /// Returns the lattice of a military level's walls and the edges its wall, door and fence pieces cover, as the extractor reads them, or
     /// null when it has no walls.
     /// </summary>
-    public static (Lattice Lattice, Dictionary<EdgeKey, char> Edges)? ReadMilitaryEdges(IEnumerable<MergedMapSprite> sprites)
+    public static (Lattice Lattice, Dictionary<EdgeKey, EdgeKind> Edges)? ReadMilitaryEdges(IEnumerable<MergedMapSprite> sprites)
     {
-        var edges = new Dictionary<EdgeKey, char>();
+        var edges = new Dictionary<EdgeKey, EdgeKind>();
         var lattice = ExtractMilitary(OrderSprites(sprites).ToList(), [], edges);
         return lattice is null ? null : (lattice, edges);
     }
@@ -98,9 +98,9 @@ public static class LevelExtractor
     /// <summary>
     /// Returns the edges that the wall, door and frame pieces of a lab cover, as the extractor reads them.
     /// </summary>
-    public static Dictionary<EdgeKey, char> ReadLabEdges(Lattice lattice, IEnumerable<MergedMapSprite> sprites)
+    public static Dictionary<EdgeKey, EdgeKind> ReadLabEdges(Lattice lattice, IEnumerable<MergedMapSprite> sprites)
     {
-        var edges = new Dictionary<EdgeKey, char>();
+        var edges = new Dictionary<EdgeKey, EdgeKind>();
         foreach (var sprite in sprites)
         {
             if (!KnownObject.LabWalls.Contains(sprite.Id) || sprite.Id is KnownObject.LabBeam or KnownObject.LabBeam2)
@@ -108,19 +108,19 @@ public static class LevelExtractor
                 continue;
             }
 
-            char kind = sprite.Id switch
+            EdgeKind kind = sprite.Id switch
             {
-                KnownObject.SmallDoor or KnownObject.DoubleDoor => 'D',
-                KnownObject.DoubleDoorFrame or KnownObject.SmallDoorFrame => 'F',
-                _ => 'W'
+                KnownObject.SmallDoor or KnownObject.DoubleDoor => EdgeKind.Door,
+                KnownObject.DoubleDoorFrame or KnownObject.SmallDoorFrame => EdgeKind.ShutDoor,
+                _ => EdgeKind.Wall
             };
 
             foreach (var key in GetLabEdges(lattice, sprite.Id, sprite.Position.X, sprite.Position.Y))
             {
-                bool has = edges.TryGetValue(key, out char current);
-                if (kind == 'D' || !has || (current == 'W' && kind == 'F'))
+                bool has = edges.TryGetValue(key, out EdgeKind current);
+                if (kind == EdgeKind.Door || !has || (current == EdgeKind.Wall && kind == EdgeKind.ShutDoor))
                 {
-                    edges[key] = has && current == 'D' ? 'D' : kind;
+                    edges[key] = has && current == EdgeKind.Door ? EdgeKind.Door : kind;
                 }
             }
         }
@@ -197,7 +197,7 @@ public static class LevelExtractor
         return n;
     }
 
-    private static Lattice? ExtractLab(List<MergedMapSprite> sp, HashSet<Cell> cells, Dictionary<EdgeKey, char> edges)
+    private static Lattice? ExtractLab(List<MergedMapSprite> sp, HashSet<Cell> cells, Dictionary<EdgeKey, EdgeKind> edges)
     {
         var floor = sp.Where(s => s.Id is KnownObject.BasementFloor or KnownObject.BasementFloorAlt).ToList();
         var big = sp.Where(s => s.Id == KnownObject.MilitaryFloor).ToList();
@@ -282,7 +282,7 @@ public static class LevelExtractor
             }
         }
 
-        foreach ((var key, char kind) in ReadLabEdges(best!, sp))
+        foreach ((var key, EdgeKind kind) in ReadLabEdges(best!, sp))
         {
             edges[key] = kind;
         }
@@ -345,7 +345,7 @@ public static class LevelExtractor
         };
     }
 
-    private static Lattice? ExtractMilitary(List<MergedMapSprite> sp, HashSet<Cell> cells, Dictionary<EdgeKey, char> edges)
+    private static Lattice? ExtractMilitary(List<MergedMapSprite> sp, HashSet<Cell> cells, Dictionary<EdgeKey, EdgeKind> edges)
     {
         var slashWalls = sp.Where(s => s.Id == KnownObject.MilitaryWallSlash).ToArray();
         if (slashWalls.Length == 0)
@@ -390,7 +390,7 @@ public static class LevelExtractor
             int a = (int)MathF.Round(u);
             int b = (int)MathF.Round(v);
             bool slash = sprite.Id == KnownObject.MilitaryWallSlash || (sprite.Id is KnownObject.FenceEmitter or KnownObject.MilitaryDoorWall && sprite.Facing is >= 64 and < 192);
-            char kind = sprite.Id == KnownObject.MilitaryDoorWall ? 'F' : 'W';
+            EdgeKind kind = sprite.Id == KnownObject.MilitaryDoorWall ? EdgeKind.ShutDoor : EdgeKind.Wall;
             if (slash)
             {
                 edges[new EdgeKey('v', a - 1, b)] = kind;

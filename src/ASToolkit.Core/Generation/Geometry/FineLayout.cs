@@ -4,8 +4,7 @@ using ASToolkit.Core.Levels;
 namespace ASToolkit.Core.Generation.Geometry;
 
 /// <summary>
-/// Represents a layout on the theme's cell lattice. Edge kinds are 'W' wall, 'D' single door, 'E' and 'e' the two halves of
-/// a double door, 'O' open doorway frame, 'S' breakable wall and 'T' spawn wall.
+/// Represents a layout on the theme's cell lattice.
 /// </summary>
 public sealed class FineLayout
 {
@@ -20,7 +19,7 @@ public sealed class FineLayout
     /// <summary>
     /// Gets the wall edges by kind.
     /// </summary>
-    public required IReadOnlyDictionary<EdgeKey, char> Edges { get; init; }
+    public required IReadOnlyDictionary<EdgeKey, EdgeKind> Edges { get; init; }
 
     /// <summary>
     /// Gets the edges of each link, by link index.
@@ -77,7 +76,7 @@ public sealed class FineLayout
         }
 
         var opened = new HashSet<EdgeKey>();
-        var kinds = new Dictionary<EdgeKey, char>();
+        var kinds = new Dictionary<EdgeKey, EdgeKind>();
         var linkEdges = new List<EdgeKey[]>();
         foreach (var link in plan.Links)
         {
@@ -93,25 +92,25 @@ public sealed class FineLayout
                 case LinkKind.SecretWall or LinkKind.SpawnWall:
                     foreach (var fineCell in fine)
                     {
-                        kinds[fineCell] = link.Kind == LinkKind.SecretWall ? 'S' : 'T';
+                        kinds[fineCell] = link.Kind == LinkKind.SecretWall ? EdgeKind.SecretWall : EdgeKind.SpawnWall;
                     }
 
                     break;
                 case LinkKind.Door when fine.Length == 2:
-                    kinds[fine[1]] = 'E';
-                    kinds[fine[0]] = 'e';
+                    kinds[fine[1]] = EdgeKind.DoubleDoor;
+                    kinds[fine[0]] = EdgeKind.DoubleDoorEnd;
                     break;
                 case LinkKind.Door:
                     foreach (var innerFineCell in fine)
                     {
-                        kinds[innerFineCell] = 'D';
+                        kinds[innerFineCell] = EdgeKind.Door;
                     }
 
                     break;
                 case LinkKind.Arch:
                     foreach (var archFineCell in fine)
                     {
-                        kinds[archFineCell] = 'O';
+                        kinds[archFineCell] = EdgeKind.Doorway;
                     }
 
                     break;
@@ -121,7 +120,7 @@ public sealed class FineLayout
             }
         }
 
-        var edges = new Dictionary<EdgeKey, char>();
+        var edges = new Dictionary<EdgeKey, EdgeKind>();
         foreach (var cell in cells.Keys)
         {
             foreach (var (_, k) in EdgeKey.GetNeighbors(cell))
@@ -131,7 +130,7 @@ public sealed class FineLayout
                 int rb = cells.GetValueOrDefault(b, -1);
                 if (ra != rb && !opened.Contains(k))
                 {
-                    edges[k] = kinds.GetValueOrDefault(k, 'W');
+                    edges[k] = kinds.GetValueOrDefault(k, EdgeKind.Wall);
                 }
             }
         }

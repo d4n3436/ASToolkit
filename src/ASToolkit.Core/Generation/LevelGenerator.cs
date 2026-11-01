@@ -185,7 +185,7 @@ public sealed class LevelGenerator
     // Hang the wall dressing and lay the gore of copied windows, furnish every room from its type's recipe away from the breaker and the
     // fence gates, stand the breaker's scene, mark the missiles and keep the floor joined
     private (PlacedDecor[] Decor, Dictionary<Cell, int> Blocked) Dress(Random rng, LevelTheme theme, LayoutPlan plan, FineLayout layout, MapBuilder map,
-        HashSet<Cell> floor, HashSet<Cell> keepClear, Cell start, BreakerSpot? breaker, IReadOnlyDictionary<EdgeKey, char> placedEdges, LevelTarget target,
+        HashSet<Cell> floor, HashSet<Cell> keepClear, Cell start, BreakerSpot? breaker, IReadOnlyDictionary<EdgeKey, EdgeKind> placedEdges, LevelTarget target,
         MapResourceBuilder originalMap, LevelModel original)
     {
         bool isLab = theme == LevelTheme.Lab;
@@ -221,8 +221,8 @@ public sealed class LevelGenerator
     private static (float Corpses, float Blood) MeasureGore(MapResourceBuilder originalMap, LevelModel original)
     {
         float cells = Math.Max(1, original.Cells.Count);
-        return (originalMap.Sprites.Count(sprite => sprite.Id is KnownObject.ScientistCorpse or KnownObject.SoldierCorpse) / cells,
-            originalMap.Sprites.Count(sprite => sprite.Id is KnownObject.SmallBloodPool or KnownObject.BloodPool or KnownObject.VerticalBloodPool or KnownObject.LargeBloodPool) / cells);
+        return (originalMap.Sprites.Count(sprite => sprite.Id.IsCorpse) / cells,
+            originalMap.Sprites.Count(sprite => sprite.Id.IsBlood) / cells);
     }
 
     // Clear the breaker's surroundings in its room and stand the breaker's scene there
@@ -264,7 +264,7 @@ public sealed class LevelGenerator
     }
 
     // Drop decor that faces its wall or stands as close to one as no original piece of its kind does, judged on the lattice the walls are read on
-    private static IEnumerable<PlacedDecor> KeepPlacedAsOriginals(IReadOnlyList<PlacedDecor> decor, Lattice lattice, Lattice wallLattice, IReadOnlyDictionary<EdgeKey, char> edges,
+    private static IEnumerable<PlacedDecor> KeepPlacedAsOriginals(IReadOnlyList<PlacedDecor> decor, Lattice lattice, Lattice wallLattice, IReadOnlyDictionary<EdgeKey, EdgeKind> edges,
         LevelTarget target)
     {
         var pools = decor.Where(piece => KnownObject.BloodPools.Contains(piece.Id)).ToArray();
@@ -525,7 +525,7 @@ public sealed class LevelGenerator
 
     // Copy only what hangs on walls or lies on the floor, the furniture being the furnisher's
     private static Func<KnownObject, float, bool> GetWallDressing(ReferenceLevelSet references, LevelTheme theme) =>
-        (id, z) => GetDressingDecor(references, theme)(id, z) && PartFinder.GetFamily(id) is null && id != KnownObject.ScatteredPaper;
+        (id, z) => GetDressingDecor(references, theme)(id, z) && id.Family is null && id != KnownObject.ScatteredPaper;
 
     // Keep the floor clear around every site and pad, and along the line from the cannon to its kill zone
     private static List<(float U, float V, float Reach)> GetSiteSpots(MapBuilder map, Lattice lattice, PlacedSites placed)

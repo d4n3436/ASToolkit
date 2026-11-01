@@ -66,7 +66,7 @@ internal sealed class PlaceSegmenter
         var edges = grid.Edges;
         var shown = grid.Cells.Where(cell => !roofed.Contains(cell)).ToHashSet();
         shown.UnionWith(tour);
-        var floor = Flood(shown, tour, IsClosed);
+        var floor = shown.Flood(tour, IsClosed);
         for (int step = 0; step < RimCells; step++)
         {
             var rim = new List<Cell>();
@@ -89,9 +89,9 @@ internal sealed class PlaceSegmenter
         {
             foreach (var (neighbor, edge) in EdgeKey.GetNeighbors(cell))
             {
-                if (grid.Cells.Contains(neighbor) && !floor.Contains(neighbor) && !closets.Contains(neighbor) && edges.TryGetValue(edge, out char kind) && kind == 'S')
+                if (grid.Cells.Contains(neighbor) && !floor.Contains(neighbor) && !closets.Contains(neighbor) && edges.TryGetValue(edge, out EdgeKind kind) && kind == EdgeKind.SecretWall)
                 {
-                    var closet = Flood(grid.Cells, [neighbor], IsClosed);
+                    var closet = grid.Cells.Flood([neighbor], IsClosed);
                     if (closet.Count <= _maxClosetCells)
                     {
                         closets.UnionWith(closet);
@@ -109,18 +109,18 @@ internal sealed class PlaceSegmenter
             {
                 if (grid.BlockedCells.Contains(neighbor) && !blocked.Contains(neighbor) && !IsWall(edge))
                 {
-                    var pocket = Flood(hidden, [neighbor], IsWall);
-                    blocked.UnionWith(pocket.Count(pocketCell => !grid.BlockedCells.Contains(pocketCell)) <= MaxPocketCells ? pocket : Flood(grid.BlockedCells, [neighbor], IsWall));
+                    var pocket = hidden.Flood([neighbor], IsWall);
+                    blocked.UnionWith(pocket.Count(pocketCell => !grid.BlockedCells.Contains(pocketCell)) <= MaxPocketCells ? pocket : grid.BlockedCells.Flood([neighbor], IsWall));
                 }
             }
         }
 
         floor.UnionWith(blocked);
         var flanks = FindDoorFlanks(edges, floor);
-        var barriers = new Dictionary<EdgeKey, char>(edges);
+        var barriers = new Dictionary<EdgeKey, EdgeKind>(edges);
         foreach (var flank in flanks)
         {
-            barriers[flank] = 'W';
+            barriers[flank] = EdgeKind.Wall;
         }
 
         var openings = new HashSet<EdgeKey>();
@@ -139,7 +139,7 @@ internal sealed class PlaceSegmenter
                 continue;
             }
 
-            var region = Flood(floor, [cell], edge => barriers.ContainsKey(edge) || openings.Contains(edge));
+            var region = floor.Flood([cell], edge => barriers.ContainsKey(edge) || openings.Contains(edge));
             foreach (var member in region)
             {
                 placeOf[member] = places.Count;
@@ -168,18 +168,18 @@ internal sealed class PlaceSegmenter
         AddHiddenFloor(places, placeOf, floor, grid, barriers);
         return new PlaceSegmentation { Floor = floor, PlaceOf = placeOf, Places = places, Openings = openings, Flanks = flanks };
 
-        bool IsClosed(EdgeKey edge) => edges.TryGetValue(edge, out char kind) && kind is 'W' or 'F' or 'S';
+        bool IsClosed(EdgeKey edge) => edges.TryGetValue(edge, out EdgeKind kind) && kind.IsClosed;
 
-        bool IsWall(EdgeKey edge) => edges.TryGetValue(edge, out char kind) && kind is 'W' or 'F';
+        bool IsWall(EdgeKey edge) => edges.TryGetValue(edge, out EdgeKind kind) && kind.BlocksWalking;
     }
 
     // Give each small patch of floor no place holds to the place it opens onto most
-    private static void AddHiddenFloor(List<List<Cell>> places, Dictionary<Cell, int> placeOf, HashSet<Cell> floor, RouteGrid grid, Dictionary<EdgeKey, char> edges)
+    private static void AddHiddenFloor(List<List<Cell>> places, Dictionary<Cell, int> placeOf, HashSet<Cell> floor, RouteGrid grid, Dictionary<EdgeKey, EdgeKind> edges)
     {
         var left = grid.Cells.Concat(grid.BlockedCells).Where(cell => !floor.Contains(cell)).ToHashSet();
         while (left.Count > 0)
         {
-            var patch = Flood(left, [left.First()], edges.ContainsKey);
+            var patch = left.Flood([left.First()], edges.ContainsKey);
             left.ExceptWith(patch);
             if (patch.Count(cell => !grid.BlockedCells.Contains(cell)) > MaxPocketCells)
             {
@@ -213,10 +213,10 @@ internal sealed class PlaceSegmenter
         }
     }
 
-    private static HashSet<EdgeKey> FindDoorFlanks(IReadOnlyDictionary<EdgeKey, char> edges, HashSet<Cell> floor)
+    private static HashSet<EdgeKey> FindDoorFlanks(IReadOnlyDictionary<EdgeKey, EdgeKind> edges, HashSet<Cell> floor)
     {
         var flanks = new HashSet<EdgeKey>();
-        var doors = edges.Where(pair => pair.Value is 'D' or 'O' or 'F').Select(pair => pair.Key).ToHashSet();
+        var doors = edges.Where(pair => pair.Value is EdgeKind.Door or EdgeKind.Doorway or EdgeKind.ShutDoor).Select(pair => pair.Key).ToHashSet();
         foreach (var door in doors)
         {
             foreach (int step in new[] { -1, 1 })
@@ -255,7 +255,7 @@ internal sealed class PlaceSegmenter
         static EdgeKey Shift(EdgeKey edge, int offset) => edge.Axis == 'u' ? edge with { B = edge.B + offset } : edge with { A = edge.A + offset };
     }
 
-    private static HashSet<EdgeKey> FindStubLines(Dictionary<EdgeKey, char> edges, HashSet<Cell> floor, int maxStubCells)
+    private static HashSet<EdgeKey> FindStubLines(Dictionary<EdgeKey, EdgeKind> edges, HashSet<Cell> floor, int maxStubCells)
     {
         var touching = new Dictionary<(int A, int B), int>();
         foreach (var edge in edges.Keys)
@@ -303,7 +303,7 @@ internal sealed class PlaceSegmenter
     private static ((int A, int B) First, (int A, int B) Second) GetEnds(EdgeKey edge) =>
         edge.Axis == 'u' ? ((edge.A, edge.B), (edge.A, edge.B + 1)) : ((edge.A, edge.B), (edge.A + 1, edge.B));
 
-    private static HashSet<EdgeKey> FindOpenings(Dictionary<EdgeKey, char> edges, HashSet<Cell> floor, int maxOpeningCells)
+    private static HashSet<EdgeKey> FindOpenings(Dictionary<EdgeKey, EdgeKind> edges, HashSet<Cell> floor, int maxOpeningCells)
     {
         var openings = new HashSet<EdgeKey>();
         var lines = edges.Keys.GroupBy(k => (k.Axis, Line: k.Axis == 'u' ? k.A : k.B));
@@ -334,14 +334,14 @@ internal sealed class PlaceSegmenter
         return openings;
     }
 
-    private static void SplitAtDoors(List<List<Cell>> places, Dictionary<Cell, int> placeOf, Dictionary<EdgeKey, char> edges, HashSet<EdgeKey> gaps,
+    private static void SplitAtDoors(List<List<Cell>> places, Dictionary<Cell, int> placeOf, Dictionary<EdgeKey, EdgeKind> edges, HashSet<EdgeKey> gaps,
         HashSet<EdgeKey> openings)
     {
         int count = places.Count;
         for (int index = 0; index < count; index++)
         {
             var region = places[index].ToHashSet();
-            var doors = edges.Where(pair => pair.Value is 'D' or 'O' or 'F' && region.Contains(pair.Key.Cells.First) && region.Contains(pair.Key.Cells.Second))
+            var doors = edges.Where(pair => pair.Value is EdgeKind.Door or EdgeKind.Doorway or EdgeKind.ShutDoor && region.Contains(pair.Key.Cells.First) && region.Contains(pair.Key.Cells.Second))
                 .Select(pair => pair.Key).ToArray();
             if (doors.Length == 0)
             {
@@ -357,7 +357,7 @@ internal sealed class PlaceSegmenter
                     continue;
                 }
 
-                var piece = Flood(region, [cell], edge => edges.ContainsKey(edge) || gaps.Contains(edge));
+                var piece = region.Flood([cell], edge => edges.ContainsKey(edge) || gaps.Contains(edge));
                 foreach (var member in piece)
                 {
                     pieceOf[member] = pieces.Count;
@@ -425,7 +425,7 @@ internal sealed class PlaceSegmenter
         }
     }
 
-    private static void SplitNecks(List<List<Cell>> places, Dictionary<Cell, int> placeOf, Dictionary<EdgeKey, char> edges, HashSet<EdgeKey> openings,
+    private static void SplitNecks(List<List<Cell>> places, Dictionary<Cell, int> placeOf, Dictionary<EdgeKey, EdgeKind> edges, HashSet<EdgeKey> openings,
         int minRoomCells, int minCorridorCells)
     {
         int count = places.Count;
@@ -487,7 +487,7 @@ internal sealed class PlaceSegmenter
         }
     }
 
-    private static List<List<Cell>> MergeUnbounded(List<List<Cell>> pieces, IReadOnlyDictionary<EdgeKey, char> edges)
+    private static List<List<Cell>> MergeUnbounded(List<List<Cell>> pieces, IReadOnlyDictionary<EdgeKey, EdgeKind> edges)
     {
         var bars = new Dictionary<(int A, int B), (int Along, int Across)>();
         foreach (var edge in edges.Keys)
@@ -675,7 +675,7 @@ internal sealed class PlaceSegmenter
         }
     }
 
-    private static List<(List<Cell> Piece, bool IsRoom)> SplitNeck(List<Cell> region, Dictionary<EdgeKey, char> edges, int minRoomCells, int minCorridorCells)
+    private static List<(List<Cell> Piece, bool IsRoom)> SplitNeck(List<Cell> region, Dictionary<EdgeKey, EdgeKind> edges, int minRoomCells, int minCorridorCells)
     {
         int minRadius = (minRoomCells + 1) / 2;
         if (region.Count < 4 * minRoomCells * minRoomCells)
@@ -771,7 +771,7 @@ internal sealed class PlaceSegmenter
         }
     }
 
-    private static Dictionary<Cell, int> MeasureDepth(HashSet<Cell> set, Dictionary<EdgeKey, char> edges)
+    private static Dictionary<Cell, int> MeasureDepth(HashSet<Cell> set, Dictionary<EdgeKey, EdgeKind> edges)
     {
         var depth = new Dictionary<Cell, int>();
         var queue = new Queue<Cell>();
@@ -812,7 +812,7 @@ internal sealed class PlaceSegmenter
         new(cell.U + 1, cell.V + 1), new(cell.U + 1, cell.V - 1), new(cell.U - 1, cell.V + 1), new(cell.U - 1, cell.V - 1)
     ];
 
-    private static List<HashSet<Cell>> GetComponents(HashSet<Cell> cells, Dictionary<EdgeKey, char> edges)
+    private static List<HashSet<Cell>> GetComponents(HashSet<Cell> cells, Dictionary<EdgeKey, EdgeKind> edges)
     {
         var components = new List<HashSet<Cell>>();
         var seen = new HashSet<Cell>();
@@ -823,7 +823,7 @@ internal sealed class PlaceSegmenter
                 continue;
             }
 
-            var component = Flood(cells, [cell], edges.ContainsKey);
+            var component = cells.Flood([cell], edges.ContainsKey);
             seen.UnionWith(component);
             components.Add(component);
         }
@@ -856,7 +856,7 @@ internal sealed class PlaceSegmenter
         }
     }
 
-    private static void MergeSmall(List<List<Cell>> places, Dictionary<Cell, int> placeOf, Dictionary<EdgeKey, char> edges, HashSet<EdgeKey> openings,
+    private static void MergeSmall(List<List<Cell>> places, Dictionary<Cell, int> placeOf, Dictionary<EdgeKey, EdgeKind> edges, HashSet<EdgeKey> openings,
         int minPlaceCells, int pocketCells)
     {
         bool merged = true;
@@ -875,7 +875,7 @@ internal sealed class PlaceSegmenter
                 {
                     foreach (var (n, k) in EdgeKey.GetNeighbors(cell))
                     {
-                        if ((openings.Contains(k) || (edges.TryGetValue(k, out char kind) && kind == 'G')) && placeOf.TryGetValue(n, out int other) && other != index)
+                        if ((openings.Contains(k) || (edges.TryGetValue(k, out EdgeKind kind) && kind == EdgeKind.FenceFrame)) && placeOf.TryGetValue(n, out int other) && other != index)
                         {
                             shared[other] = shared.GetValueOrDefault(other) + 1;
                         }
@@ -918,35 +918,5 @@ internal sealed class PlaceSegmenter
                 placeOf[cell] = index;
             }
         }
-    }
-
-    /// <summary>
-    /// Returns the cells reachable from sources.
-    /// </summary>
-    public static HashSet<Cell> Flood(IReadOnlySet<Cell> cells, IEnumerable<Cell> sources, Func<EdgeKey, bool> isClosed)
-    {
-        var seen = new HashSet<Cell>();
-        var queue = new Queue<Cell>();
-        foreach (var source in sources)
-        {
-            if (cells.Contains(source) && seen.Add(source))
-            {
-                queue.Enqueue(source);
-            }
-        }
-
-        while (queue.Count > 0)
-        {
-            var c = queue.Dequeue();
-            foreach (var (n, k) in EdgeKey.GetNeighbors(c))
-            {
-                if (cells.Contains(n) && !isClosed(k) && seen.Add(n))
-                {
-                    queue.Enqueue(n);
-                }
-            }
-        }
-
-        return seen;
     }
 }

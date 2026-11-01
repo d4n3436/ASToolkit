@@ -29,7 +29,7 @@ public readonly record struct WallGaps(float MinusU, float PlusU, float MinusV, 
     /// <param name="edges">The wall and door edges of the level.</param>
     /// <param name="x">The map x.</param>
     /// <param name="y">The map y.</param>
-    public static WallGaps Measure(Lattice lattice, IReadOnlySet<Cell> cells, IReadOnlyDictionary<EdgeKey, char> edges, float x, float y)
+    public static WallGaps Measure(Lattice lattice, IReadOnlySet<Cell> cells, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float x, float y)
     {
         (float u, float v) = lattice.ToLattice(x, y);
         var cell = new Cell((int)MathF.Floor(u), (int)MathF.Floor(v));

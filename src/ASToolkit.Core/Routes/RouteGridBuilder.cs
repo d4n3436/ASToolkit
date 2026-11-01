@@ -12,7 +12,7 @@ public static class RouteGridBuilder
     private const int ChainLinkEdges = 4;
     private const float DiagonalTolerance = 8;
 
-    private static readonly Dictionary<char, int> Rank = new() { ['W'] = 0, ['F'] = 1, ['O'] = 2, ['B'] = 2, ['S'] = 2, ['D'] = 3 };
+    private static readonly Dictionary<EdgeKind, int> Rank = new() { [EdgeKind.Wall] = 0, [EdgeKind.ShutDoor] = 1, [EdgeKind.Doorway] = 2, [EdgeKind.BrokenWall] = 2, [EdgeKind.SecretWall] = 2, [EdgeKind.Door] = 3 };
 
     /// <summary>
     /// Builds the routing grid of a level.
@@ -38,7 +38,7 @@ public static class RouteGridBuilder
     }
 
     // Wall off 4 fine edges per chain-link piece, along the diagonal to its nearest fence neighbor
-    private static void AddChainLinkEdges(Lattice fine, Dictionary<EdgeKey, char> edges, IReadOnlyList<MergedMapSprite> sprites)
+    private static void AddChainLinkEdges(Lattice fine, Dictionary<EdgeKey, EdgeKind> edges, IReadOnlyList<MergedMapSprite> sprites)
     {
         var fences = sprites.Where(sprite => sprite.Id is KnownObject.LatticeWall or KnownObject.LatticeFence or KnownObject.TornLattice).ToArray();
         var walls = sprites.Where(sprite => KnownObject.LabWalls.Contains(sprite.Id)).ToArray();
@@ -62,7 +62,7 @@ public static class RouteGridBuilder
                 var key = slash
                     ? new EdgeKey('v', (int)MathF.Round(u - ChainLinkEdges / 2f) + index, (int)MathF.Round(v))
                     : new EdgeKey('u', (int)MathF.Round(u), (int)MathF.Round(v - ChainLinkEdges / 2f) + index);
-                edges.TryAdd(key, 'W');
+                edges.TryAdd(key, EdgeKind.Wall);
             }
         }
     }
@@ -108,9 +108,9 @@ public static class RouteGridBuilder
         ? [new EdgeKey('v', 2 * k.A, 2 * k.B), new EdgeKey('v', 2 * k.A + 1, 2 * k.B)]
         : [new EdgeKey('u', 2 * k.A, 2 * k.B), new EdgeKey('u', 2 * k.A, 2 * k.B + 1)];
 
-    private static Dictionary<EdgeKey, char> BuildMilitaryEdges(LevelModel model, HashSet<EdgeKey> fenceEdges)
+    private static Dictionary<EdgeKey, EdgeKind> BuildMilitaryEdges(LevelModel model, HashSet<EdgeKey> fenceEdges)
     {
-        var coarse = new Dictionary<EdgeKey, char>(model.Edges);
+        var coarse = new Dictionary<EdgeKey, EdgeKind>(model.Edges);
         var coarseFences = new HashSet<EdgeKey>();
         var fences = model.Sprites.Where(s => s.Id == KnownObject.Fence).ToArray();
         foreach (var sprite in model.Sprites)
@@ -134,7 +134,7 @@ public static class RouteGridBuilder
             bool holdsFence = fences.Any(f => MathF.Sqrt((f.Position.X - sprite.Position.X) * (f.Position.X - sprite.Position.X) + (f.Position.Y - sprite.Position.Y) * (f.Position.Y - sprite.Position.Y)) < 40);
             foreach (var key in keys)
             {
-                coarse[key] = 'G';
+                coarse[key] = EdgeKind.FenceFrame;
                 if (holdsFence)
                 {
                     coarseFences.Add(key);
@@ -142,8 +142,8 @@ public static class RouteGridBuilder
             }
         }
 
-        var edges = new Dictionary<EdgeKey, char>();
-        foreach ((var edge, char kind) in coarse)
+        var edges = new Dictionary<EdgeKey, EdgeKind>();
+        foreach ((var edge, EdgeKind kind) in coarse)
         {
             foreach (var fineEdge in SplitEdge(edge))
             {
@@ -159,9 +159,9 @@ public static class RouteGridBuilder
         return edges;
     }
 
-    private static Dictionary<EdgeKey, char> BuildLabEdges(LevelModel model)
+    private static Dictionary<EdgeKey, EdgeKind> BuildLabEdges(LevelModel model)
     {
-        var edges = new Dictionary<EdgeKey, char>();
+        var edges = new Dictionary<EdgeKey, EdgeKind>();
         var frames = new HashSet<EdgeKey>();
         var doors = new HashSet<EdgeKey>();
         foreach (var sprite in model.Sprites)
@@ -176,24 +176,24 @@ public static class RouteGridBuilder
             {
                 case KnownObject.SmallDoorWall or KnownObject.DoubleDoorWall or KnownObject.SmallDoorWall2 or KnownObject.DoubleDoorWall2:
                     frames.UnionWith(keys);
-                    Put(edges, keys, 'W');
+                    Put(edges, keys, EdgeKind.Wall);
                     break;
                 case KnownObject.SmallDoor or KnownObject.DoubleDoor:
                     doors.UnionWith(keys);
-                    Put(edges, keys, 'D');
+                    Put(edges, keys, EdgeKind.Door);
                     break;
                 case KnownObject.DoubleDoorFrame or KnownObject.SmallDoorFrame:
                     doors.UnionWith(keys);
-                    Put(edges, keys, sprite.Position.Z <= -40 ? 'O' : 'F');
+                    Put(edges, keys, sprite.Position.Z <= -40 ? EdgeKind.Doorway : EdgeKind.ShutDoor);
                     break;
                 case KnownObject.BreakableWall or KnownObject.BreakableWall2 or KnownObject.SpawnWallSlash or KnownObject.SpawnWallBack or KnownObject.SmallMonsterHole or KnownObject.BigMonsterHole:
-                    Put(edges, keys, 'S');
+                    Put(edges, keys, EdgeKind.SecretWall);
                     break;
                 case KnownObject.BrokenWall or KnownObject.BrokenWall2:
-                    Put(edges, keys, 'B');
+                    Put(edges, keys, EdgeKind.BrokenWall);
                     break;
                 default:
-                    Put(edges, keys, 'W');
+                    Put(edges, keys, EdgeKind.Wall);
                     break;
             }
         }
@@ -201,9 +201,9 @@ public static class RouteGridBuilder
         frames.ExceptWith(doors);
         foreach (var frame in frames)
         {
-            if (edges.TryGetValue(frame, out char kind) && kind == 'W')
+            if (edges.TryGetValue(frame, out EdgeKind kind) && kind == EdgeKind.Wall)
             {
-                edges[frame] = 'O';
+                edges[frame] = EdgeKind.Doorway;
             }
         }
 
@@ -212,11 +212,11 @@ public static class RouteGridBuilder
 
     private static float GetMiss(float t) => Math.Abs(t - MathF.Round(t));
 
-    private static void Put(Dictionary<EdgeKey, char> edges, IReadOnlyList<EdgeKey> keys, char kind)
+    private static void Put(Dictionary<EdgeKey, EdgeKind> edges, IReadOnlyList<EdgeKey> keys, EdgeKind kind)
     {
         foreach (var key in keys)
         {
-            int current = edges.TryGetValue(key, out char existing) ? Rank[existing] : -1;
+            int current = edges.TryGetValue(key, out EdgeKind existing) ? Rank[existing] : -1;
             if (Rank[kind] >= current)
             {
                 edges[key] = kind;

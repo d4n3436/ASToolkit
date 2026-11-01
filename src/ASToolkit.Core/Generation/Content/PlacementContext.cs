@@ -3,7 +3,6 @@ using ASToolkit.Core.Formats;
 using ASToolkit.Core.Generation.Geometry;
 using ASToolkit.Core.Generation.Layout;
 using ASToolkit.Core.Levels;
-using ASToolkit.Core.Routes;
 
 namespace ASToolkit.Core.Generation.Content;
 
@@ -291,7 +290,7 @@ public sealed class PlacementContext
         return true;
     }
 
-    private bool IsBlockingEdge(EdgeKey k) => Layout.Edges.TryGetValue(k, out char kind) && RouteGrid.IsBlocking(kind);
+    private bool IsBlockingEdge(EdgeKey k) => Layout.Edges.TryGetValue(k, out EdgeKind kind) && kind.BlocksWalking;
 
     /// <summary>
     /// Returns the walking distance of every reachable cell from a cell, in cell steps, with every door open.

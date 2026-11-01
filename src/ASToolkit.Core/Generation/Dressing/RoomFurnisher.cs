@@ -28,7 +28,6 @@ public sealed class RoomFurnisher
     private static readonly float MaxSizeLog = MathF.Log(3);
     private const int SourceLevel = -2;
     private const float FloorHeight = 5;
-    private const int CratePayload = 12;
     private const float ClearanceSlack = 0.05f;
     private static readonly (float Min, float Max) DensityJitter = (0.8f, 1.2f);
 
@@ -71,7 +70,7 @@ public sealed class RoomFurnisher
     /// <param name="facings">How the originals turn pieces against walls.</param>
     /// <param name="clearance">How close the originals stand pieces to walls.</param>
     public (Dictionary<int, RoomType> Types, List<PlacedDecor> Decor) Furnish(Random rng, LayoutPlan plan, FineLayout layout, RoomAtlas original,
-        IReadOnlySet<Cell> keepClear, Lattice wallLattice, IReadOnlyDictionary<EdgeKey, char> walls, FacingTable facings, WallClearanceTable clearance)
+        IReadOnlySet<Cell> keepClear, Lattice wallLattice, IReadOnlyDictionary<EdgeKey, EdgeKind> walls, FacingTable facings, WallClearanceTable clearance)
     {
         var own = Prepare(RoomRecipe.Measure(original.Rooms, layout.Lattice));
         var types = AssignTypes(rng, plan, layout, original);
@@ -442,7 +441,7 @@ public sealed class RoomFurnisher
                     break;
                 }
 
-                if (piece.Z < FloorHeight && PartFinder.GetFamily(piece.Id) is not null)
+                if (piece.Z < FloorHeight && piece.Id.Family is not null)
                 {
                     var box = GetFootprint(piece, x, y);
                     if (room.Boxes.Any(other => other.Overlaps(box)))
@@ -469,7 +468,7 @@ public sealed class RoomFurnisher
             foreach (var piece in pieces)
             {
                 (float pu, float pv) = lattice.ToLattice(x0 + piece.X, y0 + piece.Y);
-                placed.Add(new PlacedDecor(piece.Id, pu, pv, piece.Z, piece.Facing, piece.Id == KnownObject.Crate ? new byte[CratePayload] : piece.Payload, (SourceLevel, placed.Count), null));
+                placed.Add(new PlacedDecor(piece.Id, pu, pv, piece.Z, piece.Facing, piece.Id == KnownObject.Crate ? KnownObject.CreateEmptyCratePayload() : piece.Payload, (SourceLevel, placed.Count), null));
             }
 
             return true;
@@ -484,9 +483,9 @@ public sealed class RoomFurnisher
     {
         private readonly Dictionary<(string, int), int> _sources = [];
         private readonly Dictionary<string, List<PointF>> _origins = [];
-        private readonly IReadOnlyDictionary<EdgeKey, char> _edges;
+        private readonly IReadOnlyDictionary<EdgeKey, EdgeKind> _edges;
 
-        public Room(HashSet<Cell> cells, IReadOnlyDictionary<EdgeKey, char> edges, HashSet<RoomPart> used, Dictionary<KnownObject, int> caps, Dictionary<KnownObject, int> counts)
+        public Room(HashSet<Cell> cells, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, HashSet<RoomPart> used, Dictionary<KnownObject, int> caps, Dictionary<KnownObject, int> counts)
         {
             Cells = cells;
             Floor = cells.ToArray();
@@ -568,7 +567,7 @@ public sealed class RoomFurnisher
     }
 
     // Turn and stand a piece only as the originals do by the walls around it
-    private readonly record struct Standing(Lattice Lattice, IReadOnlyDictionary<EdgeKey, char> Walls, FacingTable Facings, WallClearanceTable Clearance)
+    private readonly record struct Standing(Lattice Lattice, IReadOnlyDictionary<EdgeKey, EdgeKind> Walls, FacingTable Facings, WallClearanceTable Clearance)
     {
         public bool Allows(KnownObject id, byte facing, float z, float x, float y)
         {

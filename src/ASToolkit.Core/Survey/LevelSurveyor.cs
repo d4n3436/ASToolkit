@@ -32,20 +32,6 @@ public sealed class LevelSurveyor
         KnownObject.ExplosionSpark, KnownObject.BlastMark, KnownObject.Crate, KnownObject.WallInscriptions, KnownObject.WallObjects, KnownObject.BrokenKeypad
     ];
 
-    private static readonly (PlaceFurnishing Kind, KnownObject[] Ids)[] FurnitureKinds =
-    [
-        (PlaceFurnishing.Office, [KnownObject.Table, KnownObject.Chair, KnownObject.Monitor, KnownObject.MonitorDead, KnownObject.Computer, KnownObject.ComputerDead,
-            KnownObject.ScatteredPaper, KnownObject.Telephone, KnownObject.NewChair]),
-        (PlaceFurnishing.Lab, [KnownObject.TestTubes, KnownObject.LabEquipment, KnownObject.ExperimentFlasks, KnownObject.RadioactiveFlask]),
-        (PlaceFurnishing.Storage, [KnownObject.Shelves, KnownObject.Cabinet, KnownObject.Boxes, KnownObject.Crate, KnownObject.Barrel, KnownObject.Cylinder,
-            KnownObject.RadioactiveBarrel, KnownObject.PetrolGenerator]),
-        (PlaceFurnishing.Depot, [KnownObject.Container, KnownObject.Container2, KnownObject.Container2Alt, KnownObject.BioContainer, KnownObject.Truck, KnownObject.Missile]),
-        (PlaceFurnishing.MachineRoom, [KnownObject.Transformer, KnownObject.ElectricPanel, KnownObject.BigComputer]),
-        (PlaceFurnishing.LivingQuarters, [KnownObject.Toilet, KnownObject.Books, KnownObject.GymEquipment, KnownObject.Television, KnownObject.RecordPlayer, KnownObject.TrashCan,
-            KnownObject.Windows, KnownObject.Boards, KnownObject.StreetLamp]),
-        (PlaceFurnishing.Lounge, [KnownObject.Plant, KnownObject.WaterCylinder])
-    ];
-
     private readonly MapResourceBuilder _map;
     private readonly LevelScriptSummary _script;
     private readonly RouteAnalysis _analysis;
@@ -94,7 +80,7 @@ public sealed class LevelSurveyor
     {
         var measurement = LevelMeasurer.Measure(_map, _script, _analysis, _objects);
         var setting = FindSetting();
-        bool openPlan = setting != LevelTheme.Lab || !_grid.Edges.Values.Any(kind => kind is 'D' or 'O' or 'F');
+        bool openPlan = setting != LevelTheme.Lab || !_grid.Edges.Values.Any(kind => kind is EdgeKind.Door or EdgeKind.Doorway or EdgeKind.ShutDoor);
         var segmenter = new PlaceSegmenter((int)(MaxOpeningPixels / _step), (int)(MaxStubPixels / _step), (int)MathF.Ceiling(MinPlacePixels / CellArea),
             (int)(MaxClosetPixels / CellArea), (int)MathF.Round(MinRoomPixels / _step), (int)MathF.Round(MinCorridorPixels / _step), (int)(PocketPixels / CellArea));
         _segments = segmenter.Segment(_grid, _analysis.Tour.ToHashSet(), FindRoofedCells(), openPlan, FindContentCells());
@@ -179,7 +165,7 @@ public sealed class LevelSurveyor
         var floor = _segments.Floor;
         var start = _analysis.Tour[0];
         var zones = new Dictionary<Cell, GateZone>();
-        var open = PlaceSegmenter.Flood(floor, [start], edge => IsWall(edge) || Is(edge, 'S'));
+        var open = floor.Flood([start], edge => IsWall(edge) || Is(edge, EdgeKind.SecretWall));
         foreach (var cell in floor)
         {
             zones[cell] = open.Contains(cell) ? GateZone.Open : GateZone.Secret;
@@ -187,7 +173,7 @@ public sealed class LevelSurveyor
 
         if (style == LevelStyle.LockedDoors)
         {
-            Mark(PlaceSegmenter.Flood(floor, [start], edge => IsWall(edge) || Is(edge, 'S') || Is(edge, 'D')), GateZone.Locked);
+            Mark(floor.Flood([start], edge => IsWall(edge) || Is(edge, EdgeKind.SecretWall) || Is(edge, EdgeKind.Door)), GateZone.Locked);
         }
 
         var blackout = _script.Blackout;
@@ -196,13 +182,13 @@ public sealed class LevelSurveyor
             var from = FindNearest(blackout.Value.Center.X, blackout.Value.Center.Y, floor);
             if (from is not null)
             {
-                Mark(PlaceSegmenter.Flood(floor, [from.Value], edge => IsWall(edge) || Is(edge, 'S') || Is(edge, 'D')), GateZone.Blackout);
+                Mark(floor.Flood([from.Value], edge => IsWall(edge) || Is(edge, EdgeKind.SecretWall) || Is(edge, EdgeKind.Door)), GateZone.Blackout);
             }
         }
 
         if (_grid.FenceEdges.Count > 0)
         {
-            Mark(PlaceSegmenter.Flood(floor, [start], edge => IsWall(edge) || Is(edge, 'S') || _grid.FenceEdges.Contains(edge)), GateZone.Fenced);
+            Mark(floor.Flood([start], edge => IsWall(edge) || Is(edge, EdgeKind.SecretWall) || _grid.FenceEdges.Contains(edge)), GateZone.Fenced);
         }
 
         return zones;
@@ -216,9 +202,9 @@ public sealed class LevelSurveyor
         }
     }
 
-    private bool Is(EdgeKey edge, char kind) => _grid.Edges.TryGetValue(edge, out char found) && found == kind;
+    private bool Is(EdgeKey edge, EdgeKind kind) => _grid.Edges.TryGetValue(edge, out EdgeKind found) && found == kind;
 
-    private bool IsWall(EdgeKey edge) => _grid.Edges.TryGetValue(edge, out char kind) && kind is 'W' or 'F';
+    private bool IsWall(EdgeKey edge) => _grid.Edges.TryGetValue(edge, out EdgeKind kind) && kind.BlocksWalking;
 
     private void BuildPlaces(Dictionary<Cell, GateZone> zones)
     {
@@ -242,7 +228,7 @@ public sealed class LevelSurveyor
             }
         }
 
-        Func<EdgeKey, bool> closed = edge => IsWall(edge) || Is(edge, 'S');
+        Func<EdgeKey, bool> closed = edge => IsWall(edge) || Is(edge, EdgeKind.SecretWall);
         var fromStart = MeasureWalks(_grid.Cells, [tour[0]], closed, out _);
         var fromTour = MeasureWalks(_grid.Cells, tour.Distinct(), closed, out var previous);
 
@@ -403,15 +389,15 @@ public sealed class LevelSurveyor
                     continue;
                 }
 
-                ConnectionKind? kind = _grid.Edges.TryGetValue(edge, out char edgeKind)
+                ConnectionKind? kind = _grid.Edges.TryGetValue(edge, out EdgeKind edgeKind)
                     ? edgeKind switch
                     {
-                        'D' => locking ? ConnectionKind.LockedDoor : ConnectionKind.Door,
-                        'O' => ConnectionKind.Doorway,
-                        'F' => ConnectionKind.JammedDoor,
-                        'S' => GetBreakableKind(edge, breakables),
-                        'B' => ConnectionKind.BrokenWall,
-                        'G' => _grid.FenceEdges.Contains(edge) ? ConnectionKind.Fence : ConnectionKind.FenceFrame,
+                        EdgeKind.Door => locking ? ConnectionKind.LockedDoor : ConnectionKind.Door,
+                        EdgeKind.Doorway => ConnectionKind.Doorway,
+                        EdgeKind.ShutDoor => ConnectionKind.JammedDoor,
+                        EdgeKind.SecretWall => GetBreakableKind(edge, breakables),
+                        EdgeKind.BrokenWall => ConnectionKind.BrokenWall,
+                        EdgeKind.FenceFrame => _grid.FenceEdges.Contains(edge) ? ConnectionKind.Fence : ConnectionKind.FenceFrame,
                         _ => null
                     }
                     : ConnectionKind.Opening;
@@ -453,7 +439,7 @@ public sealed class LevelSurveyor
             .Select((run, index) => (new PlaceConnection { Id = index + 1, A = run.A, B = run.B, Kind = run.Kind, Edges = EdgeRun.Create(run.Edges) }, run.Edges))
             .ToList();
 
-        foreach (var (edge, _) in _grid.Edges.Where(pair => pair.Value == 'F'))
+        foreach (var (edge, _) in _grid.Edges.Where(pair => pair.Value == EdgeKind.ShutDoor))
         {
             var (one, two) = edge.Cells;
             if (_segments.Floor.Contains(one) != _segments.Floor.Contains(two))
@@ -1131,18 +1117,18 @@ public sealed class LevelSurveyor
         int placedTotal = Math.Max(1, encounters.Where(encounter => encounter.Kind == EncounterKind.PlacedGroup).Sum(encounter => encounter.HitPoints));
         
         var furniture = _map.Sprites
-            .Where(sprite => FurnitureKinds.Any(kind => kind.Ids.Contains(sprite.Id)))
-            .OrderBy(sprite => (int)sprite.Id)
-            .Select(sprite => (Sprite: sprite, Place: GetPlaceNear(sprite.Position.X, sprite.Position.Y, anywhere: false)))
-            .Where(entry => entry.Place != 0)
-            .ToLookup(entry => entry.Place, entry => entry.Sprite.Id);
+            .Where(sprite => sprite.Id.Family is not null || sprite.Id == KnownObject.ScatteredPaper)
+            .Select(sprite => GetPlaceNear(sprite.Position.X, sprite.Position.Y, anywhere: false))
+            .Where(place => place != 0)
+            .CountBy(place => place)
+            .ToDictionary();
         
         foreach (var place in _places)
         {
             var here = landmarks.Where(landmark => landmark.Place == place.Id).Select(landmark => landmark.Kind).ToHashSet();
             var fights = encounters.Where(encounter => encounter.Place == place.Id).ToArray();
             var groups = fights.Where(encounter => encounter.Kind == EncounterKind.PlacedGroup).ToArray();
-            place.Furnishing = GetFurnishing(furniture[place.Id], place.Kind);
+            place.FurniturePieces = furniture.GetValueOrDefault(place.Id);
             place.Use = place.Kind == PlaceKind.SecretCloset ? PlaceUse.Stash
                 : here.Contains(LandmarkKind.Boss) ? PlaceUse.BossDen
                 : here.Contains(LandmarkKind.Breaker) && !place.Tags.HasFlag(PlaceTags.Hub) ? PlaceUse.BreakerRoom
@@ -1165,32 +1151,6 @@ public sealed class LevelSurveyor
         int military = _map.Sprites.Count(sprite => sprite.Id == KnownObject.MilitaryFloor);
         int lab = _map.Sprites.Count(sprite => sprite.Id is KnownObject.BasementFloor or KnownObject.BasementFloorAlt);
         return military > lab ? LevelTheme.Military : LevelTheme.Lab;
-    }
-
-    private static PlaceFurnishing GetFurnishing(IEnumerable<KnownObject> ids, PlaceKind kind)
-    {
-        var counts = new Dictionary<PlaceFurnishing, int>();
-        int total = 0;
-        foreach (var id in ids)
-        {
-            foreach (var (furnishing, members) in FurnitureKinds)
-            {
-                if (members.Contains(id))
-                {
-                    counts[furnishing] = counts.GetValueOrDefault(furnishing) + 1;
-                    total++;
-                    break;
-                }
-            }
-        }
-
-        if (total < 3)
-        {
-            return kind == PlaceKind.Corridor ? PlaceFurnishing.Passage : PlaceFurnishing.Bare;
-        }
-
-        var best = counts.MaxBy(pair => pair.Value);
-        return best.Value * 2 >= total ? best.Key : PlaceFurnishing.Furnished;
     }
 
     private LevelGate[] DescribeGates(LevelStyle style, LevelLandmark[] landmarks)
@@ -1474,7 +1434,7 @@ public sealed class LevelSurveyor
 
         public PlaceUse Use { get; set; }
 
-        public PlaceFurnishing Furnishing { get; set; }
+        public int FurniturePieces { get; set; }
 
         public int ThreatHitPoints { get; set; }
 
@@ -1486,7 +1446,7 @@ public sealed class LevelSurveyor
             Cells = Cells,
             Center = Center,
             Use = Use,
-            Furnishing = Furnishing,
+            FurniturePieces = FurniturePieces,
             Tags = Tags,
             AreaPixels = AreaPixels,
             LengthPixels = LengthPixels,

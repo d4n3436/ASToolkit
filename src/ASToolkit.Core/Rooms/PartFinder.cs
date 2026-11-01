@@ -38,43 +38,18 @@ internal sealed class PartFinder
     };
 
     private readonly Lattice _lattice;
-    private readonly IReadOnlyDictionary<EdgeKey, char> _edges;
+    private readonly IReadOnlyDictionary<EdgeKey, EdgeKind> _edges;
 
-    public PartFinder(Lattice lattice, IReadOnlyDictionary<EdgeKey, char> edges)
+    public PartFinder(Lattice lattice, IReadOnlyDictionary<EdgeKey, EdgeKind> edges)
     {
         _lattice = lattice;
         _edges = edges;
     }
 
-    public static PieceFamily? GetFamily(KnownObject id) => id switch
-    {
-        KnownObject.Table => PieceFamily.Table,
-        KnownObject.Chair or KnownObject.NewChair => PieceFamily.Chair,
-        KnownObject.Monitor or KnownObject.MonitorDead or KnownObject.Computer or KnownObject.ComputerDead => PieceFamily.Computer,
-        KnownObject.Cabinet => PieceFamily.Cabinet,
-        KnownObject.Shelves => PieceFamily.Shelf,
-        KnownObject.Crate => PieceFamily.Crate,
-        KnownObject.Boxes => PieceFamily.Boxes,
-        KnownObject.Barrel or KnownObject.RadioactiveBarrel => PieceFamily.Barrel,
-        KnownObject.Cylinder => PieceFamily.Cylinder,
-        KnownObject.Container or KnownObject.Container2 or KnownObject.Container2Alt => PieceFamily.Container,
-        KnownObject.Truck => PieceFamily.Truck,
-        KnownObject.Missile => PieceFamily.Missile,
-        KnownObject.TestTubes or KnownObject.LabEquipment or KnownObject.ExperimentFlasks or KnownObject.RadioactiveFlask => PieceFamily.Labware,
-        KnownObject.BigComputer => PieceFamily.Console,
-        KnownObject.BioContainer => PieceFamily.Bank,
-        KnownObject.Transformer or KnownObject.ElectricPanel or KnownObject.PetrolGenerator => PieceFamily.Machine,
-        KnownObject.Plant => PieceFamily.Plant,
-        KnownObject.WaterCylinder => PieceFamily.Water,
-        KnownObject.StreetLamp or KnownObject.Windows or KnownObject.Boards or KnownObject.Books or KnownObject.GymEquipment or KnownObject.Toilet or KnownObject.Telephone
-            or KnownObject.RecordPlayer or KnownObject.TrashCan or KnownObject.Television => PieceFamily.Household,
-        _ => null
-    };
-
     public (IReadOnlyList<RoomPart> Parts, IReadOnlyDictionary<KnownObject, int> Scatter) Find((string Map, int Place) room, IReadOnlyList<Cell> cells, IReadOnlyList<MergedMapSprite> pieces)
     {
         var scatter = pieces.Where(piece => Scattered.Contains(piece.Id)).GroupBy(piece => piece.Id).OrderBy(group => group.Key).ToDictionary(group => group.Key, group => group.Count());
-        var furniture = pieces.Select(piece => (Piece: piece, Family: GetFamily(piece.Id))).Where(entry => entry.Family is not null).ToArray();
+        var furniture = pieces.Select(piece => (Piece: piece, Family: piece.Id.Family)).Where(entry => entry.Family is not null).ToArray();
         int[] root = Enumerable.Range(0, furniture.Length).ToArray();
         for (int index = 0; index < furniture.Length; index++)
         {

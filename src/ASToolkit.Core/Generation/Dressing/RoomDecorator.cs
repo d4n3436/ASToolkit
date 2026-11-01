@@ -21,8 +21,6 @@ public static class RoomDecorator
     private const float WallSignReach = 0.8f;
     private const int MarkSource = -6;
 
-    private static readonly KnownObject[] BloodIds = [KnownObject.SmallBloodPool, KnownObject.BloodPool, KnownObject.VerticalBloodPool, KnownObject.LargeBloodPool];
-    private static readonly KnownObject[] CorpseIds = [KnownObject.ScientistCorpse, KnownObject.SoldierCorpse];
 
     /// <summary>
     /// Thins the blood and the corpses to their rates per floor cell, leaves blood in the last two stations with a corpse and gibs in the
@@ -39,9 +37,9 @@ public static class RoomDecorator
         }
 
         int index = 0;
-        var corpsesBefore = decor.Where(piece => CorpseIds.Contains(piece.Id)).ToArray();
+        var corpsesBefore = decor.Where(piece => piece.Id.IsCorpse).ToArray();
         var blood = decor
-            .Where(piece => BloodIds.Contains(piece.Id) && !corpsesBefore.Any(corpse => IsNear(layout.Lattice, piece, corpse, BloodReach)))
+            .Where(piece => piece.Id.IsBlood && !corpsesBefore.Any(corpse => IsNear(layout.Lattice, piece, corpse, BloodReach)))
             .ToArray();
         
         int bloodCap = (int)(floor.Count * bloodRate);
@@ -58,7 +56,7 @@ public static class RoomDecorator
         }
 
         var corpses = decor
-            .Where(piece => CorpseIds.Contains(piece.Id))
+            .Where(piece => piece.Id.IsCorpse)
             .ToArray();
         
         int corpseCap = (int)(floor.Count * corpseRate);
@@ -96,9 +94,9 @@ public static class RoomDecorator
         }
 
         // Lay every corpse on blood
-        foreach (var corpse in decor.Where(piece => CorpseIds.Contains(piece.Id)).ToArray())
+        foreach (var corpse in decor.Where(piece => piece.Id.IsCorpse).ToArray())
         {
-            if (!decor.Any(piece => BloodIds.Contains(piece.Id) && IsNear(layout.Lattice, piece, corpse, BloodReach)) && themeDecor.Contains(KnownObject.SmallBloodPool))
+            if (!decor.Any(piece => piece.Id.IsBlood && IsNear(layout.Lattice, piece, corpse, BloodReach)) && themeDecor.Contains(KnownObject.SmallBloodPool))
             {
                 decor.Add(new PlacedDecor(KnownObject.SmallBloodPool, corpse.U, corpse.V, themeDecor.GetMiddleHeight(KnownObject.SmallBloodPool), 0, [], (BloodSource, index++), null));
             }
@@ -122,7 +120,7 @@ public static class RoomDecorator
                 return;
             }
 
-            byte[] payload = id == KnownObject.Crate ? new byte[12] : [];
+            byte[] payload = id == KnownObject.Crate ? KnownObject.CreateEmptyCratePayload() : [];
             decor.Add(new PlacedDecor(id, cell.U + 0.5f, cell.V + 0.5f, themeDecor.GetMiddleHeight(id), dir, payload, (PlantSource, index++), null));
             taken.Add(cell);
         }
@@ -168,7 +166,7 @@ public static class RoomDecorator
     /// <summary>
     /// Returns the decor of a military level without the floor stripes that lie away from any missile and the wall signs off a wall.
     /// </summary>
-    public static IEnumerable<PlacedDecor> RemoveStrayMarks(LevelTheme theme, IReadOnlyList<PlacedDecor> decor, IReadOnlyDictionary<EdgeKey, char> edges, Lattice lattice)
+    public static IEnumerable<PlacedDecor> RemoveStrayMarks(LevelTheme theme, IReadOnlyList<PlacedDecor> decor, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, Lattice lattice)
     {
         if (theme != LevelTheme.Military)
         {

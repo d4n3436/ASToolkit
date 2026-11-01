@@ -542,7 +542,7 @@ public sealed class OutdoorLevelBuilder
 
                     foreach (var spot in spots)
                     {
-                        Map.Add(spot.Sprite.Id, spot.X, spot.Y, spot.Sprite.Position.Z, (int)spot.Sprite.Dir, spot.Sprite.Id == KnownObject.Crate ? new byte[12] : default, unique: false);
+                        Map.Add(spot.Sprite.Id, spot.X, spot.Y, spot.Sprite.Position.Z, (int)spot.Sprite.Dir, spot.Sprite.Id == KnownObject.Crate ? KnownObject.CreateEmptyCratePayload() : default, unique: false);
                     }
 
                     _taken.UnionWith(cells);

@@ -1,4 +1,4 @@
-namespace ASToolkit.Core.Rooms;
+namespace ASToolkit.Core.Levels;
 
 /// <summary>
 /// Specifies the kind of furniture a piece is, for grouping pieces into parts of a room.

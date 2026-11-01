@@ -14,8 +14,6 @@ public sealed class OriginalContent
     private const float MissileMarkReach = 90;
     private const float WallSignHeight = 60;
 
-    private static readonly HashSet<KnownObject> DoorIds = [KnownObject.SmallDoor, KnownObject.DoubleDoor, KnownObject.SmallDoorFrame, KnownObject.DoubleDoorFrame, KnownObject.FenceEmitter];
-
     /// <summary>Gets the level name.</summary>
     public required string Name { get; init; }
 
@@ -205,7 +203,7 @@ public sealed class OriginalContent
     public static (Dictionary<(KnownObject Id, byte Dir), List<IReadOnlyList<PropPlacement>>> Marks, float Share) LoadDoorMarks(MapResourceBuilder map)
     {
         var marks = new Dictionary<(KnownObject, byte), List<IReadOnlyList<PropPlacement>>>();
-        var doors = map.Sprites.Where(s => DoorIds.Contains(s.Id)).ToArray();
+        var doors = map.Sprites.Where(s => s.Id.IsDoor || s.Id == KnownObject.FenceEmitter).ToArray();
         foreach (var door in doors)
         {
             var near = map.Sprites.Where(o => o.Id == KnownObject.WallInscriptions && MathF.Sqrt(MathF.Pow(o.Position.X - door.Position.X, 2) + MathF.Pow(o.Position.Y - door.Position.Y, 2)) < DoorMarkReach)

@@ -4,7 +4,6 @@ namespace ASToolkit.Core.Levels;
 
 /// <summary>
 /// Represents a level reduced to floor cells, wall edges and dressing on its theme's lattice.
-/// Edge kinds are 'W' for walls, 'D' for doors and 'F' for fake or built-in doors.
 /// </summary>
 public sealed class LevelModel
 {
@@ -31,7 +30,7 @@ public sealed class LevelModel
     /// <summary>
     /// Gets the wall edges by kind.
     /// </summary>
-    public required IReadOnlyDictionary<EdgeKey, char> Edges { get; init; }
+    public required IReadOnlyDictionary<EdgeKey, EdgeKind> Edges { get; init; }
 
     /// <summary>
     /// Gets the dressing objects.

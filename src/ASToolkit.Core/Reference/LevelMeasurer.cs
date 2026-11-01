@@ -61,7 +61,7 @@ public static class LevelMeasurer
             return LevelStyle.Fenced;
         }
 
-        bool hasDoors = analysis.Grid.Edges.Values.Any(v => v == 'D');
+        bool hasDoors = analysis.Grid.Edges.Values.Any(v => v == EdgeKind.Door);
         bool hasBreaker = analysis.Elements.Any(e => e.Kind == ElementKind.Breaker);
         if (hasDoors && hasBreaker && script.Blackout is not null)
         {
@@ -84,7 +84,7 @@ public static class LevelMeasurer
             .ToArray();
         
         var itemsByCell = map.Sprites
-            .Where(s => ItemCategorizer.GetCategory(s.Id) is not null || (s.Id == KnownObject.Crate && KnownObject.GetCrateItem(s.Payload) != 0))
+            .Where(s => s.Id.PickupCategory is not null || (s.Id == KnownObject.Crate && KnownObject.GetCrateItem(s.Payload) != 0))
             .ToLookup(s => lattice.GetCell(s.Position.X, s.Position.Y), s => s.Id == KnownObject.Crate ? KnownObject.GetCrateItem(s.Payload) : s.Id);
         
         var items = itemsByCell
@@ -100,14 +100,14 @@ public static class LevelMeasurer
             .Select(s => lattice.GetCell(s.Position.X, s.Position.Y))
             .ToHashSet();
         
-        var open = Flood(grid, [analysis.Tour[0]], IsClosed);
+        var open = grid.Cells.Flood([analysis.Tour[0]], IsClosed);
         var counted = new HashSet<Cell>();
         var shortcutWalls = new HashSet<int>();
         var closets = new List<SecretCloset>();
         
-        foreach ((var edge, char kind) in grid.Edges)
+        foreach ((var edge, EdgeKind kind) in grid.Edges)
         {
-            if (kind != 'S')
+            if (kind != EdgeKind.SecretWall)
             {
                 continue;
             }
@@ -135,7 +135,7 @@ public static class LevelMeasurer
                 continue;
             }
 
-            var pocket = Flood(grid, [inside], IsClosed);
+            var pocket = grid.Cells.Flood([inside], IsClosed);
             counted.UnionWith(pocket);
             if (pocket.Count <= MaxClosetCells && pocket.Overlaps(items) && !pocket.Overlaps(spawners))
             {
@@ -147,33 +147,6 @@ public static class LevelMeasurer
 
         return (closets, shortcutWalls.Count);
         
-        bool IsClosed(EdgeKey k) => grid.Edges.TryGetValue(k, out char kind) && (RouteGrid.IsBlocking(kind) || kind == 'S');
-    }
-
-    private static HashSet<Cell> Flood(RouteGrid grid, IEnumerable<Cell> sources, Func<EdgeKey, bool> isClosed)
-    {
-        var seen = new HashSet<Cell>();
-        var queue = new Queue<Cell>();
-        foreach (var source in sources)
-        {
-            if (grid.Cells.Contains(source) && seen.Add(source))
-            {
-                queue.Enqueue(source);
-            }
-        }
-
-        while (queue.Count > 0)
-        {
-            var c = queue.Dequeue();
-            foreach (var (n, k) in EdgeKey.GetNeighbors(c))
-            {
-                if (grid.Cells.Contains(n) && !isClosed(k) && seen.Add(n))
-                {
-                    queue.Enqueue(n);
-                }
-            }
-        }
-
-        return seen;
+        bool IsClosed(EdgeKey k) => grid.Edges.TryGetValue(k, out EdgeKind kind) && kind.IsClosed;
     }
 }

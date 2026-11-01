@@ -58,7 +58,7 @@ public static class StructureBuilder
         bool military = plan.Theme.Theme == LevelTheme.Military;
         
         var candidates = layout.Edges
-            .Where(p => p.Value == 'W')
+            .Where(p => p.Value == EdgeKind.Wall)
             .Select(p => p.Key)
             .Where(k =>
             {
@@ -77,7 +77,7 @@ public static class StructureBuilder
         var candidateSet = candidates.ToHashSet();
         int count = rng.Next(2, 6);
         var doors = layout.Edges
-            .Where(p => p.Value is 'D' or 'E' or 'e' or 'O')
+            .Where(p => p.Value is EdgeKind.Door or EdgeKind.DoubleDoor or EdgeKind.DoubleDoorEnd or EdgeKind.Doorway)
             .Select(p => GetEdgeCenter(layout.Lattice, p.Key))
             .ToList();
 
@@ -112,8 +112,8 @@ public static class StructureBuilder
     /// Builds the lab floors, walls, doors and posts of the visible edges, then the walls, sunk under the roof and without posts, that
     /// close the closets off from the void, and returns the sprite index of each spawn wall.
     /// </summary>
-    public static Dictionary<EdgeKey, int> BuildLab(Random rng, MapBuilder map, FineLayout layout, IReadOnlyDictionary<EdgeKey, char> edges,
-        Random closetRng, IReadOnlyDictionary<EdgeKey, char> closetEdges)
+    public static Dictionary<EdgeKey, int> BuildLab(Random rng, MapBuilder map, FineLayout layout, IReadOnlyDictionary<EdgeKey, EdgeKind> edges,
+        Random closetRng, IReadOnlyDictionary<EdgeKey, EdgeKind> closetEdges)
     {
         foreach (var cell in layout.Cells.Keys.OrderBy(c => c.U).ThenBy(c => c.V))
         {
@@ -134,28 +134,28 @@ public static class StructureBuilder
             map.Add(isDouble ? KnownObject.DoubleDoorFrame : KnownObject.SmallDoorFrame, x, y, isDouble ? RaisedDoubleDoorZ : RaisedSmallDoorZ, slash ? 0 : 128);
         }
 
-        foreach ((var edge, char kind) in edges)
+        foreach ((var edge, EdgeKind kind) in edges)
         {
             ((float x, float y), bool slash) = GetLabPosition(layout.Lattice, edge);
-            if (kind is 'e' or 'O' || skip.Contains(edge))
+            if (kind is EdgeKind.DoubleDoorEnd or EdgeKind.Doorway || skip.Contains(edge))
             {
                 continue;
             }
 
             switch (kind)
             {
-                case 'E':
+                case EdgeKind.DoubleDoor:
                     map.Add(KnownObject.DoubleDoorWall, x, y, 0, slash ? 0 : 128);
                     map.Add(KnownObject.DoubleDoor, x, y, 0, slash ? 0 : 64);
                     break;
-                case 'D':
+                case EdgeKind.Door:
                     map.Add(KnownObject.SmallDoorWall, x, y, 0, slash ? 0 : 128);
                     map.Add(KnownObject.SmallDoor, x, y, 0, slash ? 0 : 128);
                     break;
-                case 'S':
+                case EdgeKind.SecretWall:
                     map.Add(KnownObject.BreakableWall, x, y, 0, slash ? 0 : 128);
                     break;
-                case 'T':
+                case EdgeKind.SpawnWall:
                     spawnWalls[edge] = slash ? map.Add(KnownObject.SpawnWallSlash, x, y) : map.Add(KnownObject.SpawnWallBack, x, y, 0, 64);
                     break;
                 default:
@@ -180,7 +180,7 @@ public static class StructureBuilder
             map.Add(KnownObject.LabBeam, x, y, 0, BeamDirs[rng.Next(BeamDirs.Length)]);
         }
 
-        foreach (var edge in closetEdges.Where(p => p.Value == 'W').Select(p => p.Key))
+        foreach (var edge in closetEdges.Where(p => p.Value == EdgeKind.Wall).Select(p => p.Key))
         {
             ((float x, float y), bool slash) = GetLabPosition(layout.Lattice, edge);
             map.Add(slash ? KnownObject.LabWallSlash : KnownObject.LabWallBack, x, y, SunkenWallZ, LabWallDirs[closetRng.Next(LabWallDirs.Length)]);
@@ -193,10 +193,10 @@ public static class StructureBuilder
     /// <summary>
     /// Builds the military walls, doorway frames, posts and floor tiles of the visible edges.
     /// </summary>
-    public static void BuildMilitary(Random rng, MapBuilder map, FineLayout layout, IReadOnlyDictionary<EdgeKey, char> edges)
+    public static void BuildMilitary(Random rng, MapBuilder map, FineLayout layout, IReadOnlyDictionary<EdgeKey, EdgeKind> edges)
     {
         var l = layout.Lattice;
-        var arches = edges.Where(p => p.Value == 'O').Select(p => p.Key).ToHashSet();
+        var arches = edges.Where(p => p.Value == EdgeKind.Doorway).Select(p => p.Key).ToHashSet();
         foreach (var edge in edges.Keys)
         {
             float x, y;
@@ -324,12 +324,12 @@ public static class StructureBuilder
     }
 
     // An open doorway is a pair of edges under one sunken double frame, or a single edge under a single one
-    private static IEnumerable<(EdgeKey Piece, bool IsDouble)> GetArchPieces(IReadOnlyDictionary<EdgeKey, char> edges)
+    private static IEnumerable<(EdgeKey Piece, bool IsDouble)> GetArchPieces(IReadOnlyDictionary<EdgeKey, EdgeKind> edges)
     {
         var lines = new Dictionary<(char Axis, int Line), List<EdgeKey>>();
-        foreach ((var key, char kind) in edges)
+        foreach ((var key, EdgeKind kind) in edges)
         {
-            if (kind != 'O')
+            if (kind != EdgeKind.Doorway)
             {
                 continue;
             }
@@ -384,7 +384,7 @@ public static class StructureBuilder
 
     private static bool IsEven(int value) => (value & 1) == 0;
 
-    private static bool HasMeetingWall(IReadOnlyDictionary<EdgeKey, char> edges, EdgeKey k)
+    private static bool HasMeetingWall(IReadOnlyDictionary<EdgeKey, EdgeKind> edges, EdgeKey k)
     {
         foreach ((int a, int b) in k.Axis == 'u' ? new[] { (k.A, k.B), (k.A, k.B + 1) } : new[] { (k.A, k.B), (k.A + 1, k.B) })
         {
@@ -401,7 +401,7 @@ public static class StructureBuilder
     }
 
     // Posts go where walls meet but don't run straight through
-    private static (int A, int B)[] FindPosts(IReadOnlyDictionary<EdgeKey, char> edges)
+    private static (int A, int B)[] FindPosts(IReadOnlyDictionary<EdgeKey, EdgeKind> edges)
     {
         var vertices = new List<(int, int)>();
         var seen = new HashSet<(int, int)>();

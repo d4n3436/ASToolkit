@@ -1,4 +1,5 @@
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Levels;
 
 namespace ASToolkit.Core.Generation.Content;
 
@@ -21,16 +22,6 @@ public static class ItemSchedule
     /// Returns the ammunition of a weapon.
     /// </summary>
     public static KnownObject GetAmmo(KnownObject weapon) => weapon + 40;
-
-    /// <summary>
-    /// Returns whether a pickup is a weapon.
-    /// </summary>
-    public static bool IsWeapon(KnownObject id) => id is >= KnownObject.Shotgun and <= KnownObject.MagmaMinigun;
-
-    /// <summary>
-    /// Returns whether a pickup is ammunition.
-    /// </summary>
-    public static bool IsAmmo(KnownObject id) => id is >= KnownObject.ShotgunAmmo and <= KnownObject.MagmaMinigunAmmo;
 
     /// <summary>
     /// Returns whether a pickup may lie on a level; secret closets may hold it a number of levels early.
@@ -56,7 +47,7 @@ public static class ItemSchedule
             return item;
         }
 
-        if (IsWeapon(item) || IsAmmo(item))
+        if (item.IsWeapon || item.IsAmmo)
         {
             var weapons = GetWeapons(level);
             return GetAmmo(weapons[rng.Next(weapons.Length)]);

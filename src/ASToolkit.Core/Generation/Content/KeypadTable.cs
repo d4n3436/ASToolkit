@@ -1,4 +1,5 @@
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Levels;
 
 namespace ASToolkit.Core.Generation.Content;
 
@@ -8,7 +9,6 @@ namespace ASToolkit.Core.Generation.Content;
 public sealed class KeypadTable
 {
     private const float Reach = 30;
-    private static readonly KnownObject[] Doors = [KnownObject.SmallDoor, KnownObject.DoubleDoor, KnownObject.DoubleDoorFrame, KnownObject.SmallDoorFrame];
 
     private readonly Dictionary<(KnownObject Door, byte DoorDir, bool Broken), List<PropPlacement>> _samples;
     private readonly Dictionary<KnownObject, float> _shares;
@@ -31,7 +31,7 @@ public sealed class KeypadTable
         {
             var sp = MapResourceBuilder.Load(Path.Combine(gameFolder, "Maps", level)).Sprites;
             var keypads = sp.Where(s => s.Id is KnownObject.KeypadOn or KnownObject.KeypadOff or KnownObject.BrokenKeypad).ToArray();
-            foreach (var door in sp.Where(s => Doors.Contains(s.Id)))
+            foreach (var door in sp.Where(s => s.Id.IsDoor))
             {
                 doors[door.Id] = doors.GetValueOrDefault(door.Id) + 1;
                 var keypad = keypads.FirstOrDefault(k => MathF.Sqrt(MathF.Pow(k.Position.X - door.Position.X, 2) + MathF.Pow(k.Position.Y - door.Position.Y, 2)) < Reach);

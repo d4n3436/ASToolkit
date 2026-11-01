@@ -39,9 +39,9 @@ public sealed class LevelPlace
     public required PlaceUse Use { get; init; }
 
     /// <summary>
-    /// Gets the furniture that fills most of it.
+    /// Gets the number of furniture pieces in it.
     /// </summary>
-    public required PlaceFurnishing Furnishing { get; init; }
+    public required int FurniturePieces { get; init; }
 
     /// <summary>
     /// Gets the facts that hold for it.

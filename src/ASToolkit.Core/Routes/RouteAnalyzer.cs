@@ -192,7 +192,7 @@ public static class RouteAnalyzer
                 return null;
             }
 
-            bool hasDoors = _grid.Edges.Values.Any(v => v == 'D');
+            bool hasDoors = _grid.Edges.Values.Any(v => v == EdgeKind.Door);
             bool doorsLocked = _script.DoorsLocked && hasDoors && objectives.Any(o => o.Kind == ObjectiveKind.Breaker);
             (Cell Cell, int Radius)? blackout = null;
             if (_script.Blackout is not null && hasDoors)
@@ -492,12 +492,12 @@ public static class RouteAnalyzer
                 return true;
             }
 
-            if (!_grid.Edges.TryGetValue(k, out char kind))
+            if (!_grid.Edges.TryGetValue(k, out EdgeKind kind))
             {
                 return false;
             }
 
-            return RouteGrid.IsBlocking(kind) || (gates.SecretsClosed && kind == 'S') || (gates.DoorsLocked && kind == 'D');
+            return kind.BlocksWalking || (gates.SecretsClosed && kind == EdgeKind.SecretWall) || (gates.DoorsLocked && kind == EdgeKind.Door);
         }
 
         private DistanceMap Search(IEnumerable<Cell> sources, Gates gates)
@@ -569,7 +569,7 @@ public static class RouteAnalyzer
                 var c = queue.Dequeue();
                 foreach (var (n, k) in EdgeKey.GetNeighbors(c))
                 {
-                    if (_grid.Cells.Contains(n) && !projection.ContainsKey(n) && !(_grid.Edges.TryGetValue(k, out char kind) && RouteGrid.IsBlocking(kind)))
+                    if (_grid.Cells.Contains(n) && !projection.ContainsKey(n) && !(_grid.Edges.TryGetValue(k, out EdgeKind kind) && kind.BlocksWalking))
                     {
                         projection[n] = projection[c];
                         queue.Enqueue(n);
@@ -706,11 +706,11 @@ public static class RouteAnalyzer
                 else if (i == KnownObject.Crate)
                 {
                     var item = KnownObject.GetCrateItem(sprite.Payload);
-                    Add(ElementKind.Crate, sprite, item == 0 ? null : ItemCategorizer.GetCategory(item), item);
+                    Add(ElementKind.Crate, sprite, item == 0 ? null : item.PickupCategory, item);
                 }
-                else if (ItemCategorizer.GetCategory(i) is not null)
+                else if (i.PickupCategory is not null)
                 {
-                    Add(ElementKind.Pickup, sprite, ItemCategorizer.GetCategory(i));
+                    Add(ElementKind.Pickup, sprite, i.PickupCategory);
                 }
             }
 
@@ -854,13 +854,13 @@ public static class RouteAnalyzer
             float? blackoutProgress = null;
             IReadOnlyList<int> breakerFromBlackout = [];
             var breakers = elements.Where(e => e.Kind == ElementKind.Breaker).ToArray();
-            bool hasDoors = _grid.Edges.Values.Any(v => v == 'D');
+            bool hasDoors = _grid.Edges.Values.Any(v => v == EdgeKind.Door);
             var doorsShut = new Gates(false, true, false);
             if ((_script.DoorsLocked || _script.Blackout is not null) && hasDoors)
             {
                 var zone = Search([start], doorsShut);
                 lockedShare = MathF.Round(1 - zone.Count / (float)Math.Max(1, fromStart.Count), 3);
-                var doorCells = _grid.Edges.Where(e => e.Value == 'D')
+                var doorCells = _grid.Edges.Where(e => e.Value == EdgeKind.Door)
                     .SelectMany(e => new[] { e.Key.Cells.First, e.Key.Cells.Second })
                     .Where(zone.ContainsKey).ToArray();
                 if (doorCells.Length > 0 && breakers.Length > 0)

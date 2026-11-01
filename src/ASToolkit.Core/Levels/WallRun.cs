@@ -10,9 +10,9 @@ namespace ASToolkit.Core.Levels;
 public sealed record WallRun(int Before, int After, bool StartsAtCorner, bool EndsAtCorner)
 {
     /// <summary>
-    /// Finds the run of 'W' edges that an edge belongs to.
+    /// Finds the run of wall edges that an edge belongs to.
     /// </summary>
-    public static WallRun Find(IReadOnlyDictionary<EdgeKey, char> edges, EdgeKey edge)
+    public static WallRun Find(IReadOnlyDictionary<EdgeKey, EdgeKind> edges, EdgeKey edge)
     {
         int before = 0;
         while (IsWall(Step(edge, -before - 1), edges))
@@ -47,7 +47,7 @@ public sealed record WallRun(int Before, int After, bool StartsAtCorner, bool En
     /// </summary>
     public bool IsEnclosed(int openEndDistance) => (StartsAtCorner || Before >= openEndDistance) && (EndsAtCorner || After >= openEndDistance);
     
-    private static bool IsWall(EdgeKey k, IReadOnlyDictionary<EdgeKey, char> edges) => edges.TryGetValue(k, out char kind) && kind == 'W';
+    private static bool IsWall(EdgeKey k, IReadOnlyDictionary<EdgeKey, EdgeKind> edges) => edges.TryGetValue(k, out EdgeKind kind) && kind == EdgeKind.Wall;
     
     private static EdgeKey Step(EdgeKey k, int d) => k.Axis == 'u' ? new EdgeKey('u', k.A, k.B + d) : new EdgeKey('v', k.A + d, k.B);
 }

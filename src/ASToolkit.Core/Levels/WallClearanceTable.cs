@@ -59,7 +59,7 @@ public sealed class WallClearanceTable
     /// <summary>
     /// Returns the distance from a point to the nearest wall, door or fence edge within three cells, or infinity when there is none.
     /// </summary>
-    public static float MeasureDistance(IReadOnlyDictionary<EdgeKey, char> edges, float u, float v)
+    public static float MeasureDistance(IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v)
     {
         int cu = (int)MathF.Floor(u);
         int cv = (int)MathF.Floor(v);
@@ -68,13 +68,13 @@ public sealed class WallClearanceTable
         {
             for (int b = cv - SearchCells; b <= cv + SearchCells + 1; b++)
             {
-                if (edges.TryGetValue(new EdgeKey('u', a, b), out char k1) && k1 != 'e')
+                if (edges.TryGetValue(new EdgeKey('u', a, b), out EdgeKind k1) && k1 != EdgeKind.DoubleDoorEnd)
                 {
                     float dv = Math.Max(0, Math.Max(b - v, v - (b + 1)));
                     best = Math.Min(best, MathF.Sqrt((u - a) * (u - a) + dv * dv));
                 }
 
-                if (edges.TryGetValue(new EdgeKey('v', a, b), out char k2) && k2 != 'e')
+                if (edges.TryGetValue(new EdgeKey('v', a, b), out EdgeKind k2) && k2 != EdgeKind.DoubleDoorEnd)
                 {
                     float du = Math.Max(0, Math.Max(a - u, u - (a + 1)));
                     best = Math.Min(best, MathF.Sqrt((v - b) * (v - b) + du * du));

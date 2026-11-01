@@ -13,11 +13,11 @@ public struct Neighborhood
     /// <summary>
     /// Returns whether any of the four edges is in a set of edges, of a given kind when one is given.
     /// </summary>
-    public readonly bool HasEdge(IReadOnlyDictionary<EdgeKey, char> edges, char? kind = null)
+    public readonly bool HasEdge(IReadOnlyDictionary<EdgeKey, EdgeKind> edges, EdgeKind? kind = null)
     {
         foreach (var (_, edge) in this)
         {
-            if (edges.TryGetValue(edge, out char k) && (kind is null || k == kind))
+            if (edges.TryGetValue(edge, out EdgeKind k) && (kind is null || k == kind))
             {
                 return true;
             }

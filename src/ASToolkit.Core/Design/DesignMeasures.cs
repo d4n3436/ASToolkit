@@ -171,4 +171,79 @@ public sealed class DesignMeasures
     /// Gets dynamite sites on screen more than 0.2 of the tour before the route reaches them.
     /// </summary>
     public required MeasureShare SitesPassedEarly { get; init; }
+
+    /// <summary>
+    /// Gets solid floor pieces within 30 px of a doorway.
+    /// </summary>
+    public required MeasureShare SolidNearDoorways { get; init; }
+
+    /// <summary>
+    /// Gets hittable floor pieces within 30 px of a doorway.
+    /// </summary>
+    public required MeasureShare HittableNearDoorways { get; init; }
+
+    /// <summary>
+    /// Gets monitors within 40 px of a doorway.
+    /// </summary>
+    public required MeasureShare MonitorsNearDoorways { get; init; }
+
+    /// <summary>
+    /// Gets solid or hittable floor pieces whose center is closer to another piece than a quarter of their sizes.
+    /// </summary>
+    public required MeasureShare PiecesInsideOthers { get; init; }
+
+    /// <summary>
+    /// Gets loose pickups inside the collision box of a solid or hittable floor piece.
+    /// </summary>
+    public required MeasureShare PickupsUnderPieces { get; init; }
+
+    /// <summary>
+    /// Gets monitors within 25 px of a cabinet or shelves.
+    /// </summary>
+    public required MeasureShare MonitorsOnTallFurniture { get; init; }
+
+    /// <summary>
+    /// Gets monitors standing on another piece.
+    /// </summary>
+    public required MeasureShare MonitorsOnSupports { get; init; }
+
+    /// <summary>
+    /// Gets boxes standing on shelves, a cabinet or a table.
+    /// </summary>
+    public required MeasureShare BoxesOnFurniture { get; init; }
+
+    /// <summary>
+    /// Gets test tubes, lab equipment and computers standing on another piece.
+    /// </summary>
+    public required MeasureShare DeskTopsOnSupports { get; init; }
+
+    /// <summary>
+    /// Gets ammunition placed before a fight.
+    /// </summary>
+    public required MeasureShare AmmoBeforeFights { get; init; }
+
+    /// <summary>
+    /// Gets loose money more than 200 px of walk off the route.
+    /// </summary>
+    public required MeasureShare MoneyOffRoute { get; init; }
+
+    /// <summary>
+    /// Gets health in crates.
+    /// </summary>
+    public required MeasureShare HealthInCrates { get; init; }
+
+    /// <summary>
+    /// Gets ammunition in crates.
+    /// </summary>
+    public required MeasureShare AmmoInCrates { get; init; }
+
+    /// <summary>
+    /// Gets armor in crates.
+    /// </summary>
+    public required MeasureShare ArmorInCrates { get; init; }
+
+    /// <summary>
+    /// Gets the loose pickups per pile, or null without loose pickups.
+    /// </summary>
+    public required float? PileSize { get; init; }
 }
