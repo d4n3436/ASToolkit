@@ -93,10 +93,11 @@ public sealed class LevelSurveyor
         bool openPlan = setting != LevelTheme.Lab || !_grid.Edges.Values.Any(kind => kind is EdgeKind.Door or EdgeKind.Doorway or EdgeKind.ShutDoor);
         var segmenter = new PlaceSegmenter((int)(MaxOpeningPixels / _step), (int)(MaxStubPixels / _step), (int)MathF.Ceiling(MinPlacePixels / CellArea),
             (int)(MaxClosetPixels / CellArea), (int)MathF.Round(MinRoomPixels / _step), (int)MathF.Round(MinCorridorPixels / _step), (int)(PocketPixels / CellArea));
-        _segments = segmenter.Segment(_grid, _analysis.Tour.ToHashSet(), FindRoofedCells(), openPlan, FindContentCells());
+        _segments = segmenter.Segment(_grid, _analysis.Tour.ToHashSet(), FindRoofedCells(), openPlan, FindContentCells(withDoors: true), FindContentCells(withDoors: false));
 
         BuildPlaces(FindZones(measurement.Style));
         BuildConnections(measurement.Style);
+        RelabelDeadEnds();
         int loops = DescribeGraph();
         var landmarks = DescribeLandmarks(measurement.Style);
         var encounters = DescribeEncounters();
@@ -118,16 +119,62 @@ public sealed class LevelSurveyor
             Landmarks = landmarks,
             Encounters = encounters,
             Items = items,
-            Branches = DescribeBranches()
+            Branches = DescribeBranches(),
+            Builds = DescribeBuilds()
         };
     }
 
-    private HashSet<Cell> FindContentCells()
+    private LevelBuild[] DescribeBuilds()
+    {
+        var builds = new List<LevelBuild>();
+        foreach (var sprite in _map.Sprites)
+        {
+            if (sprite.Id == KnownObject.Spawner || sprite.Payload.Length == 0 || !SpriteProgram.TryParse(sprite.Payload, _objects.IsAlienShooter2, out var program))
+            {
+                continue;
+            }
+
+            for (int index = 0; index < program.StackCount; index++)
+            {
+                AddBuilds(program.GetStack(index), builds);
+            }
+        }
+
+        return builds.ToArray();
+    }
+
+    private void AddBuilds(ReadOnlySpan<StackAction> stack, List<LevelBuild> builds)
+    {
+        int? trigger = null;
+        foreach (var action in stack)
+        {
+            if (action.Act == (int)ActionCode.FlagmanTrigger)
+            {
+                trigger = GetPlaceNear(action.Var1, action.Var2);
+                break;
+            }
+        }
+
+        if (trigger is null)
+        {
+            return;
+        }
+
+        foreach (var action in stack)
+        {
+            if (action.Act == (int)ActionCode.BuildUnit && action.Var2 != 0)
+            {
+                builds.Add(new LevelBuild(trigger.Value, (KnownObject)action.Var1, GetPlaceNear(action.Var2, action.Var3)));
+            }
+        }
+    }
+
+    private HashSet<Cell> FindContentCells(bool withDoors)
     {
         var content = new HashSet<Cell>(_analysis.Tour);
         foreach (var sprite in _map.Sprites)
         {
-            if (!KnownObject.Floors.Contains(sprite.Id) && !KnownObject.LabWalls.Contains(sprite.Id) && !KnownObject.MilitaryWalls.Contains(sprite.Id) && !Skipped.Contains(sprite.Id))
+            if (!KnownObject.Floors.Contains(sprite.Id) && !KnownObject.LabWalls.Contains(sprite.Id) && !KnownObject.MilitaryWalls.Contains(sprite.Id) && !Skipped.Contains(sprite.Id) && (withDoors || !sprite.Id.IsDoor))
             {
                 content.Add(_lattice.GetCell(sprite.Position.X, sprite.Position.Y));
             }
@@ -212,9 +259,9 @@ public sealed class LevelSurveyor
         }
     }
 
-    private bool Is(EdgeKey edge, EdgeKind kind) => _grid.Edges.TryGetValue(edge, out EdgeKind found) && found == kind;
+    private bool Is(EdgeKey edge, EdgeKind kind) => _grid.Edges.TryGetValue(edge, out var found) && found == kind;
 
-    private bool IsWall(EdgeKey edge) => _grid.Edges.TryGetValue(edge, out EdgeKind kind) && kind.BlocksWalking;
+    private bool IsWall(EdgeKey edge) => _grid.Edges.TryGetValue(edge, out var kind) && kind.BlocksWalking;
 
     private void BuildPlaces(Dictionary<Cell, GateZone> zones)
     {
@@ -399,7 +446,7 @@ public sealed class LevelSurveyor
                     continue;
                 }
 
-                ConnectionKind? kind = _grid.Edges.TryGetValue(edge, out EdgeKind edgeKind)
+                ConnectionKind? kind = _grid.Edges.TryGetValue(edge, out var edgeKind)
                     ? edgeKind switch
                     {
                         EdgeKind.Door => locking ? ConnectionKind.LockedDoor : ConnectionKind.Door,
@@ -455,6 +502,17 @@ public sealed class LevelSurveyor
             if (_segments.Floor.Contains(one) != _segments.Floor.Contains(two))
             {
                 Tag(FindPlace(_segments.Floor.Contains(one) ? one : two), PlaceTags.FakeDoor);
+            }
+        }
+    }
+
+    private void RelabelDeadEnds()
+    {
+        foreach (var place in _places.Where(place => place.Kind == PlaceKind.Corridor))
+        {
+            if (_walkable.Distinct().Count(pair => pair.A == place.Id || pair.B == place.Id) < 2)
+            {
+                place.Kind = PlaceKind.Room;
             }
         }
     }
@@ -1416,7 +1474,7 @@ public sealed class LevelSurveyor
 
         public required List<Cell> Cells { get; init; }
 
-        public required PlaceKind Kind { get; init; }
+        public required PlaceKind Kind { get; set; }
 
         public required GateZone Zone { get; init; }
 

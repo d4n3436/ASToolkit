@@ -70,7 +70,7 @@ public sealed class ObjectRelationTable
         var companions = new Dictionary<(LevelTheme, KnownObject), ObjectCompanion[]>();
         var companionRates = new Dictionary<(LevelTheme, KnownObject, KnownObject), float>();
         var spacings = new Dictionary<(LevelTheme, KnownObject, KnownObject, bool), float>();
-        foreach ((var theme, var tally) in tallies)
+        foreach (var (theme, tally) in tallies)
         {
             foreach (((var id, var other, bool raised), float spacing) in tally.Spacings)
             {
@@ -106,7 +106,7 @@ public sealed class ObjectRelationTable
                 }
             }
 
-            foreach (((var id, var anchor), int near) in tally.Near)
+            foreach ((var (id, anchor), int near) in tally.Near)
             {
                 anchorShares[(theme, id, anchor)] = near / (float)tally.Counts[id];
             }
@@ -117,7 +117,7 @@ public sealed class ObjectRelationTable
                     .Where(pair => pair.Key.Id == id)
                     .Select(pair => (pair.Key.Anchor, Share: pair.Value / (float)count,
                         Lift: pair.Value / (float)count / Math.Max(tally.RandomNear.GetValueOrDefault(pair.Key.Anchor) / (float)tally.RandomPoints, 1f / tally.RandomPoints)))
-                    .Where(entry => entry.Share >= MinShare && entry.Lift >= MinLift)
+                    .Where(entry => entry is { Share: >= MinShare, Lift: >= MinLift })
                     .OrderByDescending(entry => entry.Share)
                     .ThenBy(entry => entry.Anchor)
                     .Select(entry => new ObjectAnchor { Id = entry.Anchor, Share = entry.Share, Lift = entry.Lift, Samples = tally.Samples[(id, entry.Anchor)].ToArray() })
@@ -135,7 +135,7 @@ public sealed class ObjectRelationTable
                 };
             }
 
-            foreach ((var blocking, var distances) in tally.DoorDistances.Where(pair => pair.Value.Count >= MinCount))
+            foreach (var (blocking, distances) in tally.DoorDistances.Where(pair => pair.Value.Count >= MinCount))
             {
                 distances.Sort();
                 doorClearances[(theme, blocking)] = distances[(int)(LowQuantile * (distances.Count - 1))];
@@ -239,7 +239,7 @@ public sealed class ObjectRelationTable
 
     private static bool IsAnchor(KnownObject id) => id.Family is not null || id == KnownObject.Spawner;
 
-    private static bool IsCompanion(KnownObject id) => id.Family is null && id.IsDecor && !id.IsBlood && !id.IsCorpse && id != KnownObject.FlyingGibs;
+    private static bool IsCompanion(KnownObject id) => id.Family is null && id is { IsDecor: true, IsBlood: false, IsCorpse: false } && id != KnownObject.FlyingGibs;
 
     private static bool IsPiece(KnownObject id) =>
         id != KnownObject.Earth && !KnownObject.Floors.Contains(id) && !KnownObject.LabWalls.Contains(id) && !KnownObject.MilitaryWalls.Contains(id);

@@ -14,6 +14,8 @@ public sealed class CampaignPlanner
 {
     private const float PixelsPerRate = 1_000_000;
     private const int FirstIndoorLevel = 2;
+    private const int MinRooms = 4;
+    private const double MaxDeviations = 1.5;
 
     private static readonly ItemCategory[] SharedCategories = [ItemCategory.Health, ItemCategory.Armor, ItemCategory.Implant, ItemCategory.Bonus];
 
@@ -35,25 +37,27 @@ public sealed class CampaignPlanner
         var gates = DrawGates(rng, themes);
         float[] logHitPoints = DrawRising(rng, _model.HitPoints.Value, Enumerable.Range(FirstIndoorLevel, count - 1).ToDictionary(level => level, level => (float)level));
         float[] logEndMoney = DrawRising(rng, _model.EndMoney.Value, Enumerable.Range(1, count - 1).ToDictionary(level => level, level => MathF.Log(level)));
-        var floors = new int[count + 1];
-        var spawnedShares = new float[count + 1];
-        var closets = new int[count + 1];
+        int[] floors = new int[count + 1];
+        int[] rooms = new int[count + 1];
+        float[] spawnedShares = new float[count + 1];
+        int[] closets = new int[count + 1];
         var counts = new Dictionary<ItemCategory, int>[count + 1];
         counts[1] = [];
         for (int level = FirstIndoorLevel; level <= count; level++)
         {
-            floors[level] = (int)MathF.Exp(Draw(rng, _model.FloorPixels.Value, level));
+            floors[level] = (int)Math.Exp(DrawOnLine(rng, _model.FloorPixels.Value, level, themes[level]));
+            rooms[level] = DrawRooms(rng, level, themes[level], floors[level]);
             spawnedShares[level] = 1 / (1 + MathF.Exp(-Draw(rng, _model.SpawnedShare.Value, level)));
             float rates = floors[level] / PixelsPerRate;
             counts[level] = _model.PickupRates.ToDictionary(pair => pair.Key, pair => (int)MathF.Round(Math.Max(0, Draw(rng, pair.Value.Value, level)) * rates));
             closets[level] = themes[level] == LevelTheme.Lab ? (int)MathF.Round(Math.Max(0, Draw(rng, _model.SecretClosets.Value, level)) * rates) : 0;
         }
 
-        var endMoney = Enumerable.Range(0, count + 1)
-            .Select(level => level is >= 1 && level < count ? (int)MathF.Round(MathF.Exp(logEndMoney[level])) : 0)
+        int[] endMoney = Enumerable.Range(0, count + 1)
+            .Select(level => level >= 1 && level < count ? (int)MathF.Round(MathF.Exp(logEndMoney[level])) : 0)
             .ToArray();
 
-        var cash = Enumerable.Range(0, count + 1)
+        int[] cash = Enumerable.Range(0, count + 1)
             .Select(level => level == 1 ? first.Money : level >= FirstIndoorLevel ? counts[level].GetValueOrDefault(ItemCategory.Money) * _model.CashValue : 0)
             .ToArray();
 
@@ -68,6 +72,7 @@ public sealed class CampaignPlanner
                 HitPoints = first.HitPoints,
                 SpawnedShare = 0,
                 FloorPixels = 0,
+                Rooms = 0,
                 SecretClosets = 0,
                 Arsenal = [],
                 NewWeapons = [],
@@ -107,6 +112,7 @@ public sealed class CampaignPlanner
                 HitPoints = hitPoints,
                 SpawnedShare = spawnedShares[level],
                 FloorPixels = floors[level],
+                Rooms = rooms[level],
                 SecretClosets = closets[level],
                 Arsenal = arsenal,
                 NewWeapons = newWeapons,
@@ -120,13 +126,28 @@ public sealed class CampaignPlanner
         return new CampaignPlan { Levels = briefs };
     }
 
+    private int DrawRooms(Random rng, int level, LevelTheme theme, int floorPixels)
+    {
+        double rate = DrawOnLine(rng, _model.Rooms.Value, level, theme);
+        if (_model.RoomRates.TryGetValue(theme, out var range))
+        {
+            rate = Math.Clamp(rate, range.Min, range.Max);
+        }
+
+        int rooms = (int)Math.Round(floorPixels * Math.Exp(rate) / PixelsPerRate);
+        return Math.Clamp(rooms, MinRooms, Math.Max(MinRooms, _model.MaxRooms.GetValueOrDefault(theme, rooms)));
+    }
+
+    private static double DrawOnLine(Random rng, ThemeLine line, int level, LevelTheme theme) =>
+        line.Evaluate(level, theme == LevelTheme.Military) + Math.Clamp(Normal.Sample(rng, 0, 1), -MaxDeviations, MaxDeviations) * line.Spread;
+
     private static float Draw(Random rng, LinearFit line, float x) => line.Spread > 0 ? (float)Normal.Sample(rng, line.Evaluate(x), line.Spread) : line.Evaluate(x);
 
     // Draw a value around the line at each point and hand the values out from the lowest in the order of the points
     private static float[] DrawRising(Random rng, LinearFit line, IReadOnlyDictionary<int, float> points)
     {
         float[] values = new float[points.Keys.Max() + 1];
-        var drawn = points.Values
+        float[] drawn = points.Values
             .Select(x => Draw(rng, line, x))
             .Order()
             .ToArray();
@@ -175,7 +196,7 @@ public sealed class CampaignPlanner
         foreach (var run in Enumerable.Range(FirstIndoorLevel, themes.Length - FirstIndoorLevel).GroupBy(level => themes[level]))
         {
             var shares = _model.Gates[run.Key].Value;
-            var drawn = run
+            int[] drawn = run
                 .Select(_ => Pick(rng, shares.Select(share => share.Share).ToArray()))
                 .Order()
                 .ToArray();

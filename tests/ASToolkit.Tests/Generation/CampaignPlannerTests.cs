@@ -45,6 +45,21 @@ public class CampaignPlannerTests
     }
 
     [Fact]
+    public void Plan_Seeds_KeepRoomsWithinTheFittedRatesAndMaximum()
+    {
+        var model = CreateModel();
+        var planner = new CampaignPlanner(model);
+        foreach (var brief in Enumerable.Range(1, Seeds).SelectMany(seed => planner.Plan(new Random(seed)).Levels.Skip(1)))
+        {
+            var range = model.RoomRates[brief.Theme];
+            double rooms = brief.FloorPixels / 1_000_000.0;
+
+            Assert.InRange(brief.Rooms, 4, Math.Max(4, model.MaxRooms[brief.Theme]));
+            Assert.InRange(brief.Rooms, Math.Min(Math.Floor(rooms * Math.Exp(range.Min)), model.MaxRooms[brief.Theme]), Math.Max(4, Math.Ceiling(rooms * Math.Exp(range.Max))));
+        }
+    }
+
+    [Fact]
     public void Plan_Seeds_PutLabLevelsFirstAndGatesInTheirOrder()
     {
         var planner = new CampaignPlanner(CreateModel());
@@ -114,7 +129,10 @@ public class CampaignPlannerTests
         CashValue = 50,
         HitPoints = Line(4.5f, 0.96f, 0.53f),
         SpawnedShare = Line(-3.4f, 0.76f, 1.4f),
-        FloorPixels = Line(14.4f, 0.17f, 0.37f),
+        FloorPixels = new FittedValue<ThemeLine>(new ThemeLine(13.9, 0.35, -1.1, 0.23), 9, IsBackedOff: false),
+        Rooms = new FittedValue<ThemeLine>(new ThemeLine(2.0, -0.1, -0.5, 0.2), 9, IsBackedOff: false),
+        RoomRates = new Dictionary<LevelTheme, ValueRange> { [LevelTheme.Lab] = new(1.2, 2.2), [LevelTheme.Military] = new(0.3, 1.6) },
+        MaxRooms = new Dictionary<LevelTheme, int> { [LevelTheme.Lab] = 38, [LevelTheme.Military] = 29 },
         EndMoney = Line(4.2f, 0.75f, 0.45f),
         LabShare = new FittedValue<float>(0.44f, 9, IsBackedOff: false),
         Gates = new Dictionary<LevelTheme, FittedValue<IReadOnlyList<GateShare>>>

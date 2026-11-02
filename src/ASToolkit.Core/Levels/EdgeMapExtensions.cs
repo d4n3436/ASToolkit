@@ -45,7 +45,7 @@ public static class EdgeMapExtensions
             for (int index = 0; index < 4; index++)
             {
                 var (neighbor, edge) = neighbors[index];
-                if (edges.TryGetValue(edge, out EdgeKind kind) ? isWall(kind) : !isFloor(neighbor))
+                if (edges.TryGetValue(edge, out var kind) ? isWall(kind) : !isFloor(neighbor))
                 {
                     sides |= NeighborSides[index];
                 }
@@ -74,7 +74,7 @@ public static class EdgeMapExtensions
             {
                 var next = new Cell(at.U + du, at.V + dv);
                 var edge = du > 0 ? new EdgeKey('u', next.U, next.V) : du < 0 ? new EdgeKey('u', at.U, at.V) : dv > 0 ? new EdgeKey('v', next.U, next.V) : new EdgeKey('v', at.U, at.V);
-                if (edges.TryGetValue(edge, out EdgeKind kind))
+                if (edges.TryGetValue(edge, out var kind))
                 {
                     return (distance, edge, kind);
                 }
@@ -105,7 +105,7 @@ public static class EdgeMapExtensions
         {
             for (int b = cv - search; b <= cv + search + 1; b++)
             {
-                if (edges.TryGetValue(new EdgeKey('u', a, b), out EdgeKind uKind) && counts(uKind))
+                if (edges.TryGetValue(new EdgeKey('u', a, b), out var uKind) && counts(uKind))
                 {
                     float dv = Math.Max(0, Math.Max(b - v, v - (b + 1)));
                     float distance = MathF.Sqrt((u - a) * (u - a) + dv * dv);
@@ -115,7 +115,7 @@ public static class EdgeMapExtensions
                     }
                 }
 
-                if (edges.TryGetValue(new EdgeKey('v', a, b), out EdgeKind vKind) && counts(vKind))
+                if (edges.TryGetValue(new EdgeKey('v', a, b), out var vKind) && counts(vKind))
                 {
                     float du = Math.Max(0, Math.Max(a - u, u - (a + 1)));
                     float distance = MathF.Sqrt((v - b) * (v - b) + du * du);

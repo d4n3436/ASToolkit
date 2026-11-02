@@ -41,6 +41,11 @@ public sealed record LevelBrief
     public required int FloorPixels { get; init; }
 
     /// <summary>
+    /// Gets the rooms of the level.
+    /// </summary>
+    public required int Rooms { get; init; }
+
+    /// <summary>
     /// Gets the number of secret closets of the level.
     /// </summary>
     public required int SecretClosets { get; init; }

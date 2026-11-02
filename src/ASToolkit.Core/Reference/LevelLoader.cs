@@ -24,7 +24,7 @@ public sealed class LevelLoader
     /// <summary>
     /// Loads a map and the level script beside it into a level, or returns null when the map has no route.
     /// </summary>
-    public ReferenceLevel? Load(string name, string mapPath)
+    public ReferenceLevel? Load(string name, string mapPath, bool isOriginal = true)
     {
         var map = MapResourceBuilder.Load(mapPath);
         var script = LevelScriptReader.Read(Path.ChangeExtension(mapPath, ".lgc"));
@@ -45,7 +45,7 @@ public sealed class LevelLoader
             Measures = measures,
             Model = analysis.Model,
             Survey = survey,
-            Atlas = RoomAtlas.Read(survey, analysis.Grid.Edges, map.Sprites, _objects)
+            Atlas = RoomAtlas.Read(survey, analysis.Grid.Edges, map.Sprites, _objects, isOriginal)
         };
     }
 }

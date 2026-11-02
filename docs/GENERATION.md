@@ -11,16 +11,17 @@ The guarantees every level keeps are in [One pass and guarantees](#one-pass-and-
 3. [Reference data](#reference-data)
 4. [Coordinates](#coordinates)
 5. [Target and budget](#target-and-budget)
-6. [Layout plan](#layout-plan)
-7. [Fine layout and structure](#fine-layout-and-structure)
-8. [Breaker spot](#breaker-spot)
-9. [Dressing](#dressing)
-10. [Content](#content)
-11. [Script](#script)
-12. [One pass and guarantees](#one-pass-and-guarantees)
-13. [Level 1](#level-1-1)
-14. [Add-on style and installation](#add-on-style-and-installation)
-15. [Debugging](#debugging)
+6. [Mission graph](#mission-graph)
+7. [Layout plan](#layout-plan)
+8. [Fine layout and structure](#fine-layout-and-structure)
+9. [Breaker spot](#breaker-spot)
+10. [Dressing](#dressing)
+11. [Content](#content)
+12. [Script](#script)
+13. [One pass and guarantees](#one-pass-and-guarantees)
+14. [Level 1](#level-1-1)
+15. [Add-on style and installation](#add-on-style-and-installation)
+16. [Debugging](#debugging)
 
 ## Original levels
 
@@ -106,72 +107,61 @@ Measured on the ten lab originals (campaign levels 2 to 5, add-on 1 levels 2 to 
 
 | level | rooms | under 70,000 | cycles | main body | hub doors, rooms from the start | branches of 2+ rooms, largest, deepest | loot rooms | objective depths | square | no notch, small, mid, large | notches open outside |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| 2 | 11 | 4 | 1 | 65% | 6, 1 | 2, 2, 2 | 5 | 1 | 45% | 60, 0, 0% | 73% |
-| 3 | 37 | 13 | 8 | 60% | 7, 1 | 3, 9, 6 | 9 | 1, 1, 3, 3 | 16% | 65, 29%, none | 31% |
-| 4 | 28 | 8 | 6 | 76% | 6, 1 | 2, 7, 6 | 13 | 0, 0, 1, 1, 1 | 25% | 53, 17, 0% | 42% |
-| 5 | 22 | 7 | 2 | 61% | 5, 2 | 2, 6, 6 | 1 | 1 | 14% | 100, 12, 0% | 74% |
-| add-on 1 level 2 | 27 | 2 | 3 | 69% | 5, 2 | 2, 7, 5 | 3 | 0 (5), 2, 4, 5 | 0% | 88, 57, 43% | 40% |
+| 2 | 11 | 4 | 1 | 65% | 6, 1 | 2, 2, 2 | 5 | 1 | 36% | 80, 0, 0% | 82% |
+| 3 | 37 | 14 | 8 | 60% | 7, 1 | 3, 9, 6 | 9 | 1, 1, 3, 3 | 16% | 67, 36%, none | 74% |
+| 4 | 28 | 10 | 6 | 75% | 6, 1 | 2, 7, 6 | 13 | 0, 0, 1, 1, 1 | 14% | 78, 20, 33% | 53% |
+| 5 | 22 | 7 | 2 | 61% | 5, 2 | 2, 6, 6 | 1 | 1 | 23% | 100, 25, 0% | 88% |
+| add-on 1 level 2 | 27 | 2 | 3 | 69% | 5, 2 | 2, 7, 5 | 3 | 0 (5), 2, 4, 5 | 0% | 100, 62, 38% | 33% |
 | add-on 1 level 3 | 8 | 1 | 0 | 58% | 4, 0 | 2, 3, 2 | 0 | 0 (3), 1 (3), 2 | 12% | 100, 100, 0% | 100% |
-| add-on 1 level 4 | 12 | 0 | 1 | 100% | 2, 0 | none | 0 | 0 (14) | 33% | none, 67, 20% | 50% |
+| add-on 1 level 4 | 12 | 0 | 1 | 100% | 2, 0 | none | 0 | 0 (14) | 25% | none, 83, 20% | 57% |
 | add-on 2 level 2 | 11 | 0 | 0 | 80% | 5, 1 | 1, 2, 2 | 5 | none | 18% | none, 33, 50% | 82% |
-| add-on 2 level 3 | 19 | 11 | 4 | 71% | 8, 0 | 4, 9, 9 | 13 | none | 11% | 100, 50, 0% | 100% |
-| add-on 2 level 5 | 16 | 8 | 2 | 72% | 5, 0 | 2, 6, 4 | 2 | 0, 0 | 12% | 100, 100, 50% | 83% |
+| add-on 2 level 3 | 19 | 11 | 4 | 69% | 8, 0 | 4, 9, 9 | 13 | none | 16% | 100, 100, 0% | 100% |
+| add-on 2 level 5 | 26 | 5 | 0 | 67% | 4, 1 | 2, 8, 4 | 2 | 0, 0 | 8% | 100, 100, 30% | 71% |
 
 - Every level but the ring of add-on 1 level 4 has a hub of 4 to 8 doors at most two rooms from the start. The branches of two or more rooms hang off the hub on 8 of the 9 levels, and add-on 1 level 2 hangs its two from rooms farther on.
 - The main body holds 58 to 80% of the floor, and no branch holds more than 20%. It runs through the large rooms, a median of 144 units against 36 in the branches, and 11 of the 17 halls lie on it. The cycles lie in the main body, apart from one in level 3's key branch and two in a branch of add-on 2 level 5.
 - Branches are trees of up to 9 rooms and 9 rooms deep that split up to 4 ways. The loot branches (the monster-free branches of the patterns below) add up to 0 to 13 rooms a level, entered through locked or jammed doors on levels 3 and 4.
 - The campaign keeps objectives in the main body or one room off it. Level 3's key branch is the exception, with the breaker and the charge 3 rooms in. Add-on 1 level 2 puts its breaker and its charges and site at the ends of branches 2 to 5 rooms deep.
-- The gate splits the level into two parts. Once the tour enters the second, it never walks back into a room of the first on levels 2, 3 and 4, and re-enters one room (6% of the rest of the tour) on add-on 1 level 2. On level 3 and add-on 1 level 2 the tour walks back out of the key branch (4 and 5 rooms) before the second section starts. Level 4's blackout search runs through the main body (7 of its 8 rooms), and the locked labs keep the key in a branch off the hub.
+- The gate splits the level into two parts. Once the tour enters the second, it never walks back into a room of the first on levels 2, 3 and 4, and re-enters one room (6% of the rest of the tour) on add-on 1 level 2. On level 3 and add-on 1 level 2 the tour walks back out of the key branch (4 and 5 rooms) before it enters the second part. Level 4's blackout search runs through the main body (7 of its 8 rooms), and the locked labs keep the key in a branch off the hub.
 - Ambushes on levels 2 to 4 spawn only into rooms the tour walks after the trigger, as level 4's breaker trap does into P9. Level 5 spawns two small ones (10% of its ambush hit points) into rooms the tour has left for good. Every triggered spawner stands in a closet, on the main body or one room off it, apart from two 2 rooms off on add-on 2 level 5. Their monsters stop a median 17% of the way to the trigger (quartiles 9 and 31%).
-- A notch is a part of a room's bounding box outside the room at least 2 cells across and 4% of the box. Narrower jogs are wall slivers. Notches sit at corners (143 of 149) and take 6 to 23% of the box (deciles 1 and 9), with a short side of 2 to 11 units.
-- Shape follows size. Over the ten levels, rooms under 100,000 px² have no notch 83% of the time, rooms of 100,000 to 400,000 px² 42% and larger rooms 26%, and 63% of the large rooms have two or more notches. Room areas run from 15 to 298 units (deciles 1 and 9).
-- 60% of the notches open outside where the building's outline steps, 23% hold a neighboring room, 13% a solid block and 3% a closet.
+- A notch is a part of a room's bounding box outside the room at least 2 cells across and 4% of the box. Notches sit at corners (123 of 128) and take 7 to 23% of the box (deciles 1 and 9), with a short side of 2 to 12 units.
+- Shape follows size. Over the ten levels, rooms under 100,000 px² have no notch 81% of the time, rooms of 100,000 to 400,000 px² 51% and larger rooms 26%, and 55% of the large rooms have two or more notches. Room areas run from 16 to 302 units (deciles 1 and 9).
+- 77% of the notches open outside where the building's outline steps, 20% hold a neighboring room, hall or yard and 4% a closet.
 
-### Sections
+### Phases
 
-A section is a run of the tour after which no earlier place is visited again (`SectionMeasurer`). It holds the places the tour visits in that run and the untoured places nearest to them through any connection. Level 3 leaves 37% of its floor off the tour. A boundary is the step of the tour from one section into the next, and a pod's depth counts the doors between a room and the section's body, the biconnected blocks on the way from where the tour enters the section to where it leaves.
+A phase is one state of a level between the keys that change it (`ProgressionMeasurer`, with the rules in [NOTES.md](NOTES.md#phases-and-beats)). Each phase has an entrance, a critical path from the entrance through its charges and objectives to its keys and the way on, room trees off that path and loops. A return pass walks back over earlier rooms to the rooms its key opened. The critical path counts the places walked, a place walked twice counting twice.
 
-| level | sections | 5% or more | largest share | loops inside | deepest pod | boundaries | forms of the sections of 5% or more, in tour order |
-|---|---|---|---|---|---|---|---|
-| 2 | 5 | 3 | 0.55 | 1 | 2 | passage 3, locked door 1 | Wing 0.55, Room 0.25, Room 0.11 |
-| 3 | 15 | 4 | 0.46 | 3 | 5 | passage 12, locked door 2 | Complex 0.46, Hall 0.11, Room 0.08, Room 0.11 |
-| 4 | 5 | 3 | 0.67 | 4 | 3 | passage 2, locked door 2 | Wing 0.22, Room 0.05, Wing 0.67 |
-| 5 | 9 | 7 | 0.28 | 1 | 3 | passage 8 | Wing 0.24, Room 0.06, Room 0.14, Room 0.08, Room 0.09, Hall 0.28, Room 0.08 |
-| 6 | 4 | 2 | 0.83 | 1 | 3 | passage 2, fence 1 | Wing 0.83, Room 0.11 |
-| 7 | 2 | 1 | 0.98 | 0 | 3 | passage 1 | Sprawl 0.98 |
-| 8 | 2 | 2 | 0.85 | 0 | 4 | passage 1 | Sprawl 0.85, Hall 0.14 |
-| 9 | 1 | 1 | 1.00 | 0 | 1 | - | Sprawl 1.00 |
-| 10 | 7 | 2 | 0.82 | 0 | 2 | passage 3, fence 3 | Hall 0.10, Sprawl 0.82 |
-| add-on 1 level 2 | 3 | 3 | 0.88 | 3 | 5 | passage 1, locked door 1 | Hall 0.06, Complex 0.88, Room 0.06 |
-| add-on 1 level 3 | 2 | 2 | 0.74 | 0 | 2 | passage 1 | Hall 0.74, Room 0.26 |
-| add-on 1 level 4 | 11 | 8 | 0.30 | 0 | 1 | passage 10 | Room 0.09, Room 0.05, Hall 0.08, Room 0.15, Room 0.08, Room 0.06, Room 0.11, Room 0.30 |
-| add-on 1 level 5 | 3 | 3 | 0.40 | 0 | 2 | passage 2 | Hall 0.28, Room 0.32, Room 0.40 |
-| add-on 2 level 2 | 4 | 3 | 0.68 | 0 | 2 | passage 3 | Room 0.06, Sprawl 0.68, Room 0.21 |
-| add-on 2 level 3 | 1 | 1 | 1.00 | 4 | 5 | - | Complex 1.00 |
-| add-on 2 level 4 | 2 | 1 | 0.96 | 0 | 4 | passage 1 | Sprawl 0.96 |
-| add-on 2 level 5 | 7 | 5 | 0.36 | 0 | 8 | passage 6 | Room 0.06, Sprawl 0.34, Hall 0.36, Room 0.12, Room 0.12 |
+| level | phases | rooms per phase | critical path | loops | ways back closed |
+|---|---|---|---|---|---|
+| 2 | 2 | 5, 6 | 4, 3 | 0, 0 | - |
+| 3 | 2 | 9, 29 | 8, 11 | 2, 3 | - |
+| 4 | 3 | 12, 10, 6 (return pass) | 2, 9, 12 | 1, 0, 0 | the blackout trigger locks the door from place 3 to 2 |
+| 5 | 1 | 22 | 11 | 1 | - |
+| 6 | 2 | 9, 3 | 7, 2 | 1, 0 | - |
+| 7 | 2 | 7, 10 | 8, 9 | 0, 0 | - |
+| 8 | 2 | 5, 2 | 16, 2 | 0, 0 | - |
+| 9 | 2 | 5, 2 | 12, 2 | 0, 0 | - |
+| 10 | 3 | 7, 3, 19 (return pass) | 5, 3, 4 | 0, 0, 0 | rubble between place 6 and 5 |
+| add-on 1 level 2 | 3 | 3, 7, 16 | 1, 12, 29 | 0, 0, 0 | - |
+| add-on 1 level 3 | 1 | 8 | 14 | 0 | - |
+| add-on 1 level 4 | 1 | 12 | 17 | 1 | - |
+| add-on 1 level 5 | 1 | 5 | 11 | 0 | - |
+| add-on 2 level 2 | 1 | 11 | 6 | 0 | - |
+| add-on 2 level 3 | 1 | 19 | 1 | 4 | - |
+| add-on 2 level 4 | 2 | 5, 3 | 12, 2 | 0, 0 | - |
+| add-on 2 level 5 | 1 | 24 | 8 | 0 | - |
 
-- The labs are journeys of small sections around one large one. Levels 3 and 5 have 15 and 9 sections, level 3's locked wing a chain of single rooms after its Complex, and level 5 one room after another between a Wing and a Hall. Levels 2 and 4 have 5.
-- Military levels are one Sprawl yard holding 0.82 to 1.00 of the floor, with fences as boundaries on levels 6 and 10.
-- Pods run 1 to 5 rooms deep on the campaign labs and 8 on add-on 2 level 5.
-- 11 of the 16 pairs of consecutive campaign sections of 5% or more differ in form.
+- The locked-door labs have two phases, the start and the breaker part, then the part the breaker opens. Level 3's second phase holds 29 of its 38 rooms.
+- Level 4 is a quiet phase, a blackout phase to the breaker, and a return pass over the 6 rooms the breaker opened to the dynamite sites. Level 10's third phase starts at its second generator and reads as a return pass.
+- The fenced levels have a yard phase and a phase behind the fence of 2 or 3 rooms, except level 7 with 10.
+- Only levels 4 and 10 close a way back.
+- Add-on 2 level 3's critical path is one place long, since its survey finds no connections.
 
-**Forms.** The form of a section follows four rules over its features, applied in order.
-
-| form | rule | sections (lab, military) |
-|---|---|---|
-| Hall | halls and yards hold half the floor or more | 7, 4 |
-| Room | 3 rooms or fewer, closets and nooks not counted | 46, 11 |
-| Complex | 3 loops or more | 3, 0 |
-| Sprawl | the floor covers under 45% of the bounding box | 2, 5 |
-| Wing | anything else | 4, 1 |
-
-The rules agree with a k-medoids clustering (k = 5, eight standardized features) of the 26 sections with three places or more.
-
-**Beats.** `BeatMeasurer` reads the fights, keys, locks, pickups, set pieces and goals of a level as beats along its tour, each with its section, position in the section and fight intensity (hit points within 800 px of tour on either side, per tour pixel). Measured on campaign levels 2 to 10:
-- The largest fight of a section with two or more fights sits early in it, at a median position of 0.30.
-- 14 of the 16 section climaxes are followed by fewer hit points in the next tenth of the tour than in the tenth before.
-- The tour reaches the first boundary each gate closes before the gate's key on all 5 gated levels, and the breaker or generator of all 4 locked-door and fence gates lies in a section before that boundary. The blackout breaker of level 4 lies two sections past it.
+**Beats.** `BeatMeasurer` reads the fights, keys, locks, pickups, set pieces and goals of a level as beats along its tour, each with its phase, position along the phase's tour span and fight intensity (hit points within 800 px of tour on either side, per tour pixel). A lock beat is the first place the tour reaches in each phase after the first. Measured on campaign levels 2 to 10:
+- The largest fight of a phase with two or more fights sits at a median position of 0.36 along it, median of levels.
+- All 13 phase climaxes are followed by fewer hit points in the next tenth of the tour than in the tenth before.
+- The tour reaches the lock of the first phase a key opens before the key on all 8 gated levels, and the breaker or generator of all 7 locked-door and fence gates lies in a phase before the one it opens.
 - 7 of the 8 weapons new to the campaign come after the first pickup of their ammo in the level that brings them. Only level 10's magma minigun comes first.
 
 ### Campaign curves
@@ -379,103 +369,102 @@ Measured on campaign levels 2 to 10. "On screen" means within the 1,280 by 800 s
 
 ### Where generated levels differ
 
-`ascli inspect design --seeds 10` measures the decor, pickups, pacing, room graph, sections, beats, architecture and novelty of campaign levels 2 to 10, add-on levels 2 to 5 and 10 seeds of each generated campaign level, and writes this table to `design.md`. It also writes `sections.md`, `campaign.md` and `provenance.md`. Frames count as rare when the campaign uses them under 5% of the time against that wall side. The novelty rows compare each level with every original but itself and leave out blood and shadows.
+`ascli inspect design --seeds 10` measures the decor, pickups, pacing, room graph, phases, beats, architecture and novelty of campaign levels 2 to 10, add-on levels 2 to 5 and 10 seeds of each generated campaign level, and writes this table to `design.md`. It also writes `campaign.md`, `provenance.md` and `layout.md`, the layout stage's redraws and its drawn against built necks, cuts and loops. Frames count as rare when the campaign uses them under 5% of the time against that wall side. The novelty rows compare each level with every original but itself and leave out blood and shadows.
 
 | measure | campaign | add-ons | generated (90 levels) |
 |---|---|---|---|
-| chairs within 60 px of a table | 154 of 178 (87%) | 343 of 353 (97%) | 1,396 of 1,730 (81%) |
-| tables with a chair within 60 px | 152 of 172 (88%) | 353 of 411 (86%) | 1,376 of 1,523 (90%) |
-| test tubes within 60 px of a table | 71 of 74 (96%) | 130 of 131 (99%) | 337 of 358 (94%) |
-| lab equipment within 60 px of a table | 27 of 27 (100%) | 57 of 58 (98%) | 150 of 150 (100%) |
-| scattered paper within 60 px of a table | 83 of 92 (90%) | 239 of 366 (65%) | 633 of 915 (69%) |
-| computers away from walls | 18 of 122 (15%) | 170 of 209 (81%) | 242 of 1,198 (20%) |
-| lab big computers with a chair within 200 px | 52 of 52 (100%) | 19 of 31 (61%) | 241 of 425 (57%) |
-| corpses on blood (40 px) | 155 of 164 (95%) | 235 of 251 (94%) | 1,377 of 1,377 (100%) |
-| office and lab decor in passages | 0 of 322 (0%) | 186 of 764 (24%) | 53 of 2,621 (2%) |
-| office and lab decor in storage rooms | 10 of 322 (3%) | 35 of 764 (5%) | 118 of 2,621 (5%) |
-| Cabinet against far walls only | 173 of 207 (84%) | 442 of 588 (75%) | 1,325 of 1,857 (71%) |
-| Cabinet against near walls only | 15 of 207 (7%) | 14 of 588 (2%) | 349 of 1,857 (19%) |
-| Table against far walls only | 106 of 163 (65%) | 49 of 410 (12%) | 917 of 1,523 (60%) |
-| Table against near walls only | 20 of 163 (12%) | 20 of 410 (5%) | 236 of 1,523 (15%) |
-| Shelves against far walls only | 125 of 214 (58%) | 89 of 159 (56%) | 784 of 2,053 (38%) |
-| Shelves against near walls only | 56 of 214 (26%) | 9 of 159 (6%) | 810 of 2,053 (39%) |
-| BigComputer against far walls only | 49 of 71 (69%) | 23 of 31 (74%) | 475 of 582 (82%) |
-| BigComputer against near walls only | 3 of 71 (4%) | 1 of 31 (3%) | 32 of 582 (5%) |
-| Cabinet in a frame used under 5% against its wall | 6 of 171 (4%) | 117 of 430 (27%) | 70 of 1,573 (4%) |
-| Table in a frame used under 5% against its wall | 0 of 125 (0%) | 21 of 68 (31%) | 1 of 1,146 (0%) |
-| Container in a frame used under 5% against its wall | 0 of 32 (0%) | 4 of 15 (27%) | 8 of 260 (3%) |
-| Shelves in a frame used under 5% against its wall | 3 of 176 (2%) | 24 of 94 (26%) | 12 of 1,587 (1%) |
-| loose money against a wall | 87 of 100 (87%) | 96 of 226 (42%) | 1,113 of 1,317 (85%) |
-| loose money in a corner | 43 of 100 (43%) | 32 of 226 (14%) | 582 of 1,317 (44%) |
-| loose health against a wall | 84 of 128 (66%) | 51 of 156 (33%) | 857 of 1,305 (66%) |
-| loose ammo against a wall | 88 of 164 (54%) | 128 of 287 (45%) | 1,130 of 1,864 (61%) |
-| loose armor against a wall | 9 of 19 (47%) | 5 of 18 (28%) | 114 of 216 (53%) |
-| pickup piles of two or more (45 px) | 120 of 217 (55%) | 111 of 544 (20%) | 1,238 of 2,624 (47%) |
-| health placed after a fight | 70 of 163 (43%) | 93 of 174 (53%) | 780 of 1,652 (47%) |
-| ammo placed before a fight | 68 of 257 (26%) | 107 of 361 (30%) | 885 of 3,058 (29%) |
-| loose money over 200 px of walk off the route | 91 of 119 (76%) | 172 of 226 (76%) | 830 of 1,317 (63%) |
-| health in crates | 35 of 163 (21%) | 18 of 174 (10%) | 347 of 1,652 (21%) |
-| ammo in crates | 93 of 257 (36%) | 74 of 361 (20%) | 1,194 of 3,058 (39%) |
-| armor in crates | 18 of 39 (46%) | 12 of 30 (40%) | 175 of 391 (45%) |
-| loose pickups per pile (45 px), median of levels | 2.174 | 1.475 | 1.923 |
-| solid floor pieces within 30 px of a doorway | 6 of 1,155 (1%) | 2 of 2,506 (0%) | 0 of 10,390 (0%) |
-| hittable floor pieces within 30 px of a doorway | 2 of 965 (0%) | 2 of 1,922 (0%) | 0 of 9,571 (0%) |
-| monitors within 40 px of a doorway | 1 of 46 (2%) | 9 of 189 (5%) | 0 of 478 (0%) |
-| solid or hittable floor pieces standing inside another | 0 of 2,120 (0%) | 40 of 4,428 (1%) | 0 of 19,961 (0%) |
-| loose pickups under a solid or hittable piece | 1 of 469 (0%) | 2 of 750 (0%) | 3 of 5,071 (0%) |
-| monitors within 25 px of a cabinet or shelves | 2 of 46 (4%) | 0 of 189 (0%) | 50 of 478 (10%) |
-| monitors standing on a piece | 18 of 46 (39%) | 106 of 189 (56%) | 249 of 478 (52%) |
-| boxes on shelves, a cabinet or a table | 73 of 92 (79%) | 104 of 121 (86%) | 297 of 380 (78%) |
-| test tubes, lab equipment and computers standing on a piece | 221 of 230 (96%) | 393 of 398 (99%) | 1,652 of 1,706 (97%) |
-| shelves with another shelf within 70 px | 14 of 217 (6%) | 11 of 160 (7%) | 30 of 2,053 (1%) |
-| longest cabinet run | 5 | 32 | 7 |
-| missiles in triplets | 9 of 9 (100%) | 18 of 73 (25%) | 12 of 79 (15%) |
-| pad groups mirrored about their middle | 5 of 5 (100%) | 2 of 4 (50%) | 39 of 49 (80%) |
+| chairs within 60 px of a table | 154 of 178 (87%) | 343 of 353 (97%) | 1,646 of 1,970 (84%) |
+| tables with a chair within 60 px | 152 of 172 (88%) | 353 of 411 (86%) | 1,617 of 1,796 (90%) |
+| test tubes within 60 px of a table | 71 of 74 (96%) | 130 of 131 (99%) | 336 of 366 (92%) |
+| lab equipment within 60 px of a table | 27 of 27 (100%) | 57 of 58 (98%) | 172 of 172 (100%) |
+| scattered paper within 60 px of a table | 83 of 92 (90%) | 239 of 366 (65%) | 742 of 1,051 (71%) |
+| computers away from walls | 18 of 122 (15%) | 170 of 209 (81%) | 262 of 1,321 (20%) |
+| lab big computers with a chair within 200 px | 52 of 52 (100%) | 19 of 31 (61%) | 168 of 361 (47%) |
+| corpses on blood (40 px) | 155 of 164 (95%) | 235 of 251 (94%) | 1,518 of 1,518 (100%) |
+| office and lab decor in passages | 0 of 322 (0%) | 186 of 764 (24%) | 207 of 2,910 (7%) |
+| office and lab decor in storage rooms | 11 of 322 (3%) | 35 of 764 (5%) | 160 of 2,910 (5%) |
+| Cabinet against far walls only | 173 of 207 (84%) | 442 of 588 (75%) | 1,519 of 2,214 (69%) |
+| Cabinet against near walls only | 15 of 207 (7%) | 14 of 588 (2%) | 494 of 2,214 (22%) |
+| Table against far walls only | 106 of 163 (65%) | 49 of 410 (12%) | 958 of 1,796 (53%) |
+| Table against near walls only | 20 of 163 (12%) | 20 of 410 (5%) | 382 of 1,796 (21%) |
+| Shelves against far walls only | 125 of 214 (58%) | 89 of 159 (56%) | 906 of 2,519 (36%) |
+| Shelves against near walls only | 56 of 214 (26%) | 9 of 159 (6%) | 1,000 of 2,519 (40%) |
+| BigComputer against far walls only | 49 of 71 (69%) | 23 of 31 (74%) | 363 of 495 (73%) |
+| BigComputer against near walls only | 3 of 71 (4%) | 1 of 31 (3%) | 32 of 495 (6%) |
+| Cabinet in a frame used under 5% against its wall | 6 of 171 (4%) | 117 of 430 (27%) | 88 of 1,942 (5%) |
+| Table in a frame used under 5% against its wall | 0 of 125 (0%) | 21 of 68 (31%) | 1 of 1,340 (0%) |
+| Container in a frame used under 5% against its wall | 0 of 32 (0%) | 4 of 15 (27%) | 8 of 328 (2%) |
+| Shelves in a frame used under 5% against its wall | 3 of 176 (2%) | 24 of 94 (26%) | 19 of 1,843 (1%) |
+| loose money against a wall | 87 of 100 (87%) | 96 of 226 (42%) | 1,199 of 1,519 (79%) |
+| loose money in a corner | 43 of 100 (43%) | 32 of 226 (14%) | 656 of 1,519 (43%) |
+| loose health against a wall | 84 of 128 (66%) | 51 of 156 (33%) | 704 of 1,221 (58%) |
+| loose ammo against a wall | 88 of 164 (54%) | 128 of 287 (45%) | 989 of 1,460 (68%) |
+| loose armor against a wall | 9 of 19 (47%) | 5 of 18 (28%) | 119 of 221 (54%) |
+| pickup piles of two or more (45 px) | 120 of 217 (55%) | 111 of 544 (20%) | 1,062 of 2,575 (41%) |
+| health placed after a fight | 70 of 163 (43%) | 93 of 174 (53%) | 830 of 1,579 (53%) |
+| ammo placed before a fight | 68 of 257 (26%) | 107 of 361 (30%) | 749 of 2,718 (28%) |
+| loose money over 200 px of walk off the route | 91 of 119 (76%) | 172 of 226 (76%) | 935 of 1,519 (62%) |
+| health in crates | 35 of 163 (21%) | 18 of 174 (10%) | 358 of 1,579 (23%) |
+| ammo in crates | 93 of 257 (36%) | 74 of 361 (20%) | 1,258 of 2,718 (46%) |
+| armor in crates | 18 of 39 (46%) | 12 of 30 (40%) | 179 of 400 (45%) |
+| loose pickups per pile (45 px), median of levels | 2.174 | 1.475 | 1.938 |
+| solid floor pieces within 30 px of a doorway | 6 of 1,155 (1%) | 1 of 2,506 (0%) | 0 of 11,998 (0%) |
+| hittable floor pieces within 30 px of a doorway | 2 of 965 (0%) | 2 of 1,922 (0%) | 0 of 11,271 (0%) |
+| monitors within 40 px of a doorway | 1 of 46 (2%) | 9 of 189 (5%) | 0 of 465 (0%) |
+| solid or hittable floor pieces standing inside another | 0 of 2,120 (0%) | 40 of 4,428 (1%) | 0 of 23,269 (0%) |
+| loose pickups under a solid or hittable piece | 1 of 469 (0%) | 2 of 750 (0%) | 0 of 4,863 (0%) |
+| monitors within 25 px of a cabinet or shelves | 2 of 46 (4%) | 0 of 189 (0%) | 89 of 465 (19%) |
+| monitors standing on a piece | 18 of 46 (39%) | 106 of 189 (56%) | 273 of 465 (59%) |
+| boxes on shelves, a cabinet or a table | 73 of 92 (79%) | 104 of 121 (86%) | 337 of 422 (80%) |
+| test tubes, lab equipment and computers standing on a piece | 221 of 230 (96%) | 393 of 398 (99%) | 1,818 of 1,859 (98%) |
+| shelves with another shelf within 70 px | 14 of 217 (6%) | 11 of 160 (7%) | 26 of 2,519 (1%) |
+| longest cabinet run | 5 | 32 | 14 |
+| missiles in triplets | 9 of 9 (100%) | 18 of 73 (25%) | 9 of 72 (12%) |
+| pad groups mirrored about their middle | 5 of 5 (100%) | 2 of 4 (50%) | 47 of 61 (77%) |
 | wall inscriptions within 230 px of the cannon | 16, 27 | 23, 27, 30, 67 | 21 to 27 |
-| open floor around the cannon (px) | 137, 213 | 174, 181, 259, 339 | 129 to 289 |
-| hit points within 1,200 px of the cannon | 54,759 of 235,784 (23%) | 1,096,014 of 2,356,627 (47%) | 355,255 of 2,116,187 (17%) |
-| walk from the start to the cannon (px) | 4,114, 5,329 | 2,148, 3,672, 4,279, 6,006 | 3,644 to 4,859 |
-| room length over width, median of levels | 1.36 | 1.4 | 1.34 |
+| open floor around the cannon (px) | 137, 213 | 174, 181, 259, 339 | 110 to 287 |
+| hit points within 1,200 px of the cannon | 54,759 of 235,784 (23%) | 1,096,014 of 2,356,627 (47%) | 431,939 of 1,632,796 (26%) |
+| walk from the start to the cannon (px) | 4,114, 5,329 | 2,148, 3,672, 4,279, 6,006 | 3,479 to 5,411 |
+| room length over width, median of levels | 1.42 | 1.4 | 1.42 |
 | levels with repeated room layouts | 0 of 9 | 0 of 8 | 0 of 90 |
-| tour gap between fights with 5% of the hit points, median of levels | 0.102 | 0.096 | 0.069 |
-| dynamite sites on screen 0.2 of the tour before they are reached | 10 of 20 (50%) | 4 of 28 (14%) | 79 of 200 (40%) |
-| gates whose first closed boundary the tour reaches before the key | 5 of 5 (100%) | 1 of 1 (100%) | 45 of 49 (92%) |
-| locked-door and fence gates with the key in a section before their first closed boundary | 4 of 4 (100%) | - | 49 of 49 (100%) |
-| largest fight's position in its section, median of levels | 0.295 | 0.001 | 0.317 |
-| section climaxes with fewer hit points in the next tenth of the tour | 14 of 16 (88%) | 13 of 18 (72%) | 111 of 129 (86%) |
-| consecutive sections of 5% or more with different forms | 11 of 16 (69%) | 11 of 18 (61%) | 89 of 122 (73%) |
-| lab door-graph cycles, median of levels | 6 | 1 | 3 |
-| lab floor share of the bounding box, median of levels | 0.451 | 0.479 | 0.396 |
-| lab wall lines of 3+ cells per 1,000 cells, median of levels | 12.153 | 5.237 | 9.835 |
+| tour gap between fights with 5% of the hit points, median of levels | 0.102 | 0.096 | 0.066 |
+| dynamite sites on screen 0.2 of the tour before they are reached | 10 of 20 (50%) | 4 of 28 (14%) | 101 of 231 (44%) |
+| gates whose lock the tour reaches before the key | 8 of 8 (100%) | 2 of 2 (100%) | 81 of 81 (100%) |
+| locked-door and fence gates with the key in a phase before their lock | 7 of 7 (100%) | 1 of 1 (100%) | 71 of 71 (100%) |
+| largest fight's position along its phase, median of levels | 0.363 | 0.007 | 0.439 |
+| phase climaxes with fewer hit points in the next tenth of the tour | 13 of 13 (100%) | 10 of 10 (100%) | 126 of 144 (88%) |
+| lab door-graph cycles, median of levels | 2 | 1 | 3 |
+| lab floor share of the bounding box, median of levels | 0.447 | 0.482 | 0.357 |
+| lab wall lines of 3+ cells per 1,000 cells, median of levels | 12.161 | 5.162 | 9.542 |
 | lab corridor share of the floor, median of levels | 0 | 0 | 0 |
-| lab median hall area (px²), median of levels | 365120 | 591360 | 443520 |
-| lab median room area (px²), median of levels | 118720 | 436800 | 94080 |
+| lab median hall area (px²), median of levels | 367360 | 591360 | 407680 |
+| lab median room area (px²), median of levels | 107520 | 436800 | 127680 |
 | lab median closet and nook area (px²), median of levels | 13440 | 13440 | 13440 |
-| lab outline notches per side, median of levels | 28.75 | 19 | 17 |
-| lab main body share of the floor, median of levels | 0.647 | 0.69 | 0.521 |
-| lab largest branch share of the floor, median of levels | 0.143 | 0.142 | 0.283 |
-| lab hub rooms from the start, median of levels | 1 | 1 | 1 |
-| lab deepest objective in rooms off the main body, median of levels | 1 | 0 | 2 |
-| lab square rooms, median of levels | 0.25 | 0.125 | 0.167 |
-| lab small rooms with no notch, median of levels | 0.7 | 1 | 0.889 |
-| lab mid rooms with no notch, median of levels | 0.167 | 0.75 | 0.182 |
-| lab large rooms with no notch, median of levels | 0 | 0.3 | 0 |
-| lab notches open outside, median of levels | 0.733 | 0.818 | 0.667 |
+| lab outline notches per side, median of levels | 23.75 | 18.5 | 19.25 |
+| lab main body share of the floor, median of levels | 0.655 | 0.698 | 0.375 |
+| lab largest branch share of the floor, median of levels | 0.141 | 0.147 | 0.444 |
+| lab hub rooms from the start, median of levels | 1 | 1 | 3 |
+| lab deepest objective in rooms off the main body, median of levels | 2 | 0 | 3 |
+| lab square rooms, median of levels | 0.227 | 0.158 | 0.182 |
+| lab small rooms with no notch, median of levels | 0.8 | 1 | 0.75 |
+| lab mid rooms with no notch, median of levels | 0.167 | 1 | 0.25 |
+| lab large rooms with no notch, median of levels | 0 | 0.3 | 0.25 |
+| lab notches open outside, median of levels | 0.75 | 0.818 | 0.889 |
 | lab ambush hit points into rooms the tour has left, median of levels | 0 | 0 | 0 |
-| lab first-section rooms re-entered after the gate, median of levels | 0 | 1 | 1 |
-| lab bare rooms, median of levels | 8 | 1 | 3 |
-| floor off the tour, median of levels | 0.12 | 0.086 | 0.218 |
-| tour share re-walked, median of levels | 0.066 | 0.047 | 0.048 |
-| first fight, share of the tour, median of levels | 0.058 | 0.001 | 0.102 |
+| lab first-section rooms re-entered after the gate, median of levels | 0 | 1 | 2 |
+| lab bare rooms, median of levels | 8 | 1 | 2 |
+| floor off the tour, median of levels | 0.119 | 0.073 | 0.081 |
+| tour share re-walked, median of levels | 0.066 | 0.047 | 0.075 |
+| first fight, share of the tour, median of levels | 0.058 | 0.001 | 0.092 |
 | fifth of the tour with the most hit points, median of levels | 2 | 1 | 3 |
-| spawned monsters per 1,000 spawned hit points, median of levels | 17.528 | 9.08 | 17.182 |
-| largest spawner (monsters), median of levels | 61 | 126 | 54 |
-| decor past blood and shadows, and monsters, in groups of 3+ with 2+ ids matching another original within 2 px | 353 of 4,778 (7%) | 244 of 7,896 (3%) | 16,430 of 40,931 (40%) |
-| levels whose door graph has the shape of another original's | 2 (Level_09.map, Level_08.map) | 0 | 6 (Level_08.map) |
+| spawned monsters per 1,000 spawned hit points, median of levels | 17.528 | 9.08 | 18.978 |
+| largest spawner (monsters), median of levels | 61 | 126 | 49 |
+| decor past blood and shadows, and monsters, in groups of 3+ with 2+ ids matching another original within 2 px | 353 of 4,778 (7%) | 244 of 7,896 (3%) | 18,298 of 48,225 (38%) |
+| levels whose door graph has the shape of another original's | 2 (Level_09.map, Level_08.map) | 0 | 2 (Level_08.map, ADDON/Level_05.map) |
 
-Generated levels keep blocking floor pieces and monitors off doorways, stand no piece inside another and keep pickups out from under pieces as the campaign does, and stand boxes on furniture about as often (78% against 79%). They leave scattered paper away from tables more often (69% within 60 px of one against 90%), hang monitors against cabinets or shelves more often (10% within 25 px against 4%), stand shelves and cabinets against near walls more often, stand fewer missiles in triplets (15% against all), leave lab big computers without a chair (57% have one, against all of level 5's) and less loose money off the route (63% against 76%), put fewer hit points around the cannon, start the first fight later in the tour, space their big fights closer together and leave more floor off the tour. Their labs have fewer door-graph cycles, fewer bare rooms and a larger largest branch than the campaign's, and simpler outlines (17 notches a side against 28.75). 40% of their decor and monsters sit in groups that repeat an original, against 7% of the campaign's that repeat another original, and 6 of their 90 door graphs have the shape of level 8's.
+Generated levels keep blocking floor pieces and monitors off doorways, stand no piece inside another and keep pickups out from under pieces as the campaign does, and stand boxes on furniture about as often (80% against 79%). They leave scattered paper away from tables more often (71% within 60 px of one against 90%), hang monitors against cabinets or shelves more often (19% within 25 px against 4%), stand shelves, cabinets and tables against near walls more often, stand fewer missiles in triplets (12% against all), leave more lab big computers without a chair (47% have one, against all of the campaign's) and less loose money off the route (62% against 76%). Their first fight comes later in the tour (0.09 against 0.06) and their largest fight later along its phase (0.44 against 0.36). Their labs fill less of their bounding box (0.36 against 0.45), keep a smaller main body (0.38 of the floor against 0.66) and a larger largest branch (0.44 against 0.14), and have fewer bare rooms (2 against 8) and fewer outline notches (19.25 a side against 23.75). 38% of their decor and monsters sit in groups that repeat an original, against 7% of the campaign's that repeat another original. 2 of their 90 door graphs have the shape of an original's, both of 7 rooms or fewer.
 
-**Provenance.** `GeneratedLevel.Provenance` counts the sprites of a generated level by where they came from, and `provenance.md` sums them per level. Over 10 seeds of the campaign, 84% of the sprites past the walls, floor and roof are copied from the originals. Wall windows give 48% of them, furniture parts 24%, monster formations and spawners 10%, and scenes and sites 1.4%. Relations give 7.5% and the generator's own rules 9%.
+**Provenance.** `GeneratedLevel.Provenance` counts the sprites of a generated level by where they came from, and `provenance.md` sums them per level. Over 10 seeds of the campaign, 84% of the sprites past the walls, floor and roof are copied from the originals. Wall windows give 46% of them, furniture parts 25%, monster formations and spawners 12%, and scenes and sites 1.3%. Relations give 7.3% and the generator's own rules 8.7%.
 
 ## Overview
 
@@ -498,8 +487,8 @@ A generated level is one level of a campaign drawn from the style's campaign mod
  +-- each layout k until the tour reaches every objective, at most 8 ----------+
  |                                                                              |
  |  Build                                                                       |
- |    1  gate request and budget         ChooseGate, BudgetPlanner              |
- |    2  layout plan in units            LevelProfile.Sample, LayoutBuilder     |
+ |    1  budget                          BudgetPlanner                          |
+ |    2  mission graph, layout plan      MissionGrammar, AreaBuilder            |
  |    3  cells, walls, floors, roof      FineLayout, StructureBuilder           |
  |    4  breaker spot                    ContentPlacer.ChooseBreakerSpot        |
  |    5  room types and furniture        RoomFurnisher, Dresser, RoomDecorator  |
@@ -507,7 +496,6 @@ A generated level is one level of a campaign drawn from the style's campaign mod
  |                                                                              |
  |  Analyze                                                                     |
  |    map and script bytes -> RouteAnalyzer                                     |
- |    fenced: build again with the generator moved when it misses its band      |
  +------------------------------------------------------------------------------+
         |
         v
@@ -557,7 +545,7 @@ A generator follows one `GenerationStyle`. `StyleFitter.Fit` fits a `StyleModel`
 Generation works on three grids, from coarse to fine.
 
 ```
- unit         LayoutBuilder          rooms and halls are pieces of units
+ unit         AreaBuilder            rooms and halls are pieces of units
    |  x UnitCells (lab 1, military 2)
    v
  cell         FineLayout             floor cells and the edges between them
@@ -617,7 +605,8 @@ Every stage describes edges with `EdgeKind`. `FineLayout` holds the generated wa
 |---|---|---|---|
 | hit points | ln, a line by level | 4.51 + 0.96 × level ± 0.53 | 7.77 + 1.18 × level ± 0.87 |
 | spawned share | log-odds, a line by level | −3.43 + 0.76 × level ± 1.45 | 2.62 − 0.32 × level ± 1.27 |
-| floor | ln of square pixels, a line by level | 14.44 + 0.17 × level ± 0.37 | 15.91 + 0.00 × level ± 0.30 |
+| floor | ln of square pixels, a line by level with a military term | 13.94 + 0.35 × level − 1.09 on military ± 0.23 | 15.89 + 0.01 × level − 0.01 on military ± 0.32 |
+| rooms | ln of rooms per million square pixels of floor, a line by level with a military term, kept within the fitting levels' rates and their maximum rooms per theme | 2.58 − 0.23 × level − 0.04 on military ± 0.49 | 0.85 − 0.11 × level − 0.12 on military ± 0.50 |
 | end money | ln, a line by ln of the level, levels 1 to the last but one | 4.20 + 2.79 × ln level ± 0.27 | 6.81 + 2.20 × ln level ± 0.10 |
 | lab share | share of levels 2 and later with lab floor | 0.44 | 0.50 |
 | gate styles | share per theme, in the order the campaigns introduce them | lab locked doors 0.5, blackout 0.25, ungated 0.25; military fenced | lab ungated 0.75, blackout 0.25; military ungated 0.75, fenced 0.25 |
@@ -639,25 +628,11 @@ Every stage describes edges with `EdgeKind`. `FineLayout` holds the generated wa
 - **Pickup ids.** Health, armor, implants and bonuses take ids by the share lines at the level, and ammunition takes its weapon by age over the weapons so far and the next one.
 - **Donor.** Each level after the first names the campaign original of its theme nearest in log hit points, of the same gate style when there is one (`LevelBrief.DonorLevel`). Level 1 copies one of the style's first-level originals.
 
-The layout builder lays out only campaign profiles. The donors are campaign levels 2 to 10 in both styles, and the planned floor waits for the section layout. Until then the brief and the donor share the level.
+The donors are campaign levels 2 to 10 in both styles. The brief and the donor share the level.
 
 | from the brief | from the donor |
 |---|---|
-| theme and gate style, hit points and spawned share, secret closets, weapons and the closets' choice of new weapons, pickups, end money in the installed table | layout profile and floor units, gate shares, walk to the breaker and the generator's place, dynamite sites, checkpoint, pens, bosses, mounted cannons, fence generators, monster pools by spawner density, fights, pickup styles, room atlas, dressing, gore, door marks, template map and music |
-
-### Gate request
-
-`LevelGenerator.ChooseGate` turns the brief's gate style into a `GateRequest`, with the shares and walks of the donor.
-
-| style | gate | share behind the gate | notes |
-|---|---|---|---|
-| `LockedDoors` | locked doors | the donor's locked share, or 0.5 | |
-| `Blackout` | blackout | 0 | `SearchPixels` 5,200, the walk from the trigger to the breaker |
-| `Fenced` | fences | the donor's fenced-off share, or 0.4 | |
-| `Ungated`, lab | locked doors or blackout, at random | 0.2 to 0.3 | `IsWing`, a gated branch off the route; a blackout has `SearchPixels` 5,200 |
-| `Ungated`, military | none | | |
-
-A wing gate closes a side branch and leaves the main route open.
+| theme and gate style, hit points and spawned share, floor and room count, secret closets, weapons and the closets' choice of new weapons, pickups, end money in the installed table | dynamite sites and generator rooms, checkpoint, pens, bosses, mounted cannons, fence generators, monster pools by spawner density, fights, pickup styles, room atlas, dressing, gore, door marks, template map and music |
 
 ### Budget
 
@@ -675,92 +650,66 @@ A wing gate closes a side branch and leaves the main route open.
 10. **Weapons.** The brief's weapons, kept in a separate list for `PlaceWeapons` and the closets.
 11. **Counts.** Bosses, mounted cannons and fence generators are the donor's.
 
+## Mission graph
+
+`MissionGrammar.Draw` turns the brief into a `MissionGraph`, the level's progression before any geometry. It holds a `LevelProgression` of phases, keys, locks, flow, triggers and seals, the links between rooms with their `MissionLinkKind`, and each room's `MissionRole`. `MissionFitter` fits the `MissionModel` per style. Structure is pooled per floor theme, counts per style, and a fit with fewer than 8 samples backs off to both styles.
+
+- **Rooms.** The mission holds the brief's room count.
+- **Phases.** Locked doors give a phase before the breaker and one after it. A blackout gives a quiet phase, a blackout phase to the breaker and a last phase. Fences give one phase per generator room. An ungated level is one phase. The last phase of a blackout or fenced level is a return pass or a new area, drawn from the forms the fitting levels show.
+- **Paths and branches.** Each phase is a critical path from its entrance to its key, with branch trees off its rooms. Tree sizes and chain shapes are drawn from the fitted values, and each tree hangs off the path room nearest a fitted position along its phase's critical path. The key room anchors no branch.
+- **Locks.** A gated phase is entered through a locked door from the hub, and through more locked doors from rooms on or next to the previous phase's critical path, as many as a count of entered rooms drawn from the fitting levels. Outside blackout levels no lock and no room a return pass opens stands off the start room. A share of a phase's own links locks, only off its critical path and away from its key, sites, charges, start and end.
+- **Loops.** Loops are drawn at the fitted rate per room. Each closes a branch tree that is a single chain of three rooms or more back onto the room it hangs off, while one remains, and otherwise joins two rooms of one phase two to four links apart.
+- **Triggers and seals.** Path rooms hold triggers at the fitted share of the brief's spawned share, spawning in the room or the next one. A blackout phase closes the doors behind it, and a fenced level may seal the way back with rubble, at the fitted rates.
+- **Objectives.** The dynamite sites and generator rooms are the donor's.
+
+Every mission graph keeps these guarantees by construction.
+
+- every room is reached from the start with every lock open;
+- with the locks closed, a phase is reached only through its locks, and its key through its own rooms;
+- no loop joins two phases;
+- every entrance's source lies on or next to the previous critical path.
+
 ## Layout plan
 
-A `LayoutPlan` lies on the unit grid and holds `PlanRegion`s of one or more rectangles joined by `PlanLink`s, each region with a `RegionKind` and each link with a `LinkKind`. The roles are drawn first, and every edge between them is laid as a contact. The roles come from an original's survey (`LevelProfile`), the counts and areas are drawn around them (`LevelProfile.Sample`), and `LayoutBuilder.Build` places the rooms with three primitives, a row packed along a side of a hall, a block that divides one rectangle into rooms, and a chain grown outward. A contact the graph did not ask for stays a wall. Labs and military levels go through the same builder, each in its own units.
-
-`LevelGenerator.Build` draws a profile and builds it, up to 200 times, with a new floor target each time (the donor's floor times 0.9 to 1.05). After that it throws "No layout for level N". When the first built plan's rooms miss the original's room floor by more than 15%, it draws again with the target scaled by the miss.
+A `LayoutPlan` lies on the unit grid and holds `PlanRegion`s of one or more rectangles joined by `PlanLink`s, each region with a `RegionKind`, its mission room, phase, flow index and role, and each link with a `LinkKind`. `AreaBuilder.Build` lays a mission graph out from the outside in, and `PlanWriter` turns the result into regions and links. `AreaFitter` fits the `AreaModel` per floor theme.
 
 | input | labs | military |
 |---|---|---|
 | unit | one lab cell, 2,240 px², sides of 48.8 px | 2 by 2 military cells, 11,520 px², sides of 110 px |
+| least shared wall of a link and least room side | 3 units | 2 units |
+| least corner cut | 2 units | 1 unit |
 | secret closets | the brief's count | none |
 | spawn closets | the number of ambushes / 3, at most 6 | none |
-| shortcuts | 0 to 2 | none |
-| pens | none | the donor's when the level has a gate (level 10 has 8) |
+| pens | none | the donor's when the level is fenced |
 
-### Profile
+`LevelGenerator.Build` draws a mission and lays it out, up to 200 times, and throws "No layout for level N" after that.
 
-`LevelProfile.Measure` reads the original's door graph (`RoomRoleMap`), its main body and its branches, with areas in units:
+### Spines and blocks
 
-| role | measured as |
-|---|---|
-| start | the player's start place |
-| hub | the first hall on the shortest path from the start to the end of the tour |
-| neck | the room after the hub on that path |
-| second hall | the largest other hall in the main body, and whether it runs across the hub's axis or along it |
-| hub rooms, hall rooms | main-body rooms with a door to the hub or to the second hall |
-| block | the other main-body rooms |
-| block first | the second hall lies more than one room past the neck |
-| branches | components off the main body with a door to the hub, ordered from the rooms that open on it, with how many of them do |
-| dead ends | the other components, each a chain of rooms from the one that joins the body out |
-| key | the breaker's or generator's place, kept out of the branches when it is a single room (then it stands apart) |
-| shapes | each room's area with the share of its bounding box its floor fills |
+- **Spines.** Path rooms form the spines. Each path room leaves for the next straight on, to its left or to its right, or back, at the fitted shares of the theme. Halls are the path rooms with the most children, at the fitted hall share, sized from the fitted hall lengths and widths with their length along the flow.
+- **Blocks.** Each branch tree is one block. A room spans its share of its parent's far wall and its children stand one row deep beyond it. A room with one child turns it onto its left or right side at the fitted share.
+- **Composites.** A path room and its blocks are laid out together. The blocks line the room's sides with the fitted gaps between them, and the room grows to host them up to the largest area the fitting levels show for its role at the level's scale. Each further block attaches to the room on its own. The space in front of each exit stays reserved until the next path room takes it, each exit of a side in its own spot two units from the next.
+- **Sizes.** Every room draws a fitted ratio of its role (start, end, key, path, branch) and every hall a fitted size before any is placed. The largest halls turn back into path rooms while the rest of the planned floor would leave the rooms less than the smallest scale of the fitting levels. A level scale then makes the drawn floor meet the brief's planned floor, within the scales of the fitting levels, and each room's area is its ratio times that scale.
+- **Attachment.** A composite takes the first clear spot against its parent room in the drawn direction, and a lab composite the clear spot that grows the level's box the least. A spot counts only where the walls left after both rooms' cuts meet over a door's width. When no spot is clear, the composite is drawn again smaller, then bare with its blocks attached one by one, then through a corridor of up to 16 units. A layout with a room still unplaced is drawn again, up to 4 times. `inspect design` reports the redraws in `layout.md`.
+- **Rings.** A branch chain whose last room loops back onto its path room is laid out as a ring around a court of a fitted size. Its first and last rooms stand on the path room's wall on both sides of the court, and the rooms between them line the court's far side. The court stays empty. Courts are fitted from the holes the originals' floor encloses more than one unit deep. Military levels have no fitted court and get no rings.
+- **Extra doors.** An extra entrance into a branch room is a link of the tree that reaches every room, and the entered room lines its source. An extra entrance into a critical-path room is a locked door where its rooms touch. Otherwise it is built between another touching pair of the same two phases whose source lies on or next to the earlier phase's critical path, a pair with one of the drawn rooms first, and only then through a corridor of up to 6 units. Every critical path is built whole. A drawn loop becomes a door where its rooms touch. A loop whose rooms stand apart is built between another touching pair of the phase two to four links apart, a pair with one of its rooms first, and only then through a corridor of up to 6 units.
 
-| level | start | halls | neck | hub, hall, block rooms | branches (entrances) | dead ends | key |
-|---|---|---|---|---|---|---|---|
-| 2 | 36 | 23 × 8 | 28 | 0, 0, 2 | 2 (1), 2 (2), 1 (1) | 1 | apart |
-| 3 | 36 | 32 × 8, 37 × 6 across | 24 | 0, 5, 7 | 9 (2), 5 (1), 4 (2) | 3 | in a branch |
-| 4 | 52 | 17 × 6 | 76 | 0, 0, 9 | 7 (2), 3 (2) | 6 | apart |
-| 5 | 28 | 26 × 6, 59 × 10 along | 161 | 1, 3, 2, block first | 6 (2), 3 (1) | 3 | none |
-| 6 | 9 | 24 × 7 | 9 | 0, 0, 1 | 6 (2), 1 (1) | 1 | in a branch |
-| 7 | 9 | 13 × 5, 16 × 6 across | 29 | 0, 1, 2, block first | 3 (1), 2 (1), 1 (1), 1 (1) | 3 | in a branch |
-| 8 | 76 | 22 × 5, 15 × 5 across | 63 | 0, 0, 0 | 5 (1) | 0 | in a branch |
-| 9 | 85 | 10 × 3, 10 × 3 along | 156 | 1, 1, 0 | none | 0 | 144, apart |
-| 10 | 9 | 13 × 5, 11 × 3 along | 33 | 1, 1, 2 | none | 18 | 50, apart |
+### Room texture
 
-In the lab originals every room that touches a hub has a door to it, a branch's entrances stand side by side on the hub, and rooms of different branches never join. Single rooms hang off rooms past the neck on 13 of 14 lab dead ends. Level 5 is the same grammar with the block before the second hall and gaps between the rooms on that hall. The military originals use the same roles with fewer, larger rooms. Level 10's hall room is its 394-unit arena, a ring around a walled court, and its dead ends are the bays around it.
+- **Cuts.** A room's outline class (box, L, notched corner, T, cross) is drawn from the fitted shares for its short side, and its cut size from the fitted sizes of its class. A path room or hall draws its cut with its composite, among the classes and corners that leave a door's width of wall, and its blocks and exits keep off the cut corners. Other rooms are cut after placement where every door keeps its width.
+- **Necks.** A door drawn as necked at the fitted share sets the entered room back by the drawn depth behind a neck of the drawn width, owned by either room. Necks stand flush with their owner's wall end or at least two units from it, and two necks of one wall stand at least two units apart or flush with depths equal or at least two units apart.
+- **Connectors.** A room with two doors becomes a connector at the fitted share, sized from the fitted connector widths and lengths, kept straight and uncut.
+- **Steps.** No lab outline steps by one unit.
 
-### Sampling
+### Plan
 
-Each body role keeps the original's count within one and draws its areas from the same role of every profile in the pool, scaled to the original's floor for that role and to the floor target. Branches keep the original's shapes (rooms and entrances), one shape fewer or one more, with roots and tails drawn from the pool's branch roots and tails. For a wing gate the largest branch grows to the asked share and the other rooms off the halls shrink to keep the floor.
+`PlanWriter` turns the rooms into regions and the realized links into plan links.
 
-- Labs pool campaign levels 2 to 5. Add-on levels first sample their own original's profile (50 draws) when it has a hub hall, or when it is a compound with a blackout on the route, and fall back to the campaign slot's profile. A compound is an original with no hall on its main path (add-on 1 level 2, add-on 2 levels 3 and 5). Its start stands in for the hub, and every main-body room past the neck goes into the block.
-- Military levels pool the military fitting levels, campaign levels 6 to 10, and in add-on style add-on 1 level 5 and add-on 2 level 4 too. The originals with lab walls on military floor (add-on 1 level 4, add-on 2 level 5) survey as labs and serve only their own add-on slots.
-
-### Building
-
-`LayoutBuilder` works in units, and joins need a contact of 4. Every room but the start, the halls and the breaker's room first grows to the box an original room of 0.6 to 1.6 times its area fills on average (`LevelProfile.Inflate`). A room laid against another tries several sizes and offsets and keeps the one touching the fewest other rooms. On labs it also weighs the distance from its middle to the middle of the floor laid so far, half a point per floor side's length.
-
-1. **Hub and start.** The hub hall runs from the origin, as long as the original's or as the rows on its longer side need, the last room of a side overhanging its end, and at least 4 units wide. The start room stands at its near end, behind the rooms the original's main path passes between its start and hub (level 10's passage).
-2. **Key room.** On a locked-door level the breaker's room stands at the hub's far end on one side, beside the neck it opens, and on a fenced level whose original's generator room stands apart (level 10's depot) the generator's room stands there at the original's size. For a wing gate it joins the hub's rows right after the wing's entrances on the same side.
-3. **Hub rows.** The branch entrances and the hub rooms, shuffled, alternate sides and pack end to end with gaps of 0 to 1 unit. A row room that would overrun the hall narrows and deepens to fit when it stays within 2.5 to 1. Half of the branches with 3 or more further rooms enter through a corridor 4 units wide and 8 to 16 long running away from the hub, as level 3's P27 and P23 do, with the further rooms in rows on both of its sides and the rest in a block at its tip. Another branch with more than 3 further rooms grows them as a block of tree doors (one extra door with a 30% chance) off its last entrance, trying every side, then as two blocks of half the rooms, the second off a room of the first. Three further rooms or fewer grow as a chain that touches nothing but its parent and forks off an earlier room with a 30% chance.
-4. **Neck, second hall and block.** The neck stands at the hub's far end. Then, in the original's order, the second hall, turning off the neck's long side when the original's runs across the hub and going on along the hub's axis otherwise, with its rooms in rows on both sides (gaps of 1 to 5 units when the original's stand apart; a room that misses the near side tries the far one), and the block. The block rooms under 0.4 of the median block room hang off the others afterwards. With 5 or more big rooms the block is a ring around a court, as level 3's P9 to P17 and level 4's body are, a band as deep as the square of the mean room area (0.85 to 1.1 of it) around a rectangle 1 to 1.5 times longer than wide, each side of the band divided into rooms. Otherwise, or when the ring finds no room, the block is one rectangle divided by guillotine cuts in proportion to the areas. Either block takes the original's depth along the hub's axis over its breadth across it, within 15% (level 2 1.31, level 3 1.07, level 4 0.57, level 5 0.76; military 0.8 to 2.5), and stands with the neck entering it as far along its breadth as the original's does (level 4 a quarter of the way, level 2 the middle), its longer part reaching toward the side where most of the floor already laid lies. When neither fits, the layout is drawn again. No block room is more than 2.5 times longer than wide. Every block contact is opened (63% of them past a tree of doors in a compound, as in add-on 1 level 2). The end of the tour is the block's farthest room, or the second hall's farthest room when the block comes first.
-5. **Body contacts.** Contacts of 4 units or more between main-body rooms of one section, or between the entrances of one branch, become doors with a 90% chance.
-6. **Dead ends.** Each chain's first room stands alone against a random room past the neck other than the end, three tries, and then against each of those rooms, largest first. Its other rooms follow in line, out from the side the first one left its host (level 10's bays, a 9-unit passage and a 30 to 52 unit arena).
-7. **Shapes.** Every room but the halls, the corridors, the start and the breaker's room draws the fill of an original room whose box is 0.6 to 1.6 times its size (rooms under 60 units fill their box; mid and large ones 0.56 to 0.85 of it) and loses corners, 25 to 50% of a side each, up to six times until it is within 0.05 of that fill. Repeated cuts make steps and crosses. A cut opens outside, or with a 40% chance goes to the room across it. It is undone when it would leave a join short of 4 units, split the room, or leave a strip narrower than 3 units. A room that corner cuts cannot bring down to its fill, such as level 10's arena with its bays joined all around, leaves a court of void in its middle as large as the fill asks, with a band at least 4 units wide around it.
-8. **Pillars.** Halls 8 units wide or more keep a void pillar 2 by 1 units down their middle every 11 units of length, as level 3's hub does, with 2 units of floor around it.
-9. **Regions.** The shortest path of joins from the start to the end is the chain of stations, and every other room hangs off the room the walk from the chain reaches it through. Each join becomes a link on the longest straight run of the shared wall.
-
-### Gates by role
-
-- **Locked doors.** The start, the hub and the key room are open and every other room locked, with a door on every link between the two. Loot branches then open, smallest first, while that brings the locked share closer to the gate share (within 0.05). A draw that still misses it by more than 0.1 is rejected. The gate is the hub's link to the neck.
-- **Blackout.** The trigger is the hub's link to the neck. A key room stands alone against the block room farthest from the neck by walk through the joins, middle to middle. The gate is the chain link past the key room that locks the share closest to the original's, counting the hub's branches, whose entrances are doors. Every link across it is a door. Cycle links among the open rooms that most shorten the walk from the trigger to the key room become walls until that walk reaches the search length less 1,000 px.
-- **Fences.** The fenced part is a room with every room the walk from the start reaches only through it, either a station with every later one (levels 6, 7, 9 and 10 fence the chain past the hub or the neck), or a side room with the rooms hung off it (level 8 fences a branch). Parts within 0.06 of the original's share are tried nearest first, every link across one becomes a one-edge `Fence` and every other link an arch. The generator room is an open room past the hub whose back, the unit farthest from its entrance where content stands the generator, lies at least 1,200 px of walk from the start and 900 px from every fence (the originals have 828 to 3,258). Among those it is the one whose walk is nearest the original's share of the tour walked before its first generator, clamped to 0.12 to 0.22, times 20 px per unit of floor. A part with no such room is skipped. Cuts whose first room plays the role of the original's first room behind a fence go first (level 8 fences its branch past the generator).
-- **Wing.** The branch nearest the asked share (within 0.1, and at least 18% of the floor) closes behind doors on every link into it, with the breaker in the leaf nearest one of those doors (within 600 px of walk). A military wing closes behind fences, with the generator in the leaf nearest one of them that is at least 900 px away.
-- **Pens.** Gated leaves, as many as the original has, become pens behind one `Fence` edge each.
-
-A draw that cannot place its neck, key room or gate returns null and the next attempt draws again.
-
-### Closets and clean-up
-
-- Each room of the original that a breakable wall hides (the Secret role, level 3's office, level 10's lab and depot) becomes a secret room of its area behind a `SecretWall`, furnished as its type. The secret closets the target asks for beyond them follow.
-- `AddClosets` adds secret closets (2 by 2 to 3 by 3 units, off stations and side rooms) and spawn closets (off the stations past the hub). Each is linked by one edge of `SecretWall` or `SpawnWall`, and only the host may touch it. Secret closets go off the host's upper walls (+u and −v) for the first 60 tries per closet, where the camera sees the breakable wall.
-- `AddShortcuts` adds breakable walls between two open rooms that share at least 3 edges and lie at least 3 links apart, on the same side of the blackout trigger, none on a blackout level. The originals have at most 2.
-- `FillPockets` gives enclosed holes of up to 2 units to the neighbor that touches them most.
-- `AlignLinks` moves each doorway along its boundary to the nearest span where no other wall meets it, narrowing it when no span is wide enough. It keeps one edge of wall at both ends of the boundary when a span allows it.
-- `SpaceDoors` moves a lab door or arch that stands closer than 160 px to another one to the clear span of its boundary that lies farthest from the others.
-- A military arch is 1 or 2 units wide with at least one unit of wall beside it, and becomes an opening when the shared wall is too short. A lab arch on a wall too short for two units becomes a door.
+- **Stations and gates.** The critical paths in flow order are the stations. Locked links set the gate, and every room behind one is gated. The breaker or generator rooms are the key rooms, and the blackout link is the blackout phase's entrance.
+- **Closets.** `AddClosets` adds secret closets (2 by 2 to 3 by 3 units, off stations and side rooms) and spawn closets (off the stations past the first). Each is linked by one edge of `SecretWall` or `SpawnWall`, and only the host may touch it. Secret closets go off the host's upper walls (+u and −v) for the first 60 tries per closet. No closet stands in a court.
+- **Pens.** Gated leaves, as many as asked, become pens behind one `Fence` edge each.
+- **Openings.** An open link is an arch of 1 or 2 edges with at least one edge of wall at both ends of the shared wall.
+- **Doorways.** `AlignLinks` moves each doorway along its boundary to the nearest span where no other wall meets it, narrowing it when no span is wide enough. It keeps one edge of wall at both ends of the boundary when a span allows it. `SpaceDoors` moves a lab door or arch that stands closer than 160 px to another one to the clear span of its boundary that lies farthest from the others.
 
 ## Fine layout and structure
 
@@ -930,7 +879,7 @@ The generated rooms get their roles from `LayoutPlan.MeasureRoles`, the same map
 ### Gate
 
 - **Breaker.** The 418 goes on the chosen spot. Every door gets a keypad from `KeypadTable`, 424 (off) on locked-door levels and 423 (on) on blackout levels. `LevelScript.DoorsOpen` is false on locked-door levels. A blackout's trigger point is the middle cell of `BlackoutLink` on its far side.
-- **Generators.** On fence levels the original's number of 415 generators (at least one) go in the back third of the key room, farthest from its entrance, each with a 912 marker. Up to two transformers join them. The spot near (7541, 4501), which level 10's script treats in a special way, stays free. A generator the original reaches more than 0.15 after its first one goes instead in the dead-end room whose progress is closest to the original's, far from its entrance.
+- **Generators.** On fence levels every generator room of the plan, the mission's key rooms in phase order, holds at least one 415 generator, and the donor's number of generators beyond that spreads over them, first rooms first. Each stands in the back third of its room, farthest from its entrance and at least 900 px of walk from every fence where it can, with a 912 marker. Up to two transformers join the first room's. Level 10's script treats the spot near (7541, 4501) in a special way, and it stays free.
 
 ### Bosses
 
@@ -1000,9 +949,9 @@ Sites stay clear of solid and tall decor through `LevelOccupancy.HasRoomAround`,
 
 ## One pass and guarantees
 
-`LevelGenerator.Generate` builds a level once. `BuildAnalyzed` builds it, reads it as the game would (the map written with the original as template and parsed back with `MapResourceBuilder.Parse`, the script formatted and parsed with `LevelScriptReader`) and runs `RouteAnalyzer.Analyze`. On a fenced level whose tour reaches the first generator outside 0.08 to 0.30, it builds the level again with the generator in another of the plan's `GeneratorRooms`: the one whose walk from the start, scaled by the measured route to the first generator, comes nearest the original's share of the tour (kept within 0.12 to 0.26). It keeps the build whose first generator lies nearer the band. The walls and fences stay as they were.
+`LevelGenerator.Generate` builds a level once, reads it as the game would (the map written with the original as template and parsed back with `MapResourceBuilder.Parse`, the script formatted and parsed with `LevelScriptReader`) and runs `RouteAnalyzer.Analyze`.
 
-A step that cannot meet its guarantee draws itself again. The layout builder starts over on a failed placement. `Build` redraws the layout when the key room has no wall for the breaker (up to 20 times) and once when the built floor misses the original's by more than 15%. The outdoor builder redraws a campaign compound whose exit lies under 1,300 px from the start. When the tour still leaves an objective out of reach, forces a gate or needs a secret wall outside level 1, `Generate` takes the next layout, up to 8.
+A step that cannot meet its guarantee draws itself again. The area builder draws a composite or a layout again on a failed placement. `Build` draws a new mission and layout when the area builder places none (up to 200 times) and when the key room has no wall for the breaker (up to 20 times). The outdoor builder redraws a campaign compound whose exit lies under 1,300 px from the start. When the tour still leaves an objective out of reach, forces a gate or needs a secret wall outside level 1, `Generate` takes the next layout, up to 8.
 
 Layout `k`'s seed is `seed × 100000 + level × 100 + k`. The budget's stream is seeded with `layoutSeed × 7919 + 17` and the content's with `layoutSeed × 7919 + 101`.
 
@@ -1012,10 +961,11 @@ Every level keeps these, each in the step that creates it. `LevelGeneratorIntegr
 
 | guarantee | stage | code |
 |---|---|---|
-| every objective reachable, no gate forced, no secret wall needed outside level 1 | layout, dressing | `LayoutBuilder` joins, `LevelOccupancy.Fits`, `GetKeepClear`; `Generate` takes the next layout otherwise |
-| locked doors: the breaker's room open before the gate, the breaker on the wall nearest a door into the locked part (within 400 px, or 100 px of the nearest wall) | layout, breaker spot | `LayKey`, `LockSections`, `ChooseBreakerSpot` |
-| blackout: the trigger at the hub's exit, the breaker off the block room farthest by walk | gate | `PlaceBlackout`, `LengthenSearch` |
-| fences: the fenced part within 0.06 of the original's share, every generator 900 px of walk or more from every fence where its room allows | gate, content | `PlaceFences`, `PlaceGate` |
+| every objective reachable, no gate forced, no secret wall needed outside level 1 | layout, dressing | `AreaBuilder` joins, `LevelOccupancy.Fits`, `GetKeepClear`; `Generate` takes the next layout otherwise |
+| the breaker's room open before a locked-door gate, the breaker on the wall nearest a door into the locked part (within 400 px, or 100 px of the nearest wall) | mission, breaker spot | `MissionGrammar`, `PlanWriter`, `ChooseBreakerSpot` |
+| a blackout's trigger at the blackout phase's entrance and its breaker in that phase's key room | mission, gate | `MissionGrammar`, `PlanWriter` |
+| a generator in every key room of a fenced mission, each 900 px of walk or more from every fence where its room allows | mission, content | `MissionGrammar`, `PlaceGate` |
+| no overlap, no one-unit step in a lab outline, every court empty, every critical path built whole | layout | `BlockLayout`, `RoomTexturer`, `PlanWriter` |
 | the breaker on a back wall of 4 pieces or more that ends in corners, judged on the walls as built, with open floor in front and beside | breaker spot | `ChooseBreakerSpot` |
 | one charge per site, on a free spot 150 px or more from every site | content | `PlaceCharges` |
 | sites clear of solid decor by the originals' gap | content | `LevelOccupancy.HasRoomAround` |
@@ -1077,5 +1027,5 @@ In add-on style the campaign model is fitted to both add-ons and plans 5 levels 
 - **A tour progress misses while the object sits where the code put it.** The route analysis reads the tour progress `p`, and content placement reads distance from the start. See [Placement context](#placement-context).
 - **A step places nothing.** Earlier steps took the cells (`Taken`), the keep-clear cells cover the room, or `GetFreeCells` finds only cells with walls on their edges. With the `inner` option, a cell also needs all four neighbors in the region.
 - **An object stands inside a wall.** Wall boxes come from `PlacementContext.AddWallBox` for walls and fences only. Dressing checks copied objects against the clearance table alone.
-- **A likeness number misses on every seed.** The layout inputs or a constant in `LayoutBuilder` or `ContentPlacer` leave no room for it. `inspect design` over a few seeds shows whether the value is always on the same side of the original's.
+- **A likeness number misses on every seed.** The layout inputs or a constant in `AreaBuilder` or `ContentPlacer` leave no room for it. `inspect design` over a few seeds shows whether the value is always on the same side of the original's.
 - **Output changed for a seed after an unrelated edit.** See [Randomness](#randomness).

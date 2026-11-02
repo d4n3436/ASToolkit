@@ -14,10 +14,10 @@ public class RoomGraphIntegrationTests
 
     [Theory]
     [InlineData("Level_02.map", 11, 1, 6, 1, 2, 0)]
-    [InlineData("Level_03.map", 37, 8, 7, 1, 9, 0)]
-    [InlineData("Level_04.map", 28, 6, 6, 1, 7, 0)]
-    [InlineData("Level_05.map", 22, 2, 5, 2, 6, null)]
-    [InlineData("ADDON/Level_02.map", 27, 3, 5, 2, 7, 1)]
+    [InlineData("Level_03.map", 38, 6, 7, 1, 9, 0)]
+    [InlineData("Level_04.map", 28, 2, 5, 1, 7, 0)]
+    [InlineData("Level_05.map", 22, 1, 5, 2, 6, null)]
+    [InlineData("ADDON/Level_02.map", 26, 3, 5, 2, 7, 1)]
     [InlineData("ADDON2/Level_03.map", 19, 4, 8, 0, 9, null)]
     public void Build_LabOriginal_MeasuresRoomsCyclesHubAndSections(string level, int rooms, int cycles, int hubDoors, int hubHops, int largestBranch, int? reentries)
     {
@@ -36,8 +36,8 @@ public class RoomGraphIntegrationTests
     {
         var graph = BuildGraph("Level_04.map");
 
-        Assert.Equal([0, 0, 1, 1, 1], graph.ObjectiveDepths);
-        Assert.InRange(graph.MainBodyShare, 0.75f, 0.77f);
+        Assert.Equal([0, 0, 1, 2, 2], graph.ObjectiveDepths);
+        Assert.InRange(graph.MainBodyShare, 0.68f, 0.70f);
         Assert.Equal(0, graph.AbandonedAmbushShare);
         Assert.Equal(13, graph.LootRooms);
     }

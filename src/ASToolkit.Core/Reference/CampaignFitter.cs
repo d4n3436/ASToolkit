@@ -1,5 +1,6 @@
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
+using ASToolkit.Core.Rooms;
 using ASToolkit.Core.Survey;
 
 namespace ASToolkit.Core.Reference;
@@ -64,7 +65,14 @@ public sealed class CampaignFitter
             CashValue = CampaignMeasurer.CashValue,
             HitPoints = LinearFit.Fit(indoor.Select(level => (X: (float)level.Level, Y: MathF.Log(Math.Max(1, level.HitPoints)))).ToArray()),
             SpawnedShare = LinearFit.Fit(indoor.Select(level => (X: (float)level.Level, Y: GetLogOdds(level.SpawnedShare))).ToArray()),
-            FloorPixels = LinearFit.Fit(indoor.Select(level => (X: (float)level.Level, Y: MathF.Log(level.FloorPixels))).ToArray()),
+            FloorPixels = FitThemeLine(indoor, indoor.Select(level => Math.Log(level.FloorPixels)).ToArray()),
+            Rooms = FitRooms(references, indoor),
+            RoomRates = indoor
+                .GroupBy(level => level.Theme)
+                .ToDictionary(group => group.Key, group => new ValueRange(group.Min(level => GetRoomRate(references, level)), group.Max(level => GetRoomRate(references, level)))),
+            MaxRooms = indoor
+                .GroupBy(level => level.Theme)
+                .ToDictionary(group => group.Key, group => group.Max(level => DoorGraph.Create(references.GetSurvey(level.Map)).Rooms.Count)),
             EndMoney = LinearFit.Fit(campaigns.SelectMany(levels => levels).Where(level => level.Level < levelCount).Select(level => (X: MathF.Log(level.Level), Y: MathF.Log(level.EndMoney))).ToArray()),
             LabShare = new FittedValue<float>(indoor.Count(level => level.Theme == LevelTheme.Lab) / (float)Math.Max(1, indoor.Length), indoor.Length, IsBackedOff: false),
             Gates = FitGates(indoor),
@@ -88,6 +96,39 @@ public sealed class CampaignFitter
                 .Select(campaign => CreateDonor(references.GetLevel(campaign.Folder + ReferenceLevelSet.GetCampaignName(1))))
                 .ToArray()
         };
+    }
+
+    // Fit ln rooms per million floor pixels to the level number with a military term
+    private static FittedValue<ThemeLine> FitRooms(ReferenceLevelSet references, IReadOnlyList<CampaignMeasurement> levels) =>
+        FitThemeLine(levels, levels.Select(level => GetRoomRate(references, level)).ToArray());
+
+    private static double GetRoomRate(ReferenceLevelSet references, CampaignMeasurement level) =>
+        Math.Log(DoorGraph.Create(references.GetSurvey(level.Map)).Rooms.Count / (double)level.FloorPixels * PixelsPerRate);
+
+    // Fit a level quantity to the level number with a military term, flat below the minimum sample count
+    private static FittedValue<ThemeLine> FitThemeLine(IReadOnlyList<CampaignMeasurement> levels, double[] ys)
+    {
+        double[][] xs = levels.Select(level => (double[])[level.Level, level.Theme == LevelTheme.Military ? 1 : 0]).ToArray();
+        if (levels.Count < LinearFit.MinSamples)
+        {
+            double mean = ys.DefaultIfEmpty(0).Average();
+            double spread = ys.Length < 2 ? 0 : Math.Sqrt(ys.Sum(y => (y - mean) * (y - mean)) / (ys.Length - 1));
+            return new FittedValue<ThemeLine>(new ThemeLine(mean, 0, 0, spread), levels.Count, IsBackedOff: true);
+        }
+
+        double[] coefficients;
+        if (xs.Any(x => x[1] > 0) && xs.Any(x => x[1] < 1))
+        {
+            coefficients = MathNet.Numerics.Fit.MultiDim(xs, ys, intercept: true);
+        }
+        else
+        {
+            (double intercept, double slope) = MathNet.Numerics.Fit.Line(xs.Select(x => x[0]).ToArray(), ys);
+            coefficients = [intercept, slope, 0];
+        }
+
+        double squares = ys.Select((y, index) => Math.Pow(y - coefficients[0] - coefficients[1] * xs[index][0] - coefficients[2] * xs[index][1], 2)).Sum();
+        return new FittedValue<ThemeLine>(new ThemeLine(coefficients[0], coefficients[1], coefficients[2], Math.Sqrt(squares / Math.Max(1, ys.Length - 3))), levels.Count, IsBackedOff: false);
     }
 
     private static int GetSlot(KnownObject weapon) => weapon - KnownObject.Shotgun + FirstWeaponSlot;

@@ -18,6 +18,8 @@ This covers what the toolkit's code does not say by itself, which is how the gam
 - The breaker (418, `F418_0`) sets `DoorsIsOpen = 1`, calls `LightOn`, swaps the 424 door panels for 423, removes paired 609 and 612 trap walls and removes nearby 180 pointers.
 - A dark start calls `LightOff(0x606060)` after `InitGame`. The level 4 blackout is a trigger that sets `DoorsIsOpen = 0`, calls `LightOff` and swaps 423 for 424.
 - The generator 415 (`F415_15`) destroys every 164 fence in the level. Level 10 has an extra hardcoded branch.
+- Two originals close the way back for good. In level 10 a hidden 911 dummy in the second generator's hall builds three 615 rubble pieces across the fence frame between the first yard and the corridor from the start when the player comes within 200 px, and a 909 dummy shakes the screen in the yard. The level 4 blackout trigger locks the door behind the player. The 909 shakes of levels 3 and 5 close nothing.
+- Generators in one room fall as one step. Add-on 2 level 4 has four 415 generators in one room.
 - The `side` field of a sprite decides what can be destroyed. Breakables (barrels, monitors, crates, chairs, 609 walls) and the generator 415 use 2 in every original. Decor uses 0, and monsters, 908 and 80x generators use 1. A 415 with side 0 cannot be destroyed, and neither can its fences.
 
 ### Spawners (908)
@@ -59,6 +61,11 @@ This covers what the toolkit's code does not say by itself, which is how the gam
 - The fine lattice is (45, 32). Walls 650 and 651 are 2 units long and centered on integer points. The corner post 652 sits with the 650 that ends at the post.
 - The energy-fence emitter 653 flanks fenced gaps (dir 0 for `\`, 128 for `/`). A gate is one piece wide, with the emitter pair where the wall piece would be, the fence 164 14 px above it and ordinary concrete walls on both sides. 654 is a decorative door wall. Military levels have no working doors.
 - Floor 503 uses its own (80, 56) lattice and reaches under the walls. Otherwise a black band shows at the foot of far walls.
+
+### Rooms behind breakable walls
+
+- Most rooms behind a breakable wall are closets of 16 to 40 cells holding a pickup or two. Two furnished rooms in level 3 have jammed doors and are entered only by breaking a wall. One is an office west of the main hall with desks, cabinets and two cash pickups, the other a storage office with shelves, barrels and desks.
+- Add-on 2 level 5 has two treasure rooms behind breakable walls. A trail of cash leads to a sealed storeroom with 15 cash pickups, the magma minigun and mega health, and a large storage hall holds cash trails and extra lives.
 
 ### Roofs and stacking
 
@@ -113,19 +120,27 @@ The route analysis walks a model of the level the way a player would.
 
 A place is a part of the floor enclosed by doors and walls. Floor is the walkable cells the route reaches, the strip of cells under a roof next to them, and secret closets behind breakable walls.
 
-- **Labs.** Any door counts as an enclosure, whether it works, is locked, is jammed or is broken. A gap in a wall line up to 240 px wide also counts. The ends of a door frame are closed up to the next wall. Free-standing wall stubs that do not close a room do not split it.
-- **Open plans.** Military levels, outdoor maps and doorless labs have no doors to bound their rooms. Places are cut at gaps in a wall line up to 240 px wide, along the line of a wall stub carried across the floor for up to 300 px, and where the floor narrows to less than 60% of its widest part. A narrowing cut needs a wall that ends or turns at both of its ends, seen past up to 2 cells of floor hole, and may shift up to 4 cells to find one. Floor that is never walked and holds under one object per 300 cells is left out of the places. Places under 50k px² merge into the neighbor they open on, also across a fence gate.
+- **Labs.** Any door counts as an enclosure, whether it works, is locked, is jammed or is broken. A gap in a wall line up to 240 px wide also counts. The ends of a door frame are closed up to the next wall. Free-standing wall stubs that do not close a room do not split it. Floor tiles run under back walls and roofs, and add-on 1 level 2 has small doors on a back wall that open onto that strip. An untoured, empty strip at most 5 cells wide and at least 24 long is not a place.
+- **Open plans.** Military levels, outdoor maps and doorless labs have no doors to bound their rooms. Places are cut at gaps in a wall line up to 240 px wide, along the line of a wall stub carried across the floor for up to 300 px, and where the floor narrows to less than 60% of its widest part. A narrowing cut needs a wall that ends or turns at both of its ends, seen past up to 2 cells of floor hole, and may shift up to 4 cells to find one. Floor that is never walked and holds under one object per 300 cells is left out of the places, unless the places it touches reach each other only through it. Places under 50k px² merge into the neighbor they open on, also across a fence gate.
+- **Corridors.** A long place under 150 px wide is a corridor when it leads to two or more places, and a room when it is a dead end.
 - **Connections.** Opening, doorway, door, locked door, jammed door, breakable wall, spawn wall, monster hole, broken wall, fence frame and fence.
+- **Walking.** Jammed doors are not walked. A room bigger than twice the level's median secret closet that has a jammed door is entered through its breakable wall, like level 1's breach and two furnished rooms of level 3. Without a door it stays secret.
 - **Encounters.** Placed monsters within 130 px of each other form a group. Spawners that share a trigger form one ambush.
 
-### Sections and beats
+### Phases and beats
 
-`SectionMeasurer` splits a surveyed level into sections along the tour, and `BeatMeasurer` reads its fights, keys, locks, pickups, set pieces and goals as beats in them. [GENERATION.md](GENERATION.md#sections) lists the sections of the originals and what the beats show.
+`ProgressionMeasurer` splits a surveyed level into phases, one per state between the keys that change it, and `BeatMeasurer` reads its fights, keys, locks, pickups, set pieces and goals as beats in them. [GENERATION.md](GENERATION.md#phases) lists the phases of the originals and what the beats show.
 
-- **Commit points.** The tour commits after a visit when no place visited up to it is visited again. The visits between two commit points form a section, in tour order.
-- **Untoured places.** Each place the tour never enters joins the section of the nearest toured place, reached through connections of any kind, the earlier section on a tie.
-- **Boundaries.** A locked door, a fence standing in its frame, or a broken or breakable wall between the two places names the boundary. An open fence frame is a passage. Otherwise a step into the locked, dark or fenced zone names it, then a corridor on either side, and a passage otherwise.
-- **Forms.** Hall when halls and yards hold half the section's floor or more, Room with 3 rooms or fewer, Complex with 3 loops or more, Sprawl when the floor covers under 45% of the section's bounding box, and Wing otherwise.
+- **States.** The breaker opens every locked door at once, a destroyed generator drops every fence, and the blackout trigger closes its doors.
+- **Locks.** Locked doors and fences are locks. An open fence frame is a passage.
+- **Zone parts.** Places of one gate zone that join up form a part, a hidden room taking the zone of its first neighbor that is not hidden. Parts of one zone the tour enters from the same part form one phase.
+- **Dead ends.** A blackout part, or a gated part under 5% of the floor, that opens only onto the phase it is entered from joins that phase.
+- **Hidden rooms.** A phase of hidden rooms joins the phase its wall opens onto. Add-on 2 level 5's sealed treasure rooms are left out.
+- **Start.** The start room joins the phase it opens into.
+- **Return passes.** When a breaker or generator opens rooms inside its own phase and objectives or the end lie there, those rooms form a return pass after the part the key is reached in.
+- **Ungated levels** are one phase.
+- **Critical path.** From the entrance through the dynamite charges, then the objectives, nearest first, to the keys and on to the way into the next phase or the end. A return pass runs from its key through the charges and sites to the end.
+- **Ways back closed.** Rubble a trigger builds across a passage, and the doors a blackout trigger locks behind the player.
 
 ## Alien Shooter 2 walk
 

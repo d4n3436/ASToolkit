@@ -141,7 +141,7 @@ public static class RouteGridBuilder
         }
 
         var edges = new Dictionary<EdgeKey, EdgeKind>();
-        foreach ((var edge, EdgeKind kind) in coarse)
+        foreach (var (edge, kind) in coarse)
         {
             foreach (var fineEdge in SplitEdge(edge))
             {

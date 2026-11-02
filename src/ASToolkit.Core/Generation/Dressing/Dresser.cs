@@ -19,6 +19,7 @@ public static class Dresser
     {
         var covered = new HashSet<Cell>();
         var used = new HashSet<(int, Cell)>();
+        var exhausted = new HashSet<(int, string)>();
         var placed = new List<PlacedDecor>();
         foreach (var corner in cells.OrderBy(c => c.U).ThenBy(c => c.V))
         {
@@ -30,7 +31,7 @@ public static class Dresser
             foreach (int windowSize in library.WindowSizes)
             {
                 if (!DressingLibrary.IsWindowInside(cells, corner, windowSize) || HasCovered(covered, corner, windowSize)
-                    || !library.TryCopy(rng, edges, corner, windowSize, used, out var copied, keepClear))
+                    || !library.TryCopy(rng, edges, corner, windowSize, used, exhausted, out var copied, keepClear))
                 {
                     continue;
                 }

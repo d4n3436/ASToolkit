@@ -113,20 +113,21 @@ public sealed class DesignMeasurer
         var blocking = floorPieces.Where(piece => _objects.GetBlocking(piece.Id) != BlockingClass.WalkThrough).ToArray();
         var monitors = _model.Objects.Where(piece => piece.Id.IsWallMounted).ToArray();
         var boxes = _model.Objects.Where(piece => piece.Id == KnownObject.Boxes).ToArray();
-        var spawners = _analysis.Elements.Where(element => element.Kind == ElementKind.Spawner && element.Program is not null).Select(element => element.Program!).ToArray();
+        var spawners = _analysis.Elements.Where(element => element is { Kind: ElementKind.Spawner, Program: not null }).Select(element => element.Program!).ToArray();
         var deskTops = _model.Objects.Where(piece => DeskTops.Contains(piece.Id)).ToArray();
-        var sections = new SectionMeasurer(_survey).Measure();
-        var beats = new BeatMeasurer(_survey, sections).Measure();
+        var progression = new ProgressionMeasurer(_survey).Measure();
+        var beats = new BeatMeasurer(_survey, progression).Measure();
+        var gateLock = FindLock(progression);
 
-        var gates = _survey.Gates
-            .Where(gate => gate.KeyPlace is not null && gate.KeyRoute is not null)
-            .Select(gate => (Gate: gate, Lock: sections.FirstOrDefault(section => IsClosedBy(gate.Kind, section.Boundary))))
-            .Where(pair => pair.Lock is not null)
-            .ToArray();
+        var gates = gateLock is null
+            ? []
+            : _survey.Gates
+                .Where(gate => gate.KeyPlace is not null && gate.KeyRoute is not null)
+                .ToArray();
 
         var climaxes = beats
             .Where(beat => beat.Kind is BeatKind.Fight or BeatKind.Ambush or BeatKind.Boss)
-            .GroupBy(beat => beat.Section)
+            .GroupBy(beat => beat.Phase)
             .Where(group => group.Count() >= 2)
             .Select(group => group.MaxBy(beat => beat.HitPoints))
             .ToArray();
@@ -181,19 +182,18 @@ public sealed class DesignMeasurer
             DeskTopsOnSupports = new MeasureShare(deskTops.Count(piece => piece.SupportIndex >= 0), deskTops.Length),
             AmmoBeforeFights = new MeasureShare(_survey.Items.Count(item => item is { Category: ItemCategory.Ammo, Before: not null }),
                 _survey.Items.Count(item => item.Category == ItemCategory.Ammo)),
-            MoneyOffRoute = new MeasureShare(loose.Count(item => item.Category == ItemCategory.Money && item.OffRoute > OffRouteWalk), loose.Count(item => item.Category == ItemCategory.Money)),
+            MoneyOffRoute = new MeasureShare(loose.Count(item => item is { Category: ItemCategory.Money, OffRoute: > OffRouteWalk }), loose.Count(item => item.Category == ItemCategory.Money)),
             HealthInCrates = CountInCrates(ItemCategory.Health),
             AmmoInCrates = CountInCrates(ItemCategory.Ammo),
             ArmorInCrates = CountInCrates(ItemCategory.Armor),
             PileSize = loose.Length == 0 ? null : (float)loose.Length / loose.Select(item => new PointF(item.Position.X, item.Position.Y)).ToArray().Cluster(PileReach).Count,
-            Sections = sections,
+            Progression = progression,
             Beats = beats,
-            LocksSeenBeforeKeys = new MeasureShare(gates.Count(pair => GetPlace(pair.Lock!.Boundary!.Value.FromPlace).FirstVisit < pair.Gate.KeyRoute), gates.Length),
-            KeysBeforeLocks = new MeasureShare(gates.Count(pair => pair.Gate.Kind != LevelStyle.Blackout && sections.First(section => section.Places.Contains(pair.Gate.KeyPlace!.Value)).Index < pair.Lock!.Index),
-                gates.Count(pair => pair.Gate.Kind != LevelStyle.Blackout)),
+            LocksSeenBeforeKeys = new MeasureShare(gates.Count(gate => GetPlace(gateLock!.Value.From).FirstVisit < gate.KeyRoute), gates.Length),
+            KeysBeforeLocks = new MeasureShare(gates.Count(gate => gate.Kind != LevelStyle.Blackout && progression.GetPhase(gate.KeyPlace!.Value) < gateLock!.Value.Phase),
+                gates.Count(gate => gate.Kind != LevelStyle.Blackout)),
             ClimaxPosition = climaxes.Length == 0 ? null : climaxes.Select(beat => beat.Position).Order().ElementAt(climaxes.Length / 2),
-            ReliefAfterClimaxes = new MeasureShare(climaxes.Count(IsRelieved), climaxes.Length),
-            ArchetypeChanges = CountArchetypeChanges(sections)
+            ReliefAfterClimaxes = new MeasureShare(climaxes.Count(IsRelieved), climaxes.Length)
         };
     }
 
@@ -269,18 +269,27 @@ public sealed class DesignMeasurer
         return after < before;
     }
 
-    private static MeasureShare CountArchetypeChanges(LevelSection[] sections)
+    // Take the first phase a state change opens and the earliest toured place of an earlier phase beside it, through a lock where there is one
+    private (int Phase, int From)? FindLock(LevelProgression progression)
     {
-        var big = sections
-            .Where(section => section.FloorShare >= SectionMeasurer.MajorShare)
+        var phase = progression.Phases.FirstOrDefault(phase => phase is { Index: > 0, IsReturnPass: false });
+        if (phase is null)
+        {
+            return null;
+        }
+
+        var places = phase.Places.ToHashSet();
+
+        var crossings = _survey.Connections
+            .Where(connection => places.Contains(connection.A) != places.Contains(connection.B))
+            .Select(connection => (connection.Kind, From: places.Contains(connection.A) ? connection.B : connection.A))
+            .Where(crossing => progression.GetPhase(crossing.From) < phase.Index)
+            .OrderBy(crossing => crossing.Kind is not (ConnectionKind.LockedDoor or ConnectionKind.Fence))
+            .ThenBy(crossing => GetPlace(crossing.From).FirstVisit ?? int.MaxValue)
             .ToArray();
 
-        return new MeasureShare(big.Zip(big.Skip(1)).Count(pair => pair.First.Archetype != pair.Second.Archetype), Math.Max(0, big.Length - 1));
+        return crossings.Length == 0 ? null : (phase.Index, crossings[0].From);
     }
-
-    private static bool IsClosedBy(LevelStyle gate, SectionBoundary? boundary) => boundary is not null && (gate == LevelStyle.Fenced
-        ? boundary.Value.Kind == BoundaryKind.Fence
-        : boundary.Value.Kind is BoundaryKind.LockedDoor or BoundaryKind.Blackout);
 
     private PointF[] Find(KnownObject id) => _positions[id].ToArray();
 

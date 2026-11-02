@@ -24,6 +24,16 @@ internal sealed class PlaceSegmenter
 
     private const int ContentSpacingCells = 300;
 
+    private const int MaxStripCells = 5;
+
+    private const int MinStripRatio = 4;
+
+    private const int MinStripCells = 24;
+
+    private const int OutlineCells = 3;
+
+    private const int MaxStepAlignments = 64;
+
     private readonly int _maxOpeningCells;
     private readonly int _maxStubCells;
     private readonly int _minPlaceCells;
@@ -61,7 +71,8 @@ internal sealed class PlaceSegmenter
     /// <param name="roofed">The floor cells hidden under the roof.</param>
     /// <param name="openPlan">Whether the level has no doors.</param>
     /// <param name="content">The cells with content or tour.</param>
-    public PlaceSegmentation Segment(RouteGrid grid, IReadOnlyCollection<Cell> tour, IReadOnlySet<Cell> roofed, bool openPlan, IReadOnlySet<Cell> content)
+    /// <param name="furnished">The cells with content other than doors, or tour.</param>
+    public PlaceSegmentation Segment(RouteGrid grid, IReadOnlyCollection<Cell> tour, IReadOnlySet<Cell> roofed, bool openPlan, IReadOnlySet<Cell> content, IReadOnlySet<Cell> furnished)
     {
         var edges = grid.Edges;
         var shown = grid.Cells.Where(cell => !roofed.Contains(cell)).ToHashSet();
@@ -89,7 +100,7 @@ internal sealed class PlaceSegmenter
         {
             foreach (var (neighbor, edge) in EdgeKey.GetNeighbors(cell))
             {
-                if (grid.Cells.Contains(neighbor) && !floor.Contains(neighbor) && !closets.Contains(neighbor) && edges.TryGetValue(edge, out EdgeKind kind) && kind == EdgeKind.SecretWall)
+                if (grid.Cells.Contains(neighbor) && !floor.Contains(neighbor) && !closets.Contains(neighbor) && edges.TryGetValue(edge, out var kind) && kind == EdgeKind.SecretWall)
                 {
                     var closet = grid.Cells.Flood([neighbor], IsClosed);
                     if (closet.Count <= _maxClosetCells)
@@ -150,27 +161,29 @@ internal sealed class PlaceSegmenter
 
         if (openPlan)
         {
-            DropEmpty(places, placeOf, floor, content);
+            DropEmpty(places, placeOf, floor, content, edges);
             SplitNecks(places, placeOf, barriers, openings, _minRoomCells, _minCorridorCells);
         }
         else
         {
             var gaps = FindOpenings(barriers, floor, _maxOpeningCells);
             SplitAtDoors(places, placeOf, barriers, gaps, openings);
+            RemovePlaces(places, placeOf, floor, place => IsHollowStrip(place, furnished));
         }
 
         if (openPlan)
         {
-            DropEmpty(places, placeOf, floor, content);
+            DropEmpty(places, placeOf, floor, content, edges);
         }
 
         MergeSmall(places, placeOf, barriers, openings, _minPlaceCells, openPlan ? _pocketCells : 0);
         AddHiddenFloor(places, placeOf, floor, grid, barriers);
+        SmoothOutlines(places, placeOf, floor, barriers);
         return new PlaceSegmentation { Floor = floor, PlaceOf = placeOf, Places = places, Openings = openings, Flanks = flanks };
 
-        bool IsClosed(EdgeKey edge) => edges.TryGetValue(edge, out EdgeKind kind) && kind.IsClosed;
+        bool IsClosed(EdgeKey edge) => edges.TryGetValue(edge, out var kind) && kind.IsClosed;
 
-        bool IsWall(EdgeKey edge) => edges.TryGetValue(edge, out EdgeKind kind) && kind.BlocksWalking;
+        bool IsWall(EdgeKey edge) => edges.TryGetValue(edge, out var kind) && kind.BlocksWalking;
     }
 
     // Give each small patch of floor no place holds to the place it opens onto most
@@ -607,7 +620,7 @@ internal sealed class PlaceSegmenter
         }
 
 
-        static bool IsBar((int Along, int Across) bar) => bar.Along + bar.Across > 0 && !(bar is { Along: 2, Across: 0 }) && !(bar is { Along: 0, Across: 2 });
+        static bool IsBar((int Along, int Across) bar) => bar.Along + bar.Across > 0 && bar is not { Along: 2, Across: 0 } && bar is not { Along: 0, Across: 2 };
 
         bool TrySnap(int grower, int shrinker)
         {
@@ -806,9 +819,243 @@ internal sealed class PlaceSegmenter
         return depth;
     }
 
+    // Drop the strips of each room's outline too narrow for a square of outline cells and fill its bites and unwalled holes as narrow
+    private static void SmoothOutlines(List<List<Cell>> places, Dictionary<Cell, int> placeOf, HashSet<Cell> floor, Dictionary<EdgeKey, EdgeKind> edges)
+    {
+        for (int index = 0; index < places.Count; index++)
+        {
+            var place = places[index].ToHashSet();
+            var covered = new HashSet<Cell>();
+            foreach (var cell in place)
+            {
+                if (IsSquareCorner(cell, place))
+                {
+                    covered.UnionWith(GetSquare(cell));
+                }
+            }
+
+            var strips = place.Where(cell => !covered.Contains(cell)).ToHashSet();
+            foreach (var strip in GetComponents(strips, edges))
+            {
+                var rest = place.Where(cell => !strip.Contains(cell)).ToHashSet();
+                if (rest.Count == 0 || rest.Flood([rest.First()], _ => false).Count < rest.Count || strip.Any(cell => IsPassage(cell, index, placeOf, edges)))
+                {
+                    continue;
+                }
+
+                place = rest;
+                foreach (var cell in strip)
+                {
+                    placeOf.Remove(cell);
+                    floor.Remove(cell);
+                }
+            }
+
+            var grown = place.SelectMany(cell => GetRing(cell).Append(cell)).ToHashSet();
+            var bites = grown
+                .Where(cell => !place.Contains(cell) && !placeOf.ContainsKey(cell) && GetRing(cell).All(grown.Contains))
+                .ToHashSet();
+
+            var outside = GetOutside(place);
+            foreach (var bite in GetComponents(bites, []))
+            {
+                if (bite.Any(cell => GetRing(cell).Any(neighbor => placeOf.TryGetValue(neighbor, out int other) && other != index))
+                    || (!bite.Overlaps(outside) && bite.Any(cell => IsWalled(cell, edges))))
+                {
+                    continue;
+                }
+
+                place.UnionWith(bite);
+                foreach (var cell in bite)
+                {
+                    placeOf[cell] = index;
+                    floor.Add(cell);
+                }
+            }
+
+            int alignments = 0;
+            while (alignments < MaxStepAlignments && AlignStep(place, index, placeOf, floor, edges))
+            {
+                alignments++;
+            }
+
+            places[index] = place.ToList();
+        }
+    }
+
+    // Line up one side of the outline where it steps by less than a square of outline cells, moving the shorter run to the longer or else the longer to the shorter
+    private static bool AlignStep(HashSet<Cell> place, int index, Dictionary<Cell, int> placeOf, HashSet<Cell> floor, Dictionary<EdgeKey, EdgeKind> edges)
+    {
+        foreach (bool alongU in (bool[])[true, false])
+        {
+            var runs = new SortedDictionary<int, (int Low, int High)>();
+            foreach (var group in place.GroupBy(cell => alongU ? cell.V : cell.U))
+            {
+                int low = group.Min(cell => alongU ? cell.U : cell.V), high = group.Max(cell => alongU ? cell.U : cell.V);
+                if (high - low + 1 == group.Count())
+                {
+                    runs[group.Key] = (low, high);
+                }
+            }
+
+            foreach (bool lowSide in (bool[])[true, false])
+            {
+                var segments = new List<(int First, int Last, int End)>();
+                foreach ((int line, var run) in runs)
+                {
+                    int end = lowSide ? run.Low : run.High;
+                    if (segments.Count > 0 && segments[^1].Last == line - 1 && segments[^1].End == end)
+                    {
+                        segments[^1] = (segments[^1].First, line, end);
+                    }
+                    else
+                    {
+                        segments.Add((line, line, end));
+                    }
+                }
+
+                for (int segment = 0; segment + 1 < segments.Count; segment++)
+                {
+                    var (one, two) = (segments[segment], segments[segment + 1]);
+                    int step = Math.Abs(one.End - two.End);
+                    if (two.First != one.Last + 1 || step == 0 || step >= OutlineCells)
+                    {
+                        continue;
+                    }
+
+                    var (shorter, longer) = one.Last - one.First <= two.Last - two.First ? (one, two) : (two, one);
+                    if (TryMoveEnd(place, index, placeOf, floor, edges, runs, shorter, longer.End, alongU, lowSide)
+                        || TryMoveEnd(place, index, placeOf, floor, edges, runs, longer, shorter.End, alongU, lowSide))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryMoveEnd(HashSet<Cell> place, int index, Dictionary<Cell, int> placeOf, HashSet<Cell> floor, Dictionary<EdgeKey, EdgeKind> edges, SortedDictionary<int, (int Low, int High)> runs,
+        (int First, int Last, int End) segment, int target, bool alongU, bool lowSide)
+    {
+        bool grows = lowSide ? target < segment.End : target > segment.End;
+        var cells = new List<Cell>();
+        for (int line = segment.First; line <= segment.Last; line++)
+        {
+            for (int position = Math.Min(segment.End, target); position <= Math.Max(segment.End, target); position++)
+            {
+                if (position != (grows ? segment.End : target))
+                {
+                    cells.Add(alongU ? new Cell(position, line) : new Cell(line, position));
+                }
+            }
+
+            var run = runs[line];
+            if (!grows && (lowSide ? run.High - target : target - run.Low) + 1 < OutlineCells)
+            {
+                return false;
+            }
+        }
+
+        if (grows)
+        {
+            if (cells.Any(cell => (placeOf.TryGetValue(cell, out int owner) && owner != index)
+                                  || GetRing(cell).Any(neighbor => placeOf.TryGetValue(neighbor, out int other) && other != index)))
+            {
+                return false;
+            }
+
+            foreach (var cell in cells)
+            {
+                place.Add(cell);
+                placeOf[cell] = index;
+                floor.Add(cell);
+            }
+
+            return true;
+        }
+
+        var rest = place.Except(cells).ToHashSet();
+        if (rest.Count == 0 || rest.Flood([rest.First()], _ => false).Count < rest.Count || cells.Any(cell => IsPassage(cell, index, placeOf, edges)))
+        {
+            return false;
+        }
+
+        place.ExceptWith(cells);
+        foreach (var cell in cells)
+        {
+            placeOf.Remove(cell);
+            floor.Remove(cell);
+        }
+
+        return true;
+    }
+
+    // Keep the cells a door, an opening or any other passage leaves from
+    private static bool IsPassage(Cell cell, int index, Dictionary<Cell, int> placeOf, Dictionary<EdgeKey, EdgeKind> edges)
+    {
+        foreach (var (neighbor, edge) in EdgeKey.GetNeighbors(cell))
+        {
+            bool walled = edges.TryGetValue(edge, out var kind) && kind == EdgeKind.Wall;
+            if (!walled && (edges.ContainsKey(edge) || (placeOf.TryGetValue(neighbor, out int other) && other != index)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsSquareCorner(Cell corner, HashSet<Cell> cells) => GetSquare(corner).All(cells.Contains);
+
+    private static IEnumerable<Cell> GetSquare(Cell corner)
+    {
+        for (int du = 0; du < OutlineCells; du++)
+        {
+            for (int dv = 0; dv < OutlineCells; dv++)
+            {
+                yield return new Cell(corner.U + du, corner.V + dv);
+            }
+        }
+    }
+
+    private static bool IsWalled(Cell cell, Dictionary<EdgeKey, EdgeKind> edges)
+    {
+        foreach (var (_, edge) in EdgeKey.GetNeighbors(cell))
+        {
+            if (edges.ContainsKey(edge))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static HashSet<Cell> GetOutside(HashSet<Cell> place)
+    {
+        int minU = place.Min(cell => cell.U) - 1, maxU = place.Max(cell => cell.U) + 1;
+        int minV = place.Min(cell => cell.V) - 1, maxV = place.Max(cell => cell.V) + 1;
+        var free = new HashSet<Cell>();
+        for (int u = minU; u <= maxU; u++)
+        {
+            for (int v = minV; v <= maxV; v++)
+            {
+                var cell = new Cell(u, v);
+                if (!place.Contains(cell))
+                {
+                    free.Add(cell);
+                }
+            }
+        }
+
+        return free.Flood([new Cell(minU, minV)], _ => false);
+    }
+
     private static Cell[] GetRing(Cell cell) =>
     [
-        new(cell.U + 1, cell.V), new(cell.U - 1, cell.V), new(cell.U, cell.V + 1), new(cell.U, cell.V - 1),
+        cell with { U = cell.U + 1 }, cell with { U = cell.U - 1 }, cell with { V = cell.V + 1 }, cell with { V = cell.V - 1 },
         new(cell.U + 1, cell.V + 1), new(cell.U + 1, cell.V - 1), new(cell.U - 1, cell.V + 1), new(cell.U - 1, cell.V - 1)
     ];
 
@@ -831,9 +1078,104 @@ internal sealed class PlaceSegmenter
         return components;
     }
 
-    private static void DropEmpty(List<List<Cell>> places, Dictionary<Cell, int> placeOf, HashSet<Cell> floor, IReadOnlySet<Cell> content)
+    private static void DropEmpty(List<List<Cell>> places, Dictionary<Cell, int> placeOf, HashSet<Cell> floor, IReadOnlySet<Cell> content, Dictionary<EdgeKey, EdgeKind> edges)
     {
-        foreach (var place in places.Where(place => place.Count(content.Contains) < Math.Max(1, place.Count / ContentSpacingCells)))
+        var empty = Enumerable.Range(0, places.Count)
+            .Where(index => places[index].Count(content.Contains) < Math.Max(1, places[index].Count / ContentSpacingCells))
+            .ToHashSet();
+
+        var links = FindPlaceLinks(places, placeOf, edges);
+        var dropped = new HashSet<List<Cell>>();
+        foreach (var group in GroupLinked(empty, links))
+        {
+            if (!IsBridge(group, links, empty))
+            {
+                dropped.UnionWith(group.Select(index => places[index]));
+            }
+        }
+
+        RemovePlaces(places, placeOf, floor, dropped.Contains);
+    }
+
+    private static List<HashSet<int>> GroupLinked(HashSet<int> members, Dictionary<int, HashSet<int>> links)
+    {
+        var groups = new List<HashSet<int>>();
+        var left = new HashSet<int>(members);
+        while (left.Count > 0)
+        {
+            int first = left.First();
+            var group = new HashSet<int> { first };
+            var queue = new Queue<int>([first]);
+            while (queue.Count > 0)
+            {
+                foreach (int next in links[queue.Dequeue()].Where(next => left.Contains(next) && group.Add(next)))
+                {
+                    queue.Enqueue(next);
+                }
+            }
+
+            left.ExceptWith(group);
+            groups.Add(group);
+        }
+
+        return groups;
+    }
+
+    private static Dictionary<int, HashSet<int>> FindPlaceLinks(List<List<Cell>> places, Dictionary<Cell, int> placeOf, Dictionary<EdgeKey, EdgeKind> edges)
+    {
+        var links = Enumerable.Range(0, places.Count).ToDictionary(index => index, _ => new HashSet<int>());
+        foreach ((var cell, int index) in placeOf)
+        {
+            foreach (var (neighbor, edge) in EdgeKey.GetNeighbors(cell))
+            {
+                if (placeOf.TryGetValue(neighbor, out int other) && other != index && !(edges.TryGetValue(edge, out var kind) && kind.BlocksWalking))
+                {
+                    links[index].Add(other);
+                }
+            }
+        }
+
+        return links;
+    }
+
+    // Keep empty places whose kept neighbors reach each other only through them
+    private static bool IsBridge(HashSet<int> group, Dictionary<int, HashSet<int>> links, HashSet<int> empty)
+    {
+        int[] kept = group
+            .SelectMany(index => links[index])
+            .Where(other => !empty.Contains(other))
+            .Distinct()
+            .ToArray();
+
+        if (kept.Length < 2)
+        {
+            return false;
+        }
+
+        var reached = new HashSet<int> { kept[0] };
+        var queue = new Queue<int>([kept[0]]);
+        while (queue.Count > 0)
+        {
+            foreach (int next in links[queue.Dequeue()].Where(next => !group.Contains(next) && reached.Add(next)))
+            {
+                queue.Enqueue(next);
+            }
+        }
+
+        return !kept.All(reached.Contains);
+    }
+
+    // Drop the floor strips under back walls and roofs that small wall doors open onto
+    private static bool IsHollowStrip(List<Cell> place, IReadOnlySet<Cell> furnished)
+    {
+        int width = place.Max(cell => cell.U) - place.Min(cell => cell.U) + 1;
+        int depth = place.Max(cell => cell.V) - place.Min(cell => cell.V) + 1;
+        return !place.Any(furnished.Contains) && Math.Min(width, depth) <= MaxStripCells && Math.Max(width, depth) >= Math.Max(MinStripCells, MinStripRatio * Math.Min(width, depth));
+    }
+
+    private static void RemovePlaces(List<List<Cell>> places, Dictionary<Cell, int> placeOf, HashSet<Cell> floor, Func<List<Cell>, bool> drop)
+    {
+        foreach (var place in places.Where(drop))
         {
             foreach (var cell in place)
             {
@@ -875,7 +1217,7 @@ internal sealed class PlaceSegmenter
                 {
                     foreach (var (n, k) in EdgeKey.GetNeighbors(cell))
                     {
-                        if ((openings.Contains(k) || (edges.TryGetValue(k, out EdgeKind kind) && kind == EdgeKind.FenceFrame)) && placeOf.TryGetValue(n, out int other) && other != index)
+                        if ((openings.Contains(k) || (edges.TryGetValue(k, out var kind) && kind == EdgeKind.FenceFrame)) && placeOf.TryGetValue(n, out int other) && other != index)
                         {
                             shared[other] = shared.GetValueOrDefault(other) + 1;
                         }

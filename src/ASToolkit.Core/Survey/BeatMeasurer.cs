@@ -3,27 +3,24 @@ using ASToolkit.Core.Levels;
 namespace ASToolkit.Core.Survey;
 
 /// <summary>
-/// Provides the beats of a surveyed level from its fights, landmarks, pickups and section boundaries.
+/// Provides the beats of a surveyed level from its fights, landmarks, pickups and phases.
 /// </summary>
 public sealed class BeatMeasurer
 {
     private const int IntensityWindow = 1600;
 
     private readonly LevelSurvey _survey;
-    private readonly IReadOnlyList<LevelSection> _sections;
-    private readonly Dictionary<int, int> _sectionOf;
+    private readonly LevelProgression _progression;
+    private readonly (int Start, int End)[] _spans;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BeatMeasurer"/> class.
     /// </summary>
-    public BeatMeasurer(LevelSurvey survey, IReadOnlyList<LevelSection> sections)
+    public BeatMeasurer(LevelSurvey survey, LevelProgression progression)
     {
         _survey = survey;
-        _sections = sections;
-
-        _sectionOf = sections
-            .SelectMany(section => section.Places.Select(place => (Place: place, section.Index)))
-            .ToDictionary(entry => entry.Place, entry => entry.Index);
+        _progression = progression;
+        _spans = progression.Phases.Select(GetSpan).ToArray();
     }
 
     /// <summary>
@@ -31,7 +28,7 @@ public sealed class BeatMeasurer
     /// </summary>
     public LevelBeat[] Measure()
     {
-        if (_sections.Count == 0)
+        if (_progression.Phases.Count == 0)
         {
             return [];
         }
@@ -68,12 +65,16 @@ public sealed class BeatMeasurer
             }
         }
 
-        foreach (var section in _sections)
+        foreach (var phase in _progression.Phases.Skip(1))
         {
-            var boundary = section.Boundary;
-            if (boundary is not null && boundary.Value.Kind is BoundaryKind.LockedDoor or BoundaryKind.Blackout or BoundaryKind.Fence)
+            var first = phase.Places
+                .Select(GetPlace)
+                .Where(place => place.FirstVisit is not null)
+                .MinBy(place => place.FirstVisit);
+
+            if (first is not null)
             {
-                beats.Add(Create(BeatKind.Lock, boundary.Value.ToPlace, section.TourStart, 0, 0));
+                beats.Add(Create(BeatKind.Lock, first.Id, first.FirstVisit!.Value, 0, 0));
             }
         }
 
@@ -84,7 +85,7 @@ public sealed class BeatMeasurer
 
         foreach (var pile in _survey.Items.Where(item => item.Category is not (null or ItemCategory.Weapon or ItemCategory.Dynamite)).GroupBy(item => item.Place))
         {
-            bool stash = pile.Key >= 1 && _survey.Places[pile.Key - 1].Kind == PlaceKind.SecretCloset;
+            bool stash = pile.Key >= 1 && GetPlace(pile.Key).Kind == PlaceKind.SecretCloset;
             beats.Add(Create(stash ? BeatKind.Stash : BeatKind.Reward, pile.Key, pile.Min(item => item.Route), 0, pile.Count()));
         }
 
@@ -95,15 +96,38 @@ public sealed class BeatMeasurer
             .ToArray();
     }
 
+    private (int Start, int End) GetSpan(LevelPhase phase)
+    {
+        var visits = _survey.Route
+            .Where(visit => phase.Places.Contains(visit.Place))
+            .ToArray();
+
+        return visits.Length == 0 ? (0, 0) : (visits.Min(visit => visit.Enter), visits.Max(visit => visit.Leave));
+    }
+
+    private LevelPlace GetPlace(int id) => _survey.Places[id - 1];
+
     private LevelBeat Create(BeatKind kind, int place, int route, int hitPoints, int items)
     {
-        if (!_sectionOf.TryGetValue(place, out int index))
+        int index = _progression.GetPhase(place) ?? FindPhaseAt(route);
+        var phase = _progression.Phases[index];
+        (int start, int end) = _spans[index];
+        float position = end > start ? Math.Clamp((route - start) / (float)(end - start), 0, 1) : 0;
+        int depth = phase.Path.Contains(place) ? 0 : phase.Branches.Select(branch => branch.Depths.GetValueOrDefault(place)).DefaultIfEmpty(0).Max();
+        return new LevelBeat(kind, index, place, route, position, 0, hitPoints, items, depth);
+    }
+
+    private int FindPhaseAt(int route)
+    {
+        int found = 0;
+        for (int index = 0; index < _spans.Length; index++)
         {
-            index = _sections.LastOrDefault(section => section.TourStart <= route)?.Index ?? 0;
+            if (_spans[index].Start <= route && _spans[index].End > _spans[index].Start)
+            {
+                found = index;
+            }
         }
 
-        var section = _sections[index];
-        float position = section.TourEnd > section.TourStart ? Math.Clamp((route - section.TourStart) / (float)(section.TourEnd - section.TourStart), 0, 1) : 0;
-        return new LevelBeat(kind, index, place, route, position, 0, hitPoints, items, section.Depths.GetValueOrDefault(place));
+        return found;
     }
 }

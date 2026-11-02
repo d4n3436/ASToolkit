@@ -38,6 +38,11 @@ public sealed class LayoutPlan
     public Dictionary<Cell, int> Occupancy { get; } = [];
 
     /// <summary>
+    /// Gets the units of the courts that rings of rooms enclose.
+    /// </summary>
+    public HashSet<Cell> Courts { get; } = [];
+
+    /// <summary>
     /// Gets the stations in route order.
     /// </summary>
     public List<PlanRegion> Stations { get; } = [];

@@ -13,6 +13,7 @@ public sealed class DressingLibrary
     private const float FloorHeight = 5;
     private const int StripeFrameWidth = 16;
     private const int FirstStripeFrame = 6;
+    private const int MaxExamined = 64;
     private const int LastStripeFrame = 9;
 
     private readonly List<LevelModel> _sources;
@@ -141,11 +142,12 @@ public sealed class DressingLibrary
     /// the originals usually allow, that would face the walls in a way the originals rarely or never do, or that would stand away from walls
     /// where the originals nearly always stand it by one, is left out. Windows whose solid pieces stay off the cells to keep clear come first.
     /// </summary>
-    public bool TryCopy(Random rng, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, Cell corner, int size, ISet<(int Source, Cell Cell)> used, out List<PlacedDecor> placed,
-        IReadOnlySet<Cell> keepClear)
+    public bool TryCopy(Random rng, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, Cell corner, int size, ISet<(int Source, Cell Cell)> used, ISet<(int Size, string Key)> exhausted,
+        out List<PlacedDecor> placed, IReadOnlySet<Cell> keepClear)
     {
         placed = [];
-        if (!_windows.TryGetValue((size, GetWallKey(edges, corner, size)), out var all))
+        var key = (size, GetWallKey(edges, corner, size));
+        if (exhausted.Contains(key) || !_windows.TryGetValue(key, out var all))
         {
             return false;
         }
@@ -153,7 +155,8 @@ public sealed class DressingLibrary
         (int Source, Cell Corner)? pick = null;
         int best = int.MaxValue;
         int start = rng.Next(all.Count);
-        for (int step = 0; step < all.Count && best > 0; step++)
+        int examined = 0;
+        for (int step = 0; step < all.Count && best > 0 && examined < MaxExamined; step++)
         {
             var match = all[(start + step) % all.Count];
             if (GetCells(match.Corner, size).Any(cell => used.Contains((match.Source, cell))))
@@ -161,6 +164,7 @@ public sealed class DressingLibrary
                 continue;
             }
 
+            examined++;
             int tier = BlocksCells(match.Source, match.Corner, corner, size, keepClear) ? 1 : 0;
             if (tier < best)
             {
@@ -171,6 +175,11 @@ public sealed class DressingLibrary
 
         if (pick is null)
         {
+            if (examined == 0)
+            {
+                exhausted.Add(key);
+            }
+
             return false;
         }
 
@@ -316,8 +325,8 @@ public sealed class DressingLibrary
         return true;
     }
 
-    private static bool IsWall(IReadOnlyDictionary<EdgeKey, EdgeKind> edges, EdgeKey k) => edges.TryGetValue(k, out EdgeKind kind) && kind is EdgeKind.Wall or EdgeKind.Door or EdgeKind.SecretWall;
+    private static bool IsWall(IReadOnlyDictionary<EdgeKey, EdgeKind> edges, EdgeKey k) => edges.TryGetValue(k, out var kind) && kind is EdgeKind.Wall or EdgeKind.Door or EdgeKind.SecretWall;
 
     private static char Classify(IReadOnlyDictionary<EdgeKey, EdgeKind> edges, EdgeKey k) =>
-        edges.TryGetValue(k, out EdgeKind kind) ? kind is EdgeKind.Door or EdgeKind.DoubleDoor or EdgeKind.DoubleDoorEnd ? '2' : '1' : '0';
+        edges.TryGetValue(k, out var kind) ? kind is EdgeKind.Door or EdgeKind.DoubleDoor or EdgeKind.DoubleDoorEnd ? '2' : '1' : '0';
 }

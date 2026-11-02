@@ -59,9 +59,9 @@ public sealed record CampaignMeasurement
     public required int TourPixels { get; init; }
 
     /// <summary>
-    /// Gets the number of sections of the level.
+    /// Gets the number of phases of the level.
     /// </summary>
-    public required int Sections { get; init; }
+    public required int Phases { get; init; }
 
     /// <summary>
     /// Gets the pickups of the level by category, crates included.

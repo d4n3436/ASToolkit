@@ -106,7 +106,7 @@ public static class LevelMeasurer
         var shortcutWalls = new HashSet<int>();
         var closets = new List<SecretCloset>();
         
-        foreach ((var edge, EdgeKind kind) in grid.Edges)
+        foreach (var (edge, kind) in grid.Edges)
         {
             if (kind != EdgeKind.SecretWall)
             {
@@ -148,6 +148,6 @@ public static class LevelMeasurer
 
         return (closets, shortcutWalls.Count);
         
-        bool IsClosed(EdgeKey k) => grid.Edges.TryGetValue(k, out EdgeKind kind) && kind.IsClosed;
+        bool IsClosed(EdgeKey k) => grid.Edges.TryGetValue(k, out var kind) && kind.IsClosed;
     }
 }

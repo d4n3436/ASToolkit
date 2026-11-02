@@ -1,3 +1,4 @@
+using ASToolkit.Core.Generation.Mission;
 using ASToolkit.Core.Levels;
 
 namespace ASToolkit.Core.Generation.Layout;
@@ -31,4 +32,14 @@ public sealed class PlanLink
     /// Gets the whole common boundary.
     /// </summary>
     public required EdgeKey[] Boundary { get; init; }
+
+    /// <summary>
+    /// Gets or sets the mission phase of the room the link leads into.
+    /// </summary>
+    public int Phase { get; set; }
+
+    /// <summary>
+    /// Gets or sets the part the link plays in the mission graph, or null for a link the mission has no link for.
+    /// </summary>
+    public MissionLinkKind? Role { get; set; }
 }

@@ -42,7 +42,7 @@ internal sealed class InspectLevelCommand : Command<InspectLevelSettings>
                 return;
             }
 
-            var level = loader.Load(maps[mapIndex], mapPath);
+            var level = loader.Load(maps[mapIndex], mapPath, settings.Levels is null);
             if (level is null)
             {
                 problems[mapIndex] = "no route";

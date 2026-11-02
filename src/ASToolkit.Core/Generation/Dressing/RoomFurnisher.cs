@@ -441,7 +441,7 @@ public sealed class RoomFurnisher
                     break;
                 }
 
-                if (piece.Z < FloorHeight && piece.Id.Family is not null)
+                if (piece is { Z: < FloorHeight, Id.Family: not null })
                 {
                     var box = GetFootprint(piece, x, y);
                     if (room.Boxes.Any(other => other.Overlaps(box)))
@@ -480,7 +480,7 @@ public sealed class RoomFurnisher
 
             room.Taken.UnionWith(footprints);
             room.Boxes.AddRange(spans);
-            foreach (var (id, x, y, z) in group)
+            foreach ((var id, float x, float y, float z) in group)
             {
                 occupancy.Add(id, x, y, z);
             }
@@ -529,6 +529,7 @@ public sealed class RoomFurnisher
         private readonly Dictionary<(string, int), int> _sources = [];
         private readonly Dictionary<string, List<PointF>> _origins = [];
         private readonly IReadOnlyDictionary<EdgeKey, EdgeKind> _edges;
+        private readonly Dictionary<int, Cell[]> _wallCells = [];
 
         public Room(HashSet<Cell> cells, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, HashSet<RoomPart> used, Dictionary<KnownObject, int> caps, Dictionary<KnownObject, int> counts)
         {
@@ -598,11 +599,20 @@ public sealed class RoomFurnisher
         }
 
         // Return the cells with a wall or the room's edge on every given side, the sides numbered as in WallGaps
-        public Cell[] GetWallCells(int[] sides) => Floor.Where(cell =>
+        public Cell[] GetWallCells(int[] sides)
         {
-            var walled = _edges.GetWalledSides(cell, Cells.Contains, static _ => true);
-            return sides.All(side => walled.HasFlag(WallGaps.Sides[side]));
-        }).ToArray();
+            int key = sides.Aggregate(0, (mask, side) => mask | 1 << side);
+            if (!_wallCells.TryGetValue(key, out var cells))
+            {
+                _wallCells[key] = cells = Floor.Where(cell =>
+                {
+                    var walled = _edges.GetWalledSides(cell, Cells.Contains, static _ => true);
+                    return sides.All(side => walled.HasFlag(WallGaps.Sides[side]));
+                }).ToArray();
+            }
+
+            return cells;
+        }
     }
 
     // The floor a piece takes along the lattice axes, in map pixels

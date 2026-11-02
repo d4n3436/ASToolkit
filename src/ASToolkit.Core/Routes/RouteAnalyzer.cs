@@ -494,7 +494,7 @@ public static class RouteAnalyzer
                 return true;
             }
 
-            if (!_grid.Edges.TryGetValue(k, out EdgeKind kind))
+            if (!_grid.Edges.TryGetValue(k, out var kind))
             {
                 return false;
             }
@@ -571,7 +571,7 @@ public static class RouteAnalyzer
                 var c = queue.Dequeue();
                 foreach (var (n, k) in EdgeKey.GetNeighbors(c))
                 {
-                    if (_grid.Cells.Contains(n) && !projection.ContainsKey(n) && !(_grid.Edges.TryGetValue(k, out EdgeKind kind) && kind.BlocksWalking))
+                    if (_grid.Cells.Contains(n) && !projection.ContainsKey(n) && !(_grid.Edges.TryGetValue(k, out var kind) && kind.BlocksWalking))
                     {
                         projection[n] = projection[c];
                         queue.Enqueue(n);

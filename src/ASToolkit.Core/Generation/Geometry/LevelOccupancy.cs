@@ -114,7 +114,7 @@ public sealed class LevelOccupancy
     public bool HasRoomAround(float x, float y) => !_standing.Any(standing =>
     {
         var obj = standing.Object;
-        if (!obj.IsSolid && obj.Size.Z < StandingHeight)
+        if (obj is { IsSolid: false, Size.Z: < StandingHeight })
         {
             return false;
         }
@@ -279,5 +279,5 @@ public sealed class LevelOccupancy
 
     private bool IsUnit(KnownObject id) => !id.IsDecor && _objects.TryFind(id, out var obj) && obj.SpriteType.HasFlag(SpriteType.Unit);
 
-    private bool IsWall(EdgeKey edge) => _edges.TryGetValue(edge, out EdgeKind kind) && kind.BlocksWalking;
+    private bool IsWall(EdgeKey edge) => _edges.TryGetValue(edge, out var kind) && kind.BlocksWalking;
 }

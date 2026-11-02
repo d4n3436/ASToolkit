@@ -73,6 +73,11 @@ public sealed class GeneratedLevel
     public required IReadOnlyDictionary<SpriteSource, int> Provenance { get; init; }
 
     /// <summary>
+    /// Gets the counts of the layout stage that built the level.
+    /// </summary>
+    public required AreaBuildCounts LayoutCounts { get; init; }
+
+    /// <summary>
     /// Writes the map and its script next to it, taking the other map chunks from a template map.
     /// </summary>
     public void Write(string mapPath, string templatePath)

@@ -39,6 +39,16 @@ public sealed class StyleModel
     public CampaignModel Campaign { get; }
 
     /// <summary>
+    /// Gets the mission grammar's parameters.
+    /// </summary>
+    public required MissionModel Mission { get; init; }
+
+    /// <summary>
+    /// Gets the architecture fitted to the style's originals.
+    /// </summary>
+    public required AreaModel Areas { get; init; }
+
+    /// <summary>
     /// Gets the original levels the model is fitted to, in order.
     /// </summary>
     public IReadOnlyList<string> FittingLevels { get; }

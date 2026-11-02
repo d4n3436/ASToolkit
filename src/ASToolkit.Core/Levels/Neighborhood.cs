@@ -17,7 +17,7 @@ public struct Neighborhood
     {
         foreach (var (_, edge) in this)
         {
-            if (edges.TryGetValue(edge, out EdgeKind k) && (kind is null || k == kind))
+            if (edges.TryGetValue(edge, out var k) && (kind is null || k == kind))
             {
                 return true;
             }

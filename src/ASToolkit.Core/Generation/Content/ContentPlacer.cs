@@ -33,7 +33,6 @@ public static class ContentPlacer
     private const float BreakerGateReach = 400;
     private const float BreakerGateSlack = 100;
     private const float GeneratorFenceGap = 900;
-    private const int LateGeneratorCells = 4;
     private const float WeaponSpacing = 600;
     private const float GoreClearance = 1;
     private const float CannonWalk = 3600;
@@ -71,7 +70,6 @@ public static class ContentPlacer
     private const float PadWallMargin = 20;
     private const float LatestBossStart = 0.65f;
     private const float GroupDetour = 1.4f;
-    private const float LateGeneratorGap = 0.15f;
     private static readonly KnownObject[] GorePools = [KnownObject.SmallBloodPool, KnownObject.BloodPool];
     private const float DefaultCheckpoint = 0.3f;
 
@@ -259,7 +257,7 @@ public static class ContentPlacer
         IReadOnlyList<SiteTemplate> siteTemplates, IReadOnlyDictionary<EdgeKey, EdgeKind> visibleEdges, IReadOnlyDictionary<EdgeKey, EdgeKind> builtEdges, IReadOnlyDictionary<EdgeKey, int> spawnWalls, KeypadTable keypads, FacingTable facings,
         IReadOnlyList<IReadOnlyList<PropPlacement>> cannonScenes, EncounterProfile encounters, PlacedSites? placed)
     {
-        PlaceGate(ctx, budget, script, breaker, keypads, encounters.GeneratorProgress, facings);
+        PlaceGate(ctx, budget, script, breaker, keypads, facings);
         PlaceBosses(ctx, budget, facings, builtEdges);
         var cannon = placed is null ? PlaceMountedCannons(ctx, budget, cannonScenes) : placed.Cannon;
         var sites = placed?.Sites ?? PlaceSites(ctx, budget, siteTemplates, visibleEdges, cannon, encounters);
@@ -323,15 +321,14 @@ public static class ContentPlacer
 
     private static float GetDistance(PointF a, PointF b) => MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
 
-    // Returns the dead-end room of a generator the original walks to well after its first one, or null
-    private static void PlaceGate(PlacementContext ctx, LevelBudget budget, LevelScript script, BreakerSpot? breaker, KeypadTable keypads, IReadOnlyList<float> generatorProgress, FacingTable facings)
+    private static void PlaceGate(PlacementContext ctx, LevelBudget budget, LevelScript script, BreakerSpot? breaker, KeypadTable keypads, FacingTable facings)
     {
         var plan = ctx.Plan;
         if (plan.Gate is GateKind.LockedDoors or GateKind.Blackout && breaker is not null)
         {
             ctx.Map.Add(KnownObject.Breaker, breaker.Position.X, breaker.Position.Y);
             ctx.Taken.Add(new Cell(breaker.Wall.A - 1, breaker.Wall.B));
-            foreach ((var edge, EdgeKind kind) in ctx.Layout.Edges.Where(p => p.Value is EdgeKind.Door or EdgeKind.DoubleDoor).OrderBy(p => p.Key.Axis).ThenBy(p => p.Key.A).ThenBy(p => p.Key.B))
+            foreach (var (edge, kind) in ctx.Layout.Edges.Where(p => p.Value is EdgeKind.Door or EdgeKind.DoubleDoor).OrderBy(p => p.Key.Axis).ThenBy(p => p.Key.A).ThenBy(p => p.Key.B))
             {
                 ((float x, float y), bool slash) = StructureBuilder.GetLabPosition(ctx.Layout.Lattice, edge);
                 var door = kind == EdgeKind.Door ? KnownObject.SmallDoor : KnownObject.DoubleDoor;
@@ -350,73 +347,74 @@ public static class ContentPlacer
 
         if (plan is { Gate: GateKind.Fences, KeyRoom: not null })
         {
-            var entrance = GetDoorwayCell(ctx, plan.Links.First(l => l.To == plan.KeyRoom.Id));
-            var back = ctx.GetFreeCells(plan.KeyRoom, inner: true)
-                .OrderByDescending(c => Math.Abs(c.U - entrance.U) + Math.Abs(c.V - entrance.V)).ToList();
-            if (back.Count == 0)
-            {
-                back = ctx.GetFreeCells(plan.KeyRoom).ToList();
-            }
-
             var fences = plan.Links.Where(link => link.Kind == LinkKind.Fence).Select(link => ctx.MeasureDistances(GetDoorwayCell(ctx, link))).ToArray();
             bool IsClearOfFences(Cell c) => fences.All(walk => walk.GetValueOrDefault(c, int.MaxValue) * ctx.Step >= GeneratorFenceGap);
-            var clear = back.Where(IsClearOfFences).ToList();
-            if (clear.Count > 0)
+            var rooms = plan.GeneratorRooms.Count > 0 ? plan.GeneratorRooms.Select(entry => entry.Room).ToArray() : [plan.KeyRoom];
+            int count = Math.Max(budget.Generators, rooms.Length);
+            int keyRoomCells = 0;
+            for (int roomIndex = 0; roomIndex < rooms.Length; roomIndex++)
             {
-                back = clear;
-            }
+                var room = rooms[roomIndex];
+                var entrance = GetDoorwayCell(ctx, plan.Links.First(l => l.To == room.Id));
+                var cells = ctx.GetFreeCells(room, inner: true)
+                    .OrderByDescending(c => Math.Abs(c.U - entrance.U) + Math.Abs(c.V - entrance.V))
+                    .ToList();
 
-            for (int index = 0; index < Math.Max(1, budget.Generators) && back.Count > 0; index++)
-            {
-                var pool = back.Take(Math.Max(1, back.Count / 3)).ToArray();
-                if (index > 0 && index < generatorProgress.Count && generatorProgress[index] - generatorProgress[0] > LateGeneratorGap)
+                if (cells.Count == 0)
                 {
-                    var lateRoom = FindDeadEnd(ctx, generatorProgress[index]);
-                    if (lateRoom is not null)
+                    cells = ctx.GetFreeCells(room).ToList();
+                }
+
+                var anywhere = cells.ToList();
+                var clear = cells.Where(IsClearOfFences).ToList();
+                if (clear.Count > 0)
+                {
+                    cells = clear;
+                }
+
+                int here = count / rooms.Length + (roomIndex < count % rooms.Length ? 1 : 0);
+                for (int index = 0; index < here && cells.Count > 0; index++)
+                {
+                    var placed = ctx.Place(cells.Take(Math.Max(1, cells.Count / 3)).ToArray(), KnownObject.Generator, dir: 0)
+                        ?? ctx.Place(cells.ToArray(), KnownObject.Generator, dir: 0)
+                        ?? ctx.Place(anywhere.Where(cell => !cells.Contains(cell)).ToArray(), KnownObject.Generator, dir: 0);
+                    if (placed is null)
                     {
-                        var entry = GetDoorwayCell(ctx, ctx.Plan.Links.First(l => l.To == lateRoom.Id));
-                        var late = ctx.GetFreeCells(lateRoom, inner: true).OrderByDescending(c => Math.Abs(c.U - entry.U) + Math.Abs(c.V - entry.V)).ToArray();
-                        var lateClear = late.Where(IsClearOfFences).Take(LateGeneratorCells).ToArray();
-                        pool = lateClear.Length > 0 ? lateClear : pool;
+                        break;
                     }
+
+                    if (ctx.Brief.Level == 10 && GetDistance(new PointF(placed.Value.X, placed.Value.Y), new PointF(7541, 4501)) < 150)
+                    {
+                        // Avoid the 415 spot the level 10 script handles specially
+                        ctx.Map.RemoveLast();
+                        cells.Remove(placed.Value.Cell);
+                        index--;
+                        continue;
+                    }
+
+                    ctx.Map.Add(KnownObject.ShootHere, placed.Value.X, placed.Value.Y, 0, 0, unique: false);
+                    cells.Remove(placed.Value.Cell);
                 }
 
-                var placed = ctx.Place(pool, KnownObject.Generator, dir: 0);
-                if (placed is null)
+                if (roomIndex == 0)
                 {
-                    break;
+                    keyRoomCells = cells.Count;
                 }
-
-                if (ctx.Brief.Level == 10 && GetDistance(new PointF(placed.Value.X, placed.Value.Y), new PointF(7541, 4501)) < 150)
-                {
-                    // Avoid the 415 spot the level 10 script handles specially
-                    ctx.Map.RemoveLast();
-                    back.Remove(placed.Value.Cell);
-                    index--;
-                    continue;
-                }
-
-                ctx.Map.Add(KnownObject.ShootHere, placed.Value.X, placed.Value.Y, 0, 0, unique: false);
-                back.Remove(placed.Value.Cell);
             }
 
+            var keyEntrance = GetDoorwayCell(ctx, plan.Links.First(l => l.To == plan.KeyRoom.Id));
 
             var walls = ctx.GetFreeCells(plan.KeyRoom)
                 .Where(c => facings.IsByWall(KnownObject.Transformer, ctx.Layout.Edges, c.U + 0.5f, c.V + 0.5f) && facings.HasFacing(KnownObject.Transformer, ctx.Layout.Edges, c.U + 0.5f, c.V + 0.5f))
-                .OrderByDescending(c => Math.Abs(c.U - entrance.U) + Math.Abs(c.V - entrance.V))
+                .OrderByDescending(c => Math.Abs(c.U - keyEntrance.U) + Math.Abs(c.V - keyEntrance.V))
                 .ToArray();
-            foreach (var cell in walls.Take(Math.Min(2, back.Count / 3)))
+
+            foreach (var cell in walls.Take(Math.Min(2, keyRoomCells / 3)))
             {
                 ctx.Place([cell], KnownObject.Transformer, dir: facings.PickFacing(ctx.Rng, KnownObject.Transformer, ctx.Layout.Edges, cell.U + 0.5f, cell.V + 0.5f));
             }
         }
     }
-
-    private static PlanRegion? FindDeadEnd(PlacementContext ctx, float progress) => ctx.Plan.Regions
-        .Where(r => r.Kind is RegionKind.Station or RegionKind.SideRoom && r != ctx.Plan.KeyRoom && r.Id != ctx.Plan.Stations[0].Id)
-        .Where(r => ctx.Plan.Links.Count(l => l.From == r.Id || l.To == r.Id) == 1 && ctx.Plan.Links.Any(l => l.To == r.Id))
-        .Where(r => ctx.GetFreeCells(r, inner: true).Length > 0)
-        .MinBy(r => Math.Abs(ctx.GetProgress(r) - progress));
 
     private static Cell GetDoorwayCell(PlacementContext ctx, PlanLink link)
     {
@@ -914,7 +912,7 @@ public static class ContentPlacer
 
             foreach ((char edgeAxis, int sign) in new[] { ('u', 1), ('u', -1), ('v', 1), ('v', -1) })
             {
-                (float distance, EdgeKind kind) = CastRay(ctx, edges, u, v, edgeAxis, sign);
+                (float distance, var kind) = CastRay(ctx, edges, u, v, edgeAxis, sign);
                 if (kind != EdgeKind.Wall && distance < OpeningReach || distance < GetGap(edgeAxis, sign) - WallGapSlack)
                 {
                     return false;
@@ -938,7 +936,7 @@ public static class ContentPlacer
             return (float.MaxValue, EdgeKind.Wall);
         }
 
-        var (distance, edge, kind) = hit.Value;
+        (float distance, var edge, var kind) = hit.Value;
         var fakeDoors = ctx.Layout.FakeDoors;
         bool door = fakeDoors.ContainsKey(edge) || fakeDoors.ContainsKey(StructureBuilder.GetPreviousEdge(edge)) || fakeDoors.ContainsKey(edgeAxis == 'u' ? new EdgeKey('u', edge.A, edge.B + 1) : new EdgeKey('v', edge.A + 1, edge.B));
         return (distance, door ? EdgeKind.Door : kind == EdgeKind.None ? EdgeKind.Wall : kind);
@@ -1222,7 +1220,7 @@ public static class ContentPlacer
 
             foreach (var (next, edge) in EdgeKey.GetNeighbors(cell))
             {
-                if (ctx.Distance.ContainsKey(next) && !steps.ContainsKey(next) && !(ctx.Layout.Edges.TryGetValue(edge, out EdgeKind kind) && kind.BlocksWalking))
+                if (ctx.Distance.ContainsKey(next) && !steps.ContainsKey(next) && !(ctx.Layout.Edges.TryGetValue(edge, out var kind) && kind.BlocksWalking))
                 {
                     steps[next] = steps[cell] + 1;
                     queue.Enqueue(next);

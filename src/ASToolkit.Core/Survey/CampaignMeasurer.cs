@@ -74,7 +74,7 @@ public sealed class CampaignMeasurer
                 NewMonsterKinds = kinds.Where(seenKinds.Add).ToArray(),
                 FloorPixels = survey.Places.Sum(place => place.AreaPixels),
                 TourPixels = survey.Signature.TourPixels,
-                Sections = new SectionMeasurer(survey).Measure().Length,
+                Phases = new ProgressionMeasurer(survey).Measure().Phases.Count,
                 Pickups = survey.Items.Where(item => item.Category is not null).GroupBy(item => item.Category!.Value).ToDictionary(group => group.Key, group => group.Count()),
                 Items = survey.Items.Where(item => item.Id.IsPickup).CountBy(item => item.Id).ToDictionary(),
                 Money = CashValue * survey.Items.Count(item => item.Id == KnownObject.Money),

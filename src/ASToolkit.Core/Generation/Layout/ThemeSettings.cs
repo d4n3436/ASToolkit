@@ -19,7 +19,7 @@ public sealed record ThemeSettings(
     /// <summary>
     /// Represents the military theme, built of 2 by 2 military cells.
     /// </summary>
-    public static readonly ThemeSettings Military = new(LevelTheme.Military, 2, (1, 2), 3);
+    public static readonly ThemeSettings Military = new(LevelTheme.Military, 2, (1, 2), 2);
 
     /// <summary>
     /// Gets the walking length of one unit in map pixels.

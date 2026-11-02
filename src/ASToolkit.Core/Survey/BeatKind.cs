@@ -26,7 +26,7 @@ public enum BeatKind
     Key,
 
     /// <summary>
-    /// A locked, dark or fenced boundary into the next section.
+    /// The first place the player reaches in each phase after the first.
     /// </summary>
     Lock,
 

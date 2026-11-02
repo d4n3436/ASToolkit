@@ -90,6 +90,11 @@ public sealed class LevelSurvey
     public required IReadOnlyList<LevelBranch> Branches { get; init; }
 
     /// <summary>
+    /// Gets the units the level's scripts build when the player enters their trigger areas.
+    /// </summary>
+    public required IReadOnlyList<LevelBuild> Builds { get; init; }
+
+    /// <summary>
     /// Returns the openings of the connections as segments on the map.
     /// </summary>
     public Doorway[] GetDoorways() => Connections

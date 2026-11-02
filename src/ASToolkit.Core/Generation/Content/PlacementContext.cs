@@ -351,14 +351,14 @@ public sealed class PlacementContext
         {
             if (next == neighbor)
             {
-                return Layout.Edges.TryGetValue(edge, out EdgeKind kind) && kind.ShowsWall;
+                return Layout.Edges.TryGetValue(edge, out var kind) && kind.ShowsWall;
             }
         }
 
         return true;
     }
 
-    private bool IsBlockingEdge(EdgeKey k) => Layout.Edges.TryGetValue(k, out EdgeKind kind) && kind.BlocksWalking;
+    private bool IsBlockingEdge(EdgeKey k) => Layout.Edges.TryGetValue(k, out var kind) && kind.BlocksWalking;
 
     /// <summary>
     /// Returns the walking distance of every reachable cell from a cell, in cell steps, with every door open.

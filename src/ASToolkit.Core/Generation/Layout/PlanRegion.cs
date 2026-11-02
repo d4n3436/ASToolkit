@@ -1,3 +1,4 @@
+using ASToolkit.Core.Generation.Mission;
 using ASToolkit.Core.Levels;
 
 namespace ASToolkit.Core.Generation.Layout;
@@ -46,4 +47,24 @@ public sealed class PlanRegion
     /// Gets or sets a value indicating whether the region lies behind the level's gate.
     /// </summary>
     public bool IsGated { get; set; }
+
+    /// <summary>
+    /// Gets or sets the mission room the region holds, or null for a region the mission has no room for.
+    /// </summary>
+    public int? Room { get; set; }
+
+    /// <summary>
+    /// Gets or sets the mission phase the region first belongs to.
+    /// </summary>
+    public int Phase { get; set; }
+
+    /// <summary>
+    /// Gets or sets the region's index in the mission's flow order, or null when the flow does not order it.
+    /// </summary>
+    public int? Flow { get; set; }
+
+    /// <summary>
+    /// Gets or sets the mission role of the region's room, or null for a region without one.
+    /// </summary>
+    public MissionRole? Role { get; set; }
 }

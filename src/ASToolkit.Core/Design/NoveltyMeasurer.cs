@@ -49,7 +49,7 @@ public sealed class NoveltyMeasurer
                 points.Add(piece.Point);
             }
 
-            foreach ((var first, var second) in FindPairs(pieces).Where(pair => pair.First.Id != pair.Second.Id))
+            foreach (var (first, second) in FindPairs(pieces).Where(pair => pair.First.Id != pair.Second.Id))
             {
                 var key = (first.Id, second.Id, (int)MathF.Round(second.Point.X - first.Point.X), (int)MathF.Round(second.Point.Y - first.Point.Y));
                 if (!_pairs.TryGetValue(key, out var anchors))
@@ -71,7 +71,7 @@ public sealed class NoveltyMeasurer
         int self = Array.IndexOf(_names, name);
         var pieces = GetPieces(model);
         var neighbors = pieces.ToDictionary(piece => piece, _ => new List<(KnownObject Id, PointF Point)>());
-        foreach ((var first, var second) in FindPairs(pieces))
+        foreach (var (first, second) in FindPairs(pieces))
         {
             neighbors[first].Add(second);
         }
@@ -124,7 +124,7 @@ public sealed class NoveltyMeasurer
     }
 
     private static (KnownObject Id, PointF Point)[] GetPieces(LevelModel model) => model.Sprites
-        .Where(sprite => (sprite.Id.IsDecor && !sprite.Id.IsBlood && sprite.Id != KnownObject.EmbeddedShadow) || KnownObject.Monsters.Contains(sprite.Id) || KnownObject.Bosses.Contains(sprite.Id))
+        .Where(sprite => (sprite.Id is { IsDecor: true, IsBlood: false } && sprite.Id != KnownObject.EmbeddedShadow) || KnownObject.Monsters.Contains(sprite.Id) || KnownObject.Bosses.Contains(sprite.Id))
         .Select(sprite => (sprite.Id, new PointF(sprite.Position.X, sprite.Position.Y)))
         .Distinct()
         .ToArray();

@@ -132,6 +132,20 @@ public class LevelGeneratorIntegrationTests
             }
         }
 
+        var plan = level.Plan;
+        if (plan is { Gate: GateKind.Fences } && layout is not null)
+        {
+            var held = level.Map.Sprites
+                .Where(sprite => sprite.Id == KnownObject.Generator)
+                .Select(sprite => layout.Cells.GetValueOrDefault(layout.Lattice.GetCell(sprite.Position.X, sprite.Position.Y), -1))
+                .ToHashSet();
+
+            foreach (var (room, _) in plan.GeneratorRooms.Where(entry => !held.Contains(entry.Room.Id)))
+            {
+                faults.Add($"{name}: generator room {room.Id} holds no generator");
+            }
+        }
+
         int sites = analysis.Elements.Count(element => element.Kind == ElementKind.DynamiteSite);
         int charges = analysis.Elements.Count(element => element.Id == KnownObject.Dynamite);
         if (level.AddOnNumber is null && level.Level > 1 && charges != sites)
@@ -195,7 +209,7 @@ public class LevelGeneratorIntegrationTests
         }
 
         float shift = level.Theme == LevelTheme.Lab ? LabRoofShift : 0;
-        foreach (var roof in level.Map.Sprites.Where(sprite => sprite.Id == KnownObject.Earth && sprite.Position.Z >= RoofHeight))
+        foreach (var roof in level.Map.Sprites.Where(sprite => sprite is { Id: KnownObject.Earth, Position.Z: >= RoofHeight }))
         {
             if (layout.Cells.TryGetValue(lattice.GetCell(roof.Position.X, roof.Position.Y - shift), out int region)
                 && plan.Regions[region].Kind is not (RegionKind.SecretCloset or RegionKind.SpawnCloset))

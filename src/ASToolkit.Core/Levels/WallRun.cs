@@ -47,7 +47,7 @@ public sealed record WallRun(int Before, int After, bool StartsAtCorner, bool En
     /// </summary>
     public bool IsEnclosed(int openEndDistance) => (StartsAtCorner || Before >= openEndDistance) && (EndsAtCorner || After >= openEndDistance);
     
-    private static bool IsWall(EdgeKey k, IReadOnlyDictionary<EdgeKey, EdgeKind> edges) => edges.TryGetValue(k, out EdgeKind kind) && kind == EdgeKind.Wall;
+    private static bool IsWall(EdgeKey k, IReadOnlyDictionary<EdgeKey, EdgeKind> edges) => edges.TryGetValue(k, out var kind) && kind == EdgeKind.Wall;
     
     private static EdgeKey Step(EdgeKey k, int d) => k.Axis == 'u' ? new EdgeKey('u', k.A, k.B + d) : new EdgeKey('v', k.A + d, k.B);
 }

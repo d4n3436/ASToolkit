@@ -1,3 +1,4 @@
+using ASToolkit.Core.Levels;
 using ASToolkit.Core.Survey;
 
 namespace ASToolkit.Core.Rooms;
@@ -36,8 +37,22 @@ public sealed class DoorGraph
     /// </summary>
     public static DoorGraph Create(LevelSurvey survey)
     {
+        int closet = GetClosetLimit(survey);
+        var entered = FindWallEnteredRooms(survey, closet);
+
+        var hidden = survey.Places
+            .Where(place => survey.Theme != LevelTheme.Outdoor && IsHiddenRoom(place, closet) && !entered.Contains(place.Id))
+            .Select(place => place.Id)
+            .ToHashSet();
+
+        var sealedRooms = hidden
+            .Where(room => survey.Connections
+                .Where(connection => (connection.A == room && !hidden.Contains(connection.B)) || (connection.B == room && !hidden.Contains(connection.A)))
+                .All(connection => connection.Kind == ConnectionKind.SecretWall))
+            .ToHashSet();
+
         int[] rooms = survey.Places
-            .Where(place => place.Kind is not (PlaceKind.SecretCloset or PlaceKind.SpawnCloset))
+            .Where(place => (place.Kind is not (PlaceKind.SecretCloset or PlaceKind.SpawnCloset) || entered.Contains(place.Id)) && !sealedRooms.Contains(place.Id))
             .Select(place => place.Id)
             .ToArray();
         
@@ -45,8 +60,10 @@ public sealed class DoorGraph
         var neighbors = rooms.ToDictionary(room => room, _ => new HashSet<int>());
         foreach (var connection in survey.Connections)
         {
-            if (connection.Kind is not (ConnectionKind.SecretWall or ConnectionKind.SpawnWall or ConnectionKind.MonsterHole) && connection.A != connection.B
-                && roomSet.Contains(connection.A) && roomSet.Contains(connection.B))
+            bool walked = connection.Kind is not (ConnectionKind.SecretWall or ConnectionKind.SpawnWall or ConnectionKind.MonsterHole or ConnectionKind.JammedDoor)
+                || (connection.Kind == ConnectionKind.SecretWall && (entered.Contains(connection.A) || entered.Contains(connection.B)));
+
+            if (walked && connection.A != connection.B && roomSet.Contains(connection.A) && roomSet.Contains(connection.B))
             {
                 neighbors[connection.A].Add(connection.B);
                 neighbors[connection.B].Add(connection.A);
@@ -55,6 +72,35 @@ public sealed class DoorGraph
 
         return new DoorGraph(rooms, neighbors);
     }
+
+    // Enter a room bigger than a closet through its breakable wall when its door is jammed
+    private static int GetClosetLimit(LevelSurvey survey)
+    {
+        int[] closets = survey.Places
+            .Where(place => place.Kind == PlaceKind.SecretCloset)
+            .Select(place => place.Cells.Count)
+            .Order()
+            .ToArray();
+
+        return closets.Length > 0 ? 2 * closets[closets.Length / 2] : 0;
+    }
+
+    private static bool IsHiddenRoom(LevelPlace place, int closet) => place.Zone == GateZone.Secret && place.Kind != PlaceKind.SpawnCloset && place.Cells.Count > closet;
+
+    private static HashSet<int> FindWallEnteredRooms(LevelSurvey survey, int closet)
+    {
+        var jammed = GetEnds(survey, ConnectionKind.JammedDoor);
+        var walled = GetEnds(survey, ConnectionKind.SecretWall);
+        return survey.Places
+            .Where(place => IsHiddenRoom(place, closet) && jammed.Contains(place.Id) && walled.Contains(place.Id))
+            .Select(place => place.Id)
+            .ToHashSet();
+    }
+
+    private static HashSet<int> GetEnds(LevelSurvey survey, ConnectionKind kind) => survey.Connections
+        .Where(connection => connection.Kind == kind)
+        .SelectMany(connection => new[] { connection.A, connection.B })
+        .ToHashSet();
 
     /// <summary>
     /// Returns the place the tour of a surveyed level starts in and the place it ends in.

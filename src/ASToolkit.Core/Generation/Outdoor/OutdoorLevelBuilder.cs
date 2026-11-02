@@ -98,7 +98,8 @@ public sealed class OutdoorLevelBuilder
             Template = ReferenceLevelSet.GetCampaignName(1),
             Theme = LevelTheme.Outdoor,
             Script = script,
-            Provenance = site.Map.GetProvenance()
+            Provenance = site.Map.GetProvenance(),
+            LayoutCounts = new AreaBuildCounts()
         };
     }
 
@@ -141,7 +142,7 @@ public sealed class OutdoorLevelBuilder
             }
 
             var exit = originalExit!.Value;
-            script.Exit = new TriggerArea(new Point((int)(wall.X + exit.Center.X - origin.X), (int)(wall.Y + exit.Center.Y - origin.Y)), exit.Radius);
+            script.Exit = exit with { Center = new Point((int)(wall.X + exit.Center.X - origin.X), (int)(wall.Y + exit.Center.Y - origin.Y)) };
         }
         else
         {
@@ -535,7 +536,7 @@ public sealed class OutdoorLevelBuilder
 
                     foreach (var spot in spots)
                     {
-                        Map.Add(spot.Sprite.Id, spot.X, spot.Y, spot.Sprite.Position.Z, (int)spot.Sprite.Dir, spot.Sprite.Id == KnownObject.Crate ? KnownObject.CreateEmptyCratePayload() : default, unique: false,
+                        Map.Add(spot.Sprite.Id, spot.X, spot.Y, spot.Sprite.Position.Z, (int)spot.Sprite.Dir, spot.Sprite.Id == KnownObject.Crate ? KnownObject.CreateEmptyCratePayload() : null, unique: false,
                             source: SpriteSource.CopiedScene);
                     }
 

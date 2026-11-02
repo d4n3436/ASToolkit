@@ -7,6 +7,7 @@ using ASToolkit.Core.Generation.Content;
 using ASToolkit.Core.Generation.Dressing;
 using ASToolkit.Core.Generation.Geometry;
 using ASToolkit.Core.Generation.Layout;
+using ASToolkit.Core.Generation.Mission;
 using ASToolkit.Core.Generation.Outdoor;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Rooms;
@@ -32,10 +33,6 @@ public sealed class LevelGenerator
     private const int RoofSalt = 211;
     private const int CampaignSalt = 307;
     private const int MaxBreakerRetries = 20;
-    private const float GeneratorMargin = 0.04f;
-    private const float FloorMiss = 0.15f;
-    private static readonly (float Min, float Max) GeneratorBand = (0.08f, 0.3f);
-    private const float BlackoutSearchPixels = 5200;
     private const int MaxPlanAttempts = 200;
     private const float GateClearance = 100;
     private const float SiteClearance = 150;
@@ -48,13 +45,13 @@ public sealed class LevelGenerator
         "ADDON2/Level_01.map", "ADDON2/Level_02.map", "ADDON2/Level_03.map", "ADDON2/Level_04.map", "ADDON2/Level_05.map"
     ];
 
-    private static readonly string[] LabLevels = ["Level_02.map", "Level_03.map", "Level_04.map", "Level_05.map"];
     private static readonly string[] LabSiteLevels = ["Level_03.map", "Level_04.map"];
     private static readonly string[] MilitarySiteLevels = ["Level_07.map", "Level_08.map", "Level_09.map"];
     private static readonly string[] AddOnLabSiteLevels = ["ADDON/Level_01.map", "ADDON/Level_02.map", "ADDON/Level_03.map"];
     private static readonly string[] AddOnMilitarySiteLevels = ["ADDON/Level_04.map", "ADDON/Level_05.map", "ADDON2/Level_04.map"];
 
     private readonly StyleModel _model;
+    private readonly MissionGrammar _grammar;
     private readonly CampaignPlanner _planner;
     private readonly string _gameFolder;
     private readonly ObjectTable _objects;
@@ -72,10 +69,7 @@ public sealed class LevelGenerator
     private readonly Lazy<SiteTemplate[]> _labSites;
     private readonly Lazy<SiteTemplate[]> _militarySites;
     private readonly Lazy<KeypadTable> _keypads;
-    private readonly Lazy<LevelProfile[]> _labProfiles;
-    private readonly Lazy<LevelProfile[]> _militaryProfiles;
     private readonly ConcurrentDictionary<string, Lazy<OriginalLevel>> _originals = new();
-    private readonly ConcurrentDictionary<(string Name, ThemeSettings Settings), Lazy<LevelProfile>> _profiles = new();
     private readonly ConcurrentDictionary<string, Lazy<EncounterProfile>> _encounters = new();
 
     /// <summary>
@@ -84,6 +78,7 @@ public sealed class LevelGenerator
     public LevelGenerator(string gameFolder, ObjectTable objects, ReferenceLevelSet references, StyleModel model)
     {
         _model = model;
+        _grammar = new MissionGrammar(model.Mission);
         _planner = new CampaignPlanner(model.Campaign);
         _gameFolder = gameFolder;
         _objects = objects;
@@ -100,9 +95,6 @@ public sealed class LevelGenerator
         _militaryLibrary = new Lazy<DressingLibrary>(() => DressingLibrary.Build(references, model.Relations, objects, LevelTheme.Military, sources, GetWallDressing(model, LevelTheme.Military),
             model.GetWallClearance(LevelTheme.Military), model.GetFacings(LevelTheme.Military)));
         _keypads = new Lazy<KeypadTable>(() => KeypadTable.Load(references, sources));
-        _labProfiles = new Lazy<LevelProfile[]>(() => Fitted(LabLevels).Select(name => GetProfile(references.GetSurvey(name), ThemeSettings.Lab)).ToArray());
-        _militaryProfiles = new Lazy<LevelProfile[]>(() => references.LevelNames.Where(model.FittingLevels.Contains).Order().Select(references.GetSurvey).Where(survey => survey.Theme == LevelTheme.Military)
-            .Select(survey => GetProfile(survey, ThemeSettings.Military)).ToArray());
         _breakerScenes = new Lazy<IReadOnlyList<IReadOnlyList<PropPlacement>>>(() => OriginalContent.LoadBreakerScenes(references, Fitted(["Level_02.map", "Level_03.map", "Level_04.map"])));
         _outdoor = new OutdoorLevelBuilder(_armies);
         _cannonScenes = new Lazy<IReadOnlyList<IReadOnlyList<PropPlacement>>>(() => OriginalContent.LoadCannonScenes(references, Fitted(["Level_08.map"])));
@@ -139,7 +131,7 @@ public sealed class LevelGenerator
         GeneratedLevel best = null!;
         for (int layoutIndex = 0; layoutIndex < MaxLayouts; layoutIndex++)
         {
-            best = BuildAnalyzed(GetLayoutSeed(seed, brief.Level, layoutIndex), brief);
+            best = Analyze(Build(GetLayoutSeed(seed, brief.Level, layoutIndex), brief));
             if (best.Theme == LevelTheme.Outdoor || best.Analysis?.FallbackUsage is { UsedSecretWalls: false, ForcedGates: false, Unreached: 0 })
             {
                 break;
@@ -252,9 +244,6 @@ public sealed class LevelGenerator
         }
     }
 
-    private LevelProfile GetProfile(LevelSurvey survey, ThemeSettings settings) =>
-        _profiles.GetOrAdd((survey.Name, settings), key => new Lazy<LevelProfile>(() => LevelProfile.Measure(survey, key.Settings))).Value;
-
     private EncounterProfile GetEncounters(string name) =>
         _encounters.GetOrAdd(name, key => new Lazy<EncounterProfile>(() => EncounterProfile.Measure(_references.GetSurvey(key), _references.GetLevel(key).Analysis, _objects))).Value;
 
@@ -282,58 +271,11 @@ public sealed class LevelGenerator
     private static int GetLayoutSeed(int seed, int level, int layoutIndex) => seed * 100_000 + level * 100 + layoutIndex;
 
     // Draw the layout and structure from the layout seed, and the budget, the decor and content and the roof from streams of their own
-    private GeneratedLevel Build(int layoutSeed, LevelBrief brief, int? generatorRoom = null) =>
+    private GeneratedLevel Build(int layoutSeed, LevelBrief brief) =>
         Build(new Random(layoutSeed), new Random(unchecked(layoutSeed * SeedPrime + BudgetSalt)), new Random(unchecked(layoutSeed * SeedPrime + ContentSalt)),
-            new Random(unchecked(layoutSeed * SeedPrime + RoofSalt)), brief, generatorRoom);
+            new Random(unchecked(layoutSeed * SeedPrime + RoofSalt)), brief);
 
-    // Build and analyze a level, and build it again with its generator moved when the tour reaches the first one outside the originals' band,
-    // keeping the build whose first generator falls nearer the band
-    private GeneratedLevel BuildAnalyzed(int layoutSeed, LevelBrief brief)
-    {
-        var built = Analyze(Build(layoutSeed, brief));
-        int? generatorRoom = FindGeneratorRoom(built, _references.GetSurvey(brief.DonorLevel));
-        if (generatorRoom is null)
-        {
-            return built;
-        }
-
-        var moved = Analyze(Build(layoutSeed, brief, generatorRoom));
-        return MeasureBandMiss(moved) <= MeasureBandMiss(built) ? moved : built;
-    }
-
-    private static float MeasureBandMiss(GeneratedLevel level)
-    {
-        var first = level.Analysis?.Objectives.FirstOrDefault(objective => objective.Kind == ObjectiveKind.Generator);
-        return first is null ? float.MaxValue : Math.Max(0, Math.Max(GeneratorBand.Min - first.Progress, first.Progress - GeneratorBand.Max));
-    }
-
-    // Pick the generator room whose walk from the start, scaled by how the tour walked to the first generator, comes nearest the original's
-    // share of the tour
-    private static int? FindGeneratorRoom(GeneratedLevel level, LevelSurvey donor)
-    {
-        var plan = level.Plan;
-        var analysis = level.Analysis;
-        if (plan is null || analysis is null || plan.Gate != GateKind.Fences || plan.KeyRoom is null || plan.GeneratorRooms.Count <= 1)
-        {
-            return null;
-        }
-
-        var key = plan.KeyRoom;
-        var first = analysis.Objectives.FirstOrDefault(objective => objective.Kind == ObjectiveKind.Generator);
-        if (first is null || first.Progress >= GeneratorBand.Min && first.Progress <= GeneratorBand.Max)
-        {
-            return null;
-        }
-
-        float walk = plan.GeneratorRooms.First(candidate => candidate.Room == key).WalkPixels;
-        float routePerWalk = first.Progress * analysis.RoutePixels / Math.Max(1, walk);
-        float share = Math.Clamp(donor.Landmarks.Where(l => l.Kind == LandmarkKind.Generator).Select(l => l.Route / (float)Math.Max(1, donor.Signature.TourPixels))
-            .DefaultIfEmpty(0).Min(), GeneratorBand.Min + GeneratorMargin, GeneratorBand.Max - GeneratorMargin);
-        var best = plan.GeneratorRooms.MinBy(candidate => Math.Abs(candidate.WalkPixels * routePerWalk - share * analysis.RoutePixels));
-        return best.Room == key ? null : best.Room.Id;
-    }
-
-    private GeneratedLevel Build(Random layoutRng, Random budgetRng, Random contentRng, Random roofRng, LevelBrief brief, int? generatorRoom = null, int retries = 0)
+    private GeneratedLevel Build(Random layoutRng, Random budgetRng, Random contentRng, Random roofRng, LevelBrief brief, int retries = 0)
     {
         if (brief.Level == 1)
         {
@@ -345,19 +287,20 @@ public sealed class LevelGenerator
         var donor = _references.GetLevel(brief.DonorLevel);
         var theme = brief.Theme;
         var settings = theme == LevelTheme.Lab ? ThemeSettings.Lab : ThemeSettings.Military;
-        int originalUnits = theme == LevelTheme.Lab ? original.Cells.Count : original.Cells.Count / 4;
-        var gate = ChooseGate(layoutRng, brief, donor, theme);
         int dynamiteSites = donor.Analysis.Elements.Count(element => element.Kind == ElementKind.DynamiteSite);
         var budget = BudgetPlanner.Plan(budgetRng, brief, dynamiteSites, _content.Value, _objects);
         int spawnClosets = theme == LevelTheme.Lab ? Math.Min(6, budget.Ambushes.Count / 3) : 0;
-        int shortcuts = theme == LevelTheme.Lab ? layoutRng.Next(3) : 0;
+        int generatorRooms = donor.Survey.Landmarks
+            .Where(landmark => landmark.Kind == LandmarkKind.Generator)
+            .Select(landmark => landmark.Place)
+            .Distinct()
+            .Count();
+
+        var objectives = new MissionObjectives(dynamiteSites, generatorRooms);
+        var request = new AreaRequest(theme, theme == LevelTheme.Lab ? brief.SecretClosets : 0, spawnClosets, theme == LevelTheme.Military && brief.GateStyle == LevelStyle.Fenced ? CountPens(donor.Analysis, donor.Survey) : 0,
+            brief.FloorPixels);
+        var builder = new AreaBuilder(_model.Areas, layoutRng);
         LayoutPlan? plan = null;
-        var profile = GetProfile(donor.Survey, settings);
-        var pool = theme == LevelTheme.Lab ? _labProfiles.Value : _militaryProfiles.Value;
-        var request = new LayoutRequest(gate, theme == LevelTheme.Lab ? brief.SecretClosets : 0, spawnClosets, shortcuts, theme == LevelTheme.Military && gate is not null ? CountPens(donor.Analysis, donor.Survey) : 0);
-        // Draw again once with the floor scaled when the built rooms miss the original's room floor
-        float floorScale = 1;
-        bool rescaled = false;
         for (int attempt = 0; plan is null; attempt++)
         {
             if (attempt == MaxPlanAttempts)
@@ -365,21 +308,7 @@ public sealed class LevelGenerator
                 throw new InvalidOperationException($"No layout for level {brief.Level}.");
             }
 
-            int targetUnits = (int)(originalUnits * (0.9f + 0.15f * layoutRng.NextSingle()) * floorScale);
-            var drawn = profile.Sample(layoutRng, pool, targetUnits, gate is { IsWing: true } ? gate.Share : 0);
-            plan = LayoutBuilder.Build(layoutRng, drawn, request);
-            float built = plan?.Regions.Where(region => region.Kind is RegionKind.Station or RegionKind.SideRoom or RegionKind.Wing or RegionKind.Pen).Sum(region => region.Units.Count) ?? 0;
-            if (plan is not null && !rescaled && MathF.Abs(built / profile.Units - 1) > FloorMiss)
-            {
-                floorScale = profile.Units / built;
-                rescaled = true;
-                plan = null;
-            }
-        }
-
-        if (generatorRoom is not null)
-        {
-            plan.KeyRoom = plan.Regions[generatorRoom.Value];
+            plan = builder.Build(_grammar.Draw(layoutRng, brief, objectives), request);
         }
 
         var layout = FineLayout.Build(plan);
@@ -439,7 +368,7 @@ public sealed class LevelGenerator
         
         if (breaker is null && plan.Gate is GateKind.LockedDoors or GateKind.Blackout && retries < MaxBreakerRetries)
         {
-            return Build(layoutRng, budgetRng, contentRng, roofRng, brief, generatorRoom, retries + 1);
+            return Build(layoutRng, budgetRng, contentRng, roofRng, brief, retries + 1);
         }
 
         var floor = layout.Cells.Keys.Where(c => !closetCells.Contains(c)).ToHashSet();
@@ -500,7 +429,8 @@ public sealed class LevelGenerator
             Template = template,
             Lattice = layout.Lattice,
             Theme = theme,
-            Provenance = map.GetProvenance()
+            Provenance = map.GetProvenance(),
+            LayoutCounts = builder.Counts
         };
     }
 
@@ -584,18 +514,6 @@ public sealed class LevelGenerator
         return keep;
     }
 
-    // Take the gated shares, the walk to the breaker and the generator's place on the tour from the donor, and leave an ungated military level open
-    private static GateRequest? ChooseGate(Random rng, LevelBrief brief, ReferenceLevel donor, LevelTheme theme) => brief.GateStyle switch
-    {
-        LevelStyle.LockedDoors => new GateRequest(GateKind.LockedDoors, donor.Analysis.Gating.LockedShare ?? 0.5f, 0, WalkPixels: GetWalkToBreaker(donor.Analysis)),
-        LevelStyle.Blackout => new GateRequest(GateKind.Blackout, donor.Survey.Gates.FirstOrDefault(g => g.Kind == LevelStyle.Blackout)?.GatedShare ?? 0, BlackoutSearchPixels),
-        LevelStyle.Fenced => new GateRequest(GateKind.Fences, donor.Analysis.Gating.FencedOffShare ?? 0.4f, 0,
-            KeyProgress: donor.Survey.Landmarks.Where(l => l.Kind == LandmarkKind.Generator).Select(l => l.Route / (float)Math.Max(1, donor.Survey.Signature.TourPixels)).DefaultIfEmpty(0).Min()),
-        _ => theme == LevelTheme.Military ? null : ChooseLabWing(rng)
-    };
-
-    private static int GetWalkToBreaker(RouteAnalysis analysis) => analysis.Legs.Count > 0 && analysis.Legs[0].Phase == RoutePhase.DoorsLocked ? analysis.Legs[0].Pixels : 0;
-
     // Count the places holding spawners that open on the rest of the level only through fences
     private static int CountPens(RouteAnalysis analysis, LevelSurvey survey) => analysis.Elements
         .Where(element => element.Kind == ElementKind.Spawner)
@@ -606,12 +524,6 @@ public sealed class LevelGenerator
             var links = survey.Connections.Where(connection => connection.A == place || connection.B == place).ToArray();
             return links.Length > 0 && links.All(connection => connection.Kind == ConnectionKind.Fence);
         });
-
-    private static GateRequest ChooseLabWing(Random rng)
-    {
-        var kind = rng.Next(2) == 0 ? GateKind.LockedDoors : GateKind.Blackout;
-        return new GateRequest(kind, 0.2f + 0.1f * rng.NextSingle(), kind == GateKind.Blackout ? BlackoutSearchPixels : 0, IsWing: true);
-    }
 
     private sealed record OriginalLevel(MapResourceBuilder Map, LevelModel Model, byte[] Template, IReadOnlyList<string> MusicLines);
 }

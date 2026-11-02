@@ -263,9 +263,9 @@ public sealed class DesignMeasures
     public required LevelArchitecture? Architecture { get; init; }
 
     /// <summary>
-    /// Gets the sections of the level along its tour.
+    /// Gets the progression of the level.
     /// </summary>
-    public required IReadOnlyList<LevelSection> Sections { get; init; }
+    public required LevelProgression Progression { get; init; }
 
     /// <summary>
     /// Gets the beats of the level in tour order.
@@ -273,27 +273,22 @@ public sealed class DesignMeasures
     public required IReadOnlyList<LevelBeat> Beats { get; init; }
 
     /// <summary>
-    /// Gets the gates whose first closed boundary the tour reaches before their key.
+    /// Gets the gates whose lock the tour reaches before their key.
     /// </summary>
     public required MeasureShare LocksSeenBeforeKeys { get; init; }
 
     /// <summary>
-    /// Gets the locked-door and fence gates whose key lies in a section before their first closed boundary.
+    /// Gets the locked-door and fence gates whose key lies in a phase before the one their lock opens.
     /// </summary>
     public required MeasureShare KeysBeforeLocks { get; init; }
 
     /// <summary>
-    /// Gets the median position in its section of the largest fight of each section with two or more fights.
+    /// Gets the median position along its phase of the largest fight of each phase with two or more fights.
     /// </summary>
     public required float? ClimaxPosition { get; init; }
 
     /// <summary>
-    /// Gets the section climaxes followed by fewer fight hit points in the next tenth of the tour than in the tenth before.
+    /// Gets the phase climaxes followed by fewer fight hit points in the next tenth of the tour than in the tenth before.
     /// </summary>
     public required MeasureShare ReliefAfterClimaxes { get; init; }
-
-    /// <summary>
-    /// Gets the pairs of consecutive sections holding 5% of the floor or more whose forms differ.
-    /// </summary>
-    public required MeasureShare ArchetypeChanges { get; init; }
 }

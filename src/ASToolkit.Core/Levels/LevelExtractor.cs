@@ -143,7 +143,7 @@ public static class LevelExtractor
         frames.ExceptWith(doors);
         foreach (var frame in frames)
         {
-            if (edges.TryGetValue(frame, out EdgeKind kind) && kind == EdgeKind.Wall)
+            if (edges.TryGetValue(frame, out var kind) && kind == EdgeKind.Wall)
             {
                 edges[frame] = EdgeKind.Doorway;
             }
@@ -158,7 +158,7 @@ public static class LevelExtractor
     {
         foreach (var key in keys)
         {
-            int current = edges.TryGetValue(key, out EdgeKind existing) ? Rank[existing] : -1;
+            int current = edges.TryGetValue(key, out var existing) ? Rank[existing] : -1;
             if (Rank[kind] >= current)
             {
                 edges[key] = kind;
@@ -335,7 +335,7 @@ public static class LevelExtractor
             }
         }
 
-        foreach ((var key, EdgeKind kind) in ReadLabEdges(best!, sp, outdoor: false))
+        foreach (var (key, kind) in ReadLabEdges(best!, sp, outdoor: false))
         {
             edges[key] = kind;
         }
@@ -454,7 +454,7 @@ public static class LevelExtractor
             int a = (int)MathF.Round(u);
             int b = (int)MathF.Round(v);
             bool slash = sprite.Id == KnownObject.MilitaryWallSlash || (sprite.Id is KnownObject.FenceEmitter or KnownObject.MilitaryDoorWall && sprite.Facing is >= 64 and < 192);
-            EdgeKind kind = sprite.Id == KnownObject.MilitaryDoorWall ? EdgeKind.ShutDoor : EdgeKind.Wall;
+            var kind = sprite.Id == KnownObject.MilitaryDoorWall ? EdgeKind.ShutDoor : EdgeKind.Wall;
             if (slash)
             {
                 edges[new EdgeKey('v', a - 1, b)] = kind;

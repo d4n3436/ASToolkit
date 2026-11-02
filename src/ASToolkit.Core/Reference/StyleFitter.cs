@@ -50,7 +50,7 @@ public sealed class StyleFitter
     /// </summary>
     public StyleModel Fit(ReferenceLevelSet references, GenerationStyle style, IReadOnlyCollection<string> excluded)
     {
-        var fitting = GetFittingLevels(style)
+        string[] fitting = GetFittingLevels(style)
             .Where(name => !excluded.Contains(name))
             .ToArray();
 
@@ -80,6 +80,10 @@ public sealed class StyleFitter
             decorHeights,
             Themes.ToDictionary(theme => theme, theme => WallClearanceTable.Build(models.Where(model => model.Theme == theme))),
             Themes.ToDictionary(theme => theme, theme => FacingTable.Build(models.Where(model => model.Theme == theme), _objects, leaning)),
-            _campaign.Fit(references, style, excluded));
+            _campaign.Fit(references, style, excluded))
+        {
+            Mission = new MissionFitter(style).Fit(levels.Select(level => level.Survey).ToArray()),
+            Areas = AreaFitter.Fit(levels, style)
+        };
     }
 }

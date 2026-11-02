@@ -30,9 +30,24 @@ public sealed class CampaignModel
     public required FittedValue<LinearFit> SpawnedShare { get; init; }
 
     /// <summary>
-    /// Gets the natural logarithm of a level's floor area in square pixels by level.
+    /// Gets the line of the natural logarithm of a level's floor area in square pixels over the level number.
     /// </summary>
-    public required FittedValue<LinearFit> FloorPixels { get; init; }
+    public required FittedValue<ThemeLine> FloorPixels { get; init; }
+
+    /// <summary>
+    /// Gets the line of the logarithm of rooms per million floor pixels over the level number.
+    /// </summary>
+    public required FittedValue<ThemeLine> Rooms { get; init; }
+
+    /// <summary>
+    /// Gets the minimum and maximum natural logarithm of rooms per million floor pixels among the fitting levels of each theme.
+    /// </summary>
+    public required IReadOnlyDictionary<LevelTheme, ValueRange> RoomRates { get; init; }
+
+    /// <summary>
+    /// Gets the maximum rooms a fitting level of each theme holds.
+    /// </summary>
+    public required IReadOnlyDictionary<LevelTheme, int> MaxRooms { get; init; }
 
     /// <summary>
     /// Gets the natural logarithm of the money the game pays at the end of a level by the natural logarithm of the level.

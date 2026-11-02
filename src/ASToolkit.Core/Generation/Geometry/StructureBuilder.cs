@@ -142,7 +142,7 @@ public static class StructureBuilder
             map.Add(isDouble ? KnownObject.DoubleDoorFrame : KnownObject.SmallDoorFrame, x, y, isDouble ? RaisedDoubleDoorZ : RaisedSmallDoorZ, slash ? 0 : 128);
         }
 
-        foreach ((var edge, EdgeKind kind) in edges)
+        foreach (var (edge, kind) in edges)
         {
             ((float x, float y), bool slash) = GetLabPosition(layout.Lattice, edge);
             if (kind is EdgeKind.DoubleDoorEnd or EdgeKind.Doorway || skip.Contains(edge))
@@ -326,7 +326,7 @@ public static class StructureBuilder
     private static IEnumerable<(EdgeKey Piece, bool IsDouble)> GetArchPieces(IReadOnlyDictionary<EdgeKey, EdgeKind> edges)
     {
         var lines = new Dictionary<(char Axis, int Line), List<EdgeKey>>();
-        foreach ((var key, EdgeKind kind) in edges)
+        foreach (var (key, kind) in edges)
         {
             if (kind != EdgeKind.Doorway)
             {

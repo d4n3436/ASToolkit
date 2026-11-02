@@ -68,10 +68,6 @@ public sealed class EncounterProfile
     /// </summary>
     public required IReadOnlyList<int> TriggerRadii { get; init; }
 
-    /// <summary>
-    /// Gets the shares of the tour walked before each generator, in tour order.
-    /// </summary>
-    public required IReadOnlyList<float> GeneratorProgress { get; init; }
 
     /// <summary>
     /// Measures the fights, sites, charges, pickups, checkpoint and generators of a surveyed level from its tour.
@@ -106,8 +102,7 @@ public sealed class EncounterProfile
             EndlessGenerators = analysis.Elements.Count(element => element.Kind == ElementKind.EndlessGenerator),
             LargestSpawner = analysis.Elements.Where(element => element.Program is not null).Select(element => element.Program!.Monsters.Count()).DefaultIfEmpty(0).Max(),
             TriggerRadii = analysis.Elements.Where(element => element.Program?.Trigger is not null).Select(element => element.Program!.Trigger!.Value.Radius).ToArray(),
-            PickupStyles = Enum.GetValues<ItemCategory>().ToDictionary(category => category, category => MeasurePickups(survey, analysis.Model, category)),
-            GeneratorProgress = survey.Landmarks.Where(landmark => landmark.Kind == LandmarkKind.Generator).Select(landmark => landmark.Route / Math.Max(1f, survey.Signature.TourPixels)).Order().ToArray()
+            PickupStyles = Enum.GetValues<ItemCategory>().ToDictionary(category => category, category => MeasurePickups(survey, analysis.Model, category))
         };
 
         (RoomRole Role, GateZone Zone) Read(int place) => places.TryGetValue(place, out var found) ? (roles.GetRole(found), found.Zone) : (RoomRole.Outside, GateZone.Open);
