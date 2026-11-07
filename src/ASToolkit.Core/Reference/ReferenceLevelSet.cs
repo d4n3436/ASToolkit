@@ -1,4 +1,6 @@
+using System.Collections.Frozen;
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Levels;
 using ASToolkit.Core.Rooms;
 using ASToolkit.Core.Routes;
 using ASToolkit.Core.Survey;
@@ -14,14 +16,54 @@ public sealed class ReferenceLevelSet
     private static readonly string[] AddOn2 = ["ADDON2/Level_02.map", "ADDON2/Level_03.map", "ADDON2/Level_04.map", "ADDON2/Level_05.map"];
     private static readonly string[] FirstLevels = ["Level_01.map", "ADDON/Level_01.map", "ADDON2/Level_01.map"];
 
+    private static readonly FrozenDictionary<string, Building> Buildings = new Dictionary<string, Building>
+    {
+        ["Level_01.map"] = Building.Grounds,
+        ["Level_02.map"] = Building.UndergroundLab,
+        ["Level_03.map"] = Building.UndergroundLab,
+        ["Level_04.map"] = Building.UndergroundLab,
+        ["Level_05.map"] = Building.UndergroundLab,
+        ["Level_06.map"] = Building.Warehouse,
+        ["Level_07.map"] = Building.Warehouse,
+        ["Level_08.map"] = Building.Warehouse,
+        ["Level_09.map"] = Building.Warehouse,
+        ["Level_10.map"] = Building.Prison,
+        ["ADDON/Level_01.map"] = Building.Grounds,
+        ["ADDON/Level_02.map"] = Building.OfficeBlock,
+        ["ADDON/Level_03.map"] = Building.ConferenceBuilding,
+        ["ADDON/Level_04.map"] = Building.Warehouse,
+        ["ADDON/Level_05.map"] = Building.Warehouse,
+        ["ADDON2/Level_01.map"] = Building.Grounds,
+        ["ADDON2/Level_02.map"] = Building.School,
+        ["ADDON2/Level_03.map"] = Building.TrainingComplex,
+        ["ADDON2/Level_04.map"] = Building.Warehouse,
+        ["ADDON2/Level_05.map"] = Building.Warehouse
+    }.ToFrozenDictionary();
+
     private readonly Dictionary<string, ReferenceLevel> _levels;
 
     private ReferenceLevelSet(Dictionary<string, ReferenceLevel> levels) => _levels = levels;
 
     /// <summary>
-    /// Gets the indoor campaign levels, 2 to 10, the ones with lab or military floor.
+    /// Gets the indoor campaign levels, 2 to 10.
     /// </summary>
     public static IReadOnlyList<int> CampaignLevels { get; } = [2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+    /// <summary>
+    /// Returns the building an original level is, as its mission text names it.
+    /// </summary>
+    public static Building GetBuilding(string name) => Buildings[name];
+
+    /// <summary>
+    /// Returns the floor set every original level of a building lies on.
+    /// </summary>
+    public static WallSet GetFloorSet(Building building) => building switch
+    {
+        Building.Grounds => WallSet.Outdoor,
+        Building.UndergroundLab or Building.OfficeBlock or Building.ConferenceBuilding or Building.School or Building.TrainingComplex => WallSet.Basement,
+        Building.Warehouse or Building.Prison => WallSet.Concrete,
+        _ => throw new ArgumentOutOfRangeException(nameof(building), building, "Expected a known building.")
+    };
 
     /// <summary>
     /// Returns the file name of a campaign level.

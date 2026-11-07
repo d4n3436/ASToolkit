@@ -1,17 +1,11 @@
 using ASToolkit.Core.Design;
-using ASToolkit.Core.Formats;
-using ASToolkit.Core.Routes;
-using ASToolkit.Core.Survey;
 using Xunit;
-using ASToolkit.Core.Scripting;
 
 namespace ASToolkit.Tests.Design;
 
 [Trait("Category", "Integration")]
 public class RoomGraphIntegrationTests
 {
-    private static readonly Lazy<ObjectTable> Objects = new(() => ObjectTable.Load(Path.Combine(TestGameFolder.RequireFolder(), "objects.res")));
-
     [Theory]
     [InlineData("Level_02.map", 11, 1, 6, 1, 2, 0)]
     [InlineData("Level_03.map", 38, 6, 7, 1, 9, 0)]
@@ -19,7 +13,7 @@ public class RoomGraphIntegrationTests
     [InlineData("Level_05.map", 22, 1, 5, 2, 6, null)]
     [InlineData("ADDON/Level_02.map", 26, 3, 5, 2, 7, 1)]
     [InlineData("ADDON2/Level_03.map", 19, 4, 8, 0, 9, null)]
-    public void Build_LabOriginal_MeasuresRoomsCyclesHubAndSections(string level, int rooms, int cycles, int hubDoors, int hubHops, int largestBranch, int? reentries)
+    public void Build_BasementOriginal_MeasuresRoomsCyclesHubAndSections(string level, int rooms, int cycles, int hubDoors, int hubHops, int largestBranch, int? reentries)
     {
         var graph = BuildGraph(level);
 
@@ -42,13 +36,5 @@ public class RoomGraphIntegrationTests
         Assert.Equal(13, graph.LootRooms);
     }
 
-    private static RoomGraph BuildGraph(string level)
-    {
-        string path = Path.Combine(TestGameFolder.RequireFolder(), "Maps", level);
-        var map = MapResourceBuilder.Load(path);
-        var script = LevelScriptReader.Read(Path.ChangeExtension(path, ".lgc"));
-        var analysis = RouteAnalyzer.Analyze(level, map, script, Objects.Value);
-        Assert.NotNull(analysis);
-        return RoomGraph.Build(LevelSurveyor.Survey(map, script, analysis, Objects.Value));
-    }
+    private static RoomGraph BuildGraph(string level) => RoomGraph.Build(TestGameFolder.References.GetSurvey(level));
 }

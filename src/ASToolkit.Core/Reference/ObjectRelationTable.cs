@@ -6,7 +6,7 @@ using ASToolkit.Core.Survey;
 namespace ASToolkit.Core.Reference;
 
 /// <summary>
-/// Represents how the objects of each theme stand by other objects, walls and doorways in a set of levels.
+/// Represents how the objects of each wall set stand by other objects, walls and doorways in a set of levels.
 /// </summary>
 public sealed class ObjectRelationTable
 {
@@ -21,16 +21,16 @@ public sealed class ObjectRelationTable
     private const int BucketSize = 80;
     private const float TouchingShare = 0.5f;
 
-    private readonly Dictionary<(LevelTheme Theme, KnownObject Id), ObjectRelations> _relations;
-    private readonly Dictionary<(LevelTheme Theme, KnownObject Id, KnownObject Anchor), float> _anchorShares;
-    private readonly Dictionary<(LevelTheme Theme, BlockingClass Blocking), float> _doorClearances;
-    private readonly Dictionary<(LevelTheme Theme, KnownObject Anchor), ObjectCompanion[]> _companions;
-    private readonly Dictionary<(LevelTheme Theme, KnownObject Anchor, KnownObject Id), float> _companionRates;
-    private readonly Dictionary<(LevelTheme Theme, KnownObject Id, KnownObject Other, bool Raised), float> _spacings;
+    private readonly Dictionary<(WallSet WallSet, KnownObject Id), ObjectRelations> _relations;
+    private readonly Dictionary<(WallSet WallSet, KnownObject Id, KnownObject Anchor), float> _anchorShares;
+    private readonly Dictionary<(WallSet WallSet, BlockingClass Blocking), float> _doorClearances;
+    private readonly Dictionary<(WallSet WallSet, KnownObject Anchor), ObjectCompanion[]> _companions;
+    private readonly Dictionary<(WallSet WallSet, KnownObject Anchor, KnownObject Id), float> _companionRates;
+    private readonly Dictionary<(WallSet WallSet, KnownObject Id, KnownObject Other, bool Raised), float> _spacings;
 
-    private ObjectRelationTable(Dictionary<(LevelTheme, KnownObject), ObjectRelations> relations, Dictionary<(LevelTheme, KnownObject, KnownObject), float> anchorShares,
-        Dictionary<(LevelTheme, BlockingClass), float> doorClearances, Dictionary<(LevelTheme, KnownObject), ObjectCompanion[]> companions,
-        Dictionary<(LevelTheme, KnownObject, KnownObject), float> companionRates, Dictionary<(LevelTheme, KnownObject, KnownObject, bool), float> spacings)
+    private ObjectRelationTable(Dictionary<(WallSet, KnownObject), ObjectRelations> relations, Dictionary<(WallSet, KnownObject, KnownObject), float> anchorShares,
+        Dictionary<(WallSet, BlockingClass), float> doorClearances, Dictionary<(WallSet, KnownObject), ObjectCompanion[]> companions,
+        Dictionary<(WallSet, KnownObject, KnownObject), float> companionRates, Dictionary<(WallSet, KnownObject, KnownObject, bool), float> spacings)
     {
         _spacings = spacings;
         _companionRates = companionRates;
@@ -41,40 +41,40 @@ public sealed class ObjectRelationTable
     }
 
     /// <summary>
-    /// Measures the relations of the objects of every lab and military level of a set.
+    /// Measures the relations of the objects of every basement and concrete level of a set.
     /// </summary>
     public static ObjectRelationTable Build(IEnumerable<ReferenceLevel> levels, ObjectTable objects)
     {
-        var tallies = new Dictionary<LevelTheme, Tally>();
+        var tallies = new Dictionary<WallSet, Tally>();
         int levelIndex = 0;
         foreach (var level in levels)
         {
-            var theme = level.Model.Theme;
-            if (theme == LevelTheme.Outdoor)
+            var wallSet = level.Model.WallSet;
+            if (wallSet == WallSet.Outdoor)
             {
                 continue;
             }
 
-            if (!tallies.TryGetValue(theme, out var tally))
+            if (!tallies.TryGetValue(wallSet, out var tally))
             {
                 tally = new Tally();
-                tallies[theme] = tally;
+                tallies[wallSet] = tally;
             }
 
             tally.Add(level, objects, new Random(levelIndex++));
         }
 
-        var relations = new Dictionary<(LevelTheme, KnownObject), ObjectRelations>();
-        var anchorShares = new Dictionary<(LevelTheme, KnownObject, KnownObject), float>();
-        var doorClearances = new Dictionary<(LevelTheme, BlockingClass), float>();
-        var companions = new Dictionary<(LevelTheme, KnownObject), ObjectCompanion[]>();
-        var companionRates = new Dictionary<(LevelTheme, KnownObject, KnownObject), float>();
-        var spacings = new Dictionary<(LevelTheme, KnownObject, KnownObject, bool), float>();
-        foreach (var (theme, tally) in tallies)
+        var relations = new Dictionary<(WallSet, KnownObject), ObjectRelations>();
+        var anchorShares = new Dictionary<(WallSet, KnownObject, KnownObject), float>();
+        var doorClearances = new Dictionary<(WallSet, BlockingClass), float>();
+        var companions = new Dictionary<(WallSet, KnownObject), ObjectCompanion[]>();
+        var companionRates = new Dictionary<(WallSet, KnownObject, KnownObject), float>();
+        var spacings = new Dictionary<(WallSet, KnownObject, KnownObject, bool), float>();
+        foreach (var (wallSet, tally) in tallies)
         {
             foreach (((var id, var other, bool raised), float spacing) in tally.Spacings)
             {
-                spacings[(theme, id, other, raised)] = spacing;
+                spacings[(wallSet, id, other, raised)] = spacing;
             }
 
             float randomShare = 1f / Math.Max(1, tally.RandomPoints);
@@ -83,7 +83,7 @@ public sealed class ObjectRelationTable
                 int anchorCount = tally.Counts[group.Key];
                 foreach (var pair in group)
                 {
-                    companionRates[(theme, group.Key, pair.Key.Id)] = pair.Value.Count / (float)anchorCount;
+                    companionRates[(wallSet, group.Key, pair.Key.Id)] = pair.Value.Count / (float)anchorCount;
                 }
 
                 if (anchorCount < MinCount)
@@ -102,13 +102,13 @@ public sealed class ObjectRelationTable
                     .ToArray();
                 if (kept.Length > 0)
                 {
-                    companions[(theme, group.Key)] = kept;
+                    companions[(wallSet, group.Key)] = kept;
                 }
             }
 
             foreach ((var (id, anchor), int near) in tally.Near)
             {
-                anchorShares[(theme, id, anchor)] = near / (float)tally.Counts[id];
+                anchorShares[(wallSet, id, anchor)] = near / (float)tally.Counts[id];
             }
 
             foreach ((var id, int count) in tally.Counts.Where(pair => pair.Value >= MinCount))
@@ -123,10 +123,10 @@ public sealed class ObjectRelationTable
                     .Select(entry => new ObjectAnchor { Id = entry.Anchor, Share = entry.Share, Lift = entry.Lift, Samples = tally.Samples[(id, entry.Anchor)].ToArray() })
                     .ToArray();
                 
-                relations[(theme, id)] = new ObjectRelations
+                relations[(wallSet, id)] = new ObjectRelations
                 {
                     Id = id,
-                    Theme = theme,
+                    WallSet = wallSet,
                     Count = count,
                     GroupShare = tally.Grouped.GetValueOrDefault(id) / (float)count,
                     WallShare = tally.Walled.GetValueOrDefault(id) / (float)count,
@@ -138,7 +138,7 @@ public sealed class ObjectRelationTable
             foreach (var (blocking, distances) in tally.DoorDistances.Where(pair => pair.Value.Count >= MinCount))
             {
                 distances.Sort();
-                doorClearances[(theme, blocking)] = distances[(int)(LowQuantile * (distances.Count - 1))];
+                doorClearances[(wallSet, blocking)] = distances[(int)(LowQuantile * (distances.Count - 1))];
             }
         }
 
@@ -146,43 +146,43 @@ public sealed class ObjectRelationTable
     }
 
     /// <summary>
-    /// Returns the relations of an object in the levels of a theme, or null when too few of the object stand in them.
+    /// Returns the relations of an object in the levels of a wall set, or null when too few of the object stand in them.
     /// </summary>
-    public ObjectRelations? GetRelations(LevelTheme theme, KnownObject id) => _relations.GetValueOrDefault((theme, id));
+    public ObjectRelations? GetRelations(WallSet wallSet, KnownObject id) => _relations.GetValueOrDefault((wallSet, id));
 
     /// <summary>
-    /// Returns the relations of every object measured in the levels of a theme.
+    /// Returns the relations of every object measured in the levels of a wall set.
     /// </summary>
-    public ObjectRelations[] GetRelations(LevelTheme theme) => _relations.Values.Where(relations => relations.Theme == theme).OrderBy(relations => relations.Id).ToArray();
+    public ObjectRelations[] GetRelations(WallSet wallSet) => _relations.Values.Where(relations => relations.WallSet == wallSet).OrderBy(relations => relations.Id).ToArray();
 
     /// <summary>
-    /// Returns the share of an object's pieces in the levels of a theme that stand within reach of another object, 0 when none does.
+    /// Returns the share of an object's pieces in the levels of a wall set that stand within reach of another object, 0 when none does.
     /// </summary>
-    public float GetAnchorShare(LevelTheme theme, KnownObject id, KnownObject anchor) => _anchorShares.GetValueOrDefault((theme, id, anchor));
+    public float GetAnchorShare(WallSet wallSet, KnownObject id, KnownObject anchor) => _anchorShares.GetValueOrDefault((wallSet, id, anchor));
 
     /// <summary>
-    /// Returns the distance from a doorway that all but the closest 5% of the floor pieces of a blocking class keep in the levels of a theme,
+    /// Returns the distance from a doorway that all but the closest 5% of the floor pieces of a blocking class keep in the levels of a wall set,
     /// or null when too few stand in them.
     /// </summary>
-    public float? GetDoorClearance(LevelTheme theme, BlockingClass blocking) =>
-        _doorClearances.TryGetValue((theme, blocking), out float distance) ? distance : null;
+    public float? GetDoorClearance(WallSet wallSet, BlockingClass blocking) =>
+        _doorClearances.TryGetValue((wallSet, blocking), out float distance) ? distance : null;
 
     /// <summary>
-    /// Returns the objects that lie by an anchor object in the levels of a theme far more often than chance would put them there.
+    /// Returns the objects that lie by an anchor object in the levels of a wall set far more often than chance would put them there.
     /// </summary>
-    public IReadOnlyList<ObjectCompanion> GetCompanions(LevelTheme theme, KnownObject anchor) => _companions.GetValueOrDefault((theme, anchor)) ?? [];
+    public IReadOnlyList<ObjectCompanion> GetCompanions(WallSet wallSet, KnownObject anchor) => _companions.GetValueOrDefault((wallSet, anchor)) ?? [];
 
     /// <summary>
-    /// Returns how many of an object lie by each anchor object in the levels of a theme, on average, 0 when none does.
+    /// Returns how many of an object lie by each anchor object in the levels of a wall set, on average, 0 when none does.
     /// </summary>
-    public float GetCompanionRate(LevelTheme theme, KnownObject anchor, KnownObject id) => _companionRates.GetValueOrDefault((theme, anchor, id));
+    public float GetCompanionRate(WallSet wallSet, KnownObject anchor, KnownObject id) => _companionRates.GetValueOrDefault((wallSet, anchor, id));
 
     /// <summary>
-    /// Returns how close the levels of a theme stand two decor objects that block the player at the same height, as the share of their summed
+    /// Returns how close the levels of a wall set stand two decor objects that block the player at the same height, as the share of their summed
     /// sizes their centers keep apart along the nearer axis, at most one half.
     /// </summary>
-    public float GetSpacing(LevelTheme theme, KnownObject id, KnownObject other, bool raised) =>
-        _spacings.GetValueOrDefault((theme, (KnownObject)Math.Min((int)id, (int)other), (KnownObject)Math.Max((int)id, (int)other), raised), TouchingShare);
+    public float GetSpacing(WallSet wallSet, KnownObject id, KnownObject other, bool raised) =>
+        _spacings.GetValueOrDefault((wallSet, (KnownObject)Math.Min((int)id, (int)other), (KnownObject)Math.Max((int)id, (int)other), raised), TouchingShare);
 
     /// <summary>
     /// Counts the decor pieces of a set of levels that block the player and stand closer to another at the same height than the levels of this
@@ -192,7 +192,7 @@ public sealed class ObjectRelationTable
     {
         int crowded = 0;
         int count = 0;
-        foreach (var level in levels.Where(level => level.Model.Theme != LevelTheme.Outdoor))
+        foreach (var level in levels.Where(level => level.Model.WallSet != WallSet.Outdoor))
         {
             var pieces = level.Map.Sprites.Where(sprite => sprite.Id.IsDecor && objects.GetBlocking(sprite.Id) != BlockingClass.WalkThrough).ToArray();
             foreach (var piece in pieces)
@@ -200,7 +200,7 @@ public sealed class ObjectRelationTable
                 objects.TryFind(piece.Id, out var obj);
                 bool raised = piece.Position.Z >= FloorHeight;
                 count++;
-                if (pieces.Any(other => !ReferenceEquals(other, piece) && other.Position.Z >= FloorHeight == raised && IsCloser(piece, obj, other, level.Model.Theme, raised, objects)))
+                if (pieces.Any(other => !ReferenceEquals(other, piece) && other.Position.Z >= FloorHeight == raised && IsCloser(piece, obj, other, level.Model.WallSet, raised, objects)))
                 {
                     crowded++;
                 }
@@ -211,10 +211,10 @@ public sealed class ObjectRelationTable
     }
 
     /// <summary>
-    /// Returns a test of whether an object at a map point of a level of a theme lies by the anchor object nearest it as one of that
+    /// Returns a test of whether an object at a map point of a level of a wall set lies by the anchor object nearest it as one of that
     /// anchor's companions.
     /// </summary>
-    public Func<KnownObject, float, float, bool> GetCompanionTest(LevelTheme theme, ReferenceLevel level)
+    public Func<KnownObject, float, float, bool> GetCompanionTest(WallSet wallSet, ReferenceLevel level)
     {
         var anchors = level.Map.Sprites.Where(sprite => IsAnchor(sprite.Id)).ToArray();
         return (id, x, y) =>
@@ -225,14 +225,14 @@ public sealed class ObjectRelationTable
                 .OrderBy(anchor => anchor.Distance)
                 .Select(anchor => (KnownObject?)anchor.Id)
                 .FirstOrDefault();
-            return owner is not null && GetCompanions(theme, owner.Value).Any(companion => companion.Id == id);
+            return owner is not null && GetCompanions(wallSet, owner.Value).Any(companion => companion.Id == id);
         };
     }
 
-    private bool IsCloser(MergedMapSprite piece, GameObject obj, MergedMapSprite other, LevelTheme theme, bool raised, ObjectTable objects)
+    private bool IsCloser(MergedMapSprite piece, GameObject obj, MergedMapSprite other, WallSet wallSet, bool raised, ObjectTable objects)
     {
         objects.TryFind(other.Id, out var otherObj);
-        float spacing = GetSpacing(theme, piece.Id, other.Id, raised);
+        float spacing = GetSpacing(wallSet, piece.Id, other.Id, raised);
         return Math.Abs(other.Position.X - piece.Position.X) < spacing * (obj.Size.X + otherObj.Size.X)
                && Math.Abs(other.Position.Y - piece.Position.Y) < spacing * (obj.Size.Y + otherObj.Size.Y);
     }
@@ -242,9 +242,8 @@ public sealed class ObjectRelationTable
     private static bool IsCompanion(KnownObject id) => id.Family is null && id is { IsDecor: true, IsBlood: false, IsCorpse: false } && id != KnownObject.FlyingGibs;
 
     private static bool IsPiece(KnownObject id) =>
-        id != KnownObject.Earth && !KnownObject.Floors.Contains(id) && !KnownObject.LabWalls.Contains(id) && !KnownObject.MilitaryWalls.Contains(id);
+        id != KnownObject.Earth && !KnownObject.Floors.Contains(id) && !KnownObject.BasementWalls.Contains(id) && !KnownObject.ConcreteWalls.Contains(id);
 
-    // Count, for one theme, how often each object stands by each other object, a wall and a doorway, and how often random floor points do
     private sealed class Tally
     {
         public Dictionary<KnownObject, int> Counts { get; } = [];

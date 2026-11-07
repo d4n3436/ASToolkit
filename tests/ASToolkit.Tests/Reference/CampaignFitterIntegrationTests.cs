@@ -21,8 +21,28 @@ public class CampaignFitterIntegrationTests
         Assert.Equal(9, model.HitPoints.Samples);
         Assert.Equal(["Level_01.map"], model.FirstLevels.Select(level => level.Name));
         Assert.All(model.Donors, donor => Assert.StartsWith("Level_", donor.Name));
-        Assert.Equal([LevelStyle.Fenced], model.Gates[LevelTheme.Military].Value.Select(gate => gate.GateStyle));
-        Assert.Equal([LevelStyle.LockedDoors, LevelStyle.Blackout, LevelStyle.Ungated], model.Gates[LevelTheme.Lab].Value.Select(gate => gate.GateStyle));
+        Assert.Equal([LevelStyle.Fenced], model.Gates[WallSet.Concrete].Value.Select(gate => gate.GateStyle));
+        Assert.Equal([LevelStyle.LockedDoors, LevelStyle.Blackout, LevelStyle.Ungated], model.Gates[WallSet.Basement].Value.Select(gate => gate.GateStyle));
+    }
+
+    [Fact]
+    public void GetFloorSet_Originals_MatchesTheFloorSetOfEveryOriginalOfTheBuilding()
+    {
+        var references = TestGameFolder.References;
+
+        Assert.All(references.LevelNames, name => Assert.Equal(references.GetSurvey(name).FloorSet, ReferenceLevelSet.GetFloorSet(ReferenceLevelSet.GetBuilding(name))));
+    }
+
+    [Fact]
+    public void Fit_BothStyles_DrawNoPrisonAndTheCampaignOnlyItsOwnBuildings()
+    {
+        var campaign = Fit(GenerationStyle.Campaign).Buildings.Value;
+        var addOn = Fit(GenerationStyle.AddOn).Buildings.Value;
+
+        Assert.Equal([Building.UndergroundLab, Building.Warehouse], campaign.Select(share => share.Building));
+        Assert.All(campaign, share => Assert.True(share.IsRequired));
+        Assert.Equal(Enum.GetValues<Building>().Except([Building.Grounds, Building.Prison]).Order(), addOn.Select(share => share.Building).Order());
+        Assert.All(addOn, share => Assert.False(share.IsRequired));
     }
 
     [Fact]
@@ -53,7 +73,6 @@ public class CampaignFitterIntegrationTests
     private static CampaignModel Fit(GenerationStyle style)
     {
         string game = TestGameFolder.RequireFolder();
-        var objects = ObjectTable.Load(Path.Combine(game, "objects.res"));
-        return new CampaignFitter(GameTable.Load(Path.Combine(game, "Maps", "common_table.lgc"))).Fit(ReferenceLevelSet.Load(game, objects), style, []);
+        return new CampaignFitter(GameTable.Load(Path.Combine(game, "Maps", "common_table.lgc"))).Fit(TestGameFolder.References, style, []);
     }
 }

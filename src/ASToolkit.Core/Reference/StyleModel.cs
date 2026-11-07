@@ -4,20 +4,20 @@ using ASToolkit.Core.Levels;
 namespace ASToolkit.Core.Reference;
 
 /// <summary>
-/// Represents everything a generator takes from the original levels of a style, the campaign model and, per theme, the decor heights, wall
+/// Represents everything a generator takes from the original levels of a style, the campaign model and, per wall set, the decor heights, wall
 /// clearances, wall facings and object relations.
 /// </summary>
 public sealed class StyleModel
 {
-    private readonly FrozenDictionary<LevelTheme, DecorHeightTable> _decorHeights;
-    private readonly FrozenDictionary<LevelTheme, WallClearanceTable> _wallClearance;
-    private readonly FrozenDictionary<LevelTheme, FacingTable> _facings;
+    private readonly FrozenDictionary<WallSet, DecorHeightTable> _decorHeights;
+    private readonly FrozenDictionary<WallSet, WallClearanceTable> _wallClearance;
+    private readonly FrozenDictionary<WallSet, FacingTable> _facings;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="StyleModel"/> class.
     /// </summary>
-    public StyleModel(GenerationStyle style, IReadOnlyList<string> fittingLevels, ObjectRelationTable relations, IReadOnlyDictionary<LevelTheme, DecorHeightTable> decorHeights,
-        IReadOnlyDictionary<LevelTheme, WallClearanceTable> wallClearance, IReadOnlyDictionary<LevelTheme, FacingTable> facings, CampaignModel campaign)
+    public StyleModel(GenerationStyle style, IReadOnlyList<string> fittingLevels, ObjectRelationTable relations, IReadOnlyDictionary<WallSet, DecorHeightTable> decorHeights,
+        IReadOnlyDictionary<WallSet, WallClearanceTable> wallClearance, IReadOnlyDictionary<WallSet, FacingTable> facings, CampaignModel campaign)
     {
         Style = style;
         FittingLevels = fittingLevels;
@@ -39,14 +39,9 @@ public sealed class StyleModel
     public CampaignModel Campaign { get; }
 
     /// <summary>
-    /// Gets the mission grammar's parameters.
+    /// Gets the outlines of the originals' smaller rooms the building grammars transform their rooms from.
     /// </summary>
-    public required MissionModel Mission { get; init; }
-
-    /// <summary>
-    /// Gets the architecture fitted to the style's originals.
-    /// </summary>
-    public required AreaModel Areas { get; init; }
+    public required IReadOnlyList<RoomFootprint> Footprints { get; init; }
 
     /// <summary>
     /// Gets the original levels the model is fitted to, in order.
@@ -59,17 +54,17 @@ public sealed class StyleModel
     public ObjectRelationTable Relations { get; }
 
     /// <summary>
-    /// Returns the heights the decor of a theme stands at.
+    /// Returns the heights the decor of a wall set stands at.
     /// </summary>
-    public DecorHeightTable GetDecorHeights(LevelTheme theme) => _decorHeights[theme];
+    public DecorHeightTable GetDecorHeights(WallSet wallSet) => _decorHeights[wallSet];
 
     /// <summary>
-    /// Returns how far the objects of a theme stand from walls.
+    /// Returns how far the objects of a wall set stand from walls.
     /// </summary>
-    public WallClearanceTable GetWallClearance(LevelTheme theme) => _wallClearance[theme];
+    public WallClearanceTable GetWallClearance(WallSet wallSet) => _wallClearance[wallSet];
 
     /// <summary>
-    /// Returns how the objects of a theme face the walls they stand against.
+    /// Returns how the objects of a wall set face the walls they stand against.
     /// </summary>
-    public FacingTable GetFacings(LevelTheme theme) => _facings[theme];
+    public FacingTable GetFacings(WallSet wallSet) => _facings[wallSet];
 }

@@ -1,7 +1,6 @@
 using System.Drawing;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
-using ASToolkit.Core.Rooms;
 using ASToolkit.Core.Survey;
 
 namespace ASToolkit.Core.Design;

@@ -5,10 +5,15 @@ namespace ASToolkit.Core.Reference;
 
 /// <summary>
 /// Represents the curves and shares fitted to a style's original campaigns that generated campaigns are drawn from, such as hit points, floor
-/// and end money by level, gate styles per theme, weapon introductions by price and pickups per floor area.
+/// and end money by level, buildings and their wall sets, gate styles per wall set, weapon introductions by price and pickups per floor area.
 /// </summary>
 public sealed class CampaignModel
 {
+    /// <summary>
+    /// Gets the generation style the campaign model was fitted for.
+    /// </summary>
+    public required GenerationStyle Style { get; init; }
+
     /// <summary>
     /// Gets the number of levels of a campaign.
     /// </summary>
@@ -32,22 +37,22 @@ public sealed class CampaignModel
     /// <summary>
     /// Gets the line of the natural logarithm of a level's floor area in square pixels over the level number.
     /// </summary>
-    public required FittedValue<ThemeLine> FloorPixels { get; init; }
+    public required FittedValue<WallSetLine> FloorPixels { get; init; }
 
     /// <summary>
     /// Gets the line of the logarithm of rooms per million floor pixels over the level number.
     /// </summary>
-    public required FittedValue<ThemeLine> Rooms { get; init; }
+    public required FittedValue<WallSetLine> Rooms { get; init; }
 
     /// <summary>
-    /// Gets the minimum and maximum natural logarithm of rooms per million floor pixels among the fitting levels of each theme.
+    /// Gets the minimum and maximum natural logarithm of rooms per million floor pixels among the fitting levels of each wall set.
     /// </summary>
-    public required IReadOnlyDictionary<LevelTheme, ValueRange> RoomRates { get; init; }
+    public required IReadOnlyDictionary<WallSet, ValueRange> RoomRates { get; init; }
 
     /// <summary>
-    /// Gets the maximum rooms a fitting level of each theme holds.
+    /// Gets the maximum rooms a fitting level of each wall set holds.
     /// </summary>
-    public required IReadOnlyDictionary<LevelTheme, int> MaxRooms { get; init; }
+    public required IReadOnlyDictionary<WallSet, int> MaxRooms { get; init; }
 
     /// <summary>
     /// Gets the natural logarithm of the money the game pays at the end of a level by the natural logarithm of the level.
@@ -55,14 +60,14 @@ public sealed class CampaignModel
     public required FittedValue<LinearFit> EndMoney { get; init; }
 
     /// <summary>
-    /// Gets the share of the levels after the first with lab floor, all before the military ones.
+    /// Gets the buildings of the levels after the first in the order their campaigns bring them, with their shares and wall sets.
     /// </summary>
-    public required FittedValue<float> LabShare { get; init; }
+    public required FittedValue<IReadOnlyList<BuildingShare>> Buildings { get; init; }
 
     /// <summary>
-    /// Gets the gate styles of the levels of each theme in the order the campaigns introduce them.
+    /// Gets the gate styles of the levels of each wall set in the order the campaigns introduce them.
     /// </summary>
-    public required IReadOnlyDictionary<LevelTheme, FittedValue<IReadOnlyList<GateShare>>> Gates { get; init; }
+    public required IReadOnlyDictionary<WallSet, FittedValue<IReadOnlyList<GateShare>>> Gates { get; init; }
 
     /// <summary>
     /// Gets the weapon pickups from the cheapest in the shop to the dearest.
@@ -105,7 +110,7 @@ public sealed class CampaignModel
     public required FittedValue<IReadOnlyList<float>> AmmoAges { get; init; }
 
     /// <summary>
-    /// Gets the secret closets of a level of lab walls per million square pixels of floor by level.
+    /// Gets the secret closets of a level of basement walls per million square pixels of floor by level.
     /// </summary>
     public required FittedValue<LinearFit> SecretClosets { get; init; }
 

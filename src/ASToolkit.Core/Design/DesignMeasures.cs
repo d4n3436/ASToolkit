@@ -153,7 +153,7 @@ public sealed class DesignMeasures
     public required float? RoomProportion { get; init; }
 
     /// <summary>
-    /// Gets the door graph of the rooms of a lab level, or null on other levels.
+    /// Gets the door graph of the rooms of a basement level, or null on other levels.
     /// </summary>
     public required RoomGraph? Graph { get; init; }
 
@@ -258,7 +258,7 @@ public sealed class DesignMeasures
     public required float? PileSize { get; init; }
 
     /// <summary>
-    /// Gets how a lab's places form one building, or null for other themes.
+    /// Gets how the places of a basement level form one building, or null for other wall sets.
     /// </summary>
     public required LevelArchitecture? Architecture { get; init; }
 

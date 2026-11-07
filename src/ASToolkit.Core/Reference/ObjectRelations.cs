@@ -4,7 +4,7 @@ using ASToolkit.Core.Levels;
 namespace ASToolkit.Core.Reference;
 
 /// <summary>
-/// Represents how the objects of one ID stand by other objects and walls in the original levels of a theme.
+/// Represents how the objects of one ID stand by other objects and walls in the original levels of a wall set.
 /// </summary>
 public sealed class ObjectRelations
 {
@@ -14,9 +14,9 @@ public sealed class ObjectRelations
     public required KnownObject Id { get; init; }
 
     /// <summary>
-    /// Gets the theme of the levels the relations come from.
+    /// Gets the wall set of the levels the relations come from.
     /// </summary>
-    public required LevelTheme Theme { get; init; }
+    public required WallSet WallSet { get; init; }
 
     /// <summary>
     /// Gets the number of objects the relations were measured on.

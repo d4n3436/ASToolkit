@@ -9,13 +9,15 @@ namespace ASToolkit.Core.Reference;
 /// </summary>
 public sealed class StyleFitter
 {
-    private static readonly LevelTheme[] Themes = [LevelTheme.Lab, LevelTheme.Military, LevelTheme.Outdoor];
+    private static readonly WallSet[] WallSets = [WallSet.Basement, WallSet.Concrete, WallSet.Outdoor];
 
     private static readonly string[] AddOnLevels =
     [
         "ADDON/Level_01.map", "ADDON/Level_02.map", "ADDON/Level_03.map", "ADDON/Level_04.map", "ADDON/Level_05.map",
         "ADDON2/Level_01.map", "ADDON2/Level_02.map", "ADDON2/Level_03.map", "ADDON2/Level_04.map", "ADDON2/Level_05.map"
     ];
+
+    private static readonly string ArenaLevel = ReferenceLevelSet.GetCampaignName(10);
 
     private readonly ObjectTable _objects;
     private readonly CampaignFitter _campaign;
@@ -41,6 +43,11 @@ public sealed class StyleFitter
     }
 
     /// <summary>
+    /// Returns the original levels a style's layout is fitted to, its fitting levels other than the campaign's arena level.
+    /// </summary>
+    public static IReadOnlyList<string> GetLayoutLevels(GenerationStyle style) => GetFittingLevels(style).Where(name => name != ArenaLevel).ToArray();
+
+    /// <summary>
     /// Fits the model of a style to its original levels.
     /// </summary>
     public StyleModel Fit(ReferenceLevelSet references, GenerationStyle style) => Fit(references, style, []);
@@ -59,12 +66,12 @@ public sealed class StyleFitter
             .Select(references.GetLevel)
             .ToArray();
 
-        var decorHeights = Themes.ToDictionary(theme => theme, _ => new DecorHeightTable());
+        var decorHeights = WallSets.ToDictionary(wallSet => wallSet, _ => new DecorHeightTable());
         foreach (var level in levels)
         {
             foreach (var sprite in level.Map.Sprites.Where(sprite => sprite.Id.IsDecor))
             {
-                decorHeights[level.Analysis.Theme].Add(sprite.Id, sprite.Position.Z);
+                decorHeights[level.Analysis.WallSet].Add(sprite.Id, sprite.Position.Z);
             }
         }
 
@@ -78,12 +85,11 @@ public sealed class StyleFitter
             fitting,
             ObjectRelationTable.Build(levels, _objects),
             decorHeights,
-            Themes.ToDictionary(theme => theme, theme => WallClearanceTable.Build(models.Where(model => model.Theme == theme))),
-            Themes.ToDictionary(theme => theme, theme => FacingTable.Build(models.Where(model => model.Theme == theme), _objects, leaning)),
+            WallSets.ToDictionary(wallSet => wallSet, wallSet => WallClearanceTable.Build(models.Where(model => model.WallSet == wallSet))),
+            WallSets.ToDictionary(wallSet => wallSet, wallSet => FacingTable.Build(models.Where(model => model.WallSet == wallSet), _objects, leaning)),
             _campaign.Fit(references, style, excluded))
         {
-            Mission = new MissionFitter(style).Fit(levels.Select(level => level.Survey).ToArray()),
-            Areas = AreaFitter.Fit(levels, style)
+            Footprints = RoomFootprintFitter.Fit(levels.Where(level => GetLayoutLevels(style).Contains(level.Name)).ToArray())
         };
     }
 }

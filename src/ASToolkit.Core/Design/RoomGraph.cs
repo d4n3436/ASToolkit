@@ -1,5 +1,4 @@
 using ASToolkit.Core.Levels;
-using ASToolkit.Core.Rooms;
 using ASToolkit.Core.Routes;
 using ASToolkit.Core.Survey;
 
@@ -259,31 +258,14 @@ public sealed class RoomGraph
         return outside;
     }
 
-    private static List<List<Cell>> FindCellComponents(HashSet<Cell> cells)
+    private static List<HashSet<Cell>> FindCellComponents(HashSet<Cell> cells)
     {
-        var seen = new HashSet<Cell>();
-        var components = new List<List<Cell>>();
-        foreach (var first in cells)
+        var left = new HashSet<Cell>(cells);
+        var components = new List<HashSet<Cell>>();
+        while (left.Count > 0)
         {
-            if (!seen.Add(first))
-            {
-                continue;
-            }
-
-            var component = new List<Cell> { first };
-            var queue = new Queue<Cell>([first]);
-            while (queue.Count > 0)
-            {
-                foreach (var next in GetSides(queue.Dequeue()))
-                {
-                    if (cells.Contains(next) && seen.Add(next))
-                    {
-                        component.Add(next);
-                        queue.Enqueue(next);
-                    }
-                }
-            }
-
+            var component = left.Flood([left.First()], _ => false);
+            left.ExceptWith(component);
             components.Add(component);
         }
 
