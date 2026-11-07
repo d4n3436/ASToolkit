@@ -8,7 +8,7 @@ internal sealed record RouteReport(
     string Map,
     bool Generated,
     string? Image,
-    LevelTheme Theme,
+    WallSet WallSet,
     int TourPixels,
     int SpinePixels,
     float SpineShare,

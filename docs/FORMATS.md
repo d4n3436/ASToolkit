@@ -470,7 +470,7 @@ A sprite that the stacks hide before they first wait, taken in that order starti
 The world is isometric. A sprite stands at (x, y) and is lifted by z.
 
 ```
-       +----> x          a lab floor tile covers one diamond
+       +----> x          a basement floor tile covers one diamond
        |
        v y                    /\
                              /  \      40 px wide
@@ -478,7 +478,7 @@ The world is isometric. A sprite stands at (x, y) and is lifted by z.
                               \/
 ```
 
-The lab lattice has walls at `x = 20a`, `y = 14b` with `a + b` even and floor tile centers at `x = 40i`, `y = 28j + 14` with `i + j` odd. The military levels use a finer lattice of 45 by 32. [NOTES.md](NOTES.md#level-construction-in-the-originals) has the measurements.
+The basement lattice has walls at `x = 20a`, `y = 14b` with `a + b` even and floor tile centers at `x = 40i`, `y = 28j + 14` with `i + j` odd. The concrete levels use a finer lattice of 45 by 32. [NOTES.md](NOTES.md#level-construction-in-the-originals) has the measurements.
 
 The direction byte `dir` (0 to 255) picks the frame of a sprite that has several facings.
 

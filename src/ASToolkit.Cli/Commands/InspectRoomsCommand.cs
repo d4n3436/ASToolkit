@@ -37,7 +37,7 @@ internal sealed class InspectRoomsCommand : Command<InspectRoomsSettings>
 
         var renderer = new MapRenderer(settings.Game, objects);
         var atlases = new RoomAtlas?[maps.Length];
-        var themes = new LevelTheme[maps.Length];
+        var wallSets = new WallSet[maps.Length];
         var lattices = new Lattice?[maps.Length];
         var options = new ParallelOptions { MaxDegreeOfParallelism = MaxLevelsAtOnce, CancellationToken = cancellationToken };
         var loader = new LevelLoader(objects);
@@ -58,7 +58,7 @@ internal sealed class InspectRoomsCommand : Command<InspectRoomsSettings>
             var survey = level.Survey;
             var atlas = settings.Levels is null ? level.Atlas : RoomAtlas.Read(survey, level.Analysis.Grid.Edges, level.Map.Sprites, objects, isOriginal: false);
             atlases[mapIndex] = atlas;
-            themes[mapIndex] = survey.Setting;
+            wallSets[mapIndex] = survey.FloorSet;
             lattices[mapIndex] = survey.Lattice;
             using var rendered = renderer.Render(level.Map.Sprites, settings.Scale, level.Map.Graphics);
             var sheet = new RoomSheet();
@@ -77,8 +77,8 @@ internal sealed class InspectRoomsCommand : Command<InspectRoomsSettings>
 
         var rooms = atlases.Where(atlas => atlas is not null).SelectMany(atlas => atlas!.Rooms).ToArray();
         File.WriteAllText(Path.Combine(settings.Out, "rooms.tsv"), WriteRooms(rooms));
-        File.WriteAllText(Path.Combine(settings.Out, "rooms.md"), WriteTables(maps, atlases, themes));
-        File.WriteAllText(Path.Combine(settings.Out, "recipes.md"), WriteRecipes(atlases, themes, lattices.FirstOrDefault(lattice => lattice is not null)));
+        File.WriteAllText(Path.Combine(settings.Out, "rooms.md"), WriteTables(maps, atlases, wallSets));
+        File.WriteAllText(Path.Combine(settings.Out, "recipes.md"), WriteRecipes(atlases, wallSets, lattices.FirstOrDefault(lattice => lattice is not null)));
         var table = new Table().AddColumns("Type", "Rooms", "Corrected", "Area (k px²)", "Fill", "Roles");
         foreach (var group in rooms.Where(room => room.IsRoom).GroupBy(room => room.Type).OrderBy(group => group.Key))
         {
@@ -108,7 +108,7 @@ internal sealed class InspectRoomsCommand : Command<InspectRoomsSettings>
         return text.ToString();
     }
 
-    private static string WriteRecipes(RoomAtlas?[] atlases, LevelTheme[] themes, Lattice? lattice)
+    private static string WriteRecipes(RoomAtlas?[] atlases, WallSet[] wallSets, Lattice? lattice)
     {
         if (lattice is null)
         {
@@ -116,10 +116,10 @@ internal sealed class InspectRoomsCommand : Command<InspectRoomsSettings>
         }
 
         var text = new StringBuilder();
-        foreach (var theme in new[] { LevelTheme.Lab, LevelTheme.Military })
+        foreach (var wallSet in new[] { WallSet.Basement, WallSet.Concrete })
         {
-            var rooms = atlases.Where((atlas, index) => atlas is not null && themes[index] == theme).SelectMany(atlas => atlas!.Rooms);
-            text.AppendLine($"# {theme} recipes\n");
+            var rooms = atlases.Where((atlas, index) => atlas is not null && wallSets[index] == wallSet).SelectMany(atlas => atlas!.Rooms);
+            text.AppendLine($"# {wallSet} recipes\n");
             foreach (var recipe in RoomRecipe.Measure(rooms, lattice))
             {
                 (int least, int median, int most) = recipe.Areas;
@@ -141,15 +141,15 @@ internal sealed class InspectRoomsCommand : Command<InspectRoomsSettings>
         return text.ToString();
     }
 
-    private static string WriteTables(string[] maps, RoomAtlas?[] atlases, LevelTheme[] themes)
+    private static string WriteTables(string[] maps, RoomAtlas?[] atlases, WallSet[] wallSets)
     {
         var text = new StringBuilder();
-        foreach (var theme in new[] { LevelTheme.Lab, LevelTheme.Military })
+        foreach (var wallSet in new[] { WallSet.Basement, WallSet.Concrete })
         {
-            int[] levels = Enumerable.Range(0, maps.Length).Where(index => atlases[index] is not null && themes[index] == theme).ToArray();
+            int[] levels = Enumerable.Range(0, maps.Length).Where(index => atlases[index] is not null && wallSets[index] == wallSet).ToArray();
             var rooms = levels.SelectMany(index => atlases[index]!.Rooms).Where(room => room.IsRoom).ToArray();
             var types = rooms.Select(room => room.Type).Distinct().Order().ToArray();
-            text.AppendLine($"## {theme} rooms by role and type\n");
+            text.AppendLine($"## {wallSet} rooms by role and type\n");
             text.AppendLine($"| role | {string.Join(" | ", types)} |");
             text.AppendLine($"|---|{string.Concat(types.Select(_ => "---|"))}");
             foreach (var role in rooms.Select(room => room.Role).Distinct().Order())
@@ -157,7 +157,7 @@ internal sealed class InspectRoomsCommand : Command<InspectRoomsSettings>
                 text.AppendLine($"| {role} | {string.Join(" | ", types.Select(type => rooms.Count(room => room.Role == role && room.Type == type)))} |");
             }
 
-            text.AppendLine($"\n## {theme} rooms by level and type\n");
+            text.AppendLine($"\n## {wallSet} rooms by level and type\n");
             text.AppendLine($"| level | {string.Join(" | ", types)} |");
             text.AppendLine($"|---|{string.Concat(types.Select(_ => "---|"))}");
             foreach (int index in levels)

@@ -36,11 +36,11 @@ Run a command with `--help` to see its options.
 
 ## Random level generation
 
-The generator builds each level around the route the player will take, following how the original levels are designed.
+The generator draws a whole campaign, builds each level as a building laid out phase by phase, and fills it along the route the player takes.
 
-1. **Campaign:** It draws the whole campaign first, from curves fitted to the original campaigns, giving each level its theme, gate, monster hit points, weapons, pickups and end-of-level money.
-2. **Layout:** It lays out a main route of halls and rooms with side rooms, branches and closets, and gates part of it behind locked doors, a blackout or electric fences, as the original level does.
-3. **Structure:** Walls, doors and floors are built around the layout in the look of the lab and military levels, and decoration is copied from the original levels.
+1. **Campaign:** It draws the whole campaign first, from curves fitted to the original campaigns, giving each level its wall set, gate, monster hit points, weapons, pickups and end-of-level money.
+2. **Building:** It lays out the level's building from the grammar of its kind. A lab is a hub of office pods with one second wing behind its gate, a warehouse follows its level's template and the office block is one packed floor. The campaign gives the gate (locked doors, a blackout or electric fences), and the doors and locks follow the building's phases.
+3. **Structure:** Walls, doors and floors are built around the layout in the look of the basement and concrete levels, and decoration is copied from the original levels.
 4. **Content:** Monsters, bosses, items, ammo and dynamite are placed along the route to the hit points and pickups the campaign gives the level, with difficulty rising as the level goes on. Fights come where the original level puts them, and furniture, pickups and gore are arranged the way the originals arrange them.
 5. **Read back:** Each level is built once, every step keeping its own guarantees, then read back with the route analysis that measures the original levels. Layouts whose route cannot reach every objective are drawn again. Levels get a roof that hides everything outside the walkable floor.
 

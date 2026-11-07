@@ -4,16 +4,16 @@ using System.Text;
 using ASToolkit.Cli.Analysis;
 using ASToolkit.Core.Design;
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Generation;
 using ASToolkit.Core.Generation.Campaign;
-using ASToolkit.Core.Generation.Layout;
+using ASToolkit.Core.Generation.Output;
+using ASToolkit.Core.Generation;
 using ASToolkit.Core.Levels;
-using ASToolkit.Core.Rendering;
 using ASToolkit.Core.Reference;
+using ASToolkit.Core.Rendering;
 using ASToolkit.Core.Survey;
 using SixLabors.ImageSharp;
-using Spectre.Console;
 using Spectre.Console.Cli;
+using Spectre.Console;
 
 namespace ASToolkit.Cli.Commands;
 
@@ -53,13 +53,13 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
             : null;
         var fitter = new StyleFitter(objects, GameTable.Load(Path.Combine(settings.Game, "Maps", "common_table.lgc")));
         var (generated, provenance, layoutCounts, _) = references is null
-            ? ([], [], new AreaBuildCounts(), [])
+            ? ([], [], new Dictionary<string, int>(), [])
             : Generate(new LevelGenerator(settings.Game, objects, references, fitter.Fit(references, GenerationStyle.Campaign)), settings.Out, settings.Seeds, false, cancellationToken);
         var renderer = settings.Images ? new MapRenderer(settings.Game, objects) : null;
 
         var all = campaign.Concat(addOns).Concat(generated).ToArray();
         var loader = new LevelLoader(objects);
-        var (levels, measures) = AnsiConsole.Status().Start("Measuring the levels", _ => Measure(all, loader, objects, cancellationToken, level =>
+        var (levels, measures) = AnsiConsole.Status().Start("Measuring the levels", _ => Measure(all, loader, objects, level =>
         {
             if (renderer is not null)
             {
@@ -67,7 +67,7 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
                 PlaceOverlay.Draw(rendered, level.Survey, level.Analysis);
                 rendered.Image.SaveAsPng(Path.Combine(settings.Out, GetFileName(level.Name) + "_places.png"));
             }
-        }));
+        }, cancellationToken));
 
         WriteLevels(settings, all.Select(entry => entry.Name).ToArray(), measures);
         if (generated.Count > 0)
@@ -118,7 +118,8 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
     }
 
     private static (ReferenceLevel?[] Levels, DesignMeasures?[] Measures) Measure((string Name, string Path)[] entries, LevelLoader loader, ObjectTable objects,
-        CancellationToken cancellationToken, Action<ReferenceLevel> onLoaded)
+        Action<ReferenceLevel> onLoaded,
+        CancellationToken cancellationToken)
     {
         var levels = new ReferenceLevel?[entries.Length];
         var measures = new DesignMeasures?[entries.Length];
@@ -159,7 +160,7 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
                 .Where(level => File.Exists(level.Path))
                 .ToArray();
 
-            var measured = AnsiConsole.Status().Start($"Measuring without {excluded}", _ => Measure(written, loader, objects, cancellationToken, _ => { }).Measures)
+            var measured = AnsiConsole.Status().Start($"Measuring without {excluded}", _ => Measure(written, loader, objects, _ => { }, cancellationToken).Measures)
                 .Zip(written)
                 .Where(pair => pair.First is not null && full.ContainsKey(pair.Second.Name))
                 .ToArray();
@@ -200,7 +201,7 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         static bool IsWithin(float value, (float Min, float Max) band) => value >= band.Min && value <= band.Max;
     }
 
-    private static (List<(string Name, string Path)> Levels, IReadOnlyDictionary<SpriteSource, int>[] Provenance, AreaBuildCounts LayoutCounts, string?[] Failures) Generate(
+    private static (List<(string Name, string Path)> Levels, IReadOnlyDictionary<SpriteSource, int>[] Provenance, Dictionary<string, int> LayoutCounts, string?[] Failures) Generate(
         LevelGenerator generator,
         string folder, int seeds, bool skipsFailures, CancellationToken cancellationToken)
     {
@@ -218,7 +219,7 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         }
 
         var provenance = new IReadOnlyDictionary<SpriteSource, int>[jobs.Length];
-        var counts = new AreaBuildCounts?[jobs.Length];
+        var counts = new IReadOnlyDictionary<string, int>?[jobs.Length];
         string?[] failures = new string?[jobs.Length];
         var options = new ParallelOptions { MaxDegreeOfParallelism = MaxLevelsAtOnce, CancellationToken = cancellationToken };
         AnsiConsole.Status().Start("Generating the levels", _ => Parallel.For(0, jobs.Length, options, index =>
@@ -243,11 +244,10 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
             }
         }));
 
-        var total = new AreaBuildCounts();
-        foreach (var count in counts)
+        var total = new Dictionary<string, int> { ["levels"] = counts.Count(count => count is not null) };
+        foreach ((string name, int count) in counts.OfType<IReadOnlyDictionary<string, int>>().SelectMany(count => count))
         {
-            if (count is not null)
-                total.Add(count);
+            total[name] = total.GetValueOrDefault(name) + count;
         }
 
         return (levels, provenance, total, failures);
@@ -289,7 +289,7 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         AddShare("lab equipment within 60 px of a table", measure => measure.LabEquipmentOnTables);
         AddShare("scattered paper within 60 px of a table", measure => measure.PaperOnTables);
         AddShare("computers away from walls", measure => measure.ComputersAwayFromWalls);
-        AddShare("lab big computers with a chair within 200 px", measure => measure.BigComputersWithChairs);
+        AddShare("basement big computers with a chair within 200 px", measure => measure.BigComputersWithChairs);
         AddShare("corpses on blood (40 px)", measure => measure.CorpsesOnBlood);
         AddShare("office and lab decor in passages", measure => measure.OfficeDecorInPassages);
         AddShare("office and lab decor in storage rooms", measure => measure.OfficeDecorInStorage);
@@ -344,26 +344,26 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         AddShare("locked-door and fence gates with the key in a phase before their lock", measure => measure.KeysBeforeLocks);
         AddMedian("largest fight's position along its phase, median of levels", measure => measure.ClimaxPosition);
         AddShare("phase climaxes with fewer hit points in the next tenth of the tour", measure => measure.ReliefAfterClimaxes);
-        AddMedian("lab door-graph cycles, median of levels", measure => measure.Graph?.Cycles);
-        AddMedian("lab floor share of the bounding box, median of levels", measure => measure.Architecture?.Compactness);
-        AddMedian("lab wall lines of 3+ cells per 1,000 cells, median of levels", measure => measure.Architecture?.WallLinesPerThousandCells);
-        AddMedian("lab corridor share of the floor, median of levels", measure => measure.Architecture?.CorridorShare);
-        AddMedian("lab median hall area (px²), median of levels", measure => measure.Architecture?.HallArea);
-        AddMedian("lab median room area (px²), median of levels", measure => measure.Architecture?.RoomArea);
-        AddMedian("lab median closet and nook area (px²), median of levels", measure => measure.Architecture?.ClosetArea);
-        AddMedian("lab outline notches per side, median of levels", measure => measure.Architecture?.NotchesPerSide);
-        AddMedian("lab main body share of the floor, median of levels", measure => measure.Graph?.MainBodyShare);
-        AddMedian("lab largest branch share of the floor, median of levels", measure => measure.Graph?.LargestBranchShare);
-        AddMedian("lab hub rooms from the start, median of levels", measure => measure.Graph?.HubHops);
-        AddMedian("lab deepest objective in rooms off the main body, median of levels", measure => measure.Graph?.ObjectiveDepths.DefaultIfEmpty(0).Max());
-        AddMedian("lab square rooms, median of levels", measure => measure.Graph?.SquareShare);
-        AddMedian("lab small rooms with no notch, median of levels", measure => measure.Graph?.SmallRectangleShare);
-        AddMedian("lab mid rooms with no notch, median of levels", measure => measure.Graph?.MidRectangleShare);
-        AddMedian("lab large rooms with no notch, median of levels", measure => measure.Graph?.LargeRectangleShare);
-        AddMedian("lab notches open outside, median of levels", measure => measure.Graph?.OutsideNotchShare);
-        AddMedian("lab ambush hit points into rooms the tour has left, median of levels", measure => measure.Graph?.AbandonedAmbushShare);
-        AddMedian("lab first-section rooms re-entered after the gate, median of levels", measure => measure.Graph?.SectionReentries);
-        AddMedian("lab bare rooms, median of levels", measure => measure.Graph?.BareRooms);
+        AddMedian("basement door-graph cycles, median of levels", measure => measure.Graph?.Cycles);
+        AddMedian("basement floor share of the bounding box, median of levels", measure => measure.Architecture?.Compactness);
+        AddMedian("basement wall lines of 3+ cells per 1,000 cells, median of levels", measure => measure.Architecture?.WallLinesPerThousandCells);
+        AddMedian("basement corridor share of the floor, median of levels", measure => measure.Architecture?.CorridorShare);
+        AddMedian("basement median hall area (px²), median of levels", measure => measure.Architecture?.HallArea);
+        AddMedian("basement median room area (px²), median of levels", measure => measure.Architecture?.RoomArea);
+        AddMedian("basement median closet and nook area (px²), median of levels", measure => measure.Architecture?.ClosetArea);
+        AddMedian("basement outline notches per side, median of levels", measure => measure.Architecture?.NotchesPerSide);
+        AddMedian("basement main body share of the floor, median of levels", measure => measure.Graph?.MainBodyShare);
+        AddMedian("basement largest branch share of the floor, median of levels", measure => measure.Graph?.LargestBranchShare);
+        AddMedian("basement hub rooms from the start, median of levels", measure => measure.Graph?.HubHops);
+        AddMedian("basement deepest objective in rooms off the main body, median of levels", measure => measure.Graph?.ObjectiveDepths.DefaultIfEmpty(0).Max());
+        AddMedian("basement square rooms, median of levels", measure => measure.Graph?.SquareShare);
+        AddMedian("basement small rooms with no notch, median of levels", measure => measure.Graph?.SmallRectangleShare);
+        AddMedian("basement mid rooms with no notch, median of levels", measure => measure.Graph?.MidRectangleShare);
+        AddMedian("basement large rooms with no notch, median of levels", measure => measure.Graph?.LargeRectangleShare);
+        AddMedian("basement notches open outside, median of levels", measure => measure.Graph?.OutsideNotchShare);
+        AddMedian("basement ambush hit points into rooms the tour has left, median of levels", measure => measure.Graph?.AbandonedAmbushShare);
+        AddMedian("basement first-section rooms re-entered after the gate, median of levels", measure => measure.Graph?.SectionReentries);
+        AddMedian("basement bare rooms, median of levels", measure => measure.Graph?.BareRooms);
         AddMedian("floor off the tour, median of levels", measure => measure.Signature.OffRouteShare);
         AddMedian("tour share re-walked, median of levels", measure => measure.Signature.RevisitShare);
         AddMedian("first fight, share of the tour, median of levels", measure => measure.Signature.FirstFight);
@@ -433,32 +433,32 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         (int Crowded, int Count)[] crowded)
     {
         var text = new StringBuilder();
-        text.AppendLine("| theme | object | stands by | campaign | lift | add-ons | generated |");
+        text.AppendLine("| wall set | object | stands by | campaign | lift | add-ons | generated |");
         text.AppendLine("|---|---|---|---|---|---|---|");
-        foreach (var theme in new[] { LevelTheme.Lab, LevelTheme.Military })
+        foreach (var wallSet in new[] { WallSet.Basement, WallSet.Concrete })
         {
-            foreach (var relations in campaign.GetRelations(theme))
+            foreach (var relations in campaign.GetRelations(wallSet))
             {
                 foreach (var anchor in relations.Anchors)
                 {
-                    text.AppendLine(CultureInfo.InvariantCulture, $"| {theme} | {relations.Id} | {anchor.Id} | {anchor.Share:P0} of {relations.Count} | {anchor.Lift:0} | {FormatShare(addOns, theme, relations.Id, anchor.Id)} | {FormatShare(generated, theme, relations.Id, anchor.Id)} |");
+                    text.AppendLine(CultureInfo.InvariantCulture, $"| {wallSet} | {relations.Id} | {anchor.Id} | {anchor.Share:P0} of {relations.Count} | {anchor.Lift:0} | {FormatShare(addOns, wallSet, relations.Id, anchor.Id)} | {FormatShare(generated, wallSet, relations.Id, anchor.Id)} |");
                 }
 
                 if (relations.WallShare >= 2 * relations.RandomWallShare && relations.WallShare >= MinWallShare)
                 {
-                    text.AppendLine(CultureInfo.InvariantCulture, $"| {theme} | {relations.Id} | a wall | {relations.WallShare:P0} of {relations.Count} | {relations.WallShare / Math.Max(relations.RandomWallShare, 0.01f):0} | {FormatWallShare(addOns, theme, relations.Id)} | {FormatWallShare(generated, theme, relations.Id)} |");
+                    text.AppendLine(CultureInfo.InvariantCulture, $"| {wallSet} | {relations.Id} | a wall | {relations.WallShare:P0} of {relations.Count} | {relations.WallShare / Math.Max(relations.RandomWallShare, 0.01f):0} | {FormatWallShare(addOns, wallSet, relations.Id)} | {FormatWallShare(generated, wallSet, relations.Id)} |");
                 }
             }
         }
 
         text.AppendLine();
-        text.AppendLine("| theme | floor pieces | closest to a doorway, all but 5% | add-ons | generated |");
+        text.AppendLine("| wall set | floor pieces | closest to a doorway, all but 5% | add-ons | generated |");
         text.AppendLine("|---|---|---|---|---|");
-        foreach (var theme in new[] { LevelTheme.Lab, LevelTheme.Military })
+        foreach (var wallSet in new[] { WallSet.Basement, WallSet.Concrete })
         {
             foreach (var blocking in new[] { BlockingClass.Solid, BlockingClass.Hittable })
             {
-                text.AppendLine(CultureInfo.InvariantCulture, $"| {theme} | {blocking} | {FormatDistance(campaign.GetDoorClearance(theme, blocking))} | {FormatDistance(addOns.GetDoorClearance(theme, blocking))} | {FormatDistance(generated.GetDoorClearance(theme, blocking))} |");
+                text.AppendLine(CultureInfo.InvariantCulture, $"| {wallSet} | {blocking} | {FormatDistance(campaign.GetDoorClearance(wallSet, blocking))} | {FormatDistance(addOns.GetDoorClearance(wallSet, blocking))} | {FormatDistance(generated.GetDoorClearance(wallSet, blocking))} |");
             }
         }
 
@@ -468,16 +468,16 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         text.AppendLine(CultureInfo.InvariantCulture,
             $"| pieces closer to another than the campaign stands the pair | {string.Join(" | ", crowded.Select(entry => $"{entry.Crowded:N0} of {entry.Count:N0} ({entry.Crowded / (float)Math.Max(1, entry.Count):P0})"))} |");
         text.AppendLine();
-        text.AppendLine("| theme | anchor | companion | per anchor | add-ons | generated |");
+        text.AppendLine("| wall set | anchor | companion | per anchor | add-ons | generated |");
         text.AppendLine("|---|---|---|---|---|---|");
-        foreach (var theme in new[] { LevelTheme.Lab, LevelTheme.Military })
+        foreach (var wallSet in new[] { WallSet.Basement, WallSet.Concrete })
         {
             foreach (var anchor in Enum.GetValues<KnownObject>().Where(id => id.Family is not null || id == KnownObject.Spawner))
             {
-                foreach (var companion in campaign.GetCompanions(theme, anchor))
+                foreach (var companion in campaign.GetCompanions(wallSet, anchor))
                 {
                     text.AppendLine(CultureInfo.InvariantCulture,
-                        $"| {theme} | {anchor} | {companion.Id} | {companion.Rate:0.00} | {addOns.GetCompanionRate(theme, anchor, companion.Id):0.00} | {generated.GetCompanionRate(theme, anchor, companion.Id):0.00} |");
+                        $"| {wallSet} | {anchor} | {companion.Id} | {companion.Rate:0.00} | {addOns.GetCompanionRate(wallSet, anchor, companion.Id):0.00} | {generated.GetCompanionRate(wallSet, anchor, companion.Id):0.00} |");
                 }
             }
         }
@@ -485,12 +485,12 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         File.WriteAllText(Path.Combine(settings.Out, "relations.md"), text.ToString());
     }
 
-    private static string FormatShare(ObjectRelationTable table, LevelTheme theme, KnownObject id, KnownObject anchor) =>
-        table.GetRelations(theme, id) is null ? "-" : table.GetAnchorShare(theme, id, anchor).ToString("P0", CultureInfo.InvariantCulture);
+    private static string FormatShare(ObjectRelationTable table, WallSet wallSet, KnownObject id, KnownObject anchor) =>
+        table.GetRelations(wallSet, id) is null ? "-" : table.GetAnchorShare(wallSet, id, anchor).ToString("P0", CultureInfo.InvariantCulture);
 
-    private static string FormatWallShare(ObjectRelationTable table, LevelTheme theme, KnownObject id)
+    private static string FormatWallShare(ObjectRelationTable table, WallSet wallSet, KnownObject id)
     {
-        var relations = table.GetRelations(theme, id);
+        var relations = table.GetRelations(wallSet, id);
         return relations is null ? "-" : relations.WallShare.ToString("P0", CultureInfo.InvariantCulture);
     }
 
@@ -543,31 +543,15 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         }
     }
 
-    private static void WriteLayoutCounts(InspectDesignSettings settings, AreaBuildCounts counts)
+    private static void WriteLayoutCounts(InspectDesignSettings settings, Dictionary<string, int> counts)
     {
         var text = new StringBuilder();
-        text.AppendLine("| layout stage | count | of | share |");
-        text.AppendLine("|---|---|---|---|");
-        foreach ((string name, int count, int total) in new[]
+        text.AppendLine("| building or doors count | total | per level |");
+        text.AppendLine("|---|---|---|");
+        int levels = Math.Max(1, counts.GetValueOrDefault("levels"));
+        foreach ((string name, int count) in counts.Where(pair => pair.Key != "levels").OrderBy(pair => pair.Key, StringComparer.Ordinal))
         {
-            ("layouts drawn again", counts.LayoutRedraws, counts.LayoutRedraws + counts.Layouts),
-            ("builds that placed no layout", counts.FailedBuilds, counts.Layouts),
-            ("composites drawn again", counts.CompositeRedraws, counts.Composites),
-            ("composites laid bare", counts.BareComposites, counts.Composites),
-            ("necks built of those drawn", counts.NecksBuilt, counts.NecksDrawn),
-            ("cuts built of those drawn", counts.CutsBuilt, counts.CutsDrawn),
-            ("path-room cuts dropped", counts.CutsDropped, counts.CutsPlanned + counts.CutsDropped),
-            ("extra entrances built of those drawn", counts.EntrancesBuilt, counts.EntrancesDrawn),
-            ("extra entrances built between other rooms than the drawn ones", counts.EntrancesMoved, counts.EntrancesBuilt),
-            ("loops built of those drawn", counts.LoopsBuilt, counts.LoopsDrawn),
-            ("loops built between other rooms than the drawn ones", counts.LoopsMoved, counts.LoopsBuilt),
-            ("rings around a court", counts.Rings, counts.Layouts),
-            ("connector rooms", counts.Connectors, counts.Layouts),
-            ("corridors", counts.Corridors, counts.Layouts),
-            ("turned branch chains", counts.BranchTurns, counts.Layouts)
-        })
-        {
-            text.AppendLine($"| {name} | {Format(count)} | {Format(total)} | {Format(count / (float)Math.Max(1, total))} |");
+            text.AppendLine($"| {name} | {count} | {Format(count / (float)levels)} |");
         }
 
         File.WriteAllText(Path.Combine(settings.Out, "layout.md"), text.ToString());
@@ -626,11 +610,11 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
 
             text.AppendLine($"## {title}");
             text.AppendLine();
-            text.AppendLine("| level | theme | gate | hit points | spawned share | monster kinds | new monster kinds | floor (px²) | tour (px) | phases | health | armor | ammo | cash | new weapons | new weapons before their ammo | end money |");
+            text.AppendLine("| level | floor set | gate | hit points | spawned share | monster kinds | new monster kinds | floor (px²) | tour (px) | phases | health | armor | ammo | cash | new weapons | new weapons before their ammo | end money |");
             text.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
             foreach (var level in new CampaignMeasurer(table.GetArray(money)).Measure(levels))
             {
-                text.AppendLine($"| {level.Level} | {level.Theme} | {level.GateStyle} | {Format(level.HitPoints)} | {Format(level.SpawnedShare)} | {level.MonsterKinds.Count} | "
+                text.AppendLine($"| {level.Level} | {level.FloorSet} | {level.GateStyle} | {Format(level.HitPoints)} | {Format(level.SpawnedShare)} | {level.MonsterKinds.Count} | "
                     + $"{string.Join(", ", level.NewMonsterKinds)} | {Format(level.FloorPixels)} | {Format(level.TourPixels)} | {level.Phases} | {Format(level.Pickups.GetValueOrDefault(ItemCategory.Health))} | "
                     + $"{Format(level.Pickups.GetValueOrDefault(ItemCategory.Armor))} | {Format(level.Pickups.GetValueOrDefault(ItemCategory.Ammo))} | {Format(level.Money)} | "
                     + $"{string.Join(", ", level.NewWeapons)} | {level.NewWeaponsBeforeAmmo} | {Format(level.EndMoney)} |");
@@ -663,7 +647,7 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         var lines = new (string Name, FittedValue<LinearFit> Fit)[]
         {
             ("ln hit points", model.HitPoints), ("log-odds of the spawned share", model.SpawnedShare), ("ln end money, by ln level", model.EndMoney),
-            ("weapon first level by price rank", model.WeaponLevels), ("repeated weapons", model.RepeatedWeapons), ("secret closets per Mpx² of lab walls", model.SecretClosets)
+            ("weapon first level by price rank", model.WeaponLevels), ("repeated weapons", model.RepeatedWeapons), ("secret closets per Mpx² of basement walls", model.SecretClosets)
         }.Concat(model.PickupRates.Select(pair => ($"{pair.Key} per Mpx²", pair.Value)))
             .Concat(model.PickupShares.Select(pair => ($"{pair.Key} share of its category", pair.Value)));
 
@@ -674,15 +658,19 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
 
         foreach ((string name, var fit) in new[] { ("ln floor (px²)", model.FloorPixels), ("ln rooms per Mpx²", model.Rooms) })
         {
-            text.AppendLine($"| {name} | {Format((float)fit.Value.Intercept)} + {Format((float)fit.Value.Slope)} × level + {Format((float)fit.Value.MilitaryTerm)} on military ± {Format((float)fit.Value.Spread)} | {fit.Samples} | {(fit.IsBackedOff ? "flat" : "")} |");
+            text.AppendLine($"| {name} | {Format((float)fit.Value.Intercept)} + {Format((float)fit.Value.Slope)} × level + {Format((float)fit.Value.ConcreteTerm)} on concrete ± {Format((float)fit.Value.Spread)} | {fit.Samples} | {(fit.IsBackedOff ? "flat" : "")} |");
         }
 
-        text.AppendLine($"| lab share | {Format(model.LabShare.Value)} | {model.LabShare.Samples} | |");
+        foreach (var building in model.Buildings.Value)
+        {
+            text.AppendLine($"| {building.Building} | share {Format(building.Share)}, position {Format(building.Position)}{(building.IsRequired ? ", required" : "")} | {building.Samples} | |");
+        }
+
         text.AppendLine($"| affordability | {Format(model.Affordability.Value)} | {model.Affordability.Samples} | |");
         text.AppendLine($"| ammo by age (next, newest, older) | {string.Join(", ", model.AmmoAges.Value.Select(share => Format(share)))} | {model.AmmoAges.Samples} | |");
-        foreach (var (theme, gates) in model.Gates.OrderBy(pair => pair.Key))
+        foreach (var (wallSet, gates) in model.Gates.OrderBy(pair => pair.Key))
         {
-            text.AppendLine($"| {theme} gates | {string.Join(", ", gates.Value.Select(gate => $"{gate.GateStyle} {Format(gate.Share)}"))} | {gates.Samples} | |");
+            text.AppendLine($"| {wallSet} gates | {string.Join(", ", gates.Value.Select(gate => $"{gate.GateStyle} {Format(gate.Share)}"))} | {gates.Samples} | |");
         }
 
         text.AppendLine();
@@ -693,12 +681,12 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
 
         text.AppendLine($"Medians of {PlannedCampaigns} planned campaigns, with the fitted line of the hit points:");
         text.AppendLine();
-        text.AppendLine("| level | lab share | commonest gate | hit points | line | spawned share | floor (px²) | secret closets | health | armor | ammo | cash | weapons | end money | commonest donor |");
-        text.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+        text.AppendLine("| level | commonest building | basement share | commonest gate | hit points | line | spawned share | floor (px²) | secret closets | health | armor | ammo | cash | weapons | end money | commonest donor |");
+        text.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
         for (int index = 1; index < model.LevelCount; index++)
         {
             var briefs = plans.Select(plan => plan[index]).ToArray();
-            text.AppendLine($"| {index + 1} | {Format(briefs.Count(brief => brief.Theme == LevelTheme.Lab) / (float)briefs.Length)} | {briefs.CountBy(brief => brief.GateStyle).MaxBy(pair => pair.Value).Key} | "
+            text.AppendLine($"| {index + 1} | {briefs.CountBy(brief => brief.Building).MaxBy(pair => pair.Value).Key} | {Format(briefs.Count(brief => brief.WallSet == WallSet.Basement) / (float)briefs.Length)} | {briefs.CountBy(brief => brief.GateStyle).MaxBy(pair => pair.Value).Key} | "
                             + $"{Format(Median(briefs.Select(brief => brief.HitPoints)))} | {Format((int)MathF.Exp(model.HitPoints.Value.Evaluate(index + 1)))} | {Format(Median(briefs.Select(brief => brief.SpawnedShare)))} | "
                             + $"{Format(Median(briefs.Select(brief => brief.FloorPixels)))} | {Format(Median(briefs.Select(brief => brief.SecretClosets)))} | {Format(Median(briefs.Select(brief => CountOf(brief, ItemCategory.Health))))} | "
                             + $"{Format(Median(briefs.Select(brief => CountOf(brief, ItemCategory.Armor))))} | {Format(Median(briefs.Select(brief => CountOf(brief, ItemCategory.Ammo))))} | "

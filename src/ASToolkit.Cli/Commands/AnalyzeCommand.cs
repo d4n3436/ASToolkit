@@ -15,7 +15,6 @@ namespace ASToolkit.Cli.Commands;
 
 internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
 {
-
     private static readonly string[] AddOnLevels =
     [
         "ADDON/Level_02.map", "ADDON/Level_03.map", "ADDON/Level_04.map", "ADDON/Level_05.map",
@@ -89,12 +88,12 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
             reports[i] = ToReport(maps[i], settings.Levels is not null, image, analysis);
         }));
 
-        var table = new Table().AddColumns("Map", "Theme", "Tour", "Spine share", "Elongation", "Image");
+        var table = new Table().AddColumns("Map", "Wall set", "Tour", "Spine share", "Elongation", "Image");
         for (int mapIndex = 0; mapIndex < maps.Length; mapIndex++)
         {
             var r = reports[mapIndex];
             string? image = images[mapIndex];
-            table.AddRow(Markup.Escape(maps[mapIndex]), r?.Theme.ToString() ?? "", r is null ? $"[red]{problems[mapIndex]}[/]" : $"{r.TourPixels} px",
+            table.AddRow(Markup.Escape(maps[mapIndex]), r?.WallSet.ToString() ?? "", r is null ? $"[red]{problems[mapIndex]}[/]" : $"{r.TourPixels} px",
                 r?.SpineShare.ToString("0.00") ?? "", r?.Elongation.ToString("0.00") ?? "",
                 image is null ? "" : Markup.Escape(image) + (undrawn[mapIndex] > 0 ? $" [grey]({undrawn[mapIndex]} sprites undrawn)[/]" : ""));
         }
@@ -189,7 +188,7 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
             e.Program?.Trigger is null ? [] : [e.Program.Trigger.Value.X, e.Program.Trigger.Value.Y, e.Program.Trigger.Value.Radius])).ToArray();
         
         int[][] tour = a.Tour.Select(lattice.GetCenter).Select(p => new[] { (int)MathF.Round(p.X), (int)MathF.Round(p.Y) }).ToArray();
-        return new RouteReport(map, generated, image, a.Theme, a.RoutePixels, a.SpinePixels, MathF.Round(a.SpinePixels / (float)Math.Max(1, a.RoutePixels), 4),
+        return new RouteReport(map, generated, image, a.WallSet, a.RoutePixels, a.SpinePixels, MathF.Round(a.SpinePixels / (float)Math.Max(1, a.RoutePixels), 4),
             MathF.Round(ReferenceLevelSet.GetElongation(a), 4), MathF.Round(a.RevisitShare, 4), a.ReachableCells, a.Legs, a.Objectives, a.Checkpoints, elements,
             a.Gating, a.FallbackUsage, tour);
     }
