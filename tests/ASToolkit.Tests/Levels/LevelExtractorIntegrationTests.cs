@@ -16,7 +16,7 @@ public class LevelExtractorIntegrationTests
         {
             var model = LevelExtractor.Extract(expected.Name, MapResourceBuilder.Load(Path.Combine(game, "Maps", expected.Name)), objects);
             Assert.NotNull(model);
-            Assert.Equal(expected.Theme == "mil" ? LevelTheme.Military : LevelTheme.Lab, model.Theme);
+            Assert.Equal(expected.Theme == "mil" ? WallSet.Concrete : WallSet.Basement, model.WallSet);
             Assert.True(expected.CoarseCells == model.Cells.Count, $"{expected.Name} cells {model.Cells.Count}, expected {expected.CoarseCells}");
             Assert.True(expected.CoarseEdges == model.Edges.Count, $"{expected.Name} edges {model.Edges.Count}, expected {expected.CoarseEdges}");
         }

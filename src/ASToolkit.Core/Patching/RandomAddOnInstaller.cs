@@ -73,7 +73,7 @@ public static class RandomAddOnInstaller
             if (generated is not null)
             {
                 generated.Level.Write(target, generated.TemplatePath);
-                File.WriteAllText(GetBriefingPath(gameFolder, number), FormatBriefing(number, seed, generated.Level.Theme), GameTextEncoding.Cyrillic);
+                File.WriteAllText(GetBriefingPath(gameFolder, number), FormatBriefing(number, seed, generated.Level.Building), GameTextEncoding.Cyrillic);
             }
             else
             {
@@ -184,8 +184,20 @@ public static class RandomAddOnInstaller
 
     private static string GetBriefingPath(string gameFolder, int number) => Path.Combine(gameFolder, "Text", $"random_level_{number:00}.txt");
 
-    private static string FormatBriefing(int number, int seed, LevelTheme theme) =>
-        $"MISSION {number:00}:\r\ngenerated {theme switch { LevelTheme.Lab => "laboratory", LevelTheme.Military => "military base", _ => "outskirts" }}\r\n\r\nDESCRIPTION:\r\nseed {seed}.\r\n";
+    private static string FormatBriefing(int number, int seed, Building building) =>
+        $"MISSION {number:00}:\r\ngenerated {GetBuildingName(building)}\r\n\r\nDESCRIPTION:\r\nseed {seed}.\r\n";
+
+    private static string GetBuildingName(Building building) => building switch
+    {
+        Building.UndergroundLab => "underground lab",
+        Building.Warehouse => "warehouse",
+        Building.Prison => "prison",
+        Building.OfficeBlock => "office block",
+        Building.ConferenceBuilding => "conference building",
+        Building.School => "school",
+        Building.TrainingComplex => "training complex",
+        _ => "outskirts"
+    };
 
     private static void CopyCampaignLevel(string gameFolder, int number, string target)
     {

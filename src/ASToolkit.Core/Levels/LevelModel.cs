@@ -3,7 +3,7 @@ using ASToolkit.Core.Formats;
 namespace ASToolkit.Core.Levels;
 
 /// <summary>
-/// Represents a level reduced to floor cells, wall edges and dressing on its theme's lattice.
+/// Represents a level reduced to floor cells, wall edges and dressing on its wall set's lattice.
 /// </summary>
 public sealed class LevelModel
 {
@@ -13,9 +13,9 @@ public sealed class LevelModel
     public required string Name { get; init; }
 
     /// <summary>
-    /// Gets the theme.
+    /// Gets the wall set of the level.
     /// </summary>
-    public required LevelTheme Theme { get; init; }
+    public required WallSet WallSet { get; init; }
 
     /// <summary>
     /// Gets the lattice of the cells.
@@ -41,14 +41,4 @@ public sealed class LevelModel
     /// Gets every placed object of the map.
     /// </summary>
     public required IReadOnlyList<MergedMapSprite> Sprites { get; init; }
-
-    /// <summary>
-    /// Returns the share of the floor's bounding box that is floor.
-    /// </summary>
-    public float GetBoxFill()
-    {
-        int width = Cells.Max(c => c.U) - Cells.Min(c => c.U) + 1;
-        int height = Cells.Max(c => c.V) - Cells.Min(c => c.V) + 1;
-        return Cells.Count / (float)(width * height);
-    }
 }

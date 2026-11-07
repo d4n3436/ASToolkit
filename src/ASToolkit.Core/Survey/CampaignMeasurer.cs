@@ -66,7 +66,7 @@ public sealed class CampaignMeasurer
             {
                 Level = index + 1,
                 Map = survey.Name,
-                Theme = survey.Setting,
+                FloorSet = survey.FloorSet,
                 GateStyle = survey.Style,
                 HitPoints = hitPoints,
                 SpawnedShare = hitPoints == 0 ? 0 : spawned / (float)hitPoints,

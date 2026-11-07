@@ -1,3 +1,4 @@
+using System.Numerics;
 using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Levels;
@@ -44,8 +45,12 @@ public readonly record struct CollisionBox(float X, float Y, float HalfWidth, fl
     /// <summary>
     /// Creates the box of an object at a map point, reaching a share of its extent plus a margin.
     /// </summary>
-    public static CollisionBox Create(GameObject obj, float x, float y, float share, float grow) =>
-        new(x, y, share * obj.Size.X + grow, share * obj.Size.Y + grow);
+    public static CollisionBox Create(in GameObject obj, float x, float y, float share, float grow) => Create(obj.Size, x, y, share, grow);
+
+    /// <summary>
+    /// Creates the box of an object of the given size at a map point, reaching a share of its extent plus a margin.
+    /// </summary>
+    public static CollisionBox Create(Vector3 size, float x, float y, float share, float grow) => new(x, y, share * size.X + grow, share * size.Y + grow);
 
     /// <summary>
     /// Returns whether a point lies in the box.
@@ -56,4 +61,23 @@ public readonly record struct CollisionBox(float X, float Y, float HalfWidth, fl
     /// Returns whether the box overlaps another box.
     /// </summary>
     public bool Overlaps(CollisionBox other) => Math.Abs(X - other.X) < HalfWidth + other.HalfWidth && Math.Abs(Y - other.Y) < HalfHeight + other.HalfHeight;
+
+    /// <summary>
+    /// Returns the lattice cells under the box's corners, edge midpoints and center.
+    /// </summary>
+    public HashSet<Cell> GetSampledCells(Lattice lattice)
+    {
+        var cells = new HashSet<Cell>();
+        ReadOnlySpan<float> across = [-HalfWidth, 0, HalfWidth];
+        ReadOnlySpan<float> down = [-HalfHeight, 0, HalfHeight];
+        foreach (float dx in across)
+        {
+            foreach (float dy in down)
+            {
+                cells.Add(lattice.GetCell(X + dx, Y + dy));
+            }
+        }
+
+        return cells;
+    }
 }

@@ -14,9 +14,9 @@ public sealed class RouteAnalysis
     public required string Name { get; init; }
 
     /// <summary>
-    /// Gets the theme.
+    /// Gets the wall set of the analyzed level.
     /// </summary>
-    public required LevelTheme Theme { get; init; }
+    public required WallSet WallSet { get; init; }
 
     /// <summary>
     /// Gets the model of the level the tour was planned on.

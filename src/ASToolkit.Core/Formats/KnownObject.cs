@@ -384,7 +384,7 @@ public enum KnownObject
     BasementFloorAlt = 502,
 
     /// <summary>The military base floor tile.</summary>
-    MilitaryFloor = 503,
+    MilitaryBaseFloor = 503,
 
     /// <summary>The grass tile.</summary>
     Grass = 505,
@@ -398,14 +398,14 @@ public enum KnownObject
     /// <summary>The female player legs, placed as a player start.</summary>
     PlayerStartFemaleLegs = 549,
 
-    /// <summary>The lab wall that runs along '/'.</summary>
-    LabWallSlash = 601,
+    /// <summary>The basement wall (wall 1) that runs along '/'.</summary>
+    BasementWallSlash = 601,
 
-    /// <summary>The lab wall that runs along '\'.</summary>
-    LabWallBack = 602,
+    /// <summary>The basement wall (wall 1) that runs along '\'.</summary>
+    BasementWallBack = 602,
 
-    /// <summary>The lab wall beam.</summary>
-    LabBeam = 604,
+    /// <summary>The basement wall beam.</summary>
+    BasementBeam = 604,
 
     /// <summary>The small door.</summary>
     SmallDoor = 605,
@@ -419,7 +419,7 @@ public enum KnownObject
     /// <summary>The wall piece for a double door.</summary>
     DoubleDoorWall = 608,
 
-    /// <summary>The breakable lab wall.</summary>
+    /// <summary>The breakable basement wall.</summary>
     BreakableWall = 609,
 
     /// <summary>The broken wall a human fits through.</summary>
@@ -446,14 +446,14 @@ public enum KnownObject
     /// <summary>The wall piece monsters appear from, along '\'.</summary>
     SpawnWallBack = 619,
 
-    /// <summary>The second lab wall style along '/'.</summary>
-    LabWall2Slash = 620,
+    /// <summary>The second basement wall (wall 2) along '/'.</summary>
+    BasementWall2Slash = 620,
 
-    /// <summary>The second lab wall style along '\'.</summary>
-    LabWall2Back = 621,
+    /// <summary>The second basement wall (wall 2) along '\'.</summary>
+    BasementWall2Back = 621,
 
     /// <summary>The second style wall beam.</summary>
-    LabBeam2 = 622,
+    BasementBeam2 = 622,
 
     /// <summary>The second style wall piece for a small door.</summary>
     SmallDoorWall2 = 623,
@@ -470,20 +470,20 @@ public enum KnownObject
     /// <summary>The invisible dummy that blocks like a solid object.</summary>
     ZDummy = 631,
 
-    /// <summary>The military wall along '\'.</summary>
-    MilitaryWallBack = 650,
+    /// <summary>The military base wall along '\'.</summary>
+    MilitaryBaseWallBack = 650,
 
-    /// <summary>The military wall along '/'.</summary>
-    MilitaryWallSlash = 651,
+    /// <summary>The military base wall along '/'.</summary>
+    MilitaryBaseWallSlash = 651,
 
-    /// <summary>The military wall corner.</summary>
-    MilitaryCorner = 652,
+    /// <summary>The military base corner.</summary>
+    MilitaryBaseCorner = 652,
 
     /// <summary>The electric fence emitter.</summary>
     FenceEmitter = 653,
 
-    /// <summary>The military wall piece for a door.</summary>
-    MilitaryDoorWall = 654,
+    /// <summary>The military base wall piece for a door.</summary>
+    MilitaryBaseDoorWall = 654,
 
     /// <summary>The lattice wall along '/'.</summary>
     LatticeWall = 660,

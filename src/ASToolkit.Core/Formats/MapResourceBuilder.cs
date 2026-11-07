@@ -33,6 +33,11 @@ public sealed class MapResourceBuilder
     public MapGraphics Graphics { get; init; }
 
     /// <summary>
+    /// Gets the negative part of the ambient light written over the template's, or null to keep the template's light.
+    /// </summary>
+    public uint? AmbientNegative { get; init; }
+
+    /// <summary>
     /// Reads the placed objects of a map. Entries with non-finite or far-off coordinates are skipped.
     /// </summary>
     public static MapResourceBuilder Load(string path) => Parse(File.ReadAllBytes(path));
@@ -110,6 +115,13 @@ public sealed class MapResourceBuilder
         MemoryMarshal.Write(head[16..], 1999);
         MemoryMarshal.Write(head[20..], 12);
         file.GetChunk("HEAD").Records = [headArr];
+        if (AmbientNegative is not null)
+        {
+            byte[] graphics = file.GetChunk("GRPH").Records[0].ToArray();
+            MemoryMarshal.Write(graphics.AsSpan(4), AmbientNegative.Value);
+            MemoryMarshal.Write(graphics.AsSpan(8), 0u);
+            file.GetChunk("GRPH").Records = [graphics];
+        }
 
         // Drop the template's groups since they reference its sprite handles
         var groups = file.FindChunk("GROU");

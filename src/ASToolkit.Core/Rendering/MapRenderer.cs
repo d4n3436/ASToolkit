@@ -653,7 +653,7 @@ public sealed class MapRenderer
                 local += new Vector2(push * Sin(away), -push * RowScale * Cos(away));
             }
 
-            return new Vector2(caster.Position.X + local.X, (caster.Position.Y - caster.Position.Z) + local.Y + lift);
+            return new Vector2(caster.Position.X + local.X, caster.Position.Y - caster.Position.Z + local.Y + lift);
         }
     }
 

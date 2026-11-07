@@ -2,7 +2,7 @@ using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Reference;
 
-namespace ASToolkit.Core.Generation;
+namespace ASToolkit.Core.Generation.Output;
 
 /// <summary>
 /// Provides the army the original levels give each object, 1 for monsters and generators, 2 for breakable things and

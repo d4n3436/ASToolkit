@@ -9,10 +9,4 @@ namespace ASToolkit.Core.Survey;
 /// <param name="Rewards">The pickups of the branch.</param>
 /// <param name="IsToured">A value indicating whether the tour enters the branch.</param>
 /// <param name="ThreatHitPoints">The monster hit points of the branch.</param>
-public sealed record PhaseBranch(IReadOnlyList<int> Places, IReadOnlyList<int> Anchors, IReadOnlyDictionary<int, int> Depths, int Rewards, bool IsToured, int ThreatHitPoints)
-{
-    /// <summary>
-    /// Gets the doors from the anchors to the deepest place of the branch.
-    /// </summary>
-    public int Depth => Depths.Count == 0 ? 0 : Depths.Values.Max();
-}
+public sealed record PhaseBranch(IReadOnlyList<int> Places, IReadOnlyList<int> Anchors, IReadOnlyDictionary<int, int> Depths, int Rewards, bool IsToured, int ThreatHitPoints);

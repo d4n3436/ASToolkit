@@ -1,6 +1,4 @@
-using ASToolkit.Core.Levels;
-
-namespace ASToolkit.Core.Generation.Layout;
+namespace ASToolkit.Core.Levels;
 
 /// <summary>
 /// Represents a rectangle of units on the layout grid.
@@ -37,6 +35,16 @@ public readonly record struct UnitRect(int U, int V, int W, int H)
     /// Returns whether a unit lies inside the rectangle.
     /// </summary>
     public bool Contains(Cell c) => c.U >= U && c.U < U + W && c.V >= V && c.V < V + H;
+
+    /// <summary>
+    /// Returns whether the rectangle shares at least one unit with another.
+    /// </summary>
+    public bool IntersectsWith(UnitRect other) => U < other.U + other.W && other.U < U + W && V < other.V + other.H && other.V < V + H;
+
+    /// <summary>
+    /// Returns the rectangle grown by a number of units on every side.
+    /// </summary>
+    public UnitRect Inflate(int by) => new(U - by, V - by, W + 2 * by, H + 2 * by);
 
     /// <summary>
     /// Returns the unit edges along the common boundary with an adjacent rectangle, empty when the two do not touch.

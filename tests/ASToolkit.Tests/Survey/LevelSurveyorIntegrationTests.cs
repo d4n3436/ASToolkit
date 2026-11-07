@@ -1,8 +1,5 @@
-using ASToolkit.Core.Formats;
 using ASToolkit.Core.Survey;
-using ASToolkit.Core.Routes;
 using Xunit;
-using ASToolkit.Core.Scripting;
 
 namespace ASToolkit.Tests.Survey;
 
@@ -11,8 +8,6 @@ public class LevelSurveyorIntegrationTests
 {
     private const int MinOpenPlanPlacePixels = 40000;
     private const int PlayableFloorPixels = 10_000_000;
-
-    private static readonly Lazy<ObjectTable> Objects = new(() => ObjectTable.Load(Path.Combine(TestGameFolder.RequireFolder(), "objects.res")));
 
     public static TheoryData<string> OriginalLevels()
     {
@@ -51,7 +46,7 @@ public class LevelSurveyorIntegrationTests
     }
 
     [Fact]
-    public void Survey_LabLevelWithDoors_SplitsRoomsAtDoorsAndDoorways()
+    public void Survey_BasementLevelWithDoors_SplitsRoomsAtDoorsAndDoorways()
     {
         var survey = SurveyLevel("ADDON/Level_02.map");
 
@@ -85,14 +80,5 @@ public class LevelSurveyorIntegrationTests
         Assert.Equal(8, survey.Places.Count);
     }
 
-    private static LevelSurvey SurveyLevel(string level)
-    {
-        string game = TestGameFolder.RequireFolder();
-        string path = Path.Combine(game, "Maps", level);
-        var map = MapResourceBuilder.Load(path);
-        var script = LevelScriptReader.Read(Path.ChangeExtension(path, ".lgc"));
-        var analysis = RouteAnalyzer.Analyze(level, map, script, Objects.Value);
-        Assert.NotNull(analysis);
-        return LevelSurveyor.Survey(map, script, analysis, Objects.Value);
-    }
+    private static LevelSurvey SurveyLevel(string level) => TestGameFolder.References.GetSurvey(level);
 }

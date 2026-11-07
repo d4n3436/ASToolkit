@@ -1,7 +1,6 @@
 using ASToolkit.Core.Levels;
-using ASToolkit.Core.Survey;
 
-namespace ASToolkit.Core.Rooms;
+namespace ASToolkit.Core.Survey;
 
 /// <summary>
 /// Represents rooms joined by the doors and openings a player walks through.
@@ -41,7 +40,7 @@ public sealed class DoorGraph
         var entered = FindWallEnteredRooms(survey, closet);
 
         var hidden = survey.Places
-            .Where(place => survey.Theme != LevelTheme.Outdoor && IsHiddenRoom(place, closet) && !entered.Contains(place.Id))
+            .Where(place => survey.WallSet != WallSet.Outdoor && IsHiddenRoom(place, closet) && !entered.Contains(place.Id))
             .Select(place => place.Id)
             .ToHashSet();
 
@@ -63,11 +62,11 @@ public sealed class DoorGraph
             bool walked = connection.Kind is not (ConnectionKind.SecretWall or ConnectionKind.SpawnWall or ConnectionKind.MonsterHole or ConnectionKind.JammedDoor)
                 || (connection.Kind == ConnectionKind.SecretWall && (entered.Contains(connection.A) || entered.Contains(connection.B)));
 
-            if (walked && connection.A != connection.B && roomSet.Contains(connection.A) && roomSet.Contains(connection.B))
-            {
-                neighbors[connection.A].Add(connection.B);
-                neighbors[connection.B].Add(connection.A);
-            }
+            if (!walked || connection.A == connection.B || !roomSet.Contains(connection.A) || !roomSet.Contains(connection.B))
+                continue;
+            
+            neighbors[connection.A].Add(connection.B);
+            neighbors[connection.B].Add(connection.A);
         }
 
         return new DoorGraph(rooms, neighbors);
@@ -186,13 +185,13 @@ public sealed class DoorGraph
         var seen = new HashSet<int>(body);
         foreach (int room in _rooms)
         {
-            if (seen.Add(room))
+            if (!seen.Add(room))
+                continue;
+            
+            var branch = FillComponent(room, seen);
+            if (branch.Any(member => _neighbors[member].Overlaps(body)))
             {
-                var branch = FillComponent(room, seen);
-                if (branch.Any(member => _neighbors[member].Overlaps(body)))
-                {
-                    branches.Add(branch);
-                }
+                branches.Add(branch);
             }
         }
 
@@ -208,11 +207,11 @@ public sealed class DoorGraph
         int count = 0;
         foreach (int room in _rooms)
         {
-            if (seen.Add(room))
-            {
-                count++;
-                FillComponent(room, seen);
-            }
+            if (!seen.Add(room))
+                continue;
+            
+            count++;
+            FillComponent(room, seen);
         }
 
         return count;
@@ -283,20 +282,20 @@ public sealed class DoorGraph
                     stack.Push((room, next));
                     Visit(next, room);
                     low[room] = Math.Min(low[room], low[next]);
-                    if (low[next] >= order[room])
+                    if (low[next] < order[room])
+                        continue;
+                    
+                    var block = new HashSet<int>();
+                    (int, int) edge;
+                    do
                     {
-                        var block = new HashSet<int>();
-                        (int, int) edge;
-                        do
-                        {
-                            edge = stack.Pop();
-                            block.Add(edge.Item1);
-                            block.Add(edge.Item2);
-                        }
-                        while (edge != (room, next));
-
-                        blocks.Add(block);
+                        edge = stack.Pop();
+                        block.Add(edge.Item1);
+                        block.Add(edge.Item2);
                     }
+                    while (edge != (room, next));
+
+                    blocks.Add(block);
                 }
                 else if (next != parent && value < order[room])
                 {

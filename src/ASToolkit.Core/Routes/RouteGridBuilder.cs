@@ -21,11 +21,11 @@ public static class RouteGridBuilder
         var cells = SplitCells(model.Cells);
         var fenceEdges = new HashSet<EdgeKey>();
         
-        var edges = model.Theme == LevelTheme.Military
-            ? BuildMilitaryEdges(model, fenceEdges)
-            : LevelExtractor.ReadFineLabEdges(model.Lattice, model.Sprites, model.Theme == LevelTheme.Outdoor);
+        var edges = model.WallSet == WallSet.Concrete
+            ? BuildConcreteEdges(model, fenceEdges)
+            : LevelExtractor.ReadFineBasementEdges(model.Lattice, model.Sprites, model.WallSet == WallSet.Outdoor);
 
-        if (model.Theme == LevelTheme.Outdoor)
+        if (model.WallSet == WallSet.Outdoor)
         {
             AddChainLinkEdges(fine, edges, model.Sprites);
         }
@@ -39,7 +39,7 @@ public static class RouteGridBuilder
     private static void AddChainLinkEdges(Lattice fine, Dictionary<EdgeKey, EdgeKind> edges, IReadOnlyList<MergedMapSprite> sprites)
     {
         var fences = sprites.Where(sprite => sprite.Id is KnownObject.LatticeWall or KnownObject.LatticeFence or KnownObject.TornLattice).ToArray();
-        var walls = sprites.Where(sprite => KnownObject.LabWalls.Contains(sprite.Id)).ToArray();
+        var walls = sprites.Where(sprite => KnownObject.BasementWalls.Contains(sprite.Id)).ToArray();
         foreach (var fence in fences)
         {
             if (fence.Id == KnownObject.TornLattice)
@@ -74,7 +74,7 @@ public static class RouteGridBuilder
             float dx = sprite.Position.X - from.Position.X;
             float dy = sprite.Position.Y - from.Position.Y;
             float distance = MathF.Sqrt(dx * dx + dy * dy);
-            bool diagonal = MathF.Abs(MathF.Abs(dy) * Lattice.LabStep.X - MathF.Abs(dx) * Lattice.LabStep.Y) < DiagonalTolerance * distance;
+            bool diagonal = MathF.Abs(MathF.Abs(dy) * Lattice.BasementStep.X - MathF.Abs(dx) * Lattice.BasementStep.Y) < DiagonalTolerance * distance;
             if (diagonal && distance > 1 && distance < best)
             {
                 nearest = sprite;
@@ -106,7 +106,7 @@ public static class RouteGridBuilder
         ? [new EdgeKey('v', 2 * k.A, 2 * k.B), new EdgeKey('v', 2 * k.A + 1, 2 * k.B)]
         : [new EdgeKey('u', 2 * k.A, 2 * k.B), new EdgeKey('u', 2 * k.A, 2 * k.B + 1)];
 
-    private static Dictionary<EdgeKey, EdgeKind> BuildMilitaryEdges(LevelModel model, HashSet<EdgeKey> fenceEdges)
+    private static Dictionary<EdgeKey, EdgeKind> BuildConcreteEdges(LevelModel model, HashSet<EdgeKey> fenceEdges)
     {
         var coarse = new Dictionary<EdgeKey, EdgeKind>(model.Edges);
         var coarseFences = new HashSet<EdgeKey>();

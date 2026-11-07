@@ -3,7 +3,7 @@ using System.Numerics;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 
-namespace ASToolkit.Core.Generation;
+namespace ASToolkit.Core.Generation.Output;
 
 /// <summary>
 /// Provides the assembly of a map's placed objects.
@@ -36,6 +36,11 @@ public sealed class MapBuilder
     public List<MergedMapSprite> Sprites { get; } = [];
 
     /// <summary>
+    /// Gets the positions of the teleport pads placed so far.
+    /// </summary>
+    public List<PointF> Pads { get; } = [];
+
+    /// <summary>
     /// Gets or sets the source of the sprites added without one.
     /// </summary>
     public SpriteSource Source { get; set; }
@@ -58,16 +63,12 @@ public sealed class MapBuilder
             : new byte[8];
         Sprites.Add(new MergedMapSprite(_handle, id, new Vector3(x, y, z), (byte)(dir & 255), army ?? _armies.GetArmy(id), data));
         _sources.Add(source ?? Source);
-        return Sprites.Count - 1;
-    }
+        if (id is KnownObject.TeleportPad or KnownObject.SilentTeleportPad)
+        {
+            Pads.Add(new PointF(x, y));
+        }
 
-    /// <summary>
-    /// Removes the sprite added last.
-    /// </summary>
-    public void RemoveLast()
-    {
-        Sprites.RemoveAt(Sprites.Count - 1);
-        _sources.RemoveAt(_sources.Count - 1);
+        return Sprites.Count - 1;
     }
 
     /// <summary>
@@ -76,9 +77,9 @@ public sealed class MapBuilder
     public IReadOnlyDictionary<SpriteSource, int> GetProvenance() => _sources.CountBy(source => source).ToDictionary();
 
     /// <summary>
-    /// Returns a map of the placed objects, sized to hold them.
+    /// Returns a map of the placed objects, sized to hold them and lit by the given ambient light or the template's.
     /// </summary>
-    public MapResourceBuilder ToMap(Vector2 scroll)
+    public MapResourceBuilder ToMap(Vector2 scroll, uint? ambientNegative = null)
     {
         float maxX = Sprites.Max(s => s.Position.X);
         float maxY = Sprites.Max(s => s.Position.Y);
@@ -86,7 +87,8 @@ public sealed class MapBuilder
         {
             Sprites = Sprites,
             Size = new SizeF(MathF.Ceiling((maxX + 300) / 100) * 100, MathF.Ceiling((maxY + 300) / 100) * 100),
-            Scroll = scroll
+            Scroll = scroll,
+            AmbientNegative = ambientNegative
         };
         return map;
     }

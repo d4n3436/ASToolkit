@@ -1,4 +1,4 @@
-namespace ASToolkit.Core.Generation;
+namespace ASToolkit.Core.Generation.Output;
 
 /// <summary>
 /// Specifies whether the generator built a sprite of a level from its layout or a model, or copied it from an original level as part of a wall

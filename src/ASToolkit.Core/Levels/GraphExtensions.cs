@@ -8,9 +8,10 @@ public static class GraphExtensions
     extension<TNeighbors>(IReadOnlyDictionary<int, TNeighbors> neighbors) where TNeighbors : IEnumerable<int>
     {
         /// <summary>
-        /// Returns the number of steps from the nearest source to every node reachable from the sources.
+        /// Returns the number of steps from the nearest source to every node reachable from the sources, through the nodes a filter keeps when
+        /// one is given.
         /// </summary>
-        public Dictionary<int, int> MeasureHops(IEnumerable<int> sources)
+        public Dictionary<int, int> MeasureHops(IEnumerable<int> sources, Func<int, bool>? within = null)
         {
             var hops = new Dictionary<int, int>();
             var queue = new Queue<int>();
@@ -25,9 +26,14 @@ public static class GraphExtensions
             while (queue.Count > 0)
             {
                 int node = queue.Dequeue();
-                foreach (int next in neighbors[node])
+                if (!neighbors.TryGetValue(node, out var nexts))
                 {
-                    if (hops.TryAdd(next, hops[node] + 1))
+                    continue;
+                }
+
+                foreach (int next in nexts)
+                {
+                    if ((within is null || within(next)) && hops.TryAdd(next, hops[node] + 1))
                     {
                         queue.Enqueue(next);
                     }
@@ -38,9 +44,32 @@ public static class GraphExtensions
         }
 
         /// <summary>
-        /// Returns the nodes of a shortest path between two nodes, both included, or an empty list when no path joins them.
+        /// Returns the connected parts of the graph restricted to the given nodes, in the order of their lowest nodes.
         /// </summary>
-        public List<int> FindPath(int from, int to)
+        public List<HashSet<int>> FindComponents(IReadOnlySet<int> nodes)
+        {
+            var seen = new HashSet<int>();
+            var components = new List<HashSet<int>>();
+            foreach (int node in nodes.Order())
+            {
+                if (seen.Contains(node))
+                {
+                    continue;
+                }
+
+                var component = neighbors.MeasureHops([node], nodes.Contains).Keys.ToHashSet();
+                seen.UnionWith(component);
+                components.Add(component);
+            }
+
+            return components;
+        }
+
+        /// <summary>
+        /// Returns the nodes of a shortest path between two nodes, both included, through the nodes a filter keeps when one is given, or an empty
+        /// list when no path joins them.
+        /// </summary>
+        public List<int> FindPath(int from, int to, Func<int, bool>? within = null)
         {
             var previous = new Dictionary<int, int> { [from] = from };
             var queue = new Queue<int>([from]);
@@ -49,7 +78,7 @@ public static class GraphExtensions
                 int node = queue.Dequeue();
                 foreach (int next in neighbors[node])
                 {
-                    if (previous.TryAdd(next, node))
+                    if ((within is null || within(next)) && previous.TryAdd(next, node))
                     {
                         queue.Enqueue(next);
                     }

@@ -20,25 +20,25 @@ public static class KnownObjectExtensions
 
     private static readonly FrozenSet<KnownObject> ObjectiveMonstersSet = MonstersSet.Append(Bat).Append(Diver).ToFrozenSet();
 
-    private static readonly FrozenSet<KnownObject> FloorsSet = new[] { BasementFloor, Earth, BasementFloorAlt, MilitaryFloor, Grass, VolumetricGrass, FlatGrass }.ToFrozenSet();
+    private static readonly FrozenSet<KnownObject> FloorsSet = new[] { BasementFloor, Earth, BasementFloorAlt, MilitaryBaseFloor, Grass, VolumetricGrass, FlatGrass }.ToFrozenSet();
 
-    private static readonly FrozenSet<KnownObject> LabSlashSet = new[]
+    private static readonly FrozenSet<KnownObject> BasementSlashSet = new[]
     {
-        LabWallSlash, LabWall2Slash, SmallDoorWall, SmallDoorWall2, DoubleDoorWall, DoubleDoorWall2,
+        BasementWallSlash, BasementWall2Slash, SmallDoorWall, SmallDoorWall2, DoubleDoorWall, DoubleDoorWall2,
         BreakableWall, BreakableWall2, SpawnWallSlash, BrokenWall, BrokenWall2
     }.ToFrozenSet();
 
-    private static readonly FrozenSet<KnownObject> LabBackSet = new[] { LabWallBack, SpawnWallBack, LabWall2Back, SmallMonsterHole, BigMonsterHole }.ToFrozenSet();
+    private static readonly FrozenSet<KnownObject> BasementBackSet = new[] { BasementWallBack, SpawnWallBack, BasementWall2Back, SmallMonsterHole, BigMonsterHole }.ToFrozenSet();
 
-    private static readonly FrozenSet<KnownObject> LabDoubleSet = new[] { DoubleDoor, DoubleDoorWall, DoubleDoorFrame, DoubleDoorWall2 }.ToFrozenSet();
+    private static readonly FrozenSet<KnownObject> BasementDoubleSet = new[] { DoubleDoor, DoubleDoorWall, DoubleDoorFrame, DoubleDoorWall2 }.ToFrozenSet();
 
-    private static readonly FrozenSet<KnownObject> LabWallsSet = new[]
+    private static readonly FrozenSet<KnownObject> BasementWallsSet = new[]
     {
-        LabWallSlash, LabWallBack, LabBeam, SmallDoor, SmallDoorWall, DoubleDoor, DoubleDoorWall, BreakableWall, BrokenWall, DoubleDoorFrame, SmallMonsterHole, RubblePile,
-        BigMonsterHole, SmallDoorFrame, SpawnWallSlash, SpawnWallBack, LabWall2Slash, LabWall2Back, LabBeam2, SmallDoorWall2, DoubleDoorWall2, BreakableWall2, BrokenWall2
+        BasementWallSlash, BasementWallBack, BasementBeam, SmallDoor, SmallDoorWall, DoubleDoor, DoubleDoorWall, BreakableWall, BrokenWall, DoubleDoorFrame, SmallMonsterHole, RubblePile,
+        BigMonsterHole, SmallDoorFrame, SpawnWallSlash, SpawnWallBack, BasementWall2Slash, BasementWall2Back, BasementBeam2, SmallDoorWall2, DoubleDoorWall2, BreakableWall2, BrokenWall2
     }.ToFrozenSet();
 
-    private static readonly FrozenSet<KnownObject> MilitaryWallsSet = new[] { MilitaryWallBack, MilitaryWallSlash, MilitaryCorner, FenceEmitter, MilitaryDoorWall }.ToFrozenSet();
+    private static readonly FrozenSet<KnownObject> ConcreteWallsSet = new[] { MilitaryBaseWallBack, MilitaryBaseWallSlash, MilitaryBaseCorner, FenceEmitter, MilitaryBaseDoorWall }.ToFrozenSet();
 
     private static readonly FrozenSet<KnownObject> GameplaySet = new[] 
     {
@@ -50,13 +50,8 @@ public static class KnownObjectExtensions
     private const int EmptyCratePayloadSize = 12;
     private const int CratePayloadSize = 16;
 
-    private static readonly KnownObject[] BloodPoolArray = [BloodPool, LargeBloodPool];
-
     extension(KnownObject)
     {
-        /// <summary>Gets the IDs of the dried blood pools the originals lay under fresh corpses.</summary>
-        public static IReadOnlyList<KnownObject> BloodPools => BloodPoolArray;
-
         /// <summary>Gets the IDs of the ordinary monsters.</summary>
         public static FrozenSet<KnownObject> Monsters => MonstersSet;
 
@@ -69,20 +64,20 @@ public static class KnownObjectExtensions
         /// <summary>Gets the IDs of the floor tiles.</summary>
         public static FrozenSet<KnownObject> Floors => FloorsSet;
 
-        /// <summary>Gets the IDs of the lab wall pieces that run along '/'.</summary>
-        public static FrozenSet<KnownObject> LabSlash => LabSlashSet;
+        /// <summary>Gets the IDs of the basement wall pieces that run along '/'.</summary>
+        public static FrozenSet<KnownObject> BasementSlash => BasementSlashSet;
 
-        /// <summary>Gets the IDs of the lab wall pieces that run along '\'.</summary>
-        public static FrozenSet<KnownObject> LabBack => LabBackSet;
+        /// <summary>Gets the IDs of the basement wall pieces that run along '\'.</summary>
+        public static FrozenSet<KnownObject> BasementBack => BasementBackSet;
 
         /// <summary>Gets the IDs of the double doors and frames, two wall pieces wide.</summary>
-        public static FrozenSet<KnownObject> LabDouble => LabDoubleSet;
+        public static FrozenSet<KnownObject> BasementDouble => BasementDoubleSet;
 
-        /// <summary>Gets the IDs of every lab wall, door and post piece.</summary>
-        public static FrozenSet<KnownObject> LabWalls => LabWallsSet;
+        /// <summary>Gets the IDs of every basement wall, door and post piece.</summary>
+        public static FrozenSet<KnownObject> BasementWalls => BasementWallsSet;
 
-        /// <summary>Gets the IDs of every military wall piece.</summary>
-        public static FrozenSet<KnownObject> MilitaryWalls => MilitaryWallsSet;
+        /// <summary>Gets the IDs of every concrete wall piece.</summary>
+        public static FrozenSet<KnownObject> ConcreteWalls => ConcreteWallsSet;
 
         /// <summary>
         /// Returns the payload of an empty crate.
@@ -174,7 +169,7 @@ public static class KnownObjectExtensions
         /// <summary>Gets a value indicating whether the ID is a chair.</summary>
         public bool IsChair => id is Chair or NewChair;
 
-        /// <summary>Gets a value indicating whether the ID is a lab door or door frame.</summary>
+        /// <summary>Gets a value indicating whether the ID is a basement door or door frame.</summary>
         public bool IsDoor => id is SmallDoor or DoubleDoor or SmallDoorFrame or DoubleDoorFrame;
 
         /// <summary>Gets a value indicating whether the ID hangs on a wall above the floor.</summary>
@@ -182,7 +177,7 @@ public static class KnownObjectExtensions
 
         /// <summary>Gets a value indicating whether the ID is set dressing.</summary>
         public bool IsDecor =>
-            !(FloorsSet.Contains(id) || LabWallsSet.Contains(id) || MilitaryWallsSet.Contains(id) || id is LatticeWall or LatticeFence or TornLattice || GameplaySet.Contains(id)
+            !(FloorsSet.Contains(id) || BasementWallsSet.Contains(id) || ConcreteWallsSet.Contains(id) || id is LatticeWall or LatticeFence or TornLattice || GameplaySet.Contains(id)
               || MonstersSet.Contains(id) || BossesSet.Contains(id) || id.IsPickup || id is >= Slug and < (KnownObject)100);
     }
 }

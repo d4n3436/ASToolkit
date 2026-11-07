@@ -35,7 +35,7 @@ public class VidResourceTests
     [Fact]
     public void GetFrame_CadrWithFrameVector_ReadsTheHeaderAfterTheVector()
     {
-        byte[] record = (new byte[12]).Concat(BuildRecord(2, 1, 1, 2, [0, 2, 7, 8, 0, 0])).ToArray();
+        byte[] record = new byte[12].Concat(BuildRecord(2, 1, 1, 2, [0, 2, 7, 8, 0, 0])).ToArray();
         var sprite = new VidResource(BuildSprite(VidFlags.Cadr | VidFlags.Palette | VidFlags.FrameVector, VidPixelFormat.P8, 4, 4, record));
 
         Assert.Equal([(1, 2, 7), (2, 2, 8)], ReadPixels(sprite.GetFrame(0), (run, index) => run.GetColor(index)));

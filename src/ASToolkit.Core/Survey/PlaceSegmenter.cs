@@ -100,13 +100,14 @@ internal sealed class PlaceSegmenter
         {
             foreach (var (neighbor, edge) in EdgeKey.GetNeighbors(cell))
             {
-                if (grid.Cells.Contains(neighbor) && !floor.Contains(neighbor) && !closets.Contains(neighbor) && edges.TryGetValue(edge, out var kind) && kind == EdgeKind.SecretWall)
+                if (!grid.Cells.Contains(neighbor) || floor.Contains(neighbor) || closets.Contains(neighbor) || !edges.TryGetValue(edge, out var kind) ||
+                    kind != EdgeKind.SecretWall)
+                    continue;
+                
+                var closet = grid.Cells.Flood([neighbor], IsClosed);
+                if (closet.Count <= _maxClosetCells)
                 {
-                    var closet = grid.Cells.Flood([neighbor], IsClosed);
-                    if (closet.Count <= _maxClosetCells)
-                    {
-                        closets.UnionWith(closet);
-                    }
+                    closets.UnionWith(closet);
                 }
             }
         }
@@ -118,11 +119,11 @@ internal sealed class PlaceSegmenter
         {
             foreach (var (neighbor, edge) in EdgeKey.GetNeighbors(cell))
             {
-                if (grid.BlockedCells.Contains(neighbor) && !blocked.Contains(neighbor) && !IsWall(edge))
-                {
-                    var pocket = hidden.Flood([neighbor], IsWall);
-                    blocked.UnionWith(pocket.Count(pocketCell => !grid.BlockedCells.Contains(pocketCell)) <= MaxPocketCells ? pocket : grid.BlockedCells.Flood([neighbor], IsWall));
-                }
+                if (!grid.BlockedCells.Contains(neighbor) || blocked.Contains(neighbor) || IsWall(edge))
+                    continue;
+                
+                var pocket = hidden.Flood([neighbor], IsWall);
+                blocked.UnionWith(pocket.Count(pocketCell => !grid.BlockedCells.Contains(pocketCell)) <= MaxPocketCells ? pocket : grid.BlockedCells.Flood([neighbor], IsWall));
             }
         }
 
@@ -226,7 +227,7 @@ internal sealed class PlaceSegmenter
         }
     }
 
-    private static HashSet<EdgeKey> FindDoorFlanks(IReadOnlyDictionary<EdgeKey, EdgeKind> edges, HashSet<Cell> floor)
+    private static HashSet<EdgeKey> FindDoorFlanks(Dictionary<EdgeKey, EdgeKind> edges, HashSet<Cell> floor)
     {
         var flanks = new HashSet<EdgeKey>();
         var doors = edges.Where(pair => pair.Value is EdgeKind.Door or EdgeKind.Doorway or EdgeKind.ShutDoor).Select(pair => pair.Key).ToHashSet();
@@ -618,8 +619,7 @@ internal sealed class PlaceSegmenter
             var cells = labelOf.Where(pair => pair.Value == label).Select(pair => pair.Key).ToArray();
             return Math.Min(cells.Max(cell => cell.U) - cells.Min(cell => cell.U), cells.Max(cell => cell.V) - cells.Min(cell => cell.V)) + 1;
         }
-
-
+        
         static bool IsBar((int Along, int Across) bar) => bar.Along + bar.Across > 0 && bar is not { Along: 2, Across: 0 } && bar is not { Along: 0, Across: 2 };
 
         bool TrySnap(int grower, int shrinker)
@@ -637,11 +637,11 @@ internal sealed class PlaceSegmenter
 
                     foreach (var (neighbor, edge) in EdgeKey.GetNeighbors(cell))
                     {
-                        if (trial.TryGetValue(neighbor, out int found) && found == grower && !edges.ContainsKey(edge))
-                        {
-                            next.Add(cell);
-                            break;
-                        }
+                        if (!trial.TryGetValue(neighbor, out int found) || found != grower || edges.ContainsKey(edge))
+                            continue;
+                        
+                        next.Add(cell);
+                        break;
                     }
                 }
 
@@ -672,16 +672,16 @@ internal sealed class PlaceSegmenter
                     }
                 }
 
-                if (cut.Count > 0 && IsBounded(cut))
+                if (cut.Count <= 0 || !IsBounded(cut))
+                    continue;
+                
+                labelOf.Clear();
+                foreach ((var cell, int owner) in trial)
                 {
-                    labelOf.Clear();
-                    foreach ((var cell, int owner) in trial)
-                    {
-                        labelOf[cell] = owner;
-                    }
-
-                    return true;
+                    labelOf[cell] = owner;
                 }
+
+                return true;
             }
 
             return false;
@@ -796,11 +796,11 @@ internal sealed class PlaceSegmenter
                 rim |= edges.ContainsKey(edge);
             }
 
-            if (rim)
-            {
-                depth[cell] = 1;
-                queue.Enqueue(cell);
-            }
+            if (!rim)
+                continue;
+            
+            depth[cell] = 1;
+            queue.Enqueue(cell);
         }
 
         while (queue.Count > 0)
@@ -808,11 +808,11 @@ internal sealed class PlaceSegmenter
             var cell = queue.Dequeue();
             foreach (var neighbor in GetRing(cell))
             {
-                if (set.Contains(neighbor) && !depth.ContainsKey(neighbor))
-                {
-                    depth[neighbor] = depth[cell] + 1;
-                    queue.Enqueue(neighbor);
-                }
+                if (!set.Contains(neighbor) || depth.ContainsKey(neighbor))
+                    continue;
+                
+                depth[neighbor] = depth[cell] + 1;
+                queue.Enqueue(neighbor);
             }
         }
 
@@ -1248,8 +1248,6 @@ internal sealed class PlaceSegmenter
             }
         }
 
-        bool IsSmall(int index) => places[index].Count > 0 && (places[index].Count < Math.Max(minPlaceCells, pocketCells) || MeasureDepth(places[index].ToHashSet(), edges).Values.Max() <= 2);
-
         var kept = places.Where(p => p.Count > 0).ToList();
         places.Clear();
         places.AddRange(kept);
@@ -1260,5 +1258,9 @@ internal sealed class PlaceSegmenter
                 placeOf[cell] = index;
             }
         }
+
+        return;
+
+        bool IsSmall(int index) => places[index].Count > 0 && (places[index].Count < Math.Max(minPlaceCells, pocketCells) || MeasureDepth(places[index].ToHashSet(), edges).Values.Max() <= 2);
     }
 }

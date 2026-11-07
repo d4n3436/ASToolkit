@@ -1,7 +1,7 @@
 using System.Drawing;
 using ASToolkit.Core.Scripting;
 
-namespace ASToolkit.Core.Generation;
+namespace ASToolkit.Core.Generation.Output;
 
 /// <summary>
 /// Represents what a generated level's script sets up.
@@ -19,9 +19,9 @@ public sealed class LevelScript
     public bool DoorsOpen { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets the point that turns the lights off and locks the doors, or null.
+    /// Gets or sets the area that turns the lights off and locks the doors when the player reaches it, or null.
     /// </summary>
-    public PointF? Blackout { get; set; }
+    public TriggerArea? Blackout { get; set; }
 
     /// <summary>
     /// Gets or sets the point that moves the respawn point, or null.

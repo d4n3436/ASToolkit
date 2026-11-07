@@ -1,4 +1,5 @@
 using System.Drawing;
+using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 
 namespace ASToolkit.Core.Rooms;
@@ -32,6 +33,11 @@ public sealed class RoomPart
     /// Gets the pieces of the part.
     /// </summary>
     public required IReadOnlyList<PartPiece> Pieces { get; init; }
+
+    /// <summary>
+    /// Gets the number of pieces of each object ID in the part.
+    /// </summary>
+    public IReadOnlyDictionary<KnownObject, int> PieceCounts => field ??= Pieces.CountBy(piece => piece.Id).ToDictionary();
 
     /// <summary>
     /// Gets the name of the part's kind, its families.

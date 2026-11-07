@@ -135,34 +135,58 @@ public sealed class FacingTable
     }
 
     /// <summary>
-    /// Returns the side and distance of the nearest wall within one and a half cells of a point, or null when there is none.
-    /// </summary>
-    /// <summary>
     /// Returns whether an object with a facing at a point faces as the originals turn it against the nearest wall, stands off that
-    /// wall as they stand it when it is solid, and whether a frame they mostly lean on a wall has one to lean on, unless it lies on a
-    /// blood pool as a fresh kill.
+    /// wall as they stand it when it is solid, and whether a frame they mostly lean on a wall has one to lean on.
     /// </summary>
-    public bool Fits(KnownObject id, byte dir, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v, bool onBlood = false) =>
-        Fits(id, dir, edges.FindNearestWall(u, v), onBlood);
+    public bool Fits(KnownObject id, byte dir, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v) => Fits(id, dir, edges.FindNearestWall(u, v));
+
+    /// <summary>
+    /// Returns whether an object with a facing fits against the nearest wall given as its side and distance, or null for none.
+    /// </summary>
+    public bool Fits(KnownObject id, byte dir, (WallSides Side, float Distance)? wall)
+    {
+        if (!_objects.TryFind(id, out var obj) || obj.FramesPerDirection == 0)
+        {
+            return true;
+        }
+
+        int frame = obj.GetFrame(dir, int.MaxValue);
+        if (wall.HasValue && _frames.TryGetValue((id, wall.Value.Side), out var frames) && _dirs[(id, wall.Value.Side)].Count >= MinSamples && !frames.ContainsKey(frame))
+        {
+            return false;
+        }
+
+        if (obj.IsSolid && wall.HasValue && _distances.TryGetValue((id, wall.Value.Side, frame), out var range) && range.Count >= MinDistanceSamples
+            && (wall.Value.Distance < range.Min - EdgeMapExtensions.WallSlack || wall.Value.Distance > range.Max + EdgeMapExtensions.WallSlack))
+        {
+            return false;
+        }
+
+        return !_leaning.Contains((id, frame)) || wall is { Distance: < LeanDistance };
+    }
 
     /// <summary>
     /// Returns whether an object stands within reach of a wall at a point, or the originals stand it away from walls at least one time in ten.
     /// </summary>
-    public bool IsByWall(KnownObject id, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v) =>
-        !_wallReaches.TryGetValue(id, out float reach) || edges.FindNearestWall(u, v)?.Distance <= reach + EdgeMapExtensions.WallSlack;
+    public bool IsByWall(KnownObject id, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v) => IsByWall(id, edges.FindNearestWall(u, v));
 
     /// <summary>
-    /// Returns the distance from a wall side that nine in ten of the originals' objects keep, or null when they have too few against it.
+    /// Returns whether an object stands within reach of the nearest wall given as its side and distance, or null for none.
     /// </summary>
-    public float? GetLowDistance(KnownObject id, WallSides side) => _lowDistances.TryGetValue((id, side), out float distance) ? distance : null;
+    public bool IsByWall(KnownObject id, (WallSides Side, float Distance)? wall) =>
+        !_wallReaches.TryGetValue(id, out float reach) || wall?.Distance <= reach + EdgeMapExtensions.WallSlack;
 
     /// <summary>
     /// Returns whether a wall-mounted object hangs on a wall side, with a frame, distance and height that one of the originals
     /// gives it, and with no doorway nearer than that wall.
     /// </summary>
-    public bool Hangs(KnownObject id, byte dir, float z, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v)
+    public bool Hangs(KnownObject id, byte dir, float z, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v) => Hangs(id, dir, z, edges.FindNearestWall(u, v), edges, u, v);
+
+    /// <summary>
+    /// Returns whether a wall-mounted object hangs on the nearest wall given as its side and distance, with no doorway of the edges nearer.
+    /// </summary>
+    public bool Hangs(KnownObject id, byte dir, float z, (WallSides Side, float Distance)? wall, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v)
     {
-        var wall = edges.FindNearestWall(u, v);
         if (!wall.HasValue || edges.FindNearestEdge(u, v)?.Distance < wall.Value.Distance || !_objects.TryFind(id, out var obj))
         {
             return false;
@@ -180,6 +204,21 @@ public sealed class FacingTable
     public bool IsCommon(KnownObject id, byte dir, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v) => IsCommon(id, dir, edges.FindNearestWall(u, v));
 
     /// <summary>
+    /// Returns whether the originals give an object that frame at least one time in twenty against the nearest wall given as its side and
+    /// distance, or null for none.
+    /// </summary>
+    public bool IsCommon(KnownObject id, byte dir, (WallSides Side, float Distance)? wall)
+    {
+        if (!wall.HasValue || !_objects.TryFind(id, out var obj) || obj.FramesPerDirection == 0 || !_frames.TryGetValue((id, wall.Value.Side), out var frames))
+        {
+            return true;
+        }
+
+        int total = frames.Values.Sum();
+        return total < MinSamples || frames.GetValueOrDefault(obj.GetFrame(dir, int.MaxValue)) >= RareShare * total;
+    }
+
+    /// <summary>
     /// Returns a facing the originals give an object in a like spot, drawn by how often they give it, or any fitting facing
     /// when they have none.
     /// </summary>
@@ -193,7 +232,7 @@ public sealed class FacingTable
         {
             if (passes[dir] == 0)
             {
-                passes[dir] = (sbyte)(Fits(id, dir, wall, false) && IsCommon(id, dir, wall) ? 1 : -1);
+                passes[dir] = (sbyte)(Fits(id, dir, wall) && IsCommon(id, dir, wall) ? 1 : -1);
             }
 
             if (passes[dir] > 0)
@@ -219,7 +258,7 @@ public sealed class FacingTable
         {
             dirs = Enumerable.Range(0, obj.Directions)
                 .Select(i => (byte)(i * 256 / obj.Directions))
-                .Where(d => Fits(id, d, wall, false))
+                .Where(d => Fits(id, d, wall))
                 .ToArray();
         }
 
@@ -233,46 +272,13 @@ public sealed class FacingTable
     {
         var wall = edges.FindNearestWall(u, v);
         var seen = (wall.HasValue ? _dirs.GetValueOrDefault((id, wall.Value.Side)) : _open.GetValueOrDefault(id)) ?? [];
-        if (seen.Any(d => Fits(id, d, wall, false)))
+        if (seen.Any(d => Fits(id, d, wall)))
         {
             return true;
         }
 
         return _objects.TryFind(id, out var obj) && obj.Directions > 0
-            && Enumerable.Range(0, obj.Directions).Select(i => (byte)(i * 256 / obj.Directions)).Any(d => Fits(id, d, wall, false));
-    }
-
-    private bool IsCommon(KnownObject id, byte dir, (WallSides Side, float Distance)? wall)
-    {
-        if (!wall.HasValue || !_objects.TryFind(id, out var obj) || obj.FramesPerDirection == 0 || !_frames.TryGetValue((id, wall.Value.Side), out var frames))
-        {
-            return true;
-        }
-
-        int total = frames.Values.Sum();
-        return total < MinSamples || frames.GetValueOrDefault(obj.GetFrame(dir, int.MaxValue)) >= RareShare * total;
-    }
-
-    private bool Fits(KnownObject id, byte dir, (WallSides Side, float Distance)? wall, bool onBlood)
-    {
-        if (!_objects.TryFind(id, out var obj) || obj.FramesPerDirection == 0)
-        {
-            return true;
-        }
-
-        int frame = obj.GetFrame(dir, int.MaxValue);
-        if (wall.HasValue && _frames.TryGetValue((id, wall.Value.Side), out var frames) && _dirs[(id, wall.Value.Side)].Count >= MinSamples && !frames.ContainsKey(frame))
-        {
-            return false;
-        }
-
-        if (obj.IsSolid && wall.HasValue && _distances.TryGetValue((id, wall.Value.Side, frame), out var range) && range.Count >= MinDistanceSamples
-            && (wall.Value.Distance < range.Min - EdgeMapExtensions.WallSlack || wall.Value.Distance > range.Max + EdgeMapExtensions.WallSlack))
-        {
-            return false;
-        }
-
-        return onBlood || !_leaning.Contains((id, frame)) || wall is { Distance: < LeanDistance };
+            && Enumerable.Range(0, obj.Directions).Select(i => (byte)(i * 256 / obj.Directions)).Any(d => Fits(id, d, wall));
     }
 
     private static void Add<TKey>(Dictionary<TKey, List<byte>> lists, TKey key, byte dir)

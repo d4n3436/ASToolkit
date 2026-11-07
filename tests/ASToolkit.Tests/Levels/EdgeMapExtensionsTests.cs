@@ -73,7 +73,7 @@ public class EdgeMapExtensionsTests
         Assert.NotNull(hit);
         Assert.Equal(2.5f, hit.Value.Distance, 3);
         Assert.Equal(EdgeKind.None, hit.Value.Kind);
-        Assert.Null(new Dictionary<EdgeKey, EdgeKind>().CastRay(1.5f, 0.5f, WallSides.LowerSlash, cell => true, 5));
+        Assert.Null(new Dictionary<EdgeKey, EdgeKind>().CastRay(1.5f, 0.5f, WallSides.LowerSlash, _ => true, 5));
     }
 
     [Fact]

@@ -17,7 +17,7 @@ public static class SolidObjectMapper
         var boxes = new List<CollisionBox>();
         foreach (var sprite in sprites)
         {
-            if (!objects.TryFind(sprite.Id, out var obj) || !obj.IsSolid || KnownObject.LabWalls.Contains(sprite.Id) || KnownObject.MilitaryWalls.Contains(sprite.Id) || KnownObject.Floors.Contains(sprite.Id))
+            if (!objects.TryFind(sprite.Id, out var obj) || !obj.IsSolid || KnownObject.BasementWalls.Contains(sprite.Id) || KnownObject.ConcreteWalls.Contains(sprite.Id) || KnownObject.Floors.Contains(sprite.Id))
             {
                 continue;
             }

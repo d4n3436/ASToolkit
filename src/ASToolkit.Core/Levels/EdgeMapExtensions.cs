@@ -105,7 +105,8 @@ public static class EdgeMapExtensions
         {
             for (int b = cv - search; b <= cv + search + 1; b++)
             {
-                if (edges.TryGetValue(new EdgeKey('u', a, b), out var uKind) && counts(uKind))
+                // Skip edges at least the reach away along either axis
+                if (MathF.Abs(u - a) < reach && b < v + reach && b + 1 > v - reach && edges.TryGetValue(new EdgeKey('u', a, b), out var uKind) && counts(uKind))
                 {
                     float dv = Math.Max(0, Math.Max(b - v, v - (b + 1)));
                     float distance = MathF.Sqrt((u - a) * (u - a) + dv * dv);
@@ -115,7 +116,7 @@ public static class EdgeMapExtensions
                     }
                 }
 
-                if (edges.TryGetValue(new EdgeKey('v', a, b), out var vKind) && counts(vKind))
+                if (MathF.Abs(v - b) < reach && a < u + reach && a + 1 > u - reach && edges.TryGetValue(new EdgeKey('v', a, b), out var vKind) && counts(vKind))
                 {
                     float du = Math.Max(0, Math.Max(a - u, u - (a + 1)));
                     float distance = MathF.Sqrt((v - b) * (v - b) + du * du);

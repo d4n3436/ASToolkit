@@ -8,14 +8,14 @@ namespace ASToolkit.Core.Levels;
 public sealed class Lattice
 {
     /// <summary>
-    /// Represents the lab lattice step.
+    /// Represents the basement lattice step.
     /// </summary>
-    public static readonly PointF LabStep = new(40, 28);
+    public static readonly PointF BasementStep = new(40, 28);
 
     /// <summary>
-    /// Represents the military fine lattice step.
+    /// Represents the concrete fine lattice step.
     /// </summary>
-    public static readonly PointF MilitaryStep = new(45, 32);
+    public static readonly PointF ConcreteStep = new(45, 32);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Lattice"/> class.
@@ -26,6 +26,7 @@ public sealed class Lattice
         StepY = stepY;
         OriginX = originX;
         OriginY = originY;
+        CellStep = MathF.Sqrt(stepX * stepX + stepY * stepY);
     }
 
     /// <summary>
@@ -51,7 +52,7 @@ public sealed class Lattice
     /// <summary>
     /// Gets the length of one cell step in map pixels.
     /// </summary>
-    public float CellStep => MathF.Sqrt(StepX * StepX + StepY * StepY);
+    public float CellStep { get; }
 
     /// <summary>
     /// Returns the map position of lattice point (a, b).

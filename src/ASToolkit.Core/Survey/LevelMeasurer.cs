@@ -138,12 +138,12 @@ public static class LevelMeasurer
 
             var pocket = grid.Cells.Flood([inside], IsClosed);
             counted.UnionWith(pocket);
-            if (pocket.Count <= MaxClosetCells && pocket.Overlaps(items) && !pocket.Overlaps(spawners))
-            {
-                var cells = pocket.OrderBy(c => c.U).ThenBy(c => c.V).ToArray();
-                float progress = cells.SelectMany(c => progressByCell[c]).DefaultIfEmpty(0).Average();
-                closets.Add(new SecretCloset(progress, cells.SelectMany(c => itemsByCell[c]).ToArray()));
-            }
+            if (pocket.Count > MaxClosetCells || !pocket.Overlaps(items) || pocket.Overlaps(spawners))
+                continue;
+            
+            var cells = pocket.OrderBy(c => c.U).ThenBy(c => c.V).ToArray();
+            float progress = cells.SelectMany(c => progressByCell[c]).DefaultIfEmpty(0).Average();
+            closets.Add(new SecretCloset(progress, cells.SelectMany(c => itemsByCell[c]).ToArray()));
         }
 
         return (closets, shortcutWalls.Count);

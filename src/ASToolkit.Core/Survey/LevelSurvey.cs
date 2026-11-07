@@ -25,14 +25,14 @@ public sealed class LevelSurvey
     public required string Name { get; init; }
 
     /// <summary>
-    /// Gets the theme of the level.
+    /// Gets the wall set the walls of the level belong to.
     /// </summary>
-    public required LevelTheme Theme { get; init; }
+    public required WallSet WallSet { get; init; }
 
     /// <summary>
-    /// Gets the theme the level's floor shows, military for a level of lab walls on military floor.
+    /// Gets the wall set the floor of the level belongs to, the concrete set for basement walls on the military base floor.
     /// </summary>
-    public required LevelTheme Setting { get; init; }
+    public required WallSet FloorSet { get; init; }
 
     /// <summary>
     /// Gets the gate style of the level.
@@ -132,11 +132,11 @@ public sealed class LevelSurvey
 
                     var center = Lattice.GetCenter(cell);
                     float distance = MathF.Sqrt((center.X - x) * (center.X - x) + (center.Y - y) * (center.Y - y));
-                    if (distance < bestDistance)
-                    {
-                        bestDistance = distance;
-                        best = place;
-                    }
+                    if (!(distance < bestDistance))
+                        continue;
+                    
+                    bestDistance = distance;
+                    best = place;
                 }
             }
 

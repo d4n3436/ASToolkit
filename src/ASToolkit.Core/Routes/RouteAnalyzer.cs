@@ -443,7 +443,7 @@ public static class RouteAnalyzer
             return new RouteAnalysis
             {
                 Name = _model.Name,
-                Theme = _model.Theme,
+                WallSet = _model.WallSet,
                 Model = _model,
                 Step = _step,
                 ReachableCells = _grid.Cells.Count(fromStart.ContainsKey),
@@ -461,7 +461,6 @@ public static class RouteAnalyzer
             };
 
             bool IsOpened(Objective o) => o.Need is null || !todo.Contains(o.Need);
-
 
             float Progress(Cell c) => MathF.Round(projection.GetValueOrDefault(c) / (float)Math.Max(1, walked), 3);
         }

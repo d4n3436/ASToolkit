@@ -35,6 +35,6 @@ public enum EdgeKind : byte
     /// <summary>A broken wall the player walks through.</summary>
     BrokenWall,
 
-    /// <summary>A military fence frame.</summary>
+    /// <summary>A fence frame of the concrete set.</summary>
     FenceFrame
 }

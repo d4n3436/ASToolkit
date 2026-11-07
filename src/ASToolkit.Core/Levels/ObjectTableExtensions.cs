@@ -1,3 +1,4 @@
+using System.Numerics;
 using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Levels;
@@ -44,8 +45,8 @@ public static class ObjectTableExtensions
                     continue;
                 }
 
-                objects.TryFind(other.Id, out var obj);
-                if (obj.Size.Z < 5 || Math.Abs(other.Position.X - sprite.Position.X) > obj.Size.X + 6 || Math.Abs(other.Position.Y - sprite.Position.Y) > obj.Size.Y + 6)
+                var size = objects.TryFind(other.Id, out var obj) ? obj.Size : Vector3.Zero;
+                if (size.Z < 5 || Math.Abs(other.Position.X - sprite.Position.X) > size.X + 6 || Math.Abs(other.Position.Y - sprite.Position.Y) > size.Y + 6)
                 {
                     continue;
                 }

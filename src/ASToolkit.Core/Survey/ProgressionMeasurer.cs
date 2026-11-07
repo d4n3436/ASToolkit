@@ -1,6 +1,5 @@
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
-using ASToolkit.Core.Rooms;
 
 namespace ASToolkit.Core.Survey;
 
@@ -183,17 +182,17 @@ public sealed class ProgressionMeasurer
         var groups = new Dictionary<(GateZone Zone, int From), List<int>>();
         for (int index = 0; index < parts.Count; index++)
         {
-            if (!parts[index].Contains(start) && entered.TryGetValue(index, out int from))
+            if (parts[index].Contains(start) || !entered.TryGetValue(index, out int from))
+                continue;
+            
+            var key = (zone[parts[index].Min()], from);
+            if (!groups.TryGetValue(key, out var members))
             {
-                var key = (zone[parts[index].Min()], from);
-                if (!groups.TryGetValue(key, out var members))
-                {
-                    members = [];
-                    groups[key] = members;
-                }
-
-                members.Add(index);
+                members = [];
+                groups[key] = members;
             }
+
+            members.Add(index);
         }
 
         foreach (var members in groups.Values)
@@ -232,19 +231,19 @@ public sealed class ProgressionMeasurer
 
             int host = Find(from);
             bool closes = zone[part.Min()] == GateZone.Blackout;
-            if (around.Count == 1 && around.Contains(host) && (closes || part.Sum(place => GetPlace(place).Cells.Count) / (float)floor < MaxDeadEndShare))
+            if (around.Count != 1 || !around.Contains(host) || (!closes && !(part.Sum(place => GetPlace(place).Cells.Count) / (float)floor < MaxDeadEndShare)))
+                continue;
+            
+            merged[host].UnionWith(part);
+            for (int other = 0; other < root.Length; other++)
             {
-                merged[host].UnionWith(part);
-                for (int other = 0; other < root.Length; other++)
+                if (Find(other) == index)
                 {
-                    if (Find(other) == index)
-                    {
-                        root[other] = host;
-                    }
+                    root[other] = host;
                 }
-
-                merged[index] = [];
             }
+
+            merged[index] = [];
         }
 
         var states = merged.Values.Where(part => part.Count > 0).ToList();
@@ -261,11 +260,11 @@ public sealed class ProgressionMeasurer
                 .ToArray();
 
             var host = states.FirstOrDefault(other => other != part && !hidden.Contains(other) && walls.Any(other.Contains));
-            if (host is not null)
-            {
-                host.UnionWith(part);
-                states.Remove(part);
-            }
+            if (host is null)
+                continue;
+            
+            host.UnionWith(part);
+            states.Remove(part);
         }
 
         return states.OrderBy(part => part.Min(GetFirstVisit)).ToList();
@@ -376,11 +375,11 @@ public sealed class ProgressionMeasurer
             var later = passes.Skip(index + 1).SelectMany(pass => pass.Places).ToHashSet();
             for (int step = 1; step < _route.Length; step++)
             {
-                if (later.Contains(_route[step]) && part.Contains(_route[step - 1]))
-                {
-                    targets.Add(_route[step - 1]);
-                    break;
-                }
+                if (!later.Contains(_route[step]) || !part.Contains(_route[step - 1]))
+                    continue;
+                
+                targets.Add(_route[step - 1]);
+                break;
             }
         }
 
@@ -543,60 +542,11 @@ public sealed class ProgressionMeasurer
 
     private List<int> FindPath(int from, int to, HashSet<int> within)
     {
-        var previous = new Dictionary<int, int> { [from] = from };
-        var queue = new Queue<int>();
-        queue.Enqueue(from);
-        while (queue.Count > 0 && !previous.ContainsKey(to))
-        {
-            int place = queue.Dequeue();
-            foreach (int neighbor in _neighbors[place])
-            {
-                if (within.Contains(neighbor) && previous.TryAdd(neighbor, place))
-                {
-                    queue.Enqueue(neighbor);
-                }
-            }
-        }
-
-        if (!previous.ContainsKey(to))
-        {
-            return [from];
-        }
-
-        var steps = new List<int> { to };
-        while (steps[^1] != from)
-        {
-            steps.Add(previous[steps[^1]]);
-        }
-
-        steps.Reverse();
-        return steps;
+        var path = _neighbors.FindPath(from, to, within.Contains);
+        return path.Count > 0 ? path : [from];
     }
 
-    private Dictionary<int, int> MeasureDistances(IEnumerable<int> sources, HashSet<int> within)
-    {
-        var lengths = new Dictionary<int, int>();
-        var queue = new Queue<int>();
-        foreach (int source in sources)
-        {
-            lengths[source] = 0;
-            queue.Enqueue(source);
-        }
-
-        while (queue.Count > 0)
-        {
-            int place = queue.Dequeue();
-            foreach (int neighbor in _neighbors[place])
-            {
-                if (within.Contains(neighbor) && lengths.TryAdd(neighbor, lengths[place] + 1))
-                {
-                    queue.Enqueue(neighbor);
-                }
-            }
-        }
-
-        return lengths;
-    }
+    private Dictionary<int, int> MeasureDistances(IEnumerable<int> sources, HashSet<int> within) => _neighbors.MeasureHops(sources, within.Contains);
 
     private HashSet<int> FillComponent(int first, Func<int, bool> includes, Func<int, int, bool> crosses)
     {
@@ -618,22 +568,7 @@ public sealed class ProgressionMeasurer
         return seen;
     }
 
-    private List<HashSet<int>> FindComponents(HashSet<int> places)
-    {
-        var components = new List<HashSet<int>>();
-        var seen = new HashSet<int>();
-        foreach (int place in places.Order())
-        {
-            if (!seen.Add(place))
-                continue;
-            
-            var component = FillComponent(place, places.Contains, (_, _) => true);
-            seen.UnionWith(component);
-            components.Add(component);
-        }
-
-        return components;
-    }
+    private List<HashSet<int>> FindComponents(HashSet<int> places) => _neighbors.FindComponents(places);
 
     private sealed record PhaseDraft(HashSet<int> Places, bool IsReturnPass, int Key, int[] Sites, int[] Charges);
 }

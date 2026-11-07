@@ -62,6 +62,7 @@ public sealed class RoomAtlas
         ("ADDON/Level_02.map", 4640, 4032, RoomType.Storage, null),
         ("ADDON/Level_03.map", 3120, 672, RoomType.Hall, RoomType.Office),
         ("ADDON/Level_03.map", 2900, 882, RoomType.Office, null),
+        ("ADDON/Level_04.map", 1900, 462, RoomType.Depot, null),
         ("ADDON2/Level_03.map", 2520, 1820, RoomType.Hall, null),
         ("ADDON2/Level_03.map", 1480, 560, RoomType.Lab, null),
         ("ADDON2/Level_03.map", 3180, 602, RoomType.Quarters, null),
@@ -73,6 +74,74 @@ public sealed class RoomAtlas
         ("ADDON2/Level_05.map", 5920, 2409, RoomType.Depot, null)
     ];
 
+    private static readonly (string Map, AreaKind Kind, int[] Places)[] Readings =
+    [
+        ("Level_02.map", AreaKind.HallWithRooms, [2, 1, 3, 7, 8, 10, 11]),
+        ("Level_02.map", AreaKind.Suite, [4, 5, 6, 9]),
+        ("Level_03.map", AreaKind.HallWithRooms, [2, 1, 28]),
+        ("Level_03.map", AreaKind.Row, [25, 30, 32, 33, 23]),
+        ("Level_03.map", AreaKind.Suite, [3, 4, 5, 6]),
+        ("Level_03.map", AreaKind.Suite, [26, 29, 31, 35, 36]),
+        ("Level_03.map", AreaKind.HallWithRooms, [27, 34, 39]),
+        ("Level_03.map", AreaKind.Ring, [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 22, 24]),
+        ("Level_03.map", AreaKind.Suite, [18, 19, 20, 21]),
+        ("Level_04.map", AreaKind.HallWithRooms, [2, 1, 17, 19, 20, 21, 23, 24, 25, 26, 27, 28]),
+        ("Level_04.map", AreaKind.DenseBlock, [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 22]),
+        ("Level_05.map", AreaKind.HallWithRooms, [3, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 20]),
+        ("Level_05.map", AreaKind.HallWithRooms, [17, 12, 13, 14, 15, 16, 18, 19, 21, 22]),
+        ("Level_06.map", AreaKind.HallWithRooms, [2, 1, 11]),
+        ("Level_06.map", AreaKind.BigRoom, [6, 3, 4, 5, 7, 8]),
+        ("Level_06.map", AreaKind.Suite, [9, 10, 12]),
+        ("Level_07.map", AreaKind.HallWithRooms, [2, 1, 13, 14, 16, 17]),
+        ("Level_07.map", AreaKind.Suite, [3, 4, 5]),
+        ("Level_07.map", AreaKind.DenseBlock, [6, 7, 8, 9, 15]),
+        ("Level_07.map", AreaKind.Suite, [11, 12]),
+        ("Level_07.map", AreaKind.BigRoom, [10]),
+        ("Level_08.map", AreaKind.HallWithRooms, [1, 2, 3, 4]),
+        ("Level_08.map", AreaKind.BigRoom, [7]),
+        ("Level_08.map", AreaKind.BigRoom, [5, 6]),
+        ("Level_09.map", AreaKind.BigRoom, [2, 1]),
+        ("Level_09.map", AreaKind.BigRoom, [4, 3]),
+        ("Level_09.map", AreaKind.BigRoom, [5]),
+        ("Level_09.map", AreaKind.BigRoom, [7, 6]),
+        ("Level_10.map", AreaKind.HallWithRooms, [3, 1, 2, 4]),
+        ("Level_10.map", AreaKind.Suite, [16, 26, 29]),
+        ("Level_10.map", AreaKind.HallWithRooms, [5]),
+        ("Level_10.map", AreaKind.Yard, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 28]),
+        ("ADDON/Level_02.map", AreaKind.HallWithRooms, [1, 25, 26]),
+        ("ADDON/Level_02.map", AreaKind.HallWithRooms, [5, 6, 7, 8, 21, 22, 24]),
+        ("ADDON/Level_02.map", AreaKind.BigRoom, [3, 4, 23]),
+        ("ADDON/Level_02.map", AreaKind.HallWithRooms, [11, 2, 9, 10, 12]),
+        ("ADDON/Level_02.map", AreaKind.Suite, [13, 14, 15, 16, 17, 18, 19]),
+        ("ADDON/Level_02.map", AreaKind.BigRoom, [20]),
+        ("ADDON/Level_03.map", AreaKind.HallWithRooms, [1]),
+        ("ADDON/Level_03.map", AreaKind.HallWithRooms, [2, 3, 8]),
+        ("ADDON/Level_03.map", AreaKind.BigRoom, [4]),
+        ("ADDON/Level_03.map", AreaKind.Suite, [5, 6]),
+        ("ADDON/Level_03.map", AreaKind.BigRoom, [7]),
+        ("ADDON/Level_04.map", AreaKind.BigRoom, [11]),
+        ("ADDON/Level_04.map", AreaKind.Ring, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12]),
+        ("ADDON/Level_05.map", AreaKind.Suite, [1, 2, 3]),
+        ("ADDON/Level_05.map", AreaKind.BigRoom, [4]),
+        ("ADDON/Level_05.map", AreaKind.BigRoom, [5]),
+        ("ADDON2/Level_02.map", AreaKind.BigRoom, [2, 1, 7, 8, 9, 11]),
+        ("ADDON2/Level_02.map", AreaKind.BigRoom, [3, 10]),
+        ("ADDON2/Level_02.map", AreaKind.HallWithRooms, [4, 5]),
+        ("ADDON2/Level_02.map", AreaKind.BigRoom, [6]),
+        ("ADDON2/Level_03.map", AreaKind.Yard, [1, 2, 3, 4, 5, 6]),
+        ("ADDON2/Level_03.map", AreaKind.Suite, [7, 8, 9, 10, 13, 14, 16, 17, 19]),
+        ("ADDON2/Level_03.map", AreaKind.BigRoom, [12, 11]),
+        ("ADDON2/Level_03.map", AreaKind.BigRoom, [18, 15]),
+        ("ADDON2/Level_04.map", AreaKind.BigRoom, [2, 1]),
+        ("ADDON2/Level_04.map", AreaKind.BigRoom, [3, 4, 8]),
+        ("ADDON2/Level_04.map", AreaKind.Suite, [5, 6, 7]),
+        ("ADDON2/Level_05.map", AreaKind.BigRoom, [2, 1, 21]),
+        ("ADDON2/Level_05.map", AreaKind.Row, [3, 4, 5, 6, 23]),
+        ("ADDON2/Level_05.map", AreaKind.Row, [7, 8, 9, 10, 11, 12, 13, 22]),
+        ("ADDON2/Level_05.map", AreaKind.Yard, [14, 15, 16, 17, 25]),
+        ("ADDON2/Level_05.map", AreaKind.Suite, [18, 19, 20])
+    ];
+
     private RoomAtlas()
     {
     }
@@ -81,6 +150,11 @@ public sealed class RoomAtlas
     /// Gets the rooms in place order.
     /// </summary>
     public required IReadOnlyList<AtlasRoom> Rooms { get; init; }
+
+    /// <summary>
+    /// Gets the areas of the level read by eye, or none when the level has no reading.
+    /// </summary>
+    public required IReadOnlyList<LevelArea> Areas { get; init; }
 
     /// <summary>
     /// Reads the rooms of a surveyed original level.
@@ -153,7 +227,17 @@ public sealed class RoomAtlas
             });
         }
 
-        return new RoomAtlas { Rooms = rooms };
+        var areas = Readings
+            .Where(area => isOriginal && area.Map == map)
+            .Select(area => new LevelArea(area.Kind, area.Places))
+            .ToArray();
+
+        foreach (int place in areas.SelectMany(area => area.Places).Where(place => place < 1 || place > survey.Places.Count || survey.Places[place - 1].Kind is PlaceKind.SecretCloset or PlaceKind.SpawnCloset))
+        {
+            throw new InvalidDataException($"The area read by eye at place {place} of {map} lands on no room.");
+        }
+
+        return new RoomAtlas { Rooms = rooms, Areas = areas };
     }
 
     private static RoomRole GetRole(RoomRoleMap roles, LevelPlace place, IEnumerable<KnownObject> floors)

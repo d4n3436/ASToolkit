@@ -1,10 +1,7 @@
-using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Rooms;
-using ASToolkit.Core.Routes;
 using ASToolkit.Core.Survey;
 using Xunit;
-using ASToolkit.Core.Scripting;
 
 namespace ASToolkit.Tests.Rooms;
 
@@ -12,8 +9,6 @@ namespace ASToolkit.Tests.Rooms;
 public class RoomAtlasIntegrationTests
 {
     private const int ArenaBays = 10;
-
-    private static readonly Lazy<ObjectTable> Objects = new(() => ObjectTable.Load(Path.Combine(TestGameFolder.RequireFolder(), "objects.res")));
 
     public static TheoryData<string> OriginalLevels()
     {
@@ -41,6 +36,21 @@ public class RoomAtlasIntegrationTests
         Assert.All(atlas.Rooms.Where(room => room.Type != room.ProposedType || room.Side is not null), room => Assert.True(room.IsRoom));
     }
 
+    [Theory]
+    [MemberData(nameof(OriginalLevels))]
+    public void Read_OriginalLevel_ReadsEveryRoomIntoOneArea(string level)
+    {
+        var (atlas, survey) = ReadLevel(level);
+
+        int[] read = atlas.Areas
+            .SelectMany(area => area.Places)
+            .ToArray();
+
+        Assert.Equal(read.Length, read.Distinct().Count());
+        Assert.Empty(survey.Places.Where(place => place.Zone != GateZone.Secret).Select(place => place.Id).Except(read));
+        Assert.All(atlas.Areas, area => Assert.NotEmpty(area.Places));
+    }
+
     [Fact]
     public void Read_ArenaLevel_TypesItsBaysAsArenas()
     {
@@ -52,12 +62,12 @@ public class RoomAtlasIntegrationTests
     [Theory]
     [InlineData("ADDON/Level_04.map")]
     [InlineData("ADDON2/Level_05.map")]
-    public void Read_LabWallsOnMilitaryFloor_IsAMilitarySetting(string level)
+    public void Read_BasementWallsOnMilitaryBaseFloor_HasTheConcreteFloorSet(string level)
     {
         var (_, survey) = ReadLevel(level);
 
-        Assert.Equal(LevelTheme.Lab, survey.Theme);
-        Assert.Equal(LevelTheme.Military, survey.Setting);
+        Assert.Equal(WallSet.Basement, survey.WallSet);
+        Assert.Equal(WallSet.Concrete, survey.FloorSet);
     }
 
     [Theory]
@@ -78,11 +88,7 @@ public class RoomAtlasIntegrationTests
 
     private static (RoomAtlas Atlas, LevelSurvey Survey) ReadLevel(string level)
     {
-        string maps = Path.Combine(TestGameFolder.RequireFolder(), "Maps");
-        var map = MapResourceBuilder.Load(Path.Combine(maps, level));
-        var script = LevelScriptReader.Read(Path.Combine(maps, Path.ChangeExtension(level, ".lgc")));
-        var analysis = RouteAnalyzer.Analyze(level, map, script, Objects.Value)!;
-        var survey = LevelSurveyor.Survey(map, script, analysis, Objects.Value);
-        return (RoomAtlas.Read(survey, analysis.Grid.Edges, map.Sprites, Objects.Value), survey);
+        var reference = TestGameFolder.References.GetLevel(level);
+        return (reference.Atlas, reference.Survey);
     }
 }

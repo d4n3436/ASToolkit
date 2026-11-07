@@ -12,11 +12,6 @@ namespace ASToolkit.Core.Survey;
 public readonly record struct EdgeRun(char Axis, int Line, int From, int To)
 {
     /// <summary>
-    /// Gets the number of edges.
-    /// </summary>
-    public int Length => To - From + 1;
-
-    /// <summary>
     /// Enumerates over the edges.
     /// </summary>
     public IEnumerable<EdgeKey> GetEdges()

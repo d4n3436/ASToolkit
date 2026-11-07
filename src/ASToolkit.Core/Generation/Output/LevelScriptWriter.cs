@@ -1,6 +1,6 @@
 using ASToolkit.Core.Formats;
 
-namespace ASToolkit.Core.Generation;
+namespace ASToolkit.Core.Generation.Output;
 
 /// <summary>
 /// Provides the writing of level scripts.
@@ -83,10 +83,10 @@ public static class LevelScriptWriter
 
         if (script.Blackout is not null)
         {
-            (int x, int y) = ((int)script.Blackout.Value.X, (int)script.Blackout.Value.Y);
+            var blackout = script.Blackout.Value;
             lines.AddRange(
             [
-                $"  iff( SizeTo(Flagman(0),{x},{y}) < 120 )",
+                $"  iff( SizeTo(Flagman(0),{blackout.Center.X},{blackout.Center.Y}) < {blackout.Radius} )",
                 "  {//blackout: lights off, doors locked until the breaker",
                 "    StartPlayerX=GetX(Flagman(0)); StartPlayerY=GetY(Flagman(0)); StartPlayerZ=GetZ(Flagman(0));",
                 "    DoorsIsOpen = 0;",

@@ -108,7 +108,7 @@ public class RouteAnalyzerIntegrationTests
         var a = RouteAnalyzer.Analyze(level, MapResourceBuilder.Load(Path.Combine(game, "Maps", level)), script, objects);
 
         Assert.NotNull(a);
-        Assert.Equal(LevelTheme.Outdoor, a.Theme);
+        Assert.Equal(WallSet.Outdoor, a.WallSet);
         Assert.Equal(0, a.FallbackUsage.Unreached);
         Assert.Equal(level == "Level_01.map", a.FallbackUsage.UsedSecretWalls);
         Assert.Equal(goals, string.Join(",", a.Objectives.Where(o => o.Kind is ObjectiveKind.Dynamite or ObjectiveKind.DynamiteSite or ObjectiveKind.Exit).Select(o => FixtureKinds[o.Kind])));

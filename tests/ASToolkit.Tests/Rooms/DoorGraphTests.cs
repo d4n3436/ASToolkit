@@ -1,4 +1,4 @@
-using ASToolkit.Core.Rooms;
+using ASToolkit.Core.Survey;
 using Xunit;
 
 namespace ASToolkit.Tests.Rooms;

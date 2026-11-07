@@ -19,9 +19,9 @@ public sealed record CampaignMeasurement
     public required string Map { get; init; }
 
     /// <summary>
-    /// Gets the theme of the level's floor.
+    /// Gets the wall set the floor of the measured level belongs to.
     /// </summary>
-    public required LevelTheme Theme { get; init; }
+    public required WallSet FloorSet { get; init; }
 
     /// <summary>
     /// Gets the gate style of the level.

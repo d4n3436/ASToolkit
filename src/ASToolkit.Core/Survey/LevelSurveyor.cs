@@ -68,29 +68,18 @@ public sealed class LevelSurveyor
     private float CellArea => 2 * _lattice.StepX * _lattice.StepY;
 
     /// <summary>
-    /// Surveys a level.
-    /// </summary>
-    public static LevelSurvey Survey(MapResourceBuilder map, LevelScriptSummary script, RouteAnalysis analysis, ObjectTable objects) =>
-        new LevelSurveyor(map, script, analysis, objects).Survey();
-
-    /// <summary>
     /// Surveys a level with the given measurements.
     /// </summary>
     public static LevelSurvey Survey(MapResourceBuilder map, LevelScriptSummary script, RouteAnalysis analysis, ObjectTable objects, LevelMeasurement measurement) =>
         new LevelSurveyor(map, script, analysis, objects).Survey(measurement);
 
     /// <summary>
-    /// Surveys the level.
-    /// </summary>
-    public LevelSurvey Survey() => Survey(LevelMeasurer.Measure(_map, _script, _analysis, _objects));
-
-    /// <summary>
     /// Surveys the level with the given measurements.
     /// </summary>
     public LevelSurvey Survey(LevelMeasurement measurement)
     {
-        var setting = FindSetting();
-        bool openPlan = setting != LevelTheme.Lab || !_grid.Edges.Values.Any(kind => kind is EdgeKind.Door or EdgeKind.Doorway or EdgeKind.ShutDoor);
+        var floorSet = FindFloorSet();
+        bool openPlan = floorSet != WallSet.Basement || !_grid.Edges.Values.Any(kind => kind is EdgeKind.Door or EdgeKind.Doorway or EdgeKind.ShutDoor);
         var segmenter = new PlaceSegmenter((int)(MaxOpeningPixels / _step), (int)(MaxStubPixels / _step), (int)MathF.Ceiling(MinPlacePixels / CellArea),
             (int)(MaxClosetPixels / CellArea), (int)MathF.Round(MinRoomPixels / _step), (int)MathF.Round(MinCorridorPixels / _step), (int)(PocketPixels / CellArea));
         _segments = segmenter.Segment(_grid, _analysis.Tour.ToHashSet(), FindRoofedCells(), openPlan, FindContentCells(withDoors: true), FindContentCells(withDoors: false));
@@ -107,8 +96,8 @@ public sealed class LevelSurveyor
         return new LevelSurvey
         {
             Name = _analysis.Name,
-            Theme = _analysis.Theme,
-            Setting = setting,
+            WallSet = _analysis.WallSet,
+            FloorSet = floorSet,
             Style = measurement.Style,
             Lattice = _lattice,
             Places = _places.Select(place => place.ToPlace()).ToArray(),
@@ -148,11 +137,11 @@ public sealed class LevelSurveyor
         int? trigger = null;
         foreach (var action in stack)
         {
-            if (action.Act == (int)ActionCode.FlagmanTrigger)
-            {
-                trigger = GetPlaceNear(action.Var1, action.Var2);
-                break;
-            }
+            if (action.Act != (int)ActionCode.FlagmanTrigger)
+                continue;
+            
+            trigger = GetPlaceNear(action.Var1, action.Var2);
+            break;
         }
 
         if (trigger is null)
@@ -174,7 +163,7 @@ public sealed class LevelSurveyor
         var content = new HashSet<Cell>(_analysis.Tour);
         foreach (var sprite in _map.Sprites)
         {
-            if (!KnownObject.Floors.Contains(sprite.Id) && !KnownObject.LabWalls.Contains(sprite.Id) && !KnownObject.MilitaryWalls.Contains(sprite.Id) && !Skipped.Contains(sprite.Id) && (withDoors || !sprite.Id.IsDoor))
+            if (!KnownObject.Floors.Contains(sprite.Id) && !KnownObject.BasementWalls.Contains(sprite.Id) && !KnownObject.ConcreteWalls.Contains(sprite.Id) && !Skipped.Contains(sprite.Id) && (withDoors || !sprite.Id.IsDoor))
             {
                 content.Add(_lattice.GetCell(sprite.Position.X, sprite.Position.Y));
             }
@@ -186,25 +175,25 @@ public sealed class LevelSurveyor
     private HashSet<Cell> FindRoofedCells()
     {
         var roofed = new HashSet<Cell>();
-        if (_analysis.Theme == LevelTheme.Military)
+        if (_analysis.WallSet == WallSet.Concrete)
         {
             return roofed;
         }
 
         var tiles = _map.Sprites
             .Where(sprite => sprite is { Id: KnownObject.Earth, Position.Z: > 40 })
-            .ToLookup(sprite => ((int)MathF.Floor(sprite.Position.X / (2 * Lattice.LabStep.X)), (int)MathF.Floor((sprite.Position.Y - sprite.Position.Z) / (2 * Lattice.LabStep.Y))));
+            .ToLookup(sprite => ((int)MathF.Floor(sprite.Position.X / (2 * Lattice.BasementStep.X)), (int)MathF.Floor((sprite.Position.Y - sprite.Position.Z) / (2 * Lattice.BasementStep.Y))));
 
         foreach (var cell in _grid.Cells)
         {
             (float x, float y) = _lattice.GetCenter(cell);
-            int column = (int)MathF.Floor(x / (2 * Lattice.LabStep.X)), row = (int)MathF.Floor(y / (2 * Lattice.LabStep.Y));
+            int column = (int)MathF.Floor(x / (2 * Lattice.BasementStep.X)), row = (int)MathF.Floor(y / (2 * Lattice.BasementStep.Y));
             bool covered = false;
             for (int dx = -1; dx <= 1 && !covered; dx++)
             {
                 for (int dy = -1; dy <= 1 && !covered; dy++)
                 {
-                    covered = tiles[(column + dx, row + dy)].Any(tile => MathF.Abs(tile.Position.X - x) / Lattice.LabStep.X + MathF.Abs(tile.Position.Y - tile.Position.Z - y) / Lattice.LabStep.Y <= RoofReach);
+                    covered = tiles[(column + dx, row + dy)].Any(tile => MathF.Abs(tile.Position.X - x) / Lattice.BasementStep.X + MathF.Abs(tile.Position.Y - tile.Position.Z - y) / Lattice.BasementStep.Y <= RoofReach);
                 }
             }
 
@@ -1209,16 +1198,16 @@ public sealed class LevelSurveyor
         }
     }
 
-    private LevelTheme FindSetting()
+    private WallSet FindFloorSet()
     {
-        if (_analysis.Theme != LevelTheme.Lab)
+        if (_analysis.WallSet != WallSet.Basement)
         {
-            return _analysis.Theme;
+            return _analysis.WallSet;
         }
 
-        int military = _map.Sprites.Count(sprite => sprite.Id == KnownObject.MilitaryFloor);
-        int lab = _map.Sprites.Count(sprite => sprite.Id is KnownObject.BasementFloor or KnownObject.BasementFloorAlt);
-        return military > lab ? LevelTheme.Military : LevelTheme.Lab;
+        int militaryBase = _map.Sprites.Count(sprite => sprite.Id == KnownObject.MilitaryBaseFloor);
+        int basement = _map.Sprites.Count(sprite => sprite.Id is KnownObject.BasementFloor or KnownObject.BasementFloorAlt);
+        return militaryBase > basement ? WallSet.Concrete : WallSet.Basement;
     }
 
     private LevelGate[] DescribeGates(LevelStyle style, LevelLandmark[] landmarks)
