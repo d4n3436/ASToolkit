@@ -2,6 +2,7 @@ using ASToolkit.Core.Formats;
 using ASToolkit.Core.Generation.Content;
 using ASToolkit.Core.Generation.Geometry;
 using ASToolkit.Core.Generation.Layout;
+using ASToolkit.Core.Generation.Output;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Routes;
 
@@ -28,14 +29,14 @@ public sealed class GeneratedLevel
     public required string Template { get; set; }
 
     /// <summary>
-    /// Gets the lattice of the floor cells.
+    /// Gets the building the generated level is.
     /// </summary>
-    public required Lattice Lattice { get; init; }
+    public required Building Building { get; init; }
 
     /// <summary>
-    /// Gets the theme.
+    /// Gets the wall set of the generated level.
     /// </summary>
-    public required LevelTheme Theme { get; init; }
+    public required WallSet WallSet { get; init; }
 
     /// <summary>
     /// Gets or sets the number of the add-on level this level replaces, or null for a campaign level.
@@ -73,9 +74,9 @@ public sealed class GeneratedLevel
     public required IReadOnlyDictionary<SpriteSource, int> Provenance { get; init; }
 
     /// <summary>
-    /// Gets the counts of the layout stage that built the level.
+    /// Gets the fallbacks and built parts the building and doors stages counted.
     /// </summary>
-    public required AreaBuildCounts LayoutCounts { get; init; }
+    public required IReadOnlyDictionary<string, int> LayoutCounts { get; init; }
 
     /// <summary>
     /// Writes the map and its script next to it, taking the other map chunks from a template map.

@@ -1,4 +1,3 @@
-
 namespace ASToolkit.Core.Generation.Layout;
 
 /// <summary>
@@ -12,15 +11,10 @@ public enum RegionKind
     /// <summary>A dead-end room off a station.</summary>
     SideRoom,
 
-    /// <summary>A hall segment or room of a gated branch off the route.</summary>
-    Wing,
-
     /// <summary>A small room behind a breakable wall.</summary>
     SecretCloset,
 
-    /// <summary>
-    /// A furnished room behind a breakable wall.
-    /// </summary>
+    /// <summary>A furnished room off the main path behind a breakable wall.</summary>
     SecretRoom,
 
     /// <summary>A small room behind a wall that blows open with its ambush.</summary>

@@ -16,16 +16,19 @@ public class LevelGeneratorIntegrationTests
     private const int Seeds = 10;
     private const float DecorFloorHeight = 5;
     private const float RoofHeight = 90;
-    private const float LabRoofShift = 17;
+    private const float BasementRoofShift = 17;
     private const float SpacingSlack = 1;
+
+    private static readonly Lazy<(LevelGenerator Generator, ObjectTable Objects, ReferenceLevelSet References, StyleModel Model)> CampaignSources = new(() => CreateSources(GenerationStyle.Campaign));
+    private static readonly Lazy<(LevelGenerator Generator, ObjectTable Objects, ReferenceLevelSet References, StyleModel Model)> AddOnSources = new(() => CreateSources(GenerationStyle.AddOn));
+    private static readonly Lazy<IReadOnlyDictionary<(int Seed, int Level), GeneratedLevel>> CampaignLevels = new(() => GenerateAll(CampaignSources.Value.Generator, 10));
+    private static readonly Lazy<IReadOnlyDictionary<(int Seed, int Level), GeneratedLevel>> AddOnLevels = new(() => GenerateAll(AddOnSources.Value.Generator, GenerationStyle.AddOn.LevelCount));
 
     [Fact]
     public void Generate_CampaignSeeds_ReachEveryObjective()
     {
-        var generator = CreateGenerator();
-        var jobs = Enumerable.Range(1, Seeds).SelectMany(seed => Enumerable.Range(1, 10).Select(level => (Seed: seed, Level: level))).ToArray();
         var broken = new ConcurrentBag<string>();
-        Parallel.ForEach(jobs, job => FindFaults(generator.Generate(job.Seed, job.Level), $"seed {job.Seed} level {job.Level}", broken));
+        Parallel.ForEach(CampaignLevels.Value, pair => FindFaults(pair.Value, $"seed {pair.Key.Seed} level {pair.Key.Level}", broken));
 
         Assert.Empty(broken);
     }
@@ -33,10 +36,8 @@ public class LevelGeneratorIntegrationTests
     [Fact]
     public void GenerateAddOn_Seeds_ReachEveryObjective()
     {
-        var generator = CreateGenerator(GenerationStyle.AddOn);
-        var jobs = Enumerable.Range(1, Seeds).SelectMany(seed => Enumerable.Range(1, GenerationStyle.AddOn.LevelCount).Select(level => (Seed: seed, Level: level))).ToArray();
         var broken = new ConcurrentBag<string>();
-        Parallel.ForEach(jobs, job => FindFaults(generator.Generate(job.Seed, job.Level), $"seed {job.Seed} add-on level {job.Level}", broken));
+        Parallel.ForEach(AddOnLevels.Value, pair => FindFaults(pair.Value, $"seed {pair.Key.Seed} add-on level {pair.Key.Level}", broken));
 
         Assert.Empty(broken);
     }
@@ -44,10 +45,9 @@ public class LevelGeneratorIntegrationTests
     [Fact]
     public void Generate_CampaignSeeds_PlaceDecorAsTheOriginals()
     {
-        var (generator, objects, references, model) = CreateSources(GenerationStyle.Campaign);
-        var jobs = Enumerable.Range(1, Seeds).SelectMany(seed => Enumerable.Range(2, 9).Select(level => (Seed: seed, Level: level))).ToArray();
+        var (_, objects, _, model) = CampaignSources.Value;
         var broken = new ConcurrentBag<string>();
-        Parallel.ForEach(jobs, job => FindDecorFaults(generator.Generate(job.Seed, job.Level), $"seed {job.Seed} level {job.Level}", objects, model.Relations, broken));
+        Parallel.ForEach(CampaignLevels.Value.Where(pair => pair.Key.Level >= 2), pair => FindDecorFaults(pair.Value, $"seed {pair.Key.Seed} level {pair.Key.Level}", objects, model.Relations, broken));
 
         Assert.True(broken.IsEmpty, string.Join(Environment.NewLine, broken.Order()));
     }
@@ -55,17 +55,9 @@ public class LevelGeneratorIntegrationTests
     [Fact]
     public void GenerateAddOn_Seeds_PlaceDecorAsTheOriginals()
     {
-        var (generator, objects, references, model) = CreateSources(GenerationStyle.AddOn);
-        var jobs = Enumerable.Range(1, Seeds).SelectMany(seed => Enumerable.Range(1, GenerationStyle.AddOn.LevelCount).Select(level => (Seed: seed, Level: level))).ToArray();
+        var (_, objects, _, model) = AddOnSources.Value;
         var broken = new ConcurrentBag<string>();
-        Parallel.ForEach(jobs, job =>
-        {
-            var level = generator.Generate(job.Seed, job.Level);
-            if (level.Theme != LevelTheme.Outdoor)
-            {
-                FindDecorFaults(level, $"seed {job.Seed} add-on level {job.Level}", objects, model.Relations, broken);
-            }
-        });
+        Parallel.ForEach(AddOnLevels.Value.Where(pair => pair.Value.WallSet != WallSet.Outdoor), pair => FindDecorFaults(pair.Value, $"seed {pair.Key.Seed} add-on level {pair.Key.Level}", objects, model.Relations, broken));
 
         Assert.True(broken.IsEmpty, string.Join(Environment.NewLine, broken.Order()));
     }
@@ -73,11 +65,10 @@ public class LevelGeneratorIntegrationTests
     [Fact]
     public void Generate_CampaignSeeds_LeaveNoMoreRaisedPiecesUnsupportedThanTheCampaign()
     {
-        var (generator, objects, references, _) = CreateSources(GenerationStyle.Campaign);
+        var (_, objects, references, _) = CampaignSources.Value;
         var campaign = references.LevelNames.Where(name => !name.Contains('/') && name != "Level_01.map").Select(name => CountSupport(references.GetLevel(name).Map, objects)).ToArray();
-        var jobs = Enumerable.Range(1, Seeds).SelectMany(seed => Enumerable.Range(2, 9).Select(level => (Seed: seed, Level: level))).ToArray();
         var generated = new ConcurrentBag<(int Raised, int Unsupported)>();
-        Parallel.ForEach(jobs, job => generated.Add(CountSupport(generator.Generate(job.Seed, job.Level).Map, objects)));
+        Parallel.ForEach(CampaignLevels.Value.Where(pair => pair.Key.Level >= 2), pair => generated.Add(CountSupport(pair.Value.Map, objects)));
 
         float campaignShare = campaign.Sum(count => count.Unsupported) / (float)campaign.Sum(count => count.Raised);
         float generatedShare = generated.Sum(count => count.Unsupported) / (float)generated.Sum(count => count.Raised);
@@ -85,9 +76,100 @@ public class LevelGeneratorIntegrationTests
     }
 
     [Fact]
+    public void Generate_CampaignLabs_StandMonstersTriggersAndSitesInTheSecondWingSomeSitesInItsLockedRooms()
+    {
+        var broken = new List<string>();
+        foreach (((int seed, int number), var level) in CampaignLevels.Value.Where(pair => pair.Value.Building == Building.UndergroundLab).OrderBy(pair => pair.Key))
+        {
+            var plan = level.Plan!;
+            var regions = level.Map.Sprites
+                .Where(sprite => sprite.Id == KnownObject.DynamiteSite)
+                .Select(sprite => level.Layout!.Cells.TryGetValue(level.Layout.Lattice.GetCell(sprite.Position.X, sprite.Position.Y), out int region) ? plan.Regions[region] : null)
+                .ToArray();
+
+            if (regions.Any(region => region is null || !plan.SecondWing.Contains(region)))
+            {
+                broken.Add($"seed {seed} level {number}: a site outside the second wing");
+            }
+
+            var fighters = level.Map.Sprites
+                .Where(sprite => KnownObject.Monsters.Contains(sprite.Id) || KnownObject.Bosses.Contains(sprite.Id) || sprite.Id == KnownObject.Spawner)
+                .ToArray();
+
+            var spots = fighters
+                .Select(sprite => new PointF(sprite.Position.X, sprite.Position.Y))
+                .Concat(fighters.Select(sprite => sprite.Id == KnownObject.Spawner ? SpawnerProgram.Parse(sprite.Payload)?.Trigger : null)
+                    .Where(trigger => trigger is not null)
+                    .Select(trigger => new PointF(trigger!.Value.X, trigger.Value.Y)));
+
+            if (spots.Any(spot => level.Layout!.Cells.TryGetValue(level.Layout.Lattice.GetCell(spot.X, spot.Y), out int region) && !plan.HoldsFights(plan.Regions[region])))
+            {
+                broken.Add($"seed {seed} level {number}: a monster or spawn trigger in the first wing");
+            }
+
+            if (regions.Length > 0 && plan.LockedSiteRooms.Count > 0 && !regions.Any(region => region is not null && plan.LockedSiteRooms.Contains(region)))
+            {
+                broken.Add($"seed {seed} level {number}: no site in a locked room");
+            }
+        }
+
+        Assert.Empty(broken);
+    }
+
+    [Fact]
+    public void Generate_CampaignSeeds_StandSpawnTriggersOnTheMainRoute()
+    {
+        var broken = new List<string>();
+        foreach (((int seed, int number), var level) in CampaignLevels.Value.Where(pair => pair.Value.Plan is not null).OrderBy(pair => pair.Key))
+        {
+            var triggers = level.Map.Sprites
+                .Where(sprite => sprite.Id == KnownObject.Spawner)
+                .Select(sprite => SpawnerProgram.Parse(sprite.Payload)?.Trigger)
+                .Where(trigger => trigger is not null)
+                .Select(trigger => level.Layout!.Lattice.GetCell(trigger!.Value.X, trigger.Value.Y));
+
+            if (triggers.Any(cell => level.Layout!.Cells.TryGetValue(cell, out int region) && !level.Plan!.HoldsTriggers(level.Plan.Regions[region])))
+            {
+                broken.Add($"seed {seed} level {number}: a spawn trigger off the main route");
+            }
+        }
+
+        Assert.Empty(broken);
+    }
+
+    [Fact]
+    public void Generate_CampaignBlackouts_StandTheTriggerInsideTheEntranceAwayFromItsDoor()
+    {
+        var broken = new List<string>();
+        foreach (((int seed, int number), var level) in CampaignLevels.Value.Where(pair => pair.Value.Script.Blackout is not null).OrderBy(pair => pair.Key))
+        {
+            var plan = level.Plan!;
+            var layout = level.Layout!;
+            var room = plan.TriggerRoom;
+            var link = plan.BlackoutLink;
+            if (room is null || link is null)
+            {
+                broken.Add($"seed {seed} level {number}: no trigger room");
+                continue;
+            }
+
+            var door = layout.Lattice.GetCenter(layout.GetDoorwayCell(link.Id, link.To));
+            (var point, int radius) = level.Script.Blackout!.Value;
+            bool inside = layout.Cells.TryGetValue(layout.Lattice.GetCell(point.X, point.Y), out int region) && region == room.Id;
+            float distance = MathF.Sqrt((point.X - door.X) * (point.X - door.X) + (point.Y - door.Y) * (point.Y - door.Y));
+            if (!inside || distance <= radius)
+            {
+                broken.Add($"seed {seed} level {number}: trigger {(inside ? "reaching its door" : "outside the trigger room")}");
+            }
+        }
+
+        Assert.Empty(broken);
+    }
+
+    [Fact]
     public void Generate_SameSeedTwice_WritesTheSameFiles()
     {
-        var generator = CreateGenerator();
+        var generator = CampaignSources.Value.Generator;
         string folder = Directory.CreateTempSubdirectory().FullName;
         string first = Path.Combine(folder, "a.map");
         string second = Path.Combine(folder, "b.map");
@@ -112,7 +194,7 @@ public class LevelGeneratorIntegrationTests
             return;
         }
 
-        if (analysis.FallbackUsage is { ForcedGates: true } or { Unreached: > 0 } || level.Theme != LevelTheme.Outdoor && analysis.FallbackUsage.UsedSecretWalls)
+        if (analysis.FallbackUsage is { ForcedGates: true } or { Unreached: > 0 } || level.WallSet != WallSet.Outdoor && analysis.FallbackUsage.UsedSecretWalls)
         {
             faults.Add($"{name}: {analysis.FallbackUsage}");
         }
@@ -174,7 +256,7 @@ public class LevelGeneratorIntegrationTests
         foreach (var sprite in floor.Concat(decor.Where(sprite => sprite.Id.IsWallMounted)))
         {
             var blockingClass = sprite.Id.IsWallMounted ? BlockingClass.Hittable : objects.GetBlocking(sprite.Id);
-            float? clearance = relations.GetDoorClearance(level.Theme, blockingClass) - SpacingSlack;
+            float? clearance = relations.GetDoorClearance(level.WallSet, blockingClass) - SpacingSlack;
             if (clearance is not null && doorways.Any(doorway => doorway.MeasureDistance(new PointF(sprite.Position.X, sprite.Position.Y)) < clearance))
             {
                 faults.Add($"{name}: {sprite.Id} at ({sprite.Position.X:0}, {sprite.Position.Y:0}) stands within {clearance:0} px of a doorway");
@@ -188,7 +270,7 @@ public class LevelGeneratorIntegrationTests
             foreach (var other in blocking.Where(other => !ReferenceEquals(other, sprite) && other.Position.Z >= DecorFloorHeight == raised))
             {
                 objects.TryFind(other.Id, out var otherObj);
-                float spacing = relations.GetSpacing(level.Theme, sprite.Id, other.Id, raised);
+                float spacing = relations.GetSpacing(level.WallSet, sprite.Id, other.Id, raised);
                 if (Math.Abs(other.Position.X - sprite.Position.X) < spacing * (obj.Size.X + otherObj.Size.X) - SpacingSlack
                     && Math.Abs(other.Position.Y - sprite.Position.Y) < spacing * (obj.Size.Y + otherObj.Size.Y) - SpacingSlack)
                 {
@@ -208,7 +290,7 @@ public class LevelGeneratorIntegrationTests
             }
         }
 
-        float shift = level.Theme == LevelTheme.Lab ? LabRoofShift : 0;
+        float shift = level.WallSet == WallSet.Basement ? BasementRoofShift : 0;
         foreach (var roof in level.Map.Sprites.Where(sprite => sprite is { Id: KnownObject.Earth, Position.Z: >= RoofHeight }))
         {
             if (layout.Cells.TryGetValue(lattice.GetCell(roof.Position.X, roof.Position.Y - shift), out int region)
@@ -242,13 +324,19 @@ public class LevelGeneratorIntegrationTests
         return (raised, unsupported);
     }
 
-    private static LevelGenerator CreateGenerator(GenerationStyle style = GenerationStyle.Campaign) => CreateSources(style).Generator;
+    private static IReadOnlyDictionary<(int Seed, int Level), GeneratedLevel> GenerateAll(LevelGenerator generator, int levels)
+    {
+        var jobs = Enumerable.Range(1, Seeds).SelectMany(seed => Enumerable.Range(1, levels).Select(level => (Seed: seed, Level: level))).ToArray();
+        var generated = new ConcurrentDictionary<(int Seed, int Level), GeneratedLevel>();
+        Parallel.ForEach(jobs, job => generated[job] = generator.Generate(job.Seed, job.Level));
+        return generated;
+    }
 
     private static (LevelGenerator Generator, ObjectTable Objects, ReferenceLevelSet References, StyleModel Model) CreateSources(GenerationStyle style)
     {
         string game = TestGameFolder.RequireFolder();
-        var objects = ObjectTable.Load(Path.Combine(game, "objects.res"));
-        var references = ReferenceLevelSet.Load(game, objects);
+        var objects = TestGameFolder.Objects;
+        var references = TestGameFolder.References;
         var model = new StyleFitter(objects, GameTable.Load(Path.Combine(game, "Maps", "common_table.lgc"))).Fit(references, style);
         return (new LevelGenerator(game, objects, references, model), objects, references, model);
     }

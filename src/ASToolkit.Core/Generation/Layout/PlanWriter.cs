@@ -1,38 +1,59 @@
 using System.Drawing;
 using System.Runtime.InteropServices;
+using ASToolkit.Core.Generation.Buildings;
 using ASToolkit.Core.Generation.Mission;
 using ASToolkit.Core.Levels;
+using ASToolkit.Core.Rooms;
 using ASToolkit.Core.Survey;
 
 namespace ASToolkit.Core.Generation.Layout;
 
-// Write a built layout into a layout plan with regions in station order, links on the realized mission links, the gate from the mission's
-// keys and locks, pens and closets
 internal sealed class PlanWriter
 {
     private const float CenteredDoorShare = 0.95f;
     private const float WideDoorShare = 0.45f;
     private const float MinDoorGap = 160;
     private const float WalkShare = 0.8f;
-    private const int ClosetTries = 80;
-    private const int FarClosetTries = 60;
-
-    private static readonly (int U, int V)[] Headings = [(1, 0), (0, 1), (-1, 0), (0, -1)];
-    private static readonly (int U, int V)[] FarHeadings = [(1, 0), (0, -1)];
-    private static readonly (int W, int H)[] ClosetSizes = [(2, 3), (3, 2), (3, 3), (2, 2)];
 
     private readonly Random _rng;
-    private readonly LayoutPlan _plan;
+    private readonly PlanDraft _plan;
 
-    public PlanWriter(LevelTheme theme, Random rng)
+    public PlanWriter(WallSet wallSet, Random rng)
     {
         _rng = rng;
-        _plan = new LayoutPlan(theme == LevelTheme.Lab ? ThemeSettings.Lab : ThemeSettings.Military);
+        _plan = new PlanDraft(wallSet == WallSet.Basement ? WallSetSettings.Basement : WallSetSettings.Concrete);
     }
 
-    public LayoutPlan Write(MissionGraph mission, BlockResult result, AreaRequest request)
+    public LayoutPlan Write(BuildingPlan building, BuildingMission built, int pens)
     {
-        _plan.Courts.UnionWith(result.Courts);
+        var walkable = building.Rooms
+            .Where(room => room.Kind is BuildingRoomKind.Hall or BuildingRoomKind.Room)
+            .ToArray();
+
+        var halls = walkable.Where(room => room.Kind == BuildingRoomKind.Hall).Select(room => room.Id).ToHashSet();
+        var mission = built.Mission;
+        var result = new PlanInput
+        {
+            Cells = walkable.ToDictionary(room => room.Id, room => room.Rects.SelectMany(rect => rect.Units).ToHashSet()),
+            PhaseOf = walkable.ToDictionary(room => room.Id, room => mission.Progression.GetPhase(room.Id) ?? room.Phase),
+            Parent = built.Parent.ToDictionary(),
+            Spine = built.Spine.ToHashSet(),
+            Halls = halls,
+            Types = walkable.ToDictionary(room => room.Id, room => room.Type),
+            Start = building.Start,
+            End = built.End,
+            Realized = built.Realized,
+            SideRooms = building.Rooms
+                .Where(room => room.Host is not null)
+                .Select(room => (room.Rects.SelectMany(rect => rect.Units).ToHashSet(), room.Kind switch
+                {
+                    BuildingRoomKind.SpawnCloset => RegionKind.SpawnCloset,
+                    BuildingRoomKind.SecretRoom => RegionKind.SecretRoom,
+                    _ => RegionKind.SecretCloset
+                }, room.Type, room.Host!.Value))
+                .ToArray()
+        };
+
         var regionOf = AddRegions(mission, result);
         var gate = GetGate(mission);
         var locked = mission.Links
@@ -47,34 +68,32 @@ internal sealed class PlanWriter
             .Select(seal => Order(seal.From, seal.To))
             .ToHashSet();
 
-        var roles = mission.Links
-            .GroupBy(link => Order(link.From, link.To))
-            .ToDictionary(group => group.Key, group => group.First().Kind);
-
-        var lockedLinks = AddLinks(result, regionOf, gate, locked, closing, roles);
-        _plan.Gate = gate;
-        MarkGated(regionOf[result.Start], lockedLinks);
-        SetGateRooms(mission, regionOf, gate, lockedLinks);
-        AddPens(request.Pens);
-        foreach (var branch in mission.Progression.Phases.SelectMany(phase => phase.Branches))
+        // Give the quiet phase of a blackout level working doors, the doors the blackout locks behind the player
+        if (gate == GateKind.Blackout)
         {
-            var regions = branch.Places
-                .Where(regionOf.ContainsKey)
-                .Select(room => _plan.Regions[regionOf[room]])
-                .ToList();
-
-            if (regions.Count > 0)
-            {
-                _plan.Branches.Add(regions);
-            }
+            closing.UnionWith(result.Realized
+                .Where(link => result.PhaseOf[link.From] == 0 && result.PhaseOf[link.To] == 0)
+                .Select(link => Order(link.From, link.To)));
         }
 
-        var hosts = _plan.Regions.Where(region => region.Kind is RegionKind.Station or RegionKind.SideRoom).ToArray();
-        AddClosets(request.SecretClosets, RegionKind.SecretCloset, LinkKind.SecretWall, hosts);
-        AddClosets(request.SpawnClosets, RegionKind.SpawnCloset, LinkKind.SpawnWall, _plan.Stations.Skip(2).ToArray());
+        var open = building.OpenWalls
+            .Select(pair => Order(pair.A, pair.B))
+            .ToHashSet();
+
+        var lockedLinks = AddLinks(result, regionOf, gate, locked, closing, open);
+        _plan.Gate = gate;
+        MarkGated(regionOf[result.Start], lockedLinks);
+        SetGateRooms(mission, regionOf, gate);
+        _plan.SecondWing.UnionWith(building.SecondWing.Where(regionOf.ContainsKey).Select(room => _plan.Regions[regionOf[room]]));
+        _plan.LockedSiteRooms.UnionWith(building.LockedSiteRooms.Where(regionOf.ContainsKey).Select(room => _plan.Regions[regionOf[room]]));
+        AddPens(pens);
+        AddSideRooms(result, regionOf);
+        _plan.SecondWing.UnionWith(_plan.Regions.Where(region => region.Kind is RegionKind.SpawnCloset or RegionKind.SecretCloset or RegionKind.SecretRoom
+            && region.Host is not null && _plan.SecondWing.Contains(_plan.Regions[region.Host.Value])).ToArray());
         AlignLinks();
         SpaceDoors();
-        return _plan;
+        AddJammedDoors(building, regionOf);
+        return _plan.Freeze();
     }
 
     private static (int, int) Order(int a, int b) => a < b ? (a, b) : (b, a);
@@ -89,7 +108,7 @@ internal sealed class PlanWriter
     }
 
     // Add the stations along the critical paths in flow order, then the rooms hung off them, then the corridors
-    private Dictionary<int, int> AddRegions(MissionGraph mission, BlockResult result)
+    private Dictionary<int, int> AddRegions(MissionGraph mission, PlanInput result)
     {
         var stations = mission.Progression.Phases
             .SelectMany(phase => phase.Path)
@@ -124,19 +143,14 @@ internal sealed class PlanWriter
         }
 
         order.AddRange(result.Cells.Keys.Where(room => !reached.Contains(room)).Order());
-        var flow = mission.Progression.Flow
-            .Select((room, index) => (Room: room, Index: index))
-            .GroupBy(entry => entry.Room)
-            .ToDictionary(group => group.Key, group => group.First().Index);
-
         var regionOf = new Dictionary<int, int>();
         foreach (int room in order)
         {
             int station = stations.IndexOf(room);
             var region = AddRegion(result.Cells[room], station >= 0 ? RegionKind.Station : RegionKind.SideRoom, Math.Max(0, station), result.Halls.Contains(room));
-            region.Room = room;
+            region.Type = result.Types.TryGetValue(room, out var type) ? type : null;
             region.Phase = result.PhaseOf.GetValueOrDefault(room);
-            region.Flow = flow.TryGetValue(room, out int index) ? index : null;
+            region.IsOnRoute = result.Spine.Contains(room);
             region.Role = mission.Roles.TryGetValue(room, out var role) ? role : result.Spine.Contains(room) ? MissionRole.Path : MissionRole.Branch;
             regionOf[room] = region.Id;
             if (station >= 0)
@@ -159,19 +173,10 @@ internal sealed class PlanWriter
             region.Station = walker is null ? 0 : stations.IndexOf(walker.Value);
         }
 
-        for (int index = 0; index < result.Corridors.Count; index++)
-        {
-            (var cells, int a, int b) = result.Corridors[index];
-            var region = AddRegion(cells, RegionKind.SideRoom, _plan.Regions[regionOf[a]].Station, isHall: true);
-            region.Host = regionOf[a];
-            region.Phase = result.PhaseOf.GetValueOrDefault(b);
-            regionOf[RoomTexturer.GetCorridorId(index)] = region.Id;
-        }
-
         return regionOf;
     }
 
-    private PlanRegion AddRegion(HashSet<Cell> cells, RegionKind kind, int station, bool isHall)
+    private RegionDraft AddRegion(HashSet<Cell> cells, RegionKind kind, int station, bool isHall)
     {
         var rects = DecomposeRects(cells);
         var region = _plan.AddRegion(kind, rects[0], station, null, isHall);
@@ -183,43 +188,31 @@ internal sealed class PlanWriter
         return region;
     }
 
-    private HashSet<PlanLink> AddLinks(BlockResult result, Dictionary<int, int> regionOf, GateKind? gate, HashSet<(int, int)> locked, HashSet<(int, int)> closing,
-        Dictionary<(int, int), MissionLinkKind> roles)
+    private HashSet<LinkDraft> AddLinks(PlanInput result, Dictionary<int, int> regionOf, GateKind? gate, HashSet<(int, int)> locked, HashSet<(int, int)> closing,
+        HashSet<(int, int)> open)
     {
-        var lockedLinks = new HashSet<PlanLink>();
+        var lockedLinks = new HashSet<LinkDraft>();
         var boundaries = FindBoundaries();
-        foreach ((int from, int to, var kind) in result.Realized)
+        foreach ((int from, int to, _) in result.Realized)
         {
             var pair = Order(from, to);
             bool isLocked = locked.Contains(pair);
-            var linkKind = isLocked ? gate == GateKind.Fences ? LinkKind.Fence : LinkKind.Door : closing.Contains(pair) ? LinkKind.Door : LinkKind.Arch;
+            var linkKind = isLocked ? gate == GateKind.Fences ? LinkKind.Fence : LinkKind.Door
+                : closing.Contains(pair) ? LinkKind.Door
+                : open.Contains(pair) ? LinkKind.Open
+                : LinkKind.Arch;
             bool allowDoor = gate is null || isLocked || closing.Contains(pair);
-            var role = roles.TryGetValue(pair, out var found) ? found : kind;
-            int corridor = result.Corridors.FindIndex(entry => Order(entry.A, entry.B) == pair);
-            if (corridor >= 0)
+            var link = AddLink(boundaries, regionOf[from], regionOf[to], linkKind, allowDoor);
+            if (isLocked && link is not null)
             {
-                int middle = regionOf[RoomTexturer.GetCorridorId(corridor)];
-                var entry = AddLink(boundaries, regionOf[from], middle, linkKind, allowDoor, role);
-                AddLink(boundaries, middle, regionOf[to], LinkKind.Arch, gate is null, role);
-                if (isLocked && entry is not null)
-                {
-                    lockedLinks.Add(entry);
-                }
-            }
-            else
-            {
-                var link = AddLink(boundaries, regionOf[from], regionOf[to], linkKind, allowDoor, role);
-                if (isLocked && link is not null)
-                {
-                    lockedLinks.Add(link);
-                }
+                lockedLinks.Add(link);
             }
         }
 
         return lockedLinks;
     }
 
-    private PlanLink? AddLink(Dictionary<(int, int), List<EdgeKey>> boundaries, int from, int to, LinkKind kind, bool allowDoor, MissionLinkKind role)
+    private LinkDraft? AddLink(Dictionary<(int, int), List<EdgeKey>> boundaries, int from, int to, LinkKind kind, bool allowDoor)
     {
         if (!boundaries.TryGetValue(Order(from, to), out var edges))
         {
@@ -232,14 +225,14 @@ internal sealed class PlanWriter
             return null;
         }
 
-        var link = new PlanLink { From = from, To = to, Kind = kind, Edges = [], Boundary = boundary, Phase = _plan.Regions[to].Phase, Role = role };
+        var link = new LinkDraft { From = from, To = to, Kind = kind, Edges = [], Boundary = boundary };
         _plan.Links.Add(link);
         SetLinkKind(link, kind, allowDoor);
         return link;
     }
 
     // Gate every region the start reaches only through a lock
-    private void MarkGated(int start, HashSet<PlanLink> lockedLinks)
+    private void MarkGated(int start, HashSet<LinkDraft> lockedLinks)
     {
         var reached = new HashSet<int> { start };
         var queue = new Queue<int>([start]);
@@ -262,7 +255,7 @@ internal sealed class PlanWriter
         }
     }
 
-    private void SetGateRooms(MissionGraph mission, Dictionary<int, int> regionOf, GateKind? gate, HashSet<PlanLink> lockedLinks)
+    private void SetGateRooms(MissionGraph mission, Dictionary<int, int> regionOf, GateKind? gate)
     {
         if (gate is null)
         {
@@ -277,16 +270,11 @@ internal sealed class PlanWriter
             .ToArray();
 
         _plan.KeyRoom = keys.FirstOrDefault();
-        _plan.GateLink = _plan.Links
-            .Where(link => lockedLinks.Contains(link) && _plan.Regions[link.From].IsGated != _plan.Regions[link.To].IsGated)
-            .OrderBy(link => _plan.Regions[link.From].Kind == RegionKind.Station && _plan.Regions[link.To].Kind == RegionKind.Station ? 0 : 1)
-            .FirstOrDefault();
-
         if (gate == GateKind.Fences)
         {
             var start = _plan.Stations[0].Rects[0];
             var walk = MeasureWalk([new Cell(start.U + start.W / 2, start.V + start.H / 2)]);
-            float perUnit = WalkShare * _plan.Theme.UnitPixels;
+            float perUnit = WalkShare * _plan.Settings.UnitPixels;
             _plan.GeneratorRooms = keys
                 .Select(room => (Room: room, WalkPixels: room.Units.Where(walk.ContainsKey).Select(unit => walk[unit]).DefaultIfEmpty(0).Max() * perUnit))
                 .ToArray();
@@ -308,6 +296,11 @@ internal sealed class PlanWriter
             {
                 var pair = Order(regionOf[seal.Value.From], regionOf[seal.Value.To]);
                 _plan.BlackoutLink = _plan.Links.FirstOrDefault(link => Order(link.From, link.To) == pair);
+            }
+
+            if (trigger is not null)
+            {
+                _plan.TriggerRoom = _plan.Regions[regionOf[trigger.Value]];
             }
 
             if (_plan.BlackoutLink is null && trigger is not null)
@@ -338,63 +331,53 @@ internal sealed class PlanWriter
         }
     }
 
-    private void AddClosets(int count, RegionKind kind, LinkKind linkKind, IReadOnlyList<PlanRegion> hosts)
+    private void AddSideRooms(PlanInput result, Dictionary<int, int> regionOf)
     {
-        if (hosts.Count == 0)
+        foreach ((var cells, var kind, var type, int room) in result.SideRooms)
         {
-            return;
-        }
-
-        int made = 0;
-        for (int tries = 0; made < count && tries < count * ClosetTries; tries++)
-        {
-            var host = hosts[_rng.Next(hosts.Count)];
-            var hr = host.Rects[_rng.Next(host.Rects.Count)];
-            (int w, int h) = ClosetSizes[_rng.Next(ClosetSizes.Length)];
-            // Open secret closets in the host's far walls first, where the camera sees the breakable wall
-            var side = kind == RegionKind.SecretCloset && tries < count * FarClosetTries ? FarHeadings[_rng.Next(FarHeadings.Length)] : Headings[_rng.Next(4)];
-            UnitRect? r = side switch
-            {
-                (1, 0) when hr.H - h - 1 >= 1 => new UnitRect(hr.U + hr.W, _rng.Next(hr.V + 1, hr.V + hr.H - h), w, h),
-                (-1, 0) when hr.H - h - 1 >= 1 => new UnitRect(hr.U - w, _rng.Next(hr.V + 1, hr.V + hr.H - h), w, h),
-                (0, 1) when hr.W - w - 1 >= 1 => new UnitRect(_rng.Next(hr.U + 1, hr.U + hr.W - w), hr.V + hr.H, w, h),
-                (0, -1) when hr.W - w - 1 >= 1 => new UnitRect(_rng.Next(hr.U + 1, hr.U + hr.W - w), hr.V - h, w, h),
-                _ => null
-            };
-            if (r is null || !_plan.IsFree(r.Value) || _plan.TouchesOtherAtCorner(r.Value, host.Id) || r.Value.Units.Any(_plan.Courts.Contains))
+            if (!regionOf.TryGetValue(room, out int hostId))
             {
                 continue;
             }
 
-            var shared = hr.GetSharedEdges(r.Value);
-            bool hostSide = shared.All(k => new[] { k.Cells.First, k.Cells.Second }.Where(c => !r.Value.Contains(c)).All(c => _plan.Occupancy.GetValueOrDefault(c, -1) == host.Id));
-            if (shared.Length < 2 || !hostSide)
+            var host = _plan.Regions[hostId];
+            var region = AddRegion(cells, kind, host.Station, false);
+            region.Host = host.Id;
+            region.IsGated = host.IsGated;
+            region.Phase = host.Phase;
+            if (kind == RegionKind.SecretRoom)
+            {
+                region.Type = type;
+            }
+
+            var shared = host.Rects
+                .SelectMany(rect => region.Rects.SelectMany(rect.GetSharedEdges))
+                .ToArray();
+
+            if (shared.Length == 0)
             {
                 continue;
             }
 
-            var closet = _plan.AddRegion(kind, r.Value, host.Station, host.Id);
-            closet.IsGated = host.IsGated;
-            closet.Phase = host.Phase;
-            _plan.Links.Add(new PlanLink { From = host.Id, To = closet.Id, Kind = linkKind, Edges = [shared[shared.Length / 2]], Boundary = shared, Phase = host.Phase });
-            made++;
+            var linkKind = kind == RegionKind.SpawnCloset ? LinkKind.SpawnWall : LinkKind.SecretWall;
+            _plan.Links.Add(new LinkDraft { From = host.Id, To = region.Id, Kind = linkKind, Edges = [shared[shared.Length / 2]], Boundary = shared });
         }
     }
 
-    private void SetLinkKind(PlanLink link, LinkKind kind, bool allowDoor = true)
+    private void SetLinkKind(LinkDraft link, LinkKind kind, bool allowDoor = true)
     {
         var all = link.Boundary;
         var inner = GetInnerBoundary(all);
-        bool lab = _plan.Theme.Theme == LevelTheme.Lab;
+        bool basement = _plan.Settings.WallSet == WallSet.Basement;
         if (kind == LinkKind.Arch && inner.Length < 1)
         {
-            kind = lab && allowDoor ? LinkKind.Door : LinkKind.Open;
+            kind = basement && allowDoor ? LinkKind.Door : LinkKind.Open;
         }
 
-        // Leave a wall stub beside military arches to keep each room's own walls
+        // Leave a wall stub beside concrete arches to keep each room's own walls
         int width = kind switch
         {
-            LinkKind.Arch => Math.Min(_rng.Next(_plan.Theme.ArchWidth.Min, _plan.Theme.ArchWidth.Max + 1), lab ? inner.Length : Math.Max(1, inner.Length - 1)),
+            LinkKind.Arch => Math.Min(_rng.Next(_plan.Settings.ArchWidth.Min, _plan.Settings.ArchWidth.Max + 1), basement ? inner.Length : Math.Max(1, inner.Length - 1)),
             LinkKind.Door => inner.Length >= 2 && _rng.NextSingle() < WideDoorShare ? 2 : 1,
             _ => 1
         };
@@ -410,7 +393,7 @@ internal sealed class PlanWriter
         else
         {
             int start = _rng.Next(0, inner.Length - width + 1);
-            if (lab && _rng.NextSingle() < CenteredDoorShare)
+            if (basement && _rng.NextSingle() < CenteredDoorShare)
             {
                 start = (inner.Length - width) / 2;
             }
@@ -441,7 +424,7 @@ internal sealed class PlanWriter
         }
     }
 
-    private bool TryAlignLink(PlanLink link, EdgeKey[] boundary, int start)
+    private bool TryAlignLink(LinkDraft link, EdgeKey[] boundary, int start)
     {
         int offset = Array.IndexOf(link.Boundary, boundary[0]);
         for (int width = link.Edges.Count; width >= 1; width--)
@@ -481,10 +464,10 @@ internal sealed class PlanWriter
         int Region(int u, int v) => _plan.Occupancy.GetValueOrDefault(new Cell(u, v), -1);
     }
 
-    // Move each lab door or arch that stands closer than the least door gap to another one to the farthest clear span of its boundary
+    // Moves each basement door or arch closer than the least door gap to another one to the farthest clear span of its boundary
     private void SpaceDoors()
     {
-        if (_plan.Theme.Theme != LevelTheme.Lab)
+        if (_plan.Settings.WallSet != WallSet.Basement)
         {
             return;
         }
@@ -513,17 +496,17 @@ internal sealed class PlanWriter
         }
     }
 
-    private static float MeasureDoorGap(List<PlanLink> doorLinks, PlanLink link, IReadOnlyList<EdgeKey> edges)
+    private static float MeasureDoorGap(List<LinkDraft> doorLinks, LinkDraft link, IReadOnlyList<EdgeKey> edges)
     {
         float gap = float.MaxValue;
         foreach (var other in doorLinks.Where(other => other != link))
         {
             foreach (var edge in edges)
             {
-                var position = GetLabDoorPosition(edge);
+                var position = GetBasementDoorPosition(edge);
                 foreach (var otherEdge in other.Edges)
                 {
-                    var otherPosition = GetLabDoorPosition(otherEdge);
+                    var otherPosition = GetBasementDoorPosition(otherEdge);
                     float dx = position.X - otherPosition.X;
                     float dy = position.Y - otherPosition.Y;
                     gap = MathF.Min(gap, MathF.Sqrt(dx * dx + dy * dy));
@@ -534,10 +517,10 @@ internal sealed class PlanWriter
         return gap;
     }
 
-    private static PointF GetLabDoorPosition(EdgeKey edge) =>
-        edge.Axis == 'v' ? ConvertToLabPixels(edge.A + 0.25f, edge.B + 0.25f) : ConvertToLabPixels(edge.A - 0.25f, edge.B + 0.75f);
+    private static PointF GetBasementDoorPosition(EdgeKey edge) =>
+        edge.Axis == 'v' ? ConvertToBasementPixels(edge.A + 0.25f, edge.B + 0.25f) : ConvertToBasementPixels(edge.A - 0.25f, edge.B + 0.75f);
 
-    private static PointF ConvertToLabPixels(float a, float b) => new(Lattice.LabStep.X * (a + b), Lattice.LabStep.Y * (b - a));
+    private static PointF ConvertToBasementPixels(float a, float b) => new(Lattice.BasementStep.X * (a + b), Lattice.BasementStep.Y * (b - a));
 
     private static EdgeKey[] GetInnerBoundary(EdgeKey[] boundary) => boundary.Length > 2 ? boundary[1..^1] : boundary;
 
@@ -569,6 +552,36 @@ internal sealed class PlanWriter
         }
 
         return walk;
+    }
+
+    private void AddJammedDoors(BuildingPlan building, Dictionary<int, int> regionOf)
+    {
+        if (_plan.Settings.WallSet != WallSet.Basement)
+        {
+            return;
+        }
+
+        var boundaries = FindBoundaries();
+        var taken = _plan.Links
+            .SelectMany(link => link.Edges)
+            .ToHashSet();
+
+        foreach ((int a, int b) in building.JammedWalls.Where(pair => regionOf.ContainsKey(pair.A) && regionOf.ContainsKey(pair.B)))
+        {
+            if (!boundaries.TryGetValue(Order(regionOf[a], regionOf[b]), out var edges))
+            {
+                continue;
+            }
+
+            var inner = GetInnerBoundary(GetLongestRun(edges));
+            if (inner.Length == 0 || inner.Any(taken.Contains))
+            {
+                continue;
+            }
+
+            _plan.JammedDoors.Add(inner[inner.Length / 2]);
+            taken.UnionWith(inner);
+        }
     }
 
     private Dictionary<(int, int), List<EdgeKey>> FindBoundaries()
@@ -661,5 +674,136 @@ internal sealed class PlanWriter
 
         rects.AddRange(open.Select(pair => new UnitRect(pair.Key.U, pair.Value.V, pair.Key.Width, pair.Value.Height)));
         return rects;
+    }
+
+    private sealed class PlanDraft
+    {
+        public PlanDraft(WallSetSettings settings) => Settings = settings;
+
+        public WallSetSettings Settings { get; }
+
+        public List<RegionDraft> Regions { get; } = [];
+
+        public List<LinkDraft> Links { get; } = [];
+
+        public List<EdgeKey> JammedDoors { get; } = [];
+
+        public Dictionary<Cell, int> Occupancy { get; } = [];
+
+        public List<RegionDraft> Stations { get; } = [];
+
+        public GateKind? Gate { get; set; }
+
+        public RegionDraft? KeyRoom { get; set; }
+
+        public IReadOnlyList<(RegionDraft Room, float WalkPixels)> GeneratorRooms { get; set; } = [];
+
+        public LinkDraft? BlackoutLink { get; set; }
+
+        public RegionDraft? TriggerRoom { get; set; }
+
+        public HashSet<RegionDraft> SecondWing { get; } = [];
+
+        public HashSet<RegionDraft> LockedSiteRooms { get; } = [];
+
+        public RegionDraft AddRegion(RegionKind kind, UnitRect rect, int station, int? host, bool isHall)
+        {
+            var region = new RegionDraft { Id = Regions.Count, Kind = kind, Station = station, Host = host, IsHall = isHall };
+            Regions.Add(region);
+            ExtendRegion(region, rect);
+            return region;
+        }
+
+        public void ExtendRegion(RegionDraft region, UnitRect rect)
+        {
+            region.Rects.Add(rect);
+            foreach (var unit in rect.Units)
+            {
+                Occupancy[unit] = region.Id;
+                region.Units.Add(unit);
+            }
+        }
+
+        public LayoutPlan Freeze()
+        {
+            var regions = Regions
+                .Select(region => new PlanRegion
+                {
+                    Id = region.Id,
+                    Kind = region.Kind,
+                    Rects = region.Rects.ToArray(),
+                    Units = region.Units,
+                    Station = region.Station,
+                    Host = region.Host,
+                    IsHall = region.IsHall,
+                    IsGated = region.IsGated,
+                    Phase = region.Phase,
+                    IsOnRoute = region.IsOnRoute,
+                    Role = region.Role,
+                    Type = region.Type
+                })
+                .ToArray();
+
+            var links = Links
+                .Select((link, index) => new PlanLink { Id = index, From = link.From, To = link.To, Kind = link.Kind, Edges = link.Edges.ToArray(), Boundary = link.Boundary })
+                .ToArray();
+
+            return new LayoutPlan
+            {
+                Settings = Settings,
+                Regions = regions,
+                Links = links,
+                JammedDoors = JammedDoors.ToArray(),
+                Occupancy = Occupancy,
+                Stations = Stations.Select(region => regions[region.Id]).ToArray(),
+                Gate = Gate,
+                KeyRoom = KeyRoom is null ? null : regions[KeyRoom.Id],
+                GeneratorRooms = GeneratorRooms.Select(entry => (regions[entry.Room.Id], entry.WalkPixels)).ToArray(),
+                BlackoutLink = BlackoutLink is null ? null : links[Links.IndexOf(BlackoutLink)],
+                TriggerRoom = TriggerRoom is null ? null : regions[TriggerRoom.Id],
+                SecondWing = SecondWing.Select(region => regions[region.Id]).ToHashSet(),
+                LockedSiteRooms = LockedSiteRooms.Select(region => regions[region.Id]).ToHashSet()
+            };
+        }
+    }
+
+    private sealed class RegionDraft
+    {
+        public required int Id { get; init; }
+
+        public required RegionKind Kind { get; set; }
+
+        public List<UnitRect> Rects { get; } = [];
+
+        public HashSet<Cell> Units { get; } = [];
+
+        public required int Station { get; set; }
+
+        public int? Host { get; set; }
+
+        public bool IsHall { get; init; }
+
+        public bool IsGated { get; set; }
+
+        public int Phase { get; set; }
+
+        public bool IsOnRoute { get; set; }
+
+        public MissionRole? Role { get; set; }
+
+        public RoomType? Type { get; set; }
+    }
+
+    private sealed class LinkDraft
+    {
+        public required int From { get; init; }
+
+        public required int To { get; init; }
+
+        public required LinkKind Kind { get; set; }
+
+        public required List<EdgeKey> Edges { get; set; }
+
+        public required EdgeKey[] Boundary { get; init; }
     }
 }

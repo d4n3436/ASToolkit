@@ -1,5 +1,6 @@
 using ASToolkit.Core.Generation.Mission;
 using ASToolkit.Core.Levels;
+using ASToolkit.Core.Rooms;
 
 namespace ASToolkit.Core.Generation.Layout;
 
@@ -16,27 +17,27 @@ public sealed class PlanRegion
     /// <summary>
     /// Gets the role of the region.
     /// </summary>
-    public required RegionKind Kind { get; set; }
+    public required RegionKind Kind { get; init; }
 
     /// <summary>
     /// Gets the rectangles the region covers.
     /// </summary>
-    public List<UnitRect> Rects { get; } = [];
+    public required IReadOnlyList<UnitRect> Rects { get; init; }
 
     /// <summary>
     /// Gets the units of the region.
     /// </summary>
-    public HashSet<Cell> Units { get; } = [];
+    public required IReadOnlySet<Cell> Units { get; init; }
 
     /// <summary>
     /// Gets the index of the station the region belongs to, which for a station is its own.
     /// </summary>
-    public required int Station { get; set; }
+    public required int Station { get; init; }
 
     /// <summary>
     /// Gets the region this region hangs off, or null for a station.
     /// </summary>
-    public int? Host { get; set; }
+    public int? Host { get; init; }
 
     /// <summary>
     /// Gets a value indicating whether the region is a hall segment.
@@ -44,27 +45,27 @@ public sealed class PlanRegion
     public bool IsHall { get; init; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the region lies behind the level's gate.
+    /// Gets a value indicating whether the region lies behind the level's gate.
     /// </summary>
-    public bool IsGated { get; set; }
+    public bool IsGated { get; init; }
 
     /// <summary>
-    /// Gets or sets the mission room the region holds, or null for a region the mission has no room for.
+    /// Gets the mission phase the region first belongs to.
     /// </summary>
-    public int? Room { get; set; }
+    public int Phase { get; init; }
 
     /// <summary>
-    /// Gets or sets the mission phase the region first belongs to.
+    /// Gets a value indicating whether the level's critical walk, the way in and the way back, passes the region.
     /// </summary>
-    public int Phase { get; set; }
+    public bool IsOnRoute { get; init; }
 
     /// <summary>
-    /// Gets or sets the region's index in the mission's flow order, or null when the flow does not order it.
+    /// Gets the mission role of the region's room, or null for a region without one.
     /// </summary>
-    public int? Flow { get; set; }
+    public MissionRole? Role { get; init; }
 
     /// <summary>
-    /// Gets or sets the mission role of the region's room, or null for a region without one.
+    /// Gets the room type drawn for the region, or null for a region that is not a room.
     /// </summary>
-    public MissionRole? Role { get; set; }
+    public RoomType? Type { get; init; }
 }

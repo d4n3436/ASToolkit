@@ -4,7 +4,7 @@ using ASToolkit.Core.Levels;
 namespace ASToolkit.Core.Generation.Geometry;
 
 /// <summary>
-/// Represents a layout on the theme's cell lattice.
+/// Represents a layout on the wall set's cell lattice.
 /// </summary>
 public sealed class FineLayout
 {
@@ -37,6 +37,18 @@ public sealed class FineLayout
     public required Lattice Lattice { get; set; }
 
     /// <summary>
+    /// Returns the cell on the given region's side of a link's middle doorway edge.
+    /// </summary>
+    /// <param name="link">The index of the link in the plan.</param>
+    /// <param name="region">The region the link enters.</param>
+    public Cell GetDoorwayCell(int link, int region)
+    {
+        var edges = LinkEdges[link];
+        var (a, b) = edges[edges.Length / 2].Cells;
+        return Cells.GetValueOrDefault(a, -1) == region ? a : b;
+    }
+
+    /// <summary>
     /// Returns the cells of a region.
     /// </summary>
     public IReadOnlyList<Cell> GetRegionCells(int region)
@@ -62,7 +74,7 @@ public sealed class FineLayout
     /// </summary>
     public static FineLayout Build(LayoutPlan plan)
     {
-        int n = plan.Theme.UnitCells;
+        int n = plan.Settings.UnitCells;
         var cells = new Dictionary<Cell, int>();
         foreach ((var unit, int region) in plan.Occupancy)
         {
@@ -121,6 +133,11 @@ public sealed class FineLayout
         }
 
         var edges = new Dictionary<EdgeKey, EdgeKind>();
+        foreach (var jammed in plan.JammedDoors.SelectMany(Split))
+        {
+            kinds[jammed] = EdgeKind.ShutDoor;
+        }
+
         foreach (var cell in cells.Keys)
         {
             foreach (var (_, k) in EdgeKey.GetNeighbors(cell))

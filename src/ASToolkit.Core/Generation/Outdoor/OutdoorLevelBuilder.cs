@@ -2,9 +2,8 @@ using System.Drawing;
 using System.Numerics;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Generation.Geometry;
-using ASToolkit.Core.Generation.Layout;
+using ASToolkit.Core.Generation.Output;
 using ASToolkit.Core.Levels;
-using ASToolkit.Core.Reference;
 using ASToolkit.Core.Scripting;
 
 namespace ASToolkit.Core.Generation.Outdoor;
@@ -62,10 +61,10 @@ public sealed class OutdoorLevelBuilder
     /// <summary>
     /// Builds an outdoor level of the given style on the ground of the original it follows.
     /// </summary>
-    public GeneratedLevel Build(Random rng, OutdoorStyle style, MapResourceBuilder original, TriggerArea? originalExit, IReadOnlyList<string> musicLines)
+    public OutdoorLevel Build(Random rng, OutdoorStyle style, MapResourceBuilder original, TriggerArea? originalExit, IReadOnlyList<string> musicLines)
     {
         var size = original.Size;
-        var lattice = new Lattice(Lattice.LabStep.X, Lattice.LabStep.Y, size.Width / 2, size.Height / 2);
+        var lattice = new Lattice(Lattice.BasementStep.X, Lattice.BasementStep.Y, size.Width / 2, size.Height / 2);
         var start = new PointF(Margin * 1.5f, size.Height - Margin * 1.5f);
         OutdoorSite site;
         LevelScript script;
@@ -90,17 +89,7 @@ public sealed class OutdoorLevelBuilder
         site.LayGround(original, style);
         var map = site.Map.ToMap(new Vector2(0, Math.Max(0, size.Height - 600)));
         map.Size = size;
-        return new GeneratedLevel
-        {
-            Level = 1,
-            Map = map,
-            Lattice = lattice,
-            Template = ReferenceLevelSet.GetCampaignName(1),
-            Theme = LevelTheme.Outdoor,
-            Script = script,
-            Provenance = site.Map.GetProvenance(),
-            LayoutCounts = new AreaBuildCounts()
-        };
+        return new OutdoorLevel(map, script, site.Map.GetProvenance());
     }
 
     // Build a fenced compound with two buildings, entered through a torn piece of the fence, with the exit inside the smaller building
@@ -129,7 +118,7 @@ public sealed class OutdoorLevelBuilder
 
         var outside = site.GetOutsideCell(breach);
         var inside = breach.Cells.First == outside ? breach.Cells.Second : breach.Cells.First;
-        var (wall, _) = StructureBuilder.GetLabPosition(site.Lattice, breach);
+        var (wall, _) = StructureBuilder.GetBasementPosition(site.Lattice, breach);
         var originalBreach = original.Sprites.FirstOrDefault(sprite => sprite.Id == KnownObject.BreakableWall2);
         bool copiesBreach = style == OutdoorStyle.Campaign && originalBreach is not null && originalExit is not null;
         if (copiesBreach)
@@ -410,7 +399,7 @@ public sealed class OutdoorLevelBuilder
                 int v = Rng.Next(yard.V + gap, Math.Max(yard.V + gap + 1, yard.V + yard.H - depth - gap));
                 var rect = new UnitRect(u, v, width, depth);
                 if (rect.U + rect.W <= yard.U + yard.W - gap && rect.V + rect.H <= yard.V + yard.H - gap
-                    && others.All(other => !Overlaps(Inflate(other, gap), rect)))
+                    && others.All(other => !other.Inflate(gap).IntersectsWith(rect)))
                 {
                     return rect;
                 }
@@ -442,7 +431,7 @@ public sealed class OutdoorLevelBuilder
             var breach = breakable && breaches.Length > 0 ? breaches[Rng.Next(breaches.Length)] : default;
             foreach (var edge in edges)
             {
-                ((float x, float y), bool slash) = StructureBuilder.GetLabPosition(Lattice, edge);
+                ((float x, float y), bool slash) = StructureBuilder.GetBasementPosition(Lattice, edge);
                 if (edge == door)
                 {
                     Map.Add(KnownObject.SmallDoorWall2, x, y, 0, slash ? 0 : 128);
@@ -454,7 +443,7 @@ public sealed class OutdoorLevelBuilder
                 }
                 else
                 {
-                    Map.Add(slash ? KnownObject.LabWall2Slash : KnownObject.LabWall2Back, x, y, 0, Rng.Next(256));
+                    Map.Add(slash ? KnownObject.BasementWall2Slash : KnownObject.BasementWall2Back, x, y, 0, Rng.Next(256));
                 }
             }
 
@@ -462,7 +451,7 @@ public sealed class OutdoorLevelBuilder
             foreach ((int a, int b) in new[] { (block.U, block.V), (block.U + block.W, block.V), (block.U, block.V + block.H), (block.U + block.W, block.V + block.H) })
             {
                 (float x, float y) = Lattice.ToWorld(a + 0.25f, b + 0.25f);
-                Map.Add(KnownObject.LabBeam2, x, y, 0, 0);
+                Map.Add(KnownObject.BasementBeam2, x, y, 0, 0);
             }
 
             // Tile the roof two cells at a time from the back corner, a cell in from the walls
@@ -471,7 +460,7 @@ public sealed class OutdoorLevelBuilder
                 foreach (float v in GetRoofRows(block.V + 1.25f, block.V + block.H - 0.75f, 2))
                 {
                     (float x, float y) = Lattice.ToWorld(u, v);
-                    Map.Add(KnownObject.MilitaryFloor, x, y, RoofHeight, Rng.Next(256), unique: false);
+                    Map.Add(KnownObject.MilitaryBaseFloor, x, y, RoofHeight, Rng.Next(256), unique: false);
                 }
             }
 
@@ -688,9 +677,5 @@ public sealed class OutdoorLevelBuilder
             bool byBuilding = _buildings.Any(b => u >= b.U - WallGrass && u <= b.U + b.W + WallGrass && v >= b.V - WallGrass && v <= b.V + b.H + WallGrass);
             return byFence || byBuilding;
         }
-
-        private static UnitRect Inflate(UnitRect rect, int by) => new(rect.U - by, rect.V - by, rect.W + 2 * by, rect.H + 2 * by);
-
-        private static bool Overlaps(UnitRect a, UnitRect b) => a.U < b.U + b.W && b.U < a.U + a.W && a.V < b.V + b.H && b.V < a.V + a.H;
     }
 }

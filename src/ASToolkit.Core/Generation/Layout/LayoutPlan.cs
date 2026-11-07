@@ -10,90 +10,86 @@ namespace ASToolkit.Core.Generation.Layout;
 public sealed class LayoutPlan
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="LayoutPlan"/> class.
+    /// Gets the unit and opening sizes of the plan's wall set.
     /// </summary>
-    public LayoutPlan(ThemeSettings theme)
-    {
-        Theme = theme;
-    }
-
-    /// <summary>
-    /// Gets the theme settings.
-    /// </summary>
-    public ThemeSettings Theme { get; }
+    public required WallSetSettings Settings { get; init; }
 
     /// <summary>
     /// Gets the regions; a region's ID is its index.
     /// </summary>
-    public List<PlanRegion> Regions { get; } = [];
+    public required IReadOnlyList<PlanRegion> Regions { get; init; }
 
     /// <summary>
     /// Gets the links between regions.
     /// </summary>
-    public List<PlanLink> Links { get; } = [];
+    public required IReadOnlyList<PlanLink> Links { get; init; }
+
+    /// <summary>
+    /// Gets the edges of the jammed doors, shut doors in walls two rooms share that keep the walk on its route.
+    /// </summary>
+    public required IReadOnlyList<EdgeKey> JammedDoors { get; init; }
 
     /// <summary>
     /// Gets the region of every occupied unit.
     /// </summary>
-    public Dictionary<Cell, int> Occupancy { get; } = [];
-
-    /// <summary>
-    /// Gets the units of the courts that rings of rooms enclose.
-    /// </summary>
-    public HashSet<Cell> Courts { get; } = [];
+    public required IReadOnlyDictionary<Cell, int> Occupancy { get; init; }
 
     /// <summary>
     /// Gets the stations in route order.
     /// </summary>
-    public List<PlanRegion> Stations { get; } = [];
+    public required IReadOnlyList<PlanRegion> Stations { get; init; }
 
     /// <summary>
-    /// Gets or sets the gate kind, or null for a level without a gate.
+    /// Gets the gate kind, or null for a level without a gate.
     /// </summary>
-    public GateKind? Gate { get; set; }
+    public GateKind? Gate { get; init; }
 
     /// <summary>
-    /// Gets or sets the link that holds the gate.
+    /// Gets the room of the gate's key, the breaker or generator.
     /// </summary>
-    public PlanLink? GateLink { get; set; }
+    public PlanRegion? KeyRoom { get; init; }
 
     /// <summary>
-    /// Gets or sets the room of the gate's key, the breaker or generator.
+    /// Gets the rooms a fenced level's generator may stand in, with the walk in pixels from the start to the back of each.
     /// </summary>
-    public PlanRegion? KeyRoom { get; set; }
+    public required IReadOnlyList<(PlanRegion Room, float WalkPixels)> GeneratorRooms { get; init; }
 
     /// <summary>
-    /// Gets or sets the rooms a fenced level's generator may stand in, with the walk in pixels from the start to the back of each.
+    /// Gets the link the blackout trigger sits in.
     /// </summary>
-    public IReadOnlyList<(PlanRegion Room, float WalkPixels)> GeneratorRooms { get; set; } = [];
+    public PlanLink? BlackoutLink { get; init; }
 
     /// <summary>
-    /// Gets or sets the link the blackout trigger sits in.
+    /// Gets the room the blackout trigger stands in.
     /// </summary>
-    public PlanLink? BlackoutLink { get; set; }
+    public PlanRegion? TriggerRoom { get; init; }
 
     /// <summary>
-    /// Gets the regions of each dead-end branch off the route.
+    /// Gets the rooms of a lab's second wing, the only ones monsters, their triggers and dynamite sites stand in, any room when empty.
     /// </summary>
-    public List<List<PlanRegion>> Branches { get; } = [];
+    public required IReadOnlySet<PlanRegion> SecondWing { get; init; }
 
     /// <summary>
-    /// Gets the number of occupied units.
+    /// Gets the site rooms locked until the key, some of the sites standing in them.
     /// </summary>
-    public int Area => Occupancy.Count;
-
+    public required IReadOnlySet<PlanRegion> LockedSiteRooms { get; init; }
 
     /// <summary>
-    /// Gets or sets the box every region must stay inside, or null for no limit.
+    /// Returns whether monsters, their triggers and dynamite sites may stand in a region.
     /// </summary>
-    public UnitRect? Bounds { get; set; }
+    public bool HoldsFights(PlanRegion region) => SecondWing.Count == 0 || SecondWing.Contains(region);
+
+    /// <summary>
+    /// Returns whether a spawn trigger may stand in a region, a room of the main route that holds fights.
+    /// </summary>
+    public bool HoldsTriggers(PlanRegion region) => region.IsOnRoute && HoldsFights(region);
 
     /// <summary>
     /// Reads the roles of the rooms from the link graph.
     /// </summary>
     public RoomRoleMap MeasureRoles()
     {
-        var rooms = Regions.Where(region => region.Kind is RegionKind.Station or RegionKind.SideRoom or RegionKind.Wing or RegionKind.Pen).ToDictionary(region => region.Id);
+        var rooms = Regions.Where(region => region.Kind is RegionKind.Station or RegionKind.SideRoom or RegionKind.Pen).ToDictionary(region => region.Id);
         return RoomRoleMap.Measure(rooms.Keys, Links.Select(link => (link.From, link.To)), Stations[0].Id, Stations[^1].Id, room => rooms[room].IsHall,
             room => rooms[room].Units.Count, room => rooms[room].Station, KeyRoom?.Id);
     }
@@ -107,88 +103,4 @@ public sealed class LayoutPlan
         GateKind.Blackout => GateZone.Blackout,
         _ => GateZone.Locked
     };
-
-    /// <summary>
-    /// Returns whether a rectangle lies inside the bounds.
-    /// </summary>
-    public bool IsInBounds(UnitRect r) =>
-        Bounds is null || (r.U >= Bounds.Value.U && r.V >= Bounds.Value.V && r.U + r.W <= Bounds.Value.U + Bounds.Value.W && r.V + r.H <= Bounds.Value.V + Bounds.Value.H);
-
-    /// <summary>
-    /// Returns whether a rectangle, grown by a margin, is free and inside the bounds.
-    /// </summary>
-    public bool IsFree(UnitRect r, int margin = 0)
-    {
-        if (!IsInBounds(r))
-        {
-            return false;
-        }
-
-        for (int u = r.U - margin; u < r.U + r.W + margin; u++)
-        {
-            for (int v = r.V - margin; v < r.V + r.H + margin; v++)
-            {
-                if (Occupancy.ContainsKey(new Cell(u, v)))
-                {
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
-
-    /// <summary>
-    /// Returns whether a unit diagonal to a corner of a rectangle belongs to a region other than the given one.
-    /// </summary>
-    public bool TouchesOtherAtCorner(UnitRect r, int exceptId)
-    {
-        foreach (int u in (int[])[r.U - 1, r.U + r.W])
-        {
-            foreach (int v in (int[])[r.V - 1, r.V + r.H])
-            {
-                if (Occupancy.TryGetValue(new Cell(u, v), out int id) && id != exceptId)
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Adds a region covering a rectangle.
-    /// </summary>
-    public PlanRegion AddRegion(RegionKind kind, UnitRect rect, int station, int? host, bool isHall = false)
-    {
-        var region = new PlanRegion { Id = Regions.Count, Kind = kind, Station = station, Host = host, IsHall = isHall };
-        Regions.Add(region);
-        region.Rects.Add(rect);
-        foreach (var unit in rect.Units)
-        {
-            Occupancy[unit] = region.Id;
-            region.Units.Add(unit);
-        }
-
-        return region;
-    }
-
-    /// <summary>
-    /// Adds a rectangle of units to a region.
-    /// </summary>
-    public void ExtendRegion(PlanRegion region, UnitRect rect)
-    {
-        region.Rects.Add(rect);
-        foreach (var unit in rect.Units)
-        {
-            Occupancy[unit] = region.Id;
-            region.Units.Add(unit);
-        }
-    }
-
-    /// <summary>
-    /// Returns the links of a region.
-    /// </summary>
-    public IEnumerable<PlanLink> GetLinks(PlanRegion region) => Links.Where(l => l.From == region.Id || l.To == region.Id);
 }

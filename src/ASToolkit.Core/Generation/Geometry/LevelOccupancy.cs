@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Numerics;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 
@@ -27,8 +28,8 @@ public sealed class LevelOccupancy
     private readonly MapSegment[] _doorways;
     private readonly IReadOnlyDictionary<BlockingClass, float> _doorClearances;
     private readonly Func<KnownObject, KnownObject, bool, float> _spacingOf;
-    private readonly List<(KnownObject Id, GameObject Object, float X, float Y)> _standing = [];
-    private readonly List<(KnownObject Id, GameObject Object, float X, float Y)> _raised = [];
+    private readonly List<StandingPiece> _standing = [];
+    private readonly List<StandingPiece> _raised = [];
     private readonly List<PointF> _units = [];
 
     /// <summary>
@@ -73,7 +74,7 @@ public sealed class LevelOccupancy
 
         if (id.PickupCategory is not null)
         {
-            return !_standing.Any(standing => CollisionBox.Create(standing.Object, standing.X, standing.Y, CollisionBox.ExtentShare, 0).Contains(x, y));
+            return !_standing.Any(standing => CollisionBox.Create(standing.Size, standing.X, standing.Y, CollisionBox.ExtentShare, 0).Contains(x, y));
         }
 
         var blocking = _objects.GetBlocking(id);
@@ -99,7 +100,7 @@ public sealed class LevelOccupancy
         }
 
         var box = CollisionBox.Create(obj, x, y, OverlapShare, 0);
-        if (id.IsWallMounted && _standing.Any(standing => CollisionBox.Create(standing.Object, standing.X, standing.Y, OverlapShare, 0).Overlaps(box)))
+        if (id.IsWallMounted && _standing.Any(standing => CollisionBox.Create(standing.Size, standing.X, standing.Y, OverlapShare, 0).Overlaps(box)))
         {
             return false;
         }
@@ -113,15 +114,14 @@ public sealed class LevelOccupancy
     /// </summary>
     public bool HasRoomAround(float x, float y) => !_standing.Any(standing =>
     {
-        var obj = standing.Object;
-        if (obj is { IsSolid: false, Size.Z: < StandingHeight })
+        if (standing is { IsSolid: false, Size.Z: < StandingHeight })
         {
             return false;
         }
 
-        float dx = Math.Max(0, Math.Abs(standing.X - x) - obj.Size.X / 2);
-        float dy = Math.Max(0, Math.Abs(standing.Y - y) - obj.Size.Y / 2);
-        float gap = Math.Max(obj.Size.X, obj.Size.Y) >= LargeExtent ? LargeGap : SmallGap;
+        float dx = Math.Max(0, Math.Abs(standing.X - x) - standing.Size.X / 2);
+        float dy = Math.Max(0, Math.Abs(standing.Y - y) - standing.Size.Y / 2);
+        float gap = Math.Max(standing.Size.X, standing.Size.Y) >= LargeExtent ? LargeGap : SmallGap;
         return dx * dx + dy * dy < gap * gap;
     });
 
@@ -132,8 +132,8 @@ public sealed class LevelOccupancy
     public bool FitsAll(IReadOnlyList<(KnownObject Id, float X, float Y, float Z)> pieces)
     {
         var cells = new HashSet<Cell>();
-        var standing = new List<(KnownObject Id, GameObject Object, float X, float Y)>();
-        var raised = new List<(KnownObject Id, GameObject Object, float X, float Y)>();
+        var standing = new List<StandingPiece>();
+        var raised = new List<StandingPiece>();
         foreach ((var id, float x, float y, float z) in pieces)
         {
             if (!Fits(id, x, y, z))
@@ -153,7 +153,7 @@ public sealed class LevelOccupancy
                 return false;
             }
 
-            others.Add((id, obj, x, y));
+            others.Add(new StandingPiece(id, obj.Size, obj.IsSolid, x, y));
             if (obj.IsSolid)
             {
                 cells.UnionWith(GetCells(obj, x, y));
@@ -179,7 +179,7 @@ public sealed class LevelOccupancy
             return;
         }
 
-        (z < FloorHeight ? _standing : _raised).Add((id, obj, x, y));
+        (z < FloorHeight ? _standing : _raised).Add(new StandingPiece(id, obj.Size, obj.IsSolid, x, y));
 
         if (obj.IsSolid)
         {
@@ -187,12 +187,12 @@ public sealed class LevelOccupancy
         }
     }
 
-    private bool IsCrowded(KnownObject id, GameObject obj, float x, float y, List<(KnownObject Id, GameObject Object, float X, float Y)> others, bool raised)
+    private bool IsCrowded(KnownObject id, in GameObject obj, float x, float y, List<StandingPiece> others, bool raised)
     {
         foreach (var other in others)
         {
             float spacing = _spacingOf(id, other.Id, raised);
-            if (Math.Abs(other.X - x) < spacing * (obj.Size.X + other.Object.Size.X) && Math.Abs(other.Y - y) < spacing * (obj.Size.Y + other.Object.Size.Y))
+            if (Math.Abs(other.X - x) < spacing * (obj.Size.X + other.Size.X) && Math.Abs(other.Y - y) < spacing * (obj.Size.Y + other.Size.Y))
             {
                 return true;
             }
@@ -201,21 +201,7 @@ public sealed class LevelOccupancy
         return false;
     }
 
-    // Sample the collision box at its corners, edge midpoints and center
-    private HashSet<Cell> GetCells(GameObject obj, float x, float y)
-    {
-        var box = CollisionBox.Create(obj, x, y, CollisionBox.ExtentShare, 0);
-        var cells = new HashSet<Cell>();
-        foreach (float dx in new[] { -box.HalfWidth, 0, box.HalfWidth })
-        {
-            foreach (float dy in new[] { -box.HalfHeight, 0, box.HalfHeight })
-            {
-                cells.Add(_lattice.GetCell(x + dx, y + dy));
-            }
-        }
-
-        return cells;
-    }
+    private HashSet<Cell> GetCells(in GameObject obj, float x, float y) => CollisionBox.Create(obj, x, y, CollisionBox.ExtentShare, 0).GetSampledCells(_lattice);
 
     private bool KeepsFloorJoined(HashSet<Cell> cells)
     {
@@ -280,4 +266,6 @@ public sealed class LevelOccupancy
     private bool IsUnit(KnownObject id) => !id.IsDecor && _objects.TryFind(id, out var obj) && obj.SpriteType.HasFlag(SpriteType.Unit);
 
     private bool IsWall(EdgeKey edge) => _edges.TryGetValue(edge, out var kind) && kind.BlocksWalking;
+
+    private readonly record struct StandingPiece(KnownObject Id, Vector3 Size, bool IsSolid, float X, float Y);
 }
