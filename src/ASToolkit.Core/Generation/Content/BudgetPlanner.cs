@@ -135,7 +135,7 @@ public static class BudgetPlanner
             Items = items,
             Weapons = brief.Weapons.ToList(),
             DynamiteSites = dynamiteSites,
-            MountedCannons = campaign.MountedCannons,
+            MountedCannons = brief.MountedCannons ?? campaign.MountedCannons,
             Generators = campaign.Generators,
             PlacedHitPoints = placedHp,
             AmbushHitPoints = ambushHp

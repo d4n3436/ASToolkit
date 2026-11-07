@@ -25,20 +25,11 @@ public sealed class OriginalContent
     /// <summary>Gets the monster list of every spawner that builds any.</summary>
     public required IReadOnlyList<IReadOnlyList<KnownObject>> SpawnerLists { get; init; }
 
-    /// <summary>Gets the pickups on the floor, by ID.</summary>
-    public required IReadOnlyDictionary<KnownObject, int> Pickups { get; init; }
-
-    /// <summary>Gets the pickups inside crates, by ID.</summary>
-    public required IReadOnlyDictionary<KnownObject, int> CrateLoot { get; init; }
-
     /// <summary>Gets the placed bosses, by ID.</summary>
     public required IReadOnlyDictionary<KnownObject, int> Bosses { get; init; }
 
     /// <summary>Gets the total hit points of every monster.</summary>
     public required int HitPoints { get; init; }
-
-    /// <summary>Gets the share of the hit points spawners bring.</summary>
-    public required float SpawnedShare { get; init; }
 
     /// <summary>Gets the number of mounted cannons.</summary>
     public required int MountedCannons { get; init; }
@@ -53,25 +44,10 @@ public sealed class OriginalContent
     {
         var sp = level.Map.Sprites;
         var measures = level.Measures;
-        var pickups = new Dictionary<KnownObject, int>();
-        var loot = new Dictionary<KnownObject, int>();
         var bosses = new Dictionary<KnownObject, int>();
         var spawners = new List<IReadOnlyList<KnownObject>>();
         foreach (var sprite in sp)
         {
-            if (sprite.Id.IsPickup)
-            {
-                pickups[sprite.Id] = pickups.GetValueOrDefault(sprite.Id) + 1;
-            }
-            else if (sprite.Id == KnownObject.Crate)
-            {
-                var item = KnownObject.GetCrateItem(sprite.Payload);
-                if (item > 0)
-                {
-                    loot[item] = loot.GetValueOrDefault(item) + 1;
-                }
-            }
-
             if (KnownObject.Bosses.Contains(sprite.Id))
             {
                 bosses[sprite.Id] = bosses.GetValueOrDefault(sprite.Id) + 1;
@@ -93,11 +69,8 @@ public sealed class OriginalContent
             Name = level.Name,
             PlacedGroups = ClusterMonsters(sp),
             SpawnerLists = spawners,
-            Pickups = pickups,
-            CrateLoot = loot,
             Bosses = bosses,
             HitPoints = measures.HitPoints,
-            SpawnedShare = measures.SpawnedShare,
             MountedCannons = sp.Count(s => s.Id == KnownObject.MountedCannon),
             Generators = sp.Count(s => s.Id == KnownObject.Generator)
         };
@@ -223,7 +196,7 @@ public sealed class OriginalContent
     /// <summary>
     /// Returns every dynamite site of the given levels with the pads and generators within 130 pixels of it.
     /// </summary>
-    public static SiteTemplate[] LoadDynamiteSites(ReferenceLevelSet references, IEnumerable<string> levels, LevelTheme theme)
+    public static SiteTemplate[] LoadDynamiteSites(ReferenceLevelSet references, IEnumerable<string> levels, WallSet wallSet)
     {
         var sites = new List<SiteTemplate>();
         foreach (string level in levels)
@@ -236,12 +209,12 @@ public sealed class OriginalContent
                     .Select(o => new SiteMember(o.Id, o.Position.X - sprite.Position.X, o.Position.Y - sprite.Position.Y, o.Position.Z, o.Facing, o.Army,
                         o.Payload.Length <= 12 ? o.Payload : new byte[o.Id == KnownObject.TeleportPad ? 12 : 8]))
                     .ToList();
-                if (theme == LevelTheme.Lab)
+                if (wallSet == WallSet.Basement)
                 {
                     members.RemoveAll(m => m.Id is KnownObject.BigMonsterHole or KnownObject.SmallMonsterHole);
                 }
 
-                if (theme == LevelTheme.Military && members.All(m => m.Id != KnownObject.TeleportPad))
+                if (wallSet == WallSet.Concrete && members.All(m => m.Id != KnownObject.TeleportPad))
                 {
                     continue;
                 }

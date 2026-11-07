@@ -3,6 +3,7 @@ using ASToolkit.Core.Formats;
 using ASToolkit.Core.Generation.Campaign;
 using ASToolkit.Core.Generation.Geometry;
 using ASToolkit.Core.Generation.Layout;
+using ASToolkit.Core.Generation.Output;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Reference;
 
@@ -17,6 +18,7 @@ public sealed class PlacementContext
     private const float SightStep = 6;
 
     private readonly Dictionary<(int, int), List<(float X, float Y, float Ex, float Ey)>> _wallBoxes = [];
+    private readonly Dictionary<int, float> _progress = [];
     private readonly IReadOnlySet<Cell> _blocked;
     private readonly Func<KnownObject, IReadOnlyList<ObjectCompanion>> _companionsOf;
 
@@ -43,7 +45,7 @@ public sealed class PlacementContext
         Taken = new HashSet<Cell>(blocked.Concat(keepClear));
         foreach (var sprite in map.Sprites)
         {
-            if (KnownObject.LabWalls.Contains(sprite.Id) || KnownObject.MilitaryWalls.Contains(sprite.Id) || sprite.Id == KnownObject.Fence)
+            if (KnownObject.BasementWalls.Contains(sprite.Id) || KnownObject.ConcreteWalls.Contains(sprite.Id) || sprite.Id == KnownObject.Fence)
             {
                 AddWallBox(sprite.Position.X, sprite.Position.Y, sprite.Id);
             }
@@ -101,7 +103,15 @@ public sealed class PlacementContext
     /// <summary>
     /// Returns how far along the route a region begins.
     /// </summary>
-    public float GetProgress(PlanRegion region) => GetRegionCells(region).Where(Distance.ContainsKey).Select(GetProgress).DefaultIfEmpty(0).Min();
+    public float GetProgress(PlanRegion region)
+    {
+        if (!_progress.TryGetValue(region.Id, out float progress))
+        {
+            progress = _progress[region.Id] = GetRegionCells(region).Where(Distance.ContainsKey).Select(GetProgress).DefaultIfEmpty(0).Min();
+        }
+
+        return progress;
+    }
 
     /// <summary>
     /// Returns the cells of a region in a stable order.
@@ -191,12 +201,12 @@ public sealed class PlacementContext
     /// <summary>
     /// Returns a random point inside a cell clear of walls, or null when twelve tries fail.
     /// </summary>
-    public PointF? FindSpot(Cell c, float margin = 6)
+    public PointF? FindSpot(Cell c)
     {
         for (int index = 0; index < 12; index++)
         {
             (float x, float y) = Layout.Lattice.ToWorld(c.U + 0.3f + 0.4f * Rng.NextSingle(), c.V + 0.3f + 0.4f * Rng.NextSingle());
-            if (!IsInWall(x, y, margin))
+            if (!IsInWall(x, y, 6))
             {
                 return new PointF(x, y);
             }
@@ -208,7 +218,7 @@ public sealed class PlacementContext
     /// <summary>
     /// Places an object on a free spot of one of the cells and returns its position and cell, or null when no cell has room.
     /// </summary>
-    public (float X, float Y, Cell Cell)? Place(IReadOnlyList<Cell> cells, KnownObject id, int? dir = null, ReadOnlyMemory<byte> payload = default, uint? army = null, bool take = true)
+    public (float X, float Y, Cell Cell)? Place(IReadOnlyList<Cell> cells, KnownObject id, int? dir, ReadOnlyMemory<byte> payload = default, uint? army = null, bool take = true)
     {
         if (cells.Count == 0)
         {

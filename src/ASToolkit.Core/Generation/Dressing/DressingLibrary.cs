@@ -1,12 +1,13 @@
 using System.Collections.Concurrent;
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Generation.Output;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Reference;
 
 namespace ASToolkit.Core.Generation.Dressing;
 
 /// <summary>
-/// Represents the dressing of the original levels of one theme, indexed by the walls and doors around square windows of cells.
+/// Represents the dressing of the original levels of one wall set, indexed by the walls and doors around square windows of cells.
 /// </summary>
 public sealed class DressingLibrary
 {
@@ -42,21 +43,21 @@ public sealed class DressingLibrary
     public int[] WindowSizes { get; }
 
     /// <summary>
-    /// Builds the library from the original levels of a theme, keeping only the allowed decor.
+    /// Builds the library from the original levels of a wall set, keeping only the allowed decor.
     /// </summary>
-    public static DressingLibrary Build(ReferenceLevelSet references, ObjectRelationTable relations, ObjectTable objects, LevelTheme theme, IEnumerable<string> levels, Func<KnownObject, float, bool> isAllowed,
+    public static DressingLibrary Build(ReferenceLevelSet references, ObjectRelationTable relations, ObjectTable objects, WallSet wallSet, IEnumerable<string> levels, Func<KnownObject, float, bool> isAllowed,
         WallClearanceTable clearance, FacingTable facings)
     {
-        int[] sizes = theme == LevelTheme.Lab ? [3, 2, 1] : [4, 2];
+        int[] sizes = wallSet == WallSet.Basement ? [3, 2, 1] : [4, 2];
         var sources = new List<LevelModel>();
         var companionTests = new List<Func<KnownObject, float, float, bool>>();
         foreach (string level in levels)
         {
             var model = references.GetLevel(level).Model;
-            if (model.Theme == theme && model.Edges.Count >= 100)
+            if (model.WallSet == wallSet && model.Edges.Count >= 100)
             {
                 sources.Add(model);
-                companionTests.Add(relations.GetCompanionTest(theme, references.GetLevel(level)));
+                companionTests.Add(relations.GetCompanionTest(wallSet, references.GetLevel(level)));
             }
         }
 
@@ -213,8 +214,9 @@ public sealed class DressingLibrary
         var m = _sources[si];
         var o = m.Objects[index];
         (float u, float v) = (o.U - source.U + corner.U, o.V - source.V + corner.V);
-        if (IsStripe(o) || IsHung(o) && !IsHungAsInSource(o, m.Edges, edges, u, v) || IsTooCloseToWall(o, m.Edges, edges, u, v) || !HasSameWalls(o, m, edges, source, corner) || (o.Z < FloorHeight || o.Id.IsWallMounted) && !(_facings.Fits(o.Id, o.Dir, edges, u, v) && _facings.IsCommon(o.Id, o.Dir, edges, u, v) && _facings.IsByWall(o.Id, edges, u, v))
-            || o.Id.IsWallMounted && !_facings.Hangs(o.Id, o.Dir, o.Z, edges, u, v))
+        var wall = edges.FindNearestWall(u, v);
+        if (IsStripe(o) || IsHung(o) && !IsHungAsInSource(o, m.Edges, wall) || IsTooCloseToWall(o, m.Edges, edges, u, v) || !HasSameWalls(si, index, edges, source, corner) || (o.Z < FloorHeight || o.Id.IsWallMounted) && !(_facings.Fits(o.Id, o.Dir, wall) && _facings.IsCommon(o.Id, o.Dir, wall) && _facings.IsByWall(o.Id, wall))
+            || o.Id.IsWallMounted && !_facings.Hangs(o.Id, o.Dir, o.Z, wall, edges, u, v))
         {
             return false;
         }
@@ -241,14 +243,15 @@ public sealed class DressingLibrary
 
     private bool BlocksFootprint(int si, int index, Cell sourceCorner, Cell corner, IReadOnlySet<Cell> cells)
     {
-        var footprint = _footprints.GetOrAdd((si, index), key =>
-        {
-            var o = _sources[key.Source].Objects[key.Index];
-            (float x, float y) = _sources[key.Source].Lattice.ToWorld(o.U, o.V);
-            return Dresser.GetFootprint(_sources[key.Source].Lattice, _objects, o.Id, x, y).ToArray();
-        });
-        return footprint.Any(c => cells.Contains(new Cell(c.U - sourceCorner.U + corner.U, c.V - sourceCorner.V + corner.V)));
+        return GetFootprint(si, index).Any(c => cells.Contains(new Cell(c.U - sourceCorner.U + corner.U, c.V - sourceCorner.V + corner.V)));
     }
+
+    private Cell[] GetFootprint(int si, int index) => _footprints.GetOrAdd((si, index), key =>
+    {
+        var o = _sources[key.Source].Objects[key.Index];
+        (float x, float y) = _sources[key.Source].Lattice.ToWorld(o.U, o.V);
+        return Dresser.GetFootprint(_sources[key.Source].Lattice, _objects, o.Id, x, y).ToArray();
+    });
 
     // Leave floor stripes (131 frames 6 to 9) to the door, missile and cannon scenes
     private static bool IsStripe(DecorObject o) => o is { Id: KnownObject.WallInscriptions, Z: < FloorHeight } && o.Dir / StripeFrameWidth is >= FirstStripeFrame and <= LastStripeFrame;
@@ -256,42 +259,18 @@ public sealed class DressingLibrary
     private static bool IsHung(DecorObject o) => o.Id is KnownObject.WallObjects or KnownObject.WallInscriptions && o.Z > FloorHeight;
 
     // Keep a hung object on the same side of a wall and as far from it as in its source
-    private static bool IsHungAsInSource(DecorObject o, IReadOnlyDictionary<EdgeKey, EdgeKind> sourceEdges, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v)
+    private static bool IsHungAsInSource(DecorObject o, IReadOnlyDictionary<EdgeKey, EdgeKind> sourceEdges, (WallSides Side, float Distance)? target)
     {
         var source = sourceEdges.FindNearestWall(o.U, o.V);
-        var target = edges.FindNearestWall(u, v);
         return source is not null && target is not null && source.Value.Side == target.Value.Side && MathF.Abs(source.Value.Distance - target.Value.Distance) <= EdgeMapExtensions.WallSlack;
     }
 
     /// <summary>
     /// Returns whether a window of cells lies inside a set of cells.
     /// </summary>
-    public static bool IsWindowInside(IReadOnlySet<Cell> cells, Cell corner, int size)
-    {
-        for (int u = corner.U; u < corner.U + size; u++)
-        {
-            for (int v = corner.V; v < corner.V + size; v++)
-            {
-                if (!cells.Contains(new Cell(u, v)))
-                {
-                    return false;
-                }
-            }
-        }
+    public static bool IsWindowInside(IReadOnlySet<Cell> cells, Cell corner, int size) => GetCells(corner, size).All(cells.Contains);
 
-        return true;
-    }
-
-    private static IEnumerable<Cell> GetCells(Cell corner, int size)
-    {
-        for (int u = corner.U; u < corner.U + size; u++)
-        {
-            for (int v = corner.V; v < corner.V + size; v++)
-            {
-                yield return new Cell(u, v);
-            }
-        }
-    }
+    private static IEnumerable<Cell> GetCells(Cell corner, int size) => new UnitRect(corner.U, corner.V, size, size).Units;
 
     private bool IsTooCloseToWall(DecorObject o, IReadOnlyDictionary<EdgeKey, EdgeKind> sourceEdges, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v)
     {
@@ -305,10 +284,10 @@ public sealed class DressingLibrary
     }
 
     // Keep a solid piece only where no wall it does not cross in its source runs through its footprint
-    private bool HasSameWalls(DecorObject o, LevelModel source, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, Cell sourceCorner, Cell corner)
+    private bool HasSameWalls(int si, int piece, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, Cell sourceCorner, Cell corner)
     {
-        (float x, float y) = source.Lattice.ToWorld(o.U, o.V);
-        var footprint = Dresser.GetFootprint(source.Lattice, _objects, o.Id, x, y);
+        var source = _sources[si];
+        var footprint = GetFootprint(si, piece);
         foreach (var cell in footprint)
         {
             var sourceNeighbors = EdgeKey.GetNeighbors(cell);

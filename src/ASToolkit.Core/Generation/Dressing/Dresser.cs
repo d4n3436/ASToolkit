@@ -9,7 +9,6 @@ namespace ASToolkit.Core.Generation.Dressing;
 /// </summary>
 public static class Dresser
 {
-
     /// <summary>
     /// Covers the cells with copied windows of the objects the level holds, largest first and each source cell once, and drops objects
     /// whose support was not copied. Windows whose solid pieces stay off the cells to keep clear come first.
@@ -30,7 +29,7 @@ public static class Dresser
 
             foreach (int windowSize in library.WindowSizes)
             {
-                if (!DressingLibrary.IsWindowInside(cells, corner, windowSize) || HasCovered(covered, corner, windowSize)
+                if (!DressingLibrary.IsWindowInside(cells, corner, windowSize) || new UnitRect(corner.U, corner.V, windowSize, windowSize).Units.Any(covered.Contains)
                     || !library.TryCopy(rng, edges, corner, windowSize, used, exhausted, out var copied, keepClear))
                 {
                     continue;
@@ -88,37 +87,6 @@ public static class Dresser
     /// </summary>
     public static HashSet<Cell> GetFootprint(Lattice lattice, ObjectTable objects, KnownObject id, float x, float y, float grow = CollisionBox.PlayerRadius)
     {
-        var cells = new HashSet<Cell>();
-        if (!objects.TryFind(id, out var obj) || !obj.IsSolid)
-        {
-            return cells;
-        }
-
-        var box = CollisionBox.Create(obj, x, y, CollisionBox.ExtentShare, grow);
-        foreach (float dx in new[] { -box.HalfWidth, 0, box.HalfWidth })
-        {
-            foreach (float dy in new[] { -box.HalfHeight, 0, box.HalfHeight })
-            {
-                cells.Add(lattice.GetCell(x + dx, y + dy));
-            }
-        }
-
-        return cells;
-    }
-
-    private static bool HasCovered(HashSet<Cell> covered, Cell corner, int size)
-    {
-        for (int u = corner.U; u < corner.U + size; u++)
-        {
-            for (int v = corner.V; v < corner.V + size; v++)
-            {
-                if (covered.Contains(new Cell(u, v)))
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return objects.TryFind(id, out var obj) && obj.IsSolid ? CollisionBox.Create(obj, x, y, CollisionBox.ExtentShare, grow).GetSampledCells(lattice) : [];
     }
 }

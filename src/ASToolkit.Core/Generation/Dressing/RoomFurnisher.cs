@@ -1,8 +1,10 @@
-using System.Numerics;
+using System.Buffers;
 using System.Drawing;
+using System.Numerics;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Generation.Geometry;
 using ASToolkit.Core.Generation.Layout;
+using ASToolkit.Core.Generation.Output;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Reference;
 using ASToolkit.Core.Rooms;
@@ -23,10 +25,8 @@ public sealed class RoomFurnisher
     private const float OwnShare = 0.75f;
     private const int MaxPartsPerSource = 2;
     private const int MinTrackedPieces = 3;
-    private const float SizeJitter = 0.3f;
     private const int MinPieces = 3;
     private static readonly (int U, int V)[] Axes = [(1, 0), (-1, 0), (0, 1), (0, -1)];
-    private static readonly float MaxSizeLog = MathF.Log(3);
     private const int SourceLevel = -2;
     private const float FloorHeight = 5;
     private static readonly (float Min, float Max) DensityJitter = (0.8f, 1.2f);
@@ -38,9 +38,9 @@ public sealed class RoomFurnisher
     private readonly Dictionary<KnownObject, float> _spans;
 
     /// <summary>
-    /// Initializes a furnisher with the recipes of a setting, keeping only the parts whose pieces the level may hold.
+    /// Initializes a furnisher with the recipes of a floor set, keeping only the parts whose pieces the level may hold.
     /// </summary>
-    /// <param name="recipes">The recipes of the setting's room types.</param>
+    /// <param name="recipes">The recipes of the floor set's room types.</param>
     /// <param name="objects">The object table.</param>
     /// <param name="allows">Returns whether the level may hold an object at a height.</param>
     /// <param name="lattice">A lattice with the axes of the rooms' walls.</param>
@@ -73,7 +73,7 @@ public sealed class RoomFurnisher
         WallClearanceTable clearance)
     {
         var own = Prepare(RoomRecipe.Measure(original.Rooms, layout.Lattice));
-        var types = AssignTypes(rng, plan, layout, original);
+        var types = GetTypes(plan);
         var standing = new Standing(wallLattice, walls, facings, clearance);
         var densities = original.Rooms.Where(room => IsFurnished(room) && room.Side is null).GroupBy(room => room.Type)
             .ToDictionary(group => group.Key, group => group.Sum(room => room.Parts.Sum(part => part.Pieces.Count)) / (group.Sum(room => room.Place.AreaPixels) / AreaUnit));
@@ -92,7 +92,7 @@ public sealed class RoomFurnisher
                 continue;
             }
 
-            var (recipe, parts) = own.TryGetValue(type, out var level) && level.Parts.Length > 0 ? level : pooled;
+            var (_, parts) = own.TryGetValue(type, out var level) && level.Parts.Length > 0 ? level : pooled;
             var cells = layout.GetRegionCells(id).ToHashSet();
             float units = cells.Count * cellArea / AreaUnit;
             float density = densities.TryGetValue(type, out float measured) ? measured : parts.Sum(part => part.Rate * (float)part.Examples.Average(example => example.Pieces.Count));
@@ -109,10 +109,8 @@ public sealed class RoomFurnisher
             picks.AddRange(drawn.OrderByDescending(pick => pick.Example.Pieces.Count));
             rooms.Add(new Room(cells, layout.Edges, used, caps, counts)
             {
-                Recipe = recipe,
                 Parts = parts,
                 Pooled = pooled.Parts,
-                Units = units,
                 Wanted = wanted,
                 Picks = new Queue<(RecipePart, RoomPart)>(picks)
             });
@@ -140,98 +138,14 @@ public sealed class RoomFurnisher
             }
         }
 
-        foreach (var room in rooms)
-        {
-        }
-
         return (types, placed);
     }
+
     private static bool IsFurnished(AtlasRoom room) => room.IsRoom || room.Role == RoomRole.Secret;
 
-
-    // Give each room the type of the original room of its role nearest it in area and within a factor of 3, each original room once and an
-    // empty one only to a room with two doors or more, and then each room left the type of the furnished original room of any role nearest
-    // it in area, unused ones within a factor of 3 first
-    private static Dictionary<int, RoomType> AssignTypes(Random rng, LayoutPlan plan, FineLayout layout, RoomAtlas original)
-    {
-        float cellArea = 2 * layout.Lattice.StepX * layout.Lattice.StepY;
-        
-        var rooms = plan.Regions
-            .Where(region => region.Kind is RegionKind.Station or RegionKind.SideRoom or RegionKind.Wing or RegionKind.SecretRoom)
-            .ToDictionary(region => region.Id);
-        
-        var roles = plan.MeasureRoles();
-        
-        var known = original.Rooms
-            .Where(room => IsFurnished(room) && room.Type != RoomType.Hall)
-            .ToArray();
-        
-        var unused = original.Rooms
-            .Where(room => IsFurnished(room) && (room.Type != RoomType.Hall || room.Role == RoomRole.HallRow))
-            .ToList();
-        
-        var keyType = known.FirstOrDefault(room => room.Role == RoomRole.Key || room.Place.Use == Survey.PlaceUse.BreakerRoom)?.Type;
-        var types = new Dictionary<int, RoomType>();
-        var left = new List<int>();
-        foreach (var region in rooms.Values.OrderBy(_ => rng.Next()))
-        {
-            if (region.IsHall)
-            {
-                types[region.Id] = RoomType.Hall;
-                continue;
-            }
-
-            if (region.Id == plan.KeyRoom?.Id && keyType is not null)
-            {
-                types[region.Id] = keyType.Value;
-                continue;
-            }
-
-            int area = Area(region.Id);
-            var role = region.Kind == RegionKind.SecretRoom ? RoomRole.Secret : roles.GetRole(region.Id, false);
-            bool connects = roles.CountDoors(region.Id) >= 2;
-            
-            var match = unused
-                .Where(room => room.Role == role && (connects || !IsEmpty(room.Type)) && Fits(room, area))
-                .MinBy(room => Distance(room, area));
-            
-            if (match is null)
-            {
-                left.Add(region.Id);
-                continue;
-            }
-
-            types[region.Id] = match.Type;
-            unused.Remove(match);
-        }
-
-        foreach (int id in left)
-        {
-            int area = Area(id);
-            var match = unused 
-                            .Where(room => !IsEmpty(room.Type) && room.Type != RoomType.Hall && Fits(room, area))
-                            .MinBy(room => Distance(room, area))
-                            ?? known 
-                            .Where(room => !IsEmpty(room.Type))
-                            .MinBy(room => Distance(room, area));
-            
-            types[id] = match?.Type ?? RoomType.Passage;
-            if (match is not null)
-            {
-                unused.Remove(match);
-            }
-        }
-
-        return types;
-
-        int Area(int room) => (int)(layout.GetRegionCells(room).Count * cellArea);
-        
-        static bool IsEmpty(RoomType type) => type is RoomType.Passage or RoomType.Bare;
-
-        static bool Fits(AtlasRoom room, int area) => MathF.Abs(MathF.Log(room.Place.AreaPixels / (float)area)) <= MaxSizeLog;
-
-        float Distance(AtlasRoom room, int area) => MathF.Abs(MathF.Log(room.Place.AreaPixels / (float)Math.Max(1, area))) + SizeJitter * rng.NextSingle();
-    }
+    private static Dictionary<int, RoomType> GetTypes(LayoutPlan plan) => plan.Regions
+        .Where(region => region.Kind is RegionKind.Station or RegionKind.SideRoom or RegionKind.SecretRoom)
+        .ToDictionary(region => region.Id, region => region.IsHall ? RoomType.Hall : region.Type ?? RoomType.Passage);
 
     private Dictionary<RoomType, (RoomRecipe Recipe, RecipePart[] Parts)> Prepare(IEnumerable<RoomRecipe> recipes) =>
         recipes.ToDictionary(recipe => recipe.Type, recipe => (recipe, recipe.Parts
@@ -397,7 +311,7 @@ public sealed class RoomFurnisher
                 var step = lattice.ToWorld(axis.U, axis.V);
                 var direction = Vector2.Normalize(new Vector2(step.X - zero.X, step.Y - zero.Y));
                 return new PointF(from.X + direction.X * kind.Spacing.Value, from.Y + direction.Y * kind.Spacing.Value);
-            })).OrderBy(_ => rng.Next()).ToList()
+            })).OrderBy(_ => rng.Next()).Take(SpotTries).ToList()
             : [];
         var cells = Sample(rng, spots, SpotTries).Select(cell =>
         {
@@ -473,12 +387,12 @@ public sealed class RoomFurnisher
             var group = pieces.Select(piece => (piece.Id, X: x0 + piece.X, Y: y0 + piece.Y, piece.Z))
                 .Concat(inRoom.Select(companion => (companion.Id, X: x0 + companion.X, Y: y0 + companion.Y, companion.Z)))
                 .ToArray();
-            if (!KeepsFloorJoined(room.Cells, room.Taken, footprints) || !occupancy.FitsAll(group))
+            if (!room.KeepsFloorJoined(footprints) || !occupancy.FitsAll(group))
             {
                 continue;
             }
 
-            room.Taken.UnionWith(footprints);
+            room.Take(footprints);
             room.Boxes.AddRange(spans);
             foreach ((var id, float x, float y, float z) in group)
             {
@@ -526,14 +440,30 @@ public sealed class RoomFurnisher
     // pieces so far
     private sealed class Room
     {
-        private readonly Dictionary<(string, int), int> _sources = [];
         private readonly Dictionary<string, List<PointF>> _origins = [];
         private readonly IReadOnlyDictionary<EdgeKey, EdgeKind> _edges;
         private readonly Dictionary<int, Cell[]> _wallCells = [];
+        private readonly int _u0;
+        private readonly int _v0;
+        private readonly int _width;
+        private readonly int _height;
+        private readonly bool[] _cells;
+        private readonly bool[] _taken;
 
         public Room(HashSet<Cell> cells, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, HashSet<RoomPart> used, Dictionary<KnownObject, int> caps, Dictionary<KnownObject, int> counts)
         {
             Cells = cells;
+            _u0 = cells.Min(cell => cell.U);
+            _v0 = cells.Min(cell => cell.V);
+            _width = cells.Max(cell => cell.U) - _u0 + 1;
+            _height = cells.Max(cell => cell.V) - _v0 + 1;
+            _cells = new bool[_width * _height];
+            _taken = new bool[_width * _height];
+            foreach (var cell in cells)
+            {
+                _cells[GetIndex(cell)] = true;
+            }
+
             Floor = cells.ToArray();
             _edges = edges;
             Used = used;
@@ -541,13 +471,9 @@ public sealed class RoomFurnisher
             Counts = counts;
         }
 
-        public required RoomRecipe Recipe { get; init; }
-
         public required RecipePart[] Parts { get; init; }
 
         public required RecipePart[] Pooled { get; init; }
-
-        public required float Units { get; init; }
 
         public required int Wanted { get; init; }
 
@@ -563,7 +489,75 @@ public sealed class RoomFurnisher
 
         public Cell[] Floor { get; }
 
-        public HashSet<Cell> Taken { get; } = [];
+        public bool KeepsFloorJoined(HashSet<Cell> footprints)
+        {
+            int size = _width * _height;
+            bool[] blocked = ArrayPool<bool>.Shared.Rent(size);
+            int[] stack = ArrayPool<int>.Shared.Rent(size);
+            try
+            {
+                for (int index = 0; index < size; index++)
+                {
+                    blocked[index] = !_cells[index] || _taken[index];
+                }
+
+                foreach (var cell in footprints)
+                {
+                    blocked[GetIndex(cell)] = true;
+                }
+
+                int free = 0, first = -1;
+                for (int index = 0; index < size; index++)
+                {
+                    if (!blocked[index])
+                    {
+                        free++;
+                        first = first < 0 ? index : first;
+                    }
+                }
+
+                if (free == 0)
+                {
+                    return false;
+                }
+
+                int top = 0, reached = 1;
+                stack[top++] = first;
+                blocked[first] = true;
+                while (top > 0)
+                {
+                    int at = stack[--top];
+                    int u = at % _width, v = at / _width;
+                    ReadOnlySpan<int> neighbors = [u + 1 < _width ? at + 1 : -1, u > 0 ? at - 1 : -1, v + 1 < _height ? at + _width : -1, v > 0 ? at - _width : -1];
+                    foreach (int next in neighbors)
+                    {
+                        if (next >= 0 && !blocked[next])
+                        {
+                            blocked[next] = true;
+                            stack[top++] = next;
+                            reached++;
+                        }
+                    }
+                }
+
+                return reached == free;
+            }
+            finally
+            {
+                ArrayPool<bool>.Shared.Return(blocked);
+                ArrayPool<int>.Shared.Return(stack);
+            }
+        }
+
+        public void Take(HashSet<Cell> footprints)
+        {
+            foreach (var cell in footprints)
+            {
+                _taken[GetIndex(cell)] = true;
+            }
+        }
+
+        private int GetIndex(Cell cell) => (cell.V - _v0) * _width + cell.U - _u0;
 
         public List<Footprint> Boxes { get; } = [];
 
@@ -573,12 +567,12 @@ public sealed class RoomFurnisher
 
         public Dictionary<KnownObject, int> Counts { get; }
 
-        public Dictionary<(string, int), int> Sources => _sources;
+        public Dictionary<(string, int), int> Sources { get; } = [];
 
         public IReadOnlyDictionary<string, List<PointF>> Origins => _origins;
 
         public bool IsWithinCaps(RoomPart example) =>
-            example.Pieces.GroupBy(piece => piece.Id).All(group => Counts.GetValueOrDefault(group.Key) + group.Count() <= Caps.GetValueOrDefault(group.Key));
+            example.PieceCounts.All(pair => Counts.GetValueOrDefault(pair.Key) + pair.Value <= Caps.GetValueOrDefault(pair.Key));
 
         public void Count(RoomPart example)
         {
@@ -627,8 +621,9 @@ public sealed class RoomFurnisher
         public bool Allows(KnownObject id, byte facing, float z, float x, float y)
         {
             (float u, float v) = Lattice.ToLattice(x, y);
-            return Facings.Fits(id, facing, Walls, u, v)
-                   && !(id.IsWallMounted && !Facings.Hangs(id, facing, z, Walls, u, v))
+            var wall = Walls.FindNearestWall(u, v);
+            return Facings.Fits(id, facing, wall)
+                   && !(id.IsWallMounted && !Facings.Hangs(id, facing, z, wall, Walls, u, v))
                    && !(z < FloorHeight && Clearance.TryGetClearance(id, out float minimum, out _) && Walls.MeasureClearance(u, v) < minimum - EdgeMapExtensions.WallSlack);
         }
     }
@@ -646,30 +641,5 @@ public sealed class RoomFurnisher
         }
 
         return true;
-    }
-
-    private static bool KeepsFloorJoined(HashSet<Cell> cells, HashSet<Cell> taken, HashSet<Cell> footprints)
-    {
-        var free = cells.Where(cell => !taken.Contains(cell) && !footprints.Contains(cell)).ToHashSet();
-        if (free.Count == 0)
-        {
-            return false;
-        }
-
-        var first = free.First();
-        var reached = new HashSet<Cell> { first };
-        var queue = new Queue<Cell>([first]);
-        while (queue.Count > 0)
-        {
-            foreach (var (neighbor, _) in EdgeKey.GetNeighbors(queue.Dequeue()))
-            {
-                if (free.Contains(neighbor) && reached.Add(neighbor))
-                {
-                    queue.Enqueue(neighbor);
-                }
-            }
-        }
-
-        return reached.Count == free.Count;
     }
 }

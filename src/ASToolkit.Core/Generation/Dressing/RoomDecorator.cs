@@ -1,6 +1,7 @@
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Generation.Geometry;
 using ASToolkit.Core.Generation.Layout;
+using ASToolkit.Core.Generation.Output;
 using ASToolkit.Core.Levels;
 
 namespace ASToolkit.Core.Generation.Dressing;
@@ -19,15 +20,14 @@ public static class RoomDecorator
     private const float WallSignHeight = 60;
     private const int MarkSource = -6;
 
-
     /// <summary>
     /// Thins the blood and the corpses to their rates per floor cell, leaves blood in the last two stations with a corpse and gibs in the
     /// last one, and lays every corpse on blood.
     /// </summary>
-    public static void Decorate(LevelTheme theme, LayoutPlan plan, FineLayout layout, List<PlacedDecor> decor,
-        IReadOnlySet<Cell> floor, IReadOnlySet<Cell> keepClear, LevelOccupancy occupancy, DecorHeightTable themeDecor, FacingTable facings, float corpseRate, float bloodRate)
+    public static void Decorate(WallSet wallSet, LayoutPlan plan, FineLayout layout, List<PlacedDecor> decor,
+        IReadOnlySet<Cell> floor, IReadOnlySet<Cell> keepClear, LevelOccupancy occupancy, DecorHeightTable wallSetDecor, FacingTable facings, float corpseRate, float bloodRate)
     {
-        var random = CreateRandom(theme, plan);
+        var random = CreateRandom(wallSet, plan);
         var taken = new HashSet<Cell>();
         foreach (var piece in decor)
         {
@@ -90,7 +90,7 @@ public static class RoomDecorator
 
             if (station == denIndex && spots.Length > 0)
             {
-                Add(theme == LevelTheme.Lab ? KnownObject.ScientistCorpse : KnownObject.SoldierCorpse, spots[0]);
+                Add(wallSet == WallSet.Basement ? KnownObject.ScientistCorpse : KnownObject.SoldierCorpse, spots[0]);
                 for (int gib = 1; gib <= GibCount && gib < spots.Length; gib++)
                 {
                     Add(KnownObject.FlyingGibs, spots[gib]);
@@ -101,9 +101,9 @@ public static class RoomDecorator
         // Lay every corpse on blood
         foreach (var corpse in decor.Where(piece => piece.Id.IsCorpse).ToArray())
         {
-            if (!decor.Any(piece => piece.Id.IsBlood && IsNear(layout.Lattice, piece, corpse, BloodReach)) && themeDecor.Contains(KnownObject.SmallBloodPool))
+            if (!decor.Any(piece => piece.Id.IsBlood && IsNear(layout.Lattice, piece, corpse, BloodReach)) && wallSetDecor.Contains(KnownObject.SmallBloodPool))
             {
-                decor.Add(new PlacedDecor(KnownObject.SmallBloodPool, corpse.U, corpse.V, themeDecor.GetMiddleHeight(KnownObject.SmallBloodPool), 0, [], (BloodSource, index++), null, SpriteSource.Model));
+                decor.Add(new PlacedDecor(KnownObject.SmallBloodPool, corpse.U, corpse.V, wallSetDecor.GetMiddleHeight(KnownObject.SmallBloodPool), 0, [], (BloodSource, index++), null, SpriteSource.Model));
             }
         }
 
@@ -113,20 +113,21 @@ public static class RoomDecorator
 
         void Add(KnownObject id, Cell cell)
         {
-            if (!themeDecor.Contains(id))
+            if (!wallSetDecor.Contains(id))
             {
                 return;
             }
 
             byte dir = facings.PickFacing(random, id, layout.Edges, cell.U + 0.5f, cell.V + 0.5f);
-            if (!facings.Fits(id, dir, layout.Edges, cell.U + 0.5f, cell.V + 0.5f) || !facings.IsByWall(id, layout.Edges, cell.U + 0.5f, cell.V + 0.5f)
-                || id.IsWallMounted && !facings.Hangs(id, dir, themeDecor.GetMiddleHeight(id), layout.Edges, cell.U + 0.5f, cell.V + 0.5f))
+            var wall = layout.Edges.FindNearestWall(cell.U + 0.5f, cell.V + 0.5f);
+            if (!facings.Fits(id, dir, wall) || !facings.IsByWall(id, wall)
+                || id.IsWallMounted && !facings.Hangs(id, dir, wallSetDecor.GetMiddleHeight(id), wall, layout.Edges, cell.U + 0.5f, cell.V + 0.5f))
             {
                 return;
             }
 
             (float x, float y) = layout.Lattice.ToWorld(cell.U + 0.5f, cell.V + 0.5f);
-            float z = themeDecor.GetMiddleHeight(id);
+            float z = wallSetDecor.GetMiddleHeight(id);
             if (!occupancy.Fits(id, x, y, z))
             {
                 return;
@@ -182,9 +183,9 @@ public static class RoomDecorator
     public static bool IsMissileMark(KnownObject id, float z) => id == KnownObject.WallInscriptions && z < WallSignHeight;
 
     // Seed a stream of its own from the layout
-    private static Random CreateRandom(LevelTheme theme, LayoutPlan plan)
+    private static Random CreateRandom(WallSet wallSet, LayoutPlan plan)
     {
-        int seed = (int)theme;
+        int seed = (int)wallSet;
         foreach (var cell in plan.Occupancy.Keys)
         {
             seed = unchecked(seed * 31 + (cell.U * 73856093) ^ (cell.V * 19349663));

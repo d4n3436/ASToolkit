@@ -1,4 +1,5 @@
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Generation.Output;
 
 namespace ASToolkit.Core.Generation.Dressing;
 
