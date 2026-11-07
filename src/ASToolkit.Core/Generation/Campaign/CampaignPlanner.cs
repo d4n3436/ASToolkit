@@ -1,4 +1,5 @@
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Generation.Buildings;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Reference;
 using ASToolkit.Core.Survey;
@@ -14,8 +15,21 @@ public sealed class CampaignPlanner
 {
     private const float PixelsPerRate = 1_000_000;
     private const int FirstIndoorLevel = 2;
+    private const int CannonLevelMin = 7;
+    private const int CannonLevelMax = 8;
     private const int MinRooms = 4;
+    private const int FirstLevelMostRooms = 12;
+    private const int LabMostRooms = 28;
+    private const int LockedLabMostRooms = 24;
+    private const int UngatedLabMostRooms = 22;
+    private const int LabLeastRooms = 19;
+    private const int IntroLabLeastRooms = 9;
+    private const int IntroLabMostRooms = 14;
     private const double MaxDeviations = 1.5;
+
+    private const int FirstWarehouseLevel = 6;
+
+    private static readonly LevelStyle[] OpeningGates = [LevelStyle.LockedDoors, LevelStyle.LockedDoors, LevelStyle.Blackout];
 
     private static readonly ItemCategory[] SharedCategories = [ItemCategory.Health, ItemCategory.Armor, ItemCategory.Implant, ItemCategory.Bonus];
 
@@ -33,8 +47,19 @@ public sealed class CampaignPlanner
     {
         int count = _model.LevelCount;
         var first = _model.FirstLevels[rng.Next(_model.FirstLevels.Count)];
-        var themes = DrawThemes(rng);
-        var gates = DrawGates(rng, themes);
+        var buildings = DrawBuildings(rng);
+
+        var wallSets = buildings
+            .Select(ReferenceLevelSet.GetFloorSet)
+            .ToArray();
+
+        var gates = DrawGates(rng, wallSets);
+        foreach (int level in Enumerable.Range(0, buildings.Length).Where(level => buildings[level] == Building.OfficeBlock))
+        {
+            gates[level] = LevelStyle.Blackout;
+        }
+
+        var wings = DrawLabWings(rng, buildings, gates);
         float[] logHitPoints = DrawRising(rng, _model.HitPoints.Value, Enumerable.Range(FirstIndoorLevel, count - 1).ToDictionary(level => level, level => (float)level));
         float[] logEndMoney = DrawRising(rng, _model.EndMoney.Value, Enumerable.Range(1, count - 1).ToDictionary(level => level, level => MathF.Log(level)));
         int[] floors = new int[count + 1];
@@ -45,12 +70,16 @@ public sealed class CampaignPlanner
         counts[1] = [];
         for (int level = FirstIndoorLevel; level <= count; level++)
         {
-            floors[level] = (int)Math.Exp(DrawOnLine(rng, _model.FloorPixels.Value, level, themes[level]));
-            rooms[level] = DrawRooms(rng, level, themes[level], floors[level]);
+            floors[level] = (int)Math.Exp(DrawOnLine(rng, _model.FloorPixels.Value, level, wallSets[level]));
+            rooms[level] = DrawRooms(rng, level, wallSets[level], floors[level]);
+            if (level == FirstIndoorLevel && _model.Style == GenerationStyle.Campaign)
+            {
+                rooms[level] = Math.Min(rooms[level], FirstLevelMostRooms);
+            }
             spawnedShares[level] = 1 / (1 + MathF.Exp(-Draw(rng, _model.SpawnedShare.Value, level)));
             float rates = floors[level] / PixelsPerRate;
             counts[level] = _model.PickupRates.ToDictionary(pair => pair.Key, pair => (int)MathF.Round(Math.Max(0, Draw(rng, pair.Value.Value, level)) * rates));
-            closets[level] = themes[level] == LevelTheme.Lab ? (int)MathF.Round(Math.Max(0, Draw(rng, _model.SecretClosets.Value, level)) * rates) : 0;
+            closets[level] = wallSets[level] == WallSet.Basement ? (int)MathF.Round(Math.Max(0, Draw(rng, _model.SecretClosets.Value, level)) * rates) : 0;
         }
 
         int[] endMoney = Enumerable.Range(0, count + 1)
@@ -67,8 +96,10 @@ public sealed class CampaignPlanner
             new()
             {
                 Level = 1,
-                Theme = first.Theme,
+                Building = Building.Grounds,
+                WallSet = first.WallSet,
                 GateStyle = first.GateStyle,
+                IsIntro = false,
                 HitPoints = first.HitPoints,
                 SpawnedShare = 0,
                 FloorPixels = 0,
@@ -79,6 +110,7 @@ public sealed class CampaignPlanner
                 Weapons = [],
                 Pickups = new Dictionary<KnownObject, int>(),
                 EndMoney = endMoney[1],
+                MountedCannons = 0,
                 DonorLevel = first.Name
             }
         };
@@ -107,39 +139,53 @@ public sealed class CampaignPlanner
             briefs.Add(new LevelBrief
             {
                 Level = level,
-                Theme = themes[level],
+                Building = buildings[level],
+                WallSet = wallSets[level],
                 GateStyle = gates[level],
+                IsIntro = IsIntro(level, gates[level]),
                 HitPoints = hitPoints,
                 SpawnedShare = spawnedShares[level],
                 FloorPixels = floors[level],
-                Rooms = rooms[level],
+                Rooms = SizeLab(rooms[level], wallSets[level], IsIntro(level, gates[level]), gates[level]),
                 SecretClosets = closets[level],
                 Arsenal = arsenal,
                 NewWeapons = newWeapons,
                 Weapons = weapons,
                 Pickups = DrawPickups(rng, level, counts[level], arsenal, next == default ? null : next),
                 EndMoney = endMoney[level],
-                DonorLevel = ChooseDonor(themes[level], gates[level], hitPoints).Name
+                SecondWing = wings[level],
+                MountedCannons = _model.Style == GenerationStyle.Campaign ? buildings[level] == Building.Warehouse && level is CannonLevelMin or CannonLevelMax ? 1 : 0 : null,
+                DonorLevel = ChooseDonor(wallSets[level], gates[level], hitPoints).Name
             });
         }
 
         return new CampaignPlan { Levels = briefs };
     }
 
-    private int DrawRooms(Random rng, int level, LevelTheme theme, int floorPixels)
+    private int DrawRooms(Random rng, int level, WallSet wallSet, int floorPixels)
     {
-        double rate = DrawOnLine(rng, _model.Rooms.Value, level, theme);
-        if (_model.RoomRates.TryGetValue(theme, out var range))
+        double rate = DrawOnLine(rng, _model.Rooms.Value, level, wallSet);
+        if (_model.RoomRates.TryGetValue(wallSet, out var range))
         {
             rate = Math.Clamp(rate, range.Min, range.Max);
         }
 
         int rooms = (int)Math.Round(floorPixels * Math.Exp(rate) / PixelsPerRate);
-        return Math.Clamp(rooms, MinRooms, Math.Max(MinRooms, _model.MaxRooms.GetValueOrDefault(theme, rooms)));
+        int most = wallSet == WallSet.Basement ? LabMostRooms : _model.MaxRooms.GetValueOrDefault(wallSet, rooms);
+        return Math.Clamp(rooms, MinRooms, Math.Max(MinRooms, most));
     }
 
-    private static double DrawOnLine(Random rng, ThemeLine line, int level, LevelTheme theme) =>
-        line.Evaluate(level, theme == LevelTheme.Military) + Math.Clamp(Normal.Sample(rng, 0, 1), -MaxDeviations, MaxDeviations) * line.Spread;
+    private static int SizeLab(int rooms, WallSet wallSet, bool isIntro, LevelStyle gate) => wallSet != WallSet.Basement ? rooms
+        : isIntro ? Math.Clamp(rooms, IntroLabLeastRooms, IntroLabMostRooms)
+        : Math.Clamp(rooms, LabLeastRooms, gate switch
+        {
+            LevelStyle.LockedDoors => LockedLabMostRooms,
+            LevelStyle.Ungated => UngatedLabMostRooms,
+            _ => LabMostRooms
+        });
+
+    private static double DrawOnLine(Random rng, WallSetLine line, int level, WallSet wallSet) =>
+        line.Evaluate(level, wallSet == WallSet.Concrete) + Math.Clamp(Normal.Sample(rng, 0, 1), -MaxDeviations, MaxDeviations) * line.Spread;
 
     private static float Draw(Random rng, LinearFit line, float x) => line.Spread > 0 ? (float)Normal.Sample(rng, line.Evaluate(x), line.Spread) : line.Evaluate(x);
 
@@ -175,25 +221,105 @@ public sealed class CampaignPlanner
         return weights.Count - 1;
     }
 
-    // Put the lab levels first, as many as the lab share gives give or take one, with at least one level of each theme the campaigns show
-    private LevelTheme[] DrawThemes(Random rng)
+    private static bool IsIntro(int level, LevelStyle gate) => level == FirstIndoorLevel && gate != LevelStyle.Ungated;
+
+    // Gives each lab level a second wing of its own among those its gate builds, the levels with the fewest choices first
+    private static LabWing?[] DrawLabWings(Random rng, Building[] buildings, LevelStyle[] gates)
     {
-        int count = _model.LevelCount;
-        int indoor = count - 1;
-        bool hasLab = _model.Gates.ContainsKey(LevelTheme.Lab);
-        bool hasMilitary = _model.Gates.ContainsKey(LevelTheme.Military);
-        int labs = (int)MathF.Round(_model.LabShare.Value * indoor) + rng.Next(-1, 2);
-        labs = Math.Clamp(labs, hasMilitary ? (hasLab ? 1 : 0) : indoor, hasLab ? (hasMilitary ? indoor - 1 : indoor) : 0);
-        return Enumerable.Range(0, count + 1)
-            .Select(level => level < FirstIndoorLevel ? LevelTheme.Outdoor : level < FirstIndoorLevel + labs ? LevelTheme.Lab : LevelTheme.Military)
-            .ToArray();
+        var wings = new LabWing?[buildings.Length];
+
+        var used = new HashSet<LabWing>();
+        foreach (int level in Enumerable.Range(0, buildings.Length).Where(level => Choices(level).Count > 0).OrderBy(level => Choices(level).Count).ThenBy(level => level))
+        {
+            var free = Choices(level).Where(wing => !used.Contains(wing)).ToArray();
+            if (free.Length > 0)
+            {
+                var wing = free[rng.Next(free.Length)];
+                wings[level] = wing;
+                used.Add(wing);
+            }
+        }
+
+        return wings;
+
+        IReadOnlyList<LabWing> Choices(int level) => buildings[level] == Building.UndergroundLab
+            ? BuildingGrammar.GetSecondWings(gates[level], IsIntro(level, gates[level]))
+            : [];
     }
 
-    // Draw each level's gate style from its theme's and order each theme's levels the way the campaigns introduce them
-    private LevelStyle[] DrawGates(Random rng, LevelTheme[] themes)
+    // Builds the campaign style's labs and warehouses at their fixed levels; in add-on style draws the buildings' shares around the fitted ones and
+    // hands the levels out along them, moving a level to a required building that drew none
+    private Building[] DrawBuildings(Random rng)
     {
-        var gates = new LevelStyle[themes.Length];
-        foreach (var run in Enumerable.Range(FirstIndoorLevel, themes.Length - FirstIndoorLevel).GroupBy(level => themes[level]))
+        var buildings = new Building[_model.LevelCount + 1];
+        buildings[1] = Building.Grounds;
+        if (_model.Style == GenerationStyle.Campaign)
+        {
+            for (int number = FirstIndoorLevel; number <= _model.LevelCount; number++)
+            {
+                buildings[number] = number < FirstWarehouseLevel ? Building.UndergroundLab : Building.Warehouse;
+            }
+
+            return buildings;
+        }
+
+        var shares = _model.Buildings.Value;
+
+        double[] drawn = shares
+            .Select(share => Gamma.Sample(rng, share.Samples, 1))
+            .ToArray();
+
+        double total = drawn.Sum();
+        double offset = rng.NextDouble();
+        int indoor = _model.LevelCount - 1;
+        int[] counts = new int[shares.Count];
+        int index = 0;
+        double reach = drawn[0] / total;
+        for (int step = 0; step < indoor; step++)
+        {
+            double point = (step + offset) / indoor;
+            while (point >= reach && index < shares.Count - 1)
+            {
+                index++;
+                reach += drawn[index] / total;
+            }
+
+            counts[index]++;
+        }
+
+        for (int required = 0; required < shares.Count; required++)
+        {
+            if (shares[required].IsRequired && counts[required] == 0)
+            {
+                counts[Array.IndexOf(counts, counts.Max())]--;
+                counts[required]++;
+            }
+        }
+
+        int level = FirstIndoorLevel;
+        for (int share = 0; share < shares.Count; share++)
+        {
+            for (int count = 0; count < counts[share]; count++)
+            {
+                buildings[level++] = shares[share].Building;
+            }
+        }
+
+        return buildings;
+    }
+
+    // Draws each level's gate style from its wall set's and orders each wall set's levels the way the campaigns introduce them
+    private LevelStyle[] DrawGates(Random rng, WallSet[] wallSets)
+    {
+        var gates = new LevelStyle[wallSets.Length];
+        bool opens = _model.Style == GenerationStyle.Campaign && wallSets.Skip(FirstIndoorLevel).Take(OpeningGates.Length).All(wallSet => wallSet == WallSet.Basement);
+        int past = opens ? FirstIndoorLevel + OpeningGates.Length : FirstIndoorLevel;
+        if (opens)
+        {
+            OpeningGates.CopyTo(gates, FirstIndoorLevel);
+        }
+
+        foreach (var run in Enumerable.Range(past, wallSets.Length - past).GroupBy(level => wallSets[level]))
         {
             var shares = _model.Gates[run.Key].Value;
             int[] drawn = run
@@ -288,9 +414,9 @@ public sealed class CampaignPlanner
         return pickups;
     }
 
-    // Take the original of the level's wall theme nearest in hit points, of the same gate style when there is one
-    private DonorCandidate ChooseDonor(LevelTheme theme, LevelStyle gate, int hitPoints) => _model.Donors
-        .Where(donor => donor.Theme == theme)
+    // Takes the original of the level's wall set nearest in hit points, of the same gate style when there is one
+    private DonorCandidate ChooseDonor(WallSet wallSet, LevelStyle gate, int hitPoints) => _model.Donors
+        .Where(donor => donor.WallSet == wallSet)
         .OrderBy(donor => donor.GateStyle == gate ? 0 : 1)
         .ThenBy(donor => MathF.Abs(MathF.Log(Math.Max(1, donor.HitPoints)) - MathF.Log(Math.Max(1, hitPoints))))
         .ThenBy(donor => donor.Name, StringComparer.Ordinal)

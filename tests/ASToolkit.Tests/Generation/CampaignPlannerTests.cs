@@ -51,32 +51,56 @@ public class CampaignPlannerTests
         var planner = new CampaignPlanner(model);
         foreach (var brief in Enumerable.Range(1, Seeds).SelectMany(seed => planner.Plan(new Random(seed)).Levels.Skip(1)))
         {
-            var range = model.RoomRates[brief.Theme];
+            var range = model.RoomRates[brief.WallSet];
             double rooms = brief.FloorPixels / 1_000_000.0;
 
-            Assert.InRange(brief.Rooms, 4, Math.Max(4, model.MaxRooms[brief.Theme]));
-            Assert.InRange(brief.Rooms, Math.Min(Math.Floor(rooms * Math.Exp(range.Min)), model.MaxRooms[brief.Theme]), Math.Max(4, Math.Ceiling(rooms * Math.Exp(range.Max))));
+            int most = brief.WallSet == WallSet.Basement ? 28 : model.MaxRooms[brief.WallSet];
+            Assert.InRange(brief.Rooms, 4, Math.Max(4, most));
+            if (brief.WallSet == WallSet.Basement)
+            {
+                Assert.InRange(brief.Rooms, brief.IsIntro ? 9 : 19, brief.IsIntro ? 14 : brief.GateStyle switch { LevelStyle.LockedDoors => 24, LevelStyle.Ungated => 22, _ => 28 });
+                continue;
+            }
+
+            Assert.InRange(brief.Rooms, Math.Min(Math.Floor(rooms * Math.Exp(range.Min)), most), Math.Max(4, Math.Ceiling(rooms * Math.Exp(range.Max))));
         }
     }
 
     [Fact]
-    public void Plan_Seeds_PutLabLevelsFirstAndGatesInTheirOrder()
+    public void Plan_Seeds_OpenWithTheLabGatesThenPutBuildingsAndGatesInTheirOrder()
     {
-        var planner = new CampaignPlanner(CreateModel());
-        var labOrder = new[] { LevelStyle.LockedDoors, LevelStyle.Blackout, LevelStyle.Ungated };
+        var model = CreateModel();
+        var planner = new CampaignPlanner(model);
+        var buildingOrder = model.Buildings.Value
+            .Select(share => share.Building)
+            .ToArray();
+
+        var basementOrder = new[] { LevelStyle.LockedDoors, LevelStyle.Blackout, LevelStyle.Ungated };
         foreach (var levels in Enumerable.Range(1, Seeds).Select(seed => planner.Plan(new Random(seed)).Levels))
         {
-            var themes = levels.Skip(1).Select(brief => brief.Theme).ToArray();
-            Assert.Equal(themes.OrderBy(theme => theme == LevelTheme.Military), themes);
-            Assert.Contains(LevelTheme.Lab, themes);
-            Assert.Contains(LevelTheme.Military, themes);
+            Assert.Equal(Building.Grounds, levels[0].Building);
 
-            int[] labGates = levels
-                .Where(brief => brief.Theme == LevelTheme.Lab)
-                .Select(brief => Array.IndexOf(labOrder, brief.GateStyle))
+            int[] buildings = levels
+                .Skip(1)
+                .Select(brief => Array.IndexOf(buildingOrder, brief.Building))
                 .ToArray();
 
-            Assert.Equal(labGates.Order(), labGates);
+            Assert.Equal(buildings.Order(), buildings);
+            Assert.Contains(Building.UndergroundLab, levels.Select(brief => brief.Building));
+            Assert.Contains(Building.Warehouse, levels.Select(brief => brief.Building));
+            Assert.All(levels, brief => Assert.Equal(ReferenceLevelSet.GetFloorSet(brief.Building), brief.WallSet));
+
+            Assert.Equal([LevelStyle.LockedDoors, LevelStyle.LockedDoors, LevelStyle.Blackout], levels.Skip(1).Take(3).Select(brief => brief.GateStyle));
+            Assert.All(levels.Skip(1).Take(3), brief => Assert.Equal(Building.UndergroundLab, brief.Building));
+            Assert.Equal([true, false, false], levels.Skip(1).Take(3).Select(brief => brief.IsIntro));
+
+            int[] basementGates = levels
+                .Skip(4)
+                .Where(brief => brief.WallSet == WallSet.Basement)
+                .Select(brief => Array.IndexOf(basementOrder, brief.GateStyle))
+                .ToArray();
+
+            Assert.Equal(basementGates.Order(), basementGates);
         }
     }
 
@@ -105,40 +129,72 @@ public class CampaignPlannerTests
     }
 
     [Fact]
-    public void Plan_Seeds_TakeDonorsOfTheBriefsTheme()
+    public void Plan_Seeds_TakeDonorsOfTheBriefsWallSet()
     {
         var model = CreateModel();
         var planner = new CampaignPlanner(model);
         foreach (var levels in Enumerable.Range(1, Seeds).Select(seed => planner.Plan(new Random(seed)).Levels))
         {
             Assert.Equal("Level_01.map", levels[0].DonorLevel);
-            Assert.All(levels.Skip(1), brief => Assert.Equal(brief.Theme, model.Donors.Single(donor => donor.Name == brief.DonorLevel).Theme));
+            Assert.All(levels.Skip(1), brief => Assert.Equal(brief.WallSet, model.Donors.Single(donor => donor.Name == brief.DonorLevel).WallSet));
             Assert.All(levels.Skip(1), brief => Assert.Equal(brief.GateStyle, model.Donors.Single(donor => donor.Name == brief.DonorLevel).GateStyle));
         }
     }
 
+    [Fact]
+    public void Plan_Seeds_StandMountedCannonsOnWarehouseLevelsSevenAndEightOnly()
+    {
+        var planner = new CampaignPlanner(CreateModel());
+        foreach (var levels in Enumerable.Range(1, Seeds).Select(seed => planner.Plan(new Random(seed)).Levels))
+        {
+            Assert.All(levels, brief => Assert.Equal(brief is { Building: Building.Warehouse, Level: 7 or 8 } ? 1 : 0, brief.MountedCannons));
+        }
+    }
+
+    [Fact]
+    public void Plan_Seeds_BuildLabsOnLevelsTwoToFiveWarehousesAfterAndNeverRepeatASecondWing()
+    {
+        var planner = new CampaignPlanner(CreateModel());
+        foreach (var levels in Enumerable.Range(1, Seeds).Select(seed => planner.Plan(new Random(seed)).Levels))
+        {
+            Assert.All(levels.Where(brief => brief.Level >= 2), brief => Assert.Equal(brief.Level < 6 ? Building.UndergroundLab : Building.Warehouse, brief.Building));
+            var wings = levels
+                .Where(brief => brief.Building == Building.UndergroundLab)
+                .Select(brief => brief.SecondWing)
+                .ToArray();
+
+            Assert.All(wings, wing => Assert.NotNull(wing));
+            Assert.Equal(wings.Length, wings.Distinct().Count());
+        }
+    }
+
     private static string Describe(LevelBrief brief) =>
-        $"{brief.Level} {brief.Theme} {brief.GateStyle} {brief.HitPoints} {brief.SpawnedShare} {brief.FloorPixels} {brief.SecretClosets} {string.Join(",", brief.Weapons)} "
+        $"{brief.Level} {brief.Building} {brief.WallSet} {brief.GateStyle} {brief.HitPoints} {brief.SpawnedShare} {brief.FloorPixels} {brief.SecretClosets} {string.Join(",", brief.Weapons)} "
         + $"{string.Join(",", brief.Pickups.OrderBy(pair => pair.Key).Select(pair => $"{pair.Key}:{pair.Value}"))} {brief.EndMoney} {brief.DonorLevel}";
 
     private static FittedValue<LinearFit> Line(float intercept, float slope, float spread) => new(new LinearFit(intercept, slope, spread), 9, IsBackedOff: false);
 
     private static CampaignModel CreateModel() => new()
     {
+        Style = GenerationStyle.Campaign,
         LevelCount = 10,
         CashValue = 50,
         HitPoints = Line(4.5f, 0.96f, 0.53f),
         SpawnedShare = Line(-3.4f, 0.76f, 1.4f),
-        FloorPixels = new FittedValue<ThemeLine>(new ThemeLine(13.9, 0.35, -1.1, 0.23), 9, IsBackedOff: false),
-        Rooms = new FittedValue<ThemeLine>(new ThemeLine(2.0, -0.1, -0.5, 0.2), 9, IsBackedOff: false),
-        RoomRates = new Dictionary<LevelTheme, ValueRange> { [LevelTheme.Lab] = new(1.2, 2.2), [LevelTheme.Military] = new(0.3, 1.6) },
-        MaxRooms = new Dictionary<LevelTheme, int> { [LevelTheme.Lab] = 38, [LevelTheme.Military] = 29 },
+        FloorPixels = new FittedValue<WallSetLine>(new WallSetLine(13.9, 0.35, -1.1, 0.23), 9, IsBackedOff: false),
+        Rooms = new FittedValue<WallSetLine>(new WallSetLine(2.0, -0.1, -0.5, 0.2), 9, IsBackedOff: false),
+        RoomRates = new Dictionary<WallSet, ValueRange> { [WallSet.Basement] = new(1.2, 2.2), [WallSet.Concrete] = new(0.3, 1.6) },
+        MaxRooms = new Dictionary<WallSet, int> { [WallSet.Basement] = 38, [WallSet.Concrete] = 29 },
         EndMoney = Line(4.2f, 0.75f, 0.45f),
-        LabShare = new FittedValue<float>(0.44f, 9, IsBackedOff: false),
-        Gates = new Dictionary<LevelTheme, FittedValue<IReadOnlyList<GateShare>>>
+        Buildings = new FittedValue<IReadOnlyList<BuildingShare>>(
+        [
+            new BuildingShare(Building.UndergroundLab, 0.5f, 0.19f, 4, IsRequired: true),
+            new BuildingShare(Building.Warehouse, 0.5f, 0.69f, 4, IsRequired: true)
+        ], 8, IsBackedOff: false),
+        Gates = new Dictionary<WallSet, FittedValue<IReadOnlyList<GateShare>>>
         {
-            [LevelTheme.Lab] = new([new GateShare(LevelStyle.LockedDoors, 0.5f), new GateShare(LevelStyle.Blackout, 0.25f), new GateShare(LevelStyle.Ungated, 0.25f)], 4, IsBackedOff: false),
-            [LevelTheme.Military] = new([new GateShare(LevelStyle.Fenced, 1)], 5, IsBackedOff: false)
+            [WallSet.Basement] = new([new GateShare(LevelStyle.LockedDoors, 0.5f), new GateShare(LevelStyle.Blackout, 0.25f), new GateShare(LevelStyle.Ungated, 0.25f)], 4, IsBackedOff: false),
+            [WallSet.Concrete] = new([new GateShare(LevelStyle.Fenced, 1)], 5, IsBackedOff: false)
         },
         Weapons = Weapons,
         WeaponPrices = Weapons.Zip(Prices).ToDictionary(pair => pair.First, pair => pair.Second),
@@ -163,11 +219,11 @@ public class CampaignPlannerTests
         SecretClosets = new FittedValue<LinearFit>(new LinearFit(1.4f, 0, 0.4f), 4, IsBackedOff: true),
         Donors =
         [
-            new DonorCandidate("Level_02.map", LevelTheme.Lab, LevelStyle.LockedDoors, 336, 950),
-            new DonorCandidate("Level_04.map", LevelTheme.Lab, LevelStyle.Blackout, 6526, 1300),
-            new DonorCandidate("Level_05.map", LevelTheme.Lab, LevelStyle.Ungated, 21261, 2550),
-            new DonorCandidate("Level_08.map", LevelTheme.Military, LevelStyle.Fenced, 197861, 0)
+            new DonorCandidate("Level_02.map", WallSet.Basement, LevelStyle.LockedDoors, 336, 950),
+            new DonorCandidate("Level_04.map", WallSet.Basement, LevelStyle.Blackout, 6526, 1300),
+            new DonorCandidate("Level_05.map", WallSet.Basement, LevelStyle.Ungated, 21261, 2550),
+            new DonorCandidate("Level_08.map", WallSet.Concrete, LevelStyle.Fenced, 197861, 0)
         ],
-        FirstLevels = [new DonorCandidate("Level_01.map", LevelTheme.Outdoor, LevelStyle.Ungated, 0, 300)]
+        FirstLevels = [new DonorCandidate("Level_01.map", WallSet.Outdoor, LevelStyle.Ungated, 0, 300)]
     };
 }

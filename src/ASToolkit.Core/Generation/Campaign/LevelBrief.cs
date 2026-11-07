@@ -1,11 +1,12 @@
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Generation.Buildings;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Survey;
 
 namespace ASToolkit.Core.Generation.Campaign;
 
 /// <summary>
-/// Represents the targets a generated level is built to, drawn by the campaign planner, such as its theme, gate style, monster hit points,
+/// Represents the targets a generated level is built to, drawn by the campaign planner, such as its building, wall set, gate style, monster hit points,
 /// weapons, pickups and end-of-level money, and the original level it borrows what no model covers yet from.
 /// </summary>
 public sealed record LevelBrief
@@ -16,14 +17,24 @@ public sealed record LevelBrief
     public required int Level { get; init; }
 
     /// <summary>
-    /// Gets the theme of the level.
+    /// Gets the building the level is.
     /// </summary>
-    public required LevelTheme Theme { get; init; }
+    public required Building Building { get; init; }
+
+    /// <summary>
+    /// Gets the wall set of the level.
+    /// </summary>
+    public required WallSet WallSet { get; init; }
 
     /// <summary>
     /// Gets the gate style of the level.
     /// </summary>
     public required LevelStyle GateStyle { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the level is the first gated indoor level of its campaign, built small.
+    /// </summary>
+    public required bool IsIntro { get; init; }
 
     /// <summary>
     /// Gets the hit points of the standing and spawned monsters of the level.
@@ -74,6 +85,16 @@ public sealed record LevelBrief
     /// Gets the money the game pays at the end of the level.
     /// </summary>
     public required int EndMoney { get; init; }
+
+    /// <summary>
+    /// Gets the mounted cannons of the level, or <see langword="null"/> when the donor level gives them.
+    /// </summary>
+    public required int? MountedCannons { get; init; }
+
+    /// <summary>
+    /// Gets the second wing of a lab level, never repeated in the campaign, or <see langword="null"/> when the building draws it.
+    /// </summary>
+    public LabWing? SecondWing { get; init; }
 
     /// <summary>
     /// Gets the map name of the original level that the parts of the generator without a model of their own still read.
