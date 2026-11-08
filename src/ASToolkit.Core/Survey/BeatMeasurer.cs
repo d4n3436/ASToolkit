@@ -8,6 +8,8 @@ namespace ASToolkit.Core.Survey;
 public sealed class BeatMeasurer
 {
     private const int IntensityWindow = 1600;
+    private const int FightReach = 1000;
+    private const float LeastFightShare = 0.02f;
 
     private readonly LevelSurvey _survey;
     private readonly LevelProgression _progression;
@@ -38,15 +40,14 @@ public sealed class BeatMeasurer
             .ToArray();
 
         var beats = new List<LevelBeat>();
-        foreach (var fight in fights)
+        foreach (var fight in GroupFights())
         {
-            var kind = fight.Kind switch
-            {
-                EncounterKind.Boss => BeatKind.Boss,
-                EncounterKind.PlacedGroup => BeatKind.Fight,
-                _ => BeatKind.Ambush
-            };
-            beats.Add(Create(kind, fight.Place, fight.Route, fight.HitPoints, 0));
+            var largest = fight.MaxBy(encounter => encounter.HitPoints)!;
+            var kind = fight.Any(encounter => encounter.Kind == EncounterKind.Boss) ? BeatKind.Boss
+                : fight.Any(encounter => encounter.Kind != EncounterKind.PlacedGroup) ? BeatKind.Ambush
+                : BeatKind.Fight;
+
+            beats.Add(Create(kind, largest.Kind == EncounterKind.Ambush ? largest.TriggerPlace ?? largest.Place : largest.Place, fight[0].Route, fight.Sum(encounter => encounter.HitPoints), 0));
         }
 
         foreach (var landmark in _survey.Landmarks)
@@ -95,6 +96,36 @@ public sealed class BeatMeasurer
             .ThenBy(beat => beat.Kind)
             .ToArray();
     }
+
+    /// <summary>
+    /// Returns the fights of the level in tour order, grouping the encounters of one phase met within one stretch of the tour and leaving out groups too
+    /// small to count.
+    /// </summary>
+    public IReadOnlyList<IReadOnlyList<LevelEncounter>> GroupFights()
+    {
+        var fights = _survey.Encounters
+            .Where(encounter => encounter.Kind is EncounterKind.Ambush or EncounterKind.PlacedGroup or EncounterKind.Boss && encounter.HitPoints > 0)
+            .ToArray();
+
+        int least = (int)(LeastFightShare * fights.Sum(encounter => encounter.HitPoints));
+        var groups = new List<List<LevelEncounter>>();
+        foreach (var encounter in fights.Where(encounter => encounter.HitPoints >= least || encounter.Kind == EncounterKind.Boss).OrderBy(encounter => encounter.Route))
+        {
+            if (groups.Count > 0 && encounter.Route - groups[^1][0].Route <= FightReach && GetPhase(encounter) == GetPhase(groups[^1][0]))
+            {
+                groups[^1].Add(encounter);
+            }
+            else
+            {
+                groups.Add([encounter]);
+            }
+        }
+
+        return groups;
+    }
+
+    private int GetPhase(LevelEncounter encounter) => _progression.Phases.Count == 0 ? 0
+        : _progression.GetPhase(encounter.Kind == EncounterKind.Ambush ? encounter.TriggerPlace ?? encounter.Place : encounter.Place) ?? FindPhaseAt(encounter.Route);
 
     private (int Start, int End) GetSpan(LevelPhase phase)
     {

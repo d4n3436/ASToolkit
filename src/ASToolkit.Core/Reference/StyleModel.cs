@@ -39,6 +39,11 @@ public sealed class StyleModel
     public CampaignModel Campaign { get; }
 
     /// <summary>
+    /// Gets the fight parameters fitted to the style's originals.
+    /// </summary>
+    public required EncounterModel Encounters { get; init; }
+
+    /// <summary>
     /// Gets the outlines of the originals' smaller rooms the building grammars transform their rooms from.
     /// </summary>
     public required IReadOnlyList<RoomFootprint> Footprints { get; init; }

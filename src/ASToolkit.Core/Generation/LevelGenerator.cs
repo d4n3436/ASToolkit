@@ -32,10 +32,12 @@ public sealed class LevelGenerator
     private const uint DarkAmbient = 0x00C0C0C0;
 
     private const int SeedPrime = 7919;
+    private const int MaxSpawnClosets = 6;
     private const int BudgetSalt = 17;
     private const int ContentSalt = 101;
     private const int RoofSalt = 211;
     private const int CampaignSalt = 307;
+    private const int FightSalt = 401;
     private const int MaxBreakerRetries = 20;
     private const float GateClearance = 100;
     private const float SiteClearance = 150;
@@ -268,7 +270,7 @@ public sealed class LevelGenerator
     }
 
     private EncounterProfile GetEncounters(string name) =>
-        _encounters.GetOrAdd(name, key => new Lazy<EncounterProfile>(() => EncounterProfile.Measure(_references.GetSurvey(key), _references.GetLevel(key).Analysis, _objects))).Value;
+        _encounters.GetOrAdd(name, key => new Lazy<EncounterProfile>(() => EncounterProfile.Measure(_references.GetSurvey(key), _references.GetLevel(key).Analysis))).Value;
 
     // Write a level over its donor, or in add-on style over add-on 1's level of its number
     private string GetTemplateName(LevelBrief brief) => _model.Style == GenerationStyle.AddOn ? $"ADDON/{ReferenceLevelSet.GetCampaignName(brief.Level)}" : brief.DonorLevel;
@@ -296,9 +298,9 @@ public sealed class LevelGenerator
     // Draw the layout and structure from the layout seed, and the budget, the decor and content and the roof from streams of their own
     private GeneratedLevel Build(int layoutSeed, LevelBrief brief) =>
         Build(new Random(layoutSeed), new Random(unchecked(layoutSeed * SeedPrime + BudgetSalt)), new Random(unchecked(layoutSeed * SeedPrime + ContentSalt)),
-            new Random(unchecked(layoutSeed * SeedPrime + RoofSalt)), brief);
+            new Random(unchecked(layoutSeed * SeedPrime + RoofSalt)), new Random(unchecked(layoutSeed * SeedPrime + FightSalt)), brief);
 
-    private GeneratedLevel Build(Random layoutRng, Random budgetRng, Random contentRng, Random roofRng, LevelBrief brief, int retries = 0)
+    private GeneratedLevel Build(Random layoutRng, Random budgetRng, Random contentRng, Random roofRng, Random fightRng, LevelBrief brief, int retries = 0)
     {
         if (brief.Level == 1)
         {
@@ -311,8 +313,9 @@ public sealed class LevelGenerator
         var wallSet = brief.WallSet;
         var settings = wallSet == WallSet.Basement ? WallSetSettings.Basement : WallSetSettings.Concrete;
         int dynamiteSites = donor.Analysis.Elements.Count(element => element.Kind == ElementKind.DynamiteSite);
-        var budget = BudgetPlanner.Plan(budgetRng, brief, dynamiteSites, _content.Value, _objects);
-        int spawnClosets = wallSet == WallSet.Basement ? Math.Min(6, budget.Ambushes.Count / 3) : 0;
+        var budget = new BudgetPlanner(_content.Value, _model.Encounters).Plan(budgetRng, brief, dynamiteSites);
+        var encounterModel = _model.Encounters;
+        int spawnClosets = wallSet == WallSet.Basement && brief.SpawnedShare > 0 ? Math.Min(MaxSpawnClosets, (int)MathF.Round(brief.Rooms * encounterModel.ClosetsPerRoom.Value)) : 0;
         var builder = new BuildingBuilder(layoutRng, _model.Footprints);
         var building = builder.Build(new BuildingRequest
         {
@@ -333,6 +336,7 @@ public sealed class LevelGenerator
         var mission = MissionWriter.Write(doors);
         int pens = wallSet == WallSet.Concrete && brief.GateStyle == LevelStyle.Fenced ? CountPens(donor.Analysis, donor.Survey) : 0;
         var plan = new PlanWriter(wallSet, layoutRng).Write(building, mission, pens);
+        var fights = new FightPlanner(encounterModel, _objects, plan, brief, fightRng).Plan(budget.TargetHitPoints);
         var layoutCounts = builder.Counts
             .Concat(doors.Faults.Select(pair => KeyValuePair.Create(pair.Key.ToString(), pair.Value)))
             .ToDictionary();
@@ -394,7 +398,7 @@ public sealed class LevelGenerator
 
         if (breaker is null && plan.Gate is GateKind.LockedDoors or GateKind.Blackout && retries < MaxBreakerRetries)
         {
-            return Build(layoutRng, budgetRng, contentRng, roofRng, brief, retries + 1);
+            return Build(layoutRng, budgetRng, contentRng, roofRng, fightRng, brief, retries + 1);
         }
 
         var keepClear = GetKeepClear(layout, start, settings.UnitCells);
@@ -444,7 +448,7 @@ public sealed class LevelGenerator
         };
 
         ContentPlacer.Place(context, budget, donor.Analysis.Checkpoints.Count > 0, brief.GateStyle == LevelStyle.Blackout, script, breaker, wallSet == WallSet.Basement ? _basementSites.Value : _concreteSites.Value,
-            visibleEdges, placedEdges, spawnWalls, _keypads.Value, _model.GetFacings(wallSet), _cannonScenes.Value, encounters, placedSites);
+            visibleEdges, placedEdges, spawnWalls, _keypads.Value, _model.GetFacings(wallSet), _cannonScenes.Value, encounters, encounterModel, fights, placedSites);
 
         return new GeneratedLevel
         {
@@ -454,6 +458,7 @@ public sealed class LevelGenerator
             Plan = plan,
             Layout = layout,
             Budget = budget,
+            Fights = fights,
             Template = template,
             Building = brief.Building,
             WallSet = wallSet,

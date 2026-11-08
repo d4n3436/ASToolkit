@@ -55,9 +55,9 @@ public sealed class PlanRegion
     public int Phase { get; init; }
 
     /// <summary>
-    /// Gets a value indicating whether the level's critical walk, the way in and the way back, passes the region.
+    /// Gets the index of the region in the order the critical walk first enters regions, the host's index for a side room.
     /// </summary>
-    public bool IsOnRoute { get; init; }
+    public int Order { get; init; }
 
     /// <summary>
     /// Gets the mission role of the region's room, or null for a region without one.

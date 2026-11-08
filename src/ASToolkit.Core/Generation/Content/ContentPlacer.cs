@@ -5,6 +5,7 @@ using ASToolkit.Core.Generation.Geometry;
 using ASToolkit.Core.Generation.Layout;
 using ASToolkit.Core.Generation.Output;
 using ASToolkit.Core.Levels;
+using ASToolkit.Core.Reference;
 using ASToolkit.Core.Rooms;
 using ASToolkit.Core.Scripting;
 using ASToolkit.Core.Survey;
@@ -21,11 +22,6 @@ public static class ContentPlacer
     // Holds the 415 spot the level 10 script handles specially; generators keep away from it
     private static readonly PointF ScriptedGeneratorSpot = new(7541, 4501);
     private const float ScriptedGeneratorReach = 150;
-    private const float GroupStartGap = 900;
-    private const int GroupRoomTries = 4;
-    private const float HiddenSpawnX = 640;
-    private const float HiddenSpawnY = 400;
-    private const int SpawnerChoices = 4;
     private const float ChargeSiteGap = 150;
     private const int RayCells = 8;
     private const float ChargeLead = 0.1f;
@@ -53,7 +49,6 @@ public static class ContentPlacer
     private const int MaxHallSites = 4;
     private const float PadWallReach = 1.5f;
     private const float SiteSpacing = 250;
-    private const float CannonGroupGap = 600;
     private const float FarWallGap = 1.0f;
     private const float NearWallGap = 2.2f;
     private const float WallGapSlack = 0.2f;
@@ -64,8 +59,6 @@ public static class ContentPlacer
     private const float CornerWeight = 0.5f;
     private const float FarEndWeight = 1.5f;
     private const int PileRoomTries = 4;
-    private const int SpawnRoomTries = 6;
-    private const int DefaultTriggerRadius = 150;
     // Holds how many pixels inside the trigger room's doorway the blackout's reach stops
     private const int BlackoutDoorGap = 94;
     private const int PileSpotTries = 12;
@@ -77,7 +70,6 @@ public static class ContentPlacer
     private const float PadWallDistance = 0.85f;
     private const float PadWallMargin = 20;
     private const float LatestBossStart = 0.65f;
-    private const float GroupDetour = 1.4f;
     private static readonly KnownObject[] GorePools = [KnownObject.SmallBloodPool, KnownObject.BloodPool];
     private const float DefaultCheckpoint = 0.3f;
 
@@ -268,19 +260,19 @@ public static class ContentPlacer
     /// </summary>
     public static void Place(PlacementContext ctx, LevelBudget budget, bool hasCheckpoint, bool blackoutIsCheckpoint, LevelScript script, BreakerSpot? breaker,
         IReadOnlyList<SiteTemplate> siteTemplates, IReadOnlyDictionary<EdgeKey, EdgeKind> visibleEdges, IReadOnlyDictionary<EdgeKey, EdgeKind> builtEdges, IReadOnlyDictionary<EdgeKey, int> spawnWalls, KeypadTable keypads, FacingTable facings,
-        IReadOnlyList<IReadOnlyList<PropPlacement>> cannonScenes, EncounterProfile encounters, PlacedSites? placed)
+        IReadOnlyList<IReadOnlyList<PropPlacement>> cannonScenes, EncounterProfile encounters, EncounterModel model, IReadOnlyList<PlannedFight> fights, PlacedSites? placed)
     {
         PlaceGate(ctx, budget, script, breaker, keypads, facings);
-        PlaceBosses(ctx, budget, facings, builtEdges);
+        PlaceBosses(ctx, facings, builtEdges);
         var cannon = placed is null ? PlaceMountedCannons(ctx, budget, cannonScenes) : placed.Cannon;
         var sites = placed?.Sites ?? PlaceSites(ctx, budget, siteTemplates, visibleEdges, cannon, encounters);
         PlaceCharges(ctx, sites, encounters);
-        PlaceEncounters(ctx, budget, encounters, spawnWalls);
+        new EncounterPlacer(ctx, model, spawnWalls).Place(fights, budget);
         PlaceStashes(ctx, budget);
         PlaceItems(ctx, budget, encounters);
         if (hasCheckpoint && (script.Blackout is null || !blackoutIsCheckpoint))
         {
-            PlaceCheckpoint(ctx, script, encounters);
+            PlaceCheckpoint(ctx, script, encounters, fights);
         }
     }
 
@@ -329,13 +321,13 @@ public static class ContentPlacer
 
     private static PointF GetCenter(PlacementContext ctx, Cell c) => ctx.Layout.Lattice.GetCenter(c);
 
-    private static PointF GetMiddle(PlacementContext ctx, PlanRegion region)
+    internal static PointF GetMiddle(PlacementContext ctx, PlanRegion region)
     {
         var cells = ctx.GetRegionCells(region);
         return GetCenter(ctx, cells[cells.Count / 2]);
     }
 
-    private static float GetDistance(PointF a, PointF b) => MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
+    internal static float GetDistance(PointF a, PointF b) => MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
 
     private static void PlaceGate(PlacementContext ctx, LevelBudget budget, LevelScript script, BreakerSpot? breaker, KeypadTable keypads, FacingTable facings)
     {
@@ -457,7 +449,7 @@ public static class ContentPlacer
     private static Cell GetDoorwayCell(PlacementContext ctx, PlanLink link) => ctx.Layout.GetDoorwayCell(link.Id, link.To);
 
     // Put bosses in the largest dead-end room outside a wing well along the walk, or else the last station
-    private static void PlaceBosses(PlacementContext ctx, LevelBudget budget, FacingTable facings, IReadOnlyDictionary<EdgeKey, EdgeKind> builtEdges)
+    private static void PlaceBosses(PlacementContext ctx, FacingTable facings, IReadOnlyDictionary<EdgeKey, EdgeKind> builtEdges)
     {
         var final = ctx.Plan.Regions
             .Where(r => r.Kind is RegionKind.Station or RegionKind.SideRoom && r.Id != ctx.Plan.KeyRoom?.Id && ctx.Plan.HoldsFights(r) && (ctx.Plan.Settings.WallSet != WallSet.Basement || IsNearBody(ctx, r)))
@@ -473,36 +465,33 @@ public static class ContentPlacer
             .OrderByDescending(c => Math.Abs(c.U - entrance.U) + Math.Abs(c.V - entrance.V))
             .ToArray();
         
-        foreach ((var id, int count) in budget.Bosses.OrderBy(p => p.Key))
+        foreach (var id in ctx.Brief.Bosses)
         {
-            for (int index = 0; index < count; index++)
+            var boss = ctx.Place(far.Take(Math.Max(1, far.Length / 5)).ToArray(), id, dir: 0, payload: MapBuilder.MonsterPayload, army: 1);
+            if (boss is null)
             {
-                var boss = ctx.Place(far.Take(Math.Max(1, far.Length / 5)).ToArray(), id, dir: 0, payload: MapBuilder.MonsterPayload, army: 1);
-                if (boss is null)
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                for (int thirdIndex = 0; thirdIndex < 6; thirdIndex++)
+            for (int thirdIndex = 0; thirdIndex < 6; thirdIndex++)
+            {
+                float angle = ctx.Rng.NextSingle() * 2 * MathF.PI;
+                float distance = 60 + 120 * ctx.Rng.NextSingle();
+                (float x, float y) = (boss.Value.X + MathF.Cos(angle) * distance, boss.Value.Y + MathF.Sin(angle) * distance * 0.7f);
+                (float u, float v) = ctx.Layout.Lattice.ToLattice(x, y);
+                if (!ctx.Layout.Cells.ContainsKey(ctx.Layout.Lattice.GetCell(x, y)) || ctx.IsInWall(x, y) || !(ctx.Layout.Edges.MeasureClearance(u, v) >= GoreClearance))
+                    continue;
+                
+                var pool = GorePools[ctx.Rng.Next(GorePools.Length)];
+                ctx.Map.Add(pool, x, y, 0, facings.PickFacing(ctx.Rng, pool, ctx.Layout.Edges, u, v), unique: false);
+                if (thirdIndex >= 2)
+                    continue;
+                    
+                var corpse = KnownObject.SoldierCorpse + thirdIndex;
+                byte facing = facings.PickFacing(ctx.Rng, corpse, builtEdges, u, v);
+                if (facings.Fits(corpse, facing, builtEdges, u, v))
                 {
-                    float angle = ctx.Rng.NextSingle() * 2 * MathF.PI;
-                    float distance = 60 + 120 * ctx.Rng.NextSingle();
-                    (float x, float y) = (boss.Value.X + MathF.Cos(angle) * distance, boss.Value.Y + MathF.Sin(angle) * distance * 0.7f);
-                    (float u, float v) = ctx.Layout.Lattice.ToLattice(x, y);
-                    if (ctx.Layout.Cells.ContainsKey(ctx.Layout.Lattice.GetCell(x, y)) && !ctx.IsInWall(x, y) && ctx.Layout.Edges.MeasureClearance(u, v) >= GoreClearance)
-                    {
-                        var pool = GorePools[ctx.Rng.Next(GorePools.Length)];
-                        ctx.Map.Add(pool, x, y, 0, facings.PickFacing(ctx.Rng, pool, ctx.Layout.Edges, u, v), unique: false);
-                        if (thirdIndex < 2)
-                        {
-                            var corpse = KnownObject.SoldierCorpse + thirdIndex;
-                            byte facing = facings.PickFacing(ctx.Rng, corpse, builtEdges, u, v);
-                            if (facings.Fits(corpse, facing, builtEdges, u, v))
-                            {
-                                ctx.Map.Add(corpse, x, y, 0, facing, unique: false);
-                            }
-                        }
-                    }
+                    ctx.Map.Add(corpse, x, y, 0, facing, unique: false);
                 }
             }
         }
@@ -584,7 +573,7 @@ public static class ContentPlacer
     private static (float X, float Y, Cell Cell)[] PlaceSites(PlacementContext ctx, LevelBudget budget, IReadOnlyList<SiteTemplate> templates, IReadOnlyDictionary<EdgeKey, EdgeKind> visibleEdges,
         (PlanRegion Hall, PointF Far)? cannon, EncounterProfile encounters)
     {
-        ctx.EndlessGeneratorsLeft = encounters.EndlessGenerators;
+        ctx.EndlessGeneratorsLeft = budget.EndlessGenerators;
         var sites = new List<(float X, float Y, Cell Cell)>();
         if (budget.DynamiteSites == 0 || templates.Count == 0)
         {
@@ -1193,390 +1182,21 @@ public static class ContentPlacer
 
     private static Cell GetKeyCell(PlacementContext ctx, PlanRegion keyRoom) => ctx.GetRegionCells(keyRoom).First(ctx.Distance.ContainsKey);
 
-    private static bool HasGroupRoom(PlacementContext ctx, PlanRegion region, PointF start) =>
-        ctx.GetFreeCells(region).Any(c => GetDistance(GetCenter(ctx, c), start) >= GroupStartGap);
-
-    // Anchor a group's original shape in a room, keeping the members a short walk from the anchor
-    private static PlanRegion? TryPlaceGroup(PlacementContext ctx, IReadOnlyList<GroupMember> group, IReadOnlyList<PlanRegion> regions, PointF start)
-    {
-        // Keep groups 600 px off the cannons
-        var cannons = ctx.Map.Sprites.Where(s => s.Id == KnownObject.MountedCannon).Select(s => new PointF(s.Position.X, s.Position.Y)).ToArray();
-        for (int attempt = 0; attempt < 40; attempt++)
-        {
-            var r = regions[ctx.Rng.Next(regions.Count)];
-            var anchors = ctx.GetFreeCells(r).Where(c => GetDistance(GetCenter(ctx, c), start) >= 900 && cannons.All(cannon => GetDistance(GetCenter(ctx, c), cannon) >= CannonGroupGap)).ToArray();
-            if (anchors.Length == 0)
-            {
-                continue;
-            }
-
-            var anchor = anchors[ctx.Rng.Next(anchors.Length)];
-            (float ax, float ay) = GetCenter(ctx, anchor);
-            float reach = group.Max(member => MathF.Sqrt(member.Dx * member.Dx + member.Dy * member.Dy));
-            var near = MeasureNearWalk(ctx, anchor, (int)(GroupDetour * reach / ctx.Step) + 2);
-            var spots = new List<(GroupMember Member, float X, float Y)>();
-            foreach (var member in group)
-            {
-                float x = ax + member.Dx;
-                float y = ay + member.Dy;
-                var c = ctx.Layout.Lattice.GetCell(x, y);
-                bool inRoom = ctx.Layout.Cells.TryGetValue(c, out int region);
-                bool closet = inRoom && ctx.Plan.Regions[region].Kind is RegionKind.SecretCloset or RegionKind.SpawnCloset;
-                bool fights = !inRoom || ctx.Plan.HoldsFights(ctx.Plan.Regions[region]);
-                bool open = near.TryGetValue(c, out int steps) && steps * ctx.Step <= GroupDetour * GetDistance(new PointF(x, y), new PointF(ax, ay)) + 2 * ctx.Step;
-                if (open && !closet && fights && !ctx.IsInWall(x, y, 2) && ctx.Occupancy.Fits(member.Id, x, y, 0) && GetDistance(new PointF(x, y), start) >= 900
-                    && (member.Id != KnownObject.TeleportPad || IsPadSpot(ctx, x, y)))
-                {
-                    spots.Add((member, x, y));
-                }
-            }
-
-            bool padsFit = spots.Count(spot => spot.Member.Id == KnownObject.TeleportPad) == group.Count(member => member.Id == KnownObject.TeleportPad);
-            if (padsFit && spots.Count >= Math.Max(1, (int)(group.Count * 0.8f)))
-            {
-                foreach ((var member, float x, float y) in spots)
-                {
-                    ctx.Map.Add(member.Id, x, y, 0, member.Dir, MapBuilder.MonsterPayload, 1, unique: false, source: SpriteSource.CopiedFormation);
-                    ctx.Occupancy.Add(member.Id, x, y, 0);
-                }
-
-                return r;
-            }
-        }
-
-        return null;
-    }
-
-    // Count the steps over reachable floor from a cell, up to a limit
-    private static Dictionary<Cell, int> MeasureNearWalk(PlacementContext ctx, Cell from, int limit)
-    {
-        var steps = new Dictionary<Cell, int> { [from] = 0 };
-        var queue = new Queue<Cell>([from]);
-        while (queue.Count > 0)
-        {
-            var cell = queue.Dequeue();
-            if (steps[cell] >= limit)
-            {
-                continue;
-            }
-
-            foreach (var (next, edge) in EdgeKey.GetNeighbors(cell))
-            {
-                if (ctx.Distance.ContainsKey(next) && !steps.ContainsKey(next) && !(ctx.Layout.Edges.TryGetValue(edge, out var kind) && kind.BlocksWalking))
-                {
-                    steps[next] = steps[cell] + 1;
-                    queue.Enqueue(next);
-                }
-            }
-        }
-
-        return steps;
-    }
-
-    // Give the budget's standing groups and ambushes, by rank of hit points, the original's fights of the same rank, each in a room of that
-    // fight's role and zone nearest its progress, and release a spawned fight from the entrance of the room that plays its trigger's role
-    private static void PlaceEncounters(PlacementContext ctx, LevelBudget budget, EncounterProfile profile, IReadOnlyDictionary<EdgeKey, int> spawnWalls)
-    {
-        var roles = ctx.Plan.MeasureRoles();
-        var rooms = GetRoleRooms(ctx, roles).Where(room => ctx.Plan.HoldsFights(room.Region)).ToArray();
-        var start = GetCenter(ctx, ctx.Start);
-        var held = new Dictionary<Encounter, PlanRegion>(ReferenceEqualityComparer.Instance);
-        var triggers = new Dictionary<(RoomRole, GateZone), PlanRegion>();
-        var standing = profile.Encounters.Where(fight => !fight.IsSpawned).OrderBy(fight => fight.Share).ToArray();
-        var groups = budget.PlacedGroups.OrderBy(group => group.Sum(member => GetHitPoints([member.Id]))).ToArray();
-        for (int groupIndex = 0; groupIndex < groups.Length; groupIndex++)
-        {
-            var fight = standing.Length == 0 ? null : standing[GetRank(groupIndex, groups.Length, standing.Length)];
-            var candidates = OrderRooms(fight, groupIndex / (float)Math.Max(1, groups.Length - 1)).Where(room => HasGroupRoom(ctx, room, start)).Take(GroupRoomTries).ToArray();
-            if (candidates.Length == 0)
-            {
-                continue;
-            }
-
-            var placed = candidates.Select(room => TryPlaceGroup(ctx, groups[groupIndex], [room], start)).FirstOrDefault(room => room is not null);
-            if (fight is not null && placed is not null)
-            {
-                held.TryAdd(fight, placed);
-            }
-
-            if (placed is null)
-            {
-                placed = candidates[0];
-                foreach (var member in groups[groupIndex].Where(member => member.Id != KnownObject.TeleportPad))
-                {
-                    ctx.Place(ctx.GetFreeCells(placed).Where(c => GetDistance(GetCenter(ctx, c), start) >= GroupStartGap).ToArray(), member.Id, member.Dir, MapBuilder.MonsterPayload, 1);
-                }
-            }
-
-            ctx.Fights.Add(new PlacedFight(ctx.GetProgress(placed), groups[groupIndex].Sum(member => GetHitPoints([member.Id])), placed.Id));
-        }
-
-        var spawned = profile.Encounters
-            .Where(fight => fight.IsSpawned)
-            .OrderBy(fight => fight.Share)
-            .ToArray();
-        
-        var ambushes = budget.Ambushes
-            .OrderBy(GetHitPoints)
-            .ToArray();
-        
-        var closets = new Queue<PlanRegion>(ctx.Plan.Regions
-            .Where(region => region.Kind == RegionKind.SpawnCloset && ctx.Plan.HoldsFights(region) && region.Host is not null
-                && ctx.Plan.HoldsTriggers(ctx.Plan.Regions[region.Host.Value]))
-            .OrderBy(ctx.GetProgress));
-        
-        var waves = Enumerable.Range(0, ambushes.Length).GroupBy(index => spawned.Length == 0 ? index : GetRank(index, ambushes.Length, spawned.Length));
-        foreach (var wave in waves)
-        {
-            var monsters = wave.SelectMany(index => ambushes[index]).ToList();
-            var chunks = Split(monsters, profile.LargestSpawner);
-            int radius = profile.TriggerRadii.Count == 0 ? DefaultTriggerRadius : profile.TriggerRadii[ctx.Rng.Next(profile.TriggerRadii.Count)];
-            var fight = spawned.Length == 0 ? null : spawned[wave.Key];
-            if (fight is { Role: RoomRole.Closet } && closets.TryDequeue(out var closet) && PlaceClosetAmbush(ctx, closet, chunks, radius, spawnWalls, budget))
-            {
-                ctx.Fights.Add(new PlacedFight(ctx.GetProgress(closet), GetHitPoints(monsters), closet.Id));
-                continue;
-            }
-
-            var options = OrderRooms(fight, wave.Key / (float)Math.Max(1, ambushes.Length - 1))
-                .Take(SpawnRoomTries)
-                .ToArray();
-            
-            var (room, trigger) = options.Select(option => (Room: option, Trigger: FindTrigger(fight, option))).FirstOrDefault(pair => GetCellsAhead(pair.Room, pair.Trigger).Any());
-            if (room is null)
-            {
-                room = options[0];
-                trigger = GetTriggerCell(GetRouteRoom(room));
-            }
-
-            if (fight is not null)
-            {
-                held.TryAdd(fight, room);
-            }
-
-            (float tx, float ty) = GetCenter(ctx, trigger);
-            var cells = GetCellsAhead(room, trigger)
-                .OrderByDescending(c => GetDistance(GetCenter(ctx, c), new PointF(tx, ty)))
-                .ToArray();
-            
-            var hidden = cells.Where(c =>
-            {
-                var center = GetCenter(ctx, c);
-                return MathF.Abs(center.X - tx) >= HiddenSpawnX || MathF.Abs(center.Y - ty) >= HiddenSpawnY;
-            }).ToArray();
-            
-            if (cells.Length == 0)
-            {
-                AddToLastSpawner(ctx, chunks);
-                continue;
-            }
-
-            var spots = hidden.Length > 0 ? hidden : cells;
-            int first = ctx.Rng.Next(Math.Min(spots.Length, SpawnerChoices));
-            for (int chunkIndex = 0; chunkIndex < chunks.Count; chunkIndex++)
-            {
-                PlaceAmbush(ctx, chunks[chunkIndex], trigger, spots[(first + chunkIndex) % spots.Length], radius);
-            }
-        }
-
-        return;
-
-        int GetHitPoints(IReadOnlyList<KnownObject> monsters) => monsters.Sum(m => ctx.Objects.TryFind(m, out var obj) ? obj.MaxHp : 0);
-
-        // Order the rooms by the one a fight already holds, by how well they play its role and zone, rooms no other fight holds first, and by
-        // how near their progress lies to the fight's
-        IEnumerable<PlanRegion> OrderRooms(Encounter? fight, float progress) => rooms
-            .OrderBy(room => fight is not null && held.TryGetValue(fight, out var own) && own == room.Region ? 0 : 1)
-            .ThenBy(room => fight is null ? 0 : (room.Role == fight.Role ? 0 : 2) + (!profile.IsGated || room.Zone == fight.Zone ? 0 : 1))
-            .ThenBy(room => held.ContainsValue(room.Region) ? 1 : 0)
-            .ThenBy(room => Math.Abs(ctx.GetProgress(room.Region) - (fight?.Progress ?? progress)))
-            .Select(room => room.Region);
-
-        Cell FindTrigger(Encounter? fight, PlanRegion room) => fight is null ? GetTriggerCell(GetRouteRoom(room))
-            : GetTriggerCellAt(fight.IsTriggeredInRoom ? GetRouteRoom(room) : FindTriggerRoom(fight, room), fight.Progress);
-
-        PlanRegion GetRouteRoom(PlanRegion room)
-        {
-            if (ctx.Plan.HoldsTriggers(room))
-            {
-                return room;
-            }
-
-            var center = GetMiddle(ctx, room);
-            return rooms
-                .Where(other => ctx.Plan.HoldsTriggers(other.Region))
-                .OrderBy(other => roles.AreJoined(room.Id, other.Region.Id) ? 0 : 1)
-                .ThenBy(other => GetDistance(GetMiddle(ctx, other.Region), center))
-                .Select(other => other.Region)
-                .DefaultIfEmpty(room)
-                .First();
-        }
-
-        // Keep spawners on the floor the walk from the start reaches no sooner than their trigger
-        IEnumerable<Cell> GetCellsAhead(PlanRegion room, Cell trigger) => ctx.GetFreeCells(room)
-            .Where(c => ctx.Distance.GetValueOrDefault(c) >= ctx.Distance.GetValueOrDefault(trigger));
-
-        // Trigger next door from the neighbor that plays the trigger's role best, or from afar in one room per trigger role and zone, the one
-        // that plays it best nearest the first fight it releases
-        PlanRegion FindTriggerRoom(Encounter fight, PlanRegion room)
-        {
-            if (!fight.IsTriggeredNextDoor && triggers.TryGetValue((fight.TriggerRole, fight.TriggerZone), out var shared))
-            {
-                return shared;
-            }
-
-            var center = GetMiddle(ctx, room);
-            
-            var found = rooms.Where(other => other.Region != room && ctx.Plan.HoldsTriggers(other.Region) && (!fight.IsTriggeredNextDoor || roles.AreJoined(room.Id, other.Region.Id)))
-                .OrderBy(other => (other.Role == fight.TriggerRole ? 0 : 2) + (!profile.IsGated || other.Zone == fight.TriggerZone ? 0 : 1))
-                .ThenBy(other => GetDistance(GetMiddle(ctx, other.Region), center))
-                .Select(other => other.Region)
-                .DefaultIfEmpty(GetRouteRoom(room))
-                .First();
-            
-            if (!fight.IsTriggeredNextDoor)
-            {
-                triggers[(fight.TriggerRole, fight.TriggerZone)] = found;
-            }
-
-            return found;
-        }
-
-        // Trigger at a room's entrance, or for the start room at its floor farthest from the player
-        Cell GetTriggerCell(PlanRegion room)
-        {
-            var entrance = ctx.Plan.Links.FirstOrDefault(link => link.To == room.Id);
-            return entrance is not null
-                ? GetDoorwayCell(ctx, entrance)
-                : ctx.GetFreeCells(room).DefaultIfEmpty(ctx.Start).MaxBy(c => GetDistance(GetCenter(ctx, c), start));
-        }
-
-        // Trigger where the walk through the room comes nearest the fight's progress, or at its entrance when no free cell does
-        Cell GetTriggerCellAt(PlanRegion room, float progress) => ctx.GetFreeCells(room)
-            .Where(ctx.Distance.ContainsKey)
-            .OrderBy(c => Math.Abs(ctx.GetProgress(c) - progress))
-            .Cast<Cell?>()
-            .FirstOrDefault() ?? GetTriggerCell(room);
-    }
-
-    // Deal the monsters of a wave out to as few spawners as hold them at the original's largest, mixing every kind into each
-    private static IReadOnlyList<IReadOnlyList<KnownObject>> Split(IReadOnlyList<KnownObject> monsters, int largest)
-    {
-        int count = largest <= 0 ? 1 : Math.Max(1, (monsters.Count + largest - 1) / largest);
-        var chunks = Enumerable.Range(0, count).Select(_ => new List<KnownObject>()).ToArray();
-        for (int index = 0; index < monsters.Count; index++)
-        {
-            chunks[index % count].Add(monsters[index]);
-        }
-
-        return chunks;
-    }
-
     private static int GetRank(int index, int count, int ranks) => count <= 1 ? ranks - 1 : (int)MathF.Round(index * (ranks - 1) / (float)(count - 1));
 
-    // Blow the closet wall open on the same trigger as its spawners
-    private static bool PlaceClosetAmbush(PlacementContext ctx, PlanRegion closet, IReadOnlyList<IReadOnlyList<KnownObject>> chunks, int radius,
-        IReadOnlyDictionary<EdgeKey, int> spawnWalls, LevelBudget budget)
+    internal static void StockCloset(PlacementContext ctx, LevelBudget budget, IReadOnlyList<Cell> cells)
     {
-        int linkIndex = ctx.Plan.Links.FirstOrDefault(l => l.To == closet.Id)?.Id ?? -1;
-        var hole = ctx.Layout.LinkEdges[linkIndex][0];
-        if (!spawnWalls.TryGetValue(hole, out int wallIndex))
-        {
-            return false;
-        }
-
-        var (a, b) = hole.Cells;
-        var (inside, outside) = ctx.Layout.Cells.GetValueOrDefault(a, -1) == closet.Id ? (a, b) : (b, a);
-        var front = new Cell(outside.U + 2 * (outside.U - inside.U), outside.V + 2 * (outside.V - inside.V));
-        var trigger = ctx.Layout.Cells.ContainsKey(front) ? front : outside;
-        (float tx, float ty) = GetCenter(ctx, trigger);
-        var cells = ctx.GetRegionCells(closet);
-        int triggerDistance = ctx.Distance.GetValueOrDefault(trigger);
-        var onRoute = ctx.Plan.Stations.Select(r => r.Id).ToHashSet();
-        
-        var onward = ctx.Distance
-            .Where(p => p.Value >= triggerDistance + 500 / ctx.Step && p.Value <= triggerDistance + 800 / ctx.Step && onRoute.Contains(ctx.Layout.Cells[p.Key]))
-            .OrderBy(p => GetDistance(GetCenter(ctx, p.Key), new PointF(tx, ty))).ThenBy(p => p.Key.U).ThenBy(p => p.Key.V)
-            .Select(p => (Cell?)p.Key).FirstOrDefault();
-        
-        List<PointF> way = onward is null ? [new PointF(tx, ty)] : [new PointF(tx, ty), GetCenter(ctx, onward.Value)];
-        var spots = cells.OrderBy(cell => Math.Abs(cell.U - inside.U) + Math.Abs(cell.V - inside.V)).ToArray();
-        for (int chunkIndex = 0; chunkIndex < chunks.Count; chunkIndex++)
-        {
-            byte[] payload = SpawnerProgram.Create(chunks[chunkIndex], (tx, ty, radius), way).ToPayload();
-            (float sx, float sy) = GetCenter(ctx, spots[chunkIndex % spots.Length]);
-            ctx.Map.Add(KnownObject.Spawner, sx, sy, 0, 0, payload, 1, unique: false, source: SpriteSource.CopiedFormation);
-            ctx.AddCompanions(KnownObject.Spawner, sx, sy, 0);
-        }
-
-        var wallProgram = new SpawnerProgram
-        {
-            Actions = [new StackAction((int)ActionCode.StopStack, 0, 0, 0), new StackAction(15, 0, 0, 0), new StackAction((int)ActionCode.FlagmanTrigger, (int)tx, (int)ty, (int)radius)],
-            Trailer = new byte[4]
-        };
-        ctx.Map.Sprites[wallIndex] = ctx.Map.Sprites[wallIndex] with { Payload = wallProgram.ToPayload() };
-        if (ctx.Rng.NextSingle() < 0.3f)
-        {
-            foreach (var item in CreateStash(ctx, budget).Take(2))
-            {
-                if (ctx.Place(cells, item, dir: 0, take: false) is not null)
-                {
-                    TakeFromBudget(budget, item);
-                }
-            }
-        }
-
-        return true;
-    }
-
-    // Give an ambush with nowhere ahead of its trigger spawners of its own beside the spawner placed last, on that spawner's trigger
-    private static void AddToLastSpawner(PlacementContext ctx, IReadOnlyList<IReadOnlyList<KnownObject>> chunks)
-    {
-        int index = ctx.Map.Sprites.FindLastIndex(sprite => sprite.Id == KnownObject.Spawner && SpawnerProgram.Parse(sprite.Payload)?.Trigger is not null);
-        if (index < 0)
+        if (ctx.Rng.NextSingle() >= 0.3f)
         {
             return;
         }
 
-        var sprite = ctx.Map.Sprites[index];
-        var program = SpawnerProgram.Parse(sprite.Payload)!;
-        var trigger = program.Trigger!.Value;
-        foreach (var chunk in chunks)
+        foreach (var item in CreateStash(ctx, budget).Take(2))
         {
-            var added = SpawnerProgram.Create(chunk, (trigger.X, trigger.Y, trigger.Radius), program.Waypoints.Select(point => new PointF(point.X, point.Y)));
-            ctx.Map.Add(KnownObject.Spawner, sprite.Position.X, sprite.Position.Y, 0, 0, added.ToPayload(), 1, unique: false, source: SpriteSource.CopiedFormation);
-        }
-
-        var cell = ctx.Layout.Lattice.GetCell(trigger.X, trigger.Y);
-        if (ctx.Layout.Cells.TryGetValue(cell, out int region))
-        {
-            ctx.Fights.Add(new PlacedFight(ctx.GetProgress(cell), chunks.Sum(chunk => chunk.Sum(m => ctx.Objects.TryFind(m, out var obj) ? obj.MaxHp : 0)), region));
-        }
-    }
-
-    private static void PlaceAmbush(PlacementContext ctx, IReadOnlyList<KnownObject> monsters, Cell trigger, Cell spawner, int radius)
-    {
-        (float tx, float ty) = GetCenter(ctx, trigger);
-        var path = ctx.FindPath(spawner, trigger);
-        int meeting = Math.Max(1, (int)(path.Length * 0.4f));
-        meeting = Math.Min(meeting, path.Length - 1);
-        int stride = Math.Max(1, meeting / 4);
-        var way = new List<PointF>();
-        for (int index = stride; index < meeting; index += stride)
-        {
-            way.Add(GetCenter(ctx, path[index]));
-        }
-
-        way.Add(GetCenter(ctx, path[meeting]));
-        byte[] payload = SpawnerProgram.Create(monsters, (tx, ty, radius), way.TakeLast(6)).ToPayload();
-        var placed = ctx.Place([spawner], KnownObject.Spawner, dir: 0, payload: payload, army: 1, take: false);
-        if (placed is not null)
-        {
-            ctx.AddCompanions(KnownObject.Spawner, placed.Value.X, placed.Value.Y, 0);
-        }
-        if (ctx.Layout.Cells.TryGetValue(trigger, out int region))
-        {
-            ctx.Fights.Add(new PlacedFight(ctx.GetProgress(trigger), monsters.Sum(m => ctx.Objects.TryFind(m, out var obj) ? obj.MaxHp : 0), region));
+            if (ctx.Place(cells, item, dir: 0, take: false) is not null)
+            {
+                TakeFromBudget(budget, item);
+            }
         }
     }
 
@@ -1883,11 +1503,11 @@ public static class ContentPlacer
     }
 
     // Put the checkpoint on the walk to the biggest fight, in a room of the original's checkpoint room's zone and role, nearest its progress
-    private static void PlaceCheckpoint(PlacementContext ctx, LevelScript script, EncounterProfile encounters)
+    private static void PlaceCheckpoint(PlacementContext ctx, LevelScript script, EncounterProfile encounters, IReadOnlyList<PlannedFight> fights)
     {
         var original = encounters.CheckpointRoom;
         float progress = original?.Progress ?? DefaultCheckpoint;
-        var climax = ctx.Fights.MaxBy(fight => fight.HitPoints);
+        var climax = fights.MaxBy(fight => fight.HitPoints);
         var climaxCells = climax is null ? [] : ctx.GetRegionCells(ctx.Plan.Regions[climax.Region]).Where(ctx.Distance.ContainsKey).ToArray();
         var walk = climaxCells.Length == 0 ? [] : TraceWalk(ctx, climaxCells.MinBy(c => ctx.Distance[c])).ToHashSet();
         

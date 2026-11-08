@@ -80,9 +80,6 @@ public sealed class PlacementContext
     /// <summary>Gets or sets how many more endless generators the level may hold.</summary>
     public int EndlessGeneratorsLeft { get; set; }
 
-    /// <summary>Gets the fights placed so far.</summary>
-    public List<PlacedFight> Fights { get; } = [];
-
     /// <summary>Gets the cells already holding something.</summary>
     public HashSet<Cell> Taken { get; }
 

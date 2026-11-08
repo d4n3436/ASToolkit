@@ -938,6 +938,7 @@ public sealed class LevelSurveyor
                 HitPoints = group.Sum(monster => GetHitPoints(monster.Id)),
                 Monsters = Compose(group.Select(monster => monster.Id)),
                 Formation = GetFormation(group),
+                Spacing = GetSpacing(group),
                 Spot = GetSpot(place, x, y),
                 Position = new Point((int)x, (int)y)
             });
@@ -1063,6 +1064,7 @@ public sealed class LevelSurveyor
         Monsters = encounter.Monsters,
         Formation = encounter.Formation,
         Spot = encounter.Spot,
+        Spacing = encounter.Spacing,
         Source = encounter.Source,
         Spawners = encounter.Spawners,
         TriggerPlace = encounter.TriggerPlace,
@@ -1090,6 +1092,21 @@ public sealed class LevelSurveyor
             : spawner.Progress > triggerProgress + 0.03f ? SpawnSource.Ahead
             : spawner.Progress < triggerProgress - 0.03f ? SpawnSource.Behind
             : SpawnSource.AtTrigger;
+    }
+
+    private static int GetSpacing(List<RouteElement> group)
+    {
+        if (group.Count == 1)
+        {
+            return 0;
+        }
+
+        float[] gaps = group
+            .Select(monster => group.Where(other => other != monster).Min(other => GetDistance(other.X, other.Y, monster.X, monster.Y)))
+            .Order()
+            .ToArray();
+
+        return (int)MathF.Round(gaps[gaps.Length / 2]);
     }
 
     private static EncounterFormation GetFormation(List<RouteElement> group)

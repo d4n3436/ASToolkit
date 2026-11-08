@@ -64,6 +64,11 @@ public sealed class GeneratedLevel
     public LevelBudget? Budget { get; init; }
 
     /// <summary>
+    /// Gets the standing groups and ambushes the level's plan holds, empty for an outdoor level.
+    /// </summary>
+    public IReadOnlyList<PlannedFight> Fights { get; init; } = [];
+
+    /// <summary>
     /// Gets or sets the route analysis of the level, or null when the level is not analyzed.
     /// </summary>
     public RouteAnalysis? Analysis { get; set; }

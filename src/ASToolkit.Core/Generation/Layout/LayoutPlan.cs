@@ -80,11 +80,6 @@ public sealed class LayoutPlan
     public bool HoldsFights(PlanRegion region) => SecondWing.Count == 0 || SecondWing.Contains(region);
 
     /// <summary>
-    /// Returns whether a spawn trigger may stand in a region, a room of the main route that holds fights.
-    /// </summary>
-    public bool HoldsTriggers(PlanRegion region) => region.IsOnRoute && HoldsFights(region);
-
-    /// <summary>
     /// Reads the roles of the rooms from the link graph.
     /// </summary>
     public RoomRoleMap MeasureRoles()

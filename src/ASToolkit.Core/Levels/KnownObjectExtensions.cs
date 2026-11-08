@@ -109,6 +109,9 @@ public static class KnownObjectExtensions
         /// <summary>Gets a value indicating whether the ID is a pickup.</summary>
         public bool IsPickup => id is >= (KnownObject)200 and <= MagmaMinigun or >= Dynamite and <= MagmaMinigunAmmo;
 
+        /// <summary>Gets the plain monster a yellow or red variant belongs to, the ID itself for any other unit.</summary>
+        public KnownObject MonsterFamily => id is >= Slug and <= RedTankWeaponMonster ? (KnownObject)((int)id / 10 * 10) : id;
+
         /// <summary>Gets a value indicating whether the ID is an endless monster generator.</summary>
         public bool IsEndlessGenerator => id is >= FirstEndlessGenerator and <= LastEndlessGenerator;
 

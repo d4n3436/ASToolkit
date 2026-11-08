@@ -14,6 +14,8 @@ internal sealed class PlanInput
 
     public required HashSet<int> Spine { get; init; }
 
+    public required IReadOnlySet<RoomPair> ChokeDoors { get; init; }
+
     public required HashSet<int> Halls { get; init; }
 
     public required Dictionary<int, RoomType> Types { get; init; }

@@ -404,16 +404,22 @@ public static class RouteAnalyzer
                 element.BranchDepth = (int)MathF.Round(branch.GetValueOrDefault(element.Cell) * _step);
                 element.Distance = (int)MathF.Round(fromStart[element.Cell] * _step);
                 var trigger = element.Kind == ElementKind.Spawner ? element.Program?.Trigger : null;
-                if (trigger is not null)
+                if (trigger is null)
+                    continue;
+                
+                var (tc, _) = FindNearestReachableCell(trigger.Value.X, trigger.Value.Y);
+                if (tc is null || !fromStart.ContainsKey(tc.Value))
+                    continue;
+                    
+                int entered = path.FindIndex(cell =>
                 {
-                    var (tc, _) = FindNearestReachableCell(trigger.Value.X, trigger.Value.Y);
-                    if (tc is not null && fromStart.ContainsKey(tc.Value))
-                    {
-                        element.TriggerProgress = Progress(tc.Value);
-                        element.TriggerBranchDepth = (int)MathF.Round(branch.GetValueOrDefault(tc.Value) * _step);
-                        element.TriggerDistance = (int)MathF.Round(MathF.Sqrt(MathF.Pow(element.X - trigger.Value.X, 2) + MathF.Pow(element.Y - trigger.Value.Y, 2)));
-                    }
-                }
+                    (float x, float y) = _lattice.GetCenter(cell);
+                    return (x - trigger.Value.X) * (x - trigger.Value.X) + (y - trigger.Value.Y) * (y - trigger.Value.Y) <= trigger.Value.Radius * trigger.Value.Radius;
+                });
+
+                element.TriggerProgress = entered < 0 ? Progress(tc.Value) : MathF.Round(entered / (float)Math.Max(1, walked), 3);
+                element.TriggerBranchDepth = (int)MathF.Round(branch.GetValueOrDefault(tc.Value) * _step);
+                element.TriggerDistance = (int)MathF.Round(MathF.Sqrt(MathF.Pow(element.X - trigger.Value.X, 2) + MathF.Pow(element.Y - trigger.Value.Y, 2)));
             }
 
             var merged = new List<RouteLeg>();

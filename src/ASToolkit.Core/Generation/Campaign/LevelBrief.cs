@@ -82,6 +82,21 @@ public sealed record LevelBrief
     public required IReadOnlyDictionary<KnownObject, int> Pickups { get; init; }
 
     /// <summary>
+    /// Gets the monster kinds of the level's standing groups and ambushes, each with its weight in a draw of one monster.
+    /// </summary>
+    public required IReadOnlyDictionary<KnownObject, float> Monsters { get; init; }
+
+    /// <summary>
+    /// Gets the monster kinds that first appear on the level.
+    /// </summary>
+    public required IReadOnlyList<KnownObject> NewMonsters { get; init; }
+
+    /// <summary>
+    /// Gets the bosses of the level.
+    /// </summary>
+    public required IReadOnlyList<KnownObject> Bosses { get; init; }
+
+    /// <summary>
     /// Gets the money the game pays at the end of the level.
     /// </summary>
     public required int EndMoney { get; init; }

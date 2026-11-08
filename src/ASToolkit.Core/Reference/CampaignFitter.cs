@@ -1,6 +1,5 @@
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
-using ASToolkit.Core.Rooms;
 using ASToolkit.Core.Survey;
 
 namespace ASToolkit.Core.Reference;
@@ -15,18 +14,26 @@ public sealed class CampaignFitter
     private const float PixelsPerRate = 1_000_000;
     private const int FirstWeaponSlot = 2;
 
+    private static readonly KnownObject[] ExcludedMonsters = [KnownObject.Diver];
+
     private static readonly ItemCategory[] RatedCategories = [ItemCategory.Health, ItemCategory.Armor, ItemCategory.Ammo, ItemCategory.Money, ItemCategory.Implant, ItemCategory.Bonus];
     private static readonly ItemCategory[] SharedCategories = [ItemCategory.Health, ItemCategory.Armor, ItemCategory.Implant, ItemCategory.Bonus];
     private static readonly (string Folder, string Money)[] Campaign = [("", "LevelMoney")];
     private static readonly (string Folder, string Money)[] AddOns = [("ADDON/", "LevelMoneyAddon"), ("ADDON2/", "LevelMoneyAddon2")];
 
     private readonly GameTable _table;
+    private readonly ObjectTable _objects;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CampaignFitter"/> class.
     /// </summary>
     /// <param name="table">The game's shop and money tables.</param>
-    public CampaignFitter(GameTable table) => _table = table;
+    /// <param name="objects">The game's object table.</param>
+    public CampaignFitter(GameTable table, ObjectTable objects)
+    {
+        _table = table;
+        _objects = objects;
+    }
 
     /// <summary>
     /// Fits the campaign model of a style to its campaigns, leaving the excluded levels out.
@@ -65,12 +72,21 @@ public sealed class CampaignFitter
             .Where(level => level.Map != arena)
             .ToArray();
 
+        var fights = buildings
+            .Select(level => (level.Level, Encounters: references.GetSurvey(level.Map).Encounters))
+            .ToArray();
+
+        var bosses = FitFirstLevels(fights.Select(level => (level.Level, Ids: level.Encounters
+            .Where(encounter => encounter.Kind == EncounterKind.Boss)
+            .Select(encounter => encounter.Monsters[0].Id))));
+
+        var monsters = FitFirstLevels(fights.Select(level => (level.Level, Ids: GetMonsters(level.Encounters, bosses).Select(count => count.Id))));
         return new CampaignModel
         {
             Style = style,
             LevelCount = levelCount,
             CashValue = CampaignMeasurer.CashValue,
-            HitPoints = LinearFit.Fit(indoor.Select(level => (X: (float)level.Level, Y: MathF.Log(Math.Max(1, level.HitPoints)))).ToArray()),
+            HitPoints = LinearFit.Fit(indoor.Select(level => (X: MathF.Log(level.Level), Y: MathF.Log(Math.Max(1, level.HitPoints)))).ToArray()),
             SpawnedShare = LinearFit.Fit(indoor.Select(level => (X: (float)level.Level, Y: GetLogOdds(level.SpawnedShare))).ToArray()),
             FloorPixels = FitWallSetLine(indoor, indoor.Select(level => Math.Log(level.FloorPixels)).ToArray()),
             Rooms = FitRooms(references, buildings),
@@ -93,6 +109,11 @@ public sealed class CampaignFitter
                 .ToArray())),
             PickupShares = FitPickupShares(indoor),
             AmmoAges = FitAmmoAges(campaigns, weapons, excluded),
+            Monsters = monsters,
+            MonsterHitPoints = FitMonsterHitPoints(fights, bosses),
+            Bosses = bosses,
+            BossShare = new FittedValue<float>(fights.Count(level => level.Encounters.Any(encounter => encounter.Kind == EncounterKind.Boss)) / (float)Math.Max(1, fights.Length),
+                fights.Length, IsBackedOff: false),
             SecretClosets = LinearFit.Fit(basements.Select(level => (X: (float)level.Level, Y: references.GetLevel(level.Map).Measures.SecretClosets.Count * PixelsPerRate / level.FloorPixels)).ToArray()),
             Donors = Enumerable.Range(2, 9)
                 .Select(ReferenceLevelSet.GetCampaignName)
@@ -105,6 +126,46 @@ public sealed class CampaignFitter
         };
     }
 
+    private MonsterKind[] FitFirstLevels(IEnumerable<(int Level, IEnumerable<KnownObject> Ids)> levels) => levels
+        .SelectMany(level => level.Ids.Select(id => (Id: id, level.Level)))
+        .GroupBy(pair => pair.Id)
+        .Select(group => new MonsterKind(group.Key, group.Min(pair => pair.Level), GetHitPoints(group.Key)))
+        .OrderBy(kind => kind.FirstLevel)
+        .ThenBy(kind => kind.Id)
+        .ToArray();
+
+    private static MonsterCount[] GetMonsters(IReadOnlyList<LevelEncounter> encounters, MonsterKind[] bosses) => encounters
+        .Where(encounter => encounter.Kind is EncounterKind.PlacedGroup or EncounterKind.Ambush)
+        .SelectMany(encounter => encounter.Monsters)
+        .Where(count => !count.Id.IsEndlessGenerator && !ExcludedMonsters.Contains(count.Id) && bosses.All(boss => boss.Id != count.Id))
+        .GroupBy(count => count.Id)
+        .Select(group => new MonsterCount(group.Key, group.Sum(count => count.Count)))
+        .ToArray();
+
+    private FittedValue<LinearFit> FitMonsterHitPoints(IReadOnlyList<(int Level, IReadOnlyList<LevelEncounter> Encounters)> levels, MonsterKind[] bosses)
+    {
+        var counted = levels
+            .Select(level => (level.Level, Monsters: GetMonsters(level.Encounters, bosses).Select(count => (HitPoints: Math.Max(1, GetHitPoints(count.Id)), count.Count)).ToArray()))
+            .Where(level => level.Monsters.Sum(monster => monster.Count) > 0)
+            .ToArray();
+
+        var line = LinearFit.Fit(counted
+            .Select(level => (X: (float)level.Level, Y: MathF.Log(level.Monsters.Sum(monster => (float)monster.HitPoints * monster.Count) / level.Monsters.Sum(monster => monster.Count))))
+            .ToArray());
+
+        double squares = 0;
+        foreach (var level in counted)
+        {
+            double mean = level.Monsters.Sum(monster => Math.Log(monster.HitPoints) * monster.Count) / level.Monsters.Sum(monster => monster.Count);
+            squares += level.Monsters.Sum(monster => monster.Count * Math.Pow(Math.Log(monster.HitPoints) - mean, 2));
+        }
+
+        float spread = (float)Math.Sqrt(squares / Math.Max(1, counted.Sum(level => level.Monsters.Sum(monster => monster.Count))));
+        return line with { Value = line.Value with { Spread = spread } };
+    }
+
+    private int GetHitPoints(KnownObject id) => _objects.TryFind(id, out var found) ? found.MaxHp : 0;
+
     // Fits ln rooms per million floor pixels to the level number with a concrete term
     private static FittedValue<WallSetLine> FitRooms(ReferenceLevelSet references, IReadOnlyList<CampaignMeasurement> levels) =>
         FitWallSetLine(levels, levels.Select(level => GetRoomRate(references, level)).ToArray());
@@ -113,8 +174,7 @@ public sealed class CampaignFitter
         Math.Log(CountRooms(references, level) / (double)level.FloorPixels * PixelsPerRate);
 
     // Counts the regular rooms the generator builds, never halls, corridors, passages or closets
-    private static int CountRooms(ReferenceLevelSet references, CampaignMeasurement level) => references.GetLevel(level.Map).Atlas.Rooms
-        .Count(room => room is { IsRoom: true, Place.Kind: PlaceKind.Room } && room.Type != RoomType.Passage);
+    private static int CountRooms(ReferenceLevelSet references, CampaignMeasurement level) => references.GetLevel(level.Map).Atlas.CountRegularRooms();
 
     // Fits a level quantity to the level number with a concrete term, flat below the minimum sample count
     private static FittedValue<WallSetLine> FitWallSetLine(IReadOnlyList<CampaignMeasurement> levels, double[] ys)

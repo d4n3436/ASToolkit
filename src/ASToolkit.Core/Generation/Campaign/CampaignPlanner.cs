@@ -13,6 +13,8 @@ namespace ASToolkit.Core.Generation.Campaign;
 /// </summary>
 public sealed class CampaignPlanner
 {
+    private const float MinMonsterWeight = 0.01f;
+    private const int CenterSteps = 30;
     private const float PixelsPerRate = 1_000_000;
     private const int FirstIndoorLevel = 2;
     private const int CannonLevelMin = 7;
@@ -60,7 +62,7 @@ public sealed class CampaignPlanner
         }
 
         var wings = DrawLabWings(rng, buildings, gates);
-        float[] logHitPoints = DrawRising(rng, _model.HitPoints.Value, Enumerable.Range(FirstIndoorLevel, count - 1).ToDictionary(level => level, level => (float)level));
+        float[] logHitPoints = DrawRising(rng, _model.HitPoints.Value, Enumerable.Range(FirstIndoorLevel, count - 1).ToDictionary(level => level, level => MathF.Log(level)));
         float[] logEndMoney = DrawRising(rng, _model.EndMoney.Value, Enumerable.Range(1, count - 1).ToDictionary(level => level, level => MathF.Log(level)));
         int[] floors = new int[count + 1];
         int[] rooms = new int[count + 1];
@@ -91,6 +93,7 @@ public sealed class CampaignPlanner
             .ToArray();
 
         var weaponLevels = DrawWeaponLevels(rng, endMoney, cash);
+        int firstMonsters = _model.Monsters.Select(kind => kind.FirstLevel).DefaultIfEmpty(0).Min();
         var briefs = new List<LevelBrief>
         {
             new()
@@ -109,6 +112,9 @@ public sealed class CampaignPlanner
                 NewWeapons = [],
                 Weapons = [],
                 Pickups = new Dictionary<KnownObject, int>(),
+                Monsters = new Dictionary<KnownObject, float>(),
+                NewMonsters = [],
+                Bosses = [],
                 EndMoney = endMoney[1],
                 MountedCannons = 0,
                 DonorLevel = first.Name
@@ -136,6 +142,7 @@ public sealed class CampaignPlanner
 
             var next = _model.Weapons.FirstOrDefault(weapon => weaponLevels[weapon] > level);
             int hitPoints = (int)MathF.Round(MathF.Exp(logHitPoints[level]));
+            var monsters = GetMonsters(level);
             briefs.Add(new LevelBrief
             {
                 Level = level,
@@ -152,6 +159,9 @@ public sealed class CampaignPlanner
                 NewWeapons = newWeapons,
                 Weapons = weapons,
                 Pickups = DrawPickups(rng, level, counts[level], arsenal, next == default ? null : next),
+                Monsters = monsters,
+                NewMonsters = _model.Monsters.Where(kind => kind.FirstLevel == level && level > firstMonsters && monsters.ContainsKey(kind.Id)).Select(kind => kind.Id).ToArray(),
+                Bosses = DrawBosses(rng, level),
                 EndMoney = endMoney[level],
                 SecondWing = wings[level],
                 MountedCannons = _model.Style == GenerationStyle.Campaign ? buildings[level] == Building.Warehouse && level is CannonLevelMin or CannonLevelMax ? 1 : 0 : null,
@@ -160,6 +170,50 @@ public sealed class CampaignPlanner
         }
 
         return new CampaignPlan { Levels = briefs };
+    }
+
+    private Dictionary<KnownObject, float> GetMonsters(int level)
+    {
+        var line = _model.MonsterHitPoints.Value;
+        var kinds = _model.Monsters
+            .Where(kind => kind.FirstLevel <= level)
+            .ToArray();
+
+        float target = MathF.Exp(line.Evaluate(level));
+        float low = kinds.Select(kind => MathF.Log(Math.Max(1, kind.HitPoints))).DefaultIfEmpty(0).Min() - 3 * line.Spread;
+        float high = kinds.Select(kind => MathF.Log(Math.Max(1, kind.HitPoints))).DefaultIfEmpty(0).Max() + 3 * line.Spread;
+        for (int step = 0; step < CenterSteps; step++)
+        {
+            float center = (low + high) / 2;
+            var weighed = Weigh(center);
+            if (weighed.Sum(pair => pair.Value * pair.Key.HitPoints) / Math.Max(1e-9f, weighed.Sum(pair => pair.Value)) < target)
+            {
+                low = center;
+            }
+            else
+            {
+                high = center;
+            }
+        }
+
+        var weights = Weigh((low + high) / 2).ToDictionary(pair => pair.Key.Id, pair => pair.Value);
+
+        float heaviest = weights.Values.DefaultIfEmpty(0).Max();
+        return weights
+            .Where(pair => pair.Value >= heaviest * MinMonsterWeight)
+            .ToDictionary(pair => pair.Key, pair => pair.Value / heaviest);
+
+        Dictionary<MonsterKind, float> Weigh(float center) => kinds.ToDictionary(kind => kind,
+            kind => MathF.Exp(-MathF.Pow(MathF.Log(Math.Max(1, kind.HitPoints)) - center, 2) / (2 * line.Spread * line.Spread)));
+    }
+
+    private KnownObject[] DrawBosses(Random rng, int level)
+    {
+        var bosses = _model.Bosses
+            .Where(kind => kind.FirstLevel <= level)
+            .ToArray();
+
+        return bosses.Length > 0 && rng.NextSingle() < _model.BossShare.Value ? [bosses.MaxBy(kind => kind.FirstLevel).Id] : [];
     }
 
     private int DrawRooms(Random rng, int level, WallSet wallSet, int floorPixels)

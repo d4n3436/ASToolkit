@@ -38,6 +38,7 @@ internal sealed class PlanWriter
             PhaseOf = walkable.ToDictionary(room => room.Id, room => mission.Progression.GetPhase(room.Id) ?? room.Phase),
             Parent = built.Parent.ToDictionary(),
             Spine = built.Spine.ToHashSet(),
+            ChokeDoors = built.ChokeDoors,
             Halls = halls,
             Types = walkable.ToDictionary(room => room.Id, room => room.Type),
             Start = building.Start,
@@ -144,13 +145,18 @@ internal sealed class PlanWriter
 
         order.AddRange(result.Cells.Keys.Where(room => !reached.Contains(room)).Order());
         var regionOf = new Dictionary<int, int>();
+        var flow = mission.Progression.Flow
+            .Select(KeyValuePair.Create)
+            .DistinctBy(pair => pair.Key)
+            .ToDictionary();
+
         foreach (int room in order)
         {
             int station = stations.IndexOf(room);
             var region = AddRegion(result.Cells[room], station >= 0 ? RegionKind.Station : RegionKind.SideRoom, Math.Max(0, station), result.Halls.Contains(room));
             region.Type = result.Types.TryGetValue(room, out var type) ? type : null;
             region.Phase = result.PhaseOf.GetValueOrDefault(room);
-            region.IsOnRoute = result.Spine.Contains(room);
+            region.Order = flow.GetValueOrDefault(room, int.MaxValue);
             region.Role = mission.Roles.TryGetValue(room, out var role) ? role : result.Spine.Contains(room) ? MissionRole.Path : MissionRole.Branch;
             regionOf[room] = region.Id;
             if (station >= 0)
@@ -203,6 +209,8 @@ internal sealed class PlanWriter
                 : LinkKind.Arch;
             bool allowDoor = gate is null || isLocked || closing.Contains(pair);
             var link = AddLink(boundaries, regionOf[from], regionOf[to], linkKind, allowDoor);
+            link?.IsChoke = result.ChokeDoors.Contains(new RoomPair(from, to));
+
             if (isLocked && link is not null)
             {
                 lockedLinks.Add(link);
@@ -738,14 +746,14 @@ internal sealed class PlanWriter
                     IsHall = region.IsHall,
                     IsGated = region.IsGated,
                     Phase = region.Phase,
-                    IsOnRoute = region.IsOnRoute,
+                    Order = region is { Order: int.MaxValue, Host: not null } ? Regions[region.Host.Value].Order : region.Order,
                     Role = region.Role,
                     Type = region.Type
                 })
                 .ToArray();
 
             var links = Links
-                .Select((link, index) => new PlanLink { Id = index, From = link.From, To = link.To, Kind = link.Kind, Edges = link.Edges.ToArray(), Boundary = link.Boundary })
+                .Select((link, index) => new PlanLink { Id = index, From = link.From, To = link.To, Kind = link.Kind, Edges = link.Edges.ToArray(), Boundary = link.Boundary, IsChoke = link.IsChoke })
                 .ToArray();
 
             return new LayoutPlan
@@ -787,7 +795,7 @@ internal sealed class PlanWriter
 
         public int Phase { get; set; }
 
-        public bool IsOnRoute { get; set; }
+        public int Order { get; set; } = int.MaxValue;
 
         public MissionRole? Role { get; set; }
 
@@ -805,5 +813,7 @@ internal sealed class PlanWriter
         public required List<EdgeKey> Edges { get; set; }
 
         public required EdgeKey[] Boundary { get; init; }
+
+        public bool IsChoke { get; set; }
     }
 }

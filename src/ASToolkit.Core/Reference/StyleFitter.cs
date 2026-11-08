@@ -30,7 +30,7 @@ public sealed class StyleFitter
     public StyleFitter(ObjectTable objects, GameTable table)
     {
         _objects = objects;
-        _campaign = new CampaignFitter(table);
+        _campaign = new CampaignFitter(table, objects);
     }
 
     /// <summary>
@@ -89,7 +89,8 @@ public sealed class StyleFitter
             WallSets.ToDictionary(wallSet => wallSet, wallSet => FacingTable.Build(models.Where(model => model.WallSet == wallSet), _objects, leaning)),
             _campaign.Fit(references, style, excluded))
         {
-            Footprints = RoomFootprintFitter.Fit(levels.Where(level => GetLayoutLevels(style).Contains(level.Name)).ToArray())
+            Footprints = RoomFootprintFitter.Fit(levels.Where(level => GetLayoutLevels(style).Contains(level.Name)).ToArray()),
+            Encounters = EncounterModel.Fit(levels.Where(level => GetLayoutLevels(style).Contains(level.Name)).ToArray())
         };
     }
 }

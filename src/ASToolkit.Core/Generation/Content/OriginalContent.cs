@@ -19,18 +19,6 @@ public sealed class OriginalContent
     /// <summary>Gets the level name.</summary>
     public required string Name { get; init; }
 
-    /// <summary>Gets the clusters of placed monsters as the designer laid them out.</summary>
-    public required IReadOnlyList<IReadOnlyList<GroupMember>> PlacedGroups { get; init; }
-
-    /// <summary>Gets the monster list of every spawner that builds any.</summary>
-    public required IReadOnlyList<IReadOnlyList<KnownObject>> SpawnerLists { get; init; }
-
-    /// <summary>Gets the placed bosses, by ID.</summary>
-    public required IReadOnlyDictionary<KnownObject, int> Bosses { get; init; }
-
-    /// <summary>Gets the total hit points of every monster.</summary>
-    public required int HitPoints { get; init; }
-
     /// <summary>Gets the number of mounted cannons.</summary>
     public required int MountedCannons { get; init; }
 
@@ -43,34 +31,9 @@ public sealed class OriginalContent
     public static OriginalContent Load(ReferenceLevel level)
     {
         var sp = level.Map.Sprites;
-        var measures = level.Measures;
-        var bosses = new Dictionary<KnownObject, int>();
-        var spawners = new List<IReadOnlyList<KnownObject>>();
-        foreach (var sprite in sp)
-        {
-            if (KnownObject.Bosses.Contains(sprite.Id))
-            {
-                bosses[sprite.Id] = bosses.GetValueOrDefault(sprite.Id) + 1;
-            }
-
-            var program = sprite.Id == KnownObject.Spawner ? SpawnerProgram.Parse(sprite.Payload) : null;
-            if (program is not null)
-            {
-                var monsters = program.Monsters.ToArray();
-                if (monsters.Length > 0)
-                {
-                    spawners.Add(monsters);
-                }
-            }
-        }
-
         return new OriginalContent
         {
             Name = level.Name,
-            PlacedGroups = ClusterMonsters(sp),
-            SpawnerLists = spawners,
-            Bosses = bosses,
-            HitPoints = measures.HitPoints,
             MountedCannons = sp.Count(s => s.Id == KnownObject.MountedCannon),
             Generators = sp.Count(s => s.Id == KnownObject.Generator)
         };
@@ -225,41 +188,6 @@ public sealed class OriginalContent
         }
 
         return sites.ToArray();
-    }
-
-    private static IReadOnlyList<IReadOnlyList<GroupMember>> ClusterMonsters(List<MergedMapSprite> sp)
-    {
-        var monsters = sp.Where(s => KnownObject.ObjectiveMonsters.Contains(s.Id)).ToArray();
-        bool[] seen = new bool[monsters.Length];
-        var groups = new List<IReadOnlyList<GroupMember>>();
-        for (int monsterIndex = 0; monsterIndex < monsters.Length; monsterIndex++)
-        {
-            if (seen[monsterIndex])
-            {
-                continue;
-            }
-
-            var group = new List<int> { monsterIndex };
-            seen[monsterIndex] = true;
-            for (int memberIndex = 0; memberIndex < group.Count; memberIndex++)
-            {
-                var a = monsters[group[memberIndex]];
-                for (int innerMonsterIndex = 0; innerMonsterIndex < monsters.Length; innerMonsterIndex++)
-                {
-                    if (!seen[innerMonsterIndex] && MathF.Sqrt(MathF.Pow(monsters[innerMonsterIndex].Position.X - a.Position.X, 2) + MathF.Pow(monsters[innerMonsterIndex].Position.Y - a.Position.Y, 2)) < 110)
-                    {
-                        seen[innerMonsterIndex] = true;
-                        group.Add(innerMonsterIndex);
-                    }
-                }
-            }
-
-            float cx = group.Average(k => monsters[k].Position.X);
-            float cy = group.Average(k => monsters[k].Position.Y);
-            groups.Add(group.Select(k => new GroupMember(monsters[k].Id, monsters[k].Position.X - cx, monsters[k].Position.Y - cy, monsters[k].Facing)).ToArray());
-        }
-
-        return groups.ToArray();
     }
 
     private static float GetDistance(MergedMapSprite a, MergedMapSprite b) => MathF.Sqrt(MathF.Pow(a.Position.X - b.Position.X, 2) + MathF.Pow(a.Position.Y - b.Position.Y, 2));

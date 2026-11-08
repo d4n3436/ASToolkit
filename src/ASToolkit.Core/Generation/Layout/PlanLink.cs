@@ -36,4 +36,9 @@ public sealed class PlanLink
     /// Gets the whole common boundary.
     /// </summary>
     public required EdgeKey[] Boundary { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether every walk from the start to the end crosses the link.
+    /// </summary>
+    public bool IsChoke { get; init; }
 }

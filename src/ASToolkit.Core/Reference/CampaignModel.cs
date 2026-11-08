@@ -25,7 +25,7 @@ public sealed class CampaignModel
     public required int CashValue { get; init; }
 
     /// <summary>
-    /// Gets the natural logarithm of the hit points of a level's monsters by level.
+    /// Gets the natural logarithm of the hit points of a level's monsters by the natural logarithm of the level.
     /// </summary>
     public required FittedValue<LinearFit> HitPoints { get; init; }
 
@@ -113,6 +113,26 @@ public sealed class CampaignModel
     /// Gets the secret closets of a level of basement walls per million square pixels of floor by level.
     /// </summary>
     public required FittedValue<LinearFit> SecretClosets { get; init; }
+
+    /// <summary>
+    /// Gets the monster kinds of the style's standing groups and ambushes, bosses out, with the level each first appears on.
+    /// </summary>
+    public required IReadOnlyList<MonsterKind> Monsters { get; init; }
+
+    /// <summary>
+    /// Gets the natural log of the mean hit points of a level's monsters by level, with the spread of one level's monsters about that mean.
+    /// </summary>
+    public required FittedValue<LinearFit> MonsterHitPoints { get; init; }
+
+    /// <summary>
+    /// Gets the boss kinds of the style with the level each first appears on.
+    /// </summary>
+    public required IReadOnlyList<MonsterKind> Bosses { get; init; }
+
+    /// <summary>
+    /// Gets the share of the style's levels past the first that hold a boss.
+    /// </summary>
+    public required FittedValue<float> BossShare { get; init; }
 
     /// <summary>
     /// Gets the originals after the first level that generated levels take what no model covers yet from.

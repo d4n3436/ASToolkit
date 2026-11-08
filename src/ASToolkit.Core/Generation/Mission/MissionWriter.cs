@@ -126,14 +126,25 @@ public sealed class MissionWriter
             .ToArray();
 
         var progression = new LevelProgression(phases, keys, locks, plan.End, flow, [], seals);
+        int[] route = walked.Select(step => step.Room).ToArray();
+        var chokeDoors = route
+            .Zip(route.Skip(1), (from, to) => new RoomPair(from, to))
+            .Where(pair => plan.Doors.ContainsKey(pair) && !Reaches(pair))
+            .ToHashSet();
+
         return new BuildingMission
         {
             Mission = new MissionGraph(progression, links, roles),
             Parent = parent,
             Spine = spine,
+            ChokeDoors = chokeDoors,
             End = plan.End,
             Realized = realized
         };
+
+        bool Reaches(RoomPair skipped) => new RoomGraph(layout.PhaseOf.Keys, plan.Doors.Keys.Where(pair => pair != skipped))
+            .Measure(plan.Start)
+            .ContainsKey(plan.End);
     }
 
     private static LevelPhase[] CreatePhases(DoorPlan plan, List<(int Room, int Leg)> walked, Dictionary<int, int> parent, HashSet<int> spine,

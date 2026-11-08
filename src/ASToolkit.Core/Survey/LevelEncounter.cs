@@ -52,6 +52,9 @@ public sealed class LevelEncounter
     /// </summary>
     public PlaceSpot? Spot { get; init; }
 
+    /// <summary>Gets the median distance in pixels from each monster of a placed group to its nearest neighbor, 0 for a single monster.</summary>
+    public int Spacing { get; init; }
+
     /// <summary>
     /// Gets where an ambush's monsters come from.
     /// </summary>

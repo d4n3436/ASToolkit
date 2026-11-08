@@ -26,6 +26,18 @@ public class CampaignFitterIntegrationTests
     }
 
     [Fact]
+    public void Fit_Campaign_KeepsAddOnOnlyMonstersOutAndBossesApart()
+    {
+        var campaign = Fit(GenerationStyle.Campaign);
+        var addOn = Fit(GenerationStyle.AddOn);
+
+        Assert.DoesNotContain(campaign.Monsters, kind => kind.Id is KnownObject.Bat or KnownObject.TankMonster);
+        Assert.Contains(addOn.Monsters, kind => kind.Id == KnownObject.Bat);
+        Assert.Empty(campaign.Monsters.Select(kind => kind.Id).Intersect(campaign.Bosses.Select(kind => kind.Id)));
+        Assert.True(campaign.MonsterHitPoints.Value.Slope > 0);
+    }
+
+    [Fact]
     public void GetFloorSet_Originals_MatchesTheFloorSetOfEveryOriginalOfTheBuilding()
     {
         var references = TestGameFolder.References;
@@ -73,6 +85,6 @@ public class CampaignFitterIntegrationTests
     private static CampaignModel Fit(GenerationStyle style)
     {
         string game = TestGameFolder.RequireFolder();
-        return new CampaignFitter(GameTable.Load(Path.Combine(game, "Maps", "common_table.lgc"))).Fit(TestGameFolder.References, style, []);
+        return new CampaignFitter(GameTable.Load(Path.Combine(game, "Maps", "common_table.lgc")), TestGameFolder.Objects).Fit(TestGameFolder.References, style, []);
     }
 }

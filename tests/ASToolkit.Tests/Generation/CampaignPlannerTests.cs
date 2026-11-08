@@ -142,6 +142,24 @@ public class CampaignPlannerTests
     }
 
     [Fact]
+    public void Plan_Seeds_BringMonsterKindsAndBossesOnlyFromTheirFirstLevel()
+    {
+        var model = CreateModel();
+        var first = model.Monsters.Concat(model.Bosses).ToDictionary(kind => kind.Id, kind => kind.FirstLevel);
+        var planner = new CampaignPlanner(model);
+        foreach (var levels in Enumerable.Range(1, Seeds).Select(seed => planner.Plan(new Random(seed)).Levels))
+        {
+            Assert.All(levels.Skip(1), brief =>
+            {
+                Assert.NotEmpty(brief.Monsters);
+                Assert.All(brief.Monsters.Keys.Concat(brief.Bosses), kind => Assert.True(first[kind] <= brief.Level, $"{kind} on level {brief.Level}"));
+                Assert.All(brief.NewMonsters, kind => Assert.Equal(brief.Level, first[kind]));
+                Assert.True(brief.Level > model.Monsters.Min(kind => kind.FirstLevel) || brief.NewMonsters.Count == 0);
+            });
+        }
+    }
+
+    [Fact]
     public void Plan_Seeds_StandMountedCannonsOnWarehouseLevelsSevenAndEightOnly()
     {
         var planner = new CampaignPlanner(CreateModel());
@@ -179,7 +197,7 @@ public class CampaignPlannerTests
         Style = GenerationStyle.Campaign,
         LevelCount = 10,
         CashValue = 50,
-        HitPoints = Line(4.5f, 0.96f, 0.53f),
+        HitPoints = Line(2.05f, 4.9f, 0.55f),
         SpawnedShare = Line(-3.4f, 0.76f, 1.4f),
         FloorPixels = new FittedValue<WallSetLine>(new WallSetLine(13.9, 0.35, -1.1, 0.23), 9, IsBackedOff: false),
         Rooms = new FittedValue<WallSetLine>(new WallSetLine(2.0, -0.1, -0.5, 0.2), 9, IsBackedOff: false),
@@ -215,6 +233,14 @@ public class CampaignPlannerTests
             [KnownObject.GreenArmor] = Line(1, -0.1f, 0.1f),
             [KnownObject.RedArmor] = Line(-0.5f, 0.1f, 0.1f)
         },
+        Monsters =
+        [
+            new MonsterKind(KnownObject.Monster1, 2, 3), new MonsterKind(KnownObject.YellowMonster1, 3, 8), new MonsterKind(KnownObject.Monster2, 3, 10),
+            new MonsterKind(KnownObject.Slug, 5, 20), new MonsterKind(KnownObject.WeaponMonster, 6, 60), new MonsterKind(KnownObject.TankWeaponMonster, 8, 400)
+        ],
+        MonsterHitPoints = Line(0.33f, 0.54f, 1.05f),
+        Bosses = [new MonsterKind(KnownObject.Boss1, 3, 1000), new MonsterKind(KnownObject.Boss4, 5, 3000)],
+        BossShare = new FittedValue<float>(0.38f, 8, IsBackedOff: false),
         AmmoAges = new FittedValue<IReadOnlyList<float>>([0.1f, 0.3f, 0.1f, 0.15f, 0.2f, 0.05f, 0.1f], 258, IsBackedOff: false),
         SecretClosets = new FittedValue<LinearFit>(new LinearFit(1.4f, 0, 0.4f), 4, IsBackedOff: true),
         Donors =

@@ -14,6 +14,13 @@ namespace ASToolkit.Tests.Generation;
 public class LevelGeneratorIntegrationTests
 {
     private const int Seeds = 10;
+    private const float HitPointSlack = 0.1f;
+    private const float MonsterGap = 12;
+    private const float HalfScreenWidth = 640;
+    private const float HalfScreenHeight = 360;
+    private const int MixedFamily = 4;
+    private const float MostVariantShare = 0.75f;
+    private const int LightestIntroduction = 2;
     private const float DecorFloorHeight = 5;
     private const float RoofHeight = 90;
     private const float BasementRoofShift = 17;
@@ -117,7 +124,7 @@ public class LevelGeneratorIntegrationTests
     }
 
     [Fact]
-    public void Generate_CampaignSeeds_StandSpawnTriggersOnTheMainRoute()
+    public void Generate_CampaignSeeds_StandSpawnTriggersWhereFightsStand()
     {
         var broken = new List<string>();
         foreach (((int seed, int number), var level) in CampaignLevels.Value.Where(pair => pair.Value.Plan is not null).OrderBy(pair => pair.Key))
@@ -128,9 +135,203 @@ public class LevelGeneratorIntegrationTests
                 .Where(trigger => trigger is not null)
                 .Select(trigger => level.Layout!.Lattice.GetCell(trigger!.Value.X, trigger.Value.Y));
 
-            if (triggers.Any(cell => level.Layout!.Cells.TryGetValue(cell, out int region) && !level.Plan!.HoldsTriggers(level.Plan.Regions[region])))
+            if (triggers.Any(cell => level.Layout!.Cells.TryGetValue(cell, out int region) && !level.Plan!.HoldsFights(level.Plan.Regions[region])))
             {
-                broken.Add($"seed {seed} level {number}: a spawn trigger off the main route");
+                broken.Add($"seed {seed} level {number}: a spawn trigger where no fight may stand");
+            }
+        }
+
+        Assert.Empty(broken);
+    }
+
+    [Fact]
+    public void Generate_BothStyles_NeverReleaseAnAmbushFromAnEarlierPhaseThanItsTrigger()
+    {
+        var broken = new List<string>();
+        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
+        {
+            var plan = level.Plan!;
+            var layout = level.Layout!;
+            int behind = level.Map.Sprites
+                .Where(sprite => sprite.Id == KnownObject.Spawner)
+                .Select(sprite => (Spawner: layout.Lattice.GetCell(sprite.Position.X, sprite.Position.Y), SpawnerProgram.Parse(sprite.Payload)?.Trigger))
+                .Where(pair => pair.Trigger is not null)
+                .Select(pair => (Spawner: layout.Cells.GetValueOrDefault(pair.Spawner, -1), Trigger: layout.Cells.GetValueOrDefault(layout.Lattice.GetCell(pair.Trigger!.Value.X, pair.Trigger.Value.Y), -1)))
+                .Count(pair => pair.Spawner >= 0 && pair.Trigger >= 0 && plan.Regions[pair.Spawner].Kind != RegionKind.SpawnCloset
+                               && plan.Regions[pair.Spawner].Phase < plan.Regions[pair.Trigger].Phase);
+
+            if (behind > 0)
+            {
+                broken.Add($"{style} seed {seed} level {number}: {behind} spawners in an earlier phase than their triggers");
+            }
+        }
+
+        Assert.Empty(broken);
+    }
+
+    [Fact]
+    public void Generate_BothStyles_StandSpawnersOffTheScreenAroundTheirTriggers()
+    {
+        var broken = new List<string>();
+        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
+        {
+            int seen = level.Map.Sprites
+                .Where(sprite => sprite.Id == KnownObject.Spawner)
+                .Select(sprite => (sprite.Position, SpawnerProgram.Parse(sprite.Payload)?.Trigger))
+                .Where(pair => pair.Trigger is not null && level.Plan!.Regions[level.Layout!.Cells.GetValueOrDefault(level.Layout.Lattice.GetCell(pair.Position.X, pair.Position.Y), 0)].Kind != RegionKind.SpawnCloset)
+                .Count(pair => Math.Abs(pair.Position.X - pair.Trigger!.Value.X) < HalfScreenWidth + pair.Trigger.Value.Radius
+                               && Math.Abs(pair.Position.Y - pair.Trigger.Value.Y) < HalfScreenHeight + pair.Trigger.Value.Radius);
+
+            if (seen > 0)
+            {
+                broken.Add($"{style} seed {seed} level {number}: {seen} spawners on the 1280x720 screen of a player inside their trigger");
+            }
+        }
+
+        Assert.Empty(broken);
+    }
+
+    [Fact]
+    public void Generate_BothStyles_StandEverySpawnTriggerWhereEveryWalkToTheEndCrossesIt()
+    {
+        var broken = new List<string>();
+        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
+        {
+            var plan = level.Plan!;
+            var layout = level.Layout!;
+            var triggers = level.Map.Sprites
+                .Select(sprite => sprite.Id == KnownObject.Spawner ? SpawnerProgram.Parse(sprite.Payload)?.Trigger : null)
+                .Where(trigger => trigger is not null)
+                .Select(trigger => trigger!.Value)
+                .Distinct()
+                .ToArray();
+
+            var start = layout.Cells.Where(pair => pair.Value == plan.Stations[0].Id).Select(pair => pair.Key);
+            var end = layout.Cells.Where(pair => pair.Value == plan.Stations[^1].Id).Select(pair => pair.Key).ToHashSet();
+            int dodged = triggers.Count(trigger => WalksAround(layout, start, end, cell =>
+            {
+                var center = layout.Lattice.GetCenter(cell);
+                return Distance(center, new PointF(trigger.X, trigger.Y)) < trigger.Radius;
+            }));
+
+            if (dodged > 0)
+            {
+                broken.Add($"{style} seed {seed} level {number}: {dodged} spawn triggers a walk to the end can go around");
+            }
+        }
+
+        Assert.Empty(broken);
+    }
+
+    [Fact]
+    public void Generate_BothStyles_MixTheVariantsOfAMonsterFamilyInEveryFight()
+    {
+        var broken = new List<string>();
+        foreach ((string style, int seed, int number, var level, var model, var _) in GetIndoorLevels())
+        {
+            var held = model.Campaign.Monsters.Where(kind => kind.FirstLevel == number).Select(kind => kind.Id.MonsterFamily).ToHashSet();
+            var offered = level.Fights
+                .SelectMany(fight => fight.Monsters)
+                .Distinct()
+                .GroupBy(id => id.MonsterFamily)
+                .Where(family => family.Count() > 1 && !held.Contains(family.Key))
+                .Select(family => family.Key)
+                .ToHashSet();
+
+            int alike = level.Fights.Count(fight => fight.Monsters
+                .GroupBy(id => id.MonsterFamily)
+                .Any(family => offered.Contains(family.Key) && family.Count() >= MixedFamily && family.GroupBy(id => id).Max(variant => variant.Count()) > MostVariantShare * family.Count() + 1));
+
+            if (alike > 0)
+            {
+                broken.Add($"{style} seed {seed} level {number}: {alike} fights holding one variant of a family over three quarters of its monsters");
+            }
+        }
+
+        Assert.Empty(broken);
+    }
+
+    [Fact]
+    public void Generate_BothStyles_PlaceEachPhasesPlannedHitPointsInStandingMonstersAndSpawners()
+    {
+        var broken = new List<string>();
+        foreach ((string style, int seed, int number, var level, var _, var objects) in GetIndoorLevels())
+        {
+            var plan = level.Plan!;
+            var layout = level.Layout!;
+            int GetHitPoints(KnownObject id) => id.IsEndlessGenerator || !objects.TryFind(id, out var found) ? 0 : found.MaxHp;
+            int GetPhase(float x, float y) => layout.Cells.TryGetValue(layout.Lattice.GetCell(x, y), out int region) ? plan.Regions[region].Phase : -1;
+            var planned = level.Fights
+                .GroupBy(fight => plan.Regions[fight.Region].Phase)
+                .ToDictionary(phase => phase.Key, phase => phase.Sum(fight => fight.HitPoints));
+
+            var kinds = level.Fights.SelectMany(fight => fight.Monsters).ToHashSet();
+            var placed = level.Map.Sprites
+                .Where(sprite => kinds.Contains(sprite.Id))
+                .Select(sprite => (Phase: GetPhase(sprite.Position.X, sprite.Position.Y), HitPoints: GetHitPoints(sprite.Id)))
+                .Concat(level.Map.Sprites
+                    .Where(sprite => sprite.Id == KnownObject.Spawner)
+                    .Select(sprite => SpawnerProgram.Parse(sprite.Payload))
+                    .Where(program => program?.Trigger is not null)
+                    .Select(program => (Phase: GetPhase(program!.Trigger!.Value.X, program.Trigger.Value.Y), HitPoints: program.Monsters.Sum(GetHitPoints))))
+                .GroupBy(pair => pair.Phase)
+                .ToDictionary(phase => phase.Key, phase => phase.Sum(pair => pair.HitPoints));
+
+            int target = level.Budget!.TargetHitPoints;
+            int total = planned.Values.Sum();
+            if (Math.Abs(total - target) > HitPointSlack * target)
+            {
+                broken.Add($"{style} seed {seed} level {number}: target {target}, planned {total}");
+            }
+
+            foreach (var (phase, hitPoints) in planned.Where(pair => Math.Abs(placed.GetValueOrDefault(pair.Key) - pair.Value) > HitPointSlack * pair.Value))
+            {
+                broken.Add($"{style} seed {seed} level {number} phase {phase}: planned {hitPoints}, placed {placed.GetValueOrDefault(phase)}");
+            }
+        }
+
+        Assert.Empty(broken);
+    }
+
+    [Fact]
+    public void Generate_BothStyles_StandMonstersTwelvePixelsApart()
+    {
+        var broken = new List<string>();
+        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
+        {
+            var kinds = level.Fights.SelectMany(fight => fight.Monsters).ToHashSet();
+            var monsters = level.Map.Sprites
+                .Where(sprite => kinds.Contains(sprite.Id))
+                .Select(sprite => new PointF(sprite.Position.X, sprite.Position.Y))
+                .ToArray();
+
+            int close = monsters.Select((monster, index) => monsters.Skip(index + 1).Count(other => Distance(monster, other) < MonsterGap)).Sum();
+            if (close > 0)
+            {
+                broken.Add($"{style} seed {seed} level {number}: {close} monster pairs under {MonsterGap} px apart");
+            }
+        }
+
+        Assert.Empty(broken);
+    }
+
+    [Fact]
+    public void Generate_BothStyles_IntroduceEachMonsterKindInAFightNoHarderThanTheLevelsMedian()
+    {
+        var broken = new List<string>();
+        foreach ((string style, int seed, int number, var level, var model, var objects) in GetIndoorLevels())
+        {
+            var firstLevels = model.Campaign.Monsters.ToDictionary(kind => kind.Id, kind => kind.FirstLevel);
+            var fights = level.Fights.OrderBy(fight => fight.Order).ToArray();
+            float median = fights.Select(fight => (float)fight.HitPoints).Order().ElementAtOrDefault(fights.Length / 2);
+            foreach (var kind in fights.SelectMany(fight => fight.Monsters).Distinct().Where(kind => firstLevels.GetValueOrDefault(kind) == number && number > firstLevels.Values.Min()))
+            {
+                var first = fights.First(fight => fight.Monsters.Contains(kind));
+                int single = objects.TryFind(kind, out var found) ? found.MaxHp : 0;
+                if (first.IsAmbush || first.HitPoints > median + LightestIntroduction * single)
+                {
+                    broken.Add($"{style} seed {seed} level {number}: {kind} first in {(first.IsAmbush ? "an ambush" : "a group")} of {first.HitPoints} hit points, the median {median}");
+                }
             }
         }
 
@@ -323,6 +524,39 @@ public class LevelGeneratorIntegrationTests
 
         return (raised, unsupported);
     }
+
+    private static IEnumerable<(string Style, int Seed, int Number, GeneratedLevel Level, StyleModel Model, ObjectTable Objects)> GetIndoorLevels() =>
+        new[] { ("campaign", CampaignSources.Value, CampaignLevels.Value), ("add-on", AddOnSources.Value, AddOnLevels.Value) }
+            .SelectMany(style => style.Item3
+                .Where(pair => pair.Value.Plan is not null)
+                .OrderBy(pair => pair.Key)
+                .Select(pair => (style.Item1, pair.Key.Seed, pair.Key.Level, pair.Value, style.Item2.Model, style.Item2.Objects)));
+
+    private static bool WalksAround(ASToolkit.Core.Generation.Geometry.FineLayout layout, IEnumerable<Cell> start, HashSet<Cell> end, Func<Cell, bool> avoided)
+    {
+        var queue = new Queue<Cell>(start.Where(cell => !avoided(cell)));
+        var seen = queue.ToHashSet();
+        while (queue.TryDequeue(out var cell))
+        {
+            if (end.Contains(cell))
+            {
+                return true;
+            }
+
+            foreach (var (next, edge) in EdgeKey.GetNeighbors(cell))
+            {
+                bool closed = layout.Edges.TryGetValue(edge, out var kind) && (kind.BlocksWalking || kind is EdgeKind.SecretWall or EdgeKind.SpawnWall);
+                if (layout.Cells.ContainsKey(next) && !closed && !avoided(next) && seen.Add(next))
+                {
+                    queue.Enqueue(next);
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static float Distance(PointF a, PointF b) => MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
 
     private static IReadOnlyDictionary<(int Seed, int Level), GeneratedLevel> GenerateAll(LevelGenerator generator, int levels)
     {

@@ -152,6 +152,11 @@ public sealed class RoomAtlas
     public required IReadOnlyList<AtlasRoom> Rooms { get; init; }
 
     /// <summary>
+    /// Counts the regular rooms of the atlas, places of kind room that are not passages, closets or secret rooms.
+    /// </summary>
+    public int CountRegularRooms() => Rooms.Count(room => room is { IsRoom: true, Place.Kind: PlaceKind.Room } && room.Type != RoomType.Passage);
+
+    /// <summary>
     /// Gets the areas of the level read by eye, or none when the level has no reading.
     /// </summary>
     public required IReadOnlyList<LevelArea> Areas { get; init; }
