@@ -84,30 +84,6 @@ public sealed class RoomRoleMap
             room => places[room].FirstVisit ?? int.MaxValue, key);
     }
 
-    /// <summary>
-    /// Measures the roles of the rooms of a door graph.
-    /// </summary>
-    /// <param name="rooms">The rooms.</param>
-    /// <param name="joins">The pairs of rooms that open onto each other.</param>
-    /// <param name="start">The start room.</param>
-    /// <param name="end">The room the level ends in.</param>
-    /// <param name="isHall">Returns whether a room is a hall.</param>
-    /// <param name="area">Returns the floor area of a room.</param>
-    /// <param name="order">Returns the order the player reaches a room in.</param>
-    /// <param name="key">The room that holds the key of a gate, when there is one.</param>
-    public static RoomRoleMap Measure(IReadOnlyCollection<int> rooms, IEnumerable<(int A, int B)> joins, int start, int end, Func<int, bool> isHall, Func<int, int> area,
-        Func<int, int> order, int? key)
-    {
-        var neighbors = rooms.ToDictionary(room => room, _ => new HashSet<int>());
-        foreach ((int a, int b) in joins.Where(join => join.A != join.B && neighbors.ContainsKey(join.A) && neighbors.ContainsKey(join.B)))
-        {
-            neighbors[a].Add(b);
-            neighbors[b].Add(a);
-        }
-
-        return Measure(new DoorGraph(rooms.ToArray(), neighbors), start, end, isHall, area, order, key);
-    }
-
     private static RoomRoleMap Measure(DoorGraph graph, int start, int end, Func<int, bool> isHall, Func<int, int> area,
         Func<int, int> order, int? key)
     {

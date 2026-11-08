@@ -80,6 +80,7 @@ public sealed class StyleFitter
             .ToArray();
 
         var leaning = FacingTable.FindLeaningFrames(models, _objects);
+        var layoutLevels = levels.Where(level => GetLayoutLevels(style).Contains(level.Name)).ToArray();
         return new StyleModel(
             style,
             fitting,
@@ -89,8 +90,9 @@ public sealed class StyleFitter
             WallSets.ToDictionary(wallSet => wallSet, wallSet => FacingTable.Build(models.Where(model => model.WallSet == wallSet), _objects, leaning)),
             _campaign.Fit(references, style, excluded))
         {
-            Footprints = RoomFootprintFitter.Fit(levels.Where(level => GetLayoutLevels(style).Contains(level.Name)).ToArray()),
-            Encounters = EncounterModel.Fit(levels.Where(level => GetLayoutLevels(style).Contains(level.Name)).ToArray())
+            Footprints = RoomFootprintFitter.Fit(layoutLevels),
+            Encounters = EncounterModel.Fit(layoutLevels),
+            Economy = EconomyModel.Fit(layoutLevels, GetLayoutLevels(GenerationStyle.AddOn).Where(name => !excluded.Contains(name)).Select(references.GetLevel).ToArray())
         };
     }
 }

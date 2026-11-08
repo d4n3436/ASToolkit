@@ -33,7 +33,7 @@ public class GameTableTests
         Assert.Equal([1, -2, 3], table.GetArray("Sized"));
         Assert.Equal([5, 6], table.GetArray("Split"));
         Assert.False(table.TryGetArray("Hidden", out var hidden));
-        Assert.Empty(hidden);
+        Assert.Null(hidden);
         Assert.Throws<KeyNotFoundException>(() => table.GetArray("Block"));
     }
 }

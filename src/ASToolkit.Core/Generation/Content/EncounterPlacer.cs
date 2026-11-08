@@ -38,9 +38,9 @@ internal sealed class EncounterPlacer
             .ToArray();
     }
 
-    public void Place(IReadOnlyList<PlannedFight> fights, LevelBudget budget)
+    public void Place(IReadOnlyList<PlannedFight> fights)
     {
-        foreach (var fight in fights.Where(fight => fight.Trigger is null || !Release(fight, budget)))
+        foreach (var fight in fights.Where(fight => fight.Trigger is null || !Release(fight)))
         {
             Stand(fight.Monsters, fight.Rooms);
         }
@@ -133,14 +133,14 @@ internal sealed class EncounterPlacer
         return true;
     }
 
-    private bool Release(PlannedFight fight, LevelBudget budget)
+    private bool Release(PlannedFight fight)
     {
         var trigger = fight.Trigger!.Value;
         var center = _ctx.Layout.Lattice.GetCenter(_ctx.Layout.GetDoorwayCell(trigger.Link, trigger.Region));
         int radius = (int)MathF.Ceiling(_ctx.Layout.LinkEdges[trigger.Link].Max(edge => ContentPlacer.GetDistance(GetMiddle(edge), center)) + _ctx.Step);
         if (fight.Closet is not null)
         {
-            return ReleaseFromCloset(fight, budget, center, radius);
+            return ReleaseFromCloset(fight, center, radius);
         }
 
         var spots = fight.Rooms
@@ -187,7 +187,7 @@ internal sealed class EncounterPlacer
         return true;
     }
 
-    private bool ReleaseFromCloset(PlannedFight fight, LevelBudget budget, PointF center, int radius)
+    private bool ReleaseFromCloset(PlannedFight fight, PointF center, int radius)
     {
         int closet = fight.Closet!.Value;
         var link = _ctx.Plan.Links.FirstOrDefault(link => link.To == closet);
@@ -213,7 +213,6 @@ internal sealed class EncounterPlacer
             Trailer = new byte[4]
         };
         _ctx.Map.Sprites[wallIndex] = _ctx.Map.Sprites[wallIndex] with { Payload = wall.ToPayload() };
-        ContentPlacer.StockCloset(_ctx, budget, cells);
         return true;
     }
 

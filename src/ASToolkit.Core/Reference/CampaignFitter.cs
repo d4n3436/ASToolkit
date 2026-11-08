@@ -1,5 +1,6 @@
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
+using ASToolkit.Core.Routes;
 using ASToolkit.Core.Survey;
 
 namespace ASToolkit.Core.Reference;
@@ -114,6 +115,11 @@ public sealed class CampaignFitter
             Bosses = bosses,
             BossShare = new FittedValue<float>(fights.Count(level => level.Encounters.Any(encounter => encounter.Kind == EncounterKind.Boss)) / (float)Math.Max(1, fights.Length),
                 fights.Length, IsBackedOff: false),
+            DynamiteSites = indoor
+                .GroupBy(level => references.GetSurvey(level.Map).Style)
+                .ToDictionary(group => group.Key, group => LinearFit.Fit(group
+                    .Select(level => (X: (float)level.Level, Y: references.GetLevel(level.Map).Analysis.Elements.Count(element => element.Kind == ElementKind.DynamiteSite) * PixelsPerRate / level.FloorPixels))
+                    .ToArray())),
             SecretClosets = LinearFit.Fit(basements.Select(level => (X: (float)level.Level, Y: references.GetLevel(level.Map).Measures.SecretClosets.Count * PixelsPerRate / level.FloorPixels)).ToArray()),
             Donors = Enumerable.Range(2, 9)
                 .Select(ReferenceLevelSet.GetCampaignName)

@@ -61,7 +61,6 @@ public sealed class LevelGenerator
     private readonly ObjectTable _objects;
     private readonly ReferenceLevelSet _references;
     private readonly ArmyTable _armies;
-    private readonly Lazy<OriginalContentSet> _content;
     private readonly Lazy<DressingLibrary> _basementLibrary;
     private readonly Lazy<DressingLibrary> _concreteLibrary;
     private readonly Lazy<RoomFurnisher> _concreteFurnisher;
@@ -74,7 +73,6 @@ public sealed class LevelGenerator
     private readonly Lazy<SiteTemplate[]> _concreteSites;
     private readonly Lazy<KeypadTable> _keypads;
     private readonly ConcurrentDictionary<string, Lazy<OriginalLevel>> _originals = new();
-    private readonly ConcurrentDictionary<string, Lazy<EncounterProfile>> _encounters = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="LevelGenerator"/> class.
@@ -90,7 +88,6 @@ public sealed class LevelGenerator
         bool addOnStyle = model.Style == GenerationStyle.AddOn;
         string[] sources = model.FittingLevels.Where(name => name != ReferenceLevelSet.GetCampaignName(1)).ToArray();
 
-        _content = new Lazy<OriginalContentSet>(() => OriginalContentSet.Load(references, sources));
         _basementFurnisher = new Lazy<RoomFurnisher>(() => CreateFurnisher(references, model, objects, WallSet.Basement, sources));
         _concreteFurnisher = new Lazy<RoomFurnisher>(() => CreateFurnisher(references, model, objects, WallSet.Concrete, sources));
         _basementLibrary = new Lazy<DressingLibrary>(() => DressingLibrary.Build(references, model.Relations, objects, WallSet.Basement, sources, GetWallDressing(model, WallSet.Basement),
@@ -269,9 +266,6 @@ public sealed class LevelGenerator
         }
     }
 
-    private EncounterProfile GetEncounters(string name) =>
-        _encounters.GetOrAdd(name, key => new Lazy<EncounterProfile>(() => EncounterProfile.Measure(_references.GetSurvey(key), _references.GetLevel(key).Analysis))).Value;
-
     // Write a level over its donor, or in add-on style over add-on 1's level of its number
     private string GetTemplateName(LevelBrief brief) => _model.Style == GenerationStyle.AddOn ? $"ADDON/{ReferenceLevelSet.GetCampaignName(brief.Level)}" : brief.DonorLevel;
 
@@ -312,8 +306,8 @@ public sealed class LevelGenerator
         var donor = _references.GetLevel(brief.DonorLevel);
         var wallSet = brief.WallSet;
         var settings = wallSet == WallSet.Basement ? WallSetSettings.Basement : WallSetSettings.Concrete;
-        int dynamiteSites = donor.Analysis.Elements.Count(element => element.Kind == ElementKind.DynamiteSite);
-        var budget = new BudgetPlanner(_content.Value, _model.Encounters).Plan(budgetRng, brief, dynamiteSites);
+        int dynamiteSites = brief.DynamiteSites;
+        var budget = new BudgetPlanner(_model.Encounters).Plan(budgetRng, brief, dynamiteSites);
         var encounterModel = _model.Encounters;
         int spawnClosets = wallSet == WallSet.Basement && brief.SpawnedShare > 0 ? Math.Min(MaxSpawnClosets, (int)MathF.Round(brief.Rooms * encounterModel.ClosetsPerRoom.Value)) : 0;
         var builder = new BuildingBuilder(layoutRng, _model.Footprints);
@@ -410,14 +404,12 @@ public sealed class LevelGenerator
             ? known
             : companions[anchor] = _model.Relations.GetCompanions(wallSet, anchor).Where(companion => held.Contains(companion.Id)).ToArray();
 
-        var encounters = GetEncounters(brief.DonorLevel);
-
         // Lay out the cannon and the sites before the decor
         PlacedSites? placedSites = null;
         if (wallSet == WallSet.Concrete)
         {
             var early = new PlacementContext(contentRng, brief, plan, layout, map, _objects, start, new HashSet<Cell>(), keepClear, occupancy, companionsOf);
-            placedSites = ContentPlacer.PlaceConcreteSites(early, budget, _concreteSites.Value, _cannonScenes.Value, encounters);
+            placedSites = ContentPlacer.PlaceConcreteSites(early, budget, _concreteSites.Value, _cannonScenes.Value, _model.Economy);
             var siteSpots = GetSiteSpots(map, layout.Lattice, placedSites);
             var siteCells = layout.Cells.Keys.Where(c => siteSpots.Any(spot => IsWithin(layout.Lattice, c, spot))).ToArray();
             keepClear.UnionWith(siteCells);
@@ -447,8 +439,8 @@ public sealed class LevelGenerator
             MusicLines = GetOriginal(template).MusicLines
         };
 
-        ContentPlacer.Place(context, budget, donor.Analysis.Checkpoints.Count > 0, brief.GateStyle == LevelStyle.Blackout, script, breaker, wallSet == WallSet.Basement ? _basementSites.Value : _concreteSites.Value,
-            visibleEdges, placedEdges, spawnWalls, _keypads.Value, _model.GetFacings(wallSet), _cannonScenes.Value, encounters, encounterModel, fights, placedSites);
+        ContentPlacer.Place(context, budget, contentRng.NextSingle() < _model.Economy.CheckpointShare.Value, brief.GateStyle == LevelStyle.Blackout, script, breaker, wallSet == WallSet.Basement ? _basementSites.Value : _concreteSites.Value,
+            visibleEdges, placedEdges, spawnWalls, _keypads.Value, _model.GetFacings(wallSet), _cannonScenes.Value, _model, fights, placedSites);
 
         return new GeneratedLevel
         {

@@ -9,17 +9,14 @@ namespace ASToolkit.Core.Generation.Content;
 /// </summary>
 public sealed class BudgetPlanner
 {
-    private readonly OriginalContentSet _content;
     private readonly EncounterModel _encounters;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BudgetPlanner"/> class.
     /// </summary>
-    /// <param name="content">The original levels' content, read for mounted cannons and generators.</param>
     /// <param name="encounters">The style's fitted fights.</param>
-    public BudgetPlanner(OriginalContentSet content, EncounterModel encounters)
+    public BudgetPlanner(EncounterModel encounters)
     {
-        _content = content;
         _encounters = encounters;
     }
 
@@ -28,7 +25,6 @@ public sealed class BudgetPlanner
     /// </summary>
     public LevelBudget Plan(Random rng, LevelBrief brief, int dynamiteSites)
     {
-        var donor = _content.GetLevel(brief.DonorLevel);
         var items = brief.Pickups.ToDictionary();
         if (dynamiteSites > 0)
         {
@@ -39,10 +35,9 @@ public sealed class BudgetPlanner
         {
             TargetHitPoints = (int)(brief.HitPoints * (0.9f + 0.2f * rng.NextSingle())),
             Items = items,
-            Weapons = brief.Weapons.ToList(),
+            Weapons = brief.Weapons,
             DynamiteSites = dynamiteSites,
-            MountedCannons = brief.MountedCannons ?? donor.MountedCannons,
-            Generators = donor.Generators,
+            MountedCannons = brief.MountedCannons,
             EndlessGenerators = (int)MathF.Round(dynamiteSites * _encounters.GeneratorsPerSite.GetValueOrDefault(brief.WallSet).Value)
         };
     }

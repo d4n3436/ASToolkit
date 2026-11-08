@@ -368,6 +368,111 @@ public class LevelGeneratorIntegrationTests
     }
 
     [Fact]
+    public void Generate_BothStyles_PlaceEveryPickupAndWeaponOfTheBudget()
+    {
+        var broken = new List<string>();
+        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
+        {
+            var budget = level.Budget!;
+            var wanted = budget.Items
+                .Where(pair => pair.Key != KnownObject.Dynamite)
+                .SelectMany(pair => Enumerable.Repeat(pair.Key, pair.Value))
+                .Concat(budget.Weapons)
+                .CountBy(item => item.PickupCategory!.Value)
+                .ToDictionary();
+
+            var placed = level.Map.Sprites
+                .Select(sprite => sprite.Id == KnownObject.Crate ? KnownObject.GetCrateItem(sprite.Payload) : sprite.Id)
+                .Where(id => id.IsPickup && id != KnownObject.Dynamite)
+                .CountBy(id => id.PickupCategory!.Value)
+                .ToDictionary();
+
+            foreach (var category in wanted.Keys.Union(placed.Keys).Where(category => wanted.GetValueOrDefault(category) != placed.GetValueOrDefault(category)))
+            {
+                broken.Add($"{style} seed {seed} level {number}: {category} {placed.GetValueOrDefault(category)} of {wanted.GetValueOrDefault(category)}");
+            }
+        }
+
+        Assert.Empty(broken);
+    }
+
+    [Fact]
+    public void Generate_BothStyles_LayEachNewWeaponAfterSomeOfItsAmmunition()
+    {
+        var broken = new List<string>();
+        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
+        {
+            var elements = level.Analysis!.Elements;
+            var brief = (style == "campaign" ? CampaignSources : AddOnSources).Value.Generator.Plan(seed).Levels[number - 1];
+            foreach (var weapon in elements.Where(element => brief.NewWeapons.Contains(element.Id)))
+            {
+                int[] ammo = elements
+                    .Where(element => element.Id == weapon.Id.WeaponAmmo || element.CrateItem == weapon.Id.WeaponAmmo)
+                    .Select(element => element.Distance)
+                    .ToArray();
+
+                if (ammo.Length > 0 && ammo.Min() >= weapon.Distance)
+                {
+                    broken.Add($"{style} seed {seed} level {number}: {weapon.Id} before its ammunition");
+                }
+            }
+        }
+
+        Assert.Empty(broken);
+    }
+
+    [Fact]
+    public void Generate_BothStyles_LayEnoughChargesBeforeEverySiteInPlayOrder()
+    {
+        var broken = new List<string>();
+        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
+        {
+            var walk = MeasureWalk(level);
+            var layout = level.Layout!;
+            var plan = level.Plan!;
+            (int Phase, int Walk, int Region) Locate(MergedMapSprite sprite)
+            {
+                int region = layout.Cells.GetValueOrDefault(layout.Lattice.GetCell(sprite.Position.X, sprite.Position.Y), -1);
+                return (region < 0 ? 0 : plan.Regions[region].Phase, GetWalk(level, walk, sprite.Position.X, sprite.Position.Y), region);
+            }
+
+            var charges = level.Map.Sprites.Where(sprite => sprite.Id == KnownObject.Dynamite).Select(Locate).ToArray();
+            var sites = level.Map.Sprites.Where(sprite => sprite.Id == KnownObject.DynamiteSite).Select(Locate).OrderBy(site => site.Phase).ThenBy(site => site.Walk).ToArray();
+            for (int index = 0; index < sites.Length; index++)
+            {
+                var site = sites[index];
+                int before = charges.Count(charge => charge.Phase < site.Phase || charge.Phase == site.Phase && (charge.Walk < site.Walk || charge.Region == site.Region));
+                if (before <= index)
+                {
+                    broken.Add($"{style} seed {seed} level {number}: site {index + 1} with {before} charges before it");
+                    break;
+                }
+            }
+        }
+
+        Assert.Empty(broken);
+    }
+
+    [Fact]
+    public void Generate_BothStyles_StandTheCheckpointBeforeTheBiggestFight()
+    {
+        var broken = new List<string>();
+        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels().Where(entry => entry.Level.Script.Checkpoint is not null && entry.Level.Fights.Count > 0))
+        {
+            var walk = MeasureWalk(level);
+            var climax = level.Fights.MaxBy(fight => fight.HitPoints)!;
+            int entry = level.Layout!.GetRegionCells(climax.Region).Select(cell => walk.GetValueOrDefault(cell, int.MaxValue)).Min();
+            var checkpoint = level.Script.Checkpoint!.Value;
+            if (GetWalk(level, walk, checkpoint.X, checkpoint.Y) > entry)
+            {
+                broken.Add($"{style} seed {seed} level {number}: checkpoint past the biggest fight's room");
+            }
+        }
+
+        Assert.Empty(broken);
+    }
+
+    [Fact]
     public void Generate_SameSeedTwice_WritesTheSameFiles()
     {
         var generator = CampaignSources.Value.Generator;
@@ -555,6 +660,29 @@ public class LevelGeneratorIntegrationTests
 
         return false;
     }
+
+    private static Dictionary<Cell, int> MeasureWalk(GeneratedLevel level)
+    {
+        var layout = level.Layout!;
+        var player = level.Map.Sprites.First(sprite => sprite.Id == KnownObject.PlayerStart).Position;
+        var start = layout.Lattice.GetCell(player.X, player.Y);
+        var walk = new Dictionary<Cell, int> { [start] = 0 };
+        var queue = new Queue<Cell>([start]);
+        while (queue.TryDequeue(out var cell))
+        {
+            foreach (var (next, edge) in EdgeKey.GetNeighbors(cell))
+            {
+                if (layout.Cells.ContainsKey(next) && !(layout.Edges.TryGetValue(edge, out var kind) && kind.BlocksWalking) && walk.TryAdd(next, walk[cell] + 1))
+                {
+                    queue.Enqueue(next);
+                }
+            }
+        }
+
+        return walk;
+    }
+
+    private static int GetWalk(GeneratedLevel level, Dictionary<Cell, int> walk, float x, float y) => walk.GetValueOrDefault(level.Layout!.Lattice.GetCell(x, y), int.MaxValue);
 
     private static float Distance(PointF a, PointF b) => MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
 

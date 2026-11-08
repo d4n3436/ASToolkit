@@ -13,6 +13,7 @@ public sealed record EncounterModel
     private const float DefaultSpacing = 20;
     private const int DefaultSpawnerSize = 10;
     private const float DefaultGeneratorsPerSite = 1;
+    private const float DefaultGeneratorsPerRoom = 1;
     private const float DefaultClimaxShare = 0.4f;
     private const float DefaultFightsPerScreen = 1;
     private const float DefaultSpawnerSpacing = 120;
@@ -41,6 +42,11 @@ public sealed record EncounterModel
     /// Gets the endless generators per dynamite site by wall set.
     /// </summary>
     public required IReadOnlyDictionary<WallSet, FittedValue<float>> GeneratorsPerSite { get; init; }
+
+    /// <summary>
+    /// Gets the fence generators of a room that holds any.
+    /// </summary>
+    public required FittedValue<float> GeneratorsPerRoom { get; init; }
 
     /// <summary>
     /// Gets the fights a level holds per screen of its floor.
@@ -85,6 +91,7 @@ public sealed record EncounterModel
         float[] gaps = spawners.Where(spawner => spawner.Spacing is not null).Select(spawner => spawner.Spacing!.Value).ToArray();
         float[] reaches = spawners.Select(spawner => spawner.Reach).ToArray();
         var generators = Rate(levels.Sum(CountGenerators), levels.Sum(CountSites), DefaultGeneratorsPerSite);
+        var fenceGenerators = levels.SelectMany(level => level.Survey.Landmarks.Where(landmark => landmark.Kind == LandmarkKind.Generator)).ToArray();
         return new EncounterModel
         {
             Spacing = Median(spacings, DefaultSpacing),
@@ -93,6 +100,7 @@ public sealed record EncounterModel
             GeneratorsPerSite = levels
                 .GroupBy(level => level.Survey.WallSet)
                 .ToDictionary(group => group.Key, group => Rate(group.Sum(CountGenerators), group.Sum(CountSites), generators.Value)),
+            GeneratorsPerRoom = Rate(fenceGenerators.Length, levels.Sum(level => level.Survey.Landmarks.Where(landmark => landmark.Kind == LandmarkKind.Generator).Select(landmark => landmark.Place).Distinct().Count()), DefaultGeneratorsPerRoom),
             FightsPerScreen = levels.Count < LinearFit.MinSamples ? new FittedValue<float>(DefaultFightsPerScreen, levels.Count, IsBackedOff: true) : new FittedValue<float>(fights / screens, levels.Count, IsBackedOff: false),
             SpawnerSpacing = Quantile(gaps, LowQuantile, DefaultSpawnerSpacing),
             SpawnerReach = Quantile(reaches, HighQuantile, DefaultSpawnerReach),

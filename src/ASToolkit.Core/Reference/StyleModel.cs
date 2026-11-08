@@ -44,6 +44,11 @@ public sealed class StyleModel
     public required EncounterModel Encounters { get; init; }
 
     /// <summary>
+    /// Gets the fitted pickups and objectives.
+    /// </summary>
+    public required EconomyModel Economy { get; init; }
+
+    /// <summary>
     /// Gets the outlines of the originals' smaller rooms the building grammars transform their rooms from.
     /// </summary>
     public required IReadOnlyList<RoomFootprint> Footprints { get; init; }

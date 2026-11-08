@@ -80,16 +80,6 @@ public sealed class LayoutPlan
     public bool HoldsFights(PlanRegion region) => SecondWing.Count == 0 || SecondWing.Contains(region);
 
     /// <summary>
-    /// Reads the roles of the rooms from the link graph.
-    /// </summary>
-    public RoomRoleMap MeasureRoles()
-    {
-        var rooms = Regions.Where(region => region.Kind is RegionKind.Station or RegionKind.SideRoom or RegionKind.Pen).ToDictionary(region => region.Id);
-        return RoomRoleMap.Measure(rooms.Keys, Links.Select(link => (link.From, link.To)), Stations[0].Id, Stations[^1].Id, room => rooms[room].IsHall,
-            room => rooms[room].Units.Count, room => rooms[room].Station, KeyRoom?.Id);
-    }
-
-    /// <summary>
     /// Returns the zone a region lies in.
     /// </summary>
     public GateZone GetZone(PlanRegion region) => region.Kind is RegionKind.SecretCloset or RegionKind.SecretRoom ? GateZone.Secret : !region.IsGated ? GateZone.Open : Gate switch

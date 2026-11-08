@@ -63,8 +63,8 @@ A level draws from four `Random` streams. The layout seed drives the building, d
 |---|---|---|
 | campaign model | `CampaignFitter.Fit` | `CampaignPlanner` |
 | decor heights, wall clearance, facings | `StyleModel`, `WallClearanceTable`, `FacingTable` | dressing |
-| encounter model | `EncounterModel` | `FightPlanner`, `EncounterPlacer`, spawn closets |
-| content pool (cannons, generators) | `OriginalContentSet` | `BudgetPlanner` |
+| encounter model | `EncounterModel` | `FightPlanner`, `EncounterPlacer`, spawn closets, `PlaceGate` |
+| economy model | `EconomyModel` | `PickupPlacer`, `PlaceSites`, `PlaceCharges`, the checkpoint |
 | room atlases, recipes | `ReferenceLevelSet.GetAtlas`, `RoomRecipe.Measure` | `RoomFurnisher` |
 | dressing libraries | `DressingLibrary.Build` | `Dresser.Dress` |
 | object relations | `ObjectRelationTable.Build` | occupancy, furnishing, companions |
@@ -77,12 +77,21 @@ The encounter model holds these values, fitted to the style's originals:
 - the spacing of standing monsters;
 - how many monsters a spawner holds;
 - spawn closets per room;
-- endless generators per dynamite site;
+- endless generators per dynamite site, and fence generators per generator room;
 - how many fights a level holds for its floor;
 - how far apart a fight's spawners stand, and how far from their trigger;
 - how big each phase's largest fight is, and where in their phases the originals' largest fights come.
 
 A fight is everything the player meets in one phase within 1,000 px of walk from its first encounter. Groups holding under 2% of the level's hit points don't count.
+
+The economy model holds these values:
+
+- the share of each category's pickups in crates;
+- the sizes of piles and the walls each category's piles stand against;
+- how much denser pickups lie in rooms off the walks from the start to the objectives than on them;
+- what secret closets hold and how many pickups, and how many spawn closets hold any;
+- how far along the walk from the start dynamite sites stand, how far ahead of a site with no gate before it its charges lie, and how many levels hold charges in the start room;
+- the share of levels with a checkpoint.
 
 A value with fewer than 8 samples behind it falls back to a default.
 
@@ -133,7 +142,7 @@ A cell's two upper edges are its far walls, facing the camera; fake doors, the b
 
 ### Campaign plan
 
-`CampaignFitter` fits lines by level to the style's own campaigns for hit points (by the log of the level), spawned share, floor, regular rooms per floor, end money, weapon levels by price order, affordability, repeated weapons, pickups per floor and their ids, ammunition by weapon age, secret closets, the shares of buildings and gate styles, each monster kind's first level, the mean hit points of a level's monsters, and the bosses with their share of levels. A line with fewer than 8 samples stays flat at the mean.
+`CampaignFitter` fits lines by level to the style's own campaigns for hit points (by the log of the level), spawned share, floor, regular rooms per floor, end money, weapon levels by price order, affordability, repeated weapons, pickups per floor and their ids, ammunition by weapon age, secret closets and dynamite sites per floor (sites by gate style), the shares of buildings and gate styles, each monster kind's first level, the mean hit points of a level's monsters, and the bosses with their share of levels. A line with fewer than 8 samples stays flat at the mean.
 
 `CampaignPlanner.Plan` draws one `LevelBrief` per level (10 in campaign style, 5 in add-on style):
 
@@ -142,12 +151,13 @@ A cell's two upper edges are its far walls, facing the camera; fake doors, the b
 - **Second wings.** Each lab level draws its second wing among those its gate builds (`BuildingGrammar.GetSecondWings`), never one already drawn in the campaign.
 - **Threat, money, size.** Hit points and end money never fall from one level to the next. A lab's room count fits its two wings.
 - **Weapons and pickups.** Weapons come in price order, none before the money can pay its share of the price.
+- **Sites and cannons.** Each indoor level draws its dynamite sites from its gate style's fitted rate per floor. Campaign style stands a mounted cannon on warehouse levels 7 and 8, add-on style on its last warehouse level only.
 - **Monsters and bosses.** A level draws the kinds it has reached, weighted over log hit points so that their mean meets the level's fitted mean; kinds first seen on the level are its new kinds, none on the style's first level with monsters. A level holds a boss at the fitted share, the newest boss kind it has reached.
-- **Donor.** Each level names the campaign original of its wall set nearest in hit points. The donor gives what later steps have not yet replaced, such as sites, checkpoint, pens, cannons, generators, pickup styles, room atlas, dressing, gore, door marks, template map and music.
+- **Donor.** Each level names the campaign original of its wall set nearest in hit points. The donor gives what later steps have not yet replaced, such as site templates, pens, room atlas, dressing, gore, door marks, template map and music.
 
 ### Budget
 
-`BudgetPlanner` sets the level's budget. It takes the brief's hit points within a tenth, its pickups and weapons, one charge per donor site, endless generators at the fitted rate per dynamite site of its wall set, and the donor's cannons and generators.
+`BudgetPlanner` sets the level's budget. It takes the brief's hit points within a tenth, its pickups and weapons, one charge per site, endless generators at the fitted rate per dynamite site of its wall set, and the brief's cannons.
 
 ## Building
 
@@ -274,18 +284,16 @@ Every piece goes through the level's occupancy ([Keeping the way clear](#keeping
 
 ```
  PlaceGate -> PlaceBosses -> PlaceMountedCannons -> PlaceSites -> PlaceCharges
-   -> EncounterPlacer.Place -> PlaceStashes -> PlaceItems -> PlaceCheckpoint
+   -> EncounterPlacer.Place -> PickupPlacer.Place -> PlaceCheckpoint
 ```
 
-Most steps match what they place to the donor's rooms by role (`RoomRoleMap`), gate zone and progress (`EncounterProfile`).
-
-- **Gate.** The breaker (418) and keypads on locked-door and blackout levels; a blackout's trigger is one point in the trigger room, well inside its door. Fenced levels put generators (415) in the back of each generator room.
+- **Gate.** The breaker (418) and keypads on locked-door and blackout levels; a blackout's trigger is one point in the trigger room, well inside its door. Fenced levels put generators (415) in the back of each generator room, at the fitted count per room.
 - **Bosses.** The brief's bosses, in the largest late dead-end room, else the last station.
 - **Mounted cannon.** At the entry end of a large late station, with a kill zone at the far end.
-- **Sites and charges.** Sites stand in the donor's site rooms' counterparts; on a lab only in the second wing, a third of them in locked rooms. Basement sites break a far wall into a hole with endless generators behind it; concrete sites stand pads off walls. One charge per site, 150 px or more from every site.
+- **Sites and charges.** Sites stand in the rooms nearest positions drawn from the originals' sites along the walk; on a lab only in the second wing, a third of them in locked rooms. Basement sites break a far wall into a hole with endless generators behind it; concrete sites stand pads off walls. The charges of each phase's sites lie together, 150 px or more from every site. They go beside the last key of the phase before, the breaker room or the generator room the player reaches last. A phase with no key before it puts them in the start room on the fitted share of levels for the first phase, and otherwise on the walk to its first site, the fitted lead before it.
 - **Fights.** `EncounterPlacer` places the planned fights. Standing groups stand in clusters on visible floor and spill into the nearest rooms of their phase. Ambush spawners stand out of sight of a player inside the trigger circle on the room's door. Spawn closets blow their wall open, and only they may be seen spawning. An ambush with nowhere out of sight to stand becomes a standing group.
-- **Stashes and items.** Secret closets hold stashes; weapons and pickups go loose or in crates as the donor lays them.
-- **Checkpoint.** On the walk to the strongest fight, when the donor has one and the level is not a blackout.
+- **Pickups.** `PickupPlacer` lays the budget's pickups. A new weapon lies off the walks to the objectives or in a secret closet, with one of its ammunition pickups earlier on its walk. Secret closets and some spawn closets then take their stashes, crates take each category's share, and the rest lie in small piles in rooms drawn by floor, rooms off the walks weighted by the fitted density.
+- **Checkpoint.** On the walk to the biggest fight, just before its room, on the fitted share of levels that are not blackouts.
 
 #### Fight designer values
 
@@ -313,7 +321,8 @@ Most steps match what they place to the donor's rooms by role (`RoomRoleMap`), g
 | a generator in every key room of a fenced mission | `PlaceGate` |
 | no overlap, no one-unit step, every room joined to the start, closets against their hosts | `BuildingBuilder` |
 | the breaker on a back wall of 4 pieces or more with open floor around it | `ChooseBreakerSpot` |
-| one charge per site, sites clear of solid decor | `PlaceCharges`, `LevelOccupancy` |
+| one charge per site, enough charges before every site in play order, sites clear of solid decor | `PlaceCharges`, `LevelOccupancy` |
+| every pickup and weapon of the budget, a new weapon after some of its ammunition, the checkpoint before the biggest fight | `PickupPlacer`, `PlaceCheckpoint` |
 | blocking pieces off doorways and apart as the originals keep them, no pickup under them | `LevelOccupancy` |
 | decor of the level's floor set, facing and clearing walls as in the originals | `Dresser`, `RoomFurnisher` |
 | no spawner in an earlier phase than its trigger, every spawn trigger on every walk from the start to the end, no variant over three quarters of its family in a fight | `FightPlanner` |

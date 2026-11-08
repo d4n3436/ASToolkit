@@ -368,6 +368,34 @@ public sealed class PlacementContext
     private bool IsBlockingEdge(EdgeKey k) => Layout.Edges.TryGetValue(k, out var kind) && kind.BlocksWalking;
 
     /// <summary>
+    /// Returns the cells from a cell back to the start down the walking distances.
+    /// </summary>
+    public IEnumerable<Cell> TraceWalk(Cell from)
+    {
+        var cell = from;
+        while (Distance.TryGetValue(cell, out int distance) && distance > 0)
+        {
+            yield return cell;
+            Cell? next = null;
+            foreach (var (neighbor, _) in EdgeKey.GetNeighbors(cell))
+            {
+                if (!Distance.TryGetValue(neighbor, out int step) || step >= distance)
+                    continue;
+                
+                next = neighbor;
+                break;
+            }
+
+            if (next is null)
+            {
+                yield break;
+            }
+
+            cell = next.Value;
+        }
+    }
+
+    /// <summary>
     /// Returns the walking distance of every reachable cell from a cell, in cell steps, with every door open.
     /// </summary>
     public Dictionary<Cell, int> MeasureDistances(Cell start)

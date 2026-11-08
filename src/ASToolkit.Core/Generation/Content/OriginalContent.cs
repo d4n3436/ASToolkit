@@ -6,38 +6,15 @@ using ASToolkit.Core.Generation.Dressing;
 namespace ASToolkit.Core.Generation.Content;
 
 /// <summary>
-/// Represents the gameplay content of one original level.
+/// Provides the set pieces read from the original levels, such as breaker and cannon scenes, door and missile marks, and dynamite sites.
 /// </summary>
-public sealed class OriginalContent
+public static class OriginalContent
 {
     private const float CannonSceneReach = 230;
     private const float DoorMarkReach = 60;
     private const float MissileReach = 120;
     private const float MissileMarkReach = 90;
     private const float WallSignHeight = 60;
-
-    /// <summary>Gets the level name.</summary>
-    public required string Name { get; init; }
-
-    /// <summary>Gets the number of mounted cannons.</summary>
-    public required int MountedCannons { get; init; }
-
-    /// <summary>Gets the number of fence generators.</summary>
-    public required int Generators { get; init; }
-
-    /// <summary>
-    /// Reads the content of an original level.
-    /// </summary>
-    public static OriginalContent Load(ReferenceLevel level)
-    {
-        var sp = level.Map.Sprites;
-        return new OriginalContent
-        {
-            Name = level.Name,
-            MountedCannons = sp.Count(s => s.Id == KnownObject.MountedCannon),
-            Generators = sp.Count(s => s.Id == KnownObject.Generator)
-        };
-    }
 
     /// <summary>
     /// Returns the props within 170 pixels of each breaker of the given levels.

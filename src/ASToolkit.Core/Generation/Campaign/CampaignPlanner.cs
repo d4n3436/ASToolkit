@@ -68,6 +68,7 @@ public sealed class CampaignPlanner
         int[] rooms = new int[count + 1];
         float[] spawnedShares = new float[count + 1];
         int[] closets = new int[count + 1];
+        int[] sites = new int[count + 1];
         var counts = new Dictionary<ItemCategory, int>[count + 1];
         counts[1] = [];
         for (int level = FirstIndoorLevel; level <= count; level++)
@@ -82,6 +83,7 @@ public sealed class CampaignPlanner
             float rates = floors[level] / PixelsPerRate;
             counts[level] = _model.PickupRates.ToDictionary(pair => pair.Key, pair => (int)MathF.Round(Math.Max(0, Draw(rng, pair.Value.Value, level)) * rates));
             closets[level] = wallSets[level] == WallSet.Basement ? (int)MathF.Round(Math.Max(0, Draw(rng, _model.SecretClosets.Value, level)) * rates) : 0;
+            sites[level] = _model.DynamiteSites.TryGetValue(gates[level], out var siteRate) ? (int)MathF.Round(Math.Max(0, Draw(rng, siteRate.Value, level)) * rates) : 0;
         }
 
         int[] endMoney = Enumerable.Range(0, count + 1)
@@ -93,6 +95,7 @@ public sealed class CampaignPlanner
             .ToArray();
 
         var weaponLevels = DrawWeaponLevels(rng, endMoney, cash);
+        int lastWarehouse = Enumerable.Range(FirstIndoorLevel, count - 1).LastOrDefault(level => buildings[level] == Building.Warehouse);
         int firstMonsters = _model.Monsters.Select(kind => kind.FirstLevel).DefaultIfEmpty(0).Min();
         var briefs = new List<LevelBrief>
         {
@@ -108,6 +111,7 @@ public sealed class CampaignPlanner
                 FloorPixels = 0,
                 Rooms = 0,
                 SecretClosets = 0,
+                DynamiteSites = 0,
                 Arsenal = [],
                 NewWeapons = [],
                 Weapons = [],
@@ -155,6 +159,7 @@ public sealed class CampaignPlanner
                 FloorPixels = floors[level],
                 Rooms = SizeLab(rooms[level], wallSets[level], IsIntro(level, gates[level]), gates[level]),
                 SecretClosets = closets[level],
+                DynamiteSites = sites[level],
                 Arsenal = arsenal,
                 NewWeapons = newWeapons,
                 Weapons = weapons,
@@ -164,7 +169,7 @@ public sealed class CampaignPlanner
                 Bosses = DrawBosses(rng, level),
                 EndMoney = endMoney[level],
                 SecondWing = wings[level],
-                MountedCannons = _model.Style == GenerationStyle.Campaign ? buildings[level] == Building.Warehouse && level is CannonLevelMin or CannonLevelMax ? 1 : 0 : null,
+                MountedCannons = buildings[level] == Building.Warehouse && (_model.Style == GenerationStyle.Campaign ? level is CannonLevelMin or CannonLevelMax : level == lastWarehouse) ? 1 : 0,
                 DonorLevel = ChooseDonor(wallSets[level], gates[level], hitPoints).Name
             });
         }

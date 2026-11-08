@@ -1,5 +1,6 @@
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
+using ASToolkit.Core.Survey;
 
 namespace ASToolkit.Core.Reference;
 
@@ -113,6 +114,11 @@ public sealed class CampaignModel
     /// Gets the secret closets of a level of basement walls per million square pixels of floor by level.
     /// </summary>
     public required FittedValue<LinearFit> SecretClosets { get; init; }
+
+    /// <summary>
+    /// Gets the dynamite sites of an indoor level per million square pixels of floor by level, by gate style.
+    /// </summary>
+    public required IReadOnlyDictionary<LevelStyle, FittedValue<LinearFit>> DynamiteSites { get; init; }
 
     /// <summary>
     /// Gets the monster kinds of the style's standing groups and ambushes, bosses out, with the level each first appears on.

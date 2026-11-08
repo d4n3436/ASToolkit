@@ -102,9 +102,14 @@ public sealed record LevelBrief
     public required int EndMoney { get; init; }
 
     /// <summary>
-    /// Gets the mounted cannons of the level, or <see langword="null"/> when the donor level gives them.
+    /// Gets the mounted cannons of the level.
     /// </summary>
-    public required int? MountedCannons { get; init; }
+    public required int MountedCannons { get; init; }
+
+    /// <summary>
+    /// Gets the dynamite sites of the level.
+    /// </summary>
+    public required int DynamiteSites { get; init; }
 
     /// <summary>
     /// Gets the second wing of a lab level, never repeated in the campaign, or <see langword="null"/> when the building draws it.

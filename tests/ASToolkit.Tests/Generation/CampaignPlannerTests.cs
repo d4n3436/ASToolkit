@@ -160,6 +160,17 @@ public class CampaignPlannerTests
     }
 
     [Fact]
+    public void PlanAddOn_Seeds_StandAMountedCannonOnTheLastWarehouseLevelOnly()
+    {
+        var planner = new CampaignPlanner(CreateModel(GenerationStyle.AddOn));
+        foreach (var levels in Enumerable.Range(1, Seeds).Select(seed => planner.Plan(new Random(seed)).Levels))
+        {
+            int last = levels.Where(brief => brief.Building == Building.Warehouse).Select(brief => brief.Level).DefaultIfEmpty(0).Max();
+            Assert.All(levels, brief => Assert.Equal(brief.Level == last ? 1 : 0, brief.MountedCannons));
+        }
+    }
+
+    [Fact]
     public void Plan_Seeds_StandMountedCannonsOnWarehouseLevelsSevenAndEightOnly()
     {
         var planner = new CampaignPlanner(CreateModel());
@@ -192,10 +203,12 @@ public class CampaignPlannerTests
 
     private static FittedValue<LinearFit> Line(float intercept, float slope, float spread) => new(new LinearFit(intercept, slope, spread), 9, IsBackedOff: false);
 
-    private static CampaignModel CreateModel() => new()
+    private static CampaignModel CreateModel() => CreateModel(GenerationStyle.Campaign);
+
+    private static CampaignModel CreateModel(GenerationStyle style) => new()
     {
-        Style = GenerationStyle.Campaign,
-        LevelCount = 10,
+        Style = style,
+        LevelCount = style.LevelCount,
         CashValue = 50,
         HitPoints = Line(2.05f, 4.9f, 0.55f),
         SpawnedShare = Line(-3.4f, 0.76f, 1.4f),
@@ -243,6 +256,7 @@ public class CampaignPlannerTests
         BossShare = new FittedValue<float>(0.38f, 8, IsBackedOff: false),
         AmmoAges = new FittedValue<IReadOnlyList<float>>([0.1f, 0.3f, 0.1f, 0.15f, 0.2f, 0.05f, 0.1f], 258, IsBackedOff: false),
         SecretClosets = new FittedValue<LinearFit>(new LinearFit(1.4f, 0, 0.4f), 4, IsBackedOff: true),
+        DynamiteSites = Enum.GetValues<LevelStyle>().ToDictionary(gate => gate, _ => new FittedValue<LinearFit>(new LinearFit(0.5f, 0.1f, 0.3f), 4, IsBackedOff: true)),
         Donors =
         [
             new DonorCandidate("Level_02.map", WallSet.Basement, LevelStyle.LockedDoors, 336, 950),
