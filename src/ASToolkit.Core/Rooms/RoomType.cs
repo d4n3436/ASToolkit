@@ -68,5 +68,10 @@ public enum RoomType
     /// <summary>
     /// A secret or spawn closet.
     /// </summary>
-    Closet
+    Closet,
+
+    /// <summary>
+    /// An open yard walled in among buildings.
+    /// </summary>
+    Yard
 }

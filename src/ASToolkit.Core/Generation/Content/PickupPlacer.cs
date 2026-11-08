@@ -86,7 +86,7 @@ internal sealed class PickupPlacer
     }
 
     // Lays a new weapon off the walks to the objectives or in a secret closet, else past the start,
-    // with one of its ammunition pickups on the first half of its walk
+    // with one of its ammunition pickups on the first half of its walk, else earlier on it
     private bool HideWeapon(KnownObject weapon, List<KnownObject> items)
     {
         var hiding = _ctx.Plan.Regions
@@ -111,7 +111,11 @@ internal sealed class PickupPlacer
                 continue;
             }
 
-            if (ammo >= 0 && _ctx.Place(earlier, items[ammo], dir: 0) is not null)
+            var before = walk
+                .Where(cell => _ctx.Layout.Cells.GetValueOrDefault(cell, -1) != region.Id && _ctx.IsFree(cell))
+                .ToArray();
+            
+            if (ammo >= 0 && (_ctx.Place(earlier, items[ammo], dir: 0) ?? _ctx.Place(before, items[ammo], dir: 0)) is not null)
             {
                 items.RemoveAt(ammo);
             }
@@ -218,8 +222,8 @@ internal sealed class PickupPlacer
         for (int index = 0; index < heap.Length; index++)
         {
             var offset = offsets[index % offsets.Length];
-            _ctx.Map.Add(heap[index], origin.X + offset.X, origin.Y + offset.Y, 0, 0, unique: false);
-            _ctx.Occupancy.Add(heap[index], origin.X + offset.X, origin.Y + offset.Y, 0);
+            _ctx.Map.Add(heap[index], origin.X + offset.X, origin.Y + offset.Y, _ctx.GetRestingHeight(heap[index]), 0, unique: false);
+            _ctx.Occupancy.Add(heap[index], origin.X + offset.X, origin.Y + offset.Y, _ctx.GetRestingHeight(heap[index]));
         }
 
         _ctx.Taken.Add(cell);

@@ -41,7 +41,7 @@ A generated level is one level of a campaign drawn from the style's campaign mod
  |     fights                          FightPlanner                           |
  |  3  cells, walls, floors, roof      FineLayout, StructureBuilder           |
  |  4  breaker spot                    ContentPlacer.ChooseBreakerSpot        |
- |  5  room types and furniture        RoomFurnisher, Dresser, RoomDecorator  |
+ |  5  furniture and dressing          SceneFurnisher, Dresser, RoomDecorator |
  |  6  player start, content, script   PlacementContext, ContentPlacer        |
  |  analysis                           RouteAnalyzer on the written bytes     |
  +------------------------------------------------------------------------------+
@@ -65,7 +65,7 @@ A level draws from four `Random` streams. The layout seed drives the building, d
 | decor heights, wall clearance, facings | `StyleModel`, `WallClearanceTable`, `FacingTable` | dressing |
 | encounter model | `EncounterModel` | `FightPlanner`, `EncounterPlacer`, spawn closets, `PlaceGate` |
 | economy model | `EconomyModel` | `PickupPlacer`, `PlaceSites`, `PlaceCharges`, the checkpoint |
-| room atlases, recipes | `ReferenceLevelSet.GetAtlas`, `RoomRecipe.Measure` | `RoomFurnisher` |
+| furniture grammar | `FurnitureGrammar.Default`, tables in `Generation/Dressing/FurnitureGrammar.Data.cs` with numbers measured once on the originals | `SceneFurnisher` |
 | dressing libraries | `DressingLibrary.Build` | `Dresser.Dress` |
 | object relations | `ObjectRelationTable.Build` | occupancy, furnishing, companions |
 | breaker scenes, dynamite sites | `OriginalContent` | `ChooseBreakerSpot`, `PlaceSites` |
@@ -271,7 +271,7 @@ Every piece goes through the level's occupancy ([Keeping the way clear](#keeping
 
 1. `Dresser.Dress` copies wall dressing, blood and rubble windows from originals with the same walls.
 2. `RoomDecorator.Decorate` thins blood and corpses to the donor's rates and lays gore toward the end.
-3. `RoomFurnisher.Furnish` types each room from its area and fills it with whole parts copied from the originals' rooms of its type, each anchored against walls as in its source, with its companions (`ObjectRelationTable.GetCompanions`).
+3. `SceneFurnisher.Furnish` furnishes each room from the furniture grammar, C# tables of each room type's arrangements with their shares, counts per area and modules per run, the type's signature family and whether its far walls stay covered, the families' pieces, wall distances and steps, each piece's companions by room type and facing, and the closest two families stand. A room stands its signature first with its full module (a desk with its computer and chair, a lab bench with its labware), holds each arrangement by its share and places it as a wall run on far or near walls, a grid on open floor in rooms large enough, a heap of stock with each piece at a measured offset for its two families and by a wall at its family's measured wall share for the room size, or a lone piece on open floor, grows with its far, grid and heap arrangements until it holds the piece count drawn for its type or each has stopped landing, then fills far wall stretches left bare. A piece takes the measured facing for the wall of its cell. Copied wall windows add wall dressing only. Every piece goes through the level's occupancy. Fence-gate generator rooms are left to their objective.
 4. The breaker scene stands in the key room, and missile stripes go in front of missile threes.
 
 ### Keeping the way clear
@@ -324,7 +324,17 @@ Every piece goes through the level's occupancy ([Keeping the way clear](#keeping
 | one charge per site, enough charges before every site in play order, sites clear of solid decor | `PlaceCharges`, `LevelOccupancy` |
 | every pickup and weapon of the budget, a new weapon after some of its ammunition, the checkpoint before the biggest fight | `PickupPlacer`, `PlaceCheckpoint` |
 | blocking pieces off doorways and apart as the originals keep them, no pickup under them | `LevelOccupancy` |
-| decor of the level's floor set, facing and clearing walls as in the originals | `Dresser`, `RoomFurnisher` |
+| decor of the level's floor set, at its measured facings and wall clearances | `Dresser`, `SceneFurnisher` |
+| open-floor furniture only in rooms at least its measured open-floor size, no two pieces closer than their families' measured spacing for pieces facing the same way or turned, two pieces of one object, or two module anchors, no closer than the mean of their frames' measured spacings, a piece lining a wall as far from the walls at its ends as its frame stands in the campaign, spacings measured on the campaign and backing off to all originals below 8 samples, a stacked piece only on the tier under it, the room type's signature held in rooms of any size by its measured share | `SceneFurnisher` |
+| no piece nearer a far or near wall than its family's measured distance for that side, nor nearer any wall than the least clearance measured for the piece in its wall set, every piece and companion inside its own room, no family in a room under the style's measured smallest room for it, no arrangement past its highest measured rate, a room's piece count drawn from the measured density for its size | `SceneFurnisher` |
+| transformers only beside a breaker or generator and only on far walls, along the breaker's wall or the far wall nearest the generator at the measured clearance, never in a corner against a near wall, flanking the key and turned one way | `ContentPlacer` |
+| computer rooms only as big rooms of at least 15 by 18 lattice units | `BuildingGrammar` |
+| copied windows add no shadows or Z dummies; furniture carries its shadows at the campaign's measured share and offset per piece | `Dresser`, `SceneFurnisher` |
+| room programs of halls, offices, depots and storage from the campaign's rooms, the rarer types from all originals | `FurnitureGrammar` |
+| linked pickups at the height that rests their glow on the floor | `PlacementContext`, `PickupPlacer` |
+| each family's main piece per room drawn by the style's own weights, a second piece mixed in at the measured share, every anchor's footprint (its family's side-by-side spacing) inside the room, no furniture footprint on a room's openings or the cells inside them, a room's openings and reserved cells joined past its furniture on the layout cells, no add-on piece in a campaign room | `SceneFurnisher` |
+| dynamite sites of both wall sets placed before the decor, the furniture kept off their cells | `LevelGenerator`, `ContentPlacer` |
+| spawners and transformers clear of the solid furniture around them | `EncounterPlacer`, `ContentPlacer` |
 | no spawner in an earlier phase than its trigger, every spawn trigger on every walk from the start to the end, no variant over three quarters of its family in a fight | `FightPlanner` |
 | fights' hit points within a tenth of the budget's, each phase's placed hit points within a tenth of its fights', each new monster kind first in a standing group no harder than the level's median fight | `FightPlanner`, `EncounterPlacer` |
 | spawners but closets' off the 1280 by 720 screen around their trigger, monsters 12 px apart | `EncounterPlacer` |

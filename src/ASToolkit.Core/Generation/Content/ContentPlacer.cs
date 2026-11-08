@@ -23,6 +23,9 @@ public static class ContentPlacer
     private static readonly PointF ScriptedGeneratorSpot = new(7541, 4501);
     private const float ScriptedGeneratorReach = 150;
     private const float ChargeSiteGap = 150;
+    private const float TransformerNear = 40;
+    private const float TransformerFar = 150;
+    private static readonly int[] TransformerCounts = [1, 2, 2, 2, 2, 2, 4];
     private const int RayCells = 8;
     private const int BreakerFront = 3;
     private const int BreakerSide = 2;
@@ -144,7 +147,7 @@ public static class ContentPlacer
             }
         }
 
-        (int Transformers, int Count, float Roll, EdgeKey Wall, List<PropPlacement> Fit)? best = null;
+        (int Count, float Roll, EdgeKey Wall, List<PropPlacement> Fit)? best = null;
         foreach (var wall in walls)
         {
             ((float ax, float ay), _) = StructureBuilder.GetBasementPosition(layout.Lattice, wall);
@@ -164,16 +167,16 @@ public static class ContentPlacer
                         footprint.Add(layout.Lattice.GetCell(x, y));
                     }
 
-                    if (footprint.All(cells.Contains) && !(solid && footprint.Any(front.Contains)) && IsWallFit(layout.Lattice, built, clearance, facings, placement, x, y))
+                    if (placement.Id != KnownObject.Transformer && footprint.All(cells.Contains) && !(solid && footprint.Any(front.Contains)) && IsWallFit(layout.Lattice, built, clearance, facings, placement, x, y))
                     {
                         fit.Add(placement);
                     }
                 }
 
-                var score = (fit.Count(p => p.Id == KnownObject.Transformer), fit.Count, rng.NextSingle(), wall, fit);
-                if (best is null || (score.Item1, score.Item2, score.Item3).CompareTo((best.Value.Transformers, best.Value.Count, best.Value.Roll)) > 0)
+                float roll = rng.NextSingle();
+                if (best is null || (fit.Count, roll).CompareTo((best.Value.Count, best.Value.Roll)) > 0)
                 {
-                    best = score;
+                    best = (fit.Count, roll, wall, fit);
                 }
             }
         }
@@ -245,9 +248,9 @@ public static class ContentPlacer
     /// </summary>
     public static void Place(PlacementContext ctx, LevelBudget budget, bool hasCheckpoint, bool blackoutIsCheckpoint, LevelScript script, BreakerSpot? breaker,
         IReadOnlyList<SiteTemplate> siteTemplates, IReadOnlyDictionary<EdgeKey, EdgeKind> visibleEdges, IReadOnlyDictionary<EdgeKey, EdgeKind> builtEdges, IReadOnlyDictionary<EdgeKey, int> spawnWalls, KeypadTable keypads, FacingTable facings,
-        IReadOnlyList<IReadOnlyList<PropPlacement>> cannonScenes, StyleModel model, IReadOnlyList<PlannedFight> fights, PlacedSites? placed)
+        IReadOnlyList<IReadOnlyList<PropPlacement>> cannonScenes, StyleModel model, IReadOnlyList<PlannedFight> fights, PlacedSites? placed, WallClearanceTable clearance)
     {
-        PlaceGate(ctx, model.Encounters.GeneratorsPerRoom.Value, script, breaker, keypads, facings);
+        PlaceGate(ctx, model.Encounters.GeneratorsPerRoom.Value, script, breaker, keypads, facings, clearance);
         PlaceBosses(ctx, facings, builtEdges);
         var cannon = placed is null ? PlaceMountedCannons(ctx, budget, cannonScenes) : placed.Cannon;
         var sites = placed?.Sites ?? PlaceSites(ctx, budget, siteTemplates, visibleEdges, cannon, model.Economy);
@@ -261,13 +264,13 @@ public static class ContentPlacer
     }
 
     /// <summary>
-    /// Places the mounted cannon and the dynamite sites of a concrete level before its decor and returns them.
+    /// Places the mounted cannon and the dynamite sites of a level and returns them.
     /// </summary>
-    public static PlacedSites PlaceConcreteSites(PlacementContext ctx, LevelBudget budget, IReadOnlyList<SiteTemplate> siteTemplates, IReadOnlyList<IReadOnlyList<PropPlacement>> cannonScenes,
-        EconomyModel economy)
+    public static PlacedSites PlaceEarlySites(PlacementContext ctx, LevelBudget budget, IReadOnlyList<SiteTemplate> siteTemplates, IReadOnlyDictionary<EdgeKey, EdgeKind> visibleEdges,
+        IReadOnlyList<IReadOnlyList<PropPlacement>> cannonScenes, EconomyModel economy)
     {
         var cannon = PlaceMountedCannons(ctx, budget, cannonScenes);
-        return new PlacedSites(cannon, PlaceSites(ctx, budget, siteTemplates, new Dictionary<EdgeKey, EdgeKind>(), cannon, economy));
+        return new PlacedSites(cannon, PlaceSites(ctx, budget, siteTemplates, visibleEdges, cannon, economy));
     }
 
     private static bool IsWallFit(Lattice lattice, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, WallClearanceTable clearance, FacingTable facings, PropPlacement p, float x, float y)
@@ -302,13 +305,20 @@ public static class ContentPlacer
 
     internal static float GetDistance(PointF a, PointF b) => MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
 
-    private static void PlaceGate(PlacementContext ctx, float generatorsPerRoom, LevelScript script, BreakerSpot? breaker, KeypadTable keypads, FacingTable facings)
+    private static void PlaceGate(PlacementContext ctx, float generatorsPerRoom, LevelScript script, BreakerSpot? breaker, KeypadTable keypads, FacingTable facings,
+        WallClearanceTable clearance)
     {
         var plan = ctx.Plan;
         if (plan.Gate is GateKind.LockedDoors or GateKind.Blackout && breaker is not null)
         {
             ctx.Map.Add(KnownObject.Breaker, breaker.Position.X, breaker.Position.Y);
             ctx.Taken.Add(new Cell(breaker.Wall.A - 1, breaker.Wall.B));
+            int breakerRoom = ctx.Layout.Cells.GetValueOrDefault(new Cell(breaker.Wall.A - 1, breaker.Wall.B), -1);
+            if (breakerRoom >= 0)
+            {
+                PlaceTransformers(ctx, ctx.Plan.Regions[breakerRoom], breaker.Position, breaker.Wall, facings, clearance);
+            }
+
             foreach (var (edge, kind) in ctx.Layout.Edges.Where(p => p.Value is EdgeKind.Door or EdgeKind.DoubleDoor).OrderBy(p => p.Key.Axis).ThenBy(p => p.Key.A).ThenBy(p => p.Key.B))
             {
                 ((float x, float y), bool slash) = StructureBuilder.GetBasementPosition(ctx.Layout.Lattice, edge);
@@ -332,7 +342,6 @@ public static class ContentPlacer
             bool IsNearScriptedSpot(Cell c) => ctx.Brief.Level == 10 && GetDistance(GetCenter(ctx, c), ScriptedGeneratorSpot) < ScriptedGeneratorReach + ctx.Step;
             var rooms = plan.GeneratorRooms.Count > 0 ? plan.GeneratorRooms.Select(entry => entry.Room).ToArray() : [plan.KeyRoom];
             int count = Math.Max(rooms.Length, (int)MathF.Round(rooms.Length * generatorsPerRoom));
-            int keyRoomCells = 0;
             for (int roomIndex = 0; roomIndex < rooms.Length; roomIndex++)
             {
                 var room = rooms[roomIndex];
@@ -369,24 +378,100 @@ public static class ContentPlacer
                     cells.Remove(placed.Value.Cell);
                 }
 
-                if (roomIndex == 0)
-                {
-                    keyRoomCells = cells.Count;
-                }
             }
 
-            var keyEntrance = GetDoorwayCell(ctx, plan.Links.First(l => l.To == plan.KeyRoom.Id));
-
-            var walls = ctx.GetFreeCells(plan.KeyRoom)
-                .Where(c => facings.IsByWall(KnownObject.Transformer, ctx.Layout.Edges, c.U + 0.5f, c.V + 0.5f) && facings.HasFacing(KnownObject.Transformer, ctx.Layout.Edges, c.U + 0.5f, c.V + 0.5f))
-                .OrderByDescending(c => Math.Abs(c.U - keyEntrance.U) + Math.Abs(c.V - keyEntrance.V))
-                .ToArray();
-
-            foreach (var cell in walls.Take(Math.Min(2, keyRoomCells / 3)))
+            var generator = ctx.Map.Sprites.FirstOrDefault(sprite => sprite.Id == KnownObject.Generator && ctx.Layout.Cells.GetValueOrDefault(ctx.Layout.Lattice.GetCell(sprite.Position.X, sprite.Position.Y), -1) == plan.KeyRoom.Id);
+            if (generator is not null)
             {
-                ctx.Place([cell], KnownObject.Transformer, dir: facings.PickFacing(ctx.Rng, KnownObject.Transformer, ctx.Layout.Edges, cell.U + 0.5f, cell.V + 0.5f));
+                PlaceTransformers(ctx, plan.KeyRoom, new PointF(generator.Position.X, generator.Position.Y), null, facings, clearance);
             }
         }
+    }
+
+    private static void PlaceTransformers(PlacementContext ctx, PlanRegion room, PointF key, EdgeKey? wall, FacingTable facings, WallClearanceTable clearance)
+    {
+        float gap = clearance.TryGetClearance(KnownObject.Transformer, out _, out float kept) ? kept : 0.5f;
+        var edges = ctx.Layout.Edges;
+
+        var far = ctx.GetRegionCells(room)
+            .SelectMany(cell => GetFarWallSpots(edges, cell, gap))
+            .Select(spot => (spot.Cell, spot.Wall, spot.Lattice, Point: GetWorld(ctx, spot.Lattice)))
+            .ToArray();
+
+        if (far.Length == 0)
+        {
+            return;
+        }
+
+        var keyWall = wall ?? far.MinBy(spot => GetDistance(spot.Point, key)).Wall;
+
+        var spots = far
+            .Where(spot => spot.Wall.Axis == keyWall.Axis && GetLine(spot.Wall) == GetLine(keyWall) && !ctx.Taken.Contains(spot.Cell))
+            .Where(spot => GetDistance(spot.Point, key) is >= TransformerNear and <= TransformerFar)
+            .Where(spot => facings.IsByWall(KnownObject.Transformer, edges, spot.Lattice.X, spot.Lattice.Y))
+            .OrderBy(spot => GetDistance(spot.Point, key))
+            .ToList();
+
+        // Draw how many flank the key, then stand each on the side away from the one before it
+        int count = TransformerCounts[ctx.Rng.Next(TransformerCounts.Length)];
+        PointF? last = null;
+        byte? dir = null;
+        for (int placed = 0; placed < count && spots.Count > 0;)
+        {
+            var side = last;
+            var pick = side is null ? spots[0] : spots.MinBy(spot => (spot.Point.X - key.X) * (side.Value.X - key.X) + (spot.Point.Y - key.Y) * (side.Value.Y - key.Y));
+            spots.Remove(pick);
+            if (!ctx.Occupancy.Fits(KnownObject.Transformer, pick.Point.X, pick.Point.Y, 0, inScene: true))
+            {
+                continue;
+            }
+
+            ctx.Occupancy.Add(KnownObject.Transformer, pick.Point.X, pick.Point.Y, 0);
+            dir ??= facings.PickFacing(ctx.Rng, KnownObject.Transformer, edges, pick.Lattice.X, pick.Lattice.Y);
+            ctx.Map.Add(KnownObject.Transformer, pick.Point.X, pick.Point.Y, 0, dir.Value, unique: false);
+            ctx.Taken.Add(pick.Cell);
+            last = pick.Point;
+            placed++;
+        }
+    }
+
+    // Moves a spot off a far side wall to the same clearance and skips corners against a near wall
+    private static List<(Cell Cell, EdgeKey Wall, PointF Lattice)> GetFarWallSpots(IReadOnlyDictionary<EdgeKey, EdgeKind> edges, Cell cell, float gap)
+    {
+        var closed = new List<Cell>();
+        foreach (var (next, edge) in EdgeKey.GetNeighbors(cell))
+        {
+            if (edges.TryGetValue(edge, out var kind) && kind.IsClosed)
+            {
+                closed.Add(next);
+            }
+        }
+
+        var spots = new List<(Cell, EdgeKey, PointF)>();
+        foreach (var (next, edge) in EdgeKey.GetNeighbors(cell))
+        {
+            var sides = closed.Where(side => side.U != next.U && side.V != next.V).ToArray();
+            if (!closed.Contains(next) || !IsFarSide(cell, next) || sides.Length == 2 || sides.Any(side => !IsFarSide(cell, side)))
+            {
+                continue;
+            }
+
+            float shift = MathF.Max(0, gap - 0.5f);
+            int du = next.U - cell.U, dv = next.V - cell.V, su = sides.Length == 0 ? 0 : sides[0].U - cell.U, sv = sides.Length == 0 ? 0 : sides[0].V - cell.V;
+            spots.Add((cell, edge, new PointF(cell.U + 0.5f + du * (0.5f - gap) - su * shift, cell.V + 0.5f + dv * (0.5f - gap) - sv * shift)));
+        }
+
+        return spots;
+    }
+
+    private static bool IsFarSide(Cell cell, Cell next) => next.U > cell.U || next.V < cell.V;
+
+    private static int GetLine(EdgeKey wall) => wall.Axis == 'v' ? wall.B : wall.A;
+
+    private static PointF GetWorld(PlacementContext ctx, PointF lattice)
+    {
+        (float x, float y) = ctx.Layout.Lattice.ToWorld(lattice.X, lattice.Y);
+        return new PointF(x, y);
     }
 
     // Stands the blackout trigger in the trigger room, its reach spanning the room across and stopping the given gap short of the doorway
@@ -1078,7 +1163,19 @@ public static class ContentPlacer
             {
                 var first = batch.MinBy(site => ctx.Distance.GetValueOrDefault(site.Cell));
                 float target = ctx.Distance.GetValueOrDefault(first.Cell) - economy.ChargeLead.Value * ctx.RouteLength;
-                cells = ctx.TraceWalk(first.Cell).SkipWhile(c => ctx.Distance[c] > target).Where(ctx.IsFree).ToArray();
+                int reach = ctx.Distance.GetValueOrDefault(first.Cell);
+
+                // Keep to rooms wholly before the site on the walk, a room on a loop around it reached either way
+                var before = ctx.Plan.Regions
+                    .Where(region => region.Phase <= batch.Key && ctx.GetRegionCells(region).All(other => ctx.Distance.GetValueOrDefault(other) < reach))
+                    .Select(region => region.Id)
+                    .Append(ctx.Layout.Cells[first.Cell])
+                    .ToHashSet();
+
+                cells = ctx.TraceWalk(first.Cell)
+                    .SkipWhile(c => ctx.Distance[c] > target)
+                    .Where(c => ctx.IsFree(c) && before.Contains(ctx.Layout.Cells[c]) && ctx.Plan.Regions[ctx.Layout.Cells[c]].Phase <= batch.Key)
+                    .ToArray();
             }
 
             var free = cells.Where(c => ctx.FindSpot(c) is not null && sites.All(site => GetDistance(GetCenter(ctx, c), new PointF(site.X, site.Y)) >= ChargeSiteGap)).ToArray();

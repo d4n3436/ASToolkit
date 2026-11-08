@@ -63,9 +63,9 @@ public sealed class LevelOccupancy
 
     /// <summary>
     /// Returns whether an object fits at a map point, apart from the other units for a unit, out from under the standing pieces for a pickup,
-    /// and otherwise clear of the doorways and the floor pieces standing there, leaving the floor joined when it is solid.
+    /// and otherwise clear of the doorways, the floor pieces standing there and, outside a reserve's own scene, the reserved cells, leaving the floor joined when it is solid.
     /// </summary>
-    public bool Fits(KnownObject id, float x, float y, float z)
+    public bool Fits(KnownObject id, float x, float y, float z, bool inScene = false)
     {
         if (IsUnit(id))
         {
@@ -106,7 +106,7 @@ public sealed class LevelOccupancy
         }
 
         var cells = GetCells(obj, x, y);
-        return !cells.Overlaps(_reserved) && (blocking != BlockingClass.Solid || KeepsFloorJoined(cells));
+        return (inScene || !cells.Overlaps(_reserved)) && (blocking != BlockingClass.Solid || KeepsFloorJoined(cells));
     }
 
     /// <summary>

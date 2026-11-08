@@ -79,17 +79,6 @@ public static class LevelExtractor
         .ThenBy(sprite => sprite.Army);
 
     /// <summary>
-    /// Returns the lattice of a concrete level's walls and the edges its wall, door and fence pieces cover, as the extractor reads them, or
-    /// null when it has no walls.
-    /// </summary>
-    public static (Lattice Lattice, Dictionary<EdgeKey, EdgeKind> Edges)? ReadConcreteEdges(IEnumerable<MergedMapSprite> sprites)
-    {
-        var edges = new Dictionary<EdgeKey, EdgeKind>();
-        var lattice = ReadConcreteWalls(OrderSprites(sprites).ToList(), edges);
-        return lattice is null ? null : (lattice, edges);
-    }
-
-    /// <summary>
     /// Returns the cell edges that the wall, door and frame pieces of a basement level cover, with their kinds.
     /// </summary>
     public static Dictionary<EdgeKey, EdgeKind> ReadBasementEdges(Lattice lattice, IEnumerable<MergedMapSprite> sprites, bool outdoor) =>

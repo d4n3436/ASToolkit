@@ -160,7 +160,12 @@ internal sealed class EncounterPlacer
         {
             byte[] payload = SpawnerProgram.Create(group, (center.X, center.Y, radius), [center]).ToPayload();
             PointF? point = null;
-            foreach (var spot in near.Where(spot => _spawners.All(other => ContentPlacer.GetDistance(other, spot.Point) >= _model.SpawnerSpacing.Value)).Take(SpawnerTries))
+            var clear = near
+                .Where(spot => _spawners.All(other => ContentPlacer.GetDistance(other, spot.Point) >= _model.SpawnerSpacing.Value) && _ctx.Occupancy.HasRoomAround(spot.Point.X, spot.Point.Y))
+                .Take(SpawnerTries)
+                .ToArray();
+
+            foreach (var spot in clear)
             {
                 var placed = _ctx.Place([spot.Cell], KnownObject.Spawner, dir: 0, payload: payload, army: 1, take: false);
                 if (placed is null) 
@@ -172,8 +177,9 @@ internal sealed class EncounterPlacer
 
             if (point is null)
             {
-                var placed = _ctx.Place(near.Select(spot => spot.Cell).ToArray(), KnownObject.Spawner, dir: 0, payload: payload, army: 1, take: false);
-                point = placed is null ? near[0].Point : new PointF(placed.Value.X, placed.Value.Y);
+                var ordered = near.OrderByDescending(spot => _ctx.Occupancy.HasRoomAround(spot.Point.X, spot.Point.Y)).ToArray();
+                var placed = _ctx.Place(ordered.Select(spot => spot.Cell).ToArray(), KnownObject.Spawner, dir: 0, payload: payload, army: 1, take: false);
+                point = placed is null ? ordered[0].Point : new PointF(placed.Value.X, placed.Value.Y);
                 if (placed is null)
                 {
                     _ctx.Map.Add(KnownObject.Spawner, point.Value.X, point.Value.Y, 0, 0, payload, 1, unique: false, source: SpriteSource.Model);

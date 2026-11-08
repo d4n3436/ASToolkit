@@ -63,7 +63,7 @@ public sealed class RoomAtlas
         ("ADDON/Level_03.map", 3120, 672, RoomType.Hall, RoomType.Office),
         ("ADDON/Level_03.map", 2900, 882, RoomType.Office, null),
         ("ADDON/Level_04.map", 1900, 462, RoomType.Depot, null),
-        ("ADDON2/Level_03.map", 2520, 1820, RoomType.Hall, null),
+        ("ADDON2/Level_03.map", 2520, 1820, RoomType.Yard, null),
         ("ADDON2/Level_03.map", 1480, 560, RoomType.Lab, null),
         ("ADDON2/Level_03.map", 3180, 602, RoomType.Quarters, null),
         ("ADDON2/Level_03.map", 800, 2240, RoomType.Quarters, null),

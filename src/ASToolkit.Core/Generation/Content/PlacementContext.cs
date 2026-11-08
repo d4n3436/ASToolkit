@@ -227,24 +227,30 @@ public sealed class PlacementContext
         foreach (int cellIndex in order.Take(25))
         {
             var spot = FindSpot(cells[cellIndex]);
-            if (spot is null || !Occupancy.Fits(id, spot.Value.X, spot.Value.Y, 0))
+            float z = GetRestingHeight(id);
+            if (spot is null || !Occupancy.Fits(id, spot.Value.X, spot.Value.Y, z))
             {
                 continue;
             }
 
-            Occupancy.Add(id, spot.Value.X, spot.Value.Y, 0);
+            Occupancy.Add(id, spot.Value.X, spot.Value.Y, z);
 
             if (take)
             {
                 Taken.Add(cells[cellIndex]);
             }
 
-            Map.Add(id, spot.Value.X, spot.Value.Y, 0, dir ?? Rng.Next(256), payload, army, unique: false);
+            Map.Add(id, spot.Value.X, spot.Value.Y, z, dir ?? Rng.Next(256), payload, army, unique: false);
             return (spot.Value.X, spot.Value.Y, cells[cellIndex]);
         }
 
         return null;
     }
+
+    /// <summary>
+    /// Returns the height an object stands at, raised for a piece linked below it, such as a pickup's glow, to rest on the floor.
+    /// </summary>
+    public float GetRestingHeight(KnownObject id) => Objects.TryFind(id, out var obj) && obj.Link != 0 && obj.LinkOffset.Z < 0 ? 1 - obj.LinkOffset.Z : 0;
 
     /// <summary>
     /// Lays the companions of an object placed at a map point, each where it lands on visible floor and fits.

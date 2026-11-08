@@ -120,6 +120,8 @@ Read by eye from the door graph, every original is built from 2 to 7 areas. An a
 - The engine sorts by y. A tile at (y - 80, z - 80) lands on the same screen position and is drawn before the walls.
 - Decor with z above 0 stands on whatever is under it, such as a monitor on a desk. In campaign levels 2 to 10, 73 of 92 boxes (428) stand on shelves, a cabinet or a table, 34 of 37 lab test tubes at a table and all 16 pieces of lab equipment on one.
 - Bio containers (443) and trucks (440) are walk-through sprites. A solid Z dummy (631) under each carries the collision. All 44 campaign bio containers have one, and 15 of 16 trucks.
+- Pickups link to the glow 139 at a height of -9; the game draws the link at run time and no map stores it. Of the originals' linked pickups, 369 stand at height 10 and 149 at 0, where the glow sinks under the floor.
+- The monitors 405 and 406 hang on walls
 - Crates (419) carry the unit sprite type, as monsters do.
 
 ### Placement
@@ -132,6 +134,7 @@ Read by eye from the door graph, every original is built from 2 to 7 areas. An a
 - A spawner releases at most 51 to 74 monsters. Big waves come from several spawners on one trigger. Level 7 has 13 spawners on 5 triggers, level 10 has 25 on one. Triggers on concrete levels reach 100 to 150 px.
 - Breakable closets in basement levels are 4 to 9 cell pockets behind one 609 piece, under the roof. They hold 4 to 9 cash pickups, ammo, a weapon or a perk.
 - The breaker hangs on a `\` wall piece (anchor + (-8, +3), dir 0) facing the room. The room is small and has 429 transformers, a 430 corpse with blood, 403 shelves and a 180 pointer. The door panels 423 and 424 sit on the door frame with the door's dir at z about 5.
+- All 13 campaign transformers (429) stand within 160 px of a breaker or generator, 31 to 150 px off, one to four per key, in front of the key's wall or the far wall behind a generator, mostly one or two at each side and all of a key turned one way. Add-on 2 level 3 stands six with no key, and add-on 1 level 2 four 400 to 550 px from its breaker.
 - The mounted cannon 357 appears once on each of levels 7 and 8, plus add-ons 1 and 2 levels 4 and 5. It has side 0 and needs about 120 by 90 px of free floor.
 
 ## Route model
@@ -359,14 +362,14 @@ Every room of every original has a role and a type, read by `RoomAtlas` (`src/AS
 
 - **Role** is where the room stands on the door graph (`RoomRoleMap`). The roles are start, hub (the first hall on the way to the end), neck (the room after the hub), other halls of the main body, rooms on the sides of the hub (hub row) and of the second hall (hall row), other main body rooms, and branch roots and inner branch rooms. The key room of a gate, when it stands alone off the main body, is its own role. Closets and nooks, rooms behind breakable walls and ground outside the walls are left out of the tables.
 - **Type** is what the room is furnished as. The classifier scores each room by its defining group. A desk (a table with a chair within 70 px or a computer within 40 px) scores 4, plus one for each cabinet in a room with desks. Lab tubes, flasks and equipment score 1 each, big computers and 443 server banks 2, transformers and panels 2, containers, trucks and missiles 2, and shelves, cabinets, boxes and cylinders 1. Crates and barrels count as stock, toward depot when the room holds a container and toward storage when not. A room with fewer than 3 pieces is a passage when it has 2 doors or more and bare when not. Halls and corridors are halls.
-- **Read by eye.** 36 rooms the classifier cannot type from their pieces are typed in `RoomAtlas.Corrections`, each keyed by a point inside the room. They are split rooms (a walkway with an office, lab or depot side, add-on 1 levels 2 and 3), room-shaped halls (level 5's P12, level 10's corridor maze), level 10's arena bays, add-on 2 level 3's gym and washrooms, and a handful of misreads.
+- **Read by eye.** 36 rooms the classifier cannot type from their pieces are typed in `RoomAtlas.Corrections`, each keyed by a point inside the room. They are split rooms (a walkway with an office, lab or depot side, add-on 1 levels 2 and 3), room-shaped halls (level 5's P12, level 10's corridor maze), level 10's arena bays, add-on 2 level 3's gym and washrooms and its walled yard, and a handful of misreads.
 - **Floor set.** Add-on 1 level 4 and add-on 2 level 5 are built from basement walls on the military base floor. The survey keeps their wall set as basement (the walls and grid are the basement ones), gives them the concrete floor set and segments them as open plan like the concrete levels.
 
 | type | rooms | area (k px², min / median / max) | fill | where |
 |---|---|---|---|---|
 | passage | 37 | 27 / 52 / 334 | 0.96 | branch roots, necks, level 10's airlocks |
 | bare | 8 | 36 / 84 / 620 | 0.96 | four start rooms and four one-door branch roots |
-| hall | 29 | 121 / 380 / 5,045 | 0.78 | hubs and halls of the main body |
+| hall | 29 | 121 / 367 / 4,539 | 0.79 | hubs and halls of the main body |
 | office | 64 | 27 / 141 / 1,835 | 0.88 | branches and the main body of basement levels |
 | lab | 9 | 81 / 242 / 1,308 | 0.94 | branches and the second hall's rows |
 | computer room | 8 | 173 / 506 / 1,659 | 0.88 | level 5's pods, concrete key rooms |
@@ -375,6 +378,7 @@ Every room of every original has a role and a type, read by `RoomAtlas` (`src/AS
 | depot | 68 | 36 / 460 / 2,881 | 0.84 | the main body of level 4, concrete levels and the add-ons on the concrete floor set |
 | quarters | 2 | 591 | 1.00 | add-on 2 level 3 only |
 | arena | 10 | 300 / 409 / 599 | 0.86 | level 10 only |
+| yard | 1 | 5,045 | 0.55 | add-on 2 level 3 only |
 
 Basement rooms by role and type (campaign levels 2 to 5, add-on 1 levels 2 and 3, add-on 2 levels 2 and 3):
 
@@ -435,39 +439,13 @@ Two examples of each type, with the room outlined in yellow, walls inside it in 
 | passage | ![Level 5 P9 and P10](images/rooms/passage.jpg) |
 | arena | ![Level 10 P9 and P21](images/rooms/arena.jpg) |
 
-### Recipes
-
-A recipe says how the originals furnish a type of room. `PartFinder` groups each room's furniture into parts by the pairs the originals build, a table with its chair (within 70 px), computer (45) or labware (50), cabinets and shelves into bands (60 to 100), crates and boxes into stacks (55), containers into rows (90), server banks in spaced rows (150), a wall computer with its chair (60), barrels and cylinders (45). A piece standing on another joins the other's part (`ObjectTableExtensions.FindSupport`), and a part is named after the groups with a piece on the floor (boxes on a cabinet make a cabinet part). A part stands against a wall, in a corner (two walls within 2 cells) or in the open. Papers and corpses are counted per area. `RoomRecipe.Measure` pools the parts of a type's rooms, kept apart for the basement and concrete floor sets, into each kind of part's rate per 100,000 px² of floor, the share of rooms that hold one, where it stands, how far apart two stand in a room and how often the nearest one stands along a lattice axis (in a row), and its examples with their geometry. A kind held by 75% of the rooms or more is required. `ascli inspect rooms` writes the full tables to `recipes.md`.
-
-The defining parts of the room types of basement levels (campaign and add-ons):
-
-| type | rooms | required parts | common parts |
-|---|---|---|---|
-| office | 57 | desk of table, chair and computer (86%, 57% in the open), cabinets (75%, 63% against a wall, rows of up to 17) | plants (40%), table and chair (40%), wall screens (39%), water cooler (33%), cabinet row with a cooler (21%) |
-| lab | 6 | labware (83%) | lab tables with chairs (67%), boxes (50%), shelves (50%), crates (50%) |
-| computer room | 5 | server banks (100%, 86% in the open), wall computers (100%), chairs (80%) | machines (40%) |
-| machine room | 3 | machines (100%, 62% in corners), shelves (100%) | |
-| storage | 19 | shelves (79%, in corners and along walls) | crates (53%), cabinet and shelf bands (53%, all against walls), boxes (37%) |
-| depot | 15 | containers (100%, 60% against a wall) | shelves (67%), crates (67%), barrels (60%), container and crate groups (47%) |
-| hall | 13 | | wall screens (54%), cabinets, crates and barrels against walls (31% each) |
-
-In depots on concrete levels (51 rooms) barrels against walls are the one required part (76%), and containers (73%), crates (57%) and barrels (53%) also stand in the open, with forklifts in 31% of them.
-
 ### Furniture
 
 | object | stands next to | originals |
 |---|---|---|
-| chair 407 | a table 404, within 60 px (median 38) | 476 of 510 |
-| chair 678 (add-on 2 levels 2 and 4) | a table 404, within 60 px | 21 of 21 |
-| big computer 135 on level 5 | a chair, within 200 px | 52 of 52 |
-| computer 410 and dead computer 411 | a table, within 60 px | 107 of 107 and 231 of 231 |
-| test tubes 426 and lab equipment 427 | a table, within 60 px | 98% of 205 and 99% of 85 |
 | scattered paper 408 | a table, within 60 px | 70% of 458 |
 | explosion sparks 174 | a big explosion 157, within 60 px | 186 of 186 |
 
-- The table's frame sets the side its chair stands on. Frames 192 and 21 put it to the lower left (71 of 86 and 42 of 45), and frames 0 and 85 to the lower right (56 of 67 and 52 of 62).
-- Level 5 has 17 of its 59 chairs away from tables, in front of big computers. Level 6's machine room has 15 big computers and 2 chairs.
-- Level 3's three lab rooms, 36 to 47 units, hold 1, 4 and 5 tables. The two larger carry 24 test tubes and lab equipment each, 5 or 6 a table (19 and 5, 12 and 6).
 - A furnished room is never smaller than 31,000 px² and always holds at least three pieces.
 - Room floors are boxes with corner cuts. Rooms under 18 units have none and 80% of those from 18 to 45 units have none. Rooms from 45 to 180 units have 0 to 4 cuts with 41, 24, 26, 6 and 2% and the larger ones with 24, 15, 44, 13 and 5%. A cut spans a median of 30 to 39% of the box's width and 33 to 42% of its length, and 11% of its area. The box's long side is a median 1.33 to 1.54 times its short side, and fills a median of 100, 87 and 77% of its bounding box by size.
 
@@ -485,20 +463,19 @@ In depots on concrete levels (51 rooms) barrels against walls are the one requir
 | Rows of desk units (table, chair, computer) with cabinets and plants along the walls | add-on office rooms |
 | A gore scene of flying gibs (151) and heavy blood | level 2 (last room), level 10 (secret lab) |
 
-### Walls, pickups and gore
+### Wall decor, gore and repetition
 
 Measured on campaign levels 2 to 10. A far wall is one of the two upper edges of a cell, the side that faces the camera, and a near wall is one of the two lower edges.
 
 | object | originals |
 |---|---|
-| containers 400, 441 and 442 against a wall | 47%, 37%, 35% |
-| test tubes 426 against a wall | 51% |
 | soldier corpses 430 against a wall | 20% |
 | monitors 405 and 406 on far walls | 91%, 100% |
 
-- The campaign keeps its desks against walls, computers included. The add-on offices put rows of desks in the middle of rooms.
-- The frame of a wall-side object depends on which of the four walls it stands against. Shelves take frame 51 against the upper `\` wall and frame 0 against both `/` walls (76 to 97%). Cabinets take 0 or 42 against the lower `\` wall and 21 against the lower `/` wall (73%), where they use 128, 170 and 0 against the upper `\` wall. Crates, barrels, boxes and containers 442 take any frame (18 to 38%).
-- Office and lab decor stays in rooms of its kind. On the campaign no computer, test tube rack or lab equipment stands in a hall, corridor or yard, and 0 to 4% stand in rooms filled mostly with storage.
+- Cabinet 413's frames are different furniture: frames 170 and 192 are narrow lockers that stand 0.25 lattice units apart side by side, the other frames wide cabinets and shelving kept 0.49 to 0.95 apart. Cabinets stack in tiers 27 units apart.
+- Campaign furniture keeps clear of the walls at its ends by frame: bookcase-frame cabinets (21) at least 0.75 lattice units, desks 0.83 to 1.02. Campaign tables facing the same way stand at least 1.22 apart, and a desk at frame 0 stands at least 1.32 from a frame 21 bookcase. Every original office has a desk, small ones included (25 of 25 under 200 half cells).
+- The embedded shadow 144 is a soft dark patch. The campaign puts one under every table, 79% of shelves, 41% of cabinets and 39% of bio containers, two under each cash pickup (246 under 123), several under extra lives and weapons, 112 among blood pools, and 653 alone as floor shading. Campaign offices hold crates in 1 of 36 rooms, against a wall; add-on offices in 16 of 31, mostly on open floor.
+
 - Placed monsters face random directions (a median of 12% of a group share one facing).
 - No room of an original repeats the decor of another room of the same level.
 - Add-on 1 level 5 reuses a room of level 8 (42 of 55 objects at the same offsets) and the stripes around its cannon.

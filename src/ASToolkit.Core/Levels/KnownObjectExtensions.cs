@@ -175,6 +175,9 @@ public static class KnownObjectExtensions
         /// <summary>Gets a value indicating whether the ID is a basement door or door frame.</summary>
         public bool IsDoor => id is SmallDoor or DoubleDoor or SmallDoorFrame or DoubleDoorFrame;
 
+        /// <summary>Gets a value indicating whether the ID lies under another object it belongs to, a shadow or the collision dummy of a walk-through sprite.</summary>
+        public bool IsAttached => id is EmbeddedShadow or SmallShadow or ZDummy;
+
         /// <summary>Gets a value indicating whether the ID hangs on a wall above the floor.</summary>
         public bool IsWallMounted => id is KnownObject.Monitor or MonitorDead;
 

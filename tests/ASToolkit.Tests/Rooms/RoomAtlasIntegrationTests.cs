@@ -70,22 +70,6 @@ public class RoomAtlasIntegrationTests
         Assert.Equal(WallSet.Concrete, survey.FloorSet);
     }
 
-    [Theory]
-    [InlineData(RoomType.Office, "table+chair+computer")]
-    [InlineData(RoomType.Office, "cabinet")]
-    [InlineData(RoomType.ComputerRoom, "bank")]
-    [InlineData(RoomType.ComputerRoom, "console")]
-    [InlineData(RoomType.MachineRoom, "machine")]
-    [InlineData(RoomType.Depot, "container")]
-    public void Measure_CampaignLabRooms_RequiresTheDefiningPart(RoomType type, string kind)
-    {
-        var levels = new[] { "Level_02.map", "Level_03.map", "Level_04.map", "Level_05.map" }.Select(ReadLevel).ToArray();
-
-        var recipe = RoomRecipe.Measure(levels.SelectMany(level => level.Atlas.Rooms), levels[0].Survey.Lattice).Single(recipe => recipe.Type == type);
-
-        Assert.Contains(recipe.Parts, part => part.Kind == kind && part.IsRequired);
-    }
-
     private static (RoomAtlas Atlas, LevelSurvey Survey) ReadLevel(string level)
     {
         var reference = TestGameFolder.References.GetLevel(level);

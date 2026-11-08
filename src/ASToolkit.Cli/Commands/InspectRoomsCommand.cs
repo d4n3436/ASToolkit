@@ -20,7 +20,6 @@ internal sealed class InspectRoomsCommand : Command<InspectRoomsSettings>
     ];
 
     private const int MaxLevelsAtOnce = 3;
-    private const float MinListedShare = 0.15f;
 
     public override int Execute(CommandContext context, InspectRoomsSettings settings, CancellationToken cancellationToken)
     {
@@ -38,7 +37,6 @@ internal sealed class InspectRoomsCommand : Command<InspectRoomsSettings>
         var renderer = new MapRenderer(settings.Game, objects);
         var atlases = new RoomAtlas?[maps.Length];
         var wallSets = new WallSet[maps.Length];
-        var lattices = new Lattice?[maps.Length];
         var options = new ParallelOptions { MaxDegreeOfParallelism = MaxLevelsAtOnce, CancellationToken = cancellationToken };
         var loader = new LevelLoader(objects);
         AnsiConsole.Status().Start("Reading the rooms", _ => Parallel.For(0, maps.Length, options, mapIndex =>
@@ -59,7 +57,6 @@ internal sealed class InspectRoomsCommand : Command<InspectRoomsSettings>
             var atlas = settings.Levels is null ? level.Atlas : RoomAtlas.Read(survey, level.Analysis.Grid.Edges, level.Map.Sprites, objects, isOriginal: false);
             atlases[mapIndex] = atlas;
             wallSets[mapIndex] = survey.FloorSet;
-            lattices[mapIndex] = survey.Lattice;
             using var rendered = renderer.Render(level.Map.Sprites, settings.Scale, level.Map.Graphics);
             var sheet = new RoomSheet();
             string name = Path.ChangeExtension(maps[mapIndex], null).Replace('/', '_');
@@ -78,7 +75,6 @@ internal sealed class InspectRoomsCommand : Command<InspectRoomsSettings>
         var rooms = atlases.Where(atlas => atlas is not null).SelectMany(atlas => atlas!.Rooms).ToArray();
         File.WriteAllText(Path.Combine(settings.Out, "rooms.tsv"), WriteRooms(rooms));
         File.WriteAllText(Path.Combine(settings.Out, "rooms.md"), WriteTables(maps, atlases, wallSets));
-        File.WriteAllText(Path.Combine(settings.Out, "recipes.md"), WriteRecipes(atlases, wallSets, lattices.FirstOrDefault(lattice => lattice is not null)));
         var table = new Table().AddColumns("Type", "Rooms", "Corrected", "Area (k px²)", "Fill", "Roles");
         foreach (var group in rooms.Where(room => room.IsRoom).GroupBy(room => room.Type).OrderBy(group => group.Key))
         {
@@ -103,39 +99,6 @@ internal sealed class InspectRoomsCommand : Command<InspectRoomsSettings>
             var place = room.Place;
             text.Append($"{room.MapName}\t{place.Id}\t{place.Kind}\t{room.Role}\t{room.Type}\t{room.Side}\t{room.ProposedType}\t{place.Zone}\t{place.Use}\t{room.Doors}\t{place.AreaPixels}\t{room.Fill:0.00}\t{room.Desks}\t")
                 .AppendLine(string.Join(" ", room.Pieces.Select(pair => $"{(int)pair.Key}x{pair.Value}")));
-        }
-
-        return text.ToString();
-    }
-
-    private static string WriteRecipes(RoomAtlas?[] atlases, WallSet[] wallSets, Lattice? lattice)
-    {
-        if (lattice is null)
-        {
-            return "";
-        }
-
-        var text = new StringBuilder();
-        foreach (var wallSet in new[] { WallSet.Basement, WallSet.Concrete })
-        {
-            var rooms = atlases.Where((atlas, index) => atlas is not null && wallSets[index] == wallSet).SelectMany(atlas => atlas!.Rooms);
-            text.AppendLine($"# {wallSet} recipes\n");
-            foreach (var recipe in RoomRecipe.Measure(rooms, lattice))
-            {
-                (int least, int median, int most) = recipe.Areas;
-                text.AppendLine($"## {recipe.Type}: {recipe.Rooms} rooms of {least / 1000}k to {most / 1000}k px² (median {median / 1000}k)\n");
-                text.AppendLine("| part | per 100k px² | rooms | wall / corner / center | in rows | pieces (min / median / max) |");
-                text.AppendLine("|---|---|---|---|---|---|");
-                foreach (var part in recipe.Parts.Where(part => part.RoomShare >= MinListedShare))
-                {
-                    int[] sizes = part.Examples.Select(example => example.Pieces.Count).Order().ToArray();
-                    string kind = part.IsRequired ? $"**{part.Kind}**" : part.Kind;
-                    string spots = string.Join(" / ", new[] { PartSpot.Wall, PartSpot.Corner, PartSpot.Center }.Select(spot => $"{part.SpotShares.GetValueOrDefault(spot):P0}"));
-                    text.AppendLine($"| {kind} | {part.Rate:0.00} | {part.RoomShare:P0} | {spots} | {part.RowShare:P0} | {sizes[0]} / {sizes[sizes.Length / 2]} / {sizes[^1]} |");
-                }
-
-                text.AppendLine($"\nScattered per 100k px²: {string.Join(", ", recipe.ScatterRates.Select(pair => $"{(int)pair.Key} {pair.Value:0.00}"))}\n");
-            }
         }
 
         return text.ToString();

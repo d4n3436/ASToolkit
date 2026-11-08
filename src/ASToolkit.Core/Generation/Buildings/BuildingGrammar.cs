@@ -79,7 +79,7 @@ internal abstract partial class BuildingGrammar
     protected int HallWidth { get; set; } = 3;
 
     protected virtual IReadOnlyList<(RoomType Type, double Weight)> FrontTypes { get; } =
-        [(RoomType.Office, 0.45), (RoomType.Lab, 0.2), (RoomType.ComputerRoom, 0.15), (RoomType.Storage, 0.2)];
+        [(RoomType.Office, 0.45), (RoomType.Lab, 0.2), (RoomType.Storage, 0.2)];
 
     protected virtual IReadOnlyList<(RoomType Type, double Weight)> BackTypes { get; } =
         [(RoomType.Storage, 0.45), (RoomType.Office, 0.35), (RoomType.Depot, 0.2)];

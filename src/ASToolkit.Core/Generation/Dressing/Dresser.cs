@@ -35,7 +35,7 @@ public static class Dresser
                     continue;
                 }
 
-                var kept = KeepSupported(copied.Where(piece => held.Contains(piece.Id)).ToArray());
+                var kept = KeepSupported(copied.Where(piece => held.Contains(piece.Id) && !piece.Id.IsAttached).ToArray());
                 var pieces = kept.Select(piece => (piece.Id, Point: lattice.ToWorld(piece.U, piece.V), piece.Z)).ToArray();
                 if (!occupancy.FitsAll(pieces.Select(piece => (piece.Id, piece.Point.X, piece.Point.Y, piece.Z)).ToArray()))
                 {

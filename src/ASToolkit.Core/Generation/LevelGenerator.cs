@@ -41,6 +41,7 @@ public sealed class LevelGenerator
     private const int MaxBreakerRetries = 20;
     private const float GateClearance = 100;
     private const float SiteClearance = 150;
+    private const float BasementSiteClearance = 50;
     private const float LaneClearance = 100;
     private const float LaneStep = 40;
 
@@ -63,8 +64,7 @@ public sealed class LevelGenerator
     private readonly ArmyTable _armies;
     private readonly Lazy<DressingLibrary> _basementLibrary;
     private readonly Lazy<DressingLibrary> _concreteLibrary;
-    private readonly Lazy<RoomFurnisher> _concreteFurnisher;
-    private readonly Lazy<RoomFurnisher> _basementFurnisher;
+    private readonly HashSet<KnownObject> _furniture;
     private readonly Lazy<IReadOnlyList<IReadOnlyList<PropPlacement>>> _breakerScenes;
     private readonly Lazy<IReadOnlyList<IReadOnlyList<PropPlacement>>> _cannonScenes;
     private readonly Lazy<(Dictionary<byte, List<IReadOnlyList<PropPlacement>>> Marks, float Share)> _missileMarks;
@@ -88,8 +88,7 @@ public sealed class LevelGenerator
         bool addOnStyle = model.Style == GenerationStyle.AddOn;
         string[] sources = model.FittingLevels.Where(name => name != ReferenceLevelSet.GetCampaignName(1)).ToArray();
 
-        _basementFurnisher = new Lazy<RoomFurnisher>(() => CreateFurnisher(references, model, objects, WallSet.Basement, sources));
-        _concreteFurnisher = new Lazy<RoomFurnisher>(() => CreateFurnisher(references, model, objects, WallSet.Concrete, sources));
+        _furniture = FurnitureGrammar.Default.GetPieces();
         _basementLibrary = new Lazy<DressingLibrary>(() => DressingLibrary.Build(references, model.Relations, objects, WallSet.Basement, sources, GetWallDressing(model, WallSet.Basement),
             model.GetWallClearance(WallSet.Basement), model.GetFacings(WallSet.Basement)));
         _concreteLibrary = new Lazy<DressingLibrary>(() => DressingLibrary.Build(references, model.Relations, objects, WallSet.Concrete, sources, GetWallDressing(model, WallSet.Concrete),
@@ -154,11 +153,9 @@ public sealed class LevelGenerator
     }
 
     private (PlacedDecor[] Decor, Dictionary<Cell, int> Blocked) Dress(Random rng, WallSet wallSet, LayoutPlan plan, FineLayout layout, MapBuilder map,
-        LevelOccupancy occupancy, IReadOnlySet<KnownObject> held, Func<KnownObject, IReadOnlyList<ObjectCompanion>> companionsOf, HashSet<Cell> floor, HashSet<Cell> keepClear, BreakerSpot? breaker, IReadOnlyDictionary<EdgeKey, EdgeKind> placedEdges, LevelBrief brief,
-        MapResourceBuilder originalMap, LevelModel original)
+        LevelOccupancy occupancy, IReadOnlySet<KnownObject> held, HashSet<Cell> floor, HashSet<Cell> keepClear, BreakerSpot? breaker, MapResourceBuilder originalMap, LevelModel original)
     {
         bool isBasement = wallSet == WallSet.Basement;
-        var (wallLattice, walls) = isBasement ? (layout.Lattice, placedEdges) : LevelExtractor.ReadConcreteEdges(map.Sprites) ?? (layout.Lattice, placedEdges);
         var decor = new List<PlacedDecor>();
         AddBreakerScene(decor, layout, occupancy, breaker);
         var clear = new HashSet<Cell>(keepClear);
@@ -182,12 +179,12 @@ public sealed class LevelGenerator
         var gates = map.Sprites.Where(sprite => sprite.Id == KnownObject.FenceEmitter).Select(sprite => layout.Lattice.ToLattice(sprite.Position.X, sprite.Position.Y)).ToArray();
         clear.UnionWith(floor.Where(cell => gates.Any(gate => IsWithin(layout.Lattice, cell, (gate.U, gate.V, GateClearance)))));
         occupancy.Reserve(clear);
-        decor.AddRange(Dresser.Dress(rng, isBasement ? _basementLibrary.Value : _concreteLibrary.Value, floor, layout.Edges, keepClear, layout.Lattice, occupancy, held));
+        var dressing = held.Where(id => !_furniture.Contains(id)).ToHashSet();
+        decor.AddRange(Dresser.Dress(rng, isBasement ? _basementLibrary.Value : _concreteLibrary.Value, floor, layout.Edges, keepClear, layout.Lattice, occupancy, dressing));
         (float corpseRate, float bloodRate) = MeasureGore(originalMap, original);
         RoomDecorator.Decorate(wallSet, plan, layout, decor, floor, keepClear, occupancy, _model.GetDecorHeights(wallSet), _model.GetFacings(wallSet), corpseRate, bloodRate);
-        var furnisher = isBasement ? _basementFurnisher.Value : _concreteFurnisher.Value;
-        var (_, furniture) = furnisher.Furnish(rng, plan, layout, _references.GetAtlas(brief.DonorLevel), clear, occupancy, companionsOf, wallLattice, walls, _model.GetFacings(wallSet), _model.GetWallClearance(wallSet));
-        decor.AddRange(furniture);
+        // Give the furniture its own random source, independent of the content drawn after it
+        decor.AddRange(new SceneFurnisher(FurnitureGrammar.Default, _objects, _model.Style, new Random(rng.Next()), layout, occupancy, clear, _model.GetWallClearance(wallSet)).Furnish(plan));
         RoomDecorator.MarkMissiles(rng, decor, _missileMarks.Value.Marks, _missileMarks.Value.Share, floor, keepClear, layout.Lattice);
         var placed = decor.ToArray();
         var blocked = new Dictionary<Cell, int>();
@@ -229,11 +226,6 @@ public sealed class LevelGenerator
     }
 
     private string[] Fitted(string[] levels) => levels.Where(_model.FittingLevels.Contains).ToArray();
-
-    private static RoomFurnisher CreateFurnisher(ReferenceLevelSet references, StyleModel model, ObjectTable objects, WallSet floorSet, IReadOnlyList<string> sources) =>
-        new(RoomRecipe.Measure(sources.Where(name => references.GetSurvey(name).FloorSet == floorSet).SelectMany(name => references.GetAtlas(name).Rooms),
-                references.GetSurvey(references.LevelNames.First()).Lattice),
-            objects, GetDressingDecor(model, floorSet), references.GetSurvey(references.LevelNames.First()).Lattice);
 
     private static (float Corpses, float Blood) MeasureGore(MapResourceBuilder originalMap, LevelModel original)
     {
@@ -405,18 +397,16 @@ public sealed class LevelGenerator
             : companions[anchor] = _model.Relations.GetCompanions(wallSet, anchor).Where(companion => held.Contains(companion.Id)).ToArray();
 
         // Lay out the cannon and the sites before the decor
-        PlacedSites? placedSites = null;
-        if (wallSet == WallSet.Concrete)
-        {
-            var early = new PlacementContext(contentRng, brief, plan, layout, map, _objects, start, new HashSet<Cell>(), keepClear, occupancy, companionsOf);
-            placedSites = ContentPlacer.PlaceConcreteSites(early, budget, _concreteSites.Value, _cannonScenes.Value, _model.Economy);
-            var siteSpots = GetSiteSpots(map, layout.Lattice, placedSites);
-            var siteCells = layout.Cells.Keys.Where(c => siteSpots.Any(spot => IsWithin(layout.Lattice, c, spot))).ToArray();
-            keepClear.UnionWith(siteCells);
-            occupancy.Reserve(siteCells);
-        }
+        var early = new PlacementContext(contentRng, brief, plan, layout, map, _objects, start, new HashSet<Cell>(), keepClear, occupancy, companionsOf);
+        bool basement = wallSet == WallSet.Basement;
+        var placedSites = ContentPlacer.PlaceEarlySites(early, budget, basement ? _basementSites.Value : _concreteSites.Value, visibleEdges,
+            _cannonScenes.Value, _model.Economy);
+        var siteSpots = GetSiteSpots(map, layout.Lattice, placedSites, basement ? BasementSiteClearance : SiteClearance);
+        var siteCells = layout.Cells.Keys.Where(c => siteSpots.Any(spot => IsWithin(layout.Lattice, c, spot))).ToArray();
+        keepClear.UnionWith(siteCells);
+        occupancy.Reserve(siteCells);
 
-        var (decor, blocked) = Dress(contentRng, wallSet, plan, layout, map, occupancy, held, companionsOf, floor, keepClear, breaker, placedEdges, brief, originalMap, original);
+        var (decor, blocked) = Dress(contentRng, wallSet, plan, layout, map, occupancy, held, floor, keepClear, breaker, originalMap, original);
         foreach (var piece in decor)
         {
             (float x, float y) = layout.Lattice.ToWorld(piece.U, piece.V);
@@ -440,7 +430,7 @@ public sealed class LevelGenerator
         };
 
         ContentPlacer.Place(context, budget, contentRng.NextSingle() < _model.Economy.CheckpointShare.Value, brief.GateStyle == LevelStyle.Blackout, script, breaker, wallSet == WallSet.Basement ? _basementSites.Value : _concreteSites.Value,
-            visibleEdges, placedEdges, spawnWalls, _keypads.Value, _model.GetFacings(wallSet), _cannonScenes.Value, _model, fights, placedSites);
+            visibleEdges, placedEdges, spawnWalls, _keypads.Value, _model.GetFacings(wallSet), _cannonScenes.Value, _model, fights, placedSites, _model.GetWallClearance(wallSet));
 
         return new GeneratedLevel
         {
@@ -488,12 +478,12 @@ public sealed class LevelGenerator
         (id, z) => GetDressingDecor(model, wallSet)(id, z) && id.Family is null && !RoomDecorator.IsMissileMark(id, z);
 
     // Keep the floor clear around every site and pad, and along the line from the cannon to its kill zone
-    private static List<(float U, float V, float Reach)> GetSiteSpots(MapBuilder map, Lattice lattice, PlacedSites placed)
+    private static List<(float U, float V, float Reach)> GetSiteSpots(MapBuilder map, Lattice lattice, PlacedSites placed, float clearance)
     {
         var spots = map.Sprites
             .Where(sprite => sprite.Id is KnownObject.DynamiteSite or KnownObject.TeleportPad)
             .Select(sprite => lattice.ToLattice(sprite.Position.X, sprite.Position.Y))
-            .Select(point => (point.U, point.V, SiteClearance))
+            .Select(point => (point.U, point.V, clearance))
             .ToList();
         int cannon = map.Sprites.FindIndex(sprite => sprite.Id == KnownObject.MountedCannon);
         if (placed.Cannon is not null && cannon >= 0)

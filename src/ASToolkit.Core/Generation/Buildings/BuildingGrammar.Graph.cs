@@ -299,7 +299,7 @@ internal abstract partial class BuildingGrammar
         return [];
     }
 
-    private RoomShape BigRoomBox() => WingSolver.Box(Random.Inclusive(14, 17), Random.Inclusive(18, 20));
+    private RoomShape BigRoomBox() => WingSolver.Box(Random.Inclusive(15, 17), Random.Inclusive(18, 20));
 
     private static int Center(UnitRect rect, bool alongU) => alongU ? rect.U + rect.W / 2 : rect.V + rect.H / 2;
 
