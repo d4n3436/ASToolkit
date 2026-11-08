@@ -163,7 +163,7 @@ internal abstract partial class BuildingGrammar
         var taken = new List<UnitRect>();
         foreach (var option in Random.Shuffled(options).OrderByDescending(option => option.Target is not null))
         {
-            if (added >= most || taken.Any(other => other.IntersectsWith(option.Arm) || other.SharesWall(option.Arm)) || !Grid.IsFree(option.Arm, Grid[room].Group, 0))
+            if (added >= most || taken.Any(other => other.IntersectsWith(option.Arm) || other.SharesWall(option.Arm)) || !Grid.IsFree(option.Arm, Grid[room].Group, 0, []))
             {
                 continue;
             }
@@ -252,7 +252,7 @@ internal abstract partial class BuildingGrammar
     protected void BuildSequence(int rooms)
     {
         // Ring both sides, one jammed and one open for the hub's loop
-        var plan = PlanOffices(Math.Min(FirstWingRooms(), Math.Max(4, rooms - 3)) - 1, false, true, 2);
+        var plan = PlanOffices(Math.Min(FirstWingRooms(), Math.Max(4, rooms - 3)) - 1, false, true, HubSides, 2);
         (int hub, int joint) = AddHub(0, plan.Length);
         Start = AddEndRoom(hub, Side.West, 0, viaNeck: false);
         var (built, _) = LayOffices(hub, plan, IsPacked, 0);
@@ -303,7 +303,7 @@ internal abstract partial class BuildingGrammar
 
     protected void BuildLockedOffices(int rooms)
     {
-        var plan = PlanOffices(FirstWingRooms() - 1, true, false);
+        var plan = PlanOffices(FirstWingRooms() - 1, true, false, HubSides);
         (int hub, int joint) = AddHub(1, plan.Length);
         Start = AddEndRoom(hub, Side.West, 0, viaNeck: false);
         Locks.Add((hub, joint));
@@ -331,7 +331,7 @@ internal abstract partial class BuildingGrammar
 
     protected void BuildDarkOffices(int rooms)
     {
-        var plan = PlanOffices(FirstWingRooms() - 1, false, true);
+        var plan = PlanOffices(FirstWingRooms() - 1, false, true, HubSides);
         (int hub, _) = AddHub(null, plan.Length);
         Start = AddEndRoom(hub, Side.West, 0, viaNeck: true);
         var (built, _) = LayOffices(hub, plan, true, 2);
@@ -435,10 +435,12 @@ internal abstract partial class BuildingGrammar
 
     // Draws the office pods for about the given rooms and the hub length their longer side needs, locking a pod on a dark level and jamming a
     // ring's second hall door on a lit one
-    private OfficePlan PlanOffices(int rooms, bool hasKey, bool isLit, int leastRings = 1, IReadOnlyList<DoorSides>? sides = null)
+    private static readonly DoorSides[] HubSides = [DoorSides.MinY, DoorSides.MaxY];
+
+    private OfficePlan PlanOffices(int rooms, bool hasKey, bool isLit, IReadOnlyList<DoorSides> sides, int leastRings = 1)
     {
         var drawn = new List<(DoorSides Side, bool IsRing)>();
-        foreach (var side in Random.Shuffled(sides ?? [DoorSides.MinY, DoorSides.MaxY]))
+        foreach (var side in Random.Shuffled(sides))
         {
             bool isRing = drawn.Count < leastRings || Random.Next() < 0.5;
             int count = isRing || (Random.Next() < 0.4 && drawn.Count == 0) ? 1 : 2;
@@ -531,7 +533,7 @@ internal abstract partial class BuildingGrammar
             }
 
             var map = wing.Lay(hub, [EndStrip(hub)], rooms <= 3 ? 3 : 1);
-            if (map is null)
+            if (map.Count == 0)
             {
                 return [];
             }
@@ -587,7 +589,7 @@ internal abstract partial class BuildingGrammar
                 }
 
                 var map = wing.Lay(hub, [EndStrip(hub)], folds ? 1 : 2);
-                if (map is null)
+                if (map.Count == 0)
                 {
                     Count(folds ? BuildingTally.OfficeFoldUnsolved : BuildingTally.OfficeClumpUnsolved);
                     continue;

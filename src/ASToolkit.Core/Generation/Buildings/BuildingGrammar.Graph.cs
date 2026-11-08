@@ -87,7 +87,7 @@ internal abstract partial class BuildingGrammar
 
         public void Join(int a, int b, JoinVia via, JoinMark mark = JoinMark.Contact)
         {
-            _solver.Join(a, b, via switch { JoinVia.Neck => [NeckDepth], JoinVia.Passage => [3], _ => null });
+            _solver.Join(a, b, via switch { JoinVia.Neck => [NeckDepth], JoinVia.Passage => [3], _ => [] });
             _joins.Add((a, b, via, mark));
         }
 
@@ -97,7 +97,7 @@ internal abstract partial class BuildingGrammar
 
         public void Touch(int a, int b) => _solver.Touch(a, b);
 
-        public Dictionary<int, int>? Lay(int anchor, IReadOnlyList<UnitRect> reserved, int attempts = 2, int? touching = null, int reach = 0)
+        public Dictionary<int, int> Lay(int anchor, IReadOnlyList<UnitRect> reserved, int attempts = 2, int? touching = null, int reach = 0)
         {
             var anchorRect = _grammar.RectOf(anchor);
             if (reach == 0)
@@ -114,7 +114,7 @@ internal abstract partial class BuildingGrammar
             for (int attempt = 0; attempt < attempts; attempt++)
             {
                 var placed = _solver.Lay(_grammar.RectOf(anchor), obstacles, _grammar.Random.Range(0, int.MaxValue));
-                if (placed is null)
+                if (placed.Count == 0)
                 {
                     continue;
                 }
@@ -134,7 +134,7 @@ internal abstract partial class BuildingGrammar
                 return Realize(anchor, placed);
             }
 
-            return null;
+            return [];
         }
 
         private Dictionary<int, int> Realize(int anchor, Dictionary<int, WingPlace> placed)
@@ -250,7 +250,7 @@ internal abstract partial class BuildingGrammar
         wing.Join(WingSolver.Anchor, room, viaNeck ? JoinVia.Neck : JoinVia.Door, isLocked ? JoinMark.Lock : JoinMark.Contact);
         wing.SetSides(WingSolver.Anchor, room, DoorSides.All, null);
         var map = wing.Lay(host, [], 1, Grid[host].Group, 22);
-        return map?[room];
+        return map.Count == 0 ? null : map[room];
     }
 
     // Lines a hall's sides with its big rooms in one solve, the first hall leaving through a loop of two of them, dropping rooms from the end until
@@ -288,7 +288,7 @@ internal abstract partial class BuildingGrammar
             }
 
             var map = wing.Lay(hall, [], 1);
-            if (map is not null)
+            if (map.Count > 0)
             {
                 return ids.Select(id => map[id]).ToList();
             }

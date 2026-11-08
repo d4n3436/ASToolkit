@@ -188,8 +188,10 @@ public sealed class LayoutSolverTests
 
     private static LayoutProblem<int> CreateProblem() => new() { MinimumDistance = 2, TouchLength = 2 };
 
-    private static void AddBox(LayoutProblem<int> problem, int room, int width, int height, IReadOnlyList<ShapeTurn>? turns = null) =>
-        problem.AddRoom(room, [new RoomShape(RoomShape.Rectangle(width, height), Doors, turns ?? RoomShape.AllTurns)]);
+    private static void AddBox(LayoutProblem<int> problem, int room, int width, int height) => AddBox(problem, room, width, height, RoomShape.AllTurns);
+
+    private static void AddBox(LayoutProblem<int> problem, int room, int width, int height, IReadOnlyList<ShapeTurn> turns) =>
+        problem.AddRoom(room, [new RoomShape(RoomShape.Rectangle(width, height), Doors, turns)]);
 
     private static HashSet<Cell> Notched(int width, int height, int offset, int depth) =>
         RoomShape.Rectangle(width, height).Where(cell => !(cell.U >= offset && cell.U < offset + 3 && cell.V < depth)).ToHashSet();

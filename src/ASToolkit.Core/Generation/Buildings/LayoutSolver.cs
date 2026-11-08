@@ -28,7 +28,7 @@ internal sealed class LayoutSolver<T>
         _random = new Random(seed);
     }
 
-    public Dictionary<T, PlacedRoom<T>>? Solve()
+    public Dictionary<T, PlacedRoom<T>> Solve()
     {
         var rooms = _problem.Rooms.Keys.ToArray();
         foreach (var room in rooms)
@@ -140,7 +140,7 @@ internal sealed class LayoutSolver<T>
         var status = solver.Solve(_model);
         if (status is not (CpSolverStatus.Optimal or CpSolverStatus.Feasible))
         {
-            return null;
+            return [];
         }
 
         return rooms.ToDictionary(room => room, room =>

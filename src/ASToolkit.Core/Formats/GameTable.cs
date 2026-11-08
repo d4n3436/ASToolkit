@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.RegularExpressions;
 
@@ -46,10 +47,10 @@ public sealed partial class GameTable
     /// <summary>
     /// Finds the values of an array, returning false when the script declares none by that name.
     /// </summary>
-    public bool TryGetArray(string name, out IReadOnlyList<int> values)
+    public bool TryGetArray(string name, [MaybeNullWhen(false)] out IReadOnlyList<int> values)
     {
         bool found = _arrays.TryGetValue(name, out int[]? array);
-        values = array ?? [];
+        values = array;
         return found;
     }
 

@@ -15,7 +15,7 @@ internal sealed class WingSolver
     private readonly List<int> _rooms = [];
     private readonly Dictionary<int, (DoorSides? SideA, DoorSides? SideB)> _joinSides = [];
     private readonly Dictionary<int, IReadOnlyList<RoomShape>> _templates = [];
-    private readonly List<(int A, int B, int[]? Throat)> _joins = [];
+    private readonly List<(int A, int B, int[] Throat)> _joins = [];
     private readonly List<(int A, int B, int Length)> _touches = [];
     private readonly List<(int A, int B)> _mayTouch = [];
 
@@ -36,7 +36,7 @@ internal sealed class WingSolver
     }
 
     // Joins two rooms through a door, or through a throat of one of the given lengths owned by the second
-    public void Join(int a, int b, int[]? throatLengths) => _joins.Add((a, b, throatLengths));
+    public void Join(int a, int b, int[] throatLengths) => _joins.Add((a, b, throatLengths));
 
     // Opens a join's door only on the given sides of each room's templates, either side free when null
     public void SetSides(int a, int b, DoorSides? sidesOfA, DoorSides? sidesOfB)
@@ -56,7 +56,7 @@ internal sealed class WingSolver
 
     public void MayTouch(int a, int b) => _mayTouch.Add((a, b));
 
-    public Dictionary<int, WingPlace>? Lay(UnitRect baseRect, IReadOnlyList<UnitRect> obstacles, int seed)
+    public Dictionary<int, WingPlace> Lay(UnitRect baseRect, IReadOnlyList<UnitRect> obstacles, int seed)
     {
         var problem = Describe(baseRect, out var throatOwners);
         foreach (var rect in obstacles)
@@ -65,9 +65,9 @@ internal sealed class WingSolver
         }
 
         var layout = new LayoutSolver<int>(problem, seed).Solve();
-        if (layout is null)
+        if (layout.Count == 0)
         {
-            return null;
+            return [];
         }
 
         // Move the layout onto the base room, laid first, unturned, at the origin
@@ -118,10 +118,10 @@ internal sealed class WingSolver
         int corridor = FirstCorridor;
         for (int index = 0; index < _joins.Count; index++)
         {
-            (int a, int b, int[]? throat) = _joins[index];
+            (int a, int b, int[] throat) = _joins[index];
             // Key a join's door sides against each room's graph neighbor, the corridor when the join runs through a throat
-            int neighborOfA = throat is null ? b : corridor;
-            int neighborOfB = throat is null ? a : corridor;
+            int neighborOfA = throat.Length == 0 ? b : corridor;
+            int neighborOfB = throat.Length == 0 ? a : corridor;
             var joinSides = _joinSides.GetValueOrDefault(index);
             if (a == Anchor)
             {
@@ -137,7 +137,7 @@ internal sealed class WingSolver
                 problem.DoorSides[(b, neighborOfB)] = joinSides.SideB.Value;
             }
 
-            if (throat is null)
+            if (throat.Length == 0)
             {
                 problem.Join(a, b);
                 continue;

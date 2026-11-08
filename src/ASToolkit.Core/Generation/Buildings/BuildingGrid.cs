@@ -15,7 +15,7 @@ internal sealed class BuildingGrid
     public GridRoom this[int id] => Rooms[id - 1];
 
     // Returns whether the rect is empty and keeps apart from every group but its own, the halls and the touch groups
-    public bool IsFree(UnitRect rect, int group, int apart, IReadOnlyCollection<int>? touch = null)
+    public bool IsFree(UnitRect rect, int group, int apart, IReadOnlyCollection<int> touch)
     {
         if (rect.W <= 0 || rect.H <= 0)
         {
@@ -37,7 +37,7 @@ internal sealed class BuildingGrid
                 }
 
                 int other = this[owner].Group;
-                if (other != group && other != 0 && (touch is null || !touch.Contains(other)))
+                if (other != group && other != 0 && !touch.Contains(other))
                 {
                     return false;
                 }
@@ -47,7 +47,7 @@ internal sealed class BuildingGrid
         return apart == 0 || !LeavesSlit(rect);
     }
 
-    public bool IsNeckFree(UnitRect rect, int group) => IsFree(rect, group, 0) && !LeavesSlit(rect);
+    public bool IsNeckFree(UnitRect rect, int group) => IsFree(rect, group, 0, []) && !LeavesSlit(rect);
 
     public bool LeavesSlit(UnitRect rect)
     {

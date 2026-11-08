@@ -239,7 +239,7 @@ internal sealed class ResearchWing
     private static bool ReachAcross(List<ResearchPiece> pieces, int a, int b, HashSet<Cell> taken)
     {
         (int from, int to) = pieces[a].Part == Hall || (pieces[b].Part != Hall && pieces[b].Cells.Count < pieces[a].Cells.Count) ? (b, a) : (a, b);
-        HashSet<Cell>? best = null;
+        HashSet<Cell> best = [];
         int bestGap = int.MaxValue;
         foreach (var cell in pieces[from].Cells.OrderBy(cell => cell.U).ThenBy(cell => cell.V))
         {
@@ -272,7 +272,7 @@ internal sealed class ResearchWing
             }
         }
 
-        if (best is null)
+        if (best.Count == 0)
         {
             return false;
         }

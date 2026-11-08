@@ -47,7 +47,7 @@ internal sealed class OfficeBlock
         {
             var problem = DrawGraph();
             var placed = new LayoutSolver<int>(problem, _random.Range(0, int.MaxValue)).Solve();
-            var layout = placed is null ? null : Finish(problem, placed);
+            var layout = placed.Count == 0 ? null : Finish(problem, placed);
             if (layout is not null)
             {
                 return layout;
@@ -186,9 +186,11 @@ internal sealed class OfficeBlock
         a.Right == b.Left || b.Right == a.Left ? Math.Max(0, Math.Min(a.Bottom, b.Bottom) - Math.Max(a.Top, b.Top))
         : a.Bottom == b.Top || b.Bottom == a.Top ? Math.Max(0, Math.Min(a.Right, b.Right) - Math.Max(a.Left, b.Left)) : 0;
 
-    private int Add(OfficePart part, HashSet<Cell> cells, int[]? row = null, int depth = 0)
+    private int Add(OfficePart part, HashSet<Cell> cells) => Add(part, cells, [], 0);
+
+    private int Add(OfficePart part, HashSet<Cell> cells, int[] row, int depth)
     {
-        _parts.Add((part, new RoomShape(cells, Doors, RoomShape.AllTurns), row ?? [], depth));
+        _parts.Add((part, new RoomShape(cells, Doors, RoomShape.AllTurns), row, depth));
         return _parts.Count - 1;
     }
 

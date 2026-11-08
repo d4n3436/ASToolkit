@@ -221,7 +221,7 @@ internal abstract partial class BuildingGrammar
         for (int draw = 0; draw < template.Draws; draw++)
         {
             var built = TryLayWing(template, joint, rooms, phase);
-            if (built is not null)
+            if (built.Count > 0)
             {
                 return built;
             }
@@ -230,7 +230,7 @@ internal abstract partial class BuildingGrammar
         return [];
     }
 
-    private List<int>? TryLayWing(WingTemplate template, int joint, int rooms, int phase)
+    private List<int> TryLayWing(WingTemplate template, int joint, int rooms, int phase)
     {
         var counts = DrawCounts(template, rooms);
         var wing = new GraphWing(this, template.Hall?.IsBeyond ?? true);
@@ -293,10 +293,10 @@ internal abstract partial class BuildingGrammar
         }
 
         var map = wing.Lay(joint, []);
-        if (map is null)
+        if (map.Count == 0)
         {
             Count(BuildingTally.WingUnsolved);
-            return null;
+            return [];
         }
 
         var placed = ids.ToDictionary(pair => pair.Key, pair => pair.Value.Select(id => id == WingSolver.Anchor ? joint : map[id]).ToList());
@@ -333,7 +333,7 @@ internal abstract partial class BuildingGrammar
         {
             int lined = placed["hall"][0];
             var sides = Grid[lined].AlongU ? new[] { DoorSides.MinY, DoorSides.MaxY } : [DoorSides.MinX, DoorSides.MaxX];
-            var plan = PlanOffices(rest, false, true, sides: sides) with { JammedAt = -1 };
+            var plan = PlanOffices(rest, false, true, sides) with { JammedAt = -1 };
             built.AddRange(LayOffices(lined, plan, IsPacked, phase, phase).Rooms);
         }
 

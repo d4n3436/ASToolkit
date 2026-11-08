@@ -17,13 +17,13 @@ internal abstract partial class BuildingGrammar
             Count(BuildingTally.WarehouseDraws);
             var template = Random.Choice(variants);
             var areas = DrawAreas(template);
-            if (areas is null)
+            if (areas.Count == 0)
             {
                 continue;
             }
 
             var placed = ComposeAreas(template, areas);
-            if (placed is not null)
+            if (placed.Count > 0)
             {
                 WriteAreas(template, areas, placed);
                 return;
@@ -34,7 +34,7 @@ internal abstract partial class BuildingGrammar
         throw new InvalidOperationException("Cannot lay the warehouse.");
     }
 
-    private Dictionary<string, Area>? DrawAreas(IReadOnlyList<WarehouseArea> template)
+    private Dictionary<string, Area> DrawAreas(IReadOnlyList<WarehouseArea> template)
     {
         var areas = new Dictionary<string, Area>();
         // Draw the A and B sides once per level, every area naming them sharing the draw
@@ -53,7 +53,7 @@ internal abstract partial class BuildingGrammar
 
             if (area is null)
             {
-                return null;
+                return [];
             }
 
             area.HostSide = spec.HostSide switch { "A" => a, "B" => b, var side => side };
@@ -94,7 +94,7 @@ internal abstract partial class BuildingGrammar
         return area;
     }
 
-    private Dictionary<string, List<HashSet<Cell>>>? ComposeAreas(IReadOnlyList<WarehouseArea> template, Dictionary<string, Area> areas)
+    private Dictionary<string, List<HashSet<Cell>>> ComposeAreas(IReadOnlyList<WarehouseArea> template, Dictionary<string, Area> areas)
     {
         var specs = template.Where(spec => areas.ContainsKey(spec.Name)).ToArray();
         var joins = specs
@@ -148,7 +148,7 @@ internal abstract partial class BuildingGrammar
         level.TouchPairs.AddRange(touches);
         level.MayTouchPairs.AddRange(mayTouch);
         var layout = new BlockSolver(Random).Solve(level);
-        return layout?.ToDictionary(room => room.Key, room => Fit(areas[room.Key], room.Value));
+        return layout.ToDictionary(room => room.Key, room => Fit(areas[room.Key], room.Value));
     }
 
     private static bool CanTurn(WarehouseArea spec) =>
@@ -319,7 +319,7 @@ internal abstract partial class BuildingGrammar
             cells.ExceptWith(Box(iu, w / 2 - 1, iu + Random.Inclusive(4, 6), w / 2 + 1));
         }
 
-        return new Area([new AreaRoom(cells, RoomType.Hall)], outline: outline);
+        return new Area([new AreaRoom(cells, RoomType.Hall)], outline);
     }
 
     private static Area StripArea(int w, int l, string ends)
@@ -365,8 +365,8 @@ internal abstract partial class BuildingGrammar
     private Area? PairArea(int w, int d, WarehouseArea spec)
     {
         var parts = Partition(Box(0, 0, w, d), 2, true);
-        parts = parts is null ? null : Walk(parts, part => part.Count(c => c.V == 0) >= 2, _ => true);
-        if (parts is null)
+        parts = Walk(parts, part => part.Count(c => c.V == 0) >= 2, _ => true);
+        if (parts.Count == 0)
         {
             return null;
         }
@@ -386,8 +386,8 @@ internal abstract partial class BuildingGrammar
     {
         int rooms = Math.Min(spec.Rooms, Math.Max(1, d / 3));
         var parts = rooms > 1 ? Partition(Box(0, 0, w, d), rooms, spec.Interlocks) : [Box(0, 0, w, d)];
-        parts = parts is null || rooms == 1 ? parts : Walk(parts, part => part.Any(c => c.V == 0), _ => true);
-        if (parts is null)
+        parts = rooms == 1 ? parts : Walk(parts, part => part.Any(c => c.V == 0), _ => true);
+        if (parts.Count == 0)
         {
             return null;
         }
@@ -434,8 +434,8 @@ internal abstract partial class BuildingGrammar
         var body = Box(0, strip, w, d);
         var row = Partition(body, spec.Rooms - 1, true);
         int top = d - 1;
-        row = row is null ? null : Walk(row, part => part.Any(c => c.V == strip), part => part.Count(c => c.V == top) >= 4);
-        if (row is null)
+        row = Walk(row, part => part.Any(c => c.V == strip), part => part.Count(c => c.V == top) >= 4);
+        if (row.Count == 0)
         {
             return null;
         }
@@ -516,7 +516,7 @@ internal abstract partial class BuildingGrammar
     }
 
     // Divides a region into parts of uneven size, each cut across the longest part's longer side, deep cuts stepping and cutting corner boxes out
-    private List<HashSet<Cell>>? Partition(HashSet<Cell> cells, int parts, bool deep)
+    private List<HashSet<Cell>> Partition(HashSet<Cell> cells, int parts, bool deep)
     {
         const int least = 3;
         for (int attempt = 0; attempt < 40; attempt++)
@@ -562,7 +562,7 @@ internal abstract partial class BuildingGrammar
             }
         }
 
-        return null;
+        return [];
     }
 
     // Trades tabs one to `deepest` pieces deep across shared walls, keeping both rooms connected and two wide and the group's outline unchanged
@@ -609,36 +609,36 @@ internal abstract partial class BuildingGrammar
         return rooms;
     }
 
-    private static List<HashSet<Cell>>? Walk(List<HashSet<Cell>> parts, Func<HashSet<Cell>, bool> first, Func<HashSet<Cell>, bool> last)
+    private static List<HashSet<Cell>> Walk(List<HashSet<Cell>> parts, Func<HashSet<Cell>, bool> first, Func<HashSet<Cell>, bool> last)
     {
         foreach (int start in Enumerable.Range(0, parts.Count).Where(i => first(parts[i])))
         {
             var order = Extend([start]);
-            if (order is not null)
+            if (order.Count > 0)
             {
                 return order.Select(i => parts[i]).ToList();
             }
         }
 
-        return null;
+        return [];
 
-        List<int>? Extend(List<int> path)
+        List<int> Extend(List<int> path)
         {
             if (path.Count == parts.Count)
             {
-                return last(parts[path[^1]]) ? path : null;
+                return last(parts[path[^1]]) ? path : [];
             }
 
             foreach (int next in Enumerable.Range(0, parts.Count).Where(next => !path.Contains(next) && Touching(parts[path[^1]], parts[next]) > 0))
             {
                 var found = Extend(path.Append(next).ToList());
-                if (found is not null)
+                if (found.Count > 0)
                 {
                     return found;
                 }
             }
 
-            return null;
+            return [];
         }
     }
 
@@ -669,10 +669,15 @@ internal abstract partial class BuildingGrammar
 
     private sealed class Area
     {
-        public Area(List<AreaRoom> rooms, HashSet<Cell>? outline = null)
+        public Area(List<AreaRoom> rooms)
+            : this(rooms, rooms.SelectMany(room => room.Cells).ToHashSet().GetFilled())
+        {
+        }
+
+        public Area(List<AreaRoom> rooms, HashSet<Cell> outline)
         {
             Rooms = rooms;
-            Outline = outline ?? rooms.SelectMany(room => room.Cells).ToHashSet().GetFilled();
+            Outline = outline;
         }
 
         public List<AreaRoom> Rooms { get; }

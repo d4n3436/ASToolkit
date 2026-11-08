@@ -56,7 +56,7 @@ internal sealed class DepotWing
             _rooms.Clear();
             bool lConnector = attempt < 2 && _random.Next() < 0.6;
             var placed = ComposeBySolver(countA, countB, Math.Clamp(_random.Inclusive(5, 6), 3, Math.Max(3, entryWidth)), lConnector);
-            if (placed is null)
+            if (placed.Count == 0)
             {
                 continue;
             }
@@ -71,7 +71,7 @@ internal sealed class DepotWing
         return null;
     }
 
-    private Dictionary<string, HashSet<Cell>>? ComposeBySolver(int countA, int countB, int entryWidth, bool lConnector)
+    private Dictionary<string, HashSet<Cell>> ComposeBySolver(int countA, int countB, int entryWidth, bool lConnector)
     {
         var level = new LayoutProblem<string> { MinimumDistance = 2 };
         ShapeTurn[] turns = [ShapeTurn.Identity, ShapeTurn.MirrorY];
@@ -111,9 +111,9 @@ internal sealed class DepotWing
         }
 
         var layout = _solver.Solve(level);
-        if (layout is null)
+        if (layout.Count == 0)
         {
-            return null;
+            return [];
         }
 
         var parts = layout.ToDictionary(room => room.Key, room => room.Value.Cells);
@@ -162,7 +162,7 @@ internal sealed class DepotWing
         var run = new List<int> { entry };
         run.AddRange(a.Route);
         var court = new HashSet<Cell>();
-        var b = Run(placed["B"], countB, false, 1, placed["arm"], null);
+        var b = Run(placed["B"], countB, false, 1, placed["arm"], []);
         if (b is null)
         {
             return null;
@@ -189,30 +189,29 @@ internal sealed class DepotWing
         return FinishSections(a, run, doors, jammed, shortcuts, court, entry, left);
     }
 
-    private SectionPlan? Run(HashSet<Cell> envelope, int count, bool passage, int section, HashSet<Cell> wayIn, HashSet<Cell>? wayOut)
+    private SectionPlan? Run(HashSet<Cell> envelope, int count, bool passage, int section, HashSet<Cell> wayIn, HashSet<Cell> wayOut)
     {
         int entrance = envelope.GetLongestWall(wayIn).Length;
         for (int attempt = 0; attempt < 20; attempt++)
         {
-            var parted = Partition(envelope, count, passage);
-            if (parted is null)
+            var (regions, strip) = Partition(envelope, count, passage);
+            if (regions.Count == 0)
             {
                 continue;
             }
 
-            var (regions, strip) = parted.Value;
-            if (strip is not null)
+            if (strip.Count > 0)
             {
                 regions.Add(strip);
             }
 
-            int inner = strip is null ? -1 : regions.Count - 1;
+            int inner = strip.Count == 0 ? -1 : regions.Count - 1;
             var adjacency = Adjacency(regions);
             // Enter the first section through one depot holding the entrance's whole end
             var paths = Paths(adjacency, regions.Count, index => index != inner && (section == 0 ? regions[index].GetLongestWall(wayIn).Length >= entrance : Touches(regions[index], wayIn)),
-                index => index != inner && (wayOut is null || Touches(regions[index], wayOut)), inner);
+                index => index != inner && (wayOut.Count == 0 || Touches(regions[index], wayOut)), inner);
 
-            if (wayOut is null)
+            if (wayOut.Count == 0)
             {
                 paths = paths.Where(path => path.Take(path.Count - 2).Any(index => adjacency[path[^1]].Contains(index))).ToList();
             }
@@ -236,7 +235,7 @@ internal sealed class DepotWing
                 }
             }
 
-            var back = wayOut is null ? skipped.Where(pair => pair.Item2 == ids[^1]).ToList() : [];
+            var back = wayOut.Count == 0 ? skipped.Where(pair => pair.Item2 == ids[^1]).ToList() : [];
             var jammed = _random.Shuffled(skipped.Where(pair => !back.Contains(pair))).Take(_random.Inclusive(1, 2)).ToList();
             int passageId = inner < 0 ? -1 : ids[path.IndexOf(inner)];
             return new SectionPlan { Route = ids, Jammed = jammed, Passage = passageId };
@@ -300,7 +299,7 @@ internal sealed class DepotWing
             int shift = toward * _random.Inclusive(3, Math.Min(6, (toward < 0 ? widths[0] : widths[^1]) - 10));
             int[] shifted = cuts.Select(cut => cut + shift).ToArray();
             var farRow = Row(envelope, near + band, h, shifted, w, k);
-            if (nearRow is null || farRow is null)
+            if (nearRow.Count == 0 || farRow.Count == 0)
             {
                 continue;
             }
@@ -354,14 +353,14 @@ internal sealed class DepotWing
         return null;
     }
 
-    private List<HashSet<Cell>>? Row(HashSet<Cell> envelope, int low, int high, int[] cuts, int w, int k)
+    private List<HashSet<Cell>> Row(HashSet<Cell> envelope, int low, int high, int[] cuts, int w, int k)
     {
         int previous = 0;
         foreach (int cut in cuts.Append(w))
         {
             if (cut - previous < 10)
             {
-                return null;
+                return [];
             }
 
             previous = cut;
@@ -387,7 +386,7 @@ internal sealed class DepotWing
             regions[index].Add(cell);
         }
 
-        return regions.All(region => region.IsConnected() && region.IsThick(5) && region.Count >= SmallestDepot) ? regions : null;
+        return regions.All(region => region.IsConnected() && region.IsThick(5) && region.Count >= SmallestDepot) ? regions : [];
     }
 
     private DepotWingLayout? DrawDock(int slots, int nested, int entryWidth)
@@ -413,7 +412,7 @@ internal sealed class DepotWing
             var dock = envelope.Where(cell => cell.V < dockHeight).ToHashSet();
             int[] cuts = Enumerable.Range(1, k - 1).Select(index => widths.Take(index).Sum()).ToArray();
             var row = Row(envelope, dockHeight, h, cuts, w, k);
-            if (row is null)
+            if (row.Count == 0)
             {
                 continue;
             }
@@ -487,7 +486,7 @@ internal sealed class DepotWing
 
         var lengths = Enumerable.Range(EntryLengthMin, EntryLengthMax - EntryLengthMin + 1);
         var cells = SolveAgainstBlock(block, openings, lengths.Select(length => EntryStrip(width, length)).ToArray(), [], true);
-        if (cells is null)
+        if (cells.Count == 0)
         {
             return -1;
         }
@@ -527,7 +526,7 @@ internal sealed class DepotWing
         for (int attempt = 0; attempt < 3; attempt++)
         {
             var cells = SolveAgainstBlock(block, openings, shapes, banned.Concat(Taken()).Where(cell => !block.Contains(cell)).ToHashSet(), false);
-            if (cells is not null && !HasSlit(cells, block))
+            if (cells.Count > 0 && !HasSlit(cells, block))
             {
                 return Add(role, -1, cells);
             }
@@ -541,7 +540,7 @@ internal sealed class DepotWing
 
     private HashSet<Cell> Solid(int host) => Taken().GetPieces().First(part => part.Contains(_rooms[host].Cells.First())).GetFilled();
 
-    private HashSet<Cell>? SolveAgainstBlock(HashSet<Cell> block, IReadOnlyList<ShapeDoor> openings, IReadOnlyList<RoomShape> shapes, HashSet<Cell> banned, bool isBeyond) =>
+    private HashSet<Cell> SolveAgainstBlock(HashSet<Cell> block, IReadOnlyList<ShapeDoor> openings, IReadOnlyList<RoomShape> shapes, HashSet<Cell> banned, bool isBeyond) =>
         _solver.SolveAgainst(block, openings, shapes, banned, isBeyond, 2);
 
     private static bool HasSlit(HashSet<Cell> cells, HashSet<Cell> block) => cells
@@ -816,7 +815,7 @@ internal sealed class DepotWing
             .Where(corner => !(flat == Side.East && corner.Item1 == 1) && !(flat == Side.West && corner.Item1 == 0) && !(flat == Side.North && corner.Item2 == 0))
             .ToArray();
 
-    private List<HashSet<Cell>>? Split(HashSet<Cell> region, bool strip)
+    private List<HashSet<Cell>> Split(HashSet<Cell> region, bool strip)
     {
         var box = region.GetBounds();
         (int u0, int v0, int u1, int v1) = (box.U, box.V, box.U + box.W - 1, box.V + box.H - 1);
@@ -831,7 +830,7 @@ internal sealed class DepotWing
         (int a0, int b0, int a1, int b1) = (turned.U, turned.V, turned.U + turned.W - 1, turned.V + turned.H - 1);
         if (a1 - a0 < 14)
         {
-            return null;
+            return [];
         }
 
         int a = _random.Inclusive(a0 + 7, a1 - 6);
@@ -876,7 +875,7 @@ internal sealed class DepotWing
         var parts = strip ? new List<HashSet<Cell>> { low, high, middle } : [low, high];
         if (Math.Min(low.Count, high.Count) < SmallestDepot || parts.Any(part => !part.IsThick(5) || !part.IsConnected()))
         {
-            return null;
+            return [];
         }
 
         return parts.Select(part => part.Select(T).ToHashSet()).ToList();
@@ -892,33 +891,33 @@ internal sealed class DepotWing
         Cell T(Cell cell) => vertical ? cell : new Cell(cell.V, cell.U);
     }
 
-    private (List<HashSet<Cell>> Regions, HashSet<Cell>? Strip)? Partition(HashSet<Cell> envelope, int count, bool passage)
+    private (List<HashSet<Cell>> Regions, HashSet<Cell> Strip) Partition(HashSet<Cell> envelope, int count, bool passage)
     {
         for (int attempt = 0; attempt < 60; attempt++)
         {
             var regions = new List<HashSet<Cell>> { envelope };
-            HashSet<Cell>? strip = null;
+            HashSet<Cell> strip = [];
             bool ok = true;
             while (regions.Count < count)
             {
-                bool wantStrip = passage && strip is null && regions.Count == count - 1;
-                List<HashSet<Cell>>? parts = null;
-                HashSet<Cell>? source = null;
+                bool wantStrip = passage && strip.Count == 0 && regions.Count == count - 1;
+                List<HashSet<Cell>> parts = [];
+                HashSet<Cell> source = [];
                 foreach (var region in wantStrip ? regions.OrderByDescending(region => region.Count).ToList() : [regions.MaxBy(region => region.Count)!])
                 {
-                    for (int tries = 0; tries < 30 && parts is null; tries++)
+                    for (int tries = 0; tries < 30 && parts.Count == 0; tries++)
                     {
                         parts = Split(region, wantStrip);
                     }
 
-                    if (parts is not null)
+                    if (parts.Count > 0)
                     {
                         source = region;
                         break;
                     }
                 }
 
-                if (parts is null || source is null)
+                if (parts.Count == 0)
                 {
                     ok = false;
                     break;
@@ -939,7 +938,7 @@ internal sealed class DepotWing
             }
         }
 
-        return null;
+        return ([], []);
     }
 
     private static List<HashSet<int>> Adjacency(List<HashSet<Cell>> regions) => regions
