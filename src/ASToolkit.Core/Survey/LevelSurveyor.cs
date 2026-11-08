@@ -1101,12 +1101,33 @@ public sealed class LevelSurveyor
             return 0;
         }
 
-        float[] gaps = group
-            .Select(monster => group.Where(other => other != monster).Min(other => GetDistance(other.X, other.Y, monster.X, monster.Y)))
-            .Order()
-            .ToArray();
-
+        float[] gaps = GetGaps(group);
+        Array.Sort(gaps);
         return (int)MathF.Round(gaps[gaps.Length / 2]);
+    }
+
+    private static float[] GetGaps(List<RouteElement> group)
+    {
+        int[] order = Enumerable.Range(0, group.Count).OrderBy(index => group[index].X).ToArray();
+        float[] gaps = new float[group.Count];
+        for (int position = 0; position < order.Length; position++)
+        {
+            var monster = group[order[position]];
+            float best = float.MaxValue;
+            for (int other = position - 1; other >= 0 && monster.X - group[order[other]].X < best; other--)
+            {
+                best = MathF.Min(best, GetDistance(group[order[other]].X, group[order[other]].Y, monster.X, monster.Y));
+            }
+
+            for (int other = position + 1; other < order.Length && group[order[other]].X - monster.X < best; other++)
+            {
+                best = MathF.Min(best, GetDistance(group[order[other]].X, group[order[other]].Y, monster.X, monster.Y));
+            }
+
+            gaps[order[position]] = best;
+        }
+
+        return gaps;
     }
 
     private static EncounterFormation GetFormation(List<RouteElement> group)
@@ -1132,7 +1153,7 @@ public sealed class LevelSurveyor
             return EncounterFormation.Line;
         }
 
-        float[] gaps = group.Select(monster => group.Where(other => other != monster).Min(other => GetDistance(other.X, other.Y, monster.X, monster.Y))).ToArray();
+        float[] gaps = GetGaps(group);
         float mean = gaps.Average();
         float spread = MathF.Sqrt(gaps.Average(gap => (gap - mean) * (gap - mean)));
         return group.Count >= 6 && spread < 0.2f * mean ? EncounterFormation.Grid : EncounterFormation.Cluster;
@@ -1450,20 +1471,50 @@ public sealed class LevelSurveyor
     private static List<List<T>> Cluster<T>(T[] items, Func<T, PointF> getPosition, float reach)
     {
         var groups = new List<List<T>>();
-        var left = new SortedSet<int>(Enumerable.Range(0, items.Length));
         var points = items.Select(getPosition).ToArray();
-        while (left.Count > 0)
+        var buckets = new Dictionary<Point, List<int>>();
+        for (int index = 0; index < points.Length; index++)
         {
-            int seed = left.Min;
-            left.Remove(seed);
+            var key = new Point((int)MathF.Floor(points[index].X / reach), (int)MathF.Floor(points[index].Y / reach));
+            if (!buckets.TryGetValue(key, out var bucket))
+            {
+                buckets[key] = bucket = [];
+            }
+
+            bucket.Add(index);
+        }
+
+        bool[] taken = new bool[points.Length];
+        for (int seed = 0; seed < points.Length; seed++)
+        {
+            if (taken[seed])
+            {
+                continue;
+            }
+
+            taken[seed] = true;
             var group = new List<int> { seed };
             for (int groupIndex = 0; groupIndex < group.Count; groupIndex++)
             {
                 var point = points[group[groupIndex]];
-                foreach (int other in left.Where(other => Math.Abs(points[other].X - point.X) <= reach && Math.Abs(points[other].Y - point.Y) <= reach
-                                                          && GetDistance(points[other].X, points[other].Y, point.X, point.Y) <= reach).ToArray())
+                int column = (int)MathF.Floor(point.X / reach), row = (int)MathF.Floor(point.Y / reach);
+                var near = new List<int>();
+                for (int dx = -1; dx <= 1; dx++)
                 {
-                    left.Remove(other);
+                    for (int dy = -1; dy <= 1; dy++)
+                    {
+                        if (buckets.TryGetValue(new Point(column + dx, row + dy), out var bucket))
+                        {
+                            near.AddRange(bucket.Where(other => !taken[other] && Math.Abs(points[other].X - point.X) <= reach && Math.Abs(points[other].Y - point.Y) <= reach
+                                                                && GetDistance(points[other].X, points[other].Y, point.X, point.Y) <= reach));
+                        }
+                    }
+                }
+
+                near.Sort();
+                foreach (int other in near)
+                {
+                    taken[other] = true;
                     group.Add(other);
                 }
             }

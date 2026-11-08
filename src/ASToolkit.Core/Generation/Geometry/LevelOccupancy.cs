@@ -30,7 +30,7 @@ public sealed class LevelOccupancy
     private readonly Func<KnownObject, KnownObject, bool, float> _spacingOf;
     private readonly List<StandingPiece> _standing = [];
     private readonly List<StandingPiece> _raised = [];
-    private readonly List<PointF> _units = [];
+    private readonly Dictionary<Point, List<PointF>> _units = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="LevelOccupancy"/> class.
@@ -69,7 +69,7 @@ public sealed class LevelOccupancy
     {
         if (IsUnit(id))
         {
-            return !_units.Any(unit => MathF.Abs(unit.X - x) < UnitGap && MathF.Abs(unit.Y - y) < UnitGap);
+            return !IsNearUnit(x, y);
         }
 
         if (id.PickupCategory is not null)
@@ -170,7 +170,13 @@ public sealed class LevelOccupancy
     {
         if (IsUnit(id))
         {
-            _units.Add(new PointF(x, y));
+            var key = new Point((int)MathF.Floor(x / UnitGap), (int)MathF.Floor(y / UnitGap));
+            if (!_units.TryGetValue(key, out var bucket))
+            {
+                _units[key] = bucket = [];
+            }
+
+            bucket.Add(new PointF(x, y));
             return;
         }
 
@@ -268,4 +274,22 @@ public sealed class LevelOccupancy
     private bool IsWall(EdgeKey edge) => _edges.TryGetValue(edge, out var kind) && kind.BlocksWalking;
 
     private readonly record struct StandingPiece(KnownObject Id, Vector3 Size, bool IsSolid, float X, float Y);
+
+    private bool IsNearUnit(float x, float y)
+    {
+        int column = (int)MathF.Floor(x / UnitGap), row = (int)MathF.Floor(y / UnitGap);
+        for (int dx = -1; dx <= 1; dx++)
+        {
+            for (int dy = -1; dy <= 1; dy++)
+            {
+                if (_units.TryGetValue(new Point(column + dx, row + dy), out var bucket)
+                    && bucket.Exists(unit => MathF.Abs(unit.X - x) < UnitGap && MathF.Abs(unit.Y - y) < UnitGap))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 }

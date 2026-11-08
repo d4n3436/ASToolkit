@@ -3,6 +3,7 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>ASToolkit.Cli</RootNamespace>
     <AssemblyName>ascli</AssemblyName>
+    <TieredCompilation>false</TieredCompilation>
   </PropertyGroup>
   <ItemGroup>
     <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5" />

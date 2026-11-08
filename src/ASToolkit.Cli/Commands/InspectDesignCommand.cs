@@ -19,7 +19,7 @@ namespace ASToolkit.Cli.Commands;
 
 internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
 {
-    private const int MaxLevelsAtOnce = 3;
+    private static readonly int MaxLevelsAtOnce = Environment.ProcessorCount;
     private const float RareFrameShare = 0.05f;
     private const int MinFrameSamples = 5;
     private const float MinWallShare = 0.3f;
@@ -52,14 +52,14 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
             ? AnsiConsole.Status().Start("Analyzing the original levels", _ => ReferenceLevelSet.Load(settings.Game, objects))
             : null;
         var fitter = new StyleFitter(objects, GameTable.Load(Path.Combine(settings.Game, "Maps", "common_table.lgc")));
-        var (generated, provenance, layoutCounts, _) = references is null
-            ? ([], [], new Dictionary<string, int>(), [])
-            : Generate(new LevelGenerator(settings.Game, objects, references, fitter.Fit(references, GenerationStyle.Campaign)), settings.Out, settings.Seeds, false, cancellationToken);
+        var (generated, provenance, layoutCounts) = references is null
+            ? ([], [], new Dictionary<string, int>())
+            : AnsiConsole.Status().Start("Generating the levels", _ => Generate(new LevelGenerator(settings.Game, objects, references, fitter.Fit(references, GenerationStyle.Campaign)), settings.Out, settings.Seeds, cancellationToken));
         var renderer = settings.Images ? new MapRenderer(settings.Game, objects) : null;
 
         var all = campaign.Concat(addOns).Concat(generated).ToArray();
         var loader = new LevelLoader(objects);
-        var (levels, measures) = AnsiConsole.Status().Start("Measuring the levels", _ => Measure(all, loader, objects, level =>
+        var (levels, measures) = AnsiConsole.Status().Start("Measuring the levels", _ => Measure(all, loader, references, objects, level =>
         {
             if (renderer is not null)
             {
@@ -117,7 +117,7 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         return measures.All(measure => measure is not null) ? 0 : 1;
     }
 
-    private static (ReferenceLevel?[] Levels, DesignMeasures?[] Measures) Measure((string Name, string Path)[] entries, LevelLoader loader, ObjectTable objects,
+    private static (ReferenceLevel?[] Levels, DesignMeasures?[] Measures) Measure((string Name, string Path)[] entries, LevelLoader loader, ReferenceLevelSet? references, ObjectTable objects,
         Action<ReferenceLevel> onLoaded,
         CancellationToken cancellationToken)
     {
@@ -126,7 +126,7 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         var options = new ParallelOptions { MaxDegreeOfParallelism = MaxLevelsAtOnce, CancellationToken = cancellationToken };
         Parallel.For(0, entries.Length, options, index =>
         {
-            var level = loader.Load(entries[index].Name, entries[index].Path);
+            var level = references is not null && references.LevelNames.Contains(entries[index].Name) ? references.GetLevel(entries[index].Name) : loader.Load(entries[index].Name, entries[index].Path);
             if (level is not null)
             {
                 levels[index] = level;
@@ -150,49 +150,75 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
             .Select(values => values.Length == 0 ? ((float Min, float Max)?)null : (values.Min(), values.Max()))
             .ToArray();
 
-        foreach (string excluded in StyleFitter.GetFittingLevels(GenerationStyle.Campaign))
+        var excludedLevels = StyleFitter.GetFittingLevels(GenerationStyle.Campaign);
+        var generators = new LevelGenerator[excludedLevels.Count];
+        var jobs = Enumerable.Range(0, excludedLevels.Count)
+            .SelectMany(excluded => Enumerable.Range(1, settings.Seeds).SelectMany(seed => ReferenceLevelSet.CampaignLevels.Select(level => (Excluded: excluded, Seed: seed, Level: level))))
+            .ToArray();
+
+        var measures = new DesignMeasures?[jobs.Length];
+        string?[] failures = new string?[jobs.Length];
+        var options = new ParallelOptions { MaxDegreeOfParallelism = MaxLevelsAtOnce, CancellationToken = cancellationToken };
+        AnsiConsole.Status().Start("Leaving each original out", _ =>
         {
-            var generator = new LevelGenerator(settings.Game, objects, references, fitter.Fit(references, GenerationStyle.Campaign, [excluded]));
-            string folder = Path.Combine(settings.Out, "leave-one-out", Path.GetFileNameWithoutExtension(excluded));
-            (var levels, _, _, string?[] failures) = Generate(generator, folder, settings.Seeds, true, cancellationToken);
+            Parallel.For(0, excludedLevels.Count, options, index =>
+                generators[index] = new LevelGenerator(settings.Game, objects, references, fitter.Fit(references, GenerationStyle.Campaign, [excludedLevels[index]])));
 
-            var written = levels
-                .Where(level => File.Exists(level.Path))
-                .ToArray();
+            Parallel.For(0, jobs.Length, options, index =>
+            {
+                (int excluded, int seed, int number) = jobs[index];
+                string folder = Path.Combine(settings.Out, "leave-one-out", Path.GetFileNameWithoutExtension(excludedLevels[excluded]), $"seed_{seed}");
+                Directory.CreateDirectory(folder);
+                string path = Path.Combine(folder, ReferenceLevelSet.GetCampaignName(number));
+                try
+                {
+                    var level = generators[excluded].Generate(seed, number);
+                    level.Write(path, generators[excluded].GetTemplatePath(level));
+                }
+                catch (Exception exception)
+                {
+                    failures[index] = GetFailure(exception);
+                    return;
+                }
 
-            var measured = AnsiConsole.Status().Start($"Measuring without {excluded}", _ => Measure(written, loader, objects, _ => { }, cancellationToken).Measures)
-                .Zip(written)
-                .Where(pair => pair.First is not null && full.ContainsKey(pair.Second.Name))
-                .ToArray();
+                var loaded = loader.Load($"seed_{seed}/{ReferenceLevelSet.GetCampaignName(number)}", path, isOriginal: false);
+                measures[index] = loaded is null ? null : DesignMeasurer.Measure(loaded.Model, loaded.Analysis, loaded.Survey, objects);
+            });
+        });
 
-            var measures = measured
-                .Select(pair => pair.First!)
-                .ToArray();
-
-            var fullMeasures = measured
-                .Select(pair => full[pair.Second.Name])
+        string[] lines = new string[excludedLevels.Count];
+        for (int excludedIndex = 0; excludedIndex < excludedLevels.Count; excludedIndex++)
+        {
+            int[] mine = Enumerable.Range(0, jobs.Length).Where(index => jobs[index].Excluded == excludedIndex).ToArray();
+            var measured = mine
+                .Select(index => (Measure: measures[index], Name: $"seed_{jobs[index].Seed}/{ReferenceLevelSet.GetCampaignName(jobs[index].Level)}"))
+                .Where(pair => pair.Measure is not null && full.ContainsKey(pair.Name))
                 .ToArray();
 
             var left = new List<string>();
             for (int index = 0; index < rows.Count; index++)
             {
                 var band = bands[index];
-                float? fitted = rows[index].Value(fullMeasures);
-                float? value = rows[index].Value(measures);
+                float? fitted = rows[index].Value(measured.Select(pair => full[pair.Name]).ToArray());
+                float? value = rows[index].Value(measured.Select(pair => pair.Measure!).ToArray());
                 if (band is not null && fitted is not null && value is not null && IsWithin(fitted.Value, band.Value) && !IsWithin(value.Value, band.Value))
                 {
                     left.Add($"{rows[index].Name} ({Format(fitted)}, {Format(value)}, {Format(band.Value.Min)} to {Format(band.Value.Max)})");
                 }
             }
 
-            string[] failed = levels
-                .Zip(failures)
-                .Where(pair => pair.Second is not null)
-                .GroupBy(pair => (Level: Path.GetFileName(pair.First.Path), Reason: pair.Second))
+            string[] failed = mine
+                .Where(index => failures[index] is not null)
+                .GroupBy(index => (Level: ReferenceLevelSet.GetCampaignName(jobs[index].Level), Reason: failures[index]))
                 .Select(group => $"{group.Key.Level} ×{group.Count()} ({group.Key.Reason})")
                 .ToArray();
 
-            text.AppendLine($"| {excluded} | {(failed.Length == 0 ? "none" : string.Join(", ", failed))} | {(left.Count == 0 ? "none" : string.Join("; ", left))} |");
+            lines[excludedIndex] = $"| {excludedLevels[excludedIndex]} | {(failed.Length == 0 ? "none" : string.Join(", ", failed))} | {(left.Count == 0 ? "none" : string.Join("; ", left))} |";
+        }
+
+        foreach (string line in lines)
+        {
+            text.AppendLine(line);
         }
 
         File.WriteAllText(Path.Combine(settings.Out, "leave-one-out.md"), text.ToString());
@@ -201,9 +227,9 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         static bool IsWithin(float value, (float Min, float Max) band) => value >= band.Min && value <= band.Max;
     }
 
-    private static (List<(string Name, string Path)> Levels, IReadOnlyDictionary<SpriteSource, int>[] Provenance, Dictionary<string, int> LayoutCounts, string?[] Failures) Generate(
+    private static (List<(string Name, string Path)> Levels, IReadOnlyDictionary<SpriteSource, int>[] Provenance, Dictionary<string, int> LayoutCounts) Generate(
         LevelGenerator generator,
-        string folder, int seeds, bool skipsFailures, CancellationToken cancellationToken)
+        string folder, int seeds, CancellationToken cancellationToken)
     {
         var levels = new List<(string Name, string Path)>();
 
@@ -219,38 +245,33 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         }
 
         var provenance = new IReadOnlyDictionary<SpriteSource, int>[jobs.Length];
-        var counts = new IReadOnlyDictionary<string, int>?[jobs.Length];
-        string?[] failures = new string?[jobs.Length];
+        var counts = new IReadOnlyDictionary<string, int>[jobs.Length];
         var options = new ParallelOptions { MaxDegreeOfParallelism = MaxLevelsAtOnce, CancellationToken = cancellationToken };
-        AnsiConsole.Status().Start("Generating the levels", _ => Parallel.For(0, jobs.Length, options, index =>
+        Parallel.For(0, jobs.Length, options, index =>
         {
             File.Delete(levels[index].Path);
-            try
-            {
-                var level = generator.Generate(jobs[index].Seed, jobs[index].Level);
-                level.Write(levels[index].Path, generator.GetTemplatePath(level));
-                provenance[index] = level.Provenance;
-                counts[index] = level.LayoutCounts;
-            }
-            catch (Exception exception) when (skipsFailures)
-            {
-                provenance[index] = new Dictionary<SpriteSource, int>();
+            var level = generator.Generate(jobs[index].Seed, jobs[index].Level);
+            level.Write(levels[index].Path, generator.GetTemplatePath(level));
+            provenance[index] = level.Provenance;
+            counts[index] = level.LayoutCounts;
+        });
 
-                var site = new StackTrace(exception).GetFrames()
-                    .Select(frame => frame.GetMethod())
-                    .FirstOrDefault(method => method?.DeclaringType?.Namespace?.StartsWith("ASToolkit", StringComparison.Ordinal) == true);
-
-                failures[index] = $"{exception.GetType().Name} in {site?.DeclaringType?.Name}.{site?.Name}";
-            }
-        }));
-
-        var total = new Dictionary<string, int> { ["levels"] = counts.Count(count => count is not null) };
-        foreach ((string name, int count) in counts.OfType<IReadOnlyDictionary<string, int>>().SelectMany(count => count))
+        var total = new Dictionary<string, int> { ["levels"] = counts.Length };
+        foreach ((string name, int count) in counts.SelectMany(count => count))
         {
             total[name] = total.GetValueOrDefault(name) + count;
         }
 
-        return (levels, provenance, total, failures);
+        return (levels, provenance, total);
+    }
+
+    private static string GetFailure(Exception exception)
+    {
+        var site = new StackTrace(exception).GetFrames()
+            .Select(frame => frame.GetMethod())
+            .FirstOrDefault(method => method?.DeclaringType?.Namespace?.StartsWith("ASToolkit", StringComparison.Ordinal) == true);
+
+        return $"{exception.GetType().Name} in {site?.DeclaringType?.Name}.{site?.Name}";
     }
 
     private static void WriteLevels(InspectDesignSettings settings, string[] names, DesignMeasures?[] measures)
