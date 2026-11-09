@@ -233,7 +233,11 @@ The damage of an attack belongs to the object created in the attacker's `ANI_FIG
 
 A spawned object starts at the speed in the record, the movement step raises the speed by the acceleration until it reaches that value and lowers it by the deceleration when the object stops, and the vertical speed feeds the height. Alien Shooter 2 picks the initial speed and the initial vertical speed at random between the minimum and the maximum of the record.
 
-When an object hits something, the blast sends every object within its footprint plus the blast radius a damage message. An object with the explosive flag scales the damage down with the distance, and one without it deals the full damage. Alien Shooter 2 rolls the damage between the minimum and the maximum, and the push adds a speed to each object it hits.
+When an object hits something, the blast sends every object within its footprint plus the blast radius a damage message. An object with the explosive flag scales the damage down with the distance, and one without it deals the full damage. In Alien Shooter the blast reaches objects with nonzero `maxHp` whose box overlaps the object's box, and an explosive object deals `damage × (1 − distance / radius)`, truncated, to those within its radius, measuring the distance as the attack check does. Alien Shooter 2 rolls the damage between the minimum and the maximum, and the push adds a speed to each object it hits. An object with `maxHp` 0 never takes a blast or a direct damage message. The endless monster generators carry no hit points. A dynamite blast removes them through a separate check, not through this damage path.
+
+A unit with the stagger flag set, after taking a hit with positive damage while standing or walking, is forced into its `ANI_CLOSE` state.
+
+In Alien Shooter the player's legs take a damage message by their own rule. No damage lands while the invulnerability object (203) or object 181 is linked to the player. Each armor object (200 to 202) in the link chain takes `(share × damage + 50) / 100` of it, and the player's damage drops by `share × damage / 100`, truncated, with shares of 50, 70 and 90 percent. Damage that would kill the player while carrying the rescue kit (item 230) removes the item, restores full health and creates its effect (181) instead. The player inside the mounted cannon (350) takes damage without armor.
 
 A linked object (`VID_LINK`) is created together with its owner and follows it. It can have a linked object of its own. It is placed at the position of the owner plus an offset:
 
