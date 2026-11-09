@@ -3,6 +3,7 @@ using System.Drawing;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Generation;
 using ASToolkit.Core.Generation.Layout;
+using ASToolkit.Core.Generation.Output;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Routes;
 using ASToolkit.Core.Reference;
@@ -17,6 +18,8 @@ public class LevelGeneratorIntegrationTests
     private const float HitPointSlack = 0.1f;
     private const float MonsterGap = 12;
     private const float HalfScreenWidth = 640;
+    private const float BlastReach = 100;
+    private const float GeneratorWallReach = 1;
     private const float HalfScreenHeight = 360;
     private const int MixedFamily = 4;
     private const float MostVariantShare = 0.75f;
@@ -100,7 +103,7 @@ public class LevelGeneratorIntegrationTests
             }
 
             var fighters = level.Map.Sprites
-                .Where(sprite => KnownObject.Monsters.Contains(sprite.Id) || KnownObject.Bosses.Contains(sprite.Id) || sprite.Id == KnownObject.Spawner)
+                .Where(sprite => KnownObject.Monsters.Contains(sprite.Id) || KnownObject.Bosses.Contains(sprite.Id) || IsAmbushSpawner(sprite.Id, sprite.Payload))
                 .ToArray();
 
             var spots = fighters
@@ -130,7 +133,7 @@ public class LevelGeneratorIntegrationTests
         foreach (((int seed, int number), var level) in CampaignLevels.Value.Where(pair => pair.Value.Plan is not null).OrderBy(pair => pair.Key))
         {
             var triggers = level.Map.Sprites
-                .Where(sprite => sprite.Id == KnownObject.Spawner)
+                .Where(sprite => IsAmbushSpawner(sprite.Id, sprite.Payload))
                 .Select(sprite => SpawnerProgram.Parse(sprite.Payload)?.Trigger)
                 .Where(trigger => trigger is not null)
                 .Select(trigger => level.Layout!.Lattice.GetCell(trigger!.Value.X, trigger.Value.Y));
@@ -170,13 +173,65 @@ public class LevelGeneratorIntegrationTests
     }
 
     [Fact]
+    public void Generate_BothStyles_StandWhatABlastKillsWithinItsReachOfASite()
+    {
+        var broken = new List<string>();
+        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
+        {
+            var sites = level.Map.Sprites.Where(sprite => sprite.Id == KnownObject.DynamiteSite).Select(sprite => new PointF(sprite.Position.X, sprite.Position.Y)).ToArray();
+            int far = level.Map.Sprites
+                .Where(sprite => sprite.Id.IsEndlessGenerator || sprite.Id == KnownObject.Spawner && !IsAmbushSpawner(sprite.Id, sprite.Payload))
+                .Count(sprite => !sites.Any(site => MathF.Sqrt(MathF.Pow(site.X - sprite.Position.X, 2) + MathF.Pow(site.Y - sprite.Position.Y, 2)) < BlastReach));
+
+            if (far > 0)
+            {
+                broken.Add($"{style} seed {seed} level {number}: {far} endless generators or their spawners beyond a blast's reach");
+            }
+        }
+
+        Assert.Empty(broken);
+    }
+
+    [Fact]
+    public void Generate_BothStyles_StandGeneratorsByAFarWall()
+    {
+        var broken = new List<string>();
+        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
+        {
+            var layout = level.Layout!;
+            int loose = level.Map.Sprites
+                .Where(sprite => sprite.Id == KnownObject.Generator)
+                .Select(sprite => layout.Lattice.ToLattice(sprite.Position.X, sprite.Position.Y))
+                .Count(point => layout.Edges.FindNearestWall(point.U, point.V) is not { Side: WallSides.UpperBack or WallSides.UpperSlash, Distance: <= GeneratorWallReach });
+
+            if (loose > 0)
+            {
+                broken.Add($"{style} seed {seed} level {number}: {loose} generators away from a far wall");
+            }
+        }
+
+        Assert.Empty(broken);
+    }
+
+    [Fact]
+    public void Generate_BothStyles_CopyNoScenesIntoIndoorLevels()
+    {
+        string[] copied = GetIndoorLevels()
+            .Where(entry => entry.Level.Provenance.GetValueOrDefault(SpriteSource.CopiedScene) > 0)
+            .Select(entry => $"{entry.Style} seed {entry.Seed} level {entry.Number}")
+            .ToArray();
+
+        Assert.Empty(copied);
+    }
+
+    [Fact]
     public void Generate_BothStyles_StandSpawnersOffTheScreenAroundTheirTriggers()
     {
         var broken = new List<string>();
         foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
         {
             int seen = level.Map.Sprites
-                .Where(sprite => sprite.Id == KnownObject.Spawner)
+                .Where(sprite => IsAmbushSpawner(sprite.Id, sprite.Payload))
                 .Select(sprite => (sprite.Position, SpawnerProgram.Parse(sprite.Payload)?.Trigger))
                 .Where(pair => pair.Trigger is not null && level.Plan!.Regions[level.Layout!.Cells.GetValueOrDefault(level.Layout.Lattice.GetCell(pair.Position.X, pair.Position.Y), 0)].Kind != RegionKind.SpawnCloset)
                 .Count(pair => Math.Abs(pair.Position.X - pair.Trigger!.Value.X) < HalfScreenWidth + pair.Trigger.Value.Radius
@@ -200,7 +255,7 @@ public class LevelGeneratorIntegrationTests
             var plan = level.Plan!;
             var layout = level.Layout!;
             var triggers = level.Map.Sprites
-                .Select(sprite => sprite.Id == KnownObject.Spawner ? SpawnerProgram.Parse(sprite.Payload)?.Trigger : null)
+                .Select(sprite => IsAmbushSpawner(sprite.Id, sprite.Payload) ? SpawnerProgram.Parse(sprite.Payload)?.Trigger : null)
                 .Where(trigger => trigger is not null)
                 .Select(trigger => trigger!.Value)
                 .Distinct()
@@ -441,7 +496,7 @@ public class LevelGeneratorIntegrationTests
             for (int index = 0; index < sites.Length; index++)
             {
                 var site = sites[index];
-                int before = charges.Count(charge => charge.Phase < site.Phase || charge.Phase == site.Phase && (charge.Walk < site.Walk || charge.Region == site.Region));
+                int before = charges.Count(charge => charge.Phase < site.Phase || charge.Phase == site.Phase && (charge.Walk <= site.Walk || charge.Region == site.Region));
                 if (before <= index)
                 {
                     broken.Add($"{style} seed {seed} level {number}: site {index + 1} with {before} charges before it");
@@ -484,6 +539,12 @@ public class LevelGeneratorIntegrationTests
         generator.Generate(3, 6).Write(second, generator.GetTemplatePath(level));
         Assert.Equal(File.ReadAllBytes(first), File.ReadAllBytes(second));
         Assert.Equal(File.ReadAllBytes(Path.ChangeExtension(first, ".lgc")), File.ReadAllBytes(Path.ChangeExtension(second, ".lgc")));
+    }
+
+    private static bool IsAmbushSpawner(KnownObject id, ReadOnlyMemory<byte> payload)
+    {
+        var program = id == KnownObject.Spawner ? SpawnerProgram.Parse(payload.Span) : null;
+        return id == KnownObject.Spawner && (program is null || !program.Monsters.Any() || program.Monsters.Any(monster => !monster.IsEndlessGenerator));
     }
 
     private static void FindFaults(GeneratedLevel level, string name, ConcurrentBag<string> faults)

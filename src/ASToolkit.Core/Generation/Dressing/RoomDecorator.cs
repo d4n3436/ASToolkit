@@ -14,11 +14,8 @@ public static class RoomDecorator
     private const int BloodSource = -5;
     private const int PlantSource = -3;
     private const float BloodReach = 40;
-    private const float MissileReach = 120;
     private const int GibCount = 3;
-    private const float MissileMarkReach = 90;
     private const float WallSignHeight = 60;
-    private const int MarkSource = -6;
 
     /// <summary>
     /// Thins the blood and the corpses to their rates per floor cell, leaves blood in the last two stations with a corpse and gibs in the
@@ -141,43 +138,6 @@ public static class RoomDecorator
     }
 
     /// <summary>
-    /// Lays the floor stripes of an original missile three with the same facing in front of missile threes that have none, as often as
-    /// the originals do, where every stripe lands on open floor.
-    /// </summary>
-    public static void MarkMissiles(Random rng, List<PlacedDecor> decor, IReadOnlyDictionary<byte, List<IReadOnlyList<PropPlacement>>> marks, float share,
-        IReadOnlySet<Cell> floor, IReadOnlySet<Cell> keepClear, Lattice lattice)
-    {
-        int index = 0;
-        var missiles = decor.Where(piece => piece.Id == KnownObject.Missile).ToList();
-        var seen = new HashSet<PlacedDecor>(ReferenceEqualityComparer.Instance);
-        foreach (var middle in missiles.Where(piece => missiles.Count(other => !ReferenceEquals(other, piece) && IsNear(lattice, piece, other, MissileReach)) == 2).ToArray())
-        {
-            var three = missiles.Where(other => IsNear(lattice, middle, other, MissileReach)).ToArray();
-            if (three.Any(seen.Contains))
-            {
-                continue;
-            }
-
-            seen.UnionWith(three);
-            if (decor.Any(piece => piece.Id == KnownObject.WallInscriptions && three.Any(missile => IsNear(lattice, piece, missile, MissileMarkReach)))
-                || rng.NextSingle() >= share || !marks.TryGetValue(three[0].Dir, out var scenes))
-            {
-                continue;
-            }
-
-            var center = three.MinBy(piece => three.Sum(other => Distance(lattice, piece, other)))!;
-            (float x, float y) = lattice.ToWorld(center.U, center.V);
-            var stripes = scenes[rng.Next(scenes.Count)]
-                .Select(prop => (Prop: prop, Position: lattice.ToLattice(x + prop.Dx, y + prop.Dy)))
-                .ToArray();
-            if (stripes.All(stripe => floor.Contains(GetCell(stripe.Position.U, stripe.Position.V)) && !keepClear.Contains(GetCell(stripe.Position.U, stripe.Position.V))))
-            {
-                decor.AddRange(stripes.Select(stripe => new PlacedDecor(stripe.Prop.Id, stripe.Position.U, stripe.Position.V, stripe.Prop.Z, stripe.Prop.Dir, [], (MarkSource, index++), null, SpriteSource.CopiedScene)));
-            }
-        }
-    }
-
-    /// <summary>
     /// Returns whether an object at a height is one of the floor stripes laid in front of missiles.
     /// </summary>
     public static bool IsMissileMark(KnownObject id, float z) => id == KnownObject.WallInscriptions && z < WallSignHeight;
@@ -197,13 +157,6 @@ public static class RoomDecorator
     private static Cell GetCell(PlacedDecor piece) => GetCell(piece.U, piece.V);
 
     private static Cell GetCell(float u, float v) => new((int)MathF.Floor(u), (int)MathF.Floor(v));
-
-    private static float Distance(Lattice lattice, PlacedDecor piece, PlacedDecor other)
-    {
-        (float x, float y) = lattice.ToWorld(piece.U, piece.V);
-        (float ox, float oy) = lattice.ToWorld(other.U, other.V);
-        return MathF.Sqrt((x - ox) * (x - ox) + (y - oy) * (y - oy));
-    }
 
     private static bool IsNear(Lattice lattice, PlacedDecor piece, PlacedDecor other, float reach)
     {

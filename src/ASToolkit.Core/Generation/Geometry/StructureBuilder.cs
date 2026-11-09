@@ -26,6 +26,17 @@ public static class StructureBuilder
     private const float EarthStepX = 40;
     private const float EarthStepY = 28;
     private static readonly (int Min, int Max) StuckDoorZ = (13, 35);
+    private const float BigHoleShare = 0.67f;
+    private static readonly Dictionary<KnownObject, float> BrokenKeypadShares = new() { [KnownObject.SmallDoorFrame] = 0.97f, [KnownObject.DoubleDoorFrame] = 0.85f };
+
+    private static readonly Dictionary<KnownObject, Dictionary<int, KeypadSpot>> Keypads = new()
+    {
+        [KnownObject.SmallDoor] = new() { [0] = new(new PointF(0, 7), 6, 0), [128] = new(new PointF(3, 1), 6, 128) },
+        [KnownObject.DoubleDoor] = new() { [0] = new(new PointF(-2, 5), 4, 0), [64] = new(new PointF(0, 0), 4, 128) },
+        [KnownObject.SmallDoorFrame] = new() { [0] = new(new PointF(-1, 1), 4, 0), [128] = new(new PointF(5, 4), 10, 128) },
+        [KnownObject.DoubleDoorFrame] = new() { [0] = new(new PointF(-2, 6), 5, 0), [128] = new(new PointF(3, 2), 10, 128) }
+    };
+
     private static readonly int[] BasementWallDirs = [0, 0, 0, 0, 0, 0, 128, 128, 128, 64, 64, 32];
     private static readonly int[] ConcreteWallDirs = [0, 0, 0, 0, 0, 85, 85, 170];
     private static readonly int[] BeamDirs = [128, 128, 0];
@@ -120,12 +131,24 @@ public static class StructureBuilder
         }
     }
 
+    private static void AddDoor(Random rng, MapBuilder map, KnownObject door, float x, float y, float z, bool slash, bool locked)
+    {
+        int dir = door == KnownObject.DoubleDoor ? slash ? 0 : 64 : slash ? 0 : 128;
+        map.Add(door, x, y, z, dir);
+        var keypad = Keypads[door][dir];
+        bool working = door is KnownObject.SmallDoor or KnownObject.DoubleDoor;
+        if (working || rng.NextSingle() < BrokenKeypadShares[door])
+        {
+            map.Add(working ? locked ? KnownObject.KeypadOff : KnownObject.KeypadOn : KnownObject.BrokenKeypad, x + keypad.Offset.X, y + keypad.Offset.Y, keypad.Z, keypad.Dir);
+        }
+    }
+
     /// <summary>
-    /// Builds the basement floors, walls, doors and posts of the visible edges, then the walls, sunk under the roof and without posts, that
-    /// close the closets off from the void, and returns the sprite index of each spawn wall.
+    /// Builds the basement floors, walls, monster holes, doors with their keypads and posts of the visible edges, then the walls, sunk under the
+    /// roof and without posts, that close the closets off from the void, and returns the sprite index of each spawn wall.
     /// </summary>
     public static Dictionary<EdgeKey, int> BuildBasement(Random rng, MapBuilder map, FineLayout layout, IReadOnlyDictionary<EdgeKey, EdgeKind> edges,
-        Random closetRng, IReadOnlyDictionary<EdgeKey, EdgeKind> closetEdges)
+        Random closetRng, IReadOnlyDictionary<EdgeKey, EdgeKind> closetEdges, IReadOnlySet<EdgeKey> holes, bool locked)
     {
         var floor = GetCellsWithin(layout.Cells.Keys, BasementFloorReach).Keys.OrderBy(c => c.U).ThenBy(c => c.V);
         AddTiles(rng, map, KnownObject.BasementFloor, 0, floor.Select(layout.Lattice.GetCenter));
@@ -140,7 +163,7 @@ public static class StructureBuilder
         {
             ((float x, float y), bool slash) = GetBasementPosition(layout.Lattice, piece);
             map.Add(isDouble ? KnownObject.DoubleDoorWall : KnownObject.SmallDoorWall, x, y, 0, slash ? 0 : 128);
-            map.Add(isDouble ? KnownObject.DoubleDoorFrame : KnownObject.SmallDoorFrame, x, y, isDouble ? RaisedDoubleDoorZ : RaisedSmallDoorZ, slash ? 0 : 128);
+            AddDoor(rng, map, isDouble ? KnownObject.DoubleDoorFrame : KnownObject.SmallDoorFrame, x, y, isDouble ? RaisedDoubleDoorZ : RaisedSmallDoorZ, slash, locked);
         }
 
         foreach (var (edge, kind) in edges)
@@ -155,11 +178,11 @@ public static class StructureBuilder
             {
                 case EdgeKind.DoubleDoor:
                     map.Add(KnownObject.DoubleDoorWall, x, y, 0, slash ? 0 : 128);
-                    map.Add(KnownObject.DoubleDoor, x, y, 0, slash ? 0 : 64);
+                    AddDoor(rng, map, KnownObject.DoubleDoor, x, y, 0, slash, locked);
                     break;
                 case EdgeKind.Door:
                     map.Add(KnownObject.SmallDoorWall, x, y, 0, slash ? 0 : 128);
-                    map.Add(KnownObject.SmallDoor, x, y, 0, slash ? 0 : 128);
+                    AddDoor(rng, map, KnownObject.SmallDoor, x, y, 0, slash, locked);
                     break;
                 case EdgeKind.SecretWall:
                     map.Add(KnownObject.BreakableWall, x, y, 0, slash ? 0 : 128);
@@ -169,14 +192,18 @@ public static class StructureBuilder
                     break;
                 case EdgeKind.ShutDoor:
                     map.Add(KnownObject.SmallDoorWall, x, y, 0, slash ? 0 : 128);
-                    map.Add(KnownObject.SmallDoorFrame, x, y, 0, slash ? 0 : 128);
+                    AddDoor(rng, map, KnownObject.SmallDoorFrame, x, y, 0, slash, locked);
                     break;
                 default:
                     if (layout.FakeDoors.TryGetValue(edge, out bool isDouble))
                     {
                         map.Add(isDouble ? KnownObject.DoubleDoorWall : KnownObject.SmallDoorWall, x, y, 0, slash ? 0 : 128);
                         int z = rng.NextSingle() < StuckDoorChance ? -rng.Next(StuckDoorZ.Min, StuckDoorZ.Max + 1) : 0;
-                        map.Add(isDouble ? KnownObject.DoubleDoorFrame : KnownObject.SmallDoorFrame, x, y, z, slash ? 0 : 128);
+                        AddDoor(rng, map, isDouble ? KnownObject.DoubleDoorFrame : KnownObject.SmallDoorFrame, x, y, z, slash, locked);
+                    }
+                    else if (holes.Contains(edge))
+                    {
+                        map.Add(rng.NextSingle() < BigHoleShare ? KnownObject.BigMonsterHole : KnownObject.SmallMonsterHole, x, y, 0, slash ? 0 : 128);
                     }
                     else
                     {
@@ -509,3 +536,5 @@ public static class StructureBuilder
         }
     }
 }
+
+internal readonly record struct KeypadSpot(PointF Offset, float Z, byte Dir);

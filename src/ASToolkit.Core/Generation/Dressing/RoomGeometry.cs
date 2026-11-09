@@ -49,6 +49,25 @@ internal sealed class RoomGeometry
             }
         }
 
+        int minU = Cells.Min(cell => cell.U) - 1, maxU = Cells.Max(cell => cell.U) + 1, minV = Cells.Min(cell => cell.V) - 1, maxV = Cells.Max(cell => cell.V) + 1;
+        var outside = new HashSet<Cell> { new(minU, minV) };
+        var open = new Queue<Cell>(outside);
+        while (open.TryDequeue(out var cell))
+        {
+            foreach (var (next, _) in EdgeKey.GetNeighbors(cell))
+            {
+                if (next.U >= minU && next.U <= maxU && next.V >= minV && next.V <= maxV && !Cells.Contains(next) && outside.Add(next))
+                {
+                    open.Enqueue(next);
+                }
+            }
+        }
+
+        Pillars = Enumerable.Range(minU, maxU - minU + 1)
+            .SelectMany(u => Enumerable.Range(minV, maxV - minV + 1).Select(v => new Cell(u, v)))
+            .Where(cell => !Cells.Contains(cell) && !outside.Contains(cell))
+            .ToHashSet();
+
         Interior = Cells.Where(cell => Faces[cell] == 0 && new Cell[] { new(cell.U + 1, cell.V), new(cell.U - 1, cell.V), new(cell.U, cell.V + 1), new(cell.U, cell.V - 1) }.All(Cells.Contains)).ToArray();
 
         foreach (int face in new[] { PlusU, MinusV, MinusU, PlusV })
@@ -86,6 +105,18 @@ internal sealed class RoomGeometry
     public HashSet<Cell> Openings { get; } = [];
 
     public HashSet<Cell> Kept { get; }
+
+    public HashSet<Cell> Pillars { get; }
+
+    public static Point GetNormal(int face) => face switch
+    {
+        PlusU => new Point(1, 0),
+        MinusV => new Point(0, -1),
+        MinusU => new Point(-1, 0),
+        _ => new Point(0, 1)
+    };
+
+    public static Cell GetBeyond(Cell cell, int face) => new(cell.U + GetNormal(face).X, cell.V + GetNormal(face).Y);
 
     public List<WallLine> Walls { get; } = [];
 

@@ -86,7 +86,6 @@ internal sealed class PickupPlacer
     }
 
     // Lays a new weapon off the walks to the objectives or in a secret closet, else past the start,
-    // with one of its ammunition pickups on the first half of its walk, else earlier on it
     private bool HideWeapon(KnownObject weapon, List<KnownObject> items)
     {
         var hiding = _ctx.Plan.Regions
@@ -106,7 +105,8 @@ internal sealed class PickupPlacer
                 .Where(cell => _ctx.Layout.Cells.GetValueOrDefault(cell, -1) != region.Id && _ctx.IsFree(cell))
                 .ToArray();
 
-            if (cells.Length == 0 || ammo >= 0 && earlier.Length == 0 || _ctx.Place(cells, weapon, dir: 0) is null)
+            var open = cells.Where(cell => IsOpenFor(weapon, cell)).ToArray();
+            if (open.Length == 0 || ammo >= 0 && earlier.Length == 0)
             {
                 continue;
             }
@@ -114,16 +114,31 @@ internal sealed class PickupPlacer
             var before = walk
                 .Where(cell => _ctx.Layout.Cells.GetValueOrDefault(cell, -1) != region.Id && _ctx.IsFree(cell))
                 .ToArray();
-            
-            if (ammo >= 0 && (_ctx.Place(earlier, items[ammo], dir: 0) ?? _ctx.Place(before, items[ammo], dir: 0)) is not null)
+
+            if (ammo >= 0)
             {
+                if ((_ctx.Place(earlier, items[ammo], dir: 0) ?? _ctx.Place(before, items[ammo], dir: 0)) is null)
+                {
+                    continue;
+                }
+
                 items.RemoveAt(ammo);
+                ammo = -1;
             }
 
-            return true;
+            if (_ctx.Place(open, weapon, dir: 0) is not null)
+            {
+                return true;
+            }
         }
 
         return false;
+    }
+
+    private bool IsOpenFor(KnownObject id, Cell cell)
+    {
+        var spot = _ctx.FindSpot(cell);
+        return spot is not null && _ctx.Occupancy.Fits(id, spot.Value.X, spot.Value.Y, _ctx.GetRestingHeight(id));
     }
 
     private void StockCloset(PlanRegion closet, List<KnownObject> items)

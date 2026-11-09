@@ -183,7 +183,7 @@ internal sealed partial record FurnitureGrammar
                 new(A.Heap, null, 0.92f, 0.96f, [0.26f, 0.57f], 0.94f, [3, 20], [], OpenShare: 0.39f, NearShare: 0.05f, Signature: true),
                 new(A.Far, F.Shelf, 0.4f, 0.42f, [0.13f, 0.38f], 0.57f, [1, 5], new() { [F.Shelf] = 0.69f, [F.Cabinet] = 0.29f }),
                 new(A.Near, F.Container, 0.4f, 0.42f, [0.2f, 0.35f], 0.64f, [1, 2], new() { [F.Container] = 0.94f, [F.Shelf] = 0.06f }),
-                new(A.Far, F.Cabinet, 0.32f, 0.33f, [0.09f, 0.2f], 0.93f, [2, 10], new() { [F.Cabinet] = 0.65f, [F.Shelf] = 0.3f, [F.Missile] = 0.05f }),
+                new(A.Far, F.Cabinet, 0.32f, 0.33f, [0.09f, 0.2f], 0.93f, [2, 10], new() { [F.Cabinet] = 0.65f, [F.Shelf] = 0.3f }),
                 new(A.Grid, F.Container, 0.28f, 0.29f, [0.09f, 0.16f], 0.6f, [2, 2], []),
                 new(A.Near, F.Shelf, 0.28f, 0.29f, [0.32f, 0.36f], 0.46f, [1, 2], new() { [F.Shelf] = 0.89f, [F.Container] = 0.05f, [F.Barrel] = 0.05f }),
                 new(A.Far, F.Crate, 0.24f, 0.25f, [0.09f, 0.23f], 0.27f, [1, 2], new() { [F.Crate] = 0.86f, [F.Shelf] = 0.14f }),
@@ -213,7 +213,6 @@ internal sealed partial record FurnitureGrammar
                 new(Table, 0, [new(Chair, 0, -0.14f, 0.87f, 0, 85, 1), new(ComputerDead, 0, -0.01f, -0.19f, 31, 0, 1)]),
                 new(StreetLamp, 192, [new(RadioactiveFlask, 0, -0.88f, 0.68f, 0, 81, 0.33f)]),
                 new(Container2, 42, [new(Container2, 0, 0.17f, 0.2f, 58, 116, 0.2f)]),
-                new(Missile, 64, [new(RadioactiveFlask, 0, -0.07f, -1, 0, 162, 0.33f)]),
             ])),
         [R.Storage] = new(
             [[6.25f, 10], [6.25f, 8.75f], [6.25f, 8.75f], [6.25f, 8.75f]], true, 0.89f,
@@ -370,7 +369,6 @@ internal sealed partial record FurnitureGrammar
         new(StreetLamp, 192, [new(RadioactiveFlask, 0, -0.88f, 0.68f, 0, 81, 0.33f)]),
         new(ElectricPanel, 128, [new(ExperimentFlasks, 0, -0.66f, -0.34f, 0, 18, 0.31f)]),
         new(Container2, 42, [new(Container2, 0, 0.17f, 0.2f, 58, 116, 0.2f)]),
-        new(Missile, 64, [new(RadioactiveFlask, 0, -0.07f, -1, 0, 162, 0.33f)]),
     ];
 
     private static readonly Dictionary<PieceFamily, FurnitureFamily> FamilyTable = new()
@@ -435,6 +433,8 @@ internal sealed partial record FurnitureGrammar
             new() { [Missile] = 16 },
             new() { [Missile] = 16 },
             0, 0, 0.75f, 0.46f, 2.47f, 1, 0.39f, [1, 1, 1, 1, 1], 0.47f, 0.59f, 320, 320),
+        [F.Generator] = new([Generator], new() { [Generator] = 1 }, new() { [Generator] = 1 }, 0, 0, 0.7f, 1, 1, 1, 1, [1, 1, 1, 1, 1], 0.5f, 0.9f, 0, 0),
+        [F.Site] = new([DynamiteSite], new() { [DynamiteSite] = 1 }, new() { [DynamiteSite] = 1 }, 0, 0, 1, 3, 3, 3, 4.5f, [1, 1, 1, 1, 1], 1.5f, 2, 0, 0),
         [F.Truck] = new(
             [Truck],
             new() { [Truck] = 31 },
@@ -536,6 +536,11 @@ internal sealed partial record FurnitureGrammar
     private static readonly Dictionary<KnownObject, AttachedPiece[]> AttachedTable = new()
     {
         [Table] = [new(EmbeddedShadow, 0.08f, -0.06f, 1)],
+        [SoldierCorpse] =
+        [
+            new(BloodPool, 0.05f, 0, 1), new(SmallBloodPool, 0.4f, 0.1f, 0.75f), new(SmallBloodPool, -0.3f, 0.3f, 0.75f), new(SmallBloodPool, 0.2f, -0.4f, 0.75f),
+            new(SmallBloodPool, -0.5f, -0.2f, 0.75f), new(SmallBloodPool, 0.6f, 0.5f, 0.75f), new(SmallBloodPool, -0.1f, 0.7f, 0.75f), new(SmallBloodPool, 0.7f, -0.3f, 0.75f)
+        ],
         [Shelves] = [new(EmbeddedShadow, 0.02f, 0.01f, 0.79f)],
         [BigComputer] = [new(EmbeddedShadow, -0.36f, 0.16f, 1)],
         [Cabinet] = [new(EmbeddedShadow, 0.04f, -0.01f, 0.41f)],
@@ -707,6 +712,6 @@ internal sealed partial record FurnitureGrammar
 
     public static FurnitureGrammar Default { get; } = new(
         new() { [R.Quarters] = R.Office, [R.Yard] = R.Depot, [R.Arena] = R.Hall, [R.Bare] = R.Hall },
-        Programs, FamilyTable, GroupModules(SharedModuleRows), GroupFacings(FacingRows),
-        AttachedTable, HeapTable, SpacingTable, FrameSpacingTable, EndClearanceTable, [BlastMark, Boards, Books, GymEquipment, NewChair, PetrolGenerator, RecordPlayer, SmallShadow, StreetLamp, Telephone, Television, Toilet, TrashCan, Windows]);
+        Programs, FamilyTable, GroupModules(SharedModuleRows.Concat(SceneModuleRows)), GroupFacings(FacingRows.Concat(SceneFacingRows)),
+        AttachedTable, SceneTable, HeapTable, SpacingTable, FrameSpacingTable, EndClearanceTable, [BlastMark, Boards, Books, GymEquipment, NewChair, PetrolGenerator, RecordPlayer, SmallShadow, StreetLamp, Telephone, Television, Toilet, TrashCan, Windows]);
 }

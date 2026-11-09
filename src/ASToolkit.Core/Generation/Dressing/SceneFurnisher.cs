@@ -18,8 +18,13 @@ internal sealed class SceneFurnisher
     private const float MinStep = 0.5f;
     private const int Tries = 12;
     private const int GrowTries = 40;
+    private const int SceneTries = 48;
     private const float HeapReach = 3;
+    private const float OpeningReach = 3;
+    private const float SquareRatio = 1.25f;
+    private const float MiddleSlack = 1.5f;
     private const int SourceLevel = -3;
+    private static readonly RoomProgram EmptyProgram = new([[0, 0], [0, 0], [0, 0], [0, 0]], false, 0, [], []);
 
     private readonly FurnitureGrammar _grammar;
     private readonly ObjectTable _objects;
@@ -40,6 +45,7 @@ internal sealed class SceneFurnisher
     private Dictionary<Arrangement, int> _placedCounts = [];
     private int _anchors;
     private bool _force;
+    private bool _inScene;
 
     public SceneFurnisher(FurnitureGrammar grammar, ObjectTable objects, GenerationStyle style, Random rng, FineLayout layout, LevelOccupancy occupancy,
         IReadOnlySet<Cell> reserved, WallClearanceTable clearance)
@@ -61,23 +67,34 @@ internal sealed class SceneFurnisher
             .ElementAt(grammar.Families.Values.Count(family => family.Extent > 0) / 2);
     }
 
-    public List<PlacedDecor> Furnish(LayoutPlan plan)
+    public List<PlacedDecor> Furnish(LayoutPlan plan, IReadOnlyList<SceneRequest> scenes)
     {
-        var skipped = plan.Gate == GateKind.Fences ? plan.GeneratorRooms.Select(entry => entry.Room.Id).Append(plan.KeyRoom?.Id ?? -1).ToHashSet() : [];
-        foreach (var region in plan.Regions.Where(region => region.Kind is RegionKind.Station or RegionKind.SideRoom or RegionKind.SecretRoom && !skipped.Contains(region.Id)))
+        var held = scenes.ToList();
+        var done = new HashSet<int>();
+        foreach (var region in plan.Regions.OrderBy(region => scenes.Any(scene => scene.Region == region.Id) ? 0 : 1))
         {
             var type = region.IsHall ? RoomType.Hall : region.Type ?? RoomType.Passage;
             type = _grammar.Aliases.GetValueOrDefault(type, type);
-            if (_grammar.Types.TryGetValue(type, out var program))
+            var own = held.Where(scene => scene.Region == region.Id).ToArray();
+            bool furnished = region.Kind is RegionKind.Station or RegionKind.SideRoom or RegionKind.SecretRoom && _grammar.Types.ContainsKey(type);
+            done.Add(region.Id);
+            if (!furnished && own.Length == 0)
+                continue;
+
+            foreach (var scene in FurnishRoom(new RoomGeometry(_layout, _layout.GetRegionCells(region.Id), _reserved), furnished ? _grammar.Types[type] : EmptyProgram, own))
             {
-                FurnishRoom(new RoomGeometry(_layout, _layout.GetRegionCells(region.Id), _reserved), program);
+                int[] next = scene.Fallbacks.SkipWhile(done.Contains).ToArray();
+                if (next.Length > 0)
+                {
+                    held.Add(scene with { Region = next[0], Fallbacks = next[1..] });
+                }
             }
         }
 
         return _placed;
     }
 
-    private void FurnishRoom(RoomGeometry room, RoomProgram program)
+    private List<SceneRequest> FurnishRoom(RoomGeometry room, RoomProgram program, SceneRequest[] scenes)
     {
         _room = room;
         _program = program;
@@ -86,6 +103,13 @@ internal sealed class SceneFurnisher
         _palette = [];
         _placedCounts = [];
         _anchors = 0;
+        _inScene = true;
+        var lined = scenes.Where(scene => scene.At is null && _grammar.Scenes[scene.Anchor].Kind == ArrangementKind.Lined).ToArray();
+        var missed = scenes.Except(lined).Where(scene => !StandScene(scene))
+            .Concat(lined.GroupBy(scene => scene.Anchor).SelectMany(group => group.Skip(PlaceLined(group.Key, _grammar.Scenes[group.Key].Lining!, group.Count()))))
+            .ToList();
+
+        _inScene = false;
 
         float target = Draw(program.PiecesPerHundredCells[GetBand(DensityBands)]) * room.HalfCells / 100;
         bool big = room.HalfCells >= BigCells;
@@ -135,6 +159,8 @@ internal sealed class SceneFurnisher
         {
             CoverFarWalls(cover);
         }
+
+        return missed;
     }
 
     private void CoverFarWalls(Arrangement cover)
@@ -221,6 +247,142 @@ internal sealed class SceneFurnisher
             along += MathF.Max(MinStep, _grammar.Families[family].Step);
         }
     }
+
+    private int PlaceLined(KnownObject id, Lining lining, int count)
+    {
+        var placed = new List<LinedSpot>();
+        while (placed.Count < count)
+        {
+            var stood = GetTiers().Select(Stand).FirstOrDefault(spots => spots.Length > 0, []);
+            if (stood.Length == 0)
+                break;
+
+            placed.AddRange(stood);
+        }
+
+        return placed.Count;
+
+        IEnumerable<LinedPair[]> GetTiers()
+        {
+            var spots = GetLinedSpots(id, lining, true);
+            var free = count - placed.Count < 2 ? [] : spots.Where(spot => IsFree(GetBox(id, spot.Point))).ToArray();
+            yield return free
+                .SelectMany(first => free.Where(second => IsPair(first, second) && IsMatching(first, second)).Select(second => new LinedPair(first, second, first.Weight * second.Weight)))
+                .ToArray();
+
+            yield return spots.Select(spot => new LinedPair(spot, null, spot.Weight)).ToArray();
+            yield return GetLinedSpots(id, lining, false)
+                .Where(spot => placed.All(other => GetSharedSide(other, spot) == 0))
+                .Select(spot => new LinedPair(spot, null, spot.Weight))
+                .ToArray();
+        }
+
+        LinedSpot[] Stand(LinedPair[] tier)
+        {
+            var left = tier.ToList();
+            while (left.Count > 0)
+            {
+                var chosen = left[DrawIndex(left.Select(pair => pair.Weight).ToArray())];
+                if (PlaceModule(id, chosen.First.Point, chosen.First.Dir))
+                {
+                    var second = chosen.Second;
+                    return second is not null && PlaceModule(id, second.Value.Point, second.Value.Dir) ? [chosen.First, second.Value] : [chosen.First];
+                }
+
+                left.Remove(chosen);
+            }
+
+            return [];
+        }
+
+        bool IsMatching(LinedSpot first, LinedSpot second) =>
+            GetModules(id)[first.Dir].Length == GetModules(id)[second.Dir].Length && !GetBox(id, first.Point).IntersectsWith(GetBox(id, second.Point));
+    }
+
+    private static int GetSharedSide(LinedSpot first, LinedSpot second) =>
+        new[] { PlusU, MinusV, MinusU, PlusV }.FirstOrDefault(face => (first.Faces & second.Faces & face) != 0 && Across(first.Cell, face) == Across(second.Cell, face));
+
+    private static bool IsPair(LinedSpot first, LinedSpot second)
+    {
+        int shared = GetSharedSide(first, second);
+        return shared != 0 && (first.Faces ^ second.Faces) == (shared is PlusU or MinusU ? MinusV | PlusV : PlusU | MinusU)
+            || (first.Faces | second.Faces) is (PlusU | MinusU) or (MinusV | PlusV) && MathF.Abs(first.Along - second.Along) < MiddleSlack;
+    }
+
+    private LinedSpot[] GetLinedSpots(KnownObject id, Lining lining, bool middles)
+    {
+        var sides = new[] { PlusU, MinusV, MinusU, PlusV }
+            .SelectMany(face => _room.Cells
+                .Where(cell => (_room.Faces[cell] & face) != 0 && !_room.Pillars.Contains(GetBeyond(cell, face)))
+                .GroupBy(cell => Across(cell, face))
+                .Select(side => new WallLine(face, side.OrderBy(cell => Along(cell, face)).ToArray())))
+            .ToArray();
+
+        if (sides.Length == 0)
+        {
+            return [];
+        }
+
+        int shortest = sides.Min(GetSpan);
+        var spots = new List<LinedSpot>();
+        foreach ((int mask, var dirs) in _grammar.Facings.GetValueOrDefault(id) ?? [])
+        {
+            int[] walls = new[] { mask & (PlusU | MinusU), mask & (MinusV | PlusV) }.Where(wall => wall != 0).ToArray();
+            var places = walls.Length == 2
+                ? _room.Cells.Where(cell => (_room.Faces[cell] & mask) == mask && walls.All(wall => !_room.Pillars.Contains(GetBeyond(cell, wall))) && walls.All(wall => IsEnd(wall, cell)) == middles)
+                    .Select(cell => (Cell: cell, Along: 0f))
+                : sides.Where(side => side.Face == mask && IsEnd(mask, side.Cells[0])).SelectMany(side => GetPlaces(side, middles));
+
+            foreach ((var cell, float along) in places)
+            {
+                var at = walls.Aggregate(new PointF(along, along), (point, wall) => wall is PlusU or MinusU
+                    ? point with { X = FromWall(cell, wall, GetLiningDistance(lining, wall), 0).X }
+                    : point with { Y = FromWall(cell, wall, GetLiningDistance(lining, wall), 0).Y });
+
+                float weight = walls.Min(wall => MathF.Pow((float)shortest / GetSideSpan(wall, cell), 4));
+                spots.AddRange(dirs
+                    .Select(pair => (Dir: pair.Key, Share: pair.Value, First: GetModules(id).GetValueOrDefault(pair.Key, []).FirstOrDefault(piece => piece.Id == lining.Id && piece.Slot == 0)))
+                    .Where(entry => entry.First is not null)
+                    .Select(entry => new LinedSpot(new PointF(at.X - entry.First!.U, at.Y - entry.First.V), entry.Dir, entry.Share * weight, cell, mask, along)));
+            }
+        }
+
+        return spots.Where(spot => IsClearLined(id, lining, spot)).ToArray();
+
+        bool IsEnd(int face, Cell cell) => GetSideSpan(face, cell) <= SquareRatio * (_room.Cells.Max(other => Across(other, face)) - _room.Cells.Min(other => Across(other, face)) + 1);
+        int GetSideSpan(int face, Cell cell) => GetSpan(sides.First(side => side.Face == face && Across(side.Cells[0], face) == Across(cell, face)));
+
+        IEnumerable<(Cell Cell, float Along)> GetPlaces(WallLine side, bool middle)
+        {
+            // Shift the middle toward the far end, low on v and high on u, to center it on screen
+            float shift = (lining.NearDistance - lining.FarDistance) / 2;
+            float center = (Along(side.Cells[0], side.Face) + Along(side.Cells[^1], side.Face) + 1) / 2f + (side.Face is PlusU or MinusU ? -shift : shift);
+            return middle
+                ? [(side.Cells.MinBy(cell => MathF.Abs(Along(cell, side.Face) + 0.5f - center)), center)]
+                : side.Cells.Select(cell => (cell, Along(cell, side.Face) + 0.5f));
+        }
+    }
+
+    private bool IsClearLined(KnownObject id, Lining lining, LinedSpot spot)
+    {
+        var pads = GetModules(id)[spot.Dir].Where(piece => piece.Id == lining.Id).ToArray();
+        var first = pads.First(piece => piece.Slot == 0);
+        var points = pads.Select(pad => new PointF(spot.Point.X + pad.U, spot.Point.Y + pad.V)).Append(spot.Point);
+        return !points.Any(point => _room.Openings.Any(cell => GetDistance(point, new PointF(cell.U + 0.5f, cell.V + 0.5f)) < OpeningReach))
+            && pads.All(pad => new[] { PlusU, MinusV, MinusU, PlusV }.Where(wall => (spot.Faces & wall) != 0).All(wall =>
+            {
+                var normal = GetNormal(wall);
+                float reach = GetLiningDistance(lining, wall) - 0.5f;
+                var probe = new PointF(spot.Point.X + pad.U + normal.X * reach, spot.Point.Y + pad.V + normal.Y * reach);
+                return MathF.Abs((pad.U - first.U) * normal.X + (pad.V - first.V) * normal.Y) > 0.01f || (_room.Faces.GetValueOrDefault(_room.GetCell(probe)) & wall) != 0;
+            }));
+    }
+
+    private static int GetSpan(WallLine side) => Along(side.Cells[^1], side.Face) - Along(side.Cells[0], side.Face) + 1;
+
+    private static float GetDistance(PointF first, PointF second) => MathF.Sqrt((first.X - second.X) * (first.X - second.X) + (first.Y - second.Y) * (first.Y - second.Y));
+
+    private static float GetLiningDistance(Lining lining, int face) => (face & FarFaces) != 0 ? lining.FarDistance : lining.NearDistance;
 
     private void PlaceGrid(PieceFamily family, int modules)
     {
@@ -326,20 +488,63 @@ internal sealed class SceneFurnisher
         return FromWall(wall, face, distance, Along(wall, face) + 0.5f);
     }
 
+    private bool StandScene(SceneRequest scene)
+    {
+        if (scene.At is null)
+        {
+            var arrangement = _grammar.Scenes[scene.Anchor];
+            int before = _anchors;
+            bool first = _floor.All(piece => piece.Id != scene.Anchor);
+            for (int attempt = 0; attempt < SceneTries && _anchors == before; attempt++)
+            {
+                Place(arrangement, true);
+            }
+
+            if (_anchors != before || !first || _room.Interior.Length <= 0)
+                return _anchors > before;
+            
+            _force = true;
+            PlaceGrid(arrangement.Family!.Value, 1);
+            _force = false;
+
+            return _anchors > before;
+        }
+
+        (float u, float v) = _layout.Lattice.ToLattice(scene.At.Value.X, scene.At.Value.Y);
+        var point = new PointF(u, v);
+        _floor.Add((point, scene.Anchor, scene.Dir, RectangleF.Empty));
+        _force = true;
+        StandCompanions(scene.Anchor, point, scene.Dir);
+        _force = false;
+        return true;
+    }
+
     private bool PlaceModule(KnownObject id, PointF point, byte dir, int lining = 0)
     {
-        // Keep anchors off each other's footprints, a wall piece taking only its depth across the wall
-        float extent = GetExtent(id), depth = lining == 0 ? extent : MathF.Min(extent, 2 * (GetRule(id)?.WallDistance ?? MinStep));
-        float spanU = lining is PlusU or MinusU ? depth : extent, spanV = lining is PlusU or MinusU ? extent : depth;
-        var box = new RectangleF(point.X - spanU / 2, point.Y - spanV / 2, spanU, spanV);
-        if (!IsInside(id, point, dir, lining) || _floor.Any(piece => RectangleF.Intersect(piece.Box, box) is { Width: > 0.02f, Height: > 0.02f }) || !Commit(id, point, 0, dir, lining))
+        var box = GetBox(id, point, lining);
+        if (!IsInside(id, point, dir, lining) || !IsFree(box) || !Commit(id, point, 0, dir, lining))
         {
             return false;
         }
 
         _floor[^1] = (point, id, dir, box);
         _anchors++;
+        StandCompanions(id, point, dir);
+        _force = false;
+        return true;
+    }
 
+    private RectangleF GetBox(KnownObject id, PointF point, int lining = 0)
+    {
+        float extent = GetExtent(id), depth = lining == 0 ? extent : MathF.Min(extent, 2 * (GetRule(id)?.WallDistance ?? MinStep));
+        float spanU = lining is PlusU or MinusU ? depth : extent, spanV = lining is PlusU or MinusU ? extent : depth;
+        return new RectangleF(point.X - spanU / 2, point.Y - spanV / 2, spanU, spanV);
+    }
+
+    private bool IsFree(RectangleF box) => _floor.All(piece => !(RectangleF.Intersect(piece.Box, box) is { Width: > 0.02f, Height: > 0.02f }));
+
+    private void StandCompanions(KnownObject id, PointF point, byte dir)
+    {
         var slots = GetModules(id).GetValueOrDefault(dir, []).GroupBy(companion => (companion.Id.Family, companion.Slot)).ToArray();
         var stood = new HashSet<(PieceFamily? Family, int Slot)>();
         foreach (var slot in slots)
@@ -361,17 +566,6 @@ internal sealed class SceneFurnisher
                 stood.Add(slot.Key);
             }
         }
-
-        _force = false;
-        foreach (var attached in _grammar.Attached.GetValueOrDefault(id) ?? [])
-        {
-            if (_rng.NextSingle() < attached.Share)
-            {
-                Commit(attached.Id, new PointF(point.X + attached.U, point.Y + attached.V), 0, dir);
-            }
-        }
-
-        return true;
     }
 
     private bool Commit(KnownObject id, PointF point, float z, byte dir, int lining = -1)
@@ -380,22 +574,46 @@ internal sealed class SceneFurnisher
         var cell = _room.GetCell(point);
         var footprint = z > 0 ? [] : Dresser.GetFootprint(_layout.Lattice, _objects, id, world.X, world.Y, 0);
         footprint.IntersectWith(_room.Cells);
-        if (_campaign && _grammar.AddOnOnly.Contains(id) || !_room.Cells.Contains(cell) || z <= 0 && lining < 0 && !id.IsAttached && !IsInside(id, point, dir, 0) || _reserved.Contains(cell)
-            || footprint.Overlaps(_room.Openings) || z <= 0 && !id.IsAttached && _floor.Any(other => IsTooClose(other, id, point, dir, lining >= 0)) || !IsJoinedWithout(footprint)
-            || !_occupancy.Fits(id, world.X, world.Y, z))
+
+        // Keep pieces walked over or through out of the spacing and the floor list
+        bool standing = z <= 0 && !id.IsAttached && (id.Family is not null || _objects.GetBlocking(id) == BlockingClass.Solid);
+        if (_campaign && _grammar.AddOnOnly.Contains(id) || !_room.Cells.Contains(cell) || standing && lining < 0 && !IsInside(id, point, dir, 0) || _reserved.Contains(cell) && (standing || !_inScene)
+            || footprint.Overlaps(_room.Openings) || standing && _floor.Any(other => IsTooClose(other, id, point, dir, lining >= 0)) || !IsJoinedWithout(footprint)
+            || !_occupancy.Fits(id, world.X, world.Y, z, _inScene))
         {
             return false;
         }
 
         _blocked.UnionWith(footprint);
-        if (z <= 0 && !id.IsAttached)
+        if (standing)
         {
             _floor.Add((point, id, dir, RectangleF.Empty));
         }
 
         _occupancy.Add(id, world.X, world.Y, z);
-        _placed.Add(new PlacedDecor(id, point.X, point.Y, z, dir, id == KnownObject.Crate ? KnownObject.CreateEmptyCratePayload() : [], (SourceLevel, _placed.Count), null,
-            SpriteSource.Model));
+
+        // Keep the floor around a set piece's walked-over pieces clear of the furniture after it
+        if (_inScene && _objects.GetBlocking(id) != BlockingClass.Solid)
+        {
+            _occupancy.Reserve(Enumerable.Range(-1, 3).SelectMany(du => Enumerable.Range(-1, 3).Select(dv => new Cell(cell.U + du, cell.V + dv))));
+        }
+
+        byte[] payload = id switch
+        {
+            KnownObject.Crate => KnownObject.CreateEmptyCratePayload(),
+            KnownObject.TeleportPad => [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0],
+            _ => []
+        };
+
+        _placed.Add(new PlacedDecor(id, point.X, point.Y, z, dir, payload, (SourceLevel, _placed.Count), null, SpriteSource.Model));
+        foreach (var attached in _grammar.Attached.GetValueOrDefault(id) ?? [])
+        {
+            if (_rng.NextSingle() < attached.Share)
+            {
+                Commit(attached.Id, new PointF(point.X + attached.U, point.Y + attached.V), 0, dir);
+            }
+        }
+
         return true;
     }
 
@@ -569,3 +787,9 @@ internal sealed class SceneFurnisher
         return weights.Length - 1;
     }
 }
+
+internal readonly record struct SceneRequest(int Region, KnownObject Anchor, PointF? At, byte Dir, int[] Fallbacks);
+
+internal readonly record struct LinedSpot(PointF Point, byte Dir, float Weight, Cell Cell, int Faces, float Along);
+
+internal readonly record struct LinedPair(LinedSpot First, LinedSpot? Second, float Weight);

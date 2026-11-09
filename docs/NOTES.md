@@ -31,7 +31,7 @@ This document describes how the game's scripts and engine behave and how the ori
 - The payload is an action stack that runs from the end. It is a u32 count, then (op, a, b, c) entries, then an empty item list and a 3, `00000000 03000000` (see [FORMATS.md](FORMATS.md#maps) for the layout).
 - `ACT_FLAGMAN_TRIGGER` (43, x, y, r) waits until the player is within r. `ACT_BUILD_UNIT` (35, id) builds a monster and `ACT_PAUSE` (40) waits between units. `ACT_STOP_STACK` (73) ends the stack. `ACT_MOVE` (33, x, y) entries are copied to the spawned units as waypoints, and the first one is their final destination.
 - `ACT_BUILD_UNIT` builds the monster at the spawner's own position. When the spot is taken the build fails and the entry is tried again on the next update. A monster that cannot walk off holds the spawner back. After a build, the entries below `ACT_STOP_STACK` are copied onto the new monster (`Action` case 0x4b in `FUN_00440830`).
-- Level 4's spawners at z 10 build endless generators (800, 801 and 803), which keep making monsters until a blast kills them. No other spawner of the originals builds one.
+- Level 4's spawners at z 10 build endless generators (800, 801 and 803). An endless generator keeps making monsters until a blast kills it. No other spawner of the originals builds one. Each stands behind its site's hole, 50 to 70 px from the site, and waits for a trigger of radius 100 just inside the breaker room's door.
 - Unit 866, a tank-weapon boss tinted blue (gamma −255, −120, 90) like the other units from 856 to 867, appears only in level 10, where one spawner builds it once.
 - Most monsters in the originals come from spawners. Level 6 has 9 placed monsters and 462 spawned ones, and level 10 has 62 and 1,408.
 - A monster's mean hit points grow about twofold a level through the campaign: 6 on level 2, 7, 13, 21, 59, 96, 220 and 646 on level 9. New kinds arrive by family and tint: Monster1 on level 2, the yellow Monster1 and Monster2 on 3, the red tints and the yellow Monster2 on 4, slugs of every tint on 5, weapon monsters on 6, tank weapon monsters on 8.
@@ -459,7 +459,11 @@ Two examples of each type, with the room outlined in yellow, walls inside it in 
 | Stains on walls (131, z 25 to 63, frames 16 to 112), one every 190 to 300 px along a wall | add-on 1 levels 2 to 5 |
 | A dynamite site in the middle of a pad pair | 2 pairs, 3 and 13 px from the middle |
 | A single pad 54 to 121 px from its site | every site with one pad |
-| A pointer (180) next to the breaker | 5 of 6 breakers |
+| A pointer (180) next to the breaker, at (−27, 19) and facing 128 on a `\` wall | 5 of 6 breakers |
+| A soldier corpse (430) in blood 28 to 100 px in front of the breaker, transformers (429) on its wall, two or four | 4 of 4 campaign breakers |
+| Generators (415) 0.57 to 0.81 cells off a far wall | 7 of 7 campaign generators |
+| Missiles (437) only in threes along a far wall, facing 0, 0.44 cells apart, two of three in a box of floor stripes | 3 threes, levels 6 and 10 |
+| Keypads at the foot of nearly every door, broken ones (425) on jammed doors' frames | 112 of 121 campaign doors |
 | Rows of desk units (table, chair, computer) with cabinets and plants along the walls | add-on office rooms |
 | A gore scene of flying gibs (151) and heavy blood | level 2 (last room), level 10 (secret lab) |
 

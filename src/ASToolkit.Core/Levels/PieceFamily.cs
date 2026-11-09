@@ -98,5 +98,15 @@ public enum PieceFamily
     /// <summary>
     /// Books, gym gear, toilets, televisions and other furniture of living quarters.
     /// </summary>
-    Household
+    Household,
+
+    /// <summary>
+    /// The generator a fence gate falls with.
+    /// </summary>
+    Generator,
+
+    /// <summary>
+    /// The dynamite site a charge is planted on.
+    /// </summary>
+    Site
 }

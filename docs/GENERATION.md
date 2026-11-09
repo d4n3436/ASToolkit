@@ -68,8 +68,7 @@ A level draws from four `Random` streams. The layout seed drives the building, d
 | furniture grammar | `FurnitureGrammar.Default`, tables in `Generation/Dressing/FurnitureGrammar.Data.cs` with numbers measured once on the originals | `SceneFurnisher` |
 | dressing libraries | `DressingLibrary.Build` | `Dresser.Dress` |
 | object relations | `ObjectRelationTable.Build` | occupancy, furnishing, companions |
-| breaker scenes, dynamite sites | `OriginalContent` | `ChooseBreakerSpot`, `PlaceSites` |
-| keypads | `KeypadTable.Load` | structure, `PlaceGate` |
+| set pieces | `FurnitureGrammar.Scenes.cs`, `SceneGrammar.Default` | `SceneFurnisher`, `ScenePlanner` |
 | armies | `ArmyTable.Load` | `MapBuilder.Add` |
 
 The encounter model holds these values, fitted to the style's originals:
@@ -153,7 +152,7 @@ A cell's two upper edges are its far walls, facing the camera; fake doors, the b
 - **Weapons and pickups.** Weapons come in price order, none before the money can pay its share of the price.
 - **Sites and cannons.** Each indoor level draws its dynamite sites from its gate style's fitted rate per floor. Campaign style stands a mounted cannon on warehouse levels 7 and 8, add-on style on its last warehouse level only.
 - **Monsters and bosses.** A level draws the kinds it has reached, weighted over log hit points so that their mean meets the level's fitted mean; kinds first seen on the level are its new kinds, none on the style's first level with monsters. A level holds a boss at the fitted share, the newest boss kind it has reached.
-- **Donor.** Each level names the campaign original of its wall set nearest in hit points. The donor gives what later steps have not yet replaced, such as site templates, pens, room atlas, dressing, gore, door marks, template map and music.
+- **Donor.** Each level names the campaign original of its wall set nearest in hit points. The donor gives what later steps have not yet replaced, such as pens, room atlas, dressing, gore, template map and music.
 
 ### Budget
 
@@ -255,7 +254,7 @@ The doors of every building keep every room reachable, every gate lock seen befo
 Every other border of a region is a `Wall`.
 
 - **Placement.** `StructureBuilder.PlaceLattice` keeps every cell 500 px into the map, on the basement floor tiles' parity. `AddFakeDoors` turns 2 to 5 far walls of hall stations into doors that lead nowhere.
-- **Basement.** `BuildBasement` places floor 500, doors 605 to 608, breakable walls 609, spawn walls 618 and 619, doorway frames 611 and 617, walls 601 and 602 and beams 604. Closets get sunk outer walls. Broken keypads go by jammed doors.
+- **Basement.** `BuildBasement` places floor 500, doors 605 to 608, breakable walls 609, spawn walls 618 and 619, doorway frames 611 and 617, walls 601 and 602 and beams 604. Closets get sunk outer walls. Basement site walls become monster holes (616 or 612). Working doors get keypads, off on locked-door levels; jammed frames mostly get broken ones.
 - **Concrete.** `BuildConcrete` places walls 650 and 651, frames 653, posts 652 and floor 503; `BuildFence` places fence emitters and fences on fence links.
 - **Roof.** `BuildRoof` covers every cell not shown with tile 501.
 
@@ -263,7 +262,7 @@ Every other border of a region is a `Wall`.
 
 ## Breaker spot
 
-`ContentPlacer.ChooseBreakerSpot` picks a `\` far wall of the key room with a run of 4 pieces or more ending in corners and open floor in front and beside, and fits the originals' breaker scenes around it. When no wall qualifies, `Build` starts over, up to 20 times, then builds the level without a breaker.
+`ContentPlacer.ChooseBreakerSpot` picks a `\` far wall of the key room with a run of 4 pieces or more ending in corners and open floor in front and beside, and draws one of the walls that qualify. When no wall qualifies, `Build` starts over, up to 20 times, then builds the level without a breaker.
 
 ## Dressing
 
@@ -271,8 +270,11 @@ Every piece goes through the level's occupancy ([Keeping the way clear](#keeping
 
 1. `Dresser.Dress` copies wall dressing, blood and rubble windows from originals with the same walls.
 2. `RoomDecorator.Decorate` thins blood and corpses to the donor's rates and lays gore toward the end.
-3. `SceneFurnisher.Furnish` furnishes each room from the furniture grammar, C# tables of each room type's arrangements with their shares, counts per area and modules per run, the type's signature family and whether its far walls stay covered, the families' pieces, wall distances and steps, each piece's companions by room type and facing, and the closest two families stand. A room stands its signature first with its full module (a desk with its computer and chair, a lab bench with its labware), holds each arrangement by its share and places it as a wall run on far or near walls, a grid on open floor in rooms large enough, a heap of stock with each piece at a measured offset for its two families and by a wall at its family's measured wall share for the room size, or a lone piece on open floor, grows with its far, grid and heap arrangements until it holds the piece count drawn for its type or each has stopped landing, then fills far wall stretches left bare. A piece takes the measured facing for the wall of its cell. Copied wall windows add wall dressing only. Every piece goes through the level's occupancy. Fence-gate generator rooms are left to their objective.
-4. The breaker scene stands in the key room, and missile stripes go in front of missile threes.
+3. `SceneFurnisher.Furnish` furnishes each room from the furniture grammar, C# tables of each room type's arrangements with their shares, counts per area and modules per run, the type's signature family and whether its far walls stay covered, the families' pieces, wall distances and steps, each piece's companions by room type and facing, and the closest two families stand. A room stands its signature first with its full module (a desk with its computer and chair, a lab bench with its labware), holds each arrangement by its share and places it as a wall run on far or near walls, a grid on open floor in rooms large enough, a heap of stock with each piece at a measured offset for its two families and by a wall at its family's measured wall share for the room size, or a lone piece on open floor, grows with its far, grid and heap arrangements until it holds the piece count drawn for its type or each has stopped landing, then fills far wall stretches left bare. A piece takes the measured facing for the wall of its cell. Copied wall windows add wall dressing only. Every piece goes through the level's occupancy. Walked-over pieces (shadows, blood, stripes, pads) take no spacing.
+4. Set pieces stand first, with their whole module.
+   - Breaker: 2 to 4 transformers, a pointer and a corpse in blood. Cannon: a stripe box, crates and a pointer. Generators: 0.7 cells off a far wall with transformers, a shoot-here marker and a corpse. Missile racks: three missiles with a stripe box.
+   - Concrete sites: pads between the site and the walls, one by a wall, one in a corner, a line of three from a far corner or two straddling the site. A site takes the middle of an outer side, shifted 0.6 cells toward its far end to look centered, or a corner; in a long room only its ends.
+   - Several sites in a room pair up symmetrically, both corners of one side or the middles of facing sides, never two on one side otherwise. A site with no spot moves to the planner's next room.
 
 ### Keeping the way clear
 
@@ -283,14 +285,17 @@ Every piece goes through the level's occupancy ([Keeping the way clear](#keeping
 `PlacementContext` holds the taken cells, the occupancy, and the walking distance and progress from the start. The player start goes on the start room's free middle cell. Content placement then runs these steps:
 
 ```
- PlaceGate -> PlaceBosses -> PlaceMountedCannons -> PlaceSites -> PlaceCharges
-   -> EncounterPlacer.Place -> PickupPlacer.Place -> PlaceCheckpoint
+ before the walls:  ScenePlanner.PlanSites
+ before the decor:  ScenePlanner.PlaceCannon -> StandBasementSites -> GetRequests (handed to the furnisher)
+ after the decor:   StackEndlessGenerators -> PlaceGate -> PlaceBosses -> PlaceCharges -> EncounterPlacer.Place -> PickupPlacer.Place -> PlaceCheckpoint
 ```
 
-- **Gate.** The breaker (418) and keypads on locked-door and blackout levels; a blackout's trigger is one point in the trigger room, well inside its door. Fenced levels put generators (415) in the back of each generator room, at the fitted count per room.
+`ScenePlanner` decides where the set pieces go; the furnisher stands them ([Dressing](#dressing)).
+
+- **Gate.** The breaker (418) on locked-door and blackout levels; a blackout's trigger is one point in the trigger room, well inside its door.
 - **Bosses.** The brief's bosses, in the largest late dead-end room, else the last station.
 - **Mounted cannon.** At the entry end of a large late station, with a kill zone at the far end.
-- **Sites and charges.** Sites stand in the rooms nearest positions drawn from the originals' sites along the walk; on a lab only in the second wing, a third of them in locked rooms. Basement sites break a far wall into a hole with endless generators behind it; concrete sites stand pads off walls. The charges of each phase's sites lie together, 150 px or more from every site. They go beside the last key of the phase before, the breaker room or the generator room the player reaches last. A phase with no key before it puts them in the start room on the fitted share of levels for the first phase, and otherwise on the walk to its first site, the fitted lead before it.
+- **Sites and charges.** Sites go to rooms near positions drawn along the walk, before the walls are built; concrete sites only in rooms of 96 cells or more. A basement site stands before a far wall hole with a spawner behind it that builds endless generators once the site's phase opens. Concrete sites stack 2 to 4 endless generators on a pad. Everything the blast must kill stands within its 100 px. The charges of each phase's sites lie together, 150 px or more from every site. They go beside the last key of the phase before, the breaker room or the generator room the player reaches last. A phase with no key before it puts them in the start room on the fitted share of levels for the first phase, and otherwise on the walk to its first site, the fitted lead before it.
 - **Fights.** `EncounterPlacer` places the planned fights. Standing groups stand in clusters on visible floor and spill into the nearest rooms of their phase. Ambush spawners stand out of sight of a player inside the trigger circle on the room's door. Spawn closets blow their wall open, and only they may be seen spawning. An ambush with nowhere out of sight to stand becomes a standing group.
 - **Pickups.** `PickupPlacer` lays the budget's pickups. A new weapon lies off the walks to the objectives or in a secret closet, with one of its ammunition pickups earlier on its walk. Secret closets and some spawn closets then take their stashes, crates take each category's share, and the rest lie in small piles in rooms drawn by floor, rooms off the walks weighted by the fitted density.
 - **Checkpoint.** On the walk to the biggest fight, just before its room, on the fitted share of levels that are not blackouts.
@@ -333,7 +338,7 @@ Every piece goes through the level's occupancy ([Keeping the way clear](#keeping
 | room programs of halls, offices, depots and storage from the campaign's rooms, the rarer types from all originals | `FurnitureGrammar` |
 | linked pickups at the height that rests their glow on the floor | `PlacementContext`, `PickupPlacer` |
 | each family's main piece per room drawn by the style's own weights, a second piece mixed in at the measured share, every anchor's footprint (its family's side-by-side spacing) inside the room, no furniture footprint on a room's openings or the cells inside them, a room's openings and reserved cells joined past its furniture on the layout cells, no add-on piece in a campaign room | `SceneFurnisher` |
-| dynamite sites of both wall sets placed before the decor, the furniture kept off their cells | `LevelGenerator`, `ContentPlacer` |
+| sites, generators and the cannon's lane kept clear | `LevelGenerator`, `SceneFurnisher` |
 | spawners and transformers clear of the solid furniture around them | `EncounterPlacer`, `ContentPlacer` |
 | no spawner in an earlier phase than its trigger, every spawn trigger on every walk from the start to the end, no variant over three quarters of its family in a fight | `FightPlanner` |
 | fights' hit points within a tenth of the budget's, each phase's placed hit points within a tenth of its fights', each new monster kind first in a standing group no harder than the level's median fight | `FightPlanner`, `EncounterPlacer` |

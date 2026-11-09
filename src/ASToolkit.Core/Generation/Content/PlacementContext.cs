@@ -404,24 +404,5 @@ public sealed class PlacementContext
     /// <summary>
     /// Returns the walking distance of every reachable cell from a cell, in cell steps, with every door open.
     /// </summary>
-    public Dictionary<Cell, int> MeasureDistances(Cell start)
-    {
-        var distance = new Dictionary<Cell, int> { [start] = 0 };
-        var queue = new Queue<Cell>();
-        queue.Enqueue(start);
-        while (queue.Count > 0)
-        {
-            var c = queue.Dequeue();
-            foreach (var (n, k) in EdgeKey.GetNeighbors(c))
-            {
-                if (Layout.Cells.ContainsKey(n) && !distance.ContainsKey(n) && !IsBlockingEdge(k) && !_blocked.Contains(n))
-                {
-                    distance[n] = distance[c] + 1;
-                    queue.Enqueue(n);
-                }
-            }
-        }
-
-        return distance;
-    }
+    public Dictionary<Cell, int> MeasureDistances(Cell start) => Layout.MeasureWalk(start, _blocked);
 }

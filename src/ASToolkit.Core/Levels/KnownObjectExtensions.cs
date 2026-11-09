@@ -160,6 +160,8 @@ public static class KnownObjectExtensions
             Plant => PieceFamily.Plant,
             WaterCylinder => PieceFamily.Water,
             StreetLamp or Windows or Boards or Books or GymEquipment or Toilet or Telephone or RecordPlayer or TrashCan or Television => PieceFamily.Household,
+            Generator => PieceFamily.Generator,
+            DynamiteSite => PieceFamily.Site,
             _ => null
         };
 

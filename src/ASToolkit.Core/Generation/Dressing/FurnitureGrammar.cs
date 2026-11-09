@@ -12,6 +12,7 @@ internal sealed partial record FurnitureGrammar(
     Dictionary<KnownObject, Dictionary<byte, Companion[]>> SharedModules,
     Dictionary<KnownObject, Dictionary<int, Dictionary<byte, float>>> Facings,
     Dictionary<KnownObject, AttachedPiece[]> Attached,
+    Dictionary<KnownObject, Arrangement> Scenes,
     HeapRule Heap,
     Dictionary<FamilyPair, PairSpacing> Spacing,
     Dictionary<KnownObject, Dictionary<byte, float>> FrameSpacing,
@@ -53,7 +54,9 @@ internal sealed record RoomProgram(float[][] PiecesPerHundredCells, bool CoverFa
 
 // A heap has no family
 internal sealed record Arrangement(ArrangementKind Kind, PieceFamily? Family, float Share, float BigShare, float[] PerHundredCells, float MaxPerHundredCells,
-    int[] Modules, Dictionary<PieceFamily, float> Members, int OpenFromCells = 0, float OpenShare = 0, float NearShare = 0, bool Signature = false);
+    int[] Modules, Dictionary<PieceFamily, float> Members, int OpenFromCells = 0, float OpenShare = 0, float NearShare = 0, bool Signature = false, Lining? Lining = null);
+
+internal sealed record Lining(KnownObject Id, float FarDistance, float NearDistance);
 
 internal enum ArrangementKind
 {
@@ -61,7 +64,8 @@ internal enum ArrangementKind
     Near,
     Grid,
     Heap,
-    Open
+    Open,
+    Lined
 }
 
 internal sealed record FurnitureFamily(KnownObject[] Pieces, Dictionary<KnownObject, float> MainIds, Dictionary<KnownObject, float> CampaignIds,

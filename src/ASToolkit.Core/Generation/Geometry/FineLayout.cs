@@ -70,6 +70,32 @@ public sealed class FineLayout
     public bool IsWalled(Cell c) => EdgeKey.GetNeighbors(c).HasEdge(Edges);
 
     /// <summary>
+    /// Returns the walking distance in cells from a cell to every cell reached without crossing a blocking edge or a blocked cell.
+    /// </summary>
+    public Dictionary<Cell, int> MeasureWalk(Cell start, IReadOnlySet<Cell> blocked)
+    {
+        var distance = new Dictionary<Cell, int> { [start] = 0 };
+        var queue = new Queue<Cell>();
+        queue.Enqueue(start);
+        while (queue.TryDequeue(out var cell))
+        {
+            foreach (var (next, edge) in EdgeKey.GetNeighbors(cell))
+            {
+                if (!Cells.ContainsKey(next) ||
+                    distance.ContainsKey(next) ||
+                    Edges.TryGetValue(edge, out var kind) && kind.BlocksWalking ||
+                    blocked.Contains(next))
+                    continue;
+                
+                distance[next] = distance[cell] + 1;
+                queue.Enqueue(next);
+            }
+        }
+
+        return distance;
+    }
+
+    /// <summary>
     /// Builds the fine layout of a plan.
     /// </summary>
     public static FineLayout Build(LayoutPlan plan)
