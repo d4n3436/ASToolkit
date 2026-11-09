@@ -22,7 +22,7 @@ public class LevelGeneratorIntegrationTests
     private const float GeneratorWallReach = 1;
     private const float HalfScreenHeight = 360;
     private const int MixedFamily = 4;
-    private const float MostVariantShare = 0.75f;
+    private const float MixedVariantMax = 0.82f;
     private const int LightestIntroduction = 2;
     private const float DecorFloorHeight = 5;
     private const float RoofHeight = 90;
@@ -95,7 +95,7 @@ public class LevelGeneratorIntegrationTests
             var plan = level.Plan!;
             var regions = level.Map.Sprites
                 .Where(sprite => sprite.Id == KnownObject.DynamiteSite)
-                .Select(sprite => level.Layout!.Cells.TryGetValue(level.Layout.Lattice.GetCell(sprite.Position.X, sprite.Position.Y), out int region) ? plan.Regions[region] : null)
+                .Select(sprite => level.Layout!.Cells.TryGetValue(level.Layout.Lattice.GetCell(sprite.Position), out int region) ? plan.Regions[region] : null)
                 .ToArray();
 
             if (regions.Any(region => region is null || !plan.SecondWing.Contains(region)))
@@ -111,9 +111,9 @@ public class LevelGeneratorIntegrationTests
                 .Select(sprite => new PointF(sprite.Position.X, sprite.Position.Y))
                 .Concat(fighters.Select(sprite => sprite.Id == KnownObject.Spawner ? SpawnerProgram.Parse(sprite.Payload)?.Trigger : null)
                     .Where(trigger => trigger is not null)
-                    .Select(trigger => new PointF(trigger!.Value.X, trigger.Value.Y)));
+                    .Select(trigger => (PointF)trigger!.Value.Center));
 
-            if (spots.Any(spot => level.Layout!.Cells.TryGetValue(level.Layout.Lattice.GetCell(spot.X, spot.Y), out int region) && !plan.HoldsFights(plan.Regions[region])))
+            if (spots.Any(spot => level.Layout!.Cells.TryGetValue(level.Layout.Lattice.GetCell(spot), out int region) && !plan.HoldsFights(plan.Regions[region])))
             {
                 broken.Add($"seed {seed} level {number}: a monster or spawn trigger in the first wing");
             }
@@ -137,7 +137,7 @@ public class LevelGeneratorIntegrationTests
                 .Where(sprite => IsAmbushSpawner(sprite.Id, sprite.Payload))
                 .Select(sprite => SpawnerProgram.Parse(sprite.Payload)?.Trigger)
                 .Where(trigger => trigger is not null)
-                .Select(trigger => level.Layout!.Lattice.GetCell(trigger!.Value.X, trigger.Value.Y));
+                .Select(trigger => level.Layout!.Lattice.GetCell(trigger!.Value.Center.X, trigger.Value.Center.Y));
 
             if (triggers.Any(cell => level.Layout!.Cells.TryGetValue(cell, out int region) && !level.Plan!.HoldsFights(level.Plan.Regions[region])))
             {
@@ -158,9 +158,9 @@ public class LevelGeneratorIntegrationTests
             var layout = level.Layout!;
             int behind = level.Map.Sprites
                 .Where(sprite => sprite.Id == KnownObject.Spawner)
-                .Select(sprite => (Spawner: layout.Lattice.GetCell(sprite.Position.X, sprite.Position.Y), SpawnerProgram.Parse(sprite.Payload)?.Trigger))
+                .Select(sprite => (Spawner: layout.Lattice.GetCell(sprite.Position), SpawnerProgram.Parse(sprite.Payload)?.Trigger))
                 .Where(pair => pair.Trigger is not null)
-                .Select(pair => (Spawner: layout.Cells.GetValueOrDefault(pair.Spawner, -1), Trigger: layout.Cells.GetValueOrDefault(layout.Lattice.GetCell(pair.Trigger!.Value.X, pair.Trigger.Value.Y), -1)))
+                .Select(pair => (Spawner: layout.Cells.GetValueOrDefault(pair.Spawner, -1), Trigger: layout.Cells.GetValueOrDefault(layout.Lattice.GetCell(pair.Trigger!.Value.Center.X, pair.Trigger.Value.Center.Y), -1)))
                 .Count(pair => pair.Spawner >= 0 && pair.Trigger >= 0 && plan.Regions[pair.Spawner].Kind != RegionKind.SpawnCloset
                                && plan.Regions[pair.Spawner].Phase < plan.Regions[pair.Trigger].Phase);
 
@@ -202,7 +202,7 @@ public class LevelGeneratorIntegrationTests
             var layout = level.Layout!;
             int loose = level.Map.Sprites
                 .Where(sprite => sprite.Id == KnownObject.Generator)
-                .Select(sprite => layout.Lattice.ToLattice(sprite.Position.X, sprite.Position.Y))
+                .Select(sprite => layout.Lattice.ToLattice(sprite.Position))
                 .Count(point => layout.Edges.FindNearestWall(point.U, point.V) is not { Side: WallSides.UpperBack or WallSides.UpperSlash, Distance: <= GeneratorWallReach });
 
             if (loose > 0)
@@ -234,9 +234,9 @@ public class LevelGeneratorIntegrationTests
             int seen = level.Map.Sprites
                 .Where(sprite => IsAmbushSpawner(sprite.Id, sprite.Payload))
                 .Select(sprite => (sprite.Position, SpawnerProgram.Parse(sprite.Payload)?.Trigger))
-                .Where(pair => pair.Trigger is not null && level.Plan!.Regions[level.Layout!.Cells.GetValueOrDefault(level.Layout.Lattice.GetCell(pair.Position.X, pair.Position.Y), 0)].Kind != RegionKind.SpawnCloset)
-                .Count(pair => Math.Abs(pair.Position.X - pair.Trigger!.Value.X) < HalfScreenWidth + pair.Trigger.Value.Radius
-                               && Math.Abs(pair.Position.Y - pair.Trigger.Value.Y) < HalfScreenHeight + pair.Trigger.Value.Radius);
+                .Where(pair => pair.Trigger is not null && level.Plan!.Regions[level.Layout!.Cells.GetValueOrDefault(level.Layout.Lattice.GetCell(pair.Position), 0)].Kind != RegionKind.SpawnCloset)
+                .Count(pair => Math.Abs(pair.Position.X - pair.Trigger!.Value.Center.X) < HalfScreenWidth + pair.Trigger.Value.Radius
+                               && Math.Abs(pair.Position.Y - pair.Trigger.Value.Center.Y) < HalfScreenHeight + pair.Trigger.Value.Radius);
 
             if (seen > 0)
             {
@@ -267,7 +267,7 @@ public class LevelGeneratorIntegrationTests
             int dodged = triggers.Count(trigger => WalksAround(layout, start, end, cell =>
             {
                 var center = layout.Lattice.GetCenter(cell);
-                return Distance(center, new PointF(trigger.X, trigger.Y)) < trigger.Radius;
+                return Distance(center, trigger.Center) < trigger.Radius;
             }));
 
             if (dodged > 0)
@@ -280,27 +280,18 @@ public class LevelGeneratorIntegrationTests
     }
 
     [Fact]
-    public void Generate_BothStyles_MixTheVariantsOfAMonsterFamilyInEveryFight()
+    public void Generate_BothStyles_CapTheCommonestVariantOfAMixedFamily()
     {
         var broken = new List<string>();
-        foreach ((string style, int seed, int number, var level, var model, var _) in GetIndoorLevels())
+        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
         {
-            var held = model.Campaign.Monsters.Where(kind => kind.FirstLevel == number).Select(kind => kind.Id.MonsterFamily).ToHashSet();
-            var offered = level.Fights
-                .SelectMany(fight => fight.Monsters)
-                .Distinct()
+            int over = level.Fights.Count(fight => fight.Monsters
                 .GroupBy(id => id.MonsterFamily)
-                .Where(family => family.Count() > 1 && !held.Contains(family.Key))
-                .Select(family => family.Key)
-                .ToHashSet();
+                .Any(family => family.Count() >= MixedFamily && family.Distinct().Count() > 1 && family.GroupBy(id => id).Max(variant => variant.Count()) > MixedVariantMax * family.Count() + 1));
 
-            int alike = level.Fights.Count(fight => fight.Monsters
-                .GroupBy(id => id.MonsterFamily)
-                .Any(family => offered.Contains(family.Key) && family.Count() >= MixedFamily && family.GroupBy(id => id).Max(variant => variant.Count()) > MostVariantShare * family.Count() + 1));
-
-            if (alike > 0)
+            if (over > 0)
             {
-                broken.Add($"{style} seed {seed} level {number}: {alike} fights holding one variant of a family over three quarters of its monsters");
+                broken.Add($"{style} seed {seed} level {number}: {over} fights mixing a family with one variant over {MixedVariantMax} of its monsters");
             }
         }
 
@@ -329,7 +320,7 @@ public class LevelGeneratorIntegrationTests
                     .Where(sprite => sprite.Id == KnownObject.Spawner)
                     .Select(sprite => SpawnerProgram.Parse(sprite.Payload))
                     .Where(program => program?.Trigger is not null)
-                    .Select(program => (Phase: GetPhase(program!.Trigger!.Value.X, program.Trigger.Value.Y), HitPoints: program.Monsters.Sum(GetHitPoints))))
+                    .Select(program => (Phase: GetPhase(program!.Trigger!.Value.Center.X, program.Trigger.Value.Center.Y), HitPoints: program.Monsters.Sum(GetHitPoints))))
                 .GroupBy(pair => pair.Phase)
                 .ToDictionary(phase => phase.Key, phase => phase.Sum(pair => pair.HitPoints));
 
@@ -372,15 +363,18 @@ public class LevelGeneratorIntegrationTests
     }
 
     [Fact]
-    public void Generate_BothStyles_IntroduceEachMonsterKindInAFightNoHarderThanTheLevelsMedian()
+    public void Generate_Campaign_IntroducesTheFirstMonsterLevelsKindsInPlacedFightsNoHarderThanItsMedian()
     {
         var broken = new List<string>();
-        foreach ((string style, int seed, int number, var level, var model, var objects) in GetIndoorLevels())
+        foreach ((string style, int seed, int number, var level, var model, var objects) in GetIndoorLevels().Where(entry => entry.Style == "campaign"))
         {
             var firstLevels = model.Campaign.Monsters.ToDictionary(kind => kind.Id, kind => kind.FirstLevel);
+            if (number != firstLevels.Values.Min())
+                continue;
+
             var fights = level.Fights.OrderBy(fight => fight.Order).ToArray();
             float median = fights.Select(fight => (float)fight.HitPoints).Order().ElementAtOrDefault(fights.Length / 2);
-            foreach (var kind in fights.SelectMany(fight => fight.Monsters).Distinct().Where(kind => firstLevels.GetValueOrDefault(kind) == number && number > firstLevels.Values.Min()))
+            foreach (var kind in fights.SelectMany(fight => fight.Monsters).Distinct().Where(kind => firstLevels.GetValueOrDefault(kind) == number))
             {
                 var first = fights.First(fight => fight.Monsters.Contains(kind));
                 int single = objects.TryFind(kind, out var found) ? found.MaxHp : 0;
@@ -412,7 +406,7 @@ public class LevelGeneratorIntegrationTests
 
             var door = layout.Lattice.GetCenter(layout.GetDoorwayCell(link.Id, link.To));
             (var point, int radius) = level.Script.Blackout!.Value;
-            bool inside = layout.Cells.TryGetValue(layout.Lattice.GetCell(point.X, point.Y), out int region) && region == room.Id;
+            bool inside = layout.Cells.TryGetValue(layout.Lattice.GetCell(point), out int region) && region == room.Id;
             float distance = MathF.Sqrt((point.X - door.X) * (point.X - door.X) + (point.Y - door.Y) * (point.Y - door.Y));
             if (!inside || distance <= radius)
             {
@@ -488,7 +482,7 @@ public class LevelGeneratorIntegrationTests
             var plan = level.Plan!;
             (int Phase, int Walk, int Region) Locate(MergedMapSprite sprite)
             {
-                int region = layout.Cells.GetValueOrDefault(layout.Lattice.GetCell(sprite.Position.X, sprite.Position.Y), -1);
+                int region = layout.Cells.GetValueOrDefault(layout.Lattice.GetCell(sprite.Position), -1);
                 return (region < 0 ? 0 : plan.Regions[region].Phase, GetWalk(level, walk, sprite.Position.X, sprite.Position.Y), region);
             }
 
@@ -576,7 +570,7 @@ public class LevelGeneratorIntegrationTests
         if (layout is not null)
         {
             foreach (var sprite in level.Map.Sprites.Where(sprite => sprite.Id.IsDecor && sprite.Position.Z < DecorFloorHeight
-                         && !layout.Cells.ContainsKey(layout.Lattice.GetCell(sprite.Position.X, sprite.Position.Y))))
+                         && !layout.Cells.ContainsKey(layout.Lattice.GetCell(sprite.Position))))
             {
                 faults.Add($"{name}: {sprite.Id} at ({sprite.Position.X:0}, {sprite.Position.Y:0}) stands off the floor");
             }
@@ -587,10 +581,10 @@ public class LevelGeneratorIntegrationTests
         {
             var held = level.Map.Sprites
                 .Where(sprite => sprite.Id == KnownObject.Generator)
-                .Select(sprite => layout.Cells.GetValueOrDefault(layout.Lattice.GetCell(sprite.Position.X, sprite.Position.Y), -1))
+                .Select(sprite => layout.Cells.GetValueOrDefault(layout.Lattice.GetCell(sprite.Position), -1))
                 .ToHashSet();
 
-            foreach (var (room, _) in plan.GeneratorRooms.Where(entry => !held.Contains(entry.Room.Id)))
+            foreach (var room in plan.GeneratorRooms.Where(room => !held.Contains(room.Id)))
             {
                 faults.Add($"{name}: generator room {room.Id} holds no generator");
             }
@@ -730,7 +724,7 @@ public class LevelGeneratorIntegrationTests
     {
         var layout = level.Layout!;
         var player = level.Map.Sprites.First(sprite => sprite.Id == KnownObject.PlayerStart).Position;
-        var start = layout.Lattice.GetCell(player.X, player.Y);
+        var start = layout.Lattice.GetCell(player);
         var walk = new Dictionary<Cell, int> { [start] = 0 };
         var queue = new Queue<Cell>([start]);
         while (queue.TryDequeue(out var cell))

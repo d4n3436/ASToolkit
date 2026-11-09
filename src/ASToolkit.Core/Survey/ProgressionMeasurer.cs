@@ -528,10 +528,10 @@ public sealed class ProgressionMeasurer
         return (a.U - b.U) * (a.U - b.U) + (a.V - b.V) * (a.V - b.V);
     }
 
-    private (float U, float V) GetCellCenter(int place)
+    private GridPoint GetCellCenter(int place)
     {
         var cells = GetPlace(place).Cells;
-        return ((float)cells.Average(cell => cell.U), (float)cells.Average(cell => cell.V));
+        return new GridPoint((float)cells.Average(cell => cell.U), (float)cells.Average(cell => cell.V));
     }
 
     private void Walk(List<int> path, HashSet<int> within, int target)

@@ -31,13 +31,13 @@ internal sealed class BuildingDraft
 
     public List<(int Room, int Passage)> Junctions { get; } = [];
 
-    public List<(int A, int B)> ClosedWalls { get; } = [];
+    public List<RoomPair> ClosedWalls { get; } = [];
 
-    public List<(int A, int B)> JammedWalls { get; } = [];
+    public List<RoomPair> JammedWalls { get; } = [];
 
-    public List<(int A, int B)> OpenWalls { get; } = [];
+    public List<RoomPair> OpenWalls { get; } = [];
 
-    public List<(int From, int To)> Shortcuts { get; } = [];
+    public List<RoomPair> Shortcuts { get; } = [];
 
     public int? Start { get; set; }
 
@@ -55,7 +55,7 @@ internal sealed class BuildingDraft
 
     public HashSet<int> LockedSiteRooms { get; } = [];
 
-    public double RoomSide { get; set; }
+    public float RoomSide { get; set; }
 
     public Dictionary<int, List<UnitRect>> Shapes { get; } = [];
 
@@ -87,9 +87,9 @@ internal sealed class BuildingDraft
 
     public IReadOnlyList<UnitRect> GetShapes(int id) => Shapes.TryGetValue(id, out var shapes) ? shapes : [RectOf(id)];
 
-    public int Size(double low, double high) => Math.Max(3, GrammarRandom.Round(RoomSide * Random.Uniform(low, high)));
+    public int Size(float low, float high) => Math.Max(3, GrammarRandom.Round(RoomSide * Random.Uniform(low, high)));
 
-    public RoomType DrawType(IReadOnlyList<(RoomType Type, double Weight)> types, RoomType main) => Random.Next() < 0.6 ? main : Random.Weighted(types);
+    public RoomType DrawType(IReadOnlyList<(RoomType Type, float Weight)> types, RoomType main) => Random.Next() < 0.6f ? main : Random.Weighted(types);
 
     private void Add(string name, int amount) => Counts[name] = Counts.GetValueOrDefault(name) + amount;
 }

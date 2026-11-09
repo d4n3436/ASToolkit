@@ -165,7 +165,7 @@ public sealed class LevelSurveyor
         {
             if (!KnownObject.Floors.Contains(sprite.Id) && !KnownObject.BasementWalls.Contains(sprite.Id) && !KnownObject.ConcreteWalls.Contains(sprite.Id) && !Skipped.Contains(sprite.Id) && (withDoors || !sprite.Id.IsDoor))
             {
-                content.Add(_lattice.GetCell(sprite.Position.X, sprite.Position.Y));
+                content.Add(_lattice.GetCell(sprite.Position));
             }
         }
 
@@ -803,7 +803,7 @@ public sealed class LevelSurveyor
         {
             bool opens = style is LevelStyle.LockedDoors or LevelStyle.Blackout;
             int transformers = _map.Sprites.Count(sprite => sprite.Id == KnownObject.Transformer && GetDistance(sprite.Position.X, sprite.Position.Y, breaker.X, breaker.Y) <= NearReach);
-            int traps = triggers.Count(trigger => GetDistance(trigger.X, trigger.Y, breaker.X, breaker.Y) <= NearReach);
+            int traps = triggers.Count(trigger => GetDistance(trigger.Center.X, trigger.Center.Y, breaker.X, breaker.Y) <= NearReach);
             int beside = charges.Count(charge => GetPlaceId(charge.Cell) == GetPlaceId(breaker.Cell));
             landmarks.Add(CreateLandmark(LandmarkKind.Breaker, breaker.X, breaker.Y, GetRoute(ObjectiveKind.Breaker, breaker),
                 ("key-to-gate", opens ? gating.KeyToGatePixels : null), ("opens-nothing", opens ? null : 1), ("transformers", transformers),
@@ -963,7 +963,7 @@ public sealed class LevelSurveyor
         }
 
         var spawners = elements.Where(element => element.Kind == ElementKind.Spawner).ToArray();
-        foreach (var group in spawners.GroupBy(spawner => spawner.Program!.Trigger ?? (spawner.X, spawner.Y, -1)))
+        foreach (var group in spawners.GroupBy(spawner => spawner.Program!.Trigger ?? new TriggerArea(new Point(spawner.X, spawner.Y), -1)))
         {
             var members = group.ToArray();
             var anchor = members[0];
@@ -976,7 +976,7 @@ public sealed class LevelSurveyor
             LandmarkKind? nearKey = null;
             if (trigger is not null)
             {
-                (int triggerX, int triggerY, _) = trigger.Value;
+                (int triggerX, int triggerY) = trigger.Value.Center;
                 triggerPlace = GetPlaceNear(triggerX, triggerY);
                 route = members.Min(member => member.TriggerProgress is null ? GetRouteAt(triggerX, triggerY, null) : (int)(member.TriggerProgress.Value * _tour));
                 source = GetSource(anchor, holes, pads);

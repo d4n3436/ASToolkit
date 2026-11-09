@@ -82,7 +82,7 @@ internal static class RouteOverlay
             foreach (var element in analysis.Elements.Where(e => e.Program?.Trigger is not null))
             {
                 var t = element.Program!.Trigger!.Value;
-                var trigger = map.ToImage(t.X, t.Y);
+                var trigger = map.ToImage(t.Center.X, t.Center.Y);
                 c.DrawLine(Trigger, Size(1), map.ToImage(element.X, element.Y), trigger);
                 if (t.Radius > 0)
                 {

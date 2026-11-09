@@ -750,7 +750,7 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
 
     private static string GetFileName(string name) => Path.ChangeExtension(name, null).Replace('/', '_').Replace('\\', '_');
 
-    private static string Format(MeasureShare share) => share.Total == 0 ? "-" : $"{Format(share.Count)} of {Format(share.Total)} ({Math.Round(100 * share.Value!.Value)}%)";
+    private static string Format(MeasureShare share) => share.Total == 0 ? "-" : $"{Format(share.Count)} of {Format(share.Total)} ({MathF.Round(100 * share.Value!.Value)}%)";
 
     private static string Format(int value) => value.ToString("N0", CultureInfo.InvariantCulture);
 

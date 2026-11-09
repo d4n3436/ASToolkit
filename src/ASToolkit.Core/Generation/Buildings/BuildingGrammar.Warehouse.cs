@@ -38,7 +38,7 @@ internal abstract partial class BuildingGrammar
     {
         var areas = new Dictionary<string, Area>();
         // Draw the A and B sides once per level, every area naming them sharing the draw
-        (string a, string b) = Random.Next() < 0.5 ? ("MinY", "MaxY") : ("MaxY", "MinY");
+        (string a, string b) = Random.Next() < 0.5f ? ("MinY", "MaxY") : ("MaxY", "MinY");
         foreach (var spec in template)
         {
             Area? area = null;
@@ -65,8 +65,8 @@ internal abstract partial class BuildingGrammar
 
     private Area? DrawArea(WarehouseArea spec)
     {
-        int w = Random.Inclusive(spec.Width.Min, spec.Width.Max);
-        int l = Random.Inclusive(spec.Length.Min, spec.Length.Max);
+        int w = Random.Inclusive(spec.Width);
+        int l = Random.Inclusive(spec.Length);
         var area = spec.Shape switch
         {
             WarehouseShape.Hall => HallArea(w, l, spec.Feature, spec.HasIsland),
@@ -196,7 +196,7 @@ internal abstract partial class BuildingGrammar
     {
         var ids = new Dictionary<string, int[]>();
         var all = new List<int>();
-        var open = new HashSet<(int, int)>();
+        var open = new HashSet<RoomPair>();
         foreach (var spec in template.Where(spec => areas.ContainsKey(spec.Name)))
         {
             var area = areas[spec.Name];
@@ -242,8 +242,8 @@ internal abstract partial class BuildingGrammar
             (int a, int b) = (ids[spec.WayBack!][areas[spec.WayBack!].Entry], ids[spec.Name][areas[spec.Name].Entry]);
             if (Grid[a].Phase == Grid[b].Phase)
             {
-                open.Add((a, b));
-                Shortcuts.Add((a, b));
+                open.Add(new RoomPair(a, b));
+                Shortcuts.Add(new RoomPair(a, b));
             }
             else
             {
@@ -270,11 +270,11 @@ internal abstract partial class BuildingGrammar
             .Last();
     }
 
-    private void Join(int a, int b, HashSet<(int, int)> open, bool isWide)
+    private void Join(int a, int b, HashSet<RoomPair> open, bool isWide)
     {
         if (AddDesignedDoor(a, b, open) && isWide)
         {
-            OpenWalls.Add((a, b));
+            OpenWalls.Add(new RoomPair(a, b));
         }
     }
 
@@ -305,11 +305,11 @@ internal abstract partial class BuildingGrammar
             (int top, int bottom) = Random.Choice([(2, 2), (2, 3), (3, 2), (0, 3), (3, 0)]);
             cells.UnionWith(Box(m0, -top, m1, w + bottom));
         }
-        else if (feature == 1 && l >= 8 && Random.Next() < 0.9)
+        else if (feature == 1 && l >= 8 && Random.Next() < 0.9f)
         {
             int bl = Random.Inclusive(4, Math.Min(7, l - 4)), bd = Random.Inclusive(2, 3);
             int b0 = l - bl - 2 >= 2 ? Random.Inclusive(2, l - bl - 2) : 0;
-            cells.UnionWith(Random.Next() < 0.5 ? Box(b0, -bd, b0 + bl, 0) : Box(b0, w, b0 + bl, w + bd));
+            cells.UnionWith(Random.Next() < 0.5f ? Box(b0, -bd, b0 + bl, 0) : Box(b0, w, b0 + bl, w + bd));
         }
 
         var outline = new HashSet<Cell>(cells);
@@ -345,7 +345,7 @@ internal abstract partial class BuildingGrammar
         bool isUpright = end is "N" or "S";
         int far = end == "N" ? 0 : l - side;
         var hall = isUpright ? Box(0, 0, w, l) : Box(0, 0, l, w);
-        var machine = (isUpright, Random.Next() < 0.5) switch
+        var machine = (isUpright, Random.Next() < 0.5f) switch
         {
             (false, true) => Box(l - side, -side, l, 0),
             (false, false) => Box(l - side, w, l, w + side),
@@ -354,7 +354,7 @@ internal abstract partial class BuildingGrammar
         };
 
         var area = new Area([new AreaRoom(hall, RoomType.Hall) { Role = "route" }, new AreaRoom(machine, RoomType.MachineRoom) { Role = "generator" }]);
-        area.Joins.Add((0, 1));
+        area.Joins.Add(new RoomPair(0, 1));
         area.Doors.Add(isUpright ? new ShapeDoor(new Point(0, 0), new Point(w, 0)) : new ShapeDoor(new Point(0, 0), new Point(0, w)));
         area.Doors.Add(isUpright ? new ShapeDoor(new Point(0, l), new Point(w, l)) : new ShapeDoor(new Point(l, 0), new Point(l, w)));
         return area;
@@ -378,7 +378,7 @@ internal abstract partial class BuildingGrammar
         }
 
         var area = new Area([new AreaRoom(parts[0], spec.First), new AreaRoom(parts[1], spec.Second) { Phase = spec.SecondPhase, Role = spec.SecondRole }]);
-        area.Joins.Add((0, 1));
+        area.Joins.Add(new RoomPair(0, 1));
         return area;
     }
 
@@ -402,7 +402,7 @@ internal abstract partial class BuildingGrammar
         {
             Role = i == parts.Count - 1 ? spec.Role : "route"
         }).ToList());
-        area.Joins.AddRange(Enumerable.Range(0, parts.Count - 1).Select(i => (i, i + 1)));
+        area.Joins.AddRange(Enumerable.Range(0, parts.Count - 1).Select(i => new RoomPair(i, i + 1)));
         return area;
     }
 
@@ -414,7 +414,7 @@ internal abstract partial class BuildingGrammar
             return null;
         }
 
-        int corner = Random.Next() < 0.5 ? 0 : w - rw * nested;
+        int corner = Random.Next() < 0.5f ? 0 : w - rw * nested;
         var nest = Enumerable.Range(0, nested).Select(k => Box(corner + k * rw, d - rd, corner + (k + 1) * rw, d)).ToList();
         var body = Box(0, 0, w, d);
         nest.ForEach(body.ExceptWith);
@@ -422,7 +422,7 @@ internal abstract partial class BuildingGrammar
         var rooms = new List<AreaRoom> { new(body, RoomType.Depot) };
         rooms.AddRange(order.Select((cells, k) => new AreaRoom(cells, k == nested - 1 ? RoomType.MachineRoom : RoomType.Storage) { Role = k == nested - 1 ? "generator" : "route" }));
         var area = new Area(rooms);
-        area.Joins.AddRange(Enumerable.Range(0, nested).Select(k => (k, k + 1)));
+        area.Joins.AddRange(Enumerable.Range(0, nested).Select(k => new RoomPair(k, k + 1)));
         var exit = order[0];
         area.DoorCells.UnionWith(body.Where(cell => exit.Any(other => Math.Max(Math.Abs(cell.U - other.U), Math.Abs(cell.V - other.V)) <= GeneratorReach)));
         return area;
@@ -447,23 +447,23 @@ internal abstract partial class BuildingGrammar
         }
 
         var rooms = new List<AreaRoom> { new(Box(0, 0, w, strip), RoomType.Passage) { Role = "route" } };
-        rooms.AddRange(row.Select(part => new AreaRoom(part, Random.Next() < 0.6 ? RoomType.Depot : RoomType.Storage) { Role = "route" }));
+        rooms.AddRange(row.Select(part => new AreaRoom(part, Random.Next() < 0.6f ? RoomType.Depot : RoomType.Storage) { Role = "route" }));
         int[] edge = row[^1].Where(c => c.V == top).Select(c => c.U).Order().ToArray();
         int hw = Math.Min(Random.Inclusive(4, 6), edge.Length);
         int hl = Random.Inclusive(14, 18);
         int u0 = Random.Inclusive(edge[0], Math.Max(edge[0], edge[^1] + 1 - hw));
         var hall = Box(u0, top + 1, u0 + hw, top + 1 + hl);
-        if (Random.Next() < 0.9)
+        if (Random.Next() < 0.9f)
         {
             int bl = Random.Inclusive(4, 7), bd = Random.Inclusive(2, 3), b0 = top + 1 + Random.Inclusive(2, hl - bl - 2);
-            hall.UnionWith(Random.Next() < 0.5 ? Box(u0 - bd, b0, u0, b0 + bl) : Box(u0 + hw, b0, u0 + hw + bd, b0 + bl));
+            hall.UnionWith(Random.Next() < 0.5f ? Box(u0 - bd, b0, u0, b0 + bl) : Box(u0 + hw, b0, u0 + hw + bd, b0 + bl));
         }
 
         int endTop = top + 1 + hl;
         rooms.Add(new AreaRoom(hall, RoomType.Hall) { Role = "arena" });
         rooms.Add(new AreaRoom(Box(u0, endTop, u0 + Random.Inclusive(3, 4), endTop + Random.Inclusive(3, 4)), RoomType.Storage) { Role = "end" });
         var area = new Area(rooms);
-        area.Joins.AddRange(Enumerable.Range(0, rooms.Count - 1).Select(i => (i, i + 1)));
+        area.Joins.AddRange(Enumerable.Range(0, rooms.Count - 1).Select(i => new RoomPair(i, i + 1)));
         return area;
     }
 
@@ -483,7 +483,7 @@ internal abstract partial class BuildingGrammar
         if (shape == "L" && b >= 2)
         {
             int a = Random.Inclusive(w / 3, w / 2);
-            int cu = Random.Next() < 0.5 ? 0 : w - a;
+            int cu = Random.Next() < 0.5f ? 0 : w - a;
             cells.ExceptWith(Box(cu, d - b, cu + a, d));
         }
         else if (shape == "T")
@@ -524,7 +524,7 @@ internal abstract partial class BuildingGrammar
             var output = new List<HashSet<Cell>> { new(cells) };
             while (output.Count < parts)
             {
-                var big = !deep || Random.Next() < 0.6 || output.Count < 2 ? output.MaxBy(part => part.Count)! : output.OrderBy(part => part.Count).ElementAt(output.Count - 2);
+                var big = !deep || Random.Next() < 0.6f || output.Count < 2 ? output.MaxBy(part => part.Count)! : output.OrderBy(part => part.Count).ElementAt(output.Count - 2);
                 (int u0, int v0, int u1, int v1) = (big.Min(c => c.U), big.Min(c => c.V), big.Max(c => c.U) + 1, big.Max(c => c.V) + 1);
                 bool alongU = u1 - u0 >= v1 - v0;
                 (int lo, int hi, int olo, int ohi) = alongU ? (u0, u1, v0, v1) : (v0, v1, u0, u1);
@@ -534,19 +534,19 @@ internal abstract partial class BuildingGrammar
                 }
 
                 HashSet<Cell> piece;
-                if (deep && ohi - olo >= 2 * least && Random.Next() < 0.45)
+                if (deep && ohi - olo >= 2 * least && Random.Next() < 0.45f)
                 {
                     int bw = Random.Inclusive(least, Math.Max(least, u1 - u0 - least)), bh = Random.Inclusive(least, Math.Max(least, v1 - v0 - least));
-                    int cu = Random.Next() < 0.5 ? u0 : u1 - bw, cv = Random.Next() < 0.5 ? v0 : v1 - bh;
+                    int cu = Random.Next() < 0.5f ? u0 : u1 - bw, cv = Random.Next() < 0.5f ? v0 : v1 - bh;
                     piece = big.Where(c => c.U >= cu && c.U < cu + bw && c.V >= cv && c.V < cv + bh).ToHashSet();
                 }
                 else
                 {
-                    double share = deep ? 0.25 : 0.35;
+                    float share = deep ? 0.25f : 0.35f;
                     int cut = Random.Inclusive(lo + Math.Max(least, (int)((hi - lo) * share)), hi - Math.Max(least, (int)((hi - lo) * share)));
                     int most = deep ? Math.Max(2, (hi - lo) / 3) : 3;
-                    (int at, int shift) = Random.Next() < (deep ? 0.9 : 0.75) && ohi - olo >= 5
-                        ? (Random.Inclusive(olo + 2, ohi - 2), (Random.Next() < 0.5 ? -1 : 1) * Random.Inclusive(2, most))
+                    (int at, int shift) = Random.Next() < (deep ? 0.9f : 0.75f) && ohi - olo >= 5
+                        ? (Random.Inclusive(olo + 2, ohi - 2), (Random.Next() < 0.5f ? -1 : 1) * Random.Inclusive(2, most))
                         : (ohi, 0);
                     piece = big.Where(c => (alongU ? c.U : c.V) < cut + ((alongU ? c.V : c.U) >= at ? shift : 0)).ToHashSet();
                 }
@@ -580,7 +580,7 @@ internal abstract partial class BuildingGrammar
             }
 
             (int ia, int ib) = Random.Choice(pairs);
-            var wall = rooms[ia].SelectMany(c => Steps.Where(step => rooms[ib].Contains(new Cell(c.U + step.U, c.V + step.V))).Select(step => (Cell: c, Step: step))).ToList();
+            var wall = rooms[ia].SelectMany(c => Cell.Steps.Where(step => rooms[ib].Contains(c + step)).Select(step => (Cell: c, Step: step))).ToList();
             (var cell, (int du, int dv)) = Random.Choice(wall);
             int depth = Random.Inclusive(1, deepest), span = Random.Inclusive(2, 4);
             (int au, int av) = du != 0 ? (0, 1) : (1, 0);
@@ -644,11 +644,9 @@ internal abstract partial class BuildingGrammar
 
     private static bool IsChained(List<HashSet<Cell>> parts) => parts.Zip(parts.Skip(1)).All(pair => Touching(pair.First, pair.Second) > 0);
 
-    private static int Touching(HashSet<Cell> a, HashSet<Cell> b) => a.Sum(c => Steps.Count(step => b.Contains(new Cell(c.U + step.U, c.V + step.V))));
+    private static int Touching(HashSet<Cell> a, HashSet<Cell> b) => a.Sum(c => Cell.Steps.Count(step => b.Contains(c + step)));
 
-    private static readonly (int U, int V)[] Steps = [(1, 0), (-1, 0), (0, 1), (0, -1)];
-
-    private static HashSet<Cell> Box(int u0, int v0, int u1, int v1) => new UnitRect(u0, v0, u1 - u0, v1 - v0).ToCells();
+    private static HashSet<Cell> Box(int u0, int v0, int u1, int v1) => UnitRect.FromEdges(u0, v0, u1, v1).ToCells();
 
     private sealed class AreaRoom
     {
@@ -684,7 +682,7 @@ internal abstract partial class BuildingGrammar
 
         public HashSet<Cell> Outline { get; }
 
-        public List<(int A, int B)> Joins { get; } = [];
+        public List<RoomPair> Joins { get; } = [];
 
         public List<ShapeDoor> Doors { get; } = [];
 
@@ -711,7 +709,7 @@ internal enum WarehouseShape
 
 // Holds one area of a warehouse template, its shape, sizes in wall pieces, phase and role, the host it joins with the join's door sides (A and B
 // drawn per level, In on the area), its way back from the key, the ways its doors face and the areas it must touch
-internal sealed record WarehouseArea(string Name, WarehouseShape Shape, (int Min, int Max) Width, (int Min, int Max) Length)
+internal sealed record WarehouseArea(string Name, WarehouseShape Shape, ValueRange<int> Width, ValueRange<int> Length)
 {
     public int Phase { get; init; }
 

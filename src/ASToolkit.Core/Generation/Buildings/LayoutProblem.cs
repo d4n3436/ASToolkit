@@ -41,7 +41,7 @@ internal sealed class LayoutProblem<T>
     public bool SavesPhases { get; init; }
 
     // Holds how many rooms of the may-touch pairs every room shares a wall at least five units long with
-    public int LeastContacts { get; init; }
+    public int MinContacts { get; init; }
 
     // Holds a starting place for rooms, unturned, in the first room's frame
     public Dictionary<T, Point> Hints { get; } = [];

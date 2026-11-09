@@ -66,7 +66,7 @@ internal static class BuildingChecks
         }
 
         var keyPhase = phases[building.Gate == LevelStyle.Blackout && phases.Length > 1 ? 1 : 0];
-        foreach ((int from, int to) in building.Shortcuts.Where(item => nodes.ContainsKey(item.From) && nodes.ContainsKey(item.To)))
+        foreach ((int from, int to) in building.Shortcuts.Where(item => nodes.ContainsKey(item.A) && nodes.ContainsKey(item.B)))
         {
             if (!contacts.Contains(Order(from, to)))
             {

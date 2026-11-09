@@ -8,8 +8,6 @@ namespace ASToolkit.Core.Generation.Buildings;
 /// </summary>
 internal static class CellRegionExtensions
 {
-    private static readonly (int U, int V)[] Steps = [(1, 0), (-1, 0), (0, 1), (0, -1)];
-
     extension(Cell cell)
     {
         public Cell[] GetAdjacent() =>
@@ -97,9 +95,9 @@ internal static class CellRegionExtensions
                     continue;
                 }
 
-                foreach (var step in Steps)
+                foreach (var step in Cell.Steps)
                 {
-                    stack.Push(new Cell(cell.U + step.U, cell.V + step.V));
+                    stack.Push(cell + step);
                 }
             }
 
@@ -149,8 +147,8 @@ internal static class CellRegionExtensions
         }
 
         public int CountOneUnitSteps() => cells
-            .SelectMany(cell => Steps
-                .Where(step => !cells.Contains(new Cell(cell.U + step.U, cell.V + step.V)))
+            .SelectMany(cell => Cell.Steps
+                .Where(step => !cells.Contains(cell + step))
                 .Select(step => (Key: step.U != 0 ? (true, cell.U + (step.U > 0 ? 1 : 0), step.U) : (false, cell.V + (step.V > 0 ? 1 : 0), step.V), At: step.U != 0 ? cell.V : cell.U)))
             .GroupBy(edge => edge.Key, edge => edge.At)
             .Sum(edge => edge.GetRuns().Count(run => run.High - run.Low == 1));
@@ -159,12 +157,12 @@ internal static class CellRegionExtensions
         public HashSet<Cell> GetSurroundings(int reach) =>
             cells.SelectMany(cell => new UnitRect(cell.U - reach, cell.V - reach, 2 * reach + 1, 2 * reach + 1).ToCells()).ToHashSet();
 
-        public WallRun GetLongestWall(HashSet<Cell> other) => Steps
+        public ContactRun GetLongestWall(HashSet<Cell> other) => Cell.Steps
             .SelectMany(step => cells
-                .Where(cell => other.Contains(new Cell(cell.U + step.U, cell.V + step.V)))
+                .Where(cell => other.Contains(cell + step))
                 .GroupBy(cell => step.U != 0 ? cell.U : cell.V)
-                .SelectMany(line => line.Select(cell => step.U != 0 ? cell.V : cell.U).GetRuns().Select(run => new WallRun(line.Key, run.Low, run.High, step.U == 0))))
-            .Aggregate(new WallRun(0, 0, 0, false), (best, run) => run.Length > best.Length ? run : best);
+                .SelectMany(line => line.Select(cell => step.U != 0 ? cell.V : cell.U).GetRuns().Select(run => new ContactRun(line.Key, run.Low, run.High, step.U == 0))))
+            .Aggregate(new ContactRun(0, 0, 0, false), (best, run) => run.Length > best.Length ? run : best);
 
         // Covers the cells with rectangles in row order, each as wide along u as it goes and then as tall as that width allows
         public UnitRect[] ToRects()
@@ -206,7 +204,7 @@ internal static class CellRegionExtensions
         while (todo.Count > 0)
         {
             var cell = todo.Pop();
-            foreach ((int du, int dv) in Steps)
+            foreach ((int du, int dv) in Cell.Steps)
             {
                 var next = new Cell(cell.U + du, cell.V + dv);
                 if (cells.Contains(next) && reached.Add(next))
@@ -220,7 +218,7 @@ internal static class CellRegionExtensions
     }
 }
 
-internal readonly record struct WallRun(int Line, int Low, int High, bool AlongU)
+internal readonly record struct ContactRun(int Line, int Low, int High, bool AlongU)
 {
     public int Length => High - Low;
 }

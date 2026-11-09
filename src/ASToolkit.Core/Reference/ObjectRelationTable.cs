@@ -271,7 +271,7 @@ public sealed class ObjectRelationTable
         public void Add(ReferenceLevel level, ObjectTable objects, Random rng)
         {
             var pieces = level.Map.Sprites.Where(sprite => IsPiece(sprite.Id)).ToArray();
-            var buckets = new Dictionary<(int, int), List<int>>();
+            var buckets = new Dictionary<Point, List<int>>();
             for (int index = 0; index < pieces.Length; index++)
             {
                 var key = GetBucket(pieces[index].Position.X, pieces[index].Position.Y);
@@ -346,7 +346,7 @@ public sealed class ObjectRelationTable
                     samples.Add(new AnchorSample(anchor.Facing, position.X - anchor.Position.X, position.Y - anchor.Position.Y, position.Z - anchor.Position.Z, piece.Facing));
                 }
 
-                (float u, float v) = lattice.ToLattice(position.X, position.Y);
+                (float u, float v) = lattice.ToLattice(position);
                 if (edges.FindNearestWall(u, v)?.Distance <= WallReach)
                 {
                     Walled[piece.Id] = Walled.GetValueOrDefault(piece.Id) + 1;
@@ -392,7 +392,7 @@ public sealed class ObjectRelationTable
         }
 
         // Keep, per pair of blocking objects at the same height, the smallest share of their summed sizes their centers stood apart
-        private void AddSpacings(MergedMapSprite[] pieces, Dictionary<(int, int), List<int>> buckets, int index, ObjectTable objects)
+        private void AddSpacings(MergedMapSprite[] pieces, Dictionary<Point, List<int>> buckets, int index, ObjectTable objects)
         {
             var piece = pieces[index];
             if (!piece.Id.IsDecor || objects.GetBlocking(piece.Id) == BlockingClass.WalkThrough || !objects.TryFind(piece.Id, out var obj))
@@ -420,16 +420,16 @@ public sealed class ObjectRelationTable
             }
         }
 
-        private static (int, int) GetBucket(float x, float y) => ((int)MathF.Floor(x / BucketSize), (int)MathF.Floor(y / BucketSize));
+        private static Point GetBucket(float x, float y) => new((int)MathF.Floor(x / BucketSize), (int)MathF.Floor(y / BucketSize));
 
-        private static IEnumerable<int> GetNear(Dictionary<(int, int), List<int>> buckets, float x, float y)
+        private static IEnumerable<int> GetNear(Dictionary<Point, List<int>> buckets, float x, float y)
         {
             (int bx, int by) = GetBucket(x, y);
             for (int dx = -1; dx <= 1; dx++)
             {
                 for (int dy = -1; dy <= 1; dy++)
                 {
-                    if (buckets.TryGetValue((bx + dx, by + dy), out var bucket))
+                    if (buckets.TryGetValue(new Point(bx + dx, by + dy), out var bucket))
                     {
                         foreach (int index in bucket)
                         {

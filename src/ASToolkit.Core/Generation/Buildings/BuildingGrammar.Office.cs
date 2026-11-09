@@ -1,3 +1,5 @@
+using ASToolkit.Core.Levels;
+
 namespace ASToolkit.Core.Generation.Buildings;
 
 internal abstract partial class BuildingGrammar
@@ -14,7 +16,7 @@ internal abstract partial class BuildingGrammar
         }
 
         var ids = layout.Rooms.Select(room => AddDepot(room.Cells.ToRects(), room.Type, room.Phase, NewGroup())).ToList();
-        var open = new HashSet<(int, int)>();
+        var open = new HashSet<RoomPair>();
         foreach ((int a, int b) in layout.Doors)
         {
             AddDesignedDoor(ids[a], ids[b], open);

@@ -8,9 +8,9 @@ namespace ASToolkit.Core.Generation.Buildings;
 // their door bands
 internal sealed class RoomShaper
 {
-    private const double PodShapeShare = 0.25;
-    private const double PodInterlockShare = 0.5;
-    private const double WingShapeShare = 0.85;
+    private const float PodShapeShare = 0.25f;
+    private const float PodInterlockShare = 0.5f;
+    private const float WingShapeShare = 0.85f;
     private const int PodFootprintCells = 36;
 
     private readonly BuildingDraft _draft;
@@ -83,7 +83,7 @@ internal sealed class RoomShaper
         // Keep a pod of four or more rooms from being all boxes by interlocking its rooms, else outlining a lone room, else notching one
         foreach (var pod in rooms.GroupBy(room => room.Group).Where(group => group.Count() >= 4))
         {
-            if (pod.Any(room => _draft.Shaped.Contains(room.Id)) || !mates.TryGetValue(pod.Key, out var regular) || InterlockPod(regular, 1.0))
+            if (pod.Any(room => _draft.Shaped.Contains(room.Id)) || !mates.TryGetValue(pod.Key, out var regular) || InterlockPod(regular, 1.0f))
             {
                 continue;
             }
@@ -100,7 +100,7 @@ internal sealed class RoomShaper
         bool SharesPodWall(GridRoom room) => mates.TryGetValue(room.Group, out var pod) && pod.Any(other => other.Id != room.Id && other.Rect.SharesWall(room.Rect));
     }
 
-    private bool InterlockPod(GridRoom[] pod, double share)
+    private bool InterlockPod(GridRoom[] pod, float share)
     {
         var pairs = pod
             .SelectMany(first => pod.Where(second => second.Id > first.Id && second.Rect.SharesWall(first.Rect)).Select(second => (First: first, Second: second)))
@@ -114,7 +114,7 @@ internal sealed class RoomShaper
                 continue;
             }
 
-            bool isFirstPushing = _draft.Random.Next() < 0.5;
+            bool isFirstPushing = _draft.Random.Next() < 0.5f;
             any |= isFirstPushing ? TryInterlock(first, second) || TryInterlock(second, first) : TryInterlock(second, first) || TryInterlock(first, second);
         }
 
@@ -326,7 +326,7 @@ internal sealed class RoomShaper
 
     private bool[,]? DrawOutline(IReadOnlyList<RoomFootprint> footprints, int width, int height, Func<bool[,], bool> isAcceptable)
     {
-        double aspect = width / (double)height;
+        float aspect = width / (float)height;
         var fitting = footprints.Where(footprint => 2 * Math.Max(footprint.Width, footprint.Height) <= Math.Max(width, height)).ToArray();
         var pool = fitting.Length > 0 ? fitting : footprints;
         for (int attempt = 0; attempt < 48; attempt++)
@@ -335,8 +335,8 @@ internal sealed class RoomShaper
             int turn = _draft.Random.Range(0, 8);
             bool isTurned = turn % 2 == 1;
             (int fw, int fh) = isTurned ? (footprint.Height, footprint.Width) : (footprint.Width, footprint.Height);
-            double ratio = fw / (double)fh / aspect;
-            if (ratio is < 0.5 or > 2.0)
+            float ratio = fw / (float)fh / aspect;
+            if (ratio is < 0.5f or > 2.0f)
             {
                 continue;
             }

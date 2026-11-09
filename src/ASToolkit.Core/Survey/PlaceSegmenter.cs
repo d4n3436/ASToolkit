@@ -1,3 +1,4 @@
+using System.Drawing;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Routes;
 
@@ -271,7 +272,7 @@ internal sealed class PlaceSegmenter
 
     private static HashSet<EdgeKey> FindStubLines(Dictionary<EdgeKey, EdgeKind> edges, HashSet<Cell> floor, int maxStubCells)
     {
-        var touching = new Dictionary<(int A, int B), int>();
+        var touching = new Dictionary<Point, int>();
         foreach (var edge in edges.Keys)
         {
             var (first, second) = GetEnds(edge);
@@ -314,8 +315,8 @@ internal sealed class PlaceSegmenter
         return lines;
     }
 
-    private static ((int A, int B) First, (int A, int B) Second) GetEnds(EdgeKey edge) =>
-        edge.Axis == 'u' ? ((edge.A, edge.B), (edge.A, edge.B + 1)) : ((edge.A, edge.B), (edge.A + 1, edge.B));
+    private static (Point First, Point Second) GetEnds(EdgeKey edge) =>
+        edge.Axis == 'u' ? (new Point(edge.A, edge.B), new Point(edge.A, edge.B + 1)) : (new Point(edge.A, edge.B), new Point(edge.A + 1, edge.B));
 
     private static HashSet<EdgeKey> FindOpenings(Dictionary<EdgeKey, EdgeKind> edges, HashSet<Cell> floor, int maxOpeningCells)
     {
@@ -503,7 +504,7 @@ internal sealed class PlaceSegmenter
 
     private static List<List<Cell>> MergeUnbounded(List<List<Cell>> pieces, IReadOnlyDictionary<EdgeKey, EdgeKind> edges)
     {
-        var bars = new Dictionary<(int A, int B), (int Along, int Across)>();
+        var bars = new Dictionary<Point, (int Along, int Across)>();
         foreach (var edge in edges.Keys)
         {
             var (first, second) = GetEnds(edge);
@@ -527,16 +528,16 @@ internal sealed class PlaceSegmenter
         do
         {
             changed = false;
-            var cuts = new Dictionary<(int, int), List<EdgeKey>>();
+            var cuts = new Dictionary<RoomPair, List<EdgeKey>>();
             foreach ((var cell, int label) in labelOf)
             {
                 foreach (var (neighbor, edge) in EdgeKey.GetNeighbors(cell))
                 {
                     if (labelOf.TryGetValue(neighbor, out int other) && other > label && !edges.ContainsKey(edge))
                     {
-                        if (!cuts.TryGetValue((label, other), out var cut))
+                        if (!cuts.TryGetValue(new RoomPair(label, other), out var cut))
                         {
-                            cuts[(label, other)] = cut = [];
+                            cuts[new RoomPair(label, other)] = cut = [];
                         }
 
                         cut.Add(edge);
@@ -569,7 +570,7 @@ internal sealed class PlaceSegmenter
 
         bool IsBounded(List<EdgeKey> cut)
         {
-            var degree = new Dictionary<(int, int), int>();
+            var degree = new Dictionary<Point, int>();
             foreach (var edge in cut)
             {
                 var (first, second) = GetEnds(edge);
@@ -586,8 +587,8 @@ internal sealed class PlaceSegmenter
 
                 var edge = cut.First(candidate => GetEnds(candidate).First == vertex || GetEnds(candidate).Second == vertex);
                 var (low, high) = GetEnds(edge);
-                (int stepA, int stepB) = vertex == low ? (low.A - high.A, low.B - high.B) : (high.A - low.A, high.B - low.B);
-                if (!Enumerable.Range(1, MaxHoleCells).Any(distance => IsBar(bars.GetValueOrDefault((vertex.Item1 + distance * stepA, vertex.Item2 + distance * stepB)))))
+                (int stepA, int stepB) = vertex == low ? (low.X - high.X, low.Y - high.Y) : (high.X - low.X, high.Y - low.Y);
+                if (!Enumerable.Range(1, MaxHoleCells).Any(distance => IsBar(bars.GetValueOrDefault(new Point(vertex.X + distance * stepA, vertex.Y + distance * stepB)))))
                 {
                     return false;
                 }
@@ -599,7 +600,7 @@ internal sealed class PlaceSegmenter
         // Keep a cut that ends on a wall corner on one side and runs into a straight wall on the other
         bool IsPassage(List<EdgeKey> cut)
         {
-            var degree = new Dictionary<(int, int), int>();
+            var degree = new Dictionary<Point, int>();
             foreach (var edge in cut)
             {
                 var (first, second) = GetEnds(edge);

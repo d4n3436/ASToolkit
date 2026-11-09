@@ -7,6 +7,7 @@ using ASToolkit.Core.Generation.Layout;
 using ASToolkit.Core.Generation.Output;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Reference;
+using ASToolkit.Core.Scripting;
 
 namespace ASToolkit.Core.Generation.Content;
 
@@ -48,7 +49,7 @@ internal sealed class ScenePlanner
         _walkLength = Math.Max(1, _walk.Values.DefaultIfEmpty(0).Max());
         bool basement = _plan.Settings.WallSet == WallSet.Basement;
         var rooms = _plan.Regions
-            .Where(region => region.Kind is RegionKind.Station or RegionKind.SideRoom or RegionKind.Pen && region != _plan.KeyRoom && region != _plan.TriggerRoom
+            .Where(region => region.Kind is RegionKind.Station or RegionKind.SideRoom && region != _plan.KeyRoom && region != _plan.TriggerRoom
                 && _plan.HoldsFights(region) && (basement || _layout.GetRegionCells(region.Id).Count >= SiteCells))
             .ToArray();
 
@@ -133,14 +134,14 @@ internal sealed class ScenePlanner
                     var point = _layout.Lattice.GetCenter(cell);
                     var ring = RingSteps.SelectMany(dx => RingSteps.Select(dy => new PointF(point.X + dx * clear, point.Y + dy * clear * 0.7f))).ToArray();
                     if (strict && ContentPlacer.GetDistance(point, far) < KillZoneDistance
-                        || !ring.All(spot => _layout.Cells.ContainsKey(GetCell(spot)) && ctx.IsFree(GetCell(spot)) && !ctx.IsInWall(spot.X, spot.Y, 8)))
+                        || !ring.All(spot => _layout.Cells.ContainsKey(GetCell(spot)) && ctx.IsFree(GetCell(spot)) && !ctx.IsInWall(spot, 8)))
                     {
                         continue;
                     }
 
                     byte dir = (byte)(_rng.Next(2) == 0 ? 0 : 128);
                     ctx.Map.Add(KnownObject.MountedCannon, point.X, point.Y, 0, dir, unique: false);
-                    ctx.Occupancy.Add(KnownObject.MountedCannon, point.X, point.Y, 0);
+                    ctx.Occupancy.Add(KnownObject.MountedCannon, point, 0);
                     ctx.Taken.UnionWith(ring.Select(GetCell));
                     return new PlacedCannon(hall, point, dir, far);
                 }
@@ -155,7 +156,7 @@ internal sealed class ScenePlanner
         var requests = new List<SceneRequest>();
         if (_plan is { Gate: GateKind.Fences, KeyRoom: not null })
         {
-            var rooms = _plan.GeneratorRooms.Count > 0 ? _plan.GeneratorRooms.Select(entry => entry.Room).ToArray() : [_plan.KeyRoom];
+            var rooms = _plan.GeneratorRooms.Count > 0 ? _plan.GeneratorRooms.ToArray() : [_plan.KeyRoom];
             int count = Math.Max(rooms.Length, (int)MathF.Round(rooms.Length * generatorsPerRoom));
             requests.AddRange(Enumerable.Range(0, count).Select(index => new SceneRequest(rooms[index % rooms.Length].Id, KnownObject.Generator, null, 0, [])));
         }
@@ -209,7 +210,7 @@ internal sealed class ScenePlanner
                 continue;
             
             var trigger = GetSiteTrigger(room);
-            var program = SpawnerProgram.Create(Enumerable.Range(0, builds).Select(_ => _grammar.DrawEndlessGenerator(_rng, _brief.Level)), (trigger.X, trigger.Y, _grammar.TriggerRadius), []);
+            var program = SpawnerProgram.Create(Enumerable.Range(0, builds).Select(_ => _grammar.DrawEndlessGenerator(_rng, _brief.Level)), new TriggerArea(Point.Truncate(trigger), (int)_grammar.TriggerRadius), []);
             map.Add(KnownObject.Spawner, hx + _grammar.Spawner.X * side, hy + _grammar.Spawner.Y, _grammar.SpawnerZ, 0, program.ToPayload(), 1, unique: false);
         }
     }
@@ -237,7 +238,6 @@ internal sealed class ScenePlanner
     private PointF GetSiteTrigger(PlanRegion room)
     {
         var key = _plan.GeneratorRooms
-            .Select(entry => entry.Room)
             .Append(_plan.KeyRoom)
             .OfType<PlanRegion>()
             .Where(other => other.Phase == room.Phase - 1)
@@ -250,7 +250,7 @@ internal sealed class ScenePlanner
     private float GetProgress(PlanRegion room) =>
         _layout.GetRegionCells(room.Id).Where(_walk.ContainsKey).Select(cell => _walk[cell] / (float)_walkLength).DefaultIfEmpty(0).Min();
 
-    private Cell GetCell(PointF point) => _layout.Lattice.GetCell(point.X, point.Y);
+    private Cell GetCell(PointF point) => _layout.Lattice.GetCell(point);
 }
 
 internal sealed record SitePlan(List<PlannedSite> Sites, Dictionary<EdgeKey, PlanRegion> Holes);

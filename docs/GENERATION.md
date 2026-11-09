@@ -17,11 +17,12 @@ The guarantees every level keeps are in [One pass and guarantees](#one-pass-and-
 9. [Breaker spot](#breaker-spot)
 10. [Dressing](#dressing)
 11. [Content](#content)
-12. [Script](#script)
-13. [One pass and guarantees](#one-pass-and-guarantees)
-14. [Level 1](#level-1)
-15. [Add-on style and installation](#add-on-style-and-installation)
-16. [Debugging](#debugging)
+12. [Designer values](#designer-values)
+13. [Script](#script)
+14. [One pass and guarantees](#one-pass-and-guarantees)
+15. [Level 1](#level-1)
+16. [Add-on style and installation](#add-on-style-and-installation)
+17. [Debugging](#debugging)
 
 ## Overview
 
@@ -151,7 +152,7 @@ A cell's two upper edges are its far walls, facing the camera; fake doors, the b
 - **Weapons and pickups.** Weapons come in price order, none before the money can pay its share of the price.
 - **Sites and cannons.** Each indoor level draws its dynamite sites from its gate style's fitted rate per floor. Campaign style stands a mounted cannon on warehouse levels 7 and 8, add-on style on its last warehouse level only.
 - **Monsters and bosses.** A level draws the kinds it has reached, weighted over log hit points so that their mean meets the level's fitted mean; kinds first seen on the level are its new kinds, none on the style's first level with monsters. A level holds a boss at the fitted share, the newest boss kind it has reached.
-- **Donor.** Each level names the campaign original of its wall set nearest in hit points. The donor gives what later steps have not yet replaced, such as pens, template map and music.
+- **Donor.** Each level names the campaign original of its wall set nearest in hit points. The donor gives the template map and the music lines.
 
 ### Budget
 
@@ -182,7 +183,7 @@ A lab is two wings, the hub with its office pods and one second wing behind the 
 
 Templates are records read by `BuildingGrammar.LayWing`. Drawn wings are laid on their own grid and placed past the joint.
 
-#### Designer values
+#### Grammar values
 
 | value | setting |
 |---|---|
@@ -232,9 +233,9 @@ The doors of every building keep every room reachable, every gate lock seen befo
 
 - **How many.** The level holds the fitted number of fights for its floor. Each phase gets fights in proportion to its floor and spreads them evenly along its walk. Rooms without a fight stay empty.
 - **Phases.** A phase gets hit points in proportion to its rooms' floor, less if none of its rooms can hold an ambush. One fight in each phase is its climax. It gets the fitted share of the phase's hit points and comes at a point of the phase drawn from where the originals' climaxes come. Its room is the one nearest that point among the rooms that can hold an ambush, if the phase has any. The other fights split the rest by floor.
-- **Monsters.** Each fight draws one monster family, mixing its yellow and red variants. No variant makes up more than three quarters of the fight. A family too strong for a fight is kept for the next one.
+- **Monsters.** Each fight draws one monster family. At the style's measured share a fight holds one variant of it; otherwise its variants mix, none over the style's measured cap. A family too strong for a fight is kept for the next one.
 - **Ambushes.** A fight in a room that every walk to the end enters through one door can be an ambush. Climaxes come first, and ambushes stop once the brief's spawned share is used. The trigger covers that door. Rooms entered through the blackout door get no ambush, and when two neighboring fights have doors close together, only one of them becomes an ambush. Spawners stand in the room's spawn closet if it has one. Otherwise they stand out of sight in later fight rooms, spread apart and within reach of the trigger.
-- **New kinds.** Each new monster kind shows up first in one of the level's early, light fights.
+- **New kinds.** Each new monster kind shows up first in the fight nearest a rank drawn from the style's measured opening ranks (the level's smallest fight 0, its biggest 1), an ambush at the style's measured share where the room allows one. The campaign's first monster level holds placed fights only.
 - On a lab every fight stands in the second wing.
 
 ## Fine layout and structure
@@ -300,15 +301,27 @@ Every piece goes through the level's occupancy ([Keeping the way clear](#keeping
 - **Pickups.** `PickupPlacer` lays the budget's pickups. A new weapon lies off the walks to the objectives or in a secret closet, with one of its ammunition pickups earlier on its walk. Secret closets and some spawn closets then take their stashes, crates take each category's share, and the rest lie in small piles in rooms drawn by floor, rooms off the walks weighted by the fitted density.
 - **Checkpoint.** On the walk to the biggest fight, just before its room, on the fitted share of levels that are not blackouts.
 
-#### Fight designer values
+## Designer values
+
+The generator's other thresholds are game facts, search budgets or values measured once on the originals. The building grammars' values are listed under each building.
 
 | value | setting |
 |---|---|
-| bosses | the fitted share of levels (from 4 boss levels), the newest boss kind |
+| campaign shape | first indoor level 2, first warehouse level 6, mounted cannons on levels 7 and 8 |
+| campaign draws | drawn values kept within 1.5 spreads of their fitted line |
+| mounted cannon | in a hall reached after 3,600 px of walk, by 0.75 of the level, near 0.6 along its hall; furniture 100 px off its lane, monsters 600 px off it |
+| breaker | a far-wall run of 4 steps, 3 steps clear in front and at its open end, 2 to the side, about 400 px from the gate |
+| blackout trigger | 94 px past its door |
+| bosses | the fitted share of levels, the newest kind, in a dead end from 0.65 of the level; gore 1 lattice unit off walls |
 | divers | never placed |
+| endless generators | the 9 ranks below the level's top rank |
+| site holes | 3 edges apart |
+| site spots | doorways 3 cells away, sides at most 1.25 times the room's depth, middles 1.5 cells of slack |
+| seats | 0.3 cells of slack, nothing within 60 px in front |
+| furniture | a far wall bare for 6 cells takes a run, heaps reach 3 cells |
+| gore and rubble | gibs where 48 small pools run together, rubble on a quarter of basement levels and a quarter of monster holes |
+| first monster level | placed fights only, in campaign style |
 | screen | 1280 by 720, spawners a cell past it |
-| variants | at most three quarters of a family's monsters in a fight |
-| opening | half an average fight |
 
 ## Script
 
@@ -340,8 +353,8 @@ Every piece goes through the level's occupancy ([Keeping the way clear](#keeping
 | each family's main piece per room drawn by the style's own weights, a second piece mixed in at the measured share, every anchor's footprint (its family's side-by-side spacing) inside the room, no furniture footprint on a room's openings or the cells inside them, a room's openings and reserved cells joined past its furniture on the layout cells, no add-on piece in a campaign room | `SceneFurnisher` |
 | sites, generators and the cannon's lane kept clear | `LevelGenerator`, `SceneFurnisher` |
 | spawners and transformers clear of the solid furniture around them | `EncounterPlacer`, `ContentPlacer` |
-| no spawner in an earlier phase than its trigger, every spawn trigger on every walk from the start to the end, no variant over three quarters of its family in a fight | `FightPlanner` |
-| fights' hit points within a tenth of the budget's, each phase's placed hit points within a tenth of its fights', each new monster kind first in a standing group no harder than the level's median fight | `FightPlanner`, `EncounterPlacer` |
+| no spawner in an earlier phase than its trigger, every spawn trigger on every walk from the start to the end, no mixed family with one variant over the style's cap | `FightPlanner` |
+| fights' hit points within a tenth of the budget's, each phase's placed hit points within a tenth of its fights', the campaign's first monster level bringing its kinds in placed fights no harder than its median | `FightPlanner`, `EncounterPlacer` |
 | spawners but closets' off the 1280 by 720 screen around their trigger, monsters 12 px apart | `EncounterPlacer` |
 | the roof covers no walkable floor | `BuildRoof` |
 | every sprite payload 8 bytes or more | tests |

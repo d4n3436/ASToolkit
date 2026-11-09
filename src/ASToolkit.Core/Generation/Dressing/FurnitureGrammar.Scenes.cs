@@ -1,5 +1,6 @@
 using System.Drawing;
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Levels;
 using static ASToolkit.Core.Formats.KnownObject;
 using A = ASToolkit.Core.Generation.Dressing.ArrangementKind;
 using F = ASToolkit.Core.Levels.PieceFamily;
@@ -97,7 +98,7 @@ internal sealed partial record FurnitureGrammar
         var rows = new[] { minV, maxV }.SelectMany(v => Enumerable.Range(0, 7).Select(step => (U: minU + 0.25f + step * spacing, V: v, Frame: RowFrame)));
         var columns = new[] { minU, maxU }.SelectMany(u => Enumerable.Range(0, 6).Select(step => (U: u, V: minV + 0.35f + step * spacing, Frame: ColumnFrame)));
         float[] crateShares = [1, 1, 0.6f, 0.6f, 0.5f, 0.4f, 0.4f];
-        (float U, float V)[] crates = [(-2, -2), (-1.3f, -2.1f), (-0.6f, -2), (-1.7f, -2.6f), (-1, -2.7f), (0.1f, -2.2f), (-2.4f, -2.5f)];
+        GridPoint[] crates = [new(-2, -2), new(-1.3f, -2.1f), new(-0.6f, -2), new(-1.7f, -2.6f), new(-1, -2.7f), new(0.1f, -2.2f), new(-2.4f, -2.5f)];
         return rows.Concat(columns)
             .Select((stripe, slot) => new Companion(WallInscriptions, slot, stripe.U, stripe.V, StripeZ, stripe.Frame, 1))
             .Concat(crates.Select((crate, slot) => new Companion(Crate, slot, crate.U, crate.V, 0, 0, crateShares[slot])))

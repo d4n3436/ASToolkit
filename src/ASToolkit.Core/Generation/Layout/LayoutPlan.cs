@@ -1,5 +1,4 @@
 using ASToolkit.Core.Levels;
-using ASToolkit.Core.Rooms;
 using ASToolkit.Core.Survey;
 
 namespace ASToolkit.Core.Generation.Layout;
@@ -52,7 +51,7 @@ public sealed class LayoutPlan
     /// <summary>
     /// Gets the rooms a fenced level's generator may stand in, with the walk in pixels from the start to the back of each.
     /// </summary>
-    public required IReadOnlyList<(PlanRegion Room, float WalkPixels)> GeneratorRooms { get; init; }
+    public required IReadOnlyList<PlanRegion> GeneratorRooms { get; init; }
 
     /// <summary>
     /// Gets the link the blackout trigger sits in.

@@ -5,7 +5,7 @@ namespace ASToolkit.Core.Generation.Buildings;
 internal abstract partial class BuildingGrammar
 {
     // Holds a length in room sides or units, plus an addition, times a drawn count, within its bounds
-    private readonly record struct WingExtent(double Min, double Max, int Add = 0, int Least = 0, int Most = int.MaxValue, bool IsUnits = false, string? Times = null);
+    private readonly record struct WingExtent(float Min, float Max, int Add = 0, int MinLength = 0, int MaxLength = int.MaxValue, bool IsUnits = false, string? Times = null);
 
     private enum WingShapeKind
     {
@@ -19,8 +19,8 @@ internal abstract partial class BuildingGrammar
 
     // Holds a count drawn as a share of the wing's rooms or as the rest the fixed rooms and earlier counts leave, within its bounds, with a chance
     // and from a room count on
-    private sealed record WingCount(string Name, double Share = 0, int Offset = 0, int Min = 0, int Max = int.MaxValue, bool IsRest = false, double Chance = 1,
-        int AtLeastRooms = 0);
+    private sealed record WingCount(string Name, float Share = 0, int Offset = 0, int Min = 0, int Max = int.MaxValue, bool IsRest = false, float Chance = 1,
+        int MinRooms = 0);
 
     private enum WingVia
     {
@@ -49,7 +49,7 @@ internal abstract partial class BuildingGrammar
     {
         public bool DrawsBackType { get; init; }
 
-        public IReadOnlyList<(RoomType Type, double Weight)> Types { get; init; } = [];
+        public IReadOnlyList<(RoomType Type, float Weight)> Types { get; init; } = [];
 
         public bool IsPiece { get; init; }
 
@@ -88,7 +88,7 @@ internal abstract partial class BuildingGrammar
         LineBigRooms = 2
     }
 
-    private sealed record WingTemplate(LabWing Kind, int LeastRooms, int MostRooms, WingHall? Hall, IReadOnlyList<WingNode> Nodes)
+    private sealed record WingTemplate(LabWing Kind, int MinRooms, int MaxRooms, WingHall? Hall, IReadOnlyList<WingNode> Nodes)
     {
         public IReadOnlyList<WingCount> Counts { get; init; } = [];
 
@@ -105,8 +105,8 @@ internal abstract partial class BuildingGrammar
         public WingStep Steps { get; init; }
     }
 
-    private static WingShape Box(double min, double max, double minLength, double maxLength, int least) =>
-        new(WingShapeKind.Box, new WingExtent(min, max, Least: least), new WingExtent(minLength, maxLength, Least: least));
+    private static WingShape Box(float min, float max, float minLength, float maxLength, int least) =>
+        new(WingShapeKind.Box, new WingExtent(min, max, MinLength: least), new WingExtent(minLength, maxLength, MinLength: least));
 
     private static WingShape UnitBox(int width, int length) =>
         new(WingShapeKind.Box, new WingExtent(width, width, IsUnits: true), new WingExtent(length, length, IsUnits: true));
@@ -115,10 +115,10 @@ internal abstract partial class BuildingGrammar
 
     private static readonly IReadOnlyList<WingShape> AirlockLeg =
     [
-        new(WingShapeKind.Box, new WingExtent(3, 3, IsUnits: true), new WingExtent(1.6, 2.2)),
-        new(WingShapeKind.Box, new WingExtent(1.6, 2.2), new WingExtent(3, 3, IsUnits: true)),
-        new(WingShapeKind.Box, new WingExtent(3, 3, IsUnits: true), new WingExtent(2.0, 2.6)),
-        new(WingShapeKind.Box, new WingExtent(2.0, 2.6), new WingExtent(3, 3, IsUnits: true))
+        new(WingShapeKind.Box, new WingExtent(3, 3, IsUnits: true), new WingExtent(1.6f, 2.2f)),
+        new(WingShapeKind.Box, new WingExtent(1.6f, 2.2f), new WingExtent(3, 3, IsUnits: true)),
+        new(WingShapeKind.Box, new WingExtent(3, 3, IsUnits: true), new WingExtent(2.0f, 2.6f)),
+        new(WingShapeKind.Box, new WingExtent(2.0f, 2.6f), new WingExtent(3, 3, IsUnits: true))
     ];
 
     private static readonly WingTemplate Gallery = new(LabWing.Gallery, 7, 9, new WingHall(new WingExtent(1, 1, Add: 2, Times: "cells")),
@@ -126,39 +126,39 @@ internal abstract partial class BuildingGrammar
         new WingNode("service", RoomType.Passage, [[new WingShape(WingShapeKind.Box, new WingExtent(3, 3, IsUnits: true), new WingExtent(1, 1, Add: 1, Times: "cells"))]]),
         new WingNode("passageA", RoomType.Passage, [SmallPassage]),
         new WingNode("passageB", RoomType.Passage, [SmallPassage]),
-        new WingNode("control", RoomType.Lab, [[Box(1.3, 1.6, 1.0, 1.25, 6)]]) { IsPiece = true, Hosts = ["service"], Sides = [WingSides.Far] },
-        new WingNode("widest", RoomType.Storage, [[Box(1.2, 1.45, 0.85, 1.0, 5)]]) { DrawsBackType = true, IsPiece = true, Hosts = ["service"], Sides = [WingSides.Near] },
-        new WingNode("cell", RoomType.Storage, [[Box(0.85, 1.0, 0.85, 1.0, 5)]]) { DrawsBackType = true, Count = "cells", CountShift = -1, InSolve = 0, Hosts = ["service"], Beside = ["control"] },
-        new WingNode("pocket", RoomType.Storage, [[Box(0.6, 0.8, 0.6, 0.8, 4)]]) { Count = "pocket", InSolve = 0, Hosts = ["passageA"], Beside = ["passageB"] }
+        new WingNode("control", RoomType.Lab, [[Box(1.3f, 1.6f, 1.0f, 1.25f, 6)]]) { IsPiece = true, Hosts = ["service"], Sides = [WingSides.Far] },
+        new WingNode("widest", RoomType.Storage, [[Box(1.2f, 1.45f, 0.85f, 1.0f, 5)]]) { DrawsBackType = true, IsPiece = true, Hosts = ["service"], Sides = [WingSides.Near] },
+        new WingNode("cell", RoomType.Storage, [[Box(0.85f, 1.0f, 0.85f, 1.0f, 5)]]) { DrawsBackType = true, Count = "cells", CountShift = -1, InSolve = 0, Hosts = ["service"], Beside = ["control"] },
+        new WingNode("pocket", RoomType.Storage, [[Box(0.6f, 0.8f, 0.6f, 0.8f, 4)]]) { Count = "pocket", InSolve = 0, Hosts = ["passageA"], Beside = ["passageB"] }
     ])
     {
-        Counts = [new WingCount("pocket", Offset: -1, Max: 1, Chance: 0.5, AtLeastRooms: 6), new WingCount("cells", Offset: -1, IsRest: true, Min: 3, Max: 6)],
+        Counts = [new WingCount("pocket", Offset: -1, Max: 1, Chance: 0.5f, MinRooms: 6), new WingCount("cells", Offset: -1, IsRest: true, Min: 3, Max: 6)],
         Joins = [new WingJoin("hall", "passageA", WingVia.Door, JoinMark.Contact), new WingJoin("passageA", "service", WingVia.Door, JoinMark.Contact),
             new WingJoin("hall", "passageB", WingVia.Door, JoinMark.Contact), new WingJoin("passageB", "service", WingVia.Door, JoinMark.Contact)],
         End = "control",
         Steps = WingStep.LinePods
     };
 
-    private static readonly WingTemplate Echelon = new(LabWing.Echelon, 6, 12, new WingHall(new WingExtent(2.0, 3.0)),
+    private static readonly WingTemplate Echelon = new(LabWing.Echelon, 6, 12, new WingHall(new WingExtent(2.0f, 3.0f)),
     [
-        new WingNode("lab", RoomType.Lab, [[Box(1.0, 1.2, 0.9, 1.05, 6)], [Box(0.8, 0.9, 0.75, 0.85, 6)]])
+        new WingNode("lab", RoomType.Lab, [[Box(1.0f, 1.2f, 0.9f, 1.05f, 6)], [Box(0.8f, 0.9f, 0.75f, 0.85f, 6)]])
         {
             IsPiece = true, Count = "labs", Hosts = ["previous"], Via = [WingVia.Door, WingVia.PassageOrNeck], Sides = [WingSides.Down, WingSides.Across]
         },
-        new WingNode("nook", RoomType.Storage, [[Box(0.6, 0.7, 0.55, 0.7, 4)]]) { Count = "nooks", InSolve = 0, Hosts = ["lab#"] }
+        new WingNode("nook", RoomType.Storage, [[Box(0.6f, 0.7f, 0.55f, 0.7f, 4)]]) { Count = "nooks", InSolve = 0, Hosts = ["lab#"] }
     ])
     {
-        Counts = [new WingCount("labs", Share: 0.7, Min: 3, Max: 5), new WingCount("nooks", IsRest: true, Max: 4)],
+        Counts = [new WingCount("labs", Share: 0.7f, Min: 3, Max: 5), new WingCount("nooks", IsRest: true, Max: 4)],
         End = "lab",
         Steps = WingStep.LinePods
     };
 
-    private static readonly WingTemplate Airlock = new(LabWing.Airlock, 8, 11, new WingHall(new WingExtent(2.2, 3.0)),
+    private static readonly WingTemplate Airlock = new(LabWing.Airlock, 8, 11, new WingHall(new WingExtent(2.2f, 3.0f)),
     [
-        new WingNode("core", RoomType.Lab, [[Box(1.45, 1.7, 1.3, 1.55, 8)]]) { IsPiece = true },
+        new WingNode("core", RoomType.Lab, [[Box(1.45f, 1.7f, 1.3f, 1.55f, 8)]]) { IsPiece = true },
         new WingNode("legA", RoomType.Passage, [AirlockLeg]),
         new WingNode("legB", RoomType.Passage, [AirlockLeg]),
-        new WingNode("pod", RoomType.Lab, [[Box(0.75, 0.95, 0.65, 0.85, 5)]]) { DrawsBackType = true, Count = "pods", InSolve = 2, Hosts = ["legA", "legB"], Beside = ["legA", "legB", "core"] }
+        new WingNode("pod", RoomType.Lab, [[Box(0.75f, 0.95f, 0.65f, 0.85f, 5)]]) { DrawsBackType = true, Count = "pods", InSolve = 2, Hosts = ["legA", "legB"], Beside = ["legA", "legB", "core"] }
     ])
     {
         Counts = [new WingCount("pods", IsRest: true, Min: 2, Max: 6)],
@@ -169,21 +169,21 @@ internal abstract partial class BuildingGrammar
 
     private static readonly WingTemplate Suite = new(LabWing.Suite, 3, 6, null,
     [
-        new WingNode("office", RoomType.Office, [[new WingShape(WingShapeKind.Notched, new WingExtent(1.8, 2.3, Least: 5), new WingExtent(1.6, 2.0, Least: 5))]])
+        new WingNode("office", RoomType.Office, [[new WingShape(WingShapeKind.Notched, new WingExtent(1.8f, 2.3f, MinLength: 5), new WingExtent(1.6f, 2.0f, MinLength: 5))]])
         {
-            Types = [(RoomType.Office, 0.6), (RoomType.Lab, 0.4)], IsPiece = true, Hosts = ["hall"]
+            Types = [(RoomType.Office, 0.6f), (RoomType.Lab, 0.4f)], IsPiece = true, Hosts = ["hall"]
         },
-        new WingNode("side", RoomType.Storage, [[Box(1.0, 1.15, 0.85, 1.4, 5)]])
+        new WingNode("side", RoomType.Storage, [[Box(1.0f, 1.15f, 0.85f, 1.4f, 5)]])
         {
-            Types = [(RoomType.Storage, 0.45), (RoomType.Office, 0.35)], IsPiece = true, Count = "sides", Hosts = ["office"], Via = [WingVia.NeckOrDoor]
+            Types = [(RoomType.Storage, 0.45f), (RoomType.Office, 0.35f)], IsPiece = true, Count = "sides", Hosts = ["office"], Via = [WingVia.NeckOrDoor]
         },
-        new WingNode("depot", RoomType.Depot, [[Box(0.7, 0.85, 0.6, 1.05, 5)], [new WingShape(WingShapeKind.Notched, new WingExtent(0.7, 0.85, Least: 5), new WingExtent(0.6, 1.05, Least: 5))]])
+        new WingNode("depot", RoomType.Depot, [[Box(0.7f, 0.85f, 0.6f, 1.05f, 5)], [new WingShape(WingShapeKind.Notched, new WingExtent(0.7f, 0.85f, MinLength: 5), new WingExtent(0.6f, 1.05f, MinLength: 5))]])
         {
             IsPiece = true, Count = "depot", Hosts = ["side^"], Via = [WingVia.NeckOrDoor]
         }
     ])
     {
-        Counts = [new WingCount("depot", Share: 1, Max: 1, AtLeastRooms: 3), new WingCount("sides", IsRest: true, Min: 1)],
+        Counts = [new WingCount("depot", Share: 1, Max: 1, MinRooms: 3), new WingCount("sides", IsRest: true, Min: 1)],
         Contacts = [("side", "side^")],
         Draws = 3,
         End = "side"
@@ -193,7 +193,7 @@ internal abstract partial class BuildingGrammar
 
     private static readonly WingShape Cross = new(WingShapeKind.Cross, default, default);
 
-    private static readonly WingShape HallRun = new(WingShapeKind.Box, new WingExtent(8, 8, IsUnits: true), new WingExtent(8, 10, Least: 30, Most: 60, IsUnits: true, Times: "perHall"));
+    private static readonly WingShape HallRun = new(WingShapeKind.Box, new WingExtent(8, 8, IsUnits: true), new WingExtent(8, 10, MinLength: 30, MaxLength: 60, IsUnits: true, Times: "perHall"));
 
     private static readonly WingTemplate BigRoomHalls = new(LabWing.BigRoomHalls, 8, 10, new WingHall(HallRun.Length, Width: 8),
     [
@@ -207,8 +207,8 @@ internal abstract partial class BuildingGrammar
     {
         Counts =
         [
-            new WingCount("second", Share: 1, Max: 1, AtLeastRooms: 5), new WingCount("third", Share: 1, Max: 1, AtLeastRooms: 8),
-            new WingCount("perHall", Share: 1.0 / 3, Min: 2)
+            new WingCount("second", Share: 1, Max: 1, MinRooms: 5), new WingCount("third", Share: 1, Max: 1, MinRooms: 8),
+            new WingCount("perHall", Share: 1.0f / 3, Min: 2)
         ],
         End = "hall",
         Steps = WingStep.LineBigRooms
@@ -234,7 +234,7 @@ internal abstract partial class BuildingGrammar
     {
         var counts = DrawCounts(template, rooms);
         var wing = new GraphWing(this, template.Hall?.IsBeyond ?? true);
-        bool isRight = Random.Next() < 0.5;
+        bool isRight = Random.Next() < 0.5f;
         int hall = template.Hall is null ? WingSolver.Anchor : AddTemplateHall(wing, template.Hall.Value, counts, phase);
         var ids = new Dictionary<string, List<int>> { ["hall"] = [hall] };
         var later = new List<(WingNode Node, int Index)>();
@@ -348,7 +348,7 @@ internal abstract partial class BuildingGrammar
         {
             int value = rule.IsRest ? rooms - taken - rule.Offset : GrammarRandom.Round(rooms * rule.Share) - rule.Offset;
             value = Math.Clamp(value, rule.Min, Math.Max(rule.Min, rule.Max));
-            if (rooms < rule.AtLeastRooms || (rule.Chance < 1 && Random.Next() >= rule.Chance))
+            if (rooms < rule.MinRooms || (rule.Chance < 1 && Random.Next() >= rule.Chance))
             {
                 value = 0;
             }
@@ -364,7 +364,7 @@ internal abstract partial class BuildingGrammar
     {
         int value = extent.IsUnits ? Random.Inclusive((int)extent.Min, (int)extent.Max) : GrammarRandom.Round(RoomSide * Random.Uniform(extent.Min, extent.Max));
         value = (Math.Max(extent.IsUnits ? 1 : 3, value) + extent.Add) * (extent.Times is null ? 1 : counts[extent.Times]);
-        return Math.Clamp(value, extent.Least, extent.Most);
+        return Math.Clamp(value, extent.MinLength, extent.MaxLength);
     }
 
     // Lines each hall of a chain with its share of the rooms, solves the rooms left out one by one against the halls and ends the level in the last
@@ -426,13 +426,13 @@ internal abstract partial class BuildingGrammar
         int a = Random.Range(2, 4);
         int b = Random.Range(2, 4);
         return width - a >= 5 && length - b >= 5
-            ? new RoomShape(WingSolver.Outline((0, 0), (0, length), (width - a, length), (width - a, length - b), (width, length - b), (width, 0)),
+            ? new RoomShape(RoomShape.Polygon(new(0, 0), new(0, length), new(width - a, length), new(width - a, length - b), new(width, length - b), new(width, 0)),
                 WingSolver.Doors, RoomShape.AllTurns)
             : WingSolver.Box(width, length);
     }
 
     private int DrawHallLength(WingExtent extent, IReadOnlyDictionary<string, int> counts) =>
-        Math.Clamp(DrawExtent(extent, counts), MinHall, extent.Most == int.MaxValue ? GateHallMost : extent.Most);
+        Math.Clamp(DrawExtent(extent, counts), MinHall, extent.MaxLength == int.MaxValue ? GateHallMax : extent.MaxLength);
 
     private int AddTemplateHall(GraphWing wing, WingHall hall, IReadOnlyDictionary<string, int> counts, int phase)
     {
@@ -460,7 +460,7 @@ internal abstract partial class BuildingGrammar
         WingVia.Neck => JoinVia.Neck,
         WingVia.Passage => JoinVia.Passage,
         WingVia.NeckOrDoor => Random.Next() < NeckShare ? JoinVia.Neck : JoinVia.Door,
-        WingVia.PassageOrNeck => Random.Next() < 0.5 ? JoinVia.Passage : JoinVia.Neck,
+        WingVia.PassageOrNeck => Random.Next() < 0.5f ? JoinVia.Passage : JoinVia.Neck,
         _ => JoinVia.Door
     };
 

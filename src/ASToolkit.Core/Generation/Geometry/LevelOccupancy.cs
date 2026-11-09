@@ -11,13 +11,11 @@ namespace ASToolkit.Core.Generation.Geometry;
 public sealed class LevelOccupancy
 {
     private const float FloorHeight = 5;
-    private const float OverlapShare = 0.12f;
+    private const float OverlapShare = 0.3f;
     private const int DetourCells = 3;
-    private const float UnitGap = 12;
+    internal const float UnitGap = 12;
     private const float StandingHeight = 20;
-    private const float LargeExtent = 40;
-    private const float SmallGap = 16;
-    private const float LargeGap = 30;
+    private const float SpawnerGap = 13;
 
     private readonly ObjectTable _objects;
     private readonly Lattice _lattice;
@@ -65,8 +63,9 @@ public sealed class LevelOccupancy
     /// Returns whether an object fits at a map point, apart from the other units for a unit, out from under the standing pieces for a pickup,
     /// and otherwise clear of the doorways, the floor pieces standing there and, outside a reserve's own scene, the reserved cells, leaving the floor joined when it is solid.
     /// </summary>
-    public bool Fits(KnownObject id, float x, float y, float z, bool inScene = false)
+    public bool Fits(KnownObject id, PointF point, float z, bool inScene = false)
     {
+        (float x, float y) = point;
         if (IsUnit(id))
         {
             return !IsNearUnit(x, y);
@@ -110,19 +109,18 @@ public sealed class LevelOccupancy
     }
 
     /// <summary>
-    /// Returns whether a map point keeps its distance from the solid or tall floor pieces standing around it, farther from large ones.
+    /// Returns whether a map point keeps its distance from the solid or tall floor pieces standing around it.
     /// </summary>
-    public bool HasRoomAround(float x, float y) => !_standing.Any(standing =>
+    public bool HasRoomAround(PointF point) => !_standing.Any(standing =>
     {
         if (standing is { IsSolid: false, Size.Z: < StandingHeight })
         {
             return false;
         }
 
-        float dx = Math.Max(0, Math.Abs(standing.X - x) - standing.Size.X / 2);
-        float dy = Math.Max(0, Math.Abs(standing.Y - y) - standing.Size.Y / 2);
-        float gap = Math.Max(standing.Size.X, standing.Size.Y) >= LargeExtent ? LargeGap : SmallGap;
-        return dx * dx + dy * dy < gap * gap;
+        float dx = Math.Max(0, Math.Abs(standing.X - point.X) - standing.Size.X / 2);
+        float dy = Math.Max(0, Math.Abs(standing.Y - point.Y) - standing.Size.Y / 2);
+        return dx * dx + dy * dy < SpawnerGap * SpawnerGap;
     });
 
     /// <summary>
@@ -136,7 +134,7 @@ public sealed class LevelOccupancy
         var raised = new List<StandingPiece>();
         foreach ((var id, float x, float y, float z) in pieces)
         {
-            if (!Fits(id, x, y, z))
+            if (!Fits(id, new PointF(x, y), z))
             {
                 return false;
             }
@@ -166,8 +164,9 @@ public sealed class LevelOccupancy
     /// <summary>
     /// Adds an object standing at a map point.
     /// </summary>
-    public void Add(KnownObject id, float x, float y, float z)
+    public void Add(KnownObject id, PointF point, float z)
     {
+        (float x, float y) = point;
         if (IsUnit(id))
         {
             var key = new Point((int)MathF.Floor(x / UnitGap), (int)MathF.Floor(y / UnitGap));

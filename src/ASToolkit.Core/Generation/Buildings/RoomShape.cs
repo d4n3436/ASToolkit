@@ -30,7 +30,7 @@ internal sealed class RoomShape
 
     public bool IsBox => Cells.Count == Width * Height;
 
-    public int LongestSide => Facings.Max(facing => Runs(Cells, facing).Max(run => run.High - run.Low));
+    public int LongestSide => Cell.Steps.Max(facing => Runs(Cells, facing).Max(run => run.High - run.Low));
 
     public static HashSet<Cell> Rectangle(int width, int height) => new UnitRect(0, 0, width, height).ToCells();
 
@@ -62,13 +62,11 @@ internal sealed class RoomShape
         return cells;
     }
 
-    internal static readonly (int U, int V)[] Facings = [(1, 0), (-1, 0), (0, 1), (0, -1)];
-
     // Returns the straight outline runs facing one way, each its wall line and the span along it
-    internal static List<(int At, int Low, int High)> Runs(HashSet<Cell> cells, (int U, int V) facing)
+    internal static List<(int At, int Low, int High)> Runs(HashSet<Cell> cells, Cell facing)
     {
         var edges = cells
-            .Where(cell => !cells.Contains(new Cell(cell.U + facing.U, cell.V + facing.V)))
+            .Where(cell => !cells.Contains(cell + facing))
             .Select(cell => facing.U != 0 ? (At: cell.U + Math.Max(0, facing.U), Along: cell.V) : (At: cell.V + Math.Max(0, facing.V), Along: cell.U));
 
         return edges
@@ -86,7 +84,7 @@ internal readonly record struct DoorRule(int Length, int CornerDistance)
     public IReadOnlyList<ShapeDoor> Place(HashSet<Cell> cells)
     {
         var doors = new List<ShapeDoor>();
-        foreach (var facing in RoomShape.Facings)
+        foreach (var facing in Cell.Steps)
         {
             foreach ((int at, int low, int high) in RoomShape.Runs(cells, facing))
             {

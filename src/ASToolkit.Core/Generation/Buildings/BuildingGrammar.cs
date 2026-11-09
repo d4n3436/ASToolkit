@@ -14,14 +14,14 @@ internal abstract partial class BuildingGrammar
 
     protected const int NeckDepth = 2;
 
-    private const int GateHallMost = 40;
-    private const int SecondWingMostRooms = 14;
-    private const int SecondWingLeastRooms = 7;
-    private const int IntroSuiteMostRooms = 4;
-    private const int RingMostRooms = 3;
-    private const double BigRoomPassageEntry = 0.2;
+    private const int GateHallMax = 40;
+    private const int SecondWingMaxRooms = 14;
+    private const int SecondWingMinRooms = 7;
+    private const int IntroSuiteMaxRooms = 4;
+    private const int RingMaxRooms = 3;
+    private const float BigRoomPassageEntry = 0.2f;
 
-    private static readonly (RoomType Type, double Weight)[] DepotTypes = [(RoomType.Depot, 0.7), (RoomType.Storage, 0.3)];
+    private static readonly (RoomType Type, float Weight)[] DepotTypes = [(RoomType.Depot, 0.7f), (RoomType.Storage, 0.3f)];
     
     protected BuildingGrammar(BuildingRequest request, Random rng)
     {
@@ -39,13 +39,13 @@ internal abstract partial class BuildingGrammar
 
     public List<(int Room, int Passage)> Junctions => Draft.Junctions;
 
-    public List<(int A, int B)> ClosedWalls => Draft.ClosedWalls;
+    public List<RoomPair> ClosedWalls => Draft.ClosedWalls;
 
-    public List<(int A, int B)> JammedWalls => Draft.JammedWalls;
+    public List<RoomPair> JammedWalls => Draft.JammedWalls;
 
-    public List<(int A, int B)> OpenWalls => Draft.OpenWalls;
+    public List<RoomPair> OpenWalls => Draft.OpenWalls;
 
-    public List<(int From, int To)> Shortcuts => Draft.Shortcuts;
+    public List<RoomPair> Shortcuts => Draft.Shortcuts;
 
     public int? Start { get => Draft.Start; protected set => Draft.Start = value; }
 
@@ -70,19 +70,19 @@ internal abstract partial class BuildingGrammar
 
     protected bool IsIntro { get; }
 
-    protected double RoomSide { get => Draft.RoomSide; set => Draft.RoomSide = value; }
+    protected float RoomSide { get => Draft.RoomSide; set => Draft.RoomSide = value; }
 
     protected bool IsPacked { get; set; }
 
-    protected double NeckShare { get; set; }
+    protected float NeckShare { get; set; }
 
     protected int HallWidth { get; set; } = 3;
 
-    protected virtual IReadOnlyList<(RoomType Type, double Weight)> FrontTypes { get; } =
-        [(RoomType.Office, 0.45), (RoomType.Lab, 0.2), (RoomType.Storage, 0.2)];
+    protected virtual IReadOnlyList<(RoomType Type, float Weight)> FrontTypes { get; } =
+        [(RoomType.Office, 0.45f), (RoomType.Lab, 0.2f), (RoomType.Storage, 0.2f)];
 
-    protected virtual IReadOnlyList<(RoomType Type, double Weight)> BackTypes { get; } =
-        [(RoomType.Storage, 0.45), (RoomType.Office, 0.35), (RoomType.Depot, 0.2)];
+    protected virtual IReadOnlyList<(RoomType Type, float Weight)> BackTypes { get; } =
+        [(RoomType.Storage, 0.45f), (RoomType.Office, 0.35f), (RoomType.Depot, 0.2f)];
 
     public abstract void Build();
 
@@ -191,7 +191,7 @@ internal abstract partial class BuildingGrammar
         if (named is not null && GetSecondWings(LevelStyle.LockedDoors, IsIntro).Contains(named.Value))
         {
             kinds.Add(named.Value);
-            rooms = Math.Clamp(rooms, LeastRoomsOf(named.Value), MostRoomsOf(named.Value));
+            rooms = Math.Clamp(rooms, MinRoomsOf(named.Value), MaxRoomsOf(named.Value));
         }
         else if (IsIntro)
         {
@@ -199,8 +199,8 @@ internal abstract partial class BuildingGrammar
         }
         else
         {
-            rooms = Math.Clamp(rooms, SecondWingLeastRooms, GatedWings.Max(MostRoomsOf));
-            kinds.AddRange(GatedWings.Where(kind => rooms >= LeastRoomsOf(kind) && rooms <= MostRoomsOf(kind)));
+            rooms = Math.Clamp(rooms, SecondWingMinRooms, GatedWings.Max(MaxRoomsOf));
+            kinds.AddRange(GatedWings.Where(kind => rooms >= MinRoomsOf(kind) && rooms <= MaxRoomsOf(kind)));
         }
 
         foreach (var kind in Random.Shuffled(kinds).Concat(Random.Shuffled(GatedWings)).Distinct())
@@ -245,9 +245,9 @@ internal abstract partial class BuildingGrammar
 
     private static readonly LabWing[] DepotWings = [LabWing.DepotSections, LabWing.Dock, LabWing.ServiceCorridor];
 
-    private static int LeastRoomsOf(LabWing kind) => kind == LabWing.Research ? 7 : SolvedWings.First(wing => wing.Kind == kind).LeastRooms;
+    private static int MinRoomsOf(LabWing kind) => kind == LabWing.Research ? 7 : SolvedWings.First(wing => wing.Kind == kind).MinRooms;
 
-    private static int MostRoomsOf(LabWing kind) => kind == LabWing.Research ? 12 : SolvedWings.First(wing => wing.Kind == kind).MostRooms;
+    private static int MaxRoomsOf(LabWing kind) => kind == LabWing.Research ? 12 : SolvedWings.First(wing => wing.Kind == kind).MaxRooms;
 
     protected void BuildSequence(int rooms)
     {
@@ -298,7 +298,7 @@ internal abstract partial class BuildingGrammar
     private static readonly RoomShape[] BigRingHallRooms = [WingSolver.Box(7, 8), WingSolver.Box(8, 7)];
 
     private static RoomShape OfficeL(int width, int height, int notchWidth, int notchHeight) =>
-        new(WingSolver.Outline((0, 0), (0, height), (width - notchWidth, height), (width - notchWidth, height - notchHeight), (width, height - notchHeight), (width, 0)),
+        new(RoomShape.Polygon(new(0, 0), new(0, height), new(width - notchWidth, height), new(width - notchWidth, height - notchHeight), new(width, height - notchHeight), new(width, 0)),
             WingSolver.Doors, RoomShape.AllTurns);
 
     protected void BuildLockedOffices(int rooms)
@@ -312,7 +312,7 @@ internal abstract partial class BuildingGrammar
         key ??= built.DefaultIfEmpty(Start.Value).Last();
         Grid[key.Value].Type = RoomType.MachineRoom;
         Keys.Add(key.Value);
-        int left = IsIntro ? Math.Clamp(rooms - 1 - built.Count, 2, IntroSuiteMostRooms) : rooms - 1 - built.Count;
+        int left = IsIntro ? Math.Clamp(rooms - 1 - built.Count, 2, IntroSuiteMaxRooms) : rooms - 1 - built.Count;
         int wing = Grid.Rooms.Count + 1;
         var gatedRooms = BuildGated(joint, left, 1);
         if (gatedRooms.Count == 0 && left > 4)
@@ -335,15 +335,15 @@ internal abstract partial class BuildingGrammar
         (int hub, _) = AddHub(null, plan.Length);
         Start = AddEndRoom(hub, Side.West, 0, viaNeck: true);
         var (built, _) = LayOffices(hub, plan, true, 2);
-        int second = Math.Clamp(rooms - 1 - built.Count, 6, SecondWingMostRooms);
-        int last = Math.Max(2, GrammarRandom.Round(second * 0.35));
+        int second = Math.Clamp(rooms - 1 - built.Count, 6, SecondWingMaxRooms);
+        int last = Math.Max(2, GrammarRandom.Round(second * 0.35f));
         var named = Request.SecondWing;
         var kind = named is not null && DepotWings.Contains(named.Value)
             ? named.Value
             : Random.Weighted([(LabWing.DepotSections, 4), (LabWing.ServiceCorridor, 1), (LabWing.Dock, 1)]);
 
         int wing = Grid.Rooms.Count + 1;
-        var (depots, nested) = BuildDepotLoop(hub, Math.Max(second - last, DepotWing.GetLeastSlots(kind)), 1, 2, last, kind);
+        var (depots, nested) = BuildDepotLoop(hub, Math.Max(second - last, DepotWing.GetMinSlots(kind)), 1, 2, last, kind);
         if (depots.Count == 0)
         {
             Count(BuildingTally.DarkBlockUnplaced);
@@ -357,7 +357,7 @@ internal abstract partial class BuildingGrammar
         Grid[Run[^1]].Type = RoomType.MachineRoom;
     }
 
-    private int FirstWingRooms() => IsIntro ? Math.Clamp(Request.Rooms - IntroSuiteMostRooms, 6, 10) : Math.Clamp(Request.Rooms - SecondWingMostRooms + 2, 12, 14);
+    private int FirstWingRooms() => IsIntro ? Math.Clamp(Request.Rooms - IntroSuiteMaxRooms, 6, 10) : Math.Clamp(Request.Rooms - SecondWingMaxRooms + 2, 12, 14);
 
     private (List<int> Rooms, int? Key) LayOffices(int hub, OfficePlan plan, bool packed, int lockedPhase, int openPhase = 0)
     {
@@ -442,8 +442,8 @@ internal abstract partial class BuildingGrammar
         var drawn = new List<(DoorSides Side, bool IsRing)>();
         foreach (var side in Random.Shuffled(sides))
         {
-            bool isRing = drawn.Count < leastRings || Random.Next() < 0.5;
-            int count = isRing || (Random.Next() < 0.4 && drawn.Count == 0) ? 1 : 2;
+            bool isRing = drawn.Count < leastRings || Random.Next() < 0.5f;
+            int count = isRing || (Random.Next() < 0.4f && drawn.Count == 0) ? 1 : 2;
             drawn.AddRange(Enumerable.Repeat((side, isRing), count));
         }
 
@@ -452,22 +452,22 @@ internal abstract partial class BuildingGrammar
         {
             var side = drawn[^1].Side;
             drawn[^1] = (side, false);
-            if (Random.Next() < 0.6)
+            if (Random.Next() < 0.6f)
             {
                 drawn.Add((side, false));
             }
         }
 
-        int held = drawn.Sum(pod => pod.IsRing ? RingMostRooms : 6);
+        int held = drawn.Sum(pod => pod.IsRing ? RingMaxRooms : 6);
         while (held < rooms && drawn.Count < 4)
         {
             drawn.Add((drawn.GroupBy(pod => pod.Side).MinBy(side => side.Count())!.Key, false));
             held += 6;
         }
 
-        double weights = drawn.Sum(pod => pod.IsRing ? 3.0 : 1.5);
+        float weights = drawn.Sum(pod => pod.IsRing ? 3.0f : 1.5f);
         var pods = drawn
-            .Select(pod => new OfficePod(pod.Side, pod.IsRing, Math.Clamp(GrammarRandom.Round(rooms * (pod.IsRing ? 3.0 : 1.5) / weights), pod.IsRing ? 3 : 1, pod.IsRing ? RingMostRooms : 6)))
+            .Select(pod => new OfficePod(pod.Side, pod.IsRing, Math.Clamp(GrammarRandom.Round(rooms * (pod.IsRing ? 3.0f : 1.5f) / weights), pod.IsRing ? 3 : 1, pod.IsRing ? RingMaxRooms : 6)))
             .ToArray();
 
         for (int index = 0, missing = rooms - pods.Sum(pod => pod.Rooms); missing > 0 && index < pods.Length * 6; index++)
@@ -507,9 +507,9 @@ internal abstract partial class BuildingGrammar
     private List<int> LayOfficePod(int hub, DoorSides side, int rooms, bool isRing, int phase, bool packed, bool jams, bool isKey)
     {
         int group = NewGroup();
-        var via = packed && Random.Next() < 0.5 ? JoinVia.Door : JoinVia.Neck;
+        var via = packed && Random.Next() < 0.5f ? JoinVia.Door : JoinVia.Neck;
         var hallMark = phase > Grid[hub].Phase ? JoinMark.Lock : JoinMark.Junction;
-        var open = new HashSet<(int, int)>();
+        var open = new HashSet<RoomPair>();
         var built = new List<int>();
         if (isRing)
         {
@@ -539,14 +539,14 @@ internal abstract partial class BuildingGrammar
             }
 
             built.AddRange(ids.Select(id => map[id]));
-            open.UnionWith(built.Zip(built.Skip(1)).Append((hub, built[0])));
+            open.UnionWith(built.Zip(built.Skip(1), (a, b) => new RoomPair(a, b)).Append(new RoomPair(hub, built[0])));
             if (jams)
             {
-                JammedWalls.Add((hub, built[^1]));
+                JammedWalls.Add(new RoomPair(hub, built[^1]));
             }
             else
             {
-                open.Add((hub, built[^1]));
+                open.Add(new RoomPair(hub, built[^1]));
             }
         }
         else
@@ -596,7 +596,7 @@ internal abstract partial class BuildingGrammar
                 }
 
                 built.AddRange(ids.Skip(1).Select(id => map[id]));
-                open.UnionWith(ids.Skip(1).Zip(hosts, (room, host) => (map[host], map[room])));
+                open.UnionWith(ids.Skip(1).Zip(hosts, (room, host) => new RoomPair(map[host], map[room])));
             }
 
             if (built.Count == 0)
@@ -637,7 +637,7 @@ internal abstract partial class BuildingGrammar
         }
 
         var ids = new Dictionary<int, int>();
-        var open = new HashSet<(int, int)>();
+        var open = new HashSet<RoomPair>();
         var nestedRooms = new List<int>();
         var groups = new Dictionary<int, int> { [0] = NewGroup(), [1] = NewGroup() };
         var order = layout.Run
@@ -703,11 +703,11 @@ internal abstract partial class BuildingGrammar
 
         foreach ((int a, int b) in layout.Shortcuts)
         {
-            open.Add((ids[a], ids[b]));
-            Shortcuts.Add((ids[a], ids[b]));
+            open.Add(new RoomPair(ids[a], ids[b]));
+            Shortcuts.Add(new RoomPair(ids[a], ids[b]));
         }
 
-        JammedWalls.AddRange(layout.Jammed.Select(pair => (ids[pair.A], ids[pair.B])));
+        JammedWalls.AddRange(layout.Jammed.Select(pair => new RoomPair(ids[pair.A], ids[pair.B])));
         CloseWing(ids.Values.ToArray(), open, new HashSet<int>());
         var run = layout.Run
             .Select(id => ids[id])
@@ -737,15 +737,15 @@ internal abstract partial class BuildingGrammar
                     : AddDepot(piece.Cells.Select(map).ToHashSet().ToRects(), piece.Type, phase, group))
                 .ToList();
 
-            var open = new HashSet<(int, int)> { (joint, ids[0]) };
+            var open = new HashSet<RoomPair> { new(joint, ids[0]) };
             Junctions.Add((joint, ids[0]));
             foreach ((int a, int b) in layout.Doors)
             {
-                open.Add((ids[a], ids[b]));
+                open.Add(new RoomPair(ids[a], ids[b]));
                 Junctions.Add((ids[a], ids[b]));
             }
 
-            JammedWalls.AddRange(layout.Jammed.Select(pair => (ids[pair.A], ids[pair.B])));
+            JammedWalls.AddRange(layout.Jammed.Select(pair => new RoomPair(ids[pair.A], ids[pair.B])));
             CloseWing(ids, open, new HashSet<int>());
             End = ids[layout.End];
             return ids.Where((_, index) => index > 0 && !layout.Pieces[index].IsPassage).ToList();
@@ -869,9 +869,9 @@ internal abstract partial class BuildingGrammar
     }
 
     // Opens a designed door, a junction within a phase or a lock from the lower phase into the higher, and returns whether it is a junction
-    private bool AddDesignedDoor(int a, int b, HashSet<(int, int)> open)
+    private bool AddDesignedDoor(int a, int b, HashSet<RoomPair> open)
     {
-        open.Add((a, b));
+        open.Add(new RoomPair(a, b));
         if (Grid[a].Phase != Grid[b].Phase)
         {
             Locks.Add(Grid[a].Phase < Grid[b].Phase ? (a, b) : (b, a));
@@ -882,7 +882,7 @@ internal abstract partial class BuildingGrammar
         return true;
     }
 
-    private void CloseWing(IReadOnlyList<int> rooms, HashSet<(int, int)> open, IReadOnlySet<int> kept)
+    private void CloseWing(IReadOnlyList<int> rooms, HashSet<RoomPair> open, IReadOnlySet<int> kept)
     {
         var members = rooms.ToHashSet();
         var others = Grid.Rooms
@@ -895,9 +895,9 @@ internal abstract partial class BuildingGrammar
             {
                 bool touches = Shapes(room).Any(rect => Shapes(other.Id).Any(part => rect.SharesWall(part)));
                 bool isKept = kept.Contains(room) && kept.Contains(other.Id) && other.Kind == GridKind.Room;
-                if (touches && !isKept && !open.Contains((room, other.Id)) && !open.Contains((other.Id, room)))
+                if (touches && !isKept && !open.Contains(new RoomPair(room, other.Id)))
                 {
-                    ClosedWalls.Add((room, other.Id));
+                    ClosedWalls.Add(new RoomPair(room, other.Id));
                 }
             }
         }
@@ -931,16 +931,16 @@ internal abstract partial class BuildingGrammar
     protected int AddEndRoom(int hall, Side end, int phase, bool viaNeck)
     {
         var rect = RectOf(hall);
-        int along = Math.Max(viaNeck ? 5 : 4, Size(0.9, 1.1));
+        int along = Math.Max(viaNeck ? 5 : 4, Size(0.9f, 1.1f));
         (int low, int high) = rect.GetSpan(end);
         int span = high - low;
         if (!viaNeck)
         {
-            return AddRoom(rect.Beside(end, along, Size(0.9, 1.1), low + FloorDivide(span - along, 2)), RoomType.Bare, phase);
+            return AddRoom(rect.Beside(end, along, Size(0.9f, 1.1f), low + FloorDivide(span - along, 2)), RoomType.Bare, phase);
         }
 
         var neck = rect.Beside(end, 3, NeckDepth, low + FloorDivide(span - 3, 2));
-        int id = AddRoom(neck.Beside(end, along, Size(0.9, 1.1), low + FloorDivide(span - along, 2)), RoomType.Bare, phase);
+        int id = AddRoom(neck.Beside(end, along, Size(0.9f, 1.1f), low + FloorDivide(span - along, 2)), RoomType.Bare, phase);
         Grid.Add(neck, GridKind.Neck, Grid[id].Group, phase, owner: id);
         Draft.Shapes[id].Add(neck);
         return id;
@@ -956,9 +956,9 @@ internal abstract partial class BuildingGrammar
         .ToDictionary(room => room, room => ids.Where(other => Shapes(room).Any(rect => Shapes(other).Any(part => rect.SharesWall(part)))).ToList())
         .MeasureHops([ids[0]]);
 
-    protected int Size(double low, double high) => Draft.Size(low, high);
+    protected int Size(float low, float high) => Draft.Size(low, high);
 
-    protected RoomType DrawType(IReadOnlyList<(RoomType Type, double Weight)> types, RoomType main) => Draft.DrawType(types, main);
+    protected RoomType DrawType(IReadOnlyList<(RoomType Type, float Weight)> types, RoomType main) => Draft.DrawType(types, main);
 
-    protected static int FloorDivide(int value, int divisor) => (int)Math.Floor(value / (double)divisor);
+    protected static int FloorDivide(int value, int divisor) => (int)MathF.Floor(value / (float)divisor);
 }

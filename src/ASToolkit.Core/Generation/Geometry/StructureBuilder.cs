@@ -14,18 +14,15 @@ public static class StructureBuilder
     private const int RaisedDoubleDoorZ = -70;
     private const int SunkenWallZ = -7;
     private const int RaisedSmallDoorZ = -63;
-    private const float StuckDoorChance = 0.5f;
-    private const float FramedShare = 0.7f;
-    private const float MinFakeDoorGap = 160;
-    private const int BasementRoofZ = 90;
+    private const float StuckDoorChance = 0.44f;
+    private const float FramedShare = 0.68f;
+    internal const int BasementRoofZ = 90;
     private const int ConcreteRoofZ = 95;
     private const int BasementFloorReach = 2;
     private const int ConcreteFloorReach = 2;
     private const float RoofMargin = 300;
     private const int ConcreteEdgingSteps = 2;
-    private const float EarthStepX = 40;
-    private const float EarthStepY = 28;
-    private static readonly (int Min, int Max) StuckDoorZ = (13, 35);
+    private static readonly ValueRange<int> StuckDoorZ = (13, 35);
     private const float BigHoleShare = 0.67f;
     private static readonly Dictionary<KnownObject, float> BrokenKeypadShares = new() { [KnownObject.SmallDoorFrame] = 0.97f, [KnownObject.DoubleDoorFrame] = 0.85f };
 
@@ -44,10 +41,10 @@ public static class StructureBuilder
     };
 
     private const float ClosetShadowShare = 0.8f;
-    private static readonly (int Min, int Max) ClosetShadows = (7, 27);
+    private static readonly ValueRange<int> ClosetShadows = (7, 27);
     private const float ClosetShadowDepth = 0.75f;
     private const float HoleRubbleShare = 0.25f;
-    private static readonly (int Min, int Max) HoleRubble = (25, 40);
+    private static readonly ValueRange<int> HoleRubble = (25, 40);
     private const float RubbleZ = 25;
     private const float RubbleSpread = 8;
 
@@ -57,7 +54,7 @@ public static class StructureBuilder
     private static readonly int[] CornerDirs = [0, 0, 85];
     private static readonly SizeF BasementRoofShift = new(0, 17);
     private static readonly SizeF[] ConcreteCellFill = [new(-5, 0), new(5, 0), new(0, -4), new(0, 4)];
-    private static readonly (int U, int V)[] Around = [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1)];
+    private static readonly Cell[] Around = [new(1, 0), new(-1, 0), new(0, 1), new(0, -1), new(1, 1), new(-1, -1), new(1, -1), new(-1, 1)];
 
     /// <summary>
     /// Places the lattice with every cell at positive map coordinates and basement floors on the ground tile phase.
@@ -126,7 +123,7 @@ public static class StructureBuilder
             }
 
             var center = GetEdgeCenter(layout.Lattice, candidate);
-            if (doors.Any(door => MathF.Sqrt((door.X - center.X) * (door.X - center.X) + (door.Y - center.Y) * (door.Y - center.Y)) < MinFakeDoorGap))
+            if (doors.Any(door => MathF.Sqrt((door.X - center.X) * (door.X - center.X) + (door.Y - center.Y) * (door.Y - center.Y)) < PlanWriter.MinDoorGap))
             {
                 continue;
             }
@@ -145,7 +142,7 @@ public static class StructureBuilder
         }
     }
 
-    private static void AddDoor(Random rng, MapBuilder map, KnownObject door, float x, float y, float z, bool slash, bool locked)
+    private static void AddDoor(Random rng, MapBuilder map, FineLayout layout, KnownObject door, float x, float y, float z, bool slash, bool locked)
     {
         int dir = door == KnownObject.DoubleDoor ? slash ? 0 : 64 : slash ? 0 : 128;
         map.Add(door, x, y, z, dir);
@@ -158,7 +155,7 @@ public static class StructureBuilder
 
         var fixture = DoorFixtures[door is KnownObject.DoubleDoor or KnownObject.DoubleDoorFrame ? KnownObject.DoubleDoorWall : KnownObject.SmallDoorWall];
         var spot = fixture.Spots[slash ? 0 : 128];
-        if (rng.NextSingle() < fixture.Share)
+        if (rng.NextSingle() < fixture.Share && layout.Cells.ContainsKey(layout.Lattice.GetCell(x + spot.Offset.X, y + spot.Offset.Y)))
         {
             map.Add(fixture.Id, x + spot.Offset.X, y + spot.Offset.Y, spot.Z, spot.Dir);
         }
@@ -184,7 +181,7 @@ public static class StructureBuilder
         {
             ((float x, float y), bool slash) = GetBasementPosition(layout.Lattice, piece);
             map.Add(isDouble ? KnownObject.DoubleDoorWall : KnownObject.SmallDoorWall, x, y, 0, slash ? 0 : 128);
-            AddDoor(rng, map, isDouble ? KnownObject.DoubleDoorFrame : KnownObject.SmallDoorFrame, x, y, isDouble ? RaisedDoubleDoorZ : RaisedSmallDoorZ, slash, locked);
+            AddDoor(rng, map, layout, isDouble ? KnownObject.DoubleDoorFrame : KnownObject.SmallDoorFrame, x, y, isDouble ? RaisedDoubleDoorZ : RaisedSmallDoorZ, slash, locked);
         }
 
         foreach (var (edge, kind) in edges)
@@ -199,11 +196,11 @@ public static class StructureBuilder
             {
                 case EdgeKind.DoubleDoor:
                     map.Add(KnownObject.DoubleDoorWall, x, y, 0, slash ? 0 : 128);
-                    AddDoor(rng, map, KnownObject.DoubleDoor, x, y, 0, slash, locked);
+                    AddDoor(rng, map, layout, KnownObject.DoubleDoor, x, y, 0, slash, locked);
                     break;
                 case EdgeKind.Door:
                     map.Add(KnownObject.SmallDoorWall, x, y, 0, slash ? 0 : 128);
-                    AddDoor(rng, map, KnownObject.SmallDoor, x, y, 0, slash, locked);
+                    AddDoor(rng, map, layout, KnownObject.SmallDoor, x, y, 0, slash, locked);
                     break;
                 case EdgeKind.SecretWall:
                     map.Add(KnownObject.BreakableWall, x, y, 0, slash ? 0 : 128);
@@ -215,19 +212,19 @@ public static class StructureBuilder
                     break;
                 case EdgeKind.ShutDoor:
                     map.Add(KnownObject.SmallDoorWall, x, y, 0, slash ? 0 : 128);
-                    AddDoor(rng, map, KnownObject.SmallDoorFrame, x, y, 0, slash, locked);
+                    AddDoor(rng, map, layout, KnownObject.SmallDoorFrame, x, y, 0, slash, locked);
                     break;
                 default:
                     if (layout.FakeDoors.TryGetValue(edge, out bool isDouble))
                     {
                         map.Add(isDouble ? KnownObject.DoubleDoorWall : KnownObject.SmallDoorWall, x, y, 0, slash ? 0 : 128);
-                        int z = rng.NextSingle() < StuckDoorChance ? -rng.Next(StuckDoorZ.Min, StuckDoorZ.Max + 1) : 0;
-                        AddDoor(rng, map, isDouble ? KnownObject.DoubleDoorFrame : KnownObject.SmallDoorFrame, x, y, z, slash, locked);
+                        int z = rng.NextSingle() < StuckDoorChance ? -rng.NextInclusive(StuckDoorZ) : 0;
+                        AddDoor(rng, map, layout, isDouble ? KnownObject.DoubleDoorFrame : KnownObject.SmallDoorFrame, x, y, z, slash, locked);
                     }
                     else if (holes.Contains(edge))
                     {
                         map.Add(rng.NextSingle() < BigHoleShare ? KnownObject.BigMonsterHole : KnownObject.SmallMonsterHole, x, y, 0, slash ? 0 : 128);
-                        for (int piece = rng.NextSingle() < HoleRubbleShare ? rng.Next(HoleRubble.Min, HoleRubble.Max + 1) : 0; piece > 0; piece--)
+                        for (int piece = rng.NextSingle() < HoleRubbleShare ? rng.NextInclusive(HoleRubble) : 0; piece > 0; piece--)
                         {
                             map.Add(KnownObject.RockDebris, x + (rng.NextSingle() * 2 - 1) * RubbleSpread, y + (rng.NextSingle() * 2 - 1) * RubbleSpread, RubbleZ, rng.Next(256),
                                 unique: false);
@@ -442,7 +439,7 @@ public static class StructureBuilder
     private static void ShadeCloset(Random rng, MapBuilder map, Lattice lattice, EdgeKey edge, IReadOnlySet<Cell> closets)
     {
         float side = closets.Contains(edge.Cells.First) ? -1 : 1;
-        for (int shadow = rng.NextSingle() < ClosetShadowShare ? rng.Next(ClosetShadows.Min, ClosetShadows.Max + 1) : 0; shadow > 0; shadow--)
+        for (int shadow = rng.NextSingle() < ClosetShadowShare ? rng.NextInclusive(ClosetShadows) : 0; shadow > 0; shadow--)
         {
             float depth = side * (0.05f + rng.NextSingle() * ClosetShadowDepth), along = rng.NextSingle();
             (float x, float y) = edge.Axis == 'v' ? lattice.ToWorld(edge.A + along, edge.B + depth) : lattice.ToWorld(edge.A + depth, edge.B + along);
@@ -474,13 +471,13 @@ public static class StructureBuilder
     }
 
     // Posts go where walls meet but don't run straight through
-    private static (int A, int B)[] FindPosts(IReadOnlyDictionary<EdgeKey, EdgeKind> edges)
+    private static Point[] FindPosts(IReadOnlyDictionary<EdgeKey, EdgeKind> edges)
     {
-        var vertices = new List<(int, int)>();
-        var seen = new HashSet<(int, int)>();
+        var vertices = new List<Point>();
+        var seen = new HashSet<Point>();
         foreach (var edge in edges.Keys)
         {
-            foreach (var vertex in edge.Axis == 'v' ? new[] { (edge.A, edge.B), (edge.A + 1, edge.B) } : new[] { (edge.A, edge.B), (edge.A, edge.B + 1) })
+            foreach (var vertex in edge.Axis == 'v' ? new[] { new Point(edge.A, edge.B), new Point(edge.A + 1, edge.B) } : [new Point(edge.A, edge.B), new Point(edge.A, edge.B + 1)])
             {
                 if (seen.Add(vertex))
                 {
@@ -489,7 +486,7 @@ public static class StructureBuilder
             }
         }
 
-        var posts = new List<(int, int)>();
+        var posts = new List<Point>();
         foreach ((int a, int b) in vertices)
         {
             bool w1 = edges.ContainsKey(new EdgeKey('v', a - 1, b));
@@ -499,7 +496,7 @@ public static class StructureBuilder
             bool straight = (w1 && w2 && !s1 && !s2) || (s1 && s2 && !w1 && !w2);
             if ((w1 || w2 || s1 || s2) && !straight)
             {
-                posts.Add((a, b));
+                posts.Add(new Point(a, b));
             }
         }
 
@@ -531,13 +528,13 @@ public static class StructureBuilder
 
         var steps = GetCellsWithin(shown, ConcreteEdgingSteps);
         var edging = hidden.Where(steps.ContainsKey).SelectMany(cell => ConcreteCellFill.Select(offset => lattice.GetCenter(cell) + offset));
-        int left = (int)MathF.Floor(area.Left / EarthStepX);
-        int right = (int)MathF.Ceiling(area.Right / EarthStepX);
-        int top = (int)MathF.Floor(area.Top / EarthStepY);
-        int bottom = (int)MathF.Ceiling(area.Bottom / EarthStepY);
+        int left = (int)MathF.Floor(area.Left / Lattice.BasementStep.X);
+        int right = (int)MathF.Ceiling(area.Right / Lattice.BasementStep.X);
+        int top = (int)MathF.Floor(area.Top / Lattice.BasementStep.Y);
+        int bottom = (int)MathF.Ceiling(area.Bottom / Lattice.BasementStep.Y);
         var far = Enumerable.Range(left, right - left + 1)
-            .SelectMany(column => Enumerable.Range(top, bottom - top + 1).Where(row => ((column + row) & 1) == 1).Select(row => new PointF(EarthStepX * column, EarthStepY * row)))
-            .Where(spot => !steps.TryGetValue(lattice.GetCell(spot.X, spot.Y), out int step) || step == ConcreteEdgingSteps);
+            .SelectMany(column => Enumerable.Range(top, bottom - top + 1).Where(row => ((column + row) & 1) == 1).Select(row => new PointF(Lattice.BasementStep.X * column, Lattice.BasementStep.Y * row)))
+            .Where(spot => !steps.TryGetValue(lattice.GetCell(spot), out int step) || step == ConcreteEdgingSteps);
         
         AddTiles(rng, map, KnownObject.Earth, z, edging.Concat(far));
     }

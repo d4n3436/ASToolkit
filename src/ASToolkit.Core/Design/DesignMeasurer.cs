@@ -20,7 +20,7 @@ public sealed class DesignMeasurer
     private const float PadReach = 400;
     private const float MirrorTolerance = 25;
     private const float StripeReach = 230;
-    private const float FightReach = 1200;
+    private const float CannonReach = 1200;
     private const float BigFightShare = 0.05f;
     private const float EarlyShare = 0.2f;
     private const float ScreenHalfWidth = 640;
@@ -100,7 +100,7 @@ public sealed class DesignMeasurer
     public DesignMeasures Measure()
     {
         var walls = _model.Sprites
-            .Where(sprite => sprite.Position.Z < FloorHeight && _model.Cells.Contains(_model.Lattice.GetCell(sprite.Position.X, sprite.Position.Y)))
+            .Where(sprite => sprite.Position.Z < FloorHeight && _model.Cells.Contains(_model.Lattice.GetCell(sprite.Position)))
             .Select(sprite => GetWallSample(sprite.Id, sprite.Facing, sprite.Position.X, sprite.Position.Y))
             .ToArray();
 
@@ -358,7 +358,7 @@ public sealed class DesignMeasurer
     private MeasureShare CountAwayFromWalls(IReadOnlyList<PointF> points)
     {
         var inside = points
-            .Where(point => _model.Cells.Contains(_model.Lattice.GetCell(point.X, point.Y)))
+            .Where(point => _model.Cells.Contains(_model.Lattice.GetCell(point)))
             .ToArray();
         
         return new MeasureShare(inside.Count(point => GetWallSample(KnownObject.Computer, 0, point.X, point.Y).Sides == WallSides.None), inside.Length);
@@ -401,7 +401,7 @@ public sealed class DesignMeasurer
 
     private MeasureShare CountItems(IReadOnlyList<LevelItem> items, ItemCategory category, Func<WallSample, bool> predicate)
     {
-        var chosen = items.Where(item => item.Category == category && _model.Cells.Contains(_model.Lattice.GetCell(item.Position.X, item.Position.Y))).ToArray();
+        var chosen = items.Where(item => item.Category == category && _model.Cells.Contains(_model.Lattice.GetCell(item.Position))).ToArray();
         return new MeasureShare(chosen.Count(item => predicate(GetWallSample(item.Id, 0, item.Position.X, item.Position.Y))), chosen.Length);
     }
 
@@ -453,7 +453,7 @@ public sealed class DesignMeasurer
     private MeasureShare CountHitPointsNear(PointF cannon)
     {
         var fights = _survey.Encounters.Where(encounter => encounter.Kind is EncounterKind.Ambush or EncounterKind.PlacedGroup).ToArray();
-        int near = fights.Where(encounter => Distance(new PointF(encounter.Position.X, encounter.Position.Y), cannon) <= FightReach).Sum(encounter => encounter.HitPoints);
+        int near = fights.Where(encounter => Distance(new PointF(encounter.Position.X, encounter.Position.Y), cannon) <= CannonReach).Sum(encounter => encounter.HitPoints);
         return new MeasureShare(near, fights.Sum(encounter => encounter.HitPoints));
     }
 
@@ -506,12 +506,12 @@ public sealed class DesignMeasurer
     private static int MatchLayouts(MergedMapSprite[] small, MergedMapSprite[] large)
     {
         var byId = large.ToLookup(sprite => sprite.Id);
-        var offsets = new Dictionary<(int X, int Y), int>();
+        var offsets = new Dictionary<Point, int>();
         foreach (var sprite in small)
         {
             foreach (var other in byId[sprite.Id])
             {
-                var key = ((int)MathF.Round(other.Position.X - sprite.Position.X), (int)MathF.Round(other.Position.Y - sprite.Position.Y));
+                var key = new Point((int)MathF.Round(other.Position.X - sprite.Position.X), (int)MathF.Round(other.Position.Y - sprite.Position.Y));
                 offsets[key] = offsets.GetValueOrDefault(key) + 1;
             }
         }

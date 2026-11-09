@@ -7,10 +7,10 @@ namespace ASToolkit.Core.Reference;
 /// <param name="Slope">The change of the line per level.</param>
 /// <param name="ConcreteTerm">The shift of the line on levels of the concrete set.</param>
 /// <param name="Spread">The standard deviation of the levels around the line.</param>
-public readonly record struct WallSetLine(double Intercept, double Slope, double ConcreteTerm, double Spread)
+public readonly record struct WallSetLine(float Intercept, float Slope, float ConcreteTerm, float Spread)
 {
     /// <summary>
     /// Returns the value the line gives a level.
     /// </summary>
-    public double Evaluate(int level, bool isConcrete) => Intercept + Slope * level + (isConcrete ? ConcreteTerm : 0);
+    public float Evaluate(int level, bool isConcrete) => Intercept + Slope * level + (isConcrete ? ConcreteTerm : 0);
 }

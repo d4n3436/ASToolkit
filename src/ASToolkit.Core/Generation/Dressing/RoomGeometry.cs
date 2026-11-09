@@ -136,7 +136,7 @@ internal sealed class RoomGeometry
     public Cell GetCell(PointF point)
     {
         var world = _layout.Lattice.ToWorld(point.X, point.Y);
-        return _layout.Lattice.GetCell(world.X, world.Y);
+        return _layout.Lattice.GetCell(world);
     }
 
     private bool IsClosed(EdgeKey edge) => _layout.Edges.TryGetValue(edge, out var kind) && kind.IsClosed;

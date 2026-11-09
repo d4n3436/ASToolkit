@@ -13,7 +13,7 @@ namespace ASToolkit.Core.Generation.Content;
 internal static class ContentPlacer
 {
     private static readonly PointF BreakerOffset = new(-8, 3);
-    private const float ChargeSiteGap = 150;
+    private const float ChargeSiteGap = 588;
     private const int BreakerFront = 3;
     private const int BreakerSide = 2;
     private const int BreakerOpenEnd = 3;
@@ -88,7 +88,7 @@ internal static class ContentPlacer
         PlaceBosses(ctx, facings, builtEdges);
         var sites = ctx.Map.Sprites
             .Where(sprite => sprite.Id == KnownObject.DynamiteSite)
-            .Select(sprite => (sprite.Position.X, sprite.Position.Y, Cell: ctx.Layout.Lattice.GetCell(sprite.Position.X, sprite.Position.Y)))
+            .Select(sprite => (Point: new PointF(sprite.Position.X, sprite.Position.Y), Cell: ctx.Layout.Lattice.GetCell(sprite.Position)))
             .OrderBy(site => ctx.Distance.GetValueOrDefault(site.Cell))
             .ToArray();
 
@@ -157,12 +157,12 @@ internal static class ContentPlacer
                 int radius = (int)MathF.Ceiling(row.Max(point => GetDistance(center, point)) + ctx.Step / 2);
                 if (GetDistance(center, door) - radius >= BlackoutDoorGap)
                 {
-                    return new TriggerArea(new Point((int)center.X, (int)center.Y), radius);
+                    return new TriggerArea(Point.Truncate(center), radius);
                 }
             }
         }
 
-        return new TriggerArea(new Point((int)door.X, (int)door.Y), BlackoutDoorGap);
+        return new TriggerArea(Point.Truncate(door), BlackoutDoorGap);
     }
 
     private static Cell GetDoorwayCell(PlacementContext ctx, PlanLink link) => ctx.Layout.GetDoorwayCell(link.Id, link.To);
@@ -196,13 +196,13 @@ internal static class ContentPlacer
             {
                 float angle = ctx.Rng.NextSingle() * 2 * MathF.PI;
                 float distance = 60 + 120 * ctx.Rng.NextSingle();
-                (float x, float y) = (boss.Value.X + MathF.Cos(angle) * distance, boss.Value.Y + MathF.Sin(angle) * distance * 0.7f);
-                (float u, float v) = ctx.Layout.Lattice.ToLattice(x, y);
-                if (!ctx.Layout.Cells.ContainsKey(ctx.Layout.Lattice.GetCell(x, y)) || ctx.IsInWall(x, y) || !(ctx.Layout.Edges.MeasureClearance(u, v) >= GoreClearance))
+                var point = new PointF(boss.Value.Point.X + MathF.Cos(angle) * distance, boss.Value.Point.Y + MathF.Sin(angle) * distance * 0.7f);
+                (float u, float v) = ctx.Layout.Lattice.ToLattice(point);
+                if (!ctx.Layout.Cells.ContainsKey(ctx.Layout.Lattice.GetCell(point)) || ctx.IsInWall(point) || !(ctx.Layout.Edges.MeasureClearance(u, v) >= GoreClearance))
                     continue;
                 
                 var pool = GorePools[ctx.Rng.Next(GorePools.Length)];
-                ctx.Map.Add(pool, x, y, 0, facings.PickFacing(ctx.Rng, pool, ctx.Layout.Edges, u, v), unique: false);
+                ctx.Map.Add(pool, point.X, point.Y, 0, facings.PickFacing(ctx.Rng, pool, ctx.Layout.Edges, u, v), unique: false);
                 if (thirdIndex >= 2)
                     continue;
                     
@@ -210,7 +210,7 @@ internal static class ContentPlacer
                 byte facing = FurnitureGrammar.Default.Poses[corpse].DrawLying(ctx.Rng);
                 if (facings.Fits(corpse, facing, builtEdges, u, v))
                 {
-                    ctx.Map.Add(corpse, x, y, 0, facing, unique: false);
+                    ctx.Map.Add(corpse, point.X, point.Y, 0, facing, unique: false);
                 }
             }
         }
@@ -218,9 +218,9 @@ internal static class ContentPlacer
 
     // Lays each phase's charges beside the last key of the phase before, else in the start room on the fitted share of levels,
     // else on the walk the fitted lead before the phase's first site
-    private static void PlaceCharges(PlacementContext ctx, (float X, float Y, Cell Cell)[] sites, EconomyModel economy)
+    private static void PlaceCharges(PlacementContext ctx, (PointF Point, Cell Cell)[] sites, EconomyModel economy)
     {
-        var keys = ctx.Plan.GeneratorRooms.Select(entry => entry.Room).Append(ctx.Plan.KeyRoom).OfType<PlanRegion>().ToArray();
+        var keys = ctx.Plan.GeneratorRooms.Append(ctx.Plan.KeyRoom).OfType<PlanRegion>().ToArray();
         bool startBatch = ctx.Rng.NextSingle() < economy.StartBatchShare.Value;
         foreach (var batch in sites.GroupBy(site => ctx.Layout.Cells.TryGetValue(site.Cell, out int region) ? ctx.Plan.Regions[region].Phase : 0))
         {
@@ -229,7 +229,7 @@ internal static class ContentPlacer
             var start = ctx.GetFreeCells(ctx.Plan.Stations[0]);
             var options = key is not null || startBatch && batch.Key == 0 ? new[] { ctx.GetFreeCells(key ?? ctx.Plan.Stations[0]), GetWalkCells(), start } : [GetWalkCells(), start];
             var spot = options
-                .Select(cells => cells.Where(c => ctx.FindSpot(c) is not null && sites.All(site => GetDistance(GetCenter(ctx, c), new PointF(site.X, site.Y)) >= ChargeSiteGap)).ToArray())
+                .Select(cells => cells.Where(c => ctx.FindSpot(c) is not null && sites.All(site => GetDistance(GetCenter(ctx, c), site.Point) >= ChargeSiteGap)).ToArray())
                 .Select(free => free.Where(ctx.IsClearAround).Concat(free).Cast<Cell?>().FirstOrDefault())
                 .FirstOrDefault(found => found is not null);
 
@@ -241,7 +241,7 @@ internal static class ContentPlacer
             int count = batch.Count();
             var origin = spot.Value;
             var room = ctx.GetFreeCells(ctx.Plan.Regions[ctx.Layout.Cells[origin]])
-                .Where(c => ctx.FindSpot(c) is not null && sites.All(site => GetDistance(GetCenter(ctx, c), new PointF(site.X, site.Y)) >= ChargeSiteGap))
+                .Where(c => ctx.FindSpot(c) is not null && sites.All(site => GetDistance(GetCenter(ctx, c), site.Point) >= ChargeSiteGap))
                 .Prepend(origin)
                 .Distinct()
                 .ToArray();
@@ -290,7 +290,7 @@ internal static class ContentPlacer
         }
 
         var spot = ctx.TraceWalk(cells.MinBy(c => ctx.Distance[c]))
-            .Where(c => ctx.Layout.Cells.TryGetValue(c, out int region) && region != climax.Region && ctx.IsFree(c) && ctx.IsClearAround(c) && !ctx.IsInWall(GetCenter(ctx, c).X, GetCenter(ctx, c).Y, 24))
+            .Where(c => ctx.Layout.Cells.TryGetValue(c, out int region) && region != climax.Region && ctx.IsFree(c) && ctx.IsClearAround(c) && !ctx.IsInWall(GetCenter(ctx, c), 24))
             .Cast<Cell?>()
             .FirstOrDefault();
 

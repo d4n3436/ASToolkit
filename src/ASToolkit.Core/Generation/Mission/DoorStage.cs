@@ -59,8 +59,7 @@ public sealed class DoorStage
             .ToArray();
 
         var shortcuts = building.Shortcuts
-            .Where(item => nodes.Contains(item.From) && nodes.Contains(item.To))
-            .Select(item => new RoomPair(item.From, item.To))
+            .Where(item => nodes.Contains(item.A) && nodes.Contains(item.B))
             .ToArray();
 
         int[] keys = building.Keys

@@ -15,6 +15,21 @@ public readonly record struct UnitRect(int U, int V, int W, int H)
     public int Area => W * H;
 
     /// <summary>
+    /// Gets the first unit past the rectangle along u.
+    /// </summary>
+    public int EndU => U + W;
+
+    /// <summary>
+    /// Gets the first unit past the rectangle along v.
+    /// </summary>
+    public int EndV => V + H;
+
+    /// <summary>
+    /// Creates a rectangle from its first units and the first units past it.
+    /// </summary>
+    public static UnitRect FromEdges(int u0, int v0, int u1, int v1) => new(u0, v0, u1 - u0, v1 - v0);
+
+    /// <summary>
     /// Gets the units inside the rectangle.
     /// </summary>
     public IEnumerable<Cell> Units

@@ -78,7 +78,7 @@ internal sealed class WalkingUnit
                 continue;
             }
 
-            walked += Vector2.Distance(new Vector2(points[^1].X, points[^1].Y), new Vector2(point.X, point.Y));
+            walked += Vector2.Distance(points[^1].AsVector2(), point.AsVector2());
             points.Add(point);
         }
 

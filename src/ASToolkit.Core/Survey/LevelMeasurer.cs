@@ -86,7 +86,7 @@ public static class LevelMeasurer
         
         var itemsByCell = map.Sprites
             .Where(s => s.Id.PickupCategory is not null || (s.Id == KnownObject.Crate && KnownObject.GetCrateItem(s.Payload) != 0))
-            .ToLookup(s => lattice.GetCell(s.Position.X, s.Position.Y), s => s.Id == KnownObject.Crate ? KnownObject.GetCrateItem(s.Payload) : s.Id);
+            .ToLookup(s => lattice.GetCell(s.Position), s => s.Id == KnownObject.Crate ? KnownObject.GetCrateItem(s.Payload) : s.Id);
         
         var items = itemsByCell
             .Select(g => g.Key)
@@ -98,7 +98,7 @@ public static class LevelMeasurer
         
         var spawners = map.Sprites
             .Where(s => s.Id == KnownObject.Spawner)
-            .Select(s => lattice.GetCell(s.Position.X, s.Position.Y))
+            .Select(s => lattice.GetCell(s.Position))
             .ToHashSet();
         
         var open = grid.Cells.Flood([analysis.Tour[0]], IsClosed);

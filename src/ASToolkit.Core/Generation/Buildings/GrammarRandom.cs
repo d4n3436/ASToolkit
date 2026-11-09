@@ -12,14 +12,16 @@ internal sealed class GrammarRandom
         _rng = rng;
     }
 
-    public double Next() => _rng.NextDouble();
+    public float Next() => _rng.NextSingle();
 
-    public double Uniform(double low, double high) => low + (high - low) * _rng.NextDouble();
+    public float Uniform(float low, float high) => low + (high - low) * _rng.NextSingle();
 
     // Returns an integer from low up to high exclusive, or low when the range is empty
     public int Range(int low, int high) => high > low ? _rng.Next(low, high) : low;
 
     public int Inclusive(int low, int high) => Range(low, high + 1);
+
+    public int Inclusive(ValueRange<int> range) => Inclusive(range.Min, range.Max);
 
     public T Choice<T>(IReadOnlyList<T> items) => items[_rng.Next(items.Count)];
 
@@ -30,10 +32,10 @@ internal sealed class GrammarRandom
         return array;
     }
 
-    public T Weighted<T>(IReadOnlyList<(T Item, double Weight)> items)
+    public T Weighted<T>(IReadOnlyList<(T Item, float Weight)> items)
     {
-        double pick = _rng.NextDouble() * items.Sum(item => item.Weight);
-        foreach ((var item, double weight) in items)
+        float pick = _rng.NextSingle() * items.Sum(item => item.Weight);
+        foreach ((var item, float weight) in items)
         {
             pick -= weight;
             if (pick < 0)
@@ -45,5 +47,5 @@ internal sealed class GrammarRandom
         return items[^1].Item;
     }
 
-    public static int Round(double value) => (int)Math.Round(value, MidpointRounding.ToEven);
+    public static int Round(float value) => (int)MathF.Round(value, MidpointRounding.ToEven);
 }

@@ -8,8 +8,8 @@ namespace ASToolkit.Core.Survey;
 public sealed class BeatMeasurer
 {
     private const int IntensityWindow = 1600;
-    private const int FightReach = 1000;
-    private const float LeastFightShare = 0.02f;
+    internal const int FightReach = 1000;
+    private const float MinFightShare = 0.02f;
 
     private readonly LevelSurvey _survey;
     private readonly LevelProgression _progression;
@@ -107,7 +107,7 @@ public sealed class BeatMeasurer
             .Where(encounter => encounter.Kind is EncounterKind.Ambush or EncounterKind.PlacedGroup or EncounterKind.Boss && encounter.HitPoints > 0)
             .ToArray();
 
-        int least = (int)(LeastFightShare * fights.Sum(encounter => encounter.HitPoints));
+        int least = (int)(MinFightShare * fights.Sum(encounter => encounter.HitPoints));
         var groups = new List<List<LevelEncounter>>();
         foreach (var encounter in fights.Where(encounter => encounter.HitPoints >= least || encounter.Kind == EncounterKind.Boss).OrderBy(encounter => encounter.Route))
         {

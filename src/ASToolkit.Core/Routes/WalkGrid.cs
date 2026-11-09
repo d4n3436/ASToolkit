@@ -278,11 +278,11 @@ internal sealed class WalkGrid
     // Takes the cell nearest to the target that the accept test allows, or the nearest one when the preference is not strict and none is allowed
     private int ChooseEnd(List<int> reached, PathPreference preference)
     {
-        var target = new Vector2(preference.Target.X, preference.Target.Y);
+        var target = preference.Target.AsVector2();
         var nearest = reached.OrderBy(cell =>
         {
             var point = GetPoint(cell);
-            return Vector2.Distance(new Vector2(point.X, point.Y), target);
+            return Vector2.Distance(point.AsVector2(), target);
         }).ToList();
         foreach (int cell in nearest.Where(cell => preference.Accept(GetPoint(cell))))
         {
@@ -350,7 +350,7 @@ internal sealed class WalkGrid
             for (int column = centerColumn - reach; column <= centerColumn + reach; column++)
             {
                 int cell = GetCell(column, row);
-                if (cell >= 0 && Vector2.Distance(new Vector2((column + 0.5f) * CellSize, (row + 0.5f) * CellSize), new Vector2(center.X, center.Y)) <= radius)
+                if (cell >= 0 && Vector2.Distance(new Vector2((column + 0.5f) * CellSize, (row + 0.5f) * CellSize), center.AsVector2()) <= radius)
                 {
                     yield return cell;
                 }

@@ -40,7 +40,7 @@ public sealed record BuildingPlan
     public required IReadOnlyList<(int From, int To)> Locks { get; init; }
 
     /// <summary>Gets the locked contacts inside a phase that open with its key.</summary>
-    public required IReadOnlyList<(int From, int To)> Shortcuts { get; init; }
+    public required IReadOnlyList<RoomPair> Shortcuts { get; init; }
 
     /// <summary>Gets the walls two rooms share that the design keeps shut, never given a door.</summary>
     public IReadOnlyList<RoomPair> ClosedWalls { get; init; } = [];

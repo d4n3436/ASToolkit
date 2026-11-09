@@ -10,7 +10,6 @@ namespace ASToolkit.Core.Generation.Buildings;
 /// </summary>
 public sealed class BuildingBuilder
 {
-    private const int LayoutUnitsPerGridUnit = 1;
 
     private readonly Random _rng;
     private readonly IReadOnlyList<RoomFootprint> _footprints;
@@ -94,8 +93,8 @@ public sealed class BuildingBuilder
                 Id = rooms.Count,
                 Kind = kind,
                 Type = kind == BuildingRoomKind.Hall ? RoomType.Hall : room.Type ?? RoomType.Office,
-                Rects = extras[room.Id].Prepend(room.Rect).Select(Scale).ToArray(),
-                Necks = necks[room.Id].Select(Scale).ToArray(),
+                Rects = extras[room.Id].Prepend(room.Rect).ToArray(),
+                Necks = necks[room.Id].ToArray(),
                 Phase = room.Phase,
                 Host = room.Host is null ? null : idOf.GetValueOrDefault(room.Host.Value)
             });
@@ -107,17 +106,16 @@ public sealed class BuildingBuilder
             .ToArray();
 
         var shortcuts = grammar.Shortcuts
-            .Where(pair => idOf.ContainsKey(pair.From) && idOf.ContainsKey(pair.To))
-            .Select(pair => (idOf[pair.From], idOf[pair.To]))
+            .Where(pair => idOf.ContainsKey(pair.A) && idOf.ContainsKey(pair.B))
+            .Select(pair => new RoomPair(idOf[pair.A], idOf[pair.B]))
             .ToArray();
 
         // Never shut a wall that holds a designed door, lock or shortcut
         var designed = grammar.Junctions
             .Where(pair => idOf.ContainsKey(pair.Room) && idOf.ContainsKey(pair.Passage))
-            .Select(pair => (idOf[pair.Room], idOf[pair.Passage]))
-            .Concat(grammar.Locks.Where(pair => idOf.ContainsKey(pair.From) && idOf.ContainsKey(pair.To)).Select(pair => (idOf[pair.From], idOf[pair.To])))
+            .Select(pair => new RoomPair(idOf[pair.Room], idOf[pair.Passage]))
+            .Concat(grammar.Locks.Where(pair => idOf.ContainsKey(pair.From) && idOf.ContainsKey(pair.To)).Select(pair => new RoomPair(idOf[pair.From], idOf[pair.To])))
             .Concat(shortcuts)
-            .Select(pair => new RoomPair(pair.Item1, pair.Item2))
             .ToHashSet();
 
         var closedWalls = grammar.ClosedWalls
@@ -152,9 +150,6 @@ public sealed class BuildingBuilder
         int Map(int id) => idOf[id];
     }
 
-    private static UnitRect Scale(UnitRect rect) =>
-        new(rect.U * LayoutUnitsPerGridUnit, rect.V * LayoutUnitsPerGridUnit, rect.W * LayoutUnitsPerGridUnit, rect.H * LayoutUnitsPerGridUnit);
-
     // Returns the halls and rooms that share at least one grid unit of wall
     private static RoomPair[] FindContacts(IReadOnlyList<BuildingRoom> rooms)
     {
@@ -165,7 +160,7 @@ public sealed class BuildingBuilder
             for (int second = first + 1; second < walkable.Length; second++)
             {
                 int shared = walkable[first].Rects.Sum(a => walkable[second].Rects.Sum(b => a.GetSharedEdges(b).Length));
-                if (shared >= LayoutUnitsPerGridUnit)
+                if (shared > 0)
                 {
                     contacts.Add(new RoomPair(walkable[first].Id, walkable[second].Id));
                 }

@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Numerics;
 
 namespace ASToolkit.Core.Levels;
 
@@ -70,6 +71,16 @@ public sealed class Lattice
     }
 
     /// <summary>
+    /// Returns the lattice coordinates of a map point.
+    /// </summary>
+    public GridPoint ToLattice(PointF point) => ToLattice(point.X, point.Y);
+
+    /// <summary>
+    /// Returns the lattice coordinates of a map position, leaving out its height.
+    /// </summary>
+    public GridPoint ToLattice(Vector3 position) => ToLattice(position.X, position.Y);
+
+    /// <summary>
     /// Returns the cell that holds a map position.
     /// </summary>
     public Cell GetCell(float x, float y)
@@ -77,6 +88,16 @@ public sealed class Lattice
         (float u, float v) = ToLattice(x, y);
         return new Cell((int)MathF.Floor(u), (int)MathF.Floor(v));
     }
+
+    /// <summary>
+    /// Returns the cell that holds a map point.
+    /// </summary>
+    public Cell GetCell(PointF point) => GetCell(point.X, point.Y);
+
+    /// <summary>
+    /// Returns the cell that holds a map position, leaving out its height.
+    /// </summary>
+    public Cell GetCell(Vector3 position) => GetCell(position.X, position.Y);
 
     /// <summary>
     /// Returns the map position of a cell's center.

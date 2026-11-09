@@ -24,9 +24,8 @@ public sealed class OutdoorLevelBuilder
     private const float ChargeHigh = 1600;
     private const float MonsterSpacing = 22;
     private const int ClusterSlack = 4;
-    private const float SpawnerTriggerRadius = 300;
+    private const int SpawnerTriggerRadius = 300;
     private const float BatSpacing = 30;
-    private const float RoofHeight = 90;
     private const float BreachReach = 130;
     private const float ClusterReach = 80;
     private const float RoadHalfWidth = 90;
@@ -151,14 +150,14 @@ public sealed class OutdoorLevelBuilder
 
         (float bx, float by) = site.Lattice.GetCenter(outside);
         site.Map.Add(KnownObject.DynamiteSite, bx, by, 0, 0);
-        var charge = site.FindOpenSpot(point => Distance(point, new PointF(bx, by)) is >= ChargeLow and <= ChargeHigh && !yard.Contains(site.Lattice.GetCell(point.X, point.Y)));
+        var charge = site.FindOpenSpot(point => Distance(point, new PointF(bx, by)) is >= ChargeLow and <= ChargeHigh && !yard.Contains(site.Lattice.GetCell(point)));
         if (charge is not null)
         {
             site.Map.Add(KnownObject.Dynamite, charge.Value.X, charge.Value.Y, 0, 0);
         }
 
         site.Map.Add(KnownObject.Shotgun, start.X + 120, start.Y - 60, 0, 0);
-        var middle = site.FindOpenSpot(point => yard.Contains(site.Lattice.GetCell(point.X, point.Y))) ?? site.Lattice.ToWorld(yard.U + yard.W / 2f, yard.V + yard.H / 2f);
+        var middle = site.FindOpenSpot(point => yard.Contains(site.Lattice.GetCell(point))) ?? site.Lattice.ToWorld(yard.U + yard.W / 2f, yard.V + yard.H / 2f);
         site.AddCluster(middle, [KnownObject.Monster1, KnownObject.YellowMonster1], 55, MonsterSpacing);
         var gate = site.Gate ?? middle;
         for (int spawner = 0; spawner < 2; spawner++)
@@ -166,7 +165,7 @@ public sealed class OutdoorLevelBuilder
             var spot = site.FindOpenSpot(point => Distance(point, gate) is >= 900 and <= 1600);
             if (spot is not null)
             {
-                var program = SpawnerProgram.Create(Enumerable.Repeat(KnownObject.Monster1, 12), (gate.X, gate.Y, SpawnerTriggerRadius), [gate]);
+                var program = SpawnerProgram.Create(Enumerable.Repeat(KnownObject.Monster1, 12), new TriggerArea(Point.Truncate(gate), SpawnerTriggerRadius), [gate]);
                 site.Map.Add(KnownObject.Spawner, spot.Value.X, spot.Value.Y, 0, 0, program.ToPayload(), 1, unique: false);
             }
         }
@@ -211,7 +210,7 @@ public sealed class OutdoorLevelBuilder
 
             var trigger = new PointF(spot.Value.X + rng.Next(-500, 501), spot.Value.Y + rng.Next(-400, 401));
             var program = SpawnerProgram.Create(Enumerable.Repeat(rng.Next(2) == 0 ? KnownObject.Monster1 : KnownObject.YellowMonster1, rng.Next(6, 14)),
-                (trigger.X, trigger.Y, SpawnerTriggerRadius), [trigger]);
+                new TriggerArea(Point.Truncate(trigger), SpawnerTriggerRadius), [trigger]);
             site.Map.Add(KnownObject.Spawner, spot.Value.X, spot.Value.Y, 0, 0, program.ToPayload(), 1, unique: false);
         }
 
@@ -368,7 +367,7 @@ public sealed class OutdoorLevelBuilder
             // Keep the ground clear on both sides of the gate and the torn piece
             foreach (var opening in openings)
             {
-                (float ou, float ov) = Lattice.ToLattice(opening.X, opening.Y);
+                (float ou, float ov) = Lattice.ToLattice(opening);
                 for (int u = (int)MathF.Floor(ou) - OpeningClearance; u <= (int)MathF.Floor(ou) + OpeningClearance; u++)
                 {
                     for (int v = (int)MathF.Floor(ov) - OpeningClearance; v <= (int)MathF.Floor(ov) + OpeningClearance; v++)
@@ -460,7 +459,7 @@ public sealed class OutdoorLevelBuilder
                 foreach (float v in GetRoofRows(block.V + 1.25f, block.V + block.H - 0.75f, 2))
                 {
                     (float x, float y) = Lattice.ToWorld(u, v);
-                    Map.Add(KnownObject.MilitaryBaseFloor, x, y, RoofHeight, Rng.Next(256), unique: false);
+                    Map.Add(KnownObject.MilitaryBaseFloor, x, y, StructureBuilder.BasementRoofZ, Rng.Next(256), unique: false);
                 }
             }
 
@@ -563,7 +562,7 @@ public sealed class OutdoorLevelBuilder
                     (int row, int column) = Math.DivRem(index, side);
                     return new PointF(center.X + (column - side / 2f) * spacing, center.Y + (row - side / 2f) * spacing * 0.7f);
                 })
-                .Where(spot => !Interiors.Contains(Lattice.GetCell(spot.X, spot.Y)) && Ground.Contains(Lattice.GetCell(spot.X, spot.Y)))
+                .Where(spot => !Interiors.Contains(Lattice.GetCell(spot)) && Ground.Contains(Lattice.GetCell(spot)))
                 .OrderBy(spot => MathF.Abs(spot.X - center.X) + MathF.Abs(spot.Y - center.Y) / 0.7f)
                 .Take(count);
             foreach (var spot in spots)

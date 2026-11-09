@@ -34,7 +34,7 @@ public sealed class RoomFootprintFitter
     private static RoomFootprint? Read(IReadOnlyList<Cell> cells)
     {
         var units = cells
-            .GroupBy(cell => new Cell((int)Math.Floor(cell.U / (double)CellsPerUnit), (int)Math.Floor(cell.V / (double)CellsPerUnit)))
+            .GroupBy(cell => new Cell((int)MathF.Floor(cell.U / (float)CellsPerUnit), (int)MathF.Floor(cell.V / (float)CellsPerUnit)))
             .Where(group => group.Count() >= CoveredCells)
             .Select(group => group.Key)
             .ToArray();

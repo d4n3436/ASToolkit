@@ -5,14 +5,14 @@ namespace ASToolkit.Core.Generation.Buildings;
 // Places a building's closets and secret room behind the walls of host rooms
 internal sealed class SideRoomPlacer
 {
-    private const double SecretOffHall = 0.25;
-    private const double SecretRoomShare = 0.25;
-    private const double SpawnOffHall = 0.4;
+    private const float SecretOffHall = 0.25f;
+    private const float SecretRoomShare = 0.25f;
+    private const float SpawnOffHall = 0.4f;
 
     private readonly BuildingDraft _draft;
-    private readonly IReadOnlyList<(RoomType Type, double Weight)> _backTypes;
+    private readonly IReadOnlyList<(RoomType Type, float Weight)> _backTypes;
 
-    public SideRoomPlacer(BuildingDraft draft, IReadOnlyList<(RoomType Type, double Weight)> backTypes)
+    public SideRoomPlacer(BuildingDraft draft, IReadOnlyList<(RoomType Type, float Weight)> backTypes)
     {
         _draft = draft;
         _backTypes = backTypes;
@@ -38,8 +38,8 @@ internal sealed class SideRoomPlacer
             .Where(room => room is { Kind: GridKind.Room, IsJoint: false } && room.Type != RoomType.Passage && !path.Contains(room.Id) && groupSizes[room.Group] <= 5)
             .ToArray();
 
-        int along = Math.Max(4, _draft.Size(0.6, 0.85));
-        int depth = Math.Max(4, _draft.Size(0.5, 0.7));
+        int along = Math.Max(4, _draft.Size(0.6f, 0.85f));
+        int depth = Math.Max(4, _draft.Size(0.5f, 0.7f));
         if (!TryPlaceBeside(_draft.Random.Shuffled(hosts), GridKind.SecretRoom, _ => (along, depth), () => _draft.DrawType(_backTypes, RoomType.Storage)))
         {
             _draft.Count(BuildingTally.SecretRoomUnplaced);
@@ -50,7 +50,7 @@ internal sealed class SideRoomPlacer
 
     public void PlaceClosets(int spawnClosets)
     {
-        foreach ((var kind, int count, double offHall) in (ReadOnlySpan<(GridKind, int, double)>)
+        foreach ((var kind, int count, float offHall) in (ReadOnlySpan<(GridKind, int, float)>)
                  [(GridKind.SecretCloset, _draft.Request.SecretClosets, SecretOffHall), (GridKind.SpawnCloset, spawnClosets, SpawnOffHall)])
         {
             for (int index = 0; index < count; index++)

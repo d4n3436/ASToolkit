@@ -5,7 +5,6 @@ using ASToolkit.Core.Generation.Geometry;
 using ASToolkit.Core.Generation.Layout;
 using ASToolkit.Core.Generation.Output;
 using ASToolkit.Core.Levels;
-using ASToolkit.Core.Reference;
 
 namespace ASToolkit.Core.Generation.Content;
 
@@ -14,7 +13,6 @@ namespace ASToolkit.Core.Generation.Content;
 /// </summary>
 public sealed class PlacementContext
 {
-    private const float RoofSight = 90;
     private const float SightStep = 6;
     private static readonly SizeF ShadowSpread = new(12, 8);
     private static readonly Dictionary<ItemCategory, float> ShadowsPerPickup = new()
@@ -24,7 +22,7 @@ public sealed class PlacementContext
 
     private static readonly Dictionary<KnownObject, float> ShadowsPerItem = new() { [KnownObject.ExtraLife] = 2.3f, [KnownObject.Invulnerability] = 8, [KnownObject.Medkit] = 1.75f };
 
-    private readonly Dictionary<(int, int), List<(float X, float Y, float Ex, float Ey)>> _wallBoxes = [];
+    private readonly Dictionary<Cell, List<CollisionBox>> _wallBoxes = [];
     private readonly Dictionary<int, float> _progress = [];
     private readonly IReadOnlySet<Cell> _blocked;
 
@@ -153,21 +151,22 @@ public sealed class PlacementContext
     /// <summary>
     /// Returns whether a point lies within a margin of a wall piece's collision box.
     /// </summary>
-    public bool IsInWall(float x, float y, float margin = 6)
+    public bool IsInWall(PointF point, float margin = 6)
     {
+        (float x, float y) = point;
         (int bx, int by) = ((int)MathF.Floor(x / 100), (int)MathF.Floor(y / 100));
         for (int index = -1; index <= 1; index++)
         {
             for (int innerIndex = -1; innerIndex <= 1; innerIndex++)
             {
-                if (!_wallBoxes.TryGetValue((bx + index, by + innerIndex), out var boxes))
+                if (!_wallBoxes.TryGetValue(new Cell(bx + index, by + innerIndex), out var boxes))
                 {
                     continue;
                 }
 
-                foreach ((float wx, float wy, float ex, float ey) in boxes)
+                foreach (var box in boxes)
                 {
-                    if (Math.Abs(x - wx) < ex + margin && Math.Abs(y - wy) < ey + margin)
+                    if (Math.Abs(x - box.X) < box.HalfWidth + margin && Math.Abs(y - box.Y) < box.HalfHeight + margin)
                     {
                         return true;
                     }
@@ -182,10 +181,11 @@ public sealed class PlacementContext
     /// Returns whether the camera sees a floor point, with open floor below it on screen up to the roof height and no wall or roof
     /// drawn over it.
     /// </summary>
-    public bool IsVisible(float x, float y)
+    public bool IsVisible(PointF point)
     {
+        (float x, float y) = point;
         var previous = Layout.Lattice.GetCell(x, y);
-        for (float d = 0; d <= RoofSight; d += SightStep)
+        for (float d = 0; d <= StructureBuilder.BasementRoofZ; d += SightStep)
         {
             var cell = Layout.Lattice.GetCell(x, y + d);
             if (!Layout.Cells.TryGetValue(cell, out int region) || Plan.Regions[region].Kind is RegionKind.SecretCloset or RegionKind.SpawnCloset
@@ -207,10 +207,10 @@ public sealed class PlacementContext
     {
         for (int index = 0; index < 12; index++)
         {
-            (float x, float y) = Layout.Lattice.ToWorld(c.U + 0.3f + 0.4f * Rng.NextSingle(), c.V + 0.3f + 0.4f * Rng.NextSingle());
-            if (!IsInWall(x, y, 6))
+            var point = Layout.Lattice.ToWorld(c.U + 0.3f + 0.4f * Rng.NextSingle(), c.V + 0.3f + 0.4f * Rng.NextSingle());
+            if (!IsInWall(point, 6))
             {
-                return new PointF(x, y);
+                return point;
             }
         }
 
@@ -220,7 +220,7 @@ public sealed class PlacementContext
     /// <summary>
     /// Places an object on a free spot of one of the cells and returns its position and cell, or null when no cell has room.
     /// </summary>
-    public (float X, float Y, Cell Cell)? Place(IReadOnlyList<Cell> cells, KnownObject id, int? dir, ReadOnlyMemory<byte> payload = default, uint? army = null, bool take = true)
+    public (PointF Point, Cell Cell)? Place(IReadOnlyList<Cell> cells, KnownObject id, int? dir, ReadOnlyMemory<byte> payload = default, uint? army = null, bool take = true)
     {
         if (cells.Count == 0)
         {
@@ -233,12 +233,12 @@ public sealed class PlacementContext
         {
             var spot = FindSpot(cells[cellIndex]);
             float z = GetRestingHeight(id);
-            if (spot is null || !Occupancy.Fits(id, spot.Value.X, spot.Value.Y, z))
+            if (spot is null || !Occupancy.Fits(id, spot.Value, z))
             {
                 continue;
             }
 
-            Occupancy.Add(id, spot.Value.X, spot.Value.Y, z);
+            Occupancy.Add(id, spot.Value, z);
 
             if (take)
             {
@@ -247,7 +247,7 @@ public sealed class PlacementContext
 
             Map.Add(id, spot.Value.X, spot.Value.Y, z, dir ?? Rng.Next(256), payload, army, unique: false);
             ShadePickup(id, spot.Value.X, spot.Value.Y);
-            return (spot.Value.X, spot.Value.Y, cells[cellIndex]);
+            return (spot.Value, cells[cellIndex]);
         }
 
         return null;
@@ -263,7 +263,7 @@ public sealed class PlacementContext
         for (int shadow = (int)MathF.Floor(rate + Rng.NextSingle()); shadow > 0; shadow--)
         {
             float sx = x + (Rng.NextSingle() * 2 - 1) * ShadowSpread.Width, sy = y + (Rng.NextSingle() * 2 - 1) * ShadowSpread.Height;
-            if (Layout.Cells.ContainsKey(Layout.Lattice.GetCell(sx, sy)) && !IsInWall(sx, sy, 0))
+            if (Layout.Cells.ContainsKey(Layout.Lattice.GetCell(sx, sy)) && !IsInWall(new PointF(sx, sy), 0))
             {
                 Map.Add(KnownObject.EmbeddedShadow, sx, sy, 0, 0, unique: false);
             }
@@ -322,14 +322,14 @@ public sealed class PlacementContext
             return;
         }
 
-        var bucket = ((int)MathF.Floor(x / 100), (int)MathF.Floor(y / 100));
+        var bucket = new Cell((int)MathF.Floor(x / 100), (int)MathF.Floor(y / 100));
         if (!_wallBoxes.TryGetValue(bucket, out var list))
         {
             list = [];
             _wallBoxes[bucket] = list;
         }
 
-        list.Add((x, y, obj.Size.X, obj.Size.Y));
+        list.Add(new CollisionBox(x, y, obj.Size.X, obj.Size.Y));
     }
 
     private bool IsInside(Cell c, int region)

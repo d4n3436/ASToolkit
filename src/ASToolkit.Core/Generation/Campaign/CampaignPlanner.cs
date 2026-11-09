@@ -3,7 +3,6 @@ using ASToolkit.Core.Generation.Buildings;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Reference;
 using ASToolkit.Core.Survey;
-using MathNet.Numerics.Distributions;
 
 namespace ASToolkit.Core.Generation.Campaign;
 
@@ -20,14 +19,14 @@ public sealed class CampaignPlanner
     private const int CannonLevelMin = 7;
     private const int CannonLevelMax = 8;
     private const int MinRooms = 4;
-    private const int FirstLevelMostRooms = 12;
-    private const int LabMostRooms = 28;
-    private const int LockedLabMostRooms = 24;
-    private const int UngatedLabMostRooms = 22;
-    private const int LabLeastRooms = 19;
-    private const int IntroLabLeastRooms = 9;
-    private const int IntroLabMostRooms = 14;
-    private const double MaxDeviations = 1.5;
+    private const int FirstLevelMaxRooms = 12;
+    private const int LabMaxRooms = 28;
+    private const int LockedLabMaxRooms = 24;
+    private const int UngatedLabMaxRooms = 22;
+    private const int LabMinRooms = 19;
+    private const int IntroLabMinRooms = 9;
+    private const int IntroLabMaxRooms = 14;
+    private const float MaxDeviations = 1.5f;
 
     private const int FirstWarehouseLevel = 6;
 
@@ -73,11 +72,11 @@ public sealed class CampaignPlanner
         counts[1] = [];
         for (int level = FirstIndoorLevel; level <= count; level++)
         {
-            floors[level] = (int)Math.Exp(DrawOnLine(rng, _model.FloorPixels.Value, level, wallSets[level]));
+            floors[level] = (int)MathF.Exp(DrawOnLine(rng, _model.FloorPixels.Value, level, wallSets[level]));
             rooms[level] = DrawRooms(rng, level, wallSets[level], floors[level]);
             if (level == FirstIndoorLevel && _model.Style == GenerationStyle.Campaign)
             {
-                rooms[level] = Math.Min(rooms[level], FirstLevelMostRooms);
+                rooms[level] = Math.Min(rooms[level], FirstLevelMaxRooms);
             }
             spawnedShares[level] = 1 / (1 + MathF.Exp(-Draw(rng, _model.SpawnedShare.Value, level)));
             float rates = floors[level] / PixelsPerRate;
@@ -155,7 +154,7 @@ public sealed class CampaignPlanner
                 GateStyle = gates[level],
                 IsIntro = IsIntro(level, gates[level]),
                 HitPoints = hitPoints,
-                SpawnedShare = spawnedShares[level],
+                SpawnedShare = _model.Style == GenerationStyle.Campaign && level == firstMonsters ? 0 : spawnedShares[level],
                 FloorPixels = floors[level],
                 Rooms = SizeLab(rooms[level], wallSets[level], IsIntro(level, gates[level]), gates[level]),
                 SecretClosets = closets[level],
@@ -223,30 +222,30 @@ public sealed class CampaignPlanner
 
     private int DrawRooms(Random rng, int level, WallSet wallSet, int floorPixels)
     {
-        double rate = DrawOnLine(rng, _model.Rooms.Value, level, wallSet);
+        float rate = DrawOnLine(rng, _model.Rooms.Value, level, wallSet);
         if (_model.RoomRates.TryGetValue(wallSet, out var range))
         {
             rate = Math.Clamp(rate, range.Min, range.Max);
         }
 
-        int rooms = (int)Math.Round(floorPixels * Math.Exp(rate) / PixelsPerRate);
-        int most = wallSet == WallSet.Basement ? LabMostRooms : _model.MaxRooms.GetValueOrDefault(wallSet, rooms);
-        return Math.Clamp(rooms, MinRooms, Math.Max(MinRooms, most));
+        int rooms = (int)MathF.Round(floorPixels * MathF.Exp(rate) / PixelsPerRate);
+        int max = wallSet == WallSet.Basement ? LabMaxRooms : _model.MaxRooms.GetValueOrDefault(wallSet, rooms);
+        return Math.Clamp(rooms, MinRooms, Math.Max(MinRooms, max));
     }
 
     private static int SizeLab(int rooms, WallSet wallSet, bool isIntro, LevelStyle gate) => wallSet != WallSet.Basement ? rooms
-        : isIntro ? Math.Clamp(rooms, IntroLabLeastRooms, IntroLabMostRooms)
-        : Math.Clamp(rooms, LabLeastRooms, gate switch
+        : isIntro ? Math.Clamp(rooms, IntroLabMinRooms, IntroLabMaxRooms)
+        : Math.Clamp(rooms, LabMinRooms, gate switch
         {
-            LevelStyle.LockedDoors => LockedLabMostRooms,
-            LevelStyle.Ungated => UngatedLabMostRooms,
-            _ => LabMostRooms
+            LevelStyle.LockedDoors => LockedLabMaxRooms,
+            LevelStyle.Ungated => UngatedLabMaxRooms,
+            _ => LabMaxRooms
         });
 
-    private static double DrawOnLine(Random rng, WallSetLine line, int level, WallSet wallSet) =>
-        line.Evaluate(level, wallSet == WallSet.Concrete) + Math.Clamp(Normal.Sample(rng, 0, 1), -MaxDeviations, MaxDeviations) * line.Spread;
+    private static float DrawOnLine(Random rng, WallSetLine line, int level, WallSet wallSet) =>
+        line.Evaluate(level, wallSet == WallSet.Concrete) + Math.Clamp(rng.NextNormal(), -MaxDeviations, MaxDeviations) * line.Spread;
 
-    private static float Draw(Random rng, LinearFit line, float x) => line.Spread > 0 ? (float)Normal.Sample(rng, line.Evaluate(x), line.Spread) : line.Evaluate(x);
+    private static float Draw(Random rng, LinearFit line, float x) => line.Spread > 0 ? line.Evaluate(x) + rng.NextNormal() * line.Spread : line.Evaluate(x);
 
     // Draw a value around the line at each point and hand the values out from the lowest in the order of the points
     private static float[] DrawRising(Random rng, LinearFit line, IReadOnlyDictionary<int, float> points)
@@ -324,19 +323,19 @@ public sealed class CampaignPlanner
 
         var shares = _model.Buildings.Value;
 
-        double[] drawn = shares
-            .Select(share => Gamma.Sample(rng, share.Samples, 1))
+        float[] drawn = shares
+            .Select(share => rng.NextGamma(share.Samples))
             .ToArray();
 
-        double total = drawn.Sum();
-        double offset = rng.NextDouble();
+        float total = drawn.Sum();
+        float offset = rng.NextSingle();
         int indoor = _model.LevelCount - 1;
         int[] counts = new int[shares.Count];
         int index = 0;
-        double reach = drawn[0] / total;
+        float reach = drawn[0] / total;
         for (int step = 0; step < indoor; step++)
         {
-            double point = (step + offset) / indoor;
+            float point = (step + offset) / indoor;
             while (point >= reach && index < shares.Count - 1)
             {
                 index++;

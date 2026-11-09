@@ -136,7 +136,7 @@ internal sealed class ScriptContext
     public string GetOpeningLabel(uint handle) => $"open {GetObjectName((int)Map.Sprites.First(sprite => sprite.Handle == handle).Id)}";
 
     public MergedMapSprite? FindNearest(KnownObject id, Vector2 point, uint excluded) =>
-        GetSprites(id).Where(sprite => sprite.Handle != excluded).MinBy(sprite => Vector2.DistanceSquared(new Vector2(sprite.Position.X, sprite.Position.Y), point));
+        GetSprites(id).Where(sprite => sprite.Handle != excluded).MinBy(sprite => Vector2.DistanceSquared(sprite.Position.AsVector2(), point));
 
     public string GetObjectName(int id)
     {

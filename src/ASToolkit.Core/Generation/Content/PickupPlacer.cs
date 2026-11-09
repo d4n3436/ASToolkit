@@ -37,7 +37,7 @@ internal sealed class PickupPlacer
             .ToHashSet();
 
         _rooms = ctx.Plan.Regions
-            .Where(region => region.Kind is not (RegionKind.SecretCloset or RegionKind.SpawnCloset or RegionKind.Pen) && ctx.GetRegionCells(region).Any(ctx.Distance.ContainsKey))
+            .Where(region => region.Kind is not (RegionKind.SecretCloset or RegionKind.SpawnCloset) && ctx.GetRegionCells(region).Any(ctx.Distance.ContainsKey))
             .ToArray();
 
         _weights = _rooms.Select(room => ctx.GetRegionCells(room).Count * (_onTour.Contains(room.Id) ? 1 : model.OffTourWeight.Value)).ToArray();
@@ -89,7 +89,7 @@ internal sealed class PickupPlacer
     private bool HideWeapon(KnownObject weapon, List<KnownObject> items)
     {
         var hiding = _ctx.Plan.Regions
-            .Where(region => region.Kind == RegionKind.SecretCloset || region.Kind is not (RegionKind.SpawnCloset or RegionKind.Pen) && !_onTour.Contains(region.Id))
+            .Where(region => region.Kind == RegionKind.SecretCloset || region.Kind != RegionKind.SpawnCloset && !_onTour.Contains(region.Id))
             .ToArray();
 
         var others = _rooms.Where(room => room != _ctx.Plan.Stations[0] && !hiding.Contains(room)).ToArray();
@@ -138,7 +138,7 @@ internal sealed class PickupPlacer
     private bool IsOpenFor(KnownObject id, Cell cell)
     {
         var spot = _ctx.FindSpot(cell);
-        return spot is not null && _ctx.Occupancy.Fits(id, spot.Value.X, spot.Value.Y, _ctx.GetRestingHeight(id));
+        return spot is not null && _ctx.Occupancy.Fits(id, spot.Value, _ctx.GetRestingHeight(id));
     }
 
     private void StockCloset(PlanRegion closet, List<KnownObject> items)
@@ -218,7 +218,7 @@ internal sealed class PickupPlacer
         var cells = _ctx.GetRegionCells(room)
             .Where(c => !_ctx.Taken.Contains(c) && _ctx.Distance.ContainsKey(c) && (spot is null || GetSpot(c) == spot))
             .Select(c => (Cell: c, Point: FindPileSpot(c)))
-            .Where(p => p.Point is not null && _ctx.IsVisible(p.Point.Value.X, p.Point.Value.Y) && _ctx.Occupancy.Fits(heap[0], p.Point.Value.X, p.Point.Value.Y, 0))
+            .Where(p => p.Point is not null && _ctx.IsVisible(p.Point.Value) && _ctx.Occupancy.Fits(heap[0], p.Point.Value, 0))
             .ToArray();
 
         if (cells.Length == 0)
@@ -229,8 +229,8 @@ internal sealed class PickupPlacer
         var (cell, point) = cells[_ctx.Rng.Next(cells.Length)];
         var origin = point!.Value;
         var offsets = PileOffsets
-            .Where(o => IsClearOfWalls(origin.X + o.X, origin.Y + o.Y) && _ctx.IsVisible(origin.X + o.X, origin.Y + o.Y) && _ctx.Occupancy.Fits(heap[0], origin.X + o.X, origin.Y + o.Y, 0)
-                        && (spot is null or PartSpot.Center || _ctx.Layout.Lattice.GetCell(origin.X + o.X, origin.Y + o.Y) == cell))
+            .Where(o => IsClearOfWalls(origin.X + o.X, origin.Y + o.Y) && _ctx.IsVisible(At(o)) && _ctx.Occupancy.Fits(heap[0], At(o), 0)
+                        && (spot is null or PartSpot.Center || _ctx.Layout.Lattice.GetCell(At(o)) == cell))
             .DefaultIfEmpty(PointF.Empty)
             .ToArray();
 
@@ -238,12 +238,14 @@ internal sealed class PickupPlacer
         {
             var offset = offsets[index % offsets.Length];
             _ctx.Map.Add(heap[index], origin.X + offset.X, origin.Y + offset.Y, _ctx.GetRestingHeight(heap[index]), 0, unique: false);
-            _ctx.Occupancy.Add(heap[index], origin.X + offset.X, origin.Y + offset.Y, _ctx.GetRestingHeight(heap[index]));
+            _ctx.Occupancy.Add(heap[index], At(offset), _ctx.GetRestingHeight(heap[index]));
             _ctx.ShadePickup(heap[index], origin.X + offset.X, origin.Y + offset.Y);
         }
 
         _ctx.Taken.Add(cell);
         return true;
+
+        PointF At(PointF offset) => new(origin.X + offset.X, origin.Y + offset.Y);
     }
 
     private PointF? FindPileSpot(Cell cell)

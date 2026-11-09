@@ -13,7 +13,7 @@ internal sealed class LayoutSolver<T>
     private static readonly ConditionalWeakTable<RoomShape, Variant[]> TurnedShapes = new();
 
     private const int Reach = 400;
-    private const double Seconds = 0.5;
+    private const float Seconds = 0.5f;
 
     private readonly LayoutProblem<T> _problem;
     private readonly Random _random;
@@ -87,11 +87,11 @@ internal sealed class LayoutSolver<T>
             }
         }
 
-        if (_problem.LeastContacts > 0)
+        if (_problem.MinContacts > 0)
         {
             foreach (var room in rooms)
             {
-                _model.Add(LinearExpr.Sum(_contacts[room]) >= _problem.LeastContacts);
+                _model.Add(LinearExpr.Sum(_contacts[room]) >= _problem.MinContacts);
             }
         }
 
@@ -210,7 +210,7 @@ internal sealed class LayoutSolver<T>
     // pair's contact literal when contacts are counted
     private BoolVar? KeepApart(Slot[] first, Slot[] second, int gap, bool flush)
     {
-        var contact = flush && _problem.LeastContacts > 0 ? _model.NewBoolVar("") : null;
+        var contact = flush && _problem.MinContacts > 0 ? _model.NewBoolVar("") : null;
         var longs = new List<ILiteral>();
         foreach (var a in first)
         {

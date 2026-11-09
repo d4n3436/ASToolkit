@@ -128,7 +128,7 @@ public sealed record EncounterModel
         foreach (var spawner in spawners)
         {
             var mates = spawners.Where(other => other.Trigger == spawner.Trigger && other.Point != spawner.Point).ToArray();
-            yield return (mates.Length == 0 ? null : mates.Min(other => GetDistance(other.Point, spawner.Point)), GetDistance(spawner.Point, new PointF(spawner.Trigger!.Value.X, spawner.Trigger.Value.Y)));
+            yield return (mates.Length == 0 ? null : mates.Min(other => GetDistance(other.Point, spawner.Point)), GetDistance(spawner.Point, spawner.Trigger!.Value.Center));
         }
     }
 

@@ -93,7 +93,7 @@ public sealed class CampaignFitter
             Rooms = FitRooms(references, buildings),
             RoomRates = buildings
                 .GroupBy(level => level.FloorSet)
-                .ToDictionary(group => group.Key, group => new ValueRange(group.Min(level => GetRoomRate(references, level)), group.Max(level => GetRoomRate(references, level)))),
+                .ToDictionary(group => group.Key, group => new ValueRange<float>((float)group.Min(level => GetRoomRate(references, level)), (float)group.Max(level => GetRoomRate(references, level)))),
             MaxRooms = buildings
                 .GroupBy(level => level.FloorSet)
                 .ToDictionary(group => group.Key, group => group.Max(level => CountRooms(references, level))),
@@ -190,7 +190,7 @@ public sealed class CampaignFitter
         {
             double mean = ys.DefaultIfEmpty(0).Average();
             double spread = ys.Length < 2 ? 0 : Math.Sqrt(ys.Sum(y => (y - mean) * (y - mean)) / (ys.Length - 1));
-            return new FittedValue<WallSetLine>(new WallSetLine(mean, 0, 0, spread), levels.Count, IsBackedOff: true);
+            return new FittedValue<WallSetLine>(new WallSetLine((float)mean, 0, 0, (float)spread), levels.Count, IsBackedOff: true);
         }
 
         double[] coefficients;
@@ -205,7 +205,7 @@ public sealed class CampaignFitter
         }
 
         double squares = ys.Select((y, index) => Math.Pow(y - coefficients[0] - coefficients[1] * xs[index][0] - coefficients[2] * xs[index][1], 2)).Sum();
-        return new FittedValue<WallSetLine>(new WallSetLine(coefficients[0], coefficients[1], coefficients[2], Math.Sqrt(squares / Math.Max(1, ys.Length - 3))), levels.Count, IsBackedOff: false);
+        return new FittedValue<WallSetLine>(new WallSetLine((float)coefficients[0], (float)coefficients[1], (float)coefficients[2], (float)Math.Sqrt(squares / Math.Max(1, ys.Length - 3))), levels.Count, IsBackedOff: false);
     }
 
     // Fits the drawn buildings to the levels after the first of the campaign, in add-on style of both add-ons too, ordered by where their levels

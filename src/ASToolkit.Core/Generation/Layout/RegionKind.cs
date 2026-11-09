@@ -18,8 +18,5 @@ public enum RegionKind
     SecretRoom,
 
     /// <summary>A small room behind a wall that blows open with its ambush.</summary>
-    SpawnCloset,
-
-    /// <summary>A fenced room off a hub that holds a wave's spawners.</summary>
-    Pen
+    SpawnCloset
 }

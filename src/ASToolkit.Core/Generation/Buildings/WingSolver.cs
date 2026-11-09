@@ -92,8 +92,6 @@ internal sealed class WingSolver
     public static RoomShape Box(int width, int length) =>
         new(RoomShape.Rectangle(Math.Max(3, width), Math.Max(3, length)), Math.Min(width, length) < 5 ? CornerDoors : Doors, RoomShape.AllTurns);
 
-    public static HashSet<Cell> Outline(params (int X, int Y)[] points) => RoomShape.Polygon(points.Select(point => new Point(point.X, point.Y)).ToArray());
-
     private LayoutProblem<int> Describe(UnitRect baseRect, out Dictionary<int, int> throatOwners)
     {
         var problem = new LayoutProblem<int> { MinimumDistance = 2, TouchLength = 2, BeyondMargin = 2 };

@@ -68,46 +68,46 @@ internal sealed class ResearchWing
 
         // Lay the passages first, the wing's frame, then the rooms on the cells they leave
         var pieces = new List<ResearchPiece>();
-        Add(pieces, UpperRung, [new Edges(c[0], r[1], c[2], r[2])]);
-        Add(pieces, LadderCross, [new Edges(barX, r[2], barX + bar, r[4]), new Edges(c[1], armY, c[2], armY + 3)]);
-        Add(pieces, LowerRung, [new Edges(c[0], r[3], barX, r[4])]);
-        Add(pieces, ShortPassage, [new Edges(c[3], depotLow, c[3] + shortWidth, depotLow + shortHeight)]);
-        Add(pieces, Cross, [new Edges(c[2], r[3], c[4], r[4]), new Edges(east, depotLow + shortHeight, east + 5, r[4])]);
-        Add(pieces, Depot, [new Edges(c[3], r[0], c[4], depotLow), new Edges(c[3] + shortWidth, depotLow, c[4], depotLow + _random.Inclusive(2, 4))]);
-        Add(pieces, Office, [new Edges(c[2], r[0], c[3], r[1]), new Edges(c[2], r[1], c[2] + _random.Inclusive(4, 5), r[1] + _random.Inclusive(2, 4))]);
-        Add(pieces, Storage, [new Edges(c[1], r[0], c[2], r[1])]);
-        Add(pieces, HallLab, [new Edges(c[0], r[0], c[1], r[1])]);
-        Add(pieces, FrontOffice, [new Edges(c[0], r[4], c[1], r[4] + split)]);
-        Add(pieces, EndStorage, [new Edges(c[0], r[4] + split, c[0] + endWidth, r[4] + split + 5)]);
-        Add(pieces, BackOffice, [new Edges(c[0] + endWidth, r[4] + split - _random.Inclusive(0, 2), c[2], r[4] + split + 5)]);
+        Add(pieces, UpperRung, [UnitRect.FromEdges(c[0], r[1], c[2], r[2])]);
+        Add(pieces, LadderCross, [UnitRect.FromEdges(barX, r[2], barX + bar, r[4]), UnitRect.FromEdges(c[1], armY, c[2], armY + 3)]);
+        Add(pieces, LowerRung, [UnitRect.FromEdges(c[0], r[3], barX, r[4])]);
+        Add(pieces, ShortPassage, [UnitRect.FromEdges(c[3], depotLow, c[3] + shortWidth, depotLow + shortHeight)]);
+        Add(pieces, Cross, [UnitRect.FromEdges(c[2], r[3], c[4], r[4]), UnitRect.FromEdges(east, depotLow + shortHeight, east + 5, r[4])]);
+        Add(pieces, Depot, [UnitRect.FromEdges(c[3], r[0], c[4], depotLow), UnitRect.FromEdges(c[3] + shortWidth, depotLow, c[4], depotLow + _random.Inclusive(2, 4))]);
+        Add(pieces, Office, [UnitRect.FromEdges(c[2], r[0], c[3], r[1]), UnitRect.FromEdges(c[2], r[1], c[2] + _random.Inclusive(4, 5), r[1] + _random.Inclusive(2, 4))]);
+        Add(pieces, Storage, [UnitRect.FromEdges(c[1], r[0], c[2], r[1])]);
+        Add(pieces, HallLab, [UnitRect.FromEdges(c[0], r[0], c[1], r[1])]);
+        Add(pieces, FrontOffice, [UnitRect.FromEdges(c[0], r[4], c[1], r[4] + split)]);
+        Add(pieces, EndStorage, [UnitRect.FromEdges(c[0], r[4] + split, c[0] + endWidth, r[4] + split + 5)]);
+        Add(pieces, BackOffice, [UnitRect.FromEdges(c[0] + endWidth, r[4] + split - _random.Inclusive(0, 2), c[2], r[4] + split + 5)]);
         int far = c[4] - _random.Inclusive(0, 2);
-        int start = crossLabs == 1 && _random.Next() < 0.5 ? c[3] : c[2];
+        int start = crossLabs == 1 && _random.Next() < 0.5f ? c[3] : c[2];
         for (int lab = 0; lab < crossLabs; lab++)
         {
             int end = lab == crossLabs - 1 ? far : start + Math.Max(6, (far - start) / (crossLabs - lab) + _random.Inclusive(-1, 1));
             end = crossLabs == 1 && start == c[2] ? start + _random.Inclusive(6, 8) : end;
-            Add(pieces, CrossLab, [new Edges(start, r[4], end, r[5] - _random.Inclusive(0, 1))]);
+            Add(pieces, CrossLab, [UnitRect.FromEdges(start, r[4], end, r[5] - _random.Inclusive(0, 1))]);
             start = end;
         }
 
         if (extra >= 3)
         {
-            Add(pieces, LowerOffice, [new Edges(c[0], r[4] + split + 5, c[0] + _random.Inclusive(7, 9), r[4] + split + 10)]);
+            Add(pieces, LowerOffice, [UnitRect.FromEdges(c[0], r[4] + split + 5, c[0] + _random.Inclusive(7, 9), r[4] + split + 10)]);
         }
 
         if (extra >= 4)
         {
             int top = _random.Inclusive(0, 2);
-            Add(pieces, DepotLab, [new Edges(c[4], top, c[4] + _random.Inclusive(6, 7), top + _random.Inclusive(6, 8))]);
+            Add(pieces, DepotLab, [UnitRect.FromEdges(c[4], top, c[4] + _random.Inclusive(6, 7), top + _random.Inclusive(6, 8))]);
         }
 
         var taken = new HashSet<Cell>();
         foreach (var piece in pieces)
         {
             var cells = new HashSet<Cell>();
-            foreach (var edges in piece.Nominal)
+            foreach (var rect in piece.Nominal)
             {
-                cells.UnionWith(Box(Jitter(edges, hallWidth, piece.IsPassage ? 3 : 4, piece.IsPassage || piece.Part == Depot)));
+                cells.UnionWith(Jitter(rect, hallWidth, piece.IsPassage ? 3 : 4, piece.IsPassage || piece.Part == Depot).ToCells());
             }
 
             cells.RemoveWhere(cell => cell.U < hallWidth || taken.Contains(cell));
@@ -121,7 +121,7 @@ internal sealed class ResearchWing
         }
 
         int foot = taken.Max(cell => cell.V) + 1;
-        var hall = new ResearchPiece(Hall, []) { Cells = Box(new Edges(0, 0, hallWidth, foot)) };
+        var hall = new ResearchPiece(Hall, []) { Cells = UnitRect.FromEdges(0, 0, hallWidth, foot).ToCells() };
         pieces.Insert(0, hall);
         taken.UnionWith(hall.Cells);
 
@@ -129,16 +129,16 @@ internal sealed class ResearchWing
         {
             int w = _random.Inclusive(2, 4);
             int h = _random.Inclusive(2, 4);
-            int u = _random.Next() < 0.5 ? piece.Cells.Min(cell => cell.U) : piece.Cells.Max(cell => cell.U) - w + 1;
-            int v = _random.Next() < 0.5 ? piece.Cells.Min(cell => cell.V) : piece.Cells.Max(cell => cell.V) - h + 1;
-            TryReplace(piece, piece.Cells.Except(Box(new Edges(u, v, u + w, v + h))).ToHashSet(), 4);
+            int u = _random.Next() < 0.5f ? piece.Cells.Min(cell => cell.U) : piece.Cells.Max(cell => cell.U) - w + 1;
+            int v = _random.Next() < 0.5f ? piece.Cells.Min(cell => cell.V) : piece.Cells.Max(cell => cell.V) - h + 1;
+            TryReplace(piece, piece.Cells.Except(UnitRect.FromEdges(u, v, u + w, v + h).ToCells()).ToHashSet(), 4);
         }
 
         var depot = pieces.First(piece => piece.Part == Depot);
         int right = depot.Cells.Max(cell => cell.U);
         int crown = depot.Cells.Min(cell => cell.V);
         if (depot.Cells.Count == (right - depot.Cells.Min(cell => cell.U) + 1) * (depot.Cells.Max(cell => cell.V) - crown + 1)
-            && !TryReplace(depot, depot.Cells.Except(Box(new Edges(right - _random.Inclusive(3, 4) + 1, crown, right + 1, crown + _random.Inclusive(3, 4)))).ToHashSet(), 4))
+            && !TryReplace(depot, depot.Cells.Except(UnitRect.FromEdges(right - _random.Inclusive(3, 4) + 1, crown, right + 1, crown + _random.Inclusive(3, 4)).ToCells()).ToHashSet(), 4))
         {
             return null;
         }
@@ -160,10 +160,10 @@ internal sealed class ResearchWing
         {
             for (int b = a + 1; b < pieces.Count; b++)
             {
-                if (!designed.Contains((a, b)) && !designed.Contains((b, a)) && !pieces[a].IsPassage && !pieces[b].IsPassage && ClumpOf(pieces[a].Part) == ClumpOf(pieces[b].Part)
+                if (!designed.Contains(new RoomPair(a, b)) && !pieces[a].IsPassage && !pieces[b].IsPassage && ClumpOf(pieces[a].Part) == ClumpOf(pieces[b].Part)
                     && Wall(pieces[a].Cells, pieces[b].Cells).Count >= 3)
                 {
-                    doors.Add((a, b));
+                    doors.Add(new RoomPair(a, b));
                 }
             }
         }
@@ -179,7 +179,7 @@ internal sealed class ResearchWing
         }
 
         var jammed = JammedPairs
-            .Select(pair => (pieces.FindIndex(piece => piece.Part == pair.A), pieces.FindIndex(piece => piece.Part == pair.B)))
+            .Select(pair => new RoomPair(pieces.FindIndex(piece => piece.Part == pair.A), pieces.FindIndex(piece => piece.Part == pair.B)))
             .ToArray();
 
         return new ResearchLayout
@@ -201,35 +201,35 @@ internal sealed class ResearchWing
         return steps;
     }
 
-    private static void Add(List<ResearchPiece> pieces, ResearchPart part, Edges[] nominal) => pieces.Add(new ResearchPiece(part, nominal));
+    private static void Add(List<ResearchPiece> pieces, ResearchPart part, UnitRect[] nominal) => pieces.Add(new ResearchPiece(part, nominal));
 
     // Moves each edge of a nominal rectangle out by up to two units or in by one, only in for a piece that keeps its size and never on the hall's
     // edge
-    private Edges Jitter(Edges edges, int hallWidth, int least, bool keepsSize)
+    private UnitRect Jitter(UnitRect rect, int hallWidth, int minSide, bool keepsSize)
     {
         int grow = keepsSize ? 0 : 2;
         for (int attempt = 0; attempt < 10; attempt++)
         {
-            int x0 = edges.X0 == hallWidth ? edges.X0 : edges.X0 + _random.Inclusive(-grow, 1);
-            int x1 = edges.X1 + _random.Inclusive(-1, grow);
-            int y0 = Math.Max(0, edges.Y0 + _random.Inclusive(-grow, 1));
-            int y1 = edges.Y1 + _random.Inclusive(-1, grow);
-            if (x1 - x0 >= least && y1 - y0 >= least)
+            int u0 = rect.U == hallWidth ? rect.U : rect.U + _random.Inclusive(-grow, 1);
+            int u1 = rect.EndU + _random.Inclusive(-1, grow);
+            int v0 = Math.Max(0, rect.V + _random.Inclusive(-grow, 1));
+            int v1 = rect.EndV + _random.Inclusive(-1, grow);
+            if (u1 - u0 >= minSide && v1 - v0 >= minSide)
             {
-                return new Edges(x0, y0, x1, y1);
+                return UnitRect.FromEdges(u0, v0, u1, v1);
             }
         }
 
-        return edges;
+        return rect;
     }
 
-    private static List<(int A, int B)> Designed(List<ResearchPiece> pieces)
+    private static List<RoomPair> Designed(List<ResearchPiece> pieces)
     {
-        var labs = Enumerable.Range(0, pieces.Count).Where(index => pieces[index].Part == CrossLab).Select(index => (Of(Cross), index));
+        var labs = Enumerable.Range(0, pieces.Count).Where(index => pieces[index].Part == CrossLab).Select(index => new RoomPair(Of(Cross), index));
         return DesignedPairs
-            .Select(pair => (Of(pair.A), Of(pair.B)))
+            .Select(pair => new RoomPair(Of(pair.A), Of(pair.B)))
             .Concat(labs)
-            .Concat(ExtraPairs.Where(pair => Of(pair.B) >= 0).Select(pair => (Of(pair.A), Of(pair.B))))
+            .Concat(ExtraPairs.Where(pair => Of(pair.B) >= 0).Select(pair => new RoomPair(Of(pair.A), Of(pair.B))))
             .ToList();
         
         int Of(ResearchPart part) => pieces.FindIndex(piece => piece.Part == part);
@@ -300,8 +300,8 @@ internal sealed class ResearchWing
             int depth = _random.Inclusive(2, 3);
             int span = _random.Inclusive(3, 5);
             var tab = edge.Side.U != 0
-                ? Box(new Edges(Math.Min(edge.Cell.U + edge.Side.U, edge.Cell.U + edge.Side.U * depth), edge.Cell.V, Math.Max(edge.Cell.U + edge.Side.U, edge.Cell.U + edge.Side.U * depth) + 1, edge.Cell.V + span))
-                : Box(new Edges(edge.Cell.U, Math.Min(edge.Cell.V + edge.Side.V, edge.Cell.V + edge.Side.V * depth), edge.Cell.U + span, Math.Max(edge.Cell.V + edge.Side.V, edge.Cell.V + edge.Side.V * depth) + 1));
+                ? UnitRect.FromEdges(Math.Min(edge.Cell.U + edge.Side.U, edge.Cell.U + edge.Side.U * depth), edge.Cell.V, Math.Max(edge.Cell.U + edge.Side.U, edge.Cell.U + edge.Side.U * depth) + 1, edge.Cell.V + span).ToCells()
+                : UnitRect.FromEdges(edge.Cell.U, Math.Min(edge.Cell.V + edge.Side.V, edge.Cell.V + edge.Side.V * depth), edge.Cell.U + span, Math.Max(edge.Cell.V + edge.Side.V, edge.Cell.V + edge.Side.V * depth) + 1).ToCells();
 
             if (tab.IsSubsetOf(b.Cells) && TryReplace(b, b.Cells.Except(tab).ToHashSet(), 4))
             {
@@ -311,7 +311,7 @@ internal sealed class ResearchWing
     }
 
     // Stands rooms of different clumps apart along their shared wall, a designed door keeping a three-unit stub and the gap cut from the room
-    private void StandClumpsApart(List<ResearchPiece> pieces, List<(int A, int B)> designed)
+    private void StandClumpsApart(List<ResearchPiece> pieces, List<RoomPair> designed)
     {
         for (int a = 1; a < pieces.Count; a++)
         {
@@ -332,7 +332,7 @@ internal sealed class ResearchWing
                     .ToList();
 
                 var kept = new HashSet<Cell>();
-                bool isDoor = designed.Contains((a, b)) || designed.Contains((b, a));
+                bool isDoor = designed.Contains(new RoomPair(a, b));
                 if (isDoor)
                 {
                     if (wall.Count < 5)
@@ -359,19 +359,19 @@ internal sealed class ResearchWing
 
     // Fills a one-unit gap of three units or more between two pieces without a designed door into the smaller one and widens a shorter gap to two
     // units
-    private static void CloseSlits(List<ResearchPiece> pieces, List<(int A, int B)> designed)
+    private static void CloseSlits(List<ResearchPiece> pieces, List<RoomPair> designed)
     {
         var owner = Owners(pieces);
         var slit = new Dictionary<Cell, (int Into, Cell Along, Cell Toward)>();
         var gaps = owner
-            .SelectMany(entry => Forward.Select(side => (Cell: new Cell(entry.Key.U + side.U, entry.Key.V + side.V), Side: side, A: entry.Value)))
+            .SelectMany(entry => Forward.Select(side => (Cell: entry.Key + side, Side: side, A: entry.Value)))
             .OrderBy(gap => gap.Cell.U)
             .ThenBy(gap => gap.Cell.V)
             .ThenBy(gap => gap.Side.V);
 
         foreach ((var cell, var side, int a) in gaps)
         {
-            if (owner.ContainsKey(cell) || !owner.TryGetValue(new Cell(cell.U + side.U, cell.V + side.V), out int b) || a == b || designed.Contains((a, b)) || designed.Contains((b, a)))
+            if (owner.ContainsKey(cell) || !owner.TryGetValue(cell + side, out int b) || a == b || designed.Contains(new RoomPair(a, b)))
             {
                 continue;
             }
@@ -392,18 +392,18 @@ internal sealed class ResearchWing
             else
             {
                 // Widen a short slit to two units from the piece the fill would have gone to
-                TryReplace(piece, piece.Cells.Where(kept => kept != new Cell(cell.U + entry.Toward.U, cell.V + entry.Toward.V)).ToHashSet(), piece.IsPassage ? 3 : 4);
+                TryReplace(piece, piece.Cells.Where(kept => kept != cell + entry.Toward).ToHashSet(), piece.IsPassage ? 3 : 4);
             }
         }
     }
 
-    private static bool HasSlit(List<ResearchPiece> pieces, List<(int A, int B)> doors)
+    private static bool HasSlit(List<ResearchPiece> pieces, List<RoomPair> doors)
     {
         var owner = Owners(pieces);
         return owner.Keys.Any(cell => Forward.Any(side =>
-            !owner.ContainsKey(new Cell(cell.U + side.U, cell.V + side.V))
-            && owner.TryGetValue(new Cell(cell.U + side.U * 2, cell.V + side.V * 2), out int other) && other != owner[cell]
-            && !doors.Contains((owner[cell], other)) && !doors.Contains((other, owner[cell]))));
+            !owner.ContainsKey(cell + side)
+            && owner.TryGetValue(cell + side * 2, out int other) && other != owner[cell]
+            && !doors.Contains(new RoomPair(owner[cell], other))));
     }
 
     private static Dictionary<Cell, int> Owners(List<ResearchPiece> pieces)
@@ -440,10 +440,8 @@ internal sealed class ResearchWing
         return true;
     }
 
-    private static HashSet<Cell> Box(Edges edges) => new UnitRect(edges.X0, edges.Y0, edges.X1 - edges.X0, edges.Y1 - edges.Y0).ToCells();
-
     private static List<WallEdge> Wall(HashSet<Cell> a, HashSet<Cell> b) => a
-        .SelectMany(cell => Sides.Where(side => b.Contains(new Cell(cell.U + side.U, cell.V + side.V))).Select(side => new WallEdge(cell, side)))
+        .SelectMany(cell => Sides.Where(side => b.Contains(cell + side)).Select(side => new WallEdge(cell, side)))
         .ToList();
 
     private static HashSet<Cell> Largest(HashSet<Cell> cells) => cells.GetPieces().MaxBy(piece => piece.Count) ?? [];
@@ -483,9 +481,6 @@ internal sealed class ResearchWing
     private readonly record struct WallEdge(Cell Cell, Cell Side);
 }
 
-// Holds the edges of a nominal rectangle, left and top inclusive and right and bottom exclusive
-internal readonly record struct Edges(int X0, int Y0, int X1, int Y1);
-
 internal enum ResearchPart
 {
     Hall,
@@ -508,7 +503,7 @@ internal enum ResearchPart
 
 internal sealed class ResearchPiece
 {
-    public ResearchPiece(ResearchPart part, Edges[] nominal)
+    public ResearchPiece(ResearchPart part, UnitRect[] nominal)
     {
         Part = part;
         Nominal = nominal;
@@ -516,7 +511,7 @@ internal sealed class ResearchPiece
 
     public ResearchPart Part { get; }
 
-    public IReadOnlyList<Edges> Nominal { get; }
+    public IReadOnlyList<UnitRect> Nominal { get; }
 
     public HashSet<Cell> Cells { get; set; } = [];
 
@@ -537,9 +532,9 @@ internal sealed class ResearchLayout
 {
     public required IReadOnlyList<ResearchPiece> Pieces { get; init; }
 
-    public required IReadOnlyList<(int A, int B)> Doors { get; init; }
+    public required IReadOnlyList<RoomPair> Doors { get; init; }
 
-    public required IReadOnlyList<(int A, int B)> Jammed { get; init; }
+    public required IReadOnlyList<RoomPair> Jammed { get; init; }
 
     public required int End { get; init; }
 }

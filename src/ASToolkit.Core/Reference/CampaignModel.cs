@@ -48,7 +48,7 @@ public sealed class CampaignModel
     /// <summary>
     /// Gets the minimum and maximum natural logarithm of rooms per million floor pixels among the fitting levels of each wall set.
     /// </summary>
-    public required IReadOnlyDictionary<WallSet, ValueRange> RoomRates { get; init; }
+    public required IReadOnlyDictionary<WallSet, ValueRange<float>> RoomRates { get; init; }
 
     /// <summary>
     /// Gets the maximum rooms a fitting level of each wall set holds.

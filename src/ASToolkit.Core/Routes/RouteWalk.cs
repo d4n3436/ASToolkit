@@ -267,7 +267,7 @@ internal sealed class RouteWalk
 
     private static float GetReach(ProgressionStep step) => step is { IsTarget: false, Radius: > 0 } ? WalkWorld.GetAreaReach(step.Radius) : Math.Max(StepReach, step.Radius);
 
-    private static float GetDistance(Vector3 first, Vector3 second) => Vector2.Distance(new Vector2(first.X, first.Y), new Vector2(second.X, second.Y));
+    private static float GetDistance(Vector3 first, Vector3 second) => Vector2.Distance(first.AsVector2(), second.AsVector2());
 
     private static IEnumerable<Vector3> Densify(IReadOnlyList<Vector3> points)
     {

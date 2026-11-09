@@ -80,7 +80,7 @@ public class DoorStageTests
 
             var given = building.Locks
                 .Select(pair => Order(pair.From, pair.To))
-                .Concat(building.Shortcuts.Select(pair => Order(pair.From, pair.To)))
+                .Concat(building.Shortcuts.Select(pair => Order(pair.A, pair.B)))
                 .ToHashSet();
 
             foreach (var contact in building.Contacts.Select(contact => Order(contact.A, contact.B)).Distinct())

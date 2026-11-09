@@ -19,16 +19,16 @@ internal enum OfficePart
 
 internal sealed record OfficeRoom(HashSet<Cell> Cells, RoomType Type, int Phase);
 
-internal sealed record OfficeLayout(List<OfficeRoom> Rooms, HashSet<(int A, int B)> Doors, List<int> Run, List<(UnitRect Rect, int Host)> Closets, int End);
+internal sealed record OfficeLayout(List<OfficeRoom> Rooms, HashSet<RoomPair> Doors, List<int> Run, List<(UnitRect Rect, int Host)> Closets, int End);
 
 // Draws the office block as a level graph laid by the layout solver, the start hall wrapping its offices, a dark run of four to six rooms to the
 // breaker's room and the rooms the breaker opens joined in a tree, every room touching two others inside a band of the screen
 internal sealed class OfficeBlock
 {
-    private const int SmallMost = 70;
-    private const int LargeLeast = 120;
+    private const int SmallMax = 70;
+    private const int LargeMin = 120;
     private const int DoorWall = 5;
-    private const double BandFill = 0.5;
+    private const float BandFill = 0.5f;
     private const int Draws = 8;
     private static readonly DoorRule Doors = new(DoorWall, 0);
 
@@ -66,12 +66,12 @@ internal sealed class OfficeBlock
         _after.Clear();
         _run.Add(Add(OfficePart.Start, Block(2)));
         int count = _random.Inclusive(4, 6);
-        int gate = _random.Next() < 0.7 ? _random.Inclusive(2, count - 1) : -1;
+        int gate = _random.Next() < 0.7f ? _random.Inclusive(2, count - 1) : -1;
         for (int index = 1; index <= count; index++)
         {
             _run.Add(index == gate
                 ? Add(OfficePart.Gate, RoomShape.Rectangle(_random.Inclusive(5, 9), _random.Inclusive(7, 8)))
-                : Add(OfficePart.Run, _random.Next() < 0.25 ? Hall() : _random.Next() < 0.3 ? Ell(_random.Inclusive(120, 192)) : Box(_random.Inclusive(120, 208), 1.1, 1.9)));
+                : Add(OfficePart.Run, _random.Next() < 0.25f ? Hall() : _random.Next() < 0.3f ? Ell(_random.Inclusive(120, 192)) : Box(_random.Inclusive(120, 208), 1.1f, 1.9f)));
         }
 
         _run.Add(Add(OfficePart.Breaker, Block(_random.Inclusive(2, 3))));
@@ -80,11 +80,11 @@ internal sealed class OfficeBlock
             _after.Add(Add(OfficePart.Hall, Hall()));
         }
 
-        _after.Add(Add(OfficePart.Big, Box(_random.Inclusive(256, 416), 1.2, 1.8)));
-        _after.Add(Add(OfficePart.Big, Box(_random.Inclusive(256, 416), 1.2, 1.8)));
+        _after.Add(Add(OfficePart.Big, Box(_random.Inclusive(256, 416), 1.2f, 1.8f)));
+        _after.Add(Add(OfficePart.Big, Box(_random.Inclusive(256, 416), 1.2f, 1.8f)));
         for (int index = _random.Inclusive(2, 3); index > 0; index--)
         {
-            _after.Add(Add(OfficePart.Medium, _random.Next() < 0.5 ? Ell(_random.Inclusive(128, 192)) : Box(_random.Inclusive(120, 192), 1.1, 1.9)));
+            _after.Add(Add(OfficePart.Medium, _random.Next() < 0.5f ? Ell(_random.Inclusive(128, 192)) : Box(_random.Inclusive(120, 192), 1.1f, 1.9f)));
         }
 
         for (int index = _random.Inclusive(1, 2); index > 0; index--)
@@ -94,8 +94,8 @@ internal sealed class OfficeBlock
 
         _after.Add(Add(OfficePart.Suite, Block(_random.Inclusive(3, 4))));
         int area = _parts.Sum(part => part.Shape.Cells.Count);
-        double down = Math.Sqrt(2.0 * area / (BandFill * 0.98));
-        var problem = new LayoutProblem<int> { MinimumDistance = 2, LeastContacts = 2, SavesPhases = true, Band = ((int)(0.98 * down), (int)down) };
+        float down = MathF.Sqrt(2.0f * area / (BandFill * 0.98f));
+        var problem = new LayoutProblem<int> { MinimumDistance = 2, MinContacts = 2, SavesPhases = true, Band = ((int)(0.98f * down), (int)down) };
         for (int index = 0; index < _parts.Count; index++)
         {
             problem.AddRoom(index, [_parts[index].Shape]);
@@ -145,7 +145,7 @@ internal sealed class OfficeBlock
         {
             int w = _parts[room].Shape.Width, h = _parts[room].Shape.Height;
             Rectangle? best = null;
-            double bestScore = double.MinValue;
+            float bestScore = float.MinValue;
             foreach (var host in next[room].Where(boxes.ContainsKey).Select(other => boxes[other]))
             {
                 foreach (var spot in new[]
@@ -163,7 +163,7 @@ internal sealed class OfficeBlock
                     int contact = boxes.Values.Sum(other => Contact(box, other));
                     int across = boxes.Values.Append(box).Max(other => other.Right + other.Bottom) - boxes.Values.Append(box).Min(other => other.Left + other.Top);
                     int down = boxes.Values.Append(box).Max(other => other.Bottom - other.Left) - boxes.Values.Append(box).Min(other => other.Top - other.Right);
-                    double score = contact - 0.02 * across * down + _random.Next();
+                    float score = contact - 0.02f * across * down + _random.Next();
                     if (score > bestScore)
                     {
                         (best, bestScore) = (box, score);
@@ -196,21 +196,21 @@ internal sealed class OfficeBlock
 
     private int Add(OfficePart part, (HashSet<Cell> Cells, int[] Row, int Depth) block) => Add(part, block.Cells, block.Row, block.Depth);
 
-    private HashSet<Cell> Box(double area, double low, double high)
+    private HashSet<Cell> Box(float area, float low, float high)
     {
-        int width = (int)Math.Sqrt(area * _random.Uniform(low, high));
+        int width = (int)MathF.Sqrt(area * _random.Uniform(low, high));
         return RoomShape.Rectangle(width, Math.Max(9, (int)(area / width)));
     }
 
     private HashSet<Cell> Hall()
     {
         int depth = _random.Inclusive(8, 11);
-        return RoomShape.Rectangle(depth, _random.Inclusive((int)(2.6 * depth), 4 * depth));
+        return RoomShape.Rectangle(depth, _random.Inclusive((int)(2.6f * depth), 4 * depth));
     }
 
-    private HashSet<Cell> Ell(double area)
+    private HashSet<Cell> Ell(float area)
     {
-        var box = Box(area * 1.3, 1.1, 1.7);
+        var box = Box(area * 1.3f, 1.1f, 1.7f);
         int w = box.Max(cell => cell.U) + 1, h = box.Max(cell => cell.V) + 1;
         int cutW = _random.Inclusive(w / 3, w / 2), cutH = _random.Inclusive(h / 3, h / 2);
         return RoomShape.Polygon(new Point(0, 0), new Point(w, 0), new Point(w, h - cutH), new Point(w - cutW, h - cutH), new Point(w - cutW, h), new Point(0, h));
@@ -220,7 +220,7 @@ internal sealed class OfficeBlock
     private (HashSet<Cell>, int[], int) Block(int offices)
     {
         int depth = _random.Inclusive(7, 8);
-        int[] widths = Enumerable.Range(0, offices).Select(_ => _random.Inclusive(5, SmallMost / depth)).ToArray();
+        int[] widths = Enumerable.Range(0, offices).Select(_ => _random.Inclusive(5, SmallMax / depth)).ToArray();
         return (RoomShape.Rectangle(widths.Sum() + _random.Inclusive(0, 9) + _random.Inclusive(0, 6), depth + _random.Inclusive(8, 14)), widths, depth);
     }
 
@@ -260,7 +260,7 @@ internal sealed class OfficeBlock
         var large = Enumerable.Range(0, _parts.Count).Where(index => _parts[index].Part is OfficePart.Big or OfficePart.Medium or OfficePart.Hall).Select(index => hostOf[index]);
         Notch(rooms, large.ToArray(), problem.Joins.Select(join => (hostOf[join.A], hostOf[join.B])).ToArray());
         FillPockets(rooms);
-        var doors = new HashSet<(int, int)>();
+        var doors = new HashSet<RoomPair>();
         var run = _run.Select(index => hostOf[index]).ToList();
         int breakerAt = _run[^1];
         if (rowOf[breakerAt].Count == 0)
@@ -273,30 +273,30 @@ internal sealed class OfficeBlock
         foreach (int office in rowOf[breakerAt])
         {
             rooms[office] = rooms[office] with { Phase = office == breaker ? 1 : 2, Type = office == breaker ? RoomType.Office : rooms[office].Type };
-            doors.Add((run[^1], office));
+            doors.Add(new RoomPair(run[^1], office));
         }
 
         run.Add(breaker);
         for (int index = 0; index + 1 < run.Count; index++)
         {
-            doors.Add((run[index], run[index + 1]));
+            doors.Add(new RoomPair(run[index], run[index + 1]));
         }
 
         foreach (int office in rowOf[_run[0]])
         {
-            doors.Add((run[0], office));
+            doors.Add(new RoomPair(run[0], office));
         }
 
         int suiteAt = _after[^1];
         var suite = rowOf[suiteAt].Prepend(hostOf[suiteAt]).ToList();
         for (int index = 0; index + 1 < suite.Count; index++)
         {
-            doors.Add((suite[index], suite[index + 1]));
+            doors.Add(new RoomPair(suite[index], suite[index + 1]));
         }
 
         foreach ((int a, int b) in problem.Joins.Where(join => _after.Contains(join.B) && (_after.Contains(join.A) || _run.Contains(join.A))))
         {
-            doors.Add((hostOf[a], hostOf[b]));
+            doors.Add(new RoomPair(hostOf[a], hostOf[b]));
         }
 
         // Lay a door on every wall a door wide between rooms the breaker opens, but between the suite's offices
@@ -307,7 +307,7 @@ internal sealed class OfficeBlock
             {
                 if (rooms[a].Phase == 2 && rooms[b].Phase == 2 && !closed.Contains(a) && !closed.Contains(b) && rooms[a].Cells.GetLongestWall(rooms[b].Cells).Length >= DoorWall)
                 {
-                    doors.Add((a, b));
+                    doors.Add(new RoomPair(a, b));
                 }
             }
         }
@@ -319,7 +319,7 @@ internal sealed class OfficeBlock
             int? from = run.Skip(1).Where(step => rooms[step].Cells.GetLongestWall(rooms[room].Cells).Length >= DoorWall).Cast<int?>().FirstOrDefault();
             if (from is not null)
             {
-                doors.Add((from.Value, room));
+                doors.Add(new RoomPair(from.Value, room));
             }
         }
 
@@ -338,7 +338,7 @@ internal sealed class OfficeBlock
 
         var depths = Depths(doors, breaker);
         int end = Enumerable.Range(0, rooms.Count)
-            .Where(room => rooms[room].Phase == 2 && rooms[room].Cells.Count >= LargeLeast && depths.ContainsKey(room))
+            .Where(room => rooms[room].Phase == 2 && rooms[room].Cells.Count >= LargeMin && depths.ContainsKey(room))
             .MaxBy(room => depths[room]);
 
         return new OfficeLayout(rooms, doors, run, closets, end);
@@ -358,9 +358,9 @@ internal sealed class OfficeBlock
 
             var box = rooms[room].Cells.GetBounds();
             (int w, int h) = (_random.Inclusive(box.W / 3, box.W / 2), _random.Inclusive(box.H / 3, box.H / 2));
-            var corner = new UnitRect(_random.Next() < 0.5 ? box.U : box.U + box.W - w, _random.Next() < 0.5 ? box.V : box.V + box.H - h, w, h);
+            var corner = new UnitRect(_random.Next() < 0.5f ? box.U : box.U + box.W - w, _random.Next() < 0.5f ? box.V : box.V + box.H - h, w, h);
             var rest = rooms[room].Cells.Where(cell => !corner.Contains(cell)).ToHashSet();
-            if (w >= 4 && h >= 4 && rest.Count >= LargeLeast && rest.IsThick(6) && rest.IsConnected()
+            if (w >= 4 && h >= 4 && rest.Count >= LargeMin && rest.IsThick(6) && rest.IsConnected()
                 && joins.Where(join => join.A == room || join.B == room).All(join => rest.GetLongestWall(rooms[join.A == room ? join.B : join.A].Cells).Length >= DoorWall))
             {
                 rooms[room] = rooms[room] with { Cells = rest };
@@ -371,7 +371,7 @@ internal sealed class OfficeBlock
 
     // Cuts a one-unit slit from the larger room along about a third of the walls of eight units or more, keeping a door-wide stub at the middle of
     // a wall that holds a door, the room left connected, four wide and of its size class and every door of it on a door-wide wall
-    private void CutSlits(List<OfficeRoom> rooms, HashSet<(int A, int B)> doors)
+    private void CutSlits(List<OfficeRoom> rooms, HashSet<RoomPair> doors)
     {
         var walls = Enumerable.Range(0, rooms.Count)
             .SelectMany(a => Enumerable.Range(a + 1, rooms.Count - a - 1).Select(b => (a, b)))
@@ -380,7 +380,7 @@ internal sealed class OfficeBlock
 
         foreach ((int a, int b) in _random.Shuffled(walls).Take(Math.Max(3, walls.Length / 3)))
         {
-            bool hasDoor = doors.Contains((a, b)) || doors.Contains((b, a));
+            bool hasDoor = doors.Contains(new RoomPair(a, b));
             (int host, int other) = rooms[a].Cells.Count >= rooms[b].Cells.Count ? (a, b) : (b, a);
             var cells = rooms[host].Cells;
             var wall = cells.GetLongestWall(rooms[other].Cells);
@@ -394,9 +394,9 @@ internal sealed class OfficeBlock
                 .ToArray();
 
             var rest = cells.Except(slit).ToHashSet();
-            bool isSmall = cells.Count <= SmallMost;
+            bool isSmall = cells.Count <= SmallMax;
             if (slit.Length == 0 || slit.Any(cell => !cells.Contains(new Cell(cell.U - step.U, cell.V - step.V))) || !rest.IsConnected() || !rest.IsThick(4)
-                || rest.Count < (isSmall ? 28 : LargeLeast)
+                || rest.Count < (isSmall ? 28 : LargeMin)
                 || doors.Where(door => door.A == host || door.B == host).Any(door => rest.GetLongestWall(rooms[door.A == host ? door.B : door.A].Cells).Length < DoorWall))
             {
                 continue;
@@ -408,7 +408,7 @@ internal sealed class OfficeBlock
 
     // Places a closet three units a side in a corner inside the host where the host stays large, four wide and a door-wide wall from each room it
     // opens onto, else outside it on free floor touching it along three unit edges or more
-    private bool PlaceCloset(List<OfficeRoom> rooms, HashSet<(int A, int B)> doors, int host, List<(UnitRect Rect, int Host)> closets)
+    private bool PlaceCloset(List<OfficeRoom> rooms, HashSet<RoomPair> doors, int host, List<(UnitRect Rect, int Host)> closets)
     {
         var box = rooms[host].Cells.GetBounds();
         (int u0, int v0, int u1, int v1) = (box.U, box.V, box.U + box.W, box.V + box.H);
@@ -425,7 +425,7 @@ internal sealed class OfficeBlock
             if (cells.IsSubsetOf(rooms[host].Cells))
             {
                 var rest = rooms[host].Cells.Except(cells).ToHashSet();
-                if (!rest.IsConnected() || !rest.IsThick(4) || rest.Count < LargeLeast || partners.Any(other => rest.GetLongestWall(rooms[other].Cells).Length < DoorWall))
+                if (!rest.IsConnected() || !rest.IsThick(4) || rest.Count < LargeMin || partners.Any(other => rest.GetLongestWall(rooms[other].Cells).Length < DoorWall))
                 {
                     continue;
                 }
@@ -474,7 +474,7 @@ internal sealed class OfficeBlock
                 }
 
                 var host = block.Except(offices.SelectMany(office => office)).ToHashSet();
-                if (host.Count >= LargeLeast && host.IsConnected() && joined.All(room => host.GetLongestWall(room).Length >= DoorWall))
+                if (host.Count >= LargeMin && host.IsConnected() && joined.All(room => host.GetLongestWall(room).Length >= DoorWall))
                 {
                     return (host, offices);
                 }
@@ -527,14 +527,14 @@ internal sealed class OfficeBlock
         {
             int w = pocket.Max(cell => cell.U) - pocket.Min(cell => cell.U) + 1, h = pocket.Max(cell => cell.V) - pocket.Min(cell => cell.V) + 1;
             bool isBox = pocket.Count == w * h && Math.Min(w, h) >= 4;
-            if ((isBox && pocket.Count is >= 28 and <= SmallMost) || (pocket.Count >= LargeLeast && pocket.IsThick(6) && Corners(pocket) <= 6))
+            if ((isBox && pocket.Count is >= 28 and <= SmallMax) || (pocket.Count >= LargeMin && pocket.IsThick(6) && Corners(pocket) <= 6))
             {
-                rooms.Add(new OfficeRoom(pocket, pocket.Count <= SmallMost ? RoomType.Depot : RoomType.Storage, 2));
+                rooms.Add(new OfficeRoom(pocket, pocket.Count <= SmallMax ? RoomType.Depot : RoomType.Storage, 2));
                 continue;
             }
 
             var shared = pocket.SelectMany(cell => cell.GetAdjacent()).Where(owner.ContainsKey).GroupBy(cell => owner[cell]).ToDictionary(group => group.Key, group => group.Count());
-            int[] hosts = shared.Keys.Where(room => rooms[room].Cells.Count > SmallMost).ToArray();
+            int[] hosts = shared.Keys.Where(room => rooms[room].Cells.Count > SmallMax).ToArray();
             int? best = hosts
                 .Where(room => Corners(rooms[room].Cells.Union(pocket).ToHashSet()) <= Corners(rooms[room].Cells) + 2)
                 .OrderByDescending(room => shared[room])
@@ -566,10 +566,10 @@ internal sealed class OfficeBlock
         });
     }
 
-    private static HashSet<int> Reach(HashSet<(int A, int B)> doors, int from) => Depths(doors, from).Keys.ToHashSet();
+    private static HashSet<int> Reach(HashSet<RoomPair> doors, int from) => Depths(doors, from).Keys.ToHashSet();
 
-    private static Dictionary<int, int> Depths(HashSet<(int A, int B)> doors, int from) => doors
-        .SelectMany(door => new[] { door, (door.B, door.A) })
+    private static Dictionary<int, int> Depths(HashSet<RoomPair> doors, int from) => doors
+        .SelectMany(door => new[] { (door.A, door.B), (door.B, door.A) })
         .GroupBy(door => door.Item1, door => door.Item2)
         .ToDictionary(group => group.Key, group => group.ToList())
         .MeasureHops([from]);

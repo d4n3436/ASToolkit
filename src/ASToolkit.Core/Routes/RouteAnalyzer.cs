@@ -407,19 +407,19 @@ public static class RouteAnalyzer
                 if (trigger is null)
                     continue;
                 
-                var (tc, _) = FindNearestReachableCell(trigger.Value.X, trigger.Value.Y);
+                var (tc, _) = FindNearestReachableCell(trigger.Value.Center.X, trigger.Value.Center.Y);
                 if (tc is null || !fromStart.ContainsKey(tc.Value))
                     continue;
                     
                 int entered = path.FindIndex(cell =>
                 {
                     (float x, float y) = _lattice.GetCenter(cell);
-                    return (x - trigger.Value.X) * (x - trigger.Value.X) + (y - trigger.Value.Y) * (y - trigger.Value.Y) <= trigger.Value.Radius * trigger.Value.Radius;
+                    return (x - trigger.Value.Center.X) * (x - trigger.Value.Center.X) + (y - trigger.Value.Center.Y) * (y - trigger.Value.Center.Y) <= trigger.Value.Radius * trigger.Value.Radius;
                 });
 
                 element.TriggerProgress = entered < 0 ? Progress(tc.Value) : MathF.Round(entered / (float)Math.Max(1, walked), 3);
                 element.TriggerBranchDepth = (int)MathF.Round(branch.GetValueOrDefault(tc.Value) * _step);
-                element.TriggerDistance = (int)MathF.Round(MathF.Sqrt(MathF.Pow(element.X - trigger.Value.X, 2) + MathF.Pow(element.Y - trigger.Value.Y, 2)));
+                element.TriggerDistance = (int)MathF.Round(MathF.Sqrt(MathF.Pow(element.X - trigger.Value.Center.X, 2) + MathF.Pow(element.Y - trigger.Value.Center.Y, 2)));
             }
 
             var merged = new List<RouteLeg>();
@@ -784,10 +784,10 @@ public static class RouteAnalyzer
                 var t = element.Program!.Trigger;
                 if (t is not null)
                 {
-                    var (tc, _) = FindNearestReachableCell(t.Value.X, t.Value.Y);
+                    var (tc, _) = FindNearestReachableCell(t.Value.Center.X, t.Value.Center.Y);
                     if (tc is not null && _fromStart!.ContainsKey(tc.Value))
                     {
-                        trigger = new Objective { Kind = ObjectiveKind.Trigger, Cell = tc.Value, X = t.Value.X, Y = t.Value.Y, Reach = t.Value.Radius };
+                        trigger = new Objective { Kind = ObjectiveKind.Trigger, Cell = tc.Value, X = t.Value.Center.X, Y = t.Value.Center.Y, Reach = t.Value.Radius };
                         objectives.Add(trigger);
                     }
                 }

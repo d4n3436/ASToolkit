@@ -20,7 +20,7 @@ public sealed class RoomAtlas
 
     private static readonly HashSet<KnownObject> Stock = [KnownObject.Crate, KnownObject.Barrel, KnownObject.RadioactiveBarrel];
 
-    private static readonly (RoomType Type, int Weight, int Least, KnownObject[] Ids)[] Groups =
+    private static readonly (RoomType Type, int Weight, int Min, KnownObject[] Ids)[] Groups =
     [
         (RoomType.Lab, 1, 2, [KnownObject.TestTubes, KnownObject.LabEquipment, KnownObject.ExperimentFlasks, KnownObject.RadioactiveFlask]),
         (RoomType.ComputerRoom, 2, 2, [KnownObject.BigComputer, KnownObject.BioContainer]),
@@ -186,7 +186,7 @@ public sealed class RoomAtlas
             .ToDictionary(entry => entry.Cell, entry => entry.Id);
         
         var floors = sprites.Where(sprite => (int)sprite.Id is >= (int)KnownObject.BasementFloor and <= (int)KnownObject.FlatGrass)
-            .Select(sprite => (sprite.Id, Place: owners.GetValueOrDefault(survey.Lattice.GetCell(sprite.Position.X, sprite.Position.Y))))
+            .Select(sprite => (sprite.Id, Place: owners.GetValueOrDefault(survey.Lattice.GetCell(sprite.Position))))
             .Where(floor => floor.Place != 0)
             .ToLookup(floor => floor.Place, floor => floor.Id);
         
@@ -276,7 +276,7 @@ public sealed class RoomAtlas
                                      && (chairs.Any(chair => IsNear(chair, piece.Position, ChairReach)) || tops.Any(top => IsNear(top, piece.Position, ComputerReach))));
     }
 
-    private static bool IsNear(Vector3 one, Vector3 other, float reach) => Vector2.Distance(new Vector2(one.X, one.Y), new Vector2(other.X, other.Y)) <= reach;
+    private static bool IsNear(Vector3 one, Vector3 other, float reach) => Vector2.Distance(one.AsVector2(), other.AsVector2()) <= reach;
 
     private static RoomType Propose(LevelPlace place, (KnownObject Id, Vector3 Position)[] pieces, int desks, int doors)
     {

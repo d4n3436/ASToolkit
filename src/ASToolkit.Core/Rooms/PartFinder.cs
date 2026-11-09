@@ -105,7 +105,7 @@ internal sealed class PartFinder
         Reaches.TryGetValue((one, other), out float reach) || Reaches.TryGetValue((other, one), out reach) ? reach : 0;
 
     private static float GetDistance(MergedMapSprite one, MergedMapSprite other) =>
-        Vector2.Distance(new Vector2(one.Position.X, one.Position.Y), new Vector2(other.Position.X, other.Position.Y));
+        Vector2.Distance(one.Position.AsVector2(), other.Position.AsVector2());
 
     private static int FindRoot(int[] root, int index)
     {
@@ -120,7 +120,7 @@ internal sealed class PartFinder
 
     private PartSpot GetSpot(MergedMapSprite piece, Dictionary<Cell, int> acrossU, Dictionary<Cell, int> acrossV)
     {
-        var cell = _lattice.GetCell(piece.Position.X, piece.Position.Y);
+        var cell = _lattice.GetCell(piece.Position);
         bool nearU = acrossU.GetValueOrDefault(cell, int.MaxValue) <= WallCells;
         bool nearV = acrossV.GetValueOrDefault(cell, int.MaxValue) <= WallCells;
         return nearU && nearV ? PartSpot.Corner : nearU || nearV ? PartSpot.Wall : PartSpot.Center;

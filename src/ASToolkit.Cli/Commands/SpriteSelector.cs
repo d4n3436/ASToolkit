@@ -32,7 +32,7 @@ internal sealed class SpriteSelector
                 continue;
             }
 
-            if (_settings.Near?.Contains(new Vector2(sprite.Position.X, sprite.Position.Y)) is false)
+            if (_settings.Near?.Contains(sprite.Position.AsVector2()) is false)
             {
                 continue;
             }

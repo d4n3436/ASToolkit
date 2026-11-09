@@ -226,7 +226,7 @@ public static class LevelExtractor
                 continue;
             }
 
-            (float u, float v) = lattice.ToLattice(sprite.Position.X, sprite.Position.Y);
+            (float u, float v) = lattice.ToLattice(sprite.Position);
             bool fits = slash
                 ? Lattice.IsNearInteger(u - 0.25f) && Lattice.IsNearInteger(v - 0.25f)
                 : Lattice.IsNearInteger(u + 0.25f) && Lattice.IsNearInteger(v - 0.75f);
@@ -263,12 +263,12 @@ public static class LevelExtractor
         {
             // Let the walls pick between the two tile phases that fit the floor
             var probe = new Lattice(Lattice.BasementStep.X, Lattice.BasementStep.Y, floor[0].Position.X - 40, floor[0].Position.Y);
-            var phases = new List<((int, int) Key, int Count, MergedMapSprite First)>();
-            var index = new Dictionary<(int, int), int>();
+            var phases = new List<(Point Key, int Count, MergedMapSprite First)>();
+            var index = new Dictionary<Point, int>();
             foreach (var floorSprite in floor)
             {
-                (float u, float v) = probe.ToLattice(floorSprite.Position.X, floorSprite.Position.Y);
-                var key = ((int)MathF.Round((u - MathF.Floor(u)) * 8) % 8, (int)MathF.Round((v - MathF.Floor(v)) * 8) % 8);
+                (float u, float v) = probe.ToLattice(floorSprite.Position);
+                var key = new Point((int)MathF.Round((u - MathF.Floor(u)) * 8) % 8, (int)MathF.Round((v - MathF.Floor(v)) * 8) % 8);
                 if (index.TryGetValue(key, out int i))
                 {
                     phases[i] = (key, phases[i].Count + 1, phases[i].First);
@@ -296,7 +296,7 @@ public static class LevelExtractor
 
             foreach (var floorSprite in floor)
             {
-                cells.Add(best!.GetCell(floorSprite.Position.X, floorSprite.Position.Y));
+                cells.Add(best!.GetCell(floorSprite.Position));
             }
         }
         else
@@ -309,7 +309,7 @@ public static class LevelExtractor
 
             foreach (var tile in big)
             {
-                (float u0, float v0) = best.ToLattice(tile.Position.X, tile.Position.Y);
+                (float u0, float v0) = best.ToLattice(tile.Position);
                 for (int u = (int)MathF.Floor(u0) - 3; u < (int)MathF.Floor(u0) + 4; u++)
                 {
                     for (int v = (int)MathF.Floor(v0) - 3; v < (int)MathF.Floor(v0) + 4; v++)
@@ -408,11 +408,11 @@ public static class LevelExtractor
 
         var probe = new Lattice(Lattice.ConcreteStep.X, Lattice.ConcreteStep.Y, slashWalls[0].Position.X, slashWalls[0].Position.Y);
         var firsts = new List<MergedMapSprite>();
-        var seen = new HashSet<(int, int)>();
+        var seen = new HashSet<Point>();
         foreach (var wall in slashWalls)
         {
-            (float u, float v) = probe.ToLattice(wall.Position.X, wall.Position.Y);
-            if (seen.Add(((int)MathF.Round((u - MathF.Floor(u)) * 8) % 8, (int)MathF.Round((v - MathF.Floor(v)) * 8) % 8)))
+            (float u, float v) = probe.ToLattice(wall.Position);
+            if (seen.Add(new Point((int)MathF.Round((u - MathF.Floor(u)) * 8) % 8, (int)MathF.Round((v - MathF.Floor(v)) * 8) % 8)))
             {
                 firsts.Add(wall);
             }
@@ -439,7 +439,7 @@ public static class LevelExtractor
                 continue;
             }
 
-            (float u, float v) = lattice.ToLattice(sprite.Position.X, sprite.Position.Y);
+            (float u, float v) = lattice.ToLattice(sprite.Position);
             int a = (int)MathF.Round(u);
             int b = (int)MathF.Round(v);
             bool slash = sprite.Id == KnownObject.MilitaryBaseWallSlash || (sprite.Id is KnownObject.FenceEmitter or KnownObject.MilitaryBaseDoorWall && sprite.Facing is >= 64 and < 192);
@@ -468,7 +468,7 @@ public static class LevelExtractor
         }
 
         var tileSet = tiles.Select(t => ((long)MathF.Round(t.Position.X), (long)MathF.Round(t.Position.Y))).ToHashSet();
-        var us = tiles.Select(t => lattice.ToLattice(t.Position.X, t.Position.Y)).ToArray();
+        var us = tiles.Select(t => lattice.ToLattice(t.Position)).ToArray();
         int uMin = (int)MathF.Floor(us.Min(p => p.U)) - 3;
         int uMax = (int)MathF.Ceiling(us.Max(p => p.U)) + 3;
         int vMin = (int)MathF.Floor(us.Min(p => p.V)) - 3;
@@ -508,7 +508,7 @@ public static class LevelExtractor
 
     private static bool IsOnVertex(Lattice lattice, MergedMapSprite s)
     {
-        (float u, float v) = lattice.ToLattice(s.Position.X, s.Position.Y);
+        (float u, float v) = lattice.ToLattice(s.Position);
         return Lattice.IsNearInteger(u) && Lattice.IsNearInteger(v);
     }
 
@@ -520,7 +520,7 @@ public static class LevelExtractor
         {
             var s = decor[decorObjectIndex];
             int? support = objects.FindSupport(decor, decorObjectIndex);
-            (float u, float v) = lattice.ToLattice(s.Position.X, s.Position.Y);
+            (float u, float v) = lattice.ToLattice(s.Position);
             result.Add(new DecorObject(s.Id, u, v, s.Position.Z, s.Facing, s.Payload, support));
         }
 

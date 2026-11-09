@@ -218,7 +218,7 @@ internal abstract partial class BuildingGrammar
     }
 
     private static RoomShape CrossTemplate() =>
-        new(WingSolver.Outline((2, 0), (2, 2), (0, 2), (0, 5), (2, 5), (2, 7), (5, 7), (5, 5), (7, 5), (7, 2), (5, 2), (5, 0)),
+        new(RoomShape.Polygon(new(2, 0), new(2, 2), new(0, 2), new(0, 5), new(2, 5), new(2, 7), new(5, 7), new(5, 5), new(7, 5), new(7, 2), new(5, 2), new(5, 0)),
             [
                 new ShapeDoor(new Point(2, 0), new Point(5, 0)),
                 new ShapeDoor(new Point(7, 2), new Point(7, 5)),
@@ -280,7 +280,7 @@ internal abstract partial class BuildingGrammar
             while (ids.Count < kept)
             {
                 int big = wing.AddRoom(RoomType.ComputerRoom, phase, NewGroup(), [BigRoomBox()], isWingPiece: true);
-                double roll = Random.Next();
+                float roll = Random.Next();
                 wing.Join(WingSolver.Anchor, big, roll < BigRoomPassageEntry ? JoinVia.Passage : roll < BigRoomPassageEntry + NeckShare ? JoinVia.Neck : JoinVia.Door,
                     JoinMark.Junction);
                 wing.SetSides(WingSolver.Anchor, big, sides, null);

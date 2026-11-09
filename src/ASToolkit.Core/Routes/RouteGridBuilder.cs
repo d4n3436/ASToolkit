@@ -54,7 +54,7 @@ public static class RouteGridBuilder
             }
 
             bool slash = (neighbor.Position.X - fence.Position.X) * (neighbor.Position.Y - fence.Position.Y) < 0;
-            (float u, float v) = fine.ToLattice(fence.Position.X, fence.Position.Y);
+            (float u, float v) = fine.ToLattice(fence.Position);
             for (int index = 0; index < ChainLinkEdges; index++)
             {
                 var key = slash
@@ -118,7 +118,7 @@ public static class RouteGridBuilder
                 continue;
             }
 
-            (float u, float v) = model.Lattice.ToLattice(sprite.Position.X, sprite.Position.Y);
+            (float u, float v) = model.Lattice.ToLattice(sprite.Position);
             if (!Lattice.IsNearInteger(u) || !Lattice.IsNearInteger(v))
             {
                 continue;

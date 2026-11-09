@@ -2,7 +2,6 @@ using System.Drawing;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Generation.Geometry;
 using ASToolkit.Core.Generation.Layout;
-using ASToolkit.Core.Generation.Output;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Reference;
 using ASToolkit.Core.Rooms;
@@ -13,13 +12,10 @@ namespace ASToolkit.Core.Generation.Dressing;
 
 internal sealed class SceneFurnisher
 {
-    private const int BigCells = 200;
-    private const int BareCells = 6;
     private const float MinStep = 0.5f;
     private const int Tries = 12;
     private const int GrowTries = 40;
     private const int SceneTries = 48;
-    private const float HeapReach = 3;
     private const float OpeningReach = 3;
     private const float SquareRatio = 1.25f;
     private const float MiddleSlack = 1.5f;
@@ -39,7 +35,7 @@ internal sealed class SceneFurnisher
     private readonly float _sizeShare;
     private readonly bool _rubble;
     private readonly WallSet _wallSet;
-    private readonly List<PlacedDecor> _placed = [];
+    private readonly List<DecorObject> _placed = [];
 
     private RoomGeometry _room = null!;
     private RoomProgram _program = null!;
@@ -73,7 +69,7 @@ internal sealed class SceneFurnisher
             .ElementAt(grammar.Families.Values.Count(family => family.Extent > 0) / 2);
     }
 
-    public List<PlacedDecor> Furnish(LayoutPlan plan, IReadOnlyList<SceneRequest> scenes)
+    public List<DecorObject> Furnish(LayoutPlan plan, IReadOnlyList<SceneRequest> scenes)
     {
         var held = scenes.ToList();
         var done = new HashSet<int>();
@@ -120,7 +116,7 @@ internal sealed class SceneFurnisher
         _inScene = false;
 
         float target = Draw(program.PiecesPerHundredCells[GetBand(DensityBands)]) * room.HalfCells / 100;
-        bool big = room.HalfCells >= BigCells;
+        bool big = room.HalfCells >= BigRoomCells;
         var fitting = program.Arrangements.Where(IsRoomLargeEnough).ToArray();
         var lead = fitting.FirstOrDefault(arrangement => arrangement.Signature);
         var held = fitting.Where(arrangement => _rng.NextSingle() < (arrangement == lead ? program.SignatureShare : big ? arrangement.BigShare : arrangement.Share)).ToArray();
@@ -215,17 +211,17 @@ internal sealed class SceneFurnisher
             {
                 var center = new PointF(cells[index].U + 0.5f, cells[index].V + 0.5f);
                 bare = _floor.Any(piece => MathF.Abs(piece.Point.X - center.X) <= 1.5f && MathF.Abs(piece.Point.Y - center.Y) <= 1.5f) ? 0 : bare + 1;
-                if (bare != BareCells)
+                if (bare != BareWallCells)
                     continue;
 
-                var stretch = cells[(index + 1 - BareCells)..(index + 1)];
+                var stretch = cells[(index + 1 - BareWallCells)..(index + 1)];
                 if (cover.Kind == ArrangementKind.Heap)
                 {
-                    PlaceHeap(0, 0, (face, stretch[BareCells / 2]));
+                    PlaceHeap(0, 0, (face, stretch[BareWallCells / 2]));
                 }
                 else
                 {
-                    PlaceRun(face, stretch, Along(stretch[0], face) + 0.5f, cover.Family!.Value, cover.Members, BareCells);
+                    PlaceRun(face, stretch, Along(stretch[0], face) + 0.5f, cover.Family!.Value, cover.Members, BareWallCells);
                 }
 
                 bare = 0;
@@ -554,7 +550,7 @@ internal sealed class SceneFurnisher
             return _anchors > before;
         }
 
-        (float u, float v) = _layout.Lattice.ToLattice(scene.At.Value.X, scene.At.Value.Y);
+        (float u, float v) = _layout.Lattice.ToLattice(scene.At.Value);
         var point = new PointF(u, v);
         _floor.Add((point, scene.Anchor, scene.Dir, RectangleF.Empty));
         _force = true;
@@ -642,7 +638,7 @@ internal sealed class SceneFurnisher
         if (_campaign && _grammar.AddOnOnly.Contains(id) || !_room.Cells.Contains(cell) || standing && lining < 0 && !IsInside(id, point, dir, 0) || _reserved.Contains(cell) && (standing || !_inScene)
             || footprint.Overlaps(_room.Openings) || standing && _floor.Any(other => IsTooClose(other, id, point, dir, lining >= 0)) || !IsJoinedWithout(footprint)
             || standing && _placed.Any(piece => piece.Id.IsCorpse && IsInFront(point, new PointF(piece.U, piece.V)))
-            || !_occupancy.Fits(id, world.X, world.Y, z, _inScene))
+            || !_occupancy.Fits(id, world, z, _inScene))
         {
             return false;
         }
@@ -653,7 +649,7 @@ internal sealed class SceneFurnisher
             _floor.Add((point, id, dir, RectangleF.Empty));
         }
 
-        _occupancy.Add(id, world.X, world.Y, z);
+        _occupancy.Add(id, world, z);
 
         // Keep the floor around a set piece's walked-over pieces clear of the furniture after it
         if (_inScene && _objects.GetBlocking(id) != BlockingClass.Solid)
@@ -703,7 +699,7 @@ internal sealed class SceneFurnisher
     }
 
     private void Add(KnownObject id, PointF point, float z, byte dir, byte[]? payload = null) =>
-        _placed.Add(new PlacedDecor(id, point.X, point.Y, z, dir, payload ?? []));
+        _placed.Add(new DecorObject(id, point.X, point.Y, z, dir, payload ?? [], null));
 
     private void Hang(Fixture fixture, Cell wall, int face, float along)
     {

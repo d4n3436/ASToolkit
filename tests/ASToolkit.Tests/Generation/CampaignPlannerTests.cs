@@ -1,3 +1,4 @@
+using ASToolkit.Core;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Generation.Campaign;
 using ASToolkit.Core.Levels;
@@ -212,9 +213,9 @@ public class CampaignPlannerTests
         CashValue = 50,
         HitPoints = Line(2.05f, 4.9f, 0.55f),
         SpawnedShare = Line(-3.4f, 0.76f, 1.4f),
-        FloorPixels = new FittedValue<WallSetLine>(new WallSetLine(13.9, 0.35, -1.1, 0.23), 9, IsBackedOff: false),
-        Rooms = new FittedValue<WallSetLine>(new WallSetLine(2.0, -0.1, -0.5, 0.2), 9, IsBackedOff: false),
-        RoomRates = new Dictionary<WallSet, ValueRange> { [WallSet.Basement] = new(1.2, 2.2), [WallSet.Concrete] = new(0.3, 1.6) },
+        FloorPixels = new FittedValue<WallSetLine>(new WallSetLine(13.9f, 0.35f, -1.1f, 0.23f), 9, IsBackedOff: false),
+        Rooms = new FittedValue<WallSetLine>(new WallSetLine(2.0f, -0.1f, -0.5f, 0.2f), 9, IsBackedOff: false),
+        RoomRates = new Dictionary<WallSet, ValueRange<float>> { [WallSet.Basement] = new(1.2f, 2.2f), [WallSet.Concrete] = new(0.3f, 1.6f) },
         MaxRooms = new Dictionary<WallSet, int> { [WallSet.Basement] = 38, [WallSet.Concrete] = 29 },
         EndMoney = Line(4.2f, 0.75f, 0.45f),
         Buildings = new FittedValue<IReadOnlyList<BuildingShare>>(

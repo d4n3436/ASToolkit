@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Scripting;
 
 namespace ASToolkit.Core.Levels;
 
@@ -32,7 +33,7 @@ public sealed class SpawnerProgram
     /// <summary>
     /// Gets the trigger point and radius, or null when the spawner starts at once.
     /// </summary>
-    public (int X, int Y, int Radius)? Trigger
+    public TriggerArea? Trigger
     {
         get
         {
@@ -40,7 +41,7 @@ public sealed class SpawnerProgram
             {
                 if (action.Act == (int)ActionCode.FlagmanTrigger)
                 {
-                    return (action.Var1, action.Var2, action.Var3);
+                    return new TriggerArea(new Point(action.Var1, action.Var2), action.Var3);
                 }
             }
 
@@ -78,7 +79,7 @@ public sealed class SpawnerProgram
     /// Creates a program that waits for its trigger, builds the monsters in order and sends them along the waypoints,
     /// the first waypoint being the first destination.
     /// </summary>
-    public static SpawnerProgram Create(IEnumerable<KnownObject> monsters, (float X, float Y, float Radius) trigger, IEnumerable<PointF> waypoints)
+    public static SpawnerProgram Create(IEnumerable<KnownObject> monsters, TriggerArea trigger, IEnumerable<PointF> waypoints)
     {
         var actions = new List<StackAction>();
         foreach ((float x, float y) in waypoints.Reverse())
@@ -92,7 +93,7 @@ public sealed class SpawnerProgram
             actions.Add(new StackAction((int)ActionCode.BuildUnit, (int)monster, 0, 0));
         }
 
-        actions.Add(new StackAction((int)ActionCode.FlagmanTrigger, (int)trigger.X, (int)trigger.Y, (int)trigger.Radius));
+        actions.Add(new StackAction((int)ActionCode.FlagmanTrigger, trigger.Center.X, trigger.Center.Y, trigger.Radius));
         return new SpawnerProgram { Actions = actions, Trailer = DefaultTrailer };
     }
 

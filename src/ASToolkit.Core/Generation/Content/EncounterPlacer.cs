@@ -1,22 +1,22 @@
 using System.Drawing;
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Generation.Geometry;
+using ASToolkit.Core.Generation.Layout;
 using ASToolkit.Core.Generation.Output;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Reference;
+using ASToolkit.Core.Scripting;
 
 namespace ASToolkit.Core.Generation.Content;
 
 internal sealed class EncounterPlacer
 {
-    private const float StartGap = 900;
+    private const float StartGap = 681;
     private const float CannonGap = 600;
-    private const float HalfScreenWidth = 640;
-    private const float HalfScreenHeight = 360;
     private const int AnchorTries = 12;
     private const int SpawnerTries = 8;
     private const float GoldenAngle = 2.39996f;
-    private const float MonsterGap = 12;
-    private const int MostClustered = 40;
+    private const int MaxClustered = 47;
 
     private readonly PlacementContext _ctx;
     private readonly EncounterModel _model;
@@ -42,8 +42,17 @@ internal sealed class EncounterPlacer
     {
         foreach (var fight in fights.Where(fight => fight.Trigger is null || !Release(fight)))
         {
-            Stand(fight.Monsters, fight.Rooms);
+            Stand(fight.Monsters, fight.Trigger is null ? fight.Rooms : fight.Rooms.Concat(GetPhaseRooms(fight)).Distinct().ToArray());
         }
+    }
+
+    private IEnumerable<int> GetPhaseRooms(PlannedFight fight)
+    {
+        int phase = _ctx.Plan.Regions[fight.Region].Phase;
+        return _ctx.Plan.Regions
+            .Where(region => region.Phase == phase && region.Kind is RegionKind.Station or RegionKind.SideRoom && _ctx.Plan.HoldsFights(region))
+            .OrderByDescending(region => _ctx.Layout.GetRegionCells(region.Id).Count)
+            .Select(region => region.Id);
     }
 
     private void Stand(IReadOnlyList<KnownObject> group, IReadOnlyList<int> rooms)
@@ -91,17 +100,17 @@ internal sealed class EncounterPlacer
     private HashSet<int> PlaceCluster(List<KnownObject> group, int room, Cell[] free)
     {
         var best = new List<(int Index, PointF Point)>();
-        for (int attempt = 0; attempt < AnchorTries && best.Count < Math.Min(group.Count, MostClustered); attempt++)
+        for (int attempt = 0; attempt < AnchorTries && best.Count < Math.Min(group.Count, MaxClustered); attempt++)
         {
             var anchor = _ctx.Layout.Lattice.GetCenter(free[_ctx.Rng.Next(free.Length)]);
-            var placed = new List<(int Index, PointF Point)>(MostClustered);
-            for (int index = 0; index < Math.Min(group.Count, MostClustered); index++)
+            var placed = new List<(int Index, PointF Point)>(MaxClustered);
+            for (int index = 0; index < Math.Min(group.Count, MaxClustered); index++)
             {
                 float radius = _model.Spacing.Value * 0.55f * MathF.Sqrt(index), angle = index * GoldenAngle;
                 var point = new PointF(anchor.X + radius * MathF.Cos(angle), anchor.Y + radius * MathF.Sin(angle));
-                var cell = _ctx.Layout.Lattice.GetCell(point.X, point.Y);
-                if (_ctx.Layout.Cells.GetValueOrDefault(cell, -1) == room && _ctx.Distance.ContainsKey(cell) && IsApart(placed, point) && _ctx.IsVisible(point.X, point.Y)
-                    && !_ctx.IsInWall(point.X, point.Y, 2) && _ctx.Occupancy.Fits(group[index], point.X, point.Y, 0))
+                var cell = _ctx.Layout.Lattice.GetCell(point);
+                if (_ctx.Layout.Cells.GetValueOrDefault(cell, -1) == room && _ctx.Distance.ContainsKey(cell) && IsApart(placed, point) && _ctx.IsVisible(point)
+                    && !_ctx.IsInWall(point, 2) && _ctx.Occupancy.Fits(group[index], point, 0))
                 {
                     placed.Add((index, point));
                 }
@@ -113,7 +122,7 @@ internal sealed class EncounterPlacer
         foreach ((int index, var point) in best)
         {
             _ctx.Map.Add(group[index], point.X, point.Y, 0, _ctx.Rng.Next(256), MapBuilder.MonsterPayload, 1, unique: false, source: SpriteSource.Model);
-            _ctx.Occupancy.Add(group[index], point.X, point.Y, 0);
+            _ctx.Occupancy.Add(group[index], point, 0);
         }
 
         return best.Select(member => member.Index).ToHashSet();
@@ -124,7 +133,7 @@ internal sealed class EncounterPlacer
         foreach (var (_, other) in placed)
         {
             float x = other.X - point.X, y = other.Y - point.Y;
-            if (x * x + y * y < MonsterGap * MonsterGap)
+            if (x * x + y * y < LevelOccupancy.UnitGap * LevelOccupancy.UnitGap)
             {
                 return false;
             }
@@ -146,7 +155,7 @@ internal sealed class EncounterPlacer
         var spots = fight.Rooms
             .SelectMany(room => _ctx.GetFreeCells(_ctx.Plan.Regions[room], inner: true))
             .Select(free => (Cell: free, Point: _ctx.Layout.Lattice.GetCenter(free)))
-            .Where(spot => MathF.Abs(spot.Point.X - center.X) >= HalfScreenWidth + radius + _ctx.Step || MathF.Abs(spot.Point.Y - center.Y) >= HalfScreenHeight + radius + _ctx.Step)
+            .Where(spot => MathF.Abs(spot.Point.X - center.X) >= FightPlanner.Screen.Width / 2 + radius + _ctx.Step || MathF.Abs(spot.Point.Y - center.Y) >= FightPlanner.Screen.Height / 2 + radius + _ctx.Step)
             .OrderBy(spot => ContentPlacer.GetDistance(spot.Point, center))
             .ToArray();
 
@@ -158,10 +167,10 @@ internal sealed class EncounterPlacer
         var near = spots.Where(spot => ContentPlacer.GetDistance(spot.Point, center) <= _model.SpawnerReach.Value).DefaultIfEmpty(spots[0]).ToArray();
         foreach (var group in fight.Groups)
         {
-            byte[] payload = SpawnerProgram.Create(group, (center.X, center.Y, radius), [center]).ToPayload();
+            byte[] payload = SpawnerProgram.Create(group, new TriggerArea(Point.Truncate(center), radius), [center]).ToPayload();
             PointF? point = null;
             var clear = near
-                .Where(spot => _spawners.All(other => ContentPlacer.GetDistance(other, spot.Point) >= _model.SpawnerSpacing.Value) && _ctx.Occupancy.HasRoomAround(spot.Point.X, spot.Point.Y))
+                .Where(spot => _spawners.All(other => ContentPlacer.GetDistance(other, spot.Point) >= _model.SpawnerSpacing.Value) && _ctx.Occupancy.HasRoomAround(spot.Point))
                 .Take(SpawnerTries)
                 .ToArray();
 
@@ -171,15 +180,15 @@ internal sealed class EncounterPlacer
                 if (placed is null) 
                     continue;
                 
-                point = new PointF(placed.Value.X, placed.Value.Y);
+                point = placed.Value.Point;
                 break;
             }
 
             if (point is null)
             {
-                var ordered = near.OrderByDescending(spot => _ctx.Occupancy.HasRoomAround(spot.Point.X, spot.Point.Y)).ToArray();
+                var ordered = near.OrderByDescending(spot => _ctx.Occupancy.HasRoomAround(spot.Point)).ToArray();
                 var placed = _ctx.Place(ordered.Select(spot => spot.Cell).ToArray(), KnownObject.Spawner, dir: 0, payload: payload, army: 1, take: false);
-                point = placed is null ? ordered[0].Point : new PointF(placed.Value.X, placed.Value.Y);
+                point = placed?.Point ?? ordered[0].Point;
                 if (placed is null)
                 {
                     _ctx.Map.Add(KnownObject.Spawner, point.Value.X, point.Value.Y, 0, 0, payload, 1, unique: false, source: SpriteSource.Model);
@@ -206,7 +215,7 @@ internal sealed class EncounterPlacer
         {
             var point = _ctx.Layout.Lattice.GetCenter(cells[index % cells.Count]);
             _spawners.Add(point);
-            _ctx.Map.Add(KnownObject.Spawner, point.X, point.Y, 0, 0, SpawnerProgram.Create(fight.Groups[index], (center.X, center.Y, radius), [center]).ToPayload(), 1, unique: false,
+            _ctx.Map.Add(KnownObject.Spawner, point.X, point.Y, 0, 0, SpawnerProgram.Create(fight.Groups[index], new TriggerArea(Point.Truncate(center), radius), [center]).ToPayload(), 1, unique: false,
                 source: SpriteSource.Model);
         }
 

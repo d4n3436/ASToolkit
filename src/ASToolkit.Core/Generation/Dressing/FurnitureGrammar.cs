@@ -36,6 +36,11 @@ internal sealed partial record FurnitureGrammar(
     public static readonly int[] DensityBands = [0, 200, 400, 800];
     public static readonly int[] WallBands = [0, 250, 500, 1000, 2000];
 
+    // Sizes in half cells, reach in cells
+    public const int BigRoomCells = 200;
+    public const int BareWallCells = 6;
+    public const float HeapReach = 3;
+
     public HashSet<KnownObject> GetPieces() => Families.Values
         .SelectMany(family => family.Pieces)
         .Concat(Types.Values.SelectMany(program => program.Companions.Values).Concat(SharedModules.Values).SelectMany(modules => modules.Values).SelectMany(companions => companions).Select(companion => companion.Id))

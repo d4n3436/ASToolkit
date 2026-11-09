@@ -4,26 +4,26 @@ using ASToolkit.Core.Generation.Campaign;
 using ASToolkit.Core.Generation.Layout;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Reference;
+using ASToolkit.Core.Survey;
 
 namespace ASToolkit.Core.Generation.Content;
 
 internal sealed class FightPlanner
 {
-    private const float MostVariantShare = 0.75f;
-    private const float OpeningShare = 0.5f;
-    private const float ScreenArea = 1280 * 720;
-    private const float FightReach = 1000;
+    internal static readonly SizeF Screen = new(1280, 720);
 
     private readonly EncounterModel _model;
     private readonly ObjectTable _objects;
     private readonly LayoutPlan _plan;
     private readonly LevelBrief _brief;
     private readonly Random _rng;
+    private readonly FightRule _rule;
     private KnownObject? _pending;
 
-    public FightPlanner(EncounterModel model, ObjectTable objects, LayoutPlan plan, LevelBrief brief, Random rng)
+    public FightPlanner(EncounterModel model, FightRule rule, ObjectTable objects, LayoutPlan plan, LevelBrief brief, Random rng)
     {
         _model = model;
+        _rule = rule;
         _objects = objects;
         _plan = plan;
         _brief = brief;
@@ -33,7 +33,7 @@ internal sealed class FightPlanner
     public IReadOnlyList<PlannedFight> Plan(int hitPoints)
     {
         var rooms = _plan.Regions
-            .Where(region => region.Kind is RegionKind.Station or RegionKind.SideRoom or RegionKind.Pen && _plan.HoldsFights(region) && region != _plan.Stations[0])
+            .Where(region => region.Kind is RegionKind.Station or RegionKind.SideRoom && _plan.HoldsFights(region) && region != _plan.Stations[0])
             .OrderBy(region => region.Order)
             .ToArray();
 
@@ -48,7 +48,7 @@ internal sealed class FightPlanner
             .Where(link => link.IsChoke && link != _plan.BlackoutLink)
             .ToLookup(link => _plan.Regions[link.From].Order > _plan.Regions[link.To].Order ? link.From : link.To);
 
-        float floor = _plan.Regions.Sum(region => region.Units.Count) * GetUnitArea() / ScreenArea;
+        float floor = _plan.Regions.Sum(region => region.Units.Count) * GetUnitArea() / (Screen.Width * Screen.Height);
         int count = Math.Clamp((int)MathF.Round(_model.FightsPerScreen.Value * floor), 1, rooms.Length);
         var chosen = new List<int>();
         var climaxes = new List<int>();
@@ -102,29 +102,18 @@ internal sealed class FightPlanner
 
         chosen.Sort();
         var newKinds = _brief.NewMonsters;
-        int[] openings = chosen
-            .Where(index => !climaxes.Contains(index))
-            .Take(newKinds.Count)
-            .ToArray();
+        var opened = DrawOpenings(chosen, targets, newKinds.Count, index => doors.Contains(rooms[index].Id));
+        int[] openings = opened.Select(opening => opening.Fight).ToArray();
+        var ambushes = opened.Where(opening => opening.IsAmbush).Select(opening => opening.Fight).ToHashSet();
+        float spawned = ambushes.Sum(index => targets[index]);
 
-        float cap = OpeningShare * hitPoints / chosen.Count;
-        int[] sinks = chosen.Except(openings).ToArray();
-        foreach (int opening in openings.Where(index => targets[index] > cap && sinks.Length > 0))
-        {
-            int sink = sinks.MaxBy(index => ((rooms[index].Phase == rooms[opening].Phase ? 4 : 0) + (climaxes.Contains(index) ? 0 : 2)) * hitPoints + targets[index]);
-            targets[sink] += targets[opening] - cap;
-            targets[opening] = cap;
-        }
-
-        var ambushes = new HashSet<int>();
-        float spawned = 0;
         foreach (int index in climaxes.Concat(chosen.Except(climaxes).OrderBy(_ => _rng.Next())).Where(index => doors.Contains(rooms[index].Id) && !openings.Contains(index)))
         {
             int at = chosen.IndexOf(index);
             var door = GetPoint(doors[rooms[index].Id].First());
             bool together = new[] { at - 1, at + 1 }
                 .Where(neighbor => neighbor >= 0 && neighbor < chosen.Count && ambushes.Contains(chosen[neighbor]))
-                .Any(neighbor => GetDistance(GetPoint(doors[rooms[chosen[neighbor]].Id].First()), door) <= FightReach);
+                .Any(neighbor => GetDistance(GetPoint(doors[rooms[chosen[neighbor]].Id].First()), door) <= BeatMeasurer.FightReach);
 
             if (together || !(spawned + targets[index] / 2 <= _brief.SpawnedShare * hitPoints))
                 continue;
@@ -144,10 +133,10 @@ internal sealed class FightPlanner
             var room = rooms[index];
             int opening = Array.IndexOf(openings, index);
             var offered = monsters.Where(pair => opensAt.GetValueOrDefault(pair.Key, -1) <= index).ToDictionary();
-            float target = targets[index] + (opening >= 0 ? 0 : carry);
+            float target = targets[index] + carry;
             var group = DrawGroup(offered, target, opening >= 0 ? newKinds[opening] : null);
             int fightHitPoints = group.Sum(GetHitPoints);
-            carry = (opening >= 0 ? carry : 0) + target - fightHitPoints;
+            carry = target - fightHitPoints;
             if (group.Count == 0)
             {
                 continue;
@@ -168,6 +157,29 @@ internal sealed class FightPlanner
         return fights;
     }
 
+    // Gives each new kind the fight nearest a rank drawn from the style's opening ranks, an ambush at the style's share where a room allows one
+    private (int Fight, bool IsAmbush)[] DrawOpenings(List<int> chosen, float[] targets, int count, Func<int, bool> canAmbush)
+    {
+        int[] ranked = chosen
+            .OrderBy(index => targets[index])
+            .ToArray();
+
+        var picked = new List<(int Fight, bool IsAmbush)>();
+        for (int kind = 0; kind < Math.Min(count, chosen.Count); kind++)
+        {
+            bool ambush = _rng.NextSingle() < _rule.OpeningAmbushShare;
+            float rank = _rule.OpeningRanks[_rng.Next(_rule.OpeningRanks.Length)] * (ranked.Length - 1);
+            int[] free = Enumerable.Range(0, ranked.Length).Where(position => picked.All(opening => opening.Fight != ranked[position])).ToArray();
+            int[] fitting = free.Where(position => canAmbush(ranked[position]) == ambush).ToArray();
+            int at = (fitting.Length > 0 ? fitting : free).MinBy(position => MathF.Abs(position - rank));
+            picked.Add((ranked[at], ambush && canAmbush(ranked[at])));
+        }
+
+        return picked
+            .OrderBy(opening => opening.Fight)
+            .ToArray();
+    }
+
     private List<KnownObject> DrawGroup(Dictionary<KnownObject, float> offered, float target, KnownObject? forced)
     {
         var group = forced is null ? new List<KnownObject>() : [forced.Value];
@@ -181,6 +193,12 @@ internal sealed class FightPlanner
             .ToDictionary(variants => variants.Key, variants => variants.Sum(pair => pair.Value * GetHitPoints(pair.Key))));
 
         var variants = offered.Where(pair => pair.Key.MonsterFamily == family).ToArray();
+        if (variants.Length > 1 && _rng.NextSingle() < _rule.PureShare)
+        {
+            var kept = forced?.MonsterFamily == family ? forced.Value : variants[DrawVariant(variants, new int[variants.Length], 0)].Key;
+            variants = variants.Where(pair => pair.Key == kept).ToArray();
+        }
+
         int[] hitPoints = variants.Select(pair => GetHitPoints(pair.Key)).ToArray();
         int[] counts = variants.Select(pair => group.Count(id => id == pair.Key)).ToArray();
         float total = group.Sum(GetHitPoints);
@@ -204,14 +222,14 @@ internal sealed class FightPlanner
         bool anyOpen = false;
         for (int index = 0; index < variants.Length; index++)
         {
-            anyOpen |= counts[index] < MostVariantShare * (size + 1);
+            anyOpen |= counts[index] < _rule.MixedVariantMax * (size + 1);
         }
 
         float sum = 0;
         int last = 0;
         for (int index = 0; index < variants.Length; index++)
         {
-            if (anyOpen && !(counts[index] < MostVariantShare * (size + 1)))
+            if (anyOpen && !(counts[index] < _rule.MixedVariantMax * (size + 1)))
                 continue;
             
             sum += variants[index].Value;
@@ -221,7 +239,7 @@ internal sealed class FightPlanner
         float roll = _rng.NextSingle() * sum;
         for (int index = 0; index < variants.Length; index++)
         {
-            if (anyOpen && !(counts[index] < MostVariantShare * (size + 1)))
+            if (anyOpen && !(counts[index] < _rule.MixedVariantMax * (size + 1)))
                 continue;
             
             roll -= variants[index].Value;
@@ -278,4 +296,14 @@ internal sealed class FightPlanner
     }
 
     private int GetHitPoints(KnownObject id) => _objects.TryFind(id, out var found) ? found.MaxHp : 0;
+}
+
+// Opening ranks run from the level's smallest fight (0) to its biggest (1)
+internal sealed record FightRule(float[] OpeningRanks, float OpeningAmbushShare, float PureShare, float MixedVariantMax)
+{
+    public static readonly FightRule Campaign = new([0.17f, 0.4f, 0.5f, 0.67f, 0.8f, 0.8f, 0.83f, 1, 1, 1], 0.7f, 0.29f, 0.82f);
+
+    public static readonly FightRule AddOn = new([0.67f, 0.88f, 1, 1, 1, 1, 1], 1, 0.28f, 0.82f);
+
+    public static FightRule For(GenerationStyle style) => style == GenerationStyle.Campaign ? Campaign : AddOn;
 }

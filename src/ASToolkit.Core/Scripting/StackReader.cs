@@ -262,7 +262,7 @@ internal sealed class StackReader
         bool other = action.Var1 > 0 && _context.Objects.TryFind((KnownObject)action.Var1, out _);
         bool nearby = action is { Var2: 0, Var3: 0 };
         var target = !other ? _sprite
-            : _context.FindNearest((KnownObject)action.Var1, nearby ? new Vector2(_sprite.Position.X, _sprite.Position.Y) : new Vector2(action.Var2, action.Var3),
+            : _context.FindNearest((KnownObject)action.Var1, nearby ? _sprite.Position.AsVector2() : new Vector2(action.Var2, action.Var3),
                 _sprite.Handle);
         string subject = !other ? "" : nearby ? $" {_context.GetObjectName(action.Var1)} nearby" : $" {_context.GetObjectName(action.Var1)} near ({action.Var2}, {action.Var3})";
         bool dies = animation is SpriteAnimation.Death or SpriteAnimation.Death2;

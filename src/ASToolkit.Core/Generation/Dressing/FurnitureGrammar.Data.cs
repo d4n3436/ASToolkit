@@ -1,4 +1,3 @@
-using System.Drawing;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using static ASToolkit.Core.Formats.KnownObject;
