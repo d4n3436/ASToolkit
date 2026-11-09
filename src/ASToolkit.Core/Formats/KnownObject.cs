@@ -50,14 +50,29 @@ public enum KnownObject
     /// <summary>The red monster of kind 1.</summary>
     RedMonster1 = 56,
 
+    /// <summary>The corpse of the red monster of kind 1.</summary>
+    RedMonster1Corpse = 58,
+
+    /// <summary>The frozen monster of kind 1.</summary>
+    FrozenMonster1 = 59,
+
     /// <summary>The green monster of kind 2.</summary>
     Monster2 = 60,
+
+    /// <summary>The corpse of the monster of kind 2.</summary>
+    Monster2Corpse = 62,
 
     /// <summary>The yellow monster of kind 2.</summary>
     YellowMonster2 = 63,
 
     /// <summary>The red monster of kind 2.</summary>
     RedMonster2 = 66,
+
+    /// <summary>The corpse of the red monster of kind 2.</summary>
+    RedMonster2Corpse = 68,
+
+    /// <summary>The frozen monster of kind 2.</summary>
+    FrozenMonster2 = 69,
 
     /// <summary>The green armed monster.</summary>
     WeaponMonster = 70,
@@ -68,6 +83,9 @@ public enum KnownObject
     /// <summary>The red armed monster.</summary>
     RedWeaponMonster = 76,
 
+    /// <summary>The frozen weapon monster.</summary>
+    FrozenWeaponMonster = 79,
+
     /// <summary>The green tank monster.</summary>
     TankMonster = 80,
 
@@ -76,6 +94,9 @@ public enum KnownObject
 
     /// <summary>The red tank monster.</summary>
     RedTankMonster = 86,
+
+    /// <summary>The frozen tank monster.</summary>
+    FrozenTankMonster = 89,
 
     /// <summary>The green armed tank monster.</summary>
     TankWeaponMonster = 90,
@@ -95,6 +116,9 @@ public enum KnownObject
     /// <summary>The small dried blood pool.</summary>
     SmallBloodPool = 120,
 
+    /// <summary>The glow under health pickups.</summary>
+    HealthGlow = 125,
+
     /// <summary>The wall-mounted objects.</summary>
     WallObjects = 130,
 
@@ -109,6 +133,9 @@ public enum KnownObject
 
     /// <summary>The electric panel.</summary>
     ElectricPanel = 136,
+
+    /// <summary>The glow under ammunition pickups.</summary>
+    AmmoGlow = 139,
 
     /// <summary>The small built-in shadow.</summary>
     EmbeddedShadow = 144,
@@ -314,6 +341,9 @@ public enum KnownObject
     /// <summary>The destroyed military base generator.</summary>
     GeneratorDead = 416,
 
+    /// <summary>The electric breaker switched on.</summary>
+    BreakerOn = 417,
+
     /// <summary>The breaker.</summary>
     Breaker = 418,
 
@@ -370,6 +400,9 @@ public enum KnownObject
 
     /// <summary>The monster teleport pad.</summary>
     TeleportPad = 450,
+
+    /// <summary>The dead teleport pad for small monsters.</summary>
+    DeadSmallMonsterTeleportPad = 451,
 
     /// <summary>The teleport pad that spawns no monsters.</summary>
     SilentTeleportPad = 453,
@@ -500,6 +533,9 @@ public enum KnownObject
     /// <summary>The windows.</summary>
     Windows = 664,
 
+    /// <summary>The yard with a bench and swings.</summary>
+    Playground = 665,
+
     /// <summary>The boards.</summary>
     Boards = 666,
 
@@ -508,6 +544,9 @@ public enum KnownObject
 
     /// <summary>The gym equipment.</summary>
     GymEquipment = 668,
+
+    /// <summary>The trees and bushes.</summary>
+    Trees = 669,
 
     /// <summary>The toilet.</summary>
     Toilet = 670,
@@ -536,17 +575,29 @@ public enum KnownObject
     /// <summary>The menu button.</summary>
     MenuButton = 705,
 
+    /// <summary>The glow under bonuses.</summary>
+    BonusGlow = 759,
+
     /// <summary>The flying rock debris.</summary>
     RockDebris = 782,
 
     /// <summary>The rock debris lying on the floor.</summary>
     LyingRockDebris = 783,
 
+    /// <summary>The big outdoor light spot.</summary>
+    BigOutdoorLight = 784,
+
+    /// <summary>The volumetric lamp light.</summary>
+    VolumetricLampLight = 785,
+
     /// <summary>The first endless monster generator.</summary>
     FirstEndlessGenerator = 800,
 
     /// <summary>The yellow first endless generator.</summary>
     YellowEndlessGenerator1 = 801,
+
+    /// <summary>The red monster generator of kind 1.</summary>
+    RedEndlessGenerator1 = 802,
 
     /// <summary>The second endless generator.</summary>
     EndlessGenerator2 = 803,
@@ -590,8 +641,14 @@ public enum KnownObject
     /// <summary>The first boss's death remains.</summary>
     Boss1Death = 851,
 
+    /// <summary>The corpse of the level 1 boss.</summary>
+    Boss1Corpse = 852,
+
     /// <summary>The boss of level 2.</summary>
     Boss2 = 853,
+
+    /// <summary>The corpse of the level 2 boss.</summary>
+    Boss2Corpse = 855,
 
     /// <summary>The boss of level 3.</summary>
     Boss3 = 856,
@@ -599,8 +656,14 @@ public enum KnownObject
     /// <summary>The boss of level 4.</summary>
     Boss4 = 860,
 
+    /// <summary>The corpse of the level 4 boss.</summary>
+    Boss4Corpse = 862,
+
     /// <summary>The tank monster used as a boss.</summary>
     TankBoss = 863,
+
+    /// <summary>The tank boss corpse.</summary>
+    TankBossCorpse = 865,
 
     /// <summary>The blue tank-weapon monster used as a boss.</summary>
     BlueTankWeaponBoss = 866,
@@ -611,6 +674,9 @@ public enum KnownObject
     /// <summary>The flying monster that spawns.</summary>
     Bat = 880,
 
+    /// <summary>The larger shadow.</summary>
+    LargerShadow = 883,
+
     /// <summary>The diver monster.</summary>
     Diver = 885,
 
@@ -619,6 +685,9 @@ public enum KnownObject
 
     /// <summary>The diver with the boss weapon.</summary>
     DiverBoss = 890,
+
+    /// <summary>The corpse of the diver with a weapon.</summary>
+    DiverBossCorpse = 892,
 
     /// <summary>The generator sound source.</summary>
     GeneratorSound = 903,

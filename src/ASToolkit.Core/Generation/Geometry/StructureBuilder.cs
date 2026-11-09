@@ -29,13 +29,27 @@ public static class StructureBuilder
     private const float BigHoleShare = 0.67f;
     private static readonly Dictionary<KnownObject, float> BrokenKeypadShares = new() { [KnownObject.SmallDoorFrame] = 0.97f, [KnownObject.DoubleDoorFrame] = 0.85f };
 
-    private static readonly Dictionary<KnownObject, Dictionary<int, KeypadSpot>> Keypads = new()
+    private static readonly Dictionary<KnownObject, Dictionary<int, WallSpot>> Keypads = new()
     {
         [KnownObject.SmallDoor] = new() { [0] = new(new PointF(0, 7), 6, 0), [128] = new(new PointF(3, 1), 6, 128) },
         [KnownObject.DoubleDoor] = new() { [0] = new(new PointF(-2, 5), 4, 0), [64] = new(new PointF(0, 0), 4, 128) },
         [KnownObject.SmallDoorFrame] = new() { [0] = new(new PointF(-1, 1), 4, 0), [128] = new(new PointF(5, 4), 10, 128) },
         [KnownObject.DoubleDoorFrame] = new() { [0] = new(new PointF(-2, 6), 5, 0), [128] = new(new PointF(3, 2), 10, 128) }
     };
+
+    private static readonly Dictionary<KnownObject, DoorFixture> DoorFixtures = new()
+    {
+        [KnownObject.SmallDoorWall] = new(KnownObject.ElectricPanel, 0.12f, new() { [0] = new(new PointF(-24, 27), 0, 128), [128] = new(new PointF(-40, -19), 0, 0) }),
+        [KnownObject.DoubleDoorWall] = new(KnownObject.WallObjects, 0.1f, new() { [0] = new(new PointF(35, -11), 45, 128), [128] = new(new PointF(21, 28), 55, 102) })
+    };
+
+    private const float ClosetShadowShare = 0.8f;
+    private static readonly (int Min, int Max) ClosetShadows = (7, 27);
+    private const float ClosetShadowDepth = 0.75f;
+    private const float HoleRubbleShare = 0.25f;
+    private static readonly (int Min, int Max) HoleRubble = (25, 40);
+    private const float RubbleZ = 25;
+    private const float RubbleSpread = 8;
 
     private static readonly int[] BasementWallDirs = [0, 0, 0, 0, 0, 0, 128, 128, 128, 64, 64, 32];
     private static readonly int[] ConcreteWallDirs = [0, 0, 0, 0, 0, 85, 85, 170];
@@ -141,6 +155,13 @@ public static class StructureBuilder
         {
             map.Add(working ? locked ? KnownObject.KeypadOff : KnownObject.KeypadOn : KnownObject.BrokenKeypad, x + keypad.Offset.X, y + keypad.Offset.Y, keypad.Z, keypad.Dir);
         }
+
+        var fixture = DoorFixtures[door is KnownObject.DoubleDoor or KnownObject.DoubleDoorFrame ? KnownObject.DoubleDoorWall : KnownObject.SmallDoorWall];
+        var spot = fixture.Spots[slash ? 0 : 128];
+        if (rng.NextSingle() < fixture.Share)
+        {
+            map.Add(fixture.Id, x + spot.Offset.X, y + spot.Offset.Y, spot.Z, spot.Dir);
+        }
     }
 
     /// <summary>
@@ -148,7 +169,7 @@ public static class StructureBuilder
     /// roof and without posts, that close the closets off from the void, and returns the sprite index of each spawn wall.
     /// </summary>
     public static Dictionary<EdgeKey, int> BuildBasement(Random rng, MapBuilder map, FineLayout layout, IReadOnlyDictionary<EdgeKey, EdgeKind> edges,
-        Random closetRng, IReadOnlyDictionary<EdgeKey, EdgeKind> closetEdges, IReadOnlySet<EdgeKey> holes, bool locked)
+        Random closetRng, IReadOnlyDictionary<EdgeKey, EdgeKind> closetEdges, IReadOnlySet<Cell> closets, IReadOnlySet<EdgeKey> holes, bool locked)
     {
         var floor = GetCellsWithin(layout.Cells.Keys, BasementFloorReach).Keys.OrderBy(c => c.U).ThenBy(c => c.V);
         AddTiles(rng, map, KnownObject.BasementFloor, 0, floor.Select(layout.Lattice.GetCenter));
@@ -186,9 +207,11 @@ public static class StructureBuilder
                     break;
                 case EdgeKind.SecretWall:
                     map.Add(KnownObject.BreakableWall, x, y, 0, slash ? 0 : 128);
+                    ShadeCloset(rng, map, layout.Lattice, edge, closets);
                     break;
                 case EdgeKind.SpawnWall:
                     spawnWalls[edge] = slash ? map.Add(KnownObject.SpawnWallSlash, x, y) : map.Add(KnownObject.SpawnWallBack, x, y, 0, 64);
+                    ShadeCloset(rng, map, layout.Lattice, edge, closets);
                     break;
                 case EdgeKind.ShutDoor:
                     map.Add(KnownObject.SmallDoorWall, x, y, 0, slash ? 0 : 128);
@@ -204,6 +227,11 @@ public static class StructureBuilder
                     else if (holes.Contains(edge))
                     {
                         map.Add(rng.NextSingle() < BigHoleShare ? KnownObject.BigMonsterHole : KnownObject.SmallMonsterHole, x, y, 0, slash ? 0 : 128);
+                        for (int piece = rng.NextSingle() < HoleRubbleShare ? rng.Next(HoleRubble.Min, HoleRubble.Max + 1) : 0; piece > 0; piece--)
+                        {
+                            map.Add(KnownObject.RockDebris, x + (rng.NextSingle() * 2 - 1) * RubbleSpread, y + (rng.NextSingle() * 2 - 1) * RubbleSpread, RubbleZ, rng.Next(256),
+                                unique: false);
+                        }
                     }
                     else
                     {
@@ -411,6 +439,17 @@ public static class StructureBuilder
     public static (PointF Position, bool Slash) GetBasementPosition(Lattice l, EdgeKey k) =>
         k.Axis == 'v' ? (l.ToWorld(k.A + 0.25f, k.B + 0.25f), true) : (l.ToWorld(k.A - 0.25f, k.B + 0.75f), false);
 
+    private static void ShadeCloset(Random rng, MapBuilder map, Lattice lattice, EdgeKey edge, IReadOnlySet<Cell> closets)
+    {
+        float side = closets.Contains(edge.Cells.First) ? -1 : 1;
+        for (int shadow = rng.NextSingle() < ClosetShadowShare ? rng.Next(ClosetShadows.Min, ClosetShadows.Max + 1) : 0; shadow > 0; shadow--)
+        {
+            float depth = side * (0.05f + rng.NextSingle() * ClosetShadowDepth), along = rng.NextSingle();
+            (float x, float y) = edge.Axis == 'v' ? lattice.ToWorld(edge.A + along, edge.B + depth) : lattice.ToWorld(edge.A + depth, edge.B + along);
+            map.Add(KnownObject.EmbeddedShadow, x, y, 0, 0, unique: false);
+        }
+    }
+
     /// <summary>
     /// Returns the edge before an edge along its own direction.
     /// </summary>
@@ -537,4 +576,6 @@ public static class StructureBuilder
     }
 }
 
-internal readonly record struct KeypadSpot(PointF Offset, float Z, byte Dir);
+internal readonly record struct WallSpot(PointF Offset, float Z, byte Dir);
+
+internal sealed record DoorFixture(KnownObject Id, float Share, Dictionary<int, WallSpot> Spots);

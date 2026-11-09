@@ -28,6 +28,7 @@ public class LevelGeneratorIntegrationTests
     private const float RoofHeight = 90;
     private const float BasementRoofShift = 17;
     private const float SpacingSlack = 1;
+    private const float DoorPanelReach = 50;
 
     private static readonly Lazy<(LevelGenerator Generator, ObjectTable Objects, ReferenceLevelSet References, StyleModel Model)> CampaignSources = new(() => CreateSources(GenerationStyle.Campaign));
     private static readonly Lazy<(LevelGenerator Generator, ObjectTable Objects, ReferenceLevelSet References, StyleModel Model)> AddOnSources = new(() => CreateSources(GenerationStyle.AddOn));
@@ -620,7 +621,10 @@ public class LevelGeneratorIntegrationTests
                 : new MapSegment(lattice.ToWorld(edge.A, edge.B), lattice.ToWorld(edge.A, edge.B + 1)))
             .ToArray();
 
-        foreach (var sprite in floor.Concat(decor.Where(sprite => sprite.Id.IsWallMounted)))
+        // Leave out the panels the structure hangs beside small doors
+        var doors = level.Map.Sprites.Where(sprite => sprite.Id == KnownObject.SmallDoorWall).ToArray();
+        foreach (var sprite in floor.Concat(decor.Where(sprite => sprite.Id.IsWallMounted))
+                     .Where(sprite => sprite.Id != KnownObject.ElectricPanel || !doors.Any(door => Distance(new PointF(door.Position.X, door.Position.Y), new PointF(sprite.Position.X, sprite.Position.Y)) < DoorPanelReach)))
         {
             var blockingClass = sprite.Id.IsWallMounted ? BlockingClass.Hittable : objects.GetBlocking(sprite.Id);
             float? clearance = relations.GetDoorClearance(level.WallSet, blockingClass) - SpacingSlack;

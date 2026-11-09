@@ -66,15 +66,6 @@ public sealed class StyleFitter
             .Select(references.GetLevel)
             .ToArray();
 
-        var decorHeights = WallSets.ToDictionary(wallSet => wallSet, _ => new DecorHeightTable());
-        foreach (var level in levels)
-        {
-            foreach (var sprite in level.Map.Sprites.Where(sprite => sprite.Id.IsDecor))
-            {
-                decorHeights[level.Analysis.WallSet].Add(sprite.Id, sprite.Position.Z);
-            }
-        }
-
         var models = levels
             .Select(level => level.Model)
             .ToArray();
@@ -85,7 +76,6 @@ public sealed class StyleFitter
             style,
             fitting,
             ObjectRelationTable.Build(levels, _objects),
-            decorHeights,
             WallSets.ToDictionary(wallSet => wallSet, wallSet => WallClearanceTable.Build(models.Where(model => model.WallSet == wallSet))),
             WallSets.ToDictionary(wallSet => wallSet, wallSet => FacingTable.Build(models.Where(model => model.WallSet == wallSet), _objects, leaning)),
             _campaign.Fit(references, style, excluded))

@@ -187,7 +187,6 @@ internal sealed class EncounterPlacer
             }
 
             _spawners.Add(point.Value);
-            _ctx.AddCompanions(KnownObject.Spawner, point.Value.X, point.Value.Y, 0);
         }
 
         return true;
@@ -209,7 +208,6 @@ internal sealed class EncounterPlacer
             _spawners.Add(point);
             _ctx.Map.Add(KnownObject.Spawner, point.X, point.Y, 0, 0, SpawnerProgram.Create(fight.Groups[index], (center.X, center.Y, radius), [center]).ToPayload(), 1, unique: false,
                 source: SpriteSource.Model);
-            _ctx.AddCompanions(KnownObject.Spawner, point.X, point.Y, 0);
         }
 
         // Break the wall when the player enters the trigger

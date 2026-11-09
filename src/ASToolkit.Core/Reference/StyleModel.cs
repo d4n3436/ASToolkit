@@ -9,20 +9,18 @@ namespace ASToolkit.Core.Reference;
 /// </summary>
 public sealed class StyleModel
 {
-    private readonly FrozenDictionary<WallSet, DecorHeightTable> _decorHeights;
     private readonly FrozenDictionary<WallSet, WallClearanceTable> _wallClearance;
     private readonly FrozenDictionary<WallSet, FacingTable> _facings;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="StyleModel"/> class.
     /// </summary>
-    public StyleModel(GenerationStyle style, IReadOnlyList<string> fittingLevels, ObjectRelationTable relations, IReadOnlyDictionary<WallSet, DecorHeightTable> decorHeights,
-        IReadOnlyDictionary<WallSet, WallClearanceTable> wallClearance, IReadOnlyDictionary<WallSet, FacingTable> facings, CampaignModel campaign)
+    public StyleModel(GenerationStyle style, IReadOnlyList<string> fittingLevels, ObjectRelationTable relations, IReadOnlyDictionary<WallSet, WallClearanceTable> wallClearance,
+        IReadOnlyDictionary<WallSet, FacingTable> facings, CampaignModel campaign)
     {
         Style = style;
         FittingLevels = fittingLevels;
         Relations = relations;
-        _decorHeights = decorHeights.ToFrozenDictionary();
         _wallClearance = wallClearance.ToFrozenDictionary();
         _facings = facings.ToFrozenDictionary();
         Campaign = campaign;
@@ -62,11 +60,6 @@ public sealed class StyleModel
     /// Gets how the objects of the fitted levels stand by each other, walls and doorways.
     /// </summary>
     public ObjectRelationTable Relations { get; }
-
-    /// <summary>
-    /// Returns the heights the decor of a wall set stands at.
-    /// </summary>
-    public DecorHeightTable GetDecorHeights(WallSet wallSet) => _decorHeights[wallSet];
 
     /// <summary>
     /// Returns how far the objects of a wall set stand from walls.

@@ -1,5 +1,6 @@
 using System.Drawing;
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Generation.Dressing;
 using ASToolkit.Core.Generation.Geometry;
 using ASToolkit.Core.Generation.Layout;
 using ASToolkit.Core.Generation.Output;
@@ -206,7 +207,7 @@ internal static class ContentPlacer
                     continue;
                     
                 var corpse = KnownObject.SoldierCorpse + thirdIndex;
-                byte facing = facings.PickFacing(ctx.Rng, corpse, builtEdges, u, v);
+                byte facing = FurnitureGrammar.Default.Poses[corpse].DrawLying(ctx.Rng);
                 if (facings.Fits(corpse, facing, builtEdges, u, v))
                 {
                     ctx.Map.Add(corpse, x, y, 0, facing, unique: false);

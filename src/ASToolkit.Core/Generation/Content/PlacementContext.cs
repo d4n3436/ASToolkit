@@ -16,11 +16,17 @@ public sealed class PlacementContext
 {
     private const float RoofSight = 90;
     private const float SightStep = 6;
+    private static readonly SizeF ShadowSpread = new(12, 8);
+    private static readonly Dictionary<ItemCategory, float> ShadowsPerPickup = new()
+    {
+        [ItemCategory.Money] = 1.6f, [ItemCategory.Weapon] = 2.8f, [ItemCategory.Implant] = 0.6f, [ItemCategory.Ammo] = 0.3f, [ItemCategory.Armor] = 0.3f
+    };
+
+    private static readonly Dictionary<KnownObject, float> ShadowsPerItem = new() { [KnownObject.ExtraLife] = 2.3f, [KnownObject.Invulnerability] = 8, [KnownObject.Medkit] = 1.75f };
 
     private readonly Dictionary<(int, int), List<(float X, float Y, float Ex, float Ey)>> _wallBoxes = [];
     private readonly Dictionary<int, float> _progress = [];
     private readonly IReadOnlySet<Cell> _blocked;
-    private readonly Func<KnownObject, IReadOnlyList<ObjectCompanion>> _companionsOf;
 
     /// <summary>
     /// Gets the objects standing on the level's floor and the doorways kept clear of them.
@@ -31,9 +37,8 @@ public sealed class PlacementContext
     /// Initializes a new instance of the <see cref="PlacementContext"/> class.
     /// </summary>
     public PlacementContext(Random rng, LevelBrief brief, LayoutPlan plan, FineLayout layout, MapBuilder map, ObjectTable objects, Cell start, IReadOnlySet<Cell> blocked, IReadOnlySet<Cell> keepClear,
-        LevelOccupancy occupancy, Func<KnownObject, IReadOnlyList<ObjectCompanion>> companionsOf)
+        LevelOccupancy occupancy)
     {
-        _companionsOf = companionsOf;
         Occupancy = occupancy;
         Rng = rng;
         Brief = brief;
@@ -241,6 +246,7 @@ public sealed class PlacementContext
             }
 
             Map.Add(id, spot.Value.X, spot.Value.Y, z, dir ?? Rng.Next(256), payload, army, unique: false);
+            ShadePickup(id, spot.Value.X, spot.Value.Y);
             return (spot.Value.X, spot.Value.Y, cells[cellIndex]);
         }
 
@@ -248,29 +254,26 @@ public sealed class PlacementContext
     }
 
     /// <summary>
-    /// Returns the height an object stands at, raised for a piece linked below it, such as a pickup's glow, to rest on the floor.
+    /// Lays the shadows under a pickup at the count its kind carries, rounded at random.
     /// </summary>
-    public float GetRestingHeight(KnownObject id) => Objects.TryFind(id, out var obj) && obj.Link != 0 && obj.LinkOffset.Z < 0 ? 1 - obj.LinkOffset.Z : 0;
-
-    /// <summary>
-    /// Lays the companions of an object placed at a map point, each where it lands on visible floor and fits.
-    /// </summary>
-    public void AddCompanions(KnownObject anchor, float x, float y, byte facing)
+    public void ShadePickup(KnownObject id, float x, float y)
     {
-        foreach (var companion in _companionsOf(anchor))
+        var category = id.PickupCategory;
+        float rate = ShadowsPerItem.GetValueOrDefault(id, category is null ? 0 : ShadowsPerPickup.GetValueOrDefault(category.Value));
+        for (int shadow = (int)MathF.Floor(rate + Rng.NextSingle()); shadow > 0; shadow--)
         {
-            foreach (var sample in companion.Draw(Rng, facing))
+            float sx = x + (Rng.NextSingle() * 2 - 1) * ShadowSpread.Width, sy = y + (Rng.NextSingle() * 2 - 1) * ShadowSpread.Height;
+            if (Layout.Cells.ContainsKey(Layout.Lattice.GetCell(sx, sy)) && !IsInWall(sx, sy, 0))
             {
-                float cx = x + sample.Dx;
-                float cy = y + sample.Dy;
-                if (IsVisible(cx, cy) && !IsInWall(cx, cy, 0) && Occupancy.Fits(companion.Id, cx, cy, sample.Dz))
-                {
-                    Occupancy.Add(companion.Id, cx, cy, sample.Dz);
-                    Map.Add(companion.Id, cx, cy, sample.Dz, sample.Facing, unique: false);
-                }
+                Map.Add(KnownObject.EmbeddedShadow, sx, sy, 0, 0, unique: false);
             }
         }
     }
+
+    /// <summary>
+    /// Returns the height an object stands at, raised for a piece linked below it, such as a pickup's glow, to rest on the floor.
+    /// </summary>
+    public float GetRestingHeight(KnownObject id) => Objects.TryFind(id, out var obj) && obj.Link != 0 && obj.LinkOffset.Z < 0 ? 1 - obj.LinkOffset.Z : 0;
 
     /// <summary>
     /// Returns the cells of a shortest walk between two cells, every door open.

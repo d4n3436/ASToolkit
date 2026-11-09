@@ -43,6 +43,12 @@ public readonly record struct CollisionBox(float X, float Y, float HalfWidth, fl
     public float MaxY => Y + HalfHeight;
 
     /// <summary>
+    /// Returns the cells a solid object's collision box touches, sampled at its corners, edge midpoints and center.
+    /// </summary>
+    public static HashSet<Cell> GetFootprint(Lattice lattice, ObjectTable objects, KnownObject id, float x, float y) =>
+        objects.TryFind(id, out var obj) && obj.IsSolid ? Create(obj, x, y, ExtentShare, 0).GetSampledCells(lattice) : [];
+
+    /// <summary>
     /// Creates the box of an object at a map point, reaching a share of its extent plus a margin.
     /// </summary>
     public static CollisionBox Create(in GameObject obj, float x, float y, float share, float grow) => Create(obj.Size, x, y, share, grow);

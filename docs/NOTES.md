@@ -479,7 +479,10 @@ Measured on campaign levels 2 to 10. A far wall is one of the two upper edges of
 - Cabinet 413's frames are different furniture: frames 170 and 192 are narrow lockers that stand 0.25 lattice units apart side by side, the other frames wide cabinets and shelving kept 0.49 to 0.95 apart. Cabinets stack in tiers 27 units apart.
 - Campaign furniture keeps clear of the walls at its ends by frame: bookcase-frame cabinets (21) at least 0.75 lattice units, desks 0.83 to 1.02. Campaign tables facing the same way stand at least 1.22 apart, and a desk at frame 0 stands at least 1.32 from a frame 21 bookcase. Every original office has a desk, small ones included (25 of 25 under 200 half cells).
 - The embedded shadow 144 is a soft dark patch. The campaign puts one under every table, 79% of shelves, 41% of cabinets and 39% of bio containers, two under each cash pickup (246 under 123), several under extra lives and weapons, 112 among blood pools, and 653 alone as floor shading. Campaign offices hold crates in 1 of 36 rooms, against a wall; add-on offices in 16 of 31, mostly on open floor.
-
+- Gore lies as victims, a corpse with a pool and small blood on one spot, by room type rather than by the fights. Gibs lie only where the blood of several victims runs together.
+- Soldier corpse 430 pictures 0 and 1 are seated poses, each leaning against a far wall of one direction or a container.
+- Picture sets (wall objects 130, signs 131, the electric panel 136, monitors) show one picture per far wall direction, chosen by the direction byte.
+- Breakable and spawn walls hide shadows in the closet behind them.
 - Placed monsters face random directions (a median of 12% of a group share one facing).
 - No room of an original repeats the decor of another room of the same level.
 - Add-on 1 level 5 reuses a room of level 8 (42 of 55 objects at the same offsets) and the stripes around its cannon.

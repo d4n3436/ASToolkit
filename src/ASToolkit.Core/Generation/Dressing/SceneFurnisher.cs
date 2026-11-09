@@ -23,7 +23,9 @@ internal sealed class SceneFurnisher
     private const float OpeningReach = 3;
     private const float SquareRatio = 1.25f;
     private const float MiddleSlack = 1.5f;
-    private const int SourceLevel = -3;
+    private const float SeatSlack = 0.3f;
+    private const float SeatReach = 0.7f;
+    private const float FrontSpan = 60;
     private static readonly RoomProgram EmptyProgram = new([[0, 0], [0, 0], [0, 0], [0, 0]], false, 0, [], []);
 
     private readonly FurnitureGrammar _grammar;
@@ -35,6 +37,8 @@ internal sealed class SceneFurnisher
     private readonly IReadOnlySet<Cell> _reserved;
     private readonly WallClearanceTable _clearance;
     private readonly float _sizeShare;
+    private readonly bool _rubble;
+    private readonly WallSet _wallSet;
     private readonly List<PlacedDecor> _placed = [];
 
     private RoomGeometry _room = null!;
@@ -48,8 +52,10 @@ internal sealed class SceneFurnisher
     private bool _inScene;
 
     public SceneFurnisher(FurnitureGrammar grammar, ObjectTable objects, GenerationStyle style, Random rng, FineLayout layout, LevelOccupancy occupancy,
-        IReadOnlySet<Cell> reserved, WallClearanceTable clearance)
+        IReadOnlySet<Cell> reserved, WallSet wallSet, WallClearanceTable clearance, bool rubble)
     {
+        _wallSet = wallSet;
+        _rubble = rubble;
         _grammar = grammar;
         _objects = objects;
         _campaign = style == GenerationStyle.Campaign;
@@ -81,7 +87,8 @@ internal sealed class SceneFurnisher
             if (!furnished && own.Length == 0)
                 continue;
 
-            foreach (var scene in FurnishRoom(new RoomGeometry(_layout, _layout.GetRegionCells(region.Id), _reserved), furnished ? _grammar.Types[type] : EmptyProgram, own))
+            var room = new RoomGeometry(_layout, _layout.GetRegionCells(region.Id), _reserved);
+            foreach (var scene in FurnishRoom(room, furnished ? _grammar.Types[type] : EmptyProgram, own, furnished ? type : null))
             {
                 int[] next = scene.Fallbacks.SkipWhile(done.Contains).ToArray();
                 if (next.Length > 0)
@@ -91,10 +98,11 @@ internal sealed class SceneFurnisher
             }
         }
 
+        AddGibs();
         return _placed;
     }
 
-    private List<SceneRequest> FurnishRoom(RoomGeometry room, RoomProgram program, SceneRequest[] scenes)
+    private List<SceneRequest> FurnishRoom(RoomGeometry room, RoomProgram program, SceneRequest[] scenes, RoomType? type)
     {
         _room = room;
         _program = program;
@@ -160,7 +168,43 @@ internal sealed class SceneFurnisher
             CoverFarWalls(cover);
         }
 
+        if (type is not null)
+        {
+            Dress(type.Value);
+        }
+
         return missed;
+    }
+
+    private void Dress(RoomType type)
+    {
+        foreach (var fixture in _grammar.Fixtures)
+        {
+            float share = fixture.Shares.GetValueOrDefault(type);
+            foreach (var wall in _room.Walls.Where(wall => (wall.Face & FarFaces) != 0))
+            {
+                foreach (var cell in wall.Cells.Where(cell => !_room.Openings.Contains(cell) && _rng.NextSingle() < share))
+                {
+                    Hang(fixture, cell, wall.Face, Along(cell, wall.Face) + 0.5f);
+                }
+            }
+        }
+
+        var victims = _grammar.Victims.GetValueOrDefault(type);
+        if (victims is not null)
+        {
+            PlaceVictims(victims);
+        }
+
+        var rubble = _grammar.Rubble;
+        var cells = _room.Cells.ToArray();
+        for (int pile = _rubble ? (int)MathF.Floor(rubble.PerHundredCells.GetValueOrDefault(type) * _room.HalfCells / 100 + _rng.NextSingle()) : 0; pile > 0; pile--)
+        {
+            bool heap = _rng.NextSingle() < rubble.BigShare;
+            var cell = cells[_rng.Next(cells.Length)];
+            Splash(KnownObject.LyingRockDebris, new PointF(cell.U + _rng.NextSingle(), cell.V + _rng.NextSingle()), heap ? rubble.Big : rubble.Small, heap ? rubble.BigRadius : rubble.SmallRadius,
+                rubble.Z);
+        }
     }
 
     private void CoverFarWalls(Arrangement cover)
@@ -530,6 +574,7 @@ internal sealed class SceneFurnisher
         _floor[^1] = (point, id, dir, box);
         _anchors++;
         StandCompanions(id, point, dir);
+
         _force = false;
         return true;
     }
@@ -541,7 +586,24 @@ internal sealed class SceneFurnisher
         return new RectangleF(point.X - spanU / 2, point.Y - spanV / 2, spanU, spanV);
     }
 
-    private bool IsFree(RectangleF box) => _floor.All(piece => !(RectangleF.Intersect(piece.Box, box) is { Width: > 0.02f, Height: > 0.02f }));
+    private bool IsHidden(PointF point) => _floor.Any(piece => IsInFront(piece.Point, point));
+
+    private bool IsInFront(PointF front, PointF behind)
+    {
+        var near = _layout.Lattice.ToWorld(front.X, front.Y);
+        var far = _layout.Lattice.ToWorld(behind.X, behind.Y);
+        return near.Y > far.Y && MathF.Abs(near.X - far.X) < FrontSpan && GetDistance(front, behind) < _grammar.Splatter.FrontReach;
+    }
+
+    private float GetWallReach(PointF point, WallSides side)
+    {
+        var hit = _layout.Edges.CastRay(point.X, point.Y, side, _layout.Cells.ContainsKey, 3);
+        return hit is not null && hit.Value.Kind.ShowsWall ? hit.Value.Distance : float.PositiveInfinity;
+    }
+
+    private bool IsFree(RectangleF box) => _floor.All(piece => !Overlaps(piece.Box, box));
+
+    private static bool Overlaps(RectangleF first, RectangleF second) => RectangleF.Intersect(first, second) is { Width: > 0.02f, Height: > 0.02f };
 
     private void StandCompanions(KnownObject id, PointF point, byte dir)
     {
@@ -572,13 +634,14 @@ internal sealed class SceneFurnisher
     {
         var world = _layout.Lattice.ToWorld(point.X, point.Y);
         var cell = _room.GetCell(point);
-        var footprint = z > 0 ? [] : Dresser.GetFootprint(_layout.Lattice, _objects, id, world.X, world.Y, 0);
+        var footprint = z > 0 ? [] : CollisionBox.GetFootprint(_layout.Lattice, _objects, id, world.X, world.Y);
         footprint.IntersectWith(_room.Cells);
 
         // Keep pieces walked over or through out of the spacing and the floor list
         bool standing = z <= 0 && !id.IsAttached && (id.Family is not null || _objects.GetBlocking(id) == BlockingClass.Solid);
         if (_campaign && _grammar.AddOnOnly.Contains(id) || !_room.Cells.Contains(cell) || standing && lining < 0 && !IsInside(id, point, dir, 0) || _reserved.Contains(cell) && (standing || !_inScene)
             || footprint.Overlaps(_room.Openings) || standing && _floor.Any(other => IsTooClose(other, id, point, dir, lining >= 0)) || !IsJoinedWithout(footprint)
+            || standing && _placed.Any(piece => piece.Id.IsCorpse && IsInFront(point, new PointF(piece.U, piece.V)))
             || !_occupancy.Fits(id, world.X, world.Y, z, _inScene))
         {
             return false;
@@ -605,16 +668,204 @@ internal sealed class SceneFurnisher
             _ => []
         };
 
-        _placed.Add(new PlacedDecor(id, point.X, point.Y, z, dir, payload, (SourceLevel, _placed.Count), null, SpriteSource.Model));
+        // Keep corpses clear of near walls and of pieces in front of them on screen, and lay a corpse with nothing behind its seated picture flat
+        if (id.IsCorpse && (new[] { WallSides.LowerBack, WallSides.LowerSlash }.Any(side => GetWallReach(point, side) < _grammar.Splatter.NearWallReach) || IsHidden(point)))
+        {
+            return false;
+        }
+
+        var pose = _grammar.Poses.GetValueOrDefault(id);
+        var seat = pose is not null && _objects.TryFind(id, out var corpse)
+            ? pose.Seats.GetValueOrDefault((byte)(corpse.GetDirection(dir) * 256 / corpse.Directions))
+            : null;
+        if (pose is not null && seat is not null && !IsSeated(pose, seat, point))
+        {
+            dir = pose.DrawLying(_rng);
+        }
+
+        Add(id, point, z, dir, payload);
+        if (id.IsCorpse)
+        {
+            Add(KnownObject.BloodPool, point, 0, (byte)_rng.Next(256));
+            Splash(KnownObject.SmallBloodPool, point, _grammar.Splatter.CorpseBlood, _grammar.Splatter.CorpseRadius);
+        }
+
         foreach (var attached in _grammar.Attached.GetValueOrDefault(id) ?? [])
         {
+            var at = new PointF(point.X + attached.U, point.Y + attached.V);
             if (_rng.NextSingle() < attached.Share)
             {
-                Commit(attached.Id, new PointF(point.X + attached.U, point.Y + attached.V), 0, dir);
+                Commit(attached.Id, at, 0, _grammar.Facings.ContainsKey(attached.Id) ? GetFacing(attached.Id, at) : dir);
             }
         }
 
         return true;
+    }
+
+    private void Add(KnownObject id, PointF point, float z, byte dir, byte[]? payload = null) =>
+        _placed.Add(new PlacedDecor(id, point.X, point.Y, z, dir, payload ?? []));
+
+    private void Hang(Fixture fixture, Cell wall, int face, float along)
+    {
+        var id = Draw(fixture.Ids);
+        if (id is not null)
+        {
+            Commit(id.Value, FromWall(wall, face, fixture.WallDistance, along), fixture.Z, fixture.Dirs[face]);
+        }
+    }
+
+    private void PlaceVictims(VictimRule rule)
+    {
+        var splatter = _grammar.Splatter;
+        var beside = _floor
+            .Where(piece => rule.Beside.Length == 0 || rule.Beside.Any(family => piece.Id.Family == family))
+            .Select(piece => piece.Point)
+            .ToArray();
+
+        var cells = _room.Cells.ToArray();
+        int count = (int)MathF.Floor(rule.PerHundredCells * _room.HalfCells / 100 + _rng.NextSingle())
+                    - _placed.Count(piece => piece.Id.IsCorpse && _room.Cells.Contains(_room.GetCell(new PointF(piece.U, piece.V))));
+        for (int unit = 0; unit < count; unit++)
+        {
+            bool corpse = _rng.NextSingle() < splatter.CorpseShare;
+            var id = _rng.NextSingle() < rule.ScientistShare ? KnownObject.ScientistCorpse : KnownObject.SoldierCorpse;
+            var pose = _grammar.Poses[id];
+            byte dir = Draw(pose.Pictures);
+            var seat = pose.Seats.GetValueOrDefault(dir);
+            for (int attempt = 0; attempt < Tries; attempt++)
+            {
+                float angle = _rng.NextSingle() * 2 * MathF.PI, reach = Draw(splatter.Reach);
+                var cell = cells[_rng.Next(cells.Length)];
+                var basis = beside.Length > 0 ? beside[_rng.Next(beside.Length)] : new PointF(cell.U + 0.5f, cell.V + 0.5f);
+                var point = beside.Length > 0 ? new PointF(basis.X + MathF.Cos(angle) * reach, basis.Y + MathF.Sin(angle) * reach) : basis;
+                int partner = -1;
+                if (corpse && seat is not null)
+                {
+                    var seated = GetSeat(pose, seat);
+                    if (seated is null || !IsSeated(pose, seat, seated.Value.Point))
+                        continue;
+
+                    (point, partner) = (seated.Value.Point, seated.Value.Partner);
+                }
+
+                // Let a seated corpse touch only the piece it leans on, and keep every corpse off the others' footprints
+                var box = GetBox(id, point);
+                bool free = _floor
+                    .Select((piece, index) => index == partner ? !piece.Box.Contains(point) : !Overlaps(piece.Box, box) && GetDistance(piece.Point, point) >= GetExtent(piece.Id) / 2)
+                    .All(clear => clear);
+                if (corpse && (!free || _placed.Any(piece => piece.Id.IsCorpse && GetDistance(new PointF(piece.U, piece.V), point) < splatter.Gap)))
+                    continue;
+
+                if (corpse ? Commit(id, point, 0, dir) : IsFloor(point) && Splash(KnownObject.SmallBloodPool, point, splatter.Blood, splatter.Radius) > 0)
+                    break;
+            }
+        }
+    }
+
+    private SeatSpot? GetSeat(CorpsePose pose, Seat seat)
+    {
+        var pieces = Enumerable.Range(0, _floor.Count)
+            .Where(index => GetFaceOffsets(pose, seat, _floor[index].Id, _floor[index].Dir).Length > 0)
+            .ToArray();
+
+        if (pieces.Length > 0 && _rng.NextSingle() < pose.PieceShare)
+        {
+            int index = pieces[_rng.Next(pieces.Length)];
+            var piece = _floor[index];
+            var offsets = GetFaceOffsets(pose, seat, piece.Id, piece.Dir);
+            return new SeatSpot(FromPartner(piece.Point, seat, offsets[_rng.Next(offsets.Length)]), index);
+        }
+
+        var walls = _room.Walls.Where(wall => wall.Face == seat.Face).ToArray();
+        if (walls.Length == 0)
+        {
+            return null;
+        }
+
+        var cells = walls[_rng.Next(walls.Length)].Cells;
+        var cell = cells[_rng.Next(cells.Length)];
+        return new SeatSpot(FromWall(cell, seat.Face, seat.WallDistance[_wallSet], Along(cell, seat.Face) + _rng.NextSingle()), -1);
+    }
+
+    // Take the offsets for the face the partner turns to the seat, keeping those in front of it, never past its corner
+    private PointF[] GetFaceOffsets(CorpsePose pose, Seat seat, KnownObject id, byte dir)
+    {
+        var offsets = pose.Partners.FirstOrDefault(pair => id.Family == pair.Key).Value;
+        if (offsets is null || !_objects.TryFind(id, out var partner))
+        {
+            return [];
+        }
+
+        int picture = partner.GetDirection(dir);
+        var face = !offsets.Pictures.Contains(picture) ? [] : picture == seat.Picture ? offsets.Same : offsets.Turned;
+        return face.Where(offset => MathF.Abs(offset.Y) < GetExtent(id) / 2).ToArray();
+    }
+
+    private static PointF FromPartner(PointF partner, Seat seat, PointF offset)
+    {
+        var normal = GetNormal(seat.Face);
+        return new PointF(partner.X - normal.X * offset.X - normal.Y * offset.Y, partner.Y - normal.Y * offset.X - normal.X * offset.Y);
+    }
+
+    // Wall sides share the face bits
+    private bool IsSeated(CorpsePose pose, Seat seat, PointF point)
+    {
+        var wall = _layout.Edges.FindNearestWall(point.X, point.Y);
+        var normal = GetNormal(seat.Face);
+        bool between = wall is not null && _floor.Any(piece =>
+        {
+            float along = (piece.Point.X - point.X) * normal.X + (piece.Point.Y - point.Y) * normal.Y;
+            float across = (piece.Point.X - point.X) * normal.Y + (piece.Point.Y - point.Y) * normal.X;
+            return along > 0 && along < wall.Value.Distance && MathF.Abs(across) <= SeatReach;
+        });
+
+        return wall is not null && !between && (int)wall.Value.Side == seat.Face && MathF.Abs(wall.Value.Distance - seat.WallDistance[_wallSet]) <= SeatSlack
+               || _floor.Any(piece => GetFaceOffsets(pose, seat, piece.Id, piece.Dir).Any(offset => GetDistance(FromPartner(piece.Point, seat, offset), point) <= SeatSlack));
+    }
+
+    private int Splash(KnownObject id, PointF center, int[] count, float radius, float z = 0)
+    {
+        int splashed = 0;
+        for (int drop = _rng.Next(count[0], count[1] + 1); drop > 0; drop--)
+        {
+            float angle = _rng.NextSingle() * 2 * MathF.PI, distance = radius * _rng.NextSingle();
+            var point = new PointF(center.X + MathF.Cos(angle) * distance, center.Y + MathF.Sin(angle) * distance);
+            if (!IsFloor(point))
+                continue;
+            
+            Add(id, point, z, (byte)_rng.Next(256));
+            splashed++;
+        }
+
+        return splashed;
+    }
+
+    private bool IsFloor(PointF point) => _room.Cells.Contains(_room.GetCell(point)) && !_reserved.Contains(_room.GetCell(point));
+
+    private void AddGibs()
+    {
+        var splatter = _grammar.Splatter;
+        var left = _placed
+            .Where(piece => piece.Id == KnownObject.SmallBloodPool)
+            .Select(piece => new PointF(piece.U, piece.V))
+            .ToList();
+
+        while (left.Count > 0)
+        {
+            var cluster = new List<PointF> { left[^1] };
+            left.RemoveAt(left.Count - 1);
+            for (int index = 0; index < cluster.Count; index++)
+            {
+                var seed = cluster[index];
+                cluster.AddRange(left.Where(point => GetDistance(point, seed) < splatter.GibReach));
+                left.RemoveAll(point => GetDistance(point, seed) < splatter.GibReach);
+            }
+
+            for (int gib = cluster.Count >= splatter.GibBlood ? cluster.Count / splatter.BloodPerGib : 0; gib > 0; gib--)
+            {
+                Add(KnownObject.FlyingGibs, cluster[_rng.Next(cluster.Count)], 0, (byte)_rng.Next(256));
+            }
+        }
     }
 
     private bool IsJoinedWithout(HashSet<Cell> footprint)
@@ -791,5 +1042,8 @@ internal sealed class SceneFurnisher
 internal readonly record struct SceneRequest(int Region, KnownObject Anchor, PointF? At, byte Dir, int[] Fallbacks);
 
 internal readonly record struct LinedSpot(PointF Point, byte Dir, float Weight, Cell Cell, int Faces, float Along);
+
+// No partner is index -1
+internal readonly record struct SeatSpot(PointF Point, int Partner);
 
 internal readonly record struct LinedPair(LinedSpot First, LinedSpot? Second, float Weight);

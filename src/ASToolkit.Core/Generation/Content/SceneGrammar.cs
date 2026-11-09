@@ -15,18 +15,19 @@ internal sealed record SceneGrammar(
     float[] GeneratorRise,
     int[] Racks,
     int RackCells,
-    int[] EndlessGeneratorRanks)
+    int[] EndlessGeneratorRanks,
+    float RubbleShare)
 {
     private const int RankWindow = 9;
 
-    public static SceneGrammar Default { get; } = new(new PointF(25, 20), new PointF(-15, -12), 10, 100, [2, 4], 2, [3, 9], [2, 0, 0, 0, 1], 80, [0, 0, 3, 6, 6, 8, 9, 10, 11, 14, 14]);
+    public static SceneGrammar Default { get; } = new(new PointF(25, 20), new PointF(-15, -12), 10, 100, [2, 4], 2, [3, 9], [2, 0, 0, 0, 1], 80, [0, 0, 3, 6, 6, 8, 9, 10, 11, 14, 14], 0.25f);
 
     public KnownObject DrawEndlessGenerator(Random rng, int level)
     {
         int top = EndlessGeneratorRanks[Math.Min(level, EndlessGeneratorRanks.Length - 1)];
         var ids = Enumerable.Range((int)FirstEndlessGenerator + Math.Max(0, top - RankWindow), Math.Min(top, RankWindow) + 1)
             .Select(id => (KnownObject)id)
-            .Where(Enum.IsDefined)
+            .Where(id => id != RedEndlessGenerator1)
             .ToArray();
 
         return ids[rng.Next(ids.Length)];

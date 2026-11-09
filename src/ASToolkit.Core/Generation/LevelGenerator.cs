@@ -56,9 +56,6 @@ public sealed class LevelGenerator
     private readonly ObjectTable _objects;
     private readonly ReferenceLevelSet _references;
     private readonly ArmyTable _armies;
-    private readonly Lazy<DressingLibrary> _basementLibrary;
-    private readonly Lazy<DressingLibrary> _concreteLibrary;
-    private readonly HashSet<KnownObject> _furniture;
     private readonly OutdoorLevelBuilder _outdoor;
     private readonly ConcurrentDictionary<string, Lazy<OriginalLevel>> _originals = new();
 
@@ -73,13 +70,6 @@ public sealed class LevelGenerator
         _objects = objects;
         _references = references;
         _armies = ArmyTable.Load(references, ReferenceLevelSet.CampaignLevels.Select(ReferenceLevelSet.GetCampaignName).Concat(AddOnLevels));
-        string[] sources = model.FittingLevels.Where(name => name != ReferenceLevelSet.GetCampaignName(1)).ToArray();
-
-        _furniture = FurnitureGrammar.Default.GetPieces();
-        _basementLibrary = new Lazy<DressingLibrary>(() => DressingLibrary.Build(references, model.Relations, objects, WallSet.Basement, sources, GetWallDressing(model, WallSet.Basement),
-            model.GetWallClearance(WallSet.Basement), model.GetFacings(WallSet.Basement)));
-        _concreteLibrary = new Lazy<DressingLibrary>(() => DressingLibrary.Build(references, model.Relations, objects, WallSet.Concrete, sources, GetWallDressing(model, WallSet.Concrete),
-            model.GetWallClearance(WallSet.Concrete), model.GetFacings(WallSet.Concrete)));
         _outdoor = new OutdoorLevelBuilder(_armies);
     }
 
@@ -134,29 +124,24 @@ public sealed class LevelGenerator
     }
 
     private (PlacedDecor[] Decor, Dictionary<Cell, int> Blocked) Dress(Random rng, WallSet wallSet, LayoutPlan plan, FineLayout layout, MapBuilder map,
-        LevelOccupancy occupancy, IReadOnlySet<KnownObject> held, HashSet<Cell> floor, HashSet<Cell> keepClear, MapResourceBuilder originalMap, LevelModel original,
-        IReadOnlyList<SceneRequest> scenes)
+        LevelOccupancy occupancy, HashSet<Cell> floor, HashSet<Cell> keepClear, IReadOnlyList<SceneRequest> scenes)
     {
-        bool isBasement = wallSet == WallSet.Basement;
-        var decor = new List<PlacedDecor>();
         var clear = new HashSet<Cell>(keepClear);
-
         var gates = map.Sprites.Where(sprite => sprite.Id == KnownObject.FenceEmitter).Select(sprite => layout.Lattice.ToLattice(sprite.Position.X, sprite.Position.Y)).ToArray();
         clear.UnionWith(floor.Where(cell => gates.Any(gate => IsWithin(layout.Lattice, cell, (gate.U, gate.V, GateClearance)))));
         occupancy.Reserve(clear);
-        var dressing = held.Where(id => !_furniture.Contains(id)).ToHashSet();
-        decor.AddRange(Dresser.Dress(rng, isBasement ? _basementLibrary.Value : _concreteLibrary.Value, floor, layout.Edges, keepClear, layout.Lattice, occupancy, dressing));
-        (float corpseRate, float bloodRate) = MeasureGore(originalMap, original);
-        RoomDecorator.Decorate(wallSet, plan, layout, decor, floor, keepClear, occupancy, _model.GetDecorHeights(wallSet), _model.GetFacings(wallSet), corpseRate, bloodRate);
 
-        // Give the set pieces and furniture their own random source
-        decor.AddRange(new SceneFurnisher(FurnitureGrammar.Default, _objects, _model.Style, new Random(rng.Next()), layout, occupancy, clear, _model.GetWallClearance(wallSet)).Furnish(plan, scenes));
-        var placed = decor.ToArray();
+        // Give the set pieces, furniture and gore their own random source
+        bool rubble = wallSet == WallSet.Basement && rng.NextSingle() < SceneGrammar.Default.RubbleShare;
+        var placed = new SceneFurnisher(FurnitureGrammar.Default, _objects, _model.Style, new Random(rng.Next()), layout, occupancy, clear, wallSet, _model.GetWallClearance(wallSet), rubble)
+            .Furnish(plan, scenes)
+            .ToArray();
+
         var blocked = new Dictionary<Cell, int>();
         foreach (var piece in placed)
         {
             (float x, float y) = layout.Lattice.ToWorld(piece.U, piece.V);
-            foreach (var cell in Dresser.GetFootprint(layout.Lattice, _objects, piece.Id, x, y, 0))
+            foreach (var cell in CollisionBox.GetFootprint(layout.Lattice, _objects, piece.Id, x, y))
             {
                 blocked[cell] = blocked.GetValueOrDefault(cell) + 1;
             }
@@ -190,13 +175,6 @@ public sealed class LevelGenerator
             (id, other, raised) => _model.Relations.GetSpacing(wallSet, id, other, raised));
     }
 
-    private static (float Corpses, float Blood) MeasureGore(MapResourceBuilder originalMap, LevelModel original)
-    {
-        float cells = Math.Max(1, original.Cells.Count);
-        return (originalMap.Sprites.Count(sprite => sprite.Id.IsCorpse) / cells,
-            originalMap.Sprites.Count(sprite => sprite.Id.IsBlood) / cells);
-    }
-
     // Write a level over its donor, or in add-on style over add-on 1's level of its number
     private string GetTemplateName(LevelBrief brief) => _model.Style == GenerationStyle.AddOn ? $"ADDON/{ReferenceLevelSet.GetCampaignName(brief.Level)}" : brief.DonorLevel;
 
@@ -204,8 +182,7 @@ public sealed class LevelGenerator
 
     private OriginalLevel LoadOriginal(string name)
     {
-        var reference = _references.GetLevel(name);
-        return new OriginalLevel(reference.Map, reference.Model, File.ReadAllBytes(Path.Combine(_gameFolder, "Maps", name)),
+        return new OriginalLevel(File.ReadAllBytes(Path.Combine(_gameFolder, "Maps", name)),
             LevelScriptWriter.ReadMusicLines(Path.Combine(_gameFolder, "Maps", Path.ChangeExtension(name, ".lgc"))));
     }
 
@@ -232,7 +209,6 @@ public sealed class LevelGenerator
             return BuildOutdoor(layoutRng, brief);
         }
 
-        var (originalMap, original, _, _) = GetOriginal(brief.DonorLevel);
         string template = GetTemplateName(brief);
         var donor = _references.GetLevel(brief.DonorLevel);
         var wallSet = brief.WallSet;
@@ -298,7 +274,7 @@ public sealed class LevelGenerator
         var scenes = new ScenePlanner(contentRng, brief, plan, layout, SceneGrammar.Default);
         var sitePlan = scenes.PlanSites(budget.DynamiteSites, _model.Economy, start, visibleEdges);
         var spawnWalls = wallSet == WallSet.Basement
-            ? StructureBuilder.BuildBasement(layoutRng, map, layout, visibleEdges, contentRng, closetEdges, sitePlan.Holes.Keys.ToHashSet(), plan.Gate == GateKind.LockedDoors)
+            ? StructureBuilder.BuildBasement(layoutRng, map, layout, visibleEdges, contentRng, closetEdges, closetCells, sitePlan.Holes.Keys.ToHashSet(), plan.Gate == GateKind.LockedDoors)
             : [];
         
         var placedEdges = wallSet == WallSet.Basement ? LevelExtractor.ReadBasementEdges(layout.Lattice, map.Sprites, outdoor: false) : layout.Edges;
@@ -331,25 +307,26 @@ public sealed class LevelGenerator
         var keepClear = GetKeepClear(layout, start, settings.UnitCells);
         var occupancy = CreateOccupancy(wallSet, plan, layout, floor, start);
         occupancy.Reserve(keepClear);
-        var held = originalMap.Sprites.Select(sprite => sprite.Id).ToHashSet();
-        var companions = new Dictionary<KnownObject, IReadOnlyList<ObjectCompanion>>();
-        Func<KnownObject, IReadOnlyList<ObjectCompanion>> companionsOf = anchor => companions.TryGetValue(anchor, out var known)
-            ? known
-            : companions[anchor] = _model.Relations.GetCompanions(wallSet, anchor).Where(companion => held.Contains(companion.Id)).ToArray();
+        // Hold the panels the structure hangs beside doors against the furniture and content
+        foreach (var sprite in map.Sprites.Where(sprite => sprite.Id.Family is not null))
+        {
+            occupancy.Add(sprite.Id, sprite.Position.X, sprite.Position.Y, sprite.Position.Z);
+        }
+
+        bool basement = wallSet == WallSet.Basement;
 
         // Lay out the cannon and the sites before the decor
-        var early = new PlacementContext(contentRng, brief, plan, layout, map, _objects, start, new HashSet<Cell>(), keepClear, occupancy, companionsOf);
-        bool basement = wallSet == WallSet.Basement;
+        var early = new PlacementContext(contentRng, brief, plan, layout, map, _objects, start, new HashSet<Cell>(), keepClear, occupancy);
         var facings = _model.GetFacings(wallSet);
         var cannon = scenes.PlaceCannon(early, budget);
         scenes.StandBasementSites(map, sitePlan, budget.EndlessGenerators);
         ReserveSiteSpots(map, layout, cannon, basement, keepClear, occupancy);
         var requests = scenes.GetRequests(sitePlan, breaker, cannon, _model.Encounters.GeneratorsPerRoom.Value);
-        var (decor, blocked) = Dress(contentRng, wallSet, plan, layout, map, occupancy, held, floor, keepClear, originalMap, original, requests);
+        var (decor, blocked) = Dress(contentRng, wallSet, plan, layout, map, occupancy, floor, keepClear, requests);
         foreach (var piece in decor)
         {
             (float x, float y) = layout.Lattice.ToWorld(piece.U, piece.V);
-            map.Add(piece.Id, x, y, piece.Z, piece.Dir, piece.Payload, unique: false, source: piece.Origin);
+            map.Add(piece.Id, x, y, piece.Z, piece.Dir, piece.Payload, unique: false, source: SpriteSource.Model);
         }
 
         if (!basement)
@@ -359,7 +336,7 @@ public sealed class LevelGenerator
 
         ReserveSiteSpots(map, layout, cannon, basement, keepClear, occupancy);
 
-        var context = new PlacementContext(contentRng, brief, plan, layout, map, _objects, start, blocked.Keys.ToHashSet(), keepClear, occupancy, companionsOf);
+        var context = new PlacementContext(contentRng, brief, plan, layout, map, _objects, start, blocked.Keys.ToHashSet(), keepClear, occupancy);
         var player = startRoom
             .Where(c => !blocked.ContainsKey(c) && !layout.IsWalled(c))
             .OrderBy(c => Math.Abs(c.U - start.U) + Math.Abs(c.V - start.V))
@@ -414,14 +391,6 @@ public sealed class LevelGenerator
             LayoutCounts = new Dictionary<string, int>()
         };
     }
-
-    // Keep broken keypads for jammed doors
-    private static Func<KnownObject, float, bool> GetDressingDecor(StyleModel model, WallSet wallSet) =>
-        (id, z) => id != KnownObject.BrokenKeypad && model.GetDecorHeights(wallSet).Allows(id, z);
-
-    // Copy only what hangs on walls or lies on the floor, the furniture being the furnisher's and the missile marks the decorator's
-    private static Func<KnownObject, float, bool> GetWallDressing(StyleModel model, WallSet wallSet) =>
-        (id, z) => GetDressingDecor(model, wallSet)(id, z) && id.Family is null && !RoomDecorator.IsMissileMark(id, z);
 
     // Keep the floor clear around every site and pad, and along the line from the cannon to its kill zone
     private static void ReserveSiteSpots(MapBuilder map, FineLayout layout, PlacedCannon? cannon, bool basement, HashSet<Cell> keepClear, LevelOccupancy occupancy)
@@ -500,5 +469,5 @@ public sealed class LevelGenerator
             return links.Length > 0 && links.All(connection => connection.Kind == ConnectionKind.Fence);
         });
 
-    private sealed record OriginalLevel(MapResourceBuilder Map, LevelModel Model, byte[] Template, IReadOnlyList<string> MusicLines);
+    private sealed record OriginalLevel(byte[] Template, IReadOnlyList<string> MusicLines);
 }

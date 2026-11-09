@@ -1,3 +1,4 @@
+using System.Drawing;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using static ASToolkit.Core.Formats.KnownObject;
@@ -455,6 +456,7 @@ internal sealed partial record FurnitureGrammar
     private static readonly FacingRow[] FacingRows =
     [
         new(Table, Open, new() { [192] = 79 }),
+        new(ScatteredPaper, Open, new() { [192] = 0.67f, [0] = 0.13f, [64] = 0.13f, [128] = 0.07f }),
         new(Container, Open, new() { [0] = 40, [85] = 32, [170] = 12 }),
         new(Container2, Open, new() { [85] = 25, [0] = 21 }),
         new(Container2Alt, Open, new() { [0] = 110, [85] = 79 }),
@@ -535,12 +537,8 @@ internal sealed partial record FurnitureGrammar
 
     private static readonly Dictionary<KnownObject, AttachedPiece[]> AttachedTable = new()
     {
-        [Table] = [new(EmbeddedShadow, 0.08f, -0.06f, 1)],
-        [SoldierCorpse] =
-        [
-            new(BloodPool, 0.05f, 0, 1), new(SmallBloodPool, 0.4f, 0.1f, 0.75f), new(SmallBloodPool, -0.3f, 0.3f, 0.75f), new(SmallBloodPool, 0.2f, -0.4f, 0.75f),
-            new(SmallBloodPool, -0.5f, -0.2f, 0.75f), new(SmallBloodPool, 0.6f, 0.5f, 0.75f), new(SmallBloodPool, -0.1f, 0.7f, 0.75f), new(SmallBloodPool, 0.7f, -0.3f, 0.75f)
-        ],
+        [Chair] = [new(ScatteredPaper, 0.13f, -0.15f, 0.28f)],
+        [Table] = [new(EmbeddedShadow, 0.08f, -0.06f, 1), new(ScatteredPaper, -0.13f, 0.24f, 0.15f)],
         [Shelves] = [new(EmbeddedShadow, 0.02f, 0.01f, 0.79f)],
         [BigComputer] = [new(EmbeddedShadow, -0.36f, 0.16f, 1)],
         [Cabinet] = [new(EmbeddedShadow, 0.04f, -0.01f, 0.41f)],
@@ -552,6 +550,39 @@ internal sealed partial record FurnitureGrammar
         [Container2Alt] = [new(EmbeddedShadow, -0.3f, 0.5f, 0.03f)],
         [Crate] = [new(EmbeddedShadow, -0.08f, 0.02f, 0.03f)],
         [StreetLamp] = [new(ZDummy, 0.12f, -0.03f, 0.6f)],
+    };
+
+    private static readonly Dictionary<R, VictimRule> VictimTable = new()
+    {
+        [R.Office] = new(1.04f, 0.89f, [F.Chair]),
+        [R.Lab] = new(0.65f, 1, [F.Labware, F.Chair, F.Table]),
+        [R.MachineRoom] = new(0.67f, 0, [F.Machine, F.Shelf]),
+        [R.Storage] = new(0.41f, 0.27f, [F.Crate, F.Cabinet, F.Shelf]),
+        [R.ComputerRoom] = new(0.32f, 0.82f, [F.Chair, F.Bank, F.Console]),
+        [R.Depot] = new(0.1f, 0, [F.Crate, F.Container, F.Cylinder, F.Barrel]),
+        [R.Hall] = new(0.05f, 0, []),
+    };
+
+    private static readonly Fixture[] FixtureRows =
+    [
+        new(new() { [MonitorDead] = 0.65f, [KnownObject.Monitor] = 0.35f }, new() { [R.Office] = 0.045f, [R.Lab] = 0.074f, [R.Hall] = 0.015f }, 0.45f, 55,
+            new() { [PlusU] = 64, [MinusV] = 0 }),
+        new(new() { [WallObjects] = 1 }, new() { [R.Office] = 0.018f, [R.ComputerRoom] = 0.018f, [R.Hall] = 0.015f, [R.Depot] = 0.004f }, 0.42f, 20,
+            new() { [PlusU] = 0, [MinusV] = 25 }),
+    ];
+
+    private static readonly Dictionary<byte, Seat> SeatRows = new()
+    {
+        [0] = new(0, MinusV, new() { [WallSet.Basement] = 0.76f, [WallSet.Concrete] = 0.6f }),
+        [64] = new(1, PlusU, new() { [WallSet.Basement] = 0.73f, [WallSet.Concrete] = 0.6f }),
+    };
+
+    private static readonly Dictionary<F, SeatOffsets> SeatPartners = new()
+    {
+        [F.Container] = new(
+            [0, 1],
+            [new(0.87f, -0.24f), new(1.45f, -0.62f), new(1.05f, -0.2f), new(0.94f, -0.03f)],
+            [new(0.83f, 0.65f), new(0.95f, -0.37f), new(0.95f, -0.15f), new(0.86f, 0.14f), new(0.92f, 0.33f), new(0.95f, 0.38f)]),
     };
 
     private static readonly HeapRule HeapTable = new(
@@ -713,5 +744,12 @@ internal sealed partial record FurnitureGrammar
     public static FurnitureGrammar Default { get; } = new(
         new() { [R.Quarters] = R.Office, [R.Yard] = R.Depot, [R.Arena] = R.Hall, [R.Bare] = R.Hall },
         Programs, FamilyTable, GroupModules(SharedModuleRows.Concat(SceneModuleRows)), GroupFacings(FacingRows.Concat(SceneFacingRows)),
-        AttachedTable, SceneTable, HeapTable, SpacingTable, FrameSpacingTable, EndClearanceTable, [BlastMark, Boards, Books, GymEquipment, NewChair, PetrolGenerator, RecordPlayer, SmallShadow, StreetLamp, Telephone, Television, Toilet, TrashCan, Windows]);
+        AttachedTable, SceneTable, HeapTable, SpacingTable, FrameSpacingTable, EndClearanceTable, [BlastMark, Boards, Books, GymEquipment, NewChair, PetrolGenerator, RecordPlayer, SmallShadow, StreetLamp, Telephone, Television, Toilet, TrashCan, Windows],
+        VictimTable, new(0.83f, [0.6f, 1.4f], 2, 1.9f, 1.29f, [8, 32], 1.25f, [1, 8], 0.3f, 0.8f, 48, 40), FixtureRows,
+        new(new() { [R.ComputerRoom] = 0.68f, [R.Office] = 0.33f, [R.Hall] = 0.03f }, 0.25f, [1, 2], 0.2f, [20, 42], 2, 3),
+        new()
+        {
+            [SoldierCorpse] = new(new() { [0] = 4, [64] = 13, [128] = 25, [192] = 26 }, SeatRows, 0.35f, SeatPartners),
+            [ScientistCorpse] = new(new() { [0] = 17, [64] = 34, [128] = 27, [192] = 18 }, [], 0, [])
+        });
 }

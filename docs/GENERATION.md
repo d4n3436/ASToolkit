@@ -41,7 +41,7 @@ A generated level is one level of a campaign drawn from the style's campaign mod
  |     fights                          FightPlanner                           |
  |  3  cells, walls, floors, roof      FineLayout, StructureBuilder           |
  |  4  breaker spot                    ContentPlacer.ChooseBreakerSpot        |
- |  5  furniture and dressing          SceneFurnisher, Dresser, RoomDecorator |
+ |  5  furniture, set pieces and gore  SceneFurnisher                         |
  |  6  player start, content, script   PlacementContext, ContentPlacer        |
  |  analysis                           RouteAnalyzer on the written bytes     |
  +------------------------------------------------------------------------------+
@@ -62,12 +62,11 @@ A level draws from four `Random` streams. The layout seed drives the building, d
 | source | built by | read by |
 |---|---|---|
 | campaign model | `CampaignFitter.Fit` | `CampaignPlanner` |
-| decor heights, wall clearance, facings | `StyleModel`, `WallClearanceTable`, `FacingTable` | dressing |
+| wall clearance, facings | `StyleModel`, `WallClearanceTable`, `FacingTable` | dressing |
 | encounter model | `EncounterModel` | `FightPlanner`, `EncounterPlacer`, spawn closets, `PlaceGate` |
 | economy model | `EconomyModel` | `PickupPlacer`, `PlaceSites`, `PlaceCharges`, the checkpoint |
 | furniture grammar | `FurnitureGrammar.Default`, tables in `Generation/Dressing/FurnitureGrammar.Data.cs` with numbers measured once on the originals | `SceneFurnisher` |
-| dressing libraries | `DressingLibrary.Build` | `Dresser.Dress` |
-| object relations | `ObjectRelationTable.Build` | occupancy, furnishing, companions |
+| object relations | `ObjectRelationTable.Build` | occupancy |
 | set pieces | `FurnitureGrammar.Scenes.cs`, `SceneGrammar.Default` | `SceneFurnisher`, `ScenePlanner` |
 | armies | `ArmyTable.Load` | `MapBuilder.Add` |
 
@@ -152,7 +151,7 @@ A cell's two upper edges are its far walls, facing the camera; fake doors, the b
 - **Weapons and pickups.** Weapons come in price order, none before the money can pay its share of the price.
 - **Sites and cannons.** Each indoor level draws its dynamite sites from its gate style's fitted rate per floor. Campaign style stands a mounted cannon on warehouse levels 7 and 8, add-on style on its last warehouse level only.
 - **Monsters and bosses.** A level draws the kinds it has reached, weighted over log hit points so that their mean meets the level's fitted mean; kinds first seen on the level are its new kinds, none on the style's first level with monsters. A level holds a boss at the fitted share, the newest boss kind it has reached.
-- **Donor.** Each level names the campaign original of its wall set nearest in hit points. The donor gives what later steps have not yet replaced, such as pens, room atlas, dressing, gore, template map and music.
+- **Donor.** Each level names the campaign original of its wall set nearest in hit points. The donor gives what later steps have not yet replaced, such as pens, template map and music.
 
 ### Budget
 
@@ -268,10 +267,11 @@ Every other border of a region is a `Wall`.
 
 Every piece goes through the level's occupancy ([Keeping the way clear](#keeping-the-way-clear)).
 
-1. `Dresser.Dress` copies wall dressing, blood and rubble windows from originals with the same walls.
-2. `RoomDecorator.Decorate` thins blood and corpses to the donor's rates and lays gore toward the end.
-3. `SceneFurnisher.Furnish` furnishes each room from the furniture grammar, C# tables of each room type's arrangements with their shares, counts per area and modules per run, the type's signature family and whether its far walls stay covered, the families' pieces, wall distances and steps, each piece's companions by room type and facing, and the closest two families stand. A room stands its signature first with its full module (a desk with its computer and chair, a lab bench with its labware), holds each arrangement by its share and places it as a wall run on far or near walls, a grid on open floor in rooms large enough, a heap of stock with each piece at a measured offset for its two families and by a wall at its family's measured wall share for the room size, or a lone piece on open floor, grows with its far, grid and heap arrangements until it holds the piece count drawn for its type or each has stopped landing, then fills far wall stretches left bare. A piece takes the measured facing for the wall of its cell. Copied wall windows add wall dressing only. Every piece goes through the level's occupancy. Walked-over pieces (shadows, blood, stripes, pads) take no spacing.
-4. Set pieces stand first, with their whole module.
+1. `StructureBuilder` hangs an electric panel beside some small doors and wall objects beside some double doors, scatters shadows over the closet side of breakable and spawn walls and piles rubble at some monster holes.
+2. `SceneFurnisher.Furnish` furnishes each room from the furniture grammar, C# tables of each room type's arrangements with their shares, counts per area and modules per run, the type's signature family and whether its far walls stay covered, the families' pieces, wall distances and steps, each piece's companions by room type and facing, and the closest two families stand. A room stands its signature first with its full module (a desk with its computer and chair, a lab bench with its labware), holds each arrangement by its share and places it as a wall run on far or near walls, a grid on open floor in rooms large enough, a heap of stock with each piece at a measured offset for its two families and by a wall at its family's measured wall share for the room size, or a lone piece on open floor, grows with its far, grid and heap arrangements until it holds the piece count drawn for its type or each has stopped landing, then fills far wall stretches left bare. A piece takes the measured facing for the wall of its cell. Every piece goes through the level's occupancy. Walked-over pieces (shadows, blood, stripes, pads) take no spacing.
+3. After its furniture a room hangs its wall fixtures and lays its victims by room type, a corpse beside the furniture it belongs with or seated against a far wall or a container, on its own blood, never by a near wall or behind a piece; gibs lie where victims' blood runs together, and rubble levels strew rock piles. Chairs and tables carry paper.
+4. `PlacementContext` lays shadows under pickups at a count per kind.
+5. Set pieces stand first, with their whole module.
    - Breaker: 2 to 4 transformers, a pointer and a corpse in blood. Cannon: a stripe box, crates and a pointer. Generators: 0.7 cells off a far wall with transformers, a shoot-here marker and a corpse. Missile racks: three missiles with a stripe box.
    - Concrete sites: pads between the site and the walls, one by a wall, one in a corner, a line of three from a far corner or two straddling the site. A site takes the middle of an outer side, shifted 0.6 cells toward its far end to look centered, or a corner; in a long room only its ends.
    - Several sites in a room pair up symmetrically, both corners of one side or the middles of facing sides, never two on one side otherwise. A site with no spot moves to the planner's next room.
@@ -329,12 +329,12 @@ Every piece goes through the level's occupancy ([Keeping the way clear](#keeping
 | one charge per site, enough charges before every site in play order, sites clear of solid decor | `PlaceCharges`, `LevelOccupancy` |
 | every pickup and weapon of the budget, a new weapon after some of its ammunition, the checkpoint before the biggest fight | `PickupPlacer`, `PlaceCheckpoint` |
 | blocking pieces off doorways and apart as the originals keep them, no pickup under them | `LevelOccupancy` |
-| decor of the level's floor set, at its measured facings and wall clearances | `Dresser`, `SceneFurnisher` |
+| decor of the level's floor set, at its measured facings and wall clearances | `SceneFurnisher` |
 | open-floor furniture only in rooms at least its measured open-floor size, no two pieces closer than their families' measured spacing for pieces facing the same way or turned, two pieces of one object, or two module anchors, no closer than the mean of their frames' measured spacings, a piece lining a wall as far from the walls at its ends as its frame stands in the campaign, spacings measured on the campaign and backing off to all originals below 8 samples, a stacked piece only on the tier under it, the room type's signature held in rooms of any size by its measured share | `SceneFurnisher` |
 | no piece nearer a far or near wall than its family's measured distance for that side, nor nearer any wall than the least clearance measured for the piece in its wall set, every piece and companion inside its own room, no family in a room under the style's measured smallest room for it, no arrangement past its highest measured rate, a room's piece count drawn from the measured density for its size | `SceneFurnisher` |
 | transformers only beside a breaker or generator and only on far walls, along the breaker's wall or the far wall nearest the generator at the measured clearance, never in a corner against a near wall, flanking the key and turned one way | `ContentPlacer` |
 | computer rooms only as big rooms of at least 15 by 18 lattice units | `BuildingGrammar` |
-| copied windows add no shadows or Z dummies; furniture carries its shadows at the campaign's measured share and offset per piece | `Dresser`, `SceneFurnisher` |
+| furniture carries its shadows at the campaign's measured share and offset per piece; corpses lie on their own blood | `SceneFurnisher` |
 | room programs of halls, offices, depots and storage from the campaign's rooms, the rarer types from all originals | `FurnitureGrammar` |
 | linked pickups at the height that rests their glow on the floor | `PlacementContext`, `PickupPlacer` |
 | each family's main piece per room drawn by the style's own weights, a second piece mixed in at the measured share, every anchor's footprint (its family's side-by-side spacing) inside the room, no furniture footprint on a room's openings or the cells inside them, a room's openings and reserved cells joined past its furniture on the layout cells, no add-on piece in a campaign room | `SceneFurnisher` |

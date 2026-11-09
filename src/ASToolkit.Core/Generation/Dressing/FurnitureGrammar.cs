@@ -17,7 +17,12 @@ internal sealed partial record FurnitureGrammar(
     Dictionary<FamilyPair, PairSpacing> Spacing,
     Dictionary<KnownObject, Dictionary<byte, float>> FrameSpacing,
     Dictionary<KnownObject, Dictionary<byte, float>> EndClearance,
-    HashSet<KnownObject> AddOnOnly)
+    HashSet<KnownObject> AddOnOnly,
+    Dictionary<RoomType, VictimRule> Victims,
+    Splatter Splatter,
+    Fixture[] Fixtures,
+    Rubble Rubble,
+    Dictionary<KnownObject, CorpsePose> Poses)
 {
     // The far faces are the two the camera looks at
     public const int Open = 0;
@@ -80,6 +85,43 @@ internal sealed record Companion(KnownObject Id, int Slot, float U, float V, flo
 internal sealed record FacingRow(KnownObject Id, int Face, Dictionary<byte, float> Weights);
 
 internal sealed record AttachedPiece(KnownObject Id, float U, float V, float Share);
+
+// Victims lie a reach from a piece of the families beside them, anywhere when none are named
+internal sealed record VictimRule(float PerHundredCells, float ScientistShare, PieceFamily[] Beside);
+
+// Blood thins out linearly to its radius
+internal sealed record Splatter(float CorpseShare, float[] Reach, float Gap, float NearWallReach, float FrontReach, int[] CorpseBlood, float CorpseRadius, int[] Blood,
+    float Radius, float GibReach, int GibBlood, int BloodPerGib);
+
+internal sealed record Rubble(Dictionary<RoomType, float> PerHundredCells, float BigShare, int[] Small, float SmallRadius, int[] Big, float BigRadius, float Z);
+
+// Partner offsets run along the seat's face normal, then across it, the across axis mirrored with the picture
+internal sealed record CorpsePose(Dictionary<byte, float> Pictures, Dictionary<byte, Seat> Seats, float PieceShare, Dictionary<PieceFamily, SeatOffsets> Partners)
+{
+    public byte DrawLying(Random rng)
+    {
+        var lying = Pictures.Where(picture => !Seats.ContainsKey(picture.Key)).ToArray();
+        float pick = rng.NextSingle() * lying.Sum(picture => picture.Value);
+        foreach (var picture in lying)
+        {
+            pick -= picture.Value;
+            if (pick < 0)
+            {
+                return picture.Key;
+            }
+        }
+
+        return lying[^1].Key;
+    }
+}
+
+internal sealed record Seat(int Picture, int Face, Dictionary<WallSet, float> WallDistance);
+
+// A partner in the corpse's picture index shows it its short face, turned its long face
+internal sealed record SeatOffsets(int[] Pictures, PointF[] Same, PointF[] Turned);
+
+// Shares are per far wall cell
+internal sealed record Fixture(Dictionary<KnownObject, float> Ids, Dictionary<RoomType, float> Shares, float WallDistance, float Z, Dictionary<int, byte> Dirs);
 
 internal sealed record HeapRule(Dictionary<PieceFamily, float> Core, Dictionary<PieceFamily, Dictionary<PieceFamily, float>> Mix, int[] Size,
     Dictionary<FamilyPair, PointF[]> Touch, Dictionary<FamilyPair, float> Pairs);

@@ -239,6 +239,7 @@ internal sealed class PickupPlacer
             var offset = offsets[index % offsets.Length];
             _ctx.Map.Add(heap[index], origin.X + offset.X, origin.Y + offset.Y, _ctx.GetRestingHeight(heap[index]), 0, unique: false);
             _ctx.Occupancy.Add(heap[index], origin.X + offset.X, origin.Y + offset.Y, _ctx.GetRestingHeight(heap[index]));
+            _ctx.ShadePickup(heap[index], origin.X + offset.X, origin.Y + offset.Y);
         }
 
         _ctx.Taken.Add(cell);
