@@ -16,6 +16,7 @@ internal sealed class SceneFurnisher
     private const int Tries = 12;
     private const int GrowTries = 40;
     private const int SceneTries = 48;
+    private const int WallSteps = 8;
     private const float OpeningReach = 3;
     private const float SquareRatio = 1.25f;
     private const float MiddleSlack = 1.5f;
@@ -78,13 +79,14 @@ internal sealed class SceneFurnisher
             var type = region.IsHall ? RoomType.Hall : region.Type ?? RoomType.Passage;
             type = _grammar.Aliases.GetValueOrDefault(type, type);
             var own = held.Where(scene => scene.Region == region.Id).ToArray();
-            bool furnished = region.Kind is RegionKind.Station or RegionKind.SideRoom or RegionKind.SecretRoom && _grammar.Types.ContainsKey(type);
+            bool dressed = region.Kind is RegionKind.Station or RegionKind.SideRoom or RegionKind.SecretRoom;
             done.Add(region.Id);
-            if (!furnished && own.Length == 0)
+            if (!dressed && own.Length == 0)
                 continue;
 
             var room = new RoomGeometry(_layout, _layout.GetRegionCells(region.Id), _reserved);
-            foreach (var scene in FurnishRoom(room, furnished ? _grammar.Types[type] : EmptyProgram, own, furnished ? type : null))
+            var program = dressed ? _grammar.Types.GetValueOrDefault(type, EmptyProgram) : EmptyProgram;
+            foreach (var scene in FurnishRoom(room, program, own, dressed ? type : null))
             {
                 int[] next = scene.Fallbacks.SkipWhile(done.Contains).ToArray();
                 if (next.Length > 0)
@@ -174,15 +176,18 @@ internal sealed class SceneFurnisher
 
     private void Dress(RoomType type)
     {
+        var farCells = _room.Walls
+            .Where(wall => (wall.Face & FarFaces) != 0)
+            .SelectMany(wall => wall.Cells.Where(cell => !_room.Openings.Contains(cell)).Select(cell => (Cell: cell, wall.Face)))
+            .ToArray();
+
         foreach (var fixture in _grammar.Fixtures)
         {
-            float share = fixture.Shares.GetValueOrDefault(type);
-            foreach (var wall in _room.Walls.Where(wall => (wall.Face & FarFaces) != 0))
+            int count = (int)MathF.Floor(fixture.Shares.GetValueOrDefault(type) * farCells.Length + _rng.NextSingle());
+            _rng.Shuffle(farCells);
+            for (int index = 0; index < farCells.Length && count > 0; index++)
             {
-                foreach (var cell in wall.Cells.Where(cell => !_room.Openings.Contains(cell) && _rng.NextSingle() < share))
-                {
-                    Hang(fixture, cell, wall.Face, Along(cell, wall.Face) + 0.5f);
-                }
+                count -= Hang(fixture, farCells[index].Cell, farCells[index].Face, Along(farCells[index].Cell, farCells[index].Face) + 0.5f) ? 1 : 0;
             }
         }
 
@@ -267,6 +272,25 @@ internal sealed class SceneFurnisher
 
         _force = false;
         return _anchors > before;
+    }
+
+    private void PlaceAlongEveryWall(Arrangement arrangement)
+    {
+        bool far = arrangement.Kind == ArrangementKind.Far;
+        var spots = _room.Walls
+            .Where(wall => (wall.Face & FarFaces) != 0 == far)
+            .SelectMany(wall => Enumerable.Range(0, WallSteps * (wall.Cells.Length - 1) + 1).Select(step => (wall.Face, wall.Cells, Along: Along(wall.Cells[0], wall.Face) + 0.5f + step / (float)WallSteps)))
+            .ToArray();
+
+        _rng.Shuffle(spots);
+        int before = _anchors;
+        _force = true;
+        for (int index = 0; index < spots.Length && _anchors == before; index++)
+        {
+            PlaceRun(spots[index].Face, spots[index].Cells, spots[index].Along, arrangement.Family!.Value, arrangement.Members, arrangement.Modules[0]);
+        }
+
+        _force = false;
     }
 
     private void PlaceRun(int face, Cell[] cells, float along, PieceFamily lead, Dictionary<PieceFamily, float> members, int modules)
@@ -540,9 +564,14 @@ internal sealed class SceneFurnisher
                 Place(arrangement, true);
             }
 
+            if (_anchors == before && arrangement.Kind is ArrangementKind.Far or ArrangementKind.Near)
+            {
+                PlaceAlongEveryWall(arrangement);
+            }
+
             if (_anchors != before || !first || _room.Interior.Length <= 0)
                 return _anchors > before;
-            
+
             _force = true;
             PlaceGrid(arrangement.Family!.Value, 1);
             _force = false;
@@ -691,23 +720,28 @@ internal sealed class SceneFurnisher
             var at = new PointF(point.X + attached.U, point.Y + attached.V);
             if (_rng.NextSingle() < attached.Share)
             {
-                Commit(attached.Id, at, 0, _grammar.Facings.ContainsKey(attached.Id) ? GetFacing(attached.Id, at) : dir);
+                Commit(attached.Id, at, 0, GetAttachedDir(id, dir, attached.Id, at));
             }
         }
 
         return true;
     }
 
+    private byte GetAttachedDir(KnownObject owner, byte dir, KnownObject id, PointF point)
+    {
+        if (_grammar.DummyDirs.TryGetValue(owner, out byte[]? dirs) && id == KnownObject.ZDummy && _objects.TryFind(owner, out var obj))
+            return dirs[obj.GetDirection(dir) % dirs.Length];
+
+        return _grammar.Facings.ContainsKey(id) ? GetFacing(id, point) : dir;
+    }
+
     private void Add(KnownObject id, PointF point, float z, byte dir, byte[]? payload = null) =>
         _placed.Add(new DecorObject(id, point.X, point.Y, z, dir, payload ?? [], null));
 
-    private void Hang(Fixture fixture, Cell wall, int face, float along)
+    private bool Hang(Fixture fixture, Cell wall, int face, float along)
     {
         var id = Draw(fixture.Ids);
-        if (id is not null)
-        {
-            Commit(id.Value, FromWall(wall, face, fixture.WallDistance, along), fixture.Z, fixture.Dirs[face]);
-        }
+        return id is not null && Commit(id.Value, FromWall(wall, face, fixture.WallDistance, along), fixture.Z, fixture.Dirs[face]);
     }
 
     private void PlaceVictims(VictimRule rule)

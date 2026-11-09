@@ -217,7 +217,7 @@ internal static class ContentPlacer
     }
 
     // Lays each phase's charges beside the last key of the phase before, else in the start room on the fitted share of levels,
-    // else on the walk the fitted lead before the phase's first site
+    // else on the walk the fitted lead before the phase's first site, else in the start room, else on the free cells nearest the start
     private static void PlaceCharges(PlacementContext ctx, (PointF Point, Cell Cell)[] sites, EconomyModel economy)
     {
         var keys = ctx.Plan.GeneratorRooms.Append(ctx.Plan.KeyRoom).OfType<PlanRegion>().ToArray();
@@ -227,7 +227,13 @@ internal static class ContentPlacer
             var key = keys.Where(room => room.Phase == batch.Key - 1).MaxBy(ctx.GetProgress);
             var first = batch.MinBy(site => ctx.Distance.GetValueOrDefault(site.Cell));
             var start = ctx.GetFreeCells(ctx.Plan.Stations[0]);
-            var options = key is not null || startBatch && batch.Key == 0 ? new[] { ctx.GetFreeCells(key ?? ctx.Plan.Stations[0]), GetWalkCells(), start } : [GetWalkCells(), start];
+            var nearest = ctx.Distance
+                .Where(pair => pair.Value <= ctx.Distance.GetValueOrDefault(first.Cell) && ctx.IsFree(pair.Key))
+                .OrderBy(pair => pair.Value)
+                .Select(pair => pair.Key)
+                .ToArray();
+
+            var options = key is not null || startBatch && batch.Key == 0 ? new[] { ctx.GetFreeCells(key ?? ctx.Plan.Stations[0]), GetWalkCells(), start, nearest } : [GetWalkCells(), start, nearest];
             var spot = options
                 .Select(cells => cells.Where(c => ctx.FindSpot(c) is not null && sites.All(site => GetDistance(GetCenter(ctx, c), site.Point) >= ChargeSiteGap)).ToArray())
                 .Select(free => free.Where(ctx.IsClearAround).Concat(free).Cast<Cell?>().FirstOrDefault())

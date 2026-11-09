@@ -218,7 +218,7 @@ internal sealed class PickupPlacer
         var cells = _ctx.GetRegionCells(room)
             .Where(c => !_ctx.Taken.Contains(c) && _ctx.Distance.ContainsKey(c) && (spot is null || GetSpot(c) == spot))
             .Select(c => (Cell: c, Point: FindPileSpot(c)))
-            .Where(p => p.Point is not null && _ctx.IsVisible(p.Point.Value) && _ctx.Occupancy.Fits(heap[0], p.Point.Value, 0))
+            .Where(p => p.Point is not null && _ctx.IsVisible(p.Point.Value) && heap.All(id => _ctx.Occupancy.Fits(id, p.Point.Value, 0)))
             .ToArray();
 
         if (cells.Length == 0)
@@ -229,7 +229,7 @@ internal sealed class PickupPlacer
         var (cell, point) = cells[_ctx.Rng.Next(cells.Length)];
         var origin = point!.Value;
         var offsets = PileOffsets
-            .Where(o => IsClearOfWalls(origin.X + o.X, origin.Y + o.Y) && _ctx.IsVisible(At(o)) && _ctx.Occupancy.Fits(heap[0], At(o), 0)
+            .Where(o => IsClearOfWalls(origin.X + o.X, origin.Y + o.Y) && _ctx.IsVisible(At(o)) && heap.All(id => _ctx.Occupancy.Fits(id, At(o), 0))
                         && (spot is null or PartSpot.Center || _ctx.Layout.Lattice.GetCell(At(o)) == cell))
             .DefaultIfEmpty(PointF.Empty)
             .ToArray();

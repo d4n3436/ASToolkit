@@ -534,6 +534,14 @@ internal sealed partial record FurnitureGrammar
         new(Truck, MinusV, new() { [128] = 2, [0] = 1 }),
     ];
 
+    // Z dummy directions by the owner's picture
+    private static readonly Dictionary<KnownObject, byte[]> DummyDirTable = new()
+    {
+        [Truck] = [0, 128, 0, 128],
+        [BioContainer] = [128],
+        [StreetLamp] = [0],
+    };
+
     private static readonly Dictionary<KnownObject, AttachedPiece[]> AttachedTable = new()
     {
         [Chair] = [new(ScatteredPaper, 0.13f, -0.15f, 0.28f)],
@@ -564,7 +572,7 @@ internal sealed partial record FurnitureGrammar
 
     private static readonly Fixture[] FixtureRows =
     [
-        new(new() { [MonitorDead] = 0.65f, [KnownObject.Monitor] = 0.35f }, new() { [R.Office] = 0.045f, [R.Lab] = 0.074f, [R.Hall] = 0.015f }, 0.45f, 55,
+        new(new() { [MonitorDead] = 0.65f, [KnownObject.Monitor] = 0.35f }, new() { [R.Office] = 0.045f, [R.Lab] = 0.074f, [R.Hall] = 0.015f, [R.Passage] = 0.012f }, 0.45f, 55,
             new() { [PlusU] = 64, [MinusV] = 0 }),
         new(new() { [WallObjects] = 1 }, new() { [R.Office] = 0.018f, [R.ComputerRoom] = 0.018f, [R.Hall] = 0.015f, [R.Depot] = 0.004f }, 0.42f, 20,
             new() { [PlusU] = 0, [MinusV] = 25 }),
@@ -743,7 +751,7 @@ internal sealed partial record FurnitureGrammar
     public static FurnitureGrammar Default { get; } = new(
         new() { [R.Quarters] = R.Office, [R.Yard] = R.Depot, [R.Arena] = R.Hall, [R.Bare] = R.Hall },
         Programs, FamilyTable, GroupModules(SharedModuleRows.Concat(SceneModuleRows)), GroupFacings(FacingRows.Concat(SceneFacingRows)),
-        AttachedTable, SceneTable, HeapTable, SpacingTable, FrameSpacingTable, EndClearanceTable, [BlastMark, Boards, Books, GymEquipment, NewChair, PetrolGenerator, RecordPlayer, SmallShadow, StreetLamp, Telephone, Television, Toilet, TrashCan, Windows],
+        AttachedTable, DummyDirTable, SceneTable, HeapTable, SpacingTable, FrameSpacingTable, EndClearanceTable, [BlastMark, Boards, Books, GymEquipment, NewChair, PetrolGenerator, RecordPlayer, SmallShadow, StreetLamp, Telephone, Television, Toilet, TrashCan, Windows],
         VictimTable, new(0.83f, [0.6f, 1.4f], 2, 1.9f, 1.29f, [8, 32], 1.25f, [1, 8], 0.3f, 0.8f, 48, 40), FixtureRows,
         new(new() { [R.ComputerRoom] = 0.68f, [R.Office] = 0.33f, [R.Hall] = 0.03f }, 0.25f, [1, 2], 0.2f, [20, 42], 2, 3),
         new()

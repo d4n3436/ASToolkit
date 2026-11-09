@@ -76,7 +76,7 @@ public sealed class StyleFitter
             style,
             fitting,
             ObjectRelationTable.Build(levels, _objects),
-            WallSets.ToDictionary(wallSet => wallSet, wallSet => WallClearanceTable.Build(models.Where(model => model.WallSet == wallSet))),
+            WallSets.ToDictionary(wallSet => wallSet, wallSet => WallClearanceTable.Build(models.Where(model => model.WallSet == wallSet).ToArray(), _objects)),
             WallSets.ToDictionary(wallSet => wallSet, wallSet => FacingTable.Build(models.Where(model => model.WallSet == wallSet), _objects, leaning)),
             _campaign.Fit(references, style, excluded))
         {

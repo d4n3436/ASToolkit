@@ -36,10 +36,10 @@ public sealed class LevelGenerator
     private const int CampaignSalt = 307;
     private const int FightSalt = 401;
     private const int MaxBreakerRetries = 20;
-    private const float GateClearance = 94;
-    private const float SiteClearance = 151;
-    private const float BasementSiteClearance = 30;
-    private const float GeneratorClearance = 35;
+    private const float GateClearance = 77;
+    private const float SiteClearance = 111;
+    private const float BasementSiteClearance = 20;
+    private const float GeneratorClearance = 25;
     private const float LaneClearance = 100;
     private const float LaneStep = 40;
 
@@ -124,11 +124,14 @@ public sealed class LevelGenerator
     }
 
     private (DecorObject[] Decor, Dictionary<Cell, int> Blocked) Dress(Random rng, WallSet wallSet, LayoutPlan plan, FineLayout layout, MapBuilder map,
-        LevelOccupancy occupancy, HashSet<Cell> floor, HashSet<Cell> keepClear, IReadOnlyList<SceneRequest> scenes)
+        LevelOccupancy occupancy, HashSet<Cell> keepClear, IReadOnlyList<SceneRequest> scenes)
     {
         var clear = new HashSet<Cell>(keepClear);
-        var gates = map.Sprites.Where(sprite => sprite.Id == KnownObject.FenceEmitter).Select(sprite => new PointF(sprite.Position.X, sprite.Position.Y)).ToArray();
-        clear.UnionWith(floor.Where(cell => gates.Any(gate => IsWithin(layout.Lattice, cell, (gate, GateClearance)))));
+        foreach (var gate in map.Sprites.Where(sprite => sprite.Id == KnownObject.FenceEmitter))
+        {
+            occupancy.KeepClear(new PointF(gate.Position.X, gate.Position.Y), GateClearance);
+        }
+
         occupancy.Reserve(clear);
 
         // Give the set pieces, furniture and gore their own random source
@@ -172,7 +175,7 @@ public sealed class LevelGenerator
         }
 
         return new LevelOccupancy(_objects, lattice, floor, layout.Edges, start, doorways, clearances,
-            (id, other, raised) => _model.Relations.GetSpacing(wallSet, id, other, raised));
+            (id, other, raised) => _model.Relations.GetSpacing(wallSet, id, other, raised), _model.GetWallClearance(wallSet));
     }
 
     // Write a level over its donor, or in add-on style over add-on 1's level of its number
@@ -269,10 +272,11 @@ public sealed class LevelGenerator
 
         var startRoom = layout.GetRegionCells(plan.Stations[0].Id).ToArray();
         var start = startRoom[startRoom.Length / 2];
-        var scenes = new ScenePlanner(contentRng, brief, plan, layout, SceneGrammar.Default);
+        var scenes = new ScenePlanner(contentRng, brief, plan, layout, SceneGrammar.Default, _model.GetWallClearance(wallSet));
         var sitePlan = scenes.PlanSites(budget.DynamiteSites, _model.Economy, start, visibleEdges);
         var spawnWalls = wallSet == WallSet.Basement
-            ? StructureBuilder.BuildBasement(layoutRng, map, layout, visibleEdges, contentRng, closetEdges, closetCells, sitePlan.Holes.Keys.ToHashSet(), plan.Gate == GateKind.LockedDoors)
+            ? StructureBuilder.BuildBasement(layoutRng, map, layout, visibleEdges, contentRng, closetEdges, closetCells, sitePlan.Holes.Keys.ToHashSet(), plan.Gate == GateKind.LockedDoors,
+                _model.GetWallClearance(wallSet))
             : [];
         
         var placedEdges = wallSet == WallSet.Basement ? LevelExtractor.ReadBasementEdges(layout.Lattice, map.Sprites, outdoor: false) : layout.Edges;
@@ -320,7 +324,7 @@ public sealed class LevelGenerator
         scenes.StandBasementSites(map, sitePlan, budget.EndlessGenerators);
         ReserveSiteSpots(map, layout, cannon, basement, keepClear, occupancy);
         var requests = scenes.GetRequests(sitePlan, breaker, cannon, _model.Encounters.GeneratorsPerRoom.Value);
-        var (decor, blocked) = Dress(contentRng, wallSet, plan, layout, map, occupancy, floor, keepClear, requests);
+        var (decor, blocked) = Dress(contentRng, wallSet, plan, layout, map, occupancy, keepClear, requests);
         foreach (var piece in decor)
         {
             (float x, float y) = layout.Lattice.ToWorld(piece.U, piece.V);
@@ -394,9 +398,18 @@ public sealed class LevelGenerator
     private static void ReserveSiteSpots(MapBuilder map, FineLayout layout, PlacedCannon? cannon, bool basement, HashSet<Cell> keepClear, LevelOccupancy occupancy)
     {
         var spots = GetSiteSpots(map, cannon, basement ? BasementSiteClearance : SiteClearance);
-        var cells = layout.Cells.Keys.Where(cell => spots.Any(spot => IsWithin(layout.Lattice, cell, spot))).ToArray();
-        keepClear.UnionWith(cells);
-        occupancy.Reserve(cells);
+        var own = spots.Select(spot => layout.Lattice.GetCell(spot.Center)).ToArray();
+        keepClear.UnionWith(layout.Cells.Keys.Where(cell => spots.Any(spot => IsWithin(layout.Lattice, cell, spot))).Concat(own));
+        occupancy.Reserve(own);
+        foreach ((var center, float reach) in spots)
+        {
+            occupancy.KeepClear(center, reach);
+        }
+
+        foreach (var site in map.Sprites.Where(sprite => sprite.Id == KnownObject.DynamiteSite))
+        {
+            occupancy.Add(site.Id, new PointF(site.Position.X, site.Position.Y), site.Position.Z);
+        }
     }
 
     private static List<(PointF Center, float Reach)> GetSiteSpots(MapBuilder map, PlacedCannon? cannon, float clearance)

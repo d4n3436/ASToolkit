@@ -17,6 +17,51 @@ public static class EdgeMapExtensions
     extension(IReadOnlyDictionary<EdgeKey, EdgeKind> edges)
     {
         /// <summary>
+        /// Returns the map distance straight down the screen from a map point to the first wall that blocks walking, or the reach when none is nearer.
+        /// </summary>
+        public float MeasureDrop(Lattice lattice, float x, float y, float reach)
+        {
+            // Step between the cell boundaries the ray crosses, u falling and v rising one unit each period
+            (float u, float v) = lattice.ToLattice(x, y);
+            float period = 2 * lattice.StepY;
+            float toU = (u - MathF.Floor(u)) * period;
+            float toV = (MathF.Floor(v) + 1 - v) * period;
+            var cell = new Cell((int)MathF.Floor(u), (int)MathF.Floor(v));
+            while (true)
+            {
+                int dropU = (int)MathF.Floor(toU) + 1;
+                int dropV = (int)MathF.Floor(toV) + 1;
+                int drop = Math.Min(dropU, dropV);
+                if (drop >= reach)
+                    return reach;
+
+                var next = new Cell(dropU == drop ? cell.U - 1 : cell.U, dropV == drop ? cell.V + 1 : cell.V);
+                bool blocked = dropU != dropV
+                    ? IsBlocked(cell, next)
+                    : (IsBlocked(cell, new Cell(next.U, cell.V)) || IsBlocked(new Cell(next.U, cell.V), next))
+                      && (IsBlocked(cell, new Cell(cell.U, next.V)) || IsBlocked(new Cell(cell.U, next.V), next));
+
+                if (blocked)
+                    return drop;
+
+                toU += dropU == drop ? period : 0;
+                toV += dropV == drop ? period : 0;
+                cell = next;
+            }
+
+            bool IsBlocked(Cell from, Cell to)
+            {
+                foreach (var (next, edge) in EdgeKey.GetNeighbors(from))
+                {
+                    if (next == to)
+                        return edges.TryGetValue(edge, out var kind) && kind.BlocksWalking;
+                }
+
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Returns the nearest edge showing a wall face within one and a half cells of a lattice point with the side it stands on, or null when there is none.
         /// </summary>
         public (WallSides Side, float Distance)? FindNearestWall(float u, float v) =>

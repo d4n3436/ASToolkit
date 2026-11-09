@@ -12,6 +12,7 @@ internal sealed partial record FurnitureGrammar(
     Dictionary<KnownObject, Dictionary<byte, Companion[]>> SharedModules,
     Dictionary<KnownObject, Dictionary<int, Dictionary<byte, float>>> Facings,
     Dictionary<KnownObject, AttachedPiece[]> Attached,
+    Dictionary<KnownObject, byte[]> DummyDirs,
     Dictionary<KnownObject, Arrangement> Scenes,
     HeapRule Heap,
     Dictionary<FamilyPair, PairSpacing> Spacing,

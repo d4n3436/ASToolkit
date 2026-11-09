@@ -16,6 +16,7 @@ public sealed class LevelOccupancy
     internal const float UnitGap = 12;
     private const float StandingHeight = 20;
     private const float SpawnerGap = 13;
+    private const float SiteFrontClearance = 57;
 
     private readonly ObjectTable _objects;
     private readonly Lattice _lattice;
@@ -26,6 +27,9 @@ public sealed class LevelOccupancy
     private readonly MapSegment[] _doorways;
     private readonly IReadOnlyDictionary<BlockingClass, float> _doorClearances;
     private readonly Func<KnownObject, KnownObject, bool, float> _spacingOf;
+    private readonly WallClearanceTable _clearance;
+    private readonly List<(PointF Center, float Reach)> _keepClear = [];
+    private readonly List<PointF> _sites = [];
     private readonly List<StandingPiece> _standing = [];
     private readonly List<StandingPiece> _raised = [];
     private readonly Dictionary<Point, List<PointF>> _units = [];
@@ -41,10 +45,13 @@ public sealed class LevelOccupancy
     /// <param name="doorways">The doorways to keep clear.</param>
     /// <param name="doorClearances">The distance from a doorway that floor pieces of each blocking class keep.</param>
     /// <param name="spacingOf">Returns how close two objects that block the player may stand at the same height, as the share of their summed sizes.</param>
+    /// <param name="clearance">The wall clearances the original levels keep.</param>
     public LevelOccupancy(ObjectTable objects, Lattice lattice, IReadOnlySet<Cell> floor, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, Cell start,
-        IEnumerable<MapSegment> doorways, IReadOnlyDictionary<BlockingClass, float> doorClearances, Func<KnownObject, KnownObject, bool, float> spacingOf)
+        IEnumerable<MapSegment> doorways, IReadOnlyDictionary<BlockingClass, float> doorClearances, Func<KnownObject, KnownObject, bool, float> spacingOf,
+        WallClearanceTable clearance)
     {
         _spacingOf = spacingOf;
+        _clearance = clearance;
         _objects = objects;
         _lattice = lattice;
         _edges = edges;
@@ -60,6 +67,11 @@ public sealed class LevelOccupancy
     public void Reserve(IEnumerable<Cell> cells) => _reserved.UnionWith(cells);
 
     /// <summary>
+    /// Keeps the collision boxes of pieces that stand in the way a reach away from a map point.
+    /// </summary>
+    public void KeepClear(PointF center, float reach) => _keepClear.Add((center, reach));
+
+    /// <summary>
     /// Returns whether an object fits at a map point, apart from the other units for a unit, out from under the standing pieces for a pickup,
     /// and otherwise clear of the doorways, the floor pieces standing there and, outside a reserve's own scene, the reserved cells, leaving the floor joined when it is solid.
     /// </summary>
@@ -71,12 +83,22 @@ public sealed class LevelOccupancy
             return !IsNearUnit(x, y);
         }
 
+        if ((z < FloorHeight || id.PickupCategory is not null) && !_clearance.KeepsDrop(id, _lattice, _edges, x, y))
+        {
+            return false;
+        }
+
         if (id.PickupCategory is not null)
         {
             return !_standing.Any(standing => CollisionBox.Create(standing.Size, standing.X, standing.Y, CollisionBox.ExtentShare, 0).Contains(x, y));
         }
 
         var blocking = _objects.GetBlocking(id);
+        if (!inScene && z < FloorHeight && (id.Family is not null || blocking != BlockingClass.WalkThrough) && IsInKeptSpace(id, x, y))
+        {
+            return false;
+        }
+
         bool onFloor = z < FloorHeight && blocking != BlockingClass.WalkThrough;
         if (onFloor || id.IsWallMounted)
         {
@@ -167,6 +189,11 @@ public sealed class LevelOccupancy
     public void Add(KnownObject id, PointF point, float z)
     {
         (float x, float y) = point;
+        if (id == KnownObject.DynamiteSite)
+        {
+            _sites.Add(point);
+        }
+
         if (IsUnit(id))
         {
             var key = new Point((int)MathF.Floor(x / UnitGap), (int)MathF.Floor(y / UnitGap));
@@ -266,6 +293,24 @@ public sealed class LevelOccupancy
 
         var reached = window.Flood([sides.First()], IsWall);
         return sides.All(reached.Contains);
+    }
+
+    private bool IsInKeptSpace(KnownObject id, float x, float y)
+    {
+        if (_sites.Any(site => y > site.Y && MathF.Sqrt((x - site.X) * (x - site.X) + (y - site.Y) * (y - site.Y)) < SiteFrontClearance))
+            return true;
+
+        if (!_objects.TryFind(id, out var obj))
+            return false;
+
+        var box = CollisionBox.Create(obj, x, y, CollisionBox.ExtentShare, 0);
+        return _keepClear.Any(spot => GetBoxDistance(box, spot.Center) < spot.Reach);
+    }
+
+    private static float GetBoxDistance(CollisionBox box, PointF point)
+    {
+        float dx = MathF.Max(0, MathF.Abs(box.X - point.X) - box.HalfWidth), dy = MathF.Max(0, MathF.Abs(box.Y - point.Y) - box.HalfHeight);
+        return MathF.Sqrt(dx * dx + dy * dy);
     }
 
     private bool IsUnit(KnownObject id) => !id.IsDecor && _objects.TryFind(id, out var obj) && obj.SpriteType.HasFlag(SpriteType.Unit);

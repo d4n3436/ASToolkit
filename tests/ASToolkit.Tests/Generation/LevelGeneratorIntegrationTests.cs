@@ -20,6 +20,7 @@ public class LevelGeneratorIntegrationTests
     private const float HalfScreenWidth = 640;
     private const float BlastReach = 100;
     private const float GeneratorWallReach = 1;
+    private const float SiteFrontClearance = 57;
     private const float HalfScreenHeight = 360;
     private const int MixedFamily = 4;
     private const float MixedVariantMax = 0.82f;
@@ -208,6 +209,49 @@ public class LevelGeneratorIntegrationTests
             if (loose > 0)
             {
                 broken.Add($"{style} seed {seed} level {number}: {loose} generators away from a far wall");
+            }
+        }
+
+        Assert.Empty(broken);
+    }
+
+    [Fact]
+    public void Generate_BothStyles_KeepFloorPiecesAndPickupsAboveTheWallBelow()
+    {
+        var broken = new List<string>();
+        foreach ((string style, int seed, int number, var level, var model, var _) in GetIndoorLevels())
+        {
+            var layout = level.Layout!;
+            var clearance = model.GetWallClearance(level.WallSet);
+            string[] low = level.Map.Sprites
+                .Where(sprite => sprite.Id.Family is not null && sprite.Position.Z < 5 || sprite.Id.PickupCategory is not null)
+                .Where(sprite => !clearance.KeepsDrop(sprite.Id, layout.Lattice, layout.Edges, sprite.Position.X, sprite.Position.Y))
+                .Select(sprite => $"{sprite.Id} at ({sprite.Position.X:F0}, {sprite.Position.Y:F0})")
+                .ToArray();
+
+            if (low.Length > 0)
+            {
+                broken.Add($"{style} seed {seed} level {number}: {string.Join(", ", low)}");
+            }
+        }
+
+        Assert.Empty(broken);
+    }
+
+    [Fact]
+    public void Generate_BothStyles_KeepFurnitureOutOfFrontOfSites()
+    {
+        var broken = new List<string>();
+        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
+        {
+            var sites = level.Map.Sprites.Where(sprite => sprite.Id == KnownObject.DynamiteSite).ToArray();
+            int hidden = level.Map.Sprites
+                .Where(sprite => sprite.Id.Family is not (null or PieceFamily.Site or PieceFamily.Generator) && sprite.Id != KnownObject.TeleportPad && sprite.Position.Z < 5)
+                .Count(sprite => sites.Any(site => sprite.Position.Y > site.Position.Y && MathF.Sqrt(MathF.Pow(sprite.Position.X - site.Position.X, 2) + MathF.Pow(sprite.Position.Y - site.Position.Y, 2)) < SiteFrontClearance));
+
+            if (hidden > 0)
+            {
+                broken.Add($"{style} seed {seed} level {number}: {hidden} pieces in front of a site");
             }
         }
 

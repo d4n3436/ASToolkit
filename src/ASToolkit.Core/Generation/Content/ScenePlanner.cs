@@ -31,11 +31,13 @@ internal sealed class ScenePlanner
     private readonly LayoutPlan _plan;
     private readonly FineLayout _layout;
     private readonly SceneGrammar _grammar;
+    private readonly WallClearanceTable _clearance;
     private Dictionary<Cell, int> _walk = [];
     private int _walkLength = 1;
 
-    public ScenePlanner(Random rng, LevelBrief brief, LayoutPlan plan, FineLayout layout, SceneGrammar grammar)
+    public ScenePlanner(Random rng, LevelBrief brief, LayoutPlan plan, FineLayout layout, SceneGrammar grammar, WallClearanceTable clearance)
     {
+        _clearance = clearance;
         _rng = rng;
         _brief = brief;
         _plan = plan;
@@ -87,7 +89,7 @@ internal sealed class ScenePlanner
             var cells = _layout.GetRegionCells(room.Id).ToHashSet();
             var walls = visibleEdges.Keys
                 .Where(edge => IsHoleWall(edge) && IsHoleWall(StructureBuilder.GetPreviousEdge(edge)) && IsHoleWall(edge.Axis == 'v' ? new EdgeKey('v', edge.A + 1, edge.B) : new EdgeKey('u', edge.A, edge.B + 1)))
-                .Where(edge => plan.Holes.Keys.All(other => other.Axis != edge.Axis || Math.Abs(other.A - edge.A) + Math.Abs(other.B - edge.B) > HoleGap))
+                .Where(edge => plan.Holes.Keys.All(other => other.Axis != edge.Axis || Math.Abs(other.A - edge.A) + Math.Abs(other.B - edge.B) > HoleGap) && KeepsDrop(GetHoleSite(edge)))
                 .OrderBy(edge => edge.Axis)
                 .ThenBy(edge => edge.A)
                 .ThenBy(edge => edge.B)
@@ -192,9 +194,16 @@ internal sealed class ScenePlanner
         {
             foreach (var site in sites.Sites)
             {
-                var cells = _layout.GetRegionCells(site.Room.Id);
-                var middle = _layout.Lattice.GetCenter(cells[cells.Count / 2]);
-                map.Add(KnownObject.DynamiteSite, middle.X, middle.Y, 0, 0, unique: false);
+                var spot = site.Fallbacks
+                    .Prepend(site.Room.Id)
+                    .Select(room => _layout.GetRegionCells(room))
+                    .Select(cells => cells.Select(_layout.Lattice.GetCenter).Where(KeepsDrop).OrderBy(point => ContentPlacer.GetDistance(point, _layout.Lattice.GetCenter(cells[cells.Count / 2]))).FirstOrDefault())
+                    .FirstOrDefault(point => !point.IsEmpty);
+
+                if (!spot.IsEmpty)
+                {
+                    map.Add(KnownObject.DynamiteSite, spot.X, spot.Y, 0, 0, unique: false);
+                }
             }
         }
 
@@ -203,7 +212,8 @@ internal sealed class ScenePlanner
         {
             ((float hx, float hy), bool slash) = StructureBuilder.GetBasementPosition(_layout.Lattice, edge);
             int side = slash ? 1 : -1;
-            map.Add(KnownObject.DynamiteSite, hx + _grammar.Site.X * side, hy + _grammar.Site.Y, 0, 0, unique: false);
+            var hole = GetHoleSite(edge);
+            map.Add(KnownObject.DynamiteSite, hole.X, hole.Y, 0, 0, unique: false);
             int builds = (generators + left - 1) / left--;
             generators -= builds;
             if (builds <= 0)
@@ -234,6 +244,14 @@ internal sealed class ScenePlanner
             }
         }
     }
+
+    private PointF GetHoleSite(EdgeKey edge)
+    {
+        ((float x, float y), bool slash) = StructureBuilder.GetBasementPosition(_layout.Lattice, edge);
+        return new PointF(x + _grammar.Site.X * (slash ? 1 : -1), y + _grammar.Site.Y);
+    }
+
+    private bool KeepsDrop(PointF point) => _clearance.KeepsDrop(KnownObject.DynamiteSite, _layout.Lattice, _layout.Edges, point.X, point.Y);
 
     private PointF GetSiteTrigger(PlanRegion room)
     {
