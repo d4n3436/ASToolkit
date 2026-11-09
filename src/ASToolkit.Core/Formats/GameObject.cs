@@ -35,6 +35,16 @@ public struct GameObject
         GammaAlpha = 0;
         Scale = obj.Scale;
         Opacity = 255;
+        Speed = obj.Speed;
+        WeaponIndex = obj.WeaponIndex;
+        BlastRadius = obj.BlastRadius;
+        Damage = obj.Damage;
+        Lifetime = obj.Lifetime;
+        ChildX = obj.ChildX;
+        ChildY = obj.ChildY;
+        ChildHeight = obj.ChildHeight;
+        Children = obj.Children;
+        ChildCounts = obj.ChildCounts;
     }
 
     internal GameObject(ZombieShooterGameObject obj)
@@ -60,6 +70,16 @@ public struct GameObject
         GammaAlpha = obj.GammaAlpha;
         Scale = obj.Scale;
         Opacity = 255;
+        Speed = obj.Speed;
+        WeaponIndex = obj.WeaponIndex;
+        BlastRadius = obj.BlastRadius;
+        Damage = obj.Damage;
+        Lifetime = obj.Lifetime;
+        ChildX = obj.ChildX;
+        ChildY = obj.ChildY;
+        ChildHeight = obj.ChildHeight;
+        Children = obj.Children;
+        ChildCounts = obj.ChildCounts;
     }
 
     internal GameObject(ZombieShooter2GameObject obj)
@@ -85,6 +105,16 @@ public struct GameObject
         GammaAlpha = obj.GammaAlpha;
         Scale = obj.Scale;
         Opacity = obj.Opacity;
+        Speed = obj.Speed;
+        WeaponIndex = obj.WeaponIndex;
+        BlastRadius = obj.BlastRadius;
+        Damage = obj.Damage;
+        Lifetime = obj.Lifetime;
+        ChildX = obj.ChildX;
+        ChildY = obj.ChildY;
+        ChildHeight = obj.ChildHeight;
+        Children = obj.Children;
+        ChildCounts = obj.ChildCounts;
     }
 
     /// <summary>
@@ -152,6 +182,66 @@ public struct GameObject
     /// </summary>
     [FieldOffset(92)]
     public readonly KnownObject Link;
+
+    /// <summary>
+    /// Gets the speed of the object along its facing as stored; the engine scales it by 0.001 on load.
+    /// </summary>
+    [FieldOffset(32)]
+    public readonly float Speed;
+
+    /// <summary>
+    /// Gets the index of the WEAP record of the object, or zero for none.
+    /// </summary>
+    [FieldOffset(60)]
+    public readonly int WeaponIndex;
+
+    /// <summary>
+    /// Gets the blast radius the object adds to its footprint when it hits something.
+    /// </summary>
+    [FieldOffset(64)]
+    public readonly float BlastRadius;
+
+    /// <summary>
+    /// Gets the damage the object sends to everything its blast reaches.
+    /// </summary>
+    [FieldOffset(68)]
+    public readonly int Damage;
+
+    /// <summary>
+    /// Gets the lifetime of the object in milliseconds; 999999 means forever.
+    /// </summary>
+    [FieldOffset(108)]
+    public readonly int Lifetime;
+
+    /// <summary>
+    /// Gets the x offset of the object created in each state.
+    /// </summary>
+    [FieldOffset(336)]
+    public readonly StateFloats ChildX;
+
+    /// <summary>
+    /// Gets the y offset of the object created in each state.
+    /// </summary>
+    [FieldOffset(404)]
+    public readonly StateFloats ChildY;
+
+    /// <summary>
+    /// Gets the height offset of the object created in each state.
+    /// </summary>
+    [FieldOffset(472)]
+    public readonly StateFloats ChildHeight;
+
+    /// <summary>
+    /// Gets the ID of the object created in each state.
+    /// </summary>
+    [FieldOffset(540)]
+    public readonly StateValues Children;
+
+    /// <summary>
+    /// Gets the number of objects created in each state.
+    /// </summary>
+    [FieldOffset(608)]
+    public readonly StateValues ChildCounts;
 
     /// <summary>
     /// The highest step the object climbs, and the height a bobbing object rises and sinks by.

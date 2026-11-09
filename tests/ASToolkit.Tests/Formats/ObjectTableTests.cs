@@ -28,6 +28,24 @@ public class ObjectTableTests
     }
 
     [Fact]
+    public void Load_ReadsTheWeaponAndAttackOfAMonster()
+    {
+        string game = TestGameFolder.RequireFolder();
+        var table = ObjectTable.Load(Path.Combine(game, "objects.res"));
+        Assert.True(table.TryFind(KnownObject.Monster1, out var monster));
+        Assert.Equal(11, monster.WeaponIndex);
+        Assert.Equal(80, monster.Speed, 3);
+        Assert.True(table.TryGetWeapon(monster, out var weapon));
+        Assert.Equal(830, weapon.DetectRange, 3);
+        Assert.Equal(50, weapon.BattleRange, 3);
+        Assert.Equal(600, weapon.ReloadTime);
+        var attack = (KnownObject)monster.Children[(int)SpriteAnimation.Fight];
+        Assert.Equal(1, monster.ChildCounts[(int)SpriteAnimation.Fight]);
+        Assert.True(table.TryFind(attack, out var hit));
+        Assert.Equal(4, hit.Damage);
+    }
+
+    [Fact]
     public void Load_ReadsTheSpriteFieldsOfEveryEntry()
     {
         string game = TestGameFolder.RequireFolder();

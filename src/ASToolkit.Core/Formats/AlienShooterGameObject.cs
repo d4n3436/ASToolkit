@@ -58,6 +58,66 @@ internal readonly struct AlienShooterGameObject
     public readonly KnownObject Link;
 
     /// <summary>
+    /// The speed of the object along its facing as stored; the engine scales it by 0.001 on load.
+    /// </summary>
+    [FieldOffset(32)]
+    public readonly float Speed;
+
+    /// <summary>
+    /// The index of the WEAP record of the object, or zero for none.
+    /// </summary>
+    [FieldOffset(52)]
+    public readonly int WeaponIndex;
+
+    /// <summary>
+    /// The blast radius the object adds to its footprint when it hits something.
+    /// </summary>
+    [FieldOffset(56)]
+    public readonly float BlastRadius;
+
+    /// <summary>
+    /// The damage the object sends to everything its blast reaches.
+    /// </summary>
+    [FieldOffset(60)]
+    public readonly int Damage;
+
+    /// <summary>
+    /// The lifetime of the object in milliseconds; 999999 means forever.
+    /// </summary>
+    [FieldOffset(92)]
+    public readonly int Lifetime;
+
+    /// <summary>
+    /// The x offset of the object created in each state.
+    /// </summary>
+    [FieldOffset(320)]
+    public readonly StateFloats ChildX;
+
+    /// <summary>
+    /// The y offset of the object created in each state.
+    /// </summary>
+    [FieldOffset(388)]
+    public readonly StateFloats ChildY;
+
+    /// <summary>
+    /// The height offset of the object created in each state.
+    /// </summary>
+    [FieldOffset(456)]
+    public readonly StateFloats ChildHeight;
+
+    /// <summary>
+    /// The ID of the object created in each state.
+    /// </summary>
+    [FieldOffset(524)]
+    public readonly StateValues Children;
+
+    /// <summary>
+    /// The number of objects created in each state.
+    /// </summary>
+    [FieldOffset(592)]
+    public readonly StateValues ChildCounts;
+
+    /// <summary>
     /// The highest step the object climbs, and the height a bobbing object rises and sinks by.
     /// </summary>
     [FieldOffset(84)]

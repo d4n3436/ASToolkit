@@ -13,12 +13,16 @@ public sealed class ObjectTable
     private static readonly int AlienShooterBodySize = Unsafe.SizeOf<AlienShooterGameObject>();
     private static readonly int ZombieShooterBodySize = Unsafe.SizeOf<ZombieShooterGameObject>();
     private static readonly int ZombieShooter2BodySize = Unsafe.SizeOf<ZombieShooter2GameObject>();
+    private static readonly int WeaponSize = Unsafe.SizeOf<WeaponRecord>();
+    private static readonly int AlienShooterWeaponSize = Unsafe.SizeOf<AlienShooterWeaponRecord>();
     private static readonly int[] BodySizes = [AlienShooterBodySize, ZombieShooterBodySize, BodySize, ZombieShooter2BodySize];
 
     private readonly Dictionary<KnownObject, Entry> _entries;
+    private readonly WeaponRecord[] _weapons;
 
-    private ObjectTable(Dictionary<KnownObject, Entry> entries, bool isAlienShooter2)
+    private ObjectTable(Dictionary<KnownObject, Entry> entries, bool isAlienShooter2, WeaponRecord[] weapons)
     {
+        _weapons = weapons;
         _entries = entries;
         IsAlienShooter2 = isAlienShooter2;
     }
@@ -38,7 +42,8 @@ public sealed class ObjectTable
     /// </summary>
     public static ObjectTable Load(string path)
     {
-        var records = new ResContainer(File.ReadAllBytes(path)).Chunks.First().Records;
+        var container = new ResContainer(File.ReadAllBytes(path));
+        var records = container.Chunks.First().Records;
         int bodySize = FindBodySize(records.First().Span);
         bool anyExtended = bodySize == BodySize || bodySize == ZombieShooter2BodySize;
         var entries = new Dictionary<KnownObject, Entry>();
@@ -73,7 +78,24 @@ public sealed class ObjectTable
                 Encoding.Latin1.GetString(record[pathStart..^1]));
         }
 
-        return new ObjectTable(entries, anyExtended);
+        return new ObjectTable(entries, anyExtended, ReadWeapons(container));
+    }
+
+    private static WeaponRecord[] ReadWeapons(ResContainer container)
+    {
+        foreach (var chunk in container.Chunks)
+        {
+            if (!chunk.Tag.Span.SequenceEqual("WEAP"u8))
+                continue;
+
+            var records = chunk.Records.ToArray();
+            if (records.All(record => record.Length == AlienShooterWeaponSize))
+                return records.Select(record => new WeaponRecord(MemoryMarshal.Read<AlienShooterWeaponRecord>(record.Span))).ToArray();
+
+            return records.All(record => record.Length == WeaponSize) ? records.Select(record => MemoryMarshal.Read<WeaponRecord>(record.Span)).ToArray() : [];
+        }
+
+        return [];
     }
 
     private static GameObject ReadAlienShooter2(ReadOnlySpan<byte> body)
@@ -129,6 +151,16 @@ public sealed class ObjectTable
     /// Returns the sprite file of an entry.
     /// </summary>
     public string GetPath(KnownObject id) => _entries[id].Path;
+
+    /// <summary>
+    /// Finds the weapon record an object points at, or the first record for an index past the last, returning false when the table holds no
+    /// weapon records in a known layout.
+    /// </summary>
+    public bool TryGetWeapon(in GameObject obj, out WeaponRecord weapon)
+    {
+        weapon = _weapons.Length == 0 ? default : _weapons[(uint)obj.WeaponIndex < (uint)_weapons.Length ? obj.WeaponIndex : 0];
+        return _weapons.Length > 0;
+    }
 
     private readonly record struct Entry(GameObject Object, string Name, string Path);
 }

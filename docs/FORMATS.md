@@ -170,6 +170,8 @@ Body fields:
 
 The names come from `EXPORT.LGC` of Alien Shooter 2. The one of Alien Shooter has no `VID_SIZE_*`, `VID_ZSPEED`, `VID_DEATHRANGE`, `VID_DAMAGE_MAX`, `VID_CHILD_X` or `VID_SCALE_*`.
 
+The 696-byte body of Zombie Shooter (Alien Shooter spinoff) is the Alien Shooter 2 layout without `VID_DAMAGE_MAX` and the push (+72 and +76), with every later field 8 bytes earlier.
+
 Zombie Shooter 2 (Alien Shooter spinoff) carries an extra field, inserted between AS2's VID_GAMMA alpha and scale.
 
 ```
@@ -204,6 +206,30 @@ Menu buttons and fonts reuse the low states under their own names (`ANI_MENUSTAN
 The loader stops with an error when `noDir` is 0, and logs one when the `noCadr` of the sprite is 0, lower than `noDir`, or lower than the sum of `noAnimCadr` times `noDir`. It lowers `noDir` to `noCadr` in the second case, except on `B_TEXT`, and trims `noAnimCadr` from the last state down in the third.
 
 `VID_BATTLERANGE`, `VID_DETECTRANGE`, `VID_AIM_RADIUS`, `VID_RELOAD_TIME` and `VID_RELOAD_TIME_IN_VOLLEY` are fields of the WEAP record the object points at, not of the object.
+
+Alien Shooter loads its 612-byte `WEAP` records as stored. Zombie Shooter, Zombie Shooter 2 and Alien Shooter 2 store 640 bytes a record, copy the head as stored into a 572-byte record and rearrange the arrays at its end. The object's record index points at it; an index past the last record takes the first (Alien Shooter) or logs `nWeapon > noWeapon`.
+
+```
+ AS1    AS2/ZS  type   field
+ +4     +4      u32    flags; the attack check tests bit 1
+ +20    +24     f32    VID_DETECTRANGE: distance at which the unit notices an enemy and chases it
+ +24    +28     f32    VID_BATTLERANGE: farthest distance at which the unit attacks
+ +28    +32     f32    VID_WEAPONAIM (Alien Shooter, Zombie Shooter), VID_AIM_RADIUS: aim spread, the bullet's spread 100 pixels from the shooter
+ -      +36     i32    attacks of a volley
+ +40    +40     i32    VID_AMMO: most ammunition the weapon holds; 999999 or more means unlimited
+ +32    +44     i32    VID_RELOAD_TIME (Zombie Shooter on): milliseconds between attacks, after a volley where there are volleys
+ -      +48     i32    VID_RELOAD_TIME_IN_VOLLEY: milliseconds between the attacks of a volley
+ +36    +52     i32    VID_BUILDTIME: build time in milliseconds
+ +44    -       i32    copied into bits 11 and 12 of the flags of the object the attack creates; 1 on monsters, 0 on the player's weapons
+ +48    -       i32    copied into the unit when it is created; the unit tests bit 1 each tick; 3 on monsters
+ +60    +88     f32    closest distance at which the unit attacks
+ +548   -       f32x8  \ scaled by 0.001 on load unless 999999
+ +580   -       f32x8  /
+```
+
+A unit attacks when an enemy stands within its battle range and beyond its closest range. Alien Shooter and Zombie Shooter measure the distance as the larger of the two map axis distances plus half the smaller; Zombie Shooter 2 and Alien Shooter 2 as 0.961 times the larger plus 0.398 times the smaller. An attack sets a timer of the unit to the reload time (within a volley the reload time in volley) plus 5,000 ms; each tick lowers it by the milliseconds since the unit's last tick and clears it once they cover it. The unit attacks again once the timer is 5,000 or lower, a reload time after the attack. Alien Shooter and Zombie Shooter also wait while the `ANI_FIGHT` animation plays. Melee monsters have a battle range of 50 to 115, ranged ones 260 to 750.
+
+The damage of an attack belongs to the object created in the attacker's `ANI_FIGHT` state, or, for the player's weapons, to the projectile that object creates in turn (a shotgun flash creates 10 pellets of 5 damage).
 
 A spawned object starts at the speed in the record, the movement step raises the speed by the acceleration until it reaches that value and lowers it by the deceleration when the object stops, and the vertical speed feeds the height. Alien Shooter 2 picks the initial speed and the initial vertical speed at random between the minimum and the maximum of the record.
 
