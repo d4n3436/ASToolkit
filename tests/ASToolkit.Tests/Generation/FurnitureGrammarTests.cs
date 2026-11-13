@@ -60,7 +60,7 @@ public class FurnitureGrammarTests
 
         var tierHeights = stacks.GroupBy(stack => stack.Anchor).ToDictionary(group => group.Key, group => group.Min(stack => stack.Tiers.Min()));
 
-        var floating = stacks
+        string[] floating = stacks
             .SelectMany(stack => stack.Tiers
                 .Where(z => z > tierHeights[stack.Anchor] + TierSlack && !stack.Tiers.Any(under => MathF.Abs(z - tierHeights[stack.Anchor] - under) <= TierSlack))
                 .Select(z => $"{stack.Anchor} at z {z}"))

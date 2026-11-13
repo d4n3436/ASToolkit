@@ -110,7 +110,7 @@ internal sealed class EncounterPlacer
                 var point = new PointF(anchor.X + radius * MathF.Cos(angle), anchor.Y + radius * MathF.Sin(angle));
                 var cell = _ctx.Layout.Lattice.GetCell(point);
                 if (_ctx.Layout.Cells.GetValueOrDefault(cell, -1) == room && _ctx.Distance.ContainsKey(cell) && IsApart(placed, point) && _ctx.IsVisible(point)
-                    && !_ctx.IsInWall(point, 2) && _ctx.Occupancy.Fits(group[index], point, 0))
+                    && !_ctx.IsInWall(point, GetHalfSize(group[index])) && _ctx.Occupancy.Fits(group[index], point, 0))
                 {
                     placed.Add((index, point));
                 }
@@ -127,6 +127,8 @@ internal sealed class EncounterPlacer
 
         return best.Select(member => member.Index).ToHashSet();
     }
+
+    private float GetHalfSize(KnownObject id) => _ctx.Objects.TryFind(id, out var obj) ? Math.Max(obj.Size.X, obj.Size.Y) / 2 : 0;
 
     private static bool IsApart(List<(int Index, PointF Point)> placed, PointF point)
     {

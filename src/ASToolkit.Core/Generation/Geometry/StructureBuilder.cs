@@ -444,7 +444,7 @@ public static class StructureBuilder
         {
             float depth = side * (0.05f + rng.NextSingle() * ClosetShadowDepth), along = rng.NextSingle();
             (float x, float y) = edge.Axis == 'v' ? lattice.ToWorld(edge.A + along, edge.B + depth) : lattice.ToWorld(edge.A + depth, edge.B + along);
-            map.Add(KnownObject.EmbeddedShadow, x, y, 0, 0, unique: false);
+            map.Add(KnownObject.EmbeddedShadow, x, y, unique: false);
         }
     }
 

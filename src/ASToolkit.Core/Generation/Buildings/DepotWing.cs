@@ -122,7 +122,7 @@ internal sealed class DepotWing
         IReadOnlyList<RoomShape> Sections(int depots, Side? flat, float weightL, float weightT, bool takesEntry) => Enumerable.Range(0, 4)
             .Select(_ =>
             {
-                var kind = _random.Weighted<EnvelopeKind>([(EnvelopeKind.Plain, 10 - weightL - weightT), (EnvelopeKind.L, weightL), (EnvelopeKind.T, weightT)]);
+                var kind = _random.Weighted([(EnvelopeKind.Plain, 10 - weightL - weightT), (EnvelopeKind.L, weightL), (EnvelopeKind.T, weightT)]);
                 int w = _random.Inclusive(27, 36), h = _random.Inclusive(24, 32);
                 while (w * h > 330 * depots)
                 {

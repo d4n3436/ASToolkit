@@ -153,7 +153,7 @@ public class LevelGeneratorIntegrationTests
     public void Generate_BothStyles_NeverReleaseAnAmbushFromAnEarlierPhaseThanItsTrigger()
     {
         var broken = new List<string>();
-        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
+        foreach ((string style, int seed, int number, var level, _, _) in GetIndoorLevels())
         {
             var plan = level.Plan!;
             var layout = level.Layout!;
@@ -162,8 +162,8 @@ public class LevelGeneratorIntegrationTests
                 .Select(sprite => (Spawner: layout.Lattice.GetCell(sprite.Position), SpawnerProgram.Parse(sprite.Payload)?.Trigger))
                 .Where(pair => pair.Trigger is not null)
                 .Select(pair => (Spawner: layout.Cells.GetValueOrDefault(pair.Spawner, -1), Trigger: layout.Cells.GetValueOrDefault(layout.Lattice.GetCell(pair.Trigger!.Value.Center.X, pair.Trigger.Value.Center.Y), -1)))
-                .Count(pair => pair.Spawner >= 0 && pair.Trigger >= 0 && plan.Regions[pair.Spawner].Kind != RegionKind.SpawnCloset
-                               && plan.Regions[pair.Spawner].Phase < plan.Regions[pair.Trigger].Phase);
+                .Count(pair => pair is { Spawner: >= 0, Trigger: >= 0 } && plan.Regions[pair.Spawner].Kind != RegionKind.SpawnCloset
+                                                                        && plan.Regions[pair.Spawner].Phase < plan.Regions[pair.Trigger].Phase);
 
             if (behind > 0)
             {
@@ -178,7 +178,7 @@ public class LevelGeneratorIntegrationTests
     public void Generate_BothStyles_StandWhatABlastKillsWithinItsReachOfASite()
     {
         var broken = new List<string>();
-        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
+        foreach ((string style, int seed, int number, var level, _, _) in GetIndoorLevels())
         {
             var sites = level.Map.Sprites.Where(sprite => sprite.Id == KnownObject.DynamiteSite).Select(sprite => new PointF(sprite.Position.X, sprite.Position.Y)).ToArray();
             int far = level.Map.Sprites
@@ -198,7 +198,7 @@ public class LevelGeneratorIntegrationTests
     public void Generate_BothStyles_StandGeneratorsByAFarWall()
     {
         var broken = new List<string>();
-        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
+        foreach ((string style, int seed, int number, var level, _, _) in GetIndoorLevels())
         {
             var layout = level.Layout!;
             int loose = level.Map.Sprites
@@ -219,7 +219,7 @@ public class LevelGeneratorIntegrationTests
     public void Generate_BothStyles_KeepFloorPiecesAndPickupsAboveTheWallBelow()
     {
         var broken = new List<string>();
-        foreach ((string style, int seed, int number, var level, var model, var _) in GetIndoorLevels())
+        foreach ((string style, int seed, int number, var level, var model, _) in GetIndoorLevels())
         {
             var layout = level.Layout!;
             var clearance = model.GetWallClearance(level.WallSet);
@@ -242,7 +242,7 @@ public class LevelGeneratorIntegrationTests
     public void Generate_BothStyles_KeepFurnitureOutOfFrontOfSites()
     {
         var broken = new List<string>();
-        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
+        foreach ((string style, int seed, int number, var level, _, _) in GetIndoorLevels())
         {
             var sites = level.Map.Sprites.Where(sprite => sprite.Id == KnownObject.DynamiteSite).ToArray();
             int hidden = level.Map.Sprites
@@ -273,7 +273,7 @@ public class LevelGeneratorIntegrationTests
     public void Generate_BothStyles_StandSpawnersOffTheScreenAroundTheirTriggers()
     {
         var broken = new List<string>();
-        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
+        foreach ((string style, int seed, int number, var level, _, _) in GetIndoorLevels())
         {
             int seen = level.Map.Sprites
                 .Where(sprite => IsAmbushSpawner(sprite.Id, sprite.Payload))
@@ -295,7 +295,7 @@ public class LevelGeneratorIntegrationTests
     public void Generate_BothStyles_StandEverySpawnTriggerWhereEveryWalkToTheEndCrossesIt()
     {
         var broken = new List<string>();
-        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
+        foreach ((string style, int seed, int number, var level, _, _) in GetIndoorLevels())
         {
             var plan = level.Plan!;
             var layout = level.Layout!;
@@ -327,7 +327,7 @@ public class LevelGeneratorIntegrationTests
     public void Generate_BothStyles_CapTheCommonestVariantOfAMixedFamily()
     {
         var broken = new List<string>();
-        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
+        foreach ((string style, int seed, int number, var level, _, _) in GetIndoorLevels())
         {
             int over = level.Fights.Count(fight => fight.Monsters
                 .GroupBy(id => id.MonsterFamily)
@@ -346,17 +346,18 @@ public class LevelGeneratorIntegrationTests
     public void Generate_BothStyles_PlaceEachPhasesPlannedHitPointsInStandingMonstersAndSpawners()
     {
         var broken = new List<string>();
-        foreach ((string style, int seed, int number, var level, var _, var objects) in GetIndoorLevels())
+        foreach ((string style, int seed, int number, var level, _, var objects) in GetIndoorLevels())
         {
             var plan = level.Plan!;
             var layout = level.Layout!;
-            int GetHitPoints(KnownObject id) => id.IsEndlessGenerator || !objects.TryFind(id, out var found) ? 0 : found.MaxHp;
-            int GetPhase(float x, float y) => layout.Cells.TryGetValue(layout.Lattice.GetCell(x, y), out int region) ? plan.Regions[region].Phase : -1;
             var planned = level.Fights
                 .GroupBy(fight => plan.Regions[fight.Region].Phase)
                 .ToDictionary(phase => phase.Key, phase => phase.Sum(fight => fight.HitPoints));
 
-            var kinds = level.Fights.SelectMany(fight => fight.Monsters).ToHashSet();
+            var kinds = level.Fights
+                .SelectMany(fight => fight.Monsters)
+                .ToHashSet();
+            
             var placed = level.Map.Sprites
                 .Where(sprite => kinds.Contains(sprite.Id))
                 .Select(sprite => (Phase: GetPhase(sprite.Position.X, sprite.Position.Y), HitPoints: GetHitPoints(sprite.Id)))
@@ -375,10 +376,16 @@ public class LevelGeneratorIntegrationTests
                 broken.Add($"{style} seed {seed} level {number}: target {target}, planned {total}");
             }
 
-            foreach (var (phase, hitPoints) in planned.Where(pair => Math.Abs(placed.GetValueOrDefault(pair.Key) - pair.Value) > HitPointSlack * pair.Value))
+            foreach ((int phase, int hitPoints) in planned.Where(pair => Math.Abs(placed.GetValueOrDefault(pair.Key) - pair.Value) > HitPointSlack * pair.Value))
             {
                 broken.Add($"{style} seed {seed} level {number} phase {phase}: planned {hitPoints}, placed {placed.GetValueOrDefault(phase)}");
             }
+
+            continue;
+
+            int GetPhase(float x, float y) => layout.Cells.TryGetValue(layout.Lattice.GetCell(x, y), out int region) ? plan.Regions[region].Phase : -1;
+            
+            int GetHitPoints(KnownObject id) => id.IsEndlessGenerator || !objects.TryFind(id, out var found) ? 0 : found.MaxHp;
         }
 
         Assert.Empty(broken);
@@ -388,7 +395,7 @@ public class LevelGeneratorIntegrationTests
     public void Generate_BothStyles_StandMonstersTwelvePixelsApart()
     {
         var broken = new List<string>();
-        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
+        foreach ((string style, int seed, int number, var level, _, _) in GetIndoorLevels())
         {
             var kinds = level.Fights.SelectMany(fight => fight.Monsters).ToHashSet();
             var monsters = level.Map.Sprites
@@ -465,7 +472,7 @@ public class LevelGeneratorIntegrationTests
     public void Generate_BothStyles_PlaceEveryPickupAndWeaponOfTheBudget()
     {
         var broken = new List<string>();
-        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
+        foreach ((string style, int seed, int number, var level, _, _) in GetIndoorLevels())
         {
             var budget = level.Budget!;
             var wanted = budget.Items
@@ -494,7 +501,7 @@ public class LevelGeneratorIntegrationTests
     public void Generate_BothStyles_LayEachNewWeaponAfterSomeOfItsAmmunition()
     {
         var broken = new List<string>();
-        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
+        foreach ((string style, int seed, int number, var level, _, _) in GetIndoorLevels())
         {
             var elements = level.Analysis!.Elements;
             var brief = (style == "campaign" ? CampaignSources : AddOnSources).Value.Generator.Plan(seed).Levels[number - 1];
@@ -519,16 +526,11 @@ public class LevelGeneratorIntegrationTests
     public void Generate_BothStyles_LayEnoughChargesBeforeEverySiteInPlayOrder()
     {
         var broken = new List<string>();
-        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels())
+        foreach ((string style, int seed, int number, var level, _, _) in GetIndoorLevels())
         {
             var walk = MeasureWalk(level);
             var layout = level.Layout!;
             var plan = level.Plan!;
-            (int Phase, int Walk, int Region) Locate(MergedMapSprite sprite)
-            {
-                int region = layout.Cells.GetValueOrDefault(layout.Lattice.GetCell(sprite.Position), -1);
-                return (region < 0 ? 0 : plan.Regions[region].Phase, GetWalk(level, walk, sprite.Position.X, sprite.Position.Y), region);
-            }
 
             var charges = level.Map.Sprites.Where(sprite => sprite.Id == KnownObject.Dynamite).Select(Locate).ToArray();
             var sites = level.Map.Sprites.Where(sprite => sprite.Id == KnownObject.DynamiteSite).Select(Locate).OrderBy(site => site.Phase).ThenBy(site => site.Walk).ToArray();
@@ -542,6 +544,14 @@ public class LevelGeneratorIntegrationTests
                     break;
                 }
             }
+
+            continue;
+
+            (int Phase, int Walk, int Region) Locate(MergedMapSprite sprite)
+            {
+                int region = layout.Cells.GetValueOrDefault(layout.Lattice.GetCell(sprite.Position), -1);
+                return (region < 0 ? 0 : plan.Regions[region].Phase, GetWalk(level, walk, sprite.Position.X, sprite.Position.Y), region);
+            }
         }
 
         Assert.Empty(broken);
@@ -551,7 +561,7 @@ public class LevelGeneratorIntegrationTests
     public void Generate_BothStyles_StandTheCheckpointBeforeTheBiggestFight()
     {
         var broken = new List<string>();
-        foreach ((string style, int seed, int number, var level, var _, var _) in GetIndoorLevels().Where(entry => entry.Level.Script.Checkpoint is not null && entry.Level.Fights.Count > 0))
+        foreach ((string style, int seed, int number, var level, _, _) in GetIndoorLevels().Where(entry => entry.Level.Script.Checkpoint is not null && entry.Level.Fights.Count > 0))
         {
             var walk = MeasureWalk(level);
             var climax = level.Fights.MaxBy(fight => fight.HitPoints)!;
@@ -789,7 +799,7 @@ public class LevelGeneratorIntegrationTests
 
     private static float Distance(PointF a, PointF b) => MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
 
-    private static IReadOnlyDictionary<(int Seed, int Level), GeneratedLevel> GenerateAll(LevelGenerator generator, int levels)
+    private static ConcurrentDictionary<(int Seed, int Level), GeneratedLevel> GenerateAll(LevelGenerator generator, int levels)
     {
         var jobs = Enumerable.Range(1, Seeds).SelectMany(seed => Enumerable.Range(1, levels).Select(level => (Seed: seed, Level: level))).ToArray();
         var generated = new ConcurrentDictionary<(int Seed, int Level), GeneratedLevel>();
@@ -802,7 +812,7 @@ public class LevelGeneratorIntegrationTests
         string game = TestGameFolder.RequireFolder();
         var objects = TestGameFolder.Objects;
         var references = TestGameFolder.References;
-        var model = new StyleFitter(objects, GameTable.Load(Path.Combine(game, "Maps", "common_table.lgc"))).Fit(references, style);
+        var model = new StyleFitter(objects, TestGameFolder.Table).Fit(references, style);
         return (new LevelGenerator(game, objects, references, model), objects, references, model);
     }
 }

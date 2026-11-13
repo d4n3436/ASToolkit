@@ -118,6 +118,7 @@ public sealed class OutdoorLevelBuilder
         var outside = site.GetOutsideCell(breach);
         var inside = breach.Cells.First == outside ? breach.Cells.Second : breach.Cells.First;
         var (wall, _) = StructureBuilder.GetBasementPosition(site.Lattice, breach);
+        site.Reserve(wall, BreachReach);
         var originalBreach = original.Sprites.FirstOrDefault(sprite => sprite.Id == KnownObject.BreakableWall2);
         bool copiesBreach = style == OutdoorStyle.Campaign && originalBreach is not null && originalExit is not null;
         if (copiesBreach)
@@ -149,14 +150,14 @@ public sealed class OutdoorLevelBuilder
         }
 
         (float bx, float by) = site.Lattice.GetCenter(outside);
-        site.Map.Add(KnownObject.DynamiteSite, bx, by, 0, 0);
+        site.Map.Add(KnownObject.DynamiteSite, bx, by);
         var charge = site.FindOpenSpot(point => Distance(point, new PointF(bx, by)) is >= ChargeLow and <= ChargeHigh && !yard.Contains(site.Lattice.GetCell(point)));
         if (charge is not null)
         {
-            site.Map.Add(KnownObject.Dynamite, charge.Value.X, charge.Value.Y, 0, 0);
+            site.Map.Add(KnownObject.Dynamite, charge.Value.X, charge.Value.Y);
         }
 
-        site.Map.Add(KnownObject.Shotgun, start.X + 120, start.Y - 60, 0, 0);
+        site.Map.Add(KnownObject.Shotgun, start.X + 120, start.Y - 60);
         var middle = site.FindOpenSpot(point => yard.Contains(site.Lattice.GetCell(point))) ?? site.Lattice.ToWorld(yard.U + yard.W / 2f, yard.V + yard.H / 2f);
         site.AddCluster(middle, [KnownObject.Monster1, KnownObject.YellowMonster1], 55, MonsterSpacing);
         var gate = site.Gate ?? middle;
@@ -196,7 +197,7 @@ public sealed class OutdoorLevelBuilder
             var spot = site.FindOpenSpot(_ => true);
             if (spot is not null)
             {
-                site.Map.Add(item, spot.Value.X, spot.Value.Y, 0, 0);
+                site.Map.Add(item, spot.Value.X, spot.Value.Y);
             }
         }
 
@@ -335,7 +336,7 @@ public sealed class OutdoorLevelBuilder
                 }
                 else if (piece == torn)
                 {
-                    Map.Add(KnownObject.TornLattice, piece.Center.X, piece.Center.Y, 0, 0);
+                    Map.Add(KnownObject.TornLattice, piece.Center.X, piece.Center.Y);
                     openings.Add(piece.Center);
                 }
                 else
@@ -486,6 +487,19 @@ public sealed class OutdoorLevelBuilder
 
         public Cell GetOutsideCell(EdgeKey edge) => Interiors.Contains(edge.Cells.First) ? edge.Cells.Second : edge.Cells.First;
 
+        public void Reserve(PointF center, float reach)
+        {
+            foreach (var cell in Ground)
+            {
+                var point = Lattice.GetCenter(cell);
+
+                if (Distance(new PointF(point.X, point.Y), center) < reach)
+                {
+                    _taken.Add(cell);
+                }
+            }
+        }
+
         // Stamp the original's storage clusters in the yard, each against a building wall or the fence
         public void AddYardScenes(UnitRect yard, MapResourceBuilder original, PointF? originalBreach)
         {
@@ -548,7 +562,7 @@ public sealed class OutdoorLevelBuilder
             (float x, float y) = Lattice.ToWorld(building.U - 0.5f, building.V + 1);
             for (int index = 0; index < count; index++)
             {
-                Map.Add(KnownObject.Money, x + 40 * index, y + 28 * index, 0, 0);
+                Map.Add(KnownObject.Money, x + 40 * index, y + 28 * index);
             }
         }
 

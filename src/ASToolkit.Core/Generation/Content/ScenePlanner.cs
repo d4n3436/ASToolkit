@@ -202,7 +202,7 @@ internal sealed class ScenePlanner
 
                 if (!spot.IsEmpty)
                 {
-                    map.Add(KnownObject.DynamiteSite, spot.X, spot.Y, 0, 0, unique: false);
+                    map.Add(KnownObject.DynamiteSite, spot.X, spot.Y, unique: false);
                 }
             }
         }
@@ -213,7 +213,7 @@ internal sealed class ScenePlanner
             ((float hx, float hy), bool slash) = StructureBuilder.GetBasementPosition(_layout.Lattice, edge);
             int side = slash ? 1 : -1;
             var hole = GetHoleSite(edge);
-            map.Add(KnownObject.DynamiteSite, hole.X, hole.Y, 0, 0, unique: false);
+            map.Add(KnownObject.DynamiteSite, hole.X, hole.Y, unique: false);
             int builds = (generators + left - 1) / left--;
             generators -= builds;
             if (builds <= 0)

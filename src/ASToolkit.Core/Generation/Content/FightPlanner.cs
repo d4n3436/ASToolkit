@@ -79,7 +79,7 @@ internal sealed class FightPlanner
             {
                 var drawn = _model.ClimaxPositions.Value;
                 float target = drawn[_rng.Next(drawn.Count)];
-                var chokes = members.Where(index => doors.Contains(rooms[index].Id)).ToArray();
+                int[] chokes = members.Where(index => doors.Contains(rooms[index].Id)).ToArray();
                 picked.Add((chokes.Length > 0 ? chokes : members).MinBy(index => Math.Abs(positions[index] - target)));
                 slots.Remove(slots.MinBy(slot => Math.Abs(slot - target)));
                 climaxes.Add(picked[0]);

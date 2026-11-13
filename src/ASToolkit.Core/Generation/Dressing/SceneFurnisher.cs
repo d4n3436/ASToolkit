@@ -794,7 +794,7 @@ internal sealed class SceneFurnisher
 
     private SeatSpot? GetSeat(CorpsePose pose, Seat seat)
     {
-        var pieces = Enumerable.Range(0, _floor.Count)
+        int[] pieces = Enumerable.Range(0, _floor.Count)
             .Where(index => GetFaceOffsets(pose, seat, _floor[index].Id, _floor[index].Dir).Length > 0)
             .ToArray();
 

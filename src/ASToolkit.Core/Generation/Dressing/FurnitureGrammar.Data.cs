@@ -14,7 +14,7 @@ internal sealed partial record FurnitureGrammar
         [R.Hall] = new(
             [[0, 0], [0, 0.11f], [0, 0], [0, 0.79f]], false, 0,
             [
-                new(A.Heap, null, 0.21f, 0.27f, [0.09f, 0.24f], 0.74f, [4, 12], [], NearShare: 0.06f),
+                new(A.Heap, null, 0.21f, 0.27f, [0.09f, 0.24f], 0.74f, [4, 12], [], NearShare: 0.06f)
             ],
             GroupModules(
             [
@@ -24,41 +24,41 @@ internal sealed partial record FurnitureGrammar
                     new(Chair, 0, -0.03f, 0.83f, 0, 42, 1), new(Computer, 0, -0.22f, 0, 32, 128, 0.25f), new(ComputerDead, 0, 0.02f, -0.02f, 32, 128, 0.25f),
                     new(TestTubes, 0, -0.01f, 0.06f, 31, 213, 0.5f), new(TestTubes, 1, 0.09f, -0.17f, 31, 0, 0.5f), new(TestTubes, 2, 0, 0, 31, 170, 0.25f),
                     new(TestTubes, 3, 0.2f, -0.2f, 31, 0, 0.25f), new(LabEquipment, 2, 0.34f, 0.05f, 31, 0, 0.25f), new(LabEquipment, 3, -0.33f, -0.05f, 31, 85, 0.25f),
-                    new(LabEquipment, 4, 0.33f, 0.05f, 31, 0, 0.25f),
+                    new(LabEquipment, 4, 0.33f, 0.05f, 31, 0, 0.25f)
                 ]),
                 new(Table, 192, [new(Chair, 0, -0.82f, 0.4f, 0, 85, 1), new(Boxes, 0, 0.03f, 0.47f, 32, 80, 0.2f)]),
                 new(Table, 85, [new(Chair, 0, -0.14f, 0.89f, 0, 128, 1), new(ComputerDead, 0, 0.09f, -0.04f, 32, 0, 0.22f), new(TestTubes, 0, -0.21f, 0.06f, 32, 0, 0.22f)]),
                 new(Table, 64,
                 [
                     new(Chair, 0, 0.98f, -0.45f, 0, 202, 0.31f), new(Computer, 0, 0.02f, -0.05f, 31, 235, 0.5f), new(ComputerDead, 0, -0.05f, 0.09f, 33, 224, 0.25f),
-                    new(TestTubes, 0, -0.06f, 0.22f, 32, 85, 0.25f),
+                    new(TestTubes, 0, -0.06f, 0.22f, 32, 85, 0.25f)
                 ]),
                 new(Table, 128,
                 [
                     new(Chair, 0, 0.06f, 0.74f, 0, 170, 1), new(ComputerDead, 0, 0.15f, -0.1f, 32, 128, 0.5f), new(TestTubes, 0, 0.33f, 0, 32, 0, 0.5f),
-                    new(TestTubes, 1, 0.44f, 0.16f, 32, 64, 0.25f),
+                    new(TestTubes, 1, 0.44f, 0.16f, 32, 64, 0.25f)
                 ]),
                 new(Table, 106,
                 [
                     new(Chair, 0, -0.62f, 0.27f, 0, 106, 1), new(TestTubes, 0, 0.05f, 0.12f, 32, 170, 0.83f), new(TestTubes, 1, 0.05f, 0.37f, 32, 42, 0.67f),
                     new(TestTubes, 2, -0.1f, -0.39f, 32, 42, 0.5f), new(TestTubes, 3, 0.17f, 0.45f, 32, 85, 0.17f), new(LabEquipment, 0, 0.19f, -0.24f, 32, 213, 0.17f),
                     new(LabEquipment, 1, 0.11f, -0.28f, 32, 213, 0.17f), new(LabEquipment, 2, -0.06f, 0.04f, 32, 0, 0.17f), new(LabEquipment, 3, -0.09f, 0.19f, 32, 0, 0.33f),
-                    new(LabEquipment, 4, 0.02f, -0.24f, 32, 0, 0.17f),
+                    new(LabEquipment, 4, 0.02f, -0.24f, 32, 0, 0.17f)
                 ]),
                 new(Table, 21,
                 [
                     new(Chair, 0, -0.74f, 0.16f, 0, 0, 0.5f), new(TestTubes, 0, 0.14f, -0.54f, 32, 85, 0.88f), new(TestTubes, 1, 0.34f, -0.12f, 32, 128, 0.25f),
-                    new(TestTubes, 2, 0.15f, 0.62f, 32, 128, 0.25f), new(LabEquipment, 1, 0.12f, -0.62f, 32, 213, 0.5f),
+                    new(TestTubes, 2, 0.15f, 0.62f, 32, 128, 0.25f), new(LabEquipment, 1, 0.12f, -0.62f, 32, 213, 0.5f)
                 ]),
                 new(Table, 170, [new(Chair, 0, 0.98f, 0.12f, 0, 128, 0.46f), new(TestTubes, 0, 0.23f, 0.02f, 32, 170, 0.54f), new(Boxes, 0, -0.02f, -0.13f, 32, 64, 0.27f)]),
                 new(Table, 213,
                 [
                     new(Chair, 0, 0.17f, 0.46f, 0, 128, 1), new(TestTubes, 0, 0.43f, -0.11f, 32, 213, 0.5f), new(TestTubes, 1, 0.18f, -0.04f, 32, 85, 0.5f),
-                    new(TestTubes, 2, 0.49f, 0.13f, 32, 85, 0.5f), new(TestTubes, 3, 0.15f, 0.05f, 32, 42, 0.5f),
+                    new(TestTubes, 2, 0.49f, 0.13f, 32, 85, 0.5f), new(TestTubes, 3, 0.15f, 0.05f, 32, 42, 0.5f)
                 ]),
                 new(Cabinet, 149, [new(Plant, 0, 0.16f, 0.06f, 27, 192, 0.23f), new(Cabinet, 0, 0, 0, 27, 149, 0.85f), new(Cabinet, 1, 0, 0, 54, 149, 0.77f)]),
                 new(Cabinet, 85, [new(Cabinet, 0, 0, 0, 27, 85, 0.5f), new(Cabinet, 1, 0, 0, 54, 85, 0.25f)]),
-                new(Shelves, 42, [new(Boxes, 0, 0.02f, 0.01f, 48, 96, 1), new(Boxes, 1, -0.01f, 0.45f, 49, 112, 1)]),
+                new(Shelves, 42, [new(Boxes, 0, 0.02f, 0.01f, 48, 96, 1), new(Boxes, 1, -0.01f, 0.45f, 49, 112, 1)])
             ])),
         [R.Office] = new(
             [[2.08f, 6.25f], [2.5f, 5.5f], [2.5f, 5.88f], [2.5f, 5.88f]], true, 1,
@@ -70,7 +70,7 @@ internal sealed partial record FurnitureGrammar
                 new(A.Near, F.Shelf, 0.22f, 0.29f, [0.56f, 0.83f], 1.79f, [1, 1], new() { [F.Shelf] = 1 }),
                 new(A.Grid, F.Table, 0.17f, 0.29f, [0.27f, 0.47f], 0.54f, [2, 2], [], OpenFromCells: 250, Signature: true),
                 new(A.Near, F.Cabinet, 0.25f, 0.24f, [0.69f, 0.94f], 2.08f, [1, 2], new() { [F.Cabinet] = 1 }),
-                new(A.Open, F.Table, 0.25f, 0.24f, [0.33f, 0.69f], 1.25f, [1, 1], [], OpenFromCells: 250),
+                new(A.Open, F.Table, 0.25f, 0.24f, [0.33f, 0.69f], 1.25f, [1, 1], [], OpenFromCells: 250)
             ],
             GroupModules(
             [
@@ -85,12 +85,12 @@ internal sealed partial record FurnitureGrammar
                 new(Table, 192,
                 [
                     new(Chair, 0, -0.68f, 0.46f, 0, 85, 0.71f), new(Computer, 0, 0.12f, -0.18f, 32, 160, 0.25f), new(ComputerDead, 0, 0.07f, -0.17f, 33, 160, 0.25f),
-                    new(NewChair, 0, -0.75f, -0.06f, 0, 0, 0.19f),
+                    new(NewChair, 0, -0.75f, -0.06f, 0, 0, 0.19f)
                 ]),
                 new(Table, 0,
                 [
                     new(Chair, 0, -0.05f, 1.13f, 0, 0, 0.96f), new(Computer, 0, -0.22f, -0.05f, 32, 0, 0.27f), new(ComputerDead, 0, -0.2f, -0.08f, 32, 0, 0.52f),
-                    new(TestTubes, 0, 0.38f, 0.06f, 32, 128, 0.17f),
+                    new(TestTubes, 0, 0.38f, 0.06f, 32, 128, 0.17f)
                 ]),
                 new(Table, 21, [new(Chair, 0, -0.79f, -0.11f, 0, 0, 0.85f), new(Computer, 0, 0.13f, -0.21f, 32, 160, 0.15f), new(ComputerDead, 0, 0.08f, -0.11f, 32, 160, 0.64f)]),
                 new(Table, 89, [new(Chair, 0, -0.01f, 0.71f, 0, 128, 1), new(ComputerDead, 0, 0, 0, 32, 128, 1), new(Boxes, 0, -0.43f, 0, 32, 80, 0.17f)]),
@@ -99,7 +99,7 @@ internal sealed partial record FurnitureGrammar
                 new(Table, 212,
                 [
                     new(Chair, 0, -0.02f, 1.05f, 0, 226, 0.83f), new(Chair, 1, 0.14f, -0.75f, 0, 226, 0.17f), new(Computer, 0, 0.23f, 0.05f, 33, 198, 0.33f),
-                    new(ComputerDead, 0, 0.3f, 0.05f, 32, 192, 0.67f), new(TestTubes, 0, -0.24f, -0.21f, 32, 170, 0.17f),
+                    new(ComputerDead, 0, 0.3f, 0.05f, 32, 192, 0.67f), new(TestTubes, 0, -0.24f, -0.21f, 32, 170, 0.17f)
                 ]),
                 new(Table, 18, [new(Chair, 0, -0.56f, 0.14f, 0, 85, 1), new(ComputerDead, 0, 0.1f, -0.23f, 31, 32, 1)]),
                 new(Table, 234, [new(Chair, 0, 0.71f, -0.01f, 0, 170, 0.88f), new(Computer, 0, -0.07f, -0.01f, 33, 224, 0.47f), new(ComputerDead, 0, -0.05f, 0.2f, 32, 96, 0.53f)]),
@@ -114,13 +114,13 @@ internal sealed partial record FurnitureGrammar
                 [
                     new(Chair, 0, -0.54f, 0.17f, 0, 0, 1), new(ComputerDead, 0, 0.12f, -0.3f, 31, 160, 1), new(TestTubes, 0, 0.26f, 0.22f, 31, 85, 0.67f),
                     new(TestTubes, 1, 0.26f, 0.44f, 31, 42, 0.67f), new(TestTubes, 2, 0.04f, 0.61f, 32, 85, 0.67f), new(TestTubes, 3, -0.13f, 0.41f, 32, 0, 0.67f),
-                    new(TestTubes, 4, 0.13f, 0.52f, 32, 0, 0.33f), new(Boxes, 0, -0.22f, 0.42f, 36, 85, 0.33f),
+                    new(TestTubes, 4, 0.13f, 0.52f, 32, 0, 0.33f), new(Boxes, 0, -0.22f, 0.42f, 36, 85, 0.33f)
                 ]),
                 new(Table, 64, [new(Chair, 0, 0.95f, -0.05f, 0, 170, 1), new(ComputerDead, 0, -0.08f, 0.28f, 32, 96, 0.9f)]),
                 new(BigComputer, 109, [new(Chair, 0, -1.19f, -0.08f, 1, 0, 0.17f)]),
                 new(WaterCylinder, 106, [new(Chair, 0, -0.3f, 0.84f, 0, 213, 0.25f)]),
                 new(TrashCan, 0, [new(NewChair, 0, -0.67f, -0.33f, 0, 64, 0.6f)]),
-                new(Shelves, 51, [new(Boxes, 0, -0.03f, -0.14f, 48, 112, 0.17f), new(Boxes, 1, 0.05f, 0.18f, 48, 128, 0.17f)]),
+                new(Shelves, 51, [new(Boxes, 0, -0.03f, -0.14f, 48, 112, 0.17f), new(Boxes, 1, 0.05f, 0.18f, 48, 128, 0.17f)])
             ])),
         [R.Lab] = new(
             [[3.47f, 4.42f], [3.47f, 4.42f], [3.47f, 4.42f], [3.47f, 4.42f]], true, 0.89f,
@@ -134,7 +134,7 @@ internal sealed partial record FurnitureGrammar
                 new(A.Far, F.Shelf, 0.22f, 0.17f, [0.25f, 0.61f], 0.61f, [1, 1], new() { [F.Shelf] = 1 }),
                 new(A.Near, F.Shelf, 0.22f, 0, [0.52f, 0.61f], 0.61f, [1, 1], new() { [F.Shelf] = 1 }),
                 new(A.Open, F.Crate, 0.22f, 0.33f, [0.13f, 0.41f], 0.41f, [1, 1], [], OpenFromCells: 62),
-                new(A.Open, F.Table, 0.22f, 0.33f, [0.17f, 0.3f], 0.3f, [1, 1], [], OpenFromCells: 250),
+                new(A.Open, F.Table, 0.22f, 0.33f, [0.17f, 0.3f], 0.3f, [1, 1], [], OpenFromCells: 250)
             ],
             GroupModules(
             [
@@ -144,38 +144,38 @@ internal sealed partial record FurnitureGrammar
                 new(Cabinet, 0,
                 [
                     new(Boxes, 0, -0.06f, -0.31f, 25, 213, 0.33f), new(Boxes, 1, -0.04f, 0.14f, 25, 224, 0.33f), new(Boxes, 2, -0.07f, -0.18f, 42, 32, 0.33f),
-                    new(Boxes, 3, -0.15f, 0.22f, 42, 32, 0.33f),
+                    new(Boxes, 3, -0.15f, 0.22f, 42, 32, 0.33f)
                 ]),
                 new(Table, 0,
                 [
                     new(Chair, 0, 0.09f, 0.62f, 0, 42, 0.3f), new(TestTubes, 0, 0.16f, -0.16f, 32, 42, 0.45f), new(TestTubes, 1, 0.39f, 0.29f, 32, 170, 0.4f),
                     new(TestTubes, 2, 0.04f, -0.21f, 31, 85, 0.35f), new(TestTubes, 3, 0.14f, 0.04f, 32, 85, 0.35f), new(TestTubes, 4, 0.15f, 0.05f, 31, 85, 0.3f),
                     new(TestTubes, 5, 0.02f, -0.23f, 32, 213, 0.25f), new(TestTubes, 6, -0.06f, 0.12f, 32, 213, 0.2f), new(TestTubes, 7, 0.12f, 0.24f, 32, 170, 0.2f),
-                    new(TestTubes, 8, -0.39f, 0.14f, 32, 42, 0.15f), new(LabEquipment, 0, -0.28f, -0.09f, 32, 170, 0.25f),
+                    new(TestTubes, 8, -0.39f, 0.14f, 32, 42, 0.15f), new(LabEquipment, 0, -0.28f, -0.09f, 32, 170, 0.25f)
                 ]),
                 new(Table, 42,
                 [
                     new(Chair, 0, 0.02f, 0.8f, 0, 42, 0.38f), new(TestTubes, 0, -0.03f, 0.16f, 31, 213, 0.31f), new(TestTubes, 1, 0.47f, 0.05f, 31, 85, 0.38f),
                     new(TestTubes, 2, 0.52f, 0.01f, 31, 42, 0.25f), new(TestTubes, 4, 0.24f, 0.23f, 32, 85, 0.19f), new(LabEquipment, 0, -0.26f, -0.12f, 31, 170, 0.38f),
-                    new(Boxes, 0, 0.44f, 0.06f, 32, 32, 0.19f),
+                    new(Boxes, 0, 0.44f, 0.06f, 32, 32, 0.19f)
                 ]),
                 new(Table, 85,
                 [
                     new(Chair, 0, 0.14f, 0.46f, 0, 128, 0.33f), new(TestTubes, 0, 0.38f, -0.06f, 32, 0, 0.33f), new(TestTubes, 1, 0.31f, 0.09f, 32, 213, 0.33f),
-                    new(LabEquipment, 0, -0.37f, 0.09f, 32, 0, 0.56f), new(LabEquipment, 2, -0.01f, 0.09f, 32, 42, 0.33f), new(Boxes, 0, 0.04f, 0.01f, 32, 16, 0.78f),
+                    new(LabEquipment, 0, -0.37f, 0.09f, 32, 0, 0.56f), new(LabEquipment, 2, -0.01f, 0.09f, 32, 42, 0.33f), new(Boxes, 0, 0.04f, 0.01f, 32, 16, 0.78f)
                 ]),
                 new(Table, 18,
                 [
                     new(Chair, 0, -0.97f, -0.18f, 0, 0, 0.33f), new(TestTubes, 0, 0.06f, -0.41f, 31, 0, 0.33f), new(LabEquipment, 0, 0.26f, -0.1f, 31, 213, 0.67f),
-                    new(LabEquipment, 1, -0.05f, 0.2f, 31, 0, 0.33f),
+                    new(LabEquipment, 1, -0.05f, 0.2f, 31, 0, 0.33f)
                 ]),
                 new(Table, 64, [new(TestTubes, 0, -0.07f, 0.1f, 31, 128, 0.17f)]),
                 new(Table, 21,
                 [
                     new(Chair, 0, -0.81f, 0.29f, 0, 0, 0.9f), new(ExperimentFlasks, 0, 0.19f, 0.97f, 0, 54, 0.2f), new(TestTubes, 2, 0.05f, 0.52f, 32, 85, 0.2f),
-                    new(LabEquipment, 0, 0.13f, -0.3f, 31, 213, 0.6f), new(LabEquipment, 1, 0.09f, -0.52f, 32, 128, 0.3f), new(LabEquipment, 2, 0.18f, -0.01f, 32, 213, 0.2f),
+                    new(LabEquipment, 0, 0.13f, -0.3f, 31, 213, 0.6f), new(LabEquipment, 1, 0.09f, -0.52f, 32, 128, 0.3f), new(LabEquipment, 2, 0.18f, -0.01f, 32, 213, 0.2f)
                 ]),
-                new(Shelves, 51, [new(Boxes, 0, -0.01f, 0.14f, 48, 16, 0.33f), new(Boxes, 1, -0.13f, -0.09f, 29, 32, 0.17f), new(Boxes, 2, 0.08f, 0.08f, 48, 160, 0.17f)]),
+                new(Shelves, 51, [new(Boxes, 0, -0.01f, 0.14f, 48, 16, 0.33f), new(Boxes, 1, -0.13f, -0.09f, 29, 32, 0.17f), new(Boxes, 2, 0.08f, 0.08f, 48, 160, 0.17f)])
             ])),
         [R.Depot] = new(
             [[3.62f, 6.91f], [3.62f, 6.91f], [3.62f, 6.91f], [2.05f, 5.49f]], true, 1,
@@ -190,7 +190,7 @@ internal sealed partial record FurnitureGrammar
                 new(A.Far, F.Container, 0.2f, 0.21f, [0.04f, 0.14f], 0.16f, [1, 2], new() { [F.Container] = 0.88f, [F.Crate] = 0.12f }),
                 new(A.Open, F.Container, 0.56f, 0.54f, [0.08f, 0.19f], 1.56f, [1, 1], []),
                 new(A.Open, F.Truck, 0.4f, 0.42f, [0.09f, 0.31f], 0.38f, [1, 1], [], OpenFromCells: 62),
-                new(A.Open, F.Crate, 0.16f, 0.17f, [0.14f, 0.16f], 0.46f, [1, 1], [], OpenFromCells: 62),
+                new(A.Open, F.Crate, 0.16f, 0.17f, [0.14f, 0.16f], 0.46f, [1, 1], [], OpenFromCells: 62)
             ],
             GroupModules(
             [
@@ -212,7 +212,7 @@ internal sealed partial record FurnitureGrammar
                 new(Container2Alt, 1, [new(RadioactiveFlask, 0, 0.44f, 0.76f, 0, 60, 0.33f)]),
                 new(Table, 0, [new(Chair, 0, -0.14f, 0.87f, 0, 85, 1), new(ComputerDead, 0, -0.01f, -0.19f, 31, 0, 1)]),
                 new(StreetLamp, 192, [new(RadioactiveFlask, 0, -0.88f, 0.68f, 0, 81, 0.33f)]),
-                new(Container2, 42, [new(Container2, 0, 0.17f, 0.2f, 58, 116, 0.2f)]),
+                new(Container2, 42, [new(Container2, 0, 0.17f, 0.2f, 58, 116, 0.2f)])
             ])),
         [R.Storage] = new(
             [[6.25f, 10], [6.25f, 8.75f], [6.25f, 8.75f], [6.25f, 8.75f]], true, 0.89f,
@@ -226,7 +226,7 @@ internal sealed partial record FurnitureGrammar
                 new(A.Near, F.Cabinet, 0.15f, 0.33f, [0.3f, 0.78f], 0.78f, [1, 2], new() { [F.Cabinet] = 1 }),
                 new(A.Grid, F.Shelf, 0.15f, 0.33f, [0.3f, 0.52f], 0.52f, [2, 4], [], OpenFromCells: 1000000, Signature: true),
                 new(A.Open, F.Shelf, 0.1f, 0.33f, [0.45f, 0.5f], 0.5f, [1, 1], [], OpenFromCells: 1000000),
-                new(A.Open, F.Crate, 0.2f, 0.17f, [0.52f, 0.61f], 1.67f, [1, 1], [], OpenFromCells: 62),
+                new(A.Open, F.Crate, 0.2f, 0.17f, [0.52f, 0.61f], 1.67f, [1, 1], [], OpenFromCells: 62)
             ],
             GroupModules(
             [
@@ -236,23 +236,23 @@ internal sealed partial record FurnitureGrammar
                 new(Shelves, 36,
                 [
                     new(Boxes, 0, -0.08f, -0.07f, 11, 112, 1), new(Boxes, 1, 0.01f, 0.26f, 29, 32, 0.67f), new(Boxes, 2, -0.08f, -0.04f, 29, 32, 0.67f),
-                    new(Boxes, 3, -0.12f, -0.4f, 29, 48, 0.67f), new(Boxes, 4, -0.06f, 0.54f, 49, 16, 0.67f), new(Boxes, 5, 0.11f, 0.39f, 48, 160, 0.33f),
+                    new(Boxes, 3, -0.12f, -0.4f, 29, 48, 0.67f), new(Boxes, 4, -0.06f, 0.54f, 49, 16, 0.67f), new(Boxes, 5, 0.11f, 0.39f, 48, 160, 0.33f)
                 ]),
                 new(Shelves, 21,
                 [
                     new(Boxes, 0, 0.23f, -0.03f, 48, 160, 0.6f), new(Boxes, 1, -0.05f, -0.05f, 48, 112, 0.6f), new(Boxes, 2, -0.43f, -0.05f, 50, 32, 0.6f),
-                    new(Boxes, 3, -0.06f, -0.06f, 55, 96, 0.2f),
+                    new(Boxes, 3, -0.06f, -0.06f, 55, 96, 0.2f)
                 ]),
                 new(Cabinet, 0, [new(Boxes, 0, -0.08f, -0.14f, 25, 0, 0.25f), new(Boxes, 1, -0.09f, -0.23f, 42, 224, 0.19f)]),
                 new(Cabinet, 106, [new(Cabinet, 0, 0, 0, 27, 106, 0.4f)]),
                 new(Cabinet, 21,
                 [
                     new(Boxes, 0, 0.12f, 0.05f, 25, 32, 0.75f), new(Boxes, 1, -0.14f, 0.04f, 25, 48, 0.75f), new(Boxes, 2, -0.17f, 0.08f, 41, 240, 0.75f),
-                    new(Boxes, 3, 0.13f, 0.07f, 41, 16, 0.75f), new(Boxes, 4, 0.2f, 0.09f, 42, 160, 0.25f),
+                    new(Boxes, 3, 0.13f, 0.07f, 41, 16, 0.75f), new(Boxes, 4, 0.2f, 0.09f, 42, 160, 0.25f)
                 ]),
                 new(Table, 106, [new(Chair, 0, -0.43f, 0.24f, 0, 0, 1), new(ComputerDead, 0, 0.01f, 0.04f, 32, 170, 0.5f), new(Boxes, 0, -0.02f, -0.21f, 32, 224, 0.25f)]),
                 new(ElectricPanel, 128, [new(ExperimentFlasks, 0, -0.66f, -0.34f, 0, 18, 0.75f)]),
-                new(Cylinder, 0, [new(Boxes, 0, 0.41f, 0.06f, 47, 0, 0.33f)]),
+                new(Cylinder, 0, [new(Boxes, 0, 0.41f, 0.06f, 47, 0, 0.33f)])
             ])),
         [R.ComputerRoom] = new(
             [[1.41f, 2.21f], [1.41f, 2.21f], [1.41f, 2.21f], [1.41f, 2.21f]], false, 0.88f,
@@ -263,20 +263,20 @@ internal sealed partial record FurnitureGrammar
                 new(A.Far, F.Barrel, 0.25f, 0.25f, [0.09f, 0.11f], 0.11f, [1, 2], new() { [F.Barrel] = 1 }),
                 new(A.Near, F.Console, 0.25f, 0.25f, [0.1f, 0.42f], 0.42f, [1, 2], new() { [F.Console] = 1 }),
                 new(A.Heap, null, 0.25f, 0.25f, [0.04f, 0.1f], 0.1f, [4, 4], []),
-                new(A.Open, F.Bank, 0.38f, 0.38f, [0.22f, 0.35f], 0.35f, [1, 1], [], OpenFromCells: 62),
+                new(A.Open, F.Bank, 0.38f, 0.38f, [0.22f, 0.35f], 0.35f, [1, 1], [], OpenFromCells: 62)
             ],
             GroupModules(
             [
                 new(Crate, 0, [new(Crate, 0, 1.23f, -0.05f, 2, 0, 0.33f)]),
-                new(RadioactiveBarrel, 0, [new(RadioactiveFlask, 0, 0.65f, 0.09f, 0, 0, 0.67f)]),
+                new(RadioactiveBarrel, 0, [new(RadioactiveFlask, 0, 0.65f, 0.09f, 0, 0, 0.67f)])
             ])),
         [R.MachineRoom] = new(
             [[1.39f, 2.5f], [1.39f, 2.5f], [1.39f, 2.5f], [1.39f, 2.5f]], false, 1,
             [
                 new(A.Far, F.Shelf, 0.8f, 0.8f, [0.61f, 0.69f], 1.56f, [1, 2], new() { [F.Shelf] = 1 }),
-                new(A.Near, F.Shelf, 0.6f, 0.6f, [0.61f, 1.67f], 1.67f, [1, 2], new() { [F.Shelf] = 1 }),
+                new(A.Near, F.Shelf, 0.6f, 0.6f, [0.61f, 1.67f], 1.67f, [1, 2], new() { [F.Shelf] = 1 })
             ],
-            []),
+            [])
     };
 
     private static readonly Module[] SharedModuleRows =
@@ -284,12 +284,12 @@ internal sealed partial record FurnitureGrammar
         new(Table, 0,
         [
             new(Chair, 0, -0.07f, 0.83f, 0, 128, 0.8f), new(Computer, 0, -0.22f, 0, 32, 128, 0.17f), new(ComputerDead, 0, -0.16f, -0.02f, 32, 0, 0.44f),
-            new(TestTubes, 0, 0.21f, 0.17f, 31, 0, 0.23f), new(TestTubes, 1, 0.09f, -0.17f, 31, 0, 0.16f),
+            new(TestTubes, 0, 0.21f, 0.17f, 31, 0, 0.23f), new(TestTubes, 1, 0.09f, -0.17f, 31, 0, 0.16f)
         ]),
         new(Table, 192,
         [
             new(Chair, 0, -0.7f, 0.27f, 0, 192, 0.71f), new(Computer, 0, 0.12f, -0.1f, 32, 160, 0.25f), new(ComputerDead, 0, 0.07f, -0.17f, 33, 160, 0.23f),
-            new(NewChair, 0, -0.7f, 0.3f, 0, 96, 0.2f),
+            new(NewChair, 0, -0.7f, 0.3f, 0, 96, 0.2f)
         ]),
         new(Table, 85, [new(Chair, 0, -0.05f, 0.73f, 0, 42, 0.86f), new(Computer, 0, -0.14f, -0.07f, 32, 0, 0.22f), new(ComputerDead, 0, -0.13f, -0.1f, 32, 0, 0.31f)]),
         new(Table, 106, [new(Chair, 0, -0.71f, 0.43f, 0, 106, 0.97f), new(Computer, 0, 0.07f, 0.18f, 33, 32, 0.18f), new(ComputerDead, 0, 0.07f, -0.17f, 32, 32, 0.44f)]),
@@ -297,12 +297,12 @@ internal sealed partial record FurnitureGrammar
         new(Table, 42,
         [
             new(Chair, 0, -0.11f, 0.93f, 0, 0, 0.66f), new(ComputerDead, 0, 0.16f, 0.09f, 32, 64, 0.4f), new(TestTubes, 1, 0.47f, 0.05f, 31, 85, 0.17f),
-            new(LabEquipment, 0, -0.26f, -0.12f, 31, 170, 0.17f),
+            new(LabEquipment, 0, -0.26f, -0.12f, 31, 170, 0.17f)
         ]),
         new(Table, 21,
         [
             new(Chair, 0, -0.77f, -0.02f, 0, 213, 0.81f), new(ComputerDead, 0, 0.08f, -0.11f, 32, 160, 0.42f), new(TestTubes, 0, 0.14f, -0.54f, 32, 85, 0.17f),
-            new(LabEquipment, 1, 0.12f, -0.24f, 36, 213, 0.15f),
+            new(LabEquipment, 1, 0.12f, -0.24f, 36, 213, 0.15f)
         ]),
         new(Table, 18, [new(Chair, 0, -0.76f, 0.09f, 0, 85, 0.71f), new(ComputerDead, 0, 0.1f, -0.23f, 31, 32, 0.57f), new(LabEquipment, 0, 0.26f, -0.1f, 31, 213, 0.29f)]),
         new(Table, 64, [new(Chair, 0, 0.95f, -0.05f, 0, 170, 0.49f), new(Computer, 0, 0.01f, -0.21f, 31, 235, 0.26f), new(ComputerDead, 0, -0.05f, 0.09f, 33, 224, 0.46f)]),
@@ -311,18 +311,18 @@ internal sealed partial record FurnitureGrammar
         [
             new(Chair, 0, -0.1f, 0.78f, 0, 192, 1), new(Computer, 0, 0.12f, 0.08f, 33, 192, 0.17f), new(ComputerDead, 0, 0.11f, 0.07f, 33, 192, 0.33f),
             new(TestTubes, 0, 0.43f, -0.11f, 32, 213, 0.17f), new(TestTubes, 1, 0.18f, -0.04f, 32, 85, 0.17f), new(TestTubes, 2, 0.49f, 0.13f, 32, 85, 0.17f),
-            new(TestTubes, 3, 0.15f, 0.05f, 32, 42, 0.17f),
+            new(TestTubes, 3, 0.15f, 0.05f, 32, 42, 0.17f)
         ]),
         new(Table, 128, [new(Chair, 0, -0.2f, -0.5f, 0, 21, 0.8f), new(ComputerDead, 0, 0.16f, 0.13f, 32, 64, 0.67f)]),
         new(Table, 212,
         [
             new(Chair, 0, -0.02f, 1.05f, 0, 226, 0.83f), new(Chair, 1, 0.14f, -0.75f, 0, 226, 0.17f), new(Computer, 0, 0.23f, 0.05f, 33, 198, 0.33f),
-            new(ComputerDead, 0, 0.3f, 0.05f, 32, 192, 0.67f), new(TestTubes, 0, -0.24f, -0.21f, 32, 170, 0.17f),
+            new(ComputerDead, 0, 0.3f, 0.05f, 32, 192, 0.67f), new(TestTubes, 0, -0.24f, -0.21f, 32, 170, 0.17f)
         ]),
         new(Table, 170,
         [
             new(Chair, 0, 0.93f, 0.17f, 0, 170, 0.53f), new(ComputerDead, 0, 0.08f, -0.06f, 32, 160, 0.29f), new(TestTubes, 0, 0.23f, 0.02f, 32, 170, 0.37f),
-            new(Boxes, 0, -0.02f, -0.13f, 32, 64, 0.18f),
+            new(Boxes, 0, -0.02f, -0.13f, 32, 64, 0.18f)
         ]),
         new(Table, 234, [new(Chair, 0, 0.71f, -0.01f, 0, 170, 0.88f), new(Computer, 0, -0.07f, -0.01f, 33, 224, 0.47f), new(ComputerDead, 0, -0.05f, 0.2f, 32, 96, 0.53f)]),
         new(Table, 24, [new(Chair, 0, -0.75f, 0.29f, 0, 24, 1), new(Computer, 0, 0.16f, -0.11f, 31, 21, 0.67f), new(ComputerDead, 0, 0.12f, 0, 31, 21, 0.33f)]),
@@ -334,7 +334,7 @@ internal sealed partial record FurnitureGrammar
         [
             new(Chair, 0, -0.54f, 0.17f, 0, 0, 1), new(ComputerDead, 0, 0.12f, -0.3f, 31, 160, 1), new(TestTubes, 0, 0.26f, 0.22f, 31, 85, 0.67f),
             new(TestTubes, 1, 0.26f, 0.44f, 31, 42, 0.67f), new(TestTubes, 2, 0.04f, 0.61f, 32, 85, 0.67f), new(TestTubes, 3, -0.13f, 0.41f, 32, 0, 0.67f),
-            new(TestTubes, 4, 0.13f, 0.52f, 32, 0, 0.33f), new(Boxes, 0, -0.22f, 0.42f, 36, 85, 0.33f),
+            new(TestTubes, 4, 0.13f, 0.52f, 32, 0, 0.33f), new(Boxes, 0, -0.22f, 0.42f, 36, 85, 0.33f)
         ]),
         new(Cabinet, 149, [new(Cabinet, 0, 0, 0, 27, 149, 0.79f), new(Cabinet, 1, 0, 0, 54, 149, 0.53f)]),
         new(Cabinet, 128, [new(Cabinet, 0, 0, 0, 27, 128, 0.61f), new(Cabinet, 1, 0, 0, 54, 128, 0.41f)]),
@@ -352,7 +352,7 @@ internal sealed partial record FurnitureGrammar
         new(Shelves, 36,
         [
             new(Boxes, 0, -0.08f, -0.07f, 11, 112, 1), new(Boxes, 1, 0.01f, 0.26f, 29, 32, 0.67f), new(Boxes, 2, -0.08f, -0.04f, 29, 32, 0.67f),
-            new(Boxes, 3, -0.12f, -0.4f, 29, 48, 0.67f), new(Boxes, 4, -0.06f, 0.54f, 49, 16, 0.67f), new(Boxes, 5, 0.11f, 0.39f, 48, 160, 0.33f),
+            new(Boxes, 3, -0.12f, -0.4f, 29, 48, 0.67f), new(Boxes, 4, -0.06f, 0.54f, 49, 16, 0.67f), new(Boxes, 5, 0.11f, 0.39f, 48, 160, 0.33f)
         ]),
         new(Shelves, 21, [new(Boxes, 0, 0.23f, -0.03f, 48, 160, 0.43f), new(Boxes, 1, -0.05f, -0.05f, 48, 112, 0.43f), new(Boxes, 2, -0.43f, -0.05f, 50, 32, 0.43f)]),
         new(WaterCylinder, 106, [new(Chair, 0, -0.3f, 0.84f, 0, 213, 0.25f)]),
@@ -368,10 +368,10 @@ internal sealed partial record FurnitureGrammar
         new(Container2Alt, 1, [new(RadioactiveFlask, 0, 0.44f, 0.76f, 0, 60, 0.33f)]),
         new(StreetLamp, 192, [new(RadioactiveFlask, 0, -0.88f, 0.68f, 0, 81, 0.33f)]),
         new(ElectricPanel, 128, [new(ExperimentFlasks, 0, -0.66f, -0.34f, 0, 18, 0.31f)]),
-        new(Container2, 42, [new(Container2, 0, 0.17f, 0.2f, 58, 116, 0.2f)]),
+        new(Container2, 42, [new(Container2, 0, 0.17f, 0.2f, 58, 116, 0.2f)])
     ];
 
-    private static readonly Dictionary<PieceFamily, FurnitureFamily> FamilyTable = new()
+    private static readonly Dictionary<F, FurnitureFamily> FamilyTable = new()
     {
         [F.Plant] = new(
             [Plant],
@@ -449,7 +449,7 @@ internal sealed partial record FurnitureGrammar
             [ElectricPanel, PetrolGenerator],
             new() { [ElectricPanel] = 17, [PetrolGenerator] = 1 },
             new() { [ElectricPanel] = 13 },
-            0, 0, 0.43f, 1.5f, 3.8f, 0.5f, 0, [1, 0.55f, 0.55f, 0.27f, 0.55f], 0.39f, 0.43f, 60, 60),
+            0, 0, 0.43f, 1.5f, 3.8f, 0.5f, 0, [1, 0.55f, 0.55f, 0.27f, 0.55f], 0.39f, 0.43f, 60, 60)
     };
 
     private static readonly FacingRow[] FacingRows =
@@ -531,7 +531,7 @@ internal sealed partial record FurnitureGrammar
         new(Cylinder, MinusU, new() { [213] = 3 }),
         new(BigComputer, PlusV, new() { [91] = 2, [73] = 1 }),
         new(Container, PlusU, new() { [0] = 2, [42] = 2, [85] = 1 }),
-        new(Truck, MinusV, new() { [128] = 2, [0] = 1 }),
+        new(Truck, MinusV, new() { [128] = 2, [0] = 1 })
     ];
 
     // Z dummy directions by the owner's picture
@@ -539,7 +539,7 @@ internal sealed partial record FurnitureGrammar
     {
         [Truck] = [0, 128, 0, 128],
         [BioContainer] = [128],
-        [StreetLamp] = [0],
+        [StreetLamp] = [0]
     };
 
     private static readonly Dictionary<KnownObject, AttachedPiece[]> AttachedTable = new()
@@ -556,7 +556,7 @@ internal sealed partial record FurnitureGrammar
         [Container] = [new(EmbeddedShadow, -0.2f, 0.28f, 0.09f)],
         [Container2Alt] = [new(EmbeddedShadow, -0.3f, 0.5f, 0.03f)],
         [Crate] = [new(EmbeddedShadow, -0.08f, 0.02f, 0.03f)],
-        [StreetLamp] = [new(ZDummy, 0.12f, -0.03f, 0.6f)],
+        [StreetLamp] = [new(ZDummy, 0.12f, -0.03f, 0.6f)]
     };
 
     private static readonly Dictionary<R, VictimRule> VictimTable = new()
@@ -567,7 +567,7 @@ internal sealed partial record FurnitureGrammar
         [R.Storage] = new(0.41f, 0.27f, [F.Crate, F.Cabinet, F.Shelf]),
         [R.ComputerRoom] = new(0.32f, 0.82f, [F.Chair, F.Bank, F.Console]),
         [R.Depot] = new(0.1f, 0, [F.Crate, F.Container, F.Cylinder, F.Barrel]),
-        [R.Hall] = new(0.05f, 0, []),
+        [R.Hall] = new(0.05f, 0, [])
     };
 
     private static readonly Fixture[] FixtureRows =
@@ -575,13 +575,13 @@ internal sealed partial record FurnitureGrammar
         new(new() { [MonitorDead] = 0.65f, [KnownObject.Monitor] = 0.35f }, new() { [R.Office] = 0.045f, [R.Lab] = 0.074f, [R.Hall] = 0.015f, [R.Passage] = 0.012f }, 0.45f, 55,
             new() { [PlusU] = 64, [MinusV] = 0 }),
         new(new() { [WallObjects] = 1 }, new() { [R.Office] = 0.018f, [R.ComputerRoom] = 0.018f, [R.Hall] = 0.015f, [R.Depot] = 0.004f }, 0.42f, 20,
-            new() { [PlusU] = 0, [MinusV] = 25 }),
+            new() { [PlusU] = 0, [MinusV] = 25 })
     ];
 
     private static readonly Dictionary<byte, Seat> SeatRows = new()
     {
         [0] = new(0, MinusV, new() { [WallSet.Basement] = 0.76f, [WallSet.Concrete] = 0.6f }),
-        [64] = new(1, PlusU, new() { [WallSet.Basement] = 0.73f, [WallSet.Concrete] = 0.6f }),
+        [64] = new(1, PlusU, new() { [WallSet.Basement] = 0.73f, [WallSet.Concrete] = 0.6f })
     };
 
     private static readonly Dictionary<F, SeatOffsets> SeatPartners = new()
@@ -589,7 +589,7 @@ internal sealed partial record FurnitureGrammar
         [F.Container] = new(
             [0, 1],
             [new(0.87f, -0.24f), new(1.45f, -0.62f), new(1.05f, -0.2f), new(0.94f, -0.03f)],
-            [new(0.83f, 0.65f), new(0.95f, -0.37f), new(0.95f, -0.15f), new(0.86f, 0.14f), new(0.92f, 0.33f), new(0.95f, 0.38f)]),
+            [new(0.83f, 0.65f), new(0.95f, -0.37f), new(0.95f, -0.15f), new(0.86f, 0.14f), new(0.92f, 0.33f), new(0.95f, 0.38f)])
     };
 
     private static readonly HeapRule HeapTable = new(
@@ -601,7 +601,7 @@ internal sealed partial record FurnitureGrammar
             [F.Crate] = new() { [F.Crate] = 0.64f, [F.Barrel] = 0.35f },
             [F.Missile] = new() { [F.Missile] = 0.48f, [F.Barrel] = 0.48f, [F.Crate] = 0.04f },
             [F.Cylinder] = new() { [F.Cylinder] = 0.38f, [F.Crate] = 0.38f, [F.Barrel] = 0.25f },
-            [F.Truck] = new() { [F.Crate] = 0.4f, [F.Barrel] = 0.31f, [F.Container] = 0.23f, [F.Cylinder] = 0.05f },
+            [F.Truck] = new() { [F.Crate] = 0.4f, [F.Barrel] = 0.31f, [F.Container] = 0.23f, [F.Cylinder] = 0.05f }
         },
         [3, 13],
         GroupOffsets(
@@ -617,7 +617,7 @@ internal sealed partial record FurnitureGrammar
             new(F.Crate, F.Crate, [new(0.5f, 0), new(-0.5f, 0), new(0, -0.6f), new(0.2f, 0.5f), new(0, 0.6f), new(0.6f, 0), new(0, 0.5f), new(-0.2f, -0.5f)]),
             new(F.Crate, F.Cylinder, [new(0.8f, 0.1f), new(-0.3f, -0.9f), new(-0.3f, -0.1f), new(-0.4f, -0.3f), new(-0.7f, 0), new(0.8f, -0.7f), new(-0.6f, 0.4f), new(0, -0.6f)]),
             new(F.Cylinder, F.Cylinder, [new(0, 0.3f), new(0.3f, 0), new(0, -0.3f), new(0, 0.2f), new(0, -0.2f), new(0.3f, 0.3f), new(0, -0.8f), new(0.1f, -0.4f)]),
-            new(F.Missile, F.Missile, [new(0, 0.5f), new(0.1f, 0.5f), new(-0.1f, -0.5f), new(-0.6f, 0), new(-0.5f, 0.1f), new(-0.5f, 0), new(0.5f, 0), new(0, -0.5f)]),
+            new(F.Missile, F.Missile, [new(0, 0.5f), new(0.1f, 0.5f), new(-0.1f, -0.5f), new(-0.6f, 0), new(-0.5f, 0.1f), new(-0.5f, 0), new(0.5f, 0), new(0, -0.5f)])
         ]),
         new()
         {
@@ -637,7 +637,7 @@ internal sealed partial record FurnitureGrammar
             [new(F.Crate, F.Missile)] = 2,
             [new(F.Crate, F.Truck)] = 6,
             [new(F.Cylinder, F.Cylinder)] = 48,
-            [new(F.Missile, F.Missile)] = 27,
+            [new(F.Missile, F.Missile)] = 27
         });
 
     private static readonly Dictionary<FamilyPair, PairSpacing> SpacingTable = new()
@@ -708,7 +708,7 @@ internal sealed partial record FurnitureGrammar
         [new(F.Shelf, F.Shelf)] = new(1.42f, 1.32f),
         [new(F.Shelf, F.Table)] = new(0.98f, 0.98f),
         [new(F.Table, F.Table)] = new(1.22f, 0.56f),
-        [new(F.Table, F.Water)] = new(0.93f, 0.93f),
+        [new(F.Table, F.Water)] = new(0.93f, 0.93f)
     };
 
     private static readonly Dictionary<KnownObject, Dictionary<byte, float>> FrameSpacingTable = new()
@@ -727,7 +727,7 @@ internal sealed partial record FurnitureGrammar
         [RadioactiveFlask] = new() { [0] = 0.55f, [85] = 0.94f, [128] = 0.53f },
         [Missile] = new() { [0] = 0.41f, [51] = 0.46f, [128] = 0.41f },
         [Container2] = new() { [85] = 1.17f },
-        [Container2Alt] = new() { [0] = 1.2f, [85] = 1.08f },
+        [Container2Alt] = new() { [0] = 1.2f, [85] = 1.08f }
     };
 
     private static readonly Dictionary<KnownObject, Dictionary<byte, float>> EndClearanceTable = new()
@@ -745,7 +745,7 @@ internal sealed partial record FurnitureGrammar
         [Crate] = new() { [0] = 0.72f, [42] = 0.88f, [85] = 0.83f, [128] = 1.07f, [170] = 1.23f },
         [RadioactiveBarrel] = new() { [128] = 0.86f },
         [Container2] = new() { [0] = 0.98f },
-        [Container2Alt] = new() { [0] = 0.84f, [85] = 0.84f },
+        [Container2Alt] = new() { [0] = 0.84f, [85] = 0.84f }
     };
 
     public static FurnitureGrammar Default { get; } = new(
