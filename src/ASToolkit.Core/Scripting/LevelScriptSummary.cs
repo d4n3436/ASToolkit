@@ -6,6 +6,11 @@ namespace ASToolkit.Core.Scripting;
 public sealed class LevelScriptSummary
 {
     /// <summary>
+    /// Gets a value indicating whether the level ends after its monsters and dynamite sites are cleared.
+    /// </summary>
+    public bool ClearsMonsters { get; init; }
+
+    /// <summary>
     /// Gets a value indicating whether the doors are locked from the start.
     /// </summary>
     public bool DoorsLocked { get; init; }
@@ -14,6 +19,11 @@ public sealed class LevelScriptSummary
     /// Gets the trigger that turns the lights off and locks the doors, or null.
     /// </summary>
     public TriggerArea? Blackout { get; init; }
+
+    /// <summary>
+    /// Gets the color the blackout trigger darkens the scene by, or null.
+    /// </summary>
+    public uint? BlackoutTint { get; init; }
 
     /// <summary>
     /// Gets the triggers that move the respawn point.

@@ -16224,11 +16224,18 @@
     "cells": 22719,
     "route_px": 33715,
     "revisit_share": 0.045,
-    "gates": {},
+    "gates": {
+      "locked_share": 0.438,
+      "blackout_p": 0.957
+    },
     "legs": [
       {
         "phase": "free",
-        "px": 33713
+        "px": 32248
+      },
+      {
+        "phase": "doors locked",
+        "px": 1465
       }
     ],
     "objectives": [
@@ -17373,6 +17380,12 @@
         "p": 0.794
       },
       {
+        "kind": "blackout",
+        "x": 2100,
+        "y": 1390,
+        "p": 0.795
+      },
+      {
         "kind": "trigger",
         "x": 2123,
         "y": 1370,
@@ -17427,7 +17440,18 @@
         "p": 1
       }
     ],
-    "checkpoints": [],
+    "checkpoints": [
+      {
+        "x": 2761,
+        "y": 2929,
+        "p": 0.564
+      },
+      {
+        "x": 2100,
+        "y": 1390,
+        "p": 0.957
+      }
+    ],
     "start": [
       6503,
       386

@@ -84,7 +84,7 @@ public class CampaignFitterIntegrationTests
 
     private static CampaignModel Fit(GenerationStyle style)
     {
-        string game = TestGameFolder.RequireFolder();
-        return new CampaignFitter(GameTable.Load(Path.Combine(game, "Maps", "common_table.lgc")), TestGameFolder.Objects).Fit(TestGameFolder.References, style, []);
+        TestGameFolder.RequireFolder();
+        return new CampaignFitter(TestGameFolder.Table, TestGameFolder.Objects).Fit(TestGameFolder.References, style, []);
     }
 }

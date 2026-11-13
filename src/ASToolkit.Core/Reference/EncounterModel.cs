@@ -79,10 +79,10 @@ public sealed record EncounterModel
     public static EncounterModel Fit(IReadOnlyList<ReferenceLevel> levels)
     {
         var encounters = levels.SelectMany(level => level.Survey.Encounters).ToArray();
-        float[] spacings = encounters.Where(encounter => encounter.Kind == EncounterKind.PlacedGroup && encounter.Count > 1).Select(encounter => (float)encounter.Spacing).ToArray();
+        float[] spacings = encounters.Where(encounter => encounter is { Kind: EncounterKind.PlacedGroup, Count: > 1 }).Select(encounter => (float)encounter.Spacing).ToArray();
         int[] sizes = encounters.Where(encounter => encounter.Kind == EncounterKind.Ambush).Select(encounter => Math.Max(1, encounter.Count / Math.Max(1, encounter.Spawners))).Order().ToArray();
         var basement = levels.Where(level => level.Survey.WallSet == WallSet.Basement).ToArray();
-        int closets = basement.Sum(level => level.Survey.Encounters.Count(encounter => encounter.Kind == EncounterKind.Ambush && encounter.Source == SpawnSource.SpawnCloset));
+        int closets = basement.Sum(level => level.Survey.Encounters.Count(encounter => encounter is { Kind: EncounterKind.Ambush, Source: SpawnSource.SpawnCloset }));
         var beats = levels.Select(level => new BeatMeasurer(level.Survey, new ProgressionMeasurer(level.Survey).Measure())).ToArray();
         var climaxes = beats.SelectMany(GetClimaxes).ToArray();
         int fights = beats.Sum(measurer => measurer.GroupFights().Count);

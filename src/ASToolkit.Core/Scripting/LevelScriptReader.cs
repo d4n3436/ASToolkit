@@ -24,15 +24,22 @@ public static partial class LevelScriptReader
         text = LineComment.Replace(text, "");
         var start = StartBlock.Match(text);
         TriggerArea? blackout = null;
+        uint? blackoutTint = null;
         TriggerArea? exit = null;
         var checkpoints = new List<TriggerArea>();
         foreach (Match match in DistanceBlock.Matches(text))
         {
             var area = new TriggerArea(new Point(int.Parse(match.Groups[1].ValueSpan), int.Parse(match.Groups[2].ValueSpan)), int.Parse(match.Groups[3].ValueSpan));
-            string body = match.Groups[4].Value;
-            if (body.Contains("LightOff", StringComparison.Ordinal))
+            int opening = match.Index + match.Length - 1;
+            int closing = FindBlockEnd(text, opening);
+            if (closing < 0)
+                continue;
+            string body = text[(opening + 1)..closing];
+            var lightOff = LightOffCall.Match(body);
+            if (lightOff.Success)
             {
                 blackout = area;
+                blackoutTint = Convert.ToUInt32(lightOff.Groups[1].Value, lightOff.Groups[1].Value.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? 16 : 10);
             }
 
             if (body.Contains("StartPlayerX", StringComparison.Ordinal))
@@ -48,12 +55,42 @@ public static partial class LevelScriptReader
 
         return new LevelScriptSummary
         {
+            ClearsMonsters = text.Contains("CompaignGameTact()", StringComparison.Ordinal),
             DoorsLocked = start.Success && DoorsClosed.IsMatch(start.Groups[1].ValueSpan),
             Blackout = blackout,
+            BlackoutTint = blackoutTint,
             Checkpoints = checkpoints,
             DynamiteWin = text.Contains($"GetVidData({(int)KnownObject.DynamiteSite}", StringComparison.Ordinal),
             Exit = exit
         };
+    }
+
+    private static int FindBlockEnd(string text, int opening)
+    {
+        int depth = 0;
+        bool quoted = false;
+        for (int index = opening; index < text.Length; index++)
+        {
+            char value = text[index];
+            if (quoted && value == '\\')
+            {
+                index++;
+                continue;
+            }
+            if (value == '"')
+            {
+                quoted = !quoted;
+            }
+            if (quoted)
+                continue;
+            if (value == '{')
+            {
+                depth++;
+            }
+            else if (value == '}' && --depth == 0)
+                return index;
+        }
+        return -1;
     }
 
     [GeneratedRegex(@"/\*.*?\*/", RegexOptions.Singleline)]
@@ -68,6 +105,9 @@ public static partial class LevelScriptReader
     [GeneratedRegex(@"DoorsIsOpen\s*=\s*0")]
     private static partial Regex DoorsClosed { get; }
 
-    [GeneratedRegex(@"iff\(\s*SizeTo\(Flagman\(0\),(-?\d+),(-?\d+)\)\s*<\s*(\d+)\s*\)\s*\{(.*?)\n  \}", RegexOptions.Singleline)]
+    [GeneratedRegex(@"\bLightOff\s*\(\s*(0[xX][0-9a-fA-F]+|\d+)\s*\)")]
+    private static partial Regex LightOffCall { get; }
+
+    [GeneratedRegex(@"\biff\s*\(\s*SizeTo\s*\(\s*Flagman\s*\(\s*0\s*\)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*\)\s*<\s*(\d+)\s*\)\s*\{")]
     private static partial Regex DistanceBlock { get; }
 }

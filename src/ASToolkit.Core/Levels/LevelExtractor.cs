@@ -63,7 +63,8 @@ public static class LevelExtractor
             Cells = cells,
             Edges = edges,
             Objects = ExtractDecor(sp, lattice, objects),
-            Sprites = sp
+            Sprites = sp,
+            MapSize = map.Size
         };
     }
 
@@ -383,7 +384,8 @@ public static class LevelExtractor
             Cells = cells,
             Edges = ReadBasementEdges(lattice, sp, outdoor: true),
             Objects = ExtractDecor(sp, lattice, objects),
-            Sprites = sp
+            Sprites = sp,
+            MapSize = size
         };
     }
 

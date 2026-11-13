@@ -1,3 +1,4 @@
+using System.Drawing;
 using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Levels;
@@ -41,4 +42,9 @@ public sealed class LevelModel
     /// Gets every placed object of the map.
     /// </summary>
     public required IReadOnlyList<MergedMapSprite> Sprites { get; init; }
+
+    /// <summary>
+    /// Gets the width and height of the map from its header, or an empty size when the model has none.
+    /// </summary>
+    public SizeF MapSize { get; init; }
 }

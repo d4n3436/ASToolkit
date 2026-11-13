@@ -208,7 +208,6 @@ public sealed record EconomyModel
         foreach (var level in levels)
         {
             var progression = new ProgressionMeasurer(level.Survey).Measure();
-            int GetPhase(int place) => progression.Phases.Count == 0 ? 0 : progression.GetPhase(place) ?? -1;
             var sites = level.Analysis.Elements
                 .Where(element => element.Kind == ElementKind.DynamiteSite)
                 .Select(element => (Walk: element.Distance / GetLongestWalk(level), Phase: GetPhase(level.Survey.FindPlace(element.X, element.Y))))
@@ -223,6 +222,10 @@ public sealed record EconomyModel
                     leads.Add(next - walk);
                 }
             }
+
+            continue;
+
+            int GetPhase(int place) => progression.Phases.Count == 0 ? 0 : progression.GetPhase(place) ?? -1;
         }
 
         leads.Sort();

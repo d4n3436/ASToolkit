@@ -107,13 +107,16 @@ public static class KnownObjectExtensions
     extension(KnownObject id)
     {
         /// <summary>Gets a value indicating whether the ID is a pickup.</summary>
-        public bool IsPickup => id is >= (KnownObject)200 and <= MagmaMinigun or >= Dynamite and <= MagmaMinigunAmmo;
+        public bool IsPickup => id is >= WornGreenArmor and <= MagmaMinigun or >= Dynamite and <= MagmaMinigunAmmo;
 
         /// <summary>Gets the plain monster a yellow or red variant belongs to, the ID itself for any other unit.</summary>
         public KnownObject MonsterFamily => id is >= Slug and <= RedTankWeaponMonster ? (KnownObject)((int)id / 10 * 10) : id;
 
         /// <summary>Gets a value indicating whether the ID is an endless monster generator.</summary>
         public bool IsEndlessGenerator => id is >= FirstEndlessGenerator and <= LastEndlessGenerator;
+
+        /// <summary>Gets a value indicating whether the ID is a placed object the campaign scripts drive through its animation hooks.</summary>
+        public bool IsScripted => id is DynamiteSite or Breaker or SmallDoor or DoubleDoor or Fence or MountedCannon || id.IsEndlessGenerator;
 
         /// <summary>Gets the category of the pickup, or null when the ID is not a pickup.</summary>
         public ItemCategory? PickupCategory => id switch
@@ -186,6 +189,6 @@ public static class KnownObjectExtensions
         /// <summary>Gets a value indicating whether the ID is set dressing.</summary>
         public bool IsDecor =>
             !(FloorsSet.Contains(id) || BasementWallsSet.Contains(id) || ConcreteWallsSet.Contains(id) || id is LatticeWall or LatticeFence or TornLattice || GameplaySet.Contains(id)
-              || MonstersSet.Contains(id) || BossesSet.Contains(id) || id.IsPickup || id is >= Slug and < (KnownObject)100);
+              || MonstersSet.Contains(id) || BossesSet.Contains(id) || id.IsPickup || id is >= Slug and < ShotgunPellet);
     }
 }
