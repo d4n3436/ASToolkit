@@ -31,5 +31,8 @@
         <TabItem Header="Map viewer">
             <ContentControl Content="{Binding Viewer}" />
         </TabItem>
+        <TabItem Header="Playthrough replay">
+            <ContentControl Content="{Binding Replay}" />
+        </TabItem>
     </TabControl>
 </Window>

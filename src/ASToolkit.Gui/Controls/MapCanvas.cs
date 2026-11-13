@@ -480,7 +480,7 @@ public sealed class MapCanvas : Control
 
     private static double GetScale(int level) => 1.0 / (1 << level);
 
-    private Point ToScene(Point view) => new(_offset.X + view.X / _zoom, _offset.Y + view.Y / _zoom);
+    private Point ToScene(Point view) => _offset + view / _zoom;
 
     // Snap edges to whole pixels to keep blended seams out from between tiles
     private Rect ToView(Rectangle area, double scale)

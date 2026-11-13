@@ -22,9 +22,7 @@ public partial class MapViewerViewModel : ViewModelBase
     private const double HoverDistance = 6;
 
     private readonly Dictionary<string, MapOverlay> _overlays = new(StringComparer.OrdinalIgnoreCase);
-    private ObjectTable? _objects;
     private QuestBook _quests = QuestBook.Empty;
-    private MapRenderer? _renderer;
     private string _summary = "";
     private int _loadVersion;
 
@@ -33,6 +31,16 @@ public partial class MapViewerViewModel : ViewModelBase
     public ObservableCollection<string> Maps { get; } = [];
 
     public SpriteViewModel Sprite { get; } = new();
+
+    /// <summary>
+    /// Gets the object table of the open game folder, or null when none is open.
+    /// </summary>
+    public ObjectTable? Objects { get; private set; }
+
+    /// <summary>
+    /// Gets the renderer of the open game folder, or null before a map is loaded.
+    /// </summary>
+    public MapRenderer? Renderer { get; private set; }
 
     [ObservableProperty]
     public partial string? GameFolder { get; set; }
@@ -108,12 +116,12 @@ public partial class MapViewerViewModel : ViewModelBase
             return;
         }
 
-        _objects = ObjectTable.Load(objectsPath);
+        Objects = ObjectTable.Load(objectsPath);
         _quests = QuestBook.Load(folder);
         _overlays.Clear();
-        _renderer = null;
+        Renderer = null;
         GameFolder = folder;
-        IsAlienShooter2 = _objects.IsAlienShooter2;
+        IsAlienShooter2 = Objects.IsAlienShooter2;
         string? mapsPath = GamePath.Resolve(folder, MapsFolder);
         Maps.Clear();
         if (mapsPath is not null)
@@ -136,7 +144,7 @@ public partial class MapViewerViewModel : ViewModelBase
     public void Hover(ScenePoint point)
     {
         var scene = Scene;
-        if (scene is null || _objects is null)
+        if (scene is null || Objects is null)
         {
             return;
         }
@@ -151,14 +159,14 @@ public partial class MapViewerViewModel : ViewModelBase
 
         var found = scene.FindObject(point.Position.X, point.Position.Y, point.Time);
         Status = found is null ? $"{position}    {_summary}"
-            : $"{position}    object {(int)found.Id} {_objects.GetName(found.Id)} [{_objects.GetPath(found.Id)}]    " +
+            : $"{position}    object {(int)found.Id} {Objects.GetName(found.Id)} [{Objects.GetPath(found.Id)}]    " +
               $"position ({found.Position.X:0}, {found.Position.Y:0}, {found.Position.Z:0})    facing {found.Facing}";
     }
 
     private string? DescribeOverlay(Vector2 position, double zoom)
     {
         var overlay = Overlay;
-        if (overlay is null || _objects is null)
+        if (overlay is null || Objects is null)
         {
             return null;
         }
@@ -170,7 +178,7 @@ public partial class MapViewerViewModel : ViewModelBase
                 Vector2.Distance(ToScreen(helper.Sprite.Position), position) <= reach);
             if (helper is not null)
             {
-                string name = _objects.TryFind(helper.Sprite.Id, out _) ? _objects.GetName(helper.Sprite.Id) : "unknown object";
+                string name = Objects.TryFind(helper.Sprite.Id, out _) ? Objects.GetName(helper.Sprite.Id) : "unknown object";
                 return $"{helper.Kind.ToString().ToLowerInvariant()} helper {(int)helper.Sprite.Id} {name}    army {helper.Sprite.Army}";
             }
         }
@@ -202,9 +210,9 @@ public partial class MapViewerViewModel : ViewModelBase
     public void Select(ScenePoint point)
     {
         var found = Scene?.FindObject(point.Position.X, point.Position.Y, point.Time);
-        if (found is not null && _renderer is not null && _objects is not null)
+        if (found is not null && Renderer is not null && Objects is not null)
         {
-            Sprite.Show(_renderer, _objects, found);
+            Sprite.Show(Renderer, Objects, found);
         }
     }
 
@@ -224,7 +232,7 @@ public partial class MapViewerViewModel : ViewModelBase
 
     private void ResetRenderer()
     {
-        _renderer = null;
+        Renderer = null;
         LoadScene();
     }
 
@@ -232,7 +240,7 @@ public partial class MapViewerViewModel : ViewModelBase
     {
         string? game = GameFolder;
         string? map = SelectedMap;
-        var objects = _objects;
+        var objects = Objects;
         string? mapsPath = game is null ? null : GamePath.Resolve(game, MapsFolder);
         if (game is null || map is null || objects is null || mapsPath is null)
         {
@@ -240,7 +248,7 @@ public partial class MapViewerViewModel : ViewModelBase
         }
 
         int version = ++_loadVersion;
-        var renderer = _renderer ??= new MapRenderer(game, objects)
+        var renderer = Renderer ??= new MapRenderer(game, objects)
         {
             MatchGameLighting = MatchGameLighting, OmitAmbientTint = OmitAmbientTint, OmitCovers = OmitCovers, OmitHiddenObjects = !ShowHiddenObjects,
             ShowFemalePlayer = ShowFemalePlayer, OmitRemovableGroups = OmitRemovableGroups

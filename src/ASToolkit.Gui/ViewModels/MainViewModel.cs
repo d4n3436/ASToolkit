@@ -8,6 +8,13 @@ public partial class MainViewModel : ViewModelBase
 
     public MapViewerViewModel Viewer { get; } = new();
 
+    public ReplayViewModel Replay { get; }
+
     [ObservableProperty]
     public partial int SelectedTab { get; set; }
+
+    public MainViewModel()
+    {
+        Replay = new ReplayViewModel { Source = Viewer };
+    }
 }

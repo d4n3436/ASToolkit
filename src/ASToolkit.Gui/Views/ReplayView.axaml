@@ -1,0 +1,45 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ASToolkit.Gui.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1600" d:DesignHeight="900"
+             x:Class="ASToolkit.Gui.Views.ReplayView"
+             x:DataType="vm:ReplayViewModel"
+             x:CompileBindings="True">
+
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Padding="4,3" BorderThickness="0,0,0,1" Background="{StaticResource ToolbarBrush}" BorderBrush="{StaticResource FrameBrush}">
+            <WrapPanel Orientation="Horizontal">
+                <WrapPanel.Styles>
+                    <Style Selector="WrapPanel > :is(Control)">
+                        <Setter Property="Margin" Value="0,0,6,0" />
+                        <Setter Property="VerticalAlignment" Value="Center" />
+                    </Style>
+                </WrapPanel.Styles>
+                <Button Content="run simulation" Command="{Binding RunCommand}" IsEnabled="{Binding !IsRunning}" />
+                <CheckBox Content="play" IsChecked="{Binding IsPlaying}" IsEnabled="{Binding IsReady}" />
+                <CheckBox Content="follow" IsChecked="{Binding IsFollowing}" IsEnabled="{Binding IsReady}" />
+                <TextBlock Text="speed" />
+                <NumericUpDown Value="{Binding Speed}" Minimum="0.1" Maximum="8" Increment="0.5" FormatString="0.0" Width="110" />
+                <TextBlock Text="frame" />
+                <NumericUpDown Value="{Binding FrameIndex}" Minimum="0" Maximum="{Binding FrameCount}" Increment="1" FormatString="0" Width="120"
+                               IsEnabled="{Binding IsReady}" />
+                <TextBlock Text="zoom" />
+                <NumericUpDown Value="{Binding Zoom}" Minimum="0.1" Maximum="8" Increment="0.1" FormatString="0.0" Width="110" />
+            </WrapPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Padding="4,2" Background="{StaticResource WindowBrush}">
+            <SelectableTextBlock Text="{Binding Status}" TextTrimming="CharacterEllipsis" />
+        </Border>
+
+        <Slider DockPanel.Dock="Bottom" Minimum="0" Maximum="{Binding FrameCount}" Value="{Binding FrameIndex}" IsEnabled="{Binding IsReady}"
+                Margin="8,4" />
+
+        <Panel Name="Viewport" Background="Black" ClipToBounds="True" PointerWheelChanged="OnWheelChanged" PointerPressed="OnPointerPressed"
+               PointerMoved="OnPointerMoved" PointerReleased="OnPointerReleased">
+            <Image Source="{Binding Frame}" Stretch="Fill" RenderOptions.BitmapInterpolationMode="None" />
+        </Panel>
+    </DockPanel>
+</UserControl>

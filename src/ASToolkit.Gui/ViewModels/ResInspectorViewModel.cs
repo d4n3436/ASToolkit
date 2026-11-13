@@ -96,7 +96,7 @@ public partial class ResInspectorViewModel : ViewModelBase
                 new($"{nameof(MapResource.Header.MapH)}: {map.Header.MapH}"),
                 new($"{nameof(MapResource.Header.Camera)}: {map.Header.Camera}"),
                 new($"{nameof(MapResource.Header.Tick)}: {map.Header.Tick}"),
-                new($"{nameof(MapResource.Header.Version)}: {map.Header.Version}"),
+                new($"{nameof(MapResource.Header.Version)}: {map.Header.Version}")
             };
             
             subNodes.Add(new Node("Header info", headerInfo));
@@ -112,7 +112,7 @@ public partial class ResInspectorViewModel : ViewModelBase
                     new($"{nameof(MapSprite.Id)}: {sprite.Id}"),
                     new($"{nameof(MapSprite.Position)}: {sprite.Position}"),
                     new($"{nameof(MapSprite.Dir)}: {sprite.Dir}"),
-                    new($"{nameof(MapSprite.Army)}: {sprite.Army}"),
+                    new($"{nameof(MapSprite.Army)}: {sprite.Army}")
                 };
                 
                 spriteNodes.Add(new Node($"Sprite {s++}", spriteNode));
