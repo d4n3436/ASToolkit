@@ -17,11 +17,15 @@ This document describes how the game's scripts and engine behave and how the ori
 - Valued at shop prices, a campaign level holds from 1,520 in pickups on level 2 to 74,025 on level 10, and the add-ons hold 22,695 and 24,725 on level 2 and up to 158,825 on add-on 2 level 5. Cash fades out by campaign level 8 and add-on 1 level 4; add-on 2 keeps 1,850 to 3,450 a level. Health moves from small to big packs and armor from green to red, by campaign level 8 and add-on level 2 or 3.
 - 17 of the 22 new weapons lie in a secret closet or more than about 170 px off the tour, and the ammunition of 10 of the 15 with ammunition in their level shows up before them. Charges come in batches as large as the group of sites they serve. On gated levels they lie with the key that opens the sites' part, in the breaker room (levels 3 and 4) or around the generator (levels 7 and 8). On levels without a gate before the sites they lie in the site's room or the one before it, about a tenth of the longest walk ahead, and 4 of 11 levels with sites also hold a batch in the start room. Every campaign level with a checkpoint has it at or before the level's biggest fight.
 - Checkpoints are the `StartPlayerX/Y` values set by a trigger in `Level_NN.lgc`.
+- Between levels `SavePlayer` (`COMMON.LGC`) keeps weapons, also those out of ammunition, ammunition, implants and items, but not armor. Each level starts at full health.
+- A fatal hit with the rescue kit (230) takes the kit and restores full health. Otherwise an extra life brings the player back at the last checkpoint with its ammunition and money, without armor and with 3 s of invulnerability.
+- Monsters choose their loot at birth from `BirthItemsN` and `BirthItemsPN` (`compaign_birth.lgc`). A dropped item stays where it falls and disappears after 17 to 22 s.
+- The victory check runs once a second (`OneTimeInSecond`), first about a second into the level. A level of spawners only is therefore not won at its start. Level 1 ends when the player enters its exit area.
 - The logo, main menu and shop maps are identical menu-host maps with no sprites.
 
 ### Doors, power and fences
 
-- Doors that open are 605 and 607. They sink in z when the player is near and `DoorsIsOpen` is set. Embedded doors 611 and 617 are decoration.
+- Doors that open are 605 and 607. While `DoorsIsOpen` is set and the player is within 80 or 120 px, they sink 4 or 2 px a tick to z -64 or -72 (`F605_0`, `F607_0`), and they rise 2 s after the player leaves unless a unit stands in them. Embedded doors 611 and 617 are decoration.
 - The breaker (418, `F418_0`) sets `DoorsIsOpen = 1`, calls `LightOn`, swaps the 424 door panels for 423, removes paired 609 and 612 trap walls and removes nearby 180 pointers.
 - A dark start is the map's ambient light. The `GRPH` negative tint is `C0C0C1` on level 2, `B4B5B5` on level 3 and `CBCBCB` on level 6, and zero on every other campaign level; no script turns the lights off at its start. The blackouts (level 4, add-on 1 level 2, add-on 2 levels 4 and 5) are triggers that set `DoorsIsOpen = 0`, call `LightOff` and swap 423 for 424.
 - The generator 415 (`F415_15`) destroys every 164 fence in the level. Level 10 has an extra hardcoded branch.

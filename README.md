@@ -64,7 +64,14 @@ A GUI for the toolkit is included on the repo (the `ASToolkit.Gui` project). It 
 ## Project layout
 
 ```
-src/ASToolkit.Core    File formats, level generation, reference data, route analysis and patchers
+src/ASToolkit.Core    File formats, engine runtime, simulation, level generation, route analysis and patchers
+  Engine/             Partial port of Alien Shooter 1's engine
+    Objects/          Shared object definitions and mutable runtime objects
+    Systems/          Movement, enemy AI, animation effects, doors and weapons
+    Spatial/          Collision and spatial queries, also used by routing
+    Resources/        Sprite geometry and object definitions
+    State/            Recorded values
+  Simulation/         The player bot, navigation, campaign play, replay capture and results
 src/ASToolkit.Cli     The ascli program
 src/ASToolkit.Gui     A GUI for the toolkit
 tests/                Unit tests
