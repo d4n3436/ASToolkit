@@ -1,4 +1,5 @@
 using ASToolkit.Core.Formats;
+using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
 namespace ASToolkit.Core.Rendering;
@@ -14,6 +15,8 @@ internal sealed class SpriteFrame
     public required ushort[] Depths { get; init; }
 
     public required Rgba32[] Colors { get; init; }
+
+    public MapRenderer.PaletteSource? OriginalPalette { get; init; }
 
     public required int Width { get; init; }
 
@@ -38,4 +41,10 @@ internal sealed class SpriteFrame
 
     // True when Indices holds palette indices into Colors; false when Colors holds one entry per pixel
     public required bool IsPaletted { get; init; }
+
+    public Rectangle[] Quads { get; init; } = [];
+
+    public bool HasFarQuads { get; init; }
+
+    public bool FadesByDepth { get; init; }
 }

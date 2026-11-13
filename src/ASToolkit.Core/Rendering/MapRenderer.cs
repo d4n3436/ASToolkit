@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Numerics;
@@ -24,14 +25,20 @@ public sealed class MapRenderer
     private const int MissingSize = 8;
     private const int FlatDepth = 0x400;
     private const int MaxFlatDepth = 0x7fff;
-    private const int DepthPerHeight = 8;
+    internal const int DepthPerHeight = 8;
+    private const int FadeShift = 3;
+    private const int FadeLevels = 15;
     private const int RaisedDepth = 0x3fff;
     private const int SequelRaisedHeight = 1000;
-    private const int MaxAttachDepth = 4;
+    /// <summary>
+    /// Represents the deepest chain of linked objects drawn under an object.
+    /// </summary>
+    public const int MaxAttachDepth = 4;
     private const uint PlayerArmy = 0;
     private const uint ArmyMask = 3;
     private const uint SequelArmyMask = 7;
     private const int LightPass = 7;
+    private const int LayerSlots = 2;
     private const float LightBufferShare = 0.3f;
     private const float LightFalloff = 0.2f;
     private const float LightFalloffBias = 0.04f;
@@ -68,7 +75,7 @@ public sealed class MapRenderer
     private readonly ObjectTable _objects;
     private readonly ConcurrentDictionary<string, VidResource?> _files = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<FrameKey, SpriteFrame?> _frames = new();
-    private readonly ConcurrentDictionary<(string Path, PackedTint Tint, bool TintsAlpha), Rgba32[]> _palettes = new();
+    private readonly ConcurrentDictionary<(string Path, PaletteTint Tint, bool TintsAlpha), Rgba32[]> _palettes = new();
     private readonly ConcurrentDictionary<(string Path, int Frame), bool[]> _masks = new();
     private readonly ConcurrentDictionary<string, VidSurface[]> _surfaces = new(StringComparer.OrdinalIgnoreCase);
 
@@ -105,8 +112,7 @@ public sealed class MapRenderer
     public bool OmitCovers { get; init; }
 
     /// <summary>
-    /// Gets a value indicating whether Alien Shooter 2 maps are lit as the game lights them, with the ambient light of the map
-    /// and the omni-lights of its objects instead of leaving the colors as they are.
+    /// Gets a value indicating whether maps use their ambient lighting and, in Alien Shooter 2, the omni-lights of their objects.
     /// </summary>
     public bool MatchGameLighting { get; init; }
 
@@ -128,14 +134,14 @@ public sealed class MapRenderer
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(scale);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(scale, 1);
-        var scene = CreateScene(sprites, graphics, false);
+        var scene = CreateScene(sprites, [], graphics, false);
         if (scene.IsEmpty)
         {
             return new MapImage { Image = new Image<Rgb24>(ImageConfiguration, 640, 360, Background), OriginX = 0, OriginY = 0, Scale = scale, Undrawn = scene.Undrawn };
         }
 
         var image = new Image<Rgb24>(ImageConfiguration, Math.Max(1, (int)(scene.Width * scale)), Math.Max(1, (int)(scene.Height * scale)), Background);
-        scene.Render((row, pixels) => pixels.CopyTo(image.DangerousGetPixelRowMemory(row).Span), new Rectangle(0, 0, image.Width, image.Height), scale, null);
+        scene.Render((row, pixels) => pixels.CopyTo(image.DangerousGetPixelRowMemory(row).Span), new Rectangle(0, 0, image.Width, image.Height), scale, null, FrozenSet<MergedMapSprite>.Empty);
         return new MapImage { Image = image, OriginX = scene.Left, OriginY = scene.Top, Scale = scale, Undrawn = scene.Undrawn };
     }
 
@@ -143,7 +149,32 @@ public sealed class MapRenderer
     /// Creates the animated scene of map sprites and the objects the engine attaches to them. The ambient light of the graphics
     /// record only takes effect with <see cref="MatchGameLighting"/>.
     /// </summary>
-    public MapScene CreateScene(IReadOnlyList<MergedMapSprite> sprites, MapGraphics graphics = default) => CreateScene(sprites, graphics, true);
+    public MapScene CreateScene(IReadOnlyList<MergedMapSprite> sprites, MapGraphics graphics = default) => CreateScene(sprites, [], graphics, true);
+
+    /// <summary>
+    /// Creates the scene of map sprites together with sprites drawn at a given frame outside the map's own placements, such as
+    /// a simulation's units. The live sprites take part in the same depth test and lighting as the map's own sprites.
+    /// </summary>
+    public MapScene CreateScene(IReadOnlyList<MergedMapSprite> sprites, IReadOnlyList<LiveSprite> live, MapGraphics graphics = default) =>
+        CreateScene(sprites, live, graphics, true);
+
+    /// <summary>
+    /// Replaces the live sprites a scene draws among its map sprites.
+    /// </summary>
+    public void UpdateLive(MapScene scene, IReadOnlyList<LiveSprite> live)
+    {
+        var added = scene.LiveObjects;
+        added.Placed.Clear();
+        added.Lights.Clear();
+        added.Sequence = scene.NextSequence;
+        int undrawn = 0;
+        foreach (var sprite in live)
+        {
+            undrawn += PlaceLive(added, sprite, scene.Ambient);
+        }
+
+        scene.UpdateLive(undrawn);
+    }
 
     /// <summary>
     /// Returns the map sprites that the game never shows, such as script dummies, monster generators and blocks.
@@ -158,6 +189,14 @@ public sealed class MapRenderer
     /// </summary>
     public VidResource? GetSprite(KnownObject id) => _objects.TryFind(id, out _) ? GetFile(_objects.GetPath(id)) : null;
 
+    // Doubles the object's gamma in the sequels
+    private static PaletteTint GetObjectTint(in GameObject obj, bool sequel)
+    {
+        var tint = PaletteTint.Pack(obj.GammaRed, obj.GammaGreen, obj.GammaBlue, obj.GammaAlpha);
+
+        return sequel ? tint.Add(tint) : tint;
+    }
+
     /// <summary>
     /// Draws one frame of the sprite of an object over a background color, the way the engine draws it into the map, or the
     /// light of the frame on the background for an omni-light. Returns null when the frame cannot be decoded.
@@ -171,11 +210,7 @@ public sealed class MapRenderer
 
         string path = _objects.GetPath(id);
         var file = GetFile(path);
-        var tint = PackedTint.Pack(obj.GammaRed, obj.GammaGreen, obj.GammaBlue, obj.GammaAlpha);
-        if (_objects.IsAlienShooter2)
-        {
-            tint = tint.Add(tint);
-        }
+        var tint = GetObjectTint(obj, _objects.IsAlienShooter2);
 
         if (file is not null && file.Value.Flags.HasFlag(VidFlags.OmniLight))
         {
@@ -189,18 +224,19 @@ public sealed class MapRenderer
         }
 
         var image = new Image<Rgb24>(ImageConfiguration, frame.Width, frame.Height, background);
-        var placement = new Placement(obj, frame, frame.Width / 2f, frame.Height / 2f, frame.Width, frame.Height, 0, false, 0, null!, null);
+        var placement = new Placement(obj.Flags, frame, frame.Width / 2f, frame.Height / 2f, frame.Width, frame.Height, 0, false, 0, null!, null);
         var state = new PlacementState(frame, 0, 0, 0);
-        var canvas = new Canvas([placement], [state], [], [], new Rectangle(0, 0, frame.Width, frame.Height), 1, frame.Width, frame.Height, null,
+        var canvas = new Canvas([placement], [state], [], [], [], new Rectangle(0, 0, frame.Width, frame.Height), 1, frame.Width, frame.Height, null,
             (row, pixels) => pixels.CopyTo(image.DangerousGetPixelRowMemory(row).Span), background);
         canvas.DrawAll();
         return image;
     }
 
-    private MapScene CreateScene(IReadOnlyList<MergedMapSprite> sprites, MapGraphics graphics, bool animate)
+    private MapScene CreateScene(IReadOnlyList<MergedMapSprite> sprites, IReadOnlyList<LiveSprite> live, MapGraphics graphics, bool animate)
     {
-        var scene = new SceneObjects(new List<Placement>(sprites.Count), [], [], animate);
-        var ambient = MatchGameLighting && _objects.IsAlienShooter2 ? GetAmbient(graphics) : (PackedTint?)null;
+        var ambient = MatchGameLighting && _objects.IsAlienShooter2 ? GetAmbient(graphics) : (PaletteTint?)null;
+        var paletteTint = MatchGameLighting && !_objects.IsAlienShooter2 ? GetAmbient(graphics) : default;
+        var scene = new SceneObjects(new List<Placement>(sprites.Count + live.Count), [], [], animate, paletteTint);
         int undrawn = 0;
         foreach (var sprite in sprites)
         {
@@ -210,13 +246,54 @@ public sealed class MapRenderer
             {
                 continue;
             }
-            
+
             var look = new SpriteLook(GetPlacementTint(sprite), sprite.Scale);
             undrawn += Place(scene, sprite, GetPlayerPart(sprite.Id), sprite.Position, sprite.Facing, look, ambient, 0);
         }
 
+        foreach (var sprite in live)
+        {
+            undrawn += PlaceLive(scene, sprite, ambient);
+        }
+
         var lights = scene.Lights.Select(light => light.CastsShadows ? light with { Shadows = GetShadows(light, scene.Casters) } : light).ToArray();
-        return new MapScene(scene.Placed.ToArray(), lights, ambient, undrawn);
+
+        return new MapScene(scene.Placed.ToArray(), lights, ambient, undrawn, paletteTint);
+    }
+
+    private int PlaceLive(SceneObjects scene, LiveSprite live, PaletteTint? ambient)
+    {
+        if (!_objects.TryFind(live.Id, out var obj))
+        {
+            return 0;
+        }
+
+        string path = _objects.GetPath(live.Id);
+        var file = GetFile(path);
+        bool sequel = _objects.IsAlienShooter2;
+        var tint = GetObjectTint(obj, sequel);
+
+        if (ambient.HasValue && !obj.Flags.HasFlag(ObjectFlags.Unlit))
+        {
+            tint = tint.Add(ambient.Value);
+        }
+
+        int layer = GetEngineLayer(obj, file, IsPlayerPart(live.Id));
+        int sequence = scene.Sequence++;
+        if (!sequel && file is not null && file.Value.Flags.HasFlag(VidFlags.OmniLight))
+        {
+            AddLight(scene.Lights, obj, [file.Value.GetLightColor(live.FrameIndex)], AnimationTiming.Static, GetLightTint(obj, tint, scene.PaletteTint), live.Position, Vector3.One,
+                layer, sequence);
+        }
+
+        var scale = GetObjectScale(obj, file);
+        byte rotation = file is null ? (byte)0 : GetRotation(obj, file.Value, path, live.Facing);
+        var frame = file is null ? null : GetFrame(path, obj, file.Value, live.FrameIndex, rotation, tint, scale);
+        int pass = !sequel ? layer : frame is not null && frame.IsCombined ? 1 : 0;
+        (int width, int height) = frame is not null ? (frame.Width, frame.Height) : file is null ? (MissingSize, MissingSize) : (file.Value.Width, file.Value.Height);
+        scene.Placed.Add(new Placement(obj.Flags, frame, live.Position.X, live.Position.Y - live.Position.Z, width, height, GetBaseDepth(obj.Flags, live.Position.Z, sequel),
+            !sequel && obj.Size.Y < obj.Size.Z, pass, null, null) { Sequence = sequence });
+        return file is not null && frame is null ? 1 : 0;
     }
 
     private bool IsHelper(MergedMapSprite sprite) =>
@@ -330,7 +407,7 @@ public sealed class MapRenderer
         return true;
     }
 
-    private int Place(SceneObjects scene, MergedMapSprite owner, KnownObject id, Vector3 position, byte dir, SpriteLook look, PackedTint? ambient,
+    private int Place(SceneObjects scene, MergedMapSprite owner, KnownObject id, Vector3 position, byte dir, SpriteLook look, PaletteTint? ambient,
         int attachDepth)
     {
         if (!_objects.TryFind(id, out var obj) || (OmitHiddenObjects && IsHiddenByArmy(obj, owner.Army)))
@@ -344,7 +421,7 @@ public sealed class MapRenderer
         bool sequel = _objects.IsAlienShooter2;
         bool isOmniLight = sequel && file is not null && file.Value.Flags.HasFlag(VidFlags.OmniLight);
         int sequelPass = isOmniLight ? LightPass : sequel && file is not null ? GetPass(obj, file.Value) : 0;
-        var objectTint = PackedTint.Pack(obj.GammaRed, obj.GammaGreen, obj.GammaBlue, obj.GammaAlpha);
+        var objectTint = PaletteTint.Pack(obj.GammaRed, obj.GammaGreen, obj.GammaBlue, obj.GammaAlpha);
         var tint = look.Tint ?? objectTint;
         if (sequel)
         {
@@ -363,6 +440,12 @@ public sealed class MapRenderer
             uint[] colors = Enumerable.Range(frameIndex, timing.Count).Select(file!.Value.GetLightColor).ToArray();
             AddLight(scene.Lights, obj, colors, timing, tint, position, look.Scale);
         }
+        int lightIndex = scene.Lights.Count;
+        if (!sequel && file is not null && file.Value.Flags.HasFlag(VidFlags.OmniLight))
+        {
+            uint[] colors = Enumerable.Range(frameIndex, timing.Count).Select(file.Value.GetLightColor).ToArray();
+            AddLight(scene.Lights, obj, colors, timing, GetLightTint(obj, tint, scene.PaletteTint), position, Vector3.One);
+        }
 
         if (ambient.HasValue && sequel && file is not null && IsShadowCaster(obj, file.Value))
         {
@@ -372,21 +455,32 @@ public sealed class MapRenderer
         byte rotation = file is null ? (byte)0 : GetRotation(obj, file.Value, path, dir);
         var frame = file is null ? null : GetFrame(path, obj, file.Value, frameIndex, rotation, tint, scale);
         (int width, int height) = frame is not null ? (frame.Width, frame.Height) : file is null ? (MissingSize, MissingSize) : (file.Value.Width, file.Value.Height);
-        int pass = sequel && file is not null ? sequelPass : frame is null || !frame.IsCombined ? 0 : 1;
+        int pass = !sequel ? GetEngineLayer(obj, file, false) : file is not null ? sequelPass : 0;
         float bob = scene.Animate && obj.Flags.HasFlag(ObjectFlags.Bobbing) ? obj.StepHeight : 0;
         var animation = file is null || (timing.Count == 1 && bob == 0) ? null
             : new FrameAnimation(Enumerable.Range(frameIndex, timing.Count).Select(index => GetFrame(path, obj, file.Value, index, rotation, tint, scale)).ToArray(),
                 timing, bob, position.Z, sequel);
         var source = new SceneObject(id, owner, position, dir);
-        scene.Placed.Add(new Placement(obj, frame, position.X, position.Y - position.Z, width, height, GetBaseDepth(obj, position.Z, sequel), !sequel && obj.Size.Y < obj.Size.Z, pass, source, animation));
-        int undrawn = file is not null && frame is null ? 1 : 0;
-        if (obj.Link == 0 || attachDepth >= MaxAttachDepth || !_objects.TryFind(obj.Link, out var attached))
+        bool addedLight = !sequel && scene.Lights.Count > lightIndex;
+        // Number an object before its linked objects
+        int sequence = scene.Sequence++;
+        scene.Placed.Add(new Placement(obj.Flags, frame, position.X, position.Y - position.Z, width, height, GetBaseDepth(obj.Flags, position.Z, sequel), !sequel && obj.Size.Y < obj.Size.Z, pass, source, animation)
         {
-            return undrawn;
+            Sequence = sequence
+        });
+        if (addedLight)
+        {
+            scene.Lights[lightIndex] = scene.Lights[lightIndex] with { Pass = pass, Sequence = sequence };
         }
 
-        var offset = obj.GetLinkOffset(attached, file, frameIndex, dir);
-        return undrawn + Place(scene, owner, GetPlayerPart(obj.Link), position + offset, dir, SpriteLook.Default, ambient, attachDepth + 1);
+        int undrawn = file is not null && frame is null ? 1 : 0;
+        if (obj.Link != 0 && attachDepth < MaxAttachDepth && _objects.TryFind(obj.Link, out var attached))
+        {
+            var offset = obj.GetLinkOffset(attached, file, frameIndex, dir);
+            undrawn += Place(scene, owner, GetPlayerPart(obj.Link), position + offset, dir, SpriteLook.Default, ambient, attachDepth + 1);
+        }
+
+        return undrawn;
     }
 
     // Brighten the background like a light buffer at neutral gray
@@ -462,10 +556,10 @@ public sealed class MapRenderer
 
     private uint GetArmyBits(uint army) => army & (_objects.IsAlienShooter2 ? SequelArmyMask : ArmyMask);
 
-    internal static int GetBaseDepth(GameObject obj, float z, bool sequel)
+    internal static int GetBaseDepth(ObjectFlags flags, float z, bool sequel)
     {
         int depth = (int)(z * DepthPerHeight);
-        if (!obj.Flags.HasFlag(ObjectFlags.Raised))
+        if (!flags.HasFlag(ObjectFlags.Raised))
         {
             return depth;
         }
@@ -539,22 +633,28 @@ public sealed class MapRenderer
         return configuration;
     }
 
-    private VidResource? GetFile(string relative) => _files.GetOrAdd(relative, r =>
+    private VidResource? GetFile(string relative)
     {
-        string? path = GamePath.Resolve(_gameFolder, r);
-        return path is not null && path.EndsWith(".vid", StringComparison.OrdinalIgnoreCase) ? new VidResource(File.ReadAllBytes(path)) : null;
-    });
+        if (_files.TryGetValue(relative, out var file))
+            return file;
 
-    private static PackedTint? GetPlacementTint(MergedMapSprite sprite) =>
-        sprite is { NegativeTint: 0, PositiveTint: 0 } ? null : new PackedTint(sprite.NegativeTint, sprite.PositiveTint);
+        string? path = GamePath.Resolve(_gameFolder, relative);
+        file = path is not null && path.EndsWith(".vid", StringComparison.OrdinalIgnoreCase) ? new VidResource(File.ReadAllBytes(path)) : null;
 
-    private PackedTint GetAmbient(MapGraphics graphics)
+        return _files.GetOrAdd(relative, file);
+    }
+
+    private static PaletteTint? GetPlacementTint(MergedMapSprite sprite) =>
+        sprite is { NegativeTint: 0, PositiveTint: 0 } ? null : new PaletteTint(sprite.NegativeTint, sprite.PositiveTint);
+
+    private PaletteTint GetAmbient(MapGraphics graphics)
     {
-        var ambient = new PackedTint(graphics.AmbientNegative, graphics.AmbientPositive);
+        var ambient = new PaletteTint(graphics.AmbientNegative, graphics.AmbientPositive);
         return OmitAmbientTint ? ambient.ToGray() : ambient;
     }
 
-    private static void AddLight(List<OmniLight> lights, GameObject obj, uint[] colors, AnimationTiming timing, PackedTint tint, Vector3 position, Vector3 scale)
+    private static void AddLight(List<OmniLight> lights, GameObject obj, uint[] colors, AnimationTiming timing, PaletteTint tint, Vector3 position, Vector3 scale,
+        int pass = 0, int sequence = 0)
     {
         var radius = 0.5f * obj.Size * obj.Scale * scale;
         if (colors.All(color => color == 0) || radius.X <= 0 || radius.Y <= 0)
@@ -564,8 +664,33 @@ public sealed class MapRenderer
 
         var lightColors = colors.Select(color => color == 0 ? Vector3.Zero : new Vector3(tint.Apply((int)(color >> 16 & 0xff), 16),
             tint.Apply((int)(color >> 8 & 0xff), 8), tint.Apply((int)(color & 0xff), 0))).ToArray();
-        lights.Add(new OmniLight(position, radius.X, radius.Y, lightColors, timing, obj.Flags.HasFlag(ObjectFlags.Windblown), []));
+        lights.Add(new OmniLight(position, radius.X, radius.Y, lightColors, timing, obj.Flags.HasFlag(ObjectFlags.Windblown), [])
+        {
+            Doubled = obj.Flags.HasFlag(ObjectFlags.DoubleLight),
+            Pass = pass,
+            Sequence = sequence
+        });
     }
+
+    // Returns the engine's draw layer of an object. Each layer draws from its last object to its first, the player after its objects
+    private static int GetEngineLayer(GameObject obj, VidResource? file, bool isPlayer)
+    {
+        bool blended = file is not null && file.Value.Flags.HasFlag(VidFlags.Blended);
+        var layer = file is not null && file.Value.Flags.HasFlag(VidFlags.OmniLight) ? ObjectLayer.OmniLight
+            : obj.SpriteClass == SpriteClass.Scenery ? blended ? ObjectLayer.BlendedScenery : ObjectLayer.Scenery
+            : obj.Flags.HasFlag(ObjectFlags.GroundDecal) ? ObjectLayer.GroundDecal
+            : obj.Flags.HasFlag(ObjectFlags.Raised) ? ObjectLayer.Raised
+            : blended ? ObjectLayer.BlendedObject
+            : (obj.Flags & (ObjectFlags.Outline | ObjectFlags.Solid)) == 0 ? ObjectLayer.Object : ObjectLayer.SolidObject;
+
+        return LayerSlots * (int)layer + (isPlayer ? 1 : 0);
+    }
+
+    private static bool IsPlayerPart(KnownObject id) =>
+        (uint)(id - KnownObject.PlayerStart) < PlayerPartCount || (uint)(id - KnownObject.PlayerStartFemaleLegs) < PlayerPartCount;
+
+    private static PaletteTint GetLightTint(GameObject obj, PaletteTint tint, PaletteTint ambient) =>
+        obj.Flags.HasFlag(ObjectFlags.Unlit) ? tint : tint.Add(ambient);
 
     // Color scale of the light quad, the falloff 10 units above the ground
     private static float GetLightScale(float radiusY) => LightFalloff / (MathF.Pow(LightQuadDrop / radiusY, 2) + LightFalloff);
@@ -641,7 +766,7 @@ public sealed class MapRenderer
 
         Vector2 ToScreen(float column, float row)
         {
-            var local = new Vector2((column - halfWidth + frame.Left) * scale.X, (row - lift - halfHeight + frame.Top) * scale.Y);
+            var local = new Vector2(column - halfWidth + frame.Left, row - lift - halfHeight + frame.Top) * scale.AsVector2();
             if (!flat || rotated)
             {
                 local = Turn(local, turn);
@@ -677,8 +802,11 @@ public sealed class MapRenderer
 
     private static float Cos(byte angle) => MathF.Cos(angle * MathF.Tau / 256);
 
-    private bool[] GetMask(string path, VidResource file, int index) => _masks.GetOrAdd((path, index), _ =>
+    private bool[] GetMask(string path, VidResource file, int index)
     {
+        if (_masks.TryGetValue((path, index), out bool[]? cached))
+            return cached;
+
         var frame = file.GetFrame(index);
         bool[] mask = new bool[frame.Width * frame.RowCount];
         foreach (var run in frame)
@@ -694,31 +822,48 @@ public sealed class MapRenderer
             }
         }
 
-        return mask;
-    });
+        return _masks.GetOrAdd((path, index), mask);
+    }
 
-    private SpriteFrame? GetFrame(string path, GameObject obj, VidResource view, int index, byte rotation, PackedTint tint, Vector3 scale) =>
-        _frames.GetOrAdd(new FrameKey(path, tint, index, rotation, scale), _ => rotation == 0 && scale == Vector3.One
-            ? DecodeFrame(path, view, index, tint)
-            : DecodeTransformedFrame(path, obj, view, index, rotation, tint, scale));
+    private SpriteFrame? GetFrame(string path, in GameObject obj, VidResource view, int index, byte rotation, PaletteTint tint, Vector3 scale)
+    {
+        var key = new FrameKey(path, tint, index, rotation, scale);
 
-    private SpriteFrame? DecodeTransformedFrame(string path, GameObject obj, VidResource view, int index, byte rotation, PackedTint tint, Vector3 scale)
+        if (_frames.TryGetValue(key, out var frame))
+            return frame;
+
+        frame = rotation == 0 && scale == Vector3.One ? DecodeFrame(path, view, index, tint) : DecodeTransformedFrame(path, obj, view, index, rotation, tint, scale);
+
+        return _frames.GetOrAdd(key, frame);
+    }
+
+    private Rgba32[] GetPalette(string path, VidResource view, PaletteTint tint, bool tintsAlpha, bool sequel)
+    {
+        if (_palettes.TryGetValue((path, tint, tintsAlpha), out var palette))
+            return palette;
+
+        return _palettes.GetOrAdd((path, tint, tintsAlpha), ApplyTint(view.Palette, tint, tintsAlpha, sequel));
+    }
+
+    private SpriteFrame? DecodeTransformedFrame(string path, GameObject obj, VidResource view, int index, byte rotation, PaletteTint tint, Vector3 scale)
     {
         var upright = GetFrame(path, obj, view, index, 0, tint, Vector3.One);
         return upright is null ? null : TransformFrame(upright, view.GetFrame(index).Mesh, rotation, scale);
     }
 
-    private SpriteFrame? DecodeFrame(string path, VidResource view, int index, PackedTint tint)
+    private SpriteFrame? DecodeFrame(string path, VidResource view, int index, PaletteTint tint)
     {
         if (index >= view.FrameCount)
         {
             return null;
         }
 
-        if (view.Flags.HasFlag(VidFlags.Surface) && !view.Flags.HasFlag(VidFlags.Cadr))
+        if (view.Flags.HasFlag(VidFlags.Surface) && !view.Flags.HasFlag(VidFlags.Cadr) && view.HasSurfaceChunk)
         {
             return DecodeTextureFrame(path, view, index, tint);
         }
+
+        bool fades = view.Flags.HasFlag(VidFlags.Surface) && !view.Flags.HasFlag(VidFlags.Cadr) && view.HasDepth;
 
         bool paletted = view.HasPalette;
         if (paletted && view.Palette.Length < 1024)
@@ -728,7 +873,7 @@ public sealed class MapRenderer
 
         bool tintsAlpha = view is { IsBlended: true, Blend: VidBlend.Alpha or VidBlend.AlphaNoDepthWrite or VidBlend.AlphaDepthWrite };
         bool sequel = _objects.IsAlienShooter2;
-        var palette = paletted ? _palettes.GetOrAdd((path, tint, tintsAlpha), _ => ApplyTint(view.Palette, tint, tintsAlpha, sequel)) : null;
+        var palette = paletted ? GetPalette(path, view, tint, tintsAlpha, sequel) : null;
         var frame = view.GetFrame(index);
         int count = 0;
         foreach (var run in frame)
@@ -745,6 +890,7 @@ public sealed class MapRenderer
             Indices = paletted ? new byte[count] : [],
             Depths = view.HasDepth || meshDepth ? new ushort[count] : [],
             Colors = pixelColors,
+            OriginalPalette = paletted && !sequel ? new PaletteSource(view.Palette, tint, tintsAlpha) : null,
             Width = view.Width,
             Height = view.Height,
             Top = frame.Top,
@@ -752,9 +898,12 @@ public sealed class MapRenderer
             RowStarts = new int[frame.RowCount + 1],
             IsBlended = view.IsBlended,
             Blend = view.Blend,
-            WritesDepth = view.Blend != VidBlend.AlphaNoDepthWrite,
+            WritesDepth = !fades && view.Blend != VidBlend.AlphaNoDepthWrite,
             TestsDepth = TestsDepth(view),
-            IsPaletted = paletted
+            IsPaletted = paletted,
+            Quads = fades ? [new Rectangle(0, frame.Top, view.Width, frame.RowCount)] : [],
+            HasFarQuads = fades,
+            FadesByDepth = fades
         };
         int row = 0;
         int pixelIndex = 0;
@@ -774,8 +923,8 @@ public sealed class MapRenderer
                 }
                 else
                 {
-                    var color = DecodeColor(view.Format, run, runIndex);
-                    pixelColors[pixelIndex] = sequel ? ModulateColor(color, tint, tintsAlpha) : color;
+                    var color = fades ? DecodeA4R4G4B4(run.GetColor(runIndex)) : DecodeColor(view.Format, run, runIndex);
+                    pixelColors[pixelIndex] = sequel ? ModulateColor(color, tint, tintsAlpha) : fades ? TintColor(color, tint, false, false) : color;
                 }
 
                 if (view.HasDepth)
@@ -797,62 +946,108 @@ public sealed class MapRenderer
         return result;
     }
 
-    private SpriteFrame? DecodeTextureFrame(string path, VidResource view, int index, PackedTint tint)
+    private SpriteFrame? DecodeTextureFrame(string path, VidResource view, int index, PaletteTint tint)
     {
-        var surfaces = _surfaces.GetOrAdd(path, _ => view.DecodeSurfaces());
-        if (!view.TryGetTextureFrame(index, out var entry) || (uint)entry.Surface >= (uint)surfaces.Length || entry.Width <= 0 || entry.Height <= 0)
+        if (!_surfaces.TryGetValue(path, out var surfaces))
         {
-            return null;
+            surfaces = _surfaces.GetOrAdd(path, view.DecodeSurfaces());
         }
 
-        var surface = surfaces[entry.Surface];
-        var pixels = surface.Pixels;
-        bool tintsAlpha = view is { IsBlended: true, Blend: VidBlend.Alpha or VidBlend.AlphaNoDepthWrite or VidBlend.AlphaDepthWrite };
-        bool sequel = _objects.IsAlienShooter2;
-        int left = entry.Left;
-        int top = entry.Top;
-        var xs = new List<short>();
-        var colors = new List<Rgba32>();
-        int[] rowStarts = new int[entry.Height + 1];
-        for (int row = 0; row < entry.Height; row++)
+        int width = view.Width;
+        int height = view.Height;
+        var canvas = ArrayPool<Rgba32>.Shared.Rent(width * height);
+        try
         {
-            rowStarts[row] = xs.Count;
-            int sourceY = entry.Y + row;
-            for (int column = 0; column < entry.Width && sourceY < surface.Height; column++)
+            canvas.AsSpan(0, width * height).Clear();
+            var quads = new List<Rectangle>();
+            if (!DrawTextureParts(view, index, surfaces, canvas, quads, out int top, out int bottom))
             {
-                int sourceX = entry.X + column;
-                if (sourceX >= surface.Width)
-                {
-                    break;
-                }
+                return null;
+            }
 
-                var color = DecodeA4R4G4B4(pixels[sourceY * surface.Width + sourceX]);
-                if (color.A > 0)
+            bool tintsAlpha = view is { IsBlended: true, Blend: VidBlend.Alpha or VidBlend.AlphaNoDepthWrite or VidBlend.AlphaDepthWrite };
+            bool sequel = _objects.IsAlienShooter2;
+            var xs = new List<short>();
+            var colors = new List<Rgba32>();
+            int[] rowStarts = new int[bottom - top + 1];
+            for (int row = top; row < bottom; row++)
+            {
+                rowStarts[row - top] = xs.Count;
+                var line = canvas.AsSpan(row * width, width);
+                for (int column = 0; column < width; column++)
                 {
-                    xs.Add((short)(left + column));
-                    colors.Add(sequel ? ModulateColor(color, tint, tintsAlpha) : color);
+                    if (line[column].A > 0)
+                    {
+                        xs.Add((short)column);
+                        colors.Add(TintColor(line[column], tint, tintsAlpha, sequel));
+                    }
                 }
             }
+
+            rowStarts[bottom - top] = xs.Count;
+            return new SpriteFrame
+            {
+                Xs = xs.ToArray(),
+                Indices = [],
+                Depths = [],
+                Colors = colors.ToArray(),
+                Width = width,
+                Height = height,
+                Top = top,
+                Rows = bottom - top,
+                RowStarts = rowStarts,
+                IsBlended = true,
+                Blend = view.Blend,
+                WritesDepth = false,
+                TestsDepth = TestsDepth(view),
+                IsPaletted = false,
+                Quads = quads.ToArray(),
+                HasFarQuads = view.Flags.HasFlag(VidFlags.Depth)
+            };
+        }
+        finally
+        {
+            ArrayPool<Rgba32>.Shared.Return(canvas);
+        }
+    }
+
+    private static bool DrawTextureParts(VidResource view, int index, VidSurface[] surfaces, Rgba32[] canvas, List<Rectangle> quads, out int top, out int bottom)
+    {
+        int width = view.Width;
+        int height = view.Height;
+        top = height;
+        bottom = 0;
+        for (int part = 0; part < view.FrameCount && view.TryGetTextureFrame(index, out var entry); part++)
+        {
+            if ((uint)entry.Surface < (uint)surfaces.Length)
+            {
+                quads.Add(new Rectangle(entry.Left, entry.Top, entry.Width, entry.Height));
+                var surface = surfaces[entry.Surface];
+                int rows = Math.Min(entry.Height, Math.Min(surface.Height - entry.Y, height - entry.Top));
+                int columns = Math.Min(entry.Width, Math.Min(surface.Width - entry.X, width - entry.Left));
+                for (int row = Math.Max(0, -entry.Top); row < rows; row++)
+                {
+                    var source = surface.Pixels.Slice((entry.Y + row) * surface.Width + entry.X, columns);
+                    var target = canvas.AsSpan((entry.Top + row) * width + entry.Left, columns);
+                    for (int column = Math.Max(0, -entry.Left); column < columns; column++)
+                    {
+                        target[column] = DecodeA4R4G4B4(source[column]);
+                    }
+                }
+
+                if (rows > 0 && columns > 0)
+                {
+                    top = Math.Min(top, Math.Max(0, entry.Top));
+                    bottom = Math.Max(bottom, entry.Top + rows);
+                }
+            }
+
+            if (entry.Next == 0)
+                break;
+            index = entry.Next;
         }
 
-        rowStarts[entry.Height] = xs.Count;
-        return new SpriteFrame
-        {
-            Xs = xs.ToArray(),
-            Indices = [],
-            Depths = [],
-            Colors = colors.ToArray(),
-            Width = view.Width,
-            Height = view.Height,
-            Top = top,
-            Rows = entry.Height,
-            RowStarts = rowStarts,
-            IsBlended = true,
-            Blend = view.Blend,
-            WritesDepth = false,
-            TestsDepth = TestsDepth(view),
-            IsPaletted = false
-        };
+        return bottom > top;
     }
 
     // Turn the depth test off for light glows, blend 7 and mode 6 sprites like Alien Shooter 2. Keep it on for unlit renders,
@@ -1054,6 +1249,7 @@ public sealed class MapRenderer
             Indices = indices,
             Depths = depths,
             Colors = colors,
+            OriginalPalette = source.OriginalPalette,
             Width = width,
             Height = height,
             Top = top,
@@ -1080,36 +1276,31 @@ public sealed class MapRenderer
     private static Rgba32 DecodeA1R5G5B5(ushort value, bool hasAlpha) =>
         new(Expand(value >> 10 & 0x1f, 5), Expand(value >> 5 & 0x1f, 5), Expand(value & 0x1f, 5), (byte)(!hasAlpha || (value & 0x8000) != 0 ? 255 : 0));
 
+    // Expands each 4-bit channel to n / 15
     private static Rgba32 DecodeA4R4G4B4(ushort value) =>
-        new((byte)((value >> 8 & 0xf) << 4), (byte)((value >> 4 & 0xf) << 4), (byte)((value & 0xf) << 4), (byte)((value >> 12 & 0xf) << 4));
+        new((byte)((value >> 8 & 0xf) * 17), (byte)((value >> 4 & 0xf) * 17), (byte)((value & 0xf) * 17), (byte)((value >> 12 & 0xf) * 17));
 
     private static Rgba32 DecodeA8R8G8B8(uint value, bool hasAlpha) =>
         new((byte)(value >> 16), (byte)(value >> 8), (byte)value, hasAlpha ? (byte)(value >> 24) : (byte)255);
 
-    private static Rgba32 ModulateColor(Rgba32 color, PackedTint tint, bool tintsAlpha) =>
+    private static Rgba32 ModulateColor(Rgba32 color, PaletteTint tint, bool tintsAlpha) =>
         new((byte)tint.Modulate(color.R, 16), (byte)tint.Modulate(color.G, 8), (byte)tint.Modulate(color.B, 0),
             tintsAlpha ? (byte)((color.A * (255 - tint.GetNegative(24)) + 127) / 255) : color.A);
 
+    private static Rgba32 TintColor(Rgba32 color, PaletteTint tint, bool tintsAlpha, bool sequel) => sequel
+        ? ModulateColor(color, tint, tintsAlpha)
+        : new Rgba32((byte)tint.Apply(color.R, 16), (byte)tint.Apply(color.G, 8), (byte)tint.Apply(color.B, 0),
+            tintsAlpha ? (byte)(color.A * (256 - tint.GetNegative(24)) >> 8) : color.A);
+
     private static byte Expand(int value, int bits) => (byte)((value << (8 - bits)) | (value >> (2 * bits - 8)));
 
-    private static Rgba32[] ApplyTint(ReadOnlyMemory<byte> palette, PackedTint tint, bool tintsAlpha, bool sequel)
+    internal static Rgba32[] ApplyTint(ReadOnlyMemory<byte> palette, PaletteTint tint, bool tintsAlpha, bool sequel)
     {
         var colors = new Rgba32[256];
         var entries = palette.Span;
         for (int index = 0; index < 256; index++)
         {
-            byte alpha = entries[4 * index + 3];
-            if (sequel)
-            {
-                colors[index] = ModulateColor(new Rgba32(entries[4 * index + 2], entries[4 * index + 1], entries[4 * index], alpha), tint, tintsAlpha);
-                continue;
-            }
-
-            colors[index] = new Rgba32(
-                (byte)tint.Apply(entries[4 * index + 2], 16),
-                (byte)tint.Apply(entries[4 * index + 1], 8),
-                (byte)tint.Apply(entries[4 * index], 0),
-                tintsAlpha ? (byte)(alpha * (256 - tint.GetNegative(24)) >> 8) : alpha);
+            colors[index] = TintColor(new Rgba32(entries[4 * index + 2], entries[4 * index + 1], entries[4 * index], entries[4 * index + 3]), tint, tintsAlpha, sequel);
         }
 
         return colors;
@@ -1117,49 +1308,11 @@ public sealed class MapRenderer
 
     internal delegate void RowWriter(int row, ReadOnlySpan<Rgb24> pixels);
 
-    private readonly record struct FrameKey(string Path, PackedTint Tint, int Frame, byte Rotation, Vector3 Scale);
+    private readonly record struct FrameKey(string Path, PaletteTint Tint, int Frame, byte Rotation, Vector3 Scale);
 
-    private readonly record struct SpriteLook(PackedTint? Tint, Vector3 Scale)
+    private readonly record struct SpriteLook(PaletteTint? Tint, Vector3 Scale)
     {
         public static SpriteLook Default { get; } = new(null, Vector3.One);
-    }
-
-    internal readonly record struct PackedTint(uint Negative, uint Positive)
-    {
-        public static PackedTint Pack(int red, int green, int blue, int alpha) =>
-            new(GetMagnitude(-alpha) << 24 | GetMagnitude(-red) << 16 | GetMagnitude(-green) << 8 | GetMagnitude(-blue),
-                GetMagnitude(alpha) << 24 | GetMagnitude(red) << 16 | GetMagnitude(green) << 8 | GetMagnitude(blue));
-
-        public PackedTint Add(PackedTint other) => new(AddBytes(Negative, other.Negative), AddBytes(Positive, other.Positive));
-
-        public PackedTint ToGray() => new(GrayBytes(Negative), GrayBytes(Positive));
-
-        public int GetNegative(int shift) => (int)(Negative >> shift & 0xff);
-
-        public int GetPositive(int shift) => (int)(Positive >> shift & 0xff);
-
-        public int Modulate(int color, int shift) => Math.Min(255, (color * (255 - GetNegative(shift)) + 127) / 255 + GetPositive(shift));
-
-        public int Apply(int color, int shift) => Math.Min(255, (color * (256 - GetNegative(shift)) >> 8) + GetPositive(shift));
-
-        private static uint GetMagnitude(int value) => (uint)Math.Clamp(value, 0, 255);
-
-        private static uint AddBytes(uint first, uint second)
-        {
-            uint sum = 0;
-            for (int shift = 0; shift < 32; shift += 8)
-            {
-                sum |= Math.Min(255, (first >> shift & 0xff) + (second >> shift & 0xff)) << shift;
-            }
-
-            return sum;
-        }
-
-        private static uint GrayBytes(uint value)
-        {
-            uint gray = ((value >> 16 & 0xff) + (value >> 8 & 0xff) + (value & 0xff) + 1) / 3;
-            return (value & 0xff000000) | gray << 16 | gray << 8 | gray;
-        }
     }
 
     internal readonly record struct AnimationTiming(int Count, int Duration, int Phase)
@@ -1171,26 +1324,39 @@ public sealed class MapRenderer
 
     internal sealed record FrameAnimation(SpriteFrame?[] Frames, AnimationTiming Timing, float Bob, float Z, bool Sequel);
 
-    internal readonly record struct PlacementState(SpriteFrame? Frame, int X, int Y, int BaseDepth);
+    internal readonly record struct PaletteSource(ReadOnlyMemory<byte> Bytes, PaletteTint Tint, bool TintsAlpha);
+
+    internal readonly record struct PlacementState(SpriteFrame? Frame, int X, int Y, int BaseDepth, Rgba32[]? Palette = null);
 
     internal sealed record OmniLight(Vector3 Position, float RadiusX, float RadiusY, Vector3[] Colors, AnimationTiming Timing, bool CastsShadows,
         ShadowCard[] Shadows)
     {
+        public bool Doubled { get; init; }
+
+        public int Pass { get; init; }
+
+        public int Sequence { get; init; }
+
         public Vector3 GetColor(int? time) => Colors[time is not null ? Timing.GetIndex(time.Value) : 0];
     }
 
-    private sealed record ShadowCaster(GameObject Object, string Path, VidResource File, Vector3 Position, byte Dir, int FrameIndex, Vector3 Scale);
+    internal sealed record ShadowCaster(GameObject Object, string Path, VidResource File, Vector3 Position, byte Dir, int FrameIndex, Vector3 Scale);
 
     internal sealed record ShadowCard(bool[] Mask, int Columns, int Rows, Vector2 Origin, Vector2 ColumnStep, Vector2 RowStep, float TopDepth, float BottomDepth);
 
-    private sealed record SceneObjects(List<Placement> Placed, List<OmniLight> Lights, List<ShadowCaster> Casters, bool Animate);
+    internal sealed record SceneObjects(List<Placement> Placed, List<OmniLight> Lights, List<ShadowCaster> Casters, bool Animate, PaletteTint PaletteTint = default)
+    {
+        public int Sequence { get; set; }
+    }
 
     internal sealed record StripBuffers(Rgb24[] Source, int[] Depth, Rgb24[] Light, int[] Sums, Rgb24[] Row);
 
     // The sprite canvas is centered on X and ScreenY, the world y minus the height
-    internal sealed record Placement(GameObject Object, SpriteFrame? Frame, float ScreenX, float ScreenY, int Width, int Height, int BaseDepth, bool IsStanding,
+    internal sealed record Placement(ObjectFlags Flags, SpriteFrame? Frame, float ScreenX, float ScreenY, int Width, int Height, int BaseDepth, bool IsStanding,
         int Pass, SceneObject? Source, FrameAnimation? Animation)
     {
+        public int Sequence { get; init; }
+
         public float Left => ScreenX - Width / 2.0f;
 
         public float Top => ScreenY - Height / 2.0f;
@@ -1213,9 +1379,9 @@ public sealed class MapRenderer
                 if (Animation.Sequel)
                 {
                     screenY -= wave;
-                    baseDepth = GetBaseDepth(Object, Animation.Z + wave, true);
+                    baseDepth = GetBaseDepth(Flags, Animation.Z + wave, true);
                 }
-                else if (!Object.Flags.HasFlag(ObjectFlags.Raised) || (int)(Animation.Z * DepthPerHeight) >= RaisedDepth)
+                else if (!Flags.HasFlag(ObjectFlags.Raised) || (int)(Animation.Z * DepthPerHeight) >= RaisedDepth)
                 {
                     int depth = (int)(Sine[(time.Value >> 3) & 255] * Animation.Bob * DepthPerHeight);
                     baseDepth += depth;
@@ -1254,13 +1420,15 @@ public sealed class MapRenderer
         private readonly int _height;
         private readonly int[] _columnStarts;
         private readonly int _stripRows;
-        private readonly PackedTint? _ambient;
+        private readonly PaletteTint? _ambient;
         private readonly RowWriter _writer;
         private readonly Rgb24 _background;
+        private readonly HeightLight[] _heightLights;
 
-        public Canvas(Placement[] placed, PlacementState[] states, OmniLight[] lights, Vector3[] colors, Rectangle area, float scale, int sceneWidth, int sceneHeight,
-            PackedTint? ambient, RowWriter writer, Rgb24 background)
+        public Canvas(Placement[] placed, PlacementState[] states, OmniLight[] lights, Vector3[] colors, HeightLight[] heightLights, Rectangle area, float scale,
+            int sceneWidth, int sceneHeight, PaletteTint? ambient, RowWriter writer, Rgb24 background)
         {
+            _heightLights = heightLights.OrderBy(light => light.InsertAt).ToArray();
             _placed = placed;
             _states = states;
             _area = area;
@@ -1342,9 +1510,15 @@ public sealed class MapRenderer
                 Array.Clear(depth, 0, _width * (y1 - y0));
                 bool lighting = _ambient.HasValue;
                 bool started = false;
+                int heightLight = 0;
                 foreach (int index in _strips[strip])
                 {
                     var p = _placed[index];
+                    for (; heightLight < _heightLights.Length && _heightLights[heightLight].InsertAt <= index; heightLight++)
+                    {
+                        _heightLights[heightLight].Apply(source, _left, _width, y0, y1);
+                    }
+
                     if (lighting && p.Pass >= LightPass && !started)
                     {
                         StartLight(light, depth, y0, y1);
@@ -1373,6 +1547,11 @@ public sealed class MapRenderer
                     }
 
                     ApplyLight(source, light, y0, y1);
+                }
+
+                for (; heightLight < _heightLights.Length; heightLight++)
+                {
+                    _heightLights[heightLight].Apply(source, _left, _width, y0, y1);
                 }
             }
 
@@ -1461,7 +1640,7 @@ public sealed class MapRenderer
             int baseDepth = state.BaseDepth;
             int flat = Math.Min(baseDepth + FlatDepth, MaxFlatDepth);
             bool standing = p.IsStanding;
-            (short[] xs, byte[] indices, ushort[] depths, var colors) = (frame.Xs, frame.Indices, frame.Depths, frame.Colors);
+            (short[] xs, byte[] indices, ushort[] depths, var colors) = (frame.Xs, frame.Indices, frame.Depths, state.Palette ?? frame.Colors);
             bool hasDepths = depths.Length > 0;
             int firstRow = Math.Clamp(y0 - state.Y - frame.Top, 0, frame.Rows);
             int lastRow = Math.Clamp(y1 - state.Y - frame.Top, 0, frame.Rows);
@@ -1483,7 +1662,18 @@ public sealed class MapRenderer
                     int d = hasDepths ? baseDepth + depths[index] : rowDepth;
                     int k = depthRow + x;
                     int ci = frame.IsPaletted ? indices[index] : index;
-                    if (frame.IsCombined)
+                    if (frame.FadesByDepth)
+                    {
+                        int rise = d - depth[k];
+                        if (rise >= 0)
+                        {
+                            int alpha = Math.Min(rise >> FadeShift, FadeLevels);
+                            var color = colors[ci];
+                            ref var under = ref pixels[x];
+                            under = new Rgb24(AddFaded(under.R, color.R, alpha), AddFaded(under.G, color.G, alpha), AddFaded(under.B, color.B, alpha));
+                        }
+                    }
+                    else if (frame.IsCombined)
                     {
                         if (!frame.TestsDepth || depth[k] <= d)
                         {
@@ -1633,7 +1823,7 @@ public sealed class MapRenderer
             return shadowed;
         }
 
-        private static byte GetBufferAmbient(PackedTint ambient, int shift) =>
+        private static byte GetBufferAmbient(PaletteTint ambient, int shift) =>
             (byte)(Math.Min(255, 255 * (256 - ambient.GetNegative(shift)) / 256 + ambient.GetPositive(shift)) * LightBufferShare);
 
         // Multiply the scene by twice the buffer plus the positive ambient, then double it like the second engine quad
@@ -1648,6 +1838,9 @@ public sealed class MapRenderer
         };
 
         private static byte Modulate(byte a, byte b, int factor) => (byte)Math.Min(255, factor * a * b / 255);
+
+        // Add a color at a 4-bit alpha with the quad's (SRCALPHA, ONE) blend
+        private static byte AddFaded(byte under, byte color, int alpha) => (byte)MathF.Min(byte.MaxValue, MathF.Round(under + color * alpha / (float)FadeLevels));
 
         private static byte Blend(byte over, byte under, float alpha) => (byte)Math.Clamp(over * alpha + under * (1 - alpha), 0, 255);
     }
