@@ -8,6 +8,9 @@ public enum KnownObject
     /// <summary>The cursor sprite.</summary>
     Cursor = 1,
 
+    /// <summary>The font sprite.</summary>
+    Font = 2,
+
     /// <summary>The menu text label.</summary>
     MenuLabel = 3,
 
@@ -19,6 +22,12 @@ public enum KnownObject
 
     /// <summary>The player start marker.</summary>
     PlayerStart = 9,
+
+    /// <summary>The player's torso with the secret weapon.</summary>
+    SecretWeaponTorso = 10,
+
+    /// <summary>The player's torso with pistols.</summary>
+    PistolsTorso = 11,
 
     /// <summary>The green slug monster.</summary>
     Slug = 40,
@@ -37,6 +46,9 @@ public enum KnownObject
 
     /// <summary>The green monster of kind 1.</summary>
     Monster1 = 50,
+
+    /// <summary>The death animation of monster 1.</summary>
+    Monster1Death = 51,
 
     /// <summary>The first monster's corpse.</summary>
     Monster1Corpse = 52,
@@ -107,17 +119,50 @@ public enum KnownObject
     /// <summary>The red tank-weapon monster.</summary>
     RedTankWeaponMonster = 96,
 
+    /// <summary>The shotgun pellet.</summary>
+    ShotgunPellet = 100,
+
+    /// <summary>The casing ejected from a weapon.</summary>
+    FlyingCasing = 102,
+
+    /// <summary>The weapon casing lying on the floor.</summary>
+    LyingCasing = 103,
+
+    /// <summary>The muzzle flash of a pistol shot.</summary>
+    PistolMuzzleFlash = 104,
+
+    /// <summary>The effect of a bullet hitting a wall.</summary>
+    BulletWallImpact = 105,
+
     /// <summary>The small shadow.</summary>
     SmallShadow = 108,
 
     /// <summary>The dried red blood pool.</summary>
     BloodPool = 110,
 
+    /// <summary>The plasma bullet.</summary>
+    PlasmaBullet = 112,
+
+    /// <summary>The rocket projectile.</summary>
+    Rocket = 113,
+
     /// <summary>The small dried blood pool.</summary>
     SmallBloodPool = 120,
 
     /// <summary>The glow under health pickups.</summary>
     HealthGlow = 125,
+
+    /// <summary>The muzzle flash of a shotgun shot.</summary>
+    ShotgunMuzzleFlash = 126,
+
+    /// <summary>The casing ejected from a shotgun.</summary>
+    FlyingShotgunCasing = 127,
+
+    /// <summary>The shotgun casing lying on the floor.</summary>
+    LyingShotgunCasing = 128,
+
+    /// <summary>The magma bullet.</summary>
+    MagmaBullet = 129,
 
     /// <summary>The wall-mounted objects.</summary>
     WallObjects = 130,
@@ -149,6 +194,9 @@ public enum KnownObject
     /// <summary>The vertical dried blood pool.</summary>
     VerticalBloodPool = 154,
 
+    /// <summary>The minigun bullet.</summary>
+    MinigunBullet = 156,
+
     /// <summary>The big explosion.</summary>
     BigExplosion = 157,
 
@@ -158,6 +206,9 @@ public enum KnownObject
     /// <summary>The electric fence.</summary>
     Fence = 164,
 
+    /// <summary>The pistol bullet.</summary>
+    PistolBullet = 168,
+
     /// <summary>The spark of an explosion.</summary>
     ExplosionSpark = 174,
 
@@ -166,6 +217,24 @@ public enum KnownObject
 
     /// <summary>The marker that points at a game object.</summary>
     ObjectMarker = 180,
+
+    /// <summary>The effect of using a rescue medkit.</summary>
+    RescueMedkitEffect = 181,
+
+    /// <summary>The dynamite charge before its explosion.</summary>
+    ArmedDynamite = 184,
+
+    /// <summary>The flying green gibs.</summary>
+    FlyingGreenGibs = 197,
+
+    /// <summary>The green gibs lying on the floor.</summary>
+    LyingGreenGibs = 198,
+
+    /// <summary>The green body armor worn by the player.</summary>
+    WornGreenArmor = 200,
+
+    /// <summary>The invulnerability object linked to the player.</summary>
+    InvulnerabilityEffect = 203,
 
     /// <summary>The small health pickup.</summary>
     Health = 210,
@@ -286,6 +355,12 @@ public enum KnownObject
 
     /// <summary>The magma minigun ammo pickup.</summary>
     MagmaMinigunAmmo = 309,
+
+    /// <summary>The mounted cannon with the player in it.</summary>
+    MannedCannon = 350,
+
+    /// <summary>The turret of the manned cannon.</summary>
+    MannedCannonTurret = 352,
 
     /// <summary>The mounted cannon the player can man.</summary>
     MountedCannon = 357,
@@ -575,8 +650,17 @@ public enum KnownObject
     /// <summary>The menu button.</summary>
     MenuButton = 705,
 
+    /// <summary>The red blood flying off a monster.</summary>
+    RedBloodSpray = 756,
+
     /// <summary>The glow under bonuses.</summary>
     BonusGlow = 759,
+
+    /// <summary>The effect above the player when a medkit is collected.</summary>
+    HealingEffect = 760,
+
+    /// <summary>The death effect of monster 70.</summary>
+    WeaponMonsterDeath = 771,
 
     /// <summary>The flying rock debris.</summary>
     RockDebris = 782,
@@ -692,11 +776,17 @@ public enum KnownObject
     /// <summary>The generator sound source.</summary>
     GeneratorSound = 903,
 
+    /// <summary>The damage object of a flamethrower attack.</summary>
+    FlamethrowerAttack = 904,
+
     /// <summary>The scripted monster spawner.</summary>
     Spawner = 908,
 
     /// <summary>The dummy that shakes the screen and plays a sound.</summary>
     ShakeDummy = 909,
+
+    /// <summary>The violent death effect of a small monster.</summary>
+    SmallMonsterViolentDeath = 910,
 
     /// <summary>The dummy that spawns objects.</summary>
     SpawnDummy = 911,

@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text;
 using ASToolkit.Core.Formats;
 using Xunit;
@@ -25,6 +26,20 @@ public class ObjectTableTests
             Assert.Equal(row.Ext[1], obj.Size.Y, 3);
             Assert.Equal(row.Ext[2], obj.Size.Z, 3);
         }
+    }
+
+    [Fact]
+    public void Load_ReadsTheAlienShooterMotionAndGravity()
+    {
+        var table = ObjectTable.Load(Path.Combine(TestGameFolder.RequireFolder(), "objects.res"));
+        Assert.Equal(174, table.Gravity);
+        Assert.Equal(84, table.HeavyGravity);
+        Assert.True(table.TryFind(KnownObject.Monster1, out var monster));
+        Assert.Equal(0, monster.ZSpeed);
+        Assert.Equal(1300, monster.Acceleration);
+        Assert.Equal(1300, monster.Deceleration);
+        Assert.Equal(1000, monster.TurnPeriod);
+        Assert.Equal(10, monster.RestHeight);
     }
 
     [Fact]
@@ -67,43 +82,73 @@ public class ObjectTableTests
     {
         string game = TestGameFolder.RequireFolder();
         var table = ObjectTable.Load(Path.Combine(game, "objects.res"));
-        Assert.True(table.TryFind(table.IsAlienShooter2 ? (KnownObject)250 : KnownObject.PlayerStart, out var legs));
+        Assert.True(table.TryFind(table.IsAlienShooter2 ? KnownObject.SequelPlayer : KnownObject.PlayerStart, out var legs));
         Assert.True(table.TryFind(legs.Link, out var torso));
         Assert.Equal(SpriteType.Sprite, torso.SpriteType);
         Assert.Equal(table.IsAlienShooter2 ? 0 : 33, legs.LinkOffset.Z);
     }
 
-    [Fact]
-    public void Load_ReadsTheZombieShooterFields()
+    [Theory]
+    [InlineData(688, 36, 40, 44, 48, 80, 676)]
+    [InlineData(704, 40, 48, 52, 56, 96, 692)]
+    [InlineData(696, 40, 48, 52, 56, 88, 684)]
+    [InlineData(708, 40, 48, 52, 56, 96, 696)]
+    public void Load_PreservesMotionAndScaleAcrossObjectLayouts(int size, int verticalSpeed, int acceleration,
+        int deceleration, int turn, int restHeight, int scale)
     {
-        byte[] zombieShooter = new byte[696];
-        WriteFloat(zombieShooter, 36, 700);
-        WriteFloat(zombieShooter, 44, 800);
-        byte[] zombieShooter2 = new byte[708];
-        zombieShooter2[692] = 100;
+        byte[] body = new byte[size];
+        const uint collisionMask = (1u << 1) | (1u << 4) | (1u << 30);
+        WriteUInt32(body, 12, (int)collisionMask);
+        WriteFloat(body, 32, 180);
+        WriteFloat(body, verticalSpeed, 42);
+        WriteFloat(body, acceleration, 1300);
+        WriteFloat(body, deceleration, 450);
+        WriteFloat(body, turn, 490);
+        WriteFloat(body, restHeight, 9);
+        WriteFloat(body, scale, 1.25f);
+        if (size != 688)
+        {
+            WriteFloat(body, 36, 700);
+            WriteFloat(body, 44, 800);
+        }
+        if (size == 708)
+        {
+            const int blackWhiteOffset = 692;
+            const int blackWhiteValue = 100;
+            WriteUInt32(body, blackWhiteOffset, blackWhiteValue);
+            Assert.Equal(blackWhiteValue, MemoryMarshal.Read<ZombieShooter2GameObject>(body).BlackWhiteValue);
+        }
 
-        string path1 = Path.GetTempFileName();
-        string path2 = Path.GetTempFileName();
-        File.WriteAllBytes(path1, BuildObjectsRes((1, "speeds", zombieShooter, "vid\\1.vid")));
-        File.WriteAllBytes(path2, BuildObjectsRes((2, "opaque", zombieShooter2, "vid\\2.vid")));
+        string path = Path.GetTempFileName();
         try
         {
-            var table1 = ObjectTable.Load(path1);
-            Assert.True(table1.TryFind((KnownObject)1, out var one));
-            Assert.Equal(700, one.MaxSpeed, 3);
-            Assert.Equal(800, one.MaxZSpeed, 3);
-            Assert.Equal(255, one.Opacity);
-
-            var table2 = ObjectTable.Load(path2);
-            Assert.True(table2.TryFind((KnownObject)2, out var two));
-            Assert.Equal(100, two.Opacity);
-            Assert.Equal(0, two.MaxSpeed, 3);
+            File.WriteAllBytes(path, BuildObjectsRes(((int)KnownObject.Font, "motion", body, @"vid\font.vid")));
+            var table = ObjectTable.Load(path);
+            Assert.True(table.TryFind(KnownObject.Font, out var obj));
+            Assert.Equal((CollisionLayers)collisionMask, obj.MoveMask);
+            Assert.Equal(180, obj.Speed);
+            Assert.Equal(42, obj.ZSpeed);
+            Assert.Equal(1300, obj.Acceleration);
+            Assert.Equal(450, obj.Deceleration);
+            Assert.Equal(490, obj.TurnPeriod);
+            Assert.Equal(9, obj.RestHeight);
+            Assert.Equal(1.25f, obj.Scale.X);
+            Assert.Equal(size == 688 ? 0 : 700, obj.MaxSpeed);
+            Assert.Equal(size == 688 ? 0 : 800, obj.MaxZSpeed);
         }
         finally
         {
-            File.Delete(path1);
-            File.Delete(path2);
+            File.Delete(path);
         }
+    }
+
+    [Fact]
+    public void GameObject_UsesTheAlienShooter2BodyLayout()
+    {
+        Assert.Equal(704, Marshal.SizeOf<GameObject>());
+        Assert.Equal(48, Marshal.OffsetOf<GameObject>(nameof(GameObject.Acceleration)).ToInt32());
+        Assert.Equal(128, Marshal.OffsetOf<GameObject>(nameof(GameObject.Directions)).ToInt32());
+        Assert.Equal(692, Marshal.OffsetOf<GameObject>(nameof(GameObject.Scale)).ToInt32());
     }
 
     private static void WriteFloat(byte[] body, int offset, float value)
@@ -113,13 +158,14 @@ public class ObjectTableTests
 
     private static byte[] BuildObjectsRes(params (int Id, string Name, byte[] Body, string Path)[] records)
     {
-        byte[] recordsData = BuildRecords(records);
-        byte[] chunk = BuildChunk(recordsData, records.Length);
-        byte[] file = new byte[12 + chunk.Length];
+        byte[] objects = BuildChunk("OBJ ", BuildRecords(records), records.Length);
+        byte[] constants = BuildChunk("CNST", BuildConstants(), 1);
+        byte[] file = new byte[12 + objects.Length + constants.Length];
         CopyAscii("RES ", file, 0);
-        WriteUInt32(file, 4, 4 + chunk.Length);
+        WriteUInt32(file, 4, 4 + objects.Length + constants.Length);
         CopyAscii("DATA", file, 8);
-        chunk.CopyTo(file, 12);
+        objects.CopyTo(file, 12);
+        constants.CopyTo(file, 12 + objects.Length);
         return file;
     }
 
@@ -153,10 +199,18 @@ public class ObjectTableTests
         return data;
     }
 
-    private static byte[] BuildChunk(byte[] recordsData, int count)
+    private static byte[] BuildConstants()
+    {
+        const int constantsSize = 104;
+        byte[] record = new byte[4 + constantsSize];
+        WriteUInt32(record, 0, constantsSize);
+        return record;
+    }
+
+    private static byte[] BuildChunk(string tag, byte[] recordsData, int count)
     {
         byte[] chunk = new byte[20 + recordsData.Length];
-        CopyAscii("OBJ ", chunk, 0);
+        CopyAscii(tag, chunk, 0);
         WriteUInt32(chunk, 4, 12 + recordsData.Length);
         WriteUInt32(chunk, 8, int.MinValue);
         WriteUInt32(chunk, 12, 0);

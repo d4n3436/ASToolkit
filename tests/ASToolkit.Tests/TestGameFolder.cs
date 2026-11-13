@@ -9,6 +9,7 @@ internal static class TestGameFolder
     private const string EnvironmentVariable = "ALIEN_SHOOTER_TEST_GAME";
 
     private static readonly Lazy<ObjectTable> LoadedObjects = new(() => ObjectTable.Load(Path.Combine(RequireFolder(), "objects.res")));
+    private static readonly Lazy<GameTable> LoadedTable = new(() => GameTable.Load(Path.Combine(RequireFolder(), "Maps", "common_table.lgc")));
     private static readonly Lazy<ReferenceLevelSet> LoadedReferences = new(() => ReferenceLevelSet.Load(RequireFolder(), LoadedObjects.Value));
 
     /// <summary>
@@ -22,6 +23,11 @@ internal static class TestGameFolder
             return LoadedObjects.Value;
         }
     }
+
+    /// <summary>
+    /// Gets the common table of the test game, loaded once for every test.
+    /// </summary>
+    public static GameTable Table => LoadedTable.Value;
 
     /// <summary>
     /// Gets the original levels of the test game, loaded once for every test.

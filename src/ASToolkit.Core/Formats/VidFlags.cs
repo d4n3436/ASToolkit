@@ -72,9 +72,9 @@ public enum VidFlags : ushort
     Dxt = 1 << 11,
 
     /// <summary>
-    /// Has no known meaning. The engine never tests it, and no sprite of the game sets it.
+    /// Puts the sprite on the engine's surface layer. No sprite of the game sets it.
     /// </summary>
-    Unused = 1 << 12,
+    SurfaceLayer = 1 << 12,
 
     /// <summary>
     /// The surface holds a second image under the first, which takes one more byte per pixel. No sprite of the game sets it.

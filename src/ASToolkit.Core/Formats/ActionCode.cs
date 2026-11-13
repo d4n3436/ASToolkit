@@ -6,6 +6,11 @@ namespace ASToolkit.Core.Formats;
 public enum ActionCode
 {
     /// <summary>
+    /// Attack an object.
+    /// </summary>
+    Attack = 32,
+
+    /// <summary>
     /// Move to a point.
     /// </summary>
     Move = 33,
@@ -19,6 +24,11 @@ public enum ActionCode
     /// Wait for a time.
     /// </summary>
     Pause = 40,
+
+    /// <summary>
+    /// Turn the sprite toward a direction.
+    /// </summary>
+    Turn = 41,
 
     /// <summary>
     /// Wait for the player to come within a radius of a point.

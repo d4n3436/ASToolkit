@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -18,9 +19,9 @@ public sealed class ObjectTable
     private static readonly int[] BodySizes = [AlienShooterBodySize, ZombieShooterBodySize, BodySize, ZombieShooter2BodySize];
 
     private readonly Dictionary<KnownObject, Entry> _entries;
-    private readonly WeaponRecord[] _weapons;
+    private readonly WeaponEntry[] _weapons;
 
-    private ObjectTable(Dictionary<KnownObject, Entry> entries, bool isAlienShooter2, WeaponRecord[] weapons)
+    private ObjectTable(Dictionary<KnownObject, Entry> entries, bool isAlienShooter2, WeaponEntry[] weapons)
     {
         _weapons = weapons;
         _entries = entries;
@@ -31,6 +32,10 @@ public sealed class ObjectTable
     /// Gets a value indicating whether the table has the longer entries of Alien Shooter 2.
     /// </summary>
     public bool IsAlienShooter2 { get; }
+
+    internal float Gravity { get; private init; }
+
+    internal float HeavyGravity { get; private init; }
 
     /// <summary>
     /// Gets the ID of every entry.
@@ -50,7 +55,7 @@ public sealed class ObjectTable
         foreach (var memory in records)
         {
             var record = memory.Span;
-            var id = (KnownObject)MemoryMarshal.Read<uint>(record);
+            var id = (KnownObject)BinaryPrimitives.ReadUInt32LittleEndian(record);
             int nameEnd = record[4..].IndexOf((byte)0) + 4;
             int bodyStart = nameEnd + 1;
             int pathStart = bodyStart + bodySize;
@@ -71,17 +76,23 @@ public sealed class ObjectTable
             }
             else
             {
-                obj = ReadAlienShooter2(body);
+                obj = MemoryMarshal.Read<GameObject>(body);
             }
 
             entries[id] = new Entry(obj, GameTextEncoding.Cyrillic.GetString(record[4..nameEnd]),
                 Encoding.Latin1.GetString(record[pathStart..^1]));
         }
 
-        return new ObjectTable(entries, anyExtended, ReadWeapons(container));
+        var data = container.Chunks.First(chunk => chunk.Tag.Span.SequenceEqual("CNST"u8)).Records.First();
+        var constants = MemoryMarshal.Read<ObjectConstants>(data.Span);
+        return new ObjectTable(entries, anyExtended, ReadWeapons(container))
+        {
+            Gravity = constants.Gravity,
+            HeavyGravity = constants.HeavyGravity
+        };
     }
 
-    private static WeaponRecord[] ReadWeapons(ResContainer container)
+    private static WeaponEntry[] ReadWeapons(ResContainer container)
     {
         foreach (var chunk in container.Chunks)
         {
@@ -90,19 +101,16 @@ public sealed class ObjectTable
 
             var records = chunk.Records.ToArray();
             if (records.All(record => record.Length == AlienShooterWeaponSize))
-                return records.Select(record => new WeaponRecord(MemoryMarshal.Read<AlienShooterWeaponRecord>(record.Span))).ToArray();
+                return records.Select(record =>
+                {
+                    var weapon = MemoryMarshal.Read<AlienShooterWeaponRecord>(record.Span);
+                    return new WeaponEntry(new WeaponRecord(weapon), weapon.Behavior);
+                }).ToArray();
 
-            return records.All(record => record.Length == WeaponSize) ? records.Select(record => MemoryMarshal.Read<WeaponRecord>(record.Span)).ToArray() : [];
+            return records.All(record => record.Length == WeaponSize) ? records.Select(record => new WeaponEntry(MemoryMarshal.Read<WeaponRecord>(record.Span), 0)).ToArray() : [];
         }
 
         return [];
-    }
-
-    private static GameObject ReadAlienShooter2(ReadOnlySpan<byte> body)
-    {
-        var obj = MemoryMarshal.Read<GameObject>(body);
-        obj.Opacity = 255;
-        return obj;
     }
 
     private static int FindBodySize(ReadOnlySpan<byte> record)
@@ -156,11 +164,17 @@ public sealed class ObjectTable
     /// Finds the weapon record an object points at, or the first record for an index past the last, returning false when the table holds no
     /// weapon records in a known layout.
     /// </summary>
-    public bool TryGetWeapon(in GameObject obj, out WeaponRecord weapon)
+    public bool TryGetWeapon(in GameObject obj, out WeaponRecord weapon) => TryGetWeapon(obj, out weapon, out _);
+
+    internal bool TryGetWeapon(in GameObject obj, out WeaponRecord weapon, out WeaponBehavior behavior)
     {
-        weapon = _weapons.Length == 0 ? default : _weapons[(uint)obj.WeaponIndex < (uint)_weapons.Length ? obj.WeaponIndex : 0];
+        var entry = _weapons.Length == 0 ? default : _weapons[(uint)obj.WeaponIndex < (uint)_weapons.Length ? obj.WeaponIndex : 0];
+        weapon = entry.Record;
+        behavior = entry.Behavior;
         return _weapons.Length > 0;
     }
+
+    private readonly record struct WeaponEntry(WeaponRecord Record, WeaponBehavior Behavior);
 
     private readonly record struct Entry(GameObject Object, string Name, string Path);
 }

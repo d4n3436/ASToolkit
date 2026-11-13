@@ -13,7 +13,7 @@ internal sealed class CombatKind
         MaxHp = obj.MaxHp;
         Speed = obj.Speed;
         Half = new Vector2(obj.Size.X * obj.Scale.X * 0.5f, obj.Size.Y * obj.Scale.Y * 0.5f);
-        MoveMask = obj.MoveMask;
+        MoveMask = (uint)obj.MoveMask;
         Damage = obj.Damage;
         BlastRadius = obj.BlastRadius;
         IsExplosive = obj.Flags.HasFlag(ObjectFlags.Explosive);
@@ -23,7 +23,7 @@ internal sealed class CombatKind
         DetectRange = weapon.DetectRange;
         BattleRange = weapon.BattleRange;
         MinRange = weapon.MinRange;
-        Aim = (weapon.Flags & SkipsScatterFlag) == 0 ? weapon.Aim : 0;
+        Aim = ((uint)weapon.Flags & SkipsScatterFlag) == 0 ? weapon.Aim : 0;
         AmmoCapacity = weapon.Ammo;
         BuildTime = weapon.BuildTime;
         AttackTime = Math.Max(weapon.ReloadTime, GetAnimationTime(obj, SpriteAnimation.Fight, spriteSpeed));

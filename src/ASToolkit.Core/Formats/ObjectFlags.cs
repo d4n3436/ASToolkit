@@ -102,9 +102,9 @@ public enum ObjectFlags : uint
     ArmyDependent = 1 << 17,
 
     /// <summary>
-    /// The animation freezes on the death frame when the object is killed, instead of disappearing.
+    /// Child objects emitted at the last frame of each state instead of the first.
     /// </summary>
-    DeathAnim = 1 << 18,
+    LastFrameEmission = 1 << 18,
 
     /// <summary>
     /// The facing follows the movement or the target instead of the stored facing.
@@ -127,9 +127,9 @@ public enum ObjectFlags : uint
     RandomLift = 1 << 22,
 
     /// <summary>
-    /// A flag Alien Shooter 2 tests in its movement and collision code, with no confirmed purpose.
+    /// An Alien Shooter omni-light that adds twice its light.
     /// </summary>
-    Flag23 = 1 << 23,
+    DoubleLight = 1 << 23,
 
     /// <summary>
     /// The animation of the object starts on frame 0 instead of a random frame.

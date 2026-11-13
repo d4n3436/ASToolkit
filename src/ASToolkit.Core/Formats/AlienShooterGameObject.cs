@@ -3,171 +3,102 @@ using System.Runtime.InteropServices;
 
 namespace ASToolkit.Core.Formats;
 
-/// <summary>
-/// Represents the body of an entry of objects.res in the Alien Shooter 1 layout.
-/// </summary>
 [StructLayout(LayoutKind.Explicit, Size = 688)]
 internal readonly struct AlienShooterGameObject
 {
-    /// <summary>
-    /// The sprite type of the object.
-    /// </summary>
     [FieldOffset(0)]
     public readonly OldSpriteType SpriteType;
 
-    /// <summary>
-    /// The sprite class of the object.
-    /// </summary>
     [FieldOffset(4)]
     public readonly SpriteClass SpriteClass;
 
-    /// <summary>
-    /// The object flags.
-    /// </summary>
     [FieldOffset(8)]
     public readonly ObjectFlags Flags;
 
-    /// <summary>
-    /// The collision groups of the object.
-    /// </summary>
     [FieldOffset(12)]
-    public readonly uint MoveMask;
+    public readonly CollisionLayers MoveMask;
 
-    /// <summary>
-    /// The size of the object along x, y and the height.
-    /// </summary>
     [FieldOffset(16)]
     public readonly Vector3 Size;
 
-    /// <summary>
-    /// The maximum hit points.
-    /// </summary>
     [FieldOffset(28)]
     public readonly int MaxHp;
 
-    /// <summary>
-    /// The offset of the linked object from this object, as stored in the file.
-    /// </summary>
-    [FieldOffset(64)]
-    public readonly Vector3 LinkOffset;
-
-    /// <summary>
-    /// The ID of the object the engine creates linked to this object, or zero for none.
-    /// </summary>
-    [FieldOffset(76)]
-    public readonly KnownObject Link;
-
-    /// <summary>
-    /// The speed of the object along its facing as stored; the engine scales it by 0.001 on load.
-    /// </summary>
     [FieldOffset(32)]
     public readonly float Speed;
 
-    /// <summary>
-    /// The index of the WEAP record of the object, or zero for none.
-    /// </summary>
+    [FieldOffset(36)]
+    public readonly float ZSpeed;
+
+    [FieldOffset(40)]
+    public readonly float Acceleration;
+
+    [FieldOffset(44)]
+    public readonly float Deceleration;
+
+    [FieldOffset(48)]
+    public readonly float TurnPeriod;
+
     [FieldOffset(52)]
     public readonly int WeaponIndex;
 
-    /// <summary>
-    /// The blast radius the object adds to its footprint when it hits something.
-    /// </summary>
     [FieldOffset(56)]
     public readonly float BlastRadius;
 
-    /// <summary>
-    /// The damage the object sends to everything its blast reaches.
-    /// </summary>
     [FieldOffset(60)]
     public readonly int Damage;
 
-    /// <summary>
-    /// The lifetime of the object in milliseconds; 999999 means forever.
-    /// </summary>
-    [FieldOffset(92)]
-    public readonly int Lifetime;
+    [FieldOffset(64)]
+    public readonly Vector3 LinkOffset;
 
-    /// <summary>
-    /// The x offset of the object created in each state.
-    /// </summary>
-    [FieldOffset(320)]
-    public readonly StateFloats ChildX;
+    [FieldOffset(76)]
+    public readonly KnownObject Link;
 
-    /// <summary>
-    /// The y offset of the object created in each state.
-    /// </summary>
-    [FieldOffset(388)]
-    public readonly StateFloats ChildY;
+    [FieldOffset(80)]
+    public readonly float RestHeight;
 
-    /// <summary>
-    /// The height offset of the object created in each state.
-    /// </summary>
-    [FieldOffset(456)]
-    public readonly StateFloats ChildHeight;
-
-    /// <summary>
-    /// The ID of the object created in each state.
-    /// </summary>
-    [FieldOffset(524)]
-    public readonly StateValues Children;
-
-    /// <summary>
-    /// The number of objects created in each state.
-    /// </summary>
-    [FieldOffset(592)]
-    public readonly StateValues ChildCounts;
-
-    /// <summary>
-    /// The highest step the object climbs, and the height a bobbing object rises and sinks by.
-    /// </summary>
     [FieldOffset(84)]
     public readonly float StepHeight;
 
-    /// <summary>
-    /// The deepest drop the object walks off.
-    /// </summary>
     [FieldOffset(88)]
     public readonly float DropHeight;
 
-    /// <summary>
-    /// The number of directions the sprite has frames for.
-    /// </summary>
+    [FieldOffset(92)]
+    public readonly int Lifetime;
+
     [FieldOffset(112)]
     public readonly int Directions;
 
-    /// <summary>
-    /// The number of frames in each direction of each animation state.
-    /// </summary>
     [FieldOffset(116)]
     public readonly StateValues FrameCounts;
 
-    /// <summary>
-    /// The frame duration of each animation state in milliseconds, or 0 for the speed of the sprite.
-    /// </summary>
     [FieldOffset(252)]
     public readonly StateValues FrameDurations;
 
-    /// <summary>
-    /// The gamma shift of the red channel of the sprite's palette.
-    /// </summary>
+    [FieldOffset(320)]
+    public readonly StateFloats ChildX;
+
+    [FieldOffset(388)]
+    public readonly StateFloats ChildY;
+
+    [FieldOffset(456)]
+    public readonly StateFloats ChildHeight;
+
+    [FieldOffset(524)]
+    public readonly StateValues Children;
+
+    [FieldOffset(592)]
+    public readonly StateValues ChildCounts;
+
     [FieldOffset(660)]
     public readonly int GammaRed;
 
-    /// <summary>
-    /// The gamma shift of the green channel of the sprite's palette.
-    /// </summary>
     [FieldOffset(664)]
     public readonly int GammaGreen;
 
-    /// <summary>
-    /// The gamma shift of the blue channel of the sprite's palette.
-    /// </summary>
     [FieldOffset(668)]
     public readonly int GammaBlue;
 
-    /// <summary>
-    /// The scale of the object along x, y and the height.
-    /// </summary>
     [FieldOffset(676)]
     public readonly Vector3 Scale;
 }

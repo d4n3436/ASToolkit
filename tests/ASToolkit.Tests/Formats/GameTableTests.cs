@@ -8,8 +8,8 @@ public class GameTableTests
     [Fact]
     public void Load_ReadsTheLevelMoneyAndWeaponPrices()
     {
-        string game = TestGameFolder.RequireFolder();
-        var table = GameTable.Load(Path.Combine(game, "Maps", "common_table.lgc"));
+        TestGameFolder.RequireFolder();
+        var table = TestGameFolder.Table;
 
         Assert.Equal([100, 100, 350, 1000, 2800, 5500, 9000, 18000, 29000, 32000, 0, 0], table.GetArray("LevelMoney"));
         Assert.Equal([0, 0, 200, 350, 1000, 2500, 4800, 8000, 15800, 25400, 900], table.GetArray("WeaponPrice"));

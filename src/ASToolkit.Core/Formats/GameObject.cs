@@ -7,7 +7,7 @@ namespace ASToolkit.Core.Formats;
 /// Represents the body of an entry of objects.res in the Alien Shooter 2 layout.
 /// </summary>
 [StructLayout(LayoutKind.Explicit, Size = 704)]
-public struct GameObject
+public readonly struct GameObject
 {
     private const uint ShiftedTypeMask = 0x7F;
     private const uint SharedTypeMask = ~0xFFu;
@@ -34,8 +34,12 @@ public struct GameObject
         GammaBlue = obj.GammaBlue;
         GammaAlpha = 0;
         Scale = obj.Scale;
-        Opacity = 255;
         Speed = obj.Speed;
+        ZSpeed = obj.ZSpeed;
+        Acceleration = obj.Acceleration;
+        Deceleration = obj.Deceleration;
+        TurnPeriod = obj.TurnPeriod;
+        RestHeight = obj.RestHeight;
         WeaponIndex = obj.WeaponIndex;
         BlastRadius = obj.BlastRadius;
         Damage = obj.Damage;
@@ -69,8 +73,12 @@ public struct GameObject
         GammaBlue = obj.GammaBlue;
         GammaAlpha = obj.GammaAlpha;
         Scale = obj.Scale;
-        Opacity = 255;
         Speed = obj.Speed;
+        ZSpeed = obj.ZSpeed;
+        Acceleration = obj.Acceleration;
+        Deceleration = obj.Deceleration;
+        TurnPeriod = obj.TurnPeriod;
+        RestHeight = obj.RestHeight;
         WeaponIndex = obj.WeaponIndex;
         BlastRadius = obj.BlastRadius;
         Damage = obj.Damage;
@@ -104,8 +112,12 @@ public struct GameObject
         GammaBlue = obj.GammaBlue;
         GammaAlpha = obj.GammaAlpha;
         Scale = obj.Scale;
-        Opacity = obj.Opacity;
         Speed = obj.Speed;
+        ZSpeed = obj.ZSpeed;
+        Acceleration = obj.Acceleration;
+        Deceleration = obj.Deceleration;
+        TurnPeriod = obj.TurnPeriod;
+        RestHeight = obj.RestHeight;
         WeaponIndex = obj.WeaponIndex;
         BlastRadius = obj.BlastRadius;
         Damage = obj.Damage;
@@ -139,7 +151,7 @@ public struct GameObject
     /// The collision groups of the object. Two objects collide when their masks share a bit.
     /// </summary>
     [FieldOffset(12)]
-    public readonly uint MoveMask;
+    public readonly CollisionLayers MoveMask;
 
     /// <summary>
     /// The size of the object along x, y and the height.
@@ -154,10 +166,22 @@ public struct GameObject
     public readonly int MaxHp;
 
     /// <summary>
+    /// The speed of the object along its facing as stored; the engine scales it by 0.001 on load.
+    /// </summary>
+    [FieldOffset(32)]
+    public readonly float Speed;
+
+    /// <summary>
     /// The maximum of the initial speed range, in milli-units; the speed is the minimum.
     /// </summary>
     [FieldOffset(36)]
     public readonly float MaxSpeed;
+
+    /// <summary>
+    /// The initial vertical speed in milli-units.
+    /// </summary>
+    [FieldOffset(40)]
+    internal readonly float ZSpeed;
 
     /// <summary>
     /// The maximum of the initial vertical speed range, in milli-units.
@@ -166,28 +190,22 @@ public struct GameObject
     public readonly float MaxZSpeed;
 
     /// <summary>
-    /// The opacity of the sprite, 0 to 255.
+    /// The stored forward acceleration, scaled by 0.000001 on load except for the instant value 999999.
     /// </summary>
     [FieldOffset(48)]
-    public int Opacity;
+    public readonly float Acceleration;
 
     /// <summary>
-    /// The offset of the linked object from this object, as stored in the file.
+    /// The stored forward deceleration, scaled by 0.000001 on load except for the instant value 999999.
     /// </summary>
-    [FieldOffset(80)]
-    public readonly Vector3 LinkOffset;
+    [FieldOffset(52)]
+    public readonly float Deceleration;
 
     /// <summary>
-    /// The ID of the object the engine creates linked to this object, or zero for none.
+    /// The duration of a full turn in milliseconds. Zero turns instantly and 999999 disables turning.
     /// </summary>
-    [FieldOffset(92)]
-    public readonly KnownObject Link;
-
-    /// <summary>
-    /// Gets the speed of the object along its facing as stored; the engine scales it by 0.001 on load.
-    /// </summary>
-    [FieldOffset(32)]
-    public readonly float Speed;
+    [FieldOffset(56)]
+    public readonly float TurnPeriod;
 
     /// <summary>
     /// Gets the index of the WEAP record of the object, or zero for none.
@@ -208,10 +226,58 @@ public struct GameObject
     public readonly int Damage;
 
     /// <summary>
+    /// The offset of the linked object from this object, as stored in the file.
+    /// </summary>
+    [FieldOffset(80)]
+    public readonly Vector3 LinkOffset;
+
+    /// <summary>
+    /// The ID of the object the engine creates linked to this object, or zero for none.
+    /// </summary>
+    [FieldOffset(92)]
+    public readonly KnownObject Link;
+
+    /// <summary>
+    /// The resting height above terrain. Negative values also affect projectile motion.
+    /// </summary>
+    [FieldOffset(96)]
+    public readonly float RestHeight;
+
+    /// <summary>
+    /// The highest step the object climbs, and the height a bobbing object rises and sinks by.
+    /// </summary>
+    [FieldOffset(100)]
+    public readonly float StepHeight;
+
+    /// <summary>
+    /// The deepest drop the object walks off.
+    /// </summary>
+    [FieldOffset(104)]
+    public readonly float DropHeight;
+
+    /// <summary>
     /// Gets the lifetime of the object in milliseconds; 999999 means forever.
     /// </summary>
     [FieldOffset(108)]
     public readonly int Lifetime;
+
+    /// <summary>
+    /// The number of directions the sprite has frames for. Every entry of the game has at least 1.
+    /// </summary>
+    [FieldOffset(128)]
+    public readonly int Directions;
+
+    /// <summary>
+    /// The number of frames in each direction of each animation state.
+    /// </summary>
+    [FieldOffset(132)]
+    public readonly StateValues FrameCounts;
+
+    /// <summary>
+    /// The frame duration of each animation state in milliseconds, or 0 for the speed of the sprite.
+    /// </summary>
+    [FieldOffset(268)]
+    public readonly StateValues FrameDurations;
 
     /// <summary>
     /// Gets the x offset of the object created in each state.
@@ -242,36 +308,6 @@ public struct GameObject
     /// </summary>
     [FieldOffset(608)]
     public readonly StateValues ChildCounts;
-
-    /// <summary>
-    /// The highest step the object climbs, and the height a bobbing object rises and sinks by.
-    /// </summary>
-    [FieldOffset(100)]
-    public readonly float StepHeight;
-
-    /// <summary>
-    /// The deepest drop the object walks off.
-    /// </summary>
-    [FieldOffset(104)]
-    public readonly float DropHeight;
-
-    /// <summary>
-    /// The number of directions the sprite has frames for. Every entry of the game has at least 1.
-    /// </summary>
-    [FieldOffset(128)]
-    public readonly int Directions;
-
-    /// <summary>
-    /// The number of frames in each direction of each animation state.
-    /// </summary>
-    [FieldOffset(132)]
-    public readonly StateValues FrameCounts;
-
-    /// <summary>
-    /// The frame duration of each animation state in milliseconds, or 0 for the speed of the sprite.
-    /// </summary>
-    [FieldOffset(268)]
-    public readonly StateValues FrameDurations;
 
     /// <summary>
     /// The gamma shift of the red channel of the sprite's palette.
@@ -336,15 +372,7 @@ public struct GameObject
     /// <summary>
     /// Returns the sprite frame the engine shows for a direction byte, out of the given number of frames.
     /// </summary>
-    public int GetFrame(byte dir, int frameCount)
-    {
-        if (FramesPerDirection == 0)
-        {
-            return 0;
-        }
-
-        return Math.Min(GetDirection(dir) * FramesPerDirection, frameCount - 1);
-    }
+    public int GetFrame(byte dir, int frameCount) => FramesPerDirection == 0 ? 0 : Math.Min(GetDirection(dir) * FramesPerDirection, frameCount - 1);
 
     /// <summary>
     /// Returns the index of the direction the engine picks for a direction byte.
@@ -371,17 +399,35 @@ public struct GameObject
     public int GetFrameDuration(SpriteAnimation animation, int spriteSpeed) =>
         FrameDurations[(int)animation] == 0 ? spriteSpeed : FrameDurations[(int)animation];
 
+    /// <summary>
+    /// Returns the animation whose frames are drawn for a state, falling back to the first populated state.
+    /// </summary>
+    public SpriteAnimation GetVisualAnimation(SpriteAnimation animation)
+    {
+        if (FrameCounts[(int)animation] > 0)
+            return animation;
+
+        for (int index = 0; index < StateValues.Count; index++)
+        {
+            if (FrameCounts[index] > 0)
+                return (SpriteAnimation)index;
+        }
+
+        return animation;
+    }
+
     private static SpriteType ConvertSpriteType(OldSpriteType old) =>
         (SpriteType)((((uint)old & ShiftedTypeMask) << 1) | ((uint)old & SharedTypeMask));
 
     /// <summary>
     /// Returns the offset of an attached object from the object, turned by a facing unless the attached object keeps a fixed offset.
     /// </summary>
-    public readonly Vector3 GetLinkOffset(GameObject attached, VidResource? file, int frameIndex, byte dir)
+    public Vector3 GetLinkOffset(GameObject attached, VidResource? file, int frameIndex, byte dir)
     {
         var offset = file is not null && file.Value.Flags.HasFlag(VidFlags.FrameVector)
             ? file.Value.GetFrameVector(frameIndex)
             : LinkOffset with { Y = -LinkOffset.Y };
+        
         if (attached.Flags.HasFlag(ObjectFlags.FixedOffset))
         {
             return offset;

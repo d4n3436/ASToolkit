@@ -117,6 +117,16 @@ public readonly struct VidResource
     public bool HasDepth => Flags.HasFlag(VidFlags.Depth);
 
     /// <summary>
+    /// Gets a value indicating whether the sprite keeps its pixels in a <c>SURF</c> chunk.
+    /// </summary>
+    public bool HasSurfaceChunk => !_surfaces.IsEmpty;
+
+    /// <summary>
+    /// Gets the number of surfaces the <c>SURF</c> chunk declares, or zero when the sprite has none.
+    /// </summary>
+    public int SurfaceCount => _surfaces.Length < sizeof(ushort) ? 0 : MemoryMarshal.Read<ushort>(_surfaces.Span);
+
+    /// <summary>
     /// Gets a value indicating whether the pixel colors are palette indices.
     /// </summary>
     public bool HasPalette => Flags.HasFlag(VidFlags.Palette);
@@ -302,7 +312,7 @@ public readonly struct VidResource
     }
 
     /// <summary>
-    /// Attempts to get where a frame of a sprite with surfaces lies in its textures, or null when the sprite has no such frame.
+    /// Attempts to get where a frame of a sprite with surfaces lies in its textures, or false when the sprite has no such frame.
     /// </summary>
     public bool TryGetTextureFrame(int index, out VidTextureFrame frame)
     {

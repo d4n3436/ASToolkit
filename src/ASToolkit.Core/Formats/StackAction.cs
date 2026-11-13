@@ -30,6 +30,11 @@ public readonly struct StackAction
     public readonly int Act;
 
     /// <summary>
+    /// Gets the action code in the low byte of the action.
+    /// </summary>
+    public ActionCode Code => (ActionCode)(Act & byte.MaxValue);
+
+    /// <summary>
     /// The first argument.
     /// </summary>
     [FieldOffset(4)]

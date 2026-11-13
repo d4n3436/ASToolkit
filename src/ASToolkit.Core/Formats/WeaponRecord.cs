@@ -8,9 +8,14 @@ namespace ASToolkit.Core.Formats;
 [StructLayout(LayoutKind.Explicit, Size = 640)]
 public readonly struct WeaponRecord
 {
+    private const uint ShiftedTypeMask = 0x7F;
+    private const uint SharedTypeMask = ~0xFFu;
+
     internal WeaponRecord(AlienShooterWeaponRecord record)
     {
         Flags = record.Flags;
+        uint targets = (uint)record.Targets;
+        Targets = (SpriteType)(((targets & ShiftedTypeMask) << 1) | (targets & SharedTypeMask));
         DetectRange = record.DetectRange;
         BattleRange = record.BattleRange;
         Aim = record.Aim;
@@ -23,61 +28,67 @@ public readonly struct WeaponRecord
     }
 
     /// <summary>
-    /// Gets the flags of the weapon.
+    /// The sprite type mask of eligible targets.
     /// </summary>
-    [FieldOffset(4)]
-    public readonly uint Flags;
+    [FieldOffset(0)]
+    internal readonly SpriteType Targets;
 
     /// <summary>
-    /// Gets the distance at which a unit with the weapon notices an enemy.
+    /// The flags of the weapon.
+    /// </summary>
+    [FieldOffset(4)]
+    public readonly WeaponFlags Flags;
+
+    /// <summary>
+    /// The distance at which a unit with the weapon notices an enemy.
     /// </summary>
     [FieldOffset(24)]
     public readonly float DetectRange;
 
     /// <summary>
-    /// Gets the farthest distance at which a unit with the weapon attacks.
+    /// The farthest distance at which a unit with the weapon attacks.
     /// </summary>
     [FieldOffset(28)]
     public readonly float BattleRange;
 
     /// <summary>
-    /// Gets the aim spread of the weapon.
+    /// The aim spread of the weapon.
     /// </summary>
     [FieldOffset(32)]
     public readonly float Aim;
 
     /// <summary>
-    /// Gets the number of attacks of a volley.
+    /// The number of attacks of a volley.
     /// </summary>
     [FieldOffset(36)]
     public readonly int VolleySize;
 
     /// <summary>
-    /// Gets the most ammunition the weapon holds.
+    /// The most ammunition the weapon holds.
     /// </summary>
     [FieldOffset(40)]
     public readonly int Ammo;
 
     /// <summary>
-    /// Gets the time in milliseconds a unit waits after a volley before the next one.
+    /// The time in milliseconds a unit waits after a volley before the next one.
     /// </summary>
     [FieldOffset(44)]
     public readonly int ReloadTime;
 
     /// <summary>
-    /// Gets the time in milliseconds a unit waits between the attacks of a volley.
+    /// The time in milliseconds a unit waits between the attacks of a volley.
     /// </summary>
     [FieldOffset(48)]
     public readonly int VolleyReloadTime;
 
     /// <summary>
-    /// Gets the time in milliseconds a unit with the weapon takes to build.
+    /// The time in milliseconds a unit with the weapon takes to build.
     /// </summary>
     [FieldOffset(52)]
     public readonly int BuildTime;
 
     /// <summary>
-    /// Gets the closest distance at which a unit with the weapon attacks.
+    /// The closest distance at which a unit with the weapon attacks.
     /// </summary>
     [FieldOffset(88)]
     public readonly float MinRange;

@@ -1,9 +1,10 @@
 using System.Drawing;
+using System.Numerics;
 
 namespace ASToolkit.Core;
 
 /// <summary>
-/// Provides deconstruction of <see cref="Point"/> and <see cref="Size"/> types.
+/// Provides coordinate conversions and deconstruction of <see cref="Point"/> and <see cref="Size"/> types.
 /// </summary>
 public static class DrawingExtensions
 {
@@ -21,6 +22,11 @@ public static class DrawingExtensions
 
     extension(Point point)
     {
+        /// <summary>
+        /// Converts the point to a vector.
+        /// </summary>
+        public Vector2 ToVector2() => new(point.X, point.Y);
+
         /// <summary>
         /// Deconstructs the point into its coordinates.
         /// </summary>

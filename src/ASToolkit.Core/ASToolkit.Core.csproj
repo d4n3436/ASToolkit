@@ -6,6 +6,7 @@
   <ItemGroup>
     <PackageReference Include="Google.OrTools" Version="9.12.4544" />
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="10.0.12" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
   </ItemGroup>
   <ItemGroup>
