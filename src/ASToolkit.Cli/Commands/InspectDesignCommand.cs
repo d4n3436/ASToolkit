@@ -679,7 +679,7 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
 
         foreach ((string name, var fit) in new[] { ("ln floor (px²)", model.FloorPixels), ("ln rooms per Mpx²", model.Rooms) })
         {
-            text.AppendLine($"| {name} | {Format((float)fit.Value.Intercept)} + {Format((float)fit.Value.Slope)} × level + {Format((float)fit.Value.ConcreteTerm)} on concrete ± {Format((float)fit.Value.Spread)} | {fit.Samples} | {(fit.IsBackedOff ? "flat" : "")} |");
+            text.AppendLine($"| {name} | {Format(fit.Value.Intercept)} + {Format(fit.Value.Slope)} × level + {Format(fit.Value.ConcreteTerm)} on concrete ± {Format(fit.Value.Spread)} | {fit.Samples} | {(fit.IsBackedOff ? "flat" : "")} |");
         }
 
         foreach (var building in model.Buildings.Value)

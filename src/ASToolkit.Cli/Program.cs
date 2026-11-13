@@ -32,6 +32,7 @@ app.Configure(config =>
         inspect.AddCommand<InspectVidCommand>("vid").WithDescription("Prints the flags, format, frames, depth histogram and height points of a sprite file.");
     });
     config.AddCommand<AnalyzeCommand>("analyze").WithDescription("Analyzes the routes of original or generated levels into routes.json and map images with the tour drawn on them.");
+    config.AddCommand<SimulateCommand>("simulate").WithDescription("Plays the original campaigns in order with retained equipment and shopping.");
 });
 
 return app.Run(args);
