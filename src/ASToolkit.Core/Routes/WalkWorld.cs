@@ -1,3 +1,4 @@
+using ASToolkit.Core.Engine;
 using System.Numerics;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Scripting;
@@ -52,7 +53,7 @@ internal sealed class WalkWorld
                 if (IsFloor(part))
                 {
                     var file = part.File.Value;
-                    grid.Cover(part.Position, new Vector2(file.Width * part.Scale.X, file.Height * part.Scale.Y) * 0.5f);
+                    grid.Cover(part.Position, new Vector2(file.Width, file.Height) * part.Scale.AsVector2() * 0.5f);
                 }
                 else if (!isOpen && RaisesGround(part.Object) && !IsDestructible(part.Object))
                 {
@@ -61,7 +62,7 @@ internal sealed class WalkWorld
             }
         }
 
-        var walkerHalf = new Vector2(walker.Size.X * walker.Scale.X, walker.Size.Y * walker.Scale.Y) * 0.5f;
+        var walkerHalf = walker.Size.AsVector2() * walker.Scale.AsVector2() * 0.5f;
         grid.SetGround(walkerHalf);
         foreach (var part in standing.Where(part => part.Object.Blocks(walker)))
         {

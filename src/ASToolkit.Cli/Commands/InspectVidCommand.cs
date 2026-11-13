@@ -1,5 +1,5 @@
+using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Routes;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -49,17 +49,17 @@ internal sealed class InspectVidCommand : Command<InspectVidSettings>
         }
 
         var points = SpritePartReader.ReadHeightPoints(vid, settings.Frame);
-        AnsiConsole.MarkupLine($"[bold]{points.Count} height points of frame {settings.Frame}[/]");
-        foreach (var group in points.GroupBy(point => point.Height).OrderBy(group => group.Key))
+        AnsiConsole.MarkupLine($"[bold]{points.Length} height points of frame {settings.Frame}[/]");
+        foreach (var group in points.GroupBy(point => point.Z).OrderBy(group => group.Key))
         {
             AnsiConsole.MarkupLine($"  height {group.Key,5}: {group.Count()} cells");
         }
 
         if (settings.Points)
         {
-            foreach ((float x, float y, short height) in points.OrderBy(point => point.Y).ThenBy(point => point.X))
+            foreach (var point in points.OrderBy(point => point.Y).ThenBy(point => point.X))
             {
-                AnsiConsole.MarkupLine($"  {x,6} {y,6} {height,5}");
+                AnsiConsole.MarkupLine($"  {point.X,6} {point.Y,6} {point.Z,5}");
             }
         }
 

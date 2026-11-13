@@ -1,69 +1,37 @@
+using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Simulation;
 
 /// <summary>
-/// Represents the outcome and the record of a playthrough.
+/// Represents the outcome of a playthrough, such as whether the player survived, the time, the kills and the equipment left, with the script's event times and an optional replay.
 /// </summary>
-public sealed class PlaythroughResult
-{
-    /// <summary>
-    /// Gets a value indicating whether the player reached the end of the tour alive.
-    /// </summary>
-    public required bool Survived { get; init; }
-
-    /// <summary>
-    /// Gets the time the playthrough took in milliseconds.
-    /// </summary>
-    public required int Time { get; init; }
-
-    /// <summary>
-    /// Gets the share of the tour the player walked.
-    /// </summary>
-    public required float Progress { get; init; }
-
-    /// <summary>
-    /// Gets the number of monsters killed.
-    /// </summary>
-    public required int Kills { get; init; }
-
-    /// <summary>
-    /// Gets the lowest health the player had.
-    /// </summary>
-    public required int MinHealth { get; init; }
-
-    /// <summary>
-    /// Gets the state of the player each twentieth of the tour.
-    /// </summary>
-    public required IReadOnlyList<PlaythroughSample> Samples { get; init; }
-
-    /// <summary>
-    /// Gets the frames of the playthrough at a fixed interval, or none when the run kept no record.
-    /// </summary>
-    public required IReadOnlyList<PlaythroughFrame> Frames { get; init; }
-
-    /// <summary>
-    /// Gets the money the player picked up.
-    /// </summary>
-    public required int Money { get; init; }
-
-    /// <summary>
-    /// Gets the implants the player carries at the end.
-    /// </summary>
-    public required PlayerImplants Implants { get; init; }
-
-    /// <summary>
-    /// Gets the pickups the player took, in order.
-    /// </summary>
-    public required IReadOnlyList<KnownObject> Pickups { get; init; }
-
-    /// <summary>
-    /// Gets the ammunition left of each weapon the player holds at the end besides the pistols, keyed by the weapon pickup.
-    /// </summary>
-    public required IReadOnlyDictionary<KnownObject, int> Ammo { get; init; }
-
-    /// <summary>
-    /// Gets the shots fired during the playthrough, or none when the run kept no record.
-    /// </summary>
-    public required IReadOnlyList<ShotTrace> Shots { get; init; }
-}
+/// <param name="StartingLoadout">The equipment carried into the level after shopping.</param>
+/// <param name="Survived">Whether the player met the level's victory condition alive.</param>
+/// <param name="Time">The time the playthrough took in milliseconds.</param>
+/// <param name="Progress">The share of the tour the player walked.</param>
+/// <param name="Kills">The number of monsters killed.</param>
+/// <param name="Respawns">The number of extra lives used during the level.</param>
+/// <param name="MinHealth">The lowest health the player had.</param>
+/// <param name="Money">The money the player picked up.</param>
+/// <param name="Implants">The implants the player carries at the end.</param>
+/// <param name="Pickups">The pickups the player took, in order.</param>
+/// <param name="Items">The retained utility items at the end of the level.</param>
+/// <param name="Ammo">The ammunition left of each weapon the player holds at the end besides the pistols, keyed by the weapon pickup.</param>
+/// <param name="Script">The times of the level script's events in the playthrough.</param>
+/// <param name="Replay">The recorded replay of the playthrough, or null when the run kept no record.</param>
+public sealed record PlaythroughResult(
+    PlayerLoadout? StartingLoadout,
+    bool Survived,
+    int Time,
+    float Progress,
+    int Kills,
+    int Respawns,
+    int MinHealth,
+    int Money,
+    PlayerImplants Implants,
+    IReadOnlyList<KnownObject> Pickups,
+    IReadOnlyDictionary<KnownObject, int> Items,
+    IReadOnlyDictionary<KnownObject, int> Ammo,
+    ScriptTimeline Script,
+    PlaythroughReplay? Replay);

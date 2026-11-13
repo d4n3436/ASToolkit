@@ -1,0 +1,126 @@
+using System.Numerics;
+using ASToolkit.Core.Formats;
+
+namespace ASToolkit.Core.Engine;
+
+/// <summary>
+/// Provides the reading of the objects a placed sprite puts in the world and of the height points of their frames.
+/// </summary>
+public sealed class SpritePartReader
+{
+    private const int MaxLinkDepth = 4;
+    private const int FrameCells = 256;
+    private const int MaxFramePixels = FrameCells * MovementMap.CellSize;
+    private const int DepthShift = 3;
+    private const int DepthBias = 0x80;
+
+    private readonly string _gameFolder;
+    private readonly ObjectTable _objects;
+    private readonly Dictionary<string, VidResource?> _files = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<(string Path, int Frame), Vector3[]> _points = [];
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SpritePartReader"/> class.
+    /// </summary>
+    /// <param name="gameFolder">The game folder, which holds the sprite files.</param>
+    /// <param name="objects">The object table of the game.</param>
+    public SpritePartReader(string gameFolder, ObjectTable objects)
+    {
+        _gameFolder = gameFolder;
+        _objects = objects;
+    }
+
+    internal IEnumerable<SpritePart> GetParts(MergedMapSprite sprite)
+    {
+        var id = sprite.Id;
+        var position = sprite.Position;
+        var scale = sprite.Scale;
+        for (int depth = 0; depth < MaxLinkDepth && _objects.TryFind(id, out var obj); depth++)
+        {
+            string path = _objects.GetPath(id);
+            var file = GetFile(path);
+            int frame = file is null || file.Value.FrameCount == 0 ? 0 : obj.GetFrame(sprite.Facing, file.Value.FrameCount);
+            yield return new SpritePart(id, obj, path, file is null || file.Value.FrameCount == 0 ? null : file, frame, position, scale);
+
+            if (obj.Link == 0 || !_objects.TryFind(obj.Link, out var linked))
+            {
+                yield break;
+            }
+
+            position += obj.GetLinkOffset(linked, file, frame, sprite.Facing);
+            scale = Vector3.One;
+            id = obj.Link;
+        }
+    }
+
+    internal Vector3[] GetHeightPoints(SpritePart part)
+    {
+        if (!_points.TryGetValue((part.Path, part.Frame), out var points))
+        {
+            points = part.File is null ? [] : ReadHeightPoints(part.File.Value, part.Frame);
+            _points[(part.Path, part.Frame)] = points;
+        }
+
+        return points;
+    }
+
+    internal VidResource? GetFile(string path)
+    {
+        if (!_files.TryGetValue(path, out var file))
+        {
+            string? resolved = GamePath.Resolve(_gameFolder, path);
+            file = resolved is not null && resolved.EndsWith(".vid", StringComparison.OrdinalIgnoreCase) ? new VidResource(File.ReadAllBytes(resolved)) : null;
+            _files[path] = file;
+        }
+
+        return file;
+    }
+
+    /// <summary>
+    /// Reads the cells a frame raises, with the offset of each cell from the center of the sprite and its height.
+    /// </summary>
+    /// <param name="vid">The sprite file.</param>
+    /// <param name="frameIndex">The frame index.</param>
+    public static Vector3[] ReadHeightPoints(VidResource vid, int frameIndex)
+    {
+        bool usesDepth = vid is { HasDepth: true, HasPalette: true } && vid.Flags.HasFlag(VidFlags.Runs8Bit);
+        var frame = usesDepth ? vid.GetRunFrame(frameIndex) : vid.GetFrame(frameIndex);
+        float[] meshHeights = !usesDepth && frame.Mesh.TriangleCount > 0 ? frame.Mesh.RasterizeHeights(vid.Width, vid.Height) : [];
+        var cells = new Dictionary<int, short>();
+        foreach (var run in frame)
+        {
+            for (int index = 0; index < run.Count; index++)
+            {
+                int x = run.X + index;
+                int height = usesDepth ? (run.GetDepth(index) >> DepthShift) - DepthBias : meshHeights.Length > 0 ? GetMeshHeight(meshHeights, vid.Width, x, run.Y) : 0;
+                int row = run.Y + height;
+
+                if (x is < 0 or >= MaxFramePixels || row is < 0 or >= MaxFramePixels)
+                {
+                    continue;
+                }
+
+                int cell = row / MovementMap.CellSize * FrameCells + x / MovementMap.CellSize;
+
+                if (!cells.TryGetValue(cell, out short current) || current < height)
+                {
+                    cells[cell] = (short)height;
+                }
+            }
+        }
+
+        int halfWidth = vid.Width / 2;
+        int halfHeight = vid.Height / 2;
+        return cells.Select(pair =>
+        {
+            (int row, int column) = Math.DivRem(pair.Key, FrameCells);
+            return new Vector3(column * MovementMap.CellSize - halfWidth, row * MovementMap.CellSize - halfHeight, pair.Value);
+        }).ToArray();
+    }
+
+    private static int GetMeshHeight(float[] heights, int width, int x, int y)
+    {
+        float height = (uint)(y * width + x) < (uint)heights.Length ? heights[y * width + x] : float.NaN;
+        return float.IsNaN(height) ? 0 : (int)MathF.Round(height);
+    }
+}

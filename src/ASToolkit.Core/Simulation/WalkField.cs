@@ -1,4 +1,7 @@
+using System.Buffers;
 using System.Numerics;
+using ASToolkit.Core.Engine;
+using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Routes;
 
@@ -6,82 +9,188 @@ namespace ASToolkit.Core.Simulation;
 
 internal sealed class WalkField
 {
+    private const float StartReach = 60;
+    private const float StartTolerance = 0.25f;
     private const int Margin = 2;
-    private const int Sides = 4;
-    private const float MinDelta = 1e-6f;
+    private const int Sides = 8;
+    private const float RecoveryReach = 512;
+    private static readonly Cell[] SideSteps = [new(1, 0), new(-1, 0), new(0, 1), new(0, -1), new(1, 1), new(1, -1), new(-1, 1), new(-1, -1)];
 
-    private readonly RouteGrid _grid;
     private readonly Lattice _lattice;
     private readonly int _minU;
     private readonly int _minV;
     private readonly int _width;
     private readonly int _height;
     private readonly int[] _cells;
-    private readonly int[] _places;
-    private readonly byte[] _sightWalls;
+    private readonly Cell[] _places;
+    private readonly Vector2[] _centers;
+    private readonly MovementMap _movement;
+    private readonly GameObject _walker;
     private readonly int[] _neighbors;
     private readonly int[] _distance;
     private readonly int[] _queue;
-    private readonly int[] _fieldQueue;
-    private int _reached;
+    private const byte SharedCell = 0;
+    private const byte OwnCell = 1;
+    private const byte StaleCell = 2;
+    private readonly byte[] _cellState;
+    private readonly SharedLinks _shared;
+    private readonly List<GameWorld.TerrainChange> _gates = [];
+    private int _movementVersion;
+    private bool _doorsLocked;
+    private bool _fencesUp;
+    private Vector3 _lastStartPoint;
+    private int _lastStart;
+    private int _lastStartVersion = -1;
 
-    public WalkField(RouteGrid grid, bool doorsLocked, bool fencesUp)
+    private WalkField(WalkField source, MovementMap movement)
     {
-        _grid = grid;
-        _lattice = grid.Lattice;
-        _minU = grid.Cells.Min(cell => cell.U) - Margin;
-        _minV = grid.Cells.Min(cell => cell.V) - Margin;
-        _width = grid.Cells.Max(cell => cell.U) + Margin - _minU + 1;
-        _height = grid.Cells.Max(cell => cell.V) + Margin - _minV + 1;
+        _lattice = source._lattice;
+        _minU = source._minU;
+        _minV = source._minV;
+        _width = source._width;
+        _height = source._height;
+        _cells = source._cells;
+        _places = source._places;
+        _centers = source._centers;
+        _neighbors = (int[])source._neighbors.Clone();
+        _cellState = (byte[])source._cellState.Clone();
+        _shared = source._shared;
+        _distance = (int[])source._distance.Clone();
+        _queue = (int[])source._queue.Clone();
+        ReachedCount = source.ReachedCount;
+        _movement = movement;
+        _walker = source._walker;
+        _movementVersion = source._movementVersion;
+        _doorsLocked = source._doorsLocked;
+        _fencesUp = source._fencesUp;
+        _lastStartPoint = source._lastStartPoint;
+        _lastStart = source._lastStart;
+        _lastStartVersion = source._lastStartVersion;
+    }
+
+    public WalkField Clone(MovementMap movement) => new(this, movement);
+
+    public WalkField(RouteGrid grid, bool doorsLocked, bool fencesUp, MovementMap movement, GameObject walker)
+    {
+        _movement = movement;
+        _walker = walker;
+        _lattice = grid.Lattice.Halve();
+        var cells = GetCellsInMap(grid, _lattice, movement.MapSize);
+        _minU = cells.Min(cell => cell.U) - Margin;
+        _minV = cells.Min(cell => cell.V) - Margin;
+        _width = cells.Max(cell => cell.U) + Margin - _minU + 1;
+        _height = cells.Max(cell => cell.V) + Margin - _minV + 1;
         _cells = new int[_width * _height];
         Array.Fill(_cells, -1);
-        _places = new int[grid.Cells.Count];
+        _places = new Cell[cells.Count];
+        _centers = new Vector2[cells.Count];
         int index = 0;
-        foreach (var cell in grid.Cells)
+        foreach (var cell in cells)
         {
-            int place = (cell.V - _minV) * _width + (cell.U - _minU);
-            _cells[place] = index;
-            _places[index++] = place;
+            _cells[(cell.V - _minV) * _width + (cell.U - _minU)] = index;
+            _places[index] = cell;
+            _centers[index++] = _lattice.GetCenter(cell).ToVector2();
         }
 
-        _sightWalls = new byte[_width * _height];
-        _neighbors = new int[_places.Length * Sides];
-        _distance = new int[_places.Length];
-        _queue = new int[_places.Length];
-        _fieldQueue = new int[_places.Length];
-        SetGates(doorsLocked, fencesUp);
+        _neighbors = new int[cells.Count * Sides];
+        _cellState = new byte[cells.Count];
+        _shared = new SharedLinks(cells.Count);
+        _distance = new int[cells.Count];
+        _queue = new int[cells.Count];
+        Array.Fill(_distance, -1);
+        _doorsLocked = doorsLocked;
+        _fencesUp = fencesUp;
+        _movement.SetGates(doorsLocked, fencesUp);
+        _movementVersion = _movement.Version;
     }
 
     public float CellStep => _lattice.CellStep;
 
     public void SetGates(bool doorsLocked, bool fencesUp)
     {
-        for (int place = 0; place < _sightWalls.Length; place++)
+        bool doorsChange = _doorsLocked != doorsLocked;
+        bool fencesChange = _fencesUp != fencesUp;
+
+        if (_movementVersion == _movement.Version && !doorsChange && !fencesChange)
+            return;
+
+        _doorsLocked = doorsLocked;
+        _fencesUp = fencesUp;
+        _movement.SetGates(doorsLocked, fencesUp);
+        if (doorsChange || fencesChange)
         {
-            var neighbors = EdgeKey.GetNeighbors(new Cell(place % _width + _minU, place / _width + _minV));
-            int index = _cells[place];
-            byte walls = 0;
-            for (int side = 0; side < Sides; side++)
+            _gates.Clear();
+            _movement.CollectGates(doorsChange, fencesChange, _gates);
+            foreach (var gate in _gates)
             {
-                var (next, edge) = neighbors[side];
-                bool hasKind = _grid.Edges.TryGetValue(edge, out var kind);
-                if (hasKind && (kind.ShowsWall || kind == EdgeKind.ShutDoor || (doorsLocked && kind == EdgeKind.Door)))
-                {
-                    walls |= (byte)(1 << side);
-                }
-
-                if (index < 0)
-                    continue;
-                
-                bool blocks = (fencesUp && _grid.FenceEdges.Contains(edge)) ||
-                              (hasKind && (kind.BlocksWalking || kind == EdgeKind.SecretWall || (doorsLocked && kind == EdgeKind.Door)));
-                _neighbors[index * Sides + side] = blocks ? -1 : Find(next);
+                RefreshCells(gate.Position, gate.HalfSize);
             }
-
-            _sightWalls[place] = walls;
+        }
+        else
+        {
+            MarkAllStale();
         }
 
-        Array.Fill(_distance, -1);
+        _movementVersion = _movement.Version;
+        ClearDistances();
+    }
+
+    public void RefreshMovement(Vector2 center, Vector2 half)
+    {
+        _movementVersion = _movement.Version;
+        RefreshCells(center, half);
+        ClearDistances();
+    }
+
+    private void RefreshCells(Vector2 center, Vector2 half)
+    {
+        var origin = _lattice.GetCell(center.X, center.Y);
+        int radius = (int)MathF.Ceiling((half.Length() + _walker.Size.Length() + CellStep) / Math.Min(_lattice.StepX, _lattice.StepY)) + Margin;
+        for (int v = Math.Max(0, origin.V - radius - _minV); v <= Math.Min(_height - 1, origin.V + radius - _minV); v++)
+        for (int u = Math.Max(0, origin.U - radius - _minU); u <= Math.Min(_width - 1, origin.U + radius - _minU); u++)
+        {
+            int index = _cells[v * _width + u];
+
+            if (index >= 0)
+            {
+                _cellState[index] = StaleCell;
+            }
+        }
+    }
+
+    private void MarkAllStale() => Array.Fill(_cellState, StaleCell);
+
+    // Reads untouched cells from the links all copies share, marking a cell computed only after its links are written
+    private int GetNeighbor(int cell, int side)
+    {
+        switch (_cellState[cell])
+        {
+            case SharedCell:
+                if (!Volatile.Read(ref _shared.Computed[cell]))
+                {
+                    UpdateNeighbors(cell, _shared.Links);
+                    Volatile.Write(ref _shared.Computed[cell], true);
+                }
+
+                return _shared.Links[cell * Sides + side];
+            case StaleCell:
+                UpdateNeighbors(cell, _neighbors);
+                _cellState[cell] = OwnCell;
+                break;
+        }
+
+        return _neighbors[cell * Sides + side];
+    }
+
+    private void UpdateNeighbors(int index, int[] links)
+    {
+        var cell = _places[index];
+        var from = new Vector3(_centers[index], _movement.GetSupportHeight(_walker, _centers[index]));
+        for (int side = 0; side < Sides; side++)
+        {
+            int target = Find(new Cell(cell.U + SideSteps[side].U, cell.V + SideSteps[side].V));
+            links[index * Sides + side] = target >= 0 && _movement.CanMove(_walker, from, _centers[target], anticipatesDoors: true) ? target : -1;
+        }
     }
 
     public int Find(Vector2 point) => Find(_lattice.GetCell(point.X, point.Y));
@@ -90,135 +199,241 @@ internal sealed class WalkField
     {
         int u = cell.U - _minU;
         int v = cell.V - _minV;
+
         return u >= 0 && v >= 0 && u < _width && v < _height ? _cells[v * _width + u] : -1;
     }
 
-    public Vector2 GetCenter(int cell)
-    {
-        int place = _places[cell];
-        var center = _lattice.GetCenter(new Cell(place % _width + _minU, place / _width + _minV));
-        return new Vector2(center.X, center.Y);
-    }
+    public Vector2 GetCenter(int cell) => _centers[cell];
 
     public int GetDistance(int cell) => _distance[cell];
 
-    // Fill walking steps from the source out to a step limit and leave farther cells unreached
-    public void Flood(int source, int maxSteps) => _reached = Flood(source, maxSteps, _distance, _queue);
+    public int ReachedCount { get; private set; }
 
-    public int ReachedCount => _reached;
-
-    // Return the cells of the last flood from the player in the order it reached them
     public int GetReached(int order) => _queue[order];
 
-    public int[] CreateField(int target)
-    {
-        int[] distance = new int[_places.Length];
-        Flood(target, int.MaxValue, distance, _fieldQueue);
-        return distance;
-    }
-
-    public int GetDownhill(int cell) => GetDownhill(cell, _distance);
-
-    public int GetDownhill(int cell, int[] distance)
+    public int FindTrigger(Vector2 point, float radius)
     {
         int best = -1;
-        int bestDistance = distance[cell];
-        for (int side = 0; side < Sides; side++)
+        float nearest = radius;
+        for (int order = 0; order < ReachedCount; order++)
         {
-            int next = _neighbors[cell * Sides + side];
-            if (next < 0 || distance[next] < 0 || distance[next] >= bestDistance)
-                continue;
-            
-            best = next;
-            bestDistance = distance[next];
+            int cell = _queue[order];
+            float distance = GetCenter(cell).MeasureDistance(point);
+
+            if (distance < nearest)
+            {
+                nearest = distance;
+                best = cell;
+            }
         }
 
         return best;
     }
 
-    public bool CanSee(Vector2 from, Vector2 to) => TraceSight(from, to) >= 1;
-
-    private int Flood(int source, int maxSteps, int[] distance, int[] queue)
+    public int GetDownhill(int cell)
     {
-        Array.Fill(distance, -1);
-        if (source < 0)
+        int best = -1;
+        int bestDistance = _distance[cell];
+        for (int side = 0; side < Sides; side++)
         {
-            return 0;
+            int next = GetNeighbor(cell, side);
+
+            if (next < 0 || _distance[next] < 0 || _distance[next] >= bestDistance)
+                continue;
+
+            best = next;
+            bestDistance = _distance[next];
         }
 
-        int head = 0;
-        int tail = 0;
-        distance[source] = 0;
-        queue[tail++] = source;
-        while (head < tail)
+        return best;
+    }
+
+    public bool CanMove(Vector3 from, Vector2 to) => Find(to) >= 0 && _movement.CanMove(_walker, from, to, anticipatesDoors: true);
+
+    public int FindFree(Vector2 point, float reach = 60, bool reachedOnly = false, bool skipsReached = false, Vector2 skippedHalf = default)
+    {
+        var cell = _lattice.GetCell(point.X, point.Y);
+        int radius = (int)MathF.Ceiling(reach / Math.Min(_lattice.StepX, _lattice.StepY));
+        int best = -1;
+        float distance = reach * reach;
+        for (int v = -radius; v <= radius; v++)
+        for (int u = -radius; u <= radius; u++)
         {
-            int cell = queue[head++];
-            int steps = distance[cell] + 1;
+            int candidate = Find(new Cell(cell.U + u, cell.V + v));
+
+            if (candidate < 0 || reachedOnly && _distance[candidate] < 0 || skipsReached && _distance[candidate] >= 0)
+                continue;
+            var center = GetCenter(candidate);
+            float nextDistance = Vector2.DistanceSquared(center, point);
+
+            if (Math.Abs(center.X - point.X) < skippedHalf.X && Math.Abs(center.Y - point.Y) < skippedHalf.Y)
+                continue;
+
+            if (nextDistance <= distance && _movement.CanStand(_walker, center.AsVector3(), anticipatesDoors: true))
+            {
+                best = candidate;
+                distance = nextDistance;
+            }
+        }
+
+        return best;
+    }
+
+    public int FindStart(Vector3 point)
+    {
+        if (_lastStartVersion == _movement.Version && Vector3.DistanceSquared(_lastStartPoint, point) < StartTolerance)
+            return _lastStart;
+
+        _lastStart = SearchStart(point);
+        _lastStartPoint = point;
+        _lastStartVersion = _movement.Version;
+
+        return _lastStart;
+    }
+
+    private int SearchStart(Vector3 point)
+    {
+        int here = Find(point.AsVector2());
+
+        if (here >= 0 && CanMove(point, GetCenter(here)))
+            return here;
+
+        var cell = _lattice.GetCell(point.X, point.Y);
+        int radius = (int)MathF.Ceiling(StartReach / Math.Min(_lattice.StepX, _lattice.StepY));
+        Span<Candidate> nearby = stackalloc Candidate[(2 * radius + 1) * (2 * radius + 1)];
+        int count = 0;
+        for (int v = -radius; v <= radius; v++)
+        for (int u = -radius; u <= radius; u++)
+        {
+            int candidate = Find(new Cell(cell.U + u, cell.V + v));
+
+            if (candidate >= 0)
+            {
+                count = AddCandidate(nearby, count, candidate, point, StartReach);
+            }
+        }
+
+        int found = FindFirstReachable(nearby[..count], point);
+
+        if (found >= 0)
+            return found;
+
+        var pooled = ArrayPool<Candidate>.Shared.Rent(_places.Length);
+        try
+        {
+            count = 0;
+            for (int candidate = 0; candidate < _places.Length; candidate++)
+            {
+                count = AddCandidate(pooled, count, candidate, point, RecoveryReach);
+            }
+
+            return FindFirstReachable(pooled.AsSpan(0, count), point);
+        }
+        finally
+        {
+            ArrayPool<Candidate>.Shared.Return(pooled);
+        }
+    }
+
+    private int AddCandidate(Span<Candidate> candidates, int count, int place, Vector3 point, float reach)
+    {
+        float distance = Vector2.DistanceSquared(point.AsVector2(), GetCenter(place));
+
+        if (distance < reach * reach)
+        {
+            candidates[count++] = new Candidate(place, distance);
+        }
+
+        return count;
+    }
+
+    private int FindFirstReachable(Span<Candidate> candidates, Vector3 point)
+    {
+        candidates.Sort(static (first, second) => first.Distance.CompareTo(second.Distance));
+        foreach (var candidate in candidates)
+        {
+            if (CanMove(point, GetCenter(candidate.Place)))
+                return candidate.Place;
+        }
+
+        return -1;
+    }
+
+    public void Flood(int source, int maxSteps)
+    {
+        ClearDistances();
+        ReachedCount = 0;
+
+        if (source < 0)
+            return;
+
+        int head = 0;
+        _distance[source] = 0;
+        _queue[ReachedCount++] = source;
+        while (head < ReachedCount)
+        {
+            int cell = _queue[head++];
+            int steps = _distance[cell] + 1;
+
             if (steps > maxSteps)
                 continue;
 
             for (int side = 0; side < Sides; side++)
             {
-                int next = _neighbors[cell * Sides + side];
-                if (next < 0 || distance[next] >= 0)
+                int next = GetNeighbor(cell, side);
+
+                if (next < 0 || _distance[next] >= 0)
                     continue;
-                
-                distance[next] = steps;
-                queue[tail++] = next;
+
+                _distance[next] = steps;
+                _queue[ReachedCount++] = next;
             }
         }
-
-        return tail;
     }
 
-    // Walks the cells the segment crosses and return the share of it before the first wall that blocks the sight
-    public float TraceSight(Vector2 from, Vector2 to)
+    private void ClearDistances()
     {
-        var start = _lattice.ToLattice(from.X, from.Y);
-        var end = _lattice.ToLattice(to.X, to.Y);
-        float du = end.U - start.U;
-        float dv = end.V - start.V;
-        int u = (int)MathF.Floor(start.U);
-        int v = (int)MathF.Floor(start.V);
-        int stepU = du > 0 ? 1 : -1;
-        int stepV = dv > 0 ? 1 : -1;
-        bool movesU = MathF.Abs(du) > MinDelta;
-        bool movesV = MathF.Abs(dv) > MinDelta;
-        float deltaU = movesU ? MathF.Abs(1 / du) : float.MaxValue;
-        float deltaV = movesV ? MathF.Abs(1 / dv) : float.MaxValue;
-        float nextU = movesU ? (du > 0 ? u + 1 - start.U : start.U - u) * deltaU : float.MaxValue;
-        float nextV = movesV ? (dv > 0 ? v + 1 - start.V : start.V - v) * deltaV : float.MaxValue;
-        while (true)
+        for (int order = 0; order < ReachedCount; order++)
         {
-            bool alongU = nextU < nextV;
-            float share = alongU ? nextU : nextV;
-            if (share > 1)
-            {
-                return 1;
-            }
-
-            if (IsWall(u, v, alongU ? (stepU > 0 ? 0 : 1) : (stepV > 0 ? 2 : 3)))
-            {
-                return share;
-            }
-
-            if (alongU)
-            {
-                u += stepU;
-                nextU += deltaU;
-            }
-            else
-            {
-                v += stepV;
-                nextV += deltaV;
-            }
+            _distance[_queue[order]] = -1;
         }
     }
 
-    private bool IsWall(int u, int v, int side)
+    private static HashSet<Cell> GetCellsInMap(RouteGrid grid, Lattice lattice, System.Drawing.SizeF mapSize)
     {
-        u -= _minU;
-        v -= _minV;
-        return u >= 0 && v >= 0 && u < _width && v < _height && (_sightWalls[v * _width + u] & (1 << side)) != 0;
+        var cells = new HashSet<Cell>();
+        foreach (var cell in grid.Cells.Concat(grid.BlockedCells))
+        {
+            for (int v = 0; v < 2; v++)
+            {
+                for (int u = 0; u < 2; u++)
+                {
+                    var fine = new Cell(cell.U * 2 + u, cell.V * 2 + v);
+                    var center = lattice.GetCenter(fine);
+
+                    if (center is { X: >= 0, Y: >= 0 } && center.X < mapSize.Width && center.Y < mapSize.Height)
+                    {
+                        cells.Add(fine);
+                    }
+                }
+            }
+        }
+
+        return cells;
+    }
+
+    private readonly record struct Candidate(int Place, float Distance);
+
+    private sealed class SharedLinks
+    {
+        public SharedLinks(int cells)
+        {
+            Links = new int[cells * Sides];
+            Computed = new bool[cells];
+        }
+
+        public int[] Links { get; }
+
+        public bool[] Computed { get; }
     }
 }

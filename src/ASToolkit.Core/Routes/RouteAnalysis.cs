@@ -1,3 +1,4 @@
+using ASToolkit.Core.Scripting;
 using System.Numerics;
 using ASToolkit.Core.Levels;
 
@@ -8,6 +9,14 @@ namespace ASToolkit.Core.Routes;
 /// </summary>
 public sealed class RouteAnalysis
 {
+    internal IReadOnlyList<TriggerArea> RespawnTriggers { get; init; } = [];
+
+    internal bool ClearsMonsters { get; init; }
+
+    internal TriggerArea? Exit { get; init; }
+
+    internal bool? DoorsInitiallyLocked { get; init; }
+
     /// <summary>
     /// Gets the level name.
     /// </summary>

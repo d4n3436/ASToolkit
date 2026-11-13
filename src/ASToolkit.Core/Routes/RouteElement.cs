@@ -8,6 +8,8 @@ namespace ASToolkit.Core.Routes;
 /// </summary>
 public sealed class RouteElement
 {
+    internal MergedMapSprite? Placement { get; init; }
+
     /// <summary>
     /// Gets or sets the element kind.
     /// </summary>
@@ -29,6 +31,11 @@ public sealed class RouteElement
     public required int Y { get; init; }
 
     /// <summary>
+    /// Gets the placement height above the map floor.
+    /// </summary>
+    public float Z { get; init; }
+
+    /// <summary>
     /// Gets the reachable cell the element is snapped to.
     /// </summary>
     public required Cell Cell { get; init; }
@@ -37,6 +44,11 @@ public sealed class RouteElement
     /// Gets a value indicating whether the element stands more than 30 pixels off the walkable floor.
     /// </summary>
     public required bool Hidden { get; init; }
+
+    /// <summary>
+    /// Gets the facing the map places the element with.
+    /// </summary>
+    public required byte Facing { get; init; }
 
     /// <summary>
     /// Gets the pickup category, or the category of a crate's content.

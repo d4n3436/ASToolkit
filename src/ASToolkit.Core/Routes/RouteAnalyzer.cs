@@ -194,7 +194,8 @@ public static class RouteAnalyzer
             }
 
             bool hasDoors = _grid.Edges.Values.Any(v => v == EdgeKind.Door);
-            bool doorsLocked = _script.DoorsLocked && hasDoors && objectives.Any(o => o.Kind == ObjectiveKind.Breaker);
+            bool doorsInitiallyLocked = _script.DoorsLocked && hasDoors && objectives.Any(o => o.Kind == ObjectiveKind.Breaker);
+            bool doorsLocked = doorsInitiallyLocked;
             (Cell Cell, int Radius)? blackout = null;
             if (_script.Blackout is not null && hasDoors)
             {
@@ -448,6 +449,10 @@ public static class RouteAnalyzer
 
             return new RouteAnalysis
             {
+                DoorsInitiallyLocked = doorsInitiallyLocked,
+                ClearsMonsters = _script.ClearsMonsters,
+                RespawnTriggers = _script.Checkpoints,
+                Exit = _script.Exit,
                 Name = _model.Name,
                 WallSet = _model.WallSet,
                 Model = _model,
@@ -457,7 +462,9 @@ public static class RouteAnalyzer
                 SpinePixels = (int)MathF.Round(Math.Max(1, path.Select(c => fromStart.GetValueOrDefault(c)).DefaultIfEmpty().Max()) * _step),
                 RevisitShare = MathF.Round(1 - unique.Count / (float)Math.Max(1, path.Count), 3),
                 Legs = merged,
-                Objectives = done.Select(d => new RouteObjective(d.Kind, d.X, d.Y, MathF.Round(d.At / (float)Math.Max(1, walked), 3))).ToArray(),
+                Objectives = done.Select(d => new RouteObjective(d.Kind, d.X, d.Y, MathF.Round(d.At / (float)Math.Max(1, walked), 3),
+                        d.Kind == ObjectiveKind.Blackout ? _script.Blackout?.Radius ?? 0 : 0 ))
+                    .ToArray(),
                 Elements = elements,
                 Gating = MeasureGates(s0, elements, Progress),
                 Checkpoints = checkpoints,
@@ -743,11 +750,14 @@ public static class RouteAnalyzer
                 elements.Add(new RouteElement
                 {
                     Kind = kind,
+                    Placement = s,
                     Id = s.Id,
                     X = (int)MathF.Round(s.Position.X),
                     Y = (int)MathF.Round(s.Position.Y),
+                    Z = s.Position.Z,
                     Cell = c.Value,
                     Hidden = offset > 30,
+                    Facing = s.Facing,
                     Category = category,
                     CrateItem = crateItem,
                     Program = program

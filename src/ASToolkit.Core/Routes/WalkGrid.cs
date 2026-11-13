@@ -55,13 +55,13 @@ internal sealed class WalkGrid
         return new Vector3((column + 0.5f) * CellSize, (row + 0.5f) * CellSize, _standing[cell]);
     }
 
-    public void Stamp(IEnumerable<(float X, float Y, short Height)> points, Vector3 position, Vector3 scale, bool isScenery)
+    public void Stamp(IEnumerable<Vector3> points, Vector3 position, Vector3 scale, bool isScenery)
     {
         short[] heights = isScenery ? _sceneryHeights : _objectHeights;
         foreach (var point in points)
         {
             int cell = GetCell(new Vector3(position.X + point.X * scale.X, position.Y + point.Y * scale.Y, 0));
-            short height = (short)Math.Clamp(MathF.Round(position.Z + point.Height * scale.Z), short.MinValue + 1, short.MaxValue);
+            short height = (short)Math.Clamp(MathF.Round(position.Z + point.Z * scale.Z), short.MinValue + 1, short.MaxValue);
             if (cell < 0)
             {
                 continue;
