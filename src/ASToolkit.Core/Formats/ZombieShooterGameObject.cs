@@ -76,25 +76,28 @@ internal readonly struct ZombieShooterGameObject
     public readonly int Directions;
 
     [FieldOffset(124)]
-    public readonly StateValues FrameCounts;
+    public readonly StateValues<int> FrameCounts;
+
+    [FieldOffset(192)]
+    public readonly StateValues<int> SoundIds;
 
     [FieldOffset(260)]
-    public readonly StateValues FrameDurations;
+    public readonly StateValues<int> FrameDurations;
 
     [FieldOffset(328)]
-    public readonly StateFloats ChildX;
+    public readonly StateValues<float> ChildX;
 
     [FieldOffset(396)]
-    public readonly StateFloats ChildY;
+    public readonly StateValues<float> ChildY;
 
     [FieldOffset(464)]
-    public readonly StateFloats ChildHeight;
+    public readonly StateValues<float> ChildHeight;
 
     [FieldOffset(532)]
-    public readonly StateValues Children;
+    public readonly StateValues<int> Children;
 
     [FieldOffset(600)]
-    public readonly StateValues ChildCounts;
+    public readonly StateValues<int> ChildCounts;
 
     [FieldOffset(668)]
     public readonly int GammaRed;

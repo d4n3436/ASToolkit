@@ -119,6 +119,9 @@ public enum KnownObject
     /// <summary>The red tank-weapon monster.</summary>
     RedTankWeaponMonster = 96,
 
+    /// <summary>The frozen armed tank monster.</summary>
+    FrozenTankWeaponMonster = 99,
+
     /// <summary>The shotgun pellet.</summary>
     ShotgunPellet = 100,
 
@@ -136,6 +139,9 @@ public enum KnownObject
 
     /// <summary>The small shadow.</summary>
     SmallShadow = 108,
+
+    /// <summary>The heavy rocket of armed monsters.</summary>
+    HeavyMonsterRocket = 109,
 
     /// <summary>The dried red blood pool.</summary>
     BloodPool = 110,
@@ -184,6 +190,9 @@ public enum KnownObject
 
     /// <summary>The small built-in shadow.</summary>
     EmbeddedShadow = 144,
+
+    /// <summary>The freeze rifle bullet.</summary>
+    FreezeBullet = 145,
 
     /// <summary>The flying gibs.</summary>
     FlyingGibs = 151,
@@ -329,6 +338,12 @@ public enum KnownObject
     /// <summary>The magma minigun pickup.</summary>
     MagmaMinigun = 269,
 
+    /// <summary>The drone that follows the player.</summary>
+    FlyingDrone = 290,
+
+    /// <summary>The turret of the drone.</summary>
+    DroneTurret = 291,
+
     /// <summary>The dynamite pickup.</summary>
     Dynamite = 301,
 
@@ -361,6 +376,9 @@ public enum KnownObject
 
     /// <summary>The turret of the manned cannon.</summary>
     MannedCannonTurret = 352,
+
+    /// <summary>The shell of the mounted cannon.</summary>
+    CannonShell = 356,
 
     /// <summary>The mounted cannon the player can man.</summary>
     MountedCannon = 357,
@@ -650,6 +668,9 @@ public enum KnownObject
     /// <summary>The menu button.</summary>
     MenuButton = 705,
 
+    /// <summary>The electric ball.</summary>
+    ElectricBall = 751,
+
     /// <summary>The red blood flying off a monster.</summary>
     RedBloodSpray = 756,
 
@@ -814,6 +835,9 @@ public enum KnownObject
 
     /// <summary>The monster of the last map.</summary>
     FinalMonster = 925,
+
+    /// <summary>The neural bullet.</summary>
+    NeuralBullet = 929,
 
     /// <summary>The soft black cover that hides ground outside the rooms in Alien Shooter 2.</summary>
     SoftCover = 1127,

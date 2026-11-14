@@ -34,5 +34,25 @@ public enum CollisionLayers : uint
     /// <summary>
     /// The fifth collision layer.
     /// </summary>
-    Layer5 = 1 << 4
+    Layer5 = 1 << 4,
+
+    /// <summary>
+    /// The sixth collision layer.
+    /// </summary>
+    Layer6 = 1 << 5,
+
+    /// <summary>
+    /// The seventh collision layer.
+    /// </summary>
+    Layer7 = 1 << 6,
+
+    /// <summary>
+    /// The eighth collision layer.
+    /// </summary>
+    Layer8 = 1 << 7,
+
+    /// <summary>
+    /// The ninth collision layer.
+    /// </summary>
+    Layer9 = 1 << 8
 }

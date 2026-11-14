@@ -312,13 +312,13 @@ public readonly struct VidResource
     }
 
     /// <summary>
-    /// Attempts to get where a frame of a sprite with surfaces lies in its textures, or false when the sprite has no such frame.
+    /// Attempts to get where a frame of a sprite with surfaces lies in its textures, or false when the sprite has no SURF chunk or no such frame.
     /// </summary>
     public bool TryGetTextureFrame(int index, out VidTextureFrame frame)
     {
         frame = default;
         int size = Unsafe.SizeOf<VidTextureFrame>();
-        if (!Flags.HasFlag(VidFlags.Surface) || _frames.Length == 0 || index < 0 || _frames[0].Length < (index + 1) * size)
+        if (!HasSurfaceChunk || _frames.Length == 0 || index < 0 || _frames[0].Length < (index + 1) * size)
         {
             return false;
         }

@@ -9,6 +9,11 @@ namespace ASToolkit.Core.Formats;
 [StructLayout(LayoutKind.Explicit, Size = 704)]
 public readonly struct GameObject
 {
+    /// <summary>
+    /// Represents the number of animation states of an object.
+    /// </summary>
+    public const int StateCount = 17;
+
     private const uint ShiftedTypeMask = 0x7F;
     private const uint SharedTypeMask = ~0xFFu;
 
@@ -28,11 +33,12 @@ public readonly struct GameObject
         DropHeight = obj.DropHeight;
         Directions = obj.Directions;
         FrameCounts = obj.FrameCounts;
+        SoundIds = obj.SoundIds;
         FrameDurations = obj.FrameDurations;
         GammaRed = obj.GammaRed;
         GammaGreen = obj.GammaGreen;
         GammaBlue = obj.GammaBlue;
-        GammaAlpha = 0;
+        GammaAlpha = obj.GammaAlpha;
         Scale = obj.Scale;
         Speed = obj.Speed;
         ZSpeed = obj.ZSpeed;
@@ -43,6 +49,7 @@ public readonly struct GameObject
         WeaponIndex = obj.WeaponIndex;
         BlastRadius = obj.BlastRadius;
         Damage = obj.Damage;
+        MaxDamage = obj.Damage;
         Lifetime = obj.Lifetime;
         ChildX = obj.ChildX;
         ChildY = obj.ChildY;
@@ -67,6 +74,7 @@ public readonly struct GameObject
         DropHeight = obj.DropHeight;
         Directions = obj.Directions;
         FrameCounts = obj.FrameCounts;
+        SoundIds = obj.SoundIds;
         FrameDurations = obj.FrameDurations;
         GammaRed = obj.GammaRed;
         GammaGreen = obj.GammaGreen;
@@ -82,6 +90,7 @@ public readonly struct GameObject
         WeaponIndex = obj.WeaponIndex;
         BlastRadius = obj.BlastRadius;
         Damage = obj.Damage;
+        MaxDamage = obj.Damage;
         Lifetime = obj.Lifetime;
         ChildX = obj.ChildX;
         ChildY = obj.ChildY;
@@ -106,6 +115,7 @@ public readonly struct GameObject
         DropHeight = obj.DropHeight;
         Directions = obj.Directions;
         FrameCounts = obj.FrameCounts;
+        SoundIds = obj.SoundIds;
         FrameDurations = obj.FrameDurations;
         GammaRed = obj.GammaRed;
         GammaGreen = obj.GammaGreen;
@@ -121,6 +131,8 @@ public readonly struct GameObject
         WeaponIndex = obj.WeaponIndex;
         BlastRadius = obj.BlastRadius;
         Damage = obj.Damage;
+        MaxDamage = obj.MaxDamage;
+        Push = obj.Push;
         Lifetime = obj.Lifetime;
         ChildX = obj.ChildX;
         ChildY = obj.ChildY;
@@ -166,13 +178,13 @@ public readonly struct GameObject
     public readonly int MaxHp;
 
     /// <summary>
-    /// The speed of the object along its facing as stored; the engine scales it by 0.001 on load.
+    /// The speed of the object along its facing.
     /// </summary>
     [FieldOffset(32)]
     public readonly float Speed;
 
     /// <summary>
-    /// The maximum of the initial speed range, in milli-units; the speed is the minimum.
+    /// The maximum of the initial speed range, in milli-units; the speed is the minimum. Absent from Alien Shooter records.
     /// </summary>
     [FieldOffset(36)]
     public readonly float MaxSpeed;
@@ -184,7 +196,7 @@ public readonly struct GameObject
     internal readonly float ZSpeed;
 
     /// <summary>
-    /// The maximum of the initial vertical speed range, in milli-units.
+    /// The maximum of the initial vertical speed range, in milli-units. Absent from Alien Shooter records.
     /// </summary>
     [FieldOffset(44)]
     public readonly float MaxZSpeed;
@@ -226,7 +238,19 @@ public readonly struct GameObject
     public readonly int Damage;
 
     /// <summary>
-    /// The offset of the linked object from this object, as stored in the file.
+    /// Gets the highest damage the object's blast deals. Absent from Alien Shooter and Zombie Shooter records.
+    /// </summary>
+    [FieldOffset(72)]
+    public readonly int MaxDamage;
+
+    /// <summary>
+    /// Gets the push of the object's blast. Absent from Alien Shooter and Zombie Shooter records.
+    /// </summary>
+    [FieldOffset(76)]
+    public readonly float Push;
+
+    /// <summary>
+    /// The offset of the linked object from this object.
     /// </summary>
     [FieldOffset(80)]
     public readonly Vector3 LinkOffset;
@@ -271,43 +295,49 @@ public readonly struct GameObject
     /// The number of frames in each direction of each animation state.
     /// </summary>
     [FieldOffset(132)]
-    public readonly StateValues FrameCounts;
+    public readonly StateValues<int> FrameCounts;
+
+    /// <summary>
+    /// The sound id of each animation state, an index into the SFX chunk.
+    /// </summary>
+    [FieldOffset(200)]
+    public readonly StateValues<int> SoundIds;
 
     /// <summary>
     /// The frame duration of each animation state in milliseconds, or 0 for the speed of the sprite.
     /// </summary>
     [FieldOffset(268)]
-    public readonly StateValues FrameDurations;
+    public readonly StateValues<int> FrameDurations;
 
     /// <summary>
     /// Gets the x offset of the object created in each state.
     /// </summary>
     [FieldOffset(336)]
-    public readonly StateFloats ChildX;
+    public readonly StateValues<float> ChildX;
 
     /// <summary>
     /// Gets the y offset of the object created in each state.
     /// </summary>
     [FieldOffset(404)]
-    public readonly StateFloats ChildY;
+    public readonly StateValues<float> ChildY;
 
     /// <summary>
     /// Gets the height offset of the object created in each state.
     /// </summary>
     [FieldOffset(472)]
-    public readonly StateFloats ChildHeight;
+    public readonly StateValues<float> ChildHeight;
 
     /// <summary>
     /// Gets the ID of the object created in each state.
     /// </summary>
     [FieldOffset(540)]
-    public readonly StateValues Children;
+    public readonly StateValues<int> Children;
 
     /// <summary>
     /// Gets the number of objects created in each state.
     /// </summary>
     [FieldOffset(608)]
-    public readonly StateValues ChildCounts;
+    public readonly StateValues<int> ChildCounts;
 
     /// <summary>
     /// The gamma shift of the red channel of the sprite's palette.
@@ -328,7 +358,7 @@ public readonly struct GameObject
     public readonly int GammaBlue;
 
     /// <summary>
-    /// The gamma shift of the alpha of the sprite; negative on smoke, steam and shadows. Zero in Alien Shooter 1.
+    /// The gamma shift of the alpha of the sprite; negative on smoke, steam and shadows.
     /// </summary>
     [FieldOffset(688)]
     public readonly int GammaAlpha;
@@ -407,7 +437,7 @@ public readonly struct GameObject
         if (FrameCounts[(int)animation] > 0)
             return animation;
 
-        for (int index = 0; index < StateValues.Count; index++)
+        for (int index = 0; index < GameObject.StateCount; index++)
         {
             if (FrameCounts[index] > 0)
                 return (SpriteAnimation)index;

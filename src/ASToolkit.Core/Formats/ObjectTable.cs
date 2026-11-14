@@ -19,9 +19,9 @@ public sealed class ObjectTable
     private static readonly int[] BodySizes = [AlienShooterBodySize, ZombieShooterBodySize, BodySize, ZombieShooter2BodySize];
 
     private readonly Dictionary<KnownObject, Entry> _entries;
-    private readonly WeaponEntry[] _weapons;
+    private readonly WeaponRecord[] _weapons;
 
-    private ObjectTable(Dictionary<KnownObject, Entry> entries, bool isAlienShooter2, WeaponEntry[] weapons)
+    private ObjectTable(Dictionary<KnownObject, Entry> entries, bool isAlienShooter2, WeaponRecord[] weapons)
     {
         _weapons = weapons;
         _entries = entries;
@@ -92,7 +92,7 @@ public sealed class ObjectTable
         };
     }
 
-    private static WeaponEntry[] ReadWeapons(ResContainer container)
+    private static WeaponRecord[] ReadWeapons(ResContainer container)
     {
         foreach (var chunk in container.Chunks)
         {
@@ -104,10 +104,10 @@ public sealed class ObjectTable
                 return records.Select(record =>
                 {
                     var weapon = MemoryMarshal.Read<AlienShooterWeaponRecord>(record.Span);
-                    return new WeaponEntry(new WeaponRecord(weapon), weapon.Behavior);
+                    return new WeaponRecord(weapon);
                 }).ToArray();
 
-            return records.All(record => record.Length == WeaponSize) ? records.Select(record => new WeaponEntry(MemoryMarshal.Read<WeaponRecord>(record.Span), 0)).ToArray() : [];
+            return records.All(record => record.Length == WeaponSize) ? records.Select(record => MemoryMarshal.Read<WeaponRecord>(record.Span)).ToArray() : [];
         }
 
         return [];
@@ -164,17 +164,11 @@ public sealed class ObjectTable
     /// Finds the weapon record an object points at, or the first record for an index past the last, returning false when the table holds no
     /// weapon records in a known layout.
     /// </summary>
-    public bool TryGetWeapon(in GameObject obj, out WeaponRecord weapon) => TryGetWeapon(obj, out weapon, out _);
-
-    internal bool TryGetWeapon(in GameObject obj, out WeaponRecord weapon, out WeaponBehavior behavior)
+    public bool TryGetWeapon(in GameObject obj, out WeaponRecord weapon)
     {
-        var entry = _weapons.Length == 0 ? default : _weapons[(uint)obj.WeaponIndex < (uint)_weapons.Length ? obj.WeaponIndex : 0];
-        weapon = entry.Record;
-        behavior = entry.Behavior;
+        weapon = _weapons.Length == 0 ? default : _weapons[(uint)obj.WeaponIndex < (uint)_weapons.Length ? obj.WeaponIndex : 0];
         return _weapons.Length > 0;
     }
-
-    private readonly record struct WeaponEntry(WeaponRecord Record, WeaponBehavior Behavior);
 
     private readonly record struct Entry(GameObject Object, string Name, string Path);
 }

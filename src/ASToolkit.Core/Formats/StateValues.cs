@@ -5,13 +5,10 @@ namespace ASToolkit.Core.Formats;
 /// <summary>
 /// Represents one value for each animation state of an object.
 /// </summary>
-[InlineArray(Count)]
-public struct StateValues
+/// <typeparam name="T">The type of the values.</typeparam>
+[InlineArray(GameObject.StateCount)]
+public struct StateValues<T>
+    where T : unmanaged
 {
-    /// <summary>
-    /// Represents the number of animation states of an object.
-    /// </summary>
-    public const int Count = 17;
-
-    private int _first;
+    private T _first;
 }

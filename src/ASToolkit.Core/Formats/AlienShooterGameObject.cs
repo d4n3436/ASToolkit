@@ -70,25 +70,28 @@ internal readonly struct AlienShooterGameObject
     public readonly int Directions;
 
     [FieldOffset(116)]
-    public readonly StateValues FrameCounts;
+    public readonly StateValues<int> FrameCounts;
+
+    [FieldOffset(184)]
+    public readonly StateValues<int> SoundIds;
 
     [FieldOffset(252)]
-    public readonly StateValues FrameDurations;
+    public readonly StateValues<int> FrameDurations;
 
     [FieldOffset(320)]
-    public readonly StateFloats ChildX;
+    public readonly StateValues<float> ChildX;
 
     [FieldOffset(388)]
-    public readonly StateFloats ChildY;
+    public readonly StateValues<float> ChildY;
 
     [FieldOffset(456)]
-    public readonly StateFloats ChildHeight;
+    public readonly StateValues<float> ChildHeight;
 
     [FieldOffset(524)]
-    public readonly StateValues Children;
+    public readonly StateValues<int> Children;
 
     [FieldOffset(592)]
-    public readonly StateValues ChildCounts;
+    public readonly StateValues<int> ChildCounts;
 
     [FieldOffset(660)]
     public readonly int GammaRed;
@@ -98,6 +101,9 @@ internal readonly struct AlienShooterGameObject
 
     [FieldOffset(668)]
     public readonly int GammaBlue;
+
+    [FieldOffset(672)]
+    public readonly int GammaAlpha;
 
     [FieldOffset(676)]
     public readonly Vector3 Scale;

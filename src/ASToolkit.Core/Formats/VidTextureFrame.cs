@@ -9,6 +9,12 @@ namespace ASToolkit.Core.Formats;
 public readonly struct VidTextureFrame
 {
     /// <summary>
+    /// The checksum of the pixels of the part.
+    /// </summary>
+    [FieldOffset(0)]
+    public readonly int Checksum;
+
+    /// <summary>
     /// The index of the texture that holds the part.
     /// </summary>
     [FieldOffset(4)]

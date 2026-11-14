@@ -10,12 +10,19 @@ public readonly struct WeaponRecord
 {
     private const uint ShiftedTypeMask = 0x7F;
     private const uint SharedTypeMask = ~0xFFu;
+    private const int NoDecisions = 999999;
+
+    /// <summary>
+    /// Represents the number of keyframes of a weapon animation.
+    /// </summary>
+    public const int KeyframeCount = 8;
 
     internal WeaponRecord(AlienShooterWeaponRecord record)
     {
         Flags = record.Flags;
         uint targets = (uint)record.Targets;
         Targets = (SpriteType)(((targets & ShiftedTypeMask) << 1) | (targets & SharedTypeMask));
+        DecisionPeriod = NoDecisions;
         DetectRange = record.DetectRange;
         BattleRange = record.BattleRange;
         Aim = record.Aim;
@@ -25,6 +32,21 @@ public readonly struct WeaponRecord
         VolleyReloadTime = 0;
         BuildTime = record.BuildTime;
         MinRange = record.MinRange;
+        Army = record.Army;
+        Behavior = record.Behavior;
+        Rank = record.Rank;
+        AnimationPeriod = record.AnimationPeriod;
+        KeyTimes = record.KeyTimes;
+        RedKeys = record.RedKeys;
+        GreenKeys = record.GreenKeys;
+        BlueKeys = record.BlueKeys;
+        AlphaKeys = record.AlphaKeys;
+        ScaleXKeys = record.ScaleXKeys;
+        ScaleYKeys = record.ScaleYKeys;
+        ScaleHeightKeys = record.ScaleHeightKeys;
+        OffsetXKeys = record.OffsetXKeys;
+        OffsetYKeys = record.OffsetYKeys;
+        SpeedKeys = record.SpeedKeys;
     }
 
     /// <summary>
@@ -38,6 +60,12 @@ public readonly struct WeaponRecord
     /// </summary>
     [FieldOffset(4)]
     public readonly WeaponFlags Flags;
+
+    /// <summary>
+    /// The time in milliseconds between the target decisions of a unit with the weapon; 999999 for none. Absent from Alien Shooter records.
+    /// </summary>
+    [FieldOffset(20)]
+    public readonly int DecisionPeriod;
 
     /// <summary>
     /// The distance at which a unit with the weapon notices an enemy.
@@ -58,7 +86,7 @@ public readonly struct WeaponRecord
     public readonly float Aim;
 
     /// <summary>
-    /// The number of attacks of a volley.
+    /// The number of attacks of a volley. Absent from Alien Shooter records.
     /// </summary>
     [FieldOffset(36)]
     public readonly int VolleySize;
@@ -76,7 +104,7 @@ public readonly struct WeaponRecord
     public readonly int ReloadTime;
 
     /// <summary>
-    /// The time in milliseconds a unit waits between the attacks of a volley.
+    /// The time in milliseconds a unit waits between the attacks of a volley. Absent from Alien Shooter records.
     /// </summary>
     [FieldOffset(48)]
     public readonly int VolleyReloadTime;
@@ -88,8 +116,98 @@ public readonly struct WeaponRecord
     public readonly int BuildTime;
 
     /// <summary>
+    /// The army given by default to objects that carry the weapon or that its attacks create.
+    /// </summary>
+    [FieldOffset(56)]
+    public readonly int Army;
+
+    /// <summary>
+    /// The behavior mask of a unit carrying the weapon.
+    /// </summary>
+    [FieldOffset(60)]
+    public readonly WeaponBehavior Behavior;
+
+    /// <summary>
+    /// The rank by which an attacker prefers this weapon's carrier over an otherwise equal target.
+    /// </summary>
+    [FieldOffset(84)]
+    public readonly int Rank;
+
+    /// <summary>
     /// The closest distance at which a unit with the weapon attacks.
     /// </summary>
     [FieldOffset(88)]
     public readonly float MinRange;
+
+    /// <summary>
+    /// The period in milliseconds of the keyframe animation of objects with the weapon; 999999 runs it once over the death animation.
+    /// </summary>
+    [FieldOffset(92)]
+    public readonly int AnimationPeriod;
+
+    /// <summary>
+    /// The time of each keyframe as a share of the animation period.
+    /// </summary>
+    [FieldOffset(96)]
+    public readonly KeyframeValues<float> KeyTimes;
+
+    /// <summary>
+    /// The red tint at each keyframe, from -255 to 255.
+    /// </summary>
+    [FieldOffset(128)]
+    public readonly KeyframeValues<int> RedKeys;
+
+    /// <summary>
+    /// The green tint at each keyframe, from -255 to 255.
+    /// </summary>
+    [FieldOffset(160)]
+    public readonly KeyframeValues<int> GreenKeys;
+
+    /// <summary>
+    /// The blue tint at each keyframe, from -255 to 255.
+    /// </summary>
+    [FieldOffset(192)]
+    public readonly KeyframeValues<int> BlueKeys;
+
+    /// <summary>
+    /// The alpha tint at each keyframe, from -255 to 255.
+    /// </summary>
+    [FieldOffset(224)]
+    public readonly KeyframeValues<int> AlphaKeys;
+
+    /// <summary>
+    /// The factor applied to the scale along x at each keyframe.
+    /// </summary>
+    [FieldOffset(256)]
+    public readonly KeyframeValues<float> ScaleXKeys;
+
+    /// <summary>
+    /// The factor applied to the scale along y at each keyframe.
+    /// </summary>
+    [FieldOffset(288)]
+    public readonly KeyframeValues<float> ScaleYKeys;
+
+    /// <summary>
+    /// The factor applied to the scale along the height at each keyframe.
+    /// </summary>
+    [FieldOffset(320)]
+    public readonly KeyframeValues<float> ScaleHeightKeys;
+
+    /// <summary>
+    /// The horizontal screen offset in pixels at each keyframe.
+    /// </summary>
+    [FieldOffset(352)]
+    public readonly KeyframeValues<float> OffsetXKeys;
+
+    /// <summary>
+    /// The vertical screen offset in pixels at each keyframe.
+    /// </summary>
+    [FieldOffset(384)]
+    public readonly KeyframeValues<float> OffsetYKeys;
+
+    /// <summary>
+    /// The change of speed at each keyframe, in thousandths of the speed unit.
+    /// </summary>
+    [FieldOffset(576)]
+    public readonly KeyframeValues<float> SpeedKeys;
 }

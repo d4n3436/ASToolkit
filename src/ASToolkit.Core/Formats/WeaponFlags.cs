@@ -1,7 +1,7 @@
 namespace ASToolkit.Core.Formats;
 
 /// <summary>
-/// Specifies the weapon flags interpreted by Alien Shooter.
+/// Specifies the flags of a weapon record.
 /// </summary>
 [Flags]
 public enum WeaponFlags : uint
@@ -22,6 +22,11 @@ public enum WeaponFlags : uint
     ForwardTargets = 1 << 1,
 
     /// <summary>
+    /// Among equally ranked targets, the unit takes one within 45 degrees of its facing.
+    /// </summary>
+    PrefersFacedTargets = 1 << 2,
+
+    /// <summary>
     /// The unit may take an acceptable target before searching the rest.
     /// </summary>
     RandomTarget = 1 << 3,
@@ -39,5 +44,15 @@ public enum WeaponFlags : uint
     /// <summary>
     /// The unit can be pushed by another moving unit.
     /// </summary>
-    Pushable = 1 << 6
+    Pushable = 1 << 6,
+
+    /// <summary>
+    /// The unit may target units of its own army.
+    /// </summary>
+    TargetsOwnArmy = 1 << 7,
+
+    /// <summary>
+    /// The unit ranks competing targets by distance alone.
+    /// </summary>
+    PrefersNearest = 1 << 8
 }
