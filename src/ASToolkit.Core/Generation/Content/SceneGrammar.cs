@@ -22,14 +22,15 @@ internal sealed record SceneGrammar(
 
     public static SceneGrammar Default { get; } = new(new PointF(25, 20), new PointF(-15, -12), 10, 100, [2, 4], 2, [3, 9], [2, 0, 0, 0, 1], 80, [0, 0, 3, 6, 6, 8, 9, 10, 11, 14, 14], 0.25f);
 
-    public KnownObject DrawEndlessGenerator(Random rng, int level)
+    public KnownObject DrawEndlessGenerator(Random rng, int level, IReadOnlySet<KnownObject> excluded)
     {
         int top = EndlessGeneratorRanks[Math.Min(level, EndlessGeneratorRanks.Length - 1)];
-        var ids = Enumerable.Range((int)FirstEndlessGenerator + Math.Max(0, top - RankWindow), Math.Min(top, RankWindow) + 1)
+        var ids = Enumerable.Range((int)FirstEndlessGenerator, top + 1)
             .Select(id => (KnownObject)id)
-            .Where(id => id != RedEndlessGenerator1)
+            .Where(id => id != RedEndlessGenerator1 && !excluded.Contains(id))
             .ToArray();
 
-        return ids[rng.Next(ids.Length)];
+        var window = ids.Where(id => (int)id >= (int)FirstEndlessGenerator + top - RankWindow).ToArray();
+        return window.Length > 0 ? window[rng.Next(window.Length)] : ids[rng.Next(ids.Length)];
     }
 }

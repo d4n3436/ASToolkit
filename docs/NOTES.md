@@ -55,7 +55,7 @@ This document describes how the game's scripts and engine behave and how the ori
 
 - A player standing on a 179 marker with a charge (301) plants it (`F179_0` in `common_event.lgc`). The blast (`F184_15`, radius 100) kills the 80x generators, the 908 spawners and the 450 teleports, turns the 616 and 612 holes into rubble (615) and kills side 1 units within 150.
 - In the originals there are as many charges as sites. A site is always within about 100 px of a blue 450 pad (concrete levels, with one to three invisible 80x generators on it and a 908 ambush next to it) or of a 618, 619, 616 or 612 spawn hole (basement levels).
-- Basement sites on levels 3 and 4 use a far-wall piece of a deep room as the hole (616, or 612 for small monsters). The 179 lies about (±25, +20) in front of it and the 80x generators about (∓30, -42) behind it under the roof.
+- Basement sites on levels 3 and 4 use a far-wall piece of a deep room as the hole (616, or 612 for small monsters). The 179 lies about (±25, +20) in front of it and the 80x generators about (∓30, -42) behind it under the roof. Behind the hole is a closed alcove three wall pieces wide and two deep, with the hole as the middle piece of its front.
 
 ## Level construction in the originals
 

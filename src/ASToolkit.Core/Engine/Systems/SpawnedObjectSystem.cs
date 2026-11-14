@@ -26,6 +26,7 @@ internal sealed class SpawnedObjectSystem
 
     private readonly List<Unit> _active = [];
     private readonly HashSet<Unit> _orphans = [];
+    private readonly List<Unit> _leaving = [];
     private readonly DefaultObjectPool<Unit> _pool = new(new UnitPoolPolicy(), MaxPooledUnits);
     private readonly ObjectCatalog _kinds;
     private readonly MovementMap _map;
@@ -234,19 +235,35 @@ internal sealed class SpawnedObjectSystem
         }
     }
 
+    // Drop the objects that ended this update in one pass, keeping the order of the rest
+    public void Compact()
+    {
+        if (_leaving.Count == 0)
+            return;
+
+        _active.RemoveAll(unit => unit.LeavesEffects);
+        foreach (var unit in _leaving)
+        {
+            unit.LeavesEffects = false;
+            _pool.Return(unit);
+        }
+
+        _leaving.Clear();
+    }
+
     public bool Tick(Unit unit, int elapsed)
     {
         if (Update(unit, elapsed))
             return true;
 
-        _active.Remove(unit);
-        _pool.Return(unit);
+        unit.LeavesEffects = true;
+        _leaving.Add(unit);
 
         if (unit.Kind.Object.Link != 0)
         {
             foreach (var other in _active)
             {
-                if (other.Owner == unit && other.Kind.Id == unit.Kind.Object.Link)
+                if (other.Owner == unit && other.Kind.Id == unit.Kind.Object.Link && !other.LeavesEffects)
                 {
                     _orphans.Add(other);
                 }

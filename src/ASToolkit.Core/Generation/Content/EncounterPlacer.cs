@@ -17,6 +17,7 @@ internal sealed class EncounterPlacer
     private const int SpawnerTries = 8;
     private const float GoldenAngle = 2.39996f;
     private const int MaxClustered = 47;
+    private static readonly float[] SpotShares = [0.25f, 0.5f, 0.75f];
 
     private readonly PlacementContext _ctx;
     private readonly EncounterModel _model;
@@ -212,10 +213,22 @@ internal sealed class EncounterPlacer
             return false;
         }
 
-        var cells = _ctx.GetRegionCells(_ctx.Plan.Regions[closet]);
+        var edge = _ctx.Layout.LinkEdges[link.Id][0];
+        float margin = fight.Groups.SelectMany(group => group).Max(GetHalfSize);
+        var spots = _ctx.GetRegionCells(_ctx.Plan.Regions[closet])
+            .SelectMany(cell => SpotShares.SelectMany(u => SpotShares.Select(v => _ctx.Layout.Lattice.ToWorld(cell.U + u, cell.V + v))))
+            .Where(spot => !_ctx.IsInWall(spot, margin))
+            .OrderBy(spot => ContentPlacer.GetDistance(spot, GetMiddle(edge)))
+            .ToArray();
+
+        if (spots.Length == 0)
+        {
+            return false;
+        }
+
         for (int index = 0; index < fight.Groups.Count; index++)
         {
-            var point = _ctx.Layout.Lattice.GetCenter(cells[index % cells.Count]);
+            var point = spots[index % spots.Length];
             _spawners.Add(point);
             _ctx.Map.Add(KnownObject.Spawner, point.X, point.Y, 0, 0, SpawnerProgram.Create(fight.Groups[index], new TriggerArea(Point.Truncate(center), radius), [center]).ToPayload(), 1, unique: false,
                 source: SpriteSource.Model);

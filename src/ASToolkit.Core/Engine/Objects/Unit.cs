@@ -52,6 +52,8 @@ internal sealed class Unit
 
     public bool Moving { get; set; }
 
+    public bool LeavesEffects { get; set; }
+
     public bool ReachedX { get; set; }
 
     public bool ReachedY { get; set; }

@@ -540,7 +540,7 @@ internal sealed class PlayerBot
                 return true;
         }
 
-        if (PlanBreaker() || PlanDynamite())
+        if (PlanBreaker() || PlanGenerator() || PlanDynamite())
             return true;
 
         int goal = -1;
@@ -689,6 +689,20 @@ internal sealed class PlayerBot
 
     private bool PlanBreaker() =>
         _world.DoorsLocked && _analysis.Objectives.Any(objective => objective.Kind == ObjectiveKind.Breaker && QueueTrigger(new Vector2(objective.X, objective.Y), BreakerReach));
+
+    private bool PlanGenerator()
+    {
+        if (!_world.FencesUp)
+            return false;
+
+        foreach (var body in _world.Bodies)
+        {
+            if (body.IsAlive && body.Kind.Id == KnownObject.Generator && QueueTrigger(body.Position.AsVector2(), BreakerReach))
+                return true;
+        }
+
+        return false;
+    }
 
     private bool PlanDynamite()
     {
@@ -935,7 +949,7 @@ internal sealed class PlayerBot
                 continue;
 
             offLine = MathF.Min(offLine, MeasureOffLine(threat.Position.AsVector2(), center));
-            covered &= distance > threat.Kind.BattleRange || !_gunnery.HasClearAim(threat, center);
+            covered = covered && (distance > threat.Kind.BattleRange || !_gunnery.HasClearAim(threat, center));
         }
 
         if (offLine < float.MaxValue)

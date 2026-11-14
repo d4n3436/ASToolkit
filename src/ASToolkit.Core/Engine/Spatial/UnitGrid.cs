@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.InteropServices;
 using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Engine;
@@ -61,6 +62,34 @@ internal sealed class UnitGrid
 
         Remove(unit);
         Add(unit);
+    }
+
+    public Unit? FindOverlap(Unit mover, in CollisionVolume volume)
+    {
+        var center = volume.Position;
+        var reach = volume.Half + MaxHalf;
+        int firstColumn = GetColumn(center.X - reach.X), lastColumn = GetColumn(center.X + reach.X);
+        int lastRow = GetRow(center.Y + reach.Y);
+        for (int row = GetRow(center.Y - reach.Y); row <= lastRow; row++)
+        {
+            for (int column = firstColumn; column <= lastColumn; column++)
+            {
+                foreach (var other in CollectionsMarshal.AsSpan(_buckets[row * _columns + column]))
+                {
+                    if (other == mover || other.Animation >= SpriteAnimation.Death)
+                        continue;
+
+                    var kind = other.Kind;
+                    var position = other.Position;
+                    var half = volume.Half + kind.Half;
+                    if ((volume.Mask & kind.MoveMask) != 0 && MathF.Abs(center.X - position.X) < half.X && MathF.Abs(center.Y - position.Y) < half.Y &&
+                        center.Z <= position.Z + kind.Object.Size.Z && position.Z <= center.Z + volume.Height)
+                        return other;
+                }
+            }
+        }
+
+        return null;
     }
 
     public UnitQuery GetNear(Vector2 min, Vector2 max) => new(_buckets, _columns, GetColumn(min.X), GetColumn(max.X), GetRow(min.Y), GetRow(max.Y));

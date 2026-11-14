@@ -449,6 +449,37 @@ public static class StructureBuilder
     }
 
     /// <summary>
+    /// Returns the cells of the closed alcove behind a monster hole, three cells along its wall and two deep, grown by a margin on its sides and back.
+    /// </summary>
+    public static Cell[] GetHoleAlcove(EdgeKey hole, int margin = 0)
+    {
+        var outside = hole.Axis == 'v' ? hole.Cells.First : hole.Cells.Second;
+        var (along, away) = hole.Axis == 'v' ? (new Cell(1, 0), new Cell(0, -1)) : (new Cell(0, 1), new Cell(1, 0));
+        return Enumerable.Range(-1 - margin, 3 + 2 * margin)
+            .SelectMany(offset => Enumerable.Range(0, 2 + margin).Select(depth => outside + along * offset + away * depth))
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Returns the edges that wall a monster hole's alcove off from the void, leaving out the room's own wall.
+    /// </summary>
+    public static IEnumerable<EdgeKey> GetHoleAlcoveWalls(EdgeKey hole)
+    {
+        var alcove = GetHoleAlcove(hole).ToHashSet();
+        var front = new[] { GetPreviousEdge(hole), hole, hole.Axis == 'v' ? new EdgeKey('v', hole.A + 1, hole.B) : new EdgeKey('u', hole.A, hole.B + 1) };
+        foreach (var cell in alcove)
+        {
+            foreach (var (neighbor, edge) in EdgeKey.GetNeighbors(cell))
+            {
+                if (!alcove.Contains(neighbor) && !front.Contains(edge))
+                {
+                    yield return edge;
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// Returns the edge before an edge along its own direction.
     /// </summary>
     public static EdgeKey GetPreviousEdge(EdgeKey k) => k.Axis == 'v' ? new EdgeKey('v', k.A - 1, k.B) : new EdgeKey('u', k.A, k.B - 1);

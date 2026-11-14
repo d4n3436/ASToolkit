@@ -17,6 +17,7 @@ public sealed class LevelOccupancy
     private const float StandingHeight = 20;
     private const float SpawnerGap = 13;
     private const float SiteFrontClearance = 57;
+    private const float ObstacleBucket = 128;
 
     private readonly ObjectTable _objects;
     private readonly Lattice _lattice;
@@ -33,6 +34,7 @@ public sealed class LevelOccupancy
     private readonly List<StandingPiece> _standing = [];
     private readonly List<StandingPiece> _raised = [];
     private readonly Dictionary<Point, List<PointF>> _units = [];
+    private readonly Dictionary<Point, List<CollisionBox>> _obstacles = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="LevelOccupancy"/> class.
@@ -80,7 +82,7 @@ public sealed class LevelOccupancy
         (float x, float y) = point;
         if (IsUnit(id))
         {
-            return !IsNearUnit(x, y);
+            return !IsNearUnit(x, y) && !IsInObstacle(id, x, y);
         }
 
         if ((z < FloorHeight || id.PickupCategory is not null) && !_clearance.KeepsDrop(id, _lattice, _edges, x, y))
@@ -206,7 +208,17 @@ public sealed class LevelOccupancy
             return;
         }
 
-        if (_objects.GetBlocking(id) == BlockingClass.WalkThrough || !_objects.TryFind(id, out var obj))
+        if (!_objects.TryFind(id, out var obj))
+        {
+            return;
+        }
+
+        if (z < FloorHeight && StopsUnits(id, obj))
+        {
+            AddObstacle(CollisionBox.Create(obj, x, y, 0.5f, 0));
+        }
+
+        if (_objects.GetBlocking(id) == BlockingClass.WalkThrough)
         {
             return;
         }
@@ -318,6 +330,48 @@ public sealed class LevelOccupancy
     private bool IsWall(EdgeKey edge) => _edges.TryGetValue(edge, out var kind) && kind.BlocksWalking;
 
     private readonly record struct StandingPiece(KnownObject Id, Vector3 Size, bool IsSolid, float X, float Y);
+
+    // Mirror the engine's movement map, where solid and outlined pieces raise the terrain and hittable ones stand as boxes
+    private static bool StopsUnits(KnownObject id, in GameObject obj) =>
+        (id == KnownObject.Crate || !(obj.SpriteType.HasFlag(SpriteType.Unit) || obj.SpriteType.HasFlag(SpriteType.Avia) || obj.SpriteType.HasFlag(SpriteType.Cannon)
+                                      || obj.SpriteClass == SpriteClass.Player))
+        && (obj.IsSolid || obj.Flags.HasFlag(ObjectFlags.Outline) || obj.IsHittable && obj.MoveMask != 0);
+
+    private void AddObstacle(CollisionBox box)
+    {
+        for (int column = (int)MathF.Floor(box.MinX / ObstacleBucket); column <= (int)MathF.Floor(box.MaxX / ObstacleBucket); column++)
+        {
+            for (int row = (int)MathF.Floor(box.MinY / ObstacleBucket); row <= (int)MathF.Floor(box.MaxY / ObstacleBucket); row++)
+            {
+                var key = new Point(column, row);
+                if (!_obstacles.TryGetValue(key, out var bucket))
+                {
+                    _obstacles[key] = bucket = [];
+                }
+
+                bucket.Add(box);
+            }
+        }
+    }
+
+    private bool IsInObstacle(KnownObject id, float x, float y)
+    {
+        _objects.TryFind(id, out var unit);
+        var box = CollisionBox.Create(unit, x, y, 0.5f, 0);
+        for (int column = (int)MathF.Floor(box.MinX / ObstacleBucket); column <= (int)MathF.Floor(box.MaxX / ObstacleBucket); column++)
+        {
+            for (int row = (int)MathF.Floor(box.MinY / ObstacleBucket); row <= (int)MathF.Floor(box.MaxY / ObstacleBucket); row++)
+            {
+                if (_obstacles.TryGetValue(new Point(column, row), out var bucket)
+                    && bucket.Exists(obstacle => obstacle.Overlaps(box)))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 
     private bool IsNearUnit(float x, float y)
     {

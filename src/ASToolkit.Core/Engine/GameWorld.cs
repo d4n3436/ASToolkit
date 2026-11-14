@@ -27,6 +27,7 @@ internal sealed partial class GameWorld
     private readonly IWorldEventSink? _events;
     private readonly MonsterBrain _brain;
     private readonly List<Unit> _monsters = [];
+    private readonly HashSet<Unit> _monsterSet = [];
     private readonly List<Unit> _blastCandidates = [];
     private bool _adrenalineActive;
     private int _quakeStart;
@@ -313,6 +314,7 @@ internal sealed partial class GameWorld
         }
 
         _updates.Compact();
+        Effects.Compact();
     }
 
     private bool TickEntry(UpdateEntry entry)
@@ -463,9 +465,9 @@ internal sealed partial class GameWorld
 
         if (owner is not null)
         {
-            if (owner.Link != unit || !_monsters.Contains(owner))
+            if (owner.Link != unit || !_monsterSet.Contains(owner))
             {
-                _monsters.Remove(unit);
+                RemoveMonster(unit);
                 Delete(unit);
 
                 return false;
@@ -482,7 +484,7 @@ internal sealed partial class GameWorld
         if (TickUnit(unit))
             return true;
 
-        _monsters.Remove(unit);
+        RemoveMonster(unit);
         Units.Remove(unit);
         Delete(unit);
 
@@ -854,6 +856,18 @@ internal sealed partial class GameWorld
         Respawns++;
     }
 
+    private void AddToMonsters(Unit unit)
+    {
+        _monsters.Add(unit);
+        _monsterSet.Add(unit);
+    }
+
+    private void RemoveMonster(Unit unit)
+    {
+        _monsters.Remove(unit);
+        _monsterSet.Remove(unit);
+    }
+
     private void CompleteDeath(Unit unit, SpriteAnimation animation)
     {
         if (unit.Placement is null)
@@ -864,7 +878,7 @@ internal sealed partial class GameWorld
         else
         {
             RemovePlacement(unit.Placement, unit.Position.AsVector2(), unit.Kind.Half);
-            _monsters.Add(unit);
+            AddToMonsters(unit);
             Register(UpdateRole.Monster, unit);
         }
 
@@ -986,7 +1000,7 @@ internal sealed partial class GameWorld
 
         RunCreationHook(unit);
 
-        _monsters.Add(unit);
+        AddToMonsters(unit);
         Register(UpdateRole.Monster, unit);
         Units.Add(unit);
         AttachLink(unit);
@@ -1014,7 +1028,7 @@ internal sealed partial class GameWorld
             unit.Behavior = kind.Behavior;
         }
 
-        _monsters.Add(link);
+        AddToMonsters(link);
         Register(UpdateRole.Monster, link);
     }
 

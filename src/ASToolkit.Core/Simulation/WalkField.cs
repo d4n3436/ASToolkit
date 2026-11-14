@@ -41,6 +41,8 @@ internal sealed class WalkField
     private Vector3 _lastStartPoint;
     private int _lastStart;
     private int _lastStartVersion = -1;
+    private int _floodSource = -1;
+    private int _floodSteps = -1;
 
     private WalkField(WalkField source, MovementMap movement)
     {
@@ -66,6 +68,8 @@ internal sealed class WalkField
         _lastStartPoint = source._lastStartPoint;
         _lastStart = source._lastStart;
         _lastStartVersion = source._lastStartVersion;
+        _floodSource = source._floodSource;
+        _floodSteps = source._floodSteps;
     }
 
     public WalkField Clone(MovementMap movement) => new(this, movement);
@@ -161,7 +165,7 @@ internal sealed class WalkField
     private void MarkAllStale() => Array.Fill(_cellState, StaleCell);
 
     // Reads untouched cells from the links all copies share, marking a cell computed only after its links are written
-    private int GetNeighbor(int cell, int side)
+    private ReadOnlySpan<int> GetLinks(int cell)
     {
         switch (_cellState[cell])
         {
@@ -172,15 +176,17 @@ internal sealed class WalkField
                     Volatile.Write(ref _shared.Computed[cell], true);
                 }
 
-                return _shared.Links[cell * Sides + side];
+                return _shared.Links;
             case StaleCell:
                 UpdateNeighbors(cell, _neighbors);
                 _cellState[cell] = OwnCell;
                 break;
         }
 
-        return _neighbors[cell * Sides + side];
+        return _neighbors;
     }
+
+    private int GetNeighbor(int cell, int side) => GetLinks(cell)[cell * Sides + side];
 
     private void UpdateNeighbors(int index, int[] links)
     {
@@ -361,8 +367,13 @@ internal sealed class WalkField
 
     public void Flood(int source, int maxSteps)
     {
+        if (source >= 0 && source == _floodSource && maxSteps == _floodSteps)
+            return;
+
         ClearDistances();
         ReachedCount = 0;
+        _floodSource = source;
+        _floodSteps = maxSteps;
 
         if (source < 0)
             return;
@@ -378,10 +389,9 @@ internal sealed class WalkField
             if (steps > maxSteps)
                 continue;
 
-            for (int side = 0; side < Sides; side++)
+            var links = GetLinks(cell).Slice(cell * Sides, Sides);
+            foreach (int next in links)
             {
-                int next = GetNeighbor(cell, side);
-
                 if (next < 0 || _distance[next] >= 0)
                     continue;
 
@@ -393,6 +403,7 @@ internal sealed class WalkField
 
     private void ClearDistances()
     {
+        _floodSource = -1;
         for (int order = 0; order < ReachedCount; order++)
         {
             _distance[_queue[order]] = -1;

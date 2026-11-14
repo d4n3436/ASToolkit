@@ -695,49 +695,49 @@ public enum KnownObject
     /// <summary>The volumetric lamp light.</summary>
     VolumetricLampLight = 785,
 
-    /// <summary>The first endless monster generator.</summary>
+    /// <summary>The endless generator of green monsters of kind 1 (<see cref="Monster1"/>).</summary>
     FirstEndlessGenerator = 800,
 
-    /// <summary>The yellow first endless generator.</summary>
+    /// <summary>The endless generator of yellow monsters of kind 1 (<see cref="YellowMonster1"/>).</summary>
     YellowEndlessGenerator1 = 801,
 
-    /// <summary>The red monster generator of kind 1.</summary>
+    /// <summary>The endless generator of red monsters of kind 1 (<see cref="RedMonster1"/>).</summary>
     RedEndlessGenerator1 = 802,
 
-    /// <summary>The second endless generator.</summary>
+    /// <summary>The endless generator of green monsters of kind 2 (<see cref="Monster2"/>).</summary>
     EndlessGenerator2 = 803,
 
-    /// <summary>The yellow second endless generator.</summary>
+    /// <summary>The endless generator of yellow monsters of kind 2 (<see cref="YellowMonster2"/>).</summary>
     YellowEndlessGenerator2 = 804,
 
-    /// <summary>The red second endless generator.</summary>
+    /// <summary>The endless generator of red monsters of kind 2 (<see cref="RedMonster2"/>).</summary>
     RedEndlessGenerator2 = 805,
 
-    /// <summary>The third endless generator.</summary>
+    /// <summary>The endless generator of green armed monsters (<see cref="WeaponMonster"/>).</summary>
     EndlessGenerator3 = 806,
 
-    /// <summary>The yellow third endless generator.</summary>
+    /// <summary>The endless generator of yellow armed monsters (<see cref="YellowWeaponMonster"/>).</summary>
     YellowEndlessGenerator3 = 807,
 
-    /// <summary>The red third endless generator.</summary>
+    /// <summary>The endless generator of red armed monsters (<see cref="RedWeaponMonster"/>).</summary>
     RedEndlessGenerator3 = 808,
 
-    /// <summary>The fifth endless generator.</summary>
+    /// <summary>The endless generator of green armed tank monsters (<see cref="TankWeaponMonster"/>).</summary>
     EndlessGenerator5 = 809,
 
-    /// <summary>The yellow fifth endless generator.</summary>
+    /// <summary>The endless generator of yellow armed tank monsters (<see cref="YellowTankWeaponMonster"/>).</summary>
     YellowEndlessGenerator5 = 810,
 
-    /// <summary>The red fifth endless generator.</summary>
+    /// <summary>The endless generator of red armed tank monsters (<see cref="RedTankWeaponMonster"/>).</summary>
     RedEndlessGenerator5 = 811,
 
-    /// <summary>The sixth endless generator.</summary>
+    /// <summary>The endless generator of green slug monsters (<see cref="Slug"/>).</summary>
     EndlessGenerator6 = 812,
 
-    /// <summary>The yellow sixth endless generator.</summary>
+    /// <summary>The endless generator of yellow slug monsters (<see cref="YellowSlug"/>).</summary>
     YellowEndlessGenerator6 = 813,
 
-    /// <summary>The last endless monster generator.</summary>
+    /// <summary>The endless generator of red slug monsters (<see cref="RedSlug"/>).</summary>
     LastEndlessGenerator = 814,
 
     /// <summary>The boss of level 1.</summary>

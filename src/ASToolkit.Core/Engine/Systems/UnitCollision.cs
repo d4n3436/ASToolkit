@@ -92,19 +92,9 @@ internal sealed class UnitCollision
             return true;
         }
 
-        var reach = unit.Kind.Half + _units.MaxHalf;
-        var volume = unit.Kind.GetCollisionVolume(position);
-        foreach (var other in _units.GetNear(position.AsVector2() - reach, position.AsVector2() + reach))
-        {
-            if (other != unit && other.Animation < SpriteAnimation.Death && volume.Overlaps(other.CollisionVolume))
-            {
-                collision = other;
+        collision = _units.FindOverlap(unit, unit.Kind.GetCollisionVolume(position));
 
-                return true;
-            }
-        }
-
-        return false;
+        return collision is not null;
     }
 
 

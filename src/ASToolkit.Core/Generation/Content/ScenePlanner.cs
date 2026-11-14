@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Drawing;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Generation.Campaign;
@@ -24,6 +25,7 @@ internal sealed class ScenePlanner
     private const int SiteCells = 96;
     private const int CellsPerSite = 120;
     private const int HoleGap = 3;
+    private const int MaxDeathDepth = 3;
     private static readonly float[] RingSteps = [-1, -0.5f, 0, 0.5f, 1];
 
     private readonly Random _rng;
@@ -32,17 +34,26 @@ internal sealed class ScenePlanner
     private readonly FineLayout _layout;
     private readonly SceneGrammar _grammar;
     private readonly WallClearanceTable _clearance;
+    private readonly ObjectTable _objects;
+    private readonly FrozenSet<KnownObject> _unitLeavingGenerators;
     private Dictionary<Cell, int> _walk = [];
     private int _walkLength = 1;
 
-    public ScenePlanner(Random rng, LevelBrief brief, LayoutPlan plan, FineLayout layout, SceneGrammar grammar, WallClearanceTable clearance)
+    public ScenePlanner(Random rng, LevelBrief brief, LayoutPlan plan, FineLayout layout, SceneGrammar grammar, WallClearanceTable clearance, ObjectTable objects)
     {
         _clearance = clearance;
+        _objects = objects;
         _rng = rng;
         _brief = brief;
         _plan = plan;
         _layout = layout;
         _grammar = grammar;
+
+        // Used to keep a hole's alcove free of units that die into units
+        _unitLeavingGenerators = Enumerable.Sequence((int)KnownObject.FirstEndlessGenerator, (int)KnownObject.LastEndlessGenerator, 1)
+            .Select(id => (KnownObject)id)
+            .Where(id => !LeavesNoUnit(id))
+            .ToFrozenSet();
     }
 
     public SitePlan PlanSites(int count, EconomyModel economy, Cell start, IReadOnlyDictionary<EdgeKey, EdgeKind> visibleEdges)
@@ -89,13 +100,20 @@ internal sealed class ScenePlanner
             var cells = _layout.GetRegionCells(room.Id).ToHashSet();
             var walls = visibleEdges.Keys
                 .Where(edge => IsHoleWall(edge) && IsHoleWall(StructureBuilder.GetPreviousEdge(edge)) && IsHoleWall(edge.Axis == 'v' ? new EdgeKey('v', edge.A + 1, edge.B) : new EdgeKey('u', edge.A, edge.B + 1)))
-                .Where(edge => plan.Holes.Keys.All(other => other.Axis != edge.Axis || Math.Abs(other.A - edge.A) + Math.Abs(other.B - edge.B) > HoleGap) && KeepsDrop(GetHoleSite(edge)))
+                .Where(edge => plan.Holes.Keys.All(other => other.Axis != edge.Axis || Math.Abs(other.A - edge.A) + Math.Abs(other.B - edge.B) > HoleGap) && KeepsDrop(GetHoleSite(edge))
+                               && HasRoomForAlcove(edge))
                 .OrderBy(edge => edge.Axis)
                 .ThenBy(edge => edge.A)
                 .ThenBy(edge => edge.B)
                 .ToArray();
 
             return walls.Length == 0 ? null : walls[_rng.Next(walls.Length)];
+
+            bool HasRoomForAlcove(EdgeKey edge)
+            {
+                var taken = plan.Holes.Keys.SelectMany(StructureBuilder.GetHoleAlcove).ToHashSet();
+                return StructureBuilder.GetHoleAlcove(edge, 1).All(cell => !_layout.Cells.ContainsKey(cell) && !taken.Contains(cell));
+            }
 
             bool IsHoleWall(EdgeKey edge)
             {
@@ -220,7 +238,7 @@ internal sealed class ScenePlanner
                 continue;
             
             var trigger = GetSiteTrigger(room);
-            var program = SpawnerProgram.Create(Enumerable.Range(0, builds).Select(_ => _grammar.DrawEndlessGenerator(_rng, _brief.Level)), new TriggerArea(Point.Truncate(trigger), (int)_grammar.TriggerRadius), []);
+            var program = SpawnerProgram.Create(Enumerable.Range(0, builds).Select(_ => _grammar.DrawEndlessGenerator(_rng, _brief.Level, _unitLeavingGenerators)), new TriggerArea(Point.Truncate(trigger), (int)_grammar.TriggerRadius), []);
             map.Add(KnownObject.Spawner, hx + _grammar.Spawner.X * side, hy + _grammar.Spawner.Y, _grammar.SpawnerZ, 0, program.ToPayload(), 1, unique: false);
         }
     }
@@ -240,9 +258,31 @@ internal sealed class ScenePlanner
             for (int count = Math.Min(generators, _rng.Next(_grammar.GeneratorBatch[0], _grammar.GeneratorBatch[1] + 1)); count > 0; count--, generators--)
             {
                 float rise = _grammar.GeneratorRise[0] + _rng.NextSingle() * (_grammar.GeneratorRise[1] - _grammar.GeneratorRise[0]);
-                map.Add(_grammar.DrawEndlessGenerator(_rng, _brief.Level), pad.X + _grammar.GeneratorJitter * (2 * _rng.NextSingle() - 1), pad.Y - rise, 0, 0, new byte[8], 1, unique: false);
+                map.Add(_grammar.DrawEndlessGenerator(_rng, _brief.Level, FrozenSet<KnownObject>.Empty), pad.X + _grammar.GeneratorJitter * (2 * _rng.NextSingle() - 1), pad.Y - rise, 0, 0, new byte[8], 1, unique: false);
             }
         }
+    }
+
+    private bool LeavesNoUnit(KnownObject generator) => _objects.TryFind(generator, out var obj) && !LeavesUnit(obj.Children[0], 0);
+
+    private bool LeavesUnit(int id, int depth)
+    {
+        if (!_objects.TryFind((KnownObject)id, out var obj))
+        {
+            return false;
+        }
+
+        foreach (var death in new[] { SpriteAnimation.Death, SpriteAnimation.Death2 })
+        {
+            int child = obj.Children[(int)death];
+            if (child != 0 && _objects.TryFind((KnownObject)child, out var left)
+                && (left.SpriteType.HasFlag(SpriteType.Unit) || depth < MaxDeathDepth && LeavesUnit(child, depth + 1)))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private PointF GetHoleSite(EdgeKey edge)

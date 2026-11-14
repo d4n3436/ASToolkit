@@ -272,8 +272,13 @@ public sealed class LevelGenerator
 
         var startRoom = layout.GetRegionCells(plan.Stations[0].Id).ToArray();
         var start = startRoom[startRoom.Length / 2];
-        var scenes = new ScenePlanner(contentRng, brief, plan, layout, SceneGrammar.Default, _model.GetWallClearance(wallSet));
+        var scenes = new ScenePlanner(contentRng, brief, plan, layout, SceneGrammar.Default, _model.GetWallClearance(wallSet), _objects);
         var sitePlan = scenes.PlanSites(budget.DynamiteSites, _model.Economy, start, visibleEdges);
+        foreach (var wall in sitePlan.Holes.Keys.SelectMany(StructureBuilder.GetHoleAlcoveWalls))
+        {
+            closetEdges.TryAdd(wall, EdgeKind.Wall);
+        }
+
         var spawnWalls = wallSet == WallSet.Basement
             ? StructureBuilder.BuildBasement(layoutRng, map, layout, visibleEdges, contentRng, closetEdges, closetCells, sitePlan.Holes.Keys.ToHashSet(), plan.Gate == GateKind.LockedDoors,
                 _model.GetWallClearance(wallSet))
