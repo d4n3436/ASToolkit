@@ -6,4 +6,4 @@ namespace ASToolkit.Core.Engine;
 /// <param name="Time">The time the flash starts in milliseconds.</param>
 /// <param name="Duration">The length of the flash in milliseconds.</param>
 /// <param name="Color">The color the script asks for, as 0xRRGGBB.</param>
-public readonly record struct ScreenFlash(int Time, int Duration, int Color);
+public readonly record struct ScreenFlash(int Time, int Duration, int Color) : ITimed;

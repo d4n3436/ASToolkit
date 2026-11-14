@@ -15,6 +15,9 @@ public sealed class MapScene
     private const int CellSize = 256;
     private const int DepthWriteLayers = 8;
 
+    private const int LiveKeys = 0x3fffffff;
+
+    private readonly bool _mapInFileOrder;
     private readonly int[] _order;
     private readonly int[] _ranks;
     private readonly long[] _keys;
@@ -39,8 +42,9 @@ public sealed class MapScene
 
     internal PaletteTint? Ambient => _ambient;
 
-    internal MapScene(Placement[] placed, OmniLight[] lights, PaletteTint? ambient, int undrawn, PaletteTint paletteTint = default)
+    internal MapScene(Placement[] placed, OmniLight[] lights, PaletteTint? ambient, int undrawn, PaletteTint paletteTint = default, bool mapInFileOrder = false)
     {
+        _mapInFileOrder = mapInFileOrder;
         Placed = placed;
         _ambient = ambient;
         _paletteTint = paletteTint;
@@ -103,6 +107,8 @@ public sealed class MapScene
     /// Gets the screen y (map y minus height) of the top edge of the scene.
     /// </summary>
     public int Top { get; }
+
+    private Point Origin => new(Left, Top);
 
     /// <summary>
     /// Gets the width of the scene in pixels.
@@ -177,9 +183,9 @@ public sealed class MapScene
         foreach (int index in Query(new Rectangle(x, y, 1, 1)))
         {
             var p = Placed[index];
-            var state = p.GetState(time, Left, Top);
+            var state = p.GetState(time, Origin);
             var frame = state.Frame;
-            int row = y - state.Y - (frame?.Top ?? 0);
+            int row = y - state.Corner.Y - (frame?.Top ?? 0);
             if (frame is null || p.Source is null || (uint)row >= (uint)frame.Rows)
             {
                 continue;
@@ -187,7 +193,7 @@ public sealed class MapScene
 
             for (int pixel = frame.RowStarts[row]; pixel < frame.RowStarts[row + 1]; pixel++)
             {
-                if (state.X + frame.Xs[pixel] != x || (!frame.IsPaletted && frame.Colors[pixel].A == 0))
+                if (state.Corner.X + frame.Xs[pixel] != x || (!frame.IsPaletted && frame.Colors[pixel].A == 0))
                 {
                     continue;
                 }
@@ -251,7 +257,7 @@ public sealed class MapScene
         AddLive(next, long.MaxValue, source, drawn, drawnKeys);
         var placed = drawn.ToArray();
         long[] keys = drawnKeys.ToArray();
-        var states = placed.Select(p => p.GetState(time, Left, Top)).ToArray();
+        var states = placed.Select(p => p.GetState(time, Origin)).ToArray();
         for (int index = 0; index < placed.Length; index++)
         {
             var frame = states[index].Frame;
@@ -312,8 +318,10 @@ public sealed class MapScene
         Parallel.For(0, canvas.StripCount, options, canvas.CreateBuffers, (strip, _, buffers) => canvas.DrawStrip(strip, buffers), canvas.ReleaseBuffers);
     }
 
-    // Orders by pass, then from the last created object to the first
-    private static long GetDrawKey(int pass, int sequence) => (long)pass << 32 | (uint)(int.MaxValue - sequence);
+    // Orders each pass from the last added object to the first, with Alien Shooter's map sprites coming out in file order after the rest
+    private long GetDrawKey(int pass, int sequence) =>
+        (long)pass << 32 | (!_mapInFileOrder ? (uint)(int.MaxValue - sequence)
+            : sequence >= NextSequence ? (uint)(LiveKeys - (sequence - NextSequence)) : LiveKeys + 1u + (uint)sequence);
 
     private static int GetLowerBound(long[] keys, long key)
     {
@@ -348,15 +356,15 @@ public sealed class MapScene
         int depth = HeightLight.ClearDepth;
         foreach (var (_, p) in earlier)
         {
-            var state = p.GetState(time, Left, Top);
+            var state = p.GetState(time, Origin);
             var frame = state.Frame;
-            int row = y - state.Y - (frame?.Top ?? 0);
+            int row = y - state.Corner.Y - (frame?.Top ?? 0);
             if (frame is null || frame.IsBlended || frame.IsCombined || frame.FadesByDepth || !frame.WritesDepth || (uint)row >= (uint)frame.Rows)
                 continue;
 
             for (int index = frame.RowStarts[row]; index < frame.RowStarts[row + 1]; index++)
             {
-                if (state.X + frame.Xs[index] != x || !frame.IsPaletted && frame.Colors[index].A == 0)
+                if (state.Corner.X + frame.Xs[index] != x || !frame.IsPaletted && frame.Colors[index].A == 0)
                     continue;
 
                 int d = p.GetPixelDepth(frame, state.BaseDepth, row, index);
@@ -402,7 +410,7 @@ public sealed class MapScene
 
     private void BlockAndWrite(Placement p, int? time, Span<int> depth, HeightLight light)
     {
-        var state = p.GetState(time, Left, Top);
+        var state = p.GetState(time, Origin);
         WriteDepths(p, state, depth, light.Samples);
         BlockLight(light, p, state);
     }
@@ -452,7 +460,7 @@ public sealed class MapScene
         int depth = state.BaseDepth / DepthPerHeight;
         foreach (var quad in frame.Quads)
         {
-            var screen = new Rectangle(state.X + quad.Left, state.Y + quad.Top, quad.Width, quad.Height);
+            var screen = new Rectangle(state.Corner.X + quad.Left, state.Corner.Y + quad.Top, quad.Width, quad.Height);
             if (frame.HasFarQuads)
             {
                 light.Block(screen, float.MaxValue, float.MaxValue);
@@ -474,14 +482,14 @@ public sealed class MapScene
         }
 
         bool hasDepths = frame.Depths.Length > 0;
-        int firstRow = Math.Clamp(region.Top - state.Y - frame.Top, 0, frame.Rows);
-        int lastRow = Math.Clamp(region.Bottom - state.Y - frame.Top, 0, frame.Rows);
+        int firstRow = Math.Clamp(region.Top - state.Corner.Y - frame.Top, 0, frame.Rows);
+        int lastRow = Math.Clamp(region.Bottom - state.Corner.Y - frame.Top, 0, frame.Rows);
         for (int row = firstRow; row < lastRow; row++)
         {
-            int y = state.Y + frame.Top + row - region.Top;
+            int y = state.Corner.Y + frame.Top + row - region.Top;
             for (int index = frame.RowStarts[row]; index < frame.RowStarts[row + 1]; index++)
             {
-                int x = state.X + frame.Xs[index] - region.Left;
+                int x = state.Corner.X + frame.Xs[index] - region.Left;
                 if ((uint)x >= (uint)region.Width || !frame.IsPaletted && frame.Colors[index].A == 0)
                 {
                     continue;
@@ -536,8 +544,9 @@ public sealed class MapScene
         var bounds = Rectangle.Empty;
         foreach (var frame in p.GetFrames())
         {
-            (int width, int height) = frame is null ? (p.Width, p.Height) : (frame.Width, frame.Height);
-            var frameBounds = new Rectangle((int)MathF.Round(p.ScreenX - width / 2.0f - Left), (int)MathF.Round(p.ScreenY - height / 2.0f - Top) - reach, width, height + 2 * reach);
+            var size = frame is null ? new Size(p.Width, p.Height) : new Size(frame.Width, frame.Height);
+            var corner = p.GetCorner(size, new Vector2(p.ScreenX, p.ScreenY), Origin);
+            var frameBounds = new Rectangle(corner.X, corner.Y - reach, size.Width, size.Height + 2 * reach);
             bounds = bounds.IsEmpty ? frameBounds : Rectangle.Union(bounds, frameBounds);
         }
 

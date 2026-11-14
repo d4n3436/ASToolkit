@@ -17,14 +17,14 @@ public class EffectTests
         var scenery = world.Effects.Settled;
         effects.Emit(kinds.Find(KnownObject.Monster1)!, SpriteAnimation.Close, new Vector3(100, 100, 0), new Facing(64), world.Time);
 
-        Assert.Contains(effects.GetStates(), effect => effect is { Id: KnownObject.RedBloodSpray, StartedAt: 0 });
+        Assert.Contains(effects.Active, effect => effect is { Kind.Id: KnownObject.RedBloodSpray, CreatedAt: 0 });
         var stain = Assert.Single(scenery);
         Assert.Equal(KnownObject.SmallBloodPool, stain.Id);
         while (world.Time <= 2000)
         {
             world.Step(default);
         }
-        Assert.Empty(effects.GetStates());
+        Assert.Empty(effects.Active);
         Assert.Equal(stain, Assert.Single(scenery));
     }
 
@@ -38,7 +38,7 @@ public class EffectTests
         var scenery = world.Effects.Settled;
         effects.Emit(kinds.Find(KnownObject.Monster1)!, SpriteAnimation.Death, new Vector3(100, 100, 0), default, 0);
 
-        Assert.Contains(effects.GetStates(), effect => effect.Id == KnownObject.Monster1Death);
+        Assert.Contains(effects.Active, effect => effect.Kind.Id == KnownObject.Monster1Death);
         Assert.Contains(scenery, effect => effect.Id == KnownObject.LargeBloodPool);
         Assert.Equal(8, scenery.Count(effect => effect.Id == KnownObject.SmallBloodPool));
         Assert.DoesNotContain(scenery, effect => effect.Id == KnownObject.Monster1Corpse);

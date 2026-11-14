@@ -2,21 +2,24 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Levels;
 
 namespace ASToolkit.Core.Simulation;
 
 internal sealed class ReplayRecorder
 {
-    private const int FrameInterval = 100;
-    private const int PlayerUnits = 2;
     private const float MinMove = 1e-6f;
+    private const float Tolerance = 0.25f;
+    private const int MaxLinkDepth = 4;
 
-    private readonly List<EffectState> _buffer = [];
-    private EffectState[] _lastEffects = [];
-
-    private readonly List<PlaythroughFrame> _frames = [];
-    private readonly List<EffectFrame> _effectFrames = [];
-    private readonly List<UnitFrame> _unitFrames = [];
+    private readonly List<OpenTrack> _tracks = [];
+    private readonly List<List<SpriteSample>> _trackSamples = [];
+    private readonly Dictionary<Unit, int> _open = [];
+    private readonly List<PendingSample> _captures = [];
+    private readonly HashSet<Unit> _seen = [];
+    private readonly List<ScreenInput> _inputs = [];
+    private Dictionary<Unit, Vector3> _positions = [];
+    private Dictionary<Unit, Vector3> _previousPositions = [];
     private readonly List<SpriteEvent> _createdSprites = [];
     private readonly List<SpriteEvent> _removedSprites = [];
     private readonly HashSet<MergedMapSprite> _gone = new(ReferenceEqualityComparer.Instance);
@@ -24,15 +27,12 @@ internal sealed class ReplayRecorder
     private readonly List<EffectState> _scenery = [];
     private readonly List<CameraShake> _shakes = [];
     private readonly List<ScreenFlash> _flashes = [];
-    private readonly List<UnitTrack> _tracks = [];
-    private readonly List<int> _listed = [];
     private readonly List<PlacedUnit> _placed = [];
     private int _spriteCount;
     private int _removedCount = -1;
     private int _settledCount;
     private int _flashedAt = -1;
     private int _shookAt = -1;
-    private int _frameSlot = -1;
 
     public void Start(GameWorld world)
     {
@@ -41,7 +41,7 @@ internal sealed class ReplayRecorder
         {
             var unit = world.FindPlacementUnit(sprite);
 
-            if (unit is not null)
+            if (unit is not null && !sprite.Id.IsScripted)
             {
                 _placed.Add(new PlacedUnit(sprite, unit) { Position = unit.Position });
             }
@@ -60,30 +60,157 @@ internal sealed class ReplayRecorder
             _scenery.Add(settled[_settledCount]);
         }
 
-        world.CopyVisualEffects(_buffer);
-        var effects = CollectionsMarshal.AsSpan(_buffer);
+        int time = world.Time;
+        _inputs.Add(new ScreenInput(time, world.Player.Position, world.Cursor));
 
-        if (!effects.SequenceEqual(_lastEffects))
-        {
-            _lastEffects = effects.ToArray();
-            _effectFrames.Add(new EffectFrame(world.Time, _lastEffects));
-        }
-
-        CaptureUnitFrame(world, world.Player);
-        CaptureUnitFrame(world, world.Weapons.Torso);
+        _captures.Clear();
+        _seen.Clear();
+        (_previousPositions, _positions) = (_positions, _previousPositions);
+        _positions.Clear();
+        AddUnit(world.Player);
+        AddUnit(world.Weapons.Torso);
         foreach (var monster in world.Monsters)
         {
-            CaptureUnitFrame(world, monster);
+            AddUnit(monster);
         }
 
-        MarkDeleted(world.Time);
-        CapturePlacements(world);
-
-        if (world.Time / FrameInterval != _frameSlot)
+        foreach (var effect in world.Effects.Active)
         {
-            _frameSlot = world.Time / FrameInterval;
-            CaptureFrame(world);
+            Add(effect, SpawnedObjectSystem.GetState(effect));
         }
+
+        foreach (var pickup in world.Pickups)
+        {
+            var body = pickup.Body;
+
+            if (pickup.IsDropped && body is not null)
+            {
+                Add(body, pickup.GetState(time));
+            }
+        }
+
+        foreach (var unit in world.Scripted)
+        {
+            Add(unit, SpawnedObjectSystem.GetState(unit));
+        }
+
+        // Take owners before the objects linked to them
+        for (int pass = 0; _captures.Count > 0; pass++)
+        {
+            int kept = 0;
+            for (int index = 0; index < _captures.Count; index++)
+            {
+                var capture = _captures[index];
+
+                if (pass < MaxLinkDepth && capture.Owner is not null && _seen.Contains(capture.Owner) && !_open.ContainsKey(capture.Owner))
+                {
+                    _captures[kept++] = capture;
+                    continue;
+                }
+
+                Capture(capture, time);
+            }
+
+            _captures.RemoveRange(kept, _captures.Count - kept);
+        }
+
+        CloseTracks(time);
+        CapturePlacements(world);
+    }
+
+    public PlaythroughReplay CreateReplay(IReadOnlyList<SpriteEvent> pickups)
+    {
+        var tracks = new SpriteTrack[_tracks.Count];
+        var samples = new List<SpriteSample>(_trackSamples.Sum(list => list.Count));
+        for (int index = 0; index < tracks.Length; index++)
+        {
+            var list = _trackSamples[index];
+            tracks[index] = new SpriteTrack(_tracks[index].Start, _tracks[index].End, samples.Count, list.Count, _tracks[index].Owner, _tracks[index].Lags);
+            samples.AddRange(list);
+        }
+
+        return new PlaythroughReplay(tracks, samples.ToArray(), _inputs.ToArray(), _removedSprites, _createdSprites, pickups, _placementFrames.ToArray(), _scenery,
+            _shakes.ToArray(), _flashes.ToArray());
+    }
+
+    private void AddUnit(Unit unit) =>
+        Add(unit, new EffectState(unit.Kind.Id, unit.Position, unit.Facing.Value, unit.Animation, unit.CreatedAt, unit.Frame, unit.KeyframePosition));
+
+    private void Add(Unit unit, in EffectState state)
+    {
+        var owner = unit.Owner is not null && unit.Owner.Link == unit ? unit.Owner : null;
+        bool rotates = unit.Kind.Object.Flags.HasFlag(ObjectFlags.Rotated);
+        bool lags = owner is not null && unit.Kind.Layer <= owner.Kind.Layer;
+        _captures.Add(new PendingSample(unit, state, owner, rotates, lags));
+        _seen.Add(unit);
+    }
+
+    // Keeps a sample only where the object's drawn look changes or it leaves the straight line of its last two samples
+    private void Capture(in PendingSample capture, int time)
+    {
+        var key = capture.Key;
+        var state = capture.State;
+
+        int owner = capture.Owner is not null && _seen.Contains(capture.Owner) && _open.TryGetValue(capture.Owner, out int found) ? found : -1;
+
+        if (!_open.TryGetValue(key, out int index))
+        {
+            index = -1;
+        }
+        else if (_tracks[index].Id != state.Id || _tracks[index].StartedAt != state.StartedAt || _tracks[index].Owner != owner || _tracks[index].Lags != capture.Lags)
+        {
+            Close(key, index, time);
+            index = -1;
+        }
+
+        _positions[key] = state.Position;
+        var position = owner < 0 ? state.Position : state.Position - GetOwnerPosition(capture);
+        var sample = new SpriteSample(time, state.Id, position, state.Frame, state.Facing, state.Animation, state.Keyframe);
+
+        if (index < 0)
+        {
+            index = _tracks.Count;
+            _tracks.Add(new OpenTrack { Start = time, End = int.MaxValue, Id = state.Id, StartedAt = state.StartedAt, Owner = owner, Lags = capture.Lags });
+            _trackSamples.Add([sample]);
+            _open.Add(key, index);
+        }
+        else
+        {
+            var samples = _trackSamples[index];
+            var last = samples[^1];
+            var before = samples.Count > 1 ? samples[^2] : last;
+            var predicted = SpriteSample.Predict(before, last, time);
+
+            if (sample.Frame != last.Frame || (capture.Rotates && sample.Facing != last.Facing) || sample.Animation != last.Animation ||
+                Vector3.DistanceSquared(predicted.Position, sample.Position) > Tolerance * Tolerance || Math.Abs(predicted.Keyframe - sample.Keyframe) > Tolerance)
+            {
+                samples.Add(sample);
+            }
+        }
+    }
+
+    private Vector3 GetOwnerPosition(in PendingSample capture)
+    {
+        var owner = capture.Owner!;
+
+        return capture.Lags && _previousPositions.TryGetValue(owner, out var previous) ? previous : _positions.GetValueOrDefault(owner, owner.Position);
+    }
+
+    private void CloseTracks(int time)
+    {
+        foreach ((var key, int index) in _open)
+        {
+            if (!_seen.Contains(key))
+            {
+                Close(key, index, time);
+            }
+        }
+    }
+
+    private void Close(Unit key, int index, int time)
+    {
+        CollectionsMarshal.AsSpan(_tracks)[index].End = time;
+        _open.Remove(key);
     }
 
     private void CaptureSprites(GameWorld world)
@@ -125,7 +252,6 @@ internal sealed class ReplayRecorder
         }
     }
 
-    // Records placed bodies and stand-ins whenever they stand somewhere new
     private void CapturePlacements(GameWorld world)
     {
         var placed = CollectionsMarshal.AsSpan(_placed);
@@ -140,72 +266,6 @@ internal sealed class ReplayRecorder
             _placementFrames.Add(new PlacementFrame(entry.Sprite, world.Time, entry.Position));
         }
     }
-
-    private void MarkDeleted(int time)
-    {
-        for (int index = _listed.Count - 1; index >= 0; index--)
-        {
-            int unit = _listed[index];
-
-            ref var track = ref CollectionsMarshal.AsSpan(_tracks)[unit];
-
-            if (track.SeenAt == time)
-                continue;
-
-            _unitFrames.Add(new UnitFrame(time, unit, UnitFrame.Deleted));
-            track.ShownFrame = UnitFrame.Deleted;
-            _listed[index] = _listed[^1];
-            _listed.RemoveAt(_listed.Count - 1);
-        }
-    }
-
-    private void CaptureUnitFrame(GameWorld world, Unit unit)
-    {
-        while (_tracks.Count <= unit.Number)
-        {
-            _tracks.Add(new UnitTrack { ShownFrame = UnitFrame.Deleted, SeenAt = -1 });
-        }
-
-        ref var track = ref CollectionsMarshal.AsSpan(_tracks)[unit.Number];
-
-        if (track.SeenAt < 0)
-        {
-            _listed.Add(unit.Number);
-        }
-
-        track.SeenAt = world.Time;
-
-        if (track.ShownFrame == unit.Frame)
-            return;
-
-        track.ShownFrame = unit.Frame;
-        _unitFrames.Add(new UnitFrame(world.Time, unit.Number, unit.Frame));
-    }
-
-    public void Finish(GameWorld world)
-    {
-        if (_frames.Count > 0 && _frames[^1].Time < world.Time)
-        {
-            CaptureFrame(world);
-        }
-    }
-
-    private void CaptureFrame(GameWorld world)
-    {
-        var units = new UnitState[PlayerUnits + world.Monsters.Count];
-        units[0] = world.Weapons.GetPlayerState();
-        units[1] = world.Weapons.Torso.GetState();
-        int index = PlayerUnits;
-        foreach (var monster in world.Monsters)
-        {
-            units[index++] = monster.GetState();
-        }
-
-        _frames.Add(new PlaythroughFrame(world.Time, units, _lastEffects, world.Cursor));
-    }
-
-    public PlaythroughReplay CreateReplay(IReadOnlyList<SpriteEvent> pickups) =>
-        new(_frames, _unitFrames, _effectFrames, _removedSprites, _createdSprites, pickups, _placementFrames, _scenery, _shakes, _flashes);
 
     private struct PlacedUnit
     {
@@ -222,9 +282,15 @@ internal sealed class ReplayRecorder
         public Vector3 Position { get; set; }
     }
 
-    private struct UnitTrack
+    private struct OpenTrack
     {
-        public int ShownFrame;
-        public int SeenAt;
+        public int Start;
+        public int End;
+        public KnownObject Id;
+        public int StartedAt;
+        public int Owner;
+        public bool Lags;
     }
+
+    private readonly record struct PendingSample(Unit Key, EffectState State, Unit? Owner, bool Rotates, bool Lags);
 }

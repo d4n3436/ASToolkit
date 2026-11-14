@@ -18,6 +18,11 @@ namespace ASToolkit.Core.Rendering;
 /// </summary>
 public sealed class MapRenderer
 {
+    /// <summary>
+    /// Represents the deepest chain of linked objects drawn under an object.
+    /// </summary>
+    public const int MaxAttachDepth = 4;
+    
     internal const int Margin = 4;
     private const int StripRows = 16;
     internal const int MaxStripWorkers = 8;
@@ -30,10 +35,6 @@ public sealed class MapRenderer
     private const int FadeLevels = 15;
     private const int RaisedDepth = 0x3fff;
     private const int SequelRaisedHeight = 1000;
-    /// <summary>
-    /// Represents the deepest chain of linked objects drawn under an object.
-    /// </summary>
-    public const int MaxAttachDepth = 4;
     private const uint PlayerArmy = 0;
     private const uint ArmyMask = 3;
     private const uint SequelArmyMask = 7;
@@ -159,6 +160,12 @@ public sealed class MapRenderer
         CreateScene(sprites, live, graphics, true);
 
     /// <summary>
+    /// Creates the animated scene of map sprites without the objects the engine attaches to them.
+    /// </summary>
+    public MapScene CreateSceneWithoutLinks(IReadOnlyList<MergedMapSprite> sprites, MapGraphics graphics = default) =>
+        CreateScene(sprites, [], graphics, true, false);
+
+    /// <summary>
     /// Replaces the live sprites a scene draws among its map sprites.
     /// </summary>
     public void UpdateLive(MapScene scene, IReadOnlyList<LiveSprite> live)
@@ -225,18 +232,18 @@ public sealed class MapRenderer
 
         var image = new Image<Rgb24>(ImageConfiguration, frame.Width, frame.Height, background);
         var placement = new Placement(obj.Flags, frame, frame.Width / 2f, frame.Height / 2f, frame.Width, frame.Height, 0, false, 0, null!, null);
-        var state = new PlacementState(frame, 0, 0, 0);
+        var state = new PlacementState(frame, Point.Empty, 0);
         var canvas = new Canvas([placement], [state], [], [], [], new Rectangle(0, 0, frame.Width, frame.Height), 1, frame.Width, frame.Height, null,
             (row, pixels) => pixels.CopyTo(image.DangerousGetPixelRowMemory(row).Span), background);
         canvas.DrawAll();
         return image;
     }
 
-    private MapScene CreateScene(IReadOnlyList<MergedMapSprite> sprites, IReadOnlyList<LiveSprite> live, MapGraphics graphics, bool animate)
+    private MapScene CreateScene(IReadOnlyList<MergedMapSprite> sprites, IReadOnlyList<LiveSprite> live, MapGraphics graphics, bool animate, bool links = true)
     {
         var ambient = MatchGameLighting && _objects.IsAlienShooter2 ? GetAmbient(graphics) : (PaletteTint?)null;
         var paletteTint = MatchGameLighting && !_objects.IsAlienShooter2 ? GetAmbient(graphics) : default;
-        var scene = new SceneObjects(new List<Placement>(sprites.Count + live.Count), [], [], animate, paletteTint);
+        var scene = new SceneObjects(new List<Placement>(sprites.Count + live.Count), [], [], animate, paletteTint) { Links = links };
         int undrawn = 0;
         foreach (var sprite in sprites)
         {
@@ -258,7 +265,7 @@ public sealed class MapRenderer
 
         var lights = scene.Lights.Select(light => light.CastsShadows ? light with { Shadows = GetShadows(light, scene.Casters) } : light).ToArray();
 
-        return new MapScene(scene.Placed.ToArray(), lights, ambient, undrawn, paletteTint);
+        return new MapScene(scene.Placed.ToArray(), lights, ambient, undrawn, paletteTint, !_objects.IsAlienShooter2);
     }
 
     private int PlaceLive(SceneObjects scene, LiveSprite live, PaletteTint? ambient)
@@ -292,7 +299,7 @@ public sealed class MapRenderer
         int pass = !sequel ? layer : frame is not null && frame.IsCombined ? 1 : 0;
         (int width, int height) = frame is not null ? (frame.Width, frame.Height) : file is null ? (MissingSize, MissingSize) : (file.Value.Width, file.Value.Height);
         scene.Placed.Add(new Placement(obj.Flags, frame, live.Position.X, live.Position.Y - live.Position.Z, width, height, GetBaseDepth(obj.Flags, live.Position.Z, sequel),
-            !sequel && obj.Size.Y < obj.Size.Z, pass, null, null) { Sequence = sequence });
+            !sequel && obj.Size.Y < obj.Size.Z, pass, null, null) { Sequence = sequence, Sequel = sequel });
         return file is not null && frame is null ? 1 : 0;
     }
 
@@ -466,7 +473,8 @@ public sealed class MapRenderer
         int sequence = scene.Sequence++;
         scene.Placed.Add(new Placement(obj.Flags, frame, position.X, position.Y - position.Z, width, height, GetBaseDepth(obj.Flags, position.Z, sequel), !sequel && obj.Size.Y < obj.Size.Z, pass, source, animation)
         {
-            Sequence = sequence
+            Sequence = sequence,
+            Sequel = sequel
         });
         if (addedLight)
         {
@@ -474,7 +482,7 @@ public sealed class MapRenderer
         }
 
         int undrawn = file is not null && frame is null ? 1 : 0;
-        if (obj.Link != 0 && attachDepth < MaxAttachDepth && _objects.TryFind(obj.Link, out var attached))
+        if (scene.Links && obj.Link != 0 && attachDepth < MaxAttachDepth && _objects.TryFind(obj.Link, out var attached))
         {
             var offset = obj.GetLinkOffset(attached, file, frameIndex, dir);
             undrawn += Place(scene, owner, GetPlayerPart(obj.Link), position + offset, dir, SpriteLook.Default, ambient, attachDepth + 1);
@@ -1318,7 +1326,7 @@ public sealed class MapRenderer
 
     internal readonly record struct PaletteSource(ReadOnlyMemory<byte> Bytes, PaletteTint Tint, bool TintsAlpha);
 
-    internal readonly record struct PlacementState(SpriteFrame? Frame, int X, int Y, int BaseDepth, Rgba32[]? Palette = null);
+    internal readonly record struct PlacementState(SpriteFrame? Frame, Point Corner, int BaseDepth, Rgba32[]? Palette = null);
 
     internal sealed record OmniLight(Vector3 Position, float RadiusX, float RadiusY, Vector3[] Colors, AnimationTiming Timing, bool CastsShadows,
         ShadowCard[] Shadows)
@@ -1339,6 +1347,8 @@ public sealed class MapRenderer
     internal sealed record SceneObjects(List<Placement> Placed, List<OmniLight> Lights, List<ShadowCaster> Casters, bool Animate, PaletteTint PaletteTint = default)
     {
         public int Sequence { get; set; }
+
+        public bool Links { get; init; } = true;
     }
 
     internal sealed record StripBuffers(Rgb24[] Source, int[] Depth, Rgb24[] Light, int[] Sums, Rgb24[] Row);
@@ -1349,19 +1359,19 @@ public sealed class MapRenderer
     {
         public int Sequence { get; init; }
 
+        public bool Sequel { get; init; }
+
         public float Left => ScreenX - Width / 2.0f;
 
         public float Top => ScreenY - Height / 2.0f;
 
-        public PlacementState GetState(int? time, int left, int top)
+        public PlacementState GetState(int? time, Point origin)
         {
             if (time is null || Animation is null)
-            {
-                return new PlacementState(Frame, (int)MathF.Round(Left - left), (int)MathF.Round(Top - top), BaseDepth);
-            }
+                return new PlacementState(Frame, GetCorner(new Size(Width, Height), new Vector2(ScreenX, ScreenY), origin), BaseDepth);
 
             var frame = Animation.Frames[Animation.Timing.GetIndex(time.Value)];
-            (int width, int height) = frame is null ? (Width, Height) : (frame.Width, frame.Height);
+            var size = frame is null ? new Size(Width, Height) : new Size(frame.Width, frame.Height);
             float screenY = ScreenY;
             int baseDepth = BaseDepth;
             int lift = 0;
@@ -1381,8 +1391,17 @@ public sealed class MapRenderer
                 }
             }
 
-            return new PlacementState(frame, (int)MathF.Round(ScreenX - width / 2.0f - left), (int)MathF.Round(screenY - height / 2.0f - top) - lift, baseDepth);
+            var corner = GetCorner(size, new Vector2(ScreenX, screenY), origin);
+
+            return new PlacementState(frame, new Point(corner.X, corner.Y - lift), baseDepth);
         }
+
+        // Truncates the position and halves the size in integers for Alien Shooter, and rounds for the sequel
+        [EngineRoutine(0x00417780)]
+        [EngineRoutine(0x00416860)]
+        public Point GetCorner(Size size, Vector2 screen, Point origin) => Sequel
+            ? new Point((int)MathF.Round(screen.X - size.Width / 2.0f - origin.X), (int)MathF.Round(screen.Y - size.Height / 2.0f - origin.Y))
+            : new Point((int)screen.X - size.Width / 2 - origin.X, (int)screen.Y - size.Height / 2 - origin.Y);
 
         public int GetAnimationKey(int time) =>
             Animation is null ? 0 : Animation.Timing.GetIndex(time) << 8 | (Animation.Bob == 0 ? 0 : (time >> 3) & 255);
@@ -1524,7 +1543,7 @@ public sealed class MapRenderer
                     }
 
                     var frame = _states[index].Frame!;
-                    int top = _states[index].Y + frame.Top;
+                    int top = _states[index].Corner.Y + frame.Top;
                     if (top < y1 && top + frame.Rows > y0)
                     {
                         Draw(started && lighting ? light : source, p, _states[index], y0, y1, depth);
@@ -1563,8 +1582,8 @@ public sealed class MapRenderer
                 return;
             }
 
-            int x = _states[index].X;
-            int top = _states[index].Y + frame.Top;
+            int x = _states[index].Corner.X;
+            int top = _states[index].Corner.Y + frame.Top;
             if (x >= _left + _width || x + frame.Width <= _left)
             {
                 return;
@@ -1634,12 +1653,12 @@ public sealed class MapRenderer
             bool standing = p.IsStanding;
             (short[] xs, byte[] indices, ushort[] depths, var colors) = (frame.Xs, frame.Indices, frame.Depths, state.Palette ?? frame.Colors);
             bool hasDepths = depths.Length > 0;
-            int firstRow = Math.Clamp(y0 - state.Y - frame.Top, 0, frame.Rows);
-            int lastRow = Math.Clamp(y1 - state.Y - frame.Top, 0, frame.Rows);
-            int left = state.X - _left;
+            int firstRow = Math.Clamp(y0 - state.Corner.Y - frame.Top, 0, frame.Rows);
+            int lastRow = Math.Clamp(y1 - state.Corner.Y - frame.Top, 0, frame.Rows);
+            int left = state.Corner.X - _left;
             for (int row = firstRow; row < lastRow; row++)
             {
-                int y = state.Y + frame.Top + row;
+                int y = state.Corner.Y + frame.Top + row;
                 int depthRow = (y - y0) * _width;
                 var pixels = target.AsSpan(depthRow, _width);
                 int rowDepth = standing ? flat + (frame.Rows - row) * 8 : flat;

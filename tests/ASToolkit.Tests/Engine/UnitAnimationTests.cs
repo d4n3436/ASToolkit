@@ -66,12 +66,12 @@ public class UnitAnimationTests
         world.Step(default);
         world.Step(default);
         Assert.Contains(enemy, world.Monsters);
-        Assert.DoesNotContain(world.Effects.GetStates(), effect => effect.Id == (KnownObject)51);
+        Assert.DoesNotContain(world.Effects.Active, effect => effect.Kind.Id == KnownObject.Monster1Death);
 
         world.Step(default);
 
         Assert.DoesNotContain(enemy, world.Monsters);
-        Assert.Contains(world.Effects.GetStates(), effect => effect.Id == (KnownObject)51);
+        Assert.Contains(world.Effects.Active, effect => effect.Kind.Id == KnownObject.Monster1Death);
     }
 
     private static void AssertFrames(Unit unit, int first, int frame, int last)

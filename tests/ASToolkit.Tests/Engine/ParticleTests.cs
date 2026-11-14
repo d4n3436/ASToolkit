@@ -24,7 +24,7 @@ public class ParticleTests
             world.Step(default);
         }
 
-        Assert.DoesNotContain(effects.GetStates(), particle => particle.Id == flying);
+        Assert.DoesNotContain(effects.Active, particle => particle.Kind.Id == flying);
         var settled = Assert.Single(scenery, particle => particle.Id == resting);
         Assert.True(settled.StartedAt > 0);
         Assert.True(settled.Position.Z >= 0);

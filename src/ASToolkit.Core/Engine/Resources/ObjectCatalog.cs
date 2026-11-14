@@ -9,6 +9,8 @@ internal sealed class ObjectCatalog
 {
     public const int MaxLaunchDepth = 3;
 
+    private const int DefaultSpriteSpeed = 71;
+
     private readonly ObjectTable _objects;
     private readonly ObjectDefinition?[] _kinds;
     private readonly ConcurrentDictionary<(KnownObject Id, int Frame), FrameMask?> _masks = new();
@@ -27,7 +29,7 @@ internal sealed class ObjectCatalog
 
             objects.TryGetWeapon(obj, out var weapon);
             var file = Parts.GetFile(objects.GetPath(id));
-            _kinds[(int)id] = new ObjectDefinition(id, obj, weapon, file?.Speed ?? 0, file?.FrameCount ?? 0,
+            _kinds[(int)id] = new ObjectDefinition(id, obj, weapon, file?.Speed ?? DefaultSpriteSpeed, file?.FrameCount ?? 0,
                 (int)GetLayer(id, obj, file));
 
             if (obj.Flags.HasFlag(ObjectFlags.Hittable))

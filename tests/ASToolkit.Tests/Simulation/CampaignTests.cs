@@ -31,7 +31,7 @@ public class CampaignTests
         Assert.Equal(210, result.State.Money);
         Assert.Equal(carried.Items, result.State.Loadout.Items);
         Assert.Null(result.Levels[0].Replay);
-        Assert.NotEmpty(result.Levels[1].Replay!.Frames);
+        Assert.NotEmpty(result.Levels[1].Replay!.Inputs);
     }
 
     [Fact]

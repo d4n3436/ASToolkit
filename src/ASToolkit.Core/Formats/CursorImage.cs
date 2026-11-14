@@ -69,47 +69,38 @@ public readonly struct CursorImage
     public bool IsValid => !_colors.IsEmpty;
 
     /// <summary>
-    /// Gets the width of the cursor in pixels.
+    /// Gets the size of the cursor in pixels.
     /// </summary>
-    public int Width => _bitmap.Width;
+    public Size Size => new(_bitmap.Width, _bitmap.Height / 2);
 
     /// <summary>
-    /// Gets the height of the cursor in pixels.
+    /// Gets the pixel of the cursor's hot spot, counted from its top left corner.
     /// </summary>
-    public int Height => _bitmap.Height / 2;
-
-    /// <summary>
-    /// Gets the column of the cursor's hot spot.
-    /// </summary>
-    public int HotspotX => _entry.HotspotX;
-
-    /// <summary>
-    /// Gets the row of the cursor's hot spot.
-    /// </summary>
-    public int HotspotY => _entry.HotspotY;
+    public Point Hotspot => new(_entry.HotspotX, _entry.HotspotY);
 
     /// <summary>
     /// Gets whether the pixel counted from the top left corner is drawn, and its color.
     /// </summary>
-    public bool TryGetPixel(int column, int row, out Color color)
+    public bool TryGetPixel(Point pixel, out Color color)
     {
         color = default;
+        var size = Size;
 
-        if ((uint)column >= (uint)Width || (uint)row >= (uint)Height)
+        if ((uint)pixel.X >= (uint)size.Width || (uint)pixel.Y >= (uint)size.Height)
             return false;
 
         int bytes = _bitmap.BitCount / BitsPerByte;
-        int source = Height - 1 - row;
+        int source = size.Height - 1 - pixel.Y;
 
-        if ((_mask.Span[source * _maskStride + column / BitsPerByte] & (HighBit >> (column % BitsPerByte))) != 0)
+        if ((_mask.Span[source * _maskStride + pixel.X / BitsPerByte] & (HighBit >> (pixel.X % BitsPerByte))) != 0)
             return false;
 
-        var pixel = _colors.Span[(source * _colorStride + column * bytes)..];
+        var bgr = _colors.Span[(source * _colorStride + pixel.X * bytes)..];
 
-        if (bytes == AlphaBytes && pixel[3] == 0)
+        if (bytes == AlphaBytes && bgr[3] == 0)
             return false;
 
-        color = Color.FromArgb(pixel[2], pixel[1], pixel[0]);
+        color = Color.FromArgb(bgr[2], bgr[1], bgr[0]);
 
         return true;
     }

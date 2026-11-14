@@ -117,15 +117,23 @@ internal sealed partial class GameWorld
 
     private void AddStatic(MergedMapSprite sprite, ObjectDefinition kind)
     {
-        if (!UnitGrid.IsHashed(kind) || kind.Object.SpriteClass is SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Player or SpriteClass.Cannon)
+        bool hashed = UnitGrid.IsHashed(kind);
+
+        if ((!hashed && kind.Object.Link == 0) || kind.Object.SpriteClass is SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Player or SpriteClass.Cannon)
             return;
 
         var stand = new Unit(-1, kind, sprite.Position, unchecked((int)sprite.Army), 0) { Placement = sprite, Facing = new Facing(sprite.Facing) };
         _statics[sprite] = stand;
-        Units.Add(stand);
+
+        if (hashed)
+        {
+            Units.Add(stand);
+        }
+
+        AttachLink(stand);
     }
 
-    private void AddScripted(ObjectDefinition kind, Vector3 position, Facing facing, int? army = null, MergedMapSprite? placement = null)
+    private Unit AddScripted(ObjectDefinition kind, Vector3 position, Facing facing, int? army = null, MergedMapSprite? placement = null)
     {
         var unit = new Unit(-1, kind, position, army ?? Kinds.GetArmy(kind), 0) { Placement = placement, CreatedAt = Time };
         unit.Start(kind.InitialAnimation, facing, Time, _rng);
@@ -137,16 +145,21 @@ internal sealed partial class GameWorld
         {
             _sites.Add(unit);
         }
+
+        AttachLink(unit);
+
+        return unit;
     }
 
     private bool TickScripted(Unit unit)
     {
-        if (TickUnit(unit))
+        if ((unit.Owner is null || unit.Owner.Link == unit) && TickUnit(unit))
             return true;
 
         _scripted.Remove(unit);
         _sites.Remove(unit);
         Units.Remove(unit);
+        Effects.Detach(unit);
 
         if (unit.Placement is not null)
         {
@@ -275,6 +288,7 @@ internal sealed partial class GameWorld
                 var body = new Unit(_unitCount++, kind, sprite.Position, 0, kind.MaxHp) { Placement = sprite };
                 Units.Add(body);
                 _bodies.Add(sprite, body);
+                AttachLink(body);
                 placed[index] = sprite;
             }
             else if (count <= rule.Max && sprite is not null)
@@ -658,6 +672,7 @@ internal sealed partial class GameWorld
         {
             body.Hp = 0;
             Units.Remove(body);
+            Effects.Detach(body);
         }
 
         for (int index = _scripted.Count - 1; index >= 0; index--)
@@ -669,6 +684,7 @@ internal sealed partial class GameWorld
                 _updates.Remove(unit.Kind.Layer, unit);
                 _scripted.RemoveAt(index);
                 Units.Remove(unit);
+                Effects.Detach(unit);
             }
         }
 

@@ -41,8 +41,6 @@ internal sealed class WeaponSystem
 
     public bool CanFire => !Torso.IsReloading;
 
-    public UnitState GetPlayerState() => _world.Player.GetState() with { Weapon = Torso.Kind.Id };
-
     private Unit CreateTorso(ObjectDefinition kind, int timer)
     {
         var torso = new Unit(_world.AllocateNumber(), kind, GetTorsoPosition(kind), 0, 0) { Facing = _world.Player.Facing, Timer = timer };

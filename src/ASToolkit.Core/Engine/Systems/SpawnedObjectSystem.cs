@@ -1,6 +1,7 @@
 using System.Numerics;
 using Microsoft.Extensions.ObjectPool;
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Levels;
 
 namespace ASToolkit.Core.Engine;
 
@@ -46,30 +47,11 @@ internal sealed class SpawnedObjectSystem
 
     public IReadOnlyList<Unit> Active => _active;
 
-    public void AddStates(List<EffectState> states)
-    {
-        foreach (var unit in _active)
-        {
-            if (!IsLink(unit))
-            {
-                states.Add(GetState(unit));
-            }
-        }
-    }
-
     public IReadOnlyList<EffectState> Settled => _settled;
-
-    public EffectState[] GetStates() => _active.Where(unit => !IsLink(unit)).Select(GetState).ToArray();
 
     private static bool IsLink(Unit unit) => unit.Owner is not null && unit.Owner.Link == unit;
 
     [EngineRoutine(0x00445770)]
-    public void Attach(Unit owner, ObjectDefinition kind, int time)
-    {
-        var position = owner.Position + owner.Kind.Object.GetLinkOffset(kind.Object, null, 0, owner.Facing.Value);
-        owner.Link = Create(kind, position, owner.Facing, time, 0, owner, owner);
-    }
-
     public void Detach(Unit owner)
     {
         var link = owner.Link;
@@ -182,7 +164,7 @@ internal sealed class SpawnedObjectSystem
             ConstructCannon(unit, parent);
         }
 
-        CreateLink(unit, time, depth);
+        AttachLink(unit, time, depth + 1);
         _world.RunCreationHook(unit);
 
         if (IsSettled(unit))
@@ -201,14 +183,22 @@ internal sealed class SpawnedObjectSystem
     }
 
     [EngineRoutine(0x00445770)]
-    private void CreateLink(Unit unit, int time, int depth)
+    [EngineRoutine(0x00447130)]
+    public void AttachLink(Unit owner, int time, int depth)
     {
-        ref readonly var obj = ref unit.Kind.Object;
-        var link = obj.Link == 0 || depth >= ObjectCatalog.MaxLaunchDepth ? null : _kinds.Find(obj.Link);
+        ref readonly var obj = ref owner.Kind.Object;
+        var kind = obj.Link == 0 || depth > ObjectCatalog.MaxLaunchDepth ? null : _kinds.Find(obj.Link);
 
-        if (link is not null)
+        if (kind is null || owner.Link?.Kind == kind)
+            return;
+
+        if (kind.Id.IsScripted || kind.Object.WeaponIndex != 0 || kind.Object.SpriteClass == SpriteClass.Creature)
         {
-            unit.Link = Create(link, unit.Position + obj.GetLinkOffset(link.Object, null, 0, unit.Facing.Value), unit.Facing, time, depth + 1, unit, unit);
+            _world.AttachObjectLink(owner, kind);
+        }
+        else
+        {
+            owner.Link = Create(kind, owner.Position + obj.GetLinkOffset(kind.Object, null, 0, owner.Facing.Value), owner.Facing, time, depth, owner, owner);
         }
     }
 
@@ -296,6 +286,8 @@ internal sealed class SpawnedObjectSystem
         {
             unit.Owner!.Link = null;
         }
+
+        unit.Link = null;
 
         if (unit.Kind.Object.Link != 0)
         {

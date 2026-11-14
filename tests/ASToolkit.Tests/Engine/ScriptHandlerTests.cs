@@ -46,7 +46,7 @@ public class ScriptHandlerTests
 
         int started = replay.Shakes[0].Time;
         Step(world, 2600 / world.FrameTime, recorder);
-        Assert.InRange(replay.Shakes[^1].Time - started, 2400, 2600);
+        Assert.InRange(recorder.CreateReplay([]).Shakes[^1].Time - started, 2400, 2600);
     }
 
     [Fact]

@@ -265,7 +265,7 @@ Health below half selects `ANI_WOUND`. Fatal hits select `ANI_DEATH2` when their
 
 In Alien Shooter the player's legs take a damage message by their own rule. No damage lands while the invulnerability object (203) or object 181 is linked to the player. Each armor object (200 to 202) in the link chain takes `(share × damage + 50) / 100` of it, and the player's damage drops by `share × damage / 100`, truncated, with shares of 50, 70 and 90 percent. Damage that would kill the player while carrying the rescue kit (item 230) removes the item, restores full health and creates its effect (181) instead. The player inside the mounted cannon (350) takes damage without armor.
 
-Linked objects (`VID_LINK`) are created together with their owner and follow it, and can have linked objects of their own. Each sits at the position of the owner plus an offset:
+Linked objects (`VID_LINK`) are created together with their owner and follow it, and can have linked objects of their own. In Alien Shooter every new object builds its linked object, whatever the class of either, unless it already holds a linked object of that definition or the definition carries `VID_NOT_CREATE_AS_CHILD`. Only the graphics detail setting of the menu script turns that on, for lists of effects. The linked object takes the army of its owner and is an object of its own class. A teleport pad (450) builds 452 and 452 builds the endless generator 800. The yellow and red tank aliens build their turret 905 (weapon 24) through 332 and 333, and the turret aims and fires on its own. Each linked object sits at the position of the owner plus an offset:
 
 - When the sprite of the owner has the flag 0x200, the offset is the vector of the frame the owner shows (Alien Shooter 2).
 - Otherwise it is the offset in the record of the owner, with the sign of y flipped.
@@ -644,7 +644,7 @@ HEAD
           ms per frame, VID_FRAME_SPEED
 ```
 
-Most Alien Shooter 1 sprites have a ten-byte record. The other Alien Shooter 1 records are 18 and 22 bytes, and the Alien Shooter 2 ones are 10, 14, 22, 34 and 426 bytes.
+Most Alien Shooter 1 sprites have a ten-byte record. An Alien Shooter object whose picture is a `.bmp` file has no header and keeps the speed the sprite object starts with, 71 ms per frame. The other Alien Shooter 1 records are 18 and 22 bytes, and the Alien Shooter 2 ones are 10, 14, 22, 34 and 426 bytes.
 
 The Alien Shooter 1 loader of software sprites reads only the first ten bytes. The Alien Shooter 2 loader reads `format` and `mode` and, when the record goes on, `blend`. It loads no frames when `format` is zero.
 
@@ -918,7 +918,22 @@ Both engines test every sprite against a depth buffer in which a larger value is
                   standing sprites add 8 per row up from the bottom (Alien Shooter)
 ```
 
-A pixel is written where the buffer is at or below its depth (strictly below for sprites with depth data). Sprites with the flag 0x02 blend with the alpha byte of the palette and do not write depth, so the order of the draw matters for them.
+A pixel is written where the buffer is at or below its depth (strictly below for sprites with depth data). Sprites with the flag 0x02 blend with the alpha byte of the palette and do not write depth, so the order of the draw matters for them. Alien Shooter truncates the position and the camera separately for sprites and halves the width and height in integers, while surfaces truncate `x - cameraX` and `y - z - cameraY` as a whole; the camera stays on whole pixels during play, and both place a picture alike.
+
+Within a layer the map's own sprites come out in the order of the map file. Of two at one depth, the later in the file covers the earlier.
+
+### Camera
+
+The script picks the scrolling with `SetScrollType`. The start script of `COMMON.LGC` takes `SCROLL_TO_FLAGMAN_WITH_DIRECTION` (8) on screens narrower than 1,440 pixels and `SCROLL_FLAGMAN_IN_CENTER` (16) on wider ones. The camera is the map point at the top left of the screen. A map starts it at the camera of its header, and every move clamps it to `0 ... mapWidth - screenWidth` and `0 ... mapHeight - screenHeight`, the far edges winning on maps smaller than the screen. With scroll type 8, each frame of `ms` milliseconds moves it by whole pixels toward the point halfway between the player and the mouse. The mouse counts no farther than 640 pixels in from the left and right edges of the screen and 480 from the top and bottom:
+
+```
+ leadX = clamp(mouseX, screenWidth - 640, 640)          mouse in screen pixels
+ leadY = clamp(mouseY, screenHeight - 480, 480)
+ cameraX += trunc(ms * (screenWidth / 2 - (playerX - cameraX + leadX) / 2) * -0.004)
+ cameraY += trunc(ms * (screenHeight / 2 - (playerY - playerZ - cameraY + leadY) / 2) * -0.004)
+```
+
+Scroll type 4 moves it by `ms * 0.001` times the player's offset from the middle of the screen, and 16 puts the player in the middle.
 
 The shader file `Vid/Pseudo3Dnew.fx` shows how the Direct3D engine places a sprite. A world point (x, y, z) lands on the texture at `(x, y * 0.70706 - z)`, and the view matrix keeps the height as the depth, so the depth at one screen pixel grows with the absolute height of what is drawn there. A frame without a mesh is a flat quad at the height of the object, which is why Alien Shooter 2 has no standing rule. The engine also builds a G-buffer with a normal per pixel and adds point, spot and sun lights to it in the pixel shaders.
 
@@ -1017,6 +1032,9 @@ Alien Shooter (GOG):
 
 - `FUN_00411b50` - loads the object table from `objects.res`
 - `FUN_00413c30` - reads one object record
+- `FUN_00413710` - creates a sprite object with its default header
+- `FUN_0040bed0` - scrolls the camera each frame
+- `FUN_0040bc20` - moves the camera and clamps it to the map
 - `FUN_0040fc40` - finds a placed object by `spriteType` mask, id, `spriteClass`, army and state
 - `FUN_0043f200` - creates a placed object, applying the spawn flags
 - `FUN_00442ad0` - sets the army of an object and hides it when the flag 0x20000 asks for it

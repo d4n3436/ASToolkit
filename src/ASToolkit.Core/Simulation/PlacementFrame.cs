@@ -10,4 +10,4 @@ namespace ASToolkit.Core.Simulation;
 /// <param name="Placement">The placement of the door or pushed object.</param>
 /// <param name="Time">The time in milliseconds.</param>
 /// <param name="Position">The map position of the placement.</param>
-public sealed record PlacementFrame(MergedMapSprite Placement, int Time, Vector3 Position);
+public sealed record PlacementFrame(MergedMapSprite Placement, int Time, Vector3 Position) : ITimed;

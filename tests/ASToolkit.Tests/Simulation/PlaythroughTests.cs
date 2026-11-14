@@ -103,14 +103,15 @@ public class PlaythroughTests
         var first = playthrough.Run(level.Analysis, loadout, 1, true);
         var second = playthrough.Run(level.Analysis, loadout, 1, true);
 
-        Assert.True(first.Survived, $"Progress {first.Progress:P1}, time {first.Time} ms, kills {first.Kills}, minimum health {first.MinHealth}, last player {first.Replay!.Frames.LastOrDefault()?.Units[0]}");
+        Assert.True(first.Survived, $"Progress {first.Progress:P1}, time {first.Time} ms, kills {first.Kills}, minimum health {first.MinHealth}");
         Assert.Equal(level.Analysis.Elements.Count(element => element.Kind == ElementKind.Monster), first.Kills);
         Assert.Equal(first.Time, second.Time);
-        Assert.Equal(first.Replay!.EffectFrames.Count, second.Replay!.EffectFrames.Count);
-        Assert.NotEmpty(first.Replay!.Frames);
+        Assert.Equal(first.Replay!.Tracks, second.Replay!.Tracks);
+        Assert.Equal(first.Replay!.Samples, second.Replay!.Samples);
+        Assert.NotEmpty(first.Replay!.Inputs);
         Assert.NotEmpty(first.Replay!.Scenery);
-        Assert.Contains(first.Replay!.EffectFrames, frame => frame.Effects.Any(effect => effect.Id == KnownObject.PistolMuzzleFlash));
-        Assert.Contains(first.Replay!.EffectFrames, frame => frame.Effects.Any(effect => effect.Id == KnownObject.FlyingCasing));
+        Assert.Contains(first.Replay!.Samples, sample => sample.Id == KnownObject.PistolMuzzleFlash);
+        Assert.Contains(first.Replay!.Samples, sample => sample.Id == KnownObject.FlyingCasing);
         Assert.Contains(first.Replay!.Scenery, effect => effect.Id == KnownObject.LyingCasing);
         Assert.NotEmpty(first.Replay!.PickupEvents);
         Assert.Equal(first.Replay!.PickupEvents, second.Replay!.PickupEvents);
@@ -130,25 +131,36 @@ public class PlaythroughTests
 
         int removal = 0;
         var couldStand = new Dictionary<int, bool>();
-        foreach (var frame in first.Replay!.Frames)
+        foreach (int time in first.Replay!.Inputs.Select(input => input.Time).DistinctBy(time => time / 100))
         {
-            while (removal < first.Replay!.RemovedSprites.Count && first.Replay!.RemovedSprites[removal].Time <= frame.Time)
+            while (removal < first.Replay!.RemovedSprites.Count && first.Replay!.RemovedSprites[removal].Time <= time)
             {
                 var removed = first.Replay!.RemovedSprites[removal++].Placement;
                 movement.Remove(removed);
                 terrain.Remove(removed);
             }
 
-            bool doorsLocked = (first.Script.DoorsInitiallyLocked || frame.Time >= first.Script.BlackoutAt) &&
-                (first.Script.DoorsOpenedAt is null || frame.Time < first.Script.DoorsOpenedAt);
-            movement.SetGates(doorsLocked, first.Script.FencesDownAt is null || frame.Time < first.Script.FencesDownAt);
-            foreach (var unit in frame.Units.Where(unit => unit.DiedAt < 0))
+            bool doorsLocked = (first.Script.DoorsInitiallyLocked || time >= first.Script.BlackoutAt) &&
+                (first.Script.DoorsOpenedAt is null || time < first.Script.DoorsOpenedAt);
+            movement.SetGates(doorsLocked, first.Script.FencesDownAt is null || time < first.Script.FencesDownAt);
+            for (int track = 0; track < first.Replay!.Tracks.Length; track++)
             {
+                var entry = first.Replay!.Tracks[track];
+
+                if (entry.Start > time || entry.End <= time)
+                    continue;
+
+                var samples = first.Replay!.Samples.Skip(entry.FirstSample).Take(entry.SampleCount).ToArray();
+                var unit = samples[Array.FindLastIndex(samples, sample => sample.Time <= time)];
                 Assert.True(objects.TryFind(unit.Id, out var obj));
+
+                if (entry.Owner >= 0 || obj.SpriteClass is not (SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Player) || unit.Animation >= SpriteAnimation.Death)
+                    continue;
+
                 bool stands = movement.CanStand(obj, unit.Position);
-                Assert.True(stands || unit.Animation != SpriteAnimation.Go || !couldStand.GetValueOrDefault(unit.Unit, true),
-                    $"{unit.Id} walked into terrain or a static obstacle at {unit.Position}, height {unit.Position.Z}, time {frame.Time}");
-                couldStand[unit.Unit] = stands;
+                Assert.True(stands || unit.Animation != SpriteAnimation.Go || !couldStand.GetValueOrDefault(track, true),
+                    $"{unit.Id} walked into terrain or a static obstacle at {unit.Position}, height {unit.Position.Z}, time {time}");
+                couldStand[track] = stands;
             }
         }
     }

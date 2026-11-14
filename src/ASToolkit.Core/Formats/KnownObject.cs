@@ -371,6 +371,15 @@ public enum KnownObject
     /// <summary>The magma minigun ammo pickup.</summary>
     MagmaMinigunAmmo = 309,
 
+    /// <summary>The second weapon of the yellow tank alien, carrying its turret.</summary>
+    Monster4Weapon2 = 332,
+
+    /// <summary>The third weapon of the red tank alien, carrying its turret.</summary>
+    Monster4Weapon3 = 333,
+
+    /// <summary>The first weapon of the tank alien.</summary>
+    Monster4Weapon1 = 334,
+
     /// <summary>The mounted cannon with the player in it.</summary>
     MannedCannon = 350,
 
@@ -799,6 +808,9 @@ public enum KnownObject
 
     /// <summary>The damage object of a flamethrower attack.</summary>
     FlamethrowerAttack = 904,
+
+    /// <summary>The machine-gun turret of the yellow and red tank aliens.</summary>
+    MonsterMachineGunDummy = 905,
 
     /// <summary>The scripted monster spawner.</summary>
     Spawner = 908,

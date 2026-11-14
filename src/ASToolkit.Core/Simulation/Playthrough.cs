@@ -52,7 +52,6 @@ public sealed class Playthrough
         var recorder = record ? new ReplayRecorder() : null;
         var session = Start(analysis, loadout, seed, recorder);
         session.Play(recorder);
-        recorder?.Finish(session.World);
 
         return CreateResult(session, loadout, recorder);
     }

@@ -163,14 +163,14 @@ public class WorldTests
             recorded.Step(new PlayerCommand(null, PlayerCommand.GetCursor(firstEnemy.Position), firstEnemy.IsAlive, PlayerInventory.Pistols));
             unrecorded.Step(new PlayerCommand(null, PlayerCommand.GetCursor(secondEnemy.Position), secondEnemy.IsAlive, PlayerInventory.Pistols));
             recorder.Capture(recorded);
-            Assert.Equal(recorded.Weapons.GetPlayerState(), unrecorded.Weapons.GetPlayerState());
-            Assert.Equal(firstEnemy.GetState(), secondEnemy.GetState());
+            Assert.Equal((recorded.Player.Position, recorded.Player.Frame, recorded.Weapons.Torso.Frame), (unrecorded.Player.Position, unrecorded.Player.Frame, unrecorded.Weapons.Torso.Frame));
+            Assert.Equal((firstEnemy.Position, firstEnemy.Frame, firstEnemy.Hp), (secondEnemy.Position, secondEnemy.Frame, secondEnemy.Hp));
             Assert.Equal(recorded.Player.Hp, unrecorded.Player.Hp);
         }
 
         var replay = recorder.CreateReplay([]);
-        Assert.NotEmpty(replay.EffectFrames);
-        Assert.NotEmpty(replay.Frames);
+        Assert.NotEmpty(replay.Tracks);
+        Assert.NotEmpty(replay.Inputs);
         Assert.Equal(recorded.Inventory.GetRemainingAmmo(), unrecorded.Inventory.GetRemainingAmmo());
     }
 

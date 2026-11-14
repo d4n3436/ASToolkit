@@ -28,8 +28,7 @@ public partial class ReplayView : UserControl
         }
 
         double scaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1;
-        vm.ViewportWidth = Math.Max(1, (int)(e.NewSize.Width * scaling));
-        vm.ViewportHeight = Math.Max(1, (int)(e.NewSize.Height * scaling));
+        vm.Viewport = new System.Drawing.Size(Math.Max(1, (int)(e.NewSize.Width * scaling)), Math.Max(1, (int)(e.NewSize.Height * scaling)));
     }
 
     private void OnWheelChanged(object? sender, PointerWheelEventArgs e)

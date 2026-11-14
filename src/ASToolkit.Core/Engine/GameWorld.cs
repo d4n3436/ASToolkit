@@ -113,6 +113,7 @@ internal sealed partial class GameWorld
                     Units.Add(body);
                     _bodies.Add(sprite, body);
                     placedUnits[sprite.Handle] = body;
+                    AttachLink(body);
                 }
 
                 continue;
@@ -193,28 +194,6 @@ internal sealed partial class GameWorld
     public PlayerInventory Inventory { get; }
 
     public WeaponSystem Weapons { get; }
-
-    public void CopyVisualEffects(List<EffectState> states)
-    {
-        states.Clear();
-        Effects.AddStates(states);
-        
-        foreach (var pickup in _pickups)
-        {
-            if (pickup.IsDropped)
-            {
-                states.Add(pickup.GetState(Time));
-            }
-        }
-
-        foreach (var unit in _scripted)
-        {
-            if (!unit.Kind.Id.IsDoor)
-            {
-                states.Add(SpawnedObjectSystem.GetState(unit));
-            }
-        }
-    }
 
     public Unit Player { get; }
 
@@ -443,7 +422,7 @@ internal sealed partial class GameWorld
 
         if (owner is not null)
         {
-            if (owner.Link != unit || !_monsterSet.Contains(owner))
+            if (owner.Link != unit || (owner.Number >= 0 && !_monsterSet.Contains(owner)))
             {
                 RemoveMonster(unit);
                 Delete(unit);
@@ -479,7 +458,7 @@ internal sealed partial class GameWorld
         UnitKinematics.ForgetObject(Weapons.Torso, removed);
         Effects.Forget(removed);
 
-        if (removed.Link?.Owner == removed && removed.Link.Number < 0)
+        if (removed.Link?.Owner == removed)
         {
             Effects.Detach(removed);
         }
@@ -859,10 +838,7 @@ internal sealed partial class GameWorld
 
     private void CompleteDeath(Unit unit, SpriteAnimation animation)
     {
-        if (unit.Placement is null)
-        {
-        }
-        else
+        if (unit.Placement is not null)
         {
             RemovePlacement(unit.Placement);
             AddToMonsters(unit);
@@ -888,6 +864,7 @@ internal sealed partial class GameWorld
                 float height = unit.Position.Z + (unit.Kind.Id == KnownObject.Bat ? BatItemHeight : DroppedItemHeight);
                 var body = new Unit(-1, kind, unit.Position with { Z = height }, 0, 0);
                 body.Start(kind.InitialAnimation, facing, Time, _rng);
+                AttachLink(body);
                 int expires = Time + DroppedItemLifetime + _rng.Next(DroppedItemLifetimeVariation + 1);
                 _pickups.Add(new WorldPickup(kind, body.Position, null, Time, expires, facing, body));
             }
@@ -903,6 +880,7 @@ internal sealed partial class GameWorld
         if (_statics.Remove(placement, out var stand))
         {
             Units.Remove(stand);
+            Effects.Detach(stand);
         }
 
         Movement.Remove(placement);
@@ -919,6 +897,7 @@ internal sealed partial class GameWorld
             if (Time >= pickup.ExpiresAt)
             {
                 _pickups.RemoveAt(index);
+                ReleasePickup(pickup);
                 continue;
             }
 
@@ -930,10 +909,7 @@ internal sealed partial class GameWorld
             if (pickup.Position.AsVector2().MeasureDistance(Player.Position.AsVector2()) < GetPickupReach(pickup.Id) && TryTakePickup(pickup))
             {
                 _pickups.RemoveAt(index);
-
-                if (pickup.Placement is not null)
-                {
-                }
+                ReleasePickup(pickup);
 
                 if (pickup.Id == KnownObject.Invulnerability)
                 {
@@ -948,6 +924,16 @@ internal sealed partial class GameWorld
                     Effects.Spawn(KnownObject.HealingEffect, Player.Position + Vector3.UnitZ * HealingEffectHeight, Player.Facing, Time);
                 }
             }
+        }
+    }
+
+    private void ReleasePickup(WorldPickup pickup)
+    {
+        var owner = pickup.Body ?? (pickup.Placement is null ? null : _statics.GetValueOrDefault(pickup.Placement));
+
+        if (owner is not null)
+        {
+            Effects.Detach(owner);
         }
     }
 
@@ -995,18 +981,15 @@ internal sealed partial class GameWorld
         return unit;
     }
 
-    [EngineRoutine(0x00445770)]
-    [EngineRoutine(0x00447130)]
-    private void AttachLink(Unit unit)
+    private void AttachLink(Unit unit) => Effects.AttachLink(unit, Time, 0);
+
+    public void AttachObjectLink(Unit unit, ObjectDefinition kind)
     {
-        var kind = unit.Kind.Object.Link == 0 ? null : Kinds.Find(unit.Kind.Object.Link);
-
-        if (kind is null)
-            return;
-
-        if (kind.Object.WeaponIndex == 0 && kind.Object.SpriteClass != SpriteClass.Creature)
+        if (kind.Id.IsScripted)
         {
-            Effects.Attach(unit, kind, Time);
+            var scripted = AddScripted(kind, GetLinkPosition(unit, kind), unit.Facing, unit.Army);
+            scripted.Owner = unit;
+            unit.Link = scripted;
 
             return;
         }
@@ -1027,6 +1010,7 @@ internal sealed partial class GameWorld
 
         AddToMonsters(link);
         Register(UpdateRole.Monster, link);
+        AttachLink(link);
     }
 
     private static Vector3 GetLinkPosition(Unit owner, ObjectDefinition kind) =>

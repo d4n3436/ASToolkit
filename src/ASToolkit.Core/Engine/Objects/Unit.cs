@@ -13,7 +13,6 @@ internal sealed class Unit
     private const float ReachTolerance = 0.5f;
     private bool _secondChildPulse;
     private Facing _facing;
-    private int _createdAt;
     private Unit? _owner;
     private Unit? _link;
     private Unit? _goal;
@@ -86,10 +85,10 @@ internal sealed class Unit
 
     public int CreatedAt
     {
-        get => _createdAt;
+        get;
         set
         {
-            _createdAt = value;
+            field = value;
             KeyframeStart = value;
             KeyframePosition = 0;
         }
@@ -468,9 +467,6 @@ internal sealed class Unit
 
         return second;
     }
-
-    public UnitState GetState() =>
-        new(Number, Kind.Id, Position, Facing.Value, Animation, DiedAt, Frame, Keyframe: KeyframePosition);
 
     public Facing TurnWhileMoving(Facing goal, int elapsed)
     {

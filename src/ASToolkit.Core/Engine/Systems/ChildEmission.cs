@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Numerics;
 using ASToolkit.Core.Formats;
 
@@ -17,16 +16,12 @@ internal static class ChildEmission
     public readonly record struct Spawn(KnownObject Id, Vector3 Position, Facing Facing, Vector2 Lateral);
 
     public readonly record struct ChildBatch(ObjectDefinition Owner, ObjectDefinition Child, SpriteAnimation Animation,
-        Vector3 Position, Facing Facing, Random Random, bool SecondPulse) : IEnumerable<Spawn>
+        Vector3 Position, Facing Facing, Random Random, bool SecondPulse)
     {
         public Enumerator GetEnumerator() => new(this);
-
-        IEnumerator<Spawn> IEnumerable<Spawn>.GetEnumerator() => GetEnumerator();
-
-        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
-    public struct Enumerator : IEnumerator<Spawn>
+    public struct Enumerator
     {
         private const int CenteredChildIndex = 2;
         private readonly ChildBatch _source;
@@ -69,8 +64,6 @@ internal static class ChildEmission
 
         public Spawn Current { get; private set; }
 
-        readonly object IEnumerator.Current => Current;
-
         public bool MoveNext()
         {
             if (++_index >= _count)
@@ -95,9 +88,5 @@ internal static class ChildEmission
 
             return true;
         }
-
-        public readonly void Dispose() { }
-
-        void IEnumerator.Reset() => throw new NotSupportedException();
     }
 }

@@ -3,26 +3,49 @@ using ASToolkit.Core.Engine;
 namespace ASToolkit.Core.Simulation;
 
 /// <summary>
-/// Represents the recorded replay of a playthrough, such as the unit snapshots, sprite frames, effects and map changes over time.
+/// Represents the recorded replay of a playthrough, such as the tracks of its units and effects, the camera inputs and the map changes over time.
 /// </summary>
-/// <param name="Frames">The snapshots of the units and effects at a fixed interval.</param>
-/// <param name="UnitFrames">The sprite frames of the units each time one changes, in time order.</param>
-/// <param name="EffectFrames">The visual effects recorded at simulation ticks.</param>
+/// <param name="Tracks">The objects drawn over the map, in the order they appeared, the player's legs first.</param>
+/// <param name="Samples">The samples of the tracks, grouped by track in time order.</param>
+/// <param name="Inputs">The player positions and mouse cursors of every tick, which the game's camera follows.</param>
 /// <param name="RemovedSprites">The sprites removed by action stacks and scripts.</param>
 /// <param name="CreatedSprites">The sprites the scripts created.</param>
 /// <param name="PickupEvents">The time when the player collected each map pickup.</param>
-/// <param name="PlacementFrames">The positions of doors at their animation ticks and of pushed objects.</param>
+/// <param name="PlacementFrames">The positions of pushed map objects each time one moves.</param>
 /// <param name="Scenery">The blood stains, corpses and debris left on the map, with their creation times.</param>
 /// <param name="Shakes">The camera offsets of the frames an earthquake shook.</param>
 /// <param name="Flashes">The flashes of the whole screen.</param>
 public sealed record PlaythroughReplay(
-    IReadOnlyList<PlaythroughFrame> Frames,
-    IReadOnlyList<UnitFrame> UnitFrames,
-    IReadOnlyList<EffectFrame> EffectFrames,
+    SpriteTrack[] Tracks,
+    SpriteSample[] Samples,
+    ScreenInput[] Inputs,
     IReadOnlyList<SpriteEvent> RemovedSprites,
     IReadOnlyList<SpriteEvent> CreatedSprites,
     IReadOnlyList<SpriteEvent> PickupEvents,
-    IReadOnlyList<PlacementFrame> PlacementFrames,
+    PlacementFrame[] PlacementFrames,
     IReadOnlyList<EffectState> Scenery,
-    IReadOnlyList<CameraShake> Shakes,
-    IReadOnlyList<ScreenFlash> Flashes);
+    CameraShake[] Shakes,
+    ScreenFlash[] Flashes)
+{
+    /// <summary>
+    /// Returns how a track's object looks at a time, its last sample with the position carried on at the pace of the sample before.
+    /// </summary>
+    /// <param name="track">The index of the track.</param>
+    /// <param name="time">The time, in milliseconds.</param>
+    public SpriteSample GetSample(int track, int time)
+    {
+        var entry = Tracks[track];
+        int at = entry.FirstSample + Math.Max(0, new ReadOnlySpan<SpriteSample>(Samples, entry.FirstSample, entry.SampleCount).CountAtOrBefore(time) - 1);
+        var sample = SpriteSample.Predict(Samples[Math.Max(entry.FirstSample, at - 1)], Samples[at], time);
+
+        if (entry.Owner < 0)
+            return sample;
+
+        var owner = Tracks[entry.Owner];
+        int previous = Inputs.FindLastAtOrBefore(time);
+        int ownerTime = !entry.LagsOwner ? time : previous > 0 ? Inputs[previous - 1].Time : time;
+
+        return sample with { Position = sample.Position + GetSample(entry.Owner, Math.Clamp(ownerTime, owner.Start, owner.End - 1)).Position };
+    }
+}
+
