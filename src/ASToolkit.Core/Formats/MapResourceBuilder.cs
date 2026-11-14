@@ -33,9 +33,9 @@ public sealed class MapResourceBuilder
     public MapGraphics Graphics { get; init; }
 
     /// <summary>
-    /// Gets the negative part of the ambient light written over the template's, or null to keep the template's light.
+    /// Gets the gamma of the ambient light written over the template's, or null to keep the template's light.
     /// </summary>
-    public uint? AmbientNegative { get; init; }
+    public Gamma? Ambient { get; init; }
 
     /// <summary>
     /// Reads the placed objects of a map. Entries with non-finite or far-off coordinates are skipped.
@@ -69,7 +69,7 @@ public sealed class MapResourceBuilder
             }
 
             map.Sprites.Add(new MergedMapSprite(sprite.Handle, sprite.Id, position, sprite.Dir, sprite.Army,
-                payloads.TryGetValue(sprite.Handle, out var payload) ? payload.ToArray() : new byte[8], sprite.NegativeTint, sprite.PositiveTint) { Scale = sprite.Scale });
+                payloads.TryGetValue(sprite.Handle, out var payload) ? payload.ToArray() : new byte[8], sprite.Gamma) { Scale = sprite.Scale });
         }
 
         return map;
@@ -115,11 +115,10 @@ public sealed class MapResourceBuilder
         MemoryMarshal.Write(head[16..], 1999);
         MemoryMarshal.Write(head[20..], 12);
         file.GetChunk("HEAD").Records = [headArr];
-        if (AmbientNegative is not null)
+        if (Ambient is not null)
         {
             byte[] graphics = file.GetChunk("GRPH").Records[0].ToArray();
-            MemoryMarshal.Write(graphics.AsSpan(4), AmbientNegative.Value);
-            MemoryMarshal.Write(graphics.AsSpan(8), 0u);
+            MemoryMarshal.Write(graphics.AsSpan(4), Ambient.Value);
             file.GetChunk("GRPH").Records = [graphics];
         }
 

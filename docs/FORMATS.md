@@ -227,9 +227,9 @@ Alien Shooter loads its 612-byte `WEAP` records as stored. Zombie Shooter, Zombi
  +60    +88     f32    closest distance at which the unit attacks
  +64    +92     i32    period in milliseconds of the keyframe animation, 999999 to run it once over the death animation
  +68    +96     f32 x8 keyframe times as shares of the period
- +100   +128    i32 x8 red tint at each keyframe, -255 to 255 (negative darkens, positive brightens)
- +132   +160    i32 x8 green tint at each keyframe
- +164   +192    i32 x8 blue tint at each keyframe
+ +100   +128    i32 x8 red gamma at each keyframe, -255 to 255 (negative darkens, positive brightens)
+ +132   +160    i32 x8 green gamma at each keyframe
+ +164   +192    i32 x8 blue gamma at each keyframe
  +196   +224    i32 x8 alpha at each keyframe
  +228   +256    f32 x8 factor on the scale along x at each keyframe (1 by default)
  +260   +288    f32 x8 factor on the scale along y at each keyframe
@@ -243,7 +243,7 @@ Alien Shooter loads its 612-byte `WEAP` records as stored. Zombie Shooter, Zombi
  +580   +608    f32 x8 scaled by 0.001 on load unless 999999; no reader found
 ```
 
-Objects whose weapon sets a track animate along it, interpolating linearly between keyframes. The animation starts when the object is created and restarts once a period has passed. A period of 999999 spans the death animation while the object dies, else its lifetime, and never runs for an object that lives forever. Each tick searches for the current key from the one after the previous position, so a restart extrapolates back from the last key. Alien Shooter applies only the tint and no record of it sets a track. The later games also scale, shift and speed up the sprite; Alien Shooter 2 animates 24 of 119 records, mostly explosions.
+Objects whose weapon sets a track animate along it, interpolating linearly between keyframes. The animation starts when the object is created and restarts once a period has passed. A period of 999999 spans the death animation while the object dies, else its lifetime, and never runs for an object that lives forever. Each tick searches for the current key from the one after the previous position, so a restart extrapolates back from the last key. Alien Shooter applies only the gamma and no record of it sets a track. The later games also scale, shift and speed up the sprite; Alien Shooter 2 animates 24 of 119 records, mostly explosions.
 
 Units attack enemies standing within their battle range and beyond their closest range. Alien Shooter and Zombie Shooter measure the distance as the larger of the two map axis distances plus half the smaller; Zombie Shooter 2 and Alien Shooter 2 as 0.961 times the larger plus 0.398 times the smaller. Every attack sets a timer of the unit to the reload time (within a volley the reload time in volley) plus 5,000 ms; each tick lowers it by the milliseconds since the unit's last tick and clears it once they cover it. The unit attacks again once the timer is 5,000 or lower, a reload time after the attack. Alien Shooter and Zombie Shooter also wait while the `ANI_FIGHT` animation plays. Melee monsters have a battle range of 50 to 115, ranged ones 260 to 750.
 
@@ -341,7 +341,7 @@ Object flags. The engine tests them on the object class and never changes them a
  0x00000100   oriented box: the footprint is a box that rotates with the facing (Alien Shooter 2); Alien Shooter scatters the spawn position by up to 8 units instead
  0x00000200   follows terrain: the height comes from the level's height map
  0x00000400   random speed: starts with a random speed up to the record's speed (only the original game reads it; no object sets it)
- 0x00000800   unlit: the level lighting does not tint the object
+ 0x00000800   unlit: the ambient gamma does not apply to the object
  0x00001000   windblown: the level's wind moves the object (Alien Shooter); in Alien Shooter 2 the object casts shadows, and an omni-light with it draws them
  0x00002000   free rotation: the sprite keeps one frame and the draw rotates it by the facing
  0x00004000   touchable: receives a touch message when another object overlaps it
@@ -370,7 +370,7 @@ In Alien Shooter 2 the helper blocks of the editor (630 to 634, the pillars 1357
 
 In Alien Shooter the only object with the flag 0x20000 is the depth blocker 631. The maps place it in army 0, which matches the army of the player, but it is scenery of `spriteClass` 8. Alien Shooter draws scenery only by baking it into the terrain when the level loads. The bake skips objects with the flag 0x20000, which keeps 631 off the screen.
 
-The `CNST` record is 104 bytes in every game. Alien Shooter loads it as stored except +40, which it skips. It scales the speeds by 0.001 and the gravities by 0.000001 on load. Most fields serve code of the engine that Alien Shooter's data never reaches (repair, resupply and trains) or the interface.
+The `CNST` record is 104 bytes in every game. Alien Shooter loads it as stored except +40, which it skips. It scales the speeds by 0.001 and the gravities by 0.000001 on load. Most fields serve code of the engine that Alien Shooter's data never reaches (repair, resupply and trains) or the interface. The gammas at +80, +84 and +88 are single `u32` in the script form `LightOff` takes (see [Lights](#lights)). Each frame the engine decodes them into a negative and a positive part and sets the pair as the object's gamma override. Zero leaves the object unchanged, and every game stores zero.
 
 ```
  +0     f32   fastest edge scroll along x; the view speeds up by 0.04 a frame
@@ -382,9 +382,9 @@ The `CNST` record is 104 bytes in every game. Alien Shooter loads it as stored e
  +24    f32   fastest train speed
  +36    i32   factor on a unit's build time in seconds
  +52    i32   milliseconds the cursor rests before its hint shows, repeated every 500 ms
- +80    u32   tint of the selected unit, packed as VID_GAMMA
- +84    u32   tint of an army 1 object under the cursor
- +88    u32   tint of any other object under the cursor
+ +80    u32   script gamma of the selected unit
+ +84    u32   script gamma of an army 1 object under the cursor
+ +88    u32   script gamma of any other object under the cursor
  +96    f32   speed above which a train crashes
 ```
 
@@ -392,7 +392,7 @@ The flags 0x20000000, 0x2000 and 0x80000 work together in the Alien Shooter 2 dr
 
 The turn is part of the world matrix, so it acts on the ground plane before the view tilts it. A canvas point `(x, y)` with height `h`, measured from the center of the canvas, sits on the ground at `(x, (y + h) / 0.70706)`; that point turns by the angle and goes back to the screen as `(x', 0.70706 * y' - h)`. A flat sprite turned by 45 degrees therefore becomes a diamond as wide as its width plus its height. Object 1127, the soft black cover of Alien Shooter 2, is a single-frame sprite with this flag, and its turn is what lines its edges up with the walls.
 
-`VID_GAMMA` changes the colors of the sprite. A negative value scales the channel to `(256 + t) / 256` of itself and a positive value adds `t`. The loader packs it into a negative and a positive `u32` (`GAMMA::EncodeToDword`) and copies it to each army, which `VID_GAMMA + army` reads and writes (8 armies in Alien Shooter 2, 4 in Alien Shooter). Alien Shooter 2 applies the packed gamma when it draws the sprite, as a diffuse color of `255 - n` and a specular color of `p`, which turns a channel `c` into `c * (255 - n) / 255 + p`. The gamma it uses is the tint of the placement (the gamma of the army of the object when the placement has none) plus `VID_GAMMA`, added byte by byte and saturating. On placements without their own tint, `VID_GAMMA` counts twice. The alpha scales the alpha of the sprite the same way when it is negative and has no effect when it is positive, and it only shows on sprites that blend by alpha. Of the objects with a negative alpha, only the acid shadow 1879 is placed in a map (five times in Level_07_2). Yellow and red monsters, and the blue survival bosses, are the same sprite with a different `VID_GAMMA`.
+`VID_GAMMA` changes the colors of the sprite. A negative value scales the channel to `(256 + t) / 256` of itself and a positive value adds `t`. The loader packs it into a negative and a positive `u32` (`GAMMA::EncodeToDword`) and copies it to each army, which `VID_GAMMA + army` reads and writes (8 armies in Alien Shooter 2, 4 in Alien Shooter). Alien Shooter 2 applies the packed gamma when it draws the sprite, as a diffuse color of `255 - n` and a specular color of `p`, which turns a channel `c` into `c * (255 - n) / 255 + p`. The gamma it uses is the gamma of the placement (the gamma of the army of the object when the placement has none) plus `VID_GAMMA`, added byte by byte and saturating. On placements without their own gamma, `VID_GAMMA` counts twice. The alpha scales the alpha of the sprite the same way when it is negative and has no effect when it is positive, and it only shows on sprites that blend by alpha. Of the objects with a negative alpha, only the acid shadow 1879 is placed in a map (five times in Level_07_2). Yellow and red monsters, and the blue survival bosses, are the same sprite with a different `VID_GAMMA`.
 
 ## Maps
 
@@ -430,18 +430,18 @@ The levels of Alien Shooter are version 10 and 12, and those of Alien Shooter 2 
  0       4        8        12    16    20     24     28     32         56
  +-------+--------+--------+-----+-----+------+------+------+----------+
  | flags | ambient| ambient| dir | len | u32  | u32  | u32  | zeros    |
- | u32   | tint - | tint + | u32 | f32 | = -1 | = 32 | = 40 |          |
+ | u32   | gamma - | gamma + | u32 | f32 | = -1 | = 32 | = 40 |          |
  +-------+--------+--------+-----+-----+------+------+------+----------+
 ```
 
-The ambient tint is packed like the tint of a placed sprite and sets the ambient light (see [Lights](#lights)). Alien Shooter 2 turns the low byte of `dir`, an angle in 256ths of a turn, into a vector of length `len`; every map has `dir` 64 or 200 and `len` 0.025. It tests the value 4 of `flags` while drawing the scene, and every map stores zero there. The three fields from byte 20 are loaded and saved without being read anywhere else (the engine keeps only the low byte of the last two), and it does not read past byte 32.
+The ambient gamma is packed like the gamma of a placed sprite and sets the ambient light (see [Lights](#lights)). Alien Shooter 2 turns the low byte of `dir`, an angle in 256ths of a turn, into a vector of length `len`; every map has `dir` 64 or 200 and `len` 0.025. It tests the value 4 of `flags` while drawing the scene, and every map stores zero there. The three fields from byte 20 are loaded and saved without being read anywhere else (the engine keeps only the low byte of the last two), and it does not read past byte 32.
 
 `SPR ` has one record. It is an array of entries closed by `0xFFFFFFFF`, 28 bytes each before version 16 and 48 bytes from version 16.
 
 ```
  0        4     8   12   16   20    24     28       32       36    40    44    48
  +--------+-----+---+----+----+-----+------+--------+--------+-----+-----+-----+
- | handle | id  | x | y  | z  | dir | army | tint - | tint + | sx  | sy  | sz  |
+ | handle | id  | x | y  | z  | dir | army | gamma - | gamma + | sx  | sy  | sz  |
  | u32    | u32 |f32|f32 |f32 | u32 | u32  | u32    | u32    | f32 | f32 | f32 |
  +--------+-----+---+----+----+-----+------+--------+--------+-----+-----+-----+
           object id                         version 16 and later
@@ -456,7 +456,7 @@ The army goes from 0 to 7. The levels use 0 for the player and most scenery, 1 f
 
 Alien Shooter maps place the player as the legs (9), or the female player legs (549) in the first level of the second add-on, which still link the male torso (11). The start script in `COMMON.LGC` destroys the placed player and creates object 9. When the `PlayerSex` profile value is female, the script swaps the objects 9 to 20 for 549 to 560 and 352 for 358 with `VID_EXCHANGEVID`.
 
-The tint of the placed object is packed in two `u32`, with alpha, red, green and blue from the high byte down. The first holds the magnitudes of the negative channels and the second the positive ones, the same packing the engine builds from `VID_GAMMA`. When either is nonzero it replaces the gamma of the object for that placement.
+The gamma of the placed object is packed in two `u32`, with alpha, red, green and blue from the high byte down. The first holds the magnitudes of the negative channels and the second the positive ones, the same packing the engine builds from `VID_GAMMA`. When either is nonzero it replaces the gamma of the object for that placement.
 
 `sx` and `sy` scale the sprite on the ground plane before it is turned, and `sz` scales the heights of its mesh. Maps before version 16 read as a scale of 1. About 3,000 placements of Alien Shooter 2 use another scale, from 0 to 8.
 
@@ -805,7 +805,7 @@ A vertex is one u32 with three 10-bit fields and a 2-bit scale in the top bits. 
 
 The runs describe the region as one raster, `width` pixels per row. A run skips `skip` pixels, which are transparent, then holds `count` pixels, and may continue onto the next row. The frame ends at the `00 00` pair, and the record has nothing after it. The engine blits the region at `(x, y)`.
 
-A pixel is `format` sized (see `HEAD`), and a palette index when the sprite has a palette. After the color come one byte for each of the flags 0x2000 and 0x8000, and then two bytes of depth with the flag 0x04, which the CADR decoder skips. The 16-bit and 32-bit formats have no palette. Alien Shooter 2 tints them at draw time like the other sprites. About fifty Alien Shooter 2 sprites, mostly shadows, glows and level props, use them. A zero pixel is transparent.
+A pixel is `format` sized (see `HEAD`), and a palette index when the sprite has a palette. After the color come one byte for each of the flags 0x2000 and 0x8000, and then two bytes of depth with the flag 0x04, which the CADR decoder skips. The 16-bit and 32-bit formats have no palette. Alien Shooter 2 applies gamma to them at draw time like the other sprites. About fifty Alien Shooter 2 sprites, mostly shadows, glows and level props, use them. A zero pixel is transparent.
 
 The vertices of a mode 3 frame give each pixel its height. A vertex is the column and row on the canvas in its first two 10-bit fields, and the third field is the height described above. The pixel height is interpolated over the triangles, and the depth of the pixel is `0x400 + 8 * height`, which is what Vengeance stores per pixel for the same sprites (a fit over the 22,365 pixels of 1780.vid frame 0 gives 8.05 * height + 1023.9).
 
@@ -957,7 +957,7 @@ Walls, floors and most props are `spriteClass` 8 and come first, blood and the s
 
 ### Lights
 
-In Alien Shooter, `LightOff` and `LightOn` fade from the current gamma to the target over 1,024 ms in 4 ms steps. A script gamma byte below 128 darkens the palette by twice its value, and a byte from 128 brightens it by twice its complemented low seven bits. Script gamma `0x606060` becomes the negative tint `0xC0C0C0`. Unlit sprites keep their colors.
+In Alien Shooter, `LightOff` and `LightOn` fade from the current gamma to the target over 1,024 ms in 4 ms steps. A script gamma byte below 128 darkens the palette by twice its value, and a byte from 128 brightens it by twice its complemented low seven bits. Script gamma `0x606060` becomes the negative gamma `0xC0C0C0`. Unlit sprites keep their colors.
 
 Alien Shooter 2 lights the scene by the graphics detail level, which `SetGraphDetail` (script function 149) sets. The engine lowers any request above 5 to 5 before it picks a level, and it falls back to 3 when the card lacks a D24S8 depth-stencil format. The menu maps the High and Medium settings to 5 and Low to 3. The level 8 and 9 branches below exist in the code, but no setting reaches them.
 
@@ -970,11 +970,11 @@ Alien Shooter 2 lights the scene by the graphics detail level, which `SetGraphDe
 
 The Low setting also hides the objects listed in `LowDetailVids` of `CONST.LGC`, such as the fog clouds 1306, and Low and Medium hide those in `MediumDetailVids`, such as the small shadow 108.
 
-With the light buffer the engine draws passes 0 to 5 straight on the screen. It then clears the buffer to white through the ambient tint of `GRPH`, `255 * (256 - n) / 256 + p` with `n` and `p` the bytes of the negative and positive parts, times 0.3 (0.35 below level 5). Pass 7 goes into the buffer with the blend of each sprite, and the buffer is an 8-bit target whose channels stop at 1. A screen quad then multiplies the scene by twice the buffer (DESTCOLOR, SRCCOLOR), with the positive ambient added to the buffer as the specular color, and a second untextured white quad (DESTCOLOR, ONE) doubles the result again. Each step saturates, which leaves a scene color `d` under a buffer `b` at `min(1, 2 * min(1, 2 * d * min(1, b + p)))`. Passes 8 to 11 come last.
+With the light buffer the engine draws passes 0 to 5 straight on the screen. It then clears the buffer to white through the ambient gamma of `GRPH`, `255 * (256 - n) / 256 + p` with `n` and `p` the bytes of the negative and positive parts, times 0.3 (0.35 below level 5). Pass 7 goes into the buffer with the blend of each sprite, and the buffer is an 8-bit target whose channels stop at 1. A screen quad then multiplies the scene by twice the buffer (DESTCOLOR, SRCCOLOR), with the positive ambient added to the buffer as the specular color, and a second untextured white quad (DESTCOLOR, ONE) doubles the result again. Each step saturates, which leaves a scene color `d` under a buffer `b` at `min(1, 2 * min(1, 2 * d * min(1, b + p)))`. Passes 8 to 11 come last.
 
-The draw adds the ambient tint, byte by byte and saturating, to the tint of every sprite in pass 7 and later whose object lacks the flag 0x800.
+The draw adds the ambient gamma, byte by byte and saturating, to the gamma of every sprite in pass 7 and later whose object lacks the flag 0x800.
 
-An omni-light is an object whose sprite has the flag 0x80. Its class always goes to pass 7, and an object with a light-only sprite is usually linked to a visible lamp. The light takes its color from the current frame, skipping frames whose color is black. Its tint is built like the tint of any sprite in pass 7 and applied to the color as `c * (256 - n) / 256 + p`. The light covers an ellipse on screen centered on `(x, y - z)`, with radii `ExtentX * ScaleX / 2` and `ExtentY * ScaleY / 2` of the object, each times the scale of the placement.
+An omni-light is an object whose sprite has the flag 0x80. Its class always goes to pass 7, and an object with a light-only sprite is usually linked to a visible lamp. The light takes its color from the current frame, skipping frames whose color is black. Its gamma is built like the gamma of any sprite in pass 7 and applied to the color as `c * (256 - n) / 256 + p`. The light covers an ellipse on screen centered on `(x, y - z)`, with radii `ExtentX * ScaleX / 2` and `ExtentY * ScaleY / 2` of the object, each times the scale of the placement.
 
 At levels 1 to 5 the engine draws the light as a quad from `(x - rx, y - z - ry + 10)` to `(x + rx, y - z + ry + 10)` and adds it to the buffer (ONE, ONE) without a depth test. The quad carries a 64 x 64 falloff texture and the color of the light times `0.2 / ((10 / ry)² + 0.2)`, with the largest channel as its alpha, and an alpha test drops texels whose alpha falls below 3 (4 below level 5). For a point `(u, v)` of the quad from -1 to 1 across each side:
 
@@ -1012,7 +1012,7 @@ In Alien Shooter an omni-light adds itself to what is already drawn. Its center 
  strength = clamp(256 - ((h - trunc(z))² / 4 + 9 * (h - z' + dy)² / 4 + dx²) / trunc(sx * sy / 500), 0, 255)
 ```
 
-The quad multiplies the texel by the light color, tinted by the object's tint, its gamma and, without the flag 0x800, the ambient, and blends as (DESTCOLOR, ONE), turning a pixel `d` into `d + d * texel * color`. The flag 0x800000 doubles the product. The quad's depth is `(z + sx + 50) / 8192 + 1/64`. Layers 0 to 7 write depth and later layers only test it. A light reaches only what is drawn before it. Objects are drawn in 16 layers, layer 0 first, each from the last object added to the first, with the player after the rest of its layer:
+The quad multiplies the texel by the light color, changed by the object's gamma, the placement's when set, and, without the flag 0x800, the ambient gamma, and blends as (DESTCOLOR, ONE), turning a pixel `d` into `d + d * texel * color`. The flag 0x800000 doubles the product. The quad's depth is `(z + sx + 50) / 8192 + 1/64`. Layers 0 to 7 write depth and later layers only test it. A light reaches only what is drawn before it. Objects are drawn in 16 layers, layer 0 first, each from the last object added to the first, with the player after the rest of its layer:
 
 ```
  omni-light (flag 0x80)      11
@@ -1051,7 +1051,7 @@ Alien Shooter (GOG):
 - `FUN_00405bd0` - creates an object by `spriteClass`, the pickup classes 0 and 1 through `FUN_0044bd60` and the others through `FUN_0040e870`
 - `FUN_00445fb0` - gives a unit an attack order from its stack
 - `FUN_0043f720` - lets a unit drop a deleted object from its goal and stack
-- `FUN_00414d10` - tints the color of an omni-light and draws it through `FUN_00433670`
+- `FUN_00414d10` - applies gamma to the color of an omni-light and draws it through `FUN_00433670`
 - `FUN_00433670` - fills an omni-light's texture from the height buffer and draws its quad
 - `FUN_0041b0e0` - draws a sprite of runs with depth (flags 0x36) as a quad at the farthest depth
 - `FUN_0042d6a0` - inserts an object into the hit and blast index
@@ -1071,7 +1071,7 @@ Alien Shooter 2 (Reloaded, GOG):
 - `FUN_0045a120` - puts the class of a sprite in its draw pass and samples the height points of a `CADR` sprite
 - `FUN_00415840` - draws a frame of the level, with its passes and the light buffer it blends onto the scene
 - `FUN_004493a0` - draws one pass, cell by cell of the level grid
-- `FUN_00453c20` - draws an omni-light object and works out its color, tint and radius
+- `FUN_00453c20` - draws an omni-light object and works out its color, gamma and radius
 - `FUN_00416d10` - draws the quad of one omni-light, per shader level
 - `FUN_004168c0` - draws the stencil shadows of an omni-light
 - `FUN_0044c690` - walks the casters under a light quad

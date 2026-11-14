@@ -33,13 +33,13 @@ internal readonly struct ObjectConstants
     public readonly int HoverDelay;
 
     [FieldOffset(80)]
-    public readonly uint SelectedTint;
+    public readonly uint SelectedGamma;
 
     [FieldOffset(84)]
-    public readonly uint HoveredEnemyTint;
+    public readonly uint HoveredEnemyGamma;
 
     [FieldOffset(88)]
-    public readonly uint HoveredTint;
+    public readonly uint HoveredGamma;
 
     [FieldOffset(96)]
     public readonly float CrashSpeed;

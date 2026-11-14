@@ -23,7 +23,7 @@ public sealed class LevelScriptSummary
     /// <summary>
     /// Gets the color the blackout trigger darkens the scene by, or null.
     /// </summary>
-    public uint? BlackoutTint { get; init; }
+    public uint? BlackoutGamma { get; init; }
 
     /// <summary>
     /// Gets the triggers that move the respawn point.

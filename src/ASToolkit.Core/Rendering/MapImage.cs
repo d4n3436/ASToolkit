@@ -1,3 +1,4 @@
+using System.Numerics;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
@@ -14,14 +15,9 @@ public sealed class MapImage : IDisposable
     public required Image<Rgb24> Image { get; init; }
 
     /// <summary>
-    /// Gets the world x of the image's left edge.
+    /// Gets the screen point of the image's top left corner, in map pixels with heights subtracted.
     /// </summary>
-    public required float OriginX { get; init; }
-
-    /// <summary>
-    /// Gets the screen y (world y minus height) of the image's top edge.
-    /// </summary>
-    public required float OriginY { get; init; }
+    public required Vector2 Origin { get; init; }
 
     /// <summary>
     /// Gets the image pixels per world pixel.
@@ -34,9 +30,18 @@ public sealed class MapImage : IDisposable
     public required int Undrawn { get; init; }
 
     /// <summary>
-    /// Returns the image position of a world point at a height.
+    /// Converts a point on the floor of the map to a point of the image.
     /// </summary>
-    public PointF ToImage(float x, float y, float z = 0) => new((x - OriginX) * Scale, (y - z - OriginY) * Scale);
+    /// <param name="point">The point, in map pixels.</param>
+    /// <returns>The point of the image, in image pixels from its top left corner.</returns>
+    public PointF ToImage(Vector2 point) => (point - Origin) * Scale;
+
+    /// <summary>
+    /// Converts a map position above the floor to a point of the image.
+    /// </summary>
+    /// <param name="position">The position, in map pixels with its height above the floor.</param>
+    /// <returns>The point of the image, in image pixels from its top left corner.</returns>
+    public PointF ToImage(Vector3 position) => ToImage(new Vector2(position.X, position.Y - position.Z));
 
     /// <inheritdoc/>
     public void Dispose() => Image.Dispose();

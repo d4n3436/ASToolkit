@@ -26,8 +26,8 @@ public sealed class MapScene
     private readonly OmniLight[] _lights;
     private readonly Rectangle[] _lightBounds;
     private readonly long[] _lightKeys;
-    private readonly PaletteTint? _ambient;
-    private readonly PaletteTint _paletteTint;
+    private readonly Gamma? _ambient;
+    private readonly Gamma _paletteGamma;
     private readonly List<int>[] _cells;
     private readonly int _columns;
     private readonly List<LiveEntry> _live = [];
@@ -40,17 +40,17 @@ public sealed class MapScene
 
     internal int NextSequence { get; }
 
-    internal PaletteTint? Ambient => _ambient;
+    internal Gamma? Ambient => _ambient;
 
-    internal MapScene(Placement[] placed, OmniLight[] lights, PaletteTint? ambient, int undrawn, PaletteTint paletteTint = default, bool mapInFileOrder = false)
+    internal MapScene(Placement[] placed, OmniLight[] lights, Gamma? ambient, int undrawn, Gamma paletteGamma = default, bool mapInFileOrder = false)
     {
         _mapInFileOrder = mapInFileOrder;
         Placed = placed;
         _ambient = ambient;
-        _paletteTint = paletteTint;
+        _paletteGamma = paletteGamma;
         Undrawn = undrawn;
         NextSequence = placed.Length == 0 ? 0 : placed.Max(p => p.Sequence) + 1;
-        LiveObjects = new SceneObjects([], [], [], true, paletteTint);
+        LiveObjects = new SceneObjects([], [], [], true, paletteGamma);
         if (placed.Length > 0)
         {
             Left = (int)placed.Min(p => p.Left) - Margin;
@@ -146,18 +146,28 @@ public sealed class MapScene
     public int Undrawn => field + _liveUndrawn;
 
     /// <summary>
-    /// Draws an area of the scene scaled down by a factor of at most 1 into opaque pixels at a game time in milliseconds, or with
-    /// every object on its first frame when the time is null. The area is in scaled pixels from the top left corner of the scene,
-    /// and its top left pixel goes to the start of the buffer.
+    /// Draws an area of the scene into opaque pixels at a game time.
     /// </summary>
+    /// <param name="pixels">The pixels to draw into, the area's top left pixel first.</param>
+    /// <param name="stride">The number of pixels from the start of one row to the next.</param>
+    /// <param name="area">The area to draw, in scaled pixels from the top left corner of the scene.</param>
+    /// <param name="scale">The factor the scene is scaled down by, at most 1.</param>
+    /// <param name="time">The game time in milliseconds, or null to draw every object on its first frame.</param>
     public void Render(Memory<Bgra32> pixels, int stride, Rectangle area, float scale, int? time) =>
-        Render(pixels, stride, area, scale, time, FrozenSet<MergedMapSprite>.Empty, null, null);
+        Render(pixels, stride, area, scale, time, FrozenSet<MergedMapSprite>.Empty, null);
 
     /// <summary>
-    /// Draws a replay frame without the given placed sprites and with an Alien Shooter palette tint for the current time.
+    /// Draws an area of the scene into opaque pixels at a game time, leaving out some placed sprites and lighting it with a palette gamma.
     /// </summary>
+    /// <param name="pixels">The pixels to draw into, the area's top left pixel first.</param>
+    /// <param name="stride">The number of pixels from the start of one row to the next.</param>
+    /// <param name="area">The area to draw, in scaled pixels from the top left corner of the scene.</param>
+    /// <param name="scale">The factor the scene is scaled down by, at most 1.</param>
+    /// <param name="time">The game time in milliseconds, or null to draw every object on its first frame.</param>
+    /// <param name="hidden">The placed sprites to leave out.</param>
+    /// <param name="gamma">The palette gamma lighting the area, or null for the scene's own ambient light.</param>
     public void Render(Memory<Bgra32> pixels, int stride, Rectangle area, float scale, int? time,
-        IReadOnlySet<MergedMapSprite> hidden, uint? ambientNegative, uint? ambientPositive) =>
+        IReadOnlySet<MergedMapSprite> hidden, Gamma? gamma) =>
         Render((row, colors) =>
         {
             var target = pixels.Span.Slice(row * stride, colors.Length);
@@ -165,27 +175,29 @@ public sealed class MapScene
             {
                 target[column] = new Bgra32(colors[column].R, colors[column].G, colors[column].B);
             }
-        }, area, scale, time, hidden, ambientNegative is null && ambientPositive is null ? null : new PaletteTint(ambientNegative ?? 0, ambientPositive ?? 0));
+        }, area, scale, time, hidden, gamma);
 
     /// <summary>
-    /// Returns the object whose pixel is in front at a point of the scene, in pixels from its top left corner, or null when no
-    /// sprite covers the point.
+    /// Finds the object drawn in front at a pixel of the scene.
     /// </summary>
-    public SceneObject? FindObject(int x, int y, int? time)
+    /// <param name="point">The pixel, counted from the top left corner of the scene.</param>
+    /// <param name="time">The game time in milliseconds, or null for every object on its first frame.</param>
+    /// <returns>The object in front, or null when no sprite covers the pixel.</returns>
+    public SceneObject? FindObject(System.Drawing.Point point, int? time)
     {
-        if ((uint)x >= (uint)Width || (uint)y >= (uint)Height)
+        if ((uint)point.X >= (uint)Width || (uint)point.Y >= (uint)Height)
         {
             return null;
         }
 
         SceneObject? found = null;
         int frontDepth = int.MinValue;
-        foreach (int index in Query(new Rectangle(x, y, 1, 1)))
+        foreach (int index in Query(new Rectangle(point.X, point.Y, 1, 1)))
         {
             var p = Placed[index];
             var state = p.GetState(time, Origin);
             var frame = state.Frame;
-            int row = y - state.Corner.Y - (frame?.Top ?? 0);
+            int row = point.Y - state.Corner.Y - (frame?.Top ?? 0);
             if (frame is null || p.Source is null || (uint)row >= (uint)frame.Rows)
             {
                 continue;
@@ -193,7 +205,7 @@ public sealed class MapScene
 
             for (int pixel = frame.RowStarts[row]; pixel < frame.RowStarts[row + 1]; pixel++)
             {
-                if (state.Corner.X + frame.Xs[pixel] != x || (!frame.IsPaletted && frame.Colors[pixel].A == 0))
+                if (state.Corner.X + frame.Xs[pixel] != point.X || (!frame.IsPaletted && frame.Colors[pixel].A == 0))
                 {
                     continue;
                 }
@@ -211,9 +223,12 @@ public sealed class MapScene
     }
 
     /// <summary>
-    /// Adds the areas of the scene, in pixels from its top left corner, that touch a given area and look different at one game
-    /// time than at another.
+    /// Collects the areas of the scene touching a given area that look different at one game time than at another.
     /// </summary>
+    /// <param name="from">The earlier game time, in milliseconds.</param>
+    /// <param name="to">The later game time, in milliseconds.</param>
+    /// <param name="area">The area to check, in pixels from the top left corner of the scene.</param>
+    /// <param name="changes">The collection the changed areas are added to.</param>
     public void GetChangedAreas(int from, int to, Rectangle area, ICollection<Rectangle> changes)
     {
         foreach (int index in _animated)
@@ -235,7 +250,7 @@ public sealed class MapScene
     }
 
     internal void Render(RowWriter writer, Rectangle area, float scale, int? time,
-        IReadOnlySet<MergedMapSprite> hidden, PaletteTint? paletteTint = null)
+        IReadOnlySet<MergedMapSprite> hidden, Gamma? paletteGamma = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(scale);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(scale, 1);
@@ -268,8 +283,8 @@ public sealed class MapScene
             }
         }
 
-        var tint = paletteTint ?? _paletteTint;
-        if (tint != default)
+        var gamma = paletteGamma ?? _paletteGamma;
+        if (gamma != default)
         {
             var palettes = new Dictionary<PaletteSource, Rgba32[]>();
             for (int index = 0; index < states.Length; index++)
@@ -282,7 +297,7 @@ public sealed class MapScene
                 if (!palettes.TryGetValue(sourcePalette, out var colors))
                 {
                     colors = states[index].Frame!.Colors.Select(color => new Rgba32(
-                        (byte)tint.Apply(color.R, 16), (byte)tint.Apply(color.G, 8), (byte)tint.Apply(color.B, 0), color.A)).ToArray();
+                        (byte)gamma.Apply(color.R, 16), (byte)gamma.Apply(color.G, 8), (byte)gamma.Apply(color.B, 0), color.A)).ToArray();
                     palettes.Add(sourcePalette, colors);
                 }
                 states[index] = states[index] with { Palette = colors };

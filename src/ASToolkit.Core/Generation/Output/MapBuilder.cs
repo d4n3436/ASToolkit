@@ -79,7 +79,7 @@ public sealed class MapBuilder
     /// <summary>
     /// Returns a map of the placed objects, sized to hold them and lit by the given ambient light or the template's.
     /// </summary>
-    public MapResourceBuilder ToMap(Vector2 scroll, uint? ambientNegative = null)
+    public MapResourceBuilder ToMap(Vector2 scroll, Gamma? ambient = null)
     {
         float maxX = Sprites.Max(s => s.Position.X);
         float maxY = Sprites.Max(s => s.Position.Y);
@@ -88,7 +88,7 @@ public sealed class MapBuilder
             Sprites = Sprites,
             Size = new SizeF(MathF.Ceiling((maxX + 300) / 100) * 100, MathF.Ceiling((maxY + 300) / 100) * 100),
             Scroll = scroll,
-            AmbientNegative = ambientNegative
+            Ambient = ambient
         };
         return map;
     }

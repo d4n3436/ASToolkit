@@ -152,28 +152,45 @@ public readonly struct WeaponRecord
     public readonly KeyframeValues<float> KeyTimes;
 
     /// <summary>
-    /// The red tint at each keyframe, from -255 to 255.
+    /// The red gamma at each keyframe, from -255 to 255.
     /// </summary>
     [FieldOffset(128)]
     public readonly KeyframeValues<int> RedKeys;
 
     /// <summary>
-    /// The green tint at each keyframe, from -255 to 255.
+    /// The green gamma at each keyframe, from -255 to 255.
     /// </summary>
     [FieldOffset(160)]
     public readonly KeyframeValues<int> GreenKeys;
 
     /// <summary>
-    /// The blue tint at each keyframe, from -255 to 255.
+    /// The blue gamma at each keyframe, from -255 to 255.
     /// </summary>
     [FieldOffset(192)]
     public readonly KeyframeValues<int> BlueKeys;
 
     /// <summary>
-    /// The alpha tint at each keyframe, from -255 to 255.
+    /// The alpha gamma at each keyframe, from -255 to 255.
     /// </summary>
     [FieldOffset(224)]
     public readonly KeyframeValues<int> AlphaKeys;
+
+    /// <summary>
+    /// Reads the gamma of the keyframe animation at a position.
+    /// </summary>
+    /// <param name="keyframe">The position in the animation, in keyframes.</param>
+    /// <returns>The gamma between the keyframes around the position.</returns>
+    public VidGamma GetGamma(float keyframe) =>
+        new(GetKeyframeValue(RedKeys, keyframe), GetKeyframeValue(GreenKeys, keyframe), GetKeyframeValue(BlueKeys, keyframe), GetKeyframeValue(AlphaKeys, keyframe));
+
+    private static int GetKeyframeValue(in KeyframeValues<int> keys, float keyframe)
+    {
+        int key = Math.Max(0, (int)keyframe);
+        if (key >= KeyframeCount - 1)
+            return keys[KeyframeCount - 1];
+
+        return (int)((keys[key + 1] - keys[key]) * (keyframe - key) + keys[key]);
+    }
 
     /// <summary>
     /// The factor applied to the scale along x at each keyframe.

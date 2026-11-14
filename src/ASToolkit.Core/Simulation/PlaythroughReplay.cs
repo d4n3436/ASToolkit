@@ -28,10 +28,11 @@ public sealed record PlaythroughReplay(
     ScreenFlash[] Flashes)
 {
     /// <summary>
-    /// Returns how a track's object looks at a time, its last sample with the position carried on at the pace of the sample before.
+    /// Gets how a track's object looks at a time, carrying its position on from its last two samples.
     /// </summary>
     /// <param name="track">The index of the track.</param>
     /// <param name="time">The time, in milliseconds.</param>
+    /// <returns>How the object looks at the time, with its map position.</returns>
     public SpriteSample GetSample(int track, int time)
     {
         var entry = Tracks[track];

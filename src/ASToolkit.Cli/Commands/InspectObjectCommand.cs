@@ -30,7 +30,7 @@ internal sealed class InspectObjectCommand : Command<InspectObjectSettings>
         table.AddRow("hit points", obj.MaxHp.ToString());
         table.AddRow("climb, drop", $"{obj.StepHeight}, {obj.DropHeight}");
         table.AddRow("directions", obj.Directions.ToString());
-        table.AddRow("gamma", $"{obj.GammaRed} {obj.GammaGreen} {obj.GammaBlue} {obj.GammaAlpha}");
+        table.AddRow("gamma", $"{obj.Gamma.Red} {obj.Gamma.Green} {obj.Gamma.Blue} {obj.Gamma.Alpha}");
         for (int state = 0; state < GameObject.StateCount; state++)
         {
             if (obj.FrameCounts[state] != 0 || obj.FrameDurations[state] != 0)

@@ -57,16 +57,10 @@ public readonly record struct MapSprite
     public readonly uint Army;
 
     /// <summary>
-    /// The negative part of the tint of the placed object. Alien Shooter 2 only.
+    /// The gamma of the placed object. Alien Shooter 2 only.
     /// </summary>
     [FieldOffset(28)]
-    public readonly uint NegativeTint;
-
-    /// <summary>
-    /// The positive part of the tint of the placed object. Alien Shooter 2 only.
-    /// </summary>
-    [FieldOffset(32)]
-    public readonly uint PositiveTint;
+    public readonly Gamma Gamma;
 
     /// <summary>
     /// The scale of the sprite along x, y and the height. Alien Shooter 2 only.

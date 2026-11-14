@@ -67,7 +67,7 @@ public enum ObjectFlags : uint
     RandomSpeed = 1 << 10,
 
     /// <summary>
-    /// The level lighting does not tint the object.
+    /// The ambient gamma of the level does not apply to the object.
     /// </summary>
     Unlit = 1 << 11,
 

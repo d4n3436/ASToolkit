@@ -27,9 +27,9 @@ internal sealed class AnalyzeSettings : GameSettings
     [Description("Lights Alien Shooter 2 levels as the game does, with the ambient light of each map and the omni-lights of its objects.")]
     public bool GameLighting { get; init; }
 
-    [CommandOption("--no-ambient-tint")]
+    [CommandOption("--no-ambient-gamma")]
     [Description("With --game-lighting, keeps the brightness of the ambient light but drops its hue.")]
-    public bool NoAmbientTint { get; init; }
+    public bool NoAmbientGamma { get; init; }
 
     [CommandOption("--no-images")]
     [Description("Writes routes.json only.")]

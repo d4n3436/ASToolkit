@@ -145,7 +145,7 @@ internal sealed class RoomSheet
     private static PointF ToImage(MapImage map, Lattice lattice, float u, float v)
     {
         var world = lattice.ToWorld(u, v);
-        return map.ToImage(world.X, world.Y);
+        return map.ToImage(world.ToVector2());
     }
 
     private static string[] Describe(AtlasRoom room)

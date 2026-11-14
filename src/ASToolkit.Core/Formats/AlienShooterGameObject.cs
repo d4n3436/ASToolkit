@@ -94,16 +94,7 @@ internal readonly struct AlienShooterGameObject
     public readonly StateValues<int> ChildCounts;
 
     [FieldOffset(660)]
-    public readonly int GammaRed;
-
-    [FieldOffset(664)]
-    public readonly int GammaGreen;
-
-    [FieldOffset(668)]
-    public readonly int GammaBlue;
-
-    [FieldOffset(672)]
-    public readonly int GammaAlpha;
+    public readonly VidGamma Gamma;
 
     [FieldOffset(676)]
     public readonly Vector3 Scale;

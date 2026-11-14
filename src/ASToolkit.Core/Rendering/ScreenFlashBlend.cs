@@ -15,12 +15,13 @@ public readonly record struct ScreenFlashBlend(int Red, int Green, int Blue)
     private const uint FullStrength = 256;
 
     /// <summary>
-    /// Returns the color a flash adds at a time, or null once the flash has run out.
+    /// Computes the blend of a whole-screen flash at a time.
     /// </summary>
     /// <param name="start">The time the flash started, in milliseconds.</param>
     /// <param name="duration">The length of the flash, in milliseconds.</param>
     /// <param name="color">The color of the flash, packed as 0xRRGGBB.</param>
     /// <param name="time">The time of the frame, in milliseconds.</param>
+    /// <returns>The color the flash adds, or null once the flash has run out.</returns>
     [EngineRoutine(0x004311a0)]
     public static ScreenFlashBlend? At(int start, int duration, int color, int time)
     {

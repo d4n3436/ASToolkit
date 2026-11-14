@@ -77,10 +77,11 @@ public sealed class SpritePartReader
     }
 
     /// <summary>
-    /// Reads the cells a frame raises, with the offset of each cell from the center of the sprite and its height.
+    /// Reads the cells a frame raises.
     /// </summary>
     /// <param name="vid">The sprite file.</param>
     /// <param name="frameIndex">The frame index.</param>
+    /// <returns>The offset of each raised cell from the center of the sprite, with its height.</returns>
     public static Vector3[] ReadHeightPoints(VidResource vid, int frameIndex)
     {
         bool usesDepth = vid is { HasDepth: true, HasPalette: true } && vid.Flags.HasFlag(VidFlags.Runs8Bit);

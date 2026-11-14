@@ -22,9 +22,10 @@ public sealed record CampaignState(int Money, PlayerLoadout Loadout)
     public const int StartingLives = 2;
 
     /// <summary>
-    /// Creates the equipment and money for a new campaign or a selected starting level.
+    /// Creates the state of a new campaign, or of one started at a later level.
     /// </summary>
     /// <param name="money">The money available before shopping.</param>
+    /// <returns>The campaign state holding the money and the starting lives.</returns>
     public static CampaignState CreateInitial(int money = StartingMoney) => new(money,
         new PlayerLoadout(0, FrozenDictionary<KnownObject, int>.Empty, default)
         { Items = new Dictionary<KnownObject, int> { [KnownObject.ExtraLife] = StartingLives }.ToFrozenDictionary() });

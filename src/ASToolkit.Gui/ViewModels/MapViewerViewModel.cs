@@ -70,7 +70,7 @@ public partial class MapViewerViewModel : ViewModelBase
     public partial bool MatchGameLighting { get; set; } = true;
 
     [ObservableProperty]
-    public partial bool OmitAmbientTint { get; set; }
+    public partial bool OmitAmbientGamma { get; set; }
 
     [ObservableProperty]
     public partial bool OmitCovers { get; set; }
@@ -157,7 +157,7 @@ public partial class MapViewerViewModel : ViewModelBase
             return;
         }
 
-        var found = scene.FindObject(point.Position.X, point.Position.Y, point.Time);
+        var found = scene.FindObject(point.Position, point.Time);
         Status = found is null ? $"{position}    {_summary}"
             : $"{position}    object {(int)found.Id} {Objects.GetName(found.Id)} [{Objects.GetPath(found.Id)}]    " +
               $"position ({found.Position.X:0}, {found.Position.Y:0}, {found.Position.Z:0})    facing {found.Facing}";
@@ -209,7 +209,7 @@ public partial class MapViewerViewModel : ViewModelBase
     [RelayCommand]
     public void Select(ScenePoint point)
     {
-        var found = Scene?.FindObject(point.Position.X, point.Position.Y, point.Time);
+        var found = Scene?.FindObject(point.Position, point.Time);
         if (found is not null && Renderer is not null && Objects is not null)
         {
             Sprite.Show(Renderer, Objects, found);
@@ -220,7 +220,7 @@ public partial class MapViewerViewModel : ViewModelBase
 
     partial void OnMatchGameLightingChanged(bool value) => ResetRenderer();
 
-    partial void OnOmitAmbientTintChanged(bool value) => ResetRenderer();
+    partial void OnOmitAmbientGammaChanged(bool value) => ResetRenderer();
 
     partial void OnOmitCoversChanged(bool value) => ResetRenderer();
 
@@ -250,7 +250,7 @@ public partial class MapViewerViewModel : ViewModelBase
         int version = ++_loadVersion;
         var renderer = Renderer ??= new MapRenderer(game, objects)
         {
-            MatchGameLighting = MatchGameLighting, OmitAmbientTint = OmitAmbientTint, OmitCovers = OmitCovers, OmitHiddenObjects = !ShowHiddenObjects,
+            MatchGameLighting = MatchGameLighting, OmitAmbientGamma = OmitAmbientGamma, OmitCovers = OmitCovers, OmitHiddenObjects = !ShowHiddenObjects,
             ShowFemalePlayer = ShowFemalePlayer, OmitRemovableGroups = OmitRemovableGroups
         };
         IsLoading = true;

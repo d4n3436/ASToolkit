@@ -11,10 +11,9 @@ namespace ASToolkit.Core.Formats;
 /// <param name="Dir">The facing field.</param>
 /// <param name="Army">The army of the object.</param>
 /// <param name="Payload">The object's payload bytes.</param>
-/// <param name="NegativeTint">The negative part of the tint of the placed object.</param>
-/// <param name="PositiveTint">The positive part of the tint of the placed object.</param>
+/// <param name="Gamma">The gamma of the placed object.</param>
 public sealed record MergedMapSprite(uint Handle, KnownObject Id, Vector3 Position, uint Dir, uint Army, byte[] Payload,
-    uint NegativeTint = 0, uint PositiveTint = 0)
+    Gamma Gamma = default)
 {
     /// <summary>
     /// Gets the scale of the sprite along x, y and the height.

@@ -70,10 +70,10 @@ public class ObjectTableTests
             Assert.True(table.TryFind(id, out var obj));
             Assert.InRange(obj.Directions, 1, 256);
             Assert.InRange(obj.FramesPerDirection, 0, 4096);
-            Assert.InRange(obj.GammaRed, -255, 255);
-            Assert.InRange(obj.GammaGreen, -255, 255);
-            Assert.InRange(obj.GammaBlue, -255, 255);
-            Assert.InRange(obj.GammaAlpha, -255, 255);
+            Assert.InRange(obj.Gamma.Red, -255, 255);
+            Assert.InRange(obj.Gamma.Green, -255, 255);
+            Assert.InRange(obj.Gamma.Blue, -255, 255);
+            Assert.InRange(obj.Gamma.Alpha, -255, 255);
         }
     }
 

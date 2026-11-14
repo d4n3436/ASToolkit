@@ -3,8 +3,6 @@ using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Routes;
-using ASToolkit.Core.Scripting;
-using System.Drawing;
 
 namespace ASToolkit.Core.Simulation;
 
@@ -41,12 +39,13 @@ public sealed class Playthrough
     public IReadOnlyList<int> FrameTimes { get; init; } = GameClock.DisplayFrameTimes;
 
     /// <summary>
-    /// Plays a level along its tour and returns the outcome.
+    /// Plays a level along its tour.
     /// </summary>
     /// <param name="analysis">The route analysis of the level.</param>
     /// <param name="loadout">What the player carries into the level.</param>
     /// <param name="seed">The seed of the random rolls.</param>
-    /// <param name="record">A value indicating whether to keep the frames and shots for a replay.</param>
+    /// <param name="record">A value indicating whether to keep a replay of the run.</param>
+    /// <returns>The outcome of the playthrough.</returns>
     public PlaythroughResult Run(RouteAnalysis analysis, PlayerLoadout loadout, int seed, bool record = false)
     {
         var recorder = record ? new ReplayRecorder() : null;
@@ -135,7 +134,7 @@ public sealed class Playthrough
     }
 
     /// <summary>
-    /// Plays campaign levels in order, retaining equipment and shopping with the previous level's earnings.
+    /// Plays campaign levels in order, shopping with each level's earnings before the next.
     /// </summary>
     /// <param name="levels">The levels in campaign order.</param>
     /// <param name="endMoney">The reward for each supplied level, in the same order.</param>
@@ -143,6 +142,7 @@ public sealed class Playthrough
     /// <param name="state">The state before the first shop, or null to begin a new campaign without shopping.</param>
     /// <param name="record">A value indicating whether to record the levels for replay.</param>
     /// <param name="recordedLevel">The zero-based index of the level to record, or null to record every level.</param>
+    /// <returns>The result of each level played and the state after the last one completed.</returns>
     public CampaignResult PlayCampaign(IReadOnlyList<RouteAnalysis> levels, IReadOnlyList<int> endMoney, int seed,
         CampaignState? state = null, bool record = false, int? recordedLevel = null)
     {

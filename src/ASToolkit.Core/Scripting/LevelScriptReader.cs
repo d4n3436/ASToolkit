@@ -27,7 +27,7 @@ public static partial class LevelScriptReader
         var triggers = new List<ScriptTrigger>();
         var start = StartBlock.Match(text);
         TriggerArea? blackout = null;
-        uint? blackoutTint = null;
+        uint? blackoutGamma = null;
         TriggerArea? exit = null;
         var checkpoints = new List<TriggerArea>();
         foreach (Match match in DistanceBlock.Matches(text))
@@ -42,7 +42,7 @@ public static partial class LevelScriptReader
             if (lightOff.Success)
             {
                 blackout = area;
-                blackoutTint = Convert.ToUInt32(lightOff.Groups[1].Value, lightOff.Groups[1].Value.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? 16 : 10);
+                blackoutGamma = Convert.ToUInt32(lightOff.Groups[1].Value, lightOff.Groups[1].Value.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? 16 : 10);
             }
 
             if (body.Contains("StartPlayerX", StringComparison.Ordinal))
@@ -55,7 +55,7 @@ public static partial class LevelScriptReader
                 exit = area;
             }
 
-            triggers.Add(ReadTrigger(area, body, lightOff.Success ? blackoutTint : null));
+            triggers.Add(ReadTrigger(area, body, lightOff.Success ? blackoutGamma : null));
         }
 
         return new LevelScriptSummary
@@ -63,7 +63,7 @@ public static partial class LevelScriptReader
             ClearsMonsters = text.Contains("CompaignGameTact()", StringComparison.Ordinal),
             DoorsLocked = start.Success && DoorsClosed.IsMatch(start.Groups[1].ValueSpan),
             Blackout = blackout,
-            BlackoutTint = blackoutTint,
+            BlackoutGamma = blackoutGamma,
             Checkpoints = checkpoints,
             WinsAfterSites = text.Contains($"GetVidData({(int)KnownObject.DynamiteSite}", StringComparison.Ordinal),
             Exit = exit,

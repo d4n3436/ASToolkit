@@ -42,7 +42,7 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
 
         string[] maps = GetMaps(settings);
         Directory.CreateDirectory(settings.Out);
-        var renderer = settings.NoImages ? null : new MapRenderer(settings.Game, objects) { MatchGameLighting = settings.GameLighting, OmitAmbientTint = settings.NoAmbientTint };
+        var renderer = settings.NoImages ? null : new MapRenderer(settings.Game, objects) { MatchGameLighting = settings.GameLighting, OmitAmbientGamma = settings.NoAmbientGamma };
         var reports = new RouteReport?[maps.Length];
         string?[] problems = new string?[maps.Length];
         string?[] images = new string?[maps.Length];
@@ -118,7 +118,7 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
                 .Where(name => !name.Contains("_temp", StringComparison.OrdinalIgnoreCase)).Order(StringComparer.OrdinalIgnoreCase).ToArray();
         Directory.CreateDirectory(settings.Out);
         var quests = QuestBook.Load(settings.Game);
-        var renderer = settings.NoImages ? null : new MapRenderer(settings.Game, objects) { MatchGameLighting = settings.GameLighting, OmitAmbientTint = settings.NoAmbientTint };
+        var renderer = settings.NoImages ? null : new MapRenderer(settings.Game, objects) { MatchGameLighting = settings.GameLighting, OmitAmbientGamma = settings.NoAmbientGamma };
         var reports = new WalkReport?[maps.Length];
         var options = new ParallelOptions { MaxDegreeOfParallelism = MaxLevelsAtOnce, CancellationToken = cancellationToken };
         AnsiConsole.Status().Start("Analyzing the levels", _ => Parallel.For(0, maps.Length, options, i =>

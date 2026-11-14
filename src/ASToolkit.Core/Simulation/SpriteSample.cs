@@ -16,11 +16,12 @@ namespace ASToolkit.Core.Simulation;
 public readonly record struct SpriteSample(int Time, KnownObject Id, Vector3 Position, int Frame, byte Facing, SpriteAnimation Animation, float Keyframe) : ITimed
 {
     /// <summary>
-    /// Returns how an object looks at a time from its last two samples, the last sample with its position and keyframe carried on at their pace.
+    /// Carries an object's last sample on to a later time at the pace set by the sample before it.
     /// </summary>
     /// <param name="before">The sample before the last one.</param>
     /// <param name="last">The last sample at or before the time.</param>
     /// <param name="time">The time, in milliseconds.</param>
+    /// <returns>The last sample with its position and keyframe moved on to the time.</returns>
     public static SpriteSample Predict(in SpriteSample before, in SpriteSample last, int time)
     {
         int span = last.Time - before.Time;

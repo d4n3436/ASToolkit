@@ -50,7 +50,7 @@ internal static class LogicOverlay
             foreach (var marker in logic.Markers.Where(marker => marker.Kind != ScriptMarkerKind.Other).OrderBy(marker => marker.Kind))
             {
                 var color = MarkerColors[marker.Kind];
-                var center = ToImage(map, marker.Position);
+                var center = map.ToImage(marker.Position);
                 if (marker.Radius > 0)
                 {
                     context.Draw(color, Size(1), new EllipsePolygon(center, Math.Max(Size(3), marker.Radius * map.Scale)));
@@ -63,7 +63,7 @@ internal static class LogicOverlay
 
             foreach (var segment in walk?.Segments ?? [])
             {
-                var points = segment.Points.Select(point => ToImage(map, point)).ToArray();
+                var points = segment.Points.Select(point => map.ToImage(point)).ToArray();
                 if (points.Length < 2)
                 {
                     continue;
@@ -82,7 +82,7 @@ internal static class LogicOverlay
             var steps = walk?.Steps ?? logic.Progression;
             for (int stepIndex = 0; stepIndex < steps.Count; stepIndex++)
             {
-                var at = ToImage(map, steps[stepIndex].Position);
+                var at = map.ToImage(steps[stepIndex].Position);
                 string text = (stepIndex + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
                 var bounds = TextMeasurer.MeasureBounds(text, new TextOptions(font));
                 float pad = Size(2);
@@ -99,5 +99,4 @@ internal static class LogicOverlay
         float Size(float width) => Math.Max(1, MathF.Round(width * k));
     }
 
-    private static PointF ToImage(MapImage map, Vector3 point) => map.ToImage(point.X, point.Y, point.Z);
 }

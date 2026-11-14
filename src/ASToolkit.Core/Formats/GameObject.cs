@@ -35,10 +35,7 @@ public readonly struct GameObject
         FrameCounts = obj.FrameCounts;
         SoundIds = obj.SoundIds;
         FrameDurations = obj.FrameDurations;
-        GammaRed = obj.GammaRed;
-        GammaGreen = obj.GammaGreen;
-        GammaBlue = obj.GammaBlue;
-        GammaAlpha = obj.GammaAlpha;
+        Gamma = obj.Gamma;
         Scale = obj.Scale;
         Speed = obj.Speed;
         ZSpeed = obj.ZSpeed;
@@ -76,10 +73,7 @@ public readonly struct GameObject
         FrameCounts = obj.FrameCounts;
         SoundIds = obj.SoundIds;
         FrameDurations = obj.FrameDurations;
-        GammaRed = obj.GammaRed;
-        GammaGreen = obj.GammaGreen;
-        GammaBlue = obj.GammaBlue;
-        GammaAlpha = obj.GammaAlpha;
+        Gamma = obj.Gamma;
         Scale = obj.Scale;
         Speed = obj.Speed;
         ZSpeed = obj.ZSpeed;
@@ -117,10 +111,7 @@ public readonly struct GameObject
         FrameCounts = obj.FrameCounts;
         SoundIds = obj.SoundIds;
         FrameDurations = obj.FrameDurations;
-        GammaRed = obj.GammaRed;
-        GammaGreen = obj.GammaGreen;
-        GammaBlue = obj.GammaBlue;
-        GammaAlpha = obj.GammaAlpha;
+        Gamma = obj.Gamma;
         Scale = obj.Scale;
         Speed = obj.Speed;
         ZSpeed = obj.ZSpeed;
@@ -340,39 +331,16 @@ public readonly struct GameObject
     public readonly StateValues<int> ChildCounts;
 
     /// <summary>
-    /// The gamma shift of the red channel of the sprite's palette.
+    /// The gamma of the sprite, with a negative alpha on smoke, steam and shadows.
     /// </summary>
     [FieldOffset(676)]
-    public readonly int GammaRed;
-
-    /// <summary>
-    /// The gamma shift of the green channel of the sprite's palette.
-    /// </summary>
-    [FieldOffset(680)]
-    public readonly int GammaGreen;
-
-    /// <summary>
-    /// The gamma shift of the blue channel of the sprite's palette.
-    /// </summary>
-    [FieldOffset(684)]
-    public readonly int GammaBlue;
-
-    /// <summary>
-    /// The gamma shift of the alpha of the sprite; negative on smoke, steam and shadows.
-    /// </summary>
-    [FieldOffset(688)]
-    public readonly int GammaAlpha;
+    public readonly VidGamma Gamma;
 
     /// <summary>
     /// The scale of the object along x, y and the height.
     /// </summary>
     [FieldOffset(692)]
     public readonly Vector3 Scale;
-
-    /// <summary>
-    /// Gets the gamma shift applied to the sprite's palette per channel.
-    /// </summary>
-    public (int R, int G, int B) Gamma => (GammaRed, GammaGreen, GammaBlue);
 
     /// <summary>
     /// Gets the number of frames of the standing animation in each direction.

@@ -39,12 +39,12 @@ public class KeyframeTests
     }
 
     [Fact]
-    public void FromKeyframes_BetweenKeys_InterpolatesTheTint()
+    public void GetGamma_BetweenKeys_InterpolatesTheGamma()
     {
-        var tint = PaletteTint.FromKeyframes(CreateWeapon(default), 3.5f);
+        var gamma = CreateWeapon(default).GetGamma(3.5f).Pack();
 
-        Assert.Equal(RedStep * 3 + RedStep / 2, tint.GetPositive(16));
-        Assert.Equal(0, tint.GetNegative(16));
+        Assert.Equal(RedStep * 3 + RedStep / 2, gamma.GetPositive(16));
+        Assert.Equal(0, gamma.GetNegative(16));
     }
 
     private static WeaponRecord CreateWeapon(in WeaponRecord source)

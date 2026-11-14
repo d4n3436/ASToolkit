@@ -1,3 +1,5 @@
+using System.Numerics;
+using ASToolkit.Core;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Survey;
 using ASToolkit.Core.Rendering;
@@ -78,13 +80,13 @@ internal static class PlaceOverlay
             var runs = analysis.GetTourRuns();
             foreach (var run in runs)
             {
-                context.DrawLine(Color.White.WithAlpha(0.7f), Math.Max(1, 3 * map.Scale), run.Points.Select(point => map.ToImage(point.X, point.Y)).ToArray());
+                context.DrawLine(Color.White.WithAlpha(0.7f), Math.Max(1, 3 * map.Scale), run.Points.Select(map.ToImage).ToArray());
             }
 
             foreach (var connection in survey.Connections)
             {
                 var middles = connection.Edges.SelectMany(run => run.GetEdges()).Select(edge => edge.Axis == 'v' ? lattice.ToWorld(edge.A + 0.5f, edge.B) : lattice.ToWorld(edge.A, edge.B + 0.5f)).ToArray();
-                var at = map.ToImage(middles.Average(middle => middle.X), middles.Average(middle => middle.Y));
+                var at = map.ToImage(new Vector2(middles.Average(middle => middle.X), middles.Average(middle => middle.Y)));
                 context.Fill(ConnectionColors[connection.Kind], new EllipsePolygon(at, Math.Max(3, 9 * map.Scale)));
             }
 
@@ -92,7 +94,7 @@ internal static class PlaceOverlay
             {
                 int? phase = progression.GetPhase(place.Id);
                 string label = phase is null ? place.Id.ToString() : $"{place.Id}/{phase.Value + 1}";
-                var at = map.ToImage(place.Center.X, place.Center.Y);
+                var at = map.ToImage(place.Center.ToVector2());
                 var bounds = TextMeasurer.MeasureBounds(label, new TextOptions(font));
                 context.Fill(Color.Black.WithAlpha(0.75f), new RectangularPolygon(at.X - bounds.Width / 2 - 3, at.Y - bounds.Height / 2 - 3, bounds.Width + 6, bounds.Height + 6));
                 context.DrawText(label, font, IsOffRoute(place.Id) ? Color.Orange : Color.White, new PointF(at.X - bounds.Width / 2 - bounds.X, at.Y - bounds.Height / 2 - bounds.Y));
@@ -114,7 +116,7 @@ internal static class PlaceOverlay
         PointF Corner(float u, float v)
         {
             var world = lattice.ToWorld(u, v);
-            return map.ToImage(world.X, world.Y);
+            return map.ToImage(world.ToVector2());
         }
     }
 

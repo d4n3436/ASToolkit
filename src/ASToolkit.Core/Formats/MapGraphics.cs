@@ -15,16 +15,10 @@ public readonly struct MapGraphics
     public readonly uint Flags;
 
     /// <summary>
-    /// The negative part of the ambient light.
+    /// The gamma of the ambient light.
     /// </summary>
     [FieldOffset(4)]
-    public readonly uint AmbientNegative;
-
-    /// <summary>
-    /// The positive part of the ambient light.
-    /// </summary>
-    [FieldOffset(8)]
-    public readonly uint AmbientPositive;
+    public readonly Gamma Ambient;
 
     /// <summary>
     /// The angle of the direction vector.

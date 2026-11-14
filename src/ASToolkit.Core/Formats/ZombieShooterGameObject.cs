@@ -100,16 +100,7 @@ internal readonly struct ZombieShooterGameObject
     public readonly StateValues<int> ChildCounts;
 
     [FieldOffset(668)]
-    public readonly int GammaRed;
-
-    [FieldOffset(672)]
-    public readonly int GammaGreen;
-
-    [FieldOffset(676)]
-    public readonly int GammaBlue;
-
-    [FieldOffset(680)]
-    public readonly int GammaAlpha;
+    public readonly VidGamma Gamma;
 
     [FieldOffset(684)]
     public readonly Vector3 Scale;

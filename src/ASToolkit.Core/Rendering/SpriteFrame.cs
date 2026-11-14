@@ -5,7 +5,7 @@ using SixLabors.ImageSharp.PixelFormats;
 namespace ASToolkit.Core.Rendering;
 
 // Pixels of one frame on its canvas, row by row from the top, with a column, palette index and optional depth each.
-// The palette is the object's tinted one, shared by all frames with the same tint.
+// The palette has the object's gamma applied and is shared by all frames with the same gamma.
 internal sealed class SpriteFrame
 {
     public required short[] Xs { get; init; }

@@ -10,7 +10,7 @@ namespace ASToolkit.Core.Scripting;
 /// <param name="Respawn">Where the block moves the respawn point.</param>
 /// <param name="RespawnPoint">The respawn point the block names when it names one.</param>
 /// <param name="LocksDoors">A value indicating whether the block locks the doors.</param>
-/// <param name="LightOff">The ambient color the block turns the lights off to, or null.</param>
+/// <param name="LightOff">The script gamma the block turns the lights off to, or null.</param>
 /// <param name="Quake">The length of the earthquake the block starts in milliseconds, or 0.</param>
 /// <param name="SwapsKeypads">A value indicating whether the block turns the lit keypads off.</param>
 /// <param name="Wins">A value indicating whether the block wins the level.</param>

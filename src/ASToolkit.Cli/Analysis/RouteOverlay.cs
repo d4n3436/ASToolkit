@@ -1,3 +1,5 @@
+using System.Numerics;
+using ASToolkit.Core;
 using ASToolkit.Core.Rendering;
 using ASToolkit.Core.Routes;
 using SixLabors.Fonts;
@@ -69,21 +71,21 @@ internal static class RouteOverlay
         float k = map.Scale / TunedScale;
         var tour = analysis.Tour
             .Select(analysis.Grid.Lattice.GetCenter)
-            .Select(p => map.ToImage(p.X, p.Y))
+            .Select(p => map.ToImage(p.ToVector2()))
             .ToArray();
         
         map.Image.Mutate(c =>
         {
             foreach (var run in analysis.GetTourRuns())
             {
-                c.DrawLine(PhaseColors[run.Phase], Size(3), run.Points.Select(p => map.ToImage(p.X, p.Y)).ToArray());
+                c.DrawLine(PhaseColors[run.Phase], Size(3), run.Points.Select(map.ToImage).ToArray());
             }
 
             foreach (var element in analysis.Elements.Where(e => e.Program?.Trigger is not null))
             {
                 var t = element.Program!.Trigger!.Value;
-                var trigger = map.ToImage(t.Center.X, t.Center.Y);
-                c.DrawLine(Trigger, Size(1), map.ToImage(element.X, element.Y), trigger);
+                var trigger = map.ToImage(t.Center.ToVector2());
+                c.DrawLine(Trigger, Size(1), map.ToImage(new Vector2(element.X, element.Y)), trigger);
                 if (t.Radius > 0)
                 {
                     c.Draw(Trigger, Size(1), new EllipsePolygon(trigger, t.Radius * map.Scale));
@@ -92,7 +94,7 @@ internal static class RouteOverlay
 
             foreach (var element in analysis.Elements.Where(e => e.Kind != ElementKind.Crate || e.CrateItem != 0))
             {
-                var dot = new EllipsePolygon(map.ToImage(element.X, element.Y), Size(element.Kind is ElementKind.Monster or ElementKind.Pickup or ElementKind.Crate ? 2 : 4));
+                var dot = new EllipsePolygon(map.ToImage(new Vector2(element.X, element.Y)), Size(element.Kind is ElementKind.Monster or ElementKind.Pickup or ElementKind.Crate ? 2 : 4));
                 var color = ElementColors.GetValueOrDefault(element.Kind, Color.White);
                 if (element.Hidden)
                 {
@@ -106,12 +108,12 @@ internal static class RouteOverlay
 
             foreach (var checkpoint in analysis.Checkpoints)
             {
-                c.Draw(Checkpoint, Size(2), Square(map.ToImage(checkpoint.X, checkpoint.Y), Size(5)));
+                c.Draw(Checkpoint, Size(2), Square(map.ToImage(new Vector2(checkpoint.X, checkpoint.Y)), Size(5)));
             }
 
             if (script.Blackout is not null)
             {
-                c.Draw(Blackout, Size(3), Square(map.ToImage(script.Blackout.Value.Center.X, script.Blackout.Value.Center.Y), Size(6)));
+                c.Draw(Blackout, Size(3), Square(map.ToImage(script.Blackout.Value.Center.ToVector2()), Size(6)));
             }
 
             DrawObjectiveLabels(c, map, analysis.Objectives, Size, LabelFamily.Value.CreateFont(Math.Max(10, MathF.Round(11 * k)), FontStyle.Bold));
@@ -120,7 +122,7 @@ internal static class RouteOverlay
             {
                 c.Draw(Start, Size(3), new EllipsePolygon(tour[0], Size(8)));
                 var last = analysis.Objectives.MaxBy(o => o.Progress);
-                c.Draw(End, Size(3), new EllipsePolygon(last is null ? tour[0] : map.ToImage(last.X, last.Y), Size(8)));
+                c.Draw(End, Size(3), new EllipsePolygon(last is null ? tour[0] : map.ToImage(new Vector2(last.X, last.Y)), Size(8)));
             }
         });
 
@@ -146,7 +148,7 @@ internal static class RouteOverlay
             char letter = ObjectiveLetters[objective.Kind];
             counts[letter] = counts.GetValueOrDefault(letter) + 1;
             string text = letter is 'B' or 'E' ? letter.ToString() : $"{letter}{counts[letter]}";
-            var at = map.ToImage(objective.X, objective.Y);
+            var at = map.ToImage(new Vector2(objective.X, objective.Y));
             var bounds = TextMeasurer.MeasureBounds(text, new TextOptions(font));
             float pad = size(2);
             float left = at.X + size(5);

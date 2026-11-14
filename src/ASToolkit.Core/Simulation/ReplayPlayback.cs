@@ -47,7 +47,7 @@ public sealed class ReplayPlayback
             .Where(sprite => !IsUnit(objects, sprite.Id) && !IsCannon(objects, sprite.Id) && !sprite.Id.IsScripted && !moved.Contains(sprite))
             .ToList();
 
-        _stages = BuildStages(sprites, result, renderer, level.Map.Graphics, level.Script.BlackoutTint);
+        _stages = BuildStages(sprites, result, renderer, level.Map.Graphics, level.Script.BlackoutGamma);
 
         _moved = level.Map.Sprites
             .Where(moved.Contains)
@@ -80,12 +80,13 @@ public sealed class ReplayPlayback
     public int FrameCount => _frameTimes.Length;
 
     /// <summary>
-    /// Simulates a map of a game folder as the opening level of a campaign and returns its playback.
+    /// Simulates a map of a game folder as the opening level of a campaign.
     /// </summary>
     /// <param name="game">The game folder.</param>
     /// <param name="map">The map path relative to the Maps folder.</param>
     /// <param name="objects">The object table of the game.</param>
     /// <param name="renderer">The renderer drawing the map.</param>
+    /// <returns>The playback of the simulated level.</returns>
     public static ReplayPlayback Run(string game, string map, ObjectTable objects, MapRenderer renderer)
     {
         string mapsPath = GamePath.Resolve(game, "Maps") ?? throw new InvalidDataException("The Maps folder was not found");
@@ -100,7 +101,8 @@ public sealed class ReplayPlayback
     /// <summary>
     /// Gets the time of a step of the playthrough.
     /// </summary>
-    /// <param name="index">The index of the step.</param>
+    /// <param name="index">The index of the step, clamped to the steps there are.</param>
+    /// <returns>The time of the step, in milliseconds.</returns>
     public int GetFrameTime(int index) => _frameTimes[Math.Clamp(index, 0, _frameTimes.Length - 1)];
 
     /// <summary>
@@ -147,7 +149,7 @@ public sealed class ReplayPlayback
         var halfFrame = new Point(size.Width / 2, size.Height / 2);
         var corner = new Point((int)MathF.Round((center.X - scene.Left) * scale) - halfFrame.X, (int)MathF.Round((center.Y - scene.Top) * scale) - halfFrame.Y);
         var area = new SixLabors.ImageSharp.Rectangle(corner.X, corner.Y, size.Width, size.Height);
-        var tint = stage.Light.At(time);
+        var gamma = stage.Light.At(time);
         _hidden.Clear();
         foreach ((var sprite, int collected) in _pickedUp)
         {
@@ -157,7 +159,7 @@ public sealed class ReplayPlayback
             }
         }
 
-        scene.Render(pixels, size.Width, area, scale, time, _hidden, tint.Negative, tint.Positive);
+        scene.Render(pixels, size.Width, area, scale, time, _hidden, gamma);
         DrawFlash(pixels, time);
 
         // Draw the system cursor the game uses where the unshaken camera puts it
@@ -211,24 +213,24 @@ public sealed class ReplayPlayback
         return play.PlayCampaign([selected], [], 1, state, record: true).Levels[0];
     }
 
-    private static Stage[] BuildStages(List<MergedMapSprite> sprites, PlaythroughResult result, MapRenderer renderer, MapGraphics graphics, uint? blackoutTint)
+    private static Stage[] BuildStages(List<MergedMapSprite> sprites, PlaythroughResult result, MapRenderer renderer, MapGraphics graphics, uint? blackoutGamma)
     {
         var events = result.Replay!.CreatedSprites
             .GroupBy(creation => creation.Time)
-            .Select(group => (Time: group.Key, Added: group.Select(creation => creation.Placement).ToArray(), Light: (PaletteTint?)null))
+            .Select(group => (Time: group.Key, Added: group.Select(creation => creation.Placement).ToArray(), Light: (Gamma?)null))
             .ToList();
 
-        if (result.Script.BlackoutAt is not null && blackoutTint is not null)
+        if (result.Script.BlackoutAt is not null && blackoutGamma is not null)
         {
-            events.Add((result.Script.BlackoutAt.Value, [], PaletteTint.FromScriptGamma(blackoutTint.Value)));
+            events.Add((result.Script.BlackoutAt.Value, [], Gamma.FromScript(blackoutGamma.Value)));
         }
         if (result.Script.DoorsOpenedAt is not null)
         {
-            events.Add((result.Script.DoorsOpenedAt.Value, [], default(PaletteTint)));
+            events.Add((result.Script.DoorsOpenedAt.Value, [], default(Gamma)));
         }
 
         events.Sort((a, b) => a.Time.CompareTo(b.Time));
-        var initial = new PaletteTint(graphics.AmbientNegative, graphics.AmbientPositive);
+        var initial = graphics.Ambient;
         var light = new LightFade(0, initial, initial);
         var stages = new List<Stage> { new(0, renderer.CreateSceneWithoutLinks(sprites, graphics), light) };
         foreach ((int time, var added, var target) in events)
@@ -298,8 +300,8 @@ public sealed class ReplayPlayback
         if (sprite is null || frame < 0 || frame >= sprite.Value.FrameCount || !_objects.TryFind(id, out var obj))
             return;
 
-        var tint = _objects.TryGetWeapon(obj, out var weapon) ? PaletteTint.FromKeyframes(weapon, keyframe) : default;
-        _live.Add(new LiveSprite(id, position, facing, frame, tint));
+        var gamma = _objects.TryGetWeapon(obj, out var weapon) ? weapon.GetGamma(keyframe).Pack() : default;
+        _live.Add(new LiveSprite(id, position, facing, frame, gamma));
     }
 
     private sealed record PlacementTimeline(MergedMapSprite Sprite, PlacementFrame[] Frames, int RemovedAt);

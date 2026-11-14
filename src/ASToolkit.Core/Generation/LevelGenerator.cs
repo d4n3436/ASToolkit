@@ -26,8 +26,8 @@ public sealed class LevelGenerator
 {
     private const int MaxLayouts = 8;
 
-    // Holds the ambient tint of a locked-doors level, dark until the breaker lights it
-    private const uint DarkAmbient = 0x00C0C0C0;
+    // Holds the ambient gamma of a locked-doors level, dark until the breaker lights it
+    private static readonly Gamma DarkAmbient = new(0x00C0C0C0, 0);
 
     private const int SeedPrime = 7919;
     private const int BudgetSalt = 17;
@@ -365,7 +365,7 @@ public sealed class LevelGenerator
         return new GeneratedLevel
         {
             Level = brief.Level,
-            Map = map.ToMap(new Vector2(Math.Max(0, px - 400), Math.Max(0, py - 300)), brief.GateStyle == LevelStyle.LockedDoors ? DarkAmbient : 0),
+            Map = map.ToMap(new Vector2(Math.Max(0, px - 400), Math.Max(0, py - 300)), brief.GateStyle == LevelStyle.LockedDoors ? DarkAmbient : default(Gamma)),
             Script = script,
             Plan = plan,
             Layout = layout,
