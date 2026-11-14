@@ -9,6 +9,7 @@ internal sealed class ReplayRecorder : IWorldEventSink
 {
     private const int FrameInterval = 100;
     private const int PlayerUnits = 2;
+    private const float MinMove = 1e-6f;
 
     private readonly List<EffectState> _buffer = [];
     private EffectState[] _lastEffects = [];
@@ -21,12 +22,13 @@ internal sealed class ReplayRecorder : IWorldEventSink
     private readonly List<SpriteEvent> _createdSprites = [];
     private readonly List<SpriteEvent> _removedSprites = [];
     private readonly List<SpriteEvent> _pickups = [];
-    private readonly List<DoorFrame> _doorFrames = [];
+    private readonly List<PlacementFrame> _placementFrames = [];
     private readonly List<EffectState> _scenery = [];
     private readonly List<CameraShake> _shakes = [];
     private readonly List<ScreenFlash> _flashes = [];
     private readonly List<UnitTrack> _tracks = [];
     private readonly List<int> _listed = [];
+    private List<PlacedUnit>? _placed;
     private int _frameSlot = -1;
 
     public void Capture(GameWorld world)
@@ -48,11 +50,42 @@ internal sealed class ReplayRecorder : IWorldEventSink
         }
 
         MarkDeleted(world.Time);
+        CapturePlacements(world);
 
         if (world.Time / FrameInterval != _frameSlot)
         {
             _frameSlot = world.Time / FrameInterval;
             CaptureFrame(world);
+        }
+    }
+
+    // Record placed bodies and stand-ins whenever they stand somewhere new
+    private void CapturePlacements(GameWorld world)
+    {
+        if (_placed is null)
+        {
+            _placed = [];
+            foreach (var sprite in world.Sprites)
+            {
+                var unit = world.FindPlacementUnit(sprite);
+
+                if (unit is not null)
+                {
+                    _placed.Add(new PlacedUnit(sprite, unit) { Position = unit.Position });
+                }
+            }
+        }
+
+        var placed = CollectionsMarshal.AsSpan(_placed);
+        for (int index = 0; index < placed.Length; index++)
+        {
+            ref var entry = ref placed[index];
+
+            if (world.IsRemoved(entry.Sprite) || Vector3.DistanceSquared(entry.Unit.Position, entry.Position) <= MinMove)
+                continue;
+
+            entry.Position = entry.Unit.Position;
+            _placementFrames.Add(new PlacementFrame(entry.Sprite, world.Time, entry.Position));
         }
     }
 
@@ -120,7 +153,7 @@ internal sealed class ReplayRecorder : IWorldEventSink
     }
 
     public PlaythroughReplay CreateReplay() =>
-        new(_frames, _unitFrames, _effectFrames, _shots, _spawns, _removedSprites, _createdSprites, _pickups, _doorFrames, _scenery, _shakes, _flashes);
+        new(_frames, _unitFrames, _effectFrames, _shots, _spawns, _removedSprites, _createdSprites, _pickups, _placementFrames, _scenery, _shakes, _flashes);
 
     public void RecordShot(in ShotTrace shot) => _shots.Add(shot);
 
@@ -132,13 +165,26 @@ internal sealed class ReplayRecorder : IWorldEventSink
 
     public void RecordPickup(MergedMapSprite sprite, int time) => _pickups.Add(new SpriteEvent(sprite, time));
 
-    public void RecordDoorPosition(MergedMapSprite door, int time, Vector3 position) => _doorFrames.Add(new DoorFrame(door, time, position));
-
     public void RecordScenery(in EffectState scenery) => _scenery.Add(scenery);
 
     public void RecordCameraShake(CameraShake shake) => _shakes.Add(shake);
 
     public void RecordScreenFlash(ScreenFlash flash) => _flashes.Add(flash);
+
+    private struct PlacedUnit
+    {
+        public PlacedUnit(MergedMapSprite sprite, Unit unit)
+        {
+            Sprite = sprite;
+            Unit = unit;
+        }
+
+        public MergedMapSprite Sprite { get; }
+
+        public Unit Unit { get; }
+
+        public Vector3 Position { get; set; }
+    }
 
     private struct UnitTrack
     {

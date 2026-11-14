@@ -17,6 +17,7 @@ public sealed class Playthrough
 
     private readonly ShopBot _shop;
     private readonly ObjectCatalog _kinds;
+    private readonly ObjectTable _objects;
     private readonly IReadOnlyList<int> _ammoBatches;
     private readonly Dictionary<RouteAnalysis, LevelSetup> _setups = [];
 
@@ -29,6 +30,7 @@ public sealed class Playthrough
     public Playthrough(string gameFolder, ObjectTable objects, GameTable table)
     {
         _kinds = new ObjectCatalog(gameFolder, objects);
+        _objects = objects;
         _shop = new ShopBot(objects, _kinds, table);
         _ammoBatches = table.GetArray("GettingAmmo");
     }
@@ -65,7 +67,7 @@ public sealed class Playthrough
 
         var world = new GameWorld(setup.Level, loadout, new GameRandom(seed), recorder);
         AddLoosePickups(analysis, world);
-        var bot = new PlayerBot(world, analysis, setup.Field.Clone(world.Movement));
+        var bot = new PlayerBot(world, analysis, setup.Field.Clone(setup.Field.Obstacles.Clone(world.Movement)));
 
         return new PlaySession(world, bot, analysis.Exit is null && !analysis.ClearsMonsters);
     }
@@ -94,7 +96,8 @@ public sealed class Playthrough
     {
         var script = CreateLevelScript(analysis);
         var movement = _kinds.CreateMovementMap(analysis.Model);
-        var field = new WalkField(analysis.Grid, script.DoorsLocked, analysis.Grid.FenceEdges.Count > 0, movement, _kinds.Find(KnownObject.PlayerStart)!.Object);
+        var obstacles = new WalkObstacles(analysis.Model, _kinds.Parts, _objects, movement);
+        var field = new WalkField(analysis.Grid, script.DoorsLocked, analysis.Grid.FenceEdges.Count > 0, obstacles, _kinds.Find(KnownObject.PlayerStart)!.Object);
         var start = analysis.Tour.Count > 0 ? analysis.Grid.Lattice.GetCenter(analysis.Tour[0]).ToVector2() : Vector2.Zero;
         int cell = field.FindFree(start);
         var level = new LevelTemplate

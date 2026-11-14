@@ -25,8 +25,8 @@ public partial class ReplayViewModel : ViewModelBase
     private const int DefaultViewportHeight = 720;
     private const int ShakeHold = 20;
     private const int FlashPasses = 3;
-    private const int FlashRiseParts = 9;
-    private const int FullStrength = 256;
+    private const uint FlashRiseParts = 9;
+    private const uint FullStrength = 256;
     private static readonly KnownObject[] DoorIds = [KnownObject.SmallDoor, KnownObject.DoubleDoor];
 
     private readonly DispatcherTimer _timer;
@@ -34,7 +34,7 @@ public partial class ReplayViewModel : ViewModelBase
 
     private PlaythroughReplay? _replay;
     private IReadOnlyList<Stage> _stages = [];
-    private IReadOnlyList<DoorTimeline> _doors = [];
+    private IReadOnlyList<PlacementTimeline> _doors = [];
     private IReadOnlyDictionary<MergedMapSprite, int> _pickedUp = new Dictionary<MergedMapSprite, int>();
     private readonly HashSet<MergedMapSprite> _hidden = [];
     private readonly List<LiveSprite> _live = [];
@@ -253,7 +253,7 @@ public partial class ReplayViewModel : ViewModelBase
         }
     }
 
-    private static (PlaythroughResult Result, IReadOnlyList<Stage> Stages, IReadOnlyList<DoorTimeline> Doors) Simulate(string game, string map,
+    private static (PlaythroughResult Result, IReadOnlyList<Stage> Stages, IReadOnlyList<PlacementTimeline> Doors) Simulate(string game, string map,
         ObjectTable objects, MapRenderer renderer)
     {
         string mapsPath = GamePath.Resolve(game, "Maps") ?? throw new InvalidDataException("The Maps folder was not found");
@@ -268,15 +268,19 @@ public partial class ReplayViewModel : ViewModelBase
         var play = new Playthrough(game, objects, table);
         var result = SimulateLevel(play, level.Analysis, map, table);
 
+        var moved = result.Replay!.PlacementFrames
+            .Select(frame => frame.Placement)
+            .ToHashSet(ReferenceEqualityComparer.Instance);
+
         var sprites = level.Map.Sprites
-            .Where(sprite => !IsUnit(objects, sprite.Id) && !sprite.Id.IsScripted)
+            .Where(sprite => !IsUnit(objects, sprite.Id) && !sprite.Id.IsScripted && !moved.Contains(sprite))
             .ToList();
         
         var stages = BuildStages(sprites, result, renderer, level.Map.Graphics, level.Script.BlackoutTint);
         
         var doors = level.Map.Sprites
-            .Where(sprite => IsDoor(sprite.Id))
-            .Select(sprite => BuildDoorTimeline(sprite, result.Replay!))
+            .Where(sprite => IsDoor(sprite.Id) || moved.Contains(sprite))
+            .Select(sprite => BuildPlacementTimeline(sprite, result.Replay!))
             .ToArray();
         
         return (result, stages, doors);
@@ -369,8 +373,9 @@ public partial class ReplayViewModel : ViewModelBase
         }
     }
 
-    private static DoorTimeline BuildDoorTimeline(MergedMapSprite sprite, PlaythroughReplay replay) =>
-        new(sprite, replay.DoorFrames.Where(frame => frame.Placement == sprite).ToArray());
+    private static PlacementTimeline BuildPlacementTimeline(MergedMapSprite sprite, PlaythroughReplay replay) =>
+        new(sprite, replay.PlacementFrames.Where(frame => frame.Placement == sprite).ToArray(),
+            replay.RemovedSprites.Where(removal => removal.Placement == sprite).Select(removal => removal.Time).DefaultIfEmpty(int.MaxValue).First());
 
     private static bool IsUnit(ObjectTable objects, KnownObject id) =>
         id != KnownObject.Crate && objects.TryFind(id, out var obj) && obj is { MaxHp: > 0, SpriteClass: SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Player };
@@ -396,37 +401,46 @@ public partial class ReplayViewModel : ViewModelBase
         return high >= 0 && time - shakes[high].Time < ShakeHold ? shakes[high].Offset : Vector2.Zero;
     }
 
+    // From 0x004311a0
     private void DrawFlash(IReadOnlyList<ScreenFlash> flashes, int time)
     {
-        foreach (var flash in flashes)
+        int last = -1;
+        for (int index = 0; index < flashes.Count && flashes[index].Time <= time; index++)
         {
-            int elapsed = time - flash.Time;
+            last = index;
+        }
 
-            if (elapsed < 0 || elapsed >= flash.Duration)
-                continue;
+        if (last < 0)
+            return;
 
-            int rise = flash.Duration / FlashRiseParts;
-            int strength = elapsed < rise
-                ? FlashRiseParts * FullStrength * elapsed / flash.Duration
-                : FullStrength * (flash.Duration - elapsed) / (flash.Duration - rise);
-            int red = (flash.Color >> 16 & 0xff) * strength >> 8;
-            int green = (flash.Color >> 8 & 0xff) * strength >> 8;
-            int blue = (flash.Color & 0xff) * strength >> 8;
-            for (int index = 0; index < _pixels.Length; index++)
+        var flash = flashes[last];
+        uint elapsed = (uint)(time - flash.Time);
+        uint duration = (uint)flash.Duration;
+
+        if (elapsed >= duration)
+            return;
+
+        uint rise = duration / FlashRiseParts;
+        uint strength = elapsed < rise ? elapsed * FlashRiseParts * FullStrength / duration : (duration - elapsed) * FullStrength / (duration - rise);
+        uint color = (uint)flash.Color;
+        uint blend = ((color & 0xff00) * strength >> 8 & 0xff00) + ((color & 0xff) * strength >> 8) + (color * strength >> 8 & 0xff0000);
+        int red = (int)(blend >> 16 & 0xff);
+        int green = (int)(blend >> 8 & 0xff);
+        int blue = (int)(blend & 0xff);
+        for (int index = 0; index < _pixels.Length; index++)
+        {
+            ref var pixel = ref _pixels[index];
+            int r = pixel.R;
+            int g = pixel.G;
+            int b = pixel.B;
+            for (int pass = 0; pass < FlashPasses; pass++)
             {
-                ref var pixel = ref _pixels[index];
-                int r = pixel.R;
-                int g = pixel.G;
-                int b = pixel.B;
-                for (int pass = 0; pass < FlashPasses; pass++)
-                {
-                    r = Math.Min(byte.MaxValue, r + r * red / byte.MaxValue);
-                    g = Math.Min(byte.MaxValue, g + g * green / byte.MaxValue);
-                    b = Math.Min(byte.MaxValue, b + b * blue / byte.MaxValue);
-                }
-
-                pixel = new Bgra32((byte)r, (byte)g, (byte)b, pixel.A);
+                r = Math.Min(byte.MaxValue, r + r * red / byte.MaxValue);
+                g = Math.Min(byte.MaxValue, g + g * green / byte.MaxValue);
+                b = Math.Min(byte.MaxValue, b + b * blue / byte.MaxValue);
             }
+
+            pixel = new Bgra32((byte)r, (byte)g, (byte)b, pixel.A);
         }
     }
 
@@ -487,7 +501,7 @@ public partial class ReplayViewModel : ViewModelBase
 
         foreach (var door in doors)
         {
-            AddDoor(_live, objects, renderer, door, _time);
+            AddPlacement(_live, objects, renderer, door, _time);
         }
 
         var scene = stage.Scene;
@@ -539,8 +553,11 @@ public partial class ReplayViewModel : ViewModelBase
             : unit.Position;
     }
 
-    private static void AddDoor(List<LiveSprite> live, ObjectTable objects, MapRenderer renderer, DoorTimeline door, int time)
+    private static void AddPlacement(List<LiveSprite> live, ObjectTable objects, MapRenderer renderer, PlacementTimeline door, int time)
     {
+        if (time >= door.RemovedAt)
+            return;
+
         int low = 0, high = door.Frames.Count - 1;
         while (low <= high)
         {
@@ -555,8 +572,7 @@ public partial class ReplayViewModel : ViewModelBase
             }
         }
 
-        float height = high >= 0 ? door.Frames[high].Position.Z : door.Sprite.Position.Z;
-        var position = door.Sprite.Position with { Z = height };
+        var position = high >= 0 ? door.Frames[high].Position : door.Sprite.Position;
         if (!objects.TryFind(door.Sprite.Id, out var obj))
         {
             return;
@@ -564,7 +580,7 @@ public partial class ReplayViewModel : ViewModelBase
 
         var sprite = renderer.GetSprite(door.Sprite.Id);
         int frameIndex = sprite is null ? 0 : obj.GetFrame(door.Sprite.Facing, sprite.Value.FrameCount);
-        live.Add(new LiveSprite(door.Sprite.Id, position, door.Sprite.Facing, frameIndex));
+        AddLiveSprite(live, objects, renderer, door.Sprite.Id, position, door.Sprite.Facing, SpriteAnimation.Stand, time, 0, spriteFrame: frameIndex);
     }
 
     // Adds the recorded engine frame when there is one, then the linked object at its offset and facing
@@ -653,7 +669,7 @@ public partial class ReplayViewModel : ViewModelBase
 
     private sealed record FrameHistory(int[] Times, int[] Frames);
 
-    private sealed record DoorTimeline(MergedMapSprite Sprite, IReadOnlyList<DoorFrame> Frames);
+    private sealed record PlacementTimeline(MergedMapSprite Sprite, IReadOnlyList<PlacementFrame> Frames, int RemovedAt);
 
     private sealed record Stage(int Time, MapScene Scene, LightFade Light);
 

@@ -24,7 +24,6 @@ internal sealed class WalkField
     private readonly int[] _cells;
     private readonly Cell[] _places;
     private readonly Vector2[] _centers;
-    private readonly MovementMap _movement;
     private readonly GameObject _walker;
     private readonly int[] _neighbors;
     private readonly int[] _distance;
@@ -34,7 +33,7 @@ internal sealed class WalkField
     private const byte StaleCell = 2;
     private readonly byte[] _cellState;
     private readonly SharedLinks _shared;
-    private readonly List<GameWorld.TerrainChange> _gates = [];
+    private readonly List<TerrainChange> _gates = [];
     private int _movementVersion;
     private bool _doorsLocked;
     private bool _fencesUp;
@@ -46,7 +45,7 @@ internal sealed class WalkField
     private int _floodLimit = -1;
     private int _floodCount;
 
-    private WalkField(WalkField source, MovementMap movement)
+    private WalkField(WalkField source, WalkObstacles movement)
     {
         _lattice = source._lattice;
         _minU = source._minU;
@@ -62,7 +61,7 @@ internal sealed class WalkField
         _distance = (int[])source._distance.Clone();
         _queue = (int[])source._queue.Clone();
         ReachedCount = source.ReachedCount;
-        _movement = movement;
+        Obstacles = movement;
         _walker = source._walker;
         _movementVersion = source._movementVersion;
         _doorsLocked = source._doorsLocked;
@@ -76,11 +75,13 @@ internal sealed class WalkField
         _floodCount = source._floodCount;
     }
 
-    public WalkField Clone(MovementMap movement) => new(this, movement);
+    public WalkField Clone(WalkObstacles movement) => new(this, movement);
 
-    public WalkField(RouteGrid grid, bool doorsLocked, bool fencesUp, MovementMap movement, GameObject walker)
+    public WalkObstacles Obstacles { get; }
+
+    public WalkField(RouteGrid grid, bool doorsLocked, bool fencesUp, WalkObstacles movement, GameObject walker)
     {
-        _movement = movement;
+        Obstacles = movement;
         _walker = walker;
         _lattice = grid.Lattice.Halve();
         var cells = GetCellsInMap(grid, _lattice, movement.MapSize);
@@ -108,8 +109,8 @@ internal sealed class WalkField
         Array.Fill(_distance, -1);
         _doorsLocked = doorsLocked;
         _fencesUp = fencesUp;
-        _movement.SetGates(doorsLocked, fencesUp);
-        _movementVersion = _movement.Version;
+        Obstacles.SetGates(doorsLocked, fencesUp);
+        _movementVersion = Obstacles.Version;
     }
 
     public float CellStep => _lattice.CellStep;
@@ -119,16 +120,16 @@ internal sealed class WalkField
         bool doorsChange = _doorsLocked != doorsLocked;
         bool fencesChange = _fencesUp != fencesUp;
 
-        if (_movementVersion == _movement.Version && !doorsChange && !fencesChange)
+        if (_movementVersion == Obstacles.Version && !doorsChange && !fencesChange)
             return;
 
         _doorsLocked = doorsLocked;
         _fencesUp = fencesUp;
-        _movement.SetGates(doorsLocked, fencesUp);
+        Obstacles.SetGates(doorsLocked, fencesUp);
         if (doorsChange || fencesChange)
         {
             _gates.Clear();
-            _movement.CollectGates(doorsChange, fencesChange, _gates);
+            Obstacles.CollectGates(doorsChange, fencesChange, _gates);
             foreach (var gate in _gates)
             {
                 RefreshCells(gate.Position, gate.HalfSize);
@@ -139,13 +140,13 @@ internal sealed class WalkField
             MarkAllStale();
         }
 
-        _movementVersion = _movement.Version;
+        _movementVersion = Obstacles.Version;
         ClearDistances();
     }
 
     public void RefreshMovement(Vector2 center, Vector2 half)
     {
-        _movementVersion = _movement.Version;
+        _movementVersion = Obstacles.Version;
         RefreshCells(center, half);
         ClearDistances();
     }
@@ -195,11 +196,11 @@ internal sealed class WalkField
     private void UpdateNeighbors(int index, int[] links)
     {
         var cell = _places[index];
-        var from = new Vector3(_centers[index], _movement.GetSupportHeight(_walker, _centers[index]));
+        var from = new Vector3(_centers[index], Obstacles.Terrain.GetSupportHeight(_walker, _centers[index]));
         for (int side = 0; side < Sides; side++)
         {
             int target = Find(new Cell(cell.U + SideSteps[side].U, cell.V + SideSteps[side].V));
-            links[index * Sides + side] = target >= 0 && _movement.CanMove(_walker, from, _centers[target], anticipateDoors: true) ? target : -1;
+            links[index * Sides + side] = target >= 0 && Obstacles.CanMove(_walker, from, _centers[target], anticipateDoors: true) ? target : -1;
         }
     }
 
@@ -258,7 +259,7 @@ internal sealed class WalkField
         return best;
     }
 
-    public bool CanMove(Vector3 from, Vector2 to) => Find(to) >= 0 && _movement.CanMove(_walker, from, to, anticipateDoors: true);
+    public bool CanMove(Vector3 from, Vector2 to) => Find(to) >= 0 && Obstacles.CanMove(_walker, from, to, anticipateDoors: true);
 
     public int FindFree(Vector2 point, float reach = 60, bool reachedOnly = false, bool skipReached = false, Vector2 skippedHalf = default)
     {
@@ -279,7 +280,7 @@ internal sealed class WalkField
             if (Math.Abs(center.X - point.X) < skippedHalf.X && Math.Abs(center.Y - point.Y) < skippedHalf.Y)
                 continue;
 
-            if (nextDistance <= distance && _movement.CanStand(_walker, center.AsVector3(), anticipateDoors: true))
+            if (nextDistance <= distance && Obstacles.CanStand(_walker, center.AsVector3(), anticipateDoors: true))
             {
                 best = candidate;
                 distance = nextDistance;
@@ -291,12 +292,12 @@ internal sealed class WalkField
 
     public int FindStart(Vector3 point)
     {
-        if (_lastStartVersion == _movement.Version && Vector3.DistanceSquared(_lastStartPoint, point) < StartTolerance)
+        if (_lastStartVersion == Obstacles.Version && Vector3.DistanceSquared(_lastStartPoint, point) < StartTolerance)
             return _lastStart;
 
         _lastStart = SearchStart(point);
         _lastStartPoint = point;
-        _lastStartVersion = _movement.Version;
+        _lastStartVersion = Obstacles.Version;
 
         return _lastStart;
     }

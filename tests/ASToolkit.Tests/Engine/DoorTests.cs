@@ -15,16 +15,15 @@ public class DoorTests
     {
         var kinds = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var door = new MergedMapSprite(1, id, new Vector3(1000, 1000, 0), 0, 0, []);
-        var recorder = new ReplayRecorder();
-        var world = EngineTestWorld.CreateWorld(kinds, recorder, sprites: [door]);
-        var doorFrames = recorder.CreateReplay().DoorFrames;
+        var world = EngineTestWorld.CreateWorld(kinds, sprites: [door]);
+        var body = world.FindPlacementUnit(door)!;
         world.Step(default);
 
-        Assert.Single(doorFrames);
+        Assert.Equal(0, body.Position.Z);
         for (int tick = 1; tick <= ticks + 1; tick++)
         {
             world.Step(default);
-            Assert.Equal(-Math.Min(tick, ticks) * step, doorFrames[^1].Position.Z);
+            Assert.Equal(-Math.Min(tick, ticks) * step, body.Position.Z);
         }
     }
 
@@ -35,14 +34,12 @@ public class DoorTests
         var kind = kinds.Find(KnownObject.SmallDoor)!;
         var walker = kinds.Find(KnownObject.PlayerStart)!;
         var position = new Vector2(1000);
-        var map = new MovementMap();
-        map.AddObstacle(kind.Object, new Vector3(position, 0));
-        var grid = new UnitGrid(Vector2.Zero, new Vector2(2000));
+        var grid = new UnitGrid(new System.Drawing.SizeF(2000, 2000), new Vector2(130));
         var unit = new Unit(0, walker, position.AsVector3(), 0, walker.MaxHp);
+        grid.Add(new Unit(1, kind, position.AsVector3(), 0, kind.MaxHp));
         grid.Add(unit);
-        var movement = new UnitCollision(map, grid);
+        var movement = new UnitCollision(new MovementMap(), grid);
 
-        Assert.False(map.CanStand(walker.Object, position.AsVector3()));
         Assert.True(movement.Move(unit, (position + Vector2.UnitX).AsVector3()));
         Assert.Equal(position + Vector2.UnitX, unit.Position.AsVector2());
     }
@@ -52,16 +49,15 @@ public class DoorTests
     {
         var kinds = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var door = new MergedMapSprite(1, KnownObject.SmallDoor, new Vector3(1000, 1000, 0), 0, 0, []);
-        var recorder = new ReplayRecorder();
-        var world = EngineTestWorld.CreateWorld(kinds, recorder, sprites: [door]);
-        var doorFrames = recorder.CreateReplay().DoorFrames;
+        var world = EngineTestWorld.CreateWorld(kinds, sprites: [door]);
+        var body = world.FindPlacementUnit(door)!;
         world.AddMonster(kinds.Find(KnownObject.Monster1)!, door.Position);
         for (int tick = 0; tick <= 16; tick++)
         {
             world.Step(default);
         }
 
-        Assert.Equal(-64, doorFrames[^1].Position.Z);
+        Assert.Equal(-64, body.Position.Z);
         world.Player.Position = new Vector3(3000, 1000, 0);
         int left = world.Time;
         while (world.Time <= left + 3000)
@@ -69,9 +65,9 @@ public class DoorTests
             world.Step(default);
         }
 
-        Assert.Equal(-64, doorFrames[^1].Position.Z);
+        Assert.Equal(-64, body.Position.Z);
         world.StartBlackout();
         world.Step(default);
-        Assert.Equal(-60, doorFrames[^1].Position.Z);
+        Assert.Equal(-60, body.Position.Z);
     }
 }

@@ -1,3 +1,4 @@
+using System.Drawing;
 using ASToolkit.Core.Engine;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -14,15 +15,14 @@ public class MovementTests
     [Fact]
     public void Clone_KeepsRemovedObjectsIndependent()
     {
-        var map = new MovementMap();
+        var map = new WalkObstacles(new MovementMap());
         var wall = new MergedMapSprite(1, KnownObject.SpawnWallSlash, new Vector3(40, 0, 0), 0, 0, []);
         var walker = Body(new Vector3(2, 2, 10));
         map.AddObstacle(Body(new Vector3(10, 10, 40)), wall.Position, wall);
-        var copy = map.Clone();
-        Assert.True(copy.Remove(wall));
-        Assert.True(copy.CanSpawn(walker, new Vector2(40, 0).AsVector3()));
-        Assert.False(map.CanSpawn(walker, new Vector2(40, 0).AsVector3()));
-        Assert.False(copy.Remove(wall));
+        var copy = map.Clone(new MovementMap());
+        copy.Remove(wall);
+        Assert.True(copy.CanStand(walker, new Vector2(40, 0).AsVector3()));
+        Assert.False(map.CanStand(walker, new Vector2(40, 0).AsVector3()));
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public class MovementTests
         var lattice = new Lattice(10, 7);
         var middle = lattice.ToWorld(22, 30.5f);
         var wall = new MergedMapSprite(1, KnownObject.SpawnWallSlash, new Vector3(middle.X, middle.Y, 0), 0, 0, []);
-        var map = new MovementMap();
+        var map = new WalkObstacles(new MovementMap());
         map.AddObstacle(Body(new Vector3(10, 10, 40)), wall.Position, wall);
         var grid = new RouteGrid
         {
@@ -56,23 +56,12 @@ public class MovementTests
             Lattice = new Lattice(10, 7), Cells = Enumerable.Range(0, 4).SelectMany(u => Enumerable.Range(0, 4).Select(v => new Cell(u, v))).ToHashSet(),
             Edges = [], FenceEdges = [], BlockedCells = []
         };
-        var field = new WalkField(grid, false, false, new MovementMap(), Body(new Vector3(24, 18, 40), spriteClass: SpriteClass.Player));
+        var field = new WalkField(grid, false, false, new WalkObstacles(new MovementMap()), Body(new Vector3(24, 18, 40), spriteClass: SpriteClass.Player));
         var outside = new Vector2(-120, 0);
         int start = field.FindStart(outside.AsVector3());
 
         Assert.True(start >= 0);
         Assert.True(field.CanMove(outside.AsVector3(), field.GetCenter(start)));
-    }
-
-    [Fact]
-    public void CanSpawn_AboveTheFloor_IgnoresTheWalkingDropLimit()
-    {
-        var map = new MovementMap();
-        var walker = Body(new Vector3(24, 18, 40), dropHeight: 9);
-        Assert.False(map.CanStand(walker, new Vector3(0, 0, 20)));
-        Assert.True(map.CanSpawn(walker, new Vector3(0, 0, 20)));
-        map.Raise(0, 0, 24);
-        Assert.False(map.CanSpawn(walker, new Vector3(0, 0, 20)));
     }
 
     [Fact]
@@ -86,7 +75,7 @@ public class MovementTests
     [Fact]
     public void CanStand_StaticBox_UsesFullHalfExtentsMasksAndHeight()
     {
-        var map = new MovementMap();
+        var map = new WalkObstacles(new MovementMap());
         var walker = Body(new Vector3(24, 18, 40), dropHeight: 100);
         map.AddObstacle(Body(new Vector3(40, 28, 73)), new Vector3(50, 50, 0));
         Assert.True(map.CanStand(walker, new Vector2(18, 50).AsVector3()));
@@ -103,18 +92,18 @@ public class MovementTests
         var player = Body(new Vector3(24, 24, 40), spriteClass: SpriteClass.Player);
         map.Raise(24, 16, 40);
         Assert.Equal(0, map.GetSupportHeight(player, new Vector2(16, 20)));
-        Assert.True(map.CanStand(player, new Vector2(16, 20).AsVector3()));
+        Assert.True(map.CanStandOnGround(player, new Vector2(16, 20).AsVector3()));
         var step = new Vector2(17, 20);
         Assert.Equal(40, map.GetSupportHeight(player, step));
-        Assert.False(map.CanStand(player, step.AsVector3()));
-        Assert.True(map.CanStand(player, new Vector3(step, 30)));
+        Assert.False(map.CanStandOnGround(player, step.AsVector3()));
+        Assert.True(map.CanStandOnGround(player, new Vector3(step, 30)));
         Assert.Equal(0, map.GetHeight(step));
     }
 
     [Fact]
     public void CanMove_FastMovement_CannotTunnelThroughAThinObject()
     {
-        var map = new MovementMap();
+        var map = new WalkObstacles(new MovementMap());
         var walker = Body(new Vector3(2, 2, 40));
         map.AddObstacle(Body(new Vector3(1, 10, 40)), new Vector3(10, 0, 0));
         Assert.True(map.CanStand(walker, Vector3.Zero));
@@ -125,16 +114,17 @@ public class MovementTests
     [Fact]
     public void CanMove_AlongATerrainBoundary_KeepsTheStationaryAxisExact()
     {
-        var map = new MovementMap();
+        var terrain = new MovementMap();
+        var map = new WalkObstacles(terrain);
         var player = Body(new Vector3(24, 18, 40), spriteClass: SpriteClass.Player);
-        map.Raise(1336, 3136, 73);
+        terrain.Raise(1336, 3136, 73);
         Assert.True(map.CanMove(player, new Vector2(1334, 3150).AsVector3(), new Vector2(1339.46f, 3150)));
     }
 
     [Fact]
     public void CanMove_RespectsTheWalkersFootprint()
     {
-        var map = new MovementMap();
+        var map = new WalkObstacles(new MovementMap());
         map.AddObstacle(Body(new Vector3(6, 200, 40)), new Vector3(30, 0, 0));
         map.AddObstacle(Body(new Vector3(6, 200, 40)), new Vector3(50, 0, 0));
         var narrow = Body(new Vector3(8, 8, 40));
@@ -157,7 +147,7 @@ public class MovementTests
     {
         var map = new MovementMap();
         map.Raise(32, 0, 24);
-        var grid = new UnitGrid(Vector2.Zero, new Vector2(256));
+        var grid = new UnitGrid(new SizeF(256, 256), new Vector2(130));
         var walker = new ObjectDefinition(KnownObject.Monster1, Body(new Vector3(16, 16, 20)), default, 0);
         var bullet = new ObjectDefinition(KnownObject.PistolBullet, Body(new Vector3(4, 4, 2)), default, 0);
         var shooter = new Unit(0, walker, Vector3.Zero, 0, 10);

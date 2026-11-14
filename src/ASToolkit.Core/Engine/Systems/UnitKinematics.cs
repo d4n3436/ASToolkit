@@ -188,14 +188,14 @@ internal sealed class UnitKinematics
 
         if (obj.Flags.HasFlag(ObjectFlags.Flying))
         {
-            unit.VerticalSpeed = (float)(unit.VerticalSpeed - (double)elapsed * _kinds.Gravity);
+            unit.VerticalSpeed -= elapsed * _kinds.Gravity;
         }
         else if (obj.Flags.HasFlag(ObjectFlags.Heavy))
         {
-            unit.VerticalSpeed = (float)(unit.VerticalSpeed - (double)elapsed * _kinds.HeavyGravity);
+            unit.VerticalSpeed -= elapsed * _kinds.HeavyGravity;
         }
 
-        next.Z = (float)((double)elapsed * unit.VerticalSpeed + next.Z);
+        next.Z = elapsed * unit.VerticalSpeed + next.Z;
 
         if (unit.HasGoal)
         {
@@ -205,7 +205,6 @@ internal sealed class UnitKinematics
         return next;
     }
 
-    // Sums in double and rounds once to a float
     public static float Accelerate(ObjectDefinition kind, float speed, float maxSpeed, bool moving, int elapsed)
     {
         ref readonly var obj = ref kind.Object;
@@ -214,7 +213,7 @@ internal sealed class UnitKinematics
         {
             if (speed > 0)
             {
-                speed = obj.Deceleration.IsNear(ObjectDefinition.Unlimited) ? 0 : MathF.Max(0, (float)(speed - (double)elapsed * kind.Deceleration));
+                speed = obj.Deceleration.IsNear(ObjectDefinition.Unlimited) ? 0 : MathF.Max(0, speed - elapsed * kind.Deceleration);
             }
 
             return speed;
@@ -225,7 +224,7 @@ internal sealed class UnitKinematics
 
         if (!obj.Acceleration.IsNear(ObjectDefinition.Unlimited))
         {
-            speed = (float)((double)elapsed * kind.Acceleration + speed);
+            speed = elapsed * kind.Acceleration + speed;
         }
 
         return obj.Acceleration.IsNear(ObjectDefinition.Unlimited) || speed >= maxSpeed ? maxSpeed : speed;
@@ -233,13 +232,13 @@ internal sealed class UnitKinematics
 
     public static Vector3 Displace(Vector3 position, Facing facing, float speed, int elapsed)
     {
-        float distance = (float)((double)elapsed * speed);
+        float distance = elapsed * speed;
         var direction = facing.Direction;
 
         return position with
         {
-            X = (float)((double)direction.X * distance + position.X),
-            Y = (float)((double)direction.Y * distance + position.Y)
+            X = direction.X * distance + position.X,
+            Y = direction.Y * distance + position.Y
         };
     }
 

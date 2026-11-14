@@ -1,3 +1,4 @@
+using System.Drawing;
 using ASToolkit.Core.Engine;
 using System.Numerics;
 using ASToolkit.Core.Formats;
@@ -11,7 +12,7 @@ public class PlayerMovementTests
     public void Tick_NoTarget_BrakesWithoutDiscardingMomentum()
     {
         var kind = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects).Find(KnownObject.PlayerStart)!;
-        var grid = new UnitGrid(Vector2.Zero, new Vector2(2000));
+        var grid = new UnitGrid(new SizeF(2000, 2000), new Vector2(130));
         var player = new Unit(0, kind, new Vector3(1000, 1000, 0), 0, kind.MaxHp) { Facing = new Facing(64) };
         grid.Add(player);
         var movement = new PlayerMovement(new UnitCollision(new MovementMap(), grid));
@@ -31,7 +32,7 @@ public class PlayerMovementTests
     public void Tick_DisplacesAlongTheFacingFromBeforeTheTurn()
     {
         var kind = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects).Find(KnownObject.PlayerStart)!;
-        var grid = new UnitGrid(Vector2.Zero, new Vector2(2000));
+        var grid = new UnitGrid(new SizeF(2000, 2000), new Vector2(130));
         var player = new Unit(0, kind, new Vector3(1000, 1000, 0), 0, kind.MaxHp);
         grid.Add(player);
         var movement = new PlayerMovement(new UnitCollision(new MovementMap(), grid));

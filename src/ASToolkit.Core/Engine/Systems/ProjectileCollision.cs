@@ -9,7 +9,6 @@ internal sealed class ProjectileCollision
 
     private readonly MovementMap _map;
     private readonly UnitGrid _grid;
-    private readonly List<Unit> _candidates = [];
 
     public ProjectileCollision(MovementMap map, UnitGrid grid)
     {
@@ -27,8 +26,6 @@ internal sealed class ProjectileCollision
             return to;
         }
 
-        var margin = kind.Half + new Vector2(UnitGrid.MaxHalfSize);
-        _grid.Collect(Vector3.Min(from, to).AsVector2() - margin, Vector3.Max(from, to).AsVector2() + margin, _candidates);
         hit = TraceInstant(kind, true, from, to, out var impact);
 
         return impact;
@@ -40,31 +37,14 @@ internal sealed class ProjectileCollision
         if (_map.GetSupportHeight(kind.Object, point.AsVector2()) > point.Z)
             return true;
 
-        if (kind.MoveMask == 0)
-            return false;
-
-        var margin = kind.Half + new Vector2(UnitGrid.MaxHalfSize);
-        _grid.Collect(point.AsVector2() - margin, point.AsVector2() + margin, _candidates);
-        foreach (var unit in _candidates)
-        {
-            if (unit.Animation < SpriteAnimation.Death && kind.GetCollisionVolume(point).Overlaps(unit.CollisionVolume))
-                return true;
-        }
-
-        return false;
+        return kind.MoveMask != 0 && FindUnit(kind, point) is not null;
     }
+
+    private Unit? FindUnit(ObjectDefinition kind, Vector3 point, Unit? self = null) => _grid.FindOverlap(self, kind.GetCollisionVolume(point));
 
     [EngineRoutine(0x00443810)]
-    public bool IsBlockedAt(ObjectDefinition kind, Vector3 point)
-    {
-        if (kind.MoveMask == 0)
-            return false;
-
-        var margin = kind.Half + new Vector2(UnitGrid.MaxHalfSize);
-        _grid.Collect(point.AsVector2() - margin, point.AsVector2() + margin, _candidates);
-
-        return IsBlocked(kind, point, false, true);
-    }
+    public bool IsBlockedAt(ObjectDefinition kind, Vector3 point, Unit? self = null)
+        => kind.MoveMask != 0 && IsBlocked(kind, point, false, true, self);
 
     public bool HasClearTerrain(ObjectDefinition kind, Vector3 from, Vector3 to, Vector2 targetHalf = default)
     {
@@ -138,25 +118,14 @@ internal sealed class ProjectileCollision
         return false;
     }
 
-    private bool IsBlocked(ObjectDefinition kind, Vector3 point, bool instant, bool testUnits)
+    private bool IsBlocked(ObjectDefinition kind, Vector3 point, bool instant, bool testUnits, Unit? self = null)
     {
-        if (instant ? _map.BlocksInstantProjectile(kind.Object, point) : !_map.CanStand(kind.Object, point))
+        if (instant ? !_map.IsAboveGround(kind.Object, point) : !_map.CanStandOnGround(kind.Object, point))
         {
             return true;
         }
 
-        if (!testUnits)
-        {
-            return false;
-        }
-
-        foreach (var unit in _candidates)
-        {
-            if (unit.Animation < SpriteAnimation.Death && kind.GetCollisionVolume(point).Overlaps(unit.CollisionVolume))
-                return true;
-        }
-
-        return false;
+        return testUnits && FindUnit(kind, point, self) is not null;
     }
 
 }

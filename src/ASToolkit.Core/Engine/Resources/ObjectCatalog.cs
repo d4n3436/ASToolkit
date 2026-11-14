@@ -1,6 +1,7 @@
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using System.Collections.Concurrent;
+using System.Numerics;
 
 namespace ASToolkit.Core.Engine;
 
@@ -9,14 +10,13 @@ internal sealed class ObjectCatalog
     public const int MaxLaunchDepth = 3;
 
     private readonly ObjectTable _objects;
-    private readonly SpritePartReader _parts;
     private readonly ObjectDefinition?[] _kinds;
     private readonly ConcurrentDictionary<(KnownObject Id, int Frame), FrameMask?> _masks = new();
 
     public ObjectCatalog(string gameFolder, ObjectTable objects)
     {
         _objects = objects;
-        _parts = new SpritePartReader(gameFolder, objects);
+        Parts = new SpritePartReader(gameFolder, objects);
         Loot = new MonsterLootCatalog(gameFolder);
         int length = objects.Ids.Max(id => (int)id) + 1;
         _kinds = new ObjectDefinition?[length];
@@ -26,9 +26,14 @@ internal sealed class ObjectCatalog
                 continue;
 
             objects.TryGetWeapon(obj, out var weapon);
-            var file = _parts.GetFile(objects.GetPath(id));
+            var file = Parts.GetFile(objects.GetPath(id));
             _kinds[(int)id] = new ObjectDefinition(id, obj, weapon, file?.Speed ?? 0, file?.FrameCount ?? 0,
                 (int)GetLayer(id, obj, file));
+
+            if (obj.Flags.HasFlag(ObjectFlags.Hittable))
+            {
+                LargestHashedSize = Vector2.Max(LargestHashedSize, obj.Size.AsVector2());
+            }
         }
     }
 
@@ -38,9 +43,9 @@ internal sealed class ObjectCatalog
             return mask;
 
         VidResource? file;
-        lock (_parts)
+        lock (Parts)
         {
-            file = _parts.GetFile(_objects.GetPath(kind.Id));
+            file = Parts.GetFile(_objects.GetPath(kind.Id));
         }
 
         mask = file is null || (uint)frame >= file.Value.FrameCount ? null : FrameMask.Read(file.Value, frame);
@@ -56,13 +61,17 @@ internal sealed class ObjectCatalog
 
     public MonsterLootCatalog Loot { get; }
 
-    public MovementMap CreateMovementMap(LevelModel model) => new(model, _parts);
+    public MovementMap CreateMovementMap(LevelModel model) => new(model, Parts);
 
-    public bool AddTerrain(MovementMap map, MergedMapSprite sprite) => map.Add(sprite, _parts, true);
+    public void AddTerrain(MovementMap map, MergedMapSprite sprite) => map.Add(sprite, Parts, true);
+
+    public SpritePartReader Parts { get; }
 
     public float Gravity => _objects.Gravity * ObjectDefinition.PerMillisecondSquared;
 
     public float HeavyGravity => _objects.HeavyGravity * ObjectDefinition.PerMillisecondSquared;
+
+    public Vector2 LargestHashedSize { get; }
 
     public ObjectDefinition? Find(KnownObject id) => (uint)id < (uint)_kinds.Length ? _kinds[(int)id] : null;
 

@@ -30,6 +30,12 @@ internal sealed partial class GameWorld
     private const int MedkitProtection = 3000;
     private const int FlashDuration = 0x900;
     private const int ShakeReach = 4;
+    private const uint EnvironmentShadow = 1;
+    private const uint EnvironmentLongShadow = 2;
+    private const uint EnvironmentEarthquake = 4;
+    private const uint EnvironmentRain = 0xc00;
+    private const uint EnvironmentSnow = 0xc000;
+    private const uint EnvironmentStop = 0x80000000;
     private const int ExplosionQuake = 120;
     private const int BlastQuake = 500;
     private const int NukeQuake = 1000;
@@ -49,7 +55,6 @@ internal sealed partial class GameWorld
         KnownObject.RedWeaponMonster, KnownObject.TankMonster, KnownObject.YellowTankMonster, KnownObject.RedTankMonster, KnownObject.TankWeaponMonster,
         KnownObject.YellowTankWeaponMonster, KnownObject.RedTankWeaponMonster
     }.ToFrozenSet();
-    private const float HashCell = 128;
     private const int MarkerReach = 100;
     private const int PlayerChargeReach = 100;
     private const int MonsterChargeReach = 150;
@@ -81,6 +86,7 @@ internal sealed partial class GameWorld
     private readonly List<Unit> _charges = [];
     private readonly Dictionary<MergedMapSprite, Unit> _bodies = new(ReferenceEqualityComparer.Instance);
     private readonly HashSet<MergedMapSprite> _removed = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<MergedMapSprite, Unit> _statics = new(ReferenceEqualityComparer.Instance);
     private readonly List<MergedMapSprite> _sprites;
     private readonly bool[] _triggersPassed;
     private readonly MergedMapSprite?[][] _crowdSprites;
@@ -95,7 +101,29 @@ internal sealed partial class GameWorld
 
     public IEnumerable<Unit> Bodies => _bodies.Values;
 
+    public IReadOnlyList<MergedMapSprite> Sprites => _sprites;
+
+    public int RemovedCount => _removed.Count;
+
+    public bool IsRemoved(MergedMapSprite sprite) => _removed.Contains(sprite);
+
+    public Unit? FindPlacementUnit(MergedMapSprite sprite) =>
+        _bodies.TryGetValue(sprite, out var body) ? body : _statics.GetValueOrDefault(sprite) ?? _scripted.Find(unit => unit.Placement == sprite);
+
     public IReadOnlyList<Unit> Scripted => _scripted;
+
+    private Vector3 GetPlacementPosition(MergedMapSprite sprite) =>
+        _bodies.TryGetValue(sprite, out var body) ? body.Position : _statics.TryGetValue(sprite, out var stand) ? stand.Position : sprite.Position;
+
+    private void AddStatic(MergedMapSprite sprite, ObjectDefinition kind)
+    {
+        if (!UnitGrid.IsHashed(kind) || kind.Object.SpriteClass is SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Player or SpriteClass.Cannon)
+            return;
+
+        var stand = new Unit(-1, kind, sprite.Position, unchecked((int)sprite.Army), 0) { Placement = sprite, Facing = new Facing(sprite.Facing) };
+        _statics[sprite] = stand;
+        Units.Add(stand);
+    }
 
     private void AddScripted(ObjectDefinition kind, Vector3 position, Facing facing, int? army = null, MergedMapSprite? placement = null)
     {
@@ -103,14 +131,11 @@ internal sealed partial class GameWorld
         unit.Start(kind.InitialAnimation, facing, Time, _rng);
         _scripted.Add(unit);
         Register(UpdateRole.Scripted, unit);
+        Units.Add(unit);
 
         if (kind.Id == KnownObject.DynamiteSite)
         {
             _sites.Add(unit);
-        }
-        else if (placement is not null && kind.Id is KnownObject.SmallDoor or KnownObject.DoubleDoor)
-        {
-            _events?.RecordDoorPosition(placement, 0, position);
         }
     }
 
@@ -121,6 +146,7 @@ internal sealed partial class GameWorld
 
         _scripted.Remove(unit);
         _sites.Remove(unit);
+        Units.Remove(unit);
 
         if (unit.Placement is not null)
         {
@@ -491,7 +517,7 @@ internal sealed partial class GameWorld
         _charges.Remove(charge);
         var center = new Vector2((int)charge.Position.X, (int)charge.Position.Y);
 
-        if (IsInChargeBuckets(Player.Position, center) && MeasureScriptDistance(Player.Position, center) < PlayerChargeReach && Player.IsAlive)
+        if (IsInChargeCells(Player.Position, center) && MeasureScriptDistance(Player.Position, center) < PlayerChargeReach && Player.IsAlive)
         {
             Player.Hp = 0;
             PlayerHurt?.Invoke(0);
@@ -499,7 +525,7 @@ internal sealed partial class GameWorld
 
         foreach (var unit in _scripted)
         {
-            if (unit.Kind.Id.IsEndlessGenerator && unit.Animation < SpriteAnimation.Death && IsInChargeBuckets(unit.Position, center))
+            if (unit.Kind.Id.IsEndlessGenerator && unit.Animation < SpriteAnimation.Death && IsInChargeCells(unit.Position, center))
             {
                 unit.SetState(SpriteAnimation.Death);
             }
@@ -507,7 +533,7 @@ internal sealed partial class GameWorld
 
         foreach (var program in _programs)
         {
-            if (!IsInChargeBuckets(program.Position, center))
+            if (!IsInChargeCells(program.Position, center))
                 continue;
 
             bool listed = program.Kind.Id is KnownObject.Spawner or KnownObject.TeleportPad || program.Kind.Id.IsEndlessGenerator;
@@ -524,24 +550,22 @@ internal sealed partial class GameWorld
         {
             var sprite = _sprites[i];
 
-            if (_removed.Contains(sprite) || !IsInChargeBuckets(sprite.Position, center))
+            if (_removed.Contains(sprite) || !IsInChargeCells(GetPlacementPosition(sprite), center))
                 continue;
 
             if (sprite.Id is KnownObject.SmallMonsterHole or KnownObject.BigMonsterHole)
             {
                 CreateSprite(KnownObject.RubblePile, sprite.Position, new Facing(sprite.Facing));
             }
-            else if (sprite.Army == MonsterArmy && !owned.Contains(sprite) && IsInChargeReach(charge, sprite.Position))
+            else if (sprite.Army == MonsterArmy && !owned.Contains(sprite) && IsInChargeReach(charge, GetPlacementPosition(sprite)))
             {
                 KillPlacement(sprite);
             }
         }
 
-        var reach = new Vector2(ChargeBox + 2 * HashCell);
-        Units.Collect(center - reach, center + reach, _blastCandidates);
-        foreach (var unit in _blastCandidates)
+        for (var unit = Units.First(center - new Vector2(ChargeBox), center + new Vector2(ChargeBox)); unit is not null; unit = Units.Next())
         {
-            if (unit is { IsAlive: true, Army: MonsterArmy } && IsInChargeBuckets(unit.Position, center) &&
+            if (unit is { IsAlive: true, Army: MonsterArmy } &&
                 MeasureScriptDistance(charge.Position, unit.Position.AsVector2()) < MonsterChargeReach)
             {
                 unit.Hp = 0;
@@ -601,7 +625,7 @@ internal sealed partial class GameWorld
         {
             if (door.Timer == 0 || DoorsLocked)
             {
-                if (z != -depth || !Units.HasUnitAt(door.Position.AsVector2()) || DoorsLocked)
+                if (z != -depth || !Units.HasUnitAt(door.Position.AsVector2(), Movement.GetHeight(door.Position.AsVector2())) || DoorsLocked)
                 {
                     SetDoorHeight(door, z + step);
                 }
@@ -617,9 +641,6 @@ internal sealed partial class GameWorld
     {
         door.Position = door.Position with { Z = height };
         Units.Move(door);
-        Movement.SetDoorHeight(door.Placement!, height);
-
-        _events?.RecordDoorPosition(door.Placement!, Time, door.Position);
     }
 
     [EngineRoutine(0x00440830)]
@@ -649,6 +670,7 @@ internal sealed partial class GameWorld
             {
                 _updates.Remove(unit.Kind.Layer, unit);
                 _scripted.RemoveAt(index);
+                Units.Remove(unit);
             }
         }
 
@@ -661,16 +683,19 @@ internal sealed partial class GameWorld
         var sprite = new MergedMapSprite(0, id, position, facing.Value, 0, []);
         _sprites.Add(sprite);
 
-        if (Kinds.AddTerrain(Movement, sprite))
-        {
-            TerrainChanged?.Invoke(new TerrainChange(position.AsVector2(), Kinds.Find(id)?.Half ?? Vector2.Zero));
-        }
+        Kinds.AddTerrain(Movement, sprite);
 
         _events?.RecordSpriteCreation(sprite, Time);
 
-        if (id.IsScripted)
+        var kind = Kinds.Find(id);
+
+        if (kind is not null && id.IsScripted)
         {
-            AddScripted(Kinds.Find(id)!, position, facing, placement: sprite);
+            AddScripted(kind, position, facing, placement: sprite);
+        }
+        else if (kind is not null)
+        {
+            AddStatic(sprite, kind);
         }
 
         return sprite;
@@ -739,17 +764,17 @@ internal sealed partial class GameWorld
             if (sprite.Id != from || _removed.Contains(sprite))
                 continue;
 
-            CreateSprite(to, sprite.Position, new Facing(sprite.Facing));
+            CreateSprite(to, GetPlacementPosition(sprite), new Facing(sprite.Facing));
             Destroy(sprite);
         }
     }
 
-    private void RemoveSprite(MergedMapSprite sprite, bool opensWall = false)
+    private void RemoveSprite(MergedMapSprite sprite)
     {
-        if (!_removed.Add(sprite))
+        if (_removed.Contains(sprite))
             return;
 
-        RemovePlacement(sprite, sprite.Position.AsVector2(), Kinds.Find(sprite.Id)?.Half ?? Vector2.Zero, opensWall);
+        RemovePlacement(sprite);
     }
 
     [EngineRoutine(0x0040fc40)]
@@ -765,7 +790,7 @@ internal sealed partial class GameWorld
             if (sprite.Id != id || _removed.Contains(sprite) || kind is null)
                 continue;
 
-            if (kind.GetCollisionVolume(sprite.Position).Covers(point) && (found is null || kind.Object.Size.X < foundX || kind.Object.Size.Y < foundY))
+            if (kind.GetCollisionVolume(GetPlacementPosition(sprite)).Covers(point) && (found is null || kind.Object.Size.X < foundX || kind.Object.Size.Y < foundY))
             {
                 found = sprite;
                 foundX = kind.Object.Size.X;
@@ -780,16 +805,7 @@ internal sealed partial class GameWorld
 
     [EngineRoutine(0x0042dd60)]
     [ScriptFunction("FirstInBox")]
-    private static bool IsInChargeBuckets(Vector3 position, Vector2 center, float box = ChargeBox)
-    {
-        int x = GetBucket(position.X);
-        int y = GetBucket(position.Y);
-
-        return x >= GetBucket(center.X - box - HashCell) && x <= GetBucket(center.X + box + HashCell) &&
-            y >= GetBucket(center.Y - box - HashCell) && y <= GetBucket(center.Y + box + HashCell);
-
-        static int GetBucket(float value) => (int)MathF.Floor(value / HashCell);
-    }
+    private bool IsInChargeCells(Vector3 position, Vector2 center) => Units.IsInQuery(position.AsVector2(), center - new Vector2(ChargeBox), center + new Vector2(ChargeBox));
 
     private static bool IsInChargeReach(Unit charge, Vector3 position) => MeasureScriptDistance(charge.Position, position.AsVector2()) < MonsterChargeReach;
 
@@ -826,8 +842,8 @@ internal sealed partial class GameWorld
         if (kind is null || kind.Object.SpriteClass is SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Player)
             return;
 
-        Effects.Play(kind, SpriteAnimation.Death, sprite.Position, new Facing(sprite.Facing), Time);
-        RemoveSprite(sprite, sprite.Id is KnownObject.SpawnWallSlash or KnownObject.SpawnWallBack or KnownObject.BreakableWall);
+        Effects.Play(kind, SpriteAnimation.Death, GetPlacementPosition(sprite), new Facing(sprite.Facing), Time);
+        RemoveSprite(sprite);
     }
 
     [ScriptFunction("SizeTo")]
@@ -838,11 +854,9 @@ internal sealed partial class GameWorld
     private void BurstFreezeBullet(Unit bullet)
     {
         var center = bullet.Position.AsVector2();
-        var reach = new Vector2(FreezeBulletReach + 2 * HashCell);
-        Units.Collect(center - reach, center + reach, _blastCandidates);
-        foreach (var unit in _blastCandidates)
+        for (var unit = Units.First(center - new Vector2(FreezeBulletReach), center + new Vector2(FreezeBulletReach)); unit is not null; unit = Units.Next())
         {
-            if (!IsInChargeBuckets(unit.Position, center, FreezeBulletReach) || MeasureScriptDistance(unit.Position, center) >= FreezeBulletReach ||
+            if (MeasureScriptDistance(unit.Position, center) >= FreezeBulletReach ||
                 unit.Army != MonsterArmy || (int)unit.Kind.Id % 10 == FrozenDigit)
                 continue;
 
@@ -861,12 +875,9 @@ internal sealed partial class GameWorld
     [ScriptFunction("F234_0")]
     private void FreezeMonsters(Vector2 center)
     {
-        var reach = new Vector2(BonusBox + 2 * HashCell);
-        Units.Collect(center - reach, center + reach, _blastCandidates);
-        foreach (var unit in _blastCandidates)
+        for (var unit = Units.First(center - new Vector2(BonusBox), center + new Vector2(BonusBox)); unit is not null; unit = Units.Next())
         {
-            if (IsInChargeBuckets(unit.Position, center, BonusBox) && MeasureScriptDistance(unit.Position, center) < BonusReach &&
-                unit.Army == MonsterArmy && FreezableMonsters.Contains(unit.Kind.Id))
+            if (MeasureScriptDistance(unit.Position, center) < BonusReach && unit.Army == MonsterArmy && FreezableMonsters.Contains(unit.Kind.Id))
             {
                 Freeze(unit);
             }
@@ -913,11 +924,9 @@ internal sealed partial class GameWorld
     {
         StartQuake(BombQuake);
         Flash(White);
-        var reach = new Vector2(BonusBox + 2 * HashCell);
-        Units.Collect(center - reach, center + reach, _blastCandidates);
-        foreach (var unit in _blastCandidates)
+        for (var unit = Units.First(center - new Vector2(BonusBox), center + new Vector2(BonusBox)); unit is not null; unit = Units.Next())
         {
-            if (IsInChargeBuckets(unit.Position, center, BonusBox) && MeasureScriptDistance(unit.Position, center) < BonusReach && unit.Army == MonsterArmy)
+            if (MeasureScriptDistance(unit.Position, center) < BonusReach && unit.Army == MonsterArmy)
             {
                 Damage(unit, BombDamage);
             }
@@ -996,6 +1005,7 @@ internal sealed partial class GameWorld
     {
         _quakeStart = GetScriptTime();
         _quakeDelay = delay;
+        SetEnvironment(EnvironmentEarthquake);
     }
 
     [ScriptFunction("GameTact")]
@@ -1006,13 +1016,42 @@ internal sealed partial class GameWorld
         if (_quakeStart != 0 && (now - _quakeStart > _quakeDelay || _quakeStart > now))
         {
             _quakeStart = 0;
+            SetEnvironment(EnvironmentEarthquake | EnvironmentStop);
         }
+    }
+
+    [ScriptFunction("SetEnvironment")]
+    [EngineRoutine(0x00431cf0)]
+    private void SetEnvironment(uint environment)
+    {
+        if ((environment & EnvironmentStop) != 0)
+        {
+            _environment &= ~environment;
+            return;
+        }
+
+        if (environment is EnvironmentShadow or EnvironmentLongShadow)
+        {
+            _environment &= ~(EnvironmentShadow | EnvironmentLongShadow);
+        }
+
+        if ((environment & EnvironmentRain) != 0)
+        {
+            _environment &= ~EnvironmentRain;
+        }
+
+        if ((environment & EnvironmentSnow) != 0)
+        {
+            _environment &= ~EnvironmentSnow;
+        }
+
+        _environment |= environment;
     }
 
     [EngineRoutine(0x00430870)]
     private void ShakeCamera()
     {
-        if (_quakeStart == 0)
+        if ((_environment & EnvironmentEarthquake) == 0)
             return;
 
         int y = _rng.Next() % (ShakeReach * 2 + 1);

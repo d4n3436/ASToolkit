@@ -274,7 +274,7 @@ internal sealed class Unit
 
         var link = _link;
 
-        if (link is not null && link.Kind.Id == Kind.Object.Link && link.Kind.Object.TurnPeriod.IsZero())
+        if (link is not null && link.Kind.Id == Kind.Object.Link && link.Kind.Object.TurnPeriod.IsNear(ObjectDefinition.Unlimited))
         {
             link.SetFacing(facing);
         }

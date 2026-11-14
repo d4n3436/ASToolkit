@@ -15,8 +15,6 @@ internal interface IWorldEventSink
 
     void RecordPickup(MergedMapSprite sprite, int time);
 
-    void RecordDoorPosition(MergedMapSprite door, int time, Vector3 position);
-
     void RecordScenery(in EffectState scenery);
 
     void RecordCameraShake(CameraShake shake);

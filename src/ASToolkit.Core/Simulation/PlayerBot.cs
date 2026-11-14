@@ -105,7 +105,7 @@ internal sealed class PlayerBot
     private bool _evadingBlast;
     private readonly List<Unit> _incoming = [];
     private int _floodCell = -1;
-    private readonly List<GameWorld.TerrainChange> _terrainChanges = [];
+    private readonly List<TerrainChange> _terrainChanges = [];
     private int _respawns;
     private bool _lastDoorsLocked;
     private bool _lastFencesUp;
@@ -116,11 +116,10 @@ internal sealed class PlayerBot
         _world = world;
         _analysis = analysis;
         _field = field;
-        _gunnery = new Gunnery(world);
+        _gunnery = new Gunnery(world, field.Obstacles);
         _aimCursor = PlayerCommand.GetCursor(world.Player.Position);
         _lastDoorsLocked = world.DoorsLocked;
         _lastFencesUp = world.FencesUp;
-        world.TerrainChanged += _terrainChanges.Add;
         var lattice = analysis.Grid.Lattice;
         _tour = analysis.Tour.Select(cell => lattice.GetCenter(cell).ToVector2()).ToArray();
         _tourTargets = (Vector2[])_tour.Clone();
@@ -170,6 +169,7 @@ internal sealed class PlayerBot
             _progressTime = _world.Time;
         }
 
+        _field.Obstacles.Synchronize(_world, _terrainChanges);
         bool changed = _lastDoorsLocked != _world.DoorsLocked || _lastFencesUp != _world.FencesUp || _terrainChanges.Count > 0;
         foreach (var change in _terrainChanges)
         {
@@ -856,7 +856,7 @@ internal sealed class PlayerBot
         var offset = center - _world.Player.Position.AsVector2();
         float reach = _world.Player.Kind.Object.Size.X * 2;
 
-        return offset.LengthSquared() <= reach * reach && _world.Movement.CanMove(_world.Player.Kind.Object, _world.Player.Position, center)
+        return offset.LengthSquared() <= reach * reach && _field.Obstacles.CanMove(_world.Player.Kind.Object, _world.Player.Position, center)
             ? Vector2.Dot(offset, _world.Player.Facing.Direction) : float.MinValue;
     }
 
@@ -871,7 +871,7 @@ internal sealed class PlayerBot
     {
         for (float distance = SideStepGrain; distance <= SideStepClearance; distance += SideStepGrain)
         {
-            if (!_world.Movement.CanStand(_world.Player.Kind.Object, start + (step * distance).AsVector3()))
+            if (!_field.Obstacles.CanStand(_world.Player.Kind.Object, start + (step * distance).AsVector3()))
                 return false;
         }
 
@@ -879,7 +879,7 @@ internal sealed class PlayerBot
     }
 
     private bool MovesClear(Vector3 start, Vector2 step, float length) =>
-        _world.Movement.CanMove(_world.Player.Kind.Object, start, start.AsVector2() + step * length);
+        _field.Obstacles.CanMove(_world.Player.Kind.Object, start, start.AsVector2() + step * length);
 
     private void FindChainedExplosives() =>
         CollectChain(_world.Player.Position.AsVector2(), _world.Player.Kind.Half + new Vector2(BlastMargin), _chained);

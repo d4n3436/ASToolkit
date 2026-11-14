@@ -13,7 +13,7 @@ namespace ASToolkit.Core.Simulation;
 /// <param name="RemovedSprites">The sprites removed by action stacks and scripts.</param>
 /// <param name="CreatedSprites">The sprites the scripts created.</param>
 /// <param name="PickupEvents">The time when the player collected each map pickup.</param>
-/// <param name="DoorFrames">The door heights at their animation ticks.</param>
+/// <param name="PlacementFrames">The positions of doors at their animation ticks and of pushed objects.</param>
 /// <param name="Scenery">The blood stains, corpses and debris left on the map, with their creation times.</param>
 /// <param name="Shakes">The camera offsets of the frames an earthquake shook.</param>
 /// <param name="Flashes">The flashes of the whole screen.</param>
@@ -26,7 +26,7 @@ public sealed record PlaythroughReplay(
     IReadOnlyList<SpriteEvent> RemovedSprites,
     IReadOnlyList<SpriteEvent> CreatedSprites,
     IReadOnlyList<SpriteEvent> PickupEvents,
-    IReadOnlyList<DoorFrame> DoorFrames,
+    IReadOnlyList<PlacementFrame> PlacementFrames,
     IReadOnlyList<EffectState> Scenery,
     IReadOnlyList<CameraShake> Shakes,
     IReadOnlyList<ScreenFlash> Flashes);

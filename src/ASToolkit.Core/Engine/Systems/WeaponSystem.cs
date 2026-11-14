@@ -19,7 +19,6 @@ internal sealed class WeaponSystem
     private readonly ObjectCatalog _kinds;
     private readonly Random _rng;
     private readonly UnitGrid _grid;
-    private readonly List<Unit> _nearby = [];
     private int _slot;
     private bool _turnsLegs;
     private readonly DepthProbe _depth;
@@ -180,8 +179,14 @@ internal sealed class WeaponSystem
         float spread = shooter == _world.Player && creator.IsArmed && depth == 0 ? _inventory.Implants.ScaleAim(creator.Aim) : creator.Aim;
         var from = origin ?? shooter.Position;
         bool secondPulse = shooter.TakeChildPulse(SpriteAnimation.Fight, creator);
+        bool relays = child.Damage <= 0 && child.FightChild != 0;
         foreach (var spawn in ChildEmission.GetChildren(creator, child, SpriteAnimation.Fight, from, facing ?? shooter.Facing, _rng, secondPulse))
         {
+            var unit = relays ? _world.Effects.Spawn(child.Id, spawn.Position, spawn.Facing, _world.Time) : _world.Effects.Launch(child, spawn.Position, spawn.Facing, shooter, _world.Time);
+
+            if (unit is null)
+                continue;
+
             var point = aim;
 
             if (scatters)
@@ -196,32 +201,35 @@ internal sealed class WeaponSystem
                 }
             }
 
-            if (child.Damage <= 0 && child.FightChild != 0)
+            if (relays)
             {
-                _world.Effects.Spawn(child.Id, spawn.Position, spawn.Facing, _world.Time);
                 Fire(shooter, child, point, target, depth + 1, spawn.Position, spawn.Facing);
                 continue;
             }
 
-            _world.Effects.Launch(child, spawn.Position, spawn.Facing, shooter, scatters ? null : target, point, _world.Time);
+            _world.Effects.Aim(unit, scatters ? null : target, point);
             _world.RecordShot(new ShotTrace(child.Id, spawn.Position, point, _world.Time, _world.Time));
         }
     }
 
     [EngineRoutine(0x00440830)]
-    public void ApplyBlast(ObjectDefinition payload, Vector3 impact, Unit? shooter = null)
+    public void ApplyBlast(Unit blast)
     {
+        var payload = blast.Kind;
+
         if (payload.Damage == 0)
             return;
 
+        var impact = blast.Position;
         var point = impact.AsVector2();
         var reach = payload.Half + new Vector2(payload.BlastRadius);
         float heightReach = Math.Max(MinBlastHeight, payload.Object.Size.Z);
         bool scales = payload.IsExplosive && !payload.BlastRadius.IsZero();
-        _grid.Collect(point - reach - new Vector2(UnitGrid.MaxHalfSize), point + reach + new Vector2(UnitGrid.MaxHalfSize), _nearby);
-        foreach (var unit in _nearby)
+        int damage = _inventory.Implants.ScaleDamage(payload.Id, payload.Damage);
+        
+        for (var unit = _grid.First(point - reach, point + reach); unit is not null; unit = _grid.Next())
         {
-            if (unit.Kind.MaxHp == 0 || shooter is not null && unit.Army == shooter.Army && payload.SkipsOwnArmy)
+            if (unit == blast || unit.Kind.MaxHp == 0 || payload.SkipsOwnArmy && unit.Army == blast.Army)
                 continue;
 
             var victim = unit.Position;
@@ -240,7 +248,6 @@ internal sealed class WeaponSystem
             if (scales && distance > payload.BlastRadius)
                 continue;
 
-            int damage = shooter == _world.Player ? _inventory.Implants.ScaleDamage(payload.Id, payload.Damage) : payload.Damage;
             _world.Damage(unit, scales ? (int)(damage - damage * distance / payload.BlastRadius) : damage);
         }
     }

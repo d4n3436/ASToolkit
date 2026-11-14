@@ -1,3 +1,4 @@
+using System.Drawing;
 using ASToolkit.Core.Engine;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -29,7 +30,7 @@ public class EnemyMotionTests
     [InlineData(SpriteClass.Player)]
     public void Move_BlockedDiagonal_SlidesAlongYFirst(SpriteClass mover)
     {
-        var grid = new UnitGrid(Vector2.Zero, new Vector2(256));
+        var grid = new UnitGrid(new SizeF(256, 256), new Vector2(130));
         var unit = MakeUnit(new Body(50, 50), 0, mover);
         var obstacle = MakeUnit(new Body(60, 60), 1, SpriteClass.Unit);
         grid.Add(unit);
@@ -43,7 +44,7 @@ public class EnemyMotionTests
     [Fact]
     public void Move_IntoAnotherBody_PushesItBeforeSliding()
     {
-        var grid = new UnitGrid(Vector2.Zero, new Vector2(256));
+        var grid = new UnitGrid(new SizeF(256, 256), new Vector2(130));
         var unit = MakeUnit(new Body(50, 50), 0, SpriteClass.Player);
         var pushed = MakeUnit(new Body(60, 50, Push: 1), 1, SpriteClass.Unit);
         grid.Add(unit);
@@ -66,6 +67,8 @@ public class EnemyMotionTests
     {
         byte[] bytes = new byte[Marshal.SizeOf<GameObject>()];
         MemoryMarshal.Write(bytes.AsSpan(4), in spriteClass);
+        var hittable = ObjectFlags.Hittable;
+        MemoryMarshal.Write(bytes.AsSpan(8), in hittable);
         uint mask = body.Mask;
         MemoryMarshal.Write(bytes.AsSpan(12), in mask);
         var size = new Vector3(body.HalfX * 2, body.HalfY * 2, body.SizeZ);

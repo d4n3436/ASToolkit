@@ -17,7 +17,7 @@ internal sealed class UnitCollision
 
     private readonly MovementMap _map;
     private readonly UnitGrid _units;
-
+    
     public UnitCollision(MovementMap map, UnitGrid units)
     {
         _map = map;
@@ -60,8 +60,7 @@ internal sealed class UnitCollision
                 {
                     position = alongX;
                 }
-                else if (other is null ? !_map.CanEscapeOverlap(unit.Kind.Object, position, start)
-                    : !unit.Kind.GetCollisionVolume(start).Overlaps(other.CollisionVolume))
+                else if (other is null || !IsInside(unit, start, other))
                 {
                     return false;
                 }
@@ -78,6 +77,16 @@ internal sealed class UnitCollision
         return true;
     }
 
+    // Tests the overlap without layers
+    private static bool IsInside(Unit unit, Vector3 start, Unit other)
+    {
+        var offset = Vector2.Abs(other.Position.AsVector2() - start.AsVector2());
+        var reach = other.Kind.Half + unit.Kind.Half;
+
+        return other.Animation < SpriteAnimation.Death && offset.X < reach.X && offset.Y < reach.Y &&
+            start.Z <= other.Kind.Object.Size.Z + other.Position.Z && other.Position.Z <= start.Z + unit.Kind.Object.Size.Z;
+    }
+
     private bool FindCollision(Unit unit, Vector3 position, out Unit? collision)
     {
         collision = null;
@@ -87,7 +96,7 @@ internal sealed class UnitCollision
             return false;
         }
 
-        if (!_map.CanStand(unit.Kind.Object, position))
+        if (!_map.CanStandOnGround(unit.Kind.Object, position))
         {
             return true;
         }

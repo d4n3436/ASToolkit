@@ -11,6 +11,8 @@ internal sealed class MonsterBrain
     private const float WanderReach = 64;
     private const int NeutralArmy = 2;
     private const int LinkScanOdds = 4;
+    private const int CreaturePeriodMask = 0x7ff;
+    private const int CreatureTurn = 0x20;
 
     private readonly UnitKinematics _motion;
     private readonly UnitCollision _movement;
@@ -78,13 +80,102 @@ internal sealed class MonsterBrain
         }
     }
 
-    public void Decide(Unit unit, Unit player, int elapsed)
+    public void Decide(Unit unit, Unit player, int elapsed, int time)
     {
+        if (unit.Kind.Object.SpriteClass == SpriteClass.Creature)
+        {
+            DecideCreature(unit, elapsed, time);
+
+            return;
+        }
+
         if (unit.Command != UnitCommand.None || !RunProgram(unit))
         {
             Act(unit, player, elapsed);
         }
     }
+
+    [EngineRoutine(0x0044d880)]
+    private void DecideCreature(Unit unit, int elapsed, int time)
+    {
+        if (unit.Animation >= SpriteAnimation.Death)
+            return;
+
+        if (unit.Animation is SpriteAnimation.Fight or SpriteAnimation.Wound)
+        {
+            unit.SetState(SpriteAnimation.Stand);
+        }
+
+        if (unit is { HasGoal: true, Command: UnitCommand.Move })
+        {
+            if (!unit.Speed.IsZero())
+            {
+                if (unit.Animation != SpriteAnimation.Go)
+                {
+                    unit.SetState(SpriteAnimation.Go);
+                }
+
+                return;
+            }
+
+            unit.SetState(SpriteAnimation.Stand);
+
+            return;
+        }
+
+        bool newPeriod = (uint)unit.LastTickTime < (uint)(time - (time & CreaturePeriodMask));
+
+        if (unit.Command is UnitCommand.Attack or UnitCommand.OneAttack || newPeriod)
+        {
+            unit.TryAttack(Math.Max(elapsed, unit.Kind.Layout.GetFrameDuration(unit.Animation)));
+        }
+
+        int frameTime = (byte)unit.Kind.Layout.GetFrameDuration(unit.Animation);
+
+        if (unit.Command is not (UnitCommand.Move or UnitCommand.Attack or UnitCommand.OneAttack))
+        {
+            if (unit.Animation == SpriteAnimation.LRotate && _random.Next() % 3 != 0)
+            {
+                TurnStep(unit, -CreatureTurn, frameTime);
+            }
+
+            if (unit.Animation == SpriteAnimation.RRotate && _random.Next() % 3 != 0)
+            {
+                TurnStep(unit, CreatureTurn, frameTime);
+            }
+
+            if (newPeriod)
+            {
+                if ((_random.Next() & 3) == 0)
+                {
+                    unit.StartMoving(unit.MaxSpeed);
+                }
+                else if (unit.Speed.IsZero() && _random.Next() % 3 == 0 && HasUnload(unit.Kind))
+                {
+                    unit.SetState(SpriteAnimation.Unload);
+                }
+                else if ((_random.Next() & 3) == 0)
+                {
+                    TurnStep(unit, (_random.Next() & 1) == 0 ? CreatureTurn : -CreatureTurn, frameTime);
+                }
+                else
+                {
+                    UnitKinematics.StopMoving(unit);
+                }
+            }
+        }
+
+        if (unit.Animation is SpriteAnimation.Wound or SpriteAnimation.Salut)
+        {
+            unit.SetState(SpriteAnimation.Stand);
+        }
+    }
+
+    private static bool HasUnload(ObjectDefinition kind) =>
+        kind.Object.FrameCounts[(int)SpriteAnimation.Unload] != 0 || kind.Object.Children[(int)SpriteAnimation.Unload] != 0;
+
+    private static void TurnStep(Unit unit, int step, int elapsed) =>
+        unit.SetFacing(unit.Facing.TurnToward(new Facing(unchecked((byte)(unit.Facing.Value + step))), unit.Kind.Object.TurnPeriod, elapsed, out _));
 
     [EngineRoutine(0x00440110)]
     private bool RunProgram(Unit unit)

@@ -43,7 +43,11 @@ internal sealed class DepthProbe
     private float MeasureUnitHeight(Point pixel)
     {
         var point = new Vector2(pixel.X, pixel.Y);
-        _world.Units.Collect(point - new Vector2(SpriteReach), point + new Vector2(SpriteReach, SpriteReach * 2), _nearby);
+        _nearby.Clear();
+        foreach (var unit in _world.Units.GetNear(point - new Vector2(SpriteReach), point + new Vector2(SpriteReach, SpriteReach * 2)))
+        {
+            _nearby.Add(unit);
+        }
 
         if (!_nearby.Contains(_world.Weapons.Torso))
         {

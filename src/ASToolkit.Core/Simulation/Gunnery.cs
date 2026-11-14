@@ -7,6 +7,7 @@ namespace ASToolkit.Core.Simulation;
 
 internal sealed class Gunnery
 {
+    private const float MaxUnitHalf = 65;
     public static readonly Vector2 ScreenHalf = FightPlanner.Screen.ToVector2() / 2;
     private const float GroundAimHeight = 19;
     private const float WallSlack = 16;
@@ -15,9 +16,11 @@ internal sealed class Gunnery
     private const float CalmReach = 250;
 
     private readonly GameWorld _world;
+    private readonly WalkObstacles _obstacles;
 
-    public Gunnery(GameWorld world)
+    public Gunnery(GameWorld world, WalkObstacles obstacles)
     {
+        _obstacles = obstacles;
         _world = world;
         Attacks = new AttackTable(world.Kinds);
     }
@@ -100,7 +103,7 @@ internal sealed class Gunnery
     private float MeasureHarm(Unit target, AttackProfile profile)
     {
         var center = target.Position.AsVector2();
-        var reach = new Vector2(profile.BlastRadius + UnitGrid.MaxHalfSize);
+        var reach = new Vector2(profile.BlastRadius + MaxUnitHalf);
         float harm = 0;
         foreach (var unit in _world.Units.GetNear(center - reach, center + reach))
         {
@@ -206,7 +209,7 @@ internal sealed class Gunnery
         {
             var point = Vector3.Lerp(start, aim, distance / length);
 
-            if (_world.Movement.CanStand(bullet.Object, point))
+            if (_obstacles.CanStand(bullet.Object, point))
                 continue;
             
             var offset = Vector2.Abs(point.AsVector2() - aim.AsVector2());

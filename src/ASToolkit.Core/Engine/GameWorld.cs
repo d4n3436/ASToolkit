@@ -28,10 +28,10 @@ internal sealed partial class GameWorld
     private readonly MonsterBrain _brain;
     private readonly List<Unit> _monsters = [];
     private readonly HashSet<Unit> _monsterSet = [];
-    private readonly List<Unit> _blastCandidates = [];
     private bool _adrenalineActive;
     private int _quakeStart;
     private int _quakeDelay;
+    private uint _environment;
     private bool _deathFlashed;
     private readonly List<ObjectProgram> _programs = [];
     private readonly UpdateOrder _updates;
@@ -64,9 +64,10 @@ internal sealed partial class GameWorld
         _events = events;
         ScriptTimeline = new ScriptTimeline(doorsLocked, null, null, null);
         Movement = data.Movement.Clone();
-        Movement.SetGates(doorsLocked, fencesUp);
+        DoorsLocked = doorsLocked;
+        FencesUp = fencesUp;
         var legs = kinds.Find(KnownObject.PlayerStart)!;
-        Units = new UnitGrid(data.Bounds.Minimum, data.Bounds.Maximum);
+        Units = new UnitGrid(Movement.MapSize, kinds.LargestHashedSize);
 
         Motion = new UnitKinematics(kinds, this);
         Effects = new SpawnedObjectSystem(kinds, Movement, rng, events, this);
@@ -75,7 +76,6 @@ internal sealed partial class GameWorld
         Player = new Unit(_unitCount++, legs, start?.Position ?? new Vector3(data.FallbackStart, 0), PlayerArmy, maxHealth)
         { CreatedAt = 0 };
         Player.Start(legs.InitialAnimation, new Facing(start?.Facing ?? 0), 0, rng);
-        Units.Add(Player);
         _respawnPosition = Player.Position;
         Inventory = new PlayerInventory(kinds, data.AmmoBatches, Player, loadout);
         Weapons = new WeaponSystem(this, Inventory, kinds, rng);
@@ -132,6 +132,10 @@ internal sealed partial class GameWorld
             if (sprite.Id.IsScripted)
             {
                 AddScripted(kind, sprite.Position, new Facing(sprite.Facing), unchecked((int)sprite.Army), sprite);
+            }
+            else
+            {
+                AddStatic(sprite, kind);
             }
 
             if (sprite.Id.PickupCategory is not null)
@@ -240,9 +244,9 @@ internal sealed partial class GameWorld
 
     public int FrameTime => _clock.FrameTime;
 
-    public bool DoorsLocked => Movement.DoorsLocked;
+    public bool DoorsLocked { get; private set; }
 
-    public bool FencesUp => Movement.FencesUp;
+    public bool FencesUp { get; private set; }
 
     public ScriptTimeline ScriptTimeline { get; private set; }
 
@@ -262,7 +266,6 @@ internal sealed partial class GameWorld
 
     public event Action<int>? PlayerHurt;
 
-    public event Action<TerrainChange>? TerrainChanged;
 
     public ReadOnlySpan<WorldPickup> Pickups => CollectionsMarshal.AsSpan(_pickups);
 
@@ -359,6 +362,7 @@ internal sealed partial class GameWorld
     {
         Register(UpdateRole.Torso, Weapons.Torso);
         Register(UpdateRole.Player, Player);
+        Units.Add(Player);
     }
 
     public void Step(in PlayerCommand command)
@@ -384,19 +388,19 @@ internal sealed partial class GameWorld
     public void StartBlackout()
     {
         ScriptTimeline = ScriptTimeline with { BlackoutAt = Time };
-        Movement.SetGates(true, FencesUp);
+        DoorsLocked = true;
     }
 
     private void OpenDoors()
     {
         ScriptTimeline = ScriptTimeline with { DoorsOpenedAt = Time };
-        Movement.SetGates(false, FencesUp);
+        DoorsLocked = false;
     }
 
     private void LowerFences()
     {
         ScriptTimeline = ScriptTimeline with { FencesDownAt = Time };
-        Movement.SetGates(DoorsLocked, false);
+        FencesUp = false;
     }
 
     [EngineRoutine(0x00440830)]
@@ -452,8 +456,7 @@ internal sealed partial class GameWorld
     {
         if (animation >= SpriteAnimation.Death && program.Placement is not null)
         {
-            bool opensWall = program.Kind.Id is KnownObject.SpawnWallSlash or KnownObject.SpawnWallBack or KnownObject.BreakableWall;
-            RemovePlacement(program.Placement, program.Position.AsVector2(), program.Kind.Half, opensWall);
+            RemovePlacement(program.Placement);
         }
 
         Effects.Play(program.Kind, animation, program.Position, program.Facing, Time);
@@ -555,7 +558,7 @@ internal sealed partial class GameWorld
 
             if (unit.Kind.Damage != 0)
             {
-                Weapons.ApplyBlast(unit.Kind, unit.Position, unit.Shooter);
+                Weapons.ApplyBlast(unit);
             }
 
             return unit == Player;
@@ -578,7 +581,7 @@ internal sealed partial class GameWorld
             }
             else if (unit.Number >= 0)
             {
-                _brain.Decide(unit, Player, FrameTime);
+                _brain.Decide(unit, Player, FrameTime, Time);
             }
             else if (unit.Kind.Object.SpriteClass == SpriteClass.Cannon)
             {
@@ -639,7 +642,6 @@ internal sealed partial class GameWorld
         }
     }
 
-    // Lay each stream child one body length after the last at the emitter's speed relative to the child
     [EngineRoutine(0x00440110)]
     private void UpdateKeyframe(Unit unit)
     {
@@ -670,20 +672,21 @@ internal sealed partial class GameWorld
 
         // Search from the key after the previous position, reading past the key times as the engine does
         int key = (int)unit.KeyframePosition + 1;
-        while (key < WeaponRecord.KeyframeCount - 1 && (double)period * GetKeyTime(weapon, key) <= (float)elapsed)
+        while (key < WeaponRecord.KeyframeCount - 1 && period * GetKeyTime(weapon, key) <= elapsed)
         {
             key++;
         }
 
         key--;
-        double start = (double)period * GetKeyTime(weapon, key);
-        unit.KeyframePosition = (float)((elapsed - start) / ((GetKeyTime(weapon, key + 1) - GetKeyTime(weapon, key)) * (double)period) + key);
+        float start = period * GetKeyTime(weapon, key);
+        unit.KeyframePosition = (elapsed - start) / ((GetKeyTime(weapon, key + 1) - GetKeyTime(weapon, key)) * period) + key;
     }
 
     private static float GetKeyTime(in WeaponRecord weapon, int key) =>
         key < 0 ? BitConverter.Int32BitsToSingle(weapon.AnimationPeriod)
         : key < WeaponRecord.KeyframeCount ? weapon.KeyTimes[key] : BitConverter.Int32BitsToSingle(weapon.RedKeys[0]);
 
+    // Lay each stream child one body length after the last at the emitter's speed relative to the child
     private void EmitStream(Unit unit)
     {
         var state = unit.Animation;
@@ -841,9 +844,7 @@ internal sealed partial class GameWorld
             return;
 
         var position = _respawnPosition.AsVector2();
-        var reach = Player.Kind.Half + new Vector2(UnitGrid.MaxHalfSize);
-        Units.Collect(position - reach, position + reach, _blastCandidates);
-        foreach (var unit in _blastCandidates)
+        for (var unit = Units.First(position - Player.Kind.Half, position + Player.Kind.Half); unit is not null; unit = Units.Next())
         {
             if (unit == Player || !unit.IsAlive || !Player.Kind.GetCollisionVolume(position.AsVector3()).OverlapsFlat(unit.CollisionVolume))
                 continue;
@@ -893,7 +894,7 @@ internal sealed partial class GameWorld
         }
         else
         {
-            RemovePlacement(unit.Placement, unit.Position.AsVector2(), unit.Kind.Half);
+            RemovePlacement(unit.Placement);
             AddToMonsters(unit);
             Register(UpdateRole.Monster, unit);
         }
@@ -925,13 +926,16 @@ internal sealed partial class GameWorld
         unit.DropItem = 0;
     }
 
-    private void RemovePlacement(MergedMapSprite placement, Vector2 position, Vector2 half, bool opensWall = false)
+    private void RemovePlacement(MergedMapSprite placement)
     {
-        if (Movement.Remove(placement) || opensWall)
+        _removed.Add(placement);
+
+        if (_statics.Remove(placement, out var stand))
         {
-            TerrainChanged?.Invoke(new TerrainChange(position, half));
+            Units.Remove(stand);
         }
 
+        Movement.Remove(placement);
         _events?.RecordSpriteRemoval(placement, Time);
     }
 
@@ -1035,7 +1039,7 @@ internal sealed partial class GameWorld
         if (kind is null)
             return;
 
-        if (kind.Object.WeaponIndex == 0)
+        if (kind.Object.WeaponIndex == 0 && kind.Object.SpriteClass != SpriteClass.Creature)
         {
             Effects.Attach(unit, kind, Time);
 
@@ -1045,6 +1049,11 @@ internal sealed partial class GameWorld
         var link = new Unit(_unitCount++, kind, GetLinkPosition(unit, kind), unit.Army, kind.MaxHp) { Owner = unit, CreatedAt = Time };
         link.Start(kind.InitialAnimation, unit.Facing, Time, _rng);
         unit.Link = link;
+
+        if (kind.Object.SpriteClass == SpriteClass.Creature)
+        {
+            link.StartMoving(link.MaxSpeed);
+        }
 
         if (unit.ArmedLink is not null && link.Kind.FightChild != 0)
         {
@@ -1059,8 +1068,7 @@ internal sealed partial class GameWorld
         owner.Position + owner.Kind.Object.GetLinkOffset(kind.Object, null, 0, owner.Facing.Value);
 
     [EngineRoutine(0x0042da30)]
-    private bool IsFree(ObjectDefinition kind, Vector3 position) => Movement.CanSpawn(kind.Object, position) && !Projectiles.IsOccupied(kind, position);
+    private bool IsFree(ObjectDefinition kind, Vector3 position) => Movement.IsAboveGround(kind.Object, position) && !Projectiles.IsOccupied(kind, position);
 
-    public readonly record struct TerrainChange(Vector2 Position, Vector2 HalfSize);
 
 }

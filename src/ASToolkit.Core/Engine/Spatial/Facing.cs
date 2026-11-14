@@ -7,7 +7,7 @@ internal readonly partial record struct Facing(byte Value)
     public const int FullTurn = 256;
     public const int HalfTurn = FullTurn / 2;
     public const int QuarterTurn = FullTurn / 4;
-    private const double AngleUnitsPerRadian = 40.74366760253906;
+    private const float AngleUnitsPerRadian = 40.74366760253906f;
     private const int AimGain = 0x9b74e;
     private const int AimGainShift = 20;
     private static readonly Vector2[] Directions = CreateDirections();
@@ -35,7 +35,7 @@ internal readonly partial record struct Facing(byte Value)
             return offset.X > 0 ? East : offset.X < 0 ? West : default;
         }
 
-        double angle = Math.Atan(-(double)offset.X / offset.Y) * AngleUnitsPerRadian;
+        float angle = (float)Math.Atan(-(offset.X / offset.Y)) * AngleUnitsPerRadian;
 
         if (offset.Y > 0)
         {

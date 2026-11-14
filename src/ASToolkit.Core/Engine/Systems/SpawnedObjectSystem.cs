@@ -97,6 +97,7 @@ internal sealed class SpawnedObjectSystem
         unit.SetState(animation);
         _active.Add(unit);
         _world.Register(UpdateRole.Effect, unit);
+        _world.Units.Add(unit);
     }
 
     public void Emit(ObjectDefinition owner, SpriteAnimation animation, Vector3 position, Facing facing, int time, int depth = 0, bool secondPulse = false, Unit? parent = null)
@@ -131,19 +132,21 @@ internal sealed class SpawnedObjectSystem
         }
     }
 
-    public Unit? Launch(ObjectDefinition kind, Vector3 position, Facing facing, Unit shooter, Unit? goal, Vector3 goalPoint, int time)
+    public Unit? Launch(ObjectDefinition kind, Vector3 position, Facing facing, Unit shooter, int time)
     {
         var unit = Create(kind, position, facing, time, 0, shooter);
 
-        if (unit is null)
-            return null;
+        unit?.Shooter = shooter;
 
-        unit.Shooter = shooter;
+        return unit;
+    }
+
+    [EngineRoutine(0x00445fb0)]
+    public void Aim(Unit unit, Unit? goal, Vector3 goalPoint)
+    {
         unit.Goal = goal;
         unit.GoalPoint = goal is null ? goalPoint : null;
         _motion.StartTowardGoal(unit);
-
-        return unit;
     }
 
     private Unit? Create(ObjectDefinition kind, Vector3 position, Facing facing, int time, int depth, Unit? parent, Unit? owner = null, int? lifetime = null)
@@ -191,6 +194,7 @@ internal sealed class SpawnedObjectSystem
 
         _active.Add(unit);
         _world.Register(UpdateRole.Effect, unit);
+        _world.Units.Add(unit);
 
         return unit;
     }
@@ -260,7 +264,6 @@ internal sealed class SpawnedObjectSystem
         }
     }
 
-    // Drop the objects that ended this update in one pass, keeping the order of the rest
     public void Compact()
     {
         if (_leaving.Count == 0)
@@ -278,9 +281,13 @@ internal sealed class SpawnedObjectSystem
 
     public bool Tick(Unit unit, int elapsed)
     {
-        if (Update(unit, elapsed))
+        bool stays = Update(unit, elapsed);
+        _world.Units.Move(unit);
+
+        if (stays)
             return true;
 
+        _world.Units.Remove(unit);
         unit.LeavesEffects = true;
         _leaving.Add(unit);
 
@@ -311,15 +318,16 @@ internal sealed class SpawnedObjectSystem
                 return false;
 
             var owner = unit.Owner;
-            unit.Position = owner.Link == unit
-                ? owner.Position + owner.Kind.Object.GetLinkOffset(unit.Kind.Object, null, 0, owner.Facing.Value)
-                : owner.Position + unit.OwnerOffset;
-            
-            unit.SetFacing(unit.Owner.Facing);
 
-            if (unit.Kind.Object.SpriteClass == SpriteClass.Cannon && unit.Kind.Object.Flags.HasFlag(ObjectFlags.Projectile) &&
-                unit.Animation < SpriteAnimation.Death && _world.Projectiles.IsBlockedAt(unit.Kind, unit.Position))
-                unit.SetState(SpriteAnimation.Death);
+            if (owner.Link == unit)
+            {
+                unit.Position = owner.Position + owner.Kind.Object.GetLinkOffset(unit.Kind.Object, null, 0, owner.Facing.Value);
+            }
+            else
+            {
+                unit.Position = owner.Position + unit.OwnerOffset;
+                unit.SetFacing(owner.Facing);
+            }
         }
         else if (NeedsMotion(unit.Kind))
         {
@@ -388,7 +396,7 @@ internal sealed class SpawnedObjectSystem
 
         if (!next.X.IsNear(unit.Position.X) || !next.Y.IsNear(unit.Position.Y))
         {
-            if (_world.Projectiles.IsBlockedAt(unit.Kind, next))
+            if (_world.Projectiles.IsBlockedAt(unit.Kind, next, unit))
             {
                 unit.VerticalSpeed = 0;
                 unit.Speed = 0;
@@ -426,7 +434,7 @@ internal sealed class SpawnedObjectSystem
 
         if (!next.X.IsNear(unit.Position.X) || !next.Y.IsNear(unit.Position.Y))
         {
-            if (_world.Projectiles.IsBlockedAt(unit.Kind, next))
+            if (_world.Projectiles.IsBlockedAt(unit.Kind, next, unit))
             {
                 if (unit.Animation < SpriteAnimation.Death)
                 {
@@ -555,7 +563,7 @@ internal sealed class SpawnedObjectSystem
         }
         else
         {
-            unit.VerticalSpeed = (float)(unit.VerticalSpeed - (double)elapsed * _kinds.Gravity);
+            unit.VerticalSpeed = unit.VerticalSpeed - elapsed * _kinds.Gravity;
         }
 
         if (HitsGoal(unit, goal, target, previousHeight))

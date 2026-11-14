@@ -118,11 +118,14 @@ public class PlaythroughTests
         Assert.Contains(first.Replay!.Scenery, effect => effect.Id == KnownObject.SmallBloodPool);
         Assert.Equal(first.Replay!.Scenery, second.Replay!.Scenery);
 
-        var movement = new MovementMap(level.Model, new SpritePartReader(game, objects));
-        // Check static obstacles only, and only units that could stand clear of them before
-        foreach (var door in level.Model.Sprites.Where(sprite => sprite.Id is KnownObject.SmallDoor or KnownObject.DoubleDoor))
+        var parts = new SpritePartReader(game, objects);
+        var terrain = new MovementMap(level.Model, parts);
+        var movement = new WalkObstacles(level.Model, parts, objects, terrain);
+        
+        foreach (var moving in level.Model.Sprites.Where(sprite => sprite.Id is KnownObject.SmallDoor or KnownObject.DoubleDoor)
+            .Concat(first.Replay!.PlacementFrames.Select(frame => frame.Placement)).Distinct())
         {
-            movement.Remove(door);
+            movement.Remove(moving);
         }
 
         int removal = 0;
@@ -131,7 +134,9 @@ public class PlaythroughTests
         {
             while (removal < first.Replay!.RemovedSprites.Count && first.Replay!.RemovedSprites[removal].Time <= frame.Time)
             {
-                movement.Remove(first.Replay!.RemovedSprites[removal++].Placement);
+                var removed = first.Replay!.RemovedSprites[removal++].Placement;
+                movement.Remove(removed);
+                terrain.Remove(removed);
             }
 
             bool doorsLocked = (first.Script.DoorsInitiallyLocked || frame.Time >= first.Script.BlackoutAt) &&
