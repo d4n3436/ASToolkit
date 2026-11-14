@@ -82,7 +82,7 @@ public partial class SpriteViewModel : ViewModelBase
             : "missing";
         Title = $"{(int)source.Id}  {objects.GetName(source.Id)}\n{objects.GetPath(source.Id)}  class {obj.SpriteClass}  flags 0x{(uint)obj.Flags:x}\nsprite {sprite}";
         States.Clear();
-        for (int state = 0; state < StateValues.Count; state++)
+        for (int state = 0; state < GameObject.StateCount; state++)
         {
             if (obj.FrameCounts[state] > 0)
             {

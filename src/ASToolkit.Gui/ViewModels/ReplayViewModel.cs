@@ -23,6 +23,10 @@ public partial class ReplayViewModel : ViewModelBase
 {
     private const int DefaultViewportWidth = 1280;
     private const int DefaultViewportHeight = 720;
+    private const int ShakeHold = 20;
+    private const int FlashPasses = 3;
+    private const int FlashRiseParts = 9;
+    private const int FullStrength = 256;
     private static readonly KnownObject[] DoorIds = [KnownObject.SmallDoor, KnownObject.DoubleDoor];
 
     private readonly DispatcherTimer _timer;
@@ -301,7 +305,7 @@ public partial class ReplayViewModel : ViewModelBase
         int money = CampaignState.StartingMoney + (number > 1 && number <= rewards.Count ? rewards[number - 1] : 0);
         var state = CampaignState.CreateInitial(money);
 
-        return play.PlayCampaign([selected], [], 1, state, records: true).Levels[0];
+        return play.PlayCampaign([selected], [], 1, state, record: true).Levels[0];
     }
 
     private static Stage[] BuildStages(List<MergedMapSprite> sprites, PlaythroughResult result, MapRenderer renderer, MapGraphics graphics,
@@ -371,6 +375,61 @@ public partial class ReplayViewModel : ViewModelBase
     private static bool IsUnit(ObjectTable objects, KnownObject id) =>
         id != KnownObject.Crate && objects.TryFind(id, out var obj) && obj is { MaxHp: > 0, SpriteClass: SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Player };
 
+    private static Vector2 GetShake(IReadOnlyList<CameraShake> shakes, int time)
+    {
+        int low = 0;
+        int high = shakes.Count - 1;
+        while (low <= high)
+        {
+            int middle = (low + high) / 2;
+
+            if (shakes[middle].Time <= time)
+            {
+                low = middle + 1;
+            }
+            else
+            {
+                high = middle - 1;
+            }
+        }
+
+        return high >= 0 && time - shakes[high].Time < ShakeHold ? shakes[high].Offset : Vector2.Zero;
+    }
+
+    private void DrawFlash(IReadOnlyList<ScreenFlash> flashes, int time)
+    {
+        foreach (var flash in flashes)
+        {
+            int elapsed = time - flash.Time;
+
+            if (elapsed < 0 || elapsed >= flash.Duration)
+                continue;
+
+            int rise = flash.Duration / FlashRiseParts;
+            int strength = elapsed < rise
+                ? FlashRiseParts * FullStrength * elapsed / flash.Duration
+                : FullStrength * (flash.Duration - elapsed) / (flash.Duration - rise);
+            int red = (flash.Color >> 16 & 0xff) * strength >> 8;
+            int green = (flash.Color >> 8 & 0xff) * strength >> 8;
+            int blue = (flash.Color & 0xff) * strength >> 8;
+            for (int index = 0; index < _pixels.Length; index++)
+            {
+                ref var pixel = ref _pixels[index];
+                int r = pixel.R;
+                int g = pixel.G;
+                int b = pixel.B;
+                for (int pass = 0; pass < FlashPasses; pass++)
+                {
+                    r = Math.Min(byte.MaxValue, r + r * red / byte.MaxValue);
+                    g = Math.Min(byte.MaxValue, g + g * green / byte.MaxValue);
+                    b = Math.Min(byte.MaxValue, b + b * blue / byte.MaxValue);
+                }
+
+                pixel = new Bgra32((byte)r, (byte)g, (byte)b, pixel.A);
+            }
+        }
+    }
+
     private void DrawFrame()
     {
         var replay = _replay;
@@ -410,19 +469,19 @@ public partial class ReplayViewModel : ViewModelBase
 
             if (spriteFrame != UnitFrame.Deleted)
             {
-                AddLiveSprite(_live, objects, renderer, unit.Id, GetPosition(unit), unit.Facing, unit.Animation, _time, 0, player: unit, spriteFrame: spriteFrame);
+                AddLiveSprite(_live, objects, renderer, unit.Id, GetPosition(unit), unit.Facing, unit.Animation, _time, 0, player: unit, spriteFrame: spriteFrame, keyframe: unit.Keyframe);
             }
         }
 
         foreach (var effect in GetEffects(replay, frame, _time))
         {
-            AddLiveSprite(_live, objects, renderer, effect.Id, effect.Position, effect.Facing, effect.Animation, _time, 0, spriteFrame: effect.Frame);
+            AddLiveSprite(_live, objects, renderer, effect.Id, effect.Position, effect.Facing, effect.Animation, _time, 0, spriteFrame: effect.Frame, keyframe: effect.Keyframe);
         }
         foreach (var effect in replay.Scenery)
         {
             if (effect.StartedAt <= _time)
             {
-                AddLiveSprite(_live, objects, renderer, effect.Id, effect.Position, effect.Facing, effect.Animation, _time, 0, spriteFrame: effect.Frame);
+                AddLiveSprite(_live, objects, renderer, effect.Id, effect.Position, effect.Facing, effect.Animation, _time, 0, spriteFrame: effect.Frame, keyframe: effect.Keyframe);
             }
         }
 
@@ -434,7 +493,7 @@ public partial class ReplayViewModel : ViewModelBase
         var scene = stage.Scene;
         renderer.UpdateLive(scene, _live);
         var player = GetPosition(frame.Units[0]);
-        var center = player.AsVector2() + CameraOffset.GetValueOrDefault();
+        var center = player.AsVector2() + CameraOffset.GetValueOrDefault() + GetShake(replay.Shakes, _time);
         float renderScale = (float)Math.Min(1, Zoom);
         int bufferWidth = Zoom <= 1 ? ViewportWidth : (int)(ViewportWidth / Zoom);
         int bufferHeight = Zoom <= 1 ? ViewportHeight : (int)(ViewportHeight / Zoom);
@@ -457,6 +516,7 @@ public partial class ReplayViewModel : ViewModelBase
         }
 
         scene.Render(_pixels, bufferWidth, area, renderScale, _time, _hidden, tint.Negative, tint.Positive);
+        DrawFlash(replay.Flashes, _time);
 
         var cursor = frame.Cursor + (next.Cursor - frame.Cursor) * share;
         DrawCursor(bufferWidth, bufferHeight, (int)MathF.Round((cursor.X - scene.Left) * renderScale) - left, (int)MathF.Round((cursor.Y - scene.Top) * renderScale) - top);
@@ -509,7 +569,7 @@ public partial class ReplayViewModel : ViewModelBase
 
     // Adds the recorded engine frame when there is one, then the linked object at its offset and facing
     private static void AddLiveSprite(List<LiveSprite> live, ObjectTable objects, MapRenderer renderer, KnownObject id, Vector3 position, byte dir,
-        SpriteAnimation animation, int time, int depth, UnitState? player = null, int spriteFrame = -1)
+        SpriteAnimation animation, int time, int depth, UnitState? player = null, int spriteFrame = -1, float keyframe = 0)
     {
         if (depth > MapRenderer.MaxAttachDepth || !objects.TryFind(id, out var obj))
         {
@@ -530,7 +590,8 @@ public partial class ReplayViewModel : ViewModelBase
         int frameIndex = spriteFrame >= 0 ? spriteFrame : obj.GetStateStart(visual) + direction * frameCount + step;
         if (frameIndex < sprite.Value.FrameCount)
         {
-            live.Add(new LiveSprite(id, position, dir, frameIndex));
+            var tint = depth == 0 && objects.TryGetWeapon(obj, out var weapon) ? PaletteTint.FromKeyframes(weapon, keyframe) : default;
+            live.Add(new LiveSprite(id, position, dir, frameIndex, tint));
         }
 
         if (player is not null && player.Value.Weapon != 0)
