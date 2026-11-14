@@ -17,6 +17,8 @@ public sealed class RouteAnalysis
 
     internal bool? DoorsInitiallyLocked { get; init; }
 
+    internal LevelScriptSummary Script { get; init; } = new();
+
     /// <summary>
     /// Gets the level name.
     /// </summary>

@@ -194,7 +194,7 @@ public static class RouteAnalyzer
             }
 
             bool hasDoors = _grid.Edges.Values.Any(v => v == EdgeKind.Door);
-            bool doorsInitiallyLocked = _script.DoorsLocked && hasDoors && objectives.Any(o => o.Kind == ObjectiveKind.Breaker);
+            bool doorsInitiallyLocked = _script.DoorsLocked && hasDoors;
             bool doorsLocked = doorsInitiallyLocked;
             (Cell Cell, int Radius)? blackout = null;
             if (_script.Blackout is not null && hasDoors)
@@ -450,6 +450,7 @@ public static class RouteAnalyzer
             return new RouteAnalysis
             {
                 DoorsInitiallyLocked = doorsInitiallyLocked,
+                Script = _script,
                 ClearsMonsters = _script.ClearsMonsters,
                 RespawnTriggers = _script.Checkpoints,
                 Exit = _script.Exit,
