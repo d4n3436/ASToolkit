@@ -1,13 +1,13 @@
 using System.Diagnostics;
 using System.Windows.Input;
 using ASToolkit.Core.Rendering;
+using ASToolkit.Gui.Core;
 using ASToolkit.Gui.Models;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using Avalonia.Platform;
 using Avalonia.Threading;
 using SixLabors.ImageSharp.PixelFormats;
 using Rectangle = SixLabors.ImageSharp.Rectangle;
@@ -517,14 +517,10 @@ public sealed class MapCanvas : Control
 
         public long LastDrawn { get; set; }
 
-        public unsafe void Upload()
+        public void Upload()
         {
-            Bitmap ??= new WriteableBitmap(new PixelSize(Area.Width, Area.Height), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Opaque);
-            using var buffer = Bitmap.Lock();
-            for (int row = 0; row < Area.Height; row++)
-            {
-                Pixels.AsSpan(row * Area.Width, Area.Width).CopyTo(new Span<Bgra32>((byte*)buffer.Address + row * buffer.RowBytes, Area.Width));
-            }
+            Bitmap ??= BitmapConversion.CreateOpaque(new PixelSize(Area.Width, Area.Height));
+            BitmapConversion.Write(Bitmap, Pixels);
         }
     }
 

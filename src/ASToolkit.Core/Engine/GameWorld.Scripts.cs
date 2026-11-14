@@ -888,9 +888,9 @@ internal sealed partial class GameWorld
     [ScriptFunction("F234_0")]
     private void FreezeMonsters(Vector2 center)
     {
-        for (var unit = Units.First(center - new Vector2(BonusBox), center + new Vector2(BonusBox)); unit is not null; unit = Units.Next())
+        foreach (var unit in GetBonusTargets(center))
         {
-            if (MeasureScriptDistance(unit.Position, center) < BonusReach && unit.Army == MonsterArmy && FreezableMonsters.Contains(unit.Kind.Id))
+            if (FreezableMonsters.Contains(unit.Kind.Id))
             {
                 Freeze(unit);
             }
@@ -937,11 +937,19 @@ internal sealed partial class GameWorld
     {
         StartQuake(BombQuake);
         Flash(White);
+        foreach (var unit in GetBonusTargets(center))
+        {
+            Damage(unit, BombDamage);
+        }
+    }
+
+    private IEnumerable<Unit> GetBonusTargets(Vector2 center)
+    {
         for (var unit = Units.First(center - new Vector2(BonusBox), center + new Vector2(BonusBox)); unit is not null; unit = Units.Next())
         {
             if (MeasureScriptDistance(unit.Position, center) < BonusReach && unit.Army == MonsterArmy)
             {
-                Damage(unit, BombDamage);
+                yield return unit;
             }
         }
     }

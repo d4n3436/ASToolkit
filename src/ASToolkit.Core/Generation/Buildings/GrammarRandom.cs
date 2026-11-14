@@ -32,20 +32,7 @@ internal sealed class GrammarRandom
         return array;
     }
 
-    public T Weighted<T>(IReadOnlyList<(T Item, float Weight)> items)
-    {
-        float pick = _rng.NextSingle() * items.Sum(item => item.Weight);
-        foreach ((var item, float weight) in items)
-        {
-            pick -= weight;
-            if (pick < 0)
-            {
-                return item;
-            }
-        }
-
-        return items[^1].Item;
-    }
+    public T Weighted<T>(IReadOnlyList<(T Item, float Weight)> items) => items[_rng.NextWeighted(items.Select(item => item.Weight).ToArray())].Item;
 
     public static int Round(float value) => (int)MathF.Round(value, MidpointRounding.ToEven);
 }

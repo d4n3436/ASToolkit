@@ -3,8 +3,8 @@ using System.Diagnostics;
 using System.Numerics;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Simulation;
+using ASToolkit.Gui.Core;
 using Avalonia.Media.Imaging;
-using Avalonia.Platform;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -241,23 +241,16 @@ public partial class ReplayViewModel : ViewModelBase
     }
 
     // Alternates between two bitmaps to give the bound Frame property a new reference without allocating
-    private unsafe WriteableBitmap Upload(Size size)
+    private WriteableBitmap Upload(Size size)
     {
         var bitmap = _back;
         if (bitmap is null || bitmap.PixelSize.Width != size.Width || bitmap.PixelSize.Height != size.Height)
         {
             bitmap?.Dispose();
-            bitmap = new WriteableBitmap(new Avalonia.PixelSize(size.Width, size.Height), new Avalonia.Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Opaque);
+            bitmap = BitmapConversion.CreateOpaque(new Avalonia.PixelSize(size.Width, size.Height));
         }
 
-        using (var buffer = bitmap.Lock())
-        {
-            for (int row = 0; row < size.Height; row++)
-            {
-                _pixels.AsSpan(row * size.Width, size.Width).CopyTo(new Span<Bgra32>((byte*)buffer.Address + row * buffer.RowBytes, size.Width));
-            }
-        }
-
+        BitmapConversion.Write(bitmap, _pixels);
         _back = _front;
         _front = bitmap;
         return bitmap;

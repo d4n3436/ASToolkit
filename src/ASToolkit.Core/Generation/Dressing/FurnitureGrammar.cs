@@ -107,17 +107,8 @@ internal sealed record CorpsePose(Dictionary<byte, float> Pictures, Dictionary<b
     public byte DrawLying(Random rng)
     {
         var lying = Pictures.Where(picture => !Seats.ContainsKey(picture.Key)).ToArray();
-        float pick = rng.NextSingle() * lying.Sum(picture => picture.Value);
-        foreach (var picture in lying)
-        {
-            pick -= picture.Value;
-            if (pick < 0)
-            {
-                return picture.Key;
-            }
-        }
 
-        return lying[^1].Key;
+        return lying[rng.NextWeighted(lying.Select(picture => picture.Value).ToArray())].Key;
     }
 }
 

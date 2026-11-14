@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using ASToolkit.Core.Generation.Buildings;
@@ -486,10 +487,7 @@ internal sealed class PlanWriter
                 var position = GetBasementDoorPosition(edge);
                 foreach (var otherEdge in other.Edges)
                 {
-                    var otherPosition = GetBasementDoorPosition(otherEdge);
-                    float dx = position.X - otherPosition.X;
-                    float dy = position.Y - otherPosition.Y;
-                    gap = MathF.Min(gap, MathF.Sqrt(dx * dx + dy * dy));
+                    gap = MathF.Min(gap, Vector2.Distance(position.ToVector2(), GetBasementDoorPosition(otherEdge).ToVector2()));
                 }
             }
         }

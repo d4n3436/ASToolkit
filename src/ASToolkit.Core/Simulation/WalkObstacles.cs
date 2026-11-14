@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
@@ -378,12 +379,9 @@ internal sealed class WalkObstacles
         if ((uint)column < (uint)_bucketColumns && (uint)row < (uint)_bucketRows)
             return _buckets[row * _bucketColumns + column];
 
-        if (!_outside.TryGetValue(new Point(x, y), out var list))
-        {
-            _outside[new Point(x, y)] = list = [];
-        }
+        ref var list = ref CollectionsMarshal.GetValueRefOrAddDefault(_outside, new Point(x, y), out _);
 
-        return list;
+        return list ??= [];
     }
 
     private sealed class Placed

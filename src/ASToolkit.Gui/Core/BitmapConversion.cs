@@ -16,7 +16,7 @@ public static class BitmapConversion
     /// </summary>
     public static unsafe WriteableBitmap ToBitmap(Image<Rgb24> image)
     {
-        var bitmap = new WriteableBitmap(new PixelSize(image.Width, image.Height), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Opaque);
+        var bitmap = CreateOpaque(new PixelSize(image.Width, image.Height));
         using var buffer = bitmap.Lock();
         image.ProcessPixelRows(rows =>
         {
@@ -32,5 +32,27 @@ public static class BitmapConversion
         });
 
         return bitmap;
+    }
+
+    /// <summary>
+    /// Creates an opaque 32-bit bitmap at the default resolution.
+    /// </summary>
+    /// <param name="size">The size of the bitmap in pixels.</param>
+    /// <returns>The new bitmap.</returns>
+    public static WriteableBitmap CreateOpaque(PixelSize size) => new(size, new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Opaque);
+
+    /// <summary>
+    /// Copies rows of pixels into a bitmap of the same width.
+    /// </summary>
+    /// <param name="bitmap">The bitmap to write to.</param>
+    /// <param name="pixels">The pixels, row by row.</param>
+    public static unsafe void Write(WriteableBitmap bitmap, ReadOnlySpan<Bgra32> pixels)
+    {
+        int width = bitmap.PixelSize.Width;
+        using var buffer = bitmap.Lock();
+        for (int row = 0; row < bitmap.PixelSize.Height; row++)
+        {
+            pixels.Slice(row * width, width).CopyTo(new Span<Bgra32>((byte*)buffer.Address + row * buffer.RowBytes, width));
+        }
     }
 }

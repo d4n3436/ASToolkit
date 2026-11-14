@@ -718,8 +718,8 @@ internal sealed class DepotWing
             }
         }
 
-        left -= Islands(islandHosts, Math.Min(2, Math.Max(0, left - keptBack)), doors);
-        for (int count = dock < 0 ? 0 : Math.Max(0, Math.Min(3, left)); count > 0; count--)
+        left -= Islands(islandHosts, Math.Clamp(left - keptBack, 0, 2), doors);
+        for (int count = dock < 0 ? 0 : Math.Clamp(left, 0, 3); count > 0; count--)
         {
             int office = Outside(dock, _random.Inclusive(5, 6), _random.Inclusive(5, 7), banned, DepotRole.Office);
             if (office >= 0)

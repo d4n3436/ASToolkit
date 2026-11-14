@@ -61,7 +61,7 @@ internal static class ContentPlacer
             float Reach(EdgeKey wall)
             {
                 var point = StructureBuilder.GetBasementPosition(layout.Lattice, wall).Position;
-                return doors.Min(door => GetDistance(point, door));
+                return doors.Min(door => point.DistanceTo(door));
             }
         }
 
@@ -116,8 +116,6 @@ internal static class ContentPlacer
         return GetCenter(ctx, cells[cells.Count / 2]);
     }
 
-    internal static float GetDistance(PointF a, PointF b) => MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
-
     private static void PlaceGate(PlacementContext ctx, LevelScript script, BreakerSpot? breaker)
     {
         var plan = ctx.Plan;
@@ -154,8 +152,8 @@ internal static class ContentPlacer
                     .ToArray();
 
                 var center = new PointF(row.Average(point => point.X), row.Average(point => point.Y));
-                int radius = (int)MathF.Ceiling(row.Max(point => GetDistance(center, point)) + ctx.Step / 2);
-                if (GetDistance(center, door) - radius >= BlackoutDoorGap)
+                int radius = (int)MathF.Ceiling(row.Max(point => center.DistanceTo(point)) + ctx.Step / 2);
+                if (center.DistanceTo(door) - radius >= BlackoutDoorGap)
                 {
                     return new TriggerArea(Point.Truncate(center), radius);
                 }
@@ -235,7 +233,7 @@ internal static class ContentPlacer
 
             var options = key is not null || startBatch && batch.Key == 0 ? new[] { ctx.GetFreeCells(key ?? ctx.Plan.Stations[0]), GetWalkCells(), start, nearest } : [GetWalkCells(), start, nearest];
             var spot = options
-                .Select(cells => cells.Where(c => ctx.FindSpot(c) is not null && sites.All(site => GetDistance(GetCenter(ctx, c), site.Point) >= ChargeSiteGap)).ToArray())
+                .Select(cells => cells.Where(c => ctx.FindSpot(c) is not null && sites.All(site => GetCenter(ctx, c).DistanceTo(site.Point) >= ChargeSiteGap)).ToArray())
                 .Select(free => free.Where(ctx.IsClearAround).Concat(free).Cast<Cell?>().FirstOrDefault())
                 .FirstOrDefault(found => found is not null);
 
@@ -247,7 +245,7 @@ internal static class ContentPlacer
             int count = batch.Count();
             var origin = spot.Value;
             var room = ctx.GetFreeCells(ctx.Plan.Regions[ctx.Layout.Cells[origin]])
-                .Where(c => ctx.FindSpot(c) is not null && sites.All(site => GetDistance(GetCenter(ctx, c), site.Point) >= ChargeSiteGap))
+                .Where(c => ctx.FindSpot(c) is not null && sites.All(site => GetCenter(ctx, c).DistanceTo(site.Point) >= ChargeSiteGap))
                 .Prepend(origin)
                 .Distinct()
                 .ToArray();

@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Scripting;
@@ -146,10 +147,8 @@ internal sealed class MovementMap
         if (source is null)
             return;
 
-        if (!_raised.TryGetValue(source, out var cells))
-        {
-            _raised[source] = cells = [];
-        }
+        ref var cells = ref CollectionsMarshal.GetValueRefOrAddDefault(_raised, source, out _);
+        cells ??= [];
         cells.Add(new RaisedCell(index, value));
     }
 

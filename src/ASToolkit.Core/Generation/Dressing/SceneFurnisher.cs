@@ -148,7 +148,7 @@ internal sealed class SceneFurnisher
         int[] misses = new int[growing.Length];
         while (_anchors < target && rates.Any(rate => rate > 0))
         {
-            int index = DrawIndex(rates);
+            int index = _rng.NextWeighted(rates);
             var arrangement = growing[index];
             bool landed = Place(arrangement, false);
             _placedCounts[arrangement] = _placedCounts.GetValueOrDefault(arrangement) + (landed ? 1 : 0);
@@ -259,7 +259,7 @@ internal sealed class SceneFurnisher
                 var runs = _room.Walls.Where(wall => (wall.Face & FarFaces) != 0 == far).ToArray();
                 if (runs.Length > 0)
                 {
-                    (int face, var cells) = runs[DrawIndex(runs.Select(run => (float)run.Cells.Length).ToArray())];
+                    (int face, var cells) = runs[_rng.NextWeighted(runs.Select(run => (float)run.Cells.Length).ToArray())];
                     PlaceRun(face, cells, Along(cells[0], face) + 0.5f + _rng.NextSingle() * (cells.Length - 1), arrangement.Family!.Value, arrangement.Members,
                         arrangement.Kind == ArrangementKind.Open ? 1 : modules);
                 }
@@ -297,7 +297,7 @@ internal sealed class SceneFurnisher
     {
         for (int placed = 0; placed < modules && along < Along(cells[^1], face) + 1;)
         {
-            var family = placed == 0 || members.Count == 0 ? lead : Draw(members);
+            var family = placed == 0 || members.Count == 0 ? lead : _rng.NextWeighted(members);
             var id = Pick(family);
             if (id is null)
             {
@@ -346,7 +346,7 @@ internal sealed class SceneFurnisher
             var left = tier.ToList();
             while (left.Count > 0)
             {
-                var chosen = left[DrawIndex(left.Select(pair => pair.Weight).ToArray())];
+                var chosen = left[_rng.NextWeighted(left.Select(pair => pair.Weight).ToArray())];
                 if (PlaceModule(id, chosen.First.Point, chosen.First.Dir))
                 {
                     var second = chosen.Second;
@@ -432,7 +432,7 @@ internal sealed class SceneFurnisher
         var pads = GetModules(id)[spot.Dir].Where(piece => piece.Id == lining.Id).ToArray();
         var first = pads.First(piece => piece.Slot == 0);
         var points = pads.Select(pad => new PointF(spot.Point.X + pad.U, spot.Point.Y + pad.V)).Append(spot.Point);
-        return !points.Any(point => _room.Openings.Any(cell => GetDistance(point, new PointF(cell.U + 0.5f, cell.V + 0.5f)) < OpeningReach))
+        return !points.Any(point => _room.Openings.Any(cell => point.DistanceTo(new PointF(cell.U + 0.5f, cell.V + 0.5f)) < OpeningReach))
             && pads.All(pad => new[] { PlusU, MinusV, MinusU, PlusV }.Where(wall => (spot.Faces & wall) != 0).All(wall =>
             {
                 var normal = GetNormal(wall);
@@ -443,8 +443,6 @@ internal sealed class SceneFurnisher
     }
 
     private static int GetSpan(WallLine side) => Along(side.Cells[^1], side.Face) - Along(side.Cells[0], side.Face) + 1;
-
-    private static float GetDistance(PointF first, PointF second) => MathF.Sqrt((first.X - second.X) * (first.X - second.X) + (first.Y - second.Y) * (first.Y - second.Y));
 
     private static float GetLiningDistance(Lining lining, int face) => (face & FarFaces) != 0 ? lining.FarDistance : lining.NearDistance;
 
@@ -477,7 +475,7 @@ internal sealed class SceneFurnisher
     private void PlaceHeap(float openShare, float nearShare, (int Face, Cell Wall)? at)
     {
         var heap = _grammar.Heap;
-        var coreFamily = Draw(heap.Core);
+        var coreFamily = _rng.NextWeighted(heap.Core);
         var core = Pick(coreFamily);
         var members = new List<(PointF Point, KnownObject Id)>();
         for (int attempt = 0; core is not null && members.Count == 0 && attempt < Tries; attempt++)
@@ -491,7 +489,7 @@ internal sealed class SceneFurnisher
 
         for (int index = 1, size = _rng.Next(heap.Size[0], heap.Size[1] + 1); members.Count > 0 && index < size; index++)
         {
-            var id = Pick(Draw(heap.Mix.GetValueOrDefault(coreFamily, heap.Core)));
+            var id = Pick(_rng.NextWeighted(heap.Mix.GetValueOrDefault(coreFamily, heap.Core)));
             if (id is null)
             {
                 continue;
@@ -617,7 +615,7 @@ internal sealed class SceneFurnisher
     {
         var near = _layout.Lattice.ToWorld(front.X, front.Y);
         var far = _layout.Lattice.ToWorld(behind.X, behind.Y);
-        return near.Y > far.Y && MathF.Abs(near.X - far.X) < FrontSpan && GetDistance(front, behind) < _grammar.Splatter.FrontReach;
+        return near.Y > far.Y && MathF.Abs(near.X - far.X) < FrontSpan && front.DistanceTo(behind) < _grammar.Splatter.FrontReach;
     }
 
     private float GetWallReach(PointF point, WallSides side)
@@ -647,7 +645,7 @@ internal sealed class SceneFurnisher
             if ((!_force || slot.Key.Slot != 0) && !(_rng.NextSingle() < options.Sum(option => option.Share)))
                 continue;
 
-            var companion = options[DrawIndex(options.Select(option => option.Share).ToArray())];
+            var companion = options[_rng.NextWeighted(options.Select(option => option.Share).ToArray())];
             if (Commit(companion.Id, new PointF(point.X + companion.U, point.Y + companion.V), companion.Z, companion.Facing))
             {
                 stood.Add(slot.Key);
@@ -760,7 +758,7 @@ internal sealed class SceneFurnisher
             bool corpse = _rng.NextSingle() < splatter.CorpseShare;
             var id = _rng.NextSingle() < rule.ScientistShare ? KnownObject.ScientistCorpse : KnownObject.SoldierCorpse;
             var pose = _grammar.Poses[id];
-            byte dir = Draw(pose.Pictures);
+            byte dir = _rng.NextWeighted(pose.Pictures);
             var seat = pose.Seats.GetValueOrDefault(dir);
             for (int attempt = 0; attempt < Tries; attempt++)
             {
@@ -781,9 +779,9 @@ internal sealed class SceneFurnisher
                 // Let a seated corpse touch only the piece it leans on, and keep every corpse off the others' footprints
                 var box = GetBox(id, point);
                 bool free = _floor
-                    .Select((piece, index) => index == partner ? !piece.Box.Contains(point) : !Overlaps(piece.Box, box) && GetDistance(piece.Point, point) >= GetExtent(piece.Id) / 2)
+                    .Select((piece, index) => index == partner ? !piece.Box.Contains(point) : !Overlaps(piece.Box, box) && piece.Point.DistanceTo(point) >= GetExtent(piece.Id) / 2)
                     .All(clear => clear);
-                if (corpse && (!free || _placed.Any(piece => piece.Id.IsCorpse && GetDistance(new PointF(piece.U, piece.V), point) < splatter.Gap)))
+                if (corpse && (!free || _placed.Any(piece => piece.Id.IsCorpse && new PointF(piece.U, piece.V).DistanceTo(point) < splatter.Gap)))
                     continue;
 
                 if (corpse ? Commit(id, point, 0, dir) : IsFloor(point) && Splash(KnownObject.SmallBloodPool, point, splatter.Blood, splatter.Radius) > 0)
@@ -850,7 +848,7 @@ internal sealed class SceneFurnisher
         });
 
         return wall is not null && !between && (int)wall.Value.Side == seat.Face && MathF.Abs(wall.Value.Distance - seat.WallDistance[_wallSet]) <= SeatSlack
-               || _floor.Any(piece => GetFaceOffsets(pose, seat, piece.Id, piece.Dir).Any(offset => GetDistance(FromPartner(piece.Point, seat, offset), point) <= SeatSlack));
+               || _floor.Any(piece => GetFaceOffsets(pose, seat, piece.Id, piece.Dir).Any(offset => FromPartner(piece.Point, seat, offset).DistanceTo(point) <= SeatSlack));
     }
 
     private int Splash(KnownObject id, PointF center, int[] count, float radius, float z = 0)
@@ -887,8 +885,8 @@ internal sealed class SceneFurnisher
             for (int index = 0; index < cluster.Count; index++)
             {
                 var seed = cluster[index];
-                cluster.AddRange(left.Where(point => GetDistance(point, seed) < splatter.GibReach));
-                left.RemoveAll(point => GetDistance(point, seed) < splatter.GibReach);
+                cluster.AddRange(left.Where(point => point.DistanceTo(seed) < splatter.GibReach));
+                left.RemoveAll(point => point.DistanceTo(seed) < splatter.GibReach);
             }
 
             for (int gib = cluster.Count >= splatter.GibBlood ? cluster.Count / splatter.BloodPerGib : 0; gib > 0; gib--)
@@ -1026,7 +1024,7 @@ internal sealed class SceneFurnisher
     private KnownObject? Draw(Dictionary<KnownObject, float> weights)
     {
         var allowed = weights.Where(pair => !_campaign || !_grammar.AddOnOnly.Contains(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value);
-        return allowed.Count == 0 ? null : Draw<KnownObject>(allowed);
+        return allowed.Count == 0 ? null : _rng.NextWeighted(allowed);
     }
 
     private byte GetFacing(KnownObject id, PointF point)
@@ -1042,31 +1040,13 @@ internal sealed class SceneFurnisher
     {
         var modules = GetModules(id);
         var kept = facings.Where(pair => modules.ContainsKey(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value);
-        return _force && kept.Count > 0 ? Draw(kept) : facings.Count > 0 ? Draw(facings) : (byte)0;
+        return _force && kept.Count > 0 ? _rng.NextWeighted(kept) : facings.Count > 0 ? _rng.NextWeighted(facings) : (byte)0;
     }
 
     private Dictionary<byte, Companion[]> GetModules(KnownObject id) =>
         _program.Companions.GetValueOrDefault(id) ?? _grammar.SharedModules.GetValueOrDefault(id) ?? [];
 
     private float Draw(float[] range) => range[0] + _rng.NextSingle() * (range[1] - range[0]);
-
-    private T Draw<T>(Dictionary<T, float> weights)
-        where T : notnull => weights.Keys.ElementAt(DrawIndex(weights.Values.ToArray()));
-
-    private int DrawIndex(float[] weights)
-    {
-        float pick = _rng.NextSingle() * weights.Sum();
-        for (int index = 0; index < weights.Length - 1; index++)
-        {
-            pick -= weights[index];
-            if (pick < 0)
-            {
-                return index;
-            }
-        }
-
-        return weights.Length - 1;
-    }
 }
 
 internal readonly record struct SceneRequest(int Region, KnownObject Anchor, PointF? At, byte Dir, int[] Fallbacks);

@@ -264,21 +264,6 @@ public sealed class CampaignPlanner
         return values;
     }
 
-    private static int Pick(Random rng, IReadOnlyList<float> weights)
-    {
-        float roll = rng.NextSingle() * weights.Sum();
-        for (int index = 0; index < weights.Count; index++)
-        {
-            roll -= weights[index];
-            if (roll < 0)
-            {
-                return index;
-            }
-        }
-
-        return weights.Count - 1;
-    }
-
     private static bool IsIntro(int level, LevelStyle gate) => level == FirstIndoorLevel && gate != LevelStyle.Ungated;
 
     // Gives each lab level a second wing of its own among those its gate builds, the levels with the fewest choices first
@@ -381,7 +366,7 @@ public sealed class CampaignPlanner
         {
             var shares = _model.Gates[run.Key].Value;
             int[] drawn = run
-                .Select(_ => Pick(rng, shares.Select(share => share.Share).ToArray()))
+                .Select(_ => rng.NextWeighted(shares.Select(share => share.Share).ToArray()))
                 .Order()
                 .ToArray();
 
@@ -445,7 +430,7 @@ public sealed class CampaignPlanner
 
             for (int index = 0; index < counts.GetValueOrDefault(category); index++)
             {
-                var id = ids[Pick(rng, shares)];
+                var id = ids[rng.NextWeighted(shares)];
                 pickups[id] = pickups.GetValueOrDefault(id) + 1;
             }
         }
@@ -464,7 +449,7 @@ public sealed class CampaignPlanner
         {
             for (int index = 0; index < counts.GetValueOrDefault(ItemCategory.Ammo); index++)
             {
-                var ammo = byAge[Pick(rng, weights)].WeaponAmmo!.Value;
+                var ammo = byAge[rng.NextWeighted(weights)].WeaponAmmo!.Value;
                 pickups[ammo] = pickups.GetValueOrDefault(ammo) + 1;
             }
         }

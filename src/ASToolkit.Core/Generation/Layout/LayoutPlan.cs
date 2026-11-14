@@ -1,5 +1,4 @@
 using ASToolkit.Core.Levels;
-using ASToolkit.Core.Survey;
 
 namespace ASToolkit.Core.Generation.Layout;
 
@@ -77,14 +76,4 @@ public sealed class LayoutPlan
     /// Returns whether monsters, their triggers and dynamite sites may stand in a region.
     /// </summary>
     public bool HoldsFights(PlanRegion region) => SecondWing.Count == 0 || SecondWing.Contains(region);
-
-    /// <summary>
-    /// Returns the zone a region lies in.
-    /// </summary>
-    public GateZone GetZone(PlanRegion region) => region.Kind is RegionKind.SecretCloset or RegionKind.SecretRoom ? GateZone.Secret : !region.IsGated ? GateZone.Open : Gate switch
-    {
-        GateKind.Fences => GateZone.Fenced,
-        GateKind.Blackout => GateZone.Blackout,
-        _ => GateZone.Locked
-    };
 }

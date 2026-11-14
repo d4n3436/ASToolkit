@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 
@@ -148,44 +149,6 @@ public sealed class LevelOccupancy
     });
 
     /// <summary>
-    /// Returns whether a group of objects placed together fits, each one on its own and beside the others, and the solid ones together leaving
-    /// the floor joined.
-    /// </summary>
-    public bool FitsAll(IReadOnlyList<(KnownObject Id, float X, float Y, float Z)> pieces)
-    {
-        var cells = new HashSet<Cell>();
-        var standing = new List<StandingPiece>();
-        var raised = new List<StandingPiece>();
-        foreach ((var id, float x, float y, float z) in pieces)
-        {
-            if (!Fits(id, new PointF(x, y), z))
-            {
-                return false;
-            }
-
-            if (IsUnit(id) || id.PickupCategory is not null || _objects.GetBlocking(id) == BlockingClass.WalkThrough || !_objects.TryFind(id, out var obj))
-            {
-                continue;
-            }
-
-            bool isRaised = z >= FloorHeight;
-            var others = isRaised ? raised : standing;
-            if (IsCrowded(id, obj, x, y, others, isRaised))
-            {
-                return false;
-            }
-
-            others.Add(new StandingPiece(id, obj.Size, obj.IsSolid, x, y));
-            if (obj.IsSolid)
-            {
-                cells.UnionWith(GetCells(obj, x, y));
-            }
-        }
-
-        return KeepsFloorJoined(cells);
-    }
-
-    /// <summary>
     /// Adds an object standing at a map point.
     /// </summary>
     public void Add(KnownObject id, PointF point, float z)
@@ -199,10 +162,8 @@ public sealed class LevelOccupancy
         if (IsUnit(id))
         {
             var key = new Point((int)MathF.Floor(x / UnitGap), (int)MathF.Floor(y / UnitGap));
-            if (!_units.TryGetValue(key, out var bucket))
-            {
-                _units[key] = bucket = [];
-            }
+            ref var bucket = ref CollectionsMarshal.GetValueRefOrAddDefault(_units, key, out _);
+            bucket ??= [];
 
             bucket.Add(new PointF(x, y));
             return;
@@ -321,8 +282,8 @@ public sealed class LevelOccupancy
 
     private static float GetBoxDistance(CollisionBox box, PointF point)
     {
-        float dx = MathF.Max(0, MathF.Abs(box.X - point.X) - box.HalfWidth), dy = MathF.Max(0, MathF.Abs(box.Y - point.Y) - box.HalfHeight);
-        return MathF.Sqrt(dx * dx + dy * dy);
+        var outside = Vector2.Max(Vector2.Zero, Vector2.Abs(new Vector2(box.X - point.X, box.Y - point.Y)) - new Vector2(box.HalfWidth, box.HalfHeight));
+        return outside.Length();
     }
 
     private bool IsUnit(KnownObject id) => !id.IsDecor && _objects.TryFind(id, out var obj) && obj.SpriteType.HasFlag(SpriteType.Unit);
@@ -344,10 +305,8 @@ public sealed class LevelOccupancy
             for (int row = (int)MathF.Floor(box.MinY / ObstacleBucket); row <= (int)MathF.Floor(box.MaxY / ObstacleBucket); row++)
             {
                 var key = new Point(column, row);
-                if (!_obstacles.TryGetValue(key, out var bucket))
-                {
-                    _obstacles[key] = bucket = [];
-                }
+                ref var bucket = ref CollectionsMarshal.GetValueRefOrAddDefault(_obstacles, key, out _);
+                bucket ??= [];
 
                 bucket.Add(box);
             }

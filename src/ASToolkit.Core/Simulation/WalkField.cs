@@ -414,24 +414,8 @@ internal sealed class WalkField
         ReachedCount = _floodCount;
     }
 
-    private int CountWithin(int maxSteps)
-    {
-        int low = 0, high = _floodCount;
-        while (low < high)
-        {
-            int middle = (low + high) / 2;
-            if (_distance[_queue[middle]] <= maxSteps)
-            {
-                low = middle + 1;
-            }
-            else
-            {
-                high = middle;
-            }
-        }
-
-        return low;
-    }
+    // Searches the flood order with a bound no cell equals, leaving the count within reach in the complement
+    private int CountWithin(int maxSteps) => ~new ReadOnlySpan<int>(_queue, 0, _floodCount).BinarySearch(new StepBound(_distance, maxSteps));
 
     private void ClearDistances()
     {
@@ -478,5 +462,19 @@ internal sealed class WalkField
         public int[] Links { get; }
 
         public bool[] Computed { get; }
+    }
+
+    private readonly struct StepBound : IComparable<int>
+    {
+        private readonly int[] _distance;
+        private readonly int _maxSteps;
+
+        public StepBound(int[] distance, int maxSteps)
+        {
+            _distance = distance;
+            _maxSteps = maxSteps;
+        }
+
+        public int CompareTo(int cell) => _distance[cell] <= _maxSteps ? 1 : -1;
     }
 }

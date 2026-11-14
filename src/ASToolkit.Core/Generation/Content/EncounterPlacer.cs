@@ -89,8 +89,8 @@ internal sealed class EncounterPlacer
         
         var cells = _ctx.GetFreeCells(_ctx.Plan.Regions[room]);
         var clear = cells
-            .Where(cell => ContentPlacer.GetDistance(_ctx.Layout.Lattice.GetCenter(cell), _start) >= StartGap
-                           && _cannons.All(cannon => ContentPlacer.GetDistance(_ctx.Layout.Lattice.GetCenter(cell), cannon) >= CannonGap))
+            .Where(cell => _ctx.Layout.Lattice.GetCenter(cell).DistanceTo(_start) >= StartGap
+                           && _cannons.All(cannon => _ctx.Layout.Lattice.GetCenter(cell).DistanceTo(cannon) >= CannonGap))
             .ToArray();
 
         floor = _floors[room] = clear.Length > 0 ? clear : cells;
@@ -149,7 +149,7 @@ internal sealed class EncounterPlacer
     {
         var trigger = fight.Trigger!.Value;
         var center = _ctx.Layout.Lattice.GetCenter(_ctx.Layout.GetDoorwayCell(trigger.Link, trigger.Region));
-        int radius = (int)MathF.Ceiling(_ctx.Layout.LinkEdges[trigger.Link].Max(edge => ContentPlacer.GetDistance(GetMiddle(edge), center)) + _ctx.Step);
+        int radius = (int)MathF.Ceiling(_ctx.Layout.LinkEdges[trigger.Link].Max(edge => GetMiddle(edge).DistanceTo(center)) + _ctx.Step);
         if (fight.Closet is not null)
         {
             return ReleaseFromCloset(fight, center, radius);
@@ -159,7 +159,7 @@ internal sealed class EncounterPlacer
             .SelectMany(room => _ctx.GetFreeCells(_ctx.Plan.Regions[room], inner: true))
             .Select(free => (Cell: free, Point: _ctx.Layout.Lattice.GetCenter(free)))
             .Where(spot => MathF.Abs(spot.Point.X - center.X) >= FightPlanner.Screen.Width / 2 + radius + _ctx.Step || MathF.Abs(spot.Point.Y - center.Y) >= FightPlanner.Screen.Height / 2 + radius + _ctx.Step)
-            .OrderBy(spot => ContentPlacer.GetDistance(spot.Point, center))
+            .OrderBy(spot => spot.Point.DistanceTo(center))
             .ToArray();
 
         if (spots.Length == 0)
@@ -167,13 +167,13 @@ internal sealed class EncounterPlacer
             return false;
         }
 
-        var near = spots.Where(spot => ContentPlacer.GetDistance(spot.Point, center) <= _model.SpawnerReach.Value).DefaultIfEmpty(spots[0]).ToArray();
+        var near = spots.Where(spot => spot.Point.DistanceTo(center) <= _model.SpawnerReach.Value).DefaultIfEmpty(spots[0]).ToArray();
         foreach (var group in fight.Groups)
         {
             byte[] payload = SpawnerProgram.Create(group, new TriggerArea(Point.Truncate(center), radius), [center]).ToPayload();
             PointF? point = null;
             var clear = near
-                .Where(spot => _spawners.All(other => ContentPlacer.GetDistance(other, spot.Point) >= _model.SpawnerSpacing.Value) && _ctx.Occupancy.HasRoomAround(spot.Point))
+                .Where(spot => _spawners.All(other => other.DistanceTo(spot.Point) >= _model.SpawnerSpacing.Value) && _ctx.Occupancy.HasRoomAround(spot.Point))
                 .Take(SpawnerTries)
                 .ToArray();
 
@@ -218,7 +218,7 @@ internal sealed class EncounterPlacer
         var spots = _ctx.GetRegionCells(_ctx.Plan.Regions[closet])
             .SelectMany(cell => SpotShares.SelectMany(u => SpotShares.Select(v => _ctx.Layout.Lattice.ToWorld(cell.U + u, cell.V + v))))
             .Where(spot => !_ctx.IsInWall(spot, margin))
-            .OrderBy(spot => ContentPlacer.GetDistance(spot, GetMiddle(edge)))
+            .OrderBy(spot => spot.DistanceTo(GetMiddle(edge)))
             .ToArray();
 
         if (spots.Length == 0)

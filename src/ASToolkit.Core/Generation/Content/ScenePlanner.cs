@@ -153,7 +153,7 @@ internal sealed class ScenePlanner
                 {
                     var point = _layout.Lattice.GetCenter(cell);
                     var ring = RingSteps.SelectMany(dx => RingSteps.Select(dy => new PointF(point.X + dx * clear, point.Y + dy * clear * 0.7f))).ToArray();
-                    if (strict && ContentPlacer.GetDistance(point, far) < KillZoneDistance
+                    if (strict && point.DistanceTo(far) < KillZoneDistance
                         || !ring.All(spot => _layout.Cells.ContainsKey(GetCell(spot)) && ctx.IsFree(GetCell(spot)) && !ctx.IsInWall(spot, 8)))
                     {
                         continue;
@@ -215,7 +215,7 @@ internal sealed class ScenePlanner
                 var spot = site.Fallbacks
                     .Prepend(site.Room.Id)
                     .Select(room => _layout.GetRegionCells(room))
-                    .Select(cells => cells.Select(_layout.Lattice.GetCenter).Where(KeepsDrop).OrderBy(point => ContentPlacer.GetDistance(point, _layout.Lattice.GetCenter(cells[cells.Count / 2]))).FirstOrDefault())
+                    .Select(cells => cells.Select(_layout.Lattice.GetCenter).Where(KeepsDrop).OrderBy(point => point.DistanceTo(_layout.Lattice.GetCenter(cells[cells.Count / 2]))).FirstOrDefault())
                     .FirstOrDefault(point => !point.IsEmpty);
 
                 if (!spot.IsEmpty)
@@ -248,13 +248,13 @@ internal sealed class ScenePlanner
         var pads = map.Sprites.Where(sprite => sprite.Id == KnownObject.TeleportPad).Select(sprite => new PointF(sprite.Position.X, sprite.Position.Y)).ToArray();
         foreach (var site in map.Sprites.Where(sprite => sprite.Id == KnownObject.DynamiteSite).Select(sprite => new PointF(sprite.Position.X, sprite.Position.Y)).ToArray())
         {
-            var near = pads.Where(pad => ContentPlacer.GetDistance(pad, site) < BlastReach - _grammar.GeneratorRise[1]).ToArray();
+            var near = pads.Where(pad => pad.DistanceTo(site) < BlastReach - _grammar.GeneratorRise[1]).ToArray();
             if (generators <= 0 || near.Length == 0)
             {
                 continue;
             }
 
-            var pad = near.MinBy(pad => ContentPlacer.GetDistance(pad, site));
+            var pad = near.MinBy(pad => pad.DistanceTo(site));
             for (int count = Math.Min(generators, _rng.Next(_grammar.GeneratorBatch[0], _grammar.GeneratorBatch[1] + 1)); count > 0; count--, generators--)
             {
                 float rise = _grammar.GeneratorRise[0] + _rng.NextSingle() * (_grammar.GeneratorRise[1] - _grammar.GeneratorRise[0]);

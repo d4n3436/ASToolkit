@@ -13,6 +13,32 @@ public static class RandomExtensions
         public int NextInclusive(ValueRange<int> range) => rng.Next(range.Min, range.Max + 1);
 
         /// <summary>
+        /// Draws an entry with a chance proportional to its weight.
+        /// </summary>
+        /// <param name="weights">The weights of the entries.</param>
+        /// <returns>The index of the drawn entry.</returns>
+        public int NextWeighted(IReadOnlyList<float> weights)
+        {
+            float roll = rng.NextSingle() * weights.Sum();
+            for (int index = 0; index < weights.Count - 1; index++)
+            {
+                roll -= weights[index];
+
+                if (roll < 0)
+                    return index;
+            }
+
+            return weights.Count - 1;
+        }
+
+        /// <summary>
+        /// Draws a key of a dictionary with a chance proportional to its weight.
+        /// </summary>
+        /// <param name="weights">The weights of the keys.</param>
+        /// <returns>The drawn key.</returns>
+        public T NextWeighted<T>(IReadOnlyDictionary<T, float> weights) where T : notnull => weights.Keys.ElementAt(rng.NextWeighted(weights.Values.ToArray()));
+
+        /// <summary>
         /// Returns a draw from the standard normal distribution.
         /// </summary>
         public float NextNormal() => MathF.Sqrt(-2 * MathF.Log(1 - rng.NextSingle())) * MathF.Cos(2 * MathF.PI * rng.NextSingle());

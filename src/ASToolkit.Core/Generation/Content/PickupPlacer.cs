@@ -204,7 +204,7 @@ internal sealed class PickupPlacer
         var spot = Draw(spots);
         for (int tries = 0; tries < PileRoomTries; tries++)
         {
-            if (PlacePile(rooms[DrawWeighted(weights)], heap, spot))
+            if (PlacePile(rooms[_ctx.Rng.NextWeighted(weights)], heap, spot))
             {
                 return true;
             }
@@ -276,18 +276,4 @@ internal sealed class PickupPlacer
 
     private T Draw<T>(IReadOnlyList<T> sample) => sample[_ctx.Rng.Next(sample.Count)];
 
-    private int DrawWeighted(float[] weights)
-    {
-        float roll = _ctx.Rng.NextSingle() * weights.Sum();
-        for (int index = 0; index < weights.Length; index++)
-        {
-            roll -= weights[index];
-            if (roll < 0)
-            {
-                return index;
-            }
-        }
-
-        return weights.Length - 1;
-    }
 }

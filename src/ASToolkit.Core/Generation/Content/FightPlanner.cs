@@ -113,7 +113,7 @@ internal sealed class FightPlanner
             var door = GetPoint(doors[rooms[index].Id].First());
             bool together = new[] { at - 1, at + 1 }
                 .Where(neighbor => neighbor >= 0 && neighbor < chosen.Count && ambushes.Contains(chosen[neighbor]))
-                .Any(neighbor => GetDistance(GetPoint(doors[rooms[chosen[neighbor]].Id].First()), door) <= BeatMeasurer.FightReach);
+                .Any(neighbor => GetPoint(doors[rooms[chosen[neighbor]].Id].First()).DistanceTo(door) <= BeatMeasurer.FightReach);
 
             if (together || !(spawned + targets[index] / 2 <= _brief.SpawnedShare * hitPoints))
                 continue;
@@ -188,7 +188,7 @@ internal sealed class FightPlanner
             return group;
         }
 
-        var family = forced?.MonsterFamily ?? _pending ?? DrawWeighted(offered
+        var family = forced?.MonsterFamily ?? _pending ?? _rng.NextWeighted(offered
             .GroupBy(pair => pair.Key.MonsterFamily)
             .ToDictionary(variants => variants.Key, variants => variants.Sum(pair => pair.Value * GetHitPoints(pair.Key))));
 
@@ -260,8 +260,6 @@ internal sealed class FightPlanner
         return new PointF(points.Average(point => point.X), points.Average(point => point.Y));
     }
 
-    private static float GetDistance(PointF first, PointF second) => MathF.Sqrt((first.X - second.X) * (first.X - second.X) + (first.Y - second.Y) * (first.Y - second.Y));
-
     private float GetUnitArea()
     {
         var step = _plan.Settings.WallSet == WallSet.Basement ? Lattice.BasementStep : Lattice.ConcreteStep;
@@ -278,21 +276,6 @@ internal sealed class FightPlanner
         }
 
         return spawners.ToArray();
-    }
-
-    private KnownObject DrawWeighted(Dictionary<KnownObject, float> weights)
-    {
-        float roll = _rng.NextSingle() * weights.Values.Sum();
-        foreach ((var kind, float weight) in weights)
-        {
-            roll -= weight;
-            if (roll <= 0)
-            {
-                return kind;
-            }
-        }
-
-        return weights.Keys.Last();
     }
 
     private int GetHitPoints(KnownObject id) => _objects.TryFind(id, out var found) ? found.MaxHp : 0;

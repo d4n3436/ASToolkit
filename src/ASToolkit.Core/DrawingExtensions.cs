@@ -11,6 +11,13 @@ public static class DrawingExtensions
     extension(PointF point)
     {
         /// <summary>
+        /// Measures the straight-line distance to another point.
+        /// </summary>
+        /// <param name="other">The other point.</param>
+        /// <returns>The distance between the two points.</returns>
+        public float DistanceTo(PointF other) => MathF.Sqrt((point.X - other.X) * (point.X - other.X) + (point.Y - other.Y) * (point.Y - other.Y));
+
+        /// <summary>
         /// Deconstructs the point into its coordinates.
         /// </summary>
         public void Deconstruct(out float x, out float y)
