@@ -31,12 +31,27 @@ public sealed class LevelScriptSummary
     public IReadOnlyList<TriggerArea> Checkpoints { get; init; } = [];
 
     /// <summary>
-    /// Gets a value indicating whether the win check counts dynamite sites.
+    /// Gets a value indicating whether the level is won once its dynamite sites are gone.
     /// </summary>
-    public bool DynamiteWin { get; init; }
+    public bool WinsAfterSites { get; init; }
 
     /// <summary>
     /// Gets the trigger that wins the level, or null.
     /// </summary>
     public TriggerArea? Exit { get; init; }
+
+    /// <summary>
+    /// Gets the one-time blocks the script runs when the player reaches their areas.
+    /// </summary>
+    public IReadOnlyList<ScriptTrigger> Triggers { get; init; } = [];
+
+    /// <summary>
+    /// Gets the handlers the script defines for the deaths of objects.
+    /// </summary>
+    public IReadOnlyList<ScriptHandler> Handlers { get; init; } = [];
+
+    /// <summary>
+    /// Gets the rules that place objects while too many objects of one kind exist.
+    /// </summary>
+    public IReadOnlyList<ScriptCrowdRule> CrowdRules { get; init; } = [];
 }
