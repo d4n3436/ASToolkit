@@ -7,16 +7,16 @@ internal sealed class PlaySession
     public const int MaxTime = 30 * 60 * 1000;
     public const int StallTime = 240 * 1000;
 
-    private readonly bool _endsWithTour;
+    private readonly bool _winsAtTourEnd;
     private readonly EnemyStock _enemies;
     private ProgressMark _mark;
     private bool _started;
 
-    public PlaySession(GameWorld world, PlayerBot bot, bool endsWithTour)
+    public PlaySession(GameWorld world, PlayerBot bot, bool winsAtTourEnd)
     {
         World = world;
         Bot = bot;
-        _endsWithTour = endsWithTour;
+        _winsAtTourEnd = winsAtTourEnd;
         MinHealth = world.Player.Hp;
         _enemies = new EnemyStock(world);
         world.PlayerHurt += OnPlayerHurt;
@@ -53,7 +53,7 @@ internal sealed class PlaySession
 
     private void OnPlayerHurt(int health) => MinHealth = Math.Min(MinHealth, health);
 
-    private bool HasWon() => World.HasWon || (_endsWithTour && Bot.HasFinished);
+    private bool HasWon() => World.HasWon || (_winsAtTourEnd && Bot.HasFinished);
 
     private readonly record struct ProgressMark(float Farthest, int Sites, int FewestEnemies, int ProgressedAt)
     {

@@ -1,3 +1,4 @@
+using System.Drawing;
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
@@ -5,6 +6,7 @@ using ASToolkit.Core.Reference;
 using ASToolkit.Core.Simulation;
 using ASToolkit.Core.Routes;
 using System.Numerics;
+using ASToolkit.Core.Scripting;
 using Xunit;
 
 namespace ASToolkit.Tests.Simulation;
@@ -45,7 +47,11 @@ public class PlaythroughTests
             Checkpoints = [],
             FallbackUsage = new FallbackUsage(false, false, 0),
             Tour = tour,
-            Grid = new RouteGrid { Lattice = lattice, Cells = cells, Edges = [], FenceEdges = [], BlockedCells = [] }
+            Grid = new RouteGrid { Lattice = lattice, Cells = cells, Edges = [], FenceEdges = [], BlockedCells = [] },
+            Script = new LevelScriptSummary
+            {
+                Triggers = [new ScriptTrigger(new TriggerArea(new Point((int)blackout.X, (int)blackout.Y), 40), ScriptRespawn.Player, Point.Empty, true, 0x606060, 3000, true, false, [])]
+            }
         };
         var table = TestGameFolder.Table;
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default);

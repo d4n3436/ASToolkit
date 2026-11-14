@@ -15,6 +15,8 @@ namespace ASToolkit.Core.Simulation;
 /// <param name="PickupEvents">The time when the player collected each map pickup.</param>
 /// <param name="DoorFrames">The door heights at their animation ticks.</param>
 /// <param name="Scenery">The blood stains, corpses and debris left on the map, with their creation times.</param>
+/// <param name="Shakes">The camera offsets of the frames an earthquake shook.</param>
+/// <param name="Flashes">The flashes of the whole screen.</param>
 public sealed record PlaythroughReplay(
     IReadOnlyList<PlaythroughFrame> Frames,
     IReadOnlyList<UnitFrame> UnitFrames,
@@ -25,4 +27,6 @@ public sealed record PlaythroughReplay(
     IReadOnlyList<SpriteEvent> CreatedSprites,
     IReadOnlyList<SpriteEvent> PickupEvents,
     IReadOnlyList<DoorFrame> DoorFrames,
-    IReadOnlyList<EffectState> Scenery);
+    IReadOnlyList<EffectState> Scenery,
+    IReadOnlyList<CameraShake> Shakes,
+    IReadOnlyList<ScreenFlash> Flashes);

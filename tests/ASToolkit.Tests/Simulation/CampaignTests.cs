@@ -18,7 +18,7 @@ public class CampaignTests
         var first = EmptyLevel(KnownObject.Money, KnownObject.Medkit, KnownObject.Flashlight);
         var second = EmptyLevel();
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int> { [KnownObject.Shotgun] = 0 }, new PlayerImplants(1, 0, 0, 0));
-        var result = play.PlayCampaign([first, second], [100, 200], 1, new CampaignState(0, loadout), records: true, recordedLevel: 1);
+        var result = play.PlayCampaign([first, second], [100, 200], 1, new CampaignState(0, loadout), record: true, recordedLevel: 1);
 
         Assert.True(result.IsCompleted);
         Assert.Equal(2, result.Levels.Count);
@@ -49,7 +49,7 @@ public class CampaignTests
         var table = TestGameFolder.Table;
         var rewards = table.GetArray("LevelMoney");
         var state = new CampaignState(rewards[0] + rewards[1], new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default));
-        var result = new Playthrough(game, objects, table).PlayCampaign(levels, rewards.Skip(2).ToArray(), 1, state, records: true, recordedLevel: 1);
+        var result = new Playthrough(game, objects, table).PlayCampaign(levels, rewards.Skip(2).ToArray(), 1, state, record: true, recordedLevel: 1);
 
         Assert.True(result.IsCompleted);
         Assert.Contains(result.Levels[1].Replay!.Spawns, spawn => spawn.Source is not null && spawn.Source.Id == KnownObject.Spawner);

@@ -23,6 +23,8 @@ internal sealed class ReplayRecorder : IWorldEventSink
     private readonly List<SpriteEvent> _pickups = [];
     private readonly List<DoorFrame> _doorFrames = [];
     private readonly List<EffectState> _scenery = [];
+    private readonly List<CameraShake> _shakes = [];
+    private readonly List<ScreenFlash> _flashes = [];
     private readonly List<UnitTrack> _tracks = [];
     private readonly List<int> _listed = [];
     private int _frameSlot = -1;
@@ -118,7 +120,7 @@ internal sealed class ReplayRecorder : IWorldEventSink
     }
 
     public PlaythroughReplay CreateReplay() =>
-        new(_frames, _unitFrames, _effectFrames, _shots, _spawns, _removedSprites, _createdSprites, _pickups, _doorFrames, _scenery);
+        new(_frames, _unitFrames, _effectFrames, _shots, _spawns, _removedSprites, _createdSprites, _pickups, _doorFrames, _scenery, _shakes, _flashes);
 
     public void RecordShot(in ShotTrace shot) => _shots.Add(shot);
 
@@ -133,6 +135,10 @@ internal sealed class ReplayRecorder : IWorldEventSink
     public void RecordDoorPosition(MergedMapSprite door, int time, Vector3 position) => _doorFrames.Add(new DoorFrame(door, time, position));
 
     public void RecordScenery(in EffectState scenery) => _scenery.Add(scenery);
+
+    public void RecordCameraShake(CameraShake shake) => _shakes.Add(shake);
+
+    public void RecordScreenFlash(ScreenFlash flash) => _flashes.Add(flash);
 
     private struct UnitTrack
     {

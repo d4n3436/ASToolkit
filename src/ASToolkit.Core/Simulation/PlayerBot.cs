@@ -418,6 +418,9 @@ internal sealed class PlayerBot
         _chargesGunners = gunners <= MaxChargedGunners && _gunnery.HoldsShortReach();
         foreach (var monster in _world.Units.GetNear(_world.Player.Position.AsVector2() - reach, _world.Player.Position.AsVector2() + reach))
         {
+            if (!monster.IsAlive)
+                continue;
+
             float distance = _world.Player.Position.AsVector2().MeasureDistance(monster.Position.AsVector2());
             float intrusion = GetKeptDistance(monster.Kind) - distance;
             bool onScreen = _gunnery.IsOnScreen(monster.Position.AsVector2());
@@ -571,7 +574,7 @@ internal sealed class PlayerBot
         // Step toward the nearest standable cell outside the player's pocket while no straight walk leaves it
         if (_field.ReachedCount < MinPocketCells)
         {
-            int nearest = _field.FindFree(_world.Player.Position.AsVector2(), StuckReach, skipsReached: true, skippedHalf: _world.Player.Kind.Half + PlayerMovement.TargetHalf);
+            int nearest = _field.FindFree(_world.Player.Position.AsVector2(), StuckReach, skipReached: true, skippedHalf: _world.Player.Kind.Half + PlayerMovement.TargetHalf);
 
             if (nearest >= 0)
             {
@@ -754,7 +757,7 @@ internal sealed class PlayerBot
                 }
             }
 
-            _planting = best >= 0 && QueuePath(best, end, approachesEnd: carries);
+            _planting = best >= 0 && QueuePath(best, end, approachEnd: carries);
 
             void Consider(int cell, Vector2 point)
             {
@@ -1320,7 +1323,7 @@ internal sealed class PlayerBot
         _offTour = true;
     }
 
-    private bool QueuePath(int goal, Vector2 end, bool approachesEnd = false)
+    private bool QueuePath(int goal, Vector2 end, bool approachEnd = false)
     {
         _path.Clear();
 
@@ -1345,7 +1348,7 @@ internal sealed class PlayerBot
         }
 
         var last = _field.GetCenter(goal);
-        _path.Enqueue(approachesEnd || _field.CanMove(new Vector3(last, _world.Movement.GetSupportHeight(_world.Player.Kind.Object, last)), end) ? end : last);
+        _path.Enqueue(approachEnd || _field.CanMove(new Vector3(last, _world.Movement.GetSupportHeight(_world.Player.Kind.Object, last)), end) ? end : last);
 
         _pathEnds = _world.Time + (int)(_path.Count * _field.CellStep * 1000 / _world.Inventory.Speed) + DetourSlack;
 
@@ -1495,7 +1498,7 @@ internal sealed class PlayerBot
     {
         int cell = _field.FindTrigger(point, reach);
 
-        return cell >= 0 && QueuePath(cell, point, approachesEnd: true);
+        return cell >= 0 && QueuePath(cell, point, approachEnd: true);
     }
 
     private float GetProgress(int cursor) => _tourProgress.Length < 2 ? 1 : _tourProgress[cursor];

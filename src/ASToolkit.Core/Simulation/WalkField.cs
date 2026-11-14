@@ -189,7 +189,7 @@ internal sealed class WalkField
         for (int side = 0; side < Sides; side++)
         {
             int target = Find(new Cell(cell.U + SideSteps[side].U, cell.V + SideSteps[side].V));
-            links[index * Sides + side] = target >= 0 && _movement.CanMove(_walker, from, _centers[target], anticipatesDoors: true) ? target : -1;
+            links[index * Sides + side] = target >= 0 && _movement.CanMove(_walker, from, _centers[target], anticipateDoors: true) ? target : -1;
         }
     }
 
@@ -248,9 +248,9 @@ internal sealed class WalkField
         return best;
     }
 
-    public bool CanMove(Vector3 from, Vector2 to) => Find(to) >= 0 && _movement.CanMove(_walker, from, to, anticipatesDoors: true);
+    public bool CanMove(Vector3 from, Vector2 to) => Find(to) >= 0 && _movement.CanMove(_walker, from, to, anticipateDoors: true);
 
-    public int FindFree(Vector2 point, float reach = 60, bool reachedOnly = false, bool skipsReached = false, Vector2 skippedHalf = default)
+    public int FindFree(Vector2 point, float reach = 60, bool reachedOnly = false, bool skipReached = false, Vector2 skippedHalf = default)
     {
         var cell = _lattice.GetCell(point.X, point.Y);
         int radius = (int)MathF.Ceiling(reach / Math.Min(_lattice.StepX, _lattice.StepY));
@@ -261,7 +261,7 @@ internal sealed class WalkField
         {
             int candidate = Find(new Cell(cell.U + u, cell.V + v));
 
-            if (candidate < 0 || reachedOnly && _distance[candidate] < 0 || skipsReached && _distance[candidate] >= 0)
+            if (candidate < 0 || reachedOnly && _distance[candidate] < 0 || skipReached && _distance[candidate] >= 0)
                 continue;
             var center = GetCenter(candidate);
             float nextDistance = Vector2.DistanceSquared(center, point);
@@ -269,7 +269,7 @@ internal sealed class WalkField
             if (Math.Abs(center.X - point.X) < skippedHalf.X && Math.Abs(center.Y - point.Y) < skippedHalf.Y)
                 continue;
 
-            if (nextDistance <= distance && _movement.CanStand(_walker, center.AsVector3(), anticipatesDoors: true))
+            if (nextDistance <= distance && _movement.CanStand(_walker, center.AsVector3(), anticipateDoors: true))
             {
                 best = candidate;
                 distance = nextDistance;

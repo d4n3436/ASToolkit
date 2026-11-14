@@ -44,10 +44,10 @@ public sealed class Playthrough
     /// <param name="analysis">The route analysis of the level.</param>
     /// <param name="loadout">What the player carries into the level.</param>
     /// <param name="seed">The seed of the random rolls.</param>
-    /// <param name="records">A value indicating whether the result keeps the frames and shots for a replay.</param>
-    public PlaythroughResult Run(RouteAnalysis analysis, PlayerLoadout loadout, int seed, bool records = false)
+    /// <param name="record">A value indicating whether to keep the frames and shots for a replay.</param>
+    public PlaythroughResult Run(RouteAnalysis analysis, PlayerLoadout loadout, int seed, bool record = false)
     {
-        var recorder = records ? new ReplayRecorder() : null;
+        var recorder = record ? new ReplayRecorder() : null;
         var session = Start(analysis, loadout, seed, recorder);
         session.Play(recorder);
         recorder?.Finish(session.World);
@@ -118,16 +118,16 @@ public sealed class Playthrough
         bool locked = analysis.DoorsInitiallyLocked ?? (blackout is null && analysis.Objectives.Any(objective => objective.Kind == ObjectiveKind.Breaker) &&
             analysis.Grid.Edges.Values.Any(kind => kind == EdgeKind.Door));
         string digits = new(analysis.Name.Where(char.IsAsciiDigit).ToArray());
-        TriggerArea? blackoutArea = blackout is null ? null : new TriggerArea(new Point((int)blackout.X, (int)blackout.Y), (int)blackout.TriggerRadius);
 
         return new LevelScript
         {
             LevelNumber = int.TryParse(digits, out int number) ? number : 0,
             DoorsLocked = locked,
             ClearsMonsters = analysis.ClearsMonsters,
-            Exit = analysis.Exit,
-            Blackout = blackoutArea,
-            Checkpoints = analysis.RespawnTriggers.Where(trigger => trigger.Center != blackoutArea?.Center).ToArray()
+            WinsAfterSites = analysis.Script.WinsAfterSites,
+            Triggers = analysis.Script.Triggers,
+            Handlers = analysis.Script.Handlers,
+            CrowdRules = analysis.Script.CrowdRules
         };
     }
 
@@ -138,10 +138,10 @@ public sealed class Playthrough
     /// <param name="endMoney">The reward for each supplied level, in the same order.</param>
     /// <param name="seed">The seed of the random rolls.</param>
     /// <param name="state">The state before the first shop, or null to begin a new campaign without shopping.</param>
-    /// <param name="records">Whether to record the levels for replay.</param>
+    /// <param name="record">A value indicating whether to record the levels for replay.</param>
     /// <param name="recordedLevel">The zero-based index of the level to record, or null to record every level.</param>
     public CampaignResult PlayCampaign(IReadOnlyList<RouteAnalysis> levels, IReadOnlyList<int> endMoney, int seed,
-        CampaignState? state = null, bool records = false, int? recordedLevel = null)
+        CampaignState? state = null, bool record = false, int? recordedLevel = null)
     {
         var results = new List<PlaythroughResult>();
         bool shopsFirst = state is not null;
@@ -154,11 +154,11 @@ public sealed class Playthrough
             var loadout = level > 0 || shopsFirst
                 ? _shop.Shop(ref money, state.Loadout.Ammo, state.Loadout.Implants, state.Loadout.Items, reward)
                 : state.Loadout;
-            bool record = records && (recordedLevel is null || recordedLevel == level);
-            var result = Run(levels[level], loadout, firstSeed, record);
+            bool recordLevel = record && (recordedLevel is null || recordedLevel == level);
+            var result = Run(levels[level], loadout, firstSeed, recordLevel);
             for (int attempt = 1; attempt < MaxAttempts && !result.Survived; attempt++)
             {
-                result = Run(levels[level], loadout, firstSeed + attempt, record);
+                result = Run(levels[level], loadout, firstSeed + attempt, recordLevel);
             }
 
             results.Add(result);
