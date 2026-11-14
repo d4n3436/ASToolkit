@@ -1,3 +1,5 @@
+using ASToolkit.Core.Formats;
+
 namespace ASToolkit.Core.Rendering;
 
 /// <summary>
@@ -56,6 +58,13 @@ public readonly record struct PaletteTint(uint Negative, uint Positive)
         new(GetMagnitude(-alpha) << (ColorChannels * ChannelBits) | GetMagnitude(-red) << (2 * ChannelBits) | GetMagnitude(-green) << ChannelBits | GetMagnitude(-blue),
             GetMagnitude(alpha) << (ColorChannels * ChannelBits) | GetMagnitude(red) << (2 * ChannelBits) | GetMagnitude(green) << ChannelBits | GetMagnitude(blue));
 
+    /// <summary>
+    /// Creates the tint a weapon record's keyframe animation gives at a position, in keyframes.
+    /// </summary>
+    public static PaletteTint FromKeyframes(in WeaponRecord weapon, float keyframe) =>
+        Pack(GetKeyframeValue(weapon.RedKeys, keyframe), GetKeyframeValue(weapon.GreenKeys, keyframe), GetKeyframeValue(weapon.BlueKeys, keyframe),
+            GetKeyframeValue(weapon.AlphaKeys, keyframe));
+
     internal PaletteTint Add(PaletteTint other) => new(AddBytes(Negative, other.Negative), AddBytes(Positive, other.Positive));
 
     internal PaletteTint ToGray() => new(GrayBytes(Negative), GrayBytes(Positive));
@@ -67,6 +76,15 @@ public readonly record struct PaletteTint(uint Negative, uint Positive)
     internal int Modulate(int color, int shift) => Math.Min(byte.MaxValue, (color * (byte.MaxValue - GetNegative(shift)) + byte.MaxValue / 2) / byte.MaxValue + GetPositive(shift));
 
     internal int Apply(int color, int shift) => Math.Min(byte.MaxValue, (color * ((1 << ChannelBits) - GetNegative(shift)) >> ChannelBits) + GetPositive(shift));
+
+    private static int GetKeyframeValue(in KeyframeValues<int> keys, float keyframe)
+    {
+        int key = Math.Max(0, (int)keyframe);
+        if (key >= WeaponRecord.KeyframeCount - 1)
+            return keys[WeaponRecord.KeyframeCount - 1];
+
+        return (int)((keys[key + 1] - keys[key]) * (keyframe - key) + keys[key]);
+    }
 
     private static uint GetMagnitude(int value) => (uint)Math.Clamp(value, 0, byte.MaxValue);
 

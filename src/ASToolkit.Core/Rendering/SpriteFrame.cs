@@ -39,6 +39,9 @@ internal sealed class SpriteFrame
 
     public required bool TestsDepth { get; init; }
 
+    // Alien Shooter draws the whole frame or nothing by the depth under the object's own screen point
+    public bool TestsAnchor { get; init; }
+
     // True when Indices holds palette indices into Colors; false when Colors holds one entry per pixel
     public required bool IsPaletted { get; init; }
 

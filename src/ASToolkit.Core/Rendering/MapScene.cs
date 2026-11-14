@@ -252,6 +252,16 @@ public sealed class MapScene
         var placed = drawn.ToArray();
         long[] keys = drawnKeys.ToArray();
         var states = placed.Select(p => p.GetState(time, Left, Top)).ToArray();
+        for (int index = 0; index < placed.Length; index++)
+        {
+            var frame = states[index].Frame;
+            if (frame is not null && frame.TestsAnchor && !placed[index].Flags.HasFlag(ObjectFlags.Raised) &&
+                GetAnchorDepth(placed[index], keys[index], time, hidden) > Math.Min(states[index].BaseDepth + FlatDepth, MaxFlatDepth))
+            {
+                states[index] = states[index] with { Frame = null };
+            }
+        }
+
         var tint = paletteTint ?? _paletteTint;
         if (tint != default)
         {
@@ -309,6 +319,55 @@ public sealed class MapScene
     {
         int found = Array.BinarySearch(keys, key);
         return found >= 0 ? found : ~found;
+    }
+
+    // Depth the software sprites drawn before a placement leave under its screen point
+    private int GetAnchorDepth(Placement anchored, long key, int? time, IReadOnlySet<MergedMapSprite> hidden)
+    {
+        int x = (int)MathF.Floor(anchored.ScreenX) - Left;
+        int y = (int)MathF.Floor(anchored.ScreenY) - Top;
+        var point = new Rectangle(x, y, 1, 1);
+        var earlier = new List<(long Key, Placement Placement)>();
+        foreach (int index in Query(point))
+        {
+            if (_keys[index] < key && IsVisible(index, hidden))
+            {
+                earlier.Add((_keys[index], Placed[index]));
+            }
+        }
+
+        foreach (var entry in _live)
+        {
+            if (entry.Key < key && entry.Bounds.IntersectsWith(point))
+            {
+                earlier.Add((entry.Key, entry.Placement));
+            }
+        }
+
+        earlier.Sort((first, second) => first.Key.CompareTo(second.Key));
+        int depth = HeightLight.ClearDepth;
+        foreach (var (_, p) in earlier)
+        {
+            var state = p.GetState(time, Left, Top);
+            var frame = state.Frame;
+            int row = y - state.Y - (frame?.Top ?? 0);
+            if (frame is null || frame.IsBlended || frame.IsCombined || frame.FadesByDepth || !frame.WritesDepth || (uint)row >= (uint)frame.Rows)
+                continue;
+
+            for (int index = frame.RowStarts[row]; index < frame.RowStarts[row + 1]; index++)
+            {
+                if (state.X + frame.Xs[index] != x || !frame.IsPaletted && frame.Colors[index].A == 0)
+                    continue;
+
+                int d = p.GetPixelDepth(frame, state.BaseDepth, row, index);
+                if (!frame.TestsDepth || (frame.Depths.Length > 0 ? depth < d : depth <= d))
+                {
+                    depth = d;
+                }
+            }
+        }
+
+        return depth;
     }
 
     private bool IsVisible(int index, IReadOnlySet<MergedMapSprite> hidden) =>

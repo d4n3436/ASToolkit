@@ -23,8 +23,8 @@ public sealed class MapRenderer
     internal const int MaxStripWorkers = 8;
     private const int PoolMegabytes = 32;
     private const int MissingSize = 8;
-    private const int FlatDepth = 0x400;
-    private const int MaxFlatDepth = 0x7fff;
+    internal const int FlatDepth = 0x400;
+    internal const int MaxFlatDepth = 0x7fff;
     internal const int DepthPerHeight = 8;
     private const int FadeShift = 3;
     private const int FadeLevels = 15;
@@ -271,14 +271,14 @@ public sealed class MapRenderer
         string path = _objects.GetPath(live.Id);
         var file = GetFile(path);
         bool sequel = _objects.IsAlienShooter2;
-        var tint = GetObjectTint(obj, sequel);
+        var tint = GetObjectTint(obj, sequel).Add(live.Tint);
 
         if (ambient.HasValue && !obj.Flags.HasFlag(ObjectFlags.Unlit))
         {
             tint = tint.Add(ambient.Value);
         }
 
-        int layer = GetEngineLayer(obj, file, IsPlayerPart(live.Id));
+        int layer = GetEngineLayer(live.Id, obj, file, IsPlayerPart(live.Id));
         int sequence = scene.Sequence++;
         if (!sequel && file is not null && file.Value.Flags.HasFlag(VidFlags.OmniLight))
         {
@@ -455,7 +455,7 @@ public sealed class MapRenderer
         byte rotation = file is null ? (byte)0 : GetRotation(obj, file.Value, path, dir);
         var frame = file is null ? null : GetFrame(path, obj, file.Value, frameIndex, rotation, tint, scale);
         (int width, int height) = frame is not null ? (frame.Width, frame.Height) : file is null ? (MissingSize, MissingSize) : (file.Value.Width, file.Value.Height);
-        int pass = !sequel ? GetEngineLayer(obj, file, false) : file is not null ? sequelPass : 0;
+        int pass = !sequel ? GetEngineLayer(id, obj, file, false) : file is not null ? sequelPass : 0;
         float bob = scene.Animate && obj.Flags.HasFlag(ObjectFlags.Bobbing) ? obj.StepHeight : 0;
         var animation = file is null || (timing.Count == 1 && bob == 0) ? null
             : new FrameAnimation(Enumerable.Range(frameIndex, timing.Count).Select(index => GetFrame(path, obj, file.Value, index, rotation, tint, scale)).ToArray(),
@@ -673,18 +673,8 @@ public sealed class MapRenderer
     }
 
     // Returns the engine's draw layer of an object. Each layer draws from its last object to its first, the player after its objects
-    private static int GetEngineLayer(GameObject obj, VidResource? file, bool isPlayer)
-    {
-        bool blended = file is not null && file.Value.Flags.HasFlag(VidFlags.Blended);
-        var layer = file is not null && file.Value.Flags.HasFlag(VidFlags.OmniLight) ? ObjectLayer.OmniLight
-            : obj.SpriteClass == SpriteClass.Scenery ? blended ? ObjectLayer.BlendedScenery : ObjectLayer.Scenery
-            : obj.Flags.HasFlag(ObjectFlags.GroundDecal) ? ObjectLayer.GroundDecal
-            : obj.Flags.HasFlag(ObjectFlags.Raised) ? ObjectLayer.Raised
-            : blended ? ObjectLayer.BlendedObject
-            : (obj.Flags & (ObjectFlags.Outline | ObjectFlags.Solid)) == 0 ? ObjectLayer.Object : ObjectLayer.SolidObject;
-
-        return LayerSlots * (int)layer + (isPlayer ? 1 : 0);
-    }
+    private static int GetEngineLayer(KnownObject id, GameObject obj, VidResource? file, bool isPlayer) =>
+        LayerSlots * (int)obj.GetLayer(id, file) + (isPlayer ? 1 : 0);
 
     private static bool IsPlayerPart(KnownObject id) =>
         (uint)(id - KnownObject.PlayerStart) < PlayerPartCount || (uint)(id - KnownObject.PlayerStartFemaleLegs) < PlayerPartCount;
@@ -999,7 +989,8 @@ public sealed class MapRenderer
                 IsBlended = true,
                 Blend = view.Blend,
                 WritesDepth = false,
-                TestsDepth = TestsDepth(view),
+                TestsDepth = sequel && TestsDepth(view),
+                TestsAnchor = !sequel && !view.HasDepth,
                 IsPaletted = false,
                 Quads = quads.ToArray(),
                 HasFarQuads = view.Flags.HasFlag(VidFlags.Depth)
@@ -1259,6 +1250,7 @@ public sealed class MapRenderer
             Blend = source.Blend,
             WritesDepth = source.WritesDepth,
             TestsDepth = source.TestsDepth,
+            TestsAnchor = source.TestsAnchor,
             IsPaletted = source.IsPaletted
         };
     }

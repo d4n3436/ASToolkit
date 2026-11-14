@@ -10,4 +10,5 @@ namespace ASToolkit.Core.Rendering;
 /// <param name="Position">The position in map pixels, with the height above the floor.</param>
 /// <param name="Facing">The facing the object is drawn with.</param>
 /// <param name="FrameIndex">The sprite frame of the live sprite to draw.</param>
-public readonly record struct LiveSprite(KnownObject Id, Vector3 Position, byte Facing, int FrameIndex);
+/// <param name="Tint">The tint added to the object's own tint.</param>
+public readonly record struct LiveSprite(KnownObject Id, Vector3 Position, byte Facing, int FrameIndex, PaletteTint Tint = default);
