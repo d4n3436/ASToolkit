@@ -13,14 +13,14 @@ internal sealed class UnitGrid
     private readonly Vector2 _origin;
     private readonly int _columns;
     private readonly int _rows;
-    private readonly List<Unit>[] _buckets;
+    private readonly List<GridEntry>[] _buckets;
 
     public UnitGrid(Vector2 min, Vector2 max)
     {
         _origin = min;
         _columns = (int)((max.X - min.X) / BucketSize) + 1;
         _rows = (int)((max.Y - min.Y) / BucketSize) + 1;
-        _buckets = new List<Unit>[_columns * _rows];
+        _buckets = new List<GridEntry>[_columns * _rows];
         for (int bucket = 0; bucket < _buckets.Length; bucket++)
         {
             _buckets[bucket] = [];
@@ -35,7 +35,7 @@ internal sealed class UnitGrid
         unit.Bucket = GetBucket(unit.Position.AsVector2());
         var bucket = _buckets[unit.Bucket];
         unit.Slot = bucket.Count;
-        bucket.Add(unit);
+        bucket.Add(new GridEntry(unit));
     }
 
     public void Remove(Unit unit)
@@ -46,7 +46,7 @@ internal sealed class UnitGrid
         var bucket = _buckets[unit.Bucket];
         var last = bucket[^1];
         bucket[unit.Slot] = last;
-        last.Slot = unit.Slot;
+        last.Unit.Slot = unit.Slot;
         bucket.RemoveAt(bucket.Count - 1);
         unit.Slot = -1;
     }
@@ -55,8 +55,12 @@ internal sealed class UnitGrid
     {
         MaxHalf = Vector2.Max(MaxHalf, unit.Kind.Half);
 
-        if (unit.Slot < 0 || GetBucket(unit.Position.AsVector2()) == unit.Bucket)
+        if (unit.Slot < 0)
+            return;
+
+        if (GetBucket(unit.Position.AsVector2()) == unit.Bucket)
         {
+            CollectionsMarshal.AsSpan(_buckets[unit.Bucket])[unit.Slot] = new GridEntry(unit);
             return;
         }
 
@@ -74,17 +78,13 @@ internal sealed class UnitGrid
         {
             for (int column = firstColumn; column <= lastColumn; column++)
             {
-                foreach (var other in CollectionsMarshal.AsSpan(_buckets[row * _columns + column]))
+                foreach (ref readonly var other in CollectionsMarshal.AsSpan(_buckets[row * _columns + column]))
                 {
-                    if (other == mover || other.Animation >= SpriteAnimation.Death)
-                        continue;
-
-                    var kind = other.Kind;
-                    var position = other.Position;
-                    var half = volume.Half + kind.Half;
-                    if ((volume.Mask & kind.MoveMask) != 0 && MathF.Abs(center.X - position.X) < half.X && MathF.Abs(center.Y - position.Y) < half.Y &&
-                        center.Z <= position.Z + kind.Object.Size.Z && position.Z <= center.Z + volume.Height)
-                        return other;
+                    if ((volume.Mask & other.Mask) != 0 && MathF.Abs(center.X - other.Position.X) < volume.Half.X + other.Half.X &&
+                        MathF.Abs(center.Y - other.Position.Y) < volume.Half.Y + other.Half.Y &&
+                        center.Z <= other.Position.Z + other.Height && other.Position.Z <= center.Z + volume.Height &&
+                        other.Unit != mover && other.Unit.Animation < SpriteAnimation.Death)
+                        return other.Unit;
                 }
             }
         }
@@ -124,7 +124,7 @@ internal sealed class UnitGrid
 
 internal struct UnitQuery
 {
-    private readonly List<Unit>[] _buckets;
+    private readonly List<GridEntry>[] _buckets;
     private readonly int _columns;
     private readonly int _firstColumn;
     private readonly int _lastColumn;
@@ -133,7 +133,7 @@ internal struct UnitQuery
     private int _row;
     private int _index;
 
-    public UnitQuery(List<Unit>[] buckets, int columns, int firstColumn, int lastColumn, int firstRow, int lastRow)
+    public UnitQuery(List<GridEntry>[] buckets, int columns, int firstColumn, int lastColumn, int firstRow, int lastRow)
     {
         _buckets = buckets;
         _columns = columns;
@@ -145,7 +145,7 @@ internal struct UnitQuery
         _index = -1;
     }
 
-    public readonly Unit Current => _buckets[_row * _columns + _column][_index];
+    public readonly Unit Current => _buckets[_row * _columns + _column][_index].Unit;
 
     public readonly UnitQuery GetEnumerator() => this;
 
@@ -169,4 +169,26 @@ internal struct UnitQuery
 
         return false;
     }
+}
+
+internal readonly struct GridEntry
+{
+    public GridEntry(Unit unit)
+    {
+        Unit = unit;
+        Position = unit.Position;
+        Half = unit.Kind.Half;
+        Height = unit.Kind.Object.Size.Z;
+        Mask = unit.Kind.MoveMask;
+    }
+
+    public Unit Unit { get; }
+
+    public Vector3 Position { get; }
+
+    public Vector2 Half { get; }
+
+    public float Height { get; }
+
+    public CollisionLayers Mask { get; }
 }

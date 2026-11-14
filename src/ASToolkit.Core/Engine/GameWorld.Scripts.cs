@@ -616,6 +616,7 @@ internal sealed partial class GameWorld
     private void SetDoorHeight(Unit door, int height)
     {
         door.Position = door.Position with { Z = height };
+        Units.Move(door);
         Movement.SetDoorHeight(door.Placement!, height);
 
         _events?.RecordDoorPosition(door.Placement!, Time, door.Position);
@@ -889,6 +890,7 @@ internal sealed partial class GameWorld
 
             unit.Link = null;
             unit.ChangeKind(frozen);
+            Units.Move(unit);
             AttachLink(unit);
         }
 

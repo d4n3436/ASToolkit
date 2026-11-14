@@ -43,6 +43,8 @@ internal sealed class WalkField
     private int _lastStartVersion = -1;
     private int _floodSource = -1;
     private int _floodSteps = -1;
+    private int _floodLimit = -1;
+    private int _floodCount;
 
     private WalkField(WalkField source, MovementMap movement)
     {
@@ -70,6 +72,8 @@ internal sealed class WalkField
         _lastStartVersion = source._lastStartVersion;
         _floodSource = source._floodSource;
         _floodSteps = source._floodSteps;
+        _floodLimit = source._floodLimit;
+        _floodCount = source._floodCount;
     }
 
     public WalkField Clone(MovementMap movement) => new(this, movement);
@@ -211,7 +215,7 @@ internal sealed class WalkField
 
     public Vector2 GetCenter(int cell) => _centers[cell];
 
-    public int GetDistance(int cell) => _distance[cell];
+    public int GetDistance(int cell) => _distance[cell] <= _floodLimit ? _distance[cell] : -1;
 
     public int ReachedCount { get; private set; }
 
@@ -239,16 +243,16 @@ internal sealed class WalkField
     public int GetDownhill(int cell)
     {
         int best = -1;
-        int bestDistance = _distance[cell];
+        int bestDistance = GetDistance(cell);
         for (int side = 0; side < Sides; side++)
         {
             int next = GetNeighbor(cell, side);
 
-            if (next < 0 || _distance[next] < 0 || _distance[next] >= bestDistance)
+            if (next < 0 || GetDistance(next) < 0 || GetDistance(next) >= bestDistance)
                 continue;
 
             best = next;
-            bestDistance = _distance[next];
+            bestDistance = GetDistance(next);
         }
 
         return best;
@@ -267,7 +271,7 @@ internal sealed class WalkField
         {
             int candidate = Find(new Cell(cell.U + u, cell.V + v));
 
-            if (candidate < 0 || reachedOnly && _distance[candidate] < 0 || skipReached && _distance[candidate] >= 0)
+            if (candidate < 0 || reachedOnly && GetDistance(candidate) < 0 || skipReached && GetDistance(candidate) >= 0)
                 continue;
             var center = GetCenter(candidate);
             float nextDistance = Vector2.DistanceSquared(center, point);
@@ -367,44 +371,71 @@ internal sealed class WalkField
 
     public void Flood(int source, int maxSteps)
     {
-        if (source >= 0 && source == _floodSource && maxSteps == _floodSteps)
+        if (source >= 0 && source == _floodSource && maxSteps <= _floodSteps)
+        {
+            _floodLimit = maxSteps;
+            ReachedCount = CountWithin(maxSteps);
+
             return;
+        }
 
         ClearDistances();
-        ReachedCount = 0;
+        _floodCount = 0;
         _floodSource = source;
         _floodSteps = maxSteps;
+        _floodLimit = maxSteps;
 
-        if (source < 0)
-            return;
-
-        int head = 0;
-        _distance[source] = 0;
-        _queue[ReachedCount++] = source;
-        while (head < ReachedCount)
+        if (source >= 0)
         {
-            int cell = _queue[head++];
-            int steps = _distance[cell] + 1;
-
-            if (steps > maxSteps)
-                continue;
-
-            var links = GetLinks(cell).Slice(cell * Sides, Sides);
-            foreach (int next in links)
+            int head = 0;
+            _distance[source] = 0;
+            _queue[_floodCount++] = source;
+            while (head < _floodCount)
             {
-                if (next < 0 || _distance[next] >= 0)
+                int cell = _queue[head++];
+                int steps = _distance[cell] + 1;
+
+                if (steps > maxSteps)
                     continue;
 
-                _distance[next] = steps;
-                _queue[ReachedCount++] = next;
+                var links = GetLinks(cell).Slice(cell * Sides, Sides);
+                foreach (int next in links)
+                {
+                    if (next < 0 || _distance[next] >= 0)
+                        continue;
+
+                    _distance[next] = steps;
+                    _queue[_floodCount++] = next;
+                }
             }
         }
+
+        ReachedCount = _floodCount;
+    }
+
+    private int CountWithin(int maxSteps)
+    {
+        int low = 0, high = _floodCount;
+        while (low < high)
+        {
+            int middle = (low + high) / 2;
+            if (_distance[_queue[middle]] <= maxSteps)
+            {
+                low = middle + 1;
+            }
+            else
+            {
+                high = middle;
+            }
+        }
+
+        return low;
     }
 
     private void ClearDistances()
     {
         _floodSource = -1;
-        for (int order = 0; order < ReachedCount; order++)
+        for (int order = 0; order < Math.Max(_floodCount, ReachedCount); order++)
         {
             _distance[_queue[order]] = -1;
         }

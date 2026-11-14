@@ -18,7 +18,7 @@ internal sealed class PlayerBot
     private const int MaxChargedGunners = 3;
     private const int CrowdEscapeSteps = 25;
     private const int EscapeSteps = 10;
-    private const float DetourReach = 800;
+    private const float DetourReach = 400;
     private const int DetourSlack = 5000;
     private const int BlockedMovementTime = 80;
     private const int NavigationPatience = 2000;
@@ -41,6 +41,7 @@ internal sealed class PlayerBot
     private const int CannonPatience = 6000;
     private const float CannonSeekReach = 900;
     private const float PlantReach = 1000;
+    private const float PlantSightReach = 2 * PlantReach;
     private const int CannonRest = 8000;
     private const float CannonApproach = 66;
     private const float IdleCursorReach = 200;
@@ -250,7 +251,7 @@ internal sealed class PlayerBot
 
         if (target is not null && _world.Weapons.CanFire)
         {
-            _weapon = target == _aimTarget ? _gunnery.SelectWeapon(target) : Pistols;
+            _weapon = target == _aimTarget || target == _breachWall ? _gunnery.SelectWeapon(target) : Pistols;
         }
 
         int weapon = _weapon;
@@ -544,24 +545,24 @@ internal sealed class PlayerBot
             return true;
 
         int goal = -1;
-        float nearest = float.MaxValue;
+        int nearest = int.MaxValue;
         foreach (var unit in _world.Monsters)
         {
             if (!unit.IsAlive || unit.Army != GameWorld.MonsterArmy)
                 continue;
 
-            float distance = Vector2.DistanceSquared(_world.Player.Position.AsVector2(), unit.Position.AsVector2());
+            int cell = _field.Find(unit.Position.AsVector2());
 
-            if (distance >= nearest)
-                continue;
+            if (cell < 0 || _field.GetDistance(cell) < 0)
+            {
+                cell = _field.FindFree(unit.Position.AsVector2(), reachedOnly: true);
+            }
 
-            int cell = _field.FindFree(unit.Position.AsVector2(), reachedOnly: true);
-
-            if (cell < 0)
+            if (cell < 0 || _field.GetDistance(cell) >= nearest)
                 continue;
 
             goal = cell;
-            nearest = distance;
+            nearest = _field.GetDistance(cell);
         }
 
         return QueueCell(goal);
@@ -604,6 +605,7 @@ internal sealed class PlayerBot
                 continue;
 
             _cursor = ahead;
+            _farthest = Math.Max(_farthest, _cursor);
 
             return QueuePath(goal, _tour[_cursor] = _field.GetCenter(goal));
         }
@@ -746,7 +748,11 @@ internal sealed class PlayerBot
         if (_world.DynamiteSites.Count == 0)
             return _planting = false;
 
-        if (!_planting || _path.Count == 0 || IsWakeTick)
+        if ((!_planting || _path.Count == 0 || IsWakeTick) && !HasPlantTargetNear())
+        {
+            _planting = false;
+        }
+        else if (!_planting || _path.Count == 0 || IsWakeTick)
         {
             FloodWithin(PlantReach);
             int best = -1;
@@ -792,6 +798,29 @@ internal sealed class PlayerBot
         }
 
         return _planting;
+    }
+
+    private bool HasPlantTargetNear()
+    {
+        var player = _world.Player.Position.AsVector2();
+        if (CarriesDynamite)
+        {
+            foreach (var site in _world.DynamiteSites)
+            {
+                if (player.MeasureDistance(site.Position.AsVector2()) < PlantSightReach)
+                    return true;
+            }
+
+            return false;
+        }
+
+        foreach (var pickup in _world.Pickups)
+        {
+            if (pickup.Id == KnownObject.Dynamite && player.MeasureDistance(pickup.Position.AsVector2()) < PlantSightReach)
+                return true;
+        }
+
+        return false;
     }
 
     private bool IsReachedOnTour(Vector2 site)
@@ -1030,7 +1059,7 @@ internal sealed class PlayerBot
 
     private bool SeekCannon()
     {
-        if (_aimTarget is null || _aimTarget.Army != GameWorld.MonsterArmy || _world.Time - _cannonIdleSince < CannonRest)
+        if (_aimTarget is null || _aimTarget.Army != GameWorld.MonsterArmy || _world.Time - _cannonIdleSince < CannonRest || CountMonstersOnScreen() < CrowdSize)
         {
             _seeksCannon = false;
 
@@ -1059,7 +1088,7 @@ internal sealed class PlayerBot
 
     private void ManCannon()
     {
-        if (_aimTarget is not null && _aimTarget.Army == GameWorld.MonsterArmy)
+        if (_aimTarget is not null && _aimTarget.Army == GameWorld.MonsterArmy && CountMonstersOnScreen() >= CrowdSize)
         {
             _cannonIdleSince = _world.Time;
         }
@@ -1067,6 +1096,21 @@ internal sealed class PlayerBot
         {
             _playerGoal = _tour[Math.Min(_cursor + 1, _tour.Length - 1)];
         }
+    }
+
+    private int CountMonstersOnScreen()
+    {
+        int count = 0;
+        var center = _world.Player.Position.AsVector2();
+        foreach (var unit in _world.Units.GetNear(center - Gunnery.ScreenHalf, center + Gunnery.ScreenHalf))
+        {
+            if (unit is { IsAlive: true, Army: GameWorld.MonsterArmy, Placement: null })
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     private static bool IsParked(Unit cannon) => cannon.Kind.Id == KnownObject.MountedCannon && cannon.Animation < SpriteAnimation.Death;
