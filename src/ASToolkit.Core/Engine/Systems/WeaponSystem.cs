@@ -208,7 +208,6 @@ internal sealed class WeaponSystem
             }
 
             _world.Effects.Aim(unit, scatters ? null : target, point);
-            _world.RecordShot(new ShotTrace(child.Id, spawn.Position, point, _world.Time, _world.Time));
         }
     }
 

@@ -1,5 +1,4 @@
 using ASToolkit.Core.Engine;
-using ASToolkit.Core.Simulation;
 using System.Numerics;
 using ASToolkit.Core.Formats;
 using Xunit;

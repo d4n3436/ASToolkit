@@ -17,9 +17,8 @@ internal sealed class PlaySession
         World = world;
         Bot = bot;
         _winsAtTourEnd = winsAtTourEnd;
-        MinHealth = world.Player.Hp;
         _enemies = new EnemyStock(world);
-        world.PlayerHurt += OnPlayerHurt;
+        Log = new PlayLog(world);
     }
 
     public GameWorld World { get; }
@@ -28,7 +27,7 @@ internal sealed class PlaySession
 
     public bool Won { get; private set; }
 
-    public int MinHealth { get; private set; }
+    public PlayLog Log { get; }
 
     public void Play(ReplayRecorder? recorder) => PlayUntil(int.MaxValue, recorder);
 
@@ -44,14 +43,14 @@ internal sealed class PlaySession
         while (World.Time < MaxTime && World.Time - _mark.ProgressedAt < StallTime && World.Player.IsAlive && !Won && World.Time < time)
         {
             Bot.PlayTick();
+            Log.Update(World);
+            _enemies.Update();
             Won = HasWon();
             _mark = _mark.Update(World, Bot, _enemies.Count);
             recorder?.Capture(World);
             World.AdvanceClock();
         }
     }
-
-    private void OnPlayerHurt(int health) => MinHealth = Math.Min(MinHealth, health);
 
     private bool HasWon() => World.HasWon || (_winsAtTourEnd && Bot.HasFinished);
 

@@ -65,7 +65,8 @@ public sealed class Playthrough
             _setups.Add(analysis, setup);
         }
 
-        var world = new GameWorld(setup.Level, loadout, new GameRandom(seed), recorder);
+        var world = new GameWorld(setup.Level, loadout, new GameRandom(seed));
+        recorder?.Start(world);
         AddLoosePickups(analysis, world);
         var bot = new PlayerBot(world, analysis, setup.Field.Clone(setup.Field.Obstacles.Clone(world.Movement)));
 
@@ -87,9 +88,9 @@ public sealed class Playthrough
     {
         var world = session.World;
 
-        return new(loadout, world.Player.IsAlive && session.Won, world.Time, session.Bot.FarthestProgress, world.Kills, world.Respawns, session.MinHealth,
-            world.Inventory.Money, world.Inventory.Implants, world.TakenPickups, world.Inventory.Items, world.Inventory.GetRemainingAmmo(),
-            world.ScriptTimeline, recorder?.CreateReplay());
+        return new(loadout, world.Player.IsAlive && session.Won, world.Time, session.Bot.FarthestProgress, session.Log.Kills, session.Log.Respawns, session.Log.MinHealth,
+            world.Inventory.Money, world.Inventory.Implants, session.Log.TakenPickups, world.Inventory.Items, world.Inventory.GetRemainingAmmo(),
+            session.Log.Timeline, recorder?.CreateReplay(session.Log.PickupEvents));
     }
 
     private LevelSetup CreateSetup(RouteAnalysis analysis)

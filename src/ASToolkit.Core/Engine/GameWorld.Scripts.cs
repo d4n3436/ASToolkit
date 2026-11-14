@@ -340,7 +340,6 @@ internal sealed partial class GameWorld
             {
                 unit.Hp = 0;
                 Units.Remove(unit);
-                UnitKilled?.Invoke(unit);
             }
         }
     }
@@ -520,7 +519,6 @@ internal sealed partial class GameWorld
         if (IsInChargeCells(Player.Position, center) && MeasureScriptDistance(Player.Position, center) < PlayerChargeReach && Player.IsAlive)
         {
             Player.Hp = 0;
-            PlayerHurt?.Invoke(0);
         }
 
         foreach (var unit in _scripted)
@@ -685,7 +683,6 @@ internal sealed partial class GameWorld
 
         Kinds.AddTerrain(Movement, sprite);
 
-        _events?.RecordSpriteCreation(sprite, Time);
 
         var kind = Kinds.Find(id);
 
@@ -989,7 +986,6 @@ internal sealed partial class GameWorld
         if (Player.IsAlive)
         {
             Player.Hp -= ElectricBallDrain;
-            PlayerHurt?.Invoke(Player.Hp);
         }
     }
 
@@ -1052,14 +1048,21 @@ internal sealed partial class GameWorld
     private void ShakeCamera()
     {
         if ((_environment & EnvironmentEarthquake) == 0)
+        {
+            CameraShake = null;
             return;
+        }
 
         int y = _rng.Next() % (ShakeReach * 2 + 1);
         int x = _rng.Next() % (ShakeReach * 2 + 1);
-        _events?.RecordCameraShake(new CameraShake(Time, new Vector2(ShakeReach - x, ShakeReach - y)));
+        CameraShake = new CameraShake(Time, new Vector2(ShakeReach - x, ShakeReach - y));
     }
 
     [ScriptFunction("Effect")]
     [EngineRoutine(0x00402690)]
-    private void Flash(int color) => _events?.RecordScreenFlash(new ScreenFlash(Time, FlashDuration, color));
+    private void Flash(int color) => ScreenFlash = new ScreenFlash(Time, FlashDuration, color);
+
+    public CameraShake? CameraShake { get; private set; }
+
+    public ScreenFlash? ScreenFlash { get; private set; }
 }

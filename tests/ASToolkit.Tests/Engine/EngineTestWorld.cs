@@ -1,6 +1,5 @@
 using System.Numerics;
 using ASToolkit.Core.Engine;
-using ASToolkit.Core.Simulation;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 
@@ -8,7 +7,7 @@ namespace ASToolkit.Tests.Engine;
 
 internal static class EngineTestWorld
 {
-    public static GameWorld CreateWorld(ObjectCatalog kinds, ReplayRecorder? recorder = null, PlayerLoadout? loadout = null, IReadOnlyList<MergedMapSprite>? sprites = null, int frameTime = GameClock.DefaultFrameTime)
+    public static GameWorld CreateWorld(ObjectCatalog kinds, PlayerLoadout? loadout = null, IReadOnlyList<MergedMapSprite>? sprites = null, int frameTime = GameClock.DefaultFrameTime)
     {
         var model = new LevelModel
         {
@@ -33,6 +32,6 @@ internal static class EngineTestWorld
             FallbackStart = new Vector2(1000)
         };
 
-        return new GameWorld(level, loadout ?? new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default), new GameRandom(1), recorder);
+        return new GameWorld(level, loadout ?? new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default), new GameRandom(1));
     }
 }

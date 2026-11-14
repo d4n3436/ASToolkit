@@ -106,7 +106,7 @@ public class PlaythroughTests
         Assert.True(first.Survived, $"Progress {first.Progress:P1}, time {first.Time} ms, kills {first.Kills}, minimum health {first.MinHealth}, last player {first.Replay!.Frames.LastOrDefault()?.Units[0]}");
         Assert.Equal(level.Analysis.Elements.Count(element => element.Kind == ElementKind.Monster), first.Kills);
         Assert.Equal(first.Time, second.Time);
-        Assert.Equal(first.Replay!.Shots.Count, second.Replay!.Shots.Count);
+        Assert.Equal(first.Replay!.EffectFrames.Count, second.Replay!.EffectFrames.Count);
         Assert.NotEmpty(first.Replay!.Frames);
         Assert.NotEmpty(first.Replay!.Scenery);
         Assert.Contains(first.Replay!.EffectFrames, frame => frame.Effects.Any(effect => effect.Id == KnownObject.PistolMuzzleFlash));

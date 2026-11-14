@@ -106,7 +106,7 @@ internal sealed class PlayerBot
     private readonly List<Unit> _incoming = [];
     private int _floodCell = -1;
     private readonly List<TerrainChange> _terrainChanges = [];
-    private int _respawns;
+    private int _lives;
     private bool _lastDoorsLocked;
     private bool _lastFencesUp;
     private PlayerCommand _command;
@@ -120,6 +120,7 @@ internal sealed class PlayerBot
         _aimCursor = PlayerCommand.GetCursor(world.Player.Position);
         _lastDoorsLocked = world.DoorsLocked;
         _lastFencesUp = world.FencesUp;
+        _lives = world.Inventory.Items.GetValueOrDefault(KnownObject.ExtraLife);
         var lattice = analysis.Grid.Lattice;
         _tour = analysis.Tour.Select(cell => lattice.GetCenter(cell).ToVector2()).ToArray();
         _tourTargets = (Vector2[])_tour.Clone();
@@ -154,9 +155,12 @@ internal sealed class PlayerBot
 
     private void SynchronizeWorld()
     {
-        if (_respawns != _world.Respawns)
+        int lives = _world.Inventory.Items.GetValueOrDefault(KnownObject.ExtraLife);
+        bool respawned = lives < _lives;
+        _lives = lives;
+
+        if (respawned)
         {
-            _respawns = _world.Respawns;
             _path.Clear();
             _offTour = true;
             _recovering = false;

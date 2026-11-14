@@ -8,21 +8,31 @@ internal sealed class EnemyStock
 {
     private readonly GameWorld _world;
     private readonly Dictionary<ObjectProgram, (int Key, int Count)> _unbuilt = [];
+    private readonly HashSet<Unit> _seen = new(ReferenceEqualityComparer.Instance);
+    private readonly HashSet<Unit> _dead = new(ReferenceEqualityComparer.Instance);
     private int _alive;
 
     public EnemyStock(GameWorld world)
     {
         _world = world;
-        foreach (var unit in world.Monsters)
+        Update();
+    }
+
+    // Counts a monster by its kind when it first shows up and again when it dies
+    public void Update()
+    {
+        foreach (var unit in _world.Monsters)
         {
-            if (IsCounted(unit))
+            if (unit.Placement is null && _seen.Add(unit) && IsCounted(unit))
             {
                 _alive++;
             }
-        }
 
-        world.MonsterAdded += OnMonsterAdded;
-        world.UnitKilled += OnUnitKilled;
+            if (!unit.IsAlive && _dead.Add(unit) && IsCounted(unit))
+            {
+                _alive--;
+            }
+        }
     }
 
     public int Count
@@ -42,22 +52,6 @@ internal sealed class EnemyStock
     private static bool IsCountedKind(KnownObject id) => KnownObject.Monsters.Contains(id) || KnownObject.Bosses.Contains(id);
 
     private static bool IsCounted(Unit unit) => unit.Army == GameWorld.MonsterArmy && IsCountedKind(unit.Kind.Id);
-
-    private void OnMonsterAdded(Unit unit)
-    {
-        if (IsCounted(unit))
-        {
-            _alive++;
-        }
-    }
-
-    private void OnUnitKilled(Unit unit)
-    {
-        if (IsCounted(unit))
-        {
-            _alive--;
-        }
-    }
 
     private int CountUnbuilt(ObjectProgram program)
     {

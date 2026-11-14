@@ -52,7 +52,7 @@ public class CampaignTests
         var result = new Playthrough(game, objects, table).PlayCampaign(levels, rewards.Skip(2).ToArray(), 1, state, record: true, recordedLevel: 1);
 
         Assert.True(result.IsCompleted);
-        Assert.Contains(result.Levels[1].Replay!.Spawns, spawn => spawn.Source is not null && spawn.Source.Id == KnownObject.Spawner);
+        Assert.True(result.Levels[1].Kills > levels[1].Elements.Count(element => element.Kind == ElementKind.Monster));
         Assert.Contains(result.Levels[1].Replay!.RemovedSprites, removal => removal.Placement.Id == KnownObject.SpawnWallSlash);
         Assert.Contains(result.Levels[1].Replay!.RemovedSprites, removal => removal.Placement.Id == KnownObject.SpawnWallBack);
     }

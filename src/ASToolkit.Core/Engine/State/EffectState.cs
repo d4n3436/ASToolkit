@@ -4,7 +4,7 @@ using ASToolkit.Core.Formats;
 namespace ASToolkit.Core.Engine;
 
 /// <summary>
-/// Represents a blood, debris, death, or scenery effect recorded during play.
+/// Represents the state of a blood, debris, death, or scenery effect in play.
 /// </summary>
 /// <param name="Id">The object ID in objects.res.</param>
 /// <param name="Position">The map position and height of the effect.</param>

@@ -1,7 +1,6 @@
 using ASToolkit.Core.Engine;
 using System.Numerics;
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Simulation;
 using Xunit;
 
 namespace ASToolkit.Tests.Engine;
@@ -16,10 +15,9 @@ public class ParticleTests
     public void Spawn_FlyingParticles_SettleIntoTheirRestingObjects(KnownObject flying, KnownObject resting)
     {
         var kinds = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var recorder = new ReplayRecorder();
-        var world = EngineTestWorld.CreateWorld(kinds, recorder);
+        var world = EngineTestWorld.CreateWorld(kinds);
         var effects = world.Effects;
-        var scenery = recorder.CreateReplay().Scenery;
+        var scenery = world.Effects.Settled;
         effects.Spawn(flying, new Vector3(100, 200, 22), new Facing(64), world.Time);
         while (world.Time <= 3500)
         {

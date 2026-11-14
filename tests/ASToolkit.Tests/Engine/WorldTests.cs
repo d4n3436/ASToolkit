@@ -6,17 +6,11 @@ using Xunit;
 
 namespace ASToolkit.Tests.Engine;
 
-/// <summary>
-/// Represents checks of the world independently of automated player decisions.
-/// </summary>
 public class WorldTests
 {
     private const int RespawnProtection = 3000;
     private const int DroppedItemMaxLifetime = 22000;
 
-    /// <summary>
-    /// Verifies a fatal hit consumes a rescue medkit and grants temporary protection.
-    /// </summary>
     [Fact]
     public void Damage_FatalHitWithMedkit_RescuesThePlayer()
     {
@@ -39,9 +33,6 @@ public class WorldTests
         Assert.False(world.Player.IsAlive);
     }
 
-    /// <summary>
-    /// Verifies respawning spends a life while retaining ammunition, money, and the checkpoint.
-    /// </summary>
     [Fact]
     public void Damage_FatalHitWithLivesLeft_RespawnsWithRemainingEquipment()
     {
@@ -50,6 +41,7 @@ public class WorldTests
             new Dictionary<KnownObject, int> { [KnownObject.Shotgun] = 23 }, default)
         { Items = new Dictionary<KnownObject, int> { [KnownObject.ExtraLife] = 1 } };
         var world = EngineTestWorld.CreateWorld(objects, loadout: loadout);
+        var log = new PlayLog(world);
         world.Player.Position += new Vector3(100, 0, 0);
         world.SetRespawnPoint();
         var checkpoint = world.Player.Position.AsVector2();
@@ -59,8 +51,9 @@ public class WorldTests
         world.Damage(world.Player, 10000);
         Assert.False(world.Player.IsAlive);
         world.Step(default);
+        log.Update(world);
 
-        Assert.Equal(1, world.Respawns);
+        Assert.Equal(1, log.Respawns);
         Assert.Equal(checkpoint, world.Player.Position.AsVector2());
         Assert.Equal(world.Player.Kind.MaxHp, world.Player.Hp);
         Assert.Equal(0, world.Inventory.Armor);
@@ -77,13 +70,11 @@ public class WorldTests
 
         world.Damage(world.Player, 10000);
         world.Step(default);
+        log.Update(world);
         Assert.False(world.Player.IsAlive);
-        Assert.Equal(1, world.Respawns);
+        Assert.Equal(1, log.Respawns);
     }
 
-    /// <summary>
-    /// Verifies a monster's stored item stays where it drops and expires.
-    /// </summary>
     [Fact]
     public void Damage_KillingAMonster_DropsLootThatExpires()
     {
@@ -116,9 +107,6 @@ public class WorldTests
         Assert.Equal(0, world.Inventory.Money);
     }
 
-    /// <summary>
-    /// Verifies movement and braking from explicit player commands.
-    /// </summary>
     [Fact]
     public void Step_PlayerCommand_MovesThePlayerWithoutRouteOrBot()
     {
@@ -141,9 +129,6 @@ public class WorldTests
         Assert.Equal(300 * GameClock.DefaultFrameTime, world.Time);
     }
 
-    /// <summary>
-    /// Verifies enemy acquisition, movement, and attacks without player automation.
-    /// </summary>
     [Fact]
     public void Step_MovesEnemiesWithoutAPlayerBot()
     {
@@ -161,15 +146,13 @@ public class WorldTests
         Assert.True(world.Player.Hp < health);
     }
 
-    /// <summary>
-    /// Verifies replay capture preserves the world state and random sequence.
-    /// </summary>
     [Fact]
     public void Step_Recording_KeepsTheWorldsBehavior()
     {
         var objects = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var recorder = new ReplayRecorder();
-        var recorded = EngineTestWorld.CreateWorld(objects, recorder);
+        var recorded = EngineTestWorld.CreateWorld(objects);
+        recorder.Start(recorded);
         var unrecorded = EngineTestWorld.CreateWorld(objects);
         var kind = objects.Find(KnownObject.Monster1)!;
         var position = recorded.Player.Position + new Vector3(200, 0, 0);
@@ -185,15 +168,12 @@ public class WorldTests
             Assert.Equal(recorded.Player.Hp, unrecorded.Player.Hp);
         }
 
-        var replay = recorder.CreateReplay();
-        Assert.NotEmpty(replay.Shots);
+        var replay = recorder.CreateReplay([]);
+        Assert.NotEmpty(replay.EffectFrames);
         Assert.NotEmpty(replay.Frames);
         Assert.Equal(recorded.Inventory.GetRemainingAmmo(), unrecorded.Inventory.GetRemainingAmmo());
     }
 
-    /// <summary>
-    /// Verifies a tank alien turned away from the player walks to it at 60 frames a second and above.
-    /// </summary>
     [Theory]
     [InlineData(16)]
     [InlineData(8)]
@@ -213,9 +193,6 @@ public class WorldTests
         Assert.InRange(Vector2.Distance(tank.Position.AsVector2(), player), 0, 100);
     }
 
-    /// <summary>
-    /// Verifies the frame times of a display add up to one second in the 1 ms steps of the game's timer.
-    /// </summary>
     [Fact]
     public void GetDisplayFrameTimes_FillOneSecond()
     {

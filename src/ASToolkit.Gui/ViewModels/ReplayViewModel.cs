@@ -273,7 +273,7 @@ public partial class ReplayViewModel : ViewModelBase
             .ToHashSet(ReferenceEqualityComparer.Instance);
 
         var sprites = level.Map.Sprites
-            .Where(sprite => !IsUnit(objects, sprite.Id) && !sprite.Id.IsScripted && !moved.Contains(sprite))
+            .Where(sprite => !IsUnit(objects, sprite.Id) && !IsCannon(objects, sprite.Id) && !sprite.Id.IsScripted && !moved.Contains(sprite))
             .ToList();
         
         var stages = BuildStages(sprites, result, renderer, level.Map.Graphics, level.Script.BlackoutTint);
@@ -376,6 +376,9 @@ public partial class ReplayViewModel : ViewModelBase
     private static PlacementTimeline BuildPlacementTimeline(MergedMapSprite sprite, PlaythroughReplay replay) =>
         new(sprite, replay.PlacementFrames.Where(frame => frame.Placement == sprite).ToArray(),
             replay.RemovedSprites.Where(removal => removal.Placement == sprite).Select(removal => removal.Time).DefaultIfEmpty(int.MaxValue).First());
+
+    // Placed cannons come alive as effects when the level loads
+    private static bool IsCannon(ObjectTable objects, KnownObject id) => objects.TryFind(id, out var obj) && obj.SpriteClass == SpriteClass.Cannon;
 
     private static bool IsUnit(ObjectTable objects, KnownObject id) =>
         id != KnownObject.Crate && objects.TryFind(id, out var obj) && obj is { MaxHp: > 0, SpriteClass: SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Player };

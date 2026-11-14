@@ -5,7 +5,7 @@ using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Simulation;
 
-internal sealed class ReplayRecorder : IWorldEventSink
+internal sealed class ReplayRecorder
 {
     private const int FrameInterval = 100;
     private const int PlayerUnits = 2;
@@ -17,22 +17,49 @@ internal sealed class ReplayRecorder : IWorldEventSink
     private readonly List<PlaythroughFrame> _frames = [];
     private readonly List<EffectFrame> _effectFrames = [];
     private readonly List<UnitFrame> _unitFrames = [];
-    private readonly List<ShotTrace> _shots = [];
-    private readonly List<SpawnEvent> _spawns = [];
     private readonly List<SpriteEvent> _createdSprites = [];
     private readonly List<SpriteEvent> _removedSprites = [];
-    private readonly List<SpriteEvent> _pickups = [];
+    private readonly HashSet<MergedMapSprite> _gone = new(ReferenceEqualityComparer.Instance);
     private readonly List<PlacementFrame> _placementFrames = [];
     private readonly List<EffectState> _scenery = [];
     private readonly List<CameraShake> _shakes = [];
     private readonly List<ScreenFlash> _flashes = [];
     private readonly List<UnitTrack> _tracks = [];
     private readonly List<int> _listed = [];
-    private List<PlacedUnit>? _placed;
+    private readonly List<PlacedUnit> _placed = [];
+    private int _spriteCount;
+    private int _removedCount = -1;
+    private int _settledCount;
+    private int _flashedAt = -1;
+    private int _shookAt = -1;
     private int _frameSlot = -1;
+
+    public void Start(GameWorld world)
+    {
+        _spriteCount = world.Sprites.Count;
+        foreach (var sprite in world.Sprites)
+        {
+            var unit = world.FindPlacementUnit(sprite);
+
+            if (unit is not null)
+            {
+                _placed.Add(new PlacedUnit(sprite, unit) { Position = unit.Position });
+            }
+        }
+
+        CaptureSprites(world);
+    }
 
     public void Capture(GameWorld world)
     {
+        CaptureSprites(world);
+        CaptureScreen(world);
+        var settled = world.Effects.Settled;
+        for (; _settledCount < settled.Count; _settledCount++)
+        {
+            _scenery.Add(settled[_settledCount]);
+        }
+
         world.CopyVisualEffects(_buffer);
         var effects = CollectionsMarshal.AsSpan(_buffer);
 
@@ -59,23 +86,48 @@ internal sealed class ReplayRecorder : IWorldEventSink
         }
     }
 
-    // Record placed bodies and stand-ins whenever they stand somewhere new
-    private void CapturePlacements(GameWorld world)
+    private void CaptureSprites(GameWorld world)
     {
-        if (_placed is null)
+        for (; _spriteCount < world.Sprites.Count; _spriteCount++)
         {
-            _placed = [];
-            foreach (var sprite in world.Sprites)
-            {
-                var unit = world.FindPlacementUnit(sprite);
-
-                if (unit is not null)
-                {
-                    _placed.Add(new PlacedUnit(sprite, unit) { Position = unit.Position });
-                }
-            }
+            _createdSprites.Add(new SpriteEvent(world.Sprites[_spriteCount], world.Time));
         }
 
+        if (world.RemovedCount == _removedCount)
+            return;
+
+        _removedCount = world.RemovedCount;
+        foreach (var sprite in world.Sprites)
+        {
+            if (world.IsRemoved(sprite) && _gone.Add(sprite))
+            {
+                _removedSprites.Add(new SpriteEvent(sprite, world.Time));
+            }
+        }
+    }
+
+    private void CaptureScreen(GameWorld world)
+    {
+        var shake = world.CameraShake;
+
+        if (shake is not null && shake.Value.Time != _shookAt)
+        {
+            _shookAt = shake.Value.Time;
+            _shakes.Add(shake.Value);
+        }
+
+        var flash = world.ScreenFlash;
+
+        if (flash is not null && flash.Value.Time != _flashedAt)
+        {
+            _flashedAt = flash.Value.Time;
+            _flashes.Add(flash.Value);
+        }
+    }
+
+    // Records placed bodies and stand-ins whenever they stand somewhere new
+    private void CapturePlacements(GameWorld world)
+    {
         var placed = CollectionsMarshal.AsSpan(_placed);
         for (int index = 0; index < placed.Length; index++)
         {
@@ -152,24 +204,8 @@ internal sealed class ReplayRecorder : IWorldEventSink
         _frames.Add(new PlaythroughFrame(world.Time, units, _lastEffects, world.Cursor));
     }
 
-    public PlaythroughReplay CreateReplay() =>
-        new(_frames, _unitFrames, _effectFrames, _shots, _spawns, _removedSprites, _createdSprites, _pickups, _placementFrames, _scenery, _shakes, _flashes);
-
-    public void RecordShot(in ShotTrace shot) => _shots.Add(shot);
-
-    public void RecordSpawn(SpawnEvent spawn) => _spawns.Add(spawn);
-
-    public void RecordSpriteCreation(MergedMapSprite sprite, int time) => _createdSprites.Add(new SpriteEvent(sprite, time));
-
-    public void RecordSpriteRemoval(MergedMapSprite sprite, int time) => _removedSprites.Add(new SpriteEvent(sprite, time));
-
-    public void RecordPickup(MergedMapSprite sprite, int time) => _pickups.Add(new SpriteEvent(sprite, time));
-
-    public void RecordScenery(in EffectState scenery) => _scenery.Add(scenery);
-
-    public void RecordCameraShake(CameraShake shake) => _shakes.Add(shake);
-
-    public void RecordScreenFlash(ScreenFlash flash) => _flashes.Add(flash);
+    public PlaythroughReplay CreateReplay(IReadOnlyList<SpriteEvent> pickups) =>
+        new(_frames, _unitFrames, _effectFrames, _removedSprites, _createdSprites, pickups, _placementFrames, _scenery, _shakes, _flashes);
 
     private struct PlacedUnit
     {

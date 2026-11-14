@@ -1,7 +1,6 @@
 using ASToolkit.Core.Engine;
 using System.Numerics;
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Simulation;
 using Xunit;
 
 namespace ASToolkit.Tests.Engine;
@@ -13,10 +12,9 @@ public class EffectTests
     {
         string game = TestGameFolder.RequireFolder();
         var kinds = new ObjectCatalog(game, TestGameFolder.Objects);
-        var recorder = new ReplayRecorder();
-        var world = EngineTestWorld.CreateWorld(kinds, recorder);
+        var world = EngineTestWorld.CreateWorld(kinds);
         var effects = world.Effects;
-        var scenery = recorder.CreateReplay().Scenery;
+        var scenery = world.Effects.Settled;
         effects.Emit(kinds.Find(KnownObject.Monster1)!, SpriteAnimation.Close, new Vector3(100, 100, 0), new Facing(64), world.Time);
 
         Assert.Contains(effects.GetStates(), effect => effect is { Id: KnownObject.RedBloodSpray, StartedAt: 0 });
@@ -35,10 +33,9 @@ public class EffectTests
     {
         string game = TestGameFolder.RequireFolder();
         var kinds = new ObjectCatalog(game, TestGameFolder.Objects);
-        var recorder = new ReplayRecorder();
-        var world = EngineTestWorld.CreateWorld(kinds, recorder);
+        var world = EngineTestWorld.CreateWorld(kinds);
         var effects = world.Effects;
-        var scenery = recorder.CreateReplay().Scenery;
+        var scenery = world.Effects.Settled;
         effects.Emit(kinds.Find(KnownObject.Monster1)!, SpriteAnimation.Death, new Vector3(100, 100, 0), default, 0);
 
         Assert.Contains(effects.GetStates(), effect => effect.Id == KnownObject.Monster1Death);
@@ -58,8 +55,7 @@ public class EffectTests
     {
         string game = TestGameFolder.RequireFolder();
         var kinds = new ObjectCatalog(game, TestGameFolder.Objects);
-        var recorder = new ReplayRecorder();
-        var world = EngineTestWorld.CreateWorld(kinds, recorder);
+        var world = EngineTestWorld.CreateWorld(kinds);
         var effects = world.Effects;
 
         effects.Emit(kinds.Find(KnownObject.WeaponMonster)!, SpriteAnimation.Death, new Vector3(100, 100, 0), default, 0);

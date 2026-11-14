@@ -31,16 +31,15 @@ internal sealed class SpawnedObjectSystem
     private readonly ObjectCatalog _kinds;
     private readonly MovementMap _map;
     private readonly Random _random;
-    private readonly IWorldEventSink? _events;
+    private readonly List<EffectState> _settled = [];
     private readonly GameWorld _world;
     private readonly UnitKinematics _motion;
 
-    public SpawnedObjectSystem(ObjectCatalog kinds, MovementMap map, Random random, IWorldEventSink? events, GameWorld world)
+    public SpawnedObjectSystem(ObjectCatalog kinds, MovementMap map, Random random, GameWorld world)
     {
         _kinds = kinds;
         _map = map;
         _random = random;
-        _events = events;
         _world = world;
         _motion = world.Motion;
     }
@@ -57,6 +56,8 @@ internal sealed class SpawnedObjectSystem
             }
         }
     }
+
+    public IReadOnlyList<EffectState> Settled => _settled;
 
     public EffectState[] GetStates() => _active.Where(unit => !IsLink(unit)).Select(GetState).ToArray();
 
@@ -187,7 +188,7 @@ internal sealed class SpawnedObjectSystem
         if (IsSettled(unit))
         {
             Detach(unit);
-            _events?.RecordScenery(GetState(unit));
+            _settled.Add(GetState(unit));
 
             return unit;
         }

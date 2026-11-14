@@ -2,7 +2,7 @@ using System.Numerics;
 
 using ASToolkit.Core.Formats;
 
-namespace ASToolkit.Core.Engine;
+namespace ASToolkit.Core.Simulation;
 
 /// <summary>
 /// Represents a moved placement's position at a simulation time.

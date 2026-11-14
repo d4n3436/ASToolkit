@@ -12,9 +12,6 @@ internal static class TestGameFolder
     private static readonly Lazy<GameTable> LoadedTable = new(() => GameTable.Load(Path.Combine(RequireFolder(), "Maps", "common_table.lgc")));
     private static readonly Lazy<ReferenceLevelSet> LoadedReferences = new(() => ReferenceLevelSet.Load(RequireFolder(), LoadedObjects.Value));
 
-    /// <summary>
-    /// Gets the object table of the test game, loaded once for every test.
-    /// </summary>
     public static ObjectTable Objects
     {
         get
@@ -24,14 +21,8 @@ internal static class TestGameFolder
         }
     }
 
-    /// <summary>
-    /// Gets the common table of the test game, loaded once for every test.
-    /// </summary>
     public static GameTable Table => LoadedTable.Value;
 
-    /// <summary>
-    /// Gets the original levels of the test game, loaded once for every test.
-    /// </summary>
     public static ReferenceLevelSet References
     {
         get

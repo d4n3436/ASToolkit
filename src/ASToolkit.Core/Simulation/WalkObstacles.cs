@@ -109,11 +109,20 @@ internal sealed class WalkObstacles
         }
     }
 
-    // Follow pushed bodies and sinking doors, and collect the areas of removed and created sprites
+    // Follows pushed bodies and sinking doors and collects the areas of removed and created sprites
     public void Synchronize(GameWorld world, List<TerrainChange> changes)
     {
         if (_tracked is null)
         {
+            _removedCount = world.RemovedCount;
+            foreach (var sprite in world.Sprites)
+            {
+                if (world.IsRemoved(sprite))
+                {
+                    _removed.Add(sprite);
+                }
+            }
+
             _tracked = [];
             foreach (var placed in _placed.Values)
             {

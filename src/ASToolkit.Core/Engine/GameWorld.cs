@@ -24,7 +24,6 @@ internal sealed partial class GameWorld
     private const float BatItemHeight = -30;
 
     private readonly GameRandom _rng;
-    private readonly IWorldEventSink? _events;
     private readonly MonsterBrain _brain;
     private readonly List<Unit> _monsters = [];
     private readonly HashSet<Unit> _monsterSet = [];
@@ -36,7 +35,6 @@ internal sealed partial class GameWorld
     private readonly List<ObjectProgram> _programs = [];
     private readonly UpdateOrder _updates;
     private readonly List<WorldPickup> _pickups = [];
-    private readonly List<KnownObject> _taken = [];
     private GameClock _clock;
     private int _protectedUntil;
     private int _mountedAt = -1;
@@ -44,8 +42,7 @@ internal sealed partial class GameWorld
     private Vector3 _respawnPosition;
     private int _unitCount;
 
-
-    public GameWorld(LevelTemplate data, PlayerLoadout loadout, GameRandom rng, IWorldEventSink? events)
+    public GameWorld(LevelTemplate data, PlayerLoadout loadout, GameRandom rng)
     {
         _updates = new UpdateOrder();
         var model = data.Model;
@@ -61,8 +58,6 @@ internal sealed partial class GameWorld
         _crowdSprites = level.CrowdRules.Select(rule => new MergedMapSprite?[rule.Points.Count]).ToArray();
         Kinds = kinds;
         _rng = rng;
-        _events = events;
-        ScriptTimeline = new ScriptTimeline(doorsLocked, null, null, null);
         Movement = data.Movement.Clone();
         DoorsLocked = doorsLocked;
         FencesUp = fencesUp;
@@ -70,7 +65,7 @@ internal sealed partial class GameWorld
         Units = new UnitGrid(Movement.MapSize, kinds.LargestHashedSize);
 
         Motion = new UnitKinematics(kinds, this);
-        Effects = new SpawnedObjectSystem(kinds, Movement, rng, events, this);
+        Effects = new SpawnedObjectSystem(kinds, Movement, rng, this);
         int maxHealth = loadout.Implants.ScaleHealth(legs.MaxHp);
         var start = model.Sprites.FirstOrDefault(sprite => sprite.Id is KnownObject.PlayerStart or KnownObject.PlayerStartFemaleLegs);
         Player = new Unit(_unitCount++, legs, start?.Position ?? new Vector3(data.FallbackStart, 0), PlayerArmy, maxHealth)
@@ -193,13 +188,12 @@ internal sealed partial class GameWorld
     private void AddPlacedCannon(MergedMapSprite sprite)
     {
         Effects.Spawn(sprite.Id, sprite.Position, new Facing(sprite.Facing), Time);
-
-        _events?.RecordSpriteRemoval(sprite, Time);
     }
 
     public PlayerInventory Inventory { get; }
 
     public WeaponSystem Weapons { get; }
+
     public void CopyVisualEffects(List<EffectState> states)
     {
         states.Clear();
@@ -222,25 +216,25 @@ internal sealed partial class GameWorld
         }
     }
 
-    public void RecordShot(in ShotTrace shot) => _events?.RecordShot(shot);
-
     public Unit Player { get; }
 
     public Vector2 Cursor { get; private set; }
 
     public ObjectCatalog Kinds { get; }
+
     public MovementMap Movement { get; }
 
     public UnitGrid Units { get; }
+
     public PlayerMovement PlayerMovement { get; }
 
     public ProjectileCollision Projectiles => Weapons.Collision;
+
     public SpawnedObjectSystem Effects { get; }
 
     public UnitKinematics Motion { get; }
 
     public int Time => _clock.Time;
-
 
     public int FrameTime => _clock.FrameTime;
 
@@ -248,24 +242,9 @@ internal sealed partial class GameWorld
 
     public bool FencesUp { get; private set; }
 
-    public ScriptTimeline ScriptTimeline { get; private set; }
-
-    public int Kills { get; private set; }
-
-    public int Respawns { get; private set; }
-
-    public IReadOnlyList<KnownObject> TakenPickups => _taken;
-
     public IReadOnlyList<Unit> Monsters => _monsters;
 
     public IReadOnlyList<ObjectProgram> Programs => _programs;
-
-    public event Action<Unit>? MonsterAdded;
-
-    public event Action<Unit>? UnitKilled;
-
-    public event Action<int>? PlayerHurt;
-
 
     public ReadOnlySpan<WorldPickup> Pickups => CollectionsMarshal.AsSpan(_pickups);
 
@@ -357,7 +336,7 @@ internal sealed partial class GameWorld
 
     public void Register(UpdateRole role, Unit unit) => _updates.Add(unit.Kind.Layer, new UpdateEntry(role, unit, null));
 
-    // Register the torso before the legs
+    // Registers the torso before the legs
     private void RegisterPlayer()
     {
         Register(UpdateRole.Torso, Weapons.Torso);
@@ -387,19 +366,16 @@ internal sealed partial class GameWorld
 
     public void StartBlackout()
     {
-        ScriptTimeline = ScriptTimeline with { BlackoutAt = Time };
         DoorsLocked = true;
     }
 
     private void OpenDoors()
     {
-        ScriptTimeline = ScriptTimeline with { DoorsOpenedAt = Time };
         DoorsLocked = false;
     }
 
     private void LowerFences()
     {
-        ScriptTimeline = ScriptTimeline with { FencesDownAt = Time };
         FencesUp = false;
     }
 
@@ -447,7 +423,6 @@ internal sealed partial class GameWorld
             Effects.Spawn(kind.Id, position, program.Facing, Time);
         }
 
-        _events?.RecordSpawn(new SpawnEvent(kind.Id, position, Time, program.Placement));
 
         return true;
     }
@@ -686,7 +661,7 @@ internal sealed partial class GameWorld
         key < 0 ? BitConverter.Int32BitsToSingle(weapon.AnimationPeriod)
         : key < WeaponRecord.KeyframeCount ? weapon.KeyTimes[key] : BitConverter.Int32BitsToSingle(weapon.RedKeys[0]);
 
-    // Lay each stream child one body length after the last at the emitter's speed relative to the child
+    // Lays each stream child one body length after the last at the emitter's speed relative to the child
     private void EmitStream(Unit unit)
     {
         var state = unit.Animation;
@@ -797,7 +772,6 @@ internal sealed partial class GameWorld
             }
 
             EmitChildrenAs(unit, SpriteAnimation.Close);
-            PlayerHurt?.Invoke(unit.Hp);
 
             return;
         }
@@ -851,7 +825,6 @@ internal sealed partial class GameWorld
 
             unit.Hp = 0;
             Units.Remove(unit);
-            UnitKilled?.Invoke(unit);
         }
 
         Player.Position = _respawnPosition;
@@ -870,7 +843,6 @@ internal sealed partial class GameWorld
 
         Effects.Spawn(KnownObject.InvulnerabilityEffect, Player.Position + Vector3.UnitZ * ProtectionEffectHeight,
             Player.Facing, Time, Player, RespawnProtection);
-        Respawns++;
     }
 
     private void AddToMonsters(Unit unit)
@@ -889,8 +861,6 @@ internal sealed partial class GameWorld
     {
         if (unit.Placement is null)
         {
-            Kills++;
-            UnitKilled?.Invoke(unit);
         }
         else
         {
@@ -936,7 +906,6 @@ internal sealed partial class GameWorld
         }
 
         Movement.Remove(placement);
-        _events?.RecordSpriteRemoval(placement, Time);
     }
 
     public static float GetPickupReach(KnownObject id) => id.IsAmmo ? AmmoReach : PickupReach;
@@ -960,12 +929,10 @@ internal sealed partial class GameWorld
 
             if (pickup.Position.AsVector2().MeasureDistance(Player.Position.AsVector2()) < GetPickupReach(pickup.Id) && TryTakePickup(pickup))
             {
-                _taken.Add(pickup.Id);
                 _pickups.RemoveAt(index);
 
                 if (pickup.Placement is not null)
                 {
-                    _events?.RecordPickup(pickup.Placement, Time);
                 }
 
                 if (pickup.Id == KnownObject.Invulnerability)
@@ -1024,8 +991,6 @@ internal sealed partial class GameWorld
         Register(UpdateRole.Monster, unit);
         Units.Add(unit);
         AttachLink(unit);
-
-        MonsterAdded?.Invoke(unit);
 
         return unit;
     }

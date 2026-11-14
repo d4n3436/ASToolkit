@@ -1,6 +1,6 @@
 using ASToolkit.Core.Formats;
 
-namespace ASToolkit.Core.Engine;
+namespace ASToolkit.Core.Simulation;
 
 /// <summary>
 /// Represents a sprite created, collected or removed during play.

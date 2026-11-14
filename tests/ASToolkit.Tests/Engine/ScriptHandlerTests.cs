@@ -14,8 +14,7 @@ public class ScriptHandlerTests
     public void Step_FreezeBonusTaken_FreezesNearbyMonstersInPlace()
     {
         var kinds = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var recorder = new ReplayRecorder();
-        var world = EngineTestWorld.CreateWorld(kinds, recorder);
+        var world = EngineTestWorld.CreateWorld(kinds);
         var monster = world.AddMonster(kinds.Find(KnownObject.RedMonster1)!, world.Player.Position + new Vector3(300, 0, 0));
         world.AddPickup(world.Player.Position, KnownObject.FreezeMonsters, null);
         Step(world, 10);
@@ -24,28 +23,29 @@ public class ScriptHandlerTests
         Assert.True(monster.IsAlive);
         Assert.Equal(WeaponBehavior.None, monster.Behavior);
         Assert.Equal(0, monster.Speed);
-        Assert.Contains(recorder.CreateReplay().Flashes, flash => flash.Color == 0x1010ff);
+        Assert.Equal(0x1010ff, world.ScreenFlash?.Color);
     }
 
     [Fact]
     public void Step_BombTaken_Deals300ToMonstersAndShakesTheScreen()
     {
         var kinds = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var world = EngineTestWorld.CreateWorld(kinds);
         var recorder = new ReplayRecorder();
-        var world = EngineTestWorld.CreateWorld(kinds, recorder);
+        recorder.Start(world);
         var tank = kinds.Find(KnownObject.RedTankMonster)!;
         var monster = world.AddMonster(tank, world.Player.Position + new Vector3(600, 0, 0));
         world.AddPickup(world.Player.Position, KnownObject.Bomb, null);
-        Step(world, 10);
+        Step(world, 10, recorder);
 
-        var replay = recorder.CreateReplay();
+        var replay = recorder.CreateReplay([]);
         Assert.Equal(tank.MaxHp - 300, monster.Hp);
         Assert.Contains(replay.Flashes, flash => flash.Color == 0xffffff);
         Assert.NotEmpty(replay.Shakes);
         Assert.All(replay.Shakes, shake => Assert.InRange(Math.Abs(shake.Offset.X) + Math.Abs(shake.Offset.Y), 0, 8));
 
         int started = replay.Shakes[0].Time;
-        Step(world, 2600 / world.FrameTime);
+        Step(world, 2600 / world.FrameTime, recorder);
         Assert.InRange(replay.Shakes[^1].Time - started, 2400, 2600);
     }
 
@@ -56,14 +56,16 @@ public class ScriptHandlerTests
         var world = EngineTestWorld.CreateWorld(kinds);
         float speed = world.Inventory.Speed;
         world.AddPickup(world.Player.Position, KnownObject.Adrenaline, null);
+        var log = new PlayLog(world);
         var seen = new List<float>();
         for (int tick = 0; tick < 10; tick++)
         {
             world.Step(default);
+            log.Update(world);
             seen.Add(world.Inventory.Speed);
         }
 
-        Assert.Contains(KnownObject.Adrenaline, world.TakenPickups);
+        Assert.Contains(KnownObject.Adrenaline, log.TakenPickups);
         Assert.Equal(speed, seen[^1]);
         Assert.True(seen.Count(value => value > speed) <= 1);
     }
@@ -142,15 +144,13 @@ public class ScriptHandlerTests
     {
         var kinds = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int> { [KnownObject.FlameThrower] = 1000 }, default);
-        var recorder = new ReplayRecorder();
-        var world = EngineTestWorld.CreateWorld(kinds, recorder, loadout: loadout);
+        var world = EngineTestWorld.CreateWorld(kinds, loadout: loadout);
         var monster = world.AddMonster(kinds.Find(KnownObject.TankMonster)!, world.Player.Position + new Vector3(120, 0, 0), new Facing(192));
         int health = monster.Hp;
         int slot = KnownObject.FlameThrower - KnownObject.Shotgun + 2;
         for (int tick = 0; tick < 100; tick++)
         {
             world.Step(new PlayerCommand(null, PlayerCommand.GetCursor(monster.Position), true, slot));
-            recorder.Capture(world);
         }
 
         Assert.True(monster.Hp < health);
@@ -187,19 +187,21 @@ public class ScriptHandlerTests
     public void Step_PlayerKilled_FlashesTheScreenRedOnce()
     {
         var kinds = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var world = EngineTestWorld.CreateWorld(kinds);
         var recorder = new ReplayRecorder();
-        var world = EngineTestWorld.CreateWorld(kinds, recorder);
+        recorder.Start(world);
         world.Damage(world.Player, world.Player.Hp);
-        Step(world, 10);
+        Step(world, 10, recorder);
 
-        Assert.Single(recorder.CreateReplay().Flashes, flash => flash.Color == 0xff0000);
+        Assert.Single(recorder.CreateReplay([]).Flashes, flash => flash.Color == 0xff0000);
     }
 
-    private static void Step(GameWorld world, int ticks)
+    private static void Step(GameWorld world, int ticks, ReplayRecorder? recorder = null)
     {
         for (int tick = 0; tick < ticks; tick++)
         {
             world.Step(default);
+            recorder?.Capture(world);
         }
     }
 }
