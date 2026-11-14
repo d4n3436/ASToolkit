@@ -14,6 +14,7 @@ internal sealed partial class GameWorld
     private const float HealingEffectHeight = 60;
     private const float AmmoReach = 50;
 
+    private const int MaxStreamPeriod = 30000;
     private const int RespawnProtection = 3000;
     private const float RescueEffectHeight = 22;
     private const float ProtectionEffectHeight = 20;
@@ -27,6 +28,10 @@ internal sealed partial class GameWorld
     private readonly MonsterBrain _brain;
     private readonly List<Unit> _monsters = [];
     private readonly List<Unit> _blastCandidates = [];
+    private bool _adrenalineActive;
+    private int _quakeStart;
+    private int _quakeDelay;
+    private bool _deathFlashed;
     private readonly List<ObjectProgram> _programs = [];
     private readonly UpdateOrder _updates;
     private readonly List<WorldPickup> _pickups = [];
@@ -51,7 +56,8 @@ internal sealed partial class GameWorld
         bool fencesUp = model.Sprites.Any(sprite => sprite.Id == KnownObject.Fence);
         _sprites = model.Sprites.ToList();
         _level = level;
-        _checkpointsPassed = new bool[level.Checkpoints.Count];
+        _triggersPassed = new bool[level.Triggers.Count];
+        _crowdSprites = level.CrowdRules.Select(rule => new MergedMapSprite?[rule.Points.Count]).ToArray();
         Kinds = kinds;
         _rng = rng;
         _events = events;
@@ -74,7 +80,7 @@ internal sealed partial class GameWorld
         Weapons = new WeaponSystem(this, Inventory, kinds, rng);
         var unitMovement = new UnitCollision(Movement, Units);
         PlayerMovement = new PlayerMovement(unitMovement);
-        _brain = new MonsterBrain(Motion, unitMovement, rng);
+        _brain = new MonsterBrain(Motion, unitMovement, rng, _monsters);
         var placedUnits = new Dictionary<uint, Unit>();
 
         if (start is null)
@@ -147,6 +153,11 @@ internal sealed partial class GameWorld
                 unit.Orders = GetOrders(program.GetStack(0), placedUnits);
             }
         }
+
+        if (Inventory.Items.GetValueOrDefault(KnownObject.Drone) > 0)
+        {
+            AddDrone();
+        }
     }
 
     // Takes a placed unit's stack from its last entry, with its attack targets named by map handles
@@ -160,10 +171,13 @@ internal sealed partial class GameWorld
             switch (action.Code)
             {
                 case ActionCode.Move:
-                    orders.Add(new UnitOrder(new Vector2(action.Var1, action.Var2), null));
+                    orders.Add(new UnitOrder(action.Code, new Vector2(action.Var1, action.Var2), null));
                     break;
-                case ActionCode.Attack when units.TryGetValue(unchecked((uint)action.Var1), out var target):
-                    orders.Add(new UnitOrder(null, target));
+                case ActionCode.Attack:
+                    orders.Add(new UnitOrder(action.Code, null, units.GetValueOrDefault(unchecked((uint)action.Var1))));
+                    break;
+                default:
+                    orders.Add(UnitOrder.FromAction(action));
                     break;
             }
         }
@@ -190,7 +204,7 @@ internal sealed partial class GameWorld
         {
             if (pickup.IsDropped)
             {
-                states.Add(pickup.GetState());
+                states.Add(pickup.GetState(Time));
             }
         }
 
@@ -286,6 +300,7 @@ internal sealed partial class GameWorld
         }
 
         RunLevelScript();
+        ShakeCamera();
 
         if (!Player.IsAlive && IsInCannon)
         {
@@ -384,7 +399,7 @@ internal sealed partial class GameWorld
 
     [EngineRoutine(0x00440830)]
     [EngineRoutine(0x0044ca70)]
-    public bool BuildFromProgram(ObjectProgram program, StackAction action, bool testsPlacement = true)
+    public bool BuildFromProgram(ObjectProgram program, StackAction action, bool testPlacement = true)
     {
         var kind = Kinds.Find((KnownObject)action.Var1);
 
@@ -407,7 +422,7 @@ internal sealed partial class GameWorld
         }
         var position = new Vector3(x, y, program.Position.Z);
 
-        if (testsPlacement && !IsFree(kind, position))
+        if (testPlacement && !IsFree(kind, position))
         {
             return false;
         }
@@ -444,6 +459,21 @@ internal sealed partial class GameWorld
 
     private bool TickMonster(Unit unit)
     {
+        var owner = unit.Owner;
+
+        if (owner is not null)
+        {
+            if (owner.Link != unit || !_monsters.Contains(owner))
+            {
+                _monsters.Remove(unit);
+                Delete(unit);
+
+                return false;
+            }
+
+            unit.Position = GetLinkPosition(owner, unit.Kind);
+        }
+
         if (unit.IsAlive)
         {
             _brain.Move(unit, FrameTime, _clock.FramesPerSecond);
@@ -453,6 +483,7 @@ internal sealed partial class GameWorld
             return true;
 
         _monsters.Remove(unit);
+        Units.Remove(unit);
         Delete(unit);
 
         return false;
@@ -473,21 +504,39 @@ internal sealed partial class GameWorld
     public bool TickUnit(Unit unit)
     {
         var layout = unit.Kind.Layout;
+        UpdateKeyframe(unit);
+        EmitStream(unit);
         var state = unit.Animation;
 
         if (unit.CreatedAt == Time || Time - Time % layout.GetFrameDuration(state) <= Time - FrameTime)
             return true;
 
+        if (unit.Command is not UnitCommand.None && unit.Command < UnitCommand.Build && !unit.HasGoal)
+        {
+            UnitKinematics.SetCommand(unit, UnitCommand.None);
+        }
+
         if (unit.Timer != 0)
         {
             unit.Timer = Time - unit.LastTickTime < unit.Timer ? unit.Timer - (Time - unit.LastTickTime) : 0;
+
+            if (unit is { Timer: 0, Command: UnitCommand.Pause })
+            {
+                UnitKinematics.SetCommand(unit, UnitCommand.None);
+            }
         }
 
         bool everyFrame = unit.Kind.Object.Flags.HasFlag(ObjectFlags.ActsEveryFrame);
 
         if (unit.Frame == unit.FirstFrame || everyFrame)
         {
+            var hooked = unit.Animation;
             RunStateHook(unit);
+            while (unit.Animation != hooked)
+            {
+                hooked = unit.Animation;
+                RunStateHook(unit);
+            }
         }
 
         EmitStateChildren(unit);
@@ -516,6 +565,10 @@ internal sealed partial class GameWorld
             {
                 SpawnedObjectSystem.DecideObject(unit);
             }
+            else if (unit.Command is UnitCommand.Passive or UnitCommand.Pause)
+            {
+                HoldStill(unit);
+            }
             else if (unit.Number >= 0)
             {
                 _brain.Decide(unit, Player, FrameTime);
@@ -542,6 +595,12 @@ internal sealed partial class GameWorld
             }
         }
 
+        int period = unit.Kind.Weapon.AnimationPeriod;
+        if (unit.Kind.HasKeyframes && period != ObjectDefinition.Unlimited && (uint)period < (uint)(Time - unit.KeyframeStart))
+        {
+            unit.KeyframeStart = Time;
+        }
+
         unit.LastTickTime = Time;
 
         if (unit.Frame > unit.LastFrame)
@@ -550,6 +609,96 @@ internal sealed partial class GameWorld
         }
 
         return true;
+    }
+
+    [EngineRoutine(0x00440110)]
+    private static void HoldStill(Unit unit)
+    {
+        var state = unit.Animation;
+
+        if (state >= SpriteAnimation.Death || state == SpriteAnimation.StandOpen || unit.Frame <= unit.LastFrame)
+            return;
+
+        if (unit.Speed.IsZero())
+        {
+            if (state is SpriteAnimation.Go or > SpriteAnimation.Open)
+            {
+                unit.SetState(SpriteAnimation.Stand);
+            }
+        }
+        else if (state != SpriteAnimation.Go)
+        {
+            unit.SetState(SpriteAnimation.Go);
+        }
+    }
+
+    // Lay each stream child one body length after the last at the emitter's speed relative to the child
+    [EngineRoutine(0x00440110)]
+    private void UpdateKeyframe(Unit unit)
+    {
+        if (!unit.Kind.HasKeyframes)
+            return;
+
+        ref readonly var weapon = ref unit.Kind.Weapon;
+        int elapsed = Time - unit.KeyframeStart;
+        int period = weapon.AnimationPeriod;
+        if (period == ObjectDefinition.Unlimited)
+        {
+            if (unit.Animation > SpriteAnimation.Birth && unit.LastFrame != unit.FirstFrame)
+            {
+                period = unit.Kind.Layout.GetFrameDuration(unit.Animation) * (unit.LastFrame - unit.FirstFrame);
+            }
+            else if (unit.Lifetime == ObjectDefinition.Unlimited)
+            {
+                return;
+            }
+            else
+            {
+                period = unit.Lifetime + elapsed;
+            }
+        }
+
+        if (period == 0)
+            return;
+
+        // Search from the key after the previous position, reading past the key times as the engine does
+        int key = (int)unit.KeyframePosition + 1;
+        while (key < WeaponRecord.KeyframeCount - 1 && (double)period * GetKeyTime(weapon, key) <= (float)elapsed)
+        {
+            key++;
+        }
+
+        key--;
+        double start = (double)period * GetKeyTime(weapon, key);
+        unit.KeyframePosition = (float)((elapsed - start) / ((GetKeyTime(weapon, key + 1) - GetKeyTime(weapon, key)) * (double)period) + key);
+    }
+
+    private static float GetKeyTime(in WeaponRecord weapon, int key) =>
+        key < 0 ? BitConverter.Int32BitsToSingle(weapon.AnimationPeriod)
+        : key < WeaponRecord.KeyframeCount ? weapon.KeyTimes[key] : BitConverter.Int32BitsToSingle(weapon.RedKeys[0]);
+
+    private void EmitStream(Unit unit)
+    {
+        var state = unit.Animation;
+        var child = Kinds.Find((KnownObject)Math.Abs(unit.Kind.Object.Children[(int)state]));
+
+        if (child is null || !child.Object.Flags.HasFlag(ObjectFlags.Stream) || Time - Time % unit.StreamPeriod <= Time - FrameTime)
+            return;
+
+        var velocity = UnitKinematics.Displace(Vector3.Zero, unit.Facing, unit.Speed, 1);
+        float across = velocity.X;
+        float down = velocity.Y + unit.VerticalSpeed - child.ZSpeed;
+        float acrossPeriod = across.IsZero() ? MaxStreamPeriod : child.Object.Size.X / Math.Abs(across);
+        float downPeriod = down.IsZero() ? MaxStreamPeriod : child.Object.Size.Y / Math.Abs(down);
+        int period = (int)Math.Min(acrossPeriod, downPeriod);
+
+        if (state == SpriteAnimation.Fight && unit.Kind.AttacksTwice)
+        {
+            period >>= 1;
+        }
+
+        unit.StreamPeriod = Math.Clamp(period, 1, MaxStreamPeriod);
+        EmitChildrenAs(unit, state);
     }
 
     [EngineRoutine(0x00446430)]
@@ -583,7 +732,7 @@ internal sealed partial class GameWorld
 
         Weapons.FireFrom(unit);
 
-        if (unit.Command == UnitCommand.Engage && (!flags.HasFlag(ObjectFlags.ActsEveryFrame) || unit.Frame == unit.LastFrame))
+        if (unit.Command == UnitCommand.OneAttack && (!flags.HasFlag(ObjectFlags.ActsEveryFrame) || unit.Frame == unit.LastFrame))
         {
             UnitKinematics.SetCommand(unit, UnitCommand.None);
         }
@@ -593,8 +742,17 @@ internal sealed partial class GameWorld
 
     private int GetNextAnimationTick(int frameTime) => Time - Time % frameTime + frameTime;
 
+    [EngineRoutine(0x00440830)]
+    [EngineRoutine(0x004454d0)]
     public void Damage(Unit unit, int damage)
     {
+        if (damage < 0 && unit != Player && unit.Animation < SpriteAnimation.Death)
+        {
+            unit.Hp = Math.Min(unit.Kind.MaxHp, unit.Hp - damage);
+
+            return;
+        }
+
         if (damage <= 0 || !unit.IsAlive)
         {
             return;
@@ -623,8 +781,16 @@ internal sealed partial class GameWorld
             return;
         }
 
+        if (unit.Animation >= SpriteAnimation.Death || unit.Kind.MaxHp == 0)
+            return;
+
         int previousHp = unit.Hp;
         unit.Hp -= damage;
+
+        if (!unit.IsAlive)
+        {
+            unit.HpBeforeDeath = previousHp;
+        }
 
         if (unit.IsAlive && previousHp > unit.Kind.MaxHp / 2 && unit.Hp <= unit.Kind.MaxHp / 2)
         {
@@ -677,6 +843,12 @@ internal sealed partial class GameWorld
         Weapons.ResetPlayer();
         Units.Move(Player);
         _protectedUntil = Time + RespawnProtection;
+
+        if (Inventory.Items.GetValueOrDefault(KnownObject.Drone) > 0)
+        {
+            AddDrone();
+        }
+
         Effects.Spawn(KnownObject.InvulnerabilityEffect, Player.Position + Vector3.UnitZ * ProtectionEffectHeight,
             Player.Facing, Time, Player, RespawnProtection);
         Respawns++;
@@ -697,7 +869,6 @@ internal sealed partial class GameWorld
         }
 
         unit.DiedAt = Time;
-        Units.Remove(unit);
         unit.SetState(animation == SpriteAnimation.Death2 && unit.Kind.Object.Children[(int)SpriteAnimation.Death2] != 0
             ? SpriteAnimation.Death2 : SpriteAnimation.Death);
     }
@@ -713,10 +884,11 @@ internal sealed partial class GameWorld
             {
                 _rng.Next(1);
                 var facing = new Facing((byte)_rng.Next(Facing.FullTurn));
-                kind.RollInitialFrame(_rng);
-                int expires = Time + DroppedItemLifetime + _rng.Next(DroppedItemLifetimeVariation + 1);
                 float height = unit.Position.Z + (unit.Kind.Id == KnownObject.Bat ? BatItemHeight : DroppedItemHeight);
-                _pickups.Add(new WorldPickup(kind, unit.Position with { Z = height }, null, Time, expires, facing));
+                var body = new Unit(-1, kind, unit.Position with { Z = height }, 0, 0);
+                body.Start(kind.InitialAnimation, facing, Time, _rng);
+                int expires = Time + DroppedItemLifetime + _rng.Next(DroppedItemLifetimeVariation + 1);
+                _pickups.Add(new WorldPickup(kind, body.Position, null, Time, expires, facing, body));
             }
         }
 
@@ -752,7 +924,7 @@ internal sealed partial class GameWorld
             if (Time - Time % interval <= Time - FrameTime)
                 continue;
 
-            if (pickup.Position.AsVector2().MeasureDistance(Player.Position.AsVector2()) < GetPickupReach(pickup.Id) && Inventory.TryTakePickup(pickup.Id))
+            if (pickup.Position.AsVector2().MeasureDistance(Player.Position.AsVector2()) < GetPickupReach(pickup.Id) && TryTakePickup(pickup))
             {
                 _taken.Add(pickup.Id);
                 _pickups.RemoveAt(index);
@@ -778,6 +950,28 @@ internal sealed partial class GameWorld
         }
     }
 
+    private bool TryTakePickup(WorldPickup pickup)
+    {
+        var center = pickup.Position.AsVector2();
+
+        switch (pickup.Id)
+        {
+            case KnownObject.FreezeMonsters:
+                FreezeMonsters(center);
+                return true;
+            case KnownObject.Bomb:
+                DetonateBomb(center);
+                return true;
+            case KnownObject.Adrenaline:
+                TakeAdrenaline();
+                return true;
+            case KnownObject.Drone:
+                return TakeDrone();
+            default:
+                return Inventory.TryTakePickup(pickup.Id);
+        }
+    }
+
     public Unit AddMonster(ObjectDefinition kind, Vector3 position, Facing facing = default, int army = MonsterArmy, KnownObject dropItem = 0)
     {
         var unit = new Unit(_unitCount++, kind, position, army, kind.MaxHp)
@@ -790,35 +984,45 @@ internal sealed partial class GameWorld
             Effects.Emit(kind, SpriteAnimation.Birth, unit.Position, unit.Facing, Time);
         }
 
-        Kinds.Loot.AssignItem(unit, _rng);
+        RunCreationHook(unit);
 
         _monsters.Add(unit);
         Register(UpdateRole.Monster, unit);
         Units.Add(unit);
+        AttachLink(unit);
 
         MonsterAdded?.Invoke(unit);
 
         return unit;
     }
 
-    private bool IsFree(ObjectDefinition kind, Vector3 position)
+    [EngineRoutine(0x00445770)]
+    [EngineRoutine(0x00447130)]
+    private void AttachLink(Unit unit)
     {
-        if (!Movement.CanSpawn(kind.Object, position))
+        var kind = unit.Kind.Object.Link == 0 ? null : Kinds.Find(unit.Kind.Object.Link);
+
+        if (kind is null || kind.Object.WeaponIndex == 0)
+            return;
+
+        var link = new Unit(_unitCount++, kind, GetLinkPosition(unit, kind), unit.Army, kind.MaxHp) { Owner = unit, CreatedAt = Time };
+        link.Start(kind.InitialAnimation, unit.Facing, Time, _rng);
+        unit.Link = link;
+
+        if (unit.ArmedLink is not null && link.Kind.FightChild != 0)
         {
-            return false;
+            unit.Behavior = kind.Behavior;
         }
 
-        var reach = kind.Half + new Vector2(UnitGrid.MaxHalfSize);
-        foreach (var other in Units.GetNear(position.AsVector2() - reach, position.AsVector2() + reach))
-        {
-            if (other.IsAlive && kind.GetCollisionVolume(position).Overlaps(other.CollisionVolume))
-            {
-                return false;
-            }
-        }
-
-        return true;
+        _monsters.Add(link);
+        Register(UpdateRole.Monster, link);
     }
+
+    private static Vector3 GetLinkPosition(Unit owner, ObjectDefinition kind) =>
+        owner.Position + owner.Kind.Object.GetLinkOffset(kind.Object, null, 0, owner.Facing.Value);
+
+    [EngineRoutine(0x0042da30)]
+    private bool IsFree(ObjectDefinition kind, Vector3 position) => Movement.CanSpawn(kind.Object, position) && !Projectiles.IsOccupied(kind, position);
 
     public readonly record struct TerrainChange(Vector2 Position, Vector2 HalfSize);
 

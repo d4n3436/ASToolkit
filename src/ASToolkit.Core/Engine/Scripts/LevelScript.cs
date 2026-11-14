@@ -10,9 +10,11 @@ internal sealed class LevelScript
 
     public bool ClearsMonsters { get; init; }
 
-    public TriggerArea? Exit { get; init; }
+    public bool WinsAfterSites { get; init; }
 
-    public TriggerArea? Blackout { get; init; }
+    public IReadOnlyList<ScriptTrigger> Triggers { get; init; } = [];
 
-    public IReadOnlyList<TriggerArea> Checkpoints { get; init; } = [];
+    public IReadOnlyList<ScriptHandler> Handlers { get; init; } = [];
+
+    public IReadOnlyList<ScriptCrowdRule> CrowdRules { get; init; } = [];
 }

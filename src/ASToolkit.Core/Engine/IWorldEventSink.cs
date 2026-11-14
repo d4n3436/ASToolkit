@@ -18,4 +18,8 @@ internal interface IWorldEventSink
     void RecordDoorPosition(MergedMapSprite door, int time, Vector3 position);
 
     void RecordScenery(in EffectState scenery);
+
+    void RecordCameraShake(CameraShake shake);
+
+    void RecordScreenFlash(ScreenFlash flash);
 }

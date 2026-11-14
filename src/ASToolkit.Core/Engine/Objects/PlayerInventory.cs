@@ -7,6 +7,7 @@ internal sealed class PlayerInventory
     public const int WeaponSlots = 10;
     public const int Pistols = 1;
     public const int WeaponPickupBase = 260;
+    private const int FirstStrengthenedSlot = 2;
     private const int AmmoPickupBase = 300;
     private const int ArmorObjectOffset = 4;
     public const int MaxExtraLives = 5;
@@ -62,6 +63,10 @@ internal sealed class PlayerInventory
     public PlayerImplants Implants => _implants;
 
     public float Speed { get; private set; }
+
+    public void SetSpeedBoost(float boost) => Speed = _implants.ScaleSpeed(_player.Kind.Object.Speed) + boost;
+
+    public void SetItem(KnownObject id, int count) => _items[id] = count;
 
     public int Money { get; private set; }
 
@@ -187,7 +192,9 @@ internal sealed class PlayerInventory
     private static bool IsWithinCap(PlayerImplants implants) =>
         Math.Max(Math.Max(implants.Life, implants.Strength), Math.Max(implants.Speed, implants.Accuracy)) <= PlayerImplants.MaxCount;
 
-    private int GetCapacity(int weapon) => _torsos[weapon] is null ? 0 : _implants.ScaleAmmo(_torsos[weapon]!.AmmoCapacity);
+    [ScriptFunction("F243_0")]
+    private int GetCapacity(int weapon) =>
+        _torsos[weapon] is null ? 0 : weapon < FirstStrengthenedSlot ? _torsos[weapon]!.AmmoCapacity : _implants.ScaleAmmo(_torsos[weapon]!.AmmoCapacity);
 
     private void AddAmmo(int weapon, int amount) => _ammo[weapon] = Math.Min(_torsos[weapon] is null ? amount : GetCapacity(weapon), _ammo[weapon] + amount);
     

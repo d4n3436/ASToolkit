@@ -19,8 +19,14 @@ internal sealed class UnitKinematics
     }
 
     [EngineRoutine(0x004446c0)]
+    [EngineRoutine(0x00444750)]
     public static bool SetCommand(Unit unit, UnitCommand command, Unit? target = null, Vector3? point = null)
     {
+        if (unit.Command == UnitCommand.Pause && command != UnitCommand.Pause)
+        {
+            unit.Timer = 0;
+        }
+
         unit.Goal = target;
         unit.GoalPoint = target is null ? point : null;
 
@@ -43,7 +49,7 @@ internal sealed class UnitKinematics
         {
             if (unit.Animation == SpriteAnimation.Fight)
             {
-                SetCommand(unit, UnitCommand.Engage, point: removed.Position);
+                SetCommand(unit, UnitCommand.OneAttack, point: removed.Position);
             }
             else
             {
@@ -144,6 +150,17 @@ internal sealed class UnitKinematics
         ref readonly var obj = ref unit.Kind.Object;
         var next = unit.Position;
         unit.Blocked = false;
+
+        if (unit is { Command: UnitCommand.Move, Moving: false })
+        {
+            StartTowardGoal(unit);
+        }
+
+        if (unit is { Command: UnitCommand.Move, HasGoal: false })
+        {
+            StopMoving(unit);
+        }
+
         unit.Speed = Accelerate(unit.Kind, unit.Speed, unit.MaxSpeed, unit.Moving, elapsed);
 
         if (unit.Speed >= ObjectDefinition.Unlimited)
@@ -164,8 +181,8 @@ internal sealed class UnitKinematics
         }
         else if (!unit.Speed.IsZero())
         {
-            var facing = obj.Flags.HasFlag(ObjectFlags.Homing) && unit.Goal is not null
-                ? Facing.FromOffset((unit.Goal.Position - unit.Position).AsVector2()) : unit.Facing;
+            var facing = obj.Flags.HasFlag(ObjectFlags.Homing) && unit.HasGoal
+                ? Facing.FromOffset((unit.GoalPosition - unit.Position).AsVector2()) : unit.Facing;
             next = Displace(next, facing, unit.Speed, elapsed);
         }
 

@@ -18,6 +18,37 @@ internal sealed partial class GameWorld
     private const int EjectDivisor = 15;
     private const int TrapPairReach = 10;
     private const int ChargeBox = 100;
+    private const int BonusBox = 500;
+    private const int BonusReach = 1000;
+    private const int FreezeBulletReach = 130;
+    private const int FreezeBulletDamage = 30;
+    private const int BombDamage = 300;
+    private const float AdrenalineBoost = 80;
+    private const float DroneHeight = 20;
+    private const int DroneFollowReach = 20;
+    private const int ElectricBallDrain = 10;
+    private const int MedkitProtection = 3000;
+    private const int FlashDuration = 0x900;
+    private const int ShakeReach = 4;
+    private const int ExplosionQuake = 120;
+    private const int BlastQuake = 500;
+    private const int NukeQuake = 1000;
+    private const int BombQuake = 2500;
+    private const int ChargeQuake = 4000;
+    private const int DynamiteWinDelay = 5000;
+    private const int White = 0xffffff;
+    private const int FreezeColor = 0x1010ff;
+    private const int DeathColor = 0xff0000;
+    private const int FrozenDigit = 9;
+    private const KnownObject FirstBoss = KnownObject.FirstEndlessGenerator;
+    private const KnownObject LastBoss = KnownObject.Bat;
+    private static readonly FrozenSet<KnownObject> FreezableMonsters = new[]
+    {
+        KnownObject.Slug, KnownObject.YellowSlug, KnownObject.RedSlug, KnownObject.Monster1, KnownObject.YellowMonster1, KnownObject.RedMonster1,
+        KnownObject.Monster2, KnownObject.YellowMonster2, KnownObject.RedMonster2, KnownObject.WeaponMonster, KnownObject.YellowWeaponMonster,
+        KnownObject.RedWeaponMonster, KnownObject.TankMonster, KnownObject.YellowTankMonster, KnownObject.RedTankMonster, KnownObject.TankWeaponMonster,
+        KnownObject.YellowTankWeaponMonster, KnownObject.RedTankWeaponMonster
+    }.ToFrozenSet();
     private const float HashCell = 128;
     private const int MarkerReach = 100;
     private const int PlayerChargeReach = 100;
@@ -51,8 +82,9 @@ internal sealed partial class GameWorld
     private readonly Dictionary<MergedMapSprite, Unit> _bodies = new(ReferenceEqualityComparer.Instance);
     private readonly HashSet<MergedMapSprite> _removed = new(ReferenceEqualityComparer.Instance);
     private readonly List<MergedMapSprite> _sprites;
-    private readonly bool[] _checkpointsPassed;
-    private bool _blackoutPassed;
+    private readonly bool[] _triggersPassed;
+    private readonly MergedMapSprite?[][] _crowdSprites;
+    private int _sitesClearedAt;
     private int _scriptSecondAt;
 
     public bool HasWon { get; private set; }
@@ -65,9 +97,9 @@ internal sealed partial class GameWorld
 
     public IReadOnlyList<Unit> Scripted => _scripted;
 
-    private void AddScripted(ObjectDefinition kind, Vector3 position, Facing facing, int army = 0, MergedMapSprite? placement = null)
+    private void AddScripted(ObjectDefinition kind, Vector3 position, Facing facing, int? army = null, MergedMapSprite? placement = null)
     {
-        var unit = new Unit(-1, kind, position, army, 0) { Placement = placement, CreatedAt = Time };
+        var unit = new Unit(-1, kind, position, army ?? Kinds.GetArmy(kind), 0) { Placement = placement, CreatedAt = Time };
         unit.Start(kind.InitialAnimation, facing, Time, _rng);
         _scripted.Add(unit);
         Register(UpdateRole.Scripted, unit);
@@ -106,6 +138,24 @@ internal sealed partial class GameWorld
     [ScriptFunction("main")]
     private void RunLevelScript()
     {
+        StopQuake();
+
+        if (Player.IsAlive)
+        {
+            _deathFlashed = false;
+        }
+        else if (!_deathFlashed)
+        {
+            _deathFlashed = true;
+            Flash(DeathColor);
+        }
+
+        if (_adrenalineActive)
+        {
+            _adrenalineActive = false;
+            Inventory.SetSpeedBoost(0);
+        }
+
         TryDismount();
 
         if (_level.ClearsMonsters && IsSecondTick())
@@ -113,28 +163,159 @@ internal sealed partial class GameWorld
             CheckVictory();
         }
 
-        if (_level.Exit is not null && IsPlayerWithin(_level.Exit.Value))
+        for (int index = 0; index < _triggersPassed.Length; index++)
         {
-            HasWon = true;
+            var trigger = _level.Triggers[index];
+
+            if (_triggersPassed[index] || !IsPlayerWithin(trigger.Area))
+                continue;
+
+            _triggersPassed[index] = true;
+            RunTrigger(trigger);
         }
 
-        if (_level.Blackout is not null && !_blackoutPassed && IsPlayerWithin(_level.Blackout.Value))
+        for (int index = 0; index < _crowdSprites.Length; index++)
         {
-            _blackoutPassed = true;
+            ApplyCrowdRule(_level.CrowdRules[index], _crowdSprites[index]);
+        }
+
+        if (_level.WinsAfterSites && Player.IsAlive)
+        {
+            int now = GetScriptTime();
+
+            if (_sitesClearedAt == 0 && _sites.Count == 0)
+            {
+                _sitesClearedAt = now;
+            }
+
+            if (_sitesClearedAt != 0 && now - _sitesClearedAt > DynamiteWinDelay)
+            {
+                HasWon = true;
+            }
+        }
+    }
+
+    [ScriptFunction("iff")]
+    private void RunTrigger(ScriptTrigger trigger)
+    {
+        if (trigger.Respawn == ScriptRespawn.Fixed)
+        {
+            _respawnPosition = new Vector3(trigger.RespawnPoint.X, trigger.RespawnPoint.Y, 0);
+        }
+        else if (trigger.Respawn == ScriptRespawn.Player)
+        {
             _respawnPosition = new Vector3((int)Player.Position.X, (int)Player.Position.Y, (int)Player.Position.Z);
+        }
+
+        if (trigger.Quake != 0)
+        {
+            StartQuake(trigger.Quake);
+        }
+
+        if (trigger.LocksDoors || trigger.LightOff is not null)
+        {
             StartBlackout();
+        }
+
+        if (trigger.SwapsKeypads)
+        {
             SwapSprites(KnownObject.KeypadOn, KnownObject.KeypadOff);
         }
 
-        for (int index = 0; index < _checkpointsPassed.Length; index++)
-        {
-            var checkpoint = _level.Checkpoints[index];
+        KillAll(trigger.Kills);
+        HasWon |= trigger.Wins;
+    }
 
-            if (_checkpointsPassed[index] || !IsPlayerWithin(checkpoint))
+    [ScriptFunction("GetVidData")]
+    private void ApplyCrowdRule(ScriptCrowdRule rule, MergedMapSprite?[] placed)
+    {
+        int count = 0;
+        foreach (var unit in _monsters)
+        {
+            if (unit.Kind.Id == rule.Counted)
+            {
+                count++;
+            }
+        }
+
+        var kind = Kinds.Find(rule.Placed);
+        for (int index = 0; index < placed.Length; index++)
+        {
+            var sprite = placed[index];
+
+            if (count > rule.Max && sprite is null && kind is not null)
+            {
+                sprite = CreateSprite(rule.Placed, rule.Points[index], default);
+                var body = new Unit(_unitCount++, kind, sprite.Position, 0, kind.MaxHp) { Placement = sprite };
+                Units.Add(body);
+                _bodies.Add(sprite, body);
+                placed[index] = sprite;
+            }
+            else if (count <= rule.Max && sprite is not null)
+            {
+                Destroy(sprite);
+                placed[index] = null;
+            }
+        }
+    }
+
+    private void RunLevelHandler(Unit unit)
+    {
+        foreach (var handler in _level.Handlers)
+        {
+            if (handler.Id != unit.Kind.Id || handler.State != unit.Animation)
                 continue;
 
-            _checkpointsPassed[index] = true;
-            _respawnPosition = new Vector3(checkpoint.Center.X, checkpoint.Center.Y, 0);
+            foreach (var id in handler.Destroys)
+            {
+                Genocide(id);
+            }
+
+            KillAll(handler.Kills);
+            HasWon |= handler.Wins;
+        }
+    }
+
+    [ScriptFunction("ACT_CHANGE_ANIMATION")]
+    private void KillAll(IReadOnlyList<KnownObject> ids)
+    {
+        if (ids.Count == 0)
+            return;
+
+        foreach (var unit in _monsters.ToArray())
+        {
+            if (unit.IsAlive && ids.Contains(unit.Kind.Id))
+            {
+                unit.Hp = 0;
+                CompleteDeath(unit, SpriteAnimation.Death);
+            }
+        }
+    }
+
+    [ScriptFunction("Genocide")]
+    private void Genocide(KnownObject id)
+    {
+        foreach (var program in _programs)
+        {
+            if (program.Kind.Id != id || program.Finished)
+                continue;
+
+            program.Stop();
+
+            if (program.Placement is not null)
+            {
+                RemoveSprite(program.Placement);
+            }
+        }
+
+        foreach (var unit in _monsters)
+        {
+            if (unit.IsAlive && unit.Kind.Id == id)
+            {
+                unit.Hp = 0;
+                Units.Remove(unit);
+                UnitKilled?.Invoke(unit);
+            }
         }
     }
 
@@ -170,8 +351,27 @@ internal sealed partial class GameWorld
         HasWon = true;
     }
 
+    [EngineRoutine(0x0040e870)]
+    public void RunCreationHook(Unit unit)
+    {
+        switch (unit.Kind.Id)
+        {
+            case KnownObject.ElectricBall:
+                DrainPlayer();
+                break;
+            case KnownObject.RescueMedkitEffect:
+                ProtectAfterRescue();
+                break;
+            default:
+                Kinds.Loot.AssignItem(unit, _rng);
+                break;
+        }
+    }
+
     private void RunStateHook(Unit unit)
     {
+        RunLevelHandler(unit);
+
         var state = unit.Animation;
         switch (unit.Kind.Id)
         {
@@ -190,11 +390,34 @@ internal sealed partial class GameWorld
             case KnownObject.DoubleDoor when state == SpriteAnimation.Stand:
                 MoveDoor(unit, DoubleDoorReach, DoubleDoorDepth, DoubleDoorStep);
                 break;
-            case KnownObject.ArmedDynamite when state >= SpriteAnimation.Death:
-                DetonateDynamite(unit);
-                break;
             case KnownObject.Generator when state >= SpriteAnimation.Death:
                 DestroyGenerator(unit);
+                break;
+            case KnownObject.ArmedDynamite when state >= SpriteAnimation.Death:
+                Flash(White);
+                StartQuake(ChargeQuake);
+                DetonateDynamite(unit);
+                break;
+            case KnownObject.Missile when state == SpriteAnimation.Death:
+                Flash(White);
+                StartQuake(NukeQuake);
+                break;
+            case KnownObject.Barrel or KnownObject.Cylinder or KnownObject.SpawnWallSlash or KnownObject.SpawnWallBack or KnownObject.ShakeDummy or
+                KnownObject.NeuralBullet when state == SpriteAnimation.Death:
+                StartQuake(BlastQuake);
+                break;
+            case KnownObject.PlasmaBullet or KnownObject.Rocket or KnownObject.HeavyMonsterRocket or KnownObject.CannonShell when state == SpriteAnimation.Death:
+            case KnownObject.ElectricBall when state == SpriteAnimation.Death:
+                StartQuake(ExplosionQuake);
+                break;
+            case KnownObject.FreezeBullet when state >= SpriteAnimation.Death:
+                BurstFreezeBullet(unit);
+                break;
+            case KnownObject.FlyingDrone when state <= SpriteAnimation.StartMove:
+                FollowPlayer(unit);
+                break;
+            case KnownObject.FlyingDrone when state >= SpriteAnimation.Death:
+                Inventory.SetItem(KnownObject.Drone, 0);
                 break;
             default:
                 if (state >= SpriteAnimation.Death)
@@ -284,20 +507,33 @@ internal sealed partial class GameWorld
 
         foreach (var program in _programs)
         {
-            if (!IsInChargeBuckets(program.Position, center) || !(program.Kind.Id is KnownObject.Spawner or KnownObject.TeleportPad || program.Kind.Id.IsEndlessGenerator))
+            if (!IsInChargeBuckets(program.Position, center))
+                continue;
+
+            bool listed = program.Kind.Id is KnownObject.Spawner or KnownObject.TeleportPad || program.Kind.Id.IsEndlessGenerator;
+
+            if (!listed && !(program.Placement is { Army: MonsterArmy } && IsInChargeReach(charge, program.Position)))
                 continue;
 
             program.Stop();
             AnimateFromProgram(program, SpriteAnimation.Death);
         }
 
-        for (int index = 0; index < _sprites.Count; index++)
+        var owned = GetOwnedPlacements();
+        for (int i = 0; i < _sprites.Count; i++)
         {
-            var sprite = _sprites[index];
+            var sprite = _sprites[i];
 
-            if (sprite.Id is KnownObject.SmallMonsterHole or KnownObject.BigMonsterHole && !_removed.Contains(sprite) && IsInChargeBuckets(sprite.Position, center))
+            if (_removed.Contains(sprite) || !IsInChargeBuckets(sprite.Position, center))
+                continue;
+
+            if (sprite.Id is KnownObject.SmallMonsterHole or KnownObject.BigMonsterHole)
             {
                 CreateSprite(KnownObject.RubblePile, sprite.Position, new Facing(sprite.Facing));
+            }
+            else if (sprite.Army == MonsterArmy && !owned.Contains(sprite) && IsInChargeReach(charge, sprite.Position))
+            {
+                KillPlacement(sprite);
             }
         }
 
@@ -433,7 +669,7 @@ internal sealed partial class GameWorld
 
         if (id.IsScripted)
         {
-            AddScripted(Kinds.Find(id)!, position, facing, 0, sprite);
+            AddScripted(Kinds.Find(id)!, position, facing, placement: sprite);
         }
 
         return sprite;
@@ -507,12 +743,12 @@ internal sealed partial class GameWorld
         }
     }
 
-    private void RemoveSprite(MergedMapSprite sprite)
+    private void RemoveSprite(MergedMapSprite sprite, bool opensWall = false)
     {
         if (!_removed.Add(sprite))
             return;
 
-        RemovePlacement(sprite, sprite.Position.AsVector2(), Kinds.Find(sprite.Id)?.Half ?? Vector2.Zero);
+        RemovePlacement(sprite, sprite.Position.AsVector2(), Kinds.Find(sprite.Id)?.Half ?? Vector2.Zero, opensWall);
     }
 
     [EngineRoutine(0x0040fc40)]
@@ -542,18 +778,242 @@ internal sealed partial class GameWorld
     private bool IsPlayerWithin(TriggerArea area) => MeasureScriptDistance(Player.Position, new Vector2(area.Center.X, area.Center.Y)) < area.Radius;
 
     [EngineRoutine(0x0042dd60)]
-    private static bool IsInChargeBuckets(Vector3 position, Vector2 center)
+    [ScriptFunction("FirstInBox")]
+    private static bool IsInChargeBuckets(Vector3 position, Vector2 center, float box = ChargeBox)
     {
         int x = GetBucket(position.X);
         int y = GetBucket(position.Y);
 
-        return x >= GetBucket(center.X - ChargeBox - HashCell) && x <= GetBucket(center.X + ChargeBox + HashCell) &&
-            y >= GetBucket(center.Y - ChargeBox - HashCell) && y <= GetBucket(center.Y + ChargeBox + HashCell);
+        return x >= GetBucket(center.X - box - HashCell) && x <= GetBucket(center.X + box + HashCell) &&
+            y >= GetBucket(center.Y - box - HashCell) && y <= GetBucket(center.Y + box + HashCell);
 
         static int GetBucket(float value) => (int)MathF.Floor(value / HashCell);
+    }
+
+    private static bool IsInChargeReach(Unit charge, Vector3 position) => MeasureScriptDistance(charge.Position, position.AsVector2()) < MonsterChargeReach;
+
+    private HashSet<MergedMapSprite> GetOwnedPlacements()
+    {
+        var owned = new HashSet<MergedMapSprite>(ReferenceEqualityComparer.Instance);
+        foreach (var program in _programs)
+        {
+            if (program.Placement is not null)
+            {
+                owned.Add(program.Placement);
+            }
+        }
+
+        foreach (var unit in _scripted.Concat(_monsters).Concat(_bodies.Values))
+        {
+            if (unit.Placement is not null)
+            {
+                owned.Add(unit.Placement);
+            }
+        }
+
+        owned.UnionWith(_bodies.Keys);
+
+        return owned;
+    }
+
+    [ScriptFunction("ACT_GET_ARMY")]
+    [ScriptFunction("ANI_DEATH")]
+    private void KillPlacement(MergedMapSprite sprite)
+    {
+        var kind = Kinds.Find(sprite.Id);
+
+        if (kind is null || kind.Object.SpriteClass is SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Player)
+            return;
+
+        Effects.Play(kind, SpriteAnimation.Death, sprite.Position, new Facing(sprite.Facing), Time);
+        RemoveSprite(sprite, sprite.Id is KnownObject.SpawnWallSlash or KnownObject.SpawnWallBack or KnownObject.BreakableWall);
     }
 
     [ScriptFunction("SizeTo")]
     private static int MeasureScriptDistance(Vector3 position, Vector2 point) =>
         (int)position.AsVector2().MeasureDistance(new Vector2((int)point.X, (int)point.Y));
+
+    [ScriptFunction("F145_15")]
+    private void BurstFreezeBullet(Unit bullet)
+    {
+        var center = bullet.Position.AsVector2();
+        var reach = new Vector2(FreezeBulletReach + 2 * HashCell);
+        Units.Collect(center - reach, center + reach, _blastCandidates);
+        foreach (var unit in _blastCandidates)
+        {
+            if (!IsInChargeBuckets(unit.Position, center, FreezeBulletReach) || MeasureScriptDistance(unit.Position, center) >= FreezeBulletReach ||
+                unit.Army != MonsterArmy || (int)unit.Kind.Id % 10 == FrozenDigit)
+                continue;
+
+            Damage(unit, FreezeBulletDamage);
+
+            if (!IsBossObject(unit.Kind.Id) && unit.Animation >= SpriteAnimation.Death)
+            {
+                Freeze(unit);
+            }
+        }
+    }
+
+    [ScriptFunction("IsBossVid")]
+    private static bool IsBossObject(KnownObject id) => id is >= FirstBoss and < LastBoss;
+
+    [ScriptFunction("F234_0")]
+    private void FreezeMonsters(Vector2 center)
+    {
+        var reach = new Vector2(BonusBox + 2 * HashCell);
+        Units.Collect(center - reach, center + reach, _blastCandidates);
+        foreach (var unit in _blastCandidates)
+        {
+            if (IsInChargeBuckets(unit.Position, center, BonusBox) && MeasureScriptDistance(unit.Position, center) < BonusReach &&
+                unit.Army == MonsterArmy && FreezableMonsters.Contains(unit.Kind.Id))
+            {
+                Freeze(unit);
+            }
+        }
+
+        Flash(FreezeColor);
+    }
+
+    [ScriptFunction("ACT_CHANGE_VID")]
+    private void Freeze(Unit unit)
+    {
+        var id = unit.Kind.Id;
+        var frozen = Kinds.Find(id - (int)id % 10 + FrozenDigit);
+
+        if (frozen is not null)
+        {
+            if (!unit.IsAlive)
+            {
+                unit.Hp = unit.HpBeforeDeath;
+            }
+
+            unit.Link = null;
+            unit.ChangeKind(frozen);
+            AttachLink(unit);
+        }
+
+        unit.Behavior = WeaponBehavior.None;
+
+        unit.Link?.Behavior = WeaponBehavior.None;
+
+        MonsterBrain.Attack(unit, null);
+        UnitKinematics.StopMoving(unit);
+        unit.Speed = 0;
+    }
+
+    [ScriptFunction("F236_0")]
+    private void DetonateBomb(Vector2 center)
+    {
+        StartQuake(BombQuake);
+        Flash(White);
+        var reach = new Vector2(BonusBox + 2 * HashCell);
+        Units.Collect(center - reach, center + reach, _blastCandidates);
+        foreach (var unit in _blastCandidates)
+        {
+            if (IsInChargeBuckets(unit.Position, center, BonusBox) && MeasureScriptDistance(unit.Position, center) < BonusReach && unit.Army == MonsterArmy)
+            {
+                Damage(unit, BombDamage);
+            }
+        }
+    }
+
+    [ScriptFunction("F238_0")]
+    private void TakeAdrenaline()
+    {
+        _adrenalineActive = true;
+        Inventory.SetSpeedBoost(AdrenalineBoost);
+    }
+
+    [ScriptFunction("F231_0")]
+    private bool TakeDrone()
+    {
+        if (Inventory.Items.GetValueOrDefault(KnownObject.Drone) > 0)
+            return false;
+
+        AddDrone();
+
+        return true;
+    }
+
+    private void AddDrone()
+    {
+        var kind = Kinds.Find(KnownObject.FlyingDrone);
+
+        if (kind is null)
+            return;
+
+        Inventory.SetItem(KnownObject.Drone, 1);
+        AddMonster(kind, Player.Position + Vector3.UnitZ * DroneHeight, Player.Facing, Kinds.GetArmy(kind));
+    }
+
+    [ScriptFunction("F290_0")]
+    private void FollowPlayer(Unit drone)
+    {
+        if (MeasureScriptDistance(Player.Position, drone.Position.AsVector2()) > DroneFollowReach)
+        {
+            if (_rng.Next() % 2 != 0)
+                return;
+            
+            var goal = Player.Position + Vector3.UnitZ * DroneHeight;
+
+            if (!UnitKinematics.SetCommand(drone, UnitCommand.Move, point: goal))
+            {
+                Motion.StartTowardGoal(drone);
+            }
+        }
+        else
+        {
+            UnitKinematics.StopMoving(drone);
+        }
+    }
+
+    [ScriptFunction("F751_14")]
+    private void DrainPlayer()
+    {
+        if (Player.IsAlive)
+        {
+            Player.Hp -= ElectricBallDrain;
+            PlayerHurt?.Invoke(Player.Hp);
+        }
+    }
+
+    [ScriptFunction("F181_14")]
+    private void ProtectAfterRescue()
+    {
+        _protectedUntil = Math.Max(_protectedUntil, Time + MedkitProtection);
+        Effects.Spawn(KnownObject.InvulnerabilityEffect, Player.Position + Vector3.UnitZ * ProtectionEffectHeight, Player.Facing, Time, Player, MedkitProtection);
+    }
+
+    [ScriptFunction("EarthQuake")]
+    private void StartQuake(int delay)
+    {
+        _quakeStart = GetScriptTime();
+        _quakeDelay = delay;
+    }
+
+    [ScriptFunction("GameTact")]
+    private void StopQuake()
+    {
+        int now = GetScriptTime();
+
+        if (_quakeStart != 0 && (now - _quakeStart > _quakeDelay || _quakeStart > now))
+        {
+            _quakeStart = 0;
+        }
+    }
+
+    [EngineRoutine(0x00430870)]
+    private void ShakeCamera()
+    {
+        if (_quakeStart == 0)
+            return;
+
+        int y = _rng.Next() % (ShakeReach * 2 + 1);
+        int x = _rng.Next() % (ShakeReach * 2 + 1);
+        _events?.RecordCameraShake(new CameraShake(Time, new Vector2(ShakeReach - x, ShakeReach - y)));
+    }
+
+    [ScriptFunction("Effect")]
+    [EngineRoutine(0x00402690)]
+    private void Flash(int color) => _events?.RecordScreenFlash(new ScreenFlash(Time, FlashDuration, color));
 }

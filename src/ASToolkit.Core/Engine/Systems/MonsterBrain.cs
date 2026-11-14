@@ -9,16 +9,20 @@ internal sealed class MonsterBrain
     private const int RepeatTargetOdds = 3;
     private const int ForwardCone = 0x1f;
     private const float WanderReach = 64;
+    private const int NeutralArmy = 2;
+    private const int LinkScanOdds = 4;
 
     private readonly UnitKinematics _motion;
     private readonly UnitCollision _movement;
     private readonly Random _random;
+    private readonly IReadOnlyList<Unit> _candidates;
 
-    public MonsterBrain(UnitKinematics motion, UnitCollision movement, Random random)
+    public MonsterBrain(UnitKinematics motion, UnitCollision movement, Random random, IReadOnlyList<Unit> candidates)
     {
         _motion = motion;
         _movement = movement;
         _random = random;
+        _candidates = candidates;
     }
 
     [EngineRoutine(0x00447260)]
@@ -88,32 +92,71 @@ internal sealed class MonsterBrain
         if (unit.OrderStep >= unit.Orders.Length)
             return false;
 
+        var order = unit.Orders[unit.OrderStep];
         var state = unit.Animation;
 
-        if (state is > SpriteAnimation.Open and < SpriteAnimation.Death and not SpriteAnimation.StandOpen || state == SpriteAnimation.Go && unit.Speed.IsZero())
+        if ((int)order.Code > UnitOrder.LastState &&
+            (state is > SpriteAnimation.Open and < SpriteAnimation.Death and not SpriteAnimation.StandOpen || state == SpriteAnimation.Go && unit.Speed.IsZero()))
         {
             unit.SetState(SpriteAnimation.Stand);
         }
 
-        var order = unit.Orders[unit.OrderStep++];
+        if (order.Code == ActionCode.StopStack)
+            return true;
 
-        if (order.Target is not null)
+        unit.OrderStep++;
+
+        if ((int)order.Code <= UnitOrder.LastState)
         {
-            Attack(unit, order.Target);
+            unit.SetState((SpriteAnimation)order.Code);
+
+            return true;
         }
-        else if (order.Point is not null)
+
+        switch (order.Code)
         {
-            MoveTo(unit, order.Point.Value);
+            case ActionCode.Attack:
+                Attack(unit, order.Target);
+                break;
+            case ActionCode.Move when order.Point is not null:
+                MoveTo(unit, order.Point.Value);
+                break;
+            case ActionCode.Pause:
+                Pause(unit, order.Var1 + _random.Next() % (order.Var2 + 1));
+                break;
+            case ActionCode.Stop:
+                UnitKinematics.StopMoving(unit);
+
+                if (order.Var1 != 0)
+                {
+                    unit.Speed = 0;
+                }
+                break;
+            case ActionCode.ClearCommand:
+                UnitKinematics.SetCommand(unit, UnitCommand.None);
+                break;
         }
 
         return true;
     }
 
+    [EngineRoutine(0x00440830)]
+    private static void Pause(Unit unit, int time)
+    {
+        if (!unit.Speed.IsZero())
+        {
+            UnitKinematics.StopMoving(unit);
+        }
+
+        unit.Timer = time;
+        UnitKinematics.SetCommand(unit, time != 0 ? UnitCommand.Pause : UnitCommand.None);
+    }
+
     [EngineRoutine(0x00445fb0)]
-    private static void Attack(Unit unit, Unit target)
+    public static void Attack(Unit unit, Unit? target)
     {
         var kind = unit.Kind;
-        bool accepts = kind.IsArmed && kind.FightChild != 0 && (kind.Targets & target.Kind.Object.SpriteType) != 0;
+        bool accepts = target is null || kind.IsArmed && kind.FightChild != 0 && (kind.Targets & target.Kind.Object.SpriteType) != 0;
 
         if (accepts || kind.Object.SpriteClass == SpriteClass.Cannon)
         {
@@ -137,9 +180,15 @@ internal sealed class MonsterBrain
         }
 
         var kind = unit.Kind;
+        var link = unit.ArmedLink;
         var result = AttackResult.Pursue;
 
-        if (unit.TurnTicks == 0)
+        if (link is not null && unit.Command is UnitCommand.Attack or UnitCommand.OneAttack && unit.Goal is not null && link.Goal is null)
+        {
+            UnitKinematics.SetCommand(link, unit.Command, unit.Goal);
+        }
+
+        if (link is not null || unit.TurnTicks == 0)
         {
             result = unit.TryAttack(Math.Max(elapsed, kind.Layout.GetFrameDuration(unit.Animation)));
 
@@ -149,7 +198,7 @@ internal sealed class MonsterBrain
                     UnitKinematics.SetCommand(unit, UnitCommand.None);
                     break;
                 case AttackResult.Approach when kind.Speed.IsZero():
-                    if (unit.HasGoal)
+                    if (link is not null && link.HasGoal || unit.HasGoal)
                     {
                         UnitKinematics.SetCommand(unit, UnitCommand.None);
                     }
@@ -157,20 +206,31 @@ internal sealed class MonsterBrain
                 case AttackResult.Approach when unit.Speed.IsZero():
                     _motion.StartTowardGoal(unit);
                     break;
-                case AttackResult.Attacked when !unit.Speed.IsZero():
+                case AttackResult.Attacked when !unit.Speed.IsZero() && (link is null || unit.Goal == link.Goal):
                     UnitKinematics.StopMoving(unit);
                     break;
             }
+
+            if (result == AttackResult.Approach && link is not null && unit.Command is UnitCommand.Attack or UnitCommand.OneAttack &&
+                unit.AcquiresTargets && (link.Timer != 0 || _random.Next() % LinkScanOdds == 0))
+            {
+                var target = FindTarget(unit, player);
+
+                if (target is not null)
+                {
+                    UnitKinematics.SetCommand(link, UnitCommand.OneAttack, target);
+                }
+            }
         }
 
-        if (result == AttackResult.Pursue && kind.PursuesTargets && unit.Speed.IsZero())
+        if (result == AttackResult.Pursue && unit.PursuesTargets && unit.Speed.IsZero())
         {
             _motion.StartTowardGoal(unit);
         }
 
-        if (result == AttackResult.NoOrder && kind is { AcquiresTargets: true, PursuesTargets: true } ||
-            result is AttackResult.Pursue or AttackResult.NoTarget && kind.AcquiresTargets &&
-            unit.Command is UnitCommand.None or UnitCommand.Move or UnitCommand.Engage &&
+        if (result == AttackResult.NoOrder && unit is { AcquiresTargets: true, PursuesTargets: true } ||
+            result is AttackResult.Pursue or AttackResult.NoTarget && unit.AcquiresTargets &&
+            unit.Command is UnitCommand.None or UnitCommand.Move or UnitCommand.OneAttack &&
             (unit.LastFrame > unit.FirstFrame || unit.Timer != 0 || _random.Next(IdleScanOdds) == 0))
         {
             Engage(unit, player);
@@ -207,7 +267,7 @@ internal sealed class MonsterBrain
 
         if (target is not null)
         {
-            UnitKinematics.SetCommand(unit, UnitCommand.Engage, target);
+            UnitKinematics.SetCommand(unit, UnitCommand.OneAttack, target);
         }
     }
 
@@ -216,25 +276,115 @@ internal sealed class MonsterBrain
     {
         var kind = unit.Kind;
 
-        if (kind.DetectRange.IsZero() || kind.Targets == 0 || (kind.Targets & player.Kind.Object.SpriteType) == 0 || player.Kind.MaxHp == 0 ||
-            player.Army == unit.Army)
+        if (kind.DetectRange.IsZero() || kind.Targets == 0)
             return null;
 
-        if (kind.NeedsForwardTarget &&
-            unit.Facing.MeasureTurnTo(Facing.FromOffset((player.Position - unit.Position).AsVector2())) > ForwardCone)
-            return null;
+        Unit? best = null;
+        float bestDistance = kind.DetectRange + 1;
 
-        float distance = unit.Position.AsVector2().MeasureDistance(player.Position.AsVector2());
+        if (unit.Army == GameWorld.MonsterArmy)
+            return TryTake(unit, player, ref best, ref bestDistance) ? player : best;
 
-        if (distance > kind.DetectRange || distance < kind.MinRange)
-            return null;
+        if (TryTake(unit, player, ref best, ref bestDistance))
+            return player;
 
-        if (kind.WeaponFlags.HasFlag(WeaponFlags.RandomTarget))
+        foreach (var candidate in _candidates)
         {
-            _random.Next(RepeatTargetOdds);
+            if (candidate != unit && TryTake(unit, candidate, ref best, ref bestDistance))
+                return candidate;
         }
 
-        return player;
+        return best;
+    }
+
+    private bool TryTake(Unit unit, Unit candidate, ref Unit? best, ref float bestDistance)
+    {
+        var kind = unit.Kind;
+
+        if ((kind.Targets & candidate.Kind.Object.SpriteType) == 0 || candidate.Kind.MaxHp == 0 || !IsEnemy(unit, candidate))
+            return false;
+
+        if (kind.NeedsForwardTarget &&
+            unit.Facing.MeasureTurnTo(Facing.FromOffset((candidate.Position - unit.Position).AsVector2())) > ForwardCone)
+            return false;
+
+        float distance = unit.Position.AsVector2().MeasureDistance(candidate.Position.AsVector2());
+
+        if (distance > kind.DetectRange || distance < kind.MinRange)
+            return false;
+
+        bool accepts;
+
+        if (kind.Object.SpriteType.HasFlag(SpriteType.Avia) && unit.Goal is null)
+        {
+            accepts = distance < bestDistance;
+        }
+        else if (bestDistance <= kind.BattleRange)
+        {
+            accepts = distance <= kind.BattleRange && IsBetter(unit, distance, bestDistance, candidate, best);
+        }
+        else
+        {
+            accepts = distance <= kind.BattleRange || IsBetter(unit, distance, bestDistance, candidate, best);
+        }
+
+        if (!accepts || unit.Army == 0 && candidate.Kind.Object.SpriteClass == SpriteClass.Engine)
+            return false;
+
+        best = candidate;
+        bestDistance = distance;
+
+        return kind.WeaponFlags.HasFlag(WeaponFlags.RandomTarget) && _random.Next() % RepeatTargetOdds == 0;
+    }
+
+    [EngineRoutine(0x00445c80)]
+    private static bool IsBetter(Unit unit, float distance, float bestDistance, Unit candidate, Unit? best)
+    {
+        if (best is null)
+            return true;
+
+        if (unit.Kind.WeaponFlags.HasFlag(WeaponFlags.PrefersNearest))
+            return distance < bestDistance;
+
+        if (unit.Goal == best)
+            return false;
+
+        if (unit.Goal == candidate)
+            return true;
+
+        if (candidate.Army == NeutralArmy && best.Army != NeutralArmy)
+            return false;
+
+        bool bestFlies = best.Kind.Object.SpriteType.HasFlag(SpriteType.Avia);
+        bool candidateFlies = candidate.Kind.Object.SpriteType.HasFlag(SpriteType.Avia);
+
+        if (bestFlies != candidateFlies)
+            return candidateFlies;
+
+        float range = (unit.ArmedLink?.Kind ?? unit.Kind).BattleRange;
+
+        if (range < bestDistance && distance <= range)
+            return true;
+
+        bool candidateArmed = candidate.Kind.Object.SpriteType.HasFlag(SpriteType.Unit) && candidate.Rounds != 0;
+        bool bestArmed = best.Kind.Object.SpriteType.HasFlag(SpriteType.Unit) && best.Rounds != 0;
+
+        if (candidateArmed != bestArmed)
+            return candidateArmed;
+
+        int candidateRank = (candidate.ArmedLink?.Kind ?? candidate.Kind).Rank;
+        int bestRank = (best.ArmedLink?.Kind ?? best.Kind).Rank;
+
+        return bestRank < candidateRank || bestRank <= candidateRank && distance < bestDistance;
+    }
+
+    private static bool IsEnemy(Unit unit, Unit target)
+    {
+        bool ownArmy = unit.Kind.WeaponFlags.HasFlag(WeaponFlags.TargetsOwnArmy);
+
+        return (target.Army != unit.Army || ownArmy) && !target.Kind.Object.Flags.HasFlag(ObjectFlags.ArmyDependent) &&
+            (target.Army != NeutralArmy || ownArmy) &&
+            target.Kind.Id != KnownObject.PistolMuzzleFlash;
     }
 
     [EngineRoutine(0x0043fa00)]

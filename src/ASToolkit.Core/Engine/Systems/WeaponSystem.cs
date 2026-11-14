@@ -84,7 +84,7 @@ internal sealed class WeaponSystem
 
         if (!Torso.IsReloading)
         {
-            UnitKinematics.SetCommand(Torso, UnitCommand.Engage, point: GetCursorPoint(new Vector2((int)cursor.X, (int)cursor.Y), weapon));
+            UnitKinematics.SetCommand(Torso, UnitCommand.OneAttack, point: GetCursorPoint(new Vector2((int)cursor.X, (int)cursor.Y), weapon));
         }
     }
 
@@ -120,12 +120,12 @@ internal sealed class WeaponSystem
 
     // Turns the torso toward the cursor each frame and the standing legs after it once it passes the slack
     [EngineRoutine(0x0043ea10)]
-    public void TrackCursor(Vector2 cursor, int elapsed, bool moves)
+    public void TrackCursor(Vector2 cursor, int elapsed, bool moving)
     {
         var player = _world.Player;
         var facing = Facing.Aim(new Vector2(cursor.X - player.Position.X, player.Position.Z + cursor.Y - player.Position.Y));
 
-        if (!moves && player is { Speed: 0, Kind.Id: KnownObject.PlayerStart })
+        if (!moving && player is { Speed: 0, Kind.Id: KnownObject.PlayerStart })
         {
             if (!_turnsLegs)
             {

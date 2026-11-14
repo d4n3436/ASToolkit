@@ -10,12 +10,15 @@ internal sealed class ObjectDefinition
     public const float PerMillisecondSquared = 1e-6f;
 
     private readonly GameObject _object;
+    private readonly WeaponRecord _weapon;
     private readonly AnimationDefinition[] _animations;
 
-    public ObjectDefinition(KnownObject id, in GameObject obj, in WeaponRecord weapon, int spriteSpeed, WeaponBehavior behavior = WeaponBehavior.None, int totalFrames = 0, int layer = 0)
+    public ObjectDefinition(KnownObject id, in GameObject obj, in WeaponRecord weapon, int spriteSpeed, int totalFrames = 0, int layer = 0)
     {
         Id = id;
         _object = obj;
+        _weapon = weapon;
+        HasKeyframes = GetHasKeyframes(weapon);
         Layout = new FrameLayout(obj, spriteSpeed, totalFrames);
         _animations = new AnimationDefinition[(int)SpriteAnimation.Death2 + 1];
         for (int index = 0; index < _animations.Length; index++)
@@ -33,7 +36,9 @@ internal sealed class ObjectDefinition
         Acceleration = ScaleRate(obj.Acceleration, PerMillisecondSquared);
         Deceleration = ScaleRate(obj.Deceleration, PerMillisecondSquared);
         WeaponFlags = weapon.Flags;
-        Behavior = behavior;
+        Behavior = weapon.Behavior;
+        Army = weapon.Army;
+        Rank = weapon.Rank;
         Targets = weapon.Targets;
         Half = obj.Size.AsVector2() * 0.5f;
         DetectRange = weapon.DetectRange;
@@ -53,6 +58,10 @@ internal sealed class ObjectDefinition
 
     public ref readonly GameObject Object => ref _object;
 
+    public ref readonly WeaponRecord Weapon => ref _weapon;
+
+    public bool HasKeyframes { get; }
+
     public FrameLayout Layout { get; }
 
     public int SpriteSpeed { get; }
@@ -60,6 +69,10 @@ internal sealed class ObjectDefinition
     public WeaponFlags WeaponFlags { get; }
 
     public WeaponBehavior Behavior { get; }
+
+    public int Army { get; }
+
+    public int Rank { get; }
 
     public SpriteType Targets { get; }
 
@@ -71,27 +84,10 @@ internal sealed class ObjectDefinition
 
     public bool AttacksTwice => WeaponFlags.HasFlag(WeaponFlags.DoubleAttack);
 
-    public bool AcquiresTargets => Behavior.HasFlag(WeaponBehavior.AcquiresTargets);
-
-    public bool PursuesTargets => Behavior.HasFlag(WeaponBehavior.PursuesTargets);
-
     public SpriteAnimation InitialAnimation =>
         Layout.GetFrameCount(SpriteAnimation.Stand) == 0 && Layout.GetFrameCount(SpriteAnimation.Go) == 0 &&
         Layout.GetFrameCount(SpriteAnimation.Death) != 0 ? SpriteAnimation.Death
         : Layout.GetFrameCount(SpriteAnimation.Birth) != 0 ? SpriteAnimation.Birth : SpriteAnimation.Stand;
-
-    public int RollInitialFrame(Random random)
-    {
-        if (Object.Flags.HasFlag(ObjectFlags.StartsOnFirstFrame))
-        {
-            return 0;
-        }
-
-        random.Next(SpriteSpeed + 1);
-        int frames = GetVisualFrameCount(InitialAnimation);
-
-        return InitialAnimation == SpriteAnimation.Stand && frames > 1 ? random.Next(frames) : 0;
-    }
 
     public int GetVisualFrameCount(SpriteAnimation animation) => _animations[(int)animation].FrameCount;
 
@@ -152,6 +148,20 @@ internal sealed class ObjectDefinition
     private static int GetAnimationTime(in GameObject obj, SpriteAnimation animation, int spriteSpeed) =>
         obj.FrameCounts[(int)animation] * obj.GetFrameDuration(animation, spriteSpeed);
     private readonly record struct AnimationDefinition(int FrameCount, int FrameDuration);
+
+    [EngineRoutine(0x00413a60)]
+    private static bool GetHasKeyframes(in WeaponRecord weapon)
+    {
+        for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
+        {
+            if (weapon.RedKeys[key] != 0 || weapon.GreenKeys[key] != 0 || weapon.BlueKeys[key] != 0 || weapon.AlphaKeys[key] != 0 ||
+                !weapon.ScaleXKeys[key].IsNear(1) || !weapon.ScaleYKeys[key].IsNear(1) || !weapon.ScaleHeightKeys[key].IsNear(1) ||
+                !weapon.OffsetXKeys[key].IsZero() || !weapon.OffsetYKeys[key].IsZero())
+                return true;
+        }
+
+        return false;
+    }
 
     private static float ScaleRate(float rate, float scale) => rate.IsNear(Unlimited) ? rate : rate * scale;
 }

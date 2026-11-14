@@ -11,6 +11,7 @@ internal sealed class ObjectProgram
     private readonly UnitOrder[] _orders;
     private int _nextTick;
     private int _waitUntil;
+    private int _frame;
 
     public ObjectProgram(ObjectDefinition kind, Vector3 position, Facing facing, StackAction[] actions, Random random,
         GameWorld world,
@@ -61,7 +62,7 @@ internal sealed class ObjectProgram
 
             if (code == ActionCode.Move)
             {
-                orders.Add(new UnitOrder(new Vector2(action.Var1, action.Var2), null));
+                orders.Add(new UnitOrder(code, new Vector2(action.Var1, action.Var2), null));
             }
         }
 
@@ -70,6 +71,7 @@ internal sealed class ObjectProgram
         return orders.ToArray();
     }
 
+    [EngineRoutine(0x00440110)]
     public void Tick(Vector2 player, int time)
     {
         if (Finished || time < _nextTick)
@@ -79,6 +81,11 @@ internal sealed class ObjectProgram
 
         int interval = Kind.GetVisualFrameDuration(SpriteAnimation.Stand);
         _nextTick = time - time % interval + interval;
+
+        if (++_frame < Math.Max(1, Kind.Object.FrameCounts[(int)SpriteAnimation.Stand]) && !Kind.Object.Flags.HasFlag(ObjectFlags.ActsEveryFrame))
+            return;
+
+        _frame = 0;
 
         if (time < _waitUntil)
         {
@@ -125,7 +132,7 @@ internal sealed class ObjectProgram
                 }
                 else
                 {
-                    _world.BuildFromProgram(this, action, testsPlacement: false);
+                    _world.BuildFromProgram(this, action, testPlacement: false);
                 }
                 break;
             case ActionCode.DestroyUnit:

@@ -30,7 +30,8 @@ internal sealed class UnitCollision
 
     public bool IsBlocked(Unit unit, Vector3 position) => FindCollision(unit, position, out _);
 
-    public bool Move(Unit unit, Vector3 position, int depth = 0)
+    [EngineRoutine(0x00443c40)]
+    public bool Move(Unit unit, Vector3 position, int depth = 0, bool commit = true)
     {
         var start = unit.Position;
         bool blocked = FindCollision(unit, position, out var other);
@@ -42,10 +43,7 @@ internal sealed class UnitCollision
                 var pushed = other.Position + position - start;
                 bool opposite = unit.Kind.CanBePushed && other.Facing.MeasureTurnTo(unit.Facing.Opposite) < OppositeFacingTolerance;
 
-                if (!opposite || unit.Facing.Value < Facing.HalfTurn)
-                {
-                    Move(other, pushed with { Z = other.Position.Z }, depth + 1);
-                }
+                Move(other, pushed with { Z = other.Position.Z }, depth + 1, !opposite || unit.Facing.Value < Facing.HalfTurn);
             }
 
             var alongY = position with { X = start.X };
@@ -69,6 +67,9 @@ internal sealed class UnitCollision
                 }
             }
         }
+
+        if (!commit)
+            return true;
 
         unit.Position = unit.Kind.Object.Flags.HasFlag(ObjectFlags.FollowsTerrain)
             ? position with { Z = _map.GetSupportHeight(unit.Kind.Object, position.AsVector2()) } : position;
@@ -95,7 +96,7 @@ internal sealed class UnitCollision
         var volume = unit.Kind.GetCollisionVolume(position);
         foreach (var other in _units.GetNear(position.AsVector2() - reach, position.AsVector2() + reach))
         {
-            if (other != unit && other.IsAlive && volume.Overlaps(other.CollisionVolume))
+            if (other != unit && other.Animation < SpriteAnimation.Death && volume.Overlaps(other.CollisionVolume))
             {
                 collision = other;
 

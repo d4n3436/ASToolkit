@@ -133,7 +133,7 @@ internal sealed class SpawnedObjectSystem
         }
 
         var unit = _pool.Get();
-        unit.Initialize(-1, kind, position, parent?.Army ?? 0, kind.MaxHp);
+        unit.Initialize(-1, kind, position, parent?.Army ?? _kinds.GetArmy(kind), kind.MaxHp);
         unit.CreatedAt = time;
         unit.Depth = depth;
         unit.Owner = owner;
@@ -154,6 +154,7 @@ internal sealed class SpawnedObjectSystem
         }
 
         CreateLink(unit, time, depth);
+        _world.RunCreationHook(unit);
 
         if (IsSettled(unit))
         {
@@ -516,12 +517,12 @@ internal sealed class SpawnedObjectSystem
     private static bool HitsGoal(Unit unit, Vector3 goal, Unit? target, float previousHeight)
     {
         var half = unit.Kind.Half;
-        var goalHalf = target?.Kind.Half ?? Vector2.Zero;
+        var goalHalf = target?.Kind.Half ?? PlayerMovement.TargetHalf;
         var offset = Vector2.Abs(unit.Position.AsVector2() - goal.AsVector2());
 
         if (unit is { ReachedX: true, ReachedY: true } || offset.X < half.X + goalHalf.X && offset.Y < half.Y + goalHalf.Y)
         {
-            float goalHeight = target?.Kind.Object.Size.Z ?? 0;
+            float goalHeight = target?.Kind.Object.Size.Z ?? PlayerMovement.TargetHeight;
             float z = unit.Position.Z;
 
             if (goal.Z <= unit.Kind.Object.Size.Z + z && z <= goal.Z + goalHeight ||
@@ -585,5 +586,5 @@ internal sealed class SpawnedObjectSystem
     }
 
     public static EffectState GetState(Unit unit) =>
-        new(unit.Kind.Id, unit.Position, unit.Facing.Value, unit.Animation, unit.CreatedAt, unit.Frame);
+        new(unit.Kind.Id, unit.Position, unit.Facing.Value, unit.Animation, unit.CreatedAt, unit.Frame, unit.KeyframePosition);
 }

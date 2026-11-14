@@ -25,9 +25,9 @@ internal sealed class ObjectCatalog
             if (id <= 0 || !objects.TryFind(id, out var obj))
                 continue;
 
-            objects.TryGetWeapon(obj, out var weapon, out var behavior);
+            objects.TryGetWeapon(obj, out var weapon);
             var file = _parts.GetFile(objects.GetPath(id));
-            _kinds[(int)id] = new ObjectDefinition(id, obj, weapon, file?.Speed ?? 0, behavior, file?.FrameCount ?? 0,
+            _kinds[(int)id] = new ObjectDefinition(id, obj, weapon, file?.Speed ?? 0, file?.FrameCount ?? 0,
                 (int)GetLayer(id, obj, file));
         }
     }
@@ -50,64 +50,9 @@ internal sealed class ObjectCatalog
 
     [EngineRoutine(0x00411b50)]
     [EngineRoutine(0x00415e90)]
-    private static ObjectLayer GetLayer(KnownObject id, in GameObject obj, VidResource? sprite)
-    {
-        var file = sprite?.Flags ?? VidFlags.None;
-
-        if (file.HasFlag(VidFlags.SurfaceLayer))
-            return ObjectLayer.Surface;
-
-        if (file.HasFlag(VidFlags.OmniLight))
-            return ObjectLayer.OmniLight;
-
-        if (file.HasFlag(VidFlags.Surface))
-            return GetSurfaceLayer(id, obj, file, sprite!.Value.SurfaceCount);
-
-        if (obj.SpriteClass == SpriteClass.Scenery)
-            return file.HasFlag(VidFlags.Blended) ? ObjectLayer.BlendedScenery : ObjectLayer.Scenery;
-
-        if (obj.Flags.HasFlag(ObjectFlags.GroundDecal))
-            return ObjectLayer.GroundDecal;
-
-        if (obj.Flags.HasFlag(ObjectFlags.Raised))
-            return ObjectLayer.Raised;
-
-        if (file.HasFlag(VidFlags.Blended))
-            return ObjectLayer.BlendedObject;
-
-        return (obj.Flags & (ObjectFlags.Outline | ObjectFlags.Solid)) == 0 ? ObjectLayer.Object : ObjectLayer.SolidObject;
-    }
-
     [EngineRoutine(0x0041a730)]
     [EngineRoutine(0x0041b880)]
-    private static ObjectLayer GetSurfaceLayer(KnownObject id, in GameObject obj, VidFlags file, int surfaces)
-    {
-        bool blended = file.HasFlag(VidFlags.Blended);
-        bool depth = file.HasFlag(VidFlags.Depth);
-
-        if (obj.Flags.HasFlag(ObjectFlags.GroundDecal))
-            return ObjectLayer.SurfaceDecal;
-
-        if (obj.SpriteType == SpriteType.Railway)
-            return ObjectLayer.RailwaySurface;
-
-        if (blended && depth)
-            return ObjectLayer.BlendedSurface;
-
-        if (surfaces == 0)
-            return ObjectLayer.EmptySurface;
-
-        if (depth)
-            return ObjectLayer.DepthSurface;
-
-        if (id == KnownObject.Cursor)
-            return ObjectLayer.Cursor;
-
-        if (blended)
-            return obj.Flags.HasFlag(ObjectFlags.Bobbing) ? ObjectLayer.BobbingSurface : ObjectLayer.BlendedSurface;
-
-        return ObjectLayer.Surface;
-    }
+    private static ObjectLayer GetLayer(KnownObject id, in GameObject obj, VidResource? sprite) => obj.GetLayer(id, sprite);
 
     public MonsterLootCatalog Loot { get; }
 
@@ -120,4 +65,8 @@ internal sealed class ObjectCatalog
     public float HeavyGravity => _objects.HeavyGravity * ObjectDefinition.PerMillisecondSquared;
 
     public ObjectDefinition? Find(KnownObject id) => (uint)id < (uint)_kinds.Length ? _kinds[(int)id] : null;
+
+    [EngineRoutine(0x0043f200)]
+    public int GetArmy(ObjectDefinition kind) =>
+        kind.Object.WeaponIndex == 0 && kind.Object.Link != 0 ? Find(kind.Object.Link)?.Army ?? kind.Army : kind.Army;
 }

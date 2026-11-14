@@ -39,18 +39,22 @@ internal sealed class UnitGrid
 
     public void Remove(Unit unit)
     {
+        if (unit.Slot < 0)
+            return;
+
         var bucket = _buckets[unit.Bucket];
         var last = bucket[^1];
         bucket[unit.Slot] = last;
         last.Slot = unit.Slot;
         bucket.RemoveAt(bucket.Count - 1);
+        unit.Slot = -1;
     }
 
     public void Move(Unit unit)
     {
         MaxHalf = Vector2.Max(MaxHalf, unit.Kind.Half);
 
-        if (GetBucket(unit.Position.AsVector2()) == unit.Bucket)
+        if (unit.Slot < 0 || GetBucket(unit.Position.AsVector2()) == unit.Bucket)
         {
             return;
         }

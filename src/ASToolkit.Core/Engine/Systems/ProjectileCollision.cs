@@ -77,7 +77,7 @@ internal sealed class ProjectileCollision
     }
 
     [EngineRoutine(0x0042db40)]
-    private bool TraceInstant(ObjectDefinition kind, bool testsUnits, Vector3 from, Vector3 to, out Vector3 impact)
+    private bool TraceInstant(ObjectDefinition kind, bool testUnits, Vector3 from, Vector3 to, out Vector3 impact)
     {
         int x = (int)from.X;
         int y = (int)from.Y;
@@ -102,7 +102,7 @@ internal sealed class ProjectileCollision
                 z += heightStep;
                 var point = new Vector3(x, y, z);
 
-                if (IsBlocked(kind, point, true, testsUnits))
+                if (IsBlocked(kind, point, true, testUnits))
                 {
                     impact = point;
 
@@ -138,14 +138,14 @@ internal sealed class ProjectileCollision
         return false;
     }
 
-    private bool IsBlocked(ObjectDefinition kind, Vector3 point, bool instant, bool testsUnits)
+    private bool IsBlocked(ObjectDefinition kind, Vector3 point, bool instant, bool testUnits)
     {
         if (instant ? _map.BlocksInstantProjectile(kind.Object, point) : !_map.CanStand(kind.Object, point))
         {
             return true;
         }
 
-        if (!testsUnits)
+        if (!testUnits)
         {
             return false;
         }

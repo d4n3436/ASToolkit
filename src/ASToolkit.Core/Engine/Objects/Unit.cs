@@ -7,10 +7,15 @@ namespace ASToolkit.Core.Engine;
 internal sealed class Unit
 {
     private const int ReloadTimerOffset = 5000;
+    private const int AmmoScale = 64;
+    private const float VelocityScale = 1e6f;
+    private const int SpawnScatter = 8;
     private const float ReachTolerance = 0.5f;
     private bool _secondChildPulse;
     private Facing _facing;
+    private int _createdAt;
     private Unit? _owner;
+    private Unit? _link;
     private Unit? _goal;
     private Unit? _shooter;
 
@@ -77,11 +82,38 @@ internal sealed class Unit
 
     public int LastTickTime { get; set; }
 
-    public int CreatedAt { get; set; }
+    public int CreatedAt
+    {
+        get => _createdAt;
+        set
+        {
+            _createdAt = value;
+            KeyframeStart = value;
+            KeyframePosition = 0;
+        }
+    }
+
+    public int KeyframeStart { get; set; }
+
+    public float KeyframePosition { get; set; }
 
     public int Lifetime { get; set; }
 
     public int Timer { get; set; }
+
+    public int Ammo { get; private set; }
+
+    public int Rounds => Ammo / AmmoScale;
+
+    public int HpBeforeDeath { get; set; }
+
+    public WeaponBehavior Behavior { get; set; }
+
+    public int StreamPeriod { get; set; }
+
+    public bool AcquiresTargets => Behavior.HasFlag(WeaponBehavior.AcquiresTargets);
+
+    public bool PursuesTargets => Behavior.HasFlag(WeaponBehavior.PursuesTargets);
 
     public float VerticalSpeed { get; set; }
 
@@ -96,6 +128,8 @@ internal sealed class Unit
     public Unit? Owner { get => _owner; set => _owner = MarkReferenced(value); }
 
     public Vector3 OwnerOffset { get; set; }
+
+    public Unit? Link { get => _link; set => _link = MarkReferenced(value); }
 
     public int Depth { get; set; }
 
@@ -123,12 +157,15 @@ internal sealed class Unit
     public void Initialize(int number, ObjectDefinition kind, Vector3 position, int army, int hp, Facing facing = default)
     {
         _secondChildPulse = false;
+        StreamPeriod = 1;
         _facing = facing;
         _owner = null;
+        _link = null;
         _goal = null;
         _shooter = null;
         Number = number;
         Kind = kind;
+        Behavior = kind.Behavior;
         Army = army;
         Placement = null;
         Position = position;
@@ -142,7 +179,7 @@ internal sealed class Unit
         Hp = hp;
         DropItem = 0;
         Bucket = -1;
-        Slot = 0;
+        Slot = -1;
         Orders = [];
         OrderStep = 0;
         DiedAt = -1;
@@ -154,6 +191,7 @@ internal sealed class Unit
         CreatedAt = -1;
         Lifetime = kind.Object.Lifetime;
         Timer = 0;
+        Ammo = GetAmmoCapacity() * AmmoScale;
         VerticalSpeed = 0;
         MaxSpeed = kind.Speed;
         GoalPoint = null;
@@ -174,8 +212,16 @@ internal sealed class Unit
     }
 
     [EngineRoutine(0x0043f200)]
+    [EngineRoutine(0x0043f200)]
     public void Start(SpriteAnimation state, Facing facing, int time, Random random)
     {
+        if (Kind.Object.Flags.HasFlag(ObjectFlags.OrientedBox))
+        {
+            float x = Position.X + SpawnScatter - random.Next() % (SpawnScatter * 2 + 1);
+            float y = Position.Y + SpawnScatter - random.Next() % (SpawnScatter * 2 + 1);
+            Position = Position with { X = x, Y = y };
+        }
+
         var layout = Kind.Layout;
         bool firstFrame = Kind.Object.Flags.HasFlag(ObjectFlags.StartsOnFirstFrame);
         LastTickTime = time - (firstFrame ? 0 : random.Next(Kind.SpriteSpeed + 1));
@@ -195,11 +241,20 @@ internal sealed class Unit
     [EngineRoutine(0x00442ee0)]
     public void SetState(SpriteAnimation state)
     {
+        var link = _link;
+
+        if (link is not null && link.Kind.Id == Kind.Object.Link && state >= SpriteAnimation.Death)
+        {
+            link.SetState(state);
+        }
+
         if (Animation == state)
             return;
 
         var layout = Kind.Layout;
-        FirstFrame = layout.GetFirstFrame(state) + layout.GetDirectionIndex(_facing) * layout.GetFramesPerDirection(state);
+        var facing = GetShownFacing(_facing);
+
+        FirstFrame = layout.GetFirstFrame(state) + layout.GetDirectionIndex(facing) * layout.GetFramesPerDirection(state);
         Frame = FirstFrame;
         Animation = state;
         LastFrame = state > SpriteAnimation.Unload && layout.GetFrameCount(state) == 0
@@ -209,20 +264,40 @@ internal sealed class Unit
     [EngineRoutine(0x00442be0)]
     public void SetFacing(Facing facing)
     {
-        if (_facing == facing)
+        var shown = GetShownFacing(facing);
+
+        if (_facing == shown)
             return;
+
+        var link = _link;
+
+        if (link is not null && link.Kind.Id == Kind.Object.Link && link.Kind.Object.TurnPeriod.IsZero())
+        {
+            link.SetFacing(facing);
+        }
 
         var layout = Kind.Layout;
 
         if (layout.Directions != 1)
         {
             int offset = Frame - FirstFrame;
-            FirstFrame = layout.GetFirstFrame(Animation) + layout.GetDirectionIndex(facing) * layout.GetFramesPerDirection(Animation);
+            FirstFrame = layout.GetFirstFrame(Animation) + layout.GetDirectionIndex(shown) * layout.GetFramesPerDirection(Animation);
             LastFrame = FirstFrame + layout.GetFramesPerDirection(Animation) - 1;
             Frame = FirstFrame + offset;
         }
 
         _facing = facing;
+    }
+
+    // Pick the frames of a falling motion-tracking object by its screen velocity
+    private Facing GetShownFacing(Facing facing)
+    {
+        if (VerticalSpeed.IsZero() || !Kind.Object.Flags.HasFlag(ObjectFlags.TracksMotion))
+            return facing;
+
+        var direction = facing.Direction;
+
+        return Facing.FromOffset(new Vector2(direction.X * Speed * VelocityScale, -(direction.Y * Speed + VerticalSpeed) * VelocityScale));
     }
 
     public void UpdateReach(Vector3 from, Vector3 next, Vector2 goal)
@@ -256,9 +331,46 @@ internal sealed class Unit
         }
     }
 
+    public Unit? ArmedLink
+    {
+        get
+        {
+            var link = Link;
+            return link is not null && link.Kind.Id == Kind.Object.Link && link.Kind.Object.WeaponIndex != 0 ? link : null;
+        }
+    }
+
+    [EngineRoutine(0x0043a200)]
+    private int GetAmmoCapacity() => (ArmedLink?.Kind ?? Kind).AmmoCapacity;
+
+    [EngineRoutine(0x00447500)]
+    public void AddAmmo(int amount)
+    {
+        if (GetAmmoCapacity() == ObjectDefinition.Unlimited)
+        {
+            Ammo = ObjectDefinition.Unlimited * AmmoScale;
+
+            return;
+        }
+
+        Ammo = Math.Max(0, Ammo + amount * AmmoScale);
+    }
+
     [EngineRoutine(0x004460b0)]
     public AttackResult TryAttack(int elapsed, PlayerInventory? ammo = null, int slot = 0)
     {
+        var link = ArmedLink;
+
+        if (link is not null)
+        {
+            var result = link.TryAttack(elapsed);
+
+            if (result != AttackResult.NoTarget)
+                return result;
+
+            return HasGoal ? AttackResult.NoOrder : AttackResult.NoTarget;
+        }
+
         if (!Kind.IsArmed || Kind.FightChild == 0)
             return AttackResult.Unarmed;
 
@@ -272,7 +384,7 @@ internal sealed class Unit
             return AttackResult.Busy;
         }
 
-        if (Command is not (UnitCommand.Attack or UnitCommand.Engage))
+        if (Command is not (UnitCommand.Attack or UnitCommand.OneAttack or UnitCommand.DistAttack))
             return AttackResult.NoOrder;
 
         float distance = Position.AsVector2().MeasureDistance(GoalPosition.AsVector2());
@@ -285,6 +397,16 @@ internal sealed class Unit
 
             if (ammo is not null && !ammo.TrySpendAmmo(slot))
                 return AttackResult.NoAmmo;
+
+            int cost = Math.Abs(Kind.Object.ChildCounts[(int)SpriteAnimation.Fight]);
+
+            if (ammo is null)
+            {
+                if (Rounds < cost)
+                    return AttackResult.NoAmmo;
+
+                AddAmmo(-cost);
+            }
 
             SetState(SpriteAnimation.Fight);
             Timer = Kind.ReloadTime + ReloadTimerOffset;
@@ -323,7 +445,7 @@ internal sealed class Unit
     }
 
     public UnitState GetState() =>
-        new(Number, Kind.Id, Position, Facing.Value, Animation, DiedAt, Frame);
+        new(Number, Kind.Id, Position, Facing.Value, Animation, DiedAt, Frame, Keyframe: KeyframePosition);
 
     public Facing TurnWhileMoving(Facing goal, int elapsed)
     {

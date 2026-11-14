@@ -6,6 +6,7 @@ internal sealed class PlayerMovement
 {
     // Half size of the engine's default move-target object
     public static readonly Vector2 TargetHalf = new(12, 8);
+    public const float TargetHeight = 20;
 
     private readonly UnitCollision _movement;
     private Vector2? _target;

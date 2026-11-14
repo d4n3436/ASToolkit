@@ -188,13 +188,13 @@ internal sealed class MovementMap
         Version++;
     }
 
-    public void CollectGates(bool doors, bool fences, List<GameWorld.TerrainChange> gates)
+    public void CollectGates(bool includeDoors, bool includeFences, List<GameWorld.TerrainChange> gates)
     {
         foreach (var obstacles in _placedObstacles.Values)
         {
             foreach (var obstacle in obstacles)
             {
-                if (obstacle.IsGate && (obstacle.IsFence ? fences : doors))
+                if (obstacle.IsGate && (obstacle.IsFence ? includeFences : includeDoors))
                 {
                     gates.Add(new GameWorld.TerrainChange(obstacle.Position.AsVector2(), obstacle.Half));
                 }
@@ -215,18 +215,18 @@ internal sealed class MovementMap
 
     [EngineRoutine(0x00411300)]
     [EngineRoutine(0x00411260)]
-    public void Raise(float x, float y, float height, bool scenery = false, MergedMapSprite? source = null)
+    public void Raise(float x, float y, float height, bool isScenery = false, MergedMapSprite? source = null)
     {
         if (x < 0 || x >= _mapSize.Width || y < 0 || y >= _mapSize.Height)
             return;
 
         int index = (int)x / CellSize + (int)(y * CellScale) * _columns;
         short value = (short)(int)height;
-        short[] grid = scenery ? _sceneryHeights : _objectHeights;
+        short[] grid = isScenery ? _sceneryHeights : _objectHeights;
 
         if (grid[index] < value)
         {
-            (scenery ? grid : GetWritableObjectHeights())[index] = value;
+            (isScenery ? grid : GetWritableObjectHeights())[index] = value;
         }
 
         if (source is null)
@@ -360,9 +360,9 @@ internal sealed class MovementMap
 
     private static float ClampToMap(float value, float size) => value < 0 ? 0 : value >= size ? size - 1 : value;
 
-    public bool CanStand(in GameObject walker, Vector3 point, bool anticipatesDoors = false) =>
+    public bool CanStand(in GameObject walker, Vector3 point, bool anticipateDoors = false) =>
         CanStandOnTerrain(walker, point) &&
-        FindObstacle(walker, point, anticipatesDoors) is null;
+        FindObstacle(walker, point, anticipateDoors) is null;
 
     private bool CanStandOnTerrain(in GameObject walker, Vector3 point) => CanStandOnTerrain(walker, point, out _);
 
@@ -418,7 +418,7 @@ internal sealed class MovementMap
     public bool CanSpawn(in GameObject obj, Vector3 point) => point.Z >= GetSupportHeight(obj, point.AsVector2()) &&
         FindObstacle(obj, point) is null;
 
-    private Obstacle? FindObstacle(in GameObject walker, Vector3 point, bool anticipatesDoors = false)
+    private Obstacle? FindObstacle(in GameObject walker, Vector3 point, bool anticipateDoors = false)
     {
         var half = walker.Size.AsVector2() / 2;
         for (int y = GetBucket(point.Y - half.Y); y <= GetBucket(point.Y + half.Y); y++)
@@ -426,8 +426,8 @@ internal sealed class MovementMap
         {
             foreach (var obstacle in FindBucket(x, y))
             {
-                if (obstacle.Active && (!obstacle.IsGate || (obstacle.IsFence ? FencesUp : !anticipatesDoors || DoorsLocked)) &&
-                    GetCollisionVolume(walker, point).Overlaps(obstacle.GetCollisionVolume(anticipatesDoors && obstacle is { IsGate: true, IsFence: false })))
+                if (obstacle.Active && (!obstacle.IsGate || (obstacle.IsFence ? FencesUp : !anticipateDoors || DoorsLocked)) &&
+                    GetCollisionVolume(walker, point).Overlaps(obstacle.GetCollisionVolume(anticipateDoors && obstacle is { IsGate: true, IsFence: false })))
                 {
                     return obstacle;
                 }
@@ -437,7 +437,7 @@ internal sealed class MovementMap
         return null;
     }
 
-    public bool CanMove(in GameObject walker, Vector3 from, Vector2 to, bool anticipatesDoors = false)
+    public bool CanMove(in GameObject walker, Vector3 from, Vector2 to, bool anticipateDoors = false)
     {
         int steps = Math.Max(1, (int)MathF.Ceiling(Vector2.Distance(from.AsVector2(), to) / SweepStep));
         var point = from;
@@ -447,7 +447,7 @@ internal sealed class MovementMap
         {
             point = new Vector3(start + delta * (step / (float)steps), point.Z);
 
-            if (!CanStandOnTerrain(walker, point, out float ground) || FindObstacle(walker, point, anticipatesDoors) is not null)
+            if (!CanStandOnTerrain(walker, point, out float ground) || FindObstacle(walker, point, anticipateDoors) is not null)
             {
                 return false;
             }
