@@ -500,6 +500,11 @@ internal sealed partial class GameWorld
 
         UnitKinematics.ForgetObject(Weapons.Torso, removed);
         Effects.Forget(removed);
+
+        if (removed.Link?.Owner == removed && removed.Link.Number < 0)
+        {
+            Effects.Detach(removed);
+        }
     }
 
     [EngineRoutine(0x00440110)]
@@ -777,7 +782,18 @@ internal sealed partial class GameWorld
                 return;
             }
 
+            if (damage <= 0)
+                return;
+
+            int previous = unit.Hp;
             unit.Hp -= damage;
+
+            if (unit.IsAlive && previous > unit.Kind.MaxHp / 2 && unit.Hp <= unit.Kind.MaxHp / 2)
+            {
+                unit.SetState(SpriteAnimation.Wound);
+            }
+
+            EmitChildrenAs(unit, SpriteAnimation.Close);
             PlayerHurt?.Invoke(unit.Hp);
 
             return;
@@ -1016,8 +1032,15 @@ internal sealed partial class GameWorld
     {
         var kind = unit.Kind.Object.Link == 0 ? null : Kinds.Find(unit.Kind.Object.Link);
 
-        if (kind is null || kind.Object.WeaponIndex == 0)
+        if (kind is null)
             return;
+
+        if (kind.Object.WeaponIndex == 0)
+        {
+            Effects.Attach(unit, kind, Time);
+
+            return;
+        }
 
         var link = new Unit(_unitCount++, kind, GetLinkPosition(unit, kind), unit.Army, kind.MaxHp) { Owner = unit, CreatedAt = Time };
         link.Start(kind.InitialAnimation, unit.Facing, Time, _rng);

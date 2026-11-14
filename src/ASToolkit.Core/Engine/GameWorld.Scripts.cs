@@ -888,6 +888,11 @@ internal sealed partial class GameWorld
                 unit.Hp = unit.HpBeforeDeath;
             }
 
+            if (unit.Link?.Number < 0)
+            {
+                Effects.Detach(unit);
+            }
+
             unit.Link = null;
             unit.ChangeKind(frozen);
             Units.Move(unit);

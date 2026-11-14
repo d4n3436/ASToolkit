@@ -51,11 +51,35 @@ internal sealed class SpawnedObjectSystem
     {
         foreach (var unit in _active)
         {
-            states.Add(GetState(unit));
+            if (!IsLink(unit))
+            {
+                states.Add(GetState(unit));
+            }
         }
     }
 
-    public EffectState[] GetStates() => _active.Select(GetState).ToArray();
+    public EffectState[] GetStates() => _active.Where(unit => !IsLink(unit)).Select(GetState).ToArray();
+
+    private static bool IsLink(Unit unit) => unit.Owner is not null && unit.Owner.Link == unit;
+
+    [EngineRoutine(0x00445770)]
+    public void Attach(Unit owner, ObjectDefinition kind, int time)
+    {
+        var position = owner.Position + owner.Kind.Object.GetLinkOffset(kind.Object, null, 0, owner.Facing.Value);
+        owner.Link = Create(kind, position, owner.Facing, time, 0, owner, owner);
+    }
+
+    public void Detach(Unit owner)
+    {
+        var link = owner.Link;
+
+        if (link is not null && link.Owner == owner && _active.Contains(link))
+        {
+            _orphans.Add(link);
+        }
+
+        owner.Link = null;
+    }
 
     public Unit? Spawn(KnownObject id, Vector3 position, Facing facing, int time, Unit? owner = null, int? lifetime = null)
     {
@@ -159,6 +183,7 @@ internal sealed class SpawnedObjectSystem
 
         if (IsSettled(unit))
         {
+            Detach(unit);
             _events?.RecordScenery(GetState(unit));
 
             return unit;
@@ -178,7 +203,7 @@ internal sealed class SpawnedObjectSystem
 
         if (link is not null)
         {
-            Create(link, unit.Position + obj.GetLinkOffset(link.Object, null, 0, unit.Facing.Value), unit.Facing, time, depth + 1, unit, unit);
+            unit.Link = Create(link, unit.Position + obj.GetLinkOffset(link.Object, null, 0, unit.Facing.Value), unit.Facing, time, depth + 1, unit, unit);
         }
     }
 
@@ -259,6 +284,11 @@ internal sealed class SpawnedObjectSystem
         unit.LeavesEffects = true;
         _leaving.Add(unit);
 
+        if (IsLink(unit))
+        {
+            unit.Owner!.Link = null;
+        }
+
         if (unit.Kind.Object.Link != 0)
         {
             foreach (var other in _active)
@@ -280,7 +310,11 @@ internal sealed class SpawnedObjectSystem
             if (_orphans.Remove(unit))
                 return false;
 
-            unit.Position = unit.Owner.Position + unit.OwnerOffset;
+            var owner = unit.Owner;
+            unit.Position = owner.Link == unit
+                ? owner.Position + owner.Kind.Object.GetLinkOffset(unit.Kind.Object, null, 0, owner.Facing.Value)
+                : owner.Position + unit.OwnerOffset;
+            
             unit.SetFacing(unit.Owner.Facing);
 
             if (unit.Kind.Object.SpriteClass == SpriteClass.Cannon && unit.Kind.Object.Flags.HasFlag(ObjectFlags.Projectile) &&

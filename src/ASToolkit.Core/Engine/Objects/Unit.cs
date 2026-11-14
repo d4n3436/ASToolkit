@@ -245,7 +245,8 @@ internal sealed class Unit
     {
         var link = _link;
 
-        if (link is not null && link.Kind.Id == Kind.Object.Link && state >= SpriteAnimation.Death)
+        if (link is not null && link.Kind.Id == Kind.Object.Link && (state >= SpriteAnimation.Death || link.Kind.Object.WeaponIndex == 0 &&
+            !link.Kind.Object.Flags.HasFlag(ObjectFlags.Windblown) && link.Animation is not SpriteAnimation.Fight and < SpriteAnimation.Death))
         {
             link.SetState(state);
         }
@@ -377,7 +378,11 @@ internal sealed class Unit
             return AttackResult.Unarmed;
 
         if (!HasGoal)
+        {
+            FaceOwner(elapsed, Timer == 0);
+
             return AttackResult.NoTarget;
+        }
 
         if (IsReloading)
         {
@@ -387,10 +392,20 @@ internal sealed class Unit
         }
 
         if (Command is not (UnitCommand.Attack or UnitCommand.OneAttack or UnitCommand.DistAttack))
+        {
+            FaceOwner(elapsed, Timer == 0);
+
             return AttackResult.NoOrder;
+        }
 
         float distance = Position.AsVector2().MeasureDistance(GoalPosition.AsVector2());
-        bool aimed = Aim(elapsed) == 0 || Kind.AttacksWhileTurning;
+        bool inRange = Owner is null || Command == UnitCommand.DistAttack || distance < Kind.BattleRange && distance > Kind.MinRange;
+        bool aimed = inRange && (Aim(elapsed) == 0 || Kind.AttacksWhileTurning);
+
+        if (!inRange)
+        {
+            FaceOwner(elapsed, true);
+        }
 
         if (distance <= Kind.BattleRange)
         {
@@ -420,6 +435,14 @@ internal sealed class Unit
             return AttackResult.Approach;
 
         return distance < Kind.DetectRange * 2 ? AttackResult.Pursue : AttackResult.GiveUp;
+    }
+
+    private void FaceOwner(int elapsed, bool idle)
+    {
+        if (Owner is not null && idle)
+        {
+            SetFacing(Facing.TurnToward(Owner.Facing, Kind.Object.TurnPeriod, elapsed, out _));
+        }
     }
 
     public bool IsReloading => Timer > ReloadTimerOffset || Animation == SpriteAnimation.Fight && Frame <= LastFrame;
