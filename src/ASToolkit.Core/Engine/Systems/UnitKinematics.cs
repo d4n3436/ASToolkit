@@ -79,6 +79,25 @@ internal sealed class UnitKinematics
         ForgetObject(cannon, removed);
     }
 
+    [EngineRoutine(0x004447b0)]
+    public void SetMoveTarget(Unit unit, Unit? target, Vector3? point)
+    {
+        if (!SetCommand(unit, UnitCommand.Move, target, point) && !StartMove(unit))
+        {
+            SetCommand(unit, UnitCommand.None);
+
+            return;
+        }
+
+        var link = unit.Link;
+
+        if (link is not null && link.Kind == unit.Kind.LinkKind && link.Kind.FightChild != 0 && link.Kind.Object.WeaponIndex != 0 &&
+            link.Command is not (UnitCommand.None or UnitCommand.OneAttack))
+        {
+            SetCommand(link, UnitCommand.None);
+        }
+    }
+
     [EngineRoutine(0x004443f0)]
     public bool StartMove(Unit unit)
     {

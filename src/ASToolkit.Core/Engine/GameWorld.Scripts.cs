@@ -8,8 +8,23 @@ namespace ASToolkit.Core.Engine;
 
 internal sealed partial class GameWorld
 {
+    private static readonly (InputFlags Raw, ScriptInput Script)[] InputStateBits =
+    [
+        (InputFlags.LeftClick, ScriptInput.LeftClick),
+        (InputFlags.RightClick, ScriptInput.RightClick),
+        (InputFlags.LeftDown, ScriptInput.LeftDown),
+        (InputFlags.RightDown, ScriptInput.RightDown),
+        (InputFlags.Shift, ScriptInput.Shift),
+        (InputFlags.Ctrl, ScriptInput.Ctrl),
+        (InputFlags.Left, ScriptInput.Left),
+        (InputFlags.Right, ScriptInput.Right),
+        (InputFlags.Up, ScriptInput.Up),
+        (InputFlags.Down, ScriptInput.Down),
+        (InputFlags.First, ScriptInput.First),
+        (InputFlags.Second, ScriptInput.Second)
+    ];
+
     private const int SecondWindow = 1023;
-    private const int LoadedClock = 10;
     private const int SwitchReach = 40;
     private const int MountReach = 70;
     private const int MannedHealthScale = 30;
@@ -365,7 +380,7 @@ internal sealed partial class GameWorld
 
     [ScriptFunction("GetTime")]
     [EngineRoutine(0x00435690)]
-    private int GetTime() => Time + LoadedClock + FrameTime;
+    private int GetTime() => Time + FrameTime;
 
     [ScriptFunction("CompaignGameTact")]
     private void CheckVictory()
@@ -720,27 +735,40 @@ internal sealed partial class GameWorld
         _mountedAt = GetTime();
         Player.Position = cannon.Position;
         Player.Speed = 0;
-        PlayerMovement.Reset();
-        Player.ChangeKind(Kinds.Find(KnownObject.MannedCannon)!);
+        Action(Player, ActionCode.ChangeVid, (int)KnownObject.MannedCannon);
         Player.SetDirection(cannon.Direction);
         Player.Hp *= MannedHealthScale;
         Units.ChangeCoor(Player);
         cannon.ChangeAnimation(SpriteAnimation.Death);
     }
 
-    // Leaves the cannon on a move order a second after mounting
+    [ScriptFunction("GetInputState")]
+    private ScriptInput GetInputState()
+    {
+        var flags = Input.Flags;
+        var state = ScriptInput.None;
+        foreach (var (raw, script) in InputStateBits)
+        {
+            if ((flags & raw) != 0)
+            {
+                state |= script;
+            }
+        }
+
+        return state;
+    }
+
     private void TryDismount()
     {
-        if (!IsInCannon || !_movesPlayer || GetTime() - _mountedAt <= DismountDelay)
+        if (!IsInCannon || GetTime() - _mountedAt <= DismountDelay || (GetInputState() & (ScriptInput.Left | ScriptInput.Right | ScriptInput.Up | ScriptInput.Down | ScriptInput.Second)) == 0)
             return;
 
         CreateSprite(KnownObject.MountedCannon, Player.Position, Weapons.Torso.Direction);
         _mountedAt = -1;
-        Player.ChangeKind(Kinds.Find(KnownObject.PlayerStart)!);
+        Action(Player, ActionCode.ChangeVid, (int)KnownObject.PlayerStart);
         Player.Position += DismountStep;
         Player.Hp /= MannedHealthScale;
         Inventory.RestoreArmor();
-        PlayerMovement.Reset();
         Units.ChangeCoor(Player);
     }
 
@@ -754,7 +782,7 @@ internal sealed partial class GameWorld
         int ejectX = (int)(MathF.Sin(angle) * SineScale) / EjectDivisor;
         int ejectY = -(int)(MathF.Cos(angle) * SineScale) / EjectDivisor;
         Player.Position += new Vector3(ejectX, ejectY, 0);
-        Player.ChangeKind(Kinds.Find(KnownObject.PlayerStart)!);
+        Action(Player, ActionCode.ChangeVid, (int)KnownObject.PlayerStart);
         Inventory.RestoreArmor();
         Units.ChangeCoor(Player);
     }
@@ -904,15 +932,7 @@ internal sealed partial class GameWorld
                 unit.Hp = unit.HpBeforeDeath;
             }
 
-            if (unit.Link?.Number < 0)
-            {
-                Effects.Detach(unit);
-            }
-
-            unit.Link = null;
-            unit.ChangeKind(frozen);
-            Units.ChangeCoor(unit);
-            CreateLink(unit);
+            Action(unit, ActionCode.ChangeVid, (int)frozen.Id, (int)SpriteAnimation.Stand);
         }
 
         unit.Behavior = WeaponBehavior.None;
@@ -983,12 +1003,7 @@ internal sealed partial class GameWorld
             if (_rng.Next() % 2 != 0)
                 return;
             
-            var goal = Player.Position + Vector3.UnitZ * DroneFlyHeight;
-
-            if (!UnitKinematics.SetCommand(drone, UnitCommand.Move, point: goal))
-            {
-                Motion.StartMove(drone);
-            }
+            Action(drone, ActionCode.Move, (int)Player.Position.X, (int)Player.Position.Y, (int)(Player.Position.Z + DroneFlyHeight));
         }
         else
         {
@@ -1060,6 +1075,7 @@ internal sealed partial class GameWorld
         _environment |= environment;
     }
 
+    [EngineRoutine(0x00430870)]
     [EngineRoutine(0x00430870)]
     private void ShakeCamera()
     {

@@ -23,7 +23,6 @@ internal sealed class PlayerInventory
     private readonly Unit _player;
     private readonly Dictionary<KnownObject, int> _items;
     private readonly ObjectDefinition?[] _torsos = new ObjectDefinition?[WeaponSlots];
-    private readonly int[] _ammo = new int[WeaponSlots];
     private readonly bool[] _held = new bool[WeaponSlots];
     private PlayerImplants _implants;
     private int _maxHealth;
@@ -46,12 +45,14 @@ internal sealed class PlayerInventory
         }
 
         _held[Pistols] = true;
-        _ammo[Pistols] = ObjectDefinition.Unlimited;
-        foreach ((var weapon, int ammo) in loadout.Ammo)
+        foreach (var weapon in loadout.Ammo.Keys)
         {
-            int slot = (int)weapon - WeaponPickupBase;
-            _held[slot] = true;
-            _ammo[slot] = ammo;
+            _held[(int)weapon - WeaponPickupBase] = true;
+        }
+
+        for (int slot = 0; slot < WeaponSlots; slot++)
+        {
+            player.AddAmmo(loadout.Ammo.GetValueOrDefault((KnownObject)(WeaponPickupBase + slot)) - player.GetAmmo(slot), slot);
         }
 
         if (loadout.Armor != 0)
@@ -62,7 +63,15 @@ internal sealed class PlayerInventory
 
     public PlayerImplants Implants => _implants;
 
-    public float Speed { get; private set; }
+    public float Speed
+    {
+        get;
+        private set
+        {
+            field = value;
+            _player.MaxSpeed = value * ObjectDefinition.PerMillisecond;
+        }
+    }
 
     public void SetSpeedBoost(float boost) => Speed = _implants.ScaleSpeed(_player.Kind.Object.MaxSpeed) + boost;
 
@@ -131,7 +140,7 @@ internal sealed class PlayerInventory
         KnownObject.MegaHealth => _player.Hp < _maxHealth + MegaHealthBonus,
         >= KnownObject.GreenArmor and <= KnownObject.RedArmor => _armorHp < (_kinds.Find(id - ArmorObjectOffset)?.MaxHp ?? 0),
         >= KnownObject.LifeImplant and <= KnownObject.AccuracyImplant => IsWithinCap(GetImplanted(id)),
-        >= KnownObject.ShotgunAmmo and <= KnownObject.MagmaMinigunAmmo => _ammo[(int)id - AmmoPickupBase] < GetCapacity((int)id - AmmoPickupBase),
+        >= KnownObject.ShotgunAmmo and <= KnownObject.MagmaMinigunAmmo => _player.GetAmmo((int)id - AmmoPickupBase) < GetCapacity((int)id - AmmoPickupBase),
         KnownObject.Invulnerability or KnownObject.Dynamite or KnownObject.Money or >= KnownObject.Shotgun and <= KnownObject.MagmaMinigun => true,
         KnownObject.ExtraLife => _items.GetValueOrDefault(id) < MaxExtraLives,
         KnownObject.Medkit or KnownObject.Drone => _items.GetValueOrDefault(id) == 0,
@@ -170,7 +179,6 @@ internal sealed class PlayerInventory
                 _items[id] = 1;
                 break;
             case >= KnownObject.Shotgun and <= KnownObject.MagmaMinigun:
-                _held[(int)id - WeaponPickupBase] = true;
                 AddAmmo((int)id - WeaponPickupBase, _ammoBatches[(int)id - WeaponPickupBase] / 2);
                 break;
             default:
@@ -195,8 +203,22 @@ internal sealed class PlayerInventory
     [ScriptFunction("F243_0")]
     private int GetCapacity(int weapon) =>
         _torsos[weapon] is null ? 0 : weapon < FirstStrengthenedSlot ? _torsos[weapon]!.AmmoCapacity : _implants.ScaleAmmo(_torsos[weapon]!.AmmoCapacity);
+    
+    [ScriptFunction("AddAmmo")]
+    private bool AddAmmo(int weapon, int amount)
+    {
+        int capacity = GetCapacity(weapon);
+        int held = _player.GetAmmo(weapon);
 
-    private void AddAmmo(int weapon, int amount) => _ammo[weapon] = Math.Min(_torsos[weapon] is null ? amount : GetCapacity(weapon), _ammo[weapon] + amount);
+        if (held >= capacity)
+            return false;
+
+        _player.AddAmmo(held + amount <= capacity ? amount : capacity - _player.GetAmmo(weapon), weapon);
+
+        return true;
+    }
+
+    private int GetAmmo(int weapon) => weapon == _player.WeaponSlot ? _player.GetAmmo() : _player.SlotAmmo[weapon];
     
     public void StowArmor()
     {
@@ -228,7 +250,7 @@ internal sealed class PlayerInventory
         {
             if (_held[weapon])
             {
-                held[(KnownObject)(WeaponPickupBase + weapon)] = _ammo[weapon];
+                held[(KnownObject)(WeaponPickupBase + weapon)] = GetAmmo(weapon);
             }
         }
 
@@ -238,21 +260,17 @@ internal sealed class PlayerInventory
     public ObjectDefinition? GetWeapon(int slot) => (uint)slot < WeaponSlots ? _torsos[slot] : null;
 
     public bool HoldsWeapon(int slot) => (uint)slot < WeaponSlots && _held[slot];
+    
+    [EngineRoutine(0x00446810)]
+    public bool AddWeapon(int slot)
+    {
+        bool held = _held[slot];
+        _held[slot] = true;
+
+        return held;
+    }
 
     public static int GetAmmoSlot(KnownObject id) => id is >= KnownObject.ShotgunAmmo and <= KnownObject.MagmaMinigunAmmo ? (int)id - AmmoPickupBase : -1;
 
-    public bool TrySpendAmmo(int slot)
-    {
-        if (!HasAmmo(slot))
-            return false;
-
-        if (_ammo[slot] < ObjectDefinition.Unlimited)
-        {
-            _ammo[slot]--;
-        }
-
-        return true;
-    }
-
-    public bool HasAmmo(int slot) => (uint)slot < WeaponSlots && _held[slot] && _ammo[slot] > 0;
+    public bool HasAmmo(int slot) => (uint)slot < WeaponSlots && _held[slot] && GetAmmo(slot) > 0;
 }

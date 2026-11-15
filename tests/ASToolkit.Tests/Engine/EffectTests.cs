@@ -17,7 +17,7 @@ public class EffectTests
         var scenery = world.Effects.Settled;
         effects.Emit(kinds.Find(KnownObject.Monster1)!, SpriteAnimation.Close, new Vector3(100, 100, 0), new Angle(64), world.Time);
 
-        Assert.Contains(effects.Active, effect => effect is { Kind.Id: KnownObject.RedBloodSpray, CreatedAt: 0 });
+        Assert.Contains(effects.Active, effect => effect is { Kind.Id: KnownObject.RedBloodSpray, CreatedAt: GameClock.LevelStartTime });
         var stain = Assert.Single(scenery);
         Assert.Equal(KnownObject.SmallBloodPool, stain.Id);
         while (world.Time <= 2000)

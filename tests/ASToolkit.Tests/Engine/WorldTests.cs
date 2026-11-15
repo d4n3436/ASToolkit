@@ -63,7 +63,7 @@ public class WorldTests
         world.Damage(world.Player, 10000);
         Assert.True(world.Player.IsAlive);
 
-        while (world.Time <= RespawnProtection)
+        while (world.Time <= GameClock.LevelStartTime + RespawnProtection)
         {
             world.Step(default);
         }
@@ -119,14 +119,15 @@ public class WorldTests
             world.Step(command);
         }
 
-        Assert.True(world.PlayerMovement.HasReached(world.Player, destination));
+        Assert.NotEqual(UnitCommand.Move, world.Player.Command);
+        Assert.True(PlayerMovement.IsTouching(world.Player, destination));
         for (int tick = 0; tick < 50; tick++)
         {
             world.Step(default);
         }
 
         Assert.Equal(0, world.Player.Speed);
-        Assert.Equal(300 * GameClock.DefaultFrameTime, world.Time);
+        Assert.Equal(GameClock.LevelStartTime + 300 * GameClock.DefaultFrameTime, world.Time);
     }
 
     [Fact]

@@ -8,6 +8,9 @@ internal sealed class Unit
 {
     private const int ReloadTimerOffset = 5000;
     private const int AmmoScale = 64;
+    public const int WeaponKindBase = 10;
+    private const int MaxWeaponSlot = 9;
+    private int[]? _slotAmmo;
     private const float VelocityScale = 1e6f;
     private const int SpawnScatter = 8;
     private const float ReachTolerance = 0.5f;
@@ -106,6 +109,12 @@ internal sealed class Unit
 
     public int Rounds => Ammo / AmmoScale;
 
+    public bool RefillsAmmo { get; set; }
+
+    public int WeaponSlot => (int)(Kind.LinkKind?.Id ?? 0) - WeaponKindBase;
+
+    public int[] SlotAmmo => _slotAmmo ??= new int[MaxWeaponSlot + 1];
+
     public int HpBeforeDeath { get; set; }
 
     public WeaponBehavior Behavior { get; set; }
@@ -146,12 +155,13 @@ internal sealed class Unit
 
     public bool IsReferenced { get; private set; }
 
-    // Swaps the object the unit shows and acts as, keeping its place and health (ACT_CHANGE_VID)
-    public void ChangeKind(ObjectDefinition kind)
+    [EngineRoutine(0x00440830)]
+    public void ChangeVid(ObjectDefinition kind, SpriteAnimation state)
     {
+        var direction = Direction;
         Kind = kind;
-        ClearMove();
-        ChangeAnimation(SpriteAnimation.Stand);
+        ChangeAnimation(state);
+        SetDirection(direction);
     }
 
     [MemberNotNull(nameof(Kind), nameof(Orders))]
@@ -192,7 +202,9 @@ internal sealed class Unit
         CreatedAt = -1;
         Lifetime = kind.Object.Lifetime;
         Timer = 0;
-        Ammo = GetAmmoCapacity() * AmmoScale;
+        _slotAmmo = null;
+        RefillsAmmo = false;
+        FillAmmo();
         VerticalSpeed = 0;
         MaxSpeed = kind.Speed;
         GoalPoint = null;
@@ -201,6 +213,15 @@ internal sealed class Unit
         Blocked = false;
         Climbing = false;
         IsReferenced = false;
+    }
+    
+    public Unit? ArmedLink
+    {
+        get
+        {
+            var link = Link;
+            return link is not null && link.Kind.Id == Kind.Object.Link && link.Kind.Object.WeaponIndex != 0 ? link : null;
+        }
     }
 
     public void MarkReferenced() => IsReferenced = true;
@@ -333,33 +354,70 @@ internal sealed class Unit
         }
     }
 
-    public Unit? ArmedLink
+    [EngineRoutine(0x0043a200)]
+    public int GetAmmoCapacity()
     {
-        get
-        {
-            var link = Link;
-            return link is not null && link.Kind.Id == Kind.Object.Link && link.Kind.Object.WeaponIndex != 0 ? link : null;
-        }
+        var link = Kind.LinkKind;
+
+        return link is not null && link.FightChild != 0 && link.Object.WeaponIndex != 0 ? link.AmmoCapacity : Kind.AmmoCapacity;
     }
 
-    [EngineRoutine(0x0043a200)]
-    private int GetAmmoCapacity() => (ArmedLink?.Kind ?? Kind).AmmoCapacity;
+    public void FillAmmo() => Ammo = GetAmmoCapacity() * AmmoScale;
+    
+    [EngineRoutine(0x00454800)]
+    [EngineRoutine(0x00440830)]
+    public int GetAmmo(int slot = 0)
+    {
+        if (Kind.Object.SpriteClass == SpriteClass.Man)
+            return slot != 0 && slot != WeaponSlot ? SlotAmmo[slot] : GetOwnAmmo();
+
+        return Owner?.GetAmmo(slot) ?? GetOwnAmmo();
+    }
+
+    [EngineRoutine(0x00454800)]
+    [EngineRoutine(0x00440830)]
+    public int AddAmmo(int amount, int slot = 0)
+    {
+        if (Kind.Object.SpriteClass == SpriteClass.Man)
+        {
+            if (slot > MaxWeaponSlot)
+                return 0;
+
+            if (slot != 0 && slot != WeaponSlot)
+                return SlotAmmo[slot] += amount;
+
+            return AddOwnAmmo(amount);
+        }
+
+        return Owner?.AddAmmo(amount, slot) ?? AddOwnAmmo(amount);
+    }
 
     [EngineRoutine(0x00447500)]
-    public void AddAmmo(int amount)
+    private int GetOwnAmmo() => Ammo / AmmoScale;
+
+    [EngineRoutine(0x00447500)]
+    private int AddOwnAmmo(int amount)
     {
         if (GetAmmoCapacity() == ObjectDefinition.Unlimited)
         {
             Ammo = ObjectDefinition.Unlimited * AmmoScale;
 
-            return;
+            return ObjectDefinition.Unlimited;
         }
 
-        Ammo = Math.Max(0, Ammo + amount * AmmoScale);
+        int ammo = Ammo + amount * AmmoScale;
+        Ammo = Math.Max(0, ammo);
+
+        if (RefillsAmmo)
+        {
+            Ammo = GetAmmoCapacity() * AmmoScale;
+        }
+
+        return ammo;
     }
 
     [EngineRoutine(0x004460b0)]
-    public AttackResult TryAttack(int elapsed, PlayerInventory? ammo = null, int slot = 0)
+    public AttackResult TryAttack(int elapsed)
     {
         var link = ArmedLink;
 
@@ -411,18 +469,12 @@ internal sealed class Unit
             if (!aimed)
                 return AttackResult.Busy;
 
-            if (ammo is not null && !ammo.TrySpendAmmo(slot))
-                return AttackResult.NoAmmo;
-
             int cost = Math.Abs(Kind.Object.ChildCounts[(int)SpriteAnimation.Fight]);
 
-            if (ammo is null)
-            {
-                if (Rounds < cost)
-                    return AttackResult.NoAmmo;
+            if (GetAmmo() < cost)
+                return AttackResult.NoAmmo;
 
-                AddAmmo(-cost);
-            }
+            AddAmmo(-cost);
 
             ChangeAnimation(SpriteAnimation.Fight);
             Timer = Kind.ReloadTime + ReloadTimerOffset;

@@ -33,6 +33,11 @@ public sealed class MapResourceBuilder
     public MapGraphics Graphics { get; init; }
 
     /// <summary>
+    /// Gets the groups of sprites the map was read with, each a list of sprite handles.
+    /// </summary>
+    public IReadOnlyList<uint[]> Groups { get; init; } = [];
+
+    /// <summary>
     /// Gets the gamma of the ambient light written over the template's, or null to keep the template's light.
     /// </summary>
     public Gamma? Ambient { get; init; }
@@ -58,7 +63,8 @@ public sealed class MapResourceBuilder
         {
             Size = new SizeF(resource.Header.MapW, resource.Header.MapH),
             Scroll = resource.Header.Camera,
-            Graphics = resource.Graphics
+            Graphics = resource.Graphics,
+            Groups = resource.Groups.ToArray()
         };
         foreach (var sprite in resource.Sprites)
         {

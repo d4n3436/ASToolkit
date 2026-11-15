@@ -66,8 +66,13 @@ internal sealed class Gunnery
             if (profile.HurtsOwnArmy && radius > 0 && distance <= radius + _world.Player.Kind.Half.Length())
                 continue;
 
+            if (radius > 0 && !IsInBlastHeight(target, profile))
+                continue;
+
             float chance = MeasureHitChance(target, weapon, profile);
-            float harm = profile.BlastRadius > _world.Player.Kind.Half.Length() ? MeasureHarm(target, profile) * chance : Math.Min(target.Hp, profile.Damage * chance);
+            float harm = profile.BlastRadius > _world.Player.Kind.Half.Length() ? MeasureHarm(target, profile) * chance
+                : profile.Rounds > 1 ? MeasureSpreadHarm(target, weapon, profile)
+                : Math.Min(target.Hp, profile.Damage * chance);
             float rate = harm * GameClock.MillisecondsPerSecond / Math.Max(_world.FrameTime, weapon.AttackTime);
 
             if (slot == PlayerInventory.Pistols)
@@ -99,6 +104,9 @@ internal sealed class Gunnery
         return true;
     }
 
+    private bool IsInBlastHeight(Unit unit, AttackProfile profile) =>
+        unit.Position.Z - _world.Movement.GetHeight(unit.Position.AsVector2()) < profile.BlastHeight + unit.Kind.Object.Size.Z;
+
     // Counts the damage a blast lands on every hostile around the target, none past a victim's health
     private float MeasureHarm(Unit target, AttackProfile profile)
     {
@@ -107,13 +115,43 @@ internal sealed class Gunnery
         float harm = 0;
         foreach (var unit in _world.Units.GetNear(center - reach, center + reach))
         {
-            if (unit.Army == target.Army && unit.IsAlive && center.MeasureDistance(unit.Position.AsVector2()) <= profile.BlastRadius)
+            if (unit.Army == target.Army && unit.IsAlive && center.MeasureDistance(unit.Position.AsVector2()) <= profile.BlastRadius && IsInBlastHeight(unit, profile))
             {
                 harm += Math.Min(profile.Damage, unit.Hp);
             }
         }
 
         return Math.Max(harm, Math.Min(profile.Damage, target.Hp));
+    }
+
+    private float MeasureSpreadHarm(Unit target, ObjectDefinition torso, AttackProfile profile)
+    {
+        float scatter = Math.Max(1, MeasureScatter(target, torso));
+        float roundDamage = (float)profile.Damage / profile.Rounds;
+        var center = target.Position.AsVector2();
+        var reach = new Vector2(scatter + MaxUnitHalf);
+        float harm = 0;
+        foreach (var unit in _world.Units.GetNear(center - reach, center + reach))
+        {
+            float unitReach = (unit.Kind.Half.X + unit.Kind.Half.Y) / 2;
+
+            if (unit.Army != target.Army || !unit.IsAlive || center.MeasureDistance(unit.Position.AsVector2()) > scatter + unitReach)
+                continue;
+
+            float share = Math.Min(1, unitReach * unitReach / (scatter * scatter));
+            harm += Math.Min(unit.Hp, profile.Rounds * share * roundDamage);
+        }
+
+        return Math.Max(harm, Math.Min(target.Hp, profile.Damage * MeasureHitChance(target, torso, profile)));
+    }
+
+    private float MeasureScatter(Unit target, ObjectDefinition torso)
+    {
+        float spread = GetSpread(torso, out _);
+        float distance = GetDistance(target);
+        float overshoot = MathF.Max(0, MathF.Min(spread * MathF.Sqrt(2), torso.BattleRange - distance - 1));
+
+        return spread * distance / Math.Max(1, distance + overshoot);
     }
 
     // Measures the share of rounds whose scatter across the line of fire stays within the target, the scatter shrunk by the overshoot past it
@@ -124,9 +162,7 @@ internal sealed class Gunnery
         if (spread <= 0)
             return 1;
 
-        float distance = GetDistance(target);
-        float overshoot = MathF.Max(0, MathF.Min(spread * MathF.Sqrt(2), torso.BattleRange - distance - 1));
-        float scatter = spread * distance / Math.Max(1, distance + overshoot);
+        float scatter = MeasureScatter(target, torso);
         float reach = (target.Kind.Half.X + target.Kind.Half.Y) / 2 + profile.BlastRadius;
 
         return Math.Min(1, reach / Math.Max(1, scatter));

@@ -10,40 +10,19 @@ internal sealed class PlayerMovement
     public const float TargetHeight = 20;
 
     private readonly UnitCollision _movement;
-    private Vector2? _target;
-    private Vector2? _completed;
 
     public PlayerMovement(UnitCollision movement)
     {
         _movement = movement;
     }
 
-    public void Reset()
-    {
-        _target = null;
-        _completed = null;
-    }
-
-    public bool HasReached(Unit player, Vector2 target) => _completed == target ||
+    public static bool IsTouching(Unit player, Vector2 target) =>
         Math.Abs(player.Position.X - target.X) < player.Kind.Half.X + TargetHalf.X && Math.Abs(player.Position.Y - target.Y) < player.Kind.Half.Y + TargetHalf.Y;
 
     [EngineRoutine(0x00454670)]
-    public void Tick(Unit player, Vector2? target, float maxSpeed, int elapsed)
+    public void Tick(Unit player, float maxSpeed, int elapsed)
     {
-        ref readonly var obj = ref player.Kind.Object;
-
-        if (_target != target)
-        {
-            _target = target;
-            _completed = null;
-            player.ClearMove();
-
-            if (target is not null)
-            {
-                player.StartMoving(maxSpeed);
-            }
-        }
-
+        Vector2? target = player.Command == UnitCommand.Move && player.HasGoal ? player.GoalPosition.AsVector2() : null;
         player.Speed = UnitKinematics.Accelerate(player.Kind, player.Speed, maxSpeed, player.Moving, elapsed);
         var start = player.Position;
         var next = player.Speed.IsZero() ? start : UnitKinematics.Displace(start, player.Direction, player.Speed, elapsed);
@@ -58,21 +37,15 @@ internal sealed class PlayerMovement
             _movement.Move(player, next);
         }
 
-        if (target is not null && player.Moving)
+        if (target is not null)
         {
-            var direction = Angle.FromOffset(target.Value - player.Position.AsVector2());
+            var direction = Angle.FromOffset(target.Value - player.Position.AsVector2()) + (player.Speed < 0 ? Angle.HalfTurn : 0);
             direction = _movement.AvoidObstacles(direction, player);
-            player.SetDirection(player.Direction.TurnToward(direction, obj.RotationPeriod, elapsed, out _));
+            player.SetDirection(player.Direction.TurnToward(direction, player.Kind.Object.RotationPeriod, elapsed, out _));
 
-            if (player is { ReachedX: true, ReachedY: true } || HasReached(player, target.Value))
+            if (player is { ReachedX: true, ReachedY: true } || IsTouching(player, target.Value))
             {
-                player.ClearMove();
-                _completed = target;
-
-                if (obj.Deceleration.IsNear(ObjectDefinition.Unlimited))
-                {
-                    player.Speed = 0;
-                }
+                UnitKinematics.StopMoving(player);
             }
         }
     }

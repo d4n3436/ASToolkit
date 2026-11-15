@@ -13,8 +13,9 @@ All integers are little-endian. Text is cp1251 (Cyrillic) unless noted. Offsets 
 5. [Maps](#maps)
 6. [Sprites (.vid)](#sprites-vid)
 7. [Menus (.men)](#menus-men)
-8. [Scripts and text](#scripts-and-text)
-9. [Drawing a level](#drawing-a-level)
+8. [Demos (.dem)](#demos-dem)
+9. [Scripts and text](#scripts-and-text)
+10. [Drawing a level](#drawing-a-level)
 
 ## The game folder
 
@@ -243,7 +244,7 @@ Menu buttons and fonts reuse the low states under their own names (`ANI_MENUSTAN
  +580   +608    f32 x8 scaled by 0.001 on load unless 999999; no reader found
 ```
 
-The weapon record drives the targeting and attacks of a unit. Units notice enemies within `VID_DETECTRANGE`, chase them with `BEH_ACTIVE` and attack between the closest distance and `VID_BATTLERANGE` once the reload time has passed, scattering their shots by the aim value. The damage of an attack belongs to the object the `ANI_FIGHT` state creates, or to the projectile that object creates in turn (a shotgun flash creates 10 pellets of 5 damage). Ammunition counts in 1/64 rounds up to `VID_AMMO`. Melee monsters have a battle range of 50 to 115 and ranged ones 260 to 750. The keyframe tracks animate the gamma, scale, screen offset and speed of the object over the period, and Alien Shooter uses only the gamma.
+The weapon record drives the targeting and attacks of a unit. Units notice enemies within `VID_DETECTRANGE`, chase them with `BEH_ACTIVE` and attack between the closest distance and `VID_BATTLERANGE` once the reload time has passed, scattering their shots by the aim value. The damage of an attack belongs to the object the `ANI_FIGHT` state creates, or to the projectile that object creates in turn (a shotgun flash creates 10 pellets of 5 damage). Ammunition counts in 1/64 rounds up to `VID_AMMO`, and each attack spends as many rounds as the absolute `NoChild` of the `ANI_FIGHT` state (2 for the player's pistols, 1 for the other weapons); an upper body spends its owner's rounds. Melee monsters have a battle range of 50 to 115 and ranged ones 260 to 750. The keyframe tracks animate the gamma, scale, screen offset and speed of the object over the period, and Alien Shooter uses only the gamma.
 
 The later games also read these weapon flags:
 
@@ -557,7 +558,7 @@ In Alien Shooter 2 the player is object 250, and respawn posts (1359) set where 
 
 `PLAY` has one record of a `u32` sprite handle for each player, 4 in Alien Shooter and Zombie Shooter and 8 in the later games, their editions of Alien Shooter included. Every handle in every map is zero.
 
-`GROU` has one record of `u32` sprite handles. Each group lists its sprites and ends with `0xFFFFFFFF`, and one more `0xFFFFFFFF` ends the record. Campaign level 7 groups 26 placed monsters, and the second add-on's levels 4 and 5 group 9 and 14 objects. Written levels keep the record a lone `0xFFFFFFFF`.
+`GROU` has one record of `u32` sprite handles. Each group lists its sprites and ends with `0xFFFFFFFF`, and one more `0xFFFFFFFF` ends the record. Campaign level 7 groups 26 placed monsters, and the second add-on's levels 4 and 5 group 9 and 14 objects. Written levels keep the record a lone `0xFFFFFFFF`. Each frame, while a member of a group attacks a unit, every idle member takes the same attack command and target; a sprite leaves its groups when it is deleted, and an emptied group goes with it.
 
 ### Coordinates and direction
 
@@ -807,6 +808,75 @@ Buttons are object 705, and the button number the script sees is the direction f
  +-------------------+
 ```
 
+## Demos (.dem)
+
+Kind `DEMO`. Each demo records one level with its random seed, the script state the level starts with and the input of every frame. Calling the script function `SaveDemo(filename)` makes the game record the next map it loads into that file, and `Load(filename)` given a demo file plays it. With `DebugMode=1` in the `[game]` section of the settings, F3 opens a file dialog listing map, save and demo files. Alien Shooter 2, Vengeance and Zombie Shooter 2 record the whole session into `game.dem` when `SaveDemo=1` stands in the `[game]` section of the settings.
+
+```
+ RES "DEMO"
+ +------+---------------------------------------------+
+ | DEMO | one record                                  |
+ +------+---------------------------------------------+
+
+ DEMO record
+ +-------------------+------+------+----------------------+-----------+------+
+ | map file name, 0  | seed | time | script state         | frames    | -1   |
+ | maps\level_01.map | u32  | u32  | variables, functions | 36 B each | i32  |
+ +-------------------+------+------+----------------------+-----------+------+
+```
+
+The seed starts the random number generator in place of the current time a normal map load uses. The time is the game clock the level starts at (10).
+
+The script state lists the script's variables in order. Each variable is a type byte, then a u32 when the type has bit 0x08 and lacks bit 0x01, or a string ending in 0 with every character XORed with 0x17 when it has both. Then comes a u32 count of functions, each a name ending in 0 and 20 bytes, followed by one more string ending in 0 per function. The engine's built-in functions come first (`CreateSprite`, `Flagman` and the rest), then the script's own. In each function's 20 bytes, the u32 at +12 is the first variable its parameters take and the u32 at +16 its parameter count.
+
+The map load writes the state after compiling the level's script and before any sprite's creation script runs. It holds the initial values together with the `static` variables carried over from earlier loads, such as the player's money and items. Playback replaces the script's variables and functions with the recorded ones.
+
+```
+ frame, 36 bytes
+ 0      4       8       12     16     20     24     28     32    36
+ +------+-------+-------+------+------+------+------+------+------+
+ | time | input | wheel | cursor x, y | screen x, y | key  | vkey |
+ | u32  | flags | i32   | f32  f32    | f32  f32    | i32  | i32  |
+ +------+-------+-------+------+------+------+------+------+------+
+```
+
+Each frame starts at its game time in milliseconds. Playback sets the game clock to it and waits until real time catches up, keeping the recorded step between frames (at most 71 ms). The input block holds the frame's input:
+
+- The cursor is the mouse position in map pixels, the screen point plus the camera. Scripts read it with `GetInputX()` and `GetInputY()`.
+- The screen point is the mouse position in window pixels, read with `GetScreenInputX()` and `GetScreenInputY()`.
+- The wheel counts notches turned this frame, positive away from the player.
+- The key is the character typed this frame. Keys that type no character store their virtual-key code shifted left by 8 (`VK_LEFT` gives 0x2500). Scripts read it with `GetKey()`, and it is 0 on frames without a key press.
+- The last field is the virtual-key code of the key pressed this frame.
+
+Each game frame advances the clock and clears the one-frame input, handles the window messages, plays or records the demo frame, runs the level script's `main` function, draws the world (taking two random numbers for the earthquake shake), updates the sprites and then turns the input into the player's movement, firing and weapon choice. The picture drawn at a frame's time shows the sprites as the previous frame left them.
+
+The flags hold one bit per control. Scripts test them through `GetInputState()`. It returns the held and pressed controls as the `INPUT_` bits `EXPORT.LGC` defines, listed beside each flag below.
+
+| Bit | Input | Script name |
+|---|---|---|
+| 0x1 | left mouse button clicked this frame | `INPUT_LCLICK` |
+| 0x2 | middle mouse button clicked this frame | |
+| 0x4 | right mouse button clicked this frame | `INPUT_RCLICK` |
+| 0x8 | left mouse button released this frame | |
+| 0x10 | right mouse button released this frame | |
+| 0x20 | left mouse button held | `INPUT_LDOWN` |
+| 0x40 | right mouse button held | `INPUT_RDOWN` |
+| 0x80 | move-left key held | `INPUT_LEFT` |
+| 0x100 | move-right key held | `INPUT_RIGHT` |
+| 0x200 | move-down key held | `INPUT_DOWN` |
+| 0x400 | move-up key held | `INPUT_UP` |
+| 0x800 | Shift held | `INPUT_SHIFT` |
+| 0x1000 | Ctrl held | `INPUT_CTRL` |
+| 0x2000 | Alt held | |
+| 0x4000 | first action (fire) held | `INPUT_FIRST` |
+| 0x8000 | second action (move to the cursor) held | `INPUT_SECOND` |
+
+The movement bits and the actions follow the `[control]` section of `AlienShooter.cfg`. `Left`, `Right`, `Up` and `Down` add one key each to the arrow keys and take the first character of their value (the shipped file binds `A`, `D`, `W` and `S`). `First` fires at the cursor and `Second` moves to the cursor (`LBUTTON` and `RBUTTON`). `Next` and `Prev` step the weapon like the wheel (`E` and `Q`), and `Relative=1` turns the movement keys by the direction to the cursor. The action values are key names (`LBUTTON`, `RBUTTON`, `[`, `]`, `LEFT`, `RIGHT`, `UP`, `DOWN`, `INSERT`, `DELETE`, `HOME`, `END`, `PGUP`, `PGDN`, `SHIFT`, `CTRL`, `F1` to `F12`) or a single character; `[` and `]` read as 0x5B and 0x5C. Without the section, `Down` adds the virtual-key code 4 (its default string is the bytes 0x04 0x38) and `Next` and `Prev` read `]` and `[`. The mouse button clicks and releases, the key and the wheel last one frame, and the first and second actions stay set while their button or key is held.
+
+Any key press or click ends playback. The game then reads the map name again and loads that map for play, and quits when the name is empty.
+
+Alien Shooter 2 frames hold the time, a u32, a 39-byte input block and a check value, `rand() % 50001` drawn as the frame is recorded. Playback draws the value again and compares the two.
+
 ## Scripts and text
 
 ### Scripts (.lgc)
@@ -925,6 +995,15 @@ Alien Shooter (GOG):
 - `FUN_00431cf0` - `SetEnvironment`, sets or clears environment bits
 - `FUN_0040c930` - `SetWind`, sets the wind speed and direction
 - `FUN_0040bed0` - scrolls the camera each frame
+- `FUN_0040c960` - loads a map, starting demo playback or recording and writing the demo header and script state
+- `FUN_0041fa30` - writes the script state
+- `FUN_0041fb20` - reads the script state back for playback
+- `FUN_0040e660` - reads or writes the time and input of one demo frame
+- `FUN_0040c570` - releases a map, ending a demo recording with -1
+- `FUN_00425d80` - turns window messages into the input state
+- `FUN_0043ea10` - `PLAYER::Control`, turns the input state into movement, firing and weapon choice, and spreads attacks through groups
+- `FUN_00426370` - reads a key name of the `[control]` settings
+- `FUN_0043ad70` - loads the groups of a map
 - `FUN_0040bc20` - moves the camera and clamps it to the map
 - `FUN_0040fc40` - finds a placed object by `SpriteType` mask, id, `SpriteClass`, army and state
 - `FUN_0043f200` - creates a placed object, applying the spawn flags

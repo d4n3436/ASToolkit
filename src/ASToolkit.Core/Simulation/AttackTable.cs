@@ -35,25 +35,27 @@ internal sealed class AttackTable
             return default;
 
         if (child.Damage > 0)
-            return new AttackProfile(creator.FightCount * child.Damage, child.BlastRadius, !child.SkipsOwnArmy);
+            return new AttackProfile(creator.FightCount * child.Damage, child.BlastRadius, !child.SkipsOwnArmy, Rounds: creator.FightCount, BlastHeight: GetBlastHeight(child));
 
         if (child.FightChild != 0)
         {
             var profile = Measure(child, depth + 1);
 
-            return profile with { Damage = creator.FightCount * profile.Damage };
+            return profile with { Damage = creator.FightCount * profile.Damage, Rounds = creator.FightCount * profile.Rounds };
         }
 
         var payload = _kinds.Find(child.DeathChild);
 
         if (payload is not null)
-            return new AttackProfile(creator.FightCount * payload.Damage, payload.BlastRadius, !payload.SkipsOwnArmy);
+            return new AttackProfile(creator.FightCount * payload.Damage, payload.BlastRadius, !payload.SkipsOwnArmy, Rounds: creator.FightCount, BlastHeight: GetBlastHeight(payload));
 
         var carried = _kinds.Find(child.Object.Link);
 
         return carried is null ? default : new AttackProfile(creator.FightCount * carried.Damage, carried.BlastRadius, !carried.SkipsOwnArmy,
-            child.Speed * child.GetAnimationDuration(child.InitialAnimation));
+            child.Speed * child.GetAnimationDuration(child.InitialAnimation), creator.FightCount, GetBlastHeight(carried));
     }
+
+    private static float GetBlastHeight(ObjectDefinition payload) => Math.Max(WeaponSystem.MinBlastHeight, payload.Object.Size.Z);
 }
 
-internal readonly record struct AttackProfile(int Damage, float BlastRadius, bool HurtsOwnArmy, float Reach = float.MaxValue);
+internal readonly record struct AttackProfile(int Damage, float BlastRadius, bool HurtsOwnArmy, float Reach = float.MaxValue, int Rounds = 1, float BlastHeight = float.MaxValue);

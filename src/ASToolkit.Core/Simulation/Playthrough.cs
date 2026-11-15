@@ -55,7 +55,36 @@ public sealed class Playthrough
         return CreateResult(session, loadout, recorder);
     }
 
-    internal PlaySession Start(RouteAnalysis analysis, PlayerLoadout loadout, int seed, ReplayRecorder? recorder)
+    /// <summary>
+    /// Replays a demo of the level in the engine, from its seed and the input of every frame.
+    /// </summary>
+    /// <param name="analysis">The route analysis of the level the demo plays.</param>
+    /// <param name="demo">The demo.</param>
+    /// <param name="loadout">What the player carries into the level.</param>
+    /// <returns>The player after each frame.</returns>
+    public IReadOnlyList<DemoReplayPoint> ReplayDemo(RouteAnalysis analysis, DemoResource demo, PlayerLoadout loadout)
+    {
+        var world = new GameWorld(GetSetup(analysis).Level, loadout, new GameRandom(unchecked((int)demo.Seed)));
+        AddLoosePickups(analysis, world);
+        world.StartDemoPlayback(demo);
+        var points = new List<DemoReplayPoint>(demo.Frames.Length);
+        uint now = 0;
+        while (true)
+        {
+            world.AdvanceClock();
+            world.StepDemo(now, out now);
+
+            if (!world.IsPlayingDemo)
+                break;
+
+            world.Step();
+            points.Add(new DemoReplayPoint(world.Time, world.Player.Position, world.Player.Hp, world.Player.Direction, world.Player.Speed));
+        }
+
+        return points;
+    }
+
+    private LevelSetup GetSetup(RouteAnalysis analysis)
     {
         if (!_setups.TryGetValue(analysis, out var setup))
         {
@@ -63,6 +92,12 @@ public sealed class Playthrough
             _setups.Add(analysis, setup);
         }
 
+        return setup;
+    }
+
+    internal PlaySession Start(RouteAnalysis analysis, PlayerLoadout loadout, int seed, ReplayRecorder? recorder)
+    {
+        var setup = GetSetup(analysis);
         var world = new GameWorld(setup.Level, loadout, new GameRandom(seed));
         recorder?.Start(world);
         AddLoosePickups(analysis, world);

@@ -65,7 +65,8 @@ public static class LevelExtractor
             Objects = ExtractDecor(sp, lattice, objects),
             Sprites = sp,
             MapSize = map.Size,
-            Environment = map.Graphics.Environment
+            Environment = map.Graphics.Environment,
+            Groups = map.Groups.ToArray()
         };
     }
 
@@ -387,7 +388,8 @@ public static class LevelExtractor
             Objects = ExtractDecor(sp, lattice, objects),
             Sprites = sp,
             MapSize = map.Size,
-            Environment = map.Graphics.Environment
+            Environment = map.Graphics.Environment,
+            Groups = map.Groups.ToArray()
         };
     }
 

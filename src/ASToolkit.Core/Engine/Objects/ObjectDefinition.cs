@@ -145,6 +145,8 @@ internal sealed class ObjectDefinition
 
     public bool IsArmed => BattleRange > 0;
 
+    public ObjectDefinition? LinkKind { get; set; }
+
     private static int GetAnimationTime(in GameObject obj, SpriteAnimation animation, int spriteSpeed) =>
         obj.FrameCounts[(int)animation] * obj.GetFrameDuration(animation, spriteSpeed);
     private readonly record struct AnimationDefinition(int FrameCount, int FrameDuration);

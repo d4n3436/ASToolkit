@@ -3,6 +3,7 @@ namespace ASToolkit.Core.Engine;
 internal struct GameClock
 {
     public const int DefaultFrameTime = 16;
+    public const int LevelStartTime = 10;
     public const int MillisecondsPerSecond = 1000;
     private const int MaxFrameTime = 71;
     private const int FrameRateWindow = 999;
@@ -16,6 +17,7 @@ internal struct GameClock
     public GameClock(IReadOnlyList<int> frameTimes)
     {
         _frameTimes = frameTimes;
+        Time = LevelStartTime;
         FrameTime = frameTimes[0];
         FramesPerSecond = (FrameRateWindow + FrameTime) / FrameTime;
     }
@@ -37,6 +39,13 @@ internal struct GameClock
         }
 
         return times;
+    }
+
+    [EngineRoutine(0x0040e660)]
+    public void SetTime(int time)
+    {
+        FrameTime = time - (Time - FrameTime);
+        Time = time;
     }
 
     [EngineRoutine(0x0040f210)]

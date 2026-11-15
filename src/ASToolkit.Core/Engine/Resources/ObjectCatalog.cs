@@ -37,6 +37,17 @@ internal sealed class ObjectCatalog
                 LargestHashedSize = Vector2.Max(LargestHashedSize, obj.Size.AsVector2());
             }
         }
+
+        ResolveLinks();
+    }
+
+    [EngineRoutine(0x00411b50)]
+    private void ResolveLinks()
+    {
+        foreach (var kind in _kinds)
+        {
+            kind?.LinkKind = Find(kind.Object.Link);
+        }
     }
 
     public FrameMask? GetFrameMask(ObjectDefinition kind, int frame)

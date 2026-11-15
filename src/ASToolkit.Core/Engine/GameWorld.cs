@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Numerics;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
@@ -36,11 +37,13 @@ internal sealed partial class GameWorld
     private GameClock _clock;
     private int _protectedUntil;
     private int _mountedAt = -1;
-    private bool _movesPlayer;
+    private const int PlayerSlots = 4;
+    private readonly List<UnitGroup> _groups = [];
+    private readonly PlayerController[] _controllers = new PlayerController[PlayerSlots];
     private Vector3 _respawnPosition;
     private int _unitCount;
 
-    public GameWorld(LevelTemplate data, PlayerLoadout loadout, GameRandom rng)
+    public GameWorld(LevelTemplate data, PlayerLoadout loadout, GameRandom rng, ControlSettings? controls = null)
     {
         _updates = new UpdateOrder();
         var model = data.Model;
@@ -68,13 +71,20 @@ internal sealed partial class GameWorld
         int maxHealth = loadout.Implants.ScaleHealth(legs.MaxHp);
         var start = model.Sprites.FirstOrDefault(sprite => sprite.Id is KnownObject.PlayerStart or KnownObject.PlayerStartFemaleLegs);
         Player = new Unit(_unitCount++, legs, start?.Position ?? new Vector3(data.FallbackStart, 0), Army.Player, maxHealth)
-        { CreatedAt = 0 };
-        Player.Start(legs.InitialAnimation, start?.Direction ?? default, 0, rng);
+        { CreatedAt = Time };
+        Player.Start(legs.InitialAnimation, default, Time, rng);
         _respawnPosition = Player.Position;
         Inventory = new PlayerInventory(kinds, data.AmmoBatches, Player, loadout);
         Weapons = new WeaponSystem(this, Inventory, kinds, rng);
         var unitMovement = new UnitCollision(Movement, Units);
         PlayerMovement = new PlayerMovement(unitMovement);
+        var settings = controls ?? ControlSettings.Default;
+        Input = new PlayerInput(settings);
+        for (int slot = 0; slot < PlayerSlots; slot++)
+        {
+            _controllers[slot] = new PlayerController(this, unitMovement, settings, slot == 0);
+        }
+
         _brain = new MonsterBrain(Motion, unitMovement, rng, _monsters);
         var placedUnits = new Dictionary<uint, Unit>();
 
@@ -154,6 +164,8 @@ internal sealed partial class GameWorld
             }
         }
 
+        LoadGroups(model.Groups, placedUnits);
+
         if (Inventory.Items.GetValueOrDefault(KnownObject.Drone) > 0)
         {
             AddDrone();
@@ -198,6 +210,12 @@ internal sealed partial class GameWorld
 
     public Vector2 Cursor { get; private set; }
 
+    public PlayerInput Input { get; }
+
+    public IReadOnlyList<UnitGroup> Groups => _groups;
+
+    public bool IsPlayerControlled { get; private set; } = true;
+
     public ObjectCatalog Kinds { get; }
 
     public MovementMap Movement { get; }
@@ -226,26 +244,62 @@ internal sealed partial class GameWorld
 
     public ReadOnlySpan<WorldPickup> Pickups => CollectionsMarshal.AsSpan(_pickups);
 
-    public void ApplyPlayerCommand(in PlayerCommand command)
+    [ScriptFunction("SetPlayerControl")]
+    public void SetPlayerControl(bool controlled) => IsPlayerControlled = controlled;
+
+    [EngineRoutine(0x00425d80)]
+    public bool MoveMouse(Point screen, Point windowOrigin, RectangleF view, Vector2 camera)
     {
-        if (Player.IsAlive)
+        bool inView = Input.MoveMouse(screen, windowOrigin, view, camera);
+        Cursor = Input.Cursor;
+
+        return inView;
+    }
+
+    public void SetTime(int time) => _clock.SetTime(time);
+
+    [EngineRoutine(0x0043ad70)]
+    private void LoadGroups(IReadOnlyList<IReadOnlyList<uint>> groups, Dictionary<uint, Unit> placedUnits)
+    {
+        foreach (var handles in groups)
         {
-            if (command.Fires)
+            UnitGroup? group = null;
+            foreach (uint handle in handles)
             {
-                Weapons.AimPlayer(command.Cursor, command.Weapon);
+                if (!placedUnits.TryGetValue(handle, out var unit))
+                    continue;
+
+                if (group is null)
+                {
+                    group = new UnitGroup(unit);
+                    _groups.Add(group);
+                }
+                else
+                {
+                    group.Add(unit);
+                }
             }
-
-            Weapons.TrackCursor(command.Cursor, FrameTime, command.Destination is not null);
         }
+    }
 
-        _movesPlayer = command.Destination is not null;
-        Cursor = command.Cursor;
-        PlayerMovement.Tick(Player, IsInCannon ? null : command.Destination, IsInCannon ? 0 : Inventory.Speed * ObjectDefinition.PerMillisecond, FrameTime);
+    [EngineRoutine(0x0043adf0)]
+    private void RemoveFromGroups(Unit unit)
+    {
+        for (int index = _groups.Count - 1; index >= 0; index--)
+        {
+            if (_groups[index].Remove(unit) && _groups[index].Members.Count == 0)
+            {
+                _groups.RemoveAt(index);
+            }
+        }
     }
 
     [EngineRoutine(0x00405190)]
     public void Update()
     {
+        RunLevelScript();
+        ShakeCamera();
+
         for (int layer = 0; layer < UpdateOrder.LayerCount; layer++)
         {
             var list = _updates.GetLayer(layer);
@@ -253,15 +307,12 @@ internal sealed partial class GameWorld
             {
                 var entry = list[index];
 
-                if (entry.Role != UpdateRole.None && !TickEntry(entry))
+                if (entry.Role != UpdateRole.None && !TickEntry(entry, layer))
                 {
                     _updates.Clear(list, index);
                 }
             }
         }
-
-        RunLevelScript();
-        ShakeCamera();
 
         if (!Player.IsAlive && IsInCannon)
         {
@@ -277,7 +328,7 @@ internal sealed partial class GameWorld
         Effects.Compact();
     }
 
-    private bool TickEntry(UpdateEntry entry)
+    private bool TickEntry(UpdateEntry entry, int layer)
     {
         var unit = entry.Unit;
         switch (entry.Role)
@@ -285,12 +336,13 @@ internal sealed partial class GameWorld
             case UpdateRole.Player:
                 if (Player.IsAlive)
                 {
+                    PlayerMovement.Tick(Player, IsInCannon ? 0 : Player.MaxSpeed, FrameTime);
                     Tact(Player);
                 }
 
                 return true;
             case UpdateRole.Torso:
-                if (unit != Weapons.Torso)
+                if (unit != Weapons.Torso || unit.Kind.Layer != layer)
                     return false;
 
                 if (Player.IsAlive)
@@ -322,15 +374,27 @@ internal sealed partial class GameWorld
         Units.Add(Player);
     }
 
-    public void Step(in PlayerCommand command)
+    [EngineRoutine(0x00405190)]
+    public void Step()
     {
         TakePickups();
-        ApplyPlayerCommand(command);
         Update();
-        AdvanceClock();
+
+        if (!IsPlayerControlled)
+            return;
+
+        foreach (var controller in _controllers)
+        {
+            controller.Control(Input);
+        }
     }
 
-    public void AdvanceClock() => _clock.Advance();
+    [EngineRoutine(0x0040f210)]
+    public void AdvanceClock()
+    {
+        _clock.Advance();
+        Input.ResetFrame();
+    }
 
     public void AddPickup(Vector3 position, KnownObject id, MergedMapSprite? placement)
     {
@@ -455,6 +519,7 @@ internal sealed partial class GameWorld
         }
 
         UnitKinematics.ForgetObject(Weapons.Torso, removed);
+        RemoveFromGroups(removed);
         Effects.Forget(removed);
 
         if (removed.Link?.Owner == removed)
@@ -809,7 +874,6 @@ internal sealed partial class GameWorld
         Player.Speed = 0;
         Player.ClearMove();
         Player.ChangeAnimation(SpriteAnimation.Stand);
-        PlayerMovement.Reset();
         Weapons.ResetPlayer();
         Units.ChangeCoor(Player);
         _protectedUntil = Time + RespawnProtection;
@@ -953,6 +1017,11 @@ internal sealed partial class GameWorld
                 return true;
             case KnownObject.Drone:
                 return TakeDrone();
+            case >= KnownObject.Shotgun and <= KnownObject.MagmaMinigun:
+                Inventory.TryTakePickup(pickup.Id);
+                Action(Player, ActionCode.AddItem, (int)pickup.Id);
+
+                return true;
             default:
                 return Inventory.TryTakePickup(pickup.Id);
         }

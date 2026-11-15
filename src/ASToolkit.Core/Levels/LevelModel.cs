@@ -52,4 +52,9 @@ public sealed class LevelModel
     /// Gets the environment the map starts with.
     /// </summary>
     public MapEnvironment Environment { get; init; }
+
+    /// <summary>
+    /// Gets the groups of the map, each a list of sprite handles.
+    /// </summary>
+    public IReadOnlyList<IReadOnlyList<uint>> Groups { get; init; } = [];
 }

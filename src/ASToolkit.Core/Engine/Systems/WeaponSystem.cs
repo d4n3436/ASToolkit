@@ -7,7 +7,7 @@ namespace ASToolkit.Core.Engine;
 internal sealed class WeaponSystem
 {
     private const int AimAttempts = 5;
-    private const float MinBlastHeight = 20;
+    public const float MinBlastHeight = 20;
     private const float AimRise = 70;
     private const float AimRiseCap = 50;
     private const float UnitAimLift = 80;
@@ -19,7 +19,7 @@ internal sealed class WeaponSystem
     private readonly ObjectCatalog _kinds;
     private readonly Random _rng;
     private readonly UnitGrid _grid;
-    private int _slot;
+    private const int WeaponKindLimit = 21;
     private bool _turnsLegs;
     private readonly DepthProbe _depth;
 
@@ -31,7 +31,7 @@ internal sealed class WeaponSystem
         _rng = random;
         _grid = world.Units;
         Collision = new ProjectileCollision(world.Movement, _grid);
-        Torso = CreateTorso(kinds.Find(KnownObject.PistolsTorso)!, 0);
+        Torso = CreateTorso(world.Player.Kind.LinkKind!, 0);
         _depth = new DepthProbe(world);
     }
 
@@ -43,8 +43,11 @@ internal sealed class WeaponSystem
 
     private Unit CreateTorso(ObjectDefinition kind, int timer)
     {
-        var torso = new Unit(_world.AllocateNumber(), kind, GetTorsoPosition(kind), 0, 0) { Direction = _world.Player.Direction, Timer = timer };
+        var player = _world.Player;
+        var torso = new Unit(_world.AllocateNumber(), kind, GetTorsoPosition(kind), 0, 0) { Direction = player.Direction, Timer = timer, Owner = player };
         torso.ChangeAnimation(SpriteAnimation.Stand);
+        player.Link = torso;
+        _world.Effects.CreateLink(torso, _world.Time, 0);
 
         return torso;
     }
@@ -58,31 +61,17 @@ internal sealed class WeaponSystem
         _world.Tact(Torso);
     }
 
+    public int Slot => _world.Player.WeaponSlot;
+
     [EngineRoutine(0x00454800)]
-    public void AimPlayer(Vector2 cursor, int slot)
+    public void AimPlayer(Vector2 cursor)
     {
-        if (_world.IsInCannon)
-        {
-            slot = PlayerInventory.Pistols;
-        }
+        var weapon = _world.Player.Kind.LinkKind;
 
-        var weapon = _world.IsInCannon ? _kinds.Find(KnownObject.MannedCannonTurret) : _inventory.GetWeapon(slot);
-
-        if (weapon is null || !weapon.IsArmed)
+        if (Torso.Kind != weapon || weapon.FightChild == 0 || weapon.Object.WeaponIndex == 0 || Torso.IsReloading)
             return;
 
-        if (Torso.Kind != weapon)
-        {
-            Torso = CreateTorso(weapon, Torso.Timer);
-            _world.Register(UpdateRole.Torso, Torso);
-        }
-
-        _slot = slot;
-
-        if (!Torso.IsReloading)
-        {
-            UnitKinematics.SetCommand(Torso, UnitCommand.OneAttack, point: GetCursorPoint(new Vector2((int)cursor.X, (int)cursor.Y), weapon));
-        }
+        UnitKinematics.SetCommand(Torso, UnitCommand.OneAttack, point: GetCursorPoint(cursor, weapon));
     }
 
     // Raises the cursor to the height the depth buffer holds under it on screen, or to the terrain off screen
@@ -115,14 +104,71 @@ internal sealed class WeaponSystem
         return new Vector3(cursor.X, y + height, height);
     }
 
-    // Turns the torso toward the cursor each frame and the standing legs after it once it passes the slack
-    [EngineRoutine(0x0043ea10)]
-    public void TrackCursor(Vector2 cursor, int elapsed, bool moving)
+    [EngineRoutine(0x00455070)]
+    public bool SelectWeapon(int slot)
     {
         var player = _world.Player;
-        var direction = Angle.Aim(new Vector2(cursor.X - player.Position.X, player.Position.Z + cursor.Y - player.Position.Y));
+        var held = player.Kind.LinkKind;
 
-        if (!moving && player is { Speed: 0, Kind.Id: KnownObject.PlayerStart })
+        if (held is null || (int)held.Id >= WeaponKindLimit)
+            return false;
+
+        if (slot == PlayerInventory.WeaponSlots)
+        {
+            slot = 0;
+        }
+
+        if (!_inventory.HoldsWeapon(slot) || player.Link is null || player.Link.Kind != held)
+            return false;
+
+        player.SlotAmmo[player.WeaponSlot] = player.GetAmmo();
+        var weapon = _kinds.Find((KnownObject)(slot + Unit.WeaponKindBase));
+
+        if (weapon is not null)
+        {
+            ChangeTorso(weapon);
+        }
+
+        player.Kind.LinkKind = weapon;
+        player.AddAmmo(player.SlotAmmo[slot] - player.GetAmmo());
+
+        return true;
+    }
+
+    [EngineRoutine(0x00445770)]
+    public void ReplaceTorso()
+    {
+        var link = _world.Player.Kind.LinkKind;
+
+        if (link is null)
+            return;
+
+        _world.Effects.Detach(Torso);
+        Torso = CreateTorso(link, 0);
+        _world.Register(UpdateRole.Torso, Torso);
+    }
+
+    [EngineRoutine(0x00440830)]
+    private void ChangeTorso(ObjectDefinition weapon)
+    {
+        int layer = Torso.Kind.Layer;
+        _world.Effects.Detach(Torso);
+        Torso.ChangeVid(weapon, SpriteAnimation.Stand);
+        _world.Effects.CreateLink(Torso, _world.Time, 0);
+
+        if (weapon.Layer != layer)
+        {
+            _world.Register(UpdateRole.Torso, Torso);
+        }
+    }
+
+    // Turns the torso toward the cursor each frame and the standing legs after it once it passes the slack
+    [EngineRoutine(0x0043ea10)]
+    public void TrackCursor(Angle direction, int elapsed)
+    {
+        var player = _world.Player;
+
+        if (player is { Speed: 0, Kind.Id: KnownObject.PlayerStart })
         {
             if (!_turnsLegs)
             {
@@ -144,7 +190,7 @@ internal sealed class WeaponSystem
 
         if (_world.Player.HasGoal || Torso.HasGoal)
         {
-            Torso.TryAttack(Math.Max(elapsed, _world.Player.Kind.Layout.GetFrameDuration(_world.Player.Animation)), _inventory, _slot);
+            Torso.TryAttack(Math.Max(elapsed, _world.Player.Kind.Layout.GetFrameDuration(_world.Player.Animation)));
         }
     }
 

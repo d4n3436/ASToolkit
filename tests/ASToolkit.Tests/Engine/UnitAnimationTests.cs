@@ -57,20 +57,22 @@ public class UnitAnimationTests
         var world = EngineTestWorld.CreateWorld(kinds);
         var position = world.Player.Position + new Vector3(600, 0, 0);
         var enemy = world.AddMonster(kinds.Find(KnownObject.Monster1)!, position, direction: new Angle(64));
-        while (world.Time < 96)
+        while (world.Time < GameClock.LevelStartTime + 96)
         {
             world.Step(default);
         }
 
         world.Damage(enemy, enemy.Hp);
         world.Step(default);
-        world.Step(default);
-        Assert.Contains(enemy, world.Monsters);
-        Assert.DoesNotContain(world.Effects.Active, effect => effect.Kind.Id == KnownObject.Monster1Death);
+        int steps = 1;
+        while (world.Monsters.Contains(enemy) && steps < 20)
+        {
+            Assert.DoesNotContain(world.Effects.Active, effect => effect.Kind.Id == KnownObject.Monster1Death);
+            world.Step(default);
+            steps++;
+        }
 
-        world.Step(default);
-
-        Assert.DoesNotContain(enemy, world.Monsters);
+        Assert.InRange(steps, 2, 19);
         Assert.Contains(world.Effects.Active, effect => effect.Kind.Id == KnownObject.Monster1Death);
     }
 

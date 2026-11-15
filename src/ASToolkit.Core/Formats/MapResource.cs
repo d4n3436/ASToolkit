@@ -56,6 +56,11 @@ public readonly struct MapResource
     /// </summary>
     public IEnumerable<MapSpriteData> SpriteData => EnumerateSpriteData();
 
+    /// <summary>
+    /// Enumerates over the groups of sprites, each a span of sprite handles.
+    /// </summary>
+    public MapGroupEnumerator Groups => new(MemoryMarshal.Cast<byte, uint>(GetGroupRecord().Span));
+
     private IEnumerable<MapSprite> EnumerateSprites()
     {
         for (int index = 0; index < (_rawSprites.Length - 4) / SpriteSize; index++)
@@ -67,6 +72,17 @@ public readonly struct MapResource
         }
     }
     
+    private ReadOnlyMemory<byte> GetGroupRecord()
+    {
+        foreach (var chunk in _container.Chunks)
+        {
+            if (chunk.Tag.Span.SequenceEqual("GROU"u8))
+                return chunk.Records.First();
+        }
+
+        return ReadOnlyMemory<byte>.Empty;
+    }
+
     private IEnumerable<MapSpriteData> EnumerateSpriteData()
     {
         foreach (var record in _container.Chunks.First(x => x.Tag.Span.SequenceEqual("SPRD"u8)).Records)
