@@ -26,6 +26,9 @@ internal readonly struct ObjectConstants
     [FieldOffset(24)]
     public readonly float MaxTrainSpeed;
 
+    [FieldOffset(32)]
+    public readonly float SlideDeceleration;
+
     [FieldOffset(36)]
     public readonly int BuildTimeFactor;
 

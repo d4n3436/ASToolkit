@@ -30,12 +30,6 @@ internal sealed partial class GameWorld
     private const int MedkitProtection = 3000;
     private const int FlashDuration = 0x900;
     private const int ShakeReach = 4;
-    private const uint EnvironmentShadow = 1;
-    private const uint EnvironmentLongShadow = 2;
-    private const uint EnvironmentEarthquake = 4;
-    private const uint EnvironmentRain = 0xc00;
-    private const uint EnvironmentSnow = 0xc000;
-    private const uint EnvironmentStop = 0x80000000;
     private const int ExplosionQuake = 120;
     private const int BlastQuake = 500;
     private const int NukeQuake = 1000;
@@ -1025,7 +1019,7 @@ internal sealed partial class GameWorld
     {
         _quakeStart = GetScriptTime();
         _quakeDelay = delay;
-        SetEnvironment(EnvironmentEarthquake);
+        SetEnvironment(MapEnvironment.Earthquake);
     }
 
     [ScriptFunction("GameTact")]
@@ -1036,33 +1030,33 @@ internal sealed partial class GameWorld
         if (_quakeStart != 0 && (now - _quakeStart > _quakeDelay || _quakeStart > now))
         {
             _quakeStart = 0;
-            SetEnvironment(EnvironmentEarthquake | EnvironmentStop);
+            SetEnvironment(MapEnvironment.Earthquake | MapEnvironment.Stop);
         }
     }
 
     [ScriptFunction("SetEnvironment")]
     [EngineRoutine(0x00431cf0)]
-    private void SetEnvironment(uint environment)
+    private void SetEnvironment(MapEnvironment environment)
     {
-        if ((environment & EnvironmentStop) != 0)
+        if ((environment & MapEnvironment.Stop) != 0)
         {
             _environment &= ~environment;
             return;
         }
 
-        if (environment is EnvironmentShadow or EnvironmentLongShadow)
+        if (environment is MapEnvironment.Shadow or MapEnvironment.LongShadow)
         {
-            _environment &= ~(EnvironmentShadow | EnvironmentLongShadow);
+            _environment &= ~(MapEnvironment.Shadow | MapEnvironment.LongShadow);
         }
 
-        if ((environment & EnvironmentRain) != 0)
+        if ((environment & MapEnvironment.Rain) != 0)
         {
-            _environment &= ~EnvironmentRain;
+            _environment &= ~MapEnvironment.Rain;
         }
 
-        if ((environment & EnvironmentSnow) != 0)
+        if ((environment & MapEnvironment.Snow) != 0)
         {
-            _environment &= ~EnvironmentSnow;
+            _environment &= ~MapEnvironment.Snow;
         }
 
         _environment |= environment;
@@ -1071,7 +1065,7 @@ internal sealed partial class GameWorld
     [EngineRoutine(0x00430870)]
     private void ShakeCamera()
     {
-        if ((_environment & EnvironmentEarthquake) == 0)
+        if ((_environment & MapEnvironment.Earthquake) == 0)
         {
             CameraShake = null;
             return;

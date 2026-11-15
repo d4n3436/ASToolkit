@@ -9,10 +9,10 @@ namespace ASToolkit.Core.Formats;
 public readonly struct MapGraphics
 {
     /// <summary>
-    /// The graphics flags.
+    /// The environment the map starts with.
     /// </summary>
     [FieldOffset(0)]
-    public readonly uint Flags;
+    public readonly MapEnvironment Environment;
 
     /// <summary>
     /// The gamma of the ambient light.

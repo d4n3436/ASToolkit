@@ -54,6 +54,8 @@ public class ObjectTableTests
         Assert.Equal(830, weapon.DetectRange, 3);
         Assert.Equal(50, weapon.BattleRange, 3);
         Assert.Equal(600, weapon.ReloadTime);
+        Assert.Equal(1, weapon.Weight, 3);
+        Assert.Equal(0, weapon.Power, 3);
         var attack = (KnownObject)monster.Children[(int)SpriteAnimation.Fight];
         Assert.Equal(1, monster.ChildCounts[(int)SpriteAnimation.Fight]);
         Assert.True(table.TryFind(attack, out var hit));

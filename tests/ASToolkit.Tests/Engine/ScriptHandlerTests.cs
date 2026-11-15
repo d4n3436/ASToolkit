@@ -27,6 +27,20 @@ public class ScriptHandlerTests
     }
 
     [Fact]
+    public void Step_MapStartingWithAnEarthquake_ShakesTheScreenFromTheFirstTick()
+    {
+        var objects = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var calm = EngineTestWorld.CreateWorld(objects);
+        var shaking = EngineTestWorld.CreateWorld(objects, environment: MapEnvironment.Earthquake);
+
+        Step(calm, 1);
+        Step(shaking, 1);
+
+        Assert.Null(calm.CameraShake);
+        Assert.NotNull(shaking.CameraShake);
+    }
+
+    [Fact]
     public void Step_BombTaken_Deals300ToMonstersAndShakesTheScreen()
     {
         var kinds = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);

@@ -54,5 +54,40 @@ public enum WeaponFlags : uint
     /// <summary>
     /// The unit ranks competing targets by distance alone.
     /// </summary>
-    PrefersNearest = 1 << 8
+    PrefersNearest = 1 << 8,
+
+    /// <summary>
+    /// The object carries the objects it touches along with its own movement.
+    /// </summary>
+    CarriesTouched = 1 << 9,
+
+    /// <summary>
+    /// The object is a torso that aims apart from the legs it rides on.
+    /// </summary>
+    Torso = 1 << 11,
+
+    /// <summary>
+    /// The object moves straight toward its target instead of along its facing.
+    /// </summary>
+    MovesTowardTarget = 1 << 12,
+
+    /// <summary>
+    /// The linked object turns to show the remaining health of its owner.
+    /// </summary>
+    ShowsOwnerHealth = 1 << 14,
+
+    /// <summary>
+    /// The unit keeps moving while it attacks.
+    /// </summary>
+    AttacksWhileMoving = 1 << 15,
+
+    /// <summary>
+    /// The object damages what it bumps into.
+    /// </summary>
+    DamagesOnContact = 1 << 17,
+
+    /// <summary>
+    /// The unit holds fire on distant targets its shot cannot reach past walls.
+    /// </summary>
+    ChecksLineOfFire = 1 << 18
 }

@@ -20,7 +20,7 @@ public readonly struct VidResource
 
     private readonly VidHeader _header;
     private readonly VidPixelFormat _format;
-    private readonly int _mode;
+    private readonly VidMode _mode;
     private readonly VidBlend _blend;
     private readonly ReadOnlyMemory<byte>[] _frames;
     private readonly ReadOnlyMemory<byte>[] _cadrRecords;
@@ -36,8 +36,8 @@ public readonly struct VidResource
         var head = GetFirstRecord(container, "HEAD"u8).Span;
         _header = MemoryMarshal.Read<VidHeader>(head);
         _format = head.Length >= Unsafe.SizeOf<VidHeader>() + 4 ? MemoryMarshal.Read<VidPixelFormat>(head[10..]) : VidPixelFormat.None;
-        _mode = head.Length >= ModeOffset + 4 ? MemoryMarshal.Read<int>(head[ModeOffset..]) : 0;
-        _blend = head.Length >= BlendOffset + 4 ? (VidBlend)MemoryMarshal.Read<uint>(head[BlendOffset..]) : VidBlend.Alpha;
+        _mode = head.Length >= ModeOffset + 4 ? MemoryMarshal.Read<VidMode>(head[ModeOffset..]) : VidMode.Upright;
+        _blend = head.Length >= BlendOffset + 4 ? MemoryMarshal.Read<VidBlend>(head[BlendOffset..]) : VidBlend.Alpha;
         Palette = GetFirstRecord(container, "PAL "u8);
         _surfaces = GetFirstRecord(container, "SURF"u8);
 
@@ -97,9 +97,9 @@ public readonly struct VidResource
     public VidPixelFormat Format => _format;
 
     /// <summary>
-    /// Gets the draw mode, or zero for sprites whose header does not carry one.
+    /// Gets how the draw routines build the quads of the frames, or upright for sprites whose header does not carry one.
     /// </summary>
-    public int Mode => _mode;
+    public VidMode Mode => _mode;
 
     /// <summary>
     /// Gets the blend mode, or zero for sprites whose header does not carry one.

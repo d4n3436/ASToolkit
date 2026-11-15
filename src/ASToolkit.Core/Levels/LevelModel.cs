@@ -47,4 +47,9 @@ public sealed class LevelModel
     /// Gets the width and height of the map from its header, or an empty size when the model has none.
     /// </summary>
     public SizeF MapSize { get; init; }
+
+    /// <summary>
+    /// Gets the environment the map starts with.
+    /// </summary>
+    public MapEnvironment Environment { get; init; }
 }

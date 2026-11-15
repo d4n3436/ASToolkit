@@ -30,7 +30,7 @@ internal sealed partial class GameWorld
     private bool _adrenalineActive;
     private int _quakeStart;
     private int _quakeDelay;
-    private uint _environment;
+    private MapEnvironment _environment;
     private bool _deathFlashed;
     private readonly List<ObjectProgram> _programs = [];
     private readonly UpdateOrder _updates;
@@ -54,6 +54,7 @@ internal sealed partial class GameWorld
         bool fencesUp = model.Sprites.Any(sprite => sprite.Id == KnownObject.Fence);
         _sprites = model.Sprites.ToList();
         _level = level;
+        _environment = model.Environment;
         _triggersPassed = new bool[level.Triggers.Count];
         _crowdSprites = level.CrowdRules.Select(rule => new MergedMapSprite?[rule.Points.Count]).ToArray();
         Kinds = kinds;

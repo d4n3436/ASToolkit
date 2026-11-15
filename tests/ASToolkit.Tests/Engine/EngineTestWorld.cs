@@ -7,7 +7,8 @@ namespace ASToolkit.Tests.Engine;
 
 internal static class EngineTestWorld
 {
-    public static GameWorld CreateWorld(ObjectCatalog kinds, PlayerLoadout? loadout = null, IReadOnlyList<MergedMapSprite>? sprites = null, int frameTime = GameClock.DefaultFrameTime)
+    public static GameWorld CreateWorld(ObjectCatalog kinds, PlayerLoadout? loadout = null, IReadOnlyList<MergedMapSprite>? sprites = null, int frameTime = GameClock.DefaultFrameTime,
+        MapEnvironment environment = MapEnvironment.None)
     {
         var model = new LevelModel
         {
@@ -17,7 +18,8 @@ internal static class EngineTestWorld
             Cells = new HashSet<Cell> { new(0, 0), new(400, 400) },
             Edges = new Dictionary<EdgeKey, EdgeKind>(),
             Objects = [],
-            Sprites = sprites ?? []
+            Sprites = sprites ?? [],
+            Environment = environment
         };
 
         var level = new LevelTemplate

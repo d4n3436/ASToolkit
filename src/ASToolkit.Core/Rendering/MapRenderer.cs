@@ -592,8 +592,8 @@ public sealed class MapRenderer
             return 0;
         }
 
-        int mode = file.Mode is 0 or -1 && !path.Contains(@"\101.", StringComparison.OrdinalIgnoreCase) ? 1 : file.Mode;
-        if (mode == 0 || (mode == -1 && obj.Size.Y < obj.Size.Z))
+        var mode = file.Mode is VidMode.Upright or VidMode.UprightOrFlat && !path.Contains(@"\101.", StringComparison.OrdinalIgnoreCase) ? VidMode.Flat : file.Mode;
+        if (mode == VidMode.Upright || (mode == VidMode.UprightOrFlat && obj.Size.Y < obj.Size.Z))
         {
             return 0;
         }
@@ -610,7 +610,7 @@ public sealed class MapRenderer
 
     private static int GetPass(GameObject obj, VidResource file)
     {
-        if (file.Mode == 6)
+        if (file.Mode == VidMode.Glow)
         {
             return 10;
         }
@@ -1062,7 +1062,7 @@ public sealed class MapRenderer
     // Turn the depth test off for light glows, blend 7 and mode 6 sprites like Alien Shooter 2. Keep it on for unlit renders,
     // which have no light buffer to take the glows.
     private bool TestsDepth(VidResource view) =>
-        !_objects.IsAlienShooter2 || !MatchGameLighting || !(view.Blend is VidBlend.AdditiveLight or VidBlend.AlphaDepthWrite || view.Mode == 6);
+        !_objects.IsAlienShooter2 || !MatchGameLighting || !(view.Blend is VidBlend.AdditiveLight or VidBlend.AlphaDepthWrite || view.Mode == VidMode.Glow);
 
     private static ushort GetMeshDepth(float[] heights, int width, int x, int y)
     {

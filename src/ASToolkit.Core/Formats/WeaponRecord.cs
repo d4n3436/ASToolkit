@@ -20,6 +20,9 @@ public readonly struct WeaponRecord
     internal WeaponRecord(AlienShooterWeaponRecord record)
     {
         Flags = record.Flags;
+        Length = record.Length;
+        Weight = record.Weight;
+        Power = record.Power;
         uint targets = (uint)record.Targets;
         Targets = (SpriteType)(((targets & ShiftedTypeMask) << 1) | (targets & SharedTypeMask));
         DecisionPeriod = NoDecisions;
@@ -60,6 +63,24 @@ public readonly struct WeaponRecord
     /// </summary>
     [FieldOffset(4)]
     public readonly WeaponFlags Flags;
+
+    /// <summary>
+    /// The length of a train car with the weapon along its track.
+    /// </summary>
+    [FieldOffset(8)]
+    public readonly float Length;
+
+    /// <summary>
+    /// The weight of the object, against which a pushing or pulling power is measured; 999999 for an immovable object.
+    /// </summary>
+    [FieldOffset(12)]
+    public readonly float Weight;
+
+    /// <summary>
+    /// The power with which the object pulls a train or pushes what it runs into.
+    /// </summary>
+    [FieldOffset(16)]
+    public readonly float Power;
 
     /// <summary>
     /// The time in milliseconds between the target decisions of a unit with the weapon; 999999 for none. Absent from Alien Shooter records.

@@ -20,7 +20,7 @@ public static class LevelExtractor
         var sp = OrderSprites(map.Sprites).ToList();
         if (sp.Any(s => s.Id is KnownObject.Grass or KnownObject.VolumetricGrass or KnownObject.FlatGrass))
         {
-            return ExtractOutdoor(name, sp, map.Size, objects);
+            return ExtractOutdoor(name, sp, map, objects);
         }
 
         int concrete = sp.Count(s => KnownObject.ConcreteWalls.Contains(s.Id));
@@ -64,7 +64,8 @@ public static class LevelExtractor
             Edges = edges,
             Objects = ExtractDecor(sp, lattice, objects),
             Sprites = sp,
-            MapSize = map.Size
+            MapSize = map.Size,
+            Environment = map.Graphics.Environment
         };
     }
 
@@ -354,7 +355,7 @@ public static class LevelExtractor
         return best;
     }
 
-    private static LevelModel? ExtractOutdoor(string name, List<MergedMapSprite> sp, SizeF size, ObjectTable objects)
+    private static LevelModel? ExtractOutdoor(string name, List<MergedMapSprite> sp, MapResourceBuilder map, ObjectTable objects)
     {
         var lattice = FitBasementLattice(sp);
         if (lattice is null)
@@ -362,14 +363,14 @@ public static class LevelExtractor
             return null;
         }
 
-        var corners = new[] { lattice.ToLattice(0, 0), lattice.ToLattice(size.Width, 0), lattice.ToLattice(0, size.Height), lattice.ToLattice(size.Width, size.Height) };
+        var corners = new[] { lattice.ToLattice(0, 0), lattice.ToLattice(map.Size.Width, 0), lattice.ToLattice(0, map.Size.Height), lattice.ToLattice(map.Size.Width, map.Size.Height) };
         var cells = new HashSet<Cell>();
         for (int u = (int)MathF.Floor(corners.Min(c => c.U)); u <= (int)MathF.Ceiling(corners.Max(c => c.U)); u++)
         {
             for (int v = (int)MathF.Floor(corners.Min(c => c.V)); v <= (int)MathF.Ceiling(corners.Max(c => c.V)); v++)
             {
                 (float x, float y) = lattice.ToWorld(u + 0.5f, v + 0.5f);
-                if (x >= 0 && x <= size.Width && y >= 0 && y <= size.Height)
+                if (x >= 0 && x <= map.Size.Width && y >= 0 && y <= map.Size.Height)
                 {
                     cells.Add(new Cell(u, v));
                 }
@@ -385,7 +386,8 @@ public static class LevelExtractor
             Edges = ReadBasementEdges(lattice, sp, outdoor: true),
             Objects = ExtractDecor(sp, lattice, objects),
             Sprites = sp,
-            MapSize = size
+            MapSize = map.Size,
+            Environment = map.Graphics.Environment
         };
     }
 

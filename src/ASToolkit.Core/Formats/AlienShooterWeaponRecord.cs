@@ -11,6 +11,15 @@ internal readonly struct AlienShooterWeaponRecord
     [FieldOffset(4)]
     public readonly WeaponFlags Flags;
 
+    [FieldOffset(8)]
+    public readonly float Length;
+
+    [FieldOffset(12)]
+    public readonly float Weight;
+
+    [FieldOffset(16)]
+    public readonly float Power;
+
     [FieldOffset(20)]
     public readonly float DetectRange;
 
