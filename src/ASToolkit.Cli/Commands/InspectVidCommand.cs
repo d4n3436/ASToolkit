@@ -20,8 +20,8 @@ internal sealed class InspectVidCommand : Command<InspectVidSettings>
         }
 
         var vid = new VidResource(File.ReadAllBytes(path));
-        AnsiConsole.MarkupLine($"flags {vid.Flags}");
-        AnsiConsole.MarkupLine($"format {vid.Format}, mode {vid.Mode}, blend {vid.Blend}, speed {vid.Speed}");
+        AnsiConsole.MarkupLine($"type {vid.Type}");
+        AnsiConsole.MarkupLine($"format {vid.Format}, mode {vid.MeshType}, blend {vid.BlendProcedure}, speed {vid.Speed}");
         AnsiConsole.MarkupLine($"size {vid.Width} x {vid.Height}, {vid.FrameCount} frames");
         if (settings.Frame < 0 || settings.Frame >= Math.Max(1, (int)vid.FrameCount))
         {
@@ -29,7 +29,7 @@ internal sealed class InspectVidCommand : Command<InspectVidSettings>
             return 1;
         }
 
-        if (vid is { HasDepth: true, HasPalette: true } && vid.Flags.HasFlag(VidFlags.Runs8Bit))
+        if (vid is { HasZBuffer: true, HasPalette: true } && vid.Type.HasFlag(VidType.Runs8Bit))
         {
             var histogram = new SortedDictionary<int, int>();
             foreach (var run in vid.GetRunFrame(settings.Frame))

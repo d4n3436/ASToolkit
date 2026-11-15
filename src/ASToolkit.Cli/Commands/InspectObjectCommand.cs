@@ -23,7 +23,7 @@ internal sealed class InspectObjectCommand : Command<InspectObjectSettings>
         table.AddRow("file", Markup.Escape(objects.GetPath(id)));
         table.AddRow("type", obj.SpriteType.ToString());
         table.AddRow("class", $"{(int)obj.SpriteClass} {obj.SpriteClass}");
-        table.AddRow("flags", obj.Flags.ToString());
+        table.AddRow("properties", obj.Properties.ToString());
         table.AddRow("move mask", $"0x{obj.MoveMask:X}");
         table.AddRow("size", $"{obj.Size.X} x {obj.Size.Y} x {obj.Size.Z}");
         table.AddRow("scale", $"{obj.Scale.X} x {obj.Scale.Y} x {obj.Scale.Z}");

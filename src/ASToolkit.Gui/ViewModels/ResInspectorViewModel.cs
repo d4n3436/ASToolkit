@@ -74,14 +74,14 @@ public partial class ResInspectorViewModel : ViewModelBase
             
             var headerInfo = new ObservableCollection<Node>
             {
-               new($"{nameof(VidResource.Flags)}: {vid.Flags.ToString()}"),
+               new($"{nameof(VidResource.Type)}: {vid.Type.ToString()}"),
                new($"{nameof(VidResource.Speed)}: {vid.Speed}"),
                new($"{nameof(VidResource.FrameCount)}: {vid.FrameCount}"),
                new($"{nameof(VidResource.Width)}: {vid.Width}"),
                new($"{nameof(VidResource.Height)}: {vid.Height}"),
                new($"{nameof(VidResource.Format)}: {vid.Format}"),
-               new($"{nameof(VidResource.Mode)}: {vid.Mode}"),
-               new($"{nameof(VidResource.Blend)}: {vid.Blend}")
+               new($"{nameof(VidResource.MeshType)}: {vid.MeshType}"),
+               new($"{nameof(VidResource.BlendProcedure)}: {vid.BlendProcedure}")
             };
             
             subNodes.Add(new Node("Header info", headerInfo));

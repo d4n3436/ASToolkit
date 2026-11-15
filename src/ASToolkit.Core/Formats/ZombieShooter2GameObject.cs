@@ -13,7 +13,7 @@ internal readonly struct ZombieShooter2GameObject
     public readonly SpriteClass SpriteClass;
 
     [FieldOffset(8)]
-    public readonly ObjectFlags Flags;
+    public readonly ObjectProperties Properties;
 
     [FieldOffset(12)]
     public readonly CollisionLayers MoveMask;
@@ -25,16 +25,16 @@ internal readonly struct ZombieShooter2GameObject
     public readonly int MaxHp;
 
     [FieldOffset(32)]
-    public readonly float Speed;
-
-    [FieldOffset(36)]
     public readonly float MaxSpeed;
 
+    [FieldOffset(36)]
+    public readonly float MaxInitialSpeed;
+
     [FieldOffset(40)]
-    public readonly float ZSpeed;
+    public readonly float MaxZSpeed;
 
     [FieldOffset(44)]
-    public readonly float MaxZSpeed;
+    public readonly float MaxInitialZSpeed;
 
     [FieldOffset(48)]
     public readonly float Acceleration;
@@ -43,19 +43,19 @@ internal readonly struct ZombieShooter2GameObject
     public readonly float Deceleration;
 
     [FieldOffset(56)]
-    public readonly float TurnPeriod;
+    public readonly float RotationPeriod;
 
     [FieldOffset(60)]
     public readonly int WeaponIndex;
 
     [FieldOffset(64)]
-    public readonly float BlastRadius;
+    public readonly float DeathRange;
 
     [FieldOffset(68)]
-    public readonly int Damage;
+    public readonly int DeathDamage;
 
     [FieldOffset(72)]
-    public readonly int MaxDamage;
+    public readonly int MaxDeathDamage;
 
     [FieldOffset(76)]
     public readonly float Push;
@@ -67,7 +67,7 @@ internal readonly struct ZombieShooter2GameObject
     public readonly KnownObject Link;
 
     [FieldOffset(96)]
-    public readonly float RestHeight;
+    public readonly float TopZ;
 
     [FieldOffset(100)]
     public readonly float StepHeight;
@@ -85,7 +85,7 @@ internal readonly struct ZombieShooter2GameObject
     public readonly StateValues<int> FrameCounts;
 
     [FieldOffset(200)]
-    public readonly StateValues<int> SoundIds;
+    public readonly StateValues<int> Sounds;
 
     [FieldOffset(268)]
     public readonly StateValues<int> FrameDurations;
@@ -97,7 +97,7 @@ internal readonly struct ZombieShooter2GameObject
     public readonly StateValues<float> ChildY;
 
     [FieldOffset(472)]
-    public readonly StateValues<float> ChildHeight;
+    public readonly StateValues<float> ChildZ;
 
     [FieldOffset(540)]
     public readonly StateValues<int> Children;

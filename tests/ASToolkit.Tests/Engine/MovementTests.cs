@@ -56,7 +56,7 @@ public class MovementTests
             Lattice = new Lattice(10, 7), Cells = Enumerable.Range(0, 4).SelectMany(u => Enumerable.Range(0, 4).Select(v => new Cell(u, v))).ToHashSet(),
             Edges = [], FenceEdges = [], BlockedCells = []
         };
-        var field = new WalkField(grid, false, false, new WalkObstacles(new MovementMap()), Body(new Vector3(24, 18, 40), spriteClass: SpriteClass.Player));
+        var field = new WalkField(grid, false, false, new WalkObstacles(new MovementMap()), Body(new Vector3(24, 18, 40), spriteClass: SpriteClass.Man));
         var outside = new Vector2(-120, 0);
         int start = field.FindStart(outside.AsVector3());
 
@@ -89,7 +89,7 @@ public class MovementTests
     public void GetSupportHeight_PlayerFootprint_SamplesWholeCellStepsFromItsLeftEdge()
     {
         var map = new MovementMap();
-        var player = Body(new Vector3(24, 24, 40), spriteClass: SpriteClass.Player);
+        var player = Body(new Vector3(24, 24, 40), spriteClass: SpriteClass.Man);
         map.Raise(24, 16, 40);
         Assert.Equal(0, map.GetSupportHeight(player, new Vector2(16, 20)));
         Assert.True(map.CanStandOnGround(player, new Vector2(16, 20).AsVector3()));
@@ -116,7 +116,7 @@ public class MovementTests
     {
         var terrain = new MovementMap();
         var map = new WalkObstacles(terrain);
-        var player = Body(new Vector3(24, 18, 40), spriteClass: SpriteClass.Player);
+        var player = Body(new Vector3(24, 18, 40), spriteClass: SpriteClass.Man);
         terrain.Raise(1336, 3136, 73);
         Assert.True(map.CanMove(player, new Vector2(1334, 3150).AsVector3(), new Vector2(1339.46f, 3150)));
     }
@@ -170,7 +170,7 @@ public class MovementTests
     {
         byte[] bytes = new byte[Marshal.SizeOf<GameObject>()];
         MemoryMarshal.Write(bytes.AsSpan(4), in spriteClass);
-        var flags = ObjectFlags.FollowsTerrain | ObjectFlags.Hittable;
+        var flags = ObjectProperties.ZeroZ | ObjectProperties.Hash;
         MemoryMarshal.Write(bytes.AsSpan(8), in flags);
         MemoryMarshal.Write(bytes.AsSpan(12), in mask);
         MemoryMarshal.Write(bytes.AsSpan(16), in size);

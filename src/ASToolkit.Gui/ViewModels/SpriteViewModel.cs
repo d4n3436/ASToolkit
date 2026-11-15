@@ -78,9 +78,9 @@ public partial class SpriteViewModel : ViewModelBase
         _id = source.Id;
         _sprite = renderer.GetSprite(source.Id);
         string sprite = _sprite.HasValue
-            ? $"{_sprite.Value.Flags}  {_sprite.Value.FrameCount} frames  {_sprite.Value.Width}x{_sprite.Value.Height}  {_sprite.Value.Speed} ms"
+            ? $"{_sprite.Value.Type}  {_sprite.Value.FrameCount} frames  {_sprite.Value.Width}x{_sprite.Value.Height}  {_sprite.Value.Speed} ms"
             : "missing";
-        Title = $"{(int)source.Id}  {objects.GetName(source.Id)}\n{objects.GetPath(source.Id)}  class {obj.SpriteClass}  flags 0x{(uint)obj.Flags:x}\nsprite {sprite}";
+        Title = $"{(int)source.Id}  {objects.GetName(source.Id)}\n{objects.GetPath(source.Id)}  class {obj.SpriteClass}  flags 0x{(uint)obj.Properties:x}\nsprite {sprite}";
         States.Clear();
         for (int state = 0; state < GameObject.StateCount; state++)
         {
@@ -160,7 +160,7 @@ public partial class SpriteViewModel : ViewModelBase
         }
 
         SetFrame(BitmapConversion.ToBitmap(image), image.Width, image.Height);
-        Info = sprite.Flags.HasFlag(VidFlags.OmniLight) ? $"Light frame {frame} of {sprite.FrameCount}, color #{sprite.GetLightColor(frame):x6}"
+        Info = sprite.Type.HasFlag(VidType.Light) ? $"Light frame {frame} of {sprite.FrameCount}, color #{sprite.GetLightColor(frame):x6}"
             : $"Frame {frame} of {sprite.FrameCount}";
     }
 

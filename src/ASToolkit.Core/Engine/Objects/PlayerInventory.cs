@@ -39,7 +39,7 @@ internal sealed class PlayerInventory
         _items = loadout.Items.ToDictionary();
         _implants = loadout.Implants;
         _maxHealth = _implants.ScaleHealth(player.Kind.MaxHp);
-        Speed = _implants.ScaleSpeed(player.Kind.Object.Speed);
+        Speed = _implants.ScaleSpeed(player.Kind.Object.MaxSpeed);
         for (int slot = 0; slot < WeaponSlots; slot++)
         {
             _torsos[slot] = kinds.Find(KnownObject.SecretWeaponTorso + slot);
@@ -64,7 +64,7 @@ internal sealed class PlayerInventory
 
     public float Speed { get; private set; }
 
-    public void SetSpeedBoost(float boost) => Speed = _implants.ScaleSpeed(_player.Kind.Object.Speed) + boost;
+    public void SetSpeedBoost(float boost) => Speed = _implants.ScaleSpeed(_player.Kind.Object.MaxSpeed) + boost;
 
     public void SetItem(KnownObject id, int count) => _items[id] = count;
 
@@ -156,7 +156,7 @@ internal sealed class PlayerInventory
             case >= KnownObject.LifeImplant and <= KnownObject.AccuracyImplant:
                 _implants = GetImplanted(id);
                 _maxHealth = _implants.ScaleHealth(_player.Kind.MaxHp);
-                Speed = _implants.ScaleSpeed(_player.Kind.Object.Speed);
+                Speed = _implants.ScaleSpeed(_player.Kind.Object.MaxSpeed);
                 break;
             case KnownObject.Money:
                 Money += MoneyPickupAmount;

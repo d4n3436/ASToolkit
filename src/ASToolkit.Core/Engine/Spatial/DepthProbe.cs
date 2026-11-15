@@ -72,7 +72,7 @@ internal sealed class DepthProbe
             var obj = unit.Kind.Object;
             int depth = (int)(unit.Position.Z * DepthPerHeight);
 
-            if (obj.Flags.HasFlag(ObjectFlags.Raised) && depth < RaisedDepth)
+            if (obj.Properties.HasFlag(ObjectProperties.AlwaysTop) && depth < RaisedDepth)
             {
                 depth += RaisedDepth;
             }

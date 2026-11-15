@@ -257,7 +257,7 @@ public sealed class ReplayPlayback
     private static bool IsCannon(ObjectTable objects, KnownObject id) => objects.TryFind(id, out var obj) && obj.SpriteClass == SpriteClass.Cannon;
 
     private static bool IsUnit(ObjectTable objects, KnownObject id) =>
-        id != KnownObject.Crate && objects.TryFind(id, out var obj) && obj is { MaxHp: > 0, SpriteClass: SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Player };
+        id != KnownObject.Crate && objects.TryFind(id, out var obj) && obj is { MaxHp: > 0, SpriteClass: SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man };
 
     private Vector2 GetShake(int time)
     {

@@ -773,20 +773,20 @@ public enum KnownObject
     /// <summary>The corpse of the level 4 boss.</summary>
     Boss4Corpse = 862,
 
-    /// <summary>The tank monster used as a boss.</summary>
-    TankBoss = 863,
+    /// <summary>The blue tank monster.</summary>
+    BlueTankMonster = 863,
 
-    /// <summary>The tank boss corpse.</summary>
-    TankBossCorpse = 865,
+    /// <summary>The corpse of the blue tank monster.</summary>
+    BlueTankMonsterCorpse = 865,
 
-    /// <summary>The blue tank-weapon monster used as a boss.</summary>
-    BlueTankWeaponBoss = 866,
+    /// <summary>The blue tank-weapon monster.</summary>
+    BlueTankWeaponMonster = 866,
 
     /// <summary>The more powerful boss of level 3.</summary>
     PowerfulBoss3 = 867,
 
-    /// <summary>The flying monster that spawns.</summary>
-    Bat = 880,
+    /// <summary>The flyer, a flying monster that spawns.</summary>
+    Flyer = 880,
 
     /// <summary>The larger shadow.</summary>
     LargerShadow = 883,

@@ -44,7 +44,7 @@ internal sealed class UnitGrid
         }
     }
 
-    public static bool IsHashed(ObjectDefinition kind) => kind.Object.Flags.HasFlag(ObjectFlags.Hittable);
+    public static bool IsHashed(ObjectDefinition kind) => kind.Object.Properties.HasFlag(ObjectProperties.Hash);
 
     private static float GetCellSize(float size)
     {
@@ -84,7 +84,7 @@ internal sealed class UnitGrid
     }
 
     [EngineRoutine(0x0042d8c0)]
-    public void Move(Unit unit)
+    public void ChangeCoor(Unit unit)
     {
         if (unit.Slot < 0)
             return;

@@ -1,9 +1,9 @@
 namespace ASToolkit.Core.Formats;
 
 /// <summary>
-/// Specifies how the draw routines build the quads of a sprite's frames.
+/// Specifies the mesh type of a sprite, the geometry the draw routines build for its frames.
 /// </summary>
-public enum VidMode
+public enum MeshType
 {
     /// <summary>
     /// An upright quad, or a flat one, depending on the depth range of the sprite.
@@ -16,7 +16,7 @@ public enum VidMode
     Upright = 0,
 
     /// <summary>
-    /// A flat quad.
+    /// A flat quad lying on the ground plane. The outline pass skips it.
     /// </summary>
     Flat = 1,
 
@@ -31,17 +31,17 @@ public enum VidMode
     Mesh = 3,
 
     /// <summary>
-    /// A flat quad with no special handling.
+    /// A flat quad drawn like <see cref="Flat"/>.
     /// </summary>
     PlainFlat = 4,
 
     /// <summary>
-    /// A flat quad used by omni-lights.
+    /// A flat quad drawn like <see cref="Flat"/>, used by the omni-lights.
     /// </summary>
     Light = 5,
 
     /// <summary>
-    /// A light glow whose bounds widen by up to 128 pixels.
+    /// A light glow drawn over everything already drawn, whose bounds widen by up to 128 pixels.
     /// </summary>
     Glow = 6
 }

@@ -26,7 +26,7 @@ The guarantees every level keeps are in [One pass and guarantees](#one-pass-and-
 
 ## Overview
 
-A generated level is one level of a campaign drawn from the style's campaign model. Levels 2 and later take their building, gate, threat, pickups and weapons from their brief and the rest from a donor original. Level 1 is an outdoor level ([Level 1](#level-1)). Each level is built once and read back with the route analysis that measures the originals; a layout whose tour misses an objective is drawn again.
+Each generated level is one level of a campaign drawn from the style's campaign model. Levels 2 and later take their building, gate, threat, pickups and weapons from their brief and the rest from a donor original. Level 1 is an outdoor level ([Level 1](#level-1)). Each level is built once and read back with the route analysis that measures the originals; a layout whose tour misses an objective is drawn again.
 
 ```
  ascli generate / ascli preview
@@ -50,11 +50,11 @@ A generated level is one level of a campaign drawn from the style's campaign mod
  GeneratedLevel.Write / RandomAddOnInstaller.Install
 ```
 
-`GeneratedLevel` carries each stage's output: `Plan` (regions, links, stations, gate), `Layout` (cells, wall edges, lattice), `Budget`, `Map`, `Script` and `Analysis`, with the sprites' `Provenance` and the building's `LayoutCounts`.
+`GeneratedLevel` carries the output of each stage in `Plan` (regions, links, stations, gate), `Layout` (cells, wall edges, lattice), `Budget`, `Map`, `Script` and `Analysis`, with the sprites' `Provenance` and the building's `LayoutCounts`.
 
 ### Randomness
 
-A level draws from four `Random` streams. The layout seed drives the building, doors, plan, structure and breaker spot; streams seeded from it drive the budget, the roof and the content. The same seed and level always give the same files (`LevelGeneratorIntegrationTests`).
+Each level draws from four `Random` streams. The layout seed drives the building, doors, plan, structure and breaker spot; streams seeded from it drive the budget, the roof and the content. The same seed and level always give the same files (`LevelGeneratorIntegrationTests`).
 
 ## Reference data
 
@@ -81,7 +81,7 @@ The encounter model holds these values, fitted to the style's originals:
 - how far apart a fight's spawners stand, and how far from their trigger;
 - how big each phase's largest fight is, and where in their phases the originals' largest fights come.
 
-A fight is everything the player meets in one phase within 1,000 px of walk from its first encounter. Groups holding under 2% of the level's hit points don't count.
+Fights are everything the player meets in one phase within 1,000 px of walk from their first encounter. Groups holding under 2% of the level's hit points don't count.
 
 The economy model holds these values:
 
@@ -92,7 +92,7 @@ The economy model holds these values:
 - how far along the walk from the start dynamite sites stand, how far ahead of a site with no gate before it its charges lie, and how many levels hold charges in the start room;
 - the share of levels with a checkpoint.
 
-A value with fewer than 8 samples behind it falls back to a default.
+Values with fewer than 8 samples behind them fall back to a default.
 
 ## Coordinates
 
@@ -104,7 +104,7 @@ A value with fewer than 8 samples behind it falls back to a default.
  map pixel    MapBuilder             object positions
 ```
 
-`WallSetSettings` gives the sizes per wall set: a basement unit is one cell on the (40, 28) lattice, a concrete unit 2 by 2 cells of the (45, 32) lattice. A `Cell` (U, V) spans [U, U+1) by [V, V+1); U runs along `/` and V along `\`. An `EdgeKey` names the border between two cells.
+`WallSetSettings` gives the sizes per wall set. Basement units are one cell on the (40, 28) lattice, concrete units 2 by 2 cells of the (45, 32) lattice. A `Cell` (U, V) spans [U, U+1) by [V, V+1); U runs along `/` and V along `\`. An `EdgeKey` names the border between two cells.
 
 ```
                        vertex (U+1, V)
@@ -119,7 +119,7 @@ A value with fewer than 8 samples behind it falls back to a default.
    +U goes up and right on screen, +V goes down and right.
 ```
 
-A cell's two upper edges are its far walls, facing the camera; fake doors, the breaker and basement dynamite holes go on them.
+The two upper edges of a cell are its far walls, facing the camera; fake doors, the breaker and basement dynamite holes go on them.
 
 ### Edge kinds
 
@@ -141,17 +141,17 @@ A cell's two upper edges are its far walls, facing the camera; fake doors, the b
 
 ### Campaign plan
 
-`CampaignFitter` fits lines by level to the style's own campaigns for hit points (by the log of the level), spawned share, floor, regular rooms per floor, end money, weapon levels by price order, affordability, repeated weapons, pickups per floor and their ids, ammunition by weapon age, secret closets and dynamite sites per floor (sites by gate style), the shares of buildings and gate styles, each monster kind's first level, the mean hit points of a level's monsters, and the bosses with their share of levels. A line with fewer than 8 samples stays flat at the mean.
+`CampaignFitter` fits lines by level to the style's own campaigns for hit points (by the log of the level), spawned share, floor, regular rooms per floor, end money, weapon levels by price order, affordability, repeated weapons, pickups per floor and their ids, ammunition by weapon age, secret closets and dynamite sites per floor (sites by gate style), the shares of buildings and gate styles, each monster kind's first level, the mean hit points of a level's monsters, and the bosses with their share of levels. Lines with fewer than 8 samples stay flat at the mean.
 
 `CampaignPlanner.Plan` draws one `LevelBrief` per level (10 in campaign style, 5 in add-on style):
 
 - **Buildings.** Level 1 is the grounds. Campaign style builds labs on levels 2 to 5 and warehouses on 6 to 10; add-on style draws every building but the grounds and the prison. Each building has its originals' wall set.
-- **Gates.** The campaign opens with locked, locked and blackout labs on levels 2 to 4; other levels draw a gate per wall set, in the order the campaigns introduce them. An office block is always a blackout level.
-- **Second wings.** Each lab level draws its second wing among those its gate builds (`BuildingGrammar.GetSecondWings`), never one already drawn in the campaign.
-- **Threat, money, size.** Hit points and end money never fall from one level to the next. A lab's room count fits its two wings.
+- **Gates.** The campaign opens with locked, locked and blackout labs on levels 2 to 4; other levels draw a gate per wall set, in the order the campaigns introduce them. Office blocks are always blackout levels.
+- **Second wings.** Each lab level draws its second wing among those its gate builds (`BuildingGrammar.GetSecondWings`) that the campaign has not drawn yet.
+- **Threat, money, size.** Hit points and end money never fall from one level to the next. Lab room counts fit their two wings.
 - **Weapons and pickups.** Weapons come in price order, none before the money can pay its share of the price.
 - **Sites and cannons.** Each indoor level draws its dynamite sites from its gate style's fitted rate per floor. Campaign style stands a mounted cannon on warehouse levels 7 and 8, add-on style on its last warehouse level only.
-- **Monsters and bosses.** A level draws the kinds it has reached, weighted over log hit points so that their mean meets the level's fitted mean; kinds first seen on the level are its new kinds, none on the style's first level with monsters. A level holds a boss at the fitted share, the newest boss kind it has reached.
+- **Monsters and bosses.** Each level draws the kinds it has reached, weighted over log hit points so that their mean meets the level's fitted mean; kinds first seen on the level are its new kinds, none on the style's first level with monsters. Levels hold a boss at the fitted share, the newest boss kind they have reached.
 - **Donor.** Each level names the campaign original of its wall set nearest in hit points. The donor gives the template map and the music lines.
 
 ### Budget
@@ -160,18 +160,18 @@ A cell's two upper edges are its far walls, facing the camera; fake doors, the b
 
 ## Building
 
-`BuildingBuilder.Build` lays out the building from the brief with the building's grammar, phase by phase, and hands the doors stage the rooms with their phases, the start, keys, gate room, trigger, locks, shortcuts, closed and jammed walls, and the end when the program names one. A grid unit is one wall step. Rooms share a wall or stand two units apart, never across a one-unit slit. After the program, closets stand behind host walls, and one lab in four hides a secret room.
+`BuildingBuilder.Build` lays out the building from the brief with the building's grammar, phase by phase, and hands the doors stage the rooms with their phases, the start, keys, gate room, trigger, locks, shortcuts, closed and jammed walls, and the end when the program names one. One grid unit is one wall step. Rooms share a wall or stand two units apart. After the program, closets stand behind host walls, and one lab in four hides a secret room.
 
 Layouts come from the layout solver (`LayoutSolver`, CP-SAT). Each room takes a position and one of its shapes and turns, rooms never overlap, joined rooms meet on a door segment of each, and touches, door sides, obstacles, a screen band and a least number of contacts are optional constraints. It takes the first layout it finds, within half a deterministic second.
 
 ### Underground lab
 
-A lab is two wings, the hub with its office pods and one second wing behind the gate.
+Labs are two wings, the hub with its office pods and one second wing behind the gate.
 
 - **Office pods.** Rings (two hall rooms bridged across a small court) and clumps (rooms packed against each other off one hall room) on both sides of the hub; the breaker ends a clump on a level with a key. Dark levels lock the pods past the first two; lit levels jam a ring's second hall door.
 - **Locked doors.** The start opens onto the hub; the breaker stands in a pod; a locked passage at the hub's far end leads to the second wing.
-- **Blackout.** A quiet hub, then a depot wing past its far end holding the dark run and, nested inside it, the last phase.
-- **Ungated.** A hub of rings, then halls of big rooms walked in sequence.
+- **Blackout.** The hub is quiet, and a depot wing past its far end holds the dark run and, nested inside it, the last phase.
+- **Ungated.** The hub carries rings, and halls of big rooms follow, walked in sequence.
 
 | second wing | rooms | built by |
 |---|---|---|
@@ -197,14 +197,14 @@ Templates are records read by `BuildingGrammar.LayWing`. Drawn wings are laid on
 
 ### Warehouse
 
-A campaign warehouse is laid from its level's template (levels 6 to 9; level 5 takes 6's, level 10 takes 9's). Each area (hall, strip, leg, pocket, block, depot) is drawn with its rooms, then the layout solver places the areas as single rooms. Doors join each area's rooms along its walk and its entry room to its host; a door into a later phase is a fence.
+Campaign warehouses are laid from their level's template (levels 6 to 9; level 5 takes 6's, level 10 takes 9's). Each area (hall, strip, leg, pocket, block, depot) is drawn with its rooms, then the layout solver places the areas as single rooms. Doors join each area's rooms along its walk and its entry room to its host; a door into a later phase is a fence.
 
 ### Office block
 
 The office block (`OfficeGrammar`, `OfficeBlock`) is a blackout level drawn as one level graph and laid in one solve:
 
 - **Graph.** The start hall with two offices; a dark run of four to six rooms to the breaker's room, whose largest office holds the breaker; then the rooms the breaker opens (halls, big rooms, Ls, rooms with rows of offices, and the suite) joined in a tree, one run room opening onto them.
-- **Solve.** Every room shares a wall with at least two others, and the building keeps to a band of the screen. A greedy placement is the solver's starting point.
+- **Solve.** Every room shares a wall with at least two others, and the building keeps to a band of the screen. The solver starts from a greedy placement.
 - **After the solve.** Rows of offices are cut from their rooms, and pockets become rooms or join a neighbor. Rooms of the last phase get a door on every wall they share; the suite opens only along itself. The end is the last phase's large room farthest from the breaker.
 
 ### Add-on buildings
@@ -213,9 +213,9 @@ Add-on warehouses, the prison and the remaining add-on buildings are built as la
 
 ## Doors and progression
 
-`DoorStage.Choose` lays the building's locks and shortcuts as given and a door in every other wall the building leaves open, locked into another phase. `MissionWriter` turns the result into the `MissionGraph`. A building that names no end ends in its last phase's room farthest from the last key.
+`DoorStage.Choose` lays the building's locks and shortcuts as given and a door in every other wall the building leaves open, locked into another phase. `MissionWriter` turns the result into the `MissionGraph`. Without a named end, the building ends in its last phase's room farthest from the last key.
 
-The doors of every building keep every room reachable, every gate lock seen before its key, the key reachable inside its phase, no unlocked door between phases, and the goal reachable after every state change. A building that cannot carry its gate is laid out ungated and counted.
+The doors of every building keep every room reachable, every gate lock seen before its key, the key reachable inside its phase, no unlocked door between phases, and the goal reachable after every state change. Buildings that cannot carry their gate are laid out ungated and counted.
 
 ## Layout plan
 
@@ -232,9 +232,9 @@ The doors of every building keep every room reachable, every gate lock seen befo
 `FightPlanner` plans the level's fights on the layout plan as `PlannedFight`s.
 
 - **How many.** The level holds the fitted number of fights for its floor. Each phase gets fights in proportion to its floor and spreads them evenly along its walk. Rooms without a fight stay empty.
-- **Phases.** A phase gets hit points in proportion to its rooms' floor, less if none of its rooms can hold an ambush. One fight in each phase is its climax. It gets the fitted share of the phase's hit points and comes at a point of the phase drawn from where the originals' climaxes come. Its room is the one nearest that point among the rooms that can hold an ambush, if the phase has any. The other fights split the rest by floor.
-- **Monsters.** Each fight draws one monster family. At the style's measured share a fight holds one variant of it; otherwise its variants mix, none over the style's measured cap. A family too strong for a fight is kept for the next one.
-- **Ambushes.** A fight in a room that every walk to the end enters through one door can be an ambush. Climaxes come first, and ambushes stop once the brief's spawned share is used. The trigger covers that door. Rooms entered through the blackout door get no ambush, and when two neighboring fights have doors close together, only one of them becomes an ambush. Spawners stand in the room's spawn closet if it has one. Otherwise they stand out of sight in later fight rooms, spread apart and within reach of the trigger.
+- **Phases.** Each phase gets hit points in proportion to its rooms' floor, less if none of its rooms can hold an ambush. One fight in each phase is its climax. It gets the fitted share of the phase's hit points and comes at a point of the phase drawn from where the originals' climaxes come. Its room is the one nearest that point among the rooms that can hold an ambush, if the phase has any. The other fights split the rest by floor.
+- **Monsters.** Each fight draws one monster family. At the style's measured share a fight holds one variant of it; otherwise its variants mix, none over the style's measured cap. Families too strong for a fight are kept for the next one.
+- **Ambushes.** Fights in a room that every walk to the end enters through one door can be ambushes. Climaxes come first, and ambushes stop once the brief's spawned share is used. The trigger covers that door. Rooms entered through the blackout door get no ambush, and when two neighboring fights have doors close together, only one of them becomes an ambush. Spawners stand in the room's spawn closet if it has one. Otherwise they stand out of sight in later fight rooms, spread apart and within reach of the trigger.
 - **New kinds.** Each new monster kind shows up first in the fight nearest a rank drawn from the style's measured opening ranks (the level's smallest fight 0, its biggest 1), an ambush at the style's measured share where the room allows one. The campaign's first monster level holds placed fights only.
 - On a lab every fight stands in the second wing.
 
@@ -269,13 +269,13 @@ Every other border of a region is a `Wall`.
 Every piece goes through the level's occupancy ([Keeping the way clear](#keeping-the-way-clear)).
 
 1. `StructureBuilder` hangs an electric panel beside some small doors and wall objects beside some double doors, scatters shadows over the closet side of breakable and spawn walls and piles rubble at some monster holes.
-2. `SceneFurnisher.Furnish` furnishes each room from the furniture grammar, C# tables of each room type's arrangements with their shares, counts per area and modules per run, the type's signature family and whether its far walls stay covered, the families' pieces, wall distances and steps, each piece's companions by room type and facing, and the closest two families stand. A room stands its signature first with its full module (a desk with its computer and chair, a lab bench with its labware), holds each arrangement by its share and places it as a wall run on far or near walls, a grid on open floor in rooms large enough, a heap of stock with each piece at a measured offset for its two families and by a wall at its family's measured wall share for the room size, or a lone piece on open floor, grows with its far, grid and heap arrangements until it holds the piece count drawn for its type or each has stopped landing, then fills far wall stretches left bare. A piece takes the measured facing for the wall of its cell. Every piece goes through the level's occupancy. Walked-over pieces (shadows, blood, stripes, pads) take no spacing.
-3. After its furniture a room hangs its wall fixtures and lays its victims by room type, a corpse beside the furniture it belongs with or seated against a far wall or a container, on its own blood, never by a near wall or behind a piece; gibs lie where victims' blood runs together, and rubble levels strew rock piles. Chairs and tables carry paper.
+2. `SceneFurnisher.Furnish` furnishes each room from the furniture grammar, C# tables of each room type's arrangements with their shares, counts per area and modules per run, the type's signature family and whether its far walls stay covered, the families' pieces, wall distances and steps, each piece's companions by room type and facing, and the closest two families stand. Each room stands its signature first with its full module (a desk with its computer and chair, a lab bench with its labware), holds each arrangement by its share and places it as a wall run on far or near walls, a grid on open floor in rooms large enough, a heap of stock with each piece at a measured offset for its two families and by a wall at its family's measured wall share for the room size, or a lone piece on open floor, grows with its far, grid and heap arrangements until it holds the piece count drawn for its type or each has stopped landing, then fills far wall stretches left bare. Pieces take the measured facing for the wall of their cell. Every piece goes through the level's occupancy. Walked-over pieces (shadows, blood, stripes, pads) take no spacing.
+3. After its furniture a room hangs its wall fixtures and lays its victims by room type, a corpse beside the furniture it belongs with or seated against a far wall or a container, on its own blood, away from near walls and from behind pieces; gibs lie where victims' blood runs together, and rubble levels strew rock piles. Chairs and tables carry paper.
 4. `PlacementContext` lays shadows under pickups at a count per kind.
 5. Set pieces stand first, with their whole module.
    - Breaker: 2 to 4 transformers, a pointer and a corpse in blood. Cannon: a stripe box, crates and a pointer. Generators: 0.7 cells off a far wall with transformers, a shoot-here marker and a corpse. Missile racks: three missiles with a stripe box.
-   - Concrete sites: pads between the site and the walls, one by a wall, one in a corner, a line of three from a far corner or two straddling the site. A site takes the middle of an outer side, shifted 0.6 cells toward its far end to look centered, or a corner; in a long room only its ends.
-   - Several sites in a room pair up symmetrically, both corners of one side or the middles of facing sides, never two on one side otherwise. A site with no spot moves to the planner's next room.
+   - Concrete sites: pads between the site and the walls, one by a wall, one in a corner, a line of three from a far corner or two straddling the site. Each site takes the middle of an outer side, shifted 0.6 cells toward its far end to look centered, or a corner; in a long room only its ends.
+   - Several sites in a room pair up symmetrically, on both corners of one side or the middles of facing sides. Sites with no spot move to the planner's next room.
 
 ### Keeping the way clear
 
@@ -296,9 +296,9 @@ Every piece goes through the level's occupancy ([Keeping the way clear](#keeping
 - **Gate.** The breaker (418) on locked-door and blackout levels; a blackout's trigger is one point in the trigger room, well inside its door.
 - **Bosses.** The brief's bosses, in the largest late dead-end room, else the last station.
 - **Mounted cannon.** At the entry end of a large late station, with a kill zone at the far end.
-- **Sites and charges.** Sites go to rooms near positions drawn along the walk, before the walls are built; concrete sites only in rooms of 96 cells or more. A basement site stands before a far wall hole with a spawner behind it that builds endless generators once the site's phase opens, on a hole with as much floor below it on screen as the originals keep below a site; a site with no hole takes the cell nearest its room's middle that keeps that floor, else the next room planned for it. Concrete sites stack 2 to 4 endless generators on a pad. Everything the blast must kill stands within its 100 px. The charges of each phase's sites lie together, 588 px or more from every site. They go beside the last key of the phase before, the breaker room or the generator room the player reaches last. A phase with no key before it puts them in the start room on the fitted share of levels for the first phase, and otherwise on the walk to its first site, the fitted lead before it, then in the start room, then on the free cells nearest the start before that site.
-- **Fights.** `EncounterPlacer` places the planned fights. Standing groups stand in clusters on visible floor and spill into the nearest rooms of their phase. Ambush spawners stand out of sight of a player inside the trigger circle on the room's door. Spawn closets blow their wall open, and only they may be seen spawning. An ambush with nowhere out of sight to stand becomes a standing group.
-- **Pickups.** `PickupPlacer` lays the budget's pickups. A new weapon lies off the walks to the objectives or in a secret closet, with one of its ammunition pickups earlier on its walk. Secret closets and some spawn closets then take their stashes, crates take each category's share, and the rest lie in small piles in rooms drawn by floor, rooms off the walks weighted by the fitted density.
+- **Sites and charges.** Sites go to rooms near positions drawn along the walk, before the walls are built; concrete sites only in rooms of 96 cells or more. Each basement site stands before a far wall hole with a spawner behind it that builds endless generators once the site's phase opens, on a hole with as much floor below it on screen as the originals keep below a site; a site with no hole takes the cell nearest its room's middle that keeps that floor, else the next room planned for it. Concrete sites stack 2 to 4 endless generators on a pad. Everything the blast must kill stands within its 100 px. The charges of each phase's sites lie together, 588 px or more from every site. They go beside the last key of the phase before, the breaker room or the generator room the player reaches last. When no key comes before the phase, they go in the start room on the fitted share of levels for the first phase, and otherwise on the walk to its first site, the fitted lead before it, then in the start room, then on the free cells nearest the start before that site.
+- **Fights.** `EncounterPlacer` places the planned fights. Standing groups stand in clusters on visible floor and spill into the nearest rooms of their phase. Ambush spawners stand out of sight of a player inside the trigger circle on the room's door. Spawn closets blow their wall open, and only they may be seen spawning. Ambushes with nowhere out of sight to stand become standing groups.
+- **Pickups.** `PickupPlacer` lays the budget's pickups. New weapons lie off the walks to the objectives or in a secret closet, with one of their ammunition pickups earlier on their walk. Secret closets and some spawn closets then take their stashes, crates take each category's share, and the rest lie in small piles in rooms drawn by floor, rooms off the walks weighted by the fitted density.
 - **Checkpoint.** On the walk to the biggest fight, just before its room, on the fitted share of levels that are not blackouts.
 
 ## Designer values
@@ -325,11 +325,11 @@ The generator's other thresholds are game facts, search budgets or values measur
 
 ## Script
 
-`LevelScriptWriter.Format` writes the `.lgc`: the donor's music, `InitGame` and `DoorsIsOpen`, a blackout trigger (respawn there, doors locked, lights off, keypads swapped), a checkpoint trigger, and an exit trigger that wins the level. A locked-doors level starts dark (ambient `C0C0C0`); every other indoor level starts lit.
+`LevelScriptWriter.Format` writes the `.lgc` with the donor's music, `InitGame` and `DoorsIsOpen`, a blackout trigger (respawn there, doors locked, lights off, keypads swapped), a checkpoint trigger, and an exit trigger that wins the level. Locked-doors levels start dark (ambient `C0C0C0`), and every other indoor level starts lit.
 
 ## One pass and guarantees
 
-`LevelGenerator.Generate` builds a level once, writes and parses it back as the game would, and runs `RouteAnalyzer.Analyze`. A step that cannot meet its guarantee draws itself again; when the tour still misses an objective, forces a gate or needs a secret wall outside level 1, `Generate` takes the next layout, up to 8, and otherwise keeps the one with the fewest unreached objectives, then forced gates, then secret walls. Layout `k`'s seed is `seed × 100000 + level × 100 + k`.
+`LevelGenerator.Generate` builds a level once, writes and parses it back as the game would, and runs `RouteAnalyzer.Analyze`. Steps that cannot meet their guarantee draw themselves again; when the tour still misses an objective, forces a gate or needs a secret wall outside level 1, `Generate` takes the next layout, up to 8, and otherwise keeps the one with the fewest unreached objectives, then forced gates, then secret walls. Layout `k`'s seed is `seed × 100000 + level × 100 + k`.
 
 | guarantee | code |
 |---|---|
@@ -365,9 +365,9 @@ The generator's other thresholds are game facts, search budgets or values measur
 
 `OutdoorLevelBuilder` builds level 1 on a map the size of the original it follows:
 
-- **Campaign.** A fenced yard with a shut gate by the start, one or two small buildings, the exit behind a breakable wall, storage clusters, lamps and money; no monsters.
+- **Campaign.** The fenced yard has a shut gate by the start, one or two small buildings, the exit behind a breakable wall, storage clusters, lamps and money, and no monsters.
 - **Compound (add-on 1).** The same yard with a dynamite site at the exit, a charge outside, a shotgun, a cluster of monsters and two spawners at the gate.
-- **City (add-on 2).** A grid of roofed blocks and streets, spawners along them, bats in the far corner; every monster dead wins.
+- **City (add-on 2).** Roofed blocks and streets form a grid, with spawners along them and bats in the far corner. Killing every monster wins.
 
 `LayGround` lays the original's ground rows with grass clumps and tufts. Level 1 gets no roof.
 
@@ -381,5 +381,5 @@ In add-on style the campaign model is fitted to both add-ons and plans 5 levels;
 - `ascli analyze --levels <folder>` draws the tour with objectives, gates and triggers.
 - `ascli inspect design --seeds 10` measures decor, pickups, pacing, room graph, phases, beats, architecture and novelty of the originals and of generated levels, and writes them side by side to `design.md`, with `campaign.md`, `provenance.md` and `layout.md` beside it.
 - Content placement reads distance from the start (`PlacementContext.GetProgress`), not the tour progress `p` the route analysis reads.
-- A step that places nothing usually found its cells taken (`Taken`) or reserved by the keep-clear cells.
+- Steps that place nothing usually found their cells taken (`Taken`) or reserved by the keep-clear cells.
 - Output that changes for a seed after an unrelated edit comes from the random streams ([Randomness](#randomness)).

@@ -226,7 +226,7 @@ internal sealed class Gunnery
         var bullet = torso;
         while (bullet is not null && bullet.Object.SpriteClass != SpriteClass.Cannon)
         {
-            launch += new Vector3(0, bullet.Object.ChildY[(int)SpriteAnimation.Fight], bullet.Object.ChildHeight[(int)SpriteAnimation.Fight]);
+            launch += new Vector3(0, bullet.Object.ChildY[(int)SpriteAnimation.Fight], bullet.Object.ChildZ[(int)SpriteAnimation.Fight]);
             bullet = bullet.FightChild == 0 ? null : _world.Kinds.Find((KnownObject)Math.Abs((int)bullet.FightChild));
         }
 

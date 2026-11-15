@@ -21,7 +21,7 @@ internal sealed partial class GameWorld
     private const int DroppedItemLifetime = 17000;
     private const int DroppedItemLifetimeVariation = 5000;
     private const float DroppedItemHeight = 10;
-    private const float BatItemHeight = -30;
+    private const float FlyerItemHeight = -30;
 
     private readonly GameRandom _rng;
     private readonly MonsterBrain _brain;
@@ -103,7 +103,7 @@ internal sealed partial class GameWorld
                 {
                     placedUnits[sprite.Handle] = AddMonster(kind, sprite.Position, new Facing(sprite.Facing), unchecked((int)sprite.Army), KnownObject.GetCrateItem(sprite.Payload));
                 }
-                else if (kind.Object.SpriteClass != SpriteClass.Player)
+                else if (kind.Object.SpriteClass != SpriteClass.Man)
                 {
                     var body = new Unit(_unitCount++, kind, sprite.Position, unchecked((int)sprite.Army), kind.MaxHp)
                     {
@@ -114,7 +114,7 @@ internal sealed partial class GameWorld
                     Units.Add(body);
                     _bodies.Add(sprite, body);
                     placedUnits[sprite.Handle] = body;
-                    AttachLink(body);
+                    CreateLink(body);
                 }
 
                 continue;
@@ -287,7 +287,7 @@ internal sealed partial class GameWorld
             case UpdateRole.Player:
                 if (Player.IsAlive)
                 {
-                    TickUnit(Player);
+                    Tact(Player);
                 }
 
                 return true;
@@ -439,7 +439,7 @@ internal sealed partial class GameWorld
             _brain.Move(unit, FrameTime, _clock.FramesPerSecond);
         }
 
-        if (TickUnit(unit))
+        if (Tact(unit))
             return true;
 
         RemoveMonster(unit);
@@ -466,7 +466,7 @@ internal sealed partial class GameWorld
     }
 
     [EngineRoutine(0x00440110)]
-    public bool TickUnit(Unit unit)
+    public bool Tact(Unit unit)
     {
         var layout = unit.Kind.Layout;
         UpdateKeyframe(unit);
@@ -491,7 +491,7 @@ internal sealed partial class GameWorld
             }
         }
 
-        bool everyFrame = unit.Kind.Object.Flags.HasFlag(ObjectFlags.ActsEveryFrame);
+        bool everyFrame = unit.Kind.Object.Properties.HasFlag(ObjectProperties.Track);
 
         if (unit.Frame == unit.FirstFrame || everyFrame)
         {
@@ -524,7 +524,7 @@ internal sealed partial class GameWorld
             if (unit == Player)
             {
                 Weapons.DecidePlayer(FrameTime);
-                unit.SetState(!unit.Speed.IsZero() ? SpriteAnimation.Go : SpriteAnimation.Stand);
+                unit.ChangeAnimation(!unit.Speed.IsZero() ? SpriteAnimation.Go : SpriteAnimation.Stand);
             }
             else if (unit == Weapons.Torso)
             {
@@ -556,7 +556,7 @@ internal sealed partial class GameWorld
             }
             else
             {
-                unit.SetState(SpriteAnimation.Death);
+                unit.ChangeAnimation(SpriteAnimation.Death);
             }
         }
 
@@ -588,12 +588,12 @@ internal sealed partial class GameWorld
         {
             if (state is SpriteAnimation.Go or > SpriteAnimation.Open)
             {
-                unit.SetState(SpriteAnimation.Stand);
+                unit.ChangeAnimation(SpriteAnimation.Stand);
             }
         }
         else if (state != SpriteAnimation.Go)
         {
-            unit.SetState(SpriteAnimation.Go);
+            unit.ChangeAnimation(SpriteAnimation.Go);
         }
     }
 
@@ -647,7 +647,7 @@ internal sealed partial class GameWorld
         var state = unit.Animation;
         var child = Kinds.Find((KnownObject)Math.Abs(unit.Kind.Object.Children[(int)state]));
 
-        if (child is null || !child.Object.Flags.HasFlag(ObjectFlags.Stream) || Time - Time % unit.StreamPeriod <= Time - FrameTime)
+        if (child is null || !child.Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke) || Time - Time % unit.StreamPeriod <= Time - FrameTime)
             return;
 
         var velocity = UnitKinematics.Displace(Vector3.Zero, unit.Facing, unit.Speed, 1);
@@ -676,14 +676,14 @@ internal sealed partial class GameWorld
         var state = unit.Animation;
         int child = unit.Kind.Object.Children[(int)state];
 
-        if (child == 0 || Kinds.Find((KnownObject)Math.Abs(child))?.Object.Flags.HasFlag(ObjectFlags.Stream) == true)
+        if (child == 0 || Kinds.Find((KnownObject)Math.Abs(child))?.Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke) == true)
             return;
 
-        var flags = unit.Kind.Object.Flags;
-        int emissionFrame = flags.HasFlag(ObjectFlags.LastFrameEmission) ? unit.LastFrame : unit.FirstFrame;
+        var flags = unit.Kind.Object.Properties;
+        int emissionFrame = flags.HasFlag(ObjectProperties.CreateChildEnd) ? unit.LastFrame : unit.FirstFrame;
         bool emits = state == SpriteAnimation.Fight && unit.Kind.AttacksTwice
             ? unit.Frame == (unit.LastFrame + 1 + unit.FirstFrame) / 2 || unit.Frame == emissionFrame
-            : flags.HasFlag(ObjectFlags.ActsEveryFrame) || unit.Frame == emissionFrame;
+            : flags.HasFlag(ObjectProperties.Track) || unit.Frame == emissionFrame;
 
         if (!emits)
             return;
@@ -697,7 +697,7 @@ internal sealed partial class GameWorld
 
         Weapons.FireFrom(unit);
 
-        if (unit.Command == UnitCommand.OneAttack && (!flags.HasFlag(ObjectFlags.ActsEveryFrame) || unit.Frame == unit.LastFrame))
+        if (unit.Command == UnitCommand.OneAttack && (!flags.HasFlag(ObjectProperties.Track) || unit.Frame == unit.LastFrame))
         {
             UnitKinematics.SetCommand(unit, UnitCommand.None);
         }
@@ -748,7 +748,7 @@ internal sealed partial class GameWorld
 
             if (unit.IsAlive && previous > unit.Kind.MaxHp / 2 && unit.Hp <= unit.Kind.MaxHp / 2)
             {
-                unit.SetState(SpriteAnimation.Wound);
+                unit.ChangeAnimation(SpriteAnimation.Wound);
             }
 
             EmitChildrenAs(unit, SpriteAnimation.Close);
@@ -769,13 +769,13 @@ internal sealed partial class GameWorld
 
         if (unit.IsAlive && previousHp > unit.Kind.MaxHp / 2 && unit.Hp <= unit.Kind.MaxHp / 2)
         {
-            unit.SetState(SpriteAnimation.Wound);
+            unit.ChangeAnimation(SpriteAnimation.Wound);
         }
         bool staggers = unit is { IsAlive: true, Animation: SpriteAnimation.Stand or SpriteAnimation.Go } && unit.Kind.Layout.GetFrameCount(SpriteAnimation.Close) > 0;
 
         if (staggers)
         {
-            unit.SetState(SpriteAnimation.Close);
+            unit.ChangeAnimation(SpriteAnimation.Close);
         }
         else
         {
@@ -810,10 +810,10 @@ internal sealed partial class GameWorld
         Player.Position = _respawnPosition;
         Player.Speed = 0;
         Player.ClearMove();
-        Player.SetState(SpriteAnimation.Stand);
+        Player.ChangeAnimation(SpriteAnimation.Stand);
         PlayerMovement.Reset();
         Weapons.ResetPlayer();
-        Units.Move(Player);
+        Units.ChangeCoor(Player);
         _protectedUntil = Time + RespawnProtection;
 
         if (Inventory.Items.GetValueOrDefault(KnownObject.Drone) > 0)
@@ -847,12 +847,12 @@ internal sealed partial class GameWorld
         }
 
         unit.DiedAt = Time;
-        unit.SetState(animation == SpriteAnimation.Death2 && unit.Kind.Object.Children[(int)SpriteAnimation.Death2] != 0
+        unit.ChangeAnimation(animation == SpriteAnimation.Death2 && unit.Kind.Object.Children[(int)SpriteAnimation.Death2] != 0
             ? SpriteAnimation.Death2 : SpriteAnimation.Death);
     }
 
     [ScriptFunction("CreateItems")]
-    private void DropItem(Unit unit)
+    private void CreateItems(Unit unit)
     {
         if (unit.DropItem != 0 && Kinds.Loot.DropsItem(unit.Kind.Id))
         {
@@ -862,10 +862,10 @@ internal sealed partial class GameWorld
             {
                 _rng.Next(1);
                 var facing = new Facing((byte)_rng.Next(Facing.FullTurn));
-                float height = unit.Position.Z + (unit.Kind.Id == KnownObject.Bat ? BatItemHeight : DroppedItemHeight);
+                float height = unit.Position.Z + (unit.Kind.Id == KnownObject.Flyer ? FlyerItemHeight : DroppedItemHeight);
                 var body = new Unit(-1, kind, unit.Position with { Z = height }, 0, 0);
                 body.Start(kind.InitialAnimation, facing, Time, _rng);
-                AttachLink(body);
+                CreateLink(body);
                 int expires = Time + DroppedItemLifetime + _rng.Next(DroppedItemLifetimeVariation + 1);
                 _pickups.Add(new WorldPickup(kind, body.Position, null, Time, expires, facing, body));
             }
@@ -977,12 +977,12 @@ internal sealed partial class GameWorld
         AddToMonsters(unit);
         Register(UpdateRole.Monster, unit);
         Units.Add(unit);
-        AttachLink(unit);
+        CreateLink(unit);
 
         return unit;
     }
 
-    private void AttachLink(Unit unit) => Effects.AttachLink(unit, Time, 0);
+    private void CreateLink(Unit unit) => Effects.CreateLink(unit, Time, 0);
 
     public void AttachObjectLink(Unit unit, ObjectDefinition kind)
     {
@@ -1011,7 +1011,7 @@ internal sealed partial class GameWorld
 
         AddToMonsters(link);
         Register(UpdateRole.Monster, link);
-        AttachLink(link);
+        CreateLink(link);
     }
 
     private static Vector3 GetLinkPosition(Unit owner, ObjectDefinition kind) =>

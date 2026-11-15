@@ -276,7 +276,7 @@ public sealed class MapScene
         for (int index = 0; index < placed.Length; index++)
         {
             var frame = states[index].Frame;
-            if (frame is not null && frame.TestsAnchor && !placed[index].Flags.HasFlag(ObjectFlags.Raised) &&
+            if (frame is not null && frame.TestsAnchor && !placed[index].Flags.HasFlag(ObjectProperties.AlwaysTop) &&
                 GetAnchorDepth(placed[index], keys[index], time, hidden) > Math.Min(states[index].BaseDepth + FlatDepth, MaxFlatDepth))
             {
                 states[index] = states[index] with { Frame = null };
@@ -290,7 +290,7 @@ public sealed class MapScene
             for (int index = 0; index < states.Length; index++)
             {
                 var palette = states[index].Frame?.OriginalPalette;
-                if (palette is null || placed[index].Flags.HasFlag(ObjectFlags.Unlit))
+                if (palette is null || placed[index].Flags.HasFlag(ObjectProperties.Gamma))
                     continue;
 
                 var sourcePalette = palette.Value;

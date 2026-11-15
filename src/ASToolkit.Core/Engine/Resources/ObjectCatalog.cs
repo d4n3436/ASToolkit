@@ -32,7 +32,7 @@ internal sealed class ObjectCatalog
             _kinds[(int)id] = new ObjectDefinition(id, obj, weapon, file?.Speed ?? DefaultSpriteSpeed, file?.FrameCount ?? 0,
                 (int)GetLayer(id, obj, file));
 
-            if (obj.Flags.HasFlag(ObjectFlags.Hittable))
+            if (obj.Properties.HasFlag(ObjectProperties.Hash))
             {
                 LargestHashedSize = Vector2.Max(LargestHashedSize, obj.Size.AsVector2());
             }
@@ -69,9 +69,9 @@ internal sealed class ObjectCatalog
 
     public SpritePartReader Parts { get; }
 
-    public float Gravity => _objects.Gravity * ObjectDefinition.PerMillisecondSquared;
+    public float Gravitation => _objects.Gravitation * ObjectDefinition.PerMillisecondSquared;
 
-    public float HeavyGravity => _objects.HeavyGravity * ObjectDefinition.PerMillisecondSquared;
+    public float Gravitation2 => _objects.Gravitation2 * ObjectDefinition.PerMillisecondSquared;
 
     public Vector2 LargestHashedSize { get; }
 

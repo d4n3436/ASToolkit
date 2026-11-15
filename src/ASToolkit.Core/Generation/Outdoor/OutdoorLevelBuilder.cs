@@ -25,7 +25,7 @@ public sealed class OutdoorLevelBuilder
     private const float MonsterSpacing = 22;
     private const int ClusterSlack = 4;
     private const int SpawnerTriggerRadius = 300;
-    private const float BatSpacing = 30;
+    private const float FlyerSpacing = 30;
     private const float BreachReach = 130;
     private const float ClusterReach = 80;
     private const float RoadHalfWidth = 90;
@@ -216,7 +216,7 @@ public sealed class OutdoorLevelBuilder
         }
 
         var corner = new PointF(site.Size.Width - Margin * 4, site.Size.Height - Margin * 4);
-        site.AddCluster(corner, [KnownObject.Bat], 42, BatSpacing);
+        site.AddCluster(corner, [KnownObject.Flyer], 42, FlyerSpacing);
         script.Exit = null;
     }
 

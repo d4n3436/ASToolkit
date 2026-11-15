@@ -31,8 +31,8 @@ public class CampaignFitterIntegrationTests
         var campaign = Fit(GenerationStyle.Campaign);
         var addOn = Fit(GenerationStyle.AddOn);
 
-        Assert.DoesNotContain(campaign.Monsters, kind => kind.Id is KnownObject.Bat or KnownObject.TankMonster);
-        Assert.Contains(addOn.Monsters, kind => kind.Id == KnownObject.Bat);
+        Assert.DoesNotContain(campaign.Monsters, kind => kind.Id is KnownObject.Flyer or KnownObject.TankMonster);
+        Assert.Contains(addOn.Monsters, kind => kind.Id == KnownObject.Flyer);
         Assert.Empty(campaign.Monsters.Select(kind => kind.Id).Intersect(campaign.Bosses.Select(kind => kind.Id)));
         Assert.True(campaign.MonsterHitPoints.Value.Slope > 0);
     }

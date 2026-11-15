@@ -70,9 +70,9 @@ internal sealed class UnitCollision
         if (!commit)
             return true;
 
-        unit.Position = unit.Kind.Object.Flags.HasFlag(ObjectFlags.FollowsTerrain)
+        unit.Position = unit.Kind.Object.Properties.HasFlag(ObjectProperties.ZeroZ)
             ? position with { Z = _map.GetSupportHeight(unit.Kind.Object, position.AsVector2()) } : position;
-        _units.Move(unit);
+        _units.ChangeCoor(unit);
 
         return true;
     }

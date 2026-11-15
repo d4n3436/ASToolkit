@@ -41,14 +41,14 @@ public enum SpriteClass : uint
     Primitive = 6,
 
     /// <summary>
-    /// A player body or vehicle class that samples terrain over its footprint.
+    /// A body the player steers (player legs, player vehicles); it samples the terrain over its footprint.
     /// </summary>
-    Player = 7,
+    Man = 7,
 
     /// <summary>
-    /// A scenery sprite.
+    /// Scenery built into the ground when the level loads.
     /// </summary>
-    Scenery = 8,
+    BuiltTerrain = 8,
 
     /// <summary>
     /// A sprite.

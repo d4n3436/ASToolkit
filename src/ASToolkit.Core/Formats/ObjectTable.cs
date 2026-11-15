@@ -33,9 +33,9 @@ public sealed class ObjectTable
     /// </summary>
     public bool IsAlienShooter2 { get; }
 
-    internal float Gravity { get; private init; }
+    internal float Gravitation { get; private init; }
 
-    internal float HeavyGravity { get; private init; }
+    internal float Gravitation2 { get; private init; }
 
     /// <summary>
     /// Gets the ID of every entry.
@@ -87,8 +87,8 @@ public sealed class ObjectTable
         var constants = MemoryMarshal.Read<ObjectConstants>(data.Span);
         return new ObjectTable(entries, anyExtended, ReadWeapons(container))
         {
-            Gravity = constants.Gravity,
-            HeavyGravity = constants.HeavyGravity
+            Gravitation = constants.Gravitation,
+            Gravitation2 = constants.Gravitation2
         };
     }
 

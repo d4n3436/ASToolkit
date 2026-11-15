@@ -112,9 +112,9 @@ internal sealed class Unit
 
     public int StreamPeriod { get; set; }
 
-    public bool AcquiresTargets => Behavior.HasFlag(WeaponBehavior.AcquiresTargets);
+    public bool IsAggressive => Behavior.HasFlag(WeaponBehavior.Aggressive);
 
-    public bool PursuesTargets => Behavior.HasFlag(WeaponBehavior.PursuesTargets);
+    public bool IsActive => Behavior.HasFlag(WeaponBehavior.Active);
 
     public float VerticalSpeed { get; set; }
 
@@ -151,7 +151,7 @@ internal sealed class Unit
     {
         Kind = kind;
         ClearMove();
-        SetState(SpriteAnimation.Stand);
+        ChangeAnimation(SpriteAnimation.Stand);
     }
 
     [MemberNotNull(nameof(Kind), nameof(Orders))]
@@ -216,7 +216,7 @@ internal sealed class Unit
     [EngineRoutine(0x0043f200)]
     public void Start(SpriteAnimation state, Facing facing, int time, Random random)
     {
-        if (Kind.Object.Flags.HasFlag(ObjectFlags.OrientedBox))
+        if (Kind.Object.Properties.HasFlag(ObjectProperties.Noise))
         {
             float x = Position.X + SpawnScatter - random.Next() % (SpawnScatter * 2 + 1);
             float y = Position.Y + SpawnScatter - random.Next() % (SpawnScatter * 2 + 1);
@@ -224,7 +224,7 @@ internal sealed class Unit
         }
 
         var layout = Kind.Layout;
-        bool firstFrame = Kind.Object.Flags.HasFlag(ObjectFlags.StartsOnFirstFrame);
+        bool firstFrame = Kind.Object.Properties.HasFlag(ObjectProperties.OnePhase);
         LastTickTime = time - (firstFrame ? 0 : random.Next(Kind.SpriteSpeed + 1));
         _facing = default;
         Animation = state;
@@ -240,14 +240,14 @@ internal sealed class Unit
     }
 
     [EngineRoutine(0x00442ee0)]
-    public void SetState(SpriteAnimation state)
+    public void ChangeAnimation(SpriteAnimation state)
     {
         var link = _link;
 
         if (link is not null && link.Kind.Id == Kind.Object.Link && (state >= SpriteAnimation.Death || link.Kind.Object.WeaponIndex == 0 &&
-            !link.Kind.Object.Flags.HasFlag(ObjectFlags.Windblown) && link.Animation is not SpriteAnimation.Fight and < SpriteAnimation.Death))
+            !link.Kind.Object.Properties.HasFlag(ObjectProperties.Wind) && link.Animation is not SpriteAnimation.Fight and < SpriteAnimation.Death))
         {
-            link.SetState(state);
+            link.ChangeAnimation(state);
         }
 
         if (Animation == state)
@@ -273,7 +273,7 @@ internal sealed class Unit
 
         var link = _link;
 
-        if (link is not null && link.Kind.Id == Kind.Object.Link && link.Kind.Object.TurnPeriod.IsNear(ObjectDefinition.Unlimited))
+        if (link is not null && link.Kind.Id == Kind.Object.Link && link.Kind.Object.RotationPeriod.IsNear(ObjectDefinition.Unlimited))
         {
             link.SetFacing(facing);
         }
@@ -294,7 +294,7 @@ internal sealed class Unit
     // Pick the frames of a falling motion-tracking object by its screen velocity
     private Facing GetShownFacing(Facing facing)
     {
-        if (VerticalSpeed.IsZero() || !Kind.Object.Flags.HasFlag(ObjectFlags.TracksMotion))
+        if (VerticalSpeed.IsZero() || !Kind.Object.Properties.HasFlag(ObjectProperties.VerticalDirection))
             return facing;
 
         var direction = facing.Direction;
@@ -324,7 +324,7 @@ internal sealed class Unit
 
         if (Animation < SpriteAnimation.Death && Animation != SpriteAnimation.StartMove)
         {
-            SetState(Speed.IsZero() ? SpriteAnimation.StartMove : SpriteAnimation.Go);
+            ChangeAnimation(Speed.IsZero() ? SpriteAnimation.StartMove : SpriteAnimation.Go);
         }
 
         if (Kind.Object.Acceleration.IsNear(ObjectDefinition.Unlimited))
@@ -424,7 +424,7 @@ internal sealed class Unit
                 AddAmmo(-cost);
             }
 
-            SetState(SpriteAnimation.Fight);
+            ChangeAnimation(SpriteAnimation.Fight);
             Timer = Kind.ReloadTime + ReloadTimerOffset;
 
             return AttackResult.Attacked;
@@ -440,7 +440,7 @@ internal sealed class Unit
     {
         if (Owner is not null && idle)
         {
-            SetFacing(Facing.TurnToward(Owner.Facing, Kind.Object.TurnPeriod, elapsed, out _));
+            SetFacing(Facing.TurnToward(Owner.Facing, Kind.Object.RotationPeriod, elapsed, out _));
         }
     }
 
@@ -450,7 +450,7 @@ internal sealed class Unit
     private int Aim(int elapsed)
     {
         var facing = Facing.Aim((GoalPosition - Position).AsVector2());
-        SetFacing(Facing.TurnToward(facing, Kind.Object.TurnPeriod, elapsed, out int remaining));
+        SetFacing(Facing.TurnToward(facing, Kind.Object.RotationPeriod, elapsed, out int remaining));
 
         return remaining;
     }
@@ -470,7 +470,7 @@ internal sealed class Unit
 
     public Facing TurnWhileMoving(Facing goal, int elapsed)
     {
-        float period = Kind.Object.TurnPeriod;
+        float period = Kind.Object.RotationPeriod;
 
         if (elapsed >= GameClock.DefaultFrameTime || Facing == goal || period.IsZero() || period.IsNear(ObjectDefinition.Unlimited))
         {

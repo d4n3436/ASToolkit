@@ -12,10 +12,10 @@ internal readonly struct ObjectConstants
     public readonly float ScrollSpeedY;
 
     [FieldOffset(8)]
-    public readonly float Gravity;
+    public readonly float Gravitation;
 
     [FieldOffset(12)]
-    public readonly float HeavyGravity;
+    public readonly float Gravitation2;
 
     [FieldOffset(16)]
     public readonly int RepairAmount;

@@ -1,10 +1,10 @@
 namespace ASToolkit.Core.Formats;
 
 /// <summary>
-/// Specifies the flags in the header of a sprite.
+/// Specifies the type flags in the header of a sprite. They pick the sprite class the engine loads it as and how its pixels are stored.
 /// </summary>
 [Flags]
-public enum VidFlags : ushort
+public enum VidType : ushort
 {
     /// <summary>
     /// No flags.
@@ -22,9 +22,9 @@ public enum VidFlags : ushort
     Blended = 1 << 1,
 
     /// <summary>
-    /// The pixels carry a depth value.
+    /// The pixels carry a depth value for the depth buffer.
     /// </summary>
-    Depth = 1 << 2,
+    ZBuffer = 1 << 2,
 
     /// <summary>
     /// The pixel colors are palette indices.
@@ -37,19 +37,19 @@ public enum VidFlags : ushort
     CurrentVersion = 1 << 4,
 
     /// <summary>
-    /// The sprite has a SURF chunk with 32-bit surfaces.
+    /// The sprite is a hardware sprite whose pixels are 32-bit surfaces in a SURF chunk.
     /// </summary>
-    Surface = 1 << 5,
+    Hardware = 1 << 5,
 
     /// <summary>
-    /// The sprite has a CADR chunk with cached surface data instead of frames.
+    /// The sprite is a surface sprite drawn from the cached frame records of its CADR chunk instead of frames.
     /// </summary>
-    Cadr = 1 << 6,
+    Surface = 1 << 6,
 
     /// <summary>
-    /// The sprite is an omni-light: a 2 x 2 sprite whose frames are BGRA colors.
+    /// The sprite is an omni-light, a 2 x 2 sprite whose frames are BGRA colors.
     /// </summary>
-    OmniLight = 1 << 7,
+    Light = 1 << 7,
 
     /// <summary>
     /// The surfaces are range coded.
@@ -67,19 +67,19 @@ public enum VidFlags : ushort
     PaletteVariants = 1 << 10,
 
     /// <summary>
-    /// The surfaces are DXT compressed.
+    /// The sprite carries shadow data, one more 16-bit value after the index count of each cached frame record.
     /// </summary>
-    Dxt = 1 << 11,
+    Shadow = 1 << 11,
 
     /// <summary>
-    /// Puts the sprite on the engine's surface layer. No sprite of the game sets it.
+    /// The sprite is loaded as a sprite class of its own that the engine puts on the hardware layer. No sprite of the game sets it.
     /// </summary>
-    SurfaceLayer = 1 << 12,
+    HardwareLayer = 1 << 12,
 
     /// <summary>
-    /// The surface holds a second image under the first, which takes one more byte per pixel. No sprite of the game sets it.
+    /// The surface holds a normal map under the image, one more byte per pixel. No sprite of the game sets it.
     /// </summary>
-    SecondImage = 1 << 13,
+    Normal = 1 << 13,
 
     /// <summary>
     /// The sprite is a text font the engine builds at run time. No file sets it.
@@ -87,7 +87,7 @@ public enum VidFlags : ushort
     Font = 1 << 14,
 
     /// <summary>
-    /// Each pixel has one more byte, which makes the color of the second image 16 bits wide. No sprite of the game sets it.
+    /// Each pixel has one more material byte. With the normal map the value under the image is 16 bits wide. No sprite of the game sets it.
     /// </summary>
-    SecondImageWide = 1 << 15
+    Material = 1 << 15
 }

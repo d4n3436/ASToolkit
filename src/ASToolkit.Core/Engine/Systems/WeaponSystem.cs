@@ -44,7 +44,7 @@ internal sealed class WeaponSystem
     private Unit CreateTorso(ObjectDefinition kind, int timer)
     {
         var torso = new Unit(_world.AllocateNumber(), kind, GetTorsoPosition(kind), 0, 0) { Facing = _world.Player.Facing, Timer = timer };
-        torso.SetState(SpriteAnimation.Stand);
+        torso.ChangeAnimation(SpriteAnimation.Stand);
 
         return torso;
     }
@@ -55,7 +55,7 @@ internal sealed class WeaponSystem
     public void UpdateTorso()
     {
         Torso.Position = GetTorsoPosition(Torso.Kind);
-        _world.TickUnit(Torso);
+        _world.Tact(Torso);
     }
 
     [EngineRoutine(0x00454800)]
@@ -130,12 +130,12 @@ internal sealed class WeaponSystem
             }
             else
             {
-                player.SetFacing(player.Facing.TurnToward(Torso.Facing, player.Kind.Object.TurnPeriod, elapsed, out int remaining));
+                player.SetFacing(player.Facing.TurnToward(Torso.Facing, player.Kind.Object.RotationPeriod, elapsed, out int remaining));
                 _turnsLegs = remaining != 0;
             }
         }
 
-        Torso.SetFacing(Torso.Facing.TurnToward(facing, Torso.Kind.Object.TurnPeriod, elapsed, out _));
+        Torso.SetFacing(Torso.Facing.TurnToward(facing, Torso.Kind.Object.RotationPeriod, elapsed, out _));
     }
 
     [EngineRoutine(0x00454800)]
@@ -152,7 +152,7 @@ internal sealed class WeaponSystem
     {
         UnitKinematics.SetCommand(Torso, UnitCommand.None);
         Torso.Timer = 0;
-        Torso.SetState(SpriteAnimation.Stand);
+        Torso.ChangeAnimation(SpriteAnimation.Stand);
     }
 
     public void FireFrom(Unit unit)

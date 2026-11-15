@@ -84,7 +84,7 @@ public sealed class SpritePartReader
     /// <returns>The offset of each raised cell from the center of the sprite, with its height.</returns>
     public static Vector3[] ReadHeightPoints(VidResource vid, int frameIndex)
     {
-        bool usesDepth = vid is { HasDepth: true, HasPalette: true } && vid.Flags.HasFlag(VidFlags.Runs8Bit);
+        bool usesDepth = vid is { HasZBuffer: true, HasPalette: true } && vid.Type.HasFlag(VidType.Runs8Bit);
         var frame = usesDepth ? vid.GetRunFrame(frameIndex) : vid.GetFrame(frameIndex);
         float[] meshHeights = !usesDepth && frame.Mesh.TriangleCount > 0 ? frame.Mesh.RasterizeHeights(vid.Width, vid.Height) : [];
         var cells = new Dictionary<int, short>();

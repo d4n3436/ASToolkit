@@ -18,7 +18,7 @@ public class ObjectTableTests
         {
             var id = (KnownObject)row.Id;
             Assert.True(table.TryFind(id, out var obj));
-            Assert.Equal(row.Flags, (uint)obj.Flags);
+            Assert.Equal(row.Flags, (uint)obj.Properties);
             Assert.Equal(row.Type, (uint)obj.SpriteClass);
             Assert.Equal(row.Hp, obj.MaxHp);
             Assert.Equal(row.Path, table.GetPath(id));
@@ -32,14 +32,14 @@ public class ObjectTableTests
     public void Load_ReadsTheAlienShooterMotionAndGravity()
     {
         var table = ObjectTable.Load(Path.Combine(TestGameFolder.RequireFolder(), "objects.res"));
-        Assert.Equal(174, table.Gravity);
-        Assert.Equal(84, table.HeavyGravity);
+        Assert.Equal(174, table.Gravitation);
+        Assert.Equal(84, table.Gravitation2);
         Assert.True(table.TryFind(KnownObject.Monster1, out var monster));
-        Assert.Equal(0, monster.ZSpeed);
+        Assert.Equal(0, monster.MaxZSpeed);
         Assert.Equal(1300, monster.Acceleration);
         Assert.Equal(1300, monster.Deceleration);
-        Assert.Equal(1000, monster.TurnPeriod);
-        Assert.Equal(10, monster.RestHeight);
+        Assert.Equal(1000, monster.RotationPeriod);
+        Assert.Equal(10, monster.TopZ);
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public class ObjectTableTests
         var table = ObjectTable.Load(Path.Combine(game, "objects.res"));
         Assert.True(table.TryFind(KnownObject.Monster1, out var monster));
         Assert.Equal(11, monster.WeaponIndex);
-        Assert.Equal(80, monster.Speed, 3);
+        Assert.Equal(80, monster.MaxSpeed, 3);
         Assert.True(table.TryGetWeapon(monster, out var weapon));
         Assert.Equal(830, weapon.DetectRange, 3);
         Assert.Equal(50, weapon.BattleRange, 3);
@@ -59,7 +59,7 @@ public class ObjectTableTests
         var attack = (KnownObject)monster.Children[(int)SpriteAnimation.Fight];
         Assert.Equal(1, monster.ChildCounts[(int)SpriteAnimation.Fight]);
         Assert.True(table.TryFind(attack, out var hit));
-        Assert.Equal(4, hit.Damage);
+        Assert.Equal(4, hit.DeathDamage);
     }
 
     [Fact]
@@ -128,15 +128,15 @@ public class ObjectTableTests
             var table = ObjectTable.Load(path);
             Assert.True(table.TryFind(KnownObject.Font, out var obj));
             Assert.Equal((CollisionLayers)collisionMask, obj.MoveMask);
-            Assert.Equal(180, obj.Speed);
-            Assert.Equal(42, obj.ZSpeed);
+            Assert.Equal(180, obj.MaxSpeed);
+            Assert.Equal(42, obj.MaxZSpeed);
             Assert.Equal(1300, obj.Acceleration);
             Assert.Equal(450, obj.Deceleration);
-            Assert.Equal(490, obj.TurnPeriod);
-            Assert.Equal(9, obj.RestHeight);
+            Assert.Equal(490, obj.RotationPeriod);
+            Assert.Equal(9, obj.TopZ);
             Assert.Equal(1.25f, obj.Scale.X);
-            Assert.Equal(size == 688 ? 0 : 700, obj.MaxSpeed);
-            Assert.Equal(size == 688 ? 0 : 800, obj.MaxZSpeed);
+            Assert.Equal(size == 688 ? 0 : 700, obj.MaxInitialSpeed);
+            Assert.Equal(size == 688 ? 0 : 800, obj.MaxInitialZSpeed);
         }
         finally
         {

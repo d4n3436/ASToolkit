@@ -295,8 +295,8 @@ public sealed class LevelOccupancy
     // Mirror the engine's movement map, where solid and outlined pieces raise the terrain and hittable ones stand as boxes
     private static bool StopsUnits(KnownObject id, in GameObject obj) =>
         (id == KnownObject.Crate || !(obj.SpriteType.HasFlag(SpriteType.Unit) || obj.SpriteType.HasFlag(SpriteType.Avia) || obj.SpriteType.HasFlag(SpriteType.Cannon)
-                                      || obj.SpriteClass == SpriteClass.Player))
-        && (obj.IsSolid || obj.Flags.HasFlag(ObjectFlags.Outline) || obj.IsHittable && obj.MoveMask != 0);
+                                      || obj.SpriteClass == SpriteClass.Man))
+        && (obj.IsSolid || obj.Properties.HasFlag(ObjectProperties.BuildSizeToGridZ) || obj.IsHittable && obj.MoveMask != 0);
 
     private void AddObstacle(CollisionBox box)
     {

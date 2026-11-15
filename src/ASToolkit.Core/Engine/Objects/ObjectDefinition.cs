@@ -31,8 +31,8 @@ internal sealed class ObjectDefinition
 
         SpriteSpeed = spriteSpeed;
         Layer = layer;
-        Speed = ScaleRate(obj.Speed, PerMillisecond);
-        ZSpeed = ScaleRate(obj.ZSpeed, PerMillisecond);
+        Speed = ScaleRate(obj.MaxSpeed, PerMillisecond);
+        ZSpeed = ScaleRate(obj.MaxZSpeed, PerMillisecond);
         Acceleration = ScaleRate(obj.Acceleration, PerMillisecondSquared);
         Deceleration = ScaleRate(obj.Deceleration, PerMillisecondSquared);
         WeaponFlags = weapon.Flags;
@@ -113,13 +113,13 @@ internal sealed class ObjectDefinition
 
     public CollisionLayers MoveMask => Object.MoveMask;
 
-    public int Damage => Object.Damage;
+    public int Damage => Object.DeathDamage;
 
-    public float BlastRadius => Object.BlastRadius;
+    public float BlastRadius => Object.DeathRange;
 
-    public bool IsExplosive => Object.Flags.HasFlag(ObjectFlags.Explosive);
+    public bool IsExplosive => Object.Properties.HasFlag(ObjectProperties.RadialDamage);
 
-    public bool SkipsOwnArmy => Object.Flags.HasFlag(ObjectFlags.Projectile);
+    public bool SkipsOwnArmy => Object.Properties.HasFlag(ObjectProperties.NoFriendlyDamage);
     
     public float DetectRange { get; }
 

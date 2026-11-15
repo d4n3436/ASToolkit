@@ -12,13 +12,13 @@ public class UnitAnimationTests
     {
         var unit = CreateMonster(64);
 
-        unit.SetState(SpriteAnimation.Go);
+        unit.ChangeAnimation(SpriteAnimation.Go);
         AssertFrames(unit, 48, 48, 55);
 
-        unit.SetState(SpriteAnimation.Fight);
+        unit.ChangeAnimation(SpriteAnimation.Fight);
         AssertFrames(unit, 164, 164, 168);
 
-        unit.SetState(SpriteAnimation.Death);
+        unit.ChangeAnimation(SpriteAnimation.Death);
         AssertFrames(unit, 4, 4, 4);
     }
 
@@ -26,7 +26,7 @@ public class UnitAnimationTests
     public void SetFacing_KeepsTheStepWithinTheState()
     {
         var unit = CreateMonster(64);
-        unit.SetState(SpriteAnimation.Go);
+        unit.ChangeAnimation(SpriteAnimation.Go);
         unit.Frame += 3;
 
         unit.SetFacing(new Facing(128));

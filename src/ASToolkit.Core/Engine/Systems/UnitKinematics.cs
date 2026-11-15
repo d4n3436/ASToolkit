@@ -80,7 +80,7 @@ internal sealed class UnitKinematics
     }
 
     [EngineRoutine(0x004443f0)]
-    public bool StartTowardGoal(Unit unit)
+    public bool StartMove(Unit unit)
     {
         if (unit.MaxSpeed.IsZero())
             return false;
@@ -96,7 +96,7 @@ internal sealed class UnitKinematics
 
             int distance = 0;
 
-            if (unit.Kind.Layout.Directions == 1 || obj.Flags.HasFlag(ObjectFlags.RandomFacing))
+            if (unit.Kind.Layout.Directions == 1 || obj.Properties.HasFlag(ObjectProperties.RandomBirth))
             {
                 unit.SetFacing(Facing.Aim(offset.AsVector2(), out distance));
             }
@@ -128,7 +128,7 @@ internal sealed class UnitKinematics
     private float GetLaunchSpeed(ObjectDefinition kind, float rise, float distance)
     {
         ref readonly var obj = ref kind.Object;
-        float gravity = obj.Flags.HasFlag(ObjectFlags.Flying) ? _kinds.Gravity : obj.Flags.HasFlag(ObjectFlags.Heavy) ? _kinds.HeavyGravity : 0;
+        float gravity = obj.Properties.HasFlag(ObjectProperties.Gravity) ? _kinds.Gravitation : obj.Properties.HasFlag(ObjectProperties.Gravity2) ? _kinds.Gravitation2 : 0;
         float speed;
 
         if (!gravity.IsZero())
@@ -138,14 +138,14 @@ internal sealed class UnitKinematics
         }
         else
         {
-            speed = obj.Flags.HasFlag(ObjectFlags.Rocket) ? kind.ZSpeed : obj.RestHeight.IsZero() ? rise * kind.Speed / distance : 0;
+            speed = obj.Properties.HasFlag(ObjectProperties.SelfMoving) ? kind.ZSpeed : obj.TopZ.IsZero() ? rise * kind.Speed / distance : 0;
         }
 
         return Math.Clamp(speed, -kind.ZSpeed, kind.ZSpeed);
     }
 
     [EngineRoutine(0x0043fb10)]
-    public Vector3 Integrate(Unit unit, int elapsed)
+    public Vector3 Move(Unit unit, int elapsed)
     {
         ref readonly var obj = ref unit.Kind.Object;
         var next = unit.Position;
@@ -153,7 +153,7 @@ internal sealed class UnitKinematics
 
         if (unit is { Command: UnitCommand.Move, Moving: false })
         {
-            StartTowardGoal(unit);
+            StartMove(unit);
         }
 
         if (unit is { Command: UnitCommand.Move, HasGoal: false })
@@ -181,18 +181,18 @@ internal sealed class UnitKinematics
         }
         else if (!unit.Speed.IsZero())
         {
-            var facing = obj.Flags.HasFlag(ObjectFlags.Homing) && unit.HasGoal
+            var facing = obj.Properties.HasFlag(ObjectProperties.Homing) && unit.HasGoal
                 ? Facing.FromOffset((unit.GoalPosition - unit.Position).AsVector2()) : unit.Facing;
             next = Displace(next, facing, unit.Speed, elapsed);
         }
 
-        if (obj.Flags.HasFlag(ObjectFlags.Flying))
+        if (obj.Properties.HasFlag(ObjectProperties.Gravity))
         {
-            unit.VerticalSpeed -= elapsed * _kinds.Gravity;
+            unit.VerticalSpeed -= elapsed * _kinds.Gravitation;
         }
-        else if (obj.Flags.HasFlag(ObjectFlags.Heavy))
+        else if (obj.Properties.HasFlag(ObjectProperties.Gravity2))
         {
-            unit.VerticalSpeed -= elapsed * _kinds.HeavyGravity;
+            unit.VerticalSpeed -= elapsed * _kinds.Gravitation2;
         }
 
         next.Z = elapsed * unit.VerticalSpeed + next.Z;

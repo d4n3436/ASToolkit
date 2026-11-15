@@ -57,7 +57,7 @@ internal sealed class WalkWorld
                 }
                 else if (!isOpen && RaisesGround(part.Object) && !IsDestructible(part.Object))
                 {
-                    grid.Stamp(_parts.GetHeightPoints(part), part.Position, part.Scale, part.Object.SpriteClass == SpriteClass.Scenery);
+                    grid.Stamp(_parts.GetHeightPoints(part), part.Position, part.Scale, part.Object.SpriteClass == SpriteClass.BuiltTerrain);
                 }
             }
         }
@@ -78,13 +78,13 @@ internal sealed class WalkWorld
         return grid;
     }
 
-    private static bool RaisesGround(GameObject obj) => obj.IsSolid || obj.Flags.HasFlag(ObjectFlags.Outline);
+    private static bool RaisesGround(GameObject obj) => obj.IsSolid || obj.Properties.HasFlag(ObjectProperties.BuildSizeToGridZ);
 
     private static bool IsFloor(SpritePart part)
     {
         var file = part.File!.Value;
-        bool isSurface = file.Flags.HasFlag(VidFlags.Surface) && !file.Flags.HasFlag(VidFlags.Cadr);
-        return isSurface || (!RaisesGround(part.Object) && part.Object.SpriteClass == SpriteClass.Scenery && !(file.Flags.HasFlag(VidFlags.Cadr) && file.Flags.HasFlag(VidFlags.Blended)));
+        bool isSurface = file.Type.HasFlag(VidType.Hardware) && !file.Type.HasFlag(VidType.Surface);
+        return isSurface || (!RaisesGround(part.Object) && part.Object.SpriteClass == SpriteClass.BuiltTerrain && !(file.Type.HasFlag(VidType.Surface) && file.Type.HasFlag(VidType.Blended)));
     }
 
     private static bool IsDestructible(GameObject obj) => obj is { IsHittable: true, MaxHp: > 0 };

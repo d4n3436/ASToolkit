@@ -139,7 +139,7 @@ internal sealed class ReplayRecorder
     private void Add(Unit unit, in EffectState state)
     {
         var owner = unit.Owner is not null && unit.Owner.Link == unit ? unit.Owner : null;
-        bool rotates = unit.Kind.Object.Flags.HasFlag(ObjectFlags.Rotated);
+        bool rotates = unit.Kind.Object.Properties.HasFlag(ObjectProperties.HardwareDirect);
         bool lags = owner is not null && unit.Kind.Layer <= owner.Kind.Layer;
         _captures.Add(new PendingSample(unit, state, owner, rotates, lags));
         _seen.Add(unit);

@@ -31,9 +31,9 @@ internal sealed class SpriteFrame
 
     public required bool IsBlended { get; init; }
 
-    public required VidBlend Blend { get; init; }
+    public required BlendProcedure Blend { get; init; }
 
-    public bool IsCombined => Blend is VidBlend.Multiply or VidBlend.Additive or VidBlend.AdditiveLight or VidBlend.Brighten;
+    public bool IsCombined => Blend is BlendProcedure.Multiply or BlendProcedure.Additive or BlendProcedure.AdditiveLight or BlendProcedure.Brighten;
 
     public required bool WritesDepth { get; init; }
 

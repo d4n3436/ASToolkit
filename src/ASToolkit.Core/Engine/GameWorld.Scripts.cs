@@ -24,7 +24,7 @@ internal sealed partial class GameWorld
     private const int FreezeBulletDamage = 30;
     private const int BombDamage = 300;
     private const float AdrenalineBoost = 80;
-    private const float DroneHeight = 20;
+    private const float DroneFlyHeight = 20;
     private const int DroneFollowReach = 20;
     private const int ElectricBallDrain = 10;
     private const int MedkitProtection = 3000;
@@ -40,15 +40,8 @@ internal sealed partial class GameWorld
     private const int FreezeColor = 0x1010ff;
     private const int DeathColor = 0xff0000;
     private const int FrozenDigit = 9;
-    private const KnownObject FirstBoss = KnownObject.FirstEndlessGenerator;
-    private const KnownObject LastBoss = KnownObject.Bat;
-    private static readonly FrozenSet<KnownObject> FreezableMonsters = new[]
-    {
-        KnownObject.Slug, KnownObject.YellowSlug, KnownObject.RedSlug, KnownObject.Monster1, KnownObject.YellowMonster1, KnownObject.RedMonster1,
-        KnownObject.Monster2, KnownObject.YellowMonster2, KnownObject.RedMonster2, KnownObject.WeaponMonster, KnownObject.YellowWeaponMonster,
-        KnownObject.RedWeaponMonster, KnownObject.TankMonster, KnownObject.YellowTankMonster, KnownObject.RedTankMonster, KnownObject.TankWeaponMonster,
-        KnownObject.YellowTankWeaponMonster, KnownObject.RedTankWeaponMonster
-    }.ToFrozenSet();
+    private const int MinBossId = 800;
+    private const int MaxBossId = 879;
     private const int MarkerReach = 100;
     private const int PlayerChargeReach = 100;
     private const int MonsterChargeReach = 150;
@@ -65,14 +58,19 @@ internal sealed partial class GameWorld
     private static readonly Vector2 SingleFenceGenerator = new(7541, 4501);
     private static readonly Vector2 SingleFence = new(5697, 4734);
 
-    private static readonly FrozenSet<KnownObject> VictoryMonsters = new[]
-    {
+    private static readonly KnownObject[] MonsterIds =
+    [
         KnownObject.Slug, KnownObject.YellowSlug, KnownObject.RedSlug, KnownObject.Monster1, KnownObject.YellowMonster1, KnownObject.RedMonster1,
         KnownObject.Monster2, KnownObject.YellowMonster2, KnownObject.RedMonster2, KnownObject.WeaponMonster, KnownObject.YellowWeaponMonster,
         KnownObject.RedWeaponMonster, KnownObject.TankMonster, KnownObject.YellowTankMonster, KnownObject.RedTankMonster, KnownObject.TankWeaponMonster,
         KnownObject.YellowTankWeaponMonster, KnownObject.RedTankWeaponMonster, KnownObject.Boss1, KnownObject.Boss2, KnownObject.Boss3, KnownObject.Boss4,
-        KnownObject.TankBoss, KnownObject.BlueTankWeaponBoss, KnownObject.Bat, KnownObject.Diver, KnownObject.DiverBoss
-    }.ToFrozenSet();
+        KnownObject.BlueTankMonster, KnownObject.BlueTankWeaponMonster, KnownObject.Flyer, KnownObject.Diver, KnownObject.DiverBoss
+    ];
+
+    private static readonly FrozenSet<KnownObject> MonsterIdSet = MonsterIds.ToFrozenSet();
+
+    // Stop at the first boss of the list as the freeze bonus loop does
+    private static readonly FrozenSet<KnownObject> FreezableMonsterIds = MonsterIds.TakeWhile(id => !IsBossVid(id)).ToFrozenSet();
 
     private readonly LevelScript _level;
     private readonly List<Unit> _scripted = [];
@@ -113,7 +111,7 @@ internal sealed partial class GameWorld
     {
         bool hashed = UnitGrid.IsHashed(kind);
 
-        if ((!hashed && kind.Object.Link == 0) || kind.Object.SpriteClass is SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Player or SpriteClass.Cannon)
+        if ((!hashed && kind.Object.Link == 0) || kind.Object.SpriteClass is SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man or SpriteClass.Cannon)
             return;
 
         var stand = new Unit(-1, kind, sprite.Position, unchecked((int)sprite.Army), 0) { Placement = sprite, Facing = new Facing(sprite.Facing) };
@@ -124,7 +122,7 @@ internal sealed partial class GameWorld
             Units.Add(stand);
         }
 
-        AttachLink(stand);
+        CreateLink(stand);
     }
 
     private Unit AddScripted(ObjectDefinition kind, Vector3 position, Facing facing, int? army = null, MergedMapSprite? placement = null)
@@ -140,14 +138,14 @@ internal sealed partial class GameWorld
             _sites.Add(unit);
         }
 
-        AttachLink(unit);
+        CreateLink(unit);
 
         return unit;
     }
 
     private bool TickScripted(Unit unit)
     {
-        if ((unit.Owner is null || unit.Owner.Link == unit) && TickUnit(unit))
+        if ((unit.Owner is null || unit.Owner.Link == unit) && Tact(unit))
             return true;
 
         _scripted.Remove(unit);
@@ -191,7 +189,7 @@ internal sealed partial class GameWorld
 
         TryDismount();
 
-        if (_level.ClearsMonsters && IsSecondTick())
+        if (_level.ClearsMonsters && OneTimeInSecond())
         {
             CheckVictory();
         }
@@ -214,7 +212,7 @@ internal sealed partial class GameWorld
 
         if (_level.WinsAfterSites && Player.IsAlive)
         {
-            int now = GetScriptTime();
+            int now = GetTime();
 
             if (_sitesClearedAt == 0 && _sites.Count == 0)
             {
@@ -242,7 +240,7 @@ internal sealed partial class GameWorld
 
         if (trigger.Quake != 0)
         {
-            StartQuake(trigger.Quake);
+            EarthQuake(trigger.Quake);
         }
 
         if (trigger.LocksDoors || trigger.LightOff is not null)
@@ -282,7 +280,7 @@ internal sealed partial class GameWorld
                 var body = new Unit(_unitCount++, kind, sprite.Position, 0, kind.MaxHp) { Placement = sprite };
                 Units.Add(body);
                 _bodies.Add(sprite, body);
-                AttachLink(body);
+                CreateLink(body);
                 placed[index] = sprite;
             }
             else if (count <= rule.Max && sprite is not null)
@@ -353,9 +351,9 @@ internal sealed partial class GameWorld
     }
 
     [ScriptFunction("OneTimeInSecond")]
-    private bool IsSecondTick()
+    private bool OneTimeInSecond()
     {
-        int now = GetScriptTime();
+        int now = GetTime();
 
         if (now - _scriptSecondAt > SecondWindow || _scriptSecondAt > now)
         {
@@ -367,7 +365,7 @@ internal sealed partial class GameWorld
 
     [ScriptFunction("GetTime")]
     [EngineRoutine(0x00435690)]
-    private int GetScriptTime() => Time + LoadedClock + FrameTime;
+    private int GetTime() => Time + LoadedClock + FrameTime;
 
     [ScriptFunction("CompaignGameTact")]
     private void CheckVictory()
@@ -377,7 +375,7 @@ internal sealed partial class GameWorld
 
         foreach (var unit in _monsters)
         {
-            if (unit.Army == MonsterArmy && VictoryMonsters.Contains(unit.Kind.Id))
+            if (unit.Army == MonsterArmy && MonsterIdSet.Contains(unit.Kind.Id))
                 return;
         }
 
@@ -428,20 +426,20 @@ internal sealed partial class GameWorld
                 break;
             case KnownObject.ArmedDynamite when state >= SpriteAnimation.Death:
                 Flash(White);
-                StartQuake(ChargeQuake);
+                EarthQuake(ChargeQuake);
                 DetonateDynamite(unit);
                 break;
             case KnownObject.Missile when state == SpriteAnimation.Death:
                 Flash(White);
-                StartQuake(NukeQuake);
+                EarthQuake(NukeQuake);
                 break;
             case KnownObject.Barrel or KnownObject.Cylinder or KnownObject.SpawnWallSlash or KnownObject.SpawnWallBack or KnownObject.ShakeDummy or
                 KnownObject.NeuralBullet when state == SpriteAnimation.Death:
-                StartQuake(BlastQuake);
+                EarthQuake(BlastQuake);
                 break;
             case KnownObject.PlasmaBullet or KnownObject.Rocket or KnownObject.HeavyMonsterRocket or KnownObject.CannonShell when state == SpriteAnimation.Death:
             case KnownObject.ElectricBall when state == SpriteAnimation.Death:
-                StartQuake(ExplosionQuake);
+                EarthQuake(ExplosionQuake);
                 break;
             case KnownObject.FreezeBullet when state >= SpriteAnimation.Death:
                 BurstFreezeBullet(unit);
@@ -455,7 +453,7 @@ internal sealed partial class GameWorld
             default:
                 if (state >= SpriteAnimation.Death)
                 {
-                    DropItem(unit);
+                    CreateItems(unit);
                 }
                 break;
         }
@@ -464,15 +462,15 @@ internal sealed partial class GameWorld
     [ScriptFunction("F418_0")]
     private void SwitchBreaker(Unit breaker)
     {
-        if (MeasureScriptDistance(Player.Position, breaker.Position.AsVector2()) >= SwitchReach)
+        if (SizeTo(Player.Position, breaker.Position.AsVector2()) >= SwitchReach)
             return;
 
         CreateSprite(KnownObject.BreakerOn, breaker.Position, breaker.Facing);
-        breaker.SetState(SpriteAnimation.Death);
+        breaker.ChangeAnimation(SpriteAnimation.Death);
         OpenDoors();
         foreach (var sprite in _sprites)
         {
-            if (sprite.Id == KnownObject.ObjectMarker && MeasureScriptDistance(breaker.Position, sprite.Position.AsVector2()) < MarkerReach)
+            if (sprite.Id == KnownObject.ObjectMarker && SizeTo(breaker.Position, sprite.Position.AsVector2()) < MarkerReach)
             {
                 RemoveSprite(sprite);
             }
@@ -487,7 +485,7 @@ internal sealed partial class GameWorld
                 (sprite.Id == KnownObject.BreakableWall && !_bodies.ContainsKey(sprite)))
                 continue;
 
-            int pair = traps.FindIndex(trap => MeasureScriptDistance(trap.Position, sprite.Position.AsVector2()) < TrapPairReach);
+            int pair = traps.FindIndex(trap => SizeTo(trap.Position, sprite.Position.AsVector2()) < TrapPairReach);
 
             if (pair < 0)
             {
@@ -504,7 +502,7 @@ internal sealed partial class GameWorld
     [ScriptFunction("F179_0")]
     private void PlantDynamite(Unit site)
     {
-        if (MeasureScriptDistance(Player.Position, site.Position.AsVector2()) >= SwitchReach || !Inventory.TryConsumeItem(KnownObject.Dynamite))
+        if (SizeTo(Player.Position, site.Position.AsVector2()) >= SwitchReach || !Inventory.TryConsumeItem(KnownObject.Dynamite))
             return;
 
         var charge = Effects.Spawn(KnownObject.ArmedDynamite, site.Position, default, Time);
@@ -515,7 +513,7 @@ internal sealed partial class GameWorld
             _charges.Add(charge);
         }
 
-        site.SetState(SpriteAnimation.Death);
+        site.ChangeAnimation(SpriteAnimation.Death);
     }
 
     [ScriptFunction("F184_15")]
@@ -524,7 +522,7 @@ internal sealed partial class GameWorld
         _charges.Remove(charge);
         var center = new Vector2((int)charge.Position.X, (int)charge.Position.Y);
 
-        if (IsInChargeCells(Player.Position, center) && MeasureScriptDistance(Player.Position, center) < PlayerChargeReach && Player.IsAlive)
+        if (IsInChargeCells(Player.Position, center) && SizeTo(Player.Position, center) < PlayerChargeReach && Player.IsAlive)
         {
             Player.Hp = 0;
         }
@@ -533,7 +531,7 @@ internal sealed partial class GameWorld
         {
             if (unit.Kind.Id.IsEndlessGenerator && unit.Animation < SpriteAnimation.Death && IsInChargeCells(unit.Position, center))
             {
-                unit.SetState(SpriteAnimation.Death);
+                unit.ChangeAnimation(SpriteAnimation.Death);
             }
         }
 
@@ -572,7 +570,7 @@ internal sealed partial class GameWorld
         for (var unit = Units.First(center - new Vector2(ChargeBox), center + new Vector2(ChargeBox)); unit is not null; unit = Units.Next())
         {
             if (unit is { IsAlive: true, Army: MonsterArmy } &&
-                MeasureScriptDistance(charge.Position, unit.Position.AsVector2()) < MonsterChargeReach)
+                SizeTo(charge.Position, unit.Position.AsVector2()) < MonsterChargeReach)
             {
                 unit.Hp = 0;
                 CompleteDeath(unit, SpriteAnimation.Death);
@@ -584,7 +582,7 @@ internal sealed partial class GameWorld
     [ScriptFunction("F415_16")]
     private void DestroyGenerator(Unit generator)
     {
-        if (_level.LevelNumber == SingleFenceLevel && MeasureScriptDistance(generator.Position, SingleFenceGenerator) < SingleFenceReach)
+        if (_level.LevelNumber == SingleFenceLevel && SizeTo(generator.Position, SingleFenceGenerator) < SingleFenceReach)
         {
             var fence = FindSprite(KnownObject.Fence, SingleFence);
 
@@ -599,7 +597,7 @@ internal sealed partial class GameWorld
             {
                 if (unit.Kind.Id == KnownObject.Fence)
                 {
-                    unit.SetState(SpriteAnimation.Death);
+                    unit.ChangeAnimation(SpriteAnimation.Death);
                 }
             }
         }
@@ -618,7 +616,7 @@ internal sealed partial class GameWorld
     {
         int z = (int)door.Position.Z;
 
-        if (MeasureScriptDistance(Player.Position, door.Position.AsVector2()) < reach && !DoorsLocked)
+        if (SizeTo(Player.Position, door.Position.AsVector2()) < reach && !DoorsLocked)
         {
             if (z != -depth)
             {
@@ -646,7 +644,7 @@ internal sealed partial class GameWorld
     private void SetDoorHeight(Unit door, int height)
     {
         door.Position = door.Position with { Z = height };
-        Units.Move(door);
+        Units.ChangeCoor(door);
     }
 
     [EngineRoutine(0x00440830)]
@@ -715,25 +713,25 @@ internal sealed partial class GameWorld
     [ScriptFunction("F357_0")]
     private void MountCannon(Unit cannon)
     {
-        if (IsInCannon || !Player.IsAlive || MeasureScriptDistance(Player.Position, cannon.Position.AsVector2()) >= MountReach)
+        if (IsInCannon || !Player.IsAlive || SizeTo(Player.Position, cannon.Position.AsVector2()) >= MountReach)
             return;
 
         Inventory.StowArmor();
-        _mountedAt = GetScriptTime();
+        _mountedAt = GetTime();
         Player.Position = cannon.Position;
         Player.Speed = 0;
         PlayerMovement.Reset();
         Player.ChangeKind(Kinds.Find(KnownObject.MannedCannon)!);
         Player.SetFacing(cannon.Facing);
         Player.Hp *= MannedHealthScale;
-        Units.Move(Player);
-        cannon.SetState(SpriteAnimation.Death);
+        Units.ChangeCoor(Player);
+        cannon.ChangeAnimation(SpriteAnimation.Death);
     }
 
     // Leaves the cannon on a move order a second after mounting
     private void TryDismount()
     {
-        if (!IsInCannon || !_movesPlayer || GetScriptTime() - _mountedAt <= DismountDelay)
+        if (!IsInCannon || !_movesPlayer || GetTime() - _mountedAt <= DismountDelay)
             return;
 
         CreateSprite(KnownObject.MountedCannon, Player.Position, Weapons.Torso.Facing);
@@ -743,7 +741,7 @@ internal sealed partial class GameWorld
         Player.Hp /= MannedHealthScale;
         Inventory.RestoreArmor();
         PlayerMovement.Reset();
-        Units.Move(Player);
+        Units.ChangeCoor(Player);
     }
 
     [ScriptFunction("F350_15")]
@@ -758,7 +756,7 @@ internal sealed partial class GameWorld
         Player.Position += new Vector3(ejectX, ejectY, 0);
         Player.ChangeKind(Kinds.Find(KnownObject.PlayerStart)!);
         Inventory.RestoreArmor();
-        Units.Move(Player);
+        Units.ChangeCoor(Player);
     }
 
     private void SwapSprites(KnownObject from, KnownObject to)
@@ -808,13 +806,13 @@ internal sealed partial class GameWorld
         return found;
     }
 
-    private bool IsPlayerWithin(TriggerArea area) => MeasureScriptDistance(Player.Position, new Vector2(area.Center.X, area.Center.Y)) < area.Radius;
+    private bool IsPlayerWithin(TriggerArea area) => SizeTo(Player.Position, new Vector2(area.Center.X, area.Center.Y)) < area.Radius;
 
     [EngineRoutine(0x0042dd60)]
     [ScriptFunction("FirstInBox")]
     private bool IsInChargeCells(Vector3 position, Vector2 center) => Units.IsInQuery(position.AsVector2(), center - new Vector2(ChargeBox), center + new Vector2(ChargeBox));
 
-    private static bool IsInChargeReach(Unit charge, Vector3 position) => MeasureScriptDistance(charge.Position, position.AsVector2()) < MonsterChargeReach;
+    private static bool IsInChargeReach(Unit charge, Vector3 position) => SizeTo(charge.Position, position.AsVector2()) < MonsterChargeReach;
 
     private HashSet<MergedMapSprite> GetOwnedPlacements()
     {
@@ -846,7 +844,7 @@ internal sealed partial class GameWorld
     {
         var kind = Kinds.Find(sprite.Id);
 
-        if (kind is null || kind.Object.SpriteClass is SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Player)
+        if (kind is null || kind.Object.SpriteClass is SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man)
             return;
 
         Effects.Play(kind, SpriteAnimation.Death, GetPlacementPosition(sprite), new Facing(sprite.Facing), Time);
@@ -854,7 +852,7 @@ internal sealed partial class GameWorld
     }
 
     [ScriptFunction("SizeTo")]
-    private static int MeasureScriptDistance(Vector3 position, Vector2 point) =>
+    private static int SizeTo(Vector3 position, Vector2 point) =>
         (int)position.AsVector2().MeasureDistance(new Vector2((int)point.X, (int)point.Y));
 
     [ScriptFunction("F145_15")]
@@ -863,13 +861,13 @@ internal sealed partial class GameWorld
         var center = bullet.Position.AsVector2();
         for (var unit = Units.First(center - new Vector2(FreezeBulletReach), center + new Vector2(FreezeBulletReach)); unit is not null; unit = Units.Next())
         {
-            if (MeasureScriptDistance(unit.Position, center) >= FreezeBulletReach ||
+            if (SizeTo(unit.Position, center) >= FreezeBulletReach ||
                 unit.Army != MonsterArmy || (int)unit.Kind.Id % 10 == FrozenDigit)
                 continue;
 
             Damage(unit, FreezeBulletDamage);
 
-            if (!IsBossObject(unit.Kind.Id) && unit.Animation >= SpriteAnimation.Death)
+            if (!IsBossVid(unit.Kind.Id) && unit.Animation >= SpriteAnimation.Death)
             {
                 Freeze(unit);
             }
@@ -877,14 +875,14 @@ internal sealed partial class GameWorld
     }
 
     [ScriptFunction("IsBossVid")]
-    private static bool IsBossObject(KnownObject id) => id is >= FirstBoss and < LastBoss;
+    private static bool IsBossVid(KnownObject id) => (int)id is >= MinBossId and <= MaxBossId;
 
     [ScriptFunction("F234_0")]
     private void FreezeMonsters(Vector2 center)
     {
         foreach (var unit in GetBonusTargets(center))
         {
-            if (FreezableMonsters.Contains(unit.Kind.Id))
+            if (FreezableMonsterIds.Contains(unit.Kind.Id))
             {
                 Freeze(unit);
             }
@@ -913,8 +911,8 @@ internal sealed partial class GameWorld
 
             unit.Link = null;
             unit.ChangeKind(frozen);
-            Units.Move(unit);
-            AttachLink(unit);
+            Units.ChangeCoor(unit);
+            CreateLink(unit);
         }
 
         unit.Behavior = WeaponBehavior.None;
@@ -929,7 +927,7 @@ internal sealed partial class GameWorld
     [ScriptFunction("F236_0")]
     private void DetonateBomb(Vector2 center)
     {
-        StartQuake(BombQuake);
+        EarthQuake(BombQuake);
         Flash(White);
         foreach (var unit in GetBonusTargets(center))
         {
@@ -941,7 +939,7 @@ internal sealed partial class GameWorld
     {
         for (var unit = Units.First(center - new Vector2(BonusBox), center + new Vector2(BonusBox)); unit is not null; unit = Units.Next())
         {
-            if (MeasureScriptDistance(unit.Position, center) < BonusReach && unit.Army == MonsterArmy)
+            if (SizeTo(unit.Position, center) < BonusReach && unit.Army == MonsterArmy)
             {
                 yield return unit;
             }
@@ -974,22 +972,22 @@ internal sealed partial class GameWorld
             return;
 
         Inventory.SetItem(KnownObject.Drone, 1);
-        AddMonster(kind, Player.Position + Vector3.UnitZ * DroneHeight, Player.Facing, Kinds.GetArmy(kind));
+        AddMonster(kind, Player.Position + Vector3.UnitZ * DroneFlyHeight, Player.Facing, Kinds.GetArmy(kind));
     }
 
     [ScriptFunction("F290_0")]
     private void FollowPlayer(Unit drone)
     {
-        if (MeasureScriptDistance(Player.Position, drone.Position.AsVector2()) > DroneFollowReach)
+        if (SizeTo(Player.Position, drone.Position.AsVector2()) > DroneFollowReach)
         {
             if (_rng.Next() % 2 != 0)
                 return;
             
-            var goal = Player.Position + Vector3.UnitZ * DroneHeight;
+            var goal = Player.Position + Vector3.UnitZ * DroneFlyHeight;
 
             if (!UnitKinematics.SetCommand(drone, UnitCommand.Move, point: goal))
             {
-                Motion.StartTowardGoal(drone);
+                Motion.StartMove(drone);
             }
         }
         else
@@ -1015,9 +1013,9 @@ internal sealed partial class GameWorld
     }
 
     [ScriptFunction("EarthQuake")]
-    private void StartQuake(int delay)
+    private void EarthQuake(int delay)
     {
-        _quakeStart = GetScriptTime();
+        _quakeStart = GetTime();
         _quakeDelay = delay;
         SetEnvironment(MapEnvironment.Earthquake);
     }
@@ -1025,7 +1023,7 @@ internal sealed partial class GameWorld
     [ScriptFunction("GameTact")]
     private void StopQuake()
     {
-        int now = GetScriptTime();
+        int now = GetTime();
 
         if (_quakeStart != 0 && (now - _quakeStart > _quakeDelay || _quakeStart > now))
         {

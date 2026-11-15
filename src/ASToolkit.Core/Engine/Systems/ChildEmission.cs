@@ -42,11 +42,11 @@ internal static class ChildEmission
             _count = Math.Abs(owner.ChildCounts[(int)source.Animation]);
             _x = owner.ChildX[(int)source.Animation];
             _y = owner.ChildY[(int)source.Animation];
-            _height = owner.ChildHeight[(int)source.Animation];
+            _height = owner.ChildZ[(int)source.Animation];
             var quantized = owner.Directions > 0
                 ? new Facing(unchecked((byte)(owner.GetDirection(source.Facing.Value) * Facing.FullTurn / owner.Directions))) : source.Facing;
 
-            if (source.Child.Object.Flags.HasFlag(ObjectFlags.FixedOffset))
+            if (source.Child.Object.Properties.HasFlag(ObjectProperties.FixedOffset))
             {
                 quantized = default;
             }
@@ -82,7 +82,7 @@ internal static class ChildEmission
             }
 
             var at = _source.Position + new Vector3(offset.X, offset.Y * VerticalProjection, _height);
-            var direction = _source.Child.Object.Flags.HasFlag(ObjectFlags.RandomFacing)
+            var direction = _source.Child.Object.Properties.HasFlag(ObjectProperties.RandomBirth)
                 ? new Facing((byte)_source.Random.Next(Facing.FullTurn)) : _source.Facing;
             Current = new Spawn(_source.Child.Id, at, direction, lateral with { Y = lateral.Y * VerticalProjection });
 

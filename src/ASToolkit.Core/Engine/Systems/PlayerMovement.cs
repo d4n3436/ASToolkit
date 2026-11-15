@@ -61,7 +61,7 @@ internal sealed class PlayerMovement
         {
             var facing = Facing.FromOffset(target.Value - player.Position.AsVector2());
             facing = _movement.AvoidObstacles(facing, player);
-            player.SetFacing(player.Facing.TurnToward(facing, obj.TurnPeriod, elapsed, out _));
+            player.SetFacing(player.Facing.TurnToward(facing, obj.RotationPeriod, elapsed, out _));
 
             if (player is { ReachedX: true, ReachedY: true } || HasReached(player, target.Value))
             {

@@ -82,7 +82,7 @@ internal sealed class ObjectProgram
         int interval = Kind.GetVisualFrameDuration(SpriteAnimation.Stand);
         _nextTick = time - time % interval + interval;
 
-        if (++_frame < Math.Max(1, Kind.Object.FrameCounts[(int)SpriteAnimation.Stand]) && !Kind.Object.Flags.HasFlag(ObjectFlags.ActsEveryFrame))
+        if (++_frame < Math.Max(1, Kind.Object.FrameCounts[(int)SpriteAnimation.Stand]) && !Kind.Object.Properties.HasFlag(ObjectProperties.Track))
             return;
 
         _frame = 0;
@@ -122,7 +122,7 @@ internal sealed class ObjectProgram
                 _waitUntil = time + action.Var1 + _random.Next(action.Var2 + 1);
                 break;
             case ActionCode.Turn:
-                Facing = Facing.TurnToward(new Facing(unchecked((byte)action.Var1)), Kind.Object.TurnPeriod, interval, out _);
+                Facing = Facing.TurnToward(new Facing(unchecked((byte)action.Var1)), Kind.Object.RotationPeriod, interval, out _);
                 break;
             case ActionCode.BuildUnit:
                 if (Kind.Object.SpriteClass == SpriteClass.Building)

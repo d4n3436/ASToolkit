@@ -179,7 +179,7 @@ internal sealed class ScriptContext
 
         for (int depth = 0; depth < MaxLinkDepth; depth++)
         {
-            if (obj.IsSolid || (obj.SpriteClass != SpriteClass.Scenery && Objects.TryFind(KnownObject.SequelPlayer, out var player) && (obj.MoveMask & player.MoveMask) != 0))
+            if (obj.IsSolid || (obj.SpriteClass != SpriteClass.BuiltTerrain && Objects.TryFind(KnownObject.SequelPlayer, out var player) && (obj.MoveMask & player.MoveMask) != 0))
             {
                 return true;
             }

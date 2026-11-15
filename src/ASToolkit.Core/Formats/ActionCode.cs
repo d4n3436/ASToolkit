@@ -421,6 +421,31 @@ public enum ActionCode
     IsTrain = 159,
 
     /// <summary>
+    /// Restore the sprite's state from a saved stream (older scripts).
+    /// </summary>
+    RestoreOld = 200,
+
+    /// <summary>
+    /// Change the facing to the second value and the animation to the first.
+    /// </summary>
+    ChangeAction = 201,
+
+    /// <summary>
+    /// Return the current animation.
+    /// </summary>
+    GetAction = 202,
+
+    /// <summary>
+    /// Move the sprite to a point at its current height.
+    /// </summary>
+    ChangePosition = 203,
+
+    /// <summary>
+    /// Move the sprite to a height at its current point.
+    /// </summary>
+    ChangeHeight = 204,
+
+    /// <summary>
     /// Do nothing.
     /// </summary>
     None = 255

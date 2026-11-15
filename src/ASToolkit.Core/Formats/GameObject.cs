@@ -21,36 +21,36 @@ public readonly struct GameObject
     {
         SpriteType = ConvertSpriteType(obj.SpriteType);
         SpriteClass = obj.SpriteClass;
-        Flags = obj.Flags;
+        Properties = obj.Properties;
         MoveMask = obj.MoveMask;
         Size = obj.Size;
         MaxHp = obj.MaxHp;
-        MaxSpeed = 0;
-        MaxZSpeed = 0;
+        MaxInitialSpeed = 0;
+        MaxInitialZSpeed = 0;
         LinkOffset = obj.LinkOffset;
         Link = obj.Link;
         StepHeight = obj.StepHeight;
         DropHeight = obj.DropHeight;
         Directions = obj.Directions;
         FrameCounts = obj.FrameCounts;
-        SoundIds = obj.SoundIds;
+        Sounds = obj.Sounds;
         FrameDurations = obj.FrameDurations;
         Gamma = obj.Gamma;
         Scale = obj.Scale;
-        Speed = obj.Speed;
-        ZSpeed = obj.ZSpeed;
+        MaxSpeed = obj.MaxSpeed;
+        MaxZSpeed = obj.MaxZSpeed;
         Acceleration = obj.Acceleration;
         Deceleration = obj.Deceleration;
-        TurnPeriod = obj.TurnPeriod;
-        RestHeight = obj.RestHeight;
+        RotationPeriod = obj.RotationPeriod;
+        TopZ = obj.TopZ;
         WeaponIndex = obj.WeaponIndex;
-        BlastRadius = obj.BlastRadius;
-        Damage = obj.Damage;
-        MaxDamage = obj.Damage;
+        DeathRange = obj.DeathRange;
+        DeathDamage = obj.DeathDamage;
+        MaxDeathDamage = obj.DeathDamage;
         Lifetime = obj.Lifetime;
         ChildX = obj.ChildX;
         ChildY = obj.ChildY;
-        ChildHeight = obj.ChildHeight;
+        ChildZ = obj.ChildZ;
         Children = obj.Children;
         ChildCounts = obj.ChildCounts;
     }
@@ -59,36 +59,36 @@ public readonly struct GameObject
     {
         SpriteType = ConvertSpriteType(obj.SpriteType);
         SpriteClass = obj.SpriteClass;
-        Flags = obj.Flags;
+        Properties = obj.Properties;
         MoveMask = obj.MoveMask;
         Size = obj.Size;
         MaxHp = obj.MaxHp;
-        MaxSpeed = obj.MaxSpeed;
-        MaxZSpeed = obj.MaxZSpeed;
+        MaxInitialSpeed = obj.MaxInitialSpeed;
+        MaxInitialZSpeed = obj.MaxInitialZSpeed;
         LinkOffset = obj.LinkOffset;
         Link = obj.Link;
         StepHeight = obj.StepHeight;
         DropHeight = obj.DropHeight;
         Directions = obj.Directions;
         FrameCounts = obj.FrameCounts;
-        SoundIds = obj.SoundIds;
+        Sounds = obj.Sounds;
         FrameDurations = obj.FrameDurations;
         Gamma = obj.Gamma;
         Scale = obj.Scale;
-        Speed = obj.Speed;
-        ZSpeed = obj.ZSpeed;
+        MaxSpeed = obj.MaxSpeed;
+        MaxZSpeed = obj.MaxZSpeed;
         Acceleration = obj.Acceleration;
         Deceleration = obj.Deceleration;
-        TurnPeriod = obj.TurnPeriod;
-        RestHeight = obj.RestHeight;
+        RotationPeriod = obj.RotationPeriod;
+        TopZ = obj.TopZ;
         WeaponIndex = obj.WeaponIndex;
-        BlastRadius = obj.BlastRadius;
-        Damage = obj.Damage;
-        MaxDamage = obj.Damage;
+        DeathRange = obj.DeathRange;
+        DeathDamage = obj.DeathDamage;
+        MaxDeathDamage = obj.DeathDamage;
         Lifetime = obj.Lifetime;
         ChildX = obj.ChildX;
         ChildY = obj.ChildY;
-        ChildHeight = obj.ChildHeight;
+        ChildZ = obj.ChildZ;
         Children = obj.Children;
         ChildCounts = obj.ChildCounts;
     }
@@ -97,37 +97,37 @@ public readonly struct GameObject
     {
         SpriteType = obj.SpriteType;
         SpriteClass = obj.SpriteClass;
-        Flags = obj.Flags;
+        Properties = obj.Properties;
         MoveMask = obj.MoveMask;
         Size = obj.Size;
         MaxHp = obj.MaxHp;
-        MaxSpeed = obj.MaxSpeed;
-        MaxZSpeed = obj.MaxZSpeed;
+        MaxInitialSpeed = obj.MaxInitialSpeed;
+        MaxInitialZSpeed = obj.MaxInitialZSpeed;
         LinkOffset = obj.LinkOffset;
         Link = obj.Link;
         StepHeight = obj.StepHeight;
         DropHeight = obj.DropHeight;
         Directions = obj.Directions;
         FrameCounts = obj.FrameCounts;
-        SoundIds = obj.SoundIds;
+        Sounds = obj.Sounds;
         FrameDurations = obj.FrameDurations;
         Gamma = obj.Gamma;
         Scale = obj.Scale;
-        Speed = obj.Speed;
-        ZSpeed = obj.ZSpeed;
+        MaxSpeed = obj.MaxSpeed;
+        MaxZSpeed = obj.MaxZSpeed;
         Acceleration = obj.Acceleration;
         Deceleration = obj.Deceleration;
-        TurnPeriod = obj.TurnPeriod;
-        RestHeight = obj.RestHeight;
+        RotationPeriod = obj.RotationPeriod;
+        TopZ = obj.TopZ;
         WeaponIndex = obj.WeaponIndex;
-        BlastRadius = obj.BlastRadius;
-        Damage = obj.Damage;
-        MaxDamage = obj.MaxDamage;
+        DeathRange = obj.DeathRange;
+        DeathDamage = obj.DeathDamage;
+        MaxDeathDamage = obj.MaxDeathDamage;
         Push = obj.Push;
         Lifetime = obj.Lifetime;
         ChildX = obj.ChildX;
         ChildY = obj.ChildY;
-        ChildHeight = obj.ChildHeight;
+        ChildZ = obj.ChildZ;
         Children = obj.Children;
         ChildCounts = obj.ChildCounts;
     }
@@ -145,10 +145,10 @@ public readonly struct GameObject
     public readonly SpriteClass SpriteClass;
 
     /// <summary>
-    /// The object flags.
+    /// Gets the properties of the object.
     /// </summary>
     [FieldOffset(8)]
-    public readonly ObjectFlags Flags;
+    public readonly ObjectProperties Properties;
 
     /// <summary>
     /// The collision groups of the object. Two objects collide when their masks share a bit.
@@ -169,28 +169,28 @@ public readonly struct GameObject
     public readonly int MaxHp;
 
     /// <summary>
-    /// The speed of the object along its facing.
+    /// Gets the highest speed of the object along its facing, which is also the initial speed of a spawned object.
     /// </summary>
     [FieldOffset(32)]
-    public readonly float Speed;
-
-    /// <summary>
-    /// The maximum of the initial speed range, in milli-units; the speed is the minimum. Absent from Alien Shooter records.
-    /// </summary>
-    [FieldOffset(36)]
     public readonly float MaxSpeed;
 
     /// <summary>
-    /// The initial vertical speed in milli-units.
+    /// Gets the maximum of the initial speed range, in milli-units; the highest speed is the minimum. Absent from Alien Shooter records.
     /// </summary>
-    [FieldOffset(40)]
-    internal readonly float ZSpeed;
+    [FieldOffset(36)]
+    public readonly float MaxInitialSpeed;
 
     /// <summary>
-    /// The maximum of the initial vertical speed range, in milli-units. Absent from Alien Shooter records.
+    /// Gets the highest vertical speed of the object in milli-units, which is also its initial vertical speed.
+    /// </summary>
+    [FieldOffset(40)]
+    internal readonly float MaxZSpeed;
+
+    /// <summary>
+    /// Gets the maximum of the initial vertical speed range, in milli-units. Absent from Alien Shooter records.
     /// </summary>
     [FieldOffset(44)]
-    public readonly float MaxZSpeed;
+    public readonly float MaxInitialZSpeed;
 
     /// <summary>
     /// The stored forward acceleration, scaled by 0.000001 on load except for the instant value 999999.
@@ -208,7 +208,7 @@ public readonly struct GameObject
     /// The duration of a full turn in milliseconds. Zero turns instantly and 999999 disables turning.
     /// </summary>
     [FieldOffset(56)]
-    public readonly float TurnPeriod;
+    public readonly float RotationPeriod;
 
     /// <summary>
     /// Gets the index of the WEAP record of the object, or zero for none.
@@ -217,22 +217,22 @@ public readonly struct GameObject
     public readonly int WeaponIndex;
 
     /// <summary>
-    /// Gets the blast radius the object adds to its footprint when it hits something.
+    /// Gets the radius the object's blast adds to its footprint when it dies or hits something.
     /// </summary>
     [FieldOffset(64)]
-    public readonly float BlastRadius;
+    public readonly float DeathRange;
 
     /// <summary>
     /// Gets the damage the object sends to everything its blast reaches.
     /// </summary>
     [FieldOffset(68)]
-    public readonly int Damage;
+    public readonly int DeathDamage;
 
     /// <summary>
     /// Gets the highest damage the object's blast deals. Absent from Alien Shooter and Zombie Shooter records.
     /// </summary>
     [FieldOffset(72)]
-    public readonly int MaxDamage;
+    public readonly int MaxDeathDamage;
 
     /// <summary>
     /// Gets the push of the object's blast. Absent from Alien Shooter and Zombie Shooter records.
@@ -253,10 +253,10 @@ public readonly struct GameObject
     public readonly KnownObject Link;
 
     /// <summary>
-    /// The resting height above terrain. Negative values also affect projectile motion.
+    /// Gets the height above the terrain the object keeps while it is not falling. Negative values also affect projectile motion.
     /// </summary>
     [FieldOffset(96)]
-    public readonly float RestHeight;
+    public readonly float TopZ;
 
     /// <summary>
     /// The highest step the object climbs, and the height a bobbing object rises and sinks by.
@@ -292,7 +292,7 @@ public readonly struct GameObject
     /// The sound id of each animation state, an index into the SFX chunk.
     /// </summary>
     [FieldOffset(200)]
-    public readonly StateValues<int> SoundIds;
+    public readonly StateValues<int> Sounds;
 
     /// <summary>
     /// The frame duration of each animation state in milliseconds, or 0 for the speed of the sprite.
@@ -316,7 +316,7 @@ public readonly struct GameObject
     /// Gets the height offset of the object created in each state.
     /// </summary>
     [FieldOffset(472)]
-    public readonly StateValues<float> ChildHeight;
+    public readonly StateValues<float> ChildZ;
 
     /// <summary>
     /// Gets the ID of the object created in each state.
@@ -350,12 +350,12 @@ public readonly struct GameObject
     /// <summary>
     /// Gets a value indicating whether the object stops the player.
     /// </summary>
-    public bool IsSolid => Flags.HasFlag(ObjectFlags.Solid);
+    public bool IsSolid => Properties.HasFlag(ObjectProperties.BuildVidZToGridZ);
 
     /// <summary>
     /// Gets a value indicating whether shots and explosions can reach the object.
     /// </summary>
-    public bool IsHittable => Flags.HasFlag(ObjectFlags.Hittable);
+    public bool IsHittable => Properties.HasFlag(ObjectProperties.Hash);
 
     /// <summary>
     /// Tells whether the object stands in the way of a walking unit as a box, which excludes scenery, units, aircraft, cannons,
@@ -363,7 +363,7 @@ public readonly struct GameObject
     /// </summary>
     /// <param name="walker">The walking unit.</param>
     public bool Blocks(GameObject walker) =>
-        SpriteClass != SpriteClass.Scenery && (MoveMask & walker.MoveMask) != 0 && !SpriteType.HasFlag(SpriteType.Unit)
+        SpriteClass != SpriteClass.BuiltTerrain && (MoveMask & walker.MoveMask) != 0 && !SpriteType.HasFlag(SpriteType.Unit)
         && !(SpriteType.HasFlag(SpriteType.Dummy) && !IsSolid) && !SpriteType.HasFlag(SpriteType.Avia) && !SpriteType.HasFlag(SpriteType.Cannon)
         && !(IsHittable && MaxHp > 0);
 
@@ -422,11 +422,11 @@ public readonly struct GameObject
     /// </summary>
     public Vector3 GetLinkOffset(GameObject attached, VidResource? file, int frameIndex, byte dir)
     {
-        var offset = file is not null && file.Value.Flags.HasFlag(VidFlags.FrameVector)
+        var offset = file is not null && file.Value.Type.HasFlag(VidType.FrameVector)
             ? file.Value.GetFrameVector(frameIndex)
             : LinkOffset with { Y = -LinkOffset.Y };
         
-        if (attached.Flags.HasFlag(ObjectFlags.FixedOffset))
+        if (attached.Properties.HasFlag(ObjectProperties.FixedOffset))
         {
             return offset;
         }

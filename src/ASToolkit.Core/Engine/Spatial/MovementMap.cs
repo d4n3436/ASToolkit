@@ -69,11 +69,11 @@ internal sealed class MovementMap
                 source = sprite;
             }
 
-            bool scenery = source is null && obj.SpriteClass == SpriteClass.Scenery;
+            bool scenery = source is null && obj.SpriteClass == SpriteClass.BuiltTerrain;
 
             if (part.Id != KnownObject.Crate &&
                 (obj.SpriteType.HasFlag(SpriteType.Unit) || obj.SpriteType.HasFlag(SpriteType.Avia) ||
-                 obj.SpriteType.HasFlag(SpriteType.Cannon) || obj.SpriteClass == SpriteClass.Player))
+                 obj.SpriteType.HasFlag(SpriteType.Cannon) || obj.SpriteClass == SpriteClass.Man))
                 continue;
 
             if (part.Id is KnownObject.SmallDoor or KnownObject.DoubleDoor or KnownObject.Fence)
@@ -92,7 +92,7 @@ internal sealed class MovementMap
                 }
             }
 
-            if (obj.Flags.HasFlag(ObjectFlags.Outline))
+            if (obj.Properties.HasFlag(ObjectProperties.BuildSizeToGridZ))
             {
                 for (int y = 0; y <= (int)MathF.Ceiling(obj.Size.Y / CellSize); y++)
                 for (int x = 0; x <= (int)MathF.Ceiling(obj.Size.X / CellSize); x++)
@@ -192,7 +192,7 @@ internal sealed class MovementMap
     [EngineRoutine(0x00411050)]
     public float GetSupportHeight(in GameObject walker, Vector2 point)
     {
-        if (walker.SpriteClass != SpriteClass.Player)
+        if (walker.SpriteClass != SpriteClass.Man)
         {
             return GetHeight(point);
         }
@@ -231,7 +231,7 @@ internal sealed class MovementMap
             return false;
         }
 
-        if (walker.SpriteClass != SpriteClass.Player)
+        if (walker.SpriteClass != SpriteClass.Man)
         {
             var inset = half - new Vector2(CornerInset);
             ReadOnlySpan<Vector2> corners = [new(-inset.X, -inset.Y), inset with { Y = -inset.Y }, inset with { X = -inset.X }, inset];
@@ -251,7 +251,7 @@ internal sealed class MovementMap
 
     public bool IsAboveGround(in GameObject obj, Vector3 point) => point.Z >= GetSupportHeight(obj, point.AsVector2());
 
-    private static bool AllowsHeight(in GameObject walker, float ground, float height) => walker.Flags.HasFlag(ObjectFlags.FollowsTerrain)
+    private static bool AllowsHeight(in GameObject walker, float ground, float height) => walker.Properties.HasFlag(ObjectProperties.ZeroZ)
         ? ground - height <= walker.StepHeight && height - ground <= walker.DropHeight
         : ground <= height;
 

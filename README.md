@@ -1,6 +1,6 @@
 # ASToolkit
 
-This repo provides a toolkit for Alien Shooter (GOG version 1.2) with a level generator, a widescreen patch and level analysis tools, all in one command-line program called `ascli`.
+This repo provides a toolkit for Alien Shooter (GOG version 1.2) with a level generator, game simulator, a widescreen patch and level analysis tools, all in one command-line program called `ascli`.
 
 It is written in C# on .NET 10 and works on an installed copy of the game.
 
@@ -10,7 +10,7 @@ It is written in C# on .NET 10 and works on an installed copy of the game.
 ## Features
 
 - **Level generation:** Builds new levels in the style of the originals and installs them as a new add-on called RANDOM, with its own button on the play menu
-- **Map viewer:** A map viewer that faithfully recreates the Alien Shooter 1/2 rendering engines and supports both games plus spin-offs
+- **Map viewer:** Faithfully recreates the Alien Shooter 1/2 rendering engines and supports both games plus spin-offs
 - **Widescreen patch:** Adds more resolutions, a borderless window mode and a HUD that fits wide screens
 - **Level analysis:** Works out the route a player takes through a level and draws it over an image of the map
 
@@ -39,7 +39,7 @@ Run a command with `--help` to see its options.
 The generator draws a whole campaign, builds each level as a building laid out phase by phase, and fills it along the route the player takes.
 
 1. **Campaign:** It draws the whole campaign first, from curves fitted to the original campaigns, giving each level its wall set, gate, monster hit points, weapons, pickups and end-of-level money.
-2. **Building:** It lays out the level's building from the grammar of its kind. A lab is a hub of office pods with one second wing behind its gate, a warehouse follows its level's template and the office block is one packed floor. The campaign gives the gate (locked doors, a blackout or electric fences), and the doors and locks follow the building's phases.
+2. **Building:** It lays out the level's building from the grammar of its kind. Labs are a hub of office pods with one second wing behind their gate, warehouses follow their level's template and the office block is one packed floor. The campaign gives the gate (locked doors, a blackout or electric fences), and the doors and locks follow the building's phases.
 3. **Structure:** Walls, doors and floors are built around the layout in the look of the basement and concrete levels, and decoration is copied from the original levels.
 4. **Content:** Monsters, bosses, items, ammo and dynamite are placed along the route to the hit points and pickups the campaign gives the level, with difficulty rising as the level goes on. Fights come where the original level puts them, and furniture, pickups and gore are arranged the way the originals arrange them.
 5. **Read back:** Each level is built once, every step keeping its own guarantees, then read back with the route analysis that measures the original levels. Layouts whose route cannot reach every objective are drawn again. Levels get a roof that hides everything outside the walkable floor.
@@ -55,17 +55,17 @@ The generator draws a whole campaign, builds each level as a building laid out p
 
 ## Widescreen patch
 
-`widescreen apply` patches the executable and a few game scripts. It requires the stock GOG 1.2 executable and keeps backups, which `widescreen restore` puts back.
+`widescreen apply` patches the executable and a few game scripts. It requires the stock GOG 1.2 executable and keeps backups for `widescreen restore` to put back.
 
 ## Toolkit GUI
 
-A GUI for the toolkit is included on the repo (the `ASToolkit.Gui` project). It currently has a RES file inspector and a map viewer.
+A GUI for the toolkit is included on the repo (the `ASToolkit.Gui` project). It currently has a RES file inspector, a map viewer and simulation replay.
 
 ## Project layout
 
 ```
 src/ASToolkit.Core    File formats, engine runtime, simulation, level generation, route analysis and patchers
-  Engine/             Partial port of Alien Shooter 1's engine
+  Engine/             Port of Alien Shooter 1's engine
     Objects/          Shared object definitions and mutable runtime objects
     Systems/          Movement, enemy AI, animation effects, doors and weapons
     Spatial/          Collision and spatial queries, also used by routing
@@ -86,8 +86,9 @@ docs/                 Documentation
 
 ## Tests
 
+Tests are ran using the standard .NET test driver:
 ```
 dotnet test
 ```
 
-Tests that need the game files are skipped unless the `ALIEN_SHOOTER_TEST_GAME` environment variable points to an installed game folder.
+Tests that need the game files are skipped unless the `ALIEN_SHOOTER_TEST_GAME` environment variable points to the game folder.

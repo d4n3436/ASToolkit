@@ -13,7 +13,7 @@ internal readonly struct AlienShooterGameObject
     public readonly SpriteClass SpriteClass;
 
     [FieldOffset(8)]
-    public readonly ObjectFlags Flags;
+    public readonly ObjectProperties Properties;
 
     [FieldOffset(12)]
     public readonly CollisionLayers MoveMask;
@@ -25,10 +25,10 @@ internal readonly struct AlienShooterGameObject
     public readonly int MaxHp;
 
     [FieldOffset(32)]
-    public readonly float Speed;
+    public readonly float MaxSpeed;
 
     [FieldOffset(36)]
-    public readonly float ZSpeed;
+    public readonly float MaxZSpeed;
 
     [FieldOffset(40)]
     public readonly float Acceleration;
@@ -37,16 +37,16 @@ internal readonly struct AlienShooterGameObject
     public readonly float Deceleration;
 
     [FieldOffset(48)]
-    public readonly float TurnPeriod;
+    public readonly float RotationPeriod;
 
     [FieldOffset(52)]
     public readonly int WeaponIndex;
 
     [FieldOffset(56)]
-    public readonly float BlastRadius;
+    public readonly float DeathRange;
 
     [FieldOffset(60)]
-    public readonly int Damage;
+    public readonly int DeathDamage;
 
     [FieldOffset(64)]
     public readonly Vector3 LinkOffset;
@@ -55,7 +55,7 @@ internal readonly struct AlienShooterGameObject
     public readonly KnownObject Link;
 
     [FieldOffset(80)]
-    public readonly float RestHeight;
+    public readonly float TopZ;
 
     [FieldOffset(84)]
     public readonly float StepHeight;
@@ -73,7 +73,7 @@ internal readonly struct AlienShooterGameObject
     public readonly StateValues<int> FrameCounts;
 
     [FieldOffset(184)]
-    public readonly StateValues<int> SoundIds;
+    public readonly StateValues<int> Sounds;
 
     [FieldOffset(252)]
     public readonly StateValues<int> FrameDurations;
@@ -85,7 +85,7 @@ internal readonly struct AlienShooterGameObject
     public readonly StateValues<float> ChildY;
 
     [FieldOffset(456)]
-    public readonly StateValues<float> ChildHeight;
+    public readonly StateValues<float> ChildZ;
 
     [FieldOffset(524)]
     public readonly StateValues<int> Children;

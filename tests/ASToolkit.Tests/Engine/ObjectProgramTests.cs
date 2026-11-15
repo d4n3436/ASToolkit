@@ -62,7 +62,7 @@ public class ObjectProgramTests
             built.Add(time);
             var unit = world.Monsters[^1];
             unit.Position += new Vector3(500, 500, 0);
-            world.Units.Move(unit);
+            world.Units.ChangeCoor(unit);
         }
 
         Assert.Equal([160, 580], built);

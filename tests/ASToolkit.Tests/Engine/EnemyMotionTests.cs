@@ -27,7 +27,7 @@ public class EnemyMotionTests
 
     [Theory]
     [InlineData(SpriteClass.Unit)]
-    [InlineData(SpriteClass.Player)]
+    [InlineData(SpriteClass.Man)]
     public void Move_BlockedDiagonal_SlidesAlongYFirst(SpriteClass mover)
     {
         var grid = new UnitGrid(new SizeF(256, 256), new Vector2(130));
@@ -45,7 +45,7 @@ public class EnemyMotionTests
     public void Move_IntoAnotherBody_PushesItBeforeSliding()
     {
         var grid = new UnitGrid(new SizeF(256, 256), new Vector2(130));
-        var unit = MakeUnit(new Body(50, 50), 0, SpriteClass.Player);
+        var unit = MakeUnit(new Body(50, 50), 0, SpriteClass.Man);
         var pushed = MakeUnit(new Body(60, 50, Push: 1), 1, SpriteClass.Unit);
         grid.Add(unit);
         grid.Add(pushed);
@@ -67,7 +67,7 @@ public class EnemyMotionTests
     {
         byte[] bytes = new byte[Marshal.SizeOf<GameObject>()];
         MemoryMarshal.Write(bytes.AsSpan(4), in spriteClass);
-        var hittable = ObjectFlags.Hittable;
+        var hittable = ObjectProperties.Hash;
         MemoryMarshal.Write(bytes.AsSpan(8), in hittable);
         uint mask = body.Mask;
         MemoryMarshal.Write(bytes.AsSpan(12), in mask);

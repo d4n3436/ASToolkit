@@ -47,7 +47,7 @@ public class UnitPoolTests
             Climbing = true,
             Facing = new Facing(77)
         };
-        used.SetState(SpriteAnimation.Death);
+        used.ChangeAnimation(SpriteAnimation.Death);
         used.MarkReferenced();
 
         used.Initialize(-1, kind, new Vector3(1, 2, 3), 0, kind.MaxHp, new Facing(9));

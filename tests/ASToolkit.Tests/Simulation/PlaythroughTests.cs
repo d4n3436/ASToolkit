@@ -154,7 +154,7 @@ public class PlaythroughTests
                 var unit = samples[Array.FindLastIndex(samples, sample => sample.Time <= time)];
                 Assert.True(objects.TryFind(unit.Id, out var obj));
 
-                if (entry.Owner >= 0 || obj.SpriteClass is not (SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Player) || unit.Animation >= SpriteAnimation.Death)
+                if (entry.Owner >= 0 || obj.SpriteClass is not (SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man) || unit.Animation >= SpriteAnimation.Death)
                     continue;
 
                 bool stands = movement.CanStand(obj, unit.Position);

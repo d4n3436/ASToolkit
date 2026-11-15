@@ -254,7 +254,7 @@ internal sealed class WalkObstacles
 
             if (part.Id != KnownObject.Crate &&
                 (obj.SpriteType.HasFlag(SpriteType.Unit) || obj.SpriteType.HasFlag(SpriteType.Avia) ||
-                 obj.SpriteType.HasFlag(SpriteType.Cannon) || obj.SpriteClass == SpriteClass.Player))
+                 obj.SpriteType.HasFlag(SpriteType.Cannon) || obj.SpriteClass == SpriteClass.Man))
                 continue;
 
             bool gate = part.Id is KnownObject.SmallDoor or KnownObject.DoubleDoor or KnownObject.Fence;
@@ -292,7 +292,7 @@ internal sealed class WalkObstacles
             if (!Terrain.CanStandOnGround(walker, point, out float ground) || FindObstacle(walker, point, anticipateDoors) is not null)
                 return false;
 
-            if (walker.Flags.HasFlag(ObjectFlags.FollowsTerrain))
+            if (walker.Properties.HasFlag(ObjectProperties.ZeroZ))
             {
                 point.Z = float.IsNaN(ground) ? Terrain.GetSupportHeight(walker, point.AsVector2()) : ground;
             }
