@@ -13,8 +13,8 @@ public class UnitPoolTests
         var kinds = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var kind = kinds.Find(KnownObject.Monster1)!;
         var other = kinds.Find(KnownObject.RedBloodSpray)!;
-        var neighbor = new Unit(4, other, Vector3.Zero, 1, 1);
-        var used = new Unit(3, other, new Vector3(5, 6, 7), 1, 40)
+        var neighbor = new Unit(4, other, Vector3.Zero, Army.Monsters, 1);
+        var used = new Unit(3, other, new Vector3(5, 6, 7), Army.Monsters, 40)
         {
             Placement = new MergedMapSprite(1, KnownObject.Crate, Vector3.One, 0, 0, []),
             Speed = 13,
@@ -45,13 +45,13 @@ public class UnitPoolTests
             Depth = 13,
             Blocked = true,
             Climbing = true,
-            Facing = new Facing(77)
+            Direction = new Angle(77)
         };
         used.ChangeAnimation(SpriteAnimation.Death);
         used.MarkReferenced();
 
-        used.Initialize(-1, kind, new Vector3(1, 2, 3), 0, kind.MaxHp, new Facing(9));
-        var fresh = new Unit(-1, kind, new Vector3(1, 2, 3), 0, kind.MaxHp) { Facing = new Facing(9) };
+        used.Initialize(-1, kind, new Vector3(1, 2, 3), 0, kind.MaxHp, new Angle(9));
+        var fresh = new Unit(-1, kind, new Vector3(1, 2, 3), 0, kind.MaxHp) { Direction = new Angle(9) };
 
         Assert.Equal(Describe(fresh), Describe(used));
     }
@@ -61,5 +61,5 @@ public class UnitPoolTests
             unit.Command, unit.Moving, unit.ReachedX, unit.ReachedY, unit.Hp, unit.DropItem, unit.Bucket, unit.Slot, unit.Orders.Length,
             unit.OrderStep, unit.DiedAt, unit.Animation, unit.FirstFrame, unit.Frame, unit.LastFrame, unit.LastTickTime, unit.CreatedAt,
             unit.Lifetime, unit.Timer, unit.VerticalSpeed, unit.MaxSpeed, unit.Goal is null, unit.GoalPoint, unit.Shooter is null,
-            unit.Owner is null, unit.OwnerOffset, unit.Depth, unit.Blocked, unit.Climbing, unit.IsReferenced, unit.Facing);
+            unit.Owner is null, unit.OwnerOffset, unit.Depth, unit.Blocked, unit.Climbing, unit.IsReferenced, unit.Direction);
 }

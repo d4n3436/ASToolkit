@@ -8,7 +8,7 @@ namespace ASToolkit.Tests.Engine;
 public class UnitAnimationTests
 {
     [Fact]
-    public void SetState_StartsAtTheFacingsDirection()
+    public void SetState_StartsAtItsDirectionFrame()
     {
         var unit = CreateMonster(64);
 
@@ -23,13 +23,13 @@ public class UnitAnimationTests
     }
 
     [Fact]
-    public void SetFacing_KeepsTheStepWithinTheState()
+    public void SetDirection_KeepsTheStepWithinTheState()
     {
         var unit = CreateMonster(64);
         unit.ChangeAnimation(SpriteAnimation.Go);
         unit.Frame += 3;
 
-        unit.SetFacing(new Facing(128));
+        unit.SetDirection(new Angle(128));
 
         AssertFrames(unit, 80, 83, 87);
     }
@@ -41,9 +41,9 @@ public class UnitAnimationTests
         var kind = kinds.Find(KnownObject.Monster1)!;
         var random = new GameRandom(7);
         var expected = new GameRandom(7);
-        var unit = new Unit(1, kind, Vector3.Zero, 1, kind.MaxHp);
+        var unit = new Unit(1, kind, Vector3.Zero, Army.Monsters, kind.MaxHp);
 
-        unit.Start(SpriteAnimation.Stand, new Facing(64), 1000, random);
+        unit.Start(SpriteAnimation.Stand, new Angle(64), 1000, random);
 
         Assert.Equal(1000 - expected.Next() % 61, unit.LastTickTime);
         AssertFrames(unit, 4, 4, 4);
@@ -56,7 +56,7 @@ public class UnitAnimationTests
         var kinds = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var world = EngineTestWorld.CreateWorld(kinds);
         var position = world.Player.Position + new Vector3(600, 0, 0);
-        var enemy = world.AddMonster(kinds.Find(KnownObject.Monster1)!, position, facing: new Facing(64));
+        var enemy = world.AddMonster(kinds.Find(KnownObject.Monster1)!, position, direction: new Angle(64));
         while (world.Time < 96)
         {
             world.Step(default);
@@ -81,12 +81,12 @@ public class UnitAnimationTests
         Assert.Equal(last, unit.LastFrame);
     }
 
-    private static Unit CreateMonster(byte facing)
+    private static Unit CreateMonster(Angle direction)
     {
         var kinds = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var kind = kinds.Find(KnownObject.Monster1)!;
-        var unit = new Unit(1, kind, Vector3.Zero, 1, kind.MaxHp);
-        unit.Start(SpriteAnimation.Stand, new Facing(facing), 0, new GameRandom(1));
+        var unit = new Unit(1, kind, Vector3.Zero, Army.Monsters, kind.MaxHp);
+        unit.Start(SpriteAnimation.Stand, direction, 0, new GameRandom(1));
 
         return unit;
     }

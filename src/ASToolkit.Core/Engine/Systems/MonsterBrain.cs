@@ -9,7 +9,6 @@ internal sealed class MonsterBrain
     private const int RepeatTargetOdds = 3;
     private const int ForwardCone = 0x1f;
     private const float WanderReach = 64;
-    private const int NeutralArmy = 2;
     private const int LinkScanOdds = 4;
     private const int CreaturePeriodMask = 0x7ff;
     private const int CreatureTurn = 0x20;
@@ -41,14 +40,14 @@ internal sealed class MonsterBrain
         {
             if (unit.HasGoal && !unit.Speed.IsZero())
             {
-                var goal = Facing.FromOffset((unit.GoalPosition - unit.Position).AsVector2());
+                var goal = Angle.FromOffset((unit.GoalPosition - unit.Position).AsVector2());
 
                 if (unit.Speed < 0)
                 {
                     goal = goal.Opposite;
                 }
                 goal = _movement.AvoidObstacles(goal, unit);
-                unit.SetFacing(unit.TurnWhileMoving(goal, elapsed));
+                unit.SetDirection(unit.TurnWhileMoving(goal, elapsed));
 
                 if (unit is { ReachedX: true, ReachedY: true })
                 {
@@ -62,8 +61,8 @@ internal sealed class MonsterBrain
             {
                 unit.TurnTicks = Math.Sign(unit.TurnTicks) * framesPerSecond / 2;
             }
-            var goal = unit.Facing + (unit.TurnTicks > 0 ? Facing.QuarterTurn : -Facing.QuarterTurn);
-            unit.SetFacing(unit.TurnWhileMoving(goal, elapsed));
+            var goal = unit.Direction + (unit.TurnTicks > 0 ? Angle.QuarterTurn : -Angle.QuarterTurn);
+            unit.SetDirection(unit.TurnWhileMoving(goal, elapsed));
             unit.TurnTicks -= Math.Sign(unit.TurnTicks);
         }
 
@@ -175,7 +174,7 @@ internal sealed class MonsterBrain
         kind.Object.FrameCounts[(int)SpriteAnimation.Unload] != 0 || kind.Object.Children[(int)SpriteAnimation.Unload] != 0;
 
     private static void TurnStep(Unit unit, int step, int elapsed) =>
-        unit.SetFacing(unit.Facing.TurnToward(new Facing(unchecked((byte)(unit.Facing.Value + step))), unit.Kind.Object.RotationPeriod, elapsed, out _));
+        unit.SetDirection(unit.Direction.TurnToward(unit.Direction + step, unit.Kind.Object.RotationPeriod, elapsed, out _));
 
     [EngineRoutine(0x00440110)]
     private bool RunProgram(Unit unit)
@@ -338,8 +337,8 @@ internal sealed class MonsterBrain
         if (unit.Command != UnitCommand.None || unit.Kind.Speed.IsZero())
             return;
 
-        var direction = new Facing((byte)_random.Next()).Direction;
-        MoveTo(unit, unit.Position.AsVector2() + direction * WanderReach);
+        var vector = new Angle((byte)_random.Next()).Vector;
+        MoveTo(unit, unit.Position.AsVector2() + vector * WanderReach);
     }
 
     [EngineRoutine(0x004447b0)]
@@ -372,7 +371,7 @@ internal sealed class MonsterBrain
         Unit? best = null;
         float bestDistance = kind.DetectRange + 1;
 
-        if (unit.Army == GameWorld.MonsterArmy)
+        if (unit.Army == Army.Monsters)
             return TryTake(unit, player, ref best, ref bestDistance) ? player : best;
 
         if (TryTake(unit, player, ref best, ref bestDistance))
@@ -395,7 +394,7 @@ internal sealed class MonsterBrain
             return false;
 
         if (kind.NeedsForwardTarget &&
-            unit.Facing.MeasureTurnTo(Facing.FromOffset((candidate.Position - unit.Position).AsVector2())) > ForwardCone)
+            unit.Direction.MeasureTurnTo(Angle.FromOffset((candidate.Position - unit.Position).AsVector2())) > ForwardCone)
             return false;
 
         float distance = unit.Position.AsVector2().MeasureDistance(candidate.Position.AsVector2());
@@ -418,7 +417,7 @@ internal sealed class MonsterBrain
             accepts = distance <= kind.BattleRange || IsBetter(unit, distance, bestDistance, candidate, best);
         }
 
-        if (!accepts || unit.Army == 0 && candidate.Kind.Object.SpriteClass == SpriteClass.Engine)
+        if (!accepts || unit.Army == Army.Player && candidate.Kind.Object.SpriteClass == SpriteClass.Engine)
             return false;
 
         best = candidate;
@@ -442,7 +441,7 @@ internal sealed class MonsterBrain
         if (unit.Goal == candidate)
             return true;
 
-        if (candidate.Army == NeutralArmy && best.Army != NeutralArmy)
+        if (candidate.Army == Army.Neutral && best.Army != Army.Neutral)
             return false;
 
         bool bestFlies = best.Kind.Object.SpriteType.HasFlag(SpriteType.Avia);
@@ -473,7 +472,7 @@ internal sealed class MonsterBrain
         bool ownArmy = unit.Kind.WeaponFlags.HasFlag(WeaponFlags.TargetsOwnArmy);
 
         return (target.Army != unit.Army || ownArmy) && !target.Kind.Object.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) &&
-            (target.Army != NeutralArmy || ownArmy) &&
+            (target.Army != Army.Neutral || ownArmy) &&
             target.Kind.Id != KnownObject.PistolMuzzleFlash;
     }
 
@@ -482,11 +481,11 @@ internal sealed class MonsterBrain
     {
         var position = unit.Position;
         var size = _movement.MapSize;
-        int goal = position.X < 0 ? Facing.QuarterTurn : position.Y < 0 ? Facing.HalfTurn : position.X >= size.Width ? Facing.HalfTurn + Facing.QuarterTurn : position.Y >= size.Height ? 0 : -1;
+        int goal = position.X < 0 ? Angle.QuarterTurn : position.Y < 0 ? Angle.HalfTurn : position.X >= size.Width ? Angle.HalfTurn + Angle.QuarterTurn : position.Y >= size.Height ? 0 : -1;
 
         if (goal >= 0)
         {
-            unit.SetFacing(unit.Facing.TurnToward(new Facing((byte)goal), unit.Kind.Object.RotationPeriod, elapsed, out _));
+            unit.SetDirection(unit.Direction.TurnToward(new Angle((byte)goal), unit.Kind.Object.RotationPeriod, elapsed, out _));
         }
     }
 }

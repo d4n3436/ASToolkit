@@ -9,7 +9,7 @@ namespace ASToolkit.Core.Rooms;
 /// <param name="X">The map x offset from the first piece.</param>
 /// <param name="Y">The map y offset from the first piece.</param>
 /// <param name="Z">The height.</param>
-/// <param name="Facing">The facing of the sprite.</param>
+/// <param name="Direction">The direction of the sprite.</param>
 /// <param name="Payload">The payload bytes of the sprite.</param>
 /// <param name="Gaps">The piece's distances to the walls of its room.</param>
-public readonly record struct PartPiece(KnownObject Id, float X, float Y, float Z, byte Facing, byte[] Payload, WallGaps Gaps);
+public readonly record struct PartPiece(KnownObject Id, float X, float Y, float Z, Angle Direction, byte[] Payload, WallGaps Gaps);

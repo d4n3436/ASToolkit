@@ -18,7 +18,7 @@ public class ParticleTests
         var world = EngineTestWorld.CreateWorld(kinds);
         var effects = world.Effects;
         var scenery = world.Effects.Settled;
-        effects.Spawn(flying, new Vector3(100, 200, 22), new Facing(64), world.Time);
+        effects.Spawn(flying, new Vector3(100, 200, 22), new Angle(64), world.Time);
         while (world.Time <= 3500)
         {
             world.Step(default);

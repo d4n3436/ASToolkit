@@ -82,10 +82,10 @@ internal static class ContentPlacer
     }
 
     public static void Place(PlacementContext ctx, LevelBudget budget, bool hasCheckpoint, bool blackoutIsCheckpoint, LevelScript script, BreakerSpot? breaker,
-        IReadOnlyDictionary<EdgeKey, EdgeKind> builtEdges, IReadOnlyDictionary<EdgeKey, int> spawnWalls, FacingTable facings, StyleModel model, IReadOnlyList<PlannedFight> fights)
+        IReadOnlyDictionary<EdgeKey, EdgeKind> builtEdges, IReadOnlyDictionary<EdgeKey, int> spawnWalls, DirectionTable directions, StyleModel model, IReadOnlyList<PlannedFight> fights)
     {
         PlaceGate(ctx, script, breaker);
-        PlaceBosses(ctx, facings, builtEdges);
+        PlaceBosses(ctx, directions, builtEdges);
         var sites = ctx.Map.Sprites
             .Where(sprite => sprite.Id == KnownObject.DynamiteSite)
             .Select(sprite => (Point: new PointF(sprite.Position.X, sprite.Position.Y), Cell: ctx.Layout.Lattice.GetCell(sprite.Position)))
@@ -166,7 +166,7 @@ internal static class ContentPlacer
     private static Cell GetDoorwayCell(PlacementContext ctx, PlanLink link) => ctx.Layout.GetDoorwayCell(link.Id, link.To);
 
     // Put bosses in the largest dead-end room outside a wing well along the walk, or else the last station
-    private static void PlaceBosses(PlacementContext ctx, FacingTable facings, IReadOnlyDictionary<EdgeKey, EdgeKind> builtEdges)
+    private static void PlaceBosses(PlacementContext ctx, DirectionTable directions, IReadOnlyDictionary<EdgeKey, EdgeKind> builtEdges)
     {
         var final = ctx.Plan.Regions
             .Where(r => r.Kind is RegionKind.Station or RegionKind.SideRoom && r.Id != ctx.Plan.KeyRoom?.Id && ctx.Plan.HoldsFights(r) && (ctx.Plan.Settings.WallSet != WallSet.Basement || IsNearBody(ctx, r)))
@@ -184,7 +184,7 @@ internal static class ContentPlacer
         
         foreach (var id in ctx.Brief.Bosses)
         {
-            var boss = ctx.Place(far.Take(Math.Max(1, far.Length / 5)).ToArray(), id, dir: 0, payload: MapBuilder.MonsterPayload, army: 1);
+            var boss = ctx.Place(far.Take(Math.Max(1, far.Length / 5)).ToArray(), id, dir: 0, payload: MapBuilder.MonsterPayload, army: Army.Monsters);
             if (boss is null)
             {
                 continue;
@@ -200,15 +200,15 @@ internal static class ContentPlacer
                     continue;
                 
                 var pool = GorePools[ctx.Rng.Next(GorePools.Length)];
-                ctx.Map.Add(pool, point.X, point.Y, 0, facings.PickFacing(ctx.Rng, pool, ctx.Layout.Edges, u, v), unique: false);
+                ctx.Map.Add(pool, point.X, point.Y, 0, directions.PickDirection(ctx.Rng, pool, ctx.Layout.Edges, u, v), unique: false);
                 if (thirdIndex >= 2)
                     continue;
                     
                 var corpse = KnownObject.SoldierCorpse + thirdIndex;
-                byte facing = FurnitureGrammar.Default.Poses[corpse].DrawLying(ctx.Rng);
-                if (facings.Fits(corpse, facing, builtEdges, u, v))
+                var direction = FurnitureGrammar.Default.Poses[corpse].DrawLying(ctx.Rng);
+                if (directions.Fits(corpse, direction, builtEdges, u, v))
                 {
-                    ctx.Map.Add(corpse, point.X, point.Y, 0, facing, unique: false);
+                    ctx.Map.Add(corpse, point.X, point.Y, 0, direction, unique: false);
                 }
             }
         }

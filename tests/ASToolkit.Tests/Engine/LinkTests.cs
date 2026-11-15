@@ -53,7 +53,7 @@ public class LinkTests
         var world = EngineTestWorld.CreateWorld(objects);
         var recorder = new ReplayRecorder();
         recorder.Start(world);
-        var enemy = world.AddMonster(objects.Find(KnownObject.Monster1)!, world.Player.Position + new Vector3(300, 120, 0), facing: new Facing(192));
+        var enemy = world.AddMonster(objects.Find(KnownObject.Monster1)!, world.Player.Position + new Vector3(300, 120, 0), direction: new Angle(192));
         var truth = new List<(int Time, Vector3 Player, Vector3? Enemy, Vector3? Link)>();
         for (int tick = 0; tick < 300; tick++)
         {

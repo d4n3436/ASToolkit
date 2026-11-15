@@ -5,14 +5,14 @@ using ASToolkit.Core.Reference;
 namespace ASToolkit.Core.Generation.Output;
 
 /// <summary>
-/// Provides the army the original levels give each object, 1 for monsters and generators, 2 for breakable things and
-/// 0 for the rest.
+/// Provides the army the original levels give each object, such as the monsters army for monsters and generators and
+/// the neutral army for breakable things.
 /// </summary>
 public sealed class ArmyTable
 {
-    private readonly Dictionary<KnownObject, uint> _armies;
+    private readonly Dictionary<KnownObject, Army> _armies;
 
-    private ArmyTable(Dictionary<KnownObject, uint> armies)
+    private ArmyTable(Dictionary<KnownObject, Army> armies)
     {
         _armies = armies;
     }
@@ -22,7 +22,7 @@ public sealed class ArmyTable
     /// </summary>
     public static ArmyTable Load(ReferenceLevelSet references, IEnumerable<string> levels)
     {
-        var counts = new Dictionary<KnownObject, List<(uint Army, int Count)>>();
+        var counts = new Dictionary<KnownObject, List<(Army Army, int Count)>>();
         foreach (string level in levels)
         {
             foreach (var sprite in references.GetLevel(level).Map.Sprites)
@@ -51,5 +51,5 @@ public sealed class ArmyTable
     /// <summary>
     /// Returns the army for an object ID.
     /// </summary>
-    public uint GetArmy(KnownObject id) => _armies.TryGetValue(id, out uint army) ? army : KnownObject.Monsters.Contains(id) || KnownObject.Bosses.Contains(id) ? 1u : 0u;
+    public Army GetArmy(KnownObject id) => _armies.TryGetValue(id, out var army) ? army : KnownObject.Monsters.Contains(id) || KnownObject.Bosses.Contains(id) ? Army.Monsters : Army.Player;
 }

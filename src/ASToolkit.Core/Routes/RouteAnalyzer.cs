@@ -758,7 +758,7 @@ public static class RouteAnalyzer
                     Z = s.Position.Z,
                     Cell = c.Value,
                     Hidden = offset > 30,
-                    Facing = s.Facing,
+                    Direction = s.Direction,
                     Category = category,
                     CrateItem = crateItem,
                     Program = program

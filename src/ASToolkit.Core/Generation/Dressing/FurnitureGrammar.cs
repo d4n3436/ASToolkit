@@ -9,15 +9,15 @@ internal sealed partial record FurnitureGrammar(
     Dictionary<RoomType, RoomType> Aliases,
     Dictionary<RoomType, RoomProgram> Types,
     Dictionary<PieceFamily, FurnitureFamily> Families,
-    Dictionary<KnownObject, Dictionary<byte, Companion[]>> SharedModules,
-    Dictionary<KnownObject, Dictionary<int, Dictionary<byte, float>>> Facings,
+    Dictionary<KnownObject, Dictionary<Angle, Companion[]>> SharedModules,
+    Dictionary<KnownObject, Dictionary<int, Dictionary<Angle, float>>> Directions,
     Dictionary<KnownObject, AttachedPiece[]> Attached,
-    Dictionary<KnownObject, byte[]> DummyDirs,
+    Dictionary<KnownObject, Angle[]> DummyDirs,
     Dictionary<KnownObject, Arrangement> Scenes,
     HeapRule Heap,
     Dictionary<FamilyPair, PairSpacing> Spacing,
-    Dictionary<KnownObject, Dictionary<byte, float>> FrameSpacing,
-    Dictionary<KnownObject, Dictionary<byte, float>> EndClearance,
+    Dictionary<KnownObject, Dictionary<Angle, float>> FrameSpacing,
+    Dictionary<KnownObject, Dictionary<Angle, float>> EndClearance,
     HashSet<KnownObject> AddOnOnly,
     Dictionary<RoomType, VictimRule> Victims,
     Splatter Splatter,
@@ -47,21 +47,21 @@ internal sealed partial record FurnitureGrammar(
         .Concat(Types.Values.SelectMany(program => program.Companions.Values).Concat(SharedModules.Values).SelectMany(modules => modules.Values).SelectMany(companions => companions).Select(companion => companion.Id))
         .ToHashSet();
 
-    public static Dictionary<KnownObject, Dictionary<byte, Companion[]>> GroupModules(IEnumerable<Module> modules) => modules
+    public static Dictionary<KnownObject, Dictionary<Angle, Companion[]>> GroupModules(IEnumerable<Module> modules) => modules
         .GroupBy(module => module.Anchor)
-        .ToDictionary(anchor => anchor.Key, anchor => anchor.ToDictionary(module => module.Dir, module => module.Pieces));
+        .ToDictionary(anchor => anchor.Key, anchor => anchor.ToDictionary(module => module.Direction, module => module.Pieces));
 
     private static Dictionary<FamilyPair, PointF[]> GroupOffsets(IEnumerable<HeapOffsets> rows) => rows.ToDictionary(
         row => new FamilyPair(row.From, row.To),
         row => row.From <= row.To ? row.Offsets : row.Offsets.Select(offset => new PointF(-offset.X, -offset.Y)).ToArray());
 
-    private static Dictionary<KnownObject, Dictionary<int, Dictionary<byte, float>>> GroupFacings(IEnumerable<FacingRow> rows) => rows
+    private static Dictionary<KnownObject, Dictionary<int, Dictionary<Angle, float>>> GroupDirections(IEnumerable<DirectionRow> rows) => rows
         .GroupBy(row => row.Id)
         .ToDictionary(id => id.Key, id => id.ToDictionary(row => row.Face, row => row.Weights));
 }
 
 internal sealed record RoomProgram(float[][] PiecesPerHundredCells, bool CoverFarWalls, float SignatureShare, Arrangement[] Arrangements,
-    Dictionary<KnownObject, Dictionary<byte, Companion[]>> Companions);
+    Dictionary<KnownObject, Dictionary<Angle, Companion[]>> Companions);
 
 // A heap has no family
 internal sealed record Arrangement(ArrangementKind Kind, PieceFamily? Family, float Share, float BigShare, float[] PerHundredCells, float MaxPerHundredCells,
@@ -83,12 +83,12 @@ internal sealed record FurnitureFamily(KnownObject[] Pieces, Dictionary<KnownObj
     float MixShare, float MinorityShare, float WallDistance, float Step, float GridStep, float GridAcross, float Extent, float[] WallShare, float FarWallMin,
     float NearWallMin, int MinCells, int CampaignMinCells);
 
-internal sealed record Module(KnownObject Anchor, byte Dir, Companion[] Pieces);
+internal sealed record Module(KnownObject Anchor, Angle Direction, Companion[] Pieces);
 
 // Ids sharing a slot are alternatives, the slot ordering a family's companions by height
-internal sealed record Companion(KnownObject Id, int Slot, float U, float V, float Z, byte Facing, float Share);
+internal sealed record Companion(KnownObject Id, int Slot, float U, float V, float Z, Angle Direction, float Share);
 
-internal sealed record FacingRow(KnownObject Id, int Face, Dictionary<byte, float> Weights);
+internal sealed record DirectionRow(KnownObject Id, int Face, Dictionary<Angle, float> Weights);
 
 internal sealed record AttachedPiece(KnownObject Id, float U, float V, float Share);
 
@@ -102,9 +102,9 @@ internal sealed record Splatter(float CorpseShare, float[] Reach, float Gap, flo
 internal sealed record Rubble(Dictionary<RoomType, float> PerHundredCells, float BigShare, int[] Small, float SmallRadius, int[] Big, float BigRadius, float Z);
 
 // Partner offsets run along the seat's face normal, then across it, the across axis mirrored with the picture
-internal sealed record CorpsePose(Dictionary<byte, float> Pictures, Dictionary<byte, Seat> Seats, float PieceShare, Dictionary<PieceFamily, SeatOffsets> Partners)
+internal sealed record CorpsePose(Dictionary<Angle, float> Pictures, Dictionary<Angle, Seat> Seats, float PieceShare, Dictionary<PieceFamily, SeatOffsets> Partners)
 {
-    public byte DrawLying(Random rng)
+    public Angle DrawLying(Random rng)
     {
         var lying = Pictures.Where(picture => !Seats.ContainsKey(picture.Key)).ToArray();
 

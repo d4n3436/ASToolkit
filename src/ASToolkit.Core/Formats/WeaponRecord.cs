@@ -140,7 +140,7 @@ public readonly struct WeaponRecord
     /// The army given by default to objects that carry the weapon or that its attacks create.
     /// </summary>
     [FieldOffset(56)]
-    public readonly int Army;
+    public readonly Army Army;
 
     /// <summary>
     /// The behavior mask of a unit carrying the weapon.

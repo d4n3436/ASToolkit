@@ -424,9 +424,9 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         return new MeasureShare(samples.Count(predicate), samples.Length);
     }
 
-    private static Dictionary<(KnownObject Id, WallSides Side), HashSet<byte>> FindRareFrames(DesignMeasures[] originals)
+    private static Dictionary<(KnownObject Id, WallSides Side), HashSet<Angle>> FindRareFrames(DesignMeasures[] originals)
     {
-        var rare = new Dictionary<(KnownObject, WallSides), HashSet<byte>>();
+        var rare = new Dictionary<(KnownObject, WallSides), HashSet<Angle>>();
         var groups = originals.SelectMany(measure => measure.Walls).Where(sample => sample.Single != WallSides.None).GroupBy(sample => (sample.Id, sample.Single));
         foreach (var group in groups)
         {
@@ -436,17 +436,17 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
                 continue;
             }
 
-            var frames = group.GroupBy(sample => sample.Dir).ToDictionary(frame => frame.Key, frame => frame.Count());
-            rare[group.Key] = Enumerable.Range(0, 256).Select(dir => (byte)dir).Where(dir => frames.GetValueOrDefault(dir) < RareFrameShare * total).ToHashSet();
+            var frames = group.GroupBy(sample => sample.Direction).ToDictionary(frame => frame.Key, frame => frame.Count());
+            rare[group.Key] = Enumerable.Range(0, Angle.FullTurn).Select(dir => new Angle((byte)dir)).Where(dir => frames.GetValueOrDefault(dir) < RareFrameShare * total).ToHashSet();
         }
 
         return rare;
     }
 
-    private static MeasureShare CountRareFrames(DesignMeasures measure, KnownObject id, Dictionary<(KnownObject Id, WallSides Side), HashSet<byte>> rare)
+    private static MeasureShare CountRareFrames(DesignMeasures measure, KnownObject id, Dictionary<(KnownObject Id, WallSides Side), HashSet<Angle>> rare)
     {
         var samples = measure.Walls.Where(sample => sample.Id == id && rare.ContainsKey((id, sample.Single))).ToArray();
-        return new MeasureShare(samples.Count(sample => rare[(id, sample.Single)].Contains(sample.Dir)), samples.Length);
+        return new MeasureShare(samples.Count(sample => rare[(id, sample.Single)].Contains(sample.Direction)), samples.Length);
     }
 
     // Compare each relation the campaign shows with the same relation in the add-ons and the generated levels, then the door clearances

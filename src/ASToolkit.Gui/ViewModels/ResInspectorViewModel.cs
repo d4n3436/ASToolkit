@@ -111,7 +111,7 @@ public partial class ResInspectorViewModel : ViewModelBase
                     new($"{nameof(MapSprite.Handle)}: {sprite.Handle}"),
                     new($"{nameof(MapSprite.Id)}: {sprite.Id}"),
                     new($"{nameof(MapSprite.Position)}: {sprite.Position}"),
-                    new($"{nameof(MapSprite.Dir)}: {sprite.Dir}"),
+                    new($"{nameof(MapSprite.Direction)}: {sprite.Direction}"),
                     new($"{nameof(MapSprite.Army)}: {sprite.Army}")
                 };
                 

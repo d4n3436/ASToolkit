@@ -6,7 +6,7 @@ namespace ASToolkit.Core.Engine;
 internal sealed class WorldPickup
 {
     public WorldPickup(ObjectDefinition kind, Vector3 position, MergedMapSprite? placement, int createdAt = 0,
-        int expiresAt = int.MaxValue, Facing facing = default, Unit? body = null)
+        int expiresAt = int.MaxValue, Angle direction = default, Unit? body = null)
     {
         Body = body;
         Kind = kind;
@@ -14,7 +14,7 @@ internal sealed class WorldPickup
         Placement = placement;
         CreatedAt = createdAt;
         ExpiresAt = expiresAt;
-        Facing = facing;
+        Direction = direction;
     }
 
     public ObjectDefinition Kind { get; }
@@ -31,7 +31,7 @@ internal sealed class WorldPickup
 
     public int ExpiresAt { get; }
 
-    public Facing Facing { get; }
+    public Angle Direction { get; }
 
     public bool IsDropped => ExpiresAt != int.MaxValue;
 
@@ -39,12 +39,12 @@ internal sealed class WorldPickup
     public EffectState GetState(int time)
     {
         if (Body is null)
-            return new EffectState(Id, Position, Facing.Value, SpriteAnimation.Stand, CreatedAt, 0);
+            return new EffectState(Id, Position, Direction, SpriteAnimation.Stand, CreatedAt, 0);
 
         int count = Body.LastFrame - Body.FirstFrame + 1;
         int ticks = (time - Body.LastTickTime) / Math.Max(1, Kind.SpriteSpeed);
         int frame = Body.FirstFrame + (Body.Frame - Body.FirstFrame + ticks) % Math.Max(1, count);
 
-        return new EffectState(Id, Position, Facing.Value, Body.Animation, CreatedAt, frame);
+        return new EffectState(Id, Position, Direction, Body.Animation, CreatedAt, frame);
     }
 }

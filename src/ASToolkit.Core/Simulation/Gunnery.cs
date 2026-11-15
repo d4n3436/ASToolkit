@@ -92,7 +92,7 @@ internal sealed class Gunnery
         var reach = new Vector2(CalmReach);
         foreach (var unit in _world.Units.GetNear(center - reach, center + reach))
         {
-            if (unit != target && unit is { Army: GameWorld.MonsterArmy, IsAlive: true } && center.MeasureDistance(unit.Position.AsVector2()) <= CalmReach)
+            if (unit != target && unit is { Army: Army.Monsters, IsAlive: true } && center.MeasureDistance(unit.Position.AsVector2()) <= CalmReach)
                 return false;
         }
 

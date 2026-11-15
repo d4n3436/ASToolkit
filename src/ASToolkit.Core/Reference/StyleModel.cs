@@ -5,24 +5,24 @@ namespace ASToolkit.Core.Reference;
 
 /// <summary>
 /// Represents everything a generator takes from the original levels of a style, the campaign model and, per wall set, the decor heights, wall
-/// clearances, wall facings and object relations.
+/// clearances, wall directions and object relations.
 /// </summary>
 public sealed class StyleModel
 {
     private readonly FrozenDictionary<WallSet, WallClearanceTable> _wallClearance;
-    private readonly FrozenDictionary<WallSet, FacingTable> _facings;
+    private readonly FrozenDictionary<WallSet, DirectionTable> _directions;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="StyleModel"/> class.
     /// </summary>
     public StyleModel(GenerationStyle style, IReadOnlyList<string> fittingLevels, ObjectRelationTable relations, IReadOnlyDictionary<WallSet, WallClearanceTable> wallClearance,
-        IReadOnlyDictionary<WallSet, FacingTable> facings, CampaignModel campaign)
+        IReadOnlyDictionary<WallSet, DirectionTable> directions, CampaignModel campaign)
     {
         Style = style;
         FittingLevels = fittingLevels;
         Relations = relations;
         _wallClearance = wallClearance.ToFrozenDictionary();
-        _facings = facings.ToFrozenDictionary();
+        _directions = directions.ToFrozenDictionary();
         Campaign = campaign;
     }
 
@@ -69,5 +69,5 @@ public sealed class StyleModel
     /// <summary>
     /// Returns how the objects of a wall set face the walls they stand against.
     /// </summary>
-    public FacingTable GetFacings(WallSet wallSet) => _facings[wallSet];
+    public DirectionTable GetDirections(WallSet wallSet) => _directions[wallSet];
 }

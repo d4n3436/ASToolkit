@@ -43,8 +43,8 @@ public sealed class OutdoorLevelBuilder
     private const int MinRowTiles = 3;
 
     private static readonly HashSet<KnownObject> YardProps = [KnownObject.Crate, KnownObject.Container, KnownObject.Barrel, KnownObject.Cylinder, KnownObject.Truck, KnownObject.Container2Alt];
-    private static readonly int[] WallDirs = [0, 64, 128, 192];
-    private static readonly int[] LampDirs = [0, 128, 192, 64];
+    private static readonly Angle[] WallDirs = [0, 64, 128, 192];
+    private static readonly Angle[] LampDirs = [0, 128, 192, 64];
 
     private readonly ArmyTable _armies;
 
@@ -127,7 +127,7 @@ public sealed class OutdoorLevelBuilder
             var origin = new PointF(originalBreach!.Position.X, originalBreach.Position.Y);
             foreach (var sprite in original.Sprites.Where(s => s.Id is KnownObject.Barrel or KnownObject.Cylinder && Distance(new PointF(s.Position.X, s.Position.Y), origin) < BreachReach))
             {
-                site.Map.Add(sprite.Id, wall.X + sprite.Position.X - origin.X, wall.Y + sprite.Position.Y - origin.Y, sprite.Position.Z, (int)sprite.Dir, unique: false, source: SpriteSource.CopiedScene);
+                site.Map.Add(sprite.Id, wall.X + sprite.Position.X - origin.X, wall.Y + sprite.Position.Y - origin.Y, sprite.Position.Z, sprite.Direction, unique: false, source: SpriteSource.CopiedScene);
             }
 
             var exit = originalExit!.Value;
@@ -167,7 +167,7 @@ public sealed class OutdoorLevelBuilder
             if (spot is not null)
             {
                 var program = SpawnerProgram.Create(Enumerable.Repeat(KnownObject.Monster1, 12), new TriggerArea(Point.Truncate(gate), SpawnerTriggerRadius), [gate]);
-                site.Map.Add(KnownObject.Spawner, spot.Value.X, spot.Value.Y, 0, 0, program.ToPayload(), 1, unique: false);
+                site.Map.Add(KnownObject.Spawner, spot.Value.X, spot.Value.Y, 0, 0, program.ToPayload(), Army.Monsters, unique: false);
             }
         }
     }
@@ -212,7 +212,7 @@ public sealed class OutdoorLevelBuilder
             var trigger = new PointF(spot.Value.X + rng.Next(-500, 501), spot.Value.Y + rng.Next(-400, 401));
             var program = SpawnerProgram.Create(Enumerable.Repeat(rng.Next(2) == 0 ? KnownObject.Monster1 : KnownObject.YellowMonster1, rng.Next(6, 14)),
                 new TriggerArea(Point.Truncate(trigger), SpawnerTriggerRadius), [trigger]);
-            site.Map.Add(KnownObject.Spawner, spot.Value.X, spot.Value.Y, 0, 0, program.ToPayload(), 1, unique: false);
+            site.Map.Add(KnownObject.Spawner, spot.Value.X, spot.Value.Y, 0, 0, program.ToPayload(), Army.Monsters, unique: false);
         }
 
         var corner = new PointF(site.Size.Width - Margin * 4, site.Size.Height - Margin * 4);
@@ -241,7 +241,7 @@ public sealed class OutdoorLevelBuilder
     {
         private readonly HashSet<Cell> _taken = [];
         private readonly List<UnitRect> _buildings = [];
-        private readonly List<(PointF Position, int Dir)> _posts = [];
+        private readonly List<(PointF Position, Angle Direction)> _posts = [];
         private UnitRect? _yard;
 
         public OutdoorSite(Random rng, Lattice lattice, SizeF size, MapBuilder map)
@@ -328,10 +328,10 @@ public sealed class OutdoorLevelBuilder
             var openings = new List<PointF>();
             foreach (var piece in sides)
             {
-                int dir = piece.Slash ? WallDirs[1 + 2 * Rng.Next(2)] : WallDirs[2 * Rng.Next(2)];
+                var dir = piece.Slash ? WallDirs[1 + 2 * Rng.Next(2)] : WallDirs[2 * Rng.Next(2)];
                 if (gate.Contains(piece))
                 {
-                    Map.Add(KnownObject.LatticeFence, piece.Center.X, piece.Center.Y, 0, leaf++ == 0 ? 0 : 128);
+                    Map.Add(KnownObject.LatticeFence, piece.Center.X, piece.Center.Y, 0, leaf++ == 0 ? Angle.North : Angle.South);
                     openings.Add(piece.Center);
                 }
                 else if (piece == torn)
@@ -434,16 +434,16 @@ public sealed class OutdoorLevelBuilder
                 ((float x, float y), bool slash) = StructureBuilder.GetBasementPosition(Lattice, edge);
                 if (edge == door)
                 {
-                    Map.Add(KnownObject.SmallDoorWall2, x, y, 0, slash ? 0 : 128);
-                    Map.Add(KnownObject.SmallDoorFrame, x, y, 0, slash ? 0 : 128);
+                    Map.Add(KnownObject.SmallDoorWall2, x, y, 0, slash ? Angle.North : Angle.South);
+                    Map.Add(KnownObject.SmallDoorFrame, x, y, 0, slash ? Angle.North : Angle.South);
                 }
                 else if (breakable && edge == breach)
                 {
-                    Map.Add(KnownObject.BreakableWall2, x, y, 0, slash ? 0 : 128);
+                    Map.Add(KnownObject.BreakableWall2, x, y, 0, slash ? Angle.North : Angle.South);
                 }
                 else
                 {
-                    Map.Add(slash ? KnownObject.BasementWall2Slash : KnownObject.BasementWall2Back, x, y, 0, Rng.Next(256));
+                    Map.Add(slash ? KnownObject.BasementWall2Slash : KnownObject.BasementWall2Back, x, y, 0, Rng.NextAngle());
                 }
             }
 
@@ -460,7 +460,7 @@ public sealed class OutdoorLevelBuilder
                 foreach (float v in GetRoofRows(block.V + 1.25f, block.V + block.H - 0.75f, 2))
                 {
                     (float x, float y) = Lattice.ToWorld(u, v);
-                    Map.Add(KnownObject.MilitaryBaseFloor, x, y, StructureBuilder.BasementRoofZ, Rng.Next(256), unique: false);
+                    Map.Add(KnownObject.MilitaryBaseFloor, x, y, StructureBuilder.BasementRoofZ, Rng.NextAngle(), unique: false);
                 }
             }
 
@@ -538,7 +538,7 @@ public sealed class OutdoorLevelBuilder
 
                     foreach (var spot in spots)
                     {
-                        Map.Add(spot.Sprite.Id, spot.X, spot.Y, spot.Sprite.Position.Z, (int)spot.Sprite.Dir, spot.Sprite.Id == KnownObject.Crate ? KnownObject.CreateEmptyCratePayload() : null, unique: false,
+                        Map.Add(spot.Sprite.Id, spot.X, spot.Y, spot.Sprite.Position.Z, spot.Sprite.Direction, spot.Sprite.Id == KnownObject.Crate ? KnownObject.CreateEmptyCratePayload() : null, unique: false,
                             source: SpriteSource.CopiedScene);
                     }
 
@@ -553,7 +553,7 @@ public sealed class OutdoorLevelBuilder
             int offset = Rng.Next(LampSpacing);
             for (int index = offset; index < _posts.Count; index += LampSpacing)
             {
-                Map.Add(KnownObject.StreetLamp, _posts[index].Position.X, _posts[index].Position.Y, 0, _posts[index].Dir);
+                Map.Add(KnownObject.StreetLamp, _posts[index].Position.X, _posts[index].Position.Y, 0, _posts[index].Direction);
             }
         }
 
@@ -581,7 +581,7 @@ public sealed class OutdoorLevelBuilder
                 .Take(count);
             foreach (var spot in spots)
             {
-                Map.Add(monsters[Rng.Next(monsters.Count)], spot.X, spot.Y, 0, Rng.Next(256), MapBuilder.MonsterPayload, 1, unique: false);
+                Map.Add(monsters[Rng.Next(monsters.Count)], spot.X, spot.Y, 0, Rng.NextAngle(), MapBuilder.MonsterPayload, Army.Monsters, unique: false);
             }
         }
 
@@ -622,7 +622,7 @@ public sealed class OutdoorLevelBuilder
                 
                 for (float x = xs[0] - MathF.Ceiling(xs[0] / step) * step; x <= Size.Width + step; x += step)
                 {
-                    Map.Add(ground, x, row.Key, 0, Rng.Next(256), unique: false);
+                    Map.Add(ground, x, row.Key, 0, Rng.NextAngle(), unique: false);
                 }
             }
 
@@ -634,7 +634,7 @@ public sealed class OutdoorLevelBuilder
                     float py = row * ClumpStepY + (Rng.NextSingle() * 2 - 1) * ClumpJitter;
                     if (IsGrass(style, px, py))
                     {
-                        Map.Add(KnownObject.VolumetricGrass, px, py, 0, Rng.Next(256), unique: false);
+                        Map.Add(KnownObject.VolumetricGrass, px, py, 0, Rng.NextAngle(), unique: false);
                     }
                 }
             }
@@ -646,7 +646,7 @@ public sealed class OutdoorLevelBuilder
                     bool edge = !IsGrass(style, x + TuftReach, y) || !IsGrass(style, x - TuftReach, y) || !IsGrass(style, x, y + TuftReach) || !IsGrass(style, x, y - TuftReach);
                     if (IsGrass(style, x, y) && edge && Rng.NextSingle() < TuftChance)
                     {
-                        Map.Add(KnownObject.FlatGrass, x + (Rng.NextSingle() * 2 - 1) * ClumpJitter, y + (Rng.NextSingle() * 2 - 1) * ClumpJitter, 1, Rng.Next(256), unique: false);
+                        Map.Add(KnownObject.FlatGrass, x + (Rng.NextSingle() * 2 - 1) * ClumpJitter, y + (Rng.NextSingle() * 2 - 1) * ClumpJitter, 1, Rng.NextAngle(), unique: false);
                     }
                 }
             }

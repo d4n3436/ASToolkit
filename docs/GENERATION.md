@@ -63,7 +63,7 @@ Each level draws from four `Random` streams. The layout seed drives the building
 | source | built by | read by |
 |---|---|---|
 | campaign model | `CampaignFitter.Fit` | `CampaignPlanner` |
-| wall clearance, facings | `StyleModel`, `WallClearanceTable`, `FacingTable` | dressing |
+| wall clearance, directions | `StyleModel`, `WallClearanceTable`, `DirectionTable` | dressing |
 | encounter model | `EncounterModel` | `FightPlanner`, `EncounterPlacer`, spawn closets, `PlaceGate` |
 | economy model | `EconomyModel` | `PickupPlacer`, `PlaceSites`, `PlaceCharges`, the checkpoint |
 | furniture grammar | `FurnitureGrammar.Default`, tables in `Generation/Dressing/FurnitureGrammar.Data.cs` with numbers measured once on the originals | `SceneFurnisher` |

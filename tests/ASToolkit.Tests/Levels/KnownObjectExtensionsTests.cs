@@ -42,7 +42,7 @@ public class KnownObjectExtensionsTests
     }
 
     [Fact]
-    public void Draw_WholeRate_DrawsThatManyDistinctOfTheNearestFacing()
+    public void Draw_WholeRate_DrawsThatManyDistinctOfTheNearestDirection()
     {
         var companion = new ObjectCompanion
         {
@@ -54,7 +54,7 @@ public class KnownObjectExtensionsTests
         var drawn = companion.Draw(new Random(1), 120);
 
         Assert.Equal(2, drawn.Length);
-        Assert.All(drawn, sample => Assert.Equal(128, sample.AnchorFacing));
+        Assert.All(drawn, sample => Assert.Equal(128, sample.AnchorDirection.Value));
         Assert.NotEqual(drawn[0], drawn[1]);
     }
 

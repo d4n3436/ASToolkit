@@ -368,14 +368,14 @@ public readonly struct GameObject
         && !(IsHittable && MaxHp > 0);
 
     /// <summary>
-    /// Returns the sprite frame the engine shows for a direction byte, out of the given number of frames.
+    /// Returns the sprite frame the engine shows for a direction, out of the given number of frames.
     /// </summary>
-    public int GetFrame(byte dir, int frameCount) => FramesPerDirection == 0 ? 0 : Math.Min(GetDirection(dir) * FramesPerDirection, frameCount - 1);
+    public int GetFrame(Angle dir, int frameCount) => FramesPerDirection == 0 ? 0 : Math.Min(GetDirectionIndex(dir) * FramesPerDirection, frameCount - 1);
 
     /// <summary>
-    /// Returns the index of the direction the engine picks for a direction byte.
+    /// Returns the index of the direction frame the engine picks for a direction.
     /// </summary>
-    public int GetDirection(byte dir) => ((dir + 128 / Directions) & 255) * Directions >> 8;
+    public int GetDirectionIndex(Angle dir) => ((dir.Value + 128 / Directions) & 255) * Directions >> 8;
 
     /// <summary>
     /// Returns the sprite frame that starts an animation state.
@@ -420,7 +420,7 @@ public readonly struct GameObject
     /// <summary>
     /// Returns the offset of an attached object from the object, turned by a facing unless the attached object keeps a fixed offset.
     /// </summary>
-    public Vector3 GetLinkOffset(GameObject attached, VidResource? file, int frameIndex, byte dir)
+    public Vector3 GetLinkOffset(GameObject attached, VidResource? file, int frameIndex, Angle dir)
     {
         var offset = file is not null && file.Value.Type.HasFlag(VidType.FrameVector)
             ? file.Value.GetFrameVector(frameIndex)
@@ -431,7 +431,7 @@ public readonly struct GameObject
             return offset;
         }
 
-        (float sin, float cos) = MathF.SinCos(dir * MathF.PI / 128);
+        (float sin, float cos) = MathF.SinCos(dir.Value * MathF.PI / 128);
         return new Vector3(offset.X * cos - offset.Y * sin, offset.X * sin + offset.Y * cos, offset.Z);
     }
 }

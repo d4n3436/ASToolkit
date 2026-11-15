@@ -10,10 +10,10 @@ namespace ASToolkit.Core.Simulation;
 /// <param name="Id">The object ID in objects.res.</param>
 /// <param name="Position">The map position and height of the object.</param>
 /// <param name="Frame">The index of the frame the object shows within its sprite.</param>
-/// <param name="Facing">The facing of the object.</param>
+/// <param name="Direction">The direction of the object.</param>
 /// <param name="Animation">The animation state of the object.</param>
 /// <param name="Keyframe">The position of the object in its keyframe animation, in keyframes.</param>
-public readonly record struct SpriteSample(int Time, KnownObject Id, Vector3 Position, int Frame, byte Facing, SpriteAnimation Animation, float Keyframe) : ITimed
+public readonly record struct SpriteSample(int Time, KnownObject Id, Vector3 Position, int Frame, Angle Direction, SpriteAnimation Animation, float Keyframe) : ITimed
 {
     /// <summary>
     /// Carries an object's last sample on to a later time at the pace set by the sample before it.

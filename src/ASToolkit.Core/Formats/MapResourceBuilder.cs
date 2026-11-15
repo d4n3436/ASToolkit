@@ -68,7 +68,7 @@ public sealed class MapResourceBuilder
                 continue;
             }
 
-            map.Sprites.Add(new MergedMapSprite(sprite.Handle, sprite.Id, position, sprite.Dir, sprite.Army,
+            map.Sprites.Add(new MergedMapSprite(sprite.Handle, sprite.Id, position, sprite.Direction, sprite.Army,
                 payloads.TryGetValue(sprite.Handle, out var payload) ? payload.ToArray() : new byte[8], sprite.Gamma) { Scale = sprite.Scale });
         }
 
@@ -95,8 +95,8 @@ public sealed class MapResourceBuilder
             MemoryMarshal.Write(e, s.Handle);
             MemoryMarshal.Write(e[4..], (uint)s.Id);
             MemoryMarshal.Write(e[8..], s.Position);
-            MemoryMarshal.Write(e[20..], s.Dir);
-            MemoryMarshal.Write(e[24..], s.Army);
+            MemoryMarshal.Write(e[20..], (uint)s.Direction.Value);
+            MemoryMarshal.Write(e[24..], (uint)s.Army);
             byte[] payload = new byte[4 + s.Payload.Length];
             MemoryMarshal.Write(payload, s.Handle);
             s.Payload.CopyTo(payload, 4);

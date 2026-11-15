@@ -134,7 +134,7 @@ internal sealed class ReplayRecorder
     }
 
     private void AddUnit(Unit unit) =>
-        Add(unit, new EffectState(unit.Kind.Id, unit.Position, unit.Facing.Value, unit.Animation, unit.CreatedAt, unit.Frame, unit.KeyframePosition));
+        Add(unit, new EffectState(unit.Kind.Id, unit.Position, unit.Direction, unit.Animation, unit.CreatedAt, unit.Frame, unit.KeyframePosition));
 
     private void Add(Unit unit, in EffectState state)
     {
@@ -165,7 +165,7 @@ internal sealed class ReplayRecorder
 
         _positions[key] = state.Position;
         var position = owner < 0 ? state.Position : state.Position - GetOwnerPosition(capture);
-        var sample = new SpriteSample(time, state.Id, position, state.Frame, state.Facing, state.Animation, state.Keyframe);
+        var sample = new SpriteSample(time, state.Id, position, state.Frame, state.Direction, state.Animation, state.Keyframe);
 
         if (index < 0)
         {
@@ -181,7 +181,7 @@ internal sealed class ReplayRecorder
             var before = samples.Count > 1 ? samples[^2] : last;
             var predicted = SpriteSample.Predict(before, last, time);
 
-            if (sample.Frame != last.Frame || (capture.Rotates && sample.Facing != last.Facing) || sample.Animation != last.Animation ||
+            if (sample.Frame != last.Frame || (capture.Rotates && sample.Direction != last.Direction) || sample.Animation != last.Animation ||
                 Vector3.DistanceSquared(predicted.Position, sample.Position) > Tolerance * Tolerance || Math.Abs(predicted.Keyframe - sample.Keyframe) > Tolerance)
             {
                 samples.Add(sample);

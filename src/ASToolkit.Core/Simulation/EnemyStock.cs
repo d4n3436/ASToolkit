@@ -51,7 +51,7 @@ internal sealed class EnemyStock
 
     private static bool IsCountedKind(KnownObject id) => KnownObject.Monsters.Contains(id) || KnownObject.Bosses.Contains(id);
 
-    private static bool IsCounted(Unit unit) => unit.Army == GameWorld.MonsterArmy && IsCountedKind(unit.Kind.Id);
+    private static bool IsCounted(Unit unit) => unit.Army == Army.Monsters && IsCountedKind(unit.Kind.Id);
 
     private int CountUnbuilt(ObjectProgram program)
     {

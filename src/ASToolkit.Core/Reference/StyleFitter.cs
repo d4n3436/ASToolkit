@@ -70,14 +70,14 @@ public sealed class StyleFitter
             .Select(level => level.Model)
             .ToArray();
 
-        var leaning = FacingTable.FindLeaningFrames(models, _objects);
+        var leaning = DirectionTable.FindLeaningFrames(models, _objects);
         var layoutLevels = levels.Where(level => GetLayoutLevels(style).Contains(level.Name)).ToArray();
         return new StyleModel(
             style,
             fitting,
             ObjectRelationTable.Build(levels, _objects),
             WallSets.ToDictionary(wallSet => wallSet, wallSet => WallClearanceTable.Build(models.Where(model => model.WallSet == wallSet).ToArray(), _objects)),
-            WallSets.ToDictionary(wallSet => wallSet, wallSet => FacingTable.Build(models.Where(model => model.WallSet == wallSet), _objects, leaning)),
+            WallSets.ToDictionary(wallSet => wallSet, wallSet => DirectionTable.Build(models.Where(model => model.WallSet == wallSet), _objects, leaning)),
             _campaign.Fit(references, style, excluded))
         {
             Footprints = RoomFootprintFitter.Fit(layoutLevels),

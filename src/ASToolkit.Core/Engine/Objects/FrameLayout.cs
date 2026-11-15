@@ -21,7 +21,7 @@ internal sealed class FrameLayout
             _durations[state] = obj.FrameDurations[state] == 0 ? spriteSpeed : obj.FrameDurations[state];
         }
 
-        DirectionOffset = Directions == 0 ? 0 : Facing.HalfTurn / Directions;
+        DirectionOffset = Directions == 0 ? 0 : Angle.HalfTurn / Directions;
 
         if (totalFrames > 0 && totalFrames < Directions)
         {
@@ -111,5 +111,5 @@ internal sealed class FrameLayout
     public int GetFrameDuration(SpriteAnimation state) => _durations[(int)state];
 
     [EngineRoutine(0x0043a1c0)]
-    public int GetDirectionIndex(Facing facing) => ((DirectionOffset + facing.Value) & 0xff) * Directions >> 8;
+    public int GetDirectionIndex(Angle direction) => ((DirectionOffset + direction.Value) & 0xff) * Directions >> 8;
 }

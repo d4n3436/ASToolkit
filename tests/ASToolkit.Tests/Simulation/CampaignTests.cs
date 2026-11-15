@@ -65,7 +65,7 @@ public class CampaignTests
         var start = lattice.GetCenter(tour[0]);
         var elements = pickups.Select(id => new RouteElement
         {
-            Kind = ElementKind.Pickup, Id = id, X = (int)start.X, Y = (int)start.Y, Cell = tour[0], Hidden = false, Facing = 0
+            Kind = ElementKind.Pickup, Id = id, X = (int)start.X, Y = (int)start.Y, Cell = tour[0], Hidden = false, Direction = 0
         }).ToArray();
 
         return new RouteAnalysis

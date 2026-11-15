@@ -18,7 +18,7 @@ public class MapResourceBuilderIntegrationTests
             Assert.Equal(expected.X, map.Sprites.Sum(s => s.Position.X), 0.1f);
             Assert.Equal(expected.Y, map.Sprites.Sum(s => s.Position.Y), 0.1f);
             Assert.Equal(expected.PayloadBytes, map.Sprites.Sum(s => s.Payload.Length));
-            Assert.Equal(expected.Side, map.Sprites.Sum(s => s.Army));
+            Assert.Equal(expected.Side, map.Sprites.Sum(s => (int)s.Army));
         }
     }
 

@@ -77,7 +77,7 @@ public static class LevelExtractor
         .ThenBy(sprite => MathF.Round(sprite.Position.Y * 16))
         .ThenBy(sprite => MathF.Round(sprite.Position.X * 16))
         .ThenBy(sprite => sprite.Position.Z)
-        .ThenBy(sprite => sprite.Dir)
+        .ThenBy(sprite => sprite.Direction)
         .ThenBy(sprite => sprite.Army);
 
     /// <summary>
@@ -104,7 +104,7 @@ public static class LevelExtractor
                 continue;
             }
 
-            var keys = GetBasementEdges(lattice, sprite.Id, sprite.Position.X, sprite.Position.Y, sprite.Facing, outdoor, scale);
+            var keys = GetBasementEdges(lattice, sprite.Id, sprite.Position.X, sprite.Position.Y, sprite.Direction, outdoor, scale);
             switch (sprite.Id)
             {
                 case KnownObject.SmallDoorWall or KnownObject.DoubleDoorWall or KnownObject.SmallDoorWall2 or KnownObject.DoubleDoorWall2:
@@ -159,7 +159,7 @@ public static class LevelExtractor
 
     // Off the coarse grid, take a door's axis from its dir (0 is '/', 64 or 128 is '\') and a wall's from its ID, then round it to the lattice
     // of the scale
-    private static EdgeKey[] GetBasementEdges(Lattice lattice, KnownObject id, float x, float y, byte dir, bool outdoor, int scale)
+    private static EdgeKey[] GetBasementEdges(Lattice lattice, KnownObject id, float x, float y, Angle dir, bool outdoor, int scale)
     {
         (float u, float v) = lattice.ToLattice(x, y);
         float slashV = 2 * (v - 0.25f);
@@ -185,7 +185,7 @@ public static class LevelExtractor
         }
         else if (door)
         {
-            slash = dir switch
+            slash = dir.Value switch
             {
                 < 16 or >= 240 => true,
                 >= 48 and < 144 => false,
@@ -446,7 +446,7 @@ public static class LevelExtractor
             (float u, float v) = lattice.ToLattice(sprite.Position);
             int a = (int)MathF.Round(u);
             int b = (int)MathF.Round(v);
-            bool slash = sprite.Id == KnownObject.MilitaryBaseWallSlash || (sprite.Id is KnownObject.FenceEmitter or KnownObject.MilitaryBaseDoorWall && sprite.Facing is >= 64 and < 192);
+            bool slash = sprite.Id == KnownObject.MilitaryBaseWallSlash || (sprite.Id is KnownObject.FenceEmitter or KnownObject.MilitaryBaseDoorWall && sprite.Direction.Value is >= 64 and < 192);
             var kind = sprite.Id == KnownObject.MilitaryBaseDoorWall ? EdgeKind.ShutDoor : EdgeKind.Wall;
             if (slash)
             {
@@ -525,7 +525,7 @@ public static class LevelExtractor
             var s = decor[decorObjectIndex];
             int? support = objects.FindSupport(decor, decorObjectIndex);
             (float u, float v) = lattice.ToLattice(s.Position);
-            result.Add(new DecorObject(s.Id, u, v, s.Position.Z, s.Facing, s.Payload, support));
+            result.Add(new DecorObject(s.Id, u, v, s.Position.Z, s.Direction, s.Payload, support));
         }
 
         return result.ToArray();

@@ -135,7 +135,7 @@ public class WorldTests
         var objects = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var world = EngineTestWorld.CreateWorld(objects);
         var start = world.Player.Position.AsVector2() + new Vector2(200, 0);
-        var enemy = world.AddMonster(objects.Find(KnownObject.Monster1)!, new Vector3(start, world.Movement.GetHeight(start)), facing: new Facing(192));
+        var enemy = world.AddMonster(objects.Find(KnownObject.Monster1)!, new Vector3(start, world.Movement.GetHeight(start)), direction: new Angle(192));
         int health = world.Player.Hp;
         for (int tick = 0; tick < 300; tick++)
         {
@@ -156,8 +156,8 @@ public class WorldTests
         var unrecorded = EngineTestWorld.CreateWorld(objects);
         var kind = objects.Find(KnownObject.Monster1)!;
         var position = recorded.Player.Position + new Vector3(200, 0, 0);
-        var firstEnemy = recorded.AddMonster(kind, position, facing: new Facing(192));
-        var secondEnemy = unrecorded.AddMonster(kind, position, facing: new Facing(192));
+        var firstEnemy = recorded.AddMonster(kind, position, direction: new Angle(192));
+        var secondEnemy = unrecorded.AddMonster(kind, position, direction: new Angle(192));
         for (int tick = 0; tick < 300; tick++)
         {
             recorded.Step(new PlayerCommand(null, PlayerCommand.GetCursor(firstEnemy.Position), firstEnemy.IsAlive, PlayerInventory.Pistols));
@@ -183,7 +183,7 @@ public class WorldTests
         var world = EngineTestWorld.CreateWorld(objects, frameTime: frameTime);
         var player = world.Player.Position.AsVector2();
         var start = player + new Vector2(350, 0);
-        var tank = world.AddMonster(objects.Find(KnownObject.TankMonster)!, new Vector3(start, 0), Facing.FromOffset(player - start) + 64);
+        var tank = world.AddMonster(objects.Find(KnownObject.TankMonster)!, new Vector3(start, 0), Angle.FromOffset(player - start) + 64);
 
         while (world.Time < 6000)
         {

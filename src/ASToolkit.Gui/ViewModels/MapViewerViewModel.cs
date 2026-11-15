@@ -160,7 +160,7 @@ public partial class MapViewerViewModel : ViewModelBase
         var found = scene.FindObject(point.Position, point.Time);
         Status = found is null ? $"{position}    {_summary}"
             : $"{position}    object {(int)found.Id} {Objects.GetName(found.Id)} [{Objects.GetPath(found.Id)}]    " +
-              $"position ({found.Position.X:0}, {found.Position.Y:0}, {found.Position.Z:0})    facing {found.Facing}";
+              $"position ({found.Position.X:0}, {found.Position.Y:0}, {found.Position.Z:0})    direction {found.Direction}";
     }
 
     private string? DescribeOverlay(Vector2 position, double zoom)

@@ -12,7 +12,7 @@ internal sealed class Unit
     private const int SpawnScatter = 8;
     private const float ReachTolerance = 0.5f;
     private bool _secondChildPulse;
-    private Facing _facing;
+    private Angle _direction;
     private Unit? _owner;
     private Unit? _link;
     private Unit? _goal;
@@ -24,7 +24,7 @@ internal sealed class Unit
         Orders = [];
     }
 
-    public Unit(int number, ObjectDefinition kind, Vector3 position, int army, int hp)
+    public Unit(int number, ObjectDefinition kind, Vector3 position, Army army, int hp)
     {
         Initialize(number, kind, position, army, hp);
     }
@@ -33,7 +33,7 @@ internal sealed class Unit
 
     public ObjectDefinition Kind { get; private set; }
 
-    public int Army { get; private set; }
+    public Army Army { get; private set; }
 
     public MergedMapSprite? Placement { get; set; }
 
@@ -71,7 +71,7 @@ internal sealed class Unit
 
     public int DiedAt { get; set; }
 
-    public Facing Facing { get => _facing; init => _facing = value; }
+    public Angle Direction { get => _direction; init => _direction = value; }
 
     public SpriteAnimation Animation { get; private set; }
 
@@ -155,11 +155,11 @@ internal sealed class Unit
     }
 
     [MemberNotNull(nameof(Kind), nameof(Orders))]
-    public void Initialize(int number, ObjectDefinition kind, Vector3 position, int army, int hp, Facing facing = default)
+    public void Initialize(int number, ObjectDefinition kind, Vector3 position, Army army, int hp, Angle direction = default)
     {
         _secondChildPulse = false;
         StreamPeriod = 1;
-        _facing = facing;
+        _direction = direction;
         _owner = null;
         _link = null;
         _goal = null;
@@ -214,7 +214,7 @@ internal sealed class Unit
 
     [EngineRoutine(0x0043f200)]
     [EngineRoutine(0x0043f200)]
-    public void Start(SpriteAnimation state, Facing facing, int time, Random random)
+    public void Start(SpriteAnimation state, Angle direction, int time, Random random)
     {
         if (Kind.Object.Properties.HasFlag(ObjectProperties.Noise))
         {
@@ -226,12 +226,12 @@ internal sealed class Unit
         var layout = Kind.Layout;
         bool firstFrame = Kind.Object.Properties.HasFlag(ObjectProperties.OnePhase);
         LastTickTime = time - (firstFrame ? 0 : random.Next(Kind.SpriteSpeed + 1));
-        _facing = default;
+        _direction = default;
         Animation = state;
         FirstFrame = layout.GetFirstFrame(state);
         Frame = FirstFrame;
         LastFrame = layout.GetFramesPerDirection(state) - 1;
-        SetFacing(facing);
+        SetDirection(direction);
 
         if (state == SpriteAnimation.Stand && LastFrame - FirstFrame > 0 && !firstFrame)
         {
@@ -254,9 +254,9 @@ internal sealed class Unit
             return;
 
         var layout = Kind.Layout;
-        var facing = GetShownFacing(_facing);
+        var direction = GetShownDirection(_direction);
 
-        FirstFrame = layout.GetFirstFrame(state) + layout.GetDirectionIndex(facing) * layout.GetFramesPerDirection(state);
+        FirstFrame = layout.GetFirstFrame(state) + layout.GetDirectionIndex(direction) * layout.GetFramesPerDirection(state);
         Frame = FirstFrame;
         Animation = state;
         LastFrame = state > SpriteAnimation.Unload && layout.GetFrameCount(state) == 0
@@ -264,18 +264,18 @@ internal sealed class Unit
     }
 
     [EngineRoutine(0x00442be0)]
-    public void SetFacing(Facing facing)
+    public void SetDirection(Angle direction)
     {
-        var shown = GetShownFacing(facing);
+        var shown = GetShownDirection(direction);
 
-        if (_facing == shown)
+        if (_direction == shown)
             return;
 
         var link = _link;
 
         if (link is not null && link.Kind.Id == Kind.Object.Link && link.Kind.Object.RotationPeriod.IsNear(ObjectDefinition.Unlimited))
         {
-            link.SetFacing(facing);
+            link.SetDirection(direction);
         }
 
         var layout = Kind.Layout;
@@ -288,18 +288,18 @@ internal sealed class Unit
             Frame = FirstFrame + offset;
         }
 
-        _facing = facing;
+        _direction = direction;
     }
 
     // Pick the frames of a falling motion-tracking object by its screen velocity
-    private Facing GetShownFacing(Facing facing)
+    private Angle GetShownDirection(Angle direction)
     {
         if (VerticalSpeed.IsZero() || !Kind.Object.Properties.HasFlag(ObjectProperties.VerticalDirection))
-            return facing;
+            return direction;
 
-        var direction = facing.Direction;
+        var vector = direction.Vector;
 
-        return Facing.FromOffset(new Vector2(direction.X * Speed * VelocityScale, -(direction.Y * Speed + VerticalSpeed) * VelocityScale));
+        return Angle.FromOffset(new Vector2(vector.X * Speed * VelocityScale, -(vector.Y * Speed + VerticalSpeed) * VelocityScale));
     }
 
     public void UpdateReach(Vector3 from, Vector3 next, Vector2 goal)
@@ -440,7 +440,7 @@ internal sealed class Unit
     {
         if (Owner is not null && idle)
         {
-            SetFacing(Facing.TurnToward(Owner.Facing, Kind.Object.RotationPeriod, elapsed, out _));
+            SetDirection(Direction.TurnToward(Owner.Direction, Kind.Object.RotationPeriod, elapsed, out _));
         }
     }
 
@@ -449,8 +449,8 @@ internal sealed class Unit
     [EngineRoutine(0x004463a0)]
     private int Aim(int elapsed)
     {
-        var facing = Facing.Aim((GoalPosition - Position).AsVector2());
-        SetFacing(Facing.TurnToward(facing, Kind.Object.RotationPeriod, elapsed, out int remaining));
+        var direction = Angle.Aim((GoalPosition - Position).AsVector2());
+        SetDirection(Direction.TurnToward(direction, Kind.Object.RotationPeriod, elapsed, out int remaining));
 
         return remaining;
     }
@@ -468,22 +468,22 @@ internal sealed class Unit
         return second;
     }
 
-    public Facing TurnWhileMoving(Facing goal, int elapsed)
+    public Angle TurnWhileMoving(Angle goal, int elapsed)
     {
         float period = Kind.Object.RotationPeriod;
 
-        if (elapsed >= GameClock.DefaultFrameTime || Facing == goal || period.IsZero() || period.IsNear(ObjectDefinition.Unlimited))
+        if (elapsed >= GameClock.DefaultFrameTime || Direction == goal || period.IsZero() || period.IsNear(ObjectDefinition.Unlimited))
         {
             TurnCarry = 0;
 
-            return Facing.TurnToward(goal, period, elapsed, out _);
+            return Direction.TurnToward(goal, period, elapsed, out _);
         }
 
         // Carry the unrounded turn to the next frame above 60 frames a second
-        float turn = elapsed * (Facing.FullTurn / period) + TurnCarry;
+        float turn = elapsed * (Angle.FullTurn / period) + TurnCarry;
         int step = (int)turn;
         TurnCarry = turn - step;
 
-        return Facing.StepToward(goal, step, out _);
+        return Direction.StepToward(goal, step, out _);
     }
 }

@@ -452,7 +452,7 @@ internal sealed partial record FurnitureGrammar
             0, 0, 0.43f, 1.5f, 3.8f, 0.5f, 0, [1, 0.55f, 0.55f, 0.27f, 0.55f], 0.39f, 0.43f, 60, 60)
     };
 
-    private static readonly FacingRow[] FacingRows =
+    private static readonly DirectionRow[] DirectionRows =
     [
         new(Table, Open, new() { [192] = 79 }),
         new(ScatteredPaper, Open, new() { [192] = 0.67f, [0] = 0.13f, [64] = 0.13f, [128] = 0.07f }),
@@ -535,7 +535,7 @@ internal sealed partial record FurnitureGrammar
     ];
 
     // Z dummy directions by the owner's picture
-    private static readonly Dictionary<KnownObject, byte[]> DummyDirTable = new()
+    private static readonly Dictionary<KnownObject, Angle[]> DummyDirTable = new()
     {
         [Truck] = [0, 128, 0, 128],
         [BioContainer] = [128],
@@ -578,7 +578,7 @@ internal sealed partial record FurnitureGrammar
             new() { [PlusU] = 0, [MinusV] = 25 })
     ];
 
-    private static readonly Dictionary<byte, Seat> SeatRows = new()
+    private static readonly Dictionary<Angle, Seat> SeatRows = new()
     {
         [0] = new(0, MinusV, new() { [WallSet.Basement] = 0.76f, [WallSet.Concrete] = 0.6f }),
         [64] = new(1, PlusU, new() { [WallSet.Basement] = 0.73f, [WallSet.Concrete] = 0.6f })
@@ -711,7 +711,7 @@ internal sealed partial record FurnitureGrammar
         [new(F.Table, F.Water)] = new(0.93f, 0.93f)
     };
 
-    private static readonly Dictionary<KnownObject, Dictionary<byte, float>> FrameSpacingTable = new()
+    private static readonly Dictionary<KnownObject, Dictionary<Angle, float>> FrameSpacingTable = new()
     {
         [BigComputer] = new() { [73] = 0.31f, [109] = 1.06f },
         [Container] = new() { [0] = 1.18f, [85] = 1.34f },
@@ -730,7 +730,7 @@ internal sealed partial record FurnitureGrammar
         [Container2Alt] = new() { [0] = 1.2f, [85] = 1.08f }
     };
 
-    private static readonly Dictionary<KnownObject, Dictionary<byte, float>> EndClearanceTable = new()
+    private static readonly Dictionary<KnownObject, Dictionary<Angle, float>> EndClearanceTable = new()
     {
         [BigComputer] = new() { [109] = 0.95f },
         [Container] = new() { [0] = 0.78f, [85] = 0.93f },
@@ -750,7 +750,7 @@ internal sealed partial record FurnitureGrammar
 
     public static FurnitureGrammar Default { get; } = new(
         new() { [R.Quarters] = R.Office, [R.Yard] = R.Depot, [R.Arena] = R.Hall, [R.Bare] = R.Hall },
-        Programs, FamilyTable, GroupModules(SharedModuleRows.Concat(SceneModuleRows)), GroupFacings(FacingRows.Concat(SceneFacingRows)),
+        Programs, FamilyTable, GroupModules(SharedModuleRows.Concat(SceneModuleRows)), GroupDirections(DirectionRows.Concat(SceneDirectionRows)),
         AttachedTable, DummyDirTable, SceneTable, HeapTable, SpacingTable, FrameSpacingTable, EndClearanceTable, [BlastMark, Boards, Books, GymEquipment, NewChair, PetrolGenerator, RecordPlayer, SmallShadow, StreetLamp, Telephone, Television, Toilet, TrashCan, Windows],
         VictimTable, new(0.83f, [0.6f, 1.4f], 2, 1.9f, 1.29f, [8, 32], 1.25f, [1, 8], 0.3f, 0.8f, 48, 40), FixtureRows,
         new(new() { [R.ComputerRoom] = 0.68f, [R.Office] = 0.33f, [R.Hall] = 0.03f }, 0.25f, [1, 2], 0.2f, [20, 42], 2, 3),

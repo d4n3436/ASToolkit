@@ -1,6 +1,6 @@
-namespace ASToolkit.Core.Engine;
+namespace ASToolkit.Core.Formats;
 
-internal readonly partial record struct Facing
+public readonly partial record struct Angle
 {
     private static ReadOnlySpan<float> SineTable =>
     [

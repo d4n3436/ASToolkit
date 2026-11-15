@@ -78,6 +78,6 @@ internal sealed class ObjectCatalog
     public ObjectDefinition? Find(KnownObject id) => (uint)id < (uint)_kinds.Length ? _kinds[(int)id] : null;
 
     [EngineRoutine(0x0043f200)]
-    public int GetArmy(ObjectDefinition kind) =>
+    public Army GetArmy(ObjectDefinition kind) =>
         kind.Object.WeaponIndex == 0 && kind.Object.Link != 0 ? Find(kind.Object.Link)?.Army ?? kind.Army : kind.Army;
 }

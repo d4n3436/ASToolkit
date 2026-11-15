@@ -414,7 +414,7 @@ internal sealed class PlayerBot
         int gunners = 0;
         foreach (var monster in _world.Units.GetNear(_world.Player.Position.AsVector2() - reach, _world.Player.Position.AsVector2() + reach))
         {
-            if (monster is { Army: GameWorld.MonsterArmy, IsAlive: true } && monster.Goal == _world.Player && monster.Kind.BattleRange > BackOffReach)
+            if (monster is { Army: Army.Monsters, IsAlive: true } && monster.Goal == _world.Player && monster.Kind.BattleRange > BackOffReach)
             {
                 gunners++;
             }
@@ -436,7 +436,7 @@ internal sealed class PlayerBot
             bool isGenerator = _world.FencesUp && monster.Kind.Id == KnownObject.Generator && monster.IsAlive;
 
             // Count attackers off screen as threats only
-            if (monster == _world.Player || (monster.Army != GameWorld.MonsterArmy && !isGenerator) || (monster.Placement is not null && !isGenerator) ||
+            if (monster == _world.Player || (monster.Army != Army.Monsters && !isGenerator) || (monster.Placement is not null && !isGenerator) ||
                 !onScreen && (distance > monster.Kind.BattleRange + StandOffMargin || !threatens) || (!isCloser && !threatens) || !_gunnery.HasClearAim(monster))
                 continue;
 
@@ -552,7 +552,7 @@ internal sealed class PlayerBot
         int nearest = int.MaxValue;
         foreach (var unit in _world.Monsters)
         {
-            if (!unit.IsAlive || unit.Army != GameWorld.MonsterArmy)
+            if (!unit.IsAlive || unit.Army != Army.Monsters)
                 continue;
 
             int cell = _field.Find(unit.Position.AsVector2());
@@ -861,7 +861,7 @@ internal sealed class PlayerBot
         float reach = _world.Player.Kind.Object.Size.X * 2;
 
         return offset.LengthSquared() <= reach * reach && _field.Obstacles.CanMove(_world.Player.Kind.Object, _world.Player.Position, center)
-            ? Vector2.Dot(offset, _world.Player.Facing.Direction) : float.MinValue;
+            ? Vector2.Dot(offset, _world.Player.Direction.Vector) : float.MinValue;
     }
 
     private static Vector2 GetCompassStep(int side)
@@ -1037,18 +1037,18 @@ internal sealed class PlayerBot
         return best is null ? null : center + best.Value * SideStepAim;
     }
 
-    private float MeasureFirstHit(Vector2 direction)
+    private float MeasureFirstHit(Vector2 vector)
     {
         var start = _world.Player.Position.AsVector2();
         float speed = _world.Inventory.Speed / 1000f;
         float first = DodgeHorizon;
         foreach (var round in _incoming)
         {
-            var velocity = round.Facing.Direction * round.Speed;
+            var velocity = round.Direction.Vector * round.Speed;
             var reach = _world.Player.Kind.Half + round.Kind.Half + new Vector2(round.Kind.BlastRadius);
             for (float time = 0; time < first; time += DodgeStep)
             {
-                var offset = Vector2.Abs(start + direction * speed * time - (round.Position.AsVector2() + velocity * time));
+                var offset = Vector2.Abs(start + vector * speed * time - (round.Position.AsVector2() + velocity * time));
 
                 if (offset.X < reach.X && offset.Y < reach.Y)
                 {
@@ -1063,7 +1063,7 @@ internal sealed class PlayerBot
 
     private bool SeekCannon()
     {
-        if (_aimTarget is null || _aimTarget.Army != GameWorld.MonsterArmy || _world.Time - _cannonIdleSince < CannonRest || CountMonstersOnScreen() < CrowdSize)
+        if (_aimTarget is null || _aimTarget.Army != Army.Monsters || _world.Time - _cannonIdleSince < CannonRest || CountMonstersOnScreen() < CrowdSize)
         {
             _seeksCannon = false;
 
@@ -1092,7 +1092,7 @@ internal sealed class PlayerBot
 
     private void ManCannon()
     {
-        if (_aimTarget is not null && _aimTarget.Army == GameWorld.MonsterArmy && CountMonstersOnScreen() >= CrowdSize)
+        if (_aimTarget is not null && _aimTarget.Army == Army.Monsters && CountMonstersOnScreen() >= CrowdSize)
         {
             _cannonIdleSince = _world.Time;
         }
@@ -1108,7 +1108,7 @@ internal sealed class PlayerBot
         var center = _world.Player.Position.AsVector2();
         foreach (var unit in _world.Units.GetNear(center - Gunnery.ScreenHalf, center + Gunnery.ScreenHalf))
         {
-            if (unit is { IsAlive: true, Army: GameWorld.MonsterArmy, Placement: null })
+            if (unit is { IsAlive: true, Army: Army.Monsters, Placement: null })
             {
                 count++;
             }

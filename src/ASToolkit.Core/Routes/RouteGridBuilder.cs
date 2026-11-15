@@ -126,7 +126,7 @@ public static class RouteGridBuilder
 
             int a = (int)MathF.Round(u);
             int b = (int)MathF.Round(v);
-            EdgeKey[] keys = sprite.Facing is >= 64 and < 192
+            EdgeKey[] keys = sprite.Direction.Value is >= 64 and < 192
                 ? [new EdgeKey('v', a - 1, b), new EdgeKey('v', a, b)]
                 : [new EdgeKey('u', a, b - 1), new EdgeKey('u', a, b)];
             bool holdsFence = fences.Any(f => MathF.Sqrt((f.Position.X - sprite.Position.X) * (f.Position.X - sprite.Position.X) + (f.Position.Y - sprite.Position.Y) * (f.Position.Y - sprite.Position.Y)) < 40);

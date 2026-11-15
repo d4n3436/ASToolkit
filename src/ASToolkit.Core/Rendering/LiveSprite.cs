@@ -8,7 +8,7 @@ namespace ASToolkit.Core.Rendering;
 /// </summary>
 /// <param name="Id">The object ID in objects.res.</param>
 /// <param name="Position">The position in map pixels, with the height above the floor.</param>
-/// <param name="Facing">The facing the object is drawn with.</param>
+/// <param name="Direction">The direction the object is drawn with.</param>
 /// <param name="FrameIndex">The sprite frame of the live sprite to draw.</param>
 /// <param name="Gamma">The gamma added to the object's own gamma.</param>
-public readonly record struct LiveSprite(KnownObject Id, Vector3 Position, byte Facing, int FrameIndex, Gamma Gamma = default);
+public readonly record struct LiveSprite(KnownObject Id, Vector3 Position, Angle Direction, int FrameIndex, Gamma Gamma = default);

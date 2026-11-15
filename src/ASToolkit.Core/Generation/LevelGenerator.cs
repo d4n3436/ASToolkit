@@ -324,7 +324,7 @@ public sealed class LevelGenerator
 
         // Lay out the cannon and the sites before the decor
         var early = new PlacementContext(contentRng, brief, plan, layout, map, _objects, start, new HashSet<Cell>(), keepClear, occupancy);
-        var facings = _model.GetFacings(wallSet);
+        var directions = _model.GetDirections(wallSet);
         var cannon = scenes.PlaceCannon(early, budget);
         scenes.StandBasementSites(map, sitePlan, budget.EndlessGenerators);
         ReserveSiteSpots(map, layout, cannon, basement, keepClear, occupancy);
@@ -333,7 +333,7 @@ public sealed class LevelGenerator
         foreach (var piece in decor)
         {
             (float x, float y) = layout.Lattice.ToWorld(piece.U, piece.V);
-            map.Add(piece.Id, x, y, piece.Z, piece.Dir, piece.Payload, unique: false, source: SpriteSource.Model);
+            map.Add(piece.Id, x, y, piece.Z, piece.Direction, piece.Payload, unique: false, source: SpriteSource.Model);
         }
 
         if (!basement)
@@ -360,7 +360,7 @@ public sealed class LevelGenerator
         };
 
         ContentPlacer.Place(context, budget, contentRng.NextSingle() < _model.Economy.CheckpointShare.Value, brief.GateStyle == LevelStyle.Blackout, script, breaker,
-            placedEdges, spawnWalls, facings, _model, fights);
+            placedEdges, spawnWalls, directions, _model, fights);
 
         return new GeneratedLevel
         {

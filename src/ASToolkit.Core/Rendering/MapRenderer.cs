@@ -35,9 +35,8 @@ public sealed class MapRenderer
     private const int FadeLevels = 15;
     private const int RaisedDepth = 0x3fff;
     private const int SequelRaisedHeight = 1000;
-    private const uint PlayerArmy = 0;
-    private const uint ArmyMask = 3;
-    private const uint SequelArmyMask = 7;
+    private const byte ArmyMask = 3;
+    private const byte SequelArmyMask = 7;
     private const int LightPass = (int)ObjectLayer.Light;
     private const int LayerSlots = 2;
     private const float LightBufferShare = 0.3f;
@@ -265,7 +264,7 @@ public sealed class MapRenderer
             }
 
             var look = new SpriteLook(GetPlacementGamma(sprite), sprite.Scale);
-            undrawn += Place(scene, sprite, GetPlayerPart(sprite.Id), sprite.Position, sprite.Facing, look, ambient, 0);
+            undrawn += Place(scene, sprite, GetPlayerPart(sprite.Id), sprite.Position, sprite.Direction, look, ambient, 0);
         }
 
         foreach (var sprite in live)
@@ -304,7 +303,7 @@ public sealed class MapRenderer
         }
 
         var scale = GetObjectScale(obj, file);
-        byte rotation = file is null ? (byte)0 : GetRotation(obj, file.Value, path, live.Facing);
+        var rotation = file is null ? default : GetRotation(obj, file.Value, path, live.Direction);
         var frame = file is null ? null : GetFrame(path, obj, file.Value, live.FrameIndex, rotation, gamma, scale);
         int pass = !sequel ? layer : frame is not null && frame.IsCombined ? 1 : 0;
         (int width, int height) = frame is not null ? (frame.Width, frame.Height) : file is null ? (MissingSize, MissingSize) : (file.Value.Width, file.Value.Height);
@@ -424,7 +423,7 @@ public sealed class MapRenderer
         return true;
     }
 
-    private int Place(SceneObjects scene, MergedMapSprite owner, KnownObject id, Vector3 position, byte dir, SpriteLook look, Gamma? ambient,
+    private int Place(SceneObjects scene, MergedMapSprite owner, KnownObject id, Vector3 position, Angle dir, SpriteLook look, Gamma? ambient,
         int attachDepth)
     {
         if (!_objects.TryFind(id, out var obj) || (OmitHiddenObjects && IsHiddenByArmy(obj, owner.Army)))
@@ -469,7 +468,7 @@ public sealed class MapRenderer
             scene.Casters.Add(new ShadowCaster(obj, path, file.Value, position, dir, frameIndex, scale));
         }
 
-        byte rotation = file is null ? (byte)0 : GetRotation(obj, file.Value, path, dir);
+        var rotation = file is null ? default : GetRotation(obj, file.Value, path, dir);
         var frame = file is null ? null : GetFrame(path, obj, file.Value, frameIndex, rotation, gamma, scale);
         (int width, int height) = frame is not null ? (frame.Width, frame.Height) : file is null ? (MissingSize, MissingSize) : (file.Value.Width, file.Value.Height);
         int pass = !sequel ? GetEngineLayer(id, obj, file, false) : file is not null ? sequelPass : 0;
@@ -552,8 +551,8 @@ public sealed class MapRenderer
         return new AnimationTiming(count, duration, phase);
     }
     
-    private bool IsHiddenByArmy(GameObject obj, uint army) =>
-        obj.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) && (GetArmyBits(army) != PlayerArmy || (!_objects.IsAlienShooter2 && obj.SpriteClass == SpriteClass.BuiltTerrain));
+    private bool IsHiddenByArmy(GameObject obj, Army army) =>
+        obj.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) && (GetArmyBits(army) != Army.Player || (!_objects.IsAlienShooter2 && obj.SpriteClass == SpriteClass.BuiltTerrain));
     
     private KnownObject GetPlayerPart(KnownObject id)
     {
@@ -572,7 +571,7 @@ public sealed class MapRenderer
         return (KnownObject)(ShowFemalePlayer ? male + FemalePartOffset : male);
     }
 
-    private uint GetArmyBits(uint army) => army & (_objects.IsAlienShooter2 ? SequelArmyMask : ArmyMask);
+    private Army GetArmyBits(Army army) => (Army)((byte)army & (_objects.IsAlienShooter2 ? SequelArmyMask : ArmyMask));
 
     internal static int GetBaseDepth(ObjectProperties flags, float z, bool sequel)
     {
@@ -585,17 +584,17 @@ public sealed class MapRenderer
         return sequel ? depth + SequelRaisedHeight * DepthPerHeight : depth < RaisedDepth ? depth + RaisedDepth : depth;
     }
 
-    private byte GetRotation(GameObject obj, VidResource file, string path, byte dir)
+    private Angle GetRotation(GameObject obj, VidResource file, string path, Angle dir)
     {
         if (!_objects.IsAlienShooter2 || !obj.Properties.HasFlag(ObjectProperties.HardwareDirect))
         {
-            return 0;
+            return default;
         }
 
         var mode = file.MeshType is MeshType.Upright or MeshType.UprightOrFlat && !path.Contains(@"\101.", StringComparison.OrdinalIgnoreCase) ? MeshType.Flat : file.MeshType;
         if (mode == MeshType.Upright || (mode == MeshType.UprightOrFlat && obj.Size.Y < obj.Size.Z))
         {
-            return 0;
+            return default;
         }
 
         if (obj.Properties.HasFlag(ObjectProperties.FreeRotation) || obj.Properties.HasFlag(ObjectProperties.VerticalDirection))
@@ -604,8 +603,8 @@ public sealed class MapRenderer
         }
 
         int directions = Math.Max(1, obj.Directions);
-        int index = ((dir + 128 / directions) & 255) * directions >> 8;
-        return (byte)(dir - (index << 8) / directions);
+        int index = ((dir.Value + 128 / directions) & 255) * directions >> 8;
+        return dir - (index << 8) / directions;
     }
 
     private static ObjectLayer GetPass(GameObject obj, VidResource file)
@@ -742,9 +741,9 @@ public sealed class MapRenderer
     {
         var (obj, file) = (caster.Object, caster.File);
         float towardLight = MathF.Atan2(light.Position.X - caster.Position.X, -(light.Position.Y - caster.Position.Y));
-        byte away = (byte)((int)(towardLight * AngleUnitsPerRadian) + HalfTurn);
+        var away = Angle.FromStored((int)(towardLight * AngleUnitsPerRadian) + HalfTurn);
         bool rotated = obj.Properties.HasFlag(ObjectProperties.HardwareDirect);
-        int index = rotated ? obj.GetFrame((byte)(caster.Dir - away), file.FrameCount) : caster.FrameIndex;
+        int index = rotated ? obj.GetFrame(caster.Direction - away.Value, file.FrameCount) : caster.FrameIndex;
         var frame = file.GetFrame(index);
         (float highest, float lowest) = GetHeightRange(frame.Mesh);
         if (frame.RowCount == 0 || frame.Mesh.VertexCount == 0 || highest <= 0)
@@ -754,10 +753,10 @@ public sealed class MapRenderer
 
         var first = rotated ? file.GetFrame(0) : frame;
         bool flat = GetHeightRange(first.Mesh).Highest * FlatShadowRatio < Math.Max(first.Width, first.RowCount);
-        byte turn = away;
+        var turn = away;
         if (flat && rotated)
         {
-            turn = obj.Properties.HasFlag(ObjectProperties.FreeRotation) ? caster.Dir : (byte)(caster.Dir - (obj.GetDirection((byte)(caster.Dir - away)) << 8) / Math.Max(1, obj.Directions));
+            turn = obj.Properties.HasFlag(ObjectProperties.FreeRotation) ? caster.Direction : caster.Direction - (obj.GetDirectionIndex(caster.Direction - away.Value) << 8) / Math.Max(1, obj.Directions);
         }
 
         float lift = Math.Max(0, caster.Position.Z);
@@ -803,12 +802,12 @@ public sealed class MapRenderer
         return (highest, lowest);
     }
 
-    private static Vector2 Turn(Vector2 point, byte angle) =>
+    private static Vector2 Turn(Vector2 point, Angle angle) =>
         new(point.X * Cos(angle) - point.Y * Sin(angle), point.X * Sin(angle) + point.Y * Cos(angle));
 
-    private static float Sin(byte angle) => MathF.Sin(angle * MathF.Tau / 256);
+    private static float Sin(Angle angle) => MathF.Sin(angle.Value * MathF.Tau / 256);
 
-    private static float Cos(byte angle) => MathF.Cos(angle * MathF.Tau / 256);
+    private static float Cos(Angle angle) => MathF.Cos(angle.Value * MathF.Tau / 256);
 
     private bool[] GetMask(string path, VidResource file, int index)
     {
@@ -833,14 +832,14 @@ public sealed class MapRenderer
         return _masks.GetOrAdd((path, index), mask);
     }
 
-    private SpriteFrame? GetFrame(string path, in GameObject obj, VidResource view, int index, byte rotation, Gamma gamma, Vector3 scale)
+    private SpriteFrame? GetFrame(string path, in GameObject obj, VidResource view, int index, Angle rotation, Gamma gamma, Vector3 scale)
     {
         var key = new FrameKey(path, gamma, index, rotation, scale);
 
         if (_frames.TryGetValue(key, out var frame))
             return frame;
 
-        frame = rotation == 0 && scale == Vector3.One ? DecodeFrame(path, view, index, gamma) : DecodeTransformedFrame(path, obj, view, index, rotation, gamma, scale);
+        frame = rotation == default && scale == Vector3.One ? DecodeFrame(path, view, index, gamma) : DecodeTransformedFrame(path, obj, view, index, rotation, gamma, scale);
 
         return _frames.GetOrAdd(key, frame);
     }
@@ -853,7 +852,7 @@ public sealed class MapRenderer
         return _palettes.GetOrAdd((path, gamma, gammaAffectsAlpha), CreateGammaPalette(view.Palette, gamma, gammaAffectsAlpha, sequel));
     }
 
-    private SpriteFrame? DecodeTransformedFrame(string path, GameObject obj, VidResource view, int index, byte rotation, Gamma gamma, Vector3 scale)
+    private SpriteFrame? DecodeTransformedFrame(string path, GameObject obj, VidResource view, int index, Angle rotation, Gamma gamma, Vector3 scale)
     {
         var upright = GetFrame(path, obj, view, index, 0, gamma, Vector3.One);
         return upright is null ? null : TransformFrame(upright, view.GetFrame(index).Mesh, rotation, scale);
@@ -1070,9 +1069,9 @@ public sealed class MapRenderer
         return (ushort)Math.Clamp(FlatDepth + (float.IsNaN(z) ? 0 : (int)MathF.Round(z * DepthPerHeight)), 0, ushort.MaxValue);
     }
 
-    private static SpriteFrame TransformFrame(SpriteFrame source, VidMesh mesh, byte rotation, Vector3 scale)
+    private static SpriteFrame TransformFrame(SpriteFrame source, VidMesh mesh, Angle rotation, Vector3 scale)
     {
-        (float sin, float cos) = MathF.SinCos(rotation * MathF.PI / 128);
+        (float sin, float cos) = MathF.SinCos(rotation.Value * MathF.PI / 128);
         int sourceWidth = source.Width;
         int sourceHeight = source.Height;
         float sourceCenterX = sourceWidth / 2.0f;
@@ -1318,7 +1317,7 @@ public sealed class MapRenderer
 
     internal delegate void RowWriter(int row, ReadOnlySpan<Rgb24> pixels);
 
-    private readonly record struct FrameKey(string Path, Gamma Gamma, int Frame, byte Rotation, Vector3 Scale);
+    private readonly record struct FrameKey(string Path, Gamma Gamma, int Frame, Angle Rotation, Vector3 Scale);
 
     private readonly record struct SpriteLook(Gamma? Gamma, Vector3 Scale)
     {
@@ -1350,7 +1349,7 @@ public sealed class MapRenderer
         public Vector3 GetColor(int? time) => Colors[time is not null ? Timing.GetIndex(time.Value) : 0];
     }
 
-    internal sealed record ShadowCaster(GameObject Object, string Path, VidResource File, Vector3 Position, byte Dir, int FrameIndex, Vector3 Scale);
+    internal sealed record ShadowCaster(GameObject Object, string Path, VidResource File, Vector3 Position, Angle Direction, int FrameIndex, Vector3 Scale);
 
     internal sealed record ShadowCard(bool[] Mask, int Columns, int Rows, Vector2 Origin, Vector2 ColumnStep, Vector2 RowStep, float TopDepth, float BottomDepth);
 

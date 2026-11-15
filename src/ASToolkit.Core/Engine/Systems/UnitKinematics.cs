@@ -98,7 +98,7 @@ internal sealed class UnitKinematics
 
             if (unit.Kind.Layout.Directions == 1 || obj.Properties.HasFlag(ObjectProperties.RandomBirth))
             {
-                unit.SetFacing(Facing.Aim(offset.AsVector2(), out distance));
+                unit.SetDirection(Angle.Aim(offset.AsVector2(), out distance));
             }
 
             if (!obj.SpriteType.HasFlag(SpriteType.Cannon) && obj.SpriteClass != SpriteClass.Cannon)
@@ -109,7 +109,7 @@ internal sealed class UnitKinematics
             {
                 if (distance == 0)
                 {
-                    Facing.Aim(offset.AsVector2(), out distance);
+                    Angle.Aim(offset.AsVector2(), out distance);
                 }
 
                 if (distance == 0)
@@ -181,9 +181,9 @@ internal sealed class UnitKinematics
         }
         else if (!unit.Speed.IsZero())
         {
-            var facing = obj.Properties.HasFlag(ObjectProperties.Homing) && unit.HasGoal
-                ? Facing.FromOffset((unit.GoalPosition - unit.Position).AsVector2()) : unit.Facing;
-            next = Displace(next, facing, unit.Speed, elapsed);
+            var direction = obj.Properties.HasFlag(ObjectProperties.Homing) && unit.HasGoal
+                ? Angle.FromOffset((unit.GoalPosition - unit.Position).AsVector2()) : unit.Direction;
+            next = Displace(next, direction, unit.Speed, elapsed);
         }
 
         if (obj.Properties.HasFlag(ObjectProperties.Gravity))
@@ -230,15 +230,15 @@ internal sealed class UnitKinematics
         return obj.Acceleration.IsNear(ObjectDefinition.Unlimited) || speed >= maxSpeed ? maxSpeed : speed;
     }
 
-    public static Vector3 Displace(Vector3 position, Facing facing, float speed, int elapsed)
+    public static Vector3 Displace(Vector3 position, Angle direction, float speed, int elapsed)
     {
         float distance = elapsed * speed;
-        var direction = facing.Direction;
+        var vector = direction.Vector;
 
         return position with
         {
-            X = direction.X * distance + position.X,
-            Y = direction.Y * distance + position.Y
+            X = vector.X * distance + position.X,
+            Y = vector.Y * distance + position.Y
         };
     }
 

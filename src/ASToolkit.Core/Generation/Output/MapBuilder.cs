@@ -48,7 +48,7 @@ public sealed class MapBuilder
     /// <summary>
     /// Places an object and returns its index, or -1 when a unique placement repeats an earlier one.
     /// </summary>
-    public int Add(KnownObject id, float x, float y, float z = 0, int dir = 0, ReadOnlyMemory<byte> payload = default, uint? army = null, bool unique = true, SpriteSource? source = null)
+    public int Add(KnownObject id, float x, float y, float z = 0, Angle dir = default, ReadOnlyMemory<byte> payload = default, Army? army = null, bool unique = true, SpriteSource? source = null)
     {
         var key = (id, (long)MathF.Round(x), (long)MathF.Round(y), (long)MathF.Round(z));
         if (!_placed.Add(key) && unique)
@@ -61,7 +61,7 @@ public sealed class MapBuilder
             : id == KnownObject.PlayerStart ? PlayerStartPayload
             : KnownObject.Monsters.Contains(id) || KnownObject.Bosses.Contains(id) ? MonsterPayload
             : new byte[8];
-        Sprites.Add(new MergedMapSprite(_handle, id, new Vector3(x, y, z), (byte)(dir & 255), army ?? _armies.GetArmy(id), data));
+        Sprites.Add(new MergedMapSprite(_handle, id, new Vector3(x, y, z), dir, army ?? _armies.GetArmy(id), data));
         _sources.Add(source ?? Source);
         if (id is KnownObject.TeleportPad or KnownObject.SilentTeleportPad)
         {

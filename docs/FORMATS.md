@@ -350,7 +350,7 @@ Object flags (`Property`). The Alien Shooter files set only part of them, and th
  0x80000000   P_NotDamageForFriend: a hit or blast from the object skips objects of its own army
 ```
 
-The army is two bits (11 and 12) of the state of a placed object in Alien Shooter and three bits (17 to 19) in Alien Shooter 2. Placed objects take it from the map, and spawned and linked objects from their parent. Sprites with the flag 0x400 pick their palette by it.
+The army is two bits (11 and 12) of the state of a placed object in Alien Shooter and three bits (17 to 19) in Alien Shooter 2, and it indexes the per-army tables of the object, such as its maximum health and unit count. Placed objects take it from the map, and spawned and linked objects from their parent. Sprites with the flag 0x400 pick their palette by it.
 
 The helper blocks of the Alien Shooter 2 editor (630 to 634, the pillars 1357 to 1359, the teleport markers) and the depth blocks linked to walls (2706, 1799 and the like) carry the flag 0x20000 and army 2. They stay hidden and still raise the height grids. The blocks 630 to 632 are named dummies for Z, and 633 and 634 blocks for monsters and for the player. In Alien Shooter the only object with the flag 0x20000 is the depth blocker 631.
 
@@ -466,9 +466,9 @@ Only the earthquake, ground snow, squall, rain and snow bits take effect. Every 
 
 Maps before version 10 (survival, the menu host maps and a few add-on maps of Alien Shooter) store x, y and z as `i32`.
 
-The engines keep only the low byte of `dir` as the facing, and the other three bytes are zero in every map.
+The engines keep only the low byte of `dir`, the facing in 256ths of a turn clockwise from up the screen, and the other three bytes are zero in every map.
 
-The army goes from 0 to 7. The levels use 0 for the player and most scenery, 1 for monsters and generators, and 2 for breakable objects, walls and corpses. Alien Shooter 2 also uses 3 for allied soldiers and NPCs, and 5 and 6 for a few robots and monsters.
+Alien Shooter keeps two bits of the army, 0 to 3, and the later games keep three, 0 to 7. The levels use 0 for the player and most scenery, 1 for monsters and generators, and 2 for breakable objects, walls and corpses. In Alien Shooter, monsters of army 1 hunt only the units of army 0, and units never target army 2 unless their weapon has the flag 0x80. The later games set how armies treat each other with `SetRelation`, and their `CONST.LGC` makes 3 the guards, 4 the hypnotized monsters, 5 the robots and 6 the monsters of looping generators, left out of the kill counts.
 
 Alien Shooter maps place the player as the legs (9), or the female player legs (549) in the first level of the second add-on. The start script of `COMMON.LGC` replaces the placed player with object 9, and with the female objects 549 to 560 when the `PlayerSex` profile value is female.
 
@@ -799,7 +799,7 @@ Kind `MENU`. Menus are lists of sprites with screen coordinates.
 
 The text is a label or a binding such as `Play`, `PlayerAmmo[2]` or `ItemPrice[8]`. Coordinates are screen pixels.
 
-Buttons are object 705, with the button number the script sees in the direction byte. Labels are object 3, their text a key of the `[menu]` section in `strings.ini`.
+Buttons are object 705, and the button number the script sees is the direction frame (`ndir`) that `dir` picks among its 10 directions. Labels are object 3, their text a key of the `[menu]` section in `strings.ini`.
 
 ```
  +-------------------+   object 705, direction byte 128 = button 5

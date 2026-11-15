@@ -94,7 +94,7 @@ internal sealed class PartFinder
                 Spot = spots.All(spot => spot == PartSpot.Corner) ? PartSpot.Corner : spots.Count(spot => spot != PartSpot.Center) * 2 >= spots.Length ? PartSpot.Wall : PartSpot.Center,
                 Families = standing.Distinct().Order().ToArray(),
                 Pieces = members.Select(entry => new PartPiece(entry.Piece.Id, entry.Piece.Position.X - first.X, entry.Piece.Position.Y - first.Y, entry.Piece.Position.Z,
-                    entry.Piece.Facing, entry.Piece.Payload, WallGaps.Measure(_lattice, set, _edges, entry.Piece.Position.X, entry.Piece.Position.Y))).ToArray()
+                    entry.Piece.Direction, entry.Piece.Payload, WallGaps.Measure(_lattice, set, _edges, entry.Piece.Position.X, entry.Piece.Position.Y))).ToArray()
             });
         }
 

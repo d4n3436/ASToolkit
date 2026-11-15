@@ -101,7 +101,7 @@ public sealed class DesignMeasurer
     {
         var walls = _model.Sprites
             .Where(sprite => sprite.Position.Z < FloorHeight && _model.Cells.Contains(_model.Lattice.GetCell(sprite.Position)))
-            .Select(sprite => GetWallSample(sprite.Id, sprite.Facing, sprite.Position.X, sprite.Position.Y))
+            .Select(sprite => GetWallSample(sprite.Id, sprite.Direction, sprite.Position.X, sprite.Position.Y))
             .ToArray();
 
         var tables = Find(KnownObject.Table);
@@ -338,7 +338,7 @@ public sealed class DesignMeasurer
     private MeasureShare CountInCrates(ItemCategory category) =>
         new(_survey.Items.Count(item => item.Category == category && item.InCrate), _survey.Items.Count(item => item.Category == category));
 
-    private WallSample GetWallSample(KnownObject id, byte dir, float x, float y)
+    private WallSample GetWallSample(KnownObject id, Angle dir, float x, float y)
     {
         var cell = _model.Lattice.GetCell(x, y);
         var sides = _model.Edges.GetWalledSides(cell, _model.Cells.Contains, static kind => kind.IsClosed);
@@ -519,7 +519,7 @@ public sealed class DesignMeasurer
         int best = 0;
         foreach (((int dx, int dy), int _) in offsets.OrderByDescending(pair => pair.Value).Take(6))
         {
-            int matched = small.Count(sprite => byId[sprite.Id].Any(other => other.Dir == sprite.Dir
+            int matched = small.Count(sprite => byId[sprite.Id].Any(other => other.Direction == sprite.Direction
                 && MathF.Abs(other.Position.X - sprite.Position.X - dx) < RepeatTolerance && MathF.Abs(other.Position.Y - sprite.Position.Y - dy) < RepeatTolerance));
             best = Math.Max(best, matched);
         }

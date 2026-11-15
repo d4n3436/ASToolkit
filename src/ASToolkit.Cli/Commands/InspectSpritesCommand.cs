@@ -13,7 +13,7 @@ internal sealed class InspectSpritesCommand : Command<SpriteSelectionSettings>
         var logic = selector.Objects.IsAlienShooter2
             ? LevelLogicReader.Read(selector.MapPath, selector.Map, selector.Objects, QuestBook.Load(settings.Game))
             : null;
-        var table = new Table().AddColumns("Handle", "Object", "Name", "Position", "Army", "Facing", "Sprite name", "Opened by the scripts");
+        var table = new Table().AddColumns("Handle", "Object", "Name", "Position", "Army", "Direction", "Sprite name", "Opened by the scripts");
         foreach ((var sprite, string objectName, var program) in selector.Select())
         {
             string opening = "";
@@ -29,8 +29,8 @@ internal sealed class InspectSpritesCommand : Command<SpriteSelectionSettings>
             }
 
             table.AddRow(sprite.Handle.ToString(CultureInfo.InvariantCulture), ((int)sprite.Id).ToString(CultureInfo.InvariantCulture), Markup.Escape(objectName),
-                $"({sprite.Position.X:0}, {sprite.Position.Y:0}, {sprite.Position.Z:0})", sprite.Army.ToString(CultureInfo.InvariantCulture),
-                sprite.Facing.ToString(CultureInfo.InvariantCulture), Markup.Escape(program?.GetName() ?? ""), Markup.Escape(opening));
+                $"({sprite.Position.X:0}, {sprite.Position.Y:0}, {sprite.Position.Z:0})", sprite.Army.ToString(),
+                sprite.Direction.Value.ToString(CultureInfo.InvariantCulture), Markup.Escape(program?.GetName() ?? ""), Markup.Escape(opening));
         }
 
         AnsiConsole.Write(table);

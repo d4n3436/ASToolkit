@@ -152,7 +152,7 @@ public class MovementTests
         var bullet = new ObjectDefinition(KnownObject.PistolBullet, Body(new Vector3(4, 4, 2)), default, 0);
         var shooter = new Unit(0, walker, Vector3.Zero, 0, 10);
         grid.Add(shooter);
-        grid.Add(new Unit(1, walker, new Vector3(64, 0, 30), 1, 10));
+        grid.Add(new Unit(1, walker, new Vector3(64, 0, 30), Army.Monsters, 10));
         var collision = new ProjectileCollision(map, grid);
 
         Assert.Equal(new Vector3(32, 0, 10), collision.Trace(bullet, new Vector3(0, 0, 10),

@@ -6,14 +6,14 @@ namespace ASToolkit.Core.Engine;
 
 internal sealed class UnitCollision
 {
-    private const int NorthEastBoundary = Facing.QuarterTurn / 2;
-    private const int NorthWestBoundary = Facing.FullTurn - NorthEastBoundary;
-    private const int SouthEastBoundary = Facing.HalfTurn - NorthEastBoundary;
-    private const int SouthWestBoundary = Facing.HalfTurn + NorthEastBoundary;
+    private const int NorthEastBoundary = Angle.QuarterTurn / 2;
+    private const int NorthWestBoundary = Angle.FullTurn - NorthEastBoundary;
+    private const int SouthEastBoundary = Angle.HalfTurn - NorthEastBoundary;
+    private const int SouthWestBoundary = Angle.HalfTurn + NorthEastBoundary;
     private const int CardinalHalfWidth = 16;
     private const int AvoidanceOffset = 24;
     private const int MaxPushDepth = 4;
-    private const int OppositeFacingTolerance = 16;
+    private const int OppositeDirectionTolerance = 16;
 
     private readonly MovementMap _map;
     private readonly UnitGrid _units;
@@ -41,9 +41,9 @@ internal sealed class UnitCollision
             if (other is not null && other.Kind.CanBePushed && depth < MaxPushDepth)
             {
                 var pushed = other.Position + position - start;
-                bool opposite = unit.Kind.CanBePushed && other.Facing.MeasureTurnTo(unit.Facing.Opposite) < OppositeFacingTolerance;
+                bool opposite = unit.Kind.CanBePushed && other.Direction.MeasureTurnTo(unit.Direction.Opposite) < OppositeDirectionTolerance;
 
-                Move(other, pushed with { Z = other.Position.Z }, depth + 1, !opposite || unit.Facing.Value < Facing.HalfTurn);
+                Move(other, pushed with { Z = other.Position.Z }, depth + 1, !opposite || unit.Direction.Value < Angle.HalfTurn);
             }
 
             var alongY = position with { X = start.X };
@@ -108,50 +108,50 @@ internal sealed class UnitCollision
 
 
     [EngineRoutine(0x00443ed0)]
-    public Facing AvoidObstacles(Facing facing, Unit unit)
+    public Angle AvoidObstacles(Angle direction, Unit unit)
     {
         var center = unit.Position.AsVector2();
         var half = unit.Kind.Half;
 
-        if (facing.Value is <= SouthEastBoundary or >= SouthWestBoundary)
+        if (direction.Value is <= SouthEastBoundary or >= SouthWestBoundary)
         {
-            if (facing.Value is > NorthWestBoundary or < NorthEastBoundary)
+            if (direction.Value is > NorthWestBoundary or < NorthEastBoundary)
             {
                 if (IsBlockedAt(center - half) && !IsBlockedAt(center + half with { Y = 0 }))
                 {
-                    return Facing.East - AvoidanceOffset;
+                    return Angle.East - AvoidanceOffset;
                 }
 
                 if (IsBlockedAt(center + half with { Y = -half.Y }) && !IsBlockedAt(center - half with { Y = 0 }))
                 {
-                    return Facing.West + AvoidanceOffset;
+                    return Angle.West + AvoidanceOffset;
                 }
             }
-            else if (facing.Value <= Facing.West.Value - CardinalHalfWidth || facing.Value >= Facing.West.Value + CardinalHalfWidth)
+            else if (direction.Value <= Angle.West.Value - CardinalHalfWidth || direction.Value >= Angle.West.Value + CardinalHalfWidth)
             {
-                if (facing.Value <= Facing.East.Value - CardinalHalfWidth || facing.Value >= Facing.East.Value + CardinalHalfWidth)
-                    return facing;
+                if (direction.Value <= Angle.East.Value - CardinalHalfWidth || direction.Value >= Angle.East.Value + CardinalHalfWidth)
+                    return direction;
                 
                 if (IsBlockedAt(center + half) && !IsBlockedAt(center - half with { X = 0 }))
                 {
-                    return Facing.East - AvoidanceOffset;
+                    return Angle.East - AvoidanceOffset;
                 }
 
                 if (IsBlockedAt(center + half with { Y = -half.Y }) && !IsBlockedAt(center + half with { X = 0 }))
                 {
-                    return Facing.East + AvoidanceOffset;
+                    return Angle.East + AvoidanceOffset;
                 }
             }
             else
             {
                 if (IsBlockedAt(center + half with { X = -half.X }) && !IsBlockedAt(center - half with { X = 0 }))
                 {
-                    return Facing.West + AvoidanceOffset;
+                    return Angle.West + AvoidanceOffset;
                 }
 
                 if (IsBlockedAt(center - half) && !IsBlockedAt(center + half with { X = 0 }))
                 {
-                    return Facing.West - AvoidanceOffset;
+                    return Angle.West - AvoidanceOffset;
                 }
             }
         }
@@ -159,16 +159,16 @@ internal sealed class UnitCollision
         {
             if (IsBlockedAt(center + half with { X = -half.X }) && !IsBlockedAt(center + half with { Y = 0 }))
             {
-                return Facing.East + AvoidanceOffset;
+                return Angle.East + AvoidanceOffset;
             }
 
             if (IsBlockedAt(center + half) && !IsBlockedAt(center - half with { Y = 0 }))
             {
-                return Facing.West - AvoidanceOffset;
+                return Angle.West - AvoidanceOffset;
             }
         }
 
-        return facing;
+        return direction;
 
         bool IsBlockedAt(Vector2 point) => IsBlocked(unit, new Vector3(point, unit.Position.Z));
     }

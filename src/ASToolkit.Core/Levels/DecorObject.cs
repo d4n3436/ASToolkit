@@ -9,7 +9,7 @@ namespace ASToolkit.Core.Levels;
 /// <param name="U">The lattice u coordinate.</param>
 /// <param name="V">The lattice v coordinate.</param>
 /// <param name="Z">The height.</param>
-/// <param name="Dir">The facing.</param>
+/// <param name="Direction">The direction.</param>
 /// <param name="Payload">The payload bytes.</param>
 /// <param name="SupportIndex">The index of what the object stands on, -1 when the object stands raised on nothing found, or null when the object stands on the floor.</param>
-public sealed record DecorObject(KnownObject Id, float U, float V, float Z, byte Dir, byte[] Payload, int? SupportIndex);
+public sealed record DecorObject(KnownObject Id, float U, float V, float Z, Angle Direction, byte[] Payload, int? SupportIndex);

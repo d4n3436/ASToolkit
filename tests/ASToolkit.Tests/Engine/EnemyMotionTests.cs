@@ -17,9 +17,9 @@ public class EnemyMotionTests
     [InlineData(0, 40, 1000, 1, 0, 40)]
     [InlineData(0, 64, 5000, 10, 1, 63)]
     [InlineData(0, 64, 5000, 9, 0, 64)]
-    public void TurnToward_HandlesWrappingAndImmediateOrDisabledRotation(byte facing, byte goal, float period, int elapsed, byte expected, int left)
+    public void TurnToward_HandlesWrappingAndImmediateOrDisabledRotation(byte direction, byte goal, float period, int elapsed, byte expected, int left)
     {
-        byte result = new Facing(facing).TurnToward(new Facing(goal), period, elapsed, out int remaining).Value;
+        byte result = new Angle(direction).TurnToward(new Angle(goal), period, elapsed, out int remaining).Value;
 
         Assert.Equal(expected, result);
         Assert.Equal(left, remaining);
@@ -79,8 +79,8 @@ public class EnemyMotionTests
         MemoryMarshal.Write(bytes.AsSpan(4), in flags);
         var kind = new ObjectDefinition(KnownObject.Monster1 + index, obj, MemoryMarshal.Read<WeaponRecord>(bytes), 0);
 
-        return new Unit(index, kind, new Vector3(body.X, body.Y, body.Z), 1, 10) { Facing = new Facing(body.Facing) };
+        return new Unit(index, kind, new Vector3(body.X, body.Y, body.Z), Army.Monsters, 10) { Direction = body.Direction };
     }
 
-    public sealed record Body(float X, float Y, float Z = 0, byte Facing = 64, int Push = 0, uint Mask = 1, float HalfX = 5, float HalfY = 5, float SizeZ = 40);
+    public sealed record Body(float X, float Y, float Z = 0, byte Direction = 64, int Push = 0, uint Mask = 1, float HalfX = 5, float HalfY = 5, float SizeZ = 40);
 }

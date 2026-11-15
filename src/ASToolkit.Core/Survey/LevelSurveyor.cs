@@ -796,7 +796,7 @@ public sealed class LevelSurveyor
         if (start is not null)
         {
             landmarks.Add(CreateLandmark(LandmarkKind.PlayerStart, start.Position.X, start.Position.Y, 0,
-                ("facing", start.Facing), ("femaleLegs", start.Id == KnownObject.PlayerStartFemaleLegs ? 1 : null)));
+                ("direction", start.Direction.Value), ("femaleLegs", start.Id == KnownObject.PlayerStartFemaleLegs ? 1 : null)));
         }
 
         foreach (var breaker in elements.Where(element => element.Kind == ElementKind.Breaker))

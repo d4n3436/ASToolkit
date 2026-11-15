@@ -21,7 +21,7 @@ public readonly record struct MapSprite
         Handle = old.Handle;
         Id = old.Id;
         Position = reinterpret ? Vector128.ConvertToSingle(old.Position.AsVector128().AsInt32()).AsVector3() : old.Position;
-        Dir = old.Dir;
+        Direction = old.Direction;
         Army = old.Army;
         Scale = Vector3.One;
     }
@@ -48,13 +48,13 @@ public readonly record struct MapSprite
     /// The facing.
     /// </summary>
     [FieldOffset(20)]
-    public readonly uint Dir;
+    public readonly Angle Direction;
 
     /// <summary>
     /// The army of the object.
     /// </summary>
     [FieldOffset(24)]
-    public readonly uint Army;
+    public readonly Army Army;
 
     /// <summary>
     /// The gamma of the placed object. Alien Shooter 2 only.

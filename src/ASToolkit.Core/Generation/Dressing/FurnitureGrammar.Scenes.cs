@@ -23,7 +23,7 @@ internal sealed partial record FurnitureGrammar
         [DynamiteSite] = new(A.Lined, F.Site, 1, 1, [0, 0], 1, [1, 1], [], Lining: new(TeleportPad, 1, 2.2f))
     };
 
-    private static FacingRow[] SceneFacingRows =>
+    private static DirectionRow[] SceneDirectionRows =>
     [
         new(Generator, PlusU, new() { [128] = 1 }),
         new(Generator, MinusV, new() { [0] = 1 }),
@@ -78,10 +78,10 @@ internal sealed partial record FurnitureGrammar
             new(SoldierCorpse, 1, 1.2f, 2.4f, 0, 64, 0.125f), new(SoldierCorpse, 1, -1.2f, 2.4f, 0, 192, 0.125f),
             new(SoldierCorpse, 1, 0, 2.7f, 0, 128, 0.125f), new(SoldierCorpse, 1, 2, 2, 0, 16, 0.125f)
         }
-        .Select(piece => Turn(piece, turned, piece.Id == Transformer ? (byte)(turned ? 128 : 0) : piece.Facing))
+        .Select(piece => Turn(piece, turned, piece.Id == Transformer ? turned ? Angle.South : Angle.North : piece.Direction))
         .ToArray();
 
-    private static Companion[] RackPieces(byte dir, bool turned) => new Companion[]
+    private static Companion[] RackPieces(Angle dir, bool turned) => new Companion[]
         {
             new(Missile, 0, -0.44f, 0, 0, dir, 1), new(Missile, 1, 0.44f, 0, 0, dir, 1),
             new(WallInscriptions, 0, -0.85f, 1.31f, StripeZ, RowFrame, 1), new(WallInscriptions, 1, -0.15f, 1.31f, StripeZ, RowFrame, 1),
@@ -89,7 +89,7 @@ internal sealed partial record FurnitureGrammar
             new(WallInscriptions, 4, -1.35f, 1.12f, StripeZ, ColumnFrame, 1), new(WallInscriptions, 5, 0.67f, 0.42f, StripeZ, ColumnFrame, 1),
             new(WallInscriptions, 6, 0.67f, 1.12f, StripeZ, ColumnFrame, 1)
         }
-        .Select(piece => Turn(piece, turned, piece.Id != WallInscriptions || !turned ? piece.Facing : piece.Facing == RowFrame ? ColumnFrame : RowFrame))
+        .Select(piece => Turn(piece, turned, piece.Id != WallInscriptions || !turned ? piece.Direction : piece.Direction == RowFrame ? ColumnFrame : RowFrame))
         .ToArray();
 
     private static Companion[] CannonPieces()
@@ -106,9 +106,9 @@ internal sealed partial record FurnitureGrammar
             .ToArray();
     }
 
-    private static Module SitePads(byte dir, params PointF[] pads) =>
+    private static Module SitePads(Angle dir, params PointF[] pads) =>
         new(DynamiteSite, dir, pads.Select((pad, slot) => new Companion(TeleportPad, slot, pad.X, pad.Y, 0, 0, 1)).ToArray());
 
-    private static Companion Turn(Companion piece, bool turned, byte facing) =>
-        turned ? piece with { U = -piece.V, V = piece.U, Facing = facing } : piece with { Facing = facing };
+    private static Companion Turn(Companion piece, bool turned, Angle direction) =>
+        turned ? piece with { U = -piece.V, V = piece.U, Direction = direction } : piece with { Direction = direction };
 }

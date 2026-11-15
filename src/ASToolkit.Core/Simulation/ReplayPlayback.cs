@@ -124,7 +124,7 @@ public sealed class ReplayPlayback
             if (_replay.Tracks[track].End > time)
             {
                 var sample = _replay.GetSample(track, time);
-                AddLiveSprite(sample.Id, sample.Position, sample.Facing, sample.Frame, sample.Keyframe);
+                AddLiveSprite(sample.Id, sample.Position, sample.Direction, sample.Frame, sample.Keyframe);
             }
         }
 
@@ -132,7 +132,7 @@ public sealed class ReplayPlayback
         {
             if (effect.StartedAt <= time)
             {
-                AddLiveSprite(effect.Id, effect.Position, effect.Facing, effect.Frame, effect.Keyframe);
+                AddLiveSprite(effect.Id, effect.Position, effect.Direction, effect.Frame, effect.Keyframe);
             }
         }
 
@@ -290,10 +290,10 @@ public sealed class ReplayPlayback
             return;
 
         var position = at >= 0 ? placement.Frames[at].Position : placement.Sprite.Position;
-        AddLiveSprite(placement.Sprite.Id, position, placement.Sprite.Facing, obj.GetFrame(placement.Sprite.Facing, sprite.Value.FrameCount), 0);
+        AddLiveSprite(placement.Sprite.Id, position, placement.Sprite.Direction, obj.GetFrame(placement.Sprite.Direction, sprite.Value.FrameCount), 0);
     }
 
-    private void AddLiveSprite(KnownObject id, Vector3 position, byte facing, int frame, float keyframe)
+    private void AddLiveSprite(KnownObject id, Vector3 position, Angle direction, int frame, float keyframe)
     {
         var sprite = _renderer.GetSprite(id);
 
@@ -301,7 +301,7 @@ public sealed class ReplayPlayback
             return;
 
         var gamma = _objects.TryGetWeapon(obj, out var weapon) ? weapon.GetGamma(keyframe).Pack() : default;
-        _live.Add(new LiveSprite(id, position, facing, frame, gamma));
+        _live.Add(new LiveSprite(id, position, direction, frame, gamma));
     }
 
     private sealed record PlacementTimeline(MergedMapSprite Sprite, PlacementFrame[] Frames, int RemovedAt);

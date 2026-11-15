@@ -31,11 +31,11 @@ internal readonly struct OldMapSprite
     /// The facing field.
     /// </summary>
     [FieldOffset(20)]
-    public readonly uint Dir;
+    public readonly Angle Direction;
 
     /// <summary>
     /// The army of the object.
     /// </summary>
     [FieldOffset(24)]
-    public readonly uint Army;
+    public readonly Army Army;
 }

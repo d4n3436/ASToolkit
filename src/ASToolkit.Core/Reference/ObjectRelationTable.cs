@@ -330,7 +330,7 @@ public sealed class ObjectRelationTable
                         Owned[(piece.Id, owner.Id)] = owned;
                     }
 
-                    owned.Add(new AnchorSample(owner.Facing, position.X - owner.Position.X, position.Y - owner.Position.Y, position.Z - owner.Position.Z, piece.Facing));
+                    owned.Add(new AnchorSample(owner.Direction, position.X - owner.Position.X, position.Y - owner.Position.Y, position.Z - owner.Position.Z, piece.Direction));
                 }
 
                 foreach ((var anchorId, (_, int anchorIndex)) in nearest)
@@ -343,7 +343,7 @@ public sealed class ObjectRelationTable
                         Samples[(piece.Id, anchorId)] = samples;
                     }
 
-                    samples.Add(new AnchorSample(anchor.Facing, position.X - anchor.Position.X, position.Y - anchor.Position.Y, position.Z - anchor.Position.Z, piece.Facing));
+                    samples.Add(new AnchorSample(anchor.Direction, position.X - anchor.Position.X, position.Y - anchor.Position.Y, position.Z - anchor.Position.Z, piece.Direction));
                 }
 
                 (float u, float v) = lattice.ToLattice(position);

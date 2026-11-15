@@ -91,7 +91,7 @@ public partial class SpriteViewModel : ViewModelBase
         }
 
         MaxDirection = Math.Max(0, obj.Directions - 1);
-        Direction = obj.GetDirection(source.Facing);
+        Direction = obj.GetDirectionIndex(source.Direction);
         SelectedState = States.FirstOrDefault();
         Restart();
         _timer.Start();

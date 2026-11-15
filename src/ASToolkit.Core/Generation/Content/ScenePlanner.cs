@@ -159,7 +159,7 @@ internal sealed class ScenePlanner
                         continue;
                     }
 
-                    byte dir = (byte)(_rng.Next(2) == 0 ? 0 : 128);
+                    var dir = _rng.Next(2) == 0 ? Angle.North : Angle.South;
                     ctx.Map.Add(KnownObject.MountedCannon, point.X, point.Y, 0, dir, unique: false);
                     ctx.Occupancy.Add(KnownObject.MountedCannon, point, 0);
                     ctx.Taken.UnionWith(ring.Select(GetCell));
@@ -200,7 +200,7 @@ internal sealed class ScenePlanner
 
         if (cannon is not null)
         {
-            requests.Add(new SceneRequest(cannon.Hall.Id, KnownObject.MountedCannon, cannon.Point, cannon.Dir, []));
+            requests.Add(new SceneRequest(cannon.Hall.Id, KnownObject.MountedCannon, cannon.Point, cannon.Direction, []));
         }
 
         return requests.ToArray();
@@ -239,7 +239,7 @@ internal sealed class ScenePlanner
             
             var trigger = GetSiteTrigger(room);
             var program = SpawnerProgram.Create(Enumerable.Range(0, builds).Select(_ => _grammar.DrawEndlessGenerator(_rng, _brief.Level, _unitLeavingGenerators)), new TriggerArea(Point.Truncate(trigger), (int)_grammar.TriggerRadius), []);
-            map.Add(KnownObject.Spawner, hx + _grammar.Spawner.X * side, hy + _grammar.Spawner.Y, _grammar.SpawnerZ, 0, program.ToPayload(), 1, unique: false);
+            map.Add(KnownObject.Spawner, hx + _grammar.Spawner.X * side, hy + _grammar.Spawner.Y, _grammar.SpawnerZ, 0, program.ToPayload(), Army.Monsters, unique: false);
         }
     }
 
@@ -258,7 +258,7 @@ internal sealed class ScenePlanner
             for (int count = Math.Min(generators, _rng.Next(_grammar.GeneratorBatch[0], _grammar.GeneratorBatch[1] + 1)); count > 0; count--, generators--)
             {
                 float rise = _grammar.GeneratorRise[0] + _rng.NextSingle() * (_grammar.GeneratorRise[1] - _grammar.GeneratorRise[0]);
-                map.Add(_grammar.DrawEndlessGenerator(_rng, _brief.Level, FrozenSet<KnownObject>.Empty), pad.X + _grammar.GeneratorJitter * (2 * _rng.NextSingle() - 1), pad.Y - rise, 0, 0, new byte[8], 1, unique: false);
+                map.Add(_grammar.DrawEndlessGenerator(_rng, _brief.Level, FrozenSet<KnownObject>.Empty), pad.X + _grammar.GeneratorJitter * (2 * _rng.NextSingle() - 1), pad.Y - rise, 0, 0, new byte[8], Army.Monsters, unique: false);
             }
         }
     }
@@ -315,4 +315,4 @@ internal sealed record SitePlan(List<PlannedSite> Sites, Dictionary<EdgeKey, Pla
 
 internal readonly record struct PlannedSite(PlanRegion Room, int[] Fallbacks);
 
-internal sealed record PlacedCannon(PlanRegion Hall, PointF Point, byte Dir, PointF Far);
+internal sealed record PlacedCannon(PlanRegion Hall, PointF Point, Angle Direction, PointF Far);

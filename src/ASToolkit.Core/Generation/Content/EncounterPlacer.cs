@@ -74,7 +74,7 @@ internal sealed class EncounterPlacer
         var floor = rooms.Count == 0 ? [] : _ctx.GetFreeCells(_ctx.Plan.Regions[rooms[0]]);
         foreach (var id in left)
         {
-            while (full < rooms.Count && _ctx.Place(floor, id, dir: null, MapBuilder.MonsterPayload, army: 1, take: false) is null)
+            while (full < rooms.Count && _ctx.Place(floor, id, dir: null, MapBuilder.MonsterPayload, army: Army.Monsters, take: false) is null)
             {
                 full++;
                 floor = full < rooms.Count ? _ctx.GetFreeCells(_ctx.Plan.Regions[rooms[full]]) : [];
@@ -122,7 +122,7 @@ internal sealed class EncounterPlacer
 
         foreach ((int index, var point) in best)
         {
-            _ctx.Map.Add(group[index], point.X, point.Y, 0, _ctx.Rng.Next(256), MapBuilder.MonsterPayload, 1, unique: false, source: SpriteSource.Model);
+            _ctx.Map.Add(group[index], point.X, point.Y, 0, _ctx.Rng.NextAngle(), MapBuilder.MonsterPayload, Army.Monsters, unique: false, source: SpriteSource.Model);
             _ctx.Occupancy.Add(group[index], point, 0);
         }
 
@@ -179,7 +179,7 @@ internal sealed class EncounterPlacer
 
             foreach (var spot in clear)
             {
-                var placed = _ctx.Place([spot.Cell], KnownObject.Spawner, dir: 0, payload: payload, army: 1, take: false);
+                var placed = _ctx.Place([spot.Cell], KnownObject.Spawner, dir: 0, payload: payload, army: Army.Monsters, take: false);
                 if (placed is null) 
                     continue;
                 
@@ -190,11 +190,11 @@ internal sealed class EncounterPlacer
             if (point is null)
             {
                 var ordered = near.OrderByDescending(spot => _ctx.Occupancy.HasRoomAround(spot.Point)).ToArray();
-                var placed = _ctx.Place(ordered.Select(spot => spot.Cell).ToArray(), KnownObject.Spawner, dir: 0, payload: payload, army: 1, take: false);
+                var placed = _ctx.Place(ordered.Select(spot => spot.Cell).ToArray(), KnownObject.Spawner, dir: 0, payload: payload, army: Army.Monsters, take: false);
                 point = placed?.Point ?? ordered[0].Point;
                 if (placed is null)
                 {
-                    _ctx.Map.Add(KnownObject.Spawner, point.Value.X, point.Value.Y, 0, 0, payload, 1, unique: false, source: SpriteSource.Model);
+                    _ctx.Map.Add(KnownObject.Spawner, point.Value.X, point.Value.Y, 0, 0, payload, Army.Monsters, unique: false, source: SpriteSource.Model);
                 }
             }
 
@@ -230,7 +230,7 @@ internal sealed class EncounterPlacer
         {
             var point = spots[index % spots.Length];
             _spawners.Add(point);
-            _ctx.Map.Add(KnownObject.Spawner, point.X, point.Y, 0, 0, SpawnerProgram.Create(fight.Groups[index], new TriggerArea(Point.Truncate(center), radius), [center]).ToPayload(), 1, unique: false,
+            _ctx.Map.Add(KnownObject.Spawner, point.X, point.Y, 0, 0, SpawnerProgram.Create(fight.Groups[index], new TriggerArea(Point.Truncate(center), radius), [center]).ToPayload(), Army.Monsters, unique: false,
                 source: SpriteSource.Model);
         }
 

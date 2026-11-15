@@ -43,14 +43,14 @@ internal sealed class WeaponSystem
 
     private Unit CreateTorso(ObjectDefinition kind, int timer)
     {
-        var torso = new Unit(_world.AllocateNumber(), kind, GetTorsoPosition(kind), 0, 0) { Facing = _world.Player.Facing, Timer = timer };
+        var torso = new Unit(_world.AllocateNumber(), kind, GetTorsoPosition(kind), 0, 0) { Direction = _world.Player.Direction, Timer = timer };
         torso.ChangeAnimation(SpriteAnimation.Stand);
 
         return torso;
     }
 
     private Vector3 GetTorsoPosition(ObjectDefinition kind) =>
-        _world.Player.Position + _world.Player.Kind.Object.GetLinkOffset(kind.Object, null, 0, _world.Player.Facing.Value);
+        _world.Player.Position + _world.Player.Kind.Object.GetLinkOffset(kind.Object, null, 0, _world.Player.Direction);
 
     public void UpdateTorso()
     {
@@ -120,22 +120,22 @@ internal sealed class WeaponSystem
     public void TrackCursor(Vector2 cursor, int elapsed, bool moving)
     {
         var player = _world.Player;
-        var facing = Facing.Aim(new Vector2(cursor.X - player.Position.X, player.Position.Z + cursor.Y - player.Position.Y));
+        var direction = Angle.Aim(new Vector2(cursor.X - player.Position.X, player.Position.Z + cursor.Y - player.Position.Y));
 
         if (!moving && player is { Speed: 0, Kind.Id: KnownObject.PlayerStart })
         {
             if (!_turnsLegs)
             {
-                _turnsLegs = player.Facing.MeasureTurnTo(Torso.Facing) > LegSlack;
+                _turnsLegs = player.Direction.MeasureTurnTo(Torso.Direction) > LegSlack;
             }
             else
             {
-                player.SetFacing(player.Facing.TurnToward(Torso.Facing, player.Kind.Object.RotationPeriod, elapsed, out int remaining));
+                player.SetDirection(player.Direction.TurnToward(Torso.Direction, player.Kind.Object.RotationPeriod, elapsed, out int remaining));
                 _turnsLegs = remaining != 0;
             }
         }
 
-        Torso.SetFacing(Torso.Facing.TurnToward(facing, Torso.Kind.Object.RotationPeriod, elapsed, out _));
+        Torso.SetDirection(Torso.Direction.TurnToward(direction, Torso.Kind.Object.RotationPeriod, elapsed, out _));
     }
 
     [EngineRoutine(0x00454800)]
@@ -159,12 +159,12 @@ internal sealed class WeaponSystem
     {
         if (unit.HasGoal)
         {
-            Fire(unit == Torso ? _world.Player : unit, unit.Kind, unit.GoalPosition, unit.Goal, 0, unit.Position, unit.Facing);
+            Fire(unit == Torso ? _world.Player : unit, unit.Kind, unit.GoalPosition, unit.Goal, 0, unit.Position, unit.Direction);
         }
     }
 
 
-    private void Fire(Unit shooter, ObjectDefinition creator, Vector3 aim, Unit? target, int depth, Vector3? origin = null, Facing? facing = null)
+    private void Fire(Unit shooter, ObjectDefinition creator, Vector3 aim, Unit? target, int depth, Vector3? origin = null, Angle? direction = null)
     {
         var child = _kinds.Find((KnownObject)Math.Abs(creator.Object.Children[(int)SpriteAnimation.Fight]));
 
@@ -178,9 +178,9 @@ internal sealed class WeaponSystem
         var from = origin ?? shooter.Position;
         bool secondPulse = shooter.TakeChildPulse(SpriteAnimation.Fight, creator);
         bool relays = child.Damage <= 0 && child.FightChild != 0;
-        foreach (var spawn in ChildEmission.GetChildren(creator, child, SpriteAnimation.Fight, from, facing ?? shooter.Facing, _rng, secondPulse))
+        foreach (var spawn in ChildEmission.GetChildren(creator, child, SpriteAnimation.Fight, from, direction ?? shooter.Direction, _rng, secondPulse))
         {
-            var unit = relays ? _world.Effects.Spawn(child.Id, spawn.Position, spawn.Facing, _world.Time) : _world.Effects.Launch(child, spawn.Position, spawn.Facing, shooter, _world.Time);
+            var unit = relays ? _world.Effects.Spawn(child.Id, spawn.Position, spawn.Direction, _world.Time) : _world.Effects.Launch(child, spawn.Position, spawn.Direction, shooter, _world.Time);
 
             if (unit is null)
                 continue;
@@ -201,7 +201,7 @@ internal sealed class WeaponSystem
 
             if (relays)
             {
-                Fire(shooter, child, point, target, depth + 1, spawn.Position, spawn.Facing);
+                Fire(shooter, child, point, target, depth + 1, spawn.Position, spawn.Direction);
                 continue;
             }
 

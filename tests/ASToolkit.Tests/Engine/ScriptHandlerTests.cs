@@ -8,7 +8,6 @@ namespace ASToolkit.Tests.Engine;
 
 public class ScriptHandlerTests
 {
-    private const int MonsterArmy = 1;
 
     [Fact]
     public void Step_FreezeBonusTaken_FreezesNearbyMonstersInPlace()
@@ -133,7 +132,7 @@ public class ScriptHandlerTests
 
         Assert.Equal(KnownObject.FrozenSlug, monster.Kind.Id);
         Assert.True(monster.IsAlive);
-        Assert.Equal(MonsterArmy, monster.Army);
+        Assert.Equal(Army.Monsters, monster.Army);
     }
 
     [Fact]
@@ -142,7 +141,7 @@ public class ScriptHandlerTests
         var kinds = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int> { [KnownObject.FreezeRifle] = 100 }, default);
         var world = EngineTestWorld.CreateWorld(kinds, loadout: loadout);
-        var monster = world.AddMonster(kinds.Find(KnownObject.Slug)!, world.Player.Position + new Vector3(250, 0, 0), new Facing(192));
+        var monster = world.AddMonster(kinds.Find(KnownObject.Slug)!, world.Player.Position + new Vector3(250, 0, 0), new Angle(192));
         int slot = KnownObject.FreezeRifle - KnownObject.Shotgun + 2;
         for (int tick = 0; tick < 1500 && monster.Kind.Id != KnownObject.FrozenSlug; tick++)
         {
@@ -159,7 +158,7 @@ public class ScriptHandlerTests
         var kinds = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int> { [KnownObject.FlameThrower] = 1000 }, default);
         var world = EngineTestWorld.CreateWorld(kinds, loadout: loadout);
-        var monster = world.AddMonster(kinds.Find(KnownObject.TankMonster)!, world.Player.Position + new Vector3(120, 0, 0), new Facing(192));
+        var monster = world.AddMonster(kinds.Find(KnownObject.TankMonster)!, world.Player.Position + new Vector3(120, 0, 0), new Angle(192));
         int health = monster.Hp;
         int slot = KnownObject.FlameThrower - KnownObject.Shotgun + 2;
         for (int tick = 0; tick < 100; tick++)

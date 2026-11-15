@@ -3,9 +3,9 @@ using ASToolkit.Core.Formats;
 namespace ASToolkit.Core.Levels;
 
 /// <summary>
-/// Represents the facings the original levels give each decor object against each side of a wall and on open floor.
+/// Represents the directions the original levels give each decor object against each side of a wall and on open floor.
 /// </summary>
-public sealed class FacingTable
+public sealed class DirectionTable
 {
     private const float FloorHeight = 5;
     private const int MinSamples = 5;
@@ -19,16 +19,16 @@ public sealed class FacingTable
     private const float WallShare = 0.9f;
 
     private readonly ObjectTable _objects;
-    private readonly Dictionary<(KnownObject Id, WallSides Side), List<byte>> _dirs;
+    private readonly Dictionary<(KnownObject Id, WallSides Side), List<Angle>> _dirs;
     private readonly Dictionary<(KnownObject Id, WallSides Side), Dictionary<int, int>> _frames;
-    private readonly Dictionary<KnownObject, List<byte>> _open;
+    private readonly Dictionary<KnownObject, List<Angle>> _open;
     private readonly IReadOnlySet<(KnownObject Id, int Frame)> _leaning;
     private readonly Dictionary<(KnownObject Id, WallSides Side, int Frame), List<(float Distance, float Z)>> _placements;
     private readonly Dictionary<(KnownObject Id, WallSides Side, int Frame), (float Min, float Max, int Count)> _distances;
     private readonly Dictionary<(KnownObject Id, WallSides Side), float> _lowDistances;
     private readonly Dictionary<KnownObject, float> _wallReaches;
 
-    private FacingTable(ObjectTable objects, Dictionary<(KnownObject, WallSides), List<byte>> dirs, Dictionary<KnownObject, List<byte>> open,
+    private DirectionTable(ObjectTable objects, Dictionary<(KnownObject, WallSides), List<Angle>> dirs, Dictionary<KnownObject, List<Angle>> open,
         IReadOnlySet<(KnownObject, int)> leaning, Dictionary<(KnownObject, WallSides, int), List<(float, float)>> placements)
     {
         _distances = placements.ToDictionary(p => p.Key, p => (p.Value.Min(m => m.Item1), p.Value.Max(m => m.Item1), p.Value.Count));
@@ -58,12 +58,12 @@ public sealed class FacingTable
     }
 
     /// <summary>
-    /// Records the facing and wall distance of every decor object standing on the floor or hanging on a wall in the given levels.
+    /// Records the direction and wall distance of every decor object standing on the floor or hanging on a wall in the given levels.
     /// </summary>
-    public static FacingTable Build(IEnumerable<LevelModel> models, ObjectTable objects, IReadOnlySet<(KnownObject Id, int Frame)> leaning)
+    public static DirectionTable Build(IEnumerable<LevelModel> models, ObjectTable objects, IReadOnlySet<(KnownObject Id, int Frame)> leaning)
     {
-        var dirs = new Dictionary<(KnownObject, WallSides), List<byte>>();
-        var open = new Dictionary<KnownObject, List<byte>>();
+        var dirs = new Dictionary<(KnownObject, WallSides), List<Angle>>();
+        var open = new Dictionary<KnownObject, List<Angle>>();
         var placements = new Dictionary<(KnownObject, WallSides, int), List<(float, float)>>();
         foreach (var model in models)
         {
@@ -72,11 +72,11 @@ public sealed class FacingTable
                 var wall = model.Edges.FindNearestWall(levelObject.U, levelObject.V);
                 if (wall.HasValue)
                 {
-                    Add(dirs, (levelObject.Id, wall.Value.Side), levelObject.Dir);
+                    Add(dirs, (levelObject.Id, wall.Value.Side), levelObject.Direction);
                     if (!objects.TryFind(levelObject.Id, out var obj))
                         continue;
                     
-                    var key = (levelObject.Id, wall.Value.Side, obj.FramesPerDirection > 0 ? obj.GetFrame(levelObject.Dir, int.MaxValue) : 0);
+                    var key = (levelObject.Id, wall.Value.Side, obj.FramesPerDirection > 0 ? obj.GetFrame(levelObject.Direction, int.MaxValue) : 0);
                     if (!placements.TryGetValue(key, out var list))
                     {
                         list = [];
@@ -87,12 +87,12 @@ public sealed class FacingTable
                 }
                 else
                 {
-                    Add(open, levelObject.Id, levelObject.Dir);
+                    Add(open, levelObject.Id, levelObject.Direction);
                 }
             }
         }
 
-        return new FacingTable(objects, dirs, open, leaning, placements);
+        return new DirectionTable(objects, dirs, open, leaning, placements);
     }
 
     /// <summary>
@@ -108,7 +108,7 @@ public sealed class FacingTable
                 if (!objects.TryFind(levelObject.Id, out var obj) || obj.FramesPerDirection == 0)
                     continue;
 
-                var key = (levelObject.Id, obj.GetFrame(levelObject.Dir, int.MaxValue));
+                var key = (levelObject.Id, obj.GetFrame(levelObject.Direction, int.MaxValue));
                 (int total, int near) = counts.GetValueOrDefault(key);
                 bool leans = model.Edges.FindNearestWall(levelObject.U, levelObject.V) is { Distance: < LeanDistance };
                 counts[key] = (total + 1, near + (leans ? 1 : 0));
@@ -135,15 +135,15 @@ public sealed class FacingTable
     }
 
     /// <summary>
-    /// Returns whether an object with a facing at a point faces as the originals turn it against the nearest wall, stands off that
+    /// Returns whether an object with a direction at a point faces as the originals turn it against the nearest wall, stands off that
     /// wall as they stand it when it is solid, and whether a frame they mostly lean on a wall has one to lean on.
     /// </summary>
-    public bool Fits(KnownObject id, byte dir, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v) => Fits(id, dir, edges.FindNearestWall(u, v));
+    public bool Fits(KnownObject id, Angle dir, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v) => Fits(id, dir, edges.FindNearestWall(u, v));
 
     /// <summary>
-    /// Returns whether an object with a facing fits against the nearest wall given as its side and distance, or null for none.
+    /// Returns whether an object with a direction fits against the nearest wall given as its side and distance, or null for none.
     /// </summary>
-    public bool Fits(KnownObject id, byte dir, (WallSides Side, float Distance)? wall)
+    public bool Fits(KnownObject id, Angle dir, (WallSides Side, float Distance)? wall)
     {
         if (!_objects.TryFind(id, out var obj) || obj.FramesPerDirection == 0)
         {
@@ -180,12 +180,12 @@ public sealed class FacingTable
     /// Returns whether a wall-mounted object hangs on a wall side, with a frame, distance and height that one of the originals
     /// gives it, and with no doorway nearer than that wall.
     /// </summary>
-    public bool Hangs(KnownObject id, byte dir, float z, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v) => Hangs(id, dir, z, edges.FindNearestWall(u, v), edges, u, v);
+    public bool Hangs(KnownObject id, Angle dir, float z, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v) => Hangs(id, dir, z, edges.FindNearestWall(u, v), edges, u, v);
 
     /// <summary>
     /// Returns whether a wall-mounted object hangs on the nearest wall given as its side and distance, with no doorway of the edges nearer.
     /// </summary>
-    public bool Hangs(KnownObject id, byte dir, float z, (WallSides Side, float Distance)? wall, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v)
+    public bool Hangs(KnownObject id, Angle dir, float z, (WallSides Side, float Distance)? wall, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v)
     {
         if (!wall.HasValue || edges.FindNearestEdge(u, v)?.Distance < wall.Value.Distance || !_objects.TryFind(id, out var obj))
         {
@@ -198,16 +198,16 @@ public sealed class FacingTable
     }
 
     /// <summary>
-    /// Returns whether the originals give an object with a facing at a point that frame at least one time in twenty against the
+    /// Returns whether the originals give an object with a direction at a point that frame at least one time in twenty against the
     /// same side of a wall.
     /// </summary>
-    public bool IsCommon(KnownObject id, byte dir, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v) => IsCommon(id, dir, edges.FindNearestWall(u, v));
+    public bool IsCommon(KnownObject id, Angle dir, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v) => IsCommon(id, dir, edges.FindNearestWall(u, v));
 
     /// <summary>
     /// Returns whether the originals give an object that frame at least one time in twenty against the nearest wall given as its side and
     /// distance, or null for none.
     /// </summary>
-    public bool IsCommon(KnownObject id, byte dir, (WallSides Side, float Distance)? wall)
+    public bool IsCommon(KnownObject id, Angle dir, (WallSides Side, float Distance)? wall)
     {
         if (!wall.HasValue || !_objects.TryFind(id, out var obj) || obj.FramesPerDirection == 0 || !_frames.TryGetValue((id, wall.Value.Side), out var frames))
         {
@@ -219,23 +219,23 @@ public sealed class FacingTable
     }
 
     /// <summary>
-    /// Returns a facing the originals give an object in a like spot, drawn by how often they give it, or any fitting facing
+    /// Returns a direction the originals give an object in a like spot, drawn by how often they give it, or any fitting direction
     /// when they have none.
     /// </summary>
-    public byte PickFacing(Random rng, KnownObject id, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v)
+    public Angle PickDirection(Random rng, KnownObject id, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v)
     {
         var wall = edges.FindNearestWall(u, v);
         var seen = (wall.HasValue ? _dirs.GetValueOrDefault((id, wall.Value.Side)) : _open.GetValueOrDefault(id)) ?? [];
         Span<sbyte> passes = stackalloc sbyte[256];
         int count = 0;
-        foreach (byte dir in seen)
+        foreach (var dir in seen)
         {
-            if (passes[dir] == 0)
+            if (passes[dir.Value] == 0)
             {
-                passes[dir] = (sbyte)(Fits(id, dir, wall) && IsCommon(id, dir, wall) ? 1 : -1);
+                passes[dir.Value] = (sbyte)(Fits(id, dir, wall) && IsCommon(id, dir, wall) ? 1 : -1);
             }
 
-            if (passes[dir] > 0)
+            if (passes[dir.Value] > 0)
             {
                 count++;
             }
@@ -244,31 +244,31 @@ public sealed class FacingTable
         if (count > 0)
         {
             int pick = rng.Next(count);
-            foreach (byte dir in seen)
+            foreach (var dir in seen)
             {
-                if (passes[dir] > 0 && pick-- == 0)
+                if (passes[dir.Value] > 0 && pick-- == 0)
                 {
                     return dir;
                 }
             }
         }
 
-        byte[] dirs = [];
+        Angle[] dirs = [];
         if (_objects.TryFind(id, out var obj) && obj.Directions > 0)
         {
             dirs = Enumerable.Range(0, obj.Directions)
-                .Select(i => (byte)(i * 256 / obj.Directions))
+                .Select(i => new Angle((byte)(i * 256 / obj.Directions)))
                 .Where(d => Fits(id, d, wall))
                 .ToArray();
         }
 
-        return dirs.Length > 0 ? dirs[rng.Next(dirs.Length)] : (byte)rng.Next(256);
+        return dirs.Length > 0 ? dirs[rng.Next(dirs.Length)] : rng.NextAngle();
     }
 
     /// <summary>
-    /// Returns a value indicating whether the originals support a facing for the object in that spot.
+    /// Returns a value indicating whether the originals support a direction for the object in that spot.
     /// </summary>
-    public bool HasFacing(KnownObject id, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v)
+    public bool HasDirection(KnownObject id, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v)
     {
         var wall = edges.FindNearestWall(u, v);
         var seen = (wall.HasValue ? _dirs.GetValueOrDefault((id, wall.Value.Side)) : _open.GetValueOrDefault(id)) ?? [];
@@ -278,10 +278,10 @@ public sealed class FacingTable
         }
 
         return _objects.TryFind(id, out var obj) && obj.Directions > 0
-            && Enumerable.Range(0, obj.Directions).Select(i => (byte)(i * 256 / obj.Directions)).Any(d => Fits(id, d, wall));
+            && Enumerable.Range(0, obj.Directions).Select(i => new Angle((byte)(i * 256 / obj.Directions))).Any(d => Fits(id, d, wall));
     }
 
-    private static void Add<TKey>(Dictionary<TKey, List<byte>> lists, TKey key, byte dir)
+    private static void Add<TKey>(Dictionary<TKey, List<Angle>> lists, TKey key, Angle dir)
         where TKey : notnull
     {
         if (!lists.TryGetValue(key, out var list))

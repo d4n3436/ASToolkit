@@ -39,7 +39,7 @@ public sealed class SpritePartReader
         {
             string path = _objects.GetPath(id);
             var file = GetFile(path);
-            int frame = file is null || file.Value.FrameCount == 0 ? 0 : obj.GetFrame(sprite.Facing, file.Value.FrameCount);
+            int frame = file is null || file.Value.FrameCount == 0 ? 0 : obj.GetFrame(sprite.Direction, file.Value.FrameCount);
             yield return new SpritePart(id, obj, path, file is null || file.Value.FrameCount == 0 ? null : file, frame, position, scale);
 
             if (obj.Link == 0 || !_objects.TryFind(obj.Link, out var linked))
@@ -47,7 +47,7 @@ public sealed class SpritePartReader
                 yield break;
             }
 
-            position += obj.GetLinkOffset(linked, file, frame, sprite.Facing);
+            position += obj.GetLinkOffset(linked, file, frame, sprite.Direction);
             scale = Vector3.One;
             id = obj.Link;
         }

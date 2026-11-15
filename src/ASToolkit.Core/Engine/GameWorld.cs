@@ -8,8 +8,6 @@ namespace ASToolkit.Core.Engine;
 
 internal sealed partial class GameWorld
 {
-    private const int PlayerArmy = 0;
-    public const int MonsterArmy = 1;
     private const float PickupReach = 60;
     private const float HealingEffectHeight = 60;
     private const float AmmoReach = 50;
@@ -69,9 +67,9 @@ internal sealed partial class GameWorld
         Effects = new SpawnedObjectSystem(kinds, Movement, rng, this);
         int maxHealth = loadout.Implants.ScaleHealth(legs.MaxHp);
         var start = model.Sprites.FirstOrDefault(sprite => sprite.Id is KnownObject.PlayerStart or KnownObject.PlayerStartFemaleLegs);
-        Player = new Unit(_unitCount++, legs, start?.Position ?? new Vector3(data.FallbackStart, 0), PlayerArmy, maxHealth)
+        Player = new Unit(_unitCount++, legs, start?.Position ?? new Vector3(data.FallbackStart, 0), Army.Player, maxHealth)
         { CreatedAt = 0 };
-        Player.Start(legs.InitialAnimation, new Facing(start?.Facing ?? 0), 0, rng);
+        Player.Start(legs.InitialAnimation, start?.Direction ?? default, 0, rng);
         _respawnPosition = Player.Position;
         Inventory = new PlayerInventory(kinds, data.AmmoBatches, Player, loadout);
         Weapons = new WeaponSystem(this, Inventory, kinds, rng);
@@ -101,13 +99,13 @@ internal sealed partial class GameWorld
             {
                 if (sprite.Id != KnownObject.Crate && kind.Object.SpriteClass is SpriteClass.Unit or SpriteClass.Avia)
                 {
-                    placedUnits[sprite.Handle] = AddMonster(kind, sprite.Position, new Facing(sprite.Facing), unchecked((int)sprite.Army), KnownObject.GetCrateItem(sprite.Payload));
+                    placedUnits[sprite.Handle] = AddMonster(kind, sprite.Position, sprite.Direction, sprite.Army, KnownObject.GetCrateItem(sprite.Payload));
                 }
                 else if (kind.Object.SpriteClass != SpriteClass.Man)
                 {
-                    var body = new Unit(_unitCount++, kind, sprite.Position, unchecked((int)sprite.Army), kind.MaxHp)
+                    var body = new Unit(_unitCount++, kind, sprite.Position, sprite.Army, kind.MaxHp)
                     {
-                        Facing = new Facing(sprite.Facing), Placement = sprite,
+                        Direction = sprite.Direction, Placement = sprite,
                         DropItem = KnownObject.GetCrateItem(sprite.Payload)
                     };
                     
@@ -128,7 +126,7 @@ internal sealed partial class GameWorld
 
             if (sprite.Id.IsScripted)
             {
-                AddScripted(kind, sprite.Position, new Facing(sprite.Facing), unchecked((int)sprite.Army), sprite);
+                AddScripted(kind, sprite.Position, sprite.Direction, sprite.Army, sprite);
             }
             else
             {
@@ -143,7 +141,7 @@ internal sealed partial class GameWorld
             if (!SpriteProgram.TryParse(sprite.Payload, false, out var program))
                 continue;
 
-            var objectProgram = new ObjectProgram(kind, sprite.Position, new Facing(sprite.Facing), program.GetStack(0).ToArray(), _rng, this, sprite);
+            var objectProgram = new ObjectProgram(kind, sprite.Position, sprite.Direction, program.GetStack(0).ToArray(), _rng, this, sprite);
             _programs.Add(objectProgram);
             _updates.Add(kind.Layer, new UpdateEntry(UpdateRole.Program, null, objectProgram));
         }
@@ -189,7 +187,7 @@ internal sealed partial class GameWorld
 
     private void AddPlacedCannon(MergedMapSprite sprite)
     {
-        Effects.Spawn(sprite.Id, sprite.Position, new Facing(sprite.Facing), Time);
+        Effects.Spawn(sprite.Id, sprite.Position, sprite.Direction, Time);
     }
 
     public PlayerInventory Inventory { get; }
@@ -391,16 +389,16 @@ internal sealed partial class GameWorld
 
         if (kind.MaxHp > 0)
         {
-            var unit = AddMonster(kind, position, program.Facing);
+            var unit = AddMonster(kind, position, program.Direction);
             unit.Orders = program.Orders;
         }
         else if (kind.Id.IsEndlessGenerator)
         {
-            AddScripted(kind, position, program.Facing);
+            AddScripted(kind, position, program.Direction);
         }
         else
         {
-            Effects.Spawn(kind.Id, position, program.Facing, Time);
+            Effects.Spawn(kind.Id, position, program.Direction, Time);
         }
 
 
@@ -414,7 +412,7 @@ internal sealed partial class GameWorld
             RemovePlacement(program.Placement);
         }
 
-        Effects.Play(program.Kind, animation, program.Position, program.Facing, Time);
+        Effects.Play(program.Kind, animation, program.Position, program.Direction, Time);
     }
 
     private bool TickMonster(Unit unit)
@@ -650,7 +648,7 @@ internal sealed partial class GameWorld
         if (child is null || !child.Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke) || Time - Time % unit.StreamPeriod <= Time - FrameTime)
             return;
 
-        var velocity = UnitKinematics.Displace(Vector3.Zero, unit.Facing, unit.Speed, 1);
+        var velocity = UnitKinematics.Displace(Vector3.Zero, unit.Direction, unit.Speed, 1);
         float across = velocity.X;
         float down = velocity.Y + unit.VerticalSpeed - child.ZSpeed;
         float acrossPeriod = across.IsZero() ? MaxStreamPeriod : child.Object.Size.X / Math.Abs(across);
@@ -668,7 +666,7 @@ internal sealed partial class GameWorld
 
     [EngineRoutine(0x00446430)]
     public void EmitChildrenAs(Unit unit, SpriteAnimation state) =>
-        Effects.Emit(unit.Kind, state, unit.Position, unit.Facing, Time, unit.Depth, unit.TakeChildPulse(state), unit);
+        Effects.Emit(unit.Kind, state, unit.Position, unit.Direction, Time, unit.Depth, unit.TakeChildPulse(state), unit);
 
     [EngineRoutine(0x00444dd0)]
     private void EmitStateChildren(Unit unit)
@@ -735,7 +733,7 @@ internal sealed partial class GameWorld
                 var kind = Kinds.Find(KnownObject.RescueMedkitEffect)!;
                 int duration = kind.GetVisualFrameDuration(SpriteAnimation.Death);
                 _protectedUntil = GetNextAnimationTick(duration) + (kind.GetVisualFrameCount(SpriteAnimation.Death) - 1) * duration;
-                Effects.Spawn(kind.Id, unit.Position + Vector3.UnitZ * RescueEffectHeight, unit.Facing, Time, unit);
+                Effects.Spawn(kind.Id, unit.Position + Vector3.UnitZ * RescueEffectHeight, unit.Direction, Time, unit);
 
                 return;
             }
@@ -822,7 +820,7 @@ internal sealed partial class GameWorld
         }
 
         Effects.Spawn(KnownObject.InvulnerabilityEffect, Player.Position + Vector3.UnitZ * ProtectionEffectHeight,
-            Player.Facing, Time, Player, RespawnProtection);
+            Player.Direction, Time, Player, RespawnProtection);
     }
 
     private void AddToMonsters(Unit unit)
@@ -861,13 +859,13 @@ internal sealed partial class GameWorld
             if (kind is not null)
             {
                 _rng.Next(1);
-                var facing = new Facing((byte)_rng.Next(Facing.FullTurn));
+                var direction = new Angle((byte)_rng.Next(Angle.FullTurn));
                 float height = unit.Position.Z + (unit.Kind.Id == KnownObject.Flyer ? FlyerItemHeight : DroppedItemHeight);
                 var body = new Unit(-1, kind, unit.Position with { Z = height }, 0, 0);
-                body.Start(kind.InitialAnimation, facing, Time, _rng);
+                body.Start(kind.InitialAnimation, direction, Time, _rng);
                 CreateLink(body);
                 int expires = Time + DroppedItemLifetime + _rng.Next(DroppedItemLifetimeVariation + 1);
-                _pickups.Add(new WorldPickup(kind, body.Position, null, Time, expires, facing, body));
+                _pickups.Add(new WorldPickup(kind, body.Position, null, Time, expires, direction, body));
             }
         }
 
@@ -917,12 +915,12 @@ internal sealed partial class GameWorld
                     int lifetime = Kinds.Find(KnownObject.InvulnerabilityEffect)!.Object.Lifetime;
                     _protectedUntil = Time + lifetime;
                     Effects.Spawn(KnownObject.InvulnerabilityEffect, Player.Position + Vector3.UnitZ * ProtectionEffectHeight,
-                        Player.Facing, Time, Player);
+                        Player.Direction, Time, Player);
                 }
 
                 if (pickup.Id is KnownObject.Health or KnownObject.BigHealth or KnownObject.MegaHealth)
                 {
-                    Effects.Spawn(KnownObject.HealingEffect, Player.Position + Vector3.UnitZ * HealingEffectHeight, Player.Facing, Time);
+                    Effects.Spawn(KnownObject.HealingEffect, Player.Position + Vector3.UnitZ * HealingEffectHeight, Player.Direction, Time);
                 }
             }
         }
@@ -960,16 +958,16 @@ internal sealed partial class GameWorld
         }
     }
 
-    public Unit AddMonster(ObjectDefinition kind, Vector3 position, Facing facing = default, int army = MonsterArmy, KnownObject dropItem = 0)
+    public Unit AddMonster(ObjectDefinition kind, Vector3 position, Angle direction = default, Army army = Army.Monsters, KnownObject dropItem = 0)
     {
         var unit = new Unit(_unitCount++, kind, position, army, kind.MaxHp)
         { DropItem = dropItem, CreatedAt = Time };
         var state = kind.InitialAnimation;
-        unit.Start(state, facing, Time, _rng);
+        unit.Start(state, direction, Time, _rng);
 
         if (state != SpriteAnimation.Birth)
         {
-            Effects.Emit(kind, SpriteAnimation.Birth, unit.Position, unit.Facing, Time);
+            Effects.Emit(kind, SpriteAnimation.Birth, unit.Position, unit.Direction, Time);
         }
 
         RunCreationHook(unit);
@@ -988,7 +986,7 @@ internal sealed partial class GameWorld
     {
         if (kind.Id.IsScripted)
         {
-            var scripted = AddScripted(kind, GetLinkPosition(unit, kind), unit.Facing, unit.Army);
+            var scripted = AddScripted(kind, GetLinkPosition(unit, kind), unit.Direction, unit.Army);
             scripted.Owner = unit;
             unit.Link = scripted;
 
@@ -996,7 +994,7 @@ internal sealed partial class GameWorld
         }
 
         var link = new Unit(_unitCount++, kind, GetLinkPosition(unit, kind), unit.Army, kind.MaxHp) { Owner = unit, CreatedAt = Time };
-        link.Start(kind.InitialAnimation, unit.Facing, Time, _rng);
+        link.Start(kind.InitialAnimation, unit.Direction, Time, _rng);
         unit.Link = link;
 
         if (kind.Object.SpriteClass == SpriteClass.Creature)
@@ -1015,7 +1013,7 @@ internal sealed partial class GameWorld
     }
 
     private static Vector3 GetLinkPosition(Unit owner, ObjectDefinition kind) =>
-        owner.Position + owner.Kind.Object.GetLinkOffset(kind.Object, null, 0, owner.Facing.Value);
+        owner.Position + owner.Kind.Object.GetLinkOffset(kind.Object, null, 0, owner.Direction);
 
     [EngineRoutine(0x0042da30)]
     private bool IsFree(ObjectDefinition kind, Vector3 position) => Movement.IsAboveGround(kind.Object, position) && !Projectiles.IsOccupied(kind, position);

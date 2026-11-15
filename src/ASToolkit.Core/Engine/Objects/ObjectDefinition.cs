@@ -70,7 +70,7 @@ internal sealed class ObjectDefinition
 
     public WeaponBehavior Behavior { get; }
 
-    public int Army { get; }
+    public Army Army { get; }
 
     public int Rank { get; }
 

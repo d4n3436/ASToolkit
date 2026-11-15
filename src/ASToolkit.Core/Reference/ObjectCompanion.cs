@@ -25,7 +25,7 @@ public sealed class ObjectCompanion
     /// <summary>
     /// Draws as many of the companion object as its rate gives for one anchor object, each as a different one of those lying by an anchor of the nearest facing.
     /// </summary>
-    public AnchorSample[] Draw(Random rng, byte anchorFacing)
+    public AnchorSample[] Draw(Random rng, Angle anchorDirection)
     {
         int count = (int)Rate + (rng.NextSingle() < Rate % 1 ? 1 : 0);
         if (count == 0)
@@ -33,8 +33,8 @@ public sealed class ObjectCompanion
             return [];
         }
 
-        int nearest = Samples.Min(sample => GetTurn(sample.AnchorFacing, anchorFacing));
-        var samples = Samples.Where(sample => GetTurn(sample.AnchorFacing, anchorFacing) == nearest).ToArray();
+        int nearest = Samples.Min(sample => GetTurn(sample.AnchorDirection, anchorDirection));
+        var samples = Samples.Where(sample => GetTurn(sample.AnchorDirection, anchorDirection) == nearest).ToArray();
         for (int index = 0; index < Math.Min(count, samples.Length); index++)
         {
             int pick = rng.Next(index, samples.Length);
@@ -44,5 +44,5 @@ public sealed class ObjectCompanion
         return samples.Take(count).ToArray();
     }
 
-    private static int GetTurn(byte facing, byte other) => Math.Min(Math.Abs(facing - other), 256 - Math.Abs(facing - other));
+    private static int GetTurn(Angle direction, Angle other) => direction.MeasureTurnTo(other);
 }

@@ -1,3 +1,4 @@
+using ASToolkit.Core.Formats;
 using System.Numerics;
 
 namespace ASToolkit.Core.Engine;
@@ -45,7 +46,7 @@ internal sealed class PlayerMovement
 
         player.Speed = UnitKinematics.Accelerate(player.Kind, player.Speed, maxSpeed, player.Moving, elapsed);
         var start = player.Position;
-        var next = player.Speed.IsZero() ? start : UnitKinematics.Displace(start, player.Facing, player.Speed, elapsed);
+        var next = player.Speed.IsZero() ? start : UnitKinematics.Displace(start, player.Direction, player.Speed, elapsed);
 
         if (target is not null && player.Moving)
         {
@@ -59,9 +60,9 @@ internal sealed class PlayerMovement
 
         if (target is not null && player.Moving)
         {
-            var facing = Facing.FromOffset(target.Value - player.Position.AsVector2());
-            facing = _movement.AvoidObstacles(facing, player);
-            player.SetFacing(player.Facing.TurnToward(facing, obj.RotationPeriod, elapsed, out _));
+            var direction = Angle.FromOffset(target.Value - player.Position.AsVector2());
+            direction = _movement.AvoidObstacles(direction, player);
+            player.SetDirection(player.Direction.TurnToward(direction, obj.RotationPeriod, elapsed, out _));
 
             if (player is { ReachedX: true, ReachedY: true } || HasReached(player, target.Value))
             {

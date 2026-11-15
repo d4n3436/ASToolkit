@@ -220,7 +220,7 @@ public sealed class PlacementContext
     /// <summary>
     /// Places an object on a free spot of one of the cells and returns its position and cell, or null when no cell has room.
     /// </summary>
-    public (PointF Point, Cell Cell)? Place(IReadOnlyList<Cell> cells, KnownObject id, int? dir, ReadOnlyMemory<byte> payload = default, uint? army = null, bool take = true)
+    public (PointF Point, Cell Cell)? Place(IReadOnlyList<Cell> cells, KnownObject id, Angle? dir, ReadOnlyMemory<byte> payload = default, Army? army = null, bool take = true)
     {
         if (cells.Count == 0)
         {
@@ -245,7 +245,7 @@ public sealed class PlacementContext
                 Taken.Add(cells[cellIndex]);
             }
 
-            Map.Add(id, spot.Value.X, spot.Value.Y, z, dir ?? Rng.Next(256), payload, army, unique: false);
+            Map.Add(id, spot.Value.X, spot.Value.Y, z, dir ?? Rng.NextAngle(), payload, army, unique: false);
             ShadePickup(id, spot.Value.X, spot.Value.Y);
             return (spot.Value, cells[cellIndex]);
         }

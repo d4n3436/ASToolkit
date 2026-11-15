@@ -48,7 +48,7 @@ public sealed class RouteElement
     /// <summary>
     /// Gets the facing the map places the element with.
     /// </summary>
-    public required byte Facing { get; init; }
+    public required Angle Direction { get; init; }
 
     /// <summary>
     /// Gets the pickup category, or the category of a crate's content.

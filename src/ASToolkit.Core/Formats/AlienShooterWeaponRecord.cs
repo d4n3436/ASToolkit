@@ -39,7 +39,7 @@ internal readonly struct AlienShooterWeaponRecord
     public readonly int Ammo;
 
     [FieldOffset(44)]
-    public readonly int Army;
+    public readonly Army Army;
 
     [FieldOffset(48)]
     public readonly WeaponBehavior Behavior;

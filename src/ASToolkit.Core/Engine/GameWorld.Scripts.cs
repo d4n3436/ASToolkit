@@ -114,7 +114,7 @@ internal sealed partial class GameWorld
         if ((!hashed && kind.Object.Link == 0) || kind.Object.SpriteClass is SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man or SpriteClass.Cannon)
             return;
 
-        var stand = new Unit(-1, kind, sprite.Position, unchecked((int)sprite.Army), 0) { Placement = sprite, Facing = new Facing(sprite.Facing) };
+        var stand = new Unit(-1, kind, sprite.Position, sprite.Army, 0) { Placement = sprite, Direction = sprite.Direction };
         _statics[sprite] = stand;
 
         if (hashed)
@@ -125,10 +125,10 @@ internal sealed partial class GameWorld
         CreateLink(stand);
     }
 
-    private Unit AddScripted(ObjectDefinition kind, Vector3 position, Facing facing, int? army = null, MergedMapSprite? placement = null)
+    private Unit AddScripted(ObjectDefinition kind, Vector3 position, Angle direction, Army? army = null, MergedMapSprite? placement = null)
     {
         var unit = new Unit(-1, kind, position, army ?? Kinds.GetArmy(kind), 0) { Placement = placement, CreatedAt = Time };
-        unit.Start(kind.InitialAnimation, facing, Time, _rng);
+        unit.Start(kind.InitialAnimation, direction, Time, _rng);
         _scripted.Add(unit);
         Register(UpdateRole.Scripted, unit);
         Units.Add(unit);
@@ -375,7 +375,7 @@ internal sealed partial class GameWorld
 
         foreach (var unit in _monsters)
         {
-            if (unit.Army == MonsterArmy && MonsterIdSet.Contains(unit.Kind.Id))
+            if (unit.Army == Army.Monsters && MonsterIdSet.Contains(unit.Kind.Id))
                 return;
         }
 
@@ -465,7 +465,7 @@ internal sealed partial class GameWorld
         if (SizeTo(Player.Position, breaker.Position.AsVector2()) >= SwitchReach)
             return;
 
-        CreateSprite(KnownObject.BreakerOn, breaker.Position, breaker.Facing);
+        CreateSprite(KnownObject.BreakerOn, breaker.Position, breaker.Direction);
         breaker.ChangeAnimation(SpriteAnimation.Death);
         OpenDoors();
         foreach (var sprite in _sprites)
@@ -542,7 +542,7 @@ internal sealed partial class GameWorld
 
             bool listed = program.Kind.Id is KnownObject.Spawner or KnownObject.TeleportPad || program.Kind.Id.IsEndlessGenerator;
 
-            if (!listed && !(program.Placement is { Army: MonsterArmy } && IsInChargeReach(charge, program.Position)))
+            if (!listed && !(program.Placement is { Army: Army.Monsters } && IsInChargeReach(charge, program.Position)))
                 continue;
 
             program.Stop();
@@ -559,9 +559,9 @@ internal sealed partial class GameWorld
 
             if (sprite.Id is KnownObject.SmallMonsterHole or KnownObject.BigMonsterHole)
             {
-                CreateSprite(KnownObject.RubblePile, sprite.Position, new Facing(sprite.Facing));
+                CreateSprite(KnownObject.RubblePile, sprite.Position, sprite.Direction);
             }
-            else if (sprite.Army == MonsterArmy && !owned.Contains(sprite) && IsInChargeReach(charge, GetPlacementPosition(sprite)))
+            else if (sprite.Army == Army.Monsters && !owned.Contains(sprite) && IsInChargeReach(charge, GetPlacementPosition(sprite)))
             {
                 KillPlacement(sprite);
             }
@@ -569,7 +569,7 @@ internal sealed partial class GameWorld
 
         for (var unit = Units.First(center - new Vector2(ChargeBox), center + new Vector2(ChargeBox)); unit is not null; unit = Units.Next())
         {
-            if (unit is { IsAlive: true, Army: MonsterArmy } &&
+            if (unit is { IsAlive: true, Army: Army.Monsters } &&
                 SizeTo(charge.Position, unit.Position.AsVector2()) < MonsterChargeReach)
             {
                 unit.Hp = 0;
@@ -684,9 +684,9 @@ internal sealed partial class GameWorld
     }
 
     [ScriptFunction("CreateSprite")]
-    private MergedMapSprite CreateSprite(KnownObject id, Vector3 position, Facing facing)
+    private MergedMapSprite CreateSprite(KnownObject id, Vector3 position, Angle direction)
     {
-        var sprite = new MergedMapSprite(0, id, position, facing.Value, 0, []);
+        var sprite = new MergedMapSprite(0, id, position, direction, Army.Player, []);
         _sprites.Add(sprite);
 
         Kinds.AddTerrain(Movement, sprite);
@@ -696,7 +696,7 @@ internal sealed partial class GameWorld
 
         if (kind is not null && id.IsScripted)
         {
-            AddScripted(kind, position, facing, placement: sprite);
+            AddScripted(kind, position, direction, placement: sprite);
         }
         else if (kind is not null)
         {
@@ -722,7 +722,7 @@ internal sealed partial class GameWorld
         Player.Speed = 0;
         PlayerMovement.Reset();
         Player.ChangeKind(Kinds.Find(KnownObject.MannedCannon)!);
-        Player.SetFacing(cannon.Facing);
+        Player.SetDirection(cannon.Direction);
         Player.Hp *= MannedHealthScale;
         Units.ChangeCoor(Player);
         cannon.ChangeAnimation(SpriteAnimation.Death);
@@ -734,7 +734,7 @@ internal sealed partial class GameWorld
         if (!IsInCannon || !_movesPlayer || GetTime() - _mountedAt <= DismountDelay)
             return;
 
-        CreateSprite(KnownObject.MountedCannon, Player.Position, Weapons.Torso.Facing);
+        CreateSprite(KnownObject.MountedCannon, Player.Position, Weapons.Torso.Direction);
         _mountedAt = -1;
         Player.ChangeKind(Kinds.Find(KnownObject.PlayerStart)!);
         Player.Position += DismountStep;
@@ -747,10 +747,10 @@ internal sealed partial class GameWorld
     [ScriptFunction("F350_15")]
     private void EjectFromCannon()
     {
-        var facing = Weapons.Torso.Facing;
-        CreateSprite(KnownObject.MountedCannon, Player.Position, facing);
+        var direction = Weapons.Torso.Direction;
+        CreateSprite(KnownObject.MountedCannon, Player.Position, direction);
         _mountedAt = -1;
-        float angle = facing.Value * MathF.Tau / Facing.FullTurn;
+        float angle = direction.Value * MathF.Tau / Angle.FullTurn;
         int ejectX = (int)(MathF.Sin(angle) * SineScale) / EjectDivisor;
         int ejectY = -(int)(MathF.Cos(angle) * SineScale) / EjectDivisor;
         Player.Position += new Vector3(ejectX, ejectY, 0);
@@ -769,7 +769,7 @@ internal sealed partial class GameWorld
             if (sprite.Id != from || _removed.Contains(sprite))
                 continue;
 
-            CreateSprite(to, GetPlacementPosition(sprite), new Facing(sprite.Facing));
+            CreateSprite(to, GetPlacementPosition(sprite), sprite.Direction);
             Destroy(sprite);
         }
     }
@@ -847,7 +847,7 @@ internal sealed partial class GameWorld
         if (kind is null || kind.Object.SpriteClass is SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man)
             return;
 
-        Effects.Play(kind, SpriteAnimation.Death, GetPlacementPosition(sprite), new Facing(sprite.Facing), Time);
+        Effects.Play(kind, SpriteAnimation.Death, GetPlacementPosition(sprite), sprite.Direction, Time);
         RemoveSprite(sprite);
     }
 
@@ -862,7 +862,7 @@ internal sealed partial class GameWorld
         for (var unit = Units.First(center - new Vector2(FreezeBulletReach), center + new Vector2(FreezeBulletReach)); unit is not null; unit = Units.Next())
         {
             if (SizeTo(unit.Position, center) >= FreezeBulletReach ||
-                unit.Army != MonsterArmy || (int)unit.Kind.Id % 10 == FrozenDigit)
+                unit.Army != Army.Monsters || (int)unit.Kind.Id % 10 == FrozenDigit)
                 continue;
 
             Damage(unit, FreezeBulletDamage);
@@ -939,7 +939,7 @@ internal sealed partial class GameWorld
     {
         for (var unit = Units.First(center - new Vector2(BonusBox), center + new Vector2(BonusBox)); unit is not null; unit = Units.Next())
         {
-            if (SizeTo(unit.Position, center) < BonusReach && unit.Army == MonsterArmy)
+            if (SizeTo(unit.Position, center) < BonusReach && unit.Army == Army.Monsters)
             {
                 yield return unit;
             }
@@ -972,7 +972,7 @@ internal sealed partial class GameWorld
             return;
 
         Inventory.SetItem(KnownObject.Drone, 1);
-        AddMonster(kind, Player.Position + Vector3.UnitZ * DroneFlyHeight, Player.Facing, Kinds.GetArmy(kind));
+        AddMonster(kind, Player.Position + Vector3.UnitZ * DroneFlyHeight, Player.Direction, Kinds.GetArmy(kind));
     }
 
     [ScriptFunction("F290_0")]
@@ -1009,7 +1009,7 @@ internal sealed partial class GameWorld
     private void ProtectAfterRescue()
     {
         _protectedUntil = Math.Max(_protectedUntil, Time + MedkitProtection);
-        Effects.Spawn(KnownObject.InvulnerabilityEffect, Player.Position + Vector3.UnitZ * ProtectionEffectHeight, Player.Facing, Time, Player, MedkitProtection);
+        Effects.Spawn(KnownObject.InvulnerabilityEffect, Player.Position + Vector3.UnitZ * ProtectionEffectHeight, Player.Direction, Time, Player, MedkitProtection);
     }
 
     [ScriptFunction("EarthQuake")]

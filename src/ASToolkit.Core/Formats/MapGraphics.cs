@@ -24,7 +24,7 @@ public readonly struct MapGraphics
     /// The angle of the direction vector.
     /// </summary>
     [FieldOffset(12)]
-    public readonly uint Direction;
+    public readonly Angle Direction;
 
     /// <summary>
     /// The length of the direction vector.

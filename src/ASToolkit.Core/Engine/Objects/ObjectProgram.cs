@@ -13,13 +13,13 @@ internal sealed class ObjectProgram
     private int _waitUntil;
     private int _frame;
 
-    public ObjectProgram(ObjectDefinition kind, Vector3 position, Facing facing, StackAction[] actions, Random random,
+    public ObjectProgram(ObjectDefinition kind, Vector3 position, Angle direction, StackAction[] actions, Random random,
         GameWorld world,
         MergedMapSprite? placement = null)
     {
         Kind = kind;
         Position = position;
-        Facing = facing;
+        Direction = direction;
         _actions = actions;
         _orders = ReadOrders(actions);
         Cursor = actions.Length;
@@ -33,7 +33,7 @@ internal sealed class ObjectProgram
 
     public Vector3 Position { get; private set; }
 
-    public Facing Facing { get; private set; }
+    public Angle Direction { get; private set; }
 
     public ReadOnlySpan<StackAction> Actions => _actions;
 
@@ -122,7 +122,7 @@ internal sealed class ObjectProgram
                 _waitUntil = time + action.Var1 + _random.Next(action.Var2 + 1);
                 break;
             case ActionCode.Turn:
-                Facing = Facing.TurnToward(new Facing(unchecked((byte)action.Var1)), Kind.Object.RotationPeriod, interval, out _);
+                Direction = Direction.TurnToward(new Angle(unchecked((byte)action.Var1)), Kind.Object.RotationPeriod, interval, out _);
                 break;
             case ActionCode.BuildUnit:
                 if (Kind.Object.SpriteClass == SpriteClass.Building)
