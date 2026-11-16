@@ -1,7 +1,7 @@
 namespace ASToolkit.Core.Scripting;
 
 /// <summary>
-/// Specifies what a script event of a level does.
+/// Specifies the kinds of script events in a level, such as a spawn, a checkpoint or the exit.
 /// </summary>
 public enum ScriptMarkerKind
 {

@@ -85,7 +85,7 @@ public sealed class RouteAnalysis
     public required IReadOnlyList<RouteCheckpoint> Checkpoints { get; init; }
 
     /// <summary>
-    /// Gets what the tour had to force.
+    /// Gets the fallbacks the tour needed, such as secret walls or forced gates.
     /// </summary>
     public required FallbackUsage FallbackUsage { get; init; }
 

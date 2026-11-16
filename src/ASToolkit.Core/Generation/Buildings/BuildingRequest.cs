@@ -5,11 +5,11 @@ using ASToolkit.Core.Survey;
 namespace ASToolkit.Core.Generation.Buildings;
 
 /// <summary>
-/// Represents what a level asks of its building, such as its kind, gate, room count, style and closets.
+/// Represents the requirements of a level's building, such as its kind, gate, room count, style and closets.
 /// </summary>
 public sealed record BuildingRequest
 {
-    /// <summary>Gets what the building is.</summary>
+    /// <summary>Gets the kind of the building.</summary>
     public required Building Building { get; init; }
 
     /// <summary>Gets the gate style of the level.</summary>

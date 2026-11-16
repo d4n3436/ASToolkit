@@ -4,7 +4,7 @@ using ASToolkit.Core.Formats;
 namespace ASToolkit.Core.Engine;
 
 /// <summary>
-/// Represents what the player carries into a level.
+/// Represents the weapons, ammunition, armor, implants and items the player carries into a level.
 /// </summary>
 /// <param name="Armor">The armor pickup the player wears, or 0 for none.</param>
 /// <param name="Ammo">The ammunition of each weapon the player holds besides the pistols, keyed by the weapon pickup.</param>

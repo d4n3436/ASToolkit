@@ -34,7 +34,7 @@ public sealed class LevelPlace
     public required Point Center { get; init; }
 
     /// <summary>
-    /// Gets what the place is for.
+    /// Gets the use of the place in play.
     /// </summary>
     public required PlaceUse Use { get; init; }
 

@@ -82,7 +82,7 @@ public enum WeaponFlags : uint
     AttacksWhileMoving = 1 << 15,
 
     /// <summary>
-    /// The object damages what it bumps into.
+    /// The object damages the objects it bumps into.
     /// </summary>
     DamagesOnContact = 1 << 17,
 

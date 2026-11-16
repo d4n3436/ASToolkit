@@ -1,7 +1,7 @@
 namespace ASToolkit.Core.Scripting;
 
 /// <summary>
-/// Represents what a level script sets up for the route.
+/// Represents the doors, triggers and objectives a level script sets up for the route.
 /// </summary>
 public sealed class LevelScriptSummary
 {

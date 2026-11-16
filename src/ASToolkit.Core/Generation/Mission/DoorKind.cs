@@ -1,7 +1,7 @@
 namespace ASToolkit.Core.Generation.Mission;
 
 /// <summary>
-/// Specifies what a door the doors stage lays between two touching rooms is.
+/// Specifies the kinds of doors between two touching rooms, such as a plain door, a lock or a shortcut.
 /// </summary>
 public enum DoorKind
 {

@@ -1,7 +1,7 @@
 namespace ASToolkit.Core.Routes;
 
 /// <summary>
-/// Defines what the tour has to do or reach.
+/// Specifies the kinds of objectives on a tour, such as a dynamite site, a breaker, a generator or the exit.
 /// </summary>
 public enum ObjectiveKind
 {

@@ -4,7 +4,7 @@ using ASToolkit.Core.Survey;
 namespace ASToolkit.Core.Rooms;
 
 /// <summary>
-/// Represents a room of an original level with its role, its type and what it holds.
+/// Represents a room of an original level with its role, its type and its contents.
 /// </summary>
 public sealed class AtlasRoom
 {
@@ -24,12 +24,12 @@ public sealed class AtlasRoom
     public required RoomRole Role { get; init; }
 
     /// <summary>
-    /// Gets what the room is furnished as.
+    /// Gets the room type the room is furnished as.
     /// </summary>
     public required RoomType Type { get; init; }
 
     /// <summary>
-    /// Gets what the other side of a room furnished two ways is furnished as, such as the office side of a hall, or none.
+    /// Gets the room type of the other side of a room furnished two ways, such as the office side of a hall, or none.
     /// </summary>
     public required RoomType? Side { get; init; }
 

@@ -1,7 +1,7 @@
 namespace ASToolkit.Core.Rooms;
 
 /// <summary>
-/// Specifies what a room is furnished as.
+/// Specifies the types rooms are furnished as, such as an office, a lab or a depot.
 /// </summary>
 public enum RoomType
 {

@@ -5,7 +5,7 @@ using ASToolkit.Core.Scripting;
 namespace ASToolkit.Gui.Models;
 
 /// <summary>
-/// Represents what the map viewer draws over a map, in map pixels.
+/// Represents the level logic, helper markers and route the map viewer draws over a map, in map pixels.
 /// </summary>
 public sealed class MapOverlay
 {

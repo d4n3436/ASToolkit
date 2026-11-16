@@ -1,7 +1,7 @@
 namespace ASToolkit.Core.Survey;
 
 /// <summary>
-/// Specifies what a place is for in play.
+/// Specifies the uses of a place in play, such as a stash, a breaker room or a monster source.
 /// </summary>
 public enum PlaceUse
 {

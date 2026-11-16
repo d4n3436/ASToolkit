@@ -1,7 +1,7 @@
 namespace ASToolkit.Core.Generation.Buildings;
 
 /// <summary>
-/// Specifies what a room of a building is.
+/// Specifies the kinds of rooms in a building, such as a hall, a room or a closet.
 /// </summary>
 public enum BuildingRoomKind
 {

@@ -211,7 +211,7 @@ public sealed class MapRenderer
     }
 
     /// <summary>
-    /// Draws one frame of an object's sprite over a background color the way the engine draws it into the map.
+    /// Draws one frame of an object's sprite over a background color.
     /// </summary>
     /// <param name="id">The object ID in objects.res.</param>
     /// <param name="frameIndex">The index of the frame in the sprite.</param>

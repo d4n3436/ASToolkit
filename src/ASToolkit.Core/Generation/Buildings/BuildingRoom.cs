@@ -11,7 +11,7 @@ public sealed record BuildingRoom
     /// <summary>Gets the id of the room, its index in the building's rooms.</summary>
     public required int Id { get; init; }
 
-    /// <summary>Gets what the room is.</summary>
+    /// <summary>Gets the kind of the room.</summary>
     public required BuildingRoomKind Kind { get; init; }
 
     /// <summary>Gets the type of the room.</summary>

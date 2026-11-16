@@ -4,7 +4,7 @@ using ASToolkit.Core.Scripting;
 namespace ASToolkit.Core.Generation.Output;
 
 /// <summary>
-/// Represents what a generated level's script sets up.
+/// Represents the music, doors and blackout a generated level's script sets up.
 /// </summary>
 public sealed class LevelScript
 {
