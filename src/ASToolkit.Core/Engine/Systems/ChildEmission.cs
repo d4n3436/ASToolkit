@@ -9,13 +9,13 @@ internal static class ChildEmission
 
     public const int MirroredPairCount = 2;
 
-    public static ChildBatch GetChildren(ObjectDefinition owner, ObjectDefinition child, SpriteAnimation animation,
+    public static ChildBatch GetChildren(SpriteDefinition owner, SpriteDefinition child, SpriteAnimation animation,
         Vector3 position, Angle direction, Random random, bool secondPulse = false) =>
         new(owner, child, animation, position, direction, random, secondPulse);
 
     public readonly record struct Spawn(KnownObject Id, Vector3 Position, Angle Direction, Vector2 Lateral);
 
-    public readonly record struct ChildBatch(ObjectDefinition Owner, ObjectDefinition Child, SpriteAnimation Animation,
+    public readonly record struct ChildBatch(SpriteDefinition Owner, SpriteDefinition Child, SpriteAnimation Animation,
         Vector3 Position, Angle Direction, Random Random, bool SecondPulse)
     {
         public Enumerator GetEnumerator() => new(this);
@@ -38,8 +38,8 @@ internal static class ChildEmission
         {
             _source = source;
             ref readonly var owner = ref source.Owner.Object;
-            _childId = owner.Children[(int)source.Animation];
-            _count = Math.Abs(owner.ChildCounts[(int)source.Animation]);
+            _childId = source.Owner.Children[(int)source.Animation];
+            _count = Math.Abs(source.Owner.ChildCounts[(int)source.Animation]);
             _x = owner.ChildX[(int)source.Animation];
             _y = owner.ChildY[(int)source.Animation];
             _height = owner.ChildZ[(int)source.Animation];

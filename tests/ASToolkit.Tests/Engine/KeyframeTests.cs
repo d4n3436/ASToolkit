@@ -2,7 +2,6 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Rendering;
 using Xunit;
 
 namespace ASToolkit.Tests.Engine;
@@ -15,11 +14,11 @@ public class KeyframeTests
     [Fact]
     public void Step_KeyframedUnit_AdvancesThroughItsKeysAndRestarts()
     {
-        var kinds = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var world = EngineTestWorld.CreateWorld(kinds);
-        var source = kinds.Find(KnownObject.RedMonster1)!;
-        var kind = new ObjectDefinition(source.Id, source.Object, CreateWeapon(source.Weapon), source.SpriteSpeed);
-        var unit = world.AddMonster(kind, world.Player.Position + new Vector3(600, 0, 0));
+        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var world = EngineTestWorld.CreateWorld(definitions);
+        var source = definitions.Find(KnownObject.RedMonster1)!;
+        var definition = new SpriteDefinition(source.Id, source.Object, CreateWeapon(source.Weapon), source.SpriteSpeed);
+        var unit = world.AddMonster(definition, world.Player.Position + new Vector3(600, 0, 0));
         int start = world.Time;
 
         while (world.Time - start < Period / 2)

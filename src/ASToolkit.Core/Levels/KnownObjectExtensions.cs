@@ -10,6 +10,7 @@ namespace ASToolkit.Core.Levels;
 /// </summary>
 public static class KnownObjectExtensions
 {
+    private const int AmmoPickupBase = 300;
     private static readonly FrozenSet<KnownObject> MonstersSet = new[]
     {
         Slug, YellowSlug, RedSlug, Monster1, YellowMonster1, RedMonster1, Monster2, YellowMonster2, RedMonster2, WeaponMonster, YellowWeaponMonster,
@@ -111,6 +112,9 @@ public static class KnownObjectExtensions
 
         /// <summary>Gets the plain monster a yellow or red variant belongs to, the ID itself for any other unit.</summary>
         public KnownObject MonsterFamily => id is >= Slug and <= RedTankWeaponMonster ? (KnownObject)((int)id / 10 * 10) : id;
+
+        /// <summary>Gets the weapon slot an ammunition pickup fills, or -1 for any other ID.</summary>
+        public int GetAmmoSlot() => id is >= ShotgunAmmo and <= MagmaMinigunAmmo ? (int)id - AmmoPickupBase : -1;
 
         /// <summary>Gets a value indicating whether the ID is an endless monster generator.</summary>
         public bool IsEndlessGenerator => id is >= FirstEndlessGenerator and <= LastEndlessGenerator;

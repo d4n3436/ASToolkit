@@ -16,47 +16,47 @@ internal sealed class ProjectileCollision
     }
 
     [EngineRoutine(0x00444620)]
-    public Vector3 Trace(ObjectDefinition kind, Vector3 from, Vector3 to, out bool hit)
+    public Vector3 Trace(SpriteDefinition definition, Vector3 from, Vector3 to, out bool hit)
     {
         hit = false;
 
-        if (kind.MoveMask == 0)
+        if (definition.MoveMask == 0)
         {
             return to;
         }
 
-        hit = TraceInstant(kind, true, from, to, out var impact);
+        hit = TraceInstant(definition, true, from, to, out var impact);
 
         return impact;
     }
 
     [EngineRoutine(0x0042da30)]
-    public bool IsOccupied(ObjectDefinition kind, Vector3 point)
+    public bool IsOccupied(SpriteDefinition definition, Vector3 point)
     {
-        if (_map.GetSupportHeight(kind.Object, point.AsVector2()) > point.Z)
+        if (_map.GetSupportHeight(definition.Object, point.AsVector2()) > point.Z)
             return true;
 
-        return kind.MoveMask != 0 && FindUnit(kind, point) is not null;
+        return definition.MoveMask != 0 && FindUnit(definition, point) is not null;
     }
 
-    private Unit? FindUnit(ObjectDefinition kind, Vector3 point, Unit? self = null) => _grid.FindOverlap(self, kind.GetCollisionVolume(point));
+    public Unit? FindUnit(SpriteDefinition definition, Vector3 point, Unit? self = null) => _grid.FindOverlap(self, definition.GetCollisionVolume(point));
 
     [EngineRoutine(0x00443810)]
-    public bool IsBlockedAt(ObjectDefinition kind, Vector3 point, Unit? self = null)
-        => kind.MoveMask != 0 && IsBlocked(kind, point, false, true, self);
+    public bool IsBlockedAt(SpriteDefinition definition, Vector3 point, Unit? self = null)
+        => definition.MoveMask != 0 && IsBlocked(definition, point, false, true, self);
 
-    public bool HasClearTerrain(ObjectDefinition kind, Vector3 from, Vector3 to, Vector2 targetHalf = default)
+    public bool HasClearTerrain(SpriteDefinition definition, Vector3 from, Vector3 to, Vector2 targetHalf = default)
     {
-        if (!TraceInstant(kind, false, from, to, out var impact))
+        if (!TraceInstant(definition, false, from, to, out var impact))
             return true;
 
         var offset = Vector2.Abs(impact.AsVector2() - to.AsVector2());
 
-        return offset.X < targetHalf.X + kind.Half.X && offset.Y < targetHalf.Y + kind.Half.Y;
+        return offset.X < targetHalf.X + definition.Half.X && offset.Y < targetHalf.Y + definition.Half.Y;
     }
 
     [EngineRoutine(0x0042db40)]
-    private bool TraceInstant(ObjectDefinition kind, bool testUnits, Vector3 from, Vector3 to, out Vector3 impact)
+    private bool TraceInstant(SpriteDefinition definition, bool testUnits, Vector3 from, Vector3 to, out Vector3 impact)
     {
         int x = (int)from.X;
         int y = (int)from.Y;
@@ -81,7 +81,7 @@ internal sealed class ProjectileCollision
                 z += heightStep;
                 var point = new Vector3(x, y, z);
 
-                if (IsBlocked(kind, point, true, testUnits))
+                if (IsBlocked(definition, point, true, testUnits))
                 {
                     impact = point;
 
@@ -117,14 +117,14 @@ internal sealed class ProjectileCollision
         return false;
     }
 
-    private bool IsBlocked(ObjectDefinition kind, Vector3 point, bool instant, bool testUnits, Unit? self = null)
+    private bool IsBlocked(SpriteDefinition definition, Vector3 point, bool instant, bool testUnits, Unit? self = null)
     {
-        if (instant ? !_map.IsAboveGround(kind.Object, point) : !_map.CanStandOnGround(kind.Object, point))
+        if (instant ? !_map.IsAboveGround(definition.Object, point) : !_map.CanStandOnGround(definition.Object, point))
         {
             return true;
         }
 
-        return testUnits && FindUnit(kind, point, self) is not null;
+        return testUnits && FindUnit(definition, point, self) is not null;
     }
 
 }

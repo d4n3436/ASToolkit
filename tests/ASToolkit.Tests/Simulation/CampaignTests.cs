@@ -35,26 +35,44 @@ public class CampaignTests
     }
 
     [Fact]
-    public void PlayCampaign_OriginalLevels_OpensAmbushWallsAndBuildsWavesAfterLevelTwo()
+    public void Run_LevelThree_OpensAmbushWallsAndBuildsWaves()
     {
         string game = TestGameFolder.RequireFolder();
         var objects = TestGameFolder.Objects;
-        var levels = ((int[])[2, 3]).Select(number =>
+        string path = Path.Combine(game, "Maps", "Level_03.map");
+        var level = RouteAnalyzer.Analyze("Level_03.map", MapResourceBuilder.Load(path), LevelScriptReader.Read(Path.ChangeExtension(path, ".lgc")), objects)!;
+        var loadout = new PlayerLoadout(KnownObject.RedArmor, new Dictionary<KnownObject, int> { [KnownObject.Minigun] = 800, [KnownObject.RocketLauncher] = 80 },
+            new PlayerImplants(3, 3, 3, 3));
+        var recorder = new ReplayRecorder();
+        var session = new Playthrough(game, objects, TestGameFolder.Table).Start(level, loadout, 1, recorder);
+        int placed = level.Elements.Count(element => element.Kind == ElementKind.Monster);
+        bool Opened(KnownObject id) => recorder.CreateReplay([]).RemovedSprites.Any(removal => removal.Placement.Id == id);
+        for (int time = 10000; time <= 240000 && !(session.Log.Kills > placed && Opened(KnownObject.SpawnWallSlash) && Opened(KnownObject.SpawnWallBack)); time += 10000)
         {
-            string name = $"Level_{number:00}.map";
-            string path = Path.Combine(game, "Maps", name);
+            session.PlayUntil(time, recorder);
+        }
 
-            return RouteAnalyzer.Analyze(name, MapResourceBuilder.Load(path), LevelScriptReader.Read(Path.ChangeExtension(path, ".lgc")), objects)!;
-        }).ToArray();
-        var table = TestGameFolder.Table;
-        var rewards = table.GetArray("LevelMoney");
-        var state = new CampaignState(rewards[0] + rewards[1], new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default));
-        var result = new Playthrough(game, objects, table).PlayCampaign(levels, rewards.Skip(2).ToArray(), 1, state, record: true, recordedLevel: 1);
+        Assert.True(session.Log.Kills > placed);
+        Assert.True(Opened(KnownObject.SpawnWallSlash));
+        Assert.True(Opened(KnownObject.SpawnWallBack));
+    }
 
-        Assert.True(result.IsCompleted);
-        Assert.True(result.Levels[1].Kills > levels[1].Elements.Count(element => element.Kind == ElementKind.Monster));
-        Assert.Contains(result.Levels[1].Replay!.RemovedSprites, removal => removal.Placement.Id == KnownObject.SpawnWallSlash);
-        Assert.Contains(result.Levels[1].Replay!.RemovedSprites, removal => removal.Placement.Id == KnownObject.SpawnWallBack);
+    [Fact]
+    public void Start_AccuracyImplants_NarrowTheWeaponAimThroughTheItemScript()
+    {
+        string game = TestGameFolder.RequireFolder();
+        var play = new Playthrough(game, TestGameFolder.Objects, TestGameFolder.Table);
+        var level = EmptyLevel();
+        const int AccuracyImplants = 2;
+        var weapons = Enumerable.Range(Unit.WeaponIdBase, Unit.WeaponSlots).Select(id => (KnownObject)id).ToArray();
+        var plain = play.Start(level, new PlayerLoadout(0, new Dictionary<KnownObject, int>(), new PlayerImplants(0, 0, 0, 0)), 1, null);
+        plain.PlayUntil(100);
+        int[] aims = weapons.Select(id => (int)plain.World.Definitions.Find(id)!.Aim).ToArray();
+        var implanted = play.Start(level, new PlayerLoadout(0, new Dictionary<KnownObject, int>(), new PlayerImplants(0, 0, 0, AccuracyImplants)), 1, null);
+        implanted.PlayUntil(100);
+
+        Assert.Contains(aims, aim => aim > 0);
+        Assert.Equal(aims.Select(aim => Enumerable.Range(0, AccuracyImplants).Aggregate(aim, (scaled, _) => scaled * 6 / 10)), weapons.Select(id => (int)implanted.World.Definitions.Find(id)!.Aim));
     }
 
     private static RouteAnalysis EmptyLevel(params KnownObject[] pickups)
@@ -73,7 +91,7 @@ public class CampaignTests
             Name = "Campaign test", WallSet = WallSet.Basement,
             Model = new LevelModel
             {
-                Name = "Campaign test", WallSet = WallSet.Basement, Lattice = lattice, Cells = cells, Edges = new Dictionary<EdgeKey, EdgeKind>(), Objects = [], Sprites = []
+                Name = "Campaign test", WallSet = WallSet.Basement, Lattice = lattice, Cells = cells, Edges = new Dictionary<EdgeKey, EdgeKind>(), Objects = [], Sprites = [], StoredSprites = []
             },
             Step = lattice.CellStep, ReachableCells = cells.Count, RoutePixels = (int)(lattice.CellStep * (tour.Length - 1)), SpinePixels = 0,
             RevisitShare = 0, Legs = [], Objectives = [], Elements = elements, Gating = new GateMeasurement(), Checkpoints = [],

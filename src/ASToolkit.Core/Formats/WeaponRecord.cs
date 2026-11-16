@@ -8,8 +8,6 @@ namespace ASToolkit.Core.Formats;
 [StructLayout(LayoutKind.Explicit, Size = 640)]
 public readonly struct WeaponRecord
 {
-    private const uint ShiftedTypeMask = 0x7F;
-    private const uint SharedTypeMask = ~0xFFu;
     private const int NoDecisions = 999999;
 
     /// <summary>
@@ -23,8 +21,7 @@ public readonly struct WeaponRecord
         Length = record.Length;
         Weight = record.Weight;
         Power = record.Power;
-        uint targets = (uint)record.Targets;
-        Targets = (SpriteType)(((targets & ShiftedTypeMask) << 1) | (targets & SharedTypeMask));
+        Targets = record.Targets.ToSpriteType();
         DecisionPeriod = NoDecisions;
         DetectRange = record.DetectRange;
         BattleRange = record.BattleRange;
@@ -77,7 +74,7 @@ public readonly struct WeaponRecord
     public readonly float Weight;
 
     /// <summary>
-    /// The power with which the object pulls a train or pushes what it runs into.
+    /// The power with which the object pulls a train or pushes the objects it runs into.
     /// </summary>
     [FieldOffset(16)]
     public readonly float Power;

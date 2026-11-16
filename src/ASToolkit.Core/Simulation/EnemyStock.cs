@@ -7,7 +7,7 @@ namespace ASToolkit.Core.Simulation;
 internal sealed class EnemyStock
 {
     private readonly GameWorld _world;
-    private readonly Dictionary<ObjectProgram, (int Key, int Count)> _unbuilt = [];
+    private readonly Dictionary<Unit, (int Key, int Count)> _unbuilt = new(ReferenceEqualityComparer.Instance);
     private readonly HashSet<Unit> _seen = new(ReferenceEqualityComparer.Instance);
     private readonly HashSet<Unit> _dead = new(ReferenceEqualityComparer.Instance);
     private int _alive;
@@ -18,7 +18,6 @@ internal sealed class EnemyStock
         Update();
     }
 
-    // Counts a monster by its kind when it first shows up and again when it dies
     public void Update()
     {
         foreach (var unit in _world.Monsters)
@@ -40,43 +39,43 @@ internal sealed class EnemyStock
         get
         {
             int count = _alive;
-            foreach (var program in _world.Programs)
+            foreach (var builder in _world.Builders)
             {
-                count += CountUnbuilt(program);
+                count += CountUnbuilt(builder);
             }
 
             return count;
         }
     }
 
-    private static bool IsCountedKind(KnownObject id) => KnownObject.Monsters.Contains(id) || KnownObject.Bosses.Contains(id);
+    private static bool IsCountedObject(KnownObject id) => KnownObject.Monsters.Contains(id) || KnownObject.Bosses.Contains(id);
 
-    private static bool IsCounted(Unit unit) => unit.Army == Army.Monsters && IsCountedKind(unit.Kind.Id);
+    private static bool IsCounted(Unit unit) => unit.Army == Army.Monsters && IsCountedObject(unit.Definition.Id);
 
-    private int CountUnbuilt(ObjectProgram program)
+    private int CountUnbuilt(Unit builder)
     {
-        int key = program.Finished ? -1 : program.Cursor * 2 + (program.PendingBuild is null ? 0 : 1);
+        var pending = _world.GetPendingBuild(builder);
+        int key = builder.Orders.Count * 2 + (pending is null ? 0 : 1);
 
-        if (_unbuilt.TryGetValue(program, out var cached) && cached.Key == key)
+        if (_unbuilt.TryGetValue(builder, out var cached) && cached.Key == key)
             return cached.Count;
 
-        int count = MeasureUnbuilt(program);
-        _unbuilt[program] = (key, count);
+        int count = (pending is not null && IsCountedObject(pending.Id) ? 1 : 0) + MeasureUnbuilt(builder.Orders.Orders);
+        _unbuilt[builder] = (key, count);
 
         return count;
     }
 
-    private static int MeasureUnbuilt(ObjectProgram program)
+    private static int MeasureUnbuilt(ReadOnlySpan<UnitOrder> orders)
     {
-        var pending = program.PendingBuild;
-        int count = pending is not null && IsCountedKind((KnownObject)pending.Value.Var1) ? 1 : 0;
-        for (int index = program.Cursor - 1; index >= 0 && !program.Finished; index--)
+        int count = 0;
+        for (int index = orders.Length - 1; index >= 0; index--)
         {
-            var action = program.Actions[index];
+            var order = orders[index];
 
-            switch (action.Code)
+            switch (order.Code)
             {
-                case ActionCode.BuildUnit when IsCountedKind((KnownObject)action.Var1):
+                case ActionCode.BuildUnit when IsCountedObject((KnownObject)order.Var1):
                     count++;
                     break;
                 case ActionCode.GotoStack or ActionCode.StopStack or ActionCode.ClearStack:

@@ -7,6 +7,7 @@ namespace ASToolkit.Core.Simulation;
 internal sealed class InputDriver
 {
     private const int FirstWeaponKey = '0';
+    private const int RebirthKey = ' ';
     private readonly GameWorld _world;
     private Vector2? _destination;
 
@@ -47,6 +48,11 @@ internal sealed class InputDriver
         if (command.Weapon != _world.Weapons.Slot)
         {
             input.Key = FirstWeaponKey + command.Weapon;
+        }
+
+        if (_world.GetFlagman(0) is null)
+        {
+            input.Key = RebirthKey;
         }
 
         input.Flags = flags;

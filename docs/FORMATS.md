@@ -594,7 +594,7 @@ The half-step offset `128 / dirs` centers each facing on its angle.
 
 Solid objects raise height grids of 8 by 8 pixel cells over the map, and objects that follow the terrain (`P_ZeroZ`) walk on them, climbing and dropping no more than the steps in their record. Objects with `P_BuildVidZToGridZ` raise the cells with the depth of their sprite, a pixel of depth `d` in row `r` raising the cell of row `r + h` to `h = d / 8 - 128` above the object. Objects with `P_BuildSizeToGridZ` raise them along their footprint outline. Alien Shooter 2 keeps one grid for scenery (`SpriteClass` 8) and one for the rest. Its `GRID` chunk holds the first grid, one `i16` per cell and `map w / 8` cells per row, and only the menu, logo, slide and end maps have one.
 
-Moving objects collide when their `MoveMask` values share a bit, their footprints overlap (half of `SizeXYZ[0]` and `SizeXYZ[1]` each way) and their heights overlap. Objects with `P_Noise` in Alien Shooter 2 use a box turned with the facing.
+Moving objects collide when their `MoveMask` values share a bit, their footprints overlap (half of `SizeXYZ[0]` and `SizeXYZ[1]` each way, never scaled by `ScaleXYZ`) and their heights overlap. Objects with `P_Noise` in Alien Shooter 2 use a box turned with the facing.
 
 ## Sprites (.vid)
 
@@ -827,7 +827,7 @@ Kind `DEMO`. Each demo records one level with its random seed, the script state 
 
 The seed starts the random number generator in place of the current time a normal map load uses. The time is the game clock the level starts at (10).
 
-The script state lists the script's variables in order. Each variable is a type byte, then a u32 when the type has bit 0x08 and lacks bit 0x01, or a string ending in 0 with every character XORed with 0x17 when it has both. Then comes a u32 count of functions, each a name ending in 0 and 20 bytes, followed by one more string ending in 0 per function. The engine's built-in functions come first (`CreateSprite`, `Flagman` and the rest), then the script's own. In each function's 20 bytes, the u32 at +12 is the first variable its parameters take and the u32 at +16 its parameter count.
+The script state lists the script's variables in order. Each variable is a type byte, then a u32 when the type has bit 0x08 and lacks bit 0x01, or a string ending in 0 with every character XORed with 0x17 when it has both. Then comes a u32 count of the script's global names, each a name ending in 0 and 20 bytes, followed by one more string ending in 0 per name, empty for every name the compiler creates. The names are in declaration order, starting with the engine functions `EXPORT.LGC` declares (`CreateSprite`, `Flagman` and the rest). Each name's 20 bytes hold its kind in one byte, 7 unused bytes, then its address, its first parameter variable and its count, as [Scripts](#scripts-lgc) describes.
 
 The map load writes the state after compiling the level's script and before any sprite's creation script runs. It holds the initial values together with the `static` variables carried over from earlier loads, such as the player's money and items. Playback replaces the script's variables and functions with the recorded ones.
 
@@ -840,7 +840,7 @@ The map load writes the state after compiling the level's script and before any 
  +------+-------+-------+------+------+------+------+------+------+
 ```
 
-Each frame starts at its game time in milliseconds. Playback sets the game clock to it and waits until real time catches up, keeping the recorded step between frames (at most 71 ms). The input block holds the frame's input:
+Playback reads the record as one stream. The level's compiled script reads its state, then each frame is read as its time and, unless the time is -1, its input block. In playback `FRead` takes its line from the same stream. Each frame starts at its game time in milliseconds. Playback sets the game clock to it and waits until real time catches up, keeping the recorded step between frames (at most 71 ms). The input block holds the frame's input:
 
 - The cursor is the mouse position in map pixels, the screen point plus the camera. Scripts read it with `GetInputX()` and `GetInputY()`.
 - The screen point is the mouse position in window pixels, read with `GetScreenInputX()` and `GetScreenInputY()`.
@@ -907,6 +907,66 @@ static int WeaponPrice[11] = { 0,0,200,350,1000,2500,4800,8000,15800,25400,900 }
 ```
 
 Engine functions are declared in `EXPORT.LGC` as `extern Name(args) <builtin>;`. The registry values `GameType` and `LevelNumber` choose the level flow. [NOTES.md](NOTES.md#scripts) describes the handlers that matter.
+
+The game compiles a script in one pass over its text, without a token stream. `#define` replaces a name with the rest of its line, text only, at the next token. `#ifdef` and `#ifndef` test the declared names as well as the defines. `#include` opens its path relative to the game folder. Every compile error ends the game, except an unbalanced `#ifdef`, `#else` or `#endif`. A script that compiles to no code is dropped whole, declarations included.
+
+The language has `int` and `string` variables and arrays, `if`, `iff`, `else`, `while`, `do`, `for`, `break`, `goto` and labels. `return` is an expression with an optional value. `static` changes nothing. `^`, `&&`, `&`, `||` and `|` share one precedence level, below the comparisons and shifts, and both sides of `&&` and `||` are evaluated. Constant expressions of literals fold at compile time. There is no `?:`, `switch`, `continue` or parameterized `#define`.
+
+A call to a script function stores each argument in the parameter's variable before the call. Parameters and locals are variables shared by every call, and recursion overwrites them. Omitted arguments take the parameter's default value. The engine passes the functions it calls the unit as the first argument and, for some events, the other unit or the damage as the next two. `iff` runs its block once per session. The first time its condition holds, it replaces the start of its statement in the compiled code with a jump over the block. The replacement is never saved in demos or saves.
+
+Values hold a number, a text or both, and these flags:
+
+| Bit | Meaning |
+|---|---|
+| 0x01 | text |
+| 0x02 | number |
+| 0x04 | array element; reading an array without an index gives its first slot |
+| 0x08 | initial value given in the declaration; demos and saves store the value only with this bit |
+| 0x10 | unit handle, cleared when that unit is deleted |
+| 0x20 | declared with `*`; an index counts from the slot the value names |
+| 0x40 | declared without an initial value |
+
+A text read as a number goes through C's `sscanf("%i")` when its second character is `x`, and `atoi` otherwise. Division by 0 gives 0x0FFFFFFF, and comparisons are signed. `+` joins two texts, and `==` and `!=` compare them byte by byte. Every other operator, and `+` with one number, works on the numbers.
+
+A file whose fourth byte is not 0 is source text. Otherwise it is a compiled script:
+
+```
+ compiled script
+ +-----------+-----------+------------+-----------+------+
+ | variables | variables | names      | code size | code |
+ | u32 count | records   | as in demo | u32       | ...  |
+ +-----------+-----------+------------+-----------+------+
+```
+
+The variable records and names use the layout of the demo script state. The names are the global ones, since a function's or block's names end with it. Kind 1 names a variable (its first slot and element count), 2 an engine function (its id and parameters), 3 a script function (its code offset and parameters).
+
+Code is a byte stream; operands are little-endian i32. Jump offsets count from the operand's own position. A byte outside the table calls the engine function with that id, taking its arguments from the stack, last argument first, and pushing its result. Every statement ends with opcode 0x19. It carries the source line and empties the stack.
+
+| Op | Operand | Action |
+|---|---|---|
+| 0x01 | i32 | push the number |
+| 0x02 | text, 0 | push the text |
+| 0x03 to 0x05 | | negate, invert the bits, logical not |
+| 0x06 to 0x17 | | `/ % + - ^ \| & == \|\| > < >= <= * != && >> <<` on the two top values |
+| 0x18 | i32 | jump when the popped value is 0 |
+| 0x19 | i32 line | end the statement |
+| 0x1a | | pop |
+| 0x1c | i32 | jump |
+| 0x1d | i32 | `iff`, jumping when the popped value is 0 and otherwise replacing the statement's start with a jump to the same place |
+| 0x1e | i32 offset | call the script function at that code offset |
+| 0x1f | | return, with the top value as the result when there is one |
+| 0x20 to 0x23 | i32 variable | `x++`, `x--`, `++x`, `--x` |
+| 0x24 | i32 variable | push the variable |
+| 0x25 | i32 variable | push the address of a text variable, for engine functions that write it |
+| 0x26 | i32 variable | store the top value, leaving it on the stack |
+| 0x27 | i32 variable, u8 op | `x op= value` with an operator of 0x06 to 0x17 |
+| 0x28 | | take the popped value as the index of the next variable opcode |
+
+#### Engine functions and object kinds
+
+Engine functions pop exactly the values their case reads, which may differ from the declared parameter count. `FirstUnit` pops only the top value, the army argument, and uses it as its type mask; the mask stays on the stack. `CreateSprite` pushes a plain 0 for an id without a kind, `Destroy` deletes the sprite at once and pushes nothing. When a sprite is deleted, every variable holding its handle is set to 0.
+
+Each kind keeps per army the number of its live sprites, its killed units and its maximum health. Constructing a sprite adds to its army's count and deleting it subtracts, never below 0; a unit dropping to 0 health outside its death states adds a kill. Unloading a level clears the counts and kills and sets every army's maximum health to the kind's. `SetVidData` writes the kind for the rest of the session. `VID_MAXHPn` and `VID_HP_COEFFn` rescale the health of the kind's live units of that army to `hp * new * 256 / old / 256`, then repeat along the kind's link chain. `VID_EXCHANGEVID` swaps two kinds' slots in the kind table, their ids and their handler tables, and turns every link pointing at one to the other. `ReloadVid` swaps exchanged kinds back and reads every kind's record again. `VID_AMMO` reads and writes the ammunition of the kind's link when the link has a fight child and a weapon, otherwise its own.
 
 ### Quests (levels.cfg)
 
@@ -996,6 +1056,10 @@ Alien Shooter (GOG):
 - `FUN_0040c930` - `SetWind`, sets the wind speed and direction
 - `FUN_0040bed0` - scrolls the camera each frame
 - `FUN_0040c960` - loads a map, starting demo playback or recording and writing the demo header and script state
+- `FUN_0041f7d0` - loads a script file, compiling a source or reading a compiled script
+- `FUN_0041f450` - compiles a script source
+- `FUN_00423430` - runs a script function
+- `FUN_00435690` - runs an engine function a script calls
 - `FUN_0041fa30` - writes the script state
 - `FUN_0041fb20` - reads the script state back for playback
 - `FUN_0040e660` - reads or writes the time and input of one demo frame

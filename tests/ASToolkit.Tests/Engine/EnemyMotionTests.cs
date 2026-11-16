@@ -77,9 +77,9 @@ public class EnemyMotionTests
         bytes = new byte[Marshal.SizeOf<WeaponRecord>()];
         uint flags = body.Push != 0 ? 64u : 0;
         MemoryMarshal.Write(bytes.AsSpan(4), in flags);
-        var kind = new ObjectDefinition(KnownObject.Monster1 + index, obj, MemoryMarshal.Read<WeaponRecord>(bytes), 0);
+        var definition = new SpriteDefinition(KnownObject.Monster1 + index, obj, MemoryMarshal.Read<WeaponRecord>(bytes), 0);
 
-        return new Unit(index, kind, new Vector3(body.X, body.Y, body.Z), Army.Monsters, 10) { Direction = body.Direction };
+        return new Unit(index, definition, new Vector3(body.X, body.Y, body.Z), Army.Monsters, 10) { Direction = body.Direction };
     }
 
     public sealed record Body(float X, float Y, float Z = 0, byte Direction = 64, int Push = 0, uint Mask = 1, float HalfX = 5, float HalfY = 5, float SizeZ = 40);

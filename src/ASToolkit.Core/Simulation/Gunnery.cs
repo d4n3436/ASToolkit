@@ -16,43 +16,45 @@ internal sealed class Gunnery
     private const float CalmReach = 250;
 
     private readonly GameWorld _world;
+    private readonly PlayerState _state;
     private readonly WalkObstacles _obstacles;
 
     public Gunnery(GameWorld world, WalkObstacles obstacles)
     {
         _obstacles = obstacles;
         _world = world;
-        Attacks = new AttackTable(world.Kinds);
+        _state = new PlayerState(world);
+        Attacks = new AttackTable(world.Definitions);
     }
 
     public AttackTable Attacks { get; }
 
     public bool HoldsShortReach()
     {
-        for (int slot = 0; slot < PlayerInventory.WeaponSlots; slot++)
+        for (int slot = 0; slot < Unit.WeaponSlots; slot++)
         {
-            var weapon = _world.Inventory.GetWeapon(slot);
+            var weapon = _state.GetWeapon(slot);
 
-            if (weapon is not null && _world.Inventory.HasAmmo(slot) && Attacks.Get(weapon).Reach < float.MaxValue)
+            if (weapon is not null && _state.HasAmmo(slot) && Attacks.Get(weapon).Reach < float.MaxValue)
                 return true;
         }
 
         return false;
     }
 
-    private float GetDistance(Unit target) => _world.Player.Position.AsVector2().MeasureDistance(target.Position.AsVector2());
+    private float GetDistance(Unit target) => _world.Player.Position.AsVector2().MeasureOctagonalDistance(target.Position.AsVector2());
 
     public int SelectWeapon(Unit target)
     {
-        int best = PlayerInventory.Pistols;
+        int best = Unit.Pistols;
         float bestRate = 0;
         float pistolRate = 0;
         float distance = GetDistance(target);
-        for (int slot = 0; slot < PlayerInventory.WeaponSlots; slot++)
+        for (int slot = 0; slot < Unit.WeaponSlots; slot++)
         {
-            var weapon = _world.Inventory.GetWeapon(slot);
+            var weapon = _state.GetWeapon(slot);
 
-            if (!_world.Inventory.HasAmmo(slot) || weapon is null || !weapon.IsArmed ||
+            if (!_state.HasAmmo(slot) || weapon is null || !weapon.IsArmed ||
                 distance > weapon.BattleRange ||
                 !HasClearAim(target, _world.Player.Position.AsVector2(), slot))
                 continue;
@@ -63,19 +65,19 @@ internal sealed class Gunnery
             if (distance > profile.Reach + radius)
                 continue;
 
-            if (profile.HurtsOwnArmy && radius > 0 && distance <= radius + _world.Player.Kind.Half.Length())
+            if (profile.HurtsOwnArmy && radius > 0 && distance <= radius + _world.Player.Definition.Half.Length())
                 continue;
 
             if (radius > 0 && !IsInBlastHeight(target, profile))
                 continue;
 
             float chance = MeasureHitChance(target, weapon, profile);
-            float harm = profile.BlastRadius > _world.Player.Kind.Half.Length() ? MeasureHarm(target, profile) * chance
+            float harm = profile.BlastRadius > _world.Player.Definition.Half.Length() ? MeasureHarm(target, profile) * chance
                 : profile.Rounds > 1 ? MeasureSpreadHarm(target, weapon, profile)
                 : Math.Min(target.Hp, profile.Damage * chance);
             float rate = harm * GameClock.MillisecondsPerSecond / Math.Max(_world.FrameTime, weapon.AttackTime);
 
-            if (slot == PlayerInventory.Pistols)
+            if (slot == Unit.Pistols)
             {
                 pistolRate = profile.Damage * chance * GameClock.MillisecondsPerSecond / Math.Max(_world.FrameTime, weapon.AttackTime);
             }
@@ -87,8 +89,8 @@ internal sealed class Gunnery
             }
         }
 
-        return best != PlayerInventory.Pistols && pistolRate > 0 && target.Hp * GameClock.MillisecondsPerSecond <= PistolKillTime * pistolRate &&
-            IsCalm(target) ? PlayerInventory.Pistols : best;
+        return best != Unit.Pistols && pistolRate > 0 && target.Hp * GameClock.MillisecondsPerSecond <= PistolKillTime * pistolRate &&
+            IsCalm(target) ? Unit.Pistols : best;
     }
 
     private bool IsCalm(Unit target)
@@ -97,7 +99,7 @@ internal sealed class Gunnery
         var reach = new Vector2(CalmReach);
         foreach (var unit in _world.Units.GetNear(center - reach, center + reach))
         {
-            if (unit != target && unit is { Army: Army.Monsters, IsAlive: true } && center.MeasureDistance(unit.Position.AsVector2()) <= CalmReach)
+            if (unit != target && unit is { Army: Army.Monsters, IsAlive: true } && center.MeasureOctagonalDistance(unit.Position.AsVector2()) <= CalmReach)
                 return false;
         }
 
@@ -105,9 +107,8 @@ internal sealed class Gunnery
     }
 
     private bool IsInBlastHeight(Unit unit, AttackProfile profile) =>
-        unit.Position.Z - _world.Movement.GetHeight(unit.Position.AsVector2()) < profile.BlastHeight + unit.Kind.Object.Size.Z;
+        unit.Position.Z - _world.Movement.GetHeight(unit.Position.AsVector2()) < profile.BlastHeight + unit.Definition.Object.Size.Z;
 
-    // Counts the damage a blast lands on every hostile around the target, none past a victim's health
     private float MeasureHarm(Unit target, AttackProfile profile)
     {
         var center = target.Position.AsVector2();
@@ -115,7 +116,7 @@ internal sealed class Gunnery
         float harm = 0;
         foreach (var unit in _world.Units.GetNear(center - reach, center + reach))
         {
-            if (unit.Army == target.Army && unit.IsAlive && center.MeasureDistance(unit.Position.AsVector2()) <= profile.BlastRadius && IsInBlastHeight(unit, profile))
+            if (unit.Army == target.Army && unit.IsAlive && center.MeasureOctagonalDistance(unit.Position.AsVector2()) <= profile.BlastRadius && IsInBlastHeight(unit, profile))
             {
                 harm += Math.Min(profile.Damage, unit.Hp);
             }
@@ -124,7 +125,7 @@ internal sealed class Gunnery
         return Math.Max(harm, Math.Min(profile.Damage, target.Hp));
     }
 
-    private float MeasureSpreadHarm(Unit target, ObjectDefinition torso, AttackProfile profile)
+    private float MeasureSpreadHarm(Unit target, SpriteDefinition torso, AttackProfile profile)
     {
         float scatter = Math.Max(1, MeasureScatter(target, torso));
         float roundDamage = (float)profile.Damage / profile.Rounds;
@@ -133,9 +134,9 @@ internal sealed class Gunnery
         float harm = 0;
         foreach (var unit in _world.Units.GetNear(center - reach, center + reach))
         {
-            float unitReach = (unit.Kind.Half.X + unit.Kind.Half.Y) / 2;
+            float unitReach = (unit.Definition.Half.X + unit.Definition.Half.Y) / 2;
 
-            if (unit.Army != target.Army || !unit.IsAlive || center.MeasureDistance(unit.Position.AsVector2()) > scatter + unitReach)
+            if (unit.Army != target.Army || !unit.IsAlive || center.MeasureOctagonalDistance(unit.Position.AsVector2()) > scatter + unitReach)
                 continue;
 
             float share = Math.Min(1, unitReach * unitReach / (scatter * scatter));
@@ -145,7 +146,7 @@ internal sealed class Gunnery
         return Math.Max(harm, Math.Min(target.Hp, profile.Damage * MeasureHitChance(target, torso, profile)));
     }
 
-    private float MeasureScatter(Unit target, ObjectDefinition torso)
+    private float MeasureScatter(Unit target, SpriteDefinition torso)
     {
         float spread = GetSpread(torso, out _);
         float distance = GetDistance(target);
@@ -155,7 +156,7 @@ internal sealed class Gunnery
     }
 
     // Measures the share of rounds whose scatter across the line of fire stays within the target, the scatter shrunk by the overshoot past it
-    private float MeasureHitChance(Unit target, ObjectDefinition torso, AttackProfile profile)
+    private float MeasureHitChance(Unit target, SpriteDefinition torso, AttackProfile profile)
     {
         float spread = GetSpread(torso, out _);
 
@@ -163,15 +164,15 @@ internal sealed class Gunnery
             return 1;
 
         float scatter = MeasureScatter(target, torso);
-        float reach = (target.Kind.Half.X + target.Kind.Half.Y) / 2 + profile.BlastRadius;
+        float reach = (target.Definition.Half.X + target.Definition.Half.Y) / 2 + profile.BlastRadius;
 
         return Math.Min(1, reach / Math.Max(1, scatter));
     }
 
     public Vector3 GetAimPoint(Unit target, int slot)
     {
-        var point = target.Position with { Z = target.Position.Z + Math.Min(GroundAimHeight, target.Kind.Object.Size.Z / 2) };
-        var torso = _world.Inventory.GetWeapon(slot);
+        var point = target.Position with { Z = target.Position.Z + Math.Min(GroundAimHeight, target.Definition.Object.Size.Z / 2) };
+        var torso = _state.GetWeapon(slot);
 
         if (torso is null || target.Placement is not null)
             return point;
@@ -193,14 +194,14 @@ internal sealed class Gunnery
         return new Vector3(ground, _world.Movement.GetHeight(ground));
     }
 
-    private float GetSpread(ObjectDefinition torso, out ObjectDefinition? payload)
+    private float GetSpread(SpriteDefinition torso, out SpriteDefinition? payload)
     {
-        float spread = _world.Inventory.Implants.ScaleAim(torso.Aim);
-        payload = _world.Kinds.Find((KnownObject)Math.Abs((int)torso.FightChild));
+        float spread = torso.Aim;
+        payload = _world.Definitions.Find((KnownObject)Math.Abs((int)torso.FightChild));
         while (payload is not null && payload.Damage <= 0 && payload.FightChild != 0)
         {
             spread += payload.Aim;
-            payload = _world.Kinds.Find((KnownObject)Math.Abs((int)payload.FightChild));
+            payload = _world.Definitions.Find((KnownObject)Math.Abs((int)payload.FightChild));
         }
 
         return spread;
@@ -208,9 +209,9 @@ internal sealed class Gunnery
 
     public bool HasClearAim(Unit target) => HasClearAim(target, _world.Player.Position.AsVector2());
 
-    public bool HasClearAim(Unit target, Vector2 from, int slot = PlayerInventory.Pistols)
+    public bool HasClearAim(Unit target, Vector2 from, int slot = Unit.Pistols)
     {
-        var torso = _world.Inventory.GetWeapon(slot);
+        var torso = _state.GetWeapon(slot);
         var launch = Vector3.Zero;
         var bullet = torso is null ? null : FindBullet(torso, out launch);
 
@@ -226,21 +227,21 @@ internal sealed class Gunnery
             return true;
 
         var muzzle = from + new Vector2(forward.X * launch.Y, forward.Y * launch.Y * ChildEmission.VerticalProjection);
-        float height = _world.Player.Position.Z + _world.Player.Kind.Object.LinkOffset.Z + launch.Z;
+        float height = _world.Player.Position.Z + _world.Player.Definition.Object.LinkOffset.Z + launch.Z;
 
-        var aim = target.Position with { Z = target.Position.Z + Math.Min(GroundAimHeight, target.Kind.Object.Size.Z / 2) };
+        var aim = target.Position with { Z = target.Position.Z + Math.Min(GroundAimHeight, target.Definition.Object.Size.Z / 2) };
 
-        var half = target.Kind.Id is KnownObject.BreakableWall or KnownObject.BreakableWall2 ? target.Kind.Half + new Vector2(WallSlack) : target.Kind.Half;
+        var half = target.Definition.Id is KnownObject.BreakableWall or KnownObject.BreakableWall2 ? target.Definition.Half + new Vector2(WallSlack) : target.Definition.Half;
 
         var start = new Vector3(muzzle, height);
 
-        return bullet.Speed >= ObjectDefinition.Unlimited ? _world.Projectiles.HasClearTerrain(bullet, start, aim, half) : HasClearFlight(bullet, start, aim, half);
+        return bullet.Speed >= SpriteDefinition.Unlimited ? _world.Projectiles.HasClearTerrain(bullet, start, aim, half) : HasClearFlight(bullet, start, aim, half);
     }
 
     // Steps a moving round along its line a tick at a time, stopping only where it could not stand
-    private bool HasClearFlight(ObjectDefinition bullet, Vector3 start, Vector3 aim, Vector2 targetHalf)
+    private bool HasClearFlight(SpriteDefinition bullet, Vector3 start, Vector3 aim, Vector2 targetHalf)
     {
-        float length = start.AsVector2().MeasureDistance(aim.AsVector2());
+        float length = start.AsVector2().MeasureOctagonalDistance(aim.AsVector2());
         for (float distance = FlightStep; distance < length; distance += FlightStep)
         {
             var point = Vector3.Lerp(start, aim, distance / length);
@@ -256,14 +257,14 @@ internal sealed class Gunnery
         return true;
     }
 
-    private ObjectDefinition? FindBullet(ObjectDefinition torso, out Vector3 launch)
+    private SpriteDefinition? FindBullet(SpriteDefinition torso, out Vector3 launch)
     {
         launch = Vector3.Zero;
         var bullet = torso;
         while (bullet is not null && bullet.Object.SpriteClass != SpriteClass.Cannon)
         {
             launch += new Vector3(0, bullet.Object.ChildY[(int)SpriteAnimation.Fight], bullet.Object.ChildZ[(int)SpriteAnimation.Fight]);
-            bullet = bullet.FightChild == 0 ? null : _world.Kinds.Find((KnownObject)Math.Abs((int)bullet.FightChild));
+            bullet = bullet.FightChild == 0 ? null : _world.Definitions.Find((KnownObject)Math.Abs((int)bullet.FightChild));
         }
 
         return bullet;

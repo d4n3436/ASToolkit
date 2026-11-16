@@ -57,7 +57,7 @@ internal sealed class DepthProbe
         float found = ClearHeight;
         foreach (var unit in _nearby)
         {
-            var mask = _world.Kinds.GetFrameMask(unit.Kind, unit.Frame);
+            var mask = _world.Definitions.GetFrameMask(unit.Definition, unit.Frame);
 
             if (mask is null)
                 continue;
@@ -69,7 +69,7 @@ internal sealed class DepthProbe
             if (!mask.Covers(pixel.X - left, row))
                 continue;
 
-            var obj = unit.Kind.Object;
+            var obj = unit.Definition.Object;
             int depth = (int)(unit.Position.Z * DepthPerHeight);
 
             if (obj.Properties.HasFlag(ObjectProperties.AlwaysTop) && depth < RaisedDepth)

@@ -1,5 +1,6 @@
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Reference;
+using ASToolkit.Core.Scripting;
 using Xunit;
 
 namespace ASToolkit.Tests;

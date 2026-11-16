@@ -38,10 +38,10 @@ internal sealed class UnitCollision
 
         if (blocked)
         {
-            if (other is not null && other.Kind.CanBePushed && depth < MaxPushDepth)
+            if (other is not null && other.Definition.CanBePushed && depth < MaxPushDepth)
             {
                 var pushed = other.Position + position - start;
-                bool opposite = unit.Kind.CanBePushed && other.Direction.MeasureTurnTo(unit.Direction.Opposite) < OppositeDirectionTolerance;
+                bool opposite = unit.Definition.CanBePushed && other.Direction.MeasureTurnTo(unit.Direction.Opposite) < OppositeDirectionTolerance;
 
                 Move(other, pushed with { Z = other.Position.Z }, depth + 1, !opposite || unit.Direction.Value < Angle.HalfTurn);
             }
@@ -60,7 +60,7 @@ internal sealed class UnitCollision
                 {
                     position = alongX;
                 }
-                else if (other is null || !IsInside(unit, start, other))
+                else if (other is null || !IsInsideIgnoringLayers(unit, start, other))
                 {
                     return false;
                 }
@@ -70,38 +70,37 @@ internal sealed class UnitCollision
         if (!commit)
             return true;
 
-        unit.Position = unit.Kind.Object.Properties.HasFlag(ObjectProperties.ZeroZ)
-            ? position with { Z = _map.GetSupportHeight(unit.Kind.Object, position.AsVector2()) } : position;
+        unit.Position = unit.Definition.Object.Properties.HasFlag(ObjectProperties.ZeroZ)
+            ? position with { Z = _map.GetSupportHeight(unit.Definition.Object, position.AsVector2()) } : position;
         _units.ChangeCoor(unit);
 
         return true;
     }
 
-    // Tests the overlap without layers
-    private static bool IsInside(Unit unit, Vector3 start, Unit other)
+    private static bool IsInsideIgnoringLayers(Unit unit, Vector3 start, Unit other)
     {
         var offset = Vector2.Abs(other.Position.AsVector2() - start.AsVector2());
-        var reach = other.Kind.Half + unit.Kind.Half;
+        var reach = other.Definition.Half + unit.Definition.Half;
 
         return other.Animation < SpriteAnimation.Death && offset.X < reach.X && offset.Y < reach.Y &&
-            start.Z <= other.Kind.Object.Size.Z + other.Position.Z && other.Position.Z <= start.Z + unit.Kind.Object.Size.Z;
+            start.Z <= other.Definition.Object.Size.Z + other.Position.Z && other.Position.Z <= start.Z + unit.Definition.Object.Size.Z;
     }
 
     private bool FindCollision(Unit unit, Vector3 position, out Unit? collision)
     {
         collision = null;
 
-        if (unit.Kind.MoveMask == 0)
+        if (unit.Definition.MoveMask == 0)
         {
             return false;
         }
 
-        if (!_map.CanStandOnGround(unit.Kind.Object, position))
+        if (!_map.CanStandOnGround(unit.Definition.Object, position))
         {
             return true;
         }
 
-        collision = _units.FindOverlap(unit, unit.Kind.GetCollisionVolume(position));
+        collision = _units.FindOverlap(unit, unit.Definition.GetCollisionVolume(position));
 
         return collision is not null;
     }
@@ -111,7 +110,7 @@ internal sealed class UnitCollision
     public Angle AvoidObstacles(Angle direction, Unit unit)
     {
         var center = unit.Position.AsVector2();
-        var half = unit.Kind.Half;
+        var half = unit.Definition.Half;
 
         if (direction.Value is <= SouthEastBoundary or >= SouthWestBoundary)
         {

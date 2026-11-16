@@ -7,7 +7,6 @@ namespace ASToolkit.Core.Engine;
 
 internal sealed class UnitGrid
 {
-    private const float PickReach = 300;
 
     private readonly Vector2 _scale;
     private readonly Vector2 _cell;
@@ -15,6 +14,7 @@ internal sealed class UnitGrid
     private readonly int _columns;
     private readonly int _rows;
     private readonly List<GridEntry>[] _buckets;
+    private readonly List<Unit> _units = [];
     private int _firstColumn;
     private int _lastColumn;
     private int _lastRow;
@@ -44,7 +44,7 @@ internal sealed class UnitGrid
         }
     }
 
-    public static bool IsHashed(ObjectDefinition kind) => kind.Object.Properties.HasFlag(ObjectProperties.Hash);
+    public static bool IsHashed(SpriteDefinition definition) => definition.Object.Properties.HasFlag(ObjectProperties.Hash);
 
     private static float GetCellSize(float size)
     {
@@ -57,12 +57,47 @@ internal sealed class UnitGrid
         return 1 << shift;
     }
 
+    public ReadOnlySpan<Unit> Listed => CollectionsMarshal.AsSpan(_units);
+
+    private const OldSpriteType ListedTypes = OldSpriteType.Unit | OldSpriteType.Avia;
+
+    public static bool IsListed(SpriteDefinition definition) => (definition.Object.SpriteType.ToOldSpriteType() & ListedTypes) != 0;
+
     [EngineRoutine(0x0042d6a0)]
     public void Add(Unit unit)
     {
-        if (!IsHashed(unit.Kind))
+        if (IsHashed(unit.Definition))
+        {
+            AddToBucket(unit);
+        }
+
+        if (IsListed(unit.Definition))
+        {
+            unit.ListIndex = _units.Count;
+            _units.Add(unit);
+        }
+    }
+
+    [EngineRoutine(0x0042d770)]
+    public void Remove(Unit unit)
+    {
+        if (unit.Slot >= 0)
+        {
+            RemoveFromBucket(unit);
+        }
+
+        if (unit.ListIndex < 0)
             return;
 
+        var last = _units[^1];
+        _units[unit.ListIndex] = last;
+        last.ListIndex = unit.ListIndex;
+        _units.RemoveAt(_units.Count - 1);
+        unit.ListIndex = -1;
+    }
+
+    private void AddToBucket(Unit unit)
+    {
         unit.Bucket = GetBucket(unit.Position.AsVector2());
         var bucket = _buckets[unit.Bucket];
         unit.Slot = bucket.Count;
@@ -70,11 +105,8 @@ internal sealed class UnitGrid
     }
 
     [EngineRoutine(0x0043deb0)]
-    public void Remove(Unit unit)
+    private void RemoveFromBucket(Unit unit)
     {
-        if (unit.Slot < 0)
-            return;
-
         var bucket = _buckets[unit.Bucket];
         var last = bucket[^1];
         bucket[unit.Slot] = last;
@@ -95,12 +127,19 @@ internal sealed class UnitGrid
             return;
         }
 
-        Remove(unit);
-        Add(unit);
+        RemoveFromBucket(unit);
+        AddToBucket(unit);
+    }
+
+    public Unit? First(Vector2 min, Vector2 max)
+    {
+        StartQuery(min, max);
+
+        return Next();
     }
 
     [EngineRoutine(0x0042dd60)]
-    public Unit? First(Vector2 min, Vector2 max)
+    public void StartQuery(Vector2 min, Vector2 max)
     {
         _firstColumn = GetColumn(min.X - _cell.X);
         _row = GetRow(min.Y - _cell.Y);
@@ -108,8 +147,6 @@ internal sealed class UnitGrid
         _lastRow = GetRow(max.Y + _cell.Y);
         _column = _firstColumn;
         _index = 0;
-
-        return Next();
     }
 
     [EngineRoutine(0x0042deb0)]
@@ -144,9 +181,9 @@ internal sealed class UnitGrid
             for (int column = firstColumn; column <= lastColumn; column++)
             {
                 var bucket = CollectionsMarshal.AsSpan(_buckets[(row * _columns) + column]);
-                for (int index = 0; index < bucket.Length; index++)
+                for (int i = 0; i < bucket.Length; i++)
                 {
-                    ref readonly var entry = ref bucket[index];
+                    ref readonly var entry = ref bucket[i];
 
                     if (entry.Unit != mover && entry.Unit.Animation < SpriteAnimation.Death && MathF.Abs(entry.Position.X - center.X) < entry.Half.X + volume.Half.X &&
                         MathF.Abs(entry.Position.Y - center.Y) < entry.Half.Y + volume.Half.Y &&
@@ -154,7 +191,7 @@ internal sealed class UnitGrid
                     {
                         _row = row;
                         _column = column;
-                        _index = index + 1;
+                        _index = i + 1;
 
                         return entry.Unit;
                     }
@@ -167,27 +204,8 @@ internal sealed class UnitGrid
         return null;
     }
 
-    public bool IsInQuery(Vector2 point, Vector2 min, Vector2 max)
-    {
-        int column = GetColumn(point.X);
-        int row = GetRow(point.Y);
-
-        return column >= GetColumn(min.X - _cell.X) && column <= GetColumn(max.X + _cell.X) && row >= GetRow(min.Y - _cell.Y) && row <= GetRow(max.Y + _cell.Y);
-    }
     
     public UnitQuery GetNear(Vector2 min, Vector2 max) => new(_buckets, _columns, GetColumn(min.X), GetColumn(max.X), GetRow(min.Y), GetRow(max.Y));
-
-    [EngineRoutine(0x0040fc40)]
-    public bool HasUnitAt(Vector2 point, float ground)
-    {
-        for (var unit = First(point - new Vector2(PickReach), point + new Vector2(PickReach, ground + PickReach)); unit is not null; unit = Next())
-        {
-            if (unit.Kind.Object.SpriteType.HasFlag(SpriteType.Unit) && unit.CollisionVolume.Covers(point))
-                return true;
-        }
-
-        return false;
-    }
 
     private int GetBucket(Vector2 point) => (GetRow(point.Y) * _columns) + GetColumn(point.X);
 
@@ -253,9 +271,9 @@ internal readonly struct GridEntry
     {
         Unit = unit;
         Position = unit.Position;
-        Half = unit.Kind.Half;
-        Height = unit.Kind.Object.Size.Z;
-        Mask = unit.Kind.MoveMask;
+        Half = unit.Definition.Half;
+        Height = unit.Definition.Object.Size.Z;
+        Mask = unit.Definition.MoveMask;
     }
 
     public Unit Unit { get; }

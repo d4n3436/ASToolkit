@@ -9,12 +9,12 @@ internal sealed class UnitKinematics
     private const float BallisticDrop = 0.9f;
     private const UnitCommand FirstTargetlessCommand = (UnitCommand)0x10;
 
-    private readonly ObjectCatalog _kinds;
+    private readonly SpriteCatalog _definitions;
     private readonly GameWorld _world;
 
-    public UnitKinematics(ObjectCatalog kinds, GameWorld world)
+    public UnitKinematics(SpriteCatalog definitions, GameWorld world)
     {
-        _kinds = kinds;
+        _definitions = definitions;
         _world = world;
     }
 
@@ -43,11 +43,15 @@ internal sealed class UnitKinematics
     }
 
     [EngineRoutine(0x0043f720)]
-    public static void ForgetObject(Unit unit, Unit removed)
+    public static bool ForgetObject(Unit unit, Unit removed)
     {
+        bool builtGoal = false;
+
         if (unit.Goal == removed)
         {
-            if (unit.Animation == SpriteAnimation.Fight)
+            builtGoal = unit.Animation == SpriteAnimation.Fight;
+
+            if (builtGoal)
             {
                 SetCommand(unit, UnitCommand.OneAttack, point: removed.Position);
             }
@@ -58,25 +62,32 @@ internal sealed class UnitKinematics
         }
 
         var orders = unit.Orders;
-        for (int index = 0; index < orders.Length; index++)
+        for (int i = 0; i < orders.Count; i++)
         {
-            if (orders[index].Target == removed)
+            var order = orders[i];
+
+            if (order.Target == removed && UnitOrder.NamesSprite(order.Code))
             {
-                orders[index] = default;
+                orders.Replace(i, order with { Act = UnitOrder.ForgottenOrder, Var1 = 0, Target = null });
             }
         }
+
+        return builtGoal;
     }
 
     [EngineRoutine(0x004489e0)]
-    public static void ForgetCannonGoal(Unit cannon, Unit removed)
+    public static int ForgetCannonGoal(Unit cannon, Unit removed)
     {
+        int built = 0;
+
         if (cannon.Goal == removed)
         {
             cannon.Goal = null;
             cannon.GoalPoint = removed.Position;
+            built++;
         }
 
-        ForgetObject(cannon, removed);
+        return ForgetObject(cannon, removed) ? built + 1 : built;
     }
 
     [EngineRoutine(0x004447b0)]
@@ -91,7 +102,7 @@ internal sealed class UnitKinematics
 
         var link = unit.Link;
 
-        if (link is not null && link.Kind == unit.Kind.LinkKind && link.Kind.FightChild != 0 && link.Kind.Object.WeaponIndex != 0 &&
+        if (link is not null && link.Definition == unit.Definition.LinkDefinition && link.Definition.FightChild != 0 && link.Definition.Object.WeaponIndex != 0 &&
             link.Command is not (UnitCommand.None or UnitCommand.OneAttack))
         {
             SetCommand(link, UnitCommand.None);
@@ -104,7 +115,7 @@ internal sealed class UnitKinematics
         if (unit.MaxSpeed.IsZero())
             return false;
 
-        ref readonly var obj = ref unit.Kind.Object;
+        ref readonly var obj = ref unit.Definition.Object;
 
         if (unit.HasGoal)
         {
@@ -115,14 +126,14 @@ internal sealed class UnitKinematics
 
             int distance = 0;
 
-            if (unit.Kind.Layout.Directions == 1 || obj.Properties.HasFlag(ObjectProperties.RandomBirth))
+            if (unit.Definition.Layout.Directions == 1 || obj.Properties.HasFlag(ObjectProperties.RandomBirth))
             {
                 unit.SetDirection(Angle.Aim(offset.AsVector2(), out distance));
             }
 
             if (!obj.SpriteType.HasFlag(SpriteType.Cannon) && obj.SpriteClass != SpriteClass.Cannon)
             {
-                unit.VerticalSpeed = offset.Z > 0 ? unit.Kind.ZSpeed : offset.Z < 0 ? -unit.Kind.ZSpeed : 0;
+                unit.VerticalSpeed = offset.Z > 0 ? unit.Definition.ZSpeed : offset.Z < 0 ? -unit.Definition.ZSpeed : 0;
             }
             else
             {
@@ -134,7 +145,7 @@ internal sealed class UnitKinematics
                 if (distance == 0)
                     return false;
 
-                unit.VerticalSpeed = GetLaunchSpeed(unit.Kind, offset.Z, distance);
+                unit.VerticalSpeed = GetLaunchSpeed(unit.Definition, offset.Z, distance);
             }
         }
 
@@ -144,33 +155,33 @@ internal sealed class UnitKinematics
     }
 
     [EngineRoutine(0x00414a80)]
-    private float GetLaunchSpeed(ObjectDefinition kind, float rise, float distance)
+    private float GetLaunchSpeed(SpriteDefinition definition, float rise, float distance)
     {
-        ref readonly var obj = ref kind.Object;
-        float gravity = obj.Properties.HasFlag(ObjectProperties.Gravity) ? _kinds.Gravitation : obj.Properties.HasFlag(ObjectProperties.Gravity2) ? _kinds.Gravitation2 : 0;
+        ref readonly var obj = ref definition.Object;
+        float gravity = obj.Properties.HasFlag(ObjectProperties.Gravity) ? _definitions.Gravitation : obj.Properties.HasFlag(ObjectProperties.Gravity2) ? _definitions.Gravitation2 : 0;
         float speed;
 
         if (!gravity.IsZero())
         {
-            speed = rise * kind.Speed / distance + distance * gravity / kind.Speed * 0.5f;
+            speed = rise * definition.Speed / distance + distance * gravity / definition.Speed * 0.5f;
             speed *= speed > 0 ? BallisticRise : BallisticDrop;
         }
         else
         {
-            speed = obj.Properties.HasFlag(ObjectProperties.SelfMoving) ? kind.ZSpeed : obj.TopZ.IsZero() ? rise * kind.Speed / distance : 0;
+            speed = obj.Properties.HasFlag(ObjectProperties.SelfMoving) ? definition.ZSpeed : obj.TopZ.IsZero() ? rise * definition.Speed / distance : 0;
         }
 
-        return Math.Clamp(speed, -kind.ZSpeed, kind.ZSpeed);
+        return Math.Clamp(speed, -definition.ZSpeed, definition.ZSpeed);
     }
 
     [EngineRoutine(0x0043fb10)]
     public Vector3 Move(Unit unit, int elapsed)
     {
-        ref readonly var obj = ref unit.Kind.Object;
+        ref readonly var obj = ref unit.Definition.Object;
         var next = unit.Position;
-        unit.Blocked = false;
+        unit.IsBlocked = false;
 
-        if (unit is { Command: UnitCommand.Move, Moving: false })
+        if (unit is { Command: UnitCommand.Move, IsMoving: false })
         {
             StartMove(unit);
         }
@@ -180,23 +191,23 @@ internal sealed class UnitKinematics
             StopMoving(unit);
         }
 
-        unit.Speed = Accelerate(unit.Kind, unit.Speed, unit.MaxSpeed, unit.Moving, elapsed);
+        unit.Speed = Accelerate(unit.Definition, unit.Speed, unit.MaxSpeed, unit.IsMoving, elapsed);
 
-        if (unit.Speed >= ObjectDefinition.Unlimited)
+        if (unit.Speed >= SpriteDefinition.Unlimited)
         {
-            if (unit.HasGoal && unit is not { ReachedX: true, ReachedY: true })
+            if (unit.HasGoal && unit is not { HasReachedX: true, HasReachedY: true })
             {
-                var impact = _world.Projectiles.Trace(unit.Kind, unit.Position, unit.GoalPosition, out bool hit);
+                var impact = _world.Projectiles.Trace(unit.Definition, unit.Position, unit.GoalPosition, out bool hit);
                 unit.Position = impact;
-                unit.Blocked = hit;
-                unit.ReachedX = true;
-                unit.ReachedY = true;
+                unit.IsBlocked = hit;
+                unit.HasReachedX = true;
+                unit.HasReachedY = true;
 
                 return impact;
             }
 
-            unit.ReachedX = true;
-            unit.ReachedY = true;
+            unit.HasReachedX = true;
+            unit.HasReachedY = true;
         }
         else if (!unit.Speed.IsZero())
         {
@@ -207,11 +218,11 @@ internal sealed class UnitKinematics
 
         if (obj.Properties.HasFlag(ObjectProperties.Gravity))
         {
-            unit.VerticalSpeed -= elapsed * _kinds.Gravitation;
+            unit.VerticalSpeed -= elapsed * _definitions.Gravitation;
         }
         else if (obj.Properties.HasFlag(ObjectProperties.Gravity2))
         {
-            unit.VerticalSpeed -= elapsed * _kinds.Gravitation2;
+            unit.VerticalSpeed -= elapsed * _definitions.Gravitation2;
         }
 
         next.Z = elapsed * unit.VerticalSpeed + next.Z;
@@ -224,15 +235,15 @@ internal sealed class UnitKinematics
         return next;
     }
 
-    public static float Accelerate(ObjectDefinition kind, float speed, float maxSpeed, bool moving, int elapsed)
+    public static float Accelerate(SpriteDefinition definition, float speed, float maxSpeed, bool moving, int elapsed)
     {
-        ref readonly var obj = ref kind.Object;
+        ref readonly var obj = ref definition.Object;
 
         if (!moving)
         {
             if (speed > 0)
             {
-                speed = obj.Deceleration.IsNear(ObjectDefinition.Unlimited) ? 0 : MathF.Max(0, speed - elapsed * kind.Deceleration);
+                speed = obj.Deceleration.IsNear(SpriteDefinition.Unlimited) ? 0 : MathF.Max(0, speed - elapsed * definition.Deceleration);
             }
 
             return speed;
@@ -241,12 +252,12 @@ internal sealed class UnitKinematics
         if (speed >= maxSpeed)
             return speed;
 
-        if (!obj.Acceleration.IsNear(ObjectDefinition.Unlimited))
+        if (!obj.Acceleration.IsNear(SpriteDefinition.Unlimited))
         {
-            speed = elapsed * kind.Acceleration + speed;
+            speed = elapsed * definition.Acceleration + speed;
         }
 
-        return obj.Acceleration.IsNear(ObjectDefinition.Unlimited) || speed >= maxSpeed ? maxSpeed : speed;
+        return obj.Acceleration.IsNear(SpriteDefinition.Unlimited) || speed >= maxSpeed ? maxSpeed : speed;
     }
 
     public static Vector3 Displace(Vector3 position, Angle direction, float speed, int elapsed)
@@ -272,7 +283,7 @@ internal sealed class UnitKinematics
         unit.ClearMove();
         unit.VerticalSpeed = 0;
 
-        if (unit.Kind.Object.Deceleration.IsNear(ObjectDefinition.Unlimited))
+        if (unit.Definition.Object.Deceleration.IsNear(SpriteDefinition.Unlimited))
         {
             unit.Speed = 0;
         }

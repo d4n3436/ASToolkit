@@ -24,6 +24,7 @@ internal sealed class ReplayRecorder
     private readonly List<SpriteEvent> _removedSprites = [];
     private readonly HashSet<MergedMapSprite> _gone = new(ReferenceEqualityComparer.Instance);
     private readonly List<PlacementFrame> _placementFrames = [];
+    private PickupTracker? _pickups;
     private readonly List<EffectState> _scenery = [];
     private readonly List<CameraShake> _shakes = [];
     private readonly List<ScreenFlash> _flashes = [];
@@ -36,6 +37,7 @@ internal sealed class ReplayRecorder
 
     public void Start(GameWorld world)
     {
+        _pickups = new PickupTracker(world);
         _spriteCount = world.Sprites.Count;
         foreach (var sprite in world.Sprites)
         {
@@ -79,13 +81,13 @@ internal sealed class ReplayRecorder
             Add(effect, SpawnedObjectSystem.GetState(effect));
         }
 
-        foreach (var pickup in world.Pickups)
+        foreach (var pickup in (_pickups ??= new PickupTracker(world)).Pickups)
         {
-            var body = pickup.Body;
+            var body = PickupTracker.IsDropped(pickup) ? world.FindPlacementUnit(pickup) : null;
 
-            if (pickup.IsDropped && body is not null)
+            if (body is not null)
             {
-                Add(body, pickup.GetState(time));
+                Add(body, SpawnedObjectSystem.GetState(body));
             }
         }
 
@@ -134,13 +136,13 @@ internal sealed class ReplayRecorder
     }
 
     private void AddUnit(Unit unit) =>
-        Add(unit, new EffectState(unit.Kind.Id, unit.Position, unit.Direction, unit.Animation, unit.CreatedAt, unit.Frame, unit.KeyframePosition));
+        Add(unit, new EffectState(unit.Definition.Id, unit.Position, unit.Direction, unit.Animation, unit.CreatedAt, unit.Frame, unit.KeyframePosition));
 
     private void Add(Unit unit, in EffectState state)
     {
         var owner = unit.Owner is not null && unit.Owner.Link == unit ? unit.Owner : null;
-        bool rotates = unit.Kind.Object.Properties.HasFlag(ObjectProperties.HardwareDirect);
-        bool lags = owner is not null && unit.Kind.Layer <= owner.Kind.Layer;
+        bool rotates = unit.Definition.Object.Properties.HasFlag(ObjectProperties.HardwareDirect);
+        bool lags = owner is not null && unit.Definition.Layer <= owner.Definition.Layer;
         _captures.Add(new PendingSample(unit, state, owner, rotates, lags));
         _seen.Add(unit);
     }

@@ -58,6 +58,16 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     public Vector2 Vector => Vectors[Value];
 
     /// <summary>
+    /// Gets the sine of the angle from the engine's table.
+    /// </summary>
+    public float Sine => SineTable[Value];
+
+    /// <summary>
+    /// Gets the cosine of the angle from the engine's table.
+    /// </summary>
+    public float Cosine => CosineTable[Value];
+
+    /// <summary>
     /// Gets the opposite direction.
     /// </summary>
     public Angle Opposite => this + HalfTurn;
@@ -89,7 +99,7 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     public static Angle operator -(Angle angle, int turn) => new(unchecked((byte)(angle.Value - turn)));
 
     /// <summary>
-    /// Creates a direction from the low byte of a stored value, as the engines read it.
+    /// Creates a direction from the low byte of a stored value.
     /// </summary>
     /// <param name="value">The stored value.</param>
     public static Angle FromStored(long value) => new(unchecked((byte)value));
@@ -98,6 +108,7 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     /// Returns the direction of an offset in map coordinates.
     /// </summary>
     /// <param name="offset">The offset.</param>
+    [EngineRoutine(0x00406080)]
     public static Angle FromOffset(Vector2 offset)
     {
         if (offset.Y.IsZero())

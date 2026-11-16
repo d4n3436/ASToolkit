@@ -66,6 +66,31 @@ public readonly struct SpriteProgram
     }
 
     /// <summary>
+    /// Returns the items an Alien Shooter sprite payload gives its sprite after its orders.
+    /// </summary>
+    /// <param name="payload">The payload of the sprite's SPRD record.</param>
+    /// <returns>The object ids of the items, empty when the payload holds none.</returns>
+    [EngineRoutine(0x00440830)]
+    public static ReadOnlySpan<int> GetItems(ReadOnlySpan<byte> payload)
+    {
+        if (payload.Length < sizeof(int))
+            return [];
+
+        long position = sizeof(int) + (long)MemoryMarshal.Read<int>(payload) * Unsafe.SizeOf<StackAction>();
+
+        if (position < sizeof(int) || position + sizeof(int) > payload.Length)
+            return [];
+
+        int count = MemoryMarshal.Read<int>(payload[(int)position..]);
+        position += sizeof(int);
+
+        if (count <= 0 || position + (long)count * sizeof(int) > payload.Length)
+            return [];
+
+        return MemoryMarshal.Cast<byte, int>(payload.Slice((int)position, count * sizeof(int)));
+    }
+
+    /// <summary>
     /// Returns the name of the sprite, or an empty string.
     /// </summary>
     public string GetName() => _nameLength > 0 ? GameTextEncoding.Cyrillic.GetString(_payload.Span.Slice(_nameStart, _nameLength)) : "";

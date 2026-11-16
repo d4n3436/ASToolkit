@@ -14,12 +14,9 @@ public readonly struct GameObject
     /// </summary>
     public const int StateCount = 17;
 
-    private const uint ShiftedTypeMask = 0x7F;
-    private const uint SharedTypeMask = ~0xFFu;
-
     internal GameObject(AlienShooterGameObject obj)
     {
-        SpriteType = ConvertSpriteType(obj.SpriteType);
+        SpriteType = obj.SpriteType.ToSpriteType();
         SpriteClass = obj.SpriteClass;
         Properties = obj.Properties;
         MoveMask = obj.MoveMask;
@@ -57,7 +54,7 @@ public readonly struct GameObject
 
     internal GameObject(ZombieShooterGameObject obj)
     {
-        SpriteType = ConvertSpriteType(obj.SpriteType);
+        SpriteType = obj.SpriteType.ToSpriteType();
         SpriteClass = obj.SpriteClass;
         Properties = obj.Properties;
         MoveMask = obj.MoveMask;
@@ -145,7 +142,7 @@ public readonly struct GameObject
     public readonly SpriteClass SpriteClass;
 
     /// <summary>
-    /// Gets the properties of the object.
+    /// The properties of the object.
     /// </summary>
     [FieldOffset(8)]
     public readonly ObjectProperties Properties;
@@ -169,25 +166,25 @@ public readonly struct GameObject
     public readonly int MaxHp;
 
     /// <summary>
-    /// Gets the highest speed of the object along its facing, which is also the initial speed of a spawned object.
+    /// The highest speed of the object along its facing and the initial speed of a spawned object.
     /// </summary>
     [FieldOffset(32)]
     public readonly float MaxSpeed;
 
     /// <summary>
-    /// Gets the maximum of the initial speed range, in milli-units; the highest speed is the minimum. Absent from Alien Shooter records.
+    /// The maximum of the initial speed range, in milli-units; the highest speed is the minimum. Absent from Alien Shooter records.
     /// </summary>
     [FieldOffset(36)]
     public readonly float MaxInitialSpeed;
 
     /// <summary>
-    /// Gets the highest vertical speed of the object in milli-units, which is also its initial vertical speed.
+    /// The highest and initial vertical speed of the object in milli-units.
     /// </summary>
     [FieldOffset(40)]
     internal readonly float MaxZSpeed;
 
     /// <summary>
-    /// Gets the maximum of the initial vertical speed range, in milli-units. Absent from Alien Shooter records.
+    /// The maximum of the initial vertical speed range, in milli-units. Absent from Alien Shooter records.
     /// </summary>
     [FieldOffset(44)]
     public readonly float MaxInitialZSpeed;
@@ -211,31 +208,31 @@ public readonly struct GameObject
     public readonly float RotationPeriod;
 
     /// <summary>
-    /// Gets the index of the WEAP record of the object, or zero for none.
+    /// The index of the WEAP record of the object, or zero for none.
     /// </summary>
     [FieldOffset(60)]
     public readonly int WeaponIndex;
 
     /// <summary>
-    /// Gets the radius the object's blast adds to its footprint when it dies or hits something.
+    /// The radius the object's blast adds to its footprint when it dies or hits something.
     /// </summary>
     [FieldOffset(64)]
     public readonly float DeathRange;
 
     /// <summary>
-    /// Gets the damage the object sends to everything its blast reaches.
+    /// The damage the object sends to everything its blast reaches.
     /// </summary>
     [FieldOffset(68)]
     public readonly int DeathDamage;
 
     /// <summary>
-    /// Gets the highest damage the object's blast deals. Absent from Alien Shooter and Zombie Shooter records.
+    /// The highest damage the object's blast deals. Absent from Alien Shooter and Zombie Shooter records.
     /// </summary>
     [FieldOffset(72)]
     public readonly int MaxDeathDamage;
 
     /// <summary>
-    /// Gets the push of the object's blast. Absent from Alien Shooter and Zombie Shooter records.
+    /// The push of the object's blast. Absent from Alien Shooter and Zombie Shooter records.
     /// </summary>
     [FieldOffset(76)]
     public readonly float Push;
@@ -253,7 +250,7 @@ public readonly struct GameObject
     public readonly KnownObject Link;
 
     /// <summary>
-    /// Gets the height above the terrain the object keeps while it is not falling. Negative values also affect projectile motion.
+    /// The height above the terrain the object keeps while it is not falling. Negative values also affect projectile motion.
     /// </summary>
     [FieldOffset(96)]
     public readonly float TopZ;
@@ -271,7 +268,7 @@ public readonly struct GameObject
     public readonly float DropHeight;
 
     /// <summary>
-    /// Gets the lifetime of the object in milliseconds; 999999 means forever.
+    /// The lifetime of the object in milliseconds; 999999 means forever.
     /// </summary>
     [FieldOffset(108)]
     public readonly int Lifetime;
@@ -301,31 +298,31 @@ public readonly struct GameObject
     public readonly StateValues<int> FrameDurations;
 
     /// <summary>
-    /// Gets the x offset of the object created in each state.
+    /// The x offset of the object created in each state.
     /// </summary>
     [FieldOffset(336)]
     public readonly StateValues<float> ChildX;
 
     /// <summary>
-    /// Gets the y offset of the object created in each state.
+    /// The y offset of the object created in each state.
     /// </summary>
     [FieldOffset(404)]
     public readonly StateValues<float> ChildY;
 
     /// <summary>
-    /// Gets the height offset of the object created in each state.
+    /// The height offset of the object created in each state.
     /// </summary>
     [FieldOffset(472)]
     public readonly StateValues<float> ChildZ;
 
     /// <summary>
-    /// Gets the ID of the object created in each state.
+    /// The ID of the object created in each state.
     /// </summary>
     [FieldOffset(540)]
     public readonly StateValues<int> Children;
 
     /// <summary>
-    /// Gets the number of objects created in each state.
+    /// The number of objects created in each state.
     /// </summary>
     [FieldOffset(608)]
     public readonly StateValues<int> ChildCounts;
@@ -343,7 +340,7 @@ public readonly struct GameObject
     public readonly Vector3 Scale;
 
     /// <summary>
-    /// Gets the number of frames of the standing animation in each direction.
+    /// The number of frames of the standing animation in each direction.
     /// </summary>
     public int FramesPerDirection => FrameCounts[(int)SpriteAnimation.Stand];
 
@@ -375,7 +372,7 @@ public readonly struct GameObject
     /// <summary>
     /// Returns the index of the direction frame the engine picks for a direction.
     /// </summary>
-    public int GetDirectionIndex(Angle dir) => ((dir.Value + 128 / Directions) & 255) * Directions >> 8;
+    public int GetDirectionIndex(Angle dir) => ((dir.Value + Angle.HalfTurn / Directions) & 255) * Directions >> 8;
 
     /// <summary>
     /// Returns the sprite frame that starts an animation state.
@@ -413,9 +410,6 @@ public readonly struct GameObject
 
         return animation;
     }
-
-    private static SpriteType ConvertSpriteType(OldSpriteType old) =>
-        (SpriteType)((((uint)old & ShiftedTypeMask) << 1) | ((uint)old & SharedTypeMask));
 
     /// <summary>
     /// Returns the offset of an attached object from the object, turned by a facing unless the attached object keeps a fixed offset.

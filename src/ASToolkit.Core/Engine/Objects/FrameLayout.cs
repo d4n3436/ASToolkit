@@ -110,6 +110,16 @@ internal sealed class FrameLayout
 
     public int GetFrameDuration(SpriteAnimation state) => _durations[(int)state];
 
+    public void SetFrameDurations(int duration) => Array.Fill(_durations, duration);
+
+    public void LoadFrameDurations(in GameObject obj, int spriteSpeed)
+    {
+        for (int state = 0; state < StateCount; state++)
+        {
+            _durations[state] = obj.FrameDurations[state] == 0 ? spriteSpeed : obj.FrameDurations[state];
+        }
+    }
+
     [EngineRoutine(0x0043a1c0)]
     public int GetDirectionIndex(Angle direction) => ((DirectionOffset + direction.Value) & 0xff) * Directions >> 8;
 }

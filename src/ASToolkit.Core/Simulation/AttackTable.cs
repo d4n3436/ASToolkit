@@ -5,15 +5,15 @@ namespace ASToolkit.Core.Simulation;
 
 internal sealed class AttackTable
 {
-    private readonly ObjectCatalog _kinds;
+    private readonly SpriteCatalog _definitions;
     private readonly Dictionary<KnownObject, AttackProfile> _profiles = [];
 
-    public AttackTable(ObjectCatalog kinds)
+    public AttackTable(SpriteCatalog definitions)
     {
-        _kinds = kinds;
+        _definitions = definitions;
     }
 
-    public AttackProfile Get(ObjectDefinition creator)
+    public AttackProfile Get(SpriteDefinition creator)
     {
         if (!_profiles.TryGetValue(creator.Id, out var profile))
         {
@@ -24,12 +24,12 @@ internal sealed class AttackTable
         return profile;
     }
 
-    private AttackProfile Measure(ObjectDefinition creator, int depth)
+    private AttackProfile Measure(SpriteDefinition creator, int depth)
     {
-        if (depth >= ObjectCatalog.MaxLaunchDepth)
+        if (depth >= SpriteCatalog.MaxLaunchDepth)
             return default;
 
-        var child = _kinds.Find((KnownObject)Math.Abs((int)creator.FightChild));
+        var child = _definitions.Find((KnownObject)Math.Abs((int)creator.FightChild));
 
         if (child is null)
             return default;
@@ -44,18 +44,18 @@ internal sealed class AttackTable
             return profile with { Damage = creator.FightCount * profile.Damage, Rounds = creator.FightCount * profile.Rounds };
         }
 
-        var payload = _kinds.Find(child.DeathChild);
+        var payload = _definitions.Find(child.DeathChild);
 
         if (payload is not null)
             return new AttackProfile(creator.FightCount * payload.Damage, payload.BlastRadius, !payload.SkipsOwnArmy, Rounds: creator.FightCount, BlastHeight: GetBlastHeight(payload));
 
-        var carried = _kinds.Find(child.Object.Link);
+        var carried = _definitions.Find(child.Object.Link);
 
         return carried is null ? default : new AttackProfile(creator.FightCount * carried.Damage, carried.BlastRadius, !carried.SkipsOwnArmy,
             child.Speed * child.GetAnimationDuration(child.InitialAnimation), creator.FightCount, GetBlastHeight(carried));
     }
 
-    private static float GetBlastHeight(ObjectDefinition payload) => Math.Max(WeaponSystem.MinBlastHeight, payload.Object.Size.Z);
+    private static float GetBlastHeight(SpriteDefinition payload) => Math.Max(WeaponSystem.MinBlastHeight, payload.Object.Size.Z);
 }
 
 internal readonly record struct AttackProfile(int Damage, float BlastRadius, bool HurtsOwnArmy, float Reach = float.MaxValue, int Rounds = 1, float BlastHeight = float.MaxValue);

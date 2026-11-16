@@ -64,6 +64,7 @@ public static class LevelExtractor
             Edges = edges,
             Objects = ExtractDecor(sp, lattice, objects),
             Sprites = sp,
+            StoredSprites = map.Sprites,
             MapSize = map.Size,
             Environment = map.Graphics.Environment,
             Groups = map.Groups.ToArray()
@@ -387,6 +388,7 @@ public static class LevelExtractor
             Edges = ReadBasementEdges(lattice, sp, outdoor: true),
             Objects = ExtractDecor(sp, lattice, objects),
             Sprites = sp,
+            StoredSprites = map.Sprites,
             MapSize = map.Size,
             Environment = map.Graphics.Environment,
             Groups = map.Groups.ToArray()

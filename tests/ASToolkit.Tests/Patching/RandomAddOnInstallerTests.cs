@@ -1,8 +1,8 @@
 using System.Text;
-using ASToolkit.Core.Formats;
 using ASToolkit.Core.Reference;
 using Xunit;
 using ASToolkit.Core.Patching;
+using ASToolkit.Core.Scripting;
 
 namespace ASToolkit.Tests.Patching;
 

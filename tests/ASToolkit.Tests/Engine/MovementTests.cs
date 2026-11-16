@@ -68,8 +68,8 @@ public class MovementTests
     public void Half_IgnoresTheVisualScale()
     {
         var obj = Body(new Vector3(40, 28, 73), scale: new Vector3(3, 2, 4));
-        var kind = new ObjectDefinition(KnownObject.Monster1, obj, default, 0);
-        Assert.Equal(new Vector2(20, 14), kind.Half);
+        var definition = new SpriteDefinition(KnownObject.Monster1, obj, default, 0);
+        Assert.Equal(new Vector2(20, 14), definition.Half);
     }
 
     [Fact]
@@ -148,8 +148,8 @@ public class MovementTests
         var map = new MovementMap();
         map.Raise(32, 0, 24);
         var grid = new UnitGrid(new SizeF(256, 256), new Vector2(130));
-        var walker = new ObjectDefinition(KnownObject.Monster1, Body(new Vector3(16, 16, 20)), default, 0);
-        var bullet = new ObjectDefinition(KnownObject.PistolBullet, Body(new Vector3(4, 4, 2)), default, 0);
+        var walker = new SpriteDefinition(KnownObject.Monster1, Body(new Vector3(16, 16, 20)), default, 0);
+        var bullet = new SpriteDefinition(KnownObject.PistolBullet, Body(new Vector3(4, 4, 2)), default, 0);
         var shooter = new Unit(0, walker, Vector3.Zero, 0, 10);
         grid.Add(shooter);
         grid.Add(new Unit(1, walker, new Vector3(64, 0, 30), Army.Monsters, 10));

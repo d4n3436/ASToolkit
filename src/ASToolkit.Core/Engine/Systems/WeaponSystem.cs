@@ -15,24 +15,32 @@ internal sealed class WeaponSystem
     private const int LegSlack = 63;
     private static readonly Vector2 ViewHalf = new(640, 360);
     private readonly GameWorld _world;
-    private readonly PlayerInventory _inventory;
-    private readonly ObjectCatalog _kinds;
+    private readonly SpriteCatalog _definitions;
     private readonly Random _rng;
     private readonly UnitGrid _grid;
-    private const int WeaponKindLimit = 21;
+    private const int WeaponIdLimit = 21;
     private bool _turnsLegs;
     private readonly DepthProbe _depth;
 
-    public WeaponSystem(GameWorld world, PlayerInventory inventory, ObjectCatalog kinds, Random random)
+    public WeaponSystem(GameWorld world, SpriteCatalog definitions, Random random)
     {
         _world = world;
-        _inventory = inventory;
-        _kinds = kinds;
+        _definitions = definitions;
         _rng = random;
         _grid = world.Units;
         Collision = new ProjectileCollision(world.Movement, _grid);
-        Torso = CreateTorso(world.Player.Kind.LinkKind!, 0);
+        Torso = CreateTorso(world.Player.Definition.LinkDefinition!, 0, false);
         _depth = new DepthProbe(world);
+    }
+
+    public void AttachTorso() => Torso = CreateTorso(_world.Player.Definition.LinkDefinition!, 0, false);
+
+    [EngineRoutine(0x00445770)]
+    public void StartTorso(SpriteAnimation state)
+    {
+        Torso.Start(state, _world.Player.Direction, _world.Time, _rng);
+        Torso.CreatedAt = _world.Time;
+        _world.Effects.CreateLink(Torso, _world.Time, 0);
     }
 
     public Unit Torso { get; private set; }
@@ -41,23 +49,27 @@ internal sealed class WeaponSystem
 
     public bool CanFire => !Torso.IsReloading;
 
-    private Unit CreateTorso(ObjectDefinition kind, int timer)
+    private Unit CreateTorso(SpriteDefinition definition, int timer, bool linked = true)
     {
         var player = _world.Player;
-        var torso = new Unit(_world.AllocateNumber(), kind, GetTorsoPosition(kind), 0, 0) { Direction = player.Direction, Timer = timer, Owner = player };
+        var torso = new Unit(_world.AllocateNumber(), definition, GetTorsoPosition(definition), 0, 0) { Direction = player.Direction, Timer = timer, Owner = player };
         torso.ChangeAnimation(SpriteAnimation.Stand);
         player.Link = torso;
-        _world.Effects.CreateLink(torso, _world.Time, 0);
+
+        if (linked)
+        {
+            _world.Effects.CreateLink(torso, _world.Time, 0);
+        }
 
         return torso;
     }
 
-    private Vector3 GetTorsoPosition(ObjectDefinition kind) =>
-        _world.Player.Position + _world.Player.Kind.Object.GetLinkOffset(kind.Object, null, 0, _world.Player.Direction);
+    private Vector3 GetTorsoPosition(SpriteDefinition definition) =>
+        _world.Player.Position + _world.Player.Definition.Object.GetLinkOffset(definition.Object, null, 0, _world.Player.Direction);
 
     public void UpdateTorso()
     {
-        Torso.Position = GetTorsoPosition(Torso.Kind);
+        Torso.Position = GetTorsoPosition(Torso.Definition);
         _world.Tact(Torso);
     }
 
@@ -66,16 +78,18 @@ internal sealed class WeaponSystem
     [EngineRoutine(0x00454800)]
     public void AimPlayer(Vector2 cursor)
     {
-        var weapon = _world.Player.Kind.LinkKind;
+        var weapon = _world.Player.Definition.LinkDefinition;
 
-        if (Torso.Kind != weapon || weapon.FightChild == 0 || weapon.Object.WeaponIndex == 0 || Torso.IsReloading)
+        if (Torso.Definition != weapon || weapon.FightChild == 0 || weapon.Object.WeaponIndex == 0 || Torso.IsReloading)
             return;
 
-        UnitKinematics.SetCommand(Torso, UnitCommand.OneAttack, point: GetCursorPoint(cursor, weapon));
+        var point = GetCursorPoint(cursor, weapon);
+        _world.DrawGoalSpriteRandom();
+        UnitKinematics.SetCommand(Torso, UnitCommand.OneAttack, point: point);
     }
 
     // Raises the cursor to the height the depth buffer holds under it on screen, or to the terrain off screen
-    private Vector3 GetCursorPoint(Vector2 cursor, ObjectDefinition weapon)
+    private Vector3 GetCursorPoint(Vector2 cursor, SpriteDefinition weapon)
     {
         var player = _world.Player.Position;
         var pixel = cursor - (new Vector2(player.X, player.Y - player.Z) - ViewHalf);
@@ -108,28 +122,28 @@ internal sealed class WeaponSystem
     public bool SelectWeapon(int slot)
     {
         var player = _world.Player;
-        var held = player.Kind.LinkKind;
+        var held = player.Definition.LinkDefinition;
 
-        if (held is null || (int)held.Id >= WeaponKindLimit)
+        if (held is null || (int)held.Id >= WeaponIdLimit)
             return false;
 
-        if (slot == PlayerInventory.WeaponSlots)
+        if (slot == Unit.WeaponSlots)
         {
             slot = 0;
         }
 
-        if (!_inventory.HoldsWeapon(slot) || player.Link is null || player.Link.Kind != held)
+        if (!player.Items.Contains(Unit.WeaponItemBase + slot) || player.Link is null || player.Link.Definition != held)
             return false;
 
         player.SlotAmmo[player.WeaponSlot] = player.GetAmmo();
-        var weapon = _kinds.Find((KnownObject)(slot + Unit.WeaponKindBase));
+        var weapon = _definitions.Find((KnownObject)(slot + Unit.WeaponIdBase));
 
         if (weapon is not null)
         {
             ChangeTorso(weapon);
         }
 
-        player.Kind.LinkKind = weapon;
+        player.Definition.LinkDefinition = weapon;
         player.AddAmmo(player.SlotAmmo[slot] - player.GetAmmo());
 
         return true;
@@ -138,21 +152,29 @@ internal sealed class WeaponSystem
     [EngineRoutine(0x00445770)]
     public void ReplaceTorso()
     {
-        var link = _world.Player.Kind.LinkKind;
+        var link = _world.Player.Definition.LinkDefinition;
 
         if (link is null)
             return;
 
-        _world.Effects.Detach(Torso);
+        _world.DropLinks(Torso);
+        var carried = Torso.Link;
+        Torso.Link = null;
         Torso = CreateTorso(link, 0);
         _world.Register(UpdateRole.Torso, Torso);
+
+        if (carried is not null)
+        {
+            carried.Owner = null;
+            SpawnedObjectSystem.AppendLink(Torso, carried);
+        }
     }
 
     [EngineRoutine(0x00440830)]
-    private void ChangeTorso(ObjectDefinition weapon)
+    private void ChangeTorso(SpriteDefinition weapon)
     {
-        int layer = Torso.Kind.Layer;
-        _world.Effects.Detach(Torso);
+        int layer = Torso.Definition.Layer;
+        _world.DropLinks(Torso);
         Torso.ChangeVid(weapon, SpriteAnimation.Stand);
         _world.Effects.CreateLink(Torso, _world.Time, 0);
 
@@ -162,13 +184,13 @@ internal sealed class WeaponSystem
         }
     }
 
-    // Turns the torso toward the cursor each frame and the standing legs after it once it passes the slack
+    // Standing legs follow the torso once its turn passes the slack
     [EngineRoutine(0x0043ea10)]
     public void TrackCursor(Angle direction, int elapsed)
     {
         var player = _world.Player;
 
-        if (player is { Speed: 0, Kind.Id: KnownObject.PlayerStart })
+        if (player is { Speed: 0, Definition.Id: KnownObject.PlayerStart })
         {
             if (!_turnsLegs)
             {
@@ -176,12 +198,12 @@ internal sealed class WeaponSystem
             }
             else
             {
-                player.SetDirection(player.Direction.TurnToward(Torso.Direction, player.Kind.Object.RotationPeriod, elapsed, out int remaining));
+                player.SetDirection(player.Direction.TurnToward(Torso.Direction, player.Definition.Object.RotationPeriod, elapsed, out int remaining));
                 _turnsLegs = remaining != 0;
             }
         }
 
-        Torso.SetDirection(Torso.Direction.TurnToward(direction, Torso.Kind.Object.RotationPeriod, elapsed, out _));
+        Torso.SetDirection(Torso.Direction.TurnToward(direction, Torso.Definition.Object.RotationPeriod, elapsed, out _));
     }
 
     [EngineRoutine(0x00454800)]
@@ -190,37 +212,30 @@ internal sealed class WeaponSystem
 
         if (_world.Player.HasGoal || Torso.HasGoal)
         {
-            Torso.TryAttack(Math.Max(elapsed, _world.Player.Kind.Layout.GetFrameDuration(_world.Player.Animation)));
+            Torso.TryAttack(Math.Max(elapsed, _world.Player.Definition.Layout.GetFrameDuration(_world.Player.Animation)));
         }
-    }
-
-    public void ResetPlayer()
-    {
-        UnitKinematics.SetCommand(Torso, UnitCommand.None);
-        Torso.Timer = 0;
-        Torso.ChangeAnimation(SpriteAnimation.Stand);
     }
 
     public void FireFrom(Unit unit)
     {
         if (unit.HasGoal)
         {
-            Fire(unit == Torso ? _world.Player : unit, unit.Kind, unit.GoalPosition, unit.Goal, 0, unit.Position, unit.Direction);
+            Fire(unit == Torso ? _world.Player : unit, unit.Definition, unit.GoalPosition, unit.Goal, 0, unit.Position, unit.Direction);
         }
     }
 
 
-    private void Fire(Unit shooter, ObjectDefinition creator, Vector3 aim, Unit? target, int depth, Vector3? origin = null, Angle? direction = null)
+    private void Fire(Unit shooter, SpriteDefinition creator, Vector3 aim, Unit? target, int depth, Vector3? origin = null, Angle? direction = null)
     {
-        var child = _kinds.Find((KnownObject)Math.Abs(creator.Object.Children[(int)SpriteAnimation.Fight]));
+        var child = _definitions.Find((KnownObject)Math.Abs(creator.Children[(int)SpriteAnimation.Fight]));
 
-        if (child is null || depth >= ObjectCatalog.MaxLaunchDepth)
+        if (child is null || depth >= SpriteCatalog.MaxLaunchDepth)
         {
             return;
         }
 
         bool scatters = !creator.WeaponFlags.HasFlag(WeaponFlags.NoSpread) || target is null;
-        float spread = shooter == _world.Player && creator.IsArmed && depth == 0 ? _inventory.Implants.ScaleAim(creator.Aim) : creator.Aim;
+        float spread = creator.Aim;
         var from = origin ?? shooter.Position;
         bool secondPulse = shooter.TakeChildPulse(SpriteAnimation.Fight, creator);
         bool relays = child.Damage <= 0 && child.FightChild != 0;
@@ -258,7 +273,7 @@ internal sealed class WeaponSystem
     [EngineRoutine(0x00440830)]
     public void ApplyBlast(Unit blast)
     {
-        var payload = blast.Kind;
+        var payload = blast.Definition;
 
         if (payload.Damage == 0)
             return;
@@ -268,25 +283,25 @@ internal sealed class WeaponSystem
         var reach = payload.Half + new Vector2(payload.BlastRadius);
         float heightReach = Math.Max(MinBlastHeight, payload.Object.Size.Z);
         bool scales = payload.IsExplosive && !payload.BlastRadius.IsZero();
-        int damage = _inventory.Implants.ScaleDamage(payload.Id, payload.Damage);
+        int damage = payload.Damage;
         
         for (var unit = _grid.First(point - reach, point + reach); unit is not null; unit = _grid.Next())
         {
-            if (unit == blast || unit.Kind.MaxHp == 0 || payload.SkipsOwnArmy && unit.Army == blast.Army)
+            if (unit == blast || unit.Definition.MaxHp == 0 || payload.SkipsOwnArmy && unit.Army == blast.Army)
                 continue;
 
             var victim = unit.Position;
             var offset = Vector2.Abs(victim.AsVector2() - point);
-            float top = victim.Z + unit.Kind.Object.Size.Z;
+            float top = victim.Z + unit.Definition.Object.Size.Z;
 
-            if (offset.X >= reach.X + unit.Kind.Half.X || offset.Y >= reach.Y + unit.Kind.Half.Y ||
-                MathF.Abs(impact.Z - victim.Z) >= heightReach + unit.Kind.Object.Size.Z ||
+            if (offset.X >= reach.X + unit.Definition.Half.X || offset.Y >= reach.Y + unit.Definition.Half.Y ||
+                MathF.Abs(impact.Z - victim.Z) >= heightReach + unit.Definition.Object.Size.Z ||
                 top < _world.Movement.GetHeight((victim.AsVector2() + point) * 0.5f) ||
                 top < _world.Movement.GetHeight((point * 3 + victim.AsVector2()) * 0.25f) ||
                 top < _world.Movement.GetHeight((victim.AsVector2() * 3 + point) * 0.25f))
                 continue;
 
-            float distance = victim.AsVector2().MeasureDistance(point);
+            float distance = victim.AsVector2().MeasureOctagonalDistance(point);
 
             if (scales && distance > payload.BlastRadius)
                 continue;

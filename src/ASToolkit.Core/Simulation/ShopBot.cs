@@ -1,11 +1,13 @@
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Scripting;
 
 namespace ASToolkit.Core.Simulation;
 
 internal sealed class ShopBot
 {
     private const int FirstWeapon = 2;
+    private const int MaxLives = 5;
     private const int WeaponCount = 10;
     private const int TorsoBase = 10;
     private const int WeaponPickupBase = 260;
@@ -19,18 +21,18 @@ internal sealed class ShopBot
     private const int InitialAmmoDivisor = 2;
 
     private readonly ObjectTable _objects;
-    private readonly ObjectCatalog _kinds;
+    private readonly SpriteCatalog _definitions;
     private readonly AttackTable _attacks;
     private readonly IReadOnlyList<int> _weaponPrices;
     private readonly IReadOnlyList<int> _ammoPrices;
     private readonly IReadOnlyList<int> _ammoBatches;
     private readonly IReadOnlyList<int> _itemPrices;
 
-    public ShopBot(ObjectTable objects, ObjectCatalog kinds, GameTable table)
+    public ShopBot(ObjectTable objects, SpriteCatalog definitions, GameTable table)
     {
         _objects = objects;
-        _kinds = kinds;
-        _attacks = new AttackTable(kinds);
+        _definitions = definitions;
+        _attacks = new AttackTable(definitions);
         _weaponPrices = table.GetArray("WeaponPrice");
         _ammoPrices = table.GetArray("AmmoPrice");
         _ammoBatches = table.GetArray("GettingAmmo");
@@ -53,7 +55,7 @@ internal sealed class ShopBot
             if (ammo.ContainsKey(pickup))
                 break;
 
-            var torso = _kinds.Find(GetTorsoId(slot));
+            var torso = _definitions.Find(GetTorsoId(slot));
             int cost = _weaponPrices[slot] + GetHalfLoadCost(slot, implants);
 
             int damage = torso is null ? 0 : _attacks.Get(torso).Damage;
@@ -112,7 +114,7 @@ internal sealed class ShopBot
         }
 
         var upgraded = new PlayerImplants(counts[LifeItem], counts[StrengthItem], counts[SpeedItem], counts[AccuracyItem]);
-        BuyLives(ref money, saved, bag, PlayerInventory.MaxExtraLives);
+        BuyLives(ref money, saved, bag, MaxLives);
         money -= saved;
         BuyAmmo(ref money, ammo, upgraded, 1);
         money += saved;
@@ -141,8 +143,7 @@ internal sealed class ShopBot
         return (capacity + _ammoBatches[weapon] - 1) / _ammoBatches[weapon] * _ammoPrices[weapon];
     }
 
-    // Fills the best damaging weapons first, up to the capacity divided by the given share
-    private void BuyAmmo(ref int money, Dictionary<KnownObject, int> ammo, PlayerImplants implants, int divisor)
+    private void BuyAmmo(ref int money, Dictionary<KnownObject, int> ammo, PlayerImplants implants, int capacityDivisor)
     {
         for (int weapon = WeaponCount - 1; weapon >= FirstWeapon; weapon--)
         {
@@ -154,13 +155,13 @@ internal sealed class ShopBot
                 continue;
             }
 
-            var kind = _kinds.Find(GetTorsoId(weapon));
+            var definition = _definitions.Find(GetTorsoId(weapon));
 
-            if (kind is null || _attacks.Get(kind).Damage <= 0)
+            if (definition is null || _attacks.Get(definition).Damage <= 0)
                 continue;
 
             int capacity = implants.ScaleAmmo(record.Ammo);
-            while (current < capacity / divisor && money >= _ammoPrices[weapon] && _ammoBatches[weapon] > 0)
+            while (current < capacity / capacityDivisor && money >= _ammoPrices[weapon] && _ammoBatches[weapon] > 0)
             {
                 money -= _ammoPrices[weapon];
                 current = Math.Min(capacity, current + _ammoBatches[weapon]);

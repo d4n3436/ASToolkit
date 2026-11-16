@@ -1,13 +1,14 @@
 using System.Numerics;
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Levels;
 using ASToolkit.Core.Routes;
 
 namespace ASToolkit.Core.Simulation;
 
 internal sealed class PlayerBot
 {
-    private const int Pistols = PlayerInventory.Pistols;
+    private const int Pistols = Unit.Pistols;
     private const int WakeInterval = 80;
     private const int DecisionInterval = 16;
     private const float FloodReach = 2000;
@@ -26,7 +27,10 @@ internal sealed class PlayerBot
     private const int PathLookahead = 16;
     private const float SteeringReach = 48;
     private const float BlastSafetyReach = 200;
+    private const float PickupReach = 60;
+    private const float AmmoReach = 50;
     private const int BlastEscapeSteps = 30;
+    private const float RubbleBlastReach = 100;
     private const int HuntInterval = 500;
     private const float BreachReach = 160;
     private const float BlastMargin = 80;
@@ -69,9 +73,9 @@ internal sealed class PlayerBot
     private readonly List<Unit> _explosives = [];
     private readonly List<Unit> _chained = [];
     private readonly List<Unit> _cluster = [];
-    private readonly Dictionary<WorldPickup, (Vector2 Position, int Cell, int Collected)> _pickupCells = [];
-    private readonly HashSet<WorldPickup> _unreachablePickups = [];
-    private WorldPickup? _detourTarget;
+    private readonly Dictionary<MergedMapSprite, (Vector2 Position, int Cell, int Collected)> _pickupCells = [];
+    private readonly HashSet<MergedMapSprite> _unreachablePickups = [];
+    private MergedMapSprite? _detourTarget;
     private int _detourCell = -1;
     private Vector2 _detourEnd;
     private int _weapon = Pistols;
@@ -89,6 +93,10 @@ internal sealed class PlayerBot
     private int _nextSecretAt;
     private Unit? _worstThreat;
     private Vector2? _playerGoal;
+    private readonly Vector2[] _holes;
+    private readonly PlayerState _state;
+    private readonly PickupTracker _pickups;
+    private readonly Vector2 _rubbleReach;
     private int _cannonIdleSince;
     private bool _seeksCannon;
     private bool _planting;
@@ -109,7 +117,7 @@ internal sealed class PlayerBot
     private int _floodCell = -1;
     private readonly List<TerrainChange> _terrainChanges = [];
     private readonly List<(int Slot, Vector2 Position)> _caches = [];
-    private int _lives;
+    private Unit _player;
     private bool _lastDoorsLocked;
     private bool _lastFencesUp;
     private PlayerCommand _command;
@@ -119,14 +127,22 @@ internal sealed class PlayerBot
     public PlayerBot(GameWorld world, RouteAnalysis analysis, WalkField field)
     {
         _world = world;
+        _state = new PlayerState(world);
+        _pickups = new PickupTracker(world);
         _analysis = analysis;
         _field = field;
         _gunnery = new Gunnery(world, field.Obstacles);
         _aimCursor = PlayerCommand.GetCursor(world.Player.Position);
         _input = new InputDriver(world);
-        _lastDoorsLocked = world.DoorsLocked;
-        _lastFencesUp = world.FencesUp;
-        _lives = world.Inventory.Items.GetValueOrDefault(KnownObject.ExtraLife);
+        _lastDoorsLocked = world.AreDoorsLocked;
+        _lastFencesUp = world.AreFencesUp;
+        _player = world.Player;
+        _holes = world.Sprites
+            .Where(sprite => sprite.Id is KnownObject.SmallMonsterHole or KnownObject.BigMonsterHole)
+            .Select(sprite => sprite.Position.AsVector2())
+            .ToArray();
+        _rubbleReach = (world.Definitions.Find(KnownObject.RubblePile)?.Half ?? Vector2.Zero) + world.Player.Definition.Half;
+
         var lattice = analysis.Grid.Lattice;
         _tour = analysis.Tour.Select(cell => lattice.GetCenter(cell).ToVector2()).ToArray();
         _tourTargets = (Vector2[])_tour.Clone();
@@ -159,11 +175,32 @@ internal sealed class PlayerBot
 
     public float FarthestProgress => GetProgress(_farthest);
 
+    private void SynchronizeCursor()
+    {
+        var player = _world.Player.Position.AsVector2();
+        int best = _cursor;
+        float bestDistance = _tour[_cursor].MeasureOctagonalDistance(player);
+        float covered = 0;
+        for (int index = _cursor + 1; index < _tour.Length && covered <= RejoinWindow; index++)
+        {
+            covered += Vector2.Distance(_tour[index], _tour[index - 1]);
+            float distance = _tour[index].MeasureOctagonalDistance(player);
+
+            if (distance < bestDistance)
+            {
+                best = index;
+                bestDistance = distance;
+            }
+        }
+
+        _cursor = best;
+        _farthest = Math.Max(_farthest, _cursor);
+    }
+
     private void SynchronizeWorld()
     {
-        int lives = _world.Inventory.Items.GetValueOrDefault(KnownObject.ExtraLife);
-        bool respawned = lives < _lives;
-        _lives = lives;
+        bool respawned = _world.Player != _player;
+        _player = _world.Player;
 
         if (respawned)
         {
@@ -180,7 +217,8 @@ internal sealed class PlayerBot
         }
 
         _field.Obstacles.Synchronize(_world, _terrainChanges);
-        bool changed = _lastDoorsLocked != _world.DoorsLocked || _lastFencesUp != _world.FencesUp || _terrainChanges.Count > 0;
+        bool gatesChanged = _lastDoorsLocked != _world.AreDoorsLocked || _lastFencesUp != _world.AreFencesUp;
+        bool changed = gatesChanged || _terrainChanges.Count > 0;
         foreach (var change in _terrainChanges)
         {
             _field.RefreshMovement(change.Position, change.HalfSize);
@@ -193,24 +231,30 @@ internal sealed class PlayerBot
 
         _unreachablePickups.Clear();
         _unreachableCrates.Clear();
-        _lastDoorsLocked = _world.DoorsLocked;
-        _lastFencesUp = _world.FencesUp;
+
+        _lastDoorsLocked = _world.AreDoorsLocked;
+        _lastFencesUp = _world.AreFencesUp;
         _field.SetGates(_lastDoorsLocked, _lastFencesUp);
         _path.Clear();
         _floodCell = -1;
         _offTour = true;
+
+        if (gatesChanged)
+        {
+            SynchronizeCursor();
+        }
     }
 
-    private (Vector2 Position, int Cell, int Collected) GetPickupSpot(WorldPickup pickup)
+    private (Vector2 Position, int Cell, int Collected) GetPickupSpot(MergedMapSprite pickup)
     {
         if (!_pickupCells.TryGetValue(pickup, out var cached) ||
-            pickup.IsDropped && Vector2.DistanceSquared(cached.Position, pickup.Position.AsVector2()) >= _field.CellStep * _field.CellStep)
+            PickupTracker.IsDropped(pickup) && Vector2.DistanceSquared(cached.Position, pickup.Position.AsVector2()) >= _field.CellStep * _field.CellStep)
         {
             var position = pickup.Position.AsVector2();
             int collected = -1;
             for (int index = 0; index < _tour.Length; index++)
             {
-                if (_tour[index].MeasureDistance(position) < GameWorld.GetPickupReach(pickup.Id))
+                if (_tour[index].MeasureOctagonalDistance(position) < GetPickupReach(pickup.Id))
                 {
                     collected = index;
                 }
@@ -225,7 +269,6 @@ internal sealed class PlayerBot
 
     public void PlayTick()
     {
-        _world.TakePickups();
         if (_world.Time % DecisionInterval < _world.FrameTime)
         {
             _command = PlanCommand();
@@ -247,7 +290,7 @@ internal sealed class PlayerBot
         }
 
         var player = _world.Player;
-        Vector2? goal = player.Command == UnitCommand.Move && player.HasGoal ? player.GoalPosition.AsVector2() : null;
+        Vector2? goal = player is { Command: UnitCommand.Move, HasGoal: true } ? player.GoalPosition.AsVector2() : null;
         _world.Step();
 
         if (goal is not null && player.Command != UnitCommand.Move)
@@ -272,7 +315,7 @@ internal sealed class PlayerBot
 
         var target = _aimTarget ?? (_chained.Count == 0 ? FindBreach() ?? FindLootCrate() : null);
         var threat = _worstThreat is not null && _worstThreat.IsAlive ? _worstThreat : null;
-        float worstIntrusion = threat is null ? float.MinValue : GetKeptDistance(threat.Kind) - _world.Player.Position.AsVector2().MeasureDistance(threat.Position.AsVector2());
+        float worstIntrusion = threat is null ? float.MinValue : GetKeptDistance(threat.Definition) - _world.Player.Position.AsVector2().MeasureOctagonalDistance(threat.Position.AsVector2());
 
         if (target is not null && _world.Weapons.CanFire)
         {
@@ -284,7 +327,7 @@ internal sealed class PlayerBot
         Vector2? danger = null;
         foreach (var explosive in _world.ArmedDynamite)
         {
-            if (_world.Player.Position.AsVector2().MeasureDistance(explosive.Position.AsVector2()) < BlastSafetyReach)
+            if (_world.Player.Position.AsVector2().MeasureOctagonalDistance(explosive.Position.AsVector2()) < BlastSafetyReach)
             {
                 danger = explosive.Position.AsVector2();
                 break;
@@ -377,7 +420,7 @@ internal sealed class PlayerBot
         {
             _aimCursor = PlayerCommand.GetCursor(_gunnery.GetAimPoint(target, weapon));
         }
-        else if (_playerGoal is not null && _world.Player.Position.AsVector2().MeasureDistance(_playerGoal.Value) >= 1)
+        else if (_playerGoal is not null && _world.Player.Position.AsVector2().MeasureOctagonalDistance(_playerGoal.Value) >= 1)
         {
             _aimCursor = PlayerCommand.GetCursor(_world.Player.Position) + Vector2.Normalize(_playerGoal.Value - _world.Player.Position.AsVector2()) * IdleCursorReach;
         }
@@ -389,13 +432,13 @@ internal sealed class PlayerBot
     {
         _blockedMovementTime = _playerGoal is not null && _world.Player.Position.AsVector2() == previous ? _blockedMovementTime + _world.FrameTime : 0;
 
-        if (_playerGoal is null || Vector2.DistanceSquared(_world.Player.Position.AsVector2(), _navigationPosition) >= _world.Player.Kind.Object.Size.X * _world.Player.Kind.Object.Size.X)
+        if (_playerGoal is null || Vector2.DistanceSquared(_world.Player.Position.AsVector2(), _navigationPosition) >= _world.Player.Definition.Object.Size.X * _world.Player.Definition.Object.Size.X)
         {
             _navigationPosition = _world.Player.Position.AsVector2();
             _navigationTime = _world.Time;
         }
 
-        if (_playerGoal is null || Vector2.DistanceSquared(_world.Player.Position.AsVector2(), _progressPosition) >= _world.Player.Kind.Object.Size.X * _world.Player.Kind.Object.Size.X)
+        if (_playerGoal is null || Vector2.DistanceSquared(_world.Player.Position.AsVector2(), _progressPosition) >= _world.Player.Definition.Object.Size.X * _world.Player.Definition.Object.Size.X)
         {
             _progressPosition = _world.Player.Position.AsVector2();
             _progressTime = _world.Time;
@@ -435,7 +478,7 @@ internal sealed class PlayerBot
         int gunners = 0;
         foreach (var monster in _world.Units.GetNear(_world.Player.Position.AsVector2() - reach, _world.Player.Position.AsVector2() + reach))
         {
-            if (monster is { Army: Army.Monsters, IsAlive: true } && monster.Goal == _world.Player && monster.Kind.BattleRange > BackOffReach)
+            if (monster is { Army: Army.Monsters, IsAlive: true } && monster.Goal == _world.Player && monster.Definition.BattleRange > BackOffReach)
             {
                 gunners++;
             }
@@ -447,18 +490,18 @@ internal sealed class PlayerBot
             if (!monster.IsAlive)
                 continue;
 
-            float distance = _world.Player.Position.AsVector2().MeasureDistance(monster.Position.AsVector2());
-            float intrusion = GetKeptDistance(monster.Kind) - distance;
+            float distance = _world.Player.Position.AsVector2().MeasureOctagonalDistance(monster.Position.AsVector2());
+            float intrusion = GetKeptDistance(monster.Definition) - distance;
             bool onScreen = _gunnery.IsOnScreen(monster.Position.AsVector2());
             float priority = MeasurePriority(monster, distance);
             bool isCloser = onScreen && priority > targetPriority;
-            bool threatens = monster.Goal == _world.Player && intrusion > worstIntrusion - StandOffMargin;
+            bool threatens = monster.Goal == _world.Player && intrusion > worstIntrusion - StandOffMargin && CanReach(monster);
 
-            bool isGenerator = _world.FencesUp && monster.Kind.Id == KnownObject.Generator && monster.IsAlive;
+            bool isGenerator = _world.AreFencesUp && monster.Definition.Id == KnownObject.Generator && monster.IsAlive;
 
             // Count attackers off screen as threats only
             if (monster == _world.Player || (monster.Army != Army.Monsters && !isGenerator) || (monster.Placement is not null && !isGenerator) ||
-                !onScreen && (distance > monster.Kind.BattleRange + StandOffMargin || !threatens) || (!isCloser && !threatens) || !_gunnery.HasClearAim(monster))
+                !onScreen && (distance > monster.Definition.BattleRange + StandOffMargin || !threatens) || (!isCloser && !threatens) || !_gunnery.HasClearAim(monster))
                 continue;
 
             if (isCloser)
@@ -483,13 +526,12 @@ internal sealed class PlayerBot
         _worstThreat = threat;
     }
 
-    // Ranks a target by the damage a second it deals against its health, a monster out of reach counting at a share
     private float MeasurePriority(Unit monster, float distance)
     {
-        var profile = _gunnery.Attacks.Get(monster.Kind);
-        float danger = profile.Damage * 1000f / Math.Max(_world.FrameTime, monster.Kind.AttackTime);
+        var profile = _gunnery.Attacks.Get(monster.Definition);
+        float danger = profile.Damage * 1000f / Math.Max(_world.FrameTime, monster.Definition.AttackTime);
 
-        if (distance > monster.Kind.BattleRange + StandOffMargin)
+        if (distance > monster.Definition.BattleRange + StandOffMargin)
         {
             danger *= DistantDangerShare;
         }
@@ -499,12 +541,11 @@ internal sealed class PlayerBot
 
     private Unit? FindLootCrate()
     {
-
         Unit? best = null;
         float nearest = float.MaxValue;
         foreach (var unit in _world.Units.GetNear(_world.Player.Position.AsVector2() - Gunnery.ScreenHalf, _world.Player.Position.AsVector2() + Gunnery.ScreenHalf))
         {
-            if (unit.Kind.Id != KnownObject.Crate || unit.DropItem == 0 || !IsWanted(unit.DropItem) ||
+            if (unit.Definition.Id != KnownObject.Crate || !IsWantedContent(unit) ||
                 !_gunnery.IsOnScreen(unit.Position.AsVector2()) || !_gunnery.HasClearAim(unit))
                 continue;
 
@@ -527,6 +568,10 @@ internal sealed class PlayerBot
         {
             int cell = _field.GetReached(order);
             var center = _field.GetCenter(cell);
+
+            if (measure == CellScore.AwayFrom && IsBuriedBy(center, point))
+                continue;
+
             float score = measure switch
             {
                 CellScore.AwayFrom => Vector2.DistanceSquared(center, point),
@@ -542,6 +587,20 @@ internal sealed class PlayerBot
         }
 
         return best;
+    }
+
+    private bool IsBuriedBy(Vector2 point, Vector2 explosive)
+    {
+        foreach (var hole in _holes)
+        {
+            var offset = Vector2.Abs(hole - explosive);
+            var cover = Vector2.Abs(point - hole);
+
+            if (offset is { X: <= RubbleBlastReach, Y: <= RubbleBlastReach } && cover.X <= _rubbleReach.X && cover.Y <= _rubbleReach.Y)
+                return true;
+        }
+
+        return false;
     }
 
     private bool PlanBlastEscape(Vector2 explosive)
@@ -600,7 +659,7 @@ internal sealed class PlayerBot
         // Step toward the nearest standable cell outside the player's pocket while no straight walk leaves it
         if (_field.ReachedCount < MinPocketCells)
         {
-            int nearest = _field.FindFree(_world.Player.Position.AsVector2(), StuckReach, skipReached: true, skippedHalf: _world.Player.Kind.Half + PlayerMovement.TargetHalf);
+            int nearest = _field.FindFree(_world.Player.Position.AsVector2(), StuckReach, skipReached: true, skippedHalf: _world.Player.Definition.Half + PlayerMovement.MoveTargetHalfSize);
 
             if (nearest >= 0)
             {
@@ -666,7 +725,7 @@ internal sealed class PlayerBot
         float best = float.MaxValue;
         foreach (var body in _world.Bodies)
         {
-            if (!body.IsAlive || body.Kind.Id is not (KnownObject.BreakableWall or KnownObject.BreakableWall2))
+            if (!body.IsAlive || body.Definition.Id is not (KnownObject.BreakableWall or KnownObject.BreakableWall2))
                 continue;
 
             var wall = body.Position.AsVector2();
@@ -692,7 +751,7 @@ internal sealed class PlayerBot
     private int FindFiringSpot(Unit body)
     {
         var position = body.Position.AsVector2();
-        CollectChain(position, body.Kind.Half, _cluster);
+        CollectChain(position, body.Definition.Half, _cluster);
         for (int order = 0; order < _field.ReachedCount; order++)
         {
             int cell = _field.GetReached(order);
@@ -700,7 +759,7 @@ internal sealed class PlayerBot
             var offset = Vector2.Abs(center - position);
 
             if (offset.X >= Gunnery.ScreenHalf.X || offset.Y >= Gunnery.ScreenHalf.Y ||
-                ReachesAny(_cluster, center, _world.Player.Kind.Half + new Vector2(BlastMargin)) ||
+                ReachesAny(_cluster, center, _world.Player.Definition.Half + new Vector2(BlastMargin)) ||
                 !_gunnery.HasClearAim(body, center))
                 continue;
 
@@ -710,19 +769,21 @@ internal sealed class PlayerBot
         return -1;
     }
 
+    private static float GetPickupReach(KnownObject id) => id.IsAmmo ? AmmoReach : PickupReach;
+
     private bool IsWakeTick => _world.Time % WakeInterval < _world.FrameTime;
 
     private bool IsNewWeapon(KnownObject id) =>
-        id is >= KnownObject.Shotgun and <= KnownObject.MagmaMinigun && !_world.Inventory.HoldsWeapon((int)id - PlayerInventory.WeaponPickupBase);
+        id is >= KnownObject.Shotgun and <= KnownObject.MagmaMinigun && !_state.HoldsWeapon((int)id - Unit.WeaponItemBase);
 
     private static bool IsWeapon(KnownObject id) => id is >= KnownObject.Shotgun and <= KnownObject.MagmaMinigun;
     
-    private bool IsCached(WorldPickup pickup)
+    private bool IsCached(MergedMapSprite pickup)
     {
-        int slot = PlayerInventory.GetAmmoSlot(pickup.Id);
+        int slot = pickup.Id.GetAmmoSlot();
         foreach ((int weapon, var position) in _caches)
         {
-            if (weapon == slot && position.MeasureDistance(pickup.Position.AsVector2()) <= CacheReach)
+            if (weapon == slot && position.MeasureOctagonalDistance(pickup.Position.AsVector2()) <= CacheReach)
                 return true;
         }
 
@@ -733,26 +794,28 @@ internal sealed class PlayerBot
 
     private bool IsWanted(KnownObject id)
     {
-        int slot = PlayerInventory.GetAmmoSlot(id);
+        int slot = id.GetAmmoSlot();
 
-        return _world.Inventory.CanTakePickup(id) && (slot < 0 || _world.Inventory.HoldsWeapon(slot));
+        return _state.CanTakePickup(id) && (slot < 0 || _state.HoldsWeapon(slot));
     }
+
+    private bool IsWantedContent(Unit holder) => holder.Items.Exists(item => IsWanted((KnownObject)item));
 
     private Unit? FindBreach() =>
         _breachWall is not null && _breachWall.IsAlive && _gunnery.IsOnScreen(_breachWall.Position.AsVector2()) && _gunnery.HasClearAim(_breachWall)
             ? _breachWall : null;
 
     private bool PlanBreaker() =>
-        _world.DoorsLocked && _analysis.Objectives.Any(objective => objective.Kind == ObjectiveKind.Breaker && QueueTrigger(new Vector2(objective.X, objective.Y), BreakerReach));
+        _world.AreDoorsLocked && _analysis.Objectives.Any(objective => objective.Kind == ObjectiveKind.Breaker && QueueTrigger(new Vector2(objective.X, objective.Y), BreakerReach));
 
     private bool PlanGenerator()
     {
-        if (!_world.FencesUp)
+        if (!_world.AreFencesUp)
             return false;
 
         foreach (var body in _world.Bodies)
         {
-            if (body.IsAlive && body.Kind.Id == KnownObject.Generator && QueueTrigger(body.Position.AsVector2(), BreakerReach))
+            if (body is { IsAlive: true, Definition.Id: KnownObject.Generator } && QueueTrigger(body.Position.AsVector2(), BreakerReach))
                 return true;
         }
 
@@ -783,7 +846,7 @@ internal sealed class PlayerBot
             return false;
         }
 
-        foreach (var pickup in _world.Pickups)
+        foreach (var pickup in _pickups.Pickups)
         {
             int cell = pickup.Id == KnownObject.Dynamite ? GetPickupSpot(pickup).Cell : -1;
 
@@ -794,7 +857,7 @@ internal sealed class PlayerBot
         return false;
     }
 
-    private bool CarriesDynamite => _world.Inventory.Items.GetValueOrDefault(KnownObject.Dynamite) > 0;
+    private bool CarriesDynamite => _state.CarriesDynamite;
 
     private bool PlantNearby()
     {
@@ -821,7 +884,7 @@ internal sealed class PlayerBot
             }
             else
             {
-                foreach (var pickup in _world.Pickups)
+                foreach (var pickup in _pickups.Pickups)
                 {
                     if (pickup.Id == KnownObject.Dynamite)
                     {
@@ -860,16 +923,16 @@ internal sealed class PlayerBot
         {
             foreach (var site in _world.DynamiteSites)
             {
-                if (player.MeasureDistance(site.Position.AsVector2()) < PlantSightReach)
+                if (player.MeasureOctagonalDistance(site.Position.AsVector2()) < PlantSightReach)
                     return true;
             }
 
             return false;
         }
 
-        foreach (var pickup in _world.Pickups)
+        foreach (var pickup in _pickups.Pickups)
         {
-            if (pickup.Id == KnownObject.Dynamite && player.MeasureDistance(pickup.Position.AsVector2()) < PlantSightReach)
+            if (pickup.Id == KnownObject.Dynamite && player.MeasureOctagonalDistance(pickup.Position.AsVector2()) < PlantSightReach)
                 return true;
         }
 
@@ -907,9 +970,9 @@ internal sealed class PlayerBot
     private float MeasureForward(Vector2 center)
     {
         var offset = center - _world.Player.Position.AsVector2();
-        float reach = _world.Player.Kind.Object.Size.X * 2;
+        float reach = _world.Player.Definition.Object.Size.X * 2;
 
-        return offset.LengthSquared() <= reach * reach && _field.Obstacles.CanMove(_world.Player.Kind.Object, _world.Player.Position, center)
+        return offset.LengthSquared() <= reach * reach && _field.Obstacles.CanMove(_world.Player.Definition.Object, _world.Player.Position, center)
             ? Vector2.Dot(offset, _world.Player.Direction.Vector) : float.MinValue;
     }
 
@@ -924,7 +987,7 @@ internal sealed class PlayerBot
     {
         for (float distance = SideStepGrain; distance <= SideStepClearance; distance += SideStepGrain)
         {
-            if (!_field.Obstacles.CanStand(_world.Player.Kind.Object, start + (step * distance).AsVector3()))
+            if (!_field.Obstacles.CanStand(_world.Player.Definition.Object, start + (step * distance).AsVector3()))
                 return false;
         }
 
@@ -932,10 +995,10 @@ internal sealed class PlayerBot
     }
 
     private bool MovesClear(Vector3 start, Vector2 step, float length) =>
-        _field.Obstacles.CanMove(_world.Player.Kind.Object, start, start.AsVector2() + step * length);
+        _field.Obstacles.CanMove(_world.Player.Definition.Object, start, start.AsVector2() + step * length);
 
     private void FindChainedExplosives() =>
-        CollectChain(_world.Player.Position.AsVector2(), _world.Player.Kind.Half + new Vector2(BlastMargin), _chained);
+        CollectChain(_world.Player.Position.AsVector2(), _world.Player.Definition.Half + new Vector2(BlastMargin), _chained);
 
     private void CollectChain(Vector2 point, Vector2 half, List<Unit> chain)
     {
@@ -943,7 +1006,7 @@ internal sealed class PlayerBot
         chain.Clear();
         foreach (var body in _world.Units.GetNear(point - Gunnery.ScreenHalf, point + Gunnery.ScreenHalf))
         {
-            if (body.Placement is not null && body is { IsAlive: true, Kind.Damage: > 0 })
+            if (body.Placement is not null && body is { IsAlive: true, Definition.Damage: > 0 })
             {
                 _explosives.Add(body);
             }
@@ -961,13 +1024,17 @@ internal sealed class PlayerBot
         {
             foreach (var body in _explosives)
             {
-                if (!chain.Contains(body) && Reaches(body, chain[index].Position.AsVector2(), chain[index].Kind.Half))
+                if (!chain.Contains(body) && Reaches(body, chain[index].Position.AsVector2(), chain[index].Definition.Half))
                 {
                     chain.Add(body);
                 }
             }
         }
     }
+
+    private bool CanReach(Unit monster) =>
+        monster.Definition.BattleRange > BackOffReach ? !_field.Obstacles.CrossesClosedGate(monster.Position.AsVector2(), _world.Player.Position.AsVector2()) :
+            _field.CanMove(monster.Position, _world.Player.Position.AsVector2());
 
     private static bool ReachesAny(List<Unit> bodies, Vector2 point, Vector2 half)
     {
@@ -982,25 +1049,24 @@ internal sealed class PlayerBot
 
     private static bool Reaches(Unit body, Vector2 point, Vector2 half)
     {
-        var reach = body.Kind.Half + new Vector2(body.Kind.BlastRadius) + half;
+        var reach = body.Definition.Half + new Vector2(body.Definition.BlastRadius) + half;
         var offset = Vector2.Abs(body.Position.AsVector2() - point);
 
         return offset.X < reach.X && offset.Y < reach.Y;
     }
 
-    // Keeps no distance while protected, and a melee distance from gunners other than tank gunners while a short-reach weapon is held and few gunners shoot
-    private float GetKeptDistance(ObjectDefinition kind)
+    private float GetKeptDistance(SpriteDefinition definition)
     {
         if (_world.IsProtected)
             return 0;
 
-        if (kind.BattleRange <= BackOffReach)
-            return MathF.Max(BackOffReach, kind.Half.Length() * 2);
+        if (definition.BattleRange <= BackOffReach)
+            return MathF.Max(BackOffReach, definition.Half.Length() * 2);
 
-        if (_chargesGunners && kind.Id is not (KnownObject.TankWeaponMonster or KnownObject.YellowTankWeaponMonster or KnownObject.RedTankWeaponMonster))
+        if (_chargesGunners && definition.Id is not (KnownObject.TankWeaponMonster or KnownObject.YellowTankWeaponMonster or KnownObject.RedTankWeaponMonster))
             return BackOffReach;
 
-        return MathF.Max(BackOffReach, (kind.BattleRange + StandOffMargin) * GunnerKeep);
+        return MathF.Max(BackOffReach, (definition.BattleRange + StandOffMargin) * GunnerKeep);
     }
 
     private void PlanEscape()
@@ -1022,7 +1088,7 @@ internal sealed class PlayerBot
     {
         int best = -1;
         float bestScore = 0;
-        foreach (var pickup in _world.Pickups)
+        foreach (var pickup in _pickups.Pickups)
         {
             if (!IsWanted(pickup.Id) || _unreachablePickups.Contains(pickup))
                 continue;
@@ -1051,14 +1117,14 @@ internal sealed class PlayerBot
         bool covered = true;
         foreach (var threat in _threats)
         {
-            float distance = center.MeasureDistance(threat.Position.AsVector2());
-            score = MathF.Min(score, distance - GetKeptDistance(threat.Kind));
+            float distance = center.MeasureOctagonalDistance(threat.Position.AsVector2());
+            score = MathF.Min(score, distance - GetKeptDistance(threat.Definition));
 
-            if (threat.Kind.BattleRange <= BackOffReach)
+            if (threat.Definition.BattleRange <= BackOffReach)
                 continue;
 
             offLine = MathF.Min(offLine, MeasureOffLine(threat.Position.AsVector2(), center));
-            covered = covered && (distance > threat.Kind.BattleRange || !_gunnery.HasClearAim(threat, center));
+            covered = covered && (distance > threat.Definition.BattleRange || !_gunnery.HasClearAim(threat, center));
         }
 
         if (offLine < float.MaxValue)
@@ -1066,7 +1132,7 @@ internal sealed class PlayerBot
             score += DodgeWeight * offLine + (covered ? CoverBonus : 0);
         }
 
-        return ReachesAny(_explosives, center, _world.Player.Kind.Half) ? score - ExplosivePenalty : score;
+        return ReachesAny(_explosives, center, _world.Player.Definition.Half) ? score - ExplosivePenalty : score;
     }
 
     private Vector2? FindDodge(Vector2? goal)
@@ -1075,8 +1141,8 @@ internal sealed class PlayerBot
         var center = _world.Player.Position.AsVector2();
         foreach (var round in _world.Effects.Active)
         {
-            if (round.Shooter is null || round.Shooter.Army == _world.Player.Army || round.Speed <= 0 || round.Speed >= ObjectDefinition.Unlimited ||
-                round.Kind.Damage <= 0 || center.MeasureDistance(round.Position.AsVector2()) > DodgeReach)
+            if (round.Shooter is null || round.Shooter.Army == _world.Player.Army || round.Speed <= 0 || round.Speed >= SpriteDefinition.Unlimited ||
+                round.Definition.Damage <= 0 || center.MeasureOctagonalDistance(round.Position.AsVector2()) > DodgeReach)
                 continue;
 
             _incoming.Add(round);
@@ -1116,12 +1182,12 @@ internal sealed class PlayerBot
     private float MeasureFirstHit(Vector2 vector)
     {
         var start = _world.Player.Position.AsVector2();
-        float speed = _world.Inventory.Speed / 1000f;
+        float speed = _state.Speed / 1000f;
         float first = DodgeHorizon;
         foreach (var round in _incoming)
         {
             var velocity = round.Direction.Vector * round.Speed;
-            var reach = _world.Player.Kind.Half + round.Kind.Half + new Vector2(round.Kind.BlastRadius);
+            var reach = _world.Player.Definition.Half + round.Definition.Half + new Vector2(round.Definition.BlastRadius);
             for (float time = 0; time < first; time += DodgeStep)
             {
                 var offset = Vector2.Abs(start + vector * speed * time - (round.Position.AsVector2() + velocity * time));
@@ -1154,7 +1220,7 @@ internal sealed class PlayerBot
         {
             var position = cannon.Position.AsVector2();
 
-            if (!IsParked(cannon) || center.MeasureDistance(position) > CannonSeekReach)
+            if (!IsParked(cannon) || center.MeasureOctagonalDistance(position) > CannonSeekReach)
                 continue;
 
             FloodWithin(CannonSeekReach * 2);
@@ -1193,7 +1259,7 @@ internal sealed class PlayerBot
         return count;
     }
 
-    private static bool IsParked(Unit cannon) => cannon.Kind.Id == KnownObject.MountedCannon && cannon.Animation < SpriteAnimation.Death;
+    private static bool IsParked(Unit cannon) => cannon.Definition.Id == KnownObject.MountedCannon && cannon.Animation < SpriteAnimation.Death;
 
     // Counts a tour point inside a parked cannon's reach as passed once the player skirts the cannon beside it
     private bool IsBesideCannon(Vector2 point)
@@ -1202,8 +1268,8 @@ internal sealed class PlayerBot
         {
             var position = cannon.Position.AsVector2();
 
-            if (IsParked(cannon) && point.MeasureDistance(position) < CannonKeep &&
-                _world.Player.Position.AsVector2().MeasureDistance(position) < CannonKeep + CannonStep * 2)
+            if (IsParked(cannon) && point.MeasureOctagonalDistance(position) < CannonKeep &&
+                _world.Player.Position.AsVector2().MeasureOctagonalDistance(position) < CannonKeep + CannonStep * 2)
                 return true;
         }
 
@@ -1275,7 +1341,7 @@ internal sealed class PlayerBot
             Unit? body = null;
             foreach (var candidate in _world.Units.GetNear(point - new Vector2(SideStep), point + new Vector2(SideStep)))
             {
-                if (candidate.Placement is not null && candidate is { IsAlive: true, Kind.Id: KnownObject.BreakableWall })
+                if (candidate.Placement is not null && candidate is { IsAlive: true, Definition.Id: KnownObject.BreakableWall })
                 {
                     body = candidate;
                 }
@@ -1317,7 +1383,7 @@ internal sealed class PlayerBot
 
         bool HidesNewWeapon(Vector2 point)
         {
-            foreach (var pickup in _world.Pickups)
+            foreach (var pickup in _pickups.Pickups)
             {
                 if (Vector2.Distance(pickup.Position.AsVector2(), point) < SecretReach && IsNewWeapon(pickup.Id))
                     return true;
@@ -1328,7 +1394,7 @@ internal sealed class PlayerBot
 
         bool HidesLoot(Vector2 point)
         {
-            foreach (var pickup in _world.Pickups)
+            foreach (var pickup in _pickups.Pickups)
             {
                 if (Vector2.Distance(pickup.Position.AsVector2(), point) < SecretReach && IsWanted(pickup.Id) &&
                     _field.FindFree(pickup.Position.AsVector2(), reachedOnly: true) < 0)
@@ -1345,8 +1411,8 @@ internal sealed class PlayerBot
         int best = -1;
         int bestCell = -1;
         int bestSteps = (int)(DetourReach / _field.CellStep);
-        var pickups = _world.Pickups;
-        for (int index = 0; index < pickups.Length; index++)
+        var pickups = _pickups.Pickups;
+        for (int index = 0; index < pickups.Count; index++)
         {
             var pickup = pickups[index];
 
@@ -1355,11 +1421,11 @@ internal sealed class PlayerBot
 
             (_, int cell, int collected) = GetPickupSpot(pickup);
             bool cached = IsCached(pickup);
-            bool counts = cell >= 0 && (collected <= _cursor || pickup.Placement is null || IsNewWeapon(pickup.Id) || cached);
+            bool counts = cell >= 0 && (collected <= _cursor || PickupTracker.IsDropped(pickup) || IsNewWeapon(pickup.Id) || cached);
 
             if (counts && _field.GetDistance(cell) < 0)
             {
-                cell = _field.FindFree(pickup.Position.AsVector2(), GameWorld.GetPickupReach(pickup.Id) * 2, reachedOnly: true);
+                cell = _field.FindFree(pickup.Position.AsVector2(), GetPickupReach(pickup.Id) * 2, reachedOnly: true);
             }
 
             int steps = counts && cell >= 0 ? _field.GetDistance(cell) : -1;
@@ -1369,7 +1435,7 @@ internal sealed class PlayerBot
                 steps = DiscountWeapon(steps);
             }
 
-            if (steps > 0 && steps <= bestSteps && _field.GetCenter(cell).MeasureDistance(pickup.Position.AsVector2()) < GameWorld.GetPickupReach(pickup.Id) * 2 &&
+            if (steps > 0 && steps <= bestSteps && _field.GetCenter(cell).MeasureOctagonalDistance(pickup.Position.AsVector2()) < GetPickupReach(pickup.Id) * 2 &&
                 IsWanted(pickup.Id))
             {
                 best = index;
@@ -1382,8 +1448,8 @@ internal sealed class PlayerBot
         int crateCell = -1;
         foreach (var body in _world.Bodies)
         {
-            if (body.Kind.Id != KnownObject.Crate || !body.IsAlive || body.DropItem == 0 || _unreachableCrates.Contains(body) ||
-                !IsWanted(body.DropItem))
+            if (body.Definition.Id != KnownObject.Crate || !body.IsAlive || _unreachableCrates.Contains(body) ||
+                !IsWantedContent(body))
                 continue;
 
             int cell = _field.FindFree(body.Position.AsVector2(), reachedOnly: true);
@@ -1430,7 +1496,7 @@ internal sealed class PlayerBot
         if (_detourTarget is null)
             return _breachWall is not null && _breachWall.IsAlive;
 
-        foreach (var pickup in _world.Pickups)
+        foreach (var pickup in _pickups.Pickups)
         {
             if (pickup == _detourTarget)
                 return IsWanted(pickup.Id);
@@ -1447,7 +1513,7 @@ internal sealed class PlayerBot
         }
         else if (_detourTarget is not null && IsWeapon(_detourTarget.Id))
         {
-            _caches.Add(((int)_detourTarget.Id - PlayerInventory.WeaponPickupBase, _detourTarget.Position.AsVector2()));
+            _caches.Add(((int)_detourTarget.Id - Unit.WeaponItemBase, _detourTarget.Position.AsVector2()));
         }
 
         if (_detourCrate is not null && _detourCrate.IsAlive)
@@ -1491,9 +1557,9 @@ internal sealed class PlayerBot
         }
 
         var last = _field.GetCenter(goal);
-        _path.Enqueue(approachEnd || _field.CanMove(new Vector3(last, _world.Movement.GetSupportHeight(_world.Player.Kind.Object, last)), end) ? end : last);
+        _path.Enqueue(approachEnd || _field.CanMove(new Vector3(last, _world.Movement.GetSupportHeight(_world.Player.Definition.Object, last)), end) ? end : last);
 
-        _pathEnds = _world.Time + (int)(_path.Count * _field.CellStep * 1000 / _world.Inventory.Speed) + DetourSlack;
+        _pathEnds = _world.Time + (int)(_path.Count * _field.CellStep * 1000 / _state.Speed) + DetourSlack;
 
         return true;
     }

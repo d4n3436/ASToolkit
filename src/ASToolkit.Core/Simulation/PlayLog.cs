@@ -6,25 +6,21 @@ namespace ASToolkit.Core.Simulation;
 internal sealed class PlayLog
 {
     private readonly HashSet<Unit> _dead = new(ReferenceEqualityComparer.Instance);
-    private readonly HashSet<WorldPickup> _pickups = new(ReferenceEqualityComparer.Instance);
-    private readonly HashSet<WorldPickup> _present = new(ReferenceEqualityComparer.Instance);
+    private readonly PickupTracker _pickups;
     private readonly List<KnownObject> _taken = [];
     private readonly List<SpriteEvent> _pickupEvents = [];
     private bool _doorsLocked;
     private bool _fencesUp;
-    private int _lives;
+    private Unit _player;
 
     public PlayLog(GameWorld world)
     {
-        _doorsLocked = world.DoorsLocked;
-        _fencesUp = world.FencesUp;
-        _lives = GetLives(world);
-        Timeline = new ScriptTimeline(world.DoorsLocked, null, null, null);
+        _doorsLocked = world.AreDoorsLocked;
+        _fencesUp = world.AreFencesUp;
+        _player = world.Player;
+        Timeline = new ScriptTimeline(world.AreDoorsLocked, null, null, null);
         MinHealth = world.Player.Hp;
-        foreach (var pickup in world.Pickups)
-        {
-            _pickups.Add(pickup);
-        }
+        _pickups = new PickupTracker(world);
     }
 
     public int Kills { get; private set; }
@@ -41,15 +37,17 @@ internal sealed class PlayLog
 
     public void Update(GameWorld world)
     {
-        int lives = GetLives(world);
-
-        if (lives < _lives)
+        if (world.Player != _player)
         {
-            Respawns += _lives - lives;
-            MinHealth = Math.Min(MinHealth, 0);
+            if (!_player.IsAlive)
+            {
+                Respawns++;
+                MinHealth = Math.Min(MinHealth, 0);
+            }
+
+            _player = world.Player;
         }
 
-        _lives = lives;
         MinHealth = Math.Min(MinHealth, world.Player.Hp);
         UpdateTimeline(world);
         UpdatePickups(world);
@@ -64,46 +62,34 @@ internal sealed class PlayLog
 
     private void UpdateTimeline(GameWorld world)
     {
-        if (_doorsLocked != world.DoorsLocked)
+        if (_doorsLocked != world.AreDoorsLocked)
         {
-            _doorsLocked = world.DoorsLocked;
+            _doorsLocked = world.AreDoorsLocked;
             Timeline = _doorsLocked
                 ? Timeline with { BlackoutAt = Timeline.BlackoutAt ?? world.Time }
                 : Timeline with { DoorsOpenedAt = Timeline.DoorsOpenedAt ?? world.Time };
         }
 
-        if (_fencesUp && !world.FencesUp)
+        if (_fencesUp && !world.AreFencesUp)
         {
             _fencesUp = false;
             Timeline = Timeline with { FencesDownAt = world.Time };
         }
     }
 
-    // Counts a pickup gone before its time ran out as taken
     private void UpdatePickups(GameWorld world)
     {
-        _present.Clear();
-        foreach (var pickup in world.Pickups)
+        foreach (var pickup in _pickups.Removed)
         {
-            _present.Add(pickup);
-        }
-
-        foreach (var pickup in _pickups)
-        {
-            if (_present.Contains(pickup) || world.Time >= pickup.ExpiresAt)
+            if (!_pickups.WasTaken(pickup))
                 continue;
 
             _taken.Add(pickup.Id);
 
-            if (pickup.Placement is not null)
+            if (!PickupTracker.IsDropped(pickup))
             {
-                _pickupEvents.Add(new SpriteEvent(pickup.Placement, world.Time));
+                _pickupEvents.Add(new SpriteEvent(pickup, world.Time));
             }
         }
-
-        _pickups.Clear();
-        _pickups.UnionWith(_present);
     }
-
-    private static int GetLives(GameWorld world) => world.Inventory.Items.GetValueOrDefault(KnownObject.ExtraLife);
 }

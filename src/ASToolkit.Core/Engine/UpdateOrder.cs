@@ -1,24 +1,14 @@
 namespace ASToolkit.Core.Engine;
 
-internal enum UpdateRole
-{
-    None,
-    Player,
-    Torso,
-    Monster,
-    Scripted,
-    Effect,
-    Program
-}
-
-internal readonly record struct UpdateEntry(UpdateRole Role, Unit? Unit, ObjectProgram? Program);
+internal readonly record struct UpdateEntry(UpdateRole Role, Unit? Unit);
 
 internal sealed class UpdateOrder
 {
-    public const int LayerCount = 16;
+    public const int LayerCount = 17;
+    public const int UpdatedLayerCount = 16;
+    private const int CompactionPeriodMask = 3;
 
     private readonly List<UpdateEntry>[] _layers = new List<UpdateEntry>[LayerCount];
-    private int _holes;
 
     public UpdateOrder()
     {
@@ -37,36 +27,28 @@ internal sealed class UpdateOrder
     public void Remove(int layer, Unit unit)
     {
         var list = _layers[layer];
-        for (int index = list.Count - 1; index >= 0; index--)
+        for (int i = list.Count - 1; i >= 0; i--)
         {
-            if (list[index].Unit != unit)
+            if (list[i].Unit != unit)
                 continue;
 
-            Clear(list, index);
+            Clear(list, i);
 
             return;
         }
     }
 
-    public void Clear(List<UpdateEntry> list, int index)
-    {
-        list[index] = default;
-        _holes++;
-    }
+    public static void Clear(List<UpdateEntry> list, int index) => list[index] = default;
 
-    // Drops emptied entries once they outnumber the live ones, keeping the order
-    public void Compact()
+    [EngineRoutine(0x0040f210)]
+    public void Compact(int time)
     {
-        int live = _layers.Sum(list => list.Count) - _holes;
-
-        if (_holes <= live)
+        if ((time & CompactionPeriodMask) != 0)
             return;
 
         foreach (var list in _layers)
         {
-            list.RemoveAll(entry => entry.Role == UpdateRole.None);
+            list.RemoveAll(entry => entry.Unit is null);
         }
-
-        _holes = 0;
     }
 }

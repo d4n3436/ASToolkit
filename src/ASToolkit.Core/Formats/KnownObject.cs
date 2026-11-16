@@ -242,6 +242,9 @@ public enum KnownObject
     /// <summary>The green body armor worn by the player.</summary>
     WornGreenArmor = 200,
 
+    /// <summary>The red body armor worn by the player.</summary>
+    WornRedArmor = 202,
+
     /// <summary>The invulnerability object linked to the player.</summary>
     InvulnerabilityEffect = 203,
 

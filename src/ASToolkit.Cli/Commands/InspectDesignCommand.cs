@@ -10,6 +10,7 @@ using ASToolkit.Core.Generation;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Reference;
 using ASToolkit.Core.Rendering;
+using ASToolkit.Core.Scripting;
 using ASToolkit.Core.Survey;
 using SixLabors.ImageSharp;
 using Spectre.Console.Cli;

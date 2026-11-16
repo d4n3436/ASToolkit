@@ -23,6 +23,9 @@ internal sealed class PlaySession
 
     public GameWorld World { get; }
 
+    private const int PlayerDead = 2;
+    private static ReadOnlySpan<byte> GameStateVariable => "GameState"u8;
+
     public PlayerBot Bot { get; }
 
     public bool Won { get; private set; }
@@ -40,7 +43,7 @@ internal sealed class PlaySession
             Won = HasWon();
         }
 
-        while (World.Time < MaxTime && World.Time - _mark.ProgressedAt < StallTime && World.Player.IsAlive && !Won && World.Time < time)
+        while (World.Time < MaxTime && World.Time - _mark.ProgressedAt < StallTime && IsPlaying && !Won && World.Time < time)
         {
             Bot.PlayTick();
             Log.Update(World);
@@ -51,6 +54,8 @@ internal sealed class PlaySession
             World.AdvanceClock();
         }
     }
+
+    public bool IsPlaying => World.Player.IsAlive || World.ReadScriptNumber(GameStateVariable) == PlayerDead;
 
     private bool HasWon() => World.HasWon || (_winsAtTourEnd && Bot.HasFinished);
 

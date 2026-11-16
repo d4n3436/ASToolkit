@@ -37,11 +37,11 @@ public class UnitAnimationTests
     [Fact]
     public void Start_OneFrameStand_DrawsOnlyTheTickPhase()
     {
-        var kinds = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var kind = kinds.Find(KnownObject.Monster1)!;
+        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definition = definitions.Find(KnownObject.Monster1)!;
         var random = new GameRandom(7);
         var expected = new GameRandom(7);
-        var unit = new Unit(1, kind, Vector3.Zero, Army.Monsters, kind.MaxHp);
+        var unit = new Unit(1, definition, Vector3.Zero, Army.Monsters, definition.MaxHp);
 
         unit.Start(SpriteAnimation.Stand, new Angle(64), 1000, random);
 
@@ -53,10 +53,10 @@ public class UnitAnimationTests
     [Fact]
     public void Damage_LethalHit_EndsTheDeathAtTheNextAnimationTickWithItsChild()
     {
-        var kinds = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var world = EngineTestWorld.CreateWorld(kinds);
+        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var world = EngineTestWorld.CreateWorld(definitions);
         var position = world.Player.Position + new Vector3(600, 0, 0);
-        var enemy = world.AddMonster(kinds.Find(KnownObject.Monster1)!, position, direction: new Angle(64));
+        var enemy = world.AddMonster(definitions.Find(KnownObject.Monster1)!, position, direction: new Angle(64));
         while (world.Time < GameClock.LevelStartTime + 96)
         {
             world.Step(default);
@@ -67,13 +67,13 @@ public class UnitAnimationTests
         int steps = 1;
         while (world.Monsters.Contains(enemy) && steps < 20)
         {
-            Assert.DoesNotContain(world.Effects.Active, effect => effect.Kind.Id == KnownObject.Monster1Death);
+            Assert.DoesNotContain(world.Effects.Active, effect => effect.Definition.Id == KnownObject.Monster1Death);
             world.Step(default);
             steps++;
         }
 
         Assert.InRange(steps, 2, 19);
-        Assert.Contains(world.Effects.Active, effect => effect.Kind.Id == KnownObject.Monster1Death);
+        Assert.Contains(world.Effects.Active, effect => effect.Definition.Id == KnownObject.Monster1Death);
     }
 
     private static void AssertFrames(Unit unit, int first, int frame, int last)
@@ -85,9 +85,9 @@ public class UnitAnimationTests
 
     private static Unit CreateMonster(Angle direction)
     {
-        var kinds = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var kind = kinds.Find(KnownObject.Monster1)!;
-        var unit = new Unit(1, kind, Vector3.Zero, Army.Monsters, kind.MaxHp);
+        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definition = definitions.Find(KnownObject.Monster1)!;
+        var unit = new Unit(1, definition, Vector3.Zero, Army.Monsters, definition.MaxHp);
         unit.Start(SpriteAnimation.Stand, direction, 0, new GameRandom(1));
 
         return unit;

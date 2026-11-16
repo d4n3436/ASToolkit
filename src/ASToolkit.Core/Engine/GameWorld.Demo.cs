@@ -4,35 +4,47 @@ using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Engine;
 
-internal sealed partial class GameWorld
+public sealed partial class GameWorld
 {
     private const int DemoMaxLag = 71;
     private const int DemoDrawLag = 21;
     private const int DemoEndMarker = -1;
     private DemoResource? _playedDemo;
-    private int _playedFrame;
+    private int _playedOffset;
     private int _demoPacedTime;
     private uint _demoPacedAt;
     private MemoryStream? _recordedDemo;
 
+    /// <summary>
+    /// Gets a value indicating whether a demo drives the input.
+    /// </summary>
     public bool IsPlayingDemo => _playedDemo is not null;
 
-    public bool IsRecordingDemo => _recordedDemo is not null;
-
+    /// <summary>
+    /// Gets the map the game loads next.
+    /// </summary>
     public byte[]? MapToLoad { get; private set; }
 
+    /// <summary>
+    /// Gets a value indicating whether the game is quitting.
+    /// </summary>
     public bool IsQuitting { get; private set; }
 
     [EngineRoutine(0x0040c960)]
-    public void StartDemoPlayback(DemoResource demo)
+    private void StartDemoPlayback(DemoResource demo)
     {
         _playedDemo = demo;
-        _playedFrame = 0;
+        _playedOffset = Script.ReadState(demo.Body);
         SetTime(demo.StartTime);
     }
 
+    /// <summary>
+    /// Starts recording the input into a demo.
+    /// </summary>
+    /// <param name="mapName">The map's name as the demo stores it.</param>
+    /// <param name="seed">The seed the demo stores.</param>
     [EngineRoutine(0x0040c960)]
-    public void StartDemoRecording(ReadOnlySpan<byte> mapName, uint seed, ReadOnlySpan<byte> scriptState)
+    public void StartDemoRecording(ReadOnlySpan<byte> mapName, uint seed)
     {
         _recordedDemo = new MemoryStream();
         _recordedDemo.Write(mapName);
@@ -41,10 +53,15 @@ internal sealed partial class GameWorld
         BinaryPrimitives.WriteUInt32LittleEndian(header, seed);
         BinaryPrimitives.WriteInt32LittleEndian(header[sizeof(uint)..], Time);
         _recordedDemo.Write(header);
-        _recordedDemo.Write(scriptState);
+        Script.WriteState(_recordedDemo);
     }
 
-    // Returns whether to draw the frame, always after waiting for real time to catch up
+    /// <summary>
+    /// Plays or records the input of the next demo frame and returns whether to draw the frame.
+    /// </summary>
+    /// <param name="now">The real time in milliseconds.</param>
+    /// <param name="waitUntil">The real time to wait for before the frame, or <paramref name="now"/> when the frame is due.</param>
+    /// <returns><see langword="true"/> to draw the frame; <see langword="false"/> when playback ended or the frame runs late.</returns>
     [EngineRoutine(0x0040e660)]
     public bool StepDemo(uint now, out uint waitUntil)
     {
@@ -53,16 +70,14 @@ internal sealed partial class GameWorld
 
         if (_playedDemo is not null)
         {
-            var frames = _playedDemo.Value.Frames;
-
-            if (_playedFrame >= frames.Length || Input.Key != 0 || (Input.Flags & (InputFlags.LeftClick | InputFlags.RightClick)) != 0)
+            if (!_playedDemo.Value.TryReadFrame(ref _playedOffset, out var frame) || Input.Key != 0 ||
+                (Input.Flags & (InputFlags.LeftClick | InputFlags.RightClick)) != 0)
             {
                 EndDemoPlayback();
 
                 return false;
             }
 
-            ref readonly var frame = ref frames[_playedFrame++];
             Input.Load(frame.Input);
             int time = frame.Time;
 
@@ -111,6 +126,10 @@ internal sealed partial class GameWorld
         MapToLoad = mapName.ToArray();
     }
 
+    /// <summary>
+    /// Ends the recording and returns the demo file.
+    /// </summary>
+    /// <returns>The bytes of the demo.</returns>
     [EngineRoutine(0x0040c570)]
     public byte[] FinishDemoRecording()
     {

@@ -6,6 +6,7 @@ using ASToolkit.Core.Levels;
 using ASToolkit.Core.Reference;
 using ASToolkit.Core.Routes;
 using ASToolkit.Core.Rendering;
+using ASToolkit.Core.Scripting;
 using SixLabors.ImageSharp.PixelFormats;
 
 namespace ASToolkit.Core.Simulation;

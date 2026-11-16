@@ -1,7 +1,7 @@
-using ASToolkit.Core.Formats;
+using ASToolkit.Core.Scripting;
 using Xunit;
 
-namespace ASToolkit.Tests.Formats;
+namespace ASToolkit.Tests.Scripting;
 
 public class GameTableTests
 {
@@ -24,7 +24,7 @@ public class GameTableTests
             static int Split[] =
             {
                 5, // five
-                6,
+                6
             };
             static int Single;
             """);

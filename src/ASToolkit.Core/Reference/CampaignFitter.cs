@@ -1,6 +1,7 @@
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Routes;
+using ASToolkit.Core.Scripting;
 using ASToolkit.Core.Survey;
 
 namespace ASToolkit.Core.Reference;

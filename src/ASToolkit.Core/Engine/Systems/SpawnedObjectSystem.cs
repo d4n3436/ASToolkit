@@ -29,16 +29,16 @@ internal sealed class SpawnedObjectSystem
     private readonly HashSet<Unit> _orphans = [];
     private readonly List<Unit> _leaving = [];
     private readonly DefaultObjectPool<Unit> _pool = new(new UnitPoolPolicy(), MaxPooledUnits);
-    private readonly ObjectCatalog _kinds;
+    private readonly SpriteCatalog _definitions;
     private readonly MovementMap _map;
     private readonly Random _random;
     private readonly List<EffectState> _settled = [];
     private readonly GameWorld _world;
     private readonly UnitKinematics _motion;
 
-    public SpawnedObjectSystem(ObjectCatalog kinds, MovementMap map, Random random, GameWorld world)
+    public SpawnedObjectSystem(SpriteCatalog definitions, MovementMap map, Random random, GameWorld world)
     {
-        _kinds = kinds;
+        _definitions = definitions;
         _map = map;
         _random = random;
         _world = world;
@@ -51,7 +51,6 @@ internal sealed class SpawnedObjectSystem
 
     private static bool IsLink(Unit unit) => unit.Owner is not null && unit.Owner.Link == unit;
 
-    [EngineRoutine(0x00445770)]
     public void Detach(Unit owner)
     {
         var link = owner.Link;
@@ -66,15 +65,15 @@ internal sealed class SpawnedObjectSystem
 
     public Unit? Spawn(KnownObject id, Vector3 position, Angle direction, int time, Unit? owner = null, int? lifetime = null)
     {
-        var kind = _kinds.Find(id);
+        var definition = _definitions.Find(id);
 
-        return kind is null ? null : Create(kind, position, direction, time, 0, null, owner, lifetime);
+        return definition is null ? null : Create(definition, position, direction, time, 0, null, owner, lifetime);
     }
 
-    public void Play(ObjectDefinition kind, SpriteAnimation animation, Vector3 position, Angle direction, int time)
+    public void Play(SpriteDefinition definition, SpriteAnimation animation, Vector3 position, Angle direction, int time)
     {
         var unit = _pool.Get();
-        unit.Initialize(-1, kind, position, 0, kind.MaxHp, direction);
+        unit.Initialize(-1, definition, position, 0, definition.MaxHp, direction);
         unit.CreatedAt = time;
         unit.LastTickTime = time;
         unit.ChangeAnimation(animation);
@@ -83,41 +82,42 @@ internal sealed class SpawnedObjectSystem
         _world.Units.Add(unit);
     }
 
-    public void Emit(ObjectDefinition owner, SpriteAnimation animation, Vector3 position, Angle direction, int time, int depth = 0, bool secondPulse = false, Unit? parent = null)
+    public void Emit(SpriteDefinition owner, SpriteAnimation animation, Vector3 position, Angle direction, int time, int depth = 0, bool secondPulse = false, Unit? parent = null)
     {
-        int childId = owner.Object.Children[(int)animation];
+        int childId = owner.Children[(int)animation];
 
         if (depth >= MaxDepth || childId == 0)
             return;
 
-        var kind = _kinds.Find((KnownObject)Math.Abs(childId));
+        var definition = _definitions.Find((KnownObject)Math.Abs(childId));
 
-        if (kind is null)
+        if (definition is null)
             return;
 
-        foreach (var spawn in ChildEmission.GetChildren(owner, kind, animation, position, direction, _random, secondPulse))
+        foreach (var spawn in ChildEmission.GetChildren(owner, definition, animation, position, direction, _random, secondPulse))
         {
-            if (kind.Object.SpriteClass == SpriteClass.Unit && _world.Projectiles.IsOccupied(kind, spawn.Position))
+            if (definition.Object.SpriteClass == SpriteClass.Unit && _world.Projectiles.IsOccupied(definition, spawn.Position))
                 continue;
 
             var childPosition = spawn.Position;
 
-            if (kind.Object.Properties.HasFlag(ObjectProperties.ZeroZ))
+            if (definition.Object.Properties.HasFlag(ObjectProperties.ZeroZ))
             {
-                childPosition.Z = _map.GetSupportHeight(kind.Object, childPosition.AsVector2()) + spawn.Position.Z - position.Z;
+                childPosition.Z = _map.GetSupportHeight(definition.Object, childPosition.AsVector2()) + spawn.Position.Z - position.Z;
             }
-            var child = Create(kind, childPosition, spawn.Direction, time, depth + 1, parent);
+            var child = Create(definition, childPosition, spawn.Direction, time, depth + 1, parent);
 
             if (child is not null && IsSettled(child))
             {
+                _world.ReleaseSprite(child);
                 _pool.Return(child);
             }
         }
     }
 
-    public Unit? Launch(ObjectDefinition kind, Vector3 position, Angle direction, Unit shooter, int time)
+    public Unit? Launch(SpriteDefinition definition, Vector3 position, Angle direction, Unit shooter, int time)
     {
-        var unit = Create(kind, position, direction, time, 0, shooter);
+        var unit = Create(definition, position, direction, time, 0, shooter);
 
         unit?.Shooter = shooter;
 
@@ -132,31 +132,31 @@ internal sealed class SpawnedObjectSystem
         _motion.StartMove(unit);
     }
 
-    private Unit? Create(ObjectDefinition kind, Vector3 position, Angle direction, int time, int depth, Unit? parent, Unit? owner = null, int? lifetime = null)
+    private Unit? Create(SpriteDefinition definition, Vector3 position, Angle direction, int time, int depth, Unit? parent, Unit? owner = null, int? lifetime = null)
     {
-        ref readonly var obj = ref kind.Object;
+        ref readonly var obj = ref definition.Object;
 
-        if (obj.SpriteClass is SpriteClass.Unit or SpriteClass.Avia && kind.MaxHp > 0)
+        if (obj.SpriteClass is SpriteClass.Unit or SpriteClass.Avia && definition.MaxHp > 0)
         {
-            _world.AddMonster(kind, position, direction);
+            _world.AddMonster(definition, position, direction);
 
             return null;
         }
 
         var unit = _pool.Get();
-        unit.Initialize(-1, kind, position, parent?.Army ?? _kinds.GetArmy(kind), kind.MaxHp);
+        unit.Initialize(-1, definition, position, parent?.Army ?? _definitions.GetArmy(definition), definition.MaxHp);
         unit.CreatedAt = time;
         unit.Depth = depth;
         unit.Owner = owner;
         unit.OwnerOffset = owner is null ? Vector3.Zero : position - owner.Position;
         unit.Shooter = parent?.Shooter ?? parent;
-        var state = kind.InitialAnimation;
+        var state = _world.GetInitialAnimation(definition);
         unit.Start(state, direction, time, _random);
         unit.Lifetime = lifetime ?? obj.Lifetime;
 
-        if (state != SpriteAnimation.Birth)
+        if (state != SpriteAnimation.Birth && !_world.IsLoading)
         {
-            Emit(kind, SpriteAnimation.Birth, position, unit.Direction, time, depth, parent: unit);
+            Emit(definition, SpriteAnimation.Birth, position, unit.Direction, time, depth, parent: unit);
         }
 
         if (obj.SpriteClass == SpriteClass.Cannon)
@@ -165,7 +165,11 @@ internal sealed class SpawnedObjectSystem
         }
 
         CreateLink(unit, time, depth + 1);
-        _world.RunCreationHook(unit);
+
+        if (!_world.IsLoading)
+        {
+            _world.RunCreationHook(unit);
+        }
 
         if (IsSettled(unit))
         {
@@ -186,57 +190,83 @@ internal sealed class SpawnedObjectSystem
     [EngineRoutine(0x00447130)]
     public void CreateLink(Unit owner, int time, int depth)
     {
-        ref readonly var obj = ref owner.Kind.Object;
-        var kind = obj.Link == 0 || depth > ObjectCatalog.MaxLaunchDepth ? null : _kinds.Find(obj.Link);
+        ref readonly var obj = ref owner.Definition.Object;
+        var definition = obj.Link == 0 || depth > SpriteCatalog.MaxLaunchDepth ? null : _definitions.Find(obj.Link);
 
-        if (kind is null || owner.Link?.Kind == kind)
+        if (definition is null || owner.Link?.Definition == definition)
             return;
 
-        if (kind.Id.IsScripted || kind.Object.WeaponIndex != 0 || kind.Object.SpriteClass == SpriteClass.Creature)
+        if (definition.Id.IsScripted || definition.Object.WeaponIndex != 0 || definition.Object.SpriteClass == SpriteClass.Creature)
         {
-            _world.AttachObjectLink(owner, kind);
+            _world.AttachObjectLink(owner, definition);
         }
         else
         {
-            owner.Link = Create(kind, owner.Position + obj.GetLinkOffset(kind.Object, null, 0, owner.Direction), owner.Direction, time, depth, owner, owner);
+            var previous = owner.Link;
+            var link = Create(definition, owner.Position + obj.GetLinkOffset(definition.Object, null, 0, owner.Direction), owner.Direction, time, depth, owner, owner);
+            owner.Link = link;
+
+            if (link is not null && previous is not null && previous != link)
+            {
+                previous.Owner = null;
+                AppendLink(link, previous);
+            }
         }
+    }
+
+    [EngineRoutine(0x004449c0)]
+    [EngineRoutine(0x0040ec60)]
+    public static void AppendLink(Unit parent, Unit link)
+    {
+        if (link.Owner is not null)
+            return;
+
+        var last = parent;
+        while (last.Link is not null)
+        {
+            last = last.Link;
+        }
+
+        last.Link = link;
+        link.Owner = last;
+        link.OwnerOffset = link.Position - last.Position;
     }
 
     private static bool IsSettled(Unit unit)
     {
-        ref readonly var obj = ref unit.Kind.Object;
+        ref readonly var obj = ref unit.Definition.Object;
 
-        return unit is { Moving: false, VerticalSpeed: 0 } && (obj.Properties & (ObjectProperties.Gravity | ObjectProperties.Gravity2)) == 0 &&
-               unit is { Animation: SpriteAnimation.Stand, Lifetime: >= ObjectDefinition.Unlimited } && obj.SpriteClass == SpriteClass.BuiltTerrain;
+        return unit is { IsMoving: false, VerticalSpeed: 0 } && (obj.Properties & (ObjectProperties.Gravity | ObjectProperties.Gravity2)) == 0 &&
+               unit is { Animation: SpriteAnimation.Stand, Lifetime: >= SpriteDefinition.Unlimited } && obj.SpriteClass == SpriteClass.BuiltTerrain;
     }
 
     [EngineRoutine(0x00447fe0)]
     private void ConstructCannon(Unit unit, Unit? parent)
     {
-        ref readonly var obj = ref unit.Kind.Object;
+        ref readonly var obj = ref unit.Definition.Object;
 
-        if (obj.Properties.HasFlag(ObjectProperties.RandomZSpeed) && !unit.Kind.ZSpeed.IsZero())
+        if (obj.Properties.HasFlag(ObjectProperties.RandomZSpeed) && !unit.Definition.ZSpeed.IsZero())
         {
             bool downward = (_random.Next() & 1) == 0;
-            float lift = _random.NextSingle() * unit.Kind.ZSpeed;
+            float lift = _random.NextSingle() * unit.Definition.ZSpeed;
             unit.VerticalSpeed = downward ? -lift : lift;
         }
         else if (parent is not null && parent.Animation >= SpriteAnimation.Death && obj.TopZ < 0)
         {
-            unit.VerticalSpeed = unit.Kind.ZSpeed;
+            unit.VerticalSpeed = unit.Definition.ZSpeed;
             unit.Speed = unit.MaxSpeed + parent.Speed;
         }
         else
         {
-            unit.VerticalSpeed = unit.Kind.ZSpeed;
+            unit.VerticalSpeed = unit.Definition.ZSpeed;
         }
 
-        if (obj.Properties.HasFlag(ObjectProperties.RandomSpeed) && !unit.Kind.Speed.IsZero())
+        if (obj.Properties.HasFlag(ObjectProperties.RandomSpeed) && !unit.Definition.Speed.IsZero())
         {
-            unit.MaxSpeed = _random.NextSingle() * unit.Kind.Speed;
+            unit.MaxSpeed = _random.NextSingle() * unit.Definition.Speed;
         }
 
-        unit.Climbing = true;
+        unit.IsClimbing = true;
         _motion.StartMove(unit);
     }
 
@@ -244,13 +274,19 @@ internal sealed class SpawnedObjectSystem
     {
         foreach (var unit in _active)
         {
-            if (unit.Kind.Object.SpriteClass == SpriteClass.Cannon)
+            if (unit.Definition.Object.SpriteClass == SpriteClass.Cannon)
             {
-                UnitKinematics.ForgetCannonGoal(unit, removed);
+                for (int built = UnitKinematics.ForgetCannonGoal(unit, removed); built > 0; built--)
+                {
+                    _world.DrawGoalSpriteRandom();
+                }
             }
             else
             {
-                UnitKinematics.ForgetObject(unit, removed);
+                if (UnitKinematics.ForgetObject(unit, removed))
+                {
+                    _world.DrawGoalSpriteRandom();
+                }
             }
         }
     }
@@ -270,14 +306,21 @@ internal sealed class SpawnedObjectSystem
         _leaving.Clear();
     }
 
-    public bool Tick(Unit unit, int elapsed)
+    public bool Tick(Unit unit)
     {
-        bool stays = Update(unit, elapsed);
+        bool stays = Update(unit);
         _world.Units.ChangeCoor(unit);
 
         if (stays)
             return true;
 
+        Leave(unit);
+
+        return false;
+    }
+
+    public void Leave(Unit unit)
+    {
         _world.Units.Remove(unit);
         unit.LeavesEffects = true;
         _leaving.Add(unit);
@@ -289,21 +332,21 @@ internal sealed class SpawnedObjectSystem
 
         unit.Link = null;
 
-        if (unit.Kind.Object.Link != 0)
+        if (unit.Definition.Object.Link != 0)
         {
             foreach (var other in _active)
             {
-                if (other.Owner == unit && other.Kind.Id == unit.Kind.Object.Link && !other.LeavesEffects)
+                if (other.Owner == unit && other.Definition.Id == unit.Definition.Object.Link && !other.LeavesEffects)
                 {
                     _orphans.Add(other);
                 }
             }
         }
 
-        return false;
+        _world.ReleaseSprite(unit);
     }
 
-    private bool Update(Unit unit, int elapsed)
+    private bool Update(Unit unit)
     {
         if (unit.Owner is not null)
         {
@@ -314,23 +357,12 @@ internal sealed class SpawnedObjectSystem
 
             if (owner.Link == unit)
             {
-                unit.Position = owner.Position + owner.Kind.Object.GetLinkOffset(unit.Kind.Object, null, 0, owner.Direction);
+                unit.Position = owner.Position + owner.Definition.Object.GetLinkOffset(unit.Definition.Object, null, 0, owner.Direction);
             }
             else
             {
                 unit.Position = owner.Position + unit.OwnerOffset;
                 unit.SetDirection(owner.Direction);
-            }
-        }
-        else if (NeedsMotion(unit.Kind))
-        {
-            if (unit.Kind.Object.SpriteClass == SpriteClass.Cannon)
-            {
-                RunCannon(unit, elapsed);
-            }
-            else
-            {
-                RunGeneric(unit, elapsed);
             }
         }
 
@@ -339,7 +371,7 @@ internal sealed class SpawnedObjectSystem
 
     private static float KeepHover(Unit unit, float height, float ground)
     {
-        ref readonly var obj = ref unit.Kind.Object;
+        ref readonly var obj = ref unit.Definition.Object;
         float hover = ground + obj.TopZ;
         float z = unit.Position.Z;
 
@@ -358,17 +390,34 @@ internal sealed class SpawnedObjectSystem
 
     private static Vector3 KeepGround(Vector3 next, Unit unit) => next with { X = unit.Position.X, Y = unit.Position.Y };
 
-    private static bool NeedsMotion(ObjectDefinition kind)
+    [EngineRoutine(0x0043f820)]
+    [EngineRoutine(0x00448130)]
+    public void Move(Unit unit, int elapsed)
     {
-        ref readonly var obj = ref kind.Object;
+        if (!NeedsMotion(unit.Definition))
+            return;
 
-        return !kind.Speed.IsZero() || !kind.ZSpeed.IsZero() || (obj.Properties & (ObjectProperties.Gravity | ObjectProperties.Gravity2 | ObjectProperties.Wind)) != 0;
+        if (unit.Definition.Object.SpriteClass == SpriteClass.Cannon)
+        {
+            RunCannon(unit, elapsed);
+        }
+        else
+        {
+            RunGeneric(unit, elapsed);
+        }
+    }
+
+    private static bool NeedsMotion(SpriteDefinition definition)
+    {
+        ref readonly var obj = ref definition.Object;
+
+        return !definition.Speed.IsZero() || !definition.ZSpeed.IsZero() || (obj.Properties & (ObjectProperties.Gravity | ObjectProperties.Gravity2 | ObjectProperties.Wind)) != 0;
     }
 
     [EngineRoutine(0x0043f820)]
     private void RunGeneric(Unit unit, int elapsed)
     {
-        ref readonly var obj = ref unit.Kind.Object;
+        ref readonly var obj = ref unit.Definition.Object;
         var next = _motion.Move(unit, elapsed);
         float current = _map.GetHeight(unit.Position.AsVector2());
         float ground = _map.GetHeight(next.AsVector2());
@@ -382,18 +431,18 @@ internal sealed class SpawnedObjectSystem
             next.Z = KeepHover(unit, next.Z, ground);
         }
 
-        if (unit.HasGoal && !unit.Speed.IsZero() && unit is { ReachedX: true, ReachedY: true })
+        if (unit.HasGoal && !unit.Speed.IsZero() && unit is { HasReachedX: true, HasReachedY: true })
         {
             UnitKinematics.StopMoving(unit);
         }
 
         if (!next.X.IsNear(unit.Position.X) || !next.Y.IsNear(unit.Position.Y))
         {
-            if (_world.Projectiles.IsBlockedAt(unit.Kind, next, unit))
+            if (_world.Projectiles.IsBlockedAt(unit.Definition, next, unit))
             {
                 unit.VerticalSpeed = 0;
                 unit.Speed = 0;
-                unit.Blocked = true;
+                unit.IsBlocked = true;
                 next = KeepGround(next, unit);
             }
         }
@@ -404,10 +453,10 @@ internal sealed class SpawnedObjectSystem
     [EngineRoutine(0x00448130)]
     private void RunCannon(Unit unit, int elapsed)
     {
-        ref readonly var obj = ref unit.Kind.Object;
+        ref readonly var obj = ref unit.Definition.Object;
         var next = _motion.Move(unit, elapsed);
 
-        if (unit is { Blocked: true, Animation: < SpriteAnimation.Death })
+        if (unit is { IsBlocked: true, Animation: < SpriteAnimation.Death })
         {
             unit.ChangeAnimation(SpriteAnimation.Death);
         }
@@ -427,7 +476,7 @@ internal sealed class SpawnedObjectSystem
 
         if (!next.X.IsNear(unit.Position.X) || !next.Y.IsNear(unit.Position.Y))
         {
-            if (_world.Projectiles.IsBlockedAt(unit.Kind, next, unit))
+            if (_world.Projectiles.IsBlockedAt(unit.Definition, next, unit))
             {
                 if (unit.Animation < SpriteAnimation.Death)
                 {
@@ -449,7 +498,7 @@ internal sealed class SpawnedObjectSystem
 
     private void Land(Unit unit, ref Vector3 next, float current, float ground)
     {
-        ref readonly var obj = ref unit.Kind.Object;
+        ref readonly var obj = ref unit.Definition.Object;
         bool climbs = ground > current;
 
         if (unit.Animation >= SpriteAnimation.Death)
@@ -504,7 +553,7 @@ internal sealed class SpawnedObjectSystem
 
     private void Steer(Unit unit, int elapsed, float previousHeight)
     {
-        ref readonly var obj = ref unit.Kind.Object;
+        ref readonly var obj = ref unit.Definition.Object;
 
         if (!unit.HasGoal)
         {
@@ -518,7 +567,7 @@ internal sealed class SpawnedObjectSystem
 
         var goal = unit.GoalPosition;
         var target = unit.Goal;
-        float distance = unit.Position.AsVector2().MeasureDistance(goal.AsVector2());
+        float distance = unit.Position.AsVector2().MeasureOctagonalDistance(goal.AsVector2());
         var aim = Angle.FromOffset((goal - unit.Position).AsVector2()) + (unit.Speed < 0 ? Angle.HalfTurn : 0);
 
         if (!obj.Properties.HasFlag(ObjectProperties.SelfMoving))
@@ -535,28 +584,28 @@ internal sealed class SpawnedObjectSystem
                 }
             }
         }
-        else if (!unit.Climbing)
+        else if (!unit.IsClimbing)
         {
             unit.SetDirection(unit.Direction.TurnToward(aim, obj.RotationPeriod, elapsed, out int remaining));
 
             if (distance <= RocketCloseReach || distance >= RocketFarReach || (byte)remaining < RocketTurnLimit)
             {
                 unit.VerticalSpeed = unit.Position.Z <= goal.Z || distance.IsZero() ? 0
-                    : Math.Max((goal.Z - unit.Position.Z) / distance * RocketClimbRate, -unit.Kind.ZSpeed);
+                    : Math.Max((goal.Z - unit.Position.Z) / distance * RocketClimbRate, -unit.Definition.ZSpeed);
             }
             else
             {
-                unit.Climbing = true;
+                unit.IsClimbing = true;
                 _motion.StartMove(unit);
             }
         }
         else if (_map.GetHeight(unit.Position.AsVector2()) + obj.TopZ <= unit.Position.Z && goal.Z <= unit.Position.Z || unit.VerticalSpeed <= 0)
         {
-            unit.Climbing = false;
+            unit.IsClimbing = false;
         }
         else
         {
-            unit.VerticalSpeed = unit.VerticalSpeed - elapsed * _kinds.Gravitation;
+            unit.VerticalSpeed = unit.VerticalSpeed - elapsed * _definitions.Gravitation;
         }
 
         if (HitsGoal(unit, goal, target, previousHeight))
@@ -568,21 +617,21 @@ internal sealed class SpawnedObjectSystem
 
     private static bool HitsGoal(Unit unit, Vector3 goal, Unit? target, float previousHeight)
     {
-        var half = unit.Kind.Half;
-        var goalHalf = target?.Kind.Half ?? PlayerMovement.TargetHalf;
+        var half = unit.Definition.Half;
+        var goalHalf = target?.Definition.Half ?? PlayerMovement.MoveTargetHalfSize;
         var offset = Vector2.Abs(unit.Position.AsVector2() - goal.AsVector2());
 
-        if (unit is { ReachedX: true, ReachedY: true } || offset.X < half.X + goalHalf.X && offset.Y < half.Y + goalHalf.Y)
+        if (unit is { HasReachedX: true, HasReachedY: true } || offset.X < half.X + goalHalf.X && offset.Y < half.Y + goalHalf.Y)
         {
-            float goalHeight = target?.Kind.Object.Size.Z ?? PlayerMovement.TargetHeight;
+            float goalHeight = target?.Definition.Object.Size.Z ?? PlayerMovement.TargetHeight;
             float z = unit.Position.Z;
 
-            if (goal.Z <= unit.Kind.Object.Size.Z + z && z <= goal.Z + goalHeight ||
+            if (goal.Z <= unit.Definition.Object.Size.Z + z && z <= goal.Z + goalHeight ||
                 Math.Min(previousHeight, z) <= goal.Z && goal.Z <= Math.Max(previousHeight, z))
                 return true;
         }
 
-        return unit.Kind.Object.Properties.HasFlag(ObjectProperties.SelfMoving) && MathF.Abs(goal.Z - unit.Position.Z) < RocketHitHeight &&
+        return unit.Definition.Object.Properties.HasFlag(ObjectProperties.SelfMoving) && MathF.Abs(goal.Z - unit.Position.Z) < RocketHitHeight &&
                offset is { X: < RocketHitReach, Y: < RocketHitReach };
     }
 
@@ -638,5 +687,5 @@ internal sealed class SpawnedObjectSystem
     }
 
     public static EffectState GetState(Unit unit) =>
-        new(unit.Kind.Id, unit.Position, unit.Direction, unit.Animation, unit.CreatedAt, unit.Frame, unit.KeyframePosition);
+        new(unit.Definition.Id, unit.Position, unit.Direction, unit.Animation, unit.CreatedAt, unit.Frame, unit.KeyframePosition);
 }

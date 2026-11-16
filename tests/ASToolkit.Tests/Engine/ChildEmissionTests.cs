@@ -10,9 +10,9 @@ public class ChildEmissionTests
     [Fact]
     public void GetChildren_PistolPulses_AlternateBetweenTheTwoHands()
     {
-        var kinds = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var owner = kinds.Find(KnownObject.PistolsTorso)!;
-        var child = kinds.Find(KnownObject.PistolMuzzleFlash)!;
+        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var owner = definitions.Find(KnownObject.PistolsTorso)!;
+        var child = definitions.Find(KnownObject.PistolMuzzleFlash)!;
         var origin = new Vector3(100, 200, 10);
         var first = Assert.Single(Collect(ChildEmission.GetChildren(owner, child, SpriteAnimation.Fight, origin, default, new GameRandom(1))));
         var second = Assert.Single(Collect(ChildEmission.GetChildren(owner, child, SpriteAnimation.Fight, origin, default, new GameRandom(1), secondPulse: true)));
@@ -27,9 +27,9 @@ public class ChildEmissionTests
     [Fact]
     public void GetChildren_HitBlood_StartsAtTheAlien()
     {
-        var kinds = new ObjectCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var owner = kinds.Find(KnownObject.Monster1)!;
-        var child = kinds.Find(KnownObject.RedBloodSpray)!;
+        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var owner = definitions.Find(KnownObject.Monster1)!;
+        var child = definitions.Find(KnownObject.RedBloodSpray)!;
         var origin = new Vector3(100, 200, 10);
         var children = Collect(ChildEmission.GetChildren(owner, child, SpriteAnimation.Close, origin, default, new GameRandom(1)));
 

@@ -66,6 +66,11 @@ public enum ActionCode
     FlagmanTrigger = 43,
 
     /// <summary>
+    /// Select the sprite.
+    /// </summary>
+    Select = 44,
+
+    /// <summary>
     /// Add an item to the carried items.
     /// </summary>
     AddItem = 54,
@@ -114,6 +119,11 @@ public enum ActionCode
     /// Move the sprite to a point at once.
     /// </summary>
     ChangeCoor = 63,
+
+    /// <summary>
+    /// Change the sprite's height.
+    /// </summary>
+    ChangeCoorZ = 69,
 
     /// <summary>
     /// Push the current command onto the action stack.

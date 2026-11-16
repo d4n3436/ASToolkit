@@ -17,21 +17,23 @@ internal sealed class MonsterBrain
     private readonly UnitCollision _movement;
     private readonly Random _random;
     private readonly IReadOnlyList<Unit> _candidates;
+    private readonly GameSession _session;
 
-    public MonsterBrain(UnitKinematics motion, UnitCollision movement, Random random, IReadOnlyList<Unit> candidates)
+    public MonsterBrain(UnitKinematics motion, UnitCollision movement, Random random, IReadOnlyList<Unit> candidates, GameSession session)
     {
         _motion = motion;
         _movement = movement;
         _random = random;
         _candidates = candidates;
+        _session = session;
     }
 
     [EngineRoutine(0x00447260)]
     public void Move(Unit unit, int elapsed, int framesPerSecond)
     {
-        ref readonly var obj = ref unit.Kind.Object;
+        ref readonly var obj = ref unit.Definition.Object;
 
-        if (unit is { Moving: false, Speed: 0, TurnTicks: 0, VerticalSpeed: 0 } && (obj.Properties & (ObjectProperties.Gravity | ObjectProperties.Gravity2)) == 0)
+        if (unit is { IsMoving: false, Speed: 0, TurnTicks: 0, VerticalSpeed: 0 } && (obj.Properties & (ObjectProperties.Gravity | ObjectProperties.Gravity2)) == 0)
             return;
 
         var next = _motion.Move(unit, elapsed);
@@ -49,7 +51,7 @@ internal sealed class MonsterBrain
                 goal = _movement.AvoidObstacles(goal, unit);
                 unit.SetDirection(unit.TurnWhileMoving(goal, elapsed));
 
-                if (unit is { ReachedX: true, ReachedY: true })
+                if (unit is { HasReachedX: true, HasReachedY: true })
                 {
                     UnitKinematics.StopMoving(unit);
                 }
@@ -81,17 +83,14 @@ internal sealed class MonsterBrain
 
     public void Decide(Unit unit, Unit player, int elapsed, int time)
     {
-        if (unit.Kind.Object.SpriteClass == SpriteClass.Creature)
+        if (unit.Definition.Object.SpriteClass == SpriteClass.Creature)
         {
             DecideCreature(unit, elapsed, time);
 
             return;
         }
 
-        if (unit.Command != UnitCommand.None || !RunProgram(unit))
-        {
-            Act(unit, player, elapsed);
-        }
+        Act(unit, player, elapsed);
     }
 
     [EngineRoutine(0x0044d880)]
@@ -126,10 +125,10 @@ internal sealed class MonsterBrain
 
         if (unit.Command is UnitCommand.Attack or UnitCommand.OneAttack || newPeriod)
         {
-            unit.TryAttack(Math.Max(elapsed, unit.Kind.Layout.GetFrameDuration(unit.Animation)));
+            unit.TryAttack(Math.Max(elapsed, unit.Definition.Layout.GetFrameDuration(unit.Animation)));
         }
 
-        int frameTime = (byte)unit.Kind.Layout.GetFrameDuration(unit.Animation);
+        int frameTime = (byte)unit.Definition.Layout.GetFrameDuration(unit.Animation);
 
         if (unit.Command is not (UnitCommand.Move or UnitCommand.Attack or UnitCommand.OneAttack))
         {
@@ -149,7 +148,7 @@ internal sealed class MonsterBrain
                 {
                     unit.StartMoving(unit.MaxSpeed);
                 }
-                else if (unit.Speed.IsZero() && _random.Next() % 3 == 0 && HasUnload(unit.Kind))
+                else if (unit.Speed.IsZero() && _random.Next() % 3 == 0 && HasUnload(unit.Definition))
                 {
                     unit.ChangeAnimation(SpriteAnimation.Unload);
                 }
@@ -170,68 +169,14 @@ internal sealed class MonsterBrain
         }
     }
 
-    private static bool HasUnload(ObjectDefinition kind) =>
-        kind.Object.FrameCounts[(int)SpriteAnimation.Unload] != 0 || kind.Object.Children[(int)SpriteAnimation.Unload] != 0;
+    private static bool HasUnload(SpriteDefinition definition) =>
+        definition.Object.FrameCounts[(int)SpriteAnimation.Unload] != 0 || definition.Children[(int)SpriteAnimation.Unload] != 0;
 
     private static void TurnStep(Unit unit, int step, int elapsed) =>
-        unit.SetDirection(unit.Direction.TurnToward(unit.Direction + step, unit.Kind.Object.RotationPeriod, elapsed, out _));
-
-    [EngineRoutine(0x00440110)]
-    private bool RunProgram(Unit unit)
-    {
-        if (unit.OrderStep >= unit.Orders.Length)
-            return false;
-
-        var order = unit.Orders[unit.OrderStep];
-        var state = unit.Animation;
-
-        if ((int)order.Code > UnitOrder.LastState &&
-            (state is > SpriteAnimation.Open and < SpriteAnimation.Death and not SpriteAnimation.StandOpen || state == SpriteAnimation.Go && unit.Speed.IsZero()))
-        {
-            unit.ChangeAnimation(SpriteAnimation.Stand);
-        }
-
-        if (order.Code == ActionCode.StopStack)
-            return true;
-
-        unit.OrderStep++;
-
-        if ((int)order.Code <= UnitOrder.LastState)
-        {
-            unit.ChangeAnimation((SpriteAnimation)order.Code);
-
-            return true;
-        }
-
-        switch (order.Code)
-        {
-            case ActionCode.Attack:
-                Attack(unit, order.Target);
-                break;
-            case ActionCode.Move when order.Point is not null:
-                MoveTo(unit, order.Point.Value);
-                break;
-            case ActionCode.Pause:
-                Pause(unit, order.Var1 + _random.Next() % (order.Var2 + 1));
-                break;
-            case ActionCode.Stop:
-                UnitKinematics.StopMoving(unit);
-
-                if (order.Var1 != 0)
-                {
-                    unit.Speed = 0;
-                }
-                break;
-            case ActionCode.ClearCommand:
-                UnitKinematics.SetCommand(unit, UnitCommand.None);
-                break;
-        }
-
-        return true;
-    }
+        unit.SetDirection(unit.Direction.TurnToward(unit.Direction + step, unit.Definition.Object.RotationPeriod, elapsed, out _));
 
     [EngineRoutine(0x00440830)]
-    private static void Pause(Unit unit, int time)
+    public static void Pause(Unit unit, int time)
     {
         if (!unit.Speed.IsZero())
         {
@@ -245,10 +190,10 @@ internal sealed class MonsterBrain
     [EngineRoutine(0x00445fb0)]
     public static void Attack(Unit unit, Unit? target)
     {
-        var kind = unit.Kind;
-        bool accepts = target is null || kind.IsArmed && kind.FightChild != 0 && (kind.Targets & target.Kind.Object.SpriteType) != 0;
+        var definition = unit.Definition;
+        bool accepts = target is null || definition.IsArmed && definition.FightChild != 0 && (definition.Targets & target.Definition.Object.SpriteType) != 0;
 
-        if (accepts || kind.Object.SpriteClass == SpriteClass.Cannon)
+        if (accepts || definition.Object.SpriteClass == SpriteClass.Cannon)
         {
             UnitKinematics.SetCommand(unit, UnitCommand.Attack, target);
         }
@@ -269,7 +214,7 @@ internal sealed class MonsterBrain
             unit.ChangeAnimation(SpriteAnimation.Go);
         }
 
-        var kind = unit.Kind;
+        var definition = unit.Definition;
         var link = unit.ArmedLink;
         var result = AttackResult.Pursue;
 
@@ -280,14 +225,14 @@ internal sealed class MonsterBrain
 
         if (link is not null || unit.TurnTicks == 0)
         {
-            result = unit.TryAttack(Math.Max(elapsed, kind.Layout.GetFrameDuration(unit.Animation)));
+            result = unit.TryAttack(Math.Max(elapsed, definition.Layout.GetFrameDuration(unit.Animation)));
 
             switch (result)
             {
                 case AttackResult.NoAmmo or AttackResult.GiveUp:
                     UnitKinematics.SetCommand(unit, UnitCommand.None);
                     break;
-                case AttackResult.Approach when kind.Speed.IsZero():
+                case AttackResult.Approach when definition.Speed.IsZero():
                     if (link is not null && link.HasGoal || unit.HasGoal)
                     {
                         UnitKinematics.SetCommand(unit, UnitCommand.None);
@@ -334,7 +279,7 @@ internal sealed class MonsterBrain
     [EngineRoutine(0x00447500)]
     public void Wander(Unit unit)
     {
-        if (unit.Command != UnitCommand.None || unit.Kind.Speed.IsZero())
+        if (unit.Command != UnitCommand.None || unit.Definition.Speed.IsZero())
             return;
 
         var vector = new Angle((byte)_random.Next()).Vector;
@@ -342,7 +287,7 @@ internal sealed class MonsterBrain
     }
 
     [EngineRoutine(0x004447b0)]
-    private void MoveTo(Unit unit, Vector2 point)
+    public void MoveTo(Unit unit, Vector2 point)
     {
         if (!UnitKinematics.SetCommand(unit, UnitCommand.Move, point: new Vector3(point, unit.Position.Z)) && !_motion.StartMove(unit))
         {
@@ -363,13 +308,13 @@ internal sealed class MonsterBrain
     [EngineRoutine(0x00444a80)]
     private Unit? FindTarget(Unit unit, Unit player)
     {
-        var kind = unit.Kind;
+        var definition = unit.Definition;
 
-        if (kind.DetectRange.IsZero() || kind.Targets == 0)
+        if (definition.DetectRange.IsZero() || definition.Targets == 0)
             return null;
 
         Unit? best = null;
-        float bestDistance = kind.DetectRange + 1;
+        float bestDistance = definition.DetectRange + 1;
 
         if (unit.Army == Army.Monsters)
             return TryTake(unit, player, ref best, ref bestDistance) ? player : best;
@@ -388,43 +333,52 @@ internal sealed class MonsterBrain
 
     private bool TryTake(Unit unit, Unit candidate, ref Unit? best, ref float bestDistance)
     {
-        var kind = unit.Kind;
+        var definition = unit.Definition;
 
-        if ((kind.Targets & candidate.Kind.Object.SpriteType) == 0 || candidate.Kind.MaxHp == 0 || !IsEnemy(unit, candidate))
+        if ((definition.Targets & candidate.Definition.Object.SpriteType) == 0 || candidate.Definition.MaxHp == 0 || !IsEnemy(unit, candidate) ||
+            (candidate.Definition.Object.SpriteType.HasFlag(SpriteType.Avia) && candidate.Owner is not null))
             return false;
 
-        if (kind.NeedsForwardTarget &&
+        if (definition.NeedsForwardTarget &&
             unit.Direction.MeasureTurnTo(Angle.FromOffset((candidate.Position - unit.Position).AsVector2())) > ForwardCone)
             return false;
 
-        float distance = unit.Position.AsVector2().MeasureDistance(candidate.Position.AsVector2());
+        float distance = unit.Position.AsVector2().MeasureOctagonalDistance(candidate.Position.AsVector2());
 
-        if (distance > kind.DetectRange || distance < kind.MinRange)
+        if (distance > definition.DetectRange || distance < definition.MinRange)
             return false;
 
         bool accepts;
 
-        if (kind.Object.SpriteType.HasFlag(SpriteType.Avia) && unit.Goal is null)
+        if (definition.Object.SpriteType.HasFlag(SpriteType.Avia) && unit.Goal is null)
         {
             accepts = distance < bestDistance;
         }
-        else if (bestDistance <= kind.BattleRange)
+        else if (candidate.Definition.Id == KnownObject.PistolMuzzleFlash)
         {
-            accepts = distance <= kind.BattleRange && IsBetter(unit, distance, bestDistance, candidate, best);
+            accepts = false;
+        }
+        else if (bestDistance <= definition.BattleRange)
+        {
+            accepts = distance <= definition.BattleRange && IsBetter(unit, distance, bestDistance, candidate, best);
         }
         else
         {
-            accepts = distance <= kind.BattleRange || IsBetter(unit, distance, bestDistance, candidate, best);
+            accepts = distance <= definition.BattleRange || IsBetter(unit, distance, bestDistance, candidate, best);
         }
 
-        if (!accepts || unit.Army == Army.Player && candidate.Kind.Object.SpriteClass == SpriteClass.Engine)
+        if (!accepts || (unit.Army == Army.Player && candidate.Definition.Object.SpriteClass == SpriteClass.Engine && HasCarOfArmy(candidate, Army.Player)))
             return false;
 
         best = candidate;
         bestDistance = distance;
 
-        return kind.WeaponFlags.HasFlag(WeaponFlags.RandomTarget) && _random.Next() % RepeatTargetOdds == 0;
+        return definition.WeaponFlags.HasFlag(WeaponFlags.RandomTarget) && _random.Next() % RepeatTargetOdds == 0;
     }
+
+    // TODO: Port the trains
+    [EngineRoutine(0x004505c0)]
+    private static bool HasCarOfArmy(Unit engine, Army army) => engine.Army == army;
 
     [EngineRoutine(0x00445c80)]
     private static bool IsBetter(Unit unit, float distance, float bestDistance, Unit candidate, Unit? best)
@@ -432,7 +386,7 @@ internal sealed class MonsterBrain
         if (best is null)
             return true;
 
-        if (unit.Kind.WeaponFlags.HasFlag(WeaponFlags.PrefersNearest))
+        if (unit.Definition.WeaponFlags.HasFlag(WeaponFlags.PrefersNearest))
             return distance < bestDistance;
 
         if (unit.Goal == best)
@@ -444,36 +398,36 @@ internal sealed class MonsterBrain
         if (candidate.Army == Army.Neutral && best.Army != Army.Neutral)
             return false;
 
-        bool bestFlies = best.Kind.Object.SpriteType.HasFlag(SpriteType.Avia);
-        bool candidateFlies = candidate.Kind.Object.SpriteType.HasFlag(SpriteType.Avia);
+        bool bestFlies = best.Definition.Object.SpriteType.HasFlag(SpriteType.Avia);
+        bool candidateFlies = candidate.Definition.Object.SpriteType.HasFlag(SpriteType.Avia);
 
         if (bestFlies != candidateFlies)
             return candidateFlies;
 
-        float range = (unit.ArmedLink?.Kind ?? unit.Kind).BattleRange;
+        float range = (unit.ArmedLink?.Definition ?? unit.Definition).BattleRange;
 
         if (range < bestDistance && distance <= range)
             return true;
 
-        bool candidateArmed = candidate.Kind.Object.SpriteType.HasFlag(SpriteType.Unit) && candidate.Rounds != 0;
-        bool bestArmed = best.Kind.Object.SpriteType.HasFlag(SpriteType.Unit) && best.Rounds != 0;
+        bool candidateArmed = candidate.Definition.Object.SpriteType.HasFlag(SpriteType.Unit) && candidate.Rounds != 0;
+        bool bestArmed = best.Definition.Object.SpriteType.HasFlag(SpriteType.Unit) && best.Rounds != 0;
 
         if (candidateArmed != bestArmed)
             return candidateArmed;
 
-        int candidateRank = (candidate.ArmedLink?.Kind ?? candidate.Kind).Rank;
-        int bestRank = (best.ArmedLink?.Kind ?? best.Kind).Rank;
+        int candidateRank = (candidate.ArmedLink?.Definition ?? candidate.Definition).Rank;
+        int bestRank = (best.ArmedLink?.Definition ?? best.Definition).Rank;
 
         return bestRank < candidateRank || bestRank <= candidateRank && distance < bestDistance;
     }
 
-    private static bool IsEnemy(Unit unit, Unit target)
+    private bool IsEnemy(Unit unit, Unit target)
     {
-        bool ownArmy = unit.Kind.WeaponFlags.HasFlag(WeaponFlags.TargetsOwnArmy);
+        bool ownArmy = unit.Definition.WeaponFlags.HasFlag(WeaponFlags.TargetsOwnArmy);
 
-        return (target.Army != unit.Army || ownArmy) && !target.Kind.Object.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) &&
-            (target.Army != Army.Neutral || ownArmy) &&
-            target.Kind.Id != KnownObject.PistolMuzzleFlash;
+        return (target.Army != unit.Army || ownArmy) && !target.Definition.Object.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) &&
+            (target.Army != Army.Neutral || ownArmy ||
+                (_session.CanMonstersAttackNeutralTrains && unit.Army == Army.Monsters && target.Definition.Object.SpriteClass == SpriteClass.Engine));
     }
 
     [EngineRoutine(0x0043fa00)]
@@ -485,7 +439,7 @@ internal sealed class MonsterBrain
 
         if (goal >= 0)
         {
-            unit.SetDirection(unit.Direction.TurnToward(new Angle((byte)goal), unit.Kind.Object.RotationPeriod, elapsed, out _));
+            unit.SetDirection(unit.Direction.TurnToward(new Angle((byte)goal), unit.Definition.Object.RotationPeriod, elapsed, out _));
         }
     }
 }

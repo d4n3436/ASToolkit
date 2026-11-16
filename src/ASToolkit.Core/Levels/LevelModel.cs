@@ -44,6 +44,11 @@ public sealed class LevelModel
     public required IReadOnlyList<MergedMapSprite> Sprites { get; init; }
 
     /// <summary>
+    /// Gets every placed object of the map in the order the map stores them.
+    /// </summary>
+    public required IReadOnlyList<MergedMapSprite> StoredSprites { get; init; }
+
+    /// <summary>
     /// Gets the width and height of the map from its header, or an empty size when the model has none.
     /// </summary>
     public SizeF MapSize { get; init; }

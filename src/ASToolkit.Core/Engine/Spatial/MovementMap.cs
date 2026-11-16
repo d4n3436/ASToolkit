@@ -7,9 +7,14 @@ using ASToolkit.Core.Scripting;
 
 namespace ASToolkit.Core.Engine;
 
-// Collision boxes do not use visual scale.
-internal sealed class MovementMap
+/// <summary>
+/// Represents the terrain heights of a map in 8 by 8 pixel cells.
+/// </summary>
+public sealed class MovementMap
 {
+    /// <summary>
+    /// Represents the side of a cell in pixels.
+    /// </summary>
     public const int CellSize = 8;
     private const float CellScale = 0.125f;
     private const float PlayerFootprintInset = 3;
@@ -23,6 +28,10 @@ internal sealed class MovementMap
     private short[] _objectHeights;
     private bool _sharesObjectHeights;
 
+    /// <summary>
+    /// Creates a flat map.
+    /// </summary>
+    /// <param name="mapSize">The size of the map.</param>
     [EngineRoutine(0x00410d70)]
     public MovementMap(SizeF mapSize = default)
     {
@@ -47,8 +56,17 @@ internal sealed class MovementMap
         source._sharesObjectHeights = true;
     }
 
+    /// <summary>
+    /// Returns a copy of the map.
+    /// </summary>
+    /// <returns>The copy.</returns>
     public MovementMap Clone() => new(this);
 
+    /// <summary>
+    /// Creates the heights of a level's sprites.
+    /// </summary>
+    /// <param name="model">The level.</param>
+    /// <param name="parts">The sprite parts.</param>
     public MovementMap(LevelModel model, SpritePartReader parts) : this(model.MapSize)
     {
         foreach (var sprite in model.Sprites)
@@ -57,6 +75,12 @@ internal sealed class MovementMap
         }
     }
 
+    /// <summary>
+    /// Raises the cells under a sprite's parts.
+    /// </summary>
+    /// <param name="sprite">The sprite.</param>
+    /// <param name="parts">The sprite parts.</param>
+    /// <param name="removable">A value indicating whether the sprite can be removed later.</param>
     public void Add(MergedMapSprite sprite, SpritePartReader parts, bool removable)
     {
         var source = removable ? sprite : null;
@@ -128,6 +152,14 @@ internal sealed class MovementMap
         return _objectHeights;
     }
 
+    /// <summary>
+    /// Raises a cell to a height.
+    /// </summary>
+    /// <param name="x">The x coordinate.</param>
+    /// <param name="y">The y coordinate.</param>
+    /// <param name="height">The height.</param>
+    /// <param name="isScenery">A value indicating whether the height belongs to scenery.</param>
+    /// <param name="source">The sprite the height comes from, or null.</param>
     [EngineRoutine(0x00411300)]
     [EngineRoutine(0x00411260)]
     public void Raise(float x, float y, float height, bool isScenery = false, MergedMapSprite? source = null)
@@ -153,10 +185,22 @@ internal sealed class MovementMap
     }
 
 
+    /// <summary>
+    /// Gets the size of the map.
+    /// </summary>
     public SizeF MapSize => _mapSize;
 
+    /// <summary>
+    /// Returns whether a sprite raises any cell.
+    /// </summary>
+    /// <param name="source">The sprite.</param>
+    /// <returns><see langword="true"/> when the sprite raises cells; otherwise, <see langword="false"/>.</returns>
     public bool Raises(MergedMapSprite source) => _raised.ContainsKey(source);
 
+    /// <summary>
+    /// Lowers the cells a sprite raised.
+    /// </summary>
+    /// <param name="source">The sprite.</param>
     public void Remove(MergedMapSprite source)
     {
         if (_raised.TryGetValue(source, out var cells))
@@ -187,8 +231,19 @@ internal sealed class MovementMap
         return Math.Max(_sceneryHeights[index], _objectHeights[index]);
     }
 
+    /// <summary>
+    /// Returns the height of the cell under a point.
+    /// </summary>
+    /// <param name="point">The point.</param>
+    /// <returns>The height.</returns>
     public float GetHeight(Vector2 point) => GetCellHeight(point.X, point.Y);
 
+    /// <summary>
+    /// Returns the height an object stands at over its footprint.
+    /// </summary>
+    /// <param name="walker">The object.</param>
+    /// <param name="point">The point.</param>
+    /// <returns>The height.</returns>
     [EngineRoutine(0x00411050)]
     public float GetSupportHeight(in GameObject walker, Vector2 point)
     {
@@ -214,6 +269,13 @@ internal sealed class MovementMap
 
     private static float ClampToMap(float value, float size) => value < 0 ? 0 : value >= size ? size - 1 : value;
 
+    /// <summary>
+    /// Returns whether an object can stand at a point.
+    /// </summary>
+    /// <param name="walker">The object.</param>
+    /// <param name="point">The point.</param>
+    /// <param name="ground">The height it stands at.</param>
+    /// <returns><see langword="true"/> when it can stand there; otherwise, <see langword="false"/>.</returns>
     public bool CanStandOnGround(in GameObject walker, Vector3 point, out float ground)
     {
         ground = float.NaN;
@@ -247,8 +309,20 @@ internal sealed class MovementMap
         return true;
     }
 
+    /// <summary>
+    /// Returns whether an object can stand at a point.
+    /// </summary>
+    /// <param name="walker">The object.</param>
+    /// <param name="point">The point.</param>
+    /// <returns><see langword="true"/> when it can stand there; otherwise, <see langword="false"/>.</returns>
     public bool CanStandOnGround(in GameObject walker, Vector3 point) => CanStandOnGround(walker, point, out _);
 
+    /// <summary>
+    /// Returns whether a point is at or above the ground an object stands on.
+    /// </summary>
+    /// <param name="obj">The object.</param>
+    /// <param name="point">The point.</param>
+    /// <returns><see langword="true"/> when the point is above the ground; otherwise, <see langword="false"/>.</returns>
     public bool IsAboveGround(in GameObject obj, Vector3 point) => point.Z >= GetSupportHeight(obj, point.AsVector2());
 
     private static bool AllowsHeight(in GameObject walker, float ground, float height) => walker.Properties.HasFlag(ObjectProperties.ZeroZ)

@@ -3,198 +3,210 @@ using System.Numerics;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Scripting;
-using System.Runtime.InteropServices;
 
 namespace ASToolkit.Core.Engine;
 
-internal sealed partial class GameWorld
+/// <summary>
+/// Represents a running Alien Shooter level with its sprites, update lists, controllers and compiled level script.
+/// </summary>
+public sealed partial class GameWorld
 {
-    private const float PickupReach = 60;
-    private const float HealingEffectHeight = 60;
-    private const float AmmoReach = 50;
 
     private const int MaxStreamPeriod = 30000;
-    private const int RespawnProtection = 3000;
     private const float RescueEffectHeight = 22;
-    private const float ProtectionEffectHeight = 20;
-    private const int DroppedItemLifetime = 17000;
-    private const int DroppedItemLifetimeVariation = 5000;
-    private const float DroppedItemHeight = 10;
-    private const float FlyerItemHeight = -30;
 
     private readonly GameRandom _rng;
     private readonly MonsterBrain _brain;
     private readonly List<Unit> _monsters = [];
     private readonly HashSet<Unit> _monsterSet = [];
-    private bool _adrenalineActive;
-    private int _quakeStart;
-    private int _quakeDelay;
     private MapEnvironment _environment;
-    private bool _deathFlashed;
-    private readonly List<ObjectProgram> _programs = [];
     private readonly UpdateOrder _updates;
-    private readonly List<WorldPickup> _pickups = [];
     private GameClock _clock;
-    private int _protectedUntil;
-    private int _mountedAt = -1;
+    private bool _loading;
+    private readonly List<Unit> _builders = [];
     private const int PlayerSlots = 4;
+    private const int ArmyMask = PlayerSlots - 1;
     private readonly List<UnitGroup> _groups = [];
     private readonly PlayerController[] _controllers = new PlayerController[PlayerSlots];
     private Vector3 _respawnPosition;
     private int _unitCount;
+    private bool _playerDestroyed;
+    private const int WornArmorShareCount = 3;
+    private const int ArmorRounding = 50;
+    private static ReadOnlySpan<int> WornArmorShares => [50, 70, 90];
+    private readonly LivingSet _livingFences = new();
+    private readonly LivingSet _livingSites = new();
+    private readonly LivingSet _livingCharges = new();
+    private static ReadOnlySpan<byte> DoorsOpenVariable => "DoorsIsOpen"u8;
 
-    public GameWorld(LevelTemplate data, PlayerLoadout loadout, GameRandom rng, ControlSettings? controls = null)
+    /// <summary>
+    /// Creates a world from a level, building its sprites, binding its compiled script and running the creation scripts.
+    /// </summary>
+    /// <param name="data">The level to load.</param>
+    /// <param name="rng">The random source the engine draws from.</param>
+    /// <param name="controls">The control settings, or null for the executable's defaults.</param>
+    /// <param name="demo">The demo to play back, or null to play without one.</param>
+    /// <param name="registry">The registry the level script reads and writes, or null for an empty one.</param>
+    /// <param name="session">The map state earlier levels left, or null for a new session.</param>
+    public GameWorld(LevelTemplate data, GameRandom rng, ControlSettings? controls = null, DemoResource? demo = null,
+        ScriptRegistry? registry = null, GameSession? session = null)
     {
+        Registry = registry ?? new ScriptRegistry("");
+        Session = session ?? new GameSession();
+        Session.Cursor ??= ConstructCursor(data.Definitions);
         _updates = new UpdateOrder();
+        data.Definitions.ReloadRecords();
+        data.Definitions.ResetLevelState();
         var model = data.Model;
-        var level = data.Script;
-        var kinds = data.Kinds;
+        var definitions = data.Definitions;
         var frameTimes = data.FrameTimes;
         _clock = new GameClock(frameTimes);
-        bool doorsLocked = level.DoorsLocked;
-        bool fencesUp = model.Sprites.Any(sprite => sprite.Id == KnownObject.Fence);
         _sprites = model.Sprites.ToList();
-        _level = level;
         _environment = model.Environment;
-        _triggersPassed = new bool[level.Triggers.Count];
-        _crowdSprites = level.CrowdRules.Select(rule => new MergedMapSprite?[rule.Points.Count]).ToArray();
-        Kinds = kinds;
+        Definitions = definitions;
         _rng = rng;
         Movement = data.Movement.Clone();
-        DoorsLocked = doorsLocked;
-        FencesUp = fencesUp;
-        var legs = kinds.Find(KnownObject.PlayerStart)!;
-        Units = new UnitGrid(Movement.MapSize, kinds.LargestHashedSize);
+        var legs = definitions.Find(KnownObject.PlayerStart)!;
+        Units = new UnitGrid(Movement.MapSize, definitions.LargestHashedSize);
 
-        Motion = new UnitKinematics(kinds, this);
-        Effects = new SpawnedObjectSystem(kinds, Movement, rng, this);
-        int maxHealth = loadout.Implants.ScaleHealth(legs.MaxHp);
+        Motion = new UnitKinematics(definitions, this);
+        Effects = new SpawnedObjectSystem(definitions, Movement, rng, this);
         var start = model.Sprites.FirstOrDefault(sprite => sprite.Id is KnownObject.PlayerStart or KnownObject.PlayerStartFemaleLegs);
-        Player = new Unit(_unitCount++, legs, start?.Position ?? new Vector3(data.FallbackStart, 0), Army.Player, maxHealth)
+        Player = new Unit(_unitCount++, legs, start?.Position ?? new Vector3(data.FallbackStart, 0), Army.Player, legs.MaxHp)
         { CreatedAt = Time };
-        Player.Start(legs.InitialAnimation, default, Time, rng);
-        _respawnPosition = Player.Position;
-        Inventory = new PlayerInventory(kinds, data.AmmoBatches, Player, loadout);
-        Weapons = new WeaponSystem(this, Inventory, kinds, rng);
+        Weapons = new WeaponSystem(this, definitions, rng);
         var unitMovement = new UnitCollision(Movement, Units);
         PlayerMovement = new PlayerMovement(unitMovement);
         var settings = controls ?? ControlSettings.Default;
         Input = new PlayerInput(settings);
         for (int slot = 0; slot < PlayerSlots; slot++)
         {
-            _controllers[slot] = new PlayerController(this, unitMovement, settings, slot == 0);
+            _controllers[slot] = new PlayerController(this, unitMovement, settings);
         }
 
-        _brain = new MonsterBrain(Motion, unitMovement, rng, _monsters);
+        _brain = new MonsterBrain(Motion, unitMovement, rng, _monsters, Session);
         var placedUnits = new Dictionary<uint, Unit>();
+        _loading = true;
 
         if (start is null)
         {
-            RegisterPlayer();
+            ConstructPlayer(default);
         }
 
-        foreach (var sprite in model.Sprites)
+        for (int record = 0; record < model.StoredSprites.Count; record++)
         {
+            var sprite = model.StoredSprites[record];
+            ConstructLoadingScreen(data.LoadingScreenRecords, record);
+
             if (sprite == start)
             {
-                RegisterPlayer();
-            }
-
-            var kind = Kinds.Find(sprite.Id);
-
-            if (kind is null)
-                continue;
-
-            if (kind.MaxHp > 0)
-            {
-                if (sprite.Id != KnownObject.Crate && kind.Object.SpriteClass is SpriteClass.Unit or SpriteClass.Avia)
-                {
-                    placedUnits[sprite.Handle] = AddMonster(kind, sprite.Position, sprite.Direction, sprite.Army, KnownObject.GetCrateItem(sprite.Payload));
-                }
-                else if (kind.Object.SpriteClass != SpriteClass.Man)
-                {
-                    var body = new Unit(_unitCount++, kind, sprite.Position, sprite.Army, kind.MaxHp)
-                    {
-                        Direction = sprite.Direction, Placement = sprite,
-                        DropItem = KnownObject.GetCrateItem(sprite.Payload)
-                    };
-                    
-                    Units.Add(body);
-                    _bodies.Add(sprite, body);
-                    placedUnits[sprite.Handle] = body;
-                    CreateLink(body);
-                }
-
+                ConstructPlayer(default);
+                placedUnits[sprite.Handle] = Player;
                 continue;
             }
 
-            if (kind.Object.SpriteClass == SpriteClass.Cannon)
-            {
-                AddPlacedCannon(sprite);
-                continue;
-            }
+            var definition = Definitions.Find(sprite.Id);
 
-            if (sprite.Id.IsScripted)
-            {
-                AddScripted(kind, sprite.Position, sprite.Direction, sprite.Army, sprite);
-            }
-            else
-            {
-                AddStatic(sprite, kind);
-            }
-
-            if (sprite.Id.PickupCategory is not null)
-            {
-                AddPickup(sprite.Position, sprite.Id, sprite);
-            }
-
-            if (!SpriteProgram.TryParse(sprite.Payload, false, out var program))
+            if (definition is null)
                 continue;
 
-            var objectProgram = new ObjectProgram(kind, sprite.Position, sprite.Direction, program.GetStack(0).ToArray(), _rng, this, sprite);
-            _programs.Add(objectProgram);
-            _updates.Add(kind.Layer, new UpdateEntry(UpdateRole.Program, null, objectProgram));
+            var unit = PlaceSprite(sprite, definition);
+
+            if (unit is not null)
+            {
+                placedUnits[sprite.Handle] = unit;
+            }
         }
 
-        foreach (var sprite in model.Sprites)
+        ConstructLoadingScreen(data.LoadingScreenRecords, model.StoredSprites.Count);
+
+        foreach (var sprite in model.StoredSprites)
         {
-            if (placedUnits.TryGetValue(sprite.Handle, out var unit) && unit.Placement is null && SpriteProgram.TryParse(sprite.Payload, false, out var program))
+            if (!placedUnits.TryGetValue(sprite.Handle, out var unit))
+                continue;
+
+            if (SpriteProgram.TryParse(sprite.Payload, false, out var program))
             {
-                unit.Orders = GetOrders(program.GetStack(0), placedUnits);
+                LoadOrders(unit, program.GetStack(0), placedUnits);
             }
+
+            var items = SpriteProgram.GetItems(sprite.Payload);
+            if (!items.IsEmpty)
+            {
+                unit.Items.Clear();
+                foreach (int item in items)
+                {
+                    unit.Items.Add(item);
+                }
+            }
+        }
+
+        if (!Script.Load(data.ScriptFiles, data.ScriptPath))
+            throw new InvalidDataException($"Cannot compile the script {data.ScriptPath}.");
+
+        BindScript();
+
+        if (demo is not null)
+        {
+            StartDemoPlayback(demo.Value);
         }
 
         LoadGroups(model.Groups, placedUnits);
+        _loading = false;
+        RunCreationScripts();
 
-        if (Inventory.Items.GetValueOrDefault(KnownObject.Drone) > 0)
+        SetFlagman(0, Player);
+        _respawnPosition = Player.Position;
+    }
+
+    [EngineRoutine(0x00440830)]
+    private void LoadOrders(Unit unit, ReadOnlySpan<StackAction> stack, Dictionary<uint, Unit> units)
+    {
+        var orders = new UnitOrder[stack.Length];
+        for (int i = 0; i < stack.Length; i++)
         {
-            AddDrone();
+            var action = stack[i];
+            orders[i] = UnitOrder.NamesSprite(action.Code)
+                ? new UnitOrder(action.Act, action.Var1, action.Var2, action.Var3, units.GetValueOrDefault(unchecked((uint)action.Var1)))
+                : UnitOrder.FromAction(action);
+        }
+
+        unit.Orders.Load(orders);
+
+        if (unit.Orders.Count > 0)
+        {
+            _builders.Add(unit);
         }
     }
 
-    // Takes a placed unit's stack from its last entry, with its attack targets named by map handles
-    private static UnitOrder[] GetOrders(ReadOnlySpan<StackAction> stack, Dictionary<uint, Unit> units)
+    [EngineRoutine(0x00405bd0)]
+    [EngineRoutine(0x0040e870)]
+    private Unit? PlaceSprite(MergedMapSprite sprite, SpriteDefinition definition)
     {
-        var orders = new List<UnitOrder>(stack.Length);
-        for (int index = stack.Length - 1; index >= 0; index--)
+        if (definition.MaxHp > 0)
         {
-            var action = stack[index];
+            if (sprite.Id != KnownObject.Crate && definition.Object.SpriteClass is SpriteClass.Unit or SpriteClass.Avia)
+                return AddMonster(definition, sprite.Position, sprite.Direction, sprite.Army);
 
-            switch (action.Code)
-            {
-                case ActionCode.Move:
-                    orders.Add(new UnitOrder(action.Code, new Vector2(action.Var1, action.Var2), null));
-                    break;
-                case ActionCode.Attack:
-                    orders.Add(new UnitOrder(action.Code, null, units.GetValueOrDefault(unchecked((uint)action.Var1))));
-                    break;
-                default:
-                    orders.Add(UnitOrder.FromAction(action));
-                    break;
-            }
+            if (definition.Object.SpriteClass == SpriteClass.Man)
+                return _playerDestroyed ? ConstructNewPlayer(definition, sprite) : null;
+
+            var body = ConstructSprite(definition, sprite.Position, sprite.Direction, sprite.Army, definition.MaxHp, UpdateRole.Sprite, _unitCount++);
+            body.Placement = sprite;
+            _bodies.Add(sprite, body);
+
+            return body;
         }
 
-        return orders.ToArray();
+        if (definition.Object.SpriteClass == SpriteClass.Cannon)
+        {
+            AddPlacedCannon(sprite);
+            return null;
+        }
+
+        var unit = sprite.Id.IsScripted ? AddScripted(definition, sprite.Position, sprite.Direction, sprite.Army, sprite) : AddStatic(sprite, definition);
+
+        return unit;
     }
 
     private void AddPlacedCannon(MergedMapSprite sprite)
@@ -202,52 +214,127 @@ internal sealed partial class GameWorld
         Effects.Spawn(sprite.Id, sprite.Position, sprite.Direction, Time);
     }
 
-    public PlayerInventory Inventory { get; }
 
-    public WeaponSystem Weapons { get; }
+    internal WeaponSystem Weapons { get; }
 
-    public Unit Player { get; }
+    /// <summary>
+    /// Gets the body of the player, the man the level script made flagman 0.
+    /// </summary>
+    public Unit Player { get; private set; }
 
+    /// <summary>
+    /// Gets the cursor position in map coordinates.
+    /// </summary>
     public Vector2 Cursor { get; private set; }
 
+    /// <summary>
+    /// Gets the input the controllers read this frame.
+    /// </summary>
     public PlayerInput Input { get; }
 
+    /// <summary>
+    /// Gets the unit groups of the map.
+    /// </summary>
     public IReadOnlyList<UnitGroup> Groups => _groups;
 
+    /// <summary>
+    /// Gets a value indicating whether the controllers act on the input.
+    /// </summary>
     public bool IsPlayerControlled { get; private set; } = true;
 
-    public ObjectCatalog Kinds { get; }
+    /// <summary>
+    /// Gets the sprite definitions of the level.
+    /// </summary>
+    public SpriteCatalog Definitions { get; }
 
-    public MovementMap Movement { get; }
+    internal MovementMap Movement { get; }
 
-    public UnitGrid Units { get; }
+    internal UnitGrid Units { get; }
 
-    public PlayerMovement PlayerMovement { get; }
+    internal PlayerMovement PlayerMovement { get; }
 
-    public ProjectileCollision Projectiles => Weapons.Collision;
+    internal ProjectileCollision Projectiles => Weapons.Collision;
 
-    public SpawnedObjectSystem Effects { get; }
+    internal SpawnedObjectSystem Effects { get; }
 
-    public UnitKinematics Motion { get; }
+    internal UnitKinematics Motion { get; }
 
+    /// <summary>
+    /// Gets the game clock in milliseconds.
+    /// </summary>
     public int Time => _clock.Time;
 
+    /// <summary>
+    /// Gets the state of the engine's random source.
+    /// </summary>
+    public uint RandomState => _rng.State;
+
+    /// <summary>
+    /// Gets the length of the current frame in milliseconds.
+    /// </summary>
     public int FrameTime => _clock.FrameTime;
 
-    public bool DoorsLocked { get; private set; }
+    /// <summary>
+    /// Gets a value indicating whether the level script keeps the doors from working.
+    /// </summary>
+    public bool AreDoorsLocked => ReadScriptNumber(DoorsOpenVariable) == 0;
 
-    public bool FencesUp { get; private set; }
+    /// <summary>
+    /// Gets a value indicating whether any electric fence still stands.
+    /// </summary>
+    public bool AreFencesUp => GetLiving(KnownObject.Fence, _livingFences).Count != 0;
 
+    private List<Unit> GetLiving(KnownObject id, LivingSet set)
+    {
+        if (set.CheckedAt == Time)
+            return set.Units;
+
+        set.CheckedAt = Time;
+        set.Units.Clear();
+        var definition = Definitions.Find(id);
+
+        if (definition is null)
+            return set.Units;
+
+        foreach (var entry in _updates.GetLayer(definition.Layer))
+        {
+            var unit = entry.Unit;
+
+            if (unit is not null && unit.Definition == definition && unit.Animation < SpriteAnimation.Death)
+            {
+                set.Units.Add(unit);
+            }
+        }
+
+        return set.Units;
+    }
+
+    private sealed class LivingSet
+    {
+        public List<Unit> Units { get; } = [];
+
+        public int CheckedAt { get; set; } = -1;
+    }
+
+    /// <summary>
+    /// Gets the units the world updates as monsters.
+    /// </summary>
     public IReadOnlyList<Unit> Monsters => _monsters;
 
-    public IReadOnlyList<ObjectProgram> Programs => _programs;
-
-    public ReadOnlySpan<WorldPickup> Pickups => CollectionsMarshal.AsSpan(_pickups);
-
-    [ScriptFunction("SetPlayerControl")]
+    /// <summary>
+    /// Sets whether the controllers act on the input.
+    /// </summary>
+    /// <param name="controlled">A value indicating whether the controllers act on the input.</param>
     public void SetPlayerControl(bool controlled) => IsPlayerControlled = controlled;
 
-    [EngineRoutine(0x00425d80)]
+    /// <summary>
+    /// Moves the cursor to a screen point and returns whether the map cursor changed.
+    /// </summary>
+    /// <param name="screen">The mouse position on the screen.</param>
+    /// <param name="windowOrigin">The window's top-left corner on the screen.</param>
+    /// <param name="view">The visible part of the map.</param>
+    /// <param name="camera">The camera position on the map.</param>
+    /// <returns><see langword="true"/> when the cursor moved; otherwise, <see langword="false"/>.</returns>
     public bool MoveMouse(Point screen, Point windowOrigin, RectangleF view, Vector2 camera)
     {
         bool inView = Input.MoveMouse(screen, windowOrigin, view, camera);
@@ -256,7 +343,7 @@ internal sealed partial class GameWorld
         return inView;
     }
 
-    public void SetTime(int time) => _clock.SetTime(time);
+    private void SetTime(int time) => _clock.SetTime(time);
 
     [EngineRoutine(0x0043ad70)]
     private void LoadGroups(IReadOnlyList<IReadOnlyList<uint>> groups, Dictionary<uint, Unit> placedUnits)
@@ -285,64 +372,61 @@ internal sealed partial class GameWorld
     [EngineRoutine(0x0043adf0)]
     private void RemoveFromGroups(Unit unit)
     {
-        for (int index = _groups.Count - 1; index >= 0; index--)
+        for (int i = _groups.Count - 1; i >= 0; i--)
         {
-            if (_groups[index].Remove(unit) && _groups[index].Members.Count == 0)
+            if (_groups[i].Remove(unit) && _groups[i].Members.Count == 0)
             {
-                _groups.RemoveAt(index);
+                _groups.RemoveAt(i);
             }
         }
     }
 
+    /// <summary>
+    /// Runs the level script's main function and updates every sprite of the update lists.
+    /// </summary>
     [EngineRoutine(0x00405190)]
     public void Update()
     {
-        RunLevelScript();
+        RunMain();
         ShakeCamera();
 
-        for (int layer = 0; layer < UpdateOrder.LayerCount; layer++)
+        for (int layer = 0; layer < UpdateOrder.UpdatedLayerCount; layer++)
         {
             var list = _updates.GetLayer(layer);
-            for (int index = list.Count - 1; index >= 0; index--)
+            for (int i = list.Count - 1; i >= 0; i--)
             {
-                var entry = list[index];
+                var entry = list[i];
 
-                if (entry.Role != UpdateRole.None && !TickEntry(entry, layer))
+                if (entry.Unit is not null && !TickEntry(entry, layer))
                 {
-                    _updates.Clear(list, index);
+                    UpdateOrder.Clear(list, i);
                 }
             }
         }
 
-        if (!Player.IsAlive && IsInCannon)
-        {
-            EjectFromCannon();
-        }
-
-        if (!Player.IsAlive)
-        {
-            TryRespawn();
-        }
-
-        _updates.Compact();
         Effects.Compact();
     }
 
     private bool TickEntry(UpdateEntry entry, int layer)
     {
         var unit = entry.Unit;
-        switch (entry.Role)
+        switch (unit?.Role ?? entry.Role)
         {
             case UpdateRole.Player:
-                if (Player.IsAlive)
+                if (!_playerDestroyed && !Tact(Player))
                 {
-                    PlayerMovement.Tick(Player, IsInCannon ? 0 : Player.MaxSpeed, FrameTime);
-                    Tact(Player);
+                    DestroyPlayer();
                 }
 
                 return true;
             case UpdateRole.Torso:
-                if (unit != Weapons.Torso || unit.Kind.Layer != layer)
+                if (unit != Weapons.Torso)
+                {
+                    ReleaseSprite(unit!);
+                    return false;
+                }
+
+                if (unit.Definition.Layer != layer)
                     return false;
 
                 if (Player.IsAlive)
@@ -356,127 +440,207 @@ internal sealed partial class GameWorld
             case UpdateRole.Scripted:
                 return TickScripted(unit!);
             case UpdateRole.Effect:
-                return Effects.Tick(unit!, FrameTime);
+                return Effects.Tick(unit!);
             default:
-                entry.Program!.Tick(Player.Position.AsVector2(), Time);
+                if (Tact(unit!))
+                    return true;
 
-                return true;
+                if (unit!.Placement is null || IsBaked(unit.Definition))
+                {
+                    RemoveStatic(unit);
+                }
+                else
+                {
+                    RemovePlacement(unit.Placement);
+                }
+
+                return false;
         }
     }
 
-    public void Register(UpdateRole role, Unit unit) => _updates.Add(unit.Kind.Layer, new UpdateEntry(role, unit, null));
-
-    // Registers the torso before the legs
-    private void RegisterPlayer()
+    /// <summary>
+    /// Adds a unit to its definition's update list.
+    /// </summary>
+    /// <param name="role">The side list that removes the unit when it leaves.</param>
+    /// <param name="unit">The unit.</param>
+    public void Register(UpdateRole role, Unit unit)
     {
+        unit.Role = role;
+        CountSprite(unit);
+        _updates.Add(unit.Definition.Layer, new UpdateEntry(role, unit));
+    }
+
+    [EngineRoutine(0x004545e0)]
+    private void ConstructPlayer(Angle direction)
+    {
+        Player.Start(GetInitialAnimation(Player.Definition), direction, Time, _rng);
+        TryAddItem(Player, Unit.WeaponItemBase + Unit.Pistols);
+        Weapons.StartTorso(GetInitialAnimation(Weapons.Torso.Definition));
         Register(UpdateRole.Torso, Weapons.Torso);
         Register(UpdateRole.Player, Player);
         Units.Add(Player);
     }
 
-    [EngineRoutine(0x00405190)]
-    public void Step()
+    private Unit ConstructNewPlayer(SpriteDefinition definition, MergedMapSprite sprite)
     {
-        TakePickups();
-        Update();
+        var man = new Unit(_unitCount++, definition, sprite.Position, sprite.Army, definition.ArmyMaxHp[(int)sprite.Army & ArmyMask]) { CreatedAt = Time };
+        Player = man;
+        _playerDestroyed = false;
+        Weapons.AttachTorso();
+        ConstructPlayer(sprite.Direction);
+        _respawnPosition = man.Position;
 
-        if (!IsPlayerControlled)
-            return;
-
-        foreach (var controller in _controllers)
-        {
-            controller.Control(Input);
-        }
+        return man;
     }
 
-    [EngineRoutine(0x0040f210)]
-    public void AdvanceClock()
+    [EngineRoutine(0x00446c90)]
+    private static Unit ConstructCursor(SpriteCatalog definitions) => new(-1, definitions.Empty, Vector3.Zero, Army.Player, 0);
+
+    [EngineRoutine(0x00446810)]
+    private static bool TryAddItem(Unit unit, int item)
     {
-        _clock.Advance();
-        Input.ResetFrame();
-    }
-
-    public void AddPickup(Vector3 position, KnownObject id, MergedMapSprite? placement)
-    {
-        var kind = Kinds.Find(id);
-
-        if (kind is not null)
-        {
-            _pickups.Add(new WorldPickup(kind, position, placement));
-        }
-    }
-
-    public void StartBlackout()
-    {
-        DoorsLocked = true;
-    }
-
-    private void OpenDoors()
-    {
-        DoorsLocked = false;
-    }
-
-    private void LowerFences()
-    {
-        FencesUp = false;
-    }
-
-    [EngineRoutine(0x00440830)]
-    [EngineRoutine(0x0044ca70)]
-    public bool BuildFromProgram(ObjectProgram program, StackAction action, bool testPlacement = true)
-    {
-        var kind = Kinds.Find((KnownObject)action.Var1);
-
-        if (kind is null)
-        {
-            return true;
-        }
-
-        float x = action is { Var2: 0, Var3: 0 } ? program.Position.X : action.Var2;
-        float y = action is { Var2: 0, Var3: 0 } ? program.Position.Y : action.Var3;
-
-        if (action.Var2 < 0)
-        {
-            x = program.Position.X - action.Var2 - _rng.Next(1 - action.Var2) * 2;
-        }
-
-        if (action.Var3 < 0)
-        {
-            y = program.Position.Y - action.Var3 - _rng.Next(1 - action.Var3) * 2;
-        }
-        var position = new Vector3(x, y, program.Position.Z);
-
-        if (testPlacement && !IsFree(kind, position))
-        {
+        if (unit.Items.Contains(item))
             return false;
-        }
 
-        if (kind.MaxHp > 0)
-        {
-            var unit = AddMonster(kind, position, program.Direction);
-            unit.Orders = program.Orders;
-        }
-        else if (kind.Id.IsEndlessGenerator)
-        {
-            AddScripted(kind, position, program.Direction);
-        }
-        else
-        {
-            Effects.Spawn(kind.Id, position, program.Direction, Time);
-        }
-
+        unit.Items.Add(item);
 
         return true;
     }
 
-    public void AnimateFromProgram(ObjectProgram program, SpriteAnimation animation)
+    [EngineRoutine(0x00454640)]
+    private void DestroyPlayer()
     {
-        if (animation >= SpriteAnimation.Death && program.Placement is not null)
+        var torso = Weapons.Torso;
+        _updates.Remove(torso.Definition.Layer, torso);
+        _updates.Remove(Player.Definition.Layer, Player);
+        Units.Remove(Player);
+        Effects.Detach(Player);
+        Delete(Player);
+        ReleaseSprite(torso);
+        ReleaseSprite(Player);
+        _playerDestroyed = true;
+    }
+
+    [EngineRoutine(0x004333d0)]
+    private void ConstructLoadingScreen(IReadOnlyList<int> redraws, int record)
+    {
+        if (!redraws.Contains(record))
+            return;
+
+        var definition = Definitions.LoadingScreen ?? throw new InvalidOperationException("Missing the loading screen definition.");
+        new Unit(-1, definition, Vector3.Zero, Army.Player, 0).Start(GetInitialAnimation(definition), default, Time, _rng);
+    }
+
+    [EngineRoutine(0x0043f200)]
+    private Unit ConstructSprite(SpriteDefinition definition, Vector3 position, Angle direction, Army army, int hp, UpdateRole role, int number = -1)
+    {
+        var unit = new Unit(number, definition, position, army, hp) { CreatedAt = Time };
+        var state = GetInitialAnimation(definition);
+        unit.Start(state, direction, Time, _rng);
+        Register(role, unit);
+        CreateLink(unit);
+        Units.Add(unit);
+
+        if (state != SpriteAnimation.Birth && !_loading)
         {
-            RemovePlacement(program.Placement);
+            Effects.Emit(definition, SpriteAnimation.Birth, unit.Position, unit.Direction, Time);
         }
 
-        Effects.Play(program.Kind, animation, program.Position, program.Direction, Time);
+        return unit;
+    }
+
+    /// <summary>
+    /// Returns the state a new sprite of a definition starts in.
+    /// </summary>
+    /// <param name="definition">The definition.</param>
+    /// <returns>The starting state.</returns>
+    [EngineRoutine(0x0043f200)]
+    public SpriteAnimation GetInitialAnimation(SpriteDefinition definition)
+    {
+        var state = definition.InitialAnimation;
+
+        return _loading && state == SpriteAnimation.Birth ? SpriteAnimation.Stand : state;
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether the map is still loading.
+    /// </summary>
+    public bool IsLoading => _loading;
+
+    internal IReadOnlyList<UpdateEntry> GetLayer(int layer) => _updates.GetLayer(layer);
+
+    /// <summary>
+    /// Gets the sprites whose orders build units.
+    /// </summary>
+    public IReadOnlyList<Unit> Builders => _builders;
+
+    [EngineRoutine(0x0040c960)]
+    private void RunCreationScripts()
+    {
+        for (int layer = 0; layer < UpdateOrder.LayerCount; layer++)
+        {
+            var list = _updates.GetLayer(layer);
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                var unit = list[i].Unit;
+
+                if (unit is not null && unit.Role is not (UpdateRole.Player or UpdateRole.Torso))
+                {
+                    RunCreationHook(unit);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Runs one frame of the update lists and then each controller on the input.
+    /// </summary>
+    [EngineRoutine(0x00405190)]
+    public void Step()
+    {
+        Update();
+
+        if (IsPlayerControlled)
+        {
+            foreach (var controller in _controllers)
+            {
+                controller.Control(Input);
+            }
+        }
+
+        PlayMusic();
+    }
+
+    // TODO: Port the music
+    [EngineRoutine(0x0041d770)]
+    private void PlayMusic() => _rng.Next();
+
+    /// <summary>
+    /// Returns the unit a player slot controls.
+    /// </summary>
+    /// <param name="army">The player slot.</param>
+    /// <returns>The unit, or null when the slot has none.</returns>
+    [EngineRoutine(0x0040e620)]
+    public Unit? GetFlagman(int army) => _controllers[army & ArmyMask].Unit;
+
+    /// <summary>
+    /// Sets the unit a player slot controls.
+    /// </summary>
+    /// <param name="army">The player slot.</param>
+    /// <param name="unit">The unit, or null to clear the slot.</param>
+    [EngineRoutine(0x0040e600)]
+    public void SetFlagman(int army, Unit? unit) => _controllers[army & ArmyMask].SetUnit(unit);
+
+    /// <summary>
+    /// Advances the game clock to the next frame of wall time and compacts the update lists.
+    /// </summary>
+    [EngineRoutine(0x0040f210)]
+    public void AdvanceClock()
+    {
+        uint wallTime = _clock.GetNextWallTime();
+        _clock.Advance(wallTime, wallTime);
+        _updates.Compact(Time);
+        Input.ResetFrame();
     }
 
     private bool TickMonster(Unit unit)
@@ -489,16 +653,12 @@ internal sealed partial class GameWorld
             {
                 RemoveMonster(unit);
                 Delete(unit);
+                ReleaseSprite(unit);
 
                 return false;
             }
 
-            unit.Position = GetLinkPosition(owner, unit.Kind);
-        }
-
-        if (unit.IsAlive)
-        {
-            _brain.Move(unit, FrameTime, _clock.FramesPerSecond);
+            unit.Position = GetLinkPosition(owner, unit.Definition);
         }
 
         if (Tact(unit))
@@ -507,6 +667,7 @@ internal sealed partial class GameWorld
         RemoveMonster(unit);
         Units.Remove(unit);
         Delete(unit);
+        ReleaseSprite(unit);
 
         return false;
     }
@@ -515,12 +676,22 @@ internal sealed partial class GameWorld
     {
         foreach (var unit in _monsters)
         {
-            UnitKinematics.ForgetObject(unit, removed);
+            if (UnitKinematics.ForgetObject(unit, removed))
+            {
+                DrawGoalSpriteRandom();
+            }
         }
 
-        UnitKinematics.ForgetObject(Weapons.Torso, removed);
+        if (UnitKinematics.ForgetObject(Weapons.Torso, removed))
+        {
+            DrawGoalSpriteRandom();
+        }
         RemoveFromGroups(removed);
         Effects.Forget(removed);
+        foreach (var controller in _controllers)
+        {
+            controller.Forget(removed);
+        }
 
         if (removed.Link?.Owner == removed)
         {
@@ -528,18 +699,29 @@ internal sealed partial class GameWorld
         }
     }
 
+    /// <summary>
+    /// Updates a sprite for one frame and returns whether it stays in the world.
+    /// </summary>
+    /// <param name="unit">The sprite.</param>
+    /// <returns><see langword="true"/> while the sprite lives; otherwise, <see langword="false"/>.</returns>
     [EngineRoutine(0x00440110)]
     public bool Tact(Unit unit)
     {
-        var layout = unit.Kind.Layout;
+        var layout = unit.Definition.Layout;
         UpdateKeyframe(unit);
+
+        if (unit.Owner is null)
+        {
+            MoveByClass(unit);
+        }
+
         EmitStream(unit);
         var state = unit.Animation;
 
         if (unit.CreatedAt == Time || Time - Time % layout.GetFrameDuration(state) <= Time - FrameTime)
             return true;
 
-        if (unit.Command is not UnitCommand.None && unit.Command < UnitCommand.Build && !unit.HasGoal)
+        if (unit.Command is not UnitCommand.None && unit is { Command: < UnitCommand.Build, HasGoal: false })
         {
             UnitKinematics.SetCommand(unit, UnitCommand.None);
         }
@@ -554,18 +736,10 @@ internal sealed partial class GameWorld
             }
         }
 
-        bool everyFrame = unit.Kind.Object.Properties.HasFlag(ObjectProperties.Track);
+        bool everyFrame = unit.Definition.Object.Properties.HasFlag(ObjectProperties.Track);
 
-        if (unit.Frame == unit.FirstFrame || everyFrame)
-        {
-            var hooked = unit.Animation;
-            RunStateHook(unit);
-            while (unit.Animation != hooked)
-            {
-                hooked = unit.Animation;
-                RunStateHook(unit);
-            }
-        }
+        if (RunStateHandlers(unit, everyFrame))
+            return true;
 
         EmitStateChildren(unit);
         unit.Frame++;
@@ -574,44 +748,31 @@ internal sealed partial class GameWorld
         {
             unit.Frame = unit.LastFrame;
 
-            if (unit.Kind.Damage != 0)
+            if (unit.Definition.Damage != 0)
             {
                 Weapons.ApplyBlast(unit);
             }
 
-            return unit == Player;
+            return false;
         }
 
-        if ((unit.Frame > unit.LastFrame || everyFrame) && unit.Animation < SpriteAnimation.Death)
+        if (unit.Command is UnitCommand.Passive or UnitCommand.Pause)
         {
-            if (unit == Player)
+            HoldStill(unit);
+        }
+        else if (unit.Frame > unit.LastFrame || everyFrame)
+        {
+            if (unit.Orders.Count == 0 || unit.Command != UnitCommand.None)
             {
-                Weapons.DecidePlayer(FrameTime);
-                unit.ChangeAnimation(!unit.Speed.IsZero() ? SpriteAnimation.Go : SpriteAnimation.Stand);
-            }
-            else if (unit == Weapons.Torso)
-            {
-                SpawnedObjectSystem.DecideObject(unit);
-            }
-            else if (unit.Command is UnitCommand.Passive or UnitCommand.Pause)
-            {
-                HoldStill(unit);
-            }
-            else if (unit.Number >= 0)
-            {
-                _brain.Decide(unit, Player, FrameTime, Time);
-            }
-            else if (unit.Kind.Object.SpriteClass == SpriteClass.Cannon)
-            {
-                SpawnedObjectSystem.DecideCannon(unit);
+                Action(unit, ActionCode.NextCommand);
             }
             else
             {
-                SpawnedObjectSystem.DecideObject(unit);
+                PopOrder(unit);
             }
         }
 
-        if (unit.Lifetime != ObjectDefinition.Unlimited && unit.Animation < SpriteAnimation.Death)
+        if (unit.Lifetime != SpriteDefinition.Unlimited && unit.Animation < SpriteAnimation.Death)
         {
             if (Time - unit.LastTickTime < unit.Lifetime)
             {
@@ -623,8 +784,8 @@ internal sealed partial class GameWorld
             }
         }
 
-        int period = unit.Kind.Weapon.AnimationPeriod;
-        if (unit.Kind.HasKeyframes && period != ObjectDefinition.Unlimited && (uint)period < (uint)(Time - unit.KeyframeStart))
+        int period = unit.Definition.Weapon.AnimationPeriod;
+        if (unit.Definition.HasKeyframes && period != SpriteDefinition.Unlimited && (uint)period < (uint)(Time - unit.KeyframeStart))
         {
             unit.KeyframeStart = Time;
         }
@@ -637,6 +798,31 @@ internal sealed partial class GameWorld
         }
 
         return true;
+    }
+
+    [EngineRoutine(0x00454670)]
+    [EngineRoutine(0x00447260)]
+    [EngineRoutine(0x0043f820)]
+    private void MoveByClass(Unit unit)
+    {
+        switch (unit.Definition.Object.SpriteClass)
+        {
+            case SpriteClass.Man when unit == Player:
+                PlayerMovement.Tick(Player, IsInCannon ? 0 : Player.MaxSpeed, FrameTime);
+                break;
+            case SpriteClass.Unit or SpriteClass.Avia:
+                if (unit.IsAlive)
+                {
+                    _brain.Move(unit, FrameTime, _clock.FramesPerSecond);
+                }
+
+                break;
+            case SpriteClass.Building:
+                break;
+            default:
+                Effects.Move(unit, FrameTime);
+                break;
+        }
     }
 
     [EngineRoutine(0x00440110)]
@@ -663,19 +849,19 @@ internal sealed partial class GameWorld
     [EngineRoutine(0x00440110)]
     private void UpdateKeyframe(Unit unit)
     {
-        if (!unit.Kind.HasKeyframes)
+        if (!unit.Definition.HasKeyframes)
             return;
 
-        ref readonly var weapon = ref unit.Kind.Weapon;
+        ref readonly var weapon = ref unit.Definition.Weapon;
         int elapsed = Time - unit.KeyframeStart;
         int period = weapon.AnimationPeriod;
-        if (period == ObjectDefinition.Unlimited)
+        if (period == SpriteDefinition.Unlimited)
         {
             if (unit.Animation > SpriteAnimation.Birth && unit.LastFrame != unit.FirstFrame)
             {
-                period = unit.Kind.Layout.GetFrameDuration(unit.Animation) * (unit.LastFrame - unit.FirstFrame);
+                period = unit.Definition.Layout.GetFrameDuration(unit.Animation) * (unit.LastFrame - unit.FirstFrame);
             }
-            else if (unit.Lifetime == ObjectDefinition.Unlimited)
+            else if (unit.Lifetime == SpriteDefinition.Unlimited)
             {
                 return;
             }
@@ -704,11 +890,10 @@ internal sealed partial class GameWorld
         key < 0 ? BitConverter.Int32BitsToSingle(weapon.AnimationPeriod)
         : key < WeaponRecord.KeyframeCount ? weapon.KeyTimes[key] : BitConverter.Int32BitsToSingle(weapon.RedKeys[0]);
 
-    // Lays each stream child one body length after the last at the emitter's speed relative to the child
     private void EmitStream(Unit unit)
     {
         var state = unit.Animation;
-        var child = Kinds.Find((KnownObject)Math.Abs(unit.Kind.Object.Children[(int)state]));
+        var child = Definitions.Find((KnownObject)Math.Abs(unit.Definition.Children[(int)state]));
 
         if (child is null || !child.Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke) || Time - Time % unit.StreamPeriod <= Time - FrameTime)
             return;
@@ -720,7 +905,7 @@ internal sealed partial class GameWorld
         float downPeriod = down.IsZero() ? MaxStreamPeriod : child.Object.Size.Y / Math.Abs(down);
         int period = (int)Math.Min(acrossPeriod, downPeriod);
 
-        if (state == SpriteAnimation.Fight && unit.Kind.AttacksTwice)
+        if (state == SpriteAnimation.Fight && unit.Definition.AttacksTwice)
         {
             period >>= 1;
         }
@@ -729,22 +914,27 @@ internal sealed partial class GameWorld
         EmitChildrenAs(unit, state);
     }
 
+    /// <summary>
+    /// Creates the child objects a sprite's definition lists for a state.
+    /// </summary>
+    /// <param name="unit">The sprite.</param>
+    /// <param name="state">The state whose children to create.</param>
     [EngineRoutine(0x00446430)]
     public void EmitChildrenAs(Unit unit, SpriteAnimation state) =>
-        Effects.Emit(unit.Kind, state, unit.Position, unit.Direction, Time, unit.Depth, unit.TakeChildPulse(state), unit);
+        Effects.Emit(unit.Definition, state, unit.Position, unit.Direction, Time, unit.Depth, unit.TakeChildPulse(state), unit);
 
     [EngineRoutine(0x00444dd0)]
     private void EmitStateChildren(Unit unit)
     {
         var state = unit.Animation;
-        int child = unit.Kind.Object.Children[(int)state];
+        int child = unit.Definition.Children[(int)state];
 
-        if (child == 0 || Kinds.Find((KnownObject)Math.Abs(child))?.Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke) == true)
+        if (child == 0 || Definitions.Find((KnownObject)Math.Abs(child))?.Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke) == true)
             return;
 
-        var flags = unit.Kind.Object.Properties;
+        var flags = unit.Definition.Object.Properties;
         int emissionFrame = flags.HasFlag(ObjectProperties.CreateChildEnd) ? unit.LastFrame : unit.FirstFrame;
-        bool emits = state == SpriteAnimation.Fight && unit.Kind.AttacksTwice
+        bool emits = state == SpriteAnimation.Fight && unit.Definition.AttacksTwice
             ? unit.Frame == (unit.LastFrame + 1 + unit.FirstFrame) / 2 || unit.Frame == emissionFrame
             : flags.HasFlag(ObjectProperties.Track) || unit.Frame == emissionFrame;
 
@@ -766,17 +956,24 @@ internal sealed partial class GameWorld
         }
     }
 
+    /// <summary>
+    /// Returns the next unit number.
+    /// </summary>
+    /// <returns>The number.</returns>
     public int AllocateNumber() => _unitCount++;
 
-    private int GetNextAnimationTick(int frameTime) => Time - Time % frameTime + frameTime;
-
+    /// <summary>
+    /// Deals damage to a unit.
+    /// </summary>
+    /// <param name="unit">The unit.</param>
+    /// <param name="damage">The damage, negative to heal.</param>
     [EngineRoutine(0x00440830)]
     [EngineRoutine(0x004454d0)]
     public void Damage(Unit unit, int damage)
     {
         if (damage < 0 && unit != Player && unit.Animation < SpriteAnimation.Death)
         {
-            unit.Hp = Math.Min(unit.Kind.MaxHp, unit.Hp - damage);
+            unit.Hp = Math.Min(unit.Definition.MaxHp, unit.Hp - damage);
 
             return;
         }
@@ -786,40 +983,15 @@ internal sealed partial class GameWorld
             return;
         }
 
-        if (unit == Player)
+        if (unit.Definition.Object.SpriteClass == SpriteClass.Man)
         {
-            if (Time < _protectedUntil)
-                return;
-
-            damage = Inventory.AbsorbDamage(damage);
-
-            if (damage >= unit.Hp && Inventory.TryRescue())
-            {
-                var kind = Kinds.Find(KnownObject.RescueMedkitEffect)!;
-                int duration = kind.GetVisualFrameDuration(SpriteAnimation.Death);
-                _protectedUntil = GetNextAnimationTick(duration) + (kind.GetVisualFrameCount(SpriteAnimation.Death) - 1) * duration;
-                Effects.Spawn(kind.Id, unit.Position + Vector3.UnitZ * RescueEffectHeight, unit.Direction, Time, unit);
-
-                return;
-            }
+            damage = DamageMan(unit, damage);
 
             if (damage <= 0)
                 return;
-
-            int previous = unit.Hp;
-            unit.Hp -= damage;
-
-            if (unit.IsAlive && previous > unit.Kind.MaxHp / 2 && unit.Hp <= unit.Kind.MaxHp / 2)
-            {
-                unit.ChangeAnimation(SpriteAnimation.Wound);
-            }
-
-            EmitChildrenAs(unit, SpriteAnimation.Close);
-
-            return;
         }
 
-        if (unit.Animation >= SpriteAnimation.Death || unit.Kind.MaxHp == 0)
+        if (unit.Animation >= SpriteAnimation.Death || unit.Definition.MaxHp == 0)
             return;
 
         int previousHp = unit.Hp;
@@ -828,13 +1000,14 @@ internal sealed partial class GameWorld
         if (!unit.IsAlive)
         {
             unit.HpBeforeDeath = previousHp;
+            unit.Definition.Killed[(int)unit.Army & 3]++;
         }
 
-        if (unit.IsAlive && previousHp > unit.Kind.MaxHp / 2 && unit.Hp <= unit.Kind.MaxHp / 2)
+        if (unit.IsAlive && previousHp > unit.Definition.MaxHp / 2 && unit.Hp <= unit.Definition.MaxHp / 2)
         {
             unit.ChangeAnimation(SpriteAnimation.Wound);
         }
-        bool staggers = unit is { IsAlive: true, Animation: SpriteAnimation.Stand or SpriteAnimation.Go } && unit.Kind.Layout.GetFrameCount(SpriteAnimation.Close) > 0;
+        bool staggers = unit is { IsAlive: true, Animation: SpriteAnimation.Stand or SpriteAnimation.Go } && unit.Definition.Layout.GetFrameCount(SpriteAnimation.Close) > 0;
 
         if (staggers)
         {
@@ -847,44 +1020,10 @@ internal sealed partial class GameWorld
 
         if (!unit.IsAlive)
         {
-            CompleteDeath(unit, damage > unit.Kind.MaxHp ? SpriteAnimation.Death2 : SpriteAnimation.Death);
+            CompleteDeath(unit, damage > unit.Definition.MaxHp ? SpriteAnimation.Death2 : SpriteAnimation.Death);
         }
 
         _brain.Wander(unit);
-    }
-
-    public void SetRespawnPoint() => _respawnPosition = Player.Position;
-
-    private void TryRespawn()
-    {
-        if (!Inventory.TryRespawn())
-            return;
-
-        var position = _respawnPosition.AsVector2();
-        for (var unit = Units.First(position - Player.Kind.Half, position + Player.Kind.Half); unit is not null; unit = Units.Next())
-        {
-            if (unit == Player || !unit.IsAlive || !Player.Kind.GetCollisionVolume(position.AsVector3()).OverlapsFlat(unit.CollisionVolume))
-                continue;
-
-            unit.Hp = 0;
-            Units.Remove(unit);
-        }
-
-        Player.Position = _respawnPosition;
-        Player.Speed = 0;
-        Player.ClearMove();
-        Player.ChangeAnimation(SpriteAnimation.Stand);
-        Weapons.ResetPlayer();
-        Units.ChangeCoor(Player);
-        _protectedUntil = Time + RespawnProtection;
-
-        if (Inventory.Items.GetValueOrDefault(KnownObject.Drone) > 0)
-        {
-            AddDrone();
-        }
-
-        Effects.Spawn(KnownObject.InvulnerabilityEffect, Player.Position + Vector3.UnitZ * ProtectionEffectHeight,
-            Player.Direction, Time, Player, RespawnProtection);
     }
 
     private void AddToMonsters(Unit unit)
@@ -895,185 +1034,142 @@ internal sealed partial class GameWorld
 
     private void RemoveMonster(Unit unit)
     {
+        _builders.Remove(unit);
         _monsters.Remove(unit);
         _monsterSet.Remove(unit);
     }
 
-    private void CompleteDeath(Unit unit, SpriteAnimation animation)
+    [EngineRoutine(0x00454800)]
+    private int DamageMan(Unit man, int damage)
     {
-        if (unit.Placement is not null)
+        if (man.Definition.Id != KnownObject.MannedCannon)
         {
-            RemovePlacement(unit.Placement);
-            AddToMonsters(unit);
-            Register(UpdateRole.Monster, unit);
-        }
-
-        unit.DiedAt = Time;
-        unit.ChangeAnimation(animation == SpriteAnimation.Death2 && unit.Kind.Object.Children[(int)SpriteAnimation.Death2] != 0
-            ? SpriteAnimation.Death2 : SpriteAnimation.Death);
-    }
-
-    [ScriptFunction("CreateItems")]
-    private void CreateItems(Unit unit)
-    {
-        if (unit.DropItem != 0 && Kinds.Loot.DropsItem(unit.Kind.Id))
-        {
-            var kind = Kinds.Find(unit.DropItem);
-
-            if (kind is not null)
+            for (var link = man.Link; link is not null; link = link.Link)
             {
-                _rng.Next(1);
-                var direction = new Angle((byte)_rng.Next(Angle.FullTurn));
-                float height = unit.Position.Z + (unit.Kind.Id == KnownObject.Flyer ? FlyerItemHeight : DroppedItemHeight);
-                var body = new Unit(-1, kind, unit.Position with { Z = height }, 0, 0);
-                body.Start(kind.InitialAnimation, direction, Time, _rng);
-                CreateLink(body);
-                int expires = Time + DroppedItemLifetime + _rng.Next(DroppedItemLifetimeVariation + 1);
-                _pickups.Add(new WorldPickup(kind, body.Position, null, Time, expires, direction, body));
+                if (link.Definition.Id is KnownObject.InvulnerabilityEffect or KnownObject.RescueMedkitEffect)
+                    return 0;
+            }
+
+            for (var link = man.Link; link is not null; link = link.Link)
+            {
+                int armor = link.Definition.Id - KnownObject.WornGreenArmor;
+
+                if (armor is < 0 or >= WornArmorShareCount)
+                    continue;
+
+                int share = WornArmorShares[armor];
+                Damage(link, (share * damage + ArmorRounding) / Percent);
+                damage -= share * damage / Percent;
             }
         }
 
-        unit.DropItem = 0;
+        if (man.Hp > damage || !man.Items.Contains((int)KnownObject.Medkit))
+            return damage;
+
+        man.Items.Remove((int)KnownObject.Medkit);
+        SetUnitHp(man, man.Definition.ArmyMaxHp[(int)man.Army & ArmyMask]);
+        CreateSprite(Definitions.Find(KnownObject.RescueMedkitEffect)!, man.Position + Vector3.UnitZ * RescueEffectHeight, default);
+
+        return 0;
+    }
+
+    private void CompleteDeath(Unit unit, SpriteAnimation animation)
+    {
+        if (unit.Placement is not null && unit != Player)
+        {
+            RemovePlacement(unit.Placement);
+            AddToMonsters(unit);
+            unit.Role = UpdateRole.Monster;
+        }
+
+        unit.DiedAt = Time;
+        unit.ChangeAnimation(animation == SpriteAnimation.Death2 && unit.Definition.Children[(int)SpriteAnimation.Death2] != 0
+            ? SpriteAnimation.Death2 : SpriteAnimation.Death);
     }
 
     private void RemovePlacement(MergedMapSprite placement)
     {
         _removed.Add(placement);
 
+
         if (_statics.Remove(placement, out var stand))
         {
+            _builders.Remove(stand);
+            _updates.Remove(stand.Definition.Layer, stand);
             Units.Remove(stand);
             Effects.Detach(stand);
+            ReleaseSprite(stand);
         }
+
+        ReleasePlacement(placement);
 
         Movement.Remove(placement);
     }
 
-    public static float GetPickupReach(KnownObject id) => id.IsAmmo ? AmmoReach : PickupReach;
-
-    public void TakePickups()
+    /// <summary>
+    /// Creates a unit the world updates as a monster.
+    /// </summary>
+    /// <param name="definition">The unit's definition.</param>
+    /// <param name="position">The position.</param>
+    /// <param name="direction">The direction.</param>
+    /// <param name="army">The army.</param>
+    /// <returns>The unit.</returns>
+    public Unit AddMonster(SpriteDefinition definition, Vector3 position, Angle direction = default, Army army = Army.Monsters)
     {
-        for (int index = _pickups.Count - 1; index >= 0; index--)
-        {
-            var pickup = _pickups[index];
-
-            if (Time >= pickup.ExpiresAt)
-            {
-                _pickups.RemoveAt(index);
-                ReleasePickup(pickup);
-                continue;
-            }
-
-            int interval = pickup.Kind.GetVisualFrameDuration(SpriteAnimation.Stand);
-
-            if (Time - Time % interval <= Time - FrameTime)
-                continue;
-
-            if (pickup.Position.AsVector2().MeasureDistance(Player.Position.AsVector2()) < GetPickupReach(pickup.Id) && TryTakePickup(pickup))
-            {
-                _pickups.RemoveAt(index);
-                ReleasePickup(pickup);
-
-                if (pickup.Id == KnownObject.Invulnerability)
-                {
-                    int lifetime = Kinds.Find(KnownObject.InvulnerabilityEffect)!.Object.Lifetime;
-                    _protectedUntil = Time + lifetime;
-                    Effects.Spawn(KnownObject.InvulnerabilityEffect, Player.Position + Vector3.UnitZ * ProtectionEffectHeight,
-                        Player.Direction, Time, Player);
-                }
-
-                if (pickup.Id is KnownObject.Health or KnownObject.BigHealth or KnownObject.MegaHealth)
-                {
-                    Effects.Spawn(KnownObject.HealingEffect, Player.Position + Vector3.UnitZ * HealingEffectHeight, Player.Direction, Time);
-                }
-            }
-        }
-    }
-
-    private void ReleasePickup(WorldPickup pickup)
-    {
-        var owner = pickup.Body ?? (pickup.Placement is null ? null : _statics.GetValueOrDefault(pickup.Placement));
-
-        if (owner is not null)
-        {
-            Effects.Detach(owner);
-        }
-    }
-
-    private bool TryTakePickup(WorldPickup pickup)
-    {
-        var center = pickup.Position.AsVector2();
-
-        switch (pickup.Id)
-        {
-            case KnownObject.FreezeMonsters:
-                FreezeMonsters(center);
-                return true;
-            case KnownObject.Bomb:
-                DetonateBomb(center);
-                return true;
-            case KnownObject.Adrenaline:
-                TakeAdrenaline();
-                return true;
-            case KnownObject.Drone:
-                return TakeDrone();
-            case >= KnownObject.Shotgun and <= KnownObject.MagmaMinigun:
-                Inventory.TryTakePickup(pickup.Id);
-                Action(Player, ActionCode.AddItem, (int)pickup.Id);
-
-                return true;
-            default:
-                return Inventory.TryTakePickup(pickup.Id);
-        }
-    }
-
-    public Unit AddMonster(ObjectDefinition kind, Vector3 position, Angle direction = default, Army army = Army.Monsters, KnownObject dropItem = 0)
-    {
-        var unit = new Unit(_unitCount++, kind, position, army, kind.MaxHp)
-        { DropItem = dropItem, CreatedAt = Time };
-        var state = kind.InitialAnimation;
-        unit.Start(state, direction, Time, _rng);
-
-        if (state != SpriteAnimation.Birth)
-        {
-            Effects.Emit(kind, SpriteAnimation.Birth, unit.Position, unit.Direction, Time);
-        }
-
-        RunCreationHook(unit);
-
+        var unit = ConstructSprite(definition, position, direction, army, definition.MaxHp, UpdateRole.Monster, _unitCount++);
         AddToMonsters(unit);
-        Register(UpdateRole.Monster, unit);
-        Units.Add(unit);
-        CreateLink(unit);
+
+        if (!_loading)
+        {
+            RunCreationHook(unit);
+        }
 
         return unit;
     }
 
     private void CreateLink(Unit unit) => Effects.CreateLink(unit, Time, 0);
 
-    public void AttachObjectLink(Unit unit, ObjectDefinition kind)
+    [EngineRoutine(0x00444970)]
+    private static void InsertLink(Unit owner, Unit link)
     {
-        if (kind.Id.IsScripted)
+        var previous = owner.Link;
+        owner.Link = link;
+        link.Owner = owner;
+
+        if (previous is null || previous == link)
+            return;
+
+        previous.Owner = null;
+        SpawnedObjectSystem.AppendLink(link, previous);
+    }
+
+    /// <summary>
+    /// Creates a unit's linked object as a scripted sprite.
+    /// </summary>
+    /// <param name="unit">The unit.</param>
+    /// <param name="definition">The linked object's definition.</param>
+    public void AttachObjectLink(Unit unit, SpriteDefinition definition)
+    {
+        if (definition.Id.IsScripted)
         {
-            var scripted = AddScripted(kind, GetLinkPosition(unit, kind), unit.Direction, unit.Army);
-            scripted.Owner = unit;
-            unit.Link = scripted;
+            var scripted = AddScripted(definition, GetLinkPosition(unit, definition), unit.Direction, unit.Army);
+            InsertLink(unit, scripted);
 
             return;
         }
 
-        var link = new Unit(_unitCount++, kind, GetLinkPosition(unit, kind), unit.Army, kind.MaxHp) { Owner = unit, CreatedAt = Time };
-        link.Start(kind.InitialAnimation, unit.Direction, Time, _rng);
-        unit.Link = link;
+        var link = new Unit(_unitCount++, definition, GetLinkPosition(unit, definition), unit.Army, definition.MaxHp) { CreatedAt = Time };
+        link.Start(definition.InitialAnimation, unit.Direction, Time, _rng);
+        InsertLink(unit, link);
 
-        if (kind.Object.SpriteClass == SpriteClass.Creature)
+        if (definition.Object.SpriteClass == SpriteClass.Creature)
         {
             link.StartMoving(link.MaxSpeed);
         }
 
-        if (unit.ArmedLink is not null && link.Kind.FightChild != 0)
+        if (unit.ArmedLink is not null && link.Definition.FightChild != 0)
         {
-            unit.Behavior = kind.Behavior;
+            unit.Behavior = definition.Behavior;
         }
 
         AddToMonsters(link);
@@ -1081,11 +1177,11 @@ internal sealed partial class GameWorld
         CreateLink(link);
     }
 
-    private static Vector3 GetLinkPosition(Unit owner, ObjectDefinition kind) =>
-        owner.Position + owner.Kind.Object.GetLinkOffset(kind.Object, null, 0, owner.Direction);
+    private static Vector3 GetLinkPosition(Unit owner, SpriteDefinition definition) =>
+        owner.Position + owner.Definition.Object.GetLinkOffset(definition.Object, null, 0, owner.Direction);
 
     [EngineRoutine(0x0042da30)]
-    private bool IsFree(ObjectDefinition kind, Vector3 position) => Movement.IsAboveGround(kind.Object, position) && !Projectiles.IsOccupied(kind, position);
+    private bool IsFree(SpriteDefinition definition, Vector3 position) => Movement.IsAboveGround(definition.Object, position) && !Projectiles.IsOccupied(definition, position);
 
 
 }

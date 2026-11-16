@@ -110,6 +110,54 @@ internal sealed class WalkObstacles
         }
     }
 
+    public bool CrossesClosedGate(Vector2 from, Vector2 to)
+    {
+        if (!DoorsLocked && !FencesUp)
+            return false;
+
+        foreach (var placed in _placed.Values)
+        {
+            foreach (var obstacle in placed.Obstacles)
+            {
+                if (obstacle is { Active: true, IsGate: true } && (obstacle.IsFence ? FencesUp : DoorsLocked) && Crosses(from, to, obstacle.Position.AsVector2(), obstacle.Half))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool Crosses(Vector2 from, Vector2 to, Vector2 center, Vector2 half)
+    {
+        var direction = to - from;
+        float enter = 0;
+        float leave = 1;
+        for (int axis = 0; axis < 2; axis++)
+        {
+            float start = axis == 0 ? from.X - center.X : from.Y - center.Y;
+            float step = axis == 0 ? direction.X : direction.Y;
+            float extent = axis == 0 ? half.X : half.Y;
+
+            if (MathF.Abs(step) < float.Epsilon)
+            {
+                if (MathF.Abs(start) > extent)
+                    return false;
+
+                continue;
+            }
+
+            float first = (-extent - start) / step;
+            float second = (extent - start) / step;
+            enter = Math.Max(enter, Math.Min(first, second));
+            leave = Math.Min(leave, Math.Max(first, second));
+
+            if (enter > leave)
+                return false;
+        }
+
+        return true;
+    }
+
     // Follows pushed bodies and sinking doors and collects the areas of removed and created sprites
     public void Synchronize(GameWorld world, List<TerrainChange> changes)
     {
@@ -129,7 +177,7 @@ internal sealed class WalkObstacles
             {
                 placed.Unit = world.FindPlacementUnit(placed.Sprite);
 
-                if (placed.Unit is not null && (placed.Unit.Kind.CanBePushed || Array.Exists(placed.Obstacles, obstacle => obstacle is { IsGate: true, IsFence: false })))
+                if (placed.Unit is not null && (placed.Unit.Definition.CanBePushed || Array.Exists(placed.Obstacles, obstacle => obstacle is { IsGate: true, IsFence: false })))
                 {
                     placed.Position = placed.Unit.Position;
                     _tracked.Add(placed);

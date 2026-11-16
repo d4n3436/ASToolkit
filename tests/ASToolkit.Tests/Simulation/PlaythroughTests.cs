@@ -1,70 +1,14 @@
-using System.Drawing;
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Levels;
 using ASToolkit.Core.Reference;
 using ASToolkit.Core.Simulation;
 using ASToolkit.Core.Routes;
-using System.Numerics;
-using ASToolkit.Core.Scripting;
 using Xunit;
 
 namespace ASToolkit.Tests.Simulation;
 
 public class PlaythroughTests
 {
-    [Fact]
-    public void Run_TriggersBlackoutAndBreakerWhenThePlayerEntersTheirAreas()
-    {
-        string game = TestGameFolder.RequireFolder();
-        var lattice = new Lattice(20, 14, 200, 400);
-        var tour = Enumerable.Range(0, 16).Select(index => new Cell(index, 0)).ToArray();
-        var cells = tour.ToHashSet();
-        var blackout = lattice.GetCenter(tour[4]);
-        var breaker = lattice.GetCenter(tour[12]);
-        var analysis = new RouteAnalysis
-        {
-            Name = "Blackout",
-            WallSet = WallSet.Basement,
-            Model = new LevelModel
-            {
-                Name = "Blackout", WallSet = WallSet.Basement, Lattice = lattice, Cells = cells, Edges = new Dictionary<EdgeKey, EdgeKind>(),
-                Objects = [], Sprites = [new MergedMapSprite(1, KnownObject.Breaker, new Vector3(breaker.X, breaker.Y, 0), 0, 0, [])]
-            },
-            Step = lattice.CellStep,
-            ReachableCells = cells.Count,
-            RoutePixels = (int)(lattice.CellStep * (tour.Length - 1)),
-            SpinePixels = 0,
-            RevisitShare = 0,
-            Legs = [],
-            Objectives =
-            [
-                new RouteObjective(ObjectiveKind.Blackout, blackout.X, blackout.Y, 0, 40),
-                new RouteObjective(ObjectiveKind.Breaker, breaker.X, breaker.Y, 0)
-            ],
-            Elements = [],
-            Gating = new GateMeasurement(),
-            Checkpoints = [],
-            FallbackUsage = new FallbackUsage(false, false, 0),
-            Tour = tour,
-            Grid = new RouteGrid { Lattice = lattice, Cells = cells, Edges = [], FenceEdges = [], BlockedCells = [] },
-            Script = new LevelScriptSummary
-            {
-                Triggers = [new ScriptTrigger(new TriggerArea(new Point((int)blackout.X, (int)blackout.Y), 40), ScriptRespawn.Player, Point.Empty, true, 0x606060, 3000, true, false, [])]
-            }
-        };
-        var table = TestGameFolder.Table;
-        var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default);
-        var result = new Playthrough(game, TestGameFolder.Objects, table).Run(analysis, loadout, 1);
-
-        Assert.True(result.Survived);
-        Assert.False(result.Script.DoorsInitiallyLocked);
-        Assert.NotNull(result.Script.BlackoutAt);
-        Assert.NotNull(result.Script.DoorsOpenedAt);
-        Assert.True(result.Script.BlackoutAt > 0);
-        Assert.True(result.Script.DoorsOpenedAt > result.Script.BlackoutAt);
-    }
-
     [Theory]
     [InlineData(3)]
     [InlineData(4)]

@@ -64,6 +64,17 @@ public sealed class SpritePartReader
         return points;
     }
 
+    [EngineRoutine(0x004284f0)]
+    internal int CountFrames(string path)
+    {
+        var file = GetFile(path);
+
+        if (file is not null)
+            return file.Value.FrameCount;
+
+        return path.EndsWith(".bmp", StringComparison.OrdinalIgnoreCase) && GamePath.Resolve(_gameFolder, path) is not null ? 1 : 0;
+    }
+
     internal VidResource? GetFile(string path)
     {
         if (!_files.TryGetValue(path, out var file))
@@ -90,10 +101,10 @@ public sealed class SpritePartReader
         var cells = new Dictionary<int, short>();
         foreach (var run in frame)
         {
-            for (int index = 0; index < run.Count; index++)
+            for (int i = 0; i < run.Count; i++)
             {
-                int x = run.X + index;
-                int height = usesDepth ? (run.GetDepth(index) >> DepthShift) - DepthBias : meshHeights.Length > 0 ? GetMeshHeight(meshHeights, vid.Width, x, run.Y) : 0;
+                int x = run.X + i;
+                int height = usesDepth ? (run.GetDepth(i) >> DepthShift) - DepthBias : meshHeights.Length > 0 ? GetMeshHeight(meshHeights, vid.Width, x, run.Y) : 0;
                 int row = run.Y + height;
 
                 if (x is < 0 or >= MaxFramePixels || row is < 0 or >= MaxFramePixels)

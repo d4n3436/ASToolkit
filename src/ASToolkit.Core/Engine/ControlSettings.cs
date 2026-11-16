@@ -3,10 +3,21 @@ using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Engine;
 
-internal sealed class ControlSettings
+/// <summary>
+/// Represents the [control] section of AlienShooter.cfg, with the executable's defaults for missing keys.
+/// </summary>
+public sealed class ControlSettings
 {
+    /// <summary>
+    /// Represents the binding of the left mouse button.
+    /// </summary>
     public const int LeftButton = 1;
+    
+    /// <summary>
+    /// Represents the binding of the right mouse button.
+    /// </summary>
     public const int RightButton = 2;
+    
     private const int LeftKey = 0x25;
     private const int UpKey = 0x26;
     private const int RightKey = 0x27;
@@ -47,31 +58,53 @@ internal sealed class ControlSettings
         ["F12"] = 0x7B
     }.ToFrozenDictionary();
 
+    /// <summary>
+    /// Gets the executable's default controls.
+    /// </summary>
     public static ControlSettings Default { get; } = new();
 
-    public ControlBinding Left { get; init; } = new(LeftKey, LeftKey);
+    internal ControlBinding Left { get; init; } = new(LeftKey, LeftKey);
 
-    public ControlBinding Right { get; init; } = new(RightKey, RightKey);
+    internal ControlBinding Right { get; init; } = new(RightKey, RightKey);
 
-    public ControlBinding Up { get; init; } = new(UpKey, UpKey);
+    internal ControlBinding Up { get; init; } = new(UpKey, UpKey);
 
-    public ControlBinding Down { get; init; } = new(DownKey, DownKey);
+    internal ControlBinding Down { get; init; } = new(DownKey, DownKey);
 
-    public ControlBinding First { get; init; } = new(LeftButton, LeftButton);
+    internal ControlBinding First { get; init; } = new(LeftButton, LeftButton);
 
-    public ControlBinding Second { get; init; } = new(RightButton, RightButton);
+    internal ControlBinding Second { get; init; } = new(RightButton, RightButton);
 
+    /// <summary>
+    /// Gets the key that selects the previous weapon.
+    /// </summary>
     public int Prev { get; init; } = PrevKey;
 
+    /// <summary>
+    /// Gets the key that selects the next weapon.
+    /// </summary>
     public int Next { get; init; } = NextKey;
 
-    public bool HoldsFirst { get; init; } = true;
+    /// <summary>
+    /// Gets a value indicating whether the first action repeats while held.
+    /// </summary>
+    public bool IsFirstRepeatedWhileHeld { get; init; } = true;
 
-    public bool HoldsSecond { get; init; } = true;
+    /// <summary>
+    /// Gets a value indicating whether the second action repeats while held.
+    /// </summary>
+    public bool IsSecondRepeatedWhileHeld { get; init; } = true;
 
-    public bool Relative { get; init; }
+    /// <summary>
+    /// Gets a value indicating whether the movement keys move relative to the cursor.
+    /// </summary>
+    public bool IsMovementRelativeToCursor { get; init; }
 
-    // Reads the first character for movement keys and a key name for the actions, falling back on the executable's default strings
+    /// <summary>
+    /// Reads the controls from a configuration file, with the executable's defaults for missing keys.
+    /// </summary>
+    /// <param name="path">The path of AlienShooter.cfg.</param>
+    /// <returns>The controls.</returns>
     [EngineRoutine(0x00408ff0)]
     public static ControlSettings Read(string path)
     {
@@ -83,7 +116,7 @@ internal sealed class ControlSettings
             Right = new ControlBinding(RightKey, GetFirstCharacter(values, "Right", "'")),
             Up = new ControlBinding(UpKey, GetFirstCharacter(values, "Up", "&")),
             Down = new ControlBinding(DownKey, GetFirstCharacter(values, "Down", "\u0004" + "8")),
-            Relative = GetInteger(values, "Relative", 0) != 0,
+            IsMovementRelativeToCursor = GetInteger(values, "Relative", 0) != 0,
             First = new ControlBinding(ParseKey(GetString(values, "First", "LBUTTON")), LeftButton),
             Second = new ControlBinding(ParseKey(GetString(values, "Second", "RBUTTON")), RightButton),
             Prev = ParseKey(GetString(values, "Prev", "[")),
@@ -91,6 +124,11 @@ internal sealed class ControlSettings
         };
     }
 
+    /// <summary>
+    /// Returns the virtual key of a key name.
+    /// </summary>
+    /// <param name="name">The key name.</param>
+    /// <returns>The virtual key, or 0 for an unknown name.</returns>
     [EngineRoutine(0x00426370)]
     public static int ParseKey(string name)
     {

@@ -31,9 +31,9 @@ internal sealed class FrameMask
                 continue;
 
             bottom = Math.Max(bottom, run.Y + 1);
-            for (int index = 0; index < run.Count; index++)
+            for (int i = 0; i < run.Count; i++)
             {
-                int x = run.X + index;
+                int x = run.X + i;
 
                 if ((uint)x < file.Width)
                 {
