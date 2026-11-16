@@ -59,7 +59,17 @@ public readonly struct MapResource
     /// <summary>
     /// Enumerates over the groups of sprites, each a span of sprite handles.
     /// </summary>
-    public MapGroupEnumerator Groups => new(MemoryMarshal.Cast<byte, uint>(GetGroupRecord().Span));
+    public MapGroupEnumerator Groups => new(MemoryMarshal.Cast<byte, uint>(GetRecord("GROU"u8).Span));
+
+    /// <summary>
+    /// Gets the sprite handle of each player, empty when the map has no PLAY chunk.
+    /// </summary>
+    public ReadOnlySpan<int> PlayerHandles => MemoryMarshal.Cast<byte, int>(GetRecord("PLAY"u8).Span);
+
+    /// <summary>
+    /// Gets the painted height grid, empty when the map has no GRID chunk.
+    /// </summary>
+    public ReadOnlySpan<short> HeightGrid => MemoryMarshal.Cast<byte, short>(GetRecord("GRID"u8).Span);
 
     private IEnumerable<MapSprite> EnumerateSprites()
     {
@@ -72,16 +82,7 @@ public readonly struct MapResource
         }
     }
     
-    private ReadOnlyMemory<byte> GetGroupRecord()
-    {
-        foreach (var chunk in _container.Chunks)
-        {
-            if (chunk.Tag.Span.SequenceEqual("GROU"u8))
-                return chunk.Records.First();
-        }
-
-        return ReadOnlyMemory<byte>.Empty;
-    }
+    private ReadOnlyMemory<byte> GetRecord(ReadOnlySpan<byte> tag) => _container.TryGetChunk(tag, out var chunk) ? chunk.Records.First() : ReadOnlyMemory<byte>.Empty;
 
     private IEnumerable<MapSpriteData> EnumerateSpriteData()
     {

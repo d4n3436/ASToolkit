@@ -153,6 +153,19 @@ public class ObjectTableTests
         Assert.Equal(692, Marshal.OffsetOf<GameObject>(nameof(GameObject.Scale)).ToInt32());
     }
 
+    [Fact]
+    public void Load_ReadsTheSoundsOfTheSfxChunk()
+    {
+        var table = ObjectTable.Load(Path.Combine(TestGameFolder.RequireFolder(), "objects.res"));
+        Assert.Equal(58, table.Sounds.Count);
+        Assert.Equal(90, table.Sounds[1].VoiceLimit);
+        Assert.Equal(1, table.Sounds[1].SampleCount);
+        Assert.Equal("wav\\pistol_shot.wav"u8.ToArray(), table.Sounds[1].GetSamplePath(0).ToArray());
+        Assert.Equal(2, table.Sounds[4].SampleCount);
+        Assert.Equal("wav\\miss_hit2.wav"u8.ToArray(), table.Sounds[4].GetSamplePath(1).ToArray());
+        Assert.True(table.Sounds[4].GetSamplePath(2).IsEmpty);
+    }
+
     private static void WriteFloat(byte[] body, int offset, float value)
     {
         Buffer.BlockCopy(BitConverter.GetBytes(value), 0, body, offset, 4);

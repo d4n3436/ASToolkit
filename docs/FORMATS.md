@@ -383,6 +383,15 @@ The `CNST` record is 104 bytes in every game. Speeds are stored in thousandths a
  +100   i32   1000 in every game; no reader found
 ```
 
+In Alien Shooter, each `SFX` record is one sound, numbered by its position from 0, the number the objects' `SFX` fields hold.
+
+```
+ +0     u8    voices the sound may play at once, in tenths; 0 for one voice, 100 for every voice
+ +1     text  up to 8 sample paths, each ended by 0 or a line feed; carriage returns are dropped, and the samples end at the first empty path
+```
+
+The samples are RIFF `WAVE` files. The engine needs a `fmt ` chunk of at least 14 bytes and reads 18 bytes from its start (a `WAVEFORMATEX`), past the end of a shorter chunk. The sound buffer takes the whole `data` chunk.
+
 In Alien Shooter 2, `P_HardwareDirect` shows the direction frame closest to the facing and turns the sprite on the ground plane by the remainder. With `P_SkipMapEd` it turns one frame by the whole facing, and with `P_VertDir` by the angle of the motion. The soft black cover 1127 lines its edges up with the walls this way.
 
 `GammaRGBA` tints the sprite. Negative values scale a channel to `(256 + t) / 256` of itself and positive ones add `t`. The gamma of a placement replaces it, and the scripts read and write it per army. Yellow and red monsters, and the blue survival bosses, are the same sprite with a different `GammaRGBA`.
@@ -415,7 +424,7 @@ Kind `MAP `. Levels are lists of placed sprites with a few small chunks.
  +-----+-----+--------+--------+------+---------+
 ```
 
-The levels of Alien Shooter are version 10 and 12, and those of Alien Shooter 2 are 18 to 20.
+Before version 10 the width, height and camera are `i32`, and the engine turns them into `f32`. The engine replaces the tick with 10. The levels of Alien Shooter are version 10 and 12, its survival map and menu host maps version 9, and the levels of Alien Shooter 2 version 18 to 20.
 
 `GRPH` has one record of 20 bytes, or 56 in Alien Shooter 2 levels. A 20-byte record ends after `len`.
 
@@ -592,7 +601,7 @@ The half-step offset `128 / dirs` centers each facing on its angle.
 
 ### Movement and collision
 
-Solid objects raise height grids of 8 by 8 pixel cells over the map, and objects that follow the terrain (`P_ZeroZ`) walk on them, climbing and dropping no more than the steps in their record. Objects with `P_BuildVidZToGridZ` raise the cells with the depth of their sprite, a pixel of depth `d` in row `r` raising the cell of row `r + h` to `h = d / 8 - 128` above the object. Objects with `P_BuildSizeToGridZ` raise them along their footprint outline. Alien Shooter 2 keeps one grid for scenery (`SpriteClass` 8) and one for the rest. Its `GRID` chunk holds the first grid, one `i16` per cell and `map w / 8` cells per row, and only the menu, logo, slide and end maps have one.
+Solid objects raise height grids of 8 by 8 pixel cells over the map, and objects that follow the terrain (`P_ZeroZ`) walk on them, climbing and dropping no more than the steps in their record. Objects with `P_BuildVidZToGridZ` raise the cells with the depth of their sprite, a pixel of depth `d` in row `r` raising the cell of row `r + h` to `h = d / 8 - 128` above the object. Objects with `P_BuildSizeToGridZ` raise them along their footprint outline. Alien Shooter 2 keeps one grid for scenery (`SpriteClass` 8) and one for the rest. The `GRID` chunk holds the first grid, one `i16` per cell and `map w / 8` cells per row, and the engine drops it when its size doesn't match the map. In Alien Shooter 2 only the menu, logo, slide and end maps have one.
 
 Moving objects collide when their `MoveMask` values share a bit, their footprints overlap (half of `SizeXYZ[0]` and `SizeXYZ[1]` each way, never scaled by `ScaleXYZ`) and their heights overlap. Objects with `P_Noise` in Alien Shooter 2 use a box turned with the facing.
 
@@ -788,19 +797,35 @@ Kind `MENU`. Menus are lists of sprites with screen coordinates.
  +------+---------------------------------------------+
  | HEAD | 20 bytes                                    |
  | SPR  | one record per element                      |
+ | SPRI | (instead of SPR) packed sprites, no fields  |
  +------+---------------------------------------------+
 
- SPR record, 32 bytes + optional text
- 0        4      8     12   16     20          24   28
- +--------+------+-----+----+------+-----------+----+----+----------+
- | handle | id   | x   | y  | scale| directions| .. | .. | text, 0  |
- | u32    | u32  | f32 | f32| f32  | u32       |    |    | (41-45 B |
- +--------+------+-----+----+------+-----------+----+----+  records)|
+ HEAD
+ 0         4       8        12         16
+ +---------+-------+--------+----------+----------+
+ | version | width | height | origin x | origin y |
+ | i32     | i32   | i32    | i32      | i32      |
+ +---------+-------+--------+----------+----------+
 ```
 
-The text is a label or a binding such as `Play`, `PlayerAmmo[2]` or `ItemPrice[8]`. Coordinates are screen pixels.
+The engine places each element at its position less the origin and half the width and height, plus half the screen.
 
-Buttons are object 705, and the button number the script sees is the direction frame (`ndir`) that `dir` picks among its 10 directions. Labels are object 3, their text a key of the `[menu]` section in `strings.ini`.
+Each `SPR` record holds the 28-byte sprite of a map before version 16 (positions `i32` before version 10), then the fields the sprite loads. The last record holds only a handle of -1.
+
+```
+ +28    i32           number of orders
+ +32    16 x n        orders, as in a sprite's stacks
+        i32, i32 x m  (version 12 and later) number of items and their object ids
+        ...           the fields of the sprite's class
+```
+
+Frames (`B_FRAME`) end with the orders and items. Text sprites (`B_TEXT`) hold an `i32` behavior and a text ended by 0. The behavior's low bits align the text (`BEH_CENTER_X` 1, `BEH_RIGHT` 2, `BEH_BOTTOM` 4, `BEH_CENTER_Y` 8), and bits 4 to 6 (`BEH_LOAD_FROM`, mask 112) choose the source of the text, shown as written (0), a key of `strings.ini` (16), a file (32), a script variable (48), a script variable naming a file (64) or a key (80), or a script variable read on every draw (96).
+
+`SPRI` holds one record of 28-byte sprites end to end, with no fields, closed by a handle of -1.
+
+Coordinates are screen pixels.
+
+Buttons are object 705, and the button number the script sees is the direction frame (`ndir`) that `dir` picks among its 10 directions. Labels are object 3. With `BEH_STRINGS_INI` their text is a key of the `[menu]` section in `strings.ini`.
 
 ```
  +-------------------+   object 705, direction byte 128 = button 5

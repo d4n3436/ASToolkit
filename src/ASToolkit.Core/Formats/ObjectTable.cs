@@ -20,10 +20,12 @@ public sealed class ObjectTable
 
     private readonly Dictionary<KnownObject, Entry> _entries;
     private readonly WeaponRecord[] _weapons;
+    private readonly SfxRecord[] _sounds;
 
-    private ObjectTable(Dictionary<KnownObject, Entry> entries, bool isAlienShooter2, WeaponRecord[] weapons)
+    private ObjectTable(Dictionary<KnownObject, Entry> entries, bool isAlienShooter2, WeaponRecord[] weapons, SfxRecord[] sounds)
     {
         _weapons = weapons;
+        _sounds = sounds;
         _entries = entries;
         IsAlienShooter2 = isAlienShooter2;
     }
@@ -90,11 +92,26 @@ public sealed class ObjectTable
 
         var data = container.Chunks.First(chunk => chunk.Tag.Span.SequenceEqual("CNST"u8)).Records.First();
         var constants = MemoryMarshal.Read<ObjectConstants>(data.Span);
-        return new ObjectTable(entries, anyExtended, ReadWeapons(container))
+        var sounds = bodySize == AlienShooterBodySize ? ReadRecords(container, "SFX "u8).Select(record => new SfxRecord(record)).ToArray() : [];
+        return new ObjectTable(entries, anyExtended, ReadWeapons(container), sounds)
         {
             Gravitation = constants.Gravitation,
             Gravitation2 = constants.Gravitation2
         };
+    }
+
+    private static List<ReadOnlyMemory<byte>> ReadRecords(ResContainer container, ReadOnlySpan<byte> tag)
+    {
+        var records = new List<ReadOnlyMemory<byte>>();
+        foreach (var chunk in container.Chunks)
+        {
+            if (chunk.Tag.Span.SequenceEqual(tag))
+            {
+                records.AddRange(chunk.Records);
+            }
+        }
+
+        return records;
     }
 
     private static WeaponRecord[] ReadWeapons(ResContainer container)
@@ -164,6 +181,11 @@ public sealed class ObjectTable
     /// Returns the sprite file of an entry.
     /// </summary>
     public string GetPath(KnownObject id) => _entries[id].Path;
+
+    /// <summary>
+    /// Gets the sounds of the SFX chunk, empty for games other than Alien Shooter.
+    /// </summary>
+    public IReadOnlyList<SfxRecord> Sounds => _sounds;
 
     /// <summary>
     /// Finds the weapon record an object points at, or the first record for an index past the last, returning false when the table holds no

@@ -12,7 +12,7 @@ public readonly struct ResChunk
     /// <summary>
     /// Initializes a new instance of the <see cref="ResChunk"/> structure.
     /// </summary>
-    /// <param name="data">The data.</param>
+    /// <param name="data">The bytes from the chunk's tag to the end of its file.</param>
     public ResChunk(ReadOnlyMemory<byte> data)
     {
         _data = data;
@@ -42,6 +42,18 @@ public readonly struct ResChunk
     /// Gets the number of records this chunk has.
     /// </summary>
     public uint Count => HasExtendedHeader ? MemoryMarshal.Read<uint>(_data[16..].Span) : (uint)Flags;
+
+    /// <summary>
+    /// Gets the bytes after the chunk's tag and size.
+    /// </summary>
+    public ReadOnlyMemory<byte> Body => _data.Slice(8, Size);
+
+    /// <summary>
+    /// Returns bytes from the start of the body, running past its end into the rest of the file.
+    /// </summary>
+    /// <param name="length">The number of bytes to read.</param>
+    /// <returns>The bytes, shorter than the length only at the end of the file.</returns>
+    public ReadOnlyMemory<byte> ReadBody(int length) => _data[8..][..Math.Min(length, _data.Length - 8)];
 
     /// <summary>
     /// Enumerates over the records on this chunk.

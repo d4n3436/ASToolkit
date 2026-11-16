@@ -10,22 +10,30 @@ namespace ASToolkit.Core.Formats;
 public readonly struct MapHeader
 {
     /// <summary>
-    /// The map width in pixels.
+    /// Represents the first version that stores sizes and positions as floats.
     /// </summary>
+    public const int FloatVersion = 10;
+
     [FieldOffset(0)]
-    public readonly float MapW;
+    private readonly float _mapW;
 
-    /// <summary>
-    /// The map height in pixels.
-    /// </summary>
+    [FieldOffset(0)]
+    private readonly int _intMapW;
+
     [FieldOffset(4)]
-    public readonly float MapH;
+    private readonly float _mapH;
 
-    /// <summary>
-    /// The starting position of the camera.
-    /// </summary>
+    [FieldOffset(4)]
+    private readonly int _intMapH;
+
     [FieldOffset(8)]
-    public readonly Vector2 Camera;
+    private readonly Vector2 _camera;
+
+    [FieldOffset(8)]
+    private readonly int _intCameraX;
+
+    [FieldOffset(12)]
+    private readonly int _intCameraY;
 
     /// <summary>
     /// The tick value.
@@ -38,4 +46,19 @@ public readonly struct MapHeader
     /// </summary>
     [FieldOffset(20)]
     public readonly uint Version;
+
+    /// <summary>
+    /// Gets the map width in pixels.
+    /// </summary>
+    public float MapW => Version < FloatVersion ? _intMapW : _mapW;
+
+    /// <summary>
+    /// Gets the map height in pixels.
+    /// </summary>
+    public float MapH => Version < FloatVersion ? _intMapH : _mapH;
+
+    /// <summary>
+    /// Gets the starting position of the camera.
+    /// </summary>
+    public Vector2 Camera => Version < FloatVersion ? new Vector2(_intCameraX, _intCameraY) : _camera;
 }

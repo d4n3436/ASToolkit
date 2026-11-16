@@ -38,6 +38,26 @@ public readonly struct ResContainer
     /// </summary>
     public IEnumerable<ResChunk> Chunks => EnumerateChunks();
 
+    /// <summary>
+    /// Finds the first chunk with a tag, returning false when the container has none.
+    /// </summary>
+    /// <param name="tag">The four-byte tag.</param>
+    /// <param name="found">The chunk.</param>
+    public bool TryGetChunk(ReadOnlySpan<byte> tag, out ResChunk found)
+    {
+        foreach (var chunk in Chunks)
+        {
+            if (!chunk.Tag.Span.SequenceEqual(tag))
+                continue;
+            
+            found = chunk;
+            return true;
+        }
+
+        found = default;
+        return false;
+    }
+
     private IEnumerable<ResChunk> EnumerateChunks()
     {
         if (_data.IsEmpty)
@@ -55,7 +75,7 @@ public readonly struct ResContainer
                 yield break;
             }
 
-            yield return new ResChunk(_data.Slice(offset, size + 8));
+            yield return new ResChunk(_data[offset..]);
             offset = start + ((size + 1) & ~1);
         }
     }
