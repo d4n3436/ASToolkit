@@ -61,7 +61,7 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
 
             var map = MapResourceBuilder.Load(mapPath);
             noScript[i] = !File.Exists(scriptPath);
-            var script = LevelScriptReader.Read(scriptPath);
+            var script = objects.IsAlienShooter2 ? LevelScriptReader.ReadSequel(scriptPath) : LevelScriptReader.Read(scriptPath);
             var analysis = RouteAnalyzer.Analyze(maps[i], map, script, objects);
 
             string? image = null;

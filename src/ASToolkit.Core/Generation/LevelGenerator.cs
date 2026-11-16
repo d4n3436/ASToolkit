@@ -193,7 +193,7 @@ public sealed class LevelGenerator
     private GeneratedLevel Analyze(GeneratedLevel level)
     {
         var map = MapResourceBuilder.Parse(level.Map.ToBytes(GetOriginal(level.Template).Template));
-        var script = LevelScriptReader.Parse(LevelScriptWriter.Format(level.Script));
+        var script = LevelScriptReader.Parse(LevelScriptWriter.Format(level.Script), _gameFolder);
         level.Analysis = RouteAnalyzer.Analyze(level.Template, map, script, _objects);
         return level;
     }

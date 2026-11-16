@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace ASToolkit.Core.Patching;
 
@@ -36,7 +35,7 @@ internal static class ScriptEditor
             return false;
         }
 
-        int found = Regex.Count(text, Regex.Escape(from));
+        int found = text.AsSpan().Count(from);
         if (found == 0 && undo)
         {
             return false;
