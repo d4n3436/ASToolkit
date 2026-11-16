@@ -367,12 +367,7 @@ public readonly struct GameObject
     /// <summary>
     /// Returns the sprite frame the engine shows for a direction, out of the given number of frames.
     /// </summary>
-    public int GetFrame(Angle dir, int frameCount) => FramesPerDirection == 0 ? 0 : Math.Min(GetDirectionIndex(dir) * FramesPerDirection, frameCount - 1);
-
-    /// <summary>
-    /// Returns the index of the direction frame the engine picks for a direction.
-    /// </summary>
-    public int GetDirectionIndex(Angle dir) => ((dir.Value + Angle.HalfTurn / Directions) & 255) * Directions >> 8;
+    public int GetFrame(Angle dir, int frameCount) => FramesPerDirection == 0 ? 0 : Math.Min(dir.GetDirectionIndex(Directions) * FramesPerDirection, frameCount - 1);
 
     /// <summary>
     /// Returns the sprite frame that starts an animation state.

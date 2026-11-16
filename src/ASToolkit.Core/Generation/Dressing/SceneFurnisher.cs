@@ -699,7 +699,7 @@ internal sealed class SceneFurnisher
 
         var pose = _grammar.Poses.GetValueOrDefault(id);
         var seat = pose is not null && _objects.TryFind(id, out var corpse)
-            ? pose.Seats.GetValueOrDefault((byte)(corpse.GetDirectionIndex(dir) * 256 / corpse.Directions))
+            ? pose.Seats.GetValueOrDefault(dir.GetFrameDirection(corpse.Directions).Value)
             : null;
         if (pose is not null && seat is not null && !IsSeated(pose, seat, point))
         {
@@ -728,7 +728,7 @@ internal sealed class SceneFurnisher
     private Angle GetAttachedDir(KnownObject owner, Angle dir, KnownObject id, PointF point)
     {
         if (_grammar.DummyDirs.TryGetValue(owner, out var dirs) && id == KnownObject.ZDummy && _objects.TryFind(owner, out var obj))
-            return dirs[obj.GetDirectionIndex(dir) % dirs.Length];
+            return dirs[dir.GetDirectionIndex(obj.Directions) % dirs.Length];
 
         return _grammar.Directions.ContainsKey(id) ? GetDirection(id, point) : dir;
     }
@@ -824,7 +824,7 @@ internal sealed class SceneFurnisher
             return [];
         }
 
-        int picture = partner.GetDirectionIndex(dir);
+        int picture = dir.GetDirectionIndex(partner.Directions);
         var face = !offsets.Pictures.Contains(picture) ? [] : picture == seat.Picture ? offsets.Same : offsets.Turned;
         return face.Where(offset => MathF.Abs(offset.Y) < GetExtent(id) / 2).ToArray();
     }

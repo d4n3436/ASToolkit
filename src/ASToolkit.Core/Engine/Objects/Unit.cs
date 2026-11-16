@@ -549,7 +549,7 @@ public sealed class Unit
         var layout = Definition.Layout;
         var direction = GetShownDirection(_direction);
 
-        FirstFrame = layout.GetFirstFrame(state) + layout.GetDirectionIndex(direction) * layout.GetFramesPerDirection(state);
+        FirstFrame = layout.GetFirstFrame(state) + direction.GetDirectionIndex(layout.Directions) * layout.GetFramesPerDirection(state);
         Frame = FirstFrame;
         Animation = state;
         LastFrame = state > SpriteAnimation.Unload && layout.GetFrameCount(state) == 0
@@ -580,7 +580,7 @@ public sealed class Unit
         if (layout.Directions != 1)
         {
             int offset = Frame - FirstFrame;
-            FirstFrame = layout.GetFirstFrame(Animation) + layout.GetDirectionIndex(shown) * layout.GetFramesPerDirection(Animation);
+            FirstFrame = layout.GetFirstFrame(Animation) + shown.GetDirectionIndex(layout.Directions) * layout.GetFramesPerDirection(Animation);
             LastFrame = FirstFrame + layout.GetFramesPerDirection(Animation) - 1;
             Frame = FirstFrame + offset;
         }

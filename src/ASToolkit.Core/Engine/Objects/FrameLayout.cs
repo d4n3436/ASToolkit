@@ -21,8 +21,6 @@ internal sealed class FrameLayout
             _durations[state] = obj.FrameDurations[state] == 0 ? spriteSpeed : obj.FrameDurations[state];
         }
 
-        DirectionOffset = Directions == 0 ? 0 : Angle.HalfTurn / Directions;
-
         if (totalFrames > 0 && totalFrames < Directions)
         {
             Directions = totalFrames;
@@ -100,8 +98,6 @@ internal sealed class FrameLayout
 
     public int Directions { get; }
 
-    public int DirectionOffset { get; }
-
     public int GetFrameCount(SpriteAnimation state) => _counts[(int)state];
 
     public int GetFirstFrame(SpriteAnimation state) => _firstFrames[(int)state];
@@ -119,7 +115,4 @@ internal sealed class FrameLayout
             _durations[state] = obj.FrameDurations[state] == 0 ? spriteSpeed : obj.FrameDurations[state];
         }
     }
-
-    [EngineRoutine(0x0043a1c0)]
-    public int GetDirectionIndex(Angle direction) => ((DirectionOffset + direction.Value) & 0xff) * Directions >> 8;
 }

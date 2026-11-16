@@ -76,7 +76,7 @@ internal static class PlayMenuPatcher
 
         bool IsButton(ReadOnlyMemory<byte> record) => record.Length > ElementSize && GetSprite(record).Id == KnownObject.MenuButton;
         
-        int GetButtonNumber(ReadOnlyMemory<byte> record) => ((GetSprite(record).Direction.Value + 128 / Directions) & 255) * Directions >> 8;
+        int GetButtonNumber(ReadOnlyMemory<byte> record) => GetSprite(record).Direction.GetDirectionIndex(Directions);
         
         float GetY(ReadOnlyMemory<byte> record) => GetSprite(record).Position.Y;
         

@@ -44,7 +44,7 @@ internal static class ChildEmission
             _y = owner.ChildY[(int)source.Animation];
             _height = owner.ChildZ[(int)source.Animation];
             var quantized = owner.Directions > 0
-                ? new Angle(unchecked((byte)(owner.GetDirectionIndex(source.Direction) * Angle.FullTurn / owner.Directions))) : source.Direction;
+                ? source.Direction.GetFrameDirection(owner.Directions) : source.Direction;
 
             if (source.Child.Object.Properties.HasFlag(ObjectProperties.FixedOffset))
             {

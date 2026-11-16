@@ -170,6 +170,19 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     }
 
     /// <summary>
+    /// Returns the index of the direction frame the engine shows for this direction, out of a number of direction frames.
+    /// </summary>
+    /// <param name="directions">The number of direction frames.</param>
+    [EngineRoutine(0x0043a1c0)]
+    public int GetDirectionIndex(int directions) => directions == 0 ? 0 : ((Value + HalfTurn / directions) & 0xff) * directions >> 8;
+
+    /// <summary>
+    /// Returns the direction the engine's direction frame for this direction faces, out of a number of direction frames.
+    /// </summary>
+    /// <param name="directions">The number of direction frames.</param>
+    public Angle GetFrameDirection(int directions) => new(unchecked((byte)(GetDirectionIndex(directions) * FullTurn / directions)));
+
+    /// <summary>
     /// Returns the steps of the shorter turn to another direction.
     /// </summary>
     /// <param name="other">The other direction.</param>

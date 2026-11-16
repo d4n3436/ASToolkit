@@ -602,9 +602,7 @@ public sealed class MapRenderer
             return dir;
         }
 
-        int directions = Math.Max(1, obj.Directions);
-        int index = ((dir.Value + 128 / directions) & 255) * directions >> 8;
-        return dir - (index << 8) / directions;
+        return dir - dir.GetFrameDirection(Math.Max(1, obj.Directions)).Value;
     }
 
     private static ObjectLayer GetPass(GameObject obj, VidResource file)
@@ -756,7 +754,7 @@ public sealed class MapRenderer
         var turn = away;
         if (flat && rotated)
         {
-            turn = obj.Properties.HasFlag(ObjectProperties.FreeRotation) ? caster.Direction : caster.Direction - (obj.GetDirectionIndex(caster.Direction - away.Value) << 8) / Math.Max(1, obj.Directions);
+            turn = obj.Properties.HasFlag(ObjectProperties.FreeRotation) ? caster.Direction : caster.Direction - (caster.Direction - away.Value).GetFrameDirection(Math.Max(1, obj.Directions)).Value;
         }
 
         float lift = Math.Max(0, caster.Position.Z);
