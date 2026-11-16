@@ -31,7 +31,7 @@ public class LevelScriptReaderIntegrationTests
         Assert.All(script.Handlers, handler =>
         {
             Assert.Equal(KnownObject.DiverBoss, handler.Id);
-            Assert.True(handler.Wins);
+            Assert.True(handler.WinsLevel);
             Assert.Equal([KnownObject.Spawner], handler.Destroys);
             Assert.Equal([KnownObject.Diver], handler.Kills);
         });
@@ -56,5 +56,5 @@ public class LevelScriptReaderIntegrationTests
         Assert.False(Read("", "Level_02.lgc").WinsAfterSites);
     }
 
-    private static LevelScriptSummary Read(string folder, string file) => LevelScriptReader.Read(Path.Combine(TestGameFolder.RequireFolder(), "Maps", folder, file));
+    private static LevelScriptSummary Read(string folder, string file) => LevelScriptReader.Read(Path.Combine(TestGameFolder.RequireFolder(), "Maps", folder, file), TestGameFolder.Objects.ScriptVersion);
 }

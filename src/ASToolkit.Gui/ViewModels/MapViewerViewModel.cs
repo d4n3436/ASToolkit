@@ -317,7 +317,7 @@ public partial class MapViewerViewModel : ViewModelBase
     {
         string? scriptPath = LevelLogicReader.FindLevelScript(mapPath);
         var logic = LevelLogicReader.Read(mapPath, resource, objects, quests);
-        var route = RouteAnalyzer.Analyze(map, resource, scriptPath is null ? new LevelScriptSummary() : objects.IsAlienShooter2 ? LevelScriptReader.ReadSequel(scriptPath) : LevelScriptReader.Read(scriptPath), objects);
+        var route = RouteAnalyzer.Analyze(map, resource, scriptPath is null ? new LevelScriptSummary() : LevelScriptReader.Read(scriptPath, objects.ScriptVersion), objects);
         return new MapOverlay
         {
             Logic = logic, Helpers = renderer.GetHelpers(resource.Sprites), Route = route, TourRuns = route?.GetTourRuns() ?? [],

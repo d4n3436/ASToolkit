@@ -33,7 +33,7 @@ public class RouteAnalyzerIntegrationTests
         foreach (var expected in FixtureReader.Read<List<RouteFixture>>("routes.json"))
         {
             string level = expected.Name;
-            var script = LevelScriptReader.Read(Path.Combine(game, "Maps", level[..^4] + ".lgc"));
+            var script = LevelScriptReader.Read(Path.Combine(game, "Maps", level[..^4] + ".lgc"), objects.ScriptVersion);
             var a = RouteAnalyzer.Analyze(level, MapResourceBuilder.Load(Path.Combine(game, "Maps", level)), script, objects);
             Assert.NotNull(a);
             var problems = new List<string>();
@@ -103,7 +103,7 @@ public class RouteAnalyzerIntegrationTests
     {
         string game = TestGameFolder.RequireFolder();
         var objects = ObjectTable.Load(Path.Combine(game, "objects.res"));
-        var script = LevelScriptReader.Read(Path.Combine(game, "Maps", level[..^4] + ".lgc"));
+        var script = LevelScriptReader.Read(Path.Combine(game, "Maps", level[..^4] + ".lgc"), objects.ScriptVersion);
 
         var a = RouteAnalyzer.Analyze(level, MapResourceBuilder.Load(Path.Combine(game, "Maps", level)), script, objects);
 

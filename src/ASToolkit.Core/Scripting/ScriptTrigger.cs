@@ -13,7 +13,7 @@ namespace ASToolkit.Core.Scripting;
 /// <param name="LightOff">The script gamma the block turns the lights off to, or null.</param>
 /// <param name="Quake">The length of the earthquake the block starts in milliseconds, or 0.</param>
 /// <param name="SwapsKeypads">A value indicating whether the block turns the lit keypads off.</param>
-/// <param name="Wins">A value indicating whether the block wins the level.</param>
+/// <param name="WinsLevel">A value indicating whether the block wins the level.</param>
 /// <param name="Kills">The objects the block puts into their death state.</param>
 public sealed record ScriptTrigger(TriggerArea Area, ScriptRespawn Respawn, Point RespawnPoint, bool LocksDoors, uint? LightOff, int Quake,
-    bool SwapsKeypads, bool Wins, IReadOnlyList<KnownObject> Kills);
+    bool SwapsKeypads, bool WinsLevel, IReadOnlyList<KnownObject> Kills);

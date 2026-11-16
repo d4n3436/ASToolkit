@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Engine.Scripts;
 
@@ -9,13 +10,9 @@ namespace ASToolkit.Core.Engine.Scripts;
 /// <param name="Opcode">The opcode of the instruction, or the id of the built-in function it calls.</param>
 /// <param name="Operand">The operand of the instruction, or 0 when it has none.</param>
 /// <param name="Length">The length of the instruction in bytes.</param>
-public readonly record struct ScriptInstruction(int Offset, ScriptOpcode Opcode, int Operand, int Length)
+/// <param name="IsExternCall">A value indicating whether the instruction calls a built-in function.</param>
+public readonly record struct ScriptInstruction(int Offset, ScriptOpcode Opcode, int Operand, int Length, bool IsExternCall)
 {
-    /// <summary>
-    /// Gets a value indicating whether the instruction calls a built-in function.
-    /// </summary>
-    public bool IsExternCall => Opcode is not (>= ScriptOpcode.PushNumber and <= ScriptOpcode.Pop or >= ScriptOpcode.Jump and <= ScriptOpcode.SetIndex);
-
     /// <summary>
     /// Gets the offset of the instruction that follows.
     /// </summary>
@@ -24,21 +21,26 @@ public readonly record struct ScriptInstruction(int Offset, ScriptOpcode Opcode,
     /// <summary>
     /// Gets the offset a jump instruction leads to.
     /// </summary>
-    public int Target => Opcode == ScriptOpcode.Call ? Operand : Offset + 1 + Operand;
+    public int Target => Offset + 1 + Operand;
 
     /// <summary>
     /// Reads the instruction at an offset of compiled code.
     /// </summary>
     /// <param name="code">The compiled code.</param>
     /// <param name="offset">The offset of the instruction.</param>
+    /// <param name="version">The version of the script language the code was compiled in.</param>
     /// <returns>The instruction.</returns>
-    public static ScriptInstruction Read(ReadOnlySpan<byte> code, int offset)
+    public static ScriptInstruction Read(ReadOnlySpan<byte> code, int offset, ScriptVersion version)
     {
         var opcode = (ScriptOpcode)code[offset];
+        if (opcode is not (>= ScriptOpcode.PushNumber and <= ScriptOpcode.Pop or >= ScriptOpcode.Jump and <= ScriptOpcode.SetIndex) &&
+            (version != ScriptVersion.AlienShooter2 || opcode is not (>= ScriptOpcode.CastString and <= ScriptOpcode.OrJump)))
+            return new ScriptInstruction(offset, opcode, 0, 1, true);
+
         switch (opcode)
         {
             case ScriptOpcode.PushText:
-                return new ScriptInstruction(offset, opcode, 0, code[(offset + 1)..].IndexOf((byte)0) + 2);
+                return new ScriptInstruction(offset, opcode, 0, code[(offset + 1)..].IndexOf((byte)0) + 2, false);
             case ScriptOpcode.PushNumber:
             case ScriptOpcode.JumpIfFalse:
             case ScriptOpcode.EndStatement:
@@ -46,11 +48,13 @@ public readonly record struct ScriptInstruction(int Offset, ScriptOpcode Opcode,
             case ScriptOpcode.JumpIfFalseOnce:
             case ScriptOpcode.Call:
             case >= ScriptOpcode.PostIncrement and <= ScriptOpcode.Assign:
-                return new ScriptInstruction(offset, opcode, BinaryPrimitives.ReadInt32LittleEndian(code[(offset + 1)..]), 5);
+            case ScriptOpcode.AndJump:
+            case ScriptOpcode.OrJump:
+                return new ScriptInstruction(offset, opcode, BinaryPrimitives.ReadInt32LittleEndian(code[(offset + 1)..]), 5, false);
             case ScriptOpcode.CompoundAssign:
-                return new ScriptInstruction(offset, opcode, BinaryPrimitives.ReadInt32LittleEndian(code[(offset + 1)..]), 6);
+                return new ScriptInstruction(offset, opcode, BinaryPrimitives.ReadInt32LittleEndian(code[(offset + 1)..]), 6, false);
             default:
-                return new ScriptInstruction(offset, opcode, 0, 1);
+                return new ScriptInstruction(offset, opcode, 0, 1, false);
         }
     }
 }

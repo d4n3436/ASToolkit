@@ -940,27 +940,48 @@ A file whose fourth byte is not 0 is source text. Otherwise it is a compiled scr
 
 The variable records and names use the layout of the demo script state. The names are the global ones, since a function's or block's names end with it. Kind 1 names a variable (its first slot and element count), 2 an engine function (its id and parameters), 3 a script function (its code offset and parameters).
 
-Code is a byte stream; operands are little-endian i32. Jump offsets count from the operand's own position. A byte outside the table calls the engine function with that id, taking its arguments from the stack, last argument first, and pushing its result. Every statement ends with opcode 0x19. It carries the source line and empties the stack.
+Code is a byte stream; operands are little-endian i32. Jump offsets count from the operand's own position. A byte outside the table calls the engine function with that id, taking its arguments from the stack, last argument first, and pushing its result. Every statement ends with opcode 25. It carries the source line and empties the stack.
 
 | Op | Operand | Action |
 |---|---|---|
-| 0x01 | i32 | push the number |
-| 0x02 | text, 0 | push the text |
-| 0x03 to 0x05 | | negate, invert the bits, logical not |
-| 0x06 to 0x17 | | `/ % + - ^ \| & == \|\| > < >= <= * != && >> <<` on the two top values |
-| 0x18 | i32 | jump when the popped value is 0 |
-| 0x19 | i32 line | end the statement |
-| 0x1a | | pop |
-| 0x1c | i32 | jump |
-| 0x1d | i32 | `iff`, jumping when the popped value is 0 and otherwise replacing the statement's start with a jump to the same place |
-| 0x1e | i32 offset | call the script function at that code offset |
-| 0x1f | | return, with the top value as the result when there is one |
-| 0x20 to 0x23 | i32 variable | `x++`, `x--`, `++x`, `--x` |
-| 0x24 | i32 variable | push the variable |
-| 0x25 | i32 variable | push the address of a text variable, for engine functions that write it |
-| 0x26 | i32 variable | store the top value, leaving it on the stack |
-| 0x27 | i32 variable, u8 op | `x op= value` with an operator of 0x06 to 0x17 |
-| 0x28 | | take the popped value as the index of the next variable opcode |
+| 1 | i32 | push the number |
+| 2 | text, 0 | push the text |
+| 3 to 5 | | negate, invert the bits, logical not |
+| 6 to 23 | | `/ % + - ^ \| & == \|\| > < >= <= * != && >> <<` on the two top values |
+| 24 | i32 | jump when the popped value is 0 |
+| 25 | i32 line | end the statement |
+| 26 | | pop |
+| 28 | i32 | jump |
+| 29 | i32 | `iff`, jumping when the popped value is 0 and otherwise replacing the statement's start with a jump to the same place |
+| 30 | i32 offset | call the script function at that code offset |
+| 31 | | return, with the top value as the result when there is one |
+| 32 to 35 | i32 variable | `x++`, `x--`, `++x`, `--x` |
+| 36 | i32 variable | push the variable |
+| 37 | i32 variable | push the address of a text variable, for engine functions that write it |
+| 38 | i32 variable | store the top value, leaving it on the stack |
+| 39 | i32 variable, u8 op | `x op= value` with an operator of 6 to 23 |
+| 40 | | take the popped value as the index of the next variable opcode |
+
+#### Alien Shooter 2 scripts
+
+Alien Shooter 2 compiles the same language with these differences:
+
+- Compile errors don't end the game. The script is left empty.
+- `int x = expr;` and `string s = expr;` inside a function body evaluate their initializer when the statement runs, element by element for a braced list. Globals, `static` declarations and parameter defaults still take constants.
+- Functions can be declared with `;` in place of their body and defined later with the same parameters. Calls made before the definition reach it.
+- `(int)`, `(string)` and `(sprite)` cast a term after any unary operator in front of it.
+- Precedence from loosest: `||`, `&&`, `|`, `^`, `&`, the comparisons and shifts, `+ -`, `* / %`. `&&` and `||` skip their right side when the left one decides, leaving the left value on the stack.
+- `-` between two texts removes the first occurrence of the right text from the left one.
+- Opcode 30 takes the index of the called function's name instead of its code offset.
+- Engine function ids start at 46. Additional opcodes:
+
+| Op | Operand | Action |
+|---|---|---|
+| 41 | | turn the top value into text, a number into its decimal digits |
+| 42 | | turn the top value into a number |
+| 43 | | turn the top value into a unit handle |
+| 44 | i32 | `&&`, jumping when the top value is 0, keeping it |
+| 45 | i32 | `\|\|`, jumping when the top value is not 0, keeping it |
 
 #### Engine functions and object kinds
 

@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Engine.Scripts;
 
@@ -15,12 +16,28 @@ public sealed partial class Script
     private byte[]? _code;
 
     /// <summary>
-    /// Creates an empty script.
+    /// Creates an empty script in Alien Shooter's version of the script language.
     /// </summary>
-    public Script()
+    public Script() : this(ScriptVersion.AlienShooter)
     {
+    }
+
+    /// <summary>
+    /// Creates an empty script in a version of the script language.
+    /// </summary>
+    /// <param name="version">The version of the script language the script is compiled in.</param>
+    public Script(ScriptVersion version)
+    {
+        Version = version;
         _defineLookup = _defines.GetAlternateLookup<ReadOnlySpan<byte>>();
     }
+
+    /// <summary>
+    /// Gets the version of the script language the script is compiled in.
+    /// </summary>
+    public ScriptVersion Version { get; }
+
+    private bool IsAlienShooter2 => Version == ScriptVersion.AlienShooter2;
 
     /// <summary>
     /// Gets the index of the object named <c>main</c>, or -1 when the script has none.
@@ -84,6 +101,32 @@ public sealed partial class Script
         }
 
         return end;
+    }
+
+    /// <summary>
+    /// Returns the operand of a call instruction to a function.
+    /// </summary>
+    /// <param name="function">The index of the function's object.</param>
+    /// <returns>The operand.</returns>
+    public int GetCallOperand(int function) => IsAlienShooter2 ? function : _objects[function].Address;
+
+    /// <summary>
+    /// Returns the index of the function a call instruction's operand names, or -1 when there is none.
+    /// </summary>
+    /// <param name="operand">The operand of the call instruction.</param>
+    /// <returns>The index of the function's object.</returns>
+    public int FindCalledFunction(int operand)
+    {
+        if (IsAlienShooter2)
+            return (uint)operand < (uint)_objectCount && _objects[operand].Kind == ScriptObjectKind.Function ? operand : -1;
+
+        for (int index = 0; index < _objectCount; index++)
+        {
+            if (_objects[index].Kind == ScriptObjectKind.Function && _objects[index].Address == operand)
+                return index;
+        }
+
+        return -1;
     }
 
     /// <summary>
@@ -182,9 +225,13 @@ public sealed partial class Script
     /// <param name="second">The second argument, a sprite handle when nonzero.</param>
     /// <param name="third">The third argument.</param>
     /// <returns>1 when the function destroys the sprite of its first argument, else the value of the outermost <c>return</c>, else 0.</returns>
+    /// <exception cref="NotSupportedException">The script is an Alien Shooter 2 script.</exception>
     [EngineRoutine(0x00423430)]
     public int CallFunction(IScriptFunctionHost host, int function, int first, int second, int third)
     {
+        if (IsAlienShooter2)
+            throw new NotSupportedException("Cannot run Alien Shooter 2 scripts.");
+
         int result = 0;
         bool indexPending = false;
         int index = 0;

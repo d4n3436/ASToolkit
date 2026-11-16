@@ -27,7 +27,7 @@ public sealed class LevelLoader
     public ReferenceLevel? Load(string name, string mapPath, bool isOriginal = true)
     {
         var map = MapResourceBuilder.Load(mapPath);
-        var script = LevelScriptReader.Read(Path.ChangeExtension(mapPath, ".lgc"));
+        var script = LevelScriptReader.Read(Path.ChangeExtension(mapPath, ".lgc"), _objects.ScriptVersion);
         var analysis = RouteAnalyzer.Analyze(name, map, script, _objects);
         if (analysis is null)
         {

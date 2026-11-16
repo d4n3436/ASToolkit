@@ -54,4 +54,9 @@ public sealed class LevelScriptSummary
     /// Gets the rules that place objects while too many objects of one kind exist.
     /// </summary>
     public IReadOnlyList<ScriptCrowdRule> CrowdRules { get; init; } = [];
+
+    /// <summary>
+    /// Gets the if blocks of the script's own code, each after the blocks inside it.
+    /// </summary>
+    public IReadOnlyList<ScriptBlock> Blocks { get; init; } = [];
 }

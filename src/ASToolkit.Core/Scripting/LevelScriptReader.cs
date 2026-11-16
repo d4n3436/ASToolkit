@@ -15,36 +15,36 @@ public static class LevelScriptReader
     /// <summary>
     /// Reads the facts of a level script in a game folder's Maps folder, or returns empty facts when the file does not exist.
     /// </summary>
-    public static LevelScriptSummary Read(string path)
-    {
-        if (!File.Exists(path))
-            return new LevelScriptSummary();
-
-        string gameFolder = FindGameFolder(path);
-
-        return Parse(File.ReadAllBytes(path), gameFolder, Path.GetRelativePath(gameFolder, path).Replace('/', '\\'));
-    }
+    /// <param name="path">The path of the level script.</param>
+    /// <param name="version">The version of the script language the level script is written in.</param>
+    /// <returns>The facts of the level script.</returns>
+    public static LevelScriptSummary Read(string path, ScriptVersion version) =>
+        File.Exists(path) ? new CompiledLevel(Compile(path, version)).Read() : new LevelScriptSummary();
 
     /// <summary>
     /// Reads the facts of a level script from its bytes, opening its includes from a game folder.
     /// </summary>
-    public static LevelScriptSummary Parse(ReadOnlyMemory<byte> data, string gameFolder, string name = "level.lgc")
-    {
-        var script = new Script();
-        script.Load(new MarkedScriptSource(new ScriptFolder(gameFolder), data), name);
+    /// <param name="data">The bytes of the level script.</param>
+    /// <param name="gameFolder">The game folder the includes are opened from.</param>
+    /// <param name="version">The version of the script language the level script is written in.</param>
+    /// <param name="name">The path the level script is compiled under.</param>
+    /// <returns>The facts of the level script.</returns>
+    public static LevelScriptSummary Parse(ReadOnlyMemory<byte> data, string gameFolder, ScriptVersion version, string name = "level.lgc") =>
+        new CompiledLevel(Compile(data, gameFolder, name, version)).Read();
 
-        return new CompiledLevel(script).Read();
+    private static Script Compile(string path, ScriptVersion version)
+    {
+        string gameFolder = FindGameFolder(path);
+
+        return Compile(File.ReadAllBytes(path), gameFolder, Path.GetRelativePath(gameFolder, path).Replace('/', '\\'), version);
     }
 
-    /// <summary>
-    /// Reads the facts of an Alien Shooter 2 level script from its text, or returns empty facts when the file does not exist.
-    /// </summary>
-    public static LevelScriptSummary ReadSequel(string path)
+    private static Script Compile(ReadOnlyMemory<byte> data, string gameFolder, string name, ScriptVersion version)
     {
-        if (!File.Exists(path))
-            return new LevelScriptSummary();
+        var script = new Script(version);
+        script.Load(new MarkedScriptSource(new ScriptFolder(gameFolder), data), name);
 
-        return LevelScriptBlockReader.ReadSummary(GameTextEncoding.Cyrillic.GetString(File.ReadAllBytes(path)));
+        return script;
     }
 
     private static string FindGameFolder(string path)
@@ -62,49 +62,67 @@ public static class LevelScriptReader
 
     private sealed class CompiledLevel
     {
-        private const int ChangeAnimationAction = 61;
-        private const int CountData = 28;
-        private const int KeypadOn = 423;
-        private const int KeypadOff = 424;
+        private const int AlienShooter2GetQuestsState = 48;
+        private const int AlienShooter2MissionFailed = 4;
+        private const int AlienShooter2SetDeathTimer = 113;
+        private const int SpaceKey = ' ';
         private readonly Script _script;
         private readonly ReadOnlyMemory<ScriptInstruction> _code;
         private readonly Range _own;
-        private readonly Callee _flagman;
-        private readonly Callee _sizeTo;
-        private readonly Callee _lightOff;
-        private readonly Callee _getX;
-        private readonly Callee _getUnitVid;
-        private readonly Callee _action;
-        private readonly Callee _getVidData;
-        private readonly Callee _genocide;
-        private readonly Callee _createSprite;
-        private readonly Callee _earthQuake;
-        private readonly Callee _win;
-        private readonly Callee _campaignTact;
+        private readonly ScriptCallee _flagman;
+        private readonly ScriptCallee _sizeTo;
+        private readonly ScriptCallee _lightOff;
+        private readonly ScriptCallee _getX;
+        private readonly ScriptCallee _getUnitVid;
+        private readonly ScriptCallee _action;
+        private readonly ScriptCallee _getVidData;
+        private readonly ScriptCallee _genocide;
+        private readonly ScriptCallee _createSprite;
+        private readonly ScriptCallee _earthQuake;
+        private readonly ScriptCallee _win;
+        private readonly ScriptCallee _campaignTact;
+        private readonly ScriptCallee _getKey;
+        private readonly ScriptCallee _failCurrentQuest;
+        private readonly ScriptCallee[] _wins;
+        private readonly ScriptCallee[] _lights;
+        private readonly Dictionary<int, string> _variableNames = [];
         private readonly int _startX;
         private readonly int _startY;
         private readonly int _doorsOpen;
+        private readonly int _gameState;
 
         public CompiledLevel(Script script)
         {
             _script = script;
             _own = MarkedScriptSource.GetRootCode(script);
             _code = Decode(_own.Start.Value, _own.End.Value);
-            _flagman = GetCallee("Flagman"u8);
-            _sizeTo = GetCallee("SizeTo"u8);
-            _lightOff = GetCallee("LightOff"u8);
-            _getX = GetCallee("GetX"u8);
-            _getUnitVid = GetCallee("GetUnitVid"u8);
-            _action = GetCallee("Action"u8);
-            _getVidData = GetCallee("GetVidData"u8);
-            _genocide = GetCallee("Genocide"u8);
-            _createSprite = GetCallee("CreateSprite"u8);
-            _earthQuake = GetCallee("EarthQuake"u8);
-            _win = GetCallee("Win"u8);
-            _campaignTact = GetCallee("CompaignGameTact"u8);
+            _flagman = ScriptCallee.Find(_script, "Flagman"u8);
+            _sizeTo = ScriptCallee.Find(_script, "SizeTo"u8);
+            _lightOff = ScriptCallee.Find(_script, "LightOff"u8);
+            _getX = ScriptCallee.Find(_script, "GetX"u8);
+            _getUnitVid = ScriptCallee.Find(_script, "GetUnitVid"u8);
+            _action = ScriptCallee.Find(_script, "Action"u8);
+            _getVidData = ScriptCallee.Find(_script, "GetVidData"u8);
+            _genocide = ScriptCallee.Find(_script, "Genocide"u8);
+            _createSprite = ScriptCallee.Find(_script, "CreateSprite"u8);
+            _earthQuake = ScriptCallee.Find(_script, "EarthQuake"u8);
+            _win = ScriptCallee.Find(_script, "Win"u8);
+            _campaignTact = ScriptCallee.Find(_script, "CompaignGameTact"u8);
             _startX = GetVariable("StartPlayerX"u8);
             _startY = GetVariable("StartPlayerY"u8);
             _doorsOpen = GetVariable("DoorsIsOpen"u8);
+            _gameState = GetVariable("GameState"u8);
+            _getKey = ScriptCallee.Find(_script, "GetKey"u8);
+            _failCurrentQuest = ScriptCallee.Find(_script, "FailCurQuest"u8);
+            _wins = [_win, ScriptCallee.Find(_script, "InstantWin"u8), ScriptCallee.Find(_script, "GoToNextMap"u8)];
+            _lights = [ScriptCallee.Find(_script, "ChangeLight"u8), _lightOff, ScriptCallee.Find(_script, "SetGamma"u8)];
+            foreach (var entry in script.Objects)
+            {
+                if (entry.Kind == ScriptObjectKind.Variable)
+                {
+                    _variableNames[entry.Address] = GameTextEncoding.Cyrillic.GetString(entry.Name.Span);
+                }
+            }
         }
 
         public LevelScriptSummary Read()
@@ -153,7 +171,8 @@ public static class LevelScriptReader
                 Exit = exit,
                 Triggers = triggers,
                 Handlers = ReadHandlers(),
-                CrowdRules = ReadCrowdRules(code)
+                CrowdRules = ReadCrowdRules(code),
+                Blocks = _script.Version == ScriptVersion.AlienShooter2 ? ReadBlocks() : []
             };
         }
 
@@ -163,7 +182,7 @@ public static class LevelScriptReader
             var instructions = new List<ScriptInstruction>();
             for (int offset = start; offset < end;)
             {
-                var instruction = ScriptInstruction.Read(code, offset);
+                var instruction = ScriptInstruction.Read(code, offset, _script.Version);
                 instructions.Add(instruction);
                 offset = instruction.End;
             }
@@ -171,21 +190,6 @@ public static class LevelScriptReader
             return instructions.ToArray();
         }
 
-        private Callee GetCallee(ReadOnlySpan<byte> name)
-        {
-            int found = _script.FindObject(name);
-            if (found < 0)
-                return Callee.None;
-
-            var entry = _script.Objects[found];
-
-            return entry.Kind switch
-            {
-                ScriptObjectKind.Extern => new Callee(entry.Address, -1, entry.FirstVariable, entry.Count),
-                ScriptObjectKind.Function => new Callee(-1, entry.Address, entry.FirstVariable, entry.Count),
-                _ => Callee.None
-            };
-        }
 
         private int GetVariable(ReadOnlySpan<byte> name)
         {
@@ -199,38 +203,38 @@ public static class LevelScriptReader
 
         private static bool IsNumber(ReadOnlySpan<ScriptInstruction> code, int index, int value) => IsNumber(code, index) && code[index].Operand == value;
 
-        private static bool IsExtern(ReadOnlySpan<ScriptInstruction> code, int index, Callee callee) =>
-            callee.Id >= 0 && (uint)index < (uint)code.Length && code[index].IsExternCall && (int)code[index].Opcode == callee.Id;
 
-        private static bool Is(ReadOnlySpan<ScriptInstruction> code, int index, ScriptOpcode opcode) =>
+        private static bool HasOpcode(ReadOnlySpan<ScriptInstruction> code, int index, ScriptOpcode opcode) =>
             (uint)index < (uint)code.Length && code[index].Opcode == opcode;
 
-        private static int SkipDefaults(ReadOnlySpan<ScriptInstruction> code, int index, Callee callee)
-        {
-            while (Is(code, index, ScriptOpcode.Load) && code[index].Operand >= callee.FirstVariable && code[index].Operand < callee.FirstVariable + callee.Count)
-            {
-                index++;
-            }
 
-            return index;
-        }
-
-        private static bool IsExternCall(ReadOnlySpan<ScriptInstruction> code, int index, Callee callee) => IsExtern(code, SkipDefaults(code, index, callee), callee);
 
         private bool IsDistanceCheck(ReadOnlySpan<ScriptInstruction> code, int index, out TriggerArea area, out ReadOnlySpan<ScriptInstruction> body)
         {
-            area = default;
             body = default;
-            if (!IsNumber(code, index, 0) || !IsExtern(code, index + 1, _flagman) || !IsNumber(code, index + 2) || !IsNumber(code, index + 3))
+            if (!IsPlayerWithin(code, index, out area, out int end) || !HasOpcode(code, end, ScriptOpcode.JumpIfFalseOnce))
                 return false;
 
-            int call = SkipDefaults(code, index + 4, _sizeTo);
-            if (!IsExtern(code, call, _sizeTo) || !IsNumber(code, call + 1) || code[call + 1].Operand < 0 || !Is(code, call + 2, ScriptOpcode.Less) ||
-                !Is(code, call + 3, ScriptOpcode.JumpIfFalseOnce))
+            body = GetBody(code, end);
+
+            return true;
+        }
+
+        private bool IsPlayer(ReadOnlySpan<ScriptInstruction> code, int index) => IsNumber(code, index, 0) && _flagman.IsExternAt(code, index + 1);
+
+        private bool IsPlayerWithin(ReadOnlySpan<ScriptInstruction> code, int index, out TriggerArea area, out int end)
+        {
+            area = default;
+            end = -1;
+            if (!IsPlayer(code, index) || !IsNumber(code, index + 2) || !IsNumber(code, index + 3))
+                return false;
+
+            int call = _sizeTo.SkipDefaults(code, index + 4);
+            if (!_sizeTo.IsExternAt(code, call) || !IsNumber(code, call + 1) || code[call + 1].Operand < 0 || !HasOpcode(code, call + 2, ScriptOpcode.Less))
                 return false;
 
             area = new TriggerArea(new Point(code[index + 2].Operand, code[index + 3].Operand), code[call + 1].Operand);
-            body = GetBody(code, call + 3);
+            end = call + 3;
 
             return true;
         }
@@ -247,14 +251,14 @@ public static class LevelScriptReader
             return code[(jump + 1)..end];
         }
 
-        private static int? FindFirstArgument(ReadOnlySpan<ScriptInstruction> body, Callee callee)
+        private static int? FindFirstArgument(ReadOnlySpan<ScriptInstruction> body, ScriptCallee callee)
         {
             for (int index = 0; index < body.Length; index++)
             {
-                if (IsNumber(body, index) && IsExternCall(body, index + 1, callee))
+                if (IsNumber(body, index) && callee.IsExternCallAt(body, index + 1))
                     return body[index].Operand;
 
-                if (callee.Address < 0 || body[index].Opcode != ScriptOpcode.Call || body[index].Operand != callee.Address)
+                if (callee.CallOperand < 0 || body[index].Opcode != ScriptOpcode.Call || body[index].Operand != callee.CallOperand)
                     continue;
 
                 for (int argument = index - 1; argument > 0; argument--)
@@ -278,11 +282,11 @@ public static class LevelScriptReader
             return false;
         }
 
-        private static bool Calls(ReadOnlySpan<ScriptInstruction> code, Callee callee)
+        private static bool Calls(ReadOnlySpan<ScriptInstruction> code, ScriptCallee callee)
         {
             foreach (var instruction in code)
             {
-                if (callee.Address >= 0 && instruction.Opcode == ScriptOpcode.Call && instruction.Operand == callee.Address)
+                if (callee.CallOperand >= 0 && instruction.Opcode == ScriptOpcode.Call && instruction.Operand == callee.CallOperand)
                     return true;
             }
 
@@ -326,7 +330,7 @@ public static class LevelScriptReader
         {
             for (int index = 2; index < body.Length; index++)
             {
-                if (body[index].Opcode == ScriptOpcode.Assign && body[index].Operand == _startX && IsExtern(body, index - 1, _getX) && IsExtern(body, index - 2, _flagman))
+                if (body[index].Opcode == ScriptOpcode.Assign && body[index].Operand == _startX && _getX.IsExternAt(body, index - 1) && _flagman.IsExternAt(body, index - 2))
                     return true;
             }
 
@@ -336,8 +340,8 @@ public static class LevelScriptReader
         private int MatchUnitTest(ReadOnlySpan<ScriptInstruction> code, int index, out int vid)
         {
             vid = 0;
-            if (!Is(code, index, ScriptOpcode.Load) || !IsExtern(code, index + 1, _getUnitVid) || !IsNumber(code, index + 2) || !Is(code, index + 3, ScriptOpcode.Equal) ||
-                !Is(code, index + 4, ScriptOpcode.JumpIfFalse))
+            if (!HasOpcode(code, index, ScriptOpcode.Load) || !_getUnitVid.IsExternAt(code, index + 1) || !IsNumber(code, index + 2) || !HasOpcode(code, index + 3, ScriptOpcode.Equal) ||
+                !HasOpcode(code, index + 4, ScriptOpcode.JumpIfFalse))
                 return -1;
 
             vid = code[index + 2].Operand;
@@ -350,7 +354,7 @@ public static class LevelScriptReader
             for (int index = 0; index < body.Length; index++)
             {
                 int first = MatchUnitTest(body, index, out int vid);
-                if (first >= 0 && vid == KeypadOn && IsNumber(body, first, KeypadOff))
+                if (first >= 0 && vid == (int)KnownObject.KeypadOn && IsNumber(body, first, (int)KnownObject.KeypadOff))
                     return true;
             }
 
@@ -363,8 +367,8 @@ public static class LevelScriptReader
             for (int index = 0; index < body.Length; index++)
             {
                 int first = MatchUnitTest(body, index, out int vid);
-                if (first >= 0 && Is(body, first, ScriptOpcode.Load) && body[first].Operand == body[index].Operand && IsNumber(body, first + 1, ChangeAnimationAction) &&
-                    IsNumber(body, first + 2, (int)SpriteAnimation.Death) && IsExternCall(body, first + 3, _action))
+                if (first >= 0 && HasOpcode(body, first, ScriptOpcode.Load) && body[first].Operand == body[index].Operand && IsNumber(body, first + 1, (int)ActionCode.ChangeAnimation) &&
+                    IsNumber(body, first + 2, (int)SpriteAnimation.Death) && _action.IsExternCallAt(body, first + 3))
                 {
                     kills.Add((KnownObject)vid);
                 }
@@ -377,7 +381,7 @@ public static class LevelScriptReader
         {
             for (int index = 0; index + 1 < code.Length; index++)
             {
-                if (IsNumber(code, index, 1) && Is(code, index + 1, ScriptOpcode.JumpIfFalseOnce))
+                if (IsNumber(code, index, 1) && HasOpcode(code, index + 1, ScriptOpcode.JumpIfFalseOnce))
                     return AssignsNumber(GetBody(code, index + 1), _doorsOpen, 0);
             }
 
@@ -388,7 +392,7 @@ public static class LevelScriptReader
         {
             for (int index = 0; index + 2 < code.Length; index++)
             {
-                if (IsNumber(code, index, (int)KnownObject.DynamiteSite) && IsNumber(code, index + 1) && IsExternCall(code, index + 2, _getVidData))
+                if (IsNumber(code, index, (int)KnownObject.DynamiteSite) && IsNumber(code, index + 1) && _getVidData.IsExternCallAt(code, index + 2))
                     return true;
             }
 
@@ -412,7 +416,7 @@ public static class LevelScriptReader
                 var destroys = new List<KnownObject>();
                 for (int at = 0; at + 1 < body.Length; at++)
                 {
-                    if (IsNumber(body, at) && IsExternCall(body, at + 1, _genocide))
+                    if (IsNumber(body, at) && _genocide.IsExternCallAt(body, at + 1))
                     {
                         destroys.Add((KnownObject)body[at].Operand);
                     }
@@ -435,31 +439,181 @@ public static class LevelScriptReader
             var objects = _script.Objects;
             foreach (var instruction in own.Span)
             {
-                if (instruction.Opcode != ScriptOpcode.Call || !IsOwn(instruction.Operand))
+                if (instruction.Opcode != ScriptOpcode.Call)
                     continue;
 
-                for (int index = 0; index < objects.Length; index++)
+                int index = _script.FindCalledFunction(instruction.Operand);
+                if (index >= 0 && IsOwn(objects[index].Address) && objects[index].Count == 0)
                 {
-                    if (objects[index].Kind == ScriptObjectKind.Function && objects[index].Address == instruction.Operand && objects[index].Count == 0)
-                    {
-                        body.AddRange(Decode(objects[index].Address, _script.GetFunctionEnd(index)).Span);
-                    }
+                    body.AddRange(Decode(objects[index].Address, _script.GetFunctionEnd(index)).Span);
                 }
             }
 
             return body.ToArray();
         }
 
+        private ScriptBlock[] ReadBlocks()
+        {
+            var blocks = new List<ScriptBlock>();
+            AddBlocks(blocks, [], 0, _code.Length, FindIfs());
+
+            return blocks.ToArray();
+        }
+
+        private static bool EndsStatement(ScriptOpcode opcode) =>
+            opcode is ScriptOpcode.EndStatement or ScriptOpcode.JumpIfFalse or ScriptOpcode.JumpIfFalseOnce or ScriptOpcode.Jump or ScriptOpcode.Return;
+
+        private List<IfStatement> FindIfs()
+        {
+            var code = _code.Span;
+            var ifs = new List<IfStatement>();
+            for (int jump = 0; jump < code.Length; jump++)
+            {
+                if (code[jump].Opcode is not (ScriptOpcode.JumpIfFalse or ScriptOpcode.JumpIfFalseOnce) || code[jump].Target <= code[jump].Offset ||
+                    HasOpcode(code, jump + 1, ScriptOpcode.Jump))
+                    continue;
+
+                int start = jump;
+                while (start > 0 && !EndsStatement(code[start - 1].Opcode))
+                {
+                    start--;
+                }
+
+                int end = jump + 1;
+                while (end < code.Length && code[end].Offset < code[jump].Target)
+                {
+                    end++;
+                }
+
+                int bodyEnd = end;
+                if (end - 1 > jump && code[end - 1].Opcode == ScriptOpcode.Jump)
+                {
+                    if (code[end - 1].Target == code[start].Offset)
+                        continue;
+
+                    bodyEnd--;
+                }
+
+                ifs.Add(new IfStatement(start, jump, bodyEnd, end));
+            }
+
+            ifs.Sort((first, second) => first.Start.CompareTo(second.Start));
+
+            return ifs;
+        }
+
+        private void AddBlocks(List<ScriptBlock> blocks, ScriptCondition[] conditions, int from, int to, List<IfStatement> ifs)
+        {
+            var code = _code.Span;
+            var own = new List<ScriptInstruction>();
+            int index = from;
+            foreach (var statement in ifs)
+            {
+                if (statement.Start < index || statement.Start >= to)
+                    continue;
+
+                own.AddRange(code[index..statement.Start]);
+                AddBlocks(blocks, conditions.Append(ReadCondition(code[statement.Start..statement.Jump])).ToArray(), statement.Jump + 1, statement.BodyEnd, ifs);
+                index = statement.End;
+            }
+
+            own.AddRange(code[index..to]);
+            blocks.Add(ReadBlock(conditions, own.ToArray()));
+        }
+
+        private ScriptCondition ReadCondition(ReadOnlySpan<ScriptInstruction> condition)
+        {
+            TriggerArea? area = null;
+            (int Line, int Sub)? quest = null;
+            string? variable = null;
+            int value = 0;
+            bool waitForSpace = false;
+            for (int index = 0; index < condition.Length; index++)
+            {
+                if (area is null && IsPlayerWithin(condition, index, out var within, out _))
+                {
+                    area = within;
+                }
+
+                if (quest is null && IsNumber(condition, index, AlienShooter2GetQuestsState) && IsNumber(condition, index + 1) && IsNumber(condition, index + 2) &&
+                    condition[index + 1].Operand >= 0 && condition[index + 2].Operand >= 0)
+                {
+                    quest = (condition[index + 1].Operand + 1, condition[index + 2].Operand);
+                }
+
+                if (variable is null && HasOpcode(condition, index, ScriptOpcode.Load) && IsNumber(condition, index + 1) && condition[index + 1].Operand >= 0 &&
+                    HasOpcode(condition, index + 2, ScriptOpcode.Equal) && _variableNames.TryGetValue(condition[index].Operand, out string? compared))
+                {
+                    variable = compared;
+                    value = condition[index + 1].Operand;
+                }
+
+                waitForSpace |= _getKey.IsCallAt(condition, index) && IsNumber(condition, index + 1, SpaceKey) && HasOpcode(condition, index + 2, ScriptOpcode.Equal);
+            }
+
+            string? flag = HasOpcode(condition, 0, ScriptOpcode.Load) && (condition.Length == 1 || HasOpcode(condition, 1, ScriptOpcode.AndJump)) &&
+                _variableNames.TryGetValue(condition[0].Operand, out string? name) ? name : null;
+
+            return new ScriptCondition(area, quest, variable, value, flag, waitForSpace);
+        }
+
+        private ScriptBlock ReadBlock(ScriptCondition[] conditions, ReadOnlySpan<ScriptInstruction> code)
+        {
+            var destroys = new List<KnownObject>();
+            var assignments = new List<ScriptAssignment>();
+            bool losesLevel = _failCurrentQuest.IsCalledIn(code);
+            Vector3? move = null;
+            bool setsDeathTimer = false;
+            for (int index = 0; index < code.Length; index++)
+            {
+                if (IsNumber(code, index) && _genocide.IsExternCallAt(code, index + 1))
+                {
+                    destroys.Add((KnownObject)code[index].Operand);
+                }
+
+                losesLevel |= IsNumber(code, index, AlienShooter2MissionFailed) && HasOpcode(code, index + 1, ScriptOpcode.Assign) && code[index + 1].Operand == _gameState;
+                if (move is null && IsPlayer(code, index) && IsNumber(code, index + 2, (int)ActionCode.ChangeCoor) && IsNumber(code, index + 3) && IsNumber(code, index + 4) &&
+                    IsNumber(code, index + 5))
+                {
+                    move = new Vector3(code[index + 3].Operand, code[index + 4].Operand, code[index + 5].Operand);
+                }
+
+                setsDeathTimer |= IsPlayer(code, index) && IsNumber(code, index + 2, AlienShooter2SetDeathTimer);
+                if (HasOpcode(code, index, ScriptOpcode.Assign) && !HasOpcode(code, index + 1, ScriptOpcode.Pop) && !HasOpcode(code, index - 1, ScriptOpcode.SetIndex) &&
+                    _variableNames.TryGetValue(code[index].Operand, out string? name))
+                {
+                    bool storesLiteral = IsNumber(code, index - 1) && (index == 1 || EndsStatement(code[index - 2].Opcode));
+                    assignments.Add(new ScriptAssignment(name, storesLiteral ? code[index - 1].Operand : 1));
+                }
+            }
+
+            return new ScriptBlock(conditions, destroys.ToArray(), losesLevel, IsAnyCalledIn(_wins, code), move, setsDeathTimer, IsAnyCalledIn(_lights, code),
+                assignments.ToArray());
+        }
+
+        private static bool IsAnyCalledIn(ScriptCallee[] callees, ReadOnlySpan<ScriptInstruction> code)
+        {
+            foreach (var callee in callees)
+            {
+                if (callee.IsCalledIn(code))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private readonly record struct IfStatement(int Start, int Jump, int BodyEnd, int End);
+
         private ScriptCrowdRule[] ReadCrowdRules(ReadOnlySpan<ScriptInstruction> code)
         {
             var rules = new List<ScriptCrowdRule>();
             for (int index = 0; index < code.Length; index++)
             {
-                if (!IsNumber(code, index) || !IsNumber(code, index + 1, CountData))
+                if (!IsNumber(code, index) || !IsNumber(code, index + 1, (int)VidDataType.Count))
                     continue;
 
-                int call = SkipDefaults(code, index + 2, _getVidData);
-                if (!IsExtern(code, call, _getVidData) || !IsNumber(code, call + 1) || !Is(code, call + 2, ScriptOpcode.Greater) || !Is(code, call + 3, ScriptOpcode.JumpIfFalse))
+                int call = _getVidData.SkipDefaults(code, index + 2);
+                if (!_getVidData.IsExternAt(code, call) || !IsNumber(code, call + 1) || !HasOpcode(code, call + 2, ScriptOpcode.Greater) || !HasOpcode(code, call + 3, ScriptOpcode.JumpIfFalse))
                     continue;
 
                 var body = GetBody(code, call + 3);
@@ -470,8 +624,8 @@ public static class LevelScriptReader
                 KnownObject placed = 0;
                 for (int at = 0; at + 4 < body.Length; at++)
                 {
-                    if (!IsNumber(body, at) || !IsNumber(body, at + 1) || !IsNumber(body, at + 2) || !IsNumber(body, at + 3) || Is(body, at - 1, ScriptOpcode.PushNumber) ||
-                        SkipDefaults(body, at + 4, _createSprite) != at + 6 || !IsExtern(body, at + 6, _createSprite))
+                    if (!IsNumber(body, at) || !IsNumber(body, at + 1) || !IsNumber(body, at + 2) || !IsNumber(body, at + 3) || HasOpcode(body, at - 1, ScriptOpcode.PushNumber) ||
+                        _createSprite.SkipDefaults(body, at + 4) != at + 6 || !_createSprite.IsExternAt(body, at + 6))
                         continue;
 
                     if (points.Count == 0)
@@ -491,9 +645,5 @@ public static class LevelScriptReader
             return rules.ToArray();
         }
 
-        private readonly record struct Callee(int Id, int Address, int FirstVariable, int Count)
-        {
-            public static Callee None { get; } = new(-1, -1, 0, 0);
-        }
     }
 }

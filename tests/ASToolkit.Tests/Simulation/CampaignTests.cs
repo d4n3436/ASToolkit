@@ -40,13 +40,13 @@ public class CampaignTests
         string game = TestGameFolder.RequireFolder();
         var objects = TestGameFolder.Objects;
         string path = Path.Combine(game, "Maps", "Level_03.map");
-        var level = RouteAnalyzer.Analyze("Level_03.map", MapResourceBuilder.Load(path), LevelScriptReader.Read(Path.ChangeExtension(path, ".lgc")), objects)!;
+        var level = RouteAnalyzer.Analyze("Level_03.map", MapResourceBuilder.Load(path), LevelScriptReader.Read(Path.ChangeExtension(path, ".lgc"), objects.ScriptVersion), objects)!;
         var loadout = new PlayerLoadout(KnownObject.RedArmor, new Dictionary<KnownObject, int> { [KnownObject.Minigun] = 800, [KnownObject.RocketLauncher] = 80 },
             new PlayerImplants(3, 3, 3, 3));
         var recorder = new ReplayRecorder();
         var session = new Playthrough(game, objects, TestGameFolder.Table).Start(level, loadout, 1, recorder);
         int placed = level.Elements.Count(element => element.Kind == ElementKind.Monster);
-        bool Opened(KnownObject id) => recorder.CreateReplay([]).RemovedSprites.Any(removal => removal.Placement.Id == id);
+        
         for (int time = 10000; time <= 240000 && !(session.Log.Kills > placed && Opened(KnownObject.SpawnWallSlash) && Opened(KnownObject.SpawnWallBack)); time += 10000)
         {
             session.PlayUntil(time, recorder);
@@ -55,24 +55,29 @@ public class CampaignTests
         Assert.True(session.Log.Kills > placed);
         Assert.True(Opened(KnownObject.SpawnWallSlash));
         Assert.True(Opened(KnownObject.SpawnWallBack));
+        return;
+        
+        bool Opened(KnownObject id) => recorder.CreateReplay([]).RemovedSprites.Any(removal => removal.Placement.Id == id);
     }
 
     [Fact]
     public void Start_AccuracyImplants_NarrowTheWeaponAimThroughTheItemScript()
     {
+        const int accuracyImplants = 2;
+        
         string game = TestGameFolder.RequireFolder();
         var play = new Playthrough(game, TestGameFolder.Objects, TestGameFolder.Table);
         var level = EmptyLevel();
-        const int AccuracyImplants = 2;
+
         var weapons = Enumerable.Range(Unit.WeaponIdBase, Unit.WeaponSlots).Select(id => (KnownObject)id).ToArray();
         var plain = play.Start(level, new PlayerLoadout(0, new Dictionary<KnownObject, int>(), new PlayerImplants(0, 0, 0, 0)), 1, null);
         plain.PlayUntil(100);
         int[] aims = weapons.Select(id => (int)plain.World.Definitions.Find(id)!.Aim).ToArray();
-        var implanted = play.Start(level, new PlayerLoadout(0, new Dictionary<KnownObject, int>(), new PlayerImplants(0, 0, 0, AccuracyImplants)), 1, null);
+        var implanted = play.Start(level, new PlayerLoadout(0, new Dictionary<KnownObject, int>(), new PlayerImplants(0, 0, 0, accuracyImplants)), 1, null);
         implanted.PlayUntil(100);
 
         Assert.Contains(aims, aim => aim > 0);
-        Assert.Equal(aims.Select(aim => Enumerable.Range(0, AccuracyImplants).Aggregate(aim, (scaled, _) => scaled * 6 / 10)), weapons.Select(id => (int)implanted.World.Definitions.Find(id)!.Aim));
+        Assert.Equal(aims.Select(aim => Enumerable.Range(0, accuracyImplants).Aggregate(aim, (scaled, _) => scaled * 6 / 10)), weapons.Select(id => (int)implanted.World.Definitions.Find(id)!.Aim));
     }
 
     private static RouteAnalysis EmptyLevel(params KnownObject[] pickups)

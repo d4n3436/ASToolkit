@@ -203,5 +203,30 @@ public enum ScriptOpcode : byte
     /// <summary>
     /// Take the top value as the index of the next variable instruction.
     /// </summary>
-    SetIndex = 40
+    SetIndex = 40,
+
+    /// <summary>
+    /// Convert the top value to text (Alien Shooter 2).
+    /// </summary>
+    CastString = 41,
+
+    /// <summary>
+    /// Convert the top value to a number (Alien Shooter 2).
+    /// </summary>
+    CastInt = 42,
+
+    /// <summary>
+    /// Convert the top value to a sprite handle (Alien Shooter 2).
+    /// </summary>
+    CastSprite = 43,
+
+    /// <summary>
+    /// Jump when the top value is zero, keeping it on the stack (Alien Shooter 2).
+    /// </summary>
+    AndJump = 44,
+
+    /// <summary>
+    /// Jump when the top value is not zero, keeping it on the stack (Alien Shooter 2).
+    /// </summary>
+    OrJump = 45
 }

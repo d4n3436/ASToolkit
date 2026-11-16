@@ -33,6 +33,11 @@ public sealed class ObjectTable
     /// </summary>
     public bool IsAlienShooter2 { get; }
 
+    /// <summary>
+    /// Gets the version of the script language the game uses.
+    /// </summary>
+    public ScriptVersion ScriptVersion => IsAlienShooter2 ? ScriptVersion.AlienShooter2 : ScriptVersion.AlienShooter;
+
     internal float Gravitation { get; private init; }
 
     internal float Gravitation2 { get; private init; }

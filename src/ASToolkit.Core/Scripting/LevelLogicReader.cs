@@ -8,6 +8,7 @@ namespace ASToolkit.Core.Scripting;
 /// </summary>
 public static class LevelLogicReader
 {
+    private const int ResolvePasses = 3;
 
     /// <summary>
     /// Reads the script events of a level and the order its quests lead the player through.
@@ -20,9 +21,10 @@ public static class LevelLogicReader
     {
         var context = new ScriptContext(map, objects, quests);
         string? scriptPath = FindLevelScript(mapPath);
+        var script = scriptPath is null ? new LevelScriptSummary() : LevelScriptReader.Read(scriptPath, objects.ScriptVersion);
         if (!objects.IsAlienShooter2)
         {
-            AddLevelScriptMarkers(context.Markers, scriptPath);
+            AddLevelScriptMarkers(context.Markers, script);
         }
 
         foreach (var sprite in map.Sprites)
@@ -39,10 +41,7 @@ public static class LevelLogicReader
             }
         }
 
-        if (objects.IsAlienShooter2 && scriptPath is not null)
-        {
-            LevelScriptBlockReader.Read(File.ReadAllText(scriptPath, GameTextEncoding.Cyrillic), context);
-        }
+        AddScriptBlocks(context, script.Blocks);
 
         foreach (var start in context.VariableQuestStarts)
         {
@@ -110,14 +109,205 @@ public static class LevelLogicReader
         return folder is null ? null : GamePath.Resolve(folder, Path.GetFileNameWithoutExtension(mapPath) + ".lgc");
     }
 
-    private static void AddLevelScriptMarkers(List<ScriptMarker> markers, string? scriptPath)
+    private static void AddScriptBlocks(ScriptContext context, IReadOnlyList<ScriptBlock> blocks)
     {
-        if (scriptPath is null)
+        var variables = context.VariableSets.ToList();
+        for (int pass = 0; pass < ResolvePasses; pass++)
         {
-            return;
+            foreach (var block in blocks)
+            {
+                foreach (var place in GetPlaces(context, block.Conditions, variables))
+                {
+                    foreach (var assignment in block.Assignments)
+                    {
+                        variables.Add((assignment.Variable, assignment.Value, place.Center, place.Radius));
+                    }
+                }
+            }
+
+            variables = variables.Distinct().ToList();
         }
 
-        var script = LevelScriptReader.Read(scriptPath);
+        AddSkips(context, blocks);
+        foreach (var block in blocks)
+        {
+            var quest = GetQuest(block.Conditions);
+            var effects = GetEffects(context, block, quest);
+            if (effects.Count == 0)
+                continue;
+
+            var kind = effects.Max(effect => effect.Kind);
+            string conditions = string.Join(", ", block.Conditions.Select(DescribeCondition).OfType<string>());
+            string label = $"level script{(conditions.Length > 0 ? ", " + conditions : "")}: {string.Join("; ", effects.Select(effect => effect.Text).Distinct())}";
+            foreach (var place in GetPlaces(context, block.Conditions, variables).DistinctBy(place => place.Center))
+            {
+                if (context.Markers.Any(marker => marker.Label == label && marker.Position == place.Center))
+                    continue;
+
+                context.Markers.Add(new ScriptMarker(kind, place.Center, place.Radius, place.Center, label) { Target = block.PlayerMove });
+                if (kind == ScriptMarkerKind.Exit)
+                {
+                    context.Exits.Add((place.Center, place.Radius, quest, label));
+                }
+            }
+        }
+    }
+
+    private static void AddSkips(ScriptContext context, IReadOnlyList<ScriptBlock> blocks)
+    {
+        foreach (var block in blocks)
+        {
+            if (block.PlayerMove is null)
+                continue;
+
+            var destination = block.PlayerMove.Value;
+            foreach (var condition in block.Conditions)
+            {
+                string? name = condition.Variable;
+                if (name is null)
+                    continue;
+
+                foreach (var press in blocks.Where(candidate => candidate.Conditions.Any(press => press.WaitForSpace) && Assigns(candidate, name)))
+                {
+                    var quest = FindQuest(blocks, press.Conditions, ResolvePasses);
+                    if (quest is not null && !context.Skips.Any(skip => skip.Quest == quest.Value && skip.Destination == destination))
+                    {
+                        context.Skips.Add((quest.Value, destination));
+                    }
+                }
+            }
+        }
+    }
+
+    private static bool Assigns(ScriptBlock block, string name) => block.Assignments.Any(assignment => assignment.Variable == name);
+
+    private static (int Line, int Sub)? FindQuest(IReadOnlyList<ScriptBlock> blocks, IReadOnlyList<ScriptCondition> conditions, int depth)
+    {
+        var quest = GetQuest(conditions);
+        if (quest is not null || depth == 0)
+            return quest;
+
+        foreach (var condition in conditions)
+        {
+            string? name = condition.Flag;
+            if (name is null)
+                continue;
+
+            foreach (var setter in blocks.Where(candidate => Assigns(candidate, name)))
+            {
+                quest = FindQuest(blocks, setter.Conditions, depth - 1);
+                if (quest is not null)
+                    return quest;
+            }
+        }
+
+        return null;
+    }
+
+    private static List<(Vector3 Center, float Radius)> GetPlaces(ScriptContext context, IReadOnlyList<ScriptCondition> conditions,
+        List<(string Name, int Value, Vector3 Position, float Radius)> variables)
+    {
+        for (int index = conditions.Count - 1; index >= 0; index--)
+        {
+            var condition = conditions[index];
+            if (condition.Area is not null)
+            {
+                var area = condition.Area.Value;
+                return [(new Vector3(area.Center.X, area.Center.Y, 0), area.Radius)];
+            }
+
+            if (condition.Quest is not null)
+            {
+                var quest = condition.Quest.Value;
+                var starts = context.QuestStarts.Where(start => start.Quest.Line == quest.Line && start.Quest.Sub == quest.Sub).Select(start => (start.Position, 0f)).ToList();
+                if (starts.Count > 0)
+                    return starts;
+
+                continue;
+            }
+
+            string? name = condition.Variable ?? condition.Flag;
+            if (name is null)
+                continue;
+
+            int? value = condition.Variable is not null ? condition.Value : null;
+            var sets = variables.Where(set => set.Name == name && (value is null ? set.Value != 0 : set.Value == value)).Select(set => (set.Position, 0f)).ToList();
+            if (sets.Count > 0)
+                return sets;
+        }
+
+        return [];
+    }
+
+    private static (int Line, int Sub)? GetQuest(IReadOnlyList<ScriptCondition> conditions)
+    {
+        for (int index = conditions.Count - 1; index >= 0; index--)
+        {
+            if (conditions[index].Quest is not null)
+                return conditions[index].Quest;
+        }
+
+        return null;
+    }
+
+    private static string? DescribeCondition(ScriptCondition condition)
+    {
+        if (condition.Area is not null)
+            return $"when the player comes within {condition.Area.Value.Radius} px";
+
+        if (condition.Quest is not null)
+            return $"once quest {condition.Quest.Value.Line}_{condition.Quest.Value.Sub} starts";
+
+        if (condition.Variable is not null)
+            return $"once {condition.Variable} is {condition.Value}";
+
+        return condition.Flag is not null ? $"while {condition.Flag} is set" : null;
+    }
+
+    private static List<(ScriptMarkerKind Kind, string Text)> GetEffects(ScriptContext context, ScriptBlock block, (int Line, int Sub)? quest)
+    {
+        var effects = new List<(ScriptMarkerKind Kind, string Text)>();
+        foreach (var id in block.Removals)
+        {
+            var removed = context.GetSprites(id);
+            effects.Add((ScriptMarkerKind.Opening, $"remove every {context.GetObjectName((int)id)} ×{removed.Count}"));
+            foreach (var sprite in removed)
+            {
+                context.Open(sprite.Handle, quest);
+            }
+        }
+
+        if (block.LosesLevel)
+        {
+            effects.Add((ScriptMarkerKind.Failure, "lose the level"));
+        }
+
+        if (block.WinsLevel)
+        {
+            effects.Add((ScriptMarkerKind.Exit, "win the level"));
+        }
+
+        if (block.PlayerMove is not null)
+        {
+            var move = block.PlayerMove.Value;
+            effects.Add((ScriptMarkerKind.Teleport, $"move the player to ({move.X:0}, {move.Y:0})"));
+        }
+
+        if (block.SetsDeathTimer)
+        {
+            effects.Add((ScriptMarkerKind.Other, "set a death timer on the player"));
+        }
+
+        if (block.ChangesLight)
+        {
+            effects.Add((ScriptMarkerKind.Other, "change the light"));
+        }
+
+        return effects;
+    }
+
+    private static void AddLevelScriptMarkers(List<ScriptMarker> markers, LevelScriptSummary script)
+    {
         if (script.Blackout is not null)
         {
             markers.Add(CreateAreaMarker(ScriptMarkerKind.Blackout, script.Blackout.Value, "level script: turn the lights off and lock the doors"));

@@ -12,6 +12,7 @@ public sealed partial class Script
     private const int CodeCapacity = 0x3e800;
     private const int MaxNameLength = 0xfff;
     private const int MaxBreaks = 0x80;
+    private const int UnsizedArray = 999999;
     private static readonly string[] ErrorFormats =
     [
         "0x{0:X} Couldn't lock {1}", "0x{0:X} Couldn't copy {1}", "{0} There was not enough memory for {1}", "0x{0:X} Couldn't create the {1}",
@@ -41,12 +42,17 @@ public sealed partial class Script
     public string FileName => _fileName;
 
     /// <summary>
+    /// Gets the compile error after which Alien Shooter 2 leaves the script empty, or null.
+    /// </summary>
+    public string? CompileError { get; private set; }
+
+    /// <summary>
     /// Loads a script file, compiling its source or reading its compiled form.
     /// </summary>
     /// <param name="source">The files the script and its includes are opened from.</param>
     /// <param name="path">The path of the script file.</param>
     /// <returns><see langword="true"/> when the file was opened; otherwise, <see langword="false"/>.</returns>
-    /// <exception cref="InvalidDataException">The source has an error the engine stops on.</exception>
+    /// <exception cref="InvalidDataException">The source of an Alien Shooter script has an error the engine stops on.</exception>
     [EngineRoutine(0x0041f7d0)]
     public bool Load(IScriptFileSource source, string path)
     {
@@ -116,6 +122,11 @@ public sealed partial class Script
                 _code = _codeBuffer.AsSpan(0, _codeSize).ToArray();
             }
         }
+        catch (InvalidDataException exception) when (IsAlienShooter2)
+        {
+            Reset();
+            CompileError = exception.Message;
+        }
         finally
         {
             ArrayPool<byte>.Shared.Return(_codeBuffer);
@@ -137,6 +148,7 @@ public sealed partial class Script
         _ifDepth = 0;
         _noSubstitution = false;
         MainIndex = -1;
+        CompileError = null;
     }
 
     private void OpenText(ReadOnlySpan<byte> file)
@@ -321,6 +333,9 @@ public sealed partial class Script
         if ((IsAlpha(token[0]) || token[0] == '#') && IsNameCharacter(At(_position + token.Length)))
             return false;
 
+        if (IsAlienShooter2 && token.Length == 1 && At(_position + 1) == token[0] && "-+|&="u8.Contains(token[0]))
+            return false;
+
         _position += token.Length;
         SkipBlanksAndDirectives();
 
@@ -497,7 +512,11 @@ public sealed partial class Script
     {
         if (_codeBuffer[start] != (byte)ScriptOpcode.PushNumber || _codeBuffer[start + 5] != (byte)ScriptOpcode.PushNumber || _codeSize - start != 10)
         {
-            Emit(op);
+            if (!IsAlienShooter2 || op != ScriptOpcode.Add || !TryFoldTexts(start))
+            {
+                Emit(op);
+            }
+
             return;
         }
 
@@ -521,9 +540,31 @@ public sealed partial class Script
         _codeSize -= 5;
     }
 
+    private bool TryFoldTexts(int start)
+    {
+        if (_codeBuffer[start] != (byte)ScriptOpcode.PushText)
+            return false;
+
+        int first = start + 1 + _codeBuffer.AsSpan(start + 1, _codeSize - start - 1).IndexOf((byte)0);
+        if (first + 1 >= _codeSize || _codeBuffer[first + 1] != (byte)ScriptOpcode.PushText ||
+            first + 2 + _codeBuffer.AsSpan(first + 2, _codeSize - first - 2).IndexOf((byte)0) != _codeSize - 1)
+            return false;
+
+        _codeBuffer.AsSpan(first + 2, _codeSize - first - 2).CopyTo(_codeBuffer.AsSpan(first));
+        _codeSize -= 2;
+
+        return true;
+    }
+
     [EngineRoutine(0x00421f60)]
     private void ParseExpression()
     {
+        if (IsAlienShooter2)
+        {
+            ParseLogicalOr();
+            return;
+        }
+
         int start = _codeSize;
         ParseComparison();
         while (true)
@@ -555,6 +596,65 @@ public sealed partial class Script
             }
             else
                 break;
+        }
+    }
+
+    private void ParseLogicalOr()
+    {
+        ParseLogicalAnd();
+        while (TryToken("||"u8))
+        {
+            Emit(ScriptOpcode.OrJump);
+            int skip = ReserveInt();
+            ParseLogicalAnd();
+            Emit(ScriptOpcode.LogicalOr);
+            PatchHere(skip);
+        }
+    }
+
+    private void ParseLogicalAnd()
+    {
+        ParseBitwiseOr();
+        while (TryToken("&&"u8))
+        {
+            Emit(ScriptOpcode.AndJump);
+            int skip = ReserveInt();
+            ParseBitwiseOr();
+            Emit(ScriptOpcode.LogicalAnd);
+            PatchHere(skip);
+        }
+    }
+
+    private void ParseBitwiseOr()
+    {
+        int start = _codeSize;
+        ParseBitwiseXor();
+        while (TryToken("|"u8))
+        {
+            ParseBitwiseXor();
+            EmitBinaryOp(start, ScriptOpcode.Or);
+        }
+    }
+
+    private void ParseBitwiseXor()
+    {
+        int start = _codeSize;
+        ParseBitwiseAnd();
+        while (TryToken("^"u8))
+        {
+            ParseBitwiseAnd();
+            EmitBinaryOp(start, ScriptOpcode.Xor);
+        }
+    }
+
+    private void ParseBitwiseAnd()
+    {
+        int start = _codeSize;
+        ParseComparison();
+        while (TryToken("&"u8))
+        {
+            ParseComparison();
+            EmitBinaryOp(start, ScriptOpcode.And);
         }
     }
 
@@ -662,25 +762,16 @@ public sealed partial class Script
     [EngineRoutine(0x00420d50)]
     private void ParseTerm()
     {
+        var cast = ScriptOpcode.None;
         while (true)
         {
-            var unary = ScriptOpcode.None;
             var access = ScriptOpcode.Load;
-            if (At(_position + 1) == '-' || !TryToken("-"u8))
+            if (IsAlienShooter2)
             {
-                if (TryToken("~"u8))
-                {
-                    unary = ScriptOpcode.BitwiseNot;
-                }
-                else if (TryToken("!"u8))
-                {
-                    unary = ScriptOpcode.LogicalNot;
-                }
+                cast = ParseCast(cast);
             }
-            else
-            {
-                unary = ScriptOpcode.Negate;
-            }
+
+            var unary = ParseUnary();
 
             if (TryToken("--"u8))
             {
@@ -707,6 +798,7 @@ public sealed partial class Script
                     _ => value
                 };
                 Emit(ScriptOpcode.PushNumber, value);
+                EmitOptional(cast);
                 return;
             }
 
@@ -733,22 +825,22 @@ public sealed partial class Script
             {
                 if (TryToken("int"u8))
                 {
-                    ParseIntDeclarators();
+                    ParseIntDeclarators(false);
                 }
                 else if (TryToken("string"u8))
                 {
-                    ParseStringDeclarators();
+                    ParseStringDeclarators(false);
                 }
                 else
                     throw ReportError(4, "static variable");
             }
             else if (TryToken("int"u8))
             {
-                ParseIntDeclarators();
+                ParseIntDeclarators(IsAlienShooter2);
             }
             else if (TryToken("string"u8))
             {
-                ParseStringDeclarators();
+                ParseStringDeclarators(IsAlienShooter2);
             }
             else if (TryToken("return"u8))
             {
@@ -762,7 +854,7 @@ public sealed partial class Script
             }
             else if (IsAlpha(At(_position)))
             {
-                if (!ParseName(unary, access))
+                if (!ParseName(unary, cast, access))
                     continue;
 
                 return;
@@ -775,16 +867,43 @@ public sealed partial class Script
                 return;
             }
 
-            EmitUnary(unary);
+            EmitOptional(unary);
+            EmitOptional(cast);
             return;
         }
     }
 
-    private void EmitUnary(ScriptOpcode unary)
+    private ScriptOpcode ParseCast(ScriptOpcode cast)
     {
-        if (unary != ScriptOpcode.None)
+        if (TryToken("(int)"u8))
+            return ScriptOpcode.CastInt;
+        if (TryToken("(string)"u8))
+            return ScriptOpcode.CastString;
+        if (TryToken("(sprite)"u8))
+            return ScriptOpcode.CastSprite;
+
+        return cast;
+    }
+
+    private ScriptOpcode ParseUnary()
+    {
+        if (IsAlienShooter2 ? TryToken("-"u8) : At(_position + 1) != '-' && TryToken("-"u8))
+            return ScriptOpcode.Negate;
+        if (IsAlienShooter2 && TryToken("+"u8))
+            return ScriptOpcode.None;
+        if (TryToken("~"u8))
+            return ScriptOpcode.BitwiseNot;
+        if (TryToken("!"u8))
+            return ScriptOpcode.LogicalNot;
+
+        return ScriptOpcode.None;
+    }
+
+    private void EmitOptional(ScriptOpcode op)
+    {
+        if (op != ScriptOpcode.None)
         {
-            Emit(unary);
+            Emit(op);
         }
     }
 
@@ -810,7 +929,7 @@ public sealed partial class Script
         ExpectToken(")"u8);
     }
 
-    private bool ParseName(ScriptOpcode unary, ScriptOpcode access)
+    private bool ParseName(ScriptOpcode unary, ScriptOpcode cast, ScriptOpcode access)
     {
         var name = ReadName();
         int found = FindObject(name);
@@ -859,7 +978,8 @@ public sealed partial class Script
                 return false;
         }
 
-        EmitUnary(unary);
+        EmitOptional(unary);
+        EmitOptional(cast);
 
         return true;
     }
@@ -1017,7 +1137,7 @@ public sealed partial class Script
         if (count != target.Count)
             throw ReportError(4, "function parameters number");
 
-        Emit(ScriptOpcode.Call, target.Address);
+        Emit(ScriptOpcode.Call, IsAlienShooter2 ? found : target.Address);
     }
 
     private void EmitArgumentStore(int variable)
@@ -1026,26 +1146,26 @@ public sealed partial class Script
         Emit(ScriptOpcode.Pop);
     }
 
-    private void ParseIntDeclarators()
+    private void ParseIntDeclarators(bool initializeAtRunTime)
     {
         do
         {
-            ParseIntDeclarator();
+            ParseIntDeclarator(initializeAtRunTime);
         }
         while (TryToken(","u8));
     }
 
-    private void ParseStringDeclarators()
+    private void ParseStringDeclarators(bool initializeAtRunTime)
     {
         do
         {
-            ParseStringDeclarator();
+            ParseStringDeclarator(initializeAtRunTime);
         }
         while (TryToken(","u8));
     }
 
     [EngineRoutine(0x00420720)]
-    private void ParseIntDeclarator()
+    private void ParseIntDeclarator(bool initializeAtRunTime = false)
     {
         var flags = StackObjectFlags.None;
         SkipOrFailAtEnd();
@@ -1074,6 +1194,14 @@ public sealed partial class Script
                 int count = 0;
                 do
                 {
+                    if (initializeAtRunTime)
+                    {
+                        Push(new StackObject(StackObjectFlags.Number | flags | StackObjectFlags.NotInitialized, 0, default));
+                        EmitInitializer(_count - 1);
+                        count++;
+                        continue;
+                    }
+
                     Push(new StackObject(StackObjectFlags.Number | flags, 0, default));
                     ref var element = ref _slots[_count - 1];
                     int value = ParseConstInt();
@@ -1106,7 +1234,11 @@ public sealed partial class Script
         {
             if (flags.HasFlag(StackObjectFlags.ArrayElement))
             {
-                ParseArrayInitializer(size);
+                ParseArrayInitializer(size, initializeAtRunTime);
+            }
+            else if (initializeAtRunTime)
+            {
+                EmitInitializer(_count - 1);
             }
             else
             {
@@ -1120,11 +1252,23 @@ public sealed partial class Script
         _objects[symbol].Count = size;
     }
 
-    private void ParseArrayInitializer(int size)
+    private void ParseArrayInitializer(int size, bool initializeAtRunTime)
     {
         ExpectToken("{"u8);
         for (int element = 0; element < size; element++)
         {
+            if (initializeAtRunTime)
+            {
+                EmitInitializer(_count - size + element);
+                if (!TryToken(","u8))
+                {
+                    ExpectToken("}"u8);
+                    return;
+                }
+
+                continue;
+            }
+
             int value = ParseConstInt();
             ref var variable = ref _slots[_count - size + element];
             variable.Flags = (variable.Flags & ~StackObjectFlags.NotInitialized) | StackObjectFlags.Initialized;
@@ -1139,9 +1283,25 @@ public sealed partial class Script
         throw ReportError(10, "too many initializers");
     }
 
-    [EngineRoutine(0x00420aa0)]
-    private void ParseStringDeclarator()
+    private void EmitInitializer(int variable)
     {
+        ParseExpression();
+        Emit(ScriptOpcode.Assign, variable);
+        Emit(ScriptOpcode.EndStatement, _line);
+    }
+
+    [EngineRoutine(0x00420aa0)]
+    private void ParseStringDeclarator(bool initializeAtRunTime = false)
+    {
+        if (IsAlienShooter2)
+        {
+            SkipOrFailAtEnd();
+            if (At(_position) == '*')
+            {
+                _position++;
+            }
+        }
+
         var name = ReadName();
         if (FindObject(name) >= 0)
             throw ReportError(10, $"string redifinition '{Decode(name)}'");
@@ -1152,26 +1312,85 @@ public sealed partial class Script
         if (TryToken("["u8))
         {
             flags = StackObjectFlags.ArrayElement;
-            size = ParseConstInt();
+            size = IsAlienShooter2 && At(_position) == ']' ? UnsizedArray : ParseConstInt();
             ExpectToken("]"u8);
         }
 
         int symbol = AddObject(new ScriptObject(symbolName, ScriptObjectKind.Variable, _count));
-        for (int element = 0; element < size; element++)
+        int count = 0;
+        if (TryToken("="u8))
+        {
+            bool braced = IsAlienShooter2 && flags.HasFlag(StackObjectFlags.ArrayElement);
+            if (braced)
+            {
+                ExpectToken("{"u8);
+            }
+
+            for (; !IsAlienShooter2 && count < size - 1; count++)
+            {
+                Push(new StackObject(StackObjectFlags.Text | flags, 0, default));
+            }
+
+            do
+            {
+                if (count >= size)
+                    throw ReportError(10, "too many initializers");
+
+                if (initializeAtRunTime)
+                {
+                    Push(new StackObject(StackObjectFlags.Text | flags | StackObjectFlags.NotInitialized, 0, default));
+                    EmitInitializer(_count - 1);
+                }
+                else
+                {
+                    Push(new StackObject(StackObjectFlags.Text | flags | StackObjectFlags.Initialized, 0, IsAlienShooter2 ? ParseConstText() : ParseLiteralText()));
+                }
+
+                count++;
+            }
+            while (braced && TryToken(","u8));
+
+            if (braced)
+            {
+                ExpectToken("}"u8);
+            }
+        }
+        else if (size == UnsizedArray)
+            throw ReportError(10, "for [] need initialisation");
+
+        if (size == UnsizedArray)
+        {
+            size = count;
+        }
+
+        for (; count < size; count++)
         {
             Push(new StackObject(StackObjectFlags.Text | flags, 0, default));
         }
 
-        if (TryToken("="u8))
-        {
-            Span<byte> literal = stackalloc byte[MaxNameLength + 1];
-            int length = ParseStringLiteral(literal);
-            ref var variable = ref _slots[_count - 1];
-            variable.Text = length > 0 ? literal[..(length - 1)].ToArray() : default;
-            variable.Flags = (variable.Flags | StackObjectFlags.Initialized) & ~StackObjectFlags.NotInitialized;
-        }
-
         _objects[symbol].Count = size;
+    }
+
+    private byte[] ParseLiteralText()
+    {
+        Span<byte> literal = stackalloc byte[MaxNameLength + 1];
+        int length = ParseStringLiteral(literal);
+
+        return length > 0 ? literal[..(length - 1)].ToArray() : [];
+    }
+
+    private byte[] ParseConstText()
+    {
+        SkipOrFailAtEnd();
+        int start = _codeSize;
+        ParseExpression();
+        int length = _codeBuffer[start] == (byte)ScriptOpcode.PushText ? _codeBuffer.AsSpan(start + 1, _codeSize - start - 1).IndexOf((byte)0) : -1;
+        if (length < 0 || _codeSize - start != length + 2)
+            throw ReportError(4, "constant string value");
+
+        _codeSize = start;
+
+        return _codeBuffer.AsSpan(start + 1, length).ToArray();
     }
 
     [EngineRoutine(0x00424a20)]
@@ -1201,7 +1420,7 @@ public sealed partial class Script
         do
         {
             ParseExpression();
-            Emit(ScriptOpcode.EndStatement, _line);
+            Emit(ScriptOpcode.EndStatement, IsAlienShooter2 ? _line + 1 : _line);
         }
         while (TryToken(","u8));
     }
@@ -1381,11 +1600,11 @@ public sealed partial class Script
         {
             if (TryToken("int"u8))
             {
-                ParseIntDeclarators();
+                ParseIntDeclarators(false);
             }
             else if (TryToken("string"u8))
             {
-                ParseStringDeclarators();
+                ParseStringDeclarators(false);
             }
             else
                 throw ReportError(4, "static variable");
@@ -1396,14 +1615,14 @@ public sealed partial class Script
 
         if (TryToken("int"u8))
         {
-            ParseIntDeclarators();
+            ParseIntDeclarators(false);
             ExpectToken(";"u8);
             return SkipBlanksAndDirectives();
         }
 
         if (TryToken("string"u8))
         {
-            ParseStringDeclarators();
+            ParseStringDeclarators(false);
             ExpectToken(";"u8);
             return SkipBlanksAndDirectives();
         }
@@ -1468,10 +1687,11 @@ public sealed partial class Script
         ExpectToken(";"u8);
     }
 
-    private int ParseParameters()
+    private int ParseParameters(int prototype = -1)
     {
         int firstVariable = _count;
         ExpectToken("("u8);
+        int parameter = 0;
         do
         {
             if (TryToken("int"u8))
@@ -1482,6 +1702,15 @@ public sealed partial class Script
             {
                 ParseStringDeclarator();
             }
+            else
+                continue;
+
+            if (prototype >= 0)
+            {
+                _objects[_objectCount - 1].Address = _objects[prototype].FirstVariable + parameter;
+            }
+
+            parameter++;
         }
         while (TryToken(","u8));
 
@@ -1494,25 +1723,53 @@ public sealed partial class Script
     {
         int saved = _objectCount;
         byte[] name = ReadName().ToArray();
-        if (FindObject(name) >= 0)
+        int prototype = FindObject(name);
+        if (prototype >= 0 && !IsAlienShooter2)
             throw ReportError(10, "function redefinition");
 
         int start = _codeSize;
-        int firstVariable = ParseParameters();
+        int firstVariable = ParseParameters(prototype);
         int count = _count - firstVariable;
-        ExpectToken("{"u8);
-        while (!TryToken("}"u8))
+        if (prototype >= 0)
         {
-            ParseStatement(null);
+            if (_objects[prototype].Kind != ScriptObjectKind.Function || _objects[prototype].Count != count || _objects[prototype].Address != -1)
+                throw ReportError(10, "function redefinition");
+
+            _count = firstVariable;
         }
 
-        Emit(ScriptOpcode.Return);
+        int address = -1;
+        if (!IsAlienShooter2 || !TryToken(";"u8))
+        {
+            address = start;
+            if (prototype >= 0)
+            {
+                _objects[prototype].Address = start;
+            }
+
+            ExpectToken("{"u8);
+            while (!TryToken("}"u8))
+            {
+                ParseStatement(null);
+            }
+
+            Emit(ScriptOpcode.Return);
+        }
+
         TruncateObjects(saved);
-        int index = AddObject(new ScriptObject(name, ScriptObjectKind.Function, start, firstVariable, count));
+        if (prototype >= 0)
+            return;
+
+        int index = AddObject(new ScriptObject(name, ScriptObjectKind.Function, address, firstVariable, count));
         if (name.AsSpan().SequenceEqual("main"u8))
         {
             MainIndex = index;
         }
+        else if (IsAlienShooter2 && IsScriptEvent(name) && count != 3)
+            throw ReportError(10, "ScriptEvent must have 3 parameters");
     }
+
+    private static bool IsScriptEvent(ReadOnlySpan<byte> name) =>
+        name.StartsWith("ScriptEvent"u8) && name.Length > 11 && !name[11..].ContainsAnyExceptInRange((byte)'0', (byte)'9');
 
 }
