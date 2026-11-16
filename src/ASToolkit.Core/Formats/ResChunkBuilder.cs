@@ -13,12 +13,12 @@ public sealed class ResChunkBuilder
     /// <summary>
     /// Gets or sets the header flags. Without bit 31 the flags word is the record count.
     /// </summary>
-    public uint Flags { get; set; }
+    public ResChunkFlags Flags { get; set; }
 
     /// <summary>
-    /// Gets or sets the header value that follows the flags when bit 31 is set.
+    /// Gets or sets the number of bytes the compression of the chunk's records saved, or 0 when they are stored uncompressed.
     /// </summary>
-    public uint Res { get; set; }
+    public uint CompressionSavings { get; set; }
 
     /// <summary>
     /// Gets or sets the records.

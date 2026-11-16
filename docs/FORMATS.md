@@ -84,8 +84,8 @@ Each chunk has an 8-byte header and includes a pad byte if its length is not eve
 
  body, when flags has bit 31 set (every file in the game):
  +------------+-----------+---------+---------+---------+-----+
- | flags      | reserved  | count   | record  | record  | ... |
- | 0x80000000 | 0         | u32     |         |         |     |
+ | flags      | savings   | count   | record  | record  | ... |
+ | 0x80000000 | u32       | u32     |         |         |     |
  +------------+-----------+---------+---------+---------+-----+
 
  record:
@@ -95,7 +95,7 @@ Each chunk has an 8-byte header and includes a pad byte if its length is not eve
  +--------+---------------------------+
 ```
 
-Without bit 31 the flags word is the record count and the reserved and count fields are absent. Tags can repeat, and the engine adds up their counts.
+Without bit 31 the flags word is the record count and the savings and count fields are absent. Tags can repeat, and the engine adds up their counts. The savings field is 0 in every chunk but the `SURF` chunk of range-coded sprites (flag 0x100), where it holds the bytes the coding saved, the raw size of every surface (width × height × 2) less the coded bytes of its stream.
 
 Chunks with `count` records are tables. Most chunks hold one record with a packed array inside. Others, such as `OBJ ` in objects.res, hold one record per entry.
 

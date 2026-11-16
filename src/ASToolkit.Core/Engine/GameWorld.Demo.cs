@@ -9,7 +9,6 @@ internal sealed partial class GameWorld
     private const int DemoMaxLag = 71;
     private const int DemoDrawLag = 21;
     private const int DemoEndMarker = -1;
-    private const uint DemoChunkFlags = 0x80000000;
     private DemoResource? _playedDemo;
     private int _playedFrame;
     private int _demoPacedTime;
@@ -121,7 +120,7 @@ internal sealed partial class GameWorld
         BinaryPrimitives.WriteInt32LittleEndian(marker, DemoEndMarker);
         body.Write(marker);
         var container = new ResContainerBuilder { Magic = "RES "u8.ToArray(), Kind = "DEMO"u8.ToArray() };
-        container.Chunks.Add(new ResChunkBuilder { Tag = "DEMO", Flags = DemoChunkFlags, Records = [body.ToArray()] });
+        container.Chunks.Add(new ResChunkBuilder { Tag = "DEMO", Flags = ResChunkFlags.ExtendedHeader, Records = [body.ToArray()] });
 
         return container.Build();
     }

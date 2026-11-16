@@ -132,7 +132,7 @@ public partial class ResInspectorViewModel : ViewModelBase
                 new($"{nameof(ResChunk.Tag)}: {Encoding.UTF8.GetString(chunk.Tag.Span)}"),
                 new($"{nameof(ResChunk.Size)}: {chunk.Size}"),
                 new($"{nameof(ResChunk.Flags)}: {chunk.Flags}"),
-                new($"{nameof(ResChunk.Reserved)}: {chunk.Reserved}"),
+                new($"{nameof(ResChunk.CompressionSavings)}: {chunk.CompressionSavings}"),
                 new($"{nameof(ResChunk.Records)} ({records.Length})", recordNodes)
             };
 

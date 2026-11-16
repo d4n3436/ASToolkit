@@ -31,17 +31,17 @@ public readonly struct ResChunk
     /// <summary>
     /// Gets the header flags.
     /// </summary>
-    public uint Flags => MemoryMarshal.Read<uint>(_data[8..].Span);
+    public ResChunkFlags Flags => MemoryMarshal.Read<ResChunkFlags>(_data[8..].Span);
     
     /// <summary>
-    /// Gets the header value that follows the flags when bit 31 is set.
+    /// Gets the number of bytes the compression of the chunk's records saved, or 0 when they are stored uncompressed.
     /// </summary>
-    public uint Reserved => HasExtraFields ? MemoryMarshal.Read<uint>(_data[12..].Span) : 0;
+    public uint CompressionSavings => HasExtendedHeader ? MemoryMarshal.Read<uint>(_data[12..].Span) : 0;
     
     /// <summary>
     /// Gets the number of records this chunk has.
     /// </summary>
-    public uint Count => HasExtraFields ? MemoryMarshal.Read<uint>(_data[16..].Span) : Flags;
+    public uint Count => HasExtendedHeader ? MemoryMarshal.Read<uint>(_data[16..].Span) : (uint)Flags;
 
     /// <summary>
     /// Enumerates over the records on this chunk.
@@ -53,7 +53,7 @@ public readonly struct ResChunk
         if (_data.IsEmpty)
             yield break;
         
-        int start = HasExtraFields ? 20 : 12;
+        int start = HasExtendedHeader ? 20 : 12;
         
         for (uint i = 0; i < Count; i++)
         {
@@ -63,5 +63,5 @@ public readonly struct ResChunk
         }
     }
 
-    private bool HasExtraFields => (Flags & 0x80000000) != 0;
+    private bool HasExtendedHeader => Flags.HasFlag(ResChunkFlags.ExtendedHeader);
 }

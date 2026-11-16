@@ -10,7 +10,6 @@ public sealed class ResContainerBuilder
 {
     private const int FileHeaderSize = 12;
     private const int ChunkHeaderSize = 8;
-    private const uint CountedFlag = 0x80000000;
 
     /// <summary>
     /// Gets the four magic bytes.
@@ -55,7 +54,7 @@ public sealed class ResContainerBuilder
             {
                 Tag = Encoding.ASCII.GetString(chunk.Tag.Span),
                 Flags = chunk.Flags,
-                Res = chunk.Reserved,
+                CompressionSavings = chunk.CompressionSavings,
                 Records = chunk.Records.Select(r => r.ToArray()).ToList()
             });
         }
@@ -93,14 +92,14 @@ public sealed class ResContainerBuilder
     // The advance includes the pad byte, which the last chunk has no room for
     private static int WriteChunk(ResChunkBuilder chunk, Span<byte> destination)
     {
-        bool counted = (chunk.Flags & CountedFlag) != 0;
+        bool counted = chunk.Flags.HasFlag(ResChunkFlags.ExtendedHeader);
         Encoding.ASCII.GetBytes(chunk.Tag, destination);
         MemoryMarshal.Write(destination[4..], (uint)GetBodyLength(chunk));
-        MemoryMarshal.Write(destination[8..], counted ? chunk.Flags : (uint)chunk.Records.Count);
+        MemoryMarshal.Write(destination[8..], counted ? (uint)chunk.Flags : (uint)chunk.Records.Count);
         int position = ChunkHeaderSize + 4;
         if (counted)
         {
-            MemoryMarshal.Write(destination[position..], chunk.Res);
+            MemoryMarshal.Write(destination[position..], chunk.CompressionSavings);
             MemoryMarshal.Write(destination[(position + 4)..], (uint)chunk.Records.Count);
             position += 8;
         }
@@ -117,7 +116,7 @@ public sealed class ResContainerBuilder
 
     private static int GetBodyLength(ResChunkBuilder chunk)
     {
-        int length = (chunk.Flags & CountedFlag) != 0 ? 12 : 4;
+        int length = chunk.Flags.HasFlag(ResChunkFlags.ExtendedHeader) ? 12 : 4;
         foreach (byte[] record in chunk.Records)
         {
             length += 4 + record.Length;
