@@ -20,7 +20,7 @@ public sealed class MapBuilder
     private readonly ArmyTable _armies;
     private readonly HashSet<(KnownObject, long, long, long)> _placed = [];
     private readonly List<SpriteSource> _sources = [];
-    private uint _handle = 0x10000000;
+    private int _handle = 0x10000000;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MapBuilder"/> class.

@@ -4,7 +4,7 @@ namespace ASToolkit.Core.Formats;
 /// Specifies the input state bits the engine keeps for the keyboard and the mouse.
 /// </summary>
 [Flags]
-public enum InputFlags : uint
+public enum InputFlags
 {
     /// <summary>
     /// No input.

@@ -11,4 +11,4 @@ namespace ASToolkit.Core.Scripting;
 /// <param name="Handles">The handles of the sprites the trigger opens.</param>
 /// <param name="TimeLine">The <c>TimeLine</c> from which the trigger works.</param>
 /// <param name="IsProximity">A value indicating whether the trigger works when the player comes near, with nothing to press.</param>
-public sealed record OpeningTrigger(Vector3 Position, float Radius, string Label, IReadOnlyList<uint> Handles, int TimeLine = 0, bool IsProximity = false);
+public sealed record OpeningTrigger(Vector3 Position, float Radius, string Label, IReadOnlyList<int> Handles, int TimeLine = 0, bool IsProximity = false);

@@ -26,7 +26,7 @@ public readonly struct ResContainer
     /// <summary>
     /// Gets the size (file length - 8-byte header).
     /// </summary>
-    public int Size => (int)MemoryMarshal.Read<uint>(_data[4..].Span);
+    public int Size => MemoryMarshal.Read<int>(_data[4..].Span);
     
     /// <summary>
     /// Gets the four-byte kind.
@@ -68,7 +68,7 @@ public readonly struct ResContainer
 
         while (offset + 8 < end)
         {
-            int size = (int)MemoryMarshal.Read<uint>(_data.Span[(offset + 4)..]);
+            int size = MemoryMarshal.Read<int>(_data.Span[(offset + 4)..]);
             int start = offset + 8;
             if (size < 0 || size > _data.Length - start)
             {

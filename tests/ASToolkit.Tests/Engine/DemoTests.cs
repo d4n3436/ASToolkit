@@ -22,7 +22,7 @@ public class DemoTests
 
         var demo = new DemoResource(world.FinishDemoRecording());
 
-        Assert.Equal(1234u, demo.Seed);
+        Assert.Equal(1234, demo.Seed);
         Assert.Equal(GameClock.LevelStartTime, demo.StartTime);
         Assert.Equal("maps\\level_02.map"u8.ToArray(), demo.MapName.ToArray());
         int offset = world.Script.ReadState(demo.Body);

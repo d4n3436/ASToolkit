@@ -4,7 +4,7 @@ namespace ASToolkit.Core.Formats;
 /// Specifies the flags of a resource chunk's body.
 /// </summary>
 [Flags]
-public enum ResChunkFlags : uint
+public enum ResChunkFlags
 {
     /// <summary>
     /// No flags, the flags word holding the record count.
@@ -14,5 +14,5 @@ public enum ResChunkFlags : uint
     /// <summary>
     /// An extended header, with the compression savings and the record count after the flags.
     /// </summary>
-    ExtendedHeader = 1u << 31
+    ExtendedHeader = 1 << 31
 }

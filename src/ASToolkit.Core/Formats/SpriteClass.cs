@@ -3,7 +3,7 @@ namespace ASToolkit.Core.Formats;
 /// <summary>
 /// Specifies the sprite class of an entry of objects.res.
 /// </summary>
-public enum SpriteClass : uint
+public enum SpriteClass
 {
     /// <summary>
     /// A terrain sprite.

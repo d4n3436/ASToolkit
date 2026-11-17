@@ -9,7 +9,7 @@ namespace ASToolkit.Core.Formats;
 public readonly struct DemoResource
 {
     private const int EndMarker = -1;
-    private const int HeaderLength = sizeof(uint) + sizeof(int);
+    private const int HeaderLength = sizeof(int) + sizeof(int);
 
     private readonly ReadOnlyMemory<byte> _record;
     private readonly int _mapNameLength;
@@ -23,8 +23,8 @@ public readonly struct DemoResource
         _record = new ResContainer(data).Chunks.First(x => x.Tag.Span.SequenceEqual("DEMO"u8)).Records.First();
         var record = _record.Span;
         _mapNameLength = record.IndexOf((byte)0);
-        Seed = BinaryPrimitives.ReadUInt32LittleEndian(record[(_mapNameLength + 1)..]);
-        StartTime = BinaryPrimitives.ReadInt32LittleEndian(record[(_mapNameLength + 1 + sizeof(uint))..]);
+        Seed = BinaryPrimitives.ReadInt32LittleEndian(record[(_mapNameLength + 1)..]);
+        StartTime = BinaryPrimitives.ReadInt32LittleEndian(record[(_mapNameLength + 1 + sizeof(int))..]);
     }
 
     /// <summary>
@@ -35,7 +35,7 @@ public readonly struct DemoResource
     /// <summary>
     /// Gets the seed of the random number generator when the level starts.
     /// </summary>
-    public uint Seed { get; }
+    public int Seed { get; }
 
     /// <summary>
     /// Gets the game time in milliseconds the level starts at.

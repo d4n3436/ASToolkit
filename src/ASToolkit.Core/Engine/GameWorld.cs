@@ -85,7 +85,7 @@ public sealed partial class GameWorld
         }
 
         _brain = new MonsterBrain(Motion, unitMovement, rng, _monsters, Session);
-        var placedUnits = new Dictionary<uint, Unit>();
+        var placedUnits = new Dictionary<int, Unit>();
         _loading = true;
 
         if (start is null)
@@ -160,14 +160,14 @@ public sealed partial class GameWorld
     }
 
     [EngineRoutine(0x00440830)]
-    private void LoadOrders(Unit unit, ReadOnlySpan<StackAction> stack, Dictionary<uint, Unit> units)
+    private void LoadOrders(Unit unit, ReadOnlySpan<StackAction> stack, Dictionary<int, Unit> units)
     {
         var orders = new UnitOrder[stack.Length];
         for (int i = 0; i < stack.Length; i++)
         {
             var action = stack[i];
             orders[i] = UnitOrder.NamesSprite(action.Code)
-                ? new UnitOrder(action.Act, action.Var1, action.Var2, action.Var3, units.GetValueOrDefault(unchecked((uint)action.Var1)))
+                ? new UnitOrder(action.Act, action.Var1, action.Var2, action.Var3, units.GetValueOrDefault(action.Var1))
                 : UnitOrder.FromAction(action);
         }
 
@@ -267,7 +267,7 @@ public sealed partial class GameWorld
     /// <summary>
     /// Gets the state of the engine's random source.
     /// </summary>
-    public uint RandomState => _rng.State;
+    public int RandomState => _rng.State;
 
     /// <summary>
     /// Gets the length of the current frame in milliseconds.
@@ -346,12 +346,12 @@ public sealed partial class GameWorld
     private void SetTime(int time) => _clock.SetTime(time);
 
     [EngineRoutine(0x0043ad70)]
-    private void LoadGroups(IReadOnlyList<IReadOnlyList<uint>> groups, Dictionary<uint, Unit> placedUnits)
+    private void LoadGroups(IReadOnlyList<IReadOnlyList<int>> groups, Dictionary<int, Unit> placedUnits)
     {
         foreach (var handles in groups)
         {
             UnitGroup? group = null;
-            foreach (uint handle in handles)
+            foreach (int handle in handles)
             {
                 if (!placedUnits.TryGetValue(handle, out var unit))
                     continue;

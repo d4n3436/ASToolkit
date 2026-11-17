@@ -4,7 +4,7 @@ namespace ASToolkit.Core.Formats;
 /// Specifies the flags of a weapon record.
 /// </summary>
 [Flags]
-public enum WeaponFlags : uint
+public enum WeaponFlags
 {
     /// <summary>
     /// No flags.

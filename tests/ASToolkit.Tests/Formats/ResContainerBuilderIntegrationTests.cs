@@ -35,7 +35,7 @@ public class ResContainerBuilderIntegrationTests
         byte[] bytes = builder.Build();
         var written = new ResContainer(bytes);
         var back = written.Chunks.First(c => c.Tag.Span.SequenceEqual("OBJ "u8));
-        Assert.Equal(4u, back.Count);
+        Assert.Equal(4, back.Count);
         Assert.Equal(new byte[] { 1, 2, 3 }, back.Records.Last().ToArray());
         Assert.Equal(bytes.Length - 8, written.Size);
     }

@@ -26,7 +26,7 @@ public readonly struct ResChunk
     /// <summary>
     /// Gets the size (body - 8-byte header).
     /// </summary>
-    public int Size => (int)MemoryMarshal.Read<uint>(_data[4..].Span);
+    public int Size => MemoryMarshal.Read<int>(_data[4..].Span);
     
     /// <summary>
     /// Gets the header flags.
@@ -36,12 +36,12 @@ public readonly struct ResChunk
     /// <summary>
     /// Gets the number of bytes the compression of the chunk's records saved, or 0 when they are stored uncompressed.
     /// </summary>
-    public uint CompressionSavings => HasExtendedHeader ? MemoryMarshal.Read<uint>(_data[12..].Span) : 0;
+    public int CompressionSavings => HasExtendedHeader ? MemoryMarshal.Read<int>(_data[12..].Span) : 0;
     
     /// <summary>
     /// Gets the number of records this chunk has.
     /// </summary>
-    public uint Count => HasExtendedHeader ? MemoryMarshal.Read<uint>(_data[16..].Span) : (uint)Flags;
+    public int Count => HasExtendedHeader ? MemoryMarshal.Read<int>(_data[16..].Span) : (int)Flags;
 
     /// <summary>
     /// Gets the bytes after the chunk's tag and size.
@@ -67,9 +67,9 @@ public readonly struct ResChunk
         
         int start = HasExtendedHeader ? 20 : 12;
         
-        for (uint i = 0; i < Count; i++)
+        for (int i = 0; i < Count; i++)
         {
-            int length = (int)MemoryMarshal.Read<uint>(_data[start..].Span);
+            int length = MemoryMarshal.Read<int>(_data[start..].Span);
             yield return _data.Slice(start + 4, length);
             start += 4 + length;
         }

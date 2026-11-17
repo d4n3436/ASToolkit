@@ -43,7 +43,7 @@ public readonly struct VidRun
     /// <summary>
     /// Returns the depth of a pixel, or zero for sprites without a depth buffer.
     /// </summary>
-    public ushort GetDepth(int index) => _depths.IsEmpty ? (ushort)0 : MemoryMarshal.Read<ushort>(_depths.Span[(_depthStride * index)..]);
+    public short GetDepth(int index) => _depths.IsEmpty ? (short)0 : MemoryMarshal.Read<short>(_depths.Span[(_depthStride * index)..]);
 
     /// <summary>
     /// Returns the color of a pixel: a palette index for paletted sprites, a 16-bit color otherwise.

@@ -53,7 +53,7 @@ internal static class ExecutablePatcher
         ReadOnlySpan<int> widths = [640, 800, 1024];
         for (int widthIndex = 0; widthIndex < widths.Length; widthIndex++)
         {
-            if (BinaryPrimitives.ReadUInt32LittleEndian(exe[(WidthsOffset + 4 * widthIndex)..]) != widths[widthIndex])
+            if (BinaryPrimitives.ReadInt32LittleEndian(exe[(WidthsOffset + 4 * widthIndex)..]) != widths[widthIndex])
             {
                 return false;
             }
@@ -77,7 +77,7 @@ internal static class ExecutablePatcher
         list.Clear();
         for (int valueIndex = 0; valueIndex < values.Length; valueIndex++)
         {
-            BinaryPrimitives.WriteUInt32LittleEndian(list[(4 * valueIndex)..], (uint)values[valueIndex]);
+            BinaryPrimitives.WriteInt32LittleEndian(list[(4 * valueIndex)..], values[valueIndex]);
         }
     }
 }

@@ -199,13 +199,13 @@ public static class LevelScriptReader
         }
 
         private static bool IsNumber(ReadOnlySpan<ScriptInstruction> code, int index) =>
-            (uint)index < (uint)code.Length && code[index].Opcode == ScriptOpcode.PushNumber;
+            index >= 0 && index < code.Length && code[index].Opcode == ScriptOpcode.PushNumber;
 
         private static bool IsNumber(ReadOnlySpan<ScriptInstruction> code, int index, int value) => IsNumber(code, index) && code[index].Operand == value;
 
 
         private static bool HasOpcode(ReadOnlySpan<ScriptInstruction> code, int index, ScriptOpcode opcode) =>
-            (uint)index < (uint)code.Length && code[index].Opcode == opcode;
+            index >= 0 && index < code.Length && code[index].Opcode == opcode;
 
 
 

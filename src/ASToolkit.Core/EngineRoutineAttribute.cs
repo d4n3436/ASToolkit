@@ -6,10 +6,10 @@ namespace ASToolkit.Core;
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor, AllowMultiple = true)]
 internal sealed class EngineRoutineAttribute : Attribute
 {
-    public EngineRoutineAttribute(uint address)
+    public EngineRoutineAttribute(int address)
     {
         Address = address;
     }
 
-    public uint Address { get; }
+    public int Address { get; }
 }

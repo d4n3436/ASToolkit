@@ -302,7 +302,7 @@ internal sealed class WalkGrid
         {
             int nextColumn = column + x;
             int nextRow = row + y;
-            if ((uint)nextColumn >= (uint)Columns || (uint)nextRow >= (uint)Rows)
+            if (nextColumn < 0 || nextColumn >= Columns || nextRow < 0 || nextRow >= Rows)
             {
                 continue;
             }
@@ -338,7 +338,7 @@ internal sealed class WalkGrid
         return StraightCost * Math.Max(x, y) + (DiagonalCost - StraightCost) * Math.Min(x, y);
     }
 
-    private int GetCell(int column, int row) => (uint)column < (uint)Columns && (uint)row < (uint)Rows ? row * Columns + column : -1;
+    private int GetCell(int column, int row) => column >= 0 && column < Columns && row >= 0 && row < Rows ? row * Columns + column : -1;
 
     private IEnumerable<int> GetCellsWithin(Vector3 center, float radius)
     {

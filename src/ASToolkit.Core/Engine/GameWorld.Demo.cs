@@ -44,14 +44,14 @@ public sealed partial class GameWorld
     /// <param name="mapName">The map's name as the demo stores it.</param>
     /// <param name="seed">The seed the demo stores.</param>
     [EngineRoutine(0x0040c960)]
-    public void StartDemoRecording(ReadOnlySpan<byte> mapName, uint seed)
+    public void StartDemoRecording(ReadOnlySpan<byte> mapName, int seed)
     {
         _recordedDemo = new MemoryStream();
         _recordedDemo.Write(mapName);
         _recordedDemo.WriteByte(0);
-        Span<byte> header = stackalloc byte[sizeof(uint) + sizeof(int)];
-        BinaryPrimitives.WriteUInt32LittleEndian(header, seed);
-        BinaryPrimitives.WriteInt32LittleEndian(header[sizeof(uint)..], Time);
+        Span<byte> header = stackalloc byte[sizeof(int) + sizeof(int)];
+        BinaryPrimitives.WriteInt32LittleEndian(header, seed);
+        BinaryPrimitives.WriteInt32LittleEndian(header[sizeof(int)..], Time);
         _recordedDemo.Write(header);
         Script.WriteState(_recordedDemo);
     }

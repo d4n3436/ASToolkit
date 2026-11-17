@@ -62,7 +62,7 @@ public sealed class ObjectTable
         foreach (var memory in records)
         {
             var record = memory.Span;
-            var id = (KnownObject)BinaryPrimitives.ReadUInt32LittleEndian(record);
+            var id = (KnownObject)BinaryPrimitives.ReadInt32LittleEndian(record);
             int nameEnd = record[4..].IndexOf((byte)0) + 4;
             int bodyStart = nameEnd + 1;
             int pathStart = bodyStart + bodySize;
@@ -193,7 +193,7 @@ public sealed class ObjectTable
     /// </summary>
     public bool TryGetWeapon(in GameObject obj, out WeaponRecord weapon)
     {
-        weapon = _weapons.Length == 0 ? default : _weapons[(uint)obj.WeaponIndex < (uint)_weapons.Length ? obj.WeaponIndex : 0];
+        weapon = _weapons.Length == 0 ? default : _weapons[obj.WeaponIndex >= 0 && obj.WeaponIndex < _weapons.Length ? obj.WeaponIndex : 0];
         return _weapons.Length > 0;
     }
 

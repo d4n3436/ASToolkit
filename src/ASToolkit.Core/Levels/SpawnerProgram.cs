@@ -64,7 +64,7 @@ public sealed class SpawnerProgram
             return null;
         }
 
-        int count = (int)BinaryPrimitives.ReadUInt32LittleEndian(payload);
+        int count = BinaryPrimitives.ReadInt32LittleEndian(payload);
         int end = sizeof(int) + ActionSize * count;
         if (count < 0 || end > payload.Length)
         {
@@ -104,7 +104,7 @@ public sealed class SpawnerProgram
     {
         int end = sizeof(int) + ActionSize * Actions.Count;
         byte[] bytes = new byte[end + Trailer.Length];
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes, (uint)Actions.Count);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes, Actions.Count);
         for (int actionIndex = 0; actionIndex < Actions.Count; actionIndex++)
         {
             var action = Actions[actionIndex];

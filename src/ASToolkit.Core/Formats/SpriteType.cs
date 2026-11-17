@@ -4,7 +4,7 @@ namespace ASToolkit.Core.Formats;
 /// Specifies the sprite type of an entry of objects.res in the Alien Shooter 2 numbering.
 /// </summary>
 [Flags]
-public enum SpriteType : uint
+public enum SpriteType
 {
     /// <summary>
     /// No type.

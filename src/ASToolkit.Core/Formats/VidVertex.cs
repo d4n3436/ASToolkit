@@ -11,13 +11,13 @@ public readonly struct VidVertex
     private const int ScaleShift = 30;
     private const float ZOffset = 32;
 
-    private readonly uint _packed;
+    private readonly int _packed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="VidVertex"/> structure.
     /// </summary>
     /// <param name="packed">The packed vertex.</param>
-    public VidVertex(uint packed)
+    public VidVertex(int packed)
     {
         _packed = packed;
     }
@@ -25,15 +25,15 @@ public readonly struct VidVertex
     /// <summary>
     /// Gets the column on the canvas.
     /// </summary>
-    public int X => (int)(_packed & FieldMask);
+    public int X => _packed & FieldMask;
 
     /// <summary>
     /// Gets the row on the canvas.
     /// </summary>
-    public int Y => (int)(_packed >> YShift & FieldMask);
+    public int Y => _packed >> YShift & FieldMask;
 
     /// <summary>
     /// Gets the height of the vertex above the base of the sprite.
     /// </summary>
-    public float Z => (_packed >> ZShift & FieldMask) / (float)(1 << (int)(_packed >> ScaleShift)) - ZOffset;
+    public float Z => (_packed >> ZShift & FieldMask) / (float)(1 << (_packed >>> ScaleShift)) - ZOffset;
 }

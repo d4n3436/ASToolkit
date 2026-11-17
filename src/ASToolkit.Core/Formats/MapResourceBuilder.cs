@@ -35,7 +35,7 @@ public sealed class MapResourceBuilder
     /// <summary>
     /// Gets the groups of sprites the map was read with, each a list of sprite handles.
     /// </summary>
-    public IReadOnlyList<uint[]> Groups { get; init; } = [];
+    public IReadOnlyList<int[]> Groups { get; init; } = [];
 
     /// <summary>
     /// Gets the gamma of the ambient light written over the template's, or null to keep the template's light.
@@ -53,7 +53,7 @@ public sealed class MapResourceBuilder
     public static MapResourceBuilder Parse(ReadOnlyMemory<byte> data)
     {
         var resource = new MapResource(data);
-        var payloads = new Dictionary<uint, ReadOnlyMemory<byte>>();
+        var payloads = new Dictionary<int, ReadOnlyMemory<byte>>();
         foreach (var spriteData in resource.SpriteData)
         {
             payloads[spriteData.Handle] = spriteData.Payload;
@@ -99,10 +99,10 @@ public sealed class MapResourceBuilder
             var s = Sprites[spriteIndex];
             var e = entries.AsSpan(spriteIndex * EntrySize, EntrySize); // TODO: Handle AS2 map sprites and avoid hardcoding the size
             MemoryMarshal.Write(e, s.Handle);
-            MemoryMarshal.Write(e[4..], (uint)s.Id);
+            MemoryMarshal.Write(e[4..], (int)s.Id);
             MemoryMarshal.Write(e[8..], s.Position);
-            MemoryMarshal.Write(e[20..], (uint)s.Direction.Value);
-            MemoryMarshal.Write(e[24..], (uint)s.Army);
+            MemoryMarshal.Write(e[20..], (int)s.Direction.Value);
+            MemoryMarshal.Write(e[24..], (int)s.Army);
             byte[] payload = new byte[4 + s.Payload.Length];
             MemoryMarshal.Write(payload, s.Handle);
             s.Payload.CopyTo(payload, 4);

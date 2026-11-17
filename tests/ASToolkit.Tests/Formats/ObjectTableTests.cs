@@ -99,8 +99,8 @@ public class ObjectTableTests
         int deceleration, int turn, int restHeight, int scale)
     {
         byte[] body = new byte[size];
-        const uint collisionMask = (1u << 1) | (1u << 4) | (1u << 30);
-        WriteUInt32(body, 12, (int)collisionMask);
+        const int collisionMask = (1 << 1) | (1 << 4) | (1 << 30);
+        WriteInt32(body, 12, collisionMask);
         WriteFloat(body, 32, 180);
         WriteFloat(body, verticalSpeed, 42);
         WriteFloat(body, acceleration, 1300);
@@ -117,7 +117,7 @@ public class ObjectTableTests
         {
             const int blackWhiteOffset = 692;
             const int blackWhiteValue = 100;
-            WriteUInt32(body, blackWhiteOffset, blackWhiteValue);
+            WriteInt32(body, blackWhiteOffset, blackWhiteValue);
             Assert.Equal(blackWhiteValue, MemoryMarshal.Read<ZombieShooter2GameObject>(body).BlackWhiteValue);
         }
 
@@ -177,7 +177,7 @@ public class ObjectTableTests
         byte[] constants = BuildChunk("CNST", BuildConstants(), 1);
         byte[] file = new byte[12 + objects.Length + constants.Length];
         CopyAscii("RES ", file, 0);
-        WriteUInt32(file, 4, 4 + objects.Length + constants.Length);
+        WriteInt32(file, 4, 4 + objects.Length + constants.Length);
         CopyAscii("DATA", file, 8);
         objects.CopyTo(file, 12);
         constants.CopyTo(file, 12 + objects.Length);
@@ -200,8 +200,8 @@ public class ObjectTableTests
         int offset = 0;
         for (int i = 0; i < records.Length; i++)
         {
-            WriteUInt32(data, offset, 4 + names[i].Length + records[i].Body.Length + paths[i].Length);
-            WriteUInt32(data, offset + 4, records[i].Id);
+            WriteInt32(data, offset, 4 + names[i].Length + records[i].Body.Length + paths[i].Length);
+            WriteInt32(data, offset + 4, records[i].Id);
             offset += 8;
             names[i].CopyTo(data, offset);
             offset += names[i].Length;
@@ -218,7 +218,7 @@ public class ObjectTableTests
     {
         const int constantsSize = 104;
         byte[] record = new byte[4 + constantsSize];
-        WriteUInt32(record, 0, constantsSize);
+        WriteInt32(record, 0, constantsSize);
         return record;
     }
 
@@ -226,15 +226,15 @@ public class ObjectTableTests
     {
         byte[] chunk = new byte[20 + recordsData.Length];
         CopyAscii(tag, chunk, 0);
-        WriteUInt32(chunk, 4, 12 + recordsData.Length);
-        WriteUInt32(chunk, 8, int.MinValue);
-        WriteUInt32(chunk, 12, 0);
-        WriteUInt32(chunk, 16, count);
+        WriteInt32(chunk, 4, 12 + recordsData.Length);
+        WriteInt32(chunk, 8, int.MinValue);
+        WriteInt32(chunk, 12, 0);
+        WriteInt32(chunk, 16, count);
         recordsData.CopyTo(chunk, 20);
         return chunk;
     }
 
-    private static void WriteUInt32(byte[] buffer, int offset, int value)
+    private static void WriteInt32(byte[] buffer, int offset, int value)
     {
         buffer[offset] = (byte)value;
         buffer[offset + 1] = (byte)(value >> 8);

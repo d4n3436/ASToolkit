@@ -4,7 +4,7 @@ namespace ASToolkit.Core.Formats;
 /// Specifies the type flags in the header of a sprite. They pick the sprite class the engine loads it as and how its pixels are stored.
 /// </summary>
 [Flags]
-public enum VidType : ushort
+public enum VidType : short
 {
     /// <summary>
     /// No flags.
@@ -89,5 +89,5 @@ public enum VidType : ushort
     /// <summary>
     /// Each pixel has one more material byte. With the normal map the value under the image is 16 bits wide. No sprite of the game sets it.
     /// </summary>
-    Material = 1 << 15
+    Material = short.MinValue
 }

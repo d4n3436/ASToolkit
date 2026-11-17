@@ -76,7 +76,7 @@ public static class LevelLogicReader
         foreach (var group in context.VariableOpenings.GroupBy(opening => (opening.Name, opening.Value)))
         {
             var setters = context.GetVariableSetters(group.Key.Name, group.Key.Value).ToList();
-            uint[] handles = group.Select(opening => opening.Handle).Distinct().Where(context.IsWall).ToArray();
+            int[] handles = group.Select(opening => opening.Handle).Distinct().Where(context.IsWall).ToArray();
             foreach (var opening in group.Where(opening => setters.Count == 0 || !handles.Contains(opening.Handle)))
             {
                 context.Open(opening.Handle, null);
@@ -92,7 +92,7 @@ public static class LevelLogicReader
 
         foreach (var group in context.AreaOpenings.GroupBy(opening => (opening.Center, opening.Radius, opening.Quest)))
         {
-            uint[] handles = group.Select(opening => opening.Handle).Distinct().ToArray();
+            int[] handles = group.Select(opening => opening.Handle).Distinct().ToArray();
             int timeLine = group.Key.Quest is null ? 0 : context.GetBeginTimeLine(group.Key.Quest.Value);
             triggers.Add(new OpeningTrigger(group.Key.Center, group.Key.Radius, context.GetOpeningLabel(handles[0]), handles, timeLine, true));
         }

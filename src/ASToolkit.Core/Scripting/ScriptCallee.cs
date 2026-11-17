@@ -24,7 +24,7 @@ internal readonly record struct ScriptCallee(int Id, int CallOperand, int FirstV
 
     public int SkipDefaults(ReadOnlySpan<ScriptInstruction> code, int index)
     {
-        while ((uint)index < (uint)code.Length && code[index].Opcode == ScriptOpcode.Load && code[index].Operand >= FirstVariable && code[index].Operand < FirstVariable + Count)
+        while (index >= 0 && index < code.Length && code[index].Opcode == ScriptOpcode.Load && code[index].Operand >= FirstVariable && code[index].Operand < FirstVariable + Count)
         {
             index++;
         }
@@ -33,12 +33,12 @@ internal readonly record struct ScriptCallee(int Id, int CallOperand, int FirstV
     }
 
     public bool IsExternAt(ReadOnlySpan<ScriptInstruction> code, int index) =>
-        Id >= 0 && (uint)index < (uint)code.Length && code[index].IsExternCall && (int)code[index].Opcode == Id;
+        Id >= 0 && index >= 0 && index < code.Length && code[index].IsExternCall && (int)code[index].Opcode == Id;
 
     public bool IsExternCallAt(ReadOnlySpan<ScriptInstruction> code, int index) => IsExternAt(code, SkipDefaults(code, index));
 
     public bool IsFunctionCallAt(ReadOnlySpan<ScriptInstruction> code, int index) =>
-        CallOperand >= 0 && (uint)index < (uint)code.Length && code[index].Opcode == ScriptOpcode.Call && code[index].Operand == CallOperand;
+        CallOperand >= 0 && index >= 0 && index < code.Length && code[index].Opcode == ScriptOpcode.Call && code[index].Operand == CallOperand;
 
     public bool IsCallAt(ReadOnlySpan<ScriptInstruction> code, int index) => IsFunctionCallAt(code, index) || IsExternAt(code, index);
 

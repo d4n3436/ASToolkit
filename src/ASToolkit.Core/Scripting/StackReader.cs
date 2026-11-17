@@ -139,7 +139,7 @@ internal sealed class StackReader
         _variable = variable;
     }
 
-    private void Open(uint handle)
+    private void Open(int handle)
     {
         if (_variable is not null && _quest is null)
         {

@@ -27,7 +27,7 @@ internal sealed class FrameMask
         int bottom = 0;
         foreach (var run in file.GetFrame(frameIndex))
         {
-            if ((uint)run.Y >= file.Height)
+            if (run.Y < 0 || run.Y >= file.Height)
                 continue;
 
             bottom = Math.Max(bottom, run.Y + 1);
@@ -35,7 +35,7 @@ internal sealed class FrameMask
             {
                 int x = run.X + i;
 
-                if ((uint)x < file.Width)
+                if (x >= 0 && x < file.Width)
                 {
                     pixels[run.Y * file.Width + x] = true;
                 }
@@ -45,5 +45,5 @@ internal sealed class FrameMask
         return new FrameMask(file.Width, file.Height, bottom, pixels);
     }
 
-    public bool Covers(int x, int y) => (uint)x < (uint)Width && (uint)y < (uint)Height && _pixels[y * Width + x];
+    public bool Covers(int x, int y) => x >= 0 && x < Width && y >= 0 && y < Height && _pixels[y * Width + x];
 }

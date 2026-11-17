@@ -4,7 +4,7 @@ namespace ASToolkit.Core.Formats;
 /// Specifies which sprites a level script's sprite search accepts.
 /// </summary>
 [Flags]
-public enum SpriteSearch : uint
+public enum SpriteSearch
 {
     /// <summary>
     /// Any sprite of any type and army.
@@ -104,5 +104,5 @@ public enum SpriteSearch : uint
     /// <summary>
     /// Sprites carrying no command.
     /// </summary>
-    Free = 1u << 31
+    Free = 1 << 31
 }

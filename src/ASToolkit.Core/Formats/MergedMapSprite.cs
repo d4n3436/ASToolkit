@@ -12,7 +12,7 @@ namespace ASToolkit.Core.Formats;
 /// <param name="Army">The army of the object.</param>
 /// <param name="Payload">The object's payload bytes.</param>
 /// <param name="Gamma">The gamma of the placed object.</param>
-public sealed record MergedMapSprite(uint Handle, KnownObject Id, Vector3 Position, Angle Direction, Army Army, byte[] Payload,
+public sealed record MergedMapSprite(int Handle, KnownObject Id, Vector3 Position, Angle Direction, Army Army, byte[] Payload,
     Gamma Gamma = default)
 {
     /// <summary>

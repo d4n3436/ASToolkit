@@ -23,13 +23,13 @@ internal sealed class PlayerState
 
     public bool CarriesDynamite => _world.ReadScriptNumber(ExplosivesVariable) > 0;
 
-    public bool HoldsWeapon(int slot) => (uint)slot < Unit.WeaponSlots && _world.Player.Items.Contains(Unit.WeaponItemBase + slot);
+    public bool HoldsWeapon(int slot) => slot >= 0 && slot < Unit.WeaponSlots && _world.Player.Items.Contains(Unit.WeaponItemBase + slot);
 
     public int GetAmmo(int slot) => slot == _world.Player.WeaponSlot ? _world.Player.GetAmmo() : _world.Player.SlotAmmo[slot];
 
     public bool HasAmmo(int slot) => HoldsWeapon(slot) && GetAmmo(slot) > 0;
 
-    public SpriteDefinition? GetWeapon(int slot) => (uint)slot < Unit.WeaponSlots ? _world.Definitions.Find(KnownObject.SecretWeaponTorso + slot) : null;
+    public SpriteDefinition? GetWeapon(int slot) => slot >= 0 && slot < Unit.WeaponSlots ? _world.Definitions.Find(KnownObject.SecretWeaponTorso + slot) : null;
 
     public Dictionary<KnownObject, int> GetRemainingAmmo()
     {

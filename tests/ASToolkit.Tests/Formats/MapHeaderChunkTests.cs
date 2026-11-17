@@ -10,7 +10,7 @@ public class MapHeaderChunkTests
     {
         var map = new MapResource(File.ReadAllBytes(Path.Combine(TestGameFolder.RequireFolder(), "Maps", "survive_01.map")));
 
-        Assert.Equal(9u, map.Header.Version);
+        Assert.Equal(9, map.Header.Version);
         Assert.Equal(1800, map.Header.MapW);
         Assert.Equal(1800, map.Header.MapH);
         Assert.Equal(455, map.Header.Camera.X);

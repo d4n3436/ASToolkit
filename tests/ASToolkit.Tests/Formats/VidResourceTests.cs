@@ -144,7 +144,7 @@ public class VidResourceTests
         return pixels;
     }
 
-    private static byte[] BuildRecord(ushort width, ushort height, ushort left, ushort top, byte[] stream, ushort indexCount = 0, ushort vertexCount = 0)
+    private static byte[] BuildRecord(short width, short height, short left, short top, byte[] stream, short indexCount = 0, short vertexCount = 0)
     {
         byte[] record = new byte[12 + 2 * indexCount + 4 * vertexCount + stream.Length];
         Write(record, 0, indexCount);
@@ -157,15 +157,15 @@ public class VidResourceTests
         return record;
     }
 
-    private static byte[] BuildSprite(VidType flags, VidPixelFormat format, ushort width, ushort height, params byte[][] cadrRecords)
+    private static byte[] BuildSprite(VidType flags, VidPixelFormat format, short width, short height, params byte[][] cadrRecords)
     {
         bool paletted = flags.HasFlag(VidType.Palette);
         byte[] headRecord = new byte[14];
-        Write(headRecord, 0x00, (ushort)flags);
-        Write(headRecord, 0x04, (ushort)cadrRecords.Length);
+        Write(headRecord, 0x00, flags);
+        Write(headRecord, 0x04, (short)cadrRecords.Length);
         Write(headRecord, 0x06, width);
         Write(headRecord, 0x08, height);
-        Write(headRecord, 0x0A, (uint)format);
+        Write(headRecord, 0x0A, format);
 
         var buffer = new List<byte>(8);
         buffer.AddRange("RES\0"u8);
@@ -176,12 +176,12 @@ public class VidResourceTests
         {
             byte[] palette = new byte[1040];
             byte[] pal = new byte[8 + palette.Length];
-            Write(pal, 0x04, (uint)palette.Length);
+            Write(pal, 0x04, palette.Length);
             AddChunk(buffer, "PAL "u8, pal);
         }
 
         AddChunk(buffer, "CADR"u8, RecordBody(cadrRecords));
-        Write(buffer, 4, (uint)(buffer.Count - 8));
+        Write(buffer, 4, buffer.Count - 8);
         return buffer.ToArray();
     }
 
@@ -192,11 +192,11 @@ public class VidResourceTests
         var body = new List<byte>();
         body.AddRange(new byte[12]);
         Write(body, 0x00, 0x80000000u);
-        Write(body, 0x08, (uint)records.Length);
+        Write(body, 0x08, records.Length);
         foreach (byte[] record in records)
         {
             body.AddRange(new byte[4]);
-            Write(body, body.Count - 4, (uint)record.Length);
+            Write(body, body.Count - 4, record.Length);
             body.AddRange(record);
         }
 
@@ -209,7 +209,7 @@ public class VidResourceTests
         buffer.AddRange(new byte[4]);
         int sizeOffset = buffer.Count - 4;
         buffer.AddRange(body);
-        Write(buffer, sizeOffset, (uint)body.Length);
+        Write(buffer, sizeOffset, body.Length);
     }
 
     private static void Write<T>(byte[] data, int offset, T value) where T : unmanaged =>

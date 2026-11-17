@@ -19,7 +19,7 @@ public sealed class LevelLogic
     /// Gets the handles of the placed sprites that the scripts open, break or remove during play, each with the <c>TimeLine</c> of
     /// the quest the opening waits for, or 0 when it waits for no quest.
     /// </summary>
-    public required IReadOnlyDictionary<uint, int> Openings { get; init; }
+    public required IReadOnlyDictionary<int, int> Openings { get; init; }
 
     /// <summary>
     /// Gets the trigger areas that open sprites the player must step on first.

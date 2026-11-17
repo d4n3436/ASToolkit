@@ -80,7 +80,7 @@ public sealed class SpriteCatalog
             file = Parts.GetFile(_objects.GetPath(definition.Id));
         }
 
-        mask = file is null || (uint)frame >= file.Value.FrameCount ? null : FrameMask.Read(file.Value, frame);
+        mask = file is null || frame < 0 || frame >= file.Value.FrameCount ? null : FrameMask.Read(file.Value, frame);
 
         return _masks.GetOrAdd((definition.Id, frame), mask);
     }
@@ -204,7 +204,7 @@ public sealed class SpriteCatalog
     /// </summary>
     /// <param name="id">The id.</param>
     /// <returns>The definition, or null when the table has none.</returns>
-    public SpriteDefinition? Find(KnownObject id) => (uint)id < (uint)_definitions.Length ? _definitions[(int)id] : null;
+    public SpriteDefinition? Find(KnownObject id) => id >= 0 && (int)id < _definitions.Length ? _definitions[(int)id] : null;
 
     /// <summary>
     /// Returns the army a new sprite of a definition joins.

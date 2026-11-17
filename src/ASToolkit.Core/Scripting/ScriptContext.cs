@@ -55,11 +55,11 @@ internal sealed class ScriptContext
 
     public List<(Quest Quest, string Name, int Value)> VariableQuestStarts { get; } = [];
 
-    public List<(uint Handle, string Name, int Value)> VariableOpenings { get; } = [];
+    public List<(int Handle, string Name, int Value)> VariableOpenings { get; } = [];
 
-    public List<(uint Handle, Vector3 Center, float Radius, (int Line, int Sub)? Quest)> AreaOpenings { get; } = [];
+    public List<(int Handle, Vector3 Center, float Radius, (int Line, int Sub)? Quest)> AreaOpenings { get; } = [];
 
-    public Dictionary<uint, List<(int Line, int Sub)?>> Openings { get; } = [];
+    public Dictionary<int, List<(int Line, int Sub)?>> Openings { get; } = [];
 
     public List<((int Line, int Sub) Quest, (int Line, int Sub) After)> FollowingQuests { get; } = [];
 
@@ -70,7 +70,7 @@ internal sealed class ScriptContext
     public List<(int Order, Vector3 Position, float Radius)> Downloads { get; } = [];
 
     // Records a sprite the scripts open with the quest the opening waits for
-    public void Open(uint handle, (int Line, int Sub)? quest)
+    public void Open(int handle, (int Line, int Sub)? quest)
     {
         if (!Openings.TryGetValue(handle, out var quests))
         {
@@ -133,9 +133,9 @@ internal sealed class ScriptContext
         VariableSets.Where(set => set.Name == name && set.Value == value && set.Radius > 0);
 
     // Returns the description of opening a sprite
-    public string GetOpeningLabel(uint handle) => $"open {GetObjectName((int)Map.Sprites.First(sprite => sprite.Handle == handle).Id)}";
+    public string GetOpeningLabel(int handle) => $"open {GetObjectName((int)Map.Sprites.First(sprite => sprite.Handle == handle).Id)}";
 
-    public MergedMapSprite? FindNearest(KnownObject id, Vector2 point, uint excluded) =>
+    public MergedMapSprite? FindNearest(KnownObject id, Vector2 point, int excluded) =>
         GetSprites(id).Where(sprite => sprite.Handle != excluded).MinBy(sprite => Vector2.DistanceSquared(sprite.Position.AsVector2(), point));
 
     public string GetObjectName(int id)
@@ -151,7 +151,7 @@ internal sealed class ScriptContext
     }
 
     // Tells whether the sprite stands in the way of the player like a wall or a closed door
-    public bool IsWall(uint handle)
+    public bool IsWall(int handle)
     {
         var sprite = Map.Sprites.FirstOrDefault(candidate => candidate.Handle == handle);
         if (sprite is null || !Objects.TryFind(sprite.Id, out var obj))

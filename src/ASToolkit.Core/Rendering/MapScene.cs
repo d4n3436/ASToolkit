@@ -185,7 +185,7 @@ public sealed class MapScene
     /// <returns>The object in front, or null when no sprite covers the pixel.</returns>
     public SceneObject? FindObject(System.Drawing.Point point, int? time)
     {
-        if ((uint)point.X >= (uint)Width || (uint)point.Y >= (uint)Height)
+        if (point.X < 0 || point.X >= Width || point.Y < 0 || point.Y >= Height)
         {
             return null;
         }
@@ -198,7 +198,7 @@ public sealed class MapScene
             var state = p.GetState(time, Origin);
             var frame = state.Frame;
             int row = point.Y - state.Corner.Y - (frame?.Top ?? 0);
-            if (frame is null || p.Source is null || (uint)row >= (uint)frame.Rows)
+            if (frame is null || p.Source is null || row < 0 || row >= frame.Rows)
             {
                 continue;
             }
@@ -335,8 +335,8 @@ public sealed class MapScene
 
     // Orders each pass from the last added object to the first, with Alien Shooter's map sprites coming out in file order after the rest
     private long GetDrawKey(int pass, int sequence) =>
-        (long)pass << 32 | (!_mapInFileOrder ? (uint)(int.MaxValue - sequence)
-            : sequence >= NextSequence ? (uint)(LiveKeys - (sequence - NextSequence)) : LiveKeys + 1u + (uint)sequence);
+        ((long)pass << 32) + (!_mapInFileOrder ? int.MaxValue - sequence
+            : sequence >= NextSequence ? LiveKeys - (sequence - NextSequence) : LiveKeys + 1 + sequence);
 
     private static int GetLowerBound(long[] keys, long key)
     {
@@ -374,7 +374,7 @@ public sealed class MapScene
             var state = p.GetState(time, Origin);
             var frame = state.Frame;
             int row = y - state.Corner.Y - (frame?.Top ?? 0);
-            if (frame is null || frame.IsBlended || frame.IsCombined || frame.FadesByDepth || !frame.WritesDepth || (uint)row >= (uint)frame.Rows)
+            if (frame is null || frame.IsBlended || frame.IsCombined || frame.FadesByDepth || !frame.WritesDepth || row < 0 || row >= frame.Rows)
                 continue;
 
             for (int index = frame.RowStarts[row]; index < frame.RowStarts[row + 1]; index++)
@@ -505,7 +505,7 @@ public sealed class MapScene
             for (int index = frame.RowStarts[row]; index < frame.RowStarts[row + 1]; index++)
             {
                 int x = state.Corner.X + frame.Xs[index] - region.Left;
-                if ((uint)x >= (uint)region.Width || !frame.IsPaletted && frame.Colors[index].A == 0)
+                if (x < 0 || x >= region.Width || !frame.IsPaletted && frame.Colors[index].A == 0)
                 {
                     continue;
                 }

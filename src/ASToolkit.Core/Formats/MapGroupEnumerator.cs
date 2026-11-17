@@ -5,11 +5,11 @@ namespace ASToolkit.Core.Formats;
 /// </summary>
 public ref struct MapGroupEnumerator
 {
-    private const uint GroupEnd = uint.MaxValue;
-    private readonly ReadOnlySpan<uint> _handles;
+    private const int GroupEnd = -1;
+    private readonly ReadOnlySpan<int> _handles;
     private int _start;
 
-    internal MapGroupEnumerator(ReadOnlySpan<uint> handles)
+    internal MapGroupEnumerator(ReadOnlySpan<int> handles)
     {
         _handles = handles;
     }
@@ -17,7 +17,7 @@ public ref struct MapGroupEnumerator
     /// <summary>
     /// Gets the sprite handles of the current group.
     /// </summary>
-    public ReadOnlySpan<uint> Current { get; private set; }
+    public ReadOnlySpan<int> Current { get; private set; }
 
     /// <summary>
     /// Returns this enumerator.
@@ -46,7 +46,7 @@ public ref struct MapGroupEnumerator
     /// Copies the remaining groups into arrays.
     /// </summary>
     /// <returns>The sprite handles of each remaining group.</returns>
-    public readonly uint[][] ToArray()
+    public readonly int[][] ToArray()
     {
         int count = 0;
         foreach (var _ in this)
@@ -54,7 +54,7 @@ public ref struct MapGroupEnumerator
             count++;
         }
 
-        var groups = new uint[count][];
+        var groups = new int[count][];
         int index = 0;
         foreach (var group in this)
         {

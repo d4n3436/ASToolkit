@@ -8,7 +8,7 @@ internal readonly record struct SpriteFilter(SpriteSearch Search, OldSpriteType 
     {
         var definition = sprite.Definition;
 
-        if ((definition.Object.SpriteType.ToOldSpriteType() & Types) == 0 || (Armies & (SpriteSearch)((uint)SpriteSearch.Army0 << ((int)sprite.Army & 3))) == 0)
+        if ((definition.Object.SpriteType.ToOldSpriteType() & Types) == 0 || (Armies & (SpriteSearch)((int)SpriteSearch.Army0 << ((int)sprite.Army & 3))) == 0)
             return false;
 
         if (Search.HasFlag(SpriteSearch.Free) && sprite.Command != UnitCommand.None)

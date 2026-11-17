@@ -5,4 +5,4 @@ namespace ASToolkit.Core.Formats;
 /// </summary>
 /// <param name="Handle">The sprite's handle.</param>
 /// <param name="Payload">The payload.</param>
-public readonly record struct MapSpriteData(uint Handle, ReadOnlyMemory<byte> Payload);
+public readonly record struct MapSpriteData(int Handle, ReadOnlyMemory<byte> Payload);

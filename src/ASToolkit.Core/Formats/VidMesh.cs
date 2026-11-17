@@ -13,7 +13,7 @@ public readonly struct VidMesh
     public const float Tolerance = 0.01f;
 
     private const int IndexSize = sizeof(ushort);
-    private const int VertexSize = sizeof(uint);
+    private const int VertexSize = sizeof(int);
     private const int TriangleSize = 3 * IndexSize;
 
     private readonly ReadOnlyMemory<byte> _indices;
@@ -38,7 +38,7 @@ public readonly struct VidMesh
     /// <summary>
     /// Returns a vertex.
     /// </summary>
-    public VidVertex GetVertex(int index) => new(MemoryMarshal.Read<uint>(_vertices.Span[(index * VertexSize)..]));
+    public VidVertex GetVertex(int index) => new(MemoryMarshal.Read<int>(_vertices.Span[(index * VertexSize)..]));
 
     /// <summary>
     /// Returns the vertices of a triangle.

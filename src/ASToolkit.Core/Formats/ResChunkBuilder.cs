@@ -18,7 +18,7 @@ public sealed class ResChunkBuilder
     /// <summary>
     /// Gets or sets the number of bytes the compression of the chunk's records saved, or 0 when they are stored uncompressed.
     /// </summary>
-    public uint CompressionSavings { get; set; }
+    public int CompressionSavings { get; set; }
 
     /// <summary>
     /// Gets or sets the records.

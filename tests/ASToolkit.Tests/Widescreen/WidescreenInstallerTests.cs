@@ -27,11 +27,11 @@ public class WidescreenInstallerTests : IDisposable
         WidescreenInstaller.Install(_folder);
 
         byte[] patched = File.ReadAllBytes(Path.Combine(_folder, "AlienShooter.exe"));
-        Assert.Equal(1280u, BinaryPrimitives.ReadUInt32LittleEndian(patched.AsSpan(WidthsOffset + 12)));
-        Assert.Equal(720u, BinaryPrimitives.ReadUInt32LittleEndian(patched.AsSpan(HeightsOffset + 12)));
-        Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(patched.AsSpan(WidthsOffset + 48)));
-        Assert.Equal(32u, BinaryPrimitives.ReadUInt32LittleEndian(patched.AsSpan(DepthsOffset)));
-        Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(patched.AsSpan(DepthsOffset + 4)));
+        Assert.Equal(1280, BinaryPrimitives.ReadInt32LittleEndian(patched.AsSpan(WidthsOffset + 12)));
+        Assert.Equal(720, BinaryPrimitives.ReadInt32LittleEndian(patched.AsSpan(HeightsOffset + 12)));
+        Assert.Equal(0, BinaryPrimitives.ReadInt32LittleEndian(patched.AsSpan(WidthsOffset + 48)));
+        Assert.Equal(32, BinaryPrimitives.ReadInt32LittleEndian(patched.AsSpan(DepthsOffset)));
+        Assert.Equal(0, BinaryPrimitives.ReadInt32LittleEndian(patched.AsSpan(DepthsOffset + 4)));
         Assert.Equal(0xf0000000, BinaryPrimitives.ReadUInt32LittleEndian(patched.AsSpan(0x9de7)));
         string common = File.ReadAllText(Path.Combine(_folder, "Maps", "COMMON.LGC"), Encoding.Latin1);
         Assert.Contains("FADE_GAME_TIME        300", common);
@@ -56,7 +56,7 @@ public class WidescreenInstallerTests : IDisposable
     public void Install_ExecutableThatIsNotStock_Throws()
     {
         byte[] exe = CreateExecutable();
-        BinaryPrimitives.WriteUInt32LittleEndian(exe.AsSpan(WidthsOffset), 1280);
+        BinaryPrimitives.WriteInt32LittleEndian(exe.AsSpan(WidthsOffset), 1280);
         WriteGame(exe, Common);
 
         Assert.Throws<InvalidDataException>(() => WidescreenInstaller.Install(_folder));
@@ -65,10 +65,10 @@ public class WidescreenInstallerTests : IDisposable
     private static byte[] CreateExecutable()
     {
         byte[] exe = new byte[0x80000 + 0x1000];
-        uint[] widths = [640, 800, 1024];
+        int[] widths = [640, 800, 1024];
         for (int widthIndex = 0; widthIndex < widths.Length; widthIndex++)
         {
-            BinaryPrimitives.WriteUInt32LittleEndian(exe.AsSpan(WidthsOffset + 4 * widthIndex), widths[widthIndex]);
+            BinaryPrimitives.WriteInt32LittleEndian(exe.AsSpan(WidthsOffset + 4 * widthIndex), widths[widthIndex]);
         }
 
         BinaryPrimitives.WriteUInt32LittleEndian(exe.AsSpan(0x9de7), 0xef360000);

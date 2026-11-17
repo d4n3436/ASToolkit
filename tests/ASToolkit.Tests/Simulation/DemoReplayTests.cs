@@ -99,9 +99,9 @@ public class DemoReplayTests
         }
     }
 
-    private static int CountDraws(uint seed, uint state)
+    private static int CountDraws(int seed, int state)
     {
-        var random = new GameRandom(unchecked((int)seed));
+        var random = new GameRandom(seed);
         int draws = 0;
         while (random.State != state)
         {

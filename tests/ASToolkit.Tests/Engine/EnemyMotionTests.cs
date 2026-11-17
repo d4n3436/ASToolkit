@@ -69,18 +69,18 @@ public class EnemyMotionTests
         MemoryMarshal.Write(bytes.AsSpan(4), in spriteClass);
         var hittable = ObjectProperties.Hash;
         MemoryMarshal.Write(bytes.AsSpan(8), in hittable);
-        uint mask = body.Mask;
+        int mask = body.Mask;
         MemoryMarshal.Write(bytes.AsSpan(12), in mask);
         var size = new Vector3(body.HalfX * 2, body.HalfY * 2, body.SizeZ);
         MemoryMarshal.Write(bytes.AsSpan(16), in size);
         var obj = MemoryMarshal.Read<GameObject>(bytes);
         bytes = new byte[Marshal.SizeOf<WeaponRecord>()];
-        uint flags = body.Push != 0 ? 64u : 0;
+        int flags = body.Push != 0 ? 64 : 0;
         MemoryMarshal.Write(bytes.AsSpan(4), in flags);
         var definition = new SpriteDefinition(KnownObject.Monster1 + index, obj, MemoryMarshal.Read<WeaponRecord>(bytes), 0);
 
         return new Unit(index, definition, new Vector3(body.X, body.Y, body.Z), Army.Monsters, 10) { Direction = body.Direction };
     }
 
-    public sealed record Body(float X, float Y, float Z = 0, byte Direction = 64, int Push = 0, uint Mask = 1, float HalfX = 5, float HalfY = 5, float SizeZ = 40);
+    public sealed record Body(float X, float Y, float Z = 0, byte Direction = 64, int Push = 0, int Mask = 1, float HalfX = 5, float HalfY = 5, float SizeZ = 40);
 }

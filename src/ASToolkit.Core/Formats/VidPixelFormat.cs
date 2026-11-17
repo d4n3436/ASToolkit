@@ -3,7 +3,7 @@ namespace ASToolkit.Core.Formats;
 /// <summary>
 /// Specifies the pixel format codes in the header of a sprite, which uses the Direct3D 9 format values.
 /// </summary>
-public enum VidPixelFormat : uint
+public enum VidPixelFormat
 {
     /// <summary>
     /// The header has no format code.

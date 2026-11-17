@@ -166,7 +166,7 @@ public class MovementTests
         Assert.False(clear);
     }
 
-    private static GameObject Body(Vector3 size, uint mask = 1, SpriteClass spriteClass = SpriteClass.Unit, Vector3? scale = null, float dropHeight = 55)
+    private static GameObject Body(Vector3 size, int mask = 1, SpriteClass spriteClass = SpriteClass.Unit, Vector3? scale = null, float dropHeight = 55)
     {
         byte[] bytes = new byte[Marshal.SizeOf<GameObject>()];
         MemoryMarshal.Write(bytes.AsSpan(4), in spriteClass);

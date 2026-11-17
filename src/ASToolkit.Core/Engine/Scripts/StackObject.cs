@@ -113,7 +113,7 @@ public struct StackObject
             i++;
         }
 
-        uint radix = 10;
+        int radix = 10;
         if (i < text.Length && text[i] == '0')
         {
             radix = 8;
@@ -129,18 +129,18 @@ public struct StackObject
         else if (i >= text.Length || !char.IsAsciiDigit((char)text[i]))
             return false;
 
-        uint total = 0;
+        int total = 0;
         for (; i < text.Length && GetDigit(text[i]) < radix; i++)
         {
             total = unchecked(total * radix + GetDigit(text[i]));
         }
 
-        value = unchecked(negative ? -(int)total : (int)total);
+        value = unchecked(negative ? -total : total);
         return true;
     }
 
-    private static uint GetDigit(byte character) => char.IsAsciiDigit((char)character) ? (uint)(character - '0') :
-        char.IsAsciiHexDigit((char)character) ? (uint)((character | 0x20) - 'a' + 10) : 16;
+    private static int GetDigit(byte character) => char.IsAsciiDigit((char)character) ? character - '0' :
+        char.IsAsciiHexDigit((char)character) ? (character | 0x20) - 'a' + 10 : 16;
 
     private static int SkipSpace(ReadOnlySpan<byte> text, int index)
     {

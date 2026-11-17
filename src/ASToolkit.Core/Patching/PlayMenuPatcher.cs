@@ -45,14 +45,14 @@ internal static class PlayMenuPatcher
 
         int labelIndex = FindLabel(records, template.Record, version);
         float newY = GetY(template.Record) + Pitch;
-        uint handle = records.Where(r => r.Length >= ElementSize).Max(r => GetSprite(r).Handle);
+        int handle = records.Where(r => r.Length >= ElementSize).Max(r => GetSprite(r).Handle);
 
         byte[] button = (byte[])template.Record.Clone();
-        SetUInt32(button, 0, handle += 0x100);
-        SetUInt32(button, 20, (uint)GetDirection(ButtonNumber));
+        SetInt32(button, 0, handle += 0x100);
+        SetInt32(button, 20, GetDirection(ButtonNumber));
         SetY(button, newY);
         byte[] label = ReplaceText(records[labelIndex], version, labelKey);
-        SetUInt32(label, 0, handle + 0x100);
+        SetInt32(label, 0, handle + 0x100);
         SetY(label, GetY(label) + Pitch);
 
         float previous = newY;
@@ -88,7 +88,7 @@ internal static class PlayMenuPatcher
 
     private static void SetY(byte[] record, float y) => BinaryPrimitives.WriteSingleLittleEndian(record.AsSpan(12), y);
 
-    private static void SetUInt32(byte[] record, int offset, uint value) => BinaryPrimitives.WriteUInt32LittleEndian(record.AsSpan(offset), value);
+    private static void SetInt32(byte[] record, int offset, int value) => BinaryPrimitives.WriteInt32LittleEndian(record.AsSpan(offset), value);
 
     // Labels sit a few pixels off their button's center
     private static int FindLabel(List<byte[]> records, byte[] button, int version)

@@ -71,22 +71,22 @@ public readonly struct VidResource
     /// <summary>
     /// Gets the milliseconds each frame of an animation lasts.
     /// </summary>
-    public ushort Speed => _header.Speed;
+    public short Speed => _header.Speed;
 
     /// <summary>
     /// Gets the number of frames.
     /// </summary>
-    public ushort FrameCount => _header.Frames;
+    public short FrameCount => _header.Frames;
 
     /// <summary>
     /// Gets the canvas width.
     /// </summary>
-    public ushort Width => _header.Width;
+    public short Width => _header.Width;
 
     /// <summary>
     /// Gets the canvas height.
     /// </summary>
-    public ushort Height => _header.Height;
+    public short Height => _header.Height;
 
     /// <summary>
     /// Gets the pixel format of the sprite, or none for sprites whose header does not carry one.
@@ -121,7 +121,7 @@ public readonly struct VidResource
     /// <summary>
     /// Gets the number of surfaces the <c>SURF</c> chunk declares, or zero when the sprite has none.
     /// </summary>
-    public int SurfaceCount => _surfaces.Length < sizeof(ushort) ? 0 : MemoryMarshal.Read<ushort>(_surfaces.Span);
+    public short SurfaceCount => _surfaces.Length < sizeof(short) ? (short)0 : MemoryMarshal.Read<short>(_surfaces.Span);
 
     /// <summary>
     /// Gets a value indicating whether the pixel colors are palette indices.
@@ -140,8 +140,8 @@ public readonly struct VidResource
     {
         if (_cadrRecords.Length > 0)
         {
-            uint current = (uint)index;
-            for (int hop = 0; hop <= MaxAliasHops && current < (uint)_cadrRecords.Length; hop++)
+            int current = index;
+            for (int hop = 0; hop <= MaxAliasHops && current >= 0 && current < _cadrRecords.Length; hop++)
             {
                 var cadrRecord = _cadrRecords[current];
                 if (cadrRecord.Length != CadrAlias)
@@ -149,7 +149,7 @@ public readonly struct VidResource
                     return GetCadrFrame(cadrRecord);
                 }
 
-                current = MemoryMarshal.Read<uint>(cadrRecord.Span);
+                current = MemoryMarshal.Read<int>(cadrRecord.Span);
             }
 
             return default;
@@ -165,7 +165,7 @@ public readonly struct VidResource
     /// <param name="index">The frame index.</param>
     public VidFrame GetRunFrame(int index)
     {
-        if ((uint)index >= (uint)_frames.Length)
+        if (index < 0 || index >= _frames.Length)
         {
             return default;
         }
@@ -174,7 +174,7 @@ public readonly struct VidResource
         for (int hop = 0; hop < MaxAliasHops && IsAlias(record); hop++)
         {
             int target = MemoryMarshal.Read<short>(record.Span[FrameHeader..]);
-            if ((uint)target >= (uint)_frames.Length)
+            if (target < 0 || target >= _frames.Length)
             {
                 return default;
             }
@@ -214,8 +214,8 @@ public readonly struct VidResource
             return Vector3.Zero;
         }
 
-        uint current = (uint)index;
-        for (int hop = 0; hop <= MaxAliasHops && current < (uint)_cadrRecords.Length; hop++)
+        int current = index;
+        for (int hop = 0; hop <= MaxAliasHops && current >= 0 && current < _cadrRecords.Length; hop++)
         {
             var span = _cadrRecords[current].Span;
             if (span.Length != CadrAlias)
@@ -223,7 +223,7 @@ public readonly struct VidResource
                 return span.Length < FrameVectorSize ? Vector3.Zero : MemoryMarshal.Read<Vector3>(span);
             }
 
-            current = MemoryMarshal.Read<uint>(span);
+            current = MemoryMarshal.Read<int>(span);
         }
 
         return Vector3.Zero;
@@ -235,7 +235,7 @@ public readonly struct VidResource
     /// </summary>
     public VidTexture[] DecodeSurfaces()
     {
-        if (!Type.HasFlag(VidType.Hardware) || Type.HasFlag(VidType.Shadow) || _surfaces.Length < sizeof(ushort))
+        if (!Type.HasFlag(VidType.Hardware) || Type.HasFlag(VidType.Shadow) || _surfaces.Length < sizeof(short))
         {
             return [];
         }
@@ -265,8 +265,8 @@ public readonly struct VidResource
     private VidTexture[] ReadSurfaces(Span<FrequencyModel> models)
     {
         var data = _surfaces.Span;
-        var surfaces = new VidTexture[MemoryMarshal.Read<ushort>(data)];
-        int position = sizeof(ushort);
+        var surfaces = new VidTexture[MemoryMarshal.Read<short>(data)];
+        int position = sizeof(short);
         for (int index = 0; index < surfaces.Length; index++)
         {
             if (position + SurfaceHeader > data.Length)
@@ -274,9 +274,9 @@ public readonly struct VidResource
                 return [];
             }
 
-            int width = MemoryMarshal.Read<ushort>(data[position..]);
-            int height = MemoryMarshal.Read<ushort>(data[(position + 2)..]);
-            int size = (int)MemoryMarshal.Read<uint>(data[(position + 4)..]);
+            int width = MemoryMarshal.Read<short>(data[position..]);
+            int height = MemoryMarshal.Read<short>(data[(position + 2)..]);
+            int size = MemoryMarshal.Read<int>(data[(position + 4)..]);
             position += SurfaceHeader;
             if (width == 0 || height == 0 || size != width * height * sizeof(ushort))
             {
@@ -399,16 +399,16 @@ public readonly struct VidResource
         public readonly VidType Type;
         
         [FieldOffset(2)]
-        public readonly ushort Speed;
+        public readonly short Speed;
         
         [FieldOffset(4)]
-        public readonly ushort Frames;
+        public readonly short Frames;
         
         [FieldOffset(6)]
-        public readonly ushort Width;
+        public readonly short Width;
         
         [FieldOffset(8)]
-        public readonly ushort Height;
+        public readonly short Height;
     }
 
     [StructLayout(LayoutKind.Explicit)]
@@ -421,15 +421,15 @@ public readonly struct VidResource
         public readonly ushort VertexCount;
 
         [FieldOffset(4)]
-        public readonly ushort Width;
+        public readonly short Width;
 
         [FieldOffset(6)]
-        public readonly ushort Height;
+        public readonly short Height;
 
         [FieldOffset(8)]
-        public readonly ushort Left;
+        public readonly short Left;
 
         [FieldOffset(10)]
-        public readonly ushort Top;
+        public readonly short Top;
     }
 }

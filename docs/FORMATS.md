@@ -79,19 +79,19 @@ Each chunk has an 8-byte header and includes a pad byte if its length is not eve
 ```
  +--------+--------+----------------------------------------+
  | tag    | size   | body (size bytes)                      |
- | 4 chars| u32    |                                        |
+ | 4 chars| i32    |                                        |
  +--------+--------+----------------------------------------+
 
  body, when flags has bit 31 set (every file in the game):
  +------------+-----------+---------+---------+---------+-----+
  | flags      | savings   | count   | record  | record  | ... |
- | 0x80000000 | u32       | u32     |         |         |     |
+ | 0x80000000 | i32       | i32     |         |         |     |
  +------------+-----------+---------+---------+---------+-----+
 
  record:
  +--------+---------------------------+
  | length | length bytes of data      |
- | u32    |                           |
+ | i32    |                           |
  +--------+---------------------------+
 ```
 
@@ -127,10 +127,10 @@ Body fields:
 
 ```
  AS1    AS2    type     field
- +0     +0     u32      SpriteType: a U_ mask (see below)
- +4     +4     u32      SpriteClass: a B_ value (see below)
- +8     +8     u32      Property: P_ flags (see below)
- +12    +12    u32      MoveMask: two objects collide when their masks share a bit; 0 never collides
+ +0     +0     i32      SpriteType: a U_ mask (see below)
+ +4     +4     i32      SpriteClass: a B_ value (see below)
+ +8     +8     i32      Property: P_ flags (see below)
+ +12    +12    i32      MoveMask: two objects collide when their masks share a bit; 0 never collides
  +16    +16    f32      SizeXYZ[0]   \
  +20    +20    f32      SizeXYZ[1]    > footprint size (top-down)
  +24    +24    f32      SizeXYZ[2]: the height
@@ -142,7 +142,7 @@ Body fields:
  +40    +48    f32      Acceleration[0]: acceleration, in millionths; 999999 is instant
  +44    +52    f32      Acceleration[1]: deceleration, in millionths; 999999 is instant
  +48    +56    f32      RotationPeriod: full turn in milliseconds; 0 turns instantly and 999999 never turns
- +52    +60    u32      NWeapon: index of the WEAP record of the object (31, 15 or 11 on bodies, 32 on bullets, 0 on effects)
+ +52    +60    i32      NWeapon: index of the WEAP record of the object (31, 15 or 11 on bodies, 32 on bullets, 0 on effects)
  +56    +64    f32      DeathRange: blast radius added to the footprint of the object when it dies or hits something
  +60    +68    i32      DeathDamage: damage sent to everything the blast reaches; in Alien Shooter 2 the minimum of a random range
  -      +72    i32      VID_DAMAGE_MAX: maximum damage
@@ -154,7 +154,7 @@ Body fields:
  +88    +104   f32      deepest drop the object walks off
  +92    +108   i32      VID_LIFETIME: lifetime in milliseconds; 999999 means forever
  +96    +112   -        16 bytes every reader skips (always 0)
- +112   +128   u32      NoDir: direction count (at least 1)
+ +112   +128   i32      NoDir: direction count (at least 1)
  +116   +132   i32 x17  NoFrame[17]: frames per direction of each animation state
  +184   +200   i32 x17  SFX[17]: sound id of each state (an index into the SFX chunk)
  +252   +268   i32 x17  VID_FRAME_SPEED: frame duration of each state in milliseconds; 0 takes the speed of the sprite header
@@ -207,8 +207,8 @@ Menu buttons and fonts reuse the low states under their own names (`ANI_MENUSTAN
 
 ```
  AS1    AS2/ZS  type   field
- +0     +0      u32    target SpriteType mask
- +4     +4      u32    weapon flags (meanings below)
+ +0     +0      i32    target SpriteType mask
+ +4     +4      i32    weapon flags (meanings below)
  +8     +8      f32    length of a train car along its track
  +12    +12     f32    weight; only a greater power pushes or pulls the object; 999999 for objects nothing moves
  +16    +16     f32    power with which the object pulls a train or pushes what it runs into; 0 in Alien Shooter
@@ -418,7 +418,7 @@ Kind `MAP `. Levels are lists of placed sprites with a few small chunks.
 ```
  0     4     8        12       16     20
  +-----+-----+--------+--------+------+---------+
- | f32 | f32 | f32    | f32    | u32  | u32     |
+ | f32 | f32 | f32    | f32    | i32  | i32     |
  | map | map | camera | camera | tick | version |
  | w   | h   | x      | y      |      |         |
  +-----+-----+--------+--------+------+---------+
@@ -431,8 +431,8 @@ Before version 10 the width, height and camera are `i32`, and the engine turns t
 ```
  0       4        8        12    16    20     24     28     32         56
  +-------+--------+--------+-----+-----+------+------+------+----------+
- | flags | ambient| ambient| dir | len | u32  | u32  | u32  | zeros    |
- | u32   | gamma - | gamma + | u32 | f32 | = -1 | = 32 | = 40 |          |
+ | flags | ambient| ambient| dir | len | i32  | i32  | i32  | zeros    |
+ | i32   | gamma - | gamma + | i32 | f32 | = -1 | = 32 | = 40 |          |
  +-------+--------+--------+-----+-----+------+------+------+----------+
 ```
 
@@ -462,13 +462,13 @@ Only the earthquake, ground snow, squall, rain and snow bits take effect. Every 
 
 `dir` and `len` are the wind as `SetWind` sets it, its direction in 256ths of a turn in the low byte of `dir` and its speed in pixels per millisecond. Every map has `dir` 64 or 200 and `len` 0.025. The fields from byte 20 on are unused.
 
-`SPR ` has one record. It is an array of entries closed by `0xFFFFFFFF`, 28 bytes each before version 16 and 48 bytes from version 16.
+`SPR ` has one record. It is an array of entries closed by a handle of -1, 28 bytes each before version 16 and 48 bytes from version 16.
 
 ```
  0        4     8   12   16   20    24     28       32       36    40    44    48
  +--------+-----+---+----+----+-----+------+--------+--------+-----+-----+-----+
  | handle | id  | x | y  | z  | dir | army | gamma - | gamma + | sx  | sy  | sz  |
- | u32    | u32 |f32|f32 |f32 | u32 | u32  | u32    | u32    | f32 | f32 | f32 |
+ | i32    | i32 |f32|f32 |f32 | i32 | i32  | u32    | u32    | f32 | f32 | f32 |
  +--------+-----+---+----+----+-----+------+--------+--------+-----+-----+-----+
           object id                         version 16 and later
           from objects.res
@@ -486,12 +486,12 @@ The gamma of the placed object is packed in two `u32`, with alpha, red, green an
 
 `sx` and `sy` scale the sprite on the ground plane before it is turned, and `sz` scales the heights of its mesh. Maps before version 16 read as a scale of 1. About 3,000 placements of Alien Shooter 2 use another scale, from 0 to 8.
 
-`SPRD` has one record per sprite, matched by handle, and ends with an `0xFFFFFFFF` record. The payload holds the behavior of the sprite.
+`SPRD` has one record per sprite, matched by handle, and ends with a record whose handle is -1. The payload holds the behavior of the sprite.
 
 ```
  handle   payload
  +------+------------------------------------------------------------+
- | u32  | 8 zero bytes          most sprites                         |
+ | i32  | 8 zero bytes          most sprites                         |
  |      | 12 bytes              monsters                             |
  |      | 20 bytes              the player (object 9)                |
  |      | 220-268 bytes         script spawners (object 908)         |
@@ -504,32 +504,31 @@ The gamma of the placed object is packed in two `u32`, with alpha, red, green an
 In Alien Shooter every payload has the same layout:
 
 ```
- u32      entry count
- entry    (u32 act, i32 a, i32 b, i32 c) * entry count
- u32      item count
- u32      item ids * item count
- u32      3 on most monsters, spawners and teleports (450), 0 on crates and player starts; absent on other sprites
+ i32      entry count
+ entry    (i32 act, i32 a, i32 b, i32 c) * entry count
+ i32      item count
+ i32      item ids * item count
+ i32      behavior (BEH_ bits): 3 on most monsters, spawners and teleports (450), 0 on crates and player starts; absent on other sprites
 ```
 
-The 8 zero bytes of most sprites are an empty stack and an empty item list. Monsters store `00000000 00000000 03000000`, and the player start carries two items (`02000000 05010000 05010000`). Crates hold their loot in the item list, one item in most and two in a few, and empty crates are 12 zero bytes. Spawners (908) and spawn walls keep their program in the stack. [NOTES.md](NOTES.md#spawners-908) describes the spawners.
+The 8 zero bytes of most sprites are an empty stack and an empty item list. Monsters store `00000000 00000000 03000000`, the behavior `BEH_AGGRESSIVE | BEH_ACTIVE`, and the player start carries two items (`02000000 05010000 05010000`). Crates hold their loot in the item list, one item in most and two in a few, and empty crates are 12 zero bytes. Spawners (908) and spawn walls keep their program in the stack. [NOTES.md](NOTES.md#spawners-908) describes the spawners.
 
 Stacks run from their last entry, one entry at each animation tick. Entries below 0x11 play the animation state of that number, and the others run the action of the low byte of the act. The spawners use the proximity trigger (43), the pause (40), `BuildUnit` (35), `GotoStack` (71) and `StopStack` (73). Units a sprite builds inherit the entries under `StopStack` and walk their `Move` (33) entries as waypoints.
 
-In Alien Shooter 2 the payload of a sprite with behavior starts with its action stacks and ends with its name:
+In Alien Shooter 2 the payload of a sprite with behavior starts with that behavior and its action stacks and ends with its name:
 
 ```
- u16      last stack run
- u16      flags; 1 on some lamps, glows and doors
- u32      stack count, 4 (0 when the sprite has none)
+ i32      behavior (BEH_ bits): 3 on most monsters, 0x10000 on some lamps, glows and doors
+ i32      stack count, 4 (0 when the sprite has none)
  per stack:
-   u32    entry count
-   entry  (u32 act, i32 var1, i32 var2, i32 var3) * entry count
- u32      value count, 0 or 1
- u32      values * value count
+   i32    entry count
+   entry  (i32 act, i32 var1, i32 var2, i32 var3) * entry count
+ i32      value count, 0 or 1
+ i32      values * value count
  char[]   name, cp1251, NUL-terminated
 ```
 
-The name is often a note of the level designer, such as "Установка динамита" (dynamite placement). Names in square brackets, such as `[gate]` or `[explosive]`, is the name a quest of `levels.cfg` refers to. Names from `h1` to `h20` mark the sprites that `EXT_KILLOBJECTS` removes. Pickups name the items they hold, such as `Obj_money2`.
+The sprite passes the 0x10000 behavior bit on to the objects it creates. The name is often a note of the level designer, such as "Установка динамита" (dynamite placement). Names in square brackets, such as `[gate]` or `[explosive]`, is the name a quest of `levels.cfg` refers to. Names from `h1` to `h20` mark the sprites that `EXT_KILLOBJECTS` removes. Pickups name the items they hold, such as `Obj_money2`.
 
 Each update runs the last entry of the next of the four stacks, and waits that are not over go back on their stack. As in Alien Shooter, units a sprite builds inherit the entries under `ACT_STOP_STACK` (73).
 
@@ -565,9 +564,9 @@ The level scripts read the `Action<n>` variables each tick in `CompaignGameTact`
 
 In Alien Shooter 2 the player is object 250, and respawn posts (1359) set where it comes back. Sprites that their stacks hide before the first wait start the level hidden, 299 placements across the maps (alarm lamps, glows, helper arrows, exit zones and the like).
 
-`PLAY` has one record of a `u32` sprite handle for each player, 4 in Alien Shooter and Zombie Shooter and 8 in the later games, their editions of Alien Shooter included. Every handle in every map is zero.
+`PLAY` has one record of a `i32` sprite handle for each player, 4 in Alien Shooter and Zombie Shooter and 8 in the later games, their editions of Alien Shooter included. Every handle in every map is zero.
 
-`GROU` has one record of `u32` sprite handles. Each group lists its sprites and ends with `0xFFFFFFFF`, and one more `0xFFFFFFFF` ends the record. Campaign level 7 groups 26 placed monsters, and the second add-on's levels 4 and 5 group 9 and 14 objects. Written levels keep the record a lone `0xFFFFFFFF`. Each frame, while a member of a group attacks a unit, every idle member takes the same attack command and target; a sprite leaves its groups when it is deleted, and an emptied group goes with it.
+`GROU` has one record of `i32` sprite handles. Each group lists its sprites and ends with -1, and one more -1 ends the record. Campaign level 7 groups 26 placed monsters, and the second add-on's levels 4 and 5 group 9 and 14 objects. Written levels keep the record a lone `0xFFFFFFFF`. Each frame, while a member of a group attacks a unit, every idle member takes the same attack command and target; a sprite leaves its groups when it is deleted, and an emptied group goes with it.
 
 ### Coordinates and direction
 
@@ -622,7 +621,7 @@ Kind `VID `. Sprites hold their frames laid out by animation state and facing.
 HEAD
  +---------+-------+--------+-------+--------+--------+----------+-------+
  | VidType | speed | noCadr | width | height | format | meshType | blend |
- | u16     | u16   | u16    | u16   | u16    | u32    | i32      | u32   |
+ | i16     | i16   | i16    | i16   | i16    | i32    | i32      | i32   |
  +---------+-------+--------+-------+--------+--------+----------+-------+
  0         2       4        6       8        0x0a     0x0e       0x12
              ms per frame, VID_FRAME_SPEED
@@ -674,7 +673,7 @@ Blends 4 and 7 and `meshType` 6 draw over everything already drawn. The files us
 The rest of the 426-byte record holds the data of the sprite tool.
 
 ```
- +0x16  u32      offset of the sprite's frame table in fast_load.vid; 0 in 60 files
+ +0x16  i32      offset of the sprite's frame table in fast_load.vid; 0 in 60 files
  +0x1a  u64      FILETIME of the cache build, the first 8 bytes of fast_load.vid;
                  2008-02-07 06:50:47 in 850 Alien Shooter 2 sprites, 0 in 66
  +0x22  i32      -1 in most files; read by the engine, the value is not used
@@ -685,13 +684,13 @@ The rest of the 426-byte record holds the data of the sprite tool.
  +0x1aa end
 ```
 
-When the FILETIME of a sprite equals the first 8 bytes of `fast_load.vid`, the loader takes the frame table from that file instead of the sprite. It clears the flags 0x04 and 0x2000 (and 0x8000 in Alien Shooter 2) and reads the table at the u32 offset.
+When the FILETIME of a sprite equals the first 8 bytes of `fast_load.vid`, the loader takes the frame table from that file instead of the sprite. It clears the flags 0x04 and 0x2000 (and 0x8000 in Alien Shooter 2) and reads the table at the i32 offset.
 
 ```
  fast_load.vid:  u64 FILETIME, then one table per sprite
- frame entry (24 bytes):  u16 * 6    the CADR record's index count, vertex count,
-                                     width, height, x and y
-                          u32        offset of the frame's data in fast_load_data.vid
+ frame entry (24 bytes):  u16 * 2    the CADR record's index count and vertex count
+                          i16 * 4    its width, height, x and y
+                          i32        offset of the frame's data in fast_load_data.vid
                           f32, f32   lowest and highest vertex depth; 0.0012 and 10.0 without a mesh
 ```
 
@@ -727,11 +726,11 @@ Frame `n` of facing `f` in animation state `a` is `start(a) + f * count(a) + n`,
 Sprites with 0x01 and 0x10 set and 0x20, 0x40 and 0x80 clear hold their pixels in runs, one `DATA` record per frame. The game has 0x11, 0x19 (0x08), 0x1B (0x08 and 0x02) and 0x1D (0x08 and 0x04). All but 0x11 are paletted.
 
 ```
- record: u32 length
+ record: i32 length
          i16 N, then N * 6 bytes of extra data
          i16 first row, i16 row count
          per row:
-           [ skip u8 | count u8 | count * u16 z | count * u8 palette index ]*
+           [ skip u8 | count u8 | count * i16 z | count * u8 palette index ]*
            00 00                       end of row
 ```
 
@@ -740,8 +739,8 @@ The z values are present only with the flag 0x04. Records of two bytes alias an 
 ### Texture sprites
 
 ```
- SURF record:  u16 count
-               count * ( u16 width | u16 height | u32 raw size | surface data )
+ SURF record:  i16 count
+               count * ( i16 width | i16 height | i32 raw size | surface data )
 
  DATA entry (36 bytes):  checksum | surface | x | y | w | h | left | top | next
 ```
@@ -753,7 +752,7 @@ With bit 0x100 the surface data is compressed by a carry-less range coder with a
 Other flag combinations in use:
 
 ```
- 0x36   runs of u16 z + u16 ARGB4444 with alpha 0, drawn faded by depth (see below)
+ 0x36   runs of i16 z + u16 ARGB4444 with alpha 0, drawn faded by depth (see below)
  0x11   (UI sprites) plain RGB565, no palette
  0xB0   omni-lights (flag 0x80); created by effects, never placed
 ```
@@ -768,15 +767,15 @@ Alien Shooter 2 keeps the frames of most sprites in a `CADR` chunk instead of `D
  record: [ 12 bytes: f32 x 3 ]          only with the flag 0x200
          u16 index count
          u16 vertex count
-         u16 width, u16 height          the frame's region
-         u16 x, u16 y                   the region's origin on the canvas
+         i16 width, i16 height          the frame's region
+         i16 x, i16 y                   the region's origin on the canvas
          u16 * index count              triangle indices
-         u32 * vertex count             packed vertices
+         i32 * vertex count             packed vertices
          runs: [ skip u8 | count u8 | count * pixel ]*
          00 00                          end of the frame
 ```
 
-Each vertex is one u32 with three 10-bit fields and a 2-bit scale in the top bits. The first two fields are the column and row on the canvas, and the third is the height, `(v >> 20 & 0x3ff) / (1 << (v >> 30)) - 32`. Only the frames of `meshType` 3 sprites carry indices and vertices.
+Each vertex is one i32 with three 10-bit fields and a 2-bit scale in the top bits. The first two fields are the column and row on the canvas, and the third is the height, `(v >> 20 & 0x3ff) / (1 << (v >> 30 & 3)) - 32`. Only the frames of `meshType` 3 sprites carry indices and vertices.
 
 The runs describe the region as one raster, `width` pixels per row. Each run skips `skip` transparent pixels, then holds `count` pixels, and may continue onto the next row. The frame ends at the `00 00` pair.
 
@@ -784,7 +783,7 @@ Pixels are `format` sized (see `HEAD`), and palette indices when the sprite has 
 
 The vertices give each pixel a height, interpolated over the triangles.
 
-Records of four bytes alias an earlier frame by its u32 index, and all 240 in the games point backwards. Records of only the 12-byte header, every field zero, are empty frames.
+Records of four bytes alias an earlier frame by its i32 index, and all 240 in the games point backwards. Records of only the 12-byte header, every field zero, are empty frames.
 
 Paths ending in `.bmp` or `.tga` instead of `.vid` load directly, with black as the color key.
 
@@ -846,13 +845,13 @@ Kind `DEMO`. Each demo records one level with its random seed, the script state 
  DEMO record
  +-------------------+------+------+----------------------+-----------+------+
  | map file name, 0  | seed | time | script state         | frames    | -1   |
- | maps\level_01.map | u32  | u32  | variables, functions | 36 B each | i32  |
+ | maps\level_01.map | i32  | i32  | variables, functions | 36 B each | i32  |
  +-------------------+------+------+----------------------+-----------+------+
 ```
 
 The seed starts the random number generator in place of the current time a normal map load uses. The time is the game clock the level starts at (10).
 
-The script state lists the script's variables in order. Each variable is a type byte, then a u32 when the type has bit 0x08 and lacks bit 0x01, or a string ending in 0 with every character XORed with 0x17 when it has both. Then comes a u32 count of the script's global names, each a name ending in 0 and 20 bytes, followed by one more string ending in 0 per name, empty for every name the compiler creates. The names are in declaration order, starting with the engine functions `EXPORT.LGC` declares (`CreateSprite`, `Flagman` and the rest). Each name's 20 bytes hold its kind in one byte, 7 unused bytes, then its address, its first parameter variable and its count, as [Scripts](#scripts-lgc) describes.
+The script state lists the script's variables in order. Each variable is a type byte, then a i32 when the type has bit 0x08 and lacks bit 0x01, or a string ending in 0 with every character XORed with 0x17 when it has both. Then comes a i32 count of the script's global names, each a name ending in 0 and 20 bytes, followed by one more string ending in 0 per name, empty for every name the compiler creates. The names are in declaration order, starting with the engine functions `EXPORT.LGC` declares (`CreateSprite`, `Flagman` and the rest). Each name's 20 bytes hold its kind in one byte, 7 unused bytes, then its address, its first parameter variable and its count, as [Scripts](#scripts-lgc) describes.
 
 The map load writes the state after compiling the level's script and before any sprite's creation script runs. It holds the initial values together with the `static` variables carried over from earlier loads, such as the player's money and items. Playback replaces the script's variables and functions with the recorded ones.
 
@@ -861,7 +860,7 @@ The map load writes the state after compiling the level's script and before any 
  0      4       8       12     16     20     24     28     32    36
  +------+-------+-------+------+------+------+------+------+------+
  | time | input | wheel | cursor x, y | screen x, y | key  | vkey |
- | u32  | flags | i32   | f32  f32    | f32  f32    | i32  | i32  |
+ | i32  | flags | i32   | f32  f32    | f32  f32    | i32  | i32  |
  +------+-------+-------+------+------+------+------+------+------+
 ```
 
@@ -900,7 +899,7 @@ The movement bits and the actions follow the `[control]` section of `AlienShoote
 
 Any key press or click ends playback. The game then reads the map name again and loads that map for play, and quits when the name is empty.
 
-Alien Shooter 2 frames hold the time, a u32, a 39-byte input block and a check value, `rand() % 50001` drawn as the frame is recorded. Playback draws the value again and compares the two.
+Alien Shooter 2 frames hold the time, a i32, a 39-byte input block and a check value, `rand() % 50001` drawn as the frame is recorded. Playback draws the value again and compares the two.
 
 ## Scripts and text
 
@@ -959,7 +958,7 @@ A file whose fourth byte is not 0 is source text. Otherwise it is a compiled scr
  compiled script
  +-----------+-----------+------------+-----------+------+
  | variables | variables | names      | code size | code |
- | u32 count | records   | as in demo | u32       | ...  |
+ | i32 count | records   | as in demo | i32       | ...  |
  +-----------+-----------+------------+-----------+------+
 ```
 

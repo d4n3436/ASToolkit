@@ -128,7 +128,7 @@ public sealed class Playthrough
             ScriptPath = Path.ChangeExtension(GameTextEncoding.Cyrillic.GetString(demo.MapName), ".lgc"),
             LoadingScreenRecords = loadingScreenRecords ?? []
         };
-        var world = new GameWorld(scripted, new GameRandom(unchecked((int)demo.Seed)), demo: demo);
+        var world = new GameWorld(scripted, new GameRandom(demo.Seed), demo: demo);
         AddLoosePickups(analysis, world);
 
         return world;

@@ -4,7 +4,7 @@ namespace ASToolkit.Core.Formats;
 /// Specifies the properties of an entry of objects.res.
 /// </summary>
 [Flags]
-public enum ObjectProperties : uint
+public enum ObjectProperties
 {
     /// <summary>
     /// No properties.
@@ -169,5 +169,5 @@ public enum ObjectProperties : uint
     /// <summary>
     /// A hit or blast from the object skips objects of its own army.
     /// </summary>
-    NoFriendlyDamage = (uint)1 << 31
+    NoFriendlyDamage = 1 << 31
 }

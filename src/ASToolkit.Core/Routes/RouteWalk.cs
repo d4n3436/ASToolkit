@@ -166,7 +166,7 @@ internal sealed class RouteWalk
         {
             foreach (var trigger in _pending.Where(candidate => candidate.TimeLine <= timeLine).ToList())
             {
-                var opened = new HashSet<uint>(_world.Pressed);
+                var opened = new HashSet<int>(_world.Pressed);
                 opened.UnionWith(trigger.Handles);
                 opened.UnionWith(_pending.SelectMany(candidate => candidate.Handles));
                 var openedGrid = _world.BuildGrid(_playerObject, timeLine, opened);

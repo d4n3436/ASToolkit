@@ -86,7 +86,7 @@ public readonly struct CursorImage
         color = default;
         var size = Size;
 
-        if ((uint)pixel.X >= (uint)size.Width || (uint)pixel.Y >= (uint)size.Height)
+        if (pixel.X < 0 || pixel.X >= size.Width || pixel.Y < 0 || pixel.Y >= size.Height)
             return false;
 
         int bytes = _bitmap.BitCount / BitsPerByte;

@@ -23,14 +23,14 @@ internal sealed class WalkWorld
         _parts = parts;
     }
 
-    public HashSet<uint> Pressed { get; } = [];
+    public HashSet<int> Pressed { get; } = [];
 
     // Takes the cells inside a trigger area by the distance the scripts measure
     public static float GetAreaReach(float radius) => Math.Max(radius * AreaMargin, MinimumAreaReach);
 
     public int CountOpen(int timeLine) => _logic.Openings.Values.Count(opensAt => opensAt <= timeLine) + Pressed.Count;
 
-    public WalkGrid BuildGrid(GameObject walker, int timeLine, IReadOnlySet<uint> pressed)
+    public WalkGrid BuildGrid(GameObject walker, int timeLine, IReadOnlySet<int> pressed)
     {
         var grid = new WalkGrid((int)MathF.Ceiling(_map.Size.Width / WalkGrid.CellSize), (int)MathF.Ceiling(_map.Size.Height / WalkGrid.CellSize), walker.StepHeight,
             walker.DropHeight);

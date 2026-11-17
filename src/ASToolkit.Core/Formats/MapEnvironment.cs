@@ -4,7 +4,7 @@ namespace ASToolkit.Core.Formats;
 /// Specifies the weather and screen effects of a map, as its graphics record stores them and level scripts set them.
 /// </summary>
 [Flags]
-public enum MapEnvironment : uint
+public enum MapEnvironment
 {
     /// <summary>
     /// No effect.
@@ -84,5 +84,5 @@ public enum MapEnvironment : uint
     /// <summary>
     /// Clear the given effects instead of setting them.
     /// </summary>
-    Stop = (uint)1 << 31
+    Stop = 1 << 31
 }

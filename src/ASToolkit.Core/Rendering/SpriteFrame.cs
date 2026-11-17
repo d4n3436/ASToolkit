@@ -12,7 +12,7 @@ internal sealed class SpriteFrame
 
     public required byte[] Indices { get; init; }
 
-    public required ushort[] Depths { get; init; }
+    public required short[] Depths { get; init; }
 
     public required Rgba32[] Colors { get; init; }
 

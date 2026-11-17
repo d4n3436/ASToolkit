@@ -61,5 +61,5 @@ public sealed class LevelModel
     /// <summary>
     /// Gets the groups of the map, each a list of sprite handles.
     /// </summary>
-    public IReadOnlyList<IReadOnlyList<uint>> Groups { get; init; } = [];
+    public IReadOnlyList<IReadOnlyList<int>> Groups { get; init; } = [];
 }

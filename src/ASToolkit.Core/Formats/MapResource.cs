@@ -59,7 +59,7 @@ public readonly struct MapResource
     /// <summary>
     /// Enumerates over the groups of sprites, each a span of sprite handles.
     /// </summary>
-    public MapGroupEnumerator Groups => new(MemoryMarshal.Cast<byte, uint>(GetRecord("GROU"u8).Span));
+    public MapGroupEnumerator Groups => new(MemoryMarshal.Cast<byte, int>(GetRecord("GROU"u8).Span));
 
     /// <summary>
     /// Gets the sprite handle of each player, empty when the map has no PLAY chunk.
@@ -90,7 +90,7 @@ public readonly struct MapResource
         {
             if (record.Length > 4)
             {
-                yield return new MapSpriteData(MemoryMarshal.Read<uint>(record.Span), record[4..]);
+                yield return new MapSpriteData(MemoryMarshal.Read<int>(record.Span), record[4..]);
             }
         }
     }

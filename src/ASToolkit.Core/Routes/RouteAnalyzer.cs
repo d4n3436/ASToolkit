@@ -75,7 +75,7 @@ public static class RouteAnalyzer
         {
             int a = c.U - _u0;
             int b = c.V - _v0;
-            return (uint)a < (uint)_width && (uint)b < (uint)_height ? _slots[a * _height + b] : -1;
+            return a >= 0 && a < _width && b >= 0 && b < _height ? _slots[a * _height + b] : -1;
         }
     }
 

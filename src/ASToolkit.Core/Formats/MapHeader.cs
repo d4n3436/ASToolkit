@@ -39,13 +39,13 @@ public readonly struct MapHeader
     /// The tick value.
     /// </summary>
     [FieldOffset(16)]
-    public readonly uint Tick;
+    public readonly int Tick;
 
     /// <summary>
     /// The map version.
     /// </summary>
     [FieldOffset(20)]
-    public readonly uint Version;
+    public readonly int Version;
 
     /// <summary>
     /// Gets the map width in pixels.

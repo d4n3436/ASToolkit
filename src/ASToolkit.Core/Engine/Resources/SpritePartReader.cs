@@ -132,7 +132,8 @@ public sealed class SpritePartReader
 
     private static int GetMeshHeight(float[] heights, int width, int x, int y)
     {
-        float height = (uint)(y * width + x) < (uint)heights.Length ? heights[y * width + x] : float.NaN;
+        int index = y * width + x;
+        float height = index >= 0 && index < heights.Length ? heights[index] : float.NaN;
         return float.IsNaN(height) ? 0 : (int)MathF.Round(height);
     }
 }

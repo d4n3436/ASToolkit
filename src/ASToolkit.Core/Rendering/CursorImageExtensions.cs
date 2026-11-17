@@ -28,7 +28,7 @@ public static class CursorImageExtensions
             {
                 var target = new Point(corner.X + column, corner.Y + row);
 
-                if ((uint)target.X < (uint)frame.Width && (uint)target.Y < (uint)frame.Height && cursor.TryGetPixel(new Point(column, row), out var color))
+                if (target.X >= 0 && target.X < frame.Width && target.Y >= 0 && target.Y < frame.Height && cursor.TryGetPixel(new Point(column, row), out var color))
                 {
                     pixels[target.Y * frame.Width + target.X] = new Bgra32(color.R, color.G, color.B, byte.MaxValue);
                 }

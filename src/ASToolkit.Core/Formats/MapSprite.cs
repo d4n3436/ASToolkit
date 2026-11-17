@@ -30,7 +30,7 @@ public readonly record struct MapSprite
     /// The sprite handle that links the entry to its payload.
     /// </summary>
     [FieldOffset(0)]
-    public readonly uint Handle;
+    public readonly int Handle;
 
     /// <summary>
     /// The object ID in objects.res.

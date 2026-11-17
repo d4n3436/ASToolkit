@@ -78,7 +78,7 @@ public sealed class ResContainerBuilder
 
         byte[] result = new byte[length];
         Magic.CopyTo(result, 0);
-        MemoryMarshal.Write(result.AsSpan(4), (uint)(length - 8));
+        MemoryMarshal.Write(result.AsSpan(4), length - 8);
         Kind.CopyTo(result, 8);
         int position = FileHeaderSize;
         foreach (var chunk in Chunks)
@@ -94,19 +94,19 @@ public sealed class ResContainerBuilder
     {
         bool counted = chunk.Flags.HasFlag(ResChunkFlags.ExtendedHeader);
         Encoding.ASCII.GetBytes(chunk.Tag, destination);
-        MemoryMarshal.Write(destination[4..], (uint)GetBodyLength(chunk));
-        MemoryMarshal.Write(destination[8..], counted ? (uint)chunk.Flags : (uint)chunk.Records.Count);
+        MemoryMarshal.Write(destination[4..], GetBodyLength(chunk));
+        MemoryMarshal.Write(destination[8..], counted ? (int)chunk.Flags : chunk.Records.Count);
         int position = ChunkHeaderSize + 4;
         if (counted)
         {
             MemoryMarshal.Write(destination[position..], chunk.CompressionSavings);
-            MemoryMarshal.Write(destination[(position + 4)..], (uint)chunk.Records.Count);
+            MemoryMarshal.Write(destination[(position + 4)..], chunk.Records.Count);
             position += 8;
         }
 
         foreach (byte[] record in chunk.Records)
         {
-            MemoryMarshal.Write(destination[position..], (uint)record.Length);
+            MemoryMarshal.Write(destination[position..], record.Length);
             record.CopyTo(destination[(position + 4)..]);
             position += 4 + record.Length;
         }

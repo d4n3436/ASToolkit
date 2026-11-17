@@ -3,7 +3,7 @@ namespace ASToolkit.Core.Formats;
 /// <summary>
 /// Specifies the blend procedure of a sprite, the blend factors and depth setup of its draw.
 /// </summary>
-public enum BlendProcedure : uint
+public enum BlendProcedure
 {
     /// <summary>
     /// The sprite is alpha tested, and a blended sprite mixes with the pixels under it by its source alpha.

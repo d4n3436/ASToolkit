@@ -5,8 +5,8 @@ namespace ASToolkit.Core.Engine;
 /// </summary>
 public sealed class GameRandom : Random
 {
-    private const uint Multiplier = 214013;
-    private const uint Increment = 2531011;
+    private const int Multiplier = 214013;
+    private const int Increment = 2531011;
     private const int ValueShift = 16;
     private const int MaximumValue = 32767;
 
@@ -16,13 +16,13 @@ public sealed class GameRandom : Random
     /// <param name="seed">The seed.</param>
     public GameRandom(int seed)
     {
-        State = unchecked((uint)seed);
+        State = seed;
     }
 
     /// <summary>
     /// Gets the generator's state.
     /// </summary>
-    public uint State { get; private set; }
+    public int State { get; private set; }
 
     /// <summary>
     /// Returns the next draw, from 0 to 32767.
@@ -32,7 +32,7 @@ public sealed class GameRandom : Random
     {
         State = unchecked(State * Multiplier + Increment);
 
-        return (int)(State >> ValueShift) & MaximumValue;
+        return State >> ValueShift & MaximumValue;
     }
 
     /// <summary>

@@ -2,12 +2,12 @@ namespace ASToolkit.Core.Formats;
 
 internal static class SpriteTypeExtensions
 {
-    private const uint ShiftedTypeMask = 0x7F;
-    private const uint SharedTypeMask = ~0xFFu;
+    private const int ShiftedTypeMask = 0x7F;
+    private const int SharedTypeMask = ~0xFF;
 
     public static SpriteType ToSpriteType(this OldSpriteType type) =>
-        (SpriteType)((((uint)type & ShiftedTypeMask) << 1) | ((uint)type & SharedTypeMask));
+        (SpriteType)((((int)type & ShiftedTypeMask) << 1) | ((int)type & SharedTypeMask));
 
     public static OldSpriteType ToOldSpriteType(this SpriteType type) =>
-        (OldSpriteType)((((uint)type >> 1) & ShiftedTypeMask) | ((uint)type & SharedTypeMask));
+        (OldSpriteType)((((int)type >> 1) & ShiftedTypeMask) | ((int)type & SharedTypeMask));
 }

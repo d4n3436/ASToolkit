@@ -118,7 +118,7 @@ public sealed partial class Script
     public int FindCalledFunction(int operand)
     {
         if (IsAlienShooter2)
-            return (uint)operand < (uint)_objectCount && _objects[operand].Kind == ScriptObjectKind.Function ? operand : -1;
+            return operand >= 0 && operand < _objectCount && _objects[operand].Kind == ScriptObjectKind.Function ? operand : -1;
 
         for (int index = 0; index < _objectCount; index++)
         {
@@ -490,7 +490,7 @@ public sealed partial class Script
 
     private static void StoreCharacter(ref StackObject slot, int index, byte value)
     {
-        if ((uint)index >= (uint)slot.Text.Length)
+        if (index < 0 || index >= slot.Text.Length)
             return;
 
         if (value == 0)

@@ -532,7 +532,7 @@ public sealed class MapRenderer
 
     private static byte Brighten(byte color, int light) => (byte)Math.Min(255, color + 2 * color * light / 255);
 
-    private static AnimationTiming GetTiming(GameObject obj, VidResource? file, int frameIndex, uint handle, int attachDepth)
+    private static AnimationTiming GetTiming(GameObject obj, VidResource? file, int frameIndex, int handle, int attachDepth)
     {
         if (file is null || obj.SpriteClass is SpriteClass.BuiltTerrain or SpriteClass.Frame)
         {
@@ -546,7 +546,7 @@ public sealed class MapRenderer
             return AnimationTiming.Static;
         }
 
-        uint seed = (handle + (uint)attachDepth * PhaseSeedStep) * PhaseSeedFactor;
+        uint seed = unchecked(((uint)handle + (uint)attachDepth * PhaseSeedStep) * PhaseSeedFactor);
         int phase = obj.Properties.HasFlag(ObjectProperties.OnePhase) ? 0 : (int)((seed >> 8) % (uint)count);
         return new AnimationTiming(count, duration, phase);
     }
@@ -692,7 +692,7 @@ public sealed class MapRenderer
         LayerSlots * (int)obj.GetLayer(id, file) + (isPlayer ? 1 : 0);
 
     private static bool IsPlayerPart(KnownObject id) =>
-        (uint)(id - KnownObject.PlayerStart) < PlayerPartCount || (uint)(id - KnownObject.PlayerStartFemaleLegs) < PlayerPartCount;
+        id - KnownObject.PlayerStart is >= 0 and < PlayerPartCount || id - KnownObject.PlayerStartFemaleLegs is >= 0 and < PlayerPartCount;
 
     private static Gamma GetLightGamma(GameObject obj, Gamma gamma, Gamma ambient) =>
         obj.Properties.HasFlag(ObjectProperties.Gamma) ? gamma : gamma.Add(ambient);
@@ -820,7 +820,7 @@ public sealed class MapRenderer
             {
                 int column = run.X + offset - frame.Left;
                 int row = run.Y - frame.Top;
-                if ((uint)column < (uint)frame.Width && (uint)row < (uint)frame.RowCount)
+                if (column >= 0 && column < frame.Width && row >= 0 && row < frame.RowCount)
                 {
                     mask[row * frame.Width + column] = true;
                 }
@@ -893,7 +893,7 @@ public sealed class MapRenderer
         {
             Xs = new short[count],
             Indices = paletted ? new byte[count] : [],
-            Depths = view.HasZBuffer || meshDepth ? new ushort[count] : [],
+            Depths = view.HasZBuffer || meshDepth ? new short[count] : [],
             Colors = pixelColors,
             OriginalPalette = paletted && !sequel ? new PaletteSource(view.Palette, gamma, gammaAffectsAlpha) : null,
             Width = view.Width,
@@ -1025,7 +1025,7 @@ public sealed class MapRenderer
         bottom = 0;
         for (int part = 0; part < view.FrameCount && view.TryGetTextureFrame(index, out var entry); part++)
         {
-            if ((uint)entry.Surface < (uint)surfaces.Length)
+            if (entry.Surface >= 0 && entry.Surface < surfaces.Length)
             {
                 quads.Add(new Rectangle(entry.Left, entry.Top, entry.Width, entry.Height));
                 var surface = surfaces[entry.Surface];
@@ -1061,10 +1061,11 @@ public sealed class MapRenderer
     private bool TestsDepth(VidResource view) =>
         !_objects.IsAlienShooter2 || !MatchGameLighting || !(view.BlendProcedure is BlendProcedure.AdditiveLight or BlendProcedure.AlphaDepthWrite || view.MeshType == MeshType.Glow);
 
-    private static ushort GetMeshDepth(float[] heights, int width, int x, int y)
+    private static short GetMeshDepth(float[] heights, int width, int x, int y)
     {
-        float z = (uint)(y * width + x) < (uint)heights.Length ? heights[y * width + x] : float.NaN;
-        return (ushort)Math.Clamp(FlatDepth + (float.IsNaN(z) ? 0 : (int)MathF.Round(z * DepthPerHeight)), 0, ushort.MaxValue);
+        int index = y * width + x;
+        float z = index >= 0 && index < heights.Length ? heights[index] : float.NaN;
+        return (short)Math.Clamp(FlatDepth + (float.IsNaN(z) ? 0 : (int)MathF.Round(z * DepthPerHeight)), 0, short.MaxValue);
     }
 
     private static SpriteFrame TransformFrame(SpriteFrame source, VidMesh mesh, Angle rotation, Vector3 scale)
@@ -1086,7 +1087,7 @@ public sealed class MapRenderer
             for (int index = source.RowStarts[row]; index < source.RowStarts[row + 1]; index++)
             {
                 int x = source.Xs[index];
-                if ((uint)x < (uint)sourceWidth && (uint)y < (uint)sourceHeight)
+                if (x >= 0 && x < sourceWidth && y >= 0 && y < sourceHeight)
                 {
                     lookup[y * sourceWidth + x] = index;
                 }
@@ -1112,7 +1113,7 @@ public sealed class MapRenderer
                 float turnedX = x + 0.5f - centerX;
                 int sourceX = (int)MathF.Floor((turnedX * cos + groundY * sin) / scale.X + sourceCenterX);
                 int sourceY = (int)MathF.Floor(RowScale * (groundY * cos - turnedX * sin) / scale.Y + sourceCenterY);
-                if ((uint)sourceX < (uint)sourceWidth && (uint)sourceY < (uint)sourceHeight)
+                if (sourceX >= 0 && sourceX < sourceWidth && sourceY >= 0 && sourceY < sourceHeight)
                 {
                     int index = lookup[sourceY * sourceWidth + sourceX];
                     if (index >= 0 && heights[index] == 0)
@@ -1182,7 +1183,7 @@ public sealed class MapRenderer
                 int sourceX = (int)MathF.Floor(weightA * vertices[0].X + weightB * vertices[1].X + weightC * vertices[2].X);
                 int sourceY = (int)MathF.Floor(weightA * vertices[0].Y + weightB * vertices[1].Y + weightC * vertices[2].Y);
                 int cell = y * width + x;
-                if ((uint)sourceX >= (uint)sourceWidth || (uint)sourceY >= (uint)sourceHeight || z <= targetHeights[cell])
+                if (sourceX < 0 || sourceX >= sourceWidth || sourceY < 0 || sourceY >= sourceHeight || z <= targetHeights[cell])
                 {
                     continue;
                 }
@@ -1214,7 +1215,7 @@ public sealed class MapRenderer
         int count = target.Count(index => index >= 0);
         short[] xs = new short[count];
         byte[] indices = source.IsPaletted ? new byte[count] : [];
-        ushort[] depths = source.Depths.Length > 0 ? new ushort[count] : [];
+        short[] depths = source.Depths.Length > 0 ? new short[count] : [];
         var colors = source.IsPaletted ? source.Colors : new Rgba32[count];
         int[] rowStarts = new int[bottom - top + 1];
         int pixel = 0;
@@ -1241,7 +1242,7 @@ public sealed class MapRenderer
 
                 if (depths.Length > 0)
                 {
-                    depths[pixel] = (ushort)Math.Clamp(FlatDepth + (source.Depths[index] - FlatDepth) * scaleZ, 0, ushort.MaxValue);
+                    depths[pixel] = (short)Math.Clamp(FlatDepth + (source.Depths[index] - FlatDepth) * scaleZ, 0, short.MaxValue);
                 }
 
                 pixel++;
@@ -1658,7 +1659,7 @@ public sealed class MapRenderer
             int baseDepth = state.BaseDepth;
             int flat = Math.Min(baseDepth + FlatDepth, MaxFlatDepth);
             bool standing = p.IsStanding;
-            (short[] xs, byte[] indices, ushort[] depths, var colors) = (frame.Xs, frame.Indices, frame.Depths, state.Palette ?? frame.Colors);
+            (short[] xs, byte[] indices, short[] depths, var colors) = (frame.Xs, frame.Indices, frame.Depths, state.Palette ?? frame.Colors);
             bool hasDepths = depths.Length > 0;
             int firstRow = Math.Clamp(y0 - state.Corner.Y - frame.Top, 0, frame.Rows);
             int lastRow = Math.Clamp(y1 - state.Corner.Y - frame.Top, 0, frame.Rows);
@@ -1672,7 +1673,7 @@ public sealed class MapRenderer
                 for (int index = frame.RowStarts[row]; index < frame.RowStarts[row + 1]; index++)
                 {
                     int x = left + xs[index];
-                    if ((uint)x >= (uint)_width)
+                    if (x < 0 || x >= _width)
                     {
                         continue;
                     }

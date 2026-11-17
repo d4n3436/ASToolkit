@@ -4,7 +4,7 @@ namespace ASToolkit.Core.Formats;
 /// Specifies the independent layers whose shared bits allow objects to collide.
 /// </summary>
 [Flags]
-public enum CollisionLayers : uint
+public enum CollisionLayers
 {
     /// <summary>
     /// No collision layers.

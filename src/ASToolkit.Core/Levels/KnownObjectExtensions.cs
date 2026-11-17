@@ -91,8 +91,8 @@ public static class KnownObjectExtensions
         public static byte[] CreateCratePayload(KnownObject item)
         {
             byte[] payload = new byte[CratePayloadSize];
-            BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4), 1);
-            BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8), (uint)item);
+            BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(4), 1);
+            BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(8), (int)item);
             return payload;
         }
 
@@ -100,8 +100,8 @@ public static class KnownObjectExtensions
         /// Returns the ID of the pickup inside a crate payload, or 0 for an empty crate.
         /// </summary>
         public static KnownObject GetCrateItem(ReadOnlySpan<byte> payload) =>
-            payload.Length >= CratePayloadSize && BinaryPrimitives.ReadUInt32LittleEndian(payload[4..]) == 1
-                ? (KnownObject)BinaryPrimitives.ReadUInt32LittleEndian(payload[8..])
+            payload.Length >= CratePayloadSize && BinaryPrimitives.ReadInt32LittleEndian(payload[4..]) == 1
+                ? (KnownObject)BinaryPrimitives.ReadInt32LittleEndian(payload[8..])
                 : 0;
     }
 

@@ -167,7 +167,7 @@ public sealed partial class GameWorld
                 unit.Items.Clear();
                 break;
             case ActionCode.GetItem:
-                return (uint)var1 < (uint)unit.Items.Count ? unit.Items[var1] : 0;
+                return var1 >= 0 && var1 < unit.Items.Count ? unit.Items[var1] : 0;
             case ActionCode.Damage:
                 Damage(unit, var1);
                 break;
@@ -264,7 +264,7 @@ public sealed partial class GameWorld
 
         int slot = item - Unit.WeaponItemBase;
 
-        if (man != Player || (uint)slot >= Unit.WeaponSlots)
+        if (man != Player || slot < 0 || slot >= Unit.WeaponSlots)
             return;
 
         if (Player.GetAmmo() == 0 || Player.WeaponSlot < slot || slot == 0)

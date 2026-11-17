@@ -100,7 +100,7 @@ public sealed partial class GameWorld
                 script.PushNumber(definition.IsHidden ? 1 : 0);
                 break;
             case VidDataType.FrameSpeed:
-                script.PushNumber((ushort)definition.SpriteSpeed);
+                script.PushNumber((short)definition.SpriteSpeed);
                 break;
         }
     }
@@ -213,7 +213,7 @@ public sealed partial class GameWorld
 
                 break;
             case VidDataType.FrameSpeed:
-                definition.SetFrameSpeed((ushort)value);
+                definition.SetFrameSpeed((short)value);
                 break;
         }
     }

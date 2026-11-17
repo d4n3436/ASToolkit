@@ -413,7 +413,7 @@ internal sealed class WalkObstacles
         int column = x + BucketMargin;
         int row = y + BucketMargin;
 
-        if ((uint)column < (uint)_bucketColumns && (uint)row < (uint)_bucketRows)
+        if (column >= 0 && column < _bucketColumns && row >= 0 && row < _bucketRows)
             return _buckets[row * _bucketColumns + column];
 
         return _outside.GetValueOrDefault(new Point(x, y), NoObstacles);
@@ -424,7 +424,7 @@ internal sealed class WalkObstacles
         int column = x + BucketMargin;
         int row = y + BucketMargin;
 
-        if ((uint)column < (uint)_bucketColumns && (uint)row < (uint)_bucketRows)
+        if (column >= 0 && column < _bucketColumns && row >= 0 && row < _bucketRows)
             return _buckets[row * _bucketColumns + column];
 
         ref var list = ref CollectionsMarshal.GetValueRefOrAddDefault(_outside, new Point(x, y), out _);

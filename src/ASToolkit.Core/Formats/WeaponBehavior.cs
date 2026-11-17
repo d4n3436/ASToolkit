@@ -4,7 +4,7 @@ namespace ASToolkit.Core.Formats;
 /// Specifies the behavior mask of a unit.
 /// </summary>
 [Flags]
-public enum WeaponBehavior : uint
+public enum WeaponBehavior
 {
     /// <summary>
     /// No behavior.

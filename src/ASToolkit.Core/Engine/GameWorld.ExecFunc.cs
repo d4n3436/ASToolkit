@@ -839,7 +839,7 @@ public sealed partial class GameWorld : IScriptFunctionHost
 
         if (!search.HasFlag(SpriteSearch.Id))
         {
-            types = (OldSpriteType)((uint)search >> TypeShift) & SearchedTypes;
+            types = (OldSpriteType)((int)search >> TypeShift) & SearchedTypes;
             types = types == 0 ? SearchedTypes : types;
 
             return true;

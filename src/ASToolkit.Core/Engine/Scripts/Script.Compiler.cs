@@ -72,7 +72,7 @@ public sealed partial class Script
         int count = BinaryPrimitives.ReadInt32LittleEndian(head);
         EnsureVariableCapacity(Math.Max(count, MinCapacity));
         _count = count;
-        int offset = sizeof(uint) + ReadState(file[sizeof(uint)..]);
+        int offset = sizeof(int) + ReadState(file[sizeof(int)..]);
         int size = BinaryPrimitives.ReadInt32LittleEndian(file.Span[offset..]);
         offset += sizeof(int);
         _code = file.Slice(offset, size).ToArray();
@@ -168,7 +168,7 @@ public sealed partial class Script
         }
     }
 
-    private byte At(int index) => (uint)index < (uint)_text.Length ? _text[index] : (byte)0;
+    private byte At(int index) => index >= 0 && index < _text.Length ? _text[index] : (byte)0;
 
     private static bool IsAlpha(byte character) => char.IsAsciiLetter((char)character);
 
