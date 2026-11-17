@@ -9,6 +9,7 @@ public sealed partial class GameWorld
     private const int DemoMaxLag = 71;
     private const int DemoDrawLag = 21;
     private const int DemoEndMarker = -1;
+    
     private DemoResource? _playedDemo;
     private int _playedOffset;
     private int _demoPacedTime;

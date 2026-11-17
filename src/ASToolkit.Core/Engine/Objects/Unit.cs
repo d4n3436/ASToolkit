@@ -1,17 +1,15 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using ASToolkit.Core.Formats;
+using Microsoft.Extensions.ObjectPool;
 
 namespace ASToolkit.Core.Engine;
 
 /// <summary>
 /// Represents a sprite of the running world with its definition, position, state, orders, links and ammunition.
 /// </summary>
-public sealed class Unit
+public sealed class Unit : IResettable
 {
-    private const int ReloadTimerOffset = 5000;
-    private const int AmmoScale = 64;
-    
     /// <summary>
     /// Represents the object id of the torso for weapon slot 0.
     /// </summary>
@@ -32,11 +30,14 @@ public sealed class Unit
     /// </summary>
     public const int WeaponItemBase = 260;
     
+    private const int ReloadTimerOffset = 5000;
+    private const int AmmoScale = 64;
     private const int MaxWeaponSlot = 9;
-    private int[]? _slotAmmo;
-    private const float VelocityScale = 1e6f;
     private const int SpawnScatter = 8;
+    private const float VelocityScale = 1e6f;
     private const float ReachTolerance = 0.5f;
+    
+    private int[]? _slotAmmo;
     private bool _secondChildPulse;
     private Angle _direction;
     private Unit? _owner;
@@ -45,7 +46,7 @@ public sealed class Unit
     private Unit? _shooter;
 
     /// <summary>
-    /// Creates an empty unit for the pool to initialize.
+    /// Creates an empty unit. Used for object pooled initialization.
     /// </summary>
     public Unit()
     {
@@ -860,4 +861,6 @@ public sealed class Unit
 
         return Direction.StepToward(goal, step, out _);
     }
+
+    bool IResettable.TryReset() => !IsReferenced;
 }

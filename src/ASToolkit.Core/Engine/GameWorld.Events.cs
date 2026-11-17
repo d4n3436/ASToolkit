@@ -15,9 +15,13 @@ public sealed partial class GameWorld
     private const int LongIdDigits = 4;
     private const int MainFunction = -1;
     private const int GameWon = 1;
+    
     private static ReadOnlySpan<byte> GameStateVariable => "GameState"u8;
+    
     private static ReadOnlySpan<byte> DamageSuffix => "DAMAGE"u8;
+    
     private static ReadOnlySpan<byte> DestroySuffix => "DESTROY"u8;
+    
     private static ReadOnlySpan<byte> CollisionSuffix => "COLLISION"u8;
 
 

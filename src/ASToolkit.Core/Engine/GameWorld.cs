@@ -11,32 +11,34 @@ namespace ASToolkit.Core.Engine;
 /// </summary>
 public sealed partial class GameWorld
 {
-
     private const int MaxStreamPeriod = 30000;
     private const float RescueEffectHeight = 22;
+    private const int WornArmorShareCount = 3;
+    private const int ArmorRounding = 50;
+    private const int PlayerSlots = 4;
+    private const int ArmyMask = PlayerSlots - 1;
 
     private readonly GameRandom _rng;
     private readonly MonsterBrain _brain;
     private readonly List<Unit> _monsters = [];
     private readonly HashSet<Unit> _monsterSet = [];
-    private MapEnvironment _environment;
     private readonly UpdateOrder _updates;
-    private GameClock _clock;
-    private bool _loading;
+    private readonly bool _loading;
     private readonly List<Unit> _builders = [];
-    private const int PlayerSlots = 4;
-    private const int ArmyMask = PlayerSlots - 1;
     private readonly List<UnitGroup> _groups = [];
     private readonly PlayerController[] _controllers = new PlayerController[PlayerSlots];
-    private Vector3 _respawnPosition;
-    private int _unitCount;
-    private bool _playerDestroyed;
-    private const int WornArmorShareCount = 3;
-    private const int ArmorRounding = 50;
-    private static ReadOnlySpan<int> WornArmorShares => [50, 70, 90];
     private readonly LivingSet _livingFences = new();
     private readonly LivingSet _livingSites = new();
     private readonly LivingSet _livingCharges = new();
+
+    private GameClock _clock;
+    private MapEnvironment _environment;
+    private Vector3 _respawnPosition;
+    private int _unitCount;
+    private bool _playerDestroyed;
+
+    private static ReadOnlySpan<int> WornArmorShares => [50, 70, 90];
+
     private static ReadOnlySpan<byte> DoorsOpenVariable => "DoorsIsOpen"u8;
 
     /// <summary>
