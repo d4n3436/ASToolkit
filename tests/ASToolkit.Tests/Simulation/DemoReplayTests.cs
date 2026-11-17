@@ -17,7 +17,7 @@ public class DemoReplayTests
         string game = TestGameFolder.RequireFolder();
         var demo = new DemoResource(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", fixture + ".dem")));
         var samples = FixtureReader.Read<Sample[]>(fixture + ".json");
-        string name = folder == "" ? map : folder + "/" + map;
+        string name = string.IsNullOrEmpty(folder) ? map : folder + "/" + map;
         var level = new LevelLoader(TestGameFolder.Objects).Load(name, Path.Combine(game, "Maps", folder, map))!.Analysis;
         var points = new Playthrough(game, TestGameFolder.Objects, TestGameFolder.Table).ReplayDemo(level, demo);
         var stateBeforeFrame = new Dictionary<int, DemoReplayPoint>();
@@ -77,17 +77,14 @@ public class DemoReplayTests
     [Fact]
     public void LoadDemo_RecordedLoad_BuildsTheSpritesWithTheGamesDraws()
     {
-        const int Layer = 1;
-        const int LoadingScreenDraws = 2;
-        const int GameLoadDraws = 10623;
         string game = TestGameFolder.RequireFolder();
         var demo = new DemoResource(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", "addon2-level1-load.dem")));
-        var sprites = FixtureReader.Read<int[][]>("addon2-level1-load.json");
+        int[][] sprites = FixtureReader.Read<int[][]>("addon2-level1-load.json");
         var level = new LevelLoader(TestGameFolder.Objects).Load("ADDON2/Level_01.map", Path.Combine(game, "Maps", "ADDON2", "Level_01.map"))!.Analysis;
         var world = new Playthrough(game, TestGameFolder.Objects, TestGameFolder.Table).LoadDemo(level, demo);
-        var layer = world.GetLayer(Layer);
+        var layer = world.GetLayer(1);
 
-        Assert.Equal(GameLoadDraws - LoadingScreenDraws, CountDraws(demo.Seed, world.RandomState));
+        Assert.Equal(10623 - 2, CountDraws(demo.Seed, world.RandomState));
         for (int slot = 0; slot < sprites.Length; slot++)
         {
             var unit = layer[slot].Unit!;

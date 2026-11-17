@@ -110,7 +110,7 @@ public class ScriptMachineTests
         Assert.Equal([7, 77], host.Notes);
         var copy = script.GetSlot(script.Objects[handler].FirstVariable + 1);
         Assert.Equal(77, copy.Value);
-        Assert.True((copy.Flags & StackObjectFlags.Sprite) != 0);
+        Assert.True(copy.Flags.HasFlag(StackObjectFlags.Sprite));
     }
 
     [Fact]

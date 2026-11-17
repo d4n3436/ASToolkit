@@ -6,7 +6,7 @@ namespace ASToolkit.Core.Generation.Mission;
 /// <summary>
 /// Provides the mission of a building from its plan and its chosen doors, with phases, keys, locks, seals, links and room roles.
 /// </summary>
-public sealed class MissionWriter
+public static class MissionWriter
 {
     /// <summary>
     /// Creates the mission of a building from the doors chosen for it.

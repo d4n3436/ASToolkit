@@ -176,9 +176,9 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
                     var level = generators[excluded].Generate(seed, number);
                     level.Write(path, generators[excluded].GetTemplatePath(level));
                 }
-                catch (Exception exception)
+                catch (Exception ex)
                 {
-                    failures[index] = GetFailure(exception);
+                    failures[index] = GetFailure(ex);
                     return;
                 }
 

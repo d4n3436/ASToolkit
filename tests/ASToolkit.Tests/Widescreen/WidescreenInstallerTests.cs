@@ -5,7 +5,7 @@ using Xunit;
 
 namespace ASToolkit.Tests.Widescreen;
 
-public class WidescreenInstallerTests : IDisposable
+public sealed class WidescreenInstallerTests : IDisposable
 {
     private const int WidthsOffset = 0x7f5b0;
     private const int HeightsOffset = 0x7f630;

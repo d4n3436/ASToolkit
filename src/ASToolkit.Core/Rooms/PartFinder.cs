@@ -51,7 +51,7 @@ internal sealed class PartFinder
     public (IReadOnlyList<RoomPart> Parts, IReadOnlyDictionary<KnownObject, int> Scatter) Find((string Map, int Place) room, IReadOnlyList<Cell> cells, IReadOnlyList<MergedMapSprite> pieces)
     {
         var scatter = pieces.Where(piece => Scattered.Contains(piece.Id)).GroupBy(piece => piece.Id).OrderBy(group => group.Key).ToDictionary(group => group.Key, group => group.Count());
-        var furniture = pieces.Select(piece => (Piece: piece, Family: piece.Id.Family)).Where(entry => entry.Family is not null).ToArray();
+        var furniture = pieces.Select(piece => (Piece: piece, piece.Id.Family)).Where(entry => entry.Family is not null).ToArray();
         int[] root = Enumerable.Range(0, furniture.Length).ToArray();
         for (int index = 0; index < furniture.Length; index++)
         {

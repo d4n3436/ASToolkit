@@ -1040,7 +1040,7 @@ internal sealed class SceneFurnisher
     {
         var modules = GetModules(id);
         var kept = directions.Where(pair => modules.ContainsKey(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value);
-        return _force && kept.Count > 0 ? _rng.NextWeighted(kept) : directions.Count > 0 ? _rng.NextWeighted(directions) : (byte)0;
+        return _force && kept.Count > 0 ? _rng.NextWeighted(kept) : directions.Count > 0 ? _rng.NextWeighted(directions) : 0;
     }
 
     private Dictionary<Angle, Companion[]> GetModules(KnownObject id) =>

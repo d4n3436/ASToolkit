@@ -37,24 +37,14 @@ public readonly record struct ScriptInstruction(int Offset, ScriptOpcode Opcode,
             (version != ScriptVersion.AlienShooter2 || opcode is not (>= ScriptOpcode.CastString and <= ScriptOpcode.OrJump)))
             return new ScriptInstruction(offset, opcode, 0, 1, true);
 
-        switch (opcode)
+        return opcode switch
         {
-            case ScriptOpcode.PushText:
-                return new ScriptInstruction(offset, opcode, 0, code[(offset + 1)..].IndexOf((byte)0) + 2, false);
-            case ScriptOpcode.PushNumber:
-            case ScriptOpcode.JumpIfFalse:
-            case ScriptOpcode.EndStatement:
-            case ScriptOpcode.Jump:
-            case ScriptOpcode.JumpIfFalseOnce:
-            case ScriptOpcode.Call:
-            case >= ScriptOpcode.PostIncrement and <= ScriptOpcode.Assign:
-            case ScriptOpcode.AndJump:
-            case ScriptOpcode.OrJump:
-                return new ScriptInstruction(offset, opcode, BinaryPrimitives.ReadInt32LittleEndian(code[(offset + 1)..]), 5, false);
-            case ScriptOpcode.CompoundAssign:
-                return new ScriptInstruction(offset, opcode, BinaryPrimitives.ReadInt32LittleEndian(code[(offset + 1)..]), 6, false);
-            default:
-                return new ScriptInstruction(offset, opcode, 0, 1, false);
-        }
+            ScriptOpcode.PushText => new ScriptInstruction(offset, opcode, 0, code[(offset + 1)..].IndexOf((byte)0) + 2, false),
+            ScriptOpcode.PushNumber or ScriptOpcode.JumpIfFalse or ScriptOpcode.EndStatement or ScriptOpcode.Jump or ScriptOpcode.JumpIfFalseOnce
+                or ScriptOpcode.Call or >= ScriptOpcode.PostIncrement and <= ScriptOpcode.Assign or ScriptOpcode.AndJump
+                or ScriptOpcode.OrJump => new ScriptInstruction(offset, opcode, BinaryPrimitives.ReadInt32LittleEndian(code[(offset + 1)..]), 5, false),
+            ScriptOpcode.CompoundAssign => new ScriptInstruction(offset, opcode, BinaryPrimitives.ReadInt32LittleEndian(code[(offset + 1)..]), 6, false),
+            _ => new ScriptInstruction(offset, opcode, 0, 1, false)
+        };
     }
 }

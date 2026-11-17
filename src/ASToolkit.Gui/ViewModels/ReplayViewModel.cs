@@ -99,7 +99,7 @@ public partial class ReplayViewModel : ViewModelBase
         }
 
         string? cursorPath = GamePath.Resolve(game, Path.Combine("cursores", "attack.ani"));
-        _cursor = cursorPath is null ? default : new CursorImage(File.ReadAllBytes(cursorPath));
+        _cursor = cursorPath is null ? default : new CursorImage(await File.ReadAllBytesAsync(cursorPath));
 
         int version = ++_loadVersion;
         IsRunning = true;
@@ -128,11 +128,11 @@ public partial class ReplayViewModel : ViewModelBase
             Status = $"{(result.Survived ? "survived" : "died")}  progress {result.Progress:P0}  kills {result.Kills}  {playback.FrameCount} frames";
             DrawFrame();
         }
-        catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
+        catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException)
         {
             if (version == _loadVersion)
             {
-                Status = $"Simulation failed: {exception.Message}";
+                Status = $"Simulation failed: {ex.Message}";
             }
         }
         finally

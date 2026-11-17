@@ -8,10 +8,7 @@ public readonly struct VidFrame
     private readonly ReadOnlyMemory<byte> _stream;
     private readonly bool _hasDepth;
     private readonly bool _isPaletted;
-    private readonly int _colorSize;
     private readonly int _stride;
-    private readonly int _width;
-    private readonly int _left;
     private readonly int _canvasWidth;
 
     internal VidFrame(ReadOnlyMemory<byte> rows, int top, int rowCount, bool hasDepth, bool isPaletted)
@@ -21,22 +18,22 @@ public readonly struct VidFrame
         RowCount = rowCount;
         _hasDepth = hasDepth;
         _isPaletted = isPaletted;
-        _colorSize = isPaletted ? 1 : 2;
-        _stride = _colorSize;
+        PixelSize = isPaletted ? 1 : 2;
+        _stride = PixelSize;
     }
 
     internal VidFrame(ReadOnlyMemory<byte> stream, int left, int top, int width, int rowCount, int canvasWidth, bool hasDepth, bool isPaletted, int colorSize, int stride, VidMesh mesh)
     {
         _stream = stream;
         Mesh = mesh;
-        _left = left;
+        Left = left;
         Top = top;
-        _width = width;
+        Width = width;
         RowCount = rowCount;
         _canvasWidth = canvasWidth;
         _hasDepth = hasDepth;
         _isPaletted = isPaletted;
-        _colorSize = colorSize;
+        PixelSize = colorSize;
         _stride = stride;
     }
 
@@ -48,12 +45,12 @@ public readonly struct VidFrame
     /// <summary>
     /// Gets the first column of a CADR frame in canvas coordinates.
     /// </summary>
-    public int Left => _left;
+    public int Left { get; }
 
     /// <summary>
     /// Gets the number of columns of a CADR frame.
     /// </summary>
-    public int Width => _width;
+    public int Width { get; }
 
     /// <summary>
     /// Gets the triangles that give the pixels a height; empty for frames that carry none.
@@ -68,7 +65,7 @@ public readonly struct VidFrame
     /// <summary>
     /// Gets the size in bytes of one color: one for a palette index, two for a 16-bit color, four for a 32-bit color.
     /// </summary>
-    public int PixelSize => _colorSize;
+    public int PixelSize { get; }
 
     /// <summary>
     /// Returns an enumerator over the runs of the frame.
@@ -101,7 +98,7 @@ public readonly struct VidFrame
         /// <summary>
         /// Moves to the next run that has pixels.
         /// </summary>
-        public bool MoveNext() => _frame._width > 0 ? MoveNextLinear() : MoveNextRows();
+        public bool MoveNext() => _frame.Width > 0 ? MoveNextLinear() : MoveNextRows();
 
         private bool MoveNextRows()
         {
@@ -125,7 +122,7 @@ public readonly struct VidFrame
 
                 _x += skip;
                 int depthLength = _frame._hasDepth ? 2 * count : 0;
-                int colorLength = _frame._colorSize * count;
+                int colorLength = _frame.PixelSize * count;
                 if (_position + depthLength + colorLength > stream.Length)
                 {
                     return false;
@@ -135,7 +132,7 @@ public readonly struct VidFrame
                 if (found)
                 {
                     Current = new VidRun(_x, _frame.Top + _row, count, _frame._stream.Slice(_position, depthLength), 2,
-                        _frame._stream.Slice(_position + depthLength, colorLength), _frame._colorSize, _frame._isPaletted);
+                        _frame._stream.Slice(_position + depthLength, colorLength), _frame.PixelSize, _frame._isPaletted);
                 }
 
                 _position += depthLength + colorLength;
@@ -181,14 +178,14 @@ public readonly struct VidFrame
                     continue;
                 }
 
-                int row = Math.DivRem(_pixel, _frame._width, out int column);
+                int row = Math.DivRem(_pixel, _frame.Width, out int column);
                 if (row >= _frame.RowCount)
                 {
                     return false;
                 }
 
-                int length = Math.Min(_pending, _frame._width - column);
-                int x = _frame._left + column;
+                int length = Math.Min(_pending, _frame.Width - column);
+                int x = _frame.Left + column;
                 int visible = Math.Min(length, _frame._canvasWidth - x);
                 bool found = visible > 0;
                 if (found)

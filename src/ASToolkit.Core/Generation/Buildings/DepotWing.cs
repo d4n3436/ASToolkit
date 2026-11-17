@@ -84,8 +84,8 @@ internal sealed class DepotWing
         // Span the court with a short crossing's passage and office together, or run an L's passage on under B and up into B's underside through a
         // tall office
         var links = lConnector
-            ? Enumerable.Range(court + 8, 7).Select(length => Passage(length, Enumerable.Range(court + 2, length - court - 4).ToArray())).ToArray()
-            : new[] { court - 5, court - 6 }.Where(length => length >= 3).Select(length => Passage(length, [])).ToArray();
+            ? Enumerable.Range(court + 8, 7).Select(length => GetPassage(length, Enumerable.Range(court + 2, length - court - 4).ToArray())).ToArray()
+            : new[] { court - 5, court - 6 }.Where(length => length >= 3).Select(length => GetPassage(length, [])).ToArray();
 
         var offices = lConnector
             ? Enumerable.Range(6, 5).Select(height => new RoomShape(RoomShape.Rectangle(5, height), SolverDoors, [ShapeTurn.Identity])).ToArray()
@@ -245,7 +245,7 @@ internal sealed class DepotWing
     }
 
     // Returns a passage three high open at its west end and on its top at the given offsets, at its east end when it has none on top
-    private static RoomShape Passage(int length, int[] tops) => new(RoomShape.Rectangle(length, 3),
+    private static RoomShape GetPassage(int length, int[] tops) => new(RoomShape.Rectangle(length, 3),
         tops.Select(at => new ShapeDoor(new Point(at, 3), new Point(at + 3, 3)))
             .Append(new ShapeDoor(new Point(0, 0), new Point(0, 3)))
             .Concat(tops.Length == 0 ? [new ShapeDoor(new Point(length, 0), new Point(length, 3))] : Array.Empty<ShapeDoor>())
@@ -425,7 +425,7 @@ internal sealed class DepotWing
                 foreach (var cell in moved)
                 {
                     dock.Remove(cell);
-                    row.First(region => region.Contains(new Cell(cell.U, dockHeight))).Add(cell);
+                    row.First(region => region.Contains(cell with { V = dockHeight })).Add(cell);
                 }
             }
 
@@ -473,7 +473,7 @@ internal sealed class DepotWing
         int width = Math.Clamp(_random.Inclusive(5, 6), 3, Math.Max(3, entryWidth));
         // Open the strip's whole width onto the first depot's foot, centered on each straight run of it, or anywhere within maxU when given
         var openings = firstCells
-            .Where(cell => !block.Contains(new Cell(cell.U, cell.V - 1)))
+            .Where(cell => !block.Contains(cell with { V = cell.V - 1 }))
             .GroupBy(cell => cell.V)
             .SelectMany(row => row.Select(cell => cell.U).GetRuns().Where(run => run.High - run.Low >= width).SelectMany(run =>
                 (maxU == int.MaxValue
@@ -492,7 +492,7 @@ internal sealed class DepotWing
         int foot = cells.Min(cell => cell.V);
         foreach (var room in _rooms)
         {
-            room.Cells = room.Cells.Select(cell => new Cell(cell.U, cell.V - foot)).ToHashSet();
+            room.Cells = room.Cells.Select(cell => cell with { V = cell.V - foot }).ToHashSet();
         }
 
         int entry = Add(DepotRole.Entry, 0, cells.Select(cell => cell with { V = cell.V - foot }).ToHashSet());

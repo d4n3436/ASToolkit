@@ -42,7 +42,7 @@ internal static class PlaceOverlay
     private const float LegendRow = 24;
     private const float LegendSwatch = 28;
 
-    private static readonly Lazy<FontFamily> LabelFamily = new(() => SystemFonts.Families.OrderBy(family => family.Name).First());
+    private static readonly Lazy<FontFamily> LabelFamily = new(() => SystemFonts.Families.OrderBy(family => family.Name, StringComparer.Ordinal).First());
 
     public static void Draw(MapImage map, LevelSurvey survey, RouteAnalysis analysis)
     {

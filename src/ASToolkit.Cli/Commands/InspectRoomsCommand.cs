@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using ASToolkit.Cli.Analysis;
 using ASToolkit.Core.Formats;
@@ -97,7 +98,7 @@ internal sealed class InspectRoomsCommand : Command<InspectRoomsSettings>
         foreach (var room in rooms)
         {
             var place = room.Place;
-            text.Append($"{room.MapName}\t{place.Id}\t{place.Kind}\t{room.Role}\t{room.Type}\t{room.Side}\t{room.ProposedType}\t{place.Zone}\t{place.Use}\t{room.Doors}\t{place.AreaPixels}\t{room.Fill:0.00}\t{room.Desks}\t")
+            text.Append(CultureInfo.InvariantCulture, $"{room.MapName}\t{place.Id}\t{place.Kind}\t{room.Role}\t{room.Type}\t{room.Side}\t{room.ProposedType}\t{place.Zone}\t{place.Use}\t{room.Doors}\t{place.AreaPixels}\t{room.Fill:0.00}\t{room.Desks}\t")
                 .AppendLine(string.Join(" ", room.Pieces.Select(pair => $"{(int)pair.Key}x{pair.Value}")));
         }
 

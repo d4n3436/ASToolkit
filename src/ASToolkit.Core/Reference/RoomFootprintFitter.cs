@@ -8,7 +8,7 @@ namespace ASToolkit.Core.Reference;
 /// Provides the outlines of the originals' smaller office, lab, storage, computer and passage rooms on the building grid, the vocabulary the building
 /// grammars transform their rooms from.
 /// </summary>
-public sealed class RoomFootprintFitter
+public static class RoomFootprintFitter
 {
     // A grid unit is two basement cells; a grid cell belongs to the room when three of its four cells do
     private const int CellsPerUnit = 2;

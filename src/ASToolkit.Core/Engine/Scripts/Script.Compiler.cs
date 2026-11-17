@@ -24,7 +24,6 @@ public sealed partial class Script
     private readonly Dictionary<byte[], byte[]> _defines = new(ScriptNameComparer.Instance);
     private readonly Dictionary<byte[], byte[]>.AlternateLookup<ReadOnlySpan<byte>> _defineLookup;
     private IScriptFileSource? _source;
-    private string _fileName = "";
     private byte[] _text = [];
     private int _position;
     private int _end;
@@ -39,7 +38,7 @@ public sealed partial class Script
     /// <summary>
     /// Gets the path of the script file.
     /// </summary>
-    public string FileName => _fileName;
+    public string FileName { get; private set; } = "";
 
     /// <summary>
     /// Gets the compile error after which Alien Shooter 2 leaves the script empty, or null.
@@ -57,7 +56,7 @@ public sealed partial class Script
     public bool Load(IScriptFileSource source, string path)
     {
         Reset();
-        _fileName = path;
+        FileName = path;
         if (!source.TryRead(path, out var file))
             return false;
 
@@ -90,7 +89,7 @@ public sealed partial class Script
     [EngineRoutine(0x0041f450)]
     private void Compile(IScriptFileSource source, string path, ReadOnlySpan<byte> file)
     {
-        _fileName = path;
+        FileName = path;
         _source = source;
         _codeBuffer = ArrayPool<byte>.Shared.Rent(CodeCapacity);
         _codeSize = 0;
@@ -122,10 +121,10 @@ public sealed partial class Script
                 _code = _codeBuffer.AsSpan(0, _codeSize).ToArray();
             }
         }
-        catch (InvalidDataException exception) when (IsAlienShooter2)
+        catch (InvalidDataException ex) when (IsAlienShooter2)
         {
             Reset();
-            CompileError = exception.Message;
+            CompileError = ex.Message;
         }
         finally
         {
@@ -180,7 +179,7 @@ public sealed partial class Script
 
     [EngineRoutine(0x0041fbe0)]
     private InvalidDataException ReportError(int code, string text, int extra = 0) =>
-        new($"'{_fileName}' line {_line + 1}: {string.Format(CultureInfo.InvariantCulture, ErrorFormats[code], extra, text)}");
+        new($"'{FileName}' line {_line + 1}: {string.Format(CultureInfo.InvariantCulture, ErrorFormats[code], extra, text)}");
 
     private static string Decode(ReadOnlySpan<byte> text) => GameTextEncoding.Cyrillic.GetString(text);
 
@@ -189,60 +188,56 @@ public sealed partial class Script
     {
         int mode = 0;
         int skip = 0;
-        if (_position < _end)
+        while (_position < _end)
         {
-            do
+            if (mode == 0)
             {
-                if (mode == 0)
+                byte character = At(_position);
+                if ((IsAlpha(character) || character == '_') && !_noSubstitution)
                 {
-                    byte character = At(_position);
-                    if ((IsAlpha(character) || character == '_') && !_noSubstitution)
-                    {
-                        Substitute();
-                    }
-
-                    int start = _position;
-                    if (At(start) == '#')
-                    {
-                        skip = ReadConditional(skip);
-                    }
-
-                    character = At(_position);
-                    if (character == '/' && At(_position + 1) == '/')
-                    {
-                        mode = 1;
-                    }
-                    else if (character == '/' && At(_position + 1) == '*')
-                    {
-                        mode = 2;
-                    }
-                    else
-                    {
-                        if (character == '?')
-                            throw ReportError(10, "?: not supported in this version");
-
-                        if (skip == 0 && !IsSpace(character) && character != 0)
-                            return false;
-                    }
+                    Substitute();
                 }
-                else if (mode == 1)
+
+                int start = _position;
+                if (At(start) == '#')
                 {
-                    if (At(_position) == '\n')
-                    {
-                        mode = 0;
-                    }
+                    skip = ReadConditional(skip);
                 }
-                else if (At(_position) == '/' && At(_position - 1) == '*')
+
+                character = At(_position);
+                if (character == '/' && At(_position + 1) == '/')
+                {
+                    mode = 1;
+                }
+                else if (character == '/' && At(_position + 1) == '*')
+                {
+                    mode = 2;
+                }
+                else
+                {
+                    if (character == '?')
+                        throw ReportError(10, "?: not supported in this version");
+
+                    if (skip == 0 && !IsSpace(character) && character != 0)
+                        return false;
+                }
+            }
+            else if (mode == 1)
+            {
+                if (At(_position) == '\n')
                 {
                     mode = 0;
                 }
-
-                if (At(_position++) == '\n')
-                {
-                    _line++;
-                }
             }
-            while (_position < _end);
+            else if (At(_position) == '/' && At(_position - 1) == '*')
+            {
+                mode = 0;
+            }
+
+            if (At(_position++) == '\n')
+            {
+                _line++;
+            }
         }
 
         return true;
@@ -877,8 +872,10 @@ public sealed partial class Script
     {
         if (TryToken("(int)"u8))
             return ScriptOpcode.CastInt;
+        
         if (TryToken("(string)"u8))
             return ScriptOpcode.CastString;
+        
         if (TryToken("(sprite)"u8))
             return ScriptOpcode.CastSprite;
 
@@ -889,10 +886,13 @@ public sealed partial class Script
     {
         if (IsAlienShooter2 ? TryToken("-"u8) : At(_position + 1) != '-' && TryToken("-"u8))
             return ScriptOpcode.Negate;
+        
         if (IsAlienShooter2 && TryToken("+"u8))
             return ScriptOpcode.None;
+        
         if (TryToken("~"u8))
             return ScriptOpcode.BitwiseNot;
+        
         if (TryToken("!"u8))
             return ScriptOpcode.LogicalNot;
 
@@ -1078,15 +1078,11 @@ public sealed partial class Script
         var target = _objects[found];
         ExpectToken("("u8);
         int count = 0;
-        if (!TryToken(")"u8))
+        while (!TryToken(")"u8))
         {
-            do
-            {
-                ParseExpression();
-                TryToken(","u8);
-                count++;
-            }
-            while (!TryToken(")"u8));
+            ParseExpression();
+            TryToken(","u8);
+            count++;
         }
 
         for (; count < target.Count && _slots[target.FirstVariable + count].Flags.HasFlag(StackObjectFlags.Initialized); count++)
@@ -1105,15 +1101,11 @@ public sealed partial class Script
         var target = _objects[found];
         ExpectToken("("u8);
         int count = 0;
-        if (!TryToken(")"u8))
+        while (!TryToken(")"u8))
         {
-            do
-            {
-                ParseExpression();
-                TryToken(","u8);
-                EmitArgumentStore(target.FirstVariable + count++);
-            }
-            while (!TryToken(")"u8));
+            ParseExpression();
+            TryToken(","u8);
+            EmitArgumentStore(target.FirstVariable + count++);
         }
 
         for (; count < target.Count && _slots[target.FirstVariable + count].Flags.HasFlag(StackObjectFlags.Initialized); count++)
@@ -1634,7 +1626,7 @@ public sealed partial class Script
 
     private void ParseInclude()
     {
-        string includer = _fileName;
+        string includer = FileName;
         if (At(_position) != '"' && At(_position) != '<')
             throw ReportError(13, "include file name");
 
@@ -1651,9 +1643,9 @@ public sealed partial class Script
         if (!_source!.TryRead(path, out var file))
             throw ReportError(7, path);
 
-        var (text, position, end, line, depth) = (_text, _position, _end, _line, _ifDepth);
+        (byte[] text, int position, int end, int line, int depth) = (_text, _position, _end, _line, _ifDepth);
         OpenText(file.Span);
-        _fileName = path;
+        FileName = path;
         _line = 0;
         _ifDepth = 0;
         try
@@ -1666,7 +1658,7 @@ public sealed partial class Script
         {
             ArrayPool<byte>.Shared.Return(_text);
             (_text, _position, _end, _line, _ifDepth) = (text, position, end, line, depth);
-            _fileName = includer;
+            FileName = includer;
         }
     }
 

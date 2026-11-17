@@ -364,8 +364,8 @@ public sealed class DesignMeasurer
         return new MeasureShare(inside.Count(point => GetWallSample(KnownObject.Computer, 0, point.X, point.Y).Sides == WallSides.None), inside.Length);
     }
 
-    private static MeasureShare CountNear(IReadOnlyList<PointF> subjects, IReadOnlyList<PointF> partners, float reach) =>
-        new(subjects.Count(subject => partners.Any(partner => Distance(subject, partner) <= reach)), subjects.Count);
+    private static MeasureShare CountNear(PointF[] subjects, IReadOnlyList<PointF> partners, float reach) =>
+        new(subjects.Count(subject => partners.Any(partner => Distance(subject, partner) <= reach)), subjects.Length);
 
     private MeasureShare CountInPlaces(Func<LevelPlace, bool> predicate)
     {
@@ -411,13 +411,13 @@ public sealed class DesignMeasurer
         return new MeasureShare(piles.Count(pile => pile.Count >= 2), piles.Count);
     }
 
-    private static MeasureShare CountGrouped(IReadOnlyList<PointF> points) =>
-        new(points.Count(point => points.Any(other => other != point && Distance(point, other) <= GroupReach)), points.Count);
+    private static MeasureShare CountGrouped(PointF[] points) =>
+        new(points.Count(point => points.Any(other => other != point && Distance(point, other) <= GroupReach)), points.Length);
 
-    private static MeasureShare CountTriplets(IReadOnlyList<PointF> points)
+    private static MeasureShare CountTriplets(PointF[] points)
     {
         var groups = points.Cluster(MissileReach);
-        return new MeasureShare(groups.Where(group => group.Count == 3).Sum(group => group.Count), points.Count);
+        return new MeasureShare(groups.Where(group => group.Count == 3).Sum(group => group.Count), points.Length);
     }
 
     private MeasureShare CountMirroredPads()

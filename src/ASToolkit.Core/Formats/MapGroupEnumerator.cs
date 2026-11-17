@@ -54,7 +54,7 @@ public ref struct MapGroupEnumerator
             count++;
         }
 
-        var groups = new int[count][];
+        int[][] groups = new int[count][];
         int index = 0;
         foreach (var group in this)
         {

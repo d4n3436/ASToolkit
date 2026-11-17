@@ -63,7 +63,7 @@ public sealed class BuildingBuilder
         return Write(grammar, request);
     }
 
-    private BuildingPlan Write(BuildingGrammar grammar, BuildingRequest request)
+    private static BuildingPlan Write(BuildingGrammar grammar, BuildingRequest request)
     {
         var grid = grammar.Grid;
         var idOf = new Dictionary<int, int>();

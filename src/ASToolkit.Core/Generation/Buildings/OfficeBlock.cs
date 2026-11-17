@@ -333,7 +333,13 @@ internal sealed class OfficeBlock
         var closets = new List<(UnitRect Rect, int Host)>();
         foreach (int[] hosts in suite.Take(2).Select(room => new[] { room }).Append([run[^2], run[^3]]))
         {
-            hosts.Any(host => PlaceCloset(rooms, doors, host, closets));
+            foreach (int host in hosts)
+            {
+                if (PlaceCloset(rooms, doors, host, closets))
+                {
+                    break;
+                }
+            }
         }
 
         var depths = Depths(doors, breaker);

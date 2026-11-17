@@ -14,7 +14,6 @@ public sealed class DirectionTable
     private const float LeanContrast = 4;
     private const float RareShare = 0.05f;
     private const int MinDistanceSamples = 3;
-    private const float LowQuantile = 0.1f;
     private const float HeightSlack = 3;
     private const float WallShare = 0.9f;
 
@@ -25,18 +24,12 @@ public sealed class DirectionTable
     private readonly IReadOnlySet<(KnownObject Id, int Frame)> _leaning;
     private readonly Dictionary<(KnownObject Id, WallSides Side, int Frame), List<(float Distance, float Z)>> _placements;
     private readonly Dictionary<(KnownObject Id, WallSides Side, int Frame), (float Min, float Max, int Count)> _distances;
-    private readonly Dictionary<(KnownObject Id, WallSides Side), float> _lowDistances;
     private readonly Dictionary<KnownObject, float> _wallReaches;
 
     private DirectionTable(ObjectTable objects, Dictionary<(KnownObject, WallSides), List<Angle>> dirs, Dictionary<KnownObject, List<Angle>> open,
         IReadOnlySet<(KnownObject, int)> leaning, Dictionary<(KnownObject, WallSides, int), List<(float, float)>> placements)
     {
         _distances = placements.ToDictionary(p => p.Key, p => (p.Value.Min(m => m.Item1), p.Value.Max(m => m.Item1), p.Value.Count));
-        _lowDistances = placements
-            .GroupBy(p => (p.Key.Item1, p.Key.Item2))
-            .Select(g => (g.Key, Distances: g.SelectMany(p => p.Value.Select(m => m.Item1)).Order().ToArray()))
-            .Where(p => p.Distances.Length >= MinSamples)
-            .ToDictionary(p => p.Key, p => p.Distances[(int)(LowQuantile * p.Distances.Length)]);
         
         _wallReaches = placements
             .GroupBy(p => p.Key.Item1)

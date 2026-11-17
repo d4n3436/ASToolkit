@@ -1,4 +1,3 @@
-using System.Numerics;
 using ASToolkit.Core.Rendering;
 using ASToolkit.Core.Routes;
 using ASToolkit.Core.Scripting;
@@ -39,7 +38,7 @@ internal static class LogicOverlay
         [ScriptMarkerKind.Exit] = Color.FromRgb(255, 60, 60)
     };
 
-    private static readonly Lazy<FontFamily> LabelFamily = new(() => SystemFonts.Families.OrderBy(family => family.Name).First());
+    private static readonly Lazy<FontFamily> LabelFamily = new(() => SystemFonts.Families.OrderBy(family => family.Name, StringComparer.Ordinal).First());
 
     public static void Draw(MapImage map, LevelLogic logic, WalkedRoute? walk)
     {
@@ -63,7 +62,7 @@ internal static class LogicOverlay
 
             foreach (var segment in walk?.Segments ?? [])
             {
-                var points = segment.Points.Select(point => map.ToImage(point)).ToArray();
+                var points = segment.Points.Select(map.ToImage).ToArray();
                 if (points.Length < 2)
                 {
                     continue;

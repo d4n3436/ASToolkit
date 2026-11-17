@@ -179,13 +179,13 @@ public sealed class Playthrough
     {
         var world = session.World;
 
-        return new(loadout, world.Player.IsAlive && session.Won, world.Time, session.Bot.FarthestProgress, session.Log.Kills, session.Log.Respawns, session.Log.MinHealth,
+        return new PlaythroughResult(loadout, world.Player.IsAlive && session.Won, world.Time, session.Bot.FarthestProgress, session.Log.Kills, session.Log.Respawns, session.Log.MinHealth,
             world.ReadScriptNumber(MoneyVariable), ReadImplants(world), session.Log.TakenPickups, ReadItems(world), new PlayerState(world).GetRemainingAmmo(),
             session.Log.Timeline, recorder?.CreateReplay(session.Log.PickupEvents));
     }
 
     private static PlayerImplants ReadImplants(GameWorld world) => new(
-        world.ReadScriptNumber(ItemsVariable, LifeImplantItem), world.ReadScriptNumber(ItemsVariable, StrengthImplantItem),
+        world.ReadScriptNumber(ItemsVariable), world.ReadScriptNumber(ItemsVariable, StrengthImplantItem),
         world.ReadScriptNumber(ItemsVariable, SpeedImplantItem), world.ReadScriptNumber(ItemsVariable, AccuracyImplantItem));
 
     private static Dictionary<KnownObject, int> ReadItems(GameWorld world)
@@ -327,7 +327,7 @@ public sealed class Playthrough
             registry.Set("PlayerAmmo" + slot, loadout.Ammo.GetValueOrDefault(weapon).ToString(CultureInfo.InvariantCulture));
         }
 
-        var items = new int[RegistryItemCount];
+        int[] items = new int[RegistryItemCount];
         items[LifeImplantItem] = loadout.Implants.Life;
         items[StrengthImplantItem] = loadout.Implants.Strength;
         items[SpeedImplantItem] = loadout.Implants.Speed;

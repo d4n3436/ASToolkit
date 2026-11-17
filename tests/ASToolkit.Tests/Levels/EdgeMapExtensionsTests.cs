@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using ASToolkit.Core.Levels;
 using Xunit;
 
@@ -20,7 +21,7 @@ public class EdgeMapExtensionsTests
     [Fact]
     public void GetWalledSides_NoEdges_CountsTheFloorBorder()
     {
-        var edges = new Dictionary<EdgeKey, EdgeKind>();
+        var edges = ReadOnlyDictionary<EdgeKey, EdgeKind>.Empty;
 
         Assert.Equal(WallSides.UpperBack | WallSides.UpperSlash, edges.GetWalledSides(new Cell(2, 0), Room.Contains, static kind => kind.IsClosed));
     }

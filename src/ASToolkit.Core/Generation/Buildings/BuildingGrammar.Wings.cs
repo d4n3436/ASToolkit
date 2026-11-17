@@ -443,7 +443,7 @@ internal abstract partial class BuildingGrammar
         }
 
         int id = wing.AddHall(phase, [new RoomShape(RoomShape.Rectangle(HallWidth, length), WingSolver.Doors, [ShapeTurn.Identity, ShapeTurn.MirrorX])]);
-        wing.Join(WingSolver.Anchor, id, JoinVia.Door, JoinMark.Contact);
+        wing.Join(WingSolver.Anchor, id, JoinVia.Door);
         return id;
     }
 

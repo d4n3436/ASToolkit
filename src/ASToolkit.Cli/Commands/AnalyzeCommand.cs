@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using ASToolkit.Core.Formats;
@@ -94,7 +95,7 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
             var r = reports[mapIndex];
             string? image = images[mapIndex];
             table.AddRow(Markup.Escape(maps[mapIndex]), r?.WallSet.ToString() ?? "", r is null ? $"[red]{problems[mapIndex]}[/]" : $"{r.TourPixels} px",
-                r?.SpineShare.ToString("0.00") ?? "", r?.Elongation.ToString("0.00") ?? "",
+                r?.SpineShare.ToString("0.00", CultureInfo.InvariantCulture) ?? "", r?.Elongation.ToString("0.00", CultureInfo.InvariantCulture) ?? "",
                 image is null ? "" : Markup.Escape(image) + (undrawn[mapIndex] > 0 ? $" [grey]({undrawn[mapIndex]} sprites undrawn)[/]" : ""));
         }
 

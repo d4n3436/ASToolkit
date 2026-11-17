@@ -109,8 +109,8 @@ public sealed class MovementMap
                 foreach (var point in parts.GetHeightPoints(part))
                 {
                     // Skip depth samples projected past the frame's last complete cell
-                    if (point.X + file.Width / 2 >= file.Width / CellSize * CellSize ||
-                        point.Y + file.Height / 2 >= file.Height / CellSize * CellSize)
+                    if (point.X + file.Width / 2f >= file.Width / (float)(CellSize * CellSize) ||
+                        point.Y + file.Height / 2f >= file.Height / (float)(CellSize * CellSize))
                         continue;
                     Raise(part.Position.X + point.X, part.Position.Y + point.Y, part.Position.Z + point.Z, scenery, source);
                 }

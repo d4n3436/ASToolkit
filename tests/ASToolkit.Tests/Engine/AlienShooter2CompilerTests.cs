@@ -94,7 +94,7 @@ public class AlienShooter2CompilerTests
 
         var files = new ScriptFolder(game);
 
-        var levels = Directory.GetFiles(Path.Combine(game, "Maps"), "*.lgc")
+        string[] levels = Directory.GetFiles(Path.Combine(game, "Maps"), "*.lgc")
             .Select(Path.GetFileName)
             .OfType<string>()
             .Where(name => name.StartsWith("level_", StringComparison.OrdinalIgnoreCase) || name.StartsWith("survive_0", StringComparison.OrdinalIgnoreCase))

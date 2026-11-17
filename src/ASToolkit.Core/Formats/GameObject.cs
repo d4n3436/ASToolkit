@@ -397,7 +397,7 @@ public readonly struct GameObject
         if (FrameCounts[(int)animation] > 0)
             return animation;
 
-        for (int index = 0; index < GameObject.StateCount; index++)
+        for (int index = 0; index < StateCount; index++)
         {
             if (FrameCounts[index] > 0)
                 return (SpriteAnimation)index;

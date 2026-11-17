@@ -250,7 +250,7 @@ public sealed partial class Script
         if (entry.Kind != ScriptObjectKind.Function)
             return 0;
 
-        var code = _code;
+        byte[] code = _code;
         int codeSize = code.Length;
         int savedCount = _count;
         PushNumber(savedCount);

@@ -25,7 +25,7 @@ internal sealed class RoomSheet
     private const int LabelLines = 3;
 
     private static readonly DrawingOptions FloorTint = new() { GraphicsOptions = new GraphicsOptions { BlendPercentage = 0.15f } };
-    private static readonly Lazy<FontFamily> LabelFamily = new(() => SystemFonts.Families.OrderBy(family => family.Name).First());
+    private static readonly Lazy<FontFamily> LabelFamily = new(() => SystemFonts.Families.OrderBy(family => family.Name, StringComparer.Ordinal).First());
     private static readonly PngEncoder PngOptions = new() { CompressionLevel = PngCompressionLevel.BestSpeed };
 
     private readonly List<Image<Rgb24>> _tiles = [];
@@ -52,7 +52,7 @@ internal sealed class RoomSheet
                 foreach (var (neighbor, edge) in EdgeKey.GetNeighbors(cell))
                 {
                     bool inside = cells.Contains(neighbor);
-                    if (inside && !(edges.TryGetValue(edge, out EdgeKind kind) && kind.BlocksWalking))
+                    if (inside && !(edges.TryGetValue(edge, out var kind) && kind.BlocksWalking))
                     {
                         continue;
                     }

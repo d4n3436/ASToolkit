@@ -208,7 +208,7 @@ public sealed class PlacementContext
         for (int index = 0; index < 12; index++)
         {
             var point = Layout.Lattice.ToWorld(c.U + 0.3f + 0.4f * Rng.NextSingle(), c.V + 0.3f + 0.4f * Rng.NextSingle());
-            if (!IsInWall(point, 6))
+            if (!IsInWall(point))
             {
                 return point;
             }
@@ -346,19 +346,19 @@ public sealed class PlacementContext
     }
 
     // Step to a side neighbor across no wall, or to a corner neighbor through either side neighbor
-    private bool IsOpenStep(Cell from, Cell to)
+    private bool IsOpenStep(Cell fromCell, Cell toCell)
     {
-        int du = to.U - from.U;
-        int dv = to.V - from.V;
+        int du = toCell.U - fromCell.U;
+        int dv = toCell.V - fromCell.V;
         if (Math.Abs(du) + Math.Abs(dv) == 1)
         {
-            return !ShowsWallBetween(from, to);
+            return !ShowsWallBetween(fromCell, toCell);
         }
 
-        var first = new Cell(from.U + du, from.V);
-        var second = new Cell(from.U, from.V + dv);
-        return Layout.Cells.ContainsKey(first) && !ShowsWallBetween(from, first) && !ShowsWallBetween(first, to)
-               || Layout.Cells.ContainsKey(second) && !ShowsWallBetween(from, second) && !ShowsWallBetween(second, to);
+        var first = fromCell with { U = fromCell.U + du };
+        var second = fromCell with { V = fromCell.V + dv };
+        return Layout.Cells.ContainsKey(first) && !ShowsWallBetween(fromCell, first) && !ShowsWallBetween(first, toCell)
+               || Layout.Cells.ContainsKey(second) && !ShowsWallBetween(fromCell, second) && !ShowsWallBetween(second, toCell);
     }
 
     private bool ShowsWallBetween(Cell cell, Cell neighbor)

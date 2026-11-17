@@ -6,7 +6,7 @@ using ASToolkit.Core.Scripting;
 
 namespace ASToolkit.Tests.Patching;
 
-public class RandomAddOnInstallerTests : IDisposable
+public sealed class RandomAddOnInstallerTests : IDisposable
 {
     private static readonly string[] Files =
     [

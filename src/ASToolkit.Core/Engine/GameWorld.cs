@@ -23,7 +23,6 @@ public sealed partial class GameWorld
     private readonly List<Unit> _monsters = [];
     private readonly HashSet<Unit> _monsterSet = [];
     private readonly UpdateOrder _updates;
-    private readonly bool _loading;
     private readonly List<Unit> _builders = [];
     private readonly List<UnitGroup> _groups = [];
     private readonly PlayerController[] _controllers = new PlayerController[PlayerSlots];
@@ -33,7 +32,6 @@ public sealed partial class GameWorld
 
     private GameClock _clock;
     private MapEnvironment _environment;
-    private Vector3 _respawnPosition;
     private int _unitCount;
     private bool _playerDestroyed;
 
@@ -88,7 +86,7 @@ public sealed partial class GameWorld
 
         _brain = new MonsterBrain(Motion, unitMovement, rng, _monsters, Session);
         var placedUnits = new Dictionary<int, Unit>();
-        _loading = true;
+        IsLoading = true;
 
         if (start is null)
         {
@@ -154,11 +152,10 @@ public sealed partial class GameWorld
         }
 
         LoadGroups(model.Groups, placedUnits);
-        _loading = false;
+        IsLoading = false;
         RunCreationScripts();
 
         SetFlagman(0, Player);
-        _respawnPosition = Player.Position;
     }
 
     [EngineRoutine(0x00440830)]
@@ -490,7 +487,6 @@ public sealed partial class GameWorld
         _playerDestroyed = false;
         Weapons.AttachTorso();
         ConstructPlayer(sprite.Direction);
-        _respawnPosition = man.Position;
 
         return man;
     }
@@ -543,7 +539,7 @@ public sealed partial class GameWorld
         CreateLink(unit);
         Units.Add(unit);
 
-        if (state != SpriteAnimation.Birth && !_loading)
+        if (state != SpriteAnimation.Birth && !IsLoading)
         {
             Effects.Emit(definition, SpriteAnimation.Birth, unit.Position, unit.Direction, Time);
         }
@@ -561,13 +557,13 @@ public sealed partial class GameWorld
     {
         var state = definition.InitialAnimation;
 
-        return _loading && state == SpriteAnimation.Birth ? SpriteAnimation.Stand : state;
+        return IsLoading && state == SpriteAnimation.Birth ? SpriteAnimation.Stand : state;
     }
 
     /// <summary>
     /// Gets a value indicating whether the map is still loading.
     /// </summary>
-    public bool IsLoading => _loading;
+    public bool IsLoading { get; }
 
     internal IReadOnlyList<UpdateEntry> GetLayer(int layer) => _updates.GetLayer(layer);
 
@@ -1121,7 +1117,7 @@ public sealed partial class GameWorld
         var unit = ConstructSprite(definition, position, direction, army, definition.MaxHp, UpdateRole.Monster, _unitCount++);
         AddToMonsters(unit);
 
-        if (!_loading)
+        if (!IsLoading)
         {
             RunCreationHook(unit);
         }

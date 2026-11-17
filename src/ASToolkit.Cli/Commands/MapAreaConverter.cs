@@ -11,8 +11,7 @@ internal sealed class MapAreaConverter : TypeConverter
 
     public override object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value)
     {
-        string? text = value as string;
-        if (text is null)
+        if (value is not string text)
         {
             return base.ConvertFrom(context, culture, value);
         }

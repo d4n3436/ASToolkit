@@ -193,7 +193,7 @@ internal static class RandomBuildings
         int Id(int u, int v) => v * width + u;
     }
 
-    private static HashSet<int> Grow(Dictionary<int, List<int>> neighbors, IEnumerable<int> seeds, IReadOnlySet<int> within, int size, Random? rng = null)
+    private static HashSet<int> Grow(Dictionary<int, List<int>> neighbors, IEnumerable<int> seeds, HashSet<int> within, int size, Random? rng = null)
     {
         var grown = seeds.ToHashSet();
         var frontier = new List<int>();
@@ -229,6 +229,4 @@ internal static class RandomBuildings
 
         return pieces;
     }
-
-    private static (int, int) Order(int a, int b) => a < b ? (a, b) : (b, a);
 }

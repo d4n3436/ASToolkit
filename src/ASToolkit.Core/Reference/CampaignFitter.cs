@@ -75,7 +75,7 @@ public sealed class CampaignFitter
             .ToArray();
 
         var fights = buildings
-            .Select(level => (level.Level, Encounters: references.GetSurvey(level.Map).Encounters))
+            .Select(level => (level.Level, references.GetSurvey(level.Map).Encounters))
             .ToArray();
 
         var bosses = FitFirstLevels(fights.Select(level => (level.Level, Ids: level.Encounters

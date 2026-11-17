@@ -177,7 +177,7 @@ internal static class CellRegionExtensions
                 }
 
                 int w = 1;
-                while (left.Contains(new Cell(start.U + w, start.V)))
+                while (left.Contains(start with { U = start.U + w }))
                 {
                     w++;
                 }

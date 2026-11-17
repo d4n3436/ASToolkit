@@ -64,7 +64,7 @@ internal static class RouteOverlay
         [ObjectiveKind.Exit] = 'E'
     };
 
-    private static readonly Lazy<FontFamily> LabelFamily = new(() => SystemFonts.Families.OrderBy(f => f.Name).First(HasLabelGlyphs));
+    private static readonly Lazy<FontFamily> LabelFamily = new(() => SystemFonts.Families.OrderBy(f => f.Name, StringComparer.Ordinal).First(HasLabelGlyphs));
 
     public static void Draw(MapImage map, RouteAnalysis analysis, LevelScriptSummary script)
     {

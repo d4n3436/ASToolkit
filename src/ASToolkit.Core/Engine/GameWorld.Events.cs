@@ -98,7 +98,7 @@ public sealed partial class GameWorld
 
         int value = state.Length == 1 ? state[0] - '0' : (state[0] - '0') * 10 + state[1] - '0';
 
-        if (value >= 0 && value < SpriteDefinition.StateCount)
+        if (value is >= 0 and < SpriteDefinition.StateCount)
         {
             definition.StateHandlers[value] = function;
         }

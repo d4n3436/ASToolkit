@@ -12,10 +12,10 @@ public class ExportDeclarationTests
     [Fact]
     public void ScriptFunction_EveryMember_MatchesAnExternOfExport()
     {
-        const string ScriptPath = "Maps\\export_test.lgc";
+        const string scriptPath = "Maps\\export_test.lgc";
         var script = new Script();
-        var files = new ScriptOverlay(new ScriptFolder(TestGameFolder.RequireFolder()), ScriptPath, "#include \"maps\\export.lgc\"\nmain()\n{\n}\n");
-        Assert.True(script.Load(files, ScriptPath));
+        var files = new ScriptOverlay(new ScriptFolder(TestGameFolder.RequireFolder()), scriptPath, "#include \"maps\\export.lgc\"\nmain()\n{\n}\n");
+        Assert.True(script.Load(files, scriptPath));
         var externs = new Dictionary<int, string>();
         foreach (var name in script.Objects)
         {
@@ -42,12 +42,12 @@ public class ExportDeclarationTests
     [Fact]
     public void VidDataType_Values_MatchTheVidDefinesOfExport()
     {
-        const string Prefix = "#define VID_";
+        const string prefix = "#define VID_";
         var defined = new SortedSet<int>();
         foreach (string line in ReadExport())
         {
             string text = line.Trim();
-            if (!text.StartsWith(Prefix, StringComparison.Ordinal))
+            if (!text.StartsWith(prefix, StringComparison.Ordinal))
                 continue;
 
             string[] parts = text.Split((char[])[' ', '\t', '/'], StringSplitOptions.RemoveEmptyEntries);

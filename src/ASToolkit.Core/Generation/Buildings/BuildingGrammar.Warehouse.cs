@@ -88,7 +88,7 @@ internal abstract partial class BuildingGrammar
         foreach (var room in area.Rooms)
         {
             room.Phase ??= spec.Phase;
-            room.Role = room.Role == "" ? spec.Role : room.Role;
+            room.Role = string.IsNullOrEmpty(room.Role) ? spec.Role : room.Role;
         }
 
         return area;
@@ -159,7 +159,7 @@ internal abstract partial class BuildingGrammar
     // Returns doors on the outer walls of the area's entry room that face the template's ways, one for each join length
     private static List<ShapeDoor> DoorsOf(Area area, WarehouseArea spec)
     {
-        var entry = area.DoorCells.Count > 0 ? area.DoorCells : area.Rooms[area.Entry].Cells;
+        var entry = area.DoorCells.Count > 0 ? area.DoorCells : area.Rooms[Area.Entry].Cells;
         var units = new HashSet<(Cell From, Cell To, char Face)>();
         foreach (var cell in entry)
         {
@@ -234,12 +234,12 @@ internal abstract partial class BuildingGrammar
         foreach (var spec in template.Where(spec => areas.ContainsKey(spec.Name) && spec.Host is not null))
         {
             int[] host = ids[HostOf(spec, areas)];
-            Join(host[areas[HostOf(spec, areas)].Entry], ids[spec.Name][areas[spec.Name].Entry], open, spec.IsWide);
+            Join(host[Area.Entry], ids[spec.Name][Area.Entry], open, spec.IsWide);
         }
 
         foreach (var spec in template.Where(spec => areas.ContainsKey(spec.Name) && spec.WayBack is not null && areas.ContainsKey(spec.WayBack)))
         {
-            (int a, int b) = (ids[spec.WayBack!][areas[spec.WayBack!].Entry], ids[spec.Name][areas[spec.Name].Entry]);
+            (int a, int b) = (ids[spec.WayBack!][Area.Entry], ids[spec.Name][Area.Entry]);
             if (Grid[a].Phase == Grid[b].Phase)
             {
                 open.Add(new RoomPair(a, b));
@@ -688,7 +688,7 @@ internal abstract partial class BuildingGrammar
 
         public HashSet<Cell> DoorCells { get; } = [];
 
-        public int Entry => 0;
+        public static int Entry => 0;
 
         public string? HostSide { get; set; }
     }

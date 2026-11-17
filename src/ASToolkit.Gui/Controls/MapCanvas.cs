@@ -367,6 +367,7 @@ public sealed class MapCanvas : Control
         }
 
         _busy = true;
+        
         var watch = Stopwatch.StartNew();
         try
         {

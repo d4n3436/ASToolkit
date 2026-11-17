@@ -1,3 +1,4 @@
+using System.Text;
 using ASToolkit.Core.Engine.Scripts;
 
 namespace ASToolkit.Core.Scripting;
@@ -32,7 +33,7 @@ internal sealed class MarkedScriptSource : IScriptFileSource
             return false;
         }
 
-        ReadOnlySpan<byte> marker = isRoot ? RootMarker : System.Text.Encoding.ASCII.GetBytes($"{IncludeMarker}{++_includes}");
+        var marker = isRoot ? RootMarker : Encoding.ASCII.GetBytes($"{IncludeMarker}{++_includes}");
         byte[] marked = new byte[data.Length + marker.Length + 8];
         data.Span.CopyTo(marked);
         int at = data.Length;

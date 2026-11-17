@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using ASToolkit.Core.Levels;
 using Google.OrTools.Sat;
@@ -131,11 +132,9 @@ internal sealed class LayoutSolver<T>
         }
 
         // Skip presolve, probing, symmetry detection and, unless the problem keeps it, phase saving
-        var solver = new CpSolver
-        {
-            StringParameters = "num_workers:1 linearization_level:0 cp_model_presolve:false cp_model_probing_level:0 symmetry_level:0 " + (_problem.SavesPhases ? "" : "use_phase_saving:false ") +
-                $"random_seed:{_random.Next(1_000_000)} max_deterministic_time:{Seconds.ToString(System.Globalization.CultureInfo.InvariantCulture)}"
-        };
+        using var solver = new CpSolver();
+        solver.StringParameters = "num_workers:1 linearization_level:0 cp_model_presolve:false cp_model_probing_level:0 symmetry_level:0 " + (_problem.SavesPhases ? "" : "use_phase_saving:false ") +
+                                  $"random_seed:{_random.Next(1_000_000)} max_deterministic_time:{Seconds.ToString(CultureInfo.InvariantCulture)}";
 
         var status = solver.Solve(_model);
         if (status is not (CpSolverStatus.Optimal or CpSolverStatus.Feasible))
@@ -157,7 +156,7 @@ internal sealed class LayoutSolver<T>
     {
         bool readsSides = _problem.DoorSides.Keys.Any(key => EqualityComparer<T>.Default.Equals(key.Room, room));
         var variants = _problem.Rooms[room].Shapes
-            .SelectMany(shape => TurnedShapes.GetValue(shape, turned => turned.Turns.Distinct().Select(turn => Turn(turned, turn)).ToArray()))
+            .SelectMany(shape => TurnedShapes.GetValue(shape, turned => turned.Turns.Distinct().Select(turn => TurnShape(turned, turn)).ToArray()))
             .GroupBy(variant => readsSides ? variant.SidedKey : variant.PlainKey)
             .Select(group => group.First())
             .ToArray();
@@ -373,7 +372,7 @@ internal sealed class LayoutSolver<T>
     };
 
     // Turns a shape and its doors, each door keeping the side it faces in the shape's own frame and its doors merged into sliding runs
-    private static Variant Turn(RoomShape shape, ShapeTurn turn)
+    private static Variant TurnShape(RoomShape shape, ShapeTurn turn)
     {
         var cells = shape.Cells.Select(cell => turn.Apply(cell)).ToHashSet();
         var doors = new List<(int U, int V, int Length, int Facing, int OwnFacing)>();
@@ -432,7 +431,7 @@ internal sealed class LayoutSolver<T>
                 .Select(line => withOwnSides ? line : line with { OwnFacing = 0 })
                 .Order();
 
-            return string.Join(";", rects) + "|" + string.Join(";", lines);
+            return $"{string.Join(';', rects)}|{string.Join(';', lines)}";
         }
     }
 

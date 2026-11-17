@@ -3,6 +3,7 @@ using ASToolkit.Core.Formats;
 using ASToolkit.Core.Generation.Layout;
 using ASToolkit.Core.Generation.Output;
 using ASToolkit.Core.Levels;
+// ReSharper disable ArrangeObjectCreationWhenTypeNotEvident
 
 namespace ASToolkit.Core.Generation.Geometry;
 

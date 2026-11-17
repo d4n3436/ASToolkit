@@ -68,7 +68,7 @@ internal sealed class RoomGeometry
             .Where(cell => !Cells.Contains(cell) && !outside.Contains(cell))
             .ToHashSet();
 
-        Interior = Cells.Where(cell => Faces[cell] == 0 && new Cell[] { new(cell.U + 1, cell.V), new(cell.U - 1, cell.V), new(cell.U, cell.V + 1), new(cell.U, cell.V - 1) }.All(Cells.Contains)).ToArray();
+        Interior = Cells.Where(cell => Faces[cell] == 0 && new[] { cell with { U = cell.U + 1 }, cell with { U = cell.U - 1 }, cell with { V = cell.V + 1 }, cell with { V = cell.V - 1 } }.All(Cells.Contains)).ToArray();
 
         foreach (int face in new[] { PlusU, MinusV, MinusU, PlusV })
         {

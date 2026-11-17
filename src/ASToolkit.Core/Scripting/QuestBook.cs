@@ -165,9 +165,9 @@ public sealed partial class QuestBook
     [GeneratedRegex(@"^(\d+)_(\d+)_(\d+)$")]
     private static partial Regex QuestName { get; }
 
-    [GeneratedRegex(@"^<([0-9_]+)>$")]
+    [GeneratedRegex("^<([0-9_]+)>$")]
     private static partial Regex SectionHeader { get; }
 
-    [GeneratedRegex(@"<[^>]*>")]
+    [GeneratedRegex("<[^>]*>")]
     private static partial Regex Tag { get; }
 }

@@ -135,11 +135,11 @@ internal sealed class PlayerController
             if (target is null || command == UnitCommand.None || !hasIdle)
                 continue;
 
-            for (int member = 0; member < members.Count; member++)
+            foreach (var member in members)
             {
-                if (members[member].Command == UnitCommand.None)
+                if (member.Command == UnitCommand.None)
                 {
-                    UnitKinematics.SetCommand(members[member], command, target);
+                    UnitKinematics.SetCommand(member, command, target);
                 }
             }
         }

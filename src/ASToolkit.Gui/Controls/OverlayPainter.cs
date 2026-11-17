@@ -128,7 +128,7 @@ internal sealed class OverlayPainter
             var center = ToView(marker.Position);
             if (Vector3.Distance(marker.Source, marker.Position) > MinSourceDistance)
             {
-                DrawLine(new Pen(pen.Brush, 1), ToView(marker.Source), center);
+                DrawLine(new Pen(pen.Brush), ToView(marker.Source), center);
             }
 
             if (marker.Target is not null)

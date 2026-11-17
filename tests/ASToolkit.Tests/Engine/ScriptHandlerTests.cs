@@ -140,12 +140,14 @@ public class ScriptHandlerTests
     [Fact]
     public void Step_FreezeRifleFiredAtAMonster_FreezesIt()
     {
+        const int slot = KnownObject.FreezeRifle - KnownObject.Shotgun + 2;
+        
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int> { [KnownObject.FreezeRifle] = 100 }, default);
         var world = EngineTestWorld.CreateWorld(definitions, loadout: loadout);
         Step(world, 1);
         var monster = world.AddMonster(definitions.Find(KnownObject.Slug)!, world.Player.Position + new Vector3(250, 0, 0), new Angle(192));
-        int slot = KnownObject.FreezeRifle - KnownObject.Shotgun + 2;
+
         for (int tick = 0; tick < 1500 && monster.Definition.Id != KnownObject.FrozenSlug; tick++)
         {
             world.Step(new PlayerCommand(null, PlayerCommand.GetCursor(monster.Position), true, slot));
@@ -158,13 +160,15 @@ public class ScriptHandlerTests
     [Fact]
     public void Step_FlamethrowerFiredAtAMonster_DamagesIt()
     {
+        const int slot = KnownObject.FlameThrower - KnownObject.Shotgun + 2;
+
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int> { [KnownObject.FlameThrower] = 1000 }, default);
         var world = EngineTestWorld.CreateWorld(definitions, loadout: loadout);
         Step(world, 1);
         var monster = world.AddMonster(definitions.Find(KnownObject.TankMonster)!, world.Player.Position + new Vector3(120, 0, 0), new Angle(192));
         int health = monster.Hp;
-        int slot = KnownObject.FlameThrower - KnownObject.Shotgun + 2;
+
         for (int tick = 0; tick < 100; tick++)
         {
             world.Step(new PlayerCommand(null, PlayerCommand.GetCursor(monster.Position), true, slot));

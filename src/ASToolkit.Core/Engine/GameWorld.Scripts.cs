@@ -22,7 +22,6 @@ public sealed partial class GameWorld
     ];
 
     private const int ShakeReach = 4;
-    private const int White = 0xffffff;
 
     private readonly List<Unit> _scripted = [];
     private readonly Dictionary<MergedMapSprite, Unit> _bodies = new(ReferenceEqualityComparer.Instance);
@@ -291,9 +290,6 @@ public sealed partial class GameWorld
 
         return found;
     }
-
-    private static int SizeTo(Vector3 position, Vector2 point) =>
-        (int)position.AsVector2().MeasureOctagonalDistance(new Vector2((int)point.X, (int)point.Y));
 
     [EngineRoutine(0x00431cf0)]
     private void SetEnvironment(MapEnvironment environment)

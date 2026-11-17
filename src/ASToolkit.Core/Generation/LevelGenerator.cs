@@ -365,7 +365,7 @@ public sealed class LevelGenerator
         return new GeneratedLevel
         {
             Level = brief.Level,
-            Map = map.ToMap(new Vector2(Math.Max(0, px - 400), Math.Max(0, py - 300)), brief.GateStyle == LevelStyle.LockedDoors ? DarkAmbient : default(Gamma)),
+            Map = map.ToMap(new Vector2(Math.Max(0, px - 400), Math.Max(0, py - 300)), brief.GateStyle == LevelStyle.LockedDoors ? DarkAmbient : default),
             Script = script,
             Plan = plan,
             Layout = layout,

@@ -292,13 +292,13 @@ public partial class MapViewerViewModel : ViewModelBase
 
             Overlay = overlay;
         }
-        catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
+        catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException)
         {
             if (version == _loadVersion)
             {
                 Scene = null;
                 Overlay = null;
-                Status = $"{map} cannot be opened: {exception.Message}";
+                Status = $"{map} cannot be opened: {ex.Message}";
             }
         }
         finally

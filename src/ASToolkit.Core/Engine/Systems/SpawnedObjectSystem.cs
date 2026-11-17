@@ -605,7 +605,7 @@ internal sealed class SpawnedObjectSystem
         }
         else
         {
-            unit.VerticalSpeed = unit.VerticalSpeed - elapsed * _definitions.Gravitation;
+            unit.VerticalSpeed -= elapsed * _definitions.Gravitation;
         }
 
         if (HitsGoal(unit, goal, target, previousHeight))
