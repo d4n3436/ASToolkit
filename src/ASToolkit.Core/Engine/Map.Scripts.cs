@@ -122,6 +122,7 @@ public sealed partial class Map
     {
         _hasHardwareGround = true;
         _rng.Next();
+        Session.Logger.Write("Create Empty Hardware Ground"u8);
     }
 
     [EngineRoutine(0x0043f500)]

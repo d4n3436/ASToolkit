@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Numerics;
+using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Engine.Scripts;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
@@ -10,9 +11,10 @@ namespace ASToolkit.Core.Engine;
 /// <summary>
 /// Represents a running Alien Shooter level with its sprites, update lists, controllers and compiled level script.
 /// </summary>
-public sealed partial class Map
+public sealed partial class Map : IDisposable
 {
     private const int WindowMessageHitTest = 0x84;
+    private const int SpriteRecordSize = 112;
     private const int MaxStreamPeriod = 30000;
     private const float RescueEffectHeight = 22;
     private const int WornArmorShareCount = 3;
@@ -40,6 +42,7 @@ public sealed partial class Map
     private static ReadOnlySpan<int> WornArmorShares => [50, 70, 90];
 
     private static ReadOnlySpan<byte> DoorsOpenVariable => "DoorsIsOpen"u8;
+    private static ReadOnlySpan<byte> SpriteLogTag => "SPRITE %i"u8;
 
     /// <summary>
     /// Creates a map from a level, building its sprites, binding its compiled script and running the creation scripts.
@@ -56,6 +59,7 @@ public sealed partial class Map
     {
         Registry = registry ?? new ScriptRegistry("");
         Session = session ?? new GameSession(Registry);
+        Session.Logger.Write("CurrentTime   =%-15u   sizeof(SPRITE)=%-8i Map version   =%i"u8, GameClock.LevelStartTime, SpriteRecordSize, data.Model.Version);
         Session.Cursor ??= ConstructCursor(data.Definitions, Session.ScreenSize);
         Sound = Session.Sound ??= new SoundSystem(data.Definitions.Sounds, data.FileSystem);
         _updates = new UpdateOrder();
@@ -146,6 +150,7 @@ public sealed partial class Map
             }
         }
 
+        Script.Logger = Session.Logger;
         if (!Script.Load(data.FileSystem, data.ScriptPath))
             throw new InvalidDataException($"Cannot compile the script {data.ScriptPath}.");
 
@@ -612,6 +617,21 @@ public sealed partial class Map
     }
 
     /// <summary>
+    /// Ends the level, writing the definitions that still count sprites and the release steps to the game log.
+    /// </summary>
+    [EngineRoutine(0x0040c570)]
+    public void Dispose()
+    {
+        var logger = Session.Logger;
+        Definitions.LogCounts(logger);
+        logger.Write("Player release"u8);
+        logger.Write("Sprite release"u8);
+        logger.Write("Menu   release"u8);
+        logger.Write("Average fps=%i"u8, _clock.FramesPerSecond);
+        logger.Write("Script release"u8);
+    }
+
+    /// <summary>
     /// Gets the sound effects and music of the session.
     /// </summary>
     public SoundSystem Sound { get; }
@@ -769,6 +789,7 @@ public sealed partial class Map
 
         if (sprite.Command is not Command.None && sprite is { Command: < Command.Build, HasGoal: false })
         {
+            Session.Logger.Error(SpriteLogTag, LogError.Text, (int)sprite.Command, "command need goal, but goal==NULL"u8, (int)sprite.Definition.Id);
             SpriteKinematics.SetCommand(sprite, Command.None);
         }
 

@@ -29,7 +29,7 @@ internal static class EngineTestMap
         """;
 
     public static Map CreateMap(SpriteCatalog definitions, PlayerLoadout? loadout = null, IReadOnlyList<MergedMapSprite>? sprites = null, int frameTime = GameClock.DefaultFrameTime,
-        MapEnvironment environment = MapEnvironment.None, DemoResource? demo = null, string? blood = null)
+        MapEnvironment environment = MapEnvironment.None, DemoResource? demo = null, string? blood = null, GameSession? session = null)
     {
         var model = new LevelModel
         {
@@ -65,6 +65,6 @@ internal static class EngineTestMap
             registry.Set("Blood", blood);
         }
 
-        return new Map(level, new GameRandom(1), demo: demo, registry: registry);
+        return new Map(level, new GameRandom(1), demo: demo, registry: registry, session: session);
     }
 }

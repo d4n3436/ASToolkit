@@ -128,7 +128,7 @@ public sealed class Playthrough
         return points;
     }
 
-    internal Map LoadDemo(RouteAnalysis analysis, DemoResource demo, IReadOnlyList<int>? loadingScreenRecords = null, ScriptRegistry? registry = null)
+    internal Map LoadDemo(RouteAnalysis analysis, DemoResource demo, IReadOnlyList<int>? loadingScreenRecords = null, ScriptRegistry? registry = null, GameSession? session = null)
     {
         var level = GetSetup(analysis).Level;
         var scripted = new LevelTemplate
@@ -138,7 +138,7 @@ public sealed class Playthrough
             ScriptPath = Path.ChangeExtension(GameTextEncoding.Cyrillic.GetString(demo.MapName), ".lgc"),
             LoadingScreenRecords = loadingScreenRecords ?? []
         };
-        var map = new Map(scripted, new GameRandom(demo.Seed), demo: demo, registry: registry);
+        var map = new Map(scripted, new GameRandom(demo.Seed), demo: demo, registry: registry, session: session);
         AddLoosePickups(analysis, map);
 
         return map;

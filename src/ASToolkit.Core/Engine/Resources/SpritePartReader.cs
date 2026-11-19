@@ -8,6 +8,7 @@ namespace ASToolkit.Core.Engine;
 /// </summary>
 public sealed class SpritePartReader
 {
+    private const string PictureExtension = ".bmp";
     private const int MaxLinkDepth = 4;
     private const int FrameCells = 256;
     private const int MaxFramePixels = FrameCells * MovementMap.CellSize;
@@ -72,7 +73,26 @@ public sealed class SpritePartReader
         if (file is not null)
             return file.Value.FrameCount;
 
-        return path.EndsWith(".bmp", StringComparison.OrdinalIgnoreCase) && GamePath.Resolve(_gameFolder, path) is not null ? 1 : 0;
+        if (!path.EndsWith(PictureExtension, StringComparison.OrdinalIgnoreCase))
+            return 0;
+
+        if (GamePath.Resolve(_gameFolder, path) is null)
+            return 1;
+
+        string stem = path[..^PictureExtension.Length];
+        int digits = stem.Length - stem.AsSpan().TrimEnd("0123456789").Length;
+
+        if (digits == 0)
+            return 1;
+
+        var prefix = stem.AsSpan()[..^digits];
+        int frames = 1;
+        while (GamePath.Resolve(_gameFolder, $"{prefix}{frames}{PictureExtension}") is not null)
+        {
+            frames++;
+        }
+
+        return frames;
     }
 
     internal VidResource? GetFile(string path)

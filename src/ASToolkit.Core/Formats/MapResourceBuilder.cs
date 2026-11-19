@@ -43,6 +43,11 @@ public sealed class MapResourceBuilder
     public Gamma? Ambient { get; init; }
 
     /// <summary>
+    /// Gets the version of the map file's format, 0 for a map built from nothing.
+    /// </summary>
+    public int Version { get; init; }
+
+    /// <summary>
     /// Reads the placed objects of a map. Entries with non-finite or far-off coordinates are skipped.
     /// </summary>
     public static MapResourceBuilder Load(string path) => Parse(File.ReadAllBytes(path));
@@ -64,7 +69,8 @@ public sealed class MapResourceBuilder
             Size = new SizeF(resource.Header.MapW, resource.Header.MapH),
             Scroll = resource.Header.Camera,
             Graphics = resource.Graphics,
-            Groups = resource.Groups.ToArray()
+            Groups = resource.Groups.ToArray(),
+            Version = resource.Header.Version
         };
         foreach (var sprite in resource.Sprites)
         {

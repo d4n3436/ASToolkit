@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Engine.Scripts;
@@ -53,6 +54,8 @@ public sealed partial class Script
     /// Gets the names of the script.
     /// </summary>
     public ReadOnlySpan<ScriptObject> Objects => _objects.AsSpan(0, _objectCount);
+
+    internal GameLogger? Logger { get; set; }
 
     /// <summary>
     /// Gets the compiled code.
@@ -316,11 +319,13 @@ public sealed partial class Script
                     break;
                 case ScriptOpcode.JumpIfFalse:
                     pc = _slots[--_count].IsTrue() ? pc + 5 : pc + 1 + ReadInt(code, pc + 1);
+                    CheckStatementStack("if"u8, frame, pc);
                     _count = frame;
                     statement = pc;
                     break;
                 case ScriptOpcode.EndStatement:
                     pc += 5;
+                    CheckStatementStack(";"u8, frame, pc);
                     _count = frame;
                     statement = pc;
                     break;
@@ -344,6 +349,7 @@ public sealed partial class Script
                         pc += 5;
                     }
 
+                    CheckStatementStack("iff"u8, frame, pc);
                     _count = frame;
                     statement = pc;
                     break;
@@ -355,6 +361,7 @@ public sealed partial class Script
                     statement = pc;
                     break;
                 case ScriptOpcode.Return:
+                    CheckStatementStack("return"u8, frame, pc + 1);
                     if (_count > frame)
                     {
                         var value = _slots[--_count];
@@ -581,6 +588,14 @@ public sealed partial class Script
         }
 
         left.Flags = StackObjectFlags.Number;
+    }
+
+    private void CheckStatementStack(ReadOnlySpan<byte> statement, int frame, int next)
+    {
+        if (_count - frame > 1)
+        {
+            Logger?.Write("!!!ERROR!!!LOGIC: '%s' stack error %i"u8, (ReadOnlyMemory<byte>)statement.ToArray(), next);
+        }
     }
 
     private static int ReadInt(ReadOnlySpan<byte> code, int offset) => BinaryPrimitives.ReadInt32LittleEndian(code[offset..]);

@@ -1,12 +1,13 @@
 using System.Drawing;
 using System.Numerics;
+using ASToolkit.Core.Engine.IO;
 
 namespace ASToolkit.Core.Engine;
 
 /// <summary>
 /// Represents the map state that outlives a level, kept for the whole game session.
 /// </summary>
-public sealed class GameSession
+public sealed class GameSession : IDisposable
 {
     /// <summary>
     /// Represents the screen width when the registry holds none, where the game asks the player in its start dialog.
@@ -20,13 +21,17 @@ public sealed class GameSession
 
     private const string ScreenWidthValue = "ScreenX";
     private const string ScreenHeightValue = "ScreenY";
+    private const string Program = "AlienShooter.exe";
 
     /// <summary>
     /// Creates a session, reading the screen size from the registry or taking the default size when it holds none.
     /// </summary>
     /// <param name="registry">The registry the game reads its settings from.</param>
-    public GameSession(ScriptRegistry registry)
+    /// <param name="fileSystem">The file system the log is written to, or <see langword="null"/> to write no log.</param>
+    /// <param name="time">The clock of the log's file name and timestamps, or <see langword="null"/> for the system clock.</param>
+    public GameSession(ScriptRegistry registry, IGameFileSystem? fileSystem = null, TimeProvider? time = null)
     {
+        Logger = new GameLogger(fileSystem, time ?? TimeProvider.System, Program);
         ScreenSize = new SizeF(registry.GetNumber(ScreenWidthValue, DefaultScreenWidth), registry.GetNumber(ScreenHeightValue, DefaultScreenHeight));
     }
 
@@ -60,4 +65,11 @@ public sealed class GameSession
     /// Gets or sets the sprite of the mouse cursor.
     /// </summary>
     public Sprite? Cursor { get; set; }
+
+    internal GameLogger Logger { get; }
+
+    /// <summary>
+    /// Closes the session's log, keeping it as the last run's log.
+    /// </summary>
+    public void Dispose() => Logger.Dispose();
 }

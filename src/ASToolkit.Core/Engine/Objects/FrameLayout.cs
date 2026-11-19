@@ -13,6 +13,7 @@ internal sealed class FrameLayout
 
     public FrameLayout(in GameObject obj, int spriteSpeed, int totalFrames)
     {
+        TotalFrames = totalFrames;
         Directions = obj.Directions;
         for (int state = 0; state < StateCount; state++)
         {
@@ -96,6 +97,8 @@ internal sealed class FrameLayout
     }
 
     public int Directions { get; }
+
+    public int TotalFrames { get; }
 
     public int GetFrameCount(SpriteAnimation state) => _counts[(int)state];
 

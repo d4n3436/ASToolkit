@@ -518,7 +518,6 @@ public sealed class SpriteDefinition
     private static int GetAnimationTime(in GameObject obj, SpriteAnimation animation, int spriteSpeed) =>
         obj.FrameCounts[(int)animation] * obj.GetFrameDuration(animation, spriteSpeed);
 
-    [EngineRoutine(0x00413a60)]
     private static bool GetHasKeyframes(in WeaponRecord weapon)
     {
         for (int key = 0; key < WeaponRecord.KeyframeCount; key++)

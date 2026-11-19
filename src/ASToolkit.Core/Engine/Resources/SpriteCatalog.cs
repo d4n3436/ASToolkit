@@ -1,3 +1,4 @@
+using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using System.Collections.Concurrent;
@@ -17,12 +18,14 @@ public sealed class SpriteCatalog
 
     private const int DefaultSpriteSpeed = 71;
     private const KnownObject EmptyId = (KnownObject)(-1);
+    private const string SpriteFileExtension = ".vid";
+    private const string PictureFileExtension = ".bmp";
 
     private static readonly Vector3 DefaultSize = new(24, 16, 20);
 
     private readonly ObjectTable _objects;
-    private readonly SpriteDefinition?[] _definitions;
     private readonly ConcurrentDictionary<(KnownObject Id, int Frame), FrameMask?> _masks = new();
+    private readonly SpriteDefinition?[] _definitions;
 
     /// <summary>
     /// Creates the definitions of a game folder.
@@ -59,14 +62,17 @@ public sealed class SpriteCatalog
             }
         }
 
-        ResolveLinks();
+        ResolveLinks(null);
     }
 
-    private void ResolveLinks()
+    private void ResolveLinks(GameLogger? logger)
     {
         foreach (var definition in _definitions)
         {
-            definition?.LinkDefinition = Find(definition.Object.Link);
+            if (definition is not null)
+            {
+                ResolveReferences(definition, logger);
+            }
         }
     }
 
@@ -78,7 +84,7 @@ public sealed class SpriteCatalog
         VidResource? file;
         lock (Parts)
         {
-            file = Parts.GetFile(_objects.GetPath(definition.Id));
+            file = Parts.GetFile(GetPath(definition.Id));
         }
 
         mask = file is null || frame < 0 || frame >= file.Value.FrameCount ? null : FrameMask.Read(file.Value, frame);
@@ -94,6 +100,10 @@ public sealed class SpriteCatalog
     /// <param name="definition">The definition.</param>
     /// <returns>The name.</returns>
     public string GetName(SpriteDefinition definition) => _objects.GetName(definition.RecordId);
+
+    private string GetPath(SpriteDefinition definition) => GetPath(definition.RecordId);
+
+    private string GetPath(KnownObject id) => _objects.GetPath(id);
 
     /// <summary>
     /// Exchanges the identities of two definitions.
@@ -130,8 +140,10 @@ public sealed class SpriteCatalog
     /// <summary>
     /// Undoes the level script's exchanges and reloads every definition's record.
     /// </summary>
+    public void ReloadRecords() => ReloadRecords(null);
+
     [EngineRoutine(0x00411920)]
-    public void ReloadRecords()
+    internal void ReloadRecords(GameLogger? logger)
     {
         foreach (var definition in _definitions)
         {
@@ -141,24 +153,119 @@ public sealed class SpriteCatalog
             }
         }
 
+        if (logger is not null && LoadingScreen is not null)
+        {
+            LogRecordErrors(logger, LoadingScreen);
+        }
+
         foreach (var definition in _definitions)
         {
             definition?.LoadParameters();
+
+            if (definition is not null && logger is not null)
+            {
+                LogRecordErrors(logger, definition);
+            }
         }
 
-        ResolveLinks();
+        ResolveLinks(logger);
     }
+
+    private void LogRecordErrors(GameLogger logger, SpriteDefinition definition)
+    {
+        ref readonly var obj = ref definition.Object;
+        int directions = obj.Directions;
+        int frames = definition.Layout.TotalFrames;
+        string path = GetPath(definition);
+
+        if (!path.EndsWith(SpriteFileExtension, StringComparison.OrdinalIgnoreCase) && !path.EndsWith(PictureFileExtension, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        if (directions == 0)
+        {
+            LogDefinitionError(logger, definition, LogError.Invalid, 0, "NoDir==0"u8);
+            return;
+        }
+
+        if (frames == 0)
+        {
+            LogDefinitionError(logger, definition, LogError.Invalid, 0, "noCadr==0"u8);
+        }
+        else if (frames < directions)
+        {
+            LogDefinitionError(logger, definition, LogError.Invalid, 0, "noCadr < noDir"u8);
+            directions = frames;
+        }
+
+        int needed = 0;
+        for (int state = 0; state <= (int)SpriteAnimation.Death2; state++)
+        {
+            needed += obj.FrameCounts[state] * directions;
+        }
+
+        if (frames < needed)
+        {
+            LogDefinitionError(logger, definition, LogError.Missing, 0, "noCadr for noAnimCadr and noDir"u8);
+        }
+    }
+
+    [EngineRoutine(0x00413a60)]
+    private void ResolveReferences(SpriteDefinition definition, GameLogger? logger)
+    {
+        int link = (int)definition.Object.Link;
+        definition.LinkDefinition = Find(definition.Object.Link);
+
+        if (logger is null)
+            return;
+
+        if (link != 0 && !IsDefined(link))
+        {
+            LogDefinitionError(logger, definition, LogError.Invalid, link, "LinkVid"u8);
+        }
+
+        foreach (int child in definition.Object.Children)
+        {
+            if (child != 0 && !IsDefined(Math.Abs(child)))
+            {
+                LogDefinitionError(logger, definition, LogError.Invalid, child, "child"u8);
+            }
+        }
+    }
+
+    [EngineRoutine(0x00413a30)]
+    private void LogDefinitionError(GameLogger logger, SpriteDefinition definition, LogError code, int value, ReadOnlySpan<byte> text) =>
+        logger.Error("VID [%i-%s]"u8, code, value, text, (int)definition.Id, (ReadOnlyMemory<byte>)GameTextEncoding.Cyrillic.GetBytes(GetName(definition)));
+
+    private bool IsDefined(int id) => id >= 0 && id < _definitions.Length && _definitions[id] is not null;
 
     /// <summary>
     /// Clears every definition's counts and script handlers for a new level.
     /// </summary>
-    [EngineRoutine(0x0040c570)]
     public void ResetLevelState()
     {
         foreach (var definition in _definitions)
         {
             definition?.ResetLevelState();
             definition?.ClearHandlers();
+        }
+    }
+
+    internal void LogCounts(GameLogger logger)
+    {
+        for (int i = 0; i < _definitions.Length; i++)
+        {
+            var definition = _definitions[i];
+
+            if (definition is null)
+                continue;
+
+            var counts = definition.Counts;
+            if (counts[0] + counts[1] + counts[2] + counts[3] == 0)
+                continue;
+
+            var name = (ReadOnlyMemory<byte>)GameTextEncoding.Cyrillic.GetBytes(GetName(definition));
+            var path = (ReadOnlyMemory<byte>)GameTextEncoding.Cyrillic.GetBytes(GetPath(definition));
+            logger.Write("NoVid[%3i]=%i %i %i %i %s Layer=%i %s"u8, i, counts[0], counts[1], counts[2], counts[3], name, definition.Layer, path);
         }
     }
 

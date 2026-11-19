@@ -146,6 +146,9 @@ public sealed partial class Map : IScriptFunctionHost
 
     private int GetTime() => Time;
 
+    private void LogInvalidDefinition(ReadOnlySpan<byte> function, int id) =>
+        Session.Logger.Write("!!!ERROR!!!SCRIPT: Invalid nvid %s %i"u8, (ReadOnlyMemory<byte>)function.ToArray(), id);
+
     private static string ReadText(ReadOnlyMemory<byte> text) => GameTextEncoding.Cyrillic.GetString(text.Span);
 
     private Sprite? PopSprite(Script script) => FindSprite(script.PopNumber());
@@ -266,9 +269,11 @@ public sealed partial class Map : IScriptFunctionHost
                 int z = script.PopNumber();
                 int y = script.PopNumber();
                 int x = script.PopNumber();
-                var definition = Definitions.Find((KnownObject)script.PopNumber());
+                int id = script.PopNumber();
+                var definition = Definitions.Find((KnownObject)id);
                 if (definition is null)
                 {
+                    LogInvalidDefinition("for CreateSprite()"u8, id);
                     script.PushNumber(0);
                     break;
                 }
@@ -325,8 +330,13 @@ public sealed partial class Map : IScriptFunctionHost
             case ScriptFunction.ChangeZUnit:
             {
                 int z = script.PopNumber();
-                var definition = Definitions.Find((KnownObject)script.PopNumber());
-                if (definition is not null)
+                int id = script.PopNumber();
+                var definition = Definitions.Find((KnownObject)id);
+                if (definition is null)
+                {
+                    LogInvalidDefinition("for ChangeZUnit"u8, id);
+                }
+                else
                 {
                     foreach (var sprite in GetSpritesOfDefinition(definition))
                     {
@@ -348,8 +358,14 @@ public sealed partial class Map : IScriptFunctionHost
                 int z = script.PopNumber();
                 int y = script.PopNumber();
                 int x = script.PopNumber();
-                var definition = Definitions.Find((KnownObject)script.PopNumber());
-                PushSprite(script, definition is null ? null : FindPlacementBlocker(definition, new Vector3(x, y, z)));
+                int id = script.PopNumber();
+                var definition = Definitions.Find((KnownObject)id);
+                if (definition is null)
+                {
+                    LogInvalidDefinition("for CanPlace"u8, id);
+                }
+
+                PushSprite(script, FindPlacementBlocker(definition ?? Definitions.Empty, new Vector3(x, y, z)));
                 break;
             }
             case ScriptFunction.MapSizeX:
@@ -682,8 +698,11 @@ public sealed partial class Map : IScriptFunctionHost
 
                 break;
             }
+            case ScriptFunction.Log:
+                Session.Logger.Write(script.PopText().Span);
+                break;
             case ScriptFunction.ReloadVid:
-                Definitions.ReloadRecords();
+                Definitions.ReloadRecords(Session.Logger);
                 break;
             case ScriptFunction.OldStrlen:
             case ScriptFunction.Strlen:
@@ -849,7 +868,6 @@ public sealed partial class Map : IScriptFunctionHost
             case ScriptFunction.Save:
             case ScriptFunction.Pause:
             case ScriptFunction.Exec:
-            case ScriptFunction.Log:
             case ScriptFunction.FClose:
                 script.Pop();
                 break;

@@ -1,6 +1,5 @@
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Globalization;
 using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Formats;
 
@@ -14,13 +13,7 @@ public sealed partial class Script
     private const int MaxNameLength = 0xfff;
     private const int MaxBreaks = 0x80;
     private const int UnsizedArray = 999999;
-    private static readonly string[] ErrorFormats =
-    [
-        "0x{0:X} Couldn't lock {1}", "0x{0:X} Couldn't copy {1}", "{0} There was not enough memory for {1}", "0x{0:X} Couldn't create the {1}",
-        "0x{0:X} Invalid {1}", "0x{0:X} Load {1}", "0x{0:X} Save {1}", "0x{0:X} Couldn't open '{1}'", "0x{0:X} Couldn't set the {1}",
-        "0x{0:X} Couldn't get the {1}", "{0} {1}", "0x{0:X} Section can't found ({1})", "0x{0:X} Unable initialize {1}", "{0} Missing {1}",
-        "{0} Unknownn {1}"
-    ];
+    private const int ErrorContextLength = 60;
 
     private readonly Dictionary<byte[], byte[]> _defines = new(ScriptNameComparer.Instance);
     private readonly Dictionary<byte[], byte[]>.AlternateLookup<ReadOnlySpan<byte>> _defineLookup;
@@ -112,6 +105,7 @@ public sealed partial class Script
                 _text = [];
             }
 
+            Logger?.Write("LoadScript::ByteCode=%i varNo=%i DefineNo=%i stackNo=%i"u8, _codeSize, _objectCount, _defines.Count, _count);
             _defines.Clear();
             if (_codeSize == 0)
             {
@@ -179,8 +173,34 @@ public sealed partial class Script
     private static bool IsSpace(byte character) => character == ' ' || character is >= 0x09 and <= 0x0d;
 
     [EngineRoutine(0x0041fbe0)]
-    private InvalidDataException ReportError(int code, string text, int extra = 0) =>
-        new($"'{FileName}' line {_line + 1}: {string.Format(CultureInfo.InvariantCulture, ErrorFormats[code], extra, text)}");
+    private InvalidDataException ReportError(int code, string text, int extra = 0)
+    {
+        byte[] message = GameTextEncoding.Cyrillic.GetBytes(text);
+        var logger = Logger;
+
+        if (logger is not null)
+        {
+            logger.Error("LOGIC '%s' line %i"u8, (LogError)code, extra, message, (ReadOnlyMemory<byte>)GameTextEncoding.Cyrillic.GetBytes(FileName), _line + 1);
+
+            if (_text.Length > 0)
+            {
+                Span<byte> context = stackalloc byte[ErrorContextLength];
+                for (int i = 0; i < context.Length; i++)
+                {
+                    int at = _position - ErrorContextLength / 2 + i;
+                    byte character = at >= 0 && at < _end ? _text[at] : (byte)'?';
+                    context[i] = character is (byte)'\n' or (byte)'\r' or (byte)'\t' ? (byte)'?' : character;
+                }
+
+                logger.Error("LOGIC"u8, LogError.Text, 0, context);
+                context.Fill((byte)' ');
+                context[ErrorContextLength / 2] = (byte)'^';
+                logger.Error("LOGIC"u8, LogError.Text, 0, context);
+            }
+        }
+
+        return new InvalidDataException($"'{FileName}' line {_line + 1}: {GameLogger.FormatError((LogError)code, extra, message)}");
+    }
 
     private static string Decode(ReadOnlySpan<byte> text) => GameTextEncoding.Cyrillic.GetString(text);
 
