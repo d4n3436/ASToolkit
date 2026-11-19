@@ -106,11 +106,13 @@ public sealed class MovementMap
             if (obj.IsSolid && part.File is not null)
             {
                 var file = part.File.Value;
+                var size = new Size(file.Width, file.Height);
+                var half = size / 2;
+                var cells = size / CellSize * CellSize;
                 foreach (var point in parts.GetHeightPoints(part))
                 {
                     // Skip depth samples projected past the frame's last complete cell
-                    if (point.X + file.Width / 2f >= file.Width / (float)(CellSize * CellSize) ||
-                        point.Y + file.Height / 2f >= file.Height / (float)(CellSize * CellSize))
+                    if (point.X + half.Width >= cells.Width || point.Y + half.Height >= cells.Height)
                         continue;
                     Raise(part.Position.X + point.X, part.Position.Y + point.Y, part.Position.Z + point.Z, scenery, source);
                 }
