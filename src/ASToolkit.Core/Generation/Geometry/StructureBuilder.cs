@@ -143,7 +143,7 @@ public static class StructureBuilder
         }
     }
 
-    private static void AddDoor(Random rng, MapBuilder map, FineLayout layout, WallClearanceTable clearance, KnownObject door, float x, float y, float z, bool slash, bool locked)
+    private static void AddDoor(Random rng, MapBuilder map, FineLayout layout, WallClearanceTable clearance, IReadOnlyList<PointF> sites, KnownObject door, float x, float y, float z, bool slash, bool locked)
     {
         Angle dir = (byte)(door == KnownObject.DoubleDoor ? slash ? 0 : 64 : slash ? 0 : 128);
         map.Add(door, x, y, z, dir);
@@ -156,8 +156,10 @@ public static class StructureBuilder
 
         var fixture = DoorFixtures[door is KnownObject.DoubleDoor or KnownObject.DoubleDoorFrame ? KnownObject.DoubleDoorWall : KnownObject.SmallDoorWall];
         var spot = fixture.Spots[slash ? 0 : 128];
+        var fixturePoint = new PointF(x + spot.Offset.X, y + spot.Offset.Y);
         if (rng.NextSingle() < fixture.Share && layout.Cells.ContainsKey(layout.Lattice.GetCell(x + spot.Offset.X, y + spot.Offset.Y))
-            && clearance.KeepsDrop(fixture.Id, layout.Lattice, layout.Edges, x + spot.Offset.X, y + spot.Offset.Y))
+            && clearance.KeepsDrop(fixture.Id, layout.Lattice, layout.Edges, x + spot.Offset.X, y + spot.Offset.Y)
+            && !sites.Any(site => LevelOccupancy.IsInFrontOfSite(site, fixturePoint)))
         {
             map.Add(fixture.Id, x + spot.Offset.X, y + spot.Offset.Y, spot.Z, spot.Direction);
         }
@@ -165,10 +167,10 @@ public static class StructureBuilder
 
     /// <summary>
     /// Builds the basement floors, walls, monster holes, doors with their keypads and posts of the visible edges, then the walls, sunk under the
-    /// roof and without posts, that close the closets off from the void, and returns the sprite index of each spawn wall.
+    /// roof and without posts, that close the closets off from the void, and returns the sprite index of each spawn wall. No door hangs a panel in front of a hole site.
     /// </summary>
     public static Dictionary<EdgeKey, int> BuildBasement(Random rng, MapBuilder map, FineLayout layout, IReadOnlyDictionary<EdgeKey, EdgeKind> edges,
-        Random closetRng, IReadOnlyDictionary<EdgeKey, EdgeKind> closetEdges, IReadOnlySet<Cell> closets, IReadOnlySet<EdgeKey> holes, bool locked, WallClearanceTable clearance)
+        Random closetRng, IReadOnlyDictionary<EdgeKey, EdgeKind> closetEdges, IReadOnlySet<Cell> closets, IReadOnlySet<EdgeKey> holes, IReadOnlyList<PointF> holeSites, bool locked, WallClearanceTable clearance)
     {
         var floor = GetCellsWithin(layout.Cells.Keys, BasementFloorReach).Keys.OrderBy(c => c.U).ThenBy(c => c.V);
         AddTiles(rng, map, KnownObject.BasementFloor, 0, floor.Select(layout.Lattice.GetCenter));
@@ -183,7 +185,7 @@ public static class StructureBuilder
         {
             ((float x, float y), bool slash) = GetBasementPosition(layout.Lattice, piece);
             map.Add(isDouble ? KnownObject.DoubleDoorWall : KnownObject.SmallDoorWall, x, y, 0, slash ? Angle.North : Angle.South);
-            AddDoor(rng, map, layout, clearance, isDouble ? KnownObject.DoubleDoorFrame : KnownObject.SmallDoorFrame, x, y, isDouble ? RaisedDoubleDoorZ : RaisedSmallDoorZ, slash, locked);
+            AddDoor(rng, map, layout, clearance, holeSites, isDouble ? KnownObject.DoubleDoorFrame : KnownObject.SmallDoorFrame, x, y, isDouble ? RaisedDoubleDoorZ : RaisedSmallDoorZ, slash, locked);
         }
 
         foreach (var (edge, kind) in edges)
@@ -198,11 +200,11 @@ public static class StructureBuilder
             {
                 case EdgeKind.DoubleDoor:
                     map.Add(KnownObject.DoubleDoorWall, x, y, 0, slash ? Angle.North : Angle.South);
-                    AddDoor(rng, map, layout, clearance, KnownObject.DoubleDoor, x, y, 0, slash, locked);
+                    AddDoor(rng, map, layout, clearance, holeSites, KnownObject.DoubleDoor, x, y, 0, slash, locked);
                     break;
                 case EdgeKind.Door:
                     map.Add(KnownObject.SmallDoorWall, x, y, 0, slash ? Angle.North : Angle.South);
-                    AddDoor(rng, map, layout, clearance, KnownObject.SmallDoor, x, y, 0, slash, locked);
+                    AddDoor(rng, map, layout, clearance, holeSites, KnownObject.SmallDoor, x, y, 0, slash, locked);
                     break;
                 case EdgeKind.SecretWall:
                     map.Add(KnownObject.BreakableWall, x, y, 0, slash ? Angle.North : Angle.South);
@@ -214,14 +216,14 @@ public static class StructureBuilder
                     break;
                 case EdgeKind.ShutDoor:
                     map.Add(KnownObject.SmallDoorWall, x, y, 0, slash ? Angle.North : Angle.South);
-                    AddDoor(rng, map, layout, clearance, KnownObject.SmallDoorFrame, x, y, 0, slash, locked);
+                    AddDoor(rng, map, layout, clearance, holeSites, KnownObject.SmallDoorFrame, x, y, 0, slash, locked);
                     break;
                 default:
                     if (layout.FakeDoors.TryGetValue(edge, out bool isDouble))
                     {
                         map.Add(isDouble ? KnownObject.DoubleDoorWall : KnownObject.SmallDoorWall, x, y, 0, slash ? Angle.North : Angle.South);
                         int z = rng.NextSingle() < StuckDoorChance ? -rng.NextInclusive(StuckDoorZ) : 0;
-                        AddDoor(rng, map, layout, clearance, isDouble ? KnownObject.DoubleDoorFrame : KnownObject.SmallDoorFrame, x, y, z, slash, locked);
+                        AddDoor(rng, map, layout, clearance, holeSites, isDouble ? KnownObject.DoubleDoorFrame : KnownObject.SmallDoorFrame, x, y, z, slash, locked);
                     }
                     else if (holes.Contains(edge))
                     {

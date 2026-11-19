@@ -245,17 +245,19 @@ public class LevelGeneratorIntegrationTests
         foreach ((string style, int seed, int number, var level, _, _) in GetIndoorLevels())
         {
             var sites = level.Map.Sprites.Where(sprite => sprite.Id == KnownObject.DynamiteSite).ToArray();
-            int hidden = level.Map.Sprites
+            string[] hidden = level.Map.Sprites
                 .Where(sprite => sprite.Id.Family is not (null or PieceFamily.Site or PieceFamily.Generator) && sprite.Id != KnownObject.TeleportPad && sprite.Position.Z < 5)
-                .Count(sprite => sites.Any(site => sprite.Position.Y > site.Position.Y && MathF.Sqrt(MathF.Pow(sprite.Position.X - site.Position.X, 2) + MathF.Pow(sprite.Position.Y - site.Position.Y, 2)) < SiteFrontClearance));
+                .Where(sprite => sites.Any(site => sprite.Position.Y > site.Position.Y && MathF.Sqrt(MathF.Pow(sprite.Position.X - site.Position.X, 2) + MathF.Pow(sprite.Position.Y - site.Position.Y, 2)) < SiteFrontClearance))
+                .Select(sprite => $"{sprite.Id} at ({sprite.Position.X:F0}, {sprite.Position.Y:F0})")
+                .ToArray();
 
-            if (hidden > 0)
+            if (hidden.Length > 0)
             {
-                broken.Add($"{style} seed {seed} level {number}: {hidden} pieces in front of a site");
+                broken.Add($"{style} seed {seed} level {number}: {string.Join(", ", hidden)} in front of a site at {string.Join(", ", sites.Select(site => $"({site.Position.X:F0}, {site.Position.Y:F0})"))}");
             }
         }
 
-        Assert.Empty(broken);
+        Assert.True(broken.Count == 0, string.Join(Environment.NewLine, broken));
     }
 
     [Fact]

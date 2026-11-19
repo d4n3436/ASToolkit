@@ -280,7 +280,7 @@ public sealed class LevelGenerator
         }
 
         var spawnWalls = wallSet == WallSet.Basement
-            ? StructureBuilder.BuildBasement(layoutRng, map, layout, visibleEdges, contentRng, closetEdges, closetCells, sitePlan.Holes.Keys.ToHashSet(), plan.Gate == GateKind.LockedDoors,
+            ? StructureBuilder.BuildBasement(layoutRng, map, layout, visibleEdges, contentRng, closetEdges, closetCells, sitePlan.Holes.Keys.ToHashSet(), scenes.GetHoleSites(sitePlan), plan.Gate == GateKind.LockedDoors,
                 _model.GetWallClearance(wallSet))
             : [];
         

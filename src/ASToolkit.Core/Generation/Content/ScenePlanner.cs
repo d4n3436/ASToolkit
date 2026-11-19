@@ -215,7 +215,8 @@ internal sealed class ScenePlanner
                 var spot = site.Fallbacks
                     .Prepend(site.Room.Id)
                     .Select(room => _layout.GetRegionCells(room))
-                    .Select(cells => cells.Select(_layout.Lattice.GetCenter).Where(KeepsDrop).OrderBy(point => point.DistanceTo(_layout.Lattice.GetCenter(cells[cells.Count / 2]))).FirstOrDefault())
+                    .Select(cells => cells.Select(_layout.Lattice.GetCenter).Where(point => KeepsDrop(point) && HasClearFront(map, point))
+                        .OrderBy(point => point.DistanceTo(_layout.Lattice.GetCenter(cells[cells.Count / 2]))).FirstOrDefault())
                     .FirstOrDefault(point => !point.IsEmpty);
 
                 if (!spot.IsEmpty)
@@ -292,6 +293,11 @@ internal sealed class ScenePlanner
     }
 
     private bool KeepsDrop(PointF point) => _clearance.KeepsDrop(KnownObject.DynamiteSite, _layout.Lattice, _layout.Edges, point.X, point.Y);
+
+    private static bool HasClearFront(MapBuilder map, PointF site) =>
+        !map.Sprites.Any(sprite => LevelOccupancy.IsSiteBlocker(sprite.Id, sprite.Position.Z) && LevelOccupancy.IsInFrontOfSite(site, new PointF(sprite.Position.X, sprite.Position.Y)));
+
+    public PointF[] GetHoleSites(SitePlan sites) => sites.Holes.Keys.Select(GetHoleSite).ToArray();
 
     private PointF GetSiteTrigger(PlanRegion room)
     {

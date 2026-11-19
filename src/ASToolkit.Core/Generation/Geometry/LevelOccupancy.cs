@@ -268,9 +268,27 @@ public sealed class LevelOccupancy
         return sides.All(reached.Contains);
     }
 
+    /// <summary>
+    /// Returns whether a map point lies in the floor space in front of a dynamite site, which no floor piece may take.
+    /// </summary>
+    /// <param name="site">The site's map point.</param>
+    /// <param name="point">The map point.</param>
+    /// <returns><see langword="true"/> when the point stands in front of the site; otherwise, <see langword="false"/>.</returns>
+    public static bool IsInFrontOfSite(PointF site, PointF point) =>
+        point.Y > site.Y && MathF.Sqrt((point.X - site.X) * (point.X - site.X) + (point.Y - site.Y) * (point.Y - site.Y)) < SiteFrontClearance;
+
+    /// <summary>
+    /// Returns whether a placed sprite is a floor piece the space in front of a site must stay clear of.
+    /// </summary>
+    /// <param name="id">The sprite's object id.</param>
+    /// <param name="z">The sprite's height.</param>
+    /// <returns><see langword="true"/> when the sprite is such a piece; otherwise, <see langword="false"/>.</returns>
+    public static bool IsSiteBlocker(KnownObject id, float z) =>
+        id.Family is not (null or PieceFamily.Site or PieceFamily.Generator) && id != KnownObject.TeleportPad && z < FloorHeight;
+
     private bool IsInKeptSpace(KnownObject id, float x, float y)
     {
-        if (_sites.Any(site => y > site.Y && MathF.Sqrt((x - site.X) * (x - site.X) + (y - site.Y) * (y - site.Y)) < SiteFrontClearance))
+        if (_sites.Any(site => IsInFrontOfSite(site, new PointF(x, y))))
             return true;
 
         if (!_objects.TryFind(id, out var obj))
