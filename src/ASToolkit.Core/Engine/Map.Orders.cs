@@ -15,33 +15,6 @@ public sealed partial class Map
     /// <returns>The definition, or null when the building is idle.</returns>
     public SpriteDefinition? GetPendingBuild(Sprite building) => _builds.TryGetValue(building, out var pending) ? pending.Definition : null;
 
-    [EngineRoutine(0x00440110)]
-    private void PopOrder(Sprite sprite)
-    {
-        var order = sprite.ActionStack.Top;
-        var state = sprite.Animation;
-
-        if (order.Value > Act.LastState &&
-            (state is > SpriteAnimation.Open and < SpriteAnimation.Death and not SpriteAnimation.StandOpen || state == SpriteAnimation.Go && sprite.Speed.IsZero()))
-        {
-            sprite.ChangeAnimation(SpriteAnimation.Stand);
-        }
-
-        if (order.Value == Act.StopMarker)
-            return;
-
-        sprite.ActionStack.Pop();
-
-        if (order.Value <= Act.LastState)
-        {
-            sprite.ChangeAnimation((SpriteAnimation)order.Value);
-
-            return;
-        }
-
-        Action(sprite, order.Code, order.Var1, order.Var2, order.Var3, order.Target);
-    }
-
     // TODO: Port the goal sprite of the empty definition
     /// <summary>
     /// Draws the random number the constructor of a move order's goal sprite draws.

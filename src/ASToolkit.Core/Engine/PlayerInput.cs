@@ -16,6 +16,18 @@ public sealed class PlayerInput
     private const int CharacterMask = 0xFF;
     private const int ShiftKey = 0x10;
     private const int CtrlKey = 0x11;
+    private const int WindowMessageMove = 0x3;
+    private const int WindowMessageActivateApp = 0x1C;
+    private const int WindowMessageHitTest = 0x84;
+    private const int WindowMessageKeyDown = 0x100;
+    private const int WindowMessageKeyUp = 0x101;
+    private const int WindowMessageChar = 0x102;
+    private const int WindowMessageLeftButtonDown = 0x201;
+    private const int WindowMessageLeftButtonUp = 0x202;
+    private const int WindowMessageRightButtonDown = 0x204;
+    private const int WindowMessageRightButtonUp = 0x205;
+    private const int WindowMessageMiddleButtonDown = 0x207;
+    private const int WindowMessageMouseWheel = 0x20A;
     private readonly ControlSettings _settings;
 
     /// <summary>
@@ -106,156 +118,133 @@ public sealed class PlayerInput
     public DemoInput Save() => new(Flags, Wheel, Cursor, ScreenCursor, Key, VirtualKey);
 
     /// <summary>
-    /// Presses a key on a WM_KEYDOWN message.
+    /// Handles a window message and returns whether the cursor lies in the view.
     /// </summary>
-    /// <param name="virtualKey">The virtual key.</param>
-    [EngineRoutine(0x00425d80)]
-    public void PressKey(int virtualKey)
-    {
-        Key = virtualKey << KeyShift;
-        VirtualKey = virtualKey;
-
-        var flag = GetKeyFlag(virtualKey);
-
-        if (flag != InputFlags.None)
-        {
-            Flags |= flag;
-        }
-    }
-
-    /// <summary>
-    /// Releases a key on a WM_KEYUP message.
-    /// </summary>
-    /// <param name="virtualKey">The virtual key.</param>
-    [EngineRoutine(0x00425d80)]
-    public void ReleaseKey(int virtualKey)
-    {
-        var flag = GetKeyFlag(virtualKey);
-
-        if (flag != InputFlags.None)
-        {
-            Flags &= ~flag;
-        }
-    }
-
-    /// <summary>
-    /// Types a character on a WM_CHAR message.
-    /// </summary>
-    /// <param name="character">The character.</param>
-    [EngineRoutine(0x00425d80)]
-    public void TypeCharacter(int character) => Key = character & CharacterMask;
-
-    /// <summary>
-    /// Presses a mouse button on a WM_LBUTTONDOWN or WM_RBUTTONDOWN message.
-    /// </summary>
-    /// <param name="button">The button.</param>
-    [EngineRoutine(0x00425d80)]
-    public void PressButton(int button)
-    {
-        var flags = Flags;
-        var pressed = button == ControlSettings.LeftButton ? InputFlags.LeftClick | InputFlags.LeftDown : InputFlags.RightClick | InputFlags.RightDown;
-        Flags = flags | pressed;
-
-        if (_settings.First.Primary == button)
-        {
-            Flags = flags | pressed | InputFlags.First;
-        }
-
-        if (_settings.Second.Primary == button)
-        {
-            Flags |= InputFlags.Second;
-        }
-    }
-
-    /// <summary>
-    /// Releases a mouse button on a WM_LBUTTONUP or WM_RBUTTONUP message.
-    /// </summary>
-    /// <param name="button">The button.</param>
-    [EngineRoutine(0x00425d80)]
-    public void ReleaseButton(int button)
-    {
-        var flags = Flags;
-        var down = button == ControlSettings.LeftButton ? InputFlags.LeftDown : InputFlags.RightDown;
-        var released = button == ControlSettings.LeftButton ? InputFlags.LeftClickRelease : InputFlags.RightClickRelease;
-        Flags = (flags & ~down) | released;
-
-        if (_settings.First.Primary == button && _settings.IsFirstRepeatedWhileHeld)
-        {
-            Flags = (flags & ~(down | InputFlags.First)) | released;
-        }
-
-        if (_settings.Second.Primary == button && _settings.IsSecondRepeatedWhileHeld)
-        {
-            Flags &= ~InputFlags.Second;
-        }
-    }
-
-    /// <summary>
-    /// Presses the middle mouse button on a WM_MBUTTONDOWN message.
-    /// </summary>
-    [EngineRoutine(0x00425d80)]
-    public void PressMiddleButton() => Flags |= InputFlags.MiddleClick;
-
-    /// <summary>
-    /// Turns the mouse wheel on a WM_MOUSEWHEEL message.
-    /// </summary>
-    /// <param name="delta">The wheel delta of the message.</param>
-    [EngineRoutine(0x00425d80)]
-    public void TurnWheel(int delta) => Wheel = delta / WheelNotch;
-
-    /// <summary>
-    /// Releases the held keys and buttons on a WM_ACTIVATEAPP message that takes the focus away.
-    /// </summary>
-    [EngineRoutine(0x00425d80)]
-    public void LoseFocus() => Flags &= ~LostFocusFlags;
-
-    /// <summary>
-    /// Moves the window on a WM_MOVE message.
-    /// </summary>
-    /// <param name="origin">The window's top-left corner on the screen.</param>
-    [EngineRoutine(0x00425d80)]
-    public void MoveWindow(Point origin) => WindowOrigin = origin;
-
-    /// <summary>
-    /// Moves the cursor to a screen point on a WM_NCHITTEST message and returns whether the map cursor changed.
-    /// </summary>
-    /// <param name="screen">The mouse position on the screen.</param>
+    /// <param name="message">The message.</param>
+    /// <param name="wParam">The message's first parameter.</param>
+    /// <param name="lParam">The message's second parameter.</param>
     /// <param name="windowOrigin">The window's top-left corner on the screen.</param>
     /// <param name="view">The visible part of the map.</param>
     /// <param name="camera">The camera position on the map.</param>
-    /// <returns><see langword="true"/> when the cursor moved; otherwise, <see langword="false"/>.</returns>
+    /// <returns><see langword="true"/> when a WM_NCHITTEST message puts the cursor in the view; otherwise, <see langword="false"/>.</returns>
     [EngineRoutine(0x00425d80)]
-    public bool MoveMouse(Point screen, Point windowOrigin, RectangleF view, Vector2 camera)
+    public bool WindowProc(int message, int wParam, int lParam, Point windowOrigin = default, RectangleF view = default, Vector2 camera = default)
     {
-        WindowOrigin = windowOrigin;
-        var point = new Vector2(screen.X - windowOrigin.X, screen.Y - windowOrigin.Y);
-        ScreenCursor = point;
-        float x = point.X;
-        float y = point.Y;
-
-        if (x < view.Left)
+        switch (message)
         {
-            x = view.Left;
+            case WindowMessageMove:
+                WindowOrigin = windowOrigin;
+                break;
+            case WindowMessageActivateApp when wParam == 0:
+                Flags &= ~LostFocusFlags;
+                break;
+            case WindowMessageHitTest:
+            {
+                WindowOrigin = windowOrigin;
+                var point = new Vector2((lParam & 0xFFFF) - windowOrigin.X, ((lParam >> 16) & 0xFFFF) - windowOrigin.Y);
+                ScreenCursor = point;
+                float x = point.X;
+                float y = point.Y;
+
+                if (x < view.Left)
+                {
+                    x = view.Left;
+                }
+
+                if (view.Right <= x)
+                {
+                    x = view.Right - 1;
+                }
+
+                if (y < view.Top)
+                {
+                    y = view.Top;
+                }
+
+                if (view.Bottom <= y)
+                {
+                    y = view.Bottom - 1;
+                }
+
+                Cursor = new Vector2(x + camera.X, y + camera.Y);
+
+                return view.Left <= point.X && point.X < view.Right && view.Top <= point.Y && point.Y < view.Bottom;
+            }
+            case WindowMessageKeyDown:
+            {
+                Key = wParam << KeyShift;
+                VirtualKey = wParam;
+                var flag = GetKeyFlag(wParam);
+
+                if (flag != InputFlags.None)
+                {
+                    Flags |= flag;
+                }
+
+                break;
+            }
+            case WindowMessageKeyUp:
+            {
+                var flag = GetKeyFlag(wParam);
+
+                if (flag != InputFlags.None)
+                {
+                    Flags &= ~flag;
+                }
+
+                break;
+            }
+            case WindowMessageChar:
+                Key = wParam & CharacterMask;
+                break;
+            case WindowMessageLeftButtonDown or WindowMessageRightButtonDown:
+            {
+                int button = message == WindowMessageLeftButtonDown ? ControlSettings.LeftButton : ControlSettings.RightButton;
+                var flags = Flags;
+                var pressed = button == ControlSettings.LeftButton ? InputFlags.LeftClick | InputFlags.LeftDown : InputFlags.RightClick | InputFlags.RightDown;
+                Flags = flags | pressed;
+
+                if (_settings.First.Primary == button)
+                {
+                    Flags = flags | pressed | InputFlags.First;
+                }
+
+                if (_settings.Second.Primary == button)
+                {
+                    Flags |= InputFlags.Second;
+                }
+
+                break;
+            }
+            case WindowMessageLeftButtonUp or WindowMessageRightButtonUp:
+            {
+                int button = message == WindowMessageLeftButtonUp ? ControlSettings.LeftButton : ControlSettings.RightButton;
+                var flags = Flags;
+                var down = button == ControlSettings.LeftButton ? InputFlags.LeftDown : InputFlags.RightDown;
+                var released = button == ControlSettings.LeftButton ? InputFlags.LeftClickRelease : InputFlags.RightClickRelease;
+                Flags = (flags & ~down) | released;
+
+                if (_settings.First.Primary == button && _settings.IsFirstRepeatedWhileHeld)
+                {
+                    Flags = (flags & ~(down | InputFlags.First)) | released;
+                }
+
+                if (_settings.Second.Primary == button && _settings.IsSecondRepeatedWhileHeld)
+                {
+                    Flags &= ~InputFlags.Second;
+                }
+
+                break;
+            }
+            case WindowMessageMiddleButtonDown:
+                Flags |= InputFlags.MiddleClick;
+                break;
+            case WindowMessageMouseWheel:
+                Wheel = (short)(wParam >> 16) / WheelNotch;
+                break;
         }
 
-        if (view.Right <= x)
-        {
-            x = view.Right - 1;
-        }
-
-        if (y < view.Top)
-        {
-            y = view.Top;
-        }
-
-        if (view.Bottom <= y)
-        {
-            y = view.Bottom - 1;
-        }
-
-        Cursor = new Vector2(x + camera.X, y + camera.Y);
-
-        return view.Left <= point.X && point.X < view.Right && view.Top <= point.Y && point.Y < view.Bottom;
+        return false;
     }
 
     private InputFlags GetKeyFlag(int virtualKey)

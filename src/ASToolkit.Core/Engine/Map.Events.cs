@@ -25,21 +25,6 @@ public sealed partial class Map
     private static ReadOnlySpan<byte> CollisionSuffix => "COLLISION"u8;
 
 
-    [EngineRoutine(0x0040c960)]
-    private void BindScript()
-    {
-        var objects = Script.Objects;
-        for (int i = 0; i < objects.Length; i++)
-        {
-            ref readonly var entry = ref objects[i];
-
-            if (entry.Kind != ScriptObjectKind.Function)
-                continue;
-
-            ProcessScriptFunctions(entry.Name.Span, i, entry.Count);
-        }
-    }
-
     private void ProcessScriptFunctions(ReadOnlySpan<byte> name, int function, int parameters)
     {
         if (name.Length < IdDigits + 2 || name[0] != FunctionPrefix || !IsDigits(name.Slice(1, IdDigits)))
@@ -137,26 +122,6 @@ public sealed partial class Map
     [EngineRoutine(0x0040f430)]
     public int CallScript(int function, Sprite sprite, int second = 0, int third = 0) => Script.CallFunction(this, function, GetSpriteHandle(sprite), second, third);
 
-    [EngineRoutine(0x00440110)]
-    private bool RunStateHandlers(Sprite sprite, bool everyFrame)
-    {
-        var state = sprite.Animation;
-        int handler = sprite.Definition.StateHandlers[(int)state];
-        while (handler >= 0 && (sprite.Frame == sprite.FirstFrame || everyFrame))
-        {
-            if (CallScript(handler, sprite) != 0)
-                return true;
-
-            if (sprite.Animation == state)
-                break;
-
-            state = sprite.Animation;
-            handler = sprite.Definition.StateHandlers[(int)state];
-        }
-
-        return false;
-    }
-
     [EngineRoutine(0x0040e870)]
     private void RunCreationHandler(Sprite sprite)
     {
@@ -168,7 +133,6 @@ public sealed partial class Map
         }
     }
 
-    [EngineRoutine(0x0043f520)]
     private void RunDestroyHandler(Sprite sprite)
     {
         if (sprite.Definition.DestroyHandler >= 0)
@@ -208,6 +172,4 @@ public sealed partial class Map
         return index < 0 ? 0 : Script.GetSlot(Script.Objects[index].Address + element).GetValue();
     }
 
-    [EngineRoutine(0x00405190)]
-    private void RunMain() => Script.CallFunction(this, MainFunction, 0, 0, 0);
 }

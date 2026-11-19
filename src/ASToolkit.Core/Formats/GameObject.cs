@@ -415,7 +415,6 @@ public readonly struct GameObject
     /// <param name="frameIndex">The frame the object shows.</param>
     /// <param name="dir">The facing.</param>
     /// <returns>The offset from the object's position.</returns>
-    [EngineRoutine(0x00445770)]
     public Vector3 GetLinkOffset(GameObject attached, VidResource? file, int frameIndex, Angle dir)
     {
         bool isFixed = attached.Properties.HasFlag(ObjectProperties.FixedOffset);

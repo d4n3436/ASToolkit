@@ -175,7 +175,6 @@ public sealed partial class Map
     /// Runs the creation handler of a sprite's definition.
     /// </summary>
     /// <param name="sprite">The sprite.</param>
-    [EngineRoutine(0x0040e870)]
     public void RunCreationHook(Sprite sprite) => RunCreationHandler(sprite);
 
     private void Destroy(MergedMapSprite placement)
@@ -251,7 +250,6 @@ public sealed partial class Map
         RemovePlacement(placement);
     }
 
-    [EngineRoutine(0x0040fc40)]
     private MergedMapSprite? FindSprite(KnownObject id, Vector2 point)
     {
         MergedMapSprite? found = null;

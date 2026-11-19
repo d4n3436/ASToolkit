@@ -39,8 +39,6 @@ public struct GameClock
     /// </summary>
     /// <param name="frameTimes">The frame lengths in milliseconds the harness feeds as wall time.</param>
     /// <param name="wallTime">The wall time of the level start in milliseconds.</param>
-    [EngineRoutine(0x0040c960)]
-    [EngineRoutine(0x0040c570)]
     public GameClock(IReadOnlyList<int> frameTimes, uint wallTime = 0)
     {
         _frameTimes = frameTimes;
@@ -107,7 +105,6 @@ public struct GameClock
     /// Sets the game time.
     /// </summary>
     /// <param name="time">The time in milliseconds.</param>
-    [EngineRoutine(0x0040e660)]
     public void SetTime(int time)
     {
         FrameTime = time - (Time - FrameTime);
@@ -119,7 +116,6 @@ public struct GameClock
     /// </summary>
     /// <param name="firstRead">The first wall time read that differs from the current one, setting the step.</param>
     /// <param name="secondRead">The second wall time read, kept as the current one.</param>
-    [EngineRoutine(0x0040f210)]
     public void StartTact(uint firstRead, uint secondRead)
     {
         uint step = Math.Min(firstRead - WallTime, MaxWallStep);

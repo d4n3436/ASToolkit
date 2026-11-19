@@ -85,10 +85,6 @@ public sealed class SpriteCatalog
         return _masks.GetOrAdd((definition.Id, frame), mask);
     }
 
-    [EngineRoutine(0x00411b50)]
-    [EngineRoutine(0x00415e90)]
-    [EngineRoutine(0x0041a730)]
-    [EngineRoutine(0x0041b880)]
     private static ObjectLayer GetLayer(KnownObject id, in GameObject obj, VidResource? sprite) => obj.GetLayer(id, sprite);
 
     /// <summary>
@@ -211,7 +207,6 @@ public sealed class SpriteCatalog
     /// </summary>
     /// <param name="definition">The definition.</param>
     /// <returns>The army.</returns>
-    [EngineRoutine(0x0043f200)]
     public Army GetArmy(SpriteDefinition definition) =>
         definition.Object.WeaponIndex == 0 && definition.Object.Link != 0 ? Find(definition.Object.Link)?.Army ?? definition.Army : definition.Army;
 }

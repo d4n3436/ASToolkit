@@ -40,7 +40,6 @@ internal sealed class UpdateOrder
 
     public static void Clear(List<UpdateEntry> list, int index) => list[index] = default;
 
-    [EngineRoutine(0x0040f210)]
     public void Compact(int time)
     {
         if ((time & CompactionPeriodMask) != 0)

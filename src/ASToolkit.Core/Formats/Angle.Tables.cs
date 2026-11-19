@@ -79,7 +79,6 @@ public readonly partial record struct Angle
     private static readonly float[] ProjectedSineTable = Project(SineTable);
     private static readonly float[] ProjectedCosineTable = Project(CosineTable);
 
-    [EngineRoutine(0x00408ff0)]
     private static float[] Project(ReadOnlySpan<float> table)
     {
         float[] projected = new float[table.Length];

@@ -61,7 +61,6 @@ public sealed class ActionStack
     /// Pops the top entry.
     /// </summary>
     /// <returns>The entry.</returns>
-    [EngineRoutine(0x00440110)]
     public Act Pop() => _orders[--Count];
 
     /// <summary>
@@ -93,7 +92,6 @@ public sealed class ActionStack
     /// </summary>
     /// <param name="index">The index.</param>
     /// <param name="order">The entry.</param>
-    [EngineRoutine(0x0043f720)]
     public void Replace(int index, Act order) => _orders[index] = order;
 
     /// <summary>

@@ -518,7 +518,6 @@ public sealed class Sprite : IResettable
     /// <param name="direction">The direction.</param>
     /// <param name="time">The creation time.</param>
     /// <param name="random">The random source.</param>
-    [EngineRoutine(0x0043f200)]
     public void Start(SpriteAnimation state, Angle direction, int time, Random random)
     {
         if (Definition.Object.Properties.HasFlag(ObjectProperties.Noise))
@@ -707,8 +706,6 @@ public sealed class Sprite : IResettable
     /// </summary>
     /// <param name="slot">The slot, or 0 for the held weapon.</param>
     /// <returns>The rounds.</returns>
-    [EngineRoutine(0x00454800)]
-    [EngineRoutine(0x00440830)]
     public int GetAmmo(int slot = 0)
     {
         if (Definition.Object.SpriteClass == SpriteClass.Man)
@@ -723,8 +720,6 @@ public sealed class Sprite : IResettable
     /// <param name="amount">The rounds to add, negative to spend.</param>
     /// <param name="slot">The slot, or 0 for the held weapon.</param>
     /// <returns>The rounds held.</returns>
-    [EngineRoutine(0x00454800)]
-    [EngineRoutine(0x00440830)]
     public int AddAmmo(int amount, int slot = 0)
     {
         if (Definition.Object.SpriteClass == SpriteClass.Man)
@@ -741,10 +736,8 @@ public sealed class Sprite : IResettable
         return Owner?.AddAmmo(amount, slot) ?? AddOwnAmmo(amount);
     }
 
-    [EngineRoutine(0x00447500)]
     private int GetOwnAmmo() => Ammo / AmmoScale;
 
-    [EngineRoutine(0x00447500)]
     private int AddOwnAmmo(int amount)
     {
         if (GetAmmoCapacity() == SpriteDefinition.Unlimited)

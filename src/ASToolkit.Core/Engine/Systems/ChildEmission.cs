@@ -53,7 +53,6 @@ internal static class ChildEmission
         public Spawn Current { get; private set; }
 
         // TODO: Port the region owner's random spread
-        [EngineRoutine(0x00444dd0)]
         public bool MoveNext()
         {
             if (++_index >= _count)

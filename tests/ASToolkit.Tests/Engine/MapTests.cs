@@ -20,7 +20,7 @@ public class MapTests
         map.Step(default);
         var first = map.Player;
         var start = first.Position;
-        map.Damage(first, first.Hp);
+        map.Action(first, ActionCode.Damage, first.Hp);
         for (int tick = 0; tick < 200 && map.GetFlagman(0) is not null; tick++)
         {
             map.Step(default);
@@ -38,7 +38,7 @@ public class MapTests
         Assert.Equal(start, map.Player.Position);
         Assert.Equal(23, map.Player.SlotAmmo[KnownObject.Shotgun - KnownObject.Shotgun + 2] + (map.Player.WeaponSlot == 2 ? map.Player.GetAmmo() : 0));
 
-        map.Damage(map.Player, map.Player.Hp);
+        map.Action(map.Player, ActionCode.Damage, map.Player.Hp);
         Assert.True(map.Player.IsAlive);
     }
 
@@ -52,7 +52,7 @@ public class MapTests
         var enemy = map.AddMonster(objects.Find(KnownObject.Monster1)!, position);
         enemy.Items.Clear();
         map.Action(enemy, ActionCode.AddItem, (int)KnownObject.Money);
-        map.Damage(enemy, enemy.Hp);
+        map.Action(enemy, ActionCode.Damage, enemy.Hp);
         MergedMapSprite? dropped = null;
         for (int tick = 0; tick < 100 && dropped is null; tick++)
         {

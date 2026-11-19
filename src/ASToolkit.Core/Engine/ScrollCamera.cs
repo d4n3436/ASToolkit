@@ -12,7 +12,6 @@ internal readonly record struct ScrollCamera(SizeF Screen, SizeF Map, Vector2 Po
 
     private Vector2 HalfScreen => new(Screen.Width * HalfShare, Screen.Height * HalfShare);
 
-    [EngineRoutine(0x0040c960)]
     public static ScrollCamera Start(SizeF screen, SizeF map, Vector2 start)
     {
         var camera = new ScrollCamera(screen, map, Vector2.Zero);

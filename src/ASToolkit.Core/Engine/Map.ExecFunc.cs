@@ -60,7 +60,6 @@ public sealed partial class Map : IScriptFunctionHost
     /// <returns>The sprite, or null when the handle is stale.</returns>
     public Sprite? FindSprite(int handle) => _handles.TryGetValue(handle, out var sprite) && sprite.Handle == handle ? sprite : null;
 
-    [EngineRoutine(0x0043f200)]
     private static void CountSprite(Sprite sprite)
     {
         if (sprite.IsCounted)
@@ -70,7 +69,6 @@ public sealed partial class Map : IScriptFunctionHost
         sprite.Definition.Counts[(int)sprite.Army & 3]++;
     }
 
-    [EngineRoutine(0x0043f520)]
     private void UnlinkDestroyed(Sprite sprite)
     {
         var owner = sprite.Owner;
@@ -206,6 +204,7 @@ public sealed partial class Map : IScriptFunctionHost
     /// Destroys a sprite with the objects linked to it.
     /// </summary>
     /// <param name="sprite">The sprite.</param>
+    [EngineRoutine(0x0043f520)]
     public void DestroySprite(Sprite sprite)
     {
         if (sprite.Role is not (UpdateRole.Player or UpdateRole.Torso))
@@ -925,7 +924,6 @@ public sealed partial class Map : IScriptFunctionHost
         return null;
     }
 
-    [EngineRoutine(0x00435690)]
     private Sprite? GetNextSprite()
     {
         var sprite = FindListedSprite();
@@ -1004,7 +1002,6 @@ public sealed partial class Map : IScriptFunctionHost
         }
     }
 
-    [EngineRoutine(0x0042da30)]
     private Sprite? FindPlacementBlocker(SpriteDefinition definition, Vector3 point)
     {
         if (Movement.GetSupportHeight(definition.Object, point.AsVector2()) > point.Z)

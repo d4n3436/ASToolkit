@@ -62,7 +62,7 @@ public class UnitAnimationTests
             map.Step(default);
         }
 
-        map.Damage(enemy, enemy.Hp);
+        map.Action(enemy, ActionCode.Damage, enemy.Hp);
         map.Step(default);
         int steps = 1;
         while (map.Monsters.Contains(enemy) && steps < 20)

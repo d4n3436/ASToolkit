@@ -15,6 +15,7 @@ public sealed partial class Map
     private const int LinkScanOdds = 4;
     private const int CreaturePeriodMask = 0x7ff;
     private const int CreatureTurn = 0x20;
+    private const float WanderReach = 64;
 
     /// <summary>
     /// Sends an action to a sprite through the handler of its sprite class.
@@ -96,6 +97,40 @@ public sealed partial class Map
                 {
                     Weapons.SelectWeapon(slot);
                 }
+
+                return 0;
+            }
+            case ActionCode.Damage when var1 > 0 && sprite.IsAlive:
+            {
+                int damage = var1;
+
+                if (sprite.Definition.Id != KnownObject.MannedCannon)
+                {
+                    foreach (var link in sprite.EnumerateLinks())
+                    {
+                        if (link.Definition.Id is KnownObject.InvulnerabilityEffect or KnownObject.RescueMedkitEffect)
+                            return 0;
+                    }
+
+                    foreach (var link in sprite.EnumerateLinks())
+                    {
+                        int armor = link.Definition.Id - KnownObject.WornGreenArmor;
+
+                        if (armor is < 0 or >= WornArmorShareCount)
+                            continue;
+
+                        int share = WornArmorShares[armor];
+                        Action(link, ActionCode.Damage, (share * damage + ArmorRounding) / Percent);
+                        damage -= share * damage / Percent;
+                    }
+                }
+
+                if (sprite.Hp > damage || !sprite.Items.Contains((int)KnownObject.Medkit))
+                    return UnitAction(sprite, code, damage, var2, var3, target);
+
+                sprite.Items.Remove((int)KnownObject.Medkit);
+                ChangeHp(sprite, sprite.Definition.ArmyMaxHp[(int)sprite.Army & ArmyMask]);
+                CreateSprite(Definitions.Find(KnownObject.RescueMedkitEffect)!, sprite.Position + Vector3.UnitZ * RescueEffectHeight, default);
 
                 return 0;
             }
@@ -302,6 +337,18 @@ public sealed partial class Map
     {
         switch (code)
         {
+            case ActionCode.Damage:
+            {
+                bool wanders = var1 > 0 && sprite.IsAlive && sprite.Animation < SpriteAnimation.Death && sprite.Definition.MaxHp != 0;
+                TerrainAction(sprite, code, var1, var2, var3, target);
+
+                if (wanders && sprite.Command == Command.None && !sprite.Definition.Speed.IsZero())
+                {
+                    _brain.MoveTo(sprite, sprite.Position.AsVector2() + new Angle((byte)_rng.Next()).Vector * WanderReach);
+                }
+
+                return 0;
+            }
             case ActionCode.NextCommand:
             {
                 if (sprite.Animation >= SpriteAnimation.Death)

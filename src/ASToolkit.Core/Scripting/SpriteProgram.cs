@@ -70,7 +70,6 @@ public readonly struct SpriteProgram
     /// </summary>
     /// <param name="payload">The payload of the sprite's SPRD record.</param>
     /// <returns>The object ids of the items, empty when the payload holds none.</returns>
-    [EngineRoutine(0x00440830)]
     public static ReadOnlySpan<int> GetItems(ReadOnlySpan<byte> payload)
     {
         if (payload.Length < sizeof(int))

@@ -7,7 +7,6 @@ internal sealed class MonsterBrain
 {
     private const int RepeatTargetOdds = 3;
     private const int ForwardCone = 0x1f;
-    private const float WanderReach = 64;
 
     private readonly SpriteKinematics _motion;
     private readonly SpriteCollision _movement;
@@ -89,17 +88,6 @@ internal sealed class MonsterBrain
         }
     }
 
-    [EngineRoutine(0x00447500)]
-    public void Wander(Sprite sprite)
-    {
-        if (sprite.Command != Command.None || sprite.Definition.Speed.IsZero())
-            return;
-
-        var vector = new Angle((byte)_random.Next()).Vector;
-        MoveTo(sprite, sprite.Position.AsVector2() + vector * WanderReach);
-    }
-
-    [EngineRoutine(0x004447b0)]
     public void MoveTo(Sprite sprite, Vector2 point)
     {
         if (!SpriteKinematics.SetCommand(sprite, Command.Move, point: new Vector3(point, sprite.Position.Z)) && !_motion.StartMove(sprite))

@@ -17,7 +17,6 @@ internal struct ScreenSpriteQuery : ISpriteQuery
 
     public Sprite? Found { get; private set; }
 
-    [EngineRoutine(0x0040fc40)]
     public void Consider(Sprite sprite, bool listed)
     {
         if ((!listed && sprite.Owner is not null) || !_filter.Accepts(sprite))

@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Numerics;
+using ASToolkit.Core.Engine.Scripts;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Scripting;
@@ -11,6 +12,7 @@ namespace ASToolkit.Core.Engine;
 /// </summary>
 public sealed partial class Map
 {
+    private const int WindowMessageHitTest = 0x84;
     private const int MaxStreamPeriod = 30000;
     private const float RescueEffectHeight = 22;
     private const int WornArmorShareCount = 3;
@@ -48,6 +50,7 @@ public sealed partial class Map
     /// <param name="demo">The demo to play back, or null to play without one.</param>
     /// <param name="registry">The registry the level script reads and writes, or null for an empty one.</param>
     /// <param name="session">The map state earlier levels left, or null for a new session.</param>
+    [EngineRoutine(0x0040c960)]
     public Map(LevelTemplate data, GameRandom rng, ControlSettings? controls = null, DemoResource? demo = null,
         ScriptRegistry? registry = null, GameSession? session = null)
     {
@@ -144,21 +147,44 @@ public sealed partial class Map
         if (!Script.Load(data.ScriptFiles, data.ScriptPath))
             throw new InvalidDataException($"Cannot compile the script {data.ScriptPath}.");
 
-        BindScript();
+        var objects = Script.Objects;
+        for (int i = 0; i < objects.Length; i++)
+        {
+            ref readonly var entry = ref objects[i];
+
+            if (entry.Kind == ScriptObjectKind.Function)
+            {
+                ProcessScriptFunctions(entry.Name.Span, i, entry.Count);
+            }
+        }
 
         if (demo is not null)
         {
-            StartDemoPlayback(demo.Value);
+            _playedDemo = demo.Value;
+            _playedOffset = Script.ReadState(demo.Value.Body);
+            SetTime(demo.Value.StartTime);
         }
 
         LoadGroups(model.Groups, placedSprites);
         IsLoading = false;
-        RunCreationScripts();
+
+        for (int layer = 0; layer < UpdateOrder.LayerCount; layer++)
+        {
+            var list = _updates.GetLayer(layer);
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                var sprite = list[i].Sprite;
+
+                if (sprite is not null && sprite.Role is not (UpdateRole.Player or UpdateRole.Torso))
+                {
+                    RunCreationHook(sprite);
+                }
+            }
+        }
 
         SetFlagman(0, Player);
     }
 
-    [EngineRoutine(0x00440830)]
     private void LoadOrders(Sprite sprite, ReadOnlySpan<StackAction> stack, Dictionary<int, Sprite> sprites)
     {
         var orders = new Act[stack.Length];
@@ -178,8 +204,6 @@ public sealed partial class Map
         }
     }
 
-    [EngineRoutine(0x00405bd0)]
-    [EngineRoutine(0x0040e870)]
     private Sprite? PlaceSprite(MergedMapSprite placement, SpriteDefinition definition)
     {
         if (definition.MaxHp > 0)
@@ -336,7 +360,7 @@ public sealed partial class Map
     /// <returns><see langword="true"/> when the cursor moved; otherwise, <see langword="false"/>.</returns>
     public bool MoveMouse(Point screen, Point windowOrigin, RectangleF view, Vector2 camera)
     {
-        bool inView = Input.MoveMouse(screen, windowOrigin, view, camera);
+        bool inView = Input.WindowProc(WindowMessageHitTest, 0, (screen.Y & 0xFFFF) << 16 | (screen.X & 0xFFFF), windowOrigin, view, camera);
         Cursor = Input.Cursor;
 
         return inView;
@@ -378,32 +402,6 @@ public sealed partial class Map
                 _groups.RemoveAt(i);
             }
         }
-    }
-
-    /// <summary>
-    /// Runs the level script's main function and updates every sprite of the update lists.
-    /// </summary>
-    [EngineRoutine(0x00405190)]
-    public void Update()
-    {
-        RunMain();
-        ShakeCamera();
-
-        for (int layer = 0; layer < UpdateOrder.UpdatedLayerCount; layer++)
-        {
-            var list = _updates.GetLayer(layer);
-            for (int i = list.Count - 1; i >= 0; i--)
-            {
-                var entry = list[i];
-
-                if (entry.Sprite is not null && !TickEntry(entry, layer))
-                {
-                    UpdateOrder.Clear(list, i);
-                }
-            }
-        }
-
-        Effects.Compact();
     }
 
     private bool TickEntry(UpdateEntry entry, int layer)
@@ -552,7 +550,6 @@ public sealed partial class Map
     /// </summary>
     /// <param name="definition">The definition.</param>
     /// <returns>The starting state.</returns>
-    [EngineRoutine(0x0043f200)]
     public SpriteAnimation GetInitialAnimation(SpriteDefinition definition)
     {
         var state = definition.InitialAnimation;
@@ -572,31 +569,30 @@ public sealed partial class Map
     /// </summary>
     public IReadOnlyList<Sprite> Builders => _builders;
 
-    [EngineRoutine(0x0040c960)]
-    private void RunCreationScripts()
-    {
-        for (int layer = 0; layer < UpdateOrder.LayerCount; layer++)
-        {
-            var list = _updates.GetLayer(layer);
-            for (int i = list.Count - 1; i >= 0; i--)
-            {
-                var sprite = list[i].Sprite;
-
-                if (sprite is not null && sprite.Role is not (UpdateRole.Player or UpdateRole.Torso))
-                {
-                    RunCreationHook(sprite);
-                }
-            }
-        }
-    }
-
     /// <summary>
-    /// Runs one frame of the update lists and then each controller on the input.
+    /// Runs the script's main function, one frame of the update lists and then each controller on the input.
     /// </summary>
     [EngineRoutine(0x00405190)]
     public void Step()
     {
-        Update();
+        Script.CallFunction(this, MainFunction, 0, 0, 0);
+        ShakeCamera();
+
+        for (int layer = 0; layer < UpdateOrder.UpdatedLayerCount; layer++)
+        {
+            var list = _updates.GetLayer(layer);
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                var entry = list[i];
+
+                if (entry.Sprite is not null && !TickEntry(entry, layer))
+                {
+                    UpdateOrder.Clear(list, i);
+                }
+            }
+        }
+
+        Effects.Compact();
 
         if (IsPlayerControlled)
         {
@@ -704,7 +700,44 @@ public sealed partial class Map
     public bool Tact(Sprite sprite)
     {
         var layout = sprite.Definition.Layout;
-        UpdateKeyframe(sprite);
+
+        if (sprite.Definition.HasKeyframes)
+        {
+            ref readonly var weapon = ref sprite.Definition.Weapon;
+            int elapsed = Time - sprite.KeyframeStart;
+            int keyPeriod = weapon.AnimationPeriod;
+            bool timed = true;
+
+            if (keyPeriod == SpriteDefinition.Unlimited)
+            {
+                if (sprite.Animation > SpriteAnimation.Birth && sprite.LastFrame != sprite.FirstFrame)
+                {
+                    keyPeriod = layout.GetFrameDuration(sprite.Animation) * (sprite.LastFrame - sprite.FirstFrame);
+                }
+                else if (sprite.Lifetime == SpriteDefinition.Unlimited)
+                {
+                    timed = false;
+                }
+                else
+                {
+                    keyPeriod = sprite.Lifetime + elapsed;
+                }
+            }
+
+            if (timed && keyPeriod != 0)
+            {
+                // Search from the key after the previous position, reading past the key times as the engine does
+                int key = (int)sprite.KeyframePosition + 1;
+                while (key < WeaponRecord.KeyframeCount - 1 && keyPeriod * GetKeyTime(weapon, key) <= elapsed)
+                {
+                    key++;
+                }
+
+                key--;
+                float start = keyPeriod * GetKeyTime(weapon, key);
+                sprite.KeyframePosition = (elapsed - start) / ((GetKeyTime(weapon, key + 1) - GetKeyTime(weapon, key)) * keyPeriod) + key;
+            }
+        }
 
         if (sprite.Owner is null)
         {
@@ -734,8 +767,19 @@ public sealed partial class Map
 
         bool everyFrame = sprite.Definition.Object.Properties.HasFlag(ObjectProperties.Track);
 
-        if (RunStateHandlers(sprite, everyFrame))
-            return true;
+        state = sprite.Animation;
+        int handler = sprite.Definition.StateHandlers[(int)state];
+        while (handler >= 0 && (sprite.Frame == sprite.FirstFrame || everyFrame))
+        {
+            if (CallScript(handler, sprite) != 0)
+                return true;
+
+            if (sprite.Animation == state)
+                break;
+
+            state = sprite.Animation;
+            handler = sprite.Definition.StateHandlers[(int)state];
+        }
 
         CreateChild(sprite);
         sprite.Frame++;
@@ -754,7 +798,22 @@ public sealed partial class Map
 
         if (sprite.Command is Command.Passive or Command.Pause)
         {
-            HoldStill(sprite);
+            state = sprite.Animation;
+
+            if (state < SpriteAnimation.Death && state != SpriteAnimation.StandOpen && sprite.Frame > sprite.LastFrame)
+            {
+                if (sprite.Speed.IsZero())
+                {
+                    if (state is SpriteAnimation.Go or > SpriteAnimation.Open)
+                    {
+                        sprite.ChangeAnimation(SpriteAnimation.Stand);
+                    }
+                }
+                else if (state != SpriteAnimation.Go)
+                {
+                    sprite.ChangeAnimation(SpriteAnimation.Go);
+                }
+            }
         }
         else if (sprite.Frame > sprite.LastFrame || everyFrame)
         {
@@ -764,7 +823,28 @@ public sealed partial class Map
             }
             else
             {
-                PopOrder(sprite);
+                var order = sprite.ActionStack.Top;
+                state = sprite.Animation;
+
+                if (order.Value > Act.LastState &&
+                    (state is > SpriteAnimation.Open and < SpriteAnimation.Death and not SpriteAnimation.StandOpen || state == SpriteAnimation.Go && sprite.Speed.IsZero()))
+                {
+                    sprite.ChangeAnimation(SpriteAnimation.Stand);
+                }
+
+                if (order.Value != Act.StopMarker)
+                {
+                    sprite.ActionStack.Pop();
+
+                    if (order.Value <= Act.LastState)
+                    {
+                        sprite.ChangeAnimation((SpriteAnimation)order.Value);
+                    }
+                    else
+                    {
+                        Action(sprite, order.Code, order.Var1, order.Var2, order.Var3, order.Target);
+                    }
+                }
             }
         }
 
@@ -816,67 +896,6 @@ public sealed partial class Map
                 Effects.Move(sprite, FrameTime);
                 break;
         }
-    }
-
-    [EngineRoutine(0x00440110)]
-    private static void HoldStill(Sprite sprite)
-    {
-        var state = sprite.Animation;
-
-        if (state >= SpriteAnimation.Death || state == SpriteAnimation.StandOpen || sprite.Frame <= sprite.LastFrame)
-            return;
-
-        if (sprite.Speed.IsZero())
-        {
-            if (state is SpriteAnimation.Go or > SpriteAnimation.Open)
-            {
-                sprite.ChangeAnimation(SpriteAnimation.Stand);
-            }
-        }
-        else if (state != SpriteAnimation.Go)
-        {
-            sprite.ChangeAnimation(SpriteAnimation.Go);
-        }
-    }
-
-    [EngineRoutine(0x00440110)]
-    private void UpdateKeyframe(Sprite sprite)
-    {
-        if (!sprite.Definition.HasKeyframes)
-            return;
-
-        ref readonly var weapon = ref sprite.Definition.Weapon;
-        int elapsed = Time - sprite.KeyframeStart;
-        int period = weapon.AnimationPeriod;
-        if (period == SpriteDefinition.Unlimited)
-        {
-            if (sprite.Animation > SpriteAnimation.Birth && sprite.LastFrame != sprite.FirstFrame)
-            {
-                period = sprite.Definition.Layout.GetFrameDuration(sprite.Animation) * (sprite.LastFrame - sprite.FirstFrame);
-            }
-            else if (sprite.Lifetime == SpriteDefinition.Unlimited)
-            {
-                return;
-            }
-            else
-            {
-                period = sprite.Lifetime + elapsed;
-            }
-        }
-
-        if (period == 0)
-            return;
-
-        // Search from the key after the previous position, reading past the key times as the engine does
-        int key = (int)sprite.KeyframePosition + 1;
-        while (key < WeaponRecord.KeyframeCount - 1 && period * GetKeyTime(weapon, key) <= elapsed)
-        {
-            key++;
-        }
-
-        key--;
-        float start = period * GetKeyTime(weapon, key);
-        sprite.KeyframePosition = (elapsed - start) / ((GetKeyTime(weapon, key + 1) - GetKeyTime(weapon, key)) * period) + key;
     }
 
     private static float GetKeyTime(in WeaponRecord weapon, int key) =>
@@ -960,9 +979,7 @@ public sealed partial class Map
     /// </summary>
     /// <param name="sprite">The sprite.</param>
     /// <param name="damage">The damage, negative to heal.</param>
-    [EngineRoutine(0x00440830)]
-    [EngineRoutine(0x004454d0)]
-    public void Damage(Sprite sprite, int damage)
+    private void Damage(Sprite sprite, int damage)
     {
         if (damage < 0 && sprite != Player && sprite.Animation < SpriteAnimation.Death)
         {
@@ -974,14 +991,6 @@ public sealed partial class Map
         if (damage <= 0 || !sprite.IsAlive)
         {
             return;
-        }
-
-        if (sprite.Definition.Object.SpriteClass == SpriteClass.Man)
-        {
-            damage = DamageMan(sprite, damage);
-
-            if (damage <= 0)
-                return;
         }
 
         if (sprite.Animation >= SpriteAnimation.Death || sprite.Definition.MaxHp == 0)
@@ -1016,7 +1025,6 @@ public sealed partial class Map
             CompleteDeath(sprite, damage > sprite.Definition.MaxHp ? SpriteAnimation.Death2 : SpriteAnimation.Death);
         }
 
-        _brain.Wander(sprite);
     }
 
     private void AddToMonsters(Sprite sprite)
@@ -1030,40 +1038,6 @@ public sealed partial class Map
         _builders.Remove(sprite);
         _monsters.Remove(sprite);
         _monsterSet.Remove(sprite);
-    }
-
-    [EngineRoutine(0x00454800)]
-    private int DamageMan(Sprite man, int damage)
-    {
-        if (man.Definition.Id != KnownObject.MannedCannon)
-        {
-            foreach (var link in man.EnumerateLinks())
-            {
-                if (link.Definition.Id is KnownObject.InvulnerabilityEffect or KnownObject.RescueMedkitEffect)
-                    return 0;
-            }
-
-            foreach (var link in man.EnumerateLinks())
-            {
-                int armor = link.Definition.Id - KnownObject.WornGreenArmor;
-
-                if (armor is < 0 or >= WornArmorShareCount)
-                    continue;
-
-                int share = WornArmorShares[armor];
-                Damage(link, (share * damage + ArmorRounding) / Percent);
-                damage -= share * damage / Percent;
-            }
-        }
-
-        if (man.Hp > damage || !man.Items.Contains((int)KnownObject.Medkit))
-            return damage;
-
-        man.Items.Remove((int)KnownObject.Medkit);
-        ChangeHp(man, man.Definition.ArmyMaxHp[(int)man.Army & ArmyMask]);
-        CreateSprite(Definitions.Find(KnownObject.RescueMedkitEffect)!, man.Position + Vector3.UnitZ * RescueEffectHeight, default);
-
-        return 0;
     }
 
     private void CompleteDeath(Sprite sprite, SpriteAnimation animation)
@@ -1173,7 +1147,6 @@ public sealed partial class Map
     private static Vector3 GetLinkPosition(Sprite owner, SpriteDefinition definition) =>
         owner.Position + owner.Definition.GetLinkOffset(definition, owner.Direction);
 
-    [EngineRoutine(0x0042da30)]
     private bool IsFree(SpriteDefinition definition, Vector3 position) => Movement.IsAboveGround(definition.Object, position) && !Projectiles.IsOccupied(definition, position);
 
 

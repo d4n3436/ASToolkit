@@ -31,20 +31,11 @@ public sealed partial class Map
     /// </summary>
     public bool IsQuitting { get; private set; }
 
-    [EngineRoutine(0x0040c960)]
-    private void StartDemoPlayback(DemoResource demo)
-    {
-        _playedDemo = demo;
-        _playedOffset = Script.ReadState(demo.Body);
-        SetTime(demo.StartTime);
-    }
-
     /// <summary>
     /// Starts recording the input into a demo.
     /// </summary>
     /// <param name="mapName">The map's name as the demo stores it.</param>
     /// <param name="seed">The seed the demo stores.</param>
-    [EngineRoutine(0x0040c960)]
     public void StartDemoRecording(ReadOnlySpan<byte> mapName, int seed)
     {
         _recordedDemo = new MemoryStream();
@@ -131,7 +122,6 @@ public sealed partial class Map
     /// Ends the recording and returns the demo file.
     /// </summary>
     /// <returns>The bytes of the demo.</returns>
-    [EngineRoutine(0x0040c570)]
     public byte[] FinishDemoRecording()
     {
         var body = _recordedDemo!;

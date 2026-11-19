@@ -20,7 +20,6 @@ internal struct SpriteQuery : ISpriteQuery
 
     public Sprite? Found { get; private set; }
 
-    [EngineRoutine(0x00410670)]
     public void Consider(Sprite sprite, bool listed)
     {
         if (sprite.Owner is not null || !_filter.Accepts(sprite))

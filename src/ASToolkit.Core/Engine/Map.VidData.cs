@@ -9,7 +9,6 @@ public sealed partial class Map
     private const int HpScale = 256;
     private const int CoefficientScale = 16;
 
-    [EngineRoutine(0x00437ef2)]
     private void GetVidData(Script script)
     {
         int type = script.PopNumber();
@@ -106,7 +105,6 @@ public sealed partial class Map
         }
     }
 
-    [EngineRoutine(0x00437ef2)]
     private void SetVidData(Script script)
     {
         int value = script.PopNumber();
@@ -219,7 +217,6 @@ public sealed partial class Map
         }
     }
 
-    [EngineRoutine(0x0043a200)]
     private static SpriteDefinition GetAmmoOwner(SpriteDefinition definition)
     {
         var owner = definition.LinkDefinition;
@@ -282,7 +279,7 @@ public sealed partial class Map
     {
         if (hp < 1)
         {
-            Damage(sprite, sprite.Hp - hp);
+            Action(sprite, ActionCode.Damage, sprite.Hp - hp);
             return;
         }
 

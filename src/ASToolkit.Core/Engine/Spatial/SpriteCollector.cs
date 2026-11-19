@@ -104,7 +104,6 @@ internal sealed class SpriteCollector
         bucket.Add(new GridEntry(sprite));
     }
 
-    [EngineRoutine(0x0043deb0)]
     private void RemoveFromBucket(Sprite sprite)
     {
         var bucket = _buckets[sprite.Bucket];

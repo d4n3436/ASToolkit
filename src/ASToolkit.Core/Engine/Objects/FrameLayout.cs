@@ -11,7 +11,6 @@ internal sealed class FrameLayout
     private readonly int[] _framesPerDirection = new int[StateCount];
     private readonly int[] _durations = new int[StateCount];
 
-    [EngineRoutine(0x00413c30)]
     public FrameLayout(in GameObject obj, int spriteSpeed, int totalFrames)
     {
         Directions = obj.Directions;

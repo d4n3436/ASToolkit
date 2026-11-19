@@ -128,7 +128,6 @@ internal sealed class SpawnedObjectSystem
         return sprite;
     }
 
-    [EngineRoutine(0x00445fb0)]
     public void Aim(Sprite sprite, Sprite? goal, Vector3 goalPoint)
     {
         sprite.Goal = goal;

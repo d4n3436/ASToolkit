@@ -36,7 +36,6 @@ internal sealed class WeaponSystem
 
     public void AttachTorso() => Torso = CreateTorso(_map.Player.Definition.LinkDefinition!, 0, false);
 
-    [EngineRoutine(0x00445770)]
     public void StartTorso(SpriteAnimation state)
     {
         Torso.Start(state, _map.Player.Direction, _map.Time, _rng);
@@ -133,7 +132,6 @@ internal sealed class WeaponSystem
         return true;
     }
 
-    [EngineRoutine(0x00445770)]
     public void ReplaceTorso()
     {
         var link = _map.Player.Definition.LinkDefinition;
@@ -168,7 +166,6 @@ internal sealed class WeaponSystem
     }
 
     // Standing legs follow the torso once its turn passes the slack
-    [EngineRoutine(0x0043ea10)]
     public void TrackCursor(Angle direction, int elapsed)
     {
         var player = _map.Player;
@@ -246,7 +243,6 @@ internal sealed class WeaponSystem
         }
     }
 
-    [EngineRoutine(0x00440830)]
     public void ApplyBlast(Sprite blast)
     {
         var payload = blast.Definition;
@@ -282,7 +278,7 @@ internal sealed class WeaponSystem
             if (scales && distance > payload.BlastRadius)
                 continue;
 
-            _map.Damage(sprite, scales ? (int)(damage - damage * distance / payload.BlastRadius) : damage);
+            _map.Action(sprite, ActionCode.Damage, scales ? (int)(damage - damage * distance / payload.BlastRadius) : damage);
         }
     }
 
