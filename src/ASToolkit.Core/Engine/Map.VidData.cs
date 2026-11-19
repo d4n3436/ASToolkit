@@ -7,6 +7,7 @@ public sealed partial class Map
 {
     private const int Percent = 100;
     private const int HpScale = 256;
+    private const int CoefficientScale = 16;
 
     [EngineRoutine(0x00437ef2)]
     private void GetVidData(Script script)
@@ -132,10 +133,10 @@ public sealed partial class Map
                 definition.Killed[type - (int)VidDataType.KilledUnit0] = value;
                 break;
             case >= VidDataType.MaxHp0 and <= VidDataType.MaxHp3:
-                SetArmyMaxHp(definition, type - (int)VidDataType.MaxHp0, value, false);
+                SetMaxHp(definition, type - (int)VidDataType.MaxHp0, value);
                 break;
             case >= VidDataType.HpCoefficient0 and <= VidDataType.HpCoefficient3:
-                SetArmyMaxHp(definition, type - (int)VidDataType.HpCoefficient0, value, true);
+                SetHpCoeff(definition, type - (int)VidDataType.HpCoefficient0, value);
                 break;
             case VidDataType.Speed:
                 definition.Speed = value == SpriteDefinition.Unlimited ? SpriteDefinition.Unlimited : value * SpriteDefinition.PerMillisecond;
@@ -226,17 +227,40 @@ public sealed partial class Map
         return owner is not null && owner.Children[(int)SpriteAnimation.Fight] != 0 && owner.Object.WeaponIndex != 0 ? owner : definition;
     }
 
-    [EngineRoutine(0x00414990)]
     [EngineRoutine(0x00414890)]
-    private void SetArmyMaxHp(SpriteDefinition first, int army, int value, bool isPercent)
+    private void SetHpCoeff(SpriteDefinition first, int army, int percent)
     {
         for (var definition = first; definition is not null; definition = definition.LinkDefinition)
         {
-            int max = isPercent ? definition.MaxHp * value / Percent : value;
             int previous = definition.ArmyMaxHp[army];
-            if (max >= 0)
+            if (percent >= 0)
             {
-                definition.ArmyMaxHp[army] = max;
+                definition.ArmyMaxHp[army] = definition.MaxHp * percent / Percent;
+            }
+
+            if (definition.MaxHp == 0)
+                continue;
+
+            foreach (var entry in _updates.GetLayer(definition.Layer))
+            {
+                var sprite = entry.Sprite;
+                if (sprite is not null && sprite.Definition == definition && ((int)sprite.Army & 3) == army)
+                {
+                    ChangeHp(sprite, sprite.Hp * definition.ArmyMaxHp[army] * CoefficientScale / previous / CoefficientScale);
+                }
+            }
+        }
+    }
+
+    [EngineRoutine(0x00414990)]
+    private void SetMaxHp(SpriteDefinition first, int army, int maxHp)
+    {
+        for (var definition = first; definition is not null; definition = definition.LinkDefinition)
+        {
+            int previous = definition.ArmyMaxHp[army];
+            if (maxHp >= 0)
+            {
+                definition.ArmyMaxHp[army] = maxHp;
             }
 
             if (definition.MaxHp == 0)
