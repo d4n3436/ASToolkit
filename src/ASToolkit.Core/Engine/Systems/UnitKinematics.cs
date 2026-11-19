@@ -198,7 +198,7 @@ internal sealed class UnitKinematics
             if (unit.HasGoal && unit is not { HasReachedX: true, HasReachedY: true })
             {
                 var impact = _world.Projectiles.Trace(unit.Definition, unit.Position, unit.GoalPosition, out bool hit);
-                unit.Position = impact;
+                unit.ChangeCoor(impact);
                 unit.IsBlocked = hit;
                 unit.HasReachedX = true;
                 unit.HasReachedY = true;

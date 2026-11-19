@@ -598,6 +598,8 @@ The direction byte `dir` (0 to 255) picks the frame of a sprite that has several
 
 The half-step offset `128 / dirs` centers each facing on its angle.
 
+Offsets turned by a direction use two 256-entry tables, sine `s` and cosine `c`, for x and the same tables scaled by `4096 × 0.00017262212` (about 0.70706, built at startup) for y, `ps` and `pc`. Links sit at `x + c[d]·ox + s[d]·oy`, `y + ps[d]·ox − pc[d]·oy`, `z + oz` from their owner (`LinkCoor`), or at `(ox, −oy, oz)` when the link has the fixed-offset flag. Children use the same tables with `ChildX`, `ChildY` and `ChildZ` of the state. Links move with their owner by the same delta and are placed again only when the owner turns, with `d` the angle of the owner's facing frame.
+
 ### Movement and collision
 
 Solid objects raise height grids of 8 by 8 pixel cells over the map, and objects that follow the terrain (`P_ZeroZ`) walk on them, climbing and dropping no more than the steps in their record. Objects with `P_BuildVidZToGridZ` raise the cells with the depth of their sprite, a pixel of depth `d` in row `r` raising the cell of row `r + h` to `h = d / 8 - 128` above the object. Objects with `P_BuildSizeToGridZ` raise them along their footprint outline. Alien Shooter 2 keeps one grid for scenery (`SpriteClass` 8) and one for the rest. The `GRID` chunk holds the first grid, one `i16` per cell and `map w / 8` cells per row, and the engine drops it when its size doesn't match the map. In Alien Shooter 2 only the menu, logo, slide and end maps have one.

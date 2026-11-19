@@ -101,6 +101,7 @@ internal sealed class UnitGrid
         unit.Bucket = GetBucket(unit.Position.AsVector2());
         var bucket = _buckets[unit.Bucket];
         unit.Slot = bucket.Count;
+        unit.Grid = this;
         bucket.Add(new GridEntry(unit));
     }
 
@@ -113,6 +114,7 @@ internal sealed class UnitGrid
         last.Unit.Slot = unit.Slot;
         bucket.RemoveAt(bucket.Count - 1);
         unit.Slot = -1;
+        unit.Grid = null;
     }
 
     [EngineRoutine(0x0042d8c0)]

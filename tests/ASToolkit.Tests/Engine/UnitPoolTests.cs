@@ -38,7 +38,9 @@ public class UnitPoolTests
             GoalPoint = new Vector3(12),
             Shooter = neighbor,
             Owner = neighbor,
-            OwnerOffset = new Vector3(11),
+            LinkerBase = neighbor,
+            LinkerOffset = new Vector3(11),
+            LinkerDirection = new Angle(11),
             Depth = 13,
             IsBlocked = true,
             IsClimbing = true,
@@ -59,5 +61,5 @@ public class UnitPoolTests
             unit.Command, unit.IsMoving, unit.HasReachedX, unit.HasReachedY, unit.Hp, unit.Bucket, unit.Slot, unit.Orders.Count,
             unit.DiedAt, unit.Animation, unit.FirstFrame, unit.Frame, unit.LastFrame, unit.LastTickTime, unit.CreatedAt,
             unit.Lifetime, unit.Timer, unit.VerticalSpeed, unit.MaxSpeed, unit.Goal is null, unit.GoalPoint, unit.Shooter is null,
-            unit.Owner is null, unit.OwnerOffset, unit.Depth, unit.IsBlocked, unit.IsClimbing, unit.IsReferenced, unit.Direction);
+            unit.Owner is null, unit.LinkerBase is null, unit.LinkerOffset, unit.LinkerDirection, unit.Grid is null, unit.Depth, unit.IsBlocked, unit.IsClimbing, unit.IsReferenced, unit.Direction);
 }

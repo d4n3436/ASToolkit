@@ -44,6 +44,7 @@ public sealed class Unit : IResettable
     private Unit? _link;
     private Unit? _goal;
     private Unit? _shooter;
+    private Unit? _linkerBase;
 
     /// <summary>
     /// Creates an empty unit. Used for object pooled initialization.
@@ -177,6 +178,8 @@ public sealed class Unit : IResettable
     /// Gets or sets the unit's index in its grid bucket.
     /// </summary>
     public int Slot { get; set; }
+
+    internal UnitGrid? Grid { get; set; }
 
     /// <summary>
     /// Gets or sets the unit's index in the grid's unit list.
@@ -338,9 +341,19 @@ public sealed class Unit : IResettable
     public Unit? Owner { get => _owner; set => _owner = MarkReferenced(value); }
 
     /// <summary>
-    /// Gets or sets the unit's offset from its owner.
+    /// Gets or sets the sprite a linker turns around, the parent it was created with.
     /// </summary>
-    public Vector3 OwnerOffset { get; set; }
+    public Unit? LinkerBase { get => _linkerBase; set => _linkerBase = MarkReferenced(value); }
+
+    /// <summary>
+    /// Gets or sets a linker's offset from its base when it was created.
+    /// </summary>
+    public Vector3 LinkerOffset { get; set; }
+
+    /// <summary>
+    /// Gets or sets the direction a linker was created facing.
+    /// </summary>
+    public Angle LinkerDirection { get; set; }
 
     /// <summary>
     /// Gets or sets the next sprite of the unit's link chain.
@@ -426,6 +439,7 @@ public sealed class Unit : IResettable
         _link = null;
         _goal = null;
         _shooter = null;
+        _linkerBase = null;
         Number = number;
         Handle = 0;
         IsCounted = false;
@@ -448,6 +462,7 @@ public sealed class Unit : IResettable
         Items.Clear();
         Bucket = -1;
         Slot = -1;
+        Grid = null;
         ListIndex = -1;
         Orders.Clear();
         DiedAt = -1;
@@ -465,7 +480,8 @@ public sealed class Unit : IResettable
         VerticalSpeed = 0;
         MaxSpeed = definition.Speed;
         GoalPoint = null;
-        OwnerOffset = Vector3.Zero;
+        LinkerOffset = Vector3.Zero;
+        LinkerDirection = default;
         Depth = 0;
         IsBlocked = false;
         IsClimbing = false;
@@ -557,8 +573,26 @@ public sealed class Unit : IResettable
             ? FirstFrame : FirstFrame + layout.GetFramesPerDirection(state) - 1;
     }
 
+    [EngineRoutine(0x00440030)]
+    internal void ChangeCoor(Vector3 position)
+    {
+        var delta = position - Position;
+        Shift(delta);
+
+        foreach (var link in EnumerateLinks())
+        {
+            link.Shift(delta);
+        }
+    }
+
+    private void Shift(Vector3 delta)
+    {
+        Position += delta;
+        Grid?.ChangeCoor(this);
+    }
+
     /// <summary>
-    /// Turns the unit, turning links that keep their owner's direction.
+    /// Turns the unit, placing its link at the offset for the new direction and turning the links that keep their owner's direction.
     /// </summary>
     /// <param name="direction">The direction.</param>
     [EngineRoutine(0x00442be0)]
@@ -571,22 +605,52 @@ public sealed class Unit : IResettable
 
         var link = _link;
 
-        if (link is not null && link.Definition.Id == Definition.Object.Link && link.Definition.Object.RotationPeriod.IsNear(SpriteDefinition.Unlimited))
+        if (link is not null)
         {
-            link.SetDirection(direction);
+            ref readonly var linked = ref link.Definition.Object;
+            bool fixedOffset = linked.Properties.HasFlag(ObjectProperties.FixedOffset);
+            var offset = Definition.Object.LinkOffset;
+
+            if (link.Definition == Definition.LinkDefinition && !fixedOffset && (offset.X != 0 || offset.Y != 0))
+            {
+                var linkOffset = Definition.GetLinkOffset(link.Definition, Definition.GetFrameDirection(shown));
+                link.ChangeCoor(new Vector3(linkOffset.AsVector2() + Position.AsVector2(), link.Position.Z));
+            }
+            else if (linked.SpriteClass == SpriteClass.Linker && !fixedOffset)
+            {
+                link.LinkRotate(Definition.GetFrameDirection(shown));
+            }
+
+            if (linked.RotationPeriod.IsNear(SpriteDefinition.Unlimited))
+            {
+                link.SetDirection(direction);
+            }
         }
 
         var layout = Definition.Layout;
 
         if (layout.Directions != 1)
         {
-            int offset = Frame - FirstFrame;
+            int frameOffset = Frame - FirstFrame;
             FirstFrame = layout.GetFirstFrame(Animation) + shown.GetDirectionIndex(layout.Directions) * layout.GetFramesPerDirection(Animation);
             LastFrame = FirstFrame + layout.GetFramesPerDirection(Animation) - 1;
-            Frame = FirstFrame + offset;
+            Frame = FirstFrame + frameOffset;
         }
 
         _direction = direction;
+    }
+
+    [EngineRoutine(0x00442e50)]
+    private void LinkRotate(Angle direction)
+    {
+        var origin = _linkerBase ?? _owner;
+
+        if (origin is null)
+            return;
+
+        var turn = new Angle(unchecked((byte)(direction.Value - LinkerDirection.Value)));
+        var turned = new Vector2(turn.Cosine, turn.ProjectedSine) * LinkerOffset.X + new Vector2(-turn.Sine, turn.ProjectedCosine) * LinkerOffset.Y;
+        ChangeCoor(new Vector3(origin.Position.AsVector2() + turned, Position.Z));
     }
 
     // Falling motion-tracking objects show the direction of their screen velocity

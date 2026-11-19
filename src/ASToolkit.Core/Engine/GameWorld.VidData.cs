@@ -303,11 +303,7 @@ public sealed partial class GameWorld
         var next = link.Link;
         previous.Link = next;
 
-        if (next is not null)
-        {
-            next.Owner = previous;
-            next.OwnerOffset = next.Position - previous.Position;
-        }
+        next?.Owner = previous;
 
         link.Link = null;
         link.Owner = null;

@@ -655,8 +655,6 @@ public sealed partial class GameWorld
 
                 return false;
             }
-
-            unit.Position = GetLinkPosition(owner, unit.Definition);
         }
 
         if (Tact(unit))

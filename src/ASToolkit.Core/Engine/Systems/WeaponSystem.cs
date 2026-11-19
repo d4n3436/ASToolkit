@@ -67,11 +67,7 @@ internal sealed class WeaponSystem
     private Vector3 GetTorsoPosition(SpriteDefinition definition) =>
         _world.Player.Position + _world.Player.Definition.GetLinkOffset(definition, _world.Player.Direction);
 
-    public void UpdateTorso()
-    {
-        Torso.Position = GetTorsoPosition(Torso.Definition);
-        _world.Tact(Torso);
-    }
+    public void UpdateTorso() => _world.Tact(Torso);
 
     public int Slot => _world.Player.WeaponSlot;
 

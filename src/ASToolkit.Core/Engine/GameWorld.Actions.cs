@@ -117,7 +117,7 @@ public sealed partial class GameWorld
                 ChangeVid(unit, var1, var2);
                 break;
             case ActionCode.ChangeCoor:
-                MoveSprite(unit, new Vector3(var1, var2, var3));
+                unit.ChangeCoor(new Vector3(var1, var2, var3));
                 break;
             case ActionCode.ChangeDirection:
                 unit.SetDirection(new Angle(unchecked((byte)var1)));
@@ -317,9 +317,11 @@ public sealed partial class GameWorld
     [EngineRoutine(0x00442640)]
     private static void SetInvisible(Unit unit, bool invisible)
     {
-        for (var sprite = unit; sprite is not null; sprite = sprite.Link)
+        unit.IsInvisible = invisible;
+
+        foreach (var link in unit.EnumerateLinks())
         {
-            sprite.IsInvisible = invisible;
+            link.IsInvisible = invisible;
         }
     }
 

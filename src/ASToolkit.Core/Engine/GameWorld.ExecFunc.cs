@@ -188,9 +188,9 @@ public sealed partial class GameWorld : IScriptFunctionHost
             CountSprite(unit);
         }
 
-        if (unit is not null && parent is not null && definition.Object.SpriteClass == SpriteClass.Linker)
+        if (unit is not null && definition.Object.SpriteClass == SpriteClass.Linker)
         {
-            SpawnedObjectSystem.AppendLink(parent, unit);
+            SpawnedObjectSystem.ConstructLinker(unit, parent, position, direction);
         }
 
         if (unit is not null && unit.Role != UpdateRole.Monster)
@@ -332,7 +332,7 @@ public sealed partial class GameWorld : IScriptFunctionHost
                 {
                     foreach (var unit in GetSpritesOfDefinition(definition))
                     {
-                        MoveSprite(unit, unit.Position with { Z = z });
+                        unit.ChangeCoor(unit.Position with { Z = z });
                     }
                 }
 
@@ -1001,17 +1001,6 @@ public sealed partial class GameWorld : IScriptFunctionHost
             {
                 units.Add(unit);
             }
-        }
-    }
-
-    [EngineRoutine(0x00440030)]
-    private void MoveSprite(Unit unit, Vector3 position)
-    {
-        var offset = position - unit.Position;
-        for (var moved = unit; moved is not null; moved = moved.Link)
-        {
-            moved.Position += offset;
-            Units.ChangeCoor(moved);
         }
     }
 

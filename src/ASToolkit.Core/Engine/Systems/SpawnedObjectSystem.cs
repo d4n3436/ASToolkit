@@ -107,6 +107,11 @@ internal sealed class SpawnedObjectSystem
             }
             var child = Create(definition, childPosition, spawn.Direction, time, depth + 1, parent);
 
+            if (child is not null && definition.Object.SpriteClass == SpriteClass.Linker)
+            {
+                ConstructLinker(child, parent, spawn.Position, spawn.Direction);
+            }
+
             if (child is not null && IsSettled(child))
             {
                 _world.ReleaseSprite(child);
@@ -148,7 +153,6 @@ internal sealed class SpawnedObjectSystem
         unit.CreatedAt = time;
         unit.Depth = depth;
         unit.Owner = owner;
-        unit.OwnerOffset = owner is null ? Vector3.Zero : position - owner.Position;
         unit.Shooter = parent?.Shooter ?? parent;
         var state = _world.GetInitialAnimation(definition);
         unit.Start(state, direction, time, _random);
@@ -214,8 +218,20 @@ internal sealed class SpawnedObjectSystem
         }
     }
 
-    [EngineRoutine(0x004449c0)]
     [EngineRoutine(0x0040ec60)]
+    public static void ConstructLinker(Unit linker, Unit? parent, Vector3 position, Angle direction)
+    {
+        linker.LinkerBase = parent;
+        linker.LinkerDirection = direction;
+
+        if (parent is null)
+            return;
+
+        AppendLink(parent, linker);
+        linker.LinkerOffset = position - parent.Position;
+    }
+
+    [EngineRoutine(0x004449c0)]
     public static void AppendLink(Unit parent, Unit link)
     {
         if (link.Owner is not null)
@@ -229,7 +245,6 @@ internal sealed class SpawnedObjectSystem
 
         last.Link = link;
         link.Owner = last;
-        link.OwnerOffset = link.Position - last.Position;
     }
 
     private static bool IsSettled(Unit unit)
@@ -330,41 +345,23 @@ internal sealed class SpawnedObjectSystem
             unit.Owner!.Link = null;
         }
 
-        unit.Link = null;
-
-        if (unit.Definition.Object.Link != 0)
+        foreach (var tail in unit.EnumerateLinks())
         {
-            foreach (var other in _active)
+            if (tail is { Role: UpdateRole.Effect, LeavesEffects: false })
             {
-                if (other.Owner == unit && other.Definition.Id == unit.Definition.Object.Link && !other.LeavesEffects)
-                {
-                    _orphans.Add(other);
-                }
+                _orphans.Add(tail);
             }
         }
+
+        unit.Link = null;
 
         _world.ReleaseSprite(unit);
     }
 
     private bool Update(Unit unit)
     {
-        if (unit.Owner is not null)
-        {
-            if (_orphans.Remove(unit))
-                return false;
-
-            var owner = unit.Owner;
-
-            if (owner.Link == unit)
-            {
-                unit.Position = owner.Position + owner.Definition.Object.GetLinkOffset(unit.Definition.Object, null, 0, owner.Direction);
-            }
-            else
-            {
-                unit.Position = owner.Position + unit.OwnerOffset;
-                unit.SetDirection(owner.Direction);
-            }
-        }
+        if (unit.Owner is not null && _orphans.Remove(unit))
+            return false;
 
         return _world.Tact(unit);
     }
@@ -447,7 +444,7 @@ internal sealed class SpawnedObjectSystem
             }
         }
 
-        unit.Position = next;
+        unit.ChangeCoor(next);
     }
 
     [EngineRoutine(0x00448130)]
@@ -492,7 +489,7 @@ internal sealed class SpawnedObjectSystem
         }
 
         float previousHeight = unit.Position.Z;
-        unit.Position = next;
+        unit.ChangeCoor(next);
         Steer(unit, elapsed, previousHeight);
     }
 
