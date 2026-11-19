@@ -114,7 +114,14 @@ public sealed class MovementMap
                     // Skip depth samples projected past the frame's last complete cell
                     if (point.X + half.Width >= cells.Width || point.Y + half.Height >= cells.Height)
                         continue;
-                    Raise(part.Position.X + point.X, part.Position.Y + point.Y, part.Position.Z + point.Z, scenery, source);
+                    if (scenery)
+                    {
+                        RaisePermanent(part.Position + point, source);
+                    }
+                    else
+                    {
+                        RaiseTemporary(part.Position + point, source);
+                    }
                 }
             }
 
@@ -123,8 +130,19 @@ public sealed class MovementMap
                 for (int y = 0; y <= (int)MathF.Ceiling(obj.Size.Y / CellSize); y++)
                 for (int x = 0; x <= (int)MathF.Ceiling(obj.Size.X / CellSize); x++)
                 {
-                    Raise(part.Position.X + Math.Min(x * CellSize, obj.Size.X) - obj.Size.X / 2,
-                        part.Position.Y + Math.Min(y * CellSize, obj.Size.Y) - obj.Size.Y / 2, part.Position.Z + obj.Size.Z, scenery, source);
+                    var cell = new Vector3(
+                        part.Position.X + Math.Min(x * CellSize, obj.Size.X) - obj.Size.X / 2,
+                        part.Position.Y + Math.Min(y * CellSize, obj.Size.Y) - obj.Size.Y / 2,
+                        part.Position.Z + obj.Size.Z);
+
+                    if (scenery)
+                    {
+                        RaisePermanent(cell, source);
+                    }
+                    else
+                    {
+                        RaiseTemporary(cell, source);
+                    }
                 }
             }
         }
@@ -155,29 +173,51 @@ public sealed class MovementMap
     }
 
     /// <summary>
-    /// Raises a cell to a height.
+    /// Raises a cell of the permanent grid, the one built terrain raises, to a height.
     /// </summary>
-    /// <param name="x">The x coordinate.</param>
-    /// <param name="y">The y coordinate.</param>
-    /// <param name="height">The height.</param>
-    /// <param name="isScenery">A value indicating whether the height belongs to scenery.</param>
+    /// <param name="position">The position in map pixels, with the height to raise the cell to.</param>
     /// <param name="source">The sprite the height comes from, or null.</param>
-    [EngineRoutine(0x00411300)]
     [EngineRoutine(0x00411260)]
-    public void Raise(float x, float y, float height, bool isScenery = false, MergedMapSprite? source = null)
+    public void RaisePermanent(Vector3 position, MergedMapSprite? source = null)
     {
-        if (x < 0 || x >= _mapSize.Width || y < 0 || y >= _mapSize.Height)
+        if (position.X < 0 || position.X >= _mapSize.Width || position.Y < 0 || position.Y >= _mapSize.Height)
             return;
 
-        int index = (int)x / CellSize + (int)(y * CellScale) * _columns;
-        short value = (short)(int)height;
-        short[] grid = isScenery ? _sceneryHeights : _objectHeights;
+        int index = (int)position.X / CellSize + (int)(position.Y * CellScale) * _columns;
+        short value = (short)(int)position.Z;
 
-        if (grid[index] < value)
+        if (_sceneryHeights[index] < value)
         {
-            (isScenery ? grid : GetWritableObjectHeights())[index] = value;
+            _sceneryHeights[index] = value;
         }
 
+        Remember(source, index, value);
+    }
+
+    /// <summary>
+    /// Raises a cell of the temporary grid, the one every other solid sprite raises, to a height.
+    /// </summary>
+    /// <param name="position">The position in map pixels, with the height to raise the cell to.</param>
+    /// <param name="source">The sprite the height comes from, or null.</param>
+    [EngineRoutine(0x00411300)]
+    public void RaiseTemporary(Vector3 position, MergedMapSprite? source = null)
+    {
+        if (position.X < 0 || position.X >= _mapSize.Width || position.Y < 0 || position.Y >= _mapSize.Height)
+            return;
+
+        int index = (int)position.X / CellSize + (int)(position.Y * CellScale) * _columns;
+        short value = (short)(int)position.Z;
+
+        if (_objectHeights[index] < value)
+        {
+            GetWritableObjectHeights()[index] = value;
+        }
+
+        Remember(source, index, value);
+    }
+
+    private void Remember(MergedMapSprite? source, int index, short value)
+    {
         if (source is null)
             return;
 
@@ -185,7 +225,6 @@ public sealed class MovementMap
         cells ??= [];
         cells.Add(new RaisedCell(index, value));
     }
-
 
     /// <summary>
     /// Gets the size of the map.

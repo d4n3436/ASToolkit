@@ -90,7 +90,7 @@ public class MovementTests
     {
         var movement = new MovementMap();
         var player = Body(new Vector3(24, 24, 40), spriteClass: SpriteClass.Man);
-        movement.Raise(24, 16, 40);
+        movement.RaiseTemporary(new Vector3(24, 16, 40));
         Assert.Equal(0, movement.GetSupportHeight(player, new Vector2(16, 20)));
         Assert.True(movement.CanStandOnGround(player, new Vector2(16, 20).AsVector3()));
         var step = new Vector2(17, 20);
@@ -117,7 +117,7 @@ public class MovementTests
         var terrain = new MovementMap();
         var map = new WalkObstacles(terrain);
         var player = Body(new Vector3(24, 18, 40), spriteClass: SpriteClass.Man);
-        terrain.Raise(1336, 3136, 73);
+        terrain.RaiseTemporary(new Vector3(1336, 3136, 73));
         Assert.True(map.CanMove(player, new Vector2(1334, 3150).AsVector3(), new Vector2(1339.46f, 3150)));
     }
 
@@ -146,7 +146,7 @@ public class MovementTests
     public void Trace_TestsTerrainAndBodiesAtTheTravelHeight()
     {
         var movement = new MovementMap();
-        movement.Raise(32, 0, 24);
+        movement.RaiseTemporary(new Vector3(32, 0, 24));
         var collector = new SpriteCollector(new SizeF(256, 256), new Vector2(130));
         var walker = new SpriteDefinition(KnownObject.Monster1, Body(new Vector3(16, 16, 20)), default, 0);
         var bullet = new SpriteDefinition(KnownObject.PistolBullet, Body(new Vector3(4, 4, 2)), default, 0);
