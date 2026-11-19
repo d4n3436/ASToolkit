@@ -884,11 +884,7 @@ public sealed partial class Map
                 PlayerMovement.Tick(Player, IsInCannon ? 0 : Player.MaxSpeed, FrameTime);
                 break;
             case SpriteClass.Unit or SpriteClass.Avia:
-                if (sprite.IsAlive)
-                {
-                    _brain.Move(sprite, FrameTime, _clock.FramesPerSecond);
-                }
-
+                _brain.Move(sprite, FrameTime, _clock.FramesPerSecond);
                 break;
             case SpriteClass.Building:
                 break;
