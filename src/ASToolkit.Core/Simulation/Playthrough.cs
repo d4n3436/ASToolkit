@@ -113,7 +113,15 @@ public sealed class Playthrough
 
             map.Step();
             points.Add(GetReplayPoint(map));
-            map.AdvanceClock();
+
+            if (map.TryGetNextDemoTime(out int next))
+            {
+                map.AdvanceClock(map.WallTime + (uint)(next - map.Time));
+            }
+            else
+            {
+                map.AdvanceClock();
+            }
         }
 
         return points;

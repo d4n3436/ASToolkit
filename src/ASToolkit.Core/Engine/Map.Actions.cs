@@ -551,6 +551,9 @@ public sealed partial class Map
 
                 break;
             }
+            case ActionCode.PlaySfx:
+                PlaySfx(sprite, var1);
+                break;
             case ActionCode.Stop:
                 SpriteKinematics.Stop(sprite);
 
@@ -781,9 +784,16 @@ public sealed partial class Map
                 if (closeHandler >= 0 && CallScript(closeHandler, sprite, var2) != 0)
                     break;
 
+                int closeSound = sprite.Definition.Object.Sounds[(int)SpriteAnimation.Close];
+
+                if (closeSound != 0)
+                {
+                    PlaySfx(sprite, closeSound);
+                }
+
                 if (sprite.Definition.Children[(int)SpriteAnimation.Close] != 0)
                 {
-                    CreateChildFor(sprite, SpriteAnimation.Close);
+                    EmitChildren(sprite, SpriteAnimation.Close);
                 }
 
                 break;

@@ -776,25 +776,41 @@ public sealed partial class Map : IScriptFunctionHost
                 script.PushNumber((int)((float)screenY - screenZ - Camera.Y));
                 break;
 
-            // TODO: Port sound, music and movies
             case ScriptFunction.SetSoundVolume:
+                Sound.SetVolume(script.PopNumber());
+                break;
             case ScriptFunction.SetMusicVolume:
+                Sound.SetMusicVolume(script.PopNumber(), _clock.WallTime);
+                break;
             case ScriptFunction.PlaySfx:
+                Sound.Play(script.PopNumber(), 0, SoundSystem.FullLoudness);
+                break;
             case ScriptFunction.StopSfx:
+                Sound.Stop(script.PopNumber(), _clock.WallTime);
+                break;
+            case ScriptFunction.StopMusic:
+                Sound.StopMusic(_clock.WallTime);
+                break;
+            case ScriptFunction.PlaySfxFromCoor:
+                int sfxY = script.PopNumber();
+                var sfxPoint = new Vector2(script.PopNumber(), sfxY);
+                Sound.PlayAt(script.PopNumber(), sfxPoint - Camera - Session.ScreenSize.ToVector2() * HalfShare);
+                break;
+            case ScriptFunction.PlayMusicFile:
+                int musicLoop = script.PopNumber();
+                Sound.PlayMusicFile(script.PopText().Span, musicLoop, _clock.WallTime);
+                break;
+            case ScriptFunction.IsPlayMusic:
+                script.PushNumber(Sound.IsPlayMusic(_clock.WallTime) ? 1 : 0);
+                break;
+
+            // TODO: Port the movies
             case ScriptFunction.PlayMovie:
                 script.Pop();
                 break;
-            case ScriptFunction.StopMusic:
             case ScriptFunction.StopMovie:
                 break;
-            case ScriptFunction.PlaySfxFromCoor:
-                PopValues(script, 3);
-                break;
-            case ScriptFunction.PlayMusicFile:
-                PopValues(script, 2);
-                break;
             case ScriptFunction.IsPlayMovie:
-            case ScriptFunction.IsPlayMusic:
                 script.PushNumber(0);
                 break;
 

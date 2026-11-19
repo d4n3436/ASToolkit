@@ -22,6 +22,24 @@ public sealed partial class Map
     public bool IsPlayingDemo => _playedDemo is not null;
 
     /// <summary>
+    /// Returns the game time of the next frame of the played demo.
+    /// </summary>
+    /// <param name="time">The game time of the next frame in milliseconds.</param>
+    /// <returns><see langword="true"/> when the demo has a next frame; otherwise, <see langword="false"/>.</returns>
+    public bool TryGetNextDemoTime(out int time)
+    {
+        int offset = _playedOffset;
+        time = 0;
+
+        if (_playedDemo is null || !_playedDemo.Value.TryReadFrame(ref offset, out var frame))
+            return false;
+
+        time = frame.Time;
+
+        return true;
+    }
+
+    /// <summary>
     /// Gets the map the game loads next.
     /// </summary>
     public byte[]? MapToLoad { get; private set; }

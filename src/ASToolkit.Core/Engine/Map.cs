@@ -57,6 +57,7 @@ public sealed partial class Map
         Registry = registry ?? new ScriptRegistry("");
         Session = session ?? new GameSession(Registry);
         Session.Cursor ??= ConstructCursor(data.Definitions, Session.ScreenSize);
+        Sound = Session.Sound ??= new SoundSystem(data.Definitions.Sounds, data.ScriptFiles);
         _updates = new UpdateOrder();
         data.Definitions.ReloadRecords();
         data.Definitions.ResetLevelState();
@@ -369,6 +370,11 @@ public sealed partial class Map
 
     private void SetTime(int time) => _clock.SetTime(time);
 
+    /// <summary>
+    /// Gets the wall time of the current frame in milliseconds.
+    /// </summary>
+    public uint WallTime => _clock.WallTime;
+
     [EngineRoutine(0x0043ad70)]
     private void LoadGroups(IReadOnlyList<IReadOnlyList<int>> groups, Dictionary<int, Sprite> placedSprites)
     {
@@ -538,7 +544,7 @@ public sealed partial class Map
 
         if (state != SpriteAnimation.Birth && !IsLoading)
         {
-            Effects.Emit(definition, SpriteAnimation.Birth, sprite.Position, sprite.Direction, Time);
+            CreateChildFor(sprite, SpriteAnimation.Birth);
         }
 
         return sprite;
@@ -602,12 +608,24 @@ public sealed partial class Map
             }
         }
 
-        PlayMusic();
+        Sound.Tact(_rng, Time, _clock.WallTime);
     }
 
-    // TODO: Port the music
-    [EngineRoutine(0x0041d770)]
-    private void PlayMusic() => _rng.Next();
+    /// <summary>
+    /// Gets the sound effects and music of the session.
+    /// </summary>
+    public SoundSystem Sound { get; }
+
+    /// <summary>
+    /// Requests a sound heard from a sprite's place on the screen.
+    /// </summary>
+    /// <param name="sprite">The sprite.</param>
+    /// <param name="id">The sound.</param>
+    [EngineRoutine(0x00445470)]
+    public void PlaySfx(Sprite sprite, int id)
+    {
+        Sound.PlayAt(id, sprite.Position.ToDrawPosition() - Camera - Session.ScreenSize.ToVector2() * HalfShare);
+    }
 
     /// <summary>
     /// Returns the sprite a player slot controls.
@@ -628,10 +646,15 @@ public sealed partial class Map
     /// <summary>
     /// Advances the game clock to the next frame of wall time and compacts the update lists.
     /// </summary>
+    public void AdvanceClock() => AdvanceClock(_clock.GetNextWallTime());
+
+    /// <summary>
+    /// Advances the game clock to a wall time read and compacts the update lists.
+    /// </summary>
+    /// <param name="wallTime">The wall time read in milliseconds.</param>
     [EngineRoutine(0x0040f210)]
-    public void AdvanceClock()
+    public void AdvanceClock(uint wallTime)
     {
-        uint wallTime = _clock.GetNextWallTime();
         _clock.StartTact(wallTime, wallTime);
         _updates.Compact(Time);
         Input.ResetFrame();
@@ -781,6 +804,14 @@ public sealed partial class Map
             handler = sprite.Definition.StateHandlers[(int)state];
         }
 
+        int sound = sprite.Definition.Object.Sounds[(int)sprite.Animation];
+
+        if (sound != 0 && (!sprite.HasPlayedStateSound || Sound.IsLooped(sound)))
+        {
+            sprite.HasPlayedStateSound = true;
+            PlaySfx(sprite, sound);
+        }
+
         CreateChild(sprite);
         sprite.Frame++;
 
@@ -919,7 +950,7 @@ public sealed partial class Map
         }
 
         sprite.StreamPeriod = Math.Clamp(period, 1, MaxStreamPeriod);
-        CreateChildFor(sprite, state);
+        EmitChildren(sprite, state);
     }
 
     /// <summary>
@@ -928,7 +959,22 @@ public sealed partial class Map
     /// <param name="sprite">The sprite.</param>
     /// <param name="state">The state whose children to create.</param>
     [EngineRoutine(0x00446430)]
-    public void CreateChildFor(Sprite sprite, SpriteAnimation state) =>
+    public void CreateChildFor(Sprite sprite, SpriteAnimation state)
+    {
+        if (sprite.Definition.Children[(int)state] != 0)
+        {
+            EmitChildren(sprite, state);
+        }
+
+        int sound = sprite.Definition.Object.Sounds[(int)state];
+
+        if (sound != 0)
+        {
+            PlaySfx(sprite, sound);
+        }
+    }
+
+    private void EmitChildren(Sprite sprite, SpriteAnimation state) =>
         Effects.Emit(sprite.Definition, state, sprite.Position, sprite.Direction, Time, sprite.Depth, sprite.TakeChildPulse(state), sprite);
 
     [EngineRoutine(0x00444dd0)]
@@ -951,7 +997,7 @@ public sealed partial class Map
 
         if (state != SpriteAnimation.Fight)
         {
-            CreateChildFor(sprite, state);
+            EmitChildren(sprite, state);
 
             return;
         }

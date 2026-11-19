@@ -52,6 +52,11 @@ public sealed class GameSession
 
     // TODO: Port the cursor's screen position
     /// <summary>
+    /// Gets or sets the sound effects and music of the session.
+    /// </summary>
+    public SoundSystem? Sound { get; set; }
+
+    /// <summary>
     /// Gets or sets the sprite of the mouse cursor.
     /// </summary>
     public Sprite? Cursor { get; set; }

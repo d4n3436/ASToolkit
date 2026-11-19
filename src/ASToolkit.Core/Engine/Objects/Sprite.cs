@@ -428,6 +428,7 @@ public sealed class Sprite : IResettable
     public void Initialize(int number, SpriteDefinition definition, Vector3 position, Army army, int hp, Angle direction = default)
     {
         _secondChildPulse = false;
+        HasPlayedStateSound = false;
         StreamPeriod = 1;
         _direction = direction;
         _owner = null;
@@ -557,6 +558,7 @@ public sealed class Sprite : IResettable
         if (Animation == state)
             return;
 
+        HasPlayedStateSound = false;
         var layout = Definition.Layout;
         var direction = GetShownDirection(_direction);
 
@@ -857,6 +859,11 @@ public sealed class Sprite : IResettable
     }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the sound of the current state was requested.
+    /// </summary>
+    public bool HasPlayedStateSound { get; set; }
+
+    /// <summary>
     /// Returns which of a mirrored pair of children the next launch takes, alternating for definitions that attack twice.
     /// </summary>
     /// <param name="animation">The state whose children launch.</param>
@@ -869,6 +876,11 @@ public sealed class Sprite : IResettable
 
         if (owner.AttacksTwice && owner.Children[(int)animation] != 0 && Math.Abs(owner.ChildCounts[(int)animation]) == ChildEmission.MirroredPairCount)
         {
+            if (second)
+            {
+                HasPlayedStateSound = false;
+            }
+
             _secondChildPulse = !second;
         }
 

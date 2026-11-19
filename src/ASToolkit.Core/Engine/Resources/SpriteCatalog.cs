@@ -180,6 +180,11 @@ public sealed class SpriteCatalog
     public float Gravitation2 => _objects.Gravitation2 * SpriteDefinition.PerMillisecondSquared;
 
     /// <summary>
+    /// Gets the sounds of the object table.
+    /// </summary>
+    public IReadOnlyList<SfxRecord> Sounds => _objects.Sounds;
+
+    /// <summary>
     /// Gets the fastest scroll speed of the camera along each axis in pixels per millisecond.
     /// </summary>
     public Vector2 ScrollSpeed => _objects.ScrollSpeed * SpriteDefinition.PerMillisecond;
