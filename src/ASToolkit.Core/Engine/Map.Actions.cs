@@ -20,6 +20,9 @@ public sealed partial class Map
     private const KnownObject RelinkCountedId = (KnownObject)35;
     private const KnownObject RelinkLimitId = KnownObject.Slug;
     private const KnownObject RelinkEffectId = (KnownObject)590;
+    private const OldSpriteType BuiltSpriteType = OldSpriteType.Unit;
+    private const OldSpriteType AnySpriteType = (OldSpriteType)0xFFFFFF;
+    private const int NoItem = -1;
 
     /// <summary>
     /// Sends an action to a sprite through the handler of its sprite class.
@@ -529,7 +532,12 @@ public sealed partial class Map
                 break;
             case ActionCode.BuildUnit:
             {
-                var definition = Definitions.Find((KnownObject)var1);
+                int id = var1 != 0 ? var1 : Action(sprite, ActionCode.GetItemType, (int)BuiltSpriteType);
+
+                if (id <= 0)
+                    break;
+
+                var definition = Definitions.Find((KnownObject)id);
 
                 if (definition is null)
                     break;
@@ -706,6 +714,35 @@ public sealed partial class Map
                 break;
             case ActionCode.GetItem:
                 return var1 >= 0 && var1 < sprite.Items.Count ? sprite.Items[var1] : 0;
+            case ActionCode.GetItemType:
+            {
+                if (sprite.Items.Count == 0)
+                    return NoItem;
+
+                var mask = var1 != 0 ? (OldSpriteType)var1 : AnySpriteType;
+                int matching = 0;
+                foreach (int item in sprite.Items)
+                {
+                    if ((GetItemType(item) & mask) != OldSpriteType.None)
+                    {
+                        matching++;
+                    }
+                }
+
+                int pick = _rng.Next();
+
+                if (matching == 0)
+                    return NoItem;
+
+                pick %= matching;
+                foreach (int item in sprite.Items)
+                {
+                    if ((GetItemType(item) & mask) != OldSpriteType.None && --pick < 0)
+                        return item;
+                }
+
+                return NoItem;
+            }
             case ActionCode.Damage:
                 Damage(sprite, var1);
                 break;
@@ -775,6 +812,8 @@ public sealed partial class Map
 
         return 0;
     }
+
+    private OldSpriteType GetItemType(int item) => Definitions.Find((KnownObject)item)?.Object.SpriteType.ToOldSpriteType() ?? OldSpriteType.None;
 
     [EngineRoutine(0x004429f0)]
     private void RemoveFromUpdates(Sprite sprite)

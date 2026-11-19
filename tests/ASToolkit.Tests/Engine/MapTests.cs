@@ -86,6 +86,23 @@ public class MapTests
     }
 
     [Fact]
+    public void Action_GetItemType_PicksACarriedItemOrNoneWithoutItems()
+    {
+        var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var map = EngineTestMap.CreateMap(objects);
+        map.Step(default);
+        var enemy = map.AddMonster(objects.Find(KnownObject.Monster1)!, map.Player.Position + new Vector3(500, 0, 0));
+        enemy.Items.Clear();
+
+        Assert.Equal(-1, map.Action(enemy, ActionCode.GetItemType));
+
+        map.Action(enemy, ActionCode.AddItem, (int)KnownObject.Money);
+        map.Action(enemy, ActionCode.AddItem, (int)KnownObject.Medkit);
+
+        Assert.Contains(map.Action(enemy, ActionCode.GetItemType), new[] { (int)KnownObject.Money, (int)KnownObject.Medkit });
+    }
+
+    [Fact]
     public void Step_PlayerCommand_MovesThePlayerWithoutRouteOrBot()
     {
         var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
