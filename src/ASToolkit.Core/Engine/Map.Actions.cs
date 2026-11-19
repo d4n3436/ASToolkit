@@ -739,8 +739,51 @@ public sealed partial class Map
                 return NoItem;
             }
             case ActionCode.Damage:
-                Damage(sprite, var1);
+            {
+                int maxHp = sprite.Definition.ArmyMaxHp[(int)sprite.Army & ArmyMask];
+
+                if (maxHp <= sprite.Hp && var1 < 0)
+                    return 1;
+
+                if (sprite.Animation >= SpriteAnimation.Death)
+                    break;
+
+                int handler = sprite.Definition.DamageHandler;
+
+                if (handler >= 0 && CallScript(handler, sprite, var2, var1) != 0)
+                    break;
+
+                if (sprite.Definition.MaxHp != 0)
+                {
+                    ChangeHp(sprite, sprite.Hp - var1);
+                }
+
+                if (maxHp < sprite.Hp && var1 < 0)
+                {
+                    sprite.Hp = maxHp;
+                }
+
+                if (var1 <= 0)
+                    break;
+
+                if (sprite.Definition.Layout.GetFrameCount(SpriteAnimation.Close) != 0 && sprite.Animation is SpriteAnimation.Stand or SpriteAnimation.Go)
+                {
+                    sprite.ChangeAnimation(SpriteAnimation.Close);
+                    break;
+                }
+
+                int closeHandler = sprite.Definition.StateHandlers[(int)SpriteAnimation.Close];
+
+                if (closeHandler >= 0 && CallScript(closeHandler, sprite, var2) != 0)
+                    break;
+
+                if (sprite.Definition.Children[(int)SpriteAnimation.Close] != 0)
+                {
+                    CreateChildFor(sprite, SpriteAnimation.Close);
+                }
+
                 break;
+            }
             case ActionCode.Repair:
             {
                 DestroyLink(sprite, Definitions.Find((KnownObject)Math.Abs(sprite.Definition.Children[(int)SpriteAnimation.Wound])));

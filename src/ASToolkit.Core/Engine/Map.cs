@@ -970,63 +970,6 @@ public sealed partial class Map
     /// <returns>The number.</returns>
     public int AllocateNumber() => _spriteCount++;
 
-    /// <summary>
-    /// Deals damage to a sprite.
-    /// </summary>
-    /// <param name="sprite">The sprite.</param>
-    /// <param name="damage">The damage, negative to heal.</param>
-    private void Damage(Sprite sprite, int damage)
-    {
-        if (damage < 0 && sprite != Player && sprite.Animation < SpriteAnimation.Death)
-        {
-            sprite.Hp = Math.Min(sprite.Definition.MaxHp, sprite.Hp - damage);
-
-            return;
-        }
-
-        if (damage <= 0 || !sprite.IsAlive)
-        {
-            return;
-        }
-
-        if (sprite.Animation >= SpriteAnimation.Death || sprite.Definition.MaxHp == 0)
-            return;
-
-        int previousHp = sprite.Hp;
-        bool isDead = previousHp - damage < 1;
-
-        if (isDead)
-        {
-            sprite.Definition.Killed[(int)sprite.Army & 3]++;
-        }
-        else
-        {
-            sprite.Hp = previousHp - damage;
-
-            if (previousHp > sprite.Definition.MaxHp / 2 && sprite.Hp <= sprite.Definition.MaxHp / 2)
-            {
-                sprite.ChangeAnimation(SpriteAnimation.Wound);
-            }
-        }
-
-        bool isStaggered = !isDead && sprite.Animation is SpriteAnimation.Stand or SpriteAnimation.Go && sprite.Definition.Layout.GetFrameCount(SpriteAnimation.Close) > 0;
-
-        if (isStaggered)
-        {
-            sprite.ChangeAnimation(SpriteAnimation.Close);
-        }
-        else
-        {
-            CreateChildFor(sprite, SpriteAnimation.Close);
-        }
-
-        if (isDead)
-        {
-            CompleteDeath(sprite, damage > sprite.Definition.MaxHp ? SpriteAnimation.Death2 : SpriteAnimation.Death);
-        }
-
-    }
-
     private void AddToMonsters(Sprite sprite)
     {
         _monsters.Add(sprite);

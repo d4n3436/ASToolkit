@@ -68,9 +68,15 @@ public sealed partial class Map
     [EngineRoutine(0x004454d0)]
     private void ChangeHp(Sprite sprite, int hp)
     {
-        if (hp < 1)
+        if (hp < 1 && sprite.Definition.MaxHp != 0)
         {
-            Action(sprite, ActionCode.Damage, sprite.Hp - hp);
+            if (sprite.Animation < SpriteAnimation.Death)
+            {
+                int army = (int)sprite.Army & 3;
+                sprite.Definition.Killed[army]++;
+                CompleteDeath(sprite, sprite.Definition.ArmyMaxHp[army] < sprite.Hp - hp ? SpriteAnimation.Death2 : SpriteAnimation.Death);
+            }
+
             return;
         }
 
