@@ -7,6 +7,7 @@ namespace ASToolkit.Core.Simulation;
 
 internal sealed class Gunnery
 {
+    private const float VerticalProjection = 4096 * 0.00017262212f;
     private const float MaxUnitHalf = 65;
     public static readonly Vector2 ScreenHalf = FightPlanner.Screen.ToVector2() / 2;
     private const float GroundAimHeight = 19;
@@ -226,7 +227,7 @@ internal sealed class Gunnery
         if (launch.Y * launch.Y >= toward.LengthSquared())
             return true;
 
-        var muzzle = from + new Vector2(forward.X * launch.Y, forward.Y * launch.Y * ChildEmission.VerticalProjection);
+        var muzzle = from + new Vector2(forward.X * launch.Y, forward.Y * launch.Y * VerticalProjection);
         float height = _world.Player.Position.Z + _world.Player.Definition.Object.LinkOffset.Z + launch.Z;
 
         var aim = target.Position with { Z = target.Position.Z + Math.Min(GroundAimHeight, target.Definition.Object.Size.Z / 2) };

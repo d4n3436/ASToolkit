@@ -7,6 +7,7 @@ namespace ASToolkit.Core.Engine;
 internal sealed class WeaponSystem
 {
     private const int AimAttempts = 5;
+    private const float ScatterScale = 6.1037019E-05f;
     public const float MinBlastHeight = 20;
     private const float AimRise = 70;
     private const float AimRiseCap = 50;
@@ -216,12 +217,12 @@ internal sealed class WeaponSystem
     {
         if (unit.HasGoal)
         {
-            Fire(unit == Torso ? _world.Player : unit, unit.Definition, unit.GoalPosition, unit.Goal, 0, unit.Position, unit.Direction);
+            Fire(unit == Torso ? _world.Player : unit, unit, unit.Definition, unit.GoalPosition, unit.Goal, 0, unit.Position, unit.Direction);
         }
     }
 
 
-    private void Fire(Unit shooter, SpriteDefinition creator, Vector3 aim, Unit? target, int depth, Vector3? origin = null, Angle? direction = null)
+    private void Fire(Unit shooter, Unit emitter, SpriteDefinition creator, Vector3 aim, Unit? target, int depth, Vector3? origin = null, Angle? direction = null)
     {
         var child = _definitions.Find((KnownObject)Math.Abs(creator.Children[(int)SpriteAnimation.Fight]));
 
@@ -242,14 +243,18 @@ internal sealed class WeaponSystem
             if (unit is null)
                 continue;
 
+            if (child.Object.SpriteClass == SpriteClass.Linker)
+            {
+                SpawnedObjectSystem.ConstructLinker(unit, emitter, spawn.Position, spawn.Direction);
+            }
+
             var point = aim;
 
             if (scatters)
             {
-                var center = aim + spawn.Lateral.AsVector3();
                 for (int attempt = 0; attempt < AimAttempts; attempt++)
                 {
-                    point = Scatter(center, spread);
+                    point = Scatter(aim, spawn.Lateral, spread);
 
                     if (_world.Movement.GetHeight(point.AsVector2()) < aim.Z && _world.Movement.GetHeight((aim.AsVector2() + point.AsVector2()) * 0.5f) < aim.Z)
                         break;
@@ -258,7 +263,7 @@ internal sealed class WeaponSystem
 
             if (relays)
             {
-                Fire(shooter, child, point, target, depth + 1, spawn.Position, spawn.Direction);
+                Fire(shooter, unit, child, point, target, depth + 1, spawn.Position, spawn.Direction);
                 continue;
             }
 
@@ -306,8 +311,12 @@ internal sealed class WeaponSystem
         }
     }
 
-    private Vector3 Scatter(Vector3 point, float aim) =>
-        point + new Vector3(aim - _rng.NextSingle() * 2 * aim, aim - _rng.NextSingle() * 2 * aim, 0);
+    private Vector3 Scatter(Vector3 goal, Vector2 lateral, float spread)
+    {
+        var point = new Vector2(spread) + goal.AsVector2() + lateral - new Vector2(_rng.Next(), _rng.Next()) * spread * ScatterScale;
+
+        return new Vector3(point, goal.Z);
+    }
 
 
 }

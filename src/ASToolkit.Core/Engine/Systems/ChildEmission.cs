@@ -5,7 +5,7 @@ namespace ASToolkit.Core.Engine;
 
 internal static class ChildEmission
 {
-    public const float VerticalProjection = 4096 * 0.00017262212f;
+    public const float RandomScale = 3.0518509E-05f;
 
     public const int MirroredPairCount = 2;
 
@@ -23,15 +23,13 @@ internal static class ChildEmission
 
     public struct Enumerator
     {
+        private const int MirroredChildIndex = 1;
         private const int CenteredChildIndex = 2;
         private readonly ChildBatch _source;
         private readonly int _childId;
         private readonly int _count;
-        private readonly float _x;
-        private readonly float _y;
-        private readonly float _height;
-        private readonly Vector2 _forward;
-        private readonly Vector2 _side;
+        private readonly Vector3 _offset;
+        private readonly Angle _offsetDirection;
         private int _index;
 
         public Enumerator(ChildBatch source)
@@ -40,19 +38,9 @@ internal static class ChildEmission
             ref readonly var owner = ref source.Owner.Object;
             _childId = source.Owner.Children[(int)source.Animation];
             _count = Math.Abs(source.Owner.ChildCounts[(int)source.Animation]);
-            _x = owner.ChildX[(int)source.Animation];
-            _y = owner.ChildY[(int)source.Animation];
-            _height = owner.ChildZ[(int)source.Animation];
-            var quantized = owner.Directions > 0
-                ? source.Direction.GetFrameDirection(owner.Directions) : source.Direction;
-
-            if (source.Child.Object.Properties.HasFlag(ObjectProperties.FixedOffset))
-            {
-                quantized = default;
-            }
-
-            _forward = quantized.Vector;
-            _side = new Vector2(-_forward.Y, _forward.X);
+            _offset = new Vector3(owner.ChildX[(int)source.Animation], owner.ChildY[(int)source.Animation], owner.ChildZ[(int)source.Animation]);
+            _offsetDirection = source.Child.Object.Properties.HasFlag(ObjectProperties.FixedOffset)
+                ? default : source.Owner.GetFrameDirection(source.Direction);
             _index = -1;
 
             if (source.Owner.AttacksTwice && _count == MirroredPairCount)
@@ -64,27 +52,41 @@ internal static class ChildEmission
 
         public Spawn Current { get; private set; }
 
+        // TODO: Port the region owner's random spread
+        [EngineRoutine(0x00444dd0)]
         public bool MoveNext()
         {
             if (++_index >= _count)
                 return false;
 
-            float across = _childId < 0 ? _source.Random.NextSingle() * _x * 2 - _x
-                : _index == 1 ? -_x : _index == CenteredChildIndex ? 0 : _x;
-            float along = _childId < 0 ? _y - _source.Random.NextSingle() * _y * 2 : _y;
-            var lateral = _side * across;
-            var offset = lateral + _forward * along;
+            var d = _offsetDirection;
+            var side = new Vector2(d.Cosine, d.ProjectedSine);
+            var forward = new Vector2(d.Sine, -d.ProjectedCosine);
+            var offset = _offset.AsVector2();
+            Vector2 lateral;
+            Vector2 shift;
 
-            if (_childId > 0 && _index == CenteredChildIndex)
+            if (_childId < 0)
+            {
+                var spread = offset - new Vector2(_source.Random.Next(), _source.Random.Next()) * (offset + offset) * RandomScale;
+                lateral = -(side * spread.X);
+                shift = forward * spread.Y + lateral;
+            }
+            else if (_index == CenteredChildIndex)
             {
                 lateral = Vector2.Zero;
-                offset = _forward with { Y = -_forward.Y } * along;
+                shift = new Vector2(d.Sine, d.ProjectedCosine) * offset.Y;
+            }
+            else
+            {
+                lateral = _index == MirroredChildIndex ? -(side * offset.X) : side * offset.X;
+                shift = forward * offset.Y + lateral;
             }
 
-            var at = _source.Position + new Vector3(offset.X, offset.Y * VerticalProjection, _height);
+            var at = new Vector3(shift + _source.Position.AsVector2(), _offset.Z + _source.Position.Z);
             var direction = _source.Child.Object.Properties.HasFlag(ObjectProperties.RandomBirth)
                 ? new Angle((byte)_source.Random.Next(Angle.FullTurn)) : _source.Direction;
-            Current = new Spawn(_source.Child.Id, at, direction, lateral with { Y = lateral.Y * VerticalProjection });
+            Current = new Spawn(_source.Child.Id, at, direction, lateral);
 
             return true;
         }
