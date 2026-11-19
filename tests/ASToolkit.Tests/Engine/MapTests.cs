@@ -71,6 +71,21 @@ public class MapTests
     }
 
     [Fact]
+    public void Action_RepairOnAWoundedMonster_RestoresItsHp()
+    {
+        var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var map = EngineTestMap.CreateMap(objects);
+        map.Step(default);
+        var enemy = map.AddMonster(objects.Find(KnownObject.Monster1)!, map.Player.Position + new Vector3(500, 0, 0));
+        int maxHp = enemy.Hp;
+        map.Action(enemy, ActionCode.Damage, maxHp / 2);
+
+        map.Action(enemy, ActionCode.Repair);
+
+        Assert.Equal(maxHp, enemy.Hp);
+    }
+
+    [Fact]
     public void Step_PlayerCommand_MovesThePlayerWithoutRouteOrBot()
     {
         var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);

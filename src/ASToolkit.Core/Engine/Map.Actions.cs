@@ -17,6 +17,9 @@ public sealed partial class Map
     private const int CreatureTurn = 0x20;
     private const float WanderReach = 64;
     private const float CreatureAlertReach = 150;
+    private const KnownObject RelinkCountedId = (KnownObject)35;
+    private const KnownObject RelinkLimitId = KnownObject.Slug;
+    private const KnownObject RelinkEffectId = (KnownObject)590;
 
     /// <summary>
     /// Sends an action to a sprite through the handler of its sprite class.
@@ -445,6 +448,10 @@ public sealed partial class Map
 
                 return 0;
             }
+            case ActionCode.Repair:
+                sprite.FillAmmo();
+
+                return TerrainAction(sprite, code, var1, var2, var3, target);
             case ActionCode.GetBehave:
                 return (int)sprite.Behavior;
             case ActionCode.SetBehave:
@@ -462,8 +469,48 @@ public sealed partial class Map
     }
 
     [EngineRoutine(0x0044bea0)]
-    private int TerrainAction(Sprite sprite, ActionCode code, int var1, int var2, int var3, Sprite? target) =>
-        SpriteAction(sprite, code, var1, var2, var3, target);
+    private int TerrainAction(Sprite sprite, ActionCode code, int var1, int var2, int var3, Sprite? target)
+    {
+        if (code != ActionCode.Repair)
+            return SpriteAction(sprite, code, var1, var2, var3, target);
+
+        Repair(sprite, true);
+
+        return 0;
+    }
+
+    [EngineRoutine(0x0044bf10)]
+    private void Repair(Sprite sprite, bool relink)
+    {
+        var army = (int)sprite.Army & ArmyMask;
+        ChangeHp(sprite, sprite.Definition.ArmyMaxHp[army]);
+        var linkDefinition = sprite.Definition.LinkDefinition;
+
+        if (linkDefinition is not null && sprite.Link?.Definition != linkDefinition && relink)
+        {
+            var counted = Definitions.Find(RelinkCountedId);
+            var limit = Definitions.Find(RelinkLimitId);
+            bool atLimit = sprite.Definition.Id == RelinkCountedId && (counted?.Counts[army] ?? 0) <= (limit?.Counts[army] ?? 0);
+
+            if (!atLimit)
+            {
+                CreateLink(sprite);
+                var effect = Definitions.Find(RelinkEffectId);
+
+                if (effect is not null)
+                {
+                    CreateSprite(effect, sprite.Position, default);
+                }
+
+                return;
+            }
+        }
+
+        if (sprite.Link is not null && sprite.Link.Definition == linkDefinition)
+        {
+            Action(sprite.Link, ActionCode.Repair);
+        }
+    }
 
     [EngineRoutine(0x00440830)]
     private int SpriteAction(Sprite sprite, ActionCode code, int var1, int var2, int var3, Sprite? target)
@@ -656,6 +703,23 @@ public sealed partial class Map
             case ActionCode.Damage:
                 Damage(sprite, var1);
                 break;
+            case ActionCode.Repair:
+            {
+                DestroyLink(sprite, Definitions.Find((KnownObject)Math.Abs(sprite.Definition.Children[(int)SpriteAnimation.Wound])));
+                sprite.Hp = sprite.Definition.ArmyMaxHp[(int)sprite.Army & ArmyMask];
+                var link = sprite.Link;
+
+                if (link is not null && link.Definition == sprite.Definition.LinkDefinition)
+                {
+                    Action(link, ActionCode.Repair);
+                }
+                else
+                {
+                    CreateLink(sprite);
+                }
+
+                break;
+            }
             case ActionCode.GetHp:
                 return sprite.Hp;
             case ActionCode.SetHp:
