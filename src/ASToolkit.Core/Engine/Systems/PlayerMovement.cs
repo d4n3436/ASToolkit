@@ -40,7 +40,7 @@ internal sealed class PlayerMovement
         {
             var direction = Angle.FromOffset(target.Value - player.Position.AsVector2()) + (player.Speed < 0 ? Angle.HalfTurn : 0);
             direction = _movement.RotateForGlide(direction, player);
-            player.ChangeDirection(player.Direction.TurnToward(direction, player.Definition.Object.RotationPeriod, elapsed, out _));
+            player.RotateTact(direction, elapsed);
 
             if (player is { HasReachedX: true, HasReachedY: true } || IsTouching(player, target.Value))
             {

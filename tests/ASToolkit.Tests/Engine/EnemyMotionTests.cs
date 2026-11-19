@@ -17,12 +17,12 @@ public class EnemyMotionTests
     [InlineData(0, 40, 1000, 1, 0, 40)]
     [InlineData(0, 64, 5000, 10, 1, 63)]
     [InlineData(0, 64, 5000, 9, 0, 64)]
-    public void TurnToward_HandlesWrappingAndImmediateOrDisabledRotation(byte direction, byte goal, float period, int elapsed, byte expected, int left)
+    public void TurnToward_HandlesWrappingAndImmediateOrDisabledRotation(byte direction, byte goal, float period, int elapsed, byte expected, byte left)
     {
-        byte result = new Angle(direction).TurnToward(new Angle(goal), period, elapsed, out int remaining).Value;
+        byte result = new Angle(direction).TurnToward(new Angle(goal), period, elapsed, out var remaining).Value;
 
         Assert.Equal(expected, result);
-        Assert.Equal(left, remaining);
+        Assert.Equal(left, remaining.Value);
     }
 
     [Theory]

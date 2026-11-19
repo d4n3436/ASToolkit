@@ -95,8 +95,7 @@ public sealed partial class Map
                 MonsterBrain.Pause(sprite, var1 + _rng.Next() % (var2 + 1));
                 break;
             case ActionCode.Turn:
-                sprite.ChangeDirection(sprite.Direction.TurnToward(new Angle(unchecked((byte)var1)), sprite.Definition.Object.RotationPeriod,
-                    sprite.Definition.Layout.GetFrameDuration(sprite.Animation), out _));
+                sprite.RotateTact(new Angle(unchecked((byte)var1)), sprite.Definition.Layout.GetFrameDuration(sprite.Animation));
                 break;
             case ActionCode.ClearCommand:
                 SpriteKinematics.SetCommand(sprite, Command.None);
@@ -195,7 +194,16 @@ public sealed partial class Map
                 ChangeArmy(sprite, var1);
                 break;
             case ActionCode.SetInvisible:
-                SetInvisible(sprite, var1 != 0);
+                sprite.IsInvisible = var1 != 0;
+
+                if (var1 == 0)
+                {
+                    sprite.Link?.InvisibleOff();
+                }
+                else
+                {
+                    sprite.Link?.InvisibleOn();
+                }
                 break;
             case ActionCode.GetTimer:
                 return sprite.Timer;
@@ -299,7 +307,16 @@ public sealed partial class Map
 
         if (definition.Object.Properties.HasFlag(ObjectProperties.InvisibleForEnemy))
         {
-            SetInvisible(sprite, current != ControlledPlayer);
+            sprite.IsInvisible = current != ControlledPlayer;
+
+            if (current == ControlledPlayer)
+            {
+                sprite.Link?.InvisibleOff();
+            }
+            else
+            {
+                sprite.Link?.InvisibleOn();
+            }
         }
 
         if (sprite.IsCounted)
@@ -310,18 +327,6 @@ public sealed partial class Map
             }
 
             definition.Counts[current]++;
-        }
-    }
-
-    [EngineRoutine(0x00442620)]
-    [EngineRoutine(0x00442640)]
-    private static void SetInvisible(Sprite sprite, bool invisible)
-    {
-        sprite.IsInvisible = invisible;
-
-        foreach (var link in sprite.EnumerateLinks())
-        {
-            link.IsInvisible = invisible;
         }
     }
 

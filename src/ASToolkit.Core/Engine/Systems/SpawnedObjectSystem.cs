@@ -191,7 +191,6 @@ internal sealed class SpawnedObjectSystem
     }
 
     [EngineRoutine(0x00445770)]
-    [EngineRoutine(0x00447130)]
     public void CreateLink(Sprite owner, int time, int depth)
     {
         ref readonly var obj = ref owner.Definition.Object;
@@ -387,13 +386,8 @@ internal sealed class SpawnedObjectSystem
 
     private static Vector3 KeepGround(Vector3 next, Sprite sprite) => next with { X = sprite.Position.X, Y = sprite.Position.Y };
 
-    [EngineRoutine(0x0043f820)]
-    [EngineRoutine(0x00448130)]
     public void Move(Sprite sprite, int elapsed)
     {
-        if (!NeedsMotion(sprite.Definition))
-            return;
-
         if (sprite.Definition.Object.SpriteClass == SpriteClass.Cannon)
         {
             RunCannon(sprite, elapsed);
@@ -414,6 +408,9 @@ internal sealed class SpawnedObjectSystem
     [EngineRoutine(0x0043f820)]
     private void RunGeneric(Sprite sprite, int elapsed)
     {
+        if (!NeedsMotion(sprite.Definition))
+            return;
+
         ref readonly var obj = ref sprite.Definition.Object;
         var next = _motion.Move(sprite, elapsed);
         float current = _movement.GetHeight(sprite.Position.AsVector2());
@@ -450,6 +447,9 @@ internal sealed class SpawnedObjectSystem
     [EngineRoutine(0x00448130)]
     private void RunCannon(Sprite sprite, int elapsed)
     {
+        if (!NeedsMotion(sprite.Definition))
+            return;
+
         ref readonly var obj = ref sprite.Definition.Object;
         var next = _motion.Move(sprite, elapsed);
 
@@ -556,7 +556,7 @@ internal sealed class SpawnedObjectSystem
         {
             if (obj.TopZ < 0 && sprite.VerticalSpeed < 0)
             {
-                sprite.ChangeDirection(sprite.Direction.TurnToward(sprite.Direction + FallTurn, obj.RotationPeriod, elapsed, out _));
+                sprite.RotateTact(sprite.Direction + FallTurn, elapsed);
             }
 
             return;
@@ -572,7 +572,7 @@ internal sealed class SpawnedObjectSystem
             if (distance > SteeringReach)
             {
                 var before = sprite.Direction;
-                sprite.ChangeDirection(sprite.Direction.TurnToward(aim, obj.RotationPeriod, elapsed, out _));
+                sprite.RotateTact(aim, elapsed);
 
                 if (before.MeasureTurnTo(sprite.Direction) > MaxSteeringTurn)
                 {
@@ -583,9 +583,9 @@ internal sealed class SpawnedObjectSystem
         }
         else if (!sprite.IsClimbing)
         {
-            sprite.ChangeDirection(sprite.Direction.TurnToward(aim, obj.RotationPeriod, elapsed, out int remaining));
+            var remaining = sprite.RotateTact(aim, elapsed);
 
-            if (distance <= RocketCloseReach || distance >= RocketFarReach || (byte)remaining < RocketTurnLimit)
+            if (distance <= RocketCloseReach || distance >= RocketFarReach || remaining.Value < RocketTurnLimit)
             {
                 sprite.VerticalSpeed = sprite.Position.Z <= goal.Z || distance.IsZero() ? 0
                     : Math.Max((goal.Z - sprite.Position.Z) / distance * RocketClimbRate, -sprite.Definition.ZSpeed);

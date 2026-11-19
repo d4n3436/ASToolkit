@@ -195,12 +195,11 @@ internal sealed class WeaponSystem
             }
             else
             {
-                player.ChangeDirection(player.Direction.TurnToward(Torso.Direction, player.Definition.Object.RotationPeriod, elapsed, out int remaining));
-                _turnsLegs = remaining != 0;
+                _turnsLegs = player.RotateTact(Torso.Direction, elapsed) != default;
             }
         }
 
-        Torso.ChangeDirection(Torso.Direction.TurnToward(direction, Torso.Definition.Object.RotationPeriod, elapsed, out _));
+        Torso.RotateTact(direction, elapsed);
     }
 
     [EngineRoutine(0x00454800)]

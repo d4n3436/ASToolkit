@@ -319,7 +319,6 @@ public sealed partial class Map
     }
 
     [EngineRoutine(0x00430870)]
-    [EngineRoutine(0x00430870)]
     private void ShakeCamera()
     {
         if (!_environment.HasFlag(MapEnvironment.Earthquake))

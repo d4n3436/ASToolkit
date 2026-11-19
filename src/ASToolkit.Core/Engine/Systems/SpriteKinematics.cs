@@ -17,8 +17,37 @@ internal sealed class SpriteKinematics
     }
 
     [EngineRoutine(0x004446c0)]
-    [EngineRoutine(0x00444750)]
     public static bool SetCommand(Sprite sprite, Command command, Sprite? target = null, Vector3? point = null)
+    {
+        if (sprite.Command == Command.Pause && command != Command.Pause)
+        {
+            sprite.Timer = 0;
+        }
+
+        sprite.Goal = target;
+        sprite.GoalPoint = target is null ? point : null;
+
+        var link = sprite.ArmedLink;
+
+        if (link is not null && link.Definition.FightChild != 0)
+        {
+            SetCommand(link, command, target, point);
+        }
+
+        if (command < FirstTargetlessCommand && !sprite.HasGoal)
+        {
+            sprite.Command = Command.None;
+
+            return true;
+        }
+
+        sprite.Command = command;
+
+        return false;
+    }
+
+    [EngineRoutine(0x00444750)]
+    public static bool SetCommandWithoutLink(Sprite sprite, Command command, Sprite? target = null, Vector3? point = null)
     {
         if (sprite.Command == Command.Pause && command != Command.Pause)
         {
@@ -91,7 +120,7 @@ internal sealed class SpriteKinematics
     [EngineRoutine(0x004447b0)]
     public void SetMoveTarget(Sprite sprite, Sprite? target, Vector3? point)
     {
-        if (!SetCommand(sprite, Command.Move, target, point) && !StartMove(sprite))
+        if (!SetCommandWithoutLink(sprite, Command.Move, target, point) && !StartMove(sprite))
         {
             SetCommand(sprite, Command.None);
 
@@ -147,7 +176,19 @@ internal sealed class SpriteKinematics
             }
         }
 
-        sprite.StartMoving(sprite.MaxSpeed);
+        sprite.IsMoving = true;
+        sprite.HasReachedX = false;
+        sprite.HasReachedY = false;
+
+        if (sprite.Animation < SpriteAnimation.Death && sprite.Animation != SpriteAnimation.StartMove)
+        {
+            sprite.ChangeAnimation(sprite.Speed.IsZero() ? SpriteAnimation.StartMove : SpriteAnimation.Go);
+        }
+
+        if (obj.Acceleration.IsNear(SpriteDefinition.Unlimited))
+        {
+            sprite.Speed = sprite.MaxSpeed;
+        }
 
         return true;
     }
@@ -255,7 +296,7 @@ internal sealed class SpriteKinematics
     {
         if (sprite.Command is Command.None or Command.Move)
         {
-            SetCommand(sprite, Command.None);
+            SetCommandWithoutLink(sprite, Command.None);
         }
 
         sprite.ClearMove();

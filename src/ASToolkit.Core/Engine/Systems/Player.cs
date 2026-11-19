@@ -33,8 +33,10 @@ internal sealed class Player
     public void SetSprite(Sprite? sprite) => Sprite = sprite;
 
     [EngineRoutine(0x0043e9f0)]
+    public void Forget(Sprite removed) => ForgetSprite(removed);
+
     [EngineRoutine(0x00413280)]
-    public void Forget(Sprite removed)
+    private void ForgetSprite(Sprite removed)
     {
         if (Sprite == removed)
         {
@@ -68,7 +70,7 @@ internal sealed class Player
 
         if ((flags & InputFlags.Movement) != 0 && player.Command == Command.Move)
         {
-            SpriteKinematics.SetCommand(player, Command.None);
+            SpriteKinematics.SetCommandWithoutLink(player, Command.None);
         }
 
         if (flags.HasFlag(InputFlags.First))
@@ -243,7 +245,7 @@ internal sealed class Player
             goal = _collision.RotateForGlide(goal, player);
         }
 
-        player.ChangeDirection(player.Direction.TurnToward(goal, player.Definition.Object.RotationPeriod, elapsed, out _));
+        player.RotateTact(goal, elapsed);
 
         return true;
     }

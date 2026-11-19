@@ -146,7 +146,7 @@ internal sealed class MonsterBrain
             {
                 if ((_random.Next() & 3) == 0)
                 {
-                    sprite.StartMoving(sprite.MaxSpeed);
+                    _motion.StartMove(sprite);
                 }
                 else if (sprite.Speed.IsZero() && _random.Next() % 3 == 0 && HasUnload(sprite.Definition))
                 {
@@ -173,7 +173,7 @@ internal sealed class MonsterBrain
         definition.Object.FrameCounts[(int)SpriteAnimation.Unload] != 0 || definition.Children[(int)SpriteAnimation.Unload] != 0;
 
     private static void TurnStep(Sprite sprite, int step, int elapsed) =>
-        sprite.ChangeDirection(sprite.Direction.TurnToward(sprite.Direction + step, sprite.Definition.Object.RotationPeriod, elapsed, out _));
+        sprite.RotateTact(sprite.Direction + step, elapsed);
 
     [EngineRoutine(0x00440830)]
     public static void Pause(Sprite sprite, int time)
@@ -439,7 +439,7 @@ internal sealed class MonsterBrain
 
         if (goal >= 0)
         {
-            sprite.ChangeDirection(sprite.Direction.TurnToward(new Angle((byte)goal), sprite.Definition.Object.RotationPeriod, elapsed, out _));
+            sprite.RotateTact(new Angle((byte)goal), elapsed);
         }
     }
 }

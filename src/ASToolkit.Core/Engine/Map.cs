@@ -796,9 +796,6 @@ public sealed partial class Map
         return true;
     }
 
-    [EngineRoutine(0x00454670)]
-    [EngineRoutine(0x00447260)]
-    [EngineRoutine(0x0043f820)]
     private void MoveByClass(Sprite sprite)
     {
         switch (sprite.Definition.Object.SpriteClass)
@@ -1160,7 +1157,7 @@ public sealed partial class Map
 
         if (definition.Object.SpriteClass == SpriteClass.Creature)
         {
-            link.StartMoving(link.MaxSpeed);
+            Motion.StartMove(link);
         }
 
         if (sprite.ArmedLink is not null && link.Definition.FightChild != 0)

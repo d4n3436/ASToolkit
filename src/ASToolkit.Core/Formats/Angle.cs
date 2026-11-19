@@ -204,12 +204,12 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     /// <param name="goal">The goal direction.</param>
     /// <param name="period">The milliseconds of a full turn; 0 turns at once and 999999 never turns.</param>
     /// <param name="elapsed">The milliseconds to turn for.</param>
-    /// <param name="remaining">The steps left to the goal.</param>
-    public Angle TurnToward(Angle goal, float period, int elapsed, out int remaining)
+    /// <param name="remaining">The turn left to the goal.</param>
+    public Angle TurnToward(Angle goal, float period, int elapsed, out Angle remaining)
     {
         if (this == goal)
         {
-            remaining = 0;
+            remaining = default;
 
             return this;
         }
@@ -231,27 +231,27 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     /// </summary>
     /// <param name="goal">The goal direction.</param>
     /// <param name="step">The steps to turn by.</param>
-    /// <param name="remaining">The steps left to the goal.</param>
-    public Angle StepToward(Angle goal, int step, out int remaining)
+    /// <param name="remaining">The turn left to the goal.</param>
+    public Angle StepToward(Angle goal, int step, out Angle remaining)
     {
         int difference = MeasureTurnTo(goal);
 
         if (step == 0)
         {
-            remaining = difference;
+            remaining = (byte)difference;
 
             return this;
         }
 
         if (difference <= step)
         {
-            remaining = 0;
+            remaining = default;
 
             return goal;
         }
 
         var angle = this + ((byte)(goal.Value - Value) <= HalfTurn ? step : -step);
-        remaining = angle.MeasureTurnTo(goal);
+        remaining = (byte)angle.MeasureTurnTo(goal);
 
         return angle;
     }

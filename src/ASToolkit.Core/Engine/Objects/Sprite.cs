@@ -687,28 +687,6 @@ public sealed class Sprite : IResettable
     }
 
     /// <summary>
-    /// Starts the sprite's move toward its goal.
-    /// </summary>
-    /// <param name="maxSpeed">The speed the sprite reaches at once when its definition has no acceleration.</param>
-    [EngineRoutine(0x004443f0)]
-    public void StartMoving(float maxSpeed)
-    {
-        IsMoving = true;
-        HasReachedX = false;
-        HasReachedY = false;
-
-        if (Animation < SpriteAnimation.Death && Animation != SpriteAnimation.StartMove)
-        {
-            ChangeAnimation(Speed.IsZero() ? SpriteAnimation.StartMove : SpriteAnimation.Go);
-        }
-
-        if (Definition.Object.Acceleration.IsNear(SpriteDefinition.Unlimited))
-        {
-            Speed = maxSpeed;
-        }
-    }
-
-    /// <summary>
     /// Returns the ammunition the sprite holds when full.
     /// </summary>
     /// <returns>The capacity in rounds.</returns>
@@ -815,7 +793,7 @@ public sealed class Sprite : IResettable
 
         if (IsReloading)
         {
-            Aim(elapsed);
+            RotateTact(DirectionTo(), elapsed);
 
             return AttackResult.Busy;
         }
@@ -829,7 +807,7 @@ public sealed class Sprite : IResettable
 
         float distance = Position.AsVector2().MeasureOctagonalDistance(GoalPosition.AsVector2());
         bool inRange = Owner is null || Command == Command.DistAttack || distance < Definition.BattleRange && distance > Definition.MinRange;
-        bool aimed = inRange && (Aim(elapsed) == 0 || Definition.AttacksWhileTurning);
+        bool aimed = inRange && (RotateTact(DirectionTo(), elapsed) == default || Definition.AttacksWhileTurning);
 
         if (!inRange)
         {
@@ -864,7 +842,7 @@ public sealed class Sprite : IResettable
     {
         if (Owner is not null && idle)
         {
-            ChangeDirection(Direction.TurnToward(Owner.Direction, Definition.Object.RotationPeriod, elapsed, out _));
+            RotateTact(Owner.Direction, elapsed);
         }
     }
 
@@ -874,10 +852,18 @@ public sealed class Sprite : IResettable
     public bool IsReloading => Timer > ReloadTimerOffset || Animation == SpriteAnimation.Fight && Frame <= LastFrame;
 
     [EngineRoutine(0x004463a0)]
-    private int Aim(int elapsed)
+    private Angle DirectionTo() => Angle.Aim((GoalPosition - Position).AsVector2());
+
+    /// <summary>
+    /// Turns the sprite toward a direction, as far as its turn rate allows in the elapsed time.
+    /// </summary>
+    /// <param name="goal">The direction to turn to.</param>
+    /// <param name="elapsed">The elapsed time in milliseconds.</param>
+    /// <returns>The angle left to turn.</returns>
+    [EngineRoutine(0x00444820)]
+    public Angle RotateTact(Angle goal, int elapsed)
     {
-        var direction = Angle.Aim((GoalPosition - Position).AsVector2());
-        ChangeDirection(Direction.TurnToward(direction, Definition.Object.RotationPeriod, elapsed, out int remaining));
+        ChangeDirection(Direction.TurnToward(goal, Definition.Object.RotationPeriod, elapsed, out var remaining));
 
         return remaining;
     }
@@ -924,6 +910,34 @@ public sealed class Sprite : IResettable
         TurnCarry = turn - step;
 
         return Direction.StepToward(goal, step, out _);
+    }
+
+    /// <summary>
+    /// Hides the sprite and every sprite of its link chain.
+    /// </summary>
+    [EngineRoutine(0x00442620)]
+    public void InvisibleOn()
+    {
+        IsInvisible = true;
+
+        foreach (var link in EnumerateLinks())
+        {
+            link.IsInvisible = true;
+        }
+    }
+
+    /// <summary>
+    /// Shows the sprite and every sprite of its link chain.
+    /// </summary>
+    [EngineRoutine(0x00442640)]
+    public void InvisibleOff()
+    {
+        IsInvisible = false;
+
+        foreach (var link in EnumerateLinks())
+        {
+            link.IsInvisible = false;
+        }
     }
 
     /// <summary>
