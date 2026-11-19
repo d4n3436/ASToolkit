@@ -12,29 +12,29 @@ public class KeyframeTests
     private const int RedStep = 36;
 
     [Fact]
-    public void Step_KeyframedUnit_AdvancesThroughItsKeysAndRestarts()
+    public void Step_KeyframedSprite_AdvancesThroughItsKeysAndRestarts()
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var world = EngineTestWorld.CreateWorld(definitions);
+        var map = EngineTestMap.CreateMap(definitions);
         var source = definitions.Find(KnownObject.RedMonster1)!;
         var definition = new SpriteDefinition(source.Id, source.Object, CreateWeapon(source.Weapon), source.SpriteSpeed);
-        var unit = world.AddMonster(definition, world.Player.Position + new Vector3(600, 0, 0));
-        int start = world.Time;
+        var sprite = map.AddMonster(definition, map.Player.Position + new Vector3(600, 0, 0));
+        int start = map.Time;
 
-        while (world.Time - start < Period / 2)
+        while (map.Time - start < Period / 2)
         {
-            world.Step(default);
+            map.Step(default);
         }
 
-        float expected = (world.Time - world.FrameTime - unit.KeyframeStart) * (WeaponRecord.KeyframeCount - 1) / (float)Period;
-        Assert.InRange(unit.KeyframePosition, expected - 0.01f, expected + 0.01f);
+        float expected = (map.Time - map.FrameTime - sprite.KeyframeStart) * (WeaponRecord.KeyframeCount - 1) / (float)Period;
+        Assert.InRange(sprite.KeyframePosition, expected - 0.01f, expected + 0.01f);
 
-        while (world.Time - start <= Period + Period / 2)
+        while (map.Time - start <= Period + Period / 2)
         {
-            world.Step(default);
+            map.Step(default);
         }
 
-        Assert.True(unit.KeyframeStart > start);
+        Assert.True(sprite.KeyframeStart > start);
     }
 
     [Fact]

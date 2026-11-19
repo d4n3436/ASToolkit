@@ -3,7 +3,7 @@ using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Engine;
 
-internal sealed class PlayerController
+internal sealed class Player
 {
     private const int FirstWeaponKey = '0';
     private const int LastWeaponKey = '9';
@@ -12,33 +12,33 @@ internal sealed class PlayerController
     private static readonly Angle HeadingUpLeft = new(0xE0 - 8);
     private static readonly Angle HeadingDownRight = new(0x60 - 8);
     private static readonly Angle HeadingDownLeft = new(0xA0 + 8);
-    private readonly GameWorld _world;
-    private readonly UnitCollision _collision;
+    private readonly Map _map;
+    private readonly SpriteCollision _collision;
     private readonly ControlSettings _settings;
 
     [EngineRoutine(0x00413060)]
-    public PlayerController(GameWorld world, UnitCollision collision, ControlSettings settings)
+    public Player(Map map, SpriteCollision collision, ControlSettings settings)
     {
-        _world = world;
+        _map = map;
         _collision = collision;
         _settings = settings;
         Money = StartMoney;
     }
 
-    public Unit? Unit { get; private set; }
+    public Sprite? Sprite { get; private set; }
 
     public int Money { get; set; }
 
     [EngineRoutine(0x00413140)]
-    public void SetUnit(Unit? unit) => Unit = unit;
+    public void SetSprite(Sprite? sprite) => Sprite = sprite;
 
     [EngineRoutine(0x0043e9f0)]
     [EngineRoutine(0x00413280)]
-    public void Forget(Unit removed)
+    public void Forget(Sprite removed)
     {
-        if (Unit == removed)
+        if (Sprite == removed)
         {
-            Unit = null;
+            Sprite = null;
         }
     }
 
@@ -47,13 +47,13 @@ internal sealed class PlayerController
     {
         PropagateGroupCommands();
 
-        var player = Unit;
+        var player = Sprite;
 
         if (player is null)
             return;
 
-        var weapons = _world.Weapons;
-        int elapsed = _world.FrameTime;
+        var weapons = _map.Weapons;
+        int elapsed = _map.FrameTime;
 
         if (player.Definition.Object.SpriteClass != SpriteClass.Man)
             return;
@@ -62,25 +62,25 @@ internal sealed class PlayerController
 
         if (flags.HasFlag(InputFlags.Second))
         {
-            var point = input.Cursor with { Y = input.Cursor.Y + _world.Movement.GetHeight(input.Cursor) };
-            _world.Action(player, ActionCode.Move, (int)point.X, (int)point.Y);
+            var point = input.Cursor with { Y = input.Cursor.Y + _map.Movement.GetHeight(input.Cursor) };
+            _map.Action(player, ActionCode.Move, (int)point.X, (int)point.Y);
         }
 
-        if ((flags & InputFlags.Movement) != 0 && player.Command == UnitCommand.Move)
+        if ((flags & InputFlags.Movement) != 0 && player.Command == Command.Move)
         {
-            UnitKinematics.SetCommand(player, UnitCommand.None);
+            SpriteKinematics.SetCommand(player, Command.None);
         }
 
         if (flags.HasFlag(InputFlags.First))
         {
             if (player.Rounds < player.Definition.ChildCounts[(int)SpriteAnimation.Fight])
             {
-                for (int slot = (int)player.Link!.Definition.Id - Unit.WeaponIdBase - 1; !weapons.SelectWeapon(slot); slot--)
+                for (int slot = (int)player.Link!.Definition.Id - Sprite.WeaponIdBase - 1; !weapons.SelectWeapon(slot); slot--)
                 {
                 }
             }
 
-            _world.Action(player, ActionCode.CoorAttack, (int)input.Cursor.X, (int)input.Cursor.Y);
+            _map.Action(player, ActionCode.CoorAttack, (int)input.Cursor.X, (int)input.Cursor.Y);
         }
 
         if (input.Key is >= FirstWeaponKey and <= LastWeaponKey)
@@ -93,14 +93,14 @@ internal sealed class PlayerController
         var cursorDirection = GetCursorDirection(player, input.Cursor);
         var origin = _settings.IsMovementRelativeToCursor ? cursorDirection : default;
 
-        if (!Steer(player, flags, origin, elapsed) && player.Command != UnitCommand.Move)
+        if (!Steer(player, flags, origin, elapsed) && player.Command != Command.Move)
         {
-            UnitKinematics.StopMoving(player);
+            SpriteKinematics.Stop(player);
         }
 
         if ((flags & InputFlags.Movement) != 0)
         {
-            _world.Motion.StartMove(player);
+            _map.Motion.StartMove(player);
         }
 
         if (player.Link is not null && player.Link.Definition == player.Definition.LinkDefinition)
@@ -111,35 +111,35 @@ internal sealed class PlayerController
 
     private void PropagateGroupCommands()
     {
-        var groups = _world.Groups;
+        var groups = _map.Groups;
         for (int i = groups.Count - 1; i >= 0; i--)
         {
             var members = groups[i].Members;
-            Unit? target = null;
-            var command = UnitCommand.None;
+            Sprite? target = null;
+            var command = Command.None;
             bool hasIdle = false;
             foreach (var member in members)
             {
-                if (member.Command == UnitCommand.None)
+                if (member.Command == Command.None)
                 {
                     hasIdle = true;
                 }
 
-                if (member.Command is UnitCommand.Attack or UnitCommand.OneAttack)
+                if (member.Command is Command.Attack or Command.OneAttack)
                 {
                     target = member.Goal;
                     command = member.Command;
                 }
             }
 
-            if (target is null || command == UnitCommand.None || !hasIdle)
+            if (target is null || command == Command.None || !hasIdle)
                 continue;
 
             foreach (var member in members)
             {
-                if (member.Command == UnitCommand.None)
+                if (member.Command == Command.None)
                 {
-                    UnitKinematics.SetCommand(member, command, target);
+                    SpriteKinematics.SetCommand(member, command, target);
                 }
             }
         }
@@ -147,7 +147,7 @@ internal sealed class PlayerController
 
     private void StepWeapon(PlayerInput input)
     {
-        var weapons = _world.Weapons;
+        var weapons = _map.Weapons;
         int slot = weapons.Slot;
         int notches = input.Wheel;
 
@@ -165,7 +165,7 @@ internal sealed class PlayerController
 
         for (; notches > 0; notches--)
         {
-            while (slot < Unit.WeaponSlots)
+            while (slot < Sprite.WeaponSlots)
             {
                 slot++;
 
@@ -186,7 +186,7 @@ internal sealed class PlayerController
         }
     }
 
-    private bool Steer(Unit player, InputFlags flags, Angle origin, int elapsed)
+    private bool Steer(Sprite player, InputFlags flags, Angle origin, int elapsed)
     {
         bool up = flags.HasFlag(InputFlags.Up);
         bool down = flags.HasFlag(InputFlags.Down);
@@ -240,14 +240,14 @@ internal sealed class PlayerController
 
         if (slides)
         {
-            goal = _collision.AvoidObstacles(goal, player);
+            goal = _collision.RotateForGlide(goal, player);
         }
 
-        player.SetDirection(player.Direction.TurnToward(goal, player.Definition.Object.RotationPeriod, elapsed, out _));
+        player.ChangeDirection(player.Direction.TurnToward(goal, player.Definition.Object.RotationPeriod, elapsed, out _));
 
         return true;
     }
 
-    private static Angle GetCursorDirection(Unit player, Vector2 cursor) =>
+    private static Angle GetCursorDirection(Sprite player, Vector2 cursor) =>
         Angle.Aim(new Vector2(cursor.X - player.Position.X, player.Position.Z + cursor.Y - player.Position.Y));
 }

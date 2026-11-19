@@ -3,7 +3,7 @@ using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Engine;
 
-public sealed partial class GameWorld
+public sealed partial class Map
 {
     private const int Percent = 100;
     private const int HpScale = 256;
@@ -141,9 +141,9 @@ public sealed partial class GameWorld
                 definition.Speed = value == SpriteDefinition.Unlimited ? SpriteDefinition.Unlimited : value * SpriteDefinition.PerMillisecond;
                 foreach (var entry in _updates.GetLayer(definition.Layer))
                 {
-                    if (entry.Unit is not null && entry.Unit.Definition == definition)
+                    if (entry.Sprite is not null && entry.Sprite.Definition == definition)
                     {
-                        entry.Unit.MaxSpeed = definition.Speed;
+                        entry.Sprite.MaxSpeed = definition.Speed;
                     }
                 }
 
@@ -244,50 +244,50 @@ public sealed partial class GameWorld
 
             foreach (var entry in _updates.GetLayer(definition.Layer))
             {
-                var unit = entry.Unit;
-                if (unit is not null && unit.Definition == definition && ((int)unit.Army & 3) == army)
+                var sprite = entry.Sprite;
+                if (sprite is not null && sprite.Definition == definition && ((int)sprite.Army & 3) == army)
                 {
-                    SetUnitHp(unit, unit.Hp * definition.ArmyMaxHp[army] * HpScale / previous / HpScale);
+                    ChangeHp(sprite, sprite.Hp * definition.ArmyMaxHp[army] * HpScale / previous / HpScale);
                 }
             }
         }
     }
 
     [EngineRoutine(0x004454d0)]
-    private void SetUnitHp(Unit unit, int hp)
+    private void ChangeHp(Sprite sprite, int hp)
     {
         if (hp < 1)
         {
-            Damage(unit, unit.Hp - hp);
+            Damage(sprite, sprite.Hp - hp);
             return;
         }
 
-        int half = unit.Definition.ArmyMaxHp[(int)unit.Army & 3] / 2;
-        if (half < hp && unit.Hp <= half)
+        int half = sprite.Definition.ArmyMaxHp[(int)sprite.Army & 3] / 2;
+        if (half < hp && sprite.Hp <= half)
         {
-            DropLink(unit, Definitions.Find((KnownObject)Math.Abs(unit.Definition.Children[(int)SpriteAnimation.Wound])));
+            DestroyLink(sprite, Definitions.Find((KnownObject)Math.Abs(sprite.Definition.Children[(int)SpriteAnimation.Wound])));
         }
 
-        if (hp <= half && half < unit.Hp)
+        if (hp <= half && half < sprite.Hp)
         {
-            unit.ChangeAnimation(SpriteAnimation.Wound);
+            sprite.ChangeAnimation(SpriteAnimation.Wound);
         }
 
-        unit.Hp = hp;
+        sprite.Hp = hp;
     }
 
     [EngineRoutine(0x00445770)]
     [EngineRoutine(0x00440830)]
-    internal void DropLinks(Unit owner)
+    internal void DropLinks(Sprite owner)
     {
         for (var definition = owner.Definition.LinkDefinition; definition is not null; definition = definition.LinkDefinition)
         {
-            DropLink(owner, definition);
+            DestroyLink(owner, definition);
         }
     }
 
     [EngineRoutine(0x00444a30)]
-    private void DropLink(Unit owner, SpriteDefinition? definition)
+    private void DestroyLink(Sprite owner, SpriteDefinition? definition)
     {
         var previous = owner;
         var link = owner.Link;

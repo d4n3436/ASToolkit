@@ -18,10 +18,10 @@ internal struct SpriteQuery : ISpriteQuery
         Found = null;
     }
 
-    public Unit? Found { get; private set; }
+    public Sprite? Found { get; private set; }
 
     [EngineRoutine(0x00410670)]
-    public void Consider(Unit sprite, bool listed)
+    public void Consider(Sprite sprite, bool listed)
     {
         if (sprite.Owner is not null || !_filter.Accepts(sprite))
             return;

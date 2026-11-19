@@ -11,7 +11,7 @@ internal sealed class SpawnedObjectSystem
     private const int MaxSteeringTurn = 100;
     private const int RocketTurnLimit = 0x47;
     private const int FallTurn = 0x20;
-    private const int MaxPooledUnits = 4096;
+    private const int MaxPooledSprites = 4096;
     private const float ExitMarginX = 220;
     private const float ExitMarginY = 200;
     private const float DeepFall = -100;
@@ -25,33 +25,33 @@ internal sealed class SpawnedObjectSystem
     private const float BounceRetention = 0.5f;
     private const float SteeringReach = 100;
 
-    private readonly List<Unit> _active = [];
-    private readonly HashSet<Unit> _orphans = [];
-    private readonly List<Unit> _leaving = [];
-    private readonly DefaultObjectPool<Unit> _pool = new(new DefaultPooledObjectPolicy<Unit>(), MaxPooledUnits);
+    private readonly List<Sprite> _active = [];
+    private readonly HashSet<Sprite> _orphans = [];
+    private readonly List<Sprite> _leaving = [];
+    private readonly DefaultObjectPool<Sprite> _pool = new(new DefaultPooledObjectPolicy<Sprite>(), MaxPooledSprites);
     private readonly SpriteCatalog _definitions;
-    private readonly MovementMap _map;
+    private readonly MovementMap _movement;
     private readonly Random _random;
     private readonly List<EffectState> _settled = [];
-    private readonly GameWorld _world;
-    private readonly UnitKinematics _motion;
+    private readonly Map _map;
+    private readonly SpriteKinematics _motion;
 
-    public SpawnedObjectSystem(SpriteCatalog definitions, MovementMap map, Random random, GameWorld world)
+    public SpawnedObjectSystem(SpriteCatalog definitions, MovementMap movement, Random random, Map map)
     {
         _definitions = definitions;
-        _map = map;
+        _movement = movement;
         _random = random;
-        _world = world;
-        _motion = world.Motion;
+        _map = map;
+        _motion = map.Motion;
     }
 
-    public IReadOnlyList<Unit> Active => _active;
+    public IReadOnlyList<Sprite> Active => _active;
 
     public IReadOnlyList<EffectState> Settled => _settled;
 
-    private static bool IsLink(Unit unit) => unit.Owner is not null && unit.Owner.Link == unit;
+    private static bool IsLink(Sprite sprite) => sprite.Owner is not null && sprite.Owner.Link == sprite;
 
-    public void Detach(Unit owner)
+    public void Detach(Sprite owner)
     {
         var link = owner.Link;
 
@@ -63,7 +63,7 @@ internal sealed class SpawnedObjectSystem
         owner.Link = null;
     }
 
-    public Unit? Spawn(KnownObject id, Vector3 position, Angle direction, int time, Unit? owner = null, int? lifetime = null)
+    public Sprite? Spawn(KnownObject id, Vector3 position, Angle direction, int time, Sprite? owner = null, int? lifetime = null)
     {
         var definition = _definitions.Find(id);
 
@@ -72,17 +72,17 @@ internal sealed class SpawnedObjectSystem
 
     public void Play(SpriteDefinition definition, SpriteAnimation animation, Vector3 position, Angle direction, int time)
     {
-        var unit = _pool.Get();
-        unit.Initialize(-1, definition, position, 0, definition.MaxHp, direction);
-        unit.CreatedAt = time;
-        unit.LastTickTime = time;
-        unit.ChangeAnimation(animation);
-        _active.Add(unit);
-        _world.Register(UpdateRole.Effect, unit);
-        _world.Units.Add(unit);
+        var sprite = _pool.Get();
+        sprite.Initialize(-1, definition, position, 0, definition.MaxHp, direction);
+        sprite.CreatedAt = time;
+        sprite.LastTickTime = time;
+        sprite.ChangeAnimation(animation);
+        _active.Add(sprite);
+        _map.Register(UpdateRole.Effect, sprite);
+        _map.Collector.InsertToHash(sprite);
     }
 
-    public void Emit(SpriteDefinition owner, SpriteAnimation animation, Vector3 position, Angle direction, int time, int depth = 0, bool secondPulse = false, Unit? parent = null)
+    public void Emit(SpriteDefinition owner, SpriteAnimation animation, Vector3 position, Angle direction, int time, int depth = 0, bool secondPulse = false, Sprite? parent = null)
     {
         int childId = owner.Children[(int)animation];
 
@@ -96,14 +96,14 @@ internal sealed class SpawnedObjectSystem
 
         foreach (var spawn in ChildEmission.GetChildren(owner, definition, animation, position, direction, _random, secondPulse))
         {
-            if (definition.Object.SpriteClass == SpriteClass.Unit && _world.Projectiles.IsOccupied(definition, spawn.Position))
+            if (definition.Object.SpriteClass == SpriteClass.Unit && _map.Projectiles.IsOccupied(definition, spawn.Position))
                 continue;
 
             var childPosition = spawn.Position;
 
             if (definition.Object.Properties.HasFlag(ObjectProperties.ZeroZ))
             {
-                childPosition.Z = _map.GetSupportHeight(definition.Object, childPosition.AsVector2()) + spawn.Position.Z - position.Z;
+                childPosition.Z = _movement.GetSupportHeight(definition.Object, childPosition.AsVector2()) + spawn.Position.Z - position.Z;
             }
             var child = Create(definition, childPosition, spawn.Direction, time, depth + 1, parent);
 
@@ -114,85 +114,85 @@ internal sealed class SpawnedObjectSystem
 
             if (child is not null && IsSettled(child))
             {
-                _world.ReleaseSprite(child);
+                _map.ReleaseSprite(child);
                 _pool.Return(child);
             }
         }
     }
 
-    public Unit? Launch(SpriteDefinition definition, Vector3 position, Angle direction, Unit shooter, int time)
+    public Sprite? Launch(SpriteDefinition definition, Vector3 position, Angle direction, Sprite shooter, int time)
     {
-        var unit = Create(definition, position, direction, time, 0, shooter);
+        var sprite = Create(definition, position, direction, time, 0, shooter);
 
-        unit?.Shooter = shooter;
+        sprite?.Shooter = shooter;
 
-        return unit;
+        return sprite;
     }
 
     [EngineRoutine(0x00445fb0)]
-    public void Aim(Unit unit, Unit? goal, Vector3 goalPoint)
+    public void Aim(Sprite sprite, Sprite? goal, Vector3 goalPoint)
     {
-        unit.Goal = goal;
-        unit.GoalPoint = goal is null ? goalPoint : null;
-        _motion.StartMove(unit);
+        sprite.Goal = goal;
+        sprite.GoalPoint = goal is null ? goalPoint : null;
+        _motion.StartMove(sprite);
     }
 
-    private Unit? Create(SpriteDefinition definition, Vector3 position, Angle direction, int time, int depth, Unit? parent, Unit? owner = null, int? lifetime = null)
+    private Sprite? Create(SpriteDefinition definition, Vector3 position, Angle direction, int time, int depth, Sprite? parent, Sprite? owner = null, int? lifetime = null)
     {
         ref readonly var obj = ref definition.Object;
 
         if (obj.SpriteClass is SpriteClass.Unit or SpriteClass.Avia && definition.MaxHp > 0)
         {
-            _world.AddMonster(definition, position, direction);
+            _map.AddMonster(definition, position, direction);
 
             return null;
         }
 
-        var unit = _pool.Get();
-        unit.Initialize(-1, definition, position, parent?.Army ?? _definitions.GetArmy(definition), definition.MaxHp);
-        unit.CreatedAt = time;
-        unit.Depth = depth;
-        unit.Owner = owner;
-        unit.Shooter = parent?.Shooter ?? parent;
-        var state = _world.GetInitialAnimation(definition);
-        unit.Start(state, direction, time, _random);
-        unit.Lifetime = lifetime ?? obj.Lifetime;
+        var sprite = _pool.Get();
+        sprite.Initialize(-1, definition, position, parent?.Army ?? _definitions.GetArmy(definition), definition.MaxHp);
+        sprite.CreatedAt = time;
+        sprite.Depth = depth;
+        sprite.Owner = owner;
+        sprite.Shooter = parent?.Shooter ?? parent;
+        var state = _map.GetInitialAnimation(definition);
+        sprite.Start(state, direction, time, _random);
+        sprite.Lifetime = lifetime ?? obj.Lifetime;
 
-        if (state != SpriteAnimation.Birth && !_world.IsLoading)
+        if (state != SpriteAnimation.Birth && !_map.IsLoading)
         {
-            Emit(definition, SpriteAnimation.Birth, position, unit.Direction, time, depth, parent: unit);
+            Emit(definition, SpriteAnimation.Birth, position, sprite.Direction, time, depth, parent: sprite);
         }
 
         if (obj.SpriteClass == SpriteClass.Cannon)
         {
-            ConstructCannon(unit, parent);
+            ConstructCannon(sprite, parent);
         }
 
-        CreateLink(unit, time, depth + 1);
+        CreateLink(sprite, time, depth + 1);
 
-        if (!_world.IsLoading)
+        if (!_map.IsLoading)
         {
-            _world.RunCreationHook(unit);
+            _map.RunCreationHook(sprite);
         }
 
-        if (IsSettled(unit))
+        if (IsSettled(sprite))
         {
-            Detach(unit);
-            _settled.Add(GetState(unit));
+            Detach(sprite);
+            _settled.Add(GetState(sprite));
 
-            return unit;
+            return sprite;
         }
 
-        _active.Add(unit);
-        _world.Register(UpdateRole.Effect, unit);
-        _world.Units.Add(unit);
+        _active.Add(sprite);
+        _map.Register(UpdateRole.Effect, sprite);
+        _map.Collector.InsertToHash(sprite);
 
-        return unit;
+        return sprite;
     }
 
     [EngineRoutine(0x00445770)]
     [EngineRoutine(0x00447130)]
-    public void CreateLink(Unit owner, int time, int depth)
+    public void CreateLink(Sprite owner, int time, int depth)
     {
         ref readonly var obj = ref owner.Definition.Object;
         var definition = obj.Link == 0 || depth > SpriteCatalog.MaxLaunchDepth ? null : _definitions.Find(obj.Link);
@@ -202,7 +202,7 @@ internal sealed class SpawnedObjectSystem
 
         if (definition.Id.IsScripted || definition.Object.WeaponIndex != 0 || definition.Object.SpriteClass == SpriteClass.Creature)
         {
-            _world.AttachObjectLink(owner, definition);
+            _map.AttachObjectLink(owner, definition);
         }
         else
         {
@@ -219,7 +219,7 @@ internal sealed class SpawnedObjectSystem
     }
 
     [EngineRoutine(0x0040ec60)]
-    public static void ConstructLinker(Unit linker, Unit? parent, Vector3 position, Angle direction)
+    public static void ConstructLinker(Sprite linker, Sprite? parent, Vector3 position, Angle direction)
     {
         linker.LinkerBase = parent;
         linker.LinkerDirection = direction;
@@ -232,7 +232,7 @@ internal sealed class SpawnedObjectSystem
     }
 
     [EngineRoutine(0x004449c0)]
-    public static void AppendLink(Unit parent, Unit link)
+    public static void AppendLink(Sprite parent, Sprite link)
     {
         if (link.Owner is not null)
             return;
@@ -247,60 +247,60 @@ internal sealed class SpawnedObjectSystem
         link.Owner = last;
     }
 
-    private static bool IsSettled(Unit unit)
+    private static bool IsSettled(Sprite sprite)
     {
-        ref readonly var obj = ref unit.Definition.Object;
+        ref readonly var obj = ref sprite.Definition.Object;
 
-        return unit is { IsMoving: false, VerticalSpeed: 0 } && (obj.Properties & (ObjectProperties.Gravity | ObjectProperties.Gravity2)) == 0 &&
-               unit is { Animation: SpriteAnimation.Stand, Lifetime: >= SpriteDefinition.Unlimited } && obj.SpriteClass == SpriteClass.BuiltTerrain;
+        return sprite is { IsMoving: false, VerticalSpeed: 0 } && (obj.Properties & (ObjectProperties.Gravity | ObjectProperties.Gravity2)) == 0 &&
+               sprite is { Animation: SpriteAnimation.Stand, Lifetime: >= SpriteDefinition.Unlimited } && obj.SpriteClass == SpriteClass.BuiltTerrain;
     }
 
     [EngineRoutine(0x00447fe0)]
-    private void ConstructCannon(Unit unit, Unit? parent)
+    private void ConstructCannon(Sprite sprite, Sprite? parent)
     {
-        ref readonly var obj = ref unit.Definition.Object;
+        ref readonly var obj = ref sprite.Definition.Object;
 
-        if (obj.Properties.HasFlag(ObjectProperties.RandomZSpeed) && !unit.Definition.ZSpeed.IsZero())
+        if (obj.Properties.HasFlag(ObjectProperties.RandomZSpeed) && !sprite.Definition.ZSpeed.IsZero())
         {
             bool downward = (_random.Next() & 1) == 0;
-            float lift = _random.NextSingle() * unit.Definition.ZSpeed;
-            unit.VerticalSpeed = downward ? -lift : lift;
+            float lift = _random.NextSingle() * sprite.Definition.ZSpeed;
+            sprite.VerticalSpeed = downward ? -lift : lift;
         }
         else if (parent is not null && parent.Animation >= SpriteAnimation.Death && obj.TopZ < 0)
         {
-            unit.VerticalSpeed = unit.Definition.ZSpeed;
-            unit.Speed = unit.MaxSpeed + parent.Speed;
+            sprite.VerticalSpeed = sprite.Definition.ZSpeed;
+            sprite.Speed = sprite.MaxSpeed + parent.Speed;
         }
         else
         {
-            unit.VerticalSpeed = unit.Definition.ZSpeed;
+            sprite.VerticalSpeed = sprite.Definition.ZSpeed;
         }
 
-        if (obj.Properties.HasFlag(ObjectProperties.RandomSpeed) && !unit.Definition.Speed.IsZero())
+        if (obj.Properties.HasFlag(ObjectProperties.RandomSpeed) && !sprite.Definition.Speed.IsZero())
         {
-            unit.MaxSpeed = _random.NextSingle() * unit.Definition.Speed;
+            sprite.MaxSpeed = _random.NextSingle() * sprite.Definition.Speed;
         }
 
-        unit.IsClimbing = true;
-        _motion.StartMove(unit);
+        sprite.IsClimbing = true;
+        _motion.StartMove(sprite);
     }
 
-    public void Forget(Unit removed)
+    public void Forget(Sprite removed)
     {
-        foreach (var unit in _active)
+        foreach (var sprite in _active)
         {
-            if (unit.Definition.Object.SpriteClass == SpriteClass.Cannon)
+            if (sprite.Definition.Object.SpriteClass == SpriteClass.Cannon)
             {
-                for (int built = UnitKinematics.ForgetCannonGoal(unit, removed); built > 0; built--)
+                for (int built = SpriteKinematics.ForgetCannonGoal(sprite, removed); built > 0; built--)
                 {
-                    _world.DrawGoalSpriteRandom();
+                    _map.DrawGoalSpriteRandom();
                 }
             }
             else
             {
-                if (UnitKinematics.ForgetObject(unit, removed))
+                if (SpriteKinematics.ForgetObject(sprite, removed))
                 {
-                    _world.DrawGoalSpriteRandom();
+                    _map.DrawGoalSpriteRandom();
                 }
             }
         }
@@ -311,41 +311,41 @@ internal sealed class SpawnedObjectSystem
         if (_leaving.Count == 0)
             return;
 
-        _active.RemoveAll(unit => unit.LeavesEffects);
-        foreach (var unit in _leaving)
+        _active.RemoveAll(sprite => sprite.LeavesEffects);
+        foreach (var sprite in _leaving)
         {
-            unit.LeavesEffects = false;
-            _pool.Return(unit);
+            sprite.LeavesEffects = false;
+            _pool.Return(sprite);
         }
 
         _leaving.Clear();
     }
 
-    public bool Tick(Unit unit)
+    public bool Tick(Sprite sprite)
     {
-        bool stays = Update(unit);
-        _world.Units.ChangeCoor(unit);
+        bool stays = Update(sprite);
+        _map.Collector.ChangeCoor(sprite);
 
         if (stays)
             return true;
 
-        Leave(unit);
+        Leave(sprite);
 
         return false;
     }
 
-    public void Leave(Unit unit)
+    public void Leave(Sprite sprite)
     {
-        _world.Units.Remove(unit);
-        unit.LeavesEffects = true;
-        _leaving.Add(unit);
+        _map.Collector.DeleteFromHash(sprite);
+        sprite.LeavesEffects = true;
+        _leaving.Add(sprite);
 
-        if (IsLink(unit))
+        if (IsLink(sprite))
         {
-            unit.Owner!.Link = null;
+            sprite.Owner!.Link = null;
         }
 
-        foreach (var tail in unit.EnumerateLinks())
+        foreach (var tail in sprite.EnumerateLinks())
         {
             if (tail is { Role: UpdateRole.Effect, LeavesEffects: false })
             {
@@ -353,31 +353,31 @@ internal sealed class SpawnedObjectSystem
             }
         }
 
-        unit.Link = null;
+        sprite.Link = null;
 
-        _world.ReleaseSprite(unit);
+        _map.ReleaseSprite(sprite);
     }
 
-    private bool Update(Unit unit)
+    private bool Update(Sprite sprite)
     {
-        if (unit.Owner is not null && _orphans.Remove(unit))
+        if (sprite.Owner is not null && _orphans.Remove(sprite))
             return false;
 
-        return _world.Tact(unit);
+        return _map.Tact(sprite);
     }
 
-    private static float KeepHover(Unit unit, float height, float ground)
+    private static float KeepHover(Sprite sprite, float height, float ground)
     {
-        ref readonly var obj = ref unit.Definition.Object;
+        ref readonly var obj = ref sprite.Definition.Object;
         float hover = ground + obj.TopZ;
-        float z = unit.Position.Z;
+        float z = sprite.Position.Z;
 
         if (z.IsNear(height) || obj.Properties.HasFlag(ObjectProperties.Gravity) || hover.IsZero())
             return height;
 
         if (hover > z ? hover <= height : hover < z ? height < hover : !obj.Properties.HasFlag(ObjectProperties.SelfMoving))
         {
-            unit.VerticalSpeed = 0;
+            sprite.VerticalSpeed = 0;
 
             return hover > z || hover < z ? hover : height;
         }
@@ -385,22 +385,22 @@ internal sealed class SpawnedObjectSystem
         return height;
     }
 
-    private static Vector3 KeepGround(Vector3 next, Unit unit) => next with { X = unit.Position.X, Y = unit.Position.Y };
+    private static Vector3 KeepGround(Vector3 next, Sprite sprite) => next with { X = sprite.Position.X, Y = sprite.Position.Y };
 
     [EngineRoutine(0x0043f820)]
     [EngineRoutine(0x00448130)]
-    public void Move(Unit unit, int elapsed)
+    public void Move(Sprite sprite, int elapsed)
     {
-        if (!NeedsMotion(unit.Definition))
+        if (!NeedsMotion(sprite.Definition))
             return;
 
-        if (unit.Definition.Object.SpriteClass == SpriteClass.Cannon)
+        if (sprite.Definition.Object.SpriteClass == SpriteClass.Cannon)
         {
-            RunCannon(unit, elapsed);
+            RunCannon(sprite, elapsed);
         }
         else
         {
-            RunGeneric(unit, elapsed);
+            RunGeneric(sprite, elapsed);
         }
     }
 
@@ -412,277 +412,277 @@ internal sealed class SpawnedObjectSystem
     }
 
     [EngineRoutine(0x0043f820)]
-    private void RunGeneric(Unit unit, int elapsed)
+    private void RunGeneric(Sprite sprite, int elapsed)
     {
-        ref readonly var obj = ref unit.Definition.Object;
-        var next = _motion.Move(unit, elapsed);
-        float current = _map.GetHeight(unit.Position.AsVector2());
-        float ground = _map.GetHeight(next.AsVector2());
+        ref readonly var obj = ref sprite.Definition.Object;
+        var next = _motion.Move(sprite, elapsed);
+        float current = _movement.GetHeight(sprite.Position.AsVector2());
+        float ground = _movement.GetHeight(next.AsVector2());
 
-        if (obj.SpriteType.HasFlag(SpriteType.Cannon) && obj.Properties.HasFlag(ObjectProperties.Gravity) && ground >= next.Z && unit.Position.Z >= current)
+        if (obj.SpriteType.HasFlag(SpriteType.Cannon) && obj.Properties.HasFlag(ObjectProperties.Gravity) && ground >= next.Z && sprite.Position.Z >= current)
         {
-            next.Z = unit.Position.Z;
+            next.Z = sprite.Position.Z;
         }
         else
         {
-            next.Z = KeepHover(unit, next.Z, ground);
+            next.Z = KeepHover(sprite, next.Z, ground);
         }
 
-        if (unit.HasGoal && !unit.Speed.IsZero() && unit is { HasReachedX: true, HasReachedY: true })
+        if (sprite.HasGoal && !sprite.Speed.IsZero() && sprite is { HasReachedX: true, HasReachedY: true })
         {
-            UnitKinematics.StopMoving(unit);
+            SpriteKinematics.Stop(sprite);
         }
 
-        if (!next.X.IsNear(unit.Position.X) || !next.Y.IsNear(unit.Position.Y))
+        if (!next.X.IsNear(sprite.Position.X) || !next.Y.IsNear(sprite.Position.Y))
         {
-            if (_world.Projectiles.IsBlockedAt(unit.Definition, next, unit))
+            if (_map.Projectiles.IsBlockedAt(sprite.Definition, next, sprite))
             {
-                unit.VerticalSpeed = 0;
-                unit.Speed = 0;
-                unit.IsBlocked = true;
-                next = KeepGround(next, unit);
+                sprite.VerticalSpeed = 0;
+                sprite.Speed = 0;
+                sprite.IsBlocked = true;
+                next = KeepGround(next, sprite);
             }
         }
 
-        unit.ChangeCoor(next);
+        sprite.ChangeCoor(next);
     }
 
     [EngineRoutine(0x00448130)]
-    private void RunCannon(Unit unit, int elapsed)
+    private void RunCannon(Sprite sprite, int elapsed)
     {
-        ref readonly var obj = ref unit.Definition.Object;
-        var next = _motion.Move(unit, elapsed);
+        ref readonly var obj = ref sprite.Definition.Object;
+        var next = _motion.Move(sprite, elapsed);
 
-        if (unit is { IsBlocked: true, Animation: < SpriteAnimation.Death })
+        if (sprite is { IsBlocked: true, Animation: < SpriteAnimation.Death })
         {
-            unit.ChangeAnimation(SpriteAnimation.Death);
+            sprite.ChangeAnimation(SpriteAnimation.Death);
         }
 
-        float current = _map.GetHeight(unit.Position.AsVector2());
-        float ground = _map.GetHeight(next.AsVector2());
+        float current = _movement.GetHeight(sprite.Position.AsVector2());
+        float ground = _movement.GetHeight(next.AsVector2());
 
-        if (ground < next.Z || unit.Position.Z < current)
+        if (ground < next.Z || sprite.Position.Z < current)
         {
-            next.Z = KeepHover(unit, next.Z, ground);
+            next.Z = KeepHover(sprite, next.Z, ground);
         }
         else
         {
-            next.Z = unit.Position.Z;
-            Land(unit, ref next, current, ground);
+            next.Z = sprite.Position.Z;
+            Land(sprite, ref next, current, ground);
         }
 
-        if (!next.X.IsNear(unit.Position.X) || !next.Y.IsNear(unit.Position.Y))
+        if (!next.X.IsNear(sprite.Position.X) || !next.Y.IsNear(sprite.Position.Y))
         {
-            if (_world.Projectiles.IsBlockedAt(unit.Definition, next, unit))
+            if (_map.Projectiles.IsBlockedAt(sprite.Definition, next, sprite))
             {
-                if (unit.Animation < SpriteAnimation.Death)
+                if (sprite.Animation < SpriteAnimation.Death)
                 {
-                    unit.ChangeAnimation(SpriteAnimation.Death);
+                    sprite.ChangeAnimation(SpriteAnimation.Death);
                 }
 
-                next = KeepGround(next, unit);
+                next = KeepGround(next, sprite);
             }
-            else if (unit.Animation < SpriteAnimation.Death && !obj.Properties.HasFlag(ObjectProperties.Gravity) && IsFarOutside(next.AsVector2()))
+            else if (sprite.Animation < SpriteAnimation.Death && !obj.Properties.HasFlag(ObjectProperties.Gravity) && IsFarOutside(next.AsVector2()))
             {
-                unit.ChangeAnimation(SpriteAnimation.Death);
+                sprite.ChangeAnimation(SpriteAnimation.Death);
             }
         }
 
-        float previousHeight = unit.Position.Z;
-        unit.ChangeCoor(next);
-        Steer(unit, elapsed, previousHeight);
+        float previousHeight = sprite.Position.Z;
+        sprite.ChangeCoor(next);
+        Steer(sprite, elapsed, previousHeight);
     }
 
-    private void Land(Unit unit, ref Vector3 next, float current, float ground)
+    private void Land(Sprite sprite, ref Vector3 next, float current, float ground)
     {
-        ref readonly var obj = ref unit.Definition.Object;
+        ref readonly var obj = ref sprite.Definition.Object;
         bool climbs = ground > current;
 
-        if (unit.Animation >= SpriteAnimation.Death)
+        if (sprite.Animation >= SpriteAnimation.Death)
         {
-            UnitKinematics.StopMoving(unit);
+            SpriteKinematics.Stop(sprite);
 
             if (climbs)
             {
-                _world.EmitChildrenAs(unit, SpriteAnimation.Load);
+                _map.CreateChildFor(sprite, SpriteAnimation.Load);
             }
 
-            next = KeepGround(next, unit);
+            next = KeepGround(next, sprite);
 
             return;
         }
 
         if (!obj.Properties.HasFlag(ObjectProperties.Bouncing))
         {
-            UnitKinematics.StopMoving(unit);
+            SpriteKinematics.Stop(sprite);
             next.Z = current;
-            _world.EmitChildrenAs(unit, climbs ? SpriteAnimation.Load : SpriteAnimation.Unload);
-            unit.ChangeAnimation(SpriteAnimation.Death);
-            next = KeepGround(next, unit);
+            _map.CreateChildFor(sprite, climbs ? SpriteAnimation.Load : SpriteAnimation.Unload);
+            sprite.ChangeAnimation(SpriteAnimation.Death);
+            next = KeepGround(next, sprite);
 
             return;
         }
 
         if (climbs)
         {
-            unit.ChangeAnimation(SpriteAnimation.Load);
-            unit.SetDirection(unit.Direction.Opposite);
+            sprite.ChangeAnimation(SpriteAnimation.Load);
+            sprite.ChangeDirection(sprite.Direction.Opposite);
         }
-        else if (unit.VerticalSpeed < -MinimumBounceSpeed)
+        else if (sprite.VerticalSpeed < -MinimumBounceSpeed)
         {
-            unit.ChangeAnimation(SpriteAnimation.Unload);
-            unit.VerticalSpeed *= -BounceRetention;
+            sprite.ChangeAnimation(SpriteAnimation.Unload);
+            sprite.VerticalSpeed *= -BounceRetention;
         }
-        else if (unit.VerticalSpeed <= MinimumLift)
+        else if (sprite.VerticalSpeed <= MinimumLift)
         {
-            unit.VerticalSpeed = 0;
-            unit.ChangeAnimation(SpriteAnimation.Death);
+            sprite.VerticalSpeed = 0;
+            sprite.ChangeAnimation(SpriteAnimation.Death);
         }
         else
         {
-            unit.VerticalSpeed *= BounceRetention;
-            unit.Speed *= BounceRetention;
-            unit.SetDirection(unit.Direction.Opposite);
+            sprite.VerticalSpeed *= BounceRetention;
+            sprite.Speed *= BounceRetention;
+            sprite.ChangeDirection(sprite.Direction.Opposite);
         }
 
-        next = KeepGround(next, unit);
+        next = KeepGround(next, sprite);
     }
 
-    private void Steer(Unit unit, int elapsed, float previousHeight)
+    private void Steer(Sprite sprite, int elapsed, float previousHeight)
     {
-        ref readonly var obj = ref unit.Definition.Object;
+        ref readonly var obj = ref sprite.Definition.Object;
 
-        if (!unit.HasGoal)
+        if (!sprite.HasGoal)
         {
-            if (obj.TopZ < 0 && unit.VerticalSpeed < 0)
+            if (obj.TopZ < 0 && sprite.VerticalSpeed < 0)
             {
-                unit.SetDirection(unit.Direction.TurnToward(unit.Direction + FallTurn, obj.RotationPeriod, elapsed, out _));
+                sprite.ChangeDirection(sprite.Direction.TurnToward(sprite.Direction + FallTurn, obj.RotationPeriod, elapsed, out _));
             }
 
             return;
         }
 
-        var goal = unit.GoalPosition;
-        var target = unit.Goal;
-        float distance = unit.Position.AsVector2().MeasureOctagonalDistance(goal.AsVector2());
-        var aim = Angle.FromOffset((goal - unit.Position).AsVector2()) + (unit.Speed < 0 ? Angle.HalfTurn : 0);
+        var goal = sprite.GoalPosition;
+        var target = sprite.Goal;
+        float distance = sprite.Position.AsVector2().MeasureOctagonalDistance(goal.AsVector2());
+        var aim = Angle.FromOffset((goal - sprite.Position).AsVector2()) + (sprite.Speed < 0 ? Angle.HalfTurn : 0);
 
         if (!obj.Properties.HasFlag(ObjectProperties.SelfMoving))
         {
             if (distance > SteeringReach)
             {
-                var before = unit.Direction;
-                unit.SetDirection(unit.Direction.TurnToward(aim, obj.RotationPeriod, elapsed, out _));
+                var before = sprite.Direction;
+                sprite.ChangeDirection(sprite.Direction.TurnToward(aim, obj.RotationPeriod, elapsed, out _));
 
-                if (before.MeasureTurnTo(unit.Direction) > MaxSteeringTurn)
+                if (before.MeasureTurnTo(sprite.Direction) > MaxSteeringTurn)
                 {
-                    UnitKinematics.StopMoving(unit);
-                    unit.ChangeAnimation(SpriteAnimation.Death);
+                    SpriteKinematics.Stop(sprite);
+                    sprite.ChangeAnimation(SpriteAnimation.Death);
                 }
             }
         }
-        else if (!unit.IsClimbing)
+        else if (!sprite.IsClimbing)
         {
-            unit.SetDirection(unit.Direction.TurnToward(aim, obj.RotationPeriod, elapsed, out int remaining));
+            sprite.ChangeDirection(sprite.Direction.TurnToward(aim, obj.RotationPeriod, elapsed, out int remaining));
 
             if (distance <= RocketCloseReach || distance >= RocketFarReach || (byte)remaining < RocketTurnLimit)
             {
-                unit.VerticalSpeed = unit.Position.Z <= goal.Z || distance.IsZero() ? 0
-                    : Math.Max((goal.Z - unit.Position.Z) / distance * RocketClimbRate, -unit.Definition.ZSpeed);
+                sprite.VerticalSpeed = sprite.Position.Z <= goal.Z || distance.IsZero() ? 0
+                    : Math.Max((goal.Z - sprite.Position.Z) / distance * RocketClimbRate, -sprite.Definition.ZSpeed);
             }
             else
             {
-                unit.IsClimbing = true;
-                _motion.StartMove(unit);
+                sprite.IsClimbing = true;
+                _motion.StartMove(sprite);
             }
         }
-        else if (_map.GetHeight(unit.Position.AsVector2()) + obj.TopZ <= unit.Position.Z && goal.Z <= unit.Position.Z || unit.VerticalSpeed <= 0)
+        else if (_movement.GetHeight(sprite.Position.AsVector2()) + obj.TopZ <= sprite.Position.Z && goal.Z <= sprite.Position.Z || sprite.VerticalSpeed <= 0)
         {
-            unit.IsClimbing = false;
+            sprite.IsClimbing = false;
         }
         else
         {
-            unit.VerticalSpeed -= elapsed * _definitions.Gravitation;
+            sprite.VerticalSpeed -= elapsed * _definitions.Gravitation;
         }
 
-        if (HitsGoal(unit, goal, target, previousHeight))
+        if (HitsGoal(sprite, goal, target, previousHeight))
         {
-            UnitKinematics.StopMoving(unit);
-            unit.ChangeAnimation(SpriteAnimation.Death);
+            SpriteKinematics.Stop(sprite);
+            sprite.ChangeAnimation(SpriteAnimation.Death);
         }
     }
 
-    private static bool HitsGoal(Unit unit, Vector3 goal, Unit? target, float previousHeight)
+    private static bool HitsGoal(Sprite sprite, Vector3 goal, Sprite? target, float previousHeight)
     {
-        var half = unit.Definition.Half;
+        var half = sprite.Definition.Half;
         var goalHalf = target?.Definition.Half ?? PlayerMovement.MoveTargetHalfSize;
-        var offset = Vector2.Abs(unit.Position.AsVector2() - goal.AsVector2());
+        var offset = Vector2.Abs(sprite.Position.AsVector2() - goal.AsVector2());
 
-        if (unit is { HasReachedX: true, HasReachedY: true } || offset.X < half.X + goalHalf.X && offset.Y < half.Y + goalHalf.Y)
+        if (sprite is { HasReachedX: true, HasReachedY: true } || offset.X < half.X + goalHalf.X && offset.Y < half.Y + goalHalf.Y)
         {
             float goalHeight = target?.Definition.Object.Size.Z ?? PlayerMovement.TargetHeight;
-            float z = unit.Position.Z;
+            float z = sprite.Position.Z;
 
-            if (goal.Z <= unit.Definition.Object.Size.Z + z && z <= goal.Z + goalHeight ||
+            if (goal.Z <= sprite.Definition.Object.Size.Z + z && z <= goal.Z + goalHeight ||
                 Math.Min(previousHeight, z) <= goal.Z && goal.Z <= Math.Max(previousHeight, z))
                 return true;
         }
 
-        return unit.Definition.Object.Properties.HasFlag(ObjectProperties.SelfMoving) && MathF.Abs(goal.Z - unit.Position.Z) < RocketHitHeight &&
+        return sprite.Definition.Object.Properties.HasFlag(ObjectProperties.SelfMoving) && MathF.Abs(goal.Z - sprite.Position.Z) < RocketHitHeight &&
                offset is { X: < RocketHitReach, Y: < RocketHitReach };
     }
 
     private bool IsFarOutside(Vector2 point) =>
         point.X < -ExitMarginX || point.Y < -ExitMarginY ||
-        point.X > _map.MapSize.Width + ExitMarginX || point.Y > _map.MapSize.Height + ExitMarginY;
+        point.X > _movement.MapSize.Width + ExitMarginX || point.Y > _movement.MapSize.Height + ExitMarginY;
 
     [EngineRoutine(0x00448950)]
-    public static void DecideCannon(Unit unit)
+    public static void DecideCannon(Sprite sprite)
     {
-        var state = unit.Animation;
+        var state = sprite.Animation;
 
         if (state == SpriteAnimation.Fight)
         {
-            unit.ChangeAnimation(SpriteAnimation.Death);
+            sprite.ChangeAnimation(SpriteAnimation.Death);
         }
         else if (state < SpriteAnimation.Death)
         {
-            if (unit.Position.Z < DeepFall)
+            if (sprite.Position.Z < DeepFall)
             {
-                unit.ChangeAnimation(SpriteAnimation.Death2);
+                sprite.ChangeAnimation(SpriteAnimation.Death2);
             }
-            else if (!unit.Speed.IsZero())
+            else if (!sprite.Speed.IsZero())
             {
-                unit.ChangeAnimation(SpriteAnimation.Go);
+                sprite.ChangeAnimation(SpriteAnimation.Go);
             }
             else if (state > SpriteAnimation.Open && state != SpriteAnimation.StandOpen)
             {
-                unit.ChangeAnimation(SpriteAnimation.Stand);
+                sprite.ChangeAnimation(SpriteAnimation.Stand);
             }
         }
     }
 
     [EngineRoutine(0x00440830)]
-    public static void DecideObject(Unit unit)
+    public static void DecideObject(Sprite sprite)
     {
-        var state = unit.Animation;
+        var state = sprite.Animation;
 
         if (state >= SpriteAnimation.Death)
             return;
 
-        if (unit.Speed.IsZero())
+        if (sprite.Speed.IsZero())
         {
             if (state > SpriteAnimation.RRotate && state != SpriteAnimation.StandOpen)
             {
-                unit.ChangeAnimation(SpriteAnimation.Stand);
+                sprite.ChangeAnimation(SpriteAnimation.Stand);
             }
         }
         else if (state != SpriteAnimation.Go)
         {
-            unit.ChangeAnimation(SpriteAnimation.Go);
+            sprite.ChangeAnimation(SpriteAnimation.Go);
         }
     }
 
-    public static EffectState GetState(Unit unit) =>
-        new(unit.Definition.Id, unit.Position, unit.Direction, unit.Animation, unit.CreatedAt, unit.Frame, unit.KeyframePosition);
+    public static EffectState GetState(Sprite sprite) =>
+        new(sprite.Definition.Id, sprite.Position, sprite.Direction, sprite.Animation, sprite.CreatedAt, sprite.Frame, sprite.KeyframePosition);
 }

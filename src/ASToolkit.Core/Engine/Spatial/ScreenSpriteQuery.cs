@@ -15,10 +15,10 @@ internal struct ScreenSpriteQuery : ISpriteQuery
         Found = null;
     }
 
-    public Unit? Found { get; private set; }
+    public Sprite? Found { get; private set; }
 
     [EngineRoutine(0x0040fc40)]
-    public void Consider(Unit sprite, bool listed)
+    public void Consider(Sprite sprite, bool listed)
     {
         if ((!listed && sprite.Owner is not null) || !_filter.Accepts(sprite))
             return;

@@ -11,17 +11,17 @@ public enum ScriptFunction
     CreateSprite = 65,
 
     /// <summary>
-    /// Return the unit a player slot controls.
+    /// Return the sprite a player slot controls.
     /// </summary>
     Flagman = 66,
 
     /// <summary>
-    /// Start a walk over the units of some sprite types and armies.
+    /// Start a walk over the sprites of some types and armies.
     /// </summary>
     FirstUnit = 68,
 
     /// <summary>
-    /// Continue the walk over units.
+    /// Continue the walk over sprites.
     /// </summary>
     NextUnit = 69,
 
@@ -66,52 +66,52 @@ public enum ScriptFunction
     Action = 79,
 
     /// <summary>
-    /// Return the distance from a unit to a point.
+    /// Return the distance from a sprite to a point.
     /// </summary>
     SizeTo = 80,
 
     /// <summary>
-    /// Add an order to a unit's order stack.
+    /// Add an order to a sprite's order stack.
     /// </summary>
     AddCommand = 82,
 
     /// <summary>
-    /// Return the object id of a unit.
+    /// Return the object id of a sprite.
     /// </summary>
     GetUnitVid = 83,
 
     /// <summary>
-    /// Destroy a unit.
+    /// Destroy a sprite.
     /// </summary>
     Destroy = 84,
 
     /// <summary>
-    /// Return the x coordinate of a unit.
+    /// Return the x coordinate of a sprite.
     /// </summary>
     GetX = 85,
 
     /// <summary>
-    /// Return the y coordinate of a unit.
+    /// Return the y coordinate of a sprite.
     /// </summary>
     GetY = 86,
 
     /// <summary>
-    /// Return the height of a unit.
+    /// Return the height of a sprite.
     /// </summary>
     GetZ = 87,
 
     /// <summary>
-    /// Return the direction of a unit.
+    /// Return the direction of a sprite.
     /// </summary>
     GetDirection = 88,
 
     /// <summary>
-    /// Return the animation a unit plays.
+    /// Return the animation a sprite plays.
     /// </summary>
     GetAnimation = 89,
 
     /// <summary>
-    /// Return the direction from a unit to a point.
+    /// Return the direction from a sprite to a point.
     /// </summary>
     DirectionTo = 90,
 
@@ -436,7 +436,7 @@ public enum ScriptFunction
     OldStrlen = 159,
 
     /// <summary>
-    /// Make a unit the one a player slot controls.
+    /// Make a sprite the one a player slot controls.
     /// </summary>
     SetFlagman = 160,
 
@@ -631,7 +631,7 @@ public enum ScriptFunction
     SetAutoReBirth = 247,
 
     /// <summary>
-    /// Set the limit of units of a definition on the map.
+    /// Set the limit of sprites of a definition on the map.
     /// </summary>
     AddUnitLimit = 249,
 

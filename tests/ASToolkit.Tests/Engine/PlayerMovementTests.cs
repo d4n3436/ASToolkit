@@ -13,15 +13,15 @@ public class PlayerMovementTests
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var definition = definitions.Find(KnownObject.PlayerStart)!;
-        var grid = new UnitGrid(new SizeF(2000, 2000), new Vector2(130));
-        var player = new Unit(0, definition, new Vector3(1000, 1000, 0), 0, definition.MaxHp) { Direction = new Angle(64) };
-        grid.Add(player);
-        var movement = new PlayerMovement(new UnitCollision(new MovementMap(), grid));
-        new UnitKinematics(definitions, null!).SetMoveTarget(player, null, new Vector3(1400, 1000, 0));
+        var collector = new SpriteCollector(new SizeF(2000, 2000), new Vector2(130));
+        var player = new Sprite(0, definition, new Vector3(1000, 1000, 0), 0, definition.MaxHp) { Direction = new Angle(64) };
+        collector.InsertToHash(player);
+        var movement = new PlayerMovement(new SpriteCollision(new MovementMap(), collector));
+        new SpriteKinematics(definitions, null!).SetMoveTarget(player, null, new Vector3(1400, 1000, 0));
         movement.Tick(player, 0.18f, 20);
         Assert.Equal(0.018f, player.Speed, 5);
         Assert.InRange(Vector2.Distance(player.Position.AsVector2(), new Vector2(1000.36f, 1000)), 0, 0.0001f);
-        UnitKinematics.StopMoving(player);
+        SpriteKinematics.Stop(player);
         movement.Tick(player, 0.18f, 20);
         Assert.Equal(0.009f, player.Speed, 5);
         Assert.InRange(Vector2.Distance(player.Position.AsVector2(), new Vector2(1000.54f, 1000)), 0, 0.0001f);
@@ -36,11 +36,11 @@ public class PlayerMovementTests
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var definition = definitions.Find(KnownObject.PlayerStart)!;
-        var grid = new UnitGrid(new SizeF(2000, 2000), new Vector2(130));
-        var player = new Unit(0, definition, new Vector3(1000, 1000, 0), 0, definition.MaxHp);
-        grid.Add(player);
-        var movement = new PlayerMovement(new UnitCollision(new MovementMap(), grid));
-        new UnitKinematics(definitions, null!).SetMoveTarget(player, null, new Vector3(1400, 1000, 0));
+        var collector = new SpriteCollector(new SizeF(2000, 2000), new Vector2(130));
+        var player = new Sprite(0, definition, new Vector3(1000, 1000, 0), 0, definition.MaxHp);
+        collector.InsertToHash(player);
+        var movement = new PlayerMovement(new SpriteCollision(new MovementMap(), collector));
+        new SpriteKinematics(definitions, null!).SetMoveTarget(player, null, new Vector3(1400, 1000, 0));
         movement.Tick(player, 0.18f, 20);
 
         Assert.Equal(1000, player.Position.X);

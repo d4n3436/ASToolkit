@@ -10,28 +10,28 @@ public class UnitAnimationTests
     [Fact]
     public void SetState_StartsAtItsDirectionFrame()
     {
-        var unit = CreateMonster(64);
+        var sprite = CreateMonster(64);
 
-        unit.ChangeAnimation(SpriteAnimation.Go);
-        AssertFrames(unit, 48, 48, 55);
+        sprite.ChangeAnimation(SpriteAnimation.Go);
+        AssertFrames(sprite, 48, 48, 55);
 
-        unit.ChangeAnimation(SpriteAnimation.Fight);
-        AssertFrames(unit, 164, 164, 168);
+        sprite.ChangeAnimation(SpriteAnimation.Fight);
+        AssertFrames(sprite, 164, 164, 168);
 
-        unit.ChangeAnimation(SpriteAnimation.Death);
-        AssertFrames(unit, 4, 4, 4);
+        sprite.ChangeAnimation(SpriteAnimation.Death);
+        AssertFrames(sprite, 4, 4, 4);
     }
 
     [Fact]
     public void SetDirection_KeepsTheStepWithinTheState()
     {
-        var unit = CreateMonster(64);
-        unit.ChangeAnimation(SpriteAnimation.Go);
-        unit.Frame += 3;
+        var sprite = CreateMonster(64);
+        sprite.ChangeAnimation(SpriteAnimation.Go);
+        sprite.Frame += 3;
 
-        unit.SetDirection(new Angle(128));
+        sprite.ChangeDirection(new Angle(128));
 
-        AssertFrames(unit, 80, 83, 87);
+        AssertFrames(sprite, 80, 83, 87);
     }
 
     [Fact]
@@ -41,12 +41,12 @@ public class UnitAnimationTests
         var definition = definitions.Find(KnownObject.Monster1)!;
         var random = new GameRandom(7);
         var expected = new GameRandom(7);
-        var unit = new Unit(1, definition, Vector3.Zero, Army.Monsters, definition.MaxHp);
+        var sprite = new Sprite(1, definition, Vector3.Zero, Army.Monsters, definition.MaxHp);
 
-        unit.Start(SpriteAnimation.Stand, new Angle(64), 1000, random);
+        sprite.Start(SpriteAnimation.Stand, new Angle(64), 1000, random);
 
-        Assert.Equal(1000 - expected.Next() % 61, unit.LastTickTime);
-        AssertFrames(unit, 4, 4, 4);
+        Assert.Equal(1000 - expected.Next() % 61, sprite.LastTickTime);
+        AssertFrames(sprite, 4, 4, 4);
         Assert.Equal(expected.Next(), random.Next());
     }
 
@@ -54,42 +54,42 @@ public class UnitAnimationTests
     public void Damage_LethalHit_EndsTheDeathAtTheNextAnimationTickWithItsChild()
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var world = EngineTestWorld.CreateWorld(definitions);
-        var position = world.Player.Position + new Vector3(600, 0, 0);
-        var enemy = world.AddMonster(definitions.Find(KnownObject.Monster1)!, position, direction: new Angle(64));
-        while (world.Time < GameClock.LevelStartTime + 96)
+        var map = EngineTestMap.CreateMap(definitions);
+        var position = map.Player.Position + new Vector3(600, 0, 0);
+        var enemy = map.AddMonster(definitions.Find(KnownObject.Monster1)!, position, direction: new Angle(64));
+        while (map.Time < GameClock.LevelStartTime + 96)
         {
-            world.Step(default);
+            map.Step(default);
         }
 
-        world.Damage(enemy, enemy.Hp);
-        world.Step(default);
+        map.Damage(enemy, enemy.Hp);
+        map.Step(default);
         int steps = 1;
-        while (world.Monsters.Contains(enemy) && steps < 20)
+        while (map.Monsters.Contains(enemy) && steps < 20)
         {
-            Assert.DoesNotContain(world.Effects.Active, effect => effect.Definition.Id == KnownObject.Monster1Death);
-            world.Step(default);
+            Assert.DoesNotContain(map.Effects.Active, effect => effect.Definition.Id == KnownObject.Monster1Death);
+            map.Step(default);
             steps++;
         }
 
         Assert.InRange(steps, 2, 19);
-        Assert.Contains(world.Effects.Active, effect => effect.Definition.Id == KnownObject.Monster1Death);
+        Assert.Contains(map.Effects.Active, effect => effect.Definition.Id == KnownObject.Monster1Death);
     }
 
-    private static void AssertFrames(Unit unit, int first, int frame, int last)
+    private static void AssertFrames(Sprite sprite, int first, int frame, int last)
     {
-        Assert.Equal(first, unit.FirstFrame);
-        Assert.Equal(frame, unit.Frame);
-        Assert.Equal(last, unit.LastFrame);
+        Assert.Equal(first, sprite.FirstFrame);
+        Assert.Equal(frame, sprite.Frame);
+        Assert.Equal(last, sprite.LastFrame);
     }
 
-    private static Unit CreateMonster(Angle direction)
+    private static Sprite CreateMonster(Angle direction)
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var definition = definitions.Find(KnownObject.Monster1)!;
-        var unit = new Unit(1, definition, Vector3.Zero, Army.Monsters, definition.MaxHp);
-        unit.Start(SpriteAnimation.Stand, direction, 0, new GameRandom(1));
+        var sprite = new Sprite(1, definition, Vector3.Zero, Army.Monsters, definition.MaxHp);
+        sprite.Start(SpriteAnimation.Stand, direction, 0, new GameRandom(1));
 
-        return unit;
+        return sprite;
     }
 }

@@ -3,7 +3,7 @@ using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Engine;
 
-public sealed partial class GameWorld
+public sealed partial class Map
 {
     private const byte FunctionPrefix = (byte)'F';
     private const byte NameSeparator = (byte)'_';
@@ -130,50 +130,50 @@ public sealed partial class GameWorld
     /// Calls a script function with a sprite as its first argument.
     /// </summary>
     /// <param name="function">The function's index.</param>
-    /// <param name="unit">The sprite.</param>
+    /// <param name="sprite">The sprite.</param>
     /// <param name="second">The second argument.</param>
     /// <param name="third">The third argument.</param>
     /// <returns>The function's result.</returns>
     [EngineRoutine(0x0040f430)]
-    public int CallScript(int function, Unit unit, int second = 0, int third = 0) => Script.CallFunction(this, function, GetSpriteHandle(unit), second, third);
+    public int CallScript(int function, Sprite sprite, int second = 0, int third = 0) => Script.CallFunction(this, function, GetSpriteHandle(sprite), second, third);
 
     [EngineRoutine(0x00440110)]
-    private bool RunStateHandlers(Unit unit, bool everyFrame)
+    private bool RunStateHandlers(Sprite sprite, bool everyFrame)
     {
-        var state = unit.Animation;
-        int handler = unit.Definition.StateHandlers[(int)state];
-        while (handler >= 0 && (unit.Frame == unit.FirstFrame || everyFrame))
+        var state = sprite.Animation;
+        int handler = sprite.Definition.StateHandlers[(int)state];
+        while (handler >= 0 && (sprite.Frame == sprite.FirstFrame || everyFrame))
         {
-            if (CallScript(handler, unit) != 0)
+            if (CallScript(handler, sprite) != 0)
                 return true;
 
-            if (unit.Animation == state)
+            if (sprite.Animation == state)
                 break;
 
-            state = unit.Animation;
-            handler = unit.Definition.StateHandlers[(int)state];
+            state = sprite.Animation;
+            handler = sprite.Definition.StateHandlers[(int)state];
         }
 
         return false;
     }
 
     [EngineRoutine(0x0040e870)]
-    private void RunCreationHandler(Unit unit)
+    private void RunCreationHandler(Sprite sprite)
     {
-        int handler = unit.Definition.StateHandlers[(int)SpriteAnimation.Birth];
+        int handler = sprite.Definition.StateHandlers[(int)SpriteAnimation.Birth];
 
         if (handler >= 0)
         {
-            CallScript(handler, unit);
+            CallScript(handler, sprite);
         }
     }
 
     [EngineRoutine(0x0043f520)]
-    private void RunDestroyHandler(Unit unit)
+    private void RunDestroyHandler(Sprite sprite)
     {
-        if (unit.Definition.DestroyHandler >= 0)
+        if (sprite.Definition.DestroyHandler >= 0)
         {
-            CallScript(unit.Definition.DestroyHandler, unit);
+            CallScript(sprite.Definition.DestroyHandler, sprite);
         }
     }
 

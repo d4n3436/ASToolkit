@@ -88,16 +88,16 @@ public class MovementTests
     [Fact]
     public void GetSupportHeight_PlayerFootprint_SamplesWholeCellStepsFromItsLeftEdge()
     {
-        var map = new MovementMap();
+        var movement = new MovementMap();
         var player = Body(new Vector3(24, 24, 40), spriteClass: SpriteClass.Man);
-        map.Raise(24, 16, 40);
-        Assert.Equal(0, map.GetSupportHeight(player, new Vector2(16, 20)));
-        Assert.True(map.CanStandOnGround(player, new Vector2(16, 20).AsVector3()));
+        movement.Raise(24, 16, 40);
+        Assert.Equal(0, movement.GetSupportHeight(player, new Vector2(16, 20)));
+        Assert.True(movement.CanStandOnGround(player, new Vector2(16, 20).AsVector3()));
         var step = new Vector2(17, 20);
-        Assert.Equal(40, map.GetSupportHeight(player, step));
-        Assert.False(map.CanStandOnGround(player, step.AsVector3()));
-        Assert.True(map.CanStandOnGround(player, new Vector3(step, 30)));
-        Assert.Equal(0, map.GetHeight(step));
+        Assert.Equal(40, movement.GetSupportHeight(player, step));
+        Assert.False(movement.CanStandOnGround(player, step.AsVector3()));
+        Assert.True(movement.CanStandOnGround(player, new Vector3(step, 30)));
+        Assert.Equal(0, movement.GetHeight(step));
     }
 
     [Fact]
@@ -145,15 +145,15 @@ public class MovementTests
     [Fact]
     public void Trace_TestsTerrainAndBodiesAtTheTravelHeight()
     {
-        var map = new MovementMap();
-        map.Raise(32, 0, 24);
-        var grid = new UnitGrid(new SizeF(256, 256), new Vector2(130));
+        var movement = new MovementMap();
+        movement.Raise(32, 0, 24);
+        var collector = new SpriteCollector(new SizeF(256, 256), new Vector2(130));
         var walker = new SpriteDefinition(KnownObject.Monster1, Body(new Vector3(16, 16, 20)), default, 0);
         var bullet = new SpriteDefinition(KnownObject.PistolBullet, Body(new Vector3(4, 4, 2)), default, 0);
-        var shooter = new Unit(0, walker, Vector3.Zero, 0, 10);
-        grid.Add(shooter);
-        grid.Add(new Unit(1, walker, new Vector3(64, 0, 30), Army.Monsters, 10));
-        var collision = new ProjectileCollision(map, grid);
+        var shooter = new Sprite(0, walker, Vector3.Zero, 0, 10);
+        collector.InsertToHash(shooter);
+        collector.InsertToHash(new Sprite(1, walker, new Vector3(64, 0, 30), Army.Monsters, 10));
+        var collision = new ProjectileCollision(movement, collector);
 
         Assert.Equal(new Vector3(32, 0, 10), collision.Trace(bullet, new Vector3(0, 0, 10),
             new Vector3(128, 0, 10), out bool wall));

@@ -7,7 +7,7 @@ using ASToolkit.Core.Simulation;
 
 namespace ASToolkit.Tests.Engine;
 
-internal static class EngineTestWorld
+internal static class EngineTestMap
 {
     private const string ScriptPath = "maps\\engine_test.lgc";
 
@@ -27,7 +27,7 @@ internal static class EngineTestWorld
         }
         """;
 
-    public static GameWorld CreateWorld(SpriteCatalog definitions, PlayerLoadout? loadout = null, IReadOnlyList<MergedMapSprite>? sprites = null, int frameTime = GameClock.DefaultFrameTime,
+    public static Map CreateMap(SpriteCatalog definitions, PlayerLoadout? loadout = null, IReadOnlyList<MergedMapSprite>? sprites = null, int frameTime = GameClock.DefaultFrameTime,
         MapEnvironment environment = MapEnvironment.None, DemoResource? demo = null)
     {
         var model = new LevelModel
@@ -58,6 +58,6 @@ internal static class EngineTestWorld
 
         loadout ??= new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default);
 
-        return new GameWorld(level, new GameRandom(1), demo: demo, registry: Playthrough.CreateRegistry(TestGameFolder.RequireFolder(), "Level_02.map", loadout));
+        return new Map(level, new GameRandom(1), demo: demo, registry: Playthrough.CreateRegistry(TestGameFolder.RequireFolder(), "Level_02.map", loadout));
     }
 }

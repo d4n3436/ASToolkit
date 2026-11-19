@@ -69,15 +69,15 @@ public class CampaignTests
         var play = new Playthrough(game, TestGameFolder.Objects, TestGameFolder.Table);
         var level = EmptyLevel();
 
-        var weapons = Enumerable.Range(Unit.WeaponIdBase, Unit.WeaponSlots).Select(id => (KnownObject)id).ToArray();
+        var weapons = Enumerable.Range(Sprite.WeaponIdBase, Sprite.WeaponSlots).Select(id => (KnownObject)id).ToArray();
         var plain = play.Start(level, new PlayerLoadout(0, new Dictionary<KnownObject, int>(), new PlayerImplants(0, 0, 0, 0)), 1, null);
         plain.PlayUntil(100);
-        int[] aims = weapons.Select(id => (int)plain.World.Definitions.Find(id)!.Aim).ToArray();
+        int[] aims = weapons.Select(id => (int)plain.Map.Definitions.Find(id)!.Aim).ToArray();
         var implanted = play.Start(level, new PlayerLoadout(0, new Dictionary<KnownObject, int>(), new PlayerImplants(0, 0, 0, accuracyImplants)), 1, null);
         implanted.PlayUntil(100);
 
         Assert.Contains(aims, aim => aim > 0);
-        Assert.Equal(aims.Select(aim => Enumerable.Range(0, accuracyImplants).Aggregate(aim, (scaled, _) => scaled * 6 / 10)), weapons.Select(id => (int)implanted.World.Definitions.Find(id)!.Aim));
+        Assert.Equal(aims.Select(aim => Enumerable.Range(0, accuracyImplants).Aggregate(aim, (scaled, _) => scaled * 6 / 10)), weapons.Select(id => (int)implanted.Map.Definitions.Find(id)!.Aim));
     }
 
     private static RouteAnalysis EmptyLevel(params KnownObject[] pickups)

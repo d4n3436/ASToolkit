@@ -6,13 +6,13 @@ internal sealed class ProjectileCollision
 {
     private const int InstantRayStep = 16;
 
-    private readonly MovementMap _map;
-    private readonly UnitGrid _grid;
+    private readonly MovementMap _movement;
+    private readonly SpriteCollector _collector;
 
-    public ProjectileCollision(MovementMap map, UnitGrid grid)
+    public ProjectileCollision(MovementMap movement, SpriteCollector collector)
     {
-        _map = map;
-        _grid = grid;
+        _movement = movement;
+        _collector = collector;
     }
 
     [EngineRoutine(0x00444620)]
@@ -33,16 +33,16 @@ internal sealed class ProjectileCollision
     [EngineRoutine(0x0042da30)]
     public bool IsOccupied(SpriteDefinition definition, Vector3 point)
     {
-        if (_map.GetSupportHeight(definition.Object, point.AsVector2()) > point.Z)
+        if (_movement.GetSupportHeight(definition.Object, point.AsVector2()) > point.Z)
             return true;
 
-        return definition.MoveMask != 0 && FindUnit(definition, point) is not null;
+        return definition.MoveMask != 0 && FindSprite(definition, point) is not null;
     }
 
-    public Unit? FindUnit(SpriteDefinition definition, Vector3 point, Unit? self = null) => _grid.FindOverlap(self, definition.GetCollisionVolume(point));
+    public Sprite? FindSprite(SpriteDefinition definition, Vector3 point, Sprite? self = null) => _collector.FindOverlap(self, definition.GetCollisionVolume(point));
 
     [EngineRoutine(0x00443810)]
-    public bool IsBlockedAt(SpriteDefinition definition, Vector3 point, Unit? self = null)
+    public bool IsBlockedAt(SpriteDefinition definition, Vector3 point, Sprite? self = null)
         => definition.MoveMask != 0 && IsBlocked(definition, point, false, true, self);
 
     public bool HasClearTerrain(SpriteDefinition definition, Vector3 from, Vector3 to, Vector2 targetHalf = default)
@@ -117,14 +117,14 @@ internal sealed class ProjectileCollision
         return false;
     }
 
-    private bool IsBlocked(SpriteDefinition definition, Vector3 point, bool instant, bool testUnits, Unit? self = null)
+    private bool IsBlocked(SpriteDefinition definition, Vector3 point, bool instant, bool testUnits, Sprite? self = null)
     {
-        if (instant ? !_map.IsAboveGround(definition.Object, point) : !_map.CanStandOnGround(definition.Object, point))
+        if (instant ? !_movement.IsAboveGround(definition.Object, point) : !_movement.CanStandOnGround(definition.Object, point))
         {
             return true;
         }
 
-        return testUnits && FindUnit(definition, point, self) is not null;
+        return testUnits && FindSprite(definition, point, self) is not null;
     }
 
 }

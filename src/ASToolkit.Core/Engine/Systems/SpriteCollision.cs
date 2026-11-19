@@ -4,7 +4,7 @@ using System.Drawing;
 
 namespace ASToolkit.Core.Engine;
 
-internal sealed class UnitCollision
+internal sealed class SpriteCollision
 {
     private const int NorthEastBoundary = Angle.QuarterTurn / 2;
     private const int NorthWestBoundary = Angle.FullTurn - NorthEastBoundary;
@@ -15,40 +15,40 @@ internal sealed class UnitCollision
     private const int MaxPushDepth = 4;
     private const int OppositeDirectionTolerance = 16;
 
-    private readonly MovementMap _map;
-    private readonly UnitGrid _units;
+    private readonly MovementMap _movement;
+    private readonly SpriteCollector _collector;
     
-    public UnitCollision(MovementMap map, UnitGrid units)
+    public SpriteCollision(MovementMap movement, SpriteCollector collector)
     {
-        _map = map;
-        _units = units;
+        _movement = movement;
+        _collector = collector;
     }
 
-    public SizeF MapSize => _map.MapSize;
+    public SizeF MapSize => _movement.MapSize;
 
-    public bool IsInsideMap(Vector2 point) => point is { X: >= 0, Y: >= 0 } && point.X < _map.MapSize.Width && point.Y < _map.MapSize.Height;
+    public bool IsInsideMap(Vector2 point) => point is { X: >= 0, Y: >= 0 } && point.X < _movement.MapSize.Width && point.Y < _movement.MapSize.Height;
 
-    public bool IsBlocked(Unit unit, Vector3 position) => FindCollision(unit, position, out _);
+    public bool IsBlocked(Sprite sprite, Vector3 position) => FindCollision(sprite, position, out _);
 
     [EngineRoutine(0x00443c40)]
-    public bool Move(Unit unit, Vector3 position, int depth = 0, bool commit = true)
+    public bool Move(Sprite sprite, Vector3 position, int depth = 0, bool commit = true)
     {
-        var start = unit.Position;
-        bool blocked = FindCollision(unit, position, out var other);
+        var start = sprite.Position;
+        bool blocked = FindCollision(sprite, position, out var other);
 
         if (blocked)
         {
             if (other is not null && other.Definition.CanBePushed && depth < MaxPushDepth)
             {
                 var pushed = other.Position + position - start;
-                bool opposite = unit.Definition.CanBePushed && other.Direction.MeasureTurnTo(unit.Direction.Opposite) < OppositeDirectionTolerance;
+                bool opposite = sprite.Definition.CanBePushed && other.Direction.MeasureTurnTo(sprite.Direction.Opposite) < OppositeDirectionTolerance;
 
-                Move(other, pushed with { Z = other.Position.Z }, depth + 1, !opposite || unit.Direction.Value < Angle.HalfTurn);
+                Move(other, pushed with { Z = other.Position.Z }, depth + 1, !opposite || sprite.Direction.Value < Angle.HalfTurn);
             }
 
             var alongY = position with { X = start.X };
 
-            if (!FindCollision(unit, alongY, out _))
+            if (!FindCollision(sprite, alongY, out _))
             {
                 position = alongY;
             }
@@ -56,11 +56,11 @@ internal sealed class UnitCollision
             {
                 var alongX = position with { Y = start.Y };
 
-                if (!FindCollision(unit, alongX, out _))
+                if (!FindCollision(sprite, alongX, out _))
                 {
                     position = alongX;
                 }
-                else if (other is null || !IsInsideIgnoringLayers(unit, start, other))
+                else if (other is null || !IsInsideIgnoringLayers(sprite, start, other))
                 {
                     return false;
                 }
@@ -70,46 +70,46 @@ internal sealed class UnitCollision
         if (!commit)
             return true;
 
-        unit.ChangeCoor(unit.Definition.Object.Properties.HasFlag(ObjectProperties.ZeroZ)
-            ? position with { Z = _map.GetSupportHeight(unit.Definition.Object, position.AsVector2()) } : position);
+        sprite.ChangeCoor(sprite.Definition.Object.Properties.HasFlag(ObjectProperties.ZeroZ)
+            ? position with { Z = _movement.GetSupportHeight(sprite.Definition.Object, position.AsVector2()) } : position);
 
         return true;
     }
 
-    private static bool IsInsideIgnoringLayers(Unit unit, Vector3 start, Unit other)
+    private static bool IsInsideIgnoringLayers(Sprite sprite, Vector3 start, Sprite other)
     {
         var offset = Vector2.Abs(other.Position.AsVector2() - start.AsVector2());
-        var reach = other.Definition.Half + unit.Definition.Half;
+        var reach = other.Definition.Half + sprite.Definition.Half;
 
         return other.Animation < SpriteAnimation.Death && offset.X < reach.X && offset.Y < reach.Y &&
-            start.Z <= other.Definition.Object.Size.Z + other.Position.Z && other.Position.Z <= start.Z + unit.Definition.Object.Size.Z;
+            start.Z <= other.Definition.Object.Size.Z + other.Position.Z && other.Position.Z <= start.Z + sprite.Definition.Object.Size.Z;
     }
 
-    private bool FindCollision(Unit unit, Vector3 position, out Unit? collision)
+    private bool FindCollision(Sprite sprite, Vector3 position, out Sprite? collision)
     {
         collision = null;
 
-        if (unit.Definition.MoveMask == 0)
+        if (sprite.Definition.MoveMask == 0)
         {
             return false;
         }
 
-        if (!_map.CanStandOnGround(unit.Definition.Object, position))
+        if (!_movement.CanStandOnGround(sprite.Definition.Object, position))
         {
             return true;
         }
 
-        collision = _units.FindOverlap(unit, unit.Definition.GetCollisionVolume(position));
+        collision = _collector.FindOverlap(sprite, sprite.Definition.GetCollisionVolume(position));
 
         return collision is not null;
     }
 
 
     [EngineRoutine(0x00443ed0)]
-    public Angle AvoidObstacles(Angle direction, Unit unit)
+    public Angle RotateForGlide(Angle direction, Sprite sprite)
     {
-        var center = unit.Position.AsVector2();
-        var half = unit.Definition.Half;
+        var center = sprite.Position.AsVector2();
+        var half = sprite.Definition.Half;
 
         if (direction.Value is <= SouthEastBoundary or >= SouthWestBoundary)
         {
@@ -168,6 +168,6 @@ internal sealed class UnitCollision
 
         return direction;
 
-        bool IsBlockedAt(Vector2 point) => IsBlocked(unit, new Vector3(point, unit.Position.Z));
+        bool IsBlockedAt(Vector2 point) => IsBlocked(sprite, new Vector3(point, sprite.Position.Z));
     }
 }

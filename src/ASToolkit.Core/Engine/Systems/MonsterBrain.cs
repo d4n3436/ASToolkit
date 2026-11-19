@@ -13,13 +13,13 @@ internal sealed class MonsterBrain
     private const int CreaturePeriodMask = 0x7ff;
     private const int CreatureTurn = 0x20;
 
-    private readonly UnitKinematics _motion;
-    private readonly UnitCollision _movement;
+    private readonly SpriteKinematics _motion;
+    private readonly SpriteCollision _movement;
     private readonly Random _random;
-    private readonly IReadOnlyList<Unit> _candidates;
+    private readonly IReadOnlyList<Sprite> _candidates;
     private readonly GameSession _session;
 
-    public MonsterBrain(UnitKinematics motion, UnitCollision movement, Random random, IReadOnlyList<Unit> candidates, GameSession session)
+    public MonsterBrain(SpriteKinematics motion, SpriteCollision movement, Random random, IReadOnlyList<Sprite> candidates, GameSession session)
     {
         _motion = motion;
         _movement = movement;
@@ -29,328 +29,328 @@ internal sealed class MonsterBrain
     }
 
     [EngineRoutine(0x00447260)]
-    public void Move(Unit unit, int elapsed, int framesPerSecond)
+    public void Move(Sprite sprite, int elapsed, int framesPerSecond)
     {
-        ref readonly var obj = ref unit.Definition.Object;
+        ref readonly var obj = ref sprite.Definition.Object;
 
-        if (unit is { IsMoving: false, Speed: 0, TurnTicks: 0, VerticalSpeed: 0 } && (obj.Properties & (ObjectProperties.Gravity | ObjectProperties.Gravity2)) == 0)
+        if (sprite is { IsMoving: false, Speed: 0, TurnTicks: 0, VerticalSpeed: 0 } && (obj.Properties & (ObjectProperties.Gravity | ObjectProperties.Gravity2)) == 0)
             return;
 
-        var next = _motion.Move(unit, elapsed);
+        var next = _motion.Move(sprite, elapsed);
 
-        if (unit.TurnTicks == 0)
+        if (sprite.TurnTicks == 0)
         {
-            if (unit.HasGoal && !unit.Speed.IsZero())
+            if (sprite.HasGoal && !sprite.Speed.IsZero())
             {
-                var goal = Angle.FromOffset((unit.GoalPosition - unit.Position).AsVector2());
+                var goal = Angle.FromOffset((sprite.GoalPosition - sprite.Position).AsVector2());
 
-                if (unit.Speed < 0)
+                if (sprite.Speed < 0)
                 {
                     goal = goal.Opposite;
                 }
-                goal = _movement.AvoidObstacles(goal, unit);
-                unit.SetDirection(unit.TurnWhileMoving(goal, elapsed));
+                goal = _movement.RotateForGlide(goal, sprite);
+                sprite.ChangeDirection(sprite.TurnWhileMoving(goal, elapsed));
 
-                if (unit is { HasReachedX: true, HasReachedY: true })
+                if (sprite is { HasReachedX: true, HasReachedY: true })
                 {
-                    UnitKinematics.StopMoving(unit);
+                    SpriteKinematics.Stop(sprite);
                 }
             }
         }
         else
         {
-            if (Math.Abs(unit.TurnTicks) > framesPerSecond)
+            if (Math.Abs(sprite.TurnTicks) > framesPerSecond)
             {
-                unit.TurnTicks = Math.Sign(unit.TurnTicks) * framesPerSecond / 2;
+                sprite.TurnTicks = Math.Sign(sprite.TurnTicks) * framesPerSecond / 2;
             }
-            var goal = unit.Direction + (unit.TurnTicks > 0 ? Angle.QuarterTurn : -Angle.QuarterTurn);
-            unit.SetDirection(unit.TurnWhileMoving(goal, elapsed));
-            unit.TurnTicks -= Math.Sign(unit.TurnTicks);
+            var goal = sprite.Direction + (sprite.TurnTicks > 0 ? Angle.QuarterTurn : -Angle.QuarterTurn);
+            sprite.ChangeDirection(sprite.TurnWhileMoving(goal, elapsed));
+            sprite.TurnTicks -= Math.Sign(sprite.TurnTicks);
         }
 
-        if (next == unit.Position)
+        if (next == sprite.Position)
             return;
 
-        if (_movement.Move(unit, next))
+        if (_movement.Move(sprite, next))
         {
-            RepelFromMapEdge(unit, elapsed);
+            RepelFromMapEdge(sprite, elapsed);
         }
-        else if (unit.TurnTicks == 0)
+        else if (sprite.TurnTicks == 0)
         {
-            unit.TurnTicks = (_random.Next(2) == 0 ? -1 : 1) * framesPerSecond / 2;
+            sprite.TurnTicks = (_random.Next(2) == 0 ? -1 : 1) * framesPerSecond / 2;
         }
     }
 
-    public void Decide(Unit unit, Unit player, int elapsed, int time)
+    public void Decide(Sprite sprite, Sprite player, int elapsed, int time)
     {
-        if (unit.Definition.Object.SpriteClass == SpriteClass.Creature)
+        if (sprite.Definition.Object.SpriteClass == SpriteClass.Creature)
         {
-            DecideCreature(unit, elapsed, time);
+            DecideCreature(sprite, elapsed, time);
 
             return;
         }
 
-        Act(unit, player, elapsed);
+        Act(sprite, player, elapsed);
     }
 
     [EngineRoutine(0x0044d880)]
-    private void DecideCreature(Unit unit, int elapsed, int time)
+    private void DecideCreature(Sprite sprite, int elapsed, int time)
     {
-        if (unit.Animation >= SpriteAnimation.Death)
+        if (sprite.Animation >= SpriteAnimation.Death)
             return;
 
-        if (unit.Animation is SpriteAnimation.Fight or SpriteAnimation.Wound)
+        if (sprite.Animation is SpriteAnimation.Fight or SpriteAnimation.Wound)
         {
-            unit.ChangeAnimation(SpriteAnimation.Stand);
+            sprite.ChangeAnimation(SpriteAnimation.Stand);
         }
 
-        if (unit is { HasGoal: true, Command: UnitCommand.Move })
+        if (sprite is { HasGoal: true, Command: Command.Move })
         {
-            if (!unit.Speed.IsZero())
+            if (!sprite.Speed.IsZero())
             {
-                if (unit.Animation != SpriteAnimation.Go)
+                if (sprite.Animation != SpriteAnimation.Go)
                 {
-                    unit.ChangeAnimation(SpriteAnimation.Go);
+                    sprite.ChangeAnimation(SpriteAnimation.Go);
                 }
 
                 return;
             }
 
-            unit.ChangeAnimation(SpriteAnimation.Stand);
+            sprite.ChangeAnimation(SpriteAnimation.Stand);
 
             return;
         }
 
-        bool newPeriod = (uint)unit.LastTickTime < (uint)(time - (time & CreaturePeriodMask));
+        bool newPeriod = (uint)sprite.LastTickTime < (uint)(time - (time & CreaturePeriodMask));
 
-        if (unit.Command is UnitCommand.Attack or UnitCommand.OneAttack || newPeriod)
+        if (sprite.Command is Command.Attack or Command.OneAttack || newPeriod)
         {
-            unit.TryAttack(Math.Max(elapsed, unit.Definition.Layout.GetFrameDuration(unit.Animation)));
+            sprite.AttackTact(Math.Max(elapsed, sprite.Definition.Layout.GetFrameDuration(sprite.Animation)));
         }
 
-        int frameTime = (byte)unit.Definition.Layout.GetFrameDuration(unit.Animation);
+        int frameTime = (byte)sprite.Definition.Layout.GetFrameDuration(sprite.Animation);
 
-        if (unit.Command is not (UnitCommand.Move or UnitCommand.Attack or UnitCommand.OneAttack))
+        if (sprite.Command is not (Command.Move or Command.Attack or Command.OneAttack))
         {
-            if (unit.Animation == SpriteAnimation.LRotate && _random.Next() % 3 != 0)
+            if (sprite.Animation == SpriteAnimation.LRotate && _random.Next() % 3 != 0)
             {
-                TurnStep(unit, -CreatureTurn, frameTime);
+                TurnStep(sprite, -CreatureTurn, frameTime);
             }
 
-            if (unit.Animation == SpriteAnimation.RRotate && _random.Next() % 3 != 0)
+            if (sprite.Animation == SpriteAnimation.RRotate && _random.Next() % 3 != 0)
             {
-                TurnStep(unit, CreatureTurn, frameTime);
+                TurnStep(sprite, CreatureTurn, frameTime);
             }
 
             if (newPeriod)
             {
                 if ((_random.Next() & 3) == 0)
                 {
-                    unit.StartMoving(unit.MaxSpeed);
+                    sprite.StartMoving(sprite.MaxSpeed);
                 }
-                else if (unit.Speed.IsZero() && _random.Next() % 3 == 0 && HasUnload(unit.Definition))
+                else if (sprite.Speed.IsZero() && _random.Next() % 3 == 0 && HasUnload(sprite.Definition))
                 {
-                    unit.ChangeAnimation(SpriteAnimation.Unload);
+                    sprite.ChangeAnimation(SpriteAnimation.Unload);
                 }
                 else if ((_random.Next() & 3) == 0)
                 {
-                    TurnStep(unit, (_random.Next() & 1) == 0 ? CreatureTurn : -CreatureTurn, frameTime);
+                    TurnStep(sprite, (_random.Next() & 1) == 0 ? CreatureTurn : -CreatureTurn, frameTime);
                 }
                 else
                 {
-                    UnitKinematics.StopMoving(unit);
+                    SpriteKinematics.Stop(sprite);
                 }
             }
         }
 
-        if (unit.Animation is SpriteAnimation.Wound or SpriteAnimation.Salut)
+        if (sprite.Animation is SpriteAnimation.Wound or SpriteAnimation.Salut)
         {
-            unit.ChangeAnimation(SpriteAnimation.Stand);
+            sprite.ChangeAnimation(SpriteAnimation.Stand);
         }
     }
 
     private static bool HasUnload(SpriteDefinition definition) =>
         definition.Object.FrameCounts[(int)SpriteAnimation.Unload] != 0 || definition.Children[(int)SpriteAnimation.Unload] != 0;
 
-    private static void TurnStep(Unit unit, int step, int elapsed) =>
-        unit.SetDirection(unit.Direction.TurnToward(unit.Direction + step, unit.Definition.Object.RotationPeriod, elapsed, out _));
+    private static void TurnStep(Sprite sprite, int step, int elapsed) =>
+        sprite.ChangeDirection(sprite.Direction.TurnToward(sprite.Direction + step, sprite.Definition.Object.RotationPeriod, elapsed, out _));
 
     [EngineRoutine(0x00440830)]
-    public static void Pause(Unit unit, int time)
+    public static void Pause(Sprite sprite, int time)
     {
-        if (!unit.Speed.IsZero())
+        if (!sprite.Speed.IsZero())
         {
-            UnitKinematics.StopMoving(unit);
+            SpriteKinematics.Stop(sprite);
         }
 
-        unit.Timer = time;
-        UnitKinematics.SetCommand(unit, time != 0 ? UnitCommand.Pause : UnitCommand.None);
+        sprite.Timer = time;
+        SpriteKinematics.SetCommand(sprite, time != 0 ? Command.Pause : Command.None);
     }
 
     [EngineRoutine(0x00445fb0)]
-    public static void Attack(Unit unit, Unit? target)
+    public static void Attack(Sprite sprite, Sprite? target)
     {
-        var definition = unit.Definition;
+        var definition = sprite.Definition;
         bool accepts = target is null || definition.IsArmed && definition.FightChild != 0 && (definition.Targets & target.Definition.Object.SpriteType) != 0;
 
         if (accepts || definition.Object.SpriteClass == SpriteClass.Cannon)
         {
-            UnitKinematics.SetCommand(unit, UnitCommand.Attack, target);
+            SpriteKinematics.SetCommand(sprite, Command.Attack, target);
         }
     }
 
     [EngineRoutine(0x00447500)]
-    private void Act(Unit unit, Unit player, int elapsed)
+    private void Act(Sprite sprite, Sprite player, int elapsed)
     {
-        if (unit.Animation >= SpriteAnimation.Death)
+        if (sprite.Animation >= SpriteAnimation.Death)
             return;
 
-        if (unit.Speed.IsZero())
+        if (sprite.Speed.IsZero())
         {
-            unit.ChangeAnimation(SpriteAnimation.Stand);
+            sprite.ChangeAnimation(SpriteAnimation.Stand);
         }
-        else if (unit.Animation != SpriteAnimation.Go)
+        else if (sprite.Animation != SpriteAnimation.Go)
         {
-            unit.ChangeAnimation(SpriteAnimation.Go);
+            sprite.ChangeAnimation(SpriteAnimation.Go);
         }
 
-        var definition = unit.Definition;
-        var link = unit.ArmedLink;
+        var definition = sprite.Definition;
+        var link = sprite.ArmedLink;
         var result = AttackResult.Pursue;
 
-        if (link is not null && unit.Command is UnitCommand.Attack or UnitCommand.OneAttack && unit.Goal is not null && link.Goal is null)
+        if (link is not null && sprite.Command is Command.Attack or Command.OneAttack && sprite.Goal is not null && link.Goal is null)
         {
-            UnitKinematics.SetCommand(link, unit.Command, unit.Goal);
+            SpriteKinematics.SetCommand(link, sprite.Command, sprite.Goal);
         }
 
-        if (link is not null || unit.TurnTicks == 0)
+        if (link is not null || sprite.TurnTicks == 0)
         {
-            result = unit.TryAttack(Math.Max(elapsed, definition.Layout.GetFrameDuration(unit.Animation)));
+            result = sprite.AttackTact(Math.Max(elapsed, definition.Layout.GetFrameDuration(sprite.Animation)));
 
             switch (result)
             {
                 case AttackResult.NoAmmo or AttackResult.GiveUp:
-                    UnitKinematics.SetCommand(unit, UnitCommand.None);
+                    SpriteKinematics.SetCommand(sprite, Command.None);
                     break;
                 case AttackResult.Approach when definition.Speed.IsZero():
-                    if (link is not null && link.HasGoal || unit.HasGoal)
+                    if (link is not null && link.HasGoal || sprite.HasGoal)
                     {
-                        UnitKinematics.SetCommand(unit, UnitCommand.None);
+                        SpriteKinematics.SetCommand(sprite, Command.None);
                     }
                     break;
-                case AttackResult.Approach when unit.Speed.IsZero():
-                    _motion.StartMove(unit);
+                case AttackResult.Approach when sprite.Speed.IsZero():
+                    _motion.StartMove(sprite);
                     break;
-                case AttackResult.Attacked when !unit.Speed.IsZero() && (link is null || unit.Goal == link.Goal):
-                    UnitKinematics.StopMoving(unit);
+                case AttackResult.Attacked when !sprite.Speed.IsZero() && (link is null || sprite.Goal == link.Goal):
+                    SpriteKinematics.Stop(sprite);
                     break;
             }
 
-            if (result == AttackResult.Approach && link is not null && unit.Command is UnitCommand.Attack or UnitCommand.OneAttack &&
-                unit.IsAggressive && (link.Timer != 0 || _random.Next() % LinkScanOdds == 0))
+            if (result == AttackResult.Approach && link is not null && sprite.Command is Command.Attack or Command.OneAttack &&
+                sprite.IsAggressive && (link.Timer != 0 || _random.Next() % LinkScanOdds == 0))
             {
-                var target = FindTarget(unit, player);
+                var target = SeekEnemy(sprite, player);
 
                 if (target is not null)
                 {
-                    UnitKinematics.SetCommand(link, UnitCommand.OneAttack, target);
+                    SpriteKinematics.SetCommand(link, Command.OneAttack, target);
                 }
             }
         }
 
-        if (result == AttackResult.Pursue && unit.IsActive && unit.Speed.IsZero())
+        if (result == AttackResult.Pursue && sprite.IsActive && sprite.Speed.IsZero())
         {
-            _motion.StartMove(unit);
+            _motion.StartMove(sprite);
         }
 
-        if (result == AttackResult.NoOrder && unit is { IsAggressive: true, IsActive: true } ||
-            result is AttackResult.Pursue or AttackResult.NoTarget && unit is { IsAggressive: true, Command: UnitCommand.None or UnitCommand.Move or UnitCommand.OneAttack } &&
-            (unit.LastFrame > unit.FirstFrame || unit.Timer != 0 || _random.Next(IdleScanOdds) == 0))
+        if (result == AttackResult.NoOrder && sprite is { IsAggressive: true, IsActive: true } ||
+            result is AttackResult.Pursue or AttackResult.NoTarget && sprite is { IsAggressive: true, Command: Command.None or Command.Move or Command.OneAttack } &&
+            (sprite.LastFrame > sprite.FirstFrame || sprite.Timer != 0 || _random.Next(IdleScanOdds) == 0))
         {
-            Engage(unit, player);
+            Engage(sprite, player);
         }
 
-        if (unit is { Command: UnitCommand.None, HasGoal: false, Timer: 0 })
+        if (sprite is { Command: Command.None, HasGoal: false, Timer: 0 })
         {
-            UnitKinematics.StopMoving(unit);
+            SpriteKinematics.Stop(sprite);
         }
     }
 
     [EngineRoutine(0x00447500)]
-    public void Wander(Unit unit)
+    public void Wander(Sprite sprite)
     {
-        if (unit.Command != UnitCommand.None || unit.Definition.Speed.IsZero())
+        if (sprite.Command != Command.None || sprite.Definition.Speed.IsZero())
             return;
 
         var vector = new Angle((byte)_random.Next()).Vector;
-        MoveTo(unit, unit.Position.AsVector2() + vector * WanderReach);
+        MoveTo(sprite, sprite.Position.AsVector2() + vector * WanderReach);
     }
 
     [EngineRoutine(0x004447b0)]
-    public void MoveTo(Unit unit, Vector2 point)
+    public void MoveTo(Sprite sprite, Vector2 point)
     {
-        if (!UnitKinematics.SetCommand(unit, UnitCommand.Move, point: new Vector3(point, unit.Position.Z)) && !_motion.StartMove(unit))
+        if (!SpriteKinematics.SetCommand(sprite, Command.Move, point: new Vector3(point, sprite.Position.Z)) && !_motion.StartMove(sprite))
         {
-            UnitKinematics.SetCommand(unit, UnitCommand.None);
+            SpriteKinematics.SetCommand(sprite, Command.None);
         }
     }
 
-    private void Engage(Unit unit, Unit player)
+    private void Engage(Sprite sprite, Sprite player)
     {
-        var target = FindTarget(unit, player);
+        var target = SeekEnemy(sprite, player);
 
         if (target is not null)
         {
-            UnitKinematics.SetCommand(unit, UnitCommand.OneAttack, target);
+            SpriteKinematics.SetCommand(sprite, Command.OneAttack, target);
         }
     }
 
     [EngineRoutine(0x00444a80)]
-    private Unit? FindTarget(Unit unit, Unit player)
+    private Sprite? SeekEnemy(Sprite sprite, Sprite player)
     {
-        var definition = unit.Definition;
+        var definition = sprite.Definition;
 
         if (definition.DetectRange.IsZero() || definition.Targets == 0)
             return null;
 
-        Unit? best = null;
+        Sprite? best = null;
         float bestDistance = definition.DetectRange + 1;
 
-        if (unit.Army == Army.Monsters)
-            return TryTake(unit, player, ref best, ref bestDistance) ? player : best;
+        if (sprite.Army == Army.Monsters)
+            return TryTake(sprite, player, ref best, ref bestDistance) ? player : best;
 
-        if (TryTake(unit, player, ref best, ref bestDistance))
+        if (TryTake(sprite, player, ref best, ref bestDistance))
             return player;
 
         foreach (var candidate in _candidates)
         {
-            if (candidate != unit && TryTake(unit, candidate, ref best, ref bestDistance))
+            if (candidate != sprite && TryTake(sprite, candidate, ref best, ref bestDistance))
                 return candidate;
         }
 
         return best;
     }
 
-    private bool TryTake(Unit unit, Unit candidate, ref Unit? best, ref float bestDistance)
+    private bool TryTake(Sprite sprite, Sprite candidate, ref Sprite? best, ref float bestDistance)
     {
-        var definition = unit.Definition;
+        var definition = sprite.Definition;
 
-        if ((definition.Targets & candidate.Definition.Object.SpriteType) == 0 || candidate.Definition.MaxHp == 0 || !IsEnemy(unit, candidate) ||
+        if ((definition.Targets & candidate.Definition.Object.SpriteType) == 0 || candidate.Definition.MaxHp == 0 || !IsEnemy(sprite, candidate) ||
             (candidate.Definition.Object.SpriteType.HasFlag(SpriteType.Avia) && candidate.Owner is not null))
             return false;
 
         if (definition.NeedsForwardTarget &&
-            unit.Direction.MeasureTurnTo(Angle.FromOffset((candidate.Position - unit.Position).AsVector2())) > ForwardCone)
+            sprite.Direction.MeasureTurnTo(Angle.FromOffset((candidate.Position - sprite.Position).AsVector2())) > ForwardCone)
             return false;
 
-        float distance = unit.Position.AsVector2().MeasureOctagonalDistance(candidate.Position.AsVector2());
+        float distance = sprite.Position.AsVector2().MeasureOctagonalDistance(candidate.Position.AsVector2());
 
         if (distance > definition.DetectRange || distance < definition.MinRange)
             return false;
 
         bool accepts;
 
-        if (definition.Object.SpriteType.HasFlag(SpriteType.Avia) && unit.Goal is null)
+        if (definition.Object.SpriteType.HasFlag(SpriteType.Avia) && sprite.Goal is null)
         {
             accepts = distance < bestDistance;
         }
@@ -360,14 +360,14 @@ internal sealed class MonsterBrain
         }
         else if (bestDistance <= definition.BattleRange)
         {
-            accepts = distance <= definition.BattleRange && IsBetter(unit, distance, bestDistance, candidate, best);
+            accepts = distance <= definition.BattleRange && IsBetter(sprite, distance, bestDistance, candidate, best);
         }
         else
         {
-            accepts = distance <= definition.BattleRange || IsBetter(unit, distance, bestDistance, candidate, best);
+            accepts = distance <= definition.BattleRange || IsBetter(sprite, distance, bestDistance, candidate, best);
         }
 
-        if (!accepts || (unit.Army == Army.Player && candidate.Definition.Object.SpriteClass == SpriteClass.Engine && HasCarOfArmy(candidate, Army.Player)))
+        if (!accepts || (sprite.Army == Army.Player && candidate.Definition.Object.SpriteClass == SpriteClass.Engine && HasCarOfArmy(candidate, Army.Player)))
             return false;
 
         best = candidate;
@@ -378,21 +378,21 @@ internal sealed class MonsterBrain
 
     // TODO: Port the trains
     [EngineRoutine(0x004505c0)]
-    private static bool HasCarOfArmy(Unit engine, Army army) => engine.Army == army;
+    private static bool HasCarOfArmy(Sprite engine, Army army) => engine.Army == army;
 
     [EngineRoutine(0x00445c80)]
-    private static bool IsBetter(Unit unit, float distance, float bestDistance, Unit candidate, Unit? best)
+    private static bool IsBetter(Sprite sprite, float distance, float bestDistance, Sprite candidate, Sprite? best)
     {
         if (best is null)
             return true;
 
-        if (unit.Definition.WeaponFlags.HasFlag(WeaponFlags.PrefersNearest))
+        if (sprite.Definition.WeaponFlags.HasFlag(WeaponFlags.PrefersNearest))
             return distance < bestDistance;
 
-        if (unit.Goal == best)
+        if (sprite.Goal == best)
             return false;
 
-        if (unit.Goal == candidate)
+        if (sprite.Goal == candidate)
             return true;
 
         if (candidate.Army == Army.Neutral && best.Army != Army.Neutral)
@@ -404,7 +404,7 @@ internal sealed class MonsterBrain
         if (bestFlies != candidateFlies)
             return candidateFlies;
 
-        float range = (unit.ArmedLink?.Definition ?? unit.Definition).BattleRange;
+        float range = (sprite.ArmedLink?.Definition ?? sprite.Definition).BattleRange;
 
         if (range < bestDistance && distance <= range)
             return true;
@@ -421,25 +421,25 @@ internal sealed class MonsterBrain
         return bestRank < candidateRank || bestRank <= candidateRank && distance < bestDistance;
     }
 
-    private bool IsEnemy(Unit unit, Unit target)
+    private bool IsEnemy(Sprite sprite, Sprite target)
     {
-        bool ownArmy = unit.Definition.WeaponFlags.HasFlag(WeaponFlags.TargetsOwnArmy);
+        bool ownArmy = sprite.Definition.WeaponFlags.HasFlag(WeaponFlags.TargetsOwnArmy);
 
-        return (target.Army != unit.Army || ownArmy) && !target.Definition.Object.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) &&
+        return (target.Army != sprite.Army || ownArmy) && !target.Definition.Object.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) &&
             (target.Army != Army.Neutral || ownArmy ||
-                (_session.CanMonstersAttackNeutralTrains && unit.Army == Army.Monsters && target.Definition.Object.SpriteClass == SpriteClass.Engine));
+                (_session.CanMonstersAttackNeutralTrains && sprite.Army == Army.Monsters && target.Definition.Object.SpriteClass == SpriteClass.Engine));
     }
 
     [EngineRoutine(0x0043fa00)]
-    private void RepelFromMapEdge(Unit unit, int elapsed)
+    private void RepelFromMapEdge(Sprite sprite, int elapsed)
     {
-        var position = unit.Position;
+        var position = sprite.Position;
         var size = _movement.MapSize;
         int goal = position.X < 0 ? Angle.QuarterTurn : position.Y < 0 ? Angle.HalfTurn : position.X >= size.Width ? Angle.HalfTurn + Angle.QuarterTurn : position.Y >= size.Height ? 0 : -1;
 
         if (goal >= 0)
         {
-            unit.SetDirection(unit.Direction.TurnToward(new Angle((byte)goal), unit.Definition.Object.RotationPeriod, elapsed, out _));
+            sprite.ChangeDirection(sprite.Direction.TurnToward(new Angle((byte)goal), sprite.Definition.Object.RotationPeriod, elapsed, out _));
         }
     }
 }

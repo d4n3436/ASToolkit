@@ -13,29 +13,29 @@ public class LinkTests
     public void AddMonster_TankAliens_BuildAnArmedTurretThroughTheirLinks()
     {
         var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var world = EngineTestWorld.CreateWorld(objects);
+        var map = EngineTestMap.CreateMap(objects);
 
-        var yellow = world.AddMonster(objects.Find(KnownObject.YellowTankWeaponMonster)!, world.Player.Position + new Vector3(400, 0, 0));
-        var red = world.AddMonster(objects.Find(KnownObject.RedTankWeaponMonster)!, world.Player.Position + new Vector3(0, 400, 0));
+        var yellow = map.AddMonster(objects.Find(KnownObject.YellowTankWeaponMonster)!, map.Player.Position + new Vector3(400, 0, 0));
+        var red = map.AddMonster(objects.Find(KnownObject.RedTankWeaponMonster)!, map.Player.Position + new Vector3(0, 400, 0));
 
         Assert.Equal(KnownObject.Monster4Weapon2, yellow.Link!.Definition.Id);
         Assert.Equal(KnownObject.MonsterMachineGunDummy, yellow.Link.Link!.Definition.Id);
-        Assert.Contains(yellow.Link.Link, world.Monsters);
+        Assert.Contains(yellow.Link.Link, map.Monsters);
         Assert.Equal(KnownObject.Monster4Weapon3, red.Link!.Definition.Id);
-        var turret = Assert.Single(world.Monsters, unit => unit.Definition.Id == KnownObject.MonsterMachineGunDummy && unit.Owner == red.Link);
+        var turret = Assert.Single(map.Monsters, sprite => sprite.Definition.Id == KnownObject.MonsterMachineGunDummy && sprite.Owner == red.Link);
         Assert.Equal(red.Army, turret.Army);
         Assert.NotEqual(0, turret.Definition.Object.WeaponIndex);
     }
 
     [Fact]
-    public void CreateWorld_PlacedTeleportPad_BuildsItsEndlessGenerator()
+    public void CreateMap_PlacedTeleportPad_BuildsItsEndlessGenerator()
     {
         var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var pad = new MergedMapSprite(1, KnownObject.TeleportPad, new Vector3(1000, 1000, 0), 0, 0, []);
 
-        var world = EngineTestWorld.CreateWorld(objects, sprites: [pad]);
+        var map = EngineTestMap.CreateMap(objects, sprites: [pad]);
 
-        Assert.Contains(world.Scripted, unit => unit.Definition.Id.IsEndlessGenerator && unit.Owner is not null);
+        Assert.Contains(map.Scripted, sprite => sprite.Definition.Id.IsEndlessGenerator && sprite.Owner is not null);
     }
 
     [Fact]
@@ -50,17 +50,17 @@ public class LinkTests
     public void GetSample_RecordedTicks_StayWithinHalfAPixelOfTheEngine()
     {
         var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var world = EngineTestWorld.CreateWorld(objects);
+        var map = EngineTestMap.CreateMap(objects);
         var recorder = new ReplayRecorder();
-        recorder.Start(world);
-        var enemy = world.AddMonster(objects.Find(KnownObject.Monster1)!, world.Player.Position + new Vector3(300, 120, 0), direction: new Angle(192));
+        recorder.Start(map);
+        var enemy = map.AddMonster(objects.Find(KnownObject.Monster1)!, map.Player.Position + new Vector3(300, 120, 0), direction: new Angle(192));
         var truth = new List<(int Time, Vector3 Player, Vector3? Enemy, Vector3? Link)>();
         for (int tick = 0; tick < 300; tick++)
         {
-            world.Step(new PlayerCommand(null, PlayerCommand.GetCursor(enemy.Position), enemy.IsAlive, Unit.Pistols));
-            recorder.Capture(world);
-            bool listed = world.Monsters.Contains(enemy);
-            truth.Add((world.Time, world.Player.Position, listed ? enemy.Position : null, listed && enemy.Link?.Owner == enemy ? enemy.Link.Position : null));
+            map.Step(new PlayerCommand(null, PlayerCommand.GetCursor(enemy.Position), enemy.IsAlive, Sprite.Pistols));
+            recorder.Capture(map);
+            bool listed = map.Monsters.Contains(enemy);
+            truth.Add((map.Time, map.Player.Position, listed ? enemy.Position : null, listed && enemy.Link?.Owner == enemy ? enemy.Link.Position : null));
         }
 
         var replay = recorder.CreateReplay([]);

@@ -3,7 +3,7 @@ using ASToolkit.Core.Engine;
 namespace ASToolkit.Core.Simulation;
 
 /// <summary>
-/// Represents the recorded replay of a playthrough, such as the tracks of its units and effects, the camera inputs and the map changes over time.
+/// Represents the recorded replay of a playthrough, such as the tracks of its sprites and effects, the camera inputs and the map changes over time.
 /// </summary>
 /// <param name="Tracks">The objects drawn over the map, in the order they appeared, the player's legs first.</param>
 /// <param name="Samples">The samples of the tracks, grouped by track in time order.</param>

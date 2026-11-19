@@ -14,12 +14,12 @@ internal sealed class ReplayRecorder
 
     private readonly List<OpenTrack> _tracks = [];
     private readonly List<List<SpriteSample>> _trackSamples = [];
-    private readonly Dictionary<Unit, int> _open = [];
+    private readonly Dictionary<Sprite, int> _open = [];
     private readonly List<PendingSample> _captures = [];
-    private readonly HashSet<Unit> _seen = [];
+    private readonly HashSet<Sprite> _seen = [];
     private readonly List<ScreenInput> _inputs = [];
-    private Dictionary<Unit, Vector3> _positions = [];
-    private Dictionary<Unit, Vector3> _previousPositions = [];
+    private Dictionary<Sprite, Vector3> _positions = [];
+    private Dictionary<Sprite, Vector3> _previousPositions = [];
     private readonly List<SpriteEvent> _createdSprites = [];
     private readonly List<SpriteEvent> _removedSprites = [];
     private readonly HashSet<MergedMapSprite> _gone = new(ReferenceEqualityComparer.Instance);
@@ -28,62 +28,62 @@ internal sealed class ReplayRecorder
     private readonly List<EffectState> _scenery = [];
     private readonly List<CameraShake> _shakes = [];
     private readonly List<ScreenFlash> _flashes = [];
-    private readonly List<PlacedUnit> _placed = [];
+    private readonly List<PlacedSprite> _placed = [];
     private int _spriteCount;
     private int _removedCount = -1;
     private int _settledCount;
     private int _flashedAt = -1;
     private int _shookAt = -1;
 
-    public void Start(GameWorld world)
+    public void Start(Map map)
     {
-        _pickups = new PickupTracker(world);
-        _spriteCount = world.Sprites.Count;
-        foreach (var sprite in world.Sprites)
+        _pickups = new PickupTracker(map);
+        _spriteCount = map.Sprites.Count;
+        foreach (var placement in map.Sprites)
         {
-            var unit = world.FindPlacementUnit(sprite);
+            var sprite = map.FindPlacementSprite(placement);
 
-            if (unit is not null && !sprite.Id.IsScripted)
+            if (sprite is not null && !placement.Id.IsScripted)
             {
-                _placed.Add(new PlacedUnit(sprite, unit) { Position = unit.Position });
+                _placed.Add(new PlacedSprite(placement, sprite) { Position = sprite.Position });
             }
         }
 
-        CaptureSprites(world);
+        CaptureSprites(map);
     }
 
-    public void Capture(GameWorld world)
+    public void Capture(Map map)
     {
-        CaptureSprites(world);
-        CaptureScreen(world);
-        var settled = world.Effects.Settled;
+        CaptureSprites(map);
+        CaptureScreen(map);
+        var settled = map.Effects.Settled;
         for (; _settledCount < settled.Count; _settledCount++)
         {
             _scenery.Add(settled[_settledCount]);
         }
 
-        int time = world.Time;
-        _inputs.Add(new ScreenInput(time, world.Player.Position, world.Cursor));
+        int time = map.Time;
+        _inputs.Add(new ScreenInput(time, map.Player.Position, map.Cursor));
 
         _captures.Clear();
         _seen.Clear();
         (_previousPositions, _positions) = (_positions, _previousPositions);
         _positions.Clear();
-        AddUnit(world.Player);
-        AddUnit(world.Weapons.Torso);
-        foreach (var monster in world.Monsters)
+        AddSprite(map.Player);
+        AddSprite(map.Weapons.Torso);
+        foreach (var monster in map.Monsters)
         {
-            AddUnit(monster);
+            AddSprite(monster);
         }
 
-        foreach (var effect in world.Effects.Active)
+        foreach (var effect in map.Effects.Active)
         {
             Add(effect, SpawnedObjectSystem.GetState(effect));
         }
 
-        foreach (var pickup in (_pickups ??= new PickupTracker(world)).Pickups)
+        foreach (var pickup in (_pickups ??= new PickupTracker(map)).Pickups)
         {
-            var body = PickupTracker.IsDropped(pickup) ? world.FindPlacementUnit(pickup) : null;
+            var body = PickupTracker.IsDropped(pickup) ? map.FindPlacementSprite(pickup) : null;
 
             if (body is not null)
             {
@@ -91,9 +91,9 @@ internal sealed class ReplayRecorder
             }
         }
 
-        foreach (var unit in world.Scripted)
+        foreach (var sprite in map.Scripted)
         {
-            Add(unit, SpawnedObjectSystem.GetState(unit));
+            Add(sprite, SpawnedObjectSystem.GetState(sprite));
         }
 
         // Take owners before the objects linked to them
@@ -117,7 +117,7 @@ internal sealed class ReplayRecorder
         }
 
         CloseTracks(time);
-        CapturePlacements(world);
+        CapturePlacements(map);
     }
 
     public PlaythroughReplay CreateReplay(IReadOnlyList<SpriteEvent> pickups)
@@ -135,16 +135,16 @@ internal sealed class ReplayRecorder
             _shakes.ToArray(), _flashes.ToArray());
     }
 
-    private void AddUnit(Unit unit) =>
-        Add(unit, new EffectState(unit.Definition.Id, unit.Position, unit.Direction, unit.Animation, unit.CreatedAt, unit.Frame, unit.KeyframePosition));
+    private void AddSprite(Sprite sprite) =>
+        Add(sprite, new EffectState(sprite.Definition.Id, sprite.Position, sprite.Direction, sprite.Animation, sprite.CreatedAt, sprite.Frame, sprite.KeyframePosition));
 
-    private void Add(Unit unit, in EffectState state)
+    private void Add(Sprite sprite, in EffectState state)
     {
-        var owner = unit.Owner is not null && unit.Owner.Link == unit ? unit.Owner : null;
-        bool rotates = unit.Definition.Object.Properties.HasFlag(ObjectProperties.HardwareDirect);
-        bool lags = owner is not null && unit.Definition.Layer <= owner.Definition.Layer;
-        _captures.Add(new PendingSample(unit, state, owner, rotates, lags));
-        _seen.Add(unit);
+        var owner = sprite.Owner is not null && sprite.Owner.Link == sprite ? sprite.Owner : null;
+        bool rotates = sprite.Definition.Object.Properties.HasFlag(ObjectProperties.HardwareDirect);
+        bool lags = owner is not null && sprite.Definition.Layer <= owner.Definition.Layer;
+        _captures.Add(new PendingSample(sprite, state, owner, rotates, lags));
+        _seen.Add(sprite);
     }
 
     // Keeps a sample only where the object's drawn look changes or it leaves the straight line of its last two samples
@@ -209,35 +209,35 @@ internal sealed class ReplayRecorder
         }
     }
 
-    private void Close(Unit key, int index, int time)
+    private void Close(Sprite key, int index, int time)
     {
         CollectionsMarshal.AsSpan(_tracks)[index].End = time;
         _open.Remove(key);
     }
 
-    private void CaptureSprites(GameWorld world)
+    private void CaptureSprites(Map map)
     {
-        for (; _spriteCount < world.Sprites.Count; _spriteCount++)
+        for (; _spriteCount < map.Sprites.Count; _spriteCount++)
         {
-            _createdSprites.Add(new SpriteEvent(world.Sprites[_spriteCount], world.Time));
+            _createdSprites.Add(new SpriteEvent(map.Sprites[_spriteCount], map.Time));
         }
 
-        if (world.RemovedCount == _removedCount)
+        if (map.RemovedCount == _removedCount)
             return;
 
-        _removedCount = world.RemovedCount;
-        foreach (var sprite in world.Sprites)
+        _removedCount = map.RemovedCount;
+        foreach (var sprite in map.Sprites)
         {
-            if (world.IsRemoved(sprite) && _gone.Add(sprite))
+            if (map.IsRemoved(sprite) && _gone.Add(sprite))
             {
-                _removedSprites.Add(new SpriteEvent(sprite, world.Time));
+                _removedSprites.Add(new SpriteEvent(sprite, map.Time));
             }
         }
     }
 
-    private void CaptureScreen(GameWorld world)
+    private void CaptureScreen(Map map)
     {
-        var shake = world.CameraShake;
+        var shake = map.CameraShake;
 
         if (shake is not null && shake.Value.Time != _shookAt)
         {
@@ -245,7 +245,7 @@ internal sealed class ReplayRecorder
             _shakes.Add(shake.Value);
         }
 
-        var flash = world.ScreenFlash;
+        var flash = map.ScreenFlash;
 
         if (flash is not null && flash.Value.Time != _flashedAt)
         {
@@ -254,32 +254,32 @@ internal sealed class ReplayRecorder
         }
     }
 
-    private void CapturePlacements(GameWorld world)
+    private void CapturePlacements(Map map)
     {
         var placed = CollectionsMarshal.AsSpan(_placed);
         for (int index = 0; index < placed.Length; index++)
         {
             ref var entry = ref placed[index];
 
-            if (world.IsRemoved(entry.Sprite) || Vector3.DistanceSquared(entry.Unit.Position, entry.Position) <= MinMove)
+            if (map.IsRemoved(entry.Placement) || Vector3.DistanceSquared(entry.Sprite.Position, entry.Position) <= MinMove)
                 continue;
 
-            entry.Position = entry.Unit.Position;
-            _placementFrames.Add(new PlacementFrame(entry.Sprite, world.Time, entry.Position));
+            entry.Position = entry.Sprite.Position;
+            _placementFrames.Add(new PlacementFrame(entry.Placement, map.Time, entry.Position));
         }
     }
 
-    private struct PlacedUnit
+    private struct PlacedSprite
     {
-        public PlacedUnit(MergedMapSprite sprite, Unit unit)
+        public PlacedSprite(MergedMapSprite placement, Sprite sprite)
         {
+            Placement = placement;
             Sprite = sprite;
-            Unit = unit;
         }
 
-        public MergedMapSprite Sprite { get; }
+        public MergedMapSprite Placement { get; }
 
-        public Unit Unit { get; }
+        public Sprite Sprite { get; }
 
         public Vector3 Position { get; set; }
     }
@@ -294,5 +294,5 @@ internal sealed class ReplayRecorder
         public bool Lags;
     }
 
-    private readonly record struct PendingSample(Unit Key, EffectState State, Unit? Owner, bool Rotates, bool Lags);
+    private readonly record struct PendingSample(Sprite Key, EffectState State, Sprite? Owner, bool Rotates, bool Lags);
 }

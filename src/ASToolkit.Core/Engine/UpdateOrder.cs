@@ -1,6 +1,6 @@
 namespace ASToolkit.Core.Engine;
 
-internal readonly record struct UpdateEntry(UpdateRole Role, Unit? Unit);
+internal readonly record struct UpdateEntry(UpdateRole Role, Sprite? Sprite);
 
 internal sealed class UpdateOrder
 {
@@ -24,12 +24,12 @@ internal sealed class UpdateOrder
     public void Add(int layer, UpdateEntry entry) => _layers[layer].Add(entry);
 
     [EngineRoutine(0x0040fa90)]
-    public void Remove(int layer, Unit unit)
+    public void Remove(int layer, Sprite sprite)
     {
         var list = _layers[layer];
         for (int i = list.Count - 1; i >= 0; i--)
         {
-            if (list[i].Unit != unit)
+            if (list[i].Sprite != sprite)
                 continue;
 
             Clear(list, i);
@@ -48,7 +48,7 @@ internal sealed class UpdateOrder
 
         foreach (var list in _layers)
         {
-            list.RemoveAll(entry => entry.Unit is null);
+            list.RemoveAll(entry => entry.Sprite is null);
         }
     }
 }

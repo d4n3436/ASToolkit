@@ -2,7 +2,7 @@ namespace ASToolkit.Core.Engine;
 
 internal interface ISpriteQuery
 {
-    Unit? Found { get; }
+    Sprite? Found { get; }
 
-    void Consider(Unit sprite, bool listed);
+    void Consider(Sprite sprite, bool listed);
 }

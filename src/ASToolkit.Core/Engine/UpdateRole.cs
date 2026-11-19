@@ -1,7 +1,7 @@
 namespace ASToolkit.Core.Engine;
 
 /// <summary>
-/// Specifies the side list that removes a sprite when it leaves the world.
+/// Specifies the side list that removes a sprite when it leaves the map.
 /// </summary>
 public enum UpdateRole
 {

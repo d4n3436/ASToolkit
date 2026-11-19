@@ -13,24 +13,24 @@ public class ScriptHandlerTests
     public void Step_FreezeBonusTaken_FreezesNearbyMonstersInPlace()
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var world = EngineTestWorld.CreateWorld(definitions);
-        var monster = world.AddMonster(definitions.Find(KnownObject.RedMonster1)!, world.Player.Position + new Vector3(300, 0, 0));
-        world.CreateSprite(definitions.Find(KnownObject.FreezeMonsters)!, world.Player.Position, default);
-        Step(world, 10);
+        var map = EngineTestMap.CreateMap(definitions);
+        var monster = map.AddMonster(definitions.Find(KnownObject.RedMonster1)!, map.Player.Position + new Vector3(300, 0, 0));
+        map.CreateSprite(definitions.Find(KnownObject.FreezeMonsters)!, map.Player.Position, default);
+        Step(map, 10);
 
         Assert.Equal(KnownObject.FrozenMonster1, monster.Definition.Id);
         Assert.True(monster.IsAlive);
         Assert.Equal(WeaponBehavior.None, monster.Behavior);
         Assert.Equal(0, monster.Speed);
-        Assert.Equal(0x1010ff, world.ScreenFlash?.Color);
+        Assert.Equal(0x1010ff, map.ScreenFlash?.Color);
     }
 
     [Fact]
     public void Step_MapStartingWithAnEarthquake_ShakesTheScreenFromTheFirstTick()
     {
         var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var calm = EngineTestWorld.CreateWorld(objects);
-        var shaking = EngineTestWorld.CreateWorld(objects, environment: MapEnvironment.Earthquake);
+        var calm = EngineTestMap.CreateMap(objects);
+        var shaking = EngineTestMap.CreateMap(objects, environment: MapEnvironment.Earthquake);
 
         Step(calm, 1);
         Step(shaking, 1);
@@ -43,13 +43,13 @@ public class ScriptHandlerTests
     public void Step_BombTaken_Deals300ToMonstersAndShakesTheScreen()
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var world = EngineTestWorld.CreateWorld(definitions);
+        var map = EngineTestMap.CreateMap(definitions);
         var recorder = new ReplayRecorder();
-        recorder.Start(world);
+        recorder.Start(map);
         var tank = definitions.Find(KnownObject.RedTankMonster)!;
-        var monster = world.AddMonster(tank, world.Player.Position + new Vector3(600, 0, 0));
-        world.CreateSprite(definitions.Find(KnownObject.Bomb)!, world.Player.Position, default);
-        Step(world, 10, recorder);
+        var monster = map.AddMonster(tank, map.Player.Position + new Vector3(600, 0, 0));
+        map.CreateSprite(definitions.Find(KnownObject.Bomb)!, map.Player.Position, default);
+        Step(map, 10, recorder);
 
         var replay = recorder.CreateReplay([]);
         Assert.Equal(tank.MaxHp - 300, monster.Hp);
@@ -58,7 +58,7 @@ public class ScriptHandlerTests
         Assert.All(replay.Shakes, shake => Assert.InRange(Math.Abs(shake.Offset.X) + Math.Abs(shake.Offset.Y), 0, 8));
 
         int started = replay.Shakes[0].Time;
-        Step(world, 2600 / GameClock.DefaultFrameTime, recorder);
+        Step(map, 2600 / GameClock.DefaultFrameTime, recorder);
         Assert.InRange(recorder.CreateReplay([]).Shakes[^1].Time - started, 2400, 2600);
     }
 
@@ -66,16 +66,16 @@ public class ScriptHandlerTests
     public void Step_AdrenalineTaken_RaisesSpeedUntilTheNextScriptTick()
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var world = EngineTestWorld.CreateWorld(definitions);
-        float speed = world.Player.MaxSpeed;
-        world.CreateSprite(definitions.Find(KnownObject.Adrenaline)!, world.Player.Position, default);
-        var log = new PlayLog(world);
+        var map = EngineTestMap.CreateMap(definitions);
+        float speed = map.Player.MaxSpeed;
+        map.CreateSprite(definitions.Find(KnownObject.Adrenaline)!, map.Player.Position, default);
+        var log = new PlayLog(map);
         var seen = new List<float>();
         for (int tick = 0; tick < 10; tick++)
         {
-            world.Step(default);
-            log.Update(world);
-            seen.Add(world.Player.MaxSpeed);
+            map.Step(default);
+            log.Update(map);
+            seen.Add(map.Player.MaxSpeed);
         }
 
         Assert.Contains(KnownObject.Adrenaline, log.TakenPickups);
@@ -87,25 +87,25 @@ public class ScriptHandlerTests
     public void Step_DroneTaken_FollowsThePlayerAndRefusesASecond()
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var world = EngineTestWorld.CreateWorld(definitions);
-        Step(world, 1);
-        world.CreateSprite(definitions.Find(KnownObject.Drone)!, world.Player.Position, default);
-        Step(world, 10);
+        var map = EngineTestMap.CreateMap(definitions);
+        Step(map, 1);
+        map.CreateSprite(definitions.Find(KnownObject.Drone)!, map.Player.Position, default);
+        Step(map, 10);
 
-        var drone = Assert.Single(world.Monsters, unit => unit.Definition.Id == KnownObject.FlyingDrone);
+        var drone = Assert.Single(map.Monsters, sprite => sprite.Definition.Id == KnownObject.FlyingDrone);
 
-        var second = world.CreateSprite(definitions.Find(KnownObject.Drone)!, world.Player.Position, default)!;
-        Step(world, 10);
+        var second = map.CreateSprite(definitions.Find(KnownObject.Drone)!, map.Player.Position, default)!;
+        Step(map, 10);
         Assert.True(second.Animation < SpriteAnimation.Death);
 
-        world.Player.Position += new Vector3(300, 0, 0);
-        float before = Vector2.Distance(drone.Position.AsVector2(), world.Player.Position.AsVector2());
-        Step(world, 100);
-        Assert.True(Vector2.Distance(drone.Position.AsVector2(), world.Player.Position.AsVector2()) < before);
+        map.Player.Position += new Vector3(300, 0, 0);
+        float before = Vector2.Distance(drone.Position.AsVector2(), map.Player.Position.AsVector2());
+        Step(map, 100);
+        Assert.True(Vector2.Distance(drone.Position.AsVector2(), map.Player.Position.AsVector2()) < before);
 
-        world.Damage(drone, drone.Hp);
-        Step(world, 100);
-        Assert.DoesNotContain(world.Monsters, unit => unit.Definition.Id == KnownObject.FlyingDrone && unit.IsAlive);
+        map.Damage(drone, drone.Hp);
+        Step(map, 100);
+        Assert.DoesNotContain(map.Monsters, sprite => sprite.Definition.Id == KnownObject.FlyingDrone && sprite.IsAlive);
     }
 
     [Fact]
@@ -113,24 +113,24 @@ public class ScriptHandlerTests
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default, new Dictionary<KnownObject, int> { [KnownObject.Drone] = 1 });
-        var world = EngineTestWorld.CreateWorld(definitions, loadout: loadout);
-        Step(world, 1);
+        var map = EngineTestMap.CreateMap(definitions, loadout: loadout);
+        Step(map, 1);
 
-        Assert.Single(world.Monsters, unit => unit.Definition.Id == KnownObject.FlyingDrone);
+        Assert.Single(map.Monsters, sprite => sprite.Definition.Id == KnownObject.FlyingDrone);
     }
 
     [Fact]
     public void Step_FreezeBulletKillsAMonster_FreezesItInsteadOfKillingIt()
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var world = EngineTestWorld.CreateWorld(definitions);
-        Step(world, 1);
-        var position = world.Player.Position + new Vector3(300, 0, 0);
-        var monster = world.AddMonster(definitions.Find(KnownObject.Slug)!, position);
+        var map = EngineTestMap.CreateMap(definitions);
+        Step(map, 1);
+        var position = map.Player.Position + new Vector3(300, 0, 0);
+        var monster = map.AddMonster(definitions.Find(KnownObject.Slug)!, position);
         monster.Hp = 10;
-        var bullet = world.Effects.Spawn(KnownObject.FreezeBullet, position + new Vector3(40, 0, 0), default, world.Time, lifetime: 1);
+        var bullet = map.Effects.Spawn(KnownObject.FreezeBullet, position + new Vector3(40, 0, 0), default, map.Time, lifetime: 1);
         Assert.NotNull(bullet);
-        Step(world, 20);
+        Step(map, 20);
 
         Assert.Equal(KnownObject.FrozenSlug, monster.Definition.Id);
         Assert.True(monster.IsAlive);
@@ -144,13 +144,13 @@ public class ScriptHandlerTests
         
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int> { [KnownObject.FreezeRifle] = 100 }, default);
-        var world = EngineTestWorld.CreateWorld(definitions, loadout: loadout);
-        Step(world, 1);
-        var monster = world.AddMonster(definitions.Find(KnownObject.Slug)!, world.Player.Position + new Vector3(250, 0, 0), new Angle(192));
+        var map = EngineTestMap.CreateMap(definitions, loadout: loadout);
+        Step(map, 1);
+        var monster = map.AddMonster(definitions.Find(KnownObject.Slug)!, map.Player.Position + new Vector3(250, 0, 0), new Angle(192));
 
         for (int tick = 0; tick < 1500 && monster.Definition.Id != KnownObject.FrozenSlug; tick++)
         {
-            world.Step(new PlayerCommand(null, PlayerCommand.GetCursor(monster.Position), true, slot));
+            map.Step(new PlayerCommand(null, PlayerCommand.GetCursor(monster.Position), true, slot));
         }
 
         Assert.Equal(KnownObject.FrozenSlug, monster.Definition.Id);
@@ -164,14 +164,14 @@ public class ScriptHandlerTests
 
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int> { [KnownObject.FlameThrower] = 1000 }, default);
-        var world = EngineTestWorld.CreateWorld(definitions, loadout: loadout);
-        Step(world, 1);
-        var monster = world.AddMonster(definitions.Find(KnownObject.TankMonster)!, world.Player.Position + new Vector3(120, 0, 0), new Angle(192));
+        var map = EngineTestMap.CreateMap(definitions, loadout: loadout);
+        Step(map, 1);
+        var monster = map.AddMonster(definitions.Find(KnownObject.TankMonster)!, map.Player.Position + new Vector3(120, 0, 0), new Angle(192));
         int health = monster.Hp;
 
         for (int tick = 0; tick < 100; tick++)
         {
-            world.Step(new PlayerCommand(null, PlayerCommand.GetCursor(monster.Position), true, slot));
+            map.Step(new PlayerCommand(null, PlayerCommand.GetCursor(monster.Position), true, slot));
         }
 
         Assert.True(monster.Hp < health);
@@ -181,13 +181,13 @@ public class ScriptHandlerTests
     public void Step_ElectricBallBorn_DrainsTenHealthFromThePlayer()
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var world = EngineTestWorld.CreateWorld(definitions);
-        Step(world, 1);
-        int health = world.Player.Hp;
-        world.Effects.Spawn(KnownObject.ElectricBall, world.Player.Position + new Vector3(500, 0, 0), default, world.Time);
-        Step(world, 5);
+        var map = EngineTestMap.CreateMap(definitions);
+        Step(map, 1);
+        int health = map.Player.Hp;
+        map.Effects.Spawn(KnownObject.ElectricBall, map.Player.Position + new Vector3(500, 0, 0), default, map.Time);
+        Step(map, 5);
 
-        Assert.Equal(health - 10, world.Player.Hp);
+        Assert.Equal(health - 10, map.Player.Hp);
     }
 
     [Fact]
@@ -195,37 +195,37 @@ public class ScriptHandlerTests
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default, new Dictionary<KnownObject, int> { [KnownObject.Medkit] = 1 });
-        var world = EngineTestWorld.CreateWorld(definitions, loadout: loadout);
-        Step(world, 1);
-        world.Damage(world.Player, world.Player.Hp);
-        Step(world, 2500 / GameClock.DefaultFrameTime);
-        int health = world.Player.Hp;
-        world.Damage(world.Player, 5);
+        var map = EngineTestMap.CreateMap(definitions, loadout: loadout);
+        Step(map, 1);
+        map.Damage(map.Player, map.Player.Hp);
+        Step(map, 2500 / GameClock.DefaultFrameTime);
+        int health = map.Player.Hp;
+        map.Damage(map.Player, 5);
 
-        Assert.True(world.Player.IsAlive);
-        Assert.Equal(health, world.Player.Hp);
+        Assert.True(map.Player.IsAlive);
+        Assert.Equal(health, map.Player.Hp);
     }
 
     [Fact]
     public void Step_PlayerKilled_FlashesTheScreenRedOnce()
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var world = EngineTestWorld.CreateWorld(definitions);
+        var map = EngineTestMap.CreateMap(definitions);
         var recorder = new ReplayRecorder();
-        recorder.Start(world);
-        Step(world, 1);
-        world.Damage(world.Player, world.Player.Hp);
-        Step(world, 40, recorder);
+        recorder.Start(map);
+        Step(map, 1);
+        map.Damage(map.Player, map.Player.Hp);
+        Step(map, 40, recorder);
 
         Assert.Single(recorder.CreateReplay([]).Flashes, flash => flash.Color == 0xff0000);
     }
 
-    private static void Step(GameWorld world, int ticks, ReplayRecorder? recorder = null)
+    private static void Step(Map map, int ticks, ReplayRecorder? recorder = null)
     {
         for (int tick = 0; tick < ticks; tick++)
         {
-            world.Step(default);
-            recorder?.Capture(world);
+            map.Step(default);
+            recorder?.Capture(map);
         }
     }
 }

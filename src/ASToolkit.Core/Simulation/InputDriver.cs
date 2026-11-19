@@ -8,18 +8,18 @@ internal sealed class InputDriver
 {
     private const int FirstWeaponKey = '0';
     private const int RebirthKey = ' ';
-    private readonly GameWorld _world;
+    private readonly Map _map;
     private Vector2? _destination;
 
-    public InputDriver(GameWorld world)
+    public InputDriver(Map map)
     {
-        _world = world;
+        _map = map;
     }
 
     public bool Press(in PlayerCommand command)
     {
-        var input = _world.Input;
-        var player = _world.Player;
+        var input = _map.Input;
+        var player = _map.Player;
 
         bool sent = false;
 
@@ -29,12 +29,12 @@ internal sealed class InputDriver
 
             if (_destination is not null)
             {
-                _world.Motion.SetMoveTarget(player, null, new Vector3(_destination.Value, 0));
+                _map.Motion.SetMoveTarget(player, null, new Vector3(_destination.Value, 0));
                 sent = true;
             }
-            else if (player.Command == UnitCommand.Move)
+            else if (player.Command == Command.Move)
             {
-                UnitKinematics.StopMoving(player);
+                SpriteKinematics.Stop(player);
             }
         }
 
@@ -45,12 +45,12 @@ internal sealed class InputDriver
             flags |= InputFlags.First;
         }
 
-        if (command.Weapon != _world.Weapons.Slot)
+        if (command.Weapon != _map.Weapons.Slot)
         {
             input.Key = FirstWeaponKey + command.Weapon;
         }
 
-        if (_world.GetFlagman(0) is null)
+        if (_map.GetFlagman(0) is null)
         {
             input.Key = RebirthKey;
         }

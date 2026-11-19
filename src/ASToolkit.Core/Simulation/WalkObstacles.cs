@@ -30,9 +30,9 @@ internal sealed class WalkObstacles
     {
         _parts = parts;
         _objects = objects;
-        foreach (var sprite in model.Sprites)
+        foreach (var placement in model.Sprites)
         {
-            Add(sprite);
+            Add(placement);
         }
 
         _spriteCount = model.Sprites.Count;
@@ -68,9 +68,9 @@ internal sealed class WalkObstacles
             _outside.Add(cell, CopyBucket(obstacles, copies));
         }
 
-        foreach (var (sprite, placed) in source._placed)
+        foreach (var (placement, placed) in source._placed)
         {
-            _placed.Add(sprite, new Placed(sprite, placed.Obstacles.Select(obstacle => copies[obstacle]).ToArray()));
+            _placed.Add(placement, new Placed(placement, placed.Obstacles.Select(obstacle => copies[obstacle]).ToArray()));
         }
     }
 
@@ -159,27 +159,27 @@ internal sealed class WalkObstacles
     }
 
     // Follows pushed bodies and sinking doors and collects the areas of removed and created sprites
-    public void Synchronize(GameWorld world, List<TerrainChange> changes)
+    public void Synchronize(Map map, List<TerrainChange> changes)
     {
         if (_tracked is null)
         {
-            _removedCount = world.RemovedCount;
-            foreach (var sprite in world.Sprites)
+            _removedCount = map.RemovedCount;
+            foreach (var placement in map.Sprites)
             {
-                if (world.IsRemoved(sprite))
+                if (map.IsRemoved(placement))
                 {
-                    _removed.Add(sprite);
+                    _removed.Add(placement);
                 }
             }
 
             _tracked = [];
             foreach (var placed in _placed.Values)
             {
-                placed.Unit = world.FindPlacementUnit(placed.Sprite);
+                placed.Sprite = map.FindPlacementSprite(placed.Placement);
 
-                if (placed.Unit is not null && (placed.Unit.Definition.CanBePushed || Array.Exists(placed.Obstacles, obstacle => obstacle is { IsGate: true, IsFence: false })))
+                if (placed.Sprite is not null && (placed.Sprite.Definition.CanBePushed || Array.Exists(placed.Obstacles, obstacle => obstacle is { IsGate: true, IsFence: false })))
                 {
-                    placed.Position = placed.Unit.Position;
+                    placed.Position = placed.Sprite.Position;
                     _tracked.Add(placed);
                 }
             }
@@ -187,44 +187,44 @@ internal sealed class WalkObstacles
 
         foreach (var placed in _tracked)
         {
-            var position = placed.Unit!.Position;
+            var position = placed.Sprite!.Position;
 
-            if (_removed.Contains(placed.Sprite) || Vector3.DistanceSquared(position, placed.Position) <= MinMove)
+            if (_removed.Contains(placed.Placement) || Vector3.DistanceSquared(position, placed.Position) <= MinMove)
                 continue;
 
             Move(placed, position - placed.Position);
             placed.Position = position;
         }
 
-        if (world.RemovedCount != _removedCount)
+        if (map.RemovedCount != _removedCount)
         {
-            _removedCount = world.RemovedCount;
-            foreach (var sprite in world.Sprites)
+            _removedCount = map.RemovedCount;
+            foreach (var placement in map.Sprites)
             {
-                if (!world.IsRemoved(sprite) || !_removed.Add(sprite))
+                if (!map.IsRemoved(placement) || !_removed.Add(placement))
                     continue;
 
-                bool blocked = Remove(sprite);
-                bool raised = Terrain.Raises(sprite);
+                bool blocked = Remove(placement);
+                bool raised = Terrain.Raises(placement);
 
                 if (raised)
                 {
                     Version++;
                 }
 
-                if (blocked || raised || sprite.Id is KnownObject.SpawnWallSlash or KnownObject.SpawnWallBack or KnownObject.BreakableWall)
+                if (blocked || raised || placement.Id is KnownObject.SpawnWallSlash or KnownObject.SpawnWallBack or KnownObject.BreakableWall)
                 {
-                    changes.Add(GetArea(sprite, _placed.TryGetValue(sprite, out var placed) ? placed.Position : sprite.Position));
+                    changes.Add(GetArea(placement, _placed.TryGetValue(placement, out var placed) ? placed.Position : placement.Position));
                 }
             }
         }
 
-        for (; _spriteCount < world.Sprites.Count; _spriteCount++)
+        for (; _spriteCount < map.Sprites.Count; _spriteCount++)
         {
-            var sprite = world.Sprites[_spriteCount];
+            var placement = map.Sprites[_spriteCount];
 
-            bool blocks = Add(sprite);
-            bool raises = Terrain.Raises(sprite);
+            bool blocks = Add(placement);
+            bool raises = Terrain.Raises(placement);
 
             if (raises)
             {
@@ -233,17 +233,17 @@ internal sealed class WalkObstacles
 
             if (blocks || raises)
             {
-                changes.Add(GetArea(sprite, sprite.Position));
+                changes.Add(GetArea(placement, placement.Position));
             }
         }
     }
 
-    private TerrainChange GetArea(MergedMapSprite sprite, Vector3 position) =>
-        new(position.AsVector2(), _objects is not null && _objects.TryFind(sprite.Id, out var obj) ? obj.Size.AsVector2() / 2 : Vector2.Zero);
+    private TerrainChange GetArea(MergedMapSprite placement, Vector3 position) =>
+        new(position.AsVector2(), _objects is not null && _objects.TryFind(placement.Id, out var obj) ? obj.Size.AsVector2() / 2 : Vector2.Zero);
 
-    public bool Remove(MergedMapSprite sprite)
+    public bool Remove(MergedMapSprite placement)
     {
-        if (!_placed.TryGetValue(sprite, out var placed))
+        if (!_placed.TryGetValue(placement, out var placed))
             return false;
 
         bool changed = false;
@@ -290,13 +290,13 @@ internal sealed class WalkObstacles
         Version++;
     }
 
-    private bool Add(MergedMapSprite sprite)
+    private bool Add(MergedMapSprite placement)
     {
         if (_parts is null)
             return false;
 
         List<Obstacle>? obstacles = null;
-        foreach (var part in _parts.GetParts(sprite))
+        foreach (var part in _parts.GetParts(placement))
         {
             var obj = part.Object;
 
@@ -318,7 +318,7 @@ internal sealed class WalkObstacles
         if (obstacles is null)
             return false;
 
-        _placed[sprite] = new Placed(sprite, obstacles.ToArray());
+        _placed[placement] = new Placed(placement, obstacles.ToArray());
         Version++;
 
         return true;
@@ -434,20 +434,20 @@ internal sealed class WalkObstacles
 
     private sealed class Placed
     {
-        public Placed(MergedMapSprite sprite, Obstacle[] obstacles)
+        public Placed(MergedMapSprite placement, Obstacle[] obstacles)
         {
-            Sprite = sprite;
+            Placement = placement;
             Obstacles = obstacles;
-            Position = sprite.Position;
+            Position = placement.Position;
         }
 
-        public MergedMapSprite Sprite { get; }
+        public MergedMapSprite Placement { get; }
 
         public Obstacle[] Obstacles { get; }
 
         public Vector3 Position { get; set; }
 
-        public Unit? Unit { get; set; }
+        public Sprite? Sprite { get; set; }
     }
 
     private sealed class Obstacle

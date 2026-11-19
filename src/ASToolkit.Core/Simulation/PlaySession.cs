@@ -12,16 +12,16 @@ internal sealed class PlaySession
     private ProgressMark _mark;
     private bool _started;
 
-    public PlaySession(GameWorld world, PlayerBot bot, bool winsAtTourEnd)
+    public PlaySession(Map map, PlayerBot bot, bool winsAtTourEnd)
     {
-        World = world;
+        Map = map;
         Bot = bot;
         _winsAtTourEnd = winsAtTourEnd;
-        _enemies = new EnemyStock(world);
-        Log = new PlayLog(world);
+        _enemies = new EnemyStock(map);
+        Log = new PlayLog(map);
     }
 
-    public GameWorld World { get; }
+    public Map Map { get; }
 
     private const int PlayerDead = 2;
     private static ReadOnlySpan<byte> GameStateVariable => "GameState"u8;
@@ -39,35 +39,35 @@ internal sealed class PlaySession
         if (!_started)
         {
             _started = true;
-            _mark = ProgressMark.Measure(World, Bot, _enemies.Count);
+            _mark = ProgressMark.Measure(Map, Bot, _enemies.Count);
             Won = HasWon();
         }
 
-        while (World.Time < MaxTime && World.Time - _mark.ProgressedAt < StallTime && IsPlaying && !Won && World.Time < time)
+        while (Map.Time < MaxTime && Map.Time - _mark.ProgressedAt < StallTime && IsPlaying && !Won && Map.Time < time)
         {
             Bot.PlayTick();
-            Log.Update(World);
+            Log.Update(Map);
             _enemies.Update();
             Won = HasWon();
-            _mark = _mark.Update(World, Bot, _enemies.Count);
-            recorder?.Capture(World);
-            World.AdvanceClock();
+            _mark = _mark.Update(Map, Bot, _enemies.Count);
+            recorder?.Capture(Map);
+            Map.AdvanceClock();
         }
     }
 
-    public bool IsPlaying => World.Player.IsAlive || World.ReadScriptNumber(GameStateVariable) == PlayerDead;
+    public bool IsPlaying => Map.Player.IsAlive || Map.ReadScriptNumber(GameStateVariable) == PlayerDead;
 
-    private bool HasWon() => World.HasWon || (_winsAtTourEnd && Bot.HasFinished);
+    private bool HasWon() => Map.HasWon || (_winsAtTourEnd && Bot.HasFinished);
 
     private readonly record struct ProgressMark(float Farthest, int Sites, int FewestEnemies, int ProgressedAt)
     {
-        public static ProgressMark Measure(GameWorld world, PlayerBot bot, int enemies) =>
-            new(bot.FarthestProgress, world.DynamiteSites.Count, enemies, world.Time);
+        public static ProgressMark Measure(Map map, PlayerBot bot, int enemies) =>
+            new(bot.FarthestProgress, map.DynamiteSites.Count, enemies, map.Time);
 
-        public ProgressMark Update(GameWorld world, PlayerBot bot, int enemies)
+        public ProgressMark Update(Map map, PlayerBot bot, int enemies)
         {
-            if (bot.FarthestProgress > Farthest || world.DynamiteSites.Count < Sites || enemies < FewestEnemies)
-                return new ProgressMark(bot.FarthestProgress, world.DynamiteSites.Count, Math.Min(FewestEnemies, enemies), world.Time);
+            if (bot.FarthestProgress > Farthest || map.DynamiteSites.Count < Sites || enemies < FewestEnemies)
+                return new ProgressMark(bot.FarthestProgress, map.DynamiteSites.Count, Math.Min(FewestEnemies, enemies), map.Time);
 
             return this;
         }

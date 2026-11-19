@@ -146,7 +146,7 @@ public sealed class SpriteCatalog
 
         foreach (var definition in _definitions)
         {
-            definition?.LoadRecord();
+            definition?.LoadParameters();
         }
 
         ResolveLinks();
@@ -167,7 +167,7 @@ public sealed class SpriteCatalog
 
     internal MovementMap CreateMovementMap(LevelModel model) => new(model, Parts);
 
-    internal void AddTerrain(MovementMap map, MergedMapSprite sprite) => map.Add(sprite, Parts, true);
+    internal void AddTerrain(MovementMap movement, MergedMapSprite sprite) => movement.Add(sprite, Parts, true);
 
     /// <summary>
     /// Gets the sprite parts of the definitions.

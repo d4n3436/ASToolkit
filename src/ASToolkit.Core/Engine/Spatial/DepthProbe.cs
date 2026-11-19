@@ -12,15 +12,15 @@ internal sealed class DepthProbe
     private const int DepthPerHeight = 8;
     private const int RaisedDepth = 0x3fff;
 
-    private readonly GameWorld _world;
-    private readonly List<Unit> _nearby = [];
+    private readonly Map _map;
+    private readonly List<Sprite> _nearby = [];
 
-    public DepthProbe(GameWorld world)
+    public DepthProbe(Map map)
     {
-        _world = world;
+        _map = map;
     }
 
-    public float MeasureHeight(Point pixel) => Math.Max(MeasureSceneryHeight(pixel), MeasureUnitHeight(pixel));
+    public float MeasureHeight(Point pixel) => Math.Max(MeasureSceneryHeight(pixel), MeasureSpriteHeight(pixel));
 
     // Walks down the screen column, a scenery pixel of height h raising the height cell h below it
     private int MeasureSceneryHeight(Point pixel)
@@ -29,7 +29,7 @@ internal sealed class DepthProbe
         const int cell = MovementMap.CellSize;
         for (int offset = 0; offset <= MaxSceneryHeight; offset += cell)
         {
-            int height = (int)_world.Movement.GetHeight(new Vector2(pixel.X, pixel.Y + offset));
+            int height = (int)_map.Movement.GetHeight(new Vector2(pixel.X, pixel.Y + offset));
 
             if (height > found && (pixel.Y + height) / cell == (pixel.Y + offset) / cell)
             {
@@ -40,37 +40,37 @@ internal sealed class DepthProbe
         return found;
     }
 
-    private float MeasureUnitHeight(Point pixel)
+    private float MeasureSpriteHeight(Point pixel)
     {
         var point = new Vector2(pixel.X, pixel.Y);
         _nearby.Clear();
-        foreach (var unit in _world.Units.GetNear(point - new Vector2(SpriteReach), point + new Vector2(SpriteReach, SpriteReach * 2)))
+        foreach (var sprite in _map.Collector.GetNear(point - new Vector2(SpriteReach), point + new Vector2(SpriteReach, SpriteReach * 2)))
         {
-            _nearby.Add(unit);
+            _nearby.Add(sprite);
         }
 
-        if (!_nearby.Contains(_world.Weapons.Torso))
+        if (!_nearby.Contains(_map.Weapons.Torso))
         {
-            _nearby.Add(_world.Weapons.Torso);
+            _nearby.Add(_map.Weapons.Torso);
         }
 
         float found = ClearHeight;
-        foreach (var unit in _nearby)
+        foreach (var sprite in _nearby)
         {
-            var mask = _world.Definitions.GetFrameMask(unit.Definition, unit.Frame);
+            var mask = _map.Definitions.GetFrameMask(sprite.Definition, sprite.Frame);
 
             if (mask is null)
                 continue;
 
-            int left = (int)MathF.Round(unit.Position.X - mask.Width / 2.0f);
-            int top = (int)MathF.Round(unit.Position.Y - unit.Position.Z - mask.Height / 2.0f);
+            int left = (int)MathF.Round(sprite.Position.X - mask.Width / 2.0f);
+            int top = (int)MathF.Round(sprite.Position.Y - sprite.Position.Z - mask.Height / 2.0f);
             int row = pixel.Y - top;
 
             if (!mask.Covers(pixel.X - left, row))
                 continue;
 
-            var obj = unit.Definition.Object;
-            int depth = (int)(unit.Position.Z * DepthPerHeight);
+            var obj = sprite.Definition.Object;
+            int depth = (int)(sprite.Position.Z * DepthPerHeight);
 
             if (obj.Properties.HasFlag(ObjectProperties.AlwaysTop) && depth < RaisedDepth)
             {

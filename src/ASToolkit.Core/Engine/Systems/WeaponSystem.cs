@@ -15,80 +15,80 @@ internal sealed class WeaponSystem
     private const float GroundAimLift = 19;
     private const int LegSlack = 63;
     private static readonly Vector2 ViewHalf = new(640, 360);
-    private readonly GameWorld _world;
+    private readonly Map _map;
     private readonly SpriteCatalog _definitions;
     private readonly Random _rng;
-    private readonly UnitGrid _grid;
+    private readonly SpriteCollector _collector;
     private const int WeaponIdLimit = 21;
     private bool _turnsLegs;
     private readonly DepthProbe _depth;
 
-    public WeaponSystem(GameWorld world, SpriteCatalog definitions, Random random)
+    public WeaponSystem(Map map, SpriteCatalog definitions, Random random)
     {
-        _world = world;
+        _map = map;
         _definitions = definitions;
         _rng = random;
-        _grid = world.Units;
-        Collision = new ProjectileCollision(world.Movement, _grid);
-        Torso = CreateTorso(world.Player.Definition.LinkDefinition!, 0, false);
-        _depth = new DepthProbe(world);
+        _collector = map.Collector;
+        Collision = new ProjectileCollision(map.Movement, _collector);
+        Torso = CreateTorso(map.Player.Definition.LinkDefinition!, 0, false);
+        _depth = new DepthProbe(map);
     }
 
-    public void AttachTorso() => Torso = CreateTorso(_world.Player.Definition.LinkDefinition!, 0, false);
+    public void AttachTorso() => Torso = CreateTorso(_map.Player.Definition.LinkDefinition!, 0, false);
 
     [EngineRoutine(0x00445770)]
     public void StartTorso(SpriteAnimation state)
     {
-        Torso.Start(state, _world.Player.Direction, _world.Time, _rng);
-        Torso.CreatedAt = _world.Time;
-        _world.Effects.CreateLink(Torso, _world.Time, 0);
+        Torso.Start(state, _map.Player.Direction, _map.Time, _rng);
+        Torso.CreatedAt = _map.Time;
+        _map.Effects.CreateLink(Torso, _map.Time, 0);
     }
 
-    public Unit Torso { get; private set; }
+    public Sprite Torso { get; private set; }
 
     public ProjectileCollision Collision { get; }
 
     public bool CanFire => !Torso.IsReloading;
 
-    private Unit CreateTorso(SpriteDefinition definition, int timer, bool linked = true)
+    private Sprite CreateTorso(SpriteDefinition definition, int timer, bool linked = true)
     {
-        var player = _world.Player;
-        var torso = new Unit(_world.AllocateNumber(), definition, GetTorsoPosition(definition), 0, 0) { Direction = player.Direction, Timer = timer, Owner = player };
+        var player = _map.Player;
+        var torso = new Sprite(_map.AllocateNumber(), definition, GetTorsoPosition(definition), 0, 0) { Direction = player.Direction, Timer = timer, Owner = player };
         torso.ChangeAnimation(SpriteAnimation.Stand);
         player.Link = torso;
 
         if (linked)
         {
-            _world.Effects.CreateLink(torso, _world.Time, 0);
+            _map.Effects.CreateLink(torso, _map.Time, 0);
         }
 
         return torso;
     }
 
     private Vector3 GetTorsoPosition(SpriteDefinition definition) =>
-        _world.Player.Position + _world.Player.Definition.GetLinkOffset(definition, _world.Player.Direction);
+        _map.Player.Position + _map.Player.Definition.GetLinkOffset(definition, _map.Player.Direction);
 
-    public void UpdateTorso() => _world.Tact(Torso);
+    public void UpdateTorso() => _map.Tact(Torso);
 
-    public int Slot => _world.Player.WeaponSlot;
+    public int Slot => _map.Player.WeaponSlot;
 
     [EngineRoutine(0x00454800)]
     public void AimPlayer(Vector2 cursor)
     {
-        var weapon = _world.Player.Definition.LinkDefinition;
+        var weapon = _map.Player.Definition.LinkDefinition;
 
         if (Torso.Definition != weapon || weapon.FightChild == 0 || weapon.Object.WeaponIndex == 0 || Torso.IsReloading)
             return;
 
         var point = GetCursorPoint(cursor, weapon);
-        _world.DrawGoalSpriteRandom();
-        UnitKinematics.SetCommand(Torso, UnitCommand.OneAttack, point: point);
+        _map.DrawGoalSpriteRandom();
+        SpriteKinematics.SetCommand(Torso, Command.OneAttack, point: point);
     }
 
     // Raises the cursor to the height the depth buffer holds under it on screen, or to the terrain off screen
     private Vector3 GetCursorPoint(Vector2 cursor, SpriteDefinition weapon)
     {
-        var player = _world.Player.Position;
+        var player = _map.Player.Position;
         var pixel = cursor - (new Vector2(player.X, player.Y - player.Z) - ViewHalf);
         float y = cursor.Y;
         float height;
@@ -104,11 +104,11 @@ internal sealed class WeaponSystem
         }
         else if (weapon.Targets == SpriteType.Unit)
         {
-            height = _world.Movement.GetHeight(cursor with { Y = cursor.Y + UnitAimLift }) + UnitAimLift;
+            height = _map.Movement.GetHeight(cursor with { Y = cursor.Y + UnitAimLift }) + UnitAimLift;
         }
         else
         {
-            height = _world.Movement.GetHeight(cursor) + GroundAimLift;
+            height = _map.Movement.GetHeight(cursor) + GroundAimLift;
             y -= GroundAimLift;
         }
 
@@ -118,22 +118,22 @@ internal sealed class WeaponSystem
     [EngineRoutine(0x00455070)]
     public bool SelectWeapon(int slot)
     {
-        var player = _world.Player;
+        var player = _map.Player;
         var held = player.Definition.LinkDefinition;
 
         if (held is null || (int)held.Id >= WeaponIdLimit)
             return false;
 
-        if (slot == Unit.WeaponSlots)
+        if (slot == Sprite.WeaponSlots)
         {
             slot = 0;
         }
 
-        if (!player.Items.Contains(Unit.WeaponItemBase + slot) || player.Link is null || player.Link.Definition != held)
+        if (!player.Items.Contains(Sprite.WeaponItemBase + slot) || player.Link is null || player.Link.Definition != held)
             return false;
 
         player.SlotAmmo[player.WeaponSlot] = player.GetAmmo();
-        var weapon = _definitions.Find((KnownObject)(slot + Unit.WeaponIdBase));
+        var weapon = _definitions.Find((KnownObject)(slot + Sprite.WeaponIdBase));
 
         if (weapon is not null)
         {
@@ -149,16 +149,16 @@ internal sealed class WeaponSystem
     [EngineRoutine(0x00445770)]
     public void ReplaceTorso()
     {
-        var link = _world.Player.Definition.LinkDefinition;
+        var link = _map.Player.Definition.LinkDefinition;
 
         if (link is null)
             return;
 
-        _world.DropLinks(Torso);
+        _map.DropLinks(Torso);
         var carried = Torso.Link;
         Torso.Link = null;
         Torso = CreateTorso(link, 0);
-        _world.Register(UpdateRole.Torso, Torso);
+        _map.Register(UpdateRole.Torso, Torso);
 
         if (carried is not null)
         {
@@ -171,13 +171,13 @@ internal sealed class WeaponSystem
     private void ChangeTorso(SpriteDefinition weapon)
     {
         int layer = Torso.Definition.Layer;
-        _world.DropLinks(Torso);
+        _map.DropLinks(Torso);
         Torso.ChangeVid(weapon, SpriteAnimation.Stand);
-        _world.Effects.CreateLink(Torso, _world.Time, 0);
+        _map.Effects.CreateLink(Torso, _map.Time, 0);
 
         if (weapon.Layer != layer)
         {
-            _world.Register(UpdateRole.Torso, Torso);
+            _map.Register(UpdateRole.Torso, Torso);
         }
     }
 
@@ -185,7 +185,7 @@ internal sealed class WeaponSystem
     [EngineRoutine(0x0043ea10)]
     public void TrackCursor(Angle direction, int elapsed)
     {
-        var player = _world.Player;
+        var player = _map.Player;
 
         if (player is { Speed: 0, Definition.Id: KnownObject.PlayerStart })
         {
@@ -195,34 +195,34 @@ internal sealed class WeaponSystem
             }
             else
             {
-                player.SetDirection(player.Direction.TurnToward(Torso.Direction, player.Definition.Object.RotationPeriod, elapsed, out int remaining));
+                player.ChangeDirection(player.Direction.TurnToward(Torso.Direction, player.Definition.Object.RotationPeriod, elapsed, out int remaining));
                 _turnsLegs = remaining != 0;
             }
         }
 
-        Torso.SetDirection(Torso.Direction.TurnToward(direction, Torso.Definition.Object.RotationPeriod, elapsed, out _));
+        Torso.ChangeDirection(Torso.Direction.TurnToward(direction, Torso.Definition.Object.RotationPeriod, elapsed, out _));
     }
 
     [EngineRoutine(0x00454800)]
     public void DecidePlayer(int elapsed)
     {
 
-        if (_world.Player.HasGoal || Torso.HasGoal)
+        if (_map.Player.HasGoal || Torso.HasGoal)
         {
-            Torso.TryAttack(Math.Max(elapsed, _world.Player.Definition.Layout.GetFrameDuration(_world.Player.Animation)));
+            Torso.AttackTact(Math.Max(elapsed, _map.Player.Definition.Layout.GetFrameDuration(_map.Player.Animation)));
         }
     }
 
-    public void FireFrom(Unit unit)
+    public void FireFrom(Sprite sprite)
     {
-        if (unit.HasGoal)
+        if (sprite.HasGoal)
         {
-            Fire(unit == Torso ? _world.Player : unit, unit, unit.Definition, unit.GoalPosition, unit.Goal, 0, unit.Position, unit.Direction);
+            Fire(sprite == Torso ? _map.Player : sprite, sprite, sprite.Definition, sprite.GoalPosition, sprite.Goal, 0, sprite.Position, sprite.Direction);
         }
     }
 
 
-    private void Fire(Unit shooter, Unit emitter, SpriteDefinition creator, Vector3 aim, Unit? target, int depth, Vector3? origin = null, Angle? direction = null)
+    private void Fire(Sprite shooter, Sprite emitter, SpriteDefinition creator, Vector3 aim, Sprite? target, int depth, Vector3? origin = null, Angle? direction = null)
     {
         var child = _definitions.Find((KnownObject)Math.Abs(creator.Children[(int)SpriteAnimation.Fight]));
 
@@ -238,14 +238,14 @@ internal sealed class WeaponSystem
         bool relays = child.Damage <= 0 && child.FightChild != 0;
         foreach (var spawn in ChildEmission.GetChildren(creator, child, SpriteAnimation.Fight, from, direction ?? shooter.Direction, _rng, secondPulse))
         {
-            var unit = relays ? _world.Effects.Spawn(child.Id, spawn.Position, spawn.Direction, _world.Time) : _world.Effects.Launch(child, spawn.Position, spawn.Direction, shooter, _world.Time);
+            var sprite = relays ? _map.Effects.Spawn(child.Id, spawn.Position, spawn.Direction, _map.Time) : _map.Effects.Launch(child, spawn.Position, spawn.Direction, shooter, _map.Time);
 
-            if (unit is null)
+            if (sprite is null)
                 continue;
 
             if (child.Object.SpriteClass == SpriteClass.Linker)
             {
-                SpawnedObjectSystem.ConstructLinker(unit, emitter, spawn.Position, spawn.Direction);
+                SpawnedObjectSystem.ConstructLinker(sprite, emitter, spawn.Position, spawn.Direction);
             }
 
             var point = aim;
@@ -256,23 +256,23 @@ internal sealed class WeaponSystem
                 {
                     point = Scatter(aim, spawn.Lateral, spread);
 
-                    if (_world.Movement.GetHeight(point.AsVector2()) < aim.Z && _world.Movement.GetHeight((aim.AsVector2() + point.AsVector2()) * 0.5f) < aim.Z)
+                    if (_map.Movement.GetHeight(point.AsVector2()) < aim.Z && _map.Movement.GetHeight((aim.AsVector2() + point.AsVector2()) * 0.5f) < aim.Z)
                         break;
                 }
             }
 
             if (relays)
             {
-                Fire(shooter, unit, child, point, target, depth + 1, spawn.Position, spawn.Direction);
+                Fire(shooter, sprite, child, point, target, depth + 1, spawn.Position, spawn.Direction);
                 continue;
             }
 
-            _world.Effects.Aim(unit, scatters ? null : target, point);
+            _map.Effects.Aim(sprite, scatters ? null : target, point);
         }
     }
 
     [EngineRoutine(0x00440830)]
-    public void ApplyBlast(Unit blast)
+    public void ApplyBlast(Sprite blast)
     {
         var payload = blast.Definition;
 
@@ -286,20 +286,20 @@ internal sealed class WeaponSystem
         bool scales = payload.IsExplosive && !payload.BlastRadius.IsZero();
         int damage = payload.Damage;
         
-        for (var unit = _grid.First(point - reach, point + reach); unit is not null; unit = _grid.Next())
+        for (var sprite = _collector.First(point - reach, point + reach); sprite is not null; sprite = _collector.NextHashInBox())
         {
-            if (unit == blast || unit.Definition.MaxHp == 0 || payload.SkipsOwnArmy && unit.Army == blast.Army)
+            if (sprite == blast || sprite.Definition.MaxHp == 0 || payload.SkipsOwnArmy && sprite.Army == blast.Army)
                 continue;
 
-            var victim = unit.Position;
+            var victim = sprite.Position;
             var offset = Vector2.Abs(victim.AsVector2() - point);
-            float top = victim.Z + unit.Definition.Object.Size.Z;
+            float top = victim.Z + sprite.Definition.Object.Size.Z;
 
-            if (offset.X >= reach.X + unit.Definition.Half.X || offset.Y >= reach.Y + unit.Definition.Half.Y ||
-                MathF.Abs(impact.Z - victim.Z) >= heightReach + unit.Definition.Object.Size.Z ||
-                top < _world.Movement.GetHeight((victim.AsVector2() + point) * 0.5f) ||
-                top < _world.Movement.GetHeight((point * 3 + victim.AsVector2()) * 0.25f) ||
-                top < _world.Movement.GetHeight((victim.AsVector2() * 3 + point) * 0.25f))
+            if (offset.X >= reach.X + sprite.Definition.Half.X || offset.Y >= reach.Y + sprite.Definition.Half.Y ||
+                MathF.Abs(impact.Z - victim.Z) >= heightReach + sprite.Definition.Object.Size.Z ||
+                top < _map.Movement.GetHeight((victim.AsVector2() + point) * 0.5f) ||
+                top < _map.Movement.GetHeight((point * 3 + victim.AsVector2()) * 0.25f) ||
+                top < _map.Movement.GetHeight((victim.AsVector2() * 3 + point) * 0.25f))
                 continue;
 
             float distance = victim.AsVector2().MeasureOctagonalDistance(point);
@@ -307,7 +307,7 @@ internal sealed class WeaponSystem
             if (scales && distance > payload.BlastRadius)
                 continue;
 
-            _world.Damage(unit, scales ? (int)(damage - damage * distance / payload.BlastRadius) : damage);
+            _map.Damage(sprite, scales ? (int)(damage - damage * distance / payload.BlastRadius) : damage);
         }
     }
 

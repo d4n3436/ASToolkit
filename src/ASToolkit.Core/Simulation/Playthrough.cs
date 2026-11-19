@@ -100,25 +100,25 @@ public sealed class Playthrough
     /// <returns>The player after the level loads and after each frame.</returns>
     public IReadOnlyList<DemoReplayPoint> ReplayDemo(RouteAnalysis analysis, DemoResource demo, IReadOnlyList<int>? loadingScreenRecords = null)
     {
-        var world = LoadDemo(analysis, demo, loadingScreenRecords);
-        var points = new List<DemoReplayPoint> { GetReplayPoint(world) };
+        var map = LoadDemo(analysis, demo, loadingScreenRecords);
+        var points = new List<DemoReplayPoint> { GetReplayPoint(map) };
         uint now = 0;
         while (true)
         {
-            world.StepDemo(now, out now);
+            map.StepDemo(now, out now);
 
-            if (!world.IsPlayingDemo)
+            if (!map.IsPlayingDemo)
                 break;
 
-            world.Step();
-            points.Add(GetReplayPoint(world));
-            world.AdvanceClock();
+            map.Step();
+            points.Add(GetReplayPoint(map));
+            map.AdvanceClock();
         }
 
         return points;
     }
 
-    internal GameWorld LoadDemo(RouteAnalysis analysis, DemoResource demo, IReadOnlyList<int>? loadingScreenRecords = null)
+    internal Map LoadDemo(RouteAnalysis analysis, DemoResource demo, IReadOnlyList<int>? loadingScreenRecords = null)
     {
         var level = GetSetup(analysis).Level;
         var scripted = new LevelTemplate
@@ -128,14 +128,14 @@ public sealed class Playthrough
             ScriptPath = Path.ChangeExtension(GameTextEncoding.Cyrillic.GetString(demo.MapName), ".lgc"),
             LoadingScreenRecords = loadingScreenRecords ?? []
         };
-        var world = new GameWorld(scripted, new GameRandom(demo.Seed), demo: demo);
-        AddLoosePickups(analysis, world);
+        var map = new Map(scripted, new GameRandom(demo.Seed), demo: demo);
+        AddLoosePickups(analysis, map);
 
-        return world;
+        return map;
     }
 
-    private static DemoReplayPoint GetReplayPoint(GameWorld world) =>
-        new(world.Time, world.Player.Position, world.Player.Hp, world.Player.Direction, world.Player.Speed, world.RandomState);
+    private static DemoReplayPoint GetReplayPoint(Map map) =>
+        new(map.Time, map.Player.Position, map.Player.Hp, map.Player.Direction, map.Player.Speed, map.RandomState);
 
     private LevelSetup GetSetup(RouteAnalysis analysis)
     {
@@ -151,25 +151,25 @@ public sealed class Playthrough
     internal PlaySession Start(RouteAnalysis analysis, PlayerLoadout loadout, int seed, ReplayRecorder? recorder, GameSession? session = null)
     {
         var setup = GetSetup(analysis);
-        var world = new GameWorld(setup.Level, new GameRandom(seed), registry: CreateRegistry(_gameFolder, analysis.Name, loadout), session: session);
-        recorder?.Start(world);
-        AddLoosePickups(analysis, world);
-        var bot = new PlayerBot(world, analysis, setup.Field.Clone(setup.Field.Obstacles.Clone(world.Movement)));
+        var map = new Map(setup.Level, new GameRandom(seed), registry: CreateRegistry(_gameFolder, analysis.Name, loadout), session: session);
+        recorder?.Start(map);
+        AddLoosePickups(analysis, map);
+        var bot = new PlayerBot(map, analysis, setup.Field.Clone(setup.Field.Obstacles.Clone(map.Movement)));
 
-        return new PlaySession(world, bot, analysis.Exit is null && !analysis.ClearsMonsters);
+        return new PlaySession(map, bot, analysis.Exit is null && !analysis.ClearsMonsters);
     }
 
-    private static void AddLoosePickups(RouteAnalysis analysis, GameWorld world)
+    private static void AddLoosePickups(RouteAnalysis analysis, Map map)
     {
         foreach (var element in analysis.Elements)
         {
             if (element.Placement is null && element.Kind == ElementKind.Pickup)
             {
-                var definition = world.Definitions.Find(element.Id);
+                var definition = map.Definitions.Find(element.Id);
 
                 if (definition is not null)
                 {
-                    world.CreateSprite(definition, new Vector3(element.X, element.Y, 0), default);
+                    map.CreateSprite(definition, new Vector3(element.X, element.Y, 0), default);
                 }
             }
         }
@@ -177,34 +177,34 @@ public sealed class Playthrough
 
     private static PlaythroughResult CreateResult(PlaySession session, PlayerLoadout loadout, ReplayRecorder? recorder)
     {
-        var world = session.World;
+        var map = session.Map;
 
-        return new PlaythroughResult(loadout, world.Player.IsAlive && session.Won, world.Time, session.Bot.FarthestProgress, session.Log.Kills, session.Log.Respawns, session.Log.MinHealth,
-            world.ReadScriptNumber(MoneyVariable), ReadImplants(world), session.Log.TakenPickups, ReadItems(world), new PlayerState(world).GetRemainingAmmo(),
+        return new PlaythroughResult(loadout, map.Player.IsAlive && session.Won, map.Time, session.Bot.FarthestProgress, session.Log.Kills, session.Log.Respawns, session.Log.MinHealth,
+            map.ReadScriptNumber(MoneyVariable), ReadImplants(map), session.Log.TakenPickups, ReadItems(map), new PlayerState(map).GetRemainingAmmo(),
             session.Log.Timeline, recorder?.CreateReplay(session.Log.PickupEvents));
     }
 
-    private static PlayerImplants ReadImplants(GameWorld world) => new(
-        world.ReadScriptNumber(ItemsVariable), world.ReadScriptNumber(ItemsVariable, StrengthImplantItem),
-        world.ReadScriptNumber(ItemsVariable, SpeedImplantItem), world.ReadScriptNumber(ItemsVariable, AccuracyImplantItem));
+    private static PlayerImplants ReadImplants(Map map) => new(
+        map.ReadScriptNumber(ItemsVariable), map.ReadScriptNumber(ItemsVariable, StrengthImplantItem),
+        map.ReadScriptNumber(ItemsVariable, SpeedImplantItem), map.ReadScriptNumber(ItemsVariable, AccuracyImplantItem));
 
-    private static Dictionary<KnownObject, int> ReadItems(GameWorld world)
+    private static Dictionary<KnownObject, int> ReadItems(Map map)
     {
         var items = new Dictionary<KnownObject, int>();
-        int lives = world.ReadScriptNumber(ItemsVariable, LivesItem);
-        bool hasDrone = world.Monsters.Any(unit => unit.Definition.Id == KnownObject.FlyingDrone && unit.IsAlive);
+        int lives = map.ReadScriptNumber(ItemsVariable, LivesItem);
+        bool hasDrone = map.Monsters.Any(sprite => sprite.Definition.Id == KnownObject.FlyingDrone && sprite.IsAlive);
 
         if (lives > 0)
         {
             items[KnownObject.ExtraLife] = lives;
         }
 
-        if (world.ReadScriptNumber(ItemsVariable, FlashlightItem) != 0)
+        if (map.ReadScriptNumber(ItemsVariable, FlashlightItem) != 0)
         {
             items[KnownObject.Flashlight] = 1;
         }
 
-        if (world.Player.Items.Contains((int)KnownObject.Medkit))
+        if (map.Player.Items.Contains((int)KnownObject.Medkit))
         {
             items[KnownObject.Medkit] = 1;
         }
@@ -319,10 +319,10 @@ public sealed class Playthrough
         registry.Set("PlayerSex", "male");
         registry.Set("StateBar", "1");
         registry.Set("DifficultyLevel", "1");
-        for (int slot = 0; slot < Unit.WeaponSlots; slot++)
+        for (int slot = 0; slot < Sprite.WeaponSlots; slot++)
         {
-            var weapon = (KnownObject)(Unit.WeaponItemBase + slot);
-            bool owned = slot == Unit.Pistols || loadout.Ammo.ContainsKey(weapon);
+            var weapon = (KnownObject)(Sprite.WeaponItemBase + slot);
+            bool owned = slot == Sprite.Pistols || loadout.Ammo.ContainsKey(weapon);
             registry.Set("PlayerWeapon" + slot, owned ? "1" : "0");
             registry.Set("PlayerAmmo" + slot, loadout.Ammo.GetValueOrDefault(weapon).ToString(CultureInfo.InvariantCulture));
         }

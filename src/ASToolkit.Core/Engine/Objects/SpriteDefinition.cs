@@ -8,6 +8,9 @@ namespace ASToolkit.Core.Engine;
 /// </summary>
 public sealed class SpriteDefinition
 {
+    private const float BallisticRise = 1.1f;
+    private const float BallisticDrop = 0.9f;
+
     /// <summary>
     /// Represents the value the game files use for an unlimited speed, lifetime or amount.
     /// </summary>
@@ -84,7 +87,7 @@ public sealed class SpriteDefinition
         MinRange = weapon.MinRange;
         ReloadTime = weapon.ReloadTime;
         AttackTime = Math.Max(weapon.ReloadTime, GetAnimationTime(obj, SpriteAnimation.Fight, spriteSpeed));
-        LoadRecord();
+        LoadParameters();
         ResetLevelState();
     }
 
@@ -92,7 +95,7 @@ public sealed class SpriteDefinition
     /// Reloads the values the level script can change from the records.
     /// </summary>
     [EngineRoutine(0x00413c30)]
-    public void LoadRecord()
+    public void LoadParameters()
     {
         MaxHp = _object.MaxHp;
         Speed = ScaleRate(_object.MaxSpeed, PerMillisecond);
@@ -251,7 +254,7 @@ public sealed class SpriteDefinition
     public SpriteType Targets { get; }
 
     /// <summary>
-    /// Gets a value indicating whether other units push sprites of the definition aside.
+    /// Gets a value indicating whether other sprites push sprites of the definition aside.
     /// </summary>
     public bool CanBePushed => WeaponFlags.HasFlag(WeaponFlags.Pushable);
 
@@ -291,6 +294,33 @@ public sealed class SpriteDefinition
     /// <param name="animation">The state.</param>
     /// <returns>The length in milliseconds.</returns>
     public int GetAnimationDuration(SpriteAnimation animation) => Math.Max(1, Object.FrameCounts[(int)animation]) * GetVisualFrameDuration(animation);
+
+    /// <summary>
+    /// Returns the vertical speed that carries a launched sprite of this definition up or down a rise over a distance, within its vertical speed limit.
+    /// </summary>
+    /// <param name="catalog">The catalog that holds the gravity constants.</param>
+    /// <param name="rise">The height to climb, negative to drop.</param>
+    /// <param name="distance">The horizontal distance to the goal.</param>
+    /// <returns>The vertical speed in pixels per millisecond.</returns>
+    [EngineRoutine(0x00414a80)]
+    public float CalculateZSpeed(SpriteCatalog catalog, float rise, float distance)
+    {
+        ref readonly var obj = ref Object;
+        float gravity = obj.Properties.HasFlag(ObjectProperties.Gravity) ? catalog.Gravitation : obj.Properties.HasFlag(ObjectProperties.Gravity2) ? catalog.Gravitation2 : 0;
+        float speed;
+
+        if (!gravity.IsZero())
+        {
+            speed = rise * Speed / distance + distance * gravity / Speed * 0.5f;
+            speed *= speed > 0 ? BallisticRise : BallisticDrop;
+        }
+        else
+        {
+            speed = obj.Properties.HasFlag(ObjectProperties.SelfMoving) ? ZSpeed : obj.TopZ.IsZero() ? rise * Speed / distance : 0;
+        }
+
+        return Math.Clamp(speed, -ZSpeed, ZSpeed);
+    }
 
     /// <summary>
     /// Returns the direction of the direction frame a sprite of this definition shows for a direction.

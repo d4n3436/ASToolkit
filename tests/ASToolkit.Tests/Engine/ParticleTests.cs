@@ -15,13 +15,13 @@ public class ParticleTests
     public void Spawn_FlyingParticles_SettleIntoTheirRestingObjects(KnownObject flying, KnownObject resting)
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var world = EngineTestWorld.CreateWorld(definitions);
-        var effects = world.Effects;
-        var scenery = world.Effects.Settled;
-        effects.Spawn(flying, new Vector3(100, 200, 22), new Angle(64), world.Time);
-        while (world.Time <= 3500)
+        var map = EngineTestMap.CreateMap(definitions);
+        var effects = map.Effects;
+        var scenery = map.Effects.Settled;
+        effects.Spawn(flying, new Vector3(100, 200, 22), new Angle(64), map.Time);
+        while (map.Time <= 3500)
         {
-            world.Step(default);
+            map.Step(default);
         }
 
         Assert.DoesNotContain(effects.Active, particle => particle.Definition.Id == flying);

@@ -6,16 +6,16 @@ namespace ASToolkit.Core.Simulation;
 
 internal sealed class PickupTracker
 {
-    private readonly GameWorld _world;
+    private readonly Map _map;
     private readonly List<MergedMapSprite> _pickups = [];
     private readonly List<MergedMapSprite> _removed = [];
-    private readonly Dictionary<MergedMapSprite, Unit?> _units = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<MergedMapSprite, Sprite?> _sprites = new(ReferenceEqualityComparer.Instance);
     private int _scanned;
     private int _checkedAt = -1;
 
-    public PickupTracker(GameWorld world)
+    public PickupTracker(Map map)
     {
-        _world = world;
+        _map = map;
     }
 
     public IReadOnlyList<MergedMapSprite> Pickups
@@ -40,21 +40,21 @@ internal sealed class PickupTracker
 
     public bool WasTaken(MergedMapSprite pickup)
     {
-        var unit = _units.GetValueOrDefault(pickup);
+        var sprite = _sprites.GetValueOrDefault(pickup);
 
-        return unit is not null && unit.Placement == pickup && unit.Animation == SpriteAnimation.Death2;
+        return sprite is not null && sprite.Placement == pickup && sprite.Animation == SpriteAnimation.Death2;
     }
 
     private static bool IsPickup(KnownObject id) => id.IsPickup && id is not (>= KnownObject.WornGreenArmor and <= KnownObject.InvulnerabilityEffect);
 
     private void Update()
     {
-        if (_checkedAt == _world.Time)
+        if (_checkedAt == _map.Time)
             return;
 
-        _checkedAt = _world.Time;
+        _checkedAt = _map.Time;
         _removed.Clear();
-        var sprites = _world.Sprites;
+        var sprites = _map.Sprites;
         for (; _scanned < sprites.Count; _scanned++)
         {
             if (IsPickup(sprites[_scanned].Id))
@@ -67,14 +67,14 @@ internal sealed class PickupTracker
         {
             var pickup = _pickups[index];
 
-            if (_world.IsRemoved(pickup))
+            if (_map.IsRemoved(pickup))
             {
                 _removed.Add(pickup);
                 _pickups.RemoveAt(index);
                 continue;
             }
 
-            _units[pickup] = _world.FindPlacementUnit(pickup);
+            _sprites[pickup] = _map.FindPlacementSprite(pickup);
         }
     }
 }

@@ -3,10 +3,10 @@ namespace ASToolkit.Core.Engine;
 /// <summary>
 /// Represents a sprite's order stack, whose popped entries stay for stack jumps.
 /// </summary>
-public sealed class OrderStack
+public sealed class ActionStack
 {
     private const int GrowthStep = 4;
-    private UnitOrder[] _orders = [];
+    private Act[] _orders = [];
 
     /// <summary>
     /// Gets the number of entries on the stack.
@@ -17,24 +17,24 @@ public sealed class OrderStack
     /// Gets the entry at an index, counted from the bottom.
     /// </summary>
     /// <param name="index">The index.</param>
-    public UnitOrder this[int index] => _orders[index];
+    public Act this[int index] => _orders[index];
 
     /// <summary>
     /// Gets the top entry.
     /// </summary>
-    public UnitOrder Top => _orders[Count - 1];
+    public Act Top => _orders[Count - 1];
 
     /// <summary>
     /// Gets the entries from the bottom up.
     /// </summary>
-    public ReadOnlySpan<UnitOrder> Orders => _orders.AsSpan(0, Count);
+    public ReadOnlySpan<Act> Orders => _orders.AsSpan(0, Count);
 
     /// <summary>
     /// Pushes an entry.
     /// </summary>
     /// <param name="order">The entry.</param>
     [EngineRoutine(0x00446930)]
-    public void Push(UnitOrder order)
+    public void Push(Act order)
     {
         if (Count >= _orders.Length)
         {
@@ -50,7 +50,7 @@ public sealed class OrderStack
     /// <param name="index">The index.</param>
     /// <param name="order">The entry.</param>
     [EngineRoutine(0x00446a10)]
-    public void Insert(int index, UnitOrder order)
+    public void Insert(int index, Act order)
     {
         Push(order);
         Array.Copy(_orders, index, _orders, index + 1, Count - 1 - index);
@@ -62,7 +62,7 @@ public sealed class OrderStack
     /// </summary>
     /// <returns>The entry.</returns>
     [EngineRoutine(0x00440110)]
-    public UnitOrder Pop() => _orders[--Count];
+    public Act Pop() => _orders[--Count];
 
     /// <summary>
     /// Removes every entry.
@@ -95,14 +95,14 @@ public sealed class OrderStack
     /// <param name="index">The index.</param>
     /// <param name="order">The entry.</param>
     [EngineRoutine(0x0043f720)]
-    public void Replace(int index, UnitOrder order) => _orders[index] = order;
+    public void Replace(int index, Act order) => _orders[index] = order;
 
     /// <summary>
     /// Loads the entries of a map sprite's stack.
     /// </summary>
     /// <param name="orders">The entries from the bottom up.</param>
     [EngineRoutine(0x00440830)]
-    public void Load(ReadOnlySpan<UnitOrder> orders)
+    public void Load(ReadOnlySpan<Act> orders)
     {
         Clear();
         foreach (var order in orders)
@@ -112,7 +112,7 @@ public sealed class OrderStack
 
         for (int i = Count - 1; i >= 0; i--)
         {
-            if (i != 0 && _orders[i].Act == UnitOrder.StopMarker && _orders[i - 1].Act == UnitOrder.StopMarker)
+            if (i != 0 && _orders[i].Value == Act.StopMarker && _orders[i - 1].Value == Act.StopMarker)
             {
                 _orders[i] = _orders[--Count];
             }

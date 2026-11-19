@@ -1,9 +1,9 @@
 namespace ASToolkit.Core.Engine;
 
 /// <summary>
-/// Specifies the command a unit carries out.
+/// Specifies the command a sprite carries out.
 /// </summary>
-public enum UnitCommand
+public enum Command
 {
     /// <summary>
     /// No command.

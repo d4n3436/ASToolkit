@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Buffers.Text;
 
 namespace ASToolkit.Core.Engine.Scripts;
@@ -7,6 +8,8 @@ namespace ASToolkit.Core.Engine.Scripts;
 /// </summary>
 public struct StackObject
 {
+    private const byte TextMask = 0x17;
+
     /// <summary>
     /// Creates a script value.
     /// </summary>
@@ -164,5 +167,60 @@ public struct StackObject
         Utf8Formatter.TryFormat(value, text, out int length);
 
         return text.AsMemory()[..length];
+    }
+
+    /// <summary>
+    /// Writes the value to a demo or save stream, as its flags followed by its number or its masked, zero-terminated text.
+    /// </summary>
+    /// <param name="stream">The stream to write to.</param>
+    /// <param name="number">A four-byte buffer for the number.</param>
+    [EngineRoutine(0x00424520)]
+    public readonly void Write(Stream stream, Span<byte> number)
+    {
+        stream.WriteByte((byte)Flags);
+        if (!Flags.HasFlag(StackObjectFlags.Initialized))
+            return;
+
+        if (!Flags.HasFlag(StackObjectFlags.Text))
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(number, Value);
+            stream.Write(number);
+            return;
+        }
+
+        foreach (byte character in Text.Span)
+        {
+            stream.WriteByte((byte)(character ^ TextMask));
+        }
+
+        stream.WriteByte(0);
+    }
+
+    /// <summary>
+    /// Reads the value from a demo or save.
+    /// </summary>
+    /// <param name="data">The stored state.</param>
+    /// <param name="offset">The offset of the value, moved past it.</param>
+    [EngineRoutine(0x004244b0)]
+    public void Read(ReadOnlyMemory<byte> data, ref int offset)
+    {
+        Flags = (StackObjectFlags)data.Span[offset++];
+        if (!Flags.HasFlag(StackObjectFlags.Initialized))
+            return;
+
+        if (!Flags.HasFlag(StackObjectFlags.Text))
+        {
+            Value = BinaryPrimitives.ReadInt32LittleEndian(data.Span[offset..]);
+            offset += sizeof(int);
+            return;
+        }
+
+        byte[] text = Script.ReadString(data, ref offset).ToArray();
+        for (int i = 0; i < text.Length; i++)
+        {
+            text[i] ^= TextMask;
+        }
+
+        Text = text;
     }
 }

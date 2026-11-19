@@ -4,7 +4,7 @@ using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Engine;
 
-public sealed partial class GameWorld
+public sealed partial class Map
 {
     private const int DemoMaxLag = 71;
     private const int DemoDrawLag = 21;

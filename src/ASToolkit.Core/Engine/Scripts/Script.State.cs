@@ -6,7 +6,6 @@ namespace ASToolkit.Core.Engine.Scripts;
 
 public sealed partial class Script
 {
-    private const byte TextMask = 0x17;
 
     /// <summary>
     /// Writes the variables and names of the script as demos and saves store them.
@@ -18,7 +17,7 @@ public sealed partial class Script
         Span<byte> number = stackalloc byte[sizeof(int)];
         for (int i = 0; i < _count; i++)
         {
-            WriteVariable(stream, _slots[i], number);
+            _slots[i].Write(stream, number);
         }
 
         BinaryPrimitives.WriteInt32LittleEndian(number, _objectCount);
@@ -39,28 +38,6 @@ public sealed partial class Script
         }
     }
 
-    [EngineRoutine(0x00424520)]
-    private static void WriteVariable(Stream stream, in StackObject slot, Span<byte> number)
-    {
-        stream.WriteByte((byte)slot.Flags);
-        if (!slot.Flags.HasFlag(StackObjectFlags.Initialized))
-            return;
-
-        if (!slot.Flags.HasFlag(StackObjectFlags.Text))
-        {
-            BinaryPrimitives.WriteInt32LittleEndian(number, slot.Value);
-            stream.Write(number);
-            return;
-        }
-
-        foreach (byte character in slot.Text.Span)
-        {
-            stream.WriteByte((byte)(character ^ TextMask));
-        }
-
-        stream.WriteByte(0);
-    }
-
     /// <summary>
     /// Reads the variables and names of the script as demos and saves store them, in slot and name order.
     /// </summary>
@@ -72,7 +49,7 @@ public sealed partial class Script
         int offset = 0;
         for (int i = 0; i < _count; i++)
         {
-            ReadVariable(data, ref offset, ref _slots[i]);
+            _slots[i].Read(data, ref offset);
         }
 
         _objectCount = BinaryPrimitives.ReadInt32LittleEndian(data.Span[offset..]);
@@ -98,31 +75,8 @@ public sealed partial class Script
         return offset;
     }
 
-    [EngineRoutine(0x004244b0)]
-    private static void ReadVariable(ReadOnlyMemory<byte> data, ref int offset, ref StackObject slot)
-    {
-        slot.Flags = (StackObjectFlags)data.Span[offset++];
-        if (!slot.Flags.HasFlag(StackObjectFlags.Initialized))
-            return;
-
-        if (!slot.Flags.HasFlag(StackObjectFlags.Text))
-        {
-            slot.Value = BinaryPrimitives.ReadInt32LittleEndian(data.Span[offset..]);
-            offset += sizeof(int);
-            return;
-        }
-
-        byte[] text = ReadString(data, ref offset).ToArray();
-        for (int i = 0; i < text.Length; i++)
-        {
-            text[i] ^= TextMask;
-        }
-
-        slot.Text = text;
-    }
-
     [EngineRoutine(0x00406590)]
-    private static ReadOnlyMemory<byte> ReadString(ReadOnlyMemory<byte> data, ref int offset)
+    internal static ReadOnlyMemory<byte> ReadString(ReadOnlyMemory<byte> data, ref int offset)
     {
         var rest = data.Span[offset..];
         int length = rest.IndexOfAny((byte)0, (byte)'\n');

@@ -9,7 +9,7 @@ namespace ASToolkit.Core.Engine;
 /// <summary>
 /// Represents a running Alien Shooter level with its sprites, update lists, controllers and compiled level script.
 /// </summary>
-public sealed partial class GameWorld
+public sealed partial class Map
 {
     private const int MaxStreamPeriod = 30000;
     private const float RescueEffectHeight = 22;
@@ -20,19 +20,19 @@ public sealed partial class GameWorld
 
     private readonly GameRandom _rng;
     private readonly MonsterBrain _brain;
-    private readonly List<Unit> _monsters = [];
-    private readonly HashSet<Unit> _monsterSet = [];
+    private readonly List<Sprite> _monsters = [];
+    private readonly HashSet<Sprite> _monsterSet = [];
     private readonly UpdateOrder _updates;
-    private readonly List<Unit> _builders = [];
-    private readonly List<UnitGroup> _groups = [];
-    private readonly PlayerController[] _controllers = new PlayerController[PlayerSlots];
+    private readonly List<Sprite> _builders = [];
+    private readonly List<Group> _groups = [];
+    private readonly Player[] _players = new Player[PlayerSlots];
     private readonly LivingSet _livingFences = new();
     private readonly LivingSet _livingSites = new();
     private readonly LivingSet _livingCharges = new();
 
     private GameClock _clock;
     private MapEnvironment _environment;
-    private int _unitCount;
+    private int _spriteCount;
     private bool _playerDestroyed;
 
     private static ReadOnlySpan<int> WornArmorShares => [50, 70, 90];
@@ -40,7 +40,7 @@ public sealed partial class GameWorld
     private static ReadOnlySpan<byte> DoorsOpenVariable => "DoorsIsOpen"u8;
 
     /// <summary>
-    /// Creates a world from a level, building its sprites, binding its compiled script and running the creation scripts.
+    /// Creates a map from a level, building its sprites, binding its compiled script and running the creation scripts.
     /// </summary>
     /// <param name="data">The level to load.</param>
     /// <param name="rng">The random source the engine draws from.</param>
@@ -48,7 +48,7 @@ public sealed partial class GameWorld
     /// <param name="demo">The demo to play back, or null to play without one.</param>
     /// <param name="registry">The registry the level script reads and writes, or null for an empty one.</param>
     /// <param name="session">The map state earlier levels left, or null for a new session.</param>
-    public GameWorld(LevelTemplate data, GameRandom rng, ControlSettings? controls = null, DemoResource? demo = null,
+    public Map(LevelTemplate data, GameRandom rng, ControlSettings? controls = null, DemoResource? demo = null,
         ScriptRegistry? registry = null, GameSession? session = null)
     {
         Registry = registry ?? new ScriptRegistry("");
@@ -67,25 +67,25 @@ public sealed partial class GameWorld
         _rng = rng;
         Movement = data.Movement.Clone();
         var legs = definitions.Find(KnownObject.PlayerStart)!;
-        Units = new UnitGrid(Movement.MapSize, definitions.LargestHashedSize);
+        Collector = new SpriteCollector(Movement.MapSize, definitions.LargestHashedSize);
 
-        Motion = new UnitKinematics(definitions, this);
+        Motion = new SpriteKinematics(definitions, this);
         Effects = new SpawnedObjectSystem(definitions, Movement, rng, this);
-        var start = model.Sprites.FirstOrDefault(sprite => sprite.Id is KnownObject.PlayerStart or KnownObject.PlayerStartFemaleLegs);
-        Player = new Unit(_unitCount++, legs, start?.Position ?? new Vector3(data.FallbackStart, 0), Army.Player, legs.MaxHp)
+        var start = model.Sprites.FirstOrDefault(placement => placement.Id is KnownObject.PlayerStart or KnownObject.PlayerStartFemaleLegs);
+        Player = new Sprite(_spriteCount++, legs, start?.Position ?? new Vector3(data.FallbackStart, 0), Army.Player, legs.MaxHp)
         { CreatedAt = Time };
         Weapons = new WeaponSystem(this, definitions, rng);
-        var unitMovement = new UnitCollision(Movement, Units);
-        PlayerMovement = new PlayerMovement(unitMovement);
+        var spriteCollision = new SpriteCollision(Movement, Collector);
+        PlayerMovement = new PlayerMovement(spriteCollision);
         var settings = controls ?? ControlSettings.Default;
         Input = new PlayerInput(settings);
         for (int slot = 0; slot < PlayerSlots; slot++)
         {
-            _controllers[slot] = new PlayerController(this, unitMovement, settings);
+            _players[slot] = new Player(this, spriteCollision, settings);
         }
 
-        _brain = new MonsterBrain(Motion, unitMovement, rng, _monsters, Session);
-        var placedUnits = new Dictionary<int, Unit>();
+        _brain = new MonsterBrain(Motion, spriteCollision, rng, _monsters, Session);
+        var placedSprites = new Dictionary<int, Sprite>();
         IsLoading = true;
 
         if (start is null)
@@ -95,48 +95,48 @@ public sealed partial class GameWorld
 
         for (int record = 0; record < model.StoredSprites.Count; record++)
         {
-            var sprite = model.StoredSprites[record];
+            var placement = model.StoredSprites[record];
             ConstructLoadingScreen(data.LoadingScreenRecords, record);
 
-            if (sprite == start)
+            if (placement == start)
             {
                 ConstructPlayer(default);
-                placedUnits[sprite.Handle] = Player;
+                placedSprites[placement.Handle] = Player;
                 continue;
             }
 
-            var definition = Definitions.Find(sprite.Id);
+            var definition = Definitions.Find(placement.Id);
 
             if (definition is null)
                 continue;
 
-            var unit = PlaceSprite(sprite, definition);
+            var sprite = PlaceSprite(placement, definition);
 
-            if (unit is not null)
+            if (sprite is not null)
             {
-                placedUnits[sprite.Handle] = unit;
+                placedSprites[placement.Handle] = sprite;
             }
         }
 
         ConstructLoadingScreen(data.LoadingScreenRecords, model.StoredSprites.Count);
 
-        foreach (var sprite in model.StoredSprites)
+        foreach (var placement in model.StoredSprites)
         {
-            if (!placedUnits.TryGetValue(sprite.Handle, out var unit))
+            if (!placedSprites.TryGetValue(placement.Handle, out var sprite))
                 continue;
 
-            if (SpriteProgram.TryParse(sprite.Payload, false, out var program))
+            if (SpriteProgram.TryParse(placement.Payload, false, out var program))
             {
-                LoadOrders(unit, program.GetStack(0), placedUnits);
+                LoadOrders(sprite, program.GetStack(0), placedSprites);
             }
 
-            var items = SpriteProgram.GetItems(sprite.Payload);
+            var items = SpriteProgram.GetItems(placement.Payload);
             if (!items.IsEmpty)
             {
-                unit.Items.Clear();
+                sprite.Items.Clear();
                 foreach (int item in items)
                 {
-                    unit.Items.Add(item);
+                    sprite.Items.Add(item);
                 }
             }
         }
@@ -151,7 +151,7 @@ public sealed partial class GameWorld
             StartDemoPlayback(demo.Value);
         }
 
-        LoadGroups(model.Groups, placedUnits);
+        LoadGroups(model.Groups, placedSprites);
         IsLoading = false;
         RunCreationScripts();
 
@@ -159,58 +159,58 @@ public sealed partial class GameWorld
     }
 
     [EngineRoutine(0x00440830)]
-    private void LoadOrders(Unit unit, ReadOnlySpan<StackAction> stack, Dictionary<int, Unit> units)
+    private void LoadOrders(Sprite sprite, ReadOnlySpan<StackAction> stack, Dictionary<int, Sprite> sprites)
     {
-        var orders = new UnitOrder[stack.Length];
+        var orders = new Act[stack.Length];
         for (int i = 0; i < stack.Length; i++)
         {
             var action = stack[i];
-            orders[i] = UnitOrder.NamesSprite(action.Code)
-                ? new UnitOrder(action.Act, action.Var1, action.Var2, action.Var3, units.GetValueOrDefault(action.Var1))
-                : UnitOrder.FromAction(action);
+            orders[i] = Act.NamesSprite(action.Code)
+                ? new Act(action.Act, action.Var1, action.Var2, action.Var3, sprites.GetValueOrDefault(action.Var1))
+                : Act.FromAction(action);
         }
 
-        unit.Orders.Load(orders);
+        sprite.ActionStack.Load(orders);
 
-        if (unit.Orders.Count > 0)
+        if (sprite.ActionStack.Count > 0)
         {
-            _builders.Add(unit);
+            _builders.Add(sprite);
         }
     }
 
     [EngineRoutine(0x00405bd0)]
     [EngineRoutine(0x0040e870)]
-    private Unit? PlaceSprite(MergedMapSprite sprite, SpriteDefinition definition)
+    private Sprite? PlaceSprite(MergedMapSprite placement, SpriteDefinition definition)
     {
         if (definition.MaxHp > 0)
         {
-            if (sprite.Id != KnownObject.Crate && definition.Object.SpriteClass is SpriteClass.Unit or SpriteClass.Avia)
-                return AddMonster(definition, sprite.Position, sprite.Direction, sprite.Army);
+            if (placement.Id != KnownObject.Crate && definition.Object.SpriteClass is SpriteClass.Unit or SpriteClass.Avia)
+                return AddMonster(definition, placement.Position, placement.Direction, placement.Army);
 
             if (definition.Object.SpriteClass == SpriteClass.Man)
-                return _playerDestroyed ? ConstructNewPlayer(definition, sprite) : null;
+                return _playerDestroyed ? ConstructNewPlayer(definition, placement) : null;
 
-            var body = ConstructSprite(definition, sprite.Position, sprite.Direction, sprite.Army, definition.MaxHp, UpdateRole.Sprite, _unitCount++);
-            body.Placement = sprite;
-            _bodies.Add(sprite, body);
+            var body = ConstructSprite(definition, placement.Position, placement.Direction, placement.Army, definition.MaxHp, UpdateRole.Sprite, _spriteCount++);
+            body.Placement = placement;
+            _bodies.Add(placement, body);
 
             return body;
         }
 
         if (definition.Object.SpriteClass == SpriteClass.Cannon)
         {
-            AddPlacedCannon(sprite);
+            AddPlacedCannon(placement);
             return null;
         }
 
-        var unit = sprite.Id.IsScripted ? AddScripted(definition, sprite.Position, sprite.Direction, sprite.Army, sprite) : AddStatic(sprite, definition);
+        var sprite = placement.Id.IsScripted ? AddScripted(definition, placement.Position, placement.Direction, placement.Army, placement) : AddStatic(placement, definition);
 
-        return unit;
+        return sprite;
     }
 
-    private void AddPlacedCannon(MergedMapSprite sprite)
+    private void AddPlacedCannon(MergedMapSprite placement)
     {
-        Effects.Spawn(sprite.Id, sprite.Position, sprite.Direction, Time);
+        Effects.Spawn(placement.Id, placement.Position, placement.Direction, Time);
     }
 
 
@@ -219,7 +219,7 @@ public sealed partial class GameWorld
     /// <summary>
     /// Gets the body of the player, the man the level script made flagman 0.
     /// </summary>
-    public Unit Player { get; private set; }
+    public Sprite Player { get; private set; }
 
     /// <summary>
     /// Gets the cursor position in map coordinates.
@@ -232,9 +232,9 @@ public sealed partial class GameWorld
     public PlayerInput Input { get; }
 
     /// <summary>
-    /// Gets the unit groups of the map.
+    /// Gets the sprite groups of the map.
     /// </summary>
-    public IReadOnlyList<UnitGroup> Groups => _groups;
+    public IReadOnlyList<Group> Groups => _groups;
 
     /// <summary>
     /// Gets a value indicating whether the controllers act on the input.
@@ -248,7 +248,7 @@ public sealed partial class GameWorld
 
     internal MovementMap Movement { get; }
 
-    internal UnitGrid Units { get; }
+    internal SpriteCollector Collector { get; }
 
     internal PlayerMovement PlayerMovement { get; }
 
@@ -256,7 +256,7 @@ public sealed partial class GameWorld
 
     internal SpawnedObjectSystem Effects { get; }
 
-    internal UnitKinematics Motion { get; }
+    internal SpriteKinematics Motion { get; }
 
     /// <summary>
     /// Gets the game clock in milliseconds.
@@ -283,42 +283,42 @@ public sealed partial class GameWorld
     /// </summary>
     public bool AreFencesUp => GetLiving(KnownObject.Fence, _livingFences).Count != 0;
 
-    private List<Unit> GetLiving(KnownObject id, LivingSet set)
+    private List<Sprite> GetLiving(KnownObject id, LivingSet set)
     {
         if (set.CheckedAt == Time)
-            return set.Units;
+            return set.Sprites;
 
         set.CheckedAt = Time;
-        set.Units.Clear();
+        set.Sprites.Clear();
         var definition = Definitions.Find(id);
 
         if (definition is null)
-            return set.Units;
+            return set.Sprites;
 
         foreach (var entry in _updates.GetLayer(definition.Layer))
         {
-            var unit = entry.Unit;
+            var sprite = entry.Sprite;
 
-            if (unit is not null && unit.Definition == definition && unit.Animation < SpriteAnimation.Death)
+            if (sprite is not null && sprite.Definition == definition && sprite.Animation < SpriteAnimation.Death)
             {
-                set.Units.Add(unit);
+                set.Sprites.Add(sprite);
             }
         }
 
-        return set.Units;
+        return set.Sprites;
     }
 
     private sealed class LivingSet
     {
-        public List<Unit> Units { get; } = [];
+        public List<Sprite> Sprites { get; } = [];
 
         public int CheckedAt { get; set; } = -1;
     }
 
     /// <summary>
-    /// Gets the units the world updates as monsters.
+    /// Gets the sprites the map updates as monsters.
     /// </summary>
-    public IReadOnlyList<Unit> Monsters => _monsters;
+    public IReadOnlyList<Sprite> Monsters => _monsters;
 
     /// <summary>
     /// Sets whether the controllers act on the input.
@@ -345,35 +345,35 @@ public sealed partial class GameWorld
     private void SetTime(int time) => _clock.SetTime(time);
 
     [EngineRoutine(0x0043ad70)]
-    private void LoadGroups(IReadOnlyList<IReadOnlyList<int>> groups, Dictionary<int, Unit> placedUnits)
+    private void LoadGroups(IReadOnlyList<IReadOnlyList<int>> groups, Dictionary<int, Sprite> placedSprites)
     {
         foreach (var handles in groups)
         {
-            UnitGroup? group = null;
+            Group? group = null;
             foreach (int handle in handles)
             {
-                if (!placedUnits.TryGetValue(handle, out var unit))
+                if (!placedSprites.TryGetValue(handle, out var sprite))
                     continue;
 
                 if (group is null)
                 {
-                    group = new UnitGroup(unit);
+                    group = new Group(sprite);
                     _groups.Add(group);
                 }
                 else
                 {
-                    group.Add(unit);
+                    group.Add(sprite);
                 }
             }
         }
     }
 
     [EngineRoutine(0x0043adf0)]
-    private void RemoveFromGroups(Unit unit)
+    private void RemoveFromGroups(Sprite sprite)
     {
         for (int i = _groups.Count - 1; i >= 0; i--)
         {
-            if (_groups[i].Remove(unit) && _groups[i].Members.Count == 0)
+            if (_groups[i].Remove(sprite) && _groups[i].Members.Count == 0)
             {
                 _groups.RemoveAt(i);
             }
@@ -396,7 +396,7 @@ public sealed partial class GameWorld
             {
                 var entry = list[i];
 
-                if (entry.Unit is not null && !TickEntry(entry, layer))
+                if (entry.Sprite is not null && !TickEntry(entry, layer))
                 {
                     UpdateOrder.Clear(list, i);
                 }
@@ -408,8 +408,8 @@ public sealed partial class GameWorld
 
     private bool TickEntry(UpdateEntry entry, int layer)
     {
-        var unit = entry.Unit;
-        switch (unit?.Role ?? entry.Role)
+        var sprite = entry.Sprite;
+        switch (sprite?.Role ?? entry.Role)
         {
             case UpdateRole.Player:
                 if (!_playerDestroyed && !Tact(Player))
@@ -419,13 +419,13 @@ public sealed partial class GameWorld
 
                 return true;
             case UpdateRole.Torso:
-                if (unit != Weapons.Torso)
+                if (sprite != Weapons.Torso)
                 {
-                    ReleaseSprite(unit!);
+                    ReleaseSprite(sprite!);
                     return false;
                 }
 
-                if (unit.Definition.Layer != layer)
+                if (sprite.Definition.Layer != layer)
                     return false;
 
                 if (Player.IsAlive)
@@ -435,22 +435,22 @@ public sealed partial class GameWorld
 
                 return true;
             case UpdateRole.Monster:
-                return TickMonster(unit!);
+                return TickMonster(sprite!);
             case UpdateRole.Scripted:
-                return TickScripted(unit!);
+                return TickScripted(sprite!);
             case UpdateRole.Effect:
-                return Effects.Tick(unit!);
+                return Effects.Tick(sprite!);
             default:
-                if (Tact(unit!))
+                if (Tact(sprite!))
                     return true;
 
-                if (unit!.Placement is null || IsBaked(unit.Definition))
+                if (sprite!.Placement is null || IsBaked(sprite.Definition))
                 {
-                    RemoveStatic(unit);
+                    RemoveStatic(sprite);
                 }
                 else
                 {
-                    RemovePlacement(unit.Placement);
+                    RemovePlacement(sprite.Placement);
                 }
 
                 return false;
@@ -458,49 +458,49 @@ public sealed partial class GameWorld
     }
 
     /// <summary>
-    /// Adds a unit to its definition's update list.
+    /// Adds a sprite to its definition's update list.
     /// </summary>
-    /// <param name="role">The side list that removes the unit when it leaves.</param>
-    /// <param name="unit">The unit.</param>
-    public void Register(UpdateRole role, Unit unit)
+    /// <param name="role">The side list that removes the sprite when it leaves.</param>
+    /// <param name="sprite">The sprite.</param>
+    public void Register(UpdateRole role, Sprite sprite)
     {
-        unit.Role = role;
-        CountSprite(unit);
-        _updates.Add(unit.Definition.Layer, new UpdateEntry(role, unit));
+        sprite.Role = role;
+        CountSprite(sprite);
+        _updates.Add(sprite.Definition.Layer, new UpdateEntry(role, sprite));
     }
 
     [EngineRoutine(0x004545e0)]
     private void ConstructPlayer(Angle direction)
     {
         Player.Start(GetInitialAnimation(Player.Definition), direction, Time, _rng);
-        TryAddItem(Player, Unit.WeaponItemBase + Unit.Pistols);
+        TryAddItem(Player, Sprite.WeaponItemBase + Sprite.Pistols);
         Weapons.StartTorso(GetInitialAnimation(Weapons.Torso.Definition));
         Register(UpdateRole.Torso, Weapons.Torso);
         Register(UpdateRole.Player, Player);
-        Units.Add(Player);
+        Collector.InsertToHash(Player);
     }
 
-    private Unit ConstructNewPlayer(SpriteDefinition definition, MergedMapSprite sprite)
+    private Sprite ConstructNewPlayer(SpriteDefinition definition, MergedMapSprite placement)
     {
-        var man = new Unit(_unitCount++, definition, sprite.Position, sprite.Army, definition.ArmyMaxHp[(int)sprite.Army & ArmyMask]) { CreatedAt = Time };
+        var man = new Sprite(_spriteCount++, definition, placement.Position, placement.Army, definition.ArmyMaxHp[(int)placement.Army & ArmyMask]) { CreatedAt = Time };
         Player = man;
         _playerDestroyed = false;
         Weapons.AttachTorso();
-        ConstructPlayer(sprite.Direction);
+        ConstructPlayer(placement.Direction);
 
         return man;
     }
 
     [EngineRoutine(0x00446c90)]
-    private static Unit ConstructCursor(SpriteCatalog definitions) => new(-1, definitions.Empty, Vector3.Zero, Army.Player, 0);
+    private static Sprite ConstructCursor(SpriteCatalog definitions) => new(-1, definitions.Empty, Vector3.Zero, Army.Player, 0);
 
     [EngineRoutine(0x00446810)]
-    private static bool TryAddItem(Unit unit, int item)
+    private static bool TryAddItem(Sprite sprite, int item)
     {
-        if (unit.Items.Contains(item))
+        if (sprite.Items.Contains(item))
             return false;
 
-        unit.Items.Add(item);
+        sprite.Items.Add(item);
 
         return true;
     }
@@ -511,7 +511,7 @@ public sealed partial class GameWorld
         var torso = Weapons.Torso;
         _updates.Remove(torso.Definition.Layer, torso);
         _updates.Remove(Player.Definition.Layer, Player);
-        Units.Remove(Player);
+        Collector.DeleteFromHash(Player);
         Effects.Detach(Player);
         Delete(Player);
         ReleaseSprite(torso);
@@ -526,25 +526,25 @@ public sealed partial class GameWorld
             return;
 
         var definition = Definitions.LoadingScreen ?? throw new InvalidOperationException("Missing the loading screen definition.");
-        new Unit(-1, definition, Vector3.Zero, Army.Player, 0).Start(GetInitialAnimation(definition), default, Time, _rng);
+        new Sprite(-1, definition, Vector3.Zero, Army.Player, 0).Start(GetInitialAnimation(definition), default, Time, _rng);
     }
 
     [EngineRoutine(0x0043f200)]
-    private Unit ConstructSprite(SpriteDefinition definition, Vector3 position, Angle direction, Army army, int hp, UpdateRole role, int number = -1)
+    private Sprite ConstructSprite(SpriteDefinition definition, Vector3 position, Angle direction, Army army, int hp, UpdateRole role, int number = -1)
     {
-        var unit = new Unit(number, definition, position, army, hp) { CreatedAt = Time };
+        var sprite = new Sprite(number, definition, position, army, hp) { CreatedAt = Time };
         var state = GetInitialAnimation(definition);
-        unit.Start(state, direction, Time, _rng);
-        Register(role, unit);
-        CreateLink(unit);
-        Units.Add(unit);
+        sprite.Start(state, direction, Time, _rng);
+        Register(role, sprite);
+        CreateLink(sprite);
+        Collector.InsertToHash(sprite);
 
         if (state != SpriteAnimation.Birth && !IsLoading)
         {
-            Effects.Emit(definition, SpriteAnimation.Birth, unit.Position, unit.Direction, Time);
+            Effects.Emit(definition, SpriteAnimation.Birth, sprite.Position, sprite.Direction, Time);
         }
 
-        return unit;
+        return sprite;
     }
 
     /// <summary>
@@ -570,7 +570,7 @@ public sealed partial class GameWorld
     /// <summary>
     /// Gets the sprites whose orders build units.
     /// </summary>
-    public IReadOnlyList<Unit> Builders => _builders;
+    public IReadOnlyList<Sprite> Builders => _builders;
 
     [EngineRoutine(0x0040c960)]
     private void RunCreationScripts()
@@ -580,11 +580,11 @@ public sealed partial class GameWorld
             var list = _updates.GetLayer(layer);
             for (int i = list.Count - 1; i >= 0; i--)
             {
-                var unit = list[i].Unit;
+                var sprite = list[i].Sprite;
 
-                if (unit is not null && unit.Role is not (UpdateRole.Player or UpdateRole.Torso))
+                if (sprite is not null && sprite.Role is not (UpdateRole.Player or UpdateRole.Torso))
                 {
-                    RunCreationHook(unit);
+                    RunCreationHook(sprite);
                 }
             }
         }
@@ -600,7 +600,7 @@ public sealed partial class GameWorld
 
         if (IsPlayerControlled)
         {
-            foreach (var controller in _controllers)
+            foreach (var controller in _players)
             {
                 controller.Control(Input);
             }
@@ -614,20 +614,20 @@ public sealed partial class GameWorld
     private void PlayMusic() => _rng.Next();
 
     /// <summary>
-    /// Returns the unit a player slot controls.
+    /// Returns the sprite a player slot controls.
     /// </summary>
     /// <param name="army">The player slot.</param>
-    /// <returns>The unit, or null when the slot has none.</returns>
+    /// <returns>The sprite, or null when the slot has none.</returns>
     [EngineRoutine(0x0040e620)]
-    public Unit? GetFlagman(int army) => _controllers[army & ArmyMask].Unit;
+    public Sprite? GetFlagman(int army) => _players[army & ArmyMask].Sprite;
 
     /// <summary>
-    /// Sets the unit a player slot controls.
+    /// Sets the sprite a player slot controls.
     /// </summary>
     /// <param name="army">The player slot.</param>
-    /// <param name="unit">The unit, or null to clear the slot.</param>
+    /// <param name="sprite">The sprite, or null to clear the slot.</param>
     [EngineRoutine(0x0040e600)]
-    public void SetFlagman(int army, Unit? unit) => _controllers[army & ArmyMask].SetUnit(unit);
+    public void SetFlagman(int army, Sprite? sprite) => _players[army & ArmyMask].SetSprite(sprite);
 
     /// <summary>
     /// Advances the game clock to the next frame of wall time and compacts the update lists.
@@ -636,55 +636,55 @@ public sealed partial class GameWorld
     public void AdvanceClock()
     {
         uint wallTime = _clock.GetNextWallTime();
-        _clock.Advance(wallTime, wallTime);
+        _clock.StartTact(wallTime, wallTime);
         _updates.Compact(Time);
         Input.ResetFrame();
     }
 
-    private bool TickMonster(Unit unit)
+    private bool TickMonster(Sprite sprite)
     {
-        var owner = unit.Owner;
+        var owner = sprite.Owner;
 
         if (owner is not null)
         {
-            if (owner.Link != unit || (owner.Number >= 0 && !_monsterSet.Contains(owner)))
+            if (owner.Link != sprite || (owner.Number >= 0 && !_monsterSet.Contains(owner)))
             {
-                RemoveMonster(unit);
-                Delete(unit);
-                ReleaseSprite(unit);
+                RemoveMonster(sprite);
+                Delete(sprite);
+                ReleaseSprite(sprite);
 
                 return false;
             }
         }
 
-        if (Tact(unit))
+        if (Tact(sprite))
             return true;
 
-        RemoveMonster(unit);
-        Units.Remove(unit);
-        Delete(unit);
-        ReleaseSprite(unit);
+        RemoveMonster(sprite);
+        Collector.DeleteFromHash(sprite);
+        Delete(sprite);
+        ReleaseSprite(sprite);
 
         return false;
     }
 
-    private void Delete(Unit removed)
+    private void Delete(Sprite removed)
     {
-        foreach (var unit in _monsters)
+        foreach (var sprite in _monsters)
         {
-            if (UnitKinematics.ForgetObject(unit, removed))
+            if (SpriteKinematics.ForgetObject(sprite, removed))
             {
                 DrawGoalSpriteRandom();
             }
         }
 
-        if (UnitKinematics.ForgetObject(Weapons.Torso, removed))
+        if (SpriteKinematics.ForgetObject(Weapons.Torso, removed))
         {
             DrawGoalSpriteRandom();
         }
         RemoveFromGroups(removed);
         Effects.Forget(removed);
-        foreach (var controller in _controllers)
+        foreach (var controller in _players)
         {
             controller.Forget(removed);
         }
@@ -696,101 +696,101 @@ public sealed partial class GameWorld
     }
 
     /// <summary>
-    /// Updates a sprite for one frame and returns whether it stays in the world.
+    /// Updates a sprite for one frame and returns whether it stays in the map.
     /// </summary>
-    /// <param name="unit">The sprite.</param>
+    /// <param name="sprite">The sprite.</param>
     /// <returns><see langword="true"/> while the sprite lives; otherwise, <see langword="false"/>.</returns>
     [EngineRoutine(0x00440110)]
-    public bool Tact(Unit unit)
+    public bool Tact(Sprite sprite)
     {
-        var layout = unit.Definition.Layout;
-        UpdateKeyframe(unit);
+        var layout = sprite.Definition.Layout;
+        UpdateKeyframe(sprite);
 
-        if (unit.Owner is null)
+        if (sprite.Owner is null)
         {
-            MoveByClass(unit);
+            MoveByClass(sprite);
         }
 
-        EmitStream(unit);
-        var state = unit.Animation;
+        EmitStream(sprite);
+        var state = sprite.Animation;
 
-        if (unit.CreatedAt == Time || Time - Time % layout.GetFrameDuration(state) <= Time - FrameTime)
+        if (sprite.CreatedAt == Time || Time - Time % layout.GetFrameDuration(state) <= Time - FrameTime)
             return true;
 
-        if (unit.Command is not UnitCommand.None && unit is { Command: < UnitCommand.Build, HasGoal: false })
+        if (sprite.Command is not Command.None && sprite is { Command: < Command.Build, HasGoal: false })
         {
-            UnitKinematics.SetCommand(unit, UnitCommand.None);
+            SpriteKinematics.SetCommand(sprite, Command.None);
         }
 
-        if (unit.Timer != 0)
+        if (sprite.Timer != 0)
         {
-            unit.Timer = Time - unit.LastTickTime < unit.Timer ? unit.Timer - (Time - unit.LastTickTime) : 0;
+            sprite.Timer = Time - sprite.LastTickTime < sprite.Timer ? sprite.Timer - (Time - sprite.LastTickTime) : 0;
 
-            if (unit is { Timer: 0, Command: UnitCommand.Pause })
+            if (sprite is { Timer: 0, Command: Command.Pause })
             {
-                UnitKinematics.SetCommand(unit, UnitCommand.None);
+                SpriteKinematics.SetCommand(sprite, Command.None);
             }
         }
 
-        bool everyFrame = unit.Definition.Object.Properties.HasFlag(ObjectProperties.Track);
+        bool everyFrame = sprite.Definition.Object.Properties.HasFlag(ObjectProperties.Track);
 
-        if (RunStateHandlers(unit, everyFrame))
+        if (RunStateHandlers(sprite, everyFrame))
             return true;
 
-        EmitStateChildren(unit);
-        unit.Frame++;
+        CreateChild(sprite);
+        sprite.Frame++;
 
-        if (unit.Animation >= SpriteAnimation.Death && (unit.Frame > unit.LastFrame || layout.GetFrameCount(unit.Animation) == 0))
+        if (sprite.Animation >= SpriteAnimation.Death && (sprite.Frame > sprite.LastFrame || layout.GetFrameCount(sprite.Animation) == 0))
         {
-            unit.Frame = unit.LastFrame;
+            sprite.Frame = sprite.LastFrame;
 
-            if (unit.Definition.Damage != 0)
+            if (sprite.Definition.Damage != 0)
             {
-                Weapons.ApplyBlast(unit);
+                Weapons.ApplyBlast(sprite);
             }
 
             return false;
         }
 
-        if (unit.Command is UnitCommand.Passive or UnitCommand.Pause)
+        if (sprite.Command is Command.Passive or Command.Pause)
         {
-            HoldStill(unit);
+            HoldStill(sprite);
         }
-        else if (unit.Frame > unit.LastFrame || everyFrame)
+        else if (sprite.Frame > sprite.LastFrame || everyFrame)
         {
-            if (unit.Orders.Count == 0 || unit.Command != UnitCommand.None)
+            if (sprite.ActionStack.Count == 0 || sprite.Command != Command.None)
             {
-                Action(unit, ActionCode.NextCommand);
+                Action(sprite, ActionCode.NextCommand);
             }
             else
             {
-                PopOrder(unit);
+                PopOrder(sprite);
             }
         }
 
-        if (unit.Lifetime != SpriteDefinition.Unlimited && unit.Animation < SpriteAnimation.Death)
+        if (sprite.Lifetime != SpriteDefinition.Unlimited && sprite.Animation < SpriteAnimation.Death)
         {
-            if (Time - unit.LastTickTime < unit.Lifetime)
+            if (Time - sprite.LastTickTime < sprite.Lifetime)
             {
-                unit.Lifetime -= Time - unit.LastTickTime;
+                sprite.Lifetime -= Time - sprite.LastTickTime;
             }
             else
             {
-                unit.ChangeAnimation(SpriteAnimation.Death);
+                sprite.ChangeAnimation(SpriteAnimation.Death);
             }
         }
 
-        int period = unit.Definition.Weapon.AnimationPeriod;
-        if (unit.Definition.HasKeyframes && period != SpriteDefinition.Unlimited && (uint)period < (uint)(Time - unit.KeyframeStart))
+        int period = sprite.Definition.Weapon.AnimationPeriod;
+        if (sprite.Definition.HasKeyframes && period != SpriteDefinition.Unlimited && (uint)period < (uint)(Time - sprite.KeyframeStart))
         {
-            unit.KeyframeStart = Time;
+            sprite.KeyframeStart = Time;
         }
 
-        unit.LastTickTime = Time;
+        sprite.LastTickTime = Time;
 
-        if (unit.Frame > unit.LastFrame)
+        if (sprite.Frame > sprite.LastFrame)
         {
-            unit.Frame = unit.FirstFrame;
+            sprite.Frame = sprite.FirstFrame;
         }
 
         return true;
@@ -799,71 +799,71 @@ public sealed partial class GameWorld
     [EngineRoutine(0x00454670)]
     [EngineRoutine(0x00447260)]
     [EngineRoutine(0x0043f820)]
-    private void MoveByClass(Unit unit)
+    private void MoveByClass(Sprite sprite)
     {
-        switch (unit.Definition.Object.SpriteClass)
+        switch (sprite.Definition.Object.SpriteClass)
         {
-            case SpriteClass.Man when unit == Player:
+            case SpriteClass.Man when sprite == Player:
                 PlayerMovement.Tick(Player, IsInCannon ? 0 : Player.MaxSpeed, FrameTime);
                 break;
             case SpriteClass.Unit or SpriteClass.Avia:
-                if (unit.IsAlive)
+                if (sprite.IsAlive)
                 {
-                    _brain.Move(unit, FrameTime, _clock.FramesPerSecond);
+                    _brain.Move(sprite, FrameTime, _clock.FramesPerSecond);
                 }
 
                 break;
             case SpriteClass.Building:
                 break;
             default:
-                Effects.Move(unit, FrameTime);
+                Effects.Move(sprite, FrameTime);
                 break;
         }
     }
 
     [EngineRoutine(0x00440110)]
-    private static void HoldStill(Unit unit)
+    private static void HoldStill(Sprite sprite)
     {
-        var state = unit.Animation;
+        var state = sprite.Animation;
 
-        if (state >= SpriteAnimation.Death || state == SpriteAnimation.StandOpen || unit.Frame <= unit.LastFrame)
+        if (state >= SpriteAnimation.Death || state == SpriteAnimation.StandOpen || sprite.Frame <= sprite.LastFrame)
             return;
 
-        if (unit.Speed.IsZero())
+        if (sprite.Speed.IsZero())
         {
             if (state is SpriteAnimation.Go or > SpriteAnimation.Open)
             {
-                unit.ChangeAnimation(SpriteAnimation.Stand);
+                sprite.ChangeAnimation(SpriteAnimation.Stand);
             }
         }
         else if (state != SpriteAnimation.Go)
         {
-            unit.ChangeAnimation(SpriteAnimation.Go);
+            sprite.ChangeAnimation(SpriteAnimation.Go);
         }
     }
 
     [EngineRoutine(0x00440110)]
-    private void UpdateKeyframe(Unit unit)
+    private void UpdateKeyframe(Sprite sprite)
     {
-        if (!unit.Definition.HasKeyframes)
+        if (!sprite.Definition.HasKeyframes)
             return;
 
-        ref readonly var weapon = ref unit.Definition.Weapon;
-        int elapsed = Time - unit.KeyframeStart;
+        ref readonly var weapon = ref sprite.Definition.Weapon;
+        int elapsed = Time - sprite.KeyframeStart;
         int period = weapon.AnimationPeriod;
         if (period == SpriteDefinition.Unlimited)
         {
-            if (unit.Animation > SpriteAnimation.Birth && unit.LastFrame != unit.FirstFrame)
+            if (sprite.Animation > SpriteAnimation.Birth && sprite.LastFrame != sprite.FirstFrame)
             {
-                period = unit.Definition.Layout.GetFrameDuration(unit.Animation) * (unit.LastFrame - unit.FirstFrame);
+                period = sprite.Definition.Layout.GetFrameDuration(sprite.Animation) * (sprite.LastFrame - sprite.FirstFrame);
             }
-            else if (unit.Lifetime == SpriteDefinition.Unlimited)
+            else if (sprite.Lifetime == SpriteDefinition.Unlimited)
             {
                 return;
             }
             else
             {
-                period = unit.Lifetime + elapsed;
+                period = sprite.Lifetime + elapsed;
             }
         }
 
@@ -871,7 +871,7 @@ public sealed partial class GameWorld
             return;
 
         // Search from the key after the previous position, reading past the key times as the engine does
-        int key = (int)unit.KeyframePosition + 1;
+        int key = (int)sprite.KeyframePosition + 1;
         while (key < WeaponRecord.KeyframeCount - 1 && period * GetKeyTime(weapon, key) <= elapsed)
         {
             key++;
@@ -879,164 +879,164 @@ public sealed partial class GameWorld
 
         key--;
         float start = period * GetKeyTime(weapon, key);
-        unit.KeyframePosition = (elapsed - start) / ((GetKeyTime(weapon, key + 1) - GetKeyTime(weapon, key)) * period) + key;
+        sprite.KeyframePosition = (elapsed - start) / ((GetKeyTime(weapon, key + 1) - GetKeyTime(weapon, key)) * period) + key;
     }
 
     private static float GetKeyTime(in WeaponRecord weapon, int key) =>
         key < 0 ? BitConverter.Int32BitsToSingle(weapon.AnimationPeriod)
         : key < WeaponRecord.KeyframeCount ? weapon.KeyTimes[key] : BitConverter.Int32BitsToSingle(weapon.RedKeys[0]);
 
-    private void EmitStream(Unit unit)
+    private void EmitStream(Sprite sprite)
     {
-        var state = unit.Animation;
-        var child = Definitions.Find((KnownObject)Math.Abs(unit.Definition.Children[(int)state]));
+        var state = sprite.Animation;
+        var child = Definitions.Find((KnownObject)Math.Abs(sprite.Definition.Children[(int)state]));
 
-        if (child is null || !child.Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke) || Time - Time % unit.StreamPeriod <= Time - FrameTime)
+        if (child is null || !child.Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke) || Time - Time % sprite.StreamPeriod <= Time - FrameTime)
             return;
 
-        var velocity = UnitKinematics.Displace(Vector3.Zero, unit.Direction, unit.Speed, 1);
+        var velocity = SpriteKinematics.Displace(Vector3.Zero, sprite.Direction, sprite.Speed, 1);
         float across = velocity.X;
-        float down = velocity.Y + unit.VerticalSpeed - child.ZSpeed;
+        float down = velocity.Y + sprite.VerticalSpeed - child.ZSpeed;
         float acrossPeriod = across.IsZero() ? MaxStreamPeriod : child.Object.Size.X / Math.Abs(across);
         float downPeriod = down.IsZero() ? MaxStreamPeriod : child.Object.Size.Y / Math.Abs(down);
         int period = (int)Math.Min(acrossPeriod, downPeriod);
 
-        if (state == SpriteAnimation.Fight && unit.Definition.AttacksTwice)
+        if (state == SpriteAnimation.Fight && sprite.Definition.AttacksTwice)
         {
             period >>= 1;
         }
 
-        unit.StreamPeriod = Math.Clamp(period, 1, MaxStreamPeriod);
-        EmitChildrenAs(unit, state);
+        sprite.StreamPeriod = Math.Clamp(period, 1, MaxStreamPeriod);
+        CreateChildFor(sprite, state);
     }
 
     /// <summary>
     /// Creates the child objects a sprite's definition lists for a state.
     /// </summary>
-    /// <param name="unit">The sprite.</param>
+    /// <param name="sprite">The sprite.</param>
     /// <param name="state">The state whose children to create.</param>
     [EngineRoutine(0x00446430)]
-    public void EmitChildrenAs(Unit unit, SpriteAnimation state) =>
-        Effects.Emit(unit.Definition, state, unit.Position, unit.Direction, Time, unit.Depth, unit.TakeChildPulse(state), unit);
+    public void CreateChildFor(Sprite sprite, SpriteAnimation state) =>
+        Effects.Emit(sprite.Definition, state, sprite.Position, sprite.Direction, Time, sprite.Depth, sprite.TakeChildPulse(state), sprite);
 
     [EngineRoutine(0x00444dd0)]
-    private void EmitStateChildren(Unit unit)
+    private void CreateChild(Sprite sprite)
     {
-        var state = unit.Animation;
-        int child = unit.Definition.Children[(int)state];
+        var state = sprite.Animation;
+        int child = sprite.Definition.Children[(int)state];
 
         if (child == 0 || Definitions.Find((KnownObject)Math.Abs(child))?.Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke) == true)
             return;
 
-        var flags = unit.Definition.Object.Properties;
-        int emissionFrame = flags.HasFlag(ObjectProperties.CreateChildEnd) ? unit.LastFrame : unit.FirstFrame;
-        bool emits = state == SpriteAnimation.Fight && unit.Definition.AttacksTwice
-            ? unit.Frame == (unit.LastFrame + 1 + unit.FirstFrame) / 2 || unit.Frame == emissionFrame
-            : flags.HasFlag(ObjectProperties.Track) || unit.Frame == emissionFrame;
+        var flags = sprite.Definition.Object.Properties;
+        int emissionFrame = flags.HasFlag(ObjectProperties.CreateChildEnd) ? sprite.LastFrame : sprite.FirstFrame;
+        bool emits = state == SpriteAnimation.Fight && sprite.Definition.AttacksTwice
+            ? sprite.Frame == (sprite.LastFrame + 1 + sprite.FirstFrame) / 2 || sprite.Frame == emissionFrame
+            : flags.HasFlag(ObjectProperties.Track) || sprite.Frame == emissionFrame;
 
         if (!emits)
             return;
 
         if (state != SpriteAnimation.Fight)
         {
-            EmitChildrenAs(unit, state);
+            CreateChildFor(sprite, state);
 
             return;
         }
 
-        Weapons.FireFrom(unit);
+        Weapons.FireFrom(sprite);
 
-        if (unit.Command == UnitCommand.OneAttack && (!flags.HasFlag(ObjectProperties.Track) || unit.Frame == unit.LastFrame))
+        if (sprite.Command == Command.OneAttack && (!flags.HasFlag(ObjectProperties.Track) || sprite.Frame == sprite.LastFrame))
         {
-            UnitKinematics.SetCommand(unit, UnitCommand.None);
+            SpriteKinematics.SetCommand(sprite, Command.None);
         }
     }
 
     /// <summary>
-    /// Returns the next unit number.
+    /// Returns the next sprite number.
     /// </summary>
     /// <returns>The number.</returns>
-    public int AllocateNumber() => _unitCount++;
+    public int AllocateNumber() => _spriteCount++;
 
     /// <summary>
-    /// Deals damage to a unit.
+    /// Deals damage to a sprite.
     /// </summary>
-    /// <param name="unit">The unit.</param>
+    /// <param name="sprite">The sprite.</param>
     /// <param name="damage">The damage, negative to heal.</param>
     [EngineRoutine(0x00440830)]
     [EngineRoutine(0x004454d0)]
-    public void Damage(Unit unit, int damage)
+    public void Damage(Sprite sprite, int damage)
     {
-        if (damage < 0 && unit != Player && unit.Animation < SpriteAnimation.Death)
+        if (damage < 0 && sprite != Player && sprite.Animation < SpriteAnimation.Death)
         {
-            unit.Hp = Math.Min(unit.Definition.MaxHp, unit.Hp - damage);
+            sprite.Hp = Math.Min(sprite.Definition.MaxHp, sprite.Hp - damage);
 
             return;
         }
 
-        if (damage <= 0 || !unit.IsAlive)
+        if (damage <= 0 || !sprite.IsAlive)
         {
             return;
         }
 
-        if (unit.Definition.Object.SpriteClass == SpriteClass.Man)
+        if (sprite.Definition.Object.SpriteClass == SpriteClass.Man)
         {
-            damage = DamageMan(unit, damage);
+            damage = DamageMan(sprite, damage);
 
             if (damage <= 0)
                 return;
         }
 
-        if (unit.Animation >= SpriteAnimation.Death || unit.Definition.MaxHp == 0)
+        if (sprite.Animation >= SpriteAnimation.Death || sprite.Definition.MaxHp == 0)
             return;
 
-        int previousHp = unit.Hp;
-        unit.Hp -= damage;
+        int previousHp = sprite.Hp;
+        sprite.Hp -= damage;
 
-        if (!unit.IsAlive)
+        if (!sprite.IsAlive)
         {
-            unit.HpBeforeDeath = previousHp;
-            unit.Definition.Killed[(int)unit.Army & 3]++;
+            sprite.HpBeforeDeath = previousHp;
+            sprite.Definition.Killed[(int)sprite.Army & 3]++;
         }
 
-        if (unit.IsAlive && previousHp > unit.Definition.MaxHp / 2 && unit.Hp <= unit.Definition.MaxHp / 2)
+        if (sprite.IsAlive && previousHp > sprite.Definition.MaxHp / 2 && sprite.Hp <= sprite.Definition.MaxHp / 2)
         {
-            unit.ChangeAnimation(SpriteAnimation.Wound);
+            sprite.ChangeAnimation(SpriteAnimation.Wound);
         }
-        bool staggers = unit is { IsAlive: true, Animation: SpriteAnimation.Stand or SpriteAnimation.Go } && unit.Definition.Layout.GetFrameCount(SpriteAnimation.Close) > 0;
+        bool staggers = sprite is { IsAlive: true, Animation: SpriteAnimation.Stand or SpriteAnimation.Go } && sprite.Definition.Layout.GetFrameCount(SpriteAnimation.Close) > 0;
 
         if (staggers)
         {
-            unit.ChangeAnimation(SpriteAnimation.Close);
+            sprite.ChangeAnimation(SpriteAnimation.Close);
         }
         else
         {
-            EmitChildrenAs(unit, SpriteAnimation.Close);
+            CreateChildFor(sprite, SpriteAnimation.Close);
         }
 
-        if (!unit.IsAlive)
+        if (!sprite.IsAlive)
         {
-            CompleteDeath(unit, damage > unit.Definition.MaxHp ? SpriteAnimation.Death2 : SpriteAnimation.Death);
+            CompleteDeath(sprite, damage > sprite.Definition.MaxHp ? SpriteAnimation.Death2 : SpriteAnimation.Death);
         }
 
-        _brain.Wander(unit);
+        _brain.Wander(sprite);
     }
 
-    private void AddToMonsters(Unit unit)
+    private void AddToMonsters(Sprite sprite)
     {
-        _monsters.Add(unit);
-        _monsterSet.Add(unit);
+        _monsters.Add(sprite);
+        _monsterSet.Add(sprite);
     }
 
-    private void RemoveMonster(Unit unit)
+    private void RemoveMonster(Sprite sprite)
     {
-        _builders.Remove(unit);
-        _monsters.Remove(unit);
-        _monsterSet.Remove(unit);
+        _builders.Remove(sprite);
+        _monsters.Remove(sprite);
+        _monsterSet.Remove(sprite);
     }
 
     [EngineRoutine(0x00454800)]
-    private int DamageMan(Unit man, int damage)
+    private int DamageMan(Sprite man, int damage)
     {
         if (man.Definition.Id != KnownObject.MannedCannon)
         {
@@ -1063,23 +1063,23 @@ public sealed partial class GameWorld
             return damage;
 
         man.Items.Remove((int)KnownObject.Medkit);
-        SetUnitHp(man, man.Definition.ArmyMaxHp[(int)man.Army & ArmyMask]);
+        ChangeHp(man, man.Definition.ArmyMaxHp[(int)man.Army & ArmyMask]);
         CreateSprite(Definitions.Find(KnownObject.RescueMedkitEffect)!, man.Position + Vector3.UnitZ * RescueEffectHeight, default);
 
         return 0;
     }
 
-    private void CompleteDeath(Unit unit, SpriteAnimation animation)
+    private void CompleteDeath(Sprite sprite, SpriteAnimation animation)
     {
-        if (unit.Placement is not null && unit != Player)
+        if (sprite.Placement is not null && sprite != Player)
         {
-            RemovePlacement(unit.Placement);
-            AddToMonsters(unit);
-            unit.Role = UpdateRole.Monster;
+            RemovePlacement(sprite.Placement);
+            AddToMonsters(sprite);
+            sprite.Role = UpdateRole.Monster;
         }
 
-        unit.DiedAt = Time;
-        unit.ChangeAnimation(animation == SpriteAnimation.Death2 && unit.Definition.Children[(int)SpriteAnimation.Death2] != 0
+        sprite.DiedAt = Time;
+        sprite.ChangeAnimation(animation == SpriteAnimation.Death2 && sprite.Definition.Children[(int)SpriteAnimation.Death2] != 0
             ? SpriteAnimation.Death2 : SpriteAnimation.Death);
     }
 
@@ -1092,7 +1092,7 @@ public sealed partial class GameWorld
         {
             _builders.Remove(stand);
             _updates.Remove(stand.Definition.Layer, stand);
-            Units.Remove(stand);
+            Collector.DeleteFromHash(stand);
             Effects.Detach(stand);
             ReleaseSprite(stand);
         }
@@ -1103,30 +1103,30 @@ public sealed partial class GameWorld
     }
 
     /// <summary>
-    /// Creates a unit the world updates as a monster.
+    /// Creates a sprite the map updates as a monster.
     /// </summary>
-    /// <param name="definition">The unit's definition.</param>
+    /// <param name="definition">The sprite's definition.</param>
     /// <param name="position">The position.</param>
     /// <param name="direction">The direction.</param>
     /// <param name="army">The army.</param>
-    /// <returns>The unit.</returns>
-    public Unit AddMonster(SpriteDefinition definition, Vector3 position, Angle direction = default, Army army = Army.Monsters)
+    /// <returns>The sprite.</returns>
+    public Sprite AddMonster(SpriteDefinition definition, Vector3 position, Angle direction = default, Army army = Army.Monsters)
     {
-        var unit = ConstructSprite(definition, position, direction, army, definition.MaxHp, UpdateRole.Monster, _unitCount++);
-        AddToMonsters(unit);
+        var sprite = ConstructSprite(definition, position, direction, army, definition.MaxHp, UpdateRole.Monster, _spriteCount++);
+        AddToMonsters(sprite);
 
         if (!IsLoading)
         {
-            RunCreationHook(unit);
+            RunCreationHook(sprite);
         }
 
-        return unit;
+        return sprite;
     }
 
-    private void CreateLink(Unit unit) => Effects.CreateLink(unit, Time, 0);
+    private void CreateLink(Sprite sprite) => Effects.CreateLink(sprite, Time, 0);
 
     [EngineRoutine(0x00444970)]
-    private static void InsertLink(Unit owner, Unit link)
+    private static void AddLink(Sprite owner, Sprite link)
     {
         var previous = owner.Link;
         owner.Link = link;
@@ -1140,32 +1140,32 @@ public sealed partial class GameWorld
     }
 
     /// <summary>
-    /// Creates a unit's linked object as a scripted sprite.
+    /// Creates a sprite's linked object as a scripted sprite.
     /// </summary>
-    /// <param name="unit">The unit.</param>
+    /// <param name="sprite">The sprite.</param>
     /// <param name="definition">The linked object's definition.</param>
-    public void AttachObjectLink(Unit unit, SpriteDefinition definition)
+    public void AttachObjectLink(Sprite sprite, SpriteDefinition definition)
     {
         if (definition.Id.IsScripted)
         {
-            var scripted = AddScripted(definition, GetLinkPosition(unit, definition), unit.Direction, unit.Army);
-            InsertLink(unit, scripted);
+            var scripted = AddScripted(definition, GetLinkPosition(sprite, definition), sprite.Direction, sprite.Army);
+            AddLink(sprite, scripted);
 
             return;
         }
 
-        var link = new Unit(_unitCount++, definition, GetLinkPosition(unit, definition), unit.Army, definition.MaxHp) { CreatedAt = Time };
-        link.Start(definition.InitialAnimation, unit.Direction, Time, _rng);
-        InsertLink(unit, link);
+        var link = new Sprite(_spriteCount++, definition, GetLinkPosition(sprite, definition), sprite.Army, definition.MaxHp) { CreatedAt = Time };
+        link.Start(definition.InitialAnimation, sprite.Direction, Time, _rng);
+        AddLink(sprite, link);
 
         if (definition.Object.SpriteClass == SpriteClass.Creature)
         {
             link.StartMoving(link.MaxSpeed);
         }
 
-        if (unit.ArmedLink is not null && link.Definition.FightChild != 0)
+        if (sprite.ArmedLink is not null && link.Definition.FightChild != 0)
         {
-            unit.Behavior = definition.Behavior;
+            sprite.Behavior = definition.Behavior;
         }
 
         AddToMonsters(link);
@@ -1173,7 +1173,7 @@ public sealed partial class GameWorld
         CreateLink(link);
     }
 
-    private static Vector3 GetLinkPosition(Unit owner, SpriteDefinition definition) =>
+    private static Vector3 GetLinkPosition(Sprite owner, SpriteDefinition definition) =>
         owner.Position + owner.Definition.GetLinkOffset(definition, owner.Direction);
 
     [EngineRoutine(0x0042da30)]

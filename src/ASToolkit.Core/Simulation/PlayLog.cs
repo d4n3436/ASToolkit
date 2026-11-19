@@ -5,22 +5,22 @@ namespace ASToolkit.Core.Simulation;
 
 internal sealed class PlayLog
 {
-    private readonly HashSet<Unit> _dead = new(ReferenceEqualityComparer.Instance);
+    private readonly HashSet<Sprite> _dead = new(ReferenceEqualityComparer.Instance);
     private readonly PickupTracker _pickups;
     private readonly List<KnownObject> _taken = [];
     private readonly List<SpriteEvent> _pickupEvents = [];
     private bool _doorsLocked;
     private bool _fencesUp;
-    private Unit _player;
+    private Sprite _player;
 
-    public PlayLog(GameWorld world)
+    public PlayLog(Map map)
     {
-        _doorsLocked = world.AreDoorsLocked;
-        _fencesUp = world.AreFencesUp;
-        _player = world.Player;
-        Timeline = new ScriptTimeline(world.AreDoorsLocked, null, null, null);
-        MinHealth = world.Player.Hp;
-        _pickups = new PickupTracker(world);
+        _doorsLocked = map.AreDoorsLocked;
+        _fencesUp = map.AreFencesUp;
+        _player = map.Player;
+        Timeline = new ScriptTimeline(map.AreDoorsLocked, null, null, null);
+        MinHealth = map.Player.Hp;
+        _pickups = new PickupTracker(map);
     }
 
     public int Kills { get; private set; }
@@ -35,9 +35,9 @@ internal sealed class PlayLog
 
     public IReadOnlyList<SpriteEvent> PickupEvents => _pickupEvents;
 
-    public void Update(GameWorld world)
+    public void Update(Map map)
     {
-        if (world.Player != _player)
+        if (map.Player != _player)
         {
             if (!_player.IsAlive)
             {
@@ -45,39 +45,39 @@ internal sealed class PlayLog
                 MinHealth = Math.Min(MinHealth, 0);
             }
 
-            _player = world.Player;
+            _player = map.Player;
         }
 
-        MinHealth = Math.Min(MinHealth, world.Player.Hp);
-        UpdateTimeline(world);
-        UpdatePickups(world);
-        foreach (var unit in world.Monsters)
+        MinHealth = Math.Min(MinHealth, map.Player.Hp);
+        UpdateTimeline(map);
+        UpdatePickups(map);
+        foreach (var sprite in map.Monsters)
         {
-            if (unit.Placement is null && unit.DiedAt >= 0 && _dead.Add(unit))
+            if (sprite.Placement is null && sprite.DiedAt >= 0 && _dead.Add(sprite))
             {
                 Kills++;
             }
         }
     }
 
-    private void UpdateTimeline(GameWorld world)
+    private void UpdateTimeline(Map map)
     {
-        if (_doorsLocked != world.AreDoorsLocked)
+        if (_doorsLocked != map.AreDoorsLocked)
         {
-            _doorsLocked = world.AreDoorsLocked;
+            _doorsLocked = map.AreDoorsLocked;
             Timeline = _doorsLocked
-                ? Timeline with { BlackoutAt = Timeline.BlackoutAt ?? world.Time }
-                : Timeline with { DoorsOpenedAt = Timeline.DoorsOpenedAt ?? world.Time };
+                ? Timeline with { BlackoutAt = Timeline.BlackoutAt ?? map.Time }
+                : Timeline with { DoorsOpenedAt = Timeline.DoorsOpenedAt ?? map.Time };
         }
 
-        if (_fencesUp && !world.AreFencesUp)
+        if (_fencesUp && !map.AreFencesUp)
         {
             _fencesUp = false;
-            Timeline = Timeline with { FencesDownAt = world.Time };
+            Timeline = Timeline with { FencesDownAt = map.Time };
         }
     }
 
-    private void UpdatePickups(GameWorld world)
+    private void UpdatePickups(Map map)
     {
         foreach (var pickup in _pickups.Removed)
         {
@@ -88,7 +88,7 @@ internal sealed class PlayLog
 
             if (!PickupTracker.IsDropped(pickup))
             {
-                _pickupEvents.Add(new SpriteEvent(pickup, world.Time));
+                _pickupEvents.Add(new SpriteEvent(pickup, map.Time));
             }
         }
     }

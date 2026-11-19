@@ -5,7 +5,7 @@ using ASToolkit.Core.Levels;
 namespace ASToolkit.Core.Engine;
 
 /// <summary>
-/// Represents the model, definitions, terrain and script source a world loads a level from.
+/// Represents the model, definitions, terrain and script source a map loads a level from.
 /// </summary>
 public sealed class LevelTemplate
 {

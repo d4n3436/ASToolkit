@@ -4,7 +4,7 @@ using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Engine;
 
-public sealed partial class GameWorld : IScriptFunctionHost
+public sealed partial class Map : IScriptFunctionHost
 {
     private const int AllArmies = 0xff;
     private const int EffectCount = 16;
@@ -25,7 +25,7 @@ public sealed partial class GameWorld : IScriptFunctionHost
     private readonly int[] _effectDurations = new int[EffectCount];
     private readonly int[] _effectFirst = new int[EffectCount];
     private readonly int[] _effectSecond = new int[EffectCount];
-    private readonly Dictionary<int, Unit> _handles = [];
+    private readonly Dictionary<int, Sprite> _handles = [];
     private readonly Dictionary<MergedMapSprite, SpriteDefinition> _countedPlacements = [];
     private int _lastHandle;
     private int _unitIndex;
@@ -37,20 +37,20 @@ public sealed partial class GameWorld : IScriptFunctionHost
     /// <summary>
     /// Returns the handle the level script refers to a sprite by, allocating one when needed.
     /// </summary>
-    /// <param name="unit">The sprite, or null.</param>
+    /// <param name="sprite">The sprite, or null.</param>
     /// <returns>The handle, or 0 for null.</returns>
-    public int GetSpriteHandle(Unit? unit)
+    public int GetSpriteHandle(Sprite? sprite)
     {
-        if (unit is null)
+        if (sprite is null)
             return 0;
 
-        if (unit.Handle == 0)
+        if (sprite.Handle == 0)
         {
-            unit.Handle = ++_lastHandle;
-            _handles[unit.Handle] = unit;
+            sprite.Handle = ++_lastHandle;
+            _handles[sprite.Handle] = sprite;
         }
 
-        return unit.Handle;
+        return sprite.Handle;
     }
 
     /// <summary>
@@ -58,38 +58,38 @@ public sealed partial class GameWorld : IScriptFunctionHost
     /// </summary>
     /// <param name="handle">The handle.</param>
     /// <returns>The sprite, or null when the handle is stale.</returns>
-    public Unit? FindSprite(int handle) => _handles.TryGetValue(handle, out var unit) && unit.Handle == handle ? unit : null;
+    public Sprite? FindSprite(int handle) => _handles.TryGetValue(handle, out var sprite) && sprite.Handle == handle ? sprite : null;
 
     [EngineRoutine(0x0043f200)]
-    private static void CountSprite(Unit unit)
+    private static void CountSprite(Sprite sprite)
     {
-        if (unit.IsCounted)
+        if (sprite.IsCounted)
             return;
 
-        unit.IsCounted = true;
-        unit.Definition.Counts[(int)unit.Army & 3]++;
+        sprite.IsCounted = true;
+        sprite.Definition.Counts[(int)sprite.Army & 3]++;
     }
 
     [EngineRoutine(0x0043f520)]
-    private void UnlinkDestroyed(Unit unit)
+    private void UnlinkDestroyed(Sprite sprite)
     {
-        var owner = unit.Owner;
+        var owner = sprite.Owner;
 
-        if (owner is not null && owner.Link == unit)
+        if (owner is not null && owner.Link == sprite)
         {
             owner.Link = null;
         }
 
-        foreach (var link in unit.EnumerateLinks())
+        foreach (var link in sprite.EnumerateLinks())
         {
-            if (link.Owner != unit)
+            if (link.Owner != sprite)
                 continue;
             
             DestroySprite(link);
 
-            if (unit.Link == link)
+            if (sprite.Link == link)
             {
-                unit.Link = null;
+                sprite.Link = null;
             }
         }
     }
@@ -97,35 +97,35 @@ public sealed partial class GameWorld : IScriptFunctionHost
     /// <summary>
     /// Runs a sprite's destroy handler and frees its count and script handle.
     /// </summary>
-    /// <param name="unit">The sprite.</param>
-    public void ReleaseSprite(Unit unit)
+    /// <param name="sprite">The sprite.</param>
+    public void ReleaseSprite(Sprite sprite)
     {
-        RunDestroyHandler(unit);
+        RunDestroyHandler(sprite);
 
-        if (unit.IsCounted)
+        if (sprite.IsCounted)
         {
-            unit.IsCounted = false;
-            int army = (int)unit.Army & 3;
-            if (unit.Definition.Counts[army] != 0)
+            sprite.IsCounted = false;
+            int army = (int)sprite.Army & 3;
+            if (sprite.Definition.Counts[army] != 0)
             {
-                unit.Definition.Counts[army]--;
+                sprite.Definition.Counts[army]--;
             }
         }
 
-        if (unit.Handle == 0)
+        if (sprite.Handle == 0)
             return;
 
-        Script.ClearSpriteHandle(unit.Handle);
-        _handles.Remove(unit.Handle);
-        unit.Handle = 0;
+        Script.ClearSpriteHandle(sprite.Handle);
+        _handles.Remove(sprite.Handle);
+        sprite.Handle = 0;
     }
 
-    private void ReleasePlacement(MergedMapSprite sprite)
+    private void ReleasePlacement(MergedMapSprite placement)
     {
-        if (!_countedPlacements.Remove(sprite, out var definition))
+        if (!_countedPlacements.Remove(placement, out var definition))
             return;
 
-        int army = (int)sprite.Army & 3;
+        int army = (int)placement.Army & 3;
         if (definition.Counts[army] != 0)
         {
             definition.Counts[army]--;
@@ -151,9 +151,9 @@ public sealed partial class GameWorld : IScriptFunctionHost
 
     private static string ReadText(ReadOnlyMemory<byte> text) => GameTextEncoding.Cyrillic.GetString(text.Span);
 
-    private Unit? PopSprite(Script script) => FindSprite(script.PopNumber());
+    private Sprite? PopSprite(Script script) => FindSprite(script.PopNumber());
 
-    private void PushSprite(Script script, Unit? unit) => script.PushSprite(GetSpriteHandle(unit));
+    private void PushSprite(Script script, Sprite? sprite) => script.PushSprite(GetSpriteHandle(sprite));
 
     /// <summary>
     /// Creates a sprite of a definition at a point.
@@ -164,7 +164,7 @@ public sealed partial class GameWorld : IScriptFunctionHost
     /// <param name="parent">The sprite the new one takes its army and height from, and links to when it is a linker.</param>
     /// <returns>The sprite, or null when the definition's limit is reached.</returns>
     [EngineRoutine(0x00405bd0)]
-    public Unit? CreateSprite(SpriteDefinition definition, Vector3 position, Angle direction, Unit? parent = null)
+    public Sprite? CreateSprite(SpriteDefinition definition, Vector3 position, Angle direction, Sprite? parent = null)
     {
         if (definition.MaxUnits >= 0 && definition.MaxUnits <= Sum(definition.Counts))
             return null;
@@ -175,60 +175,60 @@ public sealed partial class GameWorld : IScriptFunctionHost
             position.Z = parent is null ? ground : position.Z - parent.Position.Z + ground;
         }
 
-        var sprite = new MergedMapSprite(0, definition.Id, position, direction, parent?.Army ?? Definitions.GetArmy(definition), []);
-        _sprites.Add(sprite);
-        Definitions.AddTerrain(Movement, sprite);
-        var unit = PlaceSprite(sprite, definition);
+        var placement = new MergedMapSprite(0, definition.Id, position, direction, parent?.Army ?? Definitions.GetArmy(definition), []);
+        _sprites.Add(placement);
+        Definitions.AddTerrain(Movement, placement);
+        var sprite = PlaceSprite(placement, definition);
 
-        if (unit is null && definition.MaxHp == 0 && definition.Object.SpriteClass != SpriteClass.Cannon)
+        if (sprite is null && definition.MaxHp == 0 && definition.Object.SpriteClass != SpriteClass.Cannon)
         {
-            ReleasePlacement(sprite);
-            unit = new Unit(-1, definition, position, sprite.Army, 0) { Placement = sprite, Direction = direction };
-            _statics[sprite] = unit;
-            CountSprite(unit);
+            ReleasePlacement(placement);
+            sprite = new Sprite(-1, definition, position, placement.Army, 0) { Placement = placement, Direction = direction };
+            _statics[placement] = sprite;
+            CountSprite(sprite);
         }
 
-        if (unit is not null && definition.Object.SpriteClass == SpriteClass.Linker)
+        if (sprite is not null && definition.Object.SpriteClass == SpriteClass.Linker)
         {
-            SpawnedObjectSystem.ConstructLinker(unit, parent, position, direction);
+            SpawnedObjectSystem.ConstructLinker(sprite, parent, position, direction);
         }
 
-        if (unit is not null && unit.Role != UpdateRole.Monster)
+        if (sprite is not null && sprite.Role != UpdateRole.Monster)
         {
-            RunCreationHook(unit);
+            RunCreationHook(sprite);
         }
 
-        return unit;
+        return sprite;
     }
 
 
     /// <summary>
     /// Destroys a sprite with the objects linked to it.
     /// </summary>
-    /// <param name="unit">The sprite.</param>
-    public void DestroySprite(Unit unit)
+    /// <param name="sprite">The sprite.</param>
+    public void DestroySprite(Sprite sprite)
     {
-        if (unit.Role is not (UpdateRole.Player or UpdateRole.Torso))
+        if (sprite.Role is not (UpdateRole.Player or UpdateRole.Torso))
         {
-            UnlinkDestroyed(unit);
+            UnlinkDestroyed(sprite);
         }
 
-        switch (unit.Role)
+        switch (sprite.Role)
         {
             case UpdateRole.Monster:
-                _updates.Remove(unit.Definition.Layer, unit);
-                RemoveMonster(unit);
-                Units.Remove(unit);
-                Delete(unit);
-                ReleaseSprite(unit);
+                _updates.Remove(sprite.Definition.Layer, sprite);
+                RemoveMonster(sprite);
+                Collector.DeleteFromHash(sprite);
+                Delete(sprite);
+                ReleaseSprite(sprite);
                 break;
             case UpdateRole.Scripted:
-                _updates.Remove(unit.Definition.Layer, unit);
-                RemoveScripted(unit);
+                _updates.Remove(sprite.Definition.Layer, sprite);
+                RemoveScripted(sprite);
                 break;
             case UpdateRole.Effect:
-                _updates.Remove(unit.Definition.Layer, unit);
-                Effects.Leave(unit);
+                _updates.Remove(sprite.Definition.Layer, sprite);
+                Effects.Leave(sprite);
                 break;
             case UpdateRole.Player:
                 DestroyPlayer();
@@ -236,17 +236,17 @@ public sealed partial class GameWorld : IScriptFunctionHost
             case UpdateRole.Torso:
                 throw new NotSupportedException("Cannot destroy the player's torso alone.");
             default:
-                if (unit.Placement is not null)
+                if (sprite.Placement is not null)
                 {
-                    Destroy(unit.Placement);
+                    Destroy(sprite.Placement);
                 }
                 else
                 {
-                    Units.Remove(unit);
-                    Effects.Detach(unit);
+                    Collector.DeleteFromHash(sprite);
+                    Effects.Detach(sprite);
                 }
 
-                ReleaseSprite(unit);
+                ReleaseSprite(sprite);
                 break;
         }
     }
@@ -280,10 +280,10 @@ public sealed partial class GameWorld : IScriptFunctionHost
             }
             case ScriptFunction.Destroy:
             {
-                var unit = PopSprite(script);
-                if (unit is not null)
+                var sprite = PopSprite(script);
+                if (sprite is not null)
                 {
-                    DestroySprite(unit);
+                    DestroySprite(sprite);
                 }
 
                 break;
@@ -296,9 +296,9 @@ public sealed partial class GameWorld : IScriptFunctionHost
             case ScriptFunction.FirstUnit:
             {
                 _unitMask = (OldSpriteType)script.PopNumber();
-                var units = Units.Listed;
-                _unitIndex = units.Length - 1;
-                PushSprite(script, units.IsEmpty ? null : FindUnitOfMask(units[_unitIndex]));
+                var sprites = Collector.Listed;
+                _unitIndex = sprites.Length - 1;
+                PushSprite(script, sprites.IsEmpty ? null : FindUnitOfMask(sprites[_unitIndex]));
                 break;
             }
             case ScriptFunction.NextUnit:
@@ -310,18 +310,18 @@ public sealed partial class GameWorld : IScriptFunctionHost
                 int right = script.PopNumber();
                 int top = script.PopNumber();
                 int left = script.PopNumber();
-                Units.StartQuery(new Vector2(left, top), new Vector2(right, bottom));
+                Collector.FirstHashInBox(new Vector2(left, top), new Vector2(right, bottom));
                 break;
             }
             case ScriptFunction.NextInBox:
-                PushSprite(script, Units.Next());
+                PushSprite(script, Collector.NextHashInBox());
                 break;
             case ScriptFunction.DirectionTo:
             {
                 int y = script.PopNumber();
                 int x = script.PopNumber();
-                var unit = PopSprite(script);
-                script.PushNumber(unit is null ? 0 : Angle.FromOffset(new Vector2(x, y) - unit.Position.AsVector2()).Value);
+                var sprite = PopSprite(script);
+                script.PushNumber(sprite is null ? 0 : Angle.FromOffset(new Vector2(x, y) - sprite.Position.AsVector2()).Value);
                 break;
             }
             case ScriptFunction.ChangeZUnit:
@@ -330,9 +330,9 @@ public sealed partial class GameWorld : IScriptFunctionHost
                 var definition = Definitions.Find((KnownObject)script.PopNumber());
                 if (definition is not null)
                 {
-                    foreach (var unit in GetSpritesOfDefinition(definition))
+                    foreach (var sprite in GetSpritesOfDefinition(definition))
                     {
-                        unit.ChangeCoor(unit.Position with { Z = z });
+                        sprite.ChangeCoor(sprite.Position with { Z = z });
                     }
                 }
 
@@ -365,9 +365,9 @@ public sealed partial class GameWorld : IScriptFunctionHost
                 var definition = Definitions.Find((KnownObject)script.PopNumber());
                 if (definition is not null)
                 {
-                    foreach (var unit in GetSpritesOfDefinition(definition))
+                    foreach (var sprite in GetSpritesOfDefinition(definition))
                     {
-                        DestroySprite(unit);
+                        DestroySprite(sprite);
                     }
                 }
 
@@ -379,10 +379,10 @@ public sealed partial class GameWorld : IScriptFunctionHost
                 var definition = Definitions.Find((KnownObject)script.PopNumber());
                 if (definition is not null && replacement is not null)
                 {
-                    foreach (var unit in GetSpritesOfDefinition(definition))
+                    foreach (var sprite in GetSpritesOfDefinition(definition))
                     {
-                        CreateSprite(replacement, unit.Position, unit.Direction);
-                        DestroySprite(unit);
+                        CreateSprite(replacement, sprite.Position, sprite.Direction);
+                        DestroySprite(sprite);
                     }
                 }
 
@@ -395,8 +395,8 @@ public sealed partial class GameWorld : IScriptFunctionHost
             {
                 int y = script.PopNumber();
                 int x = script.PopNumber();
-                var unit = PopSprite(script);
-                script.PushNumber(unit is null ? NoUnitDistance : (int)unit.Position.AsVector2().MeasureOctagonalDistance(new Vector2(x, y)));
+                var sprite = PopSprite(script);
+                script.PushNumber(sprite is null ? NoUnitDistance : (int)sprite.Position.AsVector2().MeasureOctagonalDistance(new Vector2(x, y)));
                 break;
             }
             case ScriptFunction.GetUnitVid:
@@ -711,19 +711,19 @@ public sealed partial class GameWorld : IScriptFunctionHost
                 int second = script.PopNumber();
                 int first = script.PopNumber();
                 int act = script.PopNumber();
-                var unit = PopSprite(script);
+                var sprite = PopSprite(script);
 
-                if (unit is not null)
+                if (sprite is not null)
                 {
-                    AddCommand(unit, act, first, second, third);
+                    AddCommand(sprite, act, first, second, third);
                 }
 
                 break;
             }
             case ScriptFunction.SetFlagman:
             {
-                var unit = PopSprite(script);
-                SetFlagman(script.PopNumber(), unit);
+                var sprite = PopSprite(script);
+                SetFlagman(script.PopNumber(), sprite);
                 break;
             }
             case ScriptFunction.AddUnitLimit:
@@ -753,12 +753,12 @@ public sealed partial class GameWorld : IScriptFunctionHost
             {
                 // Unused on AS1
                 int money = script.PopNumber();
-                _controllers[script.PopNumber() & ArmyMask].Money = money;
+                _players[script.PopNumber() & ArmyMask].Money = money;
                 break;
             }
             case ScriptFunction.GetMoney:
                 // Unused on AS1
-                script.PushNumber(_controllers[script.PopNumber() & ArmyMask].Money);
+                script.PushNumber(_players[script.PopNumber() & ArmyMask].Money);
                 break;
 
             // TODO: Port the trains, the rail map and the clever enemy attack
@@ -792,7 +792,7 @@ public sealed partial class GameWorld : IScriptFunctionHost
     }
 
     [EngineRoutine(0x0040fbb0)]
-    private Unit? GetSprite(SpriteSearch search, float x, float y, Unit? previous)
+    private Sprite? GetSprite(SpriteSearch search, float x, float y, Sprite? previous)
     {
         var sprite = FindNearestSprite(search, x, y, GetSpriteReach, previous);
 
@@ -806,7 +806,7 @@ public sealed partial class GameWorld : IScriptFunctionHost
     }
 
     [EngineRoutine(0x00410670)]
-    private Unit? FindNearestSprite(SpriteSearch search, float x, float y, float radius, Unit? previous)
+    private Sprite? FindNearestSprite(SpriteSearch search, float x, float y, float radius, Sprite? previous)
     {
         if (!TryGetSearchedTypes(ref search, out var types, out var armies, out var definition))
             return null;
@@ -820,7 +820,7 @@ public sealed partial class GameWorld : IScriptFunctionHost
     }
 
     [EngineRoutine(0x0040fc40)]
-    private Unit? GetSpriteScr(SpriteSearch search, float x, float y)
+    private Sprite? GetSpriteScr(SpriteSearch search, float x, float y)
     {
         if (!TryGetSearchedTypes(ref search, out var types, out var armies, out var definition))
             return null;
@@ -869,8 +869,8 @@ public sealed partial class GameWorld : IScriptFunctionHost
     {
         if (search.HasFlag(SpriteSearch.Hash))
         {
-            Units.StartQuery(min, max);
-            for (var sprite = Units.Next(); sprite is not null; sprite = Units.Next())
+            Collector.FirstHashInBox(min, max);
+            for (var sprite = Collector.NextHashInBox(); sprite is not null; sprite = Collector.NextHashInBox())
             {
                 query.Consider(sprite, false);
             }
@@ -880,7 +880,7 @@ public sealed partial class GameWorld : IScriptFunctionHost
 
         if ((types & GridListTypes) != 0 && (types & SearchedTypes & ~GridListTypes) == 0)
         {
-            var listed = Units.Listed;
+            var listed = Collector.Listed;
             for (int i = listed.Length - 1; i >= 0; i--)
             {
                 query.Consider(listed[i], true);
@@ -900,7 +900,7 @@ public sealed partial class GameWorld : IScriptFunctionHost
             var list = _updates.GetLayer(layer);
             for (int i = list.Count - 1; i >= 0; i--)
             {
-                var sprite = list[i].Unit;
+                var sprite = list[i].Sprite;
 
                 if (sprite is not null)
                 {
@@ -911,12 +911,12 @@ public sealed partial class GameWorld : IScriptFunctionHost
     }
 
     [EngineRoutine(0x0040f9a0)]
-    private Unit? FindListedSprite()
+    private Sprite? FindListedSprite()
     {
         var list = _updates.GetLayer(_spriteLayer);
         for (_spriteIndex--; _spriteIndex >= 0; _spriteIndex--)
         {
-            var sprite = list[_spriteIndex].Unit;
+            var sprite = list[_spriteIndex].Sprite;
 
             if (sprite is not null)
                 return sprite;
@@ -926,7 +926,7 @@ public sealed partial class GameWorld : IScriptFunctionHost
     }
 
     [EngineRoutine(0x00435690)]
-    private Unit? GetNextSprite()
+    private Sprite? GetNextSprite()
     {
         var sprite = FindListedSprite();
         while (sprite is null && _spriteLayer < UpdateOrder.LayerCount - 1)
@@ -940,77 +940,77 @@ public sealed partial class GameWorld : IScriptFunctionHost
     }
 
     [EngineRoutine(0x00445b10)]
-    private void AddCommand(Unit unit, int act, int var1, int var2, int var3)
+    private void AddCommand(Sprite sprite, int act, int var1, int var2, int var3)
     {
-        var order = new UnitOrder(act, var1, var2, var3, UnitOrder.NamesSprite((ActionCode)(act & byte.MaxValue)) ? FindSprite(var1) : null);
-        var orders = unit.Orders.Orders;
+        var order = new Act(act, var1, var2, var3, Act.NamesSprite((ActionCode)(act & byte.MaxValue)) ? FindSprite(var1) : null);
+        var orders = sprite.ActionStack.Orders;
         for (int i = orders.Length - 1; i >= 0; i--)
         {
-            if (orders[i] is { Act: UnitOrder.StopMarker, Var1: 0, Var2: 0, Var3: 0 })
+            if (orders[i] is { Value: Act.StopMarker, Var1: 0, Var2: 0, Var3: 0 })
             {
-                unit.Orders.Insert(i + 1, order);
+                sprite.ActionStack.Insert(i + 1, order);
 
                 return;
             }
         }
 
-        unit.Orders.Push(order);
+        sprite.ActionStack.Push(order);
     }
 
     [EngineRoutine(0x00412e80)]
-    private Unit? GetNextUnit()
+    private Sprite? GetNextUnit()
     {
-        var units = Units.Listed;
-        _unitIndex = Math.Min(_unitIndex, units.Length) - 1;
+        var sprites = Collector.Listed;
+        _unitIndex = Math.Min(_unitIndex, sprites.Length) - 1;
 
-        return _unitIndex >= 0 ? units[_unitIndex] : null;
+        return _unitIndex >= 0 ? sprites[_unitIndex] : null;
     }
 
-    private Unit? FindUnitOfMask(Unit? unit)
+    private Sprite? FindUnitOfMask(Sprite? sprite)
     {
-        while (unit is not null && (unit.Definition.Object.SpriteType.ToOldSpriteType() & _unitMask) == 0)
+        while (sprite is not null && (sprite.Definition.Object.SpriteType.ToOldSpriteType() & _unitMask) == 0)
         {
-            unit = GetNextUnit();
+            sprite = GetNextUnit();
         }
 
-        return unit;
+        return sprite;
     }
 
-    private List<Unit> GetSpritesOfDefinition(SpriteDefinition definition)
+    private List<Sprite> GetSpritesOfDefinition(SpriteDefinition definition)
     {
-        var units = new List<Unit>();
+        var sprites = new List<Sprite>();
         foreach (var entry in _updates.GetLayer(definition.Layer))
         {
-            if (entry.Unit is not null && entry.Unit.Definition == definition)
+            if (entry.Sprite is not null && entry.Sprite.Definition == definition)
             {
-                units.Add(entry.Unit);
+                sprites.Add(entry.Sprite);
             }
         }
 
-        AddSpritesOfDefinition(units, _statics.Values, definition);
-        AddSpritesOfDefinition(units, _bodies.Values, definition);
+        AddSpritesOfDefinition(sprites, _statics.Values, definition);
+        AddSpritesOfDefinition(sprites, _bodies.Values, definition);
 
-        return units;
+        return sprites;
     }
 
-    private static void AddSpritesOfDefinition(List<Unit> units, Dictionary<MergedMapSprite, Unit>.ValueCollection sprites, SpriteDefinition definition)
+    private static void AddSpritesOfDefinition(List<Sprite> found, Dictionary<MergedMapSprite, Sprite>.ValueCollection sprites, SpriteDefinition definition)
     {
-        foreach (var unit in sprites)
+        foreach (var sprite in sprites)
         {
-            if (unit.Definition == definition)
+            if (sprite.Definition == definition)
             {
-                units.Add(unit);
+                found.Add(sprite);
             }
         }
     }
 
     [EngineRoutine(0x0042da30)]
-    private Unit? FindPlacementBlocker(SpriteDefinition definition, Vector3 point)
+    private Sprite? FindPlacementBlocker(SpriteDefinition definition, Vector3 point)
     {
         if (Movement.GetSupportHeight(definition.Object, point.AsVector2()) > point.Z)
             return Session.Cursor;
 
-        return definition.MoveMask != 0 ? Projectiles.FindUnit(definition, point) : null;
+        return definition.MoveMask != 0 ? Projectiles.FindSprite(definition, point) : null;
     }
 
     private static void PopValues(Script script, int count)
@@ -1027,8 +1027,8 @@ public sealed partial class GameWorld : IScriptFunctionHost
         int second = script.PopNumber();
         int first = script.PopNumber();
         var code = (ActionCode)script.PopNumber();
-        var unit = PopSprite(script);
-        if (unit is null)
+        var sprite = PopSprite(script);
+        if (sprite is null)
         {
             script.PushNumber(0);
             return;
@@ -1036,7 +1036,7 @@ public sealed partial class GameWorld : IScriptFunctionHost
 
         if ((int)code <= LastAnimationAction)
         {
-            unit.ChangeAnimation((SpriteAnimation)code);
+            sprite.ChangeAnimation((SpriteAnimation)code);
             script.PushNumber(0);
             return;
         }
@@ -1044,21 +1044,21 @@ public sealed partial class GameWorld : IScriptFunctionHost
         switch (code)
         {
             case ActionCode.GetGoal:
-                PushSprite(script, unit.Goal);
+                PushSprite(script, sprite.Goal);
                 return;
             case ActionCode.GetLink:
-                PushSprite(script, unit.Link);
+                PushSprite(script, sprite.Link);
                 return;
             case ActionCode.GetUplink:
-                PushSprite(script, unit.Owner);
+                PushSprite(script, sprite.Owner);
                 return;
 
             // TODO: Port the text sprites
-            case ActionCode.GetTextDesc when unit.Definition.Object.SpriteClass == SpriteClass.Text:
+            case ActionCode.GetTextDesc when sprite.Definition.Object.SpriteClass == SpriteClass.Text:
                 script.PushText(ReadOnlyMemory<byte>.Empty);
                 return;
             case ActionCode.GetTextDesc:
-                throw new NotSupportedException($"Cannot read the text of {unit.Definition.Id}.");
+                throw new NotSupportedException($"Cannot read the text of {sprite.Definition.Id}.");
 
             // TODO: Port the trains
             case ActionCode.FirstEngine or ActionCode.LastEngine or ActionCode.NextEngine:
@@ -1066,7 +1066,7 @@ public sealed partial class GameWorld : IScriptFunctionHost
                 return;
         }
 
-        script.PushNumber(Action(unit, code, first, second, third));
+        script.PushNumber(Action(sprite, code, first, second, third));
     }
 
     // TODO: Port the screen effects

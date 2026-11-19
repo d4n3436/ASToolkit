@@ -3,7 +3,7 @@ using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Engine;
 
-public sealed partial class GameWorld
+public sealed partial class Map
 {
     private const int PlayerIdLimit = 20;
     private const int ControlledPlayer = 0;
@@ -14,7 +14,7 @@ public sealed partial class GameWorld
     /// <summary>
     /// Sends an action to a sprite through the handler of its sprite class.
     /// </summary>
-    /// <param name="unit">The sprite.</param>
+    /// <param name="sprite">The sprite.</param>
     /// <param name="code">The action.</param>
     /// <param name="var1">The first argument.</param>
     /// <param name="var2">The second argument.</param>
@@ -23,9 +23,9 @@ public sealed partial class GameWorld
     /// <returns>The action's result.</returns>
     [EngineRoutine(0x00454800)]
     [EngineRoutine(0x0044ca70)]
-    public int Action(Unit unit, ActionCode code, int var1 = 0, int var2 = 0, int var3 = 0, Unit? target = null)
+    public int Action(Sprite sprite, ActionCode code, int var1 = 0, int var2 = 0, int var3 = 0, Sprite? target = null)
     {
-        switch (unit.Definition.Object.SpriteClass)
+        switch (sprite.Definition.Object.SpriteClass)
         {
             case SpriteClass.Man:
                 switch (code)
@@ -39,7 +39,7 @@ public sealed partial class GameWorld
 
                         return 0;
                     case ActionCode.AddItem:
-                        AddPlayerItem(unit, var1);
+                        AddPlayerItem(sprite, var1);
 
                         return 0;
                 }
@@ -49,11 +49,11 @@ public sealed partial class GameWorld
                 switch (code)
                 {
                     case ActionCode.BuildUnit:
-                        StartBuild(unit, var1, var2, var3);
+                        StartBuild(sprite, var1, var2, var3);
 
                         return 0;
                     case ActionCode.NextCommand:
-                        DecideBuilding(unit);
+                        DecideBuilding(sprite);
 
                         return 0;
                 }
@@ -61,159 +61,159 @@ public sealed partial class GameWorld
                 break;
         }
 
-        return UnitAction(unit, code, var1, var2, var3, target);
+        return UnitAction(sprite, code, var1, var2, var3, target);
     }
 
     [EngineRoutine(0x00440830)]
-    private int UnitAction(Unit unit, ActionCode code, int var1, int var2, int var3, Unit? target)
+    private int UnitAction(Sprite sprite, ActionCode code, int var1, int var2, int var3, Sprite? target)
     {
         switch (code)
         {
             case ActionCode.Attack:
-                MonsterBrain.Attack(unit, target);
+                MonsterBrain.Attack(sprite, target);
                 break;
             case ActionCode.Move:
                 DrawGoalSpriteRandom();
-                Motion.SetMoveTarget(unit, null, new Vector3(var1, var2, var3));
+                Motion.SetMoveTarget(sprite, null, new Vector3(var1, var2, var3));
                 break;
             case ActionCode.MoveTo:
-                Motion.SetMoveTarget(unit, target, null);
+                Motion.SetMoveTarget(sprite, target, null);
                 break;
             case ActionCode.BuildUnit:
-                Build(unit, var1, var2, var3);
+                Build(sprite, var1, var2, var3);
                 break;
             case ActionCode.Stop:
-                UnitKinematics.StopMoving(unit);
+                SpriteKinematics.Stop(sprite);
 
                 if (var1 != 0)
                 {
-                    unit.Speed = 0;
+                    sprite.Speed = 0;
                 }
 
                 break;
             case ActionCode.Pause:
-                MonsterBrain.Pause(unit, var1 + _rng.Next() % (var2 + 1));
+                MonsterBrain.Pause(sprite, var1 + _rng.Next() % (var2 + 1));
                 break;
             case ActionCode.Turn:
-                unit.SetDirection(unit.Direction.TurnToward(new Angle(unchecked((byte)var1)), unit.Definition.Object.RotationPeriod,
-                    unit.Definition.Layout.GetFrameDuration(unit.Animation), out _));
+                sprite.ChangeDirection(sprite.Direction.TurnToward(new Angle(unchecked((byte)var1)), sprite.Definition.Object.RotationPeriod,
+                    sprite.Definition.Layout.GetFrameDuration(sprite.Animation), out _));
                 break;
             case ActionCode.ClearCommand:
-                UnitKinematics.SetCommand(unit, UnitCommand.None);
+                SpriteKinematics.SetCommand(sprite, Command.None);
                 break;
             case ActionCode.FlagmanTrigger:
                 if (!Player.IsAlive || Player.Position.AsVector2().MeasureOctagonalDistance(new Vector2(var1, var2)) >= var3)
                 {
-                    unit.Orders.Push(new UnitOrder((int)code, var1, var2, var3));
+                    sprite.ActionStack.Push(new Act((int)code, var1, var2, var3));
                 }
 
                 break;
             case ActionCode.ChangeVid:
-                if (!unit.IsAlive && (SpriteAnimation)var2 < SpriteAnimation.Death)
+                if (!sprite.IsAlive && (SpriteAnimation)var2 < SpriteAnimation.Death)
                 {
-                    unit.Hp = unit.HpBeforeDeath;
+                    sprite.Hp = sprite.HpBeforeDeath;
                 }
 
-                ChangeVid(unit, var1, var2);
+                ChangeVid(sprite, var1, var2);
                 break;
             case ActionCode.ChangeCoor:
-                unit.ChangeCoor(new Vector3(var1, var2, var3));
+                sprite.ChangeCoor(new Vector3(var1, var2, var3));
                 break;
             case ActionCode.ChangeDirection:
-                unit.SetDirection(new Angle(unchecked((byte)var1)));
+                sprite.ChangeDirection(new Angle(unchecked((byte)var1)));
                 break;
             case ActionCode.ChangeAnimation:
-                unit.ChangeAnimation((SpriteAnimation)var1);
+                sprite.ChangeAnimation((SpriteAnimation)var1);
                 break;
             case ActionCode.GotoStack:
-                unit.Orders.SetCount(var1 + 1);
-                unit.Frame = unit.LastFrame;
+                sprite.ActionStack.SetCount(var1 + 1);
+                sprite.Frame = sprite.LastFrame;
                 break;
             case ActionCode.ClearStack:
-                unit.Orders.Clear();
+                sprite.ActionStack.Clear();
                 break;
             case ActionCode.StopStack:
-                unit.Orders.Push(new UnitOrder((int)code, var1, var2, var3));
-                Action(unit, ActionCode.NextCommand);
+                sprite.ActionStack.Push(new Act((int)code, var1, var2, var3));
+                Action(sprite, ActionCode.NextCommand);
                 break;
             case ActionCode.NextCommand:
-                NextCommand(unit);
+                NextCommand(sprite);
                 break;
             case ActionCode.DestroyUnit:
                 DestroySprite((KnownObject)var1, new Vector2(var2, var3));
                 break;
             case ActionCode.GetAmmo:
-                return unit.GetAmmo(var1);
+                return sprite.GetAmmo(var1);
             case ActionCode.AddAmmo:
-                return unit.AddAmmo(var1, var2);
+                return sprite.AddAmmo(var1, var2);
             case ActionCode.AddItem:
-                unit.Items.Add(var1);
+                sprite.Items.Add(var1);
                 break;
             case ActionCode.DeleteItem:
             {
-                int i = unit.Items.LastIndexOf(var1);
+                int i = sprite.Items.LastIndexOf(var1);
 
                 if (i < 0)
                     break;
 
-                unit.Items[i] = unit.Items[^1];
-                unit.Items.RemoveAt(unit.Items.Count - 1);
+                sprite.Items[i] = sprite.Items[^1];
+                sprite.Items.RemoveAt(sprite.Items.Count - 1);
 
                 return 1;
             }
             case ActionCode.HaveItem:
-                return unit.Items.Contains(var1) ? 1 : 0;
+                return sprite.Items.Contains(var1) ? 1 : 0;
             case ActionCode.DeleteAllItems:
-                unit.Items.Clear();
+                sprite.Items.Clear();
                 break;
             case ActionCode.GetItem:
-                return var1 >= 0 && var1 < unit.Items.Count ? unit.Items[var1] : 0;
+                return var1 >= 0 && var1 < sprite.Items.Count ? sprite.Items[var1] : 0;
             case ActionCode.Damage:
-                Damage(unit, var1);
+                Damage(sprite, var1);
                 break;
             case ActionCode.GetHp:
-                return unit.Hp;
+                return sprite.Hp;
             case ActionCode.SetHp:
-                SetUnitHp(unit, var1 != 0 ? var1 : unit.Definition.ArmyMaxHp[(int)unit.Army & ArmyMask] * var2 / Percent);
+                ChangeHp(sprite, var1 != 0 ? var1 : sprite.Definition.ArmyMaxHp[(int)sprite.Army & ArmyMask] * var2 / Percent);
                 break;
-            case ActionCode.GetBehave when IsUnitClass(unit):
-                return (int)unit.Behavior;
-            case ActionCode.SetBehave when IsUnitClass(unit):
-                unit.Behavior = (WeaponBehavior)var1;
+            case ActionCode.GetBehave when IsUnitClass(sprite):
+                return (int)sprite.Behavior;
+            case ActionCode.SetBehave when IsUnitClass(sprite):
+                sprite.Behavior = (WeaponBehavior)var1;
 
-                if (unit.Link is not null)
+                if (sprite.Link is not null)
                 {
-                    Action(unit.Link, code, var1);
+                    Action(sprite.Link, code, var1);
                 }
 
                 break;
             case ActionCode.GetBehave or ActionCode.SetBehave:
                 break;
             case ActionCode.GetArmy:
-                return (int)unit.Army & ArmyMask;
+                return (int)sprite.Army & ArmyMask;
             case ActionCode.SetArmy:
-                SetArmy(unit, var1);
+                ChangeArmy(sprite, var1);
                 break;
             case ActionCode.SetInvisible:
-                SetInvisible(unit, var1 != 0);
+                SetInvisible(sprite, var1 != 0);
                 break;
             case ActionCode.GetTimer:
-                return unit.Timer;
+                return sprite.Timer;
             case ActionCode.SetTimer:
-                unit.Timer = var1;
+                sprite.Timer = var1;
                 break;
             case ActionCode.SetZSpeed:
-                unit.VerticalSpeed = var1 * SpeedPerMillisecond;
+                sprite.VerticalSpeed = var1 * SpeedPerMillisecond;
                 break;
             case ActionCode.SetSpeed:
-                unit.Speed = var1 * SpeedPerMillisecond;
+                sprite.Speed = var1 * SpeedPerMillisecond;
                 break;
             case ActionCode.GetCommand:
-                return (int)unit.Command;
+                return (int)sprite.Command;
             case ActionCode.SetDeathTimer:
-                unit.Lifetime = var1;
+                sprite.Lifetime = var1;
                 break;
-            case (ActionCode)UnitOrder.ForgottenOrder or ActionCode.SetQuest or ActionCode.WhileNotQuest or ActionCode.SetText or ActionCode.SetTextCount or
+            case (ActionCode)Act.ForgottenOrder or ActionCode.SetQuest or ActionCode.WhileNotQuest or ActionCode.SetText or ActionCode.SetTextCount or
                 ActionCode.SetFile or ActionCode.Select or ActionCode.ChangeCoorZ:
                 break;
             default:
@@ -224,33 +224,33 @@ public sealed partial class GameWorld
     }
 
     [EngineRoutine(0x00440830)]
-    private void ChangeVid(Unit unit, int id, int state)
+    private void ChangeVid(Sprite sprite, int id, int state)
     {
         var definition = Definitions.Find((KnownObject)id);
 
-        if (definition is null || definition == unit.Definition)
+        if (definition is null || definition == sprite.Definition)
             return;
 
-        if (unit != Player)
+        if (sprite != Player)
         {
-            DropLinks(unit);
+            DropLinks(sprite);
         }
 
-        unit.ChangeVid(definition, state < 0 ? unit.Animation : (SpriteAnimation)state);
-        Units.ChangeCoor(unit);
+        sprite.ChangeVid(definition, state < 0 ? sprite.Animation : (SpriteAnimation)state);
+        Collector.ChangeCoor(sprite);
 
-        if (unit == Player)
+        if (sprite == Player)
         {
             Weapons.ReplaceTorso();
         }
         else
         {
-            CreateLink(unit);
+            CreateLink(sprite);
         }
     }
 
     [EngineRoutine(0x00454800)]
-    private void AddPlayerItem(Unit man, int item)
+    private void AddPlayerItem(Sprite man, int item)
     {
         if ((KnownObject)item is KnownObject.Dynamite or KnownObject.ExtraLife)
         {
@@ -262,9 +262,9 @@ public sealed partial class GameWorld
         if (!TryAddItem(man, item))
             return;
 
-        int slot = item - Unit.WeaponItemBase;
+        int slot = item - Sprite.WeaponItemBase;
 
-        if (man != Player || slot < 0 || slot >= Unit.WeaponSlots)
+        if (man != Player || slot < 0 || slot >= Sprite.WeaponSlots)
             return;
 
         if (Player.GetAmmo() == 0 || Player.WeaponSlot < slot || slot == 0)
@@ -273,36 +273,36 @@ public sealed partial class GameWorld
         }
     }
 
-    private static bool IsUnitClass(Unit unit) => unit.Definition.Object.SpriteClass is SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man;
+    private static bool IsUnitClass(Sprite sprite) => sprite.Definition.Object.SpriteClass is SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man;
 
     [EngineRoutine(0x00442ad0)]
-    private void SetArmy(Unit unit, int army)
+    private void ChangeArmy(Sprite sprite, int army)
     {
-        int previous = (int)unit.Army & ArmyMask;
-        unit.Army = (Army)(army & ArmyMask);
-        int current = (int)unit.Army;
+        int previous = (int)sprite.Army & ArmyMask;
+        sprite.Army = (Army)(army & ArmyMask);
+        int current = (int)sprite.Army;
 
-        if (unit.Link is not null)
+        if (sprite.Link is not null)
         {
-            SetArmy(unit.Link, army);
+            ChangeArmy(sprite.Link, army);
         }
 
-        var definition = unit.Definition;
+        var definition = sprite.Definition;
         int newMax = definition.ArmyMaxHp[current];
         int oldMax = definition.ArmyMaxHp[previous];
 
         if (newMax != oldMax)
         {
-            int scaled = (unit.Hp << HpShift) / oldMax * newMax;
-            SetUnitHp(unit, (scaled + (scaled >> 31 & HpRounding)) >> HpShift);
+            int scaled = (sprite.Hp << HpShift) / oldMax * newMax;
+            ChangeHp(sprite, (scaled + (scaled >> 31 & HpRounding)) >> HpShift);
         }
 
         if (definition.Object.Properties.HasFlag(ObjectProperties.InvisibleForEnemy))
         {
-            SetInvisible(unit, current != ControlledPlayer);
+            SetInvisible(sprite, current != ControlledPlayer);
         }
 
-        if (unit.IsCounted)
+        if (sprite.IsCounted)
         {
             if (definition.Counts[previous] != 0)
             {
@@ -315,11 +315,11 @@ public sealed partial class GameWorld
 
     [EngineRoutine(0x00442620)]
     [EngineRoutine(0x00442640)]
-    private static void SetInvisible(Unit unit, bool invisible)
+    private static void SetInvisible(Sprite sprite, bool invisible)
     {
-        unit.IsInvisible = invisible;
+        sprite.IsInvisible = invisible;
 
-        foreach (var link in unit.EnumerateLinks())
+        foreach (var link in sprite.EnumerateLinks())
         {
             link.IsInvisible = invisible;
         }

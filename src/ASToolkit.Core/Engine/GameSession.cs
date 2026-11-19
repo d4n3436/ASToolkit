@@ -14,5 +14,5 @@ public sealed class GameSession
     /// <summary>
     /// Gets or sets the sprite of the mouse cursor.
     /// </summary>
-    public Unit? Cursor { get; set; }
+    public Sprite? Cursor { get; set; }
 }

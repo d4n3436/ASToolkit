@@ -6,9 +6,9 @@ using Microsoft.Extensions.ObjectPool;
 namespace ASToolkit.Core.Engine;
 
 /// <summary>
-/// Represents a sprite of the running world with its definition, position, state, orders, links and ammunition.
+/// Represents a sprite of the running map with its definition, position, state, orders, links and ammunition.
 /// </summary>
-public sealed class Unit : IResettable
+public sealed class Sprite : IResettable
 {
     /// <summary>
     /// Represents the object id of the torso for weapon slot 0.
@@ -40,77 +40,77 @@ public sealed class Unit : IResettable
     private int[]? _slotAmmo;
     private bool _secondChildPulse;
     private Angle _direction;
-    private Unit? _owner;
-    private Unit? _link;
-    private Unit? _goal;
-    private Unit? _shooter;
-    private Unit? _linkerBase;
+    private Sprite? _owner;
+    private Sprite? _link;
+    private Sprite? _goal;
+    private Sprite? _shooter;
+    private Sprite? _linkerBase;
 
     /// <summary>
-    /// Creates an empty unit. Used for object pooled initialization.
+    /// Creates an empty sprite. Used for object pooled initialization.
     /// </summary>
-    public Unit()
+    public Sprite()
     {
         Definition = null!;
     }
 
     /// <summary>
-    /// Creates a unit of a definition.
+    /// Creates a sprite from a definition.
     /// </summary>
-    /// <param name="number">The unit number.</param>
+    /// <param name="number">The sprite number.</param>
     /// <param name="definition">The definition.</param>
     /// <param name="position">The position.</param>
     /// <param name="army">The army.</param>
     /// <param name="hp">The health.</param>
-    public Unit(int number, SpriteDefinition definition, Vector3 position, Army army, int hp)
+    public Sprite(int number, SpriteDefinition definition, Vector3 position, Army army, int hp)
     {
         Initialize(number, definition, position, army, hp);
     }
 
     /// <summary>
-    /// Gets the unit number.
+    /// Gets the sprite number.
     /// </summary>
     public int Number { get; private set; }
 
     /// <summary>
-    /// Gets or sets the handle the level script refers to the unit by, 0 when it has none.
+    /// Gets or sets the handle the level script refers to the sprite by, 0 when it has none.
     /// </summary>
     public int Handle { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the unit counts toward its definition's per-army count.
+    /// Gets or sets a value indicating whether the sprite counts toward its definition's per-army count.
     /// </summary>
     public bool IsCounted { get; set; }
 
     /// <summary>
-    /// Gets or sets the side list that removes the unit when it leaves.
+    /// Gets or sets the side list that removes the sprite when it leaves.
     /// </summary>
     public UpdateRole Role { get; set; }
 
     /// <summary>
-    /// Gets the definition of the unit.
+    /// Gets the definition of the sprite.
     /// </summary>
     public SpriteDefinition Definition { get; private set; }
 
     /// <summary>
-    /// Gets or sets the army of the unit.
+    /// Gets or sets the army of the sprite.
     /// </summary>
     public Army Army { get; set; }
 
     /// <summary>
-    /// Gets or sets the map sprite the unit was built from.
+    /// Gets or sets the map sprite the sprite was built from.
     /// </summary>
     public MergedMapSprite? Placement { get; set; }
 
     /// <summary>
-    /// Gets or sets the position of the unit.
+    /// Gets or sets the position of the sprite.
     /// </summary>
     public Vector3 Position { get; set; }
 
     internal CollisionVolume CollisionVolume => Definition.GetCollisionVolume(Position);
 
     /// <summary>
-    /// Gets or sets the speed of the unit in pixels per millisecond.
+    /// Gets or sets the speed of the sprite in pixels per millisecond.
     /// </summary>
     public float Speed { get; set; }
 
@@ -120,7 +120,7 @@ public sealed class Unit : IResettable
     public Vector2 RegionSize { get; set; }
 
     /// <summary>
-    /// Gets or sets the frames the unit has spent turning while stuck.
+    /// Gets or sets the frames the sprite has spent turning while stuck.
     /// </summary>
     public int TurnTicks { get; set; }
 
@@ -130,79 +130,79 @@ public sealed class Unit : IResettable
     public float TurnCarry { get; set; }
 
     /// <summary>
-    /// Gets or sets the command the unit carries out.
+    /// Gets or sets the command the sprite carries out.
     /// </summary>
-    public UnitCommand Command { get; set; }
+    public Command Command { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the unit moves toward its goal.
+    /// Gets or sets a value indicating whether the sprite moves toward its goal.
     /// </summary>
     public bool IsMoving { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the unit is leaving the world.
+    /// Gets or sets a value indicating whether the sprite is leaving the map.
     /// </summary>
     public bool LeavesEffects { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the unit has passed its goal's x coordinate.
+    /// Gets or sets a value indicating whether the sprite has passed its goal's x coordinate.
     /// </summary>
     public bool HasReachedX { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the unit has passed its goal's y coordinate.
+    /// Gets or sets a value indicating whether the sprite has passed its goal's y coordinate.
     /// </summary>
     public bool HasReachedY { get; set; }
 
     /// <summary>
-    /// Gets or sets the health of the unit.
+    /// Gets or sets the health of the sprite.
     /// </summary>
     public int Hp { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the unit is hidden.
+    /// Gets or sets a value indicating whether the sprite is hidden.
     /// </summary>
     public bool IsInvisible { get; set; }
 
     /// <summary>
-    /// Gets the items the unit carries.
+    /// Gets the items the sprite carries.
     /// </summary>
     public List<int> Items { get; } = [];
 
     /// <summary>
-    /// Gets or sets the grid bucket the unit is filed in.
+    /// Gets or sets the hash bucket the sprite is filed in.
     /// </summary>
     public int Bucket { get; set; }
 
     /// <summary>
-    /// Gets or sets the unit's index in its grid bucket.
+    /// Gets or sets the sprite's index in its hash bucket.
     /// </summary>
     public int Slot { get; set; }
 
-    internal UnitGrid? Grid { get; set; }
+    internal SpriteCollector? Collector { get; set; }
 
     /// <summary>
-    /// Gets or sets the unit's index in the grid's unit list.
+    /// Gets or sets the sprite's index in the collector's unit list.
     /// </summary>
     public int ListIndex { get; set; }
 
     /// <summary>
-    /// Gets the order stack of the unit.
+    /// Gets the order stack of the sprite.
     /// </summary>
-    public OrderStack Orders { get; } = new();
+    public ActionStack ActionStack { get; } = new();
 
     /// <summary>
-    /// Gets or sets the time the unit died, negative while it lives.
+    /// Gets or sets the time the sprite died, negative while it lives.
     /// </summary>
     public int DiedAt { get; set; }
 
     /// <summary>
-    /// Gets the direction the unit faces.
+    /// Gets the direction the sprite faces.
     /// </summary>
     public Angle Direction { get => _direction; init => _direction = value; }
 
     /// <summary>
-    /// Gets the state of the unit.
+    /// Gets the state of the sprite.
     /// </summary>
     public SpriteAnimation Animation { get; private set; }
 
@@ -222,12 +222,12 @@ public sealed class Unit : IResettable
     public int LastFrame { get; private set; }
 
     /// <summary>
-    /// Gets or sets the time of the unit's last frame step.
+    /// Gets or sets the time of the sprite's last frame step.
     /// </summary>
     public int LastTickTime { get; set; }
 
     /// <summary>
-    /// Gets or sets the time the unit was created.
+    /// Gets or sets the time the sprite was created.
     /// </summary>
     public int CreatedAt
     {
@@ -241,109 +241,109 @@ public sealed class Unit : IResettable
     }
 
     /// <summary>
-    /// Gets or sets the time the unit's keyframe track started.
+    /// Gets or sets the time the sprite's keyframe track started.
     /// </summary>
     public int KeyframeStart { get; set; }
 
     /// <summary>
-    /// Gets or sets the position along the unit's keyframe track.
+    /// Gets or sets the position along the sprite's keyframe track.
     /// </summary>
     public float KeyframePosition { get; set; }
 
     /// <summary>
-    /// Gets or sets the time the unit has left before it dies.
+    /// Gets or sets the time the sprite has left before it dies.
     /// </summary>
     public int Lifetime { get; set; }
 
     /// <summary>
-    /// Gets or sets the unit's countdown timer in milliseconds.
+    /// Gets or sets the sprite's countdown timer in milliseconds.
     /// </summary>
     public int Timer { get; set; }
 
     /// <summary>
-    /// Gets the ammunition the unit holds, in 1/64 rounds.
+    /// Gets the ammunition the sprite holds, in 1/64 rounds.
     /// </summary>
     public int Ammo { get; private set; }
 
     /// <summary>
-    /// Gets the whole rounds the unit holds.
+    /// Gets the whole rounds the sprite holds.
     /// </summary>
     public int Rounds => Ammo / AmmoScale;
 
     /// <summary>
-    /// Gets or sets a value indicating whether the unit refills its ammunition.
+    /// Gets or sets a value indicating whether the sprite refills its ammunition.
     /// </summary>
     public bool RefillsAmmo { get; set; }
 
     /// <summary>
-    /// Gets the weapon slot of the torso the unit's definition links.
+    /// Gets the weapon slot of the torso the sprite's definition links.
     /// </summary>
     public int WeaponSlot => (int)(Definition.LinkDefinition?.Id ?? 0) - WeaponIdBase;
 
     /// <summary>
-    /// Gets the ammunition the unit keeps for the slots it does not hold.
+    /// Gets the ammunition the sprite keeps for the slots it does not hold.
     /// </summary>
     public int[] SlotAmmo => _slotAmmo ??= new int[MaxWeaponSlot + 1];
 
     /// <summary>
-    /// Gets or sets the health the unit had before the hit that killed it.
+    /// Gets or sets the health the sprite had before the hit that killed it.
     /// </summary>
     public int HpBeforeDeath { get; set; }
 
     /// <summary>
-    /// Gets or sets the behavior bits of the unit.
+    /// Gets or sets the behavior bits of the sprite.
     /// </summary>
     public WeaponBehavior Behavior { get; set; }
 
     /// <summary>
-    /// Gets or sets the period of the unit's stream children.
+    /// Gets or sets the period of the sprite's stream children.
     /// </summary>
     public int StreamPeriod { get; set; }
 
     /// <summary>
-    /// Gets a value indicating whether the unit attacks enemies in weapon range.
+    /// Gets a value indicating whether the sprite attacks enemies in weapon range.
     /// </summary>
     public bool IsAggressive => Behavior.HasFlag(WeaponBehavior.Aggressive);
 
     /// <summary>
-    /// Gets a value indicating whether the unit moves toward enemies it sees.
+    /// Gets a value indicating whether the sprite moves toward enemies it sees.
     /// </summary>
     public bool IsActive => Behavior.HasFlag(WeaponBehavior.Active);
 
     /// <summary>
-    /// Gets or sets the vertical speed of the unit.
+    /// Gets or sets the vertical speed of the sprite.
     /// </summary>
     public float VerticalSpeed { get; set; }
 
     /// <summary>
-    /// Gets or sets the top speed of the unit in pixels per millisecond.
+    /// Gets or sets the top speed of the sprite in pixels per millisecond.
     /// </summary>
     public float MaxSpeed { get; set; }
 
     /// <summary>
-    /// Gets or sets the sprite the unit moves toward or attacks.
+    /// Gets or sets the sprite the sprite moves toward or attacks.
     /// </summary>
-    public Unit? Goal { get => _goal; set => _goal = MarkReferenced(value); }
+    public Sprite? Goal { get => _goal; set => _goal = MarkReferenced(value); }
 
     /// <summary>
-    /// Gets or sets the point the unit moves toward.
+    /// Gets or sets the point the sprite moves toward.
     /// </summary>
     public Vector3? GoalPoint { get; set; }
 
     /// <summary>
-    /// Gets or sets the sprite that fired the unit.
+    /// Gets or sets the sprite that fired the sprite.
     /// </summary>
-    public Unit? Shooter { get => _shooter; set => _shooter = MarkReferenced(value); }
+    public Sprite? Shooter { get => _shooter; set => _shooter = MarkReferenced(value); }
 
     /// <summary>
-    /// Gets or sets the sprite the unit is linked to.
+    /// Gets or sets the sprite the sprite is linked to.
     /// </summary>
-    public Unit? Owner { get => _owner; set => _owner = MarkReferenced(value); }
+    public Sprite? Owner { get => _owner; set => _owner = MarkReferenced(value); }
 
     /// <summary>
     /// Gets or sets the sprite a linker turns around, the parent it was created with.
     /// </summary>
-    public Unit? LinkerBase { get => _linkerBase; set => _linkerBase = MarkReferenced(value); }
+    public Sprite? LinkerBase { get => _linkerBase; set => _linkerBase = MarkReferenced(value); }
 
     /// <summary>
     /// Gets or sets a linker's offset from its base when it was created.
@@ -356,47 +356,47 @@ public sealed class Unit : IResettable
     public Angle LinkerDirection { get; set; }
 
     /// <summary>
-    /// Gets or sets the next sprite of the unit's link chain.
+    /// Gets or sets the next sprite of the sprite's link chain.
     /// </summary>
-    public Unit? Link { get => _link; set => _link = MarkReferenced(value); }
+    public Sprite? Link { get => _link; set => _link = MarkReferenced(value); }
 
     /// <summary>
-    /// Gets or sets how many child launches deep the unit was created.
+    /// Gets or sets how many child launches deep the sprite was created.
     /// </summary>
     public int Depth { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the unit's last move was blocked.
+    /// Gets or sets a value indicating whether the sprite's last move was blocked.
     /// </summary>
     public bool IsBlocked { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the unit climbs onto higher ground.
+    /// Gets or sets a value indicating whether the sprite climbs onto higher ground.
     /// </summary>
     public bool IsClimbing { get; set; }
 
     /// <summary>
-    /// Gets a value indicating whether the unit has a goal sprite or point.
+    /// Gets a value indicating whether the sprite has a goal sprite or point.
     /// </summary>
     public bool HasGoal => Goal is not null || GoalPoint is not null;
 
     /// <summary>
-    /// Gets the position of the unit's goal.
+    /// Gets the position of the sprite's goal.
     /// </summary>
     public Vector3 GoalPosition => Goal?.Position ?? GoalPoint.GetValueOrDefault();
 
     /// <summary>
-    /// Gets a value indicating whether the unit has health left.
+    /// Gets a value indicating whether the sprite has health left.
     /// </summary>
     public bool IsAlive => Hp > 0;
 
     /// <summary>
-    /// Gets a value indicating whether another sprite refers to the unit.
+    /// Gets a value indicating whether another sprite refers to the sprite.
     /// </summary>
     public bool IsReferenced { get; private set; }
 
     /// <summary>
-    /// Changes the unit's definition and state.
+    /// Changes the sprite's definition and state.
     /// </summary>
     /// <param name="definition">The new definition.</param>
     /// <param name="state">The state to enter.</param>
@@ -417,13 +417,13 @@ public sealed class Unit : IResettable
 
         Definition = definition;
         ChangeAnimation(state);
-        SetDirection(direction);
+        ChangeDirection(direction);
     }
 
     /// <summary>
-    /// Resets the unit to a new sprite of a definition.
+    /// Reinitializes the sprite with a definition.
     /// </summary>
-    /// <param name="number">The unit number.</param>
+    /// <param name="number">The sprite number.</param>
     /// <param name="definition">The definition.</param>
     /// <param name="position">The position.</param>
     /// <param name="army">The army.</param>
@@ -462,9 +462,9 @@ public sealed class Unit : IResettable
         Items.Clear();
         Bucket = -1;
         Slot = -1;
-        Grid = null;
+        Collector = null;
         ListIndex = -1;
-        Orders.Clear();
+        ActionStack.Clear();
         DiedAt = -1;
         Animation = default;
         FirstFrame = definition.Layout.GetFirstFrame(SpriteAnimation.Stand);
@@ -489,9 +489,9 @@ public sealed class Unit : IResettable
     }
     
     /// <summary>
-    /// Gets the armed object the unit's definition links, when it is the unit's link.
+    /// Gets the armed object the sprite's definition links, when it is the sprite's link.
     /// </summary>
-    public Unit? ArmedLink
+    public Sprite? ArmedLink
     {
         get
         {
@@ -501,19 +501,19 @@ public sealed class Unit : IResettable
     }
 
     /// <summary>
-    /// Marks the unit as referred to by another sprite.
+    /// Marks the sprite as referred to by another sprite.
     /// </summary>
     public void MarkReferenced() => IsReferenced = true;
 
-    private static Unit? MarkReferenced(Unit? unit)
+    private static Sprite? MarkReferenced(Sprite? sprite)
     {
-        unit?.MarkReferenced();
+        sprite?.MarkReferenced();
 
-        return unit;
+        return sprite;
     }
 
     /// <summary>
-    /// Starts the unit in a state and draws its starting frame.
+    /// Starts the sprite in a state and draws its starting frame.
     /// </summary>
     /// <param name="state">The state.</param>
     /// <param name="direction">The direction.</param>
@@ -537,7 +537,7 @@ public sealed class Unit : IResettable
         FirstFrame = layout.GetFirstFrame(state);
         Frame = FirstFrame;
         LastFrame = layout.GetFramesPerDirection(state) - 1;
-        SetDirection(direction);
+        ChangeDirection(direction);
 
         if (state == SpriteAnimation.Stand && LastFrame - FirstFrame > 0 && !firstFrame)
         {
@@ -546,7 +546,7 @@ public sealed class Unit : IResettable
     }
 
     /// <summary>
-    /// Changes the unit's state, taking its links into death with it.
+    /// Changes the sprite's state, taking its links into death with it.
     /// </summary>
     /// <param name="state">The state.</param>
     [EngineRoutine(0x00442ee0)]
@@ -588,15 +588,15 @@ public sealed class Unit : IResettable
     private void Shift(Vector3 delta)
     {
         Position += delta;
-        Grid?.ChangeCoor(this);
+        Collector?.ChangeCoor(this);
     }
 
     /// <summary>
-    /// Turns the unit, placing its link at the offset for the new direction and turning the links that keep their owner's direction.
+    /// Turns the sprite, placing its link at the offset for the new direction and turning the links that keep their owner's direction.
     /// </summary>
     /// <param name="direction">The direction.</param>
     [EngineRoutine(0x00442be0)]
-    public void SetDirection(Angle direction)
+    public void ChangeDirection(Angle direction)
     {
         var shown = GetShownDirection(direction);
 
@@ -623,7 +623,7 @@ public sealed class Unit : IResettable
 
             if (linked.RotationPeriod.IsNear(SpriteDefinition.Unlimited))
             {
-                link.SetDirection(direction);
+                link.ChangeDirection(direction);
             }
         }
 
@@ -677,7 +677,7 @@ public sealed class Unit : IResettable
     }
 
     /// <summary>
-    /// Stops the unit's move toward its goal.
+    /// Stops the sprite's move toward its goal.
     /// </summary>
     public void ClearMove()
     {
@@ -687,9 +687,9 @@ public sealed class Unit : IResettable
     }
 
     /// <summary>
-    /// Starts the unit's move toward its goal.
+    /// Starts the sprite's move toward its goal.
     /// </summary>
-    /// <param name="maxSpeed">The speed the unit reaches at once when its definition has no acceleration.</param>
+    /// <param name="maxSpeed">The speed the sprite reaches at once when its definition has no acceleration.</param>
     [EngineRoutine(0x004443f0)]
     public void StartMoving(float maxSpeed)
     {
@@ -709,7 +709,7 @@ public sealed class Unit : IResettable
     }
 
     /// <summary>
-    /// Returns the ammunition the unit holds when full.
+    /// Returns the ammunition the sprite holds when full.
     /// </summary>
     /// <returns>The capacity in rounds.</returns>
     [EngineRoutine(0x0043a200)]
@@ -721,12 +721,12 @@ public sealed class Unit : IResettable
     }
 
     /// <summary>
-    /// Fills the unit's ammunition.
+    /// Fills the sprite's ammunition.
     /// </summary>
     public void FillAmmo() => Ammo = GetAmmoCapacity() * AmmoScale;
     
     /// <summary>
-    /// Returns the rounds the unit holds for a weapon slot.
+    /// Returns the rounds the sprite holds for a weapon slot.
     /// </summary>
     /// <param name="slot">The slot, or 0 for the held weapon.</param>
     /// <returns>The rounds.</returns>
@@ -789,13 +789,13 @@ public sealed class Unit : IResettable
     }
 
     [EngineRoutine(0x004460b0)]
-    internal AttackResult TryAttack(int elapsed)
+    internal AttackResult AttackTact(int elapsed)
     {
         var link = ArmedLink;
 
         if (link is not null)
         {
-            var result = link.TryAttack(elapsed);
+            var result = link.AttackTact(elapsed);
 
             if (result != AttackResult.NoTarget)
                 return result;
@@ -820,7 +820,7 @@ public sealed class Unit : IResettable
             return AttackResult.Busy;
         }
 
-        if (Command is not (UnitCommand.Attack or UnitCommand.OneAttack or UnitCommand.DistAttack))
+        if (Command is not (Command.Attack or Command.OneAttack or Command.DistAttack))
         {
             FaceOwner(elapsed, Timer == 0);
 
@@ -828,7 +828,7 @@ public sealed class Unit : IResettable
         }
 
         float distance = Position.AsVector2().MeasureOctagonalDistance(GoalPosition.AsVector2());
-        bool inRange = Owner is null || Command == UnitCommand.DistAttack || distance < Definition.BattleRange && distance > Definition.MinRange;
+        bool inRange = Owner is null || Command == Command.DistAttack || distance < Definition.BattleRange && distance > Definition.MinRange;
         bool aimed = inRange && (Aim(elapsed) == 0 || Definition.AttacksWhileTurning);
 
         if (!inRange)
@@ -854,7 +854,7 @@ public sealed class Unit : IResettable
             return AttackResult.Attacked;
         }
 
-        if (Command == UnitCommand.Attack)
+        if (Command == Command.Attack)
             return AttackResult.Approach;
 
         return distance < Definition.DetectRange * 2 ? AttackResult.Pursue : AttackResult.GiveUp;
@@ -864,12 +864,12 @@ public sealed class Unit : IResettable
     {
         if (Owner is not null && idle)
         {
-            SetDirection(Direction.TurnToward(Owner.Direction, Definition.Object.RotationPeriod, elapsed, out _));
+            ChangeDirection(Direction.TurnToward(Owner.Direction, Definition.Object.RotationPeriod, elapsed, out _));
         }
     }
 
     /// <summary>
-    /// Gets a value indicating whether the unit is between attacks.
+    /// Gets a value indicating whether the sprite is between attacks.
     /// </summary>
     public bool IsReloading => Timer > ReloadTimerOffset || Animation == SpriteAnimation.Fight && Frame <= LastFrame;
 
@@ -877,7 +877,7 @@ public sealed class Unit : IResettable
     private int Aim(int elapsed)
     {
         var direction = Angle.Aim((GoalPosition - Position).AsVector2());
-        SetDirection(Direction.TurnToward(direction, Definition.Object.RotationPeriod, elapsed, out int remaining));
+        ChangeDirection(Direction.TurnToward(direction, Definition.Object.RotationPeriod, elapsed, out int remaining));
 
         return remaining;
     }
@@ -886,7 +886,7 @@ public sealed class Unit : IResettable
     /// Returns which of a mirrored pair of children the next launch takes, alternating for definitions that attack twice.
     /// </summary>
     /// <param name="animation">The state whose children launch.</param>
-    /// <param name="owner">The definition whose children launch, or null for the unit's definition.</param>
+    /// <param name="owner">The definition whose children launch, or null for the sprite's definition.</param>
     /// <returns><see langword="true"/> for the second of the pair; otherwise, <see langword="false"/>.</returns>
     public bool TakeChildPulse(SpriteAnimation animation, SpriteDefinition? owner = null)
     {
@@ -902,7 +902,7 @@ public sealed class Unit : IResettable
     }
 
     /// <summary>
-    /// Returns the direction the unit turns to toward a goal direction during a frame.
+    /// Returns the direction the sprite turns to toward a goal direction during a frame.
     /// </summary>
     /// <param name="goal">The goal direction.</param>
     /// <param name="elapsed">The frame's length in milliseconds.</param>
@@ -927,10 +927,10 @@ public sealed class Unit : IResettable
     }
 
     /// <summary>
-    /// Traverses over the unit's <see cref="Link"/> chain.
+    /// Traverses over the sprite's <see cref="Link"/> chain.
     /// </summary>
     /// <returns>The chain as an <see cref="IEnumerable{T}"/>.</returns>
-    public IEnumerable<Unit> EnumerateLinks()
+    public IEnumerable<Sprite> EnumerateLinks()
     {
         for (var link = Link; link is not null; link = link.Link)
         {

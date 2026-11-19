@@ -26,7 +26,7 @@ public enum VidDataType
     BattleRange = 23,
 
     /// <summary>
-    /// The most units of the definition the map may hold.
+    /// The most sprites of the definition the map may hold.
     /// </summary>
     MaxUnit = 25,
 
@@ -41,52 +41,52 @@ public enum VidDataType
     Name = 27,
 
     /// <summary>
-    /// The number of units of the definition on the map.
+    /// The number of sprites of the definition on the map.
     /// </summary>
     Count = 28,
 
     /// <summary>
-    /// The number of times units of the definition were killed.
+    /// The number of times sprites of the definition were killed.
     /// </summary>
     KilledUnit = 29,
 
     /// <summary>
-    /// The number of times units of the definition in army 0 were killed.
+    /// The number of times sprites of the definition in army 0 were killed.
     /// </summary>
     KilledUnit0 = 30,
 
     /// <summary>
-    /// The number of times units of the definition in army 1 were killed.
+    /// The number of times sprites of the definition in army 1 were killed.
     /// </summary>
     KilledUnit1 = 31,
 
     /// <summary>
-    /// The number of times units of the definition in army 2 were killed.
+    /// The number of times sprites of the definition in army 2 were killed.
     /// </summary>
     KilledUnit2 = 32,
 
     /// <summary>
-    /// The number of times units of the definition in army 3 were killed.
+    /// The number of times sprites of the definition in army 3 were killed.
     /// </summary>
     KilledUnit3 = 33,
 
     /// <summary>
-    /// The number of units of the definition in army 0 on the map.
+    /// The number of sprites of the definition in army 0 on the map.
     /// </summary>
     Count0 = 34,
 
     /// <summary>
-    /// The number of units of the definition in army 1 on the map.
+    /// The number of sprites of the definition in army 1 on the map.
     /// </summary>
     Count1 = 35,
 
     /// <summary>
-    /// The number of units of the definition in army 2 on the map.
+    /// The number of sprites of the definition in army 2 on the map.
     /// </summary>
     Count2 = 36,
 
     /// <summary>
-    /// The number of units of the definition in army 3 on the map.
+    /// The number of sprites of the definition in army 3 on the map.
     /// </summary>
     Count3 = 37,
 
@@ -216,27 +216,27 @@ public enum VidDataType
     Damage = 124,
 
     /// <summary>
-    /// The number of times units of the definition were recolored.
+    /// The number of times sprites of the definition were recolored.
     /// </summary>
     RecolorUnit = 125,
 
     /// <summary>
-    /// The number of times units of the definition in army 0 were recolored.
+    /// The number of times sprites of the definition in army 0 were recolored.
     /// </summary>
     RecolorUnit0 = 126,
 
     /// <summary>
-    /// The number of times units of the definition in army 1 were recolored.
+    /// The number of times sprites of the definition in army 1 were recolored.
     /// </summary>
     RecolorUnit1 = 127,
 
     /// <summary>
-    /// The number of times units of the definition in army 2 were recolored.
+    /// The number of times sprites of the definition in army 2 were recolored.
     /// </summary>
     RecolorUnit2 = 128,
 
     /// <summary>
-    /// The number of times units of the definition in army 3 were recolored.
+    /// The number of times sprites of the definition in army 3 were recolored.
     /// </summary>
     RecolorUnit3 = 129
 }

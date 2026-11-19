@@ -81,16 +81,16 @@ public class DemoReplayTests
         var demo = new DemoResource(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", "addon2-level1-load.dem")));
         int[][] sprites = FixtureReader.Read<int[][]>("addon2-level1-load.json");
         var level = new LevelLoader(TestGameFolder.Objects).Load("ADDON2/Level_01.map", Path.Combine(game, "Maps", "ADDON2", "Level_01.map"))!.Analysis;
-        var world = new Playthrough(game, TestGameFolder.Objects, TestGameFolder.Table).LoadDemo(level, demo);
-        var layer = world.GetLayer(1);
+        var map = new Playthrough(game, TestGameFolder.Objects, TestGameFolder.Table).LoadDemo(level, demo);
+        var layer = map.GetLayer(1);
 
-        Assert.Equal(10623 - 2, CountDraws(demo.Seed, world.RandomState));
+        Assert.Equal(10623 - 2, CountDraws(demo.Seed, map.RandomState));
         for (int slot = 0; slot < sprites.Length; slot++)
         {
-            var unit = layer[slot].Unit!;
+            var sprite = layer[slot].Sprite!;
             int[] expected = sprites[slot];
 
-            int[] actual = [(int)unit.Definition.Id, unit.LastTickTime, unit.FirstFrame, unit.Frame, unit.LastFrame, (int)unit.Animation, unit.Direction.Value];
+            int[] actual = [(int)sprite.Definition.Id, sprite.LastTickTime, sprite.FirstFrame, sprite.Frame, sprite.LastFrame, (int)sprite.Animation, sprite.Direction.Value];
 
             Assert.Equal(expected, actual);
         }

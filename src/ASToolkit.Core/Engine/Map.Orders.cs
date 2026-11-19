@@ -4,42 +4,42 @@ using ASToolkit.Core.Levels;
 
 namespace ASToolkit.Core.Engine;
 
-public sealed partial class GameWorld
+public sealed partial class Map
 {
-    private readonly Dictionary<Unit, PendingBuild> _builds = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<Sprite, PendingBuild> _builds = new(ReferenceEqualityComparer.Instance);
 
     /// <summary>
     /// Returns the definition a building is building.
     /// </summary>
     /// <param name="building">The building.</param>
     /// <returns>The definition, or null when the building is idle.</returns>
-    public SpriteDefinition? GetPendingBuild(Unit building) => _builds.TryGetValue(building, out var pending) ? pending.Definition : null;
+    public SpriteDefinition? GetPendingBuild(Sprite building) => _builds.TryGetValue(building, out var pending) ? pending.Definition : null;
 
     [EngineRoutine(0x00440110)]
-    private void PopOrder(Unit unit)
+    private void PopOrder(Sprite sprite)
     {
-        var order = unit.Orders.Top;
-        var state = unit.Animation;
+        var order = sprite.ActionStack.Top;
+        var state = sprite.Animation;
 
-        if (order.Act > UnitOrder.LastState &&
-            (state is > SpriteAnimation.Open and < SpriteAnimation.Death and not SpriteAnimation.StandOpen || state == SpriteAnimation.Go && unit.Speed.IsZero()))
+        if (order.Value > Act.LastState &&
+            (state is > SpriteAnimation.Open and < SpriteAnimation.Death and not SpriteAnimation.StandOpen || state == SpriteAnimation.Go && sprite.Speed.IsZero()))
         {
-            unit.ChangeAnimation(SpriteAnimation.Stand);
+            sprite.ChangeAnimation(SpriteAnimation.Stand);
         }
 
-        if (order.Act == UnitOrder.StopMarker)
+        if (order.Value == Act.StopMarker)
             return;
 
-        unit.Orders.Pop();
+        sprite.ActionStack.Pop();
 
-        if (order.Act <= UnitOrder.LastState)
+        if (order.Value <= Act.LastState)
         {
-            unit.ChangeAnimation((SpriteAnimation)order.Act);
+            sprite.ChangeAnimation((SpriteAnimation)order.Value);
 
             return;
         }
 
-        Action(unit, order.Code, order.Var1, order.Var2, order.Var3, order.Target);
+        Action(sprite, order.Code, order.Var1, order.Var2, order.Var3, order.Target);
     }
 
     // TODO: Port the goal sprite of the empty definition
@@ -53,48 +53,48 @@ public sealed partial class GameWorld
     [EngineRoutine(0x0044ca70)]
     [EngineRoutine(0x00448950)]
     [EngineRoutine(0x00440830)]
-    private void NextCommand(Unit unit)
+    private void NextCommand(Sprite sprite)
     {
-        if (unit == Player)
+        if (sprite == Player)
         {
             Weapons.DecidePlayer(FrameTime);
-            unit.ChangeAnimation(!unit.Speed.IsZero() ? SpriteAnimation.Go : SpriteAnimation.Stand);
+            sprite.ChangeAnimation(!sprite.Speed.IsZero() ? SpriteAnimation.Go : SpriteAnimation.Stand);
 
             return;
         }
 
-        if (unit == Weapons.Torso)
+        if (sprite == Weapons.Torso)
         {
-            SpawnedObjectSystem.DecideObject(unit);
+            SpawnedObjectSystem.DecideObject(sprite);
 
             return;
         }
 
-        switch (unit.Definition.Object.SpriteClass)
+        switch (sprite.Definition.Object.SpriteClass)
         {
             case SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Creature:
-                _brain.Decide(unit, Player, FrameTime, Time);
+                _brain.Decide(sprite, Player, FrameTime, Time);
                 break;
             case SpriteClass.Cannon:
-                SpawnedObjectSystem.DecideCannon(unit);
+                SpawnedObjectSystem.DecideCannon(sprite);
                 break;
             default:
-                SpawnedObjectSystem.DecideObject(unit);
+                SpawnedObjectSystem.DecideObject(sprite);
                 break;
         }
     }
 
     [EngineRoutine(0x0044ca70)]
-    private void StartBuild(Unit building, int id, int x, int y)
+    private void StartBuild(Sprite building, int id, int x, int y)
     {
         var definition = Definitions.Find((KnownObject)id);
 
-        if (building.Command != UnitCommand.None || definition is null)
+        if (building.Command != Command.None || definition is null)
             return;
 
         _builds[building] = new PendingBuild(definition, x, y);
         building.Timer = definition.BuildTime;
-        UnitKinematics.SetCommand(building, UnitCommand.Build);
+        SpriteKinematics.SetCommand(building, Command.Build);
 
         if (building.Animation < SpriteAnimation.Death)
         {
@@ -103,12 +103,12 @@ public sealed partial class GameWorld
     }
 
     [EngineRoutine(0x0044ca70)]
-    private void DecideBuilding(Unit building)
+    private void DecideBuilding(Sprite building)
     {
         if (building.Animation >= SpriteAnimation.Death)
             return;
 
-        bool isBuilding = building.Command == UnitCommand.Build;
+        bool isBuilding = building.Command == Command.Build;
 
         if (isBuilding)
         {
@@ -127,7 +127,7 @@ public sealed partial class GameWorld
         if (!IsFree(pending.Definition, position))
             return;
 
-        UnitKinematics.SetCommand(building, UnitCommand.None);
+        SpriteKinematics.SetCommand(building, Command.None);
         var built = CreateBuilt(pending.Definition, position, building.Direction);
 
         if (built is not null)
@@ -140,7 +140,7 @@ public sealed partial class GameWorld
     }
 
     [EngineRoutine(0x00440830)]
-    private void Build(Unit builder, int id, int x, int y)
+    private void Build(Sprite builder, int id, int x, int y)
     {
         var definition = Definitions.Find((KnownObject)id);
 
@@ -156,7 +156,7 @@ public sealed partial class GameWorld
     }
 
     [EngineRoutine(0x00440830)]
-    private Vector3 GetBuildPosition(Unit builder, int x, int y)
+    private Vector3 GetBuildPosition(Sprite builder, int x, int y)
     {
         var position = builder.Position;
         float atX = x == 0 && y == 0 ? position.X : x;
@@ -175,7 +175,7 @@ public sealed partial class GameWorld
         return new Vector3(atX, atY, position.Z);
     }
 
-    private Unit? CreateBuilt(SpriteDefinition definition, Vector3 position, Angle direction)
+    private Sprite? CreateBuilt(SpriteDefinition definition, Vector3 position, Angle direction)
     {
         if (definition.MaxHp > 0)
             return AddMonster(definition, position, direction);
@@ -188,18 +188,18 @@ public sealed partial class GameWorld
 
     [EngineRoutine(0x00440830)]
     [EngineRoutine(0x00445be0)]
-    private static void CopyOrders(Unit from, Unit to)
+    private static void CopyOrders(Sprite from, Sprite to)
     {
         if (to == from)
             return;
 
-        to.Orders.Clear();
-        foreach (var order in from.Orders.Orders)
+        to.ActionStack.Clear();
+        foreach (var order in from.ActionStack.Orders)
         {
-            if (order.Act == UnitOrder.StopMarker)
+            if (order.Value == Act.StopMarker)
                 break;
 
-            to.Orders.Push(order);
+            to.ActionStack.Push(order);
         }
     }
 

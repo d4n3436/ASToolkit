@@ -120,7 +120,7 @@ public struct GameClock
     /// <param name="firstRead">The first wall time read that differs from the current one, setting the step.</param>
     /// <param name="secondRead">The second wall time read, kept as the current one.</param>
     [EngineRoutine(0x0040f210)]
-    public void Advance(uint firstRead, uint secondRead)
+    public void StartTact(uint firstRead, uint secondRead)
     {
         uint step = Math.Min(firstRead - WallTime, MaxWallStep);
         WallTime = secondRead;

@@ -5,17 +5,17 @@ namespace ASToolkit.Core.Engine;
 /// <summary>
 /// Represents a group of units the player commands together.
 /// </summary>
-public sealed class UnitGroup
+public sealed class Group
 {
     private const float CenterBlend = 0.5f;
-    private readonly List<Unit> _members = [];
+    private readonly List<Sprite> _members = [];
 
     /// <summary>
     /// Creates a group with its first member.
     /// </summary>
     /// <param name="first">The first member.</param>
     [EngineRoutine(0x0043ab90)]
-    public UnitGroup(Unit first)
+    public Group(Sprite first)
     {
         Add(first);
     }
@@ -23,7 +23,7 @@ public sealed class UnitGroup
     /// <summary>
     /// Gets the members of the group.
     /// </summary>
-    public IReadOnlyList<Unit> Members => _members;
+    public IReadOnlyList<Sprite> Members => _members;
 
     /// <summary>
     /// Gets the center of the group's members.
@@ -33,26 +33,26 @@ public sealed class UnitGroup
     /// <summary>
     /// Adds a member.
     /// </summary>
-    /// <param name="unit">The member.</param>
+    /// <param name="sprite">The member.</param>
     [EngineRoutine(0x0043aca0)]
-    public void Add(Unit unit)
+    public void Add(Sprite sprite)
     {
-        var position = unit.Position.AsVector2();
+        var position = sprite.Position.AsVector2();
         Center = _members.Count != 0 ? (position + Center) * CenterBlend : position;
-        _members.Add(unit);
+        _members.Add(sprite);
     }
 
     /// <summary>
     /// Removes a member, moving the last member into its place, and returns whether it was in the group.
     /// </summary>
-    /// <param name="unit">The member.</param>
-    /// <returns><see langword="true"/> when the unit was removed; otherwise, <see langword="false"/>.</returns>
+    /// <param name="sprite">The member.</param>
+    /// <returns><see langword="true"/> when the sprite was removed; otherwise, <see langword="false"/>.</returns>
     [EngineRoutine(0x0043deb0)]
-    public bool Remove(Unit unit)
+    public bool Remove(Sprite sprite)
     {
         for (int i = _members.Count - 1; i >= 0; i--)
         {
-            if (_members[i] != unit)
+            if (_members[i] != sprite)
                 continue;
 
             _members[i] = _members[^1];
