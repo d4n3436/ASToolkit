@@ -426,10 +426,7 @@ public sealed partial class Map
                 if (sprite.Definition.Layer != layer)
                     return false;
 
-                if (Player.IsAlive)
-                {
-                    Weapons.UpdateTorso();
-                }
+                Weapons.UpdateTorso();
 
                 return true;
             case UpdateRole.Monster:
