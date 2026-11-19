@@ -30,7 +30,6 @@ internal sealed class ProjectileCollision
         return impact;
     }
 
-    [EngineRoutine(0x0042da30)]
     public bool IsOccupied(SpriteDefinition definition, Vector3 point)
     {
         if (_movement.GetSupportHeight(definition.Object, point.AsVector2()) > point.Z)

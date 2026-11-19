@@ -60,7 +60,6 @@ public sealed class SpriteCatalog
         ResolveLinks();
     }
 
-    [EngineRoutine(0x00411b50)]
     private void ResolveLinks()
     {
         foreach (var definition in _definitions)

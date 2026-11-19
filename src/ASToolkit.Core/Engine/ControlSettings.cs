@@ -105,7 +105,6 @@ public sealed class ControlSettings
     /// </summary>
     /// <param name="path">The path of AlienShooter.cfg.</param>
     /// <returns>The controls.</returns>
-    [EngineRoutine(0x00408ff0)]
     public static ControlSettings Read(string path)
     {
         var values = ReadSection(File.ReadAllLines(path, GameTextEncoding.Cyrillic));

@@ -122,7 +122,6 @@ public sealed partial class Map
     [EngineRoutine(0x0040f430)]
     public int CallScript(int function, Sprite sprite, int second = 0, int third = 0) => Script.CallFunction(this, function, GetSpriteHandle(sprite), second, third);
 
-    [EngineRoutine(0x0040e870)]
     private void RunCreationHandler(Sprite sprite)
     {
         int handler = sprite.Definition.StateHandlers[(int)SpriteAnimation.Birth];

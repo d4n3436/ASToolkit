@@ -471,11 +471,215 @@ public sealed partial class Map : IScriptFunctionHost
                 script.PushNumber(GetTime());
                 break;
             case ScriptFunction.GetVidData:
-                GetVidData(script);
+            {
+                int type = script.PopNumber();
+                var definition = Definitions.Find((KnownObject)script.PopNumber());
+                if (definition is null)
+                {
+                    script.PushNumber(0);
+                    break;
+                }
+
+                switch ((VidDataType)type)
+                {
+                    case VidDataType.MaxHp:
+                        script.PushNumber(definition.MaxHp);
+                        break;
+                    case VidDataType.BattleRange:
+                        script.PushNumber((int)definition.BattleRange);
+                        break;
+                    case VidDataType.Ammo:
+                        script.PushNumber(GetAmmoOwner(definition).AmmoCapacity);
+                        break;
+                    case VidDataType.Count:
+                        script.PushNumber(Sum(definition.Counts));
+                        break;
+                    case VidDataType.KilledUnit:
+                        script.PushNumber(Sum(definition.Killed));
+                        break;
+                    case >= VidDataType.KilledUnit0 and <= VidDataType.KilledUnit3:
+                        script.PushNumber(definition.Killed[type - (int)VidDataType.KilledUnit0]);
+                        break;
+                    case >= VidDataType.Count0 and <= VidDataType.Count3:
+                        script.PushNumber(definition.Counts[type - (int)VidDataType.Count0]);
+                        break;
+                    case >= VidDataType.MaxHp0 and <= VidDataType.MaxHp3:
+                        script.PushNumber(definition.ArmyMaxHp[type - (int)VidDataType.MaxHp0]);
+                        break;
+                    case VidDataType.SpriteClass:
+                        script.PushNumber((int)definition.Object.SpriteClass);
+                        break;
+                    case VidDataType.Speed:
+                        script.PushNumber(definition.ScriptSpeed);
+                        break;
+                    case VidDataType.Lifetime:
+                        script.PushNumber(definition.Lifetime);
+                        break;
+                    case VidDataType.DetectRange:
+                        script.PushNumber((int)definition.DetectRange);
+                        break;
+                    case VidDataType.WeaponAim:
+                        script.PushNumber((int)definition.Aim);
+                        break;
+                    case VidDataType.MoveMask:
+                        script.PushNumber((int)definition.MoveMask);
+                        break;
+                    case VidDataType.BuildTime:
+                        script.PushNumber(definition.BuildTime);
+                        break;
+                    case VidDataType.NotCreateAsChild:
+                        script.PushNumber(definition.NotCreatedAsChild);
+                        break;
+                    case VidDataType.Link:
+                        script.PushNumber((int)(definition.LinkDefinition?.Id ?? 0));
+                        break;
+                    case >= VidDataType.Child and < VidDataType.ChildCounts:
+                        script.PushNumber((int)(Definitions.Find((KnownObject)Math.Abs(definition.Children[type - (int)VidDataType.Child]))?.Id ?? 0));
+                        break;
+                    case >= VidDataType.ChildCounts and < VidDataType.Damage:
+                        script.PushNumber(definition.ChildCounts[type - (int)VidDataType.ChildCounts]);
+                        break;
+                    case VidDataType.Damage:
+                        script.PushNumber(definition.Damage);
+                        break;
+                    case VidDataType.RecolorUnit:
+                        script.PushNumber(Sum(definition.Recolored));
+                        break;
+                    case >= VidDataType.RecolorUnit0 and <= VidDataType.RecolorUnit3:
+                        script.PushNumber(definition.Recolored[type - (int)VidDataType.RecolorUnit0]);
+                        break;
+                    case VidDataType.Name:
+                        script.PushText(GameTextEncoding.Cyrillic.GetBytes(Definitions.GetName(definition)));
+                        break;
+                    case VidDataType.SpriteType:
+                        script.PushNumber((int)definition.Object.SpriteType.ToOldSpriteType());
+                        break;
+                    case VidDataType.Directions:
+                        script.PushNumber(definition.Object.Directions);
+                        break;
+                    case VidDataType.Hide:
+                        script.PushNumber(definition.IsHidden ? 1 : 0);
+                        break;
+                    case VidDataType.FrameSpeed:
+                        script.PushNumber((short)definition.SpriteSpeed);
+                        break;
+                }
+
                 break;
+            }
             case ScriptFunction.SetVidData:
-                SetVidData(script);
+            {
+                int value = script.PopNumber();
+                int type = script.PopNumber();
+                var definition = Definitions.Find((KnownObject)script.PopNumber());
+                if (definition is null)
+                    break;
+
+                switch ((VidDataType)type)
+                {
+                    case VidDataType.MaxHp:
+                        definition.MaxHp = value;
+                        break;
+                    // TODO: Port the gamma
+                    case >= VidDataType.Gamma and < VidDataType.Properties:
+                        break;
+                    case VidDataType.Ammo:
+                        GetAmmoOwner(definition).AmmoCapacity = value;
+                        break;
+                    case VidDataType.KilledUnit:
+                        definition.Killed.Fill(value);
+                        break;
+                    case >= VidDataType.KilledUnit0 and <= VidDataType.KilledUnit3:
+                        definition.Killed[type - (int)VidDataType.KilledUnit0] = value;
+                        break;
+                    case >= VidDataType.MaxHp0 and <= VidDataType.MaxHp3:
+                        SetMaxHp(definition, type - (int)VidDataType.MaxHp0, value);
+                        break;
+                    case >= VidDataType.HpCoefficient0 and <= VidDataType.HpCoefficient3:
+                        SetHpCoeff(definition, type - (int)VidDataType.HpCoefficient0, value);
+                        break;
+                    case VidDataType.Speed:
+                        definition.Speed = value == SpriteDefinition.Unlimited ? SpriteDefinition.Unlimited : value * SpriteDefinition.PerMillisecond;
+                        foreach (var entry in _updates.GetLayer(definition.Layer))
+                        {
+                            if (entry.Sprite is not null && entry.Sprite.Definition == definition)
+                            {
+                                entry.Sprite.MaxSpeed = definition.Speed;
+                            }
+                        }
+
+                        break;
+                    case VidDataType.Lifetime:
+                        if (definition.Id != 0)
+                        {
+                            definition.Lifetime = value;
+                            definition.HasKeyframes = true;
+                        }
+
+                        break;
+                    case VidDataType.DetectRange:
+                        definition.DetectRange = value;
+                        break;
+                    case VidDataType.WeaponAim:
+                        definition.Aim = value;
+                        break;
+                    case VidDataType.ExchangeVid:
+                    {
+                        var other = Definitions.Find((KnownObject)value);
+                        if (other is not null)
+                        {
+                            Definitions.Exchange(definition, other);
+                        }
+
+                        break;
+                    }
+                    case VidDataType.MoveMask:
+                        definition.MoveMask = (CollisionLayers)value;
+                        break;
+                    case VidDataType.BuildTime:
+                        definition.BuildTime = value;
+                        break;
+                    case VidDataType.NotCreateAsChild:
+                        definition.NotCreatedAsChild = value;
+                        break;
+                    case VidDataType.Link:
+                        definition.LinkDefinition = Definitions.Find((KnownObject)value);
+                        break;
+                    case >= VidDataType.Child and < VidDataType.ChildCounts:
+                    {
+                        var child = Definitions.Find((KnownObject)Math.Abs(value));
+                        if (value == 0 || child is not null)
+                        {
+                            definition.Children[type - (int)VidDataType.Child] = value;
+                        }
+
+                        if (child is not null && child.Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke))
+                        {
+                            definition.HasKeyframes = true;
+                        }
+
+                        break;
+                    }
+                    case >= VidDataType.ChildCounts and < VidDataType.Damage:
+                        definition.ChildCounts[type - (int)VidDataType.ChildCounts] = value;
+                        break;
+                    case VidDataType.Damage:
+                        definition.Damage = value;
+                        break;
+                    case VidDataType.Hide:
+                        for (var hidden = definition; hidden is not null; hidden = hidden.LinkDefinition)
+                        {
+                            hidden.IsHidden = value != 0;
+                        }
+
+                        break;
+                    case VidDataType.FrameSpeed:
+                        definition.SetFrameSpeed((short)value);
+                        break;
+                }
+
                 break;
+            }
             case ScriptFunction.ReloadVid:
                 Definitions.ReloadRecords();
                 break;
@@ -1002,6 +1206,7 @@ public sealed partial class Map : IScriptFunctionHost
         }
     }
 
+    [EngineRoutine(0x0042da30)]
     private Sprite? FindPlacementBlocker(SpriteDefinition definition, Vector3 point)
     {
         if (Movement.GetSupportHeight(definition.Object, point.AsVector2()) > point.Z)

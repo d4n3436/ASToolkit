@@ -47,7 +47,6 @@ public sealed class Group
     /// </summary>
     /// <param name="sprite">The member.</param>
     /// <returns><see langword="true"/> when the sprite was removed; otherwise, <see langword="false"/>.</returns>
-    [EngineRoutine(0x0043deb0)]
     public bool Remove(Sprite sprite)
     {
         for (int i = _members.Count - 1; i >= 0; i--)

@@ -16,6 +16,7 @@ public sealed partial class Map
     private const int CreaturePeriodMask = 0x7ff;
     private const int CreatureTurn = 0x20;
     private const float WanderReach = 64;
+    private const float CreatureAlertReach = 150;
 
     /// <summary>
     /// Sends an action to a sprite through the handler of its sprite class.
@@ -253,6 +254,19 @@ public sealed partial class Map
     [EngineRoutine(0x0044d880)]
     private int CreatureAction(Sprite sprite, ActionCode code, int var1, int var2, int var3, Sprite? target)
     {
+        if (code == ActionCode.Damage && var1 > 0)
+        {
+            var center = sprite.Position.AsVector2();
+            var reach = new Vector2(CreatureAlertReach);
+            for (var other = Collector.First(center - reach, center + reach); other is not null; other = Collector.NextHashInBox())
+            {
+                if (other.Definition.Object.SpriteClass == SpriteClass.Creature && center.MeasureOctagonalDistance(other.Position.AsVector2()) < CreatureAlertReach)
+                {
+                    Motion.StartMove(other);
+                }
+            }
+        }
+
         if (code != ActionCode.NextCommand)
             return UnitAction(sprite, code, var1, var2, var3, target);
 
@@ -431,9 +445,9 @@ public sealed partial class Map
 
                 return 0;
             }
-            case ActionCode.GetBehave when IsUnitClass(sprite):
+            case ActionCode.GetBehave:
                 return (int)sprite.Behavior;
-            case ActionCode.SetBehave when IsUnitClass(sprite):
+            case ActionCode.SetBehave:
                 sprite.Behavior = (WeaponBehavior)var1;
 
                 if (sprite.Link is not null)
@@ -691,8 +705,6 @@ public sealed partial class Map
 
         return 0;
     }
-
-    private static bool IsUnitClass(Sprite sprite) => sprite.Definition.Object.SpriteClass is SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man;
 
     [EngineRoutine(0x00442ad0)]
     private void ChangeArmy(Sprite sprite, int army)
