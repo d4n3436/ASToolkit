@@ -5,13 +5,9 @@ namespace ASToolkit.Core.Engine;
 
 internal sealed class MonsterBrain
 {
-    private const int IdleScanOdds = 11;
     private const int RepeatTargetOdds = 3;
     private const int ForwardCone = 0x1f;
     private const float WanderReach = 64;
-    private const int LinkScanOdds = 4;
-    private const int CreaturePeriodMask = 0x7ff;
-    private const int CreatureTurn = 0x20;
 
     private readonly SpriteKinematics _motion;
     private readonly SpriteCollision _movement;
@@ -81,112 +77,6 @@ internal sealed class MonsterBrain
         }
     }
 
-    public void Decide(Sprite sprite, Sprite player, int elapsed, int time)
-    {
-        if (sprite.Definition.Object.SpriteClass == SpriteClass.Creature)
-        {
-            DecideCreature(sprite, elapsed, time);
-
-            return;
-        }
-
-        Act(sprite, player, elapsed);
-    }
-
-    [EngineRoutine(0x0044d880)]
-    private void DecideCreature(Sprite sprite, int elapsed, int time)
-    {
-        if (sprite.Animation >= SpriteAnimation.Death)
-            return;
-
-        if (sprite.Animation is SpriteAnimation.Fight or SpriteAnimation.Wound)
-        {
-            sprite.ChangeAnimation(SpriteAnimation.Stand);
-        }
-
-        if (sprite is { HasGoal: true, Command: Command.Move })
-        {
-            if (!sprite.Speed.IsZero())
-            {
-                if (sprite.Animation != SpriteAnimation.Go)
-                {
-                    sprite.ChangeAnimation(SpriteAnimation.Go);
-                }
-
-                return;
-            }
-
-            sprite.ChangeAnimation(SpriteAnimation.Stand);
-
-            return;
-        }
-
-        bool newPeriod = (uint)sprite.LastTickTime < (uint)(time - (time & CreaturePeriodMask));
-
-        if (sprite.Command is Command.Attack or Command.OneAttack || newPeriod)
-        {
-            sprite.AttackTact(Math.Max(elapsed, sprite.Definition.Layout.GetFrameDuration(sprite.Animation)));
-        }
-
-        int frameTime = (byte)sprite.Definition.Layout.GetFrameDuration(sprite.Animation);
-
-        if (sprite.Command is not (Command.Move or Command.Attack or Command.OneAttack))
-        {
-            if (sprite.Animation == SpriteAnimation.LRotate && _random.Next() % 3 != 0)
-            {
-                TurnStep(sprite, -CreatureTurn, frameTime);
-            }
-
-            if (sprite.Animation == SpriteAnimation.RRotate && _random.Next() % 3 != 0)
-            {
-                TurnStep(sprite, CreatureTurn, frameTime);
-            }
-
-            if (newPeriod)
-            {
-                if ((_random.Next() & 3) == 0)
-                {
-                    _motion.StartMove(sprite);
-                }
-                else if (sprite.Speed.IsZero() && _random.Next() % 3 == 0 && HasUnload(sprite.Definition))
-                {
-                    sprite.ChangeAnimation(SpriteAnimation.Unload);
-                }
-                else if ((_random.Next() & 3) == 0)
-                {
-                    TurnStep(sprite, (_random.Next() & 1) == 0 ? CreatureTurn : -CreatureTurn, frameTime);
-                }
-                else
-                {
-                    SpriteKinematics.Stop(sprite);
-                }
-            }
-        }
-
-        if (sprite.Animation is SpriteAnimation.Wound or SpriteAnimation.Salut)
-        {
-            sprite.ChangeAnimation(SpriteAnimation.Stand);
-        }
-    }
-
-    private static bool HasUnload(SpriteDefinition definition) =>
-        definition.Object.FrameCounts[(int)SpriteAnimation.Unload] != 0 || definition.Children[(int)SpriteAnimation.Unload] != 0;
-
-    private static void TurnStep(Sprite sprite, int step, int elapsed) =>
-        sprite.RotateTact(sprite.Direction + step, elapsed);
-
-    [EngineRoutine(0x00440830)]
-    public static void Pause(Sprite sprite, int time)
-    {
-        if (!sprite.Speed.IsZero())
-        {
-            SpriteKinematics.Stop(sprite);
-        }
-
-        sprite.Timer = time;
-        SpriteKinematics.SetCommand(sprite, time != 0 ? Command.Pause : Command.None);
-    }
-
     [EngineRoutine(0x00445fb0)]
     public static void Attack(Sprite sprite, Sprite? target)
     {
@@ -196,83 +86,6 @@ internal sealed class MonsterBrain
         if (accepts || definition.Object.SpriteClass == SpriteClass.Cannon)
         {
             SpriteKinematics.SetCommand(sprite, Command.Attack, target);
-        }
-    }
-
-    [EngineRoutine(0x00447500)]
-    private void Act(Sprite sprite, Sprite player, int elapsed)
-    {
-        if (sprite.Animation >= SpriteAnimation.Death)
-            return;
-
-        if (sprite.Speed.IsZero())
-        {
-            sprite.ChangeAnimation(SpriteAnimation.Stand);
-        }
-        else if (sprite.Animation != SpriteAnimation.Go)
-        {
-            sprite.ChangeAnimation(SpriteAnimation.Go);
-        }
-
-        var definition = sprite.Definition;
-        var link = sprite.ArmedLink;
-        var result = AttackResult.Pursue;
-
-        if (link is not null && sprite.Command is Command.Attack or Command.OneAttack && sprite.Goal is not null && link.Goal is null)
-        {
-            SpriteKinematics.SetCommand(link, sprite.Command, sprite.Goal);
-        }
-
-        if (link is not null || sprite.TurnTicks == 0)
-        {
-            result = sprite.AttackTact(Math.Max(elapsed, definition.Layout.GetFrameDuration(sprite.Animation)));
-
-            switch (result)
-            {
-                case AttackResult.NoAmmo or AttackResult.GiveUp:
-                    SpriteKinematics.SetCommand(sprite, Command.None);
-                    break;
-                case AttackResult.Approach when definition.Speed.IsZero():
-                    if (link is not null && link.HasGoal || sprite.HasGoal)
-                    {
-                        SpriteKinematics.SetCommand(sprite, Command.None);
-                    }
-                    break;
-                case AttackResult.Approach when sprite.Speed.IsZero():
-                    _motion.StartMove(sprite);
-                    break;
-                case AttackResult.Attacked when !sprite.Speed.IsZero() && (link is null || sprite.Goal == link.Goal):
-                    SpriteKinematics.Stop(sprite);
-                    break;
-            }
-
-            if (result == AttackResult.Approach && link is not null && sprite.Command is Command.Attack or Command.OneAttack &&
-                sprite.IsAggressive && (link.Timer != 0 || _random.Next() % LinkScanOdds == 0))
-            {
-                var target = SeekEnemy(sprite, player);
-
-                if (target is not null)
-                {
-                    SpriteKinematics.SetCommand(link, Command.OneAttack, target);
-                }
-            }
-        }
-
-        if (result == AttackResult.Pursue && sprite.IsActive && sprite.Speed.IsZero())
-        {
-            _motion.StartMove(sprite);
-        }
-
-        if (result == AttackResult.NoOrder && sprite is { IsAggressive: true, IsActive: true } ||
-            result is AttackResult.Pursue or AttackResult.NoTarget && sprite is { IsAggressive: true, Command: Command.None or Command.Move or Command.OneAttack } &&
-            (sprite.LastFrame > sprite.FirstFrame || sprite.Timer != 0 || _random.Next(IdleScanOdds) == 0))
-        {
-            Engage(sprite, player);
-        }
-
-        if (sprite is { Command: Command.None, HasGoal: false, Timer: 0 })
-        {
-            SpriteKinematics.Stop(sprite);
         }
     }
 
@@ -295,18 +108,8 @@ internal sealed class MonsterBrain
         }
     }
 
-    private void Engage(Sprite sprite, Sprite player)
-    {
-        var target = SeekEnemy(sprite, player);
-
-        if (target is not null)
-        {
-            SpriteKinematics.SetCommand(sprite, Command.OneAttack, target);
-        }
-    }
-
     [EngineRoutine(0x00444a80)]
-    private Sprite? SeekEnemy(Sprite sprite, Sprite player)
+    public Sprite? SeekEnemy(Sprite sprite, Sprite player)
     {
         var definition = sprite.Definition;
 

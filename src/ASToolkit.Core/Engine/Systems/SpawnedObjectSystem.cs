@@ -14,7 +14,6 @@ internal sealed class SpawnedObjectSystem
     private const int MaxPooledSprites = 4096;
     private const float ExitMarginX = 220;
     private const float ExitMarginY = 200;
-    private const float DeepFall = -100;
     private const float RocketClimbRate = 0.1f;
     private const float RocketHitHeight = 20;
     private const float RocketHitReach = 10;
@@ -635,53 +634,6 @@ internal sealed class SpawnedObjectSystem
     private bool IsFarOutside(Vector2 point) =>
         point.X < -ExitMarginX || point.Y < -ExitMarginY ||
         point.X > _movement.MapSize.Width + ExitMarginX || point.Y > _movement.MapSize.Height + ExitMarginY;
-
-    [EngineRoutine(0x00448950)]
-    public static void DecideCannon(Sprite sprite)
-    {
-        var state = sprite.Animation;
-
-        if (state == SpriteAnimation.Fight)
-        {
-            sprite.ChangeAnimation(SpriteAnimation.Death);
-        }
-        else if (state < SpriteAnimation.Death)
-        {
-            if (sprite.Position.Z < DeepFall)
-            {
-                sprite.ChangeAnimation(SpriteAnimation.Death2);
-            }
-            else if (!sprite.Speed.IsZero())
-            {
-                sprite.ChangeAnimation(SpriteAnimation.Go);
-            }
-            else if (state > SpriteAnimation.Open && state != SpriteAnimation.StandOpen)
-            {
-                sprite.ChangeAnimation(SpriteAnimation.Stand);
-            }
-        }
-    }
-
-    [EngineRoutine(0x00440830)]
-    public static void DecideObject(Sprite sprite)
-    {
-        var state = sprite.Animation;
-
-        if (state >= SpriteAnimation.Death)
-            return;
-
-        if (sprite.Speed.IsZero())
-        {
-            if (state > SpriteAnimation.RRotate && state != SpriteAnimation.StandOpen)
-            {
-                sprite.ChangeAnimation(SpriteAnimation.Stand);
-            }
-        }
-        else if (state != SpriteAnimation.Go)
-        {
-            sprite.ChangeAnimation(SpriteAnimation.Go);
-        }
-    }
 
     public static EffectState GetState(Sprite sprite) =>
         new(sprite.Definition.Id, sprite.Position, sprite.Direction, sprite.Animation, sprite.CreatedAt, sprite.Frame, sprite.KeyframePosition);

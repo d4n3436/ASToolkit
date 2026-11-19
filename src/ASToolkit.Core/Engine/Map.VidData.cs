@@ -300,8 +300,6 @@ public sealed partial class Map
         sprite.Hp = hp;
     }
 
-    [EngineRoutine(0x00445770)]
-    [EngineRoutine(0x00440830)]
     internal void DropLinks(Sprite owner)
     {
         for (var definition = owner.Definition.LinkDefinition; definition is not null; definition = definition.LinkDefinition)

@@ -48,114 +48,6 @@ public sealed partial class Map
     /// </summary>
     public void DrawGoalSpriteRandom() => _rng.Next();
 
-    [EngineRoutine(0x00454800)]
-    [EngineRoutine(0x00447500)]
-    [EngineRoutine(0x0044ca70)]
-    [EngineRoutine(0x00448950)]
-    [EngineRoutine(0x00440830)]
-    private void NextCommand(Sprite sprite)
-    {
-        if (sprite == Player)
-        {
-            Weapons.DecidePlayer(FrameTime);
-            sprite.ChangeAnimation(!sprite.Speed.IsZero() ? SpriteAnimation.Go : SpriteAnimation.Stand);
-
-            return;
-        }
-
-        if (sprite == Weapons.Torso)
-        {
-            SpawnedObjectSystem.DecideObject(sprite);
-
-            return;
-        }
-
-        switch (sprite.Definition.Object.SpriteClass)
-        {
-            case SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Creature:
-                _brain.Decide(sprite, Player, FrameTime, Time);
-                break;
-            case SpriteClass.Cannon:
-                SpawnedObjectSystem.DecideCannon(sprite);
-                break;
-            default:
-                SpawnedObjectSystem.DecideObject(sprite);
-                break;
-        }
-    }
-
-    [EngineRoutine(0x0044ca70)]
-    private void StartBuild(Sprite building, int id, int x, int y)
-    {
-        var definition = Definitions.Find((KnownObject)id);
-
-        if (building.Command != Command.None || definition is null)
-            return;
-
-        _builds[building] = new PendingBuild(definition, x, y);
-        building.Timer = definition.BuildTime;
-        SpriteKinematics.SetCommand(building, Command.Build);
-
-        if (building.Animation < SpriteAnimation.Death)
-        {
-            building.ChangeAnimation(SpriteAnimation.StopMove);
-        }
-    }
-
-    [EngineRoutine(0x0044ca70)]
-    private void DecideBuilding(Sprite building)
-    {
-        if (building.Animation >= SpriteAnimation.Death)
-            return;
-
-        bool isBuilding = building.Command == Command.Build;
-
-        if (isBuilding)
-        {
-            building.ChangeAnimation(SpriteAnimation.StopMove);
-        }
-        else if (building.Animation != SpriteAnimation.StandOpen)
-        {
-            building.ChangeAnimation(SpriteAnimation.Stand);
-        }
-
-        if (!isBuilding || building.Timer != 0 || !_builds.TryGetValue(building, out var pending))
-            return;
-
-        var position = GetBuildPosition(building, pending.X, pending.Y);
-
-        if (!IsFree(pending.Definition, position))
-            return;
-
-        SpriteKinematics.SetCommand(building, Command.None);
-        var built = CreateBuilt(pending.Definition, position, building.Direction);
-
-        if (built is not null)
-        {
-            CopyOrders(building, built);
-        }
-
-        _builds.Remove(building);
-        building.ChangeAnimation(SpriteAnimation.Stand);
-    }
-
-    [EngineRoutine(0x00440830)]
-    private void Build(Sprite builder, int id, int x, int y)
-    {
-        var definition = Definitions.Find((KnownObject)id);
-
-        if (definition is null)
-            return;
-
-        var built = CreateBuilt(definition, GetBuildPosition(builder, x, y), builder.Direction);
-
-        if (built is not null)
-        {
-            CopyOrders(builder, built);
-        }
-    }
-
-    [EngineRoutine(0x00440830)]
     private Vector3 GetBuildPosition(Sprite builder, int x, int y)
     {
         var position = builder.Position;
@@ -184,23 +76,6 @@ public sealed partial class Map
             return AddScripted(definition, position, direction);
 
         return Effects.Spawn(definition.Id, position, direction, Time);
-    }
-
-    [EngineRoutine(0x00440830)]
-    [EngineRoutine(0x00445be0)]
-    private static void CopyOrders(Sprite from, Sprite to)
-    {
-        if (to == from)
-            return;
-
-        to.ActionStack.Clear();
-        foreach (var order in from.ActionStack.Orders)
-        {
-            if (order.Value == Act.StopMarker)
-                break;
-
-            to.ActionStack.Push(order);
-        }
     }
 
     private readonly record struct PendingBuild(SpriteDefinition Definition, int X, int Y);

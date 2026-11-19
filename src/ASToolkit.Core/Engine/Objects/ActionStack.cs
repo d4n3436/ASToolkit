@@ -67,7 +67,6 @@ public sealed class ActionStack
     /// <summary>
     /// Removes every entry.
     /// </summary>
-    [EngineRoutine(0x00440830)]
     public void Clear()
     {
         _orders = [];
@@ -101,7 +100,6 @@ public sealed class ActionStack
     /// Loads the entries of a map sprite's stack.
     /// </summary>
     /// <param name="orders">The entries from the bottom up.</param>
-    [EngineRoutine(0x00440830)]
     public void Load(ReadOnlySpan<Act> orders)
     {
         Clear();

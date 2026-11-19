@@ -72,21 +72,8 @@ internal sealed class WeaponSystem
 
     public int Slot => _map.Player.WeaponSlot;
 
-    [EngineRoutine(0x00454800)]
-    public void AimPlayer(Vector2 cursor)
-    {
-        var weapon = _map.Player.Definition.LinkDefinition;
-
-        if (Torso.Definition != weapon || weapon.FightChild == 0 || weapon.Object.WeaponIndex == 0 || Torso.IsReloading)
-            return;
-
-        var point = GetCursorPoint(cursor, weapon);
-        _map.DrawGoalSpriteRandom();
-        SpriteKinematics.SetCommand(Torso, Command.OneAttack, point: point);
-    }
-
     // Raises the cursor to the height the depth buffer holds under it on screen, or to the terrain off screen
-    private Vector3 GetCursorPoint(Vector2 cursor, SpriteDefinition weapon)
+    public Vector3 GetCursorPoint(Vector2 cursor, SpriteDefinition weapon)
     {
         var player = _map.Player.Position;
         var pixel = cursor - (new Vector2(player.X, player.Y - player.Z) - ViewHalf);
@@ -167,7 +154,6 @@ internal sealed class WeaponSystem
         }
     }
 
-    [EngineRoutine(0x00440830)]
     private void ChangeTorso(SpriteDefinition weapon)
     {
         int layer = Torso.Definition.Layer;
@@ -200,16 +186,6 @@ internal sealed class WeaponSystem
         }
 
         Torso.RotateTact(direction, elapsed);
-    }
-
-    [EngineRoutine(0x00454800)]
-    public void DecidePlayer(int elapsed)
-    {
-
-        if (_map.Player.HasGoal || Torso.HasGoal)
-        {
-            Torso.AttackTact(Math.Max(elapsed, _map.Player.Definition.Layout.GetFrameDuration(_map.Player.Animation)));
-        }
     }
 
     public void FireFrom(Sprite sprite)

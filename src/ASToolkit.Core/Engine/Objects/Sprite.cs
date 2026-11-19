@@ -400,7 +400,6 @@ public sealed class Sprite : IResettable
     /// </summary>
     /// <param name="definition">The new definition.</param>
     /// <param name="state">The state to enter.</param>
-    [EngineRoutine(0x00440830)]
     public void ChangeVid(SpriteDefinition definition, SpriteAnimation state)
     {
         var direction = Direction;

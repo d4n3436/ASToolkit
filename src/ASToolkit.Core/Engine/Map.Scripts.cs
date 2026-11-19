@@ -178,22 +178,6 @@ public sealed partial class Map
     [EngineRoutine(0x0040e870)]
     public void RunCreationHook(Sprite sprite) => RunCreationHandler(sprite);
 
-    /// <summary>
-    /// Destroys the sprite of a definition nearest a point.
-    /// </summary>
-    /// <param name="id">The object id.</param>
-    /// <param name="point">The point.</param>
-    [EngineRoutine(0x00440830)]
-    public void DestroySprite(KnownObject id, Vector2 point)
-    {
-        var placement = FindSprite(id, point);
-
-        if (placement is not null)
-        {
-            Destroy(placement);
-        }
-    }
-
     private void Destroy(MergedMapSprite placement)
     {
         if (_bodies.Remove(placement, out var body))
