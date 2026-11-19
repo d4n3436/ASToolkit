@@ -1,8 +1,8 @@
 # ASToolkit
 
-This repo provides a toolkit for Alien Shooter (GOG version 1.2) with a level generator, game simulator, a widescreen patch and level analysis tools, all in one command-line program called `ascli`.
+This repo provides a toolkit for Sigma Team's Alien Shooter (GOG version 1.2) with a level generator, game simulator, a widescreen patch and level analysis tools, all in one command-line program called `ascli`.
 
-It is written in C# on .NET 10 and works on an installed copy of the game.
+It is written in C# on .NET 11 and works on an installed copy of the game.
 
 > [!NOTE]
 > While AI was used in sections of code that was hard to get right, like level generation, I made sure everything is working as intended.
