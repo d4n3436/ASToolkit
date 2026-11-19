@@ -59,9 +59,8 @@ public sealed partial class Map
                 if (Weapons.Torso.Definition != weapon || weapon.FightChild == 0 || weapon.Object.WeaponIndex == 0 || Weapons.Torso.IsReloading)
                     return 0;
 
-                var point = Weapons.GetCursorPoint(new Vector2(var1, var2), weapon);
-                DrawGoalSpriteRandom();
-                SpriteKinematics.SetCommand(Weapons.Torso, Command.OneAttack, point: point);
+                var goal = ConstructGoal(Weapons.GetCursorPoint(new Vector2(var1, var2), weapon));
+                SpriteKinematics.SetCommand(Weapons.Torso, Command.OneAttack, goal);
 
                 return 0;
             }
@@ -133,7 +132,7 @@ public sealed partial class Map
                 }
 
                 if (sprite.Hp > damage || !sprite.Items.Contains((int)KnownObject.Medkit))
-                    return UnitAction(sprite, code, damage, var2, var3, target);
+                    return SpriteAction(sprite, code, damage, var2, var3, target);
 
                 sprite.Items.Remove((int)KnownObject.Medkit);
                 ChangeHp(sprite, sprite.Definition.ArmyMaxHp[(int)sprite.Army & ArmyMask]);
@@ -141,6 +140,8 @@ public sealed partial class Map
 
                 return 0;
             }
+            case ActionCode.Damage:
+                return SpriteAction(sprite, code, var1, var2, var3, target);
             case ActionCode.NextCommand when sprite != Player:
                 return SpriteAction(sprite, code, var1, var2, var3, target);
             case ActionCode.NextCommand:
@@ -364,7 +365,8 @@ public sealed partial class Map
 
                 if (wanders && sprite.Command == Command.None && !sprite.Definition.Speed.IsZero())
                 {
-                    _brain.MoveTo(sprite, sprite.Position.AsVector2() + new Angle((byte)_rng.Next()).Vector * WanderReach);
+                    var wander = sprite.Position.AsVector2() + new Angle((byte)_rng.Next()).Vector * WanderReach;
+                    _brain.MoveTo(sprite, ConstructGoal(new Vector3(wander, sprite.Position.Z)));
                 }
 
                 return 0;
@@ -524,11 +526,10 @@ public sealed partial class Map
                 MonsterBrain.Attack(sprite, target);
                 break;
             case ActionCode.Move:
-                DrawGoalSpriteRandom();
-                Motion.SetMoveTarget(sprite, null, new Vector3(var1, var2, var3));
+                Motion.SetMoveTarget(sprite, ConstructGoal(new Vector3(var1, var2, var3)));
                 break;
             case ActionCode.MoveTo:
-                Motion.SetMoveTarget(sprite, target, null);
+                Motion.SetMoveTarget(sprite, target);
                 break;
             case ActionCode.BuildUnit:
             {

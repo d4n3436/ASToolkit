@@ -691,16 +691,10 @@ public sealed partial class Map
     {
         foreach (var sprite in _monsters)
         {
-            if (SpriteKinematics.ForgetObject(sprite, removed))
-            {
-                DrawGoalSpriteRandom();
-            }
+            Motion.ForgetObject(sprite, removed);
         }
 
-        if (SpriteKinematics.ForgetObject(Weapons.Torso, removed))
-        {
-            DrawGoalSpriteRandom();
-        }
+        Motion.ForgetObject(Weapons.Torso, removed);
         RemoveFromGroups(removed);
         Effects.Forget(removed);
         foreach (var controller in _players)

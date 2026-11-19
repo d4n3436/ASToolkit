@@ -29,7 +29,7 @@ internal sealed class InputDriver
 
             if (_destination is not null)
             {
-                _map.Motion.SetMoveTarget(player, null, new Vector3(_destination.Value, 0));
+                _map.Motion.SetMoveTarget(player, _map.ConstructGoal(new Vector3(_destination.Value, 0)));
                 sent = true;
             }
             else if (player.Command == Command.Move)

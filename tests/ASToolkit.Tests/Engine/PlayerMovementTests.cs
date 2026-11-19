@@ -17,7 +17,7 @@ public class PlayerMovementTests
         var player = new Sprite(0, definition, new Vector3(1000, 1000, 0), 0, definition.MaxHp) { Direction = new Angle(64) };
         collector.InsertToHash(player);
         var movement = new PlayerMovement(new SpriteCollision(new MovementMap(), collector));
-        new SpriteKinematics(definitions, null!).SetMoveTarget(player, null, new Vector3(1400, 1000, 0));
+        new SpriteKinematics(definitions, null!).SetMoveTarget(player, new Sprite(-1, definitions.Empty, new Vector3(1400, 1000, 0), 0, 0));
         movement.Tick(player, 0.18f, 20);
         Assert.Equal(0.018f, player.Speed, 5);
         Assert.InRange(Vector2.Distance(player.Position.AsVector2(), new Vector2(1000.36f, 1000)), 0, 0.0001f);
@@ -40,7 +40,7 @@ public class PlayerMovementTests
         var player = new Sprite(0, definition, new Vector3(1000, 1000, 0), 0, definition.MaxHp);
         collector.InsertToHash(player);
         var movement = new PlayerMovement(new SpriteCollision(new MovementMap(), collector));
-        new SpriteKinematics(definitions, null!).SetMoveTarget(player, null, new Vector3(1400, 1000, 0));
+        new SpriteKinematics(definitions, null!).SetMoveTarget(player, new Sprite(-1, definitions.Empty, new Vector3(1400, 1000, 0), 0, 0));
         movement.Tick(player, 0.18f, 20);
 
         Assert.Equal(1000, player.Position.X);

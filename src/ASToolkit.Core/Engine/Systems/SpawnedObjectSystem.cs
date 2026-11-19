@@ -128,10 +128,9 @@ internal sealed class SpawnedObjectSystem
         return sprite;
     }
 
-    public void Aim(Sprite sprite, Sprite? goal, Vector3 goalPoint)
+    public void Aim(Sprite sprite, Sprite goal)
     {
         sprite.Goal = goal;
-        sprite.GoalPoint = goal is null ? goalPoint : null;
         _motion.StartMove(sprite);
     }
 
@@ -288,17 +287,11 @@ internal sealed class SpawnedObjectSystem
         {
             if (sprite.Definition.Object.SpriteClass == SpriteClass.Cannon)
             {
-                for (int built = SpriteKinematics.ForgetCannonGoal(sprite, removed); built > 0; built--)
-                {
-                    _map.DrawGoalSpriteRandom();
-                }
+                _motion.ForgetCannonGoal(sprite, removed);
             }
             else
             {
-                if (SpriteKinematics.ForgetObject(sprite, removed))
-                {
-                    _map.DrawGoalSpriteRandom();
-                }
+                _motion.ForgetObject(sprite, removed);
             }
         }
     }
@@ -561,7 +554,7 @@ internal sealed class SpawnedObjectSystem
         }
 
         var goal = sprite.GoalPosition;
-        var target = sprite.Goal;
+        var target = sprite.Goal!;
         float distance = sprite.Position.AsVector2().MeasureOctagonalDistance(goal.AsVector2());
         var aim = Angle.FromOffset((goal - sprite.Position).AsVector2()) + (sprite.Speed < 0 ? Angle.HalfTurn : 0);
 
@@ -610,15 +603,15 @@ internal sealed class SpawnedObjectSystem
         }
     }
 
-    private static bool HitsGoal(Sprite sprite, Vector3 goal, Sprite? target, float previousHeight)
+    private static bool HitsGoal(Sprite sprite, Vector3 goal, Sprite target, float previousHeight)
     {
         var half = sprite.Definition.Half;
-        var goalHalf = target?.Definition.Half ?? PlayerMovement.MoveTargetHalfSize;
+        var goalHalf = target.Definition.Half;
         var offset = Vector2.Abs(sprite.Position.AsVector2() - goal.AsVector2());
 
         if (sprite is { HasReachedX: true, HasReachedY: true } || offset.X < half.X + goalHalf.X && offset.Y < half.Y + goalHalf.Y)
         {
-            float goalHeight = target?.Definition.Object.Size.Z ?? PlayerMovement.TargetHeight;
+            float goalHeight = target.Definition.Object.Size.Z;
             float z = sprite.Position.Z;
 
             if (goal.Z <= sprite.Definition.Object.Size.Z + z && z <= goal.Z + goalHeight ||

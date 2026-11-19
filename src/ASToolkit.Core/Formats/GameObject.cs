@@ -14,6 +14,12 @@ public readonly struct GameObject
     /// </summary>
     public const int StateCount = 17;
 
+    internal GameObject(SpriteClass spriteClass, Vector3 size)
+    {
+        SpriteClass = spriteClass;
+        Size = size;
+    }
+
     internal GameObject(AlienShooterGameObject obj)
     {
         SpriteType = obj.SpriteType.ToSpriteType();

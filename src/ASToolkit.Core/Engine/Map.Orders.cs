@@ -15,11 +15,26 @@ public sealed partial class Map
     /// <returns>The definition, or null when the building is idle.</returns>
     public SpriteDefinition? GetPendingBuild(Sprite building) => _builds.TryGetValue(building, out var pending) ? pending.Definition : null;
 
-    // TODO: Port the goal sprite of the empty definition
     /// <summary>
-    /// Draws the random number the constructor of a move order's goal sprite draws.
+    /// Creates a sprite of the default definition at a point, the goal of an order on that point.
     /// </summary>
-    public void DrawGoalSpriteRandom() => _rng.Next();
+    /// <param name="position">The point.</param>
+    /// <returns>The goal sprite.</returns>
+    public Sprite ConstructGoal(Vector3 position)
+    {
+        var definition = Definitions.Empty;
+        var goal = new Sprite(-1, definition, position, Army.Player, 0) { CreatedAt = Time };
+        var state = GetInitialAnimation(definition);
+        goal.Start(state, default, Time, _rng);
+        Collector.InsertToHash(goal);
+
+        if (state != SpriteAnimation.Birth && !IsLoading)
+        {
+            CreateChildFor(goal, SpriteAnimation.Birth);
+        }
+
+        return goal;
+    }
 
     private Vector3 GetBuildPosition(Sprite builder, int x, int y)
     {

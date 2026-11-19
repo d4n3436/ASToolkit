@@ -17,7 +17,7 @@ internal sealed class SpriteKinematics
     }
 
     [EngineRoutine(0x004446c0)]
-    public static bool SetCommand(Sprite sprite, Command command, Sprite? target = null, Vector3? point = null)
+    public static bool SetCommand(Sprite sprite, Command command, Sprite? target = null)
     {
         if (sprite.Command == Command.Pause && command != Command.Pause)
         {
@@ -25,13 +25,11 @@ internal sealed class SpriteKinematics
         }
 
         sprite.Goal = target;
-        sprite.GoalPoint = target is null ? point : null;
-
         var link = sprite.ArmedLink;
 
         if (link is not null && link.Definition.FightChild != 0)
         {
-            SetCommand(link, command, target, point);
+            SetCommand(link, command, target);
         }
 
         if (command < FirstTargetlessCommand && !sprite.HasGoal)
@@ -47,7 +45,7 @@ internal sealed class SpriteKinematics
     }
 
     [EngineRoutine(0x00444750)]
-    public static bool SetCommandWithoutLink(Sprite sprite, Command command, Sprite? target = null, Vector3? point = null)
+    public static bool SetCommandWithoutLink(Sprite sprite, Command command, Sprite? target = null)
     {
         if (sprite.Command == Command.Pause && command != Command.Pause)
         {
@@ -55,7 +53,6 @@ internal sealed class SpriteKinematics
         }
 
         sprite.Goal = target;
-        sprite.GoalPoint = target is null ? point : null;
 
         if (command < FirstTargetlessCommand && !sprite.HasGoal)
         {
@@ -70,17 +67,13 @@ internal sealed class SpriteKinematics
     }
 
     [EngineRoutine(0x0043f720)]
-    public static bool ForgetObject(Sprite sprite, Sprite removed)
+    public void ForgetObject(Sprite sprite, Sprite removed)
     {
-        bool builtGoal = false;
-
         if (sprite.Goal == removed)
         {
-            builtGoal = sprite.Animation == SpriteAnimation.Fight;
-
-            if (builtGoal)
+            if (sprite.Animation == SpriteAnimation.Fight)
             {
-                SetCommand(sprite, Command.OneAttack, point: removed.Position);
+                SetCommand(sprite, Command.OneAttack, _map.ConstructGoal(removed.Position));
             }
             else
             {
@@ -98,29 +91,23 @@ internal sealed class SpriteKinematics
                 orders.Replace(i, order with { Value = Act.ForgottenOrder, Var1 = 0, Target = null });
             }
         }
-
-        return builtGoal;
     }
 
     [EngineRoutine(0x004489e0)]
-    public static int ForgetCannonGoal(Sprite cannon, Sprite removed)
+    public void ForgetCannonGoal(Sprite cannon, Sprite removed)
     {
-        int built = 0;
-
         if (cannon.Goal == removed)
         {
-            cannon.Goal = null;
-            cannon.GoalPoint = removed.Position;
-            built++;
+            cannon.Goal = _map.ConstructGoal(removed.Position);
         }
 
-        return ForgetObject(cannon, removed) ? built + 1 : built;
+        ForgetObject(cannon, removed);
     }
 
     [EngineRoutine(0x004447b0)]
-    public void SetMoveTarget(Sprite sprite, Sprite? target, Vector3? point)
+    public void SetMoveTarget(Sprite sprite, Sprite? target)
     {
-        if (!SetCommandWithoutLink(sprite, Command.Move, target, point) && !StartMove(sprite))
+        if (!SetCommandWithoutLink(sprite, Command.Move, target) && !StartMove(sprite))
         {
             SetCommand(sprite, Command.None);
 

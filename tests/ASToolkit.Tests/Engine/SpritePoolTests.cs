@@ -35,7 +35,6 @@ public class SpritePoolTests
             VerticalSpeed = 13,
             MaxSpeed = 13,
             Goal = neighbor,
-            GoalPoint = new Vector3(12),
             Shooter = neighbor,
             Owner = neighbor,
             LinkerBase = neighbor,
@@ -60,6 +59,6 @@ public class SpritePoolTests
         string.Join(" ", sprite.Number, sprite.Definition.Id, sprite.Army, sprite.Placement is null, sprite.Position, sprite.Speed, sprite.TurnTicks, sprite.TurnCarry,
             sprite.Command, sprite.IsMoving, sprite.HasReachedX, sprite.HasReachedY, sprite.Hp, sprite.Bucket, sprite.Slot, sprite.ActionStack.Count,
             sprite.DiedAt, sprite.Animation, sprite.FirstFrame, sprite.Frame, sprite.LastFrame, sprite.LastTickTime, sprite.CreatedAt,
-            sprite.Lifetime, sprite.Timer, sprite.VerticalSpeed, sprite.MaxSpeed, sprite.Goal is null, sprite.GoalPoint, sprite.Shooter is null,
+            sprite.Lifetime, sprite.Timer, sprite.VerticalSpeed, sprite.MaxSpeed, sprite.Goal is null, sprite.Shooter is null,
             sprite.Owner is null, sprite.LinkerBase is null, sprite.LinkerOffset, sprite.LinkerDirection, sprite.Collector is null, sprite.Depth, sprite.IsBlocked, sprite.IsClimbing, sprite.IsReferenced, sprite.Direction);
 }

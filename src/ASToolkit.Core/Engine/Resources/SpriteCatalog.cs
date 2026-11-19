@@ -18,6 +18,8 @@ public sealed class SpriteCatalog
     private const int DefaultSpriteSpeed = 71;
     private const KnownObject EmptyId = (KnownObject)(-1);
 
+    private static readonly Vector3 DefaultSize = new(24, 16, 20);
+
     private readonly ObjectTable _objects;
     private readonly SpriteDefinition?[] _definitions;
     private readonly ConcurrentDictionary<(KnownObject Id, int Frame), FrameMask?> _masks = new();
@@ -31,7 +33,7 @@ public sealed class SpriteCatalog
     {
         _objects = objects;
         Parts = new SpritePartReader(gameFolder, objects);
-        Empty = new SpriteDefinition(EmptyId, default, default, DefaultSpriteSpeed);
+        Empty = CreateDefault();
         int length = objects.Ids.Max(id => (int)id) + 1;
         _definitions = new SpriteDefinition?[length];
         foreach (var id in objects.Ids)
@@ -178,6 +180,9 @@ public sealed class SpriteCatalog
     /// Gets the second gravity in pixels per millisecond squared.
     /// </summary>
     public float Gravitation2 => _objects.Gravitation2 * SpriteDefinition.PerMillisecondSquared;
+
+    [EngineRoutine(0x00413710)]
+    private static SpriteDefinition CreateDefault() => new(EmptyId, new GameObject(SpriteClass.Primitive, DefaultSize), default, DefaultSpriteSpeed);
 
     /// <summary>
     /// Gets the sounds of the object table.

@@ -321,11 +321,6 @@ public sealed class Sprite : IResettable
     public Sprite? Goal { get => _goal; set => _goal = MarkReferenced(value); }
 
     /// <summary>
-    /// Gets or sets the point the sprite moves toward.
-    /// </summary>
-    public Vector3? GoalPoint { get; set; }
-
-    /// <summary>
     /// Gets or sets the sprite that fired the sprite.
     /// </summary>
     public Sprite? Shooter { get => _shooter; set => _shooter = MarkReferenced(value); }
@@ -371,14 +366,14 @@ public sealed class Sprite : IResettable
     public bool IsClimbing { get; set; }
 
     /// <summary>
-    /// Gets a value indicating whether the sprite has a goal sprite or point.
+    /// Gets a value indicating whether the sprite has a goal.
     /// </summary>
-    public bool HasGoal => Goal is not null || GoalPoint is not null;
+    public bool HasGoal => Goal is not null;
 
     /// <summary>
     /// Gets the position of the sprite's goal.
     /// </summary>
-    public Vector3 GoalPosition => Goal?.Position ?? GoalPoint.GetValueOrDefault();
+    public Vector3 GoalPosition => Goal?.Position ?? default;
 
     /// <summary>
     /// Gets a value indicating whether the sprite has health left and has not entered a death state.
@@ -475,7 +470,6 @@ public sealed class Sprite : IResettable
         FillAmmo();
         VerticalSpeed = 0;
         MaxSpeed = definition.Speed;
-        GoalPoint = null;
         LinkerOffset = Vector3.Zero;
         LinkerDirection = default;
         Depth = 0;

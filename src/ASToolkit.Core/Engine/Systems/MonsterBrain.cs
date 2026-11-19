@@ -88,9 +88,9 @@ internal sealed class MonsterBrain
         }
     }
 
-    public void MoveTo(Sprite sprite, Vector2 point)
+    public void MoveTo(Sprite sprite, Sprite goal)
     {
-        if (!SpriteKinematics.SetCommand(sprite, Command.Move, point: new Vector3(point, sprite.Position.Z)) && !_motion.StartMove(sprite))
+        if (!SpriteKinematics.SetCommand(sprite, Command.Move, goal) && !_motion.StartMove(sprite))
         {
             SpriteKinematics.SetCommand(sprite, Command.None);
         }

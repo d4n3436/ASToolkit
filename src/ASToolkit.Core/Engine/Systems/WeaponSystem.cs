@@ -168,14 +168,16 @@ internal sealed class WeaponSystem
 
     public void FireFrom(Sprite sprite)
     {
-        if (sprite.HasGoal)
+        var goal = sprite.Goal;
+
+        if (goal is not null)
         {
-            Fire(sprite == Torso ? _map.Player : sprite, sprite, sprite.Definition, sprite.GoalPosition, sprite.Goal, 0, sprite.Position, sprite.Direction);
+            Fire(sprite == Torso ? _map.Player : sprite, sprite, sprite.Definition, goal.Position, goal, 0, sprite.Position, sprite.Direction);
         }
     }
 
 
-    private void Fire(Sprite shooter, Sprite emitter, SpriteDefinition creator, Vector3 aim, Sprite? target, int depth, Vector3? origin = null, Angle? direction = null)
+    private void Fire(Sprite shooter, Sprite emitter, SpriteDefinition creator, Vector3 aim, Sprite target, int depth, Vector3? origin = null, Angle? direction = null)
     {
         var child = _definitions.Find((KnownObject)Math.Abs(creator.Children[(int)SpriteAnimation.Fight]));
 
@@ -184,7 +186,7 @@ internal sealed class WeaponSystem
             return;
         }
 
-        bool scatters = !creator.WeaponFlags.HasFlag(WeaponFlags.NoSpread) || target is null;
+        bool scatters = !creator.WeaponFlags.HasFlag(WeaponFlags.NoSpread) || target.Definition == _definitions.Empty;
         float spread = creator.Aim;
         var from = origin ?? shooter.Position;
         bool secondPulse = shooter.TakeChildPulse(SpriteAnimation.Fight, creator);
@@ -201,10 +203,11 @@ internal sealed class WeaponSystem
                 SpawnedObjectSystem.ConstructLinker(sprite, emitter, spawn.Position, spawn.Direction);
             }
 
-            var point = aim;
+            var goal = target;
 
             if (scatters)
             {
+                var point = aim;
                 for (int attempt = 0; attempt < AimAttempts; attempt++)
                 {
                     point = Scatter(aim, spawn.Lateral, spread);
@@ -212,15 +215,17 @@ internal sealed class WeaponSystem
                     if (_map.Movement.GetHeight(point.AsVector2()) < aim.Z && _map.Movement.GetHeight((aim.AsVector2() + point.AsVector2()) * 0.5f) < aim.Z)
                         break;
                 }
+
+                goal = _map.ConstructGoal(point);
             }
 
             if (relays)
             {
-                Fire(shooter, sprite, child, point, target, depth + 1, spawn.Position, spawn.Direction);
+                Fire(shooter, sprite, child, goal.Position, goal, depth + 1, spawn.Position, spawn.Direction);
                 continue;
             }
 
-            _map.Effects.Aim(sprite, scatters ? null : target, point);
+            _map.Effects.Aim(sprite, goal);
         }
     }
 

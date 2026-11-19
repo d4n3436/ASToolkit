@@ -301,7 +301,7 @@ internal sealed class PlayerBot
         ObserveMovement(previous);
     }
 
-    private bool HasReached(Vector2 target) => _reachedGoal == target || PlayerMovement.IsTouching(_map.Player, target);
+    private bool HasReached(Vector2 target) => _reachedGoal == target || PlayerMovement.IsTouching(_map.Player, target, _map.Definitions.Empty.Half);
 
     private PlayerCommand PlanCommand()
     {
@@ -659,7 +659,7 @@ internal sealed class PlayerBot
         // Step toward the nearest standable cell outside the player's pocket while no straight walk leaves it
         if (_field.ReachedCount < MinPocketCells)
         {
-            int nearest = _field.FindFree(_map.Player.Position.AsVector2(), StuckReach, skipReached: true, skippedHalf: _map.Player.Definition.Half + PlayerMovement.MoveTargetHalfSize);
+            int nearest = _field.FindFree(_map.Player.Position.AsVector2(), StuckReach, skipReached: true, skippedHalf: _map.Player.Definition.Half + _map.Definitions.Empty.Half);
 
             if (nearest >= 0)
             {
