@@ -203,7 +203,7 @@ internal sealed class SpawnedObjectSystem
         else
         {
             var previous = owner.Link;
-            var link = Create(definition, owner.Position + obj.GetLinkOffset(definition.Object, null, 0, owner.Direction), owner.Direction, time, depth, owner, owner);
+            var link = Create(definition, owner.Position + owner.Definition.GetLinkOffset(definition, owner.Direction), owner.Direction, time, depth, owner, owner);
             owner.Link = link;
 
             if (link is not null && previous is not null && previous != link)

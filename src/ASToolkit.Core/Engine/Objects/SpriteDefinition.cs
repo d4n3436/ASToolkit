@@ -293,6 +293,22 @@ public sealed class SpriteDefinition
     public int GetAnimationDuration(SpriteAnimation animation) => Math.Max(1, Object.FrameCounts[(int)animation]) * GetVisualFrameDuration(animation);
 
     /// <summary>
+    /// Returns the direction of the direction frame a sprite of this definition shows for a direction.
+    /// </summary>
+    /// <param name="direction">The direction.</param>
+    /// <returns>The frame's direction, or the direction itself when the definition has no direction frames.</returns>
+    [EngineRoutine(0x00442e00)]
+    public Angle GetFrameDirection(Angle direction) => Layout.Directions != 0 ? direction.GetFrameDirection(Layout.Directions) : direction;
+
+    /// <summary>
+    /// Returns where a link sits relative to a sprite of this definition facing a direction.
+    /// </summary>
+    /// <param name="link">The link's definition.</param>
+    /// <param name="direction">The direction of the sprite.</param>
+    /// <returns>The offset from the sprite's position.</returns>
+    public Vector3 GetLinkOffset(SpriteDefinition link, Angle direction) => Object.GetLinkOffset(link.Object, null, 0, direction);
+
+    /// <summary>
     /// Gets or sets the health of a new sprite of the definition.
     /// </summary>
     public int MaxHp { get; set; }

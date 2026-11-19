@@ -408,19 +408,28 @@ public readonly struct GameObject
 
     /// <summary>
     /// Returns the offset of an attached object from the object, turned by a facing unless the attached object keeps a fixed offset.
+    /// The frame's vector is turned without the vertical projection that the link offset gets.
     /// </summary>
+    /// <param name="attached">The attached object.</param>
+    /// <param name="file">The object's sprite file, whose frames may store the vector instead of the link offset.</param>
+    /// <param name="frameIndex">The frame the object shows.</param>
+    /// <param name="dir">The facing.</param>
+    /// <returns>The offset from the object's position.</returns>
+    [EngineRoutine(0x00445770)]
     public Vector3 GetLinkOffset(GameObject attached, VidResource? file, int frameIndex, Angle dir)
     {
-        var offset = file is not null && file.Value.Type.HasFlag(VidType.FrameVector)
-            ? file.Value.GetFrameVector(frameIndex)
-            : LinkOffset with { Y = -LinkOffset.Y };
-        
-        if (attached.Properties.HasFlag(ObjectProperties.FixedOffset))
+        bool isFixed = attached.Properties.HasFlag(ObjectProperties.FixedOffset);
+
+        if (file is not null && file.Value.Type.HasFlag(VidType.FrameVector))
         {
-            return offset;
+            var vector = file.Value.GetFrameVector(frameIndex);
+
+            return isFixed ? vector : new Vector3(vector.X * dir.Cosine - vector.Y * dir.Sine, vector.X * dir.Sine + vector.Y * dir.Cosine, vector.Z);
         }
 
-        (float sin, float cos) = MathF.SinCos(dir.Value * MathF.PI / 128);
-        return new Vector3(offset.X * cos - offset.Y * sin, offset.X * sin + offset.Y * cos, offset.Z);
+        if (isFixed)
+            return LinkOffset with { Y = -LinkOffset.Y };
+
+        return new Vector3(dir.Cosine * LinkOffset.X + dir.Sine * LinkOffset.Y, dir.ProjectedSine * LinkOffset.X - dir.ProjectedCosine * LinkOffset.Y, LinkOffset.Z);
     }
 }

@@ -1176,7 +1176,7 @@ public sealed partial class GameWorld
     }
 
     private static Vector3 GetLinkPosition(Unit owner, SpriteDefinition definition) =>
-        owner.Position + owner.Definition.Object.GetLinkOffset(definition.Object, null, 0, owner.Direction);
+        owner.Position + owner.Definition.GetLinkOffset(definition, owner.Direction);
 
     [EngineRoutine(0x0042da30)]
     private bool IsFree(SpriteDefinition definition, Vector3 position) => Movement.IsAboveGround(definition.Object, position) && !Projectiles.IsOccupied(definition, position);
