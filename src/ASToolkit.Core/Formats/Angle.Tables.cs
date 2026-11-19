@@ -73,4 +73,21 @@ public readonly partial record struct Angle
         0.9238795f, 0.9329928f, 0.94154406f, 0.94952816f, 0.95694035f, 0.96377605f, 0.97003126f, 0.9757021f,
         0.98078525f, 0.98527765f, 0.9891765f, 0.99247956f, 0.9951847f, 0.99729043f, 0.99879545f, 0.9996988f
     ];
+
+    private const float ProjectionScale = 4096f;
+    private const float ProjectionFactor = 0.00017262212f;
+    private static readonly float[] ProjectedSineTable = Project(SineTable);
+    private static readonly float[] ProjectedCosineTable = Project(CosineTable);
+
+    [EngineRoutine(0x00408ff0)]
+    private static float[] Project(ReadOnlySpan<float> table)
+    {
+        float[] projected = new float[table.Length];
+        for (int i = 0; i < table.Length; i++)
+        {
+            projected[i] = table[i] * ProjectionScale * ProjectionFactor;
+        }
+
+        return projected;
+    }
 }

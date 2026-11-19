@@ -58,14 +58,24 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     public Vector2 Vector => Vectors[Value];
 
     /// <summary>
-    /// Gets the sine of the angle from the engine's table.
+    /// Gets the sine of the angle from the 256-step sine table.
     /// </summary>
     public float Sine => SineTable[Value];
 
     /// <summary>
-    /// Gets the cosine of the angle from the engine's table.
+    /// Gets the cosine of the angle from the 256-step cosine table.
     /// </summary>
     public float Cosine => CosineTable[Value];
+
+    /// <summary>
+    /// Gets the sine of the angle scaled by the map's vertical projection, for offsets along the map's y axis.
+    /// </summary>
+    public float ProjectedSine => ProjectedSineTable[Value];
+
+    /// <summary>
+    /// Gets the cosine of the angle scaled by the map's vertical projection, for offsets along the map's y axis.
+    /// </summary>
+    public float ProjectedCosine => ProjectedCosineTable[Value];
 
     /// <summary>
     /// Gets the opposite direction.
@@ -131,13 +141,13 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     }
 
     /// <summary>
-    /// Returns the direction of an offset by the engine's integer approximation.
+    /// Returns the direction of an offset by an integer approximation.
     /// </summary>
     /// <param name="offset">The offset.</param>
     public static Angle Aim(Vector2 offset) => Aim(offset, out _);
 
     /// <summary>
-    /// Returns the direction of an offset by the engine's integer approximation, with its length.
+    /// Returns the direction of an offset by an integer approximation, with its length.
     /// </summary>
     /// <param name="offset">The offset.</param>
     /// <param name="distance">The approximate length of the offset.</param>
@@ -177,7 +187,7 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     public int GetDirectionIndex(int directions) => directions == 0 ? 0 : ((Value + HalfTurn / directions) & 0xff) * directions >> 8;
 
     /// <summary>
-    /// Returns the direction the engine's direction frame for this direction faces, out of a number of direction frames.
+    /// Returns the direction that the direction frame showing this direction faces, out of a number of direction frames.
     /// </summary>
     /// <param name="directions">The number of direction frames.</param>
     public Angle GetFrameDirection(int directions) => new(unchecked((byte)(GetDirectionIndex(directions) * FullTurn / directions)));
