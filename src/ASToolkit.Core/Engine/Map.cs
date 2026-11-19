@@ -55,8 +55,8 @@ public sealed partial class Map
         ScriptRegistry? registry = null, GameSession? session = null)
     {
         Registry = registry ?? new ScriptRegistry("");
-        Session = session ?? new GameSession();
-        Session.Cursor ??= ConstructCursor(data.Definitions);
+        Session = session ?? new GameSession(Registry);
+        Session.Cursor ??= ConstructCursor(data.Definitions, Session.ScreenSize);
         _updates = new UpdateOrder();
         data.Definitions.ReloadRecords();
         data.Definitions.ResetLevelState();
@@ -82,6 +82,7 @@ public sealed partial class Map
         PlayerMovement = new PlayerMovement(spriteCollision);
         var settings = controls ?? ControlSettings.Default;
         Input = new PlayerInput(settings);
+        SetPosition(Session.ScreenSize.ToVector2() * HalfShare + model.Camera, CameraMove.None);
         for (int slot = 0; slot < PlayerSlots; slot++)
         {
             _players[slot] = new Player(this, spriteCollision, settings);
@@ -487,7 +488,8 @@ public sealed partial class Map
     }
 
     [EngineRoutine(0x00446c90)]
-    private static Sprite ConstructCursor(SpriteCatalog definitions) => new(-1, definitions.Empty, Vector3.Zero, Army.Player, 0);
+    private static Sprite ConstructCursor(SpriteCatalog definitions, SizeF screen) =>
+        new(-1, definitions.Empty, new Vector3(screen.ToVector2() * HalfShare, 0), Army.Player, 0);
 
     [EngineRoutine(0x00446810)]
     private static bool TryAddItem(Sprite sprite, int item)
@@ -590,6 +592,7 @@ public sealed partial class Map
         }
 
         Effects.Compact();
+        Scroll();
 
         if (IsPlayerControlled)
         {

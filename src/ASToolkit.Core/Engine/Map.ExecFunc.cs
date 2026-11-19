@@ -32,7 +32,6 @@ public sealed partial class Map : IScriptFunctionHost
     private OldSpriteType _unitMask;
     private int _spriteLayer;
     private int _spriteIndex;
-    private int _scrollType;
 
     /// <summary>
     /// Returns the handle the level script refers to a sprite by, allocating one when needed.
@@ -432,10 +431,10 @@ public sealed partial class Map : IScriptFunctionHost
                 script.PushNumber((int)GetInputState());
                 break;
             case ScriptFunction.SetScrollType:
-                _scrollType = script.PopNumber();
+                _scrollType = (ScrollType)script.PopNumber();
                 break;
             case ScriptFunction.GetScrollType:
-                script.PushNumber(_scrollType);
+                script.PushNumber((int)_scrollType);
                 break;
             case ScriptFunction.SetPlayerControl:
                 SetPlayerControl(script.PopNumber() != 0);
@@ -445,7 +444,10 @@ public sealed partial class Map : IScriptFunctionHost
                 IsQuitting = true;
                 break;
             case ScriptFunction.Effect:
-                ExecEffect(script);
+                int effectDuration = script.PopNumber();
+                int effectSecond = script.PopNumber();
+                int effectFirst = script.PopNumber();
+                ExecEffect(script.PopNumber(), effectFirst, effectSecond, effectDuration);
                 break;
             case ScriptFunction.SetEnvironment:
                 SetEnvironment((MapEnvironment)script.PopNumber());
@@ -751,19 +753,27 @@ public sealed partial class Map : IScriptFunctionHost
                 PopValues(script, 3);
                 break;
             case ScriptFunction.SetPosition:
+                int positionY = script.PopNumber();
+                SetPosition(new Vector2(script.PopNumber(), positionY), CameraMove.None);
+                break;
             case ScriptFunction.SetMouseClick:
             case ScriptFunction.SetCursorPosition:
             case ScriptFunction.SetWind:
                 PopValues(script, 2);
                 break;
             case ScriptFunction.ScreenX:
+                script.PushNumber((int)Session.ScreenSize.Width);
+                break;
             case ScriptFunction.ScreenY:
-                script.PushNumber(0);
+                script.PushNumber((int)Session.ScreenSize.Height);
                 break;
             case ScriptFunction.ToScreenX:
+                script.PushNumber((int)(script.PopNumber() - Camera.X));
                 break;
             case ScriptFunction.ToScreenY:
-                script.Pop();
+                int screenZ = script.PopNumber();
+                int screenY = script.PopNumber();
+                script.PushNumber((int)((float)screenY - screenZ - Camera.Y));
                 break;
 
             // TODO: Port sound, music and movies
@@ -1273,12 +1283,8 @@ public sealed partial class Map : IScriptFunctionHost
 
     // TODO: Port the screen effects
     [EngineRoutine(0x00402690)]
-    private void ExecEffect(Script script)
+    private void ExecEffect(int effect, int first, int second, int duration)
     {
-        int duration = script.PopNumber();
-        int second = script.PopNumber();
-        int first = script.PopNumber();
-        int effect = script.PopNumber();
         if (effect is < 0 or >= EffectCount)
             return;
 

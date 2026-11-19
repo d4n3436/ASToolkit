@@ -26,10 +26,6 @@ public sealed class ReplayPlayback
     private readonly PlacementTimeline[] _moved;
     private readonly Dictionary<MergedMapSprite, int> _pickedUp;
     private readonly int[] _frameTimes;
-    private readonly SizeF _mapSize;
-    private readonly Vector2 _startCamera;
-    private Vector2[] _cameras = [];
-    private SizeF _cameraScreen;
     private readonly HashSet<MergedMapSprite> _hidden = [];
     private readonly List<LiveSprite> _live = [];
 
@@ -66,8 +62,6 @@ public sealed class ReplayPlayback
             .Append(_replay.Inputs.Length > 0 ? _replay.Inputs[^1].Time : 0)
             .Distinct()
             .ToArray();
-        _mapSize = level.Map.Size;
-        _startCamera = level.Map.Scroll;
     }
 
     /// <summary>
@@ -144,8 +138,7 @@ public sealed class ReplayPlayback
 
         var scene = stage.Scene;
         _renderer.UpdateLive(scene, _live);
-        var screen = (SizeF)size / scale;
-        var steady = GetCamera(screen, time) + screen.ToVector2() / 2 + cameraOffset;
+        var steady = GetViewCenter(time) + cameraOffset;
         var center = steady + GetShake(time);
         var halfFrame = new Point(size.Width / 2, size.Height / 2);
         var corner = new Point((int)MathF.Round((center.X - scene.Left) * scale) - halfFrame.X, (int)MathF.Round((center.Y - scene.Top) * scale) - halfFrame.Y);
@@ -169,25 +162,12 @@ public sealed class ReplayPlayback
         cursor.Draw(pixels.AsSpan(0, size.Width * size.Height), size, new Point((int)MathF.Round(cursorPoint.X) + halfFrame.X, (int)MathF.Round(cursorPoint.Y) + halfFrame.Y));
     }
 
-    // Runs the game's camera over every tick for the screen the frame shows, the camera before the first tick first
-    private Vector2 GetCamera(SizeF screen, int time)
+    private Vector2 GetViewCenter(int time)
     {
         var inputs = _replay.Inputs;
+        int tick = inputs.FindLastAtOrBefore(time);
 
-        if (screen != _cameraScreen || _cameras.Length != inputs.Length + 1)
-        {
-            _cameraScreen = screen;
-            _cameras = new Vector2[inputs.Length + 1];
-            var camera = ScrollCamera.Start(screen, _mapSize, _startCamera);
-            _cameras[0] = camera.Position;
-            for (int index = 0; index < inputs.Length; index++)
-            {
-                camera = camera.Update(inputs[index].Player, inputs[index].Cursor, inputs[index].Time - (index > 0 ? inputs[index - 1].Time : 0));
-                _cameras[index + 1] = camera.Position;
-            }
-        }
-
-        return _cameras[inputs.FindLastAtOrBefore(time) + 1];
+        return inputs.Length == 0 ? Vector2.Zero : inputs[Math.Max(tick, 0)].Center;
     }
 
     private static PlaythroughResult SimulateLevel(Playthrough play, RouteAnalysis selected, string map, GameTable table)

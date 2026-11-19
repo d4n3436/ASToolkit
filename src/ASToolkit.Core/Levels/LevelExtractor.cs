@@ -66,6 +66,7 @@ public static class LevelExtractor
             Sprites = sp,
             StoredSprites = map.Sprites,
             MapSize = map.Size,
+            Camera = map.Scroll,
             Environment = map.Graphics.Environment,
             Groups = map.Groups.ToArray()
         };
@@ -390,6 +391,7 @@ public static class LevelExtractor
             Sprites = sp,
             StoredSprites = map.Sprites,
             MapSize = map.Size,
+            Camera = map.Scroll,
             Environment = map.Graphics.Environment,
             Groups = map.Groups.ToArray()
         };

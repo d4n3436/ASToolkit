@@ -63,7 +63,7 @@ internal sealed class ReplayRecorder
         }
 
         int time = map.Time;
-        _inputs.Add(new ScreenInput(time, map.Player.Position, map.Cursor));
+        _inputs.Add(new ScreenInput(time, map.ViewCenter, map.Cursor));
 
         _captures.Clear();
         _seen.Clear();

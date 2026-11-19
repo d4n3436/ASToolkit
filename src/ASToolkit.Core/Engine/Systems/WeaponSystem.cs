@@ -75,7 +75,7 @@ internal sealed class WeaponSystem
     public Vector3 GetCursorPoint(Vector2 cursor, SpriteDefinition weapon)
     {
         var player = _map.Player.Position;
-        var pixel = cursor - (new Vector2(player.X, player.Y - player.Z) - ViewHalf);
+        var pixel = cursor - (player.ToDrawPosition() - ViewHalf);
         float y = cursor.Y;
         float height;
 

@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -43,6 +44,8 @@ public sealed class ObjectTable
     internal float Gravitation { get; private init; }
 
     internal float Gravitation2 { get; private init; }
+
+    internal Vector2 ScrollSpeed { get; private init; }
 
     /// <summary>
     /// Gets the ID of every entry.
@@ -96,7 +99,8 @@ public sealed class ObjectTable
         return new ObjectTable(entries, anyExtended, ReadWeapons(container), sounds)
         {
             Gravitation = constants.Gravitation,
-            Gravitation2 = constants.Gravitation2
+            Gravitation2 = constants.Gravitation2,
+            ScrollSpeed = new Vector2(constants.ScrollSpeedX, constants.ScrollSpeedY)
         };
     }
 

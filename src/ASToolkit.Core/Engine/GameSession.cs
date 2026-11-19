@@ -1,3 +1,6 @@
+using System.Drawing;
+using System.Numerics;
+
 namespace ASToolkit.Core.Engine;
 
 /// <summary>
@@ -5,6 +8,43 @@ namespace ASToolkit.Core.Engine;
 /// </summary>
 public sealed class GameSession
 {
+    /// <summary>
+    /// Represents the screen width when the registry holds none, where the game asks the player in its start dialog.
+    /// </summary>
+    public const int DefaultScreenWidth = 1024;
+
+    /// <summary>
+    /// Represents the screen height when the registry holds none, where the game asks the player in its start dialog.
+    /// </summary>
+    public const int DefaultScreenHeight = 768;
+
+    private const string ScreenWidthValue = "ScreenX";
+    private const string ScreenHeightValue = "ScreenY";
+
+    /// <summary>
+    /// Creates a session, reading the screen size from the registry or taking the default size when it holds none.
+    /// </summary>
+    /// <param name="registry">The registry the game reads its settings from.</param>
+    public GameSession(ScriptRegistry registry)
+    {
+        ScreenSize = new SizeF(registry.GetNumber(ScreenWidthValue, DefaultScreenWidth), registry.GetNumber(ScreenHeightValue, DefaultScreenHeight));
+    }
+
+    /// <summary>
+    /// Gets the size of the screen in pixels.
+    /// </summary>
+    public SizeF ScreenSize { get; }
+
+    /// <summary>
+    /// Gets the part of the screen the map shows.
+    /// </summary>
+    public RectangleF View => new(PointF.Empty, ScreenSize);
+
+    /// <summary>
+    /// Gets or sets the speed the camera scrolls at along each axis in pixels per millisecond.
+    /// </summary>
+    public Vector2 ScrollSpeed { get; set; }
+
     /// <summary>
     /// Gets or sets a value indicating whether monster units may target neutral trains.
     /// </summary>

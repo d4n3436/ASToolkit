@@ -7,7 +7,7 @@ namespace ASToolkit.Core.Simulation;
 /// </summary>
 /// <param name="Tracks">The objects drawn over the map, in the order they appeared, the player's legs first.</param>
 /// <param name="Samples">The samples of the tracks, grouped by track in time order.</param>
-/// <param name="Inputs">The player positions and mouse cursors of every tick, which the game's camera follows.</param>
+/// <param name="Inputs">The screen centers and mouse cursors of every tick.</param>
 /// <param name="RemovedSprites">The sprites removed by action stacks and scripts.</param>
 /// <param name="CreatedSprites">The sprites the scripts created.</param>
 /// <param name="PickupEvents">The time when the player collected each map pickup.</param>

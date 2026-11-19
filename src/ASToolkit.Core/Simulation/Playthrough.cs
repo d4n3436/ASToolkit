@@ -136,7 +136,7 @@ public sealed class Playthrough
     }
 
     private static DemoReplayPoint GetReplayPoint(Map map) =>
-        new(map.Time, map.Player.Position, map.Player.Hp, map.Player.Direction, map.Player.Speed, map.RandomState);
+        new(map.Time, map.Player.Position, map.Player.Hp, map.Player.Direction, map.Player.Speed, map.RandomState, map.Camera);
 
     private LevelSetup GetSetup(RouteAnalysis analysis)
     {
@@ -258,7 +258,7 @@ public sealed class Playthrough
         CampaignState? state = null, bool record = false, int? recordedLevel = null)
     {
         var results = new List<PlaythroughResult>();
-        var session = new GameSession();
+        var session = new GameSession(CreateProfile(_gameFolder));
         bool shopsFirst = state is not null;
         state ??= CampaignState.CreateInitial();
         for (int level = 0; level < levels.Count; level++)
@@ -302,6 +302,21 @@ public sealed class Playthrough
             IsCompleted: results.Count == levels.Count && results.All(result => result.Survived));
     }
 
+    /// <summary>
+    /// Creates the registry of the bot's player profile.
+    /// </summary>
+    /// <param name="gameFolder">The game folder holding the game's configuration.</param>
+    /// <returns>The registry.</returns>
+    public static ScriptRegistry CreateProfile(string gameFolder)
+    {
+        var registry = new ScriptRegistry(ScriptRegistry.ReadDefaultPath(Path.Combine(gameFolder, ConfigFile)));
+        registry.Set("PlayerSex", "male");
+        registry.Set("StateBar", "1");
+        registry.Set("DifficultyLevel", "1");
+
+        return registry;
+    }
+
     private static string GetScriptPath(string mapName) => Path.ChangeExtension("maps\\" + mapName.Replace('/', '\\'), ".lgc");
 
     /// <summary>
@@ -313,13 +328,10 @@ public sealed class Playthrough
     /// <returns>The registry.</returns>
     public static ScriptRegistry CreateRegistry(string gameFolder, string mapName, PlayerLoadout loadout)
     {
-        var registry = new ScriptRegistry(ScriptRegistry.ReadDefaultPath(Path.Combine(gameFolder, ConfigFile)));
+        var registry = CreateProfile(gameFolder);
         string folder = Path.GetDirectoryName(mapName) ?? "";
         registry.Set("GameType", folder.Equals("ADDON2", StringComparison.OrdinalIgnoreCase) ? "3" : folder.Equals("ADDON", StringComparison.OrdinalIgnoreCase) ? "2" : "0");
         registry.Set("LevelNumber", new string(Path.GetFileNameWithoutExtension(mapName).Where(char.IsAsciiDigit).ToArray()).TrimStart('0'));
-        registry.Set("PlayerSex", "male");
-        registry.Set("StateBar", "1");
-        registry.Set("DifficultyLevel", "1");
         for (int slot = 0; slot < Sprite.WeaponSlots; slot++)
         {
             var weapon = (KnownObject)(Sprite.WeaponItemBase + slot);

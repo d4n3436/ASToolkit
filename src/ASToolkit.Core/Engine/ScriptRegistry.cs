@@ -50,6 +50,20 @@ public sealed class ScriptRegistry
     public string? Get(string name) => Get(DefaultPath, name);
 
     /// <summary>
+    /// Gets the value stored under a name of the default path, as a number.
+    /// </summary>
+    /// <param name="name">The value name.</param>
+    /// <param name="fallback">The number when the value is missing.</param>
+    /// <returns>The number.</returns>
+    [EngineRoutine(0x0042d130)]
+    public int GetNumber(string name, int fallback)
+    {
+        string? value = Get(name);
+
+        return value is null ? fallback : ParseLong(value);
+    }
+
+    /// <summary>
     /// Gets the value stored under a name of a path.
     /// </summary>
     /// <param name="path">The registry path.</param>
@@ -80,4 +94,23 @@ public sealed class ScriptRegistry
     public void Delete(string path, string name) => _values.Remove(GetKey(path, name));
 
     private static string GetKey(string path, string name) => $"{path}\\{name}";
+
+    private static int ParseLong(ReadOnlySpan<char> text)
+    {
+        text = text.TrimStart();
+        bool isNegative = !text.IsEmpty && text[0] == '-';
+
+        if (!text.IsEmpty && text[0] is '-' or '+')
+        {
+            text = text[1..];
+        }
+
+        int total = 0;
+        for (int i = 0; i < text.Length && char.IsAsciiDigit(text[i]); i++)
+        {
+            total = unchecked(total * 10 + (text[i] - '0'));
+        }
+
+        return isNegative ? unchecked(-total) : total;
+    }
 }

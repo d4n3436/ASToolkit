@@ -309,9 +309,14 @@ public sealed partial class Map
             return;
         }
 
+        var screen = Session.ScreenSize;
+        var steady = Camera;
         int y = _rng.Next() % (ShakeReach * 2 + 1);
         int x = _rng.Next() % (ShakeReach * 2 + 1);
+        var center = screen.ToVector2() * HalfShare + steady;
+        SetPosition(center + new Vector2(ShakeReach) - new Vector2(x, y), CameraMove.None);
         CameraShake = new CameraShake(Time, new Vector2(ShakeReach - x, ShakeReach - y));
+        SetPosition(center, CameraMove.None);
     }
 
     /// <summary>

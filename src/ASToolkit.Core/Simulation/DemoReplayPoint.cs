@@ -12,4 +12,5 @@ namespace ASToolkit.Core.Simulation;
 /// <param name="Direction">The direction of the player's legs after the frame.</param>
 /// <param name="Speed">The speed of the player after the frame, in pixels per millisecond.</param>
 /// <param name="RandomState">The state of the game's random generator after the frame.</param>
-public readonly record struct DemoReplayPoint(int Time, Vector3 Position, int Health, Angle Direction, float Speed, int RandomState);
+/// <param name="Camera">The top-left corner of the screen on the map after the frame.</param>
+public readonly record struct DemoReplayPoint(int Time, Vector3 Position, int Health, Angle Direction, float Speed, int RandomState, Vector2 Camera);

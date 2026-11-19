@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Numerics;
 using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Levels;
@@ -52,6 +53,11 @@ public sealed class LevelModel
     /// Gets the width and height of the map from its header, or an empty size when the model has none.
     /// </summary>
     public SizeF MapSize { get; init; }
+
+    /// <summary>
+    /// Gets the top-left corner of the screen on the map when the level starts, from its header.
+    /// </summary>
+    public Vector2 Camera { get; init; }
 
     /// <summary>
     /// Gets the environment the map starts with.
