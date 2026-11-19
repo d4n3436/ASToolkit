@@ -491,7 +491,7 @@ public sealed class Sprite : IResettable
         get
         {
             var link = Link;
-            return link is not null && link.Definition.Id == Definition.Object.Link && link.Definition.Object.WeaponIndex != 0 ? link : null;
+            return link is not null && link.Definition == Definition.LinkDefinition && link.Definition.FightChild != 0 && link.Definition.Object.WeaponIndex != 0 ? link : null;
         }
     }
 
@@ -548,7 +548,7 @@ public sealed class Sprite : IResettable
     {
         var link = _link;
 
-        if (link is not null && link.Definition.Id == Definition.Object.Link && (state >= SpriteAnimation.Death || link.Definition.Object.WeaponIndex == 0 &&
+        if (link is not null && link.Definition == Definition.LinkDefinition && (state >= SpriteAnimation.Death || link.Definition.Object.WeaponIndex == 0 &&
             !link.Definition.Object.Properties.HasFlag(ObjectProperties.Wind) && link.Animation is not SpriteAnimation.Fight and < SpriteAnimation.Death))
         {
             link.ChangeAnimation(state);
@@ -769,7 +769,7 @@ public sealed class Sprite : IResettable
             return HasGoal ? AttackResult.NoOrder : AttackResult.NoTarget;
         }
 
-        if (!Definition.IsArmed || Definition.FightChild == 0)
+        if (Definition.FightChild == 0 || Definition.Object.WeaponIndex == 0)
             return AttackResult.Unarmed;
 
         if (!HasGoal)
