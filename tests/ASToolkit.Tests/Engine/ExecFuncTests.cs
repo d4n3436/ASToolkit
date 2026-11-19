@@ -34,6 +34,30 @@ public class ExecFuncTests
     }
 
     [Fact]
+    public void ExecFunc_TextBuiltIns_FormatAndConvertAsTheCRuntime()
+    {
+        var (_, script) = Run("""
+            int padded, hex, lower, upper, unchanged, checksum;
+            main()
+            {
+              padded = strlen(Printf("%05i", 42));
+              hex = charat(Printf("%X", 255), 1);
+              lower = charat(ToLower("AbC"), 2);
+              upper = charat(ToUpper("abc"), 0);
+              unchanged = charat(ToUpper("1z"), 0);
+              checksum = Crc32("abc");
+            }
+            """);
+
+        Assert.Equal(5, Read(script, "padded"));
+        Assert.Equal('F', Read(script, "hex"));
+        Assert.Equal('c', Read(script, "lower"));
+        Assert.Equal('A', Read(script, "upper"));
+        Assert.Equal('1', Read(script, "unchanged"));
+        Assert.Equal(-899311408, Read(script, "checksum"));
+    }
+
+    [Fact]
     public void ExecFunc_TextMathAndTime_FollowTheGame()
     {
         var (map, script) = Run("""

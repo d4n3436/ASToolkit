@@ -161,6 +161,15 @@ public sealed partial class Script
     public StackObject Pop() => _slots[--_count];
 
     /// <summary>
+    /// Gets a value indicating whether the value on top of the stack is a text.
+    /// </summary>
+    public bool IsTextOnTop
+    {
+        [EngineRoutine(0x0043a190)]
+        get => _slots[_count - 1].Flags.HasFlag(StackObjectFlags.Text);
+    }
+
+    /// <summary>
     /// Pops a value from the stack as a number.
     /// </summary>
     /// <returns>The number.</returns>

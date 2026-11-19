@@ -1,4 +1,5 @@
 using System.Numerics;
+using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Engine.Scripts;
 using ASToolkit.Core.Formats;
 
@@ -7,6 +8,8 @@ namespace ASToolkit.Core.Engine;
 public sealed partial class Map : IScriptFunctionHost
 {
     private const int AnyDirection = 999999;
+    private const int PrintfBufferSize = 0x1000;
+    private const uint ChecksumPolynomial = 0xEDB88320;
     private const int AllArmies = 0xff;
     private const int EffectCount = 16;
     private const int FlashDuration = 0x900;
@@ -151,6 +154,49 @@ public sealed partial class Map : IScriptFunctionHost
     public GameSession Session { get; }
 
     private int GetTime() => Time;
+
+    [EngineRoutine(0x00406160)]
+    private static int ComputeChecksum(ReadOnlySpan<byte> text)
+    {
+        int end = text.IndexOf((byte)0);
+        uint checksum = 0;
+        foreach (byte value in end < 0 ? text : text[..end])
+        {
+            checksum ^= value;
+            for (int bit = 0; bit < 8; bit++)
+            {
+                checksum = (checksum & 1) != 0 ? checksum >> 1 ^ ChecksumPolynomial : checksum >> 1;
+            }
+        }
+
+        return unchecked((int)checksum);
+    }
+
+    [EngineRoutine(0x004066e0)]
+    private static ReadOnlyMemory<byte> Printf(Script script)
+    {
+        FormatArgument argument = script.IsTextOnTop ? script.PopText() : script.PopNumber();
+        var format = script.PopText();
+        Span<byte> buffer = stackalloc byte[PrintfBufferSize];
+        int length = PrintFormat.Format(buffer, format.Span, [argument]);
+
+        return buffer[..length].ToArray();
+    }
+
+    private static ReadOnlyMemory<byte> ChangeCase(ReadOnlySpan<byte> text, byte first, byte last, int shift)
+    {
+        int end = text.IndexOf((byte)0);
+        byte[] result = (end < 0 ? text : text[..end]).ToArray();
+        for (int i = 0; i < result.Length; i++)
+        {
+            if (result[i] >= first && result[i] <= last)
+            {
+                result[i] = (byte)(result[i] + shift);
+            }
+        }
+
+        return result;
+    }
 
     private void LogInvalidDefinition(ReadOnlySpan<byte> function, int id) =>
         Session.Logger.Write("!!!ERROR!!!SCRIPT: Invalid nvid %s %i"u8, (ReadOnlyMemory<byte>)function.ToArray(), id);
@@ -942,7 +988,6 @@ public sealed partial class Map : IScriptFunctionHost
 
                 break;
             case ScriptFunction.GetString:
-            case ScriptFunction.Printf:
             case ScriptFunction.Save:
             case ScriptFunction.Pause:
             case ScriptFunction.Exec:
@@ -955,6 +1000,17 @@ public sealed partial class Map : IScriptFunctionHost
                 script.PushText(ReadOnlyMemory<byte>.Empty);
                 break;
             case ScriptFunction.Crc32:
+                script.PushNumber(ComputeChecksum(script.PopText().Span));
+                break;
+            case ScriptFunction.Printf:
+                script.PushText(Printf(script));
+                break;
+            case ScriptFunction.ToLower:
+                script.PushText(ChangeCase(script.PopText().Span, (byte)'A', (byte)'Z', 'a' - 'A'));
+                break;
+            case ScriptFunction.ToUpper:
+                script.PushText(ChangeCase(script.PopText().Span, (byte)'a', (byte)'z', 'A' - 'a'));
+                break;
             case ScriptFunction.FOpen:
             case ScriptFunction.FCreate:
                 script.Pop();
@@ -987,10 +1043,6 @@ public sealed partial class Map : IScriptFunctionHost
             }
             case ScriptFunction.GetDefaultRegPath:
                 script.PushText(GameTextEncoding.Cyrillic.GetBytes(Registry.DefaultPath));
-                break;
-            case ScriptFunction.ToLower:
-            case ScriptFunction.ToUpper:
-                script.PushText(script.PopText());
                 break;
             case ScriptFunction.ToBase64:
                 PopValues(script, 2);
