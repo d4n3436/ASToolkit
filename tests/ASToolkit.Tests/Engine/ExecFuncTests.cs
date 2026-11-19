@@ -52,7 +52,7 @@ public class ExecFuncTests
         Assert.Equal(5, Read(script, "length"));
         Assert.Equal(1024, Read(script, "sine"));
         Assert.Equal(-1024, Read(script, "cosine"));
-        Assert.Equal(map.Time + map.FrameTime, Read(script, "time"));
+        Assert.Equal(map.Time, Read(script, "time"));
         Assert.Equal('B', Read(script, "letter"));
         Assert.Equal(0, Read(script, "found"));
         Assert.Equal(0, Read(script, "roll"));

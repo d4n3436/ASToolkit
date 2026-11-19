@@ -101,7 +101,7 @@ public sealed partial class Map
     }
 
     [EngineRoutine(0x0040edf0)]
-    private void ConstructBuiltTerrain(Sprite sprite)
+    internal void ConstructBuiltTerrain(Sprite sprite)
     {
         if (!_hasHardwareGround)
         {
@@ -114,7 +114,7 @@ public sealed partial class Map
         }
     }
 
-    private static bool IsBaked(SpriteDefinition definition) => definition.Object.SpriteClass == SpriteClass.BuiltTerrain && !SpriteCollector.IsHashed(definition);
+    internal static bool IsBaked(SpriteDefinition definition) => definition.Object.SpriteClass == SpriteClass.BuiltTerrain && !SpriteCollector.IsHashed(definition);
 
     // TODO: Port the hardware ground sprite
     [EngineRoutine(0x00412a40)]

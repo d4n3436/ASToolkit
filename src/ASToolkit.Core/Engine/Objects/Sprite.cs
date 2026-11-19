@@ -858,6 +858,11 @@ public sealed class Sprite : IResettable
     public bool HasPlayedStateSound { get; set; }
 
     /// <summary>
+    /// Gets a value indicating whether the first of a mirrored pair of children launched and the second is still due.
+    /// </summary>
+    public bool AwaitsSecondPulse => _secondChildPulse;
+
+    /// <summary>
     /// Returns which of a mirrored pair of children the next launch takes, alternating for definitions that attack twice.
     /// </summary>
     /// <param name="animation">The state whose children launch.</param>
@@ -891,19 +896,24 @@ public sealed class Sprite : IResettable
     {
         float period = Definition.Object.RotationPeriod;
 
-        if (elapsed >= GameClock.DefaultFrameTime || Direction == goal || period.IsZero() || period.IsNear(SpriteDefinition.Unlimited))
+        if (elapsed < GameClock.DefaultFrameTime && Direction != goal && !period.IsZero() && !period.IsNear(SpriteDefinition.Unlimited))
         {
-            TurnCarry = 0;
+            float turn = elapsed * (Angle.FullTurn / period);
 
-            return Direction.TurnToward(goal, period, elapsed, out _);
+            if ((int)(turn + 0.5f) == 0)
+            {
+                // Fix for 60+ FPS, not in the original engine
+                turn += TurnCarry;
+                int step = (int)turn;
+                TurnCarry = turn - step;
+
+                return Direction.StepToward(goal, step, out _);
+            }
         }
 
-        // Carry the unrounded turn to the next frame above 60 frames a second
-        float turn = elapsed * (Angle.FullTurn / period) + TurnCarry;
-        int step = (int)turn;
-        TurnCarry = turn - step;
+        TurnCarry = 0;
 
-        return Direction.StepToward(goal, step, out _);
+        return Direction.TurnToward(goal, period, elapsed, out _);
     }
 
     /// <summary>

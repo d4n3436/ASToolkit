@@ -144,7 +144,7 @@ public sealed partial class Map : IScriptFunctionHost
     /// </summary>
     public GameSession Session { get; }
 
-    private int GetTime() => Time + FrameTime;
+    private int GetTime() => Time;
 
     private static string ReadText(ReadOnlyMemory<byte> text) => GameTextEncoding.Cyrillic.GetString(text.Span);
 
@@ -1182,7 +1182,7 @@ public sealed partial class Map : IScriptFunctionHost
             }
         }
 
-        sprite.ActionStack.Push(order);
+        sprite.ActionStack.Insert(0, order);
     }
 
     [EngineRoutine(0x00412e80)]

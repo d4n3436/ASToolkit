@@ -998,7 +998,7 @@ public sealed partial class Map
 
         Weapons.FireFrom(sprite);
 
-        if (sprite.Command == Command.OneAttack && (!flags.HasFlag(ObjectProperties.Track) || sprite.Frame == sprite.LastFrame))
+        if (sprite is { AwaitsSecondPulse: false, Command: Command.OneAttack or Command.DistAttack } && (!flags.HasFlag(ObjectProperties.Track) || sprite.Frame == sprite.LastFrame))
         {
             SpriteKinematics.SetCommand(sprite, Command.None);
         }

@@ -360,16 +360,15 @@ public sealed partial class Map
         {
             case ActionCode.Damage:
             {
-                bool wanders = var1 > 0 && sprite.IsAlive && sprite.Animation < SpriteAnimation.Death && sprite.Definition.MaxHp != 0;
-                TerrainAction(sprite, code, var1, var2, var3, target);
+                int result = TerrainAction(sprite, code, var1, var2, var3, target);
 
-                if (wanders && sprite.Command == Command.None && !sprite.Definition.Speed.IsZero())
+                if (var1 >= 0 && sprite.Command == Command.None && !sprite.Definition.Speed.IsZero())
                 {
                     var wander = sprite.Position.AsVector2() + new Angle((byte)_rng.Next()).Vector * WanderReach;
                     _brain.MoveTo(sprite, ConstructGoal(new Vector3(wander, sprite.Position.Z)));
                 }
 
-                return 0;
+                return result;
             }
             case ActionCode.NextCommand:
             {

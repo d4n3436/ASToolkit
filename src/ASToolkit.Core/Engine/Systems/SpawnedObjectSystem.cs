@@ -164,6 +164,10 @@ internal sealed class SpawnedObjectSystem
         {
             ConstructCannon(sprite, parent);
         }
+        else if (obj.SpriteClass == SpriteClass.BuiltTerrain)
+        {
+            _map.ConstructBuiltTerrain(sprite);
+        }
 
         CreateLink(sprite, time, depth + 1);
 
@@ -318,6 +322,11 @@ internal sealed class SpawnedObjectSystem
 
         if (stays)
             return true;
+
+        if (sprite.Animation == SpriteAnimation.Death && Map.IsBaked(sprite.Definition))
+        {
+            _settled.Add(GetState(sprite));
+        }
 
         Leave(sprite);
 

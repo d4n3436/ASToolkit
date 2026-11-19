@@ -28,7 +28,7 @@ internal static class EngineTestMap
         """;
 
     public static Map CreateMap(SpriteCatalog definitions, PlayerLoadout? loadout = null, IReadOnlyList<MergedMapSprite>? sprites = null, int frameTime = GameClock.DefaultFrameTime,
-        MapEnvironment environment = MapEnvironment.None, DemoResource? demo = null)
+        MapEnvironment environment = MapEnvironment.None, DemoResource? demo = null, string? blood = null)
     {
         var model = new LevelModel
         {
@@ -58,6 +58,12 @@ internal static class EngineTestMap
 
         loadout ??= new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default);
 
-        return new Map(level, new GameRandom(1), demo: demo, registry: Playthrough.CreateRegistry(TestGameFolder.RequireFolder(), "Level_02.map", loadout));
+        var registry = Playthrough.CreateRegistry(TestGameFolder.RequireFolder(), "Level_02.map", loadout);
+        if (blood is not null)
+        {
+            registry.Set("Blood", blood);
+        }
+
+        return new Map(level, new GameRandom(1), demo: demo, registry: registry);
     }
 }
