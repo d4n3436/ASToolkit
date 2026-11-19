@@ -28,6 +28,7 @@ public sealed partial class Map : IDisposable
     private readonly HashSet<Sprite> _monsterSet = [];
     private readonly UpdateOrder _updates;
     private readonly List<Sprite> _builders = [];
+    private readonly List<Sprite> _menuSprites = [];
     private readonly List<Group> _groups = [];
     private readonly Player[] _players = new Player[PlayerSlots];
     private readonly LivingSet _livingFences = new();
@@ -540,6 +541,13 @@ public sealed partial class Map : IDisposable
     [EngineRoutine(0x0043f200)]
     private Sprite ConstructSprite(SpriteDefinition definition, Vector3 position, Angle direction, Army army, int hp, UpdateRole role, int number = -1)
     {
+        bool isMenu = definition.Object.SpriteClass == SpriteClass.Frame;
+
+        if (isMenu)
+        {
+            position = new Vector3(position.AsVector2() + Camera, position.Z);
+        }
+
         var sprite = new Sprite(number, definition, position, army, hp) { CreatedAt = Time };
         var state = GetInitialAnimation(definition);
         sprite.Start(state, direction, Time, _rng);
@@ -550,6 +558,11 @@ public sealed partial class Map : IDisposable
         if (state != SpriteAnimation.Birth && !IsLoading)
         {
             CreateChildFor(sprite, SpriteAnimation.Birth);
+        }
+
+        if (isMenu)
+        {
+            _menuSprites.Add(sprite);
         }
 
         return sprite;

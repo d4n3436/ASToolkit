@@ -6,6 +6,7 @@ namespace ASToolkit.Core.Engine;
 
 public sealed partial class Map : IScriptFunctionHost
 {
+    private const int AnyDirection = 999999;
     private const int AllArmies = 0xff;
     private const int EffectCount = 16;
     private const int FlashDuration = 0x900;
@@ -99,6 +100,11 @@ public sealed partial class Map : IScriptFunctionHost
     {
         RunDestroyHandler(sprite);
 
+        if (sprite.Definition.Object.SpriteClass == SpriteClass.Frame)
+        {
+            RemoveMenuSprite(sprite);
+        }
+
         if (sprite.IsCounted)
         {
             sprite.IsCounted = false;
@@ -148,6 +154,79 @@ public sealed partial class Map : IScriptFunctionHost
 
     private void LogInvalidDefinition(ReadOnlySpan<byte> function, int id) =>
         Session.Logger.Write("!!!ERROR!!!SCRIPT: Invalid nvid %s %i"u8, (ReadOnlyMemory<byte>)function.ToArray(), id);
+
+    [EngineRoutine(0x0043deb0)]
+    private void RemoveMenuSprite(Sprite sprite)
+    {
+        int index = _menuSprites.LastIndexOf(sprite);
+        if (index < 0)
+            return;
+
+        int last = _menuSprites.Count - 1;
+        _menuSprites[index] = _menuSprites[last];
+        _menuSprites.RemoveAt(last);
+    }
+
+    private Sprite? MenuFind(Script script)
+    {
+        int direction = script.PopNumber();
+        int id = script.PopNumber();
+        var definition = Definitions.Find((KnownObject)id);
+
+        if (definition is null)
+        {
+            LogInvalidDefinition("for MenuFind"u8, id);
+            return null;
+        }
+
+        if (Sum(definition.Counts) == 0)
+            return null;
+
+        foreach (var sprite in _menuSprites)
+        {
+            if (IsMenuMatch(sprite, definition, direction))
+                return sprite;
+        }
+
+        return null;
+    }
+
+    private static bool IsMenuMatch(Sprite sprite, SpriteDefinition definition, int direction) =>
+        sprite.Definition == definition && (direction == AnyDirection || sprite.Direction.GetDirectionIndex(definition.Layout.Directions) == direction);
+
+    private void MenuAction(Script script)
+    {
+        script.PopNumber();
+        script.PopNumber();
+        int var1 = script.PopNumber();
+        int act = script.PopNumber();
+        int direction = script.PopNumber();
+        int id = script.PopNumber();
+        var definition = Definitions.Find((KnownObject)id);
+
+        if (definition is null)
+        {
+            LogInvalidDefinition("for MenuAction"u8, id);
+            return;
+        }
+
+        for (int i = 0; i < _menuSprites.Count; i++)
+        {
+            var sprite = _menuSprites[i];
+
+            if (!IsMenuMatch(sprite, definition, direction))
+                continue;
+
+            if (act <= Act.LastState)
+            {
+                sprite.ChangeAnimation((SpriteAnimation)act);
+            }
+            else
+            {
+                Action(sprite, (ActionCode)act, var1);
+            }
+        }
+    }
 
     private static string ReadText(ReadOnlyMemory<byte> text) => GameTextEncoding.Cyrillic.GetString(text.Span);
 
@@ -733,11 +812,10 @@ public sealed partial class Map : IScriptFunctionHost
                 PopValues(script, 2);
                 break;
 
-            // TODO: Port the menus
             case ScriptFunction.MenuFind:
-                PopValues(script, 2);
-                PushSprite(script, null);
+                PushSprite(script, MenuFind(script));
                 break;
+            // TODO: Port the menus
             case ScriptFunction.MenuLoad:
             case ScriptFunction.MenuRelease:
                 script.Pop();
@@ -747,7 +825,7 @@ public sealed partial class Map : IScriptFunctionHost
                 script.PushNumber(0);
                 break;
             case ScriptFunction.MenuAction:
-                PopValues(script, 6);
+                MenuAction(script);
                 break;
             case ScriptFunction.MenuCreate:
                 PopValues(script, 4);
