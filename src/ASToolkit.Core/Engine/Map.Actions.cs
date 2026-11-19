@@ -21,51 +21,88 @@ public sealed partial class Map
     /// <param name="var3">The third argument.</param>
     /// <param name="target">The sprite argument.</param>
     /// <returns>The action's result.</returns>
-    [EngineRoutine(0x00454800)]
-    [EngineRoutine(0x0044ca70)]
-    public int Action(Sprite sprite, ActionCode code, int var1 = 0, int var2 = 0, int var3 = 0, Sprite? target = null)
-    {
-        switch (sprite.Definition.Object.SpriteClass)
+    public int Action(Sprite sprite, ActionCode code, int var1 = 0, int var2 = 0, int var3 = 0, Sprite? target = null) =>
+        sprite.Definition.Object.SpriteClass switch
         {
-            case SpriteClass.Man:
-                switch (code)
-                {
-                    case ActionCode.CoorAttack:
-                        Weapons.AimPlayer(new Vector2(var1, var2));
+            SpriteClass.Terrain or SpriteClass.Object => TerrainAction(sprite, code, var1, var2, var3, target),
+            SpriteClass.Unit or SpriteClass.Creature => UnitAction(sprite, code, var1, var2, var3, target),
+            SpriteClass.Building => BuildingAction(sprite, code, var1, var2, var3, target),
+            SpriteClass.Avia => AviaAction(sprite, code, var1, var2, var3, target),
+            SpriteClass.Man => ManAction(sprite, code, var1, var2, var3, target),
+            _ => SpriteAction(sprite, code, var1, var2, var3, target),
+        };
 
-                        return 0;
-                    case ActionCode.ChangeVid:
-                        ChangePlayerVid(var1, var2);
+    [EngineRoutine(0x00454800)]
+    private int ManAction(Sprite sprite, ActionCode code, int var1, int var2, int var3, Sprite? target)
+    {
+        switch (code)
+        {
+            case ActionCode.CoorAttack:
+                Weapons.AimPlayer(new Vector2(var1, var2));
 
-                        return 0;
-                    case ActionCode.AddItem:
-                        AddPlayerItem(sprite, var1);
+                return 0;
+            case ActionCode.ChangeVid:
+                ChangePlayerVid(var1, var2);
 
-                        return 0;
-                }
+                return 0;
+            case ActionCode.AddItem:
+                AddPlayerItem(sprite, var1);
 
-                break;
-            case SpriteClass.Building:
-                switch (code)
-                {
-                    case ActionCode.BuildUnit:
-                        StartBuild(sprite, var1, var2, var3);
-
-                        return 0;
-                    case ActionCode.NextCommand:
-                        DecideBuilding(sprite);
-
-                        return 0;
-                }
-
-                break;
+                return 0;
         }
 
         return UnitAction(sprite, code, var1, var2, var3, target);
     }
 
-    [EngineRoutine(0x00440830)]
+    [EngineRoutine(0x0044ca70)]
+    private int BuildingAction(Sprite sprite, ActionCode code, int var1, int var2, int var3, Sprite? target)
+    {
+        switch (code)
+        {
+            case ActionCode.BuildUnit:
+                StartBuild(sprite, var1, var2, var3);
+
+                return 0;
+            case ActionCode.NextCommand:
+                DecideBuilding(sprite);
+
+                return 0;
+        }
+
+        return UnitAction(sprite, code, var1, var2, var3, target);
+    }
+
+    [EngineRoutine(0x0044ceb0)]
+    private int AviaAction(Sprite sprite, ActionCode code, int var1, int var2, int var3, Sprite? target) =>
+        UnitAction(sprite, code, var1, var2, var3, target);
+
+    [EngineRoutine(0x00447500)]
     private int UnitAction(Sprite sprite, ActionCode code, int var1, int var2, int var3, Sprite? target)
+    {
+        switch (code)
+        {
+            case ActionCode.GetBehave when IsUnitClass(sprite):
+                return (int)sprite.Behavior;
+            case ActionCode.SetBehave when IsUnitClass(sprite):
+                sprite.Behavior = (WeaponBehavior)var1;
+
+                if (sprite.Link is not null)
+                {
+                    Action(sprite.Link, code, var1);
+                }
+
+                return 0;
+        }
+
+        return TerrainAction(sprite, code, var1, var2, var3, target);
+    }
+
+    [EngineRoutine(0x0044bea0)]
+    private int TerrainAction(Sprite sprite, ActionCode code, int var1, int var2, int var3, Sprite? target) =>
+        SpriteAction(sprite, code, var1, var2, var3, target);
+
+    [EngineRoutine(0x00440830)]
+    private int SpriteAction(Sprite sprite, ActionCode code, int var1, int var2, int var3, Sprite? target)
     {
         switch (code)
         {
@@ -174,17 +211,6 @@ public sealed partial class Map
                 return sprite.Hp;
             case ActionCode.SetHp:
                 ChangeHp(sprite, var1 != 0 ? var1 : sprite.Definition.ArmyMaxHp[(int)sprite.Army & ArmyMask] * var2 / Percent);
-                break;
-            case ActionCode.GetBehave when IsUnitClass(sprite):
-                return (int)sprite.Behavior;
-            case ActionCode.SetBehave when IsUnitClass(sprite):
-                sprite.Behavior = (WeaponBehavior)var1;
-
-                if (sprite.Link is not null)
-                {
-                    Action(sprite.Link, code, var1);
-                }
-
                 break;
             case ActionCode.GetBehave or ActionCode.SetBehave:
                 break;
