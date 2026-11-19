@@ -579,12 +579,16 @@ public sealed partial class Map
                 SpriteKinematics.SetCommand(sprite, Command.None);
                 break;
             case ActionCode.FlagmanTrigger:
-                if (!Player.IsAlive || Player.Position.AsVector2().MeasureOctagonalDistance(new Vector2(var1, var2)) >= var3)
+            {
+                var flagman = GetFlagman(ControlledPlayer);
+
+                if (flagman is null || flagman.Position.AsVector2().MeasureOctagonalDistance(new Vector2(var1, var2)) >= var3)
                 {
                     sprite.ActionStack.Push(new Act((int)code, var1, var2, var3));
                 }
 
                 break;
+            }
             case ActionCode.ChangeVid:
             {
                 var definition = Definitions.Find((KnownObject)var1);
