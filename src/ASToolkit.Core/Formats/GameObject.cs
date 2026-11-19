@@ -14,10 +14,13 @@ public readonly struct GameObject
     /// </summary>
     public const int StateCount = 17;
 
+    private const int UnlimitedLifetime = 999999;
+
     internal GameObject(SpriteClass spriteClass, Vector3 size)
     {
         SpriteClass = spriteClass;
         Size = size;
+        Lifetime = UnlimitedLifetime;
     }
 
     internal GameObject(AlienShooterGameObject obj)

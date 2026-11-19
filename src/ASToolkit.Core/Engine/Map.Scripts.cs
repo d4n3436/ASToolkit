@@ -116,12 +116,12 @@ public sealed partial class Map
 
     internal static bool IsBaked(SpriteDefinition definition) => definition.Object.SpriteClass == SpriteClass.BuiltTerrain && !SpriteCollector.IsHashed(definition);
 
-    // TODO: Port the hardware ground sprite
     [EngineRoutine(0x00412a40)]
     private void CreateHardwareGround()
     {
         _hasHardwareGround = true;
-        _rng.Next();
+        var definition = Definitions.CreateHardwareGround();
+        ConstructSprite(definition, new Vector3(Movement.MapSize.ToVector2() * HalfShare, 0), default, definition.Army, 0, UpdateRole.Sprite);
         Session.Logger.Write("Create Empty Hardware Ground"u8);
     }
 

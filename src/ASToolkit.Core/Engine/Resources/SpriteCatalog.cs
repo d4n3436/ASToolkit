@@ -16,16 +16,23 @@ public sealed class SpriteCatalog
     /// </summary>
     public const int MaxLaunchDepth = 3;
 
+    /// <summary>
+    /// Represents the id of the definition of the prerendered ground.
+    /// </summary>
+    public const KnownObject HardwareGroundId = (KnownObject)0x400;
+
     private const int DefaultSpriteSpeed = 71;
     private const KnownObject EmptyId = (KnownObject)(-1);
     private const string SpriteFileExtension = ".vid";
     private const string PictureFileExtension = ".bmp";
+    private const string HardwareGroundName = "Self Created Hardware Prerendered Ground ";
 
     private static readonly Vector3 DefaultSize = new(24, 16, 20);
+    private static readonly Vector3 HardwareGroundSize = new(256, 256, 1);
 
     private readonly ObjectTable _objects;
     private readonly ConcurrentDictionary<(KnownObject Id, int Frame), FrameMask?> _masks = new();
-    private readonly SpriteDefinition?[] _definitions;
+    private SpriteDefinition?[] _definitions;
 
     /// <summary>
     /// Creates the definitions of a game folder.
@@ -99,11 +106,11 @@ public sealed class SpriteCatalog
     /// </summary>
     /// <param name="definition">The definition.</param>
     /// <returns>The name.</returns>
-    public string GetName(SpriteDefinition definition) => _objects.GetName(definition.RecordId);
+    public string GetName(SpriteDefinition definition) => definition.RecordId == HardwareGroundId ? HardwareGroundName : _objects.GetName(definition.RecordId);
 
     private string GetPath(SpriteDefinition definition) => GetPath(definition.RecordId);
 
-    private string GetPath(KnownObject id) => _objects.GetPath(id);
+    private string GetPath(KnownObject id) => id == HardwareGroundId ? string.Empty : _objects.GetPath(id);
 
     /// <summary>
     /// Exchanges the identities of two definitions.
@@ -287,6 +294,21 @@ public sealed class SpriteCatalog
     /// Gets the second gravity in pixels per millisecond squared.
     /// </summary>
     public float Gravitation2 => _objects.Gravitation2 * SpriteDefinition.PerMillisecondSquared;
+
+    [EngineRoutine(0x00419750)]
+    internal SpriteDefinition CreateHardwareGround()
+    {
+        var definition = new SpriteDefinition(HardwareGroundId, new GameObject(SpriteClass.Primitive, HardwareGroundSize), default, DefaultSpriteSpeed);
+
+        if (_definitions.Length <= (int)HardwareGroundId)
+        {
+            Array.Resize(ref _definitions, (int)HardwareGroundId + 1);
+        }
+
+        _definitions[(int)HardwareGroundId] = definition;
+
+        return definition;
+    }
 
     [EngineRoutine(0x00413710)]
     private static SpriteDefinition CreateDefault() => new(EmptyId, new GameObject(SpriteClass.Primitive, DefaultSize), default, DefaultSpriteSpeed);
