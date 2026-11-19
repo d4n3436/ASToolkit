@@ -561,14 +561,15 @@ public sealed class MapRenderer
             return id;
         }
 
-        int male = (int)id >= (int)KnownObject.PlayerStartFemaleLegs && (int)id <= (int)KnownObject.PlayerStartFemaleLegs + PlayerPartCount - 1
-            ? (int)id - FemalePartOffset : (int)id;
-        if (male is < (int)KnownObject.PlayerStart or >= (int)KnownObject.PlayerStart + PlayerPartCount)
+        var male = id is >= KnownObject.PlayerStartFemaleLegs and <= KnownObject.PlayerStartFemaleLegs + PlayerPartCount - 1
+            ? id - FemalePartOffset : id;
+ 
+        if (male is < KnownObject.PlayerStart or >= KnownObject.PlayerStart + PlayerPartCount)
         {
             return id;
         }
 
-        return (KnownObject)(ShowFemalePlayer ? male + FemalePartOffset : male);
+        return ShowFemalePlayer ? male + FemalePartOffset : male;
     }
 
     private Army GetArmyBits(Army army) => (Army)((byte)army & (_objects.IsAlienShooter2 ? SequelArmyMask : ArmyMask));

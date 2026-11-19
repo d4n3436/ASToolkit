@@ -185,7 +185,7 @@ public sealed class RoomAtlas
             .SelectMany(place => place.Cells.Select(cell => (Cell: cell, place.Id)))
             .ToDictionary(entry => entry.Cell, entry => entry.Id);
         
-        var floors = sprites.Where(sprite => (int)sprite.Id is >= (int)KnownObject.BasementFloor and <= (int)KnownObject.FlatGrass)
+        var floors = sprites.Where(sprite => sprite.Id is >= KnownObject.BasementFloor and <= KnownObject.FlatGrass)
             .Select(sprite => (sprite.Id, Place: owners.GetValueOrDefault(survey.Lattice.GetCell(sprite.Position))))
             .Where(floor => floor.Place != 0)
             .ToLookup(floor => floor.Place, floor => floor.Id);
