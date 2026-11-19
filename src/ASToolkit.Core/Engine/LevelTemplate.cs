@@ -1,5 +1,5 @@
 using System.Numerics;
-using ASToolkit.Core.Engine.Scripts;
+using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Levels;
 
 namespace ASToolkit.Core.Engine;
@@ -45,9 +45,9 @@ public sealed class LevelTemplate
     public Vector2 FallbackStart { get; init; }
 
     /// <summary>
-    /// Gets the script files the level script compiles from.
+    /// Gets the file system the level script and its includes are read from.
     /// </summary>
-    public required IScriptFileSource ScriptFiles { get; init; }
+    public required IGameFileSystem FileSystem { get; init; }
 
     /// <summary>
     /// Gets the path of the level script.

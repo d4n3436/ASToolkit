@@ -1,4 +1,5 @@
 using System.Text;
+using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Engine.Scripts;
 using ASToolkit.Core.Formats;
 using Xunit;
@@ -14,8 +15,8 @@ public class ExportDeclarationTests
     {
         const string scriptPath = "Maps\\export_test.lgc";
         var script = new Script();
-        var files = new ScriptOverlay(new ScriptFolder(TestGameFolder.RequireFolder()), scriptPath, "#include \"maps\\export.lgc\"\nmain()\n{\n}\n");
-        Assert.True(script.Load(files, scriptPath));
+        var fileSystem = new ScriptOverlay(new GameFolder(TestGameFolder.RequireFolder()), scriptPath, "#include \"maps\\export.lgc\"\nmain()\n{\n}\n");
+        Assert.True(script.Load(fileSystem, scriptPath));
         var externs = new Dictionary<int, string>();
         foreach (var name in script.Objects)
         {

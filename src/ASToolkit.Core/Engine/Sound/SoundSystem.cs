@@ -1,5 +1,5 @@
 using System.Numerics;
-using ASToolkit.Core.Engine.Scripts;
+using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Engine;
@@ -42,7 +42,7 @@ public sealed class SoundSystem
 
     private static ReadOnlySpan<byte> OggExtensions => ".Ogg.OGG.ogg"u8;
 
-    private readonly IScriptFileSource _files;
+    private readonly IGameFileSystem _fileSystem;
     private readonly IReadOnlyList<SfxRecord> _records;
     private readonly int[] _variants;
     private readonly SoundBuffer[] _buffers;
@@ -63,11 +63,11 @@ public sealed class SoundSystem
     /// Creates the sound system and loads the samples of every sound.
     /// </summary>
     /// <param name="records">The sounds of the object table.</param>
-    /// <param name="files">The game files the samples and tracks are read from.</param>
+    /// <param name="fileSystem">The file system the samples and tracks are read from.</param>
     [EngineRoutine(0x0041cba0)]
-    public SoundSystem(IReadOnlyList<SfxRecord> records, IScriptFileSource files)
+    public SoundSystem(IReadOnlyList<SfxRecord> records, IGameFileSystem fileSystem)
     {
-        _files = files;
+        _fileSystem = fileSystem;
         _records = records;
         _variants = new int[records.Count];
         _buffers = new SoundBuffer[records.Count * SfxRecord.MaxSamples];
@@ -486,7 +486,7 @@ public sealed class SoundSystem
     [EngineRoutine(0x0041e370)]
     private float LoadWaveLength(ReadOnlySpan<byte> path)
     {
-        if (!_files.TryRead(GameTextEncoding.Cyrillic.GetString(path), out var data))
+        if (!_fileSystem.TryRead(GameTextEncoding.Cyrillic.GetString(path), out var data))
             return -1;
 
         var wave = new WaveResource(data);
@@ -499,7 +499,7 @@ public sealed class SoundSystem
     [EngineRoutine(0x0041e1d0)]
     private float LoadOggLength(ReadOnlySpan<byte> path)
     {
-        if (!_files.TryRead(GameTextEncoding.Cyrillic.GetString(path), out var data))
+        if (!_fileSystem.TryRead(GameTextEncoding.Cyrillic.GetString(path), out var data))
             return -1;
 
         var track = new VorbisResource(data);
@@ -702,7 +702,7 @@ public sealed class SoundSystem
         {
             length = -1;
 
-            if (_files.TryRead(path, out var data))
+            if (_fileSystem.TryRead(path, out var data))
             {
                 var track = new VorbisResource(data);
                 int bytesPerSecond = track.SampleRate * track.Channels * PcmSampleSize;

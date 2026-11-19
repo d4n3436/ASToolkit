@@ -1,4 +1,5 @@
 using System.Text;
+using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Engine.Scripts;
 using ASToolkit.Core.Formats;
 using Xunit;
@@ -92,7 +93,7 @@ public class AlienShooter2CompilerTests
             Assert.Skip("The test game is not Alien Shooter 2.");
         }
 
-        var files = new ScriptFolder(game);
+        var fileSystem = new GameFolder(game);
 
         string[] levels = Directory.GetFiles(Path.Combine(game, "Maps"), "*.lgc")
             .Select(Path.GetFileName)
@@ -104,13 +105,13 @@ public class AlienShooter2CompilerTests
         foreach (string level in levels)
         {
             var script = new Script(ScriptVersion.AlienShooter2);
-            Assert.True(script.Load(files, "maps\\" + level));
+            Assert.True(script.Load(fileSystem, "maps\\" + level));
             Assert.Null(script.CompileError);
             Assert.False(script.Code.IsEmpty, level);
         }
     }
 
-    private static ScriptOverlay CreateSource(string text) => new(new ScriptFolder(AppContext.BaseDirectory), ScriptPath, text);
+    private static ScriptOverlay CreateSource(string text) => new(new GameFolder(AppContext.BaseDirectory), ScriptPath, text);
 
     private static Script Compile(string text)
     {

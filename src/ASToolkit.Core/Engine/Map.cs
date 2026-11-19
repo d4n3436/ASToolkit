@@ -57,7 +57,7 @@ public sealed partial class Map
         Registry = registry ?? new ScriptRegistry("");
         Session = session ?? new GameSession(Registry);
         Session.Cursor ??= ConstructCursor(data.Definitions, Session.ScreenSize);
-        Sound = Session.Sound ??= new SoundSystem(data.Definitions.Sounds, data.ScriptFiles);
+        Sound = Session.Sound ??= new SoundSystem(data.Definitions.Sounds, data.FileSystem);
         _updates = new UpdateOrder();
         data.Definitions.ReloadRecords();
         data.Definitions.ResetLevelState();
@@ -146,7 +146,7 @@ public sealed partial class Map
             }
         }
 
-        if (!Script.Load(data.ScriptFiles, data.ScriptPath))
+        if (!Script.Load(data.FileSystem, data.ScriptPath))
             throw new InvalidDataException($"Cannot compile the script {data.ScriptPath}.");
 
         var objects = Script.Objects;

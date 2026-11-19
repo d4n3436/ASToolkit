@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Globalization;
+using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Engine.Scripts;
@@ -23,7 +24,7 @@ public sealed partial class Script
 
     private readonly Dictionary<byte[], byte[]> _defines = new(ScriptNameComparer.Instance);
     private readonly Dictionary<byte[], byte[]>.AlternateLookup<ReadOnlySpan<byte>> _defineLookup;
-    private IScriptFileSource? _source;
+    private IGameFileSystem? _fileSystem;
     private byte[] _text = [];
     private int _position;
     private int _end;
@@ -48,23 +49,23 @@ public sealed partial class Script
     /// <summary>
     /// Loads a script file, compiling its source or reading its compiled form.
     /// </summary>
-    /// <param name="source">The files the script and its includes are opened from.</param>
+    /// <param name="fileSystem">The file system the script and its includes are read from.</param>
     /// <param name="path">The path of the script file.</param>
     /// <returns><see langword="true"/> when the file was opened; otherwise, <see langword="false"/>.</returns>
     /// <exception cref="InvalidDataException">The source of an Alien Shooter script has an error the engine stops on.</exception>
     [EngineRoutine(0x0041f7d0)]
-    public bool Load(IScriptFileSource source, string path)
+    public bool Load(IGameFileSystem fileSystem, string path)
     {
         Reset();
         FileName = path;
-        if (!source.TryRead(path, out var file))
+        if (!fileSystem.TryRead(path, out var file))
             return false;
 
         Span<byte> head = stackalloc byte[sizeof(int)];
         file.Span[..Math.Min(file.Length, head.Length)].CopyTo(head);
         if (head[^1] != 0)
         {
-            Compile(source, path, file.Span);
+            Compile(fileSystem, path, file.Span);
             return true;
         }
 
@@ -87,10 +88,10 @@ public sealed partial class Script
     }
 
     [EngineRoutine(0x0041f450)]
-    private void Compile(IScriptFileSource source, string path, ReadOnlySpan<byte> file)
+    private void Compile(IGameFileSystem fileSystem, string path, ReadOnlySpan<byte> file)
     {
         FileName = path;
-        _source = source;
+        _fileSystem = fileSystem;
         _codeBuffer = ArrayPool<byte>.Shared.Rent(CodeCapacity);
         _codeSize = 0;
         EnsureVariableCapacity(MinCapacity);
@@ -130,7 +131,7 @@ public sealed partial class Script
         {
             ArrayPool<byte>.Shared.Return(_codeBuffer);
             _codeBuffer = [];
-            _source = null;
+            _fileSystem = null;
         }
     }
 
@@ -1640,7 +1641,7 @@ public sealed partial class Script
         }
 
         string path = Decode(_text.AsSpan(start, _position++ - start));
-        if (!_source!.TryRead(path, out var file))
+        if (!_fileSystem!.TryRead(path, out var file))
             throw ReportError(7, path);
 
         (byte[] text, int position, int end, int line, int depth) = (_text, _position, _end, _line, _ifDepth);

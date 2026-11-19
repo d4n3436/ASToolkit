@@ -1,21 +1,22 @@
 using System.Text;
+using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Engine.Scripts;
 
 namespace ASToolkit.Core.Scripting;
 
-internal sealed class MarkedScriptSource : IScriptFileSource
+internal sealed class MarkedScriptSource : IGameFileSystem
 {
     private const string IncludeMarker = "_IncludeEnd";
 
     private static ReadOnlySpan<byte> RootMarker => "_RootEnd"u8;
-    private readonly IScriptFileSource? _files;
+    private readonly IGameFileSystem? _fileSystem;
     private readonly ReadOnlyMemory<byte> _rootText;
     private bool _rootRead;
     private int _includes;
 
-    public MarkedScriptSource(IScriptFileSource? files, ReadOnlyMemory<byte> rootText = default)
+    public MarkedScriptSource(IGameFileSystem? fileSystem, ReadOnlyMemory<byte> rootText = default)
     {
-        _files = files;
+        _fileSystem = fileSystem;
         _rootText = rootText;
     }
 
@@ -27,7 +28,7 @@ internal sealed class MarkedScriptSource : IScriptFileSource
         {
             data = _rootText;
         }
-        else if (_files is null || !_files.TryRead(path, out data))
+        else if (_fileSystem is null || !_fileSystem.TryRead(path, out data))
         {
             data = default;
             return false;

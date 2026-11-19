@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using ASToolkit.Core.Engine;
+using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Engine.Scripts;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
@@ -46,7 +47,7 @@ public sealed class Playthrough
         """;
     private const int DroneItem = 11;
     private readonly string _gameFolder;
-    private readonly ScriptFolder _scripts;
+    private readonly GameFolder _fileSystem;
     private readonly SpriteCatalog _definitions;
     private readonly ObjectTable _objects;
     private readonly IReadOnlyList<int> _ammoBatches;
@@ -61,7 +62,7 @@ public sealed class Playthrough
     public Playthrough(string gameFolder, ObjectTable objects, GameTable table)
     {
         _gameFolder = gameFolder;
-        _scripts = new ScriptFolder(gameFolder);
+        _fileSystem = new GameFolder(gameFolder);
         _definitions = new SpriteCatalog(gameFolder, objects);
         _objects = objects;
         _shop = new ShopBot(objects, _definitions, table);
@@ -133,7 +134,7 @@ public sealed class Playthrough
         var scripted = new LevelTemplate
         {
             Model = level.Model, Definitions = level.Definitions, Movement = level.Movement, Bounds = level.Bounds, AmmoBatches = level.AmmoBatches,
-            FrameTimes = level.FrameTimes, FallbackStart = level.FallbackStart, ScriptFiles = new ScriptFolder(_gameFolder),
+            FrameTimes = level.FrameTimes, FallbackStart = level.FallbackStart, FileSystem = new GameFolder(_gameFolder),
             ScriptPath = Path.ChangeExtension(GameTextEncoding.Cyrillic.GetString(demo.MapName), ".lgc"),
             LoadingScreenRecords = loadingScreenRecords ?? []
         };
@@ -245,7 +246,7 @@ public sealed class Playthrough
             AmmoBatches = _ammoBatches,
             FrameTimes = FrameTimes,
             FallbackStart = cell >= 0 ? field.GetCenter(cell) : start,
-            ScriptFiles = _scripts.TryRead(scriptPath, out _) ? _scripts : new ScriptOverlay(_scripts, scriptPath, DefaultLevelScript),
+            FileSystem = _fileSystem.TryRead(scriptPath, out _) ? _fileSystem : new ScriptOverlay(_fileSystem, scriptPath, DefaultLevelScript),
             ScriptPath = scriptPath
         };
 

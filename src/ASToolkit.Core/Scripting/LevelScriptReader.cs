@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Numerics;
+using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Engine.Scripts;
 using ASToolkit.Core.Formats;
 
@@ -42,7 +43,7 @@ public static class LevelScriptReader
     private static Script Compile(ReadOnlyMemory<byte> data, string gameFolder, string name, ScriptVersion version)
     {
         var script = new Script(version);
-        script.Load(new MarkedScriptSource(new ScriptFolder(gameFolder), data), name);
+        script.Load(new MarkedScriptSource(new GameFolder(gameFolder), data), name);
 
         return script;
     }

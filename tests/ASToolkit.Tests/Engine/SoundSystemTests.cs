@@ -1,6 +1,6 @@
 using System.Numerics;
 using ASToolkit.Core.Engine;
-using ASToolkit.Core.Engine.Scripts;
+using ASToolkit.Core.Engine.IO;
 using Xunit;
 
 namespace ASToolkit.Tests.Engine;
@@ -12,7 +12,7 @@ public class SoundSystemTests
     private const int FrameTime = 17;
     private const int MaxDraws = 1000;
 
-    private static SoundSystem CreateSound() => new(TestGameFolder.Objects.Sounds, new ScriptFolder(TestGameFolder.RequireFolder()));
+    private static SoundSystem CreateSound() => new(TestGameFolder.Objects.Sounds, new GameFolder(TestGameFolder.RequireFolder()));
 
     private static int CountDraws(GameRandom random, int startState)
     {

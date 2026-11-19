@@ -1,3 +1,4 @@
+using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Engine.Scripts;
 using ASToolkit.Core.Formats;
 using Xunit;
@@ -12,13 +13,13 @@ public class ScriptCompilerTests
     [Fact]
     public void Load_RecordedLevelScript_MatchesTheScriptStateOfTheDemo()
     {
-        var source = new ScriptFolder(TestGameFolder.RequireFolder());
+        var fileSystem = new GameFolder(TestGameFolder.RequireFolder());
         var demo = new DemoResource(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", "addon2-level1-walk.dem")));
         string path = Path.ChangeExtension(GameTextEncoding.Cyrillic.GetString(demo.MapName), ".lgc");
         var compiled = new Script();
         var recorded = new Script();
-        Assert.True(compiled.Load(source, path));
-        Assert.True(recorded.Load(source, path));
+        Assert.True(compiled.Load(fileSystem, path));
+        Assert.True(recorded.Load(fileSystem, path));
 
         int offset = recorded.ReadState(demo.Body);
         while (demo.TryReadFrame(ref offset, out _))

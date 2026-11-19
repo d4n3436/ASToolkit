@@ -1,5 +1,6 @@
 using System.Numerics;
 using ASToolkit.Core.Engine;
+using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Engine.Scripts;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
@@ -52,7 +53,7 @@ internal static class EngineTestMap
             AmmoBatches = new int[10],
             FrameTimes = [frameTime],
             FallbackStart = new Vector2(1000),
-            ScriptFiles = new ScriptOverlay(new ScriptFolder(TestGameFolder.RequireFolder()), ScriptPath, Script),
+            FileSystem = new ScriptOverlay(new GameFolder(TestGameFolder.RequireFolder()), ScriptPath, Script),
             ScriptPath = ScriptPath
         };
 

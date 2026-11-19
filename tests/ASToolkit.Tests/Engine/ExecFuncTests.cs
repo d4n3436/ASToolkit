@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Text;
 using ASToolkit.Core.Engine;
+using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Engine.Scripts;
 using ASToolkit.Core.Formats;
 using Xunit;
@@ -265,8 +266,8 @@ public class ExecFuncTests
     private static Script Compile(Map map, string text)
     {
         var script = map.Script;
-        var files = new ScriptOverlay(new ScriptFolder(TestGameFolder.RequireFolder()), ScriptPath, "#include \"maps\\export.lgc\"\n" + text);
-        Assert.True(script.Load(files, ScriptPath));
+        var fileSystem = new ScriptOverlay(new GameFolder(TestGameFolder.RequireFolder()), ScriptPath, "#include \"maps\\export.lgc\"\n" + text);
+        Assert.True(script.Load(fileSystem, ScriptPath));
 
         return script;
     }
