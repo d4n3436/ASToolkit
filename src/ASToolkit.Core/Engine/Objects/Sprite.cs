@@ -286,11 +286,6 @@ public sealed class Sprite : IResettable
     public int[] SlotAmmo => _slotAmmo ??= new int[MaxWeaponSlot + 1];
 
     /// <summary>
-    /// Gets or sets the health the sprite had before the hit that killed it.
-    /// </summary>
-    public int HpBeforeDeath { get; set; }
-
-    /// <summary>
     /// Gets or sets the behavior bits of the sprite.
     /// </summary>
     public WeaponBehavior Behavior { get; set; }
@@ -386,9 +381,9 @@ public sealed class Sprite : IResettable
     public Vector3 GoalPosition => Goal?.Position ?? GoalPoint.GetValueOrDefault();
 
     /// <summary>
-    /// Gets a value indicating whether the sprite has health left.
+    /// Gets a value indicating whether the sprite has health left and has not entered a death state.
     /// </summary>
-    public bool IsAlive => Hp > 0;
+    public bool IsAlive => Hp > 0 && Animation < SpriteAnimation.Death;
 
     /// <summary>
     /// Gets a value indicating whether another sprite refers to the sprite.

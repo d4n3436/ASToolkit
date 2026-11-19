@@ -52,7 +52,8 @@ public class ScriptHandlerTests
         Step(map, 10, recorder);
 
         var replay = recorder.CreateReplay([]);
-        Assert.Equal(tank.MaxHp - 300, monster.Hp);
+        Assert.False(monster.IsAlive);
+        Assert.Equal(tank.MaxHp, monster.Hp);
         Assert.Contains(replay.Flashes, flash => flash.Color == 0xffffff);
         Assert.NotEmpty(replay.Shakes);
         Assert.All(replay.Shakes, shake => Assert.InRange(Math.Abs(shake.Offset.X) + Math.Abs(shake.Offset.Y), 0, 8));

@@ -586,11 +586,6 @@ public sealed partial class Map
 
                 break;
             case ActionCode.ChangeVid:
-                if (!sprite.IsAlive && (SpriteAnimation)var2 < SpriteAnimation.Death)
-                {
-                    sprite.Hp = sprite.HpBeforeDeath;
-                }
-
             {
                 var definition = Definitions.Find((KnownObject)var1);
 

@@ -997,21 +997,25 @@ public sealed partial class Map
             return;
 
         int previousHp = sprite.Hp;
-        sprite.Hp -= damage;
+        bool isDead = previousHp - damage < 1;
 
-        if (!sprite.IsAlive)
+        if (isDead)
         {
-            sprite.HpBeforeDeath = previousHp;
             sprite.Definition.Killed[(int)sprite.Army & 3]++;
         }
-
-        if (sprite.IsAlive && previousHp > sprite.Definition.MaxHp / 2 && sprite.Hp <= sprite.Definition.MaxHp / 2)
+        else
         {
-            sprite.ChangeAnimation(SpriteAnimation.Wound);
-        }
-        bool staggers = sprite is { IsAlive: true, Animation: SpriteAnimation.Stand or SpriteAnimation.Go } && sprite.Definition.Layout.GetFrameCount(SpriteAnimation.Close) > 0;
+            sprite.Hp = previousHp - damage;
 
-        if (staggers)
+            if (previousHp > sprite.Definition.MaxHp / 2 && sprite.Hp <= sprite.Definition.MaxHp / 2)
+            {
+                sprite.ChangeAnimation(SpriteAnimation.Wound);
+            }
+        }
+
+        bool isStaggered = !isDead && sprite.Animation is SpriteAnimation.Stand or SpriteAnimation.Go && sprite.Definition.Layout.GetFrameCount(SpriteAnimation.Close) > 0;
+
+        if (isStaggered)
         {
             sprite.ChangeAnimation(SpriteAnimation.Close);
         }
@@ -1020,7 +1024,7 @@ public sealed partial class Map
             CreateChildFor(sprite, SpriteAnimation.Close);
         }
 
-        if (!sprite.IsAlive)
+        if (isDead)
         {
             CompleteDeath(sprite, damage > sprite.Definition.MaxHp ? SpriteAnimation.Death2 : SpriteAnimation.Death);
         }
