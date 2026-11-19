@@ -862,5 +862,17 @@ public sealed class Unit : IResettable
         return Direction.StepToward(goal, step, out _);
     }
 
+    /// <summary>
+    /// Traverses over the unit's <see cref="Link"/> chain.
+    /// </summary>
+    /// <returns>The chain as an <see cref="IEnumerable{T}"/>.</returns>
+    public IEnumerable<Unit> EnumerateLinks()
+    {
+        for (var link = Link; link is not null; link = link.Link)
+        {
+            yield return link;
+        }
+    }
+
     bool IResettable.TryReset() => !IsReferenced;
 }

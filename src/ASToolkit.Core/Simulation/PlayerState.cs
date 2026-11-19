@@ -71,7 +71,7 @@ internal sealed class PlayerState
 
     private int GetArmorHp()
     {
-        for (var link = _world.Player.Link; link is not null; link = link.Link)
+        foreach (var link in _world.Player.EnumerateLinks())
         {
             if (link.Definition.Id is >= KnownObject.WornGreenArmor and <= KnownObject.WornRedArmor)
                 return link.Hp;

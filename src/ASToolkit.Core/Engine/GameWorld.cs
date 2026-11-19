@@ -1042,13 +1042,13 @@ public sealed partial class GameWorld
     {
         if (man.Definition.Id != KnownObject.MannedCannon)
         {
-            for (var link = man.Link; link is not null; link = link.Link)
+            foreach (var link in man.EnumerateLinks())
             {
                 if (link.Definition.Id is KnownObject.InvulnerabilityEffect or KnownObject.RescueMedkitEffect)
                     return 0;
             }
 
-            for (var link = man.Link; link is not null; link = link.Link)
+            foreach (var link in man.EnumerateLinks())
             {
                 int armor = link.Definition.Id - KnownObject.WornGreenArmor;
 

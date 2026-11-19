@@ -234,7 +234,7 @@ public sealed partial class GameWorld
     {
         get
         {
-            for (var link = Player.Link; link is not null; link = link.Link)
+            foreach (var link in Player.EnumerateLinks())
             {
                 if (link.Definition.Id is KnownObject.InvulnerabilityEffect or KnownObject.RescueMedkitEffect)
                     return true;

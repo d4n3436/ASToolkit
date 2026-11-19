@@ -80,8 +80,11 @@ public sealed partial class GameWorld : IScriptFunctionHost
             owner.Link = null;
         }
 
-        for (var link = unit.Link; link is not null && link.Owner == unit; link = unit.Link)
+        foreach (var link in unit.EnumerateLinks())
         {
+            if (link.Owner != unit)
+                continue;
+            
             DestroySprite(link);
 
             if (unit.Link == link)
