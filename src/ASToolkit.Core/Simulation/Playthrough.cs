@@ -97,10 +97,11 @@ public sealed class Playthrough
     /// <param name="analysis">The route analysis of the level the demo plays.</param>
     /// <param name="demo">The demo.</param>
     /// <param name="loadingScreenRecords">The stored sprites before which the game's loading screen redrew while the level loaded.</param>
+    /// <param name="registry">The registry the level script reads, or null for an empty one.</param>
     /// <returns>The player after the level loads and after each frame.</returns>
-    public IReadOnlyList<DemoReplayPoint> ReplayDemo(RouteAnalysis analysis, DemoResource demo, IReadOnlyList<int>? loadingScreenRecords = null)
+    public IReadOnlyList<DemoReplayPoint> ReplayDemo(RouteAnalysis analysis, DemoResource demo, IReadOnlyList<int>? loadingScreenRecords = null, ScriptRegistry? registry = null)
     {
-        var map = LoadDemo(analysis, demo, loadingScreenRecords);
+        var map = LoadDemo(analysis, demo, loadingScreenRecords, registry);
         var points = new List<DemoReplayPoint> { GetReplayPoint(map) };
         uint now = 0;
         while (true)
@@ -118,7 +119,7 @@ public sealed class Playthrough
         return points;
     }
 
-    internal Map LoadDemo(RouteAnalysis analysis, DemoResource demo, IReadOnlyList<int>? loadingScreenRecords = null)
+    internal Map LoadDemo(RouteAnalysis analysis, DemoResource demo, IReadOnlyList<int>? loadingScreenRecords = null, ScriptRegistry? registry = null)
     {
         var level = GetSetup(analysis).Level;
         var scripted = new LevelTemplate
@@ -128,7 +129,7 @@ public sealed class Playthrough
             ScriptPath = Path.ChangeExtension(GameTextEncoding.Cyrillic.GetString(demo.MapName), ".lgc"),
             LoadingScreenRecords = loadingScreenRecords ?? []
         };
-        var map = new Map(scripted, new GameRandom(demo.Seed), demo: demo);
+        var map = new Map(scripted, new GameRandom(demo.Seed), demo: demo, registry: registry);
         AddLoosePickups(analysis, map);
 
         return map;
