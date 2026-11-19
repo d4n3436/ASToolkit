@@ -119,14 +119,8 @@ internal sealed class WeaponSystem
             return false;
 
         player.SlotAmmo[player.WeaponSlot] = player.GetAmmo();
-        var weapon = _definitions.Find((KnownObject)(slot + Sprite.WeaponIdBase));
-
-        if (weapon is not null)
-        {
-            ChangeTorso(weapon);
-        }
-
-        player.Definition.LinkDefinition = weapon;
+        _map.Action(Torso, ActionCode.ChangeVid, slot + Sprite.WeaponIdBase, (int)SpriteAnimation.Stand);
+        player.Definition.LinkDefinition = _definitions.Find((KnownObject)(slot + Sprite.WeaponIdBase));
         player.AddAmmo(player.SlotAmmo[slot] - player.GetAmmo());
 
         return true;
@@ -149,19 +143,6 @@ internal sealed class WeaponSystem
         {
             carried.Owner = null;
             SpawnedObjectSystem.AppendLink(Torso, carried);
-        }
-    }
-
-    private void ChangeTorso(SpriteDefinition weapon)
-    {
-        int layer = Torso.Definition.Layer;
-        _map.DropLinks(Torso);
-        Torso.ChangeVid(weapon, SpriteAnimation.Stand);
-        _map.Effects.CreateLink(Torso, _map.Time, 0);
-
-        if (weapon.Layer != layer)
-        {
-            _map.Register(UpdateRole.Torso, Torso);
         }
     }
 

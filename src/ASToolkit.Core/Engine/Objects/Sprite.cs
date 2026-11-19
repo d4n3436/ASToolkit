@@ -396,13 +396,11 @@ public sealed class Sprite : IResettable
     public bool IsReferenced { get; private set; }
 
     /// <summary>
-    /// Changes the sprite's definition and state.
+    /// Changes the sprite's definition, moving its count and resetting it to the first frame of the standing state, facing up.
     /// </summary>
     /// <param name="definition">The new definition.</param>
-    /// <param name="state">The state to enter.</param>
-    public void ChangeVid(SpriteDefinition definition, SpriteAnimation state)
+    public void ChangeVid(SpriteDefinition definition)
     {
-        var direction = Direction;
         if (IsCounted)
         {
             int army = (int)Army & 3;
@@ -415,8 +413,11 @@ public sealed class Sprite : IResettable
         }
 
         Definition = definition;
-        ChangeAnimation(state);
-        ChangeDirection(direction);
+        Animation = SpriteAnimation.Stand;
+        _direction = default;
+        FirstFrame = 0;
+        Frame = 0;
+        LastFrame = definition.Layout.GetFramesPerDirection(SpriteAnimation.Stand) - 1;
     }
 
     /// <summary>

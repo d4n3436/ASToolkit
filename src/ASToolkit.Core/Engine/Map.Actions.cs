@@ -594,8 +594,12 @@ public sealed partial class Map
                     DropLinks(sprite);
                 }
 
-                sprite.ChangeVid(definition, var2 < 0 ? sprite.Animation : (SpriteAnimation)var2);
+                RemoveFromUpdates(sprite);
+                var state = var2 < 0 ? sprite.Animation : (SpriteAnimation)var2;
+                var direction = sprite.Direction;
+                sprite.ChangeVid(definition);
                 Collector.ChangeCoor(sprite);
+                AddToUpdates(sprite);
 
                 if (sprite == Player)
                 {
@@ -606,6 +610,8 @@ public sealed partial class Map
                     CreateLink(sprite);
                 }
 
+                sprite.ChangeAnimation(state);
+                sprite.ChangeDirection(direction);
                 break;
             }
             case ActionCode.ChangeCoor:
@@ -768,6 +774,28 @@ public sealed partial class Map
         }
 
         return 0;
+    }
+
+    [EngineRoutine(0x004429f0)]
+    private void RemoveFromUpdates(Sprite sprite)
+    {
+        if (sprite.Link is not null)
+        {
+            RemoveFromUpdates(sprite.Link);
+        }
+
+        _updates.Remove(sprite.Definition.Layer, sprite);
+    }
+
+    [EngineRoutine(0x00442a10)]
+    private void AddToUpdates(Sprite sprite)
+    {
+        if (sprite.Link is not null)
+        {
+            AddToUpdates(sprite.Link);
+        }
+
+        _updates.Add(sprite.Definition.Layer, new UpdateEntry(sprite.Role, sprite));
     }
 
     [EngineRoutine(0x00442ad0)]
