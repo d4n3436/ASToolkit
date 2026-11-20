@@ -113,12 +113,12 @@ public sealed partial class Map : IScriptFunctionHost
     /// <param name="sprite">The sprite.</param>
     public void ReleaseSprite(Sprite sprite)
     {
-        RunDestroyHandler(sprite);
-
         if (IsMenuClass(sprite.Definition))
         {
-            RemoveMenuSprite(sprite);
+            DestructFrame(sprite);
         }
+
+        RunDestroyHandler(sprite);
 
         if (sprite.IsCounted)
         {
@@ -374,6 +374,18 @@ public sealed partial class Map : IScriptFunctionHost
                 DeleteMenuSpriteAt(index);
             }
         }
+    }
+
+    [EngineRoutine(0x00448af0)]
+    private void DestructFrame(Sprite sprite)
+    {
+        if (_menuCurrent == sprite)
+        {
+            _menuCurrent = null;
+        }
+
+        RemoveMenuSprite(sprite);
+        DeletePointerToSprite(sprite);
     }
 
     [EngineRoutine(0x0043deb0)]

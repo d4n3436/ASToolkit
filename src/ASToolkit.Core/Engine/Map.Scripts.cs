@@ -154,6 +154,7 @@ public sealed partial class Map
             return true;
 
         RemoveScripted(sprite);
+        UnlinkDestroyed(sprite);
 
         return false;
     }

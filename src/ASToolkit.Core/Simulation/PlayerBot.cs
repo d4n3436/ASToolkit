@@ -318,6 +318,9 @@ internal sealed class PlayerBot
         Vector2? goal = player is { Command: Command.Move, HasGoal: true } ? player.GoalPosition.AsVector2() : null;
         _map.Step(_map.StepDemo(_map.WallTime, out _));
 
+        if (!_map.HasPlayer)
+            return;
+
         if (goal is not null && player.Command != Command.Move)
         {
             _reachedGoal = goal;

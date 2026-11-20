@@ -465,6 +465,8 @@ public sealed partial class Map : IDisposable
                     RemovePlacement(sprite.Placement);
                 }
 
+                UnlinkDestroyed(sprite);
+
                 return false;
         }
     }
@@ -525,6 +527,7 @@ public sealed partial class Map : IDisposable
         if (torso is not null)
         {
             ReleaseSprite(torso);
+            UnlinkDestroyed(torso);
         }
 
         ReleaseSprite(player);
@@ -766,7 +769,7 @@ public sealed partial class Map : IDisposable
 
         if (owner is not null)
         {
-            if (owner.Link != sprite || (owner.Number >= 0 && !_monsterSet.Contains(owner)))
+            if (owner.Link != sprite || (owner.Role == UpdateRole.Monster && !_monsterSet.Contains(owner)))
             {
                 RemoveMonster(sprite);
                 DeletePointerToSprite(sprite);
@@ -783,6 +786,7 @@ public sealed partial class Map : IDisposable
         Collector.DeleteFromHash(sprite);
         DeletePointerToSprite(sprite);
         ReleaseSprite(sprite);
+        UnlinkDestroyed(sprite);
 
         return false;
     }
@@ -790,7 +794,6 @@ public sealed partial class Map : IDisposable
     [EngineRoutine(0x00405160)]
     private void DeletePointerToSprite(Sprite removed)
     {
-        ForgetMenuSprite(removed);
         DeleteBasePointerToSprite(removed);
 
         if (removed.Link?.Owner == removed)
