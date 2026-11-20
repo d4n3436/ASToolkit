@@ -1204,8 +1204,18 @@ public sealed partial class Map : IScriptFunctionHost
                 script.PushText(ProfileFile.GetString(_fileSystem, StringsFile, script.PopText().Span, keyword.Span));
                 break;
             }
-            case ScriptFunction.Save:
             case ScriptFunction.Pause:
+                if (script.PopNumber() != 0)
+                {
+                    Pause();
+                }
+                else
+                {
+                    Resume();
+                }
+
+                break;
+            case ScriptFunction.Save:
             case ScriptFunction.Exec:
             case ScriptFunction.FClose:
                 script.Pop();

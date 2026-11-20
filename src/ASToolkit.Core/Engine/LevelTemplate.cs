@@ -5,7 +5,7 @@ using ASToolkit.Core.Levels;
 namespace ASToolkit.Core.Engine;
 
 /// <summary>
-/// Represents the model, definitions, terrain and script source a map loads a level from.
+/// Represents the map contents, definitions, terrain and script source a map loads a level from.
 /// </summary>
 public sealed record LevelTemplate
 {
@@ -17,19 +17,15 @@ public sealed record LevelTemplate
     /// <param name="fileSystem">The file system the map, the level script and its includes are read from.</param>
     /// <param name="mapPath">The path of the map, relative to the game folder.</param>
     /// <param name="definitions">The sprite definitions.</param>
-    /// <param name="objects">The object table.</param>
     /// <param name="ammoBatches">The rounds an ammunition pickup gives per weapon slot.</param>
     /// <returns>The template.</returns>
     /// <exception cref="FileNotFoundException">The map cannot be read.</exception>
-    /// <exception cref="InvalidDataException">The map holds no level.</exception>
-    public static LevelTemplate FromMap(IGameFileSystem fileSystem, string mapPath, SpriteCatalog definitions, ObjectTable objects, IReadOnlyList<int> ammoBatches)
+    public static LevelTemplate FromMap(IGameFileSystem fileSystem, string mapPath, SpriteCatalog definitions, IReadOnlyList<int> ammoBatches)
     {
         if (!fileSystem.TryRead(mapPath, out var data))
             throw new FileNotFoundException($"Cannot read the map {mapPath}.", mapPath);
 
-        var model = LevelExtractor.Extract(mapPath, MapResourceBuilder.Parse(data), objects) ?? throw new InvalidDataException($"Missing level in the map {mapPath}.");
-
-        return FromModel(model, fileSystem, Path.ChangeExtension(mapPath, ScriptExtension), definitions, ammoBatches);
+        return FromMapData(MapData.FromMap(MapResourceBuilder.Parse(data)), fileSystem, Path.ChangeExtension(mapPath, ScriptExtension), definitions, ammoBatches);
     }
 
     /// <summary>
@@ -41,11 +37,14 @@ public sealed record LevelTemplate
     /// <param name="definitions">The sprite definitions.</param>
     /// <param name="ammoBatches">The rounds an ammunition pickup gives per weapon slot.</param>
     /// <returns>The template.</returns>
-    public static LevelTemplate FromModel(LevelModel model, IGameFileSystem fileSystem, string scriptPath, SpriteCatalog definitions, IReadOnlyList<int> ammoBatches) => new()
+    public static LevelTemplate FromModel(LevelModel model, IGameFileSystem fileSystem, string scriptPath, SpriteCatalog definitions, IReadOnlyList<int> ammoBatches) =>
+        FromMapData(MapData.FromModel(model), fileSystem, scriptPath, definitions, ammoBatches);
+
+    private static LevelTemplate FromMapData(MapData mapData, IGameFileSystem fileSystem, string scriptPath, SpriteCatalog definitions, IReadOnlyList<int> ammoBatches) => new()
     {
-        Model = model,
+        MapData = mapData,
         Definitions = definitions,
-        Movement = definitions.CreateMovementMap(model),
+        Movement = definitions.CreateMovementMap(mapData),
         AmmoBatches = ammoBatches,
         FrameTimes = GameClock.DisplayFrameTimes,
         FileSystem = fileSystem,
@@ -53,9 +52,9 @@ public sealed record LevelTemplate
     };
 
     /// <summary>
-    /// Gets the model of the level.
+    /// Gets the contents of the map file.
     /// </summary>
-    public required LevelModel Model { get; init; }
+    public required MapData MapData { get; init; }
 
     /// <summary>
     /// Gets the sprite definitions of the level.

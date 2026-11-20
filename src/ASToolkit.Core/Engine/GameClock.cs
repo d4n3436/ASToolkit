@@ -21,6 +21,7 @@ public struct GameClock
     public const int MillisecondsPerSecond = 1000;
 
     private const int LevelStartPreviousTime = 1;
+    private const int ResumeFrameTime = 10;
     private const uint MaxWallStep = 71;
     private const uint FrameRateWindow = 1000;
     private const float NormalSpeed = 1;
@@ -109,6 +110,16 @@ public struct GameClock
     {
         FrameTime = time - (Time - FrameTime);
         Time = time;
+    }
+
+    /// <summary>
+    /// Sets the game time back to the time a pause started, with a short last frame.
+    /// </summary>
+    /// <param name="time">The time in milliseconds.</param>
+    public void Resume(int time)
+    {
+        Time = time;
+        FrameTime = ResumeFrameTime;
     }
 
     /// <summary>

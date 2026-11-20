@@ -30,6 +30,7 @@ public sealed partial class Map : IDisposable
     private readonly UpdateOrder _updates;
     private readonly List<Sprite> _builders = [];
     private readonly List<Sprite> _menuSprites = [];
+    private int _pausedAt;
     private MenuClicks _menuClicks;
     private Sprite? _menuCurrent;
     private readonly IGameFileSystem _fileSystem;
@@ -66,20 +67,20 @@ public sealed partial class Map : IDisposable
         int seed = rng.State;
         Registry = registry ?? new ScriptRegistry("");
         Session = session ?? new GameSession(Registry);
-        Session.Logger.Write("CurrentTime   =%-15u   sizeof(SPRITE)=%-8i Map version   =%i"u8, GameClock.LevelStartTime, SpriteRecordSize, data.Model.Version);
+        Session.Logger.Write("CurrentTime   =%-15u   sizeof(SPRITE)=%-8i Map version   =%i"u8, GameClock.LevelStartTime, SpriteRecordSize, data.MapData.Version);
         Session.Cursor ??= ConstructCursor(data.Definitions, Session.ScreenSize);
         _fileSystem = data.FileSystem;
         Sound = Session.Sound ??= new SoundSystem(data.Definitions.Sounds, data.FileSystem);
         _updates = new UpdateOrder();
         data.Definitions.ReloadRecords();
         data.Definitions.ResetLevelState();
-        var model = data.Model;
+        var mapData = data.MapData;
         var definitions = data.Definitions;
         var frameTimes = data.FrameTimes;
         _clock = new GameClock(frameTimes);
-        _sprites = model.Sprites.ToList();
-        _environment = model.Environment;
-        Gamma = model.Ambient;
+        _sprites = mapData.Sprites.ToList();
+        _environment = mapData.Environment;
+        Gamma = mapData.Ambient;
         Definitions = definitions;
         _rng = rng;
         Movement = data.Movement.Clone();
@@ -88,7 +89,7 @@ public sealed partial class Map : IDisposable
 
         Motion = new SpriteKinematics(definitions, this);
         Effects = new SpawnedObjectSystem(definitions, Movement, rng, this);
-        var start = model.Sprites.FirstOrDefault(placement => placement.Id is KnownObject.PlayerStart or KnownObject.PlayerStartFemaleLegs);
+        var start = mapData.Sprites.FirstOrDefault(placement => placement.Id is KnownObject.PlayerStart or KnownObject.PlayerStartFemaleLegs);
         Player = new Sprite(_spriteCount++, legs, start?.Position ?? Vector3.Zero, Army.Player, legs.MaxHp)
         { CreatedAt = Time };
         Weapons = new WeaponSystem(this, definitions, rng);
@@ -96,7 +97,7 @@ public sealed partial class Map : IDisposable
         PlayerMovement = new PlayerMovement(spriteCollision);
         _controls = (controls ?? ControlSettings.Default).Clone();
         Input = new PlayerInput(_controls);
-        SetPosition(Session.ScreenSize.ToVector2() * HalfShare + model.Camera, CameraMove.None);
+        SetPosition(Session.ScreenSize.ToVector2() * HalfShare + mapData.Camera, CameraMove.None);
         for (int slot = 0; slot < PlayerSlots; slot++)
         {
             _players[slot] = new Player(this, spriteCollision, _controls);
@@ -111,9 +112,9 @@ public sealed partial class Map : IDisposable
             ConstructPlayer(default);
         }
 
-        for (int record = 0; record < model.StoredSprites.Count; record++)
+        for (int record = 0; record < mapData.StoredSprites.Count; record++)
         {
-            var placement = model.StoredSprites[record];
+            var placement = mapData.StoredSprites[record];
             ConstructLoadingScreen(data.LoadingScreenRecords, record);
 
             if (placement == start)
@@ -136,9 +137,9 @@ public sealed partial class Map : IDisposable
             }
         }
 
-        ConstructLoadingScreen(data.LoadingScreenRecords, model.StoredSprites.Count);
+        ConstructLoadingScreen(data.LoadingScreenRecords, mapData.StoredSprites.Count);
 
-        foreach (var placement in model.StoredSprites)
+        foreach (var placement in mapData.StoredSprites)
         {
             if (!placedSprites.TryGetValue(placement.Handle, out var sprite))
                 continue;
@@ -186,7 +187,7 @@ public sealed partial class Map : IDisposable
             StartDemoRecording(GameTextEncoding.Cyrillic.GetBytes(Path.ChangeExtension(data.ScriptPath, MapExtension)), seed);
         }
 
-        LoadGroups(model.Groups, placedSprites);
+        LoadGroups(mapData.Groups, placedSprites);
         IsLoading = false;
 
         for (int layer = 0; layer < UpdateOrder.LayerCount; layer++)
@@ -621,7 +622,12 @@ public sealed partial class Map : IDisposable
         Script.CallFunction(this, MainFunction, 0, 0, 0);
         UpdateScreen(drawFrame);
 
-        for (int layer = 0; layer < UpdateOrder.UpdatedLayerCount; layer++)
+        if (IsPaused)
+        {
+            TickMenuSprites();
+        }
+
+        for (int layer = 0; layer < UpdateOrder.UpdatedLayerCount && !IsPaused; layer++)
         {
             var list = _updates.GetLayer(layer);
             for (int i = list.Count - 1; i >= 0; i--)
@@ -638,7 +644,7 @@ public sealed partial class Map : IDisposable
         Effects.Compact();
         Scroll();
 
-        if (IsPlayerControlled)
+        if (IsPlayerControlled && !IsPaused)
         {
             foreach (var controller in _players)
             {
@@ -647,6 +653,59 @@ public sealed partial class Map : IDisposable
         }
 
         Sound.Tact(_rng, Time, _clock.WallTime);
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether the script paused the level, updating only its menu sprites.
+    /// </summary>
+    public bool IsPaused { get; private set; }
+
+    [EngineRoutine(0x0040f9e0)]
+    private void Pause()
+    {
+        if (!IsPaused)
+        {
+            _pausedAt = Time;
+        }
+
+        IsPaused = true;
+    }
+
+    [EngineRoutine(0x0040fa00)]
+    private void Resume()
+    {
+        if (!IsPaused)
+            return;
+
+        for (int layer = 0; layer < UpdateOrder.LayerCount; layer++)
+        {
+            foreach (var entry in _updates.GetLayer(layer))
+            {
+                entry.Sprite?.LastTickTime = _pausedAt;
+            }
+        }
+
+        _clock.Resume(_pausedAt);
+        IsPaused = false;
+    }
+
+    private void TickMenuSprites()
+    {
+        for (int i = _menuSprites.Count - 1; i >= 0; i--)
+        {
+            var sprite = _menuSprites[i];
+            int layer = sprite.Definition.Layer;
+
+            if (TickEntry(new UpdateEntry(sprite.Role, sprite), layer))
+                continue;
+
+            var list = _updates.GetLayer(layer);
+            int index = list.FindIndex(entry => entry.Sprite == sprite);
+            if (index >= 0)
+            {
+                UpdateOrder.Clear(list, index);
+            }
+        }
     }
 
     /// <summary>

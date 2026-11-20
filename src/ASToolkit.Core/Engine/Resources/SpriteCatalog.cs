@@ -1,6 +1,5 @@
 using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Levels;
 using System.Collections.Concurrent;
 using System.Numerics;
 
@@ -279,7 +278,7 @@ public sealed class SpriteCatalog
         }
     }
 
-    internal MovementMap CreateMovementMap(LevelModel model) => new(model, Parts);
+    internal MovementMap CreateMovementMap(MapData mapData) => new(mapData, Parts);
 
     internal void AddTerrain(MovementMap movement, MergedMapSprite sprite) => movement.Add(sprite, Parts, true);
 

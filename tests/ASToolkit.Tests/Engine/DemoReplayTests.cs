@@ -96,7 +96,7 @@ public class DemoReplayTests
         string game = TestGameFolder.RequireFolder();
         var demo = ReadDemo(fixture);
         string mapPath = GameTextEncoding.Cyrillic.GetString(demo.MapName);
-        var template = LevelTemplate.FromMap(new GameFolder(game), mapPath, new SpriteCatalog(game, TestGameFolder.Objects), TestGameFolder.Objects,
+        var template = LevelTemplate.FromMap(new GameFolder(game), mapPath, new SpriteCatalog(game, TestGameFolder.Objects),
             TestGameFolder.Table.GetArray("GettingAmmo")) with { LoadingScreenRecords = loadingScreenRecords ?? [] };
 
         return new Map(template, new GameRandom(demo.Seed), demo: demo);

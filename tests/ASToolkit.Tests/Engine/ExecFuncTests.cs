@@ -34,6 +34,31 @@ public class ExecFuncTests
     }
 
     [Fact]
+    public void ExecFunc_PauseThenResume_RewindsTheClockToThePause()
+    {
+        var (map, script) = Run("""
+            int unused;
+            main()
+            {
+              Pause(1);
+            }
+            """);
+        int pausedAt = map.Time;
+        map.AdvanceClock();
+        map.AdvanceClock();
+
+        Assert.True(map.IsPaused);
+        Assert.True(map.Time > pausedAt);
+
+        Assert.True(script.Load(new ScriptOverlay(new GameFolder(TestGameFolder.RequireFolder()), ScriptPath, "#include \"maps\\export.lgc\"\nmain()\n{\n  Pause(0);\n}\n"), ScriptPath));
+        script.CallFunction(map, -1, 0, 0, 0);
+
+        Assert.False(map.IsPaused);
+        Assert.Equal(pausedAt, map.Time);
+        Assert.Equal(pausedAt, map.Player.LastTickTime);
+    }
+
+    [Fact]
     public void ExecFunc_TextBuiltIns_FormatAndConvertAsTheCRuntime()
     {
         var (_, script) = Run("""

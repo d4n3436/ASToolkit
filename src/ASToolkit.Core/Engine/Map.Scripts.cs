@@ -304,7 +304,7 @@ public sealed partial class Map
     [EngineRoutine(0x00430870)]
     private void UpdateScreen(bool drawFrame)
     {
-        if (_environment.HasFlag(MapEnvironment.Earthquake))
+        if (_environment.HasFlag(MapEnvironment.Earthquake) && !IsPaused)
         {
             var screen = Session.ScreenSize;
             double centerX = screen.Width * HalfShare + (double)Camera.X;

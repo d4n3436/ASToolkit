@@ -34,14 +34,8 @@ internal static class EngineTestMap
     {
         var placed = new List<MergedMapSprite> { new(StartHandle, KnownObject.PlayerStart, new Vector3(1000, 1000, 0), default, Army.Player, []) };
         placed.AddRange(sprites ?? []);
-        var model = new LevelModel
+        var mapData = new MapData
         {
-            Name = "Engine test",
-            WallSet = WallSet.Basement,
-            Lattice = new Lattice(20, 14),
-            Cells = new HashSet<Cell> { new(0, 0), new(400, 400) },
-            Edges = new Dictionary<EdgeKey, EdgeKind>(),
-            Objects = [],
             Sprites = placed,
             StoredSprites = placed,
             Environment = environment,
@@ -50,7 +44,7 @@ internal static class EngineTestMap
 
         var level = new LevelTemplate
         {
-            Model = model,
+            MapData = mapData,
             Definitions = definitions,
             Movement = new MovementMap(),
             AmmoBatches = new int[10],

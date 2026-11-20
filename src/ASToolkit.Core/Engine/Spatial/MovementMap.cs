@@ -2,7 +2,6 @@ using System.Drawing;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Levels;
 using ASToolkit.Core.Scripting;
 
 namespace ASToolkit.Core.Engine;
@@ -63,13 +62,14 @@ public sealed class MovementMap
     public MovementMap Clone() => new(this);
 
     /// <summary>
-    /// Creates the heights of a level's sprites.
+    /// Creates the heights of a map's sprites.
     /// </summary>
-    /// <param name="model">The level.</param>
+    /// <param name="mapData">The map.</param>
     /// <param name="parts">The sprite parts.</param>
-    public MovementMap(LevelModel model, SpritePartReader parts) : this(model.MapSize)
+    public MovementMap(MapData mapData, SpritePartReader parts)
+        : this(mapData.Size)
     {
-        foreach (var sprite in model.Sprites)
+        foreach (var sprite in mapData.Sprites)
         {
             Add(sprite, parts, SpriteProgram.TryParse(sprite.Payload, false, out var program) && HasDeathAction(program.GetStack(0)));
         }
