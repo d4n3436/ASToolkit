@@ -116,7 +116,7 @@ internal sealed class MessageWindow
         var sprite = sprites[index];
         if (sprite is not null)
         {
-            _map.DestroySprite(sprite);
+            _map.DeleteSprite(sprite);
         }
 
         sprites[index] = null;

@@ -119,7 +119,7 @@ public sealed partial class Map
     {
         if (_mouseTip is not null)
         {
-            DestroySprite(_mouseTip);
+            DeleteSprite(_mouseTip);
         }
 
         _mouseTip = null;

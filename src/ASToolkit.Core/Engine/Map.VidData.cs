@@ -123,7 +123,7 @@ public sealed partial class Map
 
         link.Link = null;
         link.Owner = null;
-        DestroySprite(link);
+        DeleteSprite(link);
     }
 
     private static int Sum(ReadOnlySpan<int> values)

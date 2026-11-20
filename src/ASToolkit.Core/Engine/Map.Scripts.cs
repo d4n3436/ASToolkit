@@ -125,20 +125,6 @@ public sealed partial class Map
         Session.Logger.Write("Create Empty Hardware Ground"u8);
     }
 
-    [EngineRoutine(0x0043f500)]
-    private void RemoveStatic(Sprite sprite)
-    {
-        if (sprite.Placement is not null)
-        {
-            _statics.Remove(sprite.Placement);
-        }
-
-        _builders.Remove(sprite);
-        Collector.DeleteFromHash(sprite);
-        Effects.Detach(sprite);
-        ReleaseSprite(sprite);
-    }
-
     private Sprite AddScripted(SpriteDefinition definition, Vector3 position, Angle direction, Army? army = null, MergedMapSprite? placement = null)
     {
         var sprite = ConstructSprite(definition, position, direction, army ?? Definitions.GetArmy(definition), 0, UpdateRole.Scripted);
@@ -153,24 +139,9 @@ public sealed partial class Map
         if ((sprite.Owner is null || sprite.Owner.Link == sprite) && Tact(sprite))
             return true;
 
-        RemoveScripted(sprite);
-        UnlinkDestroyed(sprite);
+        DeleteSprite(sprite);
 
         return false;
-    }
-
-    private void RemoveScripted(Sprite sprite)
-    {
-        _scripted.Remove(sprite);
-        Collector.DeleteFromHash(sprite);
-        Effects.Detach(sprite);
-
-        if (sprite.Placement is not null)
-        {
-            RemoveSprite(sprite.Placement);
-        }
-
-        ReleaseSprite(sprite);
     }
 
     /// <summary>
@@ -181,26 +152,17 @@ public sealed partial class Map
 
     private void Destroy(MergedMapSprite placement)
     {
-        if (_bodies.Remove(placement, out var body))
+        if (_bodies.TryGetValue(placement, out var body))
         {
             body.Hp = 0;
-            _updates.Remove(body.Definition.Layer, body);
-            Collector.DeleteFromHash(body);
-            Effects.Detach(body);
-            ReleaseSprite(body);
+            DeleteSprite(body);
         }
 
         for (int i = _scripted.Count - 1; i >= 0; i--)
         {
-            var sprite = _scripted[i];
-
-            if (ReferenceEquals(sprite.Placement, placement))
+            if (i < _scripted.Count && ReferenceEquals(_scripted[i].Placement, placement))
             {
-                _updates.Remove(sprite.Definition.Layer, sprite);
-                _scripted.RemoveAt(i);
-                Collector.DeleteFromHash(sprite);
-                Effects.Detach(sprite);
-                ReleaseSprite(sprite);
+                DeleteSprite(_scripted[i]);
             }
         }
 

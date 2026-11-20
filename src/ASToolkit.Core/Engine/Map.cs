@@ -26,7 +26,6 @@ public sealed partial class Map : IDisposable
     private readonly GameRandom _rng;
     private readonly MonsterBrain _brain;
     private readonly List<Sprite> _monsters = [];
-    private readonly HashSet<Sprite> _monsterSet = [];
     private readonly UpdateOrder _updates;
     private readonly List<Sprite> _builders = [];
     private readonly List<Sprite> _menuSprites = [];
@@ -439,20 +438,8 @@ public sealed partial class Map : IDisposable
         var sprite = entry.Sprite;
         switch (sprite?.Role ?? entry.Role)
         {
-            case UpdateRole.Player:
-                if (sprite is not null && !Tact(sprite))
-                {
-                    DestroyPlayer(sprite);
-                }
-
-                return true;
-            case UpdateRole.Torso:
-                if (sprite!.Definition.Layer != layer)
-                    return false;
-
-                Tact(sprite);
-
-                return true;
+            case UpdateRole.Torso when sprite!.Definition.Layer != layer:
+                return false;
             case UpdateRole.Monster:
                 return TickMonster(sprite!);
             case UpdateRole.Scripted:
@@ -463,16 +450,7 @@ public sealed partial class Map : IDisposable
                 if (Tact(sprite!))
                     return true;
 
-                if (sprite!.Placement is null || IsBaked(sprite.Definition))
-                {
-                    RemoveStatic(sprite);
-                }
-                else
-                {
-                    RemovePlacement(sprite.Placement);
-                }
-
-                UnlinkDestroyed(sprite);
+                DeleteSprite(sprite!);
 
                 return false;
         }
@@ -510,7 +488,7 @@ public sealed partial class Map : IDisposable
             return;
         }
 
-        DestroySprite(sprite);
+        DeleteSprite(sprite);
     }
 
     [EngineRoutine(0x004545e0)]
@@ -541,31 +519,6 @@ public sealed partial class Map : IDisposable
         sprite.Items.Add(item);
 
         return true;
-    }
-
-    [EngineRoutine(0x00454640)]
-    private void DestroyPlayer(Sprite player)
-    {
-        var torso = Weapons.Torso;
-
-        if (torso is not null)
-        {
-            _updates.Remove(torso.Definition.Layer, torso);
-            Collector.DeleteFromHash(torso);
-        }
-
-        _updates.Remove(player.Definition.Layer, player);
-        Collector.DeleteFromHash(player);
-        Effects.Detach(player);
-        DeletePointerToSprite(player);
-
-        if (torso is not null)
-        {
-            ReleaseSprite(torso);
-            UnlinkDestroyed(torso);
-        }
-
-        ReleaseSprite(player);
     }
 
     [EngineRoutine(0x004333d0)]
@@ -807,11 +760,9 @@ public sealed partial class Map : IDisposable
 
         if (owner is not null)
         {
-            if (owner.Link != sprite || (owner.Role == UpdateRole.Monster && !_monsterSet.Contains(owner)))
+            if (owner.Link != sprite)
             {
-                RemoveMonster(sprite);
-                DeletePointerToSprite(sprite);
-                ReleaseSprite(sprite);
+                DeleteSprite(sprite);
 
                 return false;
             }
@@ -820,11 +771,7 @@ public sealed partial class Map : IDisposable
         if (Tact(sprite))
             return true;
 
-        RemoveMonster(sprite);
-        Collector.DeleteFromHash(sprite);
-        DeletePointerToSprite(sprite);
-        ReleaseSprite(sprite);
-        UnlinkDestroyed(sprite);
+        DeleteSprite(sprite);
 
         return false;
     }
@@ -834,11 +781,6 @@ public sealed partial class Map : IDisposable
     {
         ForgetMouseTip(removed);
         DeleteBasePointerToSprite(removed);
-
-        if (removed.Link?.Owner == removed)
-        {
-            Effects.Detach(removed);
-        }
     }
 
     [EngineRoutine(0x0040b4b0)]
@@ -1185,14 +1127,12 @@ public sealed partial class Map : IDisposable
     private void AddToMonsters(Sprite sprite)
     {
         _monsters.Add(sprite);
-        _monsterSet.Add(sprite);
     }
 
     private void RemoveMonster(Sprite sprite)
     {
         _builders.Remove(sprite);
         _monsters.Remove(sprite);
-        _monsterSet.Remove(sprite);
     }
 
     private void CompleteDeath(Sprite sprite, SpriteAnimation animation)
@@ -1216,11 +1156,7 @@ public sealed partial class Map : IDisposable
 
         if (_statics.Remove(placement, out var stand))
         {
-            _builders.Remove(stand);
-            _updates.Remove(stand.Definition.Layer, stand);
-            Collector.DeleteFromHash(stand);
-            Effects.Detach(stand);
-            ReleaseSprite(stand);
+            DeleteSprite(stand);
         }
 
         ReleasePlacement(placement);

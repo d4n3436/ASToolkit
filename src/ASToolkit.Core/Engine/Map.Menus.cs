@@ -157,7 +157,7 @@ public sealed partial class Map
             return;
         }
 
-        DestroySprite(sprite);
+        DeleteSprite(sprite);
     }
 
     [EngineRoutine(0x0040f0a0)]

@@ -48,8 +48,6 @@ internal sealed class SpawnedObjectSystem
 
     public IReadOnlyList<EffectState> Settled => _settled;
 
-    private static bool IsLink(Sprite sprite) => sprite.Owner is not null && sprite.Owner.Link == sprite;
-
     public void Detach(Sprite owner)
     {
         var link = owner.Link;
@@ -113,7 +111,7 @@ internal sealed class SpawnedObjectSystem
 
             if (child is not null && IsSettled(child))
             {
-                _map.ReleaseSprite(child);
+                _map.DeleteSprite(child);
                 _pool.Return(child);
             }
         }
@@ -313,33 +311,15 @@ internal sealed class SpawnedObjectSystem
             _settled.Add(GetState(sprite));
         }
 
-        Leave(sprite);
+        _map.DeleteSprite(sprite);
 
         return false;
     }
 
     public void Leave(Sprite sprite)
     {
-        _map.Collector.DeleteFromHash(sprite);
         sprite.LeavesEffects = true;
         _leaving.Add(sprite);
-
-        if (IsLink(sprite))
-        {
-            sprite.Owner!.Link = null;
-        }
-
-        foreach (var tail in sprite.EnumerateLinks())
-        {
-            if (tail is { Role: UpdateRole.Effect, LeavesEffects: false })
-            {
-                _orphans.Add(tail);
-            }
-        }
-
-        sprite.Link = null;
-
-        _map.ReleaseSprite(sprite);
     }
 
     private bool Update(Sprite sprite)

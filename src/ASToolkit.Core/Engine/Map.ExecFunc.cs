@@ -84,67 +84,6 @@ public sealed partial class Map : IScriptFunctionHost
         sprite.Definition.Counts[(int)sprite.Army & 3]++;
     }
 
-    private void UnlinkDestroyed(Sprite sprite)
-    {
-        var owner = sprite.Owner;
-
-        if (owner is not null && owner.Link == sprite)
-        {
-            owner.Link = null;
-        }
-
-        foreach (var link in sprite.EnumerateLinks())
-        {
-            if (link.Owner != sprite)
-                continue;
-            
-            DestroySprite(link);
-
-            if (sprite.Link == link)
-            {
-                sprite.Link = null;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Runs a sprite's destroy handler and frees its count and script handle.
-    /// </summary>
-    /// <param name="sprite">The sprite.</param>
-    public void ReleaseSprite(Sprite sprite)
-    {
-        if (IsMenuClass(sprite.Definition))
-        {
-            DestructFrame(sprite);
-        }
-
-        RunDestroyHandler(sprite);
-
-        if (sprite.IsCounted)
-        {
-            sprite.IsCounted = false;
-            int army = (int)sprite.Army & 3;
-            if (sprite.Definition.Counts[army] != 0)
-            {
-                sprite.Definition.Counts[army]--;
-            }
-        }
-
-        sprite.Goal = null;
-
-        if (sprite.Role != UpdateRole.None)
-        {
-            sprite.Release();
-        }
-
-        if (sprite.Handle == 0)
-            return;
-
-        Script.ClearSpriteHandle(sprite.Handle);
-        _handles.Remove(sprite.Handle);
-        sprite.Handle = 0;
-    }
-
     private void ReleasePlacement(MergedMapSprite placement)
     {
         if (!_countedPlacements.Remove(placement, out var definition))
@@ -383,18 +322,6 @@ public sealed partial class Map : IScriptFunctionHost
         }
     }
 
-    [EngineRoutine(0x00448af0)]
-    private void DestructFrame(Sprite sprite)
-    {
-        if (_menuCurrent == sprite)
-        {
-            _menuCurrent = null;
-        }
-
-        RemoveMenuSprite(sprite);
-        DeletePointerToSprite(sprite);
-    }
-
     [EngineRoutine(0x0043deb0)]
     private void RemoveMenuSprite(Sprite sprite)
     {
@@ -523,65 +450,6 @@ public sealed partial class Map : IScriptFunctionHost
 
 
     /// <summary>
-    /// Destroys a sprite with the objects linked to it.
-    /// </summary>
-    /// <param name="sprite">The sprite.</param>
-    [EngineRoutine(0x0043f520)]
-    public void DestroySprite(Sprite sprite)
-    {
-        if (sprite.Role != UpdateRole.Player)
-        {
-            UnlinkDestroyed(sprite);
-        }
-
-        switch (sprite.Role)
-        {
-            case UpdateRole.Monster:
-                _updates.Remove(sprite.Definition.Layer, sprite);
-                RemoveMonster(sprite);
-                Collector.DeleteFromHash(sprite);
-                DeletePointerToSprite(sprite);
-                ReleaseSprite(sprite);
-                break;
-            case UpdateRole.Scripted:
-                _updates.Remove(sprite.Definition.Layer, sprite);
-                RemoveScripted(sprite);
-                break;
-            case UpdateRole.Effect:
-                _updates.Remove(sprite.Definition.Layer, sprite);
-                Effects.Leave(sprite);
-                break;
-            case UpdateRole.Player:
-                DestroyPlayer(sprite);
-                break;
-            case UpdateRole.Torso:
-                _updates.Remove(sprite.Definition.Layer, sprite);
-                Collector.DeleteFromHash(sprite);
-                ReleaseSprite(sprite);
-
-                if (Weapons.Torso == sprite)
-                {
-                    Weapons.Torso = null;
-                }
-
-                break;
-            default:
-                if (sprite.Placement is not null)
-                {
-                    Destroy(sprite.Placement);
-                }
-                else
-                {
-                    Collector.DeleteFromHash(sprite);
-                    Effects.Detach(sprite);
-                }
-
-                ReleaseSprite(sprite);
-                break;
-        }
-    }
-
-    /// <summary>
     /// Runs a built-in function of the script language.
     /// </summary>
     /// <param name="script">The script whose stack holds the arguments.</param>
@@ -615,7 +483,7 @@ public sealed partial class Map : IScriptFunctionHost
                 var sprite = PopSprite(script);
                 if (sprite is not null)
                 {
-                    DestroySprite(sprite);
+                    DeleteSprite(sprite);
                 }
 
                 break;
@@ -708,9 +576,15 @@ public sealed partial class Map : IScriptFunctionHost
                 var definition = Definitions.Find((KnownObject)script.PopNumber());
                 if (definition is not null)
                 {
-                    foreach (var sprite in GetSpritesOfDefinition(definition))
+                    var list = _updates.GetLayer(definition.Layer);
+                    for (int i = list.Count - 1; i >= 0; i--)
                     {
-                        DestroySprite(sprite);
+                        var sprite = list[i].Sprite;
+
+                        if (sprite is not null && sprite.Definition == definition)
+                        {
+                            DeleteSprite(sprite);
+                        }
                     }
                 }
 
@@ -722,10 +596,16 @@ public sealed partial class Map : IScriptFunctionHost
                 var definition = Definitions.Find((KnownObject)script.PopNumber());
                 if (definition is not null && replacement is not null)
                 {
-                    foreach (var sprite in GetSpritesOfDefinition(definition))
+                    var list = _updates.GetLayer(definition.Layer);
+                    for (int i = list.Count - 1; i >= 0; i--)
                     {
+                        var sprite = list[i].Sprite;
+
+                        if (sprite is null || sprite.Definition != definition)
+                            continue;
+
                         CreateSprite(replacement, sprite.Position, sprite.Direction);
-                        DestroySprite(sprite);
+                        DeleteSprite(sprite);
                     }
                 }
 
@@ -1624,21 +1504,7 @@ public sealed partial class Map : IScriptFunctionHost
             }
         }
 
-        AddSpritesOfDefinition(sprites, _statics.Values, definition);
-        AddSpritesOfDefinition(sprites, _bodies.Values, definition);
-
         return sprites;
-    }
-
-    private static void AddSpritesOfDefinition(List<Sprite> found, Dictionary<MergedMapSprite, Sprite>.ValueCollection sprites, SpriteDefinition definition)
-    {
-        foreach (var sprite in sprites)
-        {
-            if (sprite.Definition == definition)
-            {
-                found.Add(sprite);
-            }
-        }
     }
 
     [EngineRoutine(0x0042da30)]
