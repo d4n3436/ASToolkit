@@ -43,6 +43,7 @@ public sealed class SoundSystem
     private static ReadOnlySpan<byte> OggExtensions => ".Ogg.OGG.ogg"u8;
 
     private readonly IGameFileSystem _fileSystem;
+    private readonly ISoundDevice? _device;
     private readonly IReadOnlyList<SfxRecord> _records;
     private readonly int[] _variants;
     private readonly SoundBuffer[] _buffers;
@@ -64,10 +65,12 @@ public sealed class SoundSystem
     /// </summary>
     /// <param name="records">The sounds of the object table.</param>
     /// <param name="fileSystem">The file system the samples and tracks are read from.</param>
+    /// <param name="device">The device asked whether voices and music are playing, or <see langword="null"/> to time them from their lengths.</param>
     [EngineRoutine(0x0041cba0)]
-    public SoundSystem(IReadOnlyList<SfxRecord> records, IGameFileSystem fileSystem)
+    public SoundSystem(IReadOnlyList<SfxRecord> records, IGameFileSystem fileSystem, ISoundDevice? device = null)
     {
         _fileSystem = fileSystem;
+        _device = device;
         _records = records;
         _variants = new int[records.Count];
         _buffers = new SoundBuffer[records.Count * SfxRecord.MaxSamples];
@@ -269,7 +272,7 @@ public sealed class SoundSystem
         int free = 0;
         for (int v = 0; v < voices.Length; v++)
         {
-            if (!GetVoiceStatus(ref voices[v], time, wallTime))
+            if (!GetVoiceStatus(ref voices[v], v, time, wallTime))
             {
                 free++;
             }
@@ -597,16 +600,23 @@ public sealed class SoundSystem
     }
 
     [EngineRoutine(0x0041e6e0)]
-    private bool GetVoiceStatus(ref SfxBuffer voice, int time, uint wallTime)
+    private bool GetVoiceStatus(ref SfxBuffer voice, int index, int time, uint wallTime)
     {
         if (voice.Id < 0 || voice.Buffer == NoBuffer || !voice.IsPlaying)
             return false;
 
         ref var buffer = ref GetBuffer(voice.Buffer);
 
-        if (!buffer.GetStatus(wallTime))
+        bool isTimedPlaying = buffer.GetStatus(wallTime);
+
+        if (!(_device?.IsVoicePlaying(index) ?? isTimedPlaying))
         {
             voice.IsPlaying = false;
+
+            if (isTimedPlaying)
+            {
+                buffer.Stop(wallTime);
+            }
         }
 
         if (IsLooped(voice.Id) && (uint)(time - voice.Start) > LoopHold)
@@ -716,7 +726,7 @@ public sealed class SoundSystem
             _trackLengths[path] = length;
         }
 
-        return new MusicStream(name, Math.Max(length, 0), length >= 0);
+        return new MusicStream(name, Math.Max(length, 0), length >= 0, _device);
     }
 
     [EngineRoutine(0x0041d0a0)]

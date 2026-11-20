@@ -2,12 +2,14 @@ namespace ASToolkit.Core.Engine;
 
 internal sealed class MusicStream
 {
+    private readonly ISoundDevice? _device;
     private SoundBuffer _buffer;
     private bool _isPlaying;
 
-    public MusicStream(ReadOnlyMemory<byte> name, float length, bool hasBuffer)
+    public MusicStream(ReadOnlyMemory<byte> name, float length, bool hasBuffer, ISoundDevice? device)
     {
         Name = name;
+        _device = device;
         _buffer = new SoundBuffer(length, 1);
         HasBuffer = hasBuffer;
     }
@@ -48,9 +50,16 @@ internal sealed class MusicStream
         if (!HasBuffer || !_isPlaying)
             return false;
 
-        if (!_buffer.GetStatus(wallTime))
+        bool isTimedPlaying = _buffer.GetStatus(wallTime);
+
+        if (!(_device?.IsMusicPlaying() ?? isTimedPlaying))
         {
             _isPlaying = false;
+
+            if (isTimedPlaying)
+            {
+                _buffer.Stop(wallTime);
+            }
         }
 
         return _isPlaying;

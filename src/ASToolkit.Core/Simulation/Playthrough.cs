@@ -99,10 +99,11 @@ public sealed class Playthrough
     /// <param name="demo">The demo.</param>
     /// <param name="loadingScreenRecords">The stored sprites before which the game's loading screen redrew while the level loaded.</param>
     /// <param name="registry">The registry the level script reads, or null for an empty one.</param>
+    /// <param name="soundDevice">The device the sound system asks whether voices and music are playing, or <see langword="null"/> to time them from their lengths.</param>
     /// <returns>The player after the level loads and after each frame.</returns>
-    public IReadOnlyList<DemoReplayPoint> ReplayDemo(RouteAnalysis analysis, DemoResource demo, IReadOnlyList<int>? loadingScreenRecords = null, ScriptRegistry? registry = null)
+    public IReadOnlyList<DemoReplayPoint> ReplayDemo(RouteAnalysis analysis, DemoResource demo, IReadOnlyList<int>? loadingScreenRecords = null, ScriptRegistry? registry = null, ISoundDevice? soundDevice = null)
     {
-        var map = LoadDemo(analysis, demo, loadingScreenRecords, registry);
+        var map = LoadDemo(analysis, demo, loadingScreenRecords, registry, soundDevice: soundDevice);
         var points = new List<DemoReplayPoint> { GetReplayPoint(map) };
         uint now = 0;
         while (true)
@@ -128,7 +129,7 @@ public sealed class Playthrough
         return points;
     }
 
-    internal Map LoadDemo(RouteAnalysis analysis, DemoResource demo, IReadOnlyList<int>? loadingScreenRecords = null, ScriptRegistry? registry = null, GameSession? session = null)
+    internal Map LoadDemo(RouteAnalysis analysis, DemoResource demo, IReadOnlyList<int>? loadingScreenRecords = null, ScriptRegistry? registry = null, GameSession? session = null, ISoundDevice? soundDevice = null)
     {
         var level = GetSetup(analysis).Level;
         var scripted = new LevelTemplate
@@ -138,6 +139,13 @@ public sealed class Playthrough
             ScriptPath = Path.ChangeExtension(GameTextEncoding.Cyrillic.GetString(demo.MapName), ".lgc"),
             LoadingScreenRecords = loadingScreenRecords ?? []
         };
+
+        if (soundDevice is not null)
+        {
+            session ??= new GameSession(registry ?? new ScriptRegistry(""));
+            session.Sound = new SoundSystem(level.Definitions.Sounds, scripted.FileSystem, soundDevice);
+        }
+
         var map = new Map(scripted, new GameRandom(demo.Seed), demo: demo, registry: registry, session: session);
         AddLoosePickups(analysis, map);
 

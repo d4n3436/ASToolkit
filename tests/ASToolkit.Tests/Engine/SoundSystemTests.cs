@@ -28,6 +28,21 @@ public class SoundSystemTests
     }
 
     [Fact]
+    public void Tact_DeviceEndsAVoice_StopsAskingAboutIt()
+    {
+        var device = new EndingDevice();
+        var sound = new SoundSystem(TestGameFolder.Objects.Sounds, new GameFolder(TestGameFolder.RequireFolder()), device);
+        var random = new GameRandom(7);
+
+        sound.Play(MonsterHit, 0, SoundSystem.FullLoudness);
+        sound.Tact(random, 100, 100);
+        sound.Tact(random, 100 + FrameTime, 100 + FrameTime);
+        sound.Tact(random, 100 + FrameTime * 2, 100 + FrameTime * 2);
+
+        Assert.Equal([0], device.AskedVoices);
+    }
+
+    [Fact]
     public void Tact_RequestedSound_DrawsItsVariantOnce()
     {
         var sound = CreateSound();
@@ -98,5 +113,19 @@ public class SoundSystemTests
         Assert.Equal(2, playing);
         Assert.Equal(fadeStart, random.State);
         Assert.True(sound.IsPlayMusic(200));
+    }
+
+    private sealed class EndingDevice : ISoundDevice
+    {
+        public List<int> AskedVoices { get; } = [];
+
+        public bool? IsVoicePlaying(int voice)
+        {
+            AskedVoices.Add(voice);
+
+            return false;
+        }
+
+        public bool? IsMusicPlaying() => null;
     }
 }
