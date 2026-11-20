@@ -1,3 +1,4 @@
+using ASToolkit.Core.Simulation;
 using System.Numerics;
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
@@ -19,9 +20,9 @@ public class LinkTests
 
         Assert.Equal(KnownObject.Monster4Weapon2, yellow.Link!.Definition.Id);
         Assert.Equal(KnownObject.MonsterMachineGunDummy, yellow.Link.Link!.Definition.Id);
-        Assert.Contains(yellow.Link.Link, map.Monsters);
+        Assert.Contains(yellow.Link.Link, map.UpdatedSprites);
         Assert.Equal(KnownObject.Monster4Weapon3, red.Link!.Definition.Id);
-        var turret = Assert.Single(map.Monsters, sprite => sprite.Definition.Id == KnownObject.MonsterMachineGunDummy && sprite.Owner == red.Link);
+        var turret = Assert.Single(map.UpdatedSprites, sprite => sprite.Definition.Id == KnownObject.MonsterMachineGunDummy && sprite.Owner == red.Link);
         Assert.Equal(red.Army, turret.Army);
         Assert.NotEqual(0, turret.Definition.Object.WeaponIndex);
     }
@@ -34,7 +35,7 @@ public class LinkTests
 
         var map = EngineTestMap.CreateMap(objects, sprites: [pad]);
 
-        Assert.Contains(map.Scripted, sprite => sprite.Definition.Id.IsEndlessGenerator && sprite.Owner is not null);
+        Assert.Contains(map.ScriptedSprites, sprite => sprite.Definition.Id.IsEndlessGenerator && sprite.Owner is not null);
     }
 
     [Fact]
@@ -44,5 +45,4 @@ public class LinkTests
 
         Assert.Equal(71, objects.Find(KnownObject.PutDynamiteHere)!.Layout.GetFrameDuration(SpriteAnimation.Stand));
     }
-
 }

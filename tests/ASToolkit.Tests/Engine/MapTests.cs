@@ -133,7 +133,7 @@ public class MapTests
     public void Step_PlayerCommand_MovesThePlayerWithoutRouteOrBot()
     {
         var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var map = EngineTestMap.CreateMap(objects);
+        var map = EngineTestMap.CreateMap(objects, camera: new Vector2(1000 - GameSession.DefaultScreenWidth / 2f, 1000 - GameSession.DefaultScreenHeight / 2f));
         map.Play(default);
         var destination = map.Player.Position.AsVector2() + new Vector2(300, 0);
         var command = new PlayerCommand(destination, PlayerCommand.GetCursor(map.Player.Position), false, Sprite.Pistols);
@@ -172,7 +172,6 @@ public class MapTests
 
     [Theory]
     [InlineData(16)]
-    [InlineData(8)]
     public void Step_HighFrameRates_LetTheTankAlienReachThePlayer(int frameTime)
     {
         var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);

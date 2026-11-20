@@ -8,44 +8,42 @@ namespace ASToolkit.Tests.Engine;
 public class ChildEmissionTests
 {
     [Fact]
-    public void GetChildren_PistolPulses_AlternateBetweenTheTwoHands()
+    public void CreateChild_PistolPulses_AlternateBetweenTheTwoHands()
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var map = EngineTestMap.CreateMap(definitions);
         var owner = definitions.Find(KnownObject.PistolsTorso)!;
-        var child = definitions.Find(KnownObject.PistolMuzzleFlash)!;
         var origin = new Vector3(100, 200, 10);
-        var first = Assert.Single(Collect(ChildEmission.GetChildren(owner, child, SpriteAnimation.Fight, origin, default, new GameRandom(1))));
-        var second = Assert.Single(Collect(ChildEmission.GetChildren(owner, child, SpriteAnimation.Fight, origin, default, new GameRandom(1), secondPulse: true)));
+        var torso = new Sprite(-1, owner, origin, 0, owner.MaxHp);
+        torso.SetAnimationValue(SpriteAnimation.Fight);
+        torso.Goal = map.ConstructGoal(new Vector3(300, 200, 10));
+        var before = map.GetEffects().ToHashSet();
 
-        Assert.Equal(105, first.Position.X);
-        Assert.Equal(95, second.Position.X);
-        Assert.Equal(first.Position.Y, second.Position.Y);
-        Assert.Equal(first.Position.Z, second.Position.Z);
-        Assert.Equal(KnownObject.PistolMuzzleFlash, first.Id);
+        map.CreateChild(torso);
+        var first = Assert.Single(map.GetEffects().Where(effect => !before.Contains(effect)), effect => effect.Definition.Id == KnownObject.PistolMuzzleFlash);
+        before = map.GetEffects().ToHashSet();
+        map.CreateChild(torso);
+        var second = Assert.Single(map.GetEffects().Where(effect => !before.Contains(effect)), effect => effect.Definition.Id == KnownObject.PistolMuzzleFlash);
+
+        Assert.Equal(KnownObject.PistolMuzzleFlash, first.Definition.Id);
+        Assert.Equal(105f, first.Position.X, 0f);
+        Assert.Equal(95f, second.Position.X, 0f);
+        Assert.Equal(first.Position.Y, second.Position.Y, 0f);
     }
 
     [Fact]
-    public void GetChildren_HitBlood_StartsAtTheAlien()
+    public void CreateChild_HitBlood_StartsAtTheAlien()
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var map = EngineTestMap.CreateMap(definitions);
         var owner = definitions.Find(KnownObject.Monster1)!;
-        var child = definitions.Find(KnownObject.RedBloodSpray)!;
         var origin = new Vector3(100, 200, 10);
-        var children = Collect(ChildEmission.GetChildren(owner, child, SpriteAnimation.Close, origin, default, new GameRandom(1)));
+        var alien = new Sprite(-1, owner, origin, 0, owner.MaxHp);
+        var before = map.GetEffects().ToHashSet();
 
-        var blood = Assert.Single(children);
-        Assert.Equal(KnownObject.RedBloodSpray, blood.Id);
+        map.CreateChildFor(alien, SpriteAnimation.Close);
+
+        var blood = Assert.Single(map.GetEffects().Where(effect => !before.Contains(effect)), effect => effect.Definition.Id == KnownObject.RedBloodSpray);
         Assert.Equal(origin, blood.Position);
-    }
-
-    private static List<ChildEmission.Spawn> Collect(ChildEmission.ChildBatch batch)
-    {
-        var spawns = new List<ChildEmission.Spawn>();
-        foreach (var spawn in batch)
-        {
-            spawns.Add(spawn);
-        }
-
-        return spawns;
     }
 }

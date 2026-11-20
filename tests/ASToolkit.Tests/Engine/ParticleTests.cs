@@ -1,3 +1,4 @@
+using ASToolkit.Core.Simulation;
 using ASToolkit.Core.Engine;
 using System.Numerics;
 using ASToolkit.Core.Formats;
@@ -16,15 +17,16 @@ public class ParticleTests
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var map = EngineTestMap.CreateMap(definitions);
-        var effects = map.Effects;
-        var scenery = map.Effects.Settled;
-        effects.Spawn(flying, new Vector3(100, 200, 22), new Angle(64), map.Time);
+        var observer = new MapObserver(map);
+        var scenery = observer.BakedEffects;
+        map.Effects.Spawn(flying, new Vector3(100, 200, 22), new Angle(64), map.Time);
         while (map.Time <= 3500)
         {
             map.Play(default);
+            observer.Observe();
         }
 
-        Assert.DoesNotContain(effects.Active, particle => particle.Definition.Id == flying);
+        Assert.DoesNotContain(map.GetEffects(), particle => particle.Definition.Id == flying);
         var settled = Assert.Single(scenery, particle => particle.Id == resting);
         Assert.True(settled.StartedAt > 0);
         Assert.True(settled.Position.Z >= 0);

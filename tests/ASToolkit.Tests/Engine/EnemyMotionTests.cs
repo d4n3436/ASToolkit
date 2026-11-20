@@ -1,4 +1,3 @@
-using System.Drawing;
 using ASToolkit.Core.Engine;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -30,28 +29,26 @@ public class EnemyMotionTests
     [InlineData(SpriteClass.Man)]
     public void Move_BlockedDiagonal_SlidesAlongYFirst(SpriteClass mover)
     {
-        var collector = new SpriteCollector(new SizeF(256, 256), new Vector2(130));
+        var map = EngineTestMap.CreateMap(new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects));
         var sprite = MakeUnit(new Body(50, 50), 0, mover);
         var obstacle = MakeUnit(new Body(60, 60), 1, SpriteClass.Unit);
-        collector.InsertToHash(sprite);
-        collector.InsertToHash(obstacle);
-        var movement = new SpriteCollision(new MovementMap(), collector);
+        map.Collector.InsertToHash(sprite);
+        map.Collector.InsertToHash(obstacle);
 
-        Assert.True(movement.Move(sprite, new Vector3(51, 51, 0)));
+        Assert.True(map.Collision.Move(sprite, new Vector3(51, 51, 0)));
         Assert.Equal(new Vector2(50, 51), sprite.Position.AsVector2());
     }
 
     [Fact]
     public void Move_IntoAnotherBody_PushesItBeforeSliding()
     {
-        var collector = new SpriteCollector(new SizeF(256, 256), new Vector2(130));
+        var map = EngineTestMap.CreateMap(new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects));
         var sprite = MakeUnit(new Body(50, 50), 0, SpriteClass.Man);
         var pushed = MakeUnit(new Body(60, 50, Push: 1), 1, SpriteClass.Unit);
-        collector.InsertToHash(sprite);
-        collector.InsertToHash(pushed);
-        var movement = new SpriteCollision(new MovementMap(), collector);
+        map.Collector.InsertToHash(sprite);
+        map.Collector.InsertToHash(pushed);
 
-        Assert.True(movement.Move(sprite, new Vector3(51, 50, 0)));
+        Assert.True(map.Collision.Move(sprite, new Vector3(51, 50, 0)));
         Assert.Equal(new Vector2(61, 50), pushed.Position.AsVector2());
         Assert.Equal(new Vector2(50, 50), sprite.Position.AsVector2());
     }

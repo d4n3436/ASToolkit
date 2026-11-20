@@ -1,3 +1,4 @@
+using ASToolkit.Core.Simulation;
 using System.Numerics;
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
@@ -67,13 +68,13 @@ public class UnitAnimationTests
         int steps = 1;
         while (map.Monsters.Contains(enemy) && steps < 20)
         {
-            Assert.DoesNotContain(map.Effects.Active, effect => effect.Definition.Id == KnownObject.Monster1Death);
+            Assert.DoesNotContain(map.GetEffects(), effect => effect.Definition.Id == KnownObject.Monster1Death);
             map.Play(default);
             steps++;
         }
 
         Assert.InRange(steps, 2, 19);
-        Assert.Contains(map.Effects.Active, effect => effect.Definition.Id == KnownObject.Monster1Death);
+        Assert.Contains(map.GetEffects(), effect => effect.Definition.Id == KnownObject.Monster1Death);
     }
 
     private static void AssertFrames(Sprite sprite, int first, int frame, int last)

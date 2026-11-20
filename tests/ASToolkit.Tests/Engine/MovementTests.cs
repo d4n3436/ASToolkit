@@ -1,4 +1,3 @@
-using System.Drawing;
 using ASToolkit.Core.Engine;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -133,15 +132,14 @@ public class MovementTests
     [Fact]
     public void Trace_TestsTerrainAndBodiesAtTheTravelHeight()
     {
-        var movement = new MovementMap();
-        movement.RaiseTemporary(new Vector3(32, 0, 24));
-        var collector = new SpriteCollector(new SizeF(256, 256), new Vector2(130));
+        var map = EngineTestMap.CreateMap(new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects));
+        map.Movement.RaiseTemporary(new Vector3(32, 0, 24));
         var walker = new SpriteDefinition(KnownObject.Monster1, Body(new Vector3(16, 16, 20)), default, 0);
         var bullet = new SpriteDefinition(KnownObject.PistolBullet, Body(new Vector3(4, 4, 2)), default, 0);
         var shooter = new Sprite(0, walker, Vector3.Zero, 0, 10);
-        collector.InsertToHash(shooter);
-        collector.InsertToHash(new Sprite(1, walker, new Vector3(64, 0, 30), Army.Monsters, 10));
-        var collision = new ProjectileCollision(movement, collector);
+        map.Collector.InsertToHash(shooter);
+        map.Collector.InsertToHash(new Sprite(1, walker, new Vector3(64, 0, 30), Army.Monsters, 10));
+        var collision = map.Projectiles;
 
         Assert.Equal(new Vector3(32, 0, 10), collision.Trace(bullet, new Vector3(0, 0, 10),
             new Vector3(128, 0, 10), out bool wall));
@@ -152,6 +150,21 @@ public class MovementTests
         Assert.Equal(new Vector3(128, 0, 60), collision.Trace(bullet, new Vector3(0, 0, 60),
             new Vector3(128, 0, 60), out bool clear));
         Assert.False(clear);
+    }
+
+    [Fact]
+    public void IsBlockedAt_TouchesCrushingSpritesOnOtherLayersAndKeepsScanning()
+    {
+        var map = EngineTestMap.CreateMap(new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects));
+        var mover = new SpriteDefinition(KnownObject.PistolBullet, Body(new Vector3(4, 4, 2)), default, 0);
+        var crusher = new SpriteDefinition(KnownObject.Barrel, Body(new Vector3(16, 16, 20), 2, extra: ObjectProperties.Crush, maxHp: 10), default, 0);
+        var wall = new SpriteDefinition(KnownObject.Monster1, Body(new Vector3(16, 16, 20)), default, 0);
+        var crushed = new Sprite(1, crusher, new Vector3(50, 50, 0), Army.Monsters, 10);
+        map.Collector.InsertToHash(crushed);
+        map.Collector.InsertToHash(new Sprite(2, wall, new Vector3(52, 50, 0), Army.Monsters, 10));
+
+        Assert.True(map.Projectiles.IsBlockedAt(mover, new Vector3(50, 50, 0)));
+        Assert.Equal(5, crushed.Hp);
     }
 
     private static SpriteCollector CreateSprites(MovementMap terrain) => new(terrain.MapSize, new Vector2(256));
@@ -187,14 +200,15 @@ public class MovementTests
         return new WalkField(grid, false, terrain, sprites ?? CreateSprites(terrain), walker);
     }
 
-    private static GameObject Body(Vector3 size, int mask = 1, SpriteClass spriteClass = SpriteClass.Unit, Vector3? scale = null, float dropHeight = 55)
+    private static GameObject Body(Vector3 size, int mask = 1, SpriteClass spriteClass = SpriteClass.Unit, Vector3? scale = null, float dropHeight = 55, ObjectProperties extra = 0, int maxHp = 0)
     {
         byte[] bytes = new byte[Marshal.SizeOf<GameObject>()];
         MemoryMarshal.Write(bytes.AsSpan(4), in spriteClass);
-        var flags = ObjectProperties.ZeroZ | ObjectProperties.Hash;
+        var flags = ObjectProperties.ZeroZ | ObjectProperties.Hash | extra;
         MemoryMarshal.Write(bytes.AsSpan(8), in flags);
         MemoryMarshal.Write(bytes.AsSpan(12), in mask);
         MemoryMarshal.Write(bytes.AsSpan(16), in size);
+        MemoryMarshal.Write(bytes.AsSpan(28), in maxHp);
         float climb = 10;
         MemoryMarshal.Write(bytes.AsSpan(100), in climb);
         MemoryMarshal.Write(bytes.AsSpan(104), in dropHeight);

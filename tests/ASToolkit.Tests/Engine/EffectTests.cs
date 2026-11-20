@@ -1,3 +1,4 @@
+using ASToolkit.Core.Simulation;
 using ASToolkit.Core.Engine;
 using System.Numerics;
 using ASToolkit.Core.Formats;
@@ -15,20 +16,22 @@ public class EffectTests
         string game = TestGameFolder.RequireFolder();
         var definitions = new SpriteCatalog(game, TestGameFolder.Objects);
         var map = EngineTestMap.CreateMap(definitions, blood: blood);
-        var effects = map.Effects;
-        var scenery = map.Effects.Settled;
+        var observer = new MapObserver(map);
+        var scenery = observer.BakedEffects;
         map.Play(default);
+        observer.Observe();
         int start = map.Time;
-        effects.Emit(definitions.Find(KnownObject.Monster1)!, SpriteAnimation.Close, new Vector3(100, 100, 0), new Angle(64), start);
+        Emit(map, definitions.Find(KnownObject.Monster1)!, SpriteAnimation.Close, new Vector3(100, 100, 0), new Angle(64));
 
-        Assert.Contains(effects.Active, effect => effect.Definition.Id == KnownObject.RedBloodSpray && effect.CreatedAt == start);
-        Assert.Contains(effects.Active, effect => effect is { Definition.Id: KnownObject.SmallBloodPool, Animation: SpriteAnimation.Death });
+        Assert.Contains(map.GetEffects(), effect => effect.Definition.Id == KnownObject.RedBloodSpray && effect.CreatedAt == start);
+        Assert.Contains(map.GetEffects(), effect => effect is { Definition.Id: KnownObject.SmallBloodPool, Animation: SpriteAnimation.Death });
         Assert.Empty(scenery);
         while (map.Time <= 2000)
         {
             map.Play(default);
+            observer.Observe();
         }
-        Assert.Empty(effects.Active);
+        Assert.Empty(map.GetEffects());
         Assert.Equal(stains, scenery.Count);
         Assert.All(scenery, stain => Assert.Equal(KnownObject.SmallBloodPool, stain.Id));
     }
@@ -39,16 +42,18 @@ public class EffectTests
         string game = TestGameFolder.RequireFolder();
         var definitions = new SpriteCatalog(game, TestGameFolder.Objects);
         var map = EngineTestMap.CreateMap(definitions);
-        var effects = map.Effects;
-        var scenery = map.Effects.Settled;
+        var observer = new MapObserver(map);
+        var scenery = observer.BakedEffects;
         map.Play(default);
-        effects.Emit(definitions.Find(KnownObject.Monster1)!, SpriteAnimation.Death, new Vector3(100, 100, 0), default, map.Time);
+        observer.Observe();
+        Emit(map, definitions.Find(KnownObject.Monster1)!, SpriteAnimation.Death, new Vector3(100, 100, 0), default);
 
-        Assert.Contains(effects.Active, effect => effect.Definition.Id == KnownObject.Monster1Death);
-        Assert.Contains(effects.Active, effect => effect.Definition.Id == KnownObject.LargeBloodPool);
+        Assert.Contains(map.GetEffects(), effect => effect.Definition.Id == KnownObject.Monster1Death);
+        Assert.Contains(map.GetEffects(), effect => effect.Definition.Id == KnownObject.LargeBloodPool);
         while (map.Time <= 2000)
         {
             map.Play(default);
+            observer.Observe();
         }
 
         var ids = scenery.Select(effect => effect.Id).ToList();
@@ -64,16 +69,22 @@ public class EffectTests
         string game = TestGameFolder.RequireFolder();
         var definitions = new SpriteCatalog(game, TestGameFolder.Objects);
         var map = EngineTestMap.CreateMap(definitions);
-        var effects = map.Effects;
 
-        effects.Emit(definitions.Find(KnownObject.WeaponMonster)!, SpriteAnimation.Death, new Vector3(100, 100, 0), default, 0);
+        int start = map.Time;
+        Emit(map, definitions.Find(KnownObject.WeaponMonster)!, SpriteAnimation.Death, new Vector3(100, 100, 0), default);
 
         Assert.Empty(map.Monsters);
         int duration = definitions.Find(KnownObject.WeaponMonsterDeath)!.GetAnimationDuration(SpriteAnimation.Death);
-        while (map.Time <= duration + GameClock.DefaultFrameTime)
+        while (map.Time <= start + duration + 2 * GameClock.DefaultFrameTime)
         {
             map.Play(default);
         }
         Assert.Equal(KnownObject.Monster2, Assert.Single(map.Monsters).Definition.Id);
+    }
+
+    private static void Emit(Map map, SpriteDefinition owner, SpriteAnimation state, Vector3 position, Angle direction)
+    {
+        var sprite = new Sprite(-1, owner, position, 0, owner.MaxHp, direction);
+        map.CreateChildFor(sprite, state);
     }
 }

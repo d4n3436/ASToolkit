@@ -1,3 +1,4 @@
+using ASToolkit.Core.Simulation;
 using ASToolkit.Core.Engine;
 using System.Numerics;
 using ASToolkit.Core.Formats;
@@ -39,11 +40,11 @@ public class OrderStackTests
         {
             map.Play(default);
 
-            if (map.Monsters.Count <= built.Count)
+            if (map.Monsters.Count() <= built.Count)
                 continue;
 
             built.Add(map.Time);
-            var sprite = map.Monsters[^1];
+            var sprite = map.Monsters.Last();
             sprite.Position += new Vector3(500, 500, 0);
             map.Collector.ChangeCoor(sprite);
         }

@@ -4,6 +4,7 @@ using ASToolkit.Core.Formats;
 using ASToolkit.Core.Reference;
 using ASToolkit.Core.Simulation;
 using ASToolkit.Core.Routes;
+using ASToolkit.Tests.Engine;
 using Xunit;
 
 namespace ASToolkit.Tests.Simulation;
@@ -17,14 +18,13 @@ public class PlaythroughTests
     {
         string game = TestGameFolder.RequireFolder();
         var objects = ObjectTable.Load(Path.Combine(game, "objects.res"));
-        var table = TestGameFolder.Table;
         string name = $"Level_{number:00}.map";
         var level = new LevelLoader(objects).Load(name, Path.Combine(game, "Maps", name))!;
         var loadout = new PlayerLoadout(KnownObject.RedArmor, new Dictionary<KnownObject, int>
         {
             [KnownObject.Shotgun] = 100, [KnownObject.Minigun] = 800, [KnownObject.RocketLauncher] = 80, [KnownObject.PlasmaRifle] = 50
         }, new PlayerImplants(3, 3, 3, 3));
-        var result = new Playthrough(game, objects, table).Run(level.Analysis, loadout, 1);
+        var result = new Playthrough(game, objects, TestGameFolder.Table).Run(level.Analysis, loadout, 1);
         Assert.True(result.Survived, $"{name}: progress {result.Progress:P1}, time {result.Time} ms");
         if (number == 4)
         {
@@ -39,10 +39,9 @@ public class PlaythroughTests
     {
         string game = TestGameFolder.RequireFolder();
         var objects = ObjectTable.Load(Path.Combine(game, "objects.res"));
-        var table = TestGameFolder.Table;
         var level = new LevelLoader(objects).Load("Level_02.map", Path.Combine(game, "Maps", "Level_02.map"));
         Assert.NotNull(level);
-        var playthrough = new Playthrough(game, objects, table);
+        var playthrough = new Playthrough(game, objects, TestGameFolder.Table);
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default);
 
         var first = playthrough.Run(level.Analysis, loadout, 1, true);
@@ -60,9 +59,11 @@ public class PlaythroughTests
         var effects = new HashSet<KnownObject>();
         var previous = new Dictionary<Sprite, Vector3>();
         int checkedAt = -1;
+        var observer = new MapObserver(replay);
         foreach (var map in PlayDemo(replay))
         {
-            foreach (var effect in map.Effects.Active)
+            observer.Observe();
+            foreach (var effect in map.GetEffects())
             {
                 effects.Add(effect.Definition.Id);
             }
@@ -89,8 +90,8 @@ public class PlaythroughTests
 
         Assert.Contains(KnownObject.PistolMuzzleFlash, effects);
         Assert.Contains(KnownObject.FlyingCasing, effects);
-        Assert.Contains(replay.Effects.Settled, effect => effect.Id == KnownObject.LyingCasing);
-        Assert.Contains(replay.Effects.Settled, effect => effect.Id == KnownObject.SmallBloodPool);
+        Assert.Contains(observer.BakedEffects, effect => effect.Id == KnownObject.LyingCasing);
+        Assert.Contains(observer.BakedEffects, effect => effect.Id == KnownObject.SmallBloodPool);
     }
 
     private static bool TouchesPushedSprite(Map map, Sprite unit)

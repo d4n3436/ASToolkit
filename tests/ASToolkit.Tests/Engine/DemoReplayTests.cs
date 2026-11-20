@@ -28,8 +28,8 @@ public class DemoReplayTests
             if (!stateBeforeFrame.TryGetValue(sample.Time, out var state))
                 continue;
 
-            Assert.Equal(sample.X, state.Position.X);
-            Assert.Equal(sample.Y, state.Position.Y);
+            Assert.Equal(sample.X, state.Position.X, 0f);
+            Assert.Equal(sample.Y, state.Position.Y, 0f);
             Assert.Equal(sample.Speed, state.Speed);
             compared++;
         }
@@ -62,8 +62,8 @@ public class DemoReplayTests
         {
             var state = stateBeforeFrame[sample.Time];
 
-            Assert.Equal(sample.X, state.Position.X);
-            Assert.Equal(sample.Y, state.Position.Y);
+            Assert.Equal(sample.X, state.Position.X, 0f);
+            Assert.Equal(sample.Y, state.Position.Y, 0f);
             Assert.Equal(sample.Speed, state.Speed);
             Assert.Equal(sample.Health, state.Health);
         }
@@ -80,7 +80,7 @@ public class DemoReplayTests
         Assert.Equal(10623 - 2, CountDraws(demo.Seed, map.RandomState));
         for (int slot = 0; slot < sprites.Length; slot++)
         {
-            var sprite = layer[slot].Sprite!;
+            var sprite = layer[slot]!;
             int[] expected = sprites[slot];
 
             int[] actual = [(int)sprite.Definition.Id, sprite.LastTickTime, sprite.FirstFrame, sprite.Frame, sprite.LastFrame, (int)sprite.Animation, sprite.Direction.Value];
@@ -99,7 +99,10 @@ public class DemoReplayTests
         var template = LevelTemplate.FromMap(new GameFolder(game), mapPath, new SpriteCatalog(game, TestGameFolder.Objects),
             TestGameFolder.Table.GetArray("GettingAmmo")) with { LoadingScreenRecords = loadingScreenRecords ?? [] };
 
-        return new Map(template, new GameRandom(demo.Seed), demo: demo);
+        var map = new Map(template.Definitions, template.FileSystem);
+        map.Load(template, demo.Seed, demo);
+
+        return map;
     }
 
     private static List<Point> Replay(Map map)

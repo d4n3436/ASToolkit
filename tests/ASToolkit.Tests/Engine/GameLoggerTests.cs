@@ -91,7 +91,10 @@ public class GameLoggerTests
         }
 
         string[] lines = Read(fileSystem, "logs\\error.log").Split("\r\n");
-        Assert.StartsWith("CurrentTime   =10                sizeof(SPRITE)=112      Map version   =0", lines[1]);
+        int error = Array.IndexOf(lines, "!!!ERROR 12:00:00!!!MAP: 0x0 Section can't found (load 'VID')");
+        Assert.True(error > 0);
+        Assert.Equal(["Player release", "Sprite release", "Menu   release", "Average fps=0", "Script release"], lines[(error - 5)..error]);
+        Assert.StartsWith("CurrentTime   =10                sizeof(SPRITE)=112      Map version   =0", lines[error + 1]);
         Assert.Contains(lines, line => line.StartsWith("LoadScript::ByteCode="));
         Assert.Contains("from the script", lines);
         Assert.Contains(lines, line => line.StartsWith("NoVid[  9]="));
@@ -110,5 +113,5 @@ public class GameLoggerTests
         public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
 
         public override DateTimeOffset GetUtcNow() => new(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
-    }
+}
 }

@@ -1,3 +1,4 @@
+using ASToolkit.Core.Simulation;
 using System.Numerics;
 using System.Text;
 using ASToolkit.Core.Engine;
@@ -254,7 +255,7 @@ public class ExecFuncTests
 
         Assert.Equal(Read(script, "unit"), Read(script, "found"));
         Assert.Equal(Read(script, "unit"), Read(script, "near"));
-        Assert.Equal(Enumerable.Range(0, 17).Sum(layer => map.GetLayer(layer).Count(entry => entry.Sprite is not null)), Read(script, "counted"));
+        Assert.Equal(Enumerable.Range(0, 17).Sum(layer => map.GetLayer(layer).Count(entry => entry is not null)), Read(script, "counted"));
         Assert.Equal(sprite.Definition.MaxHp / 2, Read(script, "hp"));
         Assert.Equal(2, Read(script, "army"));
         Assert.Equal(242, Read(script, "item"));
@@ -320,10 +321,9 @@ public class ExecFuncTests
               kept = MenuFind(717);
             }
             """);
-        var screen = map.Session.ScreenSize;
 
-        Assert.Equal((int)(320 + 192 - 512 + screen.Width / 2), Read(script, "x"));
-        Assert.Equal((int)(254 + 144 - 384 + screen.Height / 2), Read(script, "y"));
+        Assert.Equal((int)(320 + 192 - 512 + map.Session.ScreenSize.Width / 2), Read(script, "x"));
+        Assert.Equal((int)(254 + 144 - 384 + map.Session.ScreenSize.Height / 2), Read(script, "y"));
         Assert.Equal(0, Read(script, "released"));
         Assert.NotEqual(0, Read(script, "kept"));
     }
@@ -338,7 +338,7 @@ public class ExecFuncTests
             }
             """);
         var texts = Enumerable.Range(0, 17).SelectMany(layer => map.GetLayer(layer))
-            .Select(entry => entry.Sprite?.Text?.Shown.ToArray()).Where(text => text is not null)
+            .Select(entry => entry?.Text?.Shown.ToArray()).Where(text => text is not null)
             .Select(text => Encoding.ASCII.GetString(text!)).ToList();
 
         Assert.Contains("BACK", texts);
@@ -357,11 +357,10 @@ public class ExecFuncTests
 
     private static Script Compile(Map map, string text)
     {
-        var script = map.Script;
         var fileSystem = new ScriptOverlay(new GameFolder(TestGameFolder.RequireFolder()), ScriptPath, "#include \"maps\\export.lgc\"\n" + text);
-        Assert.True(script.Load(fileSystem, ScriptPath));
+        Assert.True(map.Script.Load(fileSystem, ScriptPath));
 
-        return script;
+        return map.Script;
     }
 
     private static int Read(Script script, string name) => script.GetSlot(script.Objects[script.FindObject(Encoding.ASCII.GetBytes(name))].Address).GetValue();

@@ -1,4 +1,3 @@
-using System.Drawing;
 using ASToolkit.Core.Engine;
 using System.Numerics;
 using ASToolkit.Core.Formats;
@@ -13,11 +12,11 @@ public class PlayerMovementTests
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var definition = definitions.Find(KnownObject.PlayerStart)!;
-        var collector = new SpriteCollector(new SizeF(2000, 2000), new Vector2(130));
+        var map = EngineTestMap.CreateMap(definitions);
         var player = new Sprite(0, definition, new Vector3(1000, 1000, 0), 0, definition.MaxHp) { Direction = new Angle(64) };
-        collector.InsertToHash(player);
+        map.Collector.InsertToHash(player);
         var motion = new SpriteKinematics(definitions, null!);
-        var movement = new PlayerMovement(new SpriteCollision(new MovementMap(), collector), motion);
+        var movement = new PlayerMovement(map.Collision, motion);
         motion.SetMoveTarget(player, new Sprite(-1, definitions.Empty, new Vector3(1400, 1000, 0), 0, 0));
         movement.MoveTact(player, 20);
         Assert.Equal(0.018f, player.Speed, 5);
@@ -37,15 +36,15 @@ public class PlayerMovementTests
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var definition = definitions.Find(KnownObject.PlayerStart)!;
-        var collector = new SpriteCollector(new SizeF(2000, 2000), new Vector2(130));
+        var map = EngineTestMap.CreateMap(definitions);
         var player = new Sprite(0, definition, new Vector3(1000, 1000, 0), 0, definition.MaxHp);
-        collector.InsertToHash(player);
+        map.Collector.InsertToHash(player);
         var motion = new SpriteKinematics(definitions, null!);
-        var movement = new PlayerMovement(new SpriteCollision(new MovementMap(), collector), motion);
+        var movement = new PlayerMovement(map.Collision, motion);
         motion.SetMoveTarget(player, new Sprite(-1, definitions.Empty, new Vector3(1400, 1000, 0), 0, 0));
         movement.MoveTact(player, 20);
 
-        Assert.Equal(1000, player.Position.X);
+        Assert.Equal(1000f, player.Position.X, 0f);
         Assert.Equal(999.64f, player.Position.Y, 3);
         Assert.Equal(10, player.Direction.Value);
     }

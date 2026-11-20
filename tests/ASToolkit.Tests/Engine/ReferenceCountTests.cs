@@ -40,7 +40,7 @@ public class ReferenceCountTests
         {
             foreach (var entry in map.GetLayer(layer))
             {
-                Hold(expected, entry.Sprite);
+                Hold(expected, entry);
             }
         }
 
@@ -72,7 +72,7 @@ public class ReferenceCountTests
             Hold(expected, map.GetFlagman(army));
         }
 
-        Hold(expected, map.Session.Cursor);
+        Hold(expected, map.CursorSprite);
 
         foreach (var holder in expected.Keys.ToArray())
         {

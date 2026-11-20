@@ -56,5 +56,5 @@ public class DemoTests
         Assert.Equal("maps\\engine_test.map"u8.ToArray(), player.MapToLoad);
     }
 
-    private static GameSession CreateRecordingSession() => new(new ScriptRegistry("")) { RecordsNextMap = true };
+    private static GameSession CreateRecordingSession() => new(new ScriptRegistry("")) { IsRecordingNextMap = true };
 }

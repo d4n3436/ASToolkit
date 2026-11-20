@@ -8,7 +8,6 @@ namespace ASToolkit.Tests.Engine;
 
 public class ScriptHandlerTests
 {
-
     [Fact]
     public void Step_FreezeBonusTaken_FreezesNearbyMonstersInPlace()
     {
@@ -245,5 +244,5 @@ public class ScriptHandlerTests
                 Flashes.Add(map.ScreenFlash.Value);
             }
         }
-    }
+}
 }

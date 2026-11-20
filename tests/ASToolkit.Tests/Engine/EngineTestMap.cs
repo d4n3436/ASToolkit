@@ -28,8 +28,34 @@ internal static class EngineTestMap
         }
         """;
 
+    public static IEnumerable<Sprite> GetEffects(this Map map) => map.ActiveSprites.Where(sprite =>
+        sprite.Definition.Object.SpriteClass != SpriteClass.Man && !SpriteCollector.IsListed(sprite.Definition) && sprite.Owner?.Definition.Object.SpriteClass != SpriteClass.Man);
+
     public static Map CreateMap(SpriteCatalog definitions, PlayerLoadout? loadout = null, IReadOnlyList<MergedMapSprite>? sprites = null, int frameTime = GameClock.DefaultFrameTime,
-        MapEnvironment environment = MapEnvironment.None, DemoResource? demo = null, string? blood = null, GameSession? session = null, string script = Script, Gamma ambient = default, bool placesPlayer = true)
+        MapEnvironment environment = MapEnvironment.None, DemoResource? demo = null, string? blood = null, GameSession? session = null, string script = Script, Gamma ambient = default, bool placesPlayer = true, Vector2 camera = default)
+    {
+        var level = CreateLevel(definitions, sprites, frameTime, environment, script, ambient, placesPlayer, camera);
+
+        loadout ??= new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default);
+
+        var registry = Playthrough.CreateRegistry(TestGameFolder.RequireFolder(), "Level_02.map", loadout);
+        if (blood is not null)
+        {
+            registry.Set("Blood", blood);
+        }
+
+        var map = new Map(definitions, level.FileSystem, registry: registry, session: session);
+        map.Load(level, 1, demo);
+        if (placesPlayer)
+        {
+            map.SetFlagman(0, FindPlacedMan(map));
+        }
+
+        return map;
+    }
+
+    public static LevelTemplate CreateLevel(SpriteCatalog definitions, IReadOnlyList<MergedMapSprite>? sprites = null, int frameTime = GameClock.DefaultFrameTime,
+        MapEnvironment environment = MapEnvironment.None, string script = Script, Gamma ambient = default, bool placesPlayer = true, Vector2 camera = default)
     {
         var placed = new List<MergedMapSprite>();
         if (placesPlayer)
@@ -43,7 +69,8 @@ internal static class EngineTestMap
             Sprites = placed,
             StoredSprites = placed,
             Environment = environment,
-            Ambient = ambient
+            Ambient = ambient,
+            Camera = camera
         };
 
         var level = new LevelTemplate
@@ -57,21 +84,7 @@ internal static class EngineTestMap
             ScriptPath = ScriptPath
         };
 
-        loadout ??= new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default);
-
-        var registry = Playthrough.CreateRegistry(TestGameFolder.RequireFolder(), "Level_02.map", loadout);
-        if (blood is not null)
-        {
-            registry.Set("Blood", blood);
-        }
-
-        var map = new Map(level, new GameRandom(1), demo: demo, registry: registry, session: session);
-        if (placesPlayer)
-        {
-            map.SetFlagman(0, FindPlacedMan(map));
-        }
-
-        return map;
+        return level;
     }
 
     public static Sprite FindPlacedMan(Map map)
@@ -89,6 +102,6 @@ internal static class EngineTestMap
             }
         }
 
-        throw new InvalidOperationException("Expected a map that places a player.");
+        throw new InvalidOperationException("Could not find a player in the level.");
     }
 }

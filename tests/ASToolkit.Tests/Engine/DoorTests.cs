@@ -18,11 +18,11 @@ public class DoorTests
         var body = map.FindPlacementSprite(door)!;
         map.Play(default);
 
-        Assert.Equal(0, body.Position.Z);
+        Assert.Equal(0f, body.Position.Z, 0f);
         for (int tick = 1; tick <= ticks + 1; tick++)
         {
             map.Play(default);
-            Assert.Equal(-Math.Min(tick, ticks) * step, body.Position.Z);
+            Assert.Equal(-Math.Min(tick, ticks) * step, body.Position.Z, 0f);
         }
     }
 
@@ -33,13 +33,12 @@ public class DoorTests
         var definition = definitions.Find(KnownObject.SmallDoor)!;
         var walker = definitions.Find(KnownObject.PlayerStart)!;
         var position = new Vector2(1000);
-        var collector = new SpriteCollector(new System.Drawing.SizeF(2000, 2000), new Vector2(130));
+        var map = EngineTestMap.CreateMap(definitions);
         var sprite = new Sprite(0, walker, position.AsVector3(), 0, walker.MaxHp);
-        collector.InsertToHash(new Sprite(1, definition, position.AsVector3(), 0, definition.MaxHp));
-        collector.InsertToHash(sprite);
-        var movement = new SpriteCollision(new MovementMap(), collector);
+        map.Collector.InsertToHash(new Sprite(1, definition, position.AsVector3(), 0, definition.MaxHp));
+        map.Collector.InsertToHash(sprite);
 
-        Assert.True(movement.Move(sprite, (position + Vector2.UnitX).AsVector3()));
+        Assert.True(map.Collision.Move(sprite, (position + Vector2.UnitX).AsVector3()));
         Assert.Equal(position + Vector2.UnitX, sprite.Position.AsVector2());
     }
 
@@ -56,7 +55,7 @@ public class DoorTests
             map.Play(default);
         }
 
-        Assert.Equal(-64, body.Position.Z);
+        Assert.Equal(-64f, body.Position.Z, 0f);
         map.Player.Position = new Vector3(3000, 1000, 0);
         int left = map.Time;
         while (map.Time <= left + 3000)
@@ -64,9 +63,9 @@ public class DoorTests
             map.Play(default);
         }
 
-        Assert.Equal(-64, body.Position.Z);
+        Assert.Equal(-64f, body.Position.Z, 0f);
         map.WriteScriptNumber("DoorsIsOpen"u8, 0);
         map.Play(default);
-        Assert.Equal(-60, body.Position.Z);
+        Assert.Equal(-60f, body.Position.Z, 0f);
     }
 }
