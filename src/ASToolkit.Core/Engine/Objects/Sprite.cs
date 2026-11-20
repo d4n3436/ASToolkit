@@ -322,9 +322,22 @@ public sealed class Sprite : IResettable
     public float MaxSpeed { get; set; }
 
     /// <summary>
-    /// Gets or sets the sprite the sprite moves toward or attacks.
+    /// Gets or sets the sprite the sprite moves toward or attacks, holding a reference to it.
     /// </summary>
-    public Sprite? Goal { get => _goal; set => _goal = MarkReferenced(value); }
+    public Sprite? Goal
+    {
+        get => _goal;
+        [EngineRoutine(0x00444650)]
+        set
+        {
+            if (_goal == value)
+                return;
+
+            _goal?.Release();
+            _goal = MarkReferenced(value);
+            _goal?.AddRef();
+        }
+    }
 
     /// <summary>
     /// Gets or sets the sprite that fired the sprite.
@@ -390,6 +403,11 @@ public sealed class Sprite : IResettable
     /// Gets a value indicating whether another sprite refers to the sprite.
     /// </summary>
     public bool IsReferenced { get; private set; }
+
+    /// <summary>
+    /// Gets the number of lists and sprites that hold the sprite.
+    /// </summary>
+    public int ReferenceCount { get; private set; }
 
     /// <summary>
     /// Changes the sprite's definition, moving its count and resetting it to the first frame of the standing state, facing up.
@@ -483,6 +501,7 @@ public sealed class Sprite : IResettable
         IsBlocked = false;
         IsClimbing = false;
         IsReferenced = false;
+        ReferenceCount = 0;
     }
     
     /// <summary>
@@ -501,6 +520,17 @@ public sealed class Sprite : IResettable
     /// Marks the sprite as referred to by another sprite.
     /// </summary>
     public void MarkReferenced() => IsReferenced = true;
+
+    /// <summary>
+    /// Adds a reference to the sprite.
+    /// </summary>
+    public void AddRef() => ReferenceCount++;
+
+    /// <summary>
+    /// Removes a reference to the sprite.
+    /// </summary>
+    /// <returns>The number of references left.</returns>
+    public int Release() => --ReferenceCount;
 
     private static Sprite? MarkReferenced(Sprite? sprite)
     {

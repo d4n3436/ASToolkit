@@ -880,6 +880,8 @@ public sealed partial class Map
         }
 
         _updates.Add(sprite.Definition.Layer, new UpdateEntry(sprite.Role, sprite));
+        sprite.AddRef();
+        Release(sprite);
     }
 
     [EngineRoutine(0x00442ad0)]

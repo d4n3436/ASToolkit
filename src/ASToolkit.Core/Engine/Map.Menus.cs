@@ -150,6 +150,13 @@ public sealed partial class Map
         _menuSprites[index] = _menuSprites[last];
         _menuSprites.RemoveAt(last);
 
+        if (sprite.Release() < 0)
+        {
+            Session.Logger.Error(SpriteLogTag, LogError.Invalid, 0, default);
+
+            return;
+        }
+
         DestroySprite(sprite);
     }
 

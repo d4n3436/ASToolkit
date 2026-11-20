@@ -270,6 +270,8 @@ public sealed partial class Map : IDisposable
     /// </summary>
     public IReadOnlyList<Group> Groups => _groups;
 
+    internal IReadOnlyList<Sprite> MenuSprites => _menuSprites;
+
     /// <summary>
     /// Gets a value indicating whether the controllers act on the input.
     /// </summary>
@@ -420,7 +422,12 @@ public sealed partial class Map : IDisposable
     {
         for (int i = _groups.Count - 1; i >= 0; i--)
         {
-            if (_groups[i].Remove(sprite) && _groups[i].Members.Count == 0)
+            if (!_groups[i].Remove(sprite))
+                continue;
+
+            Release(sprite);
+
+            if (_groups[i].Members.Count == 0)
             {
                 _groups.RemoveAt(i);
             }
@@ -480,7 +487,30 @@ public sealed partial class Map : IDisposable
     {
         sprite.Role = role;
         CountSprite(sprite);
+        sprite.AddRef();
         _updates.Add(sprite.Definition.Layer, new UpdateEntry(role, sprite));
+        sprite.AddRef();
+        Release(sprite);
+    }
+
+    /// <summary>
+    /// Removes a reference to a sprite, deleting the sprite when none is left.
+    /// </summary>
+    /// <param name="sprite">The sprite.</param>
+    public void Release(Sprite sprite)
+    {
+        int count = sprite.Release();
+
+        if (count >= 1)
+            return;
+
+        if (count < 0)
+        {
+            Session.Logger.Error(SpriteLogTag, LogError.Invalid, 0, default);
+            return;
+        }
+
+        DestroySprite(sprite);
     }
 
     [EngineRoutine(0x004545e0)]
@@ -494,8 +524,13 @@ public sealed partial class Map : IDisposable
     }
 
     [EngineRoutine(0x00446c90)]
-    private static Sprite ConstructCursor(SpriteCatalog definitions, SizeF screen) =>
-        new(-1, definitions.Empty, new Vector3(screen.ToVector2() * HalfShare, 0), Army.Player, 0);
+    private static Sprite ConstructCursor(SpriteCatalog definitions, SizeF screen)
+    {
+        var cursor = new Sprite(-1, definitions.Empty, new Vector3(screen.ToVector2() * HalfShare, 0), Army.Player, 0);
+        cursor.AddRef();
+
+        return cursor;
+    }
 
     [EngineRoutine(0x00446810)]
     private static bool TryAddItem(Sprite sprite, int item)
@@ -568,6 +603,7 @@ public sealed partial class Map : IDisposable
         if (isMenu)
         {
             _menuSprites.Add(sprite);
+            sprite.AddRef();
         }
 
         if (definition.Object.SpriteClass == SpriteClass.Text)
@@ -744,7 +780,7 @@ public sealed partial class Map : IDisposable
     /// <param name="army">The player slot.</param>
     /// <param name="sprite">The player, or null to clear the slot.</param>
     [EngineRoutine(0x0040e600)]
-    public void SetFlagman(int army, Sprite? sprite) => _players[army & ArmyMask].SetSprite(sprite);
+    public void SetFlagman(int army, Sprite? sprite) => _players[army & ArmyMask].SetFlagman(sprite);
 
     /// <summary>
     /// Advances the game clock to the next frame of wall time and compacts the update lists.

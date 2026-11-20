@@ -130,6 +130,13 @@ public sealed partial class Map : IScriptFunctionHost
             }
         }
 
+        sprite.Goal = null;
+
+        if (sprite.Role != UpdateRole.None)
+        {
+            sprite.Release();
+        }
+
         if (sprite.Handle == 0)
             return;
 
@@ -398,6 +405,7 @@ public sealed partial class Map : IScriptFunctionHost
         int last = _menuSprites.Count - 1;
         _menuSprites[index] = _menuSprites[last];
         _menuSprites.RemoveAt(last);
+        Release(sprite);
     }
 
     private Sprite? MenuFind(Script script)

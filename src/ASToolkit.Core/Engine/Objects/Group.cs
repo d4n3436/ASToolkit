@@ -40,6 +40,7 @@ public sealed class Group
         var position = sprite.Position.AsVector2();
         Center = _members.Count != 0 ? (position + Center) * CenterBlend : position;
         _members.Add(sprite);
+        sprite.AddRef();
     }
 
     /// <summary>

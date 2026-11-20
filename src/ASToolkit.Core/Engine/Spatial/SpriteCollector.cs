@@ -75,6 +75,7 @@ internal sealed class SpriteCollector
         {
             sprite.ListIndex = _sprites.Count;
             _sprites.Add(sprite);
+            sprite.AddRef();
         }
     }
 
@@ -94,6 +95,7 @@ internal sealed class SpriteCollector
         last.ListIndex = sprite.ListIndex;
         _sprites.RemoveAt(_sprites.Count - 1);
         sprite.ListIndex = -1;
+        sprite.Release();
     }
 
     private void AddToBucket(Sprite sprite)
@@ -103,6 +105,7 @@ internal sealed class SpriteCollector
         sprite.Slot = bucket.Count;
         sprite.Collector = this;
         bucket.Add(new GridEntry(sprite));
+        sprite.AddRef();
     }
 
     private void RemoveFromBucket(Sprite sprite)
@@ -114,6 +117,7 @@ internal sealed class SpriteCollector
         bucket.RemoveAt(bucket.Count - 1);
         sprite.Slot = -1;
         sprite.Collector = null;
+        sprite.Release();
     }
 
     [EngineRoutine(0x0042d8c0)]

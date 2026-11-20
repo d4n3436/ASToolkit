@@ -38,10 +38,30 @@ internal sealed class Player
     public int Money { get; set; }
 
     [EngineRoutine(0x00413140)]
-    public void SetSprite(Sprite? sprite) => Sprite = sprite;
+    public void SetFlagman(Sprite? sprite)
+    {
+        sprite?.AddRef();
+
+        if (Sprite is not null)
+        {
+            _map.Release(Sprite);
+        }
+
+        Sprite = sprite;
+    }
 
     [EngineRoutine(0x00413440)]
-    public void Load(Sprite? flagman) => Sprite = flagman;
+    public void Load(Sprite? flagman)
+    {
+        flagman?.AddRef();
+
+        if (Sprite is not null)
+        {
+            _map.Release(Sprite);
+        }
+
+        Sprite = flagman;
+    }
 
     [EngineRoutine(0x0043e9f0)]
     public void Forget(Sprite removed) => ForgetSprite(removed);
@@ -51,6 +71,7 @@ internal sealed class Player
     {
         if (Sprite == removed)
         {
+            _map.Release(removed);
             Sprite = null;
         }
     }
