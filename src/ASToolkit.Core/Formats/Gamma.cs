@@ -20,6 +20,7 @@ public readonly record struct Gamma(uint Negative, uint Positive)
     /// </summary>
     /// <param name="gamma">The script gamma, alpha, red, green and blue from the high byte down.</param>
     /// <returns>The packed gamma.</returns>
+    [EngineRoutine(0x00439a60)]
     public static Gamma FromScript(uint gamma)
     {
         uint negative = 0, positive = 0;

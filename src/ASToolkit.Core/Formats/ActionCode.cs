@@ -6,6 +6,16 @@ namespace ASToolkit.Core.Formats;
 public enum ActionCode
 {
     /// <summary>
+    /// Salute, unless the sprite is fighting.
+    /// </summary>
+    Salut = 9,
+
+    /// <summary>
+    /// Die, hurting the sprites around when the definition has death damage.
+    /// </summary>
+    Death = 15,
+
+    /// <summary>
     /// Attack an object.
     /// </summary>
     Attack = 32,

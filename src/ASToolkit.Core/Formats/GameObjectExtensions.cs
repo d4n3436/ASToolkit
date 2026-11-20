@@ -2,6 +2,7 @@ namespace ASToolkit.Core.Formats;
 
 internal static class GameObjectExtensions
 {
+    [EngineRoutine(0x0041a730)]
     public static ObjectLayer GetLayer(this in GameObject obj, KnownObject id, VidResource? sprite)
     {
         var file = sprite?.Type ?? VidType.None;

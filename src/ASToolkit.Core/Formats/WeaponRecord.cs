@@ -8,52 +8,12 @@ namespace ASToolkit.Core.Formats;
 [StructLayout(LayoutKind.Explicit, Size = 640)]
 public readonly struct WeaponRecord
 {
-    private const int NoDecisions = 999999;
-
     /// <summary>
     /// Represents the number of keyframes of a weapon animation.
     /// </summary>
     public const int KeyframeCount = 8;
 
-    internal WeaponRecord(AlienShooterWeaponRecord record)
-    {
-        Flags = record.Flags;
-        Length = record.Length;
-        Weight = record.Weight;
-        Power = record.Power;
-        Targets = record.Targets.ToSpriteType();
-        DecisionPeriod = NoDecisions;
-        DetectRange = record.DetectRange;
-        BattleRange = record.BattleRange;
-        Aim = record.Aim;
-        VolleySize = 1;
-        Ammo = record.Ammo;
-        ReloadTime = record.ReloadTime;
-        VolleyReloadTime = 0;
-        BuildTime = record.BuildTime;
-        MinRange = record.MinRange;
-        Army = record.Army;
-        Behavior = record.Behavior;
-        Rank = record.Rank;
-        AnimationPeriod = record.AnimationPeriod;
-        KeyTimes = record.KeyTimes;
-        RedKeys = record.RedKeys;
-        GreenKeys = record.GreenKeys;
-        BlueKeys = record.BlueKeys;
-        AlphaKeys = record.AlphaKeys;
-        ScaleXKeys = record.ScaleXKeys;
-        ScaleYKeys = record.ScaleYKeys;
-        ScaleHeightKeys = record.ScaleHeightKeys;
-        OffsetXKeys = record.OffsetXKeys;
-        OffsetYKeys = record.OffsetYKeys;
-        SpeedKeys = record.SpeedKeys;
-    }
-
-    /// <summary>
-    /// The sprite type mask of eligible targets.
-    /// </summary>
-    [FieldOffset(0)]
-    internal readonly SpriteType Targets;
+    private const int NoDecisions = 999999;
 
     /// <summary>
     /// The flags of the weapon.
@@ -194,23 +154,6 @@ public readonly struct WeaponRecord
     public readonly KeyframeValues<int> AlphaKeys;
 
     /// <summary>
-    /// Reads the gamma of the keyframe animation at a position.
-    /// </summary>
-    /// <param name="keyframe">The position in the animation, in keyframes.</param>
-    /// <returns>The gamma between the keyframes around the position.</returns>
-    public VidGamma GetGamma(float keyframe) =>
-        new(GetKeyframeValue(RedKeys, keyframe), GetKeyframeValue(GreenKeys, keyframe), GetKeyframeValue(BlueKeys, keyframe), GetKeyframeValue(AlphaKeys, keyframe));
-
-    private static int GetKeyframeValue(in KeyframeValues<int> keys, float keyframe)
-    {
-        int key = Math.Max(0, (int)keyframe);
-        if (key >= KeyframeCount - 1)
-            return keys[KeyframeCount - 1];
-
-        return (int)((keys[key + 1] - keys[key]) * (keyframe - key) + keys[key]);
-    }
-
-    /// <summary>
     /// The factor applied to the scale along x at each keyframe.
     /// </summary>
     [FieldOffset(256)]
@@ -241,8 +184,93 @@ public readonly struct WeaponRecord
     public readonly KeyframeValues<float> OffsetYKeys;
 
     /// <summary>
+    /// The height offset in pixels at each keyframe.
+    /// </summary>
+    [FieldOffset(416)]
+    public readonly KeyframeValues<float> OffsetZKeys;
+
+    /// <summary>
+    /// The angle about the x axis at each keyframe, in 256ths of a turn.
+    /// </summary>
+    [FieldOffset(448)]
+    public readonly KeyframeValues<int> RotationXKeys;
+
+    /// <summary>
+    /// The angle about the y axis at each keyframe, in 256ths of a turn.
+    /// </summary>
+    [FieldOffset(480)]
+    public readonly KeyframeValues<int> RotationYKeys;
+
+    /// <summary>
+    /// The rotation of the drawn image at each keyframe, as an angle in 256ths of a turn.
+    /// </summary>
+    [FieldOffset(512)]
+    public readonly KeyframeValues<int> RotationZKeys;
+
+    /// <summary>
     /// The change of speed at each keyframe, in thousandths of the speed unit.
     /// </summary>
     [FieldOffset(576)]
     public readonly KeyframeValues<float> SpeedKeys;
+
+    /// <summary>
+    /// The sprite type mask of eligible targets.
+    /// </summary>
+    [FieldOffset(0)]
+    internal readonly SpriteType Targets;
+
+    internal WeaponRecord(AlienShooterWeaponRecord record)
+    {
+        Flags = record.Flags;
+        Length = record.Length;
+        Weight = record.Weight;
+        Power = record.Power;
+        Targets = record.Targets.ToSpriteType();
+        DecisionPeriod = NoDecisions;
+        DetectRange = record.DetectRange;
+        BattleRange = record.BattleRange;
+        Aim = record.Aim;
+        VolleySize = 1;
+        Ammo = record.Ammo;
+        ReloadTime = record.ReloadTime;
+        VolleyReloadTime = 0;
+        BuildTime = record.BuildTime;
+        MinRange = record.MinRange;
+        Army = record.Army;
+        Behavior = record.Behavior;
+        Rank = record.Rank;
+        AnimationPeriod = record.AnimationPeriod;
+        KeyTimes = record.KeyTimes;
+        RedKeys = record.RedKeys;
+        GreenKeys = record.GreenKeys;
+        BlueKeys = record.BlueKeys;
+        AlphaKeys = record.AlphaKeys;
+        ScaleXKeys = record.ScaleXKeys;
+        ScaleYKeys = record.ScaleYKeys;
+        ScaleHeightKeys = record.ScaleHeightKeys;
+        OffsetXKeys = record.OffsetXKeys;
+        OffsetYKeys = record.OffsetYKeys;
+        OffsetZKeys = record.OffsetZKeys;
+        RotationXKeys = record.RotationXKeys;
+        RotationYKeys = record.RotationYKeys;
+        RotationZKeys = record.RotationZKeys;
+        SpeedKeys = record.SpeedKeys;
+    }
+
+    /// <summary>
+    /// Reads the gamma of the keyframe animation at a position.
+    /// </summary>
+    /// <param name="keyframe">The position in the animation, in keyframes.</param>
+    /// <returns>The gamma between the keyframes around the position.</returns>
+    public VidGamma GetGamma(float keyframe) =>
+        new(GetKeyframeValue(RedKeys, keyframe), GetKeyframeValue(GreenKeys, keyframe), GetKeyframeValue(BlueKeys, keyframe), GetKeyframeValue(AlphaKeys, keyframe));
+
+    private static int GetKeyframeValue(in KeyframeValues<int> keys, float keyframe)
+    {
+        int key = Math.Max(0, (int)keyframe);
+        if (key >= KeyframeCount - 1)
+            return keys[KeyframeCount - 1];
+
+        return (int)((keys[key + 1] - keys[key]) * (keyframe - key) + keys[key]);
+    }
 }

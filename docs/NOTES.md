@@ -124,11 +124,11 @@ Read by eye from the door graph, every original is built from 2 to 7 areas. Area
 
 - Roof tiles (501) lie at z 90 on basement levels and 95 on concrete levels, on top of the walls. Their offsets vary by about 18 px between patches and fit no single lattice.
 - Doors, jammed doors and monster holes nearly always have floor behind them. In campaign levels 2 to 10 that holds for 75 of 80 jammed doors and every door and monster hole.
-- The engine sorts by y. Tiles at (y - 80, z - 80) land on the same screen position and are drawn before the walls.
+- The engine draws against a depth buffer and does not sort by y (see [FORMATS.md](FORMATS.md#drawing-a-level)). A tile moved to (y - 80, z - 80) lands on the same screen position with a depth 640 lower.
 - Decor with z above 0 stands on whatever is under it, such as a monitor on a desk. In campaign levels 2 to 10, 73 of 92 boxes (428) stand on shelves, a cabinet or a table, 34 of 37 lab test tubes at a table and all 16 pieces of lab equipment on one.
 - Bio containers (443) and trucks (440) are walk-through sprites. The collision comes from a solid Z dummy (631) under each. All 44 campaign bio containers have one, and 15 of 16 trucks.
 - Pickups link to the glow 139 at a height of -9; the game draws the link at run time and no map stores it. Of the originals' linked pickups, 369 stand at height 10 and 149 at 0, where the glow sinks under the floor.
-- The monitors 405 and 406 hang on walls
+- The monitors 405 and 406 hang on walls.
 - Crates (419) carry the unit sprite type, as monsters do.
 
 ### Placement
@@ -305,7 +305,7 @@ Measured on the ten basement originals (campaign levels 2 to 5, add-on 1 levels 
 
 ### Phases
 
-Phases are the states of a level between the keys that change it (`ProgressionMeasurer`, with the rules in [NOTES.md](#phases-and-beats)). Each phase has an entrance, a critical path from the entrance through its charges and objectives to its keys and the way on, room trees off that path and loops. Return passes walk back over earlier rooms to the rooms their key opened. The critical path counts the places walked, a place walked twice counting twice.
+Phases are the states of a level between the keys that change it (`ProgressionMeasurer`, with the rules in [Phases and beats](#phases-and-beats)). Each phase has an entrance, a critical path from the entrance through its charges and objectives to its keys and the way on, room trees off that path and loops. Return passes walk back over earlier rooms to the rooms their key opened. The critical path counts the places walked, a place walked twice counting twice.
 
 | level | phases | rooms per phase | critical path | loops | ways back closed |
 |---|---|---|---|---|---|
@@ -356,7 +356,7 @@ Phases are the states of a level between the keys that change it (`ProgressionMe
 | 9 | 1,036,618 | 0.88 | 32,000 | | | | |
 | 10 | 745,142 | 1.00 | 0 | | | | |
 
-- Every campaign puts its basement levels before its concrete ones, a level counting by its floor set. Add-on 1 level 4 and add-on 2 level 5 lay basement walls on the military base floor (see [NOTES.md](#basement-lattice)), and both add-ons run basement levels at 2 and 3 and concrete levels at 4 and 5.
+- Every campaign puts its basement levels before its concrete ones, a level counting by its floor set. Add-on 1 level 4 and add-on 2 level 5 lay basement walls on the military base floor (see [Basement lattice](#basement-lattice)), and both add-ons run basement levels at 2 and 3 and concrete levels at 4 and 5.
 - Every campaign brings its weapons in shop-price order, except the campaign's plasma rifle in a level 4 spawn closet, a level before the rocket launcher.
 
 - The add-ons are shorter and harder. Each covers the campaign's arc of monsters, weapons and money in 5 levels. Add-on 1 passes the hit points of campaign level 8 at its level 4, and add-on 2 those of campaign level 10 at its level 4.

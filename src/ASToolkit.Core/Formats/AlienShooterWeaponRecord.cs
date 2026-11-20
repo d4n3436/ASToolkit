@@ -83,6 +83,18 @@ internal readonly struct AlienShooterWeaponRecord
     [FieldOffset(356)]
     public readonly KeyframeValues<float> OffsetYKeys;
 
+    [FieldOffset(388)]
+    public readonly KeyframeValues<float> OffsetZKeys;
+
+    [FieldOffset(420)]
+    public readonly KeyframeValues<int> RotationXKeys;
+
+    [FieldOffset(452)]
+    public readonly KeyframeValues<int> RotationYKeys;
+
+    [FieldOffset(484)]
+    public readonly KeyframeValues<int> RotationZKeys;
+
     [FieldOffset(548)]
     public readonly KeyframeValues<float> SpeedKeys;
 }

@@ -18,7 +18,6 @@ public sealed class ObjectTable
     private static readonly int WeaponSize = Unsafe.SizeOf<WeaponRecord>();
     private static readonly int AlienShooterWeaponSize = Unsafe.SizeOf<AlienShooterWeaponRecord>();
     private static readonly int[] BodySizes = [AlienShooterBodySize, ZombieShooterBodySize, BodySize, ZombieShooter2BodySize];
-
     private readonly Dictionary<KnownObject, Entry> _entries;
     private readonly WeaponRecord[] _weapons;
     private readonly SfxRecord[] _sounds;
@@ -41,6 +40,16 @@ public sealed class ObjectTable
     /// </summary>
     public ScriptVersion ScriptVersion => IsAlienShooter2 ? ScriptVersion.AlienShooter2 : ScriptVersion.AlienShooter;
 
+    /// <summary>
+    /// Gets the ID of every entry.
+    /// </summary>
+    public IReadOnlyCollection<KnownObject> Ids => _entries.Keys;
+
+    /// <summary>
+    /// Gets the sounds of the SFX chunk, empty for games other than Alien Shooter.
+    /// </summary>
+    public IReadOnlyList<SfxRecord> Sounds => _sounds;
+
     internal float Gravitation { get; private init; }
 
     internal float Gravitation2 { get; private init; }
@@ -49,10 +58,11 @@ public sealed class ObjectTable
 
     internal int HoverDelay { get; private init; }
 
-    /// <summary>
-    /// Gets the ID of every entry.
-    /// </summary>
-    public IReadOnlyCollection<KnownObject> Ids => _entries.Keys;
+    internal uint SelectedGamma { get; private init; }
+
+    internal uint HoveredEnemyGamma { get; private init; }
+
+    internal uint HoveredGamma { get; private init; }
 
     /// <summary>
     /// Reads objects.res.
@@ -103,8 +113,41 @@ public sealed class ObjectTable
             Gravitation = constants.Gravitation,
             Gravitation2 = constants.Gravitation2,
             ScrollSpeed = new Vector2(constants.ScrollSpeedX, constants.ScrollSpeedY),
-            HoverDelay = constants.HoverDelay
+            HoverDelay = constants.HoverDelay,
+            SelectedGamma = constants.SelectedGamma,
+            HoveredEnemyGamma = constants.HoveredEnemyGamma,
+            HoveredGamma = constants.HoveredGamma
         };
+    }
+
+    /// <summary>
+    /// Tries to find the entry with an ID.
+    /// </summary>
+    public bool TryFind(KnownObject id, out GameObject obj)
+    {
+        bool found = _entries.TryGetValue(id, out var entry);
+        obj = entry.Object;
+        return found;
+    }
+
+    /// <summary>
+    /// Returns the name of an entry.
+    /// </summary>
+    public string GetName(KnownObject id) => _entries[id].Name;
+
+    /// <summary>
+    /// Returns the sprite file of an entry.
+    /// </summary>
+    public string GetPath(KnownObject id) => _entries[id].Path;
+
+    /// <summary>
+    /// Tries to get the weapon record an object points at, or the first record for an index past the last. It fails if the table's weapon
+    /// records use an unknown layout.
+    /// </summary>
+    public bool TryGetWeapon(in GameObject obj, out WeaponRecord weapon)
+    {
+        weapon = _weapons.Length == 0 ? default : _weapons[obj.WeaponIndex >= 0 && obj.WeaponIndex < _weapons.Length ? obj.WeaponIndex : 0];
+        return _weapons.Length > 0;
     }
 
     private static List<ReadOnlyMemory<byte>> ReadRecords(ResContainer container, ReadOnlySpan<byte> tag)
@@ -167,41 +210,6 @@ public sealed class ObjectTable
         }
 
         return true;
-    }
-
-    /// <summary>
-    /// Finds the entry for an ID, returning false when the table has none.
-    /// </summary>
-    public bool TryFind(KnownObject id, out GameObject obj)
-    {
-        bool found = _entries.TryGetValue(id, out var entry);
-        obj = entry.Object;
-        return found;
-    }
-
-    /// <summary>
-    /// Returns the Russian name of an entry.
-    /// </summary>
-    public string GetName(KnownObject id) => _entries[id].Name;
-
-    /// <summary>
-    /// Returns the sprite file of an entry.
-    /// </summary>
-    public string GetPath(KnownObject id) => _entries[id].Path;
-
-    /// <summary>
-    /// Gets the sounds of the SFX chunk, empty for games other than Alien Shooter.
-    /// </summary>
-    public IReadOnlyList<SfxRecord> Sounds => _sounds;
-
-    /// <summary>
-    /// Finds the weapon record an object points at, or the first record for an index past the last, returning false when the table holds no
-    /// weapon records in a known layout.
-    /// </summary>
-    public bool TryGetWeapon(in GameObject obj, out WeaponRecord weapon)
-    {
-        weapon = _weapons.Length == 0 ? default : _weapons[obj.WeaponIndex >= 0 && obj.WeaponIndex < _weapons.Length ? obj.WeaponIndex : 0];
-        return _weapons.Length > 0;
     }
 
     private readonly record struct Entry(GameObject Object, string Name, string Path);

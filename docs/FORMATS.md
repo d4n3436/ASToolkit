@@ -223,7 +223,7 @@ Menu buttons and fonts reuse the low states under their own names (`ANI_MENUSTAN
  +36    +52     i32    VID_BUILDTIME: build time in milliseconds
  +44    +56     i32    army of the objects the attack creates; 1 on monsters, 0 on the player
  +48    +60     i32    behavior mask (BEH_): 1 BEH_AGGRESSIVE attacks an enemy in weapon range, 2 BEH_ACTIVE moves toward an enemy it sees but cannot attack yet, 4 BEH_CAREFUL, 8 BEH_HAUNT, 16 BEH_BIGFIRE; 3 on normal monsters
- -      +64     -      20 bytes no reader uses (always 0)
+ -      +64     -      20 bytes, always 0 (unused)
  +56    +84     i32    rank: attackers prefer the higher-ranked of two equal targets; 0 in Alien Shooter, 5 or 6 (the player) in Alien Shooter 2
  +60    +88     f32    closest distance at which the unit attacks
  +64    +92     i32    period in milliseconds of the keyframe animation, 999999 to run it once over the death animation
@@ -237,14 +237,16 @@ Menu buttons and fonts reuse the low states under their own names (`ANI_MENUSTAN
  +292   +320    f32 x8 factor on the scale along the height at each keyframe
  +324   +352    f32 x8 horizontal screen offset in pixels at each keyframe (0 by default)
  +356   +384    f32 x8 vertical screen offset in pixels at each keyframe
- +388   +416    f32 x8 third component of the offset track; no reader found
- +420   +448    i32 x24 three keyframe tracks; the later games keep their low bytes; no reader found
- +516   +544    f32 x8 no reader found
+ +388   +416    f32 x8 height offset at each keyframe, added to the drawing depth of a texture sprite, which stays where it is on the screen; software sprites ignore it
+ +420   +448    i32 x8 angle about x at each keyframe, the low byte in 256ths of a turn; a nonzero value switches on the keyframe animation (unused)
+ +452   +480    i32 x8 angle about y at each keyframe, the low byte in 256ths of a turn; a nonzero value switches on the keyframe animation (unused)
+ +484   +512    i32 x8 rotation of the drawn image at each keyframe, the low byte as an angle in 256ths of a turn; only the later games draw with it, though a nonzero value switches on the keyframe animation
+ +516   +544    f32 x8 (unused)
  +548   +576    f32 x8 speed added at each keyframe, scaled by 0.001 on load unless 999999
- +580   +608    f32 x8 scaled by 0.001 on load unless 999999; no reader found
+ +580   +608    f32 x8 scaled by 0.001 on load unless 999999 (unused)
 ```
 
-The weapon record drives the targeting and attacks of a unit. Units notice enemies within `VID_DETECTRANGE`, chase them with `BEH_ACTIVE` and attack between the closest distance and `VID_BATTLERANGE` once the reload time has passed, scattering their shots by the aim value. The damage of an attack belongs to the object the `ANI_FIGHT` state creates, or to the projectile that object creates in turn (a shotgun flash creates 10 pellets of 5 damage). Ammunition counts in 1/64 rounds up to `VID_AMMO`, and each attack spends as many rounds as the absolute `NoChild` of the `ANI_FIGHT` state (2 for the player's pistols, 1 for the other weapons); an upper body spends its owner's rounds. Melee monsters have a battle range of 50 to 115 and ranged ones 260 to 750. The keyframe tracks animate the gamma, scale, screen offset and speed of the object over the period, and Alien Shooter uses only the gamma.
+The weapon record drives the targeting and attacks of a unit. Units notice enemies within `VID_DETECTRANGE`, chase them with `BEH_ACTIVE` and attack between the closest distance and `VID_BATTLERANGE` once the reload time has passed, scattering their shots by the aim value. The damage of an attack belongs to the object the `ANI_FIGHT` state creates, or to the projectile that object creates in turn (a shotgun flash creates 10 pellets of 5 damage). Ammunition counts in 1/64 rounds up to `VID_AMMO`, and each attack spends as many rounds as the absolute `NoChild` of the `ANI_FIGHT` state (2 for the player's pistols, 1 for the other weapons); an upper body spends its owner's rounds. Melee monsters have a battle range of 50 to 115 and ranged ones 260 to 750. The keyframe tracks animate the gamma, scale, screen offset, height offset and speed of the object over the period. A software sprite takes only the gamma, and a texture sprite also the scale along x and y and the offsets.
 
 The later games also read these weapon flags:
 
@@ -365,22 +367,22 @@ The `CNST` record is 104 bytes in every game. Speeds are stored in thousandths a
  +16    i32   hit points one repair step restores
  +20    i32   resupply steps: each one refills the ammunition capacity divided by this
  +24    f32   fastest train speed
- +28    f32   5 in every game; no reader found
+ +28    f32   5 in every game (unused)
  +32    f32   slowing of a pushed object's slide; 600 in Alien Shooter and Zombie Shooter, 150 in the later games
  +36    i32   factor on a unit's build time in seconds
- +44    i32   120 in every game; no reader found
- +48    i32   120 in every game; no reader found
+ +44    i32   120 in every game (unused)
+ +48    i32   120 in every game (unused)
  +52    i32   milliseconds the cursor rests before its hint shows, repeated every 500 ms
- +56    i32   2 in every game; no reader found
- +60    i32   2 in every game; no reader found
+ +56    i32   2 in every game (unused)
+ +60    i32   2 in every game (unused)
  +68    i32   2000 in every game, read by the train code
- +72    i32   3000 in every game; no reader found
- +76    i32   30 in every game; no reader found
+ +72    i32   3000 in every game (unused)
+ +76    i32   30 in every game (unused)
  +80    u32   script gamma of the selected unit
  +84    u32   script gamma of an army 1 object under the cursor
  +88    u32   script gamma of any other object under the cursor
  +96    f32   speed above which a train crashes
- +100   i32   1000 in every game; no reader found
+ +100   i32   1000 in every game (unused)
 ```
 
 In Alien Shooter, each `SFX` record is one sound, numbered by its position from 0, the number the objects' `SFX` fields hold.
@@ -528,7 +530,7 @@ In Alien Shooter 2 the payload of a sprite with behavior starts with that behavi
  char[]   name, cp1251, NUL-terminated
 ```
 
-The sprite passes the 0x10000 behavior bit on to the objects it creates. The name is often a note of the level designer, such as "Установка динамита" (dynamite placement). Names in square brackets, such as `[gate]` or `[explosive]`, is the name a quest of `levels.cfg` refers to. Names from `h1` to `h20` mark the sprites that `EXT_KILLOBJECTS` removes. Pickups name the items they hold, such as `Obj_money2`.
+The sprite passes the 0x10000 behavior bit on to the objects it creates. The name is often a note of the level designer, such as "Установка динамита" (dynamite placement). Names in square brackets, such as `[gate]` or `[explosive]`, are the names the quests of `levels.cfg` refer to. Names from `h1` to `h20` mark the sprites that `EXT_KILLOBJECTS` removes. Pickups name the items they hold, such as `Obj_money2`.
 
 Each update runs the last entry of the next of the four stacks, and waits that are not over go back on their stack. As in Alien Shooter, units a sprite builds inherit the entries under `ACT_STOP_STACK` (73).
 
@@ -1097,7 +1099,7 @@ Alien Shooter (GOG):
 
 - `FUN_00411b50` - loads the object table from `objects.res`
 - `FUN_00413c30` - reads one object record
-- `FUN_00413710` - creates a sprite object with its default header
+- `FUN_00413710` - creates an object definition with its default values
 - `FUN_00433cd0` - reads the environment, ambient gamma and wind of the `GRPH` record
 - `FUN_00431cf0` - `SetEnvironment`, sets or clears environment bits
 - `FUN_0040c930` - `SetWind`, sets the wind speed and direction
@@ -1110,14 +1112,14 @@ Alien Shooter (GOG):
 - `FUN_0041fa30` - writes the script state
 - `FUN_0041fb20` - reads the script state back for playback
 - `FUN_0040e660` - reads or writes the time and input of one demo frame
-- `FUN_0040c570` - releases a map, ending a demo recording with -1
+- `FUN_0040c570` - releases a map, ending a demo recording with -1 and destroying every object
 - `FUN_00425d80` - turns window messages into the input state
 - `FUN_0043ea10` - `PLAYER::Control`, turns the input state into movement, firing and weapon choice, and spreads attacks through groups
 - `FUN_00426370` - reads a key name of the `[control]` settings
 - `FUN_0043ad70` - loads the groups of a map
 - `FUN_0040bc20` - moves the camera and clamps it to the map
 - `FUN_0040fc40` - finds a placed object by `SpriteType` mask, id, `SpriteClass`, army and state
-- `FUN_0043f200` - creates a placed object, applying the spawn flags
+- `FUN_0043f200` - creates an object of any class, applying the spawn flags
 - `FUN_00442ad0` - sets the army of an object and hides it when the flag 0x20000 asks for it
 - `FUN_00419b80` - bakes a scenery object into the terrain tiles, skipping objects with the flag 0x20000
 - `FUN_00447fe0` - creates a projectile, with its initial speed and vertical speed

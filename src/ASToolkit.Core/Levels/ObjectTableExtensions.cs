@@ -24,8 +24,8 @@ public static class ObjectTableExtensions
         }
 
         /// <summary>
-        /// Returns the index of the sprite one of the sprites stands on, -1 when it stands raised on nothing found, or null when it stands on
-        /// the floor.
+        /// Returns the index of the sprite that the sprite at <paramref name="index"/> stands on, -1 when it stands raised on nothing found,
+        /// or null when it stands on the floor.
         /// </summary>
         public int? FindSupport(IReadOnlyList<MergedMapSprite> sprites, int index)
         {

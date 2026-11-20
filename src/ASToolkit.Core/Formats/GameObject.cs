@@ -16,128 +16,6 @@ public readonly struct GameObject
 
     private const int UnlimitedLifetime = 999999;
 
-    internal GameObject(SpriteClass spriteClass, Vector3 size)
-    {
-        SpriteClass = spriteClass;
-        Size = size;
-        Lifetime = UnlimitedLifetime;
-    }
-
-    internal GameObject(AlienShooterGameObject obj)
-    {
-        SpriteType = obj.SpriteType.ToSpriteType();
-        SpriteClass = obj.SpriteClass;
-        Properties = obj.Properties;
-        MoveMask = obj.MoveMask;
-        Size = obj.Size;
-        MaxHp = obj.MaxHp;
-        MaxInitialSpeed = 0;
-        MaxInitialZSpeed = 0;
-        LinkOffset = obj.LinkOffset;
-        Link = obj.Link;
-        StepHeight = obj.StepHeight;
-        DropHeight = obj.DropHeight;
-        Directions = obj.Directions;
-        FrameCounts = obj.FrameCounts;
-        Sounds = obj.Sounds;
-        FrameDurations = obj.FrameDurations;
-        Gamma = obj.Gamma;
-        Scale = obj.Scale;
-        MaxSpeed = obj.MaxSpeed;
-        MaxZSpeed = obj.MaxZSpeed;
-        Acceleration = obj.Acceleration;
-        Deceleration = obj.Deceleration;
-        RotationPeriod = obj.RotationPeriod;
-        TopZ = obj.TopZ;
-        WeaponIndex = obj.WeaponIndex;
-        DeathRange = obj.DeathRange;
-        DeathDamage = obj.DeathDamage;
-        MaxDeathDamage = obj.DeathDamage;
-        Lifetime = obj.Lifetime;
-        ChildX = obj.ChildX;
-        ChildY = obj.ChildY;
-        ChildZ = obj.ChildZ;
-        Children = obj.Children;
-        ChildCounts = obj.ChildCounts;
-    }
-
-    internal GameObject(ZombieShooterGameObject obj)
-    {
-        SpriteType = obj.SpriteType.ToSpriteType();
-        SpriteClass = obj.SpriteClass;
-        Properties = obj.Properties;
-        MoveMask = obj.MoveMask;
-        Size = obj.Size;
-        MaxHp = obj.MaxHp;
-        MaxInitialSpeed = obj.MaxInitialSpeed;
-        MaxInitialZSpeed = obj.MaxInitialZSpeed;
-        LinkOffset = obj.LinkOffset;
-        Link = obj.Link;
-        StepHeight = obj.StepHeight;
-        DropHeight = obj.DropHeight;
-        Directions = obj.Directions;
-        FrameCounts = obj.FrameCounts;
-        Sounds = obj.Sounds;
-        FrameDurations = obj.FrameDurations;
-        Gamma = obj.Gamma;
-        Scale = obj.Scale;
-        MaxSpeed = obj.MaxSpeed;
-        MaxZSpeed = obj.MaxZSpeed;
-        Acceleration = obj.Acceleration;
-        Deceleration = obj.Deceleration;
-        RotationPeriod = obj.RotationPeriod;
-        TopZ = obj.TopZ;
-        WeaponIndex = obj.WeaponIndex;
-        DeathRange = obj.DeathRange;
-        DeathDamage = obj.DeathDamage;
-        MaxDeathDamage = obj.DeathDamage;
-        Lifetime = obj.Lifetime;
-        ChildX = obj.ChildX;
-        ChildY = obj.ChildY;
-        ChildZ = obj.ChildZ;
-        Children = obj.Children;
-        ChildCounts = obj.ChildCounts;
-    }
-
-    internal GameObject(ZombieShooter2GameObject obj)
-    {
-        SpriteType = obj.SpriteType;
-        SpriteClass = obj.SpriteClass;
-        Properties = obj.Properties;
-        MoveMask = obj.MoveMask;
-        Size = obj.Size;
-        MaxHp = obj.MaxHp;
-        MaxInitialSpeed = obj.MaxInitialSpeed;
-        MaxInitialZSpeed = obj.MaxInitialZSpeed;
-        LinkOffset = obj.LinkOffset;
-        Link = obj.Link;
-        StepHeight = obj.StepHeight;
-        DropHeight = obj.DropHeight;
-        Directions = obj.Directions;
-        FrameCounts = obj.FrameCounts;
-        Sounds = obj.Sounds;
-        FrameDurations = obj.FrameDurations;
-        Gamma = obj.Gamma;
-        Scale = obj.Scale;
-        MaxSpeed = obj.MaxSpeed;
-        MaxZSpeed = obj.MaxZSpeed;
-        Acceleration = obj.Acceleration;
-        Deceleration = obj.Deceleration;
-        RotationPeriod = obj.RotationPeriod;
-        TopZ = obj.TopZ;
-        WeaponIndex = obj.WeaponIndex;
-        DeathRange = obj.DeathRange;
-        DeathDamage = obj.DeathDamage;
-        MaxDeathDamage = obj.MaxDeathDamage;
-        Push = obj.Push;
-        Lifetime = obj.Lifetime;
-        ChildX = obj.ChildX;
-        ChildY = obj.ChildY;
-        ChildZ = obj.ChildZ;
-        Children = obj.Children;
-        ChildCounts = obj.ChildCounts;
-    }
-
     /// <summary>
     /// The sprite type of the object.
     /// </summary>
@@ -185,12 +63,6 @@ public readonly struct GameObject
     /// </summary>
     [FieldOffset(36)]
     public readonly float MaxInitialSpeed;
-
-    /// <summary>
-    /// The highest and initial vertical speed of the object in milli-units.
-    /// </summary>
-    [FieldOffset(40)]
-    internal readonly float MaxZSpeed;
 
     /// <summary>
     /// The maximum of the initial vertical speed range, in milli-units. Absent from Alien Shooter records.
@@ -349,6 +221,136 @@ public readonly struct GameObject
     public readonly Vector3 Scale;
 
     /// <summary>
+    /// The highest and initial vertical speed of the object in milli-units.
+    /// </summary>
+    [FieldOffset(40)]
+    internal readonly float MaxZSpeed;
+
+    internal GameObject(SpriteClass spriteClass, Vector3 size)
+    {
+        SpriteClass = spriteClass;
+        Size = size;
+        Directions = 1;
+        Scale = Vector3.One;
+        Lifetime = UnlimitedLifetime;
+    }
+
+    internal GameObject(AlienShooterGameObject obj)
+    {
+        SpriteType = obj.SpriteType.ToSpriteType();
+        SpriteClass = obj.SpriteClass;
+        Properties = obj.Properties;
+        MoveMask = obj.MoveMask;
+        Size = obj.Size;
+        MaxHp = obj.MaxHp;
+        MaxInitialSpeed = 0;
+        MaxInitialZSpeed = 0;
+        LinkOffset = obj.LinkOffset;
+        Link = obj.Link;
+        StepHeight = obj.StepHeight;
+        DropHeight = obj.DropHeight;
+        Directions = obj.Directions;
+        FrameCounts = obj.FrameCounts;
+        Sounds = obj.Sounds;
+        FrameDurations = obj.FrameDurations;
+        Gamma = obj.Gamma;
+        Scale = obj.Scale;
+        MaxSpeed = obj.MaxSpeed;
+        MaxZSpeed = obj.MaxZSpeed;
+        Acceleration = obj.Acceleration;
+        Deceleration = obj.Deceleration;
+        RotationPeriod = obj.RotationPeriod;
+        TopZ = obj.TopZ;
+        WeaponIndex = obj.WeaponIndex;
+        DeathRange = obj.DeathRange;
+        DeathDamage = obj.DeathDamage;
+        MaxDeathDamage = obj.DeathDamage;
+        Lifetime = obj.Lifetime;
+        ChildX = obj.ChildX;
+        ChildY = obj.ChildY;
+        ChildZ = obj.ChildZ;
+        Children = obj.Children;
+        ChildCounts = obj.ChildCounts;
+    }
+
+    internal GameObject(ZombieShooterGameObject obj)
+    {
+        SpriteType = obj.SpriteType.ToSpriteType();
+        SpriteClass = obj.SpriteClass;
+        Properties = obj.Properties;
+        MoveMask = obj.MoveMask;
+        Size = obj.Size;
+        MaxHp = obj.MaxHp;
+        MaxInitialSpeed = obj.MaxInitialSpeed;
+        MaxInitialZSpeed = obj.MaxInitialZSpeed;
+        LinkOffset = obj.LinkOffset;
+        Link = obj.Link;
+        StepHeight = obj.StepHeight;
+        DropHeight = obj.DropHeight;
+        Directions = obj.Directions;
+        FrameCounts = obj.FrameCounts;
+        Sounds = obj.Sounds;
+        FrameDurations = obj.FrameDurations;
+        Gamma = obj.Gamma;
+        Scale = obj.Scale;
+        MaxSpeed = obj.MaxSpeed;
+        MaxZSpeed = obj.MaxZSpeed;
+        Acceleration = obj.Acceleration;
+        Deceleration = obj.Deceleration;
+        RotationPeriod = obj.RotationPeriod;
+        TopZ = obj.TopZ;
+        WeaponIndex = obj.WeaponIndex;
+        DeathRange = obj.DeathRange;
+        DeathDamage = obj.DeathDamage;
+        MaxDeathDamage = obj.DeathDamage;
+        Lifetime = obj.Lifetime;
+        ChildX = obj.ChildX;
+        ChildY = obj.ChildY;
+        ChildZ = obj.ChildZ;
+        Children = obj.Children;
+        ChildCounts = obj.ChildCounts;
+    }
+
+    internal GameObject(ZombieShooter2GameObject obj)
+    {
+        SpriteType = obj.SpriteType;
+        SpriteClass = obj.SpriteClass;
+        Properties = obj.Properties;
+        MoveMask = obj.MoveMask;
+        Size = obj.Size;
+        MaxHp = obj.MaxHp;
+        MaxInitialSpeed = obj.MaxInitialSpeed;
+        MaxInitialZSpeed = obj.MaxInitialZSpeed;
+        LinkOffset = obj.LinkOffset;
+        Link = obj.Link;
+        StepHeight = obj.StepHeight;
+        DropHeight = obj.DropHeight;
+        Directions = obj.Directions;
+        FrameCounts = obj.FrameCounts;
+        Sounds = obj.Sounds;
+        FrameDurations = obj.FrameDurations;
+        Gamma = obj.Gamma;
+        Scale = obj.Scale;
+        MaxSpeed = obj.MaxSpeed;
+        MaxZSpeed = obj.MaxZSpeed;
+        Acceleration = obj.Acceleration;
+        Deceleration = obj.Deceleration;
+        RotationPeriod = obj.RotationPeriod;
+        TopZ = obj.TopZ;
+        WeaponIndex = obj.WeaponIndex;
+        DeathRange = obj.DeathRange;
+        DeathDamage = obj.DeathDamage;
+        MaxDeathDamage = obj.MaxDeathDamage;
+        Push = obj.Push;
+        Lifetime = obj.Lifetime;
+        ChildX = obj.ChildX;
+        ChildY = obj.ChildY;
+        ChildZ = obj.ChildZ;
+        Children = obj.Children;
+        ChildCounts = obj.ChildCounts;
+    }
+
+    /// <summary>
     /// The number of frames of the standing animation in each direction.
     /// </summary>
     public int FramesPerDirection => FrameCounts[(int)SpriteAnimation.Stand];
@@ -397,23 +399,6 @@ public readonly struct GameObject
     /// </summary>
     public int GetFrameDuration(SpriteAnimation animation, int spriteSpeed) =>
         FrameDurations[(int)animation] == 0 ? spriteSpeed : FrameDurations[(int)animation];
-
-    /// <summary>
-    /// Returns the animation whose frames are drawn for a state, falling back to the first populated state.
-    /// </summary>
-    public SpriteAnimation GetVisualAnimation(SpriteAnimation animation)
-    {
-        if (FrameCounts[(int)animation] > 0)
-            return animation;
-
-        for (int index = 0; index < StateCount; index++)
-        {
-            if (FrameCounts[index] > 0)
-                return (SpriteAnimation)index;
-        }
-
-        return animation;
-    }
 
     /// <summary>
     /// Returns the offset of an attached object from the object, turned by a facing unless the attached object keeps a fixed offset.

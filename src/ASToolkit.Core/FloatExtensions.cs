@@ -1,23 +1,24 @@
 namespace ASToolkit.Core;
 
 /// <summary>
-/// Provides tolerant comparisons of single-precision values.
+/// Provides exact comparisons of floating-point values.
 /// </summary>
 public static class FloatExtensions
 {
-    private const float Tolerance = 1e-6f;
-
     extension(float value)
     {
         /// <summary>
-        /// Returns whether the value is zero within a small tolerance.
+        /// Returns whether the value equals zero with no tolerance.
         /// </summary>
-        public bool IsZero(float tolerance = Tolerance) => MathF.Abs(value) <= tolerance;
+        /// <returns><see langword="true"/> if the value is zero; otherwise, <see langword="false"/>.</returns>
+        public bool IsExactlyZero() => value == 0;
 
+        // ReSharper disable once CompareOfFloatsByEqualityOperator
         /// <summary>
-        /// Returns whether two values are equal within a tolerance relative to their size.
+        /// Returns whether the value equals <paramref name="other"/> with no tolerance.
         /// </summary>
-        public bool IsNear(float other, float tolerance = Tolerance) =>
-            MathF.Abs(value - other) <= tolerance * MathF.Max(1, MathF.Max(MathF.Abs(value), MathF.Abs(other)));
+        /// <param name="other">The value to compare with.</param>
+        /// <returns><see langword="true"/> if the values are equal; otherwise, <see langword="false"/>.</returns>
+        public bool IsExactly(float other) => value == other;
     }
 }
