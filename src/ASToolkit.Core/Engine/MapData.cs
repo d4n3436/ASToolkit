@@ -46,6 +46,11 @@ public sealed class MapData
     public IReadOnlyList<IReadOnlyList<int>> Groups { get; init; } = [];
 
     /// <summary>
+    /// Gets the sprite handle of the player each player slot starts with, or 0 for none.
+    /// </summary>
+    public IReadOnlyList<int> PlayerHandles { get; init; } = [];
+
+    /// <summary>
     /// Gets the version of the map file.
     /// </summary>
     public int Version { get; init; }
@@ -64,6 +69,7 @@ public sealed class MapData
         Environment = map.Graphics.Environment,
         Ambient = map.Graphics.Ambient,
         Groups = map.Groups.ToArray(),
+        PlayerHandles = map.PlayerHandles,
         Version = map.Version
     };
 

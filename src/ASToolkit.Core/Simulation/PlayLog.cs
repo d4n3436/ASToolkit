@@ -10,15 +10,14 @@ internal sealed class PlayLog
     private readonly List<KnownObject> _taken = [];
     private bool _doorsLocked;
     private bool _fencesUp;
-    private Sprite _player;
+    private Sprite? _player;
 
     public PlayLog(Map map)
     {
         _doorsLocked = map.AreDoorsLocked;
         _fencesUp = map.AreFencesUp;
-        _player = map.Player;
         Timeline = new ScriptTimeline(map.AreDoorsLocked, null, null, null);
-        MinHealth = map.Player.Hp;
+        MinHealth = int.MaxValue;
         _pickups = new PickupTracker(map);
     }
 
@@ -34,9 +33,9 @@ internal sealed class PlayLog
 
     public void Update(Map map)
     {
-        if (map.Player != _player)
+        if (map.HasPlayer && map.Player != _player)
         {
-            if (!_player.IsAlive)
+            if (_player is { IsAlive: false })
             {
                 Respawns++;
                 MinHealth = Math.Min(MinHealth, 0);
@@ -45,7 +44,11 @@ internal sealed class PlayLog
             _player = map.Player;
         }
 
-        MinHealth = Math.Min(MinHealth, map.Player.Hp);
+        if (map.HasPlayer)
+        {
+            MinHealth = Math.Min(MinHealth, map.Player.Hp);
+        }
+
         UpdateTimeline(map);
         UpdatePickups(map);
         foreach (var sprite in map.Monsters)

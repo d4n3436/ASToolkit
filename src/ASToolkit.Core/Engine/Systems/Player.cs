@@ -40,6 +40,9 @@ internal sealed class Player
     [EngineRoutine(0x00413140)]
     public void SetSprite(Sprite? sprite) => Sprite = sprite;
 
+    [EngineRoutine(0x00413440)]
+    public void Load(Sprite? flagman) => Sprite = flagman;
+
     [EngineRoutine(0x0043e9f0)]
     public void Forget(Sprite removed) => ForgetSprite(removed);
 
@@ -86,7 +89,7 @@ internal sealed class Player
         {
             if (player.Rounds < player.Definition.ChildCounts[(int)SpriteAnimation.Fight])
             {
-                for (int slot = (int)player.Link!.Definition.Id - Sprite.WeaponIdBase - 1; !weapons.SelectWeapon(slot); slot--)
+                for (int slot = (int)player.Link!.Definition.Id - Sprite.WeaponIdBase - 1; !weapons.ChangeWeapon(player, slot); slot--)
                 {
                 }
             }
@@ -96,10 +99,10 @@ internal sealed class Player
 
         if (input.Key is >= FirstWeaponKey and <= LastWeaponKey)
         {
-            weapons.SelectWeapon(input.Key - FirstWeaponKey);
+            weapons.ChangeWeapon(player, input.Key - FirstWeaponKey);
         }
 
-        StepWeapon(input);
+        StepWeapon(player, input);
 
         var cursorDirection = GetCursorDirection(player, input.Cursor);
         var origin = _settings.IsMovementRelativeToCursor ? cursorDirection : default;
@@ -116,7 +119,7 @@ internal sealed class Player
 
         if (player.Link is not null && player.Link.Definition == player.Definition.LinkDefinition)
         {
-            weapons.TrackCursor(cursorDirection, elapsed);
+            weapons.TrackCursor(player, cursorDirection, elapsed);
         }
     }
 
@@ -156,10 +159,10 @@ internal sealed class Player
         }
     }
 
-    private void StepWeapon(PlayerInput input)
+    private void StepWeapon(Sprite player, PlayerInput input)
     {
         var weapons = _map.Weapons;
-        int slot = weapons.Slot;
+        int slot = player.WeaponSlot;
         int notches = input.Wheel;
 
         if (notches == 0)
@@ -180,7 +183,7 @@ internal sealed class Player
             {
                 slot++;
 
-                if (weapons.SelectWeapon(slot))
+                if (weapons.ChangeWeapon(player, slot))
                     break;
             }
         }
@@ -191,7 +194,7 @@ internal sealed class Player
             {
                 slot--;
 
-                if (weapons.SelectWeapon(slot))
+                if (weapons.ChangeWeapon(player, slot))
                     break;
             }
         }

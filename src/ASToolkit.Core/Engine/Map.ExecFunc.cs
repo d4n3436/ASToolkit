@@ -520,7 +520,7 @@ public sealed partial class Map : IScriptFunctionHost
                 _updates.Remove(sprite.Definition.Layer, sprite);
                 RemoveMonster(sprite);
                 Collector.DeleteFromHash(sprite);
-                Delete(sprite);
+                DeletePointerToSprite(sprite);
                 ReleaseSprite(sprite);
                 break;
             case UpdateRole.Scripted:
@@ -537,7 +537,6 @@ public sealed partial class Map : IScriptFunctionHost
             case UpdateRole.Torso:
                 _updates.Remove(sprite.Definition.Layer, sprite);
                 Collector.DeleteFromHash(sprite);
-                Delete(sprite);
                 ReleaseSprite(sprite);
 
                 if (Weapons.Torso == sprite)

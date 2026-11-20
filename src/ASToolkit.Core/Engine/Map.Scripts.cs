@@ -206,30 +206,6 @@ public sealed partial class Map
         RemoveSprite(placement);
     }
 
-    /// <summary>
-    /// Gets a value indicating whether the player mans a cannon.
-    /// </summary>
-    public bool IsInCannon => _player?.Definition.Id == KnownObject.MannedCannon;
-
-    /// <summary>
-    /// Gets a value indicating whether an invulnerability or rescue object protects the player.
-    /// </summary>
-    public bool IsProtected
-    {
-        get
-        {
-            if (_player is null)
-                return false;
-
-            foreach (var link in _player.EnumerateLinks())
-            {
-                if (link.Definition.Id is KnownObject.InvulnerabilityEffect or KnownObject.RescueMedkitEffect)
-                    return true;
-            }
-
-            return false;
-        }
-    }
 
     private ScriptInput GetInputState()
     {

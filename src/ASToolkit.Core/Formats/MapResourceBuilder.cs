@@ -38,6 +38,11 @@ public sealed class MapResourceBuilder
     public IReadOnlyList<int[]> Groups { get; init; } = [];
 
     /// <summary>
+    /// Gets the sprite handle of the player each player slot starts with, or 0 for none.
+    /// </summary>
+    public IReadOnlyList<int> PlayerHandles { get; init; } = [];
+
+    /// <summary>
     /// Gets the gamma of the ambient light written over the template's, or null to keep the template's light.
     /// </summary>
     public Gamma? Ambient { get; init; }
@@ -70,6 +75,7 @@ public sealed class MapResourceBuilder
             Scroll = resource.Header.Camera,
             Graphics = resource.Graphics,
             Groups = resource.Groups.ToArray(),
+            PlayerHandles = resource.PlayerHandles.ToArray(),
             Version = resource.Header.Version
         };
         foreach (var sprite in resource.Sprites)

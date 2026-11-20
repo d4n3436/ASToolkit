@@ -65,6 +65,30 @@ internal static class EngineTestMap
             registry.Set("Blood", blood);
         }
 
-        return new Map(level, new GameRandom(1), demo: demo, registry: registry, session: session);
+        var map = new Map(level, new GameRandom(1), demo: demo, registry: registry, session: session);
+        if (placesPlayer)
+        {
+            map.SetFlagman(0, FindPlacedMan(map));
+        }
+
+        return map;
+    }
+
+    public static Sprite FindPlacedMan(Map map)
+    {
+        foreach (var placement in map.Sprites)
+        {
+            if (map.Definitions.Find(placement.Id)?.Object.SpriteClass != SpriteClass.Man)
+                continue;
+
+            var point = placement.Position.AsVector2();
+            foreach (var sprite in map.Collector.GetNear(point, point))
+            {
+                if (sprite.Definition.Object.SpriteClass == SpriteClass.Man)
+                    return sprite;
+            }
+        }
+
+        throw new InvalidOperationException("Expected a map that places a player.");
     }
 }

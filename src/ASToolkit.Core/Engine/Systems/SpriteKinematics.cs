@@ -1,4 +1,5 @@
 using System.Numerics;
+using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Engine;
@@ -9,6 +10,8 @@ internal sealed class SpriteKinematics
 
     private readonly SpriteCatalog _definitions;
     private readonly Map _map;
+
+    private static ReadOnlySpan<byte> SpriteLogTag => "SPRITE %i"u8;
 
     public SpriteKinematics(SpriteCatalog definitions, Map map)
     {
@@ -66,9 +69,26 @@ internal sealed class SpriteKinematics
         return false;
     }
 
+    public void DeletePointerToSprite(Sprite sprite, Sprite removed)
+    {
+        if (sprite.Definition.Object.SpriteClass == SpriteClass.Cannon)
+        {
+            ForgetCannonGoal(sprite, removed);
+        }
+        else
+        {
+            ForgetObject(sprite, removed);
+        }
+    }
+
     [EngineRoutine(0x0043f720)]
     public void ForgetObject(Sprite sprite, Sprite removed)
     {
+        if (sprite.Link is not null)
+        {
+            DeletePointerToSprite(sprite.Link, removed);
+        }
+
         if (sprite.Goal == removed)
         {
             if (sprite.Animation == SpriteAnimation.Fight)
@@ -181,7 +201,7 @@ internal sealed class SpriteKinematics
     }
 
     [EngineRoutine(0x0043fb10)]
-    public Vector3 Move(Sprite sprite, int elapsed)
+    public Vector3 CalculateNewCoordinates(Sprite sprite, int elapsed)
     {
         ref readonly var obj = ref sprite.Definition.Object;
         var next = sprite.Position;
@@ -189,11 +209,13 @@ internal sealed class SpriteKinematics
 
         if (sprite is { Command: Command.Move, IsMoving: false })
         {
+            _map.Session.Logger.Error(SpriteLogTag, LogError.Text, 0, "Move without StartMove()"u8, (int)sprite.Definition.Id);
             StartMove(sprite);
         }
 
         if (sprite is { Command: Command.Move, HasGoal: false })
         {
+            _map.Session.Logger.Error(SpriteLogTag, LogError.Text, 0, "Move without goal"u8, (int)sprite.Definition.Id);
             Stop(sprite);
         }
 
@@ -247,23 +269,26 @@ internal sealed class SpriteKinematics
 
         if (!moving)
         {
-            if (speed > 0)
-            {
-                speed = obj.Deceleration.IsNear(SpriteDefinition.Unlimited) ? 0 : MathF.Max(0, speed - elapsed * definition.Deceleration);
-            }
+            if (speed <= 0)
+                return speed;
 
-            return speed;
+            if (obj.Deceleration.IsNear(SpriteDefinition.Unlimited))
+                return 0;
+
+            float slowed = speed - elapsed * definition.Deceleration;
+
+            return slowed < 0 ? 0 : slowed;
         }
 
         if (speed >= maxSpeed)
             return speed;
 
-        if (!obj.Acceleration.IsNear(SpriteDefinition.Unlimited))
-        {
-            speed = elapsed * definition.Acceleration + speed;
-        }
+        if (obj.Acceleration.IsNear(SpriteDefinition.Unlimited))
+            return maxSpeed;
 
-        return obj.Acceleration.IsNear(SpriteDefinition.Unlimited) || speed >= maxSpeed ? maxSpeed : speed;
+        float faster = elapsed * definition.Acceleration + speed;
+
+        return faster < maxSpeed ? faster : maxSpeed;
     }
 
     public static Vector3 Displace(Vector3 position, Angle direction, float speed, int elapsed)

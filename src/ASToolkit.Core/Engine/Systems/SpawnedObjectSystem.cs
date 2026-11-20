@@ -285,21 +285,6 @@ internal sealed class SpawnedObjectSystem
         _motion.StartMove(sprite);
     }
 
-    public void Forget(Sprite removed)
-    {
-        foreach (var sprite in _active)
-        {
-            if (sprite.Definition.Object.SpriteClass == SpriteClass.Cannon)
-            {
-                _motion.ForgetCannonGoal(sprite, removed);
-            }
-            else
-            {
-                _motion.ForgetObject(sprite, removed);
-            }
-        }
-    }
-
     public void Compact()
     {
         if (_leaving.Count == 0)
@@ -412,7 +397,7 @@ internal sealed class SpawnedObjectSystem
             return;
 
         ref readonly var obj = ref sprite.Definition.Object;
-        var next = _motion.Move(sprite, elapsed);
+        var next = _motion.CalculateNewCoordinates(sprite, elapsed);
         float current = _movement.GetHeight(sprite.Position.AsVector2());
         float ground = _movement.GetHeight(next.AsVector2());
 
@@ -451,7 +436,7 @@ internal sealed class SpawnedObjectSystem
             return;
 
         ref readonly var obj = ref sprite.Definition.Object;
-        var next = _motion.Move(sprite, elapsed);
+        var next = _motion.CalculateNewCoordinates(sprite, elapsed);
 
         if (sprite is { IsBlocked: true, Animation: < SpriteAnimation.Death })
         {

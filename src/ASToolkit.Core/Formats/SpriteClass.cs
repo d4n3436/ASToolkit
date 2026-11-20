@@ -41,7 +41,7 @@ public enum SpriteClass
     Primitive = 6,
 
     /// <summary>
-    /// A body the player steers (player legs, player vehicles); it samples the terrain over its footprint.
+    /// The player's body, such as the player's legs or the manned cannon; it samples the terrain over its footprint.
     /// </summary>
     Man = 7,
 

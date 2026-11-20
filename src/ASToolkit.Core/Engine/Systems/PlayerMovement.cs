@@ -6,48 +6,42 @@ namespace ASToolkit.Core.Engine;
 internal sealed class PlayerMovement
 {
     private readonly SpriteCollision _movement;
+    private readonly SpriteKinematics _motion;
 
-    public PlayerMovement(SpriteCollision movement)
+    public PlayerMovement(SpriteCollision movement, SpriteKinematics motion)
     {
         _movement = movement;
+        _motion = motion;
     }
 
-    public static bool IsTouching(Sprite player, Vector2 target, Vector2 targetHalf)
+    public static bool IsTouching(Sprite man, Vector2 target, Vector2 targetHalf)
     {
-        var reach = player.Definition.Half + targetHalf;
+        var reach = man.Definition.Half + targetHalf;
 
-        return Math.Abs(player.Position.X - target.X) < reach.X && Math.Abs(player.Position.Y - target.Y) < reach.Y;
+        return Math.Abs(man.Position.X - target.X) < reach.X && Math.Abs(man.Position.Y - target.Y) < reach.Y;
     }
 
     [EngineRoutine(0x00454670)]
-    public void Tick(Sprite player, float maxSpeed, int elapsed)
+    public void MoveTact(Sprite man, int elapsed)
     {
-        var goal = player.Command == Command.Move ? player.Goal : null;
-        player.Speed = SpriteKinematics.Accelerate(player.Definition, player.Speed, maxSpeed, player.IsMoving, elapsed);
-        var start = player.Position;
-        var next = player.Speed.IsZero() ? start : SpriteKinematics.Displace(start, player.Direction, player.Speed, elapsed);
+        var next = _motion.CalculateNewCoordinates(man, elapsed);
 
-        if (goal is not null && player.IsMoving)
+        if (man.Position.AsVector2() != next.AsVector2() && _movement.IsInsideMap(next.AsVector2()))
         {
-            player.UpdateReach(start, next, goal.Position.AsVector2());
+            _movement.Move(man, next);
         }
 
-        if (next != start && _movement.IsInsideMap(next.AsVector2()))
-        {
-            _movement.Move(player, next);
-        }
+        var goal = man.Goal;
 
-        if (goal is not null)
-        {
-            var target = goal.Position.AsVector2();
-            var direction = Angle.FromOffset(target - player.Position.AsVector2()) + (player.Speed < 0 ? Angle.HalfTurn : 0);
-            direction = _movement.RotateForGlide(direction, player);
-            player.RotateTact(direction, elapsed);
+        if (goal is null || man.Command != Command.Move)
+            return;
 
-            if (player is { HasReachedX: true, HasReachedY: true } || IsTouching(player, target, goal.Definition.Half))
-            {
-                SpriteKinematics.Stop(player);
-            }
+        var direction = Angle.FromOffset(goal.Position.AsVector2() - man.Position.AsVector2()) + (man.Speed < 0 ? Angle.HalfTurn : 0);
+        man.RotateTact(_movement.RotateForGlide(direction, man), elapsed);
+
+        if (man is { HasReachedX: true, HasReachedY: true } || IsTouching(man, goal.Position.AsVector2(), goal.Definition.Half))
+        {
+            SpriteKinematics.Stop(man);
         }
     }
 }

@@ -31,7 +31,7 @@ internal sealed class MonsterBrain
         if (sprite is { IsMoving: false, Speed: 0, TurnTicks: 0, VerticalSpeed: 0 } && (obj.Properties & (ObjectProperties.Gravity | ObjectProperties.Gravity2)) == 0)
             return;
 
-        var next = _motion.Move(sprite, elapsed);
+        var next = _motion.CalculateNewCoordinates(sprite, elapsed);
 
         if (sprite.TurnTicks == 0)
         {
@@ -97,7 +97,7 @@ internal sealed class MonsterBrain
     }
 
     [EngineRoutine(0x00444a80)]
-    public Sprite? SeekEnemy(Sprite sprite, Sprite? player)
+    public Sprite? SeekEnemy(Sprite sprite, Sprite? flagman)
     {
         var definition = sprite.Definition;
 
@@ -108,10 +108,10 @@ internal sealed class MonsterBrain
         float bestDistance = definition.DetectRange + 1;
 
         if (sprite.Army == Army.Monsters)
-            return player is not null && TryTake(sprite, player, ref best, ref bestDistance) ? player : best;
+            return flagman is not null && TryTake(sprite, flagman, ref best, ref bestDistance) ? flagman : best;
 
-        if (player is not null && TryTake(sprite, player, ref best, ref bestDistance))
-            return player;
+        if (flagman is not null && TryTake(sprite, flagman, ref best, ref bestDistance))
+            return flagman;
 
         foreach (var candidate in _candidates)
         {

@@ -136,8 +136,8 @@ public sealed class Playthrough
     {
         var map = session.Map;
 
-        return new PlaythroughResult(loadout, map.Player.IsAlive && session.Won, map.Time, session.Bot.FarthestProgress, session.Log.Kills, session.Log.Respawns, session.Log.MinHealth,
-            map.ReadScriptNumber(MoneyVariable), ReadImplants(map), session.Log.TakenPickups, ReadItems(map), new PlayerState(map).GetRemainingAmmo(),
+        return new PlaythroughResult(loadout, map is { HasPlayer: true, Player.IsAlive: true } && session.Won, map.Time, session.Bot.FarthestProgress, session.Log.Kills, session.Log.Respawns, session.Log.MinHealth,
+            map.ReadScriptNumber(MoneyVariable), ReadImplants(map), session.Log.TakenPickups, ReadItems(map), map.HasPlayer ? new PlayerState(map).GetRemainingAmmo() : [],
             session.Log.Timeline, record ? new DemoResource(map.FinishDemoRecording()) : null);
     }
 
@@ -161,7 +161,7 @@ public sealed class Playthrough
             items[KnownObject.Flashlight] = 1;
         }
 
-        if (map.Player.Items.Contains((int)KnownObject.Medkit))
+        if (map.HasPlayer && map.Player.Items.Contains((int)KnownObject.Medkit))
         {
             items[KnownObject.Medkit] = 1;
         }

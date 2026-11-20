@@ -262,14 +262,15 @@ public sealed class ReplayPlayback
 
     private void AddLiveSprites()
     {
-        if (_map.HasPlayer)
+        for (int layer = 0; layer < UpdateOrder.LayerCount; layer++)
         {
-            AddSprite(_map.Player);
-        }
-
-        if (_map.Weapons.Torso is not null)
-        {
-            AddSprite(_map.Weapons.Torso);
+            foreach (var entry in _map.GetLayer(layer))
+            {
+                if (entry.Sprite is { Role: UpdateRole.Player or UpdateRole.Torso })
+                {
+                    AddSprite(entry.Sprite);
+                }
+            }
         }
 
         foreach (var monster in _map.Monsters)

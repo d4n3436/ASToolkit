@@ -22,17 +22,17 @@ public enum ScrollType
     WithMouse = 2,
 
     /// <summary>
-    /// The camera eases toward the flagman.
+    /// The camera eases toward the player.
     /// </summary>
     ToFlagman = 4,
 
     /// <summary>
-    /// The camera eases toward the flagman, leading toward the cursor.
+    /// The camera eases toward the player, leading toward the cursor.
     /// </summary>
     ToFlagmanWithDirection = 8,
 
     /// <summary>
-    /// The camera keeps the flagman in the center of the screen.
+    /// The camera keeps the player in the center of the screen.
     /// </summary>
     FlagmanInCenter = 16,
 

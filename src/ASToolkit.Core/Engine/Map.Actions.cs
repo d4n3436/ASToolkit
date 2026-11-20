@@ -62,7 +62,7 @@ public sealed partial class Map
                 if (torso is null || torso.Definition != weapon || weapon.FightChild == 0 || weapon.Object.WeaponIndex == 0 || torso.IsReloading)
                     return 0;
 
-                var goal = ConstructGoal(Weapons.GetCursorPoint(new Vector2(var1, var2), weapon));
+                var goal = ConstructGoal(Weapons.GetCursorPoint(sprite, new Vector2(var1, var2), weapon));
                 SpriteKinematics.SetCommand(torso, Command.OneAttack, goal);
 
                 return 0;
@@ -99,12 +99,12 @@ public sealed partial class Map
 
                 int slot = var1 - Sprite.WeaponItemBase;
 
-                if (sprite != _player || slot < 0 || slot >= Sprite.WeaponSlots)
+                if (slot is < 0 or >= Sprite.WeaponSlots)
                     return 0;
 
                 if (sprite.GetAmmo() == 0 || sprite.WeaponSlot < slot || slot == 0)
                 {
-                    Weapons.SelectWeapon(slot);
+                    Weapons.ChangeWeapon(sprite, slot);
                 }
 
                 return 0;
@@ -144,8 +144,6 @@ public sealed partial class Map
                 return 0;
             }
             case ActionCode.Damage:
-                return SpriteAction(sprite, code, var1, var2, var3, target);
-            case ActionCode.NextCommand when sprite != _player:
                 return SpriteAction(sprite, code, var1, var2, var3, target);
             case ActionCode.NextCommand:
             {
@@ -425,7 +423,7 @@ public sealed partial class Map
                     if (result == AttackResult.Approach && link is not null && sprite.Command is Command.Attack or Command.OneAttack &&
                         sprite.IsAggressive && (link.Timer != 0 || _rng.Next() % LinkScanOdds == 0))
                     {
-                        var enemy = _brain.SeekEnemy(sprite, _player);
+                        var enemy = _brain.SeekEnemy(sprite, GetFlagman(0));
 
                         if (enemy is not null)
                         {
@@ -443,7 +441,7 @@ public sealed partial class Map
                     result is AttackResult.Pursue or AttackResult.NoTarget && sprite is { IsAggressive: true, Command: Command.None or Command.Move or Command.OneAttack } &&
                     (sprite.LastFrame > sprite.FirstFrame || sprite.Timer != 0 || _rng.Next(IdleScanOdds) == 0))
                 {
-                    var enemy = _brain.SeekEnemy(sprite, _player);
+                    var enemy = _brain.SeekEnemy(sprite, GetFlagman(0));
 
                     if (enemy is not null)
                     {

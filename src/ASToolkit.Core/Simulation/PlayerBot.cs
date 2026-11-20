@@ -96,7 +96,7 @@ internal sealed class PlayerBot
     private readonly Vector2[] _holes;
     private readonly PlayerState _state;
     private readonly PickupTracker _pickups;
-    private readonly Vector2 _rubbleReach;
+    private Vector2 _rubbleReach;
     private int _cannonIdleSince;
     private bool _seeksCannon;
     private bool _planting;
@@ -116,12 +116,28 @@ internal sealed class PlayerBot
     private readonly List<Sprite> _incoming = [];
     private int _floodCell = -1;
     private readonly List<(int Slot, Vector2 Position)> _caches = [];
-    private Sprite _player;
+    private Sprite? _player;
     private bool _lastDoorsLocked;
     private bool _lastFencesUp;
     private PlayerCommand _command;
     private readonly InputDriver _input;
     private Vector2? _reachedGoal;
+
+    private bool IsInCannon => _map.Player.Definition.Id == KnownObject.MannedCannon;
+
+    private bool IsProtected
+    {
+        get
+        {
+            foreach (var link in _map.Player.EnumerateLinks())
+            {
+                if (link.Definition.Id is KnownObject.InvulnerabilityEffect or KnownObject.RescueMedkitEffect)
+                    return true;
+            }
+
+            return false;
+        }
+    }
 
     public PlayerBot(Map map, RouteAnalysis analysis, WalkField field)
     {
@@ -131,16 +147,13 @@ internal sealed class PlayerBot
         _analysis = analysis;
         _field = field;
         _gunnery = new Gunnery(map, field);
-        _aimCursor = PlayerCommand.GetCursor(map.Player.Position);
         _input = new InputDriver(map);
         _lastDoorsLocked = map.AreDoorsLocked;
         _lastFencesUp = map.AreFencesUp;
-        _player = map.Player;
         _holes = map.Sprites
             .Where(sprite => sprite.Id is KnownObject.SmallMonsterHole or KnownObject.BigMonsterHole)
             .Select(sprite => sprite.Position.AsVector2())
             .ToArray();
-        _rubbleReach = (map.Definitions.Find(KnownObject.RubblePile)?.Half ?? Vector2.Zero) + map.Player.Definition.Half;
 
         var lattice = analysis.Grid.Lattice;
         _tour = analysis.Tour.Select(cell => lattice.GetCenter(cell).ToVector2()).ToArray();
@@ -260,15 +273,34 @@ internal sealed class PlayerBot
         return cached;
     }
 
+    public bool HasStarted => _player is not null;
+
     public void PlayTick()
     {
+        if (!_map.HasPlayer)
+        {
+            if (HasStarted)
+            {
+                _input.Press(_command);
+            }
+
+            _map.Step(_map.StepDemo(_map.WallTime, out _));
+
+            return;
+        }
+
+        if (!HasStarted)
+        {
+            Start();
+        }
+
         if (_map.Time % DecisionInterval < _map.FrameTime)
         {
             _command = PlanCommand();
         }
 
         var command = _command;
-        var dodge = _map.IsInCannon ? null : FindDodge(command.Destination) ?? (_seeksCannon ? null : SkirtCannon(command.Destination));
+        var dodge = IsInCannon ? null : FindDodge(command.Destination) ?? (_seeksCannon ? null : SkirtCannon(command.Destination));
 
         if (dodge is not null)
         {
@@ -294,6 +326,13 @@ internal sealed class PlayerBot
         ObserveMovement(previous);
     }
 
+    private void Start()
+    {
+        _player = _map.Player;
+        _aimCursor = PlayerCommand.GetCursor(_player.Position);
+        _rubbleReach = (_map.Definitions.Find(KnownObject.RubblePile)?.Half ?? Vector2.Zero) + _player.Definition.Half;
+    }
+
     private bool HasReached(Vector2 target) => _reachedGoal == target || PlayerMovement.IsTouching(_map.Player, target, _map.Definitions.Empty.Half);
 
     private PlayerCommand PlanCommand()
@@ -310,7 +349,7 @@ internal sealed class PlayerBot
         var threat = _worstThreat is not null && _worstThreat.IsAlive ? _worstThreat : null;
         float worstIntrusion = threat is null ? float.MinValue : GetKeptDistance(threat.Definition) - _map.Player.Position.AsVector2().MeasureOctagonalDistance(threat.Position.AsVector2());
 
-        if (target is not null && _map.Weapons.CanFire)
+        if (target is not null && _map.Player.Link is { IsReloading: false })
         {
             _weapon = target == _aimTarget || target == _breachWall ? _gunnery.SelectWeapon(target) : Pistols;
         }
@@ -332,7 +371,7 @@ internal sealed class PlayerBot
             _evadingBlast = false;
         }
 
-        if (_map.IsInCannon)
+        if (IsInCannon)
         {
             _seeksCannon = false;
             ManCannon();
@@ -1050,7 +1089,7 @@ internal sealed class PlayerBot
 
     private float GetKeptDistance(SpriteDefinition definition)
     {
-        if (_map.IsProtected)
+        if (IsProtected)
             return 0;
 
         if (definition.BattleRange <= BackOffReach)

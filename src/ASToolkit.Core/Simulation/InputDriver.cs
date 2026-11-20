@@ -28,11 +28,7 @@ internal sealed class InputDriver
 
         if (!_map.HasPlayer)
         {
-            if (_map.GetFlagman(0) is null)
-            {
-                input.Key = RebirthKey;
-            }
-
+            input.Key = RebirthKey;
             input.Flags = flags;
             input.Cursor = cursor;
 
@@ -65,7 +61,7 @@ internal sealed class InputDriver
             flags |= InputFlags.First;
         }
 
-        if (command.Weapon != _map.Weapons.Slot)
+        if (command.Weapon != player.WeaponSlot)
         {
             input.Key = FirstWeaponKey + command.Weapon;
         }

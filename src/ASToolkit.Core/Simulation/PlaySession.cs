@@ -54,7 +54,7 @@ internal sealed class PlaySession
         }
     }
 
-    public bool IsPlaying => Map.Player.IsAlive || Map.ReadScriptNumber(GameStateVariable) == PlayerDead;
+    public bool IsPlaying => (Map.HasPlayer ? Map.Player.IsAlive : !Bot.HasStarted) || Map.ReadScriptNumber(GameStateVariable) == PlayerDead;
 
     private bool HasWon() => Map.HasWon || (_winsAtTourEnd && Bot.HasFinished);
 

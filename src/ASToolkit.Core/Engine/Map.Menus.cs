@@ -142,6 +142,15 @@ public sealed partial class Map
             Math.Abs((double)sprite.Position.Z - position.Z) < MenuMatchTolerance;
     }
 
+    [EngineRoutine(0x0043de00)]
+    private void ForgetMenuSprite(Sprite removed)
+    {
+        if (_menuCurrent == removed)
+        {
+            _menuCurrent = null;
+        }
+    }
+
     [EngineRoutine(0x0043df50)]
     private void DeleteMenuSpriteAt(int index)
     {

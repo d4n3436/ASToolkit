@@ -129,7 +129,12 @@ public class DemoReplayTests
         return points;
     }
 
-    private static Point GetPoint(Map map) => new(map.Time, map.Player.Position, map.Player.Speed, map.Player.Hp, map.RandomState);
+    private static Point GetPoint(Map map)
+    {
+        var man = map.HasPlayer ? map.Player : EngineTestMap.FindPlacedMan(map);
+
+        return new Point(map.Time, man.Position, man.Speed, man.Hp, map.RandomState);
+    }
 
     private static int CountDraws(int seed, int state)
     {
