@@ -1,3 +1,4 @@
+using ASToolkit.Core.Levels;
 using System.Numerics;
 using ASToolkit.Core.Formats;
 
@@ -5,6 +6,8 @@ namespace ASToolkit.Core.Engine;
 
 public sealed partial class Map
 {
+    private const int ShakeReach = 4;
+
     private static readonly (InputFlags Raw, ScriptInput Script)[] InputStateBits =
     [
         (InputFlags.LeftClick, ScriptInput.LeftClick),
@@ -21,14 +24,11 @@ public sealed partial class Map
         (InputFlags.Second, ScriptInput.Second)
     ];
 
-    private const int ShakeReach = 4;
-
-    private readonly List<Sprite> _scripted = [];
     private readonly Dictionary<MergedMapSprite, Sprite> _bodies = new(ReferenceEqualityComparer.Instance);
     private readonly HashSet<MergedMapSprite> _removed = new(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<MergedMapSprite, Sprite> _statics = new(ReferenceEqualityComparer.Instance);
-    private readonly List<MergedMapSprite> _sprites;
-    private bool _hasHardwareGround;
+    private List<MergedMapSprite> _sprites;
+    private SpriteDefinition? _hardwareGround;
 
     /// <summary>
     /// Gets a value indicating whether the level script declared the mission complete.
@@ -61,6 +61,21 @@ public sealed partial class Map
     public int RemovedCount => _removed.Count;
 
     /// <summary>
+    /// Gets the camera shake of the frame.
+    /// </summary>
+    public CameraShake? CameraShake { get; private set; }
+
+    /// <summary>
+    /// Gets the screen flash in progress.
+    /// </summary>
+    public ScreenFlash? ScreenFlash { get; private set; }
+
+    /// <summary>
+    /// Gets the gamma the frame is drawn with, the channel reductions and additions applied to the whole screen.
+    /// </summary>
+    public Gamma Gamma => Session.Graphics.Gamma;
+
+    /// <summary>
     /// Returns whether a sprite was removed from the map.
     /// </summary>
     /// <param name="placement">The sprite.</param>
@@ -68,17 +83,35 @@ public sealed partial class Map
     public bool IsRemoved(MergedMapSprite placement) => _removed.Contains(placement);
 
     /// <summary>
-    /// Returns the sprite a placed map sprite became.
+    /// Returns the live sprite created from a placed map sprite.
     /// </summary>
-    /// <param name="placement">The sprite.</param>
-    /// <returns>The sprite, or null when the sprite has none.</returns>
+    /// <param name="placement">The placed map sprite.</param>
+    /// <returns>The sprite, or null when none exists.</returns>
     public Sprite? FindPlacementSprite(MergedMapSprite placement) =>
-        _bodies.TryGetValue(placement, out var body) ? body : _statics.GetValueOrDefault(placement) ?? _scripted.Find(sprite => sprite.Placement == placement);
+        _bodies.TryGetValue(placement, out var body) ? body : _statics.GetValueOrDefault(placement) ?? FindScripted(placement);
 
     /// <summary>
-    /// Gets the scripted sprites the map updates.
+    /// Runs the creation handler of a sprite's definition.
     /// </summary>
-    public IReadOnlyList<Sprite> Scripted => _scripted;
+    /// <param name="sprite">The sprite.</param>
+    public void RunCreationHook(Sprite sprite) => RunCreationHandler(sprite);
+
+    internal static bool IsBaked(SpriteDefinition definition) => definition.Object.SpriteClass == SpriteClass.BuiltTerrain && !SpriteCollector.IsHashed(definition);
+
+    [EngineRoutine(0x0040edf0)]
+    internal void ConstructBuiltTerrain(Sprite sprite)
+    {
+        if ((_hardwareGround ?? Definitions.Empty) == Definitions.Empty)
+        {
+            CreateEmptyHardwareGround();
+        }
+
+        // TODO: Port the hardware ground definition's vtable slot 2 call with the sprite; it bakes the sprite into the ground texture (rendering only)
+        if (IsBaked(sprite.Definition))
+        {
+            sprite.ChangeAnimation(SpriteAnimation.Death);
+        }
+    }
 
     private Vector3 GetPlacementPosition(MergedMapSprite placement) =>
         _bodies.TryGetValue(placement, out var body) ? body.Position : _statics.TryGetValue(placement, out var stand) ? stand.Position : placement.Position;
@@ -88,7 +121,8 @@ public sealed partial class Map
         if (definition.Object.SpriteClass is SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man or SpriteClass.Cannon)
             return null;
 
-        var stand = ConstructSprite(definition, placement.Position, placement.Direction, placement.Army, 0, UpdateRole.Sprite);
+        var stand = ConstructSprite(definition, placement.Position, placement.Direction, Definitions.GetArmy(definition), 0);
+        ChangeArmy(stand, (int)placement.Army);
         stand.Placement = placement;
         _statics[placement] = stand;
 
@@ -100,55 +134,45 @@ public sealed partial class Map
         return stand;
     }
 
-    [EngineRoutine(0x0040edf0)]
-    internal void ConstructBuiltTerrain(Sprite sprite)
+    private Sprite? FindScripted(MergedMapSprite placement)
     {
-        if (!_hasHardwareGround)
+        for (int layer = 0; layer < UpdateOrder.LayerCount; layer++)
         {
-            CreateEmptyHardwareGround();
+            var list = _updates.GetLayer(layer);
+            for (int i = 0; i < list.Count; i++)
+            {
+                var sprite = list[i];
+
+                if (sprite is not null && sprite.Definition.Id.IsScripted && sprite.Placement == placement)
+                    return sprite;
+            }
         }
 
-        if (IsBaked(sprite.Definition))
-        {
-            sprite.ChangeAnimation(SpriteAnimation.Death);
-        }
+        return null;
     }
-
-    internal static bool IsBaked(SpriteDefinition definition) => definition.Object.SpriteClass == SpriteClass.BuiltTerrain && !SpriteCollector.IsHashed(definition);
 
     [EngineRoutine(0x00412a40)]
     private void CreateEmptyHardwareGround()
     {
-        _hasHardwareGround = true;
         var definition = Definitions.CreateHardwareGround();
-        ConstructSprite(definition, new Vector3(Movement.MapSize.ToVector2() * HalfShare, 0), default, definition.Army, 0, UpdateRole.Sprite);
+        _hardwareGround = definition;
+        ConstructSprite(definition, new Vector3(Movement.MapSize.ToVector2() * HalfShare, 0), default, definition.Army, 0);
         Session.Logger.Write("Create Empty Hardware Ground"u8);
     }
 
     private Sprite AddScripted(SpriteDefinition definition, Vector3 position, Angle direction, Army? army = null, MergedMapSprite? placement = null)
     {
-        var sprite = ConstructSprite(definition, position, direction, army ?? Definitions.GetArmy(definition), 0, UpdateRole.Scripted);
+        var sprite = ConstructSprite(definition, position, direction, Definitions.GetArmy(definition), 0);
+
+        if (army is not null)
+        {
+            ChangeArmy(sprite, (int)army.Value);
+        }
+
         sprite.Placement = placement;
-        _scripted.Add(sprite);
 
         return sprite;
     }
-
-    private bool TickScripted(Sprite sprite)
-    {
-        if ((sprite.Owner is null || sprite.Owner.Link == sprite) && Tact(sprite))
-            return true;
-
-        DeleteSprite(sprite);
-
-        return false;
-    }
-
-    /// <summary>
-    /// Runs the creation handler of a sprite's definition.
-    /// </summary>
-    /// <param name="sprite">The sprite.</param>
-    public void RunCreationHook(Sprite sprite) => RunCreationHandler(sprite);
 
     private void Destroy(MergedMapSprite placement)
     {
@@ -158,17 +182,22 @@ public sealed partial class Map
             DeleteSprite(body);
         }
 
-        for (int i = _scripted.Count - 1; i >= 0; i--)
+        for (int layer = 0; layer < UpdateOrder.LayerCount; layer++)
         {
-            if (i < _scripted.Count && ReferenceEquals(_scripted[i].Placement, placement))
+            var list = _updates.GetLayer(layer);
+            for (int i = 0; i < list.Count; i++)
             {
-                DeleteSprite(_scripted[i]);
+                var sprite = list[i];
+
+                if (sprite is not null && sprite.Definition.Id.IsScripted && ReferenceEquals(sprite.Placement, placement))
+                {
+                    DeleteSprite(sprite);
+                }
             }
         }
 
         RemoveSprite(placement);
     }
-
 
     private ScriptInput GetInputState()
     {
@@ -221,63 +250,54 @@ public sealed partial class Map
     {
         if (environment.HasFlag(MapEnvironment.Stop))
         {
-            _environment &= ~environment;
+            Session.Graphics.Environment &= ~environment;
             return;
         }
 
         if (environment is MapEnvironment.Shadow or MapEnvironment.LongShadow)
         {
-            _environment &= ~(MapEnvironment.Shadow | MapEnvironment.LongShadow);
+            Session.Graphics.Environment &= ~(MapEnvironment.Shadow | MapEnvironment.LongShadow);
         }
 
         if ((environment & MapEnvironment.Rain) != 0)
         {
-            _environment &= ~MapEnvironment.Rain;
+            Session.Graphics.Environment &= ~MapEnvironment.Rain;
         }
 
         if ((environment & MapEnvironment.Snow) != 0)
         {
-            _environment &= ~MapEnvironment.Snow;
+            Session.Graphics.Environment &= ~MapEnvironment.Snow;
         }
 
-        _environment |= environment;
+        Session.Graphics.Environment |= environment;
     }
 
     [EngineRoutine(0x00430870)]
     private void UpdateScreen(bool drawFrame)
     {
-        if (_environment.HasFlag(MapEnvironment.Earthquake) && !IsPaused)
+        var screen = Session.ScreenSize;
+        float savedX = Camera.X;
+        float savedY = Camera.Y;
+
+        if (Session.Graphics.Environment.HasFlag(MapEnvironment.Earthquake) && !IsPaused)
         {
-            var screen = Session.ScreenSize;
-            double centerX = screen.Width * HalfShare + (double)Camera.X;
-            double centerY = screen.Height * HalfShare + (double)Camera.Y;
             int y = _rng.Next() % (ShakeReach * 2 + 1);
             int x = _rng.Next() % (ShakeReach * 2 + 1);
-            var offset = new Vector2(ShakeReach - x, ShakeReach - y);
-            SetPosition(new Vector2((float)(centerX + offset.X), (float)(centerY + offset.Y)), CameraMove.None);
-            CameraShake = new CameraShake(Time, offset);
-            SetPosition(new Vector2((float)centerX, (float)centerY), CameraMove.None);
+            SetPosition(new Vector2(screen.Width * HalfShare + savedX + ShakeReach - x, screen.Height * HalfShare + savedY + ShakeReach - y), CameraMove.None);
+            CameraShake = new CameraShake(Time, new Vector2(ShakeReach - x, ShakeReach - y));
         }
         else
         {
             CameraShake = null;
         }
 
+        Session.Graphics.UpdateSquall(Time, IsPaused);
+
+        if (Session.Graphics.Environment.HasFlag(MapEnvironment.Earthquake) && !IsPaused)
+        {
+            SetPosition(new Vector2(screen.Width * HalfShare + savedX, screen.Height * HalfShare + savedY), CameraMove.None);
+        }
+
         UpdateEffects(drawFrame);
     }
-
-    /// <summary>
-    /// Gets the camera shake of the frame.
-    /// </summary>
-    public CameraShake? CameraShake { get; private set; }
-
-    /// <summary>
-    /// Gets the screen flash in progress.
-    /// </summary>
-    public ScreenFlash? ScreenFlash { get; private set; }
-
-    /// <summary>
-    /// Gets the gamma the frame is drawn with, the channel reductions and additions applied to the whole screen.
-    /// </summary>
-    public Gamma Gamma { get; private set; }
 }

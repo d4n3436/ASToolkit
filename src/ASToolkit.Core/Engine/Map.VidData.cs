@@ -8,16 +8,36 @@ public sealed partial class Map
     private const int HpScale = 256;
     private const int CoefficientScale = 16;
 
+    internal void DropLinks(Sprite owner)
+    {
+        for (var definition = owner.Definition.LinkDefinition; definition is not null; definition = definition.LinkDefinition)
+        {
+            DestroyLink(owner, definition);
+        }
+    }
+
     private static SpriteDefinition GetAmmoOwner(SpriteDefinition definition)
     {
         var owner = definition.LinkDefinition;
 
-        return owner is not null && owner.Children[(int)SpriteAnimation.Fight] != 0 && owner.Object.WeaponIndex != 0 ? owner : definition;
+        return owner is not null && owner.HasFightWeapon() ? owner : definition;
+    }
+
+    private static int Sum(ReadOnlySpan<int> values)
+    {
+        int total = 0;
+        foreach (int value in values)
+        {
+            total += value;
+        }
+
+        return total;
     }
 
     [EngineRoutine(0x00414890)]
     private void SetHpCoeff(SpriteDefinition first, int army, int percent)
     {
+        army &= 3;
         for (var definition = first; definition is not null; definition = definition.LinkDefinition)
         {
             int previous = definition.ArmyMaxHp[army];
@@ -29,9 +49,10 @@ public sealed partial class Map
             if (definition.MaxHp == 0)
                 continue;
 
-            foreach (var entry in _updates.GetLayer(definition.Layer))
+            var list = _updates.GetLayer(definition.Layer);
+            for (int i = list.Count - 1; i >= 0; i--)
             {
-                var sprite = entry.Sprite;
+                var sprite = list[i];
                 if (sprite is not null && sprite.Definition == definition && ((int)sprite.Army & 3) == army)
                 {
                     ChangeHp(sprite, sprite.Hp * definition.ArmyMaxHp[army] * CoefficientScale / previous / CoefficientScale);
@@ -43,6 +64,7 @@ public sealed partial class Map
     [EngineRoutine(0x00414990)]
     private void SetMaxHp(SpriteDefinition first, int army, int maxHp)
     {
+        army &= 3;
         for (var definition = first; definition is not null; definition = definition.LinkDefinition)
         {
             int previous = definition.ArmyMaxHp[army];
@@ -54,9 +76,10 @@ public sealed partial class Map
             if (definition.MaxHp == 0)
                 continue;
 
-            foreach (var entry in _updates.GetLayer(definition.Layer))
+            var list = _updates.GetLayer(definition.Layer);
+            for (int i = list.Count - 1; i >= 0; i--)
             {
-                var sprite = entry.Sprite;
+                var sprite = list[i];
                 if (sprite is not null && sprite.Definition == definition && ((int)sprite.Army & 3) == army)
                 {
                     ChangeHp(sprite, sprite.Hp * definition.ArmyMaxHp[army] * HpScale / previous / HpScale);
@@ -94,14 +117,6 @@ public sealed partial class Map
         sprite.Hp = hp;
     }
 
-    internal void DropLinks(Sprite owner)
-    {
-        for (var definition = owner.Definition.LinkDefinition; definition is not null; definition = definition.LinkDefinition)
-        {
-            DestroyLink(owner, definition);
-        }
-    }
-
     [EngineRoutine(0x00444a30)]
     private void DestroyLink(Sprite owner, SpriteDefinition? definition)
     {
@@ -124,16 +139,5 @@ public sealed partial class Map
         link.Link = null;
         link.Owner = null;
         DeleteSprite(link);
-    }
-
-    private static int Sum(ReadOnlySpan<int> values)
-    {
-        int total = 0;
-        foreach (int value in values)
-        {
-            total += value;
-        }
-
-        return total;
     }
 }

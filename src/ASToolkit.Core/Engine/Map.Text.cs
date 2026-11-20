@@ -16,60 +16,20 @@ public sealed partial class Map
 
     private static ReadOnlySpan<byte> HighSpaces => [0xcf, 0xdb, 0xe4, 0xe7, 0xe9, 0xeb, 0xed, 0xef, 0xf1, 0xf3, 0xf4, 0xf7, 0xf9, 0xfb, 0xfc, 0xfd, 0xfe];
 
-    [EngineRoutine(0x00448b30)]
-    private int FrameAction(Sprite sprite, ActionCode code, int var1, int var2, int var3, Sprite? target)
-    {
-        if ((int)code < 0 || (int)code >= FirstButtonAction && code != ActionCode.NextCommand)
-            return SpriteAction(sprite, code, var1, var2, var3, target);
-
-        if ((int)code < FirstButtonAction || sprite.Animation > SpriteAnimation.Birth)
-            return 0;
-
-        var state = (MenuAnimation)sprite.Animation;
-        if (state is MenuAnimation.PressDown or MenuAnimation.PressUp)
-        {
-            SetMenuAnimation(sprite, state == MenuAnimation.PressDown ? MenuAnimation.SelectDown : MenuAnimation.SelectUp);
-            sprite.HasPlayedStateSound = true;
-        }
-
-        if (sprite.Animation == SpriteAnimation.Birth)
-        {
-            sprite.ChangeAnimation(SpriteAnimation.Stand);
-        }
-
-        return 0;
-    }
-
-    // TODO: Port saving the text (ACT_SAVE)
-    [EngineRoutine(0x00448ff0)]
-    private int TextAction(Sprite sprite, ActionCode code, int var1, int var2, int var3, Sprite? target)
+    internal void SetText(Sprite sprite, ReadOnlyMemory<byte> description)
     {
         var text = sprite.Text!;
-        switch (code)
+        text.Description = description;
+        text.Shown = (text.Behavior & TextBehavior.LoadFrom) switch
         {
-            case ActionCode.GetBehave:
-                return (int)text.Behavior;
-            case ActionCode.SetBehave:
-                text.Behavior = (TextBehavior)var1;
-                return 0;
-            case ActionCode.SetText:
-                SetText(sprite, ReadTextAddress(var1));
-                return 0;
-            case ActionCode.SetTextCount:
-                text.VisibleCount = var1;
-                return 0;
-            case ActionCode.SetFile:
-                text.Shown = LoadTextFile(ReadTextAddress(var1).Span);
-                text.VisibleCount = text.Shown.Length;
-                return 0;
-            case ActionCode.GetTextDesc or ActionCode.GetText:
-                return 0;
-            case ActionCode.NextCommand:
-                ShowNextCharacter(sprite, text);
-                return 0;
-            default:
-                return FrameAction(sprite, code, var1, var2, var3, target);
-        }
+            TextBehavior.NotLoad => description,
+            TextBehavior.StringsIni => ReadMenuString(description.Span),
+            TextBehavior.File => LoadTextFile(description.Span),
+            TextBehavior.ScriptFile => LoadTextFile(GetVariableString(description.Span).Span),
+            TextBehavior.ScriptStrings => ReadMenuString(GetVariableString(description.Span).Span),
+            _ => GetVariableString(description.Span)
+        };
+        LayOutText(text);
     }
 
     private static void ShowNextCharacter(Sprite sprite, SpriteText text)
@@ -130,30 +90,9 @@ public sealed partial class Map
 
     private static void SetMenuAnimation(Sprite sprite, MenuAnimation state) => sprite.ChangeAnimation((SpriteAnimation)state);
 
-    // Bytes above 0x7f reach isspace as negative chars, which read the runtime data in front of its table
     [EngineRoutine(0x0046d3fe)]
     private static bool IsSpace(byte character) =>
         character is (byte)' ' or >= (byte)'\t' and <= (byte)'\r' || character > sbyte.MaxValue && HighSpaces.Contains(character);
-
-    private ReadOnlyMemory<byte> ReadTextAddress(int address) => address == 0 ? ReadOnlyMemory<byte>.Empty : Script.GetSlot(address - 1).Text;
-
-    internal void SetText(Sprite sprite, ReadOnlyMemory<byte> description)
-    {
-        var text = sprite.Text!;
-        text.Description = description;
-        text.Shown = (text.Behavior & TextBehavior.LoadFrom) switch
-        {
-            TextBehavior.NotLoad => description,
-            TextBehavior.StringsIni => ReadMenuString(description.Span),
-            TextBehavior.File => LoadTextFile(description.Span),
-            TextBehavior.ScriptFile => LoadTextFile(GetVariableString(description.Span).Span),
-            TextBehavior.ScriptStrings => ReadMenuString(GetVariableString(description.Span).Span),
-            _ => GetVariableString(description.Span)
-        };
-        LayOutText(text);
-    }
-
-    private ReadOnlyMemory<byte> ReadMenuString(ReadOnlySpan<byte> key) => ProfileFile.GetString(_fileSystem, StringsFile, MenuSection, key);
 
     [EngineRoutine(0x004495d0)]
     private static void LayOutText(SpriteText text)
@@ -183,6 +122,68 @@ public sealed partial class Map
             text.LineWidth = index;
         }
     }
+
+    [EngineRoutine(0x00448b30)]
+    private int FrameAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target)
+    {
+        var code = (ActionCode)act;
+        if ((int)code < 0 || (int)code >= FirstButtonAction && code != ActionCode.NextCommand)
+            return SpriteAction(sprite, act, var1, var2, var3, target);
+
+        if ((int)code < FirstButtonAction || sprite.Animation > SpriteAnimation.Birth)
+            return 0;
+
+        var state = (MenuAnimation)sprite.Animation;
+        if (state is MenuAnimation.PressDown or MenuAnimation.PressUp)
+        {
+            SetMenuAnimation(sprite, state == MenuAnimation.PressDown ? MenuAnimation.SelectDown : MenuAnimation.SelectUp);
+            sprite.HasPlayedStateSound = true;
+        }
+
+        if (sprite.Animation == SpriteAnimation.Birth)
+        {
+            sprite.ChangeAnimation(SpriteAnimation.Stand);
+        }
+
+        return 0;
+    }
+
+    // TODO: Port saving the text (ACT_SAVE)
+    [EngineRoutine(0x00448ff0)]
+    private int TextAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target)
+    {
+        var code = (ActionCode)act;
+        var text = sprite.Text!;
+        switch (code)
+        {
+            case ActionCode.GetBehave:
+                return (int)text.Behavior;
+            case ActionCode.SetBehave:
+                text.Behavior = (TextBehavior)var1;
+                return 0;
+            case ActionCode.SetText:
+                SetText(sprite, ReadTextAddress(var1));
+                return 0;
+            case ActionCode.SetTextCount:
+                text.VisibleCount = var1;
+                return 0;
+            case ActionCode.SetFile:
+                text.Shown = LoadTextFile(ReadTextAddress(var1).Span);
+                text.VisibleCount = text.Shown.Length;
+                return 0;
+            case ActionCode.GetTextDesc or ActionCode.GetText:
+                return 0;
+            case ActionCode.NextCommand:
+                ShowNextCharacter(sprite, text);
+                return 0;
+            default:
+                return FrameAction(sprite, act, var1, var2, var3, target);
+        }
+    }
+
+    private ReadOnlyMemory<byte> ReadTextAddress(int address) => address == 0 ? ReadOnlyMemory<byte>.Empty : Script.GetSlot(address - 1).Text;
+
+    private ReadOnlyMemory<byte> ReadMenuString(ReadOnlySpan<byte> key) => ProfileFile.GetString(_fileSystem, StringsFile, MenuSection, key);
 
     [EngineRoutine(0x00406630)]
     private ReadOnlyMemory<byte> LoadTextFile(ReadOnlySpan<byte> name)

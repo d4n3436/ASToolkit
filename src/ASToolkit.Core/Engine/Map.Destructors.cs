@@ -35,6 +35,20 @@ public sealed partial class Map
         }
     }
 
+    [EngineRoutine(0x00444a00)]
+    private static void Unlink(Sprite sprite)
+    {
+        sprite.Link?.Owner = sprite.Owner;
+
+        if (sprite.Owner is not null)
+        {
+            sprite.Owner.Link = sprite.Link;
+            sprite.Owner = null;
+        }
+
+        sprite.Link = null;
+    }
+
     [EngineRoutine(0x00454660)]
     private void DestructMan(Sprite man) => DestructUnit(man);
 
@@ -65,20 +79,6 @@ public sealed partial class Map
         DestructSprite(linker);
     }
 
-    [EngineRoutine(0x00444a00)]
-    private static void Unlink(Sprite sprite)
-    {
-        sprite.Link?.Owner = sprite.Owner;
-
-        if (sprite.Owner is not null)
-        {
-            sprite.Owner.Link = sprite.Link;
-            sprite.Owner = null;
-        }
-
-        sprite.Link = null;
-    }
-
     [EngineRoutine(0x00449700)]
     private void DestructRegion(Sprite region)
     {
@@ -90,6 +90,7 @@ public sealed partial class Map
     private void DestructSprite(Sprite sprite)
     {
         RunDestroyHandler(sprite);
+        LowerHeights(sprite.Definition, sprite);
 
         bool isEmpty = sprite.Definition == Definitions.Empty;
 
@@ -128,10 +129,10 @@ public sealed partial class Map
 
         sprite.Owner?.Link = null;
 
-        if (!isEmpty && sprite.Role != UpdateRole.None)
+        if (!isEmpty)
         {
             RemoveFromUpdates(sprite);
-            LeaveRole(sprite);
+            ForgetPlacement(sprite);
             sprite.Release();
         }
 
@@ -147,57 +148,26 @@ public sealed partial class Map
         sprite.Handle = 0;
     }
 
-    private void LeaveRole(Sprite sprite)
+    private void ForgetPlacement(Sprite sprite)
     {
-        var role = sprite.Role;
-        sprite.Role = UpdateRole.None;
+        var placement = sprite.Placement;
 
-        switch (role)
+        if (placement is null)
+            return;
+
+        if (_statics.TryGetValue(placement, out var stand) && stand == sprite)
         {
-            case UpdateRole.Monster:
-                RemoveMonster(sprite);
-                break;
-            case UpdateRole.Scripted:
-                _scripted.Remove(sprite);
+            _statics.Remove(placement);
+        }
 
-                if (sprite.Placement is not null)
-                {
-                    RemoveSprite(sprite.Placement);
-                }
+        if (_bodies.TryGetValue(placement, out var body) && body == sprite)
+        {
+            _bodies.Remove(placement);
+        }
 
-                break;
-            case UpdateRole.Effect:
-                Effects.Leave(sprite);
-                break;
-            case UpdateRole.Torso:
-                if (Weapons.Torso == sprite)
-                {
-                    Weapons.Torso = null;
-                }
-
-                break;
-            case UpdateRole.Sprite:
-                _builders.Remove(sprite);
-
-                if (sprite.Placement is null)
-                    break;
-
-                if (_statics.TryGetValue(sprite.Placement, out var stand) && stand == sprite)
-                {
-                    _statics.Remove(sprite.Placement);
-                }
-
-                if (_bodies.TryGetValue(sprite.Placement, out var body) && body == sprite)
-                {
-                    _bodies.Remove(sprite.Placement);
-                }
-
-                if (!IsBaked(sprite.Definition))
-                {
-                    RemoveSprite(sprite.Placement);
-                }
-
-                break;
+        if (!IsBaked(sprite.Definition))
+        {
+            RemoveSprite(placement);
         }
     }
 }

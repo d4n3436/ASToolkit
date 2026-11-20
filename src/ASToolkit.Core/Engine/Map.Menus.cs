@@ -10,6 +10,9 @@ public sealed partial class Map
     private const int EndHandle = -1;
     private const int NoHandle = 0;
     private const int ItemsVersion = 12;
+    private const int CoversMapFlag = 8;
+    private const int FogValueCount = 3;
+    private const int FloatRegionSizeVersion = 10;
     private const int WordItemsVersion = 10;
     private const int IntItemsVersion = 11;
     private const double MenuMatchTolerance = 0.001;
@@ -27,6 +30,8 @@ public sealed partial class Map
     private static ReadOnlySpan<byte> MenuLogTag => "MENU"u8;
 
     private static ReadOnlySpan<byte> MapLogTag => "MAP"u8;
+
+    private static Size GetHalfSize(MenuHeader header) => new(header.Size.Width / 2, header.Size.Height / 2);
 
     [EngineRoutine(0x0043e2b0)]
     private void LoadMenu(ReadOnlySpan<byte> name)
@@ -119,27 +124,22 @@ public sealed partial class Map
         }
     }
 
-    private static Size GetHalfSize(MenuHeader header) => new(header.Size.Width / 2, header.Size.Height / 2);
-
     private Vector3 GetMenuPosition(MenuHeader header, Vector3 position)
     {
-        var screen = Session.ScreenSize;
         var half = GetHalfSize(header);
-        double x = (double)position.X - header.Origin.X - half.Width + (double)screen.Width * HalfShare;
-        double y = (double)position.Y - header.Origin.Y - half.Height + (double)screen.Height * HalfShare;
 
-        return new Vector3((float)x, (float)y, position.Z);
+        return new Vector3(Session.ScreenSize.Width * HalfShare + (position.X - header.Origin.X - half.Width),
+            Session.ScreenSize.Height * HalfShare + (position.Y - header.Origin.Y - half.Height), position.Z);
     }
 
     private bool IsMenuElement(Sprite sprite, MenuHeader header, int id, Vector3 position)
     {
-        var screen = Session.ScreenSize;
-        var half = GetHalfSize(header);
+        var placed = GetMenuPosition(header, position);
 
         return (int)sprite.Definition.Id == id &&
-            Math.Abs(sprite.Position.X - ((double)position.X - header.Origin.X - half.Width + (double)screen.Width * HalfShare)) < MenuMatchTolerance &&
-            Math.Abs(sprite.Position.Y - ((double)position.Y - header.Origin.Y - half.Height + (double)screen.Height * HalfShare)) < MenuMatchTolerance &&
-            Math.Abs((double)sprite.Position.Z - position.Z) < MenuMatchTolerance;
+            MathF.Abs(sprite.Position.X - placed.X) < MenuMatchTolerance &&
+            MathF.Abs(sprite.Position.Y - placed.Y) < MenuMatchTolerance &&
+            MathF.Abs(sprite.Position.Z - position.Z) < MenuMatchTolerance;
     }
 
     [EngineRoutine(0x0043df50)]
@@ -217,6 +217,9 @@ public sealed partial class Map
             case SpriteClass.Unit or SpriteClass.Creature or SpriteClass.Building or SpriteClass.Avia or SpriteClass.Man:
                 RestoreUnit(sprite, ref reader, version);
                 break;
+            case SpriteClass.Region:
+                RestoreRegion(sprite, ref reader, version);
+                break;
             case SpriteClass.Text when sprite.Text is not null:
                 RestoreText(sprite, ref reader, version);
                 break;
@@ -230,17 +233,58 @@ public sealed partial class Map
     {
         int count = sprite.ActionStack.Count;
         reader.ReadInto(ref count);
-        LoadOrders(sprite, reader.Read<StackAction>(count), GetRelatedSprite);
+        LoadOrders(sprite, reader.Read<StackAction>(count));
 
         if (version < ItemsVersion)
             return;
 
-        int itemCount = reader.Read<int>();
+        int itemCount = 0;
+        reader.ReadInto(ref itemCount);
         var items = reader.Read<int>(itemCount);
         if (itemCount != 0)
         {
             sprite.Items.Clear();
             sprite.Items.AddRange(items);
+        }
+    }
+
+    [EngineRoutine(0x00449e20)]
+    private void RestoreRegion(Sprite sprite, ref Resource reader, int version)
+    {
+        RestoreSprite(sprite, ref reader, version);
+        int flags = 0;
+        reader.ReadInto(ref flags);
+        sprite.IsCoveringMap = (flags & CoversMapFlag) != 0;
+        reader.Read<int>(FogValueCount);
+        if (version < FloatRegionSizeVersion)
+        {
+            int width = 0;
+            int height = 0;
+            reader.ReadInto(ref width);
+            reader.ReadInto(ref height);
+            sprite.RegionSize = new Vector2(width, height);
+        }
+        else
+        {
+            float width = 0;
+            float height = 0;
+            reader.ReadInto(ref width);
+            reader.ReadInto(ref height);
+            sprite.RegionSize = new Vector2(width, height);
+        }
+
+        reader.Read<int>();
+        reader.Read<int>();
+        for (int pair = 0; pair < Sprite.RegionPairs; pair++)
+        {
+            int from = -1;
+            int to = -1;
+            reader.ReadInto(ref from);
+            reader.ReadInto(ref to);
+            var fromDefinition = Definitions.Find((KnownObject)from);
+            sprite.RegionFrom[pair] = fromDefinition;
+            sprite.RegionTo[pair] = Definitions.Find((KnownObject)to);
+            fromDefinition?.IsRegionReplaced = true;
         }
     }
 
@@ -252,7 +296,8 @@ public sealed partial class Map
         sprite.Behavior = (WeaponBehavior)behavior;
         if (version == IntItemsVersion)
         {
-            int count = reader.Read<int>();
+            int count = 0;
+            reader.ReadInto(ref count);
             sprite.Items.AddRange(reader.Read<int>(count));
             return;
         }
@@ -260,7 +305,8 @@ public sealed partial class Map
         if (version > WordItemsVersion)
             return;
 
-        int wordCount = reader.Read<int>();
+        int wordCount = 0;
+        reader.ReadInto(ref wordCount);
         foreach (short item in reader.Read<short>(wordCount))
         {
             sprite.Items.Add(item);
