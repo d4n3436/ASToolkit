@@ -14,6 +14,8 @@ public sealed partial class Map
 
     private static ReadOnlySpan<byte> MenuSection => "menu"u8;
 
+    private static ReadOnlySpan<byte> HighSpaces => [0xcf, 0xdb, 0xe4, 0xe7, 0xe9, 0xeb, 0xed, 0xef, 0xf1, 0xf3, 0xf4, 0xf7, 0xf9, 0xfb, 0xfc, 0xfd, 0xfe];
+
     [EngineRoutine(0x00448b30)]
     private int FrameAction(Sprite sprite, ActionCode code, int var1, int var2, int var3, Sprite? target)
     {
@@ -128,8 +130,10 @@ public sealed partial class Map
 
     private static void SetMenuAnimation(Sprite sprite, MenuAnimation state) => sprite.ChangeAnimation((SpriteAnimation)state);
 
-    // Leaves bytes above 0x7f out, which the game passes to isspace as negative chars
-    private static bool IsSpace(byte character) => character is (byte)' ' or >= (byte)'\t' and <= (byte)'\r';
+    // Bytes above 0x7f reach isspace as negative chars, which read the runtime data in front of its table
+    [EngineRoutine(0x0046d3fe)]
+    private static bool IsSpace(byte character) =>
+        character is (byte)' ' or >= (byte)'\t' and <= (byte)'\r' || character > sbyte.MaxValue && HighSpaces.Contains(character);
 
     private ReadOnlyMemory<byte> ReadTextAddress(int address) => address == 0 ? ReadOnlyMemory<byte>.Empty : Script.GetSlot(address - 1).Text;
 

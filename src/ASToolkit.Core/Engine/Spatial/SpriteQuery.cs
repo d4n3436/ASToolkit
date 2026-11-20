@@ -22,7 +22,15 @@ internal struct SpriteQuery : ISpriteQuery
 
     public void Consider(Sprite sprite, bool listed)
     {
-        if (sprite.Owner is not null || !_filter.Accepts(sprite))
+        if (sprite.Owner is null)
+        {
+            ConsiderMenu(sprite);
+        }
+    }
+
+    public void ConsiderMenu(Sprite sprite)
+    {
+        if (!_filter.Accepts(sprite))
             return;
 
         float distance = _point.MeasureOctagonalDistance(sprite.Position.AsVector2());

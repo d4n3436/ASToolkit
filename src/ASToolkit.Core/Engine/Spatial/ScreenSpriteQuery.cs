@@ -34,6 +34,19 @@ internal struct ScreenSpriteQuery : ISpriteQuery
             half = sprite.RegionSize * 0.5f;
         }
 
+        TakeIfHit(sprite, half, size, top);
+    }
+
+    public void ConsiderMenu(Sprite sprite)
+    {
+        if (_filter.Accepts(sprite))
+        {
+            TakeIfHit(sprite, sprite.Definition.Half, sprite.Definition.Object.Size, sprite.Position.Y - sprite.Position.Z);
+        }
+    }
+
+    private void TakeIfHit(Sprite sprite, Vector2 half, Vector3 size, float top)
+    {
         if (sprite.Position.X - half.X <= _point.X && _point.X <= sprite.Position.X + half.X &&
             top - size.Z - half.Y < _point.Y && _point.Y < top + half.Y &&
             (Found is null || size.X < Found.Definition.Object.Size.X || size.Y < Found.Definition.Object.Size.Y))

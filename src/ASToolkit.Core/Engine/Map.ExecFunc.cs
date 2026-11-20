@@ -1491,9 +1491,15 @@ public sealed partial class Map : IScriptFunctionHost
             return;
         }
 
-        // TODO: Port the menu list of menu sprites
         if (definition is not null && (definition.Object.SpriteClass == SpriteClass.Frame || (textInMenu && definition.Object.SpriteClass == SpriteClass.Text)))
+        {
+            for (int i = _menuSprites.Count - 1; i >= 0; i--)
+            {
+                query.ConsiderMenu(_menuSprites[i]);
+            }
+
             return;
+        }
 
         int first = definition?.Layer ?? 0;
         int last = definition is null ? UpdateOrder.UpdatedLayerCount : definition.Layer + 1;
