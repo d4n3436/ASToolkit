@@ -28,7 +28,6 @@ public sealed class SpriteCatalog
 
     private static readonly Vector3 DefaultSize = new(24, 16, 20);
     private static readonly Vector3 HardwareGroundSize = new(256, 256, 1);
-
     private readonly ObjectTable _objects;
     private readonly ConcurrentDictionary<(KnownObject Id, int Frame), FrameMask?> _masks = new();
     private SpriteDefinition?[] _definitions;
@@ -47,12 +46,12 @@ public sealed class SpriteCatalog
         _definitions = new SpriteDefinition?[length];
         foreach (var id in objects.Ids)
         {
-            if (id < 0 || !objects.TryFind(id, out var obj))
+            if (id < 0 || !objects.TryFind(id, out var gameObject))
                 continue;
 
-            objects.TryGetWeapon(obj, out var weapon);
+            objects.TryGetWeapon(gameObject, out var weapon);
             var file = Parts.GetFile(objects.GetPath(id));
-            var definition = new SpriteDefinition(id, obj, weapon, file?.Speed ?? DefaultSpriteSpeed, Parts.CountFrames(objects.GetPath(id)), (int)GetLayer(id, obj, file))
+            var definition = new SpriteDefinition(id, gameObject, weapon, file?.Speed ?? DefaultSpriteSpeed, Parts.CountFrames(objects.GetPath(id)), (int)GetLayer(id, gameObject, file))
             {
                 FrameHeight = file?.Height ?? 0
             };
@@ -65,43 +64,76 @@ public sealed class SpriteCatalog
 
             _definitions[(int)id] = definition;
 
-            if (obj.Properties.HasFlag(ObjectProperties.Hash))
+            definition.Load(file);
+
+            if (gameObject.Properties.HasFlag(ObjectProperties.Hash))
             {
-                LargestHashedSize = Vector2.Max(LargestHashedSize, obj.Size.AsVector2());
+                LargestHashedSize = Vector2.Max(LargestHashedSize, gameObject.Size.AsVector2());
             }
         }
 
         ResolveLinks(null);
     }
 
-    private void ResolveLinks(GameLogger? logger)
-    {
-        foreach (var definition in _definitions)
-        {
-            if (definition is not null)
-            {
-                SetChildAndLink(definition, logger);
-            }
-        }
-    }
+    /// <summary>
+    /// Gets the sprite parts of the definitions.
+    /// </summary>
+    public SpritePartReader Parts { get; }
 
-    internal FrameMask? GetFrameMask(SpriteDefinition definition, int frame)
-    {
-        if (_masks.TryGetValue((definition.Id, frame), out var mask))
-            return mask;
+    /// <summary>
+    /// Gets the gravity of falling objects in pixels per millisecond squared.
+    /// </summary>
+    public float Gravitation => _objects.Gravitation * SpriteDefinition.PerMillisecondSquared;
 
-        VidResource? file;
-        lock (Parts)
-        {
-            file = Parts.GetFile(GetPath(definition.Id));
-        }
+    /// <summary>
+    /// Gets the second gravity in pixels per millisecond squared.
+    /// </summary>
+    public float Gravitation2 => _objects.Gravitation2 * SpriteDefinition.PerMillisecondSquared;
 
-        mask = file is null || frame < 0 || frame >= file.Value.FrameCount ? null : FrameMask.Read(file.Value, frame);
+    /// <summary>
+    /// Gets the sounds of the object table.
+    /// </summary>
+    public IReadOnlyList<SfxRecord> Sounds => _objects.Sounds;
 
-        return _masks.GetOrAdd((definition.Id, frame), mask);
-    }
+    /// <summary>
+    /// Gets the fastest scroll speed of the camera along each axis in pixels per millisecond.
+    /// </summary>
+    public Vector2 ScrollSpeed => _objects.ScrollSpeed * SpriteDefinition.PerMillisecond;
 
-    private static ObjectLayer GetLayer(KnownObject id, in GameObject obj, VidResource? sprite) => obj.GetLayer(id, sprite);
+    /// <summary>
+    /// Gets the time in milliseconds the cursor must rest before a mouse tip shows.
+    /// </summary>
+    public int HoverDelay => _objects.HoverDelay;
+
+    /// <summary>
+    /// Gets the packed gamma that tints the player's sprite, or zero for no tint.
+    /// </summary>
+    public uint SelectedGamma => _objects.SelectedGamma;
+
+    /// <summary>
+    /// Gets the packed gamma that tints an enemy under the cursor, or zero for no tint.
+    /// </summary>
+    public uint HoveredEnemyGamma => _objects.HoveredEnemyGamma;
+
+    /// <summary>
+    /// Gets the packed gamma that tints a sprite under the cursor, or zero for no tint.
+    /// </summary>
+    public uint HoveredGamma => _objects.HoveredGamma;
+
+    /// <summary>
+    /// Gets the largest footprint of a hashed definition.
+    /// </summary>
+    public Vector2 LargestHashedSize { get; }
+
+    /// <summary>
+    /// Gets the empty definition of the cursor and goal sprites.
+    /// </summary>
+    public SpriteDefinition Empty { get; }
+
+    /// <summary>
+    /// Gets the definition in the first slot of the table, drawn by the loading screen.
+    /// </summary>
+    public SpriteDefinition? LoadingScreen { get; }
 
     /// <summary>
     /// Returns the name of a definition's record.
@@ -109,10 +141,6 @@ public sealed class SpriteCatalog
     /// <param name="definition">The definition.</param>
     /// <returns>The name.</returns>
     public string GetName(SpriteDefinition definition) => definition.RecordId == HardwareGroundId ? HardwareGroundName : _objects.GetName(definition.RecordId);
-
-    private string GetPath(SpriteDefinition definition) => GetPath(definition.RecordId);
-
-    private string GetPath(KnownObject id) => id == HardwareGroundId ? string.Empty : _objects.GetPath(id);
 
     /// <summary>
     /// Exchanges the identities of two definitions.
@@ -144,12 +172,64 @@ public sealed class SpriteCatalog
         _definitions[(int)second.Id] = first;
         (first.Identity, second.Identity) = (second.Identity, first.Identity);
         (first.Id, second.Id) = (second.Id, first.Id);
+
+        for (int state = 0; state < first.StateHandlers.Length; state++)
+        {
+            (first.StateHandlers[state], second.StateHandlers[state]) = (second.StateHandlers[state], first.StateHandlers[state]);
+        }
+
+        (first.DestroyHandler, second.DestroyHandler) = (second.DestroyHandler, first.DestroyHandler);
+        (first.DamageHandler, second.DamageHandler) = (second.DamageHandler, first.DamageHandler);
+        (first.CollisionHandler, second.CollisionHandler) = (second.CollisionHandler, first.CollisionHandler);
     }
 
     /// <summary>
     /// Undoes the level script's exchanges and reloads every definition's record.
     /// </summary>
     public void ReloadRecords() => ReloadRecords(null);
+
+    /// <summary>
+    /// Clears every definition's counts and script handlers for a new level.
+    /// </summary>
+    public void ResetLevelState()
+    {
+        foreach (var definition in _definitions)
+        {
+            definition?.ResetLevelState();
+            definition?.ClearHandlers();
+        }
+    }
+
+    /// <summary>
+    /// Returns the definition of an object id.
+    /// </summary>
+    /// <param name="id">The object id.</param>
+    /// <returns>The definition, or null if no definition has that id.</returns>
+    public SpriteDefinition? Find(KnownObject id) => id >= 0 && (int)id < _definitions.Length ? _definitions[(int)id] : null;
+
+    /// <summary>
+    /// Returns the army a new sprite of a definition joins.
+    /// </summary>
+    /// <param name="definition">The definition.</param>
+    /// <returns>The army.</returns>
+    public Army GetArmy(SpriteDefinition definition) =>
+        definition.Object.WeaponIndex == 0 && definition.Object.Link != 0 ? Find(definition.Object.Link)?.Army ?? definition.Army : definition.Army;
+
+    internal FrameMask? GetFrameMask(SpriteDefinition definition, int frame)
+    {
+        if (_masks.TryGetValue((definition.Id, frame), out var mask))
+            return mask;
+
+        VidResource? file;
+        lock (Parts)
+        {
+            file = Parts.GetFile(GetPath(definition.Id));
+        }
+
+        mask = file is null || frame < 0 || frame >= file.Value.FrameCount ? null : FrameMask.Read(file.Value, frame);
+
+        return _masks.GetOrAdd((definition.Id, frame), mask);
+    }
 
     [EngineRoutine(0x00411920)]
     internal void ReloadRecords(GameLogger? logger)
@@ -180,10 +260,64 @@ public sealed class SpriteCatalog
         ResolveLinks(logger);
     }
 
+    internal void LogCounts(GameLogger logger)
+    {
+        for (int i = 0; i < _definitions.Length; i++)
+        {
+            var definition = _definitions[i];
+
+            if (definition is null)
+                continue;
+
+            var counts = definition.Counts;
+            if (counts[0] + counts[1] + counts[2] + counts[3] == 0)
+                continue;
+
+            var name = (ReadOnlyMemory<byte>)GameTextEncoding.Cyrillic.GetBytes(GetName(definition));
+            var path = (ReadOnlyMemory<byte>)GameTextEncoding.Cyrillic.GetBytes(GetPath(definition));
+            logger.Write("NoVid[%3i]=%i %i %i %i %s Layer=%i %s"u8, i, counts[0], counts[1], counts[2], counts[3], name, definition.Layer, path);
+        }
+    }
+
+    [EngineRoutine(0x00419750)]
+    internal SpriteDefinition CreateHardwareGround()
+    {
+        var definition = new SpriteDefinition(HardwareGroundId, new GameObject(SpriteClass.Primitive, HardwareGroundSize), default, DefaultSpriteSpeed);
+
+        if (_definitions.Length <= (int)HardwareGroundId)
+        {
+            Array.Resize(ref _definitions, (int)HardwareGroundId + 1);
+        }
+
+        _definitions[(int)HardwareGroundId] = definition;
+
+        return definition;
+    }
+
+    private static ObjectLayer GetLayer(KnownObject id, in GameObject gameObject, VidResource? sprite) => gameObject.GetLayer(id, sprite);
+
+    [EngineRoutine(0x00413710)]
+    private static SpriteDefinition CreateDefault() => new(EmptyId, new GameObject(SpriteClass.Primitive, DefaultSize), default, DefaultSpriteSpeed, layer: (int)ObjectLayer.Menu);
+
+    private void ResolveLinks(GameLogger? logger)
+    {
+        foreach (var definition in _definitions)
+        {
+            if (definition is not null)
+            {
+                SetChildAndLink(definition, logger);
+            }
+        }
+    }
+
+    private string GetPath(SpriteDefinition definition) => GetPath(definition.RecordId);
+
+    private string GetPath(KnownObject id) => id == HardwareGroundId ? string.Empty : _objects.GetPath(id);
+
     private void LogRecordErrors(GameLogger logger, SpriteDefinition definition)
     {
-        ref readonly var obj = ref definition.Object;
-        int directions = obj.Directions;
+        ref readonly var gameObject = ref definition.Object;
+        int directions = gameObject.Directions;
         int frames = definition.Layout.TotalFrames;
         string path = GetPath(definition);
 
@@ -209,7 +343,7 @@ public sealed class SpriteCatalog
         int needed = 0;
         for (int state = 0; state <= (int)SpriteAnimation.Death2; state++)
         {
-            needed += obj.FrameCounts[state] * directions;
+            needed += gameObject.FrameCounts[state] * directions;
         }
 
         if (frames < needed)
@@ -223,6 +357,19 @@ public sealed class SpriteCatalog
     {
         int link = (int)definition.Object.Link;
         definition.LinkDefinition = Find(definition.Object.Link);
+
+        if (definition.Lifetime != SpriteDefinition.Unlimited || definition.HasKeyframes || (definition.Object.Properties & (ObjectProperties.Blur | ObjectProperties.RandomSpeed)) != 0)
+        {
+            definition.HasTimers = true;
+        }
+
+        foreach (int child in definition.Children)
+        {
+            if (child != 0 && Find((KnownObject)Math.Abs(child))?.IsBirthAsSmoke() == true)
+            {
+                definition.HasTimers = true;
+            }
+        }
 
         if (logger is null)
             return;
@@ -246,117 +393,4 @@ public sealed class SpriteCatalog
         logger.Error("VID [%i-%s]"u8, code, value, text, (int)definition.Id, (ReadOnlyMemory<byte>)GameTextEncoding.Cyrillic.GetBytes(GetName(definition)));
 
     private bool IsDefined(int id) => id >= 0 && id < _definitions.Length && _definitions[id] is not null;
-
-    /// <summary>
-    /// Clears every definition's counts and script handlers for a new level.
-    /// </summary>
-    public void ResetLevelState()
-    {
-        foreach (var definition in _definitions)
-        {
-            definition?.ResetLevelState();
-            definition?.ClearHandlers();
-        }
-    }
-
-    internal void LogCounts(GameLogger logger)
-    {
-        for (int i = 0; i < _definitions.Length; i++)
-        {
-            var definition = _definitions[i];
-
-            if (definition is null)
-                continue;
-
-            var counts = definition.Counts;
-            if (counts[0] + counts[1] + counts[2] + counts[3] == 0)
-                continue;
-
-            var name = (ReadOnlyMemory<byte>)GameTextEncoding.Cyrillic.GetBytes(GetName(definition));
-            var path = (ReadOnlyMemory<byte>)GameTextEncoding.Cyrillic.GetBytes(GetPath(definition));
-            logger.Write("NoVid[%3i]=%i %i %i %i %s Layer=%i %s"u8, i, counts[0], counts[1], counts[2], counts[3], name, definition.Layer, path);
-        }
-    }
-
-    internal MovementMap CreateMovementMap(MapData mapData) => new(mapData, Parts);
-
-    internal void AddTerrain(MovementMap movement, MergedMapSprite sprite) => movement.Add(sprite, Parts, true);
-
-    /// <summary>
-    /// Gets the sprite parts of the definitions.
-    /// </summary>
-    public SpritePartReader Parts { get; }
-
-    /// <summary>
-    /// Gets the gravity of falling objects in pixels per millisecond squared.
-    /// </summary>
-    public float Gravitation => _objects.Gravitation * SpriteDefinition.PerMillisecondSquared;
-
-    /// <summary>
-    /// Gets the second gravity in pixels per millisecond squared.
-    /// </summary>
-    public float Gravitation2 => _objects.Gravitation2 * SpriteDefinition.PerMillisecondSquared;
-
-    [EngineRoutine(0x00419750)]
-    internal SpriteDefinition CreateHardwareGround()
-    {
-        var definition = new SpriteDefinition(HardwareGroundId, new GameObject(SpriteClass.Primitive, HardwareGroundSize), default, DefaultSpriteSpeed);
-
-        if (_definitions.Length <= (int)HardwareGroundId)
-        {
-            Array.Resize(ref _definitions, (int)HardwareGroundId + 1);
-        }
-
-        _definitions[(int)HardwareGroundId] = definition;
-
-        return definition;
-    }
-
-    [EngineRoutine(0x00413710)]
-    private static SpriteDefinition CreateDefault() => new(EmptyId, new GameObject(SpriteClass.Primitive, DefaultSize), default, DefaultSpriteSpeed);
-
-    /// <summary>
-    /// Gets the sounds of the object table.
-    /// </summary>
-    public IReadOnlyList<SfxRecord> Sounds => _objects.Sounds;
-
-    /// <summary>
-    /// Gets the fastest scroll speed of the camera along each axis in pixels per millisecond.
-    /// </summary>
-    public Vector2 ScrollSpeed => _objects.ScrollSpeed * SpriteDefinition.PerMillisecond;
-
-    /// <summary>
-    /// Gets the milliseconds the cursor rests before a mouse tip shows.
-    /// </summary>
-    public int HoverDelay => _objects.HoverDelay;
-
-    /// <summary>
-    /// Gets the largest footprint of a hashed definition.
-    /// </summary>
-    public Vector2 LargestHashedSize { get; }
-
-    /// <summary>
-    /// Gets the empty definition of the cursor and goal sprites.
-    /// </summary>
-    public SpriteDefinition Empty { get; }
-
-    /// <summary>
-    /// Gets the definition in the first slot of the table, drawn by the loading screen.
-    /// </summary>
-    public SpriteDefinition? LoadingScreen { get; }
-
-    /// <summary>
-    /// Returns the definition of an id.
-    /// </summary>
-    /// <param name="id">The id.</param>
-    /// <returns>The definition, or null when the table has none.</returns>
-    public SpriteDefinition? Find(KnownObject id) => id >= 0 && (int)id < _definitions.Length ? _definitions[(int)id] : null;
-
-    /// <summary>
-    /// Returns the army a new sprite of a definition joins.
-    /// </summary>
-    /// <param name="definition">The definition.</param>
-    /// <returns>The army.</returns>
-    public Army GetArmy(SpriteDefinition definition) =>
-        definition.Object.WeaponIndex == 0 && definition.Object.Link != 0 ? Find(definition.Object.Link)?.Army ?? definition.Army : definition.Army;
 }

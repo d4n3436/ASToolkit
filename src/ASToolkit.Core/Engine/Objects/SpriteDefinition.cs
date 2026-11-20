@@ -1,3 +1,5 @@
+using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Numerics;
 using ASToolkit.Core.Formats;
 
@@ -8,42 +10,42 @@ namespace ASToolkit.Core.Engine;
 /// </summary>
 public sealed class SpriteDefinition
 {
-    private const float BallisticRise = 1.1f;
-    private const float BallisticDrop = 0.9f;
-
     /// <summary>
     /// Represents the value the game files use for an unlimited speed, lifetime or amount.
     /// </summary>
     public const int Unlimited = 999999;
-    
+
     /// <summary>
     /// Represents the scale from rates per second to rates per millisecond.
     /// </summary>
     public const float PerMillisecond = 0.001f;
-    
+
     /// <summary>
     /// Represents the scale from accelerations per second squared to per millisecond squared.
     /// </summary>
     public const float PerMillisecondSquared = 1e-6f;
-    
+
     /// <summary>
     /// Represents the number of armies.
     /// </summary>
     public const int ArmyCount = 4;
-    
+
     /// <summary>
     /// Represents a script handler slot with no function bound.
     /// </summary>
     public const int NoHandler = -1;
-    
+
     /// <summary>
     /// Represents the number of sprite states.
     /// </summary>
     public const int StateCount = (int)SpriteAnimation.Death2 + 1;
 
+    private const float BallisticRise = 1.1f;
+    private const float BallisticDrop = 0.9f;
+    private const int OneBits = 0x3f800000;
+
     private readonly GameObject _object;
     private readonly WeaponRecord _weapon;
-    private readonly int[] _frameDurations;
     private readonly int[] _children = new int[StateCount];
     private readonly int[] _childCounts = new int[StateCount];
     private readonly int[] _counts = new int[ArmyCount];
@@ -52,89 +54,47 @@ public sealed class SpriteDefinition
     private readonly int[] _armyMaxHp = new int[ArmyCount];
     private readonly int[] _armyMaxUnits = new int[ArmyCount];
     private readonly Gamma[] _gammas = new Gamma[ArmyCount];
+    private readonly List<Vector3> _heightPoints = [];
+    private readonly int _recordSpriteSpeed;
+    private int[]? _heightFrameStarts;
 
     /// <summary>
     /// Creates the definition of an object record.
     /// </summary>
     /// <param name="id">The object id.</param>
-    /// <param name="obj">The object record.</param>
+    /// <param name="gameObject">The object record.</param>
     /// <param name="weapon">The weapon record.</param>
     /// <param name="spriteSpeed">The frame duration of the definition's sprite.</param>
     /// <param name="totalFrames">The frame count of the definition's sprite.</param>
     /// <param name="layer">The update list of the definition.</param>
-    public SpriteDefinition(KnownObject id, in GameObject obj, in WeaponRecord weapon, int spriteSpeed, int totalFrames = 0, int layer = 0)
+    public SpriteDefinition(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, int spriteSpeed, int totalFrames = 0, int layer = 0)
     {
         Id = id;
         RecordId = id;
         Identity = this;
-        _object = obj;
+        _object = gameObject;
         _weapon = weapon;
-        Layout = new FrameLayout(obj, spriteSpeed, totalFrames);
+        Layout = new FrameLayout(gameObject, spriteSpeed, totalFrames);
         ClearHandlers();
-        _frameDurations = new int[(int)SpriteAnimation.Death2 + 1];
 
+        _recordSpriteSpeed = spriteSpeed;
         SpriteSpeed = spriteSpeed;
         Layer = layer;
-        ZSpeed = ScaleRate(obj.MaxZSpeed, PerMillisecond);
-        Acceleration = ScaleRate(obj.Acceleration, PerMillisecondSquared);
-        Deceleration = ScaleRate(obj.Deceleration, PerMillisecondSquared);
+        ZSpeed = ScaleRate(gameObject.MaxZSpeed, PerMillisecond);
+        Acceleration = ScaleRate(gameObject.Acceleration, PerMillisecondSquared);
+        Deceleration = ScaleRate(gameObject.Deceleration, PerMillisecondSquared);
         WeaponFlags = weapon.Flags;
         Behavior = weapon.Behavior;
         Army = weapon.Army;
         Rank = weapon.Rank;
         Targets = weapon.Targets;
-        Half = obj.Size.AsVector2() * 0.5f;
+        Half = gameObject.Size.AsVector2() * 0.5f;
         BattleRange = weapon.BattleRange;
         MinRange = weapon.MinRange;
         ReloadTime = weapon.ReloadTime;
-        AttackTime = Math.Max(weapon.ReloadTime, GetAnimationTime(obj, SpriteAnimation.Fight, spriteSpeed));
+        AttackTime = Math.Max(weapon.ReloadTime, GetAnimationTime(gameObject, SpriteAnimation.Fight, spriteSpeed));
         LoadParameters();
         ResetLevelState();
-    }
-
-    /// <summary>
-    /// Reloads the values the level script can change from the records.
-    /// </summary>
-    [EngineRoutine(0x00413c30)]
-    public void LoadParameters()
-    {
-        MaxHp = _object.MaxHp;
-        Speed = ScaleRate(_object.MaxSpeed, PerMillisecond);
-        MoveMask = _object.MoveMask;
-        Damage = _object.DeathDamage;
-        Lifetime = _object.Lifetime;
-        DetectRange = _weapon.DetectRange;
-        Aim = _weapon.Aim;
-        AmmoCapacity = _weapon.Ammo;
-        BuildTime = _weapon.BuildTime;
-        NotCreatedAsChild = 0;
-        HasKeyframes = GetHasKeyframes(_weapon);
-        Layout.LoadFrameDurations(_object, SpriteSpeed);
-        LoadAnimations(SpriteSpeed);
-        for (int state = 0; state < StateCount; state++)
-        {
-            _children[state] = _object.Children[state];
-            _childCounts[state] = _object.ChildCounts[state];
-        }
-    }
-
-    /// <summary>
-    /// Sets the frame duration of every state.
-    /// </summary>
-    /// <param name="duration">The frame duration in milliseconds.</param>
-    public void SetFrameSpeed(int duration)
-    {
-        SpriteSpeed = duration;
-        Layout.SetFrameDurations(duration);
-        Array.Fill(_frameDurations, Math.Max(1, duration));
-    }
-
-    private void LoadAnimations(int spriteSpeed)
-    {
-        for (int i = 0; i < _frameDurations.Length; i++)
-        {
-            _frameDurations[i] = Math.Max(1, _object.GetFrameDuration((SpriteAnimation)i, spriteSpeed));
-        }
     }
 
     /// <summary>
@@ -158,31 +118,6 @@ public sealed class SpriteDefinition
     public int CollisionHandler { get; set; } = NoHandler;
 
     /// <summary>
-    /// Unbinds every script handler of the definition.
-    /// </summary>
-    public void ClearHandlers()
-    {
-        Array.Fill(StateHandlers, NoHandler);
-        DestroyHandler = NoHandler;
-        DamageHandler = NoHandler;
-        CollisionHandler = NoHandler;
-    }
-
-    /// <summary>
-    /// Clears the per-army counts and limits a level starts with.
-    /// </summary>
-    [EngineRoutine(0x00413980)]
-    public void ResetLevelState()
-    {
-        Array.Clear(_counts);
-        Array.Clear(_killed);
-        Array.Clear(_recolored);
-        Array.Fill(_armyMaxHp, MaxHp);
-        Array.Fill(_armyMaxUnits, -1);
-        MaxUnits = -1;
-    }
-
-    /// <summary>
     /// Gets or sets the id sprites of the definition report.
     /// </summary>
     public KnownObject Id { get; set; }
@@ -200,12 +135,13 @@ public sealed class SpriteDefinition
     /// <summary>
     /// Gets or sets a value indicating whether sprites of the definition are hidden.
     /// </summary>
+    [EngineRoutine(0x0043a1b0)]
     public bool IsHidden { get; set; }
 
     /// <summary>
     /// Gets the speed as the level script reads it, in pixels per second.
     /// </summary>
-    public int ScriptSpeed => Speed.IsNear(Unlimited) ? Unlimited : (int)(Speed * 1000);
+    public int ScriptSpeed => Speed.IsExactly(Unlimited) ? Unlimited : (int)(Speed * 1000);
 
     /// <summary>
     /// Gets the object record of the definition.
@@ -222,7 +158,15 @@ public sealed class SpriteDefinition
     /// </summary>
     public bool HasKeyframes { get; set; }
 
-    internal FrameLayout Layout { get; }
+    /// <summary>
+    /// Gets or sets a value indicating whether sprites of the definition carry a lifetime, a keyframe track, a stream period and a top speed of their own.
+    /// </summary>
+    public bool HasTimers { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether a region can replace the definition of sprites created from it.
+    /// </summary>
+    public bool IsRegionReplaced { get; set; }
 
     /// <summary>
     /// Gets the frame duration of the definition's sprite.
@@ -267,7 +211,7 @@ public sealed class SpriteDefinition
     /// <summary>
     /// Gets a value indicating whether the definition attacks before it faces its target.
     /// </summary>
-    public bool AttacksWhileTurning => WeaponFlags.HasFlag(WeaponFlags.AttacksWhileTurning);
+    public bool CanAttackWhileTurning => WeaponFlags.HasFlag(WeaponFlags.AttacksWhileTurning);
 
     /// <summary>
     /// Gets a value indicating whether the definition attacks only targets ahead of it.
@@ -277,7 +221,7 @@ public sealed class SpriteDefinition
     /// <summary>
     /// Gets a value indicating whether the definition alternates the two children of a mirrored pair.
     /// </summary>
-    public bool AttacksTwice => WeaponFlags.HasFlag(WeaponFlags.DoubleAttack);
+    public bool HasDoubleAttack => WeaponFlags.HasFlag(WeaponFlags.DoubleAttack);
 
     /// <summary>
     /// Gets the state a sprite of the definition starts in.
@@ -286,63 +230,6 @@ public sealed class SpriteDefinition
         Layout.GetFrameCount(SpriteAnimation.Stand) == 0 && Layout.GetFrameCount(SpriteAnimation.Go) == 0 &&
         Layout.GetFrameCount(SpriteAnimation.Death) != 0 ? SpriteAnimation.Death
         : Layout.GetFrameCount(SpriteAnimation.Birth) != 0 ? SpriteAnimation.Birth : SpriteAnimation.Stand;
-
-    /// <summary>
-    /// Returns the frame duration of a state.
-    /// </summary>
-    /// <param name="animation">The state.</param>
-    /// <returns>The duration in milliseconds.</returns>
-    public int GetVisualFrameDuration(SpriteAnimation animation) => _frameDurations[(int)animation];
-
-    /// <summary>
-    /// Returns the length of a state's animation.
-    /// </summary>
-    /// <param name="animation">The state.</param>
-    /// <returns>The length in milliseconds.</returns>
-    public int GetAnimationDuration(SpriteAnimation animation) => Math.Max(1, Object.FrameCounts[(int)animation]) * GetVisualFrameDuration(animation);
-
-    /// <summary>
-    /// Returns the vertical speed that carries a launched sprite of this definition up or down a rise over a distance, within its vertical speed limit.
-    /// </summary>
-    /// <param name="catalog">The catalog that holds the gravity constants.</param>
-    /// <param name="rise">The height to climb, negative to drop.</param>
-    /// <param name="distance">The horizontal distance to the goal.</param>
-    /// <returns>The vertical speed in pixels per millisecond.</returns>
-    [EngineRoutine(0x00414a80)]
-    public float CalculateZSpeed(SpriteCatalog catalog, float rise, float distance)
-    {
-        ref readonly var obj = ref Object;
-        float gravity = obj.Properties.HasFlag(ObjectProperties.Gravity) ? catalog.Gravitation : obj.Properties.HasFlag(ObjectProperties.Gravity2) ? catalog.Gravitation2 : 0;
-        float speed;
-
-        if (!gravity.IsZero())
-        {
-            speed = rise * Speed / distance + distance * gravity / Speed * 0.5f;
-            speed *= speed > 0 ? BallisticRise : BallisticDrop;
-        }
-        else
-        {
-            speed = obj.Properties.HasFlag(ObjectProperties.SelfMoving) ? ZSpeed : obj.TopZ.IsZero() ? rise * Speed / distance : 0;
-        }
-
-        return Math.Clamp(speed, -ZSpeed, ZSpeed);
-    }
-
-    /// <summary>
-    /// Returns the direction of the direction frame a sprite of this definition shows for a direction.
-    /// </summary>
-    /// <param name="direction">The direction.</param>
-    /// <returns>The frame's direction, or the direction itself when the definition has no direction frames.</returns>
-    [EngineRoutine(0x00442e00)]
-    public Angle GetFrameDirection(Angle direction) => Layout.Directions != 0 ? direction.GetFrameDirection(Layout.Directions) : direction;
-
-    /// <summary>
-    /// Returns where a link sits relative to a sprite of this definition facing a direction.
-    /// </summary>
-    /// <param name="link">The link's definition.</param>
-    /// <param name="direction">The direction of the sprite.</param>
-    /// <returns>The offset from the sprite's position.</returns>
-    public Vector3 GetLinkOffset(SpriteDefinition link, Angle direction) => Object.GetLinkOffset(link.Object, null, 0, direction);
 
     /// <summary>
     /// Gets or sets the health of a new sprite of the definition.
@@ -379,8 +266,6 @@ public sealed class SpriteDefinition
     /// </summary>
     public Vector2 Half { get; }
 
-    internal CollisionVolume GetCollisionVolume(Vector3 position) => new(position, Half, Object.Size.Z, MoveMask);
-
     /// <summary>
     /// Gets or sets the collision layers the definition moves through.
     /// </summary>
@@ -399,7 +284,13 @@ public sealed class SpriteDefinition
     /// <summary>
     /// Gets or sets the flag that keeps the definition from being created as a child.
     /// </summary>
-    public int NotCreatedAsChild { get; set; }
+    public int NotCreatedAsChild
+    {
+        [EngineRoutine(0x0043a300)]
+        get;
+        [EngineRoutine(0x0043a310)]
+        set;
+    }
 
     /// <summary>
     /// Gets the child object of each state.
@@ -459,8 +350,8 @@ public sealed class SpriteDefinition
     /// <summary>
     /// Gets a value indicating whether the definition's damage spares its own army.
     /// </summary>
-    public bool SkipsOwnArmy => Object.Properties.HasFlag(ObjectProperties.NoFriendlyDamage);
-    
+    public bool ShouldSkipOwnArmy => Object.Properties.HasFlag(ObjectProperties.NoFriendlyDamage);
+
     /// <summary>
     /// Gets or sets the range at which the definition sees enemies.
     /// </summary>
@@ -500,7 +391,7 @@ public sealed class SpriteDefinition
     /// Gets the time an attack of the definition takes.
     /// </summary>
     public int AttackTime { get; }
-    
+
     /// <summary>
     /// Gets the object the definition launches when it attacks.
     /// </summary>
@@ -526,21 +417,337 @@ public sealed class SpriteDefinition
     /// </summary>
     public SpriteDefinition? LinkDefinition { get; set; }
 
-    private static int GetAnimationTime(in GameObject obj, SpriteAnimation animation, int spriteSpeed) =>
-        obj.FrameCounts[(int)animation] * obj.GetFrameDuration(animation, spriteSpeed);
+    internal int HeightPointCount => _heightPoints.Count;
+
+    internal FrameLayout Layout { get; }
+
+    /// <summary>
+    /// Reloads the values the level script can change from the records.
+    /// </summary>
+    [EngineRoutine(0x00413c30)]
+    public void LoadParameters()
+    {
+        MaxHp = _object.MaxHp;
+        Speed = ScaleRate(_object.MaxSpeed, PerMillisecond);
+        MoveMask = _object.MoveMask;
+        Damage = _object.DeathDamage;
+        Lifetime = _object.Lifetime;
+        DetectRange = _weapon.DetectRange;
+        Aim = _weapon.Aim;
+        AmmoCapacity = _weapon.Ammo;
+        BuildTime = _weapon.BuildTime;
+        NotCreatedAsChild = 0;
+        HasKeyframes = GetHasKeyframes(_weapon);
+        SpriteSpeed = _recordSpriteSpeed;
+        Layout.LoadFrameDurations(_object, SpriteSpeed);
+        for (int state = 0; state < StateCount; state++)
+        {
+            _children[state] = _object.Children[state];
+            _childCounts[state] = _object.ChildCounts[state];
+        }
+
+        if (_object.Properties.HasFlag(ObjectProperties.BuildSizeToGridZ))
+        {
+            _heightPoints.Clear();
+            _heightFrameStarts = null;
+            BuildHeightGrid();
+        }
+    }
+
+    /// <summary>
+    /// Sets the frame duration of every state.
+    /// </summary>
+    /// <param name="duration">The frame duration in milliseconds.</param>
+    public void SetFrameSpeed(int duration)
+    {
+        SpriteSpeed = (ushort)duration;
+        Layout.SetFrameDurations(duration);
+    }
+
+    /// <summary>
+    /// Unbinds every script handler of the definition.
+    /// </summary>
+    public void ClearHandlers()
+    {
+        Array.Fill(StateHandlers, NoHandler);
+        DestroyHandler = NoHandler;
+        DamageHandler = NoHandler;
+        CollisionHandler = NoHandler;
+    }
+
+    /// <summary>
+    /// Resets the per-army counts and limits for a new level.
+    /// </summary>
+    [EngineRoutine(0x00413980)]
+    public void ResetLevelState()
+    {
+        Array.Clear(_counts);
+        Array.Clear(_killed);
+        Array.Clear(_recolored);
+        Array.Fill(_armyMaxHp, MaxHp);
+        Array.Fill(_armyMaxUnits, -1);
+        MaxUnits = -1;
+        IsRegionReplaced = false;
+    }
+
+    /// <summary>
+    /// Returns the frame duration of a state.
+    /// </summary>
+    /// <param name="animation">The state.</param>
+    /// <returns>The duration in milliseconds.</returns>
+    public int GetVisualFrameDuration(SpriteAnimation animation) => Layout.GetFrameDuration(animation);
+
+    /// <summary>
+    /// Returns the length of a state's animation.
+    /// </summary>
+    /// <param name="animation">The state.</param>
+    /// <returns>The length in milliseconds.</returns>
+    public int GetAnimationDuration(SpriteAnimation animation) => Math.Max(1, Object.FrameCounts[(int)animation]) * GetVisualFrameDuration(animation);
+
+    /// <summary>
+    /// Returns the vertical speed that carries a launched sprite of this definition up or down a rise over a distance, within its vertical speed limit.
+    /// </summary>
+    /// <param name="catalog">The catalog that holds the gravity constants.</param>
+    /// <param name="rise">The height to climb, negative to drop.</param>
+    /// <param name="distance">The horizontal distance to the goal.</param>
+    /// <returns>The vertical speed in pixels per millisecond.</returns>
+    [EngineRoutine(0x00414a80)]
+    public float CalculateZSpeed(SpriteCatalog catalog, float rise, float distance)
+    {
+        ref readonly var gameObject = ref Object;
+        bool hasGravity = gameObject.Properties.HasFlag(ObjectProperties.Gravity);
+        bool hasGravity2 = !hasGravity && gameObject.Properties.HasFlag(ObjectProperties.Gravity2);
+        float speed;
+
+        if (hasGravity || hasGravity2)
+        {
+            float gravity = hasGravity ? catalog.Gravitation : catalog.Gravitation2;
+            speed = rise * Speed / distance + distance * gravity / Speed * 0.5f;
+            speed *= speed > 0 ? BallisticRise : BallisticDrop;
+        }
+        else
+        {
+            speed = gameObject.Properties.HasFlag(ObjectProperties.SelfMoving) ? ZSpeed : gameObject.TopZ.IsExactlyZero() ? rise * Speed / distance : 0;
+        }
+
+        if (speed > ZSpeed)
+            return ZSpeed;
+
+        return speed < -ZSpeed ? -ZSpeed : speed;
+    }
+
+    /// <summary>
+    /// Returns the direction of the direction frame a sprite of this definition shows for a direction.
+    /// </summary>
+    /// <param name="direction">The direction.</param>
+    /// <returns>The frame's direction, or the direction itself if the definition does not use direction frames.</returns>
+    [EngineRoutine(0x00442e00)]
+    public Angle GetFrameDirection(Angle direction) => Layout.Directions != 0 ? direction.GetFrameDirection(Layout.Directions) : direction;
+
+    /// <summary>
+    /// Returns where a link sits relative to a sprite of this definition facing a direction.
+    /// </summary>
+    /// <param name="link">The link's definition.</param>
+    /// <param name="direction">The direction of the sprite.</param>
+    /// <returns>The offset from the sprite's position.</returns>
+    public Vector3 GetLinkOffset(SpriteDefinition link, Angle direction) => Object.GetLinkOffset(link.Object, null, 0, direction);
+
+    /// <summary>
+    /// Returns the number of living sprites of the definition in an army.
+    /// </summary>
+    /// <param name="army">The army, from 0 to 3.</param>
+    /// <returns>The count.</returns>
+    [EngineRoutine(0x0043a250)]
+    public int GetCount(int army) => _counts[army];
+
+    /// <summary>
+    /// Returns the number of living sprites of the definition in all armies.
+    /// </summary>
+    /// <returns>The count.</returns>
+    [EngineRoutine(0x0043a260)]
+    public int GetTotalCount() => _counts[3] + _counts[2] + _counts[1] + _counts[0];
+
+    /// <summary>
+    /// Returns the number of killed sprites of the definition in an army.
+    /// </summary>
+    /// <param name="army">The army, masked to 0 to 3.</param>
+    /// <returns>The count.</returns>
+    [EngineRoutine(0x0043a280)]
+    public int GetKilled(int army) => _killed[army & 3];
+
+    /// <summary>
+    /// Returns the number of killed sprites of the definition in all armies.
+    /// </summary>
+    /// <returns>The count.</returns>
+    [EngineRoutine(0x0043a2a0)]
+    public int GetTotalKilled() => _killed[3] + _killed[2] + _killed[1] + _killed[0];
+
+    /// <summary>
+    /// Returns the number of recolored sprites of the definition in an army.
+    /// </summary>
+    /// <param name="army">The army, masked to 0 to 3.</param>
+    /// <returns>The count.</returns>
+    [EngineRoutine(0x0043a2c0)]
+    public int GetRecolored(int army) => _recolored[army & 3];
+
+    /// <summary>
+    /// Returns the number of recolored sprites of the definition in all armies.
+    /// </summary>
+    /// <returns>The count.</returns>
+    [EngineRoutine(0x0043a2e0)]
+    public int GetTotalRecolored() => _recolored[3] + _recolored[2] + _recolored[1] + _recolored[0];
+
+    /// <summary>
+    /// Returns the health of a new sprite of the definition for an army.
+    /// </summary>
+    /// <param name="army">The army, masked to 0 to 3.</param>
+    /// <returns>The health.</returns>
+    [EngineRoutine(0x0043a230)]
+    public int GetArmyMaxHp(int army) => _armyMaxHp[army & 3];
+
+    /// <summary>
+    /// Returns whether the definition has a fight child and a weapon.
+    /// </summary>
+    /// <returns><see langword="true"/> if the definition is armed with a weapon of its own; otherwise, <see langword="false"/>.</returns>
+    [EngineRoutine(0x0043a1e0)]
+    public bool HasFightWeapon() => FightChild != 0 && Object.WeaponIndex != 0;
+
+    /// <summary>
+    /// Returns whether the object of the definition is born as smoke.
+    /// </summary>
+    /// <returns><see langword="true"/> if the object is born as smoke; otherwise, <see langword="false"/>.</returns>
+    [EngineRoutine(0x0043a320)]
+    public bool IsBirthAsSmoke() => Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke);
+
+    /// <summary>
+    /// Hides or shows the sprites of the definition and of every definition linked to it.
+    /// </summary>
+    /// <param name="hidden"><see langword="true"/> to hide the sprites.</param>
+    [EngineRoutine(0x00414840)]
+    public void SetPropHide(bool hidden)
+    {
+        IsHidden = hidden;
+        for (var link = LinkDefinition; link is not null; link = link.LinkDefinition)
+        {
+            link.IsHidden = hidden;
+        }
+    }
+
+    [EngineRoutine(0x004154b0)]
+    internal void Load(VidResource? file)
+    {
+        if (file is null || !_object.IsSolid)
+            return;
+
+        var resource = file.Value;
+        int[] starts = new int[resource.FrameCount];
+        var cells = new Size(resource.Width, resource.Height) / MovementMap.CellSize * MovementMap.CellSize;
+        var half = new Size(resource.Width, resource.Height) / 2;
+
+        for (int frame = 0; frame < resource.FrameCount; frame++)
+        {
+            starts[frame] = _heightPoints.Count;
+
+            foreach (var point in SpritePartReader.ReadHeightPoints(resource, frame))
+            {
+                if (point.X + half.Width < cells.Width && point.Y + half.Height < cells.Height)
+                {
+                    _heightPoints.Add(point);
+                }
+            }
+        }
+
+        _heightFrameStarts = starts;
+    }
+
+    internal ReadOnlySpan<Vector3> GetHeightPoints(int frame)
+    {
+        int start = 0;
+        int end = _heightPoints.Count;
+
+        if (_heightFrameStarts is not null)
+        {
+            start = frame < Layout.TotalFrames ? _heightFrameStarts[frame] : 0;
+
+            if (frame < Layout.TotalFrames - 1)
+            {
+                end = _heightFrameStarts[frame + 1];
+            }
+        }
+
+        return start < end ? CollectionsMarshal.AsSpan(_heightPoints).Slice(start, end - start) : [];
+    }
+
+    internal CollisionVolume GetCollisionVolume(Vector3 position) => new(position, Half, Object.Size.Z, MoveMask);
+
+    private static int GetAnimationTime(in GameObject gameObject, SpriteAnimation animation, int spriteSpeed) =>
+        gameObject.FrameCounts[(int)animation] * gameObject.GetFrameDuration(animation, spriteSpeed);
 
     private static bool GetHasKeyframes(in WeaponRecord weapon)
     {
         for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
         {
             if (weapon.RedKeys[key] != 0 || weapon.GreenKeys[key] != 0 || weapon.BlueKeys[key] != 0 || weapon.AlphaKeys[key] != 0 ||
-                !weapon.ScaleXKeys[key].IsNear(1) || !weapon.ScaleYKeys[key].IsNear(1) || !weapon.ScaleHeightKeys[key].IsNear(1) ||
-                !weapon.OffsetXKeys[key].IsZero() || !weapon.OffsetYKeys[key].IsZero())
+                BitConverter.SingleToInt32Bits(weapon.ScaleXKeys[key]) != OneBits || BitConverter.SingleToInt32Bits(weapon.ScaleYKeys[key]) != OneBits ||
+                BitConverter.SingleToInt32Bits(weapon.ScaleHeightKeys[key]) != OneBits ||
+                !weapon.OffsetXKeys[key].IsExactlyZero() || !weapon.OffsetYKeys[key].IsExactlyZero() || !weapon.OffsetZKeys[key].IsExactlyZero() ||
+                weapon.RotationXKeys[key] != 0 || weapon.RotationYKeys[key] != 0 || weapon.RotationZKeys[key] != 0)
                 return true;
         }
 
         return false;
     }
 
-    private static float ScaleRate(float rate, float scale) => rate.IsNear(Unlimited) ? rate : rate * scale;
+    private static float ScaleRate(float rate, float scale) => rate.IsExactly(Unlimited) ? rate : rate * scale;
+
+    private void BuildHeightGrid()
+    {
+        var size = _object.Size;
+        float halfX = size.X * 0.5f;
+        float halfY = size.Y * 0.5f;
+        int row = 0;
+        float y = 0;
+
+        if (0 < size.Y)
+        {
+            do
+            {
+                int column = 0;
+                float x = 0;
+
+                if (0 < size.X)
+                {
+                    do
+                    {
+                        column += 8;
+                        _heightPoints.Add(new Vector3(x - halfX, y - halfY, size.Z));
+                        x = column;
+                    }
+                    while (x < size.X);
+                }
+
+                row += 8;
+                _heightPoints.Add(new Vector3(halfX, y - halfY, size.Z));
+                y = row;
+            }
+            while (y < size.Y);
+        }
+
+        int bottom = 0;
+
+        if (0 < size.X)
+        {
+            float x = 0;
+
+            do
+            {
+                bottom += 8;
+                _heightPoints.Add(new Vector3(x - halfX, halfY, size.Z));
+                x = bottom;
+            }
+            while (x < size.X);
+        }
+
+        _heightPoints.Add(new Vector3(halfX, halfY, size.Z));
+    }
 }

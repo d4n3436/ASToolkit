@@ -7,6 +7,8 @@ namespace ASToolkit.Core.Engine;
 
 internal sealed class SpriteCollector
 {
+    private const OldSpriteType ListedTypes = OldSpriteType.Unit | OldSpriteType.Avia;
+
     private readonly Vector2 _scale;
     private readonly Vector2 _cell;
     private readonly int _columns;
@@ -42,24 +44,11 @@ internal sealed class SpriteCollector
         }
     }
 
-    public static bool IsHashed(SpriteDefinition definition) => definition.Object.Properties.HasFlag(ObjectProperties.Hash);
-
-    private static float GetCellSize(float size)
-    {
-        int shift = 0;
-        while (1 << shift < size * 0.5f)
-        {
-            shift++;
-        }
-
-        return 1 << shift;
-    }
-
     public ReadOnlySpan<Sprite> Listed => CollectionsMarshal.AsSpan(_sprites);
 
     public Vector2 LargestHalf { get; }
 
-    private const OldSpriteType ListedTypes = OldSpriteType.Unit | OldSpriteType.Avia;
+    public static bool IsHashed(SpriteDefinition definition) => definition.Object.Properties.HasFlag(ObjectProperties.Hash);
 
     public static bool IsListed(SpriteDefinition definition) => (definition.Object.SpriteType.ToOldSpriteType() & ListedTypes) != 0;
 
@@ -95,28 +84,6 @@ internal sealed class SpriteCollector
         last.ListIndex = sprite.ListIndex;
         _sprites.RemoveAt(_sprites.Count - 1);
         sprite.ListIndex = -1;
-        sprite.Release();
-    }
-
-    private void AddToBucket(Sprite sprite)
-    {
-        sprite.Bucket = GetBucket(sprite.Position.AsVector2());
-        var bucket = _buckets[sprite.Bucket];
-        sprite.Slot = bucket.Count;
-        sprite.Collector = this;
-        bucket.Add(new GridEntry(sprite));
-        sprite.AddRef();
-    }
-
-    private void RemoveFromBucket(Sprite sprite)
-    {
-        var bucket = _buckets[sprite.Bucket];
-        var last = bucket[^1];
-        bucket[sprite.Slot] = last;
-        last.Sprite.Slot = sprite.Slot;
-        bucket.RemoveAt(bucket.Count - 1);
-        sprite.Slot = -1;
-        sprite.Collector = null;
         sprite.Release();
     }
 
@@ -175,30 +142,27 @@ internal sealed class SpriteCollector
     public Sprite? FindOverlap(Sprite? mover, in CollisionVolume volume)
     {
         var center = volume.Position;
-        var reach = volume.Half + LargestHalf;
         First(center.AsVector2() - volume.Half, center.AsVector2() + volume.Half);
-        int firstColumn = Math.Max(_firstColumn, GetColumn(center.X - reach.X));
-        int lastColumn = Math.Min(_lastColumn, GetColumn(center.X + reach.X));
-        int lastRow = Math.Min(_lastRow, GetRow(center.Y + reach.Y));
-        
-        for (int row = Math.Max(_row, GetRow(center.Y - reach.Y)); row <= lastRow; row++)
+
+        for (int row = _row; row <= _lastRow; row++)
         {
-            for (int column = firstColumn; column <= lastColumn; column++)
+            for (int column = _firstColumn; column <= _lastColumn; column++)
             {
                 var bucket = CollectionsMarshal.AsSpan(_buckets[(row * _columns) + column]);
                 for (int i = 0; i < bucket.Length; i++)
                 {
-                    ref readonly var entry = ref bucket[i];
+                    var other = bucket[i].Sprite;
+                    var definition = other.Definition;
 
-                    if (entry.Sprite != mover && entry.Sprite.Animation < SpriteAnimation.Death && MathF.Abs(entry.Position.X - center.X) < entry.Half.X + volume.Half.X &&
-                        MathF.Abs(entry.Position.Y - center.Y) < entry.Half.Y + volume.Half.Y &&
-                        center.Z <= entry.Height + entry.Position.Z && entry.Position.Z <= center.Z + volume.Height && (volume.Mask & entry.Mask) != 0)
+                    if (other != mover && other.Animation < SpriteAnimation.Death && MathF.Abs(other.Position.X - center.X) < definition.Half.X + volume.Half.X &&
+                        MathF.Abs(other.Position.Y - center.Y) < definition.Half.Y + volume.Half.Y &&
+                        center.Z <= definition.Object.Size.Z + other.Position.Z && other.Position.Z <= center.Z + volume.Height && (volume.Mask & definition.MoveMask) != 0)
                     {
                         _row = row;
                         _column = column;
                         _index = i + 1;
 
-                        return entry.Sprite;
+                        return other;
                     }
                 }
             }
@@ -209,16 +173,48 @@ internal sealed class SpriteCollector
         return null;
     }
 
-    
     public HashQuery GetNear(Vector2 min, Vector2 max) => new(_buckets, _columns, GetColumn(min.X), GetColumn(max.X), GetRow(min.Y), GetRow(max.Y));
+
+    private static float GetCellSize(float size)
+    {
+        int shift = 0;
+        while (1 << shift < size * 0.5f)
+        {
+            shift++;
+        }
+
+        return 1 << shift;
+    }
+
+    private static int GetCell(float scaled, int count) => scaled < 0 ? 0 : scaled < count ? (int)scaled : count - 1;
+
+    private void AddToBucket(Sprite sprite)
+    {
+        sprite.Bucket = GetBucket(sprite.Position.AsVector2());
+        var bucket = _buckets[sprite.Bucket];
+        sprite.Slot = bucket.Count;
+        sprite.Collector = this;
+        bucket.Add(new GridEntry(sprite));
+        sprite.AddRef();
+    }
+
+    private void RemoveFromBucket(Sprite sprite)
+    {
+        var bucket = _buckets[sprite.Bucket];
+        var last = bucket[^1];
+        bucket[sprite.Slot] = last;
+        last.Sprite.Slot = sprite.Slot;
+        bucket.RemoveAt(bucket.Count - 1);
+        sprite.Slot = -1;
+        sprite.Collector = null;
+        sprite.Release();
+    }
 
     private int GetBucket(Vector2 point) => (GetRow(point.Y) * _columns) + GetColumn(point.X);
 
     private int GetColumn(float x) => GetCell(x * _scale.X, _columns);
 
     private int GetRow(float y) => GetCell(y * _scale.Y, _rows);
-
-    private static int GetCell(float scaled, int count) => scaled < 0 ? 0 : scaled < count ? (int)scaled : count - 1;
 }
 
 internal struct HashQuery
@@ -275,19 +271,7 @@ internal readonly struct GridEntry
     public GridEntry(Sprite sprite)
     {
         Sprite = sprite;
-        Position = sprite.Position;
-        Half = sprite.Definition.Half;
-        Height = sprite.Definition.Object.Size.Z;
-        Mask = sprite.Definition.MoveMask;
     }
 
     public Sprite Sprite { get; }
-
-    public Vector3 Position { get; }
-
-    public Vector2 Half { get; }
-
-    public float Height { get; }
-
-    public CollisionLayers Mask { get; }
 }

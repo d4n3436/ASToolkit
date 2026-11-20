@@ -1,14 +1,12 @@
 namespace ASToolkit.Core.Engine;
 
-internal readonly record struct UpdateEntry(UpdateRole Role, Sprite? Sprite);
-
 internal sealed class UpdateOrder
 {
     public const int LayerCount = 17;
     public const int UpdatedLayerCount = 16;
     private const int CompactionPeriodMask = 3;
 
-    private readonly List<UpdateEntry>[] _layers = new List<UpdateEntry>[LayerCount];
+    private readonly List<Sprite?>[] _layers = new List<Sprite?>[LayerCount];
 
     public UpdateOrder()
     {
@@ -18,27 +16,39 @@ internal sealed class UpdateOrder
         }
     }
 
-    public List<UpdateEntry> GetLayer(int layer) => _layers[layer];
+    public static void Clear(List<Sprite?> list, int index) => list[index] = null;
 
-    [EngineRoutine(0x0040fad0)]
-    public void Add(int layer, UpdateEntry entry) => _layers[layer].Add(entry);
+    public List<Sprite?> GetLayer(int layer) => _layers[layer];
+
+    public void Add(int layer, Sprite sprite) => _layers[layer].Add(sprite);
+
+    public bool HasSprites(int layer)
+    {
+        foreach (var sprite in _layers[layer])
+        {
+            if (sprite is not null)
+                return true;
+        }
+
+        return false;
+    }
 
     [EngineRoutine(0x0040fa90)]
-    public void Remove(int layer, Sprite sprite)
+    public bool Remove(int layer, Sprite sprite)
     {
         var list = _layers[layer];
         for (int i = list.Count - 1; i >= 0; i--)
         {
-            if (list[i].Sprite != sprite)
+            if (list[i] != sprite)
                 continue;
 
             Clear(list, i);
 
-            return;
+            return true;
         }
-    }
 
-    public static void Clear(List<UpdateEntry> list, int index) => list[index] = default;
+        return false;
+    }
 
     public void Compact(int time)
     {
@@ -47,7 +57,16 @@ internal sealed class UpdateOrder
 
         foreach (var list in _layers)
         {
-            list.RemoveAll(entry => entry.Sprite is null);
+            int kept = 0;
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (list[i] is not null)
+                {
+                    list[kept++] = list[i];
+                }
+            }
+
+            list.RemoveRange(kept, list.Count - kept);
         }
     }
 }

@@ -1,4 +1,5 @@
 using System.Numerics;
+using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Engine;
@@ -12,30 +13,34 @@ public sealed class Sprite
     /// Represents the object id of the torso for weapon slot 0.
     /// </summary>
     public const int WeaponIdBase = 10;
-    
+
     /// <summary>
     /// Represents the number of weapon slots.
     /// </summary>
     public const int WeaponSlots = 10;
-    
+
     /// <summary>
     /// Represents the slot of the pistols.
     /// </summary>
     public const int Pistols = 1;
-    
+
     /// <summary>
     /// Represents the item of weapon slot 0.
     /// </summary>
     public const int WeaponItemBase = 260;
-    
+
+    internal const int RegionPairs = 6;
     private const int ReloadTimerOffset = 5000;
     private const int AmmoScale = 64;
     private const int MaxWeaponSlot = 9;
-    private const int SpawnScatter = 8;
+    private const int ArmyMask = 3;
+    private const int MaxAnimation = 16;
+    private const int HpShare = 0xff;
     private const float VelocityScale = 1e6f;
     private const float ReachTolerance = 0.5f;
 
-    private bool _secondChildPulse;
+    private int _lifetime;
+    private float _maxSpeed;
     private Angle _direction;
 
     /// <summary>
@@ -45,18 +50,21 @@ public sealed class Sprite
     /// <param name="definition">The definition.</param>
     /// <param name="position">The position.</param>
     /// <param name="army">The army.</param>
-    /// <param name="hp">The health.</param>
+    /// <param name="hitPoints">The health.</param>
     /// <param name="direction">The direction.</param>
-    public Sprite(int number, SpriteDefinition definition, Vector3 position, Army army, int hp, Angle direction = default)
+    /// <param name="map">The map the sprite belongs to, which supplies the game time and the random scatter of the position.</param>
+    /// <param name="parent">The sprite that creates it, whose height a ground-bound object is placed relative to.</param>
+    public Sprite(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Angle direction = default, Map? map = null, Sprite? parent = null)
     {
+        Map = map;
         StreamPeriod = 1;
         _direction = direction;
         Number = number;
         Definition = definition;
         Behavior = definition.Behavior;
         Army = army;
-        Position = position;
-        Hp = hp;
+        Position = map?.ScatterPosition(definition, position, parent) ?? position;
+        Hp = hitPoints;
         Bucket = -1;
         Slot = -1;
         ListIndex = -1;
@@ -65,9 +73,12 @@ public sealed class Sprite
         Frame = FirstFrame;
         LastFrame = FirstFrame + definition.Layout.GetFramesPerDirection(SpriteAnimation.Stand) - 1;
         CreatedAt = -1;
-        Lifetime = definition.Lifetime;
         FillAmmo();
-        MaxSpeed = definition.Speed;
+
+        if (definition.HasTimers)
+        {
+            CreateExtra();
+        }
     }
 
     /// <summary>
@@ -86,11 +97,6 @@ public sealed class Sprite
     public bool IsCounted { get; set; }
 
     /// <summary>
-    /// Gets or sets the side list that removes the sprite when it leaves.
-    /// </summary>
-    public UpdateRole Role { get; set; }
-
-    /// <summary>
     /// Gets the definition of the sprite.
     /// </summary>
     public SpriteDefinition Definition { get; private set; }
@@ -101,7 +107,7 @@ public sealed class Sprite
     public Army Army { get; set; }
 
     /// <summary>
-    /// Gets or sets the map sprite the sprite was built from.
+    /// Gets or sets the map sprite this sprite was built from.
     /// </summary>
     public MergedMapSprite? Placement { get; set; }
 
@@ -109,8 +115,6 @@ public sealed class Sprite
     /// Gets or sets the position of the sprite.
     /// </summary>
     public Vector3 Position { get; set; }
-
-    internal CollisionVolume CollisionVolume => Definition.GetCollisionVolume(Position);
 
     /// <summary>
     /// Gets or sets the speed of the sprite in pixels per millisecond.
@@ -128,11 +132,6 @@ public sealed class Sprite
     public int TurnTicks { get; set; }
 
     /// <summary>
-    /// Gets or sets the fraction of a turn step carried to the next frame.
-    /// </summary>
-    public float TurnCarry { get; set; }
-
-    /// <summary>
     /// Gets or sets the command the sprite carries out.
     /// </summary>
     public Command Command { get; set; }
@@ -141,11 +140,6 @@ public sealed class Sprite
     /// Gets or sets a value indicating whether the sprite moves toward its goal.
     /// </summary>
     public bool IsMoving { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the sprite is leaving the map.
-    /// </summary>
-    public bool LeavesEffects { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the sprite has passed its goal's x coordinate.
@@ -181,14 +175,6 @@ public sealed class Sprite
     /// Gets or sets the sprite's index in its hash bucket.
     /// </summary>
     public int Slot { get; set; }
-
-    internal SpriteCollector? Collector { get; set; }
-
-    internal SpriteText? Text { get; set; }
-
-    internal void ReplaceDefinition(SpriteDefinition definition) => Definition = definition;
-
-    internal void SetAnimationValue(SpriteAnimation state) => Animation = state;
 
     /// <summary>
     /// Gets or sets the sprite's index in the collector's unit list.
@@ -238,16 +224,7 @@ public sealed class Sprite
     /// <summary>
     /// Gets or sets the time the sprite was created.
     /// </summary>
-    public int CreatedAt
-    {
-        get;
-        set
-        {
-            field = value;
-            KeyframeStart = value;
-            KeyframePosition = 0;
-        }
-    }
+    public int CreatedAt { get; set; }
 
     /// <summary>
     /// Gets or sets the time the sprite's keyframe track started.
@@ -262,7 +239,39 @@ public sealed class Sprite
     /// <summary>
     /// Gets or sets the time the sprite has left before it dies.
     /// </summary>
-    public int Lifetime { get; set; }
+    public int Lifetime
+    {
+        get => HasExtra ? _lifetime : SpriteDefinition.Unlimited;
+        set
+        {
+            if (!HasExtra)
+            {
+                CreateExtra();
+            }
+
+            _lifetime = value;
+        }
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether the sprite carries a lifetime, a keyframe track, a stream period and a top speed of its own.
+    /// </summary>
+    public bool HasExtra { get; private set; }
+
+    /// <summary>
+    /// Gets the position the sprite had before its first move of the frame.
+    /// </summary>
+    public Vector3 PreviousPosition { get; private set; }
+
+    /// <summary>
+    /// Gets the clock stamp of the frame that saved <see cref="PreviousPosition"/>.
+    /// </summary>
+    public uint PreviousPositionStamp { get; private set; }
+
+    /// <summary>
+    /// Gets the gamma that tints the sprite while it is drawn, or the default gamma for no tint.
+    /// </summary>
+    public Gamma Tint { get; private set; }
 
     /// <summary>
     /// Gets or sets the sprite's countdown timer in milliseconds.
@@ -282,7 +291,7 @@ public sealed class Sprite
     /// <summary>
     /// Gets or sets a value indicating whether the sprite refills its ammunition.
     /// </summary>
-    public bool RefillsAmmo { get; set; }
+    public bool ShouldRefillAmmo { get; set; }
 
     /// <summary>
     /// Gets the weapon slot of the torso the sprite's definition links.
@@ -322,10 +331,22 @@ public sealed class Sprite
     /// <summary>
     /// Gets or sets the top speed of the sprite in pixels per millisecond.
     /// </summary>
-    public float MaxSpeed { get; set; }
+    public float MaxSpeed
+    {
+        get => HasExtra ? _maxSpeed : Definition.Speed;
+        set
+        {
+            if (!HasExtra)
+            {
+                CreateExtra();
+            }
+
+            _maxSpeed = value;
+        }
+    }
 
     /// <summary>
-    /// Gets or sets the sprite the sprite moves toward or attacks, holding a reference to it.
+    /// Gets or sets the sprite this sprite moves toward or attacks, holding a reference to it.
     /// </summary>
     public Sprite? Goal
     {
@@ -343,12 +364,12 @@ public sealed class Sprite
     }
 
     /// <summary>
-    /// Gets or sets the sprite that fired the sprite.
+    /// Gets or sets the sprite that fired this sprite.
     /// </summary>
     public Sprite? Shooter { get; set; }
 
     /// <summary>
-    /// Gets or sets the sprite the sprite is linked to.
+    /// Gets or sets the sprite this sprite is linked to.
     /// </summary>
     public Sprite? Owner { get; set; }
 
@@ -368,14 +389,9 @@ public sealed class Sprite
     public Angle LinkerDirection { get; set; }
 
     /// <summary>
-    /// Gets or sets the next sprite of the sprite's link chain.
+    /// Gets or sets the next sprite of this sprite's link chain.
     /// </summary>
     public Sprite? Link { get; set; }
-
-    /// <summary>
-    /// Gets or sets how many child launches deep the sprite was created.
-    /// </summary>
-    public int Depth { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the sprite's last move was blocked.
@@ -403,9 +419,202 @@ public sealed class Sprite
     public bool IsAlive => Hp > 0 && Animation < SpriteAnimation.Death;
 
     /// <summary>
-    /// Gets the number of lists and sprites that hold the sprite.
+    /// Gets the number of lists and sprites that hold this sprite.
     /// </summary>
     public int ReferenceCount { get; private set; }
+
+    /// <summary>
+    /// Gets this sprite's link when it is the armed object its definition links, or null.
+    /// </summary>
+    public Sprite? ArmedLink
+    {
+        get
+        {
+            var link = Link;
+            return link is not null && link.Definition == Definition.LinkDefinition && link.Definition.HasFightWeapon() ? link : null;
+        }
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether the sprite is between attacks.
+    /// </summary>
+    public bool IsReloading => Timer > ReloadTimerOffset || Animation == SpriteAnimation.Fight && Frame <= LastFrame;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the sound of the current state was requested.
+    /// </summary>
+    public bool HasPlayedStateSound { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the first of a mirrored pair of children launched and the second is still due.
+    /// </summary>
+    public bool IsAwaitingSecondPulse { get; set; }
+
+    internal GameLogger? Logger { get; set; }
+
+    internal Map? Map { get; set; }
+
+    internal AttackResult AttackResult { get; set; }
+
+    internal bool SeeksRegion { get; set; }
+
+    internal Sprite? Region { get; set; }
+
+    internal bool IsCoveringMap { get; set; }
+
+    internal SpriteDefinition?[] RegionFrom => field ??= new SpriteDefinition?[RegionPairs];
+
+    internal SpriteDefinition?[] RegionTo => field ??= new SpriteDefinition?[RegionPairs];
+
+    internal SpriteCollector? Collector { get; set; }
+
+    internal SpriteText? Text { get; set; }
+
+    /// <summary>
+    /// Adds an item at the end of the sprite's items.
+    /// </summary>
+    /// <param name="item">The item.</param>
+    [EngineRoutine(0x00446760)]
+    public void InsertItem(int item)
+    {
+        if (!HasExtra)
+        {
+            CreateExtra();
+        }
+
+        Items.Add(item);
+    }
+
+    /// <summary>
+    /// Adds an item unless the sprite already holds it.
+    /// </summary>
+    /// <param name="item">The item.</param>
+    /// <returns><see langword="true"/> if the item was added; otherwise, <see langword="false"/>.</returns>
+    [EngineRoutine(0x00446810)]
+    public bool InsertUniqueItem(int item)
+    {
+        if (GetItemNumber(item) >= 0)
+            return false;
+
+        InsertItem(item);
+
+        return true;
+    }
+
+    /// <summary>
+    /// Returns the index of an item, searching from the end.
+    /// </summary>
+    /// <param name="item">The item.</param>
+    /// <returns>The index, or -1 when the sprite does not hold the item.</returns>
+    [EngineRoutine(0x00446900)]
+    public int GetItemNumber(int item) => Items.LastIndexOf(item);
+
+    /// <summary>
+    /// Removes the item at an index by moving the last item into its place.
+    /// </summary>
+    /// <param name="index">The index.</param>
+    /// <returns><see langword="true"/> if the index named an item; otherwise, <see langword="false"/>.</returns>
+    [EngineRoutine(0x00446bb0)]
+    public bool RemoveItemAt(int index)
+    {
+        if (index < 0 || index >= Items.Count)
+            return false;
+
+        Items[index] = Items[^1];
+        Items.RemoveAt(Items.Count - 1);
+
+        return true;
+    }
+
+    /// <summary>
+    /// Returns the health of this sprite, or of its armed link, scaled from 0 to 255 of the maximum.
+    /// </summary>
+    /// <returns>The share.</returns>
+    [EngineRoutine(0x00444360)]
+    public int GetPercentHp()
+    {
+        var link = ArmedLink;
+
+        if (link is not null)
+        {
+            int linkMax = link.Definition.ArmyMaxHp[(int)link.Army & ArmyMask];
+
+            if (linkMax != 0)
+                return link.Hp * HpShare / linkMax;
+        }
+
+        int max = Definition.ArmyMaxHp[(int)Army & ArmyMask];
+
+        return max != 0 ? Hp * HpShare / max : 0;
+    }
+
+    /// <summary>
+    /// Returns whether this sprite or its armed link can attack the type of another sprite.
+    /// </summary>
+    /// <param name="target">The sprite to attack.</param>
+    /// <returns><see langword="true"/> if a weapon of this sprite targets the type of <paramref name="target"/>; otherwise, <see langword="false"/>.</returns>
+    [EngineRoutine(0x00445f30)]
+    public bool CanAttackThisSprite(Sprite? target)
+    {
+        if (target is null)
+            return false;
+
+        if (Definition.FightChild != 0 && Definition.Object.WeaponIndex != 0 && (Definition.Targets & target.Definition.Object.SpriteType) != 0)
+            return true;
+
+        var link = ArmedLink;
+
+        return link is not null && (link.Definition.Targets & target.Definition.Object.SpriteType) != 0;
+    }
+
+    /// <summary>
+    /// Returns the direction from this sprite to another sprite.
+    /// </summary>
+    /// <param name="other">The other sprite.</param>
+    /// <returns>The direction.</returns>
+    [EngineRoutine(0x004474b0)]
+    public Angle MeasureDirectionTo(Sprite other) => Angle.FromOffset((other.Position - Position).AsVector2());
+
+    /// <summary>
+    /// Creates the sprite's extra data if it does not exist yet.
+    /// </summary>
+    public void EnsureExtra()
+    {
+        if (!HasExtra)
+        {
+            CreateExtra();
+        }
+    }
+
+    /// <summary>
+    /// Gives the sprite its own lifetime, keyframe track, stream period and top speed.
+    /// </summary>
+    [EngineRoutine(0x0043f1a0)]
+    public void CreateExtra()
+    {
+        HasExtra = true;
+        StreamPeriod = 1;
+        _lifetime = Definition.Lifetime;
+        KeyframePosition = 0;
+        KeyframeStart = Map?.Time ?? 0;
+        _maxSpeed = Definition.Speed;
+        PreviousPosition = Position;
+    }
+
+    /// <summary>
+    /// Sets the gamma that tints the sprite while it is drawn, creating the sprite's extra data if needed.
+    /// </summary>
+    /// <param name="gamma">The gamma.</param>
+    [EngineRoutine(0x00443070)]
+    public void SetGammaOverride(Gamma gamma)
+    {
+        if (!HasExtra)
+        {
+            CreateExtra();
+        }
+
+        Tint = gamma;
+    }
 
     /// <summary>
     /// Changes the sprite's definition, moving its count and resetting it to the first frame of the standing state, facing up.
@@ -425,24 +634,24 @@ public sealed class Sprite
         }
 
         Definition = definition;
+
+        if (definition.HasTimers)
+        {
+            if (HasExtra)
+            {
+                _lifetime = definition.Lifetime;
+            }
+            else
+            {
+                CreateExtra();
+            }
+        }
+
         Animation = SpriteAnimation.Stand;
         _direction = default;
         FirstFrame = 0;
         Frame = 0;
         LastFrame = definition.Layout.GetFramesPerDirection(SpriteAnimation.Stand) - 1;
-    }
-
-    
-    /// <summary>
-    /// Gets the armed object the sprite's definition links, when it is the sprite's link.
-    /// </summary>
-    public Sprite? ArmedLink
-    {
-        get
-        {
-            var link = Link;
-            return link is not null && link.Definition == Definition.LinkDefinition && link.Definition.FightChild != 0 && link.Definition.Object.WeaponIndex != 0 ? link : null;
-        }
     }
 
     /// <summary>
@@ -456,7 +665,6 @@ public sealed class Sprite
     /// <returns>The number of references left.</returns>
     public int Release() => --ReferenceCount;
 
-
     /// <summary>
     /// Starts the sprite in a state and draws its starting frame.
     /// </summary>
@@ -466,13 +674,6 @@ public sealed class Sprite
     /// <param name="random">The random source.</param>
     public void Start(SpriteAnimation state, Angle direction, int time, Random random)
     {
-        if (Definition.Object.Properties.HasFlag(ObjectProperties.Noise))
-        {
-            float x = Position.X + SpawnScatter - random.Next() % (SpawnScatter * 2 + 1);
-            float y = Position.Y + SpawnScatter - random.Next() % (SpawnScatter * 2 + 1);
-            Position = Position with { X = x, Y = y };
-        }
-
         var layout = Definition.Layout;
         bool firstFrame = Definition.Object.Properties.HasFlag(ObjectProperties.OnePhase);
         LastTickTime = time - (firstFrame ? 0 : random.Next(Definition.SpriteSpeed + 1));
@@ -496,6 +697,13 @@ public sealed class Sprite
     [EngineRoutine(0x00442ee0)]
     public void ChangeAnimation(SpriteAnimation state)
     {
+        if ((int)state > MaxAnimation)
+        {
+            Logger?.Error("SPRITE %i"u8, LogError.Invalid, 0, default);
+
+            return;
+        }
+
         var link = Link;
 
         if (link is not null && link.Definition == Definition.LinkDefinition && (state >= SpriteAnimation.Death || link.Definition.Object.WeaponIndex == 0 &&
@@ -511,29 +719,11 @@ public sealed class Sprite
         var layout = Definition.Layout;
         var direction = GetShownDirection(_direction);
 
-        FirstFrame = layout.GetFirstFrame(state) + direction.GetDirectionIndex(layout.Directions) * layout.GetFramesPerDirection(state);
+        FirstFrame = layout.GetFirstFrame(state) + layout.GetDirectionIndex(direction) * layout.GetFramesPerDirection(state);
         Frame = FirstFrame;
         Animation = state;
         LastFrame = state > SpriteAnimation.Unload && layout.GetFrameCount(state) == 0
             ? FirstFrame : FirstFrame + layout.GetFramesPerDirection(state) - 1;
-    }
-
-    [EngineRoutine(0x00440030)]
-    internal void ChangeCoor(Vector3 position)
-    {
-        var delta = position - Position;
-        Shift(delta);
-
-        foreach (var link in EnumerateLinks())
-        {
-            link.Shift(delta);
-        }
-    }
-
-    private void Shift(Vector3 delta)
-    {
-        Position += delta;
-        Collector?.ChangeCoor(this);
     }
 
     /// <summary>
@@ -556,7 +746,7 @@ public sealed class Sprite
             bool fixedOffset = linked.Properties.HasFlag(ObjectProperties.FixedOffset);
             var offset = Definition.Object.LinkOffset;
 
-            if (link.Definition == Definition.LinkDefinition && !fixedOffset && (offset.X != 0 || offset.Y != 0))
+            if (link.Definition == Definition.LinkDefinition && !fixedOffset && (!offset.X.IsExactlyZero() || !offset.Y.IsExactlyZero()))
             {
                 var linkOffset = Definition.GetLinkOffset(link.Definition, Definition.GetFrameDirection(shown));
                 link.ChangeCoor(new Vector3(linkOffset.AsVector2() + Position.AsVector2(), link.Position.Z));
@@ -566,7 +756,7 @@ public sealed class Sprite
                 link.LinkRotate(Definition.GetFrameDirection(shown));
             }
 
-            if (linked.RotationPeriod.IsNear(SpriteDefinition.Unlimited))
+            if (linked.RotationPeriod.IsExactly(SpriteDefinition.Unlimited))
             {
                 link.ChangeDirection(direction);
             }
@@ -577,36 +767,12 @@ public sealed class Sprite
         if (layout.Directions != 1)
         {
             int frameOffset = Frame - FirstFrame;
-            FirstFrame = layout.GetFirstFrame(Animation) + shown.GetDirectionIndex(layout.Directions) * layout.GetFramesPerDirection(Animation);
+            FirstFrame = layout.GetFirstFrame(Animation) + layout.GetDirectionIndex(shown) * layout.GetFramesPerDirection(Animation);
             LastFrame = FirstFrame + layout.GetFramesPerDirection(Animation) - 1;
             Frame = FirstFrame + frameOffset;
         }
 
         _direction = direction;
-    }
-
-    [EngineRoutine(0x00442e50)]
-    private void LinkRotate(Angle direction)
-    {
-        var origin = LinkerBase ?? Owner;
-
-        if (origin is null)
-            return;
-
-        var turn = new Angle(unchecked((byte)(direction.Value - LinkerDirection.Value)));
-        var turned = new Vector2(turn.Cosine, turn.ProjectedSine) * LinkerOffset.X + new Vector2(-turn.Sine, turn.ProjectedCosine) * LinkerOffset.Y;
-        ChangeCoor(new Vector3(origin.Position.AsVector2() + turned, Position.Z));
-    }
-
-    // Falling motion-tracking objects show the direction of their screen velocity
-    private Angle GetShownDirection(Angle direction)
-    {
-        if (VerticalSpeed.IsZero() || !Definition.Object.Properties.HasFlag(ObjectProperties.VerticalDirection))
-            return direction;
-
-        var vector = direction.Vector;
-
-        return Angle.FromOffset(new Vector2(vector.X * Speed * VelocityScale, -(vector.Y * Speed + VerticalSpeed) * VelocityScale));
     }
 
     /// <summary>
@@ -640,69 +806,110 @@ public sealed class Sprite
     {
         var link = Definition.LinkDefinition;
 
-        return link is not null && link.FightChild != 0 && link.Object.WeaponIndex != 0 ? link.AmmoCapacity : Definition.AmmoCapacity;
+        return link is not null && link.HasFightWeapon() ? link.AmmoCapacity : Definition.AmmoCapacity;
     }
 
     /// <summary>
     /// Fills the sprite's ammunition.
     /// </summary>
     public void FillAmmo() => Ammo = GetAmmoCapacity() * AmmoScale;
-    
+
     /// <summary>
-    /// Returns the rounds the sprite holds for a weapon slot.
+    /// Returns the rounds the sprite holds for its held weapon.
     /// </summary>
-    /// <param name="slot">The slot, or 0 for the held weapon.</param>
     /// <returns>The rounds.</returns>
-    public int GetAmmo(int slot = 0)
-    {
-        if (Definition.Object.SpriteClass == SpriteClass.Man)
-            return slot != 0 && slot != WeaponSlot ? SlotAmmo[slot] : GetOwnAmmo();
-
-        return Owner?.GetAmmo(slot) ?? GetOwnAmmo();
-    }
+    public int GetAmmo() => GetOwnAmmo();
 
     /// <summary>
-    /// Adds rounds to a weapon slot and returns the rounds held after.
+    /// Adds rounds to the sprite's held weapon and returns the rounds held after.
     /// </summary>
     /// <param name="amount">The rounds to add, negative to spend.</param>
-    /// <param name="slot">The slot, or 0 for the held weapon.</param>
     /// <returns>The rounds held.</returns>
-    public int AddAmmo(int amount, int slot = 0)
+    public int AddAmmo(int amount) => AddOwnAmmo(amount);
+
+    /// <summary>
+    /// Turns the sprite toward a direction, as far as its turn rate allows in the elapsed time.
+    /// </summary>
+    /// <param name="goal">The direction to turn to.</param>
+    /// <param name="elapsed">The elapsed time in milliseconds.</param>
+    /// <returns>The angle left to turn.</returns>
+    [EngineRoutine(0x00444820)]
+    public Angle RotateTact(Angle goal, int elapsed)
     {
-        if (Definition.Object.SpriteClass == SpriteClass.Man)
-        {
-            if (slot > MaxWeaponSlot)
-                return 0;
+        ChangeDirection(Direction.TurnToward(goal, Definition.Object.RotationPeriod, elapsed, out var remaining));
 
-            if (slot != 0 && slot != WeaponSlot)
-                return SlotAmmo[slot] += amount;
-
-            return AddOwnAmmo(amount);
-        }
-
-        return Owner?.AddAmmo(amount, slot) ?? AddOwnAmmo(amount);
+        return remaining;
     }
 
-    private int GetOwnAmmo() => Ammo / AmmoScale;
-
-    private int AddOwnAmmo(int amount)
+    /// <summary>
+    /// Returns the direction the sprite reaches when it turns toward a goal direction for one frame.
+    /// </summary>
+    /// <param name="goal">The goal direction.</param>
+    /// <param name="elapsed">The frame's length in milliseconds.</param>
+    /// <returns>The new direction.</returns>
+    public Angle TurnWhileMoving(Angle goal, int elapsed)
     {
-        if (GetAmmoCapacity() == SpriteDefinition.Unlimited)
+        return Direction.TurnToward(goal, Definition.Object.RotationPeriod, elapsed, out _);
+    }
+
+    /// <summary>
+    /// Hides this sprite and every sprite of its link chain.
+    /// </summary>
+    [EngineRoutine(0x00442620)]
+    public void InvisibleOn()
+    {
+        IsInvisible = true;
+
+        foreach (var link in EnumerateLinks())
         {
-            Ammo = SpriteDefinition.Unlimited * AmmoScale;
-
-            return SpriteDefinition.Unlimited;
+            link.IsInvisible = true;
         }
+    }
 
-        int ammo = Ammo + amount * AmmoScale;
-        Ammo = Math.Max(0, ammo);
+    /// <summary>
+    /// Shows this sprite and every sprite of its link chain.
+    /// </summary>
+    [EngineRoutine(0x00442640)]
+    public void InvisibleOff()
+    {
+        IsInvisible = false;
 
-        if (RefillsAmmo)
+        foreach (var link in EnumerateLinks())
         {
-            Ammo = GetAmmoCapacity() * AmmoScale;
+            link.IsInvisible = false;
         }
+    }
 
-        return ammo;
+    /// <summary>
+    /// Returns the sprites of this sprite's <see cref="Link"/> chain, nearest first.
+    /// </summary>
+    /// <returns>The sprites of the chain.</returns>
+    public IEnumerable<Sprite> EnumerateLinks()
+    {
+        for (var link = Link; link is not null; link = link.Link)
+        {
+            yield return link;
+        }
+    }
+
+    internal void ReplaceDefinition(SpriteDefinition definition) => Definition = definition;
+
+    internal void SetAnimationValue(SpriteAnimation state) => Animation = state;
+
+    [EngineRoutine(0x00440030)]
+    internal void ChangeCoor(Vector3 position)
+    {
+        var delta = position - Position;
+        Map?.LowerHeights(Definition, this);
+        Shift(delta);
+        Map?.RaiseHeights(Definition, this);
+
+        foreach (var link in EnumerateLinks())
+        {
+            Map?.LowerHeights(link.Definition, this);
+            link.Shift(delta);
+            Map?.RaiseHeights(link.Definition, this);
+        }
     }
 
     [EngineRoutine(0x004460b0)]
@@ -732,7 +939,7 @@ public sealed class Sprite
 
         if (IsReloading)
         {
-            RotateTact(DirectionTo(), elapsed);
+            RotateTact(MeasureDirectionToGoal(), elapsed);
 
             return AttackResult.Busy;
         }
@@ -746,7 +953,7 @@ public sealed class Sprite
 
         float distance = Position.AsVector2().MeasureOctagonalDistance(GoalPosition.AsVector2());
         bool inRange = Owner is null || Command == Command.DistAttack || distance < Definition.BattleRange && distance > Definition.MinRange;
-        bool aimed = inRange && (RotateTact(DirectionTo(), elapsed) == default || Definition.AttacksWhileTurning);
+        bool aimed = inRange && (RotateTact(MeasureDirectionToGoal(), elapsed) == default || Definition.CanAttackWhileTurning);
 
         if (!inRange)
         {
@@ -777,6 +984,63 @@ public sealed class Sprite
         return distance < Definition.DetectRange * 2 ? AttackResult.Pursue : AttackResult.GiveUp;
     }
 
+    private void Shift(Vector3 delta)
+    {
+        uint stamp = Map?.WallTime ?? 0;
+
+        if (HasExtra && PreviousPositionStamp != stamp)
+        {
+            PreviousPositionStamp = stamp;
+            PreviousPosition = Position;
+        }
+
+        Position += delta;
+        Collector?.ChangeCoor(this);
+    }
+
+    [EngineRoutine(0x00442e50)]
+    private void LinkRotate(Angle direction)
+    {
+        var origin = LinkerBase ?? Owner;
+
+        if (origin is null)
+            return;
+
+        var turn = new Angle(unchecked((byte)(direction.Value - LinkerDirection.Value)));
+        var turned = new Vector2(turn.Cosine, turn.ProjectedSine) * LinkerOffset.X + new Vector2(-turn.Sine, turn.ProjectedCosine) * LinkerOffset.Y;
+        ChangeCoor(new Vector3(origin.Position.AsVector2() + turned, Position.Z));
+    }
+
+    private Angle GetShownDirection(Angle direction)
+    {
+        if (VerticalSpeed.IsExactlyZero() || !Definition.Object.Properties.HasFlag(ObjectProperties.VerticalDirection))
+            return direction;
+
+        return Angle.FromOffset(new Vector2(direction.Vector.X * Speed * VelocityScale, -(direction.Vector.Y * Speed + VerticalSpeed) * VelocityScale));
+    }
+
+    private int GetOwnAmmo() => Ammo / AmmoScale;
+
+    private int AddOwnAmmo(int amount)
+    {
+        if (GetAmmoCapacity() == SpriteDefinition.Unlimited)
+        {
+            Ammo = SpriteDefinition.Unlimited * AmmoScale;
+
+            return SpriteDefinition.Unlimited;
+        }
+
+        int ammo = Ammo + amount * AmmoScale;
+        Ammo = Math.Max(0, ammo);
+
+        if (ShouldRefillAmmo)
+        {
+            Ammo = GetAmmoCapacity() * AmmoScale;
+        }
+
+        return ammo;
+    }
+
     private void FaceOwner(int elapsed, bool idle)
     {
         if (Owner is not null && idle)
@@ -785,129 +1049,6 @@ public sealed class Sprite
         }
     }
 
-    /// <summary>
-    /// Gets a value indicating whether the sprite is between attacks.
-    /// </summary>
-    public bool IsReloading => Timer > ReloadTimerOffset || Animation == SpriteAnimation.Fight && Frame <= LastFrame;
-
     [EngineRoutine(0x004463a0)]
-    private Angle DirectionTo() => Angle.Aim((GoalPosition - Position).AsVector2());
-
-    /// <summary>
-    /// Turns the sprite toward a direction, as far as its turn rate allows in the elapsed time.
-    /// </summary>
-    /// <param name="goal">The direction to turn to.</param>
-    /// <param name="elapsed">The elapsed time in milliseconds.</param>
-    /// <returns>The angle left to turn.</returns>
-    [EngineRoutine(0x00444820)]
-    public Angle RotateTact(Angle goal, int elapsed)
-    {
-        ChangeDirection(Direction.TurnToward(goal, Definition.Object.RotationPeriod, elapsed, out var remaining));
-
-        return remaining;
-    }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the sound of the current state was requested.
-    /// </summary>
-    public bool HasPlayedStateSound { get; set; }
-
-    /// <summary>
-    /// Gets a value indicating whether the first of a mirrored pair of children launched and the second is still due.
-    /// </summary>
-    public bool AwaitsSecondPulse => _secondChildPulse;
-
-    /// <summary>
-    /// Returns which of a mirrored pair of children the next launch takes, alternating for definitions that attack twice.
-    /// </summary>
-    /// <param name="animation">The state whose children launch.</param>
-    /// <param name="owner">The definition whose children launch, or null for the sprite's definition.</param>
-    /// <returns><see langword="true"/> for the second of the pair; otherwise, <see langword="false"/>.</returns>
-    public bool TakeChildPulse(SpriteAnimation animation, SpriteDefinition? owner = null)
-    {
-        owner ??= Definition;
-        bool second = _secondChildPulse;
-
-        if (owner.AttacksTwice && owner.Children[(int)animation] != 0 && Math.Abs(owner.ChildCounts[(int)animation]) == ChildEmission.MirroredPairCount)
-        {
-            if (second)
-            {
-                HasPlayedStateSound = false;
-            }
-
-            _secondChildPulse = !second;
-        }
-
-        return second;
-    }
-
-    /// <summary>
-    /// Returns the direction the sprite turns to toward a goal direction during a frame.
-    /// </summary>
-    /// <param name="goal">The goal direction.</param>
-    /// <param name="elapsed">The frame's length in milliseconds.</param>
-    /// <returns>The new direction.</returns>
-    public Angle TurnWhileMoving(Angle goal, int elapsed)
-    {
-        float period = Definition.Object.RotationPeriod;
-
-        if (elapsed < GameClock.DefaultFrameTime && Direction != goal && !period.IsZero() && !period.IsNear(SpriteDefinition.Unlimited))
-        {
-            float turn = elapsed * (Angle.FullTurn / period);
-
-            if ((int)(turn + 0.5f) == 0)
-            {
-                // Fix for 60+ FPS, not in the original engine
-                turn += TurnCarry;
-                int step = (int)turn;
-                TurnCarry = turn - step;
-
-                return Direction.StepToward(goal, step, out _);
-            }
-        }
-
-        TurnCarry = 0;
-
-        return Direction.TurnToward(goal, period, elapsed, out _);
-    }
-
-    /// <summary>
-    /// Hides the sprite and every sprite of its link chain.
-    /// </summary>
-    [EngineRoutine(0x00442620)]
-    public void InvisibleOn()
-    {
-        IsInvisible = true;
-
-        foreach (var link in EnumerateLinks())
-        {
-            link.IsInvisible = true;
-        }
-    }
-
-    /// <summary>
-    /// Shows the sprite and every sprite of its link chain.
-    /// </summary>
-    [EngineRoutine(0x00442640)]
-    public void InvisibleOff()
-    {
-        IsInvisible = false;
-
-        foreach (var link in EnumerateLinks())
-        {
-            link.IsInvisible = false;
-        }
-    }
-
-    /// <summary>
-    /// Traverses over the sprite's <see cref="Link"/> chain.
-    /// </summary>
-    /// <returns>The chain as an <see cref="IEnumerable{T}"/>.</returns>
-    public IEnumerable<Sprite> EnumerateLinks()
-    {
-        for (var link = Link; link is not null; link = link.Link)
-        {
-            yield return link;
-        }
-    }
+    private Angle MeasureDirectionToGoal() => Angle.Aim((GoalPosition - Position).AsVector2());
 }

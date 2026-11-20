@@ -11,14 +11,15 @@ internal sealed class FrameLayout
     private readonly int[] _framesPerDirection = new int[StateCount];
     private readonly int[] _durations = new int[StateCount];
 
-    public FrameLayout(in GameObject obj, int spriteSpeed, int totalFrames)
+    public FrameLayout(in GameObject gameObject, int spriteSpeed, int totalFrames)
     {
         TotalFrames = totalFrames;
-        Directions = obj.Directions;
+        Directions = gameObject.Directions;
+        DirectionOffset = gameObject.Directions == 0 ? 0 : Angle.HalfTurn / gameObject.Directions;
         for (int state = 0; state < StateCount; state++)
         {
-            _counts[state] = obj.FrameCounts[state];
-            _durations[state] = obj.FrameDurations[state] == 0 ? spriteSpeed : obj.FrameDurations[state];
+            _counts[state] = gameObject.FrameCounts[state];
+            _durations[state] = gameObject.FrameDurations[state] == 0 ? spriteSpeed : gameObject.FrameDurations[state];
         }
 
         if (totalFrames > 0 && totalFrames < Directions)
@@ -57,7 +58,7 @@ internal sealed class FrameLayout
             {
                 int borrowed = firstPopulated + 1;
 
-                if (obj.SpriteClass == SpriteClass.Frame && (state & 1) != 0 && state < (int)SpriteAnimation.Fight && _counts[borrowed] != 0)
+                if (gameObject.SpriteClass == SpriteClass.Frame && (state & 1) != 0 && state < (int)SpriteAnimation.Fight && _counts[borrowed] != 0)
                 {
                     _firstFrames[state] = _firstFrames[borrowed];
                     _framesPerDirection[state] = _framesPerDirection[borrowed];
@@ -98,7 +99,11 @@ internal sealed class FrameLayout
 
     public int Directions { get; }
 
+    public int DirectionOffset { get; }
+
     public int TotalFrames { get; }
+
+    public int GetDirectionIndex(Angle direction) => direction.GetDirectionIndex(Directions, DirectionOffset);
 
     public int GetFrameCount(SpriteAnimation state) => _counts[(int)state];
 
@@ -110,11 +115,11 @@ internal sealed class FrameLayout
 
     public void SetFrameDurations(int duration) => Array.Fill(_durations, duration);
 
-    public void LoadFrameDurations(in GameObject obj, int spriteSpeed)
+    public void LoadFrameDurations(in GameObject gameObject, int spriteSpeed)
     {
         for (int state = 0; state < StateCount; state++)
         {
-            _durations[state] = obj.FrameDurations[state] == 0 ? spriteSpeed : obj.FrameDurations[state];
+            _durations[state] = gameObject.FrameDurations[state] == 0 ? spriteSpeed : gameObject.FrameDurations[state];
         }
     }
 }

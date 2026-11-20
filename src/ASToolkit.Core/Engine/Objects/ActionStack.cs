@@ -6,18 +6,13 @@ namespace ASToolkit.Core.Engine;
 public sealed class ActionStack
 {
     private const int GrowthStep = 4;
+
     private Act[] _orders = [];
 
     /// <summary>
     /// Gets the number of entries on the stack.
     /// </summary>
     public int Count { get; private set; }
-
-    /// <summary>
-    /// Gets the entry at an index, counted from the bottom.
-    /// </summary>
-    /// <param name="index">The index.</param>
-    public Act this[int index] => _orders[index];
 
     /// <summary>
     /// Gets the top entry.
@@ -28,6 +23,12 @@ public sealed class ActionStack
     /// Gets the entries from the bottom up.
     /// </summary>
     public ReadOnlySpan<Act> Orders => _orders.AsSpan(0, Count);
+
+    /// <summary>
+    /// Gets the entry at an index, counted from the bottom.
+    /// </summary>
+    /// <param name="index">The index.</param>
+    public Act this[int index] => _orders[index];
 
     /// <summary>
     /// Pushes an entry.
@@ -52,8 +53,18 @@ public sealed class ActionStack
     [EngineRoutine(0x00446a10)]
     public void Insert(int index, Act order)
     {
+        int count = Count;
         Push(order);
-        Array.Copy(_orders, index, _orders, index + 1, Count - 1 - index);
+
+        if (index < count)
+        {
+            Array.Copy(_orders, index, _orders, index + 1, count - index);
+        }
+        else
+        {
+            EnsureCapacity(index + 1);
+        }
+
         _orders[index] = order;
     }
 
@@ -76,15 +87,10 @@ public sealed class ActionStack
     /// Sets the number of entries, bringing back popped ones.
     /// </summary>
     /// <param name="count">The number of entries.</param>
-    [EngineRoutine(0x00446be0)]
     public void SetCount(int count)
     {
-        if (_orders.Length < count)
-        {
-            Array.Resize(ref _orders, count);
-        }
-
         Count = count;
+        EnsureCapacity(count);
     }
 
     /// <summary>
@@ -112,6 +118,15 @@ public sealed class ActionStack
             {
                 _orders[i] = _orders[--Count];
             }
+        }
+    }
+
+    [EngineRoutine(0x00446be0)]
+    private void EnsureCapacity(int capacity)
+    {
+        if (_orders.Length < capacity)
+        {
+            Array.Resize(ref _orders, capacity);
         }
     }
 }

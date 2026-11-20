@@ -40,11 +40,11 @@ public readonly record struct Act(int Value, int Var1, int Var2, int Var3, Sprit
     public static Act FromAction(StackAction action) => new(action.Act, action.Var1, action.Var2, action.Var3);
 
     /// <summary>
-    /// Returns whether an action's entry names a sprite.
+    /// Returns whether an action's entry targets a sprite.
     /// </summary>
     /// <param name="code">The action.</param>
-    /// <returns><see langword="true"/> when the entry names a sprite; otherwise, <see langword="false"/>.</returns>
-    public static bool NamesSprite(ActionCode code) =>
+    /// <returns><see langword="true"/> if the entry targets a sprite; otherwise, <see langword="false"/>.</returns>
+    public static bool HasSpriteTarget(ActionCode code) =>
         code is ActionCode.Attack or ActionCode.MoveTo or ActionCode.RestoreCommand or ActionCode.CopyStackTo or
             ActionCode.LinkEngine or ActionCode.ClashEngine or ActionCode.ForceLinkEngine;
 }
