@@ -10,6 +10,7 @@ namespace ASToolkit.Core.Engine.Scripts;
 public sealed partial class Script
 {
     private const int MinCapacity = 0x80;
+
     private StackObject[] _slots = [];
     private int _count;
     private ScriptObject[] _objects = [];
@@ -38,8 +39,6 @@ public sealed partial class Script
     /// </summary>
     public ScriptVersion Version { get; }
 
-    private bool IsAlienShooter2 => Version == ScriptVersion.AlienShooter2;
-
     /// <summary>
     /// Gets the index of the object named <c>main</c>, or -1 when the script has none.
     /// </summary>
@@ -55,12 +54,30 @@ public sealed partial class Script
     /// </summary>
     public ReadOnlySpan<ScriptObject> Objects => _objects.AsSpan(0, _objectCount);
 
-    internal GameLogger? Logger { get; set; }
-
     /// <summary>
     /// Gets the compiled code.
     /// </summary>
     public ReadOnlySpan<byte> Code => _code;
+
+    /// <summary>
+    /// Gets a value indicating whether the value on top of the stack is text.
+    /// </summary>
+    public bool IsTextOnTop
+    {
+        [EngineRoutine(0x0043a190)]
+        get => _slots[_count - 1].Flags.HasFlag(StackObjectFlags.Text);
+    }
+
+    internal GameLogger? Logger { get; set; }
+
+    private bool IsAlienShooter2 => Version == ScriptVersion.AlienShooter2;
+
+    /// <summary>
+    /// Returns the address of a slot's text as a number, never 0.
+    /// </summary>
+    /// <param name="slot">The index of the slot.</param>
+    /// <returns>The address.</returns>
+    public static int GetTextAddress(int slot) => slot + 1;
 
     /// <summary>
     /// Returns a variable or stack slot.
@@ -133,13 +150,6 @@ public sealed partial class Script
     }
 
     /// <summary>
-    /// Returns the address of a slot's text as a number, never 0.
-    /// </summary>
-    /// <param name="slot">The index of the slot.</param>
-    /// <returns>The address.</returns>
-    public static int GetTextAddress(int slot) => slot + 1;
-
-    /// <summary>
     /// Pushes a value onto the stack.
     /// </summary>
     /// <param name="slot">The value.</param>
@@ -158,41 +168,40 @@ public sealed partial class Script
     /// Pops a value from the stack.
     /// </summary>
     /// <returns>The value.</returns>
+    [EngineRoutine(0x0043ab70)]
     public StackObject Pop() => _slots[--_count];
-
-    /// <summary>
-    /// Gets a value indicating whether the value on top of the stack is a text.
-    /// </summary>
-    public bool IsTextOnTop
-    {
-        [EngineRoutine(0x0043a190)]
-        get => _slots[_count - 1].Flags.HasFlag(StackObjectFlags.Text);
-    }
 
     /// <summary>
     /// Pops a value from the stack as a number.
     /// </summary>
     /// <returns>The number.</returns>
-    [EngineRoutine(0x00439fd0)]
     public int PopNumber() => _slots[--_count].GetValue();
+
+    /// <summary>
+    /// Pops a value from the stack as a sprite handle.
+    /// </summary>
+    /// <param name="isNotSprite">Set when the value is a nonzero number that is not a sprite handle.</param>
+    /// <returns>The handle, or 0 for none.</returns>
+    [EngineRoutine(0x00439fd0)]
+    public int PopHandle(out bool isNotSprite)
+    {
+        ref readonly var slot = ref _slots[_count - 1];
+        isNotSprite = slot.Value != 0 && !slot.Flags.HasFlag(StackObjectFlags.Sprite);
+
+        return _slots[--_count].GetValue();
+    }
 
     /// <summary>
     /// Pops a value from the stack as a text, writing a number in decimal.
     /// </summary>
     /// <returns>The text.</returns>
-    [EngineRoutine(0x0043a390)]
-    public ReadOnlyMemory<byte> PopText()
-    {
-        var value = _slots[--_count];
-
-        return value.Flags.HasFlag(StackObjectFlags.Number) ? StackObject.FormatNumber(value.Value) : value.Text;
-    }
+    public ReadOnlyMemory<byte> PopText() => _slots[--_count].GetText();
 
     /// <summary>
     /// Pushes a text onto the stack.
     /// </summary>
     /// <param name="text">The text.</param>
-    [EngineRoutine(0x0043a640)]
+    [EngineRoutine(0x00439ef0)]
     public void PushText(ReadOnlyMemory<byte> text) => Push(StackObject.FromText(text));
 
     /// <summary>
@@ -225,8 +234,7 @@ public sealed partial class Script
     /// </summary>
     /// <param name="value">The handle, or 0 for none.</param>
     [EngineRoutine(0x0043a0f0)]
-    public void PushSprite(int value) =>
-        Push(new StackObject(value == 0 ? StackObjectFlags.Number : StackObjectFlags.Number | StackObjectFlags.Sprite, value, default));
+    public void PushSprite(int value) => Push(StackObject.FromHandle(value));
 
     /// <summary>
     /// Runs a function of the script.
@@ -242,7 +250,7 @@ public sealed partial class Script
     public int CallFunction(IScriptFunctionHost host, int function, int first, int second, int third)
     {
         if (IsAlienShooter2)
-            throw new NotSupportedException("Cannot run Alien Shooter 2 scripts.");
+            throw new NotSupportedException("Alien Shooter 2 scripts are not supported.");
 
         int result = 0;
         bool indexPending = false;
@@ -256,11 +264,19 @@ public sealed partial class Script
         }
 
         if (function >= _objectCount || function < 0)
+        {
+            Logger?.Write("!!!ERROR!!! SCRIPT Call unexisted function %i"u8, function);
+
             return 0;
+        }
 
         ref readonly var entry = ref _objects[function];
         if (entry.Kind != ScriptObjectKind.Function)
+        {
+            Logger?.Write("!!!ERROR!!!LOGIC: Call unexisted function %s()"u8, entry.Name);
+
             return 0;
+        }
 
         byte[] code = _code;
         int codeSize = code.Length;
@@ -271,25 +287,25 @@ public sealed partial class Script
         SetArgument(entry, 0, first, true);
         SetArgument(entry, 1, second, true);
         SetArgument(entry, 2, third, false);
-        int pc = entry.Address;
-        int statement = pc;
-        while (pc < codeSize)
+        int programCounter = entry.Address;
+        int statement = programCounter;
+        while (programCounter < codeSize)
         {
             if (_count < frame)
-                throw new InvalidOperationException($"Cannot pop below the frame of script function {function} at {pc}.");
+                throw new InvalidOperationException($"Script function {function} popped more values than it pushed, at address {programCounter}.");
 
-            var op = (ScriptOpcode)code[pc];
-            if (op is >= ScriptOpcode.Divide and <= ScriptOpcode.ShiftLeft)
+            var opcode = (ScriptOpcode)code[programCounter];
+            if (opcode is >= ScriptOpcode.Divide and <= ScriptOpcode.ShiftLeft)
             {
-                pc++;
-                BinarOperator(ref _slots[_count - 2], op, _slots[_count - 1]);
+                programCounter++;
+                BinarOperator(ref _slots[_count - 2], opcode, _slots[_count - 1]);
                 _count--;
                 continue;
             }
 
-            if (op is >= ScriptOpcode.PostIncrement and <= ScriptOpcode.CompoundAssign)
+            if (opcode is >= ScriptOpcode.PostIncrement and <= ScriptOpcode.CompoundAssign)
             {
-                int operand = ReadInt(code, pc + 1);
+                int operand = ReadInt(code, programCounter + 1);
                 int target = operand;
                 if (_slots[operand].Flags.HasFlag(StackObjectFlags.Pointer) && indexPending)
                 {
@@ -297,89 +313,89 @@ public sealed partial class Script
                 }
 
                 target += index;
-                pc += RunVariableOp(op, operand, target, indexPending, index, code, pc);
+                programCounter += RunVariableOp(opcode, operand, target, indexPending, index, code, programCounter);
                 indexPending = false;
                 index = 0;
                 continue;
             }
 
-            switch (op)
+            switch (opcode)
             {
                 case ScriptOpcode.PushNumber:
-                    PushNumber(ReadInt(code, pc + 1));
-                    pc += 5;
+                    PushNumber(ReadInt(code, programCounter + 1));
+                    programCounter += 5;
                     break;
                 case ScriptOpcode.PushText:
-                    int length = code.AsSpan(pc + 1).IndexOf((byte)0);
-                    Push(StackObject.FromText(code.AsMemory(pc + 1, length)));
-                    pc += length + 2;
+                    int length = code.AsSpan(programCounter + 1).IndexOf((byte)0);
+                    Push(StackObject.FromText(code.AsMemory(programCounter + 1, length)));
+                    programCounter += length + 2;
                     break;
                 case ScriptOpcode.Negate:
                     SetTop(-_slots[_count - 1].GetValue());
-                    pc++;
+                    programCounter++;
                     break;
                 case ScriptOpcode.BitwiseNot:
                     SetTop(~_slots[_count - 1].GetValue());
-                    pc++;
+                    programCounter++;
                     break;
                 case ScriptOpcode.LogicalNot:
                     SetTop(_slots[_count - 1].GetValue() == 0 ? 1 : 0);
-                    pc++;
+                    programCounter++;
                     break;
                 case ScriptOpcode.JumpIfFalse:
-                    pc = _slots[--_count].IsTrue() ? pc + 5 : pc + 1 + ReadInt(code, pc + 1);
-                    CheckStatementStack("if"u8, frame, pc);
+                    programCounter = _slots[--_count].IsTrue() ? programCounter + 5 : programCounter + 1 + ReadInt(code, programCounter + 1);
+                    CheckStatementStack("if"u8, frame, programCounter);
                     _count = frame;
-                    statement = pc;
+                    statement = programCounter;
                     break;
                 case ScriptOpcode.EndStatement:
-                    pc += 5;
-                    CheckStatementStack(";"u8, frame, pc);
+                    programCounter += 5;
+                    CheckStatementStack(";"u8, frame, programCounter);
                     _count = frame;
-                    statement = pc;
+                    statement = programCounter;
                     break;
                 case ScriptOpcode.Pop:
                     _count--;
-                    pc++;
+                    programCounter++;
                     break;
                 case ScriptOpcode.Jump:
-                    pc += 1 + ReadInt(code, pc + 1);
+                    programCounter += 1 + ReadInt(code, programCounter + 1);
                     break;
                 case ScriptOpcode.JumpIfFalseOnce:
-                    int skip = pc + 1 + ReadInt(code, pc + 1);
+                    int skip = programCounter + 1 + ReadInt(code, programCounter + 1);
                     if (!_slots[--_count].IsTrue())
                     {
-                        pc = skip;
+                        programCounter = skip;
                     }
                     else
                     {
                         code[statement] = (byte)ScriptOpcode.Jump;
                         BinaryPrimitives.WriteInt32LittleEndian(code.AsSpan(statement + 1), skip - (statement + 1));
-                        pc += 5;
+                        programCounter += 5;
                     }
 
-                    CheckStatementStack("iff"u8, frame, pc);
+                    CheckStatementStack("iff"u8, frame, programCounter);
                     _count = frame;
-                    statement = pc;
+                    statement = programCounter;
                     break;
                 case ScriptOpcode.Call:
                     PushNumber(frame);
-                    PushNumber(pc + 5);
-                    pc = ReadInt(code, pc + 1);
+                    PushNumber(programCounter + 5);
+                    programCounter = ReadInt(code, programCounter + 1);
                     frame = _count;
-                    statement = pc;
+                    statement = programCounter;
                     break;
                 case ScriptOpcode.Return:
-                    CheckStatementStack("return"u8, frame, pc + 1);
+                    CheckStatementStack("return"u8, frame, programCounter + 1);
                     if (_count > frame)
                     {
                         var value = _slots[--_count];
                         _count = frame;
-                        pc = _slots[--_count].GetValue();
+                        programCounter = _slots[--_count].GetValue();
                         frame = _slots[--_count].GetValue();
-                        statement = pc;
+                        statement = programCounter;
                         Push(value);
-                        if (pc >= codeSize && result == 0)
+                        if (programCounter >= codeSize && result == 0)
                         {
                             result = value.GetValue();
                         }
@@ -387,25 +403,25 @@ public sealed partial class Script
                     else
                     {
                         _count = frame;
-                        pc = _slots[--_count].GetValue();
+                        programCounter = _slots[--_count].GetValue();
                         frame = _slots[--_count].GetValue();
-                        statement = pc;
+                        statement = programCounter;
                     }
 
                     break;
                 case ScriptOpcode.SetIndex:
                     indexPending = true;
                     index = _slots[--_count].GetValue();
-                    pc++;
+                    programCounter++;
                     break;
                 default:
-                    if ((ScriptFunction)op == ScriptFunction.Destroy && _slots[_count - 1].GetValue() == first)
+                    if ((ScriptFunction)opcode == ScriptFunction.Destroy && _slots[_count - 1].GetValue() == first)
                     {
                         result = 1;
                     }
 
-                    pc++;
-                    host.ExecFunc(this, (int)op);
+                    programCounter++;
+                    host.ExecFunc(this, (int)opcode);
                     break;
             }
         }
@@ -414,6 +430,33 @@ public sealed partial class Script
 
         return result;
     }
+
+    private static void Step(ref StackObject slot, int amount)
+    {
+        slot.Flags &= ~StackObjectFlags.Sprite;
+        if ((slot.Flags & (StackObjectFlags.Number | StackObjectFlags.Pointer)) != 0)
+        {
+            slot.Value = unchecked(slot.Value + amount);
+        }
+    }
+
+    private static void StoreCharacter(ref StackObject slot, int index, byte value)
+    {
+        if (index < 0 || index >= slot.Text.Length)
+            return;
+
+        if (value == 0)
+        {
+            slot.Text = slot.Text[..index];
+            return;
+        }
+
+        byte[] text = slot.Text.ToArray();
+        text[index] = value;
+        slot.Text = text;
+    }
+
+    private static int ReadInt(ReadOnlySpan<byte> code, int offset) => BinaryPrimitives.ReadInt32LittleEndian(code[offset..]);
 
     private void SetArgument(in ScriptObject entry, int parameter, int value, bool handle)
     {
@@ -431,18 +474,18 @@ public sealed partial class Script
         top.Value = value;
     }
 
-    private int RunVariableOp(ScriptOpcode op, int operand, int target, bool indexPending, int index, ReadOnlySpan<byte> code, int pc)
+    private int RunVariableOp(ScriptOpcode opcode, int operand, int target, bool indexPending, int index, ReadOnlySpan<byte> code, int programCounter)
     {
-        switch (op)
+        switch (opcode)
         {
             case ScriptOpcode.PostIncrement:
             case ScriptOpcode.PostDecrement:
                 Push(_slots[target]);
-                Step(ref _slots[target], op == ScriptOpcode.PostIncrement ? 1 : -1);
+                Step(ref _slots[target], opcode == ScriptOpcode.PostIncrement ? 1 : -1);
                 break;
             case ScriptOpcode.PreIncrement:
             case ScriptOpcode.PreDecrement:
-                Step(ref _slots[target], op == ScriptOpcode.PreIncrement ? 1 : -1);
+                Step(ref _slots[target], opcode == ScriptOpcode.PreIncrement ? 1 : -1);
                 Push(_slots[target]);
                 break;
             case ScriptOpcode.Load:
@@ -464,21 +507,12 @@ public sealed partial class Script
                 break;
             case ScriptOpcode.CompoundAssign:
                 var value = _slots[--_count];
-                BinarOperator(ref _slots[target], (ScriptOpcode)code[pc + 5], value);
+                BinarOperator(ref _slots[target], (ScriptOpcode)code[programCounter + 5], value);
                 Push(_slots[target]);
                 return 6;
         }
 
         return 5;
-    }
-
-    private static void Step(ref StackObject slot, int amount)
-    {
-        slot.Flags &= ~StackObjectFlags.Sprite;
-        if ((slot.Flags & (StackObjectFlags.Number | StackObjectFlags.Pointer)) != 0)
-        {
-            slot.Value = unchecked(slot.Value + amount);
-        }
     }
 
     private void Assign(int operand, int target, bool indexPending, int index)
@@ -504,24 +538,8 @@ public sealed partial class Script
         }
     }
 
-    private static void StoreCharacter(ref StackObject slot, int index, byte value)
-    {
-        if (index < 0 || index >= slot.Text.Length)
-            return;
-
-        if (value == 0)
-        {
-            slot.Text = slot.Text[..index];
-            return;
-        }
-
-        byte[] text = slot.Text.ToArray();
-        text[index] = value;
-        slot.Text = text;
-    }
-
     [EngineRoutine(0x004245e0)]
-    private static void BinarOperator(ref StackObject left, ScriptOpcode op, in StackObject right)
+    private void BinarOperator(ref StackObject left, ScriptOpcode opcode, in StackObject right)
     {
         int value = right.GetValue();
         bool texts = left.Flags.HasFlag(StackObjectFlags.Text) && right.Flags.HasFlag(StackObjectFlags.Text);
@@ -531,7 +549,7 @@ public sealed partial class Script
         }
 
         int current = left.Value;
-        switch (op)
+        switch (opcode)
         {
             case ScriptOpcode.Divide:
                 left.Value = value == 0 ? 0x0fffffff : current / value;
@@ -594,6 +612,9 @@ public sealed partial class Script
             case ScriptOpcode.ShiftLeft:
                 left.Value = current << (value & 31);
                 break;
+            default:
+                Logger?.Write("!!!ERROE!!!LOGIC::Unknown Binary command %i"u8, (int)opcode);
+                break;
         }
 
         left.Flags = StackObjectFlags.Number;
@@ -606,6 +627,4 @@ public sealed partial class Script
             Logger?.Write("!!!ERROR!!!LOGIC: '%s' stack error %i"u8, (ReadOnlyMemory<byte>)statement.ToArray(), next);
         }
     }
-
-    private static int ReadInt(ReadOnlySpan<byte> code, int offset) => BinaryPrimitives.ReadInt32LittleEndian(code[offset..]);
 }

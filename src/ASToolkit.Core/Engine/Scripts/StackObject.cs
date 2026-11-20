@@ -53,16 +53,13 @@ public struct StackObject
     public static StackObject FromText(ReadOnlyMemory<byte> text) => new(StackObjectFlags.Text, 0, text);
 
     /// <summary>
-    /// Returns the value as a number, parsing a text.
+    /// Creates a sprite handle value.
     /// </summary>
-    /// <returns>The number.</returns>
-    public readonly int GetValue() => Flags.HasFlag(StackObjectFlags.Text) ? ParseNumber(Text.Span) : Value;
-
-    /// <summary>
-    /// Returns whether the value is nonzero as a number.
-    /// </summary>
-    /// <returns><see langword="true"/> when the value is nonzero; otherwise, <see langword="false"/>.</returns>
-    public readonly bool IsTrue() => GetValue() != 0;
+    /// <param name="handle">The handle, or 0 for none.</param>
+    /// <returns>The value.</returns>
+    [EngineRoutine(0x00439dd0)]
+    public static StackObject FromHandle(int handle) =>
+        new(handle == 0 ? StackObjectFlags.Number : StackObjectFlags.Number | StackObjectFlags.Sprite, handle, default);
 
     /// <summary>
     /// Reads a text as a number, as C's <c>sscanf("%i")</c> when its second character is <c>x</c> and as <c>atoi</c> otherwise.
@@ -100,14 +97,24 @@ public struct StackObject
     public static int ScanInteger(ReadOnlySpan<byte> text) => TryScanInteger(text, out int value) ? value : 0;
 
     /// <summary>
-    /// Reads a number as C's <c>sscanf("%i")</c>, returning false when the text starts with none, as for <c>0x</c> without a digit.
+    /// Reads a number as C's <c>sscanf("%i")</c> does, including when the text holds <c>0x</c> without a digit.
     /// </summary>
     /// <param name="text">The text.</param>
     /// <param name="value">The number, wrapped to 32 bits.</param>
-    /// <returns><see langword="true"/> when a number was read; otherwise, <see langword="false"/>.</returns>
-    public static bool TryScanInteger(ReadOnlySpan<byte> text, out int value)
+    /// <returns><see langword="true"/> if a number was read; otherwise, <see langword="false"/>.</returns>
+    public static bool TryScanInteger(ReadOnlySpan<byte> text, out int value) => TryScanInteger(text, out value, out _);
+
+    /// <summary>
+    /// Parses a number as C's <c>sscanf("%i")</c> does and reports how many bytes it read.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="value">The number, wrapped to 32 bits.</param>
+    /// <param name="length">The number of bytes read, including leading white space.</param>
+    /// <returns><see langword="true"/> if a number was read; otherwise, <see langword="false"/>.</returns>
+    public static bool TryScanInteger(ReadOnlySpan<byte> text, out int value, out int length)
     {
         value = 0;
+        length = 0;
         int i = SkipSpace(text, 0);
         bool negative = false;
         if (i < text.Length && (text[i] == '-' || text[i] == '+'))
@@ -139,20 +146,8 @@ public struct StackObject
         }
 
         value = unchecked(negative ? -total : total);
+        length = i;
         return true;
-    }
-
-    private static int GetDigit(byte character) => char.IsAsciiDigit((char)character) ? character - '0' :
-        char.IsAsciiHexDigit((char)character) ? (character | 0x20) - 'a' + 10 : 16;
-
-    private static int SkipSpace(ReadOnlySpan<byte> text, int index)
-    {
-        while (index < text.Length && (text[index] == ' ' || text[index] is >= 0x09 and <= 0x0d))
-        {
-            index++;
-        }
-
-        return index;
     }
 
     /// <summary>
@@ -168,6 +163,26 @@ public struct StackObject
 
         return text.AsMemory()[..length];
     }
+
+    /// <summary>
+    /// Returns the value as text, writing a number in decimal.
+    /// </summary>
+    /// <returns>The text.</returns>
+    [EngineRoutine(0x00439e30)]
+    public readonly ReadOnlyMemory<byte> GetText() => Flags.HasFlag(StackObjectFlags.Number) ? FormatNumber(Value) : Text;
+
+    /// <summary>
+    /// Returns the value as a number, parsing a text.
+    /// </summary>
+    /// <returns>The number.</returns>
+    [EngineRoutine(0x00439df0)]
+    public readonly int GetValue() => Flags.HasFlag(StackObjectFlags.Text) ? ParseNumber(Text.Span) : Value;
+
+    /// <summary>
+    /// Returns whether the value is nonzero as a number.
+    /// </summary>
+    /// <returns><see langword="true"/> if the value is nonzero; otherwise, <see langword="false"/>.</returns>
+    public readonly bool IsTrue() => GetValue() != 0;
 
     /// <summary>
     /// Writes the value to a demo or save stream, as its flags followed by its number or its masked, zero-terminated text.
@@ -222,5 +237,18 @@ public struct StackObject
         }
 
         Text = text;
+    }
+
+    private static int GetDigit(byte character) => char.IsAsciiDigit((char)character) ? character - '0' :
+        char.IsAsciiHexDigit((char)character) ? (character | 0x20) - 'a' + 10 : 16;
+
+    private static int SkipSpace(ReadOnlySpan<byte> text, int index)
+    {
+        while (index < text.Length && (text[index] == ' ' || text[index] is >= 0x09 and <= 0x0d))
+        {
+            index++;
+        }
+
+        return index;
     }
 }

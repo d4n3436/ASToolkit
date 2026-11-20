@@ -17,16 +17,16 @@ public sealed partial class Script
 
     private readonly Dictionary<byte[], byte[]> _defines = new(ScriptNameComparer.Instance);
     private readonly Dictionary<byte[], byte[]>.AlternateLookup<ReadOnlySpan<byte>> _defineLookup;
+    private readonly byte[] _name = new byte[MaxNameLength + 1];
     private IGameFileSystem? _fileSystem;
     private byte[] _text = [];
     private int _position;
     private int _end;
     private int _line;
     private int _ifDepth;
-    private bool _noSubstitution;
+    private bool _isSubstitutionOff;
     private byte[] _codeBuffer = [];
     private int _codeSize;
-    private readonly byte[] _name = new byte[MaxNameLength + 1];
     private int _nameLength;
 
     /// <summary>
@@ -52,7 +52,11 @@ public sealed partial class Script
         Reset();
         FileName = path;
         if (!fileSystem.TryRead(path, out var file))
+        {
+            LogScriptError(7, "");
+
             return false;
+        }
 
         Span<byte> head = stackalloc byte[sizeof(int)];
         file.Span[..Math.Min(file.Length, head.Length)].CopyTo(head);
@@ -79,6 +83,35 @@ public sealed partial class Script
 
         return true;
     }
+
+    [EngineRoutine(0x0041f330)]
+    internal void Reset()
+    {
+        _code = null;
+        Array.Clear(_slots);
+        Array.Clear(_objects);
+        _count = 0;
+        _objectCount = 0;
+        _defines.Clear();
+        _codeSize = 0;
+        _ifDepth = 0;
+        _isSubstitutionOff = false;
+        MainIndex = -1;
+        CompileError = null;
+    }
+
+    private static bool IsAlpha(byte character) => char.IsAsciiLetter((char)character);
+
+    private static bool IsAlphanumeric(byte character) => char.IsAsciiLetterOrDigit((char)character);
+
+    private static bool IsNameCharacter(byte character) => IsAlphanumeric(character) || character == '_';
+
+    private static bool IsSpace(byte character) => character == ' ' || character is >= 0x09 and <= 0x0d;
+
+    private static string Decode(ReadOnlySpan<byte> text) => GameTextEncoding.Cyrillic.GetString(text);
+
+    private static bool IsScriptEvent(ReadOnlySpan<byte> name) =>
+        name.StartsWith("ScriptEvent"u8) && name.Length > 11 && !name[11..].ContainsAnyExceptInRange((byte)'0', (byte)'9');
 
     [EngineRoutine(0x0041f450)]
     private void Compile(IGameFileSystem fileSystem, string path, ReadOnlySpan<byte> file)
@@ -129,22 +162,6 @@ public sealed partial class Script
         }
     }
 
-    [EngineRoutine(0x0041f330)]
-    private void Reset()
-    {
-        _code = null;
-        Array.Clear(_slots);
-        Array.Clear(_objects);
-        _count = 0;
-        _objectCount = 0;
-        _defines.Clear();
-        _codeSize = 0;
-        _ifDepth = 0;
-        _noSubstitution = false;
-        MainIndex = -1;
-        CompileError = null;
-    }
-
     private void OpenText(ReadOnlySpan<byte> file)
     {
         _text = ArrayPool<byte>.Shared.Rent(file.Length + TextExtra);
@@ -162,18 +179,17 @@ public sealed partial class Script
         }
     }
 
-    private byte At(int index) => index >= 0 && index < _text.Length ? _text[index] : (byte)0;
-
-    private static bool IsAlpha(byte character) => char.IsAsciiLetter((char)character);
-
-    private static bool IsAlphanumeric(byte character) => char.IsAsciiLetterOrDigit((char)character);
-
-    private static bool IsNameCharacter(byte character) => IsAlphanumeric(character) || character == '_';
-
-    private static bool IsSpace(byte character) => character == ' ' || character is >= 0x09 and <= 0x0d;
+    private byte GetCharAt(int index) => index >= 0 && index < _text.Length ? _text[index] : (byte)0;
 
     [EngineRoutine(0x0041fbe0)]
     private InvalidDataException ReportError(int code, string text, int extra = 0)
+    {
+        LogScriptError(code, text, extra);
+
+        return new InvalidDataException($"'{FileName}' line {_line + 1}: {GameLogger.FormatError((LogError)code, extra, GameTextEncoding.Cyrillic.GetBytes(text))}");
+    }
+
+    private void LogScriptError(int code, string text, int extra = 0)
     {
         byte[] message = GameTextEncoding.Cyrillic.GetBytes(text);
         var logger = Logger;
@@ -187,8 +203,8 @@ public sealed partial class Script
                 Span<byte> context = stackalloc byte[ErrorContextLength];
                 for (int i = 0; i < context.Length; i++)
                 {
-                    int at = _position - ErrorContextLength / 2 + i;
-                    byte character = at >= 0 && at < _end ? _text[at] : (byte)'?';
+                    int address = _position - ErrorContextLength / 2 + i;
+                    byte character = address >= 0 && address < _end ? _text[address] : (byte)'?';
                     context[i] = character is (byte)'\n' or (byte)'\r' or (byte)'\t' ? (byte)'?' : character;
                 }
 
@@ -198,11 +214,7 @@ public sealed partial class Script
                 logger.Error("LOGIC"u8, LogError.Text, 0, context);
             }
         }
-
-        return new InvalidDataException($"'{FileName}' line {_line + 1}: {GameLogger.FormatError((LogError)code, extra, message)}");
     }
-
-    private static string Decode(ReadOnlySpan<byte> text) => GameTextEncoding.Cyrillic.GetString(text);
 
     [EngineRoutine(0x0041fcb0)]
     private bool SkipBlanksAndDirectives()
@@ -213,24 +225,24 @@ public sealed partial class Script
         {
             if (mode == 0)
             {
-                byte character = At(_position);
-                if ((IsAlpha(character) || character == '_') && !_noSubstitution)
+                byte character = GetCharAt(_position);
+                if ((IsAlpha(character) || character == '_') && !_isSubstitutionOff)
                 {
                     Substitute();
                 }
 
                 int start = _position;
-                if (At(start) == '#')
+                if (GetCharAt(start) == '#')
                 {
                     skip = ReadConditional(skip);
                 }
 
-                character = At(_position);
-                if (character == '/' && At(_position + 1) == '/')
+                character = GetCharAt(_position);
+                if (character == '/' && GetCharAt(_position + 1) == '/')
                 {
                     mode = 1;
                 }
-                else if (character == '/' && At(_position + 1) == '*')
+                else if (character == '/' && GetCharAt(_position + 1) == '*')
                 {
                     mode = 2;
                 }
@@ -245,20 +257,25 @@ public sealed partial class Script
             }
             else if (mode == 1)
             {
-                if (At(_position) == '\n')
+                if (GetCharAt(_position) == '\n')
                 {
                     mode = 0;
                 }
             }
-            else if (At(_position) == '/' && At(_position - 1) == '*')
+            else if (GetCharAt(_position) == '/' && GetCharAt(_position - 1) == '*')
             {
                 mode = 0;
             }
 
-            if (At(_position++) == '\n')
+            if (GetCharAt(_position++) == '\n')
             {
                 _line++;
             }
+        }
+
+        if (_ifDepth > 0)
+        {
+            LogScriptError(10, "#ifdef without #endif", _ifDepth);
         }
 
         return true;
@@ -267,7 +284,7 @@ public sealed partial class Script
     private void Substitute()
     {
         int length = 0;
-        while (IsNameCharacter(At(_position + length)))
+        while (IsNameCharacter(GetCharAt(_position + length)))
         {
             if (length >= MaxNameLength)
                 throw ReportError(10, "Very long name");
@@ -293,9 +310,9 @@ public sealed partial class Script
             _ifDepth++;
             if (skip == 0)
             {
-                _noSubstitution = true;
+                _isSubstitutionOff = true;
                 var name = ReadName();
-                _noSubstitution = false;
+                _isSubstitutionOff = false;
                 bool defined = FindObject(name) >= 0 || _defineLookup.ContainsKey(name);
                 if (defined == negated)
                 {
@@ -312,6 +329,10 @@ public sealed partial class Script
             }
 
             _ifDepth--;
+            if (_ifDepth < 0)
+            {
+                LogScriptError(10, "#endif without #ifdef");
+            }
         }
         else if (text.StartsWith("#else"u8))
         {
@@ -326,6 +347,11 @@ public sealed partial class Script
             else
             {
                 skip = _ifDepth;
+            }
+
+            if (_ifDepth < 1)
+            {
+                LogScriptError(10, "#else without #ifdef");
             }
         }
 
@@ -346,10 +372,10 @@ public sealed partial class Script
         if (!_text.AsSpan(_position).StartsWith(token))
             return false;
 
-        if ((IsAlpha(token[0]) || token[0] == '#') && IsNameCharacter(At(_position + token.Length)))
+        if ((IsAlpha(token[0]) || token[0] == '#') && IsNameCharacter(GetCharAt(_position + token.Length)))
             return false;
 
-        if (IsAlienShooter2 && token.Length == 1 && At(_position + 1) == token[0] && "-+|&="u8.Contains(token[0]))
+        if (IsAlienShooter2 && token.Length == 1 && GetCharAt(_position + 1) == token[0] && "-+|&="u8.Contains(token[0]))
             return false;
 
         _position += token.Length;
@@ -370,7 +396,7 @@ public sealed partial class Script
     {
         SkipOrFailAtEnd();
         int length = 0;
-        while (IsNameCharacter(At(_position)))
+        while (IsNameCharacter(GetCharAt(_position)))
         {
             if (length >= MaxNameLength)
                 throw ReportError(10, "Very long name");
@@ -392,7 +418,7 @@ public sealed partial class Script
     {
         SkipOrFailAtEnd();
         int start = _position;
-        while (At(_position) != '\n' && At(_position) != '\r')
+        while (GetCharAt(_position) != '\n' && GetCharAt(_position) != '\r')
         {
             if (_position - start >= MaxNameLength)
                 throw ReportError(10, "Very long line");
@@ -419,17 +445,17 @@ public sealed partial class Script
     [EngineRoutine(0x00420570)]
     private int ParseStringLiteral(Span<byte> output)
     {
-        if (At(_position) != '"')
+        if (GetCharAt(_position) != '"')
             return 0;
 
         int count = 0;
-        byte character = At(++_position);
+        byte character = GetCharAt(++_position);
         while (character != '"' && _position < _end)
         {
             if (character == '\\')
             {
-                byte next = At(_position + 1);
-                if (next == '\r' && At(_position + 2) == '\n')
+                byte next = GetCharAt(_position + 1);
+                if (next == '\r' && GetCharAt(_position + 2) == '\n')
                 {
                     _line++;
                     _position += 2;
@@ -439,9 +465,9 @@ public sealed partial class Script
                     _line++;
                     _position++;
                 }
-                else if (char.IsAsciiDigit((char)next) && char.IsAsciiDigit((char)At(_position + 2)) && char.IsAsciiDigit((char)At(_position + 3)))
+                else if (char.IsAsciiDigit((char)next) && char.IsAsciiDigit((char)GetCharAt(_position + 2)) && char.IsAsciiDigit((char)GetCharAt(_position + 3)))
                 {
-                    output[count++] = (byte)(((next * 8 + At(_position + 2) + 10) & 0xff) * 8 + At(_position + 3));
+                    output[count++] = (byte)(((next * 8 + GetCharAt(_position + 2) + 10) & 0xff) * 8 + GetCharAt(_position + 3));
                     _position += 3;
                 }
                 else
@@ -461,7 +487,7 @@ public sealed partial class Script
                 output[count++] = character;
             }
 
-            character = At(++_position);
+            character = GetCharAt(++_position);
         }
 
         if (_end <= _position++)
@@ -474,7 +500,7 @@ public sealed partial class Script
 
     private void Emit(byte value) => _codeBuffer[_codeSize++] = value;
 
-    private void Emit(ScriptOpcode op) => Emit((byte)op);
+    private void Emit(ScriptOpcode opcode) => Emit((byte)opcode);
 
     private void EmitInt(int value)
     {
@@ -482,29 +508,29 @@ public sealed partial class Script
         _codeSize += sizeof(int);
     }
 
-    private void Emit(ScriptOpcode op, int operand)
+    private void Emit(ScriptOpcode opcode, int operand)
     {
-        Emit(op);
+        Emit(opcode);
         EmitInt(operand);
     }
 
     private int ReserveInt()
     {
-        int at = _codeSize;
+        int address = _codeSize;
         _codeSize += sizeof(int);
 
-        return at;
+        return address;
     }
 
-    private int ReadCode(int at) => BinaryPrimitives.ReadInt32LittleEndian(_codeBuffer.AsSpan(at));
+    private int ReadCode(int address) => BinaryPrimitives.ReadInt32LittleEndian(_codeBuffer.AsSpan(address));
 
-    private void WriteCode(int at, int value) => BinaryPrimitives.WriteInt32LittleEndian(_codeBuffer.AsSpan(at), value);
+    private void WriteCode(int address, int value) => BinaryPrimitives.WriteInt32LittleEndian(_codeBuffer.AsSpan(address), value);
 
-    private void PatchHere(int at) => WriteCode(at, _codeSize - at);
+    private void PatchHere(int address) => WriteCode(address, _codeSize - address);
 
-    private void EmitJumpBack(ScriptOpcode op, int target)
+    private void EmitJumpBack(ScriptOpcode opcode, int target)
     {
-        Emit(op);
+        Emit(opcode);
         WriteCode(_codeSize, target - _codeSize);
         _codeSize += sizeof(int);
     }
@@ -524,13 +550,13 @@ public sealed partial class Script
     }
 
     [EngineRoutine(0x00421b70)]
-    private void EmitBinaryOp(int start, ScriptOpcode op)
+    private void EmitBinaryOp(int start, ScriptOpcode opcode)
     {
         if (_codeBuffer[start] != (byte)ScriptOpcode.PushNumber || _codeBuffer[start + 5] != (byte)ScriptOpcode.PushNumber || _codeSize - start != 10)
         {
-            if (!IsAlienShooter2 || op != ScriptOpcode.Add || !TryFoldTexts(start))
+            if (!IsAlienShooter2 || opcode != ScriptOpcode.Add || !TryFoldTexts(start))
             {
-                Emit(op);
+                Emit(opcode);
             }
 
             return;
@@ -538,7 +564,7 @@ public sealed partial class Script
 
         int left = ReadCode(start + 1);
         int right = ReadCode(start + 6);
-        int result = op switch
+        int result = opcode switch
         {
             ScriptOpcode.Divide => left / right,
             ScriptOpcode.Modulo => left % right,
@@ -802,7 +828,7 @@ public sealed partial class Script
                 access = ScriptOpcode.LoadTextAddress;
             }
 
-            byte character = At(_position);
+            byte character = GetCharAt(_position);
             if (char.IsAsciiDigit((char)character))
             {
                 int value = StackObject.TryScanInteger(ReadName(), out int scanned) ? scanned : (int)access;
@@ -827,8 +853,8 @@ public sealed partial class Script
             {
                 Emit(ScriptOpcode.PushNumber);
                 _position++;
-                EmitInt((sbyte)At(_position++));
-                if (At(_position) != '\'')
+                EmitInt((sbyte)GetCharAt(_position++));
+                if (GetCharAt(_position) != '\'')
                     throw ReportError(13, "second '");
 
                 _position++;
@@ -868,7 +894,7 @@ public sealed partial class Script
                 ParseExpression();
                 ExpectToken(")"u8);
             }
-            else if (IsAlpha(At(_position)))
+            else if (IsAlpha(GetCharAt(_position)))
             {
                 if (!ParseName(unary, cast, access))
                     continue;
@@ -877,7 +903,7 @@ public sealed partial class Script
             }
             else
             {
-                if (unary != ScriptOpcode.None || At(_position) == 0 || ".$#@`"u8.Contains(At(_position)))
+                if (unary != ScriptOpcode.None || GetCharAt(_position) == 0 || ".$#@`"u8.Contains(GetCharAt(_position)))
                     throw ReportError(10, "error symbol");
 
                 return;
@@ -905,7 +931,7 @@ public sealed partial class Script
 
     private ScriptOpcode ParseUnary()
     {
-        if (IsAlienShooter2 ? TryToken("-"u8) : At(_position + 1) != '-' && TryToken("-"u8))
+        if (IsAlienShooter2 ? TryToken("-"u8) : GetCharAt(_position + 1) != '-' && TryToken("-"u8))
             return ScriptOpcode.Negate;
         
         if (IsAlienShooter2 && TryToken("+"u8))
@@ -920,11 +946,11 @@ public sealed partial class Script
         return ScriptOpcode.None;
     }
 
-    private void EmitOptional(ScriptOpcode op)
+    private void EmitOptional(ScriptOpcode opcode)
     {
-        if (op != ScriptOpcode.None)
+        if (opcode != ScriptOpcode.None)
         {
-            Emit(op);
+            Emit(opcode);
         }
     }
 
@@ -956,7 +982,7 @@ public sealed partial class Script
         int found = FindObject(name);
         if (found < 0)
         {
-            if (At(_position) != ':')
+            if (GetCharAt(_position) != ':')
                 throw ReportError(10, $"Undeclared identifier '{Decode(name)}'");
 
             byte[] label = name.ToArray();
@@ -987,9 +1013,9 @@ public sealed partial class Script
                 Emit(ScriptOpcode.PushNumber, target.Address);
                 break;
             case ScriptObjectKind.Label:
-                throw ReportError(10, At(_position) == ':' ? $"Label redefinition '{Decode(name)}'" : $"Incorrect use label '{Decode(name)}'");
+                throw ReportError(10, GetCharAt(_position) == ':' ? $"Label redefinition '{Decode(name)}'" : $"Incorrect use label '{Decode(name)}'");
             case ScriptObjectKind.PendingLabel:
-                if (At(_position) != ':')
+                if (GetCharAt(_position) != ':')
                     throw ReportError(10, $"Incorrect use label '{Decode(name)}'");
 
                 _position++;
@@ -1025,25 +1051,25 @@ public sealed partial class Script
             ExpectToken("]"u8);
         }
 
-        var op = access;
+        var opcode = access;
         var compound = ScriptOpcode.None;
-        if (At(_position + 1) != '=' && TryToken("="u8))
+        if (GetCharAt(_position + 1) != '=' && TryToken("="u8))
         {
             ParseExpression();
-            op = ScriptOpcode.Assign;
+            opcode = ScriptOpcode.Assign;
         }
         else if ((compound = TryCompoundToken()) != ScriptOpcode.None)
         {
             ParseExpression();
-            op = ScriptOpcode.CompoundAssign;
+            opcode = ScriptOpcode.CompoundAssign;
         }
         else if (TryToken("++"u8))
         {
-            op = ScriptOpcode.PostIncrement;
+            opcode = ScriptOpcode.PostIncrement;
         }
         else if (TryToken("--"u8))
         {
-            op = ScriptOpcode.PostDecrement;
+            opcode = ScriptOpcode.PostDecrement;
         }
 
         if (index is not null)
@@ -1054,15 +1080,15 @@ public sealed partial class Script
         }
         else if ((_slots[variable].Flags & (StackObjectFlags.ArrayElement | StackObjectFlags.Pointer)) != 0)
         {
-            if (op is >= ScriptOpcode.PostIncrement and <= ScriptOpcode.PreDecrement)
+            if (opcode is >= ScriptOpcode.PostIncrement and <= ScriptOpcode.PreDecrement)
                 throw ReportError(10, "Increment or decrement for array");
 
-            if (op != ScriptOpcode.Load)
-                throw ReportError(4, "operation for array", (int)op);
+            if (opcode != ScriptOpcode.Load)
+                throw ReportError(4, "operation for array", (int)opcode);
         }
 
-        Emit(op, variable);
-        if (op == ScriptOpcode.CompoundAssign)
+        Emit(opcode, variable);
+        if (opcode == ScriptOpcode.CompoundAssign)
         {
             Emit(compound);
         }
@@ -1182,7 +1208,7 @@ public sealed partial class Script
     {
         var flags = StackObjectFlags.None;
         SkipOrFailAtEnd();
-        if (At(_position) == '*')
+        if (GetCharAt(_position) == '*')
         {
             flags = StackObjectFlags.Pointer;
             _position++;
@@ -1197,7 +1223,7 @@ public sealed partial class Script
         if (TryToken("["u8))
         {
             flags |= StackObjectFlags.ArrayElement;
-            if (At(_position) == ']')
+            if (GetCharAt(_position) == ']')
             {
                 _position++;
                 if (!TryToken("="u8))
@@ -1309,7 +1335,7 @@ public sealed partial class Script
         if (IsAlienShooter2)
         {
             SkipOrFailAtEnd();
-            if (At(_position) == '*')
+            if (GetCharAt(_position) == '*')
             {
                 _position++;
             }
@@ -1325,7 +1351,7 @@ public sealed partial class Script
         if (TryToken("["u8))
         {
             flags = StackObjectFlags.ArrayElement;
-            size = IsAlienShooter2 && At(_position) == ']' ? UnsizedArray : ParseConstInt();
+            size = IsAlienShooter2 && GetCharAt(_position) == ']' ? UnsizedArray : ParseConstInt();
             ExpectToken("]"u8);
         }
 
@@ -1545,9 +1571,9 @@ public sealed partial class Script
 
     private void PatchBreaks(List<int> breaks)
     {
-        foreach (int at in breaks)
+        foreach (int address in breaks)
         {
-            PatchHere(at);
+            PatchHere(address);
         }
     }
 
@@ -1577,9 +1603,9 @@ public sealed partial class Script
         if (text.StartsWith("#define"u8))
         {
             _position += 7;
-            _noSubstitution = true;
+            _isSubstitutionOff = true;
             byte[] name = ReadName().ToArray();
-            _noSubstitution = false;
+            _isSubstitutionOff = false;
             _defines[name] = ReadDefineLine();
 
             return SkipBlanksAndDirectives();
@@ -1588,9 +1614,9 @@ public sealed partial class Script
         if (text.StartsWith("#undef"u8))
         {
             _position += 6;
-            _noSubstitution = true;
+            _isSubstitutionOff = true;
             bool found = _defineLookup.Remove(ReadName());
-            _noSubstitution = false;
+            _isSubstitutionOff = false;
             if (!found)
                 throw ReportError(4, "#undef parameters");
 
@@ -1648,11 +1674,11 @@ public sealed partial class Script
     private void ParseInclude()
     {
         string includer = FileName;
-        if (At(_position) != '"' && At(_position) != '<')
+        if (GetCharAt(_position) != '"' && GetCharAt(_position) != '<')
             throw ReportError(13, "include file name");
 
         int start = ++_position;
-        while (At(_position) != '"' && At(_position) != '>')
+        while (GetCharAt(_position) != '"' && GetCharAt(_position) != '>')
         {
             if (_position >= _end)
                 throw ReportError(10, "End of file");
@@ -1692,7 +1718,7 @@ public sealed partial class Script
 
         int firstVariable = ParseParameters();
         int id = ParseConstInt();
-        if (!char.IsAsciiDigit((char)At(_position - 1)))
+        if (!char.IsAsciiDigit((char)GetCharAt(_position - 1)))
             throw ReportError(13, "extern function code");
 
         TruncateObjects(saved);
@@ -1781,8 +1807,4 @@ public sealed partial class Script
         else if (IsAlienShooter2 && IsScriptEvent(name) && count != 3)
             throw ReportError(10, "ScriptEvent must have 3 parameters");
     }
-
-    private static bool IsScriptEvent(ReadOnlySpan<byte> name) =>
-        name.StartsWith("ScriptEvent"u8) && name.Length > 11 && !name[11..].ContainsAnyExceptInRange((byte)'0', (byte)'9');
-
 }
