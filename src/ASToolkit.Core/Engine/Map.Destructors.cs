@@ -143,7 +143,6 @@ public sealed partial class Map
         if (sprite.Handle == 0)
             return;
 
-        Script.ClearSpriteHandle(sprite.Handle);
         _handles.Remove(sprite.Handle);
         sprite.Handle = 0;
     }

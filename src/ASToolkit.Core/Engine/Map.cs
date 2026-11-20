@@ -791,9 +791,14 @@ public sealed partial class Map : IDisposable
             controller.Forget(removed);
         }
 
+        if (removed.Handle != 0)
+        {
+            Script.ClearSpriteHandle(removed.Handle);
+        }
+
         RemoveFromGroups(removed);
 
-        int index = Collector.Listed.Length - 1;
+        int index = removed.ReferenceCount > 1 ? Collector.Listed.Length - 1 : -1;
         while (index >= 0)
         {
             Motion.DeletePointerToSprite(Collector.Listed[index], removed);
@@ -808,6 +813,9 @@ public sealed partial class Map : IDisposable
 
         for (int layer = 0; layer < UpdateOrder.LayerCount; layer++)
         {
+            if (removed.ReferenceCount <= 1)
+                continue;
+
             var list = _updates.GetLayer(layer);
             for (int i = list.Count - 1; i >= 0; i--)
             {

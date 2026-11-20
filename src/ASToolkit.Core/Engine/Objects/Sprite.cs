@@ -1,14 +1,12 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using ASToolkit.Core.Formats;
-using Microsoft.Extensions.ObjectPool;
 
 namespace ASToolkit.Core.Engine;
 
 /// <summary>
 /// Represents a sprite of the running map with its definition, position, state, orders, links and ammunition.
 /// </summary>
-public sealed class Sprite : IResettable
+public sealed class Sprite
 {
     /// <summary>
     /// Represents the object id of the torso for weapon slot 0.
@@ -36,23 +34,9 @@ public sealed class Sprite : IResettable
     private const int SpawnScatter = 8;
     private const float VelocityScale = 1e6f;
     private const float ReachTolerance = 0.5f;
-    
-    private int[]? _slotAmmo;
+
     private bool _secondChildPulse;
     private Angle _direction;
-    private Sprite? _owner;
-    private Sprite? _link;
-    private Sprite? _goal;
-    private Sprite? _shooter;
-    private Sprite? _linkerBase;
-
-    /// <summary>
-    /// Creates an empty sprite. Used for object pooled initialization.
-    /// </summary>
-    public Sprite()
-    {
-        Definition = null!;
-    }
 
     /// <summary>
     /// Creates a sprite from a definition.
@@ -62,9 +46,28 @@ public sealed class Sprite : IResettable
     /// <param name="position">The position.</param>
     /// <param name="army">The army.</param>
     /// <param name="hp">The health.</param>
-    public Sprite(int number, SpriteDefinition definition, Vector3 position, Army army, int hp)
+    /// <param name="direction">The direction.</param>
+    public Sprite(int number, SpriteDefinition definition, Vector3 position, Army army, int hp, Angle direction = default)
     {
-        Initialize(number, definition, position, army, hp);
+        StreamPeriod = 1;
+        _direction = direction;
+        Number = number;
+        Definition = definition;
+        Behavior = definition.Behavior;
+        Army = army;
+        Position = position;
+        Hp = hp;
+        Bucket = -1;
+        Slot = -1;
+        ListIndex = -1;
+        DiedAt = -1;
+        FirstFrame = definition.Layout.GetFirstFrame(SpriteAnimation.Stand);
+        Frame = FirstFrame;
+        LastFrame = FirstFrame + definition.Layout.GetFramesPerDirection(SpriteAnimation.Stand) - 1;
+        CreatedAt = -1;
+        Lifetime = definition.Lifetime;
+        FillAmmo();
+        MaxSpeed = definition.Speed;
     }
 
     /// <summary>
@@ -289,7 +292,7 @@ public sealed class Sprite : IResettable
     /// <summary>
     /// Gets the ammunition the sprite keeps for the slots it does not hold.
     /// </summary>
-    public int[] SlotAmmo => _slotAmmo ??= new int[MaxWeaponSlot + 1];
+    public int[] SlotAmmo => field ??= new int[MaxWeaponSlot + 1];
 
     /// <summary>
     /// Gets or sets the behavior bits of the sprite.
@@ -326,33 +329,33 @@ public sealed class Sprite : IResettable
     /// </summary>
     public Sprite? Goal
     {
-        get => _goal;
+        get;
         [EngineRoutine(0x00444650)]
         set
         {
-            if (_goal == value)
+            if (field == value)
                 return;
 
-            _goal?.Release();
-            _goal = MarkReferenced(value);
-            _goal?.AddRef();
+            field?.Release();
+            field = value;
+            field?.AddRef();
         }
     }
 
     /// <summary>
     /// Gets or sets the sprite that fired the sprite.
     /// </summary>
-    public Sprite? Shooter { get => _shooter; set => _shooter = MarkReferenced(value); }
+    public Sprite? Shooter { get; set; }
 
     /// <summary>
     /// Gets or sets the sprite the sprite is linked to.
     /// </summary>
-    public Sprite? Owner { get => _owner; set => _owner = MarkReferenced(value); }
+    public Sprite? Owner { get; set; }
 
     /// <summary>
     /// Gets or sets the sprite a linker turns around, the parent it was created with.
     /// </summary>
-    public Sprite? LinkerBase { get => _linkerBase; set => _linkerBase = MarkReferenced(value); }
+    public Sprite? LinkerBase { get; set; }
 
     /// <summary>
     /// Gets or sets a linker's offset from its base when it was created.
@@ -367,7 +370,7 @@ public sealed class Sprite : IResettable
     /// <summary>
     /// Gets or sets the next sprite of the sprite's link chain.
     /// </summary>
-    public Sprite? Link { get => _link; set => _link = MarkReferenced(value); }
+    public Sprite? Link { get; set; }
 
     /// <summary>
     /// Gets or sets how many child launches deep the sprite was created.
@@ -400,11 +403,6 @@ public sealed class Sprite : IResettable
     public bool IsAlive => Hp > 0 && Animation < SpriteAnimation.Death;
 
     /// <summary>
-    /// Gets a value indicating whether another sprite refers to the sprite.
-    /// </summary>
-    public bool IsReferenced { get; private set; }
-
-    /// <summary>
     /// Gets the number of lists and sprites that hold the sprite.
     /// </summary>
     public int ReferenceCount { get; private set; }
@@ -434,75 +432,6 @@ public sealed class Sprite : IResettable
         LastFrame = definition.Layout.GetFramesPerDirection(SpriteAnimation.Stand) - 1;
     }
 
-    /// <summary>
-    /// Reinitializes the sprite with a definition.
-    /// </summary>
-    /// <param name="number">The sprite number.</param>
-    /// <param name="definition">The definition.</param>
-    /// <param name="position">The position.</param>
-    /// <param name="army">The army.</param>
-    /// <param name="hp">The health.</param>
-    /// <param name="direction">The direction.</param>
-    [MemberNotNull(nameof(Definition))]
-    public void Initialize(int number, SpriteDefinition definition, Vector3 position, Army army, int hp, Angle direction = default)
-    {
-        _secondChildPulse = false;
-        HasPlayedStateSound = false;
-        StreamPeriod = 1;
-        _direction = direction;
-        _owner = null;
-        _link = null;
-        _goal = null;
-        _shooter = null;
-        _linkerBase = null;
-        Number = number;
-        Handle = 0;
-        IsCounted = false;
-        Role = UpdateRole.None;
-        Definition = definition;
-        Behavior = definition.Behavior;
-        Army = army;
-        Placement = null;
-        Position = position;
-        Speed = 0;
-        RegionSize = Vector2.Zero;
-        TurnTicks = 0;
-        TurnCarry = 0;
-        Command = default;
-        IsMoving = false;
-        HasReachedX = false;
-        HasReachedY = false;
-        Hp = hp;
-        IsInvisible = false;
-        Items.Clear();
-        Bucket = -1;
-        Slot = -1;
-        Collector = null;
-        Text = null;
-        ListIndex = -1;
-        ActionStack.Clear();
-        DiedAt = -1;
-        Animation = default;
-        FirstFrame = definition.Layout.GetFirstFrame(SpriteAnimation.Stand);
-        Frame = FirstFrame;
-        LastFrame = FirstFrame + definition.Layout.GetFramesPerDirection(SpriteAnimation.Stand) - 1;
-        LastTickTime = 0;
-        CreatedAt = -1;
-        Lifetime = definition.Lifetime;
-        Timer = 0;
-        _slotAmmo = null;
-        RefillsAmmo = false;
-        FillAmmo();
-        VerticalSpeed = 0;
-        MaxSpeed = definition.Speed;
-        LinkerOffset = Vector3.Zero;
-        LinkerDirection = default;
-        Depth = 0;
-        IsBlocked = false;
-        IsClimbing = false;
-        IsReferenced = false;
-        ReferenceCount = 0;
-    }
     
     /// <summary>
     /// Gets the armed object the sprite's definition links, when it is the sprite's link.
@@ -517,11 +446,6 @@ public sealed class Sprite : IResettable
     }
 
     /// <summary>
-    /// Marks the sprite as referred to by another sprite.
-    /// </summary>
-    public void MarkReferenced() => IsReferenced = true;
-
-    /// <summary>
     /// Adds a reference to the sprite.
     /// </summary>
     public void AddRef() => ReferenceCount++;
@@ -532,12 +456,6 @@ public sealed class Sprite : IResettable
     /// <returns>The number of references left.</returns>
     public int Release() => --ReferenceCount;
 
-    private static Sprite? MarkReferenced(Sprite? sprite)
-    {
-        sprite?.MarkReferenced();
-
-        return sprite;
-    }
 
     /// <summary>
     /// Starts the sprite in a state and draws its starting frame.
@@ -578,7 +496,7 @@ public sealed class Sprite : IResettable
     [EngineRoutine(0x00442ee0)]
     public void ChangeAnimation(SpriteAnimation state)
     {
-        var link = _link;
+        var link = Link;
 
         if (link is not null && link.Definition == Definition.LinkDefinition && (state >= SpriteAnimation.Death || link.Definition.Object.WeaponIndex == 0 &&
             !link.Definition.Object.Properties.HasFlag(ObjectProperties.Wind) && link.Animation is not SpriteAnimation.Fight and < SpriteAnimation.Death))
@@ -630,7 +548,7 @@ public sealed class Sprite : IResettable
         if (_direction == shown)
             return;
 
-        var link = _link;
+        var link = Link;
 
         if (link is not null)
         {
@@ -670,7 +588,7 @@ public sealed class Sprite : IResettable
     [EngineRoutine(0x00442e50)]
     private void LinkRotate(Angle direction)
     {
-        var origin = _linkerBase ?? _owner;
+        var origin = LinkerBase ?? Owner;
 
         if (origin is null)
             return;
@@ -992,6 +910,4 @@ public sealed class Sprite : IResettable
             yield return link;
         }
     }
-
-    bool IResettable.TryReset() => !IsReferenced;
 }

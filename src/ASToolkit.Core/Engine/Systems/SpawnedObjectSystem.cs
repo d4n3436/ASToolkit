@@ -1,5 +1,4 @@
 using System.Numerics;
-using Microsoft.Extensions.ObjectPool;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 
@@ -11,7 +10,6 @@ internal sealed class SpawnedObjectSystem
     private const int MaxSteeringTurn = 100;
     private const int RocketTurnLimit = 0x47;
     private const int FallTurn = 0x20;
-    private const int MaxPooledSprites = 4096;
     private const float ExitMarginX = 220;
     private const float ExitMarginY = 200;
     private const float RocketClimbRate = 0.1f;
@@ -26,8 +24,7 @@ internal sealed class SpawnedObjectSystem
 
     private readonly List<Sprite> _active = [];
     private readonly HashSet<Sprite> _orphans = [];
-    private readonly List<Sprite> _leaving = [];
-    private readonly DefaultObjectPool<Sprite> _pool = new(new DefaultPooledObjectPolicy<Sprite>(), MaxPooledSprites);
+    private bool _hasLeaving;
     private readonly SpriteCatalog _definitions;
     private readonly MovementMap _movement;
     private readonly Random _random;
@@ -69,8 +66,7 @@ internal sealed class SpawnedObjectSystem
 
     public void Play(SpriteDefinition definition, SpriteAnimation animation, Vector3 position, Angle direction, int time)
     {
-        var sprite = _pool.Get();
-        sprite.Initialize(-1, definition, position, 0, definition.MaxHp, direction);
+        var sprite = new Sprite(-1, definition, position, 0, definition.MaxHp, direction);
         sprite.CreatedAt = time;
         sprite.LastTickTime = time;
         sprite.ChangeAnimation(animation);
@@ -112,7 +108,6 @@ internal sealed class SpawnedObjectSystem
             if (child is not null && IsSettled(child))
             {
                 _map.DeleteSprite(child);
-                _pool.Return(child);
             }
         }
     }
@@ -143,8 +138,7 @@ internal sealed class SpawnedObjectSystem
             return null;
         }
 
-        var sprite = _pool.Get();
-        sprite.Initialize(-1, definition, position, parent?.Army ?? _definitions.GetArmy(definition), definition.MaxHp);
+        var sprite = new Sprite(-1, definition, position, parent?.Army ?? _definitions.GetArmy(definition), definition.MaxHp);
         sprite.CreatedAt = time;
         sprite.Depth = depth;
         sprite.Owner = owner;
@@ -285,17 +279,11 @@ internal sealed class SpawnedObjectSystem
 
     public void Compact()
     {
-        if (_leaving.Count == 0)
+        if (!_hasLeaving)
             return;
 
         _active.RemoveAll(sprite => sprite.LeavesEffects);
-        foreach (var sprite in _leaving)
-        {
-            sprite.LeavesEffects = false;
-            _pool.Return(sprite);
-        }
-
-        _leaving.Clear();
+        _hasLeaving = false;
     }
 
     public bool Tick(Sprite sprite)
@@ -319,7 +307,7 @@ internal sealed class SpawnedObjectSystem
     public void Leave(Sprite sprite)
     {
         sprite.LeavesEffects = true;
-        _leaving.Add(sprite);
+        _hasLeaving = true;
     }
 
     private bool Update(Sprite sprite)

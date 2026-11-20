@@ -129,7 +129,8 @@ public class ExecFuncTests
         Assert.Contains(monster, map.Monsters);
         Assert.Equal(56, Read(script, "vid"));
         Assert.Equal(0, Read(script, "nothing"));
-        Assert.Equal(0, Read(script, "marker"));
+        Assert.NotEqual(0, Read(script, "marker"));
+        Assert.Null(map.FindSprite(Read(script, "marker")));
         Assert.Equal(0, Read(script, "gone"));
     }
 
