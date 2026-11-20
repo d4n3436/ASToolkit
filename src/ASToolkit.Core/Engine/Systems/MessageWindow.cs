@@ -8,6 +8,7 @@ internal sealed class MessageWindow
     private const float ScreenDepth = 2000;
     private const float MarkerIndent = 10;
     private const int MessageSound = 0x6a;
+
     private static readonly Vector2 NoTarget = new(-999999f);
     private static readonly Vector2 Unset = new(-1);
     private readonly Map _map;
@@ -37,9 +38,13 @@ internal sealed class MessageWindow
         _targets = new Vector2[count + 1];
     }
 
-    private SpriteDefinition FindDefinition(int id) => _map.Definitions.Find((KnownObject)id) ?? _map.Definitions.Empty;
-
-    private int GetLineHeight() => FindDefinition(_lineId).FrameHeight + 1;
+    public void Clear()
+    {
+        Array.Clear(_lines);
+        Array.Clear(_markers);
+        Array.Clear(_targets);
+        _shownAt = 0;
+    }
 
     [EngineRoutine(0x0042e4a0)]
     public void Put(ReadOnlyMemory<byte> text, Vector2 target)
@@ -78,6 +83,37 @@ internal sealed class MessageWindow
 
         _map.Sound.Play(MessageSound, 0, SoundSystem.FullLoudness);
     }
+
+    [EngineRoutine(0x0042e2c0)]
+    public void Tact()
+    {
+        int lineHeight = GetLineHeight();
+
+        if ((uint)(_map.Time - _shownAt) > (uint)_idleTime)
+        {
+            Shift();
+            _shownAt = _map.Time;
+        }
+
+        var clicked = _map.MenuLeftClick;
+
+        if (clicked is null || (int)clicked.Definition.Id != _markerId)
+            return;
+
+        int index = (int)((double)clicked.Position.Y - clicked.Position.Z - _map.Camera.Y - _map.Session.View.Top) / lineHeight + 1;
+
+        if (index < 0 || index > _count)
+            return;
+
+        if (_targets[index] != NoTarget)
+        {
+            _map.SetPosition(_targets[index], CameraMove.Smooth);
+        }
+    }
+
+    private SpriteDefinition FindDefinition(int id) => _map.Definitions.Find((KnownObject)id) ?? _map.Definitions.Empty;
+
+    private int GetLineHeight() => FindDefinition(_lineId).FrameHeight + 1;
 
     [EngineRoutine(0x0042e6a0)]
     private void Shift()
@@ -124,32 +160,4 @@ internal sealed class MessageWindow
 
     private void MoveOneLine(Sprite sprite, int lineHeight) =>
         sprite.ChangeCoor(sprite.Position with { Y = _step * lineHeight + sprite.Position.Y });
-
-    // Leaves out the delayed message queue (+0x2f8, +0x300), which no routine of the game fills
-    [EngineRoutine(0x0042e2c0)]
-    public void Tact()
-    {
-        int lineHeight = GetLineHeight();
-
-        if ((uint)(_map.Time - _shownAt) > (uint)_idleTime)
-        {
-            Shift();
-            _shownAt = _map.Time;
-        }
-
-        var clicked = _map.MenuLeftClick;
-
-        if (clicked is null || (int)clicked.Definition.Id != _markerId)
-            return;
-
-        int index = (int)((double)clicked.Position.Y - clicked.Position.Z - _map.Camera.Y - _map.Session.View.Top) / lineHeight + 1;
-
-        if (index < 0 || index > _count)
-            return;
-
-        if (_targets[index] != NoTarget)
-        {
-            _map.SetPosition(_targets[index], CameraMove.Smooth);
-        }
-    }
 }

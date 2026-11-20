@@ -6,22 +6,22 @@ namespace ASToolkit.Core.Engine;
 
 internal sealed class WeaponSystem
 {
+    public const float MinBlastHeight = 20;
     private const int AimAttempts = 5;
     private const float ScatterScale = 6.1037019E-05f;
-    public const float MinBlastHeight = 20;
     private const float AimRise = 70;
     private const float AimRiseCap = 50;
     private const float UnitAimLift = 80;
     private const float GroundAimLift = 19;
     private const int LegSlack = 63;
-    private static readonly Vector2 ViewHalf = new(640, 360);
+    private const int WeaponIdLimit = 21;
+
     private readonly Map _map;
     private readonly SpriteCatalog _definitions;
     private readonly Random _rng;
     private readonly SpriteCollector _collector;
-    private const int WeaponIdLimit = 21;
-    private bool _turnsLegs;
     private readonly DepthProbe _depth;
+    private bool _isTurningLegs;
 
     public WeaponSystem(Map map, SpriteCatalog definitions, Random random)
     {
@@ -29,11 +29,11 @@ internal sealed class WeaponSystem
         _definitions = definitions;
         _rng = random;
         _collector = map.Collector;
-        Collision = new ProjectileCollision(map.Movement, _collector);
+        Collision = new ProjectileCollision(map);
         _depth = new DepthProbe(map);
     }
 
-    public Sprite? Torso { get; set; }
+    public Sprite? Torso => _map.GetFlagman(0)?.Link;
 
     public ProjectileCollision Collision { get; }
 
@@ -41,11 +41,11 @@ internal sealed class WeaponSystem
     public Vector3 GetCursorPoint(Sprite man, Vector2 cursor, SpriteDefinition weapon)
     {
         var player = man.Position;
-        var pixel = cursor - (player.ToDrawPosition() - ViewHalf);
+        var pixel = cursor - _map.Camera;
         float y = cursor.Y;
         float height;
 
-        if (pixel.X >= 0 && pixel.X < ViewHalf.X * 2 && pixel.Y >= 0 && pixel.Y < ViewHalf.Y * 2)
+        if (pixel.X >= _map.Session.View.Left && pixel.X < _map.Session.View.Right && pixel.Y >= _map.Session.View.Top && pixel.Y < _map.Session.View.Bottom)
         {
             height = _depth.MeasureHeight(new Point((int)cursor.X, (int)cursor.Y));
 
@@ -98,80 +98,17 @@ internal sealed class WeaponSystem
 
         if (man is { Speed: 0, Definition.Id: KnownObject.PlayerStart })
         {
-            if (!_turnsLegs)
+            if (!_isTurningLegs)
             {
-                _turnsLegs = man.Direction.MeasureTurnTo(torso.Direction) > LegSlack;
+                _isTurningLegs = man.Direction.MeasureTurnTo(torso.Direction) > LegSlack;
             }
             else
             {
-                _turnsLegs = man.RotateTact(torso.Direction, elapsed) != default;
+                _isTurningLegs = man.RotateTact(torso.Direction, elapsed) != default;
             }
         }
 
         torso.RotateTact(direction, elapsed);
-    }
-
-    public void FireFrom(Sprite sprite)
-    {
-        var goal = sprite.Goal;
-
-        if (goal is not null)
-        {
-            Fire(sprite == Torso ? sprite.Owner! : sprite, sprite, sprite.Definition, goal.Position, goal, 0, sprite.Position, sprite.Direction);
-        }
-    }
-
-
-    private void Fire(Sprite shooter, Sprite emitter, SpriteDefinition creator, Vector3 aim, Sprite target, int depth, Vector3? origin = null, Angle? direction = null)
-    {
-        var child = _definitions.Find((KnownObject)Math.Abs(creator.Children[(int)SpriteAnimation.Fight]));
-
-        if (child is null || depth >= SpriteCatalog.MaxLaunchDepth)
-        {
-            return;
-        }
-
-        bool scatters = !creator.WeaponFlags.HasFlag(WeaponFlags.NoSpread) || target.Definition == _definitions.Empty;
-        float spread = creator.Aim;
-        var from = origin ?? shooter.Position;
-        bool secondPulse = shooter.TakeChildPulse(SpriteAnimation.Fight, creator);
-        bool relays = child.Damage <= 0 && child.FightChild != 0;
-        foreach (var spawn in ChildEmission.GetChildren(creator, child, SpriteAnimation.Fight, from, direction ?? shooter.Direction, _rng, secondPulse))
-        {
-            var sprite = relays ? _map.Effects.Spawn(child.Id, spawn.Position, spawn.Direction, _map.Time) : _map.Effects.Launch(child, spawn.Position, spawn.Direction, shooter, _map.Time);
-
-            if (sprite is null)
-                continue;
-
-            if (child.Object.SpriteClass == SpriteClass.Linker)
-            {
-                SpawnedObjectSystem.ConstructLinker(sprite, emitter, spawn.Position, spawn.Direction);
-            }
-
-            var goal = target;
-
-            if (scatters)
-            {
-                var point = aim;
-                for (int attempt = 0; attempt < AimAttempts; attempt++)
-                {
-                    point = Scatter(aim, spawn.Lateral, spread);
-
-                    if (_map.Movement.GetHeight(point.AsVector2()) < aim.Z && _map.Movement.GetHeight((aim.AsVector2() + point.AsVector2()) * 0.5f) < aim.Z)
-                        break;
-                }
-
-                goal = _map.ConstructGoal(point);
-            }
-
-            if (relays)
-            {
-                Fire(shooter, sprite, child, goal.Position, goal, depth + 1, spawn.Position, spawn.Direction);
-                continue;
-            }
-
-            _map.Effects.Aim(sprite, goal);
-        }
     }
 
     public void ApplyBlast(Sprite blast)
@@ -185,12 +122,12 @@ internal sealed class WeaponSystem
         var point = impact.AsVector2();
         var reach = payload.Half + new Vector2(payload.BlastRadius);
         float heightReach = Math.Max(MinBlastHeight, payload.Object.Size.Z);
-        bool scales = payload.IsExplosive && !payload.BlastRadius.IsZero();
+        bool scales = payload.IsExplosive && !payload.BlastRadius.IsExactlyZero();
         int damage = payload.Damage;
         
         for (var sprite = _collector.First(point - reach, point + reach); sprite is not null; sprite = _collector.NextHashInBox())
         {
-            if (sprite == blast || sprite.Definition.MaxHp == 0 || payload.SkipsOwnArmy && sprite.Army == blast.Army)
+            if (sprite == blast || sprite.Definition.MaxHp == 0 || payload.ShouldSkipOwnArmy && sprite.Army == blast.Army)
                 continue;
 
             var victim = sprite.Position;
@@ -213,12 +150,6 @@ internal sealed class WeaponSystem
         }
     }
 
-    private Vector3 Scatter(Vector3 goal, Vector2 lateral, float spread)
-    {
-        var point = new Vector2(spread) + goal.AsVector2() + lateral - new Vector2(_rng.Next(), _rng.Next()) * spread * ScatterScale;
-
-        return new Vector3(point, goal.Z);
-    }
 
 
 }

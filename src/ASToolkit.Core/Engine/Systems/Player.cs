@@ -12,20 +12,19 @@ internal sealed class Player
     private const int NoMarkerId = -1;
     private const int MessageLines = 5;
     private const int MessageLifetime = 5000;
+
     private static readonly Vector2 MessageOrigin = new(398, 388);
     private static readonly Angle HeadingUpRight = new(0x20 + 8);
     private static readonly Angle HeadingUpLeft = new(0xE0 - 8);
     private static readonly Angle HeadingDownRight = new(0x60 - 8);
     private static readonly Angle HeadingDownLeft = new(0xA0 + 8);
     private readonly Map _map;
-    private readonly SpriteCollision _collision;
     private readonly ControlSettings _settings;
 
     [EngineRoutine(0x00413060)]
-    public Player(Map map, SpriteCollision collision, ControlSettings settings)
+    public Player(Map map, ControlSettings settings)
     {
         _map = map;
-        _collision = collision;
         _settings = settings;
         Money = StartMoney;
         Messages = new MessageWindow(map, MessageLineId, NoMarkerId, MessageOrigin, MessageLines, MessageLifetime);
@@ -33,9 +32,31 @@ internal sealed class Player
 
     public Sprite? Sprite { get; private set; }
 
+    public Sprite? Hovered { get; set; }
+
     public MessageWindow Messages { get; }
 
+    [EngineRoutine(0x0043a8b0)]
     public int Money { get; set; }
+
+    [EngineRoutine(0x00413360)]
+    public void Reset()
+    {
+        if (Sprite is not null)
+        {
+            _map.Release(Sprite);
+        }
+
+        Sprite = null;
+
+        if (Hovered is not null)
+        {
+            _map.Release(Hovered);
+        }
+
+        Hovered = null;
+        Money = StartMoney;
+    }
 
     [EngineRoutine(0x00413140)]
     public void SetFlagman(Sprite? sprite)
@@ -66,16 +87,6 @@ internal sealed class Player
     [EngineRoutine(0x0043e9f0)]
     public void Forget(Sprite removed) => ForgetSprite(removed);
 
-    [EngineRoutine(0x00413280)]
-    private void ForgetSprite(Sprite removed)
-    {
-        if (Sprite == removed)
-        {
-            _map.Release(removed);
-            Sprite = null;
-        }
-    }
-
     [EngineRoutine(0x0043ea10)]
     public void Control(PlayerInput input)
     {
@@ -88,7 +99,6 @@ internal sealed class Player
             return;
 
         var weapons = _map.Weapons;
-        int elapsed = _map.FrameTime;
 
         if (player.Definition.Object.SpriteClass != SpriteClass.Man)
             return;
@@ -128,7 +138,7 @@ internal sealed class Player
         var cursorDirection = GetCursorDirection(player, input.Cursor);
         var origin = _settings.IsMovementRelativeToCursor ? cursorDirection : default;
 
-        if (!Steer(player, flags, origin, elapsed) && player.Command != Command.Move)
+        if (!Steer(player, flags, origin, _map.FrameTime) && player.Command != Command.Move)
         {
             SpriteKinematics.Stop(player);
         }
@@ -140,16 +150,40 @@ internal sealed class Player
 
         if (player.Link is not null && player.Link.Definition == player.Definition.LinkDefinition)
         {
-            weapons.TrackCursor(player, cursorDirection, elapsed);
+            weapons.TrackCursor(player, cursorDirection, _map.FrameTime);
+        }
+
+        if (Hovered is not null && Hovered.Definition.Object.SpriteType.HasFlag(SpriteType.Terrain))
+        {
+            _map.Release(Hovered);
+            Hovered = null;
+        }
+    }
+
+    private static Angle GetCursorDirection(Sprite player, Vector2 cursor) =>
+        Angle.Aim(new Vector2(cursor.X - player.Position.X, player.Position.Z + cursor.Y - player.Position.Y));
+
+    [EngineRoutine(0x00413280)]
+    private void ForgetSprite(Sprite removed)
+    {
+        if (Sprite == removed)
+        {
+            _map.Release(removed);
+            Sprite = null;
+        }
+
+        if (Hovered == removed)
+        {
+            _map.Release(removed);
+            Hovered = null;
         }
     }
 
     private void PropagateGroupCommands()
     {
-        var groups = _map.Groups;
-        for (int i = groups.Count - 1; i >= 0; i--)
+        for (int i = _map.Groups.Count - 1; i >= 0; i--)
         {
-            var members = groups[i].Members;
+            var members = _map.Groups[i].Members;
             Sprite? target = null;
             var command = Command.None;
             bool hasIdle = false;
@@ -182,7 +216,6 @@ internal sealed class Player
 
     private void StepWeapon(Sprite player, PlayerInput input)
     {
-        var weapons = _map.Weapons;
         int slot = player.WeaponSlot;
         int notches = input.Wheel;
 
@@ -204,7 +237,7 @@ internal sealed class Player
             {
                 slot++;
 
-                if (weapons.ChangeWeapon(player, slot))
+                if (_map.Weapons.ChangeWeapon(player, slot))
                     break;
             }
         }
@@ -215,7 +248,7 @@ internal sealed class Player
             {
                 slot--;
 
-                if (weapons.ChangeWeapon(player, slot))
+                if (_map.Weapons.ChangeWeapon(player, slot))
                     break;
             }
         }
@@ -275,14 +308,11 @@ internal sealed class Player
 
         if (slides)
         {
-            goal = _collision.RotateForGlide(goal, player);
+            goal = _map.Collision.RotateForGlide(goal, player);
         }
 
         player.RotateTact(goal, elapsed);
 
         return true;
     }
-
-    private static Angle GetCursorDirection(Sprite player, Vector2 cursor) =>
-        Angle.Aim(new Vector2(cursor.X - player.Position.X, player.Position.Z + cursor.Y - player.Position.Y));
 }

@@ -36,7 +36,7 @@ internal sealed class PlayerMovement
         if (goal is null || man.Command != Command.Move)
             return;
 
-        var direction = Angle.FromOffset(goal.Position.AsVector2() - man.Position.AsVector2()) + (man.Speed < 0 ? Angle.HalfTurn : 0);
+        var direction = man.MeasureDirectionTo(goal) + (man.Speed < 0 ? Angle.HalfTurn : 0);
         man.RotateTact(_movement.RotateForGlide(direction, man), elapsed);
 
         if (man is { HasReachedX: true, HasReachedY: true } || IsTouching(man, goal.Position.AsVector2(), goal.Definition.Half))

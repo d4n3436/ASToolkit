@@ -11,13 +11,13 @@ internal sealed class SpriteKinematics
     private readonly SpriteCatalog _definitions;
     private readonly Map _map;
 
-    private static ReadOnlySpan<byte> SpriteLogTag => "SPRITE %i"u8;
-
     public SpriteKinematics(SpriteCatalog definitions, Map map)
     {
         _definitions = definitions;
         _map = map;
     }
+
+    private static ReadOnlySpan<byte> SpriteLogTag => "SPRITE %i"u8;
 
     [EngineRoutine(0x004446c0)]
     public static bool SetCommand(Sprite sprite, Command command, Sprite? target = null)
@@ -69,16 +69,86 @@ internal sealed class SpriteKinematics
         return false;
     }
 
+    public static float Accelerate(SpriteDefinition definition, float speed, float maxSpeed, bool moving, int elapsed)
+    {
+        ref readonly var gameObject = ref definition.Object;
+
+        if (!moving)
+        {
+            if (speed <= 0)
+                return speed;
+
+            if (gameObject.Deceleration.IsExactly(SpriteDefinition.Unlimited))
+                return 0;
+
+            float slowed = speed - elapsed * definition.Deceleration;
+
+            return slowed < 0 ? 0 : slowed;
+        }
+
+        if (speed >= maxSpeed)
+            return speed;
+
+        if (gameObject.Acceleration.IsExactly(SpriteDefinition.Unlimited))
+            return maxSpeed;
+
+        float faster = elapsed * definition.Acceleration + speed;
+
+        return faster < maxSpeed ? faster : maxSpeed;
+    }
+
+    public static Vector3 Displace(Vector3 position, Angle direction, float speed, int elapsed)
+    {
+        float distance = elapsed * speed;
+        return position with
+        {
+            X = direction.Vector.X * distance + position.X,
+            Y = direction.Vector.Y * distance + position.Y
+        };
+    }
+
+    [EngineRoutine(0x004445d0)]
+    public static void Stop(Sprite sprite)
+    {
+        if (sprite.Command is Command.None or Command.Move)
+        {
+            SetCommandWithoutLink(sprite, Command.None);
+        }
+
+        sprite.ClearMove();
+        sprite.VerticalSpeed = 0;
+
+        if (sprite.Definition.Object.Deceleration.IsExactly(SpriteDefinition.Unlimited))
+        {
+            sprite.Speed = 0;
+        }
+    }
+
     public void DeletePointerToSprite(Sprite sprite, Sprite removed)
     {
         if (sprite.Definition.Object.SpriteClass == SpriteClass.Cannon)
         {
             ForgetCannonGoal(sprite, removed);
         }
+        else if (sprite.Definition.Object.SpriteClass == SpriteClass.Creature)
+        {
+            ForgetCreatureRegion(sprite, removed);
+        }
         else
         {
             ForgetObject(sprite, removed);
         }
+    }
+
+    [EngineRoutine(0x0044d460)]
+    public void ForgetCreatureRegion(Sprite creature, Sprite removed)
+    {
+        if (creature.Region == removed)
+        {
+            creature.Region = null;
+        }
+
+        ForgetObject(creature, removed);
     }
 
     [EngineRoutine(0x0043f720)]
@@ -106,7 +176,7 @@ internal sealed class SpriteKinematics
         {
             var order = orders[i];
 
-            if (order.Target == removed && Act.NamesSprite(order.Code))
+            if (order.Target == removed && Act.HasSpriteTarget((ActionCode)order.Value))
             {
                 orders.Replace(i, order with { Value = Act.ForgottenOrder, Var1 = 0, Target = null });
             }
@@ -146,26 +216,26 @@ internal sealed class SpriteKinematics
     [EngineRoutine(0x004443f0)]
     public bool StartMove(Sprite sprite)
     {
-        if (sprite.MaxSpeed.IsZero())
+        if (sprite.MaxSpeed.IsExactlyZero())
             return false;
 
-        ref readonly var obj = ref sprite.Definition.Object;
+        ref readonly var gameObject = ref sprite.Definition.Object;
 
         if (sprite.HasGoal)
         {
             var offset = sprite.GoalPosition - sprite.Position;
 
-            if (offset is { X: 0, Y: 0 })
+            if (offset.X.IsExactlyZero() && offset.Y.IsExactlyZero())
                 return false;
 
             int distance = 0;
 
-            if (sprite.Definition.Layout.Directions == 1 || obj.Properties.HasFlag(ObjectProperties.RandomBirth))
+            if (sprite.Definition.Layout.Directions == 1 || gameObject.Properties.HasFlag(ObjectProperties.RandomBirth))
             {
                 sprite.ChangeDirection(Angle.Aim(offset.AsVector2(), out distance));
             }
 
-            if (!obj.SpriteType.HasFlag(SpriteType.Cannon) && obj.SpriteClass != SpriteClass.Cannon)
+            if (!gameObject.SpriteType.HasFlag(SpriteType.Cannon) && gameObject.SpriteClass != SpriteClass.Cannon)
             {
                 sprite.VerticalSpeed = offset.Z > 0 ? sprite.Definition.ZSpeed : offset.Z < 0 ? -sprite.Definition.ZSpeed : 0;
             }
@@ -189,10 +259,10 @@ internal sealed class SpriteKinematics
 
         if (sprite.Animation < SpriteAnimation.Death && sprite.Animation != SpriteAnimation.StartMove)
         {
-            sprite.ChangeAnimation(sprite.Speed.IsZero() ? SpriteAnimation.StartMove : SpriteAnimation.Go);
+            sprite.ChangeAnimation(sprite.Speed.IsExactlyZero() ? SpriteAnimation.StartMove : SpriteAnimation.Go);
         }
 
-        if (obj.Acceleration.IsNear(SpriteDefinition.Unlimited))
+        if (gameObject.Acceleration.IsExactly(SpriteDefinition.Unlimited))
         {
             sprite.Speed = sprite.MaxSpeed;
         }
@@ -203,7 +273,7 @@ internal sealed class SpriteKinematics
     [EngineRoutine(0x0043fb10)]
     public Vector3 CalculateNewCoordinates(Sprite sprite, int elapsed)
     {
-        ref readonly var obj = ref sprite.Definition.Object;
+        ref readonly var gameObject = ref sprite.Definition.Object;
         var next = sprite.Position;
         sprite.IsBlocked = false;
 
@@ -237,18 +307,18 @@ internal sealed class SpriteKinematics
             sprite.HasReachedX = true;
             sprite.HasReachedY = true;
         }
-        else if (!sprite.Speed.IsZero())
+        else if (!sprite.Speed.IsExactlyZero())
         {
-            var direction = obj.Properties.HasFlag(ObjectProperties.Homing) && sprite.HasGoal
+            var direction = gameObject.Properties.HasFlag(ObjectProperties.Homing) && sprite.HasGoal
                 ? Angle.FromOffset((sprite.GoalPosition - sprite.Position).AsVector2()) : sprite.Direction;
             next = Displace(next, direction, sprite.Speed, elapsed);
         }
 
-        if (obj.Properties.HasFlag(ObjectProperties.Gravity))
+        if (gameObject.Properties.HasFlag(ObjectProperties.Gravity))
         {
             sprite.VerticalSpeed -= elapsed * _definitions.Gravitation;
         }
-        else if (obj.Properties.HasFlag(ObjectProperties.Gravity2))
+        else if (gameObject.Properties.HasFlag(ObjectProperties.Gravity2))
         {
             sprite.VerticalSpeed -= elapsed * _definitions.Gravitation2;
         }
@@ -261,62 +331,5 @@ internal sealed class SpriteKinematics
         }
 
         return next;
-    }
-
-    public static float Accelerate(SpriteDefinition definition, float speed, float maxSpeed, bool moving, int elapsed)
-    {
-        ref readonly var obj = ref definition.Object;
-
-        if (!moving)
-        {
-            if (speed <= 0)
-                return speed;
-
-            if (obj.Deceleration.IsNear(SpriteDefinition.Unlimited))
-                return 0;
-
-            float slowed = speed - elapsed * definition.Deceleration;
-
-            return slowed < 0 ? 0 : slowed;
-        }
-
-        if (speed >= maxSpeed)
-            return speed;
-
-        if (obj.Acceleration.IsNear(SpriteDefinition.Unlimited))
-            return maxSpeed;
-
-        float faster = elapsed * definition.Acceleration + speed;
-
-        return faster < maxSpeed ? faster : maxSpeed;
-    }
-
-    public static Vector3 Displace(Vector3 position, Angle direction, float speed, int elapsed)
-    {
-        float distance = elapsed * speed;
-        var vector = direction.Vector;
-
-        return position with
-        {
-            X = vector.X * distance + position.X,
-            Y = vector.Y * distance + position.Y
-        };
-    }
-
-    [EngineRoutine(0x004445d0)]
-    public static void Stop(Sprite sprite)
-    {
-        if (sprite.Command is Command.None or Command.Move)
-        {
-            SetCommandWithoutLink(sprite, Command.None);
-        }
-
-        sprite.ClearMove();
-        sprite.VerticalSpeed = 0;
-
-        if (sprite.Definition.Object.Deceleration.IsNear(SpriteDefinition.Unlimited))
-        {
-            sprite.Speed = 0;
-        }
     }
 }
