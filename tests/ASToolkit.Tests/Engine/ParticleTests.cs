@@ -21,7 +21,7 @@ public class ParticleTests
         effects.Spawn(flying, new Vector3(100, 200, 22), new Angle(64), map.Time);
         while (map.Time <= 3500)
         {
-            map.Step(default);
+            map.Play(default);
         }
 
         Assert.DoesNotContain(effects.Active, particle => particle.Definition.Id == flying);

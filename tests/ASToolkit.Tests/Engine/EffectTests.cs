@@ -17,7 +17,7 @@ public class EffectTests
         var map = EngineTestMap.CreateMap(definitions, blood: blood);
         var effects = map.Effects;
         var scenery = map.Effects.Settled;
-        map.Step(default);
+        map.Play(default);
         int start = map.Time;
         effects.Emit(definitions.Find(KnownObject.Monster1)!, SpriteAnimation.Close, new Vector3(100, 100, 0), new Angle(64), start);
 
@@ -26,7 +26,7 @@ public class EffectTests
         Assert.Empty(scenery);
         while (map.Time <= 2000)
         {
-            map.Step(default);
+            map.Play(default);
         }
         Assert.Empty(effects.Active);
         Assert.Equal(stains, scenery.Count);
@@ -41,14 +41,14 @@ public class EffectTests
         var map = EngineTestMap.CreateMap(definitions);
         var effects = map.Effects;
         var scenery = map.Effects.Settled;
-        map.Step(default);
+        map.Play(default);
         effects.Emit(definitions.Find(KnownObject.Monster1)!, SpriteAnimation.Death, new Vector3(100, 100, 0), default, map.Time);
 
         Assert.Contains(effects.Active, effect => effect.Definition.Id == KnownObject.Monster1Death);
         Assert.Contains(effects.Active, effect => effect.Definition.Id == KnownObject.LargeBloodPool);
         while (map.Time <= 2000)
         {
-            map.Step(default);
+            map.Play(default);
         }
 
         var ids = scenery.Select(effect => effect.Id).ToList();
@@ -72,7 +72,7 @@ public class EffectTests
         int duration = definitions.Find(KnownObject.WeaponMonsterDeath)!.GetAnimationDuration(SpriteAnimation.Death);
         while (map.Time <= duration + GameClock.DefaultFrameTime)
         {
-            map.Step(default);
+            map.Play(default);
         }
         Assert.Equal(KnownObject.Monster2, Assert.Single(map.Monsters).Definition.Id);
     }

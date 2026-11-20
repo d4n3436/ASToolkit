@@ -115,7 +115,6 @@ internal sealed class PlayerBot
     private bool _evadingBlast;
     private readonly List<Sprite> _incoming = [];
     private int _floodCell = -1;
-    private readonly List<TerrainChange> _terrainChanges = [];
     private readonly List<(int Slot, Vector2 Position)> _caches = [];
     private Sprite _player;
     private bool _lastDoorsLocked;
@@ -131,7 +130,7 @@ internal sealed class PlayerBot
         _pickups = new PickupTracker(map);
         _analysis = analysis;
         _field = field;
-        _gunnery = new Gunnery(map, field.Obstacles);
+        _gunnery = new Gunnery(map, field);
         _aimCursor = PlayerCommand.GetCursor(map.Player.Position);
         _input = new InputDriver(map);
         _lastDoorsLocked = map.AreDoorsLocked;
@@ -216,15 +215,9 @@ internal sealed class PlayerBot
             _progressTime = _map.Time;
         }
 
-        _field.Obstacles.Synchronize(_map, _terrainChanges);
+        bool terrainChanged = _field.Synchronize(_map);
         bool gatesChanged = _lastDoorsLocked != _map.AreDoorsLocked || _lastFencesUp != _map.AreFencesUp;
-        bool changed = gatesChanged || _terrainChanges.Count > 0;
-        foreach (var change in _terrainChanges)
-        {
-            _field.RefreshMovement(change.Position, change.HalfSize);
-        }
-
-        _terrainChanges.Clear();
+        bool changed = gatesChanged || terrainChanged;
 
         if (!changed)
             return;
@@ -234,7 +227,7 @@ internal sealed class PlayerBot
 
         _lastDoorsLocked = _map.AreDoorsLocked;
         _lastFencesUp = _map.AreFencesUp;
-        _field.SetGates(_lastDoorsLocked, _lastFencesUp);
+        _field.SetDoorsLocked(_lastDoorsLocked);
         _path.Clear();
         _floodCell = -1;
         _offTour = true;
@@ -291,8 +284,7 @@ internal sealed class PlayerBot
 
         var player = _map.Player;
         Vector2? goal = player is { Command: Command.Move, HasGoal: true } ? player.GoalPosition.AsVector2() : null;
-        _map.StepDemo(_map.WallTime, out _);
-        _map.Step();
+        _map.Step(_map.StepDemo(_map.WallTime, out _));
 
         if (goal is not null && player.Command != Command.Move)
         {
@@ -973,7 +965,7 @@ internal sealed class PlayerBot
         var offset = center - _map.Player.Position.AsVector2();
         float reach = _map.Player.Definition.Object.Size.X * 2;
 
-        return offset.LengthSquared() <= reach * reach && _field.Obstacles.CanMove(_map.Player.Definition.Object, _map.Player.Position, center)
+        return offset.LengthSquared() <= reach * reach && _field.CanMove(_map.Player.Definition.Object, _map.Player.Position, center)
             ? Vector2.Dot(offset, _map.Player.Direction.Vector) : float.MinValue;
     }
 
@@ -988,7 +980,7 @@ internal sealed class PlayerBot
     {
         for (float distance = SideStepGrain; distance <= SideStepClearance; distance += SideStepGrain)
         {
-            if (!_field.Obstacles.CanStand(_map.Player.Definition.Object, start + (step * distance).AsVector3()))
+            if (!_field.CanStand(_map.Player.Definition.Object, start + (step * distance).AsVector3()))
                 return false;
         }
 
@@ -996,7 +988,7 @@ internal sealed class PlayerBot
     }
 
     private bool MovesClear(Vector3 start, Vector2 step, float length) =>
-        _field.Obstacles.CanMove(_map.Player.Definition.Object, start, start.AsVector2() + step * length);
+        _field.CanMove(_map.Player.Definition.Object, start, start.AsVector2() + step * length);
 
     private void FindChainedExplosives() =>
         CollectChain(_map.Player.Position.AsVector2(), _map.Player.Definition.Half + new Vector2(BlastMargin), _chained);
@@ -1034,7 +1026,7 @@ internal sealed class PlayerBot
     }
 
     private bool CanReach(Sprite monster) =>
-        monster.Definition.BattleRange > BackOffReach ? !_field.Obstacles.CrossesClosedGate(monster.Position.AsVector2(), _map.Player.Position.AsVector2()) :
+        monster.Definition.BattleRange > BackOffReach ? !_field.CrossesClosedGate(monster.Position.AsVector2(), _map.Player.Position.AsVector2()) :
             _field.CanMove(monster.Position, _map.Player.Position.AsVector2());
 
     private static bool ReachesAny(List<Sprite> bodies, Vector2 point, Vector2 half)

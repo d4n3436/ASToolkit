@@ -53,12 +53,12 @@ public class CampaignTests
         int frames = 0;
         while (true)
         {
-            replay.StepDemo(now, out now);
+            bool drawFrame = replay.StepDemo(now, out now);
 
             if (!replay.IsPlayingDemo)
                 break;
 
-            replay.Step();
+            replay.Step(drawFrame);
             frames++;
 
             if (replay.TryGetNextDemoTime(out int next))

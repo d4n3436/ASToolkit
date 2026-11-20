@@ -21,11 +21,6 @@ public sealed class LevelScriptSummary
     public TriggerArea? Blackout { get; init; }
 
     /// <summary>
-    /// Gets the color the blackout trigger darkens the scene by, or null.
-    /// </summary>
-    public uint? BlackoutGamma { get; init; }
-
-    /// <summary>
     /// Gets the triggers that move the respawn point.
     /// </summary>
     public IReadOnlyList<TriggerArea> Checkpoints { get; init; } = [];

@@ -55,20 +55,11 @@ public class PlaythroughTests
         Assert.NotEmpty(first.Pickups);
         Assert.Equal(first.Pickups, second.Pickups);
 
-        var moved = new HashSet<MergedMapSprite>(ReferenceEqualityComparer.Instance);
         var replay = playthrough.LoadReplay(level.Analysis, loadout, first.Demo.Value);
-        var placed = new Dictionary<MergedMapSprite, Vector3>(ReferenceEqualityComparer.Instance);
-        foreach (var placement in replay.Sprites)
-        {
-            var sprite = replay.FindPlacementSprite(placement);
-
-            if (sprite is not null)
-            {
-                placed[placement] = sprite.Position;
-            }
-        }
-
+        var field = new WalkField(level.Analysis.Grid, true, replay.Movement, replay.Collector, replay.Player.Definition.Object);
         var effects = new HashSet<KnownObject>();
+        var previous = new Dictionary<Sprite, Vector3>();
+        int checkedAt = -1;
         foreach (var map in PlayDemo(replay))
         {
             foreach (var effect in map.Effects.Active)
@@ -76,15 +67,23 @@ public class PlaythroughTests
                 effects.Add(effect.Definition.Id);
             }
 
-            foreach (var placement in placed.Keys.ToArray())
-            {
-                var sprite = map.FindPlacementSprite(placement);
+            int time = map.Time;
 
-                if (sprite is not null && !map.IsRemoved(placement) && sprite.Position != placed[placement])
-                {
-                    moved.Add(placement);
-                    placed[placement] = sprite.Position;
-                }
+            if (time / 100 == checkedAt / 100)
+                continue;
+
+            checkedAt = time;
+            foreach (var unit in map.Monsters.Append(map.Player))
+            {
+                ref readonly var obj = ref unit.Definition.Object;
+
+                if (unit.Owner?.Link == unit || obj.SpriteClass is not (SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man) || unit.Animation >= SpriteAnimation.Death)
+                    continue;
+
+                bool walkedIn = unit.Animation == SpriteAnimation.Go && previous.TryGetValue(unit, out var from) &&
+                    field.CanStand(obj, from) && !field.CanStand(obj, unit.Position) && !TouchesPushedSprite(map, unit);
+                Assert.False(walkedIn, $"{unit.Definition.Id} walked into terrain or a static obstacle at {unit.Position}, height {unit.Position.Z}, time {time}");
+                previous[unit] = unit.Position;
             }
         }
 
@@ -92,52 +91,24 @@ public class PlaythroughTests
         Assert.Contains(KnownObject.FlyingCasing, effects);
         Assert.Contains(replay.Effects.Settled, effect => effect.Id == KnownObject.LyingCasing);
         Assert.Contains(replay.Effects.Settled, effect => effect.Id == KnownObject.SmallBloodPool);
+    }
 
-        var parts = new SpritePartReader(game, objects);
-        var terrain = new MovementMap(level.Model, parts);
-        var movement = new WalkObstacles(level.Model, parts, objects, terrain);
-
-        foreach (var moving in level.Model.Sprites.Where(sprite => sprite.Id is KnownObject.SmallDoor or KnownObject.DoubleDoor).Concat(moved).Distinct())
+    private static bool TouchesPushedSprite(Map map, Sprite unit)
+    {
+        var point = unit.Position.AsVector2();
+        var half = unit.Definition.Half;
+        var reach = half + map.Collector.LargestHalf;
+        foreach (var sprite in map.Collector.GetNear(point - reach, point + reach))
         {
-            movement.Remove(moving);
+            var definition = sprite.Definition;
+            var offset = Vector2.Abs(sprite.Position.AsVector2() - point);
+
+            if (sprite != unit && definition.CanBePushed && (definition.Id == KnownObject.Crate || definition.Object.SpriteClass is not (SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man)) &&
+                offset.X < definition.Half.X + half.X && offset.Y < definition.Half.Y + half.Y)
+                return true;
         }
 
-        var removed = new HashSet<MergedMapSprite>(ReferenceEqualityComparer.Instance);
-        var couldStand = new Dictionary<Sprite, bool>();
-        int checkedAt = -1;
-        foreach (var map in PlayDemo(playthrough.LoadReplay(level.Analysis, loadout, first.Demo.Value)))
-        {
-            int time = map.Time;
-
-            if (time / 100 == checkedAt / 100)
-                continue;
-
-            checkedAt = time;
-            foreach (var placement in map.Sprites)
-            {
-                if (map.IsRemoved(placement) && removed.Add(placement))
-                {
-                    movement.Remove(placement);
-                    terrain.Remove(placement);
-                }
-            }
-
-            bool doorsLocked = (first.Script.DoorsInitiallyLocked || time >= first.Script.BlackoutAt) &&
-                (first.Script.DoorsOpenedAt is null || time < first.Script.DoorsOpenedAt);
-            movement.SetGates(doorsLocked, first.Script.FencesDownAt is null || time < first.Script.FencesDownAt);
-            foreach (var unit in map.Monsters.Append(map.Player))
-            {
-                var obj = unit.Definition.Object;
-
-                if (unit.Owner?.Link == unit || obj.SpriteClass is not (SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man) || unit.Animation >= SpriteAnimation.Death)
-                    continue;
-
-                bool stands = movement.CanStand(obj, unit.Position);
-                Assert.True(stands || unit.Animation != SpriteAnimation.Go || !couldStand.GetValueOrDefault(unit, true),
-                    $"{unit.Definition.Id} walked into terrain or a static obstacle at {unit.Position}, height {unit.Position.Z}, time {time}");
-                couldStand[unit] = stands;
-            }
-        }
+        return false;
     }
 
     private static IEnumerable<Map> PlayDemo(Map map)
@@ -145,12 +116,12 @@ public class PlaythroughTests
         uint now = 0;
         while (true)
         {
-            map.StepDemo(now, out now);
+            bool drawFrame = map.StepDemo(now, out now);
 
             if (!map.IsPlayingDemo)
                 yield break;
 
-            map.Step();
+            map.Step(drawFrame);
             yield return map;
 
             if (map.TryGetNextDemoTime(out int next))

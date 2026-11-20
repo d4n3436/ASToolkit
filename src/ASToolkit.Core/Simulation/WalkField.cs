@@ -14,6 +14,8 @@ internal sealed class WalkField
     private const int Margin = 2;
     private const int Sides = 8;
     private const float RecoveryReach = 512;
+    private const float SweepStep = 2;
+    private const float MinMove = 1e-6f;
     private static readonly Cell[] SideSteps = [new(1, 0), new(-1, 0), new(0, 1), new(0, -1), new(1, 1), new(1, -1), new(-1, 1), new(-1, -1)];
 
     private readonly Lattice _lattice;
@@ -25,18 +27,19 @@ internal sealed class WalkField
     private readonly Cell[] _places;
     private readonly Vector2[] _centers;
     private readonly GameObject _walker;
+    private readonly MovementMap _terrain;
+    private readonly SpriteCollector _sprites;
     private readonly int[] _neighbors;
+    private readonly bool[] _computed;
     private readonly int[] _distance;
     private readonly int[] _queue;
-    private const byte SharedCell = 0;
-    private const byte OwnCell = 1;
-    private const byte StaleCell = 2;
-    private readonly byte[] _cellState;
-    private readonly SharedLinks _shared;
-    private readonly List<TerrainChange> _gates = [];
-    private int _movementVersion;
+    private readonly List<Sprite> _gates = [];
+    private readonly HashSet<MergedMapSprite> _removed = new(ReferenceEqualityComparer.Instance);
+    private Dictionary<MergedMapSprite, Tracked>? _tracked;
+    private int _removedCount;
+    private int _spriteCount;
+    private bool _moved;
     private bool _doorsLocked;
-    private bool _fencesUp;
     private Vector3 _lastStartPoint;
     private int _lastStart;
     private int _lastStartVersion = -1;
@@ -45,46 +48,14 @@ internal sealed class WalkField
     private int _floodLimit = -1;
     private int _floodCount;
 
-    private WalkField(WalkField source, WalkObstacles movement)
+    public WalkField(RouteGrid grid, bool doorsLocked, MovementMap terrain, SpriteCollector sprites, GameObject walker, int placedCount = 0)
     {
-        _lattice = source._lattice;
-        _minU = source._minU;
-        _minV = source._minV;
-        _width = source._width;
-        _height = source._height;
-        _cells = source._cells;
-        _places = source._places;
-        _centers = source._centers;
-        _neighbors = (int[])source._neighbors.Clone();
-        _cellState = (byte[])source._cellState.Clone();
-        _shared = source._shared;
-        _distance = (int[])source._distance.Clone();
-        _queue = (int[])source._queue.Clone();
-        ReachedCount = source.ReachedCount;
-        Obstacles = movement;
-        _walker = source._walker;
-        _movementVersion = source._movementVersion;
-        _doorsLocked = source._doorsLocked;
-        _fencesUp = source._fencesUp;
-        _lastStartPoint = source._lastStartPoint;
-        _lastStart = source._lastStart;
-        _lastStartVersion = source._lastStartVersion;
-        _floodSource = source._floodSource;
-        _floodSteps = source._floodSteps;
-        _floodLimit = source._floodLimit;
-        _floodCount = source._floodCount;
-    }
-
-    public WalkField Clone(WalkObstacles movement) => new(this, movement);
-
-    public WalkObstacles Obstacles { get; }
-
-    public WalkField(RouteGrid grid, bool doorsLocked, bool fencesUp, WalkObstacles movement, GameObject walker)
-    {
-        Obstacles = movement;
+        _terrain = terrain;
+        _sprites = sprites;
         _walker = walker;
+        _spriteCount = placedCount;
         _lattice = grid.Lattice.Halve();
-        var cells = GetCellsInMap(grid, _lattice, movement.MapSize);
+        var cells = GetCellsInMap(grid, _lattice, terrain.MapSize);
         _minU = cells.Min(cell => cell.U) - Margin;
         _minV = cells.Min(cell => cell.V) - Margin;
         _width = cells.Max(cell => cell.U) + Margin - _minU + 1;
@@ -102,53 +73,157 @@ internal sealed class WalkField
         }
 
         _neighbors = new int[cells.Count * Sides];
-        _cellState = new byte[cells.Count];
-        _shared = new SharedLinks(cells.Count);
+        _computed = new bool[cells.Count];
         _distance = new int[cells.Count];
         _queue = new int[cells.Count];
         Array.Fill(_distance, -1);
         _doorsLocked = doorsLocked;
-        _fencesUp = fencesUp;
-        Obstacles.SetGates(doorsLocked, fencesUp);
-        _movementVersion = Obstacles.Version;
+        foreach (var sprite in sprites.GetNear(Vector2.Zero, terrain.MapSize.ToVector2()))
+        {
+            if (IsGate(sprite.Definition.Id))
+            {
+                _gates.Add(sprite);
+            }
+        }
     }
 
     public float CellStep => _lattice.CellStep;
 
-    public void SetGates(bool doorsLocked, bool fencesUp)
+    public int Version { get; private set; }
+
+    public void SetDoorsLocked(bool doorsLocked)
     {
         bool doorsChange = _doorsLocked != doorsLocked;
-        bool fencesChange = _fencesUp != fencesUp;
 
-        if (_movementVersion == Obstacles.Version && !doorsChange && !fencesChange)
+        if (!doorsChange && !_moved)
             return;
 
         _doorsLocked = doorsLocked;
-        _fencesUp = fencesUp;
-        Obstacles.SetGates(doorsLocked, fencesUp);
-        if (doorsChange || fencesChange)
+        if (doorsChange)
         {
-            _gates.Clear();
-            Obstacles.CollectGates(doorsChange, fencesChange, _gates);
+            Version++;
             foreach (var gate in _gates)
             {
-                RefreshCells(gate.Position, gate.HalfSize);
+                if (gate.Definition.Id != KnownObject.Fence)
+                {
+                    RefreshCells(gate.Position.AsVector2(), gate.Definition.Half);
+                }
             }
         }
         else
         {
-            MarkAllStale();
+            Array.Fill(_computed, false);
         }
 
-        _movementVersion = Obstacles.Version;
+        _moved = false;
         ClearDistances();
     }
 
     public void RefreshMovement(Vector2 center, Vector2 half)
     {
-        _movementVersion = Obstacles.Version;
         RefreshCells(center, half);
         ClearDistances();
+    }
+
+    // Follows pushed bodies, sinking doors and falling fences, and refreshes the cells around removed and created obstacles
+    public bool Synchronize(Map map)
+    {
+        if (_tracked is null)
+        {
+            _removedCount = map.RemovedCount;
+            foreach (var placement in map.Sprites)
+            {
+                if (map.IsRemoved(placement))
+                {
+                    _removed.Add(placement);
+                }
+            }
+
+            _tracked = new Dictionary<MergedMapSprite, Tracked>(ReferenceEqualityComparer.Instance);
+            foreach (var placement in map.Sprites)
+            {
+                var sprite = map.FindPlacementSprite(placement);
+
+                if (sprite is not null && (sprite.Definition.CanBePushed || IsGate(sprite.Definition.Id)))
+                {
+                    _tracked.Add(placement, new Tracked(sprite));
+                }
+            }
+        }
+
+        bool changed = false;
+        foreach (var (placement, tracked) in _tracked)
+        {
+            var sprite = tracked.Sprite;
+
+            if (sprite.Definition.Id == KnownObject.Fence)
+            {
+                bool isSolid = IsSolid(sprite);
+
+                if (isSolid != tracked.WasSolid)
+                {
+                    tracked.WasSolid = isSolid;
+                    RefreshCells(sprite.Position.AsVector2(), sprite.Definition.Half);
+                    Version++;
+                    changed = true;
+                }
+
+                continue;
+            }
+
+            if (_removed.Contains(placement) || Vector3.DistanceSquared(sprite.Position, tracked.Position) <= MinMove)
+                continue;
+
+            tracked.Position = sprite.Position;
+            _moved = true;
+            Version++;
+        }
+
+        if (map.RemovedCount != _removedCount)
+        {
+            _removedCount = map.RemovedCount;
+            foreach (var placement in map.Sprites)
+            {
+                if (!map.IsRemoved(placement) || !_removed.Add(placement))
+                    continue;
+
+                changed |= Refresh(map, placement, _tracked.TryGetValue(placement, out var tracked) ? tracked.Position : placement.Position,
+                    placement.Id is KnownObject.SpawnWallSlash or KnownObject.SpawnWallBack or KnownObject.BreakableWall);
+            }
+        }
+
+        for (; _spriteCount < map.Sprites.Count; _spriteCount++)
+        {
+            var placement = map.Sprites[_spriteCount];
+            changed |= Refresh(map, placement, placement.Position, false);
+        }
+
+        if (changed)
+        {
+            _moved = false;
+            ClearDistances();
+        }
+
+        return changed;
+    }
+
+    private bool Refresh(Map map, MergedMapSprite placement, Vector3 position, bool always)
+    {
+        var definition = map.Definitions.Find(placement.Id);
+        bool blocks = definition is not null && IsObstacle(definition) && definition.Object.IsHittable && definition.MoveMask != 0;
+        bool raises = _terrain.Raises(placement);
+
+        if (blocks || raises)
+        {
+            Version++;
+        }
+
+        if (!blocks && !raises && !always)
+            return false;
+
+        RefreshCells(position.AsVector2(), definition?.Half ?? Vector2.Zero);
+
+        return true;
     }
 
     private void RefreshCells(Vector2 center, Vector2 half)
@@ -162,30 +237,17 @@ internal sealed class WalkField
 
             if (index >= 0)
             {
-                _cellState[index] = StaleCell;
+                _computed[index] = false;
             }
         }
     }
 
-    private void MarkAllStale() => Array.Fill(_cellState, StaleCell);
-
-    // Reads untouched cells from the links all copies share, marking a cell computed only after its links are written
     private ReadOnlySpan<int> GetLinks(int cell)
     {
-        switch (_cellState[cell])
+        if (!_computed[cell])
         {
-            case SharedCell:
-                if (!Volatile.Read(ref _shared.Computed[cell]))
-                {
-                    UpdateNeighbors(cell, _shared.Links);
-                    Volatile.Write(ref _shared.Computed[cell], true);
-                }
-
-                return _shared.Links;
-            case StaleCell:
-                UpdateNeighbors(cell, _neighbors);
-                _cellState[cell] = OwnCell;
-                break;
+            UpdateNeighbors(cell);
+            _computed[cell] = true;
         }
 
         return _neighbors;
@@ -193,15 +255,119 @@ internal sealed class WalkField
 
     private int GetNeighbor(int cell, int side) => GetLinks(cell)[cell * Sides + side];
 
-    private void UpdateNeighbors(int index, int[] links)
+    private void UpdateNeighbors(int index)
     {
         var cell = _places[index];
-        var from = new Vector3(_centers[index], Obstacles.Terrain.GetSupportHeight(_walker, _centers[index]));
+        var from = new Vector3(_centers[index], _terrain.GetSupportHeight(_walker, _centers[index]));
         for (int side = 0; side < Sides; side++)
         {
             int target = Find(new Cell(cell.U + SideSteps[side].U, cell.V + SideSteps[side].V));
-            links[index * Sides + side] = target >= 0 && Obstacles.CanMove(_walker, from, _centers[target], anticipateDoors: true) ? target : -1;
+            _neighbors[index * Sides + side] = target >= 0 && CanMove(_walker, from, _centers[target], anticipateDoors: true) ? target : -1;
         }
+    }
+
+    public bool CanStand(in GameObject walker, Vector3 point, bool anticipateDoors = false) =>
+        _terrain.CanStandOnGround(walker, point) && !IsBlocked(walker, point, anticipateDoors);
+
+    public bool CanMove(in GameObject walker, Vector3 from, Vector2 to, bool anticipateDoors = false)
+    {
+        int steps = Math.Max(1, (int)MathF.Ceiling(Vector2.Distance(from.AsVector2(), to) / SweepStep));
+        var point = from;
+        var start = from.AsVector2();
+        var delta = to - start;
+        for (int step = 1; step <= steps; step++)
+        {
+            point = new Vector3(start + delta * (step / (float)steps), point.Z);
+
+            if (!_terrain.CanStandOnGround(walker, point, out float ground) || IsBlocked(walker, point, anticipateDoors))
+                return false;
+
+            if (walker.Properties.HasFlag(ObjectProperties.ZeroZ))
+            {
+                point.Z = float.IsNaN(ground) ? _terrain.GetSupportHeight(walker, point.AsVector2()) : ground;
+            }
+        }
+
+        return true;
+    }
+
+    private bool IsBlocked(in GameObject walker, Vector3 point, bool anticipateDoors)
+    {
+        var volume = new CollisionVolume(point, walker.Size.AsVector2() / 2, walker.Size.Z, walker.MoveMask);
+        var reach = volume.Half + _sprites.LargestHalf;
+        foreach (var sprite in _sprites.GetNear(point.AsVector2() - reach, point.AsVector2() + reach))
+        {
+            var definition = sprite.Definition;
+            var position = sprite.Position;
+            bool door = anticipateDoors && definition.Id is KnownObject.SmallDoor or KnownObject.DoubleDoor;
+            if (door)
+            {
+                if (!_doorsLocked)
+                    continue;
+
+                position.Z = sprite.Placement?.Position.Z ?? position.Z;
+            }
+
+            if (volume.Overlaps(new CollisionVolume(position, definition.Half, definition.Object.Size.Z, definition.MoveMask)) &&
+                sprite.Animation < SpriteAnimation.Death && IsObstacle(definition))
+                return true;
+        }
+
+        return false;
+    }
+
+    public bool CrossesClosedGate(Vector2 from, Vector2 to)
+    {
+        foreach (var gate in _gates)
+        {
+            if (IsSolid(gate) && (gate.Definition.Id == KnownObject.Fence || _doorsLocked) && Crosses(from, to, gate.Position.AsVector2(), gate.Definition.Half))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool Crosses(Vector2 from, Vector2 to, Vector2 center, Vector2 half)
+    {
+        var direction = to - from;
+        float enter = 0;
+        float leave = 1;
+        for (int axis = 0; axis < 2; axis++)
+        {
+            float start = axis == 0 ? from.X - center.X : from.Y - center.Y;
+            float step = axis == 0 ? direction.X : direction.Y;
+            float extent = axis == 0 ? half.X : half.Y;
+
+            if (MathF.Abs(step) < float.Epsilon)
+            {
+                if (MathF.Abs(start) > extent)
+                    return false;
+
+                continue;
+            }
+
+            float first = (-extent - start) / step;
+            float second = (extent - start) / step;
+            enter = Math.Max(enter, Math.Min(first, second));
+            leave = Math.Min(leave, Math.Max(first, second));
+
+            if (enter > leave)
+                return false;
+        }
+
+        return true;
+    }
+
+    private static bool IsSolid(Sprite sprite) => sprite.Collector is not null && sprite.Animation < SpriteAnimation.Death;
+
+    private static bool IsGate(KnownObject id) => id is KnownObject.SmallDoor or KnownObject.DoubleDoor or KnownObject.Fence;
+
+    private static bool IsObstacle(SpriteDefinition definition)
+    {
+        ref readonly var obj = ref definition.Object;
+
+        return definition.Id == KnownObject.Crate || !(obj.SpriteType.HasFlag(SpriteType.Unit) || obj.SpriteType.HasFlag(SpriteType.Avia) ||
+            obj.SpriteType.HasFlag(SpriteType.Cannon) || obj.SpriteClass == SpriteClass.Man);
     }
 
     public int Find(Vector2 point) => Find(_lattice.GetCell(point.X, point.Y));
@@ -259,7 +425,7 @@ internal sealed class WalkField
         return best;
     }
 
-    public bool CanMove(Vector3 from, Vector2 to) => Find(to) >= 0 && Obstacles.CanMove(_walker, from, to, anticipateDoors: true);
+    public bool CanMove(Vector3 from, Vector2 to) => Find(to) >= 0 && CanMove(_walker, from, to, anticipateDoors: true);
 
     public int FindFree(Vector2 point, float reach = 60, bool reachedOnly = false, bool skipReached = false, Vector2 skippedHalf = default)
     {
@@ -280,7 +446,7 @@ internal sealed class WalkField
             if (Math.Abs(center.X - point.X) < skippedHalf.X && Math.Abs(center.Y - point.Y) < skippedHalf.Y)
                 continue;
 
-            if (nextDistance <= distance && Obstacles.CanStand(_walker, center.AsVector3(), anticipateDoors: true))
+            if (nextDistance <= distance && CanStand(_walker, center.AsVector3(), anticipateDoors: true))
             {
                 best = candidate;
                 distance = nextDistance;
@@ -292,12 +458,12 @@ internal sealed class WalkField
 
     public int FindStart(Vector3 point)
     {
-        if (_lastStartVersion == Obstacles.Version && Vector3.DistanceSquared(_lastStartPoint, point) < StartTolerance)
+        if (_lastStartVersion == Version && Vector3.DistanceSquared(_lastStartPoint, point) < StartTolerance)
             return _lastStart;
 
         _lastStart = SearchStart(point);
         _lastStartPoint = point;
-        _lastStartVersion = Obstacles.Version;
+        _lastStartVersion = Version;
 
         return _lastStart;
     }
@@ -451,17 +617,20 @@ internal sealed class WalkField
 
     private readonly record struct Candidate(int Place, float Distance);
 
-    private sealed class SharedLinks
+    private sealed class Tracked
     {
-        public SharedLinks(int cells)
+        public Tracked(Sprite sprite)
         {
-            Links = new int[cells * Sides];
-            Computed = new bool[cells];
+            Sprite = sprite;
+            Position = sprite.Position;
+            WasSolid = IsSolid(sprite);
         }
 
-        public int[] Links { get; }
+        public Sprite Sprite { get; }
 
-        public bool[] Computed { get; }
+        public Vector3 Position { get; set; }
+
+        public bool WasSolid { get; set; }
     }
 
     private readonly struct StepBound : IComparable<int>

@@ -68,6 +68,7 @@ public static class LevelExtractor
             MapSize = map.Size,
             Camera = map.Scroll,
             Environment = map.Graphics.Environment,
+            Ambient = map.Graphics.Ambient,
             Groups = map.Groups.ToArray(),
             Version = map.Version
         };
@@ -394,6 +395,7 @@ public static class LevelExtractor
             MapSize = map.Size,
             Camera = map.Scroll,
             Environment = map.Graphics.Environment,
+            Ambient = map.Graphics.Ambient,
             Groups = map.Groups.ToArray(),
             Version = map.Version
         };

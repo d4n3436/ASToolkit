@@ -59,16 +59,16 @@ public class UnitAnimationTests
         var enemy = map.AddMonster(definitions.Find(KnownObject.Monster1)!, position, direction: new Angle(64));
         while (map.Time < GameClock.LevelStartTime + 96)
         {
-            map.Step(default);
+            map.Play(default);
         }
 
         map.Action(enemy, ActionCode.Damage, enemy.Hp);
-        map.Step(default);
+        map.Play(default);
         int steps = 1;
         while (map.Monsters.Contains(enemy) && steps < 20)
         {
             Assert.DoesNotContain(map.Effects.Active, effect => effect.Definition.Id == KnownObject.Monster1Death);
-            map.Step(default);
+            map.Play(default);
             steps++;
         }
 

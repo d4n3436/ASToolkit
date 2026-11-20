@@ -16,6 +16,9 @@ public sealed partial class Map : IScriptFunctionHost
     private const int ScrollDuration = 0x200;
     private const int FadeInDuration = 0x500;
     private const int EffectDuration = 0x400;
+    private const int GammaChannels = 4;
+    private const int GammaChannelBits = 8;
+    private const int SignedGammaRange = 0xfe;
     private const int NoUnitDistance = 60000;
     private const float TrigonometryScale = 1024;
     private const int LastAnimationAction = 0x10;
@@ -29,6 +32,8 @@ public sealed partial class Map : IScriptFunctionHost
     private readonly int[] _effectDurations = new int[EffectCount];
     private readonly int[] _effectFirst = new int[EffectCount];
     private readonly int[] _effectSecond = new int[EffectCount];
+    private Vector2 _scrollFrom;
+    private Gamma _gammaFrom;
     private readonly Dictionary<int, Sprite> _handles = [];
     private readonly Dictionary<MergedMapSprite, SpriteDefinition> _countedPlacements = [];
     private int _lastHandle;
@@ -723,8 +728,8 @@ public sealed partial class Map : IScriptFunctionHost
                     case VidDataType.MaxHp:
                         definition.MaxHp = value;
                         break;
-                    // TODO: Port the gamma
                     case >= VidDataType.Gamma and < VidDataType.Properties:
+                        definition.Gammas[type - (int)VidDataType.Gamma] = Gamma.FromScript((uint)value);
                         break;
                     case VidDataType.Ammo:
                         GetAmmoOwner(definition).AmmoCapacity = value;
@@ -957,16 +962,18 @@ public sealed partial class Map : IScriptFunctionHost
                 script.PushNumber(0);
                 break;
 
-            // TODO: Port the gamma
             case ScriptFunction.SetGamma:
-                script.Pop();
+                SetGamma(Gamma.FromScript((uint)script.PopNumber()));
                 break;
             case ScriptFunction.CountGamma:
-                PopValues(script, 3);
-                script.PushNumber(0);
+            {
+                int share = script.PopNumber();
+                int last = script.PopNumber();
+                script.PushNumber(BlendGamma(script.PopNumber(), last, share));
                 break;
+            }
             case ScriptFunction.GetGamma:
-                script.PushNumber(0);
+                script.PushNumber((int)Gamma.ToScript());
                 break;
 
             // TODO: Port saves, pausing, commands, map names, files and the system
@@ -1445,7 +1452,7 @@ public sealed partial class Map : IScriptFunctionHost
         script.PushNumber(Action(sprite, code, first, second, third));
     }
 
-    // TODO: Port the screen effects
+    // TODO: Port the frame capture of the alpha appearance
     [EngineRoutine(0x00402690)]
     private void ExecEffect(int effect, int first, int second, int duration)
     {
@@ -1453,6 +1460,13 @@ public sealed partial class Map : IScriptFunctionHost
             return;
 
         var screenEffect = (ScreenEffect)effect;
+
+        if (screenEffect is ScreenEffect.Fade or ScreenEffect.FadeIn or ScreenEffect.FadeOut)
+        {
+            _effectStarts[(int)ScreenEffect.FadeOut] = 0;
+            _effectStarts[(int)ScreenEffect.FadeIn] = 0;
+            _effectStarts[(int)ScreenEffect.Fade] = 0;
+        }
 
         if (duration == 0)
         {
@@ -1479,6 +1493,116 @@ public sealed partial class Map : IScriptFunctionHost
         {
             ScreenFlash = new ScreenFlash(Time, duration, first);
         }
+        else if (screenEffect == ScreenEffect.Scroll)
+        {
+            _scrollFrom = new Vector2(Camera.Y);
+        }
+        else if (screenEffect == ScreenEffect.ShiftGamma)
+        {
+            _gammaFrom = Gamma;
+        }
+    }
+
+    [EngineRoutine(0x004311a0)]
+    private void UpdateEffects(bool draw)
+    {
+        uint now = _clock.WallTime;
+        ExpireEffect(ScreenEffect.AlphaAppear, now);
+
+        const int scroll = (int)ScreenEffect.Scroll;
+        if (_effectStarts[scroll] != 0)
+        {
+            uint elapsed = now - _effectStarts[scroll];
+            int length = _effectDurations[scroll];
+            if ((uint)length < elapsed)
+            {
+                SetPosition(new Vector2(_effectFirst[scroll], _effectSecond[scroll]), CameraMove.None);
+                _effectStarts[scroll] = 0;
+            }
+            else
+            {
+                float x = (float)(((double)_effectFirst[scroll] - _scrollFrom.X) * (int)elapsed / length + _scrollFrom.X);
+                float y = (float)(((double)_effectSecond[scroll] - _scrollFrom.Y) * (int)elapsed / length + _scrollFrom.Y);
+                SetPosition(new Vector2(x, y), CameraMove.None);
+            }
+        }
+
+        ExpireEffect(ScreenEffect.Nuke, now);
+        ExpireEffect(ScreenEffect.Fade, now);
+        ExpireEffect(ScreenEffect.FadeIn, now);
+        ExpireEffect(ScreenEffect.FadeOut, now);
+
+        const int shift = (int)ScreenEffect.ShiftGamma;
+        if (_effectStarts[shift] == 0)
+            return;
+
+        uint shifted = now - _effectStarts[shift];
+        var target = Gamma.FromScript((uint)_effectFirst[shift]);
+        if (shifted >= (uint)_effectDurations[shift])
+        {
+            SetGamma(target);
+            _effectStarts[shift] = 0;
+
+            return;
+        }
+
+        if (!draw)
+            return;
+
+        double share = (double)shifted / _effectDurations[shift];
+        uint negative = 0, positive = 0;
+        for (int channel = GammaChannelBits * (GammaChannels - 1); channel >= 0; channel -= GammaChannelBits)
+        {
+            int from = GetGammaChannel(_gammaFrom, channel);
+            int value = Math.Clamp((int)((GetGammaChannel(target, channel) - from) * share + from), -byte.MaxValue, byte.MaxValue);
+            if (value < 0)
+            {
+                negative |= (uint)-value << channel;
+            }
+            else
+            {
+                positive |= (uint)value << channel;
+            }
+        }
+
+        SetGamma(new Gamma(negative, positive));
+    }
+
+    private void ExpireEffect(ScreenEffect effect, uint now)
+    {
+        int index = (int)effect;
+
+        if (_effectStarts[index] != 0 && now - _effectStarts[index] >= (uint)_effectDurations[index])
+        {
+            _effectStarts[index] = 0;
+        }
+    }
+
+    private static int GetGammaChannel(Gamma gamma, int shift) => gamma.GetNegative(shift) != 0 ? -gamma.GetNegative(shift) : gamma.GetPositive(shift);
+
+    [EngineRoutine(0x00431c50)]
+    private void SetGamma(Gamma gamma) => Gamma = gamma;
+
+    [EngineRoutine(0x0043a950)]
+    private static int BlendGamma(int first, int last, int share) =>
+        (BlendGammaChannel(first & byte.MaxValue, last & byte.MaxValue, share) & byte.MaxValue) |
+        (BlendGammaChannel(first >> GammaChannelBits & byte.MaxValue, last >> GammaChannelBits & byte.MaxValue, share) & byte.MaxValue) << GammaChannelBits |
+        (BlendGammaChannel(first >> 2 * GammaChannelBits & byte.MaxValue, last >> 2 * GammaChannelBits & byte.MaxValue, share) & byte.MaxValue) << 2 * GammaChannelBits;
+
+    [EngineRoutine(0x0043a9c0)]
+    private static int BlendGammaChannel(int first, int last, int share)
+    {
+        if (first > sbyte.MaxValue)
+        {
+            first -= SignedGammaRange;
+        }
+
+        if (last > sbyte.MaxValue)
+        {
+            last -= SignedGammaRange;
+        }
+
+        return (last - first) * share / byte.MaxValue + first;
     }
 
     [EngineRoutine(0x00431c00)]

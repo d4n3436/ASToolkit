@@ -37,7 +37,7 @@ public class OrderStackTests
         var built = new List<int>();
         for (int tick = 0; tick < 120; tick++)
         {
-            map.Step(default);
+            map.Play(default);
 
             if (map.Monsters.Count <= built.Count)
                 continue;
@@ -79,7 +79,7 @@ public class OrderStackTests
     {
         for (int tick = 0; tick < ticks; tick++)
         {
-            map.Step(default);
+            map.Play(default);
         }
     }
 }

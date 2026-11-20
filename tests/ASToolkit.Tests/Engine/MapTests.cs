@@ -17,19 +17,19 @@ public class MapTests
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int> { [KnownObject.Shotgun] = 23 }, default)
         { Items = new Dictionary<KnownObject, int> { [KnownObject.ExtraLife] = 1 } };
         var map = EngineTestMap.CreateMap(objects, loadout: loadout);
-        map.Step(default);
+        map.Play(default);
         var first = map.Player;
         var start = first.Position;
         map.Action(first, ActionCode.Damage, first.Hp);
         for (int tick = 0; tick < 200 && map.GetFlagman(0) is not null; tick++)
         {
-            map.Step(default);
+            map.Play(default);
         }
 
         Assert.Null(map.GetFlagman(0));
         for (int tick = 0; tick < 5 && map.Player == first; tick++)
         {
-            map.Step(default);
+            map.Play(default);
         }
 
         Assert.NotSame(first, map.Player);
@@ -47,7 +47,7 @@ public class MapTests
     {
         var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var map = EngineTestMap.CreateMap(objects);
-        map.Step(default);
+        map.Play(default);
         var position = map.Player.Position + new Vector3(500, 0, 0);
         var enemy = map.AddMonster(objects.Find(KnownObject.Monster1)!, position);
         enemy.Items.Clear();
@@ -56,7 +56,7 @@ public class MapTests
         MergedMapSprite? dropped = null;
         for (int tick = 0; tick < 100 && dropped is null; tick++)
         {
-            map.Step(default);
+            map.Play(default);
             dropped = map.Sprites.FirstOrDefault(sprite => sprite.Id == KnownObject.Money);
         }
 
@@ -64,7 +64,7 @@ public class MapTests
         int droppedAt = map.Time;
         while (map.Time <= droppedAt + DroppedItemMaxLifetime)
         {
-            map.Step(default);
+            map.Play(default);
         }
 
         Assert.True(map.IsRemoved(dropped));
@@ -75,7 +75,7 @@ public class MapTests
     {
         var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var map = EngineTestMap.CreateMap(objects);
-        map.Step(default);
+        map.Play(default);
         var enemy = map.AddMonster(objects.Find(KnownObject.Monster1)!, map.Player.Position + new Vector3(500, 0, 0));
         int maxHp = enemy.Hp;
         map.Action(enemy, ActionCode.Damage, maxHp / 2);
@@ -90,7 +90,7 @@ public class MapTests
     {
         var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var map = EngineTestMap.CreateMap(objects);
-        map.Step(default);
+        map.Play(default);
         var enemy = map.AddMonster(objects.Find(KnownObject.Monster1)!, map.Player.Position + new Vector3(500, 0, 0));
         enemy.Items.Clear();
 
@@ -107,19 +107,19 @@ public class MapTests
     {
         var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var map = EngineTestMap.CreateMap(objects);
-        map.Step(default);
+        map.Play(default);
         var destination = map.Player.Position.AsVector2() + new Vector2(300, 0);
         var command = new PlayerCommand(destination, PlayerCommand.GetCursor(map.Player.Position), false, Sprite.Pistols);
         for (int tick = 0; tick < 250; tick++)
         {
-            map.Step(command);
+            map.Play(command);
         }
 
         Assert.NotEqual(Command.Move, map.Player.Command);
         Assert.True(PlayerMovement.IsTouching(map.Player, destination, map.Definitions.Empty.Half));
         for (int tick = 0; tick < 50; tick++)
         {
-            map.Step(default);
+            map.Play(default);
         }
 
         Assert.Equal(0, map.Player.Speed);
@@ -136,7 +136,7 @@ public class MapTests
         int health = map.Player.Hp;
         for (int tick = 0; tick < 300; tick++)
         {
-            map.Step(default);
+            map.Play(default);
         }
 
         Assert.NotEqual(start, enemy.Position.AsVector2());
@@ -156,7 +156,7 @@ public class MapTests
 
         while (map.Time < 6000)
         {
-            map.Step(default);
+            map.Play(default);
         }
 
         Assert.InRange(Vector2.Distance(tank.Position.AsVector2(), player), 0, 100);

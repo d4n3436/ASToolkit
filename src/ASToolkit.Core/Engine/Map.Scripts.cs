@@ -302,22 +302,26 @@ public sealed partial class Map
     }
 
     [EngineRoutine(0x00430870)]
-    private void ShakeCamera()
+    private void UpdateScreen(bool drawFrame)
     {
-        if (!_environment.HasFlag(MapEnvironment.Earthquake))
+        if (_environment.HasFlag(MapEnvironment.Earthquake))
+        {
+            var screen = Session.ScreenSize;
+            double centerX = screen.Width * HalfShare + (double)Camera.X;
+            double centerY = screen.Height * HalfShare + (double)Camera.Y;
+            int y = _rng.Next() % (ShakeReach * 2 + 1);
+            int x = _rng.Next() % (ShakeReach * 2 + 1);
+            var offset = new Vector2(ShakeReach - x, ShakeReach - y);
+            SetPosition(new Vector2((float)(centerX + offset.X), (float)(centerY + offset.Y)), CameraMove.None);
+            CameraShake = new CameraShake(Time, offset);
+            SetPosition(new Vector2((float)centerX, (float)centerY), CameraMove.None);
+        }
+        else
         {
             CameraShake = null;
-            return;
         }
 
-        var screen = Session.ScreenSize;
-        var steady = Camera;
-        int y = _rng.Next() % (ShakeReach * 2 + 1);
-        int x = _rng.Next() % (ShakeReach * 2 + 1);
-        var center = screen.ToVector2() * HalfShare + steady;
-        SetPosition(center + new Vector2(ShakeReach) - new Vector2(x, y), CameraMove.None);
-        CameraShake = new CameraShake(Time, new Vector2(ShakeReach - x, ShakeReach - y));
-        SetPosition(center, CameraMove.None);
+        UpdateEffects(drawFrame);
     }
 
     /// <summary>
@@ -329,4 +333,9 @@ public sealed partial class Map
     /// Gets the screen flash in progress.
     /// </summary>
     public ScreenFlash? ScreenFlash { get; private set; }
+
+    /// <summary>
+    /// Gets the gamma the frame is drawn with, the channel reductions and additions applied to the whole screen.
+    /// </summary>
+    public Gamma Gamma { get; private set; }
 }

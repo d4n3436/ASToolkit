@@ -30,7 +30,7 @@ internal static class EngineTestMap
         """;
 
     public static Map CreateMap(SpriteCatalog definitions, PlayerLoadout? loadout = null, IReadOnlyList<MergedMapSprite>? sprites = null, int frameTime = GameClock.DefaultFrameTime,
-        MapEnvironment environment = MapEnvironment.None, DemoResource? demo = null, string? blood = null, GameSession? session = null)
+        MapEnvironment environment = MapEnvironment.None, DemoResource? demo = null, string? blood = null, GameSession? session = null, string script = Script, Gamma ambient = default)
     {
         var placed = new List<MergedMapSprite> { new(StartHandle, KnownObject.PlayerStart, new Vector3(1000, 1000, 0), default, Army.Player, []) };
         placed.AddRange(sprites ?? []);
@@ -44,7 +44,8 @@ internal static class EngineTestMap
             Objects = [],
             Sprites = placed,
             StoredSprites = placed,
-            Environment = environment
+            Environment = environment,
+            Ambient = ambient
         };
 
         var level = new LevelTemplate
@@ -54,7 +55,7 @@ internal static class EngineTestMap
             Movement = new MovementMap(),
             AmmoBatches = new int[10],
             FrameTimes = [frameTime],
-            FileSystem = new ScriptOverlay(new GameFolder(TestGameFolder.RequireFolder()), ScriptPath, Script),
+            FileSystem = new ScriptOverlay(new GameFolder(TestGameFolder.RequireFolder()), ScriptPath, script),
             ScriptPath = ScriptPath
         };
 

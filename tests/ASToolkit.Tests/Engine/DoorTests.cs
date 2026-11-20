@@ -16,12 +16,12 @@ public class DoorTests
         var door = new MergedMapSprite(1, id, new Vector3(1000, 1000, 0), 0, 0, []);
         var map = EngineTestMap.CreateMap(definitions, sprites: [door]);
         var body = map.FindPlacementSprite(door)!;
-        map.Step(default);
+        map.Play(default);
 
         Assert.Equal(0, body.Position.Z);
         for (int tick = 1; tick <= ticks + 1; tick++)
         {
-            map.Step(default);
+            map.Play(default);
             Assert.Equal(-Math.Min(tick, ticks) * step, body.Position.Z);
         }
     }
@@ -53,7 +53,7 @@ public class DoorTests
         map.AddMonster(definitions.Find(KnownObject.Monster1)!, door.Position);
         for (int tick = 0; tick <= 16; tick++)
         {
-            map.Step(default);
+            map.Play(default);
         }
 
         Assert.Equal(-64, body.Position.Z);
@@ -61,12 +61,12 @@ public class DoorTests
         int left = map.Time;
         while (map.Time <= left + 3000)
         {
-            map.Step(default);
+            map.Play(default);
         }
 
         Assert.Equal(-64, body.Position.Z);
         map.WriteScriptNumber("DoorsIsOpen"u8, 0);
-        map.Step(default);
+        map.Play(default);
         Assert.Equal(-60, body.Position.Z);
     }
 }

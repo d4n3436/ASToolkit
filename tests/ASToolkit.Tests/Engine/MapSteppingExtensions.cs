@@ -8,7 +8,7 @@ internal static class MapSteppingExtensions
 {
     private static readonly ConditionalWeakTable<Map, InputDriver> Drivers = [];
 
-    public static void Step(this Map map, in PlayerCommand command)
+    public static void Play(this Map map, in PlayerCommand command)
     {
         Drivers.GetValue(map, created => new InputDriver(created)).Press(command);
         map.Step();

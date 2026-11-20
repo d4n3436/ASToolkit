@@ -65,6 +65,11 @@ public sealed class LevelModel
     public MapEnvironment Environment { get; init; }
 
     /// <summary>
+    /// Gets the gamma of the ambient light the map starts with.
+    /// </summary>
+    public Gamma Ambient { get; init; }
+
+    /// <summary>
     /// Gets the groups of the map, each a list of sprite handles.
     /// </summary>
     public IReadOnlyList<IReadOnlyList<int>> Groups { get; init; } = [];

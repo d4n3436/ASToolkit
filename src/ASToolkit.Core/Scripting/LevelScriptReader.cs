@@ -131,7 +131,6 @@ public static class LevelScriptReader
             var triggers = new List<ScriptTrigger>();
             var checkpoints = new List<TriggerArea>();
             TriggerArea? blackout = null;
-            uint? blackoutGamma = null;
             TriggerArea? exit = null;
             var code = _code.Span;
             for (int index = 0; index < code.Length; index++)
@@ -144,7 +143,6 @@ public static class LevelScriptReader
                 if (lightOff is not null)
                 {
                     blackout = area;
-                    blackoutGamma = lightOff;
                 }
 
                 if (UsesVariable(body, _startX))
@@ -166,7 +164,6 @@ public static class LevelScriptReader
                 ClearsMonsters = Calls(code, _campaignTact),
                 DoorsLocked = LocksDoorsAtStart(code),
                 Blackout = blackout,
-                BlackoutGamma = blackoutGamma,
                 Checkpoints = checkpoints,
                 WinsAfterSites = ChecksSites(code),
                 Exit = exit,

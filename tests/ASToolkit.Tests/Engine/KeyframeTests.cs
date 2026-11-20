@@ -23,7 +23,7 @@ public class KeyframeTests
 
         while (map.Time - start < Period / 2)
         {
-            map.Step(default);
+            map.Play(default);
         }
 
         float expected = (map.Time - map.FrameTime - sprite.KeyframeStart) * (WeaponRecord.KeyframeCount - 1) / (float)Period;
@@ -31,7 +31,7 @@ public class KeyframeTests
 
         while (map.Time - start <= Period + Period / 2)
         {
-            map.Step(default);
+            map.Play(default);
         }
 
         Assert.True(sprite.KeyframeStart > start);

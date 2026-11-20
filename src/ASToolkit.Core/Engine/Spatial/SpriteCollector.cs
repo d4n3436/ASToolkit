@@ -9,7 +9,6 @@ internal sealed class SpriteCollector
 {
     private readonly Vector2 _scale;
     private readonly Vector2 _cell;
-    private readonly Vector2 _largestHalf;
     private readonly int _columns;
     private readonly int _rows;
     private readonly List<GridEntry>[] _buckets;
@@ -26,7 +25,7 @@ internal sealed class SpriteCollector
     public SpriteCollector(SizeF mapSize, Vector2 largestObject)
     {
         _cell = new Vector2(GetCellSize(largestObject.X), GetCellSize(largestObject.Y));
-        _largestHalf = largestObject / 2;
+        LargestHalf = largestObject / 2;
         _scale = Vector2.One / _cell;
         int shift = 0;
         while (1 << shift < (mapSize.Width - 1) * _scale.Y + 1)
@@ -57,6 +56,8 @@ internal sealed class SpriteCollector
     }
 
     public ReadOnlySpan<Sprite> Listed => CollectionsMarshal.AsSpan(_sprites);
+
+    public Vector2 LargestHalf { get; }
 
     private const OldSpriteType ListedTypes = OldSpriteType.Unit | OldSpriteType.Avia;
 
@@ -170,7 +171,7 @@ internal sealed class SpriteCollector
     public Sprite? FindOverlap(Sprite? mover, in CollisionVolume volume)
     {
         var center = volume.Position;
-        var reach = volume.Half + _largestHalf;
+        var reach = volume.Half + LargestHalf;
         First(center.AsVector2() - volume.Half, center.AsVector2() + volume.Half);
         int firstColumn = Math.Max(_firstColumn, GetColumn(center.X - reach.X));
         int lastColumn = Math.Min(_lastColumn, GetColumn(center.X + reach.X));

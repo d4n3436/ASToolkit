@@ -28,7 +28,6 @@ public sealed class ReplayPlayback
     private readonly MapRenderer _renderer;
     private readonly MapGraphics _graphics;
     private readonly List<MergedMapSprite> _baseSprites;
-    private readonly List<LightFade> _lights;
     private readonly int[] _frameTimes;
     private readonly HashSet<MergedMapSprite> _hidden = new(ReferenceEqualityComparer.Instance);
     private readonly List<LiveSprite> _live = [];
@@ -61,12 +60,10 @@ public sealed class ReplayPlayback
             .Append(times.Length > 0 ? times[^1] : 0)
             .Distinct()
             .ToArray();
-        
+
         _baseSprites = level.Map.Sprites
             .Where(sprite => !IsUnit(objects, sprite.Id) && !IsCannon(objects, sprite.Id) && !sprite.Id.IsScripted)
             .ToList();
-        
-        _lights = CreateLights(result.Script, level.Map.Graphics, level.Script.BlackoutGamma);
     }
 
     /// <summary>
@@ -145,7 +142,7 @@ public sealed class ReplayPlayback
             }
         }
 
-        scene.Render(pixels, size.Width, area, scale, time, _hidden, GetLight(time));
+        scene.Render(pixels, size.Width, area, scale, time, _hidden, _map.Gamma);
 
         var flash = _map.ScreenFlash;
         if (flash is not null)
@@ -180,32 +177,6 @@ public sealed class ReplayPlayback
         var state = CampaignState.CreateInitial(money);
 
         return play.PlayCampaign([selected], [], 1, state, record: true).Levels[0];
-    }
-
-    private static List<LightFade> CreateLights(ScriptTimeline script, MapGraphics graphics, uint? blackoutGamma)
-    {
-        var events = new List<(int Time, Gamma Target)>();
-
-        if (script.BlackoutAt is not null && blackoutGamma is not null)
-        {
-            events.Add((script.BlackoutAt.Value, Gamma.FromScript(blackoutGamma.Value)));
-        }
-
-        if (script.DoorsOpenedAt is not null)
-        {
-            events.Add((script.DoorsOpenedAt.Value, default));
-        }
-
-        events.Sort((a, b) => a.Time.CompareTo(b.Time));
-        var light = new LightFade(0, graphics.Ambient, graphics.Ambient);
-        var lights = new List<LightFade> { light };
-        foreach ((int time, var target) in events)
-        {
-            light = new LightFade(time, light.At(time), target);
-            lights.Add(light);
-        }
-
-        return lights;
     }
 
     // Placed cannons come alive as effects when the level loads
@@ -262,12 +233,12 @@ public sealed class ReplayPlayback
             }
         }
 
-        _map.StepDemo(_now, out _now);
+        bool drawFrame = _map.StepDemo(_now, out _now);
 
         if (!_map.IsPlayingDemo)
             return false;
 
-        _map.Step();
+        _map.Step(drawFrame);
         _isStepped = true;
         _isClockDue = true;
         _shownTime = _map.Time;
@@ -287,20 +258,6 @@ public sealed class ReplayPlayback
         }
 
         return _scene;
-    }
-
-    private Gamma GetLight(int time)
-    {
-        var light = _lights[0];
-        foreach (var fade in _lights)
-        {
-            if (fade.StartedAt <= time)
-            {
-                light = fade;
-            }
-        }
-
-        return light.At(time);
     }
 
     private void AddLiveSprites()

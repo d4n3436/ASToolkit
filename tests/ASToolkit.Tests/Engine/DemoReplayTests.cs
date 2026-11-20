@@ -108,12 +108,12 @@ public class DemoReplayTests
         uint now = 0;
         while (true)
         {
-            map.StepDemo(now, out now);
+            bool drawFrame = map.StepDemo(now, out now);
 
             if (!map.IsPlayingDemo)
                 break;
 
-            map.Step();
+            map.Step(drawFrame);
             points.Add(GetPoint(map));
 
             if (map.TryGetNextDemoTime(out int next))

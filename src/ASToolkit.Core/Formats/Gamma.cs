@@ -9,7 +9,9 @@ public readonly record struct Gamma(uint Negative, uint Positive)
 {
     private const int ChannelBits = 8;
     private const int ColorChannels = 3;
-    private const int ScriptScale = 2;
+    private const uint ScriptMagnitudes = 0x7f7f7f7f;
+    private const uint ScriptEvenBits = 0xfe;
+    private const uint ScriptCarry = 0x100;
     private const uint SignBit = 0x80;
     private const uint MagnitudeMask = SignBit - 1;
 
@@ -43,13 +45,13 @@ public readonly record struct Gamma(uint Negative, uint Positive)
     /// <returns>The script gamma a level script would pass for the gamma, alpha, red, green and blue from the high byte down.</returns>
     public uint ToScript()
     {
-        uint gamma = 0;
+        uint gamma = Negative >> 1 & ScriptMagnitudes;
         for (int shift = 0; shift < sizeof(uint) * ChannelBits; shift += ChannelBits)
         {
-            uint positive = Positive >> shift & byte.MaxValue;
-            uint channel = positive == 0 ? (Negative >> shift & byte.MaxValue) / ScriptScale
-                : byte.MaxValue - positive / ScriptScale;
-            gamma |= channel << shift;
+            if ((Positive >> shift & byte.MaxValue) != 0)
+            {
+                gamma |= ((~Positive >> shift & ScriptEvenBits) | ScriptCarry) >> 1 << shift;
+            }
         }
 
         return gamma;

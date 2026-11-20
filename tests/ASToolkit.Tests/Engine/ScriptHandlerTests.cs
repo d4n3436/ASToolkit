@@ -72,7 +72,7 @@ public class ScriptHandlerTests
         var seen = new List<float>();
         for (int tick = 0; tick < 10; tick++)
         {
-            map.Step(default);
+            map.Play(default);
             log.Update(map);
             seen.Add(map.Player.MaxSpeed);
         }
@@ -149,7 +149,7 @@ public class ScriptHandlerTests
 
         for (int tick = 0; tick < 1500 && monster.Definition.Id != KnownObject.FrozenSlug; tick++)
         {
-            map.Step(new PlayerCommand(null, PlayerCommand.GetCursor(monster.Position), true, slot));
+            map.Play(new PlayerCommand(null, PlayerCommand.GetCursor(monster.Position), true, slot));
         }
 
         Assert.Equal(KnownObject.FrozenSlug, monster.Definition.Id);
@@ -170,7 +170,7 @@ public class ScriptHandlerTests
 
         for (int tick = 0; tick < 100; tick++)
         {
-            map.Step(new PlayerCommand(null, PlayerCommand.GetCursor(monster.Position), true, slot));
+            map.Play(new PlayerCommand(null, PlayerCommand.GetCursor(monster.Position), true, slot));
         }
 
         Assert.True(monster.Hp < health);
@@ -222,7 +222,7 @@ public class ScriptHandlerTests
     {
         for (int tick = 0; tick < ticks; tick++)
         {
-            map.Step(default);
+            map.Play(default);
             screen?.Read(map);
         }
     }

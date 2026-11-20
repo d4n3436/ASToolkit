@@ -18,11 +18,11 @@ internal sealed class Gunnery
 
     private readonly Map _map;
     private readonly PlayerState _state;
-    private readonly WalkObstacles _obstacles;
+    private readonly WalkField _field;
 
-    public Gunnery(Map map, WalkObstacles obstacles)
+    public Gunnery(Map map, WalkField field)
     {
-        _obstacles = obstacles;
+        _field = field;
         _map = map;
         _state = new PlayerState(map);
         Attacks = new AttackTable(map.Definitions);
@@ -247,7 +247,7 @@ internal sealed class Gunnery
         {
             var point = Vector3.Lerp(start, aim, distance / length);
 
-            if (_obstacles.CanStand(bullet.Object, point))
+            if (_field.CanStand(bullet.Object, point))
                 continue;
             
             var offset = Vector2.Abs(point.AsVector2() - aim.AsVector2());

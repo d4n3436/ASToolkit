@@ -16,6 +16,7 @@ namespace ASToolkit.Core.Simulation;
 public sealed class Playthrough
 {
     private const int MaxAttempts = 3;
+    private const int SeedLevels = 64;
 
     private readonly ShopBot _shop;
     private const string ConfigFile = "AlienShooter.cfg";
@@ -49,7 +50,6 @@ public sealed class Playthrough
     private readonly string _gameFolder;
     private readonly GameFolder _fileSystem;
     private readonly SpriteCatalog _definitions;
-    private readonly ObjectTable _objects;
     private readonly IReadOnlyList<int> _ammoBatches;
     private readonly Dictionary<RouteAnalysis, LevelSetup> _setups = [];
 
@@ -64,7 +64,6 @@ public sealed class Playthrough
         _gameFolder = gameFolder;
         _fileSystem = new GameFolder(gameFolder);
         _definitions = new SpriteCatalog(gameFolder, objects);
-        _objects = objects;
         _shop = new ShopBot(objects, _definitions, table);
         _ammoBatches = table.GetArray("GettingAmmo");
     }
@@ -114,7 +113,8 @@ public sealed class Playthrough
         }
 
         var map = new Map(setup.Level, new GameRandom(seed), registry: registry, session: session);
-        var bot = new PlayerBot(map, analysis, setup.Field.Clone(setup.Field.Obstacles.Clone(map.Movement)));
+        var field = new WalkField(analysis.Grid, setup.DoorsLocked, map.Movement, map.Collector, _definitions.Find(KnownObject.PlayerStart)!.Object, analysis.Model.Sprites.Count);
+        var bot = new PlayerBot(map, analysis, field);
 
         return new PlaySession(map, bot, analysis.Exit is null && !analysis.ClearsMonsters);
     }
@@ -176,16 +176,13 @@ public sealed class Playthrough
 
     private LevelSetup CreateSetup(RouteAnalysis analysis)
     {
-        var movement = _definitions.CreateMovementMap(analysis.Model);
-        var obstacles = new WalkObstacles(analysis.Model, _definitions.Parts, _objects, movement);
-        bool locked = analysis.DoorsInitiallyLocked ?? (analysis.Objectives.All(objective => objective.Kind != ObjectiveKind.Blackout) &&
+        bool isLocked = analysis.DoorsInitiallyLocked ?? (analysis.Objectives.All(objective => objective.Kind != ObjectiveKind.Blackout) &&
             analysis.Objectives.Any(objective => objective.Kind == ObjectiveKind.Breaker) && analysis.Grid.Edges.Values.Any(kind => kind == EdgeKind.Door));
-        var field = new WalkField(analysis.Grid, locked, analysis.Grid.FenceEdges.Count > 0, obstacles, _definitions.Find(KnownObject.PlayerStart)!.Object);
         string scriptPath = GetScriptPath(analysis.Name);
         IGameFileSystem fileSystem = _fileSystem.TryRead(scriptPath, out _) ? _fileSystem : new ScriptOverlay(_fileSystem, scriptPath, DefaultLevelScript);
-        var level = LevelTemplate.FromModel(analysis.Model, fileSystem, scriptPath, _definitions, _ammoBatches) with { Movement = movement, FrameTimes = FrameTimes };
+        var level = LevelTemplate.FromModel(analysis.Model, fileSystem, scriptPath, _definitions, _ammoBatches) with { FrameTimes = FrameTimes };
 
-        return new LevelSetup(level, field);
+        return new LevelSetup(level, isLocked);
     }
 
     /// <summary>
@@ -208,7 +205,7 @@ public sealed class Playthrough
         {
             int money = state.Money;
             int reward = level < endMoney.Count ? endMoney[level] : 0;
-            int firstSeed = (seed * levels.Count + level) * MaxAttempts;
+            int firstSeed = (seed * SeedLevels + level) * MaxAttempts;
             var loadout = level > 0 || shopsFirst
                 ? _shop.Shop(ref money, state.Loadout.Ammo, state.Loadout.Implants, state.Loadout.Items, reward)
                 : state.Loadout;
@@ -306,5 +303,5 @@ public sealed class Playthrough
         return registry;
     }
 
-    private sealed record LevelSetup(LevelTemplate Level, WalkField Field);
+    private sealed record LevelSetup(LevelTemplate Level, bool DoorsLocked);
 }

@@ -51,6 +51,7 @@ public sealed class SpriteDefinition
     private readonly int[] _recolored = new int[ArmyCount];
     private readonly int[] _armyMaxHp = new int[ArmyCount];
     private readonly int[] _armyMaxUnits = new int[ArmyCount];
+    private readonly Gamma[] _gammas = new Gamma[ArmyCount];
 
     /// <summary>
     /// Creates the definition of an object record.
@@ -414,6 +415,11 @@ public sealed class SpriteDefinition
     /// Gets the killed sprites of the definition per army.
     /// </summary>
     public Span<int> Killed => _killed;
+
+    /// <summary>
+    /// Gets the gamma the definition's sprites are drawn with per army.
+    /// </summary>
+    public Span<Gamma> Gammas => _gammas;
 
     /// <summary>
     /// Gets the recolored sprites of the definition per army.

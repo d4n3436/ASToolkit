@@ -74,6 +74,7 @@ public sealed partial class Map : IDisposable
         _clock = new GameClock(frameTimes);
         _sprites = model.Sprites.ToList();
         _environment = model.Environment;
+        Gamma = model.Ambient;
         Definitions = definitions;
         _rng = rng;
         Movement = data.Movement.Clone();
@@ -602,11 +603,12 @@ public sealed partial class Map : IDisposable
     /// <summary>
     /// Runs the script's main function, one frame of the update lists and then each controller on the input.
     /// </summary>
+    /// <param name="drawFrame"><see langword="true"/> to draw the frame, as <see cref="StepDemo"/> returns; <see langword="false"/> to skip drawing a late frame.</param>
     [EngineRoutine(0x00405190)]
-    public void Step()
+    public void Step(bool drawFrame = true)
     {
         Script.CallFunction(this, MainFunction, 0, 0, 0);
-        ShakeCamera();
+        UpdateScreen(drawFrame);
 
         for (int layer = 0; layer < UpdateOrder.UpdatedLayerCount; layer++)
         {
