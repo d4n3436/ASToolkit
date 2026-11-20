@@ -181,6 +181,12 @@ public sealed class Sprite : IResettable
 
     internal SpriteCollector? Collector { get; set; }
 
+    internal SpriteText? Text { get; set; }
+
+    internal void ReplaceDefinition(SpriteDefinition definition) => Definition = definition;
+
+    internal void SetAnimationValue(SpriteAnimation state) => Animation = state;
+
     /// <summary>
     /// Gets or sets the sprite's index in the collector's unit list.
     /// </summary>
@@ -454,6 +460,7 @@ public sealed class Sprite : IResettable
         Bucket = -1;
         Slot = -1;
         Collector = null;
+        Text = null;
         ListIndex = -1;
         ActionStack.Clear();
         DiedAt = -1;

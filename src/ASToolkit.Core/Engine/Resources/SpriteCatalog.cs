@@ -53,7 +53,10 @@ public sealed class SpriteCatalog
 
             objects.TryGetWeapon(obj, out var weapon);
             var file = Parts.GetFile(objects.GetPath(id));
-            var definition = new SpriteDefinition(id, obj, weapon, file?.Speed ?? DefaultSpriteSpeed, Parts.CountFrames(objects.GetPath(id)), (int)GetLayer(id, obj, file));
+            var definition = new SpriteDefinition(id, obj, weapon, file?.Speed ?? DefaultSpriteSpeed, Parts.CountFrames(objects.GetPath(id)), (int)GetLayer(id, obj, file))
+            {
+                FrameHeight = file?.Height ?? 0
+            };
 
             if (id == 0)
             {

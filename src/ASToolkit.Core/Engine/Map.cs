@@ -30,6 +30,10 @@ public sealed partial class Map : IDisposable
     private readonly UpdateOrder _updates;
     private readonly List<Sprite> _builders = [];
     private readonly List<Sprite> _menuSprites = [];
+    private MenuClicks _menuClicks;
+    private Sprite? _menuCurrent;
+    private readonly IGameFileSystem _fileSystem;
+    private readonly ControlSettings _controls;
     private readonly List<Group> _groups = [];
     private readonly Player[] _players = new Player[PlayerSlots];
     private readonly LivingSet _livingFences = new();
@@ -64,6 +68,7 @@ public sealed partial class Map : IDisposable
         Session = session ?? new GameSession(Registry);
         Session.Logger.Write("CurrentTime   =%-15u   sizeof(SPRITE)=%-8i Map version   =%i"u8, GameClock.LevelStartTime, SpriteRecordSize, data.Model.Version);
         Session.Cursor ??= ConstructCursor(data.Definitions, Session.ScreenSize);
+        _fileSystem = data.FileSystem;
         Sound = Session.Sound ??= new SoundSystem(data.Definitions.Sounds, data.FileSystem);
         _updates = new UpdateOrder();
         data.Definitions.ReloadRecords();
@@ -89,12 +94,12 @@ public sealed partial class Map : IDisposable
         Weapons = new WeaponSystem(this, definitions, rng);
         var spriteCollision = new SpriteCollision(Movement, Collector);
         PlayerMovement = new PlayerMovement(spriteCollision);
-        var settings = controls ?? ControlSettings.Default;
-        Input = new PlayerInput(settings);
+        _controls = (controls ?? ControlSettings.Default).Clone();
+        Input = new PlayerInput(_controls);
         SetPosition(Session.ScreenSize.ToVector2() * HalfShare + model.Camera, CameraMove.None);
         for (int slot = 0; slot < PlayerSlots; slot++)
         {
-            _players[slot] = new Player(this, spriteCollision, settings);
+            _players[slot] = new Player(this, spriteCollision, _controls);
         }
 
         _brain = new MonsterBrain(Motion, spriteCollision, rng, _monsters, Session);
@@ -549,7 +554,7 @@ public sealed partial class Map : IDisposable
     [EngineRoutine(0x0043f200)]
     private Sprite ConstructSprite(SpriteDefinition definition, Vector3 position, Angle direction, Army army, int hp, UpdateRole role, int number = -1)
     {
-        bool isMenu = definition.Object.SpriteClass == SpriteClass.Frame;
+        bool isMenu = IsMenuClass(definition);
 
         if (isMenu)
         {
@@ -571,6 +576,11 @@ public sealed partial class Map : IDisposable
         if (isMenu)
         {
             _menuSprites.Add(sprite);
+        }
+
+        if (definition.Object.SpriteClass == SpriteClass.Text)
+        {
+            sprite.Text = new SpriteText();
         }
 
         return sprite;
@@ -607,6 +617,7 @@ public sealed partial class Map : IDisposable
     [EngineRoutine(0x00405190)]
     public void Step(bool drawFrame = true)
     {
+        UpdateMenus(Input);
         Script.CallFunction(this, MainFunction, 0, 0, 0);
         UpdateScreen(drawFrame);
 

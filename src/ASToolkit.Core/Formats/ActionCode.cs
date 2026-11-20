@@ -346,6 +346,11 @@ public enum ActionCode
     SetFile = 123,
 
     /// <summary>
+    /// Return the text a text sprite shows.
+    /// </summary>
+    GetText = 124,
+
+    /// <summary>
     /// Run the next command at the end of an animation.
     /// </summary>
     NextCommand = 130,

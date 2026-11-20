@@ -8,6 +8,11 @@ internal sealed class Player
     private const int FirstWeaponKey = '0';
     private const int LastWeaponKey = '9';
     private const int StartMoney = 1000;
+    private const int MessageLineId = 4;
+    private const int NoMarkerId = -1;
+    private const int MessageLines = 5;
+    private const int MessageLifetime = 5000;
+    private static readonly Vector2 MessageOrigin = new(398, 388);
     private static readonly Angle HeadingUpRight = new(0x20 + 8);
     private static readonly Angle HeadingUpLeft = new(0xE0 - 8);
     private static readonly Angle HeadingDownRight = new(0x60 - 8);
@@ -23,9 +28,12 @@ internal sealed class Player
         _collision = collision;
         _settings = settings;
         Money = StartMoney;
+        Messages = new MessageWindow(map, MessageLineId, NoMarkerId, MessageOrigin, MessageLines, MessageLifetime);
     }
 
     public Sprite? Sprite { get; private set; }
+
+    public MessageWindow Messages { get; }
 
     public int Money { get; set; }
 
@@ -48,6 +56,7 @@ internal sealed class Player
     public void Control(PlayerInput input)
     {
         PropagateGroupCommands();
+        Messages.Update();
 
         var player = Sprite;
 

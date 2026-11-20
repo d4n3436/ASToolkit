@@ -74,6 +74,27 @@ public sealed class PlayerInput
     /// </summary>
     public Point WindowOrigin { get; private set; }
 
+    [EngineRoutine(0x00426d70)]
+    internal void ClearLeftClick() => ClearClick(InputFlags.LeftClick, ControlSettings.LeftButton);
+
+    [EngineRoutine(0x00426da0)]
+    internal void ClearRightClick() => ClearClick(InputFlags.RightClick, ControlSettings.RightButton);
+
+    private void ClearClick(InputFlags click, int button)
+    {
+        var flags = Flags;
+        Flags = flags & ~click;
+        if (_settings.First.Primary == button)
+        {
+            Flags = flags & ~(click | InputFlags.First);
+        }
+
+        if (_settings.Second.Primary == button)
+        {
+            Flags &= ~InputFlags.Second;
+        }
+    }
+
     /// <summary>
     /// Clears the input that lasts one frame.
     /// </summary>

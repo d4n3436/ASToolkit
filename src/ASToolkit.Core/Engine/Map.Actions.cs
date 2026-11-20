@@ -44,6 +44,8 @@ public sealed partial class Map
             SpriteClass.Building => BuildingAction(sprite, code, var1, var2, var3, target),
             SpriteClass.Avia => AviaAction(sprite, code, var1, var2, var3, target),
             SpriteClass.Man => ManAction(sprite, code, var1, var2, var3, target),
+            SpriteClass.Frame => FrameAction(sprite, code, var1, var2, var3, target),
+            SpriteClass.Text when sprite.Text is not null => TextAction(sprite, code, var1, var2, var3, target),
             _ => SpriteAction(sprite, code, var1, var2, var3, target),
         };
 

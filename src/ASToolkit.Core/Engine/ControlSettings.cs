@@ -63,6 +63,8 @@ public sealed class ControlSettings
     /// </summary>
     public static ControlSettings Default { get; } = new();
 
+    internal ControlSettings Clone() => (ControlSettings)MemberwiseClone();
+
     internal ControlBinding Left { get; init; } = new(LeftKey, LeftKey);
 
     internal ControlBinding Right { get; init; } = new(RightKey, RightKey);
@@ -71,9 +73,9 @@ public sealed class ControlSettings
 
     internal ControlBinding Down { get; init; } = new(DownKey, DownKey);
 
-    internal ControlBinding First { get; init; } = new(LeftButton, LeftButton);
+    internal ControlBinding First { get; set; } = new(LeftButton, LeftButton);
 
-    internal ControlBinding Second { get; init; } = new(RightButton, RightButton);
+    internal ControlBinding Second { get; set; } = new(RightButton, RightButton);
 
     /// <summary>
     /// Gets the key that selects the previous weapon.

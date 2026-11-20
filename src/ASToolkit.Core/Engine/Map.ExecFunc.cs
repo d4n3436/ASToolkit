@@ -17,6 +17,13 @@ public sealed partial class Map : IScriptFunctionHost
     private const int FadeInDuration = 0x500;
     private const int EffectDuration = 0x400;
     private const int GammaChannels = 4;
+    private const int FirstMouseClick = 0x400;
+    private const int CursorOff = -1;
+    private const int HardwareCursor = 0x100;
+    private const int SoftwareCursor = 0x101;
+    private const int LastCursorAnimation = 0x10;
+    private const KnownObject SoftwareCursorId = (KnownObject)1;
+    private const int SecondMouseClick = 0x800;
     private const int GammaChannelBits = 8;
     private const int SignedGammaRange = 0xfe;
     private const int NoUnitDistance = 60000;
@@ -108,7 +115,7 @@ public sealed partial class Map : IScriptFunctionHost
     {
         RunDestroyHandler(sprite);
 
-        if (sprite.Definition.Object.SpriteClass == SpriteClass.Frame)
+        if (IsMenuClass(sprite.Definition))
         {
             RemoveMenuSprite(sprite);
         }
@@ -206,9 +213,187 @@ public sealed partial class Map : IScriptFunctionHost
     private void LogInvalidDefinition(ReadOnlySpan<byte> function, int id) =>
         Session.Logger.Write("!!!ERROR!!!SCRIPT: Invalid nvid %s %i"u8, (ReadOnlyMemory<byte>)function.ToArray(), id);
 
+    [EngineRoutine(0x0043e140)]
+    private bool UpdateMenus(PlayerInput input)
+    {
+        _menuCurrent = null;
+        _menuClicks = MenuClicks.None;
+        foreach (var sprite in _menuSprites)
+        {
+            var definition = sprite.Definition;
+            var state = sprite.Animation;
+
+            if (definition.MoveMask == 0 || state is SpriteAnimation.Birth or >= SpriteAnimation.Death or SpriteAnimation.Close or SpriteAnimation.Open)
+                continue;
+
+            double top = (double)sprite.Position.Y - sprite.Position.Z;
+            var cursor = input.Cursor;
+            bool isMissed = cursor.X < (double)sprite.Position.X - definition.Half.X || cursor.X > (double)sprite.Position.X + definition.Half.X ||
+                cursor.Y <= top - definition.Object.Size.Z - definition.Half.Y || cursor.Y >= top + definition.Half.Y ||
+                _menuCurrent is not null && sprite.Position.Z <= _menuCurrent.Position.Z;
+            if (isMissed)
+            {
+                sprite.ChangeAnimation((SpriteAnimation)((int)state & 1));
+            }
+            else
+            {
+                _menuCurrent = sprite;
+            }
+        }
+
+        if (_menuCurrent is null)
+            return false;
+
+        if (input.Flags.HasFlag(InputFlags.LeftClick))
+        {
+            _menuClicks |= MenuClicks.Left;
+            input.ClearLeftClick();
+            _menuCurrent.ChangeAnimation((SpriteAnimation)((int)_menuCurrent.Animation & 1 | (int)MenuAnimation.PressDown));
+
+            return true;
+        }
+
+        if (input.Flags.HasFlag(InputFlags.RightClick))
+        {
+            _menuClicks |= MenuClicks.Right;
+            input.ClearRightClick();
+        }
+
+        int current = (int)_menuCurrent.Animation;
+        if ((current & ~1) != (int)MenuAnimation.PressDown)
+        {
+            _menuCurrent.ChangeAnimation((SpriteAnimation)(current & 1 | (int)MenuAnimation.SelectDown));
+        }
+
+        return false;
+    }
+
+    internal Sprite? MenuLeftClick => _menuClicks.HasFlag(MenuClicks.Left) ? _menuCurrent : null;
+
+    private Sprite? MenuRightClick => _menuClicks.HasFlag(MenuClicks.Right) ? _menuCurrent : null;
+
+    [EngineRoutine(0x0043e880)]
+    private int GetMenuIdUnderCursor() => _menuCurrent is null ? 0 : (int)_menuCurrent.Definition.Id;
+
+    [EngineRoutine(0x0043e8a0)]
+    private int GetMenuDirectionUnderCursor() =>
+        _menuCurrent is null ? 0 : _menuCurrent.Direction.GetDirectionIndex(_menuCurrent.Definition.Layout.Directions);
+
+    private void SetMouseClick(int key, int button)
+    {
+        if (button == FirstMouseClick)
+        {
+            _controls.First = new ControlBinding(key, key);
+        }
+        else if (button == SecondMouseClick)
+        {
+            _controls.Second = new ControlBinding(key, key);
+        }
+    }
+
+    private void SetCursor(int type)
+    {
+        switch (type)
+        {
+            case CursorOff:
+                TurnCursorOff();
+                break;
+            case HardwareCursor:
+                UseHardwareCursor();
+                break;
+            case SoftwareCursor:
+                UseSoftwareCursor();
+                break;
+            default:
+                if (!Session.IsCursorLoaded)
+                {
+                    LoadCursor();
+                }
+
+                ShowCursor(type);
+                break;
+        }
+    }
+
+    [EngineRoutine(0x00446d90)]
+    private void LoadCursor() => Session.IsCursorLoaded = true;
+
+    [EngineRoutine(0x00446ef0)]
+    private void TurnCursorOff() => Session.IsCursorLoaded = false;
+
+    [EngineRoutine(0x00446f40)]
+    private void UseHardwareCursor()
+    {
+        if (Session.IsCursorHardware)
+            return;
+
+        TurnCursorOff();
+        Session.Cursor!.ReplaceDefinition(Definitions.Empty);
+        Session.IsCursorHardware = true;
+        LoadCursor();
+    }
+
+    [EngineRoutine(0x00446f70)]
+    private void UseSoftwareCursor()
+    {
+        if (!Session.IsCursorHardware)
+            return;
+
+        TurnCursorOff();
+        var cursor = Session.Cursor!;
+        var state = cursor.Animation;
+        cursor.ReplaceDefinition(Definitions.Find(SoftwareCursorId) ?? Definitions.Empty);
+        cursor.ChangeAnimation(state == SpriteAnimation.Stand ? SpriteAnimation.StopMove : SpriteAnimation.Stand);
+        cursor.ChangeAnimation(state);
+        Session.IsCursorHardware = false;
+        LoadCursor();
+    }
+
+    [EngineRoutine(0x00446fd0)]
+    private void ShowCursor(int type)
+    {
+        var cursor = Session.Cursor!;
+        if (Session.IsCursorHardware && type > LastCursorAnimation)
+        {
+            cursor.SetAnimationValue((SpriteAnimation)type);
+            return;
+        }
+
+        cursor.ChangeAnimation((SpriteAnimation)type);
+    }
+
+    private static bool IsMenuClass(SpriteDefinition definition) => definition.Object.SpriteClass is SpriteClass.Frame or SpriteClass.Text;
+
+    // TODO: Port releasing the sprites of one menu file (0x43e5c0)
+    [EngineRoutine(0x0043dfe0)]
+    private void ReleaseMenuSprites()
+    {
+        for (int index = _menuSprites.Count - 1; index >= 0; index--)
+        {
+            if (index >= _menuSprites.Count)
+                continue;
+
+            var sprite = _menuSprites[index];
+            int last = _menuSprites.Count - 1;
+            _menuSprites[index] = _menuSprites[last];
+            _menuSprites.RemoveAt(last);
+            if (_menuCurrent == sprite)
+            {
+                _menuCurrent = null;
+            }
+
+            DestroySprite(sprite);
+        }
+    }
+
     [EngineRoutine(0x0043deb0)]
     private void RemoveMenuSprite(Sprite sprite)
     {
+        if (_menuCurrent == sprite)
+        {
+            _menuCurrent = null;
+        }
+
         int index = _menuSprites.LastIndexOf(sprite);
         if (index < 0)
             return;
@@ -866,45 +1051,73 @@ public sealed partial class Map : IScriptFunctionHost
             case ScriptFunction.MenuFind:
                 PushSprite(script, MenuFind(script));
                 break;
-            // TODO: Port the menus
+            // TODO: Port loading menu files
             case ScriptFunction.MenuLoad:
-            case ScriptFunction.MenuRelease:
                 script.Pop();
                 break;
+            case ScriptFunction.MenuRelease:
+                if (script.PopText().IsEmpty)
+                {
+                    ReleaseMenuSprites();
+                }
+
+                break;
             case ScriptFunction.MenuNVidUnderCursor:
+                script.PushNumber(GetMenuIdUnderCursor());
+                break;
             case ScriptFunction.MenuNDirUnderCursor:
-                script.PushNumber(0);
+                script.PushNumber(GetMenuDirectionUnderCursor());
                 break;
             case ScriptFunction.MenuAction:
                 MenuAction(script);
                 break;
             case ScriptFunction.MenuCreate:
-                PopValues(script, 4);
-                if (Definitions.Find((KnownObject)script.PopNumber()) is not null)
+            {
+                int z = script.PopNumber();
+                int y = script.PopNumber() + z;
+                int x = script.PopNumber();
+                int direction = script.PopNumber();
+                int id = script.PopNumber();
+                var definition = Definitions.Find((KnownObject)id);
+                if (definition is null)
                 {
-                    PushSprite(script, null);
+                    LogInvalidDefinition("for MenuCreate"u8, id);
+                    script.PushNumber(0);
+                    break;
                 }
 
+                var heading = new Angle(unchecked((byte)((direction << 8) / definition.Layout.Directions)));
+                PushSprite(script, CreateSprite(definition, new Vector3(x, y, z), heading));
                 break;
+            }
             case ScriptFunction.MenuLClick:
+                PushSprite(script, MenuLeftClick);
+                break;
             case ScriptFunction.MenuRClick:
-                PushSprite(script, null);
+                PushSprite(script, MenuRightClick);
                 break;
 
-            // TODO: Port the HUD, cursor and camera
             case ScriptFunction.SetCursor:
+                SetCursor(script.PopNumber());
+                break;
             case ScriptFunction.SetStateBar:
             case ScriptFunction.SetGraphDetail:
                 script.Pop();
                 break;
             case ScriptFunction.MessageText:
-                PopValues(script, 3);
+            {
+                int y = script.PopNumber();
+                var target = new Vector2(script.PopNumber(), y);
+                _players[ControlledPlayer].Messages.Add(script.PopText(), target);
                 break;
+            }
             case ScriptFunction.SetPosition:
                 int positionY = script.PopNumber();
                 SetPosition(new Vector2(script.PopNumber(), positionY), CameraMove.None);
                 break;
             case ScriptFunction.SetMouseClick:
+                SetMouseClick(script.PopNumber(), script.PopNumber());
+                break;
             case ScriptFunction.SetCursorPosition:
             case ScriptFunction.SetWind:
                 PopValues(script, 2);
@@ -995,6 +1208,11 @@ public sealed partial class Map : IScriptFunctionHost
 
                 break;
             case ScriptFunction.GetString:
+            {
+                var keyword = script.PopText();
+                script.PushText(ProfileFile.GetString(_fileSystem, StringsFile, script.PopText().Span, keyword.Span));
+                break;
+            }
             case ScriptFunction.Save:
             case ScriptFunction.Pause:
             case ScriptFunction.Exec:
@@ -1436,12 +1654,12 @@ public sealed partial class Map : IScriptFunctionHost
                 PushSprite(script, sprite.Owner);
                 return;
 
-            // TODO: Port the text sprites
-            case ActionCode.GetTextDesc when sprite.Definition.Object.SpriteClass == SpriteClass.Text:
-                script.PushText(ReadOnlyMemory<byte>.Empty);
+            case ActionCode.GetTextDesc when sprite.Text is not null:
+                script.PushText(sprite.Text.Description);
                 return;
-            case ActionCode.GetTextDesc:
-                throw new NotSupportedException($"Cannot read the text of {sprite.Definition.Id}.");
+            case ActionCode.GetText when sprite.Text is not null:
+                script.PushText(sprite.Text.Shown);
+                return;
 
             // TODO: Port the trains
             case ActionCode.FirstEngine or ActionCode.LastEngine or ActionCode.NextEngine:

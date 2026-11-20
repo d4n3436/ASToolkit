@@ -93,7 +93,7 @@ public sealed partial class Map
     };
 
     [EngineRoutine(0x0040bc20)]
-    private void SetPosition(Vector2 center, CameraMove move)
+    internal void SetPosition(Vector2 center, CameraMove move)
     {
         var view = Session.View;
         var corner = center - Session.ScreenSize.ToVector2() * HalfShare;

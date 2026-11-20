@@ -67,6 +67,16 @@ public sealed class GameSession : IDisposable
     public Sprite? Cursor { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the system draws the mouse cursor rather than the game's cursor sprite.
+    /// </summary>
+    public bool IsCursorHardware { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the cursor images are loaded and the cursor is showing up.
+    /// </summary>
+    public bool IsCursorLoaded { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets a value indicating whether the next map load records the input of every frame into a demo kept in memory.
     /// </summary>
     public bool RecordsNextMap { get; set; }

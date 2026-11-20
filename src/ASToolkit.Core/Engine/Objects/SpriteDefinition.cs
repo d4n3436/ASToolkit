@@ -230,6 +230,11 @@ public sealed class SpriteDefinition
     public int SpriteSpeed { get; private set; }
 
     /// <summary>
+    /// Gets the frame height of the definition's sprite, 0 without a sprite file.
+    /// </summary>
+    public short FrameHeight { get; init; }
+
+    /// <summary>
     /// Gets the weapon flags of the definition.
     /// </summary>
     public WeaponFlags WeaponFlags { get; }
