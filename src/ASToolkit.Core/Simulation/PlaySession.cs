@@ -32,9 +32,9 @@ internal sealed class PlaySession
 
     public PlayLog Log { get; }
 
-    public void Play(ReplayRecorder? recorder) => PlayUntil(int.MaxValue, recorder);
+    public void Play() => PlayUntil(int.MaxValue);
 
-    public void PlayUntil(int time, ReplayRecorder? recorder = null)
+    public void PlayUntil(int time)
     {
         if (!_started)
         {
@@ -50,7 +50,6 @@ internal sealed class PlaySession
             _enemies.Update();
             Won = HasWon();
             _mark = _mark.Update(Map, Bot, _enemies.Count);
-            recorder?.Capture(Map);
             Map.AdvanceClock();
         }
     }

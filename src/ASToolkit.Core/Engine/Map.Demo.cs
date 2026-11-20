@@ -40,6 +40,23 @@ public sealed partial class Map
     }
 
     /// <summary>
+    /// Returns the game time of every frame the played demo has left.
+    /// </summary>
+    /// <returns>The game times in milliseconds, in frame order.</returns>
+    public IEnumerable<int> EnumerateDemoFrameTimes()
+    {
+        if (_playedDemo is null)
+            yield break;
+
+        var demo = _playedDemo.Value;
+        int offset = _playedOffset;
+        while (demo.TryReadFrame(ref offset, out var frame))
+        {
+            yield return frame.Time;
+        }
+    }
+
+    /// <summary>
     /// Gets the map the game loads next.
     /// </summary>
     public byte[]? MapToLoad { get; private set; }
@@ -49,12 +66,7 @@ public sealed partial class Map
     /// </summary>
     public bool IsQuitting { get; private set; }
 
-    /// <summary>
-    /// Starts recording the input into a demo.
-    /// </summary>
-    /// <param name="mapName">The map's name as the demo stores it.</param>
-    /// <param name="seed">The seed the demo stores.</param>
-    public void StartDemoRecording(ReadOnlySpan<byte> mapName, int seed)
+    private void StartDemoRecording(ReadOnlySpan<byte> mapName, int seed)
     {
         _recordedDemo = new MemoryStream();
         _recordedDemo.Write(mapName);

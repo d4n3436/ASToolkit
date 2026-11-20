@@ -143,34 +143,6 @@ public class MapTests
         Assert.True(map.Player.Hp < health);
     }
 
-    [Fact]
-    public void Step_Recording_KeepsTheMapsBehavior()
-    {
-        var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var recorder = new ReplayRecorder();
-        var recorded = EngineTestMap.CreateMap(objects);
-        recorder.Start(recorded);
-        var unrecorded = EngineTestMap.CreateMap(objects);
-        var definition = objects.Find(KnownObject.Monster1)!;
-        var position = recorded.Player.Position + new Vector3(200, 0, 0);
-        var firstEnemy = recorded.AddMonster(definition, position, direction: new Angle(192));
-        var secondEnemy = unrecorded.AddMonster(definition, position, direction: new Angle(192));
-        for (int tick = 0; tick < 300; tick++)
-        {
-            recorded.Step(new PlayerCommand(null, PlayerCommand.GetCursor(firstEnemy.Position), firstEnemy.IsAlive, Sprite.Pistols));
-            unrecorded.Step(new PlayerCommand(null, PlayerCommand.GetCursor(secondEnemy.Position), secondEnemy.IsAlive, Sprite.Pistols));
-            recorder.Capture(recorded);
-            Assert.Equal((recorded.Player.Position, recorded.Player.Frame, recorded.Weapons.Torso.Frame), (unrecorded.Player.Position, unrecorded.Player.Frame, unrecorded.Weapons.Torso.Frame));
-            Assert.Equal((firstEnemy.Position, firstEnemy.Frame, firstEnemy.Hp), (secondEnemy.Position, secondEnemy.Frame, secondEnemy.Hp));
-            Assert.Equal(recorded.Player.Hp, unrecorded.Player.Hp);
-        }
-
-        var replay = recorder.CreateReplay([]);
-        Assert.NotEmpty(replay.Tracks);
-        Assert.NotEmpty(replay.Inputs);
-        Assert.Equal(new PlayerState(recorded).GetRemainingAmmo(), new PlayerState(unrecorded).GetRemainingAmmo());
-    }
-
     [Theory]
     [InlineData(16)]
     [InlineData(8)]

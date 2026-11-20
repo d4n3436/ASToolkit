@@ -1,3 +1,4 @@
+using System.Numerics;
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
@@ -30,8 +31,46 @@ public class CampaignTests
         Assert.Equal(1, carried.Items[KnownObject.Flashlight]);
         Assert.Equal(210, result.State.Money);
         Assert.Equal(carried.Items, result.State.Loadout.Items);
-        Assert.Null(result.Levels[0].Replay);
-        Assert.NotEmpty(result.Levels[1].Replay!.Inputs);
+        Assert.Null(result.Levels[0].Demo);
+        Assert.NotNull(result.Levels[1].Demo);
+    }
+
+    [Fact]
+    public void LoadReplay_RecordedRun_PlaysTheSameFramesFromItsDemo()
+    {
+        string game = TestGameFolder.RequireFolder();
+        var objects = TestGameFolder.Objects;
+        string path = Path.Combine(game, "Maps", "Level_02.map");
+        var level = RouteAnalyzer.Analyze("Level_02.map", MapResourceBuilder.Load(path), LevelScriptReader.Read(Path.ChangeExtension(path, ".lgc"), objects.ScriptVersion), objects)!;
+        var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default);
+        var playthrough = new Playthrough(game, objects, TestGameFolder.Table);
+        var session = playthrough.Start(level, loadout, 1, record: true);
+        session.PlayUntil(60000);
+        var recorded = session.Map;
+
+        var replay = playthrough.LoadReplay(level, loadout, new DemoResource(recorded.FinishDemoRecording()));
+        uint now = 0;
+        int frames = 0;
+        while (true)
+        {
+            replay.StepDemo(now, out now);
+
+            if (!replay.IsPlayingDemo)
+                break;
+
+            replay.Step();
+            frames++;
+
+            if (replay.TryGetNextDemoTime(out int next))
+            {
+                replay.AdvanceClock(replay.WallTime + (uint)(next - replay.Time));
+            }
+        }
+
+        Assert.True(frames > 1000);
+        Assert.Equal(recorded.RandomState, replay.RandomState);
+        Assert.Equal(recorded.Player.Position, replay.Player.Position);
+        Assert.Equal(recorded.Player.Hp, replay.Player.Hp);
     }
 
     [Fact]
@@ -43,13 +82,12 @@ public class CampaignTests
         var level = RouteAnalyzer.Analyze("Level_03.map", MapResourceBuilder.Load(path), LevelScriptReader.Read(Path.ChangeExtension(path, ".lgc"), objects.ScriptVersion), objects)!;
         var loadout = new PlayerLoadout(KnownObject.RedArmor, new Dictionary<KnownObject, int> { [KnownObject.Minigun] = 800, [KnownObject.RocketLauncher] = 80 },
             new PlayerImplants(3, 3, 3, 3));
-        var recorder = new ReplayRecorder();
-        var session = new Playthrough(game, objects, TestGameFolder.Table).Start(level, loadout, 1, recorder);
+        var session = new Playthrough(game, objects, TestGameFolder.Table).Start(level, loadout, 1);
         int placed = level.Elements.Count(element => element.Kind == ElementKind.Monster);
         
         for (int time = 10000; time <= 240000 && !(session.Log.Kills > placed && Opened(KnownObject.SpawnWallSlash) && Opened(KnownObject.SpawnWallBack)); time += 10000)
         {
-            session.PlayUntil(time, recorder);
+            session.PlayUntil(time);
         }
 
         Assert.True(session.Log.Kills > placed);
@@ -57,7 +95,7 @@ public class CampaignTests
         Assert.True(Opened(KnownObject.SpawnWallBack));
         return;
         
-        bool Opened(KnownObject id) => recorder.CreateReplay([]).RemovedSprites.Any(removal => removal.Placement.Id == id);
+        bool Opened(KnownObject id) => session.Map.Sprites.Any(placement => placement.Id == id && session.Map.IsRemoved(placement));
     }
 
     [Fact]
@@ -70,10 +108,10 @@ public class CampaignTests
         var level = EmptyLevel();
 
         var weapons = Enumerable.Range(Sprite.WeaponIdBase, Sprite.WeaponSlots).Select(id => (KnownObject)id).ToArray();
-        var plain = play.Start(level, new PlayerLoadout(0, new Dictionary<KnownObject, int>(), new PlayerImplants(0, 0, 0, 0)), 1, null);
+        var plain = play.Start(level, new PlayerLoadout(0, new Dictionary<KnownObject, int>(), new PlayerImplants(0, 0, 0, 0)), 1);
         plain.PlayUntil(100);
         int[] aims = weapons.Select(id => (int)plain.Map.Definitions.Find(id)!.Aim).ToArray();
-        var implanted = play.Start(level, new PlayerLoadout(0, new Dictionary<KnownObject, int>(), new PlayerImplants(0, 0, 0, accuracyImplants)), 1, null);
+        var implanted = play.Start(level, new PlayerLoadout(0, new Dictionary<KnownObject, int>(), new PlayerImplants(0, 0, 0, accuracyImplants)), 1);
         implanted.PlayUntil(100);
 
         Assert.Contains(aims, aim => aim > 0);
@@ -86,17 +124,20 @@ public class CampaignTests
         var tour = Enumerable.Range(0, 16).Select(index => new Cell(index, 0)).ToArray();
         var cells = tour.ToHashSet();
         var start = lattice.GetCenter(tour[0]);
-        var elements = pickups.Select(id => new RouteElement
+        var position = new Vector3(start.X, start.Y, 0);
+        var placed = pickups.Select((id, index) => new MergedMapSprite(index + 1, id, position, default, Army.Neutral, [])).ToList();
+        var elements = placed.Select(placement => new RouteElement
         {
-            Kind = ElementKind.Pickup, Id = id, X = (int)start.X, Y = (int)start.Y, Cell = tour[0], Hidden = false, Direction = 0
+            Kind = ElementKind.Pickup, Placement = placement, Id = placement.Id, X = (int)start.X, Y = (int)start.Y, Cell = tour[0], Hidden = false, Direction = 0
         }).ToArray();
+        placed.Insert(0, new MergedMapSprite(0, KnownObject.PlayerStart, position, default, Army.Player, []));
 
         return new RouteAnalysis
         {
             Name = "Campaign test", WallSet = WallSet.Basement,
             Model = new LevelModel
             {
-                Name = "Campaign test", WallSet = WallSet.Basement, Lattice = lattice, Cells = cells, Edges = new Dictionary<EdgeKey, EdgeKind>(), Objects = [], Sprites = [], StoredSprites = []
+                Name = "Campaign test", WallSet = WallSet.Basement, Lattice = lattice, Cells = cells, Edges = new Dictionary<EdgeKey, EdgeKind>(), Objects = [], Sprites = placed, StoredSprites = placed
             },
             Step = lattice.CellStep, ReachableCells = cells.Count, RoutePixels = (int)(lattice.CellStep * (tour.Length - 1)), SpinePixels = 0,
             RevisitShare = 0, Legs = [], Objectives = [], Elements = elements, Gating = new GateMeasurement(), Checkpoints = [],

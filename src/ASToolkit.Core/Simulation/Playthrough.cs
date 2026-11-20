@@ -80,80 +80,16 @@ public sealed class Playthrough
     /// <param name="analysis">The route analysis of the level.</param>
     /// <param name="loadout">The weapons, ammunition, armor and implants the player carries into the level.</param>
     /// <param name="seed">The seed of the random rolls.</param>
-    /// <param name="record">A value indicating whether to keep a replay of the run.</param>
+    /// <param name="record">Whether to record the run into a demo.</param>
     /// <param name="session">The map state earlier levels of the game session left, or null for a new session.</param>
     /// <returns>The outcome of the playthrough.</returns>
     public PlaythroughResult Run(RouteAnalysis analysis, PlayerLoadout loadout, int seed, bool record = false, GameSession? session = null)
     {
-        var recorder = record ? new ReplayRecorder() : null;
-        var play = Start(analysis, loadout, seed, recorder, session);
-        play.Play(recorder);
+        var play = Start(analysis, loadout, seed, record, session);
+        play.Play();
 
-        return CreateResult(play, loadout, recorder);
+        return CreateResult(play, loadout, record);
     }
-
-    /// <summary>
-    /// Replays a demo of the level in the engine, from its seed and the input of every frame.
-    /// </summary>
-    /// <param name="analysis">The route analysis of the level the demo plays.</param>
-    /// <param name="demo">The demo.</param>
-    /// <param name="loadingScreenRecords">The stored sprites before which the game's loading screen redrew while the level loaded.</param>
-    /// <param name="registry">The registry the level script reads, or null for an empty one.</param>
-    /// <param name="soundDevice">The device the sound system asks whether voices and music are playing, or <see langword="null"/> to time them from their lengths.</param>
-    /// <returns>The player after the level loads and after each frame.</returns>
-    public IReadOnlyList<DemoReplayPoint> ReplayDemo(RouteAnalysis analysis, DemoResource demo, IReadOnlyList<int>? loadingScreenRecords = null, ScriptRegistry? registry = null, ISoundDevice? soundDevice = null)
-    {
-        var map = LoadDemo(analysis, demo, loadingScreenRecords, registry, soundDevice: soundDevice);
-        var points = new List<DemoReplayPoint> { GetReplayPoint(map) };
-        uint now = 0;
-        while (true)
-        {
-            map.StepDemo(now, out now);
-
-            if (!map.IsPlayingDemo)
-                break;
-
-            map.Step();
-            points.Add(GetReplayPoint(map));
-
-            if (map.TryGetNextDemoTime(out int next))
-            {
-                map.AdvanceClock(map.WallTime + (uint)(next - map.Time));
-            }
-            else
-            {
-                map.AdvanceClock();
-            }
-        }
-
-        return points;
-    }
-
-    internal Map LoadDemo(RouteAnalysis analysis, DemoResource demo, IReadOnlyList<int>? loadingScreenRecords = null, ScriptRegistry? registry = null, GameSession? session = null, ISoundDevice? soundDevice = null)
-    {
-        var level = GetSetup(analysis).Level;
-        var scripted = new LevelTemplate
-        {
-            Model = level.Model, Definitions = level.Definitions, Movement = level.Movement, Bounds = level.Bounds, AmmoBatches = level.AmmoBatches,
-            FrameTimes = level.FrameTimes, FallbackStart = level.FallbackStart, FileSystem = new GameFolder(_gameFolder),
-            ScriptPath = Path.ChangeExtension(GameTextEncoding.Cyrillic.GetString(demo.MapName), ".lgc"),
-            LoadingScreenRecords = loadingScreenRecords ?? []
-        };
-
-        if (soundDevice is not null)
-        {
-            session ??= new GameSession(registry ?? new ScriptRegistry(""));
-            session.Sound = new SoundSystem(level.Definitions.Sounds, scripted.FileSystem, soundDevice);
-        }
-
-        var map = new Map(scripted, new GameRandom(demo.Seed), demo: demo, registry: registry, session: session);
-        AddLoosePickups(analysis, map);
-
-        return map;
-    }
-
-    private static DemoReplayPoint GetReplayPoint(Map map) =>
-        new(map.Time, map.Player.Position, map.Player.Hp, map.Player.Direction, map.Player.Speed, map.RandomState, map.Camera);
 
     private LevelSetup GetSetup(RouteAnalysis analysis)
     {
@@ -166,40 +102,43 @@ public sealed class Playthrough
         return setup;
     }
 
-    internal PlaySession Start(RouteAnalysis analysis, PlayerLoadout loadout, int seed, ReplayRecorder? recorder, GameSession? session = null)
+    internal PlaySession Start(RouteAnalysis analysis, PlayerLoadout loadout, int seed, bool record = false, GameSession? session = null)
     {
         var setup = GetSetup(analysis);
-        var map = new Map(setup.Level, new GameRandom(seed), registry: CreateRegistry(_gameFolder, analysis.Name, loadout), session: session);
-        recorder?.Start(map);
-        AddLoosePickups(analysis, map);
+        var registry = CreateRegistry(_gameFolder, analysis.Name, loadout);
+
+        if (record)
+        {
+            session ??= new GameSession(registry);
+            session.RecordsNextMap = true;
+        }
+
+        var map = new Map(setup.Level, new GameRandom(seed), registry: registry, session: session);
         var bot = new PlayerBot(map, analysis, setup.Field.Clone(setup.Field.Obstacles.Clone(map.Movement)));
 
         return new PlaySession(map, bot, analysis.Exit is null && !analysis.ClearsMonsters);
     }
 
-    private static void AddLoosePickups(RouteAnalysis analysis, Map map)
+    /// <summary>
+    /// Creates the map of a recorded playthrough, set to play its demo from the start of the level.
+    /// </summary>
+    /// <param name="analysis">The route analysis of the level.</param>
+    /// <param name="loadout">The equipment the player carried into the level.</param>
+    /// <param name="demo">The demo the playthrough recorded.</param>
+    /// <returns>The map, playing the demo as it steps.</returns>
+    public Map LoadReplay(RouteAnalysis analysis, PlayerLoadout loadout, DemoResource demo)
     {
-        foreach (var element in analysis.Elements)
-        {
-            if (element.Placement is null && element.Kind == ElementKind.Pickup)
-            {
-                var definition = map.Definitions.Find(element.Id);
-
-                if (definition is not null)
-                {
-                    map.CreateSprite(definition, new Vector3(element.X, element.Y, 0), default);
-                }
-            }
-        }
+        var setup = GetSetup(analysis);
+        return new Map(setup.Level, new GameRandom(demo.Seed), demo: demo, registry: CreateRegistry(_gameFolder, analysis.Name, loadout));
     }
 
-    private static PlaythroughResult CreateResult(PlaySession session, PlayerLoadout loadout, ReplayRecorder? recorder)
+    private static PlaythroughResult CreateResult(PlaySession session, PlayerLoadout loadout, bool record)
     {
         var map = session.Map;
 
         return new PlaythroughResult(loadout, map.Player.IsAlive && session.Won, map.Time, session.Bot.FarthestProgress, session.Log.Kills, session.Log.Respawns, session.Log.MinHealth,
             map.ReadScriptNumber(MoneyVariable), ReadImplants(map), session.Log.TakenPickups, ReadItems(map), new PlayerState(map).GetRemainingAmmo(),
-            session.Log.Timeline, recorder?.CreateReplay(session.Log.PickupEvents));
+            session.Log.Timeline, record ? new DemoResource(map.FinishDemoRecording()) : null);
     }
 
     private static PlayerImplants ReadImplants(Map map) => new(
@@ -242,21 +181,9 @@ public sealed class Playthrough
         bool locked = analysis.DoorsInitiallyLocked ?? (analysis.Objectives.All(objective => objective.Kind != ObjectiveKind.Blackout) &&
             analysis.Objectives.Any(objective => objective.Kind == ObjectiveKind.Breaker) && analysis.Grid.Edges.Values.Any(kind => kind == EdgeKind.Door));
         var field = new WalkField(analysis.Grid, locked, analysis.Grid.FenceEdges.Count > 0, obstacles, _definitions.Find(KnownObject.PlayerStart)!.Object);
-        var start = analysis.Tour.Count > 0 ? analysis.Grid.Lattice.GetCenter(analysis.Tour[0]).ToVector2() : Vector2.Zero;
-        int cell = field.FindFree(start);
         string scriptPath = GetScriptPath(analysis.Name);
-        var level = new LevelTemplate
-        {
-            Model = analysis.Model,
-            Definitions = _definitions,
-            Movement = movement,
-            Bounds = WorldBounds.Measure(analysis.Grid.Cells, analysis.Grid.Lattice),
-            AmmoBatches = _ammoBatches,
-            FrameTimes = FrameTimes,
-            FallbackStart = cell >= 0 ? field.GetCenter(cell) : start,
-            FileSystem = _fileSystem.TryRead(scriptPath, out _) ? _fileSystem : new ScriptOverlay(_fileSystem, scriptPath, DefaultLevelScript),
-            ScriptPath = scriptPath
-        };
+        IGameFileSystem fileSystem = _fileSystem.TryRead(scriptPath, out _) ? _fileSystem : new ScriptOverlay(_fileSystem, scriptPath, DefaultLevelScript);
+        var level = LevelTemplate.FromModel(analysis.Model, fileSystem, scriptPath, _definitions, _ammoBatches) with { Movement = movement, FrameTimes = FrameTimes };
 
         return new LevelSetup(level, field);
     }
@@ -275,22 +202,21 @@ public sealed class Playthrough
         CampaignState? state = null, bool record = false, int? recordedLevel = null)
     {
         var results = new List<PlaythroughResult>();
-        var session = new GameSession(CreateProfile(_gameFolder));
         bool shopsFirst = state is not null;
         state ??= CampaignState.CreateInitial();
         for (int level = 0; level < levels.Count; level++)
         {
             int money = state.Money;
             int reward = level < endMoney.Count ? endMoney[level] : 0;
-            int firstSeed = seed + level * MaxAttempts;
+            int firstSeed = (seed * levels.Count + level) * MaxAttempts;
             var loadout = level > 0 || shopsFirst
                 ? _shop.Shop(ref money, state.Loadout.Ammo, state.Loadout.Implants, state.Loadout.Items, reward)
                 : state.Loadout;
             bool recordLevel = record && (recordedLevel is null || recordedLevel == level);
-            var result = Run(levels[level], loadout, firstSeed, recordLevel, session);
+            var result = Run(levels[level], loadout, firstSeed, recordLevel);
             for (int attempt = 1; attempt < MaxAttempts && !result.Survived; attempt++)
             {
-                result = Run(levels[level], loadout, firstSeed + attempt, recordLevel, session);
+                result = Run(levels[level], loadout, firstSeed + attempt, recordLevel);
             }
 
             results.Add(result);

@@ -980,10 +980,10 @@ public sealed partial class Map : IScriptFunctionHost
                 PopValues(script, 2);
                 break;
             case ScriptFunction.SaveDemo:
-                // Unused on AS1
                 if (!IsPlayingDemo)
                 {
                     script.Pop();
+                    Session.RecordsNextMap = true;
                 }
 
                 break;

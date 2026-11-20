@@ -44,23 +44,21 @@ public class ScriptHandlerTests
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var map = EngineTestMap.CreateMap(definitions);
-        var recorder = new ReplayRecorder();
-        recorder.Start(map);
+        var screen = new ScreenLog();
         var tank = definitions.Find(KnownObject.RedTankMonster)!;
         var monster = map.AddMonster(tank, map.Player.Position + new Vector3(600, 0, 0));
         map.CreateSprite(definitions.Find(KnownObject.Bomb)!, map.Player.Position, default);
-        Step(map, 10, recorder);
+        Step(map, 10, screen);
 
-        var replay = recorder.CreateReplay([]);
         Assert.False(monster.IsAlive);
         Assert.Equal(tank.MaxHp, monster.Hp);
-        Assert.Contains(replay.Flashes, flash => flash.Color == 0xffffff);
-        Assert.NotEmpty(replay.Shakes);
-        Assert.All(replay.Shakes, shake => Assert.InRange(Math.Abs(shake.Offset.X) + Math.Abs(shake.Offset.Y), 0, 8));
+        Assert.Contains(screen.Flashes, flash => flash.Color == 0xffffff);
+        Assert.NotEmpty(screen.Shakes);
+        Assert.All(screen.Shakes, shake => Assert.InRange(Math.Abs(shake.Offset.X) + Math.Abs(shake.Offset.Y), 0, 8));
 
-        int started = replay.Shakes[0].Time;
-        Step(map, 2600 / GameClock.DefaultFrameTime, recorder);
-        Assert.InRange(recorder.CreateReplay([]).Shakes[^1].Time - started, 2400, 2600);
+        int started = screen.Shakes[0].Time;
+        Step(map, 2600 / GameClock.DefaultFrameTime, screen);
+        Assert.InRange(screen.Shakes[^1].Time - started, 2400, 2600);
     }
 
     [Fact]
@@ -212,21 +210,40 @@ public class ScriptHandlerTests
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
         var map = EngineTestMap.CreateMap(definitions);
-        var recorder = new ReplayRecorder();
-        recorder.Start(map);
+        var screen = new ScreenLog();
         Step(map, 1);
         map.Action(map.Player, ActionCode.Damage, map.Player.Hp);
-        Step(map, 40, recorder);
+        Step(map, 40, screen);
 
-        Assert.Single(recorder.CreateReplay([]).Flashes, flash => flash.Color == 0xff0000);
+        Assert.Single(screen.Flashes, flash => flash.Color == 0xff0000);
     }
 
-    private static void Step(Map map, int ticks, ReplayRecorder? recorder = null)
+    private static void Step(Map map, int ticks, ScreenLog? screen = null)
     {
         for (int tick = 0; tick < ticks; tick++)
         {
             map.Step(default);
-            recorder?.Capture(map);
+            screen?.Read(map);
+        }
+    }
+
+    private sealed class ScreenLog
+    {
+        public List<CameraShake> Shakes { get; } = [];
+
+        public List<ScreenFlash> Flashes { get; } = [];
+
+        public void Read(Map map)
+        {
+            if (map.CameraShake is not null && (Shakes.Count == 0 || Shakes[^1].Time != map.CameraShake.Value.Time))
+            {
+                Shakes.Add(map.CameraShake.Value);
+            }
+
+            if (map.ScreenFlash is not null && (Flashes.Count == 0 || Flashes[^1].Time != map.ScreenFlash.Value.Time))
+            {
+                Flashes.Add(map.ScreenFlash.Value);
+            }
         }
     }
 }

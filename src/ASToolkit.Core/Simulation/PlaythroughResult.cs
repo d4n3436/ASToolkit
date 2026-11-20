@@ -4,7 +4,7 @@ using ASToolkit.Core.Formats;
 namespace ASToolkit.Core.Simulation;
 
 /// <summary>
-/// Represents the outcome of a playthrough, such as whether the player survived, the time, the kills and the equipment left, with the script's event times and an optional replay.
+/// Represents the outcome of a playthrough, such as whether the player survived, the time, the kills and the equipment left, with the script's event times and an optional demo.
 /// </summary>
 /// <param name="StartingLoadout">The equipment carried into the level after shopping.</param>
 /// <param name="Survived">Whether the player met the level's victory condition alive.</param>
@@ -19,7 +19,7 @@ namespace ASToolkit.Core.Simulation;
 /// <param name="Items">The retained utility items at the end of the level.</param>
 /// <param name="Ammo">The ammunition left of each weapon the player holds at the end besides the pistols, keyed by the weapon pickup.</param>
 /// <param name="Script">The times of the level script's events in the playthrough.</param>
-/// <param name="Replay">The recorded replay of the playthrough, or null when the run kept no record.</param>
+/// <param name="Demo">The demo the run recorded, or null when the run didn't keep a demo.</param>
 public sealed record PlaythroughResult(
     PlayerLoadout? StartingLoadout,
     bool Survived,
@@ -34,4 +34,4 @@ public sealed record PlaythroughResult(
     IReadOnlyDictionary<KnownObject, int> Items,
     IReadOnlyDictionary<KnownObject, int> Ammo,
     ScriptTimeline Script,
-    PlaythroughReplay? Replay);
+    DemoResource? Demo);

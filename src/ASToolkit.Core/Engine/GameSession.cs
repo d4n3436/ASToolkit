@@ -66,6 +66,11 @@ public sealed class GameSession : IDisposable
     /// </summary>
     public Sprite? Cursor { get; set; }
 
+    /// <summary>
+    /// Gets or sets a value indicating whether the next map load records the input of every frame into a demo kept in memory.
+    /// </summary>
+    public bool RecordsNextMap { get; set; }
+
     internal GameLogger Logger { get; }
 
     /// <summary>

@@ -1,3 +1,4 @@
+using System.Numerics;
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Reference;
@@ -50,61 +51,111 @@ public class PlaythroughTests
         Assert.True(first.Survived, $"Progress {first.Progress:P1}, time {first.Time} ms, kills {first.Kills}, minimum health {first.MinHealth}");
         Assert.Equal(level.Analysis.Elements.Count(element => element.Kind == ElementKind.Monster), first.Kills);
         Assert.Equal(first.Time, second.Time);
-        Assert.Equal(first.Replay!.Tracks, second.Replay!.Tracks);
-        Assert.Equal(first.Replay!.Samples, second.Replay!.Samples);
-        Assert.NotEmpty(first.Replay!.Inputs);
-        Assert.NotEmpty(first.Replay!.Scenery);
-        Assert.Contains(first.Replay!.Samples, sample => sample.Id == KnownObject.PistolMuzzleFlash);
-        Assert.Contains(first.Replay!.Samples, sample => sample.Id == KnownObject.FlyingCasing);
-        Assert.Contains(first.Replay!.Scenery, effect => effect.Id == KnownObject.LyingCasing);
-        Assert.NotEmpty(first.Replay!.PickupEvents);
-        Assert.Equal(first.Replay!.PickupEvents, second.Replay!.PickupEvents);
-        Assert.All(first.Replay!.PickupEvents, pickup => Assert.Contains(pickup.Placement, level.Map.Sprites));
-        Assert.Contains(first.Replay!.Scenery, effect => effect.Id == KnownObject.SmallBloodPool);
-        Assert.Equal(first.Replay!.Scenery, second.Replay!.Scenery);
+        Assert.Equal(first.Demo!.Value.Body.ToArray(), second.Demo!.Value.Body.ToArray());
+        Assert.NotEmpty(first.Pickups);
+        Assert.Equal(first.Pickups, second.Pickups);
+
+        var moved = new HashSet<MergedMapSprite>(ReferenceEqualityComparer.Instance);
+        var replay = playthrough.LoadReplay(level.Analysis, loadout, first.Demo.Value);
+        var placed = new Dictionary<MergedMapSprite, Vector3>(ReferenceEqualityComparer.Instance);
+        foreach (var placement in replay.Sprites)
+        {
+            var sprite = replay.FindPlacementSprite(placement);
+
+            if (sprite is not null)
+            {
+                placed[placement] = sprite.Position;
+            }
+        }
+
+        var effects = new HashSet<KnownObject>();
+        foreach (var map in PlayDemo(replay))
+        {
+            foreach (var effect in map.Effects.Active)
+            {
+                effects.Add(effect.Definition.Id);
+            }
+
+            foreach (var placement in placed.Keys.ToArray())
+            {
+                var sprite = map.FindPlacementSprite(placement);
+
+                if (sprite is not null && !map.IsRemoved(placement) && sprite.Position != placed[placement])
+                {
+                    moved.Add(placement);
+                    placed[placement] = sprite.Position;
+                }
+            }
+        }
+
+        Assert.Contains(KnownObject.PistolMuzzleFlash, effects);
+        Assert.Contains(KnownObject.FlyingCasing, effects);
+        Assert.Contains(replay.Effects.Settled, effect => effect.Id == KnownObject.LyingCasing);
+        Assert.Contains(replay.Effects.Settled, effect => effect.Id == KnownObject.SmallBloodPool);
 
         var parts = new SpritePartReader(game, objects);
         var terrain = new MovementMap(level.Model, parts);
         var movement = new WalkObstacles(level.Model, parts, objects, terrain);
-        
-        foreach (var moving in level.Model.Sprites.Where(sprite => sprite.Id is KnownObject.SmallDoor or KnownObject.DoubleDoor)
-            .Concat(first.Replay!.PlacementFrames.Select(frame => frame.Placement)).Distinct())
+
+        foreach (var moving in level.Model.Sprites.Where(sprite => sprite.Id is KnownObject.SmallDoor or KnownObject.DoubleDoor).Concat(moved).Distinct())
         {
             movement.Remove(moving);
         }
 
-        int removal = 0;
-        var couldStand = new Dictionary<int, bool>();
-        foreach (int time in first.Replay!.Inputs.Select(input => input.Time).DistinctBy(time => time / 100))
+        var removed = new HashSet<MergedMapSprite>(ReferenceEqualityComparer.Instance);
+        var couldStand = new Dictionary<Sprite, bool>();
+        int checkedAt = -1;
+        foreach (var map in PlayDemo(playthrough.LoadReplay(level.Analysis, loadout, first.Demo.Value)))
         {
-            while (removal < first.Replay!.RemovedSprites.Count && first.Replay!.RemovedSprites[removal].Time <= time)
+            int time = map.Time;
+
+            if (time / 100 == checkedAt / 100)
+                continue;
+
+            checkedAt = time;
+            foreach (var placement in map.Sprites)
             {
-                var removed = first.Replay!.RemovedSprites[removal++].Placement;
-                movement.Remove(removed);
-                terrain.Remove(removed);
+                if (map.IsRemoved(placement) && removed.Add(placement))
+                {
+                    movement.Remove(placement);
+                    terrain.Remove(placement);
+                }
             }
 
             bool doorsLocked = (first.Script.DoorsInitiallyLocked || time >= first.Script.BlackoutAt) &&
                 (first.Script.DoorsOpenedAt is null || time < first.Script.DoorsOpenedAt);
             movement.SetGates(doorsLocked, first.Script.FencesDownAt is null || time < first.Script.FencesDownAt);
-            for (int track = 0; track < first.Replay!.Tracks.Length; track++)
+            foreach (var unit in map.Monsters.Append(map.Player))
             {
-                var entry = first.Replay!.Tracks[track];
+                var obj = unit.Definition.Object;
 
-                if (entry.Start > time || entry.End <= time)
-                    continue;
-
-                var samples = first.Replay!.Samples.Skip(entry.FirstSample).Take(entry.SampleCount).ToArray();
-                var unit = samples[Array.FindLastIndex(samples, sample => sample.Time <= time)];
-                Assert.True(objects.TryFind(unit.Id, out var obj));
-
-                if (entry.Owner >= 0 || obj.SpriteClass is not (SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man) || unit.Animation >= SpriteAnimation.Death)
+                if (unit.Owner?.Link == unit || obj.SpriteClass is not (SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man) || unit.Animation >= SpriteAnimation.Death)
                     continue;
 
                 bool stands = movement.CanStand(obj, unit.Position);
-                Assert.True(stands || unit.Animation != SpriteAnimation.Go || !couldStand.GetValueOrDefault(track, true),
-                    $"{unit.Id} walked into terrain or a static obstacle at {unit.Position}, height {unit.Position.Z}, time {time}");
-                couldStand[track] = stands;
+                Assert.True(stands || unit.Animation != SpriteAnimation.Go || !couldStand.GetValueOrDefault(unit, true),
+                    $"{unit.Definition.Id} walked into terrain or a static obstacle at {unit.Position}, height {unit.Position.Z}, time {time}");
+                couldStand[unit] = stands;
+            }
+        }
+    }
+
+    private static IEnumerable<Map> PlayDemo(Map map)
+    {
+        uint now = 0;
+        while (true)
+        {
+            map.StepDemo(now, out now);
+
+            if (!map.IsPlayingDemo)
+                yield break;
+
+            map.Step();
+            yield return map;
+
+            if (map.TryGetNextDemoTime(out int next))
+            {
+                map.AdvanceClock(map.WallTime + (uint)(next - map.Time));
             }
         }
     }

@@ -11,6 +11,7 @@ namespace ASToolkit.Tests.Engine;
 internal static class EngineTestMap
 {
     private const string ScriptPath = "maps\\engine_test.lgc";
+    private const int StartHandle = int.MaxValue;
 
     private const string Script = """
         #define MUSIC0 "music\\mus01.ogg"
@@ -31,6 +32,8 @@ internal static class EngineTestMap
     public static Map CreateMap(SpriteCatalog definitions, PlayerLoadout? loadout = null, IReadOnlyList<MergedMapSprite>? sprites = null, int frameTime = GameClock.DefaultFrameTime,
         MapEnvironment environment = MapEnvironment.None, DemoResource? demo = null, string? blood = null, GameSession? session = null)
     {
+        var placed = new List<MergedMapSprite> { new(StartHandle, KnownObject.PlayerStart, new Vector3(1000, 1000, 0), default, Army.Player, []) };
+        placed.AddRange(sprites ?? []);
         var model = new LevelModel
         {
             Name = "Engine test",
@@ -39,8 +42,8 @@ internal static class EngineTestMap
             Cells = new HashSet<Cell> { new(0, 0), new(400, 400) },
             Edges = new Dictionary<EdgeKey, EdgeKind>(),
             Objects = [],
-            Sprites = sprites ?? [],
-            StoredSprites = sprites ?? [],
+            Sprites = placed,
+            StoredSprites = placed,
             Environment = environment
         };
 
@@ -49,10 +52,8 @@ internal static class EngineTestMap
             Model = model,
             Definitions = definitions,
             Movement = new MovementMap(),
-            Bounds = WorldBounds.Measure(model),
             AmmoBatches = new int[10],
             FrameTimes = [frameTime],
-            FallbackStart = new Vector2(1000),
             FileSystem = new ScriptOverlay(new GameFolder(TestGameFolder.RequireFolder()), ScriptPath, Script),
             ScriptPath = ScriptPath
         };

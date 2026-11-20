@@ -1,26 +1,22 @@
+using System.Numerics;
 using ASToolkit.Core.Engine;
+using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Reference;
-using ASToolkit.Core.Simulation;
 using Xunit;
 
-namespace ASToolkit.Tests.Simulation;
+namespace ASToolkit.Tests.Engine;
 
 public class DemoReplayTests
 {
     [Theory]
-    [InlineData("addon2-level1-walk", "ADDON2", "Level_01.map")]
-    [InlineData("level02-walk", "", "Level_02.map")]
-    [InlineData("level03-walk", "", "Level_03.map")]
-    public void ReplayDemo_RecordedWalk_MatchesTheGameExactly(string fixture, string folder, string map)
+    [InlineData("addon2-level1-walk")]
+    [InlineData("level02-walk")]
+    [InlineData("level03-walk")]
+    public void StepDemo_RecordedWalk_MatchesTheGameExactly(string fixture)
     {
-        string game = TestGameFolder.RequireFolder();
-        var demo = new DemoResource(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", fixture + ".dem")));
         var samples = FixtureReader.Read<Sample[]>(fixture + ".json");
-        string name = string.IsNullOrEmpty(folder) ? map : folder + "/" + map;
-        var level = new LevelLoader(TestGameFolder.Objects).Load(name, Path.Combine(game, "Maps", folder, map))!.Analysis;
-        var points = new Playthrough(game, TestGameFolder.Objects, TestGameFolder.Table).ReplayDemo(level, demo);
-        var stateBeforeFrame = new Dictionary<int, DemoReplayPoint>();
+        var points = Replay(LoadDemo(fixture));
+        var stateBeforeFrame = new Dictionary<int, Point>();
         for (int index = 1; index < points.Count; index++)
         {
             stateBeforeFrame.Add(points[index].Time, points[index - 1]);
@@ -42,22 +38,21 @@ public class DemoReplayTests
     }
 
     [Fact]
-    public void ReplayDemo_RecordedFight_MatchesTheGamesDrawsAndPlayer()
+    public void StepDemo_RecordedFight_MatchesTheGamesDrawsAndPlayer()
     {
-        string game = TestGameFolder.RequireFolder();
-        var demo = new DemoResource(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", "level09-fire.dem")));
         var fixture = FixtureReader.Read<FightFixture>("level09-fire.json");
-        var level = new LevelLoader(TestGameFolder.Objects).Load("Level_09.map", Path.Combine(game, "Maps", "Level_09.map"))!.Analysis;
-        var points = new Playthrough(game, TestGameFolder.Objects, TestGameFolder.Table).ReplayDemo(level, demo, fixture.LoadingScreenRecords);
+        var map = LoadDemo("level09-fire", fixture.LoadingScreenRecords);
+        int seed = ReadDemo("level09-fire").Seed;
+        var points = Replay(map);
 
         Assert.NotEmpty(fixture.Draws);
         Assert.NotEmpty(fixture.Samples);
         for (int frame = 1; frame <= fixture.Draws.Length; frame++)
         {
-            Assert.Equal(fixture.Draws[frame - 1], CountDraws(demo.Seed, points[frame].RandomState));
+            Assert.Equal(fixture.Draws[frame - 1], CountDraws(seed, points[frame].RandomState));
         }
 
-        var stateBeforeFrame = new Dictionary<int, DemoReplayPoint>();
+        var stateBeforeFrame = new Dictionary<int, Point>();
         for (int index = 1; index < points.Count; index++)
         {
             stateBeforeFrame.Add(points[index].Time, points[index - 1]);
@@ -75,13 +70,11 @@ public class DemoReplayTests
     }
 
     [Fact]
-    public void LoadDemo_RecordedLoad_BuildsTheSpritesWithTheGamesDraws()
+    public void Map_RecordedDemoLoad_BuildsTheSpritesWithTheGamesDraws()
     {
-        string game = TestGameFolder.RequireFolder();
-        var demo = new DemoResource(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", "addon2-level1-load.dem")));
         int[][] sprites = FixtureReader.Read<int[][]>("addon2-level1-load.json");
-        var level = new LevelLoader(TestGameFolder.Objects).Load("ADDON2/Level_01.map", Path.Combine(game, "Maps", "ADDON2", "Level_01.map"))!.Analysis;
-        var map = new Playthrough(game, TestGameFolder.Objects, TestGameFolder.Table).LoadDemo(level, demo);
+        var demo = ReadDemo("addon2-level1-load");
+        var map = LoadDemo("addon2-level1-load");
         var layer = map.GetLayer(1);
 
         Assert.Equal(10623 - 2, CountDraws(demo.Seed, map.RandomState));
@@ -96,6 +89,48 @@ public class DemoReplayTests
         }
     }
 
+    private static DemoResource ReadDemo(string fixture) => new(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", fixture + ".dem")));
+
+    private static Map LoadDemo(string fixture, IReadOnlyList<int>? loadingScreenRecords = null)
+    {
+        string game = TestGameFolder.RequireFolder();
+        var demo = ReadDemo(fixture);
+        string mapPath = GameTextEncoding.Cyrillic.GetString(demo.MapName);
+        var template = LevelTemplate.FromMap(new GameFolder(game), mapPath, new SpriteCatalog(game, TestGameFolder.Objects), TestGameFolder.Objects,
+            TestGameFolder.Table.GetArray("GettingAmmo")) with { LoadingScreenRecords = loadingScreenRecords ?? [] };
+
+        return new Map(template, new GameRandom(demo.Seed), demo: demo);
+    }
+
+    private static List<Point> Replay(Map map)
+    {
+        var points = new List<Point> { GetPoint(map) };
+        uint now = 0;
+        while (true)
+        {
+            map.StepDemo(now, out now);
+
+            if (!map.IsPlayingDemo)
+                break;
+
+            map.Step();
+            points.Add(GetPoint(map));
+
+            if (map.TryGetNextDemoTime(out int next))
+            {
+                map.AdvanceClock(map.WallTime + (uint)(next - map.Time));
+            }
+            else
+            {
+                map.AdvanceClock();
+            }
+        }
+
+        return points;
+    }
+
+    private static Point GetPoint(Map map) => new(map.Time, map.Player.Position, map.Player.Speed, map.Player.Hp, map.RandomState);
+
     private static int CountDraws(int seed, int state)
     {
         var random = new GameRandom(seed);
@@ -108,6 +143,8 @@ public class DemoReplayTests
 
         return draws;
     }
+
+    private sealed record Point(int Time, Vector3 Position, float Speed, int Health, int RandomState);
 
     private sealed record Sample(int Time, float X, float Y, float Speed);
 

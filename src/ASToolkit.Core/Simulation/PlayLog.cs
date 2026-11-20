@@ -8,7 +8,6 @@ internal sealed class PlayLog
     private readonly HashSet<Sprite> _dead = new(ReferenceEqualityComparer.Instance);
     private readonly PickupTracker _pickups;
     private readonly List<KnownObject> _taken = [];
-    private readonly List<SpriteEvent> _pickupEvents = [];
     private bool _doorsLocked;
     private bool _fencesUp;
     private Sprite _player;
@@ -32,8 +31,6 @@ internal sealed class PlayLog
     public ScriptTimeline Timeline { get; private set; }
 
     public IReadOnlyList<KnownObject> TakenPickups => _taken;
-
-    public IReadOnlyList<SpriteEvent> PickupEvents => _pickupEvents;
 
     public void Update(Map map)
     {
@@ -85,11 +82,6 @@ internal sealed class PlayLog
                 continue;
 
             _taken.Add(pickup.Id);
-
-            if (!PickupTracker.IsDropped(pickup))
-            {
-                _pickupEvents.Add(new SpriteEvent(pickup, map.Time));
-            }
         }
     }
 }

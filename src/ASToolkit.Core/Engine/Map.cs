@@ -15,6 +15,7 @@ public sealed partial class Map : IDisposable
 {
     private const int WindowMessageHitTest = 0x84;
     private const int SpriteRecordSize = 112;
+    private const string MapExtension = ".map";
     private const int MaxStreamPeriod = 30000;
     private const float RescueEffectHeight = 22;
     private const int WornArmorShareCount = 3;
@@ -58,6 +59,7 @@ public sealed partial class Map : IDisposable
     public Map(LevelTemplate data, GameRandom rng, ControlSettings? controls = null, DemoResource? demo = null,
         ScriptRegistry? registry = null, GameSession? session = null)
     {
+        int seed = rng.State;
         Registry = registry ?? new ScriptRegistry("");
         Session = session ?? new GameSession(Registry);
         Session.Logger.Write("CurrentTime   =%-15u   sizeof(SPRITE)=%-8i Map version   =%i"u8, GameClock.LevelStartTime, SpriteRecordSize, data.Model.Version);
@@ -81,7 +83,7 @@ public sealed partial class Map : IDisposable
         Motion = new SpriteKinematics(definitions, this);
         Effects = new SpawnedObjectSystem(definitions, Movement, rng, this);
         var start = model.Sprites.FirstOrDefault(placement => placement.Id is KnownObject.PlayerStart or KnownObject.PlayerStartFemaleLegs);
-        Player = new Sprite(_spriteCount++, legs, start?.Position ?? new Vector3(data.FallbackStart, 0), Army.Player, legs.MaxHp)
+        Player = new Sprite(_spriteCount++, legs, start?.Position ?? Vector3.Zero, Army.Player, legs.MaxHp)
         { CreatedAt = Time };
         Weapons = new WeaponSystem(this, definitions, rng);
         var spriteCollision = new SpriteCollision(Movement, Collector);
@@ -171,6 +173,11 @@ public sealed partial class Map : IDisposable
             _playedDemo = demo.Value;
             _playedOffset = Script.ReadState(demo.Value.Body);
             SetTime(demo.Value.StartTime);
+        }
+        else if (Session.RecordsNextMap)
+        {
+            Session.RecordsNextMap = false;
+            StartDemoRecording(GameTextEncoding.Cyrillic.GetBytes(Path.ChangeExtension(data.ScriptPath, MapExtension)), seed);
         }
 
         LoadGroups(model.Groups, placedSprites);

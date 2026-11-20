@@ -4,78 +4,83 @@ using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Reference;
-using ASToolkit.Core.Routes;
 using ASToolkit.Core.Rendering;
+using ASToolkit.Core.Routes;
 using ASToolkit.Core.Scripting;
 using SixLabors.ImageSharp.PixelFormats;
 
 namespace ASToolkit.Core.Simulation;
 
 /// <summary>
-/// Provides the playback of a recorded playthrough of one level, such as its map stages, live sprites, lighting, camera shake and flashes at any time.
+/// Provides the playback of a recorded playthrough of one level, stepping the engine through the run's demo and drawing its map, live sprites, lighting, camera shake and flashes at any time.
 /// </summary>
 public sealed class ReplayPlayback
 {
     private const int ShakeHold = 20;
     private const int FrameInterval = 100;
+    private const float MinMove = 1e-6f;
 
+    private readonly Playthrough _play;
+    private readonly RouteAnalysis _analysis;
+    private readonly PlayerLoadout _loadout;
+    private readonly DemoResource _demo;
     private readonly ObjectTable _objects;
     private readonly MapRenderer _renderer;
-    private readonly PlaythroughReplay _replay;
-    private readonly Stage[] _stages;
-    private readonly PlacementTimeline[] _moved;
-    private readonly Dictionary<MergedMapSprite, int> _pickedUp;
+    private readonly MapGraphics _graphics;
+    private readonly List<MergedMapSprite> _baseSprites;
+    private readonly List<LightFade> _lights;
     private readonly int[] _frameTimes;
-    private readonly HashSet<MergedMapSprite> _hidden = [];
+    private readonly HashSet<MergedMapSprite> _hidden = new(ReferenceEqualityComparer.Instance);
     private readonly List<LiveSprite> _live = [];
+    private readonly List<(MergedMapSprite Placement, Sprite Sprite, Vector3 Start)> _statics = [];
+    private Map _map;
+    private uint _now;
+    private bool _isStepped;
+    private bool _isClockDue;
+    private int _shownTime;
+    private int _sceneCreated = -1;
+    private List<MergedMapSprite> _sceneSprites = [];
+    private MapScene? _scene;
 
-    private ReplayPlayback(PlaythroughResult result, ReferenceLevel level, ObjectTable objects, MapRenderer renderer)
+    private ReplayPlayback(Playthrough play, RouteAnalysis analysis, PlaythroughResult result, ReferenceLevel level, ObjectTable objects, MapRenderer renderer)
     {
+        _play = play;
+        _analysis = analysis;
         _objects = objects;
         _renderer = renderer;
+        _graphics = level.Map.Graphics;
         Result = result;
-        _replay = result.Replay!;
+        _loadout = result.StartingLoadout ?? throw new ArgumentException("Expected the loadout of a recorded playthrough.", nameof(result));
+        _demo = result.Demo ?? throw new ArgumentException("Expected a recorded playthrough.", nameof(result));
 
-        var moved = _replay.PlacementFrames
-            .Select(frame => frame.Placement)
-            .ToHashSet(ReferenceEqualityComparer.Instance);
-
-        var sprites = level.Map.Sprites
-            .Where(sprite => !IsUnit(objects, sprite.Id) && !IsCannon(objects, sprite.Id) && !sprite.Id.IsScripted && !moved.Contains(sprite))
-            .ToList();
-
-        _stages = BuildStages(sprites, result, renderer, level.Map.Graphics, level.Script.BlackoutGamma);
-
-        _moved = level.Map.Sprites
-            .Where(moved.Contains)
-            .Select(sprite => BuildPlacementTimeline(sprite, _replay))
-            .ToArray();
-
-        _pickedUp = _replay.PickupEvents
-            .Concat(_replay.RemovedSprites)
-            .GroupBy(removal => removal.Placement)
-            .ToDictionary(group => group.Key, group => group.Min(removal => removal.Time));
-
-        _frameTimes = _replay.Inputs
-            .Select(input => input.Time)
+        _map = Load();
+        int[] times = _map.EnumerateDemoFrameTimes().ToArray();
+        
+        _frameTimes = times
             .DistinctBy(time => time / FrameInterval)
-            .Append(_replay.Inputs.Length > 0 ? _replay.Inputs[^1].Time : 0)
+            .Append(times.Length > 0 ? times[^1] : 0)
             .Distinct()
             .ToArray();
+        
+        _baseSprites = level.Map.Sprites
+            .Where(sprite => !IsUnit(objects, sprite.Id) && !IsCannon(objects, sprite.Id) && !sprite.Id.IsScripted)
+            .ToList();
+        
+        _lights = CreateLights(result.Script, level.Map.Graphics, level.Script.BlackoutGamma);
     }
 
     /// <summary>
-    /// Gets the outcome of the playthrough, holding its replay.
+    /// Gets the outcome of the playthrough, holding its demo.
     /// </summary>
     public PlaythroughResult Result { get; }
 
     /// <summary>
-    /// Gets the number of steps of the playthrough, one for every 100 ms of play and its last tick.
+    /// Gets the number of steps of the playthrough, one for every 100 ms of play and its last frame.
     /// </summary>
     public int FrameCount => _frameTimes.Length;
 
     /// <summary>
-    /// Simulates a map of a game folder as the opening level of a campaign.
+    /// Simulates a map of a game folder as the opening level of a campaign, recording the run.
     /// </summary>
     /// <param name="game">The game folder.</param>
     /// <param name="map">The map path relative to the Maps folder.</param>
@@ -88,9 +93,10 @@ public sealed class ReplayPlayback
         string tablePath = GamePath.Resolve(game, Path.Combine("Maps", "common_table.lgc")) ?? throw new InvalidDataException("common_table.lgc was not found");
         var level = new LevelLoader(objects).Load(map, Path.Combine(mapsPath, map)) ?? throw new InvalidDataException($"{map} has no route");
         var table = GameTable.Load(tablePath);
-        var result = SimulateLevel(new Playthrough(game, objects, table), level.Analysis, map, table);
+        var play = new Playthrough(game, objects, table);
+        var result = SimulateLevel(play, level.Analysis, map, table);
 
-        return new ReplayPlayback(result, level, objects, renderer);
+        return new ReplayPlayback(play, level.Analysis, result, level, objects, renderer);
     }
 
     /// <summary>
@@ -108,66 +114,48 @@ public sealed class ReplayPlayback
     /// <param name="scale">The scale of the map in the frame, at most 1.</param>
     /// <param name="time">The time of the frame, in milliseconds.</param>
     /// <param name="cameraOffset">The view's offset from the game's camera in map pixels.</param>
-    /// <param name="cursor">The mouse cursor drawn at the recorded cursor position.</param>
+    /// <param name="cursor">The mouse cursor drawn at the game's cursor position.</param>
     public void Render(Bgra32[] pixels, Size size, float scale, int time, Vector2 cameraOffset, CursorImage cursor)
     {
-        var stage = _stages[Math.Max(0, _stages.FindLastAtOrBefore(time))];
+        Seek(time);
+        var scene = GetScene();
         _live.Clear();
-        int started = _replay.Tracks.FindLastAtOrBefore(time) + 1;
-        for (int track = 0; track < started; track++)
-        {
-            if (_replay.Tracks[track].End > time)
-            {
-                var sample = _replay.GetSample(track, time);
-                AddLiveSprite(sample.Id, sample.Position, sample.Direction, sample.Frame, sample.Keyframe);
-            }
-        }
-
-        foreach (var effect in _replay.Scenery)
-        {
-            if (effect.StartedAt <= time)
-            {
-                AddLiveSprite(effect.Id, effect.Position, effect.Direction, effect.Frame, effect.Keyframe);
-            }
-        }
-
-        foreach (var placement in _moved)
-        {
-            AddPlacement(placement, time);
-        }
-
-        var scene = stage.Scene;
+        AddLiveSprites();
         _renderer.UpdateLive(scene, _live);
-        var steady = GetViewCenter(time) + cameraOffset;
-        var center = steady + GetShake(time);
+        var steady = _map.ViewCenter + cameraOffset;
+        var shake = _map.CameraShake;
+        var center = steady + (shake is not null && time - shake.Value.Time < ShakeHold ? shake.Value.Offset : Vector2.Zero);
         var halfFrame = new Point(size.Width / 2, size.Height / 2);
         var corner = new Point((int)MathF.Round((center.X - scene.Left) * scale) - halfFrame.X, (int)MathF.Round((center.Y - scene.Top) * scale) - halfFrame.Y);
         var area = new SixLabors.ImageSharp.Rectangle(corner.X, corner.Y, size.Width, size.Height);
-        var gamma = stage.Light.At(time);
         _hidden.Clear();
-        foreach ((var sprite, int collected) in _pickedUp)
+        foreach (var sprite in _sceneSprites)
         {
-            if (collected <= time)
+            if (_map.IsRemoved(sprite))
             {
                 _hidden.Add(sprite);
             }
         }
 
-        scene.Render(pixels, size.Width, area, scale, time, _hidden, gamma);
-        DrawFlash(pixels, time);
+        foreach (var entry in _statics)
+        {
+            if (Vector3.DistanceSquared(entry.Sprite.Position, entry.Start) > MinMove)
+            {
+                _hidden.Add(entry.Placement);
+            }
+        }
+
+        scene.Render(pixels, size.Width, area, scale, time, _hidden, GetLight(time));
+
+        var flash = _map.ScreenFlash;
+        if (flash is not null)
+        {
+            ScreenFlashBlend.At(flash.Value.Time, flash.Value.Duration, flash.Value.Color, time)?.Apply(pixels);
+        }
 
         // Draw the system cursor the game uses where the unshaken camera puts it
-        int tick = _replay.Inputs.FindLastAtOrBefore(time);
-        var cursorPoint = ((tick < 0 ? steady : _replay.Inputs[tick].Cursor) - steady) * scale;
+        var cursorPoint = (_map.Cursor - _map.ViewCenter) * scale;
         cursor.Draw(pixels.AsSpan(0, size.Width * size.Height), size, new Point((int)MathF.Round(cursorPoint.X) + halfFrame.X, (int)MathF.Round(cursorPoint.Y) + halfFrame.Y));
-    }
-
-    private Vector2 GetViewCenter(int time)
-    {
-        var inputs = _replay.Inputs;
-        int tick = inputs.FindLastAtOrBefore(time);
-
-        return inputs.Length == 0 ? Vector2.Zero : inputs[Math.Max(tick, 0)].Center;
     }
 
     private static PlaythroughResult SimulateLevel(Playthrough play, RouteAnalysis selected, string map, GameTable table)
@@ -194,45 +182,31 @@ public sealed class ReplayPlayback
         return play.PlayCampaign([selected], [], 1, state, record: true).Levels[0];
     }
 
-    private static Stage[] BuildStages(List<MergedMapSprite> sprites, PlaythroughResult result, MapRenderer renderer, MapGraphics graphics, uint? blackoutGamma)
+    private static List<LightFade> CreateLights(ScriptTimeline script, MapGraphics graphics, uint? blackoutGamma)
     {
-        var events = result.Replay!.CreatedSprites
-            .GroupBy(creation => creation.Time)
-            .Select(group => (Time: group.Key, Added: group.Select(creation => creation.Placement).ToArray(), Light: (Gamma?)null))
-            .ToList();
+        var events = new List<(int Time, Gamma Target)>();
 
-        if (result.Script.BlackoutAt is not null && blackoutGamma is not null)
+        if (script.BlackoutAt is not null && blackoutGamma is not null)
         {
-            events.Add((result.Script.BlackoutAt.Value, [], Gamma.FromScript(blackoutGamma.Value)));
+            events.Add((script.BlackoutAt.Value, Gamma.FromScript(blackoutGamma.Value)));
         }
-        if (result.Script.DoorsOpenedAt is not null)
+
+        if (script.DoorsOpenedAt is not null)
         {
-            events.Add((result.Script.DoorsOpenedAt.Value, [], default(Gamma)));
+            events.Add((script.DoorsOpenedAt.Value, default));
         }
 
         events.Sort((a, b) => a.Time.CompareTo(b.Time));
-        var initial = graphics.Ambient;
-        var light = new LightFade(0, initial, initial);
-        var stages = new List<Stage> { new(0, renderer.CreateSceneWithoutLinks(sprites, graphics), light) };
-        foreach ((int time, var added, var target) in events)
+        var light = new LightFade(0, graphics.Ambient, graphics.Ambient);
+        var lights = new List<LightFade> { light };
+        foreach ((int time, var target) in events)
         {
-            if (target is not null)
-            {
-                light = new LightFade(time, light.At(time), target.Value);
-            }
-            if (added.Length > 0)
-            {
-                sprites = sprites.Concat(added).ToList();
-            }
-            stages.Add(new Stage(time, added.Length > 0 ? renderer.CreateSceneWithoutLinks(sprites, graphics) : stages[^1].Scene, light));
+            light = new LightFade(time, light.At(time), target);
+            lights.Add(light);
         }
 
-        return stages.ToArray();
+        return lights;
     }
-
-    private static PlacementTimeline BuildPlacementTimeline(MergedMapSprite sprite, PlaythroughReplay replay) =>
-        new(sprite, replay.PlacementFrames.Where(frame => frame.Placement == sprite).ToArray(),
-            replay.RemovedSprites.Where(removal => removal.Placement == sprite).Select(removal => removal.Time).DefaultIfEmpty(int.MaxValue).First());
 
     // Placed cannons come alive as effects when the level loads
     private static bool IsCannon(ObjectTable objects, KnownObject id) => objects.TryFind(id, out var obj) && obj.SpriteClass == SpriteClass.Cannon;
@@ -240,52 +214,164 @@ public sealed class ReplayPlayback
     private static bool IsUnit(ObjectTable objects, KnownObject id) =>
         id != KnownObject.Crate && objects.TryFind(id, out var obj) && obj is { MaxHp: > 0, SpriteClass: SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man };
 
-    private Vector2 GetShake(int time)
+    private Map Load()
     {
-        int at = _replay.Shakes.FindLastAtOrBefore(time);
+        _now = 0;
+        _isStepped = false;
+        _isClockDue = false;
+        _shownTime = 0;
+        var map = _play.LoadReplay(_analysis, _loadout, _demo);
+        _statics.Clear();
+        foreach (var placement in map.Sprites)
+        {
+            var sprite = map.FindPlacementSprite(placement);
 
-        return at >= 0 && time - _replay.Shakes[at].Time < ShakeHold ? _replay.Shakes[at].Offset : Vector2.Zero;
+            if (sprite is not null && !placement.Id.IsScripted)
+            {
+                _statics.Add((placement, sprite, sprite.Position));
+            }
+        }
+
+        return map;
     }
 
-    // Keeps one flash slot, restarted by every flash
-    private void DrawFlash(Span<Bgra32> pixels, int time)
+    private void Seek(int time)
     {
-        int at = _replay.Flashes.FindLastAtOrBefore(time);
+        if (_isStepped && _shownTime > time)
+        {
+            _map = Load();
+            _scene = null;
+        }
 
-        if (at < 0)
-            return;
-
-        var flash = _replay.Flashes[at];
-        ScreenFlashBlend.At(flash.Time, flash.Duration, flash.Color, time)?.Apply(pixels);
+        while (_map.TryGetNextDemoTime(out int next) && next <= time && StepFrame())
+        {
+        }
     }
 
-    private void AddPlacement(PlacementTimeline placement, int time)
+    private bool StepFrame()
     {
-        if (time >= placement.RemovedAt)
+        if (_isClockDue)
+        {
+            if (_map.TryGetNextDemoTime(out int next))
+            {
+                _map.AdvanceClock(_map.WallTime + (uint)(next - _map.Time));
+            }
+            else
+            {
+                _map.AdvanceClock();
+            }
+        }
+
+        _map.StepDemo(_now, out _now);
+
+        if (!_map.IsPlayingDemo)
+            return false;
+
+        _map.Step();
+        _isStepped = true;
+        _isClockDue = true;
+        _shownTime = _map.Time;
+
+        return true;
+    }
+
+    private MapScene GetScene()
+    {
+        int created = _map.Sprites.Count - _analysis.Model.Sprites.Count;
+
+        if (_scene is null || created != _sceneCreated)
+        {
+            _sceneCreated = created;
+            _sceneSprites = _baseSprites.Concat(_map.Sprites.Skip(_analysis.Model.Sprites.Count)).ToList();
+            _scene = _renderer.CreateSceneWithoutLinks(_sceneSprites, _graphics);
+        }
+
+        return _scene;
+    }
+
+    private Gamma GetLight(int time)
+    {
+        var light = _lights[0];
+        foreach (var fade in _lights)
+        {
+            if (fade.StartedAt <= time)
+            {
+                light = fade;
+            }
+        }
+
+        return light.At(time);
+    }
+
+    private void AddLiveSprites()
+    {
+        AddSprite(_map.Player);
+        AddSprite(_map.Weapons.Torso);
+        foreach (var monster in _map.Monsters)
+        {
+            AddSprite(monster);
+        }
+
+        foreach (var effect in _map.Effects.Active)
+        {
+            Add(SpawnedObjectSystem.GetState(effect));
+        }
+
+        foreach (var pickup in new PickupTracker(_map).Pickups)
+        {
+            var body = PickupTracker.IsDropped(pickup) ? _map.FindPlacementSprite(pickup) : null;
+
+            if (body is not null)
+            {
+                Add(SpawnedObjectSystem.GetState(body));
+            }
+        }
+
+        foreach (var sprite in _map.Scripted)
+        {
+            Add(SpawnedObjectSystem.GetState(sprite));
+        }
+
+        foreach (var effect in _map.Effects.Settled)
+        {
+            Add(effect);
+        }
+
+        foreach (var entry in _statics)
+        {
+            if (Vector3.DistanceSquared(entry.Sprite.Position, entry.Start) > MinMove)
+            {
+                AddPlacement(entry.Placement, entry.Sprite.Position);
+            }
+        }
+    }
+
+    private void AddSprite(Sprite sprite) =>
+        Add(new EffectState(sprite.Definition.Id, sprite.Position, sprite.Direction, sprite.Animation, sprite.CreatedAt, sprite.Frame, sprite.KeyframePosition));
+
+    private void Add(in EffectState state) => AddLiveSprite(state.Id, state.Position, state.Direction, state.Frame, state.Keyframe);
+
+    private void AddPlacement(MergedMapSprite placement, Vector3 position)
+    {
+        if (_map.IsRemoved(placement))
             return;
 
-        int at = placement.Frames.FindLastAtOrBefore(time);
-        var sprite = _renderer.GetSprite(placement.Sprite.Id);
+        var file = _renderer.GetSprite(placement.Id);
 
-        if (sprite is null || !_objects.TryFind(placement.Sprite.Id, out var obj))
+        if (file is null || !_objects.TryFind(placement.Id, out var obj))
             return;
 
-        var position = at >= 0 ? placement.Frames[at].Position : placement.Sprite.Position;
-        AddLiveSprite(placement.Sprite.Id, position, placement.Sprite.Direction, obj.GetFrame(placement.Sprite.Direction, sprite.Value.FrameCount), 0);
+        AddLiveSprite(placement.Id, position, placement.Direction, obj.GetFrame(placement.Direction, file.Value.FrameCount), 0);
     }
 
     private void AddLiveSprite(KnownObject id, Vector3 position, Angle direction, int frame, float keyframe)
     {
-        var sprite = _renderer.GetSprite(id);
+        var file = _renderer.GetSprite(id);
 
-        if (sprite is null || frame < 0 || frame >= sprite.Value.FrameCount || !_objects.TryFind(id, out var obj))
+        if (file is null || frame < 0 || frame >= file.Value.FrameCount || !_objects.TryFind(id, out var obj))
             return;
 
         var gamma = _objects.TryGetWeapon(obj, out var weapon) ? weapon.GetGamma(keyframe).Pack() : default;
         _live.Add(new LiveSprite(id, position, direction, frame, gamma));
     }
-
-    private sealed record PlacementTimeline(MergedMapSprite Sprite, PlacementFrame[] Frames, int RemovedAt);
-
-    private sealed record Stage(int Time, MapScene Scene, LightFade Light) : ITimed;
 }

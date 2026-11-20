@@ -46,40 +46,4 @@ public class LinkTests
         Assert.Equal(71, objects.Find(KnownObject.PutDynamiteHere)!.Layout.GetFrameDuration(SpriteAnimation.Stand));
     }
 
-    [Fact]
-    public void GetSample_RecordedTicks_StayWithinHalfAPixelOfTheEngine()
-    {
-        var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
-        var map = EngineTestMap.CreateMap(objects);
-        var recorder = new ReplayRecorder();
-        recorder.Start(map);
-        var enemy = map.AddMonster(objects.Find(KnownObject.Monster1)!, map.Player.Position + new Vector3(300, 120, 0), direction: new Angle(192));
-        var truth = new List<(int Time, Vector3 Player, Vector3? Enemy, Vector3? Link)>();
-        for (int tick = 0; tick < 300; tick++)
-        {
-            map.Step(new PlayerCommand(null, PlayerCommand.GetCursor(enemy.Position), enemy.IsAlive, Sprite.Pistols));
-            recorder.Capture(map);
-            bool listed = map.Monsters.Contains(enemy);
-            truth.Add((map.Time, map.Player.Position, listed ? enemy.Position : null, listed && enemy.Link?.Owner == enemy ? enemy.Link.Position : null));
-        }
-
-        var replay = recorder.CreateReplay([]);
-        int enemyTrack = Enumerable.Range(0, replay.Tracks.Length)
-            .First(track => replay.Samples[replay.Tracks[track].FirstSample].Id == KnownObject.Monster1);
-        int linkTrack = Enumerable.Range(0, replay.Tracks.Length).First(track => replay.Tracks[track].Owner == enemyTrack);
-        foreach ((int time, var player, var enemyAt, var linkAt) in truth)
-        {
-            Assert.InRange(Vector3.Distance(player, replay.GetSample(0, time).Position), 0, 0.5f);
-
-            if (enemyAt is not null && time < replay.Tracks[enemyTrack].End)
-            {
-                Assert.InRange(Vector3.Distance(enemyAt.Value, replay.GetSample(enemyTrack, time).Position), 0, 0.5f);
-            }
-
-            if (linkAt is not null && time >= replay.Tracks[linkTrack].Start && time < replay.Tracks[linkTrack].End)
-            {
-                Assert.InRange(Vector3.Distance(linkAt.Value, replay.GetSample(linkTrack, time).Position), 0, 0.5f);
-            }
-        }
-    }
 }
