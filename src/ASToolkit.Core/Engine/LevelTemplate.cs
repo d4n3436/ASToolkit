@@ -10,46 +10,16 @@ namespace ASToolkit.Core.Engine;
 public sealed record LevelTemplate
 {
     private const string ScriptExtension = ".lgc";
+    private const string MapExtension = ".map";
 
     /// <summary>
-    /// Creates a template from a map file and the level script beside it.
+    /// Gets the name of the map as level scripts see it.
     /// </summary>
-    /// <param name="fileSystem">The file system the map, the level script and its includes are read from.</param>
-    /// <param name="mapPath">The path of the map, relative to the game folder.</param>
-    /// <param name="definitions">The sprite definitions.</param>
-    /// <param name="ammoBatches">The rounds an ammunition pickup gives per weapon slot.</param>
-    /// <returns>The template.</returns>
-    /// <exception cref="FileNotFoundException">The map cannot be read.</exception>
-    public static LevelTemplate FromMap(IGameFileSystem fileSystem, string mapPath, SpriteCatalog definitions, IReadOnlyList<int> ammoBatches)
+    public string MapName
     {
-        if (!fileSystem.TryRead(mapPath, out var data))
-            throw new FileNotFoundException($"Cannot read the map {mapPath}.", mapPath);
-
-        return FromMapData(MapData.FromMap(MapResourceBuilder.Parse(data)), fileSystem, Path.ChangeExtension(mapPath, ScriptExtension), definitions, ammoBatches);
+        get => field ?? Path.ChangeExtension(ScriptPath, MapExtension);
+        init;
     }
-
-    /// <summary>
-    /// Creates a template from a level model and the path of its level script.
-    /// </summary>
-    /// <param name="model">The model of the level.</param>
-    /// <param name="fileSystem">The file system the level script and its includes are read from.</param>
-    /// <param name="scriptPath">The path of the level script, relative to the game folder.</param>
-    /// <param name="definitions">The sprite definitions.</param>
-    /// <param name="ammoBatches">The rounds an ammunition pickup gives per weapon slot.</param>
-    /// <returns>The template.</returns>
-    public static LevelTemplate FromModel(LevelModel model, IGameFileSystem fileSystem, string scriptPath, SpriteCatalog definitions, IReadOnlyList<int> ammoBatches) =>
-        FromMapData(MapData.FromModel(model), fileSystem, scriptPath, definitions, ammoBatches);
-
-    private static LevelTemplate FromMapData(MapData mapData, IGameFileSystem fileSystem, string scriptPath, SpriteCatalog definitions, IReadOnlyList<int> ammoBatches) => new()
-    {
-        MapData = mapData,
-        Definitions = definitions,
-        Movement = definitions.CreateMovementMap(mapData),
-        AmmoBatches = ammoBatches,
-        FrameTimes = GameClock.DisplayFrameTimes,
-        FileSystem = fileSystem,
-        ScriptPath = scriptPath
-    };
 
     /// <summary>
     /// Gets the contents of the map file.
@@ -90,4 +60,48 @@ public sealed record LevelTemplate
     /// Gets the indices of the stored sprites before which a recording shows the game redrawing its loading screen, with the stored-sprite count for a redraw after the last.
     /// </summary>
     public IReadOnlyList<int> LoadingScreenRecords { get; init; } = [];
+
+    /// <summary>
+    /// Creates a template from a map file and the level script beside it.
+    /// </summary>
+    /// <param name="fileSystem">The file system the map, the level script and its includes are read from.</param>
+    /// <param name="mapPath">The path of the map, relative to the game folder.</param>
+    /// <param name="definitions">The sprite definitions.</param>
+    /// <param name="ammoBatches">The rounds an ammunition pickup gives per weapon slot.</param>
+    /// <param name="mapName">The name of the map as level scripts see it, in the form a script passes to <c>Load</c>, or null to use <paramref name="mapPath"/>.</param>
+    /// <returns>The template.</returns>
+    /// <exception cref="FileNotFoundException">The map file does not exist.</exception>
+    public static LevelTemplate FromMap(IGameFileSystem fileSystem, string mapPath, SpriteCatalog definitions, IReadOnlyList<int> ammoBatches, string? mapName = null)
+    {
+        if (!fileSystem.TryRead(mapPath, out var data))
+        {
+            throw new FileNotFoundException($"Could not find map file '{mapPath}'.", mapPath);
+        }
+
+        return FromMapData(MapData.FromMap(MapResourceBuilder.Parse(data)), fileSystem, Path.ChangeExtension(mapPath, ScriptExtension), definitions, ammoBatches) with { MapName = mapName ?? mapPath };
+    }
+
+    /// <summary>
+    /// Creates a template from a level model and the path of its level script.
+    /// </summary>
+    /// <param name="model">The model of the level.</param>
+    /// <param name="fileSystem">The file system the level script and its includes are read from.</param>
+    /// <param name="scriptPath">The path of the level script, relative to the game folder.</param>
+    /// <param name="definitions">The sprite definitions.</param>
+    /// <param name="ammoBatches">The rounds an ammunition pickup gives per weapon slot.</param>
+    /// <param name="mapName">The name of the map as level scripts see it, in the form a script passes to <c>Load</c>, or null to use the script's path with a map extension.</param>
+    /// <returns>The template.</returns>
+    public static LevelTemplate FromModel(LevelModel model, IGameFileSystem fileSystem, string scriptPath, SpriteCatalog definitions, IReadOnlyList<int> ammoBatches, string? mapName = null) =>
+        FromMapData(MapData.FromModel(model), fileSystem, scriptPath, definitions, ammoBatches) with { MapName = mapName ?? Path.ChangeExtension(scriptPath, MapExtension) };
+
+    private static LevelTemplate FromMapData(MapData mapData, IGameFileSystem fileSystem, string scriptPath, SpriteCatalog definitions, IReadOnlyList<int> ammoBatches) => new()
+    {
+        MapData = mapData,
+        Definitions = definitions,
+        Movement = new MovementMap(mapData.Size),
+        AmmoBatches = ammoBatches,
+        FrameTimes = GameClock.DisplayFrameTimes,
+        FileSystem = fileSystem,
+        ScriptPath = scriptPath
+    };
 }

@@ -1,3 +1,4 @@
+using System.Globalization;
 using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Engine;
@@ -8,6 +9,7 @@ namespace ASToolkit.Core.Engine;
 public sealed class ScriptRegistry
 {
     private const string RegPathSetting = "RegPath=";
+
     private readonly Dictionary<string, string> _values = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
@@ -43,13 +45,6 @@ public sealed class ScriptRegistry
     }
 
     /// <summary>
-    /// Gets the value stored under a name of the default path.
-    /// </summary>
-    /// <param name="name">The value name.</param>
-    /// <returns>The stored text, or <see langword="null"/> when none is stored.</returns>
-    public string? Get(string name) => Get(DefaultPath, name);
-
-    /// <summary>
     /// Gets the value stored under a name of the default path, as a number.
     /// </summary>
     /// <param name="name">The value name.</param>
@@ -58,9 +53,7 @@ public sealed class ScriptRegistry
     [EngineRoutine(0x0042d130)]
     public int GetNumber(string name, int fallback)
     {
-        string? value = Get(name);
-
-        return value is null ? fallback : ParseLong(value);
+        return ParseLong(Get(DefaultPath, name, fallback.ToString(CultureInfo.InvariantCulture)));
     }
 
     /// <summary>
@@ -68,8 +61,10 @@ public sealed class ScriptRegistry
     /// </summary>
     /// <param name="path">The registry path.</param>
     /// <param name="name">The value name.</param>
-    /// <returns>The stored text, or <see langword="null"/> when none is stored.</returns>
-    public string? Get(string path, string name) => _values.GetValueOrDefault(GetKey(path, name));
+    /// <param name="defaultValue">The text to return if no value is stored.</param>
+    /// <returns>The stored text, or <paramref name="defaultValue"/> if no value is stored.</returns>
+    [EngineRoutine(0x0042cf70)]
+    public string Get(string path, string name, string defaultValue) => _values.GetValueOrDefault(GetKey(path, name), defaultValue);
 
     /// <summary>
     /// Stores a value under a name of the default path.
@@ -84,6 +79,7 @@ public sealed class ScriptRegistry
     /// <param name="path">The registry path.</param>
     /// <param name="name">The value name.</param>
     /// <param name="value">The text to store.</param>
+    [EngineRoutine(0x0042d1f0)]
     public void Set(string path, string name, string value) => _values[GetKey(path, name)] = value;
 
     /// <summary>
@@ -91,6 +87,7 @@ public sealed class ScriptRegistry
     /// </summary>
     /// <param name="path">The registry path.</param>
     /// <param name="name">The value name.</param>
+    [EngineRoutine(0x0042d310)]
     public void Delete(string path, string name) => _values.Remove(GetKey(path, name));
 
     private static string GetKey(string path, string name) => $"{path}\\{name}";

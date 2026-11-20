@@ -28,6 +28,7 @@ public sealed class PlayerInput
     private const int WindowMessageRightButtonUp = 0x205;
     private const int WindowMessageMiddleButtonDown = 0x207;
     private const int WindowMessageMouseWheel = 0x20A;
+
     private readonly ControlSettings _settings;
 
     /// <summary>
@@ -74,27 +75,6 @@ public sealed class PlayerInput
     /// </summary>
     public Point WindowOrigin { get; private set; }
 
-    [EngineRoutine(0x00426d70)]
-    internal void ClearLeftClick() => ClearClick(InputFlags.LeftClick, ControlSettings.LeftButton);
-
-    [EngineRoutine(0x00426da0)]
-    internal void ClearRightClick() => ClearClick(InputFlags.RightClick, ControlSettings.RightButton);
-
-    private void ClearClick(InputFlags click, int button)
-    {
-        var flags = Flags;
-        Flags = flags & ~click;
-        if (_settings.First.Primary == button)
-        {
-            Flags = flags & ~(click | InputFlags.First);
-        }
-
-        if (_settings.Second.Primary == button)
-        {
-            Flags &= ~InputFlags.Second;
-        }
-    }
-
     /// <summary>
     /// Clears the input that lasts one frame.
     /// </summary>
@@ -122,6 +102,7 @@ public sealed class PlayerInput
     /// Loads the input of a demo frame.
     /// </summary>
     /// <param name="input">The demo frame's input.</param>
+    [EngineRoutine(0x00426350)]
     public void Load(in DemoInput input)
     {
         Flags = input.Flags;
@@ -136,6 +117,7 @@ public sealed class PlayerInput
     /// Returns the input as a demo frame stores it.
     /// </summary>
     /// <returns>The demo input.</returns>
+    [EngineRoutine(0x00426330)]
     public DemoInput Save() => new(Flags, Wheel, Cursor, ScreenCursor, Key, VirtualKey);
 
     /// <summary>
@@ -266,6 +248,27 @@ public sealed class PlayerInput
         }
 
         return false;
+    }
+
+    [EngineRoutine(0x00426d70)]
+    internal void ClearLeftClick() => ClearClick(InputFlags.LeftClick, ControlSettings.LeftButton);
+
+    [EngineRoutine(0x00426da0)]
+    internal void ClearRightClick() => ClearClick(InputFlags.RightClick, ControlSettings.RightButton);
+
+    private void ClearClick(InputFlags click, int button)
+    {
+        var flags = Flags;
+        Flags = flags & ~click;
+        if (_settings.First.Primary == button)
+        {
+            Flags = flags & ~(click | InputFlags.First);
+        }
+
+        if (_settings.Second.Primary == button)
+        {
+            Flags &= ~InputFlags.Second;
+        }
     }
 
     private InputFlags GetKeyFlag(int virtualKey)

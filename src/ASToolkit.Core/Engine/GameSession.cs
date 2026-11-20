@@ -5,7 +5,7 @@ using ASToolkit.Core.Engine.IO;
 namespace ASToolkit.Core.Engine;
 
 /// <summary>
-/// Represents the map state that outlives a level, kept for the whole game session.
+/// Represents one run of the game from startup to exit, holding the state that persists while levels are loaded and released.
 /// </summary>
 public sealed class GameSession : IDisposable
 {
@@ -55,16 +55,10 @@ public sealed class GameSession : IDisposable
     /// </summary>
     public bool CanMonstersAttackNeutralTrains { get; set; }
 
-    // TODO: Port the cursor's screen position
     /// <summary>
     /// Gets or sets the sound effects and music of the session.
     /// </summary>
     public SoundSystem? Sound { get; set; }
-
-    /// <summary>
-    /// Gets or sets the sprite of the mouse cursor.
-    /// </summary>
-    public Sprite? Cursor { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the system draws the mouse cursor rather than the game's cursor sprite.
@@ -79,7 +73,22 @@ public sealed class GameSession : IDisposable
     /// <summary>
     /// Gets or sets a value indicating whether the next map load records the input of every frame into a demo kept in memory.
     /// </summary>
-    public bool RecordsNextMap { get; set; }
+    public bool IsRecordingNextMap { get; set; }
+
+    /// <summary>
+    /// Gets the name of the map the session loaded last.
+    /// </summary>
+    public ReadOnlyMemory<byte> MapName { get; private set; }
+
+    /// <summary>
+    /// Gets the name of the map the session loaded before the last one.
+    /// </summary>
+    public ReadOnlyMemory<byte> PreviousMapName { get; private set; }
+
+    /// <summary>
+    /// Gets the screen effects, gamma and wind that persist across levels.
+    /// </summary>
+    public Graphics Graphics { get; } = new();
 
     internal GameLogger Logger { get; }
 
@@ -93,4 +102,10 @@ public sealed class GameSession : IDisposable
     /// Closes the session's log, keeping it as the last run's log.
     /// </summary>
     public void Dispose() => Logger.Dispose();
+
+    internal void EnterMap(ReadOnlyMemory<byte> name)
+    {
+        PreviousMapName = MapName;
+        MapName = name;
+    }
 }

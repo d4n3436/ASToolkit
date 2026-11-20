@@ -41,6 +41,9 @@ public sealed class MemoryWriteOverlay : IGameFileSystem
     }
 
     /// <inheritdoc/>
+    public DateTime? GetWriteTime(string path) => _written.ContainsKey(Normalize(path)) || _deleted.Contains(Normalize(path)) ? null : _fileSystem?.GetWriteTime(path);
+
+    /// <inheritdoc/>
     public Stream? OpenWrite(string path, bool append)
     {
         string key = Normalize(path);

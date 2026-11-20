@@ -25,6 +25,12 @@ public sealed class GameRandom : Random
     public int State { get; private set; }
 
     /// <summary>
+    /// Sets the state of the generator to a seed.
+    /// </summary>
+    /// <param name="seed">The seed.</param>
+    public void Seed(int seed) => State = seed;
+
+    /// <summary>
     /// Returns the next draw, from 0 to 32767.
     /// </summary>
     /// <returns>The draw.</returns>

@@ -51,6 +51,14 @@ public sealed class GameFolder : IGameFileSystem
     }
 
     /// <inheritdoc/>
+    public DateTime? GetWriteTime(string path)
+    {
+        string? file = GamePath.Resolve(_gameFolder, path);
+
+        return file is not null && File.Exists(file) ? File.GetLastWriteTime(file) : null;
+    }
+
+    /// <inheritdoc/>
     public bool Delete(string path)
     {
         string? file = GamePath.Resolve(_gameFolder, path);

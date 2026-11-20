@@ -9,7 +9,6 @@ internal ref struct Resource
 {
     public const int Found = 0;
     public const int NotFound = 2;
-
     private const int TagSize = 4;
     private const int ChunkHeaderSize = 8;
     private const int FirstRecordOffset = 0x18;
@@ -37,6 +36,8 @@ internal ref struct Resource
 
     private static ReadOnlySpan<byte> LogTag => "RES '%s' '%.4s'"u8;
 
+    public static Resource FromRecord(ReadOnlySpan<byte> data) => new() { _data = data, _isOpen = true };
+
     [EngineRoutine(0x00407a40)]
     public int Open(IGameFileSystem fileSystem, GameLogger logger, ReadOnlySpan<byte> name, ReadOnlySpan<byte> kind)
     {
@@ -50,50 +51,6 @@ internal ref struct Resource
         Log(logger, LogError.Open, 0, name);
 
         return 1;
-    }
-
-    [EngineRoutine(0x00407870)]
-    private int Open(GameLogger logger, ReadOnlySpan<byte> data, ReadOnlySpan<byte> kind)
-    {
-        _data = data;
-        _isOpen = true;
-        _position = 0;
-        _start = _position;
-        var signature = Read(TagSize);
-        if (signature.Length < TagSize)
-        {
-            Log(logger, LogError.Load, 0, "empty file"u8);
-            _isOpen = false;
-            return 4;
-        }
-
-        _isRes = signature.SequenceEqual(ResSignature);
-        if (!_isRes && !signature.SequenceEqual(RiffSignature))
-        {
-            Log(logger, LogError.Invalid, 0, "resource signature"u8);
-            _isOpen = false;
-            return 2;
-        }
-
-        _end = Read<int>();
-        _end += _start + ChunkHeaderSize;
-        if (_data.Length < _end)
-        {
-            Log(logger, LogError.Text, _data.Length - _end, "Invalid filelength"u8);
-        }
-
-        var type = Read(TagSize);
-        if (!type.SequenceEqual(kind) && !kind.SequenceEqual(AnyTag))
-        {
-            _chunkTag = BinaryPrimitives.ReadInt32LittleEndian(type);
-            Log(logger, LogError.Invalid, 0, "resource type"u8);
-            _isOpen = false;
-            return 3;
-        }
-
-        FindChunk(AnyTag);
-
-        return 0;
     }
 
     [EngineRoutine(0x00407cf0)]
@@ -227,6 +184,50 @@ internal ref struct Resource
         }
 
         return kept;
+    }
+
+    [EngineRoutine(0x00407870)]
+    private int Open(GameLogger logger, ReadOnlySpan<byte> data, ReadOnlySpan<byte> kind)
+    {
+        _data = data;
+        _isOpen = true;
+        _position = 0;
+        _start = _position;
+        var signature = Read(TagSize);
+        if (signature.Length < TagSize)
+        {
+            Log(logger, LogError.Load, 0, "empty file"u8);
+            _isOpen = false;
+            return 4;
+        }
+
+        _isRes = signature.SequenceEqual(ResSignature);
+        if (!_isRes && !signature.SequenceEqual(RiffSignature))
+        {
+            Log(logger, LogError.Invalid, 0, "resource signature"u8);
+            _isOpen = false;
+            return 2;
+        }
+
+        _end = Read<int>();
+        _end += _start + ChunkHeaderSize;
+        if (_data.Length < _end)
+        {
+            Log(logger, LogError.Text, _data.Length - _end, "Invalid filelength"u8);
+        }
+
+        var type = Read(TagSize);
+        if (!type.SequenceEqual(kind) && !kind.SequenceEqual(AnyTag))
+        {
+            _chunkTag = BinaryPrimitives.ReadInt32LittleEndian(type);
+            Log(logger, LogError.Invalid, 0, "resource type"u8);
+            _isOpen = false;
+            return 3;
+        }
+
+        FindChunk(AnyTag);
+
+        return 0;
     }
 
     private readonly void Log(GameLogger logger, LogError code, int value, ReadOnlySpan<byte> text)

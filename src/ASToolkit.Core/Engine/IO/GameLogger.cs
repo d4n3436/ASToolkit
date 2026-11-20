@@ -13,20 +13,15 @@ internal sealed class GameLogger : IDisposable
     private const string FallbackPath = "error.log";
     private const string DateFormat = "yyyy-MM-dd";
     private const string TimeFormat = "HH:mm:ss";
+    private const string CreatedPrefix = "Cr-";
+    private const string AccessedPrefix = " La-";
+    private const string WrittenPrefix = " Lw-";
 
     private readonly IGameFileSystem? _fileSystem;
     private readonly TimeProvider _time;
     private readonly string _path;
     private Stream? _stream;
 
-    private static ReadOnlySpan<byte> LineEnd => "\r\n"u8;
-    
-    private static ReadOnlySpan<byte> HeaderFormat => "----< %s %s >----< %s (%s) >----"u8;
-    
-    private static ReadOnlySpan<byte> ErrorPrefixFormat => "!!!ERROR %s!!!"u8;
-    
-    private static ReadOnlySpan<byte> TagSeparator => ": "u8;
-    
     [EngineRoutine(0x004084a0)]
     public GameLogger(IGameFileSystem? fileSystem, TimeProvider time, string program)
     {
@@ -45,10 +40,26 @@ internal sealed class GameLogger : IDisposable
         }
 
         _path = path;
-        Write(HeaderFormat, Encode(date), Encode(clock), Encode(program), ReadOnlyMemory<byte>.Empty);
+        Write(HeaderFormat, Encode(date), Encode(clock), Encode(program), FormatFileTimes(fileSystem?.GetWriteTime(program)));
     }
 
     public bool IsOpen => _stream is not null;
+
+    private static ReadOnlySpan<byte> LineEnd => "\r\n"u8;
+
+    private static ReadOnlySpan<byte> HeaderFormat => "----< %s %s >----< %s (%s) >----"u8;
+
+    private static ReadOnlySpan<byte> ErrorPrefixFormat => "!!!ERROR %s!!!"u8;
+
+    private static ReadOnlySpan<byte> TagSeparator => ": "u8;
+
+    public static string FormatError(LogError code, int value, ReadOnlySpan<byte> text)
+    {
+        Span<byte> buffer = stackalloc byte[BufferSize];
+        int length = PrintFormat.Format(buffer, GetFormat(code), [value, (ReadOnlyMemory<byte>)text.ToArray()]);
+
+        return GameTextEncoding.Cyrillic.GetString(buffer[..length]);
+    }
 
     [EngineRoutine(0x00408950)]
     public void Write(ReadOnlySpan<byte> format, params ReadOnlySpan<FormatArgument> arguments)
@@ -70,7 +81,7 @@ internal sealed class GameLogger : IDisposable
             return;
 
         Span<byte> buffer = stackalloc byte[BufferSize];
-        int length = PrintFormat.Format(buffer, ErrorPrefixFormat, [Encode(CurrentTime())]);
+        int length = PrintFormat.Format(buffer, ErrorPrefixFormat, [Encode(GetCurrentTime())]);
         length += PrintFormat.Format(buffer[length..], tag, tagArguments);
         length += Append(buffer[length..], TagSeparator);
         length += Append(buffer[length..], GetFormat(code));
@@ -93,14 +104,6 @@ internal sealed class GameLogger : IDisposable
             _fileSystem.Delete(FallbackPath);
             _fileSystem.Move(_path, FallbackPath);
         }
-    }
-
-    public static string FormatError(LogError code, int value, ReadOnlySpan<byte> text)
-    {
-        Span<byte> buffer = stackalloc byte[BufferSize];
-        int length = PrintFormat.Format(buffer, GetFormat(code), [value, (ReadOnlyMemory<byte>)text.ToArray()]);
-
-        return GameTextEncoding.Cyrillic.GetString(buffer[..length]);
     }
 
     private static ReadOnlySpan<byte> GetFormat(LogError code) => code switch
@@ -131,8 +134,20 @@ internal sealed class GameLogger : IDisposable
         return count;
     }
 
+    [EngineRoutine(0x00406900)]
+    private static ReadOnlyMemory<byte> FormatFileTimes(DateTime? written)
+    {
+        if (written is null)
+            return ReadOnlyMemory<byte>.Empty;
+
+        string stamp = written.Value.ToString($"{DateFormat} hh:mm:ss", CultureInfo.InvariantCulture);
+
+        return Encode($"{CreatedPrefix}{stamp}{AccessedPrefix}{stamp}{WrittenPrefix}{stamp}");
+    }
+
     private static ReadOnlyMemory<byte> Encode(string text) => GameTextEncoding.Cyrillic.GetBytes(text);
 
+    [EngineRoutine(0x00406c90)]
     private static string ReplaceFirst(string text, char from, char to)
     {
         int index = text.IndexOf(from);
@@ -140,7 +155,7 @@ internal sealed class GameLogger : IDisposable
         return index < 0 ? text : string.Concat(text.AsSpan(0, index), new ReadOnlySpan<char>(in to), text.AsSpan(index + 1));
     }
 
-    private string CurrentTime() => _time.GetLocalNow().ToString(TimeFormat, CultureInfo.InvariantCulture);
+    private string GetCurrentTime() => _time.GetLocalNow().ToString(TimeFormat, CultureInfo.InvariantCulture);
 
     private void WriteText(ReadOnlySpan<byte> text)
     {

@@ -22,6 +22,13 @@ public interface IGameFileSystem
     Stream? OpenWrite(string path, bool append) => null;
 
     /// <summary>
+    /// Returns the time a file was last written, in local time.
+    /// </summary>
+    /// <param name="path">The path of the file, relative to the game folder.</param>
+    /// <returns>The time, or <see langword="null"/> when the file does not exist.</returns>
+    DateTime? GetWriteTime(string path) => null;
+
+    /// <summary>
     /// Deletes a file.
     /// </summary>
     /// <param name="path">The path of the file, relative to the game folder.</param>

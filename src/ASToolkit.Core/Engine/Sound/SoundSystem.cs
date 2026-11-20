@@ -5,7 +5,7 @@ using ASToolkit.Core.Formats;
 namespace ASToolkit.Core.Engine;
 
 /// <summary>
-/// Represents the sound effects and the music of a game session: the requests of a frame, the voices that play them and the music track.
+/// Represents the sound effects and music of a game session.
 /// </summary>
 public sealed class SoundSystem
 {
@@ -40,8 +40,6 @@ public sealed class SoundSystem
     private const int ExtensionLength = 4;
     private const float MillisecondsPerSecond = 1000;
 
-    private static ReadOnlySpan<byte> OggExtensions => ".Ogg.OGG.ogg"u8;
-
     private readonly IGameFileSystem _fileSystem;
     private readonly ISoundDevice? _device;
     private readonly IReadOnlyList<SfxRecord> _records;
@@ -51,7 +49,7 @@ public sealed class SoundSystem
     private readonly SfxRequest[] _requests = new SfxRequest[RequestCount];
     private readonly SfxBuffer[] _voices = new SfxBuffer[VoiceCount];
     private readonly Dictionary<string, float> _trackLengths = [];
-
+    private readonly bool _isDisabled;
     private int _soundVolume = FullVolume;
     private int _musicVolume = NoSound;
     private int _fade;
@@ -61,16 +59,18 @@ public sealed class SoundSystem
     private uint _fadeStartedAt;
 
     /// <summary>
-    /// Creates the sound system and loads the samples of every sound.
+    /// Initializes a new instance of the <see cref="SoundSystem"/> class and loads the samples of every sound.
     /// </summary>
     /// <param name="records">The sounds of the object table.</param>
     /// <param name="fileSystem">The file system the samples and tracks are read from.</param>
     /// <param name="device">The device asked whether voices and music are playing, or <see langword="null"/> to time them from their lengths.</param>
+    /// <param name="isDisabled"><see langword="true"/> for a session without a sound device, which loads nothing and ignores every request.</param>
     [EngineRoutine(0x0041cba0)]
-    public SoundSystem(IReadOnlyList<SfxRecord> records, IGameFileSystem fileSystem, ISoundDevice? device = null)
+    public SoundSystem(IReadOnlyList<SfxRecord> records, IGameFileSystem fileSystem, ISoundDevice? device = null, bool isDisabled = false)
     {
         _fileSystem = fileSystem;
         _device = device;
+        _isDisabled = isDisabled;
         _records = records;
         _variants = new int[records.Count];
         _buffers = new SoundBuffer[records.Count * SfxRecord.MaxSamples];
@@ -84,8 +84,15 @@ public sealed class SoundSystem
             _voices[i] = new SfxBuffer(NoSound, NoBuffer);
         }
 
-        Load(records);
+        if (!_isDisabled)
+        {
+            Load(records);
+        }
     }
+
+    internal GameLogger? Logger { get; set; }
+
+    private static ReadOnlySpan<byte> OggExtensions => ".Ogg.OGG.ogg"u8;
 
     /// <summary>
     /// Gets a value indicating whether a music track exists and plays or loops.
@@ -110,7 +117,7 @@ public sealed class SoundSystem
     [EngineRoutine(0x0041d600)]
     public void Play(int id, int pan, int volume)
     {
-        if (!IsValid(id))
+        if (_isDisabled || IsInvalid(id))
             return;
 
         int adjustment = (_soundVolume - FullVolume) * VolumeScale;
@@ -168,8 +175,8 @@ public sealed class SoundSystem
     {
         int across = (int)offset.X;
         int down = (int)offset.Y;
-        int acrossLevel = unchecked(-Magnitude(across) * LoudnessScale);
-        int downLevel = unchecked(-Magnitude(down) * LoudnessScale);
+        int acrossLevel = unchecked(-GetMagnitude(across) * LoudnessScale);
+        int downLevel = unchecked(-GetMagnitude(down) * LoudnessScale);
         Play(id, unchecked(across * PanScale), Math.Min(acrossLevel, downLevel));
     }
 
@@ -223,6 +230,9 @@ public sealed class SoundSystem
                 }
             }
         }
+
+        if (_isDisabled)
+            return;
 
         var requests = _requests.AsSpan();
         var voices = _voices.AsSpan();
@@ -345,6 +355,9 @@ public sealed class SoundSystem
     [EngineRoutine(0x0041d560)]
     public void Stop(int id, uint wallTime)
     {
+        if (_isDisabled)
+            return;
+
         if (id == NoSound)
         {
             StopAll(wallTime);
@@ -434,7 +447,7 @@ public sealed class SoundSystem
         _music?.SetVolume((volume - FullVolume) * VolumeScale);
     }
 
-    private static int Magnitude(int value)
+    private static int GetMagnitude(int value)
     {
         int sign = value >> 31;
 
@@ -453,6 +466,19 @@ public sealed class SoundSystem
     }
 
     private bool IsValid(int id) => id >= 0 && id < _variants.Length && _variants[id] > 0;
+
+    private bool IsInvalid(int id)
+    {
+        if (IsValid(id))
+            return false;
+
+        if (_records.Count > 0)
+        {
+            Logger?.Error("SOUND"u8, LogError.Invalid, 0, default);
+        }
+
+        return true;
+    }
 
     [EngineRoutine(0x0041d110)]
     private void Load(IReadOnlyList<SfxRecord> records)
@@ -493,8 +519,7 @@ public sealed class SoundSystem
             return -1;
 
         var wave = new WaveResource(data);
-        var format = wave.Format;
-        int bytesPerSecond = (int)format.SamplesPerSec * format.BlockAlign;
+        int bytesPerSecond = (int)wave.Format.SamplesPerSec * wave.Format.BlockAlign;
 
         return bytesPerSecond <= 0 ? -1 : wave.Samples.Length * MillisecondsPerSecond / bytesPerSecond;
     }
@@ -523,7 +548,7 @@ public sealed class SoundSystem
     [EngineRoutine(0x0041d430)]
     private int PickVoice(int id, GameRandom random, int time)
     {
-        if (!IsValid(id))
+        if (_isDisabled || IsInvalid(id))
             return -1;
 
         var voices = _voices.AsSpan();
@@ -706,6 +731,7 @@ public sealed class SoundSystem
     [EngineRoutine(0x0041c310)]
     private MusicStream CreateMusic(ReadOnlyMemory<byte> name)
     {
+        // TODO: Port the DirectShow music class for tracks that are not ogg
         string path = GameTextEncoding.Cyrillic.GetString(name.Span);
 
         if (!_trackLengths.TryGetValue(path, out float length))
