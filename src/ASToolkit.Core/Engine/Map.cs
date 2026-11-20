@@ -668,6 +668,8 @@ public sealed partial class Map : IDisposable
             }
         }
 
+        TactMouseTip(Input);
+
         Effects.Compact();
         Scroll();
 
@@ -830,6 +832,7 @@ public sealed partial class Map : IDisposable
     [EngineRoutine(0x00405160)]
     private void DeletePointerToSprite(Sprite removed)
     {
+        ForgetMouseTip(removed);
         DeleteBasePointerToSprite(removed);
 
         if (removed.Link?.Owner == removed)

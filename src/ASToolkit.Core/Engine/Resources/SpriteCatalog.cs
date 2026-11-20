@@ -326,6 +326,11 @@ public sealed class SpriteCatalog
     public Vector2 ScrollSpeed => _objects.ScrollSpeed * SpriteDefinition.PerMillisecond;
 
     /// <summary>
+    /// Gets the milliseconds the cursor rests before a mouse tip shows.
+    /// </summary>
+    public int HoverDelay => _objects.HoverDelay;
+
+    /// <summary>
     /// Gets the largest footprint of a hashed definition.
     /// </summary>
     public Vector2 LargestHashedSize { get; }

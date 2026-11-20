@@ -47,6 +47,8 @@ public sealed class ObjectTable
 
     internal Vector2 ScrollSpeed { get; private init; }
 
+    internal int HoverDelay { get; private init; }
+
     /// <summary>
     /// Gets the ID of every entry.
     /// </summary>
@@ -100,7 +102,8 @@ public sealed class ObjectTable
         {
             Gravitation = constants.Gravitation,
             Gravitation2 = constants.Gravitation2,
-            ScrollSpeed = new Vector2(constants.ScrollSpeedX, constants.ScrollSpeedY)
+            ScrollSpeed = new Vector2(constants.ScrollSpeedX, constants.ScrollSpeedY),
+            HoverDelay = constants.HoverDelay
         };
     }
 

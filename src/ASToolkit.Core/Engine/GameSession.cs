@@ -83,6 +83,12 @@ public sealed class GameSession : IDisposable
 
     internal GameLogger Logger { get; }
 
+    internal uint MouseTipMovedAt { get; set; }
+
+    internal Vector2 MouseTipCursor { get; set; }
+
+    internal ReadOnlyMemory<byte> MouseTipText { get; set; }
+
     /// <summary>
     /// Closes the session's log, keeping it as the last run's log.
     /// </summary>
