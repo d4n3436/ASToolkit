@@ -10,6 +10,8 @@ internal sealed class InputDriver
     private const int RebirthKey = ' ';
     private const int CursorPasses = 3;
     private const float ReclickReach = 16;
+    private const float BorderMargin = 8;
+
     private readonly Map _map;
     private Vector2? _destination;
     private Vector2? _clicked;
@@ -31,6 +33,7 @@ internal sealed class InputDriver
             input.Key = RebirthKey;
             input.Flags = flags;
             input.Cursor = cursor;
+            input.ScreenCursor = GetMousePoint(cursor);
 
             return sent;
         }
@@ -73,8 +76,17 @@ internal sealed class InputDriver
 
         input.Flags = flags;
         input.Cursor = cursor;
+        input.ScreenCursor = GetMousePoint(cursor);
 
         return sent;
+    }
+
+    private Vector2 GetMousePoint(Vector2 cursor)
+    {
+        var view = _map.Session.View;
+        var point = cursor - _map.Camera;
+
+        return new Vector2(Math.Clamp(point.X, view.Left + BorderMargin, view.Right - BorderMargin), Math.Clamp(point.Y, view.Top + BorderMargin, view.Bottom - BorderMargin));
     }
 
     // Returns the cursor above the point by the ground height the control adds back

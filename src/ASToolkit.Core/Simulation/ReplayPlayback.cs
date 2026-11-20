@@ -33,6 +33,7 @@ public sealed class ReplayPlayback
     private readonly List<LiveSprite> _live = [];
     private readonly List<(MergedMapSprite Placement, Sprite Sprite, Vector3 Start)> _statics = [];
     private Map _map;
+    private MapObserver _observer;
     private uint _now;
     private bool _isStepped;
     private bool _isClockDue;
@@ -49,10 +50,11 @@ public sealed class ReplayPlayback
         _renderer = renderer;
         _graphics = level.Map.Graphics;
         Result = result;
-        _loadout = result.StartingLoadout ?? throw new ArgumentException("Expected the loadout of a recorded playthrough.", nameof(result));
-        _demo = result.Demo ?? throw new ArgumentException("Expected a recorded playthrough.", nameof(result));
+        _loadout = result.StartingLoadout ?? throw new ArgumentException("The playthrough does not include a starting loadout.", nameof(result));
+        _demo = result.Demo ?? throw new ArgumentException("The playthrough does not include a recorded demo.", nameof(result));
 
         _map = Load();
+        _observer = new MapObserver(_map);
         int[] times = _map.EnumerateDemoFrameTimes().ToArray();
         
         _frameTimes = times
@@ -86,9 +88,9 @@ public sealed class ReplayPlayback
     /// <returns>The playback of the simulated level.</returns>
     public static ReplayPlayback Run(string game, string map, ObjectTable objects, MapRenderer renderer)
     {
-        string mapsPath = GamePath.Resolve(game, "Maps") ?? throw new InvalidDataException("The Maps folder was not found");
-        string tablePath = GamePath.Resolve(game, Path.Combine("Maps", "common_table.lgc")) ?? throw new InvalidDataException("common_table.lgc was not found");
-        var level = new LevelLoader(objects).Load(map, Path.Combine(mapsPath, map)) ?? throw new InvalidDataException($"{map} has no route");
+        string mapsPath = GamePath.Resolve(game, "Maps") ?? throw new InvalidDataException("Could not find the Maps folder.");
+        string tablePath = GamePath.Resolve(game, Path.Combine("Maps", "common_table.lgc")) ?? throw new InvalidDataException("Could not find file 'Maps\\common_table.lgc'.");
+        var level = new LevelLoader(objects).Load(map, Path.Combine(mapsPath, map)) ?? throw new InvalidDataException($"Could not find a route through the map '{map}'.");
         var table = GameTable.Load(tablePath);
         var play = new Playthrough(game, objects, table);
         var result = SimulateLevel(play, level.Analysis, map, table);
@@ -211,6 +213,7 @@ public sealed class ReplayPlayback
         if (_isStepped && _shownTime > time)
         {
             _map = Load();
+            _observer = new MapObserver(_map);
             _scene = null;
         }
 
@@ -239,6 +242,7 @@ public sealed class ReplayPlayback
             return false;
 
         _map.Step(drawFrame);
+        _observer.Observe();
         _isStepped = true;
         _isClockDue = true;
         _shownTime = _map.Time;
@@ -262,25 +266,9 @@ public sealed class ReplayPlayback
 
     private void AddLiveSprites()
     {
-        for (int layer = 0; layer < UpdateOrder.LayerCount; layer++)
+        foreach (var sprite in _map.ActiveSprites)
         {
-            foreach (var entry in _map.GetLayer(layer))
-            {
-                if (entry.Sprite is { Role: UpdateRole.Player or UpdateRole.Torso })
-                {
-                    AddSprite(entry.Sprite);
-                }
-            }
-        }
-
-        foreach (var monster in _map.Monsters)
-        {
-            AddSprite(monster);
-        }
-
-        foreach (var effect in _map.Effects.Active)
-        {
-            Add(SpawnedObjectSystem.GetState(effect));
+            AddSprite(sprite);
         }
 
         foreach (var pickup in new PickupTracker(_map).Pickups)
@@ -293,12 +281,7 @@ public sealed class ReplayPlayback
             }
         }
 
-        foreach (var sprite in _map.Scripted)
-        {
-            Add(SpawnedObjectSystem.GetState(sprite));
-        }
-
-        foreach (var effect in _map.Effects.Settled)
+        foreach (var effect in _observer.BakedEffects)
         {
             Add(effect);
         }

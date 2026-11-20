@@ -65,6 +65,7 @@ internal sealed class PlayerBot
     private const float RejoinWindow = 2000;
     private const int SecretInterval = 1000;
     private const float GunnerKeep = 0.6f;
+
     private readonly Map _map;
     private readonly RouteAnalysis _analysis;
     private readonly WalkField _field;
@@ -75,27 +76,30 @@ internal sealed class PlayerBot
     private readonly List<Sprite> _cluster = [];
     private readonly Dictionary<MergedMapSprite, (Vector2 Position, int Cell, int Collected)> _pickupCells = [];
     private readonly HashSet<MergedMapSprite> _unreachablePickups = [];
-    private MergedMapSprite? _detourTarget;
-    private int _detourCell = -1;
-    private Vector2 _detourEnd;
-    private int _weapon = Pistols;
-    private bool _chargesGunners;
     private readonly HashSet<Sprite> _unreachableCrates = [];
-    private Sprite? _detourCrate;
     private readonly List<Vector2> _way = [];
     private readonly Queue<Vector2> _path = [];
     private readonly Vector2[] _tour;
     private readonly Vector2[] _tourTargets;
     private readonly float[] _tourProgress;
+    private readonly Vector2[] _holes;
+    private readonly PlayerState _state;
+    private readonly PickupTracker _pickups;
+    private readonly List<Sprite> _incoming = [];
+    private readonly List<(int Slot, Vector2 Position)> _caches = [];
+    private readonly InputDriver _input;
+    private MergedMapSprite? _detourTarget;
+    private int _detourCell = -1;
+    private Vector2 _detourEnd;
+    private int _weapon = Pistols;
+    private bool _isChargingGunners;
+    private Sprite? _detourCrate;
     private Sprite? _aimTarget;
     private Sprite? _breachWall;
     private int _breachSince;
     private int _nextSecretAt;
     private Sprite? _worstThreat;
     private Vector2? _playerGoal;
-    private readonly Vector2[] _holes;
-    private readonly PlayerState _state;
-    private readonly PickupTracker _pickups;
     private Vector2 _rubbleReach;
     private int _cannonIdleSince;
     private bool _seeksCannon;
@@ -113,31 +117,12 @@ internal sealed class PlayerBot
     private int _farthest;
     private int _nextHuntAt;
     private bool _evadingBlast;
-    private readonly List<Sprite> _incoming = [];
     private int _floodCell = -1;
-    private readonly List<(int Slot, Vector2 Position)> _caches = [];
     private Sprite? _player;
     private bool _lastDoorsLocked;
     private bool _lastFencesUp;
     private PlayerCommand _command;
-    private readonly InputDriver _input;
     private Vector2? _reachedGoal;
-
-    private bool IsInCannon => _map.Player.Definition.Id == KnownObject.MannedCannon;
-
-    private bool IsProtected
-    {
-        get
-        {
-            foreach (var link in _map.Player.EnumerateLinks())
-            {
-                if (link.Definition.Id is KnownObject.InvulnerabilityEffect or KnownObject.RescueMedkitEffect)
-                    return true;
-            }
-
-            return false;
-        }
-    }
 
     public PlayerBot(Map map, RouteAnalysis analysis, WalkField field)
     {
@@ -181,11 +166,128 @@ internal sealed class PlayerBot
         }
     }
 
+    private enum CellScore
+    {
+        AwayFrom,
+        Escape,
+        Forward
+    }
+
     public bool HasFinished => _tour.Length > 1 && _cursor == _tour.Length - 1;
 
     public bool CanContinue => _cursor < _tour.Length - 1;
 
     public float FarthestProgress => GetProgress(_farthest);
+
+    public bool HasStarted => _player is not null;
+
+    private bool IsInCannon => _map.Player.Definition.Id == KnownObject.MannedCannon;
+
+    private bool IsProtected
+    {
+        get
+        {
+            foreach (var link in _map.Player.EnumerateLinks())
+            {
+                if (link.Definition.Id is KnownObject.InvulnerabilityEffect or KnownObject.RescueMedkitEffect)
+                    return true;
+            }
+
+            return false;
+        }
+    }
+
+    private bool IsWakeTick => _map.Time % WakeInterval < _map.FrameTime;
+
+    private bool HasDynamite => _state.HasDynamite;
+
+    public void PlayTick()
+    {
+        if (!_map.HasPlayer)
+        {
+            if (HasStarted)
+            {
+                _input.Press(_command);
+            }
+
+            _map.Step(_map.StepDemo(_map.WallTime, out _));
+
+            return;
+        }
+
+        if (!HasStarted)
+        {
+            Start();
+        }
+
+        if (_map.Time % DecisionInterval < _map.FrameTime)
+        {
+            _command = PlanCommand();
+        }
+
+        var command = _command;
+        var dodge = IsInCannon ? null : FindDodge(command.Destination) ?? (_seeksCannon ? null : SkirtCannon(command.Destination));
+
+        if (dodge is not null)
+        {
+            command = command with { Destination = dodge };
+        }
+
+        var previous = _map.Player.Position.AsVector2();
+
+        if (_input.Press(command))
+        {
+            _reachedGoal = null;
+        }
+
+        var player = _map.Player;
+        Vector2? goal = player is { Command: Command.Move, HasGoal: true } ? player.GoalPosition.AsVector2() : null;
+        _map.Step(_map.StepDemo(_map.WallTime, out _));
+
+        if (!_map.HasPlayer)
+            return;
+
+        if (goal is not null && player.Command != Command.Move)
+        {
+            _reachedGoal = goal;
+        }
+
+        ObserveMovement(previous);
+    }
+
+    private static float GetPickupReach(KnownObject id) => id.IsAmmo ? AmmoReach : PickupReach;
+
+    private static bool IsWeapon(KnownObject id) => id is >= KnownObject.Shotgun and <= KnownObject.MagmaMinigun;
+
+    private static int DiscountWeapon(int steps) => steps > 0 ? Math.Max(1, (int)(steps * DetourReach / FloodReach)) : steps;
+
+    private static Vector2 GetCompassStep(int side)
+    {
+        float angle = side * MathF.Tau / CompassSides;
+
+        return new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+    }
+
+    private static bool ReachesAny(List<Sprite> bodies, Vector2 point, Vector2 half)
+    {
+        foreach (var body in bodies)
+        {
+            if (Reaches(body, point, half))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool Reaches(Sprite body, Vector2 point, Vector2 half)
+    {
+        var reach = body.Definition.Half + new Vector2(body.Definition.BlastRadius) + half;
+        var offset = Vector2.Abs(body.Position.AsVector2() - point);
+
+        return offset.X < reach.X && offset.Y < reach.Y;
+    }
+
+    private static bool IsParked(Sprite cannon) => cannon.Definition.Id == KnownObject.MountedCannon && cannon.Animation < SpriteAnimation.Death;
 
     private void SynchronizeCursor()
     {
@@ -273,62 +375,6 @@ internal sealed class PlayerBot
         return cached;
     }
 
-    public bool HasStarted => _player is not null;
-
-    public void PlayTick()
-    {
-        if (!_map.HasPlayer)
-        {
-            if (HasStarted)
-            {
-                _input.Press(_command);
-            }
-
-            _map.Step(_map.StepDemo(_map.WallTime, out _));
-
-            return;
-        }
-
-        if (!HasStarted)
-        {
-            Start();
-        }
-
-        if (_map.Time % DecisionInterval < _map.FrameTime)
-        {
-            _command = PlanCommand();
-        }
-
-        var command = _command;
-        var dodge = IsInCannon ? null : FindDodge(command.Destination) ?? (_seeksCannon ? null : SkirtCannon(command.Destination));
-
-        if (dodge is not null)
-        {
-            command = command with { Destination = dodge };
-        }
-
-        var previous = _map.Player.Position.AsVector2();
-
-        if (_input.Press(command))
-        {
-            _reachedGoal = null;
-        }
-
-        var player = _map.Player;
-        Vector2? goal = player is { Command: Command.Move, HasGoal: true } ? player.GoalPosition.AsVector2() : null;
-        _map.Step(_map.StepDemo(_map.WallTime, out _));
-
-        if (!_map.HasPlayer)
-            return;
-
-        if (goal is not null && player.Command != Command.Move)
-        {
-            _reachedGoal = goal;
-        }
-
-        ObserveMovement(previous);
-    }
-
     private void Start()
     {
         _player = _map.Player;
@@ -336,7 +382,7 @@ internal sealed class PlayerBot
         _rubbleReach = (_map.Definitions.Find(KnownObject.RubblePile)?.Half ?? Vector2.Zero) + _player.Definition.Half;
     }
 
-    private bool HasReached(Vector2 target) => _reachedGoal == target || PlayerMovement.IsTouching(_map.Player, target, _map.Definitions.Empty.Half);
+    private bool HasReached(Vector2 target) => (_reachedGoal.HasValue && _reachedGoal.Value == target) || PlayerMovement.IsTouching(_map.Player, target, _map.Definitions.Empty.Half);
 
     private PlayerCommand PlanCommand()
     {
@@ -519,7 +565,7 @@ internal sealed class PlayerBot
             }
         }
 
-        _chargesGunners = gunners <= MaxChargedGunners && _gunnery.HoldsShortReach();
+        _isChargingGunners = gunners <= MaxChargedGunners && _gunnery.HoldsShortReach();
         foreach (var monster in _map.Collector.GetNear(_map.Player.Position.AsVector2() - reach, _map.Player.Position.AsVector2() + reach))
         {
             if (!monster.IsAlive)
@@ -804,15 +850,9 @@ internal sealed class PlayerBot
         return -1;
     }
 
-    private static float GetPickupReach(KnownObject id) => id.IsAmmo ? AmmoReach : PickupReach;
-
-    private bool IsWakeTick => _map.Time % WakeInterval < _map.FrameTime;
-
     private bool IsNewWeapon(KnownObject id) =>
         id is >= KnownObject.Shotgun and <= KnownObject.MagmaMinigun && !_state.HoldsWeapon((int)id - Sprite.WeaponItemBase);
 
-    private static bool IsWeapon(KnownObject id) => id is >= KnownObject.Shotgun and <= KnownObject.MagmaMinigun;
-    
     private bool IsCached(MergedMapSprite pickup)
     {
         int slot = pickup.Id.GetAmmoSlot();
@@ -825,8 +865,6 @@ internal sealed class PlayerBot
         return false;
     }
 
-    private static int DiscountWeapon(int steps) => steps > 0 ? Math.Max(1, (int)(steps * DetourReach / FloodReach)) : steps;
-
     private bool IsWanted(KnownObject id)
     {
         int slot = id.GetAmmoSlot();
@@ -834,14 +872,40 @@ internal sealed class PlayerBot
         return _state.CanTakePickup(id) && (slot < 0 || _state.HoldsWeapon(slot));
     }
 
-    private bool IsWantedContent(Sprite holder) => holder.Items.Exists(item => IsWanted((KnownObject)item));
+    private bool IsWantedContent(Sprite holder)
+    {
+        foreach (int item in holder.Items)
+        {
+            if (IsWanted((KnownObject)item))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private Sprite? FindBreach() =>
         _breachWall is not null && _breachWall.IsAlive && _gunnery.IsOnScreen(_breachWall.Position.AsVector2()) && _gunnery.HasClearAim(_breachWall)
             ? _breachWall : null;
 
-    private bool PlanBreaker() =>
-        _map.AreDoorsLocked && _analysis.Objectives.Any(objective => objective.Kind == ObjectiveKind.Breaker && QueueTrigger(new Vector2(objective.X, objective.Y), BreakerReach));
+    private bool PlanBreaker()
+    {
+        if (!_map.AreDoorsLocked)
+        {
+            return false;
+        }
+
+        foreach (var objective in _analysis.Objectives)
+        {
+            if (objective.Kind == ObjectiveKind.Breaker && QueueTrigger(new Vector2(objective.X, objective.Y), BreakerReach))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private bool PlanGenerator()
     {
@@ -868,7 +932,7 @@ internal sealed class PlayerBot
         if (!waits)
             return false;
 
-        if (CarriesDynamite)
+        if (HasDynamite)
         {
             foreach (var site in _map.DynamiteSites)
             {
@@ -892,8 +956,6 @@ internal sealed class PlayerBot
         return false;
     }
 
-    private bool CarriesDynamite => _state.CarriesDynamite;
-
     private bool PlantNearby()
     {
         if (_map.DynamiteSites.Count == 0)
@@ -909,8 +971,7 @@ internal sealed class PlayerBot
             int best = -1;
             int nearest = int.MaxValue;
             var end = Vector2.Zero;
-            bool carries = CarriesDynamite;
-            if (carries)
+            if (HasDynamite)
             {
                 foreach (var site in _map.DynamiteSites)
                 {
@@ -928,7 +989,7 @@ internal sealed class PlayerBot
                 }
             }
 
-            _planting = best >= 0 && QueuePath(best, end, approachEnd: carries);
+            _planting = best >= 0 && QueuePath(best, end, approachEnd: HasDynamite);
 
             void Consider(int cell, Vector2 point)
             {
@@ -954,7 +1015,7 @@ internal sealed class PlayerBot
     private bool HasPlantTargetNear()
     {
         var player = _map.Player.Position.AsVector2();
-        if (CarriesDynamite)
+        if (HasDynamite)
         {
             foreach (var site in _map.DynamiteSites)
             {
@@ -1011,13 +1072,6 @@ internal sealed class PlayerBot
             ? Vector2.Dot(offset, _map.Player.Direction.Vector) : float.MinValue;
     }
 
-    private static Vector2 GetCompassStep(int side)
-    {
-        float angle = side * MathF.Tau / CompassSides;
-
-        return new Vector2(MathF.Cos(angle), MathF.Sin(angle));
-    }
-
     private bool StandsClear(Vector3 start, Vector2 step)
     {
         for (float distance = SideStepGrain; distance <= SideStepClearance; distance += SideStepGrain)
@@ -1071,25 +1125,6 @@ internal sealed class PlayerBot
         monster.Definition.BattleRange > BackOffReach ? !_field.CrossesClosedGate(monster.Position.AsVector2(), _map.Player.Position.AsVector2()) :
             _field.CanMove(monster.Position, _map.Player.Position.AsVector2());
 
-    private static bool ReachesAny(List<Sprite> bodies, Vector2 point, Vector2 half)
-    {
-        foreach (var body in bodies)
-        {
-            if (Reaches(body, point, half))
-                return true;
-        }
-
-        return false;
-    }
-
-    private static bool Reaches(Sprite body, Vector2 point, Vector2 half)
-    {
-        var reach = body.Definition.Half + new Vector2(body.Definition.BlastRadius) + half;
-        var offset = Vector2.Abs(body.Position.AsVector2() - point);
-
-        return offset.X < reach.X && offset.Y < reach.Y;
-    }
-
     private float GetKeptDistance(SpriteDefinition definition)
     {
         if (IsProtected)
@@ -1098,7 +1133,7 @@ internal sealed class PlayerBot
         if (definition.BattleRange <= BackOffReach)
             return MathF.Max(BackOffReach, definition.Half.Length() * 2);
 
-        if (_chargesGunners && definition.Id is not (KnownObject.TankWeaponMonster or KnownObject.YellowTankWeaponMonster or KnownObject.RedTankWeaponMonster))
+        if (_isChargingGunners && definition.Id is not (KnownObject.TankWeaponMonster or KnownObject.YellowTankWeaponMonster or KnownObject.RedTankWeaponMonster))
             return BackOffReach;
 
         return MathF.Max(BackOffReach, (definition.BattleRange + StandOffMargin) * GunnerKeep);
@@ -1174,7 +1209,7 @@ internal sealed class PlayerBot
     {
         _incoming.Clear();
         var center = _map.Player.Position.AsVector2();
-        foreach (var round in _map.Effects.Active)
+        foreach (var round in _map.ActiveSprites)
         {
             if (round.Shooter is null || round.Shooter.Army == _map.Player.Army || round.Speed <= 0 || round.Speed >= SpriteDefinition.Unlimited ||
                 round.Definition.Damage <= 0 || center.MeasureOctagonalDistance(round.Position.AsVector2()) > DodgeReach)
@@ -1251,7 +1286,7 @@ internal sealed class PlayerBot
             return true;
 
         var center = _map.Player.Position.AsVector2();
-        foreach (var cannon in _map.Scripted)
+        foreach (var cannon in _map.ScriptedSprites)
         {
             var position = cannon.Position.AsVector2();
 
@@ -1294,12 +1329,10 @@ internal sealed class PlayerBot
         return count;
     }
 
-    private static bool IsParked(Sprite cannon) => cannon.Definition.Id == KnownObject.MountedCannon && cannon.Animation < SpriteAnimation.Death;
-
     // Counts a tour point inside a parked cannon's reach as passed once the player skirts the cannon beside it
     private bool IsBesideCannon(Vector2 point)
     {
-        foreach (var cannon in _map.Scripted)
+        foreach (var cannon in _map.ScriptedSprites)
         {
             var position = cannon.Position.AsVector2();
 
@@ -1323,7 +1356,7 @@ internal sealed class PlayerBot
             return null;
 
         heading = Vector2.Normalize(heading);
-        foreach (var cannon in _map.Scripted)
+        foreach (var cannon in _map.ScriptedSprites)
         {
             if (!IsParked(cannon))
                 continue;
@@ -1746,11 +1779,4 @@ internal sealed class PlayerBot
     }
 
     private float GetProgress(int cursor) => _tourProgress.Length < 2 ? 1 : _tourProgress[cursor];
-
-    private enum CellScore
-    {
-        AwayFrom,
-        Escape,
-        Forward
-    }
 }

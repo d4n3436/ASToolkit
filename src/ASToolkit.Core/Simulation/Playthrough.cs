@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Numerics;
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Engine.Scripts;
@@ -17,8 +16,6 @@ public sealed class Playthrough
 {
     private const int MaxAttempts = 3;
     private const int SeedLevels = 64;
-
-    private readonly ShopBot _shop;
     private const string ConfigFile = "AlienShooter.cfg";
     private const int RegistryItemCount = 12;
     private const int LifeImplantItem = 0;
@@ -27,9 +24,7 @@ public sealed class Playthrough
     private const int AccuracyImplantItem = 3;
     private const int LivesItem = 7;
     private const int FlashlightItem = 8;
-    private static ReadOnlySpan<byte> ItemsVariable => "PlayerItem"u8;
     private const int RescueKitItem = 10;
-    private static ReadOnlySpan<byte> MoneyVariable => "PlayerMoney"u8;
 
     private const string DefaultLevelScript = """
         #define MUSIC0 "music\\mus01.ogg"
@@ -46,7 +41,10 @@ public sealed class Playthrough
           CompaignGameTact();
         }
         """;
+
     private const int DroneItem = 11;
+
+    private readonly ShopBot _shop;
     private readonly string _gameFolder;
     private readonly GameFolder _fileSystem;
     private readonly SpriteCatalog _definitions;
@@ -73,6 +71,40 @@ public sealed class Playthrough
     /// </summary>
     public IReadOnlyList<int> FrameTimes { get; init; } = GameClock.DisplayFrameTimes;
 
+    private static ReadOnlySpan<byte> ItemsVariable => "PlayerItem"u8;
+
+    private static ReadOnlySpan<byte> MoneyVariable => "PlayerMoney"u8;
+
+    /// <summary>
+    /// Creates the registry of the bot's player profile.
+    /// </summary>
+    /// <param name="gameFolder">The game folder holding the game's configuration.</param>
+    /// <returns>The registry.</returns>
+    public static ScriptRegistry CreateProfile(string gameFolder)
+    {
+        var registry = new ScriptRegistry(ScriptRegistry.ReadDefaultPath(Path.Combine(gameFolder, ConfigFile)));
+        registry.Set("PlayerSex", "male");
+        registry.Set("StateBar", "1");
+        registry.Set("DifficultyLevel", "1");
+
+        return registry;
+    }
+
+    /// <summary>
+    /// Creates the registry a level's script reads the player's state from at the start of a level.
+    /// </summary>
+    /// <param name="gameFolder">The game folder holding the game's configuration.</param>
+    /// <param name="mapName">The map's name relative to the maps folder, which sets the game type and level number.</param>
+    /// <param name="loadout">The equipment the player carries into the level.</param>
+    /// <returns>The registry.</returns>
+    public static ScriptRegistry CreateRegistry(string gameFolder, string mapName, PlayerLoadout loadout)
+    {
+        var registry = CreateProfile(gameFolder);
+        ApplyLoadout(registry, mapName, loadout);
+
+        return registry;
+    }
+
     /// <summary>
     /// Plays a level along its tour.
     /// </summary>
@@ -80,43 +112,12 @@ public sealed class Playthrough
     /// <param name="loadout">The weapons, ammunition, armor and implants the player carries into the level.</param>
     /// <param name="seed">The seed of the random rolls.</param>
     /// <param name="record">Whether to record the run into a demo.</param>
-    /// <param name="session">The map state earlier levels of the game session left, or null for a new session.</param>
     /// <returns>The outcome of the playthrough.</returns>
-    public PlaythroughResult Run(RouteAnalysis analysis, PlayerLoadout loadout, int seed, bool record = false, GameSession? session = null)
+    public PlaythroughResult Run(RouteAnalysis analysis, PlayerLoadout loadout, int seed, bool record = false)
     {
-        var play = Start(analysis, loadout, seed, record, session);
-        play.Play();
+        Map? map = null;
 
-        return CreateResult(play, loadout, record);
-    }
-
-    private LevelSetup GetSetup(RouteAnalysis analysis)
-    {
-        if (!_setups.TryGetValue(analysis, out var setup))
-        {
-            setup = CreateSetup(analysis);
-            _setups.Add(analysis, setup);
-        }
-
-        return setup;
-    }
-
-    internal PlaySession Start(RouteAnalysis analysis, PlayerLoadout loadout, int seed, bool record = false, GameSession? session = null)
-    {
-        var setup = GetSetup(analysis);
-        var registry = CreateRegistry(_gameFolder, analysis.Name, loadout);
-
-        if (record)
-        {
-            session ??= new GameSession(registry);
-            session.RecordsNextMap = true;
-        }
-
-        var map = new Map(setup.Level, new GameRandom(seed), registry: registry, session: session);
-        var field = new WalkField(analysis.Grid, setup.DoorsLocked, map.Movement, map.Collector, _definitions.Find(KnownObject.PlayerStart)!.Object, analysis.Model.Sprites.Count);
-        var bot = new PlayerBot(map, analysis, field);
-
-        return new PlaySession(map, bot, analysis.Exit is null && !analysis.ClearsMonsters);
+        return Run(analysis, loadout, seed, record, ref map);
     }
 
     /// <summary>
@@ -129,60 +130,10 @@ public sealed class Playthrough
     public Map LoadReplay(RouteAnalysis analysis, PlayerLoadout loadout, DemoResource demo)
     {
         var setup = GetSetup(analysis);
-        return new Map(setup.Level, new GameRandom(demo.Seed), demo: demo, registry: CreateRegistry(_gameFolder, analysis.Name, loadout));
-    }
+        var map = new Map(_definitions, _fileSystem, registry: CreateRegistry(_gameFolder, analysis.Name, loadout));
+        map.Load(setup.Level, demo.Seed, demo);
 
-    private static PlaythroughResult CreateResult(PlaySession session, PlayerLoadout loadout, bool record)
-    {
-        var map = session.Map;
-
-        return new PlaythroughResult(loadout, map is { HasPlayer: true, Player.IsAlive: true } && session.Won, map.Time, session.Bot.FarthestProgress, session.Log.Kills, session.Log.Respawns, session.Log.MinHealth,
-            map.ReadScriptNumber(MoneyVariable), ReadImplants(map), session.Log.TakenPickups, ReadItems(map), map.HasPlayer ? new PlayerState(map).GetRemainingAmmo() : [],
-            session.Log.Timeline, record ? new DemoResource(map.FinishDemoRecording()) : null);
-    }
-
-    private static PlayerImplants ReadImplants(Map map) => new(
-        map.ReadScriptNumber(ItemsVariable), map.ReadScriptNumber(ItemsVariable, StrengthImplantItem),
-        map.ReadScriptNumber(ItemsVariable, SpeedImplantItem), map.ReadScriptNumber(ItemsVariable, AccuracyImplantItem));
-
-    private static Dictionary<KnownObject, int> ReadItems(Map map)
-    {
-        var items = new Dictionary<KnownObject, int>();
-        int lives = map.ReadScriptNumber(ItemsVariable, LivesItem);
-        bool hasDrone = map.Monsters.Any(sprite => sprite.Definition.Id == KnownObject.FlyingDrone && sprite.IsAlive);
-
-        if (lives > 0)
-        {
-            items[KnownObject.ExtraLife] = lives;
-        }
-
-        if (map.ReadScriptNumber(ItemsVariable, FlashlightItem) != 0)
-        {
-            items[KnownObject.Flashlight] = 1;
-        }
-
-        if (map.HasPlayer && map.Player.Items.Contains((int)KnownObject.Medkit))
-        {
-            items[KnownObject.Medkit] = 1;
-        }
-
-        if (hasDrone)
-        {
-            items[KnownObject.Drone] = 1;
-        }
-
-        return items;
-    }
-
-    private LevelSetup CreateSetup(RouteAnalysis analysis)
-    {
-        bool isLocked = analysis.DoorsInitiallyLocked ?? (analysis.Objectives.All(objective => objective.Kind != ObjectiveKind.Blackout) &&
-            analysis.Objectives.Any(objective => objective.Kind == ObjectiveKind.Breaker) && analysis.Grid.Edges.Values.Any(kind => kind == EdgeKind.Door));
-        string scriptPath = GetScriptPath(analysis.Name);
-        IGameFileSystem fileSystem = _fileSystem.TryRead(scriptPath, out _) ? _fileSystem : new ScriptOverlay(_fileSystem, scriptPath, DefaultLevelScript);
-        var level = LevelTemplate.FromModel(analysis.Model, fileSystem, scriptPath, _definitions, _ammoBatches) with { FrameTimes = FrameTimes };
-
-        return new LevelSetup(level, isLocked);
+        return map;
     }
 
     /// <summary>
@@ -199,6 +150,7 @@ public sealed class Playthrough
         CampaignState? state = null, bool record = false, int? recordedLevel = null)
     {
         var results = new List<PlaythroughResult>();
+        Map? map = null;
         bool shopsFirst = state is not null;
         state ??= CampaignState.CreateInitial();
         for (int level = 0; level < levels.Count; level++)
@@ -210,10 +162,10 @@ public sealed class Playthrough
                 ? _shop.Shop(ref money, state.Loadout.Ammo, state.Loadout.Implants, state.Loadout.Items, reward)
                 : state.Loadout;
             bool recordLevel = record && (recordedLevel is null || recordedLevel == level);
-            var result = Run(levels[level], loadout, firstSeed, recordLevel);
+            var result = Run(levels[level], loadout, firstSeed, recordLevel, ref map);
             for (int attempt = 1; attempt < MaxAttempts && !result.Survived; attempt++)
             {
-                result = Run(levels[level], loadout, firstSeed + attempt, recordLevel);
+                result = Run(levels[level], loadout, firstSeed + attempt, recordLevel, ref map);
             }
 
             results.Add(result);
@@ -242,33 +194,77 @@ public sealed class Playthrough
             IsCompleted: results.Count == levels.Count && results.All(result => result.Survived));
     }
 
-    /// <summary>
-    /// Creates the registry of the bot's player profile.
-    /// </summary>
-    /// <param name="gameFolder">The game folder holding the game's configuration.</param>
-    /// <returns>The registry.</returns>
-    public static ScriptRegistry CreateProfile(string gameFolder)
+    internal PlaySession Start(RouteAnalysis analysis, PlayerLoadout loadout, int seed, bool record = false, Map? map = null)
     {
-        var registry = new ScriptRegistry(ScriptRegistry.ReadDefaultPath(Path.Combine(gameFolder, ConfigFile)));
-        registry.Set("PlayerSex", "male");
-        registry.Set("StateBar", "1");
-        registry.Set("DifficultyLevel", "1");
+        var setup = GetSetup(analysis);
 
-        return registry;
+        if (map is null)
+        {
+            map = new Map(_definitions, _fileSystem, registry: CreateRegistry(_gameFolder, analysis.Name, loadout));
+        }
+        else
+        {
+            ApplyLoadout(map.Registry, analysis.Name, loadout);
+        }
+
+        if (record)
+        {
+            map.Session.IsRecordingNextMap = true;
+        }
+
+        map.Load(setup.Level, seed);
+        var field = new WalkField(analysis.Grid, setup.DoorsLocked, map.Movement, map.Collector, _definitions.Find(KnownObject.PlayerStart)!.Object, analysis.Model.Sprites.Count);
+        var bot = new PlayerBot(map, analysis, field);
+
+        return new PlaySession(map, bot, analysis.Exit is null && !analysis.ClearsMonsters);
+    }
+
+    private static PlaythroughResult CreateResult(PlaySession session, PlayerLoadout loadout, bool record)
+    {
+        var map = session.Map;
+
+        return new PlaythroughResult(loadout, map is { HasPlayer: true, Player.IsAlive: true } && session.Won, map.Time, session.Bot.FarthestProgress, session.Log.Kills, session.Log.Respawns, session.Log.MinHealth,
+            map.ReadScriptNumber(MoneyVariable), ReadImplants(map), session.Log.TakenPickups, ReadItems(map), map.HasPlayer ? new PlayerState(map).GetRemainingAmmo() : [],
+            session.Log.Timeline, record ? new DemoResource(map.FinishDemoRecording()) : null);
+    }
+
+    private static PlayerImplants ReadImplants(Map map) => new(
+        map.ReadScriptNumber(ItemsVariable), map.ReadScriptNumber(ItemsVariable, StrengthImplantItem),
+        map.ReadScriptNumber(ItemsVariable, SpeedImplantItem), map.ReadScriptNumber(ItemsVariable, AccuracyImplantItem));
+
+    private static Dictionary<KnownObject, int> ReadItems(Map map)
+    {
+        var items = new Dictionary<KnownObject, int>();
+        int lives = map.ReadScriptNumber(ItemsVariable, LivesItem);
+        bool hasDrone = map.HasLivingMonster(KnownObject.FlyingDrone);
+
+        if (lives > 0)
+        {
+            items[KnownObject.ExtraLife] = lives;
+        }
+
+        if (map.ReadScriptNumber(ItemsVariable, FlashlightItem) != 0)
+        {
+            items[KnownObject.Flashlight] = 1;
+        }
+
+        if (map.HasPlayer && map.Player.Items.Contains((int)KnownObject.Medkit))
+        {
+            items[KnownObject.Medkit] = 1;
+        }
+
+        if (hasDrone)
+        {
+            items[KnownObject.Drone] = 1;
+        }
+
+        return items;
     }
 
     private static string GetScriptPath(string mapName) => Path.ChangeExtension("maps\\" + mapName.Replace('/', '\\'), ".lgc");
 
-    /// <summary>
-    /// Creates the registry a level's script reads the player's state from at the start of a level.
-    /// </summary>
-    /// <param name="gameFolder">The game folder holding the game's configuration.</param>
-    /// <param name="mapName">The map's name relative to the maps folder, setting the game type and level number.</param>
-    /// <param name="loadout">The equipment the player carries into the level.</param>
-    /// <returns>The registry.</returns>
-    public static ScriptRegistry CreateRegistry(string gameFolder, string mapName, PlayerLoadout loadout)
+    private static void ApplyLoadout(ScriptRegistry registry, string mapName, PlayerLoadout loadout)
     {
-        var registry = CreateProfile(gameFolder);
         string folder = Path.GetDirectoryName(mapName) ?? "";
         registry.Set("GameType", folder.Equals("ADDON2", StringComparison.OrdinalIgnoreCase) ? "3" : folder.Equals("ADDON", StringComparison.OrdinalIgnoreCase) ? "2" : "0");
         registry.Set("LevelNumber", new string(Path.GetFileNameWithoutExtension(mapName).Where(char.IsAsciiDigit).ToArray()).TrimStart('0'));
@@ -299,8 +295,37 @@ public sealed class Playthrough
         {
             registry.Set("PlayerItem" + index, items[index].ToString(CultureInfo.InvariantCulture));
         }
+    }
 
-        return registry;
+    private PlaythroughResult Run(RouteAnalysis analysis, PlayerLoadout loadout, int seed, bool record, ref Map? map)
+    {
+        var play = Start(analysis, loadout, seed, record, map);
+        map = play.Map;
+        play.Play();
+
+        return CreateResult(play, loadout, record);
+    }
+
+    private LevelSetup GetSetup(RouteAnalysis analysis)
+    {
+        if (!_setups.TryGetValue(analysis, out var setup))
+        {
+            setup = CreateSetup(analysis);
+            _setups.Add(analysis, setup);
+        }
+
+        return setup;
+    }
+
+    private LevelSetup CreateSetup(RouteAnalysis analysis)
+    {
+        bool isLocked = analysis.DoorsInitiallyLocked ?? (analysis.Objectives.All(objective => objective.Kind != ObjectiveKind.Blackout) &&
+            analysis.Objectives.Any(objective => objective.Kind == ObjectiveKind.Breaker) && analysis.Grid.Edges.Values.Any(kind => kind == EdgeKind.Door));
+        string scriptPath = GetScriptPath(analysis.Name);
+        IGameFileSystem fileSystem = _fileSystem.TryRead(scriptPath, out _) ? _fileSystem : new ScriptOverlay(_fileSystem, scriptPath, DefaultLevelScript);
+        var level = LevelTemplate.FromModel(analysis.Model, fileSystem, scriptPath, _definitions, _ammoBatches) with { FrameTimes = FrameTimes };
+
+        return new LevelSetup(level, isLocked);
     }
 
     private sealed record LevelSetup(LevelTemplate Level, bool DoorsLocked);

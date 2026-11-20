@@ -10,8 +10,7 @@ internal sealed class PlayerState
     private const int ArmorIdOffset = 4;
     private const int MaxLives = 5;
     private const int LivesItem = 7;
-    private static ReadOnlySpan<byte> ItemsVariable => "PlayerItem"u8;
-    private static ReadOnlySpan<byte> ExplosivesVariable => "PlayerExplosive"u8;
+
     private readonly Map _map;
 
     public PlayerState(Map map)
@@ -21,7 +20,11 @@ internal sealed class PlayerState
 
     public float Speed => _map.Player.MaxSpeed / SpriteDefinition.PerMillisecond;
 
-    public bool CarriesDynamite => _map.ReadScriptNumber(ExplosivesVariable) > 0;
+    public bool HasDynamite => _map.ReadScriptNumber(ExplosivesVariable) > 0;
+
+    private static ReadOnlySpan<byte> ItemsVariable => "PlayerItem"u8;
+
+    private static ReadOnlySpan<byte> ExplosivesVariable => "PlayerExplosive"u8;
 
     public bool HoldsWeapon(int slot) => slot is >= 0 and < Sprite.WeaponSlots && _map.Player.Items.Contains(Sprite.WeaponItemBase + slot);
 
@@ -60,7 +63,7 @@ internal sealed class PlayerState
             >= KnownObject.ShotgunAmmo and <= KnownObject.MagmaMinigunAmmo => CanTakeAmmo(id.GetAmmoSlot()),
             KnownObject.ExtraLife => _map.ReadScriptNumber(ItemsVariable, LivesItem) < MaxLives,
             KnownObject.Medkit => !player.Items.Contains((int)KnownObject.Medkit),
-            KnownObject.Drone => !_map.Monsters.Any(sprite => sprite.Definition.Id == KnownObject.FlyingDrone && sprite.IsAlive),
+            KnownObject.Drone => !_map.HasLivingMonster(KnownObject.FlyingDrone),
             KnownObject.Invulnerability or KnownObject.Dynamite or KnownObject.Money or KnownObject.Flashlight or KnownObject.NightVision or
                 >= KnownObject.Shotgun and <= KnownObject.MagmaMinigun => true,
             _ => false

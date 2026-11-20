@@ -35,7 +35,7 @@ internal sealed class AttackTable
             return default;
 
         if (child.Damage > 0)
-            return new AttackProfile(creator.FightCount * child.Damage, child.BlastRadius, !child.SkipsOwnArmy, Rounds: creator.FightCount, BlastHeight: GetBlastHeight(child));
+            return new AttackProfile(creator.FightCount * child.Damage, child.BlastRadius, !child.ShouldSkipOwnArmy, Rounds: creator.FightCount, BlastHeight: GetBlastHeight(child));
 
         if (child.FightChild != 0)
         {
@@ -47,11 +47,11 @@ internal sealed class AttackTable
         var payload = _definitions.Find(child.DeathChild);
 
         if (payload is not null)
-            return new AttackProfile(creator.FightCount * payload.Damage, payload.BlastRadius, !payload.SkipsOwnArmy, Rounds: creator.FightCount, BlastHeight: GetBlastHeight(payload));
+            return new AttackProfile(creator.FightCount * payload.Damage, payload.BlastRadius, !payload.ShouldSkipOwnArmy, Rounds: creator.FightCount, BlastHeight: GetBlastHeight(payload));
 
         var carried = _definitions.Find(child.Object.Link);
 
-        return carried is null ? default : new AttackProfile(creator.FightCount * carried.Damage, carried.BlastRadius, !carried.SkipsOwnArmy,
+        return carried is null ? default : new AttackProfile(creator.FightCount * carried.Damage, carried.BlastRadius, !carried.ShouldSkipOwnArmy,
             child.Speed * child.GetAnimationDuration(child.InitialAnimation), creator.FightCount, GetBlastHeight(carried));
     }
 

@@ -18,6 +18,23 @@ internal sealed class EnemyStock
         Update();
     }
 
+    public int Count
+    {
+        get
+        {
+            int count = _alive;
+            foreach (var builder in _map.UpdatedSprites)
+            {
+                if (builder.ActionStack.Count != 0 || _map.GetPendingBuild(builder) is not null)
+                {
+                    count += CountUnbuilt(builder);
+                }
+            }
+
+            return count;
+        }
+    }
+
     public void Update()
     {
         foreach (var sprite in _map.Monsters)
@@ -34,37 +51,9 @@ internal sealed class EnemyStock
         }
     }
 
-    public int Count
-    {
-        get
-        {
-            int count = _alive;
-            foreach (var builder in _map.Builders)
-            {
-                count += CountUnbuilt(builder);
-            }
-
-            return count;
-        }
-    }
-
     private static bool IsCountedObject(KnownObject id) => KnownObject.Monsters.Contains(id) || KnownObject.Bosses.Contains(id);
 
     private static bool IsCounted(Sprite sprite) => sprite.Army == Army.Monsters && IsCountedObject(sprite.Definition.Id);
-
-    private int CountUnbuilt(Sprite builder)
-    {
-        var pending = _map.GetPendingBuild(builder);
-        int key = builder.ActionStack.Count * 2 + (pending is null ? 0 : 1);
-
-        if (_unbuilt.TryGetValue(builder, out var cached) && cached.Key == key)
-            return cached.Count;
-
-        int count = (pending is not null && IsCountedObject(pending.Id) ? 1 : 0) + MeasureUnbuilt(builder.ActionStack.Orders);
-        _unbuilt[builder] = (key, count);
-
-        return count;
-    }
 
     private static int MeasureUnbuilt(ReadOnlySpan<Act> orders)
     {
@@ -82,6 +71,20 @@ internal sealed class EnemyStock
                     return count;
             }
         }
+
+        return count;
+    }
+
+    private int CountUnbuilt(Sprite builder)
+    {
+        var pending = _map.GetPendingBuild(builder);
+        int key = builder.ActionStack.Count * 2 + (pending is null ? 0 : 1);
+
+        if (_unbuilt.TryGetValue(builder, out var cached) && cached.Key == key)
+            return cached.Count;
+
+        int count = (pending is not null && IsCountedObject(pending.Id) ? 1 : 0) + MeasureUnbuilt(builder.ActionStack.Orders);
+        _unbuilt[builder] = (key, count);
 
         return count;
     }
