@@ -2,7 +2,6 @@ using System.Numerics;
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
-using ASToolkit.Core.Simulation;
 using Xunit;
 
 namespace ASToolkit.Tests.Engine;

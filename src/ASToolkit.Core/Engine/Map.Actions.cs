@@ -57,30 +57,31 @@ public sealed partial class Map
             case ActionCode.CoorAttack:
             {
                 var weapon = sprite.Definition.LinkDefinition;
+                var torso = sprite.Link;
 
-                if (Weapons.Torso.Definition != weapon || weapon.FightChild == 0 || weapon.Object.WeaponIndex == 0 || Weapons.Torso.IsReloading)
+                if (torso is null || torso.Definition != weapon || weapon.FightChild == 0 || weapon.Object.WeaponIndex == 0 || torso.IsReloading)
                     return 0;
 
                 var goal = ConstructGoal(Weapons.GetCursorPoint(new Vector2(var1, var2), weapon));
-                SpriteKinematics.SetCommand(Weapons.Torso, Command.OneAttack, goal);
+                SpriteKinematics.SetCommand(torso, Command.OneAttack, goal);
 
                 return 0;
             }
             case ActionCode.ChangeVid:
-                if ((int)Player.Definition.Id < PlayerIdLimit)
+                if ((int)sprite.Definition.Id < PlayerIdLimit)
                 {
-                    Player.SlotAmmo[Player.WeaponSlot] = Player.GetAmmo();
+                    sprite.SlotAmmo[sprite.WeaponSlot] = sprite.GetAmmo();
                 }
 
                 UnitAction(sprite, code, var1, var2, var3, target);
 
-                if ((int)Player.Definition.Id > PlayerIdLimit)
+                if ((int)sprite.Definition.Id > PlayerIdLimit)
                 {
-                    Player.AddAmmo(Player.GetAmmoCapacity() - Player.GetAmmo());
+                    sprite.AddAmmo(sprite.GetAmmoCapacity() - sprite.GetAmmo());
                 }
                 else
                 {
-                    Player.AddAmmo(Player.SlotAmmo[Player.WeaponSlot] - Player.GetAmmo());
+                    sprite.AddAmmo(sprite.SlotAmmo[sprite.WeaponSlot] - sprite.GetAmmo());
                 }
 
                 return 0;
@@ -98,10 +99,10 @@ public sealed partial class Map
 
                 int slot = var1 - Sprite.WeaponItemBase;
 
-                if (sprite != Player || slot < 0 || slot >= Sprite.WeaponSlots)
+                if (sprite != _player || slot < 0 || slot >= Sprite.WeaponSlots)
                     return 0;
 
-                if (Player.GetAmmo() == 0 || Player.WeaponSlot < slot || slot == 0)
+                if (sprite.GetAmmo() == 0 || sprite.WeaponSlot < slot || slot == 0)
                 {
                     Weapons.SelectWeapon(slot);
                 }
@@ -144,17 +145,20 @@ public sealed partial class Map
             }
             case ActionCode.Damage:
                 return SpriteAction(sprite, code, var1, var2, var3, target);
-            case ActionCode.NextCommand when sprite != Player:
+            case ActionCode.NextCommand when sprite != _player:
                 return SpriteAction(sprite, code, var1, var2, var3, target);
             case ActionCode.NextCommand:
-                if (sprite.HasGoal || Weapons.Torso.HasGoal)
+            {
+                var torso = sprite.Link;
+                if (torso is not null && (sprite.HasGoal || torso.HasGoal))
                 {
-                    Weapons.Torso.AttackTact(Math.Max(FrameTime, sprite.Definition.Layout.GetFrameDuration(sprite.Animation)));
+                    torso.AttackTact(Math.Max(FrameTime, sprite.Definition.Layout.GetFrameDuration(sprite.Animation)));
                 }
 
                 sprite.ChangeAnimation(!sprite.Speed.IsZero() ? SpriteAnimation.Go : SpriteAnimation.Stand);
 
                 return 0;
+            }
         }
 
         return UnitAction(sprite, code, var1, var2, var3, target);
@@ -421,7 +425,7 @@ public sealed partial class Map
                     if (result == AttackResult.Approach && link is not null && sprite.Command is Command.Attack or Command.OneAttack &&
                         sprite.IsAggressive && (link.Timer != 0 || _rng.Next() % LinkScanOdds == 0))
                     {
-                        var enemy = _brain.SeekEnemy(sprite, Player);
+                        var enemy = _brain.SeekEnemy(sprite, _player);
 
                         if (enemy is not null)
                         {
@@ -439,7 +443,7 @@ public sealed partial class Map
                     result is AttackResult.Pursue or AttackResult.NoTarget && sprite is { IsAggressive: true, Command: Command.None or Command.Move or Command.OneAttack } &&
                     (sprite.LastFrame > sprite.FirstFrame || sprite.Timer != 0 || _rng.Next(IdleScanOdds) == 0))
                 {
-                    var enemy = _brain.SeekEnemy(sprite, Player);
+                    var enemy = _brain.SeekEnemy(sprite, _player);
 
                     if (enemy is not null)
                     {
@@ -601,11 +605,7 @@ public sealed partial class Map
                 if (definition is null || definition == sprite.Definition)
                     break;
 
-                if (sprite != Player)
-                {
-                    DropLinks(sprite);
-                }
-
+                DropLinks(sprite);
                 RemoveFromUpdates(sprite);
                 var state = var2 < 0 ? sprite.Animation : (SpriteAnimation)var2;
                 var direction = sprite.Direction;
@@ -613,14 +613,7 @@ public sealed partial class Map
                 Collector.ChangeCoor(sprite);
                 AddToUpdates(sprite);
 
-                if (sprite == Player)
-                {
-                    Weapons.ReplaceTorso();
-                }
-                else
-                {
-                    CreateLink(sprite);
-                }
+                CreateLink(sprite);
 
                 sprite.ChangeAnimation(state);
                 sprite.ChangeDirection(direction);

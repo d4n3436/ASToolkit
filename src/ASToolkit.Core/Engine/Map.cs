@@ -44,7 +44,7 @@ public sealed partial class Map : IDisposable
     private GameClock _clock;
     private MapEnvironment _environment;
     private int _spriteCount;
-    private bool _playerDestroyed;
+    private Sprite? _player;
 
     private static ReadOnlySpan<int> WornArmorShares => [50, 70, 90];
 
@@ -84,14 +84,10 @@ public sealed partial class Map : IDisposable
         Definitions = definitions;
         _rng = rng;
         Movement = data.Movement.Clone();
-        var legs = definitions.Find(KnownObject.PlayerStart)!;
         Collector = new SpriteCollector(Movement.MapSize, definitions.LargestHashedSize);
 
         Motion = new SpriteKinematics(definitions, this);
         Effects = new SpawnedObjectSystem(definitions, Movement, rng, this);
-        var start = mapData.Sprites.FirstOrDefault(placement => placement.Id is KnownObject.PlayerStart or KnownObject.PlayerStartFemaleLegs);
-        Player = new Sprite(_spriteCount++, legs, start?.Position ?? Vector3.Zero, Army.Player, legs.MaxHp)
-        { CreatedAt = Time };
         Weapons = new WeaponSystem(this, definitions, rng);
         var spriteCollision = new SpriteCollision(Movement, Collector);
         PlayerMovement = new PlayerMovement(spriteCollision);
@@ -107,22 +103,10 @@ public sealed partial class Map : IDisposable
         var placedSprites = new Dictionary<int, Sprite>();
         IsLoading = true;
 
-        if (start is null)
-        {
-            ConstructPlayer(default);
-        }
-
         for (int record = 0; record < mapData.StoredSprites.Count; record++)
         {
             var placement = mapData.StoredSprites[record];
             ConstructLoadingScreen(data.LoadingScreenRecords, record);
-
-            if (placement == start)
-            {
-                ConstructPlayer(default);
-                placedSprites[placement.Handle] = Player;
-                continue;
-            }
 
             var definition = Definitions.Find(placement.Id);
 
@@ -204,7 +188,7 @@ public sealed partial class Map : IDisposable
             }
         }
 
-        SetFlagman(0, Player);
+        SetFlagman(0, _player);
     }
 
     private void LoadOrders(Sprite sprite, ReadOnlySpan<StackAction> stack, Func<int, Sprite?> findSprite)
@@ -234,7 +218,7 @@ public sealed partial class Map : IDisposable
                 return AddMonster(definition, placement.Position, placement.Direction, placement.Army);
 
             if (definition.Object.SpriteClass == SpriteClass.Man)
-                return _playerDestroyed ? ConstructNewPlayer(definition, placement) : null;
+                return _player is null ? ConstructMan(definition, placement) : null;
 
             var body = ConstructSprite(definition, placement.Position, placement.Direction, placement.Army, definition.MaxHp, UpdateRole.Sprite, _spriteCount++);
             body.Placement = placement;
@@ -259,13 +243,18 @@ public sealed partial class Map : IDisposable
         Effects.Spawn(placement.Id, placement.Position, placement.Direction, Time);
     }
 
-
     internal WeaponSystem Weapons { get; }
 
     /// <summary>
-    /// Gets the body of the player, the man the level script made flagman 0.
+    /// Gets the body of the player, the man the map or its script built.
     /// </summary>
-    public Sprite Player { get; private set; }
+    /// <exception cref="InvalidOperationException">The map has no living player.</exception>
+    public Sprite Player => _player ?? throw new InvalidOperationException("Expected a map with player.");
+
+    /// <summary>
+    /// Gets a value indicating whether the map has a living player.
+    /// </summary>
+    public bool HasPlayer => _player is not null;
 
     /// <summary>
     /// Gets the cursor position in map coordinates.
@@ -437,23 +426,17 @@ public sealed partial class Map : IDisposable
         switch (sprite?.Role ?? entry.Role)
         {
             case UpdateRole.Player:
-                if (!_playerDestroyed && !Tact(Player))
+                if (sprite is not null && !Tact(sprite))
                 {
-                    DestroyPlayer();
+                    DestroyPlayer(sprite);
                 }
 
                 return true;
             case UpdateRole.Torso:
-                if (sprite != Weapons.Torso)
-                {
-                    ReleaseSprite(sprite!);
-                    return false;
-                }
-
-                if (sprite.Definition.Layer != layer)
+                if (sprite!.Definition.Layer != layer)
                     return false;
 
-                Weapons.UpdateTorso();
+                Tact(sprite);
 
                 return true;
             case UpdateRole.Monster:
@@ -492,23 +475,12 @@ public sealed partial class Map : IDisposable
     }
 
     [EngineRoutine(0x004545e0)]
-    private void ConstructPlayer(Angle direction)
+    private Sprite ConstructMan(SpriteDefinition definition, MergedMapSprite placement)
     {
-        Player.Start(GetInitialAnimation(Player.Definition), direction, Time, _rng);
-        TryAddItem(Player, Sprite.WeaponItemBase + Sprite.Pistols);
-        Weapons.StartTorso(GetInitialAnimation(Weapons.Torso.Definition));
-        Register(UpdateRole.Torso, Weapons.Torso);
-        Register(UpdateRole.Player, Player);
-        Collector.InsertToHash(Player);
-    }
-
-    private Sprite ConstructNewPlayer(SpriteDefinition definition, MergedMapSprite placement)
-    {
-        var man = new Sprite(_spriteCount++, definition, placement.Position, placement.Army, definition.ArmyMaxHp[(int)placement.Army & ArmyMask]) { CreatedAt = Time };
-        Player = man;
-        _playerDestroyed = false;
-        Weapons.AttachTorso();
-        ConstructPlayer(placement.Direction);
+        int hp = definition.ArmyMaxHp[(int)placement.Army & ArmyMask];
+        var man = ConstructSprite(definition, placement.Position, placement.Direction, placement.Army, hp, UpdateRole.Player, _spriteCount++);
+        _player = man;
+        TryAddItem(man, Sprite.WeaponItemBase + Sprite.Pistols);
 
         return man;
     }
@@ -529,17 +501,28 @@ public sealed partial class Map : IDisposable
     }
 
     [EngineRoutine(0x00454640)]
-    private void DestroyPlayer()
+    private void DestroyPlayer(Sprite player)
     {
         var torso = Weapons.Torso;
-        _updates.Remove(torso.Definition.Layer, torso);
-        _updates.Remove(Player.Definition.Layer, Player);
-        Collector.DeleteFromHash(Player);
-        Effects.Detach(Player);
-        Delete(Player);
-        ReleaseSprite(torso);
-        ReleaseSprite(Player);
-        _playerDestroyed = true;
+
+        if (torso is not null)
+        {
+            _updates.Remove(torso.Definition.Layer, torso);
+            Collector.DeleteFromHash(torso);
+        }
+
+        _updates.Remove(player.Definition.Layer, player);
+        Collector.DeleteFromHash(player);
+        Effects.Detach(player);
+        Delete(player);
+
+        if (torso is not null)
+        {
+            ReleaseSprite(torso);
+        }
+
+        ReleaseSprite(player);
+        _player = null;
     }
 
     [EngineRoutine(0x004333d0)]
@@ -806,7 +789,11 @@ public sealed partial class Map : IDisposable
             Motion.ForgetObject(sprite, removed);
         }
 
-        Motion.ForgetObject(Weapons.Torso, removed);
+        if (Weapons.Torso is not null)
+        {
+            Motion.ForgetObject(Weapons.Torso, removed);
+        }
+
         RemoveFromGroups(removed);
         Effects.Forget(removed);
         foreach (var controller in _players)
@@ -1018,8 +1005,8 @@ public sealed partial class Map : IDisposable
     {
         switch (sprite.Definition.Object.SpriteClass)
         {
-            case SpriteClass.Man when sprite == Player:
-                PlayerMovement.Tick(Player, IsInCannon ? 0 : Player.MaxSpeed, FrameTime);
+            case SpriteClass.Man when sprite == _player:
+                PlayerMovement.Tick(sprite, IsInCannon ? 0 : sprite.MaxSpeed, FrameTime);
                 break;
             case SpriteClass.Unit or SpriteClass.Avia:
                 _brain.Move(sprite, FrameTime, _clock.FramesPerSecond);
@@ -1138,7 +1125,7 @@ public sealed partial class Map : IDisposable
 
     private void CompleteDeath(Sprite sprite, SpriteAnimation animation)
     {
-        if (sprite.Placement is not null && sprite != Player)
+        if (sprite.Placement is not null && sprite != _player)
         {
             RemovePlacement(sprite.Placement);
             AddToMonsters(sprite);
@@ -1190,7 +1177,30 @@ public sealed partial class Map : IDisposable
         return sprite;
     }
 
-    private void CreateLink(Sprite sprite) => Effects.CreateLink(sprite, Time, 0);
+    private void CreateLink(Sprite sprite)
+    {
+        if (sprite.Role != UpdateRole.Player)
+        {
+            Effects.CreateLink(sprite, Time, 0);
+            return;
+        }
+
+        var definition = sprite.Definition.LinkDefinition;
+
+        if (definition is null || sprite.Link?.Definition == definition)
+            return;
+
+        var torso = ConstructSprite(definition, GetLinkPosition(sprite, definition), sprite.Direction, Definitions.GetArmy(definition), definition.MaxHp, UpdateRole.Torso, _spriteCount++);
+
+        if (!IsLoading)
+        {
+            RunCreationHook(torso);
+        }
+
+        AddLink(sprite, torso);
+        ChangeArmy(torso, (int)sprite.Army);
+        Weapons.Torso = torso;
+    }
 
     [EngineRoutine(0x00444970)]
     private static void AddLink(Sprite owner, Sprite link)

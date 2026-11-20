@@ -49,9 +49,10 @@ internal sealed class DepthProbe
             _nearby.Add(sprite);
         }
 
-        if (!_nearby.Contains(_map.Weapons.Torso))
+        var torso = _map.Weapons.Torso;
+        if (torso is not null && !_nearby.Contains(torso))
         {
-            _nearby.Add(_map.Weapons.Torso);
+            _nearby.Add(torso);
         }
 
         float found = ClearHeight;

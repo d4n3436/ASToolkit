@@ -209,7 +209,7 @@ public sealed partial class Map
     /// <summary>
     /// Gets a value indicating whether the player mans a cannon.
     /// </summary>
-    public bool IsInCannon => Player.Definition.Id == KnownObject.MannedCannon;
+    public bool IsInCannon => _player?.Definition.Id == KnownObject.MannedCannon;
 
     /// <summary>
     /// Gets a value indicating whether an invulnerability or rescue object protects the player.
@@ -218,7 +218,10 @@ public sealed partial class Map
     {
         get
         {
-            foreach (var link in Player.EnumerateLinks())
+            if (_player is null)
+                return false;
+
+            foreach (var link in _player.EnumerateLinks())
             {
                 if (link.Definition.Id is KnownObject.InvulnerabilityEffect or KnownObject.RescueMedkitEffect)
                     return true;

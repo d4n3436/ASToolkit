@@ -11,6 +11,33 @@ public class MapTests
     private const int DroppedItemMaxLifetime = 22000;
 
     [Fact]
+    public void Map_WithoutAPlacedMan_HasNoPlayerUntilTheScriptCreatesOne()
+    {
+        var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var map = EngineTestMap.CreateMap(objects, placesPlayer: false, script: """
+            #include "maps\export.lgc"
+            int man;
+            main()
+            {
+              if( !man )
+              {
+                man = CreateSprite(9, 1000, 1000, 0);
+                SetFlagman(0, man);
+              }
+            }
+            """);
+
+        Assert.False(map.HasPlayer);
+        Assert.Null(map.GetFlagman(0));
+
+        map.Step();
+
+        Assert.True(map.HasPlayer);
+        Assert.Equal(map.Player, map.GetFlagman(0));
+        Assert.Equal(map.Player, map.Weapons.Torso?.Owner);
+    }
+
+    [Fact]
     public void Step_PlayerKilledWithALifeLeft_IsRebornWithTheSpaceKey()
     {
         var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
@@ -27,7 +54,7 @@ public class MapTests
         }
 
         Assert.Null(map.GetFlagman(0));
-        for (int tick = 0; tick < 5 && map.Player == first; tick++)
+        for (int tick = 0; tick < 5 && (!map.HasPlayer || map.Player == first); tick++)
         {
             map.Play(default);
         }

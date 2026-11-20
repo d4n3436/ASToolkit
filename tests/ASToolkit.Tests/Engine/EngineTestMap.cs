@@ -3,7 +3,6 @@ using ASToolkit.Core.Engine;
 using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Engine.Scripts;
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Levels;
 using ASToolkit.Core.Simulation;
 
 namespace ASToolkit.Tests.Engine;
@@ -30,9 +29,14 @@ internal static class EngineTestMap
         """;
 
     public static Map CreateMap(SpriteCatalog definitions, PlayerLoadout? loadout = null, IReadOnlyList<MergedMapSprite>? sprites = null, int frameTime = GameClock.DefaultFrameTime,
-        MapEnvironment environment = MapEnvironment.None, DemoResource? demo = null, string? blood = null, GameSession? session = null, string script = Script, Gamma ambient = default)
+        MapEnvironment environment = MapEnvironment.None, DemoResource? demo = null, string? blood = null, GameSession? session = null, string script = Script, Gamma ambient = default, bool placesPlayer = true)
     {
-        var placed = new List<MergedMapSprite> { new(StartHandle, KnownObject.PlayerStart, new Vector3(1000, 1000, 0), default, Army.Player, []) };
+        var placed = new List<MergedMapSprite>();
+        if (placesPlayer)
+        {
+            placed.Add(new MergedMapSprite(StartHandle, KnownObject.PlayerStart, new Vector3(1000, 1000, 0), default, Army.Player, []));
+        }
+
         placed.AddRange(sprites ?? []);
         var mapData = new MapData
         {

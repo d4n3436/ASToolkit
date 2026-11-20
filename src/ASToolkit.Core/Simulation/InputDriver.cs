@@ -22,10 +22,24 @@ internal sealed class InputDriver
     public bool Press(in PlayerCommand command)
     {
         var input = _map.Input;
-        var player = _map.Player;
         var flags = input.Flags & ~(InputFlags.Movement | InputFlags.First | InputFlags.Second);
         var cursor = command.Cursor;
         bool sent = false;
+
+        if (!_map.HasPlayer)
+        {
+            if (_map.GetFlagman(0) is null)
+            {
+                input.Key = RebirthKey;
+            }
+
+            input.Flags = flags;
+            input.Cursor = cursor;
+
+            return sent;
+        }
+
+        var player = _map.Player;
 
         if (command.Destination != _destination)
         {

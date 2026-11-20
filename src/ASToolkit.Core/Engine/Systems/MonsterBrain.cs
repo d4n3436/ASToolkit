@@ -97,7 +97,7 @@ internal sealed class MonsterBrain
     }
 
     [EngineRoutine(0x00444a80)]
-    public Sprite? SeekEnemy(Sprite sprite, Sprite player)
+    public Sprite? SeekEnemy(Sprite sprite, Sprite? player)
     {
         var definition = sprite.Definition;
 
@@ -108,9 +108,9 @@ internal sealed class MonsterBrain
         float bestDistance = definition.DetectRange + 1;
 
         if (sprite.Army == Army.Monsters)
-            return TryTake(sprite, player, ref best, ref bestDistance) ? player : best;
+            return player is not null && TryTake(sprite, player, ref best, ref bestDistance) ? player : best;
 
-        if (TryTake(sprite, player, ref best, ref bestDistance))
+        if (player is not null && TryTake(sprite, player, ref best, ref bestDistance))
             return player;
 
         foreach (var candidate in _candidates)

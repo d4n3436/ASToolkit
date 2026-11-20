@@ -30,51 +30,25 @@ internal sealed class WeaponSystem
         _rng = random;
         _collector = map.Collector;
         Collision = new ProjectileCollision(map.Movement, _collector);
-        Torso = CreateTorso(map.Player.Definition.LinkDefinition!, 0, false);
         _depth = new DepthProbe(map);
     }
 
-    public void AttachTorso() => Torso = CreateTorso(_map.Player.Definition.LinkDefinition!, 0, false);
+    public Sprite? Torso { get; set; }
 
-    public void StartTorso(SpriteAnimation state)
-    {
-        Torso.Start(state, _map.Player.Direction, _map.Time, _rng);
-        Torso.CreatedAt = _map.Time;
-        _map.Effects.CreateLink(Torso, _map.Time, 0);
-    }
+    private Sprite RequiredTorso => Torso ?? throw new InvalidOperationException("Expected a map with torso.");
 
-    public Sprite Torso { get; private set; }
+    private Sprite Man => _map.Player;
 
     public ProjectileCollision Collision { get; }
 
-    public bool CanFire => !Torso.IsReloading;
+    public bool CanFire => !RequiredTorso.IsReloading;
 
-    private Sprite CreateTorso(SpriteDefinition definition, int timer, bool linked = true)
-    {
-        var player = _map.Player;
-        var torso = new Sprite(_map.AllocateNumber(), definition, GetTorsoPosition(definition), 0, 0) { Direction = player.Direction, Timer = timer, Owner = player };
-        torso.ChangeAnimation(SpriteAnimation.Stand);
-        player.Link = torso;
-
-        if (linked)
-        {
-            _map.Effects.CreateLink(torso, _map.Time, 0);
-        }
-
-        return torso;
-    }
-
-    private Vector3 GetTorsoPosition(SpriteDefinition definition) =>
-        _map.Player.Position + _map.Player.Definition.GetLinkOffset(definition, _map.Player.Direction);
-
-    public void UpdateTorso() => _map.Tact(Torso);
-
-    public int Slot => _map.Player.WeaponSlot;
+    public int Slot => Man.WeaponSlot;
 
     // Raises the cursor to the height the depth buffer holds under it on screen, or to the terrain off screen
     public Vector3 GetCursorPoint(Vector2 cursor, SpriteDefinition weapon)
     {
-        var player = _map.Player.Position;
+        var player = Man.Position;
         var pixel = cursor - (player.ToDrawPosition() - ViewHalf);
         float y = cursor.Y;
         float height;
@@ -104,7 +78,7 @@ internal sealed class WeaponSystem
     [EngineRoutine(0x00455070)]
     public bool SelectWeapon(int slot)
     {
-        var player = _map.Player;
+        var player = Man;
         var held = player.Definition.LinkDefinition;
 
         if (held is null || (int)held.Id >= WeaponIdLimit)
@@ -119,51 +93,31 @@ internal sealed class WeaponSystem
             return false;
 
         player.SlotAmmo[player.WeaponSlot] = player.GetAmmo();
-        _map.Action(Torso, ActionCode.ChangeVid, slot + Sprite.WeaponIdBase, (int)SpriteAnimation.Stand);
+        _map.Action(RequiredTorso, ActionCode.ChangeVid, slot + Sprite.WeaponIdBase, (int)SpriteAnimation.Stand);
         player.Definition.LinkDefinition = _definitions.Find((KnownObject)(slot + Sprite.WeaponIdBase));
         player.AddAmmo(player.SlotAmmo[slot] - player.GetAmmo());
 
         return true;
     }
 
-    public void ReplaceTorso()
-    {
-        var link = _map.Player.Definition.LinkDefinition;
-
-        if (link is null)
-            return;
-
-        _map.DropLinks(Torso);
-        var carried = Torso.Link;
-        Torso.Link = null;
-        Torso = CreateTorso(link, 0);
-        _map.Register(UpdateRole.Torso, Torso);
-
-        if (carried is not null)
-        {
-            carried.Owner = null;
-            SpawnedObjectSystem.AppendLink(Torso, carried);
-        }
-    }
-
     // Standing legs follow the torso once its turn passes the slack
     public void TrackCursor(Angle direction, int elapsed)
     {
-        var player = _map.Player;
+        var player = Man;
 
         if (player is { Speed: 0, Definition.Id: KnownObject.PlayerStart })
         {
             if (!_turnsLegs)
             {
-                _turnsLegs = player.Direction.MeasureTurnTo(Torso.Direction) > LegSlack;
+                _turnsLegs = player.Direction.MeasureTurnTo(RequiredTorso.Direction) > LegSlack;
             }
             else
             {
-                _turnsLegs = player.RotateTact(Torso.Direction, elapsed) != default;
+                _turnsLegs = player.RotateTact(RequiredTorso.Direction, elapsed) != default;
             }
         }
 
-        Torso.RotateTact(direction, elapsed);
+        RequiredTorso.RotateTact(direction, elapsed);
     }
 
     public void FireFrom(Sprite sprite)
@@ -172,7 +126,7 @@ internal sealed class WeaponSystem
 
         if (goal is not null)
         {
-            Fire(sprite == Torso ? _map.Player : sprite, sprite, sprite.Definition, goal.Position, goal, 0, sprite.Position, sprite.Direction);
+            Fire(sprite == Torso ? Man : sprite, sprite, sprite.Definition, goal.Position, goal, 0, sprite.Position, sprite.Direction);
         }
     }
 

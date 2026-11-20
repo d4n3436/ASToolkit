@@ -509,7 +509,7 @@ public sealed partial class Map : IScriptFunctionHost
     [EngineRoutine(0x0043f520)]
     public void DestroySprite(Sprite sprite)
     {
-        if (sprite.Role is not (UpdateRole.Player or UpdateRole.Torso))
+        if (sprite.Role != UpdateRole.Player)
         {
             UnlinkDestroyed(sprite);
         }
@@ -532,10 +532,20 @@ public sealed partial class Map : IScriptFunctionHost
                 Effects.Leave(sprite);
                 break;
             case UpdateRole.Player:
-                DestroyPlayer();
+                DestroyPlayer(sprite);
                 break;
             case UpdateRole.Torso:
-                throw new NotSupportedException("Cannot destroy the player's torso alone.");
+                _updates.Remove(sprite.Definition.Layer, sprite);
+                Collector.DeleteFromHash(sprite);
+                Delete(sprite);
+                ReleaseSprite(sprite);
+
+                if (Weapons.Torso == sprite)
+                {
+                    Weapons.Torso = null;
+                }
+
+                break;
             default:
                 if (sprite.Placement is not null)
                 {
