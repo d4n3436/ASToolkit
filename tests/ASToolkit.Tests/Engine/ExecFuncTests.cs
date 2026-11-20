@@ -277,6 +277,48 @@ public class ExecFuncTests
         Assert.Single(map.Monsters);
     }
 
+    [Fact]
+    public void ExecFunc_MenuFiles_LoadAtTheScreenAndReleaseByFile()
+    {
+        var (map, script) = Run("""
+            int x, y, released, kept;
+            main()
+            {
+              MenuLoad("maps\\play.men");
+              MenuLoad("maps\\gamemenu.men");
+              x = GetX(MenuFind(708));
+              y = GetY(MenuFind(708));
+              MenuRelease("maps\\play.men");
+              released = MenuFind(708);
+              MenuRelease("maps\\gamemenu.men");
+              kept = MenuFind(717);
+            }
+            """);
+        var screen = map.Session.ScreenSize;
+
+        Assert.Equal((int)(320 + 192 - 512 + screen.Width / 2), Read(script, "x"));
+        Assert.Equal((int)(254 + 144 - 384 + screen.Height / 2), Read(script, "y"));
+        Assert.Equal(0, Read(script, "released"));
+        Assert.NotEqual(0, Read(script, "kept"));
+    }
+
+    [Fact]
+    public void ExecFunc_MenuFiles_RestoreTextFromStrings()
+    {
+        var (map, _) = Run("""
+            main()
+            {
+              MenuLoad("maps\\gamemenu.men");
+            }
+            """);
+        var texts = Enumerable.Range(0, 17).SelectMany(layer => map.GetLayer(layer))
+            .Select(entry => entry.Sprite?.Text?.Shown.ToArray()).Where(text => text is not null)
+            .Select(text => Encoding.ASCII.GetString(text!)).ToList();
+
+        Assert.Contains("BACK", texts);
+        Assert.Contains("MAIN MENU", texts);
+    }
+
     private static (Map Map, Script Script) Run(string text)
     {
         var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);

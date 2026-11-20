@@ -56,7 +56,7 @@ internal sealed class Player
     public void Control(PlayerInput input)
     {
         PropagateGroupCommands();
-        Messages.Update();
+        Messages.Tact();
 
         var player = Sprite;
 

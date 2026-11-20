@@ -81,7 +81,7 @@ public sealed class SpriteCatalog
         {
             if (definition is not null)
             {
-                ResolveReferences(definition, logger);
+                SetChildAndLink(definition, logger);
             }
         }
     }
@@ -220,7 +220,7 @@ public sealed class SpriteCatalog
     }
 
     [EngineRoutine(0x00413a60)]
-    private void ResolveReferences(SpriteDefinition definition, GameLogger? logger)
+    private void SetChildAndLink(SpriteDefinition definition, GameLogger? logger)
     {
         int link = (int)definition.Object.Link;
         definition.LinkDefinition = Find(definition.Object.Link);

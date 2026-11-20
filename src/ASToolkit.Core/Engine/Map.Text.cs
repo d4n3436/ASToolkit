@@ -20,7 +20,7 @@ public sealed partial class Map
     private int FrameAction(Sprite sprite, ActionCode code, int var1, int var2, int var3, Sprite? target)
     {
         if ((int)code < 0 || (int)code >= FirstButtonAction && code != ActionCode.NextCommand)
-            return UnitAction(sprite, code, var1, var2, var3, target);
+            return SpriteAction(sprite, code, var1, var2, var3, target);
 
         if ((int)code < FirstButtonAction || sprite.Animation > SpriteAnimation.Birth)
             return 0;
@@ -40,7 +40,7 @@ public sealed partial class Map
         return 0;
     }
 
-    // TODO: Port saving and restoring the text with the menu files
+    // TODO: Port saving the text (ACT_SAVE)
     [EngineRoutine(0x00448ff0)]
     private int TextAction(Sprite sprite, ActionCode code, int var1, int var2, int var3, Sprite? target)
     {
@@ -146,9 +146,9 @@ public sealed partial class Map
             TextBehavior.NotLoad => description,
             TextBehavior.StringsIni => ReadMenuString(description.Span),
             TextBehavior.File => LoadTextFile(description.Span),
-            TextBehavior.ScriptFile => LoadTextFile(ReadScriptText(description.Span).Span),
-            TextBehavior.ScriptStrings => ReadMenuString(ReadScriptText(description.Span).Span),
-            _ => ReadScriptText(description.Span)
+            TextBehavior.ScriptFile => LoadTextFile(GetVariableString(description.Span).Span),
+            TextBehavior.ScriptStrings => ReadMenuString(GetVariableString(description.Span).Span),
+            _ => GetVariableString(description.Span)
         };
         LayOutText(text);
     }
@@ -196,7 +196,7 @@ public sealed partial class Map
     }
 
     [EngineRoutine(0x004231c0)]
-    private ReadOnlyMemory<byte> ReadScriptText(ReadOnlySpan<byte> reference)
+    private ReadOnlyMemory<byte> GetVariableString(ReadOnlySpan<byte> reference)
     {
         int bracket = reference.IndexOf(ElementStart);
         int index = Script.FindObject(bracket < 0 ? reference : reference[..bracket]);

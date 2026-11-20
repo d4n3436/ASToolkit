@@ -145,7 +145,7 @@ public sealed partial class Map : IDisposable
 
             if (SpriteProgram.TryParse(placement.Payload, false, out var program))
             {
-                LoadOrders(sprite, program.GetStack(0), placedSprites);
+                LoadOrders(sprite, program.GetStack(0), placedSprites.GetValueOrDefault);
             }
 
             var items = SpriteProgram.GetItems(placement.Payload);
@@ -206,14 +206,14 @@ public sealed partial class Map : IDisposable
         SetFlagman(0, Player);
     }
 
-    private void LoadOrders(Sprite sprite, ReadOnlySpan<StackAction> stack, Dictionary<int, Sprite> sprites)
+    private void LoadOrders(Sprite sprite, ReadOnlySpan<StackAction> stack, Func<int, Sprite?> findSprite)
     {
         var orders = new Act[stack.Length];
         for (int i = 0; i < stack.Length; i++)
         {
             var action = stack[i];
             orders[i] = Act.NamesSprite(action.Code)
-                ? new Act(action.Act, action.Var1, action.Var2, action.Var3, sprites.GetValueOrDefault(action.Var1))
+                ? new Act(action.Act, action.Var1, action.Var2, action.Var3, findSprite(action.Var1))
                 : Act.FromAction(action);
         }
 
@@ -617,7 +617,7 @@ public sealed partial class Map : IDisposable
     [EngineRoutine(0x00405190)]
     public void Step(bool drawFrame = true)
     {
-        UpdateMenus(Input);
+        ProcessMenuInput(Input);
         Script.CallFunction(this, MainFunction, 0, 0, 0);
         UpdateScreen(drawFrame);
 

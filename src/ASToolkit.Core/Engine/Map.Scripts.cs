@@ -105,7 +105,7 @@ public sealed partial class Map
     {
         if (!_hasHardwareGround)
         {
-            CreateHardwareGround();
+            CreateEmptyHardwareGround();
         }
 
         if (IsBaked(sprite.Definition))
@@ -117,7 +117,7 @@ public sealed partial class Map
     internal static bool IsBaked(SpriteDefinition definition) => definition.Object.SpriteClass == SpriteClass.BuiltTerrain && !SpriteCollector.IsHashed(definition);
 
     [EngineRoutine(0x00412a40)]
-    private void CreateHardwareGround()
+    private void CreateEmptyHardwareGround()
     {
         _hasHardwareGround = true;
         var definition = Definitions.CreateHardwareGround();

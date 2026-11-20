@@ -42,7 +42,7 @@ internal sealed class MessageWindow
     private int GetLineHeight() => FindDefinition(_lineId).FrameHeight + 1;
 
     [EngineRoutine(0x0042e4a0)]
-    public void Add(ReadOnlyMemory<byte> text, Vector2 target)
+    public void Put(ReadOnlyMemory<byte> text, Vector2 target)
     {
         int lineHeight = GetLineHeight();
 
@@ -52,7 +52,7 @@ internal sealed class MessageWindow
         _shownAt = _map.Time;
         if (_lines[_count] is not null)
         {
-            Scroll();
+            Shift();
         }
 
         double bottom = (double)_map.Session.View.Top + (_count - 1) * lineHeight;
@@ -80,7 +80,7 @@ internal sealed class MessageWindow
     }
 
     [EngineRoutine(0x0042e6a0)]
-    private void Scroll()
+    private void Shift()
     {
         int lineHeight = GetLineHeight();
         Remove(_lines, 1);
@@ -92,7 +92,7 @@ internal sealed class MessageWindow
             if (marker is null)
                 continue;
 
-            Shift(marker, lineHeight);
+            MoveOneLine(marker, lineHeight);
             _markers[index - 1] = marker;
             _targets[index - 1] = _targets[index];
             _markers[index] = null;
@@ -105,7 +105,7 @@ internal sealed class MessageWindow
             if (line is null)
                 continue;
 
-            Shift(line, lineHeight);
+            MoveOneLine(line, lineHeight);
             _lines[index - 1] = line;
             _lines[index] = null;
         }
@@ -122,18 +122,18 @@ internal sealed class MessageWindow
         sprites[index] = null;
     }
 
-    private void Shift(Sprite sprite, int lineHeight) =>
+    private void MoveOneLine(Sprite sprite, int lineHeight) =>
         sprite.ChangeCoor(sprite.Position with { Y = _step * lineHeight + sprite.Position.Y });
 
     // Leaves out the delayed message queue (+0x2f8, +0x300), which no routine of the game fills
     [EngineRoutine(0x0042e2c0)]
-    public void Update()
+    public void Tact()
     {
         int lineHeight = GetLineHeight();
 
         if ((uint)(_map.Time - _shownAt) > (uint)_idleTime)
         {
-            Scroll();
+            Shift();
             _shownAt = _map.Time;
         }
 

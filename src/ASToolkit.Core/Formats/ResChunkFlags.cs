@@ -12,6 +12,11 @@ public enum ResChunkFlags
     None = 0,
 
     /// <summary>
+    /// A record appended packed through a filter, its saved bytes added to the compression savings.
+    /// </summary>
+    PackedRecord = 1 << 8,
+
+    /// <summary>
     /// An extended header, with the compression savings and the record count after the flags.
     /// </summary>
     ExtendedHeader = 1 << 31

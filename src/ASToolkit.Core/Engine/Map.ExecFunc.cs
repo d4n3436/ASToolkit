@@ -214,7 +214,7 @@ public sealed partial class Map : IScriptFunctionHost
         Session.Logger.Write("!!!ERROR!!!SCRIPT: Invalid nvid %s %i"u8, (ReadOnlyMemory<byte>)function.ToArray(), id);
 
     [EngineRoutine(0x0043e140)]
-    private bool UpdateMenus(PlayerInput input)
+    private bool ProcessMenuInput(PlayerInput input)
     {
         _menuCurrent = null;
         _menuClicks = MenuClicks.None;
@@ -364,36 +364,21 @@ public sealed partial class Map : IScriptFunctionHost
 
     private static bool IsMenuClass(SpriteDefinition definition) => definition.Object.SpriteClass is SpriteClass.Frame or SpriteClass.Text;
 
-    // TODO: Port releasing the sprites of one menu file (0x43e5c0)
     [EngineRoutine(0x0043dfe0)]
-    private void ReleaseMenuSprites()
+    private void DeleteAllMenuSprites()
     {
         for (int index = _menuSprites.Count - 1; index >= 0; index--)
         {
-            if (index >= _menuSprites.Count)
-                continue;
-
-            var sprite = _menuSprites[index];
-            int last = _menuSprites.Count - 1;
-            _menuSprites[index] = _menuSprites[last];
-            _menuSprites.RemoveAt(last);
-            if (_menuCurrent == sprite)
+            if (index < _menuSprites.Count)
             {
-                _menuCurrent = null;
+                DeleteMenuSpriteAt(index);
             }
-
-            DestroySprite(sprite);
         }
     }
 
     [EngineRoutine(0x0043deb0)]
     private void RemoveMenuSprite(Sprite sprite)
     {
-        if (_menuCurrent == sprite)
-        {
-            _menuCurrent = null;
-        }
-
         int index = _menuSprites.LastIndexOf(sprite);
         if (index < 0)
             return;
@@ -1051,17 +1036,23 @@ public sealed partial class Map : IScriptFunctionHost
             case ScriptFunction.MenuFind:
                 PushSprite(script, MenuFind(script));
                 break;
-            // TODO: Port loading menu files
             case ScriptFunction.MenuLoad:
-                script.Pop();
+                LoadMenu(script.PopText().Span);
                 break;
             case ScriptFunction.MenuRelease:
-                if (script.PopText().IsEmpty)
+            {
+                var name = script.PopText();
+                if (name.IsEmpty)
                 {
-                    ReleaseMenuSprites();
+                    DeleteAllMenuSprites();
+                }
+                else
+                {
+                    DeleteMenuFromFile(name.Span);
                 }
 
                 break;
+            }
             case ScriptFunction.MenuNVidUnderCursor:
                 script.PushNumber(GetMenuIdUnderCursor());
                 break;
@@ -1108,7 +1099,7 @@ public sealed partial class Map : IScriptFunctionHost
             {
                 int y = script.PopNumber();
                 var target = new Vector2(script.PopNumber(), y);
-                _players[ControlledPlayer].Messages.Add(script.PopText(), target);
+                _players[ControlledPlayer].Messages.Put(script.PopText(), target);
                 break;
             }
             case ScriptFunction.SetPosition:
