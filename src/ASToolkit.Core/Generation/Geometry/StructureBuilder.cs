@@ -60,6 +60,8 @@ public static class StructureBuilder
     /// <summary>
     /// Places the lattice with every cell at positive map coordinates and basement floors on the ground tile phase.
     /// </summary>
+    /// <param name="layout">The fine layout.</param>
+    /// <param name="wallSet">The wall set.</param>
     public static void PlaceLattice(FineLayout layout, WallSet wallSet)
     {
         (float sx, float sy) = wallSet == WallSet.Basement ? Lattice.BasementStep : Lattice.ConcreteStep;
@@ -87,6 +89,9 @@ public static class StructureBuilder
     /// <summary>
     /// Turns two to five hall walls that face the camera from the hall into closed fake doors.
     /// </summary>
+    /// <param name="rng">The random source.</param>
+    /// <param name="layout">The fine layout.</param>
+    /// <param name="plan">The layout plan.</param>
     public static void AddFakeDoors(Random rng, FineLayout layout, LayoutPlan plan)
     {
         var halls = plan.Stations.Where(s => s.IsHall).Select(s => s.Id).ToHashSet();
@@ -166,9 +171,23 @@ public static class StructureBuilder
     }
 
     /// <summary>
-    /// Builds the basement floors, walls, monster holes, doors with their keypads and posts of the visible edges, then the walls, sunk under the
-    /// roof and without posts, that close the closets off from the void, and returns the sprite index of each spawn wall. No door hangs a panel in front of a hole site.
+    /// Builds the basement floors, walls, monster holes, doors with their keypads and posts of the visible edges, then the walls that close the closets off from the void.
     /// </summary>
+    /// <remarks>
+    /// The walls of the closets are sunk under the roof and don't have posts. No door hangs a panel in front of a hole site.
+    /// </remarks>
+    /// <param name="rng">The random source for the visible edges.</param>
+    /// <param name="map">The map builder.</param>
+    /// <param name="layout">The fine layout.</param>
+    /// <param name="edges">The visible edges.</param>
+    /// <param name="closetRng">The random source for the closets.</param>
+    /// <param name="closetEdges">The edges of the closets.</param>
+    /// <param name="closets">The cells of the closets.</param>
+    /// <param name="holes">The edges of the monster holes.</param>
+    /// <param name="holeSites">The points in front of the monster holes.</param>
+    /// <param name="locked">Whether the doors are locked.</param>
+    /// <param name="clearance">The table of wall clearances.</param>
+    /// <returns>The sprite index of each spawn wall.</returns>
     public static Dictionary<EdgeKey, int> BuildBasement(Random rng, MapBuilder map, FineLayout layout, IReadOnlyDictionary<EdgeKey, EdgeKind> edges,
         Random closetRng, IReadOnlyDictionary<EdgeKey, EdgeKind> closetEdges, IReadOnlySet<Cell> closets, IReadOnlySet<EdgeKey> holes, IReadOnlyList<PointF> holeSites, bool locked, WallClearanceTable clearance)
     {
@@ -261,6 +280,10 @@ public static class StructureBuilder
     /// <summary>
     /// Builds the concrete walls, doorway frames, posts and floor tiles of the visible edges.
     /// </summary>
+    /// <param name="rng">The random source.</param>
+    /// <param name="map">The map builder.</param>
+    /// <param name="layout">The fine layout.</param>
+    /// <param name="edges">The visible edges.</param>
     public static void BuildConcrete(Random rng, MapBuilder map, FineLayout layout, IReadOnlyDictionary<EdgeKey, EdgeKind> edges)
     {
         var l = layout.Lattice;
@@ -348,6 +371,10 @@ public static class StructureBuilder
     /// <summary>
     /// Places the 653 emitter pair and the 164 fence above it in each edge of a fence link.
     /// </summary>
+    /// <param name="map">The map builder.</param>
+    /// <param name="lattice">The lattice of the cells.</param>
+    /// <param name="unitEdges">The edges of the fence links.</param>
+    /// <param name="unitCells">The number of cells in one unit.</param>
     public static void BuildFence(MapBuilder map, Lattice lattice, IEnumerable<EdgeKey> unitEdges, int unitCells)
     {
         foreach (var unitEdge in unitEdges)
@@ -437,6 +464,9 @@ public static class StructureBuilder
     /// <summary>
     /// Returns the map position of a basement wall piece on an edge and whether it runs along '/'.
     /// </summary>
+    /// <param name="l">The lattice of the cells.</param>
+    /// <param name="k">The edge.</param>
+    /// <returns>The map position and whether the piece runs along '/'.</returns>
     public static (PointF Position, bool Slash) GetBasementPosition(Lattice l, EdgeKey k) =>
         k.Axis == 'v' ? (l.ToWorld(k.A + 0.25f, k.B + 0.25f), true) : (l.ToWorld(k.A - 0.25f, k.B + 0.75f), false);
 
@@ -452,8 +482,11 @@ public static class StructureBuilder
     }
 
     /// <summary>
-    /// Returns the cells of the closed alcove behind a monster hole, three cells along its wall and two deep, grown by a margin on its sides and back.
+    /// Returns the cells of the closed alcove behind a monster hole, which is three cells along its wall and two deep, grown by a margin on its sides and back.
     /// </summary>
+    /// <param name="hole">The edge of the monster hole.</param>
+    /// <param name="margin">The number of cells to grow the alcove by on its sides and back.</param>
+    /// <returns>The cells of the alcove.</returns>
     public static Cell[] GetHoleAlcove(EdgeKey hole, int margin = 0)
     {
         var outside = hole.Axis == 'v' ? hole.Cells.First : hole.Cells.Second;
@@ -464,8 +497,10 @@ public static class StructureBuilder
     }
 
     /// <summary>
-    /// Returns the edges that wall a monster hole's alcove off from the void, leaving out the room's own wall.
+    /// Returns the edges that wall a monster hole's alcove off from the void, without the room's own wall.
     /// </summary>
+    /// <param name="hole">The edge of the monster hole.</param>
+    /// <returns>The edges of the alcove walls.</returns>
     public static IEnumerable<EdgeKey> GetHoleAlcoveWalls(EdgeKey hole)
     {
         var alcove = GetHoleAlcove(hole).ToHashSet();
@@ -485,6 +520,8 @@ public static class StructureBuilder
     /// <summary>
     /// Returns the edge before an edge along its own direction.
     /// </summary>
+    /// <param name="k">The edge.</param>
+    /// <returns>The previous edge.</returns>
     public static EdgeKey GetPreviousEdge(EdgeKey k) => k.Axis == 'v' ? new EdgeKey('v', k.A - 1, k.B) : new EdgeKey('u', k.A, k.B - 1);
 
     private static bool IsEven(int value) => (value & 1) == 0;
@@ -541,6 +578,11 @@ public static class StructureBuilder
     /// <summary>
     /// Adds roof tiles over the cells that are not shown, out to a margin around the layout.
     /// </summary>
+    /// <param name="rng">The random source.</param>
+    /// <param name="wallSet">The wall set.</param>
+    /// <param name="layout">The fine layout.</param>
+    /// <param name="shown">The cells that are shown.</param>
+    /// <param name="map">The map builder.</param>
     public static void BuildRoof(Random rng, WallSet wallSet, FineLayout layout, IReadOnlySet<Cell> shown, MapBuilder map)
     {
         int z = wallSet == WallSet.Basement ? BasementRoofZ : ConcreteRoofZ;

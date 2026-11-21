@@ -3,7 +3,7 @@ using ASToolkit.Core.Levels;
 namespace ASToolkit.Core.Survey;
 
 /// <summary>
-/// Represents the survey of a level from its map and route, with its places, connections and measures.
+/// Represents the survey of a level from its map and route.
 /// </summary>
 public sealed class LevelSurvey
 {
@@ -30,7 +30,7 @@ public sealed class LevelSurvey
     public required WallSet WallSet { get; init; }
 
     /// <summary>
-    /// Gets the wall set the floor of the level belongs to, the concrete set for basement walls on the military base floor.
+    /// Gets the wall set the floor of the level belongs to, which is the concrete set for basement walls on the military base floor.
     /// </summary>
     public required WallSet FloorSet { get; init; }
 
@@ -97,6 +97,7 @@ public sealed class LevelSurvey
     /// <summary>
     /// Returns the openings of the connections as segments on the map.
     /// </summary>
+    /// <returns>The doorways of the connections.</returns>
     public Doorway[] GetDoorways() => Connections
         .SelectMany(connection => connection.Edges.Select(run => new Doorway(run.Axis == 'v'
             ? new MapSegment(Lattice.ToWorld(run.From, run.Line), Lattice.ToWorld(run.To + 1, run.Line))
@@ -104,10 +105,11 @@ public sealed class LevelSurvey
         .ToArray();
 
     /// <summary>
-    /// Returns the place at a map point or the nearest one within 10 cells, or 0 when there is none.
+    /// Finds the place at a map point, or the nearest place within 10 cells.
     /// </summary>
     /// <param name="x">The map x.</param>
     /// <param name="y">The map y.</param>
+    /// <returns>The place number, or 0 if there is no place near the point.</returns>
     public int FindPlace(float x, float y)
     {
         var at = Lattice.GetCell(x, y);

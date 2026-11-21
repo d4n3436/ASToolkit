@@ -100,8 +100,9 @@ public sealed class RouteAnalysis
     public required RouteGrid Grid { get; init; }
 
     /// <summary>
-    /// Returns the tour split into stretches by gate state, splitting it in proportion to the lengths of the legs.
+    /// Splits the tour into stretches by gate state, dividing it in proportion to the lengths of the legs.
     /// </summary>
+    /// <returns>The stretches of the tour.</returns>
     public TourRun[] GetTourRuns()
     {
         var points = Tour.Select(cell => Grid.Lattice.GetCenter(cell)).Select(center => center.ToVector2()).ToArray();

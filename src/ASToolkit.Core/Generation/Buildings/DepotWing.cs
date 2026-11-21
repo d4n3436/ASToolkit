@@ -396,7 +396,7 @@ internal sealed class DepotWing
             int dockHeight = _random.Inclusive(9, 11);
             int depth = _random.Inclusive(14, 18);
             int h = dockHeight + depth;
-            // Split the dock's length among its depots, none so wide that the depot, deepened by the dock's jog, passes the largest depot
+            // Split the dock's length among its depots and keep each one narrow enough that its depth plus the dock's jog doesn't pass the largest depot
             int w = _random.Inclusive(13, 16) * k;
             int most = Math.Max(DockDepotMin, MaxDepot / (depth + DockJogMax));
             int[] widths = Enumerable.Repeat(DockDepotMin, k).ToArray();
@@ -592,8 +592,7 @@ internal sealed class DepotWing
                 continue;
             }
 
-            // Run a throat's gap the whole wall between two depots on the route, its door at one end, cutting it from whichever of the two keeps no
-            // part under four wide
+            // Run a throat's gap along the whole wall between two depots on the route with its door at one end, and cut it from whichever of the two doesn't end up with a part under four wide
             foreach (var (from, to) in _random.Shuffled([(a, b), (b, a)]).Where(pair => pair.Item1.Role == DepotRole.Run))
             {
                 var wall = from.Cells.GetLongestWall(to.Cells);
@@ -630,8 +629,7 @@ internal sealed class DepotWing
         }
     }
 
-    // Keeps a cut only when its gap stays on the straight wall and leaves no short gap piece, no new narrow part and a door-wide wall for every
-    // door
+    // Keeps a cut only when its gap stays on the straight wall, doesn't leave a short gap piece or a new narrow part and keeps a door-wide wall for every door
     private bool Cut(DepotRoom from, DepotRoom to, ContactRun wall, int at, int width, int piece, List<(int, int)> needed, int depth = 1)
     {
         var face = from.Cells
@@ -646,7 +644,7 @@ internal sealed class DepotWing
         }
 
         var cut = face.Where(cell => !neck.Contains(cell)).ToHashSet();
-        // Stand the room further back on a deeper cut, its neck a stem as long as the gap is deep
+        // Stand the room further back on a deeper cut and make its neck a stem as long as the gap is deep
         var inward = Cell.Steps.First(step => face.Any(cell => to.Cells.Contains(cell + step)));
         for (int row = 1; row < depth; row++)
         {

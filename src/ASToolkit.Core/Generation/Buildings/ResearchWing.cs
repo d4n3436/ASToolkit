@@ -4,9 +4,6 @@ using static ASToolkit.Core.Generation.Buildings.ResearchPart;
 
 namespace ASToolkit.Core.Generation.Buildings;
 
-// Draws a research wing in units, a hall entered at a T with one block on its far side holding a ladder of two rungs and a cross passage, a ring of
-// pieces around an empty court, labs on the ring and an office block opening back onto the hall; each piece takes jittered rectangles off a nominal
-// grid
 internal sealed class ResearchWing
 {
     private const int Attempts = 400;
@@ -203,8 +200,7 @@ internal sealed class ResearchWing
 
     private static void Add(List<ResearchPiece> pieces, ResearchPart part, UnitRect[] nominal) => pieces.Add(new ResearchPiece(part, nominal));
 
-    // Moves each edge of a nominal rectangle out by up to two units or in by one, only in for a piece that keeps its size and never on the hall's
-    // edge
+    // Moves each edge of a nominal rectangle out by up to two units or in by one, moves it in only for a piece that keeps its size and never moves the edge of the hall
     private UnitRect Jitter(UnitRect rect, int hallWidth, int minSide, bool keepsSize)
     {
         int grow = keepsSize ? 0 : 2;
@@ -282,7 +278,7 @@ internal sealed class ResearchWing
         return true;
     }
 
-    // Moves part of a wall two rooms share by two or three units, a tab of one into the other, both left four wide
+    // Moves part of a wall that two rooms share by two or three units, as a tab of one into the other, and keeps both rooms four wide
     private void StepWalls(List<ResearchPiece> pieces)
     {
         var rooms = pieces.Where(piece => !piece.IsPassage && piece.Part != Hall).ToArray();
@@ -310,7 +306,7 @@ internal sealed class ResearchWing
         }
     }
 
-    // Stands rooms of different clumps apart along their shared wall, a designed door keeping a three-unit stub and the gap cut from the room
+    // Stands rooms of different clumps apart along their shared wall, where a designed door keeps a three-unit stub and the gap is cut from the room
     private void StandClumpsApart(List<ResearchPiece> pieces, List<RoomPair> designed)
     {
         for (int a = 1; a < pieces.Count; a++)
@@ -357,8 +353,7 @@ internal sealed class ResearchWing
         }
     }
 
-    // Fills a one-unit gap of three units or more between two pieces without a designed door into the smaller one and widens a shorter gap to two
-    // units
+    // Fills a one-unit gap of three units or more between two pieces that don't have a designed door into the smaller piece, and widens a shorter gap to two units
     private static void CloseSlits(List<ResearchPiece> pieces, List<RoomPair> designed)
     {
         var owner = Owners(pieces);

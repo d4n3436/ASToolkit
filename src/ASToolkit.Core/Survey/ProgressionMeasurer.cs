@@ -4,8 +4,7 @@ using ASToolkit.Core.Levels;
 namespace ASToolkit.Core.Survey;
 
 /// <summary>
-/// Provides the progression of a surveyed level, one phase per state between the keys that change it with its critical path, branches and loops,
-/// and the spawn triggers and the ways back the triggers close.
+/// Provides the progression of a surveyed level, with one phase for each state between the keys that change it.
 /// </summary>
 public sealed class ProgressionMeasurer
 {
@@ -45,6 +44,7 @@ public sealed class ProgressionMeasurer
     /// <summary>
     /// Returns the progression of the level.
     /// </summary>
+    /// <returns>The progression of the level.</returns>
     public LevelProgression Measure()
     {
         var phases = FindPhases();

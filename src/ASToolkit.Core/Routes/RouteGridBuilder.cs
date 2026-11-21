@@ -15,6 +15,9 @@ public static class RouteGridBuilder
     /// <summary>
     /// Builds the routing grid of a level.
     /// </summary>
+    /// <param name="model">The model of the level.</param>
+    /// <param name="objects">The game objects.</param>
+    /// <returns>The routing grid of the level.</returns>
     public static RouteGrid Build(LevelModel model, ObjectTable objects)
     {
         var fine = model.Lattice.Halve();

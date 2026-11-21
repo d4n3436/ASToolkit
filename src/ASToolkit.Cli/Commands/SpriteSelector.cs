@@ -13,7 +13,7 @@ internal sealed class SpriteSelector
         _settings = settings;
         Objects = ObjectTable.Load(Path.Combine(settings.Game, "objects.res"));
         MapPath = File.Exists(settings.Map) ? settings.Map : GamePath.Resolve(settings.Game, Path.Combine("Maps", settings.Map))
-            ?? throw new FileNotFoundException($"No map {settings.Map} in {settings.Game}.");
+            ?? throw new FileNotFoundException($"Could not find map '{settings.Map}' in '{settings.Game}'.");
         Map = MapResourceBuilder.Load(MapPath);
     }
 

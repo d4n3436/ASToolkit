@@ -14,6 +14,7 @@ public readonly record struct EdgeRun(char Axis, int Line, int From, int To)
     /// <summary>
     /// Enumerates over the edges.
     /// </summary>
+    /// <returns>The edges of the run, from the first to the last position.</returns>
     public IEnumerable<EdgeKey> GetEdges()
     {
         for (int position = From; position <= To; position++)
@@ -25,6 +26,8 @@ public readonly record struct EdgeRun(char Axis, int Line, int From, int To)
     /// <summary>
     /// Returns the runs that cover a set of edges.
     /// </summary>
+    /// <param name="edges">The edges to cover.</param>
+    /// <returns>The runs that cover the edges.</returns>
     public static EdgeRun[] Create(IEnumerable<EdgeKey> edges)
     {
         var runs = new List<EdgeRun>();

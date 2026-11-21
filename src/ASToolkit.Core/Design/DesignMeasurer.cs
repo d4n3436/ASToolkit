@@ -91,12 +91,18 @@ public sealed class DesignMeasurer
     /// <summary>
     /// Measures a level.
     /// </summary>
+    /// <param name="model">The model of the level.</param>
+    /// <param name="analysis">The route analysis of the level.</param>
+    /// <param name="survey">The survey of the level.</param>
+    /// <param name="objects">The game objects.</param>
+    /// <returns>The measures of the level.</returns>
     public static DesignMeasures Measure(LevelModel model, RouteAnalysis analysis, LevelSurvey survey, ObjectTable objects) =>
         new DesignMeasurer(model, analysis, survey, objects).Measure();
 
     /// <summary>
     /// Measures the level.
     /// </summary>
+    /// <returns>The measures of the level.</returns>
     public DesignMeasures Measure()
     {
         var walls = _model.Sprites

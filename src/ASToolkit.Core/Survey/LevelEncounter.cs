@@ -38,7 +38,7 @@ public sealed class LevelEncounter
     public required int HitPoints { get; init; }
 
     /// <summary>
-    /// Gets the monsters by ID, most numerous first.
+    /// Gets the monsters by object ID, most numerous first.
     /// </summary>
     public required IReadOnlyList<MonsterCount> Monsters { get; init; }
 

@@ -3,8 +3,7 @@ using ASToolkit.Core.Levels;
 namespace ASToolkit.Core.Generation.Buildings;
 
 /// <summary>
-/// Provides the geometry of the cell regions building wings draw, such as their connected pieces, thickness, bounds, holes and the walls two
-/// regions share.
+/// Provides geometry helpers for the cell regions that building wings draw.
 /// </summary>
 internal static class CellRegionExtensions
 {
@@ -104,7 +103,7 @@ internal static class CellRegionExtensions
             return box.ToCells().Where(cell => !outside.Contains(cell)).ToHashSet();
         }
 
-        // Returns whether every row and column run of the cells is at least the given length
+        // Returns whether every run of cells along a row or column is at least the given length
         public bool IsThick(int least)
         {
             foreach (var cell in cells)
@@ -130,7 +129,7 @@ internal static class CellRegionExtensions
             return true;
         }
 
-        // Returns the cells no k by k square inside the cells covers
+        // Returns the cells that no k by k square inside the region covers
         public HashSet<Cell> GetNarrow(int k)
         {
             var covered = new HashSet<Cell>();
@@ -164,7 +163,7 @@ internal static class CellRegionExtensions
                 .SelectMany(line => line.Select(cell => step.U != 0 ? cell.V : cell.U).GetRuns().Select(run => new ContactRun(line.Key, run.Low, run.High, step.U == 0))))
             .Aggregate(new ContactRun(0, 0, 0, false), (best, run) => run.Length > best.Length ? run : best);
 
-        // Covers the cells with rectangles in row order, each as wide along u as it goes and then as tall as that width allows
+        // Covers the cells with rectangles in row order, making each as wide along u as possible and then as tall as that width allows
         public UnitRect[] ToRects()
         {
             var left = new HashSet<Cell>(cells);

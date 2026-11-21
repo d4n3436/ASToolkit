@@ -1,8 +1,7 @@
 namespace ASToolkit.Core.Survey;
 
 /// <summary>
-/// Represents one state of a level between two state changes, with the critical path through it, its branches and its loops, or a return pass
-/// back over earlier rooms to the objectives a key opened.
+/// Represents one state of a level between two state changes, or a return pass back over earlier rooms to the objectives that a key opened.
 /// </summary>
 /// <param name="Index">The index of the phase in play order.</param>
 /// <param name="Places">The places of the phase.</param>

@@ -85,7 +85,7 @@ internal sealed class PickupPlacer
         }
     }
 
-    // Lays a new weapon off the walks to the objectives or in a secret closet, else past the start,
+    // Lays a new weapon off the walks to the objectives or in a secret closet, and otherwise past the start
     private bool HideWeapon(KnownObject weapon, List<KnownObject> items)
     {
         var hiding = _ctx.Plan.Regions

@@ -5,7 +5,7 @@ namespace ASToolkit.Core.Generation.Buildings;
 /// </summary>
 public enum BuildingRoomKind
 {
-    /// <summary>A hall or corridor rooms open onto.</summary>
+    /// <summary>A hall or corridor that rooms open onto.</summary>
     Hall,
 
     /// <summary>A room.</summary>

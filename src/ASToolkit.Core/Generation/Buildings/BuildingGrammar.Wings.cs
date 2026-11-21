@@ -4,7 +4,6 @@ namespace ASToolkit.Core.Generation.Buildings;
 
 internal abstract partial class BuildingGrammar
 {
-    // Holds a length in room sides or units, plus an addition, times a drawn count, within its bounds
     private readonly record struct WingExtent(float Min, float Max, int Add = 0, int MinLength = 0, int MaxLength = int.MaxValue, bool IsUnits = false, string? Times = null);
 
     private enum WingShapeKind
@@ -17,8 +16,6 @@ internal abstract partial class BuildingGrammar
 
     private readonly record struct WingShape(WingShapeKind Kind, WingExtent Width, WingExtent Length);
 
-    // Holds a count drawn as a share of the wing's rooms or as the rest the fixed rooms and earlier counts leave, within its bounds, with a chance
-    // and from a room count on
     private sealed record WingCount(string Name, float Share = 0, int Offset = 0, int Min = 0, int Max = int.MaxValue, bool IsRest = false, float Chance = 1,
         int MinRooms = 0);
 
@@ -42,9 +39,8 @@ internal abstract partial class BuildingGrammar
         RoomEnds
     }
 
-    // Holds a room of a wing, laid once or as many times as its count; its first instances solve with the wing and the rest are laid one by one
-    // beside their hosts. Hosts and sides cycle by instance and the via list's last entry repeats. "previous" names the instance before (the hall
-    // for the first), "name#" the instance of the same index and "name^" the last instance (the wing's first room when there is none)
+    // Hosts and sides cycle by instance, and the last entry of the via list repeats.
+    // "previous" names the instance before (the hall for the first), "name#" the instance of the same index and "name^" the last instance (the first room of the wing if there isn't one).
     private sealed record WingNode(string Name, RoomType Type, IReadOnlyList<IReadOnlyList<WingShape>> Variants)
     {
         public bool DrawsBackType { get; init; }
@@ -76,8 +72,6 @@ internal abstract partial class BuildingGrammar
 
     private readonly record struct WingJoin(string From, string To, WingVia Via, JoinMark Mark = JoinMark.Junction);
 
-    // Holds a wing's hall, entered off the joint at its end, crossed on a long side or standing perpendicular past the joint; a wing without one
-    // joins its rooms to the joint
     private readonly record struct WingHall(WingExtent Length, bool IsBeyond = false, int Width = 0);
 
     [Flags]
@@ -367,8 +361,7 @@ internal abstract partial class BuildingGrammar
         return Math.Clamp(value, extent.MinLength, extent.MaxLength);
     }
 
-    // Lines each hall of a chain with its share of the rooms, solves the rooms left out one by one against the halls and ends the level in the last
-    // hall's room nearest its entry
+    // Lines each hall of a chain with its share of the rooms, solves the remaining rooms one by one against the halls and ends the level in the room of the last hall nearest its entry
     private void LineHalls(int[] halls, int joint, int rooms, List<int> built, int phase)
     {
         int left = rooms - built.Count;

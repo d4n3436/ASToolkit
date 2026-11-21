@@ -11,11 +11,12 @@ public class ResContainerBuilderIntegrationTests
     {
         string game = TestGameFolder.RequireFolder();
 
-        // Skip files the installer patched, the backup is the game's own file
+        // Skip files the installer patched, because the backup is the game's file
         var files = Directory.EnumerateFiles(game, "*.map", SearchOption.AllDirectories)
             .Concat(Directory.EnumerateFiles(game, "*.men*", SearchOption.AllDirectories).Where(f => !File.Exists(f + ".orig")))
             .Append(Path.Combine(game, "objects.res"))
             .ToList();
+        
         Assert.NotEmpty(files);
         foreach (string path in files)
         {

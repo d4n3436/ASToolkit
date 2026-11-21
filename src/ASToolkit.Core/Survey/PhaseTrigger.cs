@@ -1,7 +1,7 @@
 namespace ASToolkit.Core.Survey;
 
 /// <summary>
-/// Represents a trigger area that spawns monsters, with the place the player trips it in and the place the monsters land in.
+/// Represents a trigger area that spawns monsters.
 /// </summary>
 /// <param name="Trigger">The place of the trigger area.</param>
 /// <param name="Place">The place the monsters land in.</param>

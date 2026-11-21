@@ -18,6 +18,8 @@ public sealed class BeatMeasurer
     /// <summary>
     /// Initializes a new instance of the <see cref="BeatMeasurer"/> class.
     /// </summary>
+    /// <param name="survey">The survey of the level.</param>
+    /// <param name="progression">The progression of the level.</param>
     public BeatMeasurer(LevelSurvey survey, LevelProgression progression)
     {
         _survey = survey;
@@ -28,6 +30,7 @@ public sealed class BeatMeasurer
     /// <summary>
     /// Returns the beats of the level in tour order.
     /// </summary>
+    /// <returns>The beats of the level.</returns>
     public LevelBeat[] Measure()
     {
         if (_progression.Phases.Count == 0)
@@ -101,6 +104,7 @@ public sealed class BeatMeasurer
     /// Returns the fights of the level in tour order, grouping the encounters of one phase met within one stretch of the tour and leaving out groups too
     /// small to count.
     /// </summary>
+    /// <returns>The fights of the level, each a group of encounters.</returns>
     public IReadOnlyList<IReadOnlyList<LevelEncounter>> GroupFights()
     {
         var fights = _survey.Encounters

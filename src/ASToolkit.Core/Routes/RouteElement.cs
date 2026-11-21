@@ -46,7 +46,7 @@ public sealed class RouteElement
     public required bool Hidden { get; init; }
 
     /// <summary>
-    /// Gets the facing the map places the element with.
+    /// Gets the direction the map places the element with.
     /// </summary>
     public required Angle Direction { get; init; }
 

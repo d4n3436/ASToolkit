@@ -11,7 +11,7 @@ public sealed class GateMeasurement
     public float? LockedShare { get; init; }
 
     /// <summary>
-    /// Gets the share of the reachable floor behind the fences, or null when there are none.
+    /// Gets the share of the reachable floor behind the fences, or null when the level doesn't have fences.
     /// </summary>
     public float? FencedOffShare { get; init; }
 

@@ -7,7 +7,7 @@ namespace ASToolkit.Cli.Commands;
 internal sealed class SimulateSettings : GameSettings
 {
     [CommandOption("--campaign <NAME>")]
-    [Description("The original campaign, addon, addon2, or all three.")]
+    [Description("The campaign to play, one of original, addon, addon2 or all.")]
     [DefaultValue("all")]
     public string Campaign { get; init; } = "all";
 
@@ -25,7 +25,7 @@ internal sealed class SimulateSettings : GameSettings
     public int? Money { get; init; }
 
     [CommandOption("--out <FILE>")]
-    [Description("An optional JSON report containing results, loadouts, and timings.")]
+    [Description("An optional JSON report of the results, loadouts and timings.")]
     public string? Out { get; init; }
 
     public override ValidationResult Validate()

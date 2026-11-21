@@ -3,7 +3,7 @@ using ASToolkit.Core.Formats;
 namespace ASToolkit.Core.Generation.Content;
 
 /// <summary>
-/// Represents a fight planned for a level, such as its room, its monsters, the rooms they or their spawners may stand in, and an ambush's trigger.
+/// Represents a fight planned for a level.
 /// </summary>
 /// <param name="Order">The walk order where the fight starts.</param>
 /// <param name="Region">The plan region the fight belongs to.</param>

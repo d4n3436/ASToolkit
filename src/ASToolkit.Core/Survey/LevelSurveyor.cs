@@ -7,7 +7,7 @@ using ASToolkit.Core.Scripting;
 namespace ASToolkit.Core.Survey;
 
 /// <summary>
-/// Provides the survey of a level, its places, connections and measures.
+/// Provides the survey of a level.
 /// </summary>
 public sealed class LevelSurveyor
 {
@@ -70,12 +70,20 @@ public sealed class LevelSurveyor
     /// <summary>
     /// Surveys a level with the given measurements.
     /// </summary>
+    /// <param name="map">The map of the level.</param>
+    /// <param name="script">The summary of the level script.</param>
+    /// <param name="analysis">The route analysis of the level.</param>
+    /// <param name="objects">The game objects.</param>
+    /// <param name="measurement">The measurement of the level.</param>
+    /// <returns>The survey of the level.</returns>
     public static LevelSurvey Survey(MapResourceBuilder map, LevelScriptSummary script, RouteAnalysis analysis, ObjectTable objects, LevelMeasurement measurement) =>
         new LevelSurveyor(map, script, analysis, objects).Survey(measurement);
 
     /// <summary>
     /// Surveys the level with the given measurements.
     /// </summary>
+    /// <param name="measurement">The measurement of the level.</param>
+    /// <returns>The survey of the level.</returns>
     public LevelSurvey Survey(LevelMeasurement measurement)
     {
         var floorSet = FindFloorSet();

@@ -8,7 +8,7 @@ namespace ASToolkit.Core.Generation.Layout;
 public sealed class PlanLink
 {
     /// <summary>
-    /// Gets the ID of the link, its index in the plan's links.
+    /// Gets the ID of the link, which is its index in the plan's links.
     /// </summary>
     public required int Id { get; init; }
 

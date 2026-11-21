@@ -9,8 +9,7 @@ using ASToolkit.Core.Scripting;
 namespace ASToolkit.Core.Generation.Outdoor;
 
 /// <summary>
-/// Provides the building of an outdoor level 1: the original's ground, roofed buildings and chain-link fences, with the content of one
-/// of the three originals.
+/// Provides the building of outdoor level 1 on the ground of the original, with roofed buildings, chain-link fences and the content of one of the three originals.
 /// </summary>
 public sealed class OutdoorLevelBuilder
 {
@@ -60,6 +59,12 @@ public sealed class OutdoorLevelBuilder
     /// <summary>
     /// Builds an outdoor level of the given style on the ground of the original it follows.
     /// </summary>
+    /// <param name="rng">The random source.</param>
+    /// <param name="style">The outdoor style.</param>
+    /// <param name="original">The original map the level follows.</param>
+    /// <param name="originalExit">The exit area of the original map, or null if it has none.</param>
+    /// <param name="musicLines">The music definition lines of the level script.</param>
+    /// <returns>The outdoor level.</returns>
     public OutdoorLevel Build(Random rng, OutdoorStyle style, MapResourceBuilder original, TriggerArea? originalExit, IReadOnlyList<string> musicLines)
     {
         var size = original.Size;

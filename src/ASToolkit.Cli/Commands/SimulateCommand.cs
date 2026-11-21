@@ -36,7 +36,7 @@ internal sealed class SimulateCommand : Command<SimulateSettings>
                 string path = Path.Combine(settings.Game, "Maps", name);
                 var map = MapResourceBuilder.Load(path);
                 levels.Add(RouteAnalyzer.Analyze(name, map, LevelScriptReader.Read(Path.ChangeExtension(path, ".lgc"), objects.ScriptVersion), objects)
-                    ?? throw new InvalidDataException($"{name} has no route."));
+                    ?? throw new InvalidDataException($"Could not find a route in level '{name}'."));
             }
 
             var rewards = table.GetArray(campaign.Rewards);

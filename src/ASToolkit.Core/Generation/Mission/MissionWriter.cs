@@ -4,13 +4,15 @@ using ASToolkit.Core.Survey;
 namespace ASToolkit.Core.Generation.Mission;
 
 /// <summary>
-/// Provides the mission of a building from its plan and its chosen doors, with phases, keys, locks, seals, links and room roles.
+/// Provides the mission of a building, written from its plan and its chosen doors.
 /// </summary>
 public static class MissionWriter
 {
     /// <summary>
     /// Creates the mission of a building from the doors chosen for it.
     /// </summary>
+    /// <param name="plan">The plan of the doors.</param>
+    /// <returns>The mission of the building.</returns>
     public static BuildingMission Write(DoorPlan plan)
     {
         var layout = new DoorLayout(plan.Gate, plan.Phases, plan.Doors, plan.Start, plan.Targets, plan.KeyCount);

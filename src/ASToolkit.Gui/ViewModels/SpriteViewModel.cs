@@ -66,6 +66,9 @@ public partial class SpriteViewModel : ViewModelBase
     /// <summary>
     /// Shows an object of a scene, starting on its first state in the direction it faces.
     /// </summary>
+    /// <param name="renderer">The renderer that draws the object.</param>
+    /// <param name="objects">The game objects.</param>
+    /// <param name="source">The object of the scene to show.</param>
     public void Show(MapRenderer renderer, ObjectTable objects, SceneObject source)
     {
         if (!objects.TryFind(source.Id, out var obj))

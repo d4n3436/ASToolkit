@@ -7,10 +7,10 @@ namespace ASToolkit.Core.Generation.Content;
 /// </summary>
 public sealed class LevelBudget
 {
-    /// <summary>Gets the monster hit points aimed for.</summary>
+    /// <summary>Gets the target number of monster hit points.</summary>
     public required int TargetHitPoints { get; init; }
 
-    /// <summary>Gets the pickups, by ID, including crate loot.</summary>
+    /// <summary>Gets the pickups by object ID, including crate loot.</summary>
     public required Dictionary<KnownObject, int> Items { get; init; }
 
     /// <summary>

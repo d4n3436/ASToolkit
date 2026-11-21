@@ -11,7 +11,7 @@ internal sealed class InspectRoomsSettings : GameSettings
     public string[] Maps { get; init; } = [];
 
     [CommandOption("-o|--out <FOLDER>", true)]
-    [Description("The folder for the room sheets, rooms.tsv and rooms.md. It is created when missing.")]
+    [Description("The folder for the room sheets, rooms.tsv and rooms.md. It is created if it doesn't exist.")]
     public string Out { get; init; } = "";
 
     [CommandOption("-l|--levels <FOLDER>")]

@@ -62,6 +62,10 @@ public sealed class LevelGenerator
     /// <summary>
     /// Initializes a new instance of the <see cref="LevelGenerator"/> class.
     /// </summary>
+    /// <param name="gameFolder">The game folder.</param>
+    /// <param name="objects">The game objects.</param>
+    /// <param name="references">The original levels the generator takes its reference data from.</param>
+    /// <param name="model">The style model the generator follows.</param>
     public LevelGenerator(string gameFolder, ObjectTable objects, ReferenceLevelSet references, StyleModel model)
     {
         _model = model;
@@ -76,6 +80,9 @@ public sealed class LevelGenerator
     /// <summary>
     /// Generates a level in one pass, drawing its layout again when the tour cannot reach every objective.
     /// </summary>
+    /// <param name="seed">The seed of the campaign.</param>
+    /// <param name="level">The level number, starting at 1.</param>
+    /// <returns>The generated level.</returns>
     public GeneratedLevel Generate(int seed, int level)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(level, 1);
@@ -88,15 +95,18 @@ public sealed class LevelGenerator
     /// <summary>
     /// Draws the briefs of the campaign a seed generates.
     /// </summary>
+    /// <param name="seed">The seed of the campaign.</param>
+    /// <returns>The plan of the campaign.</returns>
     public CampaignPlan Plan(int seed) => _planner.Plan(new Random(unchecked(seed * SeedPrime + CampaignSalt)));
 
     /// <summary>
     /// Returns the original map a generated level takes its other chunks from.
     /// </summary>
+    /// <param name="level">The generated level.</param>
+    /// <returns>The path of the template map.</returns>
     public string GetTemplatePath(GeneratedLevel level) => Path.Combine(_gameFolder, "Maps", level.Template);
 
-    // Builds the level on the first layout whose objectives the tour reaches without secret walls or forced gates, else on the layout that misses
-    // fewest
+    // Builds the level on the first layout whose objectives the tour reaches without secret walls or forced gates, and otherwise on the layout that misses the fewest
     private GeneratedLevel Generate(int seed, LevelBrief brief)
     {
         GeneratedLevel? best = null;
@@ -189,7 +199,6 @@ public sealed class LevelGenerator
             LevelScriptWriter.ReadMusicLines(Path.Combine(_gameFolder, "Maps", Path.ChangeExtension(name, ".lgc"))));
     }
 
-    // Analyze the level's route through its map and script bytes
     private GeneratedLevel Analyze(GeneratedLevel level)
     {
         var map = MapResourceBuilder.Parse(level.Map.ToBytes(GetOriginal(level.Template).Template));
@@ -445,8 +454,7 @@ public sealed class LevelGenerator
         return (x - spot.Center.X) * (x - spot.Center.X) + (y - spot.Center.Y) * (y - spot.Center.Y) <= spot.Reach * spot.Reach;
     }
 
-    // Keep clear the cells on both sides of every doorway, as close as the originals stand furniture to one, the cell in front of each fake
-    // door and a square around the start
+    // Keep clear the cells on both sides of every doorway, as close as the originals stand furniture to one, and also the cell in front of each fake door and a square around the start
     private static HashSet<Cell> GetKeepClear(FineLayout layout, Cell start, int unitCells)
     {
         var keep = layout.LinkEdges.SelectMany(edges => edges).SelectMany(edge => new[] { edge.Cells.First, edge.Cells.Second }).ToHashSet();
@@ -471,6 +479,5 @@ public sealed class LevelGenerator
         return keep;
     }
 
-    // Count the places holding spawners that open on the rest of the level only through fences
     private sealed record OriginalLevel(byte[] Template, IReadOnlyList<string> MusicLines);
 }

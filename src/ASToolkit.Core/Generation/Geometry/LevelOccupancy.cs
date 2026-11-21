@@ -65,19 +65,29 @@ public sealed class LevelOccupancy
     }
 
     /// <summary>
-    /// Keeps cells free of pieces that block the player.
+    /// Reserves the cells and keeps pieces that block the player off them.
     /// </summary>
+    /// <param name="cells">The cells to reserve.</param>
     public void Reserve(IEnumerable<Cell> cells) => _reserved.UnionWith(cells);
 
     /// <summary>
-    /// Keeps the collision boxes of pieces that stand in the way a reach away from a map point.
+    /// Keeps the collision boxes of the pieces that stand in the way at the given reach from a map point.
     /// </summary>
+    /// <param name="center">The map point.</param>
+    /// <param name="reach">The distance to keep clear, in map pixels.</param>
     public void KeepClear(PointF center, float reach) => _keepClear.Add((center, reach));
 
     /// <summary>
-    /// Returns whether an object fits at a map point, apart from the other units for a unit, out from under the standing pieces for a pickup,
-    /// and otherwise clear of the doorways, the floor pieces standing there and, outside a reserve's own scene, the reserved cells, leaving the floor joined when it is solid.
+    /// Determines whether an object fits at a map point.
     /// </summary>
+    /// <remarks>
+    /// A unit has to keep apart from the other units and a pickup has to stand out from under the standing pieces. Any other object has to stay clear of the doorways, the floor pieces standing there and, outside the scene of a reserve, the reserved cells, and it can't split the floor when it is solid.
+    /// </remarks>
+    /// <param name="id">The object ID.</param>
+    /// <param name="point">The map point.</param>
+    /// <param name="z">The height.</param>
+    /// <param name="inScene">Whether the object belongs to the reserve it stands in.</param>
+    /// <returns><see langword="true"/> if the object fits; otherwise, <see langword="false"/>.</returns>
     public bool Fits(KnownObject id, PointF point, float z, bool inScene = false)
     {
         (float x, float y) = point;
@@ -134,8 +144,10 @@ public sealed class LevelOccupancy
     }
 
     /// <summary>
-    /// Returns whether a map point keeps its distance from the solid or tall floor pieces standing around it.
+    /// Determines whether a map point keeps its distance from the solid or tall floor pieces standing around it.
     /// </summary>
+    /// <param name="point">The map point.</param>
+    /// <returns><see langword="true"/> if the point has room around it; otherwise, <see langword="false"/>.</returns>
     public bool HasRoomAround(PointF point) => !_standing.Any(standing =>
     {
         if (standing is { IsSolid: false, Size.Z: < StandingHeight })
@@ -151,6 +163,9 @@ public sealed class LevelOccupancy
     /// <summary>
     /// Adds an object standing at a map point.
     /// </summary>
+    /// <param name="id">The object ID.</param>
+    /// <param name="point">The map point.</param>
+    /// <param name="z">The height.</param>
     public void Add(KnownObject id, PointF point, float z)
     {
         (float x, float y) = point;
@@ -269,20 +284,20 @@ public sealed class LevelOccupancy
     }
 
     /// <summary>
-    /// Returns whether a map point lies in the floor space in front of a dynamite site, which no floor piece may take.
+    /// Determines whether a map point lies in the floor space in front of a dynamite site, which no floor piece may take.
     /// </summary>
     /// <param name="site">The site's map point.</param>
     /// <param name="point">The map point.</param>
-    /// <returns><see langword="true"/> when the point stands in front of the site; otherwise, <see langword="false"/>.</returns>
+    /// <returns><see langword="true"/> if the point stands in front of the site; otherwise, <see langword="false"/>.</returns>
     public static bool IsInFrontOfSite(PointF site, PointF point) =>
         point.Y > site.Y && MathF.Sqrt((point.X - site.X) * (point.X - site.X) + (point.Y - site.Y) * (point.Y - site.Y)) < SiteFrontClearance;
 
     /// <summary>
-    /// Returns whether a placed sprite is a floor piece the space in front of a site must stay clear of.
+    /// Determines whether a placed sprite is a floor piece the space in front of a site must stay clear of.
     /// </summary>
-    /// <param name="id">The sprite's object id.</param>
+    /// <param name="id">The sprite's object ID.</param>
     /// <param name="z">The sprite's height.</param>
-    /// <returns><see langword="true"/> when the sprite is such a piece; otherwise, <see langword="false"/>.</returns>
+    /// <returns><see langword="true"/> if the sprite is a floor piece that the space in front of a site must stay clear of; otherwise, <see langword="false"/>.</returns>
     public static bool IsSiteBlocker(KnownObject id, float z) =>
         id.Family is not (null or PieceFamily.Site or PieceFamily.Generator) && id != KnownObject.TeleportPad && z < FloorHeight;
 

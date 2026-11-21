@@ -2,7 +2,6 @@ using ASToolkit.Core.Levels;
 
 namespace ASToolkit.Core.Generation.Mission;
 
-// Holds rooms joined by doors or contacts, each with its neighbors in ascending order
 internal sealed class RoomGraph
 {
     public const int Unreached = 99;

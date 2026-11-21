@@ -4,7 +4,7 @@ using ASToolkit.Core.Rooms;
 namespace ASToolkit.Core.Generation.Buildings;
 
 /// <summary>
-/// Provides the grid a building grammar places its rooms on, one grid unit a layout unit.
+/// Provides the grid that a building grammar places its rooms on, with one grid unit per layout unit.
 /// </summary>
 internal sealed class BuildingGrid
 {
@@ -14,7 +14,7 @@ internal sealed class BuildingGrid
 
     public GridRoom this[int id] => Rooms[id - 1];
 
-    // Returns whether the rect is empty and keeps apart from every group but its own, the halls and the touch groups
+    // Returns whether the rect is empty and keeps its distance from every group except its own, the halls and the touch groups
     public bool IsFree(UnitRect rect, int group, int apart, IReadOnlyCollection<int> touch)
     {
         if (rect.W <= 0 || rect.H <= 0)

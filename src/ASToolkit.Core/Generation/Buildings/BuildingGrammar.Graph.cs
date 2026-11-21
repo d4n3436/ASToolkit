@@ -63,7 +63,7 @@ internal abstract partial class BuildingGrammar
             return id;
         }
 
-        // Returns the longest flush wall the template can guarantee, the shorter box side capped at its longest outline edge
+        // Returns the longest flush wall the template can guarantee, which is the shorter side of the box capped at its longest outline edge
         private static int GetSnugSide(RoomShape template)
         {
             int side = Math.Min(template.Width, template.Height);
@@ -104,7 +104,7 @@ internal abstract partial class BuildingGrammar
             {
                 reach = 40 + Math.Max(anchorRect.W, anchorRect.H);
             }
-            // Keep a touch group's rects out of the obstacles only where they meet the anchor, letting a room nest against the host's step
+            // Keep the rects of a touch group out of the obstacles only where they meet the anchor, and let a room nest against the host's step
             var obstacles = _grammar.GetObstacles(anchor)
                 .Where(rect => touching is null || _grammar.GroupAt(rect) != touching || !(rect.SharesWall(anchorRect) || rect.IntersectsWith(anchorRect)))
                 .Where(rect => rect.IntersectsWith(anchorRect.Inflate(reach)))
@@ -253,8 +253,7 @@ internal abstract partial class BuildingGrammar
         return map.Count == 0 ? null : map[room];
     }
 
-    // Lines a hall's sides with its big rooms in one solve, the first hall leaving through a loop of two of them, dropping rooms from the end until
-    // a layout is found
+    // Lines the sides of a hall with its big rooms in one solve, with the first hall leaving through a loop of two of them, and drops rooms from the end until a layout is found
     private List<int> LineBigRooms(int hall, int rooms, bool hasLoop, int phase)
     {
         var sides = LongSides(hall);

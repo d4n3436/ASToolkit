@@ -7,7 +7,7 @@ namespace ASToolkit.Core.Survey;
 /// </summary>
 internal sealed class PlaceSegmentation
 {
-    /// <summary>Gets the floor of the level, blocked cells included, connected to the start through anything but walls and jammed doors.</summary>
+    /// <summary>Gets the floor of the level, including blocked cells, that is connected to the start through anything except walls and jammed doors.</summary>
     public required HashSet<Cell> Floor { get; init; }
 
     /// <summary>Gets the place index of every floor cell.</summary>

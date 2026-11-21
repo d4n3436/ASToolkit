@@ -13,7 +13,7 @@ using SixLabors.ImageSharp.PixelFormats;
 namespace ASToolkit.Gui.ViewModels;
 
 /// <summary>
-/// Represents the live playback of a playthrough simulation of the map open in the viewer, seen through the game's own camera.
+/// Represents the live playback of a playthrough simulation of the map open in the viewer, seen through the game's camera.
 /// </summary>
 public partial class ReplayViewModel : ViewModelBase
 {
@@ -173,6 +173,7 @@ public partial class ReplayViewModel : ViewModelBase
     /// <summary>
     /// Sets the view's offset from the game's camera by a screen drag, in device pixels, and stops it from following the camera.
     /// </summary>
+    /// <param name="screenDelta">The drag distance, in device pixels.</param>
     public void Pan(Vector2 screenDelta)
     {
         float scale = (float)Math.Min(1, Zoom);

@@ -3,7 +3,6 @@ using ASToolkit.Core.Survey;
 
 namespace ASToolkit.Core.Generation.Mission;
 
-// Walks a level's doors state by state, leg i holding while the player walks to target i
 internal sealed class DoorLayout
 {
     public DoorLayout(LevelStyle gate, IReadOnlyList<IReadOnlySet<int>> phases, IReadOnlyDictionary<RoomPair, DoorKind> doors, int start, IReadOnlyList<int> targets,
@@ -104,8 +103,7 @@ internal sealed class DoorLayout
         return legs;
     }
 
-    // Walks each leg on one of its shortest paths, taking unvisited rooms first and then the smaller room, and stops at a target the leg cannot
-    // reach
+    // Walks each leg on one of its shortest paths, taking unvisited rooms first and then the smaller room, and stops at a target that the leg cannot reach
     public List<(int Room, int Leg)> TraceWalk()
     {
         var walked = new List<(int Room, int Leg)> { (Start, 0) };

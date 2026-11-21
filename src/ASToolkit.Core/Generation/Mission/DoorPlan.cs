@@ -4,8 +4,7 @@ using ASToolkit.Core.Survey;
 namespace ASToolkit.Core.Generation.Mission;
 
 /// <summary>
-/// Represents the doors a building gets, such as its doors, locks and shortcuts by room pair, its start and targets in play order, its walk back
-/// and the faults and fallbacks the doors stage counted.
+/// Represents the doors that the doors stage lays for a building.
 /// </summary>
 public sealed record DoorPlan
 {
@@ -21,7 +20,7 @@ public sealed record DoorPlan
     /// <summary>Gets the room the player starts in.</summary>
     public required int Start { get; init; }
 
-    /// <summary>Gets the target of each leg of the plan's walk, the generator or breaker rooms or the trigger and breaker first and the end last.</summary>
+    /// <summary>Gets the target of each leg of the plan's walk, which are the generator or breaker rooms, or the trigger and breaker rooms, first and the end last.</summary>
     public required IReadOnlyList<int> Targets { get; init; }
 
     /// <summary>Gets the number of key targets walked before the gate opens.</summary>

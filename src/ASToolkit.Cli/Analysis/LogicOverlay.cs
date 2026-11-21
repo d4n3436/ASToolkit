@@ -9,7 +9,6 @@ using SixLabors.ImageSharp.Processing;
 
 namespace ASToolkit.Cli.Analysis;
 
-// Draws the script events, the quest steps and the walk of a level over its map
 internal static class LogicOverlay
 {
     // Marker and line sizes are tuned for a quarter-scale map and grow with the scale

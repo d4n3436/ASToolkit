@@ -5,7 +5,6 @@ using ASToolkit.Core.Scripting;
 
 namespace ASToolkit.Core.Routes;
 
-// The level a walk happens in, with the sprites its scripts have opened so far
 internal sealed class WalkWorld
 {
     private const float LinkReach = 24;

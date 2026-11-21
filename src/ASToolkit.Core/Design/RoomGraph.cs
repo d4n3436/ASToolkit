@@ -5,8 +5,7 @@ using ASToolkit.Core.Survey;
 namespace ASToolkit.Core.Design;
 
 /// <summary>
-/// Represents the door graph of a level's rooms and halls: its main body from the start to the end of the tour, the branches off
-/// it, its hub and how the tour crosses its sections.
+/// Represents the door graph of a level's rooms and halls.
 /// </summary>
 public sealed class RoomGraph
 {
@@ -71,7 +70,7 @@ public sealed class RoomGraph
     public int LargestBranchRooms { get; private init; }
 
     /// <summary>
-    /// Gets the number of rooms in branches that hold no objective and no fight.
+    /// Gets the number of rooms in branches that don't hold any objective or fight.
     /// </summary>
     public int LootRooms { get; private init; }
 
@@ -134,6 +133,8 @@ public sealed class RoomGraph
     /// <summary>
     /// Builds the room graph of a surveyed level.
     /// </summary>
+    /// <param name="survey">The survey of the level.</param>
+    /// <returns>The room graph of the level.</returns>
     public static RoomGraph Build(LevelSurvey survey)
     {
         var places = survey.Places.ToDictionary(place => place.Id);

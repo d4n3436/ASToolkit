@@ -63,7 +63,6 @@ internal sealed partial record FurnitureGrammar(
 internal sealed record RoomProgram(float[][] PiecesPerHundredCells, bool CoverFarWalls, float SignatureShare, Arrangement[] Arrangements,
     Dictionary<KnownObject, Dictionary<Angle, Companion[]>> Companions);
 
-// A heap has no family
 internal sealed record Arrangement(ArrangementKind Kind, PieceFamily? Family, float Share, float BigShare, float[] PerHundredCells, float MaxPerHundredCells,
     int[] Modules, Dictionary<PieceFamily, float> Members, int OpenFromCells = 0, float OpenShare = 0, float NearShare = 0, bool Signature = false, Lining? Lining = null);
 
@@ -85,23 +84,19 @@ internal sealed record FurnitureFamily(KnownObject[] Pieces, Dictionary<KnownObj
 
 internal sealed record Module(KnownObject Anchor, Angle Direction, Companion[] Pieces);
 
-// Ids sharing a slot are alternatives, the slot ordering a family's companions by height
 internal sealed record Companion(KnownObject Id, int Slot, float U, float V, float Z, Angle Direction, float Share);
 
 internal sealed record DirectionRow(KnownObject Id, int Face, Dictionary<Angle, float> Weights);
 
 internal sealed record AttachedPiece(KnownObject Id, float U, float V, float Share);
 
-// Victims lie a reach from a piece of the families beside them, anywhere when none are named
 internal sealed record VictimRule(float PerHundredCells, float ScientistShare, PieceFamily[] Beside);
 
-// Blood thins out linearly to its radius
 internal sealed record Splatter(float CorpseShare, float[] Reach, float Gap, float NearWallReach, float FrontReach, int[] CorpseBlood, float CorpseRadius, int[] Blood,
     float Radius, float GibReach, int GibBlood, int BloodPerGib);
 
 internal sealed record Rubble(Dictionary<RoomType, float> PerHundredCells, float BigShare, int[] Small, float SmallRadius, int[] Big, float BigRadius, float Z);
 
-// Partner offsets run along the seat's face normal, then across it, the across axis mirrored with the picture
 internal sealed record CorpsePose(Dictionary<Angle, float> Pictures, Dictionary<Angle, Seat> Seats, float PieceShare, Dictionary<PieceFamily, SeatOffsets> Partners)
 {
     public Angle DrawLying(Random rng)
@@ -114,10 +109,8 @@ internal sealed record CorpsePose(Dictionary<Angle, float> Pictures, Dictionary<
 
 internal sealed record Seat(int Picture, int Face, Dictionary<WallSet, float> WallDistance);
 
-// A partner in the corpse's picture index shows it its short face, turned its long face
 internal sealed record SeatOffsets(int[] Pictures, PointF[] Same, PointF[] Turned);
 
-// Shares are per far wall cell
 internal sealed record Fixture(Dictionary<KnownObject, float> Ids, Dictionary<RoomType, float> Shares, float WallDistance, float Z, Dictionary<int, byte> Dirs);
 
 internal sealed record HeapRule(Dictionary<PieceFamily, float> Core, Dictionary<PieceFamily, Dictionary<PieceFamily, float>> Mix, int[] Size,

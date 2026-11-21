@@ -6,27 +6,27 @@ namespace ASToolkit.Core.Generation.Buildings;
 internal sealed class LayoutProblem<T>
     where T : notnull
 {
-    // Holds the distance rooms not joined, touching or allowed to touch keep apart
+    // Holds the distance to keep between rooms that aren't joined, touching or allowed to touch
     public int MinimumDistance { get; init; }
 
-    // Holds the length of the flush wall touch pairs without a length of their own share
+    // Holds the flush wall length shared by the touch pairs that don't have a length of their own
     public int TouchLength { get; init; } = 3;
 
-    // Holds how far rooms past an anchor stand beyond its door end unless they open onto it
+    // Holds how far beyond the door end of an anchor the rooms past it stand, unless they open onto it
     public int BeyondMargin { get; init; }
 
     public Dictionary<T, (bool IsCorridor, IReadOnlyList<RoomShape> Shapes)> Rooms { get; } = [];
 
     public List<(T A, T B)> Joins { get; } = [];
 
-    // Holds the sides of a room's shapes, in their own frame, its join with a neighbor may open on
+    // Holds the sides of a room's shapes, in the frame of the shapes, that its join with a neighbor may open on
     public Dictionary<(T Room, T Neighbor), DoorSides> DoorSides { get; } = [];
 
     public List<(T A, T B)> TouchPairs { get; } = [];
 
     public Dictionary<(T A, T B), int> TouchLengths { get; } = [];
 
-    // Holds the pairs that may share a wall instead of keeping the minimum distance, never standing one unit apart
+    // Holds the pairs that may share a wall instead of keeping the minimum distance, and that never stand one unit apart
     public List<(T A, T B)> MayTouchPairs { get; } = [];
 
     // Holds the rooms that stand past an anchor's door end and the minimum distance from its obstacles
@@ -35,12 +35,12 @@ internal sealed class LayoutProblem<T>
     // Holds the rooms that keep only the minimum distance from an anchor's obstacles
     public List<(T Anchor, T Room)> ClearPairs { get; } = [];
 
-    // Holds rectangles in an unturned anchor's own frame that rooms past it or clear of it keep away from
+    // Holds the rectangles, in the frame of an unturned anchor, that the rooms past it or clear of it keep away from
     public List<(T Anchor, IReadOnlyList<UnitRect> Rects)> Obstacles { get; } = [];
 
     public bool SavesPhases { get; init; }
 
-    // Holds how many rooms of the may-touch pairs every room shares a wall at least five units long with
+    // Holds the number of rooms among the may-touch pairs that every room shares a wall of at least five units with
     public int MinContacts { get; init; }
 
     // Holds a starting place for rooms, unturned, in the first room's frame

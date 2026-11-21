@@ -14,6 +14,8 @@ public static class BitmapConversion
     /// <summary>
     /// Copies an opaque image into a new bitmap.
     /// </summary>
+    /// <param name="image">The image to copy.</param>
+    /// <returns>The bitmap that holds the copy.</returns>
     public static unsafe WriteableBitmap ToBitmap(Image<Rgb24> image)
     {
         var bitmap = CreateOpaque(new PixelSize(image.Width, image.Height));

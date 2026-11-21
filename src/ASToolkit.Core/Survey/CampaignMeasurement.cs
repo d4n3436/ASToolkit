@@ -4,7 +4,7 @@ using ASToolkit.Core.Levels;
 namespace ASToolkit.Core.Survey;
 
 /// <summary>
-/// Represents the threat, size, pickups and money of one level of a campaign.
+/// Represents the measurements of one level of a campaign.
 /// </summary>
 public sealed record CampaignMeasurement
 {

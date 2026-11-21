@@ -21,7 +21,7 @@ public sealed class RoomRoleMap
     public required int Start { get; init; }
 
     /// <summary>
-    /// Gets the first hall on the way from the start to the end, or the start when there is none.
+    /// Gets the first hall on the way from the start to the end, or the start when there isn't one.
     /// </summary>
     public required int Hub { get; init; }
 
@@ -74,6 +74,7 @@ public sealed class RoomRoleMap
     /// Measures the roles of the rooms of a surveyed level.
     /// </summary>
     /// <param name="survey">The survey of the level.</param>
+    /// <returns>The role map of the level.</returns>
     public static RoomRoleMap Measure(LevelSurvey survey)
     {
         var places = survey.Places.ToDictionary(place => place.Id);
@@ -118,22 +119,25 @@ public sealed class RoomRoleMap
     }
 
     /// <summary>
-    /// Returns whether two rooms open onto each other.
+    /// Determines whether two rooms open onto each other.
     /// </summary>
     /// <param name="room">The one room.</param>
     /// <param name="other">The other room.</param>
+    /// <returns><see langword="true"/> if the rooms open onto each other; otherwise, <see langword="false"/>.</returns>
     public bool AreJoined(int room, int other) => _neighbors.TryGetValue(room, out var next) && next.Contains(other);
 
     /// <summary>
     /// Returns the number of rooms a room opens onto.
     /// </summary>
     /// <param name="room">The room.</param>
+    /// <returns>The number of rooms the room opens onto, or 0 if the room doesn't have any doors.</returns>
     public int CountDoors(int room) => _neighbors.TryGetValue(room, out var next) ? next.Count : 0;
 
     /// <summary>
     /// Returns the role of a place.
     /// </summary>
     /// <param name="place">The place.</param>
+    /// <returns>The role of the place.</returns>
     public RoomRole GetRole(LevelPlace place) =>
         place.Kind == PlaceKind.Nook ? RoomRole.Closet : place.Zone == GateZone.Secret && _neighbors.ContainsKey(place.Id) ? RoomRole.Secret : GetRole(place.Id, place.Kind == PlaceKind.Hall);
 
@@ -142,6 +146,7 @@ public sealed class RoomRoleMap
     /// </summary>
     /// <param name="id">The room.</param>
     /// <param name="isHall">Whether the room is a hall.</param>
+    /// <returns>The role of the room.</returns>
     public RoomRole GetRole(int id, bool isHall)
     {
         if (!_neighbors.ContainsKey(id))

@@ -154,10 +154,11 @@ public sealed class RoomAtlas
     /// <summary>
     /// Counts the regular rooms of the atlas, places of kind room that are not passages, closets or secret rooms.
     /// </summary>
+    /// <returns>The number of regular rooms.</returns>
     public int CountRegularRooms() => Rooms.Count(room => room is { IsRoom: true, Place.Kind: PlaceKind.Room } && room.Type != RoomType.Passage);
 
     /// <summary>
-    /// Gets the areas of the level read by eye, or none when the level has no reading.
+    /// Gets the areas of the level read by eye, or an empty list when the level wasn't read by eye.
     /// </summary>
     public required IReadOnlyList<LevelArea> Areas { get; init; }
 
@@ -169,6 +170,7 @@ public sealed class RoomAtlas
     /// <param name="sprites">The sprites of the level.</param>
     /// <param name="objects">The game objects.</param>
     /// <param name="isOriginal">Whether the level is an original, whose rooms read by eye take their types from the corrections.</param>
+    /// <returns>The atlas of the level.</returns>
     public static RoomAtlas Read(LevelSurvey survey, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, IReadOnlyList<MergedMapSprite> sprites, ObjectTable objects,
         bool isOriginal = true)
     {

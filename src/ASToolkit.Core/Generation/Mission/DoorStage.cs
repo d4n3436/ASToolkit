@@ -16,6 +16,8 @@ public sealed class DoorStage
     /// <summary>
     /// Chooses the doors of a building from its given phases, locks and open walls.
     /// </summary>
+    /// <param name="building">The building with its phases, locks and open walls.</param>
+    /// <returns>The plan of the doors.</returns>
     public DoorPlan Choose(BuildingPlan building)
     {
         _faults.Clear();
@@ -233,7 +235,7 @@ public sealed class DoorStage
             return source;
         }
 
-        // Where the building names no end, end in the last phase's room farthest from the source, the walk back crossing all it can
+        // Where the building doesn't name an end, end in the room of the last phase that is farthest from the source, with the walk back crossing as much as it can
         int farthest = last.Max(room => distance[room]);
         return last.First(room => distance[room] == farthest);
     }

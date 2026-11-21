@@ -1,7 +1,7 @@
 namespace ASToolkit.Core.Survey;
 
 /// <summary>
-/// Represents connected places of a phase off its critical path, with the path rooms they open from and the rewards and threat they hold.
+/// Represents connected places of a phase off its critical path.
 /// </summary>
 /// <param name="Places">The places of the branch.</param>
 /// <param name="Anchors">The places the branch opens from, on the path when it has any there.</param>

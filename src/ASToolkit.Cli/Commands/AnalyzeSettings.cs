@@ -11,7 +11,7 @@ internal sealed class AnalyzeSettings : GameSettings
     public string[] Maps { get; init; } = [];
 
     [CommandOption("-o|--out <FOLDER>", true)]
-    [Description("The folder for routes.json and the level images. It is created when missing.")]
+    [Description("The folder for routes.json and the level images. It is created if it doesn't exist.")]
     public string Out { get; init; } = "";
 
     [CommandOption("-l|--levels <FOLDER>")]
@@ -24,7 +24,7 @@ internal sealed class AnalyzeSettings : GameSettings
     public float Scale { get; init; } = 1;
 
     [CommandOption("--game-lighting")]
-    [Description("Lights Alien Shooter 2 levels as the game does, with the ambient light of each map and the omni-lights of its objects.")]
+    [Description("Lights Alien Shooter 2 levels with the ambient light of each map and the omni-lights of its objects.")]
     public bool GameLighting { get; init; }
 
     [CommandOption("--no-ambient-gamma")]

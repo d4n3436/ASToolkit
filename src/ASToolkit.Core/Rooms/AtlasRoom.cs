@@ -29,7 +29,7 @@ public sealed class AtlasRoom
     public required RoomType Type { get; init; }
 
     /// <summary>
-    /// Gets the room type of the other side of a room furnished two ways, such as the office side of a hall, or none.
+    /// Gets the room type of the other side of a room furnished two ways, such as the office side of a hall, or null if the room isn't furnished two ways.
     /// </summary>
     public required RoomType? Side { get; init; }
 

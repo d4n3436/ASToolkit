@@ -28,7 +28,7 @@ public readonly record struct WallSample(KnownObject Id, Angle Direction, WallSi
     public bool NearOnly => Sides != WallSides.None && (Sides & WallSides.Far) == 0;
 
     /// <summary>
-    /// Gets the single wall of the cell, or <see cref="WallSides.None"/> when it has none or several.
+    /// Gets the single wall of the cell, or <see cref="WallSides.None"/> when the cell doesn't have a wall or has several.
     /// </summary>
     public WallSides Single => Sides is WallSides.UpperBack or WallSides.UpperSlash or WallSides.LowerBack or WallSides.LowerSlash ? Sides : WallSides.None;
 }

@@ -23,6 +23,6 @@ internal sealed class MapAreaConverter : TypeConverter
             return new MapArea(new Vector2(x, y), radius);
         }
 
-        throw new FormatException("Expected value in the x,y,r format (e.g,, 3200,4100,300).");
+        throw new FormatException("The area must be in the format x,y,r, such as 3200,4100,300.");
     }
 }

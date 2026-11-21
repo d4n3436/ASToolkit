@@ -33,7 +33,7 @@ public partial class MapViewerViewModel : ViewModelBase
     public SpriteViewModel Sprite { get; } = new();
 
     /// <summary>
-    /// Gets the object table of the open game folder, or null when none is open.
+    /// Gets the object table of the open game folder, or null when no game folder is open.
     /// </summary>
     public ObjectTable? Objects { get; private set; }
 
@@ -107,6 +107,8 @@ public partial class MapViewerViewModel : ViewModelBase
     /// <summary>
     /// Lists the maps of a game folder and opens the given one, or the first one.
     /// </summary>
+    /// <param name="folder">The game folder.</param>
+    /// <param name="map">The name of the map to open, or null to open the first map.</param>
     public void OpenGame(string folder, string? map = null)
     {
         string? objectsPath = GamePath.Resolve(folder, ObjectsFile);

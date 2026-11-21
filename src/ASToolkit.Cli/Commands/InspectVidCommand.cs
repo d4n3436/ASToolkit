@@ -15,7 +15,7 @@ internal sealed class InspectVidCommand : Command<InspectVidSettings>
         string? path = File.Exists(settings.File) ? settings.File : GamePath.Resolve(settings.Game, settings.File);
         if (path is null)
         {
-            AnsiConsole.MarkupLine($"[red]No file {Markup.Escape(settings.File)}.[/]");
+            AnsiConsole.MarkupLine($"[red]Could not find file '{Markup.Escape(settings.File)}'.[/]");
             return 1;
         }
 
@@ -25,7 +25,7 @@ internal sealed class InspectVidCommand : Command<InspectVidSettings>
         AnsiConsole.MarkupLine($"size {vid.Width} x {vid.Height}, {vid.FrameCount} frames");
         if (settings.Frame < 0 || settings.Frame >= Math.Max(1, (int)vid.FrameCount))
         {
-            AnsiConsole.MarkupLine($"[red]No frame {settings.Frame}.[/]");
+            AnsiConsole.MarkupLine($"[red]Could not find frame {settings.Frame}.[/]");
             return 1;
         }
 

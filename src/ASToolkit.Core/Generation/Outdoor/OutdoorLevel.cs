@@ -4,7 +4,7 @@ using ASToolkit.Core.Generation.Output;
 namespace ASToolkit.Core.Generation.Outdoor;
 
 /// <summary>
-/// Represents an outdoor level the outdoor builder laid, its map, script and the source of its sprites.
+/// Represents an outdoor level that the outdoor builder laid out.
 /// </summary>
 /// <param name="Map">The map of the outdoor level.</param>
 /// <param name="Script">The script of the outdoor level.</param>

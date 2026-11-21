@@ -102,7 +102,7 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
         AnsiConsole.Write(table);
         foreach (int mapIndex in Enumerable.Range(0, maps.Length).Where(i => noScript[i]))
         {
-            AnsiConsole.MarkupLine($"[yellow]{Markup.Escape(maps[mapIndex])} has no .lgc script next to it, so its gates, blackout and checkpoints are left out.[/]");
+            AnsiConsole.MarkupLine($"[yellow]There is no .lgc script next to {Markup.Escape(maps[mapIndex])}. Its gates, blackout and checkpoints are left out.[/]");
         }
 
         string json = Path.Combine(settings.Out, settings.Levels is null ? "routes.json" : "routes_generated.json");

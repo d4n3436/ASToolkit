@@ -14,6 +14,6 @@ public enum LevelStyle
     /// <summary>Electric fences close part of the base until a generator is destroyed.</summary>
     Fenced,
 
-    /// <summary>Nothing gates the route.</summary>
+    /// <summary>The route is not gated.</summary>
     Ungated
 }

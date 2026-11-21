@@ -234,7 +234,6 @@ internal sealed class PlanWriter
         return link;
     }
 
-    // Gate every region the start reaches only through a lock
     private void MarkGated(int start, HashSet<LinkDraft> lockedLinks)
     {
         var reached = new HashSet<int> { start };

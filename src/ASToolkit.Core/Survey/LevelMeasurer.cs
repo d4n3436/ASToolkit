@@ -15,6 +15,11 @@ public static class LevelMeasurer
     /// <summary>
     /// Measures a level from its map, script and tour.
     /// </summary>
+    /// <param name="map">The map of the level.</param>
+    /// <param name="script">The summary of the level script.</param>
+    /// <param name="analysis">The route analysis of the level.</param>
+    /// <param name="objects">The game objects.</param>
+    /// <returns>The measurement of the level.</returns>
     public static LevelMeasurement Measure(MapResourceBuilder map, LevelScriptSummary script, RouteAnalysis analysis, ObjectTable objects)
     {
         var grid = analysis.Grid;

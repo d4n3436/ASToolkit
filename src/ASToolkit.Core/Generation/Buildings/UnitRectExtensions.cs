@@ -3,7 +3,7 @@ using ASToolkit.Core.Levels;
 namespace ASToolkit.Core.Generation.Buildings;
 
 /// <summary>
-/// Provides placement of rectangles beside each other and strips inside them on a building grid.
+/// Provides methods that place a rectangle beside another one or as a strip inside it on a building grid.
 /// </summary>
 internal static class UnitRectExtensions
 {
@@ -14,7 +14,7 @@ internal static class UnitRectExtensions
 
     extension(UnitRect rect)
     {
-        // Returns a rect touching this one on the side, along long parallel to that side from at, depth deep
+        // Returns a rect that touches this one on the side, `along` long parallel to that side from `at` and `depth` deep
         public UnitRect Beside(Side side, int along, int depth, int at) => side switch
         {
             Side.North => new UnitRect(at, rect.V - depth, along, depth),
@@ -23,7 +23,7 @@ internal static class UnitRectExtensions
             _ => new UnitRect(rect.U + rect.W, at, depth, along)
         };
 
-        // Returns a strip inside this rect along the side, along long parallel to that side from at, depth deep
+        // Returns a strip inside this rect along the side, `along` long parallel to that side from `at` and `depth` deep
         public UnitRect Inside(Side side, int along, int depth, int at) => side switch
         {
             Side.North => new UnitRect(at, rect.V, along, depth),

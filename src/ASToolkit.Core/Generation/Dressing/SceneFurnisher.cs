@@ -815,7 +815,7 @@ internal sealed class SceneFurnisher
         return new SeatSpot(FromWall(cell, seat.Face, seat.WallDistance[_wallSet], Along(cell, seat.Face) + _rng.NextSingle()), -1);
     }
 
-    // Take the offsets for the face the partner turns to the seat, keeping those in front of it, never past its corner
+    // Take the offsets for the face the partner turns to the seat and keep those in front of it, never past its corner
     private PointF[] GetFaceOffsets(CorpsePose pose, Seat seat, KnownObject id, Angle dir)
     {
         var offsets = pose.Partners.FirstOrDefault(pair => id.Family == pair.Key).Value;
@@ -1035,7 +1035,7 @@ internal sealed class SceneFurnisher
         return DrawDirection(id, byFace.GetValueOrDefault(face) ?? []);
     }
 
-    // A signature's first module keeps to facings that carry companions
+    // A signature's first module keeps to directions that carry companions
     private Angle DrawDirection(KnownObject id, Dictionary<Angle, float> directions)
     {
         var modules = GetModules(id);

@@ -1,7 +1,7 @@
 namespace ASToolkit.Core.Generation.Campaign;
 
 /// <summary>
-/// Represents a generated campaign drawn from one seed as the brief of each of its levels, from level 1 to the last.
+/// Represents a generated campaign, which is the brief of each of its levels from level 1 to the last, drawn from one seed.
 /// </summary>
 public sealed record CampaignPlan
 {

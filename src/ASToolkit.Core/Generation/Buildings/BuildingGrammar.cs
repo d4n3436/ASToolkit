@@ -5,8 +5,7 @@ using ASToolkit.Core.Survey;
 namespace ASToolkit.Core.Generation.Buildings;
 
 /// <summary>
-/// Provides the shared productions of the building grammars, such as halls lined by compact pods standing apart, the lab wings, depot sections,
-/// halls of big rooms in sequence, closets and secret rooms, and the gate programs every building can take.
+/// Provides the productions that the building grammars share.
 /// </summary>
 internal abstract partial class BuildingGrammar
 {
@@ -61,7 +60,7 @@ internal abstract partial class BuildingGrammar
 
     public int? End { get => Draft.End; protected set => Draft.End = value; }
 
-    // Holds the last depot wing's rooms in walking order, from the room meeting its hall onward
+    // Holds the rooms of the last depot wing in walking order, starting with the room that meets its hall
     protected List<int> Run { get => Draft.Run; private set => Draft.Run = value; }
 
     protected BuildingRequest Request => Draft.Request;
@@ -240,7 +239,7 @@ internal abstract partial class BuildingGrammar
 
     private int CountRegularRooms() => Grid.Rooms.Count(room => room is { Kind: GridKind.Room, IsJoint: false } && room.Type != RoomType.Passage);
 
-    // Holds the wings that can stand behind a locked gate, none with a breaker of its own
+    // Holds the wings that can stand behind a locked gate, none of which has a breaker of its own
     private static readonly LabWing[] GatedWings = [LabWing.Gallery, LabWing.Echelon, LabWing.Airlock, LabWing.Research, LabWing.BigRoomHalls];
 
     private static readonly LabWing[] DepotWings = [LabWing.DepotSections, LabWing.Dock, LabWing.ServiceCorridor];
@@ -433,8 +432,7 @@ internal abstract partial class BuildingGrammar
         return (built, key);
     }
 
-    // Draws the office pods for about the given rooms and the hub length their longer side needs, locking a pod on a dark level and jamming a
-    // ring's second hall door on a lit one
+    // Draws the office pods for about the given number of rooms and for the hub length that their longer side needs, locks a pod on a dark level and jams the second hall door of a ring on a lit one
     private static readonly DoorSides[] HubSides = [DoorSides.MinY, DoorSides.MaxY];
 
     private OfficePlan PlanOffices(int rooms, bool hasKey, bool isLit, IReadOnlyList<DoorSides> sides, int leastRings = 1)
@@ -447,7 +445,7 @@ internal abstract partial class BuildingGrammar
             drawn.AddRange(Enumerable.Repeat((side, isRing), count));
         }
 
-        // Leave a side for clumps on a level with a key, the breaker standing at a clump's far end
+        // Leave a side for clumps on a level with a key, with the breaker at the far end of a clump
         if (hasKey && drawn.All(pod => pod.IsRing))
         {
             var side = drawn[^1].Side;
@@ -520,7 +518,7 @@ internal abstract partial class BuildingGrammar
             ids.InsertRange(1, Enumerable.Range(0, backs).Select(index => AddOffice(wing, index == backs - 1 ? SmallRooms : OfficeRooms)));
             foreach (int end in (int[])[ids[0], ids[^1]])
             {
-                // Stand the jammed end flush with the hall, its whole front a wall for the jammed door
+                // Stand the jammed end flush with the hall and make its whole front a wall for the jammed door
                 bool isJammed = jams && end == ids[^1];
                 wing.Join(WingSolver.Anchor, end, isJammed ? JoinVia.Door : via, isJammed ? JoinMark.Contact : hallMark);
                 wing.SetSides(WingSolver.Anchor, end, side, null);
@@ -571,7 +569,7 @@ internal abstract partial class BuildingGrammar
                     else
                     {
                         wing.Snug(host, room);
-                        // Fold the clump, each room past the second but the breaker also touching the other of the last two
+                        // Fold the clump by having each room past the second, other than the breaker, also touch the one of the last two rooms that isn't its host
                         int? fold = folds && index >= 2 && index < rooms - 1 ? host == ids[^1] ? ids[^2] : ids[^1] : null;
                         if (fold is not null)
                         {

@@ -22,8 +22,10 @@ public sealed class CampaignMeasurer
     public CampaignMeasurer(IReadOnlyList<int> endMoney) => _endMoney = endMoney;
 
     /// <summary>
-    /// Returns the measurements of a campaign's levels, given in order from level 1.
+    /// Measures the levels of a campaign, which are given in order from level 1.
     /// </summary>
+    /// <param name="levels">The surveys of the campaign levels, in order from level 1.</param>
+    /// <returns>The measurement of each level.</returns>
     public CampaignMeasurement[] Measure(IReadOnlyList<LevelSurvey> levels)
     {
         var seenKinds = new HashSet<KnownObject>();

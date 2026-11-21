@@ -8,8 +8,10 @@ namespace ASToolkit.Core.Generation.Output;
 public static class LevelScriptWriter
 {
     /// <summary>
-    /// Returns the music definitions of an original script, or the first campaign tracks when it has none.
+    /// Returns the music definitions of an original script, or the first campaign tracks if the script doesn't define any.
     /// </summary>
+    /// <param name="originalScriptPath">The path of the original script.</param>
+    /// <returns>The music definition lines.</returns>
     public static IReadOnlyList<string> ReadMusicLines(string originalScriptPath)
     {
         if (File.Exists(originalScriptPath))
@@ -32,11 +34,15 @@ public static class LevelScriptWriter
     /// <summary>
     /// Writes a level script.
     /// </summary>
+    /// <param name="path">The path of the script file to write.</param>
+    /// <param name="script">The script to write.</param>
     public static void Write(string path, LevelScript script) => File.WriteAllBytes(path, Format(script));
 
     /// <summary>
     /// Returns the bytes of a level script.
     /// </summary>
+    /// <param name="script">The script to format.</param>
+    /// <returns>The bytes of the script.</returns>
     public static byte[] Format(LevelScript script)
     {
         var lines = new List<string>(script.MusicLines)

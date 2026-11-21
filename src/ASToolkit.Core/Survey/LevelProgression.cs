@@ -1,8 +1,7 @@
 namespace ASToolkit.Core.Survey;
 
 /// <summary>
-/// Represents the progression of a level with its phases in play order, the keys that change its state, the locked places, the trigger flow and
-/// the ways back its triggers close.
+/// Represents the progression of a level through its phases.
 /// </summary>
 /// <param name="Phases">The phases in play order.</param>
 /// <param name="Keys">The keys in landmark order.</param>
@@ -18,6 +17,7 @@ public sealed record LevelProgression(IReadOnlyList<LevelPhase> Phases, IReadOnl
     /// Returns the index of the phase that holds a place, or null when no phase holds it.
     /// </summary>
     /// <param name="place">The place number.</param>
+    /// <returns>The index of the phase, or null if no phase holds the place.</returns>
     public int? GetPhase(int place)
     {
         foreach (var phase in Phases)

@@ -4,7 +4,6 @@ using ASToolkit.Core.Scripting;
 
 namespace ASToolkit.Core.Routes;
 
-// Walks the steps of a level one after another, opening what the scripts open along the way
 internal sealed class RouteWalk
 {
     private const float StepReach = 64;

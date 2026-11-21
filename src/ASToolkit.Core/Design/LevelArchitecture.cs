@@ -1,8 +1,7 @@
 namespace ASToolkit.Core.Design;
 
 /// <summary>
-/// Represents how a level's places form one building, from the compactness of its floor, the wall lines it lies on, its corridor share, the
-/// sizes of its halls, rooms and closets and the notches of its outline.
+/// Represents how a level's places form one building.
 /// </summary>
 public sealed record LevelArchitecture
 {

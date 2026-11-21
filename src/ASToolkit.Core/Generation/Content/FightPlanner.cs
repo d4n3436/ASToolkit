@@ -157,7 +157,7 @@ internal sealed class FightPlanner
         return fights;
     }
 
-    // Gives each new kind the fight nearest a rank drawn from the style's opening ranks, an ambush at the style's share where a room allows one
+    // Gives each new kind the fight nearest a rank drawn from the opening ranks of the style, and makes it an ambush at the share of the style where a room allows one
     private (int Fight, bool IsAmbush)[] DrawOpenings(List<int> chosen, float[] targets, int count, Func<int, bool> canAmbush)
     {
         int[] ranked = chosen
@@ -281,7 +281,7 @@ internal sealed class FightPlanner
     private int GetHitPoints(KnownObject id) => _objects.TryFind(id, out var found) ? found.MaxHp : 0;
 }
 
-// Opening ranks run from the level's smallest fight (0) to its biggest (1)
+// Opening ranks run from 0 for the smallest fight of the level to 1 for its biggest
 internal sealed record FightRule(float[] OpeningRanks, float OpeningAmbushShare, float PureShare, float MixedVariantMax)
 {
     public static readonly FightRule Campaign = new([0.17f, 0.4f, 0.5f, 0.67f, 0.8f, 0.8f, 0.83f, 1, 1, 1], 0.7f, 0.29f, 0.82f);

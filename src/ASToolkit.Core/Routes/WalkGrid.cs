@@ -2,7 +2,6 @@ using System.Numerics;
 
 namespace ASToolkit.Core.Routes;
 
-// The 8 px height grid the Alien Shooter 2 engine walks on, with the solid boxes and the teleport links on top of it
 internal sealed class WalkGrid
 {
     public const int CellSize = 8;
@@ -275,7 +274,7 @@ internal sealed class WalkGrid
 
     private bool IsNeighbor(int first, int second) => Math.Abs(first % Columns - second % Columns) <= 1 && Math.Abs(first / Columns - second / Columns) <= 1;
 
-    // Takes the cell nearest to the target that the accept test allows, or the nearest one when the preference is not strict and none is allowed
+    // Takes the cell nearest to the target that the accept test allows, or the nearest one when the preference is not strict and no cell is allowed
     private int ChooseEnd(List<int> reached, PathPreference preference)
     {
         var target = preference.Target.AsVector2();

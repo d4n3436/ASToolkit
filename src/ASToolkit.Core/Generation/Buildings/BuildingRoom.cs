@@ -8,7 +8,7 @@ namespace ASToolkit.Core.Generation.Buildings;
 /// </summary>
 public sealed record BuildingRoom
 {
-    /// <summary>Gets the id of the room, its index in the building's rooms.</summary>
+    /// <summary>Gets the ID of the room, which is its index in the building's rooms.</summary>
     public required int Id { get; init; }
 
     /// <summary>Gets the kind of the room.</summary>
@@ -20,7 +20,7 @@ public sealed record BuildingRoom
     /// <summary>Gets the rectangles that make up the outline of the room, necks and arms included.</summary>
     public required IReadOnlyList<UnitRect> Rects { get; init; }
 
-    /// <summary>Gets the necks among the room's rects, each the throat of a door.</summary>
+    /// <summary>Gets the necks among the rects of the room, each of which is the throat of a door.</summary>
     public required IReadOnlyList<UnitRect> Necks { get; init; }
 
     /// <summary>Gets the phase the room belongs to.</summary>

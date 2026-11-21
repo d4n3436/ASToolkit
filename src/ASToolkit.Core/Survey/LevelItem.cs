@@ -10,7 +10,7 @@ namespace ASToolkit.Core.Survey;
 public sealed class LevelItem
 {
     /// <summary>
-    /// Gets the item ID.
+    /// Gets the object ID of the item.
     /// </summary>
     public required KnownObject Id { get; init; }
 

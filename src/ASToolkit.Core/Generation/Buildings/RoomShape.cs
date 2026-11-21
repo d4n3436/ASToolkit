@@ -62,7 +62,7 @@ internal sealed class RoomShape
         return cells;
     }
 
-    // Returns the straight outline runs facing one way, each its wall line and the span along it
+    // Returns the straight outline runs facing one way, each with its wall line and the span along it
     internal static List<(int At, int Low, int High)> Runs(HashSet<Cell> cells, Cell facing)
     {
         var edges = cells
@@ -78,7 +78,6 @@ internal sealed class RoomShape
 
 internal readonly record struct ShapeDoor(Point From, Point To);
 
-// Holds a rule for a shape's doors, every position of a door this long along each outline run at least the corner distance from its ends
 internal readonly record struct DoorRule(int Length, int CornerDistance)
 {
     public IReadOnlyList<ShapeDoor> Place(HashSet<Cell> cells)
@@ -113,7 +112,6 @@ internal enum ShapeTurn
     Diagonal24
 }
 
-// Specifies the sides of a shape, in the shape's own frame, a join may put its door on
 [Flags]
 internal enum DoorSides
 {

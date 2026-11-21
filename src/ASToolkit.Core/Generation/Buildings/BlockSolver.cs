@@ -13,8 +13,7 @@ internal sealed class BlockSolver
 
     public Dictionary<string, PlacedRoom<string>> Solve(LayoutProblem<string> problem) => new LayoutSolver<string>(problem, _random.Inclusive(1, 1_000_000)).Solve();
 
-    // Solves one room against rooms held as one block, the block opening only at the given door segments and the room the given distance clear of
-    // the banned units or standing past the door end, and returns the room's cells
+    // Solves one room against rooms held as one block that opens only at the given door segments, with the room keeping the given distance from the banned units or standing past the door end, and returns the cells of the room
     public HashSet<Cell> SolveAgainst(HashSet<Cell> block, IReadOnlyList<ShapeDoor> openings, IReadOnlyList<RoomShape> shapes, HashSet<Cell> banned, bool isBeyond, int distance)
     {
         if (openings.Count == 0)

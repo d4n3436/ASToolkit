@@ -6,8 +6,7 @@ using ASToolkit.Core.Survey;
 namespace ASToolkit.Core.Generation.Campaign;
 
 /// <summary>
-/// Represents the targets a generated level is built to, drawn by the campaign planner, such as its building, wall set, gate style, monster hit points,
-/// weapons, pickups and end-of-level money, and the original level it borrows what no model covers yet from.
+/// Represents the targets that the campaign planner draws for a generated level.
 /// </summary>
 public sealed record LevelBrief
 {
@@ -17,7 +16,7 @@ public sealed record LevelBrief
     public required int Level { get; init; }
 
     /// <summary>
-    /// Gets the building the level is.
+    /// Gets the kind of building the level is.
     /// </summary>
     public required Building Building { get; init; }
 
@@ -62,12 +61,12 @@ public sealed record LevelBrief
     public required int SecretClosets { get; init; }
 
     /// <summary>
-    /// Gets the weapons the campaign has brought by the level, its own new ones included.
+    /// Gets the weapons the campaign has brought by the level, including the level's own new ones.
     /// </summary>
     public required IReadOnlyList<KnownObject> Arsenal { get; init; }
 
     /// <summary>
-    /// Gets the weapons no earlier level of the campaign holds.
+    /// Gets the weapons that no earlier level of the campaign has.
     /// </summary>
     public required IReadOnlyList<KnownObject> NewWeapons { get; init; }
 
@@ -112,12 +111,12 @@ public sealed record LevelBrief
     public required int DynamiteSites { get; init; }
 
     /// <summary>
-    /// Gets the second wing of a lab level, never repeated in the campaign, or <see langword="null"/> when the building draws it.
+    /// Gets the second wing of a lab level, which the campaign never repeats, or <see langword="null"/> when the building draws it.
     /// </summary>
     public LabWing? SecondWing { get; init; }
 
     /// <summary>
-    /// Gets the map name of the original level that the parts of the generator without a model of their own still read.
+    /// Gets the map name of the original level that the parts of the generator that don't have a model yet still read.
     /// </summary>
     public required string DonorLevel { get; init; }
 }

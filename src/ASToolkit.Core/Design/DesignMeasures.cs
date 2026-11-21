@@ -168,12 +168,12 @@ public sealed class DesignMeasures
     public required float? FightGap { get; init; }
 
     /// <summary>
-    /// Gets how many monsters the level's spawners release for every 1,000 hit points they release, or null when the level has no spawner.
+    /// Gets how many monsters the level's spawners release for every 1,000 hit points they release, or null when the level doesn't have a spawner.
     /// </summary>
     public required float? SpawnedPerThousand { get; init; }
 
     /// <summary>
-    /// Gets how many monsters the level's largest spawner releases, or null when the level has no spawner.
+    /// Gets how many monsters the level's largest spawner releases, or null when the level doesn't have a spawner.
     /// </summary>
     public required float? LargestSpawner { get; init; }
 

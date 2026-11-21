@@ -21,7 +21,7 @@ internal static class ContentPlacer
     private const float BreakerGateReach = 400;
     private const float BreakerGateSlack = 100;
     private const float GoreClearance = 1;
-    // Holds how many pixels inside the trigger room's doorway the blackout's reach stops
+    // Holds the distance in pixels inside the doorway of the trigger room at which the reach of the blackout stops
     private const int BlackoutDoorGap = 94;
     private const float LatestBossStart = 0.65f;
     private static readonly KnownObject[] GorePools = [KnownObject.SmallBloodPool, KnownObject.BloodPool];
@@ -133,7 +133,7 @@ internal static class ContentPlacer
         }
     }
 
-    // Stands the blackout trigger in the trigger room, its reach spanning the room across and stopping the given gap short of the doorway
+    // Stands the blackout trigger in the trigger room, with a reach that spans the room across and stops the given gap short of the doorway
     private static TriggerArea PlaceBlackout(PlacementContext ctx, Cell doorway, PlanRegion? room)
     {
         var door = GetCenter(ctx, doorway);

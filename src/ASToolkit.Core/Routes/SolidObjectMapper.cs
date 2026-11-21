@@ -9,9 +9,14 @@ namespace ASToolkit.Core.Routes;
 public static class SolidObjectMapper
 {
     /// <summary>
-    /// Returns the collision box of every solid object other than walls and floors. The box reaches 0.33 of the object's
-    /// extent plus 14 pixels for the player's own size.
+    /// Returns the collision box of every solid object other than walls and floors.
     /// </summary>
+    /// <remarks>
+    /// Each box reaches 0.33 of the extent of the object plus 14 pixels for the player's own size.
+    /// </remarks>
+    /// <param name="sprites">The sprites of the level.</param>
+    /// <param name="objects">The game objects.</param>
+    /// <returns>The collision boxes of the solid objects.</returns>
     public static CollisionBox[] GetCollisionBoxes(IEnumerable<MergedMapSprite> sprites, ObjectTable objects)
     {
         var boxes = new List<CollisionBox>();
@@ -31,6 +36,10 @@ public static class SolidObjectMapper
     /// <summary>
     /// Returns the cells at least half covered by the boxes, sampled 4 by 4 per cell.
     /// </summary>
+    /// <param name="lattice">The lattice of the cells.</param>
+    /// <param name="cells">The cells of the level.</param>
+    /// <param name="boxes">The collision boxes.</param>
+    /// <returns>The cells that the boxes cover by at least half.</returns>
     public static HashSet<Cell> FindBlockedCells(Lattice lattice, IReadOnlySet<Cell> cells, IReadOnlyList<CollisionBox> boxes)
     {
         var candidates = new Dictionary<Cell, List<int>>();

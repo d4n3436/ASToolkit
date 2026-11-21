@@ -2,7 +2,6 @@ using ASToolkit.Core.Rooms;
 
 namespace ASToolkit.Core.Generation.Buildings;
 
-// Places a building's closets and secret room behind the walls of host rooms
 internal sealed class SideRoomPlacer
 {
     private const float SecretOffHall = 0.25f;
@@ -71,7 +70,7 @@ internal sealed class SideRoomPlacer
         }
     }
 
-    // Stands a side room behind a wall of the first host with room for it, a unit in from the wall's ends
+    // Stands a side room behind a wall of the first host that has room for it, a unit in from the ends of the wall
     private bool TryPlaceBeside(IEnumerable<GridRoom> hosts, GridKind kind, Func<Side, (int Along, int Depth)> sizeOn, Func<RoomType?> drawType)
     {
         foreach (var host in hosts)

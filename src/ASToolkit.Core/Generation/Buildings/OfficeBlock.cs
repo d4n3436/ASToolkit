@@ -21,8 +21,6 @@ internal sealed record OfficeRoom(HashSet<Cell> Cells, RoomType Type, int Phase)
 
 internal sealed record OfficeLayout(List<OfficeRoom> Rooms, HashSet<RoomPair> Doors, List<int> Run, List<(UnitRect Rect, int Host)> Closets, int End);
 
-// Draws the office block as a level graph laid by the layout solver, the start hall wrapping its offices, a dark run of four to six rooms to the
-// breaker's room and the rooms the breaker opens joined in a tree, every room touching two others inside a band of the screen
 internal sealed class OfficeBlock
 {
     private const int SmallMax = 70;
@@ -123,8 +121,7 @@ internal sealed class OfficeBlock
         return problem;
     }
 
-    // Places each room unturned flush against a joined room already placed, where it shares most wall and keeps the building compact on screen, as
-    // the solver's starting point
+    // Places each room unturned and flush against an already placed joined room, where it shares the most wall and keeps the building compact on screen, as the starting point of the solver
     private void Hint(LayoutProblem<int> problem)
     {
         var boxes = new Dictionary<int, Rectangle> { [0] = Bound(_parts[0].Shape.Cells, 0, 0) };
@@ -299,7 +296,7 @@ internal sealed class OfficeBlock
             doors.Add(new RoomPair(hostOf[a], hostOf[b]));
         }
 
-        // Lay a door on every wall a door wide between rooms the breaker opens, but between the suite's offices
+        // Lay a door on every wall a door wide between the rooms the breaker opens, except between the offices of the suite
         var closed = suite.Skip(1).ToHashSet();
         for (int a = 0; a < rooms.Count; a++)
         {
@@ -350,8 +347,7 @@ internal sealed class OfficeBlock
         return new OfficeLayout(rooms, doors, run, closets, end);
     }
 
-    // Cuts a corner a third to a half of each side off three or four large rooms where the rest stays large, six wide and a door-wide wall from
-    // each room it is joined to
+    // Cuts a corner off three or four large rooms, a third to a half of each side, where the rest of the room stays large and six wide and keeps a door-wide wall to each room it is joined to
     private void Notch(List<OfficeRoom> rooms, int[] candidates, (int A, int B)[] joins)
     {
         int most = _random.Inclusive(3, 4), done = 0;
@@ -375,8 +371,7 @@ internal sealed class OfficeBlock
         }
     }
 
-    // Cuts a one-unit slit from the larger room along about a third of the walls of eight units or more, keeping a door-wide stub at the middle of
-    // a wall that holds a door, the room left connected, four wide and of its size class and every door of it on a door-wide wall
+    // Cuts a one-unit slit from the larger room along about a third of the walls of eight units or more and keeps a door-wide stub at the middle of a wall that holds a door, with the room staying connected, four wide and in its size class and every door of it on a door-wide wall
     private void CutSlits(List<OfficeRoom> rooms, HashSet<RoomPair> doors)
     {
         var walls = Enumerable.Range(0, rooms.Count)
@@ -412,8 +407,7 @@ internal sealed class OfficeBlock
         }
     }
 
-    // Places a closet three units a side in a corner inside the host where the host stays large, four wide and a door-wide wall from each room it
-    // opens onto, else outside it on free floor touching it along three unit edges or more
+    // Places a closet three units on a side in a corner inside the host where the host stays large and four wide and keeps a door-wide wall to each room it opens onto, and otherwise outside the host on free floor touching it along three unit edges or more
     private bool PlaceCloset(List<OfficeRoom> rooms, HashSet<RoomPair> doors, int host, List<(UnitRect Rect, int Host)> closets)
     {
         var box = rooms[host].Cells.GetBounds();
@@ -450,8 +444,7 @@ internal sealed class OfficeBlock
         return false;
     }
 
-    // Cuts the row along the block side touching least of the other rooms, in a corner or inset, keeping the host a door-wide wall to each joined
-    // room
+    // Cuts the row along the side of the block that touches the fewest of the other rooms, in a corner or inset, and keeps a door-wide wall between the host and each joined room
     private (HashSet<Cell>, List<HashSet<Cell>>) CutRow(HashSet<Cell> block, int[] widths, int depth, HashSet<Cell> others, HashSet<Cell>[] joined)
     {
         int u0 = block.Min(cell => cell.U), v0 = block.Min(cell => cell.V), u1 = block.Max(cell => cell.U) + 1, v1 = block.Max(cell => cell.V) + 1;
@@ -490,8 +483,7 @@ internal sealed class OfficeBlock
         return (block, []);
     }
 
-    // Fills the building's enclosed pockets and its notches three to six units wide, a pocket the size of a room becoming one and the rest going to
-    // the neighbor whose outline gains at most one notch
+    // Fills the enclosed pockets and the notches three to six units wide in the building, turning a pocket the size of a room into a room and giving the rest to the neighbor whose outline gains at most one notch
     private static void FillPockets(List<OfficeRoom> rooms)
     {
         var owner = new Dictionary<Cell, int>();

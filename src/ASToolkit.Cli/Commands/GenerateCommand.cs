@@ -49,7 +49,7 @@ internal sealed class GenerateCommand : Command<GenerateSettings>
         AnsiConsole.Write(table);
         if (broken > 0)
         {
-            AnsiConsole.MarkupLine($"[red]{broken} level(s) leave objectives out of reach on every layout; they were installed anyway.[/]");
+            AnsiConsole.MarkupLine($"[red]{broken} level(s) leave objectives out of reach on every layout and were installed anyway.[/]");
             return 1;
         }
 

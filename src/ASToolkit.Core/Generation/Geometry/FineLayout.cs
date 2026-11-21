@@ -27,7 +27,7 @@ public sealed class FineLayout
     public required IReadOnlyList<EdgeKey[]> LinkEdges { get; init; }
 
     /// <summary>
-    /// Gets the walls that carry a fake door, with a value indicating whether the door is double.
+    /// Gets the walls that carry a fake door, each with a value that indicates whether the door is double.
     /// </summary>
     public Dictionary<EdgeKey, bool> FakeDoors { get; } = [];
 
@@ -41,6 +41,7 @@ public sealed class FineLayout
     /// </summary>
     /// <param name="link">The index of the link in the plan.</param>
     /// <param name="region">The region the link enters.</param>
+    /// <returns>The cell next to the doorway.</returns>
     public Cell GetDoorwayCell(int link, int region)
     {
         var edges = LinkEdges[link];
@@ -51,6 +52,8 @@ public sealed class FineLayout
     /// <summary>
     /// Returns the cells of a region.
     /// </summary>
+    /// <param name="region">The index of the region.</param>
+    /// <returns>The cells of the region.</returns>
     public IReadOnlyList<Cell> GetRegionCells(int region)
     {
         if (!_regionsBuilt)
@@ -65,13 +68,18 @@ public sealed class FineLayout
     }
 
     /// <summary>
-    /// Returns whether any edge of a cell carries a wall or door.
+    /// Determines whether any edge of a cell carries a wall or door.
     /// </summary>
+    /// <param name="c">The cell.</param>
+    /// <returns><see langword="true"/> if any edge of the cell carries a wall or door; otherwise, <see langword="false"/>.</returns>
     public bool IsWalled(Cell c) => EdgeKey.GetNeighbors(c).HasEdge(Edges);
 
     /// <summary>
     /// Returns the walking distance in cells from a cell to every cell reached without crossing a blocking edge or a blocked cell.
     /// </summary>
+    /// <param name="start">The cell to measure from.</param>
+    /// <param name="blocked">The cells that can't be walked through.</param>
+    /// <returns>The walking distance of every reached cell.</returns>
     public Dictionary<Cell, int> MeasureWalk(Cell start, IReadOnlySet<Cell> blocked)
     {
         var distance = new Dictionary<Cell, int> { [start] = 0 };
@@ -98,6 +106,8 @@ public sealed class FineLayout
     /// <summary>
     /// Builds the fine layout of a plan.
     /// </summary>
+    /// <param name="plan">The layout plan.</param>
+    /// <returns>The fine layout.</returns>
     public static FineLayout Build(LayoutPlan plan)
     {
         int n = plan.Settings.UnitCells;

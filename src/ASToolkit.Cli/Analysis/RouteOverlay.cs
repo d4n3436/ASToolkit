@@ -13,7 +13,6 @@ using ASToolkit.Core.Scripting;
 
 namespace ASToolkit.Cli.Analysis;
 
-// Draws a level's tour, elements and objectives over its map and crops the image to the level
 internal static class RouteOverlay
 {
     // Marker and line sizes are tuned for a quarter-scale map and grow with the scale

@@ -15,5 +15,8 @@ public readonly record struct MeasureShare(int Count, int Total)
     /// <summary>
     /// Adds two shares.
     /// </summary>
+    /// <param name="left">The first share.</param>
+    /// <param name="right">The second share.</param>
+    /// <returns>The share with the summed counts and totals.</returns>
     public static MeasureShare operator +(MeasureShare left, MeasureShare right) => new(left.Count + right.Count, left.Total + right.Total);
 }

@@ -12,8 +12,13 @@ namespace ASToolkit.Core.Routes;
 public static class RouteAnalyzer
 {
     /// <summary>
-    /// Analyzes a level, or returns null when the map has no floor, no player start or nothing to do.
+    /// Analyzes a level.
     /// </summary>
+    /// <param name="name">The name of the level.</param>
+    /// <param name="map">The map of the level.</param>
+    /// <param name="script">The summary of the level script.</param>
+    /// <param name="objects">The game objects.</param>
+    /// <returns>The analysis of the level, or null if the map has no floor, no player start or nothing to do.</returns>
     public static RouteAnalysis? Analyze(string name, MapResourceBuilder map, LevelScriptSummary script, ObjectTable objects)
     {
         var model = LevelExtractor.Extract(name, map, objects);
@@ -46,7 +51,6 @@ public static class RouteAnalyzer
         public int At { get; set; }
     }
 
-    // Dense index over the grid's bounding rectangle to avoid hashing
     private sealed class CellIndex
     {
         private readonly int[] _slots;

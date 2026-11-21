@@ -9,7 +9,7 @@ using ASToolkit.Core.Levels;
 namespace ASToolkit.Core.Generation.Content;
 
 /// <summary>
-/// Represents the state shared while content is placed, with the map so far, the cells taken and the walking distance of every cell.
+/// Represents the state that the content placers share while they place content.
 /// </summary>
 public sealed class PlacementContext
 {
@@ -34,6 +34,16 @@ public sealed class PlacementContext
     /// <summary>
     /// Initializes a new instance of the <see cref="PlacementContext"/> class.
     /// </summary>
+    /// <param name="rng">The random source.</param>
+    /// <param name="brief">The brief of the level.</param>
+    /// <param name="plan">The layout plan.</param>
+    /// <param name="layout">The fine layout.</param>
+    /// <param name="map">The map builder that receives the placed objects.</param>
+    /// <param name="objects">The game objects.</param>
+    /// <param name="start">The cell of the player start.</param>
+    /// <param name="blocked">The cells the player can't walk through.</param>
+    /// <param name="keepClear">The cells to keep free of objects.</param>
+    /// <param name="occupancy">The objects standing on the level's floor.</param>
     public PlacementContext(Random rng, LevelBrief brief, LayoutPlan plan, FineLayout layout, MapBuilder map, ObjectTable objects, Cell start, IReadOnlySet<Cell> blocked, IReadOnlySet<Cell> keepClear,
         LevelOccupancy occupancy)
     {
@@ -98,11 +108,15 @@ public sealed class PlacementContext
     /// <summary>
     /// Returns how far along the route a cell lies, from 0 at the start to 1 at the farthest cell.
     /// </summary>
+    /// <param name="c">The cell.</param>
+    /// <returns>The progress, from 0 to 1.</returns>
     public float GetProgress(Cell c) => Distance.GetValueOrDefault(c) / (float)Math.Max(1, RouteLength);
 
     /// <summary>
     /// Returns how far along the route a region begins.
     /// </summary>
+    /// <param name="region">The region.</param>
+    /// <returns>The progress, from 0 to 1.</returns>
     public float GetProgress(PlanRegion region)
     {
         if (!_progress.TryGetValue(region.Id, out float progress))
@@ -116,20 +130,26 @@ public sealed class PlacementContext
     /// <summary>
     /// Returns the cells of a region in a stable order.
     /// </summary>
+    /// <param name="region">The region.</param>
+    /// <returns>The cells of the region.</returns>
     public IReadOnlyList<Cell> GetRegionCells(PlanRegion region) => Layout.GetRegionCells(region.Id);
 
     /// <summary>
-    /// Returns the free cells of a region, those not taken, without walls on their edges and reachable. Inner cells also have
-    /// all four neighbors in the region.
+    /// Returns the free cells of a region, which are the cells that are not taken, don't have walls on their edges and are reachable. With <paramref name="inner"/> set, a cell also needs all four neighbors in the region.
     /// </summary>
+    /// <param name="region">The region.</param>
+    /// <param name="inner">Whether to keep only the cells whose four neighbors are in the region.</param>
+    /// <returns>The free cells of the region.</returns>
     public Cell[] GetFreeCells(PlanRegion region, bool inner = false)
         => GetRegionCells(region) 
             .Where(c => IsFree(c) && (!inner || IsInside(c, region.Id)))
             .ToArray();
 
     /// <summary>
-    /// Returns whether all four neighbors of a cell are free of anything taken.
+    /// Determines whether all four neighbors of a cell are free of anything taken.
     /// </summary>
+    /// <param name="c">The cell.</param>
+    /// <returns><see langword="true"/> if all four neighbors are free; otherwise, <see langword="false"/>.</returns>
     public bool IsClearAround(Cell c)
     {
         foreach (var (n, _) in EdgeKey.GetNeighbors(c))
@@ -144,13 +164,18 @@ public sealed class PlacementContext
     }
 
     /// <summary>
-    /// Returns whether a cell can hold something.
+    /// Determines whether a cell can hold something.
     /// </summary>
+    /// <param name="c">The cell.</param>
+    /// <returns><see langword="true"/> if the cell can hold something; otherwise, <see langword="false"/>.</returns>
     public bool IsFree(Cell c) => !Taken.Contains(c) && !Layout.IsWalled(c) && Distance.ContainsKey(c);
 
     /// <summary>
-    /// Returns whether a point lies within a margin of a wall piece's collision box.
+    /// Determines whether a point lies within a margin of a wall piece's collision box.
     /// </summary>
+    /// <param name="point">The map point.</param>
+    /// <param name="margin">The margin around the collision box, in map pixels.</param>
+    /// <returns><see langword="true"/> if the point lies in a wall; otherwise, <see langword="false"/>.</returns>
     public bool IsInWall(PointF point, float margin = 6)
     {
         (float x, float y) = point;
@@ -178,9 +203,10 @@ public sealed class PlacementContext
     }
 
     /// <summary>
-    /// Returns whether the camera sees a floor point, with open floor below it on screen up to the roof height and no wall or roof
-    /// drawn over it.
+    /// Determines whether the camera sees a floor point, which needs open floor below it on screen up to the roof height and no wall or roof drawn over it.
     /// </summary>
+    /// <param name="point">The floor point.</param>
+    /// <returns><see langword="true"/> if the camera sees the point; otherwise, <see langword="false"/>.</returns>
     public bool IsVisible(PointF point)
     {
         (float x, float y) = point;
@@ -201,8 +227,10 @@ public sealed class PlacementContext
     }
 
     /// <summary>
-    /// Returns a random point inside a cell clear of walls, or null when twelve tries fail.
+    /// Finds a random point inside a cell that is clear of walls.
     /// </summary>
+    /// <param name="c">The cell.</param>
+    /// <returns>The point, or null if none of twelve tries found a spot clear of walls.</returns>
     public PointF? FindSpot(Cell c)
     {
         for (int index = 0; index < 12; index++)
@@ -218,8 +246,15 @@ public sealed class PlacementContext
     }
 
     /// <summary>
-    /// Places an object on a free spot of one of the cells and returns its position and cell, or null when no cell has room.
+    /// Places an object on a free spot of one of the cells.
     /// </summary>
+    /// <param name="cells">The cells to place the object in.</param>
+    /// <param name="id">The object ID.</param>
+    /// <param name="dir">The direction of the object, or null for a random one.</param>
+    /// <param name="payload">The payload bytes of the sprite.</param>
+    /// <param name="army">The army of the object, or null for the army of its object ID.</param>
+    /// <param name="take">Whether to mark the cell as taken.</param>
+    /// <returns>The position and the cell of the object, or null if no cell has room.</returns>
     public (PointF Point, Cell Cell)? Place(IReadOnlyList<Cell> cells, KnownObject id, Angle? dir, ReadOnlyMemory<byte> payload = default, Army? army = null, bool take = true)
     {
         if (cells.Count == 0)
@@ -256,6 +291,9 @@ public sealed class PlacementContext
     /// <summary>
     /// Lays the shadows under a pickup at the count its kind carries, rounded at random.
     /// </summary>
+    /// <param name="id">The object ID of the pickup.</param>
+    /// <param name="x">The map x of the pickup.</param>
+    /// <param name="y">The map y of the pickup.</param>
     public void ShadePickup(KnownObject id, float x, float y)
     {
         var category = id.PickupCategory;
@@ -271,13 +309,18 @@ public sealed class PlacementContext
     }
 
     /// <summary>
-    /// Returns the height an object stands at, raised for a piece linked below it, such as a pickup's glow, to rest on the floor.
+    /// Returns the height an object stands at, raised so that a piece linked below it, such as a pickup's glow, rests on the floor.
     /// </summary>
+    /// <param name="id">The object ID.</param>
+    /// <returns>The height the object stands at.</returns>
     public float GetRestingHeight(KnownObject id) => Objects.TryFind(id, out var obj) && obj.Link != 0 && obj.LinkOffset.Z < 0 ? 1 - obj.LinkOffset.Z : 0;
 
     /// <summary>
-    /// Returns the cells of a shortest walk between two cells, every door open.
+    /// Finds a shortest walkable path between two cells, with every door open.
     /// </summary>
+    /// <param name="from">The first cell.</param>
+    /// <param name="to">The last cell.</param>
+    /// <returns>The cells of the path, from the first cell to the last.</returns>
     public Cell[] FindPath(Cell from, Cell to)
     {
         var previous = new Dictionary<Cell, Cell> { [from] = from };
@@ -315,6 +358,9 @@ public sealed class PlacementContext
     /// <summary>
     /// Records a wall piece's collision box for later placements to keep clear of.
     /// </summary>
+    /// <param name="x">The map x of the wall piece.</param>
+    /// <param name="y">The map y of the wall piece.</param>
+    /// <param name="id">The object ID of the wall piece.</param>
     public void AddWallBox(float x, float y, KnownObject id)
     {
         if (!Objects.TryFind(id, out var obj))
@@ -377,8 +423,10 @@ public sealed class PlacementContext
     private bool IsBlockingEdge(EdgeKey k) => Layout.Edges.TryGetValue(k, out var kind) && kind.BlocksWalking;
 
     /// <summary>
-    /// Returns the cells from a cell back to the start down the walking distances.
+    /// Returns the cells from a cell back to the start by following the walking distances down.
     /// </summary>
+    /// <param name="from">The cell to start from.</param>
+    /// <returns>The cells from the given cell back to the start.</returns>
     public IEnumerable<Cell> TraceWalk(Cell from)
     {
         var cell = from;
@@ -407,5 +455,7 @@ public sealed class PlacementContext
     /// <summary>
     /// Returns the walking distance of every reachable cell from a cell, in cell steps, with every door open.
     /// </summary>
+    /// <param name="start">The cell to measure from.</param>
+    /// <returns>The walking distance of every reachable cell.</returns>
     public Dictionary<Cell, int> MeasureDistances(Cell start) => Layout.MeasureWalk(start, _blocked);
 }

@@ -4,8 +4,6 @@ using ASToolkit.Core.Rooms;
 
 namespace ASToolkit.Core.Generation.Buildings;
 
-// Shapes a building's rooms and halls after the wings stand, rooms taking footprint outlines, pods interlocking and halls narrowing between
-// their door bands
 internal sealed class RoomShaper
 {
     private const float PodShapeShare = 0.25f;
@@ -121,8 +119,7 @@ internal sealed class RoomShaper
         return any;
     }
 
-    // Pushes a tab two or three units deep from one room into a neighbor, keeping every shared wall a door wide, the tab clear of any third room
-    // and no outline stepping by one unit
+    // Pushes a tab two or three units deep from one room into a neighbor, keeping every shared wall a door wide and the tab clear of any third room and never leaving an outline that steps by one unit
     private bool TryInterlock(GridRoom pusher, GridRoom yielder)
     {
         var a = pusher.Rect;
@@ -295,8 +292,7 @@ internal sealed class RoomShaper
 
         bool IsOther(int x, int y) => (x < 0 || y < 0 || x >= rect.W || y >= rect.H) && IsSolid(x, y);
 
-        // Counts a cell the outline gives up as solid where it would leave a one-unit slit beside another room; the cells an interlock gives up go
-        // to the pushing room
+        // Count a cell the outline gives up as solid where it would leave a one-unit slit beside another room, and give the cells an interlock gives up to the pushing room
         bool IsSolid(int x, int y)
         {
             if (x >= 0 && y >= 0 && x < rect.W && y < rect.H)
@@ -409,7 +405,7 @@ internal sealed class RoomShaper
         return false;
     }
 
-    // Turns a cell by one of eight symmetries, a quarter turn at each odd index and a mirror past the fourth
+    // Turns a cell by one of eight symmetries, with a quarter turn at each odd index and a mirror past the fourth
     private static Cell Turn(Cell cell, int width, int height, int turn)
     {
         (int x, int y) = turn >= 4 ? (width - 1 - cell.U, cell.V) : (cell.U, cell.V);

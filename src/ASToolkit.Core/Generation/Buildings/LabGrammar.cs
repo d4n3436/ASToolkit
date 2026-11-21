@@ -3,7 +3,7 @@ using ASToolkit.Core.Survey;
 namespace ASToolkit.Core.Generation.Buildings;
 
 /// <summary>
-/// Provides the underground lab, a hub hall lined with pods followed by the wings its gate program draws.
+/// Provides the underground lab, which is a hub hall lined with pods followed by the wings that its gate program draws.
 /// </summary>
 internal sealed class LabGrammar : BuildingGrammar
 {

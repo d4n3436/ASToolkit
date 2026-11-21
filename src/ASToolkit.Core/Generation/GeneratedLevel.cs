@@ -29,7 +29,7 @@ public sealed class GeneratedLevel
     public required string Template { get; set; }
 
     /// <summary>
-    /// Gets the building the generated level is.
+    /// Gets the kind of building the generated level is.
     /// </summary>
     public required Building Building { get; init; }
 
@@ -64,7 +64,7 @@ public sealed class GeneratedLevel
     public LevelBudget? Budget { get; init; }
 
     /// <summary>
-    /// Gets the standing groups and ambushes the level's plan holds, empty for an outdoor level.
+    /// Gets the standing groups and ambushes in the level's plan, which is empty for an outdoor level.
     /// </summary>
     public IReadOnlyList<PlannedFight> Fights { get; init; } = [];
 
@@ -79,13 +79,15 @@ public sealed class GeneratedLevel
     public required IReadOnlyDictionary<SpriteSource, int> Provenance { get; init; }
 
     /// <summary>
-    /// Gets the fallbacks and built parts the building and doors stages counted.
+    /// Gets the counts of the fallbacks and built parts of the building and doors stages.
     /// </summary>
     public required IReadOnlyDictionary<string, int> LayoutCounts { get; init; }
 
     /// <summary>
-    /// Writes the map and its script next to it, taking the other map chunks from a template map.
+    /// Writes the map and its script next to it, and takes the other map chunks from the template map.
     /// </summary>
+    /// <param name="mapPath">The path of the map file to write.</param>
+    /// <param name="templatePath">The path of the template map.</param>
     public void Write(string mapPath, string templatePath)
     {
         Map.Write(mapPath, templatePath);

@@ -5,7 +5,7 @@ using ASToolkit.Core.Reference;
 namespace ASToolkit.Core.Generation.Content;
 
 /// <summary>
-/// Provides the budget of a generated level, its hit points, pickups, weapons and set pieces.
+/// Provides the budget of a generated level.
 /// </summary>
 public sealed class BudgetPlanner
 {
@@ -21,8 +21,12 @@ public sealed class BudgetPlanner
     }
 
     /// <summary>
-    /// Returns the budget of a level, with hit points within a tenth of the brief's.
+    /// Plans the budget of a level, with hit points within a tenth of those in the brief.
     /// </summary>
+    /// <param name="rng">The random source.</param>
+    /// <param name="brief">The brief of the level.</param>
+    /// <param name="dynamiteSites">The number of dynamite sites of the level.</param>
+    /// <returns>The budget of the level.</returns>
     public LevelBudget Plan(Random rng, LevelBrief brief, int dynamiteSites)
     {
         var items = brief.Pickups.ToDictionary();

@@ -6,7 +6,7 @@ using ASToolkit.Core.Survey;
 namespace ASToolkit.Core.Generation.Buildings;
 
 /// <summary>
-/// Provides the building of a level, laid out by its building's grammar from the level's program and written in layout units.
+/// Provides the layout of a level's building in layout units, built by the grammar of its building type from the level's program.
 /// </summary>
 public sealed class BuildingBuilder
 {
@@ -17,6 +17,8 @@ public sealed class BuildingBuilder
     /// <summary>
     /// Initializes a new instance of the <see cref="BuildingBuilder"/> class.
     /// </summary>
+    /// <param name="rng">The random source.</param>
+    /// <param name="footprints">The footprints the rooms are drawn from.</param>
     public BuildingBuilder(Random rng, IReadOnlyList<RoomFootprint> footprints)
     {
         _rng = rng;
@@ -24,13 +26,15 @@ public sealed class BuildingBuilder
     }
 
     /// <summary>
-    /// Gets the fallbacks and built parts the last building counted.
+    /// Gets the counts of the fallbacks and built parts of the last building.
     /// </summary>
     public IReadOnlyDictionary<string, int> Counts { get; private set; } = new Dictionary<string, int>();
 
     /// <summary>
     /// Builds the building a level asks for.
     /// </summary>
+    /// <param name="request">The request of the level.</param>
+    /// <returns>The plan of the building.</returns>
     public BuildingPlan Build(BuildingRequest request)
     {
         BuildingGrammar grammar = request.Building switch
@@ -150,7 +154,6 @@ public sealed class BuildingBuilder
         int Map(int id) => idOf[id];
     }
 
-    // Returns the halls and rooms that share at least one grid unit of wall
     private static RoomPair[] FindContacts(IReadOnlyList<BuildingRoom> rooms)
     {
         var walkable = rooms.Where(room => room.Kind is BuildingRoomKind.Hall or BuildingRoomKind.Room).ToArray();

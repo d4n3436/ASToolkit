@@ -188,7 +188,7 @@ internal sealed class PlaceSegmenter
         bool IsWall(EdgeKey edge) => edges.TryGetValue(edge, out var kind) && kind.BlocksWalking;
     }
 
-    // Give each small patch of floor no place holds to the place it opens onto most
+    // Give each small patch of floor that no place holds to the place it opens onto most
     private static void AddHiddenFloor(List<List<Cell>> places, Dictionary<Cell, int> placeOf, HashSet<Cell> floor, RouteGrid grid, Dictionary<EdgeKey, EdgeKind> edges)
     {
         var left = grid.Cells.Concat(grid.BlockedCells).Where(cell => !floor.Contains(cell)).ToHashSet();
@@ -820,7 +820,7 @@ internal sealed class PlaceSegmenter
         return depth;
     }
 
-    // Drop the strips of each room's outline too narrow for a square of outline cells and fill its bites and unwalled holes as narrow
+    // Drop the strips of each room's outline that are too narrow for a square of outline cells and fill its bites and unwalled holes that are as narrow
     private static void SmoothOutlines(List<List<Cell>> places, Dictionary<Cell, int> placeOf, HashSet<Cell> floor, Dictionary<EdgeKey, EdgeKind> edges)
     {
         for (int index = 0; index < places.Count; index++)

@@ -3,8 +3,6 @@ using ASToolkit.Core.Rooms;
 
 namespace ASToolkit.Core.Generation.Buildings;
 
-// Holds the state a building grammar and its services build together, such as the grid of rooms, the doors the design marks, the program's
-// start, keys and end, each room's outline rects and the counts of what the build did
 internal sealed class BuildingDraft
 {
     private static readonly string[] TallyNames = Enum.GetValues<BuildingTally>()

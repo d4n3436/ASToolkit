@@ -4,7 +4,7 @@ using ASToolkit.Core.Rooms;
 namespace ASToolkit.Core.Generation.Buildings;
 
 /// <summary>
-/// Represents a rectangle a building grammar placed on its grid, with the group it keeps its distance from other groups by.
+/// Represents a rectangle placed on a building grid, with the group that decides which other rectangles it keeps its distance from.
 /// </summary>
 internal sealed class GridRoom
 {

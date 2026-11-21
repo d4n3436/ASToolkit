@@ -121,7 +121,7 @@ public sealed class MapScene
     public int Height { get; }
 
     /// <summary>
-    /// Gets a value indicating whether the scene has no objects to draw.
+    /// Gets a value indicating whether the scene doesn't have any objects to draw.
     /// </summary>
     public bool IsEmpty => Placed.Length == 0;
 

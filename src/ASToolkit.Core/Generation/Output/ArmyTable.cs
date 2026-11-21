@@ -5,8 +5,7 @@ using ASToolkit.Core.Reference;
 namespace ASToolkit.Core.Generation.Output;
 
 /// <summary>
-/// Provides the army the original levels give each object, such as the monsters army for monsters and generators and
-/// the neutral army for breakable things.
+/// Provides the army that the original levels give each object.
 /// </summary>
 public sealed class ArmyTable
 {
@@ -20,6 +19,9 @@ public sealed class ArmyTable
     /// <summary>
     /// Reads the most common army of every object ID from the given original maps.
     /// </summary>
+    /// <param name="references">The original levels.</param>
+    /// <param name="levels">The names of the original maps to read.</param>
+    /// <returns>The table of armies.</returns>
     public static ArmyTable Load(ReferenceLevelSet references, IEnumerable<string> levels)
     {
         var counts = new Dictionary<KnownObject, List<(Army Army, int Count)>>();
@@ -51,5 +53,7 @@ public sealed class ArmyTable
     /// <summary>
     /// Returns the army for an object ID.
     /// </summary>
+    /// <param name="id">The object ID.</param>
+    /// <returns>The army of the object.</returns>
     public Army GetArmy(KnownObject id) => _armies.TryGetValue(id, out var army) ? army : KnownObject.Monsters.Contains(id) || KnownObject.Bosses.Contains(id) ? Army.Monsters : Army.Player;
 }

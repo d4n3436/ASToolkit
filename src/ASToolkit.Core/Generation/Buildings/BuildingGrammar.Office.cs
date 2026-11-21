@@ -35,6 +35,6 @@ internal abstract partial class BuildingGrammar
         }
     }
 
-    // Places the secret closets, the office block having laid its spawn closets itself
+    // Places the secret closets, while the office block lays its spawn closets itself
     protected void PlaceOfficeClosets() => new SideRoomPlacer(Draft, BackTypes).PlaceClosets(0);
 }

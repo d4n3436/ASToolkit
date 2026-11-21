@@ -7,7 +7,7 @@ namespace ASToolkit.Cli.Commands;
 internal sealed class InspectDesignSettings : GameSettings
 {
     [CommandOption("-o|--out <FOLDER>", true)]
-    [Description("The folder for design.tsv, design.md and the generated levels. It is created when missing.")]
+    [Description("The folder for design.tsv, design.md and the generated levels. It is created if it doesn't exist.")]
     public string Out { get; init; } = "";
 
     [CommandOption("--seeds <COUNT>")]
@@ -38,7 +38,7 @@ internal sealed class InspectDesignSettings : GameSettings
 
         if (Seeds is < 0 or > 100)
         {
-            return ValidationResult.Error("The seed count must be 0 to 100.");
+            return ValidationResult.Error("The seed count must be between 0 and 100.");
         }
 
         return Scale is > 0 and <= 1 ? ValidationResult.Success() : ValidationResult.Error("The scale must be above 0 and at most 1.");

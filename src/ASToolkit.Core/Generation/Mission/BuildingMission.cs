@@ -3,15 +3,14 @@ using ASToolkit.Core.Levels;
 namespace ASToolkit.Core.Generation.Mission;
 
 /// <summary>
-/// Represents the mission of a building with its doors chosen, such as its mission graph, the door tree from each room to its parent, the rooms of
-/// the critical walk, the end room and every door laid.
+/// Represents the mission of a building after its doors are chosen.
 /// </summary>
 public sealed record BuildingMission
 {
-    /// <summary>Gets the mission graph of the building with its phases, keys, locks, flow, seals, links and room roles.</summary>
+    /// <summary>Gets the mission graph of the building.</summary>
     public required MissionGraph Mission { get; init; }
 
-    /// <summary>Gets the room each room of the building hangs from in the door tree, every room but the start.</summary>
+    /// <summary>Gets the room that each room of the building hangs from in the door tree, for every room except the start.</summary>
     public required IReadOnlyDictionary<int, int> Parent { get; init; }
 
     /// <summary>Gets the rooms the building's critical walk passes.</summary>

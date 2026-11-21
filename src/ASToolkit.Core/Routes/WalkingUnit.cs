@@ -3,7 +3,6 @@ using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Routes;
 
-// A unit that walks, with the grid it walks on for the sprites that are open
 internal sealed class WalkingUnit
 {
     private readonly WalkWorld _world;

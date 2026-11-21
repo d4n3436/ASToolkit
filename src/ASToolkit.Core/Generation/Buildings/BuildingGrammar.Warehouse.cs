@@ -37,7 +37,7 @@ internal abstract partial class BuildingGrammar
     private Dictionary<string, Area> DrawAreas(IReadOnlyList<WarehouseArea> template)
     {
         var areas = new Dictionary<string, Area>();
-        // Draw the A and B sides once per level, every area naming them sharing the draw
+        // Draw the A and B sides once per level and share the draw among every area that names them
         (string a, string b) = Random.Next() < 0.5f ? ("MinY", "MaxY") : ("MaxY", "MinY");
         foreach (var spec in template)
         {
@@ -294,8 +294,7 @@ internal abstract partial class BuildingGrammar
         Cell Turn(Cell cell) => placed.Turn.Apply(cell);
     }
 
-    // Draws a hall l long and w deep, widened into a cross over its middle third (feature 2) or given one bay on a side (feature 1), with a wall
-    // island in its straight body
+    // Draws a hall l long and w deep with a wall island in its straight body, and widens it into a cross over its middle third (feature 2) or gives it one bay on a side (feature 1)
     private Area HallArea(int w, int l, int feature, bool hasIsland)
     {
         var cells = Box(0, 0, l, w);
@@ -338,7 +337,7 @@ internal abstract partial class BuildingGrammar
         return area;
     }
 
-    // Lays a leg east, or north or south as its far end names, with the machine room beside its far end
+    // Lays a leg east, or north or south as its far end names, and puts the machine room beside its far end
     private Area LegArea(int w, int l, string end)
     {
         int side = Random.Inclusive(3, 4);
@@ -515,7 +514,7 @@ internal abstract partial class BuildingGrammar
         return cells;
     }
 
-    // Divides a region into parts of uneven size, each cut across the longest part's longer side, deep cuts stepping and cutting corner boxes out
+    // Divides a region into parts of uneven size by cutting each across the longer side of the longest part, with deep cuts that make steps and cut corner boxes out
     private List<HashSet<Cell>> Partition(HashSet<Cell> cells, int parts, bool deep)
     {
         const int least = 3;
@@ -565,7 +564,7 @@ internal abstract partial class BuildingGrammar
         return [];
     }
 
-    // Trades tabs one to `deepest` pieces deep across shared walls, keeping both rooms connected and two wide and the group's outline unchanged
+    // Trades tabs one to `deepest` pieces deep across shared walls and keeps both rooms connected and two wide, with the outline of the group unchanged
     private List<HashSet<Cell>> Interlock(List<HashSet<Cell>> rooms, int trades, int deepest)
     {
         for (int attempt = 0; attempt < trades * 8 && trades > 0; attempt++)
@@ -707,8 +706,6 @@ internal enum WarehouseShape
     Depot
 }
 
-// Holds one area of a warehouse template, its shape, sizes in wall pieces, phase and role, the host it joins with the join's door sides (A and B
-// drawn per level, In on the area), its way back from the key, the ways its doors face and the areas it must touch
 internal sealed record WarehouseArea(string Name, WarehouseShape Shape, ValueRange<int> Width, ValueRange<int> Length)
 {
     public int Phase { get; init; }

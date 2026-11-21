@@ -7,8 +7,7 @@ using ASToolkit.Core.Survey;
 namespace ASToolkit.Core.Generation.Campaign;
 
 /// <summary>
-/// Provides the drawing of a whole generated campaign from a campaign model, giving each level a brief whose hit points and end money never
-/// fall from one level to the next and whose weapons come in shop-price order.
+/// Provides the drawing of a whole generated campaign from a campaign model.
 /// </summary>
 public sealed class CampaignPlanner
 {
@@ -39,11 +38,14 @@ public sealed class CampaignPlanner
     /// <summary>
     /// Initializes a new instance of the <see cref="CampaignPlanner"/> class.
     /// </summary>
+    /// <param name="model">The campaign model.</param>
     public CampaignPlanner(CampaignModel model) => _model = model;
 
     /// <summary>
-    /// Draws the briefs of a campaign, its threat and end money never falling from one level to the next and its weapons coming in price order.
+    /// Draws the briefs of a campaign, with threat and end money that never fall from one level to the next and weapons that come in price order.
     /// </summary>
+    /// <param name="rng">The random source.</param>
+    /// <returns>The plan of the campaign.</returns>
     public CampaignPlan Plan(Random rng)
     {
         int count = _model.LevelCount;
@@ -247,7 +249,7 @@ public sealed class CampaignPlanner
 
     private static float Draw(Random rng, LinearFit line, float x) => line.Spread > 0 ? line.Evaluate(x) + rng.NextNormal() * line.Spread : line.Evaluate(x);
 
-    // Draw a value around the line at each point and hand the values out from the lowest in the order of the points
+    // Draw a value around the line at each point and hand the values out in the order of the points, starting with the lowest
     private static float[] DrawRising(Random rng, LinearFit line, IReadOnlyDictionary<int, float> points)
     {
         float[] values = new float[points.Keys.Max() + 1];
@@ -266,7 +268,7 @@ public sealed class CampaignPlanner
 
     private static bool IsIntro(int level, LevelStyle gate) => level == FirstIndoorLevel && gate != LevelStyle.Ungated;
 
-    // Gives each lab level a second wing of its own among those its gate builds, the levels with the fewest choices first
+    // Gives each lab level a second wing of its own among those its gate builds, starting with the levels that have the fewest choices
     private static LabWing?[] DrawLabWings(Random rng, Building[] buildings, LevelStyle[] gates)
     {
         var wings = new LabWing?[buildings.Length];
@@ -290,8 +292,7 @@ public sealed class CampaignPlanner
             : [];
     }
 
-    // Builds the campaign style's labs and warehouses at their fixed levels; in add-on style draws the buildings' shares around the fitted ones and
-    // hands the levels out along them, moving a level to a required building that drew none
+    // Builds the labs and warehouses of the campaign style at their fixed levels and, in add-on style, draws the share of each building around the fitted ones, hands the levels out along those shares and moves a level to a required building that drew none
     private Building[] DrawBuildings(Random rng)
     {
         var buildings = new Building[_model.LevelCount + 1];
@@ -351,7 +352,7 @@ public sealed class CampaignPlanner
         return buildings;
     }
 
-    // Draws each level's gate style from its wall set's and orders each wall set's levels the way the campaigns introduce them
+    // Draws the gate style of each level from the gate styles of its wall set and orders the levels of each wall set the way the campaigns introduce them
     private LevelStyle[] DrawGates(Random rng, WallSet[] wallSets)
     {
         var gates = new LevelStyle[wallSets.Length];
@@ -379,8 +380,7 @@ public sealed class CampaignPlanner
         return gates;
     }
 
-    // Hand the levels drawn around the line out in price order, none before the one before it nor before the money paid and picked up
-    // reaches the fitted share of its price
+    // Hand the levels drawn around the line out in price order, giving no weapon a level before the one before it or before the money paid and picked up reaches the fitted share of its price
     private Dictionary<KnownObject, int> DrawWeaponLevels(Random rng, int[] endMoney, int[] cash)
     {
         int count = _model.LevelCount;

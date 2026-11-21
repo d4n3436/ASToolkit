@@ -96,12 +96,12 @@ public sealed class LevelSignature
     public int? KeyToGate { get; init; }
 
     /// <summary>
-    /// Gets the walk with the gate shut, from the start or the blackout to the breaker, or null when the level has none.
+    /// Gets the walk with the gate shut, from the start or the blackout to the breaker, or null when the level doesn't have a breaker.
     /// </summary>
     public int? KeyWalk { get; init; }
 
     /// <summary>
-    /// Gets the share of the route walked before the first generator, or null when the level has none.
+    /// Gets the share of the route walked before the first generator, or null when the level doesn't have a generator.
     /// </summary>
     public float? FirstGenerator { get; init; }
 

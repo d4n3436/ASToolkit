@@ -55,7 +55,7 @@ internal abstract partial class BuildingGrammar
         ]
     };
 
-    // Returns level 8's chain, its last leg turning north or south off the bays into the arena
+    // Returns the chain of level 8, whose last leg turns north or south off the bays into the arena
     private static WarehouseArea[] Legs(bool hasSecondBay, bool turnsNorth)
     {
         var areas = new List<WarehouseArea>

@@ -10,7 +10,7 @@ namespace ASToolkit.Core.Generation.Layout;
 public sealed class PlanRegion
 {
     /// <summary>
-    /// Gets the region ID, the region's index in the plan.
+    /// Gets the region ID, which is the index of the region in the plan.
     /// </summary>
     public required int Id { get; init; }
 
@@ -55,7 +55,7 @@ public sealed class PlanRegion
     public int Phase { get; init; }
 
     /// <summary>
-    /// Gets the index of the region in the order the critical walk first enters regions, the host's index for a side room.
+    /// Gets the index of the region in the order in which the critical walk first enters regions, or the index of the host for a side room.
     /// </summary>
     public int Order { get; init; }
 

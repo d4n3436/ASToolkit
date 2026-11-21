@@ -7,7 +7,7 @@ namespace ASToolkit.Core.Survey;
 public enum PlaceTags
 {
     /// <summary>
-    /// No fact.
+    /// No fact applies to the place.
     /// </summary>
     None = 0,
 

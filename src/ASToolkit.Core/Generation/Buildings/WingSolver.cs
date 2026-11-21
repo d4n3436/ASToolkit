@@ -96,7 +96,7 @@ internal sealed class WingSolver
     {
         var problem = new LayoutProblem<int> { MinimumDistance = 2, TouchLength = 2, BeyondMargin = 2 };
 
-        // Keep the base room at its own size, its doors a unit off its corners or flush on a side under five units, opening only on its +u end
+        // Keep the base room at its own size, with its doors a unit off its corners or flush on a side under five units, opening only on its +u end
         var ends = DoorOffsets(baseRect.H)
             .SelectMany(at => new[] { new ShapeDoor(new Point(0, at), new Point(0, at + 3)), new ShapeDoor(new Point(baseRect.W, at), new Point(baseRect.W, at + 3)) });
 
@@ -170,7 +170,6 @@ internal sealed class WingSolver
             new RoomShape(RoomShape.Rectangle(3, length), [new ShapeDoor(new Point(0, 0), new Point(3, 0)), new ShapeDoor(new Point(0, length), new Point(3, length))], RoomShape.AllTurns);
     }
 
-    // Returns the offsets a three-unit door may take along a side, a unit off the corners on sides of five units or more
     private static IEnumerable<int> DoorOffsets(int span) => span >= 5 ? Enumerable.Range(1, span - 4) : Enumerable.Range(0, Math.Max(0, span - 2));
 
     // Splits cells into rects, the largest first
@@ -218,5 +217,4 @@ internal sealed class WingSolver
     }
 }
 
-// Holds a wing room in place, its rects the largest first and the throat it is entered through
 internal readonly record struct WingPlace(UnitRect[] Rects, UnitRect? Throat);

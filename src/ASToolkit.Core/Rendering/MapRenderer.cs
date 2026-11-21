@@ -14,7 +14,7 @@ using SixLabors.ImageSharp.PixelFormats;
 namespace ASToolkit.Core.Rendering;
 
 /// <summary>
-/// Renders maps the way the game engines draw them.
+/// Renders maps with the drawing rules of the game engines.
 /// </summary>
 public sealed class MapRenderer
 {
@@ -82,6 +82,8 @@ public sealed class MapRenderer
     /// <summary>
     /// Initializes a new instance of the <see cref="MapRenderer"/> class.
     /// </summary>
+    /// <param name="gameFolder">The folder of the game.</param>
+    /// <param name="objects">The game objects.</param>
     public MapRenderer(string gameFolder, ObjectTable objects)
     {
         _gameFolder = gameFolder;
@@ -101,7 +103,7 @@ public sealed class MapRenderer
     public bool OmitHiddenObjects { get; init; } = true;
 
     /// <summary>
-    /// Gets a value indicating whether Alien Shooter maps show the player the way the game shows a female player.
+    /// Gets a value indicating whether Alien Shooter maps show the player as a female player.
     /// </summary>
     public bool ShowFemalePlayer { get; init; }
 
@@ -688,7 +690,7 @@ public sealed class MapRenderer
         });
     }
 
-    // Returns the engine's draw layer of an object. Each layer draws from its last object to its first, the player after its objects
+    // Returns the engine's draw layer of an object. Each layer draws from its last object to its first, and the player draws after the objects of its layer.
     private static int GetEngineLayer(KnownObject id, GameObject obj, VidResource? file, bool isPlayer) =>
         LayerSlots * (int)obj.GetLayer(id, file) + (isPlayer ? 1 : 0);
 
@@ -1057,8 +1059,7 @@ public sealed class MapRenderer
         return bottom > top;
     }
 
-    // Turn the depth test off for light glows, blend 7 and mesh type 6 sprites like Alien Shooter 2. Keep it on for unlit renders,
-    // which have no light buffer to take the glows.
+    // Turn the depth test off for light glows and for blend 7 and mesh type 6 sprites. Keep it on for unlit renders, which have no light buffer to take the glows.
     private bool TestsDepth(VidResource view) =>
         !_objects.IsAlienShooter2 || !MatchGameLighting || !(view.BlendProcedure is BlendProcedure.AdditiveLight or BlendProcedure.AlphaDepthWrite || view.MeshType == MeshType.Glow);
 
@@ -1362,7 +1363,7 @@ public sealed class MapRenderer
 
     internal sealed record StripBuffers(Rgb24[] Source, int[] Depth, Rgb24[] Light, int[] Sums, Rgb24[] Row);
 
-    // The sprite canvas is centered on X and ScreenY, the world y minus the height
+    // The sprite canvas is centered on X and ScreenY, which is the world y minus the height
     internal sealed record Placement(ObjectProperties Flags, SpriteFrame? Frame, float ScreenX, float ScreenY, int Width, int Height, int BaseDepth, bool IsStanding,
         int Pass, SceneObject? Source, FrameAnimation? Animation)
     {
@@ -1424,8 +1425,6 @@ public sealed class MapRenderer
             : IsStanding ? Math.Min(baseDepth + FlatDepth, MaxFlatDepth) + (frame.Rows - row) * DepthPerHeight : Math.Min(baseDepth + FlatDepth, MaxFlatDepth);
     }
 
-    // Draws an output area in strips of rows in parallel. Each strip is drawn at full size with its own depth buffer, then
-    // every output pixel takes the average of the source pixels it covers.
     internal sealed class Canvas
     {
         private readonly Placement[] _placed;

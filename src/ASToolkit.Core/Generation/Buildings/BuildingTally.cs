@@ -1,6 +1,6 @@
 namespace ASToolkit.Core.Generation.Buildings;
 
-// Specifies an outcome a building grammar counts, written as its snake-case name with a wing kind appended when one is given
+// Counted under the snake-case name of the outcome, with the wing kind appended when there is one
 internal enum BuildingTally
 {
     BuildingUnlaid,

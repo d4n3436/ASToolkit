@@ -58,8 +58,10 @@ public sealed record BuildingPlan
     public IReadOnlyList<int> LockedSiteRooms { get; init; } = [];
 
     /// <summary>
-    /// Returns the building with every neck that carries no door dropped, a neck being the throat of a door and nothing else.
+    /// Returns the building with every neck that doesn't carry a door dropped. A neck is the throat of a door and nothing else.
     /// </summary>
+    /// <param name="doors">The pairs of rooms that have a door.</param>
+    /// <returns>The building without the necks that don't have a door.</returns>
     public BuildingPlan DropNecksWithoutDoors(IReadOnlyCollection<RoomPair> doors)
     {
         var rooms = Rooms.ToArray();

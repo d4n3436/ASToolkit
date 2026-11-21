@@ -14,7 +14,7 @@ internal sealed class InspectObjectCommand : Command<InspectObjectSettings>
         var id = (KnownObject)settings.Id;
         if (!objects.TryFind(id, out var obj))
         {
-            AnsiConsole.MarkupLine($"[red]No object {settings.Id}.[/]");
+            AnsiConsole.MarkupLine($"[red]Could not find object {settings.Id}.[/]");
             return 1;
         }
 

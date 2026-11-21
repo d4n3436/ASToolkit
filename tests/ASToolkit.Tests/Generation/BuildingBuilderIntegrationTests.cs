@@ -24,7 +24,7 @@ public class BuildingBuilderIntegrationTests
         return buildings;
     }
 
-    // Counts the closets more than twice the level's median closet, the walled rooms entered through a jammed door beside a breakable wall
+    // Counts the closets more than twice the level's median closet, which are the walled rooms entered through a jammed door beside a breakable wall
     private static int CountWalledRooms(ReferenceLevel level)
     {
         int[] closets = level.Atlas.Rooms

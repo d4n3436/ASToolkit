@@ -6,8 +6,6 @@ using Google.OrTools.Sat;
 
 namespace ASToolkit.Core.Generation.Buildings;
 
-// Lays rooms with CP-SAT, each in one of its shapes and turns, joined rooms meeting on a door segment of each and the problem's distances, touches,
-// door sides, beyond pairs and obstacles held as constraints, taking the first layout found from random hints
 internal sealed class LayoutSolver<T>
     where T : notnull
 {
@@ -205,8 +203,7 @@ internal sealed class LayoutSolver<T>
         return new Node(u, v, choices, variants, slots.ToArray());
     }
 
-    // Keeps every rectangle of one set the gap from every rectangle of the other, or flush against it when the pair may touch, and returns the
-    // pair's contact literal when contacts are counted
+    // Keeps every rectangle of one set the given gap away from every rectangle of the other, or flush against it when the pair may touch, and returns the contact literal of the pair when contacts are counted
     private BoolVar? KeepApart(Slot[] first, Slot[] second, int gap, bool flush)
     {
         var contact = flush && _problem.MinContacts > 0 ? _model.NewBoolVar("") : null;
@@ -281,7 +278,7 @@ internal sealed class LayoutSolver<T>
         _model.AddBoolOr(options);
     }
 
-    // Overlaps the spans [a0, a1) and [b0, b1) by at least the length when the literal holds, each span at least that long
+    // Overlaps the spans [a0, a1) and [b0, b1) by at least the length when the literal holds, and requires each span to be at least that long
     private void AddOverlap(LinearExpr a0, LinearExpr a1, LinearExpr b0, LinearExpr b1, int length, ILiteral literal)
     {
         _model.Add(a0 + length <= b1).OnlyEnforceIf(literal);
@@ -290,7 +287,7 @@ internal sealed class LayoutSolver<T>
         _model.Add(b0 + length <= b1).OnlyEnforceIf(literal);
     }
 
-    // Stands a door of each room on one wall segment, facing each other, each on its given sides in its shape's frame
+    // Stands a door of each room on one wall segment, with the doors facing each other and each on its given sides in the frame of its shape
     private void Join(Node a, Node b, DoorSides sidesOfA, DoorSides sidesOfB)
     {
         var u = _model.NewIntVar(-Reach * 2, Reach * 2, "");
@@ -371,7 +368,7 @@ internal sealed class LayoutSolver<T>
         _ => DoorSides.MinY
     };
 
-    // Turns a shape and its doors, each door keeping the side it faces in the shape's own frame and its doors merged into sliding runs
+    // Turns a shape and its doors, keeping for each door the side it faces in the frame of the shape and merging the doors into sliding runs
     private static Variant TurnShape(RoomShape shape, ShapeTurn turn)
     {
         var cells = shape.Cells.Select(cell => turn.Apply(cell)).ToHashSet();
@@ -446,7 +443,6 @@ internal sealed class LayoutSolver<T>
         public LinearExpr VMax => V + OffsetV + H;
     }
 
-    // Holds a run of door starts on one wall line, the door this long and facing one way after the turn and another in the shape's frame
     private readonly record struct Line(int At, int Low, int High, int Length, int Facing, int OwnFacing) : IComparable<Line>
     {
         public int CompareTo(Line other) =>

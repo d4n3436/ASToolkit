@@ -22,6 +22,7 @@ public sealed class NoveltyMeasurer
     /// <summary>
     /// Initializes a new instance of the <see cref="NoveltyMeasurer"/> class.
     /// </summary>
+    /// <param name="originals">The name, model and survey of each original level.</param>
     public NoveltyMeasurer(IReadOnlyList<(string Name, LevelModel Model, LevelSurvey Survey)> originals)
     {
         _names = originals
@@ -63,8 +64,11 @@ public sealed class NoveltyMeasurer
     }
 
     /// <summary>
-    /// Returns the decor pieces other than blood and shadows, and the monsters, of a level that belong to a group of three or more, of two ids or more, matching an original other than the named one within 2 px.
+    /// Counts the decor pieces, other than blood and shadows, and the monsters of a level that belong to a group of three or more pieces with at least two IDs and match an original other than the named one within 2 px.
     /// </summary>
+    /// <param name="name">The name of the level.</param>
+    /// <param name="model">The model of the level.</param>
+    /// <returns>The share of the counted pieces that match an original.</returns>
     public MeasureShare CountCopiedPieces(string name, LevelModel model)
     {
         int self = Array.IndexOf(_names, name);
@@ -104,8 +108,11 @@ public sealed class NoveltyMeasurer
     }
 
     /// <summary>
-    /// Returns the name of an original other than the named one whose door graph has the same shape as the level's, or null when none has.
+    /// Finds the name of an original, other than the named one, whose door graph has the same shape as the level's.
     /// </summary>
+    /// <param name="name">The name of the level.</param>
+    /// <param name="survey">The survey of the level.</param>
+    /// <returns>The name of the original, or null if there isn't one.</returns>
     public string? FindEqualDoorGraph(string name, LevelSurvey survey)
     {
         var graph = DoorGraph.Create(survey);

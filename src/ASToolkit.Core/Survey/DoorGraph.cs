@@ -15,6 +15,8 @@ public sealed class DoorGraph
     /// <summary>
     /// Initializes a new instance of the <see cref="DoorGraph"/> class.
     /// </summary>
+    /// <param name="rooms">The rooms of the graph.</param>
+    /// <param name="neighbors">The rooms each room opens onto.</param>
     public DoorGraph(int[] rooms, Dictionary<int, HashSet<int>> neighbors)
     {
         _rooms = rooms;
@@ -34,6 +36,8 @@ public sealed class DoorGraph
     /// <summary>
     /// Creates the door graph of a surveyed level's rooms other than closets, joined through every connection a player walks.
     /// </summary>
+    /// <param name="survey">The survey of the level.</param>
+    /// <returns>The door graph of the level.</returns>
     public static DoorGraph Create(LevelSurvey survey)
     {
         int closet = GetClosetLimit(survey);
@@ -104,13 +108,18 @@ public sealed class DoorGraph
     /// <summary>
     /// Returns the place the tour of a surveyed level starts in and the place it ends in.
     /// </summary>
+    /// <param name="survey">The survey of the level.</param>
+    /// <returns>The place the tour starts in and the place it ends in.</returns>
     public static (int Start, int End) FindEnds(LevelSurvey survey) =>
         (survey.Landmarks.First(landmark => landmark.Kind == LandmarkKind.PlayerStart).Place,
             survey.Landmarks.FirstOrDefault(landmark => landmark.Kind == LandmarkKind.RouteEnd)?.Place ?? survey.Route[^1].Place);
 
     /// <summary>
-    /// Returns the _rooms of the biconnected blocks on the way from one room to another.
+    /// Returns the rooms of the biconnected blocks on the way from one room to another.
     /// </summary>
+    /// <param name="start">The room the way starts from.</param>
+    /// <param name="end">The room the way ends in.</param>
+    /// <returns>The rooms of the blocks on the way.</returns>
     public HashSet<int> FindMainBody(int start, int end)
     {
         if (start == end)
@@ -177,8 +186,10 @@ public sealed class DoorGraph
     }
 
     /// <summary>
-    /// Returns the groups of _rooms off a main body, each joined to the body through one of its _rooms.
+    /// Returns the groups of rooms off a main body, each joined to the body through one of its rooms.
     /// </summary>
+    /// <param name="body">The rooms of the main body.</param>
+    /// <returns>The groups of rooms off the main body.</returns>
     public List<List<int>> FindBranches(HashSet<int> body)
     {
         var branches = new List<List<int>>();
@@ -201,6 +212,7 @@ public sealed class DoorGraph
     /// <summary>
     /// Returns the number of connected parts of the graph.
     /// </summary>
+    /// <returns>The number of connected parts.</returns>
     public int CountComponents()
     {
         var seen = new HashSet<int>();
@@ -220,6 +232,8 @@ public sealed class DoorGraph
     /// <summary>
     /// Returns the graph of the given rooms and the doors between them.
     /// </summary>
+    /// <param name="rooms">The rooms of the subgraph.</param>
+    /// <returns>The graph of the rooms and the doors between them.</returns>
     public DoorGraph GetSubgraph(IReadOnlySet<int> rooms)
     {
         int[] kept = _rooms.Where(rooms.Contains).ToArray();
@@ -229,11 +243,13 @@ public sealed class DoorGraph
     /// <summary>
     /// Returns the number of independent cycles of the graph.
     /// </summary>
+    /// <returns>The number of independent cycles.</returns>
     public int CountLoops() => _neighbors.Values.Sum(neighbors => neighbors.Count) / 2 - _rooms.Length + CountComponents();
 
     /// <summary>
     /// Returns a hash of the graph's shape that equal graphs share, from three rounds of Weisfeiler-Lehman relabeling.
     /// </summary>
+    /// <returns>The hash of the graph's shape.</returns>
     public ulong ComputeShapeHash()
     {
         var labels = _rooms.ToDictionary(room => room, room => (ulong)_neighbors[room].Count);
@@ -251,11 +267,13 @@ public sealed class DoorGraph
     /// <summary>
     /// Returns the number of neighbors of each room, from fewest to most.
     /// </summary>
+    /// <returns>The numbers of neighbors, in ascending order.</returns>
     public int[] GetDegrees() => _rooms.Select(room => _neighbors[room].Count).Order().ToArray();
 
     /// <summary>
     /// Returns the rooms of each biconnected block of the graph.
     /// </summary>
+    /// <returns>The rooms of each block.</returns>
     public List<HashSet<int>> FindBlocks()
     {
         var blocks = new List<HashSet<int>>();

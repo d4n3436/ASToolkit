@@ -11,7 +11,7 @@ internal sealed class InspectLevelSettings : GameSettings
     public string[] Maps { get; init; } = [];
 
     [CommandOption("-o|--out <FOLDER>", true)]
-    [Description("The folder for the place images. It is created when missing.")]
+    [Description("The folder for the place images. It is created if it doesn't exist.")]
     public string Out { get; init; } = "";
 
     [CommandOption("-l|--levels <FOLDER>")]

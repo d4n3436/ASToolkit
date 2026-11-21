@@ -5,7 +5,7 @@ using ASToolkit.Core.Scripting;
 namespace ASToolkit.Gui.Models;
 
 /// <summary>
-/// Represents the level logic, helper markers and route the map viewer draws over a map, in map pixels.
+/// Represents what the map viewer draws over a map, in map pixels.
 /// </summary>
 public sealed class MapOverlay
 {
@@ -20,7 +20,7 @@ public sealed class MapOverlay
     public required IReadOnlyList<HelperMarker> Helpers { get; init; }
 
     /// <summary>
-    /// Gets the walked tour of the level, or null when the level has none.
+    /// Gets the walked tour of the level, or null when the level doesn't have one.
     /// </summary>
     public RouteAnalysis? Route { get; init; }
 
@@ -30,7 +30,7 @@ public sealed class MapOverlay
     public IReadOnlyList<TourRun> TourRuns { get; init; } = [];
 
     /// <summary>
-    /// Gets the walk through the quest steps of the level, or null when the level has none.
+    /// Gets the walk through the quest steps of the level, or null when the level doesn't have one.
     /// </summary>
     public WalkedRoute? Walk { get; init; }
 }
