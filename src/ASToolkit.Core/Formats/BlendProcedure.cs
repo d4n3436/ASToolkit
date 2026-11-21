@@ -36,7 +36,7 @@ public enum BlendProcedure
     AlphaNoDepthWrite = 6,
 
     /// <summary>
-    /// The sprite is drawn like <see cref="Alpha"/>, writing depth and drawn over everything already drawn.
+    /// The sprite is drawn like <see cref="Alpha"/>, but it writes depth and is drawn over everything already drawn.
     /// </summary>
     AlphaDepthWrite = 7
 }

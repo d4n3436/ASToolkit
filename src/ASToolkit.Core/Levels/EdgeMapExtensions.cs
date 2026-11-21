@@ -17,11 +17,16 @@ public static class EdgeMapExtensions
     extension(IReadOnlyDictionary<EdgeKey, EdgeKind> edges)
     {
         /// <summary>
-        /// Returns the map distance straight down the screen from a map point to the first wall that blocks walking, or the reach when none is nearer.
+        /// Returns the map distance straight down the screen from a map point to the first wall that blocks walking, or the reach if there isn't a nearer wall.
         /// </summary>
+        /// <param name="lattice">The lattice of the cells.</param>
+        /// <param name="x">The x coordinate of the map point.</param>
+        /// <param name="y">The y coordinate of the map point.</param>
+        /// <param name="reach">The distance returned if there isn't a nearer wall.</param>
+        /// <returns>The distance.</returns>
         public float MeasureDrop(Lattice lattice, float x, float y, float reach)
         {
-            // Step between the cell boundaries the ray crosses, u falling and v rising one unit each period
+            // Step between the cell boundaries the ray crosses, where u falls and v rises one unit each period
             (float u, float v) = lattice.ToLattice(x, y);
             float period = 2 * lattice.StepY;
             float toU = (u - MathF.Floor(u)) * period;
@@ -62,27 +67,40 @@ public static class EdgeMapExtensions
         }
 
         /// <summary>
-        /// Returns the nearest edge showing a wall face within one and a half cells of a lattice point with the side it stands on, or null when there is none.
+        /// Returns the nearest edge showing a wall face within one and a half cells of a lattice point, with the side it stands on, or null if there isn't one.
         /// </summary>
+        /// <param name="u">The u coordinate of the lattice point.</param>
+        /// <param name="v">The v coordinate of the lattice point.</param>
+        /// <returns>The side and the distance of the edge, or null if there isn't one.</returns>
         public (WallSides Side, float Distance)? FindNearestWall(float u, float v) =>
             FindNearest(edges, u, v, NearSearch, NearReach, static kind => kind.ShowsWall);
 
         /// <summary>
-        /// Returns the nearest edge of any kind within one and a half cells of a lattice point with the side it stands on, or null when there is none.
+        /// Returns the nearest edge of any kind within one and a half cells of a lattice point, with the side it stands on, or null if there isn't one.
         /// </summary>
+        /// <param name="u">The u coordinate of the lattice point.</param>
+        /// <param name="v">The v coordinate of the lattice point.</param>
+        /// <returns>The side and the distance of the edge, or null if there isn't one.</returns>
         public (WallSides Side, float Distance)? FindNearestEdge(float u, float v) =>
             FindNearest(edges, u, v, NearSearch, NearReach, static _ => true);
 
         /// <summary>
         /// Returns the distance in cells from a lattice point to the nearest edge other than the end of a double door within three cells,
-        /// or infinity when there is none.
+        /// or infinity if there isn't one.
         /// </summary>
+        /// <param name="u">The u coordinate of the lattice point.</param>
+        /// <param name="v">The v coordinate of the lattice point.</param>
+        /// <returns>The distance in cells.</returns>
         public float MeasureClearance(float u, float v) =>
             FindNearest(edges, u, v, ClearanceSearch, float.PositiveInfinity, static kind => kind != EdgeKind.DoubleDoorEnd)?.Distance ?? float.PositiveInfinity;
 
         /// <summary>
-        /// Returns the sides of a cell that are walled, a side counting when its edge passes a test or the cell beyond is not floor.
+        /// Returns the sides of a cell that are walled, where a side counts as walled when its edge passes a test or the cell beyond it isn't floor.
         /// </summary>
+        /// <param name="cell">The cell.</param>
+        /// <param name="isFloor">Whether a cell is floor.</param>
+        /// <param name="isWall">Whether an edge kind counts as a wall.</param>
+        /// <returns>The walled sides.</returns>
         public WallSides GetWalledSides(Cell cell, Func<Cell, bool> isFloor, Func<EdgeKind, bool> isWall)
         {
             var sides = WallSides.None;
@@ -101,8 +119,14 @@ public static class EdgeMapExtensions
 
         /// <summary>
         /// Returns the distance in cells from a lattice point to the first edge or floor border on one side, with that edge and its kind
-        /// (none at a bare border), or null when there is none within a number of cells.
+        /// (the kind is none at a bare border), or null if there isn't one within a number of cells.
         /// </summary>
+        /// <param name="u">The u coordinate of the lattice point.</param>
+        /// <param name="v">The v coordinate of the lattice point.</param>
+        /// <param name="side">The side of the cell to cast toward.</param>
+        /// <param name="isFloor">Whether a cell is floor.</param>
+        /// <param name="maxCells">The farthest distance in cells to look.</param>
+        /// <returns>The distance, the edge and its kind, or null if there isn't an edge or border within the given number of cells.</returns>
         public (float Distance, EdgeKey Edge, EdgeKind Kind)? CastRay(float u, float v, WallSides side, Func<Cell, bool> isFloor, int maxCells)
         {
             var at = new Cell((int)MathF.Floor(u), (int)MathF.Floor(v));

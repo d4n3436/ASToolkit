@@ -53,7 +53,7 @@ public readonly struct VidFrame
     public int Width { get; }
 
     /// <summary>
-    /// Gets the triangles that give the pixels a height; empty for frames that carry none.
+    /// Gets the triangles that give the pixels a height; empty for frames that don't carry any.
     /// </summary>
     public VidMesh Mesh { get; }
 
@@ -70,6 +70,7 @@ public readonly struct VidFrame
     /// <summary>
     /// Returns an enumerator over the runs of the frame.
     /// </summary>
+    /// <returns>The enumerator.</returns>
     public Enumerator GetEnumerator() => new(this);
 
     /// <summary>
@@ -98,6 +99,7 @@ public readonly struct VidFrame
         /// <summary>
         /// Moves to the next run that has pixels.
         /// </summary>
+        /// <returns><see langword="true"/> if there is another run; otherwise, <see langword="false"/>.</returns>
         public bool MoveNext() => _frame.Width > 0 ? MoveNextLinear() : MoveNextRows();
 
         private bool MoveNextRows()

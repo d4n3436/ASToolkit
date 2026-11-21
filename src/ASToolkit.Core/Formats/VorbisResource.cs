@@ -30,7 +30,7 @@ public readonly struct VorbisResource
     private static ReadOnlySpan<byte> IdentificationHeader => "\u0001vorbis"u8;
 
     /// <summary>
-    /// Gets the number of channels, 0 when the file starts with no identification header.
+    /// Gets the number of channels, 0 when the file doesn't start with an identification header.
     /// </summary>
     public int Channels
     {
@@ -43,7 +43,7 @@ public readonly struct VorbisResource
     }
 
     /// <summary>
-    /// Gets the samples per second of each channel, 0 when the file starts with no identification header.
+    /// Gets the samples per second of each channel, 0 when the file doesn't start with an identification header.
     /// </summary>
     public int SampleRate
     {
@@ -56,7 +56,7 @@ public readonly struct VorbisResource
     }
 
     /// <summary>
-    /// Gets the samples of each channel, the granule position of the last page; 0 when the file has no page.
+    /// Gets the samples of each channel, the granule position of the last page; 0 when the file doesn't have a page.
     /// </summary>
     public long SampleCount
     {

@@ -11,5 +11,5 @@ namespace ASToolkit.Core.Levels;
 /// <param name="Z">The height.</param>
 /// <param name="Direction">The direction.</param>
 /// <param name="Payload">The payload bytes.</param>
-/// <param name="SupportIndex">The index of the object it stands on, -1 when the object stands raised on nothing found, or null when the object stands on the floor.</param>
+/// <param name="SupportIndex">The index of the object it stands on, -1 if the object stands raised on nothing found, or null if the object stands on the floor.</param>
 public sealed record DecorObject(KnownObject Id, float U, float V, float Z, Angle Direction, byte[] Payload, int? SupportIndex);

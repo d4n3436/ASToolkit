@@ -3,8 +3,7 @@ using ASToolkit.Core.Levels;
 namespace ASToolkit.Core.Reference;
 
 /// <summary>
-/// Represents how often a drawn building stands among a style's original levels after the first and where its levels lie in their campaigns,
-/// such as warehouses on half the levels, late in the campaigns.
+/// Represents how often a building occurs among a style's original levels after the first and where those levels lie in their campaigns.
 /// </summary>
 /// <param name="Building">The building.</param>
 /// <param name="Share">The share of the original levels after the first that are the building, among the drawn buildings.</param>

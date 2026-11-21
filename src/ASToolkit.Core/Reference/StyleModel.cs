@@ -4,8 +4,7 @@ using ASToolkit.Core.Levels;
 namespace ASToolkit.Core.Reference;
 
 /// <summary>
-/// Represents everything a generator takes from the original levels of a style, the campaign model and, per wall set, the decor heights, wall
-/// clearances, wall directions and object relations.
+/// Represents everything a generator takes from the original levels of a style.
 /// </summary>
 public sealed class StyleModel
 {
@@ -15,6 +14,12 @@ public sealed class StyleModel
     /// <summary>
     /// Initializes a new instance of the <see cref="StyleModel"/> class.
     /// </summary>
+    /// <param name="style">The generation style.</param>
+    /// <param name="fittingLevels">The original levels the model is fitted to, in order.</param>
+    /// <param name="relations">The object relations of the fitted levels.</param>
+    /// <param name="wallClearance">The wall clearances by wall set.</param>
+    /// <param name="directions">The wall directions by wall set.</param>
+    /// <param name="campaign">The campaign model.</param>
     public StyleModel(GenerationStyle style, IReadOnlyList<string> fittingLevels, ObjectRelationTable relations, IReadOnlyDictionary<WallSet, WallClearanceTable> wallClearance,
         IReadOnlyDictionary<WallSet, DirectionTable> directions, CampaignModel campaign)
     {
@@ -37,7 +42,7 @@ public sealed class StyleModel
     public CampaignModel Campaign { get; }
 
     /// <summary>
-    /// Gets the fight parameters fitted to the style's originals.
+    /// Gets the fight parameters fitted to the style's original levels.
     /// </summary>
     public required EncounterModel Encounters { get; init; }
 
@@ -47,7 +52,7 @@ public sealed class StyleModel
     public required EconomyModel Economy { get; init; }
 
     /// <summary>
-    /// Gets the outlines of the originals' smaller rooms the building grammars transform their rooms from.
+    /// Gets the outlines of the original levels' smaller rooms, which the building grammars transform their rooms from.
     /// </summary>
     public required IReadOnlyList<RoomFootprint> Footprints { get; init; }
 
@@ -64,10 +69,14 @@ public sealed class StyleModel
     /// <summary>
     /// Returns how far the objects of a wall set stand from walls.
     /// </summary>
+    /// <param name="wallSet">The wall set.</param>
+    /// <returns>The wall clearances of the wall set.</returns>
     public WallClearanceTable GetWallClearance(WallSet wallSet) => _wallClearance[wallSet];
 
     /// <summary>
     /// Returns how the objects of a wall set face the walls they stand against.
     /// </summary>
+    /// <param name="wallSet">The wall set.</param>
+    /// <returns>The wall directions of the wall set.</returns>
     public DirectionTable GetDirections(WallSet wallSet) => _directions[wallSet];
 }

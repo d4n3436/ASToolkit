@@ -6,7 +6,7 @@ namespace ASToolkit.Core.Formats;
 public enum VidPixelFormat
 {
     /// <summary>
-    /// The header has no format code.
+    /// The header doesn't have a format code.
     /// </summary>
     None = 0,
 

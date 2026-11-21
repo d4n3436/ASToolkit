@@ -38,7 +38,7 @@ public sealed class MapResourceBuilder
     public IReadOnlyList<int[]> Groups { get; init; } = [];
 
     /// <summary>
-    /// Gets the sprite handle of the player each player slot starts with, or 0 for none.
+    /// Gets the sprite handle of the player each player slot starts with, or 0 if the slot doesn't start with a player.
     /// </summary>
     public IReadOnlyList<int> PlayerHandles { get; init; } = [];
 
@@ -55,11 +55,15 @@ public sealed class MapResourceBuilder
     /// <summary>
     /// Reads the placed objects of a map. Entries with non-finite or far-off coordinates are skipped.
     /// </summary>
+    /// <param name="path">The path of the map file.</param>
+    /// <returns>The placed objects of the map.</returns>
     public static MapResourceBuilder Load(string path) => Parse(File.ReadAllBytes(path));
 
     /// <summary>
     /// Reads the placed objects of a map from its bytes. Entries with non-finite or far-off coordinates are skipped.
     /// </summary>
+    /// <param name="data">The bytes of the map.</param>
+    /// <returns>The placed objects of the map.</returns>
     public static MapResourceBuilder Parse(ReadOnlyMemory<byte> data)
     {
         var resource = new MapResource(data);
@@ -94,13 +98,17 @@ public sealed class MapResourceBuilder
     }
 
     /// <summary>
-    /// Writes the map, taking every chunk other than the objects and the header from a template map.
+    /// Writes the map to a file and takes every chunk other than the objects and the header from a template map.
     /// </summary>
+    /// <param name="path">The path to write the map to.</param>
+    /// <param name="templatePath">The path of the template map file.</param>
     public void Write(string path, string templatePath) => File.WriteAllBytes(path, ToBytes(File.ReadAllBytes(templatePath)));
 
     /// <summary>
-    /// Returns the bytes of the map, taking every chunk other than the objects and the header from a template map's bytes.
+    /// Builds the bytes of the map and takes every chunk other than the objects and the header from the bytes of a template map.
     /// </summary>
+    /// <param name="template">The bytes of the template map.</param>
+    /// <returns>The bytes of the map.</returns>
     public byte[] ToBytes(ReadOnlyMemory<byte> template)
     {
         var file = ResContainerBuilder.Parse(template);

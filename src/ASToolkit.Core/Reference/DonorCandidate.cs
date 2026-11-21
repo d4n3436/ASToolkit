@@ -4,9 +4,9 @@ using ASToolkit.Core.Survey;
 namespace ASToolkit.Core.Reference;
 
 /// <summary>
-/// Represents an original level whose layout profile, fights, set pieces and decor a generated level borrows until models cover them, with the
-/// wall set, gate style and hit points it is chosen by.
+/// Represents an original level whose layout profile, fights, set pieces and decor a generated level borrows until models cover them.
 /// </summary>
+/// <remarks>A donor is chosen by its wall set, gate style and hit points.</remarks>
 /// <param name="Name">The map name of the original.</param>
 /// <param name="WallSet">The wall set of the original's walls.</param>
 /// <param name="GateStyle">The gate style of the original.</param>

@@ -12,12 +12,12 @@ public enum SpriteSearch
     None = 0,
 
     /// <summary>
-    /// The bits holding the object id or the sprite class the search matches.
+    /// The bits holding the object ID or the sprite class the search matches.
     /// </summary>
     ValueMask = 0x7ff,
 
     /// <summary>
-    /// Sprites of the object id in the value bits.
+    /// Sprites of the object ID in the value bits.
     /// </summary>
     Id = 1 << 11,
 
@@ -102,7 +102,7 @@ public enum SpriteSearch
     Sprite = 1 << 30,
 
     /// <summary>
-    /// Sprites carrying no command.
+    /// Sprites that don't carry a command.
     /// </summary>
     Free = 1 << 31
 }

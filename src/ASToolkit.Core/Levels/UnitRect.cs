@@ -27,6 +27,11 @@ public readonly record struct UnitRect(int U, int V, int W, int H)
     /// <summary>
     /// Creates a rectangle from its first units and the first units past it.
     /// </summary>
+    /// <param name="u0">The first unit along u.</param>
+    /// <param name="v0">The first unit along v.</param>
+    /// <param name="u1">The first unit past the rectangle along u.</param>
+    /// <param name="v1">The first unit past the rectangle along v.</param>
+    /// <returns>The rectangle.</returns>
     public static UnitRect FromEdges(int u0, int v0, int u1, int v1) => new(u0, v0, u1 - u0, v1 - v0);
 
     /// <summary>
@@ -47,23 +52,31 @@ public readonly record struct UnitRect(int U, int V, int W, int H)
     }
 
     /// <summary>
-    /// Returns whether a unit lies inside the rectangle.
+    /// Determines whether a unit lies inside the rectangle.
     /// </summary>
+    /// <param name="c">The unit.</param>
+    /// <returns><see langword="true"/> if the unit lies inside the rectangle; otherwise, <see langword="false"/>.</returns>
     public bool Contains(Cell c) => c.U >= U && c.U < U + W && c.V >= V && c.V < V + H;
 
     /// <summary>
-    /// Returns whether the rectangle shares at least one unit with another.
+    /// Determines whether the rectangle shares at least one unit with another.
     /// </summary>
+    /// <param name="other">The other rectangle.</param>
+    /// <returns><see langword="true"/> if the rectangles share a unit; otherwise, <see langword="false"/>.</returns>
     public bool IntersectsWith(UnitRect other) => U < other.U + other.W && other.U < U + W && V < other.V + other.H && other.V < V + H;
 
     /// <summary>
     /// Returns the rectangle grown by a number of units on every side.
     /// </summary>
+    /// <param name="by">The number of units to grow by.</param>
+    /// <returns>The grown rectangle.</returns>
     public UnitRect Inflate(int by) => new(U - by, V - by, W + 2 * by, H + 2 * by);
 
     /// <summary>
-    /// Returns the unit edges along the common boundary with an adjacent rectangle, empty when the two do not touch.
+    /// Returns the unit edges along the common boundary with an adjacent rectangle, empty if the two rectangles don't touch.
     /// </summary>
+    /// <param name="other">The other rectangle.</param>
+    /// <returns>The edges along the common boundary.</returns>
     public EdgeKey[] GetSharedEdges(UnitRect other)
     {
         var edges = new List<EdgeKey>();

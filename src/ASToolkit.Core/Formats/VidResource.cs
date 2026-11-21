@@ -119,7 +119,7 @@ public readonly struct VidResource
     public bool HasSurfaceChunk => !_surfaces.IsEmpty;
 
     /// <summary>
-    /// Gets the number of surfaces the <c>SURF</c> chunk declares, or zero when the sprite has none.
+    /// Gets the number of surfaces the <c>SURF</c> chunk declares, or zero when the sprite doesn't have any.
     /// </summary>
     public short SurfaceCount => _surfaces.Length < sizeof(short) ? (short)0 : MemoryMarshal.Read<short>(_surfaces.Span);
 
@@ -129,13 +129,15 @@ public readonly struct VidResource
     public bool HasPalette => Type.HasFlag(VidType.Palette);
 
     /// <summary>
-    /// Gets the 256 palette entries as blue, green, red and alpha bytes, or an empty value when the sprite has no palette.
+    /// Gets the 256 palette entries as blue, green, red and alpha bytes, or an empty value when the sprite doesn't have a palette.
     /// </summary>
     public ReadOnlyMemory<byte> Palette { get; }
 
     /// <summary>
-    /// Returns the pixels of a frame, following frames that repeat another one.
+    /// Returns the pixels of a frame and follows frames that repeat another one.
     /// </summary>
+    /// <param name="index">The frame index.</param>
+    /// <returns>The pixels of the frame.</returns>
     public VidFrame GetFrame(int index)
     {
         if (_cadrRecords.Length > 0)
@@ -160,9 +162,10 @@ public readonly struct VidResource
 
     /// <summary>
     /// Returns the run-length pixels of a frame from the <c>DATA</c> records, which sprites with <c>CADR</c> records keep as well,
-    /// following frames that repeat another one.
+    /// and follows frames that repeat another one.
     /// </summary>
     /// <param name="index">The frame index.</param>
+    /// <returns>The run-length pixels of the frame.</returns>
     public VidFrame GetRunFrame(int index)
     {
         if (index < 0 || index >= _frames.Length)
@@ -204,9 +207,10 @@ public readonly struct VidResource
     }
 
     /// <summary>
-    /// Returns the vector a frame stores ahead of its pixels, which places the object attached to the one showing the frame,
-    /// or zero when the sprite stores none.
+    /// Returns the vector a frame stores ahead of its pixels, which places the object attached to the object that shows the frame.
     /// </summary>
+    /// <param name="index">The frame index.</param>
+    /// <returns>The vector of the frame, or zero if the sprite doesn't store one.</returns>
     public Vector3 GetFrameVector(int index)
     {
         if (!Type.HasFlag(VidType.FrameVector))
@@ -230,9 +234,9 @@ public readonly struct VidResource
     }
 
     /// <summary>
-    /// Returns the textures of a sprite with surfaces, decompressing range coded ones, or an empty array when the sprite has
-    /// none or they cannot be read.
+    /// Returns the textures of a sprite with surfaces and decompresses range coded ones.
     /// </summary>
+    /// <returns>The textures, or an empty array if the sprite doesn't have any or they can't be read.</returns>
     public VidTexture[] DecodeSurfaces()
     {
         if (!Type.HasFlag(VidType.Hardware) || Type.HasFlag(VidType.Shadow) || _surfaces.Length < sizeof(short))
@@ -309,8 +313,11 @@ public readonly struct VidResource
     }
 
     /// <summary>
-    /// Attempts to get where a frame of a sprite with surfaces lies in its textures, or false when the sprite has no SURF chunk or no such frame.
+    /// Attempts to get where a frame of a sprite with surfaces lies in its textures.
     /// </summary>
+    /// <param name="index">The frame index.</param>
+    /// <param name="frame">The location of the frame if it exists; otherwise, the default value.</param>
+    /// <returns><see langword="true"/> if the sprite has a SURF chunk and a frame with the index; otherwise, <see langword="false"/>.</returns>
     public bool TryGetTextureFrame(int index, out VidTextureFrame frame)
     {
         frame = default;
@@ -325,9 +332,10 @@ public readonly struct VidResource
     }
 
     /// <summary>
-    /// Returns the color of an omni-light frame as a packed red, green and blue value, or zero when the sprite is not an
-    /// omni-light.
+    /// Returns the color of an omni-light frame as a packed red, green and blue value.
     /// </summary>
+    /// <param name="index">The frame index.</param>
+    /// <returns>The packed color, or zero if the sprite isn't an omni-light.</returns>
     public uint GetLightColor(int index)
     {
         if (!Type.HasFlag(VidType.Light) || _frames.Length == 0 || index < 0 || _frames[0].Length < (index + 1) * sizeof(uint))

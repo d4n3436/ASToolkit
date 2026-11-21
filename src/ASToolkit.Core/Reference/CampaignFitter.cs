@@ -7,8 +7,7 @@ using ASToolkit.Core.Survey;
 namespace ASToolkit.Core.Reference;
 
 /// <summary>
-/// Provides the fitting of a campaign model to a style's original campaigns, measuring each level's threat, size, gate, weapons, pickups and
-/// end money and fitting a line or a set of shares to each over the levels.
+/// Provides the fitting of a campaign model to a style's original campaigns.
 /// </summary>
 public sealed class CampaignFitter
 {
@@ -38,8 +37,12 @@ public sealed class CampaignFitter
     }
 
     /// <summary>
-    /// Fits the campaign model of a style to its campaigns, leaving the excluded levels out.
+    /// Fits the campaign model of a style to its original campaigns and leaves the excluded levels out.
     /// </summary>
+    /// <param name="references">The analyzed original levels.</param>
+    /// <param name="style">The generation style.</param>
+    /// <param name="excluded">The map names of the levels to leave out of the fit.</param>
+    /// <returns>The fitted campaign model.</returns>
     public CampaignModel Fit(ReferenceLevelSet references, GenerationStyle style, IReadOnlyCollection<string> excluded)
     {
         int levelCount = style.LevelCount;
@@ -173,17 +176,14 @@ public sealed class CampaignFitter
 
     private int GetHitPoints(KnownObject id) => _objects.TryFind(id, out var found) ? found.MaxHp : 0;
 
-    // Fits ln rooms per million floor pixels to the level number with a concrete term
     private static FittedValue<WallSetLine> FitRooms(ReferenceLevelSet references, IReadOnlyList<CampaignMeasurement> levels) =>
         FitWallSetLine(levels, levels.Select(level => GetRoomRate(references, level)).ToArray());
 
     private static double GetRoomRate(ReferenceLevelSet references, CampaignMeasurement level) =>
         Math.Log(CountRooms(references, level) / (double)level.FloorPixels * PixelsPerRate);
 
-    // Counts the regular rooms the generator builds, never halls, corridors, passages or closets
     private static int CountRooms(ReferenceLevelSet references, CampaignMeasurement level) => references.GetLevel(level.Map).Atlas.CountRegularRooms();
 
-    // Fits a level quantity to the level number with a concrete term, flat below the minimum sample count
     private static FittedValue<WallSetLine> FitWallSetLine(IReadOnlyList<CampaignMeasurement> levels, double[] ys)
     {
         double[][] xs = levels.Select(level => (double[])[level.Level, level.FloorSet == WallSet.Concrete ? 1 : 0]).ToArray();
@@ -209,8 +209,6 @@ public sealed class CampaignFitter
         return new FittedValue<WallSetLine>(new WallSetLine((float)coefficients[0], (float)coefficients[1], (float)coefficients[2], (float)Math.Sqrt(squares / Math.Max(1, ys.Length - 3))), levels.Count, IsBackedOff: false);
     }
 
-    // Fits the drawn buildings to the levels after the first of the campaign, in add-on style of both add-ons too, ordered by where their levels
-    // lie in their campaigns
     private static FittedValue<IReadOnlyList<BuildingShare>> FitBuildings(GenerationStyle style, IReadOnlyCollection<string> excluded)
     {
         var campaigns = style == GenerationStyle.AddOn ? Campaign.Concat(AddOns) : Campaign;
@@ -245,7 +243,7 @@ public sealed class CampaignFitter
     private static DonorCandidate CreateDonor(ReferenceLevel level) =>
         new(level.Name, level.Survey.WallSet, level.Survey.Style, level.Measures.HitPoints, CampaignMeasurer.CashValue * level.Survey.Items.Count(item => item.Id == KnownObject.Money));
 
-    // Orders each wall set's gate styles by the first level that shows them, the commoner first on one level
+    // Orders each wall set's gate styles by the first level that shows them, with the commoner one first when a level shows several
     private static Dictionary<WallSet, FittedValue<IReadOnlyList<GateShare>>> FitGates(IReadOnlyList<CampaignMeasurement> levels) => levels
         .GroupBy(level => level.FloorSet)
         .ToDictionary(wallSet => wallSet.Key, wallSet => new FittedValue<IReadOnlyList<GateShare>>(wallSet
@@ -261,7 +259,7 @@ public sealed class CampaignFitter
         .SelectMany(level => level.NewWeapons.Select(weapon => (X: (float)(Array.IndexOf(weapons, weapon) + 1), Y: (float)level.Level)))
         .ToArray();
 
-    // Measure how much of each new weapon's price the money paid and picked up on the levels before its own comes to
+    // Measure the share of each new weapon's price that the money paid and picked up on the levels before its own covers
     private static FittedValue<float> FitAffordability(IReadOnlyList<CampaignMeasurement[]> campaigns, IReadOnlyList<int> weaponPrices, IReadOnlyCollection<string> excluded)
     {
         var shares = new List<float>();
@@ -292,7 +290,7 @@ public sealed class CampaignFitter
             .Select(level => (X: (float)level.Level, Y: level.Items.GetValueOrDefault(id) / (float)level.Pickups[id.PickupCategory!.Value]))
             .ToArray()));
 
-    // Count each level's ammunition by the age of its weapon in the price order, next to the newest weapon the campaign has brought so far
+    // Count each level's ammunition by the age of its weapon in the price order, alongside the newest weapon the campaign has brought so far
     private static FittedValue<IReadOnlyList<float>> FitAmmoAges(IReadOnlyList<CampaignMeasurement[]> campaigns, KnownObject[] weapons, IReadOnlyCollection<string> excluded)
     {
         var counts = new List<int>();

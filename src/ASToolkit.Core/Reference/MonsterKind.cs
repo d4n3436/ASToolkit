@@ -3,7 +3,7 @@ using ASToolkit.Core.Formats;
 namespace ASToolkit.Core.Reference;
 
 /// <summary>
-/// Represents a monster kind of a style, the level it first appears on and its hit points.
+/// Represents a kind of monster in a style's campaigns.
 /// </summary>
 /// <param name="Id">The monster kind.</param>
 /// <param name="FirstLevel">The level the kind first appears on.</param>

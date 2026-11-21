@@ -37,7 +37,7 @@ public readonly struct MenuElement
     public ReadOnlySpan<StackAction> Orders => IsPacked ? [] : MemoryMarshal.Cast<byte, StackAction>(_data.Span.Slice(SpriteSize + sizeof(int), OrderCount * ActionSize));
 
     /// <summary>
-    /// Gets the object ids of the items the element's sprite holds, empty before version 12 and for packed elements.
+    /// Gets the object IDs of the items the element's sprite holds, empty before version 12 and for packed elements.
     /// </summary>
     public ReadOnlySpan<int> Items
     {

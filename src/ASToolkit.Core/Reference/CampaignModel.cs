@@ -5,8 +5,7 @@ using ASToolkit.Core.Survey;
 namespace ASToolkit.Core.Reference;
 
 /// <summary>
-/// Represents the curves and shares fitted to a style's original campaigns that generated campaigns are drawn from, such as hit points, floor
-/// and end money by level, buildings and their wall sets, gate styles per wall set, weapon introductions by price and pickups per floor area.
+/// Represents the curves and shares fitted to a style's original campaigns, which generated campaigns are drawn from.
 /// </summary>
 public sealed class CampaignModel
 {
@@ -51,7 +50,7 @@ public sealed class CampaignModel
     public required IReadOnlyDictionary<WallSet, ValueRange<float>> RoomRates { get; init; }
 
     /// <summary>
-    /// Gets the maximum rooms a fitting level of each wall set holds.
+    /// Gets the maximum number of rooms that a fitting level of each wall set holds.
     /// </summary>
     public required IReadOnlyDictionary<WallSet, int> MaxRooms { get; init; }
 
@@ -86,7 +85,7 @@ public sealed class CampaignModel
     public required FittedValue<LinearFit> WeaponLevels { get; init; }
 
     /// <summary>
-    /// Gets the least share of a new weapon's price the money paid and picked up before its level reaches.
+    /// Gets the minimum share of a new weapon's price that the money paid and picked up before the weapon's level reaches.
     /// </summary>
     public required FittedValue<float> Affordability { get; init; }
 
@@ -121,12 +120,12 @@ public sealed class CampaignModel
     public required IReadOnlyDictionary<LevelStyle, FittedValue<LinearFit>> DynamiteSites { get; init; }
 
     /// <summary>
-    /// Gets the monster kinds of the style's standing groups and ambushes, bosses out, with the level each first appears on.
+    /// Gets the monster kinds of the style's standing groups and ambushes, excluding the bosses, with the level each first appears on.
     /// </summary>
     public required IReadOnlyList<MonsterKind> Monsters { get; init; }
 
     /// <summary>
-    /// Gets the natural log of the mean hit points of a level's monsters by level, with the spread of one level's monsters about that mean.
+    /// Gets the natural logarithm of the mean hit points of a level's monsters by level, with the spread of one level's monsters about that mean.
     /// </summary>
     public required FittedValue<LinearFit> MonsterHitPoints { get; init; }
 
@@ -141,12 +140,12 @@ public sealed class CampaignModel
     public required FittedValue<float> BossShare { get; init; }
 
     /// <summary>
-    /// Gets the originals after the first level that generated levels take what no model covers yet from.
+    /// Gets the original levels after the first level that generated levels borrow from for whatever no model covers yet.
     /// </summary>
     public required IReadOnlyList<DonorCandidate> Donors { get; init; }
 
     /// <summary>
-    /// Gets the originals a generated first level is copied from, kept when left out of the fit.
+    /// Gets the original levels that a generated first level is copied from, which are kept even when the fit leaves them out.
     /// </summary>
     public required IReadOnlyList<DonorCandidate> FirstLevels { get; init; }
 }

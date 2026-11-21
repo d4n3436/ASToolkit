@@ -12,6 +12,8 @@ public readonly record struct MapSegment(PointF From, PointF To)
     /// <summary>
     /// Returns the distance from a map point to the nearest point of the segment.
     /// </summary>
+    /// <param name="point">The map point.</param>
+    /// <returns>The distance.</returns>
     public float MeasureDistance(PointF point)
     {
         float dx = To.X - From.X;

@@ -6,9 +6,11 @@ namespace ASToolkit.Core.Formats;
 public static class GamePath
 {
     /// <summary>
-    /// Returns the file a game path such as "vid\obj\box.vid" names inside the game folder, matching any letter case,
-    /// or null when it doesn't exist.
+    /// Resolves a game path such as "vid\obj\box.vid" to the file it names inside the game folder, matching any letter case.
     /// </summary>
+    /// <param name="gameFolder">The game folder.</param>
+    /// <param name="relative">The game path, with backslash or slash separators.</param>
+    /// <returns>The path of the file, or null if it doesn't exist.</returns>
     public static string? Resolve(string gameFolder, string relative)
     {
         string current = gameFolder;

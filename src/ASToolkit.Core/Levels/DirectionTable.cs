@@ -51,8 +51,12 @@ public sealed class DirectionTable
     }
 
     /// <summary>
-    /// Records the direction and wall distance of every decor object standing on the floor or hanging on a wall in the given levels.
+    /// Builds the table from the direction and wall distance of every decor object standing on the floor or hanging on a wall in the given levels.
     /// </summary>
+    /// <param name="models">The level models to read.</param>
+    /// <param name="objects">The object table.</param>
+    /// <param name="leaning">The frames that the levels mostly stand against a wall.</param>
+    /// <returns>The table.</returns>
     public static DirectionTable Build(IEnumerable<LevelModel> models, ObjectTable objects, IReadOnlySet<(KnownObject Id, int Frame)> leaning)
     {
         var dirs = new Dictionary<(KnownObject, WallSides), List<Angle>>();
@@ -91,6 +95,9 @@ public sealed class DirectionTable
     /// <summary>
     /// Returns the frames of objects that the given levels mostly stand right against a wall, such as a corpse slumped on one.
     /// </summary>
+    /// <param name="models">The level models to read.</param>
+    /// <param name="objects">The object table.</param>
+    /// <returns>The object IDs and frames that the levels mostly stand against a wall.</returns>
     public static IReadOnlySet<(KnownObject Id, int Frame)> FindLeaningFrames(IEnumerable<LevelModel> models, ObjectTable objects)
     {
         var counts = new Dictionary<(KnownObject, int), (int Total, int Near)>();
@@ -128,14 +135,24 @@ public sealed class DirectionTable
     }
 
     /// <summary>
-    /// Returns whether an object with a direction at a point faces as the originals turn it against the nearest wall, stands off that
-    /// wall as they stand it when it is solid, and whether a frame they mostly lean on a wall has one to lean on.
+    /// Determines whether an object with a direction at a point faces the way the original levels turn it against the nearest wall, stands off that
+    /// wall the way they stand it when it is solid, and has a wall to lean on if the original levels mostly lean its frame on a wall.
     /// </summary>
+    /// <param name="id">The object ID.</param>
+    /// <param name="dir">The direction of the object.</param>
+    /// <param name="edges">The wall edges with their kinds.</param>
+    /// <param name="u">The u coordinate of the object on the lattice.</param>
+    /// <param name="v">The v coordinate of the object on the lattice.</param>
+    /// <returns><see langword="true"/> if the object fits; otherwise, <see langword="false"/>.</returns>
     public bool Fits(KnownObject id, Angle dir, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v) => Fits(id, dir, edges.FindNearestWall(u, v));
 
     /// <summary>
-    /// Returns whether an object with a direction fits against the nearest wall given as its side and distance, or null for none.
+    /// Determines whether an object with a direction fits against the nearest wall, given as its side and distance.
     /// </summary>
+    /// <param name="id">The object ID.</param>
+    /// <param name="dir">The direction of the object.</param>
+    /// <param name="wall">The side and the distance of the nearest wall, or null if there isn't one.</param>
+    /// <returns><see langword="true"/> if the object fits; otherwise, <see langword="false"/>.</returns>
     public bool Fits(KnownObject id, Angle dir, (WallSides Side, float Distance)? wall)
     {
         if (!_objects.TryFind(id, out var obj) || obj.FramesPerDirection == 0)
@@ -159,25 +176,48 @@ public sealed class DirectionTable
     }
 
     /// <summary>
-    /// Returns whether an object stands within reach of a wall at a point, or the originals stand it away from walls at least one time in ten.
+    /// Determines whether an object at a point stands within reach of a wall, or is one that the original levels stand away from walls at least one time in ten.
     /// </summary>
+    /// <param name="id">The object ID.</param>
+    /// <param name="edges">The wall edges with their kinds.</param>
+    /// <param name="u">The u coordinate of the object on the lattice.</param>
+    /// <param name="v">The v coordinate of the object on the lattice.</param>
+    /// <returns><see langword="true"/> if the object stands within reach of a wall or is allowed away from walls; otherwise, <see langword="false"/>.</returns>
     public bool IsByWall(KnownObject id, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v) => IsByWall(id, edges.FindNearestWall(u, v));
 
     /// <summary>
-    /// Returns whether an object stands within reach of the nearest wall given as its side and distance, or null for none.
+    /// Determines whether an object stands within reach of the nearest wall, given as its side and distance.
     /// </summary>
+    /// <param name="id">The object ID.</param>
+    /// <param name="wall">The side and the distance of the nearest wall, or null if there isn't one.</param>
+    /// <returns><see langword="true"/> if the object stands within reach of the wall or is allowed away from walls; otherwise, <see langword="false"/>.</returns>
     public bool IsByWall(KnownObject id, (WallSides Side, float Distance)? wall) =>
         !_wallReaches.TryGetValue(id, out float reach) || wall?.Distance <= reach + EdgeMapExtensions.WallSlack;
 
     /// <summary>
-    /// Returns whether a wall-mounted object hangs on a wall side, with a frame, distance and height that one of the originals
-    /// gives it, and with no doorway nearer than that wall.
+    /// Determines whether a wall-mounted object hangs on a wall side, with a frame, distance and height that one of the original levels gives it,
+    /// and without a doorway nearer than that wall.
     /// </summary>
+    /// <param name="id">The object ID.</param>
+    /// <param name="dir">The direction of the object.</param>
+    /// <param name="z">The height of the object.</param>
+    /// <param name="edges">The wall edges with their kinds.</param>
+    /// <param name="u">The u coordinate of the object on the lattice.</param>
+    /// <param name="v">The v coordinate of the object on the lattice.</param>
+    /// <returns><see langword="true"/> if the object hangs on the wall; otherwise, <see langword="false"/>.</returns>
     public bool Hangs(KnownObject id, Angle dir, float z, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v) => Hangs(id, dir, z, edges.FindNearestWall(u, v), edges, u, v);
 
     /// <summary>
-    /// Returns whether a wall-mounted object hangs on the nearest wall given as its side and distance, with no doorway of the edges nearer.
+    /// Determines whether a wall-mounted object hangs on the nearest wall, given as its side and distance, without a doorway among the edges that is nearer.
     /// </summary>
+    /// <param name="id">The object ID.</param>
+    /// <param name="dir">The direction of the object.</param>
+    /// <param name="z">The height of the object.</param>
+    /// <param name="wall">The side and the distance of the nearest wall, or null if there isn't one.</param>
+    /// <param name="edges">The wall edges with their kinds.</param>
+    /// <param name="u">The u coordinate of the object on the lattice.</param>
+    /// <param name="v">The v coordinate of the object on the lattice.</param>
+    /// <returns><see langword="true"/> if the object hangs on the wall; otherwise, <see langword="false"/>.</returns>
     public bool Hangs(KnownObject id, Angle dir, float z, (WallSides Side, float Distance)? wall, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v)
     {
         if (!wall.HasValue || edges.FindNearestEdge(u, v)?.Distance < wall.Value.Distance || !_objects.TryFind(id, out var obj))
@@ -191,15 +231,25 @@ public sealed class DirectionTable
     }
 
     /// <summary>
-    /// Returns whether the originals give an object with a direction at a point that frame at least one time in twenty against the
+    /// Determines whether the original levels give an object with a direction at a point that frame at least one time in twenty against the
     /// same side of a wall.
     /// </summary>
+    /// <param name="id">The object ID.</param>
+    /// <param name="dir">The direction of the object.</param>
+    /// <param name="edges">The wall edges with their kinds.</param>
+    /// <param name="u">The u coordinate of the object on the lattice.</param>
+    /// <param name="v">The v coordinate of the object on the lattice.</param>
+    /// <returns><see langword="true"/> if the frame is common against that side of the wall; otherwise, <see langword="false"/>.</returns>
     public bool IsCommon(KnownObject id, Angle dir, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v) => IsCommon(id, dir, edges.FindNearestWall(u, v));
 
     /// <summary>
-    /// Returns whether the originals give an object that frame at least one time in twenty against the nearest wall given as its side and
-    /// distance, or null for none.
+    /// Determines whether the original levels give an object that frame at least one time in twenty against the nearest wall, given as its side and
+    /// distance.
     /// </summary>
+    /// <param name="id">The object ID.</param>
+    /// <param name="dir">The direction of the object.</param>
+    /// <param name="wall">The side and the distance of the nearest wall, or null if there isn't one.</param>
+    /// <returns><see langword="true"/> if the frame is common against that side of the wall; otherwise, <see langword="false"/>.</returns>
     public bool IsCommon(KnownObject id, Angle dir, (WallSides Side, float Distance)? wall)
     {
         if (!wall.HasValue || !_objects.TryFind(id, out var obj) || obj.FramesPerDirection == 0 || !_frames.TryGetValue((id, wall.Value.Side), out var frames))
@@ -212,9 +262,15 @@ public sealed class DirectionTable
     }
 
     /// <summary>
-    /// Returns a direction the originals give an object in a like spot, drawn by how often they give it, or any fitting direction
-    /// when they have none.
+    /// Picks a direction that the original levels give an object in a similar spot, drawn by how often they give it, or any fitting direction
+    /// if they don't give the object one.
     /// </summary>
+    /// <param name="rng">The random number generator.</param>
+    /// <param name="id">The object ID.</param>
+    /// <param name="edges">The wall edges with their kinds.</param>
+    /// <param name="u">The u coordinate of the object on the lattice.</param>
+    /// <param name="v">The v coordinate of the object on the lattice.</param>
+    /// <returns>The direction.</returns>
     public Angle PickDirection(Random rng, KnownObject id, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v)
     {
         var wall = edges.FindNearestWall(u, v);
@@ -259,8 +315,13 @@ public sealed class DirectionTable
     }
 
     /// <summary>
-    /// Returns a value indicating whether the originals support a direction for the object in that spot.
+    /// Determines whether the original levels support a direction for the object in that spot.
     /// </summary>
+    /// <param name="id">The object ID.</param>
+    /// <param name="edges">The wall edges with their kinds.</param>
+    /// <param name="u">The u coordinate of the object on the lattice.</param>
+    /// <param name="v">The v coordinate of the object on the lattice.</param>
+    /// <returns><see langword="true"/> if a direction is supported; otherwise, <see langword="false"/>.</returns>
     public bool HasDirection(KnownObject id, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float u, float v)
     {
         var wall = edges.FindNearestWall(u, v);

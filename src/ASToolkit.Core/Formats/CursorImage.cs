@@ -79,8 +79,11 @@ public readonly struct CursorImage
     public Point Hotspot => new(_entry.HotspotX, _entry.HotspotY);
 
     /// <summary>
-    /// Gets whether the pixel counted from the top left corner is drawn, and its color.
+    /// Attempts to get the color of a pixel of the cursor.
     /// </summary>
+    /// <param name="pixel">The pixel, counted from the top left corner.</param>
+    /// <param name="color">The color of the pixel if it is drawn; otherwise, the default color.</param>
+    /// <returns><see langword="true"/> if the pixel is drawn; otherwise, <see langword="false"/>.</returns>
     public bool TryGetPixel(Point pixel, out Color color)
     {
         color = default;

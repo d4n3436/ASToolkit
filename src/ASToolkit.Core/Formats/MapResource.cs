@@ -62,12 +62,12 @@ public readonly struct MapResource
     public MapGroupEnumerator Groups => new(MemoryMarshal.Cast<byte, int>(GetRecord("GROU"u8).Span));
 
     /// <summary>
-    /// Gets the sprite handle of each player, empty when the map has no PLAY chunk.
+    /// Gets the sprite handle of each player, empty when the map doesn't have a PLAY chunk.
     /// </summary>
     public ReadOnlySpan<int> PlayerHandles => MemoryMarshal.Cast<byte, int>(GetRecord("PLAY"u8).Span);
 
     /// <summary>
-    /// Gets the painted height grid, empty when the map has no GRID chunk.
+    /// Gets the painted height grid, empty when the map doesn't have a GRID chunk.
     /// </summary>
     public ReadOnlySpan<short> HeightGrid => MemoryMarshal.Cast<byte, short>(GetRecord("GRID"u8).Span);
 

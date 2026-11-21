@@ -8,8 +8,7 @@ using ASToolkit.Core.Survey;
 namespace ASToolkit.Core.Reference;
 
 /// <summary>
-/// Represents the pickup and objective parameters fitted to a style's original levels, such as crate shares, pile sizes and spots,
-/// closet stashes, and where sites and charges lie along the walk.
+/// Represents the pickup and objective parameters fitted to a style's original levels.
 /// </summary>
 public sealed record EconomyModel
 {
@@ -37,7 +36,7 @@ public sealed record EconomyModel
     public required IReadOnlyDictionary<ItemCategory, FittedValue<IReadOnlyList<PartSpot>>> PileSpots { get; init; }
 
     /// <summary>
-    /// Gets the pickups per pixel of floor in rooms off the walks from the start to the objectives against rooms on them.
+    /// Gets the pickups per pixel of floor in rooms off the routes from the start to the objectives, relative to rooms on them.
     /// </summary>
     public required FittedValue<float> OffTourWeight { get; init; }
 
@@ -57,12 +56,12 @@ public sealed record EconomyModel
     public required FittedValue<float> StockedSpawnClosets { get; init; }
 
     /// <summary>
-    /// Gets the walks from the start to the original dynamite sites as shares of the level's longest walk.
+    /// Gets the walking distances from the start to the original dynamite sites as shares of the level's longest walking distance.
     /// </summary>
     public required FittedValue<IReadOnlyList<float>> SitePositions { get; init; }
 
     /// <summary>
-    /// Gets the median walk from a batch of charges to the next site of its phase as a share of the level's longest walk.
+    /// Gets the median walking distance from a batch of charges to the next site of its phase as a share of the level's longest walking distance.
     /// </summary>
     public required FittedValue<float> ChargeLead { get; init; }
 
@@ -77,8 +76,11 @@ public sealed record EconomyModel
     public required FittedValue<float> CheckpointShare { get; init; }
 
     /// <summary>
-    /// Fits the model to a style's original levels, with the charge values of too few samples taken from the pooled levels.
+    /// Fits the model to a style's original levels and takes the charge values that have too few samples from the pooled levels.
     /// </summary>
+    /// <param name="levels">The original levels of the style.</param>
+    /// <param name="pooled">The pooled levels that supply the values with too few samples.</param>
+    /// <returns>The fitted model.</returns>
     public static EconomyModel Fit(IReadOnlyList<ReferenceLevel> levels, IReadOnlyList<ReferenceLevel> pooled)
     {
         var loose = levels

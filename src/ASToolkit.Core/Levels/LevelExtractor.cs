@@ -13,8 +13,12 @@ public static class LevelExtractor
     private static readonly Dictionary<EdgeKind, int> Rank = new() { [EdgeKind.Wall] = 0, [EdgeKind.ShutDoor] = 1, [EdgeKind.Doorway] = 2, [EdgeKind.BrokenWall] = 2, [EdgeKind.SecretWall] = 2, [EdgeKind.Door] = 3 };
 
     /// <summary>
-    /// Builds the model of a map, or returns null when the map has no floor.
+    /// Builds the model of a map.
     /// </summary>
+    /// <param name="name">The level name.</param>
+    /// <param name="map">The placed objects of the map.</param>
+    /// <param name="objects">The object table.</param>
+    /// <returns>The model, or null if the map doesn't have a floor.</returns>
     public static LevelModel? Extract(string name, MapResourceBuilder map, ObjectTable objects)
     {
         var sp = OrderSprites(map.Sprites).ToList();
@@ -34,7 +38,7 @@ public static class LevelExtractor
             return null;
         }
 
-        // Fill the floor holes the originals leave under wall cabinets
+        // Fill the floor holes the original levels leave under wall cabinets
         var ring = new HashSet<Cell>();
         foreach (var cell in cells)
         {
@@ -75,8 +79,10 @@ public static class LevelExtractor
     }
 
     /// <summary>
-    /// Returns sprites ordered by ID, row, column, height, facing and army.
+    /// Returns sprites ordered by ID, row, column, height, direction and army.
     /// </summary>
+    /// <param name="sprites">The sprites.</param>
+    /// <returns>The sprites in order.</returns>
     public static IEnumerable<MergedMapSprite> OrderSprites(IEnumerable<MergedMapSprite> sprites) => sprites
         .OrderBy(sprite => (int)sprite.Id)
         .ThenBy(sprite => MathF.Round(sprite.Position.Y * 16))
@@ -88,12 +94,20 @@ public static class LevelExtractor
     /// <summary>
     /// Returns the cell edges that the wall, door and frame pieces of a basement level cover, with their kinds.
     /// </summary>
+    /// <param name="lattice">The lattice of the cells.</param>
+    /// <param name="sprites">The placed objects.</param>
+    /// <param name="outdoor">Whether the level is outdoors.</param>
+    /// <returns>The kind of each covered edge.</returns>
     public static Dictionary<EdgeKey, EdgeKind> ReadBasementEdges(Lattice lattice, IEnumerable<MergedMapSprite> sprites, bool outdoor) =>
         ReadBasementEdges(lattice, sprites, outdoor, 1);
 
     /// <summary>
     /// Returns the edges of the half-step lattice that the wall, door and frame pieces of a basement level cover, with their kinds.
     /// </summary>
+    /// <param name="lattice">The lattice.</param>
+    /// <param name="sprites">The placed objects.</param>
+    /// <param name="outdoor">Whether the level is outdoors.</param>
+    /// <returns>The kind of each covered edge.</returns>
     public static Dictionary<EdgeKey, EdgeKind> ReadFineBasementEdges(Lattice lattice, IEnumerable<MergedMapSprite> sprites, bool outdoor) =>
         ReadBasementEdges(lattice, sprites, outdoor, 2);
 

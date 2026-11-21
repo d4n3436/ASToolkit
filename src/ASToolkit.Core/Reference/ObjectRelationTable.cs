@@ -43,6 +43,9 @@ public sealed class ObjectRelationTable
     /// <summary>
     /// Measures the relations of the objects of every basement and concrete level of a set.
     /// </summary>
+    /// <param name="levels">The reference levels.</param>
+    /// <param name="objects">The object table.</param>
+    /// <returns>The table.</returns>
     public static ObjectRelationTable Build(IEnumerable<ReferenceLevel> levels, ObjectTable objects)
     {
         var tallies = new Dictionary<WallSet, Tally>();
@@ -146,41 +149,64 @@ public sealed class ObjectRelationTable
     }
 
     /// <summary>
-    /// Returns the relations of an object in the levels of a wall set, or null when too few of the object stand in them.
+    /// Returns the relations of an object in the levels of a wall set.
     /// </summary>
+    /// <param name="wallSet">The wall set.</param>
+    /// <param name="id">The object ID.</param>
+    /// <returns>The relations, or null if too few of the object stand in the levels.</returns>
     public ObjectRelations? GetRelations(WallSet wallSet, KnownObject id) => _relations.GetValueOrDefault((wallSet, id));
 
     /// <summary>
     /// Returns the relations of every object measured in the levels of a wall set.
     /// </summary>
+    /// <param name="wallSet">The wall set.</param>
+    /// <returns>The relations of the measured objects.</returns>
     public ObjectRelations[] GetRelations(WallSet wallSet) => _relations.Values.Where(relations => relations.WallSet == wallSet).OrderBy(relations => relations.Id).ToArray();
 
     /// <summary>
-    /// Returns the share of an object's pieces in the levels of a wall set that stand within reach of another object, 0 when none does.
+    /// Returns the share of an object's pieces in the levels of a wall set that stand within reach of another object.
     /// </summary>
+    /// <param name="wallSet">The wall set.</param>
+    /// <param name="id">The object ID.</param>
+    /// <param name="anchor">The ID of the other object.</param>
+    /// <returns>The share, or 0 if none of the pieces does.</returns>
     public float GetAnchorShare(WallSet wallSet, KnownObject id, KnownObject anchor) => _anchorShares.GetValueOrDefault((wallSet, id, anchor));
 
     /// <summary>
-    /// Returns the distance from a doorway that all but the closest 5% of the floor pieces of a blocking class keep in the levels of a wall set,
-    /// or null when too few stand in them.
+    /// Returns the distance from a doorway that all but the closest 5% of the floor pieces of a blocking class keep in the levels of a wall set.
     /// </summary>
+    /// <param name="wallSet">The wall set.</param>
+    /// <param name="blocking">The blocking class.</param>
+    /// <returns>The distance, or null if too few pieces of the class stand in the levels.</returns>
     public float? GetDoorClearance(WallSet wallSet, BlockingClass blocking) =>
         _doorClearances.TryGetValue((wallSet, blocking), out float distance) ? distance : null;
 
     /// <summary>
     /// Returns the objects that lie by an anchor object in the levels of a wall set far more often than chance would put them there.
     /// </summary>
+    /// <param name="wallSet">The wall set.</param>
+    /// <param name="anchor">The ID of the anchor object.</param>
+    /// <returns>The companion objects.</returns>
     public IReadOnlyList<ObjectCompanion> GetCompanions(WallSet wallSet, KnownObject anchor) => _companions.GetValueOrDefault((wallSet, anchor)) ?? [];
 
     /// <summary>
-    /// Returns how many of an object lie by each anchor object in the levels of a wall set, on average, 0 when none does.
+    /// Returns how many of an object lie by each anchor object in the levels of a wall set, on average.
     /// </summary>
+    /// <param name="wallSet">The wall set.</param>
+    /// <param name="anchor">The ID of the anchor object.</param>
+    /// <param name="id">The ID of the object.</param>
+    /// <returns>The average number, or 0 if none of the object lies by an anchor object.</returns>
     public float GetCompanionRate(WallSet wallSet, KnownObject anchor, KnownObject id) => _companionRates.GetValueOrDefault((wallSet, anchor, id));
 
     /// <summary>
     /// Returns how close the levels of a wall set stand two decor objects that block the player at the same height, as the share of their summed
-    /// sizes their centers keep apart along the nearer axis, at most one half.
+    /// sizes that their centers keep apart along the nearer axis, at most one half.
     /// </summary>
+    /// <param name="wallSet">The wall set.</param>
+    /// <param name="id">The ID of the first object.</param>
+    /// <param name="other">The ID of the second object.</param>
+    /// <param name="raised">Whether the objects stand raised above the floor.</param>
+    /// <returns>The share of the summed sizes.</returns>
     public float GetSpacing(WallSet wallSet, KnownObject id, KnownObject other, bool raised) =>
         _spacings.GetValueOrDefault((wallSet, (KnownObject)Math.Min((int)id, (int)other), (KnownObject)Math.Max((int)id, (int)other), raised), TouchingShare);
 
@@ -188,6 +214,9 @@ public sealed class ObjectRelationTable
     /// Counts the decor pieces of a set of levels that block the player and stand closer to another at the same height than the levels of this
     /// table ever stand the pair.
     /// </summary>
+    /// <param name="levels">The reference levels to count in.</param>
+    /// <param name="objects">The object table.</param>
+    /// <returns>The number of crowded pieces and the number of pieces counted.</returns>
     public (int Crowded, int Count) CountCrowded(IEnumerable<ReferenceLevel> levels, ObjectTable objects)
     {
         int crowded = 0;
@@ -214,6 +243,9 @@ public sealed class ObjectRelationTable
     /// Returns a test of whether an object at a map point of a level of a wall set lies by the anchor object nearest it as one of that
     /// anchor's companions.
     /// </summary>
+    /// <param name="wallSet">The wall set.</param>
+    /// <param name="level">The level.</param>
+    /// <returns>A function that takes an object ID and a map point and returns whether the object is a companion of the nearest anchor object.</returns>
     public Func<KnownObject, float, float, bool> GetCompanionTest(WallSet wallSet, ReferenceLevel level)
     {
         var anchors = level.Map.Sprites.Where(sprite => IsAnchor(sprite.Id)).ToArray();
@@ -391,7 +423,7 @@ public sealed class ObjectRelationTable
             }
         }
 
-        // Keep, per pair of blocking objects at the same height, the smallest share of their summed sizes their centers stood apart
+        // Keep, per pair of blocking objects at the same height, the smallest share of their summed sizes that their centers stood apart
         private void AddSpacings(MergedMapSprite[] pieces, Dictionary<Point, List<int>> buckets, int index, ObjectTable objects)
         {
             var piece = pieces[index];

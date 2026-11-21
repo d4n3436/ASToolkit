@@ -4,7 +4,7 @@ using System.Numerics;
 namespace ASToolkit.Core.Formats;
 
 /// <summary>
-/// Represents a direction in 256ths of a turn, clockwise from up the screen, such as the facing of a placed object or
+/// Represents a direction in 256ths of a turn, clockwise from up the screen, such as the direction a placed object faces or
 /// the direction of the wind.
 /// </summary>
 /// <param name="Value">The direction in 256ths of a turn.</param>
@@ -100,32 +100,37 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     /// Creates a direction from its value in 256ths of a turn.
     /// </summary>
     /// <param name="value">The direction in 256ths of a turn.</param>
+    /// <returns>The direction.</returns>
     public static implicit operator Angle(byte value) => new(value);
 
     /// <summary>
-    /// Returns the direction turned clockwise by a number of steps, wrapping around.
+    /// Turns a direction clockwise by a number of steps and wraps around past a full turn.
     /// </summary>
     /// <param name="angle">The direction.</param>
     /// <param name="turn">The steps to turn by.</param>
+    /// <returns>The turned direction.</returns>
     public static Angle operator +(Angle angle, int turn) => new(unchecked((byte)(angle.Value + turn)));
 
     /// <summary>
-    /// Returns the direction turned counterclockwise by a number of steps, wrapping around.
+    /// Turns a direction counterclockwise by a number of steps and wraps around past a full turn.
     /// </summary>
     /// <param name="angle">The direction.</param>
     /// <param name="turn">The steps to turn by.</param>
+    /// <returns>The turned direction.</returns>
     public static Angle operator -(Angle angle, int turn) => new(unchecked((byte)(angle.Value - turn)));
 
     /// <summary>
     /// Creates a direction from the low byte of a stored value.
     /// </summary>
     /// <param name="value">The stored value.</param>
+    /// <returns>The direction.</returns>
     public static Angle FromStored(long value) => new(unchecked((byte)value));
 
     /// <summary>
     /// Returns the direction of an offset in map coordinates.
     /// </summary>
     /// <param name="offset">The offset.</param>
+    /// <returns>The direction of the offset.</returns>
     [EngineRoutine(0x00406080)]
     public static Angle FromOffset(Vector2 offset)
     {
@@ -152,6 +157,7 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     /// Returns the direction of an offset by an integer approximation.
     /// </summary>
     /// <param name="offset">The offset.</param>
+    /// <returns>The direction of the offset.</returns>
     public static Angle Aim(Vector2 offset) => Aim(offset, out _);
 
     /// <summary>
@@ -159,6 +165,7 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     /// </summary>
     /// <param name="offset">The offset.</param>
     /// <param name="distance">The approximate length of the offset.</param>
+    /// <returns>The direction of the offset.</returns>
     [EngineRoutine(0x00406000)]
     public static Angle Aim(Vector2 offset, out int distance)
     {
@@ -193,6 +200,7 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     /// Returns the index of the direction frame the engine shows for this direction, out of a number of direction frames.
     /// </summary>
     /// <param name="directions">The number of direction frames.</param>
+    /// <returns>The index of the direction frame.</returns>
     public int GetDirectionIndex(int directions) => directions == 0 ? 0 : GetDirectionIndex(directions, HalfTurn / directions);
 
     /// <summary>
@@ -200,6 +208,7 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     /// </summary>
     /// <param name="directions">The number of direction frames.</param>
     /// <param name="offset">The offset added to the direction before it is divided into frames.</param>
+    /// <returns>The index of the direction frame.</returns>
     [EngineRoutine(0x0043a1c0)]
     public int GetDirectionIndex(int directions, int offset) => ((offset + Value) & 0xff) * directions >> 8;
 
@@ -207,12 +216,14 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     /// Returns the direction that the direction frame showing this direction faces, out of a number of direction frames.
     /// </summary>
     /// <param name="directions">The number of direction frames.</param>
+    /// <returns>The direction of the direction frame.</returns>
     public Angle GetFrameDirection(int directions) => new(unchecked((byte)(GetDirectionIndex(directions) * FullTurn / directions)));
 
     /// <summary>
     /// Returns the steps of the shorter turn to another direction.
     /// </summary>
     /// <param name="other">The other direction.</param>
+    /// <returns>The number of steps of the shorter turn.</returns>
     public int MeasureTurnTo(Angle other) => Math.Min((byte)(Value - other.Value), (byte)(other.Value - Value));
 
     /// <summary>
@@ -222,6 +233,7 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     /// <param name="period">The milliseconds of a full turn; 0 turns at once and 999999 never turns.</param>
     /// <param name="elapsed">The milliseconds to turn for.</param>
     /// <param name="remaining">The turn left to the goal.</param>
+    /// <returns>The direction after the turn.</returns>
     public Angle TurnToward(Angle goal, float period, int elapsed, out Angle remaining)
     {
         if (this == goal)
@@ -249,6 +261,7 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     /// <param name="goal">The goal direction.</param>
     /// <param name="step">The steps to turn by.</param>
     /// <param name="remaining">The turn left to the goal.</param>
+    /// <returns>The direction after the turn.</returns>
     public Angle StepToward(Angle goal, int step, out Angle remaining)
     {
         int difference = MeasureTurnTo(goal);

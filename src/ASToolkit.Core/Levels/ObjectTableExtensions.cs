@@ -11,8 +11,10 @@ public static class ObjectTableExtensions
     extension(ObjectTable objects)
     {
         /// <summary>
-        /// Returns how an object stands in the player's way, walk-through for an object the table does not hold.
+        /// Returns how an object stands in the player's way, walk-through for an object that isn't in the table.
         /// </summary>
+        /// <param name="id">The object ID.</param>
+        /// <returns>How the object blocks the player.</returns>
         public BlockingClass GetBlocking(KnownObject id)
         {
             if (!objects.TryFind(id, out var obj))
@@ -24,9 +26,11 @@ public static class ObjectTableExtensions
         }
 
         /// <summary>
-        /// Returns the index of the sprite that the sprite at <paramref name="index"/> stands on, -1 when it stands raised on nothing found,
-        /// or null when it stands on the floor.
+        /// Finds the sprite that the sprite at <paramref name="index"/> stands on.
         /// </summary>
+        /// <param name="sprites">The placed objects.</param>
+        /// <param name="index">The index of the sprite.</param>
+        /// <returns>The index of the sprite it stands on, -1 if it stands raised on nothing found, or null if it stands on the floor.</returns>
         public int? FindSupport(IReadOnlyList<MergedMapSprite> sprites, int index)
         {
             var sprite = sprites[index];

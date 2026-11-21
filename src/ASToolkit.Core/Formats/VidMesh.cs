@@ -38,11 +38,15 @@ public readonly struct VidMesh
     /// <summary>
     /// Returns a vertex.
     /// </summary>
+    /// <param name="index">The vertex index.</param>
+    /// <returns>The vertex.</returns>
     public VidVertex GetVertex(int index) => new(MemoryMarshal.Read<int>(_vertices.Span[(index * VertexSize)..]));
 
     /// <summary>
     /// Returns the vertices of a triangle.
     /// </summary>
+    /// <param name="index">The triangle index.</param>
+    /// <returns>The three vertices of the triangle.</returns>
     public (VidVertex A, VidVertex B, VidVertex C) GetTriangle(int index)
     {
         var span = _indices.Span[(index * TriangleSize)..];
@@ -52,6 +56,9 @@ public readonly struct VidMesh
     /// <summary>
     /// Returns the highest triangle height at each pixel of a frame, or NaN where no triangle covers it.
     /// </summary>
+    /// <param name="width">The width of the frame in pixels.</param>
+    /// <param name="height">The height of the frame in pixels.</param>
+    /// <returns>The height of each pixel, row by row.</returns>
     public float[] RasterizeHeights(int width, int height)
     {
         float[] heights = new float[width * height];

@@ -45,7 +45,7 @@ public readonly record struct MapSprite
     public readonly Vector3 Position;
 
     /// <summary>
-    /// The facing.
+    /// The direction of the object.
     /// </summary>
     [FieldOffset(20)]
     public readonly Angle Direction;

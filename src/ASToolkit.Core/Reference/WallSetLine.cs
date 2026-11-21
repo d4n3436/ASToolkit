@@ -12,5 +12,8 @@ public readonly record struct WallSetLine(float Intercept, float Slope, float Co
     /// <summary>
     /// Returns the value the line gives a level.
     /// </summary>
+    /// <param name="level">The level number.</param>
+    /// <param name="isConcrete">Whether the level uses the concrete set.</param>
+    /// <returns>The value of the line for the level.</returns>
     public float Evaluate(int level, bool isConcrete) => Intercept + Slope * level + (isConcrete ? ConcreteTerm : 0);
 }

@@ -11,8 +11,11 @@ public struct Neighborhood
     private (Cell Cell, EdgeKey Edge) _first;
 
     /// <summary>
-    /// Returns whether any of the four edges is in a set of edges, of a given kind when one is given.
+    /// Determines whether any of the four edges is in a set of edges and, if a kind is given, has that kind.
     /// </summary>
+    /// <param name="edges">The set of edges with their kinds.</param>
+    /// <param name="kind">The kind the edge must have, or null for any kind.</param>
+    /// <returns><see langword="true"/> if one of the edges is in the set; otherwise, <see langword="false"/>.</returns>
     public readonly bool HasEdge(IReadOnlyDictionary<EdgeKey, EdgeKind> edges, EdgeKind? kind = null)
     {
         foreach (var (_, edge) in this)

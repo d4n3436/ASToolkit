@@ -31,7 +31,7 @@ public sealed class SpawnerProgram
     public IEnumerable<KnownObject> Monsters => Actions.Where(action => action.Act == (int)ActionCode.BuildUnit).Select(action => (KnownObject)action.Var1);
 
     /// <summary>
-    /// Gets the trigger point and radius, or null when the spawner starts at once.
+    /// Gets the trigger point and radius, or null if the spawner starts at once.
     /// </summary>
     public TriggerArea? Trigger
     {
@@ -55,8 +55,10 @@ public sealed class SpawnerProgram
     public IEnumerable<Point> Waypoints => Actions.Where(action => action.Act == (int)ActionCode.Move).Select(action => new Point(action.Var1, action.Var2));
 
     /// <summary>
-    /// Parses a spawner payload, or returns null when it is too short.
+    /// Parses a spawner payload.
     /// </summary>
+    /// <param name="payload">The payload bytes.</param>
+    /// <returns>The program, or null if the payload is too short.</returns>
     public static SpawnerProgram? Parse(ReadOnlySpan<byte> payload)
     {
         if (payload.Length < 4)
@@ -77,8 +79,12 @@ public sealed class SpawnerProgram
 
     /// <summary>
     /// Creates a program that waits for its trigger, builds the monsters in order and sends them along the waypoints,
-    /// the first waypoint being the first destination.
+    /// starting with the first waypoint.
     /// </summary>
+    /// <param name="monsters">The monsters to build, in order.</param>
+    /// <param name="trigger">The trigger point and radius.</param>
+    /// <param name="waypoints">The waypoints of the spawned monsters.</param>
+    /// <returns>The program.</returns>
     public static SpawnerProgram Create(IEnumerable<KnownObject> monsters, TriggerArea trigger, IEnumerable<PointF> waypoints)
     {
         var actions = new List<StackAction>();
@@ -100,6 +106,7 @@ public sealed class SpawnerProgram
     /// <summary>
     /// Returns the payload bytes.
     /// </summary>
+    /// <returns>The payload bytes.</returns>
     public byte[] ToPayload()
     {
         int end = sizeof(int) + ActionSize * Actions.Count;

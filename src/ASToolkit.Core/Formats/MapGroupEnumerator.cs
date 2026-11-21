@@ -26,9 +26,9 @@ public ref struct MapGroupEnumerator
     public readonly MapGroupEnumerator GetEnumerator() => this;
 
     /// <summary>
-    /// Advances to the next group, stopping at the empty group that ends the record.
+    /// Advances to the next group.
     /// </summary>
-    /// <returns><see langword="true"/> when another group was read; otherwise, <see langword="false"/>.</returns>
+    /// <returns><see langword="true"/> if another group was read; <see langword="false"/> at the empty group that ends the record.</returns>
     public bool MoveNext()
     {
         int length = _handles[_start..].IndexOf(GroupEnd);

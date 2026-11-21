@@ -21,7 +21,7 @@ public readonly struct WaveResource
     }
 
     /// <summary>
-    /// Gets the format of the sample, or the default when the file has no fmt chunk of 14 bytes or more.
+    /// Gets the format of the sample, or the default when the file doesn't have an fmt chunk of 14 bytes or more.
     /// </summary>
     public WaveFormat Format
     {
@@ -37,7 +37,7 @@ public readonly struct WaveResource
     }
 
     /// <summary>
-    /// Gets the sample data, empty when the file has no data chunk.
+    /// Gets the sample data, empty when the file doesn't have a data chunk.
     /// </summary>
     public ReadOnlyMemory<byte> Samples => new ResContainer(_data).TryGetChunk("data"u8, out var chunk) ? chunk.Body : ReadOnlyMemory<byte>.Empty;
 }

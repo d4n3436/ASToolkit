@@ -6,7 +6,7 @@ namespace ASToolkit.Core.Formats;
 public readonly struct SfxRecord
 {
     /// <summary>
-    /// Represents the most samples a sound holds.
+    /// Represents the maximum number of samples a sound holds.
     /// </summary>
     public const int MaxSamples = 8;
 

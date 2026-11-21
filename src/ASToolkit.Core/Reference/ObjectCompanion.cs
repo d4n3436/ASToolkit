@@ -23,8 +23,11 @@ public sealed class ObjectCompanion
     public required IReadOnlyList<AnchorSample> Samples { get; init; }
 
     /// <summary>
-    /// Draws as many of the companion object as its rate gives for one anchor object, each as a different one of those lying by an anchor of the nearest facing.
+    /// Draws samples of the companion object for one anchor object, as many as the rate gives, each a different one of the samples that lie by an anchor with the nearest direction.
     /// </summary>
+    /// <param name="rng">The random number generator.</param>
+    /// <param name="anchorDirection">The direction of the anchor object.</param>
+    /// <returns>The drawn samples.</returns>
     public AnchorSample[] Draw(Random rng, Angle anchorDirection)
     {
         int count = (int)Rate + (rng.NextSingle() < Rate % 1 ? 1 : 0);

@@ -7,12 +7,12 @@ namespace ASToolkit.Core.Formats;
 public enum ResChunkFlags
 {
     /// <summary>
-    /// No flags, the flags word holding the record count.
+    /// No flags; the flags word holds the record count.
     /// </summary>
     None = 0,
 
     /// <summary>
-    /// A record appended packed through a filter, its saved bytes added to the compression savings.
+    /// A record appended packed through a filter, with its saved bytes added to the compression savings.
     /// </summary>
     PackedRecord = 1 << 8,
 

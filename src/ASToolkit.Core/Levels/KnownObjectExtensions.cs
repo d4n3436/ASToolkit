@@ -83,11 +83,14 @@ public static class KnownObjectExtensions
         /// <summary>
         /// Returns the payload of an empty crate.
         /// </summary>
+        /// <returns>The payload bytes.</returns>
         public static byte[] CreateEmptyCratePayload() => new byte[EmptyCratePayloadSize];
 
         /// <summary>
         /// Returns the payload of a crate holding a pickup.
         /// </summary>
+        /// <param name="item">The pickup the crate holds.</param>
+        /// <returns>The payload bytes.</returns>
         public static byte[] CreateCratePayload(KnownObject item)
         {
             byte[] payload = new byte[CratePayloadSize];
@@ -99,6 +102,8 @@ public static class KnownObjectExtensions
         /// <summary>
         /// Returns the ID of the pickup inside a crate payload, or 0 for an empty crate.
         /// </summary>
+        /// <param name="payload">The payload bytes of the crate.</param>
+        /// <returns>The ID of the pickup, or 0 for an empty crate.</returns>
         public static KnownObject GetCrateItem(ReadOnlySpan<byte> payload) =>
             payload.Length >= CratePayloadSize && BinaryPrimitives.ReadInt32LittleEndian(payload[4..]) == 1
                 ? (KnownObject)BinaryPrimitives.ReadInt32LittleEndian(payload[8..])
@@ -110,7 +115,7 @@ public static class KnownObjectExtensions
         /// <summary>Gets a value indicating whether the ID is a pickup.</summary>
         public bool IsPickup => id is >= WornGreenArmor and <= MagmaMinigun or >= Dynamite and <= MagmaMinigunAmmo;
 
-        /// <summary>Gets the plain monster a yellow or red variant belongs to, the ID itself for any other unit.</summary>
+        /// <summary>Gets the plain monster that a yellow or red variant belongs to, or the ID itself for any other unit.</summary>
         public KnownObject MonsterFamily => id is >= Slug and <= RedTankWeaponMonster ? (KnownObject)((int)id / 10 * 10) : id;
 
         /// <summary>Gets the weapon slot an ammunition pickup fills, or -1 for any other ID.</summary>
@@ -122,7 +127,7 @@ public static class KnownObjectExtensions
         /// <summary>Gets a value indicating whether the ID is a placed object the campaign scripts drive through its animation hooks.</summary>
         public bool IsScripted => id is DynamiteSite or Breaker or SmallDoor or DoubleDoor or Fence or MountedCannon || id.IsEndlessGenerator;
 
-        /// <summary>Gets the category of the pickup, or null when the ID is not a pickup.</summary>
+        /// <summary>Gets the category of the pickup, or null if the ID isn't a pickup.</summary>
         public ItemCategory? PickupCategory => id switch
         {
             Health or BigHealth or MegaHealth or Medkit or ExtraLife => ItemCategory.Health,
@@ -142,10 +147,10 @@ public static class KnownObjectExtensions
         /// <summary>Gets a value indicating whether the ID is an ammunition pickup.</summary>
         public bool IsAmmo => id is >= ShotgunAmmo and <= MagmaMinigunAmmo;
 
-        /// <summary>Gets the ammunition pickup of a weapon pickup, or null when the ID is not a weapon.</summary>
+        /// <summary>Gets the ammunition pickup of a weapon pickup, or null if the ID isn't a weapon.</summary>
         public KnownObject? WeaponAmmo => id.IsWeapon ? id - Shotgun + ShotgunAmmo : null;
 
-        /// <summary>Gets the furniture family of the piece, or null when it belongs to none.</summary>
+        /// <summary>Gets the furniture family of the piece, or null if it doesn't belong to a family.</summary>
         public PieceFamily? Family => id switch
         {
             Table => PieceFamily.Table,
@@ -184,7 +189,7 @@ public static class KnownObjectExtensions
         /// <summary>Gets a value indicating whether the ID is a basement door or door frame.</summary>
         public bool IsDoor => id is SmallDoor or DoubleDoor or SmallDoorFrame or DoubleDoorFrame;
 
-        /// <summary>Gets a value indicating whether the ID lies under another object it belongs to, a shadow or the collision dummy of a walk-through sprite.</summary>
+        /// <summary>Gets a value indicating whether the ID lies under another object it belongs to, such as a shadow or the collision dummy of a walk-through sprite.</summary>
         public bool IsAttached => id is EmbeddedShadow or SmallShadow or ZDummy;
 
         /// <summary>Gets a value indicating whether the ID hangs on a wall above the floor.</summary>

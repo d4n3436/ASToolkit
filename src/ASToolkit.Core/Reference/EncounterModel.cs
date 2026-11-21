@@ -6,7 +6,7 @@ using ASToolkit.Core.Survey;
 namespace ASToolkit.Core.Reference;
 
 /// <summary>
-/// Represents the fight parameters fitted to a style's original levels, such as fights per screen of floor, spawner sizes and spacing, and the size and place of a phase's largest fight.
+/// Represents the fight parameters fitted to a style's original levels.
 /// </summary>
 public sealed record EncounterModel
 {
@@ -54,17 +54,17 @@ public sealed record EncounterModel
     public required FittedValue<float> FightsPerScreen { get; init; }
 
     /// <summary>
-    /// Gets the least distance in pixels between two spawners of one fight.
+    /// Gets the minimum distance in pixels between two spawners of one fight.
     /// </summary>
     public required FittedValue<float> SpawnerSpacing { get; init; }
 
     /// <summary>
-    /// Gets the farthest distance in pixels from a spawner to its trigger.
+    /// Gets the maximum distance in pixels from a spawner to its trigger.
     /// </summary>
     public required FittedValue<float> SpawnerReach { get; init; }
 
     /// <summary>
-    /// Gets the median share of a phase's hit points its largest fight holds.
+    /// Gets the median share of a phase's hit points that its largest fight holds.
     /// </summary>
     public required FittedValue<float> ClimaxShare { get; init; }
 
@@ -76,6 +76,8 @@ public sealed record EncounterModel
     /// <summary>
     /// Fits the model to the original levels.
     /// </summary>
+    /// <param name="levels">The original levels of the style.</param>
+    /// <returns>The fitted model.</returns>
     public static EncounterModel Fit(IReadOnlyList<ReferenceLevel> levels)
     {
         var encounters = levels.SelectMany(level => level.Survey.Encounters).ToArray();

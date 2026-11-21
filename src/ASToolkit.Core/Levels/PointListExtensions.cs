@@ -12,6 +12,8 @@ public static class PointListExtensions
         /// <summary>
         /// Returns the groups of points that a chain of steps within a reach joins.
         /// </summary>
+        /// <param name="reach">The maximum distance between two points of a chain.</param>
+        /// <returns>The groups of points.</returns>
         public IReadOnlyList<IReadOnlyList<PointF>> Cluster(float reach)
         {
             var groups = new List<IReadOnlyList<PointF>>();

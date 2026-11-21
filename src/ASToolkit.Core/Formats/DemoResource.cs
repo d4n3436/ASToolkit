@@ -48,11 +48,11 @@ public readonly struct DemoResource
     public ReadOnlyMemory<byte> Body => _record[(_mapNameLength + 1 + HeaderLength)..];
 
     /// <summary>
-    /// Reads the frame at an offset of the body, returning false at the end marker or the end of the body.
+    /// Attempts to read the frame at an offset of the body.
     /// </summary>
     /// <param name="offset">The offset of the frame, moved past what was read.</param>
-    /// <param name="frame">The frame.</param>
-    /// <returns><see langword="true"/> when a frame was read; otherwise, <see langword="false"/>.</returns>
+    /// <param name="frame">The frame that was read; otherwise, the default frame.</param>
+    /// <returns><see langword="true"/> if a frame was read; <see langword="false"/> at the end marker or the end of the body.</returns>
     public bool TryReadFrame(ref int offset, out DemoFrame frame)
     {
         frame = default;

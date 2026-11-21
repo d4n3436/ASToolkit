@@ -12,6 +12,7 @@ public static class CellSetExtensions
         /// </summary>
         /// <param name="sources">The cells to start from; those outside the set are skipped.</param>
         /// <param name="isClosed">Whether an edge stops the search.</param>
+        /// <returns>The cells reachable from the sources.</returns>
         public HashSet<Cell> Flood(IEnumerable<Cell> sources, Func<EdgeKey, bool> isClosed)
         {
             var seen = new HashSet<Cell>();

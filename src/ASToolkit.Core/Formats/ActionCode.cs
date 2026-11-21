@@ -11,7 +11,7 @@ public enum ActionCode
     Salut = 9,
 
     /// <summary>
-    /// Die, hurting the sprites around when the definition has death damage.
+    /// Die, and hurt the sprites around if the definition has death damage.
     /// </summary>
     Death = 15,
 
@@ -451,7 +451,7 @@ public enum ActionCode
     RestoreOld = 200,
 
     /// <summary>
-    /// Change the facing to the second value and the animation to the first.
+    /// Change the direction to the second value and the animation to the first.
     /// </summary>
     ChangeAction = 201,
 

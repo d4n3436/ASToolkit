@@ -12,18 +12,22 @@ namespace ASToolkit.Core.Reference;
 public readonly record struct LinearFit(float Intercept, float Slope, float Spread)
 {
     /// <summary>
-    /// Represents the fewest samples a line is fitted to.
+    /// Represents the minimum number of samples a line is fitted to.
     /// </summary>
     public const int MinSamples = 8;
 
     /// <summary>
     /// Returns the value of the line at a point.
     /// </summary>
+    /// <param name="x">The point.</param>
+    /// <returns>The value of the line at the point.</returns>
     public float Evaluate(float x) => Intercept + Slope * x;
 
     /// <summary>
-    /// Returns the line fitted to samples by least squares, or a flat line at their mean when they are too few for a line.
+    /// Fits a line to samples by least squares, or a flat line at their mean if there are too few samples for a line.
     /// </summary>
+    /// <param name="samples">The samples as x and y values.</param>
+    /// <returns>The fitted line with the number of samples.</returns>
     public static FittedValue<LinearFit> Fit(IReadOnlyList<(float X, float Y)> samples)
     {
         double[] xs = samples.Select(sample => (double)sample.X).ToArray();

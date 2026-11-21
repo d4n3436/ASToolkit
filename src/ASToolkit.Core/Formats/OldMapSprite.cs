@@ -28,7 +28,7 @@ internal readonly struct OldMapSprite
     public readonly Vector3 Position;
 
     /// <summary>
-    /// The facing field.
+    /// The direction of the object.
     /// </summary>
     [FieldOffset(20)]
     public readonly Angle Direction;

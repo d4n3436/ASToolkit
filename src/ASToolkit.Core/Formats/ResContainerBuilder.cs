@@ -29,22 +29,28 @@ public sealed class ResContainerBuilder
     /// <summary>
     /// Returns the first chunk with a tag.
     /// </summary>
+    /// <param name="tag">The four-character tag.</param>
+    /// <returns>The first chunk with the tag.</returns>
     public ResChunkBuilder GetChunk(string tag) => Chunks.First(c => c.Tag == tag);
 
     /// <summary>
-    /// Returns the first chunk with a tag, or null when there is none.
+    /// Returns the first chunk with a tag, or null if there isn't one.
     /// </summary>
+    /// <param name="tag">The four-character tag.</param>
+    /// <returns>The first chunk with the tag, or null if there isn't one.</returns>
     public ResChunkBuilder? FindChunk(string tag) => Chunks.FirstOrDefault(c => c.Tag == tag);
 
     /// <summary>
     /// Creates a builder with a copy of the chunks of a container.
     /// </summary>
+    /// <param name="data">The bytes of the container.</param>
+    /// <returns>The builder.</returns>
     public static ResContainerBuilder Parse(ReadOnlyMemory<byte> data)
     {
         var container = new ResContainer(data);
         if (!container.Magic.Span.SequenceEqual("RES "u8) && !container.Magic.Span.SequenceEqual("RIFF"u8))
         {
-            throw new InvalidDataException($"Not a RES file ({Encoding.ASCII.GetString(container.Magic.Span)}).");
+            throw new InvalidDataException($"The data is not a RES container (magic '{Encoding.ASCII.GetString(container.Magic.Span)}').");
         }
 
         var builder = new ResContainerBuilder { Magic = container.Magic.ToArray(), Kind = container.Kind.ToArray() };
@@ -65,6 +71,7 @@ public sealed class ResContainerBuilder
     /// <summary>
     /// Returns the bytes of the container.
     /// </summary>
+    /// <returns>The bytes of the container.</returns>
     public byte[] Build()
     {
         int length = FileHeaderSize;
@@ -89,7 +96,7 @@ public sealed class ResContainerBuilder
         return result;
     }
 
-    // The advance includes the pad byte, which the last chunk has no room for
+    // The advance includes the pad byte, which the last chunk doesn't have room for
     private static int WriteChunk(ResChunkBuilder chunk, Span<byte> destination)
     {
         bool counted = chunk.Flags.HasFlag(ResChunkFlags.ExtendedHeader);

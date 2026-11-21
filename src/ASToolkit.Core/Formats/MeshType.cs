@@ -11,7 +11,7 @@ public enum MeshType
     UprightOrFlat = -1,
 
     /// <summary>
-    /// An upright quad whose depth grows with the height up the frame, never turned by the facing.
+    /// An upright quad whose depth grows with the height up the frame, never turned by the direction.
     /// </summary>
     Upright = 0,
 

@@ -39,10 +39,11 @@ public readonly struct ResContainer
     public IEnumerable<ResChunk> Chunks => EnumerateChunks();
 
     /// <summary>
-    /// Finds the first chunk with a tag, returning false when the container has none.
+    /// Attempts to find the first chunk with a tag.
     /// </summary>
     /// <param name="tag">The four-byte tag.</param>
-    /// <param name="found">The chunk.</param>
+    /// <param name="found">The chunk if it was found; otherwise, the default chunk.</param>
+    /// <returns><see langword="true"/> if the container has a chunk with the tag; otherwise, <see langword="false"/>.</returns>
     public bool TryGetChunk(ReadOnlySpan<byte> tag, out ResChunk found)
     {
         foreach (var chunk in Chunks)

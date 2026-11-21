@@ -22,7 +22,7 @@ public enum WeaponFlags
     ForwardTargets = 1 << 1,
 
     /// <summary>
-    /// Among equally ranked targets, the unit takes one within 45 degrees of its facing.
+    /// Among equally ranked targets, the unit takes one within 45 degrees of its direction.
     /// </summary>
     PrefersFacedTargets = 1 << 2,
 
@@ -67,7 +67,7 @@ public enum WeaponFlags
     Torso = 1 << 11,
 
     /// <summary>
-    /// The object moves straight toward its target instead of along its facing.
+    /// The object moves straight toward its target instead of along its direction.
     /// </summary>
     MovesTowardTarget = 1 << 12,
 

@@ -8,7 +8,7 @@ using ASToolkit.Core.Survey;
 namespace ASToolkit.Core.Reference;
 
 /// <summary>
-/// Represents the game's own levels analyzed.
+/// Represents the game's own levels with their analysis.
 /// </summary>
 public sealed class ReferenceLevelSet
 {
@@ -52,27 +52,36 @@ public sealed class ReferenceLevelSet
     /// <summary>
     /// Returns the building an original level is, as its mission text names it.
     /// </summary>
+    /// <param name="name">The map name of the original level.</param>
+    /// <returns>The building.</returns>
     public static Building GetBuilding(string name) => Buildings[name];
 
     /// <summary>
     /// Returns the floor set every original level of a building lies on.
     /// </summary>
+    /// <param name="building">The building.</param>
+    /// <returns>The floor set.</returns>
     public static WallSet GetFloorSet(Building building) => building switch
     {
         Building.Grounds => WallSet.Outdoor,
         Building.UndergroundLab or Building.OfficeBlock or Building.ConferenceBuilding or Building.School or Building.TrainingComplex => WallSet.Basement,
         Building.Warehouse or Building.Prison => WallSet.Concrete,
-        _ => throw new ArgumentOutOfRangeException(nameof(building), building, "Expected a known building.")
+        _ => throw new ArgumentOutOfRangeException(nameof(building), building, "The building does not have a wall set.")
     };
 
     /// <summary>
     /// Returns the file name of a campaign level.
     /// </summary>
+    /// <param name="level">The level number.</param>
+    /// <returns>The file name of the level.</returns>
     public static string GetCampaignName(int level) => $"Level_{level:00}.map";
 
     /// <summary>
     /// Analyzes the campaign levels, the fighting levels of both add-ons and the three level 1 maps.
     /// </summary>
+    /// <param name="gameFolder">The game folder.</param>
+    /// <param name="objects">The object table.</param>
+    /// <returns>The analyzed levels.</returns>
     public static ReferenceLevelSet Load(string gameFolder, ObjectTable objects)
     {
         var levels = new Dictionary<string, ReferenceLevel>();
@@ -88,7 +97,7 @@ public sealed class ReferenceLevelSet
         Parallel.For(0, names.Length, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) }, i =>
         {
             string name = names[i];
-            loaded[i] = loader.Load(name, Path.Combine(gameFolder, "Maps", name)) ?? throw new InvalidDataException($"{name} has no route.");
+            loaded[i] = loader.Load(name, Path.Combine(gameFolder, "Maps", name)) ?? throw new InvalidDataException($"Could not find a route in level '{name}'.");
         });
 
         foreach (var level in loaded)
@@ -102,6 +111,8 @@ public sealed class ReferenceLevelSet
     /// <summary>
     /// Returns a reference level.
     /// </summary>
+    /// <param name="name">The map name relative to the Maps folder.</param>
+    /// <returns>The level.</returns>
     public ReferenceLevel GetLevel(string name) => _levels[name];
 
     /// <summary>
@@ -112,16 +123,22 @@ public sealed class ReferenceLevelSet
     /// <summary>
     /// Returns the survey of a reference level.
     /// </summary>
+    /// <param name="name">The map name relative to the Maps folder.</param>
+    /// <returns>The survey of the level.</returns>
     public LevelSurvey GetSurvey(string name) => _levels[name].Survey;
 
     /// <summary>
     /// Returns the rooms of a reference level with their roles and types.
     /// </summary>
+    /// <param name="name">The map name relative to the Maps folder.</param>
+    /// <returns>The rooms of the level.</returns>
     public RoomAtlas GetAtlas(string name) => _levels[name].Atlas;
 
     /// <summary>
-    /// Returns the walk from the start to the farthest point of the tour over the square root of the floor area.
+    /// Returns the length of the route from the start to the farthest point of the tour over the square root of the floor area.
     /// </summary>
+    /// <param name="a">The route analysis of the level.</param>
+    /// <returns>The elongation.</returns>
     public static float GetElongation(RouteAnalysis a) => a.SpinePixels / (a.Step * MathF.Sqrt(Math.Max(1, a.ReachableCells)));
 
 }

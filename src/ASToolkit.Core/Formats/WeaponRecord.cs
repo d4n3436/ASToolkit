@@ -52,7 +52,7 @@ public readonly struct WeaponRecord
     public readonly float DetectRange;
 
     /// <summary>
-    /// The farthest distance at which a unit with the weapon attacks.
+    /// The maximum distance at which a unit with the weapon attacks.
     /// </summary>
     [FieldOffset(28)]
     public readonly float BattleRange;
@@ -70,7 +70,7 @@ public readonly struct WeaponRecord
     public readonly int VolleySize;
 
     /// <summary>
-    /// The most ammunition the weapon holds.
+    /// The maximum ammunition the weapon holds.
     /// </summary>
     [FieldOffset(40)]
     public readonly int Ammo;
@@ -112,7 +112,7 @@ public readonly struct WeaponRecord
     public readonly int Rank;
 
     /// <summary>
-    /// The closest distance at which a unit with the weapon attacks.
+    /// The minimum distance at which a unit with the weapon attacks.
     /// </summary>
     [FieldOffset(88)]
     public readonly float MinRange;

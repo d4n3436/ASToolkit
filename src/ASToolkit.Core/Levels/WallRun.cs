@@ -12,6 +12,9 @@ public sealed record WallRun(int Before, int After, bool StartsAtCorner, bool En
     /// <summary>
     /// Finds the run of wall edges that an edge belongs to.
     /// </summary>
+    /// <param name="edges">The edges with their kinds.</param>
+    /// <param name="edge">The edge.</param>
+    /// <returns>The run the edge belongs to.</returns>
     public static WallRun Find(IReadOnlyDictionary<EdgeKey, EdgeKind> edges, EdgeKey edge)
     {
         int before = 0;
@@ -43,8 +46,10 @@ public sealed record WallRun(int Before, int After, bool StartsAtCorner, bool En
     public int Length => Before + After + 1;
 
     /// <summary>
-    /// Returns whether each end of the run meets a corner or lies at least the given number of edges away.
+    /// Determines whether each end of the run meets a corner or lies at least the given number of edges away.
     /// </summary>
+    /// <param name="openEndDistance">The number of edges an end must lie away if it doesn't meet a corner.</param>
+    /// <returns><see langword="true"/> if both ends of the run meet a corner or lie far enough away; otherwise, <see langword="false"/>.</returns>
     public bool IsEnclosed(int openEndDistance) => (StartsAtCorner || Before >= openEndDistance) && (EndsAtCorner || After >= openEndDistance);
     
     private static bool IsWall(EdgeKey k, IReadOnlyDictionary<EdgeKey, EdgeKind> edges) => edges.TryGetValue(k, out var kind) && kind == EdgeKind.Wall;

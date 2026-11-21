@@ -9,6 +9,12 @@ public static class FloorScanner
     /// Counts the floor cells in a straight line from a cell, one step of (du, dv) at a time, up to the first missing cell or
     /// blocked edge.
     /// </summary>
+    /// <param name="isFloor">Whether a cell is floor.</param>
+    /// <param name="isBlocked">Whether an edge blocks the line.</param>
+    /// <param name="start">The cell to start from.</param>
+    /// <param name="du">The step along u each time.</param>
+    /// <param name="dv">The step along v each time.</param>
+    /// <returns>The number of floor cells in the line.</returns>
     public static int CountOpenCells(Func<Cell, bool> isFloor, Func<EdgeKey, bool> isBlocked, Cell start, int du, int dv)
     {
         int count = 0;

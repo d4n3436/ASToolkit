@@ -23,8 +23,11 @@ public sealed class WallClearanceTable
     }
 
     /// <summary>
-    /// Measures every decor object standing on the floor of the given levels, and every floor piece and pickup against the wall below it on screen.
+    /// Builds the table from every decor object standing on the floor of the given levels, and from every floor piece and pickup measured against the wall below it on screen.
     /// </summary>
+    /// <param name="models">The level models to measure.</param>
+    /// <param name="objects">The object table.</param>
+    /// <returns>The table.</returns>
     public static WallClearanceTable Build(IReadOnlyList<LevelModel> models, ObjectTable objects)
     {
         var samples = new Dictionary<KnownObject, List<float>>();
@@ -59,7 +62,7 @@ public sealed class WallClearanceTable
         return new WallClearanceTable(byId, BuildDrops(models, objects));
     }
 
-    // Back a piece with too few samples off to its family, and keep every pickup to the low quantile of all pickups
+    // Fall back to the family of a piece that has too few samples, and take the low quantile of all pickups for every pickup
     private static Dictionary<KnownObject, (float, float)> BuildDrops(IReadOnlyList<LevelModel> models, ObjectTable objects)
     {
         var drops = new Dictionary<KnownObject, List<float>>();
@@ -108,9 +111,15 @@ public sealed class WallClearanceTable
     }
 
     /// <summary>
-    /// Returns whether an object at a map point stands as far above the wall below it on screen as the originals stand its kind, at its middle and
-    /// both sides; any point passes for a kind the originals hold too few of.
+    /// Determines whether an object at a map point stands as far above the wall below it on screen as the original levels stand its kind, at its middle and
+    /// both sides; any point passes for a kind that the original levels hold too few of.
     /// </summary>
+    /// <param name="id">The object ID.</param>
+    /// <param name="lattice">The lattice of the cells.</param>
+    /// <param name="edges">The wall edges with their kinds.</param>
+    /// <param name="x">The x coordinate of the object's position.</param>
+    /// <param name="y">The y coordinate of the object's position.</param>
+    /// <returns><see langword="true"/> if the object keeps the distance; otherwise, <see langword="false"/>.</returns>
     public bool KeepsDrop(KnownObject id, Lattice lattice, IReadOnlyDictionary<EdgeKey, EdgeKind> edges, float x, float y) =>
         !_dropById.TryGetValue(id, out var rule) || MeasureDrop(lattice, edges, rule.Side, x, y, rule.Drop) >= rule.Drop;
 
@@ -120,8 +129,12 @@ public sealed class WallClearanceTable
         MathF.Min(edges.MeasureDrop(lattice, x, y, reach), MathF.Min(edges.MeasureDrop(lattice, x - side, y, reach), edges.MeasureDrop(lattice, x + side, y, reach)));
 
     /// <summary>
-    /// Returns the closest any original puts an object to a wall, and the distance 95% of them keep, or false for an object the originals don't place.
+    /// Attempts to get the closest any original level puts an object to a wall, and the distance 95% of the objects keep.
     /// </summary>
+    /// <param name="id">The object ID.</param>
+    /// <param name="minimum">The closest distance to a wall in cells.</param>
+    /// <param name="low">The distance in cells that 95% of the objects keep.</param>
+    /// <returns><see langword="true"/> if the original levels place the object; otherwise, <see langword="false"/>.</returns>
     public bool TryGetClearance(KnownObject id, out float minimum, out float low)
     {
         bool found = _byId.TryGetValue(id, out var c);

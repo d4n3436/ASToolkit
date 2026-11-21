@@ -5,8 +5,7 @@ using ASToolkit.Core.Scripting;
 namespace ASToolkit.Core.Reference;
 
 /// <summary>
-/// Provides the fitting of a style model to the original levels of a style, with the option of leaving some originals out to test how much
-/// generation depends on each.
+/// Provides the fitting of a style model to the original levels of a style, optionally leaving some original levels out.
 /// </summary>
 public sealed class StyleFitter
 {
@@ -35,8 +34,10 @@ public sealed class StyleFitter
     }
 
     /// <summary>
-    /// Returns the original levels a style is fitted to in order, the campaign's ten and in add-on style both add-ons' five after them.
+    /// Returns the original levels a style is fitted to, in order, which are the campaign's ten levels followed, for the add-on style, by the five levels of each add-on.
     /// </summary>
+    /// <param name="style">The generation style.</param>
+    /// <returns>The map names of the levels, in order.</returns>
     public static IReadOnlyList<string> GetFittingLevels(GenerationStyle style)
     {
         var campaign = Enumerable.Range(1, 10).Select(ReferenceLevelSet.GetCampaignName);
@@ -44,18 +45,27 @@ public sealed class StyleFitter
     }
 
     /// <summary>
-    /// Returns the original levels a style's layout is fitted to, its fitting levels other than the campaign's arena level.
+    /// Returns the original levels a style's layout is fitted to, which are its fitting levels except the campaign's arena level.
     /// </summary>
+    /// <param name="style">The generation style.</param>
+    /// <returns>The map names of the levels.</returns>
     public static IReadOnlyList<string> GetLayoutLevels(GenerationStyle style) => GetFittingLevels(style).Where(name => name != ArenaLevel).ToArray();
 
     /// <summary>
     /// Fits the model of a style to its original levels.
     /// </summary>
+    /// <param name="references">The analyzed original levels.</param>
+    /// <param name="style">The generation style.</param>
+    /// <returns>The fitted model.</returns>
     public StyleModel Fit(ReferenceLevelSet references, GenerationStyle style) => Fit(references, style, []);
 
     /// <summary>
     /// Fits the model of a style to its original levels other than the excluded ones.
     /// </summary>
+    /// <param name="references">The analyzed original levels.</param>
+    /// <param name="style">The generation style.</param>
+    /// <param name="excluded">The map names of the levels to leave out of the fit.</param>
+    /// <returns>The fitted model.</returns>
     public StyleModel Fit(ReferenceLevelSet references, GenerationStyle style, IReadOnlyCollection<string> excluded)
     {
         string[] fitting = GetFittingLevels(style)

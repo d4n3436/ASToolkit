@@ -16,6 +16,7 @@ All integers are little-endian. Text is cp1251 (Cyrillic) unless noted. Offsets 
 8. [Demos (.dem)](#demos-dem)
 9. [Scripts and text](#scripts-and-text)
 10. [Drawing a level](#drawing-a-level)
+11. [Key functions](#key-functions)
 
 ## The game folder
 
@@ -51,7 +52,7 @@ Screens/                screenshots the game writes                         (AS1
 
 ## Alien Shooter: Vengeance
 
-Vengeance (2006) is an earlier build of Alien Shooter 2. Its files differ in these ways.
+Vengeance (2006) is an earlier build of Alien Shooter 2. Its files differ from those of Alien Shooter 2 in these ways.
 
 - Sprite headers are 10, 14, 22 or 34 bytes. The 426-byte header with the sprite tool's data is Alien Shooter 2 only.
 - Most cached sprites have the depth flag 0x04, with two depth bytes after the color of each pixel. The Alien Shooter 2 files dropped both from 580 sprites. Those have the flags 0x48 instead of 0x4C.
@@ -101,7 +102,7 @@ Chunks with `count` records are tables. Most chunks hold one record with a packe
 
 ## objects.res
 
-Kind `DATA`. It defines every object the game knows by an id from 0 to 1000.
+Kind `DATA`. It defines every object the game knows by an ID from 0 to 1000.
 
 ```
  RES "DATA"
@@ -148,15 +149,15 @@ Body fields:
  -      +72    i32      VID_DAMAGE_MAX: maximum damage
  -      +76    f32      push: speed added to everything the blast hits, weaker with distance
  +64    +80    f32 x3   LinkCoor[3]: offset of the linked object from this one (x, y, z; Alien Shooter 2 flips the sign of y on load)
- +76    +92    i32      LinkVid: object id of the linked object (a player body part, a weapon, a muzzle flash)
+ +76    +92    i32      LinkVid: object ID of the linked object (a player body part, a weapon, a muzzle flash)
  +80    +96    f32      TopZ: height above the terrain the object keeps when it is not falling; 0 for none
  +84    +100   f32      highest step up the object climbs; also how far a bobbing object rises and sinks
  +88    +104   f32      deepest drop the object walks off
  +92    +108   i32      VID_LIFETIME: lifetime in milliseconds; 999999 means forever
- +96    +112   -        16 bytes every reader skips (always 0)
+ +96    +112   -        16 bytes, always 0 (unused)
  +112   +128   i32      NoDir: direction count (at least 1)
  +116   +132   i32 x17  NoFrame[17]: frames per direction of each animation state
- +184   +200   i32 x17  SFX[17]: sound id of each state (an index into the SFX chunk)
+ +184   +200   i32 x17  SFX[17]: sound ID of each state (an index into the SFX chunk)
  +252   +268   i32 x17  VID_FRAME_SPEED: frame duration of each state in milliseconds; 0 takes the speed of the sprite header
  +320   +336   f32 x17  ChildX[17]: x offset of the object created in the state, rotated with the facing
  +388   +404   f32 x17  ChildY[17]: y offset of the object created in the state, rotated with the facing
@@ -199,9 +200,9 @@ Objects have 17 animation states, numbered 0 to 16 and named by the `ANI_` const
 | 15    | `ANI_DEATH`                              |
 | 16    | `ANI_DEATH2`                             |
 
-Menu buttons and fonts reuse the low states under their own names (`ANI_MENUSTANDDOWN` to `ANI_MENUDISABLEUP`, `ANI_FONT_NORMAL` to `ANI_FONT_NEXT_LINE`). States from `ANI_DEATH` up end the object. The monsters of the data use an id for the body, the next one for its death effect and the one after for its corpse, with the death effect named in `ANI_DEATH` of the body. The sprite needs at least `NoDir` times the sum of `NoFrame` frames.
+Menu buttons and fonts reuse the low states under their own names (`ANI_MENUSTANDDOWN` to `ANI_MENUDISABLEUP`, `ANI_FONT_NORMAL` to `ANI_FONT_NEXT_LINE`). States from `ANI_DEATH` up end the object. The monsters of the data use an ID for the body, the next one for its death effect and the one after for its corpse, with the death effect named in `ANI_DEATH` of the body. The sprite needs at least `NoDir` times the sum of `NoFrame` frames.
 
-`VID_BATTLERANGE`, `VID_DETECTRANGE`, `VID_AIM_RADIUS`, `VID_RELOAD_TIME` and `VID_RELOAD_TIME_IN_VOLLEY` are fields of the WEAP record the object points at, not of the object.
+`VID_BATTLERANGE`, `VID_DETECTRANGE`, `VID_AIM_RADIUS`, `VID_RELOAD_TIME` and `VID_RELOAD_TIME_IN_VOLLEY` are fields of the WEAP record the object points at.
 
 `WEAP` records are 612 bytes in Alien Shooter and 640 bytes in Zombie Shooter, Zombie Shooter 2 and Alien Shooter 2.
 
@@ -223,7 +224,7 @@ Menu buttons and fonts reuse the low states under their own names (`ANI_MENUSTAN
  +36    +52     i32    VID_BUILDTIME: build time in milliseconds
  +44    +56     i32    army of the objects the attack creates; 1 on monsters, 0 on the player
  +48    +60     i32    behavior mask (BEH_): 1 BEH_AGGRESSIVE attacks an enemy in weapon range, 2 BEH_ACTIVE moves toward an enemy it sees but cannot attack yet, 4 BEH_CAREFUL, 8 BEH_HAUNT, 16 BEH_BIGFIRE; 3 on normal monsters
- -      +64     -      20 bytes, always 0 (unused)
+ -      +64     -      20 bytes, always 0; unused, unknown meaning
  +56    +84     i32    rank: attackers prefer the higher-ranked of two equal targets; 0 in Alien Shooter, 5 or 6 (the player) in Alien Shooter 2
  +60    +88     f32    closest distance at which the unit attacks
  +64    +92     i32    period in milliseconds of the keyframe animation, 999999 to run it once over the death animation
@@ -241,7 +242,7 @@ Menu buttons and fonts reuse the low states under their own names (`ANI_MENUSTAN
  +420   +448    i32 x8 angle about x at each keyframe, the low byte in 256ths of a turn; a nonzero value switches on the keyframe animation (unused)
  +452   +480    i32 x8 angle about y at each keyframe, the low byte in 256ths of a turn; a nonzero value switches on the keyframe animation (unused)
  +484   +512    i32 x8 rotation of the drawn image at each keyframe, the low byte as an angle in 256ths of a turn; only the later games draw with it, though a nonzero value switches on the keyframe animation
- +516   +544    f32 x8 (unused)
+ +516   +544    f32 x8 unused
  +548   +576    f32 x8 speed added at each keyframe, scaled by 0.001 on load unless 999999
  +580   +608    f32 x8 scaled by 0.001 on load unless 999999 (unused)
 ```
@@ -264,7 +265,7 @@ The later games also read these weapon flags:
 
 Weapon flag 0x80 lets a unit target its own army, and 0x20 removes the scatter against units.
 
-When an object dies or hits something, its blast sends `DeathDamage` to every object with hit points within its footprint plus `DeathRange`, less with distance with `P_RadialDamage`. Hit units play `ANI_CLOSE` when it has frames. Health below half selects `ANI_WOUND`, and fatal hits select `ANI_DEATH2` when the damage exceeds the maximum health and `ANI_DEATH` otherwise. The armor objects (200 to 202) linked to the player take 50, 70 and 90 percent of its damage. The endless monster generators carry no hit points and fall only to a dynamite blast.
+When an object dies or hits something, its blast sends `DeathDamage` to every object with hit points within its footprint plus `DeathRange`, less with distance with `P_RadialDamage`. Hit units play `ANI_CLOSE` when that state has frames. Health below half selects `ANI_WOUND`, and fatal hits select `ANI_DEATH2` when the damage exceeds the maximum health and `ANI_DEATH` otherwise. The armor objects (200 to 202) linked to the player take 50, 70 and 90 percent of its damage. The endless monster generators don't have hit points and fall only to a dynamite blast.
 
 Each animation state creates the objects of its `ChildVid`, `NoChild` times, at its child offset turned with the facing. Blood, corpses, casings and debris come from these chains. Alien 50 creates the blood 756 when hit and the death effect 51 when it dies, and 51 leaves the corpse 52. Linked objects (`LinkVid`) come with their owner, take its army and follow it at `LinkCoor` turned with the facing, unless they have the flag 0x2000000. Armed linked objects are upper bodies that fire for their owner. Objects with a lifetime other than 999999 are removed once it has passed.
 
@@ -272,7 +273,7 @@ Each animation state creates the objects of its `ChildVid`, `NoChild` times, at 
 
 Alien Shooter uses the `MoveMask` values 7 (most monsters and some projectiles), 8 (projectiles), 15 (the player, scenery and some monsters), 16 (death effects) and 31 (walls and generators). Alien Shooter 2 adds many more, including 64 and 128 for turrets, vehicles and its other new groups.
 
-Scripts look objects up by a mask over `SpriteType` (the `GETSPRITE_` constants), id, `SpriteClass`, army and state.
+Scripts look objects up by a mask over `SpriteType` (the `GETSPRITE_` constants), ID, `SpriteClass`, army and state.
 
 The two games number the `U_` constants differently. Alien Shooter 2 added `U_DUMMY` and moved the others one bit up:
 
@@ -312,11 +313,11 @@ Every placed object is live when the map loads. Placed cannons, such as the flyi
 
 `B_Monster` is another name for `B_UNIT` (2), and `U_Monster` for the `U_` value 4. No object uses `B_AVIA` or `B_Plane` (4), `B_PRIMITIVE` (6), `B_CIV_ROBOT` (20), `B_ENGINE` (21), `B_RAIL` (22), `B_DEPO` (24), `B_BALLOON` (26), or `B_MISSILE` or `B_BigMissile` (27).
 
-Object ids index the object table.
+Object IDs index the object table.
 
 `ScaleXYZ` multiplies the scale of each placement (a menu button of 1.1 x 1, a volume bar of 1 x 1.35, a small explosion of 0.65). On omni-lights it scales the radius of the light.
 
-Object flags (`Property`). The Alien Shooter files set only part of them, and the Alien Shooter 2 files set the rest. 0x400 and 0x2000000 have no name.
+Object flags (`Property`)
 
 ```
  0x00000001   P_RandBirth: the object is born with a random facing (casings, craters, holes, dried blood)
@@ -353,7 +354,7 @@ Object flags (`Property`). The Alien Shooter files set only part of them, and th
  0x80000000   P_NotDamageForFriend: a hit or blast from the object skips objects of its own army
 ```
 
-The army is two bits (11 and 12) of the state of a placed object in Alien Shooter and three bits (17 to 19) in Alien Shooter 2, and it indexes the per-army tables of the object, such as its maximum health and unit count. Placed objects take it from the map, and spawned and linked objects from their parent. Sprites with the flag 0x400 pick their palette by it.
+The army is two bits (11 and 12) of the state of a placed object in Alien Shooter and three bits (17 to 19) in Alien Shooter 2, and it indexes the per-army tables of the object, such as its maximum health and unit count. Placed objects take it from the map, and spawned and linked objects from their parent. Sprites with the `VidType` flag 0x400 pick their palette by it.
 
 The helper blocks of the Alien Shooter 2 editor (630 to 634, the pillars 1357 to 1359, the teleport markers) and the depth blocks linked to walls (2706, 1799 and the like) carry the flag 0x20000 and army 2. They stay hidden and still raise the height grids. The blocks 630 to 632 are named dummies for Z, and 633 and 634 blocks for monsters and for the player. In Alien Shooter the only object with the flag 0x20000 is the depth blocker 631.
 
@@ -460,9 +461,9 @@ The ambient gamma is packed like the gamma of a placed sprite and sets the ambie
  0x80000000   ENV_STOP, clears the given bits when passed to SetEnvironment
 ```
 
-Only the earthquake, ground snow, squall, rain and snow bits take effect. Every map of the original games stores zero, Alien Shooter Revisited's level 1 starts with rain and two Alien Shooter 2 Conscription maps start with shadows.
+Only the earthquake, ground snow, squall, rain and snow bits take effect. Every map of the original games stores zero. Alien Shooter Revisited's level 1 starts with rain, and two Alien Shooter 2 Conscription maps start with shadows.
 
-`dir` and `len` are the wind as `SetWind` sets it, its direction in 256ths of a turn in the low byte of `dir` and its speed in pixels per millisecond. Every map has `dir` 64 or 200 and `len` 0.025. The fields from byte 20 on are unused.
+`dir` and `len` are the wind as `SetWind` sets it, its direction in 256ths of a turn in the low byte of `dir` and its speed in pixels per millisecond. Every map has `dir` 64 or 200 and `len` 0.025. The fields from byte 20 on are unused, and their meaning is unknown.
 
 `SPR ` has one record. It is an array of entries closed by a handle of -1, 28 bytes each before version 16 and 48 bytes from version 16.
 
@@ -472,7 +473,7 @@ Only the earthquake, ground snow, squall, rain and snow bits take effect. Every 
  | handle | id  | x | y  | z  | dir | army | gamma - | gamma + | sx  | sy  | sz  |
  | i32    | i32 |f32|f32 |f32 | i32 | i32  | u32    | u32    | f32 | f32 | f32 |
  +--------+-----+---+----+----+-----+------+--------+--------+-----+-----+-----+
-          object id                         version 16 and later
+          object ID                         version 16 and later
           from objects.res
 ```
 
@@ -509,7 +510,7 @@ In Alien Shooter every payload has the same layout:
  i32      entry count
  entry    (i32 act, i32 a, i32 b, i32 c) * entry count
  i32      item count
- i32      item ids * item count
+ i32      item IDs * item count
  i32      behavior (BEH_ bits): 3 on most monsters, spawners and teleports (450), 0 on crates and player starts; absent on other sprites
 ```
 
@@ -556,7 +557,7 @@ The level scripts read the `Action<n>` variables each tick in `CompaignGameTact`
 |---|---|
 | `Action1` | plays music `n` |
 | `Action2`, `Action3` | gives experience or money |
-| `Action4` | gives the item with base id `n` |
+| `Action4` | gives the item with base ID `n` |
 | `Action5` | removes the sprites named `h<n>` with `EXT_KILLOBJECTS` |
 | `Action6` | opens the shop |
 | `Action8`, `Action9` | wins the level, after the win text or at once |
@@ -566,9 +567,9 @@ The level scripts read the `Action<n>` variables each tick in `CompaignGameTact`
 
 In Alien Shooter 2 the player is object 250, and respawn posts (1359) set where it comes back. Sprites that their stacks hide before the first wait start the level hidden, 299 placements across the maps (alarm lamps, glows, helper arrows, exit zones and the like).
 
-`PLAY` has one record of a `i32` sprite handle for each player, 4 in Alien Shooter and Zombie Shooter and 8 in the later games, their editions of Alien Shooter included. Every handle in every map is zero.
+`PLAY` has one record of an `i32` sprite handle for each player, 4 in Alien Shooter and Zombie Shooter and 8 in the later games, their editions of Alien Shooter included. Every handle in every map is zero.
 
-`GROU` has one record of `i32` sprite handles. Each group lists its sprites and ends with -1, and one more -1 ends the record. Campaign level 7 groups 26 placed monsters, and the second add-on's levels 4 and 5 group 9 and 14 objects. Written levels keep the record a lone `0xFFFFFFFF`. Each frame, while a member of a group attacks a unit, every idle member takes the same attack command and target; a sprite leaves its groups when it is deleted, and an emptied group goes with it.
+`GROU` has one record of `i32` sprite handles. Each group lists its sprites and ends with -1, and one more -1 ends the record. Campaign level 7 groups 26 placed monsters, and the second add-on's levels 4 and 5 group 9 and 14 objects. A record without groups is a lone `0xFFFFFFFF`. Each frame, while a member of a group attacks a unit, every idle member takes the same attack command and target; a sprite leaves its groups when it is deleted, and an emptied group goes with it.
 
 ### Coordinates and direction
 
@@ -717,7 +718,7 @@ Only Vengeance ships `fast_load.vid` and `fast_load_data.vid`, where 847 of 979 
  0x800  Shadow: each CADR record header has one more u16 after the index count, 14 bytes in all (no sprite of the game)
  0x1000 a sprite class of its own, always on HARDWARE_LAYER; no sprite of the game
  0x2000 Normal: a normal map under the image; the surface is twice as tall and each CADR pixel has one more byte; no sprite of the game
- 0x4000 text font the engine builds at run time from a system font, with no frames of its own; no file sets it
+ 0x4000 text font the engine builds at run time from a system font, with no frames of its own; no file of the game sets it
  0x8000 Material: one more material byte per CADR pixel; with 0x2000 the two bytes make a 16-bit value under the image, alone the byte is skipped; no sprite of the game
 ```
 
@@ -818,7 +819,7 @@ Each `SPR` record holds the 28-byte sprite of a map before version 16 (positions
 ```
  +28    i32           number of orders
  +32    16 x n        orders, as in a sprite's stacks
-        i32, i32 x m  (version 12 and later) number of items and their object ids
+        i32, i32 x m  (version 12 and later) number of items and their object IDs
         ...           the fields of the sprite's class
 ```
 
@@ -855,7 +856,7 @@ Kind `DEMO`. Each demo records one level with its random seed, the script state 
 
 The seed starts the random number generator in place of the current time a normal map load uses. The time is the game clock the level starts at (10).
 
-The script state lists the script's variables in order. Each variable is a type byte, then a i32 when the type has bit 0x08 and lacks bit 0x01, or a string ending in 0 with every character XORed with 0x17 when it has both. Then comes a i32 count of the script's global names, each a name ending in 0 and 20 bytes, followed by one more string ending in 0 per name, empty for every name the compiler creates. The names are in declaration order, starting with the engine functions `EXPORT.LGC` declares (`CreateSprite`, `Flagman` and the rest). Each name's 20 bytes hold its kind in one byte, 7 unused bytes, then its address, its first parameter variable and its count, as [Scripts](#scripts-lgc) describes.
+The script state lists the script's variables in order. Each variable is a type byte, then an i32 when the type has bit 0x08 and lacks bit 0x01, or a string ending in 0 with every character XORed with 0x17 when it has both. Then comes an i32 count of the script's global names, each a name ending in 0 and 20 bytes, followed by one more string ending in 0 per name, empty for every name the compiler creates. The names are in declaration order, starting with the engine functions `EXPORT.LGC` declares (`CreateSprite`, `Flagman` and the rest). Each name's 20 bytes hold its kind in one byte, 7 unused bytes, then its address, its first parameter variable and its count, as [Scripts](#scripts-lgc) describes.
 
 The map load writes the state after compiling the level's script and before any sprite's creation script runs. It holds the initial values together with the `static` variables carried over from earlier loads, such as the player's money and items. Playback replaces the script's variables and functions with the recorded ones.
 
@@ -903,7 +904,7 @@ The movement bits and the actions follow the `[control]` section of `AlienShoote
 
 Any key press or click ends playback. The game then reads the map name again and loads that map for play, and quits when the name is empty.
 
-Alien Shooter 2 frames hold the time, a i32, a 39-byte input block and a check value, `rand() % 50001` drawn as the frame is recorded. Playback draws the value again and compares the two.
+Alien Shooter 2 frames hold the time, an i32, a 39-byte input block and a check value, `rand() % 50001` drawn as the frame is recorded. Playback draws the value again and compares the two.
 
 ## Scripts and text
 
@@ -922,7 +923,7 @@ C-like scripting language in plain text in cp1251, compiled when a map loads.
    ...
  }
 
- F419_15() { ... }                 handler F<object id>_<event> of an object
+ F419_15() { ... }                 handler F<object ID>_<event> of an object
 ```
 
 Event 14 runs once when the object is created or loaded with the map. Other events run at the first frame of their state, or every frame with flag 0x10.
@@ -938,7 +939,7 @@ Engine functions are declared in `EXPORT.LGC` as `extern Name(args) <builtin>;`.
 
 The game compiles a script in one pass over its text, without a token stream. `#define` replaces a name with the rest of its line, text only, at the next token. `#ifdef` and `#ifndef` test the declared names as well as the defines. `#include` opens its path relative to the game folder. Every compile error ends the game, except an unbalanced `#ifdef`, `#else` or `#endif`. A script that compiles to no code is dropped whole, declarations included.
 
-The language has `int` and `string` variables and arrays, `if`, `iff`, `else`, `while`, `do`, `for`, `break`, `goto` and labels. `return` is an expression with an optional value. `static` changes nothing. `^`, `&&`, `&`, `||` and `|` share one precedence level, below the comparisons and shifts, and both sides of `&&` and `||` are evaluated. Constant expressions of literals fold at compile time. There is no `?:`, `switch`, `continue` or parameterized `#define`.
+The language has `int` and `string` variables and arrays, `if`, `iff`, `else`, `while`, `do`, `for`, `break`, `goto` and labels. `return` is an expression with an optional value. `static` has no effect. `^`, `&&`, `&`, `||` and `|` share one precedence level, below the comparisons and shifts, and both sides of `&&` and `||` are evaluated. Constant expressions of literals fold at compile time. There is no `?:`, `switch`, `continue` or parameterized `#define`.
 
 A call to a script function stores each argument in the parameter's variable before the call. Parameters and locals are variables shared by every call, and recursion overwrites them. Omitted arguments take the parameter's default value. The engine passes the functions it calls the unit as the first argument and, for some events, the other unit or the damage as the next two. `iff` runs its block once per session. The first time its condition holds, it replaces the start of its statement in the compiled code with a jump over the block. The replacement is never saved in demos or saves.
 
@@ -966,9 +967,9 @@ A file whose fourth byte is not 0 is source text. Otherwise it is a compiled scr
  +-----------+-----------+------------+-----------+------+
 ```
 
-The variable records and names use the layout of the demo script state. The names are the global ones, since a function's or block's names end with it. Kind 1 names a variable (its first slot and element count), 2 an engine function (its id and parameters), 3 a script function (its code offset and parameters).
+The variable records and names use the layout of the demo script state. The names are the global ones, since a function's or block's names end with it. Kind 1 names a variable (its first slot and element count), 2 an engine function (its ID and parameters), 3 a script function (its code offset and parameters).
 
-Code is a byte stream; operands are little-endian i32. Jump offsets count from the operand's own position. A byte outside the table calls the engine function with that id, taking its arguments from the stack, last argument first, and pushing its result. Every statement ends with opcode 25. It carries the source line and empties the stack.
+Code is a byte stream; operands are little-endian i32. Jump offsets count from the operand's own position. A byte outside the table calls the engine function with that ID, taking its arguments from the stack, last argument first, and pushing its result. Every statement ends with opcode 25. It carries the source line and empties the stack.
 
 | Op | Operand | Action |
 |---|---|---|
@@ -1001,7 +1002,7 @@ Alien Shooter 2 compiles the same language with these differences:
 - Precedence from loosest: `||`, `&&`, `|`, `^`, `&`, the comparisons and shifts, `+ -`, `* / %`. `&&` and `||` skip their right side when the left one decides, leaving the left value on the stack.
 - `-` between two texts removes the first occurrence of the right text from the left one.
 - Opcode 30 takes the index of the called function's name instead of its code offset.
-- Engine function ids start at 46. Additional opcodes:
+- Engine function IDs start at 46. Additional opcodes:
 
 | Op | Operand | Action |
 |---|---|---|
@@ -1013,9 +1014,9 @@ Alien Shooter 2 compiles the same language with these differences:
 
 #### Engine functions and object kinds
 
-Engine functions pop exactly the values their case reads, which may differ from the declared parameter count. `FirstUnit` pops only the top value, the army argument, and uses it as its type mask; the mask stays on the stack. `CreateSprite` pushes a plain 0 for an id without a kind, `Destroy` deletes the sprite at once and pushes nothing. When a sprite is deleted, every variable holding its handle is set to 0.
+Engine functions pop exactly the values their case reads, which may differ from the declared parameter count. `FirstUnit` pops only the top value, the army argument, and uses it as its type mask; the mask stays on the stack. `CreateSprite` pushes a plain 0 for an ID without a kind, `Destroy` deletes the sprite at once and pushes nothing. When a sprite is deleted, every variable holding its handle is set to 0.
 
-Each kind keeps per army the number of its live sprites, its killed units and its maximum health. Constructing a sprite adds to its army's count and deleting it subtracts, never below 0; a unit dropping to 0 health outside its death states adds a kill. Unloading a level clears the counts and kills and sets every army's maximum health to the kind's. `SetVidData` writes the kind for the rest of the session. `VID_MAXHPn` and `VID_HP_COEFFn` rescale the health of the kind's live units of that army to `hp * new * 256 / old / 256`, then repeat along the kind's link chain. `VID_EXCHANGEVID` swaps two kinds' slots in the kind table, their ids and their handler tables, and turns every link pointing at one to the other. `ReloadVid` swaps exchanged kinds back and reads every kind's record again. `VID_AMMO` reads and writes the ammunition of the kind's link when the link has a fight child and a weapon, otherwise its own.
+Each kind keeps per army the number of its live sprites, its killed units and its maximum health. Constructing a sprite adds to its army's count and deleting it subtracts, never below 0; a unit dropping to 0 health outside its death states adds a kill. Unloading a level clears the counts and kills and sets every army's maximum health to the maximum health of the kind. `SetVidData` writes the kind for the rest of the session. `VID_MAXHPn` and `VID_HP_COEFFn` rescale the health of the kind's live units of that army to `hp * new * 256 / old / 256`, then repeat along the kind's link chain. `VID_EXCHANGEVID` swaps two kinds' slots in the kind table, their IDs and their handler tables, and turns every link pointing at one to the other. `ReloadVid` swaps exchanged kinds back and reads every kind's record again. `VID_AMMO` reads and writes the ammunition of the kind's link when the link has a fight child and a weapon, otherwise its own.
 
 ### Quests (levels.cfg)
 
@@ -1031,7 +1032,7 @@ Alien Shooter 2 keeps the quests of the campaign in `levels.cfg`, one `Key=Value
  Comment=Найти ворота                designer note
 ```
 
-The states are `QS_NOTBEGUN` (0), `QS_BEGUN` (1), `QS_COMPLETED` (2), `QS_FAILED` (4) and `QS_NOTACTUAL` (32). Starting a quest can set quests with an earlier `TimeLine` to `QS_NOTACTUAL`. `ChangeStateItem` takes a state, an event (`CSI_DEATH`, `CSI_TAKE`, `CSI_HAVE` or `CSI_BIRTH`) and a name. The name is the bracketed name of a map sprite (see [Maps](#maps)), an item name, an object id or `m0` to `m9`. When the event happens to that name, the quest goes to the state. `QS_BEGUN CSI_DEATH m3` starts the quest once the sprites named `m3` are destroyed. The names `m0` to `m9` only take `QS_BEGUN`. `LineQuests` takes a line and a quest as `line * 1000 + number`, like `NextQuests`, and links the quest to a quest of that line. The `TimeLine` of that quest is checked before the events apply. `SetFlagmanCoord` takes a state and four numbers, such as `QS_BEGUN 4177 6948 0 150`. `WinOnBegin`, when nonzero, wins the level as soon as the quest starts. Other keys are `BeginNext`, `UnactualNext`, `Accomplished`, `SetInfoQuest`, `SndBegun` and `SndComplete`.
+The states are `QS_NOTBEGUN` (0), `QS_BEGUN` (1), `QS_COMPLETED` (2), `QS_FAILED` (4) and `QS_NOTACTUAL` (32). Starting a quest can set quests with an earlier `TimeLine` to `QS_NOTACTUAL`. `ChangeStateItem` takes a state, an event (`CSI_DEATH`, `CSI_TAKE`, `CSI_HAVE` or `CSI_BIRTH`) and a name. The name is the bracketed name of a map sprite (see [Maps](#maps)), an item name, an object ID or `m0` to `m9`. When the event happens to that name, the quest goes to the state. `QS_BEGUN CSI_DEATH m3` starts the quest once the sprites named `m3` are destroyed. The names `m0` to `m9` only take `QS_BEGUN`. `LineQuests` takes a line and a quest as `line * 1000 + number`, like `NextQuests`, and links the quest to a quest of that line. The `TimeLine` of that quest is checked before the events apply. `SetFlagmanCoord` takes a state and four numbers, such as `QS_BEGUN 4177 6948 0 150`. `WinOnBegin`, when nonzero, wins the level as soon as the quest starts. Other keys are `BeginNext`, `UnactualNext`, `Accomplished`, `SetInfoQuest`, `SndBegun` and `SndComplete`.
 
 The title the game shows is the section `<1_1_3>` of `Text/mission.txt`. The dialogs of `ACT_SET_DIALOG` are the sections `<n>` of `Text/dialogs.txt`, whose lines start with tags such as `<Font=10>`, `<Icon=391,3>` and `<Speech=Speech\001_2.ogg>`.
 
@@ -1041,7 +1042,7 @@ The title the game shows is the section `<1_1_3>` of `Text/mission.txt`. The dia
  strings.ini
  [strings]       window and error texts
  [menu]          one key per menu label
- ItemNNN=...     item names, by object id
+ ItemNNN=...     item names, by object ID
 
  Text/level_NN.txt        mission briefing: MISSION, DESCRIPTION, TIPS
  Text/addonNlevel_NN.txt  the same for the add-ons
@@ -1118,7 +1119,7 @@ Alien Shooter (GOG):
 - `FUN_00426370` - reads a key name of the `[control]` settings
 - `FUN_0043ad70` - loads the groups of a map
 - `FUN_0040bc20` - moves the camera and clamps it to the map
-- `FUN_0040fc40` - finds a placed object by `SpriteType` mask, id, `SpriteClass`, army and state
+- `FUN_0040fc40` - finds a placed object by `SpriteType` mask, ID, `SpriteClass`, army and state
 - `FUN_0043f200` - creates an object of any class, applying the spawn flags
 - `FUN_00442ad0` - sets the army of an object and hides it when the flag 0x20000 asks for it
 - `FUN_00419b80` - bakes a scenery object into the terrain tiles, skipping objects with the flag 0x20000
@@ -1169,11 +1170,11 @@ Alien Shooter 2 (Reloaded, GOG):
 - `FUN_004514f0` - reads one object record
 - `FUN_004422d0` - spawns the child objects of an animation state
 - `FUN_0043b680` - ends an animation step of an object, running its action stacks and applying the blast with its damage roll, radius and push
-- `FUN_00448300` - finds the placed object of an id or mask nearest to a point
+- `FUN_00448300` - finds the placed object of an ID or mask nearest to a point
 - `FUN_004686d0` - finds a quest by line and number
 - `FUN_0046ec30` - sets the state of a quest
 - `FUN_0046ee20` - starts a quest with its sound, info text, starting quests and win
-- `FUN_0046f950` - applies a `ChangeStateItem` event (a sprite name, an object id or a named monster) to the quests
+- `FUN_0046f950` - applies a `ChangeStateItem` event (a sprite name, an object ID or a named monster) to the quests
 - `FUN_00470240` - reads one key of a quest of `levels.cfg`
 - `FUN_00468cb0` - writes the quests to `levels.cfg`
 - `FUN_00404170` - creates a placed object and rolls its initial vertical speed

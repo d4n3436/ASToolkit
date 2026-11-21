@@ -5,8 +5,7 @@ using ASToolkit.Core.Survey;
 namespace ASToolkit.Core.Reference;
 
 /// <summary>
-/// Provides the outlines of the originals' smaller office, lab, storage, computer and passage rooms on the building grid, the vocabulary the building
-/// grammars transform their rooms from.
+/// Provides the outlines of the smaller rooms of the original levels on the building grid, such as office, lab, storage, computer and passage rooms.
 /// </summary>
 public static class RoomFootprintFitter
 {
@@ -22,6 +21,8 @@ public static class RoomFootprintFitter
     /// <summary>
     /// Reads the footprints of the basement originals among the given levels.
     /// </summary>
+    /// <param name="levels">The reference levels.</param>
+    /// <returns>The footprints.</returns>
     public static IReadOnlyList<RoomFootprint> Fit(IReadOnlyList<ReferenceLevel> levels) => levels
         .Where(level => level.Survey.FloorSet == WallSet.Basement)
         .SelectMany(level => level.Atlas.Rooms)

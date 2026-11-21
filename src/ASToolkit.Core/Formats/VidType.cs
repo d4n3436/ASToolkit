@@ -82,7 +82,7 @@ public enum VidType : short
     Normal = 1 << 13,
 
     /// <summary>
-    /// The sprite is a text font the engine builds at run time. No file sets it.
+    /// The sprite is a text font the engine builds at run time. No file of the game sets it.
     /// </summary>
     Font = 1 << 14,
 

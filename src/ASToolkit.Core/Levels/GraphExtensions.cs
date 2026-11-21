@@ -11,6 +11,9 @@ public static class GraphExtensions
         /// Returns the number of steps from the nearest source to every node reachable from the sources, through the nodes a filter keeps when
         /// one is given.
         /// </summary>
+        /// <param name="sources">The nodes to start from.</param>
+        /// <param name="within">The filter for the nodes to pass through, or null to pass through any node.</param>
+        /// <returns>The number of steps to each reachable node.</returns>
         public Dictionary<int, int> MeasureHops(IEnumerable<int> sources, Func<int, bool>? within = null)
         {
             var hops = new Dictionary<int, int>();
@@ -46,6 +49,8 @@ public static class GraphExtensions
         /// <summary>
         /// Returns the connected parts of the graph restricted to the given nodes, in the order of their lowest nodes.
         /// </summary>
+        /// <param name="nodes">The nodes to restrict the graph to.</param>
+        /// <returns>The connected parts.</returns>
         public List<HashSet<int>> FindComponents(IReadOnlySet<int> nodes)
         {
             var seen = new HashSet<int>();
@@ -67,8 +72,12 @@ public static class GraphExtensions
 
         /// <summary>
         /// Returns the nodes of a shortest path between two nodes, both included, through the nodes a filter keeps when one is given, or an empty
-        /// list when no path joins them.
+        /// list if there isn't a path between them.
         /// </summary>
+        /// <param name="from">The node to start from.</param>
+        /// <param name="to">The node to reach.</param>
+        /// <param name="within">The filter for the nodes to pass through, or null to pass through any node.</param>
+        /// <returns>The nodes of the path, or an empty list if there isn't a path.</returns>
         public List<int> FindPath(int from, int to, Func<int, bool>? within = null)
         {
             var previous = new Dictionary<int, int> { [from] = from };

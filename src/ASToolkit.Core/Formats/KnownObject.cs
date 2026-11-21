@@ -374,10 +374,10 @@ public enum KnownObject
     /// <summary>The magma minigun ammo pickup.</summary>
     MagmaMinigunAmmo = 309,
 
-    /// <summary>The second weapon of the yellow tank alien, carrying its turret.</summary>
+    /// <summary>The second weapon of the yellow tank alien, which carries its turret.</summary>
     Monster4Weapon2 = 332,
 
-    /// <summary>The third weapon of the red tank alien, carrying its turret.</summary>
+    /// <summary>The third weapon of the red tank alien, which carries its turret.</summary>
     Monster4Weapon3 = 333,
 
     /// <summary>The first weapon of the tank alien.</summary>
@@ -509,7 +509,7 @@ public enum KnownObject
     /// <summary>The dead teleport pad for small monsters.</summary>
     DeadSmallMonsterTeleportPad = 451,
 
-    /// <summary>The teleport pad that spawns no monsters.</summary>
+    /// <summary>The teleport pad that doesn't spawn any monsters.</summary>
     SilentTeleportPad = 453,
 
     /// <summary>The basement floor tile.</summary>
@@ -860,7 +860,7 @@ public enum KnownObject
     /// <summary>The player legs that the Alien Shooter 2 levels place and the start script takes as the player.</summary>
     SequelPlayer = 250,
 
-    /// <summary>The dummy whose death moves the place where the player comes back in Alien Shooter 2.</summary>
+    /// <summary>The dummy whose death moves the point where the player comes back in Alien Shooter 2.</summary>
     RespawnPost = 1359,
 
     /// <summary>The solid black block that hides ground outside the rooms in Alien Shooter 2.</summary>

@@ -53,7 +53,7 @@ public readonly struct GameObject
     public readonly int MaxHp;
 
     /// <summary>
-    /// The highest speed of the object along its facing and the initial speed of a spawned object.
+    /// The highest speed of the object along its direction and the initial speed of a spawned object.
     /// </summary>
     [FieldOffset(32)]
     public readonly float MaxSpeed;
@@ -89,7 +89,7 @@ public readonly struct GameObject
     public readonly float RotationPeriod;
 
     /// <summary>
-    /// The index of the WEAP record of the object, or zero for none.
+    /// The index of the WEAP record of the object, or zero if the object doesn't have one.
     /// </summary>
     [FieldOffset(60)]
     public readonly int WeaponIndex;
@@ -125,7 +125,7 @@ public readonly struct GameObject
     public readonly Vector3 LinkOffset;
 
     /// <summary>
-    /// The ID of the object the engine creates linked to this object, or zero for none.
+    /// The ID of the object the engine creates linked to this object, or zero if it doesn't create one.
     /// </summary>
     [FieldOffset(92)]
     public readonly KnownObject Link;
@@ -167,7 +167,7 @@ public readonly struct GameObject
     public readonly StateValues<int> FrameCounts;
 
     /// <summary>
-    /// The sound id of each animation state, an index into the SFX chunk.
+    /// The sound ID of each animation state, an index into the SFX chunk.
     /// </summary>
     [FieldOffset(200)]
     public readonly StateValues<int> Sounds;
@@ -366,10 +366,11 @@ public readonly struct GameObject
     public bool IsHittable => Properties.HasFlag(ObjectProperties.Hash);
 
     /// <summary>
-    /// Tells whether the object stands in the way of a walking unit as a box, which excludes scenery, units, aircraft, cannons,
+    /// Determines whether the object stands in the way of a walking unit as a box, which excludes scenery, units, aircraft, cannons,
     /// objects that break and non-solid helper dummies.
     /// </summary>
     /// <param name="walker">The walking unit.</param>
+    /// <returns><see langword="true"/> if the object blocks the unit; otherwise, <see langword="false"/>.</returns>
     public bool Blocks(GameObject walker) =>
         SpriteClass != SpriteClass.BuiltTerrain && (MoveMask & walker.MoveMask) != 0 && !SpriteType.HasFlag(SpriteType.Unit)
         && !(SpriteType.HasFlag(SpriteType.Dummy) && !IsSolid) && !SpriteType.HasFlag(SpriteType.Avia) && !SpriteType.HasFlag(SpriteType.Cannon)
@@ -378,11 +379,16 @@ public readonly struct GameObject
     /// <summary>
     /// Returns the sprite frame the engine shows for a direction, out of the given number of frames.
     /// </summary>
+    /// <param name="dir">The direction.</param>
+    /// <param name="frameCount">The number of frames of the sprite.</param>
+    /// <returns>The index of the frame.</returns>
     public int GetFrame(Angle dir, int frameCount) => FramesPerDirection == 0 ? 0 : Math.Min(dir.GetDirectionIndex(Directions) * FramesPerDirection, frameCount - 1);
 
     /// <summary>
     /// Returns the sprite frame that starts an animation state.
     /// </summary>
+    /// <param name="animation">The animation state.</param>
+    /// <returns>The index of the first frame of the state.</returns>
     public int GetStateStart(SpriteAnimation animation)
     {
         int start = 0;
@@ -397,17 +403,20 @@ public readonly struct GameObject
     /// <summary>
     /// Returns the frame duration of an animation state in milliseconds, given the speed of the sprite.
     /// </summary>
+    /// <param name="animation">The animation state.</param>
+    /// <param name="spriteSpeed">The speed of the sprite, used when the state doesn't have a duration of its own.</param>
+    /// <returns>The duration of a frame in milliseconds.</returns>
     public int GetFrameDuration(SpriteAnimation animation, int spriteSpeed) =>
         FrameDurations[(int)animation] == 0 ? spriteSpeed : FrameDurations[(int)animation];
 
     /// <summary>
-    /// Returns the offset of an attached object from the object, turned by a facing unless the attached object keeps a fixed offset.
+    /// Returns the offset of an attached object from the object, turned by a direction unless the attached object keeps a fixed offset.
     /// The frame's vector is turned without the vertical projection that the link offset gets.
     /// </summary>
     /// <param name="attached">The attached object.</param>
     /// <param name="file">The object's sprite file, whose frames may store the vector instead of the link offset.</param>
     /// <param name="frameIndex">The frame the object shows.</param>
-    /// <param name="dir">The facing.</param>
+    /// <param name="dir">The direction.</param>
     /// <returns>The offset from the object's position.</returns>
     public Vector3 GetLinkOffset(GameObject attached, VidResource? file, int frameIndex, Angle dir)
     {

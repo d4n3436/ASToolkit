@@ -67,6 +67,8 @@ public sealed class ObjectTable
     /// <summary>
     /// Reads objects.res.
     /// </summary>
+    /// <param name="path">The path of objects.res.</param>
+    /// <returns>The table of the entries.</returns>
     public static ObjectTable Load(string path)
     {
         var container = new ResContainer(File.ReadAllBytes(path));
@@ -121,8 +123,11 @@ public sealed class ObjectTable
     }
 
     /// <summary>
-    /// Tries to find the entry with an ID.
+    /// Attempts to find the entry with the given ID.
     /// </summary>
+    /// <param name="id">The ID of the entry.</param>
+    /// <param name="obj">The entry if it was found; otherwise, the default entry.</param>
+    /// <returns><see langword="true"/> if the table has an entry with the ID; otherwise, <see langword="false"/>.</returns>
     public bool TryFind(KnownObject id, out GameObject obj)
     {
         bool found = _entries.TryGetValue(id, out var entry);
@@ -133,17 +138,23 @@ public sealed class ObjectTable
     /// <summary>
     /// Returns the name of an entry.
     /// </summary>
+    /// <param name="id">The ID of the entry.</param>
+    /// <returns>The name of the entry.</returns>
     public string GetName(KnownObject id) => _entries[id].Name;
 
     /// <summary>
     /// Returns the sprite file of an entry.
     /// </summary>
+    /// <param name="id">The ID of the entry.</param>
+    /// <returns>The sprite file of the entry.</returns>
     public string GetPath(KnownObject id) => _entries[id].Path;
 
     /// <summary>
-    /// Tries to get the weapon record an object points at, or the first record for an index past the last. It fails if the table's weapon
-    /// records use an unknown layout.
+    /// Attempts to get the weapon record an object points at, or the first record for an index past the last.
     /// </summary>
+    /// <param name="obj">The object.</param>
+    /// <param name="weapon">The weapon record if the table has weapon records; otherwise, the default record.</param>
+    /// <returns><see langword="true"/> if the table has weapon records; <see langword="false"/> if the table's weapon records use an unknown layout.</returns>
     public bool TryGetWeapon(in GameObject obj, out WeaponRecord weapon)
     {
         weapon = _weapons.Length == 0 ? default : _weapons[obj.WeaponIndex >= 0 && obj.WeaponIndex < _weapons.Length ? obj.WeaponIndex : 0];

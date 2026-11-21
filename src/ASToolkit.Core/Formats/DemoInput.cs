@@ -53,7 +53,7 @@ public readonly struct DemoInput
     public readonly Vector2 ScreenCursor;
 
     /// <summary>
-    /// The key pressed this frame as its character, or as its virtual-key code shifted left by 8 when it types none, or zero.
+    /// The key pressed this frame as its character, or as its virtual-key code shifted left by 8 when the key doesn't type a character, or zero.
     /// </summary>
     [FieldOffset(24)]
     public readonly int Key;

@@ -12,7 +12,7 @@ public enum ObjectProperties
     None = 0,
 
     /// <summary>
-    /// The object is born with a random facing (casings, craters, holes, dried blood).
+    /// The object is born with a random direction (casings, craters, holes, dried blood).
     /// </summary>
     RandomBirth = 1 << 0,
 
@@ -52,7 +52,7 @@ public enum ObjectProperties
     BirthAsSmoke = 1 << 7,
 
     /// <summary>
-    /// The object is born scattered around its spawn position. Alien Shooter 2 reads it as a footprint box that rotates with the facing.
+    /// The object is born scattered around its spawn position. Alien Shooter 2 reads it as a footprint box that rotates with the direction.
     /// </summary>
     Noise = 1 << 8,
 
@@ -77,7 +77,7 @@ public enum ObjectProperties
     Wind = 1 << 12,
 
     /// <summary>
-    /// The sprite keeps one frame and the draw rotates it by the facing instead of switching to a direction frame (Alien Shooter 2).
+    /// The sprite keeps one frame and the draw rotates it by the direction instead of switching to a direction frame (Alien Shooter 2).
     /// </summary>
     FreeRotation = 1 << 13,
 
@@ -112,7 +112,7 @@ public enum ObjectProperties
     VerticalDirection = 1 << 19,
 
     /// <summary>
-    /// The object moves straight toward its goal instead of along its facing.
+    /// The object moves straight toward its goal instead of along its direction.
     /// </summary>
     Homing = 1 << 20,
 
@@ -137,7 +137,7 @@ public enum ObjectProperties
     OnePhase = 1 << 24,
 
     /// <summary>
-    /// A spawned or attached object keeps its offset from the parent instead of rotating it with the parent's facing.
+    /// A spawned or attached object keeps its offset from the parent instead of rotating it with the parent's direction.
     /// </summary>
     FixedOffset = 1 << 25,
 
@@ -157,7 +157,7 @@ public enum ObjectProperties
     Bouncing = 1 << 28,
 
     /// <summary>
-    /// The sprite is turned on the ground plane by the facing, which turns it smoothly between direction frames (Alien Shooter 2).
+    /// The sprite is turned on the ground plane by the direction, which turns it smoothly between direction frames (Alien Shooter 2).
     /// </summary>
     HardwareDirect = 1 << 29,
 

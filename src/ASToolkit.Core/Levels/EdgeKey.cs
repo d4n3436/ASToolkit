@@ -17,6 +17,8 @@ public readonly record struct EdgeKey(char Axis, int A, int B)
     /// <summary>
     /// Returns the four cells next to a cell with the edge crossed to reach each.
     /// </summary>
+    /// <param name="c">The cell.</param>
+    /// <returns>The four neighbors, each with the edge crossed to reach it.</returns>
     public static Neighborhood GetNeighbors(Cell c)
     {
         var neighbors = default(Neighborhood);
