@@ -6,15 +6,15 @@ namespace ASToolkit.Core.Engine.IO;
 public interface IGameFileSystem
 {
     /// <summary>
-    /// Reads a file, returning false when it cannot be opened.
+    /// Attempts to read a file.
     /// </summary>
     /// <param name="path">The path of the file, relative to the game folder.</param>
-    /// <param name="data">The bytes of the file.</param>
-    /// <returns><see langword="true"/> when the file was read; otherwise, <see langword="false"/>.</returns>
+    /// <param name="data">The bytes of the file when it was read; otherwise, an empty buffer.</param>
+    /// <returns><see langword="true"/> if the file was read; otherwise, <see langword="false"/>.</returns>
     bool TryRead(string path, out ReadOnlyMemory<byte> data);
 
     /// <summary>
-    /// Opens a file for writing, creating it when it does not exist.
+    /// Opens a file for writing and creates it if it doesn't exist.
     /// </summary>
     /// <param name="path">The path of the file, relative to the game folder.</param>
     /// <param name="append"><see langword="true"/> to write after the existing bytes; <see langword="false"/> to replace them.</param>

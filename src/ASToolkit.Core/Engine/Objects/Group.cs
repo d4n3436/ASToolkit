@@ -11,7 +11,7 @@ public sealed class Group
     private readonly List<Sprite> _members = [];
 
     /// <summary>
-    /// Creates a group with its first member.
+    /// Initializes a new instance of the <see cref="Group"/> class with its first member.
     /// </summary>
     /// <param name="first">The first member.</param>
     [EngineRoutine(0x0043ab90)]
@@ -44,10 +44,10 @@ public sealed class Group
     }
 
     /// <summary>
-    /// Removes a member, moving the last member into its place, and returns whether it was in the group.
+    /// Removes a member from the group and moves the last member into its place.
     /// </summary>
     /// <param name="sprite">The member.</param>
-    /// <returns><see langword="true"/> when the sprite was removed; otherwise, <see langword="false"/>.</returns>
+    /// <returns><see langword="true"/> if the sprite was in the group and was removed; otherwise, <see langword="false"/>.</returns>
     public bool Remove(Sprite sprite)
     {
         for (int i = _members.Count - 1; i >= 0; i--)

@@ -28,7 +28,7 @@ public sealed class MovementMap
     private bool _isSharingSceneryHeights;
 
     /// <summary>
-    /// Creates a flat map.
+    /// Initializes a new instance of the <see cref="MovementMap"/> class as a flat map.
     /// </summary>
     /// <param name="mapSize">The size of the map.</param>
     [EngineRoutine(0x00410d70)]
@@ -161,7 +161,7 @@ public sealed class MovementMap
     }
 
     /// <summary>
-    /// Returns whether an object can stand at a point.
+    /// Determines whether an object can stand at a point.
     /// </summary>
     /// <param name="walker">The object.</param>
     /// <param name="point">The point.</param>
@@ -201,7 +201,7 @@ public sealed class MovementMap
     }
 
     /// <summary>
-    /// Returns whether an object can stand at a point.
+    /// Determines whether an object can stand at a point.
     /// </summary>
     /// <param name="walker">The object.</param>
     /// <param name="point">The point.</param>
@@ -209,7 +209,7 @@ public sealed class MovementMap
     public bool CanStandOnGround(in GameObject walker, Vector3 point) => CanStandOnGround(walker, point, out _);
 
     /// <summary>
-    /// Returns whether a point is at or above the ground an object stands on.
+    /// Determines whether a point is at or above the ground an object stands on.
     /// </summary>
     /// <param name="gameObject">The object.</param>
     /// <param name="point">The point.</param>

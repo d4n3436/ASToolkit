@@ -20,24 +20,34 @@ public sealed class GameTable
     public IReadOnlyCollection<string> Names => _arrays.Keys;
 
     /// <summary>
-    /// Reads the arrays of a game script.
+    /// Reads the arrays of the game script at a path.
     /// </summary>
+    /// <param name="path">The path of the game script.</param>
+    /// <returns>The table of the arrays the script declares.</returns>
     public static GameTable Load(string path) => Read(File.ReadAllBytes(path));
 
     /// <summary>
-    /// Reads the arrays of a game script's text.
+    /// Reads the arrays of a game script from its text.
     /// </summary>
+    /// <param name="text">The text of the game script.</param>
+    /// <returns>The table of the arrays the script declares.</returns>
     public static GameTable Parse(string text) => Read(GameTextEncoding.Cyrillic.GetBytes(text));
 
     /// <summary>
-    /// Returns the values of an array.
+    /// Gets an array with the given name.
     /// </summary>
+    /// <param name="name">The name of the array.</param>
+    /// <returns>The array.</returns>
+    /// <exception cref="KeyNotFoundException">The script doesn't declare an array with the given name.</exception>
     public IReadOnlyList<int> GetArray(string name) =>
-        _arrays.TryGetValue(name, out int[]? values) ? values : throw new KeyNotFoundException($"Array {name} not found.");
+        _arrays.TryGetValue(name, out int[]? values) ? values : throw new KeyNotFoundException($"Could not find array '{name}'.");
 
     /// <summary>
-    /// Finds the values of an array, returning false when the script declares none by that name.
+    /// Attempts to find an array with the given name.
     /// </summary>
+    /// <param name="name">The name of the array.</param>
+    /// <param name="values">The array when it is found; otherwise, <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> if the script declares an array with the given name; otherwise, <see langword="false"/>.</returns>
     public bool TryGetArray(string name, [MaybeNullWhen(false)] out IReadOnlyList<int> values)
     {
         bool found = _arrays.TryGetValue(name, out int[]? array);

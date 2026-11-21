@@ -4,7 +4,7 @@ using System.Numerics;
 namespace ASToolkit.Core;
 
 /// <summary>
-/// Provides coordinate conversions and deconstruction of <see cref="Point"/> and <see cref="Size"/> types.
+/// Provides extension methods for converting and deconstructing <see cref="Point"/> and <see cref="Size"/> types.
 /// </summary>
 public static class DrawingExtensions
 {

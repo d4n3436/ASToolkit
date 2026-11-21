@@ -617,7 +617,7 @@ internal sealed class WalkField
         return -1;
     }
 
-    // Searches the flood order with a bound no cell equals, leaving the count within reach in the complement
+    // Counts the cells reached within maxSteps with a binary search over the flood order. The bound never equals a cell, which makes the search return the complement of the count.
     private int CountWithin(int maxSteps) => ~new ReadOnlySpan<int>(_queue, 0, _floodCount).BinarySearch(new StepBound(_distance, maxSteps));
 
     private void ClearDistances()

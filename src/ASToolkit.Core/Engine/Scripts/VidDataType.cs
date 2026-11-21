@@ -26,12 +26,12 @@ public enum VidDataType
     BattleRange = 23,
 
     /// <summary>
-    /// The most sprites of the definition the map may hold.
+    /// The maximum number of sprites of the definition that the map may hold.
     /// </summary>
     MaxUnit = 25,
 
     /// <summary>
-    /// The most ammunition the definition's weapon holds.
+    /// The maximum ammunition the definition's weapon holds.
     /// </summary>
     Ammo = 26,
 

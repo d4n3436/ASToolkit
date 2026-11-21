@@ -56,7 +56,7 @@ public sealed class MapData
     public IReadOnlyList<IReadOnlyList<int>> Groups { get; init; } = [];
 
     /// <summary>
-    /// Gets the sprite handle of the player each player slot starts with, or 0 for none.
+    /// Gets the sprite handle of the player each player slot starts with, or 0 if the slot doesn't have a player.
     /// </summary>
     public IReadOnlyList<int> PlayerHandles { get; init; } = [];
 
@@ -86,7 +86,7 @@ public sealed class MapData
     };
 
     /// <summary>
-    /// Creates the contents a level model was built from.
+    /// Creates the contents that a level model was built from.
     /// </summary>
     /// <param name="model">The level model.</param>
     /// <returns>The contents.</returns>

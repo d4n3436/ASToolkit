@@ -125,7 +125,7 @@ public struct GameClock
     /// <summary>
     /// Advances the clock to a frame read from the wall clock.
     /// </summary>
-    /// <param name="firstRead">The first wall time read that differs from the current one, setting the step.</param>
+    /// <param name="firstRead">The first wall time read that differs from the current one, which sets the step.</param>
     /// <param name="secondRead">The second wall time read, kept as the current one.</param>
     public void StartTact(uint firstRead, uint secondRead)
     {

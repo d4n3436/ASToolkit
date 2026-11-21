@@ -5,7 +5,7 @@ using ASToolkit.Core.Formats;
 namespace ASToolkit.Core.Engine.Scripts;
 
 /// <summary>
-/// Represents a script of the engine, compiled with its variables, names and code, and the stack it runs on.
+/// Represents a compiled script that the engine runs.
 /// </summary>
 public sealed partial class Script
 {
@@ -18,14 +18,14 @@ public sealed partial class Script
     private byte[]? _code;
 
     /// <summary>
-    /// Creates an empty script in Alien Shooter's version of the script language.
+    /// Initializes a new instance of the <see cref="Script"/> class as an empty script in Alien Shooter's version of the script language.
     /// </summary>
     public Script() : this(ScriptVersion.AlienShooter)
     {
     }
 
     /// <summary>
-    /// Creates an empty script in a version of the script language.
+    /// Initializes a new instance of the <see cref="Script"/> class as an empty script in a version of the script language.
     /// </summary>
     /// <param name="version">The version of the script language the script is compiled in.</param>
     public Script(ScriptVersion version)
@@ -40,7 +40,7 @@ public sealed partial class Script
     public ScriptVersion Version { get; }
 
     /// <summary>
-    /// Gets the index of the object named <c>main</c>, or -1 when the script has none.
+    /// Gets the index of the object named <c>main</c>, or -1 if the script doesn't have one.
     /// </summary>
     public int MainIndex { get; private set; } = -1;
 
@@ -87,10 +87,10 @@ public sealed partial class Script
     public ref StackObject GetSlot(int index) => ref _slots[index];
 
     /// <summary>
-    /// Returns the index of the last object with a name, or -1 when there is none.
+    /// Finds the last object with the given name.
     /// </summary>
     /// <param name="name">The name.</param>
-    /// <returns>The index of the object.</returns>
+    /// <returns>The index of the object, or -1 if there isn't one.</returns>
     public int FindObject(ReadOnlySpan<byte> name)
     {
         for (int i = _objectCount - 1; i >= 0; i--)
@@ -131,10 +131,10 @@ public sealed partial class Script
     public int GetCallOperand(int function) => IsAlienShooter2 ? function : _objects[function].Address;
 
     /// <summary>
-    /// Returns the index of the function a call instruction's operand names, or -1 when there is none.
+    /// Finds the function that the operand of a call instruction names.
     /// </summary>
     /// <param name="operand">The operand of the call instruction.</param>
-    /// <returns>The index of the function's object.</returns>
+    /// <returns>The index of the function's object, or -1 if there isn't one.</returns>
     public int FindCalledFunction(int operand)
     {
         if (IsAlienShooter2)
@@ -180,8 +180,8 @@ public sealed partial class Script
     /// <summary>
     /// Pops a value from the stack as a sprite handle.
     /// </summary>
-    /// <param name="isNotSprite">Set when the value is a nonzero number that is not a sprite handle.</param>
-    /// <returns>The handle, or 0 for none.</returns>
+    /// <param name="isNotSprite">Set when the value is a nonzero number that isn't a sprite handle.</param>
+    /// <returns>The handle, or 0 if there is no handle.</returns>
     [EngineRoutine(0x00439fd0)]
     public int PopHandle(out bool isNotSprite)
     {
@@ -192,7 +192,7 @@ public sealed partial class Script
     }
 
     /// <summary>
-    /// Pops a value from the stack as a text, writing a number in decimal.
+    /// Pops a value from the stack as text, with a number written in decimal.
     /// </summary>
     /// <returns>The text.</returns>
     public ReadOnlyMemory<byte> PopText() => _slots[--_count].GetText();
@@ -205,7 +205,7 @@ public sealed partial class Script
     public void PushText(ReadOnlyMemory<byte> text) => Push(StackObject.FromText(text));
 
     /// <summary>
-    /// Clears every variable holding the handle of a deleted sprite.
+    /// Clears every variable that holds the handle of a deleted sprite.
     /// </summary>
     /// <param name="handle">The handle of the sprite.</param>
     [EngineRoutine(0x00424460)]
@@ -232,7 +232,7 @@ public sealed partial class Script
     /// <summary>
     /// Pushes a sprite handle onto the stack.
     /// </summary>
-    /// <param name="value">The handle, or 0 for none.</param>
+    /// <param name="value">The handle, or 0 if there is no handle.</param>
     [EngineRoutine(0x0043a0f0)]
     public void PushSprite(int value) => Push(StackObject.FromHandle(value));
 
@@ -244,7 +244,7 @@ public sealed partial class Script
     /// <param name="first">The first argument, a sprite handle when nonzero.</param>
     /// <param name="second">The second argument, a sprite handle when nonzero.</param>
     /// <param name="third">The third argument.</param>
-    /// <returns>1 when the function destroys the sprite of its first argument, else the value of the outermost <c>return</c>, else 0.</returns>
+    /// <returns>1 if the function destroys the sprite of its first argument, otherwise the value of the outermost <c>return</c>, otherwise 0.</returns>
     /// <exception cref="NotSupportedException">The script is an Alien Shooter 2 script.</exception>
     [EngineRoutine(0x00423430)]
     public int CallFunction(IScriptFunctionHost host, int function, int first, int second, int third)

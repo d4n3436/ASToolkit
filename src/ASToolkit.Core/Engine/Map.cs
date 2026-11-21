@@ -193,7 +193,7 @@ public sealed partial class Map : IDisposable
     private static ReadOnlySpan<byte> SpriteLogTag => "SPRITE %i"u8;
 
     /// <summary>
-    /// Loads a level into the map, releasing the level it held before.
+    /// Loads a level into the map and releases the level it held before.
     /// </summary>
     /// <param name="data">The level to load.</param>
     /// <param name="seed">The seed of the random source, used unless <paramref name="demo"/> supplies its own.</param>
@@ -331,13 +331,13 @@ public sealed partial class Map : IDisposable
     public void SetPlayerControl(bool controlled) => IsPlayerControlled = controlled;
 
     /// <summary>
-    /// Moves the cursor to a screen point and returns whether the map cursor changed.
+    /// Moves the cursor to a screen point.
     /// </summary>
     /// <param name="screen">The mouse position on the screen.</param>
     /// <param name="windowOrigin">The window's top-left corner on the screen.</param>
     /// <param name="view">The visible part of the map.</param>
     /// <param name="camera">The camera position on the map.</param>
-    /// <returns><see langword="true"/> if the cursor moved; otherwise, <see langword="false"/>.</returns>
+    /// <returns><see langword="true"/> if the map cursor changed; otherwise, <see langword="false"/>.</returns>
     public bool MoveMouse(Point screen, Point windowOrigin, RectangleF view, Vector2 camera)
     {
         bool inView = Input.WindowProc(WindowMessageHitTest, 0, (screen.Y & 0xFFFF) << 16 | (screen.X & 0xFFFF), windowOrigin, view, camera);
@@ -349,7 +349,7 @@ public sealed partial class Map : IDisposable
     }
 
     /// <summary>
-    /// Removes a reference to a sprite, deleting the sprite when none is left.
+    /// Removes a reference to a sprite and deletes the sprite when no reference is left.
     /// </summary>
     /// <param name="sprite">The sprite.</param>
     public void Release(Sprite sprite)
@@ -379,7 +379,7 @@ public sealed partial class Map : IDisposable
     }
 
     /// <summary>
-    /// Runs one frame of the level, calling the script's main function, updating the sprites and then applying the input.
+    /// Runs one frame of the level by calling the script's main function, updating the sprites and then applying the input.
     /// </summary>
     /// <param name="drawFrame"><see langword="true"/> to draw the frame, as <see cref="StepDemo"/> returns; <see langword="false"/> to skip drawing a late frame.</param>
     [EngineRoutine(0x00405190)]
@@ -476,7 +476,7 @@ public sealed partial class Map : IDisposable
     }
 
     /// <summary>
-    /// Updates a sprite for one frame and returns whether it stays in the map.
+    /// Updates a sprite for one frame.
     /// </summary>
     /// <param name="sprite">The sprite.</param>
     /// <returns><see langword="true"/> if the sprite stays in the map; otherwise, <see langword="false"/>.</returns>
@@ -746,7 +746,7 @@ public sealed partial class Map : IDisposable
     /// <param name="position">The position.</param>
     /// <param name="direction">The direction.</param>
     /// <param name="army">The army.</param>
-    /// <param name="parent">The sprite that creates it, whose height a ground-bound object is placed relative to.</param>
+    /// <param name="parent">The sprite that creates the new sprite and whose height a ground-bound object is placed relative to.</param>
     /// <returns>The sprite.</returns>
     public Sprite AddMonster(SpriteDefinition definition, Vector3 position, Angle direction = default, Army army = Army.Monsters, Sprite? parent = null)
     {

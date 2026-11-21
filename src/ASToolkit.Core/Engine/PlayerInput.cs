@@ -32,7 +32,7 @@ public sealed class PlayerInput
     private readonly ControlSettings _settings;
 
     /// <summary>
-    /// Creates the input for a set of controls.
+    /// Initializes a new instance of the <see cref="PlayerInput"/> class for a set of controls.
     /// </summary>
     /// <param name="settings">The controls.</param>
     public PlayerInput(ControlSettings settings)
@@ -121,7 +121,7 @@ public sealed class PlayerInput
     public DemoInput Save() => new(Flags, Wheel, Cursor, ScreenCursor, Key, VirtualKey);
 
     /// <summary>
-    /// Handles a window message and returns whether the cursor lies in the view.
+    /// Handles a window message.
     /// </summary>
     /// <param name="message">The message.</param>
     /// <param name="wParam">The message's first parameter.</param>

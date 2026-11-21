@@ -5,7 +5,7 @@ using ASToolkit.Core.Levels;
 namespace ASToolkit.Core.Engine;
 
 /// <summary>
-/// Represents the map contents, definitions, terrain and script source a map loads a level from.
+/// Represents the map contents, definitions, terrain and script source that a map loads a level from.
 /// </summary>
 public sealed record LevelTemplate
 {
@@ -57,7 +57,7 @@ public sealed record LevelTemplate
     public required string ScriptPath { get; init; }
 
     /// <summary>
-    /// Gets the indices of the stored sprites before which a recording shows the game redrawing its loading screen, with the stored-sprite count for a redraw after the last.
+    /// Gets the indices of the stored sprites before which a recording shows the game redrawing its loading screen, where an index equal to the number of stored sprites marks a redraw after the last one.
     /// </summary>
     public IReadOnlyList<int> LoadingScreenRecords { get; init; } = [];
 

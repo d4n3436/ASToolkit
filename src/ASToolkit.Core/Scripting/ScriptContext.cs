@@ -3,7 +3,6 @@ using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Scripting;
 
-// Holds the sprites the readers of one level look up and the events they collect
 internal sealed class ScriptContext
 {
     private const int MaxLinkDepth = 4;
@@ -69,7 +68,6 @@ internal sealed class ScriptContext
 
     public List<(int Order, Vector3 Position, float Radius)> Downloads { get; } = [];
 
-    // Records a sprite the scripts open with the quest the opening waits for
     public void Open(int handle, (int Line, int Sub)? quest)
     {
         if (!Openings.TryGetValue(handle, out var quests))
@@ -81,7 +79,7 @@ internal sealed class ScriptContext
         quests.Add(quest);
     }
 
-    // Returns the TimeLine at which a quest begins, following the quests a stack starts once another one begins
+    // Returns the TimeLine at which a quest begins, following the chain of quests that stacks start when another quest begins
     public int GetBeginTimeLine((int Line, int Sub) quest, int depth = 0)
     {
         int timeLine = Quests.GetQuest(quest.Line, quest.Sub)?.TimeLine ?? 0;
@@ -132,7 +130,6 @@ internal sealed class ScriptContext
     public IEnumerable<(string Name, int Value, Vector3 Position, float Radius)> GetVariableSetters(string name, int value) =>
         VariableSets.Where(set => set.Name == name && set.Value == value && set.Radius > 0);
 
-    // Returns the description of opening a sprite
     public string GetOpeningLabel(int handle) => $"open {GetObjectName((int)Map.Sprites.First(sprite => sprite.Handle == handle).Id)}";
 
     public MergedMapSprite? FindNearest(KnownObject id, Vector2 point, int excluded) =>

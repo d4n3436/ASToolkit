@@ -23,7 +23,7 @@ public sealed class Graphics
     private int _squallStart;
 
     /// <summary>
-    /// Gets the wall time each effect started at, or zero for an effect that is not running.
+    /// Gets the wall time each effect started at, or zero for an effect that isn't running.
     /// </summary>
     public uint[] EffectStartTimes { get; } = new uint[EffectCount];
 

@@ -3,7 +3,6 @@ using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Scripting;
 
-// Reads the actions of one stack of a sprite into script markers and the openings, quest starts and variables the level logic uses
 internal sealed class StackReader
 {
     private const int VariableWaitAct = 79;

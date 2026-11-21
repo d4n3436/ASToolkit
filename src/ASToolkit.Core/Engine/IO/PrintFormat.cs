@@ -1,6 +1,5 @@
 namespace ASToolkit.Core.Engine.IO;
 
-// Partial port of the C runtime's printf, limited to the flags, widths and conversions of integers and text
 internal static class PrintFormat
 {
     private const int MaxDigits = 32;

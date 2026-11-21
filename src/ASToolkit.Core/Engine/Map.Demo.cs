@@ -23,7 +23,7 @@ public sealed partial class Map
     public bool IsPlayingDemo => _playedDemo is not null;
 
     /// <summary>
-    /// Gets the name of the map the level script requested next, or null when none was requested.
+    /// Gets the name of the map the level script requested next, or null if the script didn't request one.
     /// </summary>
     /// <remarks>Pass it as the map name of the next level's template.</remarks>
     public byte[]? MapToLoad { get; private set; }
@@ -34,9 +34,9 @@ public sealed partial class Map
     public bool IsQuitting { get; private set; }
 
     /// <summary>
-    /// Returns the game time of the next frame of the played demo.
+    /// Attempts to get the game time of the next frame of the played demo.
     /// </summary>
-    /// <param name="time">The game time of the next frame in milliseconds.</param>
+    /// <param name="time">The game time of the next frame in milliseconds when the demo has one; otherwise, 0.</param>
     /// <returns><see langword="true"/> when the demo has a next frame; otherwise, <see langword="false"/>.</returns>
     public bool TryGetNextDemoTime(out int time)
     {
@@ -69,7 +69,7 @@ public sealed partial class Map
     }
 
     /// <summary>
-    /// Plays or records the input of the next demo frame and returns whether to draw the frame.
+    /// Plays or records the input of the next demo frame.
     /// </summary>
     /// <param name="now">The real time in milliseconds.</param>
     /// <param name="waitUntil">The real time to wait for before the frame, or <paramref name="now"/> when the frame is due.</param>
@@ -124,9 +124,9 @@ public sealed partial class Map
     }
 
     /// <summary>
-    /// Ends the recording if it is still running and returns the demo file.
+    /// Ends the recording if it is still running.
     /// </summary>
-    /// <returns>The bytes of the demo.</returns>
+    /// <returns>The bytes of the demo file.</returns>
     /// <exception cref="InvalidOperationException">No demo has been recorded.</exception>
     public byte[] FinishDemoRecording()
     {

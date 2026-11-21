@@ -4,7 +4,7 @@ using ASToolkit.Core.Formats;
 namespace ASToolkit.Core.Engine;
 
 /// <summary>
-/// Provides the reading of the objects a placed sprite puts on the map and of the height points of their frames.
+/// Provides methods for reading the objects a placed sprite puts on the map and the height points of their frames.
 /// </summary>
 public sealed class SpritePartReader
 {

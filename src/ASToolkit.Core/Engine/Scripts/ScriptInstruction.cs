@@ -8,7 +8,7 @@ namespace ASToolkit.Core.Engine.Scripts;
 /// </summary>
 /// <param name="Offset">The offset of the instruction in the code.</param>
 /// <param name="Opcode">The opcode of the instruction, or the id of the built-in function it calls.</param>
-/// <param name="Operand">The operand of the instruction, or 0 when it has none.</param>
+/// <param name="Operand">The operand of the instruction, or 0 if the instruction doesn't have one.</param>
 /// <param name="Length">The length of the instruction in bytes.</param>
 /// <param name="IsExternCall">A value indicating whether the instruction calls a built-in function.</param>
 public readonly record struct ScriptInstruction(int Offset, ScriptOpcode Opcode, int Operand, int Length, bool IsExternCall)

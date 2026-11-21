@@ -11,7 +11,7 @@ public struct StackObject
     private const byte TextMask = 0x17;
 
     /// <summary>
-    /// Creates a script value.
+    /// Initializes a new instance of the <see cref="StackObject"/> structure as a script value.
     /// </summary>
     /// <param name="flags">The type flags of the value.</param>
     /// <param name="value">The number.</param>
@@ -55,7 +55,7 @@ public struct StackObject
     /// <summary>
     /// Creates a sprite handle value.
     /// </summary>
-    /// <param name="handle">The handle, or 0 for none.</param>
+    /// <param name="handle">The handle, or 0 if there isn't one.</param>
     /// <returns>The value.</returns>
     [EngineRoutine(0x00439dd0)]
     public static StackObject FromHandle(int handle) =>
@@ -65,7 +65,7 @@ public struct StackObject
     /// Reads a text as a number, as C's <c>sscanf("%i")</c> when its second character is <c>x</c> and as <c>atoi</c> otherwise.
     /// </summary>
     /// <param name="text">The text.</param>
-    /// <returns>The number, or 0 when <c>sscanf</c> reads none.</returns>
+    /// <returns>The number, or 0 if <c>sscanf</c> doesn't read a number.</returns>
     [EngineRoutine(0x004242e0)]
     public static int ParseNumber(ReadOnlySpan<byte> text)
     {
@@ -93,23 +93,23 @@ public struct StackObject
     /// Reads a number as C's <c>sscanf("%i")</c>, hexadecimal after <c>0x</c>, octal after <c>0</c> and decimal otherwise.
     /// </summary>
     /// <param name="text">The text.</param>
-    /// <returns>The number, or 0 when the text starts with none.</returns>
+    /// <returns>The number, or 0 if the text doesn't start with a number.</returns>
     public static int ScanInteger(ReadOnlySpan<byte> text) => TryScanInteger(text, out int value) ? value : 0;
 
     /// <summary>
-    /// Reads a number as C's <c>sscanf("%i")</c> does, including when the text holds <c>0x</c> without a digit.
+    /// Attempts to read a number as C's <c>sscanf("%i")</c> does, including when the text holds <c>0x</c> without a digit.
     /// </summary>
     /// <param name="text">The text.</param>
-    /// <param name="value">The number, wrapped to 32 bits.</param>
+    /// <param name="value">The number, wrapped to 32 bits, when one was read; otherwise, 0.</param>
     /// <returns><see langword="true"/> if a number was read; otherwise, <see langword="false"/>.</returns>
     public static bool TryScanInteger(ReadOnlySpan<byte> text, out int value) => TryScanInteger(text, out value, out _);
 
     /// <summary>
-    /// Parses a number as C's <c>sscanf("%i")</c> does and reports how many bytes it read.
+    /// Attempts to parse a number as C's <c>sscanf("%i")</c> does and reports how many bytes it read.
     /// </summary>
     /// <param name="text">The text.</param>
-    /// <param name="value">The number, wrapped to 32 bits.</param>
-    /// <param name="length">The number of bytes read, including leading white space.</param>
+    /// <param name="value">The number, wrapped to 32 bits, when one was read; otherwise, 0.</param>
+    /// <param name="length">The number of bytes read, including leading white space, when a number was read; otherwise, 0.</param>
     /// <returns><see langword="true"/> if a number was read; otherwise, <see langword="false"/>.</returns>
     public static bool TryScanInteger(ReadOnlySpan<byte> text, out int value, out int length)
     {
@@ -165,7 +165,7 @@ public struct StackObject
     }
 
     /// <summary>
-    /// Returns the value as text, writing a number in decimal.
+    /// Returns the value as text, with a number written in decimal.
     /// </summary>
     /// <returns>The text.</returns>
     [EngineRoutine(0x00439e30)]
@@ -179,7 +179,7 @@ public struct StackObject
     public readonly int GetValue() => Flags.HasFlag(StackObjectFlags.Text) ? ParseNumber(Text.Span) : Value;
 
     /// <summary>
-    /// Returns whether the value is nonzero as a number.
+    /// Determines whether the value is nonzero as a number.
     /// </summary>
     /// <returns><see langword="true"/> if the value is nonzero; otherwise, <see langword="false"/>.</returns>
     public readonly bool IsTrue() => GetValue() != 0;
@@ -215,7 +215,7 @@ public struct StackObject
     /// Reads the value from a demo or save.
     /// </summary>
     /// <param name="data">The stored state.</param>
-    /// <param name="offset">The offset of the value, moved past it.</param>
+    /// <param name="offset">The offset of the value, which is moved past the value.</param>
     [EngineRoutine(0x004244b0)]
     public void Read(ReadOnlyMemory<byte> data, ref int offset)
     {

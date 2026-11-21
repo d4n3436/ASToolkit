@@ -38,18 +38,20 @@ public readonly struct SpriteProgram
     public bool HasName => _nameLength > 0;
 
     /// <summary>
-    /// Reads the program of a placed sprite, or returns false when the payload holds no program.
+    /// Attempts to read the program of a placed sprite from its payload.
     /// </summary>
     /// <param name="payload">The payload bytes.</param>
     /// <param name="sequel">A value indicating whether the payload follows the Alien Shooter 2 layout.</param>
-    /// <param name="program">The program.</param>
+    /// <param name="program">The program when the payload holds one; otherwise, the default program.</param>
+    /// <returns><see langword="true"/> if the payload holds a program; otherwise, <see langword="false"/>.</returns>
     public static bool TryParse(ReadOnlyMemory<byte> payload, bool sequel, out SpriteProgram program) =>
         sequel ? TryParseSequel(payload, out program) : TryParseOriginal(payload, out program);
 
     /// <summary>
-    /// Returns the entries of an action stack in file order.
+    /// Gets an action stack with the given index.
     /// </summary>
     /// <param name="index">The stack index.</param>
+    /// <returns>The actions of the stack, in file order.</returns>
     public ReadOnlySpan<StackAction> GetStack(int index)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(index);
@@ -66,10 +68,10 @@ public readonly struct SpriteProgram
     }
 
     /// <summary>
-    /// Returns the items an Alien Shooter sprite payload gives its sprite after its orders.
+    /// Gets the items that the payload of an Alien Shooter sprite gives to the sprite after its orders.
     /// </summary>
     /// <param name="payload">The payload of the sprite's SPRD record.</param>
-    /// <returns>The object ids of the items, empty when the payload holds none.</returns>
+    /// <returns>The object ids of the items, or an empty span when the payload doesn't hold any.</returns>
     public static ReadOnlySpan<int> GetItems(ReadOnlySpan<byte> payload)
     {
         if (payload.Length < sizeof(int))
@@ -90,8 +92,9 @@ public readonly struct SpriteProgram
     }
 
     /// <summary>
-    /// Returns the name of the sprite, or an empty string.
+    /// Gets the name of the sprite.
     /// </summary>
+    /// <returns>The name, or an empty string if the sprite isn't named.</returns>
     public string GetName() => _nameLength > 0 ? GameTextEncoding.Cyrillic.GetString(_payload.Span.Slice(_nameStart, _nameLength)) : "";
 
     private static bool TryParseOriginal(ReadOnlyMemory<byte> payload, out SpriteProgram program)

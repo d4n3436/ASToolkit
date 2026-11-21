@@ -2,7 +2,6 @@ using System.Numerics;
 
 namespace ASToolkit.Core.Scripting;
 
-// Reads the places the quests of a level lead the player to, in story order
 internal static class ProgressionReader
 {
     private const string BegunState = "QS_BEGUN";
@@ -43,7 +42,7 @@ internal static class ProgressionReader
         return steps.ToArray();
     }
 
-    // Finds the quests the story does not lead through that open sprites when they begin
+    // Finds the quests that open sprites when they begin and that the story doesn't lead through
     public static List<QuestDetour> ReadDetours(ScriptContext context, ProgressionStep[] progression)
     {
         var detours = new List<QuestDetour>();
@@ -66,7 +65,7 @@ internal static class ProgressionReader
         return detours.OrderBy(detour => detour.TimeLine).ToList();
     }
 
-    // Adds the steps of each quest and tells whether the story ends with one of them
+    // Adds the steps of each quest and returns whether the story ends with one of them
     private static bool AddQuestSteps(ScriptContext context, Quest[] involved, List<ProgressionStep> steps)
     {
         foreach (var quest in involved)
@@ -104,7 +103,7 @@ internal static class ProgressionReader
         return false;
     }
 
-    // Adds a step for each sprite of the object events a quest reacts to, nearest first, and tells whether the quest has a start step
+    // Adds a step for each sprite of the object events a quest reacts to, nearest first, and returns whether the quest has a start step
     private static bool AddItemSteps(ScriptContext context, Quest quest, List<ProgressionStep> steps, bool hasStart)
     {
         foreach (var item in quest.Items)
@@ -139,7 +138,7 @@ internal static class ProgressionReader
         return hasStart;
     }
 
-    // Adds a step for each download and tells whether the story ends with them
+    // Adds a step for each download and returns whether the story ends with one of them
     private static bool AddDownloadSteps(ScriptContext context, Quest[] involved, List<ProgressionStep> steps)
     {
         var winning = involved.FirstOrDefault(quest => quest.WinsOnBegin);
@@ -152,7 +151,7 @@ internal static class ProgressionReader
         return context.Downloads.Count > 0 && winning is not null;
     }
 
-    // Adds the exit areas of the last quest that has one
+    // Adds the exit areas of the last quest that has exits
     private static void AddExitSteps(ScriptContext context, Quest[] involved, List<ProgressionStep> steps)
     {
         var keys = involved

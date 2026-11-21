@@ -40,7 +40,7 @@ public readonly record struct Act(int Value, int Var1, int Var2, int Var3, Sprit
     public static Act FromAction(StackAction action) => new(action.Act, action.Var1, action.Var2, action.Var3);
 
     /// <summary>
-    /// Returns whether an action's entry targets a sprite.
+    /// Determines whether an action's entry targets a sprite.
     /// </summary>
     /// <param name="code">The action.</param>
     /// <returns><see langword="true"/> if the entry targets a sprite; otherwise, <see langword="false"/>.</returns>

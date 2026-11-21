@@ -6,7 +6,7 @@ namespace ASToolkit.Core.Levels;
 public readonly record struct RoomPair : IComparable<RoomPair>
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="RoomPair"/> struct from two rooms in either order.
+    /// Initializes a new instance of the <see cref="RoomPair"/> structure from two rooms in either order.
     /// </summary>
     public RoomPair(int a, int b) => (A, B) = a < b ? (a, b) : (b, a);
 

@@ -580,7 +580,7 @@ internal sealed class PlayerBot
 
             bool isGenerator = _map.AreFencesUp && monster.Definition.Id == KnownObject.Generator && monster.IsAlive;
 
-            // Count attackers off screen as threats only
+            // Count off-screen attackers as threats only when they are within battle range and threaten the player
             if (monster == _map.Player || (monster.Army != Army.Monsters && !isGenerator) || (monster.Placement is not null && !isGenerator) ||
                 !onScreen && (distance > monster.Definition.BattleRange + StandOffMargin || !threatens) || (!isCloser && !threatens) || !_gunnery.HasClearAim(monster))
                 continue;
@@ -737,7 +737,7 @@ internal sealed class PlayerBot
     {
         FloodPlayer(int.MaxValue);
 
-        // Step toward the nearest standable cell outside the player's pocket while no straight walk leaves it
+        // Step toward the nearest standable cell outside the player's pocket when the player can reach too few cells to walk out of it
         if (_field.ReachedCount < MinPocketCells)
         {
             int nearest = _field.FindFree(_map.Player.Position.AsVector2(), StuckReach, skipReached: true, skippedHalf: _map.Player.Definition.Half + _map.Definitions.Empty.Half);
@@ -762,7 +762,7 @@ internal sealed class PlayerBot
             index++;
         }
 
-        // Rejoin at the nearest walk among the next stretch of the route, the rest left to the hunt
+        // Rejoin the route at the reachable tour point with the shortest walking distance among the next stretch of the route, leaving the remaining points to the hunt
         int bestIndex = -1;
         int bestGoal = -1;
         float covered = 0;
@@ -1329,7 +1329,7 @@ internal sealed class PlayerBot
         return count;
     }
 
-    // Counts a tour point inside a parked cannon's reach as passed once the player skirts the cannon beside it
+    // Treats a tour point inside a parked cannon's reach as passed once the player has come close to that cannon
     private bool IsBesideCannon(Vector2 point)
     {
         foreach (var cannon in _map.ScriptedSprites)
@@ -1673,7 +1673,7 @@ internal sealed class PlayerBot
         }
     }
 
-    // The engine's obstacle avoidance swings the facing in place when the first steps toward a goal are blocked at a thin corner
+    // The engine's obstacle avoidance swings the direction in place when the first steps toward a goal are blocked at a thin corner
     private Vector2 SteerClear(Vector2 goal)
     {
         var start = _map.Player.Position;

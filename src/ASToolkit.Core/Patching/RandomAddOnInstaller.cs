@@ -7,9 +7,12 @@ using ASToolkit.Core.Scripting;
 namespace ASToolkit.Core.Patching;
 
 /// <summary>
-/// Provides the installation of generated levels as a third add-on next to the game's two. Its levels are
-/// <c>Maps/RANDOM/Level_NN</c>, and the game's scripts and play menu get the branches that start and run it.
+/// Provides methods for installing generated levels as a third add-on next to the game's two.
 /// </summary>
+/// <remarks>
+/// The levels are stored as <c>Maps/RANDOM/Level_NN</c>, and the game's scripts and play menu get the branches that
+/// start and run the add-on.
+/// </remarks>
 public static class RandomAddOnInstaller
 {
     /// <summary>
@@ -51,8 +54,8 @@ public static class RandomAddOnInstaller
 
     /// <summary>
     /// Writes the levels, their briefings, the money table and level count, and the branches and menu button that start
-    /// the add-on. Campaign style (every level a campaign one, those not generated copied from the campaign) has ten
-    /// levels, add-on style five. Anything installed before is replaced.
+    /// the add-on. Campaign style has ten levels, every one a campaign level with the levels that weren't generated
+    /// copied from the campaign, and add-on style has five. Anything installed before is replaced.
     /// </summary>
     /// <param name="gameFolder">The game folder.</param>
     /// <param name="style">The style of the levels.</param>
@@ -100,8 +103,10 @@ public static class RandomAddOnInstaller
     }
 
     /// <summary>
-    /// Takes the add-on out of the game, undoing the script edits and putting the menus back, and returns what was done.
+    /// Takes the add-on out of a game folder by undoing the script edits and putting the menus back.
     /// </summary>
+    /// <param name="gameFolder">The game folder.</param>
+    /// <returns>The description of each change that was undone.</returns>
     public static IReadOnlyList<string> Remove(string gameFolder)
     {
         var done = new List<string>();
@@ -217,7 +222,7 @@ public static class RandomAddOnInstaller
         }
     }
 
-    // Pay the given money at the end of each level but the last, the table being indexed by the number of the level that ends
+    // Pay the given money at the end of each level but the last, using a table indexed by the number of the level that ends
     private static void WriteTable(string maps, GenerationStyle style, int count, IReadOnlyList<int> endMoney)
     {
         string path = Path.Combine(maps, "common_table.lgc");

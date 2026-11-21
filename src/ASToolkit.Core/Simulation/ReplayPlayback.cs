@@ -12,7 +12,7 @@ using SixLabors.ImageSharp.PixelFormats;
 namespace ASToolkit.Core.Simulation;
 
 /// <summary>
-/// Provides the playback of a recorded playthrough of one level, stepping the engine through the run's demo and drawing its map, live sprites, lighting, camera shake and flashes at any time.
+/// Provides playback of a recorded playthrough of one level, drawing the level as it looked at any time of the run.
 /// </summary>
 public sealed class ReplayPlayback
 {
@@ -69,22 +69,22 @@ public sealed class ReplayPlayback
     }
 
     /// <summary>
-    /// Gets the outcome of the playthrough, holding its demo.
+    /// Gets the outcome of the playthrough, including its demo.
     /// </summary>
     public PlaythroughResult Result { get; }
 
     /// <summary>
-    /// Gets the number of steps of the playthrough, one for every 100 ms of play and its last frame.
+    /// Gets the number of steps of the playthrough, one for every 100 ms of play and one for its last frame.
     /// </summary>
     public int FrameCount => _frameTimes.Length;
 
     /// <summary>
-    /// Simulates a map of a game folder as the opening level of a campaign, recording the run.
+    /// Simulates a map of a game folder as the opening level of a campaign and records the run.
     /// </summary>
     /// <param name="game">The game folder.</param>
     /// <param name="map">The map path relative to the Maps folder.</param>
     /// <param name="objects">The object table of the game.</param>
-    /// <param name="renderer">The renderer drawing the map.</param>
+    /// <param name="renderer">The renderer that draws the map.</param>
     /// <returns>The playback of the simulated level.</returns>
     public static ReplayPlayback Run(string game, string map, ObjectTable objects, MapRenderer renderer)
     {
@@ -101,19 +101,19 @@ public sealed class ReplayPlayback
     /// <summary>
     /// Gets the time of a step of the playthrough.
     /// </summary>
-    /// <param name="index">The index of the step, clamped to the steps there are.</param>
+    /// <param name="index">The index of the step, clamped to the valid range of steps.</param>
     /// <returns>The time of the step, in milliseconds.</returns>
     public int GetFrameTime(int index) => _frameTimes[Math.Clamp(index, 0, _frameTimes.Length - 1)];
 
     /// <summary>
-    /// Draws the level at a time into a frame centered where the game's camera looks, or on an offset from it.
+    /// Draws the level at a time into a frame centered on the game's camera position, or on a point offset from it.
     /// </summary>
     /// <param name="pixels">The pixels of the frame, row by row.</param>
     /// <param name="size">The size of the frame in pixels.</param>
     /// <param name="scale">The scale of the map in the frame, at most 1.</param>
     /// <param name="time">The time of the frame, in milliseconds.</param>
     /// <param name="cameraOffset">The view's offset from the game's camera in map pixels.</param>
-    /// <param name="cursor">The mouse cursor drawn at the game's cursor position.</param>
+    /// <param name="cursor">The mouse cursor to draw at the game's cursor position.</param>
     public void Render(Bgra32[] pixels, Size size, float scale, int time, Vector2 cameraOffset, CursorImage cursor)
     {
         Seek(time);

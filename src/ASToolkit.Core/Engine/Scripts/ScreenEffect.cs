@@ -21,7 +21,7 @@ public enum ScreenEffect
     Scroll = 2,
 
     /// <summary>
-    /// A smooth darkening of the screen, lasting 2,304 milliseconds by default.
+    /// A smooth darkening of the screen that lasts 2,304 milliseconds by default.
     /// </summary>
     Fade = 3,
 
@@ -51,7 +51,7 @@ public enum ScreenEffect
     ScaleWindow = 8,
 
     /// <summary>
-    /// A smooth darkening of the screen, lasting 1,280 milliseconds by default.
+    /// A smooth darkening of the screen that lasts 1,280 milliseconds by default.
     /// </summary>
     FadeIn = 9,
 

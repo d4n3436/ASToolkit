@@ -6,7 +6,7 @@ namespace ASToolkit.Core.Scripting;
 /// <param name="Line">The quest line.</param>
 /// <param name="Sub">The number of the quest in its line.</param>
 /// <param name="TimeLine">The position of the quest in the story.</param>
-/// <param name="Title">The title the game shows, or the designer comment when the quest has no title.</param>
+/// <param name="Title">The title the game shows, or the designer comment when the quest doesn't have a title.</param>
 /// <param name="Items">The object events the quest reacts to.</param>
 /// <param name="WinsOnBegin">A value indicating whether starting the quest wins the level.</param>
 public sealed record Quest(int Line, int Sub, int TimeLine, string Title, IReadOnlyList<QuestItem> Items, bool WinsOnBegin)

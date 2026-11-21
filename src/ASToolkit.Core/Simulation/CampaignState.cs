@@ -12,12 +12,12 @@ namespace ASToolkit.Core.Simulation;
 public sealed record CampaignState(int Money, PlayerLoadout Loadout)
 {
     /// <summary>
-    /// The money available when a new campaign starts.
+    /// Represents the money available when a new campaign starts.
     /// </summary>
     public const int StartingMoney = 20;
 
     /// <summary>
-    /// The extra lives available when a new campaign starts.
+    /// Represents the extra lives available when a new campaign starts.
     /// </summary>
     public const int StartingLives = 2;
 

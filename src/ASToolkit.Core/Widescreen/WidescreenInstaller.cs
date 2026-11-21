@@ -3,7 +3,7 @@ using ASToolkit.Core.Patching;
 namespace ASToolkit.Core.Widescreen;
 
 /// <summary>
-/// Provides the installation of the widescreen mod, which adds resolutions, a borderless window, a HUD built from code and a
+/// Provides methods for installing the widescreen mod, which adds resolutions, a borderless window, a HUD built from code and a
 /// camera that stays centered on wide screens.
 /// </summary>
 public static partial class WidescreenInstaller
@@ -13,8 +13,9 @@ public static partial class WidescreenInstaller
     private const string BackupExtension = ".orig";
 
     /// <summary>
-    /// Applies the mod to a game folder, keeping the original executable as an .orig file.
+    /// Applies the mod to a game folder and keeps the original executable as an .orig file.
     /// </summary>
+    /// <param name="gameFolder">The game folder.</param>
     public static void Install(string gameFolder)
     {
         string executable = Path.Combine(gameFolder, ExecutableName);
@@ -35,8 +36,10 @@ public static partial class WidescreenInstaller
     }
 
     /// <summary>
-    /// Takes the mod out of a game folder and returns the files it changed back.
+    /// Takes the mod out of a game folder and returns the files it put back.
     /// </summary>
+    /// <param name="gameFolder">The game folder.</param>
+    /// <returns>The paths of the files that were put back.</returns>
     public static string[] Remove(string gameFolder)
     {
         var restored = new List<string>();

@@ -16,12 +16,12 @@ public enum ScriptFunction
     Flagman = 66,
 
     /// <summary>
-    /// Start a walk over the sprites of some types and armies.
+    /// Start iterating over the sprites of some types and armies.
     /// </summary>
     FirstUnit = 68,
 
     /// <summary>
-    /// Continue the walk over sprites.
+    /// Continue iterating over sprites.
     /// </summary>
     NextUnit = 69,
 
@@ -41,22 +41,22 @@ public enum ScriptFunction
     FindNearestSprite = 72,
 
     /// <summary>
-    /// Start a walk over the hashed sprites in a rectangle.
+    /// Start iterating over the hashed sprites in a rectangle.
     /// </summary>
     FirstInBox = 74,
 
     /// <summary>
-    /// Continue the walk over the hashed sprites in a rectangle.
+    /// Continue iterating over the hashed sprites in a rectangle.
     /// </summary>
     NextInBox = 75,
 
     /// <summary>
-    /// Start a walk over every sprite.
+    /// Start iterating over every sprite.
     /// </summary>
     FirstSprite = 76,
 
     /// <summary>
-    /// Continue the walk over every sprite.
+    /// Continue iterating over every sprite.
     /// </summary>
     NextSprite = 77,
 
@@ -591,12 +591,12 @@ public enum ScriptFunction
     BreakTrain = 239,
 
     /// <summary>
-    /// Start a walk over the trains of an army.
+    /// Start iterating over the trains of an army.
     /// </summary>
     FirstTrain = 240,
 
     /// <summary>
-    /// Continue the walk over trains.
+    /// Continue iterating over trains.
     /// </summary>
     NextTrain = 241,
 

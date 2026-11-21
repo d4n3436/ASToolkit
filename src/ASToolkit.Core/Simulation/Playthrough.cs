@@ -54,9 +54,9 @@ public sealed class Playthrough
     /// <summary>
     /// Initializes a new instance of the <see cref="Playthrough"/> class.
     /// </summary>
-    /// <param name="gameFolder">The game folder, holding the sprites whose speed sets the animation times.</param>
+    /// <param name="gameFolder">The game folder that holds the sprites whose speed sets the animation times.</param>
     /// <param name="objects">The object table of the game.</param>
-    /// <param name="table">The common table of the game, holding the ammunition batch of each weapon.</param>
+    /// <param name="table">The common table of the game, which holds the ammunition batch of each weapon.</param>
     public Playthrough(string gameFolder, ObjectTable objects, GameTable table)
     {
         _gameFolder = gameFolder;
@@ -126,7 +126,7 @@ public sealed class Playthrough
     /// <param name="analysis">The route analysis of the level.</param>
     /// <param name="loadout">The equipment the player carried into the level.</param>
     /// <param name="demo">The demo the playthrough recorded.</param>
-    /// <returns>The map, playing the demo as it steps.</returns>
+    /// <returns>The map, which plays the demo as it steps.</returns>
     public Map LoadReplay(RouteAnalysis analysis, PlayerLoadout loadout, DemoResource demo)
     {
         var setup = GetSetup(analysis);
@@ -137,7 +137,7 @@ public sealed class Playthrough
     }
 
     /// <summary>
-    /// Plays campaign levels in order, shopping with each level's earnings before the next.
+    /// Plays campaign levels in order and shops with each level's earnings before the next level.
     /// </summary>
     /// <param name="levels">The levels in campaign order.</param>
     /// <param name="endMoney">The reward for each supplied level, in the same order.</param>

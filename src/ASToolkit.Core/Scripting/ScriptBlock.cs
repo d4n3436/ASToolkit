@@ -4,7 +4,7 @@ using ASToolkit.Core.Formats;
 namespace ASToolkit.Core.Scripting;
 
 /// <summary>
-/// Represents an if block of a level script with the conditions it waits for and what it changes.
+/// Represents an if block of a level script together with the conditions it waits for and the changes it makes.
 /// </summary>
 /// <param name="Conditions">The conditions of the block and the blocks around it, innermost last.</param>
 /// <param name="Removals">The objects the block removes from the map.</param>

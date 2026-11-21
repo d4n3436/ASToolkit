@@ -31,7 +31,7 @@ public sealed class SpriteDefinition
     public const int ArmyCount = 4;
 
     /// <summary>
-    /// Represents a script handler slot with no function bound.
+    /// Represents a script handler slot that doesn't have a function bound.
     /// </summary>
     public const int NoHandler = -1;
 
@@ -59,7 +59,7 @@ public sealed class SpriteDefinition
     private int[]? _heightFrameStarts;
 
     /// <summary>
-    /// Creates the definition of an object record.
+    /// Initializes a new instance of the <see cref="SpriteDefinition"/> class from an object record.
     /// </summary>
     /// <param name="id">The object id.</param>
     /// <param name="gameObject">The object record.</param>
@@ -363,7 +363,7 @@ public sealed class SpriteDefinition
     public float BattleRange { get; }
 
     /// <summary>
-    /// Gets the range under which the definition does not attack.
+    /// Gets the range under which the definition doesn't attack.
     /// </summary>
     public float MinRange { get; }
 
@@ -606,14 +606,14 @@ public sealed class SpriteDefinition
     public int GetArmyMaxHp(int army) => _armyMaxHp[army & 3];
 
     /// <summary>
-    /// Returns whether the definition has a fight child and a weapon.
+    /// Determines whether the definition has a fight child and a weapon.
     /// </summary>
     /// <returns><see langword="true"/> if the definition is armed with a weapon of its own; otherwise, <see langword="false"/>.</returns>
     [EngineRoutine(0x0043a1e0)]
     public bool HasFightWeapon() => FightChild != 0 && Object.WeaponIndex != 0;
 
     /// <summary>
-    /// Returns whether the object of the definition is born as smoke.
+    /// Determines whether the object of the definition is born as smoke.
     /// </summary>
     /// <returns><see langword="true"/> if the object is born as smoke; otherwise, <see langword="false"/>.</returns>
     [EngineRoutine(0x0043a320)]

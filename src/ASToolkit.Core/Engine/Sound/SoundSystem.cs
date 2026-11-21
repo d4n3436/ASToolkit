@@ -102,7 +102,7 @@ public sealed class SoundSystem
     public bool IsPlayMusic(uint wallTime) => _music is not null && (_music.IsPlaying(wallTime) || _loop != 0);
 
     /// <summary>
-    /// Returns whether a sound loops, keeping one voice alive while it is requested.
+    /// Determines whether a sound loops, keeping one voice alive while it is requested.
     /// </summary>
     /// <param name="id">The sound.</param>
     /// <returns><see langword="true"/> for a loaded looping sound; otherwise, <see langword="false"/>.</returns>
@@ -383,7 +383,7 @@ public sealed class SoundSystem
     public void SetVolume(int volume) => _soundVolume = volume < 0 ? 0 : Math.Min(volume, FullVolume);
 
     /// <summary>
-    /// Plays a music track, fading the current one out first.
+    /// Plays a music track and fades the current one out first.
     /// </summary>
     /// <param name="name">The path of the track.</param>
     /// <param name="loop">A nonzero value to play the track again when it ends.</param>
@@ -404,7 +404,7 @@ public sealed class SoundSystem
     }
 
     /// <summary>
-    /// Stops the music and forgets the track to play again.
+    /// Stops the music and clears the remembered track to play again.
     /// </summary>
     /// <param name="wallTime">The wall time in milliseconds.</param>
     [EngineRoutine(0x0041dc70)]
@@ -416,7 +416,7 @@ public sealed class SoundSystem
     }
 
     /// <summary>
-    /// Sets the volume of the music, removing the track at 0 and starting the remembered one above it.
+    /// Sets the volume of the music, removing the track at 0 and starting the remembered one when the volume is above 0.
     /// </summary>
     /// <param name="volume">The volume from 0 to 100.</param>
     /// <param name="wallTime">The wall time in milliseconds.</param>

@@ -10,12 +10,12 @@ namespace ASToolkit.Core.Engine;
 public sealed class GameSession : IDisposable
 {
     /// <summary>
-    /// Represents the screen width when the registry holds none, where the game asks the player in its start dialog.
+    /// Represents the screen width used when the registry doesn't hold one, in which case the game asks the player in its start dialog.
     /// </summary>
     public const int DefaultScreenWidth = 1024;
 
     /// <summary>
-    /// Represents the screen height when the registry holds none, where the game asks the player in its start dialog.
+    /// Represents the screen height used when the registry doesn't hold one, in which case the game asks the player in its start dialog.
     /// </summary>
     public const int DefaultScreenHeight = 768;
 
@@ -24,7 +24,7 @@ public sealed class GameSession : IDisposable
     private const string Program = "AlienShooter.exe";
 
     /// <summary>
-    /// Creates a session, reading the screen size from the registry or taking the default size when it holds none.
+    /// Initializes a new instance of the <see cref="GameSession"/> class that reads the screen size from the registry and uses the default size if the registry doesn't hold one.
     /// </summary>
     /// <param name="registry">The registry the game reads its settings from.</param>
     /// <param name="fileSystem">The file system the log is written to, or <see langword="null"/> to write no log.</param>
@@ -99,7 +99,7 @@ public sealed class GameSession : IDisposable
     internal ReadOnlyMemory<byte> MouseTipText { get; set; }
 
     /// <summary>
-    /// Closes the session's log, keeping it as the last run's log.
+    /// Closes the session's log and keeps it as the last run's log.
     /// </summary>
     public void Dispose() => Logger.Dispose();
 

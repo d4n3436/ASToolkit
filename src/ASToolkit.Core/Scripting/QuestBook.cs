@@ -28,8 +28,10 @@ public sealed partial class QuestBook
     public static QuestBook Empty { get; } = new([], []);
 
     /// <summary>
-    /// Loads the quests and texts of a game folder, or returns an empty book when the folder has no levels.cfg.
+    /// Loads the quests and texts of a game folder.
     /// </summary>
+    /// <param name="gameFolder">The game folder.</param>
+    /// <returns>The quest book, or an empty book if levels.cfg can't be found in the folder.</returns>
     public static QuestBook Load(string gameFolder)
     {
         string? questsPath = GamePath.Resolve(gameFolder, QuestsFile);
@@ -89,19 +91,25 @@ public sealed partial class QuestBook
     }
 
     /// <summary>
-    /// Returns the quest that is followed by a quest, or null when none is.
+    /// Finds the quest that leads to <paramref name="quest"/>.
     /// </summary>
-    /// <param name="quest">The quest.</param>
+    /// <param name="quest">The quest to find the predecessor of.</param>
+    /// <returns>The quest that leads to <paramref name="quest"/>, or null if there isn't one.</returns>
     public Quest? FindPrevious(Quest quest) => _quests.Values.FirstOrDefault(candidate => candidate.NextQuests.Contains((quest.Line, quest.Sub)));
 
     /// <summary>
-    /// Returns the quest of a line and number, or null when the book has no such quest.
+    /// Gets a quest with the given line and number.
     /// </summary>
+    /// <param name="line">The quest line.</param>
+    /// <param name="sub">The number of the quest in its line.</param>
+    /// <returns>The quest, or null if there isn't one.</returns>
     public Quest? GetQuest(int line, int sub) => _quests.GetValueOrDefault((line, sub));
 
     /// <summary>
-    /// Returns the first text line of a dialog, or an empty string when the book has no such dialog.
+    /// Gets the first text line of a dialog with the given number.
     /// </summary>
+    /// <param name="number">The number of the dialog.</param>
+    /// <returns>The first text line, or an empty string if there isn't one.</returns>
     public string GetDialog(int number) => _dialogs.GetValueOrDefault(number, "");
 
     private static List<Dictionary<string, List<string>>> ReadBlocks(string text)

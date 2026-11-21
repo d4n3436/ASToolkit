@@ -7,23 +7,23 @@ using ASToolkit.Core.Formats;
 namespace ASToolkit.Core.Scripting;
 
 /// <summary>
-/// Provides the reading of level scripts.
+/// Provides methods for reading level scripts.
 /// </summary>
 public static class LevelScriptReader
 {
     private const string MapsFolder = "Maps";
 
     /// <summary>
-    /// Reads the facts of a level script in a game folder's Maps folder, or returns empty facts when the file does not exist.
+    /// Reads the facts of the level script at a path in a game folder's Maps folder.
     /// </summary>
     /// <param name="path">The path of the level script.</param>
     /// <param name="version">The version of the script language the level script is written in.</param>
-    /// <returns>The facts of the level script.</returns>
+    /// <returns>The facts of the level script, or empty facts if the file doesn't exist.</returns>
     public static LevelScriptSummary Read(string path, ScriptVersion version) =>
         File.Exists(path) ? new CompiledLevel(Compile(path, version)).Read() : new LevelScriptSummary();
 
     /// <summary>
-    /// Reads the facts of a level script from its bytes, opening its includes from a game folder.
+    /// Reads the facts of a level script from its bytes and opens its includes from a game folder.
     /// </summary>
     /// <param name="data">The bytes of the level script.</param>
     /// <param name="gameFolder">The game folder the includes are opened from.</param>

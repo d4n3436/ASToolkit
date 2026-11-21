@@ -91,7 +91,7 @@ internal sealed class WeaponSystem
         return true;
     }
 
-    // Standing legs follow the torso once its turn passes the slack
+    // Standing legs follow the torso once the torso's turn passes the slack
     public void TrackCursor(Sprite man, Angle direction, int elapsed)
     {
         var torso = man.Link!;

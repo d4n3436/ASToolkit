@@ -116,7 +116,7 @@ public enum ScriptOpcode : byte
     LogicalAnd = 21,
 
     /// <summary>
-    /// Shift right, keeping the sign.
+    /// Shift right and keep the sign.
     /// </summary>
     ShiftRight = 22,
 
@@ -131,7 +131,7 @@ public enum ScriptOpcode : byte
     JumpIfFalse = 24,
 
     /// <summary>
-    /// End a statement, carrying its line.
+    /// End a statement and carry its line.
     /// </summary>
     EndStatement = 25,
 
@@ -146,7 +146,7 @@ public enum ScriptOpcode : byte
     Jump = 28,
 
     /// <summary>
-    /// Jump when the top value is zero, and over the whole statement from then on when it is not.
+    /// Jump when the top value is zero, and jump over the whole statement from then on when it is not zero.
     /// </summary>
     JumpIfFalseOnce = 29,
 
@@ -221,12 +221,12 @@ public enum ScriptOpcode : byte
     CastSprite = 43,
 
     /// <summary>
-    /// Jump when the top value is zero, keeping it on the stack (Alien Shooter 2).
+    /// Jump when the top value is zero and keep it on the stack (Alien Shooter 2).
     /// </summary>
     AndJump = 44,
 
     /// <summary>
-    /// Jump when the top value is not zero, keeping it on the stack (Alien Shooter 2).
+    /// Jump when the top value is not zero and keep it on the stack (Alien Shooter 2).
     /// </summary>
     OrJump = 45
 }

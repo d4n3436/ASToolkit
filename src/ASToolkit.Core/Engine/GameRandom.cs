@@ -42,7 +42,7 @@ public sealed class GameRandom : Random
     }
 
     /// <summary>
-    /// Returns the remainder of the next draw by a bound.
+    /// Returns the remainder of dividing the next draw by a bound.
     /// </summary>
     /// <param name="maxValue">The bound.</param>
     /// <returns>The remainder, negative for a negative bound.</returns>

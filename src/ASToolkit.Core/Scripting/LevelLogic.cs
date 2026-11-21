@@ -17,17 +17,17 @@ public sealed class LevelLogic
 
     /// <summary>
     /// Gets the handles of the placed sprites that the scripts open, break or remove during play, each with the <c>TimeLine</c> of
-    /// the quest the opening waits for, or 0 when it waits for no quest.
+    /// the quest the opening waits for, or 0 when it doesn't wait for any quest.
     /// </summary>
     public required IReadOnlyDictionary<int, int> Openings { get; init; }
 
     /// <summary>
-    /// Gets the trigger areas that open sprites the player must step on first.
+    /// Gets the trigger areas the player must step on first to open sprites.
     /// </summary>
     public required IReadOnlyList<OpeningTrigger> Triggers { get; init; }
 
     /// <summary>
-    /// Gets the quests that open sprites the walk may have to begin first, in story order.
+    /// Gets the quests that open sprites, in story order. The player's route may have to begin these quests first.
     /// </summary>
     public required IReadOnlyList<QuestDetour> Detours { get; init; }
 

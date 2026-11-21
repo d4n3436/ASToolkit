@@ -4,7 +4,7 @@ using ASToolkit.Core.Formats;
 namespace ASToolkit.Core.Simulation;
 
 /// <summary>
-/// Provides views of a map's update lists for the simulation harness, derived from the engine state.
+/// Provides views of a map's update lists, derived from the engine state.
 /// </summary>
 public static class MapExtensions
 {
@@ -16,13 +16,13 @@ public static class MapExtensions
         public SpriteView UpdatedSprites => new(map, SpriteViewKind.Updated);
 
         /// <summary>
-        /// Gets the units of the collision list that are not scripted, buildings, the player's body or its torso.
+        /// Gets the units of the collision list other than the scripted ones, buildings, the player's body and its torso.
         /// </summary>
         /// <remarks>Deleting sprites while enumerating can skip a unit, because the collision list fills a removed slot with its last entry.</remarks>
         public SpriteView Monsters => new(map, SpriteViewKind.Monsters);
 
         /// <summary>
-        /// Gets the updated sprites that did not come from the map, plus the scripted ones.
+        /// Gets the scripted sprites and the updated sprites that didn't come from the map.
         /// </summary>
         public SpriteView ActiveSprites => new(map, SpriteViewKind.Active);
 
@@ -32,7 +32,7 @@ public static class MapExtensions
         public SpriteView ScriptedSprites => new(map, SpriteViewKind.Scripted);
 
         /// <summary>
-        /// Returns whether a living monster has an object id.
+        /// Determines whether a living monster has the given object id.
         /// </summary>
         /// <param name="id">The object id.</param>
         /// <returns><see langword="true"/> if a living monster has the object id; otherwise, <see langword="false"/>.</returns>

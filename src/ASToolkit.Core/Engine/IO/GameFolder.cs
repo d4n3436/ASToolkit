@@ -10,7 +10,7 @@ public sealed class GameFolder : IGameFileSystem
     private readonly string _gameFolder;
 
     /// <summary>
-    /// Creates a file system over a game folder.
+    /// Initializes a new instance of the <see cref="GameFolder"/> class over a game folder.
     /// </summary>
     /// <param name="gameFolder">The folder that holds the game's executable.</param>
     public GameFolder(string gameFolder)

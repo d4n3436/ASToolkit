@@ -74,7 +74,7 @@ public sealed partial class Map : IScriptFunctionHost
     private IGameFileSystem ScriptFiles => _scriptFileSystem ??= _fileSystem as MemoryWriteOverlay ?? new MemoryWriteOverlay(_fileSystem);
 
     /// <summary>
-    /// Returns the handle the level script refers to a sprite by, allocating one when needed.
+    /// Returns the handle the level script refers to a sprite by, and allocates one if the sprite doesn't have one yet.
     /// </summary>
     /// <param name="sprite">The sprite, or null.</param>
     /// <returns>The handle, or 0 for null.</returns>
@@ -105,7 +105,7 @@ public sealed partial class Map : IScriptFunctionHost
     /// <param name="definition">The definition.</param>
     /// <param name="position">The position.</param>
     /// <param name="direction">The direction.</param>
-    /// <param name="parent">The sprite the new one takes its army and height from, and links to when it is a linker.</param>
+    /// <param name="parent">The sprite that the new sprite takes its army and height from, and links to if the new sprite is a linker.</param>
     /// <returns>The sprite, or null when the definition's limit is reached.</returns>
     [EngineRoutine(0x00405bd0)]
     public Sprite? CreateSprite(SpriteDefinition definition, Vector3 position, Angle direction, Sprite? parent = null)

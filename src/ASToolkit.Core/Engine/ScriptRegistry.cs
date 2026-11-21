@@ -13,7 +13,7 @@ public sealed class ScriptRegistry
     private readonly Dictionary<string, string> _values = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Creates an empty registry.
+    /// Initializes a new instance of the <see cref="ScriptRegistry"/> class as an empty registry.
     /// </summary>
     /// <param name="defaultPath">The registry path the game's configuration names.</param>
     public ScriptRegistry(string defaultPath)
@@ -30,7 +30,7 @@ public sealed class ScriptRegistry
     /// Reads the registry path from the game's configuration file.
     /// </summary>
     /// <param name="configPath">The path of the configuration file.</param>
-    /// <returns>The registry path, or an empty string when the file names none.</returns>
+    /// <returns>The registry path, or an empty string if the file doesn't name one.</returns>
     public static string ReadDefaultPath(string configPath)
     {
         foreach (string line in File.ReadLines(configPath, GameTextEncoding.Cyrillic))
@@ -41,7 +41,7 @@ public sealed class ScriptRegistry
                 return text[RegPathSetting.Length..].Trim().ToString();
         }
 
-        return "";
+        return string.Empty;
     }
 
     /// <summary>

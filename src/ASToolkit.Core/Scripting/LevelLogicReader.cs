@@ -4,7 +4,7 @@ using ASToolkit.Core.Formats;
 namespace ASToolkit.Core.Scripting;
 
 /// <summary>
-/// Provides the reading of the script events of a level from its map and its level script.
+/// Provides methods for reading the script events of a level from its map and its level script.
 /// </summary>
 public static class LevelLogicReader
 {
@@ -17,6 +17,7 @@ public static class LevelLogicReader
     /// <param name="map">The map.</param>
     /// <param name="objects">The object table of the game.</param>
     /// <param name="quests">The quests of the game.</param>
+    /// <returns>The script events and the quest order of the level.</returns>
     public static LevelLogic Read(string mapPath, MapResourceBuilder map, ObjectTable objects, QuestBook quests)
     {
         var context = new ScriptContext(map, objects, quests);
@@ -69,7 +70,7 @@ public static class LevelLogicReader
         };
     }
 
-    // Pairs the sprites a variable wait opens with the triggers that set the variable
+    // Pairs the sprites that a variable wait opens with the triggers that set the variable
     private static List<OpeningTrigger> GetOpeningTriggers(ScriptContext context)
     {
         var triggers = new List<OpeningTrigger>();
@@ -101,8 +102,10 @@ public static class LevelLogicReader
     }
 
     /// <summary>
-    /// Returns the path of the level script of a map, or null when the map has none.
+    /// Finds the level script of a map.
     /// </summary>
+    /// <param name="mapPath">The path of the map file.</param>
+    /// <returns>The path of the level script, or null if there isn't one next to the map.</returns>
     public static string? FindLevelScript(string mapPath)
     {
         string? folder = Path.GetDirectoryName(mapPath);

@@ -33,7 +33,7 @@ public sealed class SpriteCatalog
     private SpriteDefinition?[] _definitions;
 
     /// <summary>
-    /// Creates the definitions of a game folder.
+    /// Initializes a new instance of the <see cref="SpriteCatalog"/> class with the definitions of a game folder.
     /// </summary>
     /// <param name="gameFolder">The game folder.</param>
     /// <param name="objects">The object table.</param>

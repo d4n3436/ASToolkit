@@ -6,7 +6,7 @@ namespace ASToolkit.Core.Engine.Scripts;
 public interface IScriptFunctionHost
 {
     /// <summary>
-    /// Runs a built-in function, taking its arguments from the script's stack and pushing its result.
+    /// Runs a built-in function that takes its arguments from the script's stack and pushes its result.
     /// </summary>
     /// <param name="script">The script that calls the function.</param>
     /// <param name="function">The id of the built-in function.</param>

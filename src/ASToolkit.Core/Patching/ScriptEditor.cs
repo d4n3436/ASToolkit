@@ -3,17 +3,17 @@ using System.Text;
 namespace ASToolkit.Core.Patching;
 
 /// <summary>
-/// Provides the applying and undoing of text edits in the game's scripts and string tables.
+/// Provides methods for applying and undoing text edits in the game's scripts and string tables.
 /// </summary>
 internal static class ScriptEditor
 {
     /// <summary>
-    /// Applies an edit and returns whether the file changed.
+    /// Applies an edit to a file in a game folder.
     /// </summary>
     public static bool Apply(string gameFolder, ScriptEdit edit) => Replace(gameFolder, edit, undo: false);
 
     /// <summary>
-    /// Puts an edit's old text back and returns whether the file changed.
+    /// Puts the old text of an edit back in a file in a game folder.
     /// </summary>
     public static bool Undo(string gameFolder, ScriptEdit edit) => Replace(gameFolder, edit, undo: true);
 
@@ -43,7 +43,7 @@ internal static class ScriptEditor
 
         if (found != edit.Count)
         {
-            throw new InvalidDataException($"{edit.File}: expected {edit.Count} of '{from.Split('\n')[0].Trim()}' but found {found}.");
+            throw new InvalidDataException($"The edit in {edit.File} expects {edit.Count} occurrences of '{from.Split('\n')[0].Trim()}', but the file has {found}.");
         }
 
         File.WriteAllBytes(path, Encoding.Latin1.GetBytes(text.Replace(from, to, StringComparison.Ordinal)));

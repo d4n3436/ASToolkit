@@ -4,7 +4,7 @@ using ASToolkit.Core.Formats;
 namespace ASToolkit.Core.Simulation;
 
 /// <summary>
-/// Represents the outcome of a playthrough, such as whether the player survived, the time, the kills and the equipment left, with the script's event times and an optional demo.
+/// Represents the outcome of a player bot's playthrough of one level.
 /// </summary>
 /// <param name="StartingLoadout">The equipment carried into the level after shopping.</param>
 /// <param name="Survived">Whether the player met the level's victory condition alive.</param>
@@ -17,7 +17,7 @@ namespace ASToolkit.Core.Simulation;
 /// <param name="Implants">The implants the player carries at the end.</param>
 /// <param name="Pickups">The pickups the player took, in order.</param>
 /// <param name="Items">The retained utility items at the end of the level.</param>
-/// <param name="Ammo">The ammunition left of each weapon the player holds at the end besides the pistols, keyed by the weapon pickup.</param>
+/// <param name="Ammo">The ammunition left for each weapon other than the pistols that the player holds at the end, keyed by the weapon pickup.</param>
 /// <param name="Script">The times of the level script's events in the playthrough.</param>
 /// <param name="Demo">The demo the run recorded, or null when the run didn't keep a demo.</param>
 public sealed record PlaythroughResult(

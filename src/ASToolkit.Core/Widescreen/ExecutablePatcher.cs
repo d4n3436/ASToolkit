@@ -3,7 +3,7 @@ using System.Buffers.Binary;
 namespace ASToolkit.Core.Widescreen;
 
 /// <summary>
-/// Provides the patching of the game's executable to offer widescreen resolutions in a borderless window.
+/// Provides methods for patching the game's executable to offer widescreen resolutions in a borderless window.
 /// </summary>
 internal static class ExecutablePatcher
 {

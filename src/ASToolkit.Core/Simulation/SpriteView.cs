@@ -31,7 +31,7 @@ public struct SpriteView : IEnumerable<Sprite>, IEnumerator<Sprite>
     readonly object IEnumerator.Current => Current;
 
     /// <summary>
-    /// Returns an enumerator over the sprites, starting before the first one.
+    /// Returns an enumerator over the sprites. The enumerator starts before the first sprite.
     /// </summary>
     /// <returns>The enumerator.</returns>
     public readonly SpriteView GetEnumerator() => new(_map, _kind);

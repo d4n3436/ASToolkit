@@ -5,10 +5,12 @@ using ASToolkit.Core.Formats;
 namespace ASToolkit.Core.Patching;
 
 /// <summary>
-/// Provides the adding of the generated add-on's button to the play menus. A button is a sprite record of object 705
-/// whose direction picks the frame, and the engine reports that direction to the script as the button's number. Its
-/// label is a record of object 3 that names a string of the [menu] section.
+/// Provides methods for adding the generated add-on's button to the play menus.
 /// </summary>
+/// <remarks>
+/// A button is a sprite record of object 705 whose direction picks the frame, and the engine reports that direction to
+/// the script as the button's number. Its label is a record of object 3 that names a string of the [menu] section.
+/// </remarks>
 internal static class PlayMenuPatcher
 {
     /// <summary>
@@ -22,7 +24,7 @@ internal static class PlayMenuPatcher
     private const float BottomLimit = 470;
 
     /// <summary>
-    /// Returns the menu with a new button under the last add-on button, moving the buttons below it down to make room.
+    /// Returns the menu with a new button under the last add-on button and with the buttons below it moved down to make room.
     /// </summary>
     public static byte[] Patch(byte[] original, string labelKey)
     {
@@ -32,13 +34,13 @@ internal static class PlayMenuPatcher
         var buttons = records.Select((r, i) => (Index: i, Record: r)).Where(b => IsButton(b.Record)).ToList();
         if (buttons.Any(b => GetButtonNumber(b.Record) == ButtonNumber))
         {
-            throw new InvalidDataException($"Expected menu with button {ButtonNumber} to be available.");
+            throw new InvalidDataException($"The menu already has button {ButtonNumber}.");
         }
 
         var candidates = buttons.Where(b => GetButtonNumber(b.Record) is 3 or 4).OrderByDescending(b => GetY(b.Record)).ToList();
         if (candidates.Count == 0)
         {
-            throw new InvalidDataException("The menu has no add-on button to copy.");
+            throw new InvalidDataException("The menu does not have an add-on button to copy.");
         }
 
         var template = candidates[0];
@@ -67,7 +69,7 @@ internal static class PlayMenuPatcher
 
         if (previous > BottomLimit)
         {
-            throw new InvalidDataException($"The new button pushes the menu to y {previous}, past {BottomLimit}.");
+            throw new InvalidDataException($"The new button would push the menu to y {previous}, past the limit of {BottomLimit}.");
         }
 
         records.Insert(Math.Max(template.Index, labelIndex) + 1, button);
@@ -112,7 +114,7 @@ internal static class PlayMenuPatcher
             }
         }
 
-        return best >= 0 ? best : throw new InvalidDataException("A menu button has no label.");
+        return best >= 0 ? best : throw new InvalidDataException("Could not find a label for a menu button.");
     }
 
     private static byte[] ReplaceText(byte[] label, int version, string key)

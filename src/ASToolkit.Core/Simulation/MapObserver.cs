@@ -4,7 +4,7 @@ using ASToolkit.Core.Formats;
 namespace ASToolkit.Core.Simulation;
 
 /// <summary>
-/// Tracks the effects that ended baked into the ground by comparing the update lists of a map between frames.
+/// Tracks the effects that were baked into the ground when they ended, by comparing the update lists of a map between frames.
 /// </summary>
 public sealed class MapObserver
 {
@@ -29,7 +29,7 @@ public sealed class MapObserver
     }
 
     /// <summary>
-    /// Gets the effects that ended baked into the ground, in the order the update loop removed them.
+    /// Gets the effects that were baked into the ground when they ended, in the order the update loop removed them.
     /// </summary>
     public IReadOnlyList<EffectState> BakedEffects => _baked;
 

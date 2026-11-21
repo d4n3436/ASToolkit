@@ -15,6 +15,7 @@ public static class TriggerDistance
     /// </summary>
     /// <param name="first">The first point.</param>
     /// <param name="second">The second point.</param>
+    /// <returns>The approximate distance between the points.</returns>
     public static float Get(Vector3 first, Vector3 second)
     {
         float x = MathF.Abs(first.X - second.X);
@@ -23,10 +24,11 @@ public static class TriggerDistance
     }
 
     /// <summary>
-    /// Tells whether a point is inside a trigger area.
+    /// Determines whether a point is inside a trigger area.
     /// </summary>
     /// <param name="point">The point.</param>
     /// <param name="center">The center of the area.</param>
     /// <param name="radius">The radius of the area.</param>
+    /// <returns><see langword="true"/> if the point is inside the area; otherwise, <see langword="false"/>.</returns>
     public static bool Contains(Vector3 point, Vector3 center, float radius) => Get(point, center) < radius;
 }

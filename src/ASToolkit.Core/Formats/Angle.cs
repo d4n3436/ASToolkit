@@ -33,7 +33,7 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     private static readonly Vector2[] Vectors = CreateVectors();
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Angle"/> struct from an offset in map coordinates.
+    /// Initializes a new instance of the <see cref="Angle"/> structure from an offset in map coordinates.
     /// </summary>
     /// <param name="offset">The offset.</param>
     [EngineRoutine(0x00439b20)]

@@ -9,7 +9,7 @@ namespace ASToolkit.Core.Engine.Scripts;
 public readonly struct ScriptNameRecord
 {
     /// <summary>
-    /// Creates the stored fields of a name.
+    /// Initializes a new instance of the <see cref="ScriptNameRecord"/> structure with the stored fields of a name.
     /// </summary>
     /// <param name="kind">The kind of the name.</param>
     /// <param name="address">The first slot, built-in id or code offset.</param>

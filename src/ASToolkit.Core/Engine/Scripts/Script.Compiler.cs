@@ -40,7 +40,7 @@ public sealed partial class Script
     public string? CompileError { get; private set; }
 
     /// <summary>
-    /// Loads a script file, compiling its source or reading its compiled form.
+    /// Loads a script file by compiling its source or reading its compiled form.
     /// </summary>
     /// <param name="fileSystem">The file system the script and its includes are read from.</param>
     /// <param name="path">The path of the script file.</param>

@@ -13,7 +13,7 @@ public sealed class ScriptOverlay : IGameFileSystem
     private readonly byte[] _text;
 
     /// <summary>
-    /// Creates an overlay serving a script text at a path.
+    /// Initializes a new instance of the <see cref="ScriptOverlay"/> class that serves a script text at a path.
     /// </summary>
     /// <param name="fileSystem">The file system that serves every other path.</param>
     /// <param name="path">The path the text is served at, compared in any letter case and with either slash.</param>

@@ -71,12 +71,12 @@ public sealed partial class Map
     public ScreenFlash? ScreenFlash { get; private set; }
 
     /// <summary>
-    /// Gets the gamma the frame is drawn with, the channel reductions and additions applied to the whole screen.
+    /// Gets the gamma the frame is drawn with, meaning the channel reductions and additions applied to the whole screen.
     /// </summary>
     public Gamma Gamma => Session.Graphics.Gamma;
 
     /// <summary>
-    /// Returns whether a sprite was removed from the map.
+    /// Determines whether a sprite was removed from the map.
     /// </summary>
     /// <param name="placement">The sprite.</param>
     /// <returns><see langword="true"/> when the sprite is gone; otherwise, <see langword="false"/>.</returns>
@@ -86,7 +86,7 @@ public sealed partial class Map
     /// Returns the live sprite created from a placed map sprite.
     /// </summary>
     /// <param name="placement">The placed map sprite.</param>
-    /// <returns>The sprite, or null when none exists.</returns>
+    /// <returns>The sprite, or null if there isn't one.</returns>
     public Sprite? FindPlacementSprite(MergedMapSprite placement) =>
         _bodies.TryGetValue(placement, out var body) ? body : _statics.GetValueOrDefault(placement) ?? FindScripted(placement);
 

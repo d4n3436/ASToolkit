@@ -89,7 +89,7 @@ internal sealed class InputDriver
         return new Vector2(Math.Clamp(point.X, view.Left + BorderMargin, view.Right - BorderMargin), Math.Clamp(point.Y, view.Top + BorderMargin, view.Bottom - BorderMargin));
     }
 
-    // Returns the cursor above the point by the ground height the control adds back
+    // Returns the cursor position above the point by the ground height the control adds back, found by repeated estimates
     private Vector2 GetMoveCursor(Vector2 point)
     {
         var cursor = point;

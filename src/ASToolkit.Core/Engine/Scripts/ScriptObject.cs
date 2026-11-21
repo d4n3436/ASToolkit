@@ -6,7 +6,7 @@ namespace ASToolkit.Core.Engine.Scripts;
 public struct ScriptObject
 {
     /// <summary>
-    /// Creates a name of a compiled script.
+    /// Initializes a new instance of the <see cref="ScriptObject"/> class as a name of a compiled script.
     /// </summary>
     /// <param name="name">The name.</param>
     /// <param name="kind">The kind of the name.</param>

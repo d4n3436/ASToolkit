@@ -9,7 +9,7 @@ namespace ASToolkit.Core.Formats;
 public readonly struct StackAction
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="StackAction"/> struct.
+    /// Initializes a new instance of the <see cref="StackAction"/> structure.
     /// </summary>
     /// <param name="act">The action.</param>
     /// <param name="var1">The first argument.</param>

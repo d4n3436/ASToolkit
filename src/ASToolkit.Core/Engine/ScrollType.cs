@@ -1,7 +1,7 @@
 namespace ASToolkit.Core.Engine;
 
 /// <summary>
-/// Specifies how the camera scrolls, the <c>SCROLL_</c> flags of the script.
+/// Specifies how the camera scrolls, using the <c>SCROLL_</c> flags of the script.
 /// </summary>
 [Flags]
 public enum ScrollType
@@ -27,7 +27,7 @@ public enum ScrollType
     ToFlagman = 4,
 
     /// <summary>
-    /// The camera eases toward the player, leading toward the cursor.
+    /// The camera eases toward the player and leads toward the cursor.
     /// </summary>
     ToFlagmanWithDirection = 8,
 

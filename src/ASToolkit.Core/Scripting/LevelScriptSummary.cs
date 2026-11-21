@@ -51,7 +51,7 @@ public sealed class LevelScriptSummary
     public IReadOnlyList<ScriptCrowdRule> CrowdRules { get; init; } = [];
 
     /// <summary>
-    /// Gets the if blocks of the script's own code, each after the blocks inside it.
+    /// Gets the if blocks of the script's own code, with each block listed after the blocks inside it.
     /// </summary>
     public IReadOnlyList<ScriptBlock> Blocks { get; init; } = [];
 }

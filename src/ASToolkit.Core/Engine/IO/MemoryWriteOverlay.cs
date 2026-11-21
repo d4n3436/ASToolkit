@@ -10,16 +10,16 @@ public sealed class MemoryWriteOverlay : IGameFileSystem
     private readonly HashSet<string> _deleted = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Creates an overlay over a file system, or over nothing.
+    /// Initializes a new instance of the <see cref="MemoryWriteOverlay"/> class with an optional file system.
     /// </summary>
-    /// <param name="fileSystem">The file system that serves the files not written, or <see langword="null"/> for none.</param>
+    /// <param name="fileSystem">The file system that serves the files not written, or <see langword="null"/> if there isn't one.</param>
     public MemoryWriteOverlay(IGameFileSystem? fileSystem = null)
     {
         _fileSystem = fileSystem;
     }
 
     /// <summary>
-    /// Gets the paths of the files written and not deleted.
+    /// Gets the paths of the files that were written and haven't been deleted.
     /// </summary>
     public IEnumerable<string> WrittenPaths => _written.Keys;
 

@@ -48,7 +48,7 @@ public static class RandomExtensions
         /// </summary>
         public float NextGamma(float shape)
         {
-            // Use Marsaglia and Tsang's method, boosting shapes under 1
+            // Use Marsaglia and Tsang's method and boost shapes under 1
             if (shape < 1)
             {
                 return rng.NextGamma(shape + 1) * MathF.Pow(1 - rng.NextSingle(), 1 / shape);

@@ -46,7 +46,7 @@ public sealed class ActionStack
     }
 
     /// <summary>
-    /// Inserts an entry at an index, moving the ones above it up.
+    /// Inserts an entry at an index and moves the entries above it up.
     /// </summary>
     /// <param name="index">The index.</param>
     /// <param name="order">The entry.</param>
@@ -84,7 +84,7 @@ public sealed class ActionStack
     }
 
     /// <summary>
-    /// Sets the number of entries, bringing back popped ones.
+    /// Sets the number of entries and brings back popped entries.
     /// </summary>
     /// <param name="count">The number of entries.</param>
     public void SetCount(int count)

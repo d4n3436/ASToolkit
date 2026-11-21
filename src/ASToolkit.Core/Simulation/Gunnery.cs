@@ -156,7 +156,7 @@ internal sealed class Gunnery
         return spread * distance / Math.Max(1, distance + overshoot);
     }
 
-    // Measures the share of rounds whose scatter across the line of fire stays within the target, the scatter shrunk by the overshoot past it
+    // Returns the share of rounds whose scatter across the line of fire stays within the target, with the scatter shrunk by the overshoot past the target
     private float MeasureHitChance(Sprite target, SpriteDefinition torso, AttackProfile profile)
     {
         float spread = GetSpread(torso, out _);
@@ -239,7 +239,7 @@ internal sealed class Gunnery
         return bullet.Speed >= SpriteDefinition.Unlimited ? _map.Projectiles.HasClearTerrain(bullet, start, aim, half) : HasClearFlight(bullet, start, aim, half);
     }
 
-    // Steps a moving round along its line a tick at a time, stopping only where it could not stand
+    // Walks a round along its line in steps and treats a spot where the round can't stand as clear only when it lies inside the target
     private bool HasClearFlight(SpriteDefinition bullet, Vector3 start, Vector3 aim, Vector2 targetHalf)
     {
         float length = start.AsVector2().MeasureOctagonalDistance(aim.AsVector2());

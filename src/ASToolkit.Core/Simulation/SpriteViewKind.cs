@@ -11,12 +11,12 @@ public enum SpriteViewKind
     Updated,
 
     /// <summary>
-    /// The units of the collision list that are not scripted, buildings, the player's body or its torso.
+    /// The units of the collision list other than the scripted ones, buildings, the player's body and its torso.
     /// </summary>
     Monsters,
 
     /// <summary>
-    /// The updated sprites that did not come from the map, plus the scripted ones.
+    /// The scripted sprites and the updated sprites that didn't come from the map.
     /// </summary>
     Active,
 

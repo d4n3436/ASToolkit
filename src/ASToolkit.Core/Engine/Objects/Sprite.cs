@@ -5,7 +5,7 @@ using ASToolkit.Core.Formats;
 namespace ASToolkit.Core.Engine;
 
 /// <summary>
-/// Represents a sprite of the running map with its definition, position, state, orders, links and ammunition.
+/// Represents an object on the running map, such as a monster, a pickup, a door or an effect.
 /// </summary>
 public sealed class Sprite
 {
@@ -44,7 +44,7 @@ public sealed class Sprite
     private Angle _direction;
 
     /// <summary>
-    /// Creates a sprite from a definition.
+    /// Initializes a new instance of the <see cref="Sprite"/> class from a definition.
     /// </summary>
     /// <param name="number">The sprite number.</param>
     /// <param name="definition">The definition.</param>
@@ -53,7 +53,7 @@ public sealed class Sprite
     /// <param name="hitPoints">The health.</param>
     /// <param name="direction">The direction.</param>
     /// <param name="map">The map the sprite belongs to, which supplies the game time and the random scatter of the position.</param>
-    /// <param name="parent">The sprite that creates it, whose height a ground-bound object is placed relative to.</param>
+    /// <param name="parent">The sprite that creates this sprite and whose height a ground-bound object is placed relative to.</param>
     public Sprite(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Angle direction = default, Map? map = null, Sprite? parent = null)
     {
         Map = map;
@@ -87,7 +87,7 @@ public sealed class Sprite
     public int Number { get; private set; }
 
     /// <summary>
-    /// Gets or sets the handle the level script refers to the sprite by, 0 when it has none.
+    /// Gets or sets the handle the level script refers to the sprite by, or 0 if the sprite doesn't have one.
     /// </summary>
     public int Handle { get; set; }
 
@@ -384,7 +384,7 @@ public sealed class Sprite
     public Vector3 LinkerOffset { get; set; }
 
     /// <summary>
-    /// Gets or sets the direction a linker was created facing.
+    /// Gets or sets the direction a linker faced when it was created.
     /// </summary>
     public Angle LinkerDirection { get; set; }
 
@@ -414,7 +414,7 @@ public sealed class Sprite
     public Vector3 GoalPosition => Goal?.Position ?? default;
 
     /// <summary>
-    /// Gets a value indicating whether the sprite has health left and has not entered a death state.
+    /// Gets a value indicating whether the sprite has health left and hasn't entered a death state.
     /// </summary>
     public bool IsAlive => Hp > 0 && Animation < SpriteAnimation.Death;
 
@@ -549,7 +549,7 @@ public sealed class Sprite
     }
 
     /// <summary>
-    /// Returns whether this sprite or its armed link can attack the type of another sprite.
+    /// Determines whether this sprite or its armed link can attack the type of another sprite.
     /// </summary>
     /// <param name="target">The sprite to attack.</param>
     /// <returns><see langword="true"/> if a weapon of this sprite targets the type of <paramref name="target"/>; otherwise, <see langword="false"/>.</returns>
@@ -617,7 +617,7 @@ public sealed class Sprite
     }
 
     /// <summary>
-    /// Changes the sprite's definition, moving its count and resetting it to the first frame of the standing state, facing up.
+    /// Changes the sprite's definition, moves its count and resets the sprite to the first frame of the standing state, facing up.
     /// </summary>
     /// <param name="definition">The new definition.</param>
     public void ChangeVid(SpriteDefinition definition)
@@ -691,7 +691,7 @@ public sealed class Sprite
     }
 
     /// <summary>
-    /// Changes the sprite's state, taking its links into death with it.
+    /// Changes the sprite's state and takes its links into death with it.
     /// </summary>
     /// <param name="state">The state.</param>
     [EngineRoutine(0x00442ee0)]
@@ -727,7 +727,7 @@ public sealed class Sprite
     }
 
     /// <summary>
-    /// Turns the sprite, placing its link at the offset for the new direction and turning the links that keep their owner's direction.
+    /// Turns the sprite, places its link at the offset for the new direction and turns the links that keep their owner's direction.
     /// </summary>
     /// <param name="direction">The direction.</param>
     [EngineRoutine(0x00442be0)]
@@ -821,10 +821,10 @@ public sealed class Sprite
     public int GetAmmo() => GetOwnAmmo();
 
     /// <summary>
-    /// Adds rounds to the sprite's held weapon and returns the rounds held after.
+    /// Adds rounds to the sprite's held weapon.
     /// </summary>
     /// <param name="amount">The rounds to add, negative to spend.</param>
-    /// <returns>The rounds held.</returns>
+    /// <returns>The rounds held after the addition.</returns>
     public int AddAmmo(int amount) => AddOwnAmmo(amount);
 
     /// <summary>
