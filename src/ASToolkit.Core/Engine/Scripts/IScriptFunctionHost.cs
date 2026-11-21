@@ -9,6 +9,6 @@ public interface IScriptFunctionHost
     /// Runs a built-in function that takes its arguments from the script's stack and pushes its result.
     /// </summary>
     /// <param name="script">The script that calls the function.</param>
-    /// <param name="function">The id of the built-in function.</param>
+    /// <param name="function">The ID of the built-in function.</param>
     void ExecFunc(Script script, int function);
 }

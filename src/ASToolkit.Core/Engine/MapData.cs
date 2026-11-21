@@ -11,7 +11,7 @@ namespace ASToolkit.Core.Engine;
 public sealed class MapData
 {
     /// <summary>
-    /// Gets the sprites of the map, ordered by object id.
+    /// Gets the sprites of the map, ordered by object ID.
     /// </summary>
     public required IReadOnlyList<MergedMapSprite> Sprites { get; init; }
 

@@ -435,7 +435,7 @@ public sealed partial class Map : IDisposable
     /// Plays a sound from a sprite's position on the screen.
     /// </summary>
     /// <param name="sprite">The sprite.</param>
-    /// <param name="id">The sound id.</param>
+    /// <param name="id">The sound ID.</param>
     [EngineRoutine(0x00445470)]
     public void PlaySfx(Sprite sprite, int id)
     {

@@ -76,7 +76,7 @@ public enum ScriptFunction
     AddCommand = 82,
 
     /// <summary>
-    /// Return the object id of a sprite.
+    /// Return the object ID of a sprite.
     /// </summary>
     GetUnitVid = 83,
 
@@ -141,7 +141,7 @@ public enum ScriptFunction
     SaveDemo = 100,
 
     /// <summary>
-    /// Find a menu item by object id and direction.
+    /// Find a menu item by object ID and direction.
     /// </summary>
     MenuFind = 101,
 
@@ -156,7 +156,7 @@ public enum ScriptFunction
     MenuRelease = 103,
 
     /// <summary>
-    /// Return the object id of the pressed button.
+    /// Return the object ID of the pressed button.
     /// </summary>
     MenuNVidUnderCursor = 104,
 
@@ -166,7 +166,7 @@ public enum ScriptFunction
     MenuNDirUnderCursor = 105,
 
     /// <summary>
-    /// Send an action to the menu items of an object id and direction.
+    /// Send an action to the menu items of an object ID and direction.
     /// </summary>
     MenuAction = 106,
 

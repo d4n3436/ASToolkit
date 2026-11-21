@@ -10,7 +10,7 @@ namespace ASToolkit.Core.Engine;
 public sealed class Sprite
 {
     /// <summary>
-    /// Represents the object id of the torso for weapon slot 0.
+    /// Represents the object ID of the torso for weapon slot 0.
     /// </summary>
     public const int WeaponIdBase = 10;
 

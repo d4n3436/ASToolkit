@@ -61,7 +61,7 @@ public sealed class SpriteDefinition
     /// <summary>
     /// Initializes a new instance of the <see cref="SpriteDefinition"/> class from an object record.
     /// </summary>
-    /// <param name="id">The object id.</param>
+    /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
     /// <param name="weapon">The weapon record.</param>
     /// <param name="spriteSpeed">The frame duration of the definition's sprite.</param>
@@ -118,12 +118,12 @@ public sealed class SpriteDefinition
     public int CollisionHandler { get; set; } = NoHandler;
 
     /// <summary>
-    /// Gets or sets the id sprites of the definition report.
+    /// Gets or sets the ID sprites of the definition report.
     /// </summary>
     public KnownObject Id { get; set; }
 
     /// <summary>
-    /// Gets the id of the record the definition was loaded from.
+    /// Gets the ID of the record the definition was loaded from.
     /// </summary>
     public KnownObject RecordId { get; }
 

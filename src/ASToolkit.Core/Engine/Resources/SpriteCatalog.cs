@@ -16,7 +16,7 @@ public sealed class SpriteCatalog
     public const int MaxLaunchDepth = 3;
 
     /// <summary>
-    /// Represents the id of the definition of the prerendered ground.
+    /// Represents the ID of the definition of the prerendered ground.
     /// </summary>
     public const KnownObject HardwareGroundId = (KnownObject)0x400;
 
@@ -201,10 +201,10 @@ public sealed class SpriteCatalog
     }
 
     /// <summary>
-    /// Returns the definition of an object id.
+    /// Returns the definition of an object ID.
     /// </summary>
-    /// <param name="id">The object id.</param>
-    /// <returns>The definition, or null if no definition has that id.</returns>
+    /// <param name="id">The object ID.</param>
+    /// <returns>The definition, or null if no definition has that ID.</returns>
     public SpriteDefinition? Find(KnownObject id) => id >= 0 && (int)id < _definitions.Length ? _definitions[(int)id] : null;
 
     /// <summary>

@@ -7,7 +7,7 @@ namespace ASToolkit.Core.Engine.Scripts;
 /// Represents one instruction of a compiled script's code.
 /// </summary>
 /// <param name="Offset">The offset of the instruction in the code.</param>
-/// <param name="Opcode">The opcode of the instruction, or the id of the built-in function it calls.</param>
+/// <param name="Opcode">The opcode of the instruction, or the ID of the built-in function it calls.</param>
 /// <param name="Operand">The operand of the instruction, or 0 if the instruction doesn't have one.</param>
 /// <param name="Length">The length of the instruction in bytes.</param>
 /// <param name="IsExternCall">A value indicating whether the instruction calls a built-in function.</param>

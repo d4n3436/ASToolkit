@@ -71,7 +71,7 @@ public readonly struct SpriteProgram
     /// Gets the items that the payload of an Alien Shooter sprite gives to the sprite after its orders.
     /// </summary>
     /// <param name="payload">The payload of the sprite's SPRD record.</param>
-    /// <returns>The object ids of the items, or an empty span when the payload doesn't hold any.</returns>
+    /// <returns>The object IDs of the items, or an empty span when the payload doesn't hold any.</returns>
     public static ReadOnlySpan<int> GetItems(ReadOnlySpan<byte> payload)
     {
         if (payload.Length < sizeof(int))

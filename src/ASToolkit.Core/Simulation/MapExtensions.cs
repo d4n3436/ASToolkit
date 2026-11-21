@@ -32,10 +32,10 @@ public static class MapExtensions
         public SpriteView ScriptedSprites => new(map, SpriteViewKind.Scripted);
 
         /// <summary>
-        /// Determines whether a living monster has the given object id.
+        /// Determines whether a living monster has the given object ID.
         /// </summary>
-        /// <param name="id">The object id.</param>
-        /// <returns><see langword="true"/> if a living monster has the object id; otherwise, <see langword="false"/>.</returns>
+        /// <param name="id">The object ID.</param>
+        /// <returns><see langword="true"/> if a living monster has the object ID; otherwise, <see langword="false"/>.</returns>
         public bool HasLivingMonster(KnownObject id)
         {
             foreach (var sprite in map.Monsters)

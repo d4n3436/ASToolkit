@@ -12,7 +12,7 @@ public readonly struct ScriptNameRecord
     /// Initializes a new instance of the <see cref="ScriptNameRecord"/> structure with the stored fields of a name.
     /// </summary>
     /// <param name="kind">The kind of the name.</param>
-    /// <param name="address">The first slot, built-in id or code offset.</param>
+    /// <param name="address">The first slot, built-in ID or code offset.</param>
     /// <param name="firstVariable">The slot of the first parameter.</param>
     /// <param name="count">The number of parameters or elements.</param>
     public ScriptNameRecord(ScriptObjectKind kind, int address, int firstVariable, int count)
@@ -30,7 +30,7 @@ public readonly struct ScriptNameRecord
     public readonly ScriptObjectKind Kind;
 
     /// <summary>
-    /// The first slot of a variable, the id of a built-in function or the code offset of a function.
+    /// The first slot of a variable, the ID of a built-in function or the code offset of a function.
     /// </summary>
     [FieldOffset(8)]
     public readonly int Address;

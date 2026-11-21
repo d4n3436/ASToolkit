@@ -10,7 +10,7 @@ public struct ScriptObject
     /// </summary>
     /// <param name="name">The name.</param>
     /// <param name="kind">The kind of the name.</param>
-    /// <param name="address">The first slot, built-in id or code offset.</param>
+    /// <param name="address">The first slot, built-in ID or code offset.</param>
     /// <param name="firstVariable">The slot of the first parameter.</param>
     /// <param name="count">The number of parameters or elements.</param>
     public ScriptObject(ReadOnlyMemory<byte> name, ScriptObjectKind kind, int address, int firstVariable = 0, int count = 0)
@@ -38,7 +38,7 @@ public struct ScriptObject
     public ReadOnlyMemory<byte> Text { get; set; }
 
     /// <summary>
-    /// Gets or sets the first slot of a variable, the id of a built-in function or the code offset of a function or label.
+    /// Gets or sets the first slot of a variable, the ID of a built-in function or the code offset of a function or label.
     /// </summary>
     public int Address { get; set; }
 
