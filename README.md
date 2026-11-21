@@ -1,16 +1,16 @@
 # ASToolkit
 
-This repo provides a toolkit for Sigma Team's Alien Shooter (GOG version 1.2) with a level generator, game simulator, a widescreen patch and level analysis tools, all in one command-line program called `ascli`.
+This repo provides a toolkit for Sigma Team's Alien Shooter (GOG version 1.2) with a level generator, a game simulator, a widescreen patch and level analysis tools, all in one command-line program called `ascli`.
 
 It is written in C# on .NET 11 and works on an installed copy of the game.
 
 > [!NOTE]
-> While AI was used in sections of code that was hard to get right, like level generation, I made sure everything is working as intended.
+> While AI was used in sections of code that were hard to get right, like level generation, I made sure everything is working as intended.
 
 ## Features
 
-- **Level generation:** Builds new levels in the style of the originals and installs them as a new add-on called RANDOM, with its own button on the play menu
-- **Map viewer:** Faithfully recreates the Alien Shooter 1/2 rendering engines and supports both games plus spin-offs
+- **Level generation:** Builds new levels in the style of the originals and installs them as a new add-on called RANDOM, with a button on the play menu
+- **Map viewer:** Faithfully recreates the rendering engines of Alien Shooter 1 and 2 and supports both games plus spin-offs
 - **Widescreen patch:** Adds more resolutions, a borderless window mode and a HUD that fits wide screens
 - **Level analysis:** Works out the route a player takes through a level and draws it over an image of the map
 
@@ -36,22 +36,22 @@ Run a command with `--help` to see its options.
 
 ## Random level generation
 
-The generator draws a whole campaign, builds each level as a building laid out phase by phase, and fills it along the route the player takes.
+The generator draws a whole campaign at random, builds each level as a building laid out phase by phase, and fills it along the route the player takes. A phase is the part of the building the player can reach before the next gate opens.
 
-1. **Campaign:** It draws the whole campaign first, from curves fitted to the original campaigns, giving each level its wall set, gate, monster hit points, weapons, pickups and end-of-level money.
-2. **Building:** It lays out the level's building from the grammar of its kind. Labs are a hub of office pods with one second wing behind their gate, warehouses follow their level's template and the office block is one packed floor. The campaign gives the gate (locked doors, a blackout or electric fences), and the doors and locks follow the building's phases.
-3. **Structure:** Walls, doors and floors are built around the layout in the look of the basement and concrete levels, and decoration is copied from the original levels.
-4. **Content:** Monsters, bosses, items, ammo and dynamite are placed along the route to the hit points and pickups the campaign gives the level, with difficulty rising as the level goes on. Fights come where the original level puts them, and furniture, pickups and gore are arranged the way the originals arrange them.
-5. **Read back:** Each level is built once, every step keeping its own guarantees, then read back with the route analysis that measures the original levels. Layouts whose route cannot reach every objective are drawn again. Levels get a roof that hides everything outside the walkable floor.
+1. **Campaign:** It draws the whole campaign first, from curves fitted to the original campaigns, giving each level its wall set (basement or concrete walls), gate, monster hit points, weapons, pickups and end-of-level money.
+2. **Building:** It lays out the level's building with the grammar for its building type. Labs are a hub of office pods with a second wing behind the gate, campaign warehouses follow the layout of the original level with the same number, and office blocks are one packed floor. The doors and locks follow the building's phases.
+3. **Structure:** Walls, doors and floors are built around the layout in the look of the original basement and concrete levels, and a roof hides everything outside the walkable floor.
+4. **Content:** Monsters, bosses, items, ammo and dynamite are placed along the route to the hit points and pickups the campaign gives the level, with difficulty rising as the level goes on. Fights, furniture, pickups and gore are spread and arranged the way the originals spread and arrange them.
+5. **Read back:** Each finished level is read back with the route analysis that measures the original levels. When its route can't reach every objective, the generator lays the level out again, up to 8 times.
 
 ### The RANDOM add-on
 
-`generate` writes the levels into the game as a new add-on and adds a button for it to the play menu. Both styles produce the same add-on.
+`generate` writes the levels into the game as a new add-on and adds a button for it to the play menu. Both styles install as the RANDOM add-on.
 
 - **Campaign style** has ten levels, like the main campaign.
 - **Add-on style** (`--addon-style`) has five levels, shorter and harder like the official add-ons.
 
-`--seed` picks the campaign, its threat, weapons, pickups and end-of-level money, and the same seed gives the same one. `--first` and `--last` choose which campaign levels the generator replaces in campaign style. `restore` returns the game to its original state.
+`--seed` picks the campaign, with the hit points of its monsters, its weapons, pickups and end-of-level money, and the same seed always gives the same campaign. In campaign style, `--first` and `--last` choose which of the ten levels are generated, and the others are copies of the campaign's levels. `restore` returns the game to its original state.
 
 ## Widescreen patch
 
@@ -59,7 +59,7 @@ The generator draws a whole campaign, builds each level as a building laid out p
 
 ## Toolkit GUI
 
-A GUI for the toolkit is included on the repo (the `ASToolkit.Gui` project). It currently has a RES file inspector, a map viewer and simulation replay.
+The repo includes a GUI for the toolkit, the `ASToolkit.Gui` project. It has a RES file inspector, a map viewer and a simulation replay.
 
 ## Project layout
 
@@ -86,7 +86,7 @@ docs/                 Documentation
 
 ## Tests
 
-Tests are ran using the standard .NET test driver:
+The tests run with the standard .NET test driver:
 ```
 dotnet test
 ```
