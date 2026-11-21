@@ -64,7 +64,7 @@ internal sealed partial record FurnitureGrammar
             [[2.08f, 6.25f], [2.5f, 5.5f], [2.5f, 5.88f], [2.5f, 5.88f]], true, 1,
             [
                 new(A.Far, F.Cabinet, 0.56f, 0.82f, [0.45f, 0.74f], 2.5f, [1, 6], new() { [F.Cabinet] = 0.65f, [F.Table] = 0.28f }),
-                new(A.Far, F.Table, 0.61f, 0.76f, [0.45f, 1], 2.5f, [1, 4], new() { [F.Table] = 0.69f, [F.Cabinet] = 0.2f, [F.Water] = 0.06f }, Signature: true),
+                new(A.Far, F.Table, 0.61f, 0.76f, [0.45f, 1], 2.5f, [1, 4], new() { [F.Table] = 0.69f, [F.Cabinet] = 0.2f, [F.WaterCylinder] = 0.06f }, Signature: true),
                 new(A.Near, F.Table, 0.25f, 0.35f, [0.27f, 1.11f], 2.08f, [1, 1], new() { [F.Table] = 0.95f, [F.Cabinet] = 0.05f }),
                 new(A.Far, F.Shelf, 0.22f, 0.29f, [0.45f, 0.76f], 1.04f, [1, 3], new() { [F.Shelf] = 0.68f, [F.Table] = 0.16f, [F.Cabinet] = 0.11f, [F.Barrel] = 0.05f }),
                 new(A.Near, F.Shelf, 0.22f, 0.29f, [0.56f, 0.83f], 1.79f, [1, 1], new() { [F.Shelf] = 1 }),
@@ -130,7 +130,7 @@ internal sealed partial record FurnitureGrammar
                 new(A.Heap, null, 0.33f, 0.5f, [0.08f, 0.2f], 0.2f, [5, 7], [], OpenShare: 0.33f, NearShare: 0.5f),
                 new(A.Grid, F.Crate, 0.22f, 0.33f, [0.04f, 0.2f], 0.2f, [2, 9], [], OpenFromCells: 62),
                 new(A.Far, F.Crate, 0.22f, 0.33f, [0.08f, 0.2f], 0.2f, [1, 2], new() { [F.Crate] = 0.67f, [F.Console] = 0.33f }),
-                new(A.Far, F.Barrel, 0.22f, 0.33f, [0.08f, 0.2f], 0.2f, [1, 3], new() { [F.Barrel] = 0.75f, [F.Water] = 0.25f }),
+                new(A.Far, F.Barrel, 0.22f, 0.33f, [0.08f, 0.2f], 0.2f, [1, 3], new() { [F.Barrel] = 0.75f, [F.WaterCylinder] = 0.25f }),
                 new(A.Far, F.Shelf, 0.22f, 0.17f, [0.25f, 0.61f], 0.61f, [1, 1], new() { [F.Shelf] = 1 }),
                 new(A.Near, F.Shelf, 0.22f, 0, [0.52f, 0.61f], 0.61f, [1, 1], new() { [F.Shelf] = 1 }),
                 new(A.Open, F.Crate, 0.22f, 0.33f, [0.13f, 0.41f], 0.41f, [1, 1], [], OpenFromCells: 62),
@@ -408,7 +408,7 @@ internal sealed partial record FurnitureGrammar
             new() { [Cylinder] = 38 },
             new() { [Cylinder] = 25 },
             0, 0, 0.79f, 0.98f, 1.5f, 1, 0.27f, [0.86f, 0.73f, 0.68f, 0.67f, 0.59f], 0.43f, 0.57f, 80, 80),
-        [F.Water] = new(
+        [F.WaterCylinder] = new(
             [WaterCylinder],
             new() { [WaterCylinder] = 35 },
             new() { [WaterCylinder] = 8 },
@@ -662,7 +662,7 @@ internal sealed partial record FurnitureGrammar
         [new(F.Cabinet, F.Plant)] = new(0.51f, 0.45f),
         [new(F.Cabinet, F.Shelf)] = new(0.8f, 0.8f),
         [new(F.Cabinet, F.Table)] = new(1.02f, 0.76f),
-        [new(F.Cabinet, F.Water)] = new(0.68f, 0.41f),
+        [new(F.Cabinet, F.WaterCylinder)] = new(0.68f, 0.41f),
         [new(F.Chair, F.Chair)] = new(0.61f, 0.92f),
         [new(F.Chair, F.Console)] = new(1.05f, 1.05f),
         [new(F.Chair, F.Crate)] = new(0.58f, 0.58f),
@@ -672,7 +672,7 @@ internal sealed partial record FurnitureGrammar
         [new(F.Chair, F.Plant)] = new(0.69f, 0.69f),
         [new(F.Chair, F.Shelf)] = new(0.97f, 0.97f),
         [new(F.Chair, F.Table)] = new(0.52f, 0.54f),
-        [new(F.Chair, F.Water)] = new(0.62f, 0.62f),
+        [new(F.Chair, F.WaterCylinder)] = new(0.62f, 0.62f),
         [new(F.Console, F.Console)] = new(0.31f, 0.88f),
         [new(F.Container, F.Container)] = new(1.19f, 1.19f),
         [new(F.Container, F.Crate)] = new(0.84f, 0.78f),
@@ -690,7 +690,7 @@ internal sealed partial record FurnitureGrammar
         [new(F.Crate, F.Shelf)] = new(0.46f, 0.47f),
         [new(F.Crate, F.Table)] = new(0.78f, 0.78f),
         [new(F.Crate, F.Truck)] = new(0.88f, 0.88f),
-        [new(F.Crate, F.Water)] = new(0.44f, 0.69f),
+        [new(F.Crate, F.WaterCylinder)] = new(0.44f, 0.69f),
         [new(F.Cylinder, F.Cylinder)] = new(0.26f, 0.26f),
         [new(F.Cylinder, F.Shelf)] = new(0.51f, 0.51f),
         [new(F.Household, F.Household)] = new(0.9f, 0.39f),
@@ -704,11 +704,11 @@ internal sealed partial record FurnitureGrammar
         [new(F.Missile, F.Shelf)] = new(1.09f, 1.09f),
         [new(F.Plant, F.Plant)] = new(0.9f, 0.9f),
         [new(F.Plant, F.Table)] = new(0.88f, 0.88f),
-        [new(F.Plant, F.Water)] = new(0.57f, 0.47f),
+        [new(F.Plant, F.WaterCylinder)] = new(0.57f, 0.47f),
         [new(F.Shelf, F.Shelf)] = new(1.42f, 1.32f),
         [new(F.Shelf, F.Table)] = new(0.98f, 0.98f),
         [new(F.Table, F.Table)] = new(1.22f, 0.56f),
-        [new(F.Table, F.Water)] = new(0.93f, 0.93f)
+        [new(F.Table, F.WaterCylinder)] = new(0.93f, 0.93f)
     };
 
     private static readonly Dictionary<KnownObject, Dictionary<Angle, float>> FrameSpacingTable = new()

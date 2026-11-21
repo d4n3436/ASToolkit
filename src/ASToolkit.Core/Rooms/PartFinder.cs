@@ -19,7 +19,7 @@ internal sealed class PartFinder
         [(PieceFamily.Table, PieceFamily.Table)] = 60,
         [(PieceFamily.Cabinet, PieceFamily.Cabinet)] = 60,
         [(PieceFamily.Cabinet, PieceFamily.Shelf)] = 80,
-        [(PieceFamily.Cabinet, PieceFamily.Water)] = 60,
+        [(PieceFamily.Cabinet, PieceFamily.WaterCylinder)] = 60,
         [(PieceFamily.Shelf, PieceFamily.Shelf)] = 100,
         [(PieceFamily.Crate, PieceFamily.Crate)] = 55,
         [(PieceFamily.Crate, PieceFamily.Boxes)] = 55,

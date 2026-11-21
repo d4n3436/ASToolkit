@@ -56,7 +56,7 @@ public sealed class BuildingBuilder
             grammar.Build();
         }
 
-        grammar.TopUp();
+        grammar.CountRoomsPastWings();
         if (request.Building == Building.UndergroundLab)
         {
             new RoomShaper(grammar.Draft).ShapeRooms(_footprints);

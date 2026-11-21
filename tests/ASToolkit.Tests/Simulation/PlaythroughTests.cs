@@ -11,10 +11,14 @@ namespace ASToolkit.Tests.Simulation;
 
 public class PlaythroughTests
 {
-    [Theory]
-    [InlineData(3)]
-    [InlineData(4)]
-    public void Run_NavigatesOriginalTerrainWithThePlayersFootprint(int number)
+    [Fact]
+    public void Run_LevelThree_NavigatesOriginalTerrainWithThePlayersFootprint()
+    {
+        var result = RunOriginal(3);
+        Assert.True(result.Survived, $"Level_03.map: progress {result.Progress:P1}, time {result.Time} ms");
+    }
+
+    public static PlaythroughResult RunOriginal(int number)
     {
         string game = TestGameFolder.RequireFolder();
         var objects = ObjectTable.Load(Path.Combine(game, "objects.res"));
@@ -24,14 +28,7 @@ public class PlaythroughTests
         {
             [KnownObject.Shotgun] = 100, [KnownObject.Minigun] = 800, [KnownObject.RocketLauncher] = 80, [KnownObject.PlasmaRifle] = 50
         }, new PlayerImplants(3, 3, 3, 3));
-        var result = new Playthrough(game, objects, TestGameFolder.Table).Run(level.Analysis, loadout, 1);
-        Assert.True(result.Survived, $"{name}: progress {result.Progress:P1}, time {result.Time} ms");
-        if (number == 4)
-        {
-            Assert.NotNull(result.Script.BlackoutAt);
-            Assert.NotNull(result.Script.DoorsOpenedAt);
-            Assert.True(result.Script.DoorsOpenedAt > result.Script.BlackoutAt);
-        }
+        return new Playthrough(game, objects, TestGameFolder.Table).Run(level.Analysis, loadout, 1);
     }
 
     [Fact]

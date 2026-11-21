@@ -79,5 +79,10 @@ public enum TextBehavior
     /// <summary>
     /// Text taken from the script variable of the written name on every draw.
     /// </summary>
-    ScriptUpdated = 6 * 16
+    ScriptUpdated = 6 * 16,
+
+    /// <summary>
+    /// A blinking cursor follows the text.
+    /// </summary>
+    Cursor = 256
 }

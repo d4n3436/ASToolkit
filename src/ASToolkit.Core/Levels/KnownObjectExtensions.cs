@@ -170,7 +170,7 @@ public static class KnownObjectExtensions
             BioContainer => PieceFamily.Bank,
             Transformer or ElectricPanel or PetrolGenerator => PieceFamily.Machine,
             Plant => PieceFamily.Plant,
-            WaterCylinder => PieceFamily.Water,
+            WaterCylinder => PieceFamily.WaterCylinder,
             StreetLamp or Windows or Boards or Books or GymEquipment or Toilet or Telephone or RecordPlayer or TrashCan or Television => PieceFamily.Household,
             Generator => PieceFamily.Generator,
             DynamiteSite => PieceFamily.Site,

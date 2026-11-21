@@ -155,7 +155,7 @@ Body fields:
  +388   +404   f32 x17  ChildY[17]: y offset of the object created in the state, rotated with the facing
  +456   +472   f32 x17  ChildZ[17]: height offset of the object created in the state
  +524   +540   i32 x17  ChildVid[17]: object created in each state, mostly an effect or a projectile
- +592   +608   i32 x17  NoChild[17]: number of objects created in the state, 1 on most; 2 makes a mirrored pair
+ +592   +608   i32 x17  NoChild[17]: number of objects created in the state, 1 on most; 2 makes a mirrored pair, and the engine ignores the sign
  +660   +676   i32 x3   GammaRGBA[0..2]: red, green and blue tint; a negative value t scales the channel to (256 + t) / 256, a positive one adds t
  +672   +688   i32      GammaRGBA[3]: alpha; negative on smoke, steam and shadows
  +676   +692   f32 x3   ScaleXYZ[3]: scale along x, y and the height, 1.0 by default; on omni-lights, the radius of the light
@@ -213,7 +213,7 @@ Menu buttons and fonts reuse the low states under their own names (`ANI_MENUSTAN
  -      +48     i32    VID_RELOAD_TIME_IN_VOLLEY: milliseconds between the attacks of a volley
  +36    +52     i32    VID_BUILDTIME: build time in milliseconds
  +44    +56     i32    army of the objects the attack creates; 1 on monsters, 0 on the player
- +48    +60     i32    behavior mask (BEH_): 1 BEH_AGGRESSIVE attacks an enemy in weapon range, 2 BEH_ACTIVE moves toward an enemy it sees but cannot attack yet, 4 BEH_CAREFUL makes every member of the unit's group active once an active member has it, 8 BEH_HAUNT chases a detected target even when not active and gives up beyond 2,000 px, 16 BEH_BIGFIRE may fire a super weapon on its own; Alien Shooter reads only 1 and 2; 3 on normal monsters
+ +48    +60     i32    behavior mask (BEH_): 1 BEH_AGGRESSIVE attacks an enemy in weapon range, 2 BEH_ACTIVE moves toward an enemy it sees but cannot attack yet, 4 BEH_CAREFUL (`BEH_ACTIVE_AFTER_DAMAGE` in Zombie Shooter 2) pursues an enemy only after it has been damaged, 8 BEH_HAUNT drops everything to chase an enemy it sees (Zombie Shooter 2 also names it `BEH_RANDOM_MOVE`, moving at random while idle), 16 BEH_BIGFIRE may fire a super weapon on its own, and in the later games 32 BEH_COWARDLY runs from the player and from the corpses of its own kind; Alien Shooter reads only 1 and 2; 3 on normal monsters
  -      +64     -      20 bytes, always 0; unused, unknown meaning
  +56    +84     i32    rank: attackers prefer the higher-ranked of two equal targets; 0 in Alien Shooter, 5 or 6 (the player) in Alien Shooter 2
  +60    +88     f32    closest distance at which the unit attacks
@@ -239,14 +239,14 @@ Menu buttons and fonts reuse the low states under their own names (`ANI_MENUSTAN
 
 The weapon record drives the targeting and attacks of a unit. Units notice enemies within `VID_DETECTRANGE`, chase them with `BEH_ACTIVE` and attack between the closest distance and `VID_BATTLERANGE` once the reload time has passed, scattering their shots by the aim value. The damage of an attack belongs to the object the `ANI_FIGHT` state creates, or to the projectile that object creates in turn. Ammunition is counted in 64ths of a round, up to `VID_AMMO`, and each attack spends as many rounds as the absolute `NoChild` of the `ANI_FIGHT` state; an upper body spends its owner's rounds. The keyframe tracks animate the gamma, scale, screen offset, height offset and speed of the object over the period. A [software sprite](#software-sprites) takes only the gamma, and a [texture sprite](#texture-sprites) also the scale along x and y and the offsets.
 
-Weapon flags, with the ones that only one engine reads marked:
+Weapon flags, with the ones that only Alien Shooter or only the later games read marked:
 
 ```
- 0x00000001   attacks while turning toward its target (Alien Shooter)
- 0x00000002   takes targets only within its forward cone (Alien Shooter)
+ 0x00000001   attacks while turning toward its target
+ 0x00000002   takes targets only within its forward cone
  0x00000004   between two equal targets, takes the one ahead (later games)
- 0x00000008   now and then keeps an acceptable target instead of searching the rest (Alien Shooter)
- 0x00000010   a second shot halfway through the attack animation (Alien Shooter)
+ 0x00000008   now and then keeps an acceptable target instead of searching the rest
+ 0x00000010   a second shot halfway through the attack animation
  0x00000020   aims at a unit directly, without scatter
  0x00000040   can be pushed by another moving unit (Alien Shooter)
  0x00000080   may target units of its own army
@@ -343,7 +343,7 @@ In Alien Shooter 2, `P_HardwareDirect` shows the direction frame closest to the 
 
 At run time the army is two bits (11 and 12) of a sprite's state word in Alien Shooter and three bits (17 to 19) in Alien Shooter 2, and it indexes the per-army tables of the object, such as its maximum health and unit count. Placed objects take it from the map, and spawned and linked objects from their parent. Sprites with the `VidType` flag 0x400 pick their palette by it.
 
-The `CNST` record is 104 bytes in every game. Speeds are stored in pixels per second and gravities in pixels per second squared. Most fields serve repair, resupply, trains and the interface. The gammas at +80, +84 and +88 take the script form of `LightOff`, and every game stores zero.
+The `CNST` record is 104 bytes in every game. Speeds are stored in pixels per second and gravities in pixels per second squared. Most fields serve repair, resupply, trains and the interface. The gammas at +80, +84 and +88 are single packed values, like the gamma that `LightOff` and `SetGamma` take in the scripts, and every game stores zero.
 
 ```
  +0     f32   fastest edge scroll along x
@@ -805,7 +805,7 @@ Each `SPR` record holds the 28-byte sprite of a map before version 16 (positions
         ...           the fields of the sprite's class
 ```
 
-Frames (`B_FRAME`) end with the orders and items. Text sprites (`B_TEXT`) hold an `i32` behavior and a text ended by 0. The behavior's low bits align the text (`BEH_CENTER_X` 1, `BEH_RIGHT` 2, `BEH_BOTTOM` 4, `BEH_CENTER_Y` 8), and bits 4 to 6 (`BEH_LOAD_FROM`, mask 112) choose the source of the text, shown as written (0), a key of `strings.ini` (16), a file (32), a script variable (48), a script variable naming a file (64) or a key (80), or a script variable read on every draw (96).
+Frames (`B_FRAME`) end with the orders and items. Text sprites (`B_TEXT`) hold an `i32` behavior and a text ended by 0. The behavior's low bits align the text (`BEH_CENTER_X` 1, `BEH_RIGHT` 2, `BEH_BOTTOM` 4, `BEH_CENTER_Y` 8), and bits 4 to 6 (`BEH_LOAD_FROM`, mask 112) choose the source of the text, shown as written (0), a key of `strings.ini` (16), a file (32), a script variable (48), a script variable naming a file (64) or a key (80), or a script variable read on every draw (96). In the later games, `BEH_CURSOR` (256) puts a blinking cursor after the text.
 
 `SPRI` holds one record of 28-byte sprites end to end, with no fields, closed by a handle of -1.
 

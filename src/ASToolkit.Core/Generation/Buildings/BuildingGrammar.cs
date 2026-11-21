@@ -90,7 +90,7 @@ internal abstract partial class BuildingGrammar
     public void Count(BuildingTally tally, LabWing wing, int amount = 1) => Draft.Count(tally, wing, amount);
 
     // Counts the rooms the program asked for that the wings left unbuilt
-    public void TopUp()
+    public void CountRoomsPastWings()
     {
         int built = CountRegularRooms();
         if (Request.Rooms > built)

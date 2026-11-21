@@ -47,7 +47,7 @@ This document describes how the game's scripts and engine behave and how the ori
 - Bosses stand in levels 3 (850), 5 (860) and 8 (867) of the campaign and in add-on 2 level 5 (890).
 - The campaign's levels hold 0.73 standing groups and ambushes per regular room with basement walls and 2.17 with concrete walls. On levels 5 to 9 no standing group holds more than 6% of the level's hit points, and the ambushes hold the rest; on levels 2 to 4 the largest standing group holds a quarter to three quarters.
 - Counted the way the player meets them, with the encounters of one phase within 1,000 px along the [tour](#route-model) from the first of them forming one fight and groups under 2% of the level's hit points left out, campaign levels 2 to 10 hold 1, 7, 3, 8, 4, 5, 8, 3 and 1 fights, about 0.82 per screen of floor. The largest fight of a phase holds a median of 52% of the phase's hit points and comes anywhere from the first stretch of the phase to two thirds along it (quartiles 0, 0.09 and 0.34), with its position dated by the first moment the tour enters its trigger. Spawners that share a trigger stand 125 px apart at the 10th percentile and 219 px at the median, and a median of 1,592 px from the trigger.
-- In the originals, standing groups are single monsters, clusters of 3 to 188, lines of 2 to 110 and grids of 6 to 42, and on the campaign levels a placed monster stands a median of 34 px from the nearest other one, 10% of them within 20 px. Outside level 10 a spawner builds a median of 37 monsters (24 to 54 in the middle half), and the middle half of the trigger radii runs from 150 to 400 px.
+- In the originals, standing groups are single monsters, clusters of 3 to 188, lines of 2 to 110 and grids of 6 to 42, and on the campaign levels a placed monster stands a median of 34 px from the nearest other one, 10% of them within 20 px. Outside level 10 a spawner builds a median of 41 monsters (27 to 55 in the middle half), and the middle half of the trigger radii runs from 150 to 400 px.
 - One spawner of add-on 2 level 4 builds unit 3596 after its 30 tank monsters. objects.res doesn't contain a 3596.
 - Spawn closets use a 618 (`/`, sprite 601) or 619 (`\`, sprite 602) wall whose payload is `[ACT_STOP_STACK, 15 (ANI_DEATH), ACT_FLAGMAN_TRIGGER x y r]` plus 4 zero bytes. The wall explodes through the level script's handler `F618_15` (object 618, event 15), and a 908 stands inside it on the same trigger.
 
@@ -202,27 +202,7 @@ This section describes the layout, fights, loot and pacing of the original level
 
 ### Measures
 
-| level | style | tour px | places | loops | revisit | start area | first fight p | hit points by fifth of the tour (%) |
-|---|---|---|---|---|---|---|---|---|
-| 2 | locked basement | 3,345 | 13 | 1 | 0.02 | 80,640 | 0.88 | 0 / 0 / 0 / 0 / 100 |
-| 3 | locked basement | 11,792 | 50 | 6 | 0.04 | 80,640 | 0.41 | 0 / 0 / 20 / 60 / 20 |
-| 4 | blackout basement | 19,799 | 36 | 2 | 0.15 | 117,600 | 0.07 | 30 / 66 / 0 / 1 / 2 |
-| 5 | ungated basement | 22,484 | 36 | 1 | 0.01 | 62,720 | 0.04 | 14 / 8 / 7 / 65 / 5 |
-| 6 | concrete | 12,949 | 12 | 1 | 0.07 | 103,680 | 0.05 | 32 / 49 / 0 / 14 / 5 |
-| 7 | concrete | 26,698 | 17 | 0 | 0.14 | 86,400 | 0.06 | 33 / 37 / 6 / 0 / 24 |
-| 8 | concrete | 22,639 | 7 | 0 | 0.11 | 866,160 | 0.02 | 27 / 48 / 9 / 9 / 8 |
-| 9 | concrete | 43,843 | 7 | 0 | 0.14 | 972,000 | 0.02 | 54 / 44 / 2 / 0 / 0 |
-| 10 | concrete | 20,789 | 28 | 0 | 0.04 | 103,680 | 0.40 | 0 / 100 / 0 / 0 / 0 |
-| add-on 1 level 2 | blackout basement | 34,886 | 36 | 3 | 0.09 | 474,320 | 0.00 | 27 / 37 / 20 / 11 / 5 |
-| add-on 1 level 3 | ungated basement | 25,707 | 23 | 0 | 0.05 | 2,236,640 | 0.00 | 65 / 12 / 2 / 16 / 4 |
-| add-on 1 level 4 | ungated basement | 18,603 | 12 | 1 | 0.02 | 485,520 | 0.00 | 77 / 9 / 4 / 7 / 3 |
-| add-on 1 level 5 | ungated concrete | 22,004 | 5 | 0 | 0.03 | 1,000,080 | 0.00 | 72 / 1 / 19 / 1 / 6 |
-| add-on 2 level 2 | ungated basement | 20,019 | 18 | 0 | 0.08 | 491,120 | 0.00 | 99 / 0 / 0 / 0 / 1 |
-| add-on 2 level 3 | ungated basement | 6,323 | 23 | 4 | 0.02 | 5,246,080 | 0.24 | 0 / 84 / 4 / 4 / 8 |
-| add-on 2 level 4 | fenced concrete | 28,189 | 8 | 0 | 0.07 | 339,120 | 0.00 | 46 / 34 / 16 / 4 / 0 |
-| add-on 2 level 5 | ungated basement | 33,715 | 18 | 2 | 0.05 | 7,963,200 | 0.01 | 53 / 5 / 26 / 0 / 16 |
-
-The start area is the area of the place holding the player start. The three level 1 maps are described on their own below.
+`ascli inspect design` writes the per-level measures of the originals, such as places, loops, revisits, the start area, when the first fight comes and the hit points by fifth of the tour, to `design.tsv`.
 
 ### Level 1
 
@@ -457,7 +437,7 @@ Measured on campaign levels 2 to 10. "On screen" means within the 1,280 by 800 s
 
 | measure | originals |
 |---|---|
-| room length over width, median and 90th percentile | 1.6 and 2.7 |
+| room length over width, median and 90th percentile | 1.67 and 2.75 |
 | tour between fights that hold 5% or more of the hit points, quartiles (share of the tour) | 0.03, 0.08, 0.14 |
 | walk from the start to a dynamite site, 10th, 50th and 90th percentile | 1,850, 4,883 and 9,829 px |
 | monsters first on screen more than 1,000 px of tour before they are reached | 39% |

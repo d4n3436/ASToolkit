@@ -56,7 +56,7 @@ public enum PieceFamily
     Container,
 
     /// <summary>
-    /// A forklift.
+    /// A cargo truck.
     /// </summary>
     Truck,
 
@@ -91,9 +91,9 @@ public enum PieceFamily
     Plant,
 
     /// <summary>
-    /// A water cooler.
+    /// A drinking water cylinder.
     /// </summary>
-    Water,
+    WaterCylinder,
 
     /// <summary>
     /// Books, gym gear, toilets, televisions and other furniture of living quarters.

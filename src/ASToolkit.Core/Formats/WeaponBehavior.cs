@@ -22,17 +22,27 @@ public enum WeaponBehavior
     Active = 1 << 1,
 
     /// <summary>
-    /// Every member of the unit's group becomes active once an active member carries this bit.
+    /// The unit pursues an enemy only after it has been damaged.
     /// </summary>
     Careful = 1 << 2,
 
     /// <summary>
-    /// The unit chases a target it detects even when it is not active, and gives up beyond 2,000 pixels.
+    /// The unit drops everything to chase an enemy it sees.
     /// </summary>
     Haunt = 1 << 3,
 
     /// <summary>
+    /// The unit moves at random while idle, on the bit that <see cref="Haunt"/> uses.
+    /// </summary>
+    RandomMove = Haunt,
+
+    /// <summary>
     /// The unit may fire a super weapon on its own.
     /// </summary>
-    BigFire = 1 << 4
+    BigFire = 1 << 4,
+
+    /// <summary>
+    /// The unit runs from the player and from the corpses of its own kind.
+    /// </summary>
+    Cowardly = 1 << 5
 }
