@@ -65,7 +65,7 @@ Each generated level is one level of a campaign drawn from the style's campaign 
 
 ### Randomness
 
-Each level draws from four `Random` streams. The layout seed drives the building, doors, plan, structure and breaker spot; streams seeded from it drive the budget, the roof and the content. The same seed and level always give the same files (`LevelGeneratorIntegrationTests`).
+Each level draws from five `Random` streams. The layout seed drives the building, doors, plan, structure and breaker spot; streams seeded from it drive the budget, the fights, the roof and the content. The same seed and level always give the same files (`LevelGeneratorIntegrationTests`).
 
 ## Reference data
 

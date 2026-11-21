@@ -22,7 +22,8 @@ public readonly struct SfxRecord
     }
 
     /// <summary>
-    /// Gets the number of voices the sound may play at once, in tenths.
+    /// Gets the number of voices the sound may play at once multiplied by 10; 20 allows two voices, or 0 for a looped sound that plays
+    /// one voice and 100 for a sound without a limit.
     /// </summary>
     public byte VoiceLimit => _data.Span[0];
 

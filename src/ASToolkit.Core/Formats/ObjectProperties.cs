@@ -62,7 +62,7 @@ public enum ObjectProperties
     ZeroZ = 1 << 9,
 
     /// <summary>
-    /// The object starts with a random speed up to the speed in its record. Only the original game reads it, and no object sets it.
+    /// The object starts with a random speed up to the speed in its record.
     /// </summary>
     RandomSpeed = 1 << 10,
 

@@ -132,8 +132,8 @@ public sealed class WallClearanceTable
     /// Attempts to get the closest any original level puts an object to a wall, and the distance 95% of the objects keep.
     /// </summary>
     /// <param name="id">The object ID.</param>
-    /// <param name="minimum">The closest distance to a wall in cells.</param>
-    /// <param name="low">The distance in cells that 95% of the objects keep.</param>
+    /// <param name="minimum">The closest distance to a wall in cells, or 0 if the object isn't in the table.</param>
+    /// <param name="low">The distance in cells that 95% of the objects keep, or 0 if the object isn't in the table.</param>
     /// <returns><see langword="true"/> if the original levels place the object; otherwise, <see langword="false"/>.</returns>
     public bool TryGetClearance(KnownObject id, out float minimum, out float low)
     {

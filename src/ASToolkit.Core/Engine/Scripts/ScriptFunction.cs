@@ -431,7 +431,7 @@ public enum ScriptFunction
     GetGroundZ = 158,
 
     /// <summary>
-    /// Return the length of a string, under its earlier number.
+    /// Return the length of a string, the same function as <see cref="Strlen"/> under an older number.
     /// </summary>
     OldStrlen = 159,
 

@@ -181,7 +181,6 @@ public sealed class ReplayPlayback
         return play.PlayCampaign([selected], [], 1, state, record: true).Levels[0];
     }
 
-    // Placed cannons come alive as effects when the level loads
     private static bool IsCannon(ObjectTable objects, KnownObject id) => objects.TryFind(id, out var obj) && obj.SpriteClass == SpriteClass.Cannon;
 
     private static bool IsUnit(ObjectTable objects, KnownObject id) =>

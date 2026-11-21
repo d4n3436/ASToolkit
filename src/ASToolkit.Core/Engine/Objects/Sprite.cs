@@ -691,7 +691,8 @@ public sealed class Sprite
     }
 
     /// <summary>
-    /// Changes the sprite's state and takes its links into death with it.
+    /// Changes the sprite's state and passes it on to its link, always for a death state and otherwise when the link is unarmed, isn't moved by
+    /// the wind and isn't attacking or dying.
     /// </summary>
     /// <param name="state">The state.</param>
     [EngineRoutine(0x00442ee0)]

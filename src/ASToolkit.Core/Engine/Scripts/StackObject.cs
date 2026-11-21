@@ -97,7 +97,7 @@ public struct StackObject
     public static int ScanInteger(ReadOnlySpan<byte> text) => TryScanInteger(text, out int value) ? value : 0;
 
     /// <summary>
-    /// Attempts to read a number as C's <c>sscanf("%i")</c> does, including when the text holds <c>0x</c> without a digit.
+    /// Attempts to read a number as C's <c>sscanf("%i")</c> does, which fails when the text holds <c>0x</c> without a hex digit.
     /// </summary>
     /// <param name="text">The text.</param>
     /// <param name="value">The number, wrapped to 32 bits, when one was read; otherwise, 0.</param>
