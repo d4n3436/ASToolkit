@@ -22,7 +22,7 @@ public sealed class MouseSprite : Sprite
         "small-cantmove", "small-patrol", "delete", "small-capture", "small-mine", "small-unmine"
     ];
 
-    private readonly string?[] _cursorFiles = new string?[CursorNames.Length];
+    private readonly CursorImage[] _cursors = new CursorImage[CursorNames.Length];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MouseSprite"/> class, with the system cursor in use and no cursor loaded.
@@ -54,6 +54,11 @@ public sealed class MouseSprite : Sprite
     /// Gets the animation whose system cursor is showing, or -1 when no system cursor is set.
     /// </summary>
     public int ShownCursor { get; private set; } = NoCursor;
+
+    /// <summary>
+    /// Gets the system cursor that is showing, or an invalid image when none is set or its file is missing.
+    /// </summary>
+    public CursorImage ShownCursorImage => ShownCursor >= 0 && ShownCursor < _cursors.Length ? _cursors[ShownCursor] : default;
 
     /// <summary>
     /// Draws the cursor when it is drawn in software and loaded.
@@ -88,7 +93,7 @@ public sealed class MouseSprite : Sprite
         for (int i = 0; i < CursorNames.Length; i++)
         {
             string path = CursorFolder + CursorNames[i] + CursorExtension;
-            _cursorFiles[i] = fileSystem.TryRead(path, out _) ? path : null;
+            _cursors[i] = fileSystem.TryRead(path, out var data) ? new CursorImage(data) : default;
         }
 
         ShownCursor = (int)Animation;
@@ -108,7 +113,7 @@ public sealed class MouseSprite : Sprite
             return;
 
         ShownCursor = NoCursor;
-        Array.Clear(_cursorFiles);
+        Array.Clear(_cursors);
     }
 
     /// <summary>

@@ -1,6 +1,5 @@
 using System.Drawing;
 using System.Diagnostics;
-using ASToolkit.Formats;
 using ASToolkit.Bot;
 using ASToolkit.Gui.Core;
 using Avalonia.Media.Imaging;
@@ -20,7 +19,6 @@ public partial class ReplayViewModel : ViewModelBase
 
     private ReplayPlayback? _playback;
     private Bgra32[] _pixels = [];
-    private CursorImage _cursor;
     private WriteableBitmap? _front;
     private WriteableBitmap? _back;
     private int _time;
@@ -71,9 +69,6 @@ public partial class ReplayViewModel : ViewModelBase
             Status = "Open a map in the viewer first";
             return;
         }
-
-        string? cursorPath = GamePath.Resolve(game, Path.Combine("cursores", "attack.ani"));
-        _cursor = cursorPath is null ? default : new CursorImage(await File.ReadAllBytesAsync(cursorPath));
 
         int version = ++_loadVersion;
         IsRunning = true;
@@ -197,13 +192,12 @@ public partial class ReplayViewModel : ViewModelBase
 
         var pixels = _pixels;
         int time = _time;
-        var cursor = _cursor;
         _isRendering = true;
         bool isWritten;
         long started = Stopwatch.GetTimestamp();
         try
         {
-            isWritten = await Task.Run(() => playback.Render(pixels, time, cursor));
+            isWritten = await Task.Run(() => playback.Render(pixels, time));
         }
         finally
         {

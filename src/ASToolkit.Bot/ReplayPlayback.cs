@@ -91,13 +91,12 @@ public sealed class ReplayPlayback
     public int GetFrameTime(int index) => _frameTimes[Math.Clamp(index, 0, _frameTimes.Length - 1)];
 
     /// <summary>
-    /// Writes the last frame the engine had drawn by a given time of the run, with the mouse cursor drawn at the game's cursor position.
+    /// Writes the last frame the engine had drawn by a given time of the run, with the system cursor the game shows drawn at the run's cursor position.
     /// </summary>
     /// <param name="pixels">The pixels of the frame, row by row, at least <see cref="FrameSize"/> of them.</param>
     /// <param name="time">The time of the frame, in milliseconds.</param>
-    /// <param name="cursor">The mouse cursor to draw at the game's cursor position.</param>
     /// <returns><see langword="true"/> if the pixels were written; <see langword="false"/> if <paramref name="pixels"/> already holds the frame for that time.</returns>
-    public bool Render(Bgra32[] pixels, int time, CursorImage cursor)
+    public bool Render(Bgra32[] pixels, int time)
     {
         Seek(time);
         if (_rendered == pixels && _renderedTime == _shownTime)
@@ -108,8 +107,8 @@ public sealed class ReplayPlayback
 
         var size = screen.Size;
 
-        var point = _map.Cursor - _map.ViewCenter + new Vector2(size.Width, size.Height) * 0.5f;
-        cursor.Draw(pixels.AsSpan(0, size.Width * size.Height), size, new Point((int)MathF.Round(point.X), (int)MathF.Round(point.Y)));
+        var point = _map.Input.Cursor - _map.ViewCenter + new Vector2(size.Width, size.Height) * 0.5f;
+        _map.CursorSprite.ShownCursorImage.Draw(pixels.AsSpan(0, size.Width * size.Height), size, new Point((int)MathF.Round(point.X), (int)MathF.Round(point.Y)));
         _rendered = pixels;
         _renderedTime = _shownTime;
         return true;
