@@ -1,64 +1,57 @@
+using System.Drawing;
 using System.Runtime.InteropServices;
 
 namespace ASToolkit.Core.Formats;
 
 /// <summary>
-/// Represents where one part of a frame of a sprite with surfaces lies in its textures.
+/// Represents a texture frame of a sprite with surfaces, an area of one of its textures drawn at an offset on a sprite frame.
 /// </summary>
+/// <remarks>
+/// Sprite frames bigger than a texture are drawn from several texture frames, chained by <see cref="Next"/>.
+/// </remarks>
 [StructLayout(LayoutKind.Explicit, Size = 36)]
-public readonly struct VidTextureFrame
+public struct VidTextureFrame
 {
     /// <summary>
-    /// The checksum of the pixels of the part.
+    /// Initializes a new instance of the <see cref="VidTextureFrame"/> struct from a texture frame of a sprite file without the current version flag.
+    /// </summary>
+    /// <param name="frame">The texture frame with 16-bit fields.</param>
+    public VidTextureFrame(in OldVidTextureFrame frame)
+    {
+        Checksum = frame.Checksum;
+        Surface = frame.Surface;
+        Source = frame.Source;
+        Origin = frame.Origin;
+        Next = frame.Next;
+    }
+
+    /// <summary>
+    /// The checksum of the texels of the texture frame.
     /// </summary>
     [FieldOffset(0)]
-    public readonly int Checksum;
+    public int Checksum;
 
     /// <summary>
-    /// The index of the texture that holds the part.
+    /// The index of the texture that holds the texture frame.
     /// </summary>
     [FieldOffset(4)]
-    public readonly int Surface;
+    public int Surface;
 
     /// <summary>
-    /// The left edge of the frame in the texture.
+    /// The area of the texture frame in its texture.
     /// </summary>
     [FieldOffset(8)]
-    public readonly int X;
+    public Rectangle Source;
 
     /// <summary>
-    /// The top edge of the frame in the texture.
-    /// </summary>
-    [FieldOffset(12)]
-    public readonly int Y;
-
-    /// <summary>
-    /// The width of the frame.
-    /// </summary>
-    [FieldOffset(16)]
-    public readonly int Width;
-
-    /// <summary>
-    /// The height of the frame.
-    /// </summary>
-    [FieldOffset(20)]
-    public readonly int Height;
-
-    /// <summary>
-    /// The left edge of the frame on the sprite canvas.
+    /// The position of the texture frame on the sprite frame.
     /// </summary>
     [FieldOffset(24)]
-    public readonly int Left;
+    public Point Origin;
 
     /// <summary>
-    /// The top edge of the frame on the sprite canvas.
-    /// </summary>
-    [FieldOffset(28)]
-    public readonly int Top;
-
-    /// <summary>
-    /// The index of the entry holding the next part of the frame, or zero for the last part.
+    /// The index of the next texture frame of the same sprite frame, or zero for the last one.
     /// </summary>
     [FieldOffset(32)]
-    public readonly int Next;
+    public int Next;
 }

@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Runtime.InteropServices;
 
 namespace ASToolkit.Core.Formats;
@@ -49,19 +50,18 @@ public readonly struct VidMesh
     /// <returns>The three vertices of the triangle.</returns>
     public (VidVertex A, VidVertex B, VidVertex C) GetTriangle(int index)
     {
-        var span = _indices.Span[(index * TriangleSize)..];
+        var span = _indexes.Span[(index * TriangleSize)..];
         return (GetVertex(MemoryMarshal.Read<ushort>(span)), GetVertex(MemoryMarshal.Read<ushort>(span[IndexSize..])), GetVertex(MemoryMarshal.Read<ushort>(span[(2 * IndexSize)..])));
     }
 
     /// <summary>
     /// Returns the highest triangle height at each pixel of a frame, or NaN where no triangle covers it.
     /// </summary>
-    /// <param name="width">The width of the frame in pixels.</param>
-    /// <param name="height">The height of the frame in pixels.</param>
+    /// <param name="size">The size of the canvas, in pixels.</param>
     /// <returns>The height of each pixel, row by row.</returns>
-    public float[] RasterizeHeights(int width, int height)
+    public float[] RasterizeHeights(Size size)
     {
-        float[] heights = new float[width * height];
+        float[] heights = new float[size.Width * size.Height];
         Array.Fill(heights, float.NaN);
         for (int triangle = 0; triangle < TriangleCount; triangle++)
         {
@@ -73,9 +73,9 @@ public readonly struct VidMesh
             }
 
             int minX = Math.Max(0, Math.Min(a.X, Math.Min(b.X, c.X)));
-            int maxX = Math.Min(width - 1, Math.Max(a.X, Math.Max(b.X, c.X)));
+            int maxX = Math.Min(size.Width - 1, Math.Max(a.X, Math.Max(b.X, c.X)));
             int minY = Math.Max(0, Math.Min(a.Y, Math.Min(b.Y, c.Y)));
-            int maxY = Math.Min(height - 1, Math.Max(a.Y, Math.Max(b.Y, c.Y)));
+            int maxY = Math.Min(size.Height - 1, Math.Max(a.Y, Math.Max(b.Y, c.Y)));
             for (int y = minY; y <= maxY; y++)
             {
                 for (int x = minX; x <= maxX; x++)
@@ -91,7 +91,7 @@ public readonly struct VidMesh
                     }
 
                     float z = weightA * a.Z + weightB * b.Z + weightC * c.Z;
-                    ref float cell = ref heights[y * width + x];
+                    ref float cell = ref heights[y * size.Width + x];
                     if (float.IsNaN(cell) || z > cell)
                     {
                         cell = z;

@@ -23,8 +23,6 @@ public sealed partial class Map : IDisposable
     private const float RescueEffectHeight = 22;
     private const int WornArmorShareCount = 3;
     private const int ArmorRounding = 50;
-    private const int PlayerSlots = 4;
-    private const int ArmyMask = PlayerSlots - 1;
     private const int StartRandomState = 1;
     private const int SpawnScatter = 8;
     private const float RegionReach = 25f;
@@ -36,7 +34,7 @@ public sealed partial class Map : IDisposable
     private readonly Dictionary<int, ScriptFile> _scriptFiles = [];
     private readonly ControlSettings _controls;
     private readonly List<Group> _groups = [];
-    private readonly Player[] _players = new Player[PlayerSlots];
+    private readonly Player[] _players = new Player[SpriteDefinition.ArmyCount];
     private readonly LivingSet _livingFences = new();
     private readonly LivingSet _livingSites = new();
     private readonly LivingSet _livingCharges = new();
@@ -76,7 +74,7 @@ public sealed partial class Map : IDisposable
         _controls = (controls ?? ControlSettings.Default).Clone();
         Input = new PlayerInput(_controls);
         BuildSystems();
-        for (int slot = 0; slot < PlayerSlots; slot++)
+        for (int slot = 0; slot < SpriteDefinition.ArmyCount; slot++)
         {
             _players[slot] = new Player(this, _controls);
         }
@@ -170,7 +168,15 @@ public sealed partial class Map : IDisposable
 
     internal WeaponSystem Weapons { get; private set; }
 
-    internal IReadOnlyList<Sprite> MenuSprites => _menuSprites;
+    /// <summary>
+    /// Gets the menu sprites, which keep their place on the screen as the camera moves.
+    /// </summary>
+    public IReadOnlyList<Sprite> MenuSprites => _menuSprites;
+
+    /// <summary>
+    /// Gets the size of the map, in map pixels.
+    /// </summary>
+    public SizeF Size => Movement.MapSize;
 
     internal MovementMap Movement { get; private set; }
 
@@ -448,7 +454,7 @@ public sealed partial class Map : IDisposable
     /// <param name="army">The player slot.</param>
     /// <returns>The player, or null if the slot is empty.</returns>
     [EngineRoutine(0x0040e620)]
-    public Sprite? GetFlagman(int army) => _players[army & ArmyMask].Sprite;
+    public Sprite? GetFlagman(int army) => _players[army & SpriteDefinition.ArmyMask].Sprite;
 
     /// <summary>
     /// Sets the player a player slot controls.
@@ -456,7 +462,7 @@ public sealed partial class Map : IDisposable
     /// <param name="army">The player slot.</param>
     /// <param name="sprite">The player, or null to clear the slot.</param>
     [EngineRoutine(0x0040e600)]
-    public void SetFlagman(int army, Sprite? sprite) => _players[army & ArmyMask].SetFlagman(sprite);
+    public void SetFlagman(int army, Sprite? sprite) => _players[army & SpriteDefinition.ArmyMask].SetFlagman(sprite);
 
     /// <summary>
     /// Advances the game clock to the next frame of wall time and compacts the update lists.
@@ -852,7 +858,12 @@ public sealed partial class Map : IDisposable
         }
     }
 
-    internal IReadOnlyList<Sprite?> GetLayer(int layer) => _updates.GetLayer(layer);
+    /// <summary>
+    /// Gets the sprites of one of the update lists, each of which is also a draw layer.
+    /// </summary>
+    /// <param name="layer">The layer, from 0 to 16.</param>
+    /// <returns>The sprites in the list's order, with <see langword="null"/> where a sprite was removed.</returns>
+    public IReadOnlyList<Sprite?> GetLayer(int layer) => _updates.GetLayer(layer);
 
     [EngineRoutine(0x004145b0)]
     internal void RaiseHeights(SpriteDefinition definition, Sprite sprite)
@@ -918,7 +929,7 @@ public sealed partial class Map : IDisposable
 
         // TODO: Port the Engine, Rail and Depo constructors (0x44e8b0, 0x44a140, 0x44c040); the port builds those classes through Effects.Create
 
-        var sprite = Effects.Create(definition, position, direction, Time, parent);
+        var sprite = Effects.Create(definition, position, direction, parent);
 
         if (definition.Object.SpriteClass == SpriteClass.Linker)
         {
@@ -977,17 +988,17 @@ public sealed partial class Map : IDisposable
                 }
                 else
                 {
-                    float spreadX = _rng.Next() * Movement.MapSize.Width * ChildRandomScale - sprite.Position.X;
-                    float spreadY = _rng.Next() * Movement.MapSize.Height * ChildRandomScale - sprite.Position.Y + sprite.Position.Z;
+                    float spreadX = _rng.Next() * Movement.MapSize.Width * GameRandom.UnitScale - sprite.Position.X;
+                    float spreadY = _rng.Next() * Movement.MapSize.Height * GameRandom.UnitScale - sprite.Position.Y + sprite.Position.Z;
                     shift = new Vector2(spreadX, spreadY);
                 }
             }
             else if (definition.Children[slot] < 0)
             {
                 float spreadX = childX + childX;
-                spreadX = childX - _rng.Next() * spreadX * ChildRandomScale;
+                spreadX = childX - _rng.Next() * spreadX * GameRandom.UnitScale;
                 float spreadY = childY + childY;
-                spreadY = childY - _rng.Next() * spreadY * ChildRandomScale;
+                spreadY = childY - _rng.Next() * spreadY * GameRandom.UnitScale;
                 lateral = new Vector2(-(offsetDirection.Cosine * spreadX), -(offsetDirection.ProjectedSine * spreadX));
                 shift = new Vector2(offsetDirection.Sine * spreadY + lateral.X, lateral.Y - offsetDirection.ProjectedCosine * spreadY);
             }
@@ -1114,7 +1125,7 @@ public sealed partial class Map : IDisposable
     {
         Motion = new SpriteKinematics(Definitions, this);
         Effects = new SpawnedObjectSystem(Definitions, Movement, _rng, this);
-        Weapons = new WeaponSystem(this, Definitions, _rng);
+        Weapons = new WeaponSystem(this, Definitions);
         Collision = new SpriteCollision(this);
         PlayerMovement = new PlayerMovement(Collision, Motion);
         _brain = new MonsterBrain(Motion, Collision, _rng, Collector, Session);
@@ -1150,7 +1161,7 @@ public sealed partial class Map : IDisposable
                 return ConstructMan(definition, placement);
 
             var army = Definitions.GetArmy(definition);
-            var body = ConstructSprite(definition, placement.Position, placement.Direction, army, definition.ArmyMaxHp[(int)army & ArmyMask]);
+            var body = ConstructSprite(definition, placement.Position, placement.Direction, army, definition.ArmyMaxHp[(int)army & SpriteDefinition.ArmyMask]);
             ChangeArmy(body, (int)placement.Army);
             body.Placement = placement;
             _bodies.Add(placement, body);
@@ -1171,7 +1182,7 @@ public sealed partial class Map : IDisposable
 
     private void AddPlacedCannon(MergedMapSprite placement)
     {
-        Effects.Spawn(placement.Id, placement.Position, placement.Direction, Time);
+        Effects.Spawn(placement.Id, placement.Position, placement.Direction);
     }
 
     private List<Sprite> GetLiving(KnownObject id, LivingSet set)
@@ -1202,7 +1213,7 @@ public sealed partial class Map : IDisposable
     [EngineRoutine(0x0043ad70)]
     private void LoadPlayers(IReadOnlyList<int> handles, Dictionary<int, Sprite> placedSprites)
     {
-        for (int army = 0; army < handles.Count && army < PlayerSlots; army++)
+        for (int army = 0; army < handles.Count && army < SpriteDefinition.ArmyCount; army++)
         {
             _players[army].Load(placedSprites.GetValueOrDefault(handles[army]));
         }
@@ -1268,7 +1279,7 @@ public sealed partial class Map : IDisposable
     private Sprite ConstructMan(SpriteDefinition definition, MergedMapSprite placement)
     {
         var army = Definitions.GetArmy(definition);
-        var man = ConstructSprite(definition, placement.Position, placement.Direction, army, definition.ArmyMaxHp[(int)army & ArmyMask]);
+        var man = ConstructSprite(definition, placement.Position, placement.Direction, army, definition.ArmyMaxHp[(int)army & SpriteDefinition.ArmyMask]);
         ChangeArmy(man, (int)placement.Army);
 
         return man;
@@ -1559,7 +1570,7 @@ public sealed partial class Map : IDisposable
     [EngineRoutine(0x00449be0)]
     private SpriteDefinition? ReplaceDefinition(SpriteDefinition definition, Vector3 position)
     {
-        var list = _updates.GetLayer(RegionLayer);
+        var list = _updates.GetLayer(ObjectLayer.Region);
 
         for (int i = list.Count - 1; i >= 0; i--)
         {
@@ -1603,7 +1614,6 @@ public sealed partial class Map : IDisposable
     {
         _removed.Add(placement);
 
-
         if (_statics.Remove(placement, out var stand))
         {
             DeleteSprite(stand);
@@ -1633,17 +1643,4 @@ public sealed partial class Map : IDisposable
     }
 
     private bool IsFree(SpriteDefinition definition, Vector3 position) => Movement.IsAboveGround(definition.Object, position) && !Projectiles.IsOccupied(definition, position);
-
-    private sealed class LivingSet
-    {
-        public List<Sprite> Sprites { get; } = [];
-
-        public int CheckedAt { get; set; } = -1;
-
-        public void Clear()
-        {
-            Sprites.Clear();
-            CheckedAt = -1;
-        }
-    }
 }

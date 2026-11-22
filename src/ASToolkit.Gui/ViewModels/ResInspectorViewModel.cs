@@ -59,7 +59,7 @@ public partial class ResInspectorViewModel : ViewModelBase
     {
         var container = new ResContainer(_currentBytes);
         var chunks = new ObservableCollection<Node>();
-        
+
         var subNodes = new ObservableCollection<Node>
         {
             new($"{nameof(ResContainer.Magic)}: {Encoding.UTF8.GetString(container.Magic.Span)}"),
@@ -67,28 +67,27 @@ public partial class ResInspectorViewModel : ViewModelBase
             new($"{nameof(ResContainer.Kind)}: {Encoding.UTF8.GetString(container.Kind.Span)}"),
             new($"{nameof(ResContainer.Chunks)}", chunks)
         };
-        
+
         if (CurrentName!.EndsWith(".vid", StringComparison.OrdinalIgnoreCase))
         {
             var vid = new VidResource(_currentBytes);
-            
+
             var headerInfo = new ObservableCollection<Node>
             {
-               new($"{nameof(VidResource.Type)}: {vid.Type.ToString()}"),
-               new($"{nameof(VidResource.Speed)}: {vid.Speed}"),
-               new($"{nameof(VidResource.FrameCount)}: {vid.FrameCount}"),
-               new($"{nameof(VidResource.Width)}: {vid.Width}"),
-               new($"{nameof(VidResource.Height)}: {vid.Height}"),
-               new($"{nameof(VidResource.Format)}: {vid.Format}"),
-               new($"{nameof(VidResource.MeshType)}: {vid.MeshType}"),
-               new($"{nameof(VidResource.BlendProcedure)}: {vid.BlendProcedure}")
+                new($"{nameof(VidResource.Type)}: {vid.Type}"),
+                new($"{nameof(VidResource.Speed)}: {vid.Speed}"),
+                new($"{nameof(VidResource.FrameCount)}: {vid.FrameCount}"),
+                new($"{nameof(VidResource.Size)}: {vid.Size.Width}x{vid.Size.Height}"),
+                new($"{nameof(VidResource.Format)}: {vid.Format}"),
+                new($"{nameof(VidResource.MeshType)}: {vid.MeshType}"),
+                new($"{nameof(VidResource.BlendProcedure)}: {vid.BlendProcedure}")
             };
-            
+
             subNodes.Add(new Node("Header info", headerInfo));
         }
         else if (CurrentName.EndsWith(".map", StringComparison.OrdinalIgnoreCase))
         {
-            var map =  new MapResource(_currentBytes);
+            var map = new MapResource(_currentBytes);
 
             var headerInfo = new ObservableCollection<Node>
             {
@@ -98,7 +97,7 @@ public partial class ResInspectorViewModel : ViewModelBase
                 new($"{nameof(MapResource.Header.Tick)}: {map.Header.Tick}"),
                 new($"{nameof(MapResource.Header.Version)}: {map.Header.Version}")
             };
-            
+
             subNodes.Add(new Node("Header info", headerInfo));
 
             var spriteNodes = new ObservableCollection<Node>();
@@ -114,10 +113,10 @@ public partial class ResInspectorViewModel : ViewModelBase
                     new($"{nameof(MapSprite.Direction)}: {sprite.Direction}"),
                     new($"{nameof(MapSprite.Army)}: {sprite.Army}")
                 };
-                
+
                 spriteNodes.Add(new Node($"Sprite {s++}", spriteNode));
             }
-            
+
             subNodes.Add(new Node("Sprites", spriteNodes));
         }
 
@@ -126,7 +125,7 @@ public partial class ResInspectorViewModel : ViewModelBase
         {
             var recordNodes = new ObservableCollection<Node>();
             var records = chunk.Records.ToArray();
-            
+
             var chunkNodes = new ObservableCollection<Node>
             {
                 new($"{nameof(ResChunk.Tag)}: {Encoding.UTF8.GetString(chunk.Tag.Span)}"),
@@ -144,8 +143,7 @@ public partial class ResInspectorViewModel : ViewModelBase
 
             chunks.Add(new Node($"Chunk {i++}", chunkNodes));
         }
-        
-        Nodes = [new Node(CurrentName!, subNodes)];
 
+        Nodes = [new Node(CurrentName!, subNodes)];
     }
 }

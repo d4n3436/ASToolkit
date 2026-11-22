@@ -528,13 +528,13 @@ public sealed class Sprite
 
         if (link is not null)
         {
-            int linkMax = link.Definition.ArmyMaxHp[(int)link.Army & ArmyMask];
+            int linkMax = link.Definition.ArmyMaxHp[(int)link.Army & SpriteDefinition.ArmyMask];
 
             if (linkMax != 0)
                 return link.Hp * HpShare / linkMax;
         }
 
-        int max = Definition.ArmyMaxHp[(int)Army & ArmyMask];
+        int max = Definition.ArmyMaxHp[(int)Army & SpriteDefinition.ArmyMask];
 
         return max != 0 ? Hp * HpShare / max : 0;
     }
@@ -612,7 +612,7 @@ public sealed class Sprite
     {
         if (IsCounted)
         {
-            int army = (int)Army & 3;
+            int army = (int)Army & SpriteDefinition.ArmyMask;
             if (Definition.Counts[army] != 0)
             {
                 Definition.Counts[army]--;

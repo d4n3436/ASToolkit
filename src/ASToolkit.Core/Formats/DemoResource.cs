@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace ASToolkit.Core.Formats;
@@ -9,7 +10,6 @@ namespace ASToolkit.Core.Formats;
 public readonly struct DemoResource
 {
     private const int EndMarker = -1;
-    private const int HeaderLength = sizeof(int) + sizeof(int);
 
     private readonly ReadOnlyMemory<byte> _record;
     private readonly int _mapNameLength;
@@ -23,8 +23,9 @@ public readonly struct DemoResource
         _record = new ResContainer(data).Chunks.First(x => x.Tag.Span.SequenceEqual("DEMO"u8)).Records.First();
         var record = _record.Span;
         _mapNameLength = record.IndexOf((byte)0);
-        Seed = BinaryPrimitives.ReadInt32LittleEndian(record[(_mapNameLength + 1)..]);
-        StartTime = BinaryPrimitives.ReadInt32LittleEndian(record[(_mapNameLength + 1 + sizeof(int))..]);
+        var header = MemoryMarshal.Read<DemoHeader>(record[(_mapNameLength + 1)..]);
+        Seed = header.Seed;
+        StartTime = header.Time;
     }
 
     /// <summary>
@@ -45,7 +46,7 @@ public readonly struct DemoResource
     /// <summary>
     /// Gets the stream that follows the header, the script state followed by the frames.
     /// </summary>
-    public ReadOnlyMemory<byte> Body => _record[(_mapNameLength + 1 + HeaderLength)..];
+    public ReadOnlyMemory<byte> Body => _record[(_mapNameLength + 1 + Unsafe.SizeOf<DemoHeader>())..];
 
     /// <summary>
     /// Attempts to read the frame at an offset of the body.
@@ -60,13 +61,14 @@ public readonly struct DemoResource
         if (offset + sizeof(int) > body.Length)
             return false;
 
-        int time = BinaryPrimitives.ReadInt32LittleEndian(body[offset..]);
-        offset += sizeof(int);
-        if (time == EndMarker || offset + Marshal.SizeOf<DemoInput>() > body.Length)
+        if (BinaryPrimitives.ReadInt32LittleEndian(body[offset..]) == EndMarker || offset + Unsafe.SizeOf<DemoFrame>() > body.Length)
+        {
+            offset += sizeof(int);
             return false;
+        }
 
-        frame = new DemoFrame(time, MemoryMarshal.Read<DemoInput>(body[offset..]));
-        offset += Marshal.SizeOf<DemoInput>();
+        frame = MemoryMarshal.Read<DemoFrame>(body[offset..]);
+        offset += Unsafe.SizeOf<DemoFrame>();
 
         return true;
     }

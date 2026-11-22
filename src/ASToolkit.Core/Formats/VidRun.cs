@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Runtime.InteropServices;
 
 namespace ASToolkit.Core.Formats;
@@ -13,10 +14,9 @@ public readonly struct VidRun
     private readonly int _colorStride;
     private readonly bool _isPaletted;
 
-    internal VidRun(int x, int y, int count, ReadOnlyMemory<byte> depths, int depthStride, ReadOnlyMemory<byte> colors, int colorStride, bool isPaletted)
+    internal VidRun(Point position, int count, ReadOnlyMemory<byte> depths, int depthStride, ReadOnlyMemory<byte> colors, int colorStride, bool isPaletted)
     {
-        X = x;
-        Y = y;
+        Position = position;
         Count = count;
         _depths = depths;
         _depthStride = depthStride;
@@ -26,14 +26,9 @@ public readonly struct VidRun
     }
 
     /// <summary>
-    /// Gets the column of the first pixel in canvas coordinates.
+    /// Gets the canvas position of the first pixel of the run.
     /// </summary>
-    public int X { get; }
-
-    /// <summary>
-    /// Gets the row in canvas coordinates.
-    /// </summary>
-    public int Y { get; }
+    public Point Position { get; }
 
     /// <summary>
     /// Gets the number of pixels.

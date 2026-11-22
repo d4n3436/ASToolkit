@@ -164,13 +164,27 @@ public sealed partial class Map
         if (!reader.TryRead(out int handle) || handle == EndHandle)
             return false;
 
-        int id = reader.Read<int>();
-        var position = version < MapHeader.FloatVersion
-            ? new Vector3(reader.Read<int>(), reader.Read<int>(), reader.Read<int>())
-            : new Vector3(reader.Read<float>(), reader.Read<float>(), reader.Read<float>());
+        int id;
+        Vector3 position;
+        int direction;
+        int army;
+        if (version < MapHeader.FloatVersion)
+        {
+            var body = reader.Read<LegacySpriteBody>();
+            id = body.Id;
+            position = body.Position;
+            direction = body.Direction;
+            army = body.Army;
+        }
+        else
+        {
+            var body = reader.Read<SpriteBody>();
+            id = body.Id;
+            position = body.Position;
+            direction = body.Direction;
+            army = body.Army;
+        }
 
-        int direction = reader.Read<int>();
-        int army = reader.Read<int>();
         var definition = Definitions.Find((KnownObject)id);
         if (definition is null)
         {

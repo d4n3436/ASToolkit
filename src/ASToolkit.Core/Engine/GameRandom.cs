@@ -11,6 +11,11 @@ public sealed class GameRandom : Random
     private const int MaximumValue = 32767;
 
     /// <summary>
+    /// Represents the factor that maps a random value onto the range from 0 to 1.
+    /// </summary>
+    public const float UnitScale = 1f / MaximumValue;
+
+    /// <summary>
     /// Creates a random source with a seed.
     /// </summary>
     /// <param name="seed">The seed.</param>

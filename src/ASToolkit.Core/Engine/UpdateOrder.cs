@@ -1,3 +1,5 @@
+using ASToolkit.Core.Formats;
+
 namespace ASToolkit.Core.Engine;
 
 internal sealed class UpdateOrder
@@ -20,7 +22,9 @@ internal sealed class UpdateOrder
 
     public List<Sprite?> GetLayer(int layer) => _layers[layer];
 
-    public void Add(int layer, Sprite sprite) => _layers[layer].Add(sprite);
+    public List<Sprite?> GetLayer(ObjectLayer layer) => _layers[(int)layer];
+
+    public void Add(ObjectLayer layer, Sprite sprite) => _layers[(int)layer].Add(sprite);
 
     public bool HasSprites(int layer)
     {
@@ -34,9 +38,9 @@ internal sealed class UpdateOrder
     }
 
     [EngineRoutine(0x0040fa90)]
-    public bool Remove(int layer, Sprite sprite)
+    public bool Remove(ObjectLayer layer, Sprite sprite)
     {
-        var list = _layers[layer];
+        var list = _layers[(int)layer];
         for (int i = list.Count - 1; i >= 0; i--)
         {
             if (list[i] != sprite)

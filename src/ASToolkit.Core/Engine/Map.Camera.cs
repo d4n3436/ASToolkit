@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Numerics;
 using ASToolkit.Core.Engine.Scripts;
 using ASToolkit.Core.Formats;
@@ -7,8 +8,7 @@ namespace ASToolkit.Core.Engine;
 public sealed partial class Map
 {
     private const float BorderScrollReach = 5;
-    private const float ScrollAccelerationX = 0.04f;
-    private const float ScrollAccelerationY = 0.03f;
+    private static readonly Vector2 ScrollAcceleration = new(0.04f, 0.03f);
     private const float FlagmanPace = 0.001f;
     private const float DirectionPace = -0.004f;
     private const float HalfShare = 0.5f;
@@ -105,18 +105,18 @@ public sealed partial class Map
         {
             bool fromBorder = _scrollType.HasFlag(ScrollType.FromBorder);
             bool withArrows = _scrollType.HasFlag(ScrollType.WithArrows);
-            int directionX = !(cursor.X > BorderScrollReach) && fromBorder ? -1
+            var direction = new Point(
+                !(cursor.X > BorderScrollReach) && fromBorder ? -1
                 : !(screen.X - BorderScrollReach > cursor.X) && fromBorder ? 1
                 : flags.HasFlag(InputFlags.Left) && withArrows ? -1
-                : flags.HasFlag(InputFlags.Right) && withArrows ? 1 : 0;
-
-            speed.X = Accelerate(speed.X, Definitions.ScrollSpeed.X, directionX, ScrollAccelerationX);
-            int directionY = !(cursor.Y > BorderScrollReach) && fromBorder ? -1
+                : flags.HasFlag(InputFlags.Right) && withArrows ? 1 : 0,
+                !(cursor.Y > BorderScrollReach) && fromBorder ? -1
                 : !(screen.Y - BorderScrollReach > cursor.Y) && fromBorder ? 1
                 : flags.HasFlag(InputFlags.Up) && withArrows ? -1
-                : flags.HasFlag(InputFlags.Down) && withArrows ? 1 : 0;
+                : flags.HasFlag(InputFlags.Down) && withArrows ? 1 : 0);
 
-            speed.Y = Accelerate(speed.Y, Definitions.ScrollSpeed.Y, directionY, ScrollAccelerationY);
+            speed.X = Accelerate(speed.X, Definitions.ScrollSpeed.X, direction.X, ScrollAcceleration.X);
+            speed.Y = Accelerate(speed.Y, Definitions.ScrollSpeed.Y, direction.Y, ScrollAcceleration.Y);
         }
 
         var flagman = GetFlagman(ControlledPlayer);

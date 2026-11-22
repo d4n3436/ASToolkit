@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
@@ -14,26 +15,29 @@ public readonly struct MapHeader
     /// </summary>
     public const int FloatVersion = 10;
 
+    /// <summary>
+    /// The size of the map in a file of version 10 or later.
+    /// </summary>
     [FieldOffset(0)]
-    private readonly float _mapW;
+    public readonly SizeF FloatMapSize;
 
+    /// <summary>
+    /// The size of the map in a file older than version 10.
+    /// </summary>
     [FieldOffset(0)]
-    private readonly int _intMapW;
+    public readonly Size IntegerMapSize;
 
-    [FieldOffset(4)]
-    private readonly float _mapH;
-
-    [FieldOffset(4)]
-    private readonly int _intMapH;
-
+    /// <summary>
+    /// The camera position in a file of version 10 or later.
+    /// </summary>
     [FieldOffset(8)]
-    private readonly Vector2 _camera;
+    public readonly Vector2 FloatCamera;
 
+    /// <summary>
+    /// The camera position in a file older than version 10.
+    /// </summary>
     [FieldOffset(8)]
-    private readonly int _intCameraX;
-
-    [FieldOffset(12)]
-    private readonly int _intCameraY;
+    public readonly Point IntegerCamera;
 
     /// <summary>
     /// The tick value.
@@ -50,15 +54,15 @@ public readonly struct MapHeader
     /// <summary>
     /// Gets the map width in pixels.
     /// </summary>
-    public float MapW => Version < FloatVersion ? _intMapW : _mapW;
+    public float MapW => Version < FloatVersion ? IntegerMapSize.Width : FloatMapSize.Width;
 
     /// <summary>
     /// Gets the map height in pixels.
     /// </summary>
-    public float MapH => Version < FloatVersion ? _intMapH : _mapH;
+    public float MapH => Version < FloatVersion ? IntegerMapSize.Height : FloatMapSize.Height;
 
     /// <summary>
     /// Gets the starting position of the camera.
     /// </summary>
-    public Vector2 Camera => Version < FloatVersion ? new Vector2(_intCameraX, _intCameraY) : _camera;
+    public Vector2 Camera => Version < FloatVersion ? new Vector2(IntegerCamera.X, IntegerCamera.Y) : FloatCamera;
 }

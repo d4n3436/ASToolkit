@@ -230,14 +230,9 @@ public sealed partial class Map : IScriptFunctionHost
                 }
                 else
                 {
-                    var list = _updates.GetLayer(definition.Layer);
-                    for (int i = list.Count - 1; i >= 0; i--)
+                    foreach (var sprite in EnumerateSprites(definition))
                     {
-                        var sprite = list[i];
-                        if (sprite is not null && sprite.Definition == definition)
-                        {
-                            sprite.ChangeCoor(sprite.Position with { Z = z });
-                        }
+                        sprite.ChangeCoor(sprite.Position with { Z = z });
                     }
                 }
 
@@ -276,15 +271,9 @@ public sealed partial class Map : IScriptFunctionHost
                 var definition = PopDefinition(script);
                 if (definition != Definitions.Empty)
                 {
-                    var list = _updates.GetLayer(definition.Layer);
-                    for (int i = list.Count - 1; i >= 0; i--)
+                    foreach (var sprite in EnumerateSprites(definition))
                     {
-                        var sprite = list[i];
-
-                        if (sprite is not null && sprite.Definition == definition)
-                        {
-                            DeleteSprite(sprite);
-                        }
+                        DeleteSprite(sprite);
                     }
                 }
 
@@ -296,14 +285,8 @@ public sealed partial class Map : IScriptFunctionHost
                 var definition = PopDefinition(script);
                 if (definition != Definitions.Empty && replacement != Definitions.Empty)
                 {
-                    var list = _updates.GetLayer(definition.Layer);
-                    for (int i = list.Count - 1; i >= 0; i--)
+                    foreach (var sprite in EnumerateSprites(definition))
                     {
-                        var sprite = list[i];
-
-                        if (sprite is null || sprite.Definition != definition)
-                            continue;
-
                         CreateSprite(replacement, sprite.Position, sprite.Direction);
                         DeleteSprite(sprite);
                     }
@@ -999,14 +982,14 @@ public sealed partial class Map : IScriptFunctionHost
                 var previous = PopSprite(script);
                 int y = script.PopNumber();
                 int x = script.PopNumber();
-                PushSprite(script, GetSprite((SpriteSearch)script.PopNumber(), x, y, previous));
+                PushSprite(script, GetSprite((SpriteSearch)script.PopNumber(), new Vector2(x, y), previous));
                 break;
             }
             case ScriptFunction.GetSpriteScr:
             {
                 int y = script.PopNumber();
                 int x = script.PopNumber();
-                PushSprite(script, GetSpriteScr((SpriteSearch)script.PopNumber(), x, y));
+                PushSprite(script, GetSpriteScr((SpriteSearch)script.PopNumber(), new Vector2(x, y)));
                 break;
             }
             case ScriptFunction.FindNearestSprite:
@@ -1015,7 +998,7 @@ public sealed partial class Map : IScriptFunctionHost
                 int radius = script.PopNumber();
                 int y = script.PopNumber();
                 int x = script.PopNumber();
-                PushSprite(script, FindNearestSprite((SpriteSearch)script.PopNumber(), x, y, radius, previous));
+                PushSprite(script, FindNearestSprite((SpriteSearch)script.PopNumber(), new Vector2(x, y), radius, previous));
                 break;
             }
             case ScriptFunction.FirstSprite:
@@ -1577,7 +1560,7 @@ public sealed partial class Map : IScriptFunctionHost
     }
 
     [EngineRoutine(0x0043a7e0)]
-    private Player GetPlayer(int army) => _players[army & ArmyMask];
+    private Player GetPlayer(int army) => _players[army & SpriteDefinition.ArmyMask];
 
     [EngineRoutine(0x0043a7b0)]
     private void LogMapError(LogError code, ReadOnlySpan<byte> text, int value) => Session.Logger.Error(MapLogTag, code, value, text);
@@ -1587,26 +1570,25 @@ public sealed partial class Map : IScriptFunctionHost
     private void PushSprite(Sprite? sprite) => PushSprite(GetSpriteHandle(sprite));
 
     [EngineRoutine(0x0040fbb0)]
-    private Sprite? GetSprite(SpriteSearch search, float x, float y, Sprite? previous)
+    private Sprite? GetSprite(SpriteSearch search, Vector2 point, Sprite? previous)
     {
-        var sprite = FindNearestSprite(search, x, y, GetSpriteReach, previous);
+        var sprite = FindNearestSprite(search, point, GetSpriteReach, previous);
 
         if (sprite is null)
             return null;
 
         var half = sprite.Definition.Half;
 
-        return sprite.Position.X - half.X <= x && x <= half.X + sprite.Position.X && sprite.Position.Y - half.Y <= y && y <= half.Y + sprite.Position.Y
+        return sprite.Position.X - half.X <= point.X && point.X <= half.X + sprite.Position.X && sprite.Position.Y - half.Y <= point.Y && point.Y <= half.Y + sprite.Position.Y
             ? sprite : null;
     }
 
     [EngineRoutine(0x00410670)]
-    private Sprite? FindNearestSprite(SpriteSearch search, float x, float y, float radius, Sprite? previous)
+    private Sprite? FindNearestSprite(SpriteSearch search, Vector2 point, float radius, Sprite? previous)
     {
         if (!TryGetSearchedTypes(ref search, out var types, out var armies, out var definition))
             return null;
 
-        var point = new Vector2(x, y);
         float previousDistance = previous is null ? -1 : point.MeasureOctagonalDistance(previous.Position.AsVector2());
         var query = new SpriteQuery(new SpriteFilter(search, types, armies), point, previousDistance, radius);
         ScanSprites(ref query, search, types, definition, point - new Vector2(radius), point + new Vector2(radius), true);
@@ -1615,16 +1597,15 @@ public sealed partial class Map : IScriptFunctionHost
     }
 
     [EngineRoutine(0x0040fc40)]
-    private Sprite? GetSpriteScr(SpriteSearch search, float x, float y)
+    private Sprite? GetSpriteScr(SpriteSearch search, Vector2 point)
     {
         if (!TryGetSearchedTypes(ref search, out var types, out var armies, out var definition))
             return null;
 
-        var point = new Vector2(x, y);
         var query = new ScreenSpriteQuery(new SpriteFilter(search, types, armies), point);
         var reach = new Vector2(ScreenSpriteReach);
         float ground = Movement.GetHeight(point);
-        ScanSprites(ref query, search, types, definition, point - reach, new Vector2(x + ScreenSpriteReach, ground + y + ScreenSpriteReach), false);
+        ScanSprites(ref query, search, types, definition, point - reach, new Vector2(point.X + ScreenSpriteReach, ground + point.Y + ScreenSpriteReach), false);
 
         return query.Found;
     }
@@ -1673,7 +1654,7 @@ public sealed partial class Map : IScriptFunctionHost
             return;
         }
 
-        if ((types & GridListTypes) != 0 && (types & SearchedTypes & ~GridListTypes) == 0)
+        if ((types.HasFlag(OldSpriteType.Unit) || types.HasFlag(OldSpriteType.Avia)) && (types & SearchedTypes & ~GridListTypes) == OldSpriteType.None)
         {
             var listed = Collector.Listed;
             for (int i = listed.Length - 1; i >= 0; i--)
@@ -1694,8 +1675,8 @@ public sealed partial class Map : IScriptFunctionHost
             return;
         }
 
-        int first = definition?.Layer ?? 0;
-        int last = definition is null ? UpdateOrder.UpdatedLayerCount : definition.Layer + 1;
+        int first = definition is null ? 0 : (int)definition.Layer;
+        int last = definition is null ? UpdateOrder.UpdatedLayerCount : (int)definition.Layer + 1;
         for (int layer = first; layer < last; layer++)
         {
             var list = _updates.GetLayer(layer);
@@ -1710,6 +1691,8 @@ public sealed partial class Map : IScriptFunctionHost
             }
         }
     }
+
+    private DefinitionSprites EnumerateSprites(SpriteDefinition definition) => new(_updates.GetLayer(definition.Layer), definition);
 
     [EngineRoutine(0x0040f9a0)]
     private Sprite? FindListedSprite()

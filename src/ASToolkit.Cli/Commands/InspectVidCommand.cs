@@ -22,7 +22,7 @@ internal sealed class InspectVidCommand : Command<InspectVidSettings>
         var vid = new VidResource(File.ReadAllBytes(path));
         AnsiConsole.MarkupLine($"type {vid.Type}");
         AnsiConsole.MarkupLine($"format {vid.Format}, mode {vid.MeshType}, blend {vid.BlendProcedure}, speed {vid.Speed}");
-        AnsiConsole.MarkupLine($"size {vid.Width} x {vid.Height}, {vid.FrameCount} frames");
+        AnsiConsole.MarkupLine($"size {vid.Size.Width} x {vid.Size.Height}, {vid.FrameCount} frames");
         if (settings.Frame < 0 || settings.Frame >= Math.Max(1, (int)vid.FrameCount))
         {
             AnsiConsole.MarkupLine($"[red]Could not find frame {settings.Frame}.[/]");

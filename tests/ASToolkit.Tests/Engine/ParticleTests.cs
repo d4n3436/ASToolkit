@@ -1,5 +1,3 @@
-using ASToolkit.Core.Simulation;
-using ASToolkit.Core.Engine;
 using System.Numerics;
 using ASToolkit.Core.Formats;
 using Xunit;
@@ -19,7 +17,7 @@ public class ParticleTests
         var map = EngineTestMap.CreateMap(definitions);
         var observer = new MapObserver(map);
         var scenery = observer.BakedEffects;
-        map.Effects.Spawn(flying, new Vector3(100, 200, 22), new Angle(64), map.Time);
+        map.Effects.Spawn(flying, new Vector3(100, 200, 22), new Angle(64));
         while (map.Time <= 3500)
         {
             map.Play(default);

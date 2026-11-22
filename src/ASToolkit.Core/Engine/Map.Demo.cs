@@ -147,10 +147,7 @@ public sealed partial class Map
         _recordedDemo = new MemoryStream();
         _recordedDemo.Write(mapName);
         _recordedDemo.WriteByte(0);
-        Span<byte> header = stackalloc byte[sizeof(int) + sizeof(int)];
-        BinaryPrimitives.WriteInt32LittleEndian(header, seed);
-        BinaryPrimitives.WriteInt32LittleEndian(header[sizeof(int)..], Time);
-        _recordedDemo.Write(header);
+        WriteDemo(_recordedDemo, new DemoHeader(seed, Time));
         Script.WriteState(_recordedDemo);
     }
 

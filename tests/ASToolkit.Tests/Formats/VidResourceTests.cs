@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -15,7 +16,7 @@ public class VidResourceTests
     public void GetFrame_PalettedCadr_SplitsRunsAtRowEndsAndOffsetsByTheRegion()
     {
         byte[] stream = [1, 2, 1, 2, 0, 3, 3, 4, 5, 0, 0];
-        var sprite = new VidResource(BuildSprite(VidType.Surface | VidType.Palette, VidPixelFormat.P8, 10, 10, BuildRecord(4, 3, 2, 1, stream)));
+        var sprite = new VidResource(BuildSprite(VidType.Surface | VidType.Palette, VidPixelFormat.P8, new Size(10, 10), BuildRecord(new Size(4, 3), new Point(2, 1), stream)));
 
         Assert.Equal(
             [(3, 1, 1), (4, 1, 2), (5, 1, 3), (2, 2, 4), (3, 2, 5)],
@@ -26,8 +27,8 @@ public class VidResourceTests
     public void GetFrame_CadrWithMesh_SkipsTheIndexesAndVertices()
     {
         byte[] stream = [0, 2, 7, 8, 0, 0];
-        byte[] record = BuildRecord(2, 1, 0, 0, stream, indexCount: 6, vertexCount: 4);
-        var sprite = new VidResource(BuildSprite(VidType.Surface | VidType.Palette, VidPixelFormat.P8, 4, 4, record));
+        byte[] record = BuildRecord(new Size(2, 1), new Point(0, 0), stream, indexCount: 6, vertexCount: 4);
+        var sprite = new VidResource(BuildSprite(VidType.Surface | VidType.Palette, VidPixelFormat.P8, new Size(4, 4), record));
 
         Assert.Equal([(0, 0, 7), (1, 0, 8)], ReadPixels(sprite.GetFrame(0), (run, index) => run.GetColor(index)));
     }
@@ -35,8 +36,8 @@ public class VidResourceTests
     [Fact]
     public void GetFrame_CadrWithFrameVector_ReadsTheHeaderAfterTheVector()
     {
-        byte[] record = new byte[12].Concat(BuildRecord(2, 1, 1, 2, [0, 2, 7, 8, 0, 0])).ToArray();
-        var sprite = new VidResource(BuildSprite(VidType.Surface | VidType.Palette | VidType.FrameVector, VidPixelFormat.P8, 4, 4, record));
+        byte[] record = new byte[12].Concat(BuildRecord(new Size(2, 1), new Point(1, 2), [0, 2, 7, 8, 0, 0])).ToArray();
+        var sprite = new VidResource(BuildSprite(VidType.Surface | VidType.Palette | VidType.FrameVector, VidPixelFormat.P8, new Size(4, 4), record));
 
         Assert.Equal([(1, 2, 7), (2, 2, 8)], ReadPixels(sprite.GetFrame(0), (run, index) => run.GetColor(index)));
     }
@@ -44,9 +45,9 @@ public class VidResourceTests
     [Fact]
     public void GetFrameVector_CadrWithFrameVector_ReadsTheVectorOfTheFrameAnAliasRepeats()
     {
-        byte[] vector = BitConverter.GetBytes(1.5f).Concat(BitConverter.GetBytes(-2f)).Concat(BitConverter.GetBytes(58f)).ToArray();
-        byte[] record = vector.Concat(BuildRecord(2, 1, 1, 2, [0, 2, 7, 8, 0, 0])).ToArray();
-        var sprite = new VidResource(BuildSprite(VidType.Surface | VidType.Palette | VidType.FrameVector, VidPixelFormat.P8, 4, 4, record, [0, 0, 0, 0]));
+        byte[] vector = MemoryMarshal.AsBytes([new Vector3(1.5f, -2f, 58f)]).ToArray();
+        byte[] record = vector.Concat(BuildRecord(new Size(2, 1), new Point(1, 2), [0, 2, 7, 8, 0, 0])).ToArray();
+        var sprite = new VidResource(BuildSprite(VidType.Surface | VidType.Palette | VidType.FrameVector, VidPixelFormat.P8, new Size(4, 4), record, [0, 0, 0, 0]));
 
         Assert.Equal(new Vector3(1.5f, -2f, 58f), sprite.GetFrameVector(1));
     }
@@ -54,7 +55,7 @@ public class VidResourceTests
     [Fact]
     public void GetFrameVector_CadrWithoutFrameVector_ReturnsZero()
     {
-        var sprite = new VidResource(BuildSprite(VidType.Surface | VidType.Palette, VidPixelFormat.P8, 4, 4, BuildRecord(2, 1, 1, 2, [0, 2, 7, 8, 0, 0])));
+        var sprite = new VidResource(BuildSprite(VidType.Surface | VidType.Palette, VidPixelFormat.P8, new Size(4, 4), BuildRecord(new Size(2, 1), new Point(1, 2), [0, 2, 7, 8, 0, 0])));
 
         Assert.Equal(Vector3.Zero, sprite.GetFrameVector(0));
     }
@@ -63,7 +64,7 @@ public class VidResourceTests
     public void GetFrame_CadrWithBytesAfterTheTerminator_IgnoresThem()
     {
         byte[] stream = [0, 1, 9, 0, 0, 1, 2, 3, 4, 5];
-        var sprite = new VidResource(BuildSprite(VidType.Surface | VidType.Palette, VidPixelFormat.P8, 4, 4, BuildRecord(1, 1, 0, 0, stream)));
+        var sprite = new VidResource(BuildSprite(VidType.Surface | VidType.Palette, VidPixelFormat.P8, new Size(4, 4), BuildRecord(new Size(1, 1), new Point(0, 0), stream)));
 
         Assert.Equal([(0, 0, 9)], ReadPixels(sprite.GetFrame(0), (run, index) => run.GetColor(index)));
     }
@@ -72,7 +73,7 @@ public class VidResourceTests
     public void GetFrame_CadrRegionPastTheCanvas_ClipsColumnsAndRows()
     {
         byte[] stream = [0, 4, 1, 2, 3, 4, 0, 4, 5, 6, 7, 8, 0, 0];
-        var sprite = new VidResource(BuildSprite(VidType.Surface | VidType.Palette, VidPixelFormat.P8, 3, 1, BuildRecord(4, 2, 1, 0, stream)));
+        var sprite = new VidResource(BuildSprite(VidType.Surface | VidType.Palette, VidPixelFormat.P8, new Size(3, 1), BuildRecord(new Size(4, 2), new Point(1, 0), stream)));
 
         Assert.Equal([(1, 0, 1), (2, 0, 2)], ReadPixels(sprite.GetFrame(0), (run, index) => run.GetColor(index)));
     }
@@ -81,7 +82,7 @@ public class VidResourceTests
     public void GetFrame_CadrWithDepth_ReadsTheDepthAfterTheColor()
     {
         byte[] stream = [0, 2, 5, 0x34, 0x12, 6, 0x78, 0x56, 0, 0];
-        var sprite = new VidResource(BuildSprite(VidType.Surface | VidType.Palette | VidType.ZBuffer, VidPixelFormat.P8, 4, 4, BuildRecord(2, 1, 0, 0, stream)));
+        var sprite = new VidResource(BuildSprite(VidType.Surface | VidType.Palette | VidType.ZBuffer, VidPixelFormat.P8, new Size(4, 4), BuildRecord(new Size(2, 1), new Point(0, 0), stream)));
 
         Assert.Equal([(0, 0, 0x1234), (1, 0, 0x5678)], ReadPixels(sprite.GetFrame(0), (run, index) => run.GetDepth(index)));
     }
@@ -90,7 +91,7 @@ public class VidResourceTests
     public void GetFrame_CadrWithExtraByteAndDepth_ReadsTheDepthLast()
     {
         byte[] stream = [0, 1, 5, 0xAA, 0x34, 0x12, 0, 0];
-        var sprite = new VidResource(BuildSprite(VidType.Surface | VidType.Palette | VidType.ZBuffer | VidType.Material, VidPixelFormat.P8, 4, 4, BuildRecord(1, 1, 0, 0, stream)));
+        var sprite = new VidResource(BuildSprite(VidType.Surface | VidType.Palette | VidType.ZBuffer | VidType.Material, VidPixelFormat.P8, new Size(4, 4), BuildRecord(new Size(1, 1), new Point(0, 0), stream)));
 
         Assert.Equal([(0, 0, 0x1234)], ReadPixels(sprite.GetFrame(0), (run, index) => run.GetDepth(index)));
         Assert.Equal([(0, 0, 5)], ReadPixels(sprite.GetFrame(0), (run, index) => run.GetColor(index)));
@@ -99,8 +100,8 @@ public class VidResourceTests
     [Fact]
     public void GetFrame_CadrAlias_ReturnsThePixelsOfTheEarlierFrame()
     {
-        byte[] pixels = BuildRecord(2, 1, 1, 1, [0, 2, 7, 8, 0, 0]);
-        var sprite = new VidResource(BuildSprite(VidType.Surface | VidType.Palette, VidPixelFormat.P8, 4, 4, pixels, [0, 0, 0, 0]));
+        byte[] pixels = BuildRecord(new Size(2, 1), new Point(1, 1), [0, 2, 7, 8, 0, 0]);
+        var sprite = new VidResource(BuildSprite(VidType.Surface | VidType.Palette, VidPixelFormat.P8, new Size(4, 4), pixels, [0, 0, 0, 0]));
 
         Assert.Equal([(1, 1, 7), (2, 1, 8)], ReadPixels(sprite.GetFrame(1), (run, index) => run.GetColor(index)));
     }
@@ -109,7 +110,7 @@ public class VidResourceTests
     public void GetFrame_CadrWithR5G6B5Format_ReadsSixteenBitColors()
     {
         byte[] stream = [0, 2, 0x00, 0xF8, 0xE0, 0x07, 2, 1, 0x1F, 0x00, 0, 0];
-        var sprite = new VidResource(BuildSprite(VidType.Surface, VidPixelFormat.R5G6B5, 4, 4, BuildRecord(3, 2, 0, 0, stream)));
+        var sprite = new VidResource(BuildSprite(VidType.Surface, VidPixelFormat.R5G6B5, new Size(4, 4), BuildRecord(new Size(3, 2), new Point(0, 0), stream)));
 
         Assert.Equal(VidPixelFormat.R5G6B5, sprite.Format);
         Assert.Equal(2, sprite.GetFrame(0).PixelSize);
@@ -122,7 +123,7 @@ public class VidResourceTests
     public void GetFrame_CadrWithA8R8G8B8Format_ReadsThirtyTwoBitColors()
     {
         byte[] stream = [0, 1, 0x00, 0x00, 0xF8, 0xFF, 0, 1, 0xFF, 0xFF, 0xFF, 0x80, 0, 0];
-        var sprite = new VidResource(BuildSprite(VidType.Surface, VidPixelFormat.A8R8G8B8, 4, 4, BuildRecord(1, 2, 0, 0, stream)));
+        var sprite = new VidResource(BuildSprite(VidType.Surface, VidPixelFormat.A8R8G8B8, new Size(4, 4), BuildRecord(new Size(1, 2), new Point(0, 0), stream)));
 
         Assert.Equal(4, sprite.GetFrame(0).PixelSize);
         Assert.Equal(
@@ -135,36 +136,36 @@ public class VidResourceTests
         var pixels = new List<(int X, int Y, T Color)>();
         foreach (var run in frame)
         {
-            for (int index = 0; index < run.Count; index++)
+            for (int i = 0; i < run.Count; i++)
             {
-                pixels.Add((run.X + index, run.Y, read(run, index)));
+                pixels.Add((run.Position.X + i, run.Position.Y, read(run, i)));
             }
         }
 
         return pixels;
     }
 
-    private static byte[] BuildRecord(short width, short height, short left, short top, byte[] stream, short indexCount = 0, short vertexCount = 0)
+    private static byte[] BuildRecord(Size size, Point origin, byte[] stream, short indexCount = 0, short vertexCount = 0)
     {
         byte[] record = new byte[12 + 2 * indexCount + 4 * vertexCount + stream.Length];
         Write(record, 0, indexCount);
         Write(record, 2, vertexCount);
-        Write(record, 4, width);
-        Write(record, 6, height);
-        Write(record, 8, left);
-        Write(record, 10, top);
+        Write(record, 4, (short)size.Width);
+        Write(record, 6, (short)size.Height);
+        Write(record, 8, (short)origin.X);
+        Write(record, 10, (short)origin.Y);
         stream.CopyTo(record, 12 + 2 * indexCount + 4 * vertexCount);
         return record;
     }
 
-    private static byte[] BuildSprite(VidType flags, VidPixelFormat format, short width, short height, params byte[][] cadrRecords)
+    private static byte[] BuildSprite(VidType flags, VidPixelFormat format, Size canvas, params byte[][] cadrRecords)
     {
         bool paletted = flags.HasFlag(VidType.Palette);
         byte[] headRecord = new byte[14];
         Write(headRecord, 0x00, flags);
         Write(headRecord, 0x04, (short)cadrRecords.Length);
-        Write(headRecord, 0x06, width);
-        Write(headRecord, 0x08, height);
+        Write(headRecord, 0x06, (short)canvas.Width);
+        Write(headRecord, 0x08, (short)canvas.Height);
         Write(headRecord, 0x0A, format);
 
         var buffer = new List<byte>(8);
@@ -246,15 +247,15 @@ public class VidResourceTests
             }
 
             Assert.Equal(sprite.HasPalette ? 1024 : 0, sprite.Palette.Length);
-            for (int index = 0; index < sprite.FrameCount; index++)
+            for (int i = 0; i < sprite.FrameCount; i++)
             {
-                var frame = sprite.GetFrame(index);
-                int lastRow = frame.Top - 1;
+                var frame = sprite.GetFrame(i);
+                int lastRow = frame.Area.Y - 1;
                 foreach (var run in frame)
                 {
-                    Assert.True(run is { Count: > 0, X: >= 0 } && run.X + run.Count <= sprite.Width, $"{path} frame {index} x {run.X} count {run.Count}");
-                    Assert.True(run.Y >= lastRow && run.Y >= frame.Top && run.Y < frame.Top + frame.RowCount, $"{path} frame {index} row {run.Y}");
-                    lastRow = run.Y;
+                    Assert.True(run is { Count: > 0, Position.X: >= 0 } && run.Position.X + run.Count <= sprite.Size.Width, $"{path} frame {i} x {run.Position.X} count {run.Count}");
+                    Assert.True(run.Position.Y >= lastRow && run.Position.Y >= frame.Area.Y && run.Position.Y < frame.Area.Y + frame.Area.Height, $"{path} frame {i} row {run.Position.Y}");
+                    lastRow = run.Position.Y;
                 }
 
                 frames++;

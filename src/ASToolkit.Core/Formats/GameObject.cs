@@ -59,7 +59,7 @@ public readonly struct GameObject
     public readonly float MaxSpeed;
 
     /// <summary>
-    /// The maximum of the initial speed range, in milli-units; the highest speed is the minimum. Absent from Alien Shooter records.
+    /// The top of the random range of a spawned object's initial speed, in pixels per second, whose bottom is <see cref="MaxSpeed"/>. Absent from Alien Shooter records.
     /// </summary>
     [FieldOffset(36)]
     public readonly float MaxInitialSpeed;

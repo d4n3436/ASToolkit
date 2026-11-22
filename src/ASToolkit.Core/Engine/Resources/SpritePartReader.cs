@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Drawing;
 using System.Numerics;
 using ASToolkit.Core.Formats;
 
@@ -40,8 +42,9 @@ public sealed class SpritePartReader
         {
             string path = _objects.GetPath(id);
             var file = GetFile(path);
-            int frame = file is null || file.Value.FrameCount == 0 ? 0 : obj.GetFrame(sprite.Direction, file.Value.FrameCount);
-            yield return new SpritePart(id, obj, path, file is null || file.Value.FrameCount == 0 ? null : file, frame, position, scale);
+            var framed = file is { FrameCount: > 0 } ? file : null;
+            int frame = framed is null ? 0 : obj.GetFrame(sprite.Direction, framed.Value.FrameCount);
+            yield return new SpritePart(id, obj, path, framed, frame, position, scale);
 
             if (obj.Link == 0 || !_objects.TryFind(obj.Link, out var linked))
             {
@@ -117,15 +120,15 @@ public sealed class SpritePartReader
     {
         bool usesDepth = vid is { HasZBuffer: true, HasPalette: true } && vid.Type.HasFlag(VidType.Runs8Bit);
         var frame = usesDepth ? vid.GetRunFrame(frameIndex) : vid.GetFrame(frameIndex);
-        float[] meshHeights = !usesDepth && frame.Mesh.TriangleCount > 0 ? frame.Mesh.RasterizeHeights(vid.Width, vid.Height) : [];
+        float[] meshHeights = !usesDepth && frame.Mesh.TriangleCount > 0 ? frame.Mesh.RasterizeHeights(vid.Size) : [];
         var cells = new Dictionary<int, short>();
         foreach (var run in frame)
         {
             for (int i = 0; i < run.Count; i++)
             {
-                int x = run.X + i;
-                int height = usesDepth ? (run.GetDepth(i) >> DepthShift) - DepthBias : meshHeights.Length > 0 ? GetMeshHeight(meshHeights, vid.Width, x, run.Y) : 0;
-                int row = run.Y + height;
+                int x = run.Position.X + i;
+                int height = usesDepth ? (run.GetDepth(i) >> DepthShift) - DepthBias : meshHeights.Length > 0 ? GetMeshHeight(meshHeights, vid.Size.Width, new Point(x, run.Position.Y)) : 0;
+                int row = run.Position.Y + height;
 
                 if (x is < 0 or >= MaxFramePixels || row is < 0 or >= MaxFramePixels)
                 {
@@ -141,19 +144,18 @@ public sealed class SpritePartReader
             }
         }
 
-        int halfWidth = vid.Width / 2;
-        int halfHeight = vid.Height / 2;
+        var half = vid.Size / 2;
         return cells.Select(pair =>
         {
             (int row, int column) = Math.DivRem(pair.Key, FrameCells);
-            return new Vector3(column * MovementMap.CellSize - halfWidth, row * MovementMap.CellSize - halfHeight, pair.Value);
+            return new Vector3(column * MovementMap.CellSize - half.Width, row * MovementMap.CellSize - half.Height, pair.Value);
         }).ToArray();
     }
 
-    private static int GetMeshHeight(float[] heights, int width, int x, int y)
+    private static int GetMeshHeight(float[] heights, int width, Point pixel)
     {
-        int index = y * width + x;
-        float height = index >= 0 && index < heights.Length ? heights[index] : float.NaN;
+        int i = pixel.Y * width + pixel.X;
+        float height = i >= 0 && i < heights.Length ? heights[i] : float.NaN;
         return float.IsNaN(height) ? 0 : (int)MathF.Round(height);
     }
 }

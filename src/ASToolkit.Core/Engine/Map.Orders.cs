@@ -1,4 +1,5 @@
 using System.Buffers.Text;
+using System.Drawing;
 using System.Numerics;
 using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Formats;
@@ -136,24 +137,21 @@ public sealed partial class Map
     private Act CreateAct(int act, int var1, int var2, int var3) =>
         new(act, var1, var2, var3, Act.HasSpriteTarget((ActionCode)(act & byte.MaxValue)) ? FindSprite(var1) : null);
 
-    private Vector3 GetBuildPosition(Sprite builder, int x, int y)
+    private Vector3 GetBuildPosition(Sprite builder, Point offset)
     {
         var position = builder.Position;
-        float atX = x == 0 && y == 0 ? position.X : x;
-        float atY = x == 0 && y == 0 ? position.Y : y;
+        var at = offset == Point.Empty ? position.AsVector2() : new Vector2(offset.X, offset.Y);
 
-        if (x < 0)
+        if (offset.X < 0)
         {
-            atX = position.X - x - _rng.Next() % (1 - x) * 2;
+            at.X = position.X - offset.X - _rng.Next() % (1 - offset.X) * 2;
         }
 
-        if (y < 0)
+        if (offset.Y < 0)
         {
-            atY = position.Y - y - _rng.Next() % (1 - y) * 2;
+            at.Y = position.Y - offset.Y - _rng.Next() % (1 - offset.Y) * 2;
         }
 
-        return new Vector3(atX, atY, position.Z);
+        return new Vector3(at, position.Z);
     }
-
-    private readonly record struct PendingBuild(SpriteDefinition Definition, int X, int Y);
 }

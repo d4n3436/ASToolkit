@@ -24,7 +24,6 @@ internal sealed class WalkWorld
 
     public HashSet<int> Pressed { get; } = [];
 
-    // Takes the cells inside a trigger area by the distance the scripts measure
     public static float GetAreaReach(float radius) => Math.Max(radius * AreaMargin, MinimumAreaReach);
 
     public int CountOpen(int timeLine) => _logic.Openings.Values.Count(opensAt => opensAt <= timeLine) + Pressed.Count;
@@ -52,7 +51,7 @@ internal sealed class WalkWorld
                 if (IsFloor(part))
                 {
                     var file = part.File.Value;
-                    grid.Cover(part.Position, new Vector2(file.Width, file.Height) * part.Scale.AsVector2() * 0.5f);
+                    grid.Cover(part.Position, new Vector2(file.Size.Width, file.Size.Height) * part.Scale.AsVector2() * 0.5f);
                 }
                 else if (!isOpen && RaisesGround(part.Object) && !IsDestructible(part.Object))
                 {

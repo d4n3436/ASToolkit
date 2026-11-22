@@ -36,6 +36,11 @@ public sealed class SpriteDefinition
     public const int NoHandler = -1;
 
     /// <summary>
+    /// Represents the mask that reduces an army to its slot.
+    /// </summary>
+    public const int ArmyMask = ArmyCount - 1;
+
+    /// <summary>
     /// Represents the number of sprite states.
     /// </summary>
     public const int StateCount = (int)SpriteAnimation.Death2 + 1;
@@ -244,7 +249,7 @@ public sealed class SpriteDefinition
     /// <summary>
     /// Gets the update list of the definition.
     /// </summary>
-    public int Layer { get; }
+    public ObjectLayer Layer { get; protected set; }
 
     /// <summary>
     /// Gets the vertical speed of the definition in pixels per millisecond.
@@ -573,7 +578,7 @@ public sealed class SpriteDefinition
     /// <param name="army">The army, masked to 0 to 3.</param>
     /// <returns>The count.</returns>
     [EngineRoutine(0x0043a280)]
-    public int GetKilled(int army) => _killed[army & 3];
+    public int GetKilled(int army) => _killed[army & ArmyMask];
 
     /// <summary>
     /// Returns the number of killed sprites of the definition in all armies.
@@ -588,7 +593,7 @@ public sealed class SpriteDefinition
     /// <param name="army">The army, masked to 0 to 3.</param>
     /// <returns>The count.</returns>
     [EngineRoutine(0x0043a2c0)]
-    public int GetRecolored(int army) => _recolored[army & 3];
+    public int GetRecolored(int army) => _recolored[army & ArmyMask];
 
     /// <summary>
     /// Returns the number of recolored sprites of the definition in all armies.
@@ -603,7 +608,7 @@ public sealed class SpriteDefinition
     /// <param name="army">The army, masked to 0 to 3.</param>
     /// <returns>The health.</returns>
     [EngineRoutine(0x0043a230)]
-    public int GetArmyMaxHp(int army) => _armyMaxHp[army & 3];
+    public int GetArmyMaxHp(int army) => _armyMaxHp[army & ArmyMask];
 
     /// <summary>
     /// Determines whether the definition has a fight child and a weapon.

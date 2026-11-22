@@ -8,8 +8,7 @@ internal sealed class SpawnedObjectSystem
     private const int MaxSteeringTurn = 100;
     private const int RocketTurnLimit = 0x47;
     private const int FallTurn = 0x20;
-    private const float ExitMarginX = 220;
-    private const float ExitMarginY = 200;
+    private static readonly Vector2 ExitMargin = new(220, 200);
     private const float RocketClimbRate = 0.1f;
     private const float RocketHitHeight = 20;
     private const float RocketHitReach = 10;
@@ -19,7 +18,6 @@ internal sealed class SpawnedObjectSystem
     private const float MinimumLift = 0.005f;
     private const float BounceRetention = 0.5f;
     private const float SteeringReach = 100;
-    private const float RandomScale = 3.051851e-05f;
 
     private readonly SpriteCatalog _definitions;
     private readonly MovementMap _movement;
@@ -68,14 +66,14 @@ internal sealed class SpawnedObjectSystem
     public static EffectState GetState(Sprite sprite) =>
         new(sprite.Definition.Id, sprite.Position, sprite.Direction, sprite.Animation, sprite.CreatedAt, sprite.Frame, sprite.KeyframePosition);
 
-    public Sprite? Spawn(KnownObject id, Vector3 position, Angle direction, int time, Sprite? owner = null, int? lifetime = null)
+    public Sprite? Spawn(KnownObject id, Vector3 position, Angle direction, Sprite? owner = null, int? lifetime = null)
     {
         var definition = _definitions.Find(id);
 
-        return definition is null ? null : Create(definition, position, direction, time, null, owner, lifetime);
+        return definition is null ? null : Create(definition, position, direction, null, owner, lifetime);
     }
 
-    public Sprite Create(SpriteDefinition definition, Vector3 position, Angle direction, int time, Sprite? parent, Sprite? owner = null, int? lifetime = null)
+    public Sprite Create(SpriteDefinition definition, Vector3 position, Angle direction, Sprite? parent, Sprite? owner = null, int? lifetime = null)
     {
         ref readonly var gameObject = ref definition.Object;
 
@@ -172,8 +170,8 @@ internal sealed class SpawnedObjectSystem
         if (gameObject.Properties.HasFlag(ObjectProperties.RandomZSpeed) && !sprite.Definition.ZSpeed.IsExactlyZero())
         {
             bool downward = (_random.Next() & 1) == 0;
-            float lift = (float)_random.Next() * sprite.Definition.ZSpeed;
-            sprite.VerticalSpeed = downward ? lift * -RandomScale : lift * RandomScale;
+            float lift = _random.Next() * sprite.Definition.ZSpeed;
+            sprite.VerticalSpeed = downward ? lift * -GameRandom.UnitScale : lift * GameRandom.UnitScale;
         }
         else if (parent is not null && parent.Animation >= SpriteAnimation.Death && gameObject.TopZ < 0)
         {
@@ -187,7 +185,7 @@ internal sealed class SpawnedObjectSystem
 
         if (gameObject.Properties.HasFlag(ObjectProperties.RandomSpeed) && !sprite.Definition.Speed.IsExactlyZero())
         {
-            sprite.MaxSpeed = (float)_random.Next() * sprite.Definition.Speed * RandomScale;
+            sprite.MaxSpeed = _random.Next() * sprite.Definition.Speed * GameRandom.UnitScale;
         }
 
         sprite.IsClimbing = true;
@@ -416,6 +414,6 @@ internal sealed class SpawnedObjectSystem
     }
 
     private bool IsFarOutside(Vector2 point) =>
-        point.X < -ExitMarginX || point.Y < -ExitMarginY ||
-        point.X > _movement.MapSize.Width + ExitMarginX || point.Y > _movement.MapSize.Height + ExitMarginY;
+        point.X < -ExitMargin.X || point.Y < -ExitMargin.Y ||
+        point.X > _movement.MapSize.Width + ExitMargin.X || point.Y > _movement.MapSize.Height + ExitMargin.Y;
 }

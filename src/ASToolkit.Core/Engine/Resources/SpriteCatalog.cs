@@ -275,7 +275,7 @@ public sealed class SpriteCatalog
 
             var name = (ReadOnlyMemory<byte>)GameTextEncoding.Cyrillic.GetBytes(GetName(definition));
             var path = (ReadOnlyMemory<byte>)GameTextEncoding.Cyrillic.GetBytes(GetPath(definition));
-            logger.Write("NoVid[%3i]=%i %i %i %i %s Layer=%i %s"u8, i, counts[0], counts[1], counts[2], counts[3], name, definition.Layer, path);
+            logger.Write("NoVid[%3i]=%i %i %i %i %s Layer=%i %s"u8, i, counts[0], counts[1], counts[2], counts[3], name, (int)definition.Layer, path);
         }
     }
 

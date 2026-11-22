@@ -62,22 +62,22 @@ public enum VidType : short
     FrameVector = 1 << 9,
 
     /// <summary>
-    /// The sprite stores several palettes. No sprite of the game sets it.
+    /// The sprite stores several palettes.
     /// </summary>
     PaletteVariants = 1 << 10,
 
     /// <summary>
-    /// The sprite carries shadow data, one more 16-bit value after the index count of each cached frame record.
+    /// The surfaces of a SURF chunk are DXT-compressed, or each CADR record header holds one more 16-bit value.
     /// </summary>
-    Shadow = 1 << 11,
+    SurfaceVariant = 1 << 11,
 
     /// <summary>
-    /// The sprite is loaded as a sprite class of its own that the engine puts on the hardware layer. No sprite of the game sets it.
+    /// The sprite is loaded as a sprite class of its own that the engine puts on the hardware layer.
     /// </summary>
     HardwareLayer = 1 << 12,
 
     /// <summary>
-    /// The surface holds a normal map under the image, one more byte per pixel. No sprite of the game sets it.
+    /// The surface holds a normal map under the image, one more byte per pixel.
     /// </summary>
     Normal = 1 << 13,
 
@@ -87,7 +87,7 @@ public enum VidType : short
     Font = 1 << 14,
 
     /// <summary>
-    /// Each pixel has one more material byte. With the normal map the value under the image is 16 bits wide. No sprite of the game sets it.
+    /// Each pixel has one more material byte. With the normal map the value under the image is 16 bits wide.
     /// </summary>
     Material = short.MinValue
 }

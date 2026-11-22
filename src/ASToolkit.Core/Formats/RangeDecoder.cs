@@ -1,6 +1,5 @@
 namespace ASToolkit.Core.Formats;
 
-// Carry-less range decoder of the range coded sprite surfaces, with one frequency model per previous byte
 internal ref struct RangeDecoder
 {
     public const int ModelCount = 256;
@@ -25,8 +24,7 @@ internal ref struct RangeDecoder
         _range = InitialRange;
     }
 
-    // Fills the output with the low bytes of the 16-bit values first and the high bytes second, and fails when the stream ends early
-    public static bool TryDecode(ReadOnlySpan<byte> input, Span<byte> output, Span<FrequencyModel> models, out int used)
+    public static bool TryDecode(ReadOnlySpan<byte> input, Span<byte> output, Span<FrequencyModel> models, int planes, out int used)
     {
         if (output.Length < MinCodedSize)
         {
@@ -56,7 +54,7 @@ internal ref struct RangeDecoder
                 break;
             }
 
-            output[count < half ? 2 * count : 2 * (count - half) + 1] = (byte)symbol;
+            output[planes != 2 ? count : count < half ? 2 * count : 2 * (count - half) + 1] = (byte)symbol;
             count++;
             decoder.Consume(frequency, start, 1 << FrequencyModel.TotalBits);
             model.Count(symbol);

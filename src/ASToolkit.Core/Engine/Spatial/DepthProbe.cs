@@ -62,11 +62,11 @@ internal sealed class DepthProbe
             if (mask is null)
                 continue;
 
-            int left = (int)MathF.Round(sprite.Position.X - mask.Width / 2.0f);
-            int top = (int)MathF.Round(sprite.Position.Y - sprite.Position.Z - mask.Height / 2.0f);
-            int row = pixel.Y - top;
+            int left = (int)MathF.Round(sprite.Position.X - mask.Size.Width / 2.0f);
 
-            if (!mask.Covers(pixel.X - left, row))
+            int row = pixel.Y - (int)MathF.Round(sprite.Position.Y - sprite.Position.Z - mask.Size.Height / 2.0f);
+
+            if (!mask.Covers(new Point(pixel.X - left, row)))
                 continue;
 
             var obj = sprite.Definition.Object;

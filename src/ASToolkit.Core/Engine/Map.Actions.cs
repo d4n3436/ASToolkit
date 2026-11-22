@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Numerics;
 using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Formats;
@@ -30,7 +31,6 @@ public sealed partial class Map
     private const OldSpriteType BuiltSpriteType = OldSpriteType.Unit;
     private const OldSpriteType AnySpriteType = (OldSpriteType)((1 << 24) - 1);
     private const int NoItem = -1;
-    private const int RegionLayer = 10;
 
     /// <summary>
     /// Sends an action to a sprite through the handler of its sprite class.
@@ -170,7 +170,7 @@ public sealed partial class Map
                     if (damage >= sprite.Hp && Action(sprite, ActionCode.HaveItem, (int)KnownObject.Medkit) != 0)
                     {
                         Action(sprite, ActionCode.DeleteItem, (int)KnownObject.Medkit);
-                        ChangeHp(sprite, sprite.Definition.ArmyMaxHp[(int)sprite.Army & ArmyMask]);
+                        ChangeHp(sprite, sprite.Definition.ArmyMaxHp[(int)sprite.Army & SpriteDefinition.ArmyMask]);
                         AddSprite(Definitions.Find(KnownObject.RescueMedkitEffect)!, sprite.Position + Vector3.UnitZ * RescueEffectHeight, default, sprite);
 
                         return 0;
@@ -237,7 +237,7 @@ public sealed partial class Map
                 if (!(noItem || sprite.Command == Command.None) || definition is null)
                     return 0;
 
-                _builds[sprite] = new PendingBuild(definition, var2, var3);
+                _builds[sprite] = new PendingBuild(definition, new Point(var2, var3));
                 sprite.Timer = definition.BuildTime;
                 SpriteKinematics.SetCommand(sprite, Command.Build);
 
@@ -267,7 +267,7 @@ public sealed partial class Map
                 if (!isBuilding || sprite.Timer != 0 || !_builds.TryGetValue(sprite, out var pending))
                     return 0;
 
-                var position = GetBuildPosition(sprite, pending.X, pending.Y);
+                var position = GetBuildPosition(sprite, pending.Offset);
 
                 if (!IsFree(pending.Definition, position))
                     return 0;
@@ -446,7 +446,7 @@ public sealed partial class Map
     [EngineRoutine(0x0044d7b0)]
     private Sprite? FindRegion(Vector2 point)
     {
-        var list = _updates.GetLayer(RegionLayer);
+        var list = _updates.GetLayer(ObjectLayer.Region);
 
         for (int i = list.Count - 1; i >= 0; i--)
         {
@@ -607,7 +607,7 @@ public sealed partial class Map
     [EngineRoutine(0x0044bf10)]
     private void Repair(Sprite sprite, bool relink)
     {
-        var army = (int)sprite.Army & ArmyMask;
+        var army = (int)sprite.Army & SpriteDefinition.ArmyMask;
         ChangeHp(sprite, sprite.Definition.ArmyMaxHp[army]);
         var linkDefinition = sprite.Definition.LinkDefinition;
 
@@ -770,7 +770,7 @@ public sealed partial class Map
                 if (definition is null)
                     break;
 
-                var built = AddSprite(definition, GetBuildPosition(sprite, var2, var3), sprite.Direction, null);
+                var built = AddSprite(definition, GetBuildPosition(sprite, new Point(var2, var3)), sprite.Direction, null);
 
                 if (built is not null)
                 {
@@ -970,7 +970,7 @@ public sealed partial class Map
             }
             case ActionCode.Damage:
             {
-                int maxHp = sprite.Definition.ArmyMaxHp[(int)sprite.Army & ArmyMask];
+                int maxHp = sprite.Definition.ArmyMaxHp[(int)sprite.Army & SpriteDefinition.ArmyMask];
 
                 if (maxHp <= sprite.Hp && var1 < 0)
                     return 1;
@@ -1027,7 +1027,7 @@ public sealed partial class Map
             case ActionCode.Repair:
             {
                 DestroyLink(sprite, Definitions.Find((KnownObject)Math.Abs(sprite.Definition.Children[(int)SpriteAnimation.Wound])));
-                sprite.Hp = sprite.Definition.ArmyMaxHp[(int)sprite.Army & ArmyMask];
+                sprite.Hp = sprite.Definition.ArmyMaxHp[(int)sprite.Army & SpriteDefinition.ArmyMask];
                 var link = sprite.Link;
 
                 if (link is not null && link.Definition == sprite.Definition.LinkDefinition)
@@ -1044,12 +1044,12 @@ public sealed partial class Map
             case ActionCode.GetHp:
                 return sprite.Hp;
             case ActionCode.SetHp:
-                ChangeHp(sprite, var1 != 0 ? var1 : sprite.Definition.ArmyMaxHp[(int)sprite.Army & ArmyMask] * var2 / Percent);
+                ChangeHp(sprite, var1 != 0 ? var1 : sprite.Definition.ArmyMaxHp[(int)sprite.Army & SpriteDefinition.ArmyMask] * var2 / Percent);
                 break;
             case ActionCode.SetBehave:
                 break;
             case ActionCode.GetArmy:
-                return (int)sprite.Army & ArmyMask;
+                return (int)sprite.Army & SpriteDefinition.ArmyMask;
             case ActionCode.SetArmy:
                 ChangeArmy(sprite, var1);
                 break;
@@ -1135,8 +1135,8 @@ public sealed partial class Map
     [EngineRoutine(0x00442ad0)]
     private void ChangeArmy(Sprite sprite, int army)
     {
-        int previous = (int)sprite.Army & ArmyMask;
-        sprite.Army = (Army)(army & ArmyMask);
+        int previous = (int)sprite.Army & SpriteDefinition.ArmyMask;
+        sprite.Army = (Army)(army & SpriteDefinition.ArmyMask);
         int current = (int)sprite.Army;
 
         if (sprite.Link is not null)

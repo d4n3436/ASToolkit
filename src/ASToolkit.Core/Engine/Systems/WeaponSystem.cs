@@ -7,8 +7,6 @@ namespace ASToolkit.Core.Engine;
 internal sealed class WeaponSystem
 {
     public const float MinBlastHeight = 20;
-    private const int AimAttempts = 5;
-    private const float ScatterScale = 6.1037019E-05f;
     private const float AimRise = 70;
     private const float AimRiseCap = 50;
     private const float UnitAimLift = 80;
@@ -18,16 +16,14 @@ internal sealed class WeaponSystem
 
     private readonly Map _map;
     private readonly SpriteCatalog _definitions;
-    private readonly Random _rng;
     private readonly SpriteCollector _collector;
     private readonly DepthProbe _depth;
     private bool _isTurningLegs;
 
-    public WeaponSystem(Map map, SpriteCatalog definitions, Random random)
+    public WeaponSystem(Map map, SpriteCatalog definitions)
     {
         _map = map;
         _definitions = definitions;
-        _rng = random;
         _collector = map.Collector;
         Collision = new ProjectileCollision(map);
         _depth = new DepthProbe(map);
@@ -148,7 +144,5 @@ internal sealed class WeaponSystem
             _map.Action(sprite, ActionCode.Damage, scales ? (int)(damage - damage * distance / payload.BlastRadius) : damage);
         }
     }
-
-
 
 }

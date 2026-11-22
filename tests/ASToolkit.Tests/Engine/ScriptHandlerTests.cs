@@ -126,7 +126,7 @@ public class ScriptHandlerTests
         var position = map.Player.Position + new Vector3(300, 0, 0);
         var monster = map.AddMonster(definitions.Find(KnownObject.Slug)!, position);
         monster.Hp = 10;
-        var bullet = map.Effects.Spawn(KnownObject.FreezeBullet, position + new Vector3(40, 0, 0), default, map.Time, lifetime: 1);
+        var bullet = map.Effects.Spawn(KnownObject.FreezeBullet, position + new Vector3(40, 0, 0), default, lifetime: 1);
         Assert.NotNull(bullet);
         Step(map, 20);
 
@@ -182,7 +182,7 @@ public class ScriptHandlerTests
         var map = EngineTestMap.CreateMap(definitions);
         Step(map, 1);
         int health = map.Player.Hp;
-        map.Effects.Spawn(KnownObject.ElectricBall, map.Player.Position + new Vector3(500, 0, 0), default, map.Time);
+        map.Effects.Spawn(KnownObject.ElectricBall, map.Player.Position + new Vector3(500, 0, 0), default);
         Step(map, 5);
 
         Assert.Equal(health - 10, map.Player.Hp);
