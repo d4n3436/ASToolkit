@@ -227,10 +227,10 @@ public static class LevelExtractor
         var keys = new EdgeKey[count];
         int fixedLine = (int)MathF.Round(line);
         int start = (int)MathF.Round(slash ? scale * (u - 0.25f) : scale * (v - 0.75f));
-        for (int index = 0; index < count; index++)
+        for (int i = 0; i < count; i++)
         {
-            int along = start + scale - count + index;
-            keys[index] = slash ? new EdgeKey('v', along, fixedLine) : new EdgeKey('u', fixedLine, along);
+            int along = start + scale - count + i;
+            keys[i] = slash ? new EdgeKey('v', along, fixedLine) : new EdgeKey('u', fixedLine, along);
         }
 
         return keys;

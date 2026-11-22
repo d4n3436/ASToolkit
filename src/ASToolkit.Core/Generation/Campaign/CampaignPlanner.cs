@@ -317,18 +317,18 @@ public sealed class CampaignPlanner
         float offset = rng.NextSingle();
         int indoor = _model.LevelCount - 1;
         int[] counts = new int[shares.Count];
-        int index = 0;
+        int i = 0;
         float reach = drawn[0] / total;
         for (int step = 0; step < indoor; step++)
         {
             float point = (step + offset) / indoor;
-            while (point >= reach && index < shares.Count - 1)
+            while (point >= reach && i < shares.Count - 1)
             {
-                index++;
-                reach += drawn[index] / total;
+                i++;
+                reach += drawn[i] / total;
             }
 
-            counts[index]++;
+            counts[i]++;
         }
 
         for (int required = 0; required < shares.Count; required++)
@@ -371,9 +371,9 @@ public sealed class CampaignPlanner
                 .Order()
                 .ToArray();
 
-            foreach ((int level, int index) in run.Zip(drawn))
+            foreach ((int level, int i) in run.Zip(drawn))
             {
-                gates[level] = shares[index].GateStyle;
+                gates[level] = shares[i].GateStyle;
             }
         }
 
@@ -428,7 +428,7 @@ public sealed class CampaignPlanner
                 continue;
             }
 
-            for (int index = 0; index < counts.GetValueOrDefault(category); index++)
+            for (int i = 0; i < counts.GetValueOrDefault(category); i++)
             {
                 var id = ids[rng.NextWeighted(shares)];
                 pickups[id] = pickups.GetValueOrDefault(id) + 1;
@@ -447,7 +447,7 @@ public sealed class CampaignPlanner
 
         if (weights.Sum() > 0)
         {
-            for (int index = 0; index < counts.GetValueOrDefault(ItemCategory.Ammo); index++)
+            for (int i = 0; i < counts.GetValueOrDefault(ItemCategory.Ammo); i++)
             {
                 var ammo = byAge[rng.NextWeighted(weights)].WeaponAmmo!.Value;
                 pickups[ammo] = pickups.GetValueOrDefault(ammo) + 1;

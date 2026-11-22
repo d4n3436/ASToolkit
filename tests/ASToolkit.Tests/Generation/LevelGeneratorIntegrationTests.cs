@@ -536,13 +536,13 @@ public class LevelGeneratorIntegrationTests
 
             var charges = level.Map.Sprites.Where(sprite => sprite.Id == KnownObject.Dynamite).Select(Locate).ToArray();
             var sites = level.Map.Sprites.Where(sprite => sprite.Id == KnownObject.DynamiteSite).Select(Locate).OrderBy(site => site.Phase).ThenBy(site => site.Walk).ToArray();
-            for (int index = 0; index < sites.Length; index++)
+            for (int i = 0; i < sites.Length; i++)
             {
-                var site = sites[index];
+                var site = sites[i];
                 int before = charges.Count(charge => charge.Phase < site.Phase || charge.Phase == site.Phase && (charge.Walk <= site.Walk || charge.Region == site.Region));
-                if (before <= index)
+                if (before <= i)
                 {
-                    broken.Add($"{style} seed {seed} level {number}: site {index + 1} with {before} charges before it");
+                    broken.Add($"{style} seed {seed} level {number}: site {i + 1} with {before} charges before it");
                     break;
                 }
             }
@@ -727,16 +727,16 @@ public class LevelGeneratorIntegrationTests
         var decor = map.Sprites.Where(sprite => sprite.Id.IsDecor).ToArray();
         int raised = 0;
         int unsupported = 0;
-        for (int index = 0; index < decor.Length; index++)
+        for (int i = 0; i < decor.Length; i++)
         {
-            var sprite = decor[index];
+            var sprite = decor[i];
             if (sprite.Id.Family is null || sprite.Id.IsWallMounted || sprite.Position.Z < DecorFloorHeight)
             {
                 continue;
             }
 
             raised++;
-            if (objects.FindSupport(decor, index) == -1)
+            if (objects.FindSupport(decor, i) == -1)
             {
                 unsupported++;
             }

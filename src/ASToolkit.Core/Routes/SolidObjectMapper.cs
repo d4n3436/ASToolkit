@@ -76,11 +76,11 @@ public static class SolidObjectMapper
         foreach (var (cell, list) in candidates)
         {
             int covered = 0;
-            for (int index = 0; index < 4; index++)
+            for (int i = 0; i < 4; i++)
             {
                 for (int innerIndex = 0; innerIndex < 4; innerIndex++)
                 {
-                    (float x, float y) = lattice.ToWorld(cell.U + (index + 0.5f) / 4, cell.V + (innerIndex + 0.5f) / 4);
+                    (float x, float y) = lattice.ToWorld(cell.U + (i + 0.5f) / 4, cell.V + (innerIndex + 0.5f) / 4);
                     if (IsCovered(boxes, list, x, y))
                     {
                         covered++;

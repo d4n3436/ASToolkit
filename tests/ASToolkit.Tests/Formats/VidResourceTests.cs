@@ -23,7 +23,7 @@ public class VidResourceTests
     }
 
     [Fact]
-    public void GetFrame_CadrWithMesh_SkipsTheIndicesAndVertices()
+    public void GetFrame_CadrWithMesh_SkipsTheIndexesAndVertices()
     {
         byte[] stream = [0, 2, 7, 8, 0, 0];
         byte[] record = BuildRecord(2, 1, 0, 0, stream, indexCount: 6, vertexCount: 4);

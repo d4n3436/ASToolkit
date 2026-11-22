@@ -54,13 +54,13 @@ internal static class BuildingChecks
             entered.Add(building.Trigger.Value);
         }
 
-        for (int index = 0; index < phases.Length; index++)
+        for (int i = 0; i < phases.Length; i++)
         {
-            foreach (var piece in FindPieces(phases[index], contacts))
+            foreach (var piece in FindPieces(phases[i], contacts))
             {
-                if (!(index == 0 && piece.Contains(building.Start)) && !piece.Overlaps(entered))
+                if (!(i == 0 && piece.Contains(building.Start)) && !piece.Overlaps(entered))
                 {
-                    failures.Add($"phase {index} piece of {piece.Count} rooms entered by no lock");
+                    failures.Add($"phase {i} piece of {piece.Count} rooms entered by no lock");
                 }
             }
         }

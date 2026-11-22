@@ -23,11 +23,11 @@ public static class MissionWriter
             .ToHashSet();
 
         var parent = new Dictionary<int, int>();
-        for (int index = 1; index < walked.Count; index++)
+        for (int i = 1; i < walked.Count; i++)
         {
-            if (walked[index].Room != plan.Start)
+            if (walked[i].Room != plan.Start)
             {
-                parent.TryAdd(walked[index].Room, walked[index - 1].Room);
+                parent.TryAdd(walked[i].Room, walked[i - 1].Room);
             }
         }
 
@@ -159,9 +159,9 @@ public static class MissionWriter
             .ToArray();
 
         var phases = new LevelPhase[plan.Phases.Count];
-        for (int index = 0; index < plan.Phases.Count; index++)
+        for (int i = 0; i < plan.Phases.Count; i++)
         {
-            var places = plan.Phases[index];
+            var places = plan.Phases[i];
             var path = new List<int>();
             foreach ((int room, _) in walked)
             {
@@ -171,8 +171,8 @@ public static class MissionWriter
                 }
             }
 
-            int entrance = index == 0 ? plan.Start : path.Count > 0 ? path[0] : places.DefaultIfEmpty(plan.Start).Min();
-            bool hasKey = plan.Gate != LevelStyle.Ungated && index == keyedPhase;
+            int entrance = i == 0 ? plan.Start : path.Count > 0 ? path[0] : places.DefaultIfEmpty(plan.Start).Min();
+            bool hasKey = plan.Gate != LevelStyle.Ungated && i == keyedPhase;
             var back = hasKey && plan.WalkBack is not null ? plan.WalkBack.Rooms : [];
 
             int[] keys = keyRooms
@@ -180,7 +180,7 @@ public static class MissionWriter
                 .ToArray();
 
             var revisits = hasKey ? plan.ReturnPass : [];
-            phases[index] = new LevelPhase(index, places.Order().ToArray(), entrance, keys, path, back, CreateBranches(places, parent, spine),
+            phases[i] = new LevelPhase(i, places.Order().ToArray(), entrance, keys, path, back, CreateBranches(places, parent, spine),
                 RoomGraph.CountCycles(places, inner), false, revisits, []);
         }
 

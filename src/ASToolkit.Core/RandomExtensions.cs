@@ -20,12 +20,12 @@ public static class RandomExtensions
         public int NextWeighted(IReadOnlyList<float> weights)
         {
             float roll = rng.NextSingle() * weights.Sum();
-            for (int index = 0; index < weights.Count - 1; index++)
+            for (int i = 0; i < weights.Count - 1; i++)
             {
-                roll -= weights[index];
+                roll -= weights[i];
 
                 if (roll < 0)
-                    return index;
+                    return i;
             }
 
             return weights.Count - 1;

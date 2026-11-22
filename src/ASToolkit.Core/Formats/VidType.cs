@@ -12,7 +12,7 @@ public enum VidType : short
     None = 0,
 
     /// <summary>
-    /// The frame records are runs of 8-bit values (palette indices and 8-bit depth). Sprites without the flag, such as the ones with 0x36, use 16-bit runs.
+    /// The frame records are runs of 8-bit values (palette indexes and 8-bit depth). Sprites without the flag, such as the ones with 0x36, use 16-bit runs.
     /// </summary>
     Runs8Bit = 1 << 0,
 
@@ -27,7 +27,7 @@ public enum VidType : short
     ZBuffer = 1 << 2,
 
     /// <summary>
-    /// The pixel colors are palette indices.
+    /// The pixel colors are palette indexes.
     /// </summary>
     Palette = 1 << 3,
 

@@ -58,11 +58,11 @@ public static class RouteGridBuilder
 
             bool slash = (neighbor.Position.X - fence.Position.X) * (neighbor.Position.Y - fence.Position.Y) < 0;
             (float u, float v) = fine.ToLattice(fence.Position);
-            for (int index = 0; index < ChainLinkEdges; index++)
+            for (int i = 0; i < ChainLinkEdges; i++)
             {
                 var key = slash
-                    ? new EdgeKey('v', (int)MathF.Round(u - ChainLinkEdges / 2f) + index, (int)MathF.Round(v))
-                    : new EdgeKey('u', (int)MathF.Round(u), (int)MathF.Round(v - ChainLinkEdges / 2f) + index);
+                    ? new EdgeKey('v', (int)MathF.Round(u - ChainLinkEdges / 2f) + i, (int)MathF.Round(v))
+                    : new EdgeKey('u', (int)MathF.Round(u), (int)MathF.Round(v - ChainLinkEdges / 2f) + i);
                 edges.TryAdd(key, EdgeKind.Wall);
             }
         }
@@ -93,11 +93,11 @@ public static class RouteGridBuilder
         var fine = new HashSet<Cell>();
         foreach (var cell in cells)
         {
-            for (int index = 0; index < 2; index++)
+            for (int i = 0; i < 2; i++)
             {
                 for (int innerIndex = 0; innerIndex < 2; innerIndex++)
                 {
-                    fine.Add(new Cell(2 * cell.U + index, 2 * cell.V + innerIndex));
+                    fine.Add(new Cell(2 * cell.U + i, 2 * cell.V + innerIndex));
                 }
             }
         }

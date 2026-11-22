@@ -319,11 +319,11 @@ public sealed class DesignMeasurer
     {
         var boxes = GetBoxes(pieces, InsideShare);
         int inside = 0;
-        for (int index = 0; index < boxes.Length; index++)
+        for (int i = 0; i < boxes.Length; i++)
         {
-            for (int otherIndex = 0; otherIndex < boxes.Length; otherIndex++)
+            for (int j = 0; j < boxes.Length; j++)
             {
-                if (otherIndex != index && boxes[index].Overlaps(boxes[otherIndex]))
+                if (j != i && boxes[i].Overlaps(boxes[j]))
                 {
                     inside++;
                     break;
@@ -556,9 +556,9 @@ public sealed class DesignMeasurer
         var lattice = _analysis.Grid.Lattice;
         var points = _analysis.Tour.Select(lattice.GetCenter).ToArray();
         float[] walked = new float[points.Length];
-        for (int index = 1; index < points.Length; index++)
+        for (int i = 1; i < points.Length; i++)
         {
-            walked[index] = walked[index - 1] + Distance(points[index - 1], points[index]);
+            walked[i] = walked[i - 1] + Distance(points[i - 1], points[i]);
         }
 
         float tour = Math.Max(1, walked.Length == 0 ? 0 : walked[^1]);

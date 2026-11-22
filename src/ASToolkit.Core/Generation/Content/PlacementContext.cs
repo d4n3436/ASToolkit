@@ -180,11 +180,11 @@ public sealed class PlacementContext
     {
         (float x, float y) = point;
         (int bx, int by) = ((int)MathF.Floor(x / 100), (int)MathF.Floor(y / 100));
-        for (int index = -1; index <= 1; index++)
+        for (int i = -1; i <= 1; i++)
         {
             for (int innerIndex = -1; innerIndex <= 1; innerIndex++)
             {
-                if (!_wallBoxes.TryGetValue(new Cell(bx + index, by + innerIndex), out var boxes))
+                if (!_wallBoxes.TryGetValue(new Cell(bx + i, by + innerIndex), out var boxes))
                 {
                     continue;
                 }
@@ -233,7 +233,7 @@ public sealed class PlacementContext
     /// <returns>The point, or null if none of twelve tries found a spot clear of walls.</returns>
     public PointF? FindSpot(Cell c)
     {
-        for (int index = 0; index < 12; index++)
+        for (int i = 0; i < 12; i++)
         {
             var point = Layout.Lattice.ToWorld(c.U + 0.3f + 0.4f * Rng.NextSingle(), c.V + 0.3f + 0.4f * Rng.NextSingle());
             if (!IsInWall(point))

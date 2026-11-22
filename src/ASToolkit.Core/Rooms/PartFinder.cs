@@ -53,14 +53,14 @@ internal sealed class PartFinder
         var scatter = pieces.Where(piece => Scattered.Contains(piece.Id)).GroupBy(piece => piece.Id).OrderBy(group => group.Key).ToDictionary(group => group.Key, group => group.Count());
         var furniture = pieces.Select(piece => (Piece: piece, piece.Id.Family)).Where(entry => entry.Family is not null).ToArray();
         int[] root = Enumerable.Range(0, furniture.Length).ToArray();
-        for (int index = 0; index < furniture.Length; index++)
+        for (int i = 0; i < furniture.Length; i++)
         {
-            for (int other = index + 1; other < furniture.Length; other++)
+            for (int other = i + 1; other < furniture.Length; other++)
             {
-                float reach = GetReach(furniture[index].Family!.Value, furniture[other].Family!.Value);
-                if (reach > 0 && GetDistance(furniture[index].Piece, furniture[other].Piece) <= reach)
+                float reach = GetReach(furniture[i].Family!.Value, furniture[other].Family!.Value);
+                if (reach > 0 && GetDistance(furniture[i].Piece, furniture[other].Piece) <= reach)
                 {
-                    root[FindRoot(root, index)] = FindRoot(root, other);
+                    root[FindRoot(root, i)] = FindRoot(root, other);
                 }
             }
         }
@@ -68,11 +68,11 @@ internal sealed class PartFinder
         int[] reachRoots = Enumerable.Range(0, furniture.Length).Select(index => FindRoot(root, index)).ToArray();
         var sprites = furniture.Select(entry => entry.Piece).ToArray();
         int?[] supports = Enumerable.Range(0, furniture.Length).Select(index => _objects.FindSupport(sprites, index)).ToArray();
-        for (int index = 0; index < furniture.Length; index++)
+        for (int i = 0; i < furniture.Length; i++)
         {
-            if (supports[index] >= 0)
+            if (supports[i] >= 0)
             {
-                root[FindRoot(root, index)] = FindRoot(root, supports[index]!.Value);
+                root[FindRoot(root, i)] = FindRoot(root, supports[i]!.Value);
             }
         }
 

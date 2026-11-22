@@ -236,11 +236,11 @@ internal abstract partial class BuildingGrammar
         {
             ids[node.Name] = [];
             int count = node.Count is null ? 1 : Math.Max(0, counts[node.Count] + node.CountShift);
-            for (int index = 0; index < count; index++)
+            for (int i = 0; i < count; i++)
             {
-                if (index >= node.InSolve)
+                if (i >= node.InSolve)
                 {
-                    later.Add((node, index));
+                    later.Add((node, i));
                     continue;
                 }
 
@@ -252,14 +252,14 @@ internal abstract partial class BuildingGrammar
                     : wing.AddRoom(type, phase, NewGroup(), templates, node.IsPiece);
                 if (node.Hosts.Count > 0)
                 {
-                    int host = Resolve(node.Hosts[index % node.Hosts.Count], node.Name, index, ids);
-                    wing.Join(host, room, DrawVia(node.Via[Math.Min(index, node.Via.Count - 1)]), node.Mark);
-                    SetWingSides(wing, host, room, node.Sides[index % node.Sides.Count], isRight);
+                    int host = Resolve(node.Hosts[i % node.Hosts.Count], node.Name, i, ids);
+                    wing.Join(host, room, DrawVia(node.Via[Math.Min(i, node.Via.Count - 1)]), node.Mark);
+                    SetWingSides(wing, host, room, node.Sides[i % node.Sides.Count], isRight);
                 }
 
                 if (node.Packs.Count > 0)
                 {
-                    wing.MayTouch(Resolve(node.Packs[index % node.Packs.Count], node.Name, index, ids), room);
+                    wing.MayTouch(Resolve(node.Packs[i % node.Packs.Count], node.Name, i, ids), room);
                 }
 
                 ids[node.Name].Add(room);
@@ -366,12 +366,12 @@ internal abstract partial class BuildingGrammar
     {
         int left = rooms - built.Count;
         var lined = new List<int>();
-        for (int index = 0; index < halls.Length && left > 0; index++)
+        for (int i = 0; i < halls.Length && left > 0; i++)
         {
-            var rect = RectOf(halls[index]);
+            var rect = RectOf(halls[i]);
             int capacity = Math.Max(2, (Math.Max(rect.W, rect.H) - 4) * 2 / 17);
-            int share = Math.Min(capacity, Math.Max(1, left / (halls.Length - index)));
-            lined = LineBigRooms(halls[index], share, index == 0, phase);
+            int share = Math.Min(capacity, Math.Max(1, left / (halls.Length - i)));
+            lined = LineBigRooms(halls[i], share, i == 0, phase);
             built.AddRange(lined);
             Draft.WingPieces.UnionWith(lined);
             left -= share;

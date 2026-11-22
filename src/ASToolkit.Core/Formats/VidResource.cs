@@ -124,7 +124,7 @@ public readonly struct VidResource
     public short SurfaceCount => _surfaces.Length < sizeof(short) ? (short)0 : MemoryMarshal.Read<short>(_surfaces.Span);
 
     /// <summary>
-    /// Gets a value indicating whether the pixel colors are palette indices.
+    /// Gets a value indicating whether the pixel colors are palette indexes.
     /// </summary>
     public bool HasPalette => Type.HasFlag(VidType.Palette);
 

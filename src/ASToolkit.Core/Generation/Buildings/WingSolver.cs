@@ -114,13 +114,13 @@ internal sealed class WingSolver
 
         throatOwners = [];
         int corridor = FirstCorridor;
-        for (int index = 0; index < _joins.Count; index++)
+        for (int i = 0; i < _joins.Count; i++)
         {
-            (int a, int b, int[] throat) = _joins[index];
+            (int a, int b, int[] throat) = _joins[i];
             // Key a join's door sides against each room's graph neighbor, the corridor when the join runs through a throat
             int neighborOfA = throat.Length == 0 ? b : corridor;
             int neighborOfB = throat.Length == 0 ? a : corridor;
-            var joinSides = _joinSides.GetValueOrDefault(index);
+            var joinSides = _joinSides.GetValueOrDefault(i);
             if (a == Anchor)
             {
                 problem.DoorSides[(Anchor, neighborOfA)] = joinSides.SideA ?? DoorSides.MaxX;

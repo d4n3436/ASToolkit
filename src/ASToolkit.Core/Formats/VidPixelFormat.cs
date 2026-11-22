@@ -51,7 +51,7 @@ public enum VidPixelFormat
     A8 = 0x1C,
 
     /// <summary>
-    /// 8-bit palette indices.
+    /// 8-bit palette indexes.
     /// </summary>
     P8 = 0x29,
 

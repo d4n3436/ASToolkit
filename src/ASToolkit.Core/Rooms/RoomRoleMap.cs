@@ -198,9 +198,9 @@ public sealed class RoomRoleMap
     {
         var members = branch.ToHashSet();
         var ordered = branch.Where(room => neighbors[room].Overlaps(body)).OrderBy(order).ToList();
-        for (int index = 0; index < ordered.Count; index++)
+        for (int i = 0; i < ordered.Count; i++)
         {
-            ordered.AddRange(neighbors[ordered[index]].Where(next => members.Contains(next) && !ordered.Contains(next)).OrderBy(order));
+            ordered.AddRange(neighbors[ordered[i]].Where(next => members.Contains(next) && !ordered.Contains(next)).OrderBy(order));
         }
 
         return ordered;

@@ -468,11 +468,11 @@ public sealed class LevelGenerator
         }
 
         int radius = unitCells == 1 ? 1 : 2;
-        for (int index = -radius; index <= radius; index++)
+        for (int i = -radius; i <= radius; i++)
         {
             for (int innerIndex = -radius; innerIndex <= radius; innerIndex++)
             {
-                keep.Add(new Cell(start.U + index, start.V + innerIndex));
+                keep.Add(new Cell(start.U + i, start.V + innerIndex));
             }
         }
 

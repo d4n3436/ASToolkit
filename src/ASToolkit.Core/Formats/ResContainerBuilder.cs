@@ -77,10 +77,10 @@ public sealed class ResContainerBuilder
         int length = FileHeaderSize;
 
         // The game's files leave the last chunk unpadded
-        for (int index = 0; index < Chunks.Count; index++)
+        for (int i = 0; i < Chunks.Count; i++)
         {
-            int size = ChunkHeaderSize + GetBodyLength(Chunks[index]);
-            length += index < Chunks.Count - 1 ? GetPaddedLength(size) : size;
+            int size = ChunkHeaderSize + GetBodyLength(Chunks[i]);
+            length += i < Chunks.Count - 1 ? GetPaddedLength(size) : size;
         }
 
         byte[] result = new byte[length];

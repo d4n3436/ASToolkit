@@ -44,9 +44,9 @@ internal readonly record struct ScriptCallee(int Id, int CallOperand, int FirstV
 
     public bool IsCalledIn(ReadOnlySpan<ScriptInstruction> code)
     {
-        for (int index = 0; index < code.Length; index++)
+        for (int i = 0; i < code.Length; i++)
         {
-            if (IsCallAt(code, index))
+            if (IsCallAt(code, i))
                 return true;
         }
 

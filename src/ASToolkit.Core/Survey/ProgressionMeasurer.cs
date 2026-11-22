@@ -35,9 +35,9 @@ public sealed class ProgressionMeasurer
             .Where(_neighbors.ContainsKey)
             .ToArray();
 
-        for (int index = 0; index < _route.Length; index++)
+        for (int i = 0; i < _route.Length; i++)
         {
-            _firstVisit.TryAdd(_route[index], index);
+            _firstVisit.TryAdd(_route[i], i);
         }
     }
 
@@ -57,11 +57,11 @@ public sealed class ProgressionMeasurer
             .ToArray();
 
         var built = new List<LevelPhase>();
-        for (int index = 0; index < passes.Count; index++)
+        for (int i = 0; i < passes.Count; i++)
         {
-            built.Add(passes[index].IsReturnPass
-                ? BuildReturnPass(index, passes, end)
-                : BuildPhase(index, passes, end, keys));
+            built.Add(passes[i].IsReturnPass
+                ? BuildReturnPass(i, passes, end)
+                : BuildPhase(i, passes, end, keys));
         }
 
         int[] locks = _survey.Gates
@@ -141,58 +141,58 @@ public sealed class ProgressionMeasurer
 
         parts.Add([start]);
         var owner = new Dictionary<int, int>();
-        for (int index = 0; index < parts.Count; index++)
+        for (int i = 0; i < parts.Count; i++)
         {
-            foreach (int place in parts[index])
+            foreach (int place in parts[i])
             {
-                owner[place] = index;
+                owner[place] = i;
             }
         }
 
         var entered = new Dictionary<int, int>();
-        for (int index = 1; index < _route.Length; index++)
+        for (int i = 1; i < _route.Length; i++)
         {
-            int part = owner[_route[index]];
-            if (!entered.ContainsKey(part) && owner[_route[index - 1]] != part)
+            int part = owner[_route[i]];
+            if (!entered.ContainsKey(part) && owner[_route[i - 1]] != part)
             {
-                entered[part] = owner[_route[index - 1]];
+                entered[part] = owner[_route[i - 1]];
             }
         }
 
-        for (int index = 0; index < parts.Count; index++)
+        for (int i = 0; i < parts.Count; i++)
         {
-            if (entered.ContainsKey(index) || parts[index].Contains(start))
+            if (entered.ContainsKey(i) || parts[i].Contains(start))
             {
                 continue;
             }
 
-            int[] outside = parts[index]
+            int[] outside = parts[i]
                 .SelectMany(place => _neighbors[place])
                 .Select(neighbor => owner[neighbor])
-                .Where(other => other != index)
+                .Where(other => other != i)
                 .ToArray();
 
             if (outside.Length > 0)
             {
-                entered[index] = outside.MinBy(other => parts[other].Min(GetFirstVisit));
+                entered[i] = outside.MinBy(other => parts[other].Min(GetFirstVisit));
             }
         }
 
         int[] root = Enumerable.Range(0, parts.Count).ToArray();
         var groups = new Dictionary<(GateZone Zone, int From), List<int>>();
-        for (int index = 0; index < parts.Count; index++)
+        for (int i = 0; i < parts.Count; i++)
         {
-            if (parts[index].Contains(start) || !entered.TryGetValue(index, out int from))
+            if (parts[i].Contains(start) || !entered.TryGetValue(i, out int from))
                 continue;
             
-            var key = (zone[parts[index].Min()], from);
+            var key = (zone[parts[i].Min()], from);
             if (!groups.TryGetValue(key, out var members))
             {
                 members = [];
                 groups[key] = members;
             }
 
-            members.Add(index);
+            members.Add(i);
         }
 
         foreach (var members in groups.Values)
@@ -204,21 +204,21 @@ public sealed class ProgressionMeasurer
         }
 
         var merged = new Dictionary<int, HashSet<int>>();
-        for (int index = 0; index < parts.Count; index++)
+        for (int i = 0; i < parts.Count; i++)
         {
-            int group = Find(index);
+            int group = Find(i);
             if (!merged.TryGetValue(group, out var places))
             {
                 places = [];
                 merged[group] = places;
             }
 
-            places.UnionWith(parts[index]);
+            places.UnionWith(parts[i]);
         }
 
-        foreach ((int index, var part) in merged.ToArray())
+        foreach ((int i, var part) in merged.ToArray())
         {
-            if (part.Count == 0 || part.Contains(start) || part.Contains(end) || !entered.TryGetValue(index, out int from))
+            if (part.Count == 0 || part.Contains(start) || part.Contains(end) || !entered.TryGetValue(i, out int from))
             {
                 continue;
             }
@@ -226,7 +226,7 @@ public sealed class ProgressionMeasurer
             var around = part
                 .SelectMany(place => _neighbors[place])
                 .Select(neighbor => Find(owner[neighbor]))
-                .Where(other => other != index)
+                .Where(other => other != i)
                 .ToHashSet();
 
             int host = Find(from);
@@ -237,13 +237,13 @@ public sealed class ProgressionMeasurer
             merged[host].UnionWith(part);
             for (int other = 0; other < root.Length; other++)
             {
-                if (Find(other) == index)
+                if (Find(other) == i)
                 {
                     root[other] = host;
                 }
             }
 
-            merged[index] = [];
+            merged[i] = [];
         }
 
         var states = merged.Values.Where(part => part.Count > 0).ToList();

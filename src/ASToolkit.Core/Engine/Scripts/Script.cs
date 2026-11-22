@@ -140,10 +140,10 @@ public sealed partial class Script
         if (IsAlienShooter2)
             return operand >= 0 && operand < _objectCount && _objects[operand].Kind == ScriptObjectKind.Function ? operand : -1;
 
-        for (int index = 0; index < _objectCount; index++)
+        for (int i = 0; i < _objectCount; i++)
         {
-            if (_objects[index].Kind == ScriptObjectKind.Function && _objects[index].Address == operand)
-                return index;
+            if (_objects[i].Kind == ScriptObjectKind.Function && _objects[i].Address == operand)
+                return i;
         }
 
         return -1;

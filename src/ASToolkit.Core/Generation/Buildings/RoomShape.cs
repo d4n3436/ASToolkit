@@ -42,10 +42,10 @@ internal sealed class RoomShape
             for (int v = corners.Min(point => point.Y); v < corners.Max(point => point.Y); v++)
             {
                 bool inside = false;
-                for (int index = 0; index < corners.Length; index++)
+                for (int i = 0; i < corners.Length; i++)
                 {
-                    var p = corners[index];
-                    var q = corners[(index + 1) % corners.Length];
+                    var p = corners[i];
+                    var q = corners[(i + 1) % corners.Length];
                     if (p.X == q.X && p.Y > v != q.Y > v && u < p.X)
                     {
                         inside = !inside;

@@ -76,12 +76,12 @@ internal sealed class WalkField
         Array.Fill(_cells, -1);
         _places = new Cell[cells.Count];
         _centers = new Vector2[cells.Count];
-        int index = 0;
+        int i = 0;
         foreach (var cell in cells)
         {
-            _cells[(cell.V - _minV) * _width + (cell.U - _minU)] = index;
-            _places[index] = cell;
-            _centers[index++] = _lattice.GetCenter(cell).ToVector2();
+            _cells[(cell.V - _minV) * _width + (cell.U - _minU)] = i;
+            _places[i] = cell;
+            _centers[i++] = _lattice.GetCenter(cell).ToVector2();
         }
 
         _neighbors = new int[cells.Count * Sides];
@@ -490,11 +490,11 @@ internal sealed class WalkField
         {
             for (int u = Math.Max(0, origin.U - radius - _minU); u <= Math.Min(_width - 1, origin.U + radius - _minU); u++)
             {
-                int index = _cells[v * _width + u];
+                int i = _cells[v * _width + u];
 
-                if (index >= 0)
+                if (i >= 0)
                 {
-                    _computed[index] = false;
+                    _computed[i] = false;
                 }
             }
         }

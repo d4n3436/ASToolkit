@@ -114,11 +114,11 @@ internal sealed class ScriptContext
         for (int stackIndex = 0; stackIndex < program.StackCount; stackIndex++)
         {
             var stack = program.GetStack(stackIndex);
-            for (int index = stack.Length - 1; index >= 0; index--)
+            for (int i = stack.Length - 1; i >= 0; i--)
             {
-                if (stack[index].Act == (int)ActionCode.ChangeCoor)
+                if (stack[i].Act == (int)ActionCode.ChangeCoor)
                 {
-                    place = new Vector3(stack[index].Var1, stack[index].Var2, stack[index].Var3);
+                    place = new Vector3(stack[i].Var1, stack[i].Var2, stack[i].Var3);
                 }
             }
         }

@@ -66,10 +66,10 @@ internal sealed class WalkingUnit
     {
         float walked = 0;
         var points = new List<Vector3> { _grid!.GetPoint(path[0]) };
-        for (int index = 1; index < path.Count; index++)
+        for (int i = 1; i < path.Count; i++)
         {
-            var point = _grid.GetPoint(path[index]);
-            if (_grid.IsLink(path[index - 1], path[index]))
+            var point = _grid.GetPoint(path[i]);
+            if (_grid.IsLink(path[i - 1], path[i]))
             {
                 segments.Add(new RouteSegment(_kind, Simplify(points)));
                 segments.Add(new RouteSegment(RouteSegmentKind.Teleport, [points[^1], point]));
@@ -94,11 +94,11 @@ internal sealed class WalkingUnit
         }
 
         var kept = new List<Vector3> { points[0] };
-        for (int index = 1; index < points.Count - 1; index++)
+        for (int i = 1; i < points.Count - 1; i++)
         {
-            if (points[index] - points[index - 1] != points[index + 1] - points[index])
+            if (points[i] - points[i - 1] != points[i + 1] - points[i])
             {
-                kept.Add(points[index]);
+                kept.Add(points[i]);
             }
         }
 

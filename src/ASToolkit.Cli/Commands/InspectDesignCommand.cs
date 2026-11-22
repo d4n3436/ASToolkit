@@ -197,14 +197,14 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
                 .ToArray();
 
             var left = new List<string>();
-            for (int index = 0; index < rows.Count; index++)
+            for (int i = 0; i < rows.Count; i++)
             {
-                var band = bands[index];
-                float? fitted = rows[index].Value(measured.Select(pair => full[pair.Name]).ToArray());
-                float? value = rows[index].Value(measured.Select(pair => pair.Measure!).ToArray());
+                var band = bands[i];
+                float? fitted = rows[i].Value(measured.Select(pair => full[pair.Name]).ToArray());
+                float? value = rows[i].Value(measured.Select(pair => pair.Measure!).ToArray());
                 if (band is not null && fitted is not null && value is not null && IsWithin(fitted.Value, band.Value) && !IsWithin(value.Value, band.Value))
                 {
-                    left.Add($"{rows[index].Name} ({Format(fitted)}, {Format(value)}, {Format(band.Value.Min)} to {Format(band.Value.Max)})");
+                    left.Add($"{rows[i].Name} ({Format(fitted)}, {Format(value)}, {Format(band.Value.Min)} to {Format(band.Value.Max)})");
                 }
             }
 
@@ -281,17 +281,18 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         text.AppendLine(string.Join('\t', "map", "places", "loops", "revisit", "start area", "first fight", "hit points by fifth", "chairs at tables", "corpses on blood",
             "office decor in passages", "health against walls", "pickup piles", "health after fights", "room proportion", "fight gap", "repeated rooms", "cannon walk",
             "gated share", "key to gate", "key walk", "first generator", "blocked share", "spread"));
-        for (int index = 0; index < names.Length; index++)
+        
+        for (int i = 0; i < names.Length; i++)
         {
-            var measure = measures[index];
+            var measure = measures[i];
             if (measure is null)
             {
-                text.AppendLine($"{names[index]}\tno route");
+                text.AppendLine($"{names[i]}\tno route");
                 continue;
             }
 
             var signature = measure.Signature;
-            text.AppendLine(string.Join('\t', names[index], signature.Places, signature.Loops, Format(signature.RevisitShare), signature.StartPixels, Format(signature.FirstFight),
+            text.AppendLine(string.Join('\t', names[i], signature.Places, signature.Loops, Format(signature.RevisitShare), signature.StartPixels, Format(signature.FirstFight),
                 string.Join(' ', signature.HitPointsByFifth.Select(Format)), Format(measure.ChairsAtTables), Format(measure.CorpsesOnBlood), Format(measure.OfficeDecorInPassages),
                 Format(measure.HealthAgainstWalls), Format(measure.PickupPiles), Format(measure.HealthAfterFights), Format(measure.RoomProportion), Format(measure.FightGap),
                 measure.RepeatedRooms, Format(measure.CannonWalk), Format(signature.GatedShare), Format(signature.KeyToGate), Format(signature.KeyWalk),
@@ -705,11 +706,12 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         text.AppendLine();
         text.AppendLine("| level | commonest building | basement share | commonest gate | hit points | line | spawned share | floor (px²) | secret closets | health | armor | ammo | cash | weapons | end money | commonest donor |");
         text.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
-        for (int index = 1; index < model.LevelCount; index++)
+        
+        for (int i = 1; i < model.LevelCount; i++)
         {
-            var briefs = plans.Select(plan => plan[index]).ToArray();
-            text.AppendLine($"| {index + 1} | {briefs.CountBy(brief => brief.Building).MaxBy(pair => pair.Value).Key} | {Format(briefs.Count(brief => brief.WallSet == WallSet.Basement) / (float)briefs.Length)} | {briefs.CountBy(brief => brief.GateStyle).MaxBy(pair => pair.Value).Key} | "
-                            + $"{Format(Median(briefs.Select(brief => brief.HitPoints)))} | {Format((int)MathF.Exp(model.HitPoints.Value.Evaluate(index + 1)))} | {Format(Median(briefs.Select(brief => brief.SpawnedShare)))} | "
+            var briefs = plans.Select(plan => plan[i]).ToArray();
+            text.AppendLine($"| {i + 1} | {briefs.CountBy(brief => brief.Building).MaxBy(pair => pair.Value).Key} | {Format(briefs.Count(brief => brief.WallSet == WallSet.Basement) / (float)briefs.Length)} | {briefs.CountBy(brief => brief.GateStyle).MaxBy(pair => pair.Value).Key} | "
+                            + $"{Format(Median(briefs.Select(brief => brief.HitPoints)))} | {Format((int)MathF.Exp(model.HitPoints.Value.Evaluate(i + 1)))} | {Format(Median(briefs.Select(brief => brief.SpawnedShare)))} | "
                             + $"{Format(Median(briefs.Select(brief => brief.FloorPixels)))} | {Format(Median(briefs.Select(brief => brief.SecretClosets)))} | {Format(Median(briefs.Select(brief => CountOf(brief, ItemCategory.Health))))} | "
                             + $"{Format(Median(briefs.Select(brief => CountOf(brief, ItemCategory.Armor))))} | {Format(Median(briefs.Select(brief => CountOf(brief, ItemCategory.Ammo))))} | "
                             + $"{Format(Median(briefs.Select(brief => CountOf(brief, ItemCategory.Money) * model.CashValue)))} | {Format(Median(briefs.Select(brief => brief.Weapons.Count)))} | "

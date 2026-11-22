@@ -325,16 +325,16 @@ internal sealed class PlaceSegmenter
         foreach (var line in lines)
         {
             int[] positions = line.Select(k => k.Axis == 'u' ? k.B : k.A).Order().ToArray();
-            for (int index = 1; index < positions.Length; index++)
+            for (int i = 1; i < positions.Length; i++)
             {
-                int gap = positions[index] - positions[index - 1] - 1;
+                int gap = positions[i] - positions[i - 1] - 1;
                 if (gap < 1 || gap > maxOpeningCells)
                 {
                     continue;
                 }
 
                 var keys = new List<EdgeKey>(gap);
-                for (int p = positions[index - 1] + 1; p < positions[index]; p++)
+                for (int p = positions[i - 1] + 1; p < positions[i]; p++)
                 {
                     keys.Add(line.Key.Axis == 'u' ? new EdgeKey('u', line.Key.Line, p) : new EdgeKey('v', p, line.Key.Line));
                 }
@@ -353,9 +353,9 @@ internal sealed class PlaceSegmenter
         HashSet<EdgeKey> openings)
     {
         int count = places.Count;
-        for (int index = 0; index < count; index++)
+        for (int i = 0; i < count; i++)
         {
-            var region = places[index].ToHashSet();
+            var region = places[i].ToHashSet();
             var doors = edges.Where(pair => pair.Value is EdgeKind.Door or EdgeKind.Doorway or EdgeKind.ShutDoor && region.Contains(pair.Key.Cells.First) && region.Contains(pair.Key.Cells.Second))
                 .Select(pair => pair.Key).ToArray();
             if (doors.Length == 0)
@@ -406,10 +406,10 @@ internal sealed class PlaceSegmenter
             for (int finalIndex = 0; finalIndex < final.Length; finalIndex++)
             {
                 var cells = region.Where(cell => Find(pieceOf[cell]) == final[finalIndex]).ToList();
-                int target = finalIndex == 0 ? index : places.Count;
+                int target = finalIndex == 0 ? i : places.Count;
                 if (finalIndex == 0)
                 {
-                    places[index] = cells;
+                    places[i] = cells;
                 }
                 else
                 {
@@ -444,10 +444,10 @@ internal sealed class PlaceSegmenter
         int minRoomCells, int minCorridorCells)
     {
         int count = places.Count;
-        for (int index = 0; index < count; index++)
+        for (int i = 0; i < count; i++)
         {
             var pieces = new List<List<Cell>>();
-            var queue = new Queue<List<Cell>>([places[index]]);
+            var queue = new Queue<List<Cell>>([places[i]]);
             while (queue.Count > 0)
             {
                 var region = queue.Dequeue();
@@ -477,7 +477,7 @@ internal sealed class PlaceSegmenter
                 continue;
             }
 
-            places[index] = pieces[0];
+            places[i] = pieces[0];
             places.AddRange(pieces.Skip(1));
             var pieceOf = new Dictionary<Cell, int>();
             for (int pieceIndex = 0; pieceIndex < pieces.Count; pieceIndex++)
@@ -485,7 +485,7 @@ internal sealed class PlaceSegmenter
                 foreach (var cell in pieces[pieceIndex])
                 {
                     pieceOf[cell] = pieceIndex;
-                    placeOf[cell] = pieceIndex == 0 ? index : places.Count - pieces.Count + pieceIndex;
+                    placeOf[cell] = pieceIndex == 0 ? i : places.Count - pieces.Count + pieceIndex;
                 }
             }
 
@@ -516,11 +516,11 @@ internal sealed class PlaceSegmenter
         }
 
         var labelOf = new Dictionary<Cell, int>();
-        for (int index = 0; index < pieces.Count; index++)
+        for (int i = 0; i < pieces.Count; i++)
         {
-            foreach (var cell in pieces[index])
+            foreach (var cell in pieces[i])
             {
-                labelOf[cell] = index;
+                labelOf[cell] = i;
             }
         }
 
@@ -823,9 +823,9 @@ internal sealed class PlaceSegmenter
     // Drop the strips of each room's outline that are too narrow for a square of outline cells and fill its bites and unwalled holes that are as narrow
     private static void SmoothOutlines(List<List<Cell>> places, Dictionary<Cell, int> placeOf, HashSet<Cell> floor, Dictionary<EdgeKey, EdgeKind> edges)
     {
-        for (int index = 0; index < places.Count; index++)
+        for (int i = 0; i < places.Count; i++)
         {
-            var place = places[index].ToHashSet();
+            var place = places[i].ToHashSet();
             var covered = new HashSet<Cell>();
             foreach (var cell in place)
             {
@@ -839,7 +839,7 @@ internal sealed class PlaceSegmenter
             foreach (var strip in GetComponents(strips, edges))
             {
                 var rest = place.Where(cell => !strip.Contains(cell)).ToHashSet();
-                if (rest.Count == 0 || rest.Flood([rest.First()], _ => false).Count < rest.Count || strip.Any(cell => IsPassage(cell, index, placeOf, edges)))
+                if (rest.Count == 0 || rest.Flood([rest.First()], _ => false).Count < rest.Count || strip.Any(cell => IsPassage(cell, i, placeOf, edges)))
                 {
                     continue;
                 }
@@ -860,7 +860,7 @@ internal sealed class PlaceSegmenter
             var outside = GetOutside(place);
             foreach (var bite in GetComponents(bites, []))
             {
-                if (bite.Any(cell => GetRing(cell).Any(neighbor => placeOf.TryGetValue(neighbor, out int other) && other != index))
+                if (bite.Any(cell => GetRing(cell).Any(neighbor => placeOf.TryGetValue(neighbor, out int other) && other != i))
                     || (!bite.Overlaps(outside) && bite.Any(cell => IsWalled(cell, edges))))
                 {
                     continue;
@@ -869,18 +869,18 @@ internal sealed class PlaceSegmenter
                 place.UnionWith(bite);
                 foreach (var cell in bite)
                 {
-                    placeOf[cell] = index;
+                    placeOf[cell] = i;
                     floor.Add(cell);
                 }
             }
 
             int alignments = 0;
-            while (alignments < MaxStepAlignments && AlignStep(place, index, placeOf, floor, edges))
+            while (alignments < MaxStepAlignments && AlignStep(place, i, placeOf, floor, edges))
             {
                 alignments++;
             }
 
-            places[index] = place.ToList();
+            places[i] = place.ToList();
         }
     }
 
@@ -1125,13 +1125,13 @@ internal sealed class PlaceSegmenter
     private static Dictionary<int, HashSet<int>> FindPlaceLinks(List<List<Cell>> places, Dictionary<Cell, int> placeOf, Dictionary<EdgeKey, EdgeKind> edges)
     {
         var links = Enumerable.Range(0, places.Count).ToDictionary(index => index, _ => new HashSet<int>());
-        foreach ((var cell, int index) in placeOf)
+        foreach ((var cell, int i) in placeOf)
         {
             foreach (var (neighbor, edge) in EdgeKey.GetNeighbors(cell))
             {
-                if (placeOf.TryGetValue(neighbor, out int other) && other != index && !(edges.TryGetValue(edge, out var kind) && kind.BlocksWalking))
+                if (placeOf.TryGetValue(neighbor, out int other) && other != i && !(edges.TryGetValue(edge, out var kind) && kind.BlocksWalking))
                 {
-                    links[index].Add(other);
+                    links[i].Add(other);
                 }
             }
         }
@@ -1190,11 +1190,11 @@ internal sealed class PlaceSegmenter
         var kept = places.Where(place => place.Count > 0).ToList();
         places.Clear();
         places.AddRange(kept);
-        for (int index = 0; index < places.Count; index++)
+        for (int i = 0; i < places.Count; i++)
         {
-            foreach (var cell in places[index])
+            foreach (var cell in places[i])
             {
-                placeOf[cell] = index;
+                placeOf[cell] = i;
             }
         }
     }
@@ -1206,19 +1206,19 @@ internal sealed class PlaceSegmenter
         while (merged)
         {
             merged = false;
-            foreach (int index in Enumerable.Range(0, places.Count).Where(IsSmall).OrderBy(placeIndex => places[placeIndex].Count).ToArray())
+            foreach (int i in Enumerable.Range(0, places.Count).Where(IsSmall).OrderBy(placeIndex => places[placeIndex].Count).ToArray())
             {
-                if (!IsSmall(index))
+                if (!IsSmall(i))
                 {
                     continue;
                 }
 
                 var shared = new Dictionary<int, int>();
-                foreach (var cell in places[index])
+                foreach (var cell in places[i])
                 {
                     foreach (var (n, k) in EdgeKey.GetNeighbors(cell))
                     {
-                        if ((openings.Contains(k) || (edges.TryGetValue(k, out var kind) && kind == EdgeKind.FenceFrame)) && placeOf.TryGetValue(n, out int other) && other != index)
+                        if ((openings.Contains(k) || (edges.TryGetValue(k, out var kind) && kind == EdgeKind.FenceFrame)) && placeOf.TryGetValue(n, out int other) && other != i)
                         {
                             shared[other] = shared.GetValueOrDefault(other) + 1;
                         }
@@ -1231,7 +1231,7 @@ internal sealed class PlaceSegmenter
                 }
 
                 int target = shared.MaxBy(kv => kv.Value).Key;
-                foreach (var cell in places[index])
+                foreach (var cell in places[i])
                 {
                     placeOf[cell] = target;
                     foreach (var (n, k) in EdgeKey.GetNeighbors(cell))
@@ -1243,8 +1243,8 @@ internal sealed class PlaceSegmenter
                     }
                 }
 
-                places[target].AddRange(places[index]);
-                places[index].Clear();
+                places[target].AddRange(places[i]);
+                places[i].Clear();
                 merged = true;
             }
         }
@@ -1252,11 +1252,11 @@ internal sealed class PlaceSegmenter
         var kept = places.Where(p => p.Count > 0).ToList();
         places.Clear();
         places.AddRange(kept);
-        for (int index = 0; index < places.Count; index++)
+        for (int i = 0; i < places.Count; i++)
         {
-            foreach (var cell in places[index])
+            foreach (var cell in places[i])
             {
-                placeOf[cell] = index;
+                placeOf[cell] = i;
             }
         }
 

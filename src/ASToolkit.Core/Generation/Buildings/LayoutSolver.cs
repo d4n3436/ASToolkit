@@ -164,9 +164,9 @@ internal sealed class LayoutSolver<T>
         bool placed = _problem.Hints.TryGetValue(room, out var hint);
         int unturned = Array.FindIndex(variants, variant => variant.Turn == ShapeTurn.Identity);
         int hinted = placed && unturned >= 0 ? unturned : _random.Next(choices.Length);
-        for (int index = 0; index < choices.Length; index++)
+        for (int i = 0; i < choices.Length; i++)
         {
-            _hints.Add((choices[index], index == hinted));
+            _hints.Add((choices[i], i == hinted));
         }
 
         var u = isPinned ? _model.NewConstant(0) : _model.NewIntVar(-Reach, Reach, "");
@@ -297,12 +297,12 @@ internal sealed class LayoutSolver<T>
         foreach ((var node, var sides, bool flip) in new[] { (a, sidesOfA, false), (b, sidesOfB, true) })
         {
             var options = new List<ILiteral>();
-            for (int index = 0; index < node.Variants.Length; index++)
+            for (int i = 0; i < node.Variants.Length; i++)
             {
-                foreach (var line in node.Variants[index].Lines.Where(line => sides == DoorSides.None || (sides & SideOf(line.OwnFacing)) != 0))
+                foreach (var line in node.Variants[i].Lines.Where(line => sides == DoorSides.None || (sides & SideOf(line.OwnFacing)) != 0))
                 {
                     var option = _model.NewBoolVar("");
-                    _model.AddImplication(option, node.Choices[index]);
+                    _model.AddImplication(option, node.Choices[i]);
                     // Fix the door's wall line and slide its start from Low to High along the line
                     var (fixedAt, origin, along, alongOrigin) = line.Facing < 2 ? (u, node.U, v, node.V) : (v, node.V, u, node.U);
                     _model.Add(fixedAt == origin + line.At).OnlyEnforceIf(option);
@@ -316,9 +316,9 @@ internal sealed class LayoutSolver<T>
 
             _model.AddExactlyOne(options);
             int hinted = _random.Next(options.Count);
-            for (int index = 0; index < options.Count; index++)
+            for (int i = 0; i < options.Count; i++)
             {
-                _hints.Add(((BoolVar)options[index], index == hinted));
+                _hints.Add(((BoolVar)options[i], i == hinted));
             }
         }
     }

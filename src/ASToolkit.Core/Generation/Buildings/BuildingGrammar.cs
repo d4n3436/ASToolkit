@@ -368,28 +368,28 @@ internal abstract partial class BuildingGrammar
         Draft.WingPods.Clear();
         int[] order = Enumerable.Range(0, pods.Length).OrderByDescending(plan.Locked.Contains).ToArray();
         var done = new HashSet<int>();
-        foreach (int index in order)
+        foreach (int i in order)
         {
-            done.Add(index);
-            int size = pods[index].Rooms;
-            int phase = plan.Locked.Contains(index) ? lockedPhase : openPhase;
-            bool jams = index == plan.JammedAt;
+            done.Add(i);
+            int size = pods[i].Rooms;
+            int phase = plan.Locked.Contains(i) ? lockedPhase : openPhase;
+            bool jams = i == plan.JammedAt;
             var pod = new List<int>();
             // Shrink a ring that finds no layout to a clump, and retry a failed clump once at half its rooms
-            for (; size >= 1 && pod.Count == 0; size = pods[index].IsRing ? size > 3 ? size - 1 : 0 : size > 1 && size == pods[index].Rooms ? size / 2 : 0)
+            for (; size >= 1 && pod.Count == 0; size = pods[i].IsRing ? size > 3 ? size - 1 : 0 : size > 1 && size == pods[i].Rooms ? size / 2 : 0)
             {
-                pod = LayOfficePod(hub, pods[index].Side, size, pods[index].IsRing && size >= 3, phase, packed, jams, index == keyAt);
+                pod = LayOfficePod(hub, pods[i].Side, size, pods[i].IsRing && size >= 3, phase, packed, jams, i == keyAt);
             }
 
-            for (size = 3; pod.Count == 0 && pods[index].IsRing && size >= 1; size -= 2)
+            for (size = 3; pod.Count == 0 && pods[i].IsRing && size >= 1; size -= 2)
             {
-                pod = LayOfficePod(hub, pods[index].Side, size, false, phase, packed, false, index == keyAt);
+                pod = LayOfficePod(hub, pods[i].Side, size, false, phase, packed, false, i == keyAt);
             }
 
             Count(pod.Count == 0 ? BuildingTally.OfficePodUnplaced : BuildingTally.OfficePod);
-            Count(pods[index].IsRing ? BuildingTally.OfficeRingAsked : BuildingTally.OfficeClumpAsked, pods[index].Rooms);
-            Count(pods[index].IsRing ? BuildingTally.OfficeRingBuilt : BuildingTally.OfficeClumpBuilt, pod.Count);
-            if (index == keyAt && pod.Count > 0)
+            Count(pods[i].IsRing ? BuildingTally.OfficeRingAsked : BuildingTally.OfficeClumpAsked, pods[i].Rooms);
+            Count(pods[i].IsRing ? BuildingTally.OfficeRingBuilt : BuildingTally.OfficeClumpBuilt, pod.Count);
+            if (i == keyAt && pod.Count > 0)
             {
                 key = pod[^1];
             }
@@ -398,10 +398,10 @@ internal abstract partial class BuildingGrammar
             Draft.WingPods.UnionWith(pod);
             if (pod.Count > 0)
             {
-                laid.Add((index, pod));
+                laid.Add((i, pod));
             }
 
-            int spill = pods[index].Rooms - pod.Count;
+            int spill = pods[i].Rooms - pod.Count;
             int next = order.Where(other => !done.Contains(other) && !pods[other].IsRing && pods[other].Rooms < 6).DefaultIfEmpty(-1).First();
             if (spill > 0 && next >= 0)
             {
@@ -468,9 +468,9 @@ internal abstract partial class BuildingGrammar
             .Select(pod => new OfficePod(pod.Side, pod.IsRing, Math.Clamp(GrammarRandom.Round(rooms * (pod.IsRing ? 3.0f : 1.5f) / weights), pod.IsRing ? 3 : 1, pod.IsRing ? RingMaxRooms : 6)))
             .ToArray();
 
-        for (int index = 0, missing = rooms - pods.Sum(pod => pod.Rooms); missing > 0 && index < pods.Length * 6; index++)
+        for (int i = 0, missing = rooms - pods.Sum(pod => pod.Rooms); missing > 0 && i < pods.Length * 6; i++)
         {
-            int at = index % pods.Length;
+            int at = i % pods.Length;
             if (!pods[at].IsRing && pods[at].Rooms < 6)
             {
                 pods[at] = pods[at] with { Rooms = pods[at].Rooms + 1 };
@@ -524,10 +524,10 @@ internal abstract partial class BuildingGrammar
                 wing.SetSides(WingSolver.Anchor, end, side, null);
             }
 
-            for (int index = 0; index + 1 < ids.Count; index++)
+            for (int i = 0; i + 1 < ids.Count; i++)
             {
-                wing.Join(ids[index], ids[index + 1], JoinVia.Door, JoinMark.Junction);
-                wing.MayTouch(ids[index], ids[index + 1]);
+                wing.Join(ids[i], ids[i + 1], JoinVia.Door, JoinMark.Junction);
+                wing.MayTouch(ids[i], ids[i + 1]);
             }
 
             var map = wing.Lay(hub, [EndStrip(hub)], rooms <= 3 ? 3 : 1);
@@ -556,13 +556,13 @@ internal abstract partial class BuildingGrammar
                 var wing = new GraphWing(this);
                 var ids = new List<int> { WingSolver.Anchor };
                 var hosts = new List<int>();
-                for (int index = 0; index < rooms; index++)
+                for (int i = 0; i < rooms; i++)
                 {
                     // Open the clump from a big room, end it in a small one, and join the breaker to the deepest room
-                    int room = AddOffice(wing, index == 0 ? BigOfficeRooms : index == rooms - 1 && rooms >= 3 ? SmallRooms : OfficeRooms);
-                    int host = index == 0 ? WingSolver.Anchor : isKey && index == rooms - 1 ? ids[^1] : ids[Random.Range(Math.Max(1, ids.Count - 2), ids.Count)];
-                    wing.Join(host, room, index == 0 ? via : JoinVia.Door, index == 0 ? hallMark : JoinMark.Junction);
-                    if (index == 0)
+                    int room = AddOffice(wing, i == 0 ? BigOfficeRooms : i == rooms - 1 && rooms >= 3 ? SmallRooms : OfficeRooms);
+                    int host = i == 0 ? WingSolver.Anchor : isKey && i == rooms - 1 ? ids[^1] : ids[Random.Range(Math.Max(1, ids.Count - 2), ids.Count)];
+                    wing.Join(host, room, i == 0 ? via : JoinVia.Door, i == 0 ? hallMark : JoinMark.Junction);
+                    if (i == 0)
                     {
                         wing.SetSides(host, room, side, null);
                     }
@@ -570,7 +570,7 @@ internal abstract partial class BuildingGrammar
                     {
                         wing.Snug(host, room);
                         // Fold the clump by having each room past the second, other than the breaker, also touch the one of the last two rooms that isn't its host
-                        int? fold = folds && index >= 2 && index < rooms - 1 ? host == ids[^1] ? ids[^2] : ids[^1] : null;
+                        int? fold = folds && i >= 2 && i < rooms - 1 ? host == ids[^1] ? ids[^2] : ids[^1] : null;
                         if (fold is not null)
                         {
                             wing.Touch(fold.Value, room);

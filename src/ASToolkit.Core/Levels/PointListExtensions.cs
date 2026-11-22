@@ -22,9 +22,9 @@ public static class PointListExtensions
             {
                 var group = new List<PointF> { left[^1] };
                 left.RemoveAt(left.Count - 1);
-                for (int index = 0; index < group.Count; index++)
+                for (int i = 0; i < group.Count; i++)
                 {
-                    var point = group[index];
+                    var point = group[i];
                     for (int other = left.Count - 1; other >= 0; other--)
                     {
                         float dx = left[other].X - point.X;

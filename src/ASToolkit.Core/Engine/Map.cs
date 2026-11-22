@@ -936,7 +936,7 @@ public sealed partial class Map : IDisposable
         int slot = (int)state;
         var child = Definitions.Find((KnownObject)Math.Abs(definition.Children[slot]));
         int count = Math.Abs(definition.ChildCounts[slot]);
-        int index = 0;
+        int i = 0;
 
         if (child is null || child.NotCreatedAsChild != 0)
             return;
@@ -947,7 +947,7 @@ public sealed partial class Map : IDisposable
         {
             if (sprite.IsAwaitingSecondPulse)
             {
-                index = 1;
+                i = 1;
                 sprite.HasPlayedStateSound = false;
             }
             else
@@ -958,7 +958,7 @@ public sealed partial class Map : IDisposable
             sprite.IsAwaitingSecondPulse = !sprite.IsAwaitingSecondPulse;
         }
 
-        for (; index < count; index++)
+        for (; i < count; i++)
         {
             float childX = definition.Object.ChildX[slot];
             float childY = definition.Object.ChildY[slot];
@@ -991,12 +991,12 @@ public sealed partial class Map : IDisposable
                 lateral = new Vector2(-(offsetDirection.Cosine * spreadX), -(offsetDirection.ProjectedSine * spreadX));
                 shift = new Vector2(offsetDirection.Sine * spreadY + lateral.X, lateral.Y - offsetDirection.ProjectedCosine * spreadY);
             }
-            else if (index == 1)
+            else if (i == 1)
             {
                 lateral = new Vector2(-(offsetDirection.Cosine * childX), -(offsetDirection.ProjectedSine * childX));
                 shift = new Vector2(offsetDirection.Sine * childY + lateral.X, lateral.Y - offsetDirection.ProjectedCosine * childY);
             }
-            else if (index == 2)
+            else if (i == 2)
             {
                 lateral = Vector2.Zero;
                 shift = new Vector2(offsetDirection.Sine * childY, offsetDirection.ProjectedCosine * childY);
@@ -1421,9 +1421,9 @@ public sealed partial class Map : IDisposable
         for (int layer = 0; layer < UpdateOrder.LayerCount; layer++)
         {
             var list = _updates.GetLayer(layer);
-            for (int index = list.Count - 1; index >= 0; index--)
+            for (int i = list.Count - 1; i >= 0; i--)
             {
-                var sprite = list[index];
+                var sprite = list[i];
 
                 if (sprite is not null)
                 {
@@ -1457,7 +1457,7 @@ public sealed partial class Map : IDisposable
 
         _scriptFiles.Clear();
         Script.Reset();
-        // TODO: Port the trains; the release sets the global table of script function indices (DAT_00490628, read only by the Engine class) back to 1000000 + i, and the loader fills it by name
+        // TODO: Port the trains; the release sets the global table of script function indexes (DAT_00490628, read only by the Engine class) back to 1000000 + i, and the loader fills it by name
         _updates = new UpdateOrder();
         _bodies.Clear();
         _removed.Clear();

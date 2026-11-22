@@ -102,12 +102,12 @@ internal sealed class MessageWindow
 
         int index = (int)((double)clicked.Position.Y - clicked.Position.Z - _map.Camera.Y - _map.Session.View.Top) / lineHeight + 1;
 
-        if (index < 0 || index > _count)
+        if (i < 0 || i > _count)
             return;
 
-        if (_targets[index] != NoTarget)
+        if (_targets[i] != NoTarget)
         {
-            _map.SetPosition(_targets[index], CameraMove.Smooth);
+            _map.SetPosition(_targets[i], CameraMove.Smooth);
         }
     }
 
@@ -121,29 +121,29 @@ internal sealed class MessageWindow
         int lineHeight = GetLineHeight();
         Remove(_lines, 1);
         Remove(_markers, 1);
-        for (int index = 2; index <= _count; index++)
+        for (int i = 2; i <= _count; i++)
         {
-            var marker = _markers[index];
+            var marker = _markers[i];
 
             if (marker is null)
                 continue;
 
             MoveOneLine(marker, lineHeight);
-            _markers[index - 1] = marker;
-            _targets[index - 1] = _targets[index];
-            _markers[index] = null;
+            _markers[i - 1] = marker;
+            _targets[i - 1] = _targets[i];
+            _markers[i] = null;
         }
 
-        for (int index = 2; index <= _count; index++)
+        for (int i = 2; i <= _count; i++)
         {
-            var line = _lines[index];
+            var line = _lines[i];
 
             if (line is null)
                 continue;
 
             MoveOneLine(line, lineHeight);
-            _lines[index - 1] = line;
-            _lines[index] = null;
+            _lines[i - 1] = line;
+            _lines[i] = null;
         }
     }
 

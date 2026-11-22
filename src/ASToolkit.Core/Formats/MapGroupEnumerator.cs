@@ -55,10 +55,10 @@ public ref struct MapGroupEnumerator
         }
 
         int[][] groups = new int[count][];
-        int index = 0;
+        int i = 0;
         foreach (var group in this)
         {
-            groups[index++] = group.ToArray();
+            groups[i++] = group.ToArray();
         }
 
         return groups;

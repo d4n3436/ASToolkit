@@ -144,24 +144,24 @@ internal sealed class PlayerBot
         _tour = analysis.Tour.Select(cell => lattice.GetCenter(cell).ToVector2()).ToArray();
         _tourTargets = (Vector2[])_tour.Clone();
         _tourProgress = new float[_tour.Length];
-        for (int index = 1; index < _tour.Length; index++)
+        for (int i = 1; i < _tour.Length; i++)
         {
-            _tourProgress[index] = _tourProgress[index - 1] + Vector2.Distance(_tour[index], _tour[index - 1]);
+            _tourProgress[i] = _tourProgress[i - 1] + Vector2.Distance(_tour[i], _tour[i - 1]);
         }
 
         float total = _tourProgress.Length > 0 ? Math.Max(1, _tourProgress[^1]) : 1;
-        for (int index = 0; index < _tourProgress.Length; index++)
+        for (int i = 0; i < _tourProgress.Length; i++)
         {
-            _tourProgress[index] /= total;
+            _tourProgress[i] /= total;
         }
 
-        for (int index = 0; index < _tour.Length; index++)
+        for (int i = 0; i < _tour.Length; i++)
         {
-            int free = _field.FindFree(_tour[index]);
+            int free = _field.FindFree(_tour[i]);
 
             if (free >= 0)
             {
-                _tour[index] = _field.GetCenter(free);
+                _tour[i] = _field.GetCenter(free);
             }
         }
     }
@@ -295,14 +295,14 @@ internal sealed class PlayerBot
         int best = _cursor;
         float bestDistance = _tour[_cursor].MeasureOctagonalDistance(player);
         float covered = 0;
-        for (int index = _cursor + 1; index < _tour.Length && covered <= RejoinWindow; index++)
+        for (int i = _cursor + 1; i < _tour.Length && covered <= RejoinWindow; i++)
         {
-            covered += Vector2.Distance(_tour[index], _tour[index - 1]);
-            float distance = _tour[index].MeasureOctagonalDistance(player);
+            covered += Vector2.Distance(_tour[i], _tour[i - 1]);
+            float distance = _tour[i].MeasureOctagonalDistance(player);
 
             if (distance < bestDistance)
             {
-                best = index;
+                best = i;
                 bestDistance = distance;
             }
         }
@@ -360,11 +360,11 @@ internal sealed class PlayerBot
         {
             var position = pickup.Position.AsVector2();
             int collected = -1;
-            for (int index = 0; index < _tour.Length; index++)
+            for (int i = 0; i < _tour.Length; i++)
             {
-                if (_tour[index].MeasureOctagonalDistance(position) < GetPickupReach(pickup.Id))
+                if (_tour[i].MeasureOctagonalDistance(position) < GetPickupReach(pickup.Id))
                 {
-                    collected = index;
+                    collected = i;
                 }
             }
 
@@ -756,19 +756,19 @@ internal sealed class PlayerBot
         if (PlanBreaker() || PlanDynamite())
             return true;
 
-        int index = _cursor;
-        while (index < _tourTargets.Length - 1 && _field.Find(_tourTargets[index]) < 0)
+        int i = _cursor;
+        while (i < _tourTargets.Length - 1 && _field.Find(_tourTargets[i]) < 0)
         {
-            index++;
+            i++;
         }
 
         // Rejoin the route at the reachable tour point with the shortest walking distance among the next stretch of the route, leaving the remaining points to the hunt
         int bestIndex = -1;
         int bestGoal = -1;
         float covered = 0;
-        for (int ahead = index; ahead < _tourTargets.Length && (bestIndex < 0 || covered <= RejoinWindow); ahead++)
+        for (int ahead = i; ahead < _tourTargets.Length && (bestIndex < 0 || covered <= RejoinWindow); ahead++)
         {
-            covered += ahead > index ? Vector2.Distance(_tourTargets[ahead], _tourTargets[ahead - 1]) : 0;
+            covered += ahead > i ? Vector2.Distance(_tourTargets[ahead], _tourTargets[ahead - 1]) : 0;
             int goal = _field.FindFree(_tourTargets[ahead], reachedOnly: true);
 
             if (goal < 0 || HasReached(_field.GetCenter(goal)))
@@ -1109,11 +1109,11 @@ internal sealed class PlayerBot
             }
         }
 
-        for (int index = 0; index < chain.Count; index++)
+        for (int i = 0; i < chain.Count; i++)
         {
             foreach (var body in _explosives)
             {
-                if (!chain.Contains(body) && Reaches(body, chain[index].Position.AsVector2(), chain[index].Definition.Half))
+                if (!chain.Contains(body) && Reaches(body, chain[i].Position.AsVector2(), chain[i].Definition.Half))
                 {
                     chain.Add(body);
                 }
@@ -1480,9 +1480,9 @@ internal sealed class PlayerBot
         int bestCell = -1;
         int bestSteps = (int)(DetourReach / _field.CellStep);
         var pickups = _pickups.Pickups;
-        for (int index = 0; index < pickups.Count; index++)
+        for (int i = 0; i < pickups.Count; i++)
         {
-            var pickup = pickups[index];
+            var pickup = pickups[i];
 
             if (_unreachablePickups.Contains(pickup))
                 continue;
@@ -1506,7 +1506,7 @@ internal sealed class PlayerBot
             if (steps > 0 && steps <= bestSteps && _field.GetCenter(cell).MeasureOctagonalDistance(pickup.Position.AsVector2()) < GetPickupReach(pickup.Id) * 2 &&
                 IsWanted(pickup.Id))
             {
-                best = index;
+                best = i;
                 bestCell = cell;
                 bestSteps = steps;
             }
@@ -1619,9 +1619,9 @@ internal sealed class PlayerBot
         {
             _path.Enqueue(_field.GetCenter(_floodCell));
         }
-        for (int index = _way.Count - 1; index >= 0; index--)
+        for (int i = _way.Count - 1; i >= 0; i--)
         {
-            _path.Enqueue(_way[index]);
+            _path.Enqueue(_way[i]);
         }
 
         var last = _field.GetCenter(goal);

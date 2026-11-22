@@ -105,12 +105,12 @@ public static class EdgeMapExtensions
         {
             var sides = WallSides.None;
             var neighbors = EdgeKey.GetNeighbors(cell);
-            for (int index = 0; index < 4; index++)
+            for (int i = 0; i < 4; i++)
             {
-                var (neighbor, edge) = neighbors[index];
+                var (neighbor, edge) = neighbors[i];
                 if (edges.TryGetValue(edge, out var kind) ? isWall(kind) : !isFloor(neighbor))
                 {
-                    sides |= NeighborSides[index];
+                    sides |= NeighborSides[i];
                 }
             }
 

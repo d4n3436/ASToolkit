@@ -291,9 +291,9 @@ public sealed class Playthrough
         items[FlashlightItem] = loadout.Items.GetValueOrDefault(KnownObject.Flashlight);
         items[RescueKitItem] = loadout.Items.GetValueOrDefault(KnownObject.Medkit);
         items[DroneItem] = loadout.Items.GetValueOrDefault(KnownObject.Drone);
-        for (int index = 0; index < items.Length; index++)
+        for (int i = 0; i < items.Length; i++)
         {
-            registry.Set("PlayerItem" + index, items[index].ToString(CultureInfo.InvariantCulture));
+            registry.Set("PlayerItem" + i, items[i].ToString(CultureInfo.InvariantCulture));
         }
     }
 

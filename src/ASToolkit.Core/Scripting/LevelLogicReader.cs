@@ -210,9 +210,9 @@ public static class LevelLogicReader
     private static List<(Vector3 Center, float Radius)> GetPlaces(ScriptContext context, IReadOnlyList<ScriptCondition> conditions,
         List<(string Name, int Value, Vector3 Position, float Radius)> variables)
     {
-        for (int index = conditions.Count - 1; index >= 0; index--)
+        for (int i = conditions.Count - 1; i >= 0; i--)
         {
-            var condition = conditions[index];
+            var condition = conditions[i];
             if (condition.Area is not null)
             {
                 var area = condition.Area.Value;
@@ -244,10 +244,10 @@ public static class LevelLogicReader
 
     private static (int Line, int Sub)? GetQuest(IReadOnlyList<ScriptCondition> conditions)
     {
-        for (int index = conditions.Count - 1; index >= 0; index--)
+        for (int i = conditions.Count - 1; i >= 0; i--)
         {
-            if (conditions[index].Quest is not null)
-                return conditions[index].Quest;
+            if (conditions[i].Quest is not null)
+                return conditions[i].Quest;
         }
 
         return null;

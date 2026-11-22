@@ -63,14 +63,14 @@ internal sealed class PickupTracker
             }
         }
 
-        for (int index = _pickups.Count - 1; index >= 0; index--)
+        for (int i = _pickups.Count - 1; i >= 0; i--)
         {
-            var pickup = _pickups[index];
+            var pickup = _pickups[i];
 
             if (_map.IsRemoved(pickup))
             {
                 _removed.Add(pickup);
-                _pickups.RemoveAt(index);
+                _pickups.RemoveAt(i);
                 continue;
             }
 

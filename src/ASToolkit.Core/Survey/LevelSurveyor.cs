@@ -131,9 +131,9 @@ public sealed class LevelSurveyor
                 continue;
             }
 
-            for (int index = 0; index < program.StackCount; index++)
+            for (int i = 0; i < program.StackCount; i++)
             {
-                AddBuilds(program.GetStack(index), builds);
+                AddBuilds(program.GetStack(i), builds);
             }
         }
 
@@ -1481,15 +1481,15 @@ public sealed class LevelSurveyor
         var groups = new List<List<T>>();
         var points = items.Select(getPosition).ToArray();
         var buckets = new Dictionary<Point, List<int>>();
-        for (int index = 0; index < points.Length; index++)
+        for (int i = 0; i < points.Length; i++)
         {
-            var key = new Point((int)MathF.Floor(points[index].X / reach), (int)MathF.Floor(points[index].Y / reach));
+            var key = new Point((int)MathF.Floor(points[i].X / reach), (int)MathF.Floor(points[i].Y / reach));
             if (!buckets.TryGetValue(key, out var bucket))
             {
                 buckets[key] = bucket = [];
             }
 
-            bucket.Add(index);
+            bucket.Add(i);
         }
 
         bool[] taken = new bool[points.Length];

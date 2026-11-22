@@ -516,9 +516,9 @@ public sealed class OutdoorLevelBuilder
             {
                 var cluster = new List<MergedMapSprite> { props[0] };
                 props.RemoveAt(0);
-                for (int index = 0; index < cluster.Count; index++)
+                for (int i = 0; i < cluster.Count; i++)
                 {
-                    var member = cluster[index];
+                    var member = cluster[i];
                     var near = props.Where(p => Distance(new PointF(p.Position.X, p.Position.Y), new PointF(member.Position.X, member.Position.Y)) < ClusterReach).ToArray();
                     cluster.AddRange(near);
                     props.RemoveAll(near.Contains);
@@ -556,18 +556,18 @@ public sealed class OutdoorLevelBuilder
         public void AddLamps()
         {
             int offset = Rng.Next(LampSpacing);
-            for (int index = offset; index < _posts.Count; index += LampSpacing)
+            for (int i = offset; i < _posts.Count; i += LampSpacing)
             {
-                Map.Add(KnownObject.StreetLamp, _posts[index].Position.X, _posts[index].Position.Y, 0, _posts[index].Direction);
+                Map.Add(KnownObject.StreetLamp, _posts[i].Position.X, _posts[i].Position.Y, 0, _posts[i].Direction);
             }
         }
 
         public void AddMoneyRow(UnitRect building, int count)
         {
             (float x, float y) = Lattice.ToWorld(building.U - 0.5f, building.V + 1);
-            for (int index = 0; index < count; index++)
+            for (int i = 0; i < count; i++)
             {
-                Map.Add(KnownObject.Money, x + 40 * index, y + 28 * index);
+                Map.Add(KnownObject.Money, x + 40 * i, y + 28 * i);
             }
         }
 

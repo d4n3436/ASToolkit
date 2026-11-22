@@ -34,9 +34,9 @@ internal sealed class InspectVidCommand : Command<InspectVidSettings>
             var histogram = new SortedDictionary<int, int>();
             foreach (var run in vid.GetRunFrame(settings.Frame))
             {
-                for (int index = 0; index < run.Count; index++)
+                for (int i = 0; i < run.Count; i++)
                 {
-                    int depth = (run.GetDepth(index) >> DepthShift) - DepthBias;
+                    int depth = (run.GetDepth(i) >> DepthShift) - DepthBias;
                     histogram[depth] = histogram.GetValueOrDefault(depth) + 1;
                 }
             }

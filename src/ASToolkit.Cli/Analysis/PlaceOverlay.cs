@@ -135,10 +135,10 @@ internal static class PlaceOverlay
         map.Image.Mutate(context =>
         {
             context.Fill(Color.Black.WithAlpha(0.8f), new RectangularPolygon(LegendMargin, LegendMargin, width, height));
-            for (int index = 0; index < rows.Count; index++)
+            for (int i = 0; i < rows.Count; i++)
             {
-                (var color, char shape, string text) = rows[index];
-                float top = LegendMargin + LegendMargin / 2 + index * LegendRow;
+                (var color, char shape, string text) = rows[i];
+                float top = LegendMargin + LegendMargin / 2 + i * LegendRow;
                 var middle = new PointF(LegendMargin * 2 + LegendSwatch / 2, top + LegendRow / 2);
                 switch (shape)
                 {

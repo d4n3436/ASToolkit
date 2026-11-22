@@ -234,12 +234,12 @@ internal sealed class PickupPlacer
             .DefaultIfEmpty(PointF.Empty)
             .ToArray();
 
-        for (int index = 0; index < heap.Length; index++)
+        for (int i = 0; i < heap.Length; i++)
         {
-            var offset = offsets[index % offsets.Length];
-            _ctx.Map.Add(heap[index], origin.X + offset.X, origin.Y + offset.Y, _ctx.GetRestingHeight(heap[index]), 0, unique: false);
-            _ctx.Occupancy.Add(heap[index], At(offset), _ctx.GetRestingHeight(heap[index]));
-            _ctx.ShadePickup(heap[index], origin.X + offset.X, origin.Y + offset.Y);
+            var offset = offsets[i % offsets.Length];
+            _ctx.Map.Add(heap[i], origin.X + offset.X, origin.Y + offset.Y, _ctx.GetRestingHeight(heap[i]), 0, unique: false);
+            _ctx.Occupancy.Add(heap[i], At(offset), _ctx.GetRestingHeight(heap[i]));
+            _ctx.ShadePickup(heap[i], origin.X + offset.X, origin.Y + offset.Y);
         }
 
         _ctx.Taken.Add(cell);
@@ -250,7 +250,7 @@ internal sealed class PickupPlacer
 
     private PointF? FindPileSpot(Cell cell)
     {
-        for (int index = 0; index < PileSpotTries; index++)
+        for (int i = 0; i < PileSpotTries; i++)
         {
             var point = _ctx.Layout.Lattice.ToWorld(cell.U + PileSpotStart + PileSpotSpread * _ctx.Rng.NextSingle(), cell.V + PileSpotStart + PileSpotSpread * _ctx.Rng.NextSingle());
             if (IsClearOfWalls(point.X, point.Y))

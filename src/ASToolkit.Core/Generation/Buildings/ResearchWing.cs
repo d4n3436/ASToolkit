@@ -190,9 +190,9 @@ internal sealed class ResearchWing
 
     private static int[] Cumulate(params int[] steps)
     {
-        for (int index = 1; index < steps.Length; index++)
+        for (int i = 1; i < steps.Length; i++)
         {
-            steps[index] += steps[index - 1];
+            steps[i] += steps[i - 1];
         }
 
         return steps;
@@ -404,11 +404,11 @@ internal sealed class ResearchWing
     private static Dictionary<Cell, int> Owners(List<ResearchPiece> pieces)
     {
         var owner = new Dictionary<Cell, int>();
-        for (int index = 0; index < pieces.Count; index++)
+        for (int i = 0; i < pieces.Count; i++)
         {
-            foreach (var cell in pieces[index].Cells)
+            foreach (var cell in pieces[i].Cells)
             {
-                owner[cell] = index;
+                owner[cell] = i;
             }
         }
 

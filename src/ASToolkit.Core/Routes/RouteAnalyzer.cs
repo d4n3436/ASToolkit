@@ -488,9 +488,9 @@ public static class RouteAnalyzer
         {
             var found = new List<Cell> { exit.Cell };
             var seen = new HashSet<Cell> { exit.Cell };
-            for (int index = 0; index < found.Count; index++)
+            for (int i = 0; i < found.Count; i++)
             {
-                foreach (var (neighbor, edge) in EdgeKey.GetNeighbors(found[index]))
+                foreach (var (neighbor, edge) in EdgeKey.GetNeighbors(found[i]))
                 {
                     (float x, float y) = _lattice.GetCenter(neighbor);
                     bool inRange = MathF.Sqrt((x - exit.X) * (x - exit.X) + (y - exit.Y) * (y - exit.Y)) <= exit.Reach;
@@ -624,13 +624,13 @@ public static class RouteAnalyzer
                 return (c, 0);
             }
 
-            for (int index = 1; index < 8; index++)
+            for (int i = 1; i < 8; i++)
             {
                 Cell? best = null;
                 float bestDistance = float.MaxValue;
-                for (int du = -index; du <= index; du++)
+                for (int du = -i; du <= i; du++)
                 {
-                    for (int dv = -index; dv <= index; dv++)
+                    for (int dv = -i; dv <= i; dv++)
                     {
                         var n = new Cell(c.U + du, c.V + dv);
                         if (!IsInPool(n))
@@ -809,17 +809,17 @@ public static class RouteAnalyzer
 
                 var points = new List<PointF> { new(element.X, element.Y) };
                 points.AddRange(element.Program.Waypoints.Select(w => new PointF(w.X, w.Y)));
-                for (int index = points.Count - 1; index >= 0; index--)
+                for (int i = points.Count - 1; i >= 0; i--)
                 {
-                    var (wc, _) = FindNearestReachableCell(points[index].X, points[index].Y);
+                    var (wc, _) = FindNearestReachableCell(points[i].X, points[i].Y);
                     if (wc is not null && _fromStart!.ContainsKey(wc.Value))
                     {
                         objectives.Add(new Objective
                         {
                             Kind = ObjectiveKind.Spawned,
                             Cell = wc.Value,
-                            X = MathF.Round(points[index].X),
-                            Y = MathF.Round(points[index].Y),
+                            X = MathF.Round(points[i].X),
+                            Y = MathF.Round(points[i].Y),
                             Points = points,
                             Need = trigger
                         });

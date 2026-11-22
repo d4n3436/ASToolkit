@@ -15,11 +15,11 @@ internal sealed class DoorLayout
         Targets = targets;
         KeyCount = keyCount;
         PhaseOf = new Dictionary<int, int>();
-        for (int index = 0; index < phases.Count; index++)
+        for (int i = 0; i < phases.Count; i++)
         {
-            foreach (int room in phases[index])
+            foreach (int room in phases[i])
             {
-                PhaseOf[room] = index;
+                PhaseOf[room] = i;
             }
         }
     }

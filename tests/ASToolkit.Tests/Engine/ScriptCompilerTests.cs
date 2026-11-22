@@ -28,10 +28,10 @@ public class ScriptCompilerTests
 
         Assert.Equal(demo.Body.Length, offset);
         Assert.Equal(compiled.VariableCount, recorded.VariableCount);
-        for (int index = 0; index < compiled.VariableCount; index++)
+        for (int i = 0; i < compiled.VariableCount; i++)
         {
-            var expected = recorded.GetSlot(index);
-            var actual = compiled.GetSlot(index);
+            var expected = recorded.GetSlot(i);
+            var actual = compiled.GetSlot(i);
             Assert.Equal(expected.Flags & CompiledFlags, actual.Flags & CompiledFlags);
             if ((expected.Flags & StackObjectFlags.Initialized) != 0)
             {
@@ -41,10 +41,10 @@ public class ScriptCompilerTests
         }
 
         Assert.Equal(recorded.Objects.Length, compiled.Objects.Length);
-        for (int index = 0; index < compiled.Objects.Length; index++)
+        for (int i = 0; i < compiled.Objects.Length; i++)
         {
-            var expected = recorded.Objects[index];
-            var actual = compiled.Objects[index];
+            var expected = recorded.Objects[i];
+            var actual = compiled.Objects[i];
             Assert.Equal(expected.Name.ToArray(), actual.Name.ToArray());
             Assert.Equal(expected.Kind, actual.Kind);
             Assert.Equal(expected.Address, actual.Address);

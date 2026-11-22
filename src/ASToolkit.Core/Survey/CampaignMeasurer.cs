@@ -31,9 +31,9 @@ public sealed class CampaignMeasurer
         var seenKinds = new HashSet<KnownObject>();
         var seenWeapons = new HashSet<KnownObject>();
         var measurements = new CampaignMeasurement[levels.Count];
-        for (int index = 0; index < levels.Count; index++)
+        for (int i = 0; i < levels.Count; i++)
         {
-            var survey = levels[index];
+            var survey = levels[i];
 
             var fights = survey.Encounters
                 .Where(encounter => encounter.HitPoints > 0)
@@ -64,9 +64,9 @@ public sealed class CampaignMeasurer
                 .Where(seenWeapons.Add)
                 .ToArray();
 
-            measurements[index] = new CampaignMeasurement
+            measurements[i] = new CampaignMeasurement
             {
-                Level = index + 1,
+                Level = i + 1,
                 Map = survey.Name,
                 FloorSet = survey.FloorSet,
                 GateStyle = survey.Style,
@@ -83,7 +83,7 @@ public sealed class CampaignMeasurer
                 Weapons = weapons,
                 NewWeapons = newWeapons,
                 NewWeaponsBeforeAmmo = newWeapons.Count(weapon => FindFirstRoute(survey, weapon) < FindFirstRoute(survey, weapon.WeaponAmmo!.Value)),
-                EndMoney = index + 1 < levels.Count && index + 1 < _endMoney.Count ? _endMoney[index + 1] : 0
+                EndMoney = i + 1 < levels.Count && i + 1 < _endMoney.Count ? _endMoney[i + 1] : 0
             };
         }
 

@@ -1422,28 +1422,28 @@ public sealed partial class Map : IScriptFunctionHost
     [EngineRoutine(0x0043dfe0)]
     private void DeleteAllMenuSprites()
     {
-        for (int first = 0; first < _menuSprites.Count; first++)
+        for (int i = 0; i < _menuSprites.Count; i++)
         {
-            for (int index = _menuSprites.Count - 1; first < index; index--)
+            for (int j = _menuSprites.Count - 1; i < j; j--)
             {
-                if (_menuSprites[first] != _menuSprites[index])
+                if (_menuSprites[i] != _menuSprites[j])
                     continue;
 
-                Release(_menuSprites[index]);
-                if (index < _menuSprites.Count)
+                Release(_menuSprites[j]);
+                if (j < _menuSprites.Count)
                 {
                     int last = _menuSprites.Count - 1;
-                    _menuSprites[index] = _menuSprites[last];
+                    _menuSprites[j] = _menuSprites[last];
                     _menuSprites.RemoveAt(last);
                 }
             }
         }
 
-        for (int index = _menuSprites.Count - 1; index >= 0; index--)
+        for (int i = _menuSprites.Count - 1; i >= 0; i--)
         {
-            if (index < _menuSprites.Count)
+            if (i < _menuSprites.Count)
             {
-                DeleteMenuSpriteAt(index);
+                DeleteMenuSpriteAt(i);
             }
         }
     }
@@ -1451,12 +1451,12 @@ public sealed partial class Map : IScriptFunctionHost
     [EngineRoutine(0x0043deb0)]
     private void RemoveMenuSprite(Sprite sprite)
     {
-        int index = _menuSprites.LastIndexOf(sprite);
-        if (index < 0)
+        int i = _menuSprites.LastIndexOf(sprite);
+        if (i < 0)
             return;
 
         int last = _menuSprites.Count - 1;
-        _menuSprites[index] = _menuSprites[last];
+        _menuSprites[i] = _menuSprites[last];
         _menuSprites.RemoveAt(last);
         Release(sprite);
     }

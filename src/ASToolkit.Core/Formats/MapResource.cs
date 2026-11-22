@@ -73,9 +73,9 @@ public readonly struct MapResource
 
     private IEnumerable<MapSprite> EnumerateSprites()
     {
-        for (int index = 0; index < (_rawSprites.Length - 4) / SpriteSize; index++)
+        for (int i = 0; i < (_rawSprites.Length - 4) / SpriteSize; i++)
         {
-            var rawSprite = _rawSprites.Slice(index * SpriteSize, SpriteSize);
+            var rawSprite = _rawSprites.Slice(i * SpriteSize, SpriteSize);
             yield return SpriteSize == Unsafe.SizeOf<MapSprite>()
                 ? MemoryMarshal.Read<MapSprite>(rawSprite.Span)
                 : new MapSprite(MemoryMarshal.Read<OldMapSprite>(rawSprite.Span), Header.Version < 10);

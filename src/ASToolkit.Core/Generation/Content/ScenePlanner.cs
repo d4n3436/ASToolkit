@@ -71,10 +71,10 @@ internal sealed class ScenePlanner
         var inLocked = Enumerable.Range(0, lockedSites).Select(index => (index + 1) * count / (lockedSites + 1)).ToHashSet();
         float[] targets = Enumerable.Range(0, count).Select(_ => economy.SitePositions.Value[_rng.Next(economy.SitePositions.Value.Count)]).Order().ToArray();
         var plan = new SitePlan([], []);
-        for (int index = 0; index < count; index++)
+        for (int i = 0; i < count; i++)
         {
-            var candidates = (inLocked.Contains(index) ? lockedRooms : rooms)
-                .OrderBy(room => Math.Abs(GetProgress(room) - targets[index]))
+            var candidates = (inLocked.Contains(i) ? lockedRooms : rooms)
+                .OrderBy(room => Math.Abs(GetProgress(room) - targets[i]))
                 .ThenBy(room => room.Id)
                 .ToArray();
 

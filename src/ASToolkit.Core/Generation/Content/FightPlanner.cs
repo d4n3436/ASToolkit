@@ -220,32 +220,32 @@ internal sealed class FightPlanner
     private int DrawVariant(KeyValuePair<KnownObject, float>[] variants, int[] counts, int size)
     {
         bool anyOpen = false;
-        for (int index = 0; index < variants.Length; index++)
+        for (int i = 0; i < variants.Length; i++)
         {
-            anyOpen |= counts[index] < _rule.MixedVariantMax * (size + 1);
+            anyOpen |= counts[i] < _rule.MixedVariantMax * (size + 1);
         }
 
         float sum = 0;
         int last = 0;
-        for (int index = 0; index < variants.Length; index++)
+        for (int i = 0; i < variants.Length; i++)
         {
-            if (anyOpen && !(counts[index] < _rule.MixedVariantMax * (size + 1)))
+            if (anyOpen && !(counts[i] < _rule.MixedVariantMax * (size + 1)))
                 continue;
             
-            sum += variants[index].Value;
-            last = index;
+            sum += variants[i].Value;
+            last = i;
         }
 
         float roll = _rng.NextSingle() * sum;
-        for (int index = 0; index < variants.Length; index++)
+        for (int i = 0; i < variants.Length; i++)
         {
-            if (anyOpen && !(counts[index] < _rule.MixedVariantMax * (size + 1)))
+            if (anyOpen && !(counts[i] < _rule.MixedVariantMax * (size + 1)))
                 continue;
             
-            roll -= variants[index].Value;
+            roll -= variants[i].Value;
             if (roll <= 0)
             {
-                return index;
+                return i;
             }
         }
 

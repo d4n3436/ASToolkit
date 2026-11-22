@@ -349,17 +349,17 @@ public static class StructureBuilder
         int i1 = (int)MathF.Floor((centers.Max(p => p.X) + 160) / 80);
         int j0 = (int)MathF.Floor((centers.Min(p => p.Y) - 112) / 56);
         int j1 = (int)MathF.Floor((centers.Max(p => p.Y) + 112) / 56);
-        for (int index = i0; index <= i1; index++)
+        for (int i = i0; i <= i1; i++)
         {
-            for (int innerIndex = j0; innerIndex <= j1; innerIndex++)
+            for (int j = j0; j <= j1; j++)
             {
-                if (((index + innerIndex) & 1) != 0)
+                if (((i + j) & 1) != 0)
                 {
                     continue;
                 }
 
-                float x = 80 * index;
-                float y = 56 * innerIndex;
+                float x = 80 * i;
+                float y = 56 * j;
                 if (near.ContainsKey(l.GetCell(x, y)))
                 {
                     map.Add(KnownObject.MilitaryBaseFloor, x, y, 0, rng.NextAngle());
@@ -439,19 +439,19 @@ public static class StructureBuilder
         {
             var sorted = line.OrderBy(GetLinePosition).ToArray();
             int runStart = 0;
-            for (int index = 1; index <= sorted.Length; index++)
+            for (int i = 1; i <= sorted.Length; i++)
             {
-                if (index < sorted.Length && GetLinePosition(sorted[index]) == GetLinePosition(sorted[index - 1]) + 1)
+                if (i < sorted.Length && GetLinePosition(sorted[i]) == GetLinePosition(sorted[i - 1]) + 1)
                 {
                     continue;
                 }
 
-                for (int pieceIndex = runStart; pieceIndex < index; pieceIndex += 2)
+                for (int pieceIndex = runStart; pieceIndex < i; pieceIndex += 2)
                 {
-                    yield return pieceIndex + 1 < index ? (sorted[pieceIndex + 1], true) : (sorted[pieceIndex], false);
+                    yield return pieceIndex + 1 < i ? (sorted[pieceIndex + 1], true) : (sorted[pieceIndex], false);
                 }
 
-                runStart = index;
+                runStart = i;
             }
         }
     }

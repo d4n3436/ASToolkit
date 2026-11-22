@@ -67,10 +67,10 @@ public class CampaignFitterIntegrationTests
 
         Assert.Equal(5, addOn.LevelCount);
         Assert.All(addOnPlans, levels => Assert.Equal(5, levels.Count));
-        for (int index = 1; index < addOn.LevelCount; index++)
+        for (int i = 1; i < addOn.LevelCount; i++)
         {
-            Assert.True(Median(addOnPlans, index, brief => brief.HitPoints) > Median(campaignPlans, index, brief => brief.HitPoints), $"hit points of level {index + 1}");
-            Assert.True(Median(addOnPlans, index - 1, brief => brief.EndMoney) > Median(campaignPlans, index - 1, brief => brief.EndMoney), $"end money of level {index}");
+            Assert.True(Median(addOnPlans, i, brief => brief.HitPoints) > Median(campaignPlans, i, brief => brief.HitPoints), $"hit points of level {i + 1}");
+            Assert.True(Median(addOnPlans, i - 1, brief => brief.EndMoney) > Median(campaignPlans, i - 1, brief => brief.EndMoney), $"end money of level {i}");
         }
     }
 

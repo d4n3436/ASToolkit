@@ -17,9 +17,9 @@ public class DemoReplayTests
         var samples = FixtureReader.Read<Sample[]>(fixture + ".json");
         var points = Replay(LoadDemo(fixture));
         var stateBeforeFrame = new Dictionary<int, Point>();
-        for (int index = 1; index < points.Count; index++)
+        for (int i = 1; i < points.Count; i++)
         {
-            stateBeforeFrame.Add(points[index].Time, points[index - 1]);
+            stateBeforeFrame.Add(points[i].Time, points[i - 1]);
         }
 
         int compared = 0;
@@ -53,9 +53,9 @@ public class DemoReplayTests
         }
 
         var stateBeforeFrame = new Dictionary<int, Point>();
-        for (int index = 1; index < points.Count; index++)
+        for (int i = 1; i < points.Count; i++)
         {
-            stateBeforeFrame.Add(points[index].Time, points[index - 1]);
+            stateBeforeFrame.Add(points[i].Time, points[i - 1]);
         }
 
         foreach (var sample in fixture.Samples)

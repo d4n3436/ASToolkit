@@ -57,7 +57,7 @@ public sealed record LevelTemplate
     public required string ScriptPath { get; init; }
 
     /// <summary>
-    /// Gets the indices of the stored sprites before which a recording shows the game redrawing its loading screen, where an index equal to the number of stored sprites marks a redraw after the last one.
+    /// Gets the indexes of the stored sprites before which a recording shows the game redrawing its loading screen, where an index equal to the number of stored sprites marks a redraw after the last one.
     /// </summary>
     public IReadOnlyList<int> LoadingScreenRecords { get; init; } = [];
 

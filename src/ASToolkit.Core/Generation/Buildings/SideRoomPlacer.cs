@@ -52,7 +52,7 @@ internal sealed class SideRoomPlacer
         foreach ((var kind, int count, float offHall) in (ReadOnlySpan<(GridKind, int, float)>)
                  [(GridKind.SecretCloset, _draft.Request.SecretClosets, SecretOffHall), (GridKind.SpawnCloset, spawnClosets, SpawnOffHall)])
         {
-            for (int index = 0; index < count; index++)
+            for (int i = 0; i < count; i++)
             {
                 int width = _draft.Random.Range(2, 4);
                 int height = _draft.Random.Range(2, 4);

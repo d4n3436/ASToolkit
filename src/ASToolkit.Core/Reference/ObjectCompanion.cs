@@ -38,10 +38,10 @@ public sealed class ObjectCompanion
 
         int nearest = Samples.Min(sample => GetTurn(sample.AnchorDirection, anchorDirection));
         var samples = Samples.Where(sample => GetTurn(sample.AnchorDirection, anchorDirection) == nearest).ToArray();
-        for (int index = 0; index < Math.Min(count, samples.Length); index++)
+        for (int i = 0; i < Math.Min(count, samples.Length); i++)
         {
-            int pick = rng.Next(index, samples.Length);
-            (samples[index], samples[pick]) = (samples[pick], samples[index]);
+            int pick = rng.Next(i, samples.Length);
+            (samples[i], samples[pick]) = (samples[pick], samples[i]);
         }
 
         return samples.Take(count).ToArray();

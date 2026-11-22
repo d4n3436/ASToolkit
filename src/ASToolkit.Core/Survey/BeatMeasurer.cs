@@ -144,22 +144,22 @@ public sealed class BeatMeasurer
 
     private LevelBeat Create(BeatKind kind, int place, int route, int hitPoints, int items)
     {
-        int index = _progression.GetPhase(place) ?? FindPhaseAt(route);
-        var phase = _progression.Phases[index];
-        (int start, int end) = _spans[index];
+        int i = _progression.GetPhase(place) ?? FindPhaseAt(route);
+        var phase = _progression.Phases[i];
+        (int start, int end) = _spans[i];
         float position = end > start ? Math.Clamp((route - start) / (float)(end - start), 0, 1) : 0;
         int depth = phase.Path.Contains(place) ? 0 : phase.Branches.Select(branch => branch.Depths.GetValueOrDefault(place)).DefaultIfEmpty(0).Max();
-        return new LevelBeat(kind, index, place, route, position, 0, hitPoints, items, depth);
+        return new LevelBeat(kind, i, place, route, position, 0, hitPoints, items, depth);
     }
 
     private int FindPhaseAt(int route)
     {
         int found = 0;
-        for (int index = 0; index < _spans.Length; index++)
+        for (int i = 0; i < _spans.Length; i++)
         {
-            if (_spans[index].Start <= route && _spans[index].End > _spans[index].Start)
+            if (_spans[i].Start <= route && _spans[i].End > _spans[i].Start)
             {
-                found = index;
+                found = i;
             }
         }
 

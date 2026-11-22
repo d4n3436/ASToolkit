@@ -382,9 +382,9 @@ internal sealed class RoomShaper
             {
                 int run = 0;
                 bool? value = null;
-                for (int index = 0; index <= length; index++)
+                for (int i = 0; i <= length; i++)
                 {
-                    bool? cell = index < length ? axis == 0 ? mask[index, line] : mask[line, index] : null;
+                    bool? cell = i < length ? axis == 0 ? mask[i, line] : mask[line, i] : null;
                     if (cell == value)
                     {
                         run++;

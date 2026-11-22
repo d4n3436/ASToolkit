@@ -129,12 +129,12 @@ public sealed class DoorGraph
 
         var blocks = FindBlocks();
         var tree = new Dictionary<(bool Block, int Id), List<(bool Block, int Id)>>();
-        for (int index = 0; index < blocks.Count; index++)
+        for (int i = 0; i < blocks.Count; i++)
         {
-            foreach (int room in blocks[index])
+            foreach (int room in blocks[i])
             {
-                Link((true, index), (false, room));
-                Link((false, room), (true, index));
+                Link((true, i), (false, room));
+                Link((false, room), (true, i));
             }
         }
 

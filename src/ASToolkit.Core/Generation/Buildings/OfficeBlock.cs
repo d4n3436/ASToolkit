@@ -65,27 +65,27 @@ internal sealed class OfficeBlock
         _run.Add(Add(OfficePart.Start, Block(2)));
         int count = _random.Inclusive(4, 6);
         int gate = _random.Next() < 0.7f ? _random.Inclusive(2, count - 1) : -1;
-        for (int index = 1; index <= count; index++)
+        for (int i = 1; i <= count; i++)
         {
-            _run.Add(index == gate
+            _run.Add(i == gate
                 ? Add(OfficePart.Gate, RoomShape.Rectangle(_random.Inclusive(5, 9), _random.Inclusive(7, 8)))
                 : Add(OfficePart.Run, _random.Next() < 0.25f ? Hall() : _random.Next() < 0.3f ? Ell(_random.Inclusive(120, 192)) : Box(_random.Inclusive(120, 208), 1.1f, 1.9f)));
         }
 
         _run.Add(Add(OfficePart.Breaker, Block(_random.Inclusive(2, 3))));
-        for (int index = _random.Inclusive(2, 3); index > 0; index--)
+        for (int i = _random.Inclusive(2, 3); i > 0; i--)
         {
             _after.Add(Add(OfficePart.Hall, Hall()));
         }
 
         _after.Add(Add(OfficePart.Big, Box(_random.Inclusive(256, 416), 1.2f, 1.8f)));
         _after.Add(Add(OfficePart.Big, Box(_random.Inclusive(256, 416), 1.2f, 1.8f)));
-        for (int index = _random.Inclusive(2, 3); index > 0; index--)
+        for (int i = _random.Inclusive(2, 3); i > 0; i--)
         {
             _after.Add(Add(OfficePart.Medium, _random.Next() < 0.5f ? Ell(_random.Inclusive(128, 192)) : Box(_random.Inclusive(120, 192), 1.1f, 1.9f)));
         }
 
-        for (int index = _random.Inclusive(1, 2); index > 0; index--)
+        for (int i = _random.Inclusive(1, 2); i > 0; i--)
         {
             _after.Add(Add(OfficePart.Host, Block(_random.Inclusive(2, 4))));
         }
@@ -94,24 +94,24 @@ internal sealed class OfficeBlock
         int area = _parts.Sum(part => part.Shape.Cells.Count);
         float down = MathF.Sqrt(2.0f * area / (BandFill * 0.98f));
         var problem = new LayoutProblem<int> { MinimumDistance = 2, MinContacts = 2, SavesPhases = true, Band = ((int)(0.98f * down), (int)down) };
-        for (int index = 0; index < _parts.Count; index++)
+        for (int i = 0; i < _parts.Count; i++)
         {
-            problem.AddRoom(index, [_parts[index].Shape]);
-            for (int other = index + 1; other < _parts.Count; other++)
+            problem.AddRoom(i, [_parts[i].Shape]);
+            for (int other = i + 1; other < _parts.Count; other++)
             {
-                problem.MayTouchPairs.Add((index, other));
+                problem.MayTouchPairs.Add((i, other));
             }
         }
 
-        for (int index = 0; index + 1 < _run.Count; index++)
+        for (int i = 0; i + 1 < _run.Count; i++)
         {
-            problem.Join(_run[index], _run[index + 1]);
+            problem.Join(_run[i], _run[i + 1]);
         }
 
         int[] order = _random.Shuffled(_after);
-        for (int index = 1; index < order.Length; index++)
+        for (int i = 1; i < order.Length; i++)
         {
-            problem.Join(order[index], order[_random.Range(0, index)]);
+            problem.Join(order[i], order[_random.Range(0, i)]);
         }
 
         // Open one run room onto them; the doors on every wall they share make their loops
@@ -227,19 +227,20 @@ internal sealed class OfficeBlock
         int[] hostOf = new int[_parts.Count];
         var rowOf = new List<int>[_parts.Count];
         var joined = problem.Joins.SelectMany(join => new[] { join, (join.B, join.A) }).ToLookup(join => join.Item1, join => join.Item2);
-        for (int index = 0; index < _parts.Count; index++)
+        for (int i = 0; i < _parts.Count; i++)
         {
-            (var part, _, int[] row, int depth) = _parts[index];
-            var cells = placed[index].Cells;
-            var others = placed.Values.Where(room => room.Room != index).SelectMany(room => room.Cells).ToHashSet();
-            var (host, offices) = row.Length == 0 ? (cells, []) : CutRow(cells, row, depth, others, joined[index].Select(other => placed[other].Cells).ToArray());
+            (var part, _, int[] row, int depth) = _parts[i];
+            var cells = placed[i].Cells;
+            var others = placed.Values.Where(room => room.Room != i).SelectMany(room => room.Cells).ToHashSet();
+            var (host, offices) = row.Length == 0 ? (cells, []) : CutRow(cells, row, depth, others, joined[i].Select(other => placed[other].Cells).ToArray());
             int phase = part switch
             {
                 OfficePart.Start => 0,
                 OfficePart.Run or OfficePart.Gate or OfficePart.Breaker => 1,
                 _ => 2
             };
-            hostOf[index] = rooms.Count;
+            
+            hostOf[i] = rooms.Count;
             rooms.Add(new OfficeRoom(host, part switch
             {
                 OfficePart.Start or OfficePart.Hall => RoomType.Hall,
@@ -247,7 +248,7 @@ internal sealed class OfficeBlock
                 _ => _random.Choice((RoomType[])[RoomType.Office, RoomType.Office, RoomType.Lab, RoomType.Storage])
             }, phase));
 
-            rowOf[index] = offices.Select(office =>
+            rowOf[i] = offices.Select(office =>
             {
                 rooms.Add(new OfficeRoom(office, _random.Choice((RoomType[])[RoomType.Office, RoomType.Office, RoomType.Depot]), phase));
                 return rooms.Count - 1;
@@ -274,9 +275,9 @@ internal sealed class OfficeBlock
         }
 
         run.Add(breaker);
-        for (int index = 0; index + 1 < run.Count; index++)
+        for (int i = 0; i + 1 < run.Count; i++)
         {
-            doors.Add(new RoomPair(run[index], run[index + 1]));
+            doors.Add(new RoomPair(run[i], run[i + 1]));
         }
 
         foreach (int office in rowOf[_run[0]])
@@ -286,9 +287,9 @@ internal sealed class OfficeBlock
 
         int suiteAt = _after[^1];
         var suite = rowOf[suiteAt].Prepend(hostOf[suiteAt]).ToList();
-        for (int index = 0; index + 1 < suite.Count; index++)
+        for (int i = 0; i + 1 < suite.Count; i++)
         {
-            doors.Add(new RoomPair(suite[index], suite[index + 1]));
+            doors.Add(new RoomPair(suite[i], suite[i + 1]));
         }
 
         foreach ((int a, int b) in problem.Joins.Where(join => _after.Contains(join.B) && (_after.Contains(join.A) || _run.Contains(join.A))))
@@ -487,11 +488,11 @@ internal sealed class OfficeBlock
     private static void FillPockets(List<OfficeRoom> rooms)
     {
         var owner = new Dictionary<Cell, int>();
-        for (int index = 0; index < rooms.Count; index++)
+        for (int i = 0; i < rooms.Count; i++)
         {
-            foreach (var cell in rooms[index].Cells)
+            foreach (var cell in rooms[i].Cells)
             {
-                owner[cell] = index;
+                owner[cell] = i;
             }
         }
 

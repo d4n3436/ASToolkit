@@ -137,7 +137,7 @@ internal sealed class SceneFurnisher
         {
             // Round the count at random to keep its expectation in rooms too small for one
             int count = (int)MathF.Floor(Draw(arrangement.PerHundredCells) * room.HalfCells / 100 + _rng.NextSingle()) - (arrangement == lead ? 1 : 0);
-            for (int index = 0; index < count && _anchors < target; index++)
+            for (int i = 0; i < count && _anchors < target; i++)
             {
                 _placedCounts[arrangement] = _placedCounts.GetValueOrDefault(arrangement) + (Place(arrangement, false) ? 1 : 0);
             }
@@ -148,13 +148,13 @@ internal sealed class SceneFurnisher
         int[] misses = new int[growing.Length];
         while (_anchors < target && rates.Any(rate => rate > 0))
         {
-            int index = _rng.NextWeighted(rates);
-            var arrangement = growing[index];
+            int i = _rng.NextWeighted(rates);
+            var arrangement = growing[i];
             bool landed = Place(arrangement, false);
             _placedCounts[arrangement] = _placedCounts.GetValueOrDefault(arrangement) + (landed ? 1 : 0);
-            misses[index] = landed ? 0 : misses[index] + 1;
+            misses[i] = landed ? 0 : misses[i] + 1;
             bool full = _placedCounts[arrangement] >= MathF.Ceiling(arrangement.MaxPerHundredCells * room.HalfCells / 100);
-            rates[index] = misses[index] < GrowTries && !full ? rates[index] : 0;
+            rates[i] = misses[i] < GrowTries && !full ? rates[i] : 0;
         }
 
         var cover = lead?.Kind is ArrangementKind.Far or ArrangementKind.Heap
@@ -185,9 +185,9 @@ internal sealed class SceneFurnisher
         {
             int count = (int)MathF.Floor(fixture.Shares.GetValueOrDefault(type) * farCells.Length + _rng.NextSingle());
             _rng.Shuffle(farCells);
-            for (int index = 0; index < farCells.Length && count > 0; index++)
+            for (int i = 0; i < farCells.Length && count > 0; i++)
             {
-                count -= Hang(fixture, farCells[index].Cell, farCells[index].Face, Along(farCells[index].Cell, farCells[index].Face) + 0.5f) ? 1 : 0;
+                count -= Hang(fixture, farCells[i].Cell, farCells[i].Face, Along(farCells[i].Cell, farCells[i].Face) + 0.5f) ? 1 : 0;
             }
         }
 
@@ -212,14 +212,14 @@ internal sealed class SceneFurnisher
     {
         foreach ((int face, var cells) in _room.Walls.Where(wall => (wall.Face & FarFaces) != 0).ToArray())
         {
-            for (int index = 0, bare = 0; index < cells.Length; index++)
+            for (int i = 0, bare = 0; i < cells.Length; i++)
             {
-                var center = new PointF(cells[index].U + 0.5f, cells[index].V + 0.5f);
+                var center = new PointF(cells[i].U + 0.5f, cells[i].V + 0.5f);
                 bare = _floor.Any(piece => MathF.Abs(piece.Point.X - center.X) <= 1.5f && MathF.Abs(piece.Point.Y - center.Y) <= 1.5f) ? 0 : bare + 1;
                 if (bare != BareWallCells)
                     continue;
 
-                var stretch = cells[(index + 1 - BareWallCells)..(index + 1)];
+                var stretch = cells[(i + 1 - BareWallCells)..(i + 1)];
                 if (cover.Kind == ArrangementKind.Heap)
                 {
                     PlaceHeap(0, 0, (face, stretch[BareWallCells / 2]));
@@ -285,9 +285,9 @@ internal sealed class SceneFurnisher
         _rng.Shuffle(spots);
         int before = _anchors;
         _force = true;
-        for (int index = 0; index < spots.Length && _anchors == before; index++)
+        for (int i = 0; i < spots.Length && _anchors == before; i++)
         {
-            PlaceRun(spots[index].Face, spots[index].Cells, spots[index].Along, arrangement.Family!.Value, arrangement.Members, arrangement.Modules[0]);
+            PlaceRun(spots[i].Face, spots[i].Cells, spots[i].Along, arrangement.Family!.Value, arrangement.Members, arrangement.Modules[0]);
         }
 
         _force = false;
@@ -462,10 +462,10 @@ internal sealed class SceneFurnisher
         for (int attempt = 0, placed = 0; attempt < Tries && placed == 0; attempt++)
         {
             var seed = _room.Interior[_rng.Next(_room.Interior.Length)];
-            for (int index = 0; index < modules; index++)
+            for (int i = 0; i < modules; i++)
             {
-                int row = index / rows;
-                float a = row * step, b = index % rows * across;
+                int row = i / rows;
+                float a = row * step, b = i % rows * across;
                 var point = alongU ? new PointF(seed.U + 0.5f + a, seed.V + 0.5f + b) : new PointF(seed.U + 0.5f + b, seed.V + 0.5f + a);
                 placed += _room.Interior.Contains(_room.GetCell(point)) && PlaceModule(id.Value, point, GetDirection(id.Value, point)) ? 1 : 0;
             }
@@ -487,7 +487,7 @@ internal sealed class SceneFurnisher
             }
         }
 
-        for (int index = 1, size = _rng.Next(heap.Size[0], heap.Size[1] + 1); members.Count > 0 && index < size; index++)
+        for (int i = 1, size = _rng.Next(heap.Size[0], heap.Size[1] + 1); members.Count > 0 && i < size; i++)
         {
             var id = Pick(_rng.NextWeighted(heap.Mix.GetValueOrDefault(coreFamily, heap.Core)));
             if (id is null)
@@ -798,10 +798,10 @@ internal sealed class SceneFurnisher
 
         if (pieces.Length > 0 && _rng.NextSingle() < pose.PieceShare)
         {
-            int index = pieces[_rng.Next(pieces.Length)];
-            var piece = _floor[index];
+            int i = pieces[_rng.Next(pieces.Length)];
+            var piece = _floor[i];
             var offsets = GetFaceOffsets(pose, seat, piece.Id, piece.Direction);
-            return new SeatSpot(FromPartner(piece.Point, seat, offsets[_rng.Next(offsets.Length)]), index);
+            return new SeatSpot(FromPartner(piece.Point, seat, offsets[_rng.Next(offsets.Length)]), i);
         }
 
         var walls = _room.Walls.Where(wall => wall.Face == seat.Face).ToArray();
@@ -882,9 +882,9 @@ internal sealed class SceneFurnisher
         {
             var cluster = new List<PointF> { left[^1] };
             left.RemoveAt(left.Count - 1);
-            for (int index = 0; index < cluster.Count; index++)
+            for (int i = 0; i < cluster.Count; i++)
             {
-                var seed = cluster[index];
+                var seed = cluster[i];
                 cluster.AddRange(left.Where(point => point.DistanceTo(seed) < splatter.GibReach));
                 left.RemoveAll(point => point.DistanceTo(seed) < splatter.GibReach);
             }

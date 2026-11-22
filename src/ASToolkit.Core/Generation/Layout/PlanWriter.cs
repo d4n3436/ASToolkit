@@ -568,16 +568,16 @@ internal sealed class PlanWriter
                 .ToArray();
 
             int first = 0;
-            for (int index = 1; index <= sorted.Length; index++)
+            for (int i = 1; i <= sorted.Length; i++)
             {
-                if (index == sorted.Length || Along(sorted[index]) != Along(sorted[index - 1]) + 1)
+                if (i == sorted.Length || Along(sorted[i]) != Along(sorted[i - 1]) + 1)
                 {
-                    if (index - first > best.Length)
+                    if (i - first > best.Length)
                     {
-                        best = sorted[first..index];
+                        best = sorted[first..i];
                     }
 
-                    first = index;
+                    first = i;
                 }
             }
         }

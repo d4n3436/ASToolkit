@@ -304,24 +304,24 @@ public sealed class ObjectRelationTable
         {
             var pieces = level.Map.Sprites.Where(sprite => IsPiece(sprite.Id)).ToArray();
             var buckets = new Dictionary<Point, List<int>>();
-            for (int index = 0; index < pieces.Length; index++)
+            for (int i = 0; i < pieces.Length; i++)
             {
-                var key = GetBucket(pieces[index].Position.X, pieces[index].Position.Y);
+                var key = GetBucket(pieces[i].Position.X, pieces[i].Position.Y);
                 if (!buckets.TryGetValue(key, out var bucket))
                 {
                     bucket = [];
                     buckets[key] = bucket;
                 }
 
-                bucket.Add(index);
+                bucket.Add(i);
             }
 
             var lattice = level.Model.Lattice;
             var edges = level.Model.Edges;
             var doorways = level.Survey.GetDoorways().Where(doorway => doorway.Kind.IsPassage).Select(doorway => doorway.Span).ToArray();
-            for (int index = 0; index < pieces.Length; index++)
+            for (int i = 0; i < pieces.Length; i++)
             {
-                var piece = pieces[index];
+                var piece = pieces[i];
                 var position = piece.Position;
                 Counts[piece.Id] = Counts.GetValueOrDefault(piece.Id) + 1;
                 var nearest = new Dictionary<KnownObject, (float Distance, int Index)>();
@@ -330,7 +330,7 @@ public sealed class ObjectRelationTable
                 {
                     var other = pieces[otherIndex];
                     float distance = MathF.Sqrt((other.Position.X - position.X) * (other.Position.X - position.X) + (other.Position.Y - position.Y) * (other.Position.Y - position.Y));
-                    if (otherIndex == index || distance > Reach)
+                    if (otherIndex == i || distance > Reach)
                     {
                         continue;
                     }
@@ -350,7 +350,7 @@ public sealed class ObjectRelationTable
                     Grouped[piece.Id] = Grouped.GetValueOrDefault(piece.Id) + 1;
                 }
 
-                AddSpacings(pieces, buckets, index, objects);
+                AddSpacings(pieces, buckets, i, objects);
 
                 var furniture = nearest.Where(pair => IsAnchor(pair.Key)).ToArray();
                 if (piece.Id.Family is null && furniture.Length > 0)

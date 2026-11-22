@@ -47,9 +47,9 @@ internal sealed class StackReader
     public void Read(ReadOnlySpan<StackAction> stack)
     {
         Wait(null, null, null);
-        for (int index = stack.Length - 1; index >= 0; index--)
+        for (int i = stack.Length - 1; i >= 0; i--)
         {
-            if (!ReadAction(stack[index]))
+            if (!ReadAction(stack[i]))
             {
                 break;
             }

@@ -118,12 +118,12 @@ public class EdgeMapExtensionsTests
     private static Dictionary<EdgeKey, EdgeKind> CreateWalls()
     {
         var edges = new Dictionary<EdgeKey, EdgeKind>();
-        for (int index = 0; index < 3; index++)
+        for (int i = 0; i < 3; i++)
         {
-            edges[new EdgeKey('u', 0, index)] = EdgeKind.Wall;
-            edges[new EdgeKey('u', 3, index)] = EdgeKind.Wall;
-            edges[new EdgeKey('v', index, 0)] = EdgeKind.Wall;
-            edges[new EdgeKey('v', index, 3)] = EdgeKind.Wall;
+            edges[new EdgeKey('u', 0, i)] = EdgeKind.Wall;
+            edges[new EdgeKey('u', 3, i)] = EdgeKind.Wall;
+            edges[new EdgeKey('v', i, 0)] = EdgeKind.Wall;
+            edges[new EdgeKey('v', i, 3)] = EdgeKind.Wall;
         }
 
         return edges;

@@ -101,25 +101,25 @@ public sealed partial class Map
         text.LineCount = 1;
         text.LineWidth = 0;
         int lineStart = 0;
-        int index = 0;
-        for (; index < shown.Length; index++)
+        int i = 0;
+        for (; i < shown.Length; i++)
         {
             if (shown[index] != LineBreak)
                 continue;
 
-            if (text.LineWidth < index - lineStart)
+            if (text.LineWidth < i - lineStart)
             {
-                text.LineWidth = index - lineStart;
+                text.LineWidth = i - lineStart;
             }
 
-            lineStart = index + 1;
+            lineStart = i + 1;
             text.LineCount++;
         }
 
-        text.VisibleCount = index;
+        text.VisibleCount = i;
         if (text.LineWidth == 0)
         {
-            text.LineWidth = index;
+            text.LineWidth = i;
         }
     }
 

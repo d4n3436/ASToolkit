@@ -16,19 +16,19 @@ public readonly struct VidMesh
     private const int VertexSize = sizeof(int);
     private const int TriangleSize = 3 * IndexSize;
 
-    private readonly ReadOnlyMemory<byte> _indices;
+    private readonly ReadOnlyMemory<byte> _indexes;
     private readonly ReadOnlyMemory<byte> _vertices;
 
-    internal VidMesh(ReadOnlyMemory<byte> indices, ReadOnlyMemory<byte> vertices)
+    internal VidMesh(ReadOnlyMemory<byte> indexes, ReadOnlyMemory<byte> vertices)
     {
-        _indices = indices;
+        _indexes = indexes;
         _vertices = vertices;
     }
 
     /// <summary>
     /// Gets the number of triangles.
     /// </summary>
-    public int TriangleCount => _indices.Length / TriangleSize;
+    public int TriangleCount => _indexes.Length / TriangleSize;
 
     /// <summary>
     /// Gets the number of vertices.

@@ -114,11 +114,11 @@ public sealed class FineLayout
         var cells = new Dictionary<Cell, int>();
         foreach ((var unit, int region) in plan.Occupancy)
         {
-            for (int index = 0; index < n; index++)
+            for (int i = 0; i < n; i++)
             {
                 for (int innerIndex = 0; innerIndex < n; innerIndex++)
                 {
-                    cells[new Cell(n * unit.U + index, n * unit.V + innerIndex)] = region;
+                    cells[new Cell(n * unit.U + i, n * unit.V + innerIndex)] = region;
                 }
             }
         }

@@ -622,7 +622,7 @@ Most Alien Shooter 1 sprites have a ten-byte record, and the others 18 or 22 byt
 ```
  0x14  R8G8B8, 24 bit            0x1a  A4R4G4B4, 16 bit
  0x15  A8R8G8B8, 32 bit          0x1c  A8, 8 bit
- 0x16  X8R8G8B8, 32 bit          0x29  P8, 8-bit palette indices
+ 0x16  X8R8G8B8, 32 bit          0x29  P8, 8-bit palette indexes
  0x17  R5G6B5, 16 bit            0x32  L8, 8 bit
  0x18  X1R5G5B5, 16 bit          DXT1 4 bit, DXT3 and DXT5 8 bit (FourCC codes)
  0x19  A1R5G5B5, 16 bit
@@ -762,7 +762,7 @@ Alien Shooter 2 keeps the frames of most sprites in a `CADR` chunk instead of `D
          00 00                          end of the frame
 ```
 
-Each vertex is one i32 with three 10-bit fields and a 2-bit scale in the top bits. The first two fields are the column and row on the canvas, and the third is the height, `(v >> 20 & 0x3ff) / (1 << (v >> 30 & 3)) - 32`. Only the frames of `meshType` 3 sprites carry indices and vertices.
+Each vertex is one i32 with three 10-bit fields and a 2-bit scale in the top bits. The first two fields are the column and row on the canvas, and the third is the height, `(v >> 20 & 0x3ff) / (1 << (v >> 30 & 3)) - 32`. Only the frames of `meshType` 3 sprites carry indexes and vertices.
 
 The runs describe the region as one raster, `width` pixels per row. Each run skips `skip` transparent pixels, then holds `count` pixels, and may continue onto the next row. The frame ends at the `00 00` pair.
 

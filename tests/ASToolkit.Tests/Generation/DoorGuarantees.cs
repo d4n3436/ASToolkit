@@ -11,11 +11,11 @@ internal static class DoorGuarantees
         var contacts = building.Contacts;
         var failures = new List<string>();
         var phaseOf = new Dictionary<int, int>();
-        for (int index = 0; index < plan.Phases.Count; index++)
+        for (int i = 0; i < plan.Phases.Count; i++)
         {
-            foreach (int room in plan.Phases[index])
+            foreach (int room in plan.Phases[i])
             {
-                phaseOf[room] = index;
+                phaseOf[room] = i;
             }
         }
 

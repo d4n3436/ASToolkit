@@ -371,17 +371,17 @@ internal sealed class DepotWing
         var regions = Enumerable.Range(0, k).Select(_ => new HashSet<Cell>()).ToList();
         foreach (var cell in envelope.Where(cell => cell.V >= low && cell.V < high))
         {
-            int index = k - 1;
-            for (int i = 0; i < cuts.Length; i++)
+            int i = k - 1;
+            for (int j = 0; j < cuts.Length; j++)
             {
-                if (cell.U < cuts[i] + (cell.V >= steps[i].At ? steps[i].Shift : 0))
+                if (cell.U < cuts[j] + (cell.V >= steps[j].At ? steps[j].Shift : 0))
                 {
-                    index = i;
+                    i = j;
                     break;
                 }
             }
 
-            regions[index].Add(cell);
+            regions[i].Add(cell);
         }
 
         return regions.All(region => region.IsConnected() && region.IsThick(5) && region.Count >= MinDepot) ? regions : [];
@@ -549,9 +549,9 @@ internal sealed class DepotWing
 
     private static void AddRun(List<int> route, List<(int, int)> doors)
     {
-        for (int index = 1; index < route.Count; index++)
+        for (int i = 1; i < route.Count; i++)
         {
-            doors.Add((route[index - 1], route[index]));
+            doors.Add((route[i - 1], route[i]));
         }
     }
 
@@ -584,9 +584,9 @@ internal sealed class DepotWing
     private void Gaps(List<int> run, List<(int, int)> doors, List<(int, int)> jammed, List<(int, int)> shortcuts)
     {
         var needed = doors.Concat(jammed).Concat(shortcuts).ToList();
-        for (int index = 1; index < run.Count; index++)
+        for (int i = 1; i < run.Count; i++)
         {
-            var (a, b) = (_rooms[run[index - 1]], _rooms[run[index]]);
+            var (a, b) = (_rooms[run[i - 1]], _rooms[run[i]]);
             if (a.Role is not (DepotRole.Run or DepotRole.Passage) || b.Role is not (DepotRole.Run or DepotRole.Passage) || a.Section != b.Section)
             {
                 continue;

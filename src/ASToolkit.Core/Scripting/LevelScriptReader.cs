@@ -133,9 +133,9 @@ public static class LevelScriptReader
             TriggerArea? blackout = null;
             TriggerArea? exit = null;
             var code = _code.Span;
-            for (int index = 0; index < code.Length; index++)
+            for (int i = 0; i < code.Length; i++)
             {
-                if (!IsDistanceCheck(code, index, out var area, out var body))
+                if (!IsDistanceCheck(code, i, out var area, out var body))
                     continue;
 
                 int? color = FindFirstArgument(body, _lightOff);
@@ -251,15 +251,15 @@ public static class LevelScriptReader
 
         private static int? FindFirstArgument(ReadOnlySpan<ScriptInstruction> body, ScriptCallee callee)
         {
-            for (int index = 0; index < body.Length; index++)
+            for (int i = 0; i < body.Length; i++)
             {
-                if (IsNumber(body, index) && callee.IsExternCallAt(body, index + 1))
-                    return body[index].Operand;
+                if (IsNumber(body, i) && callee.IsExternCallAt(body, i + 1))
+                    return body[i].Operand;
 
-                if (callee.CallOperand < 0 || body[index].Opcode != ScriptOpcode.Call || body[index].Operand != callee.CallOperand)
+                if (callee.CallOperand < 0 || body[i].Opcode != ScriptOpcode.Call || body[i].Operand != callee.CallOperand)
                     continue;
 
-                for (int argument = index - 1; argument > 0; argument--)
+                for (int argument = i - 1; argument > 0; argument--)
                 {
                     if (body[argument].Opcode == ScriptOpcode.Assign && body[argument].Operand == callee.FirstVariable)
                         return IsNumber(body, argument - 1) ? body[argument - 1].Operand : null;
@@ -304,10 +304,10 @@ public static class LevelScriptReader
 
         private static int? FindAssignedNumber(ReadOnlySpan<ScriptInstruction> body, int variable)
         {
-            for (int index = 1; index < body.Length; index++)
+            for (int i = 1; i < body.Length; i++)
             {
-                if (variable >= 0 && body[index].Opcode == ScriptOpcode.Assign && body[index].Operand == variable && IsNumber(body, index - 1))
-                    return body[index - 1].Operand;
+                if (variable >= 0 && body[i].Opcode == ScriptOpcode.Assign && body[i].Operand == variable && IsNumber(body, i - 1))
+                    return body[i - 1].Operand;
             }
 
             return null;
@@ -315,9 +315,9 @@ public static class LevelScriptReader
 
         private static bool AssignsNumber(ReadOnlySpan<ScriptInstruction> body, int variable, int value)
         {
-            for (int index = 1; index < body.Length; index++)
+            for (int i = 1; i < body.Length; i++)
             {
-                if (variable >= 0 && body[index].Opcode == ScriptOpcode.Assign && body[index].Operand == variable && IsNumber(body, index - 1, value))
+                if (variable >= 0 && body[i].Opcode == ScriptOpcode.Assign && body[i].Operand == variable && IsNumber(body, i - 1, value))
                     return true;
             }
 
@@ -326,9 +326,9 @@ public static class LevelScriptReader
 
         private bool RespawnsAtPlayer(ReadOnlySpan<ScriptInstruction> body)
         {
-            for (int index = 2; index < body.Length; index++)
+            for (int i = 2; i < body.Length; i++)
             {
-                if (body[index].Opcode == ScriptOpcode.Assign && body[index].Operand == _startX && _getX.IsExternAt(body, index - 1) && _flagman.IsExternAt(body, index - 2))
+                if (body[i].Opcode == ScriptOpcode.Assign && body[i].Operand == _startX && _getX.IsExternAt(body, i - 1) && _flagman.IsExternAt(body, i - 2))
                     return true;
             }
 
@@ -349,9 +349,9 @@ public static class LevelScriptReader
 
         private bool SwapsKeypads(ReadOnlySpan<ScriptInstruction> body)
         {
-            for (int index = 0; index < body.Length; index++)
+            for (int i = 0; i < body.Length; i++)
             {
-                int first = MatchUnitTest(body, index, out int vid);
+                int first = MatchUnitTest(body, i, out int vid);
                 if (first >= 0 && vid == (int)KnownObject.KeypadOn && IsNumber(body, first, (int)KnownObject.KeypadOff))
                     return true;
             }
@@ -362,10 +362,10 @@ public static class LevelScriptReader
         private KnownObject[] ReadKills(ReadOnlySpan<ScriptInstruction> body)
         {
             var kills = new List<KnownObject>();
-            for (int index = 0; index < body.Length; index++)
+            for (int i = 0; i < body.Length; i++)
             {
-                int first = MatchUnitTest(body, index, out int vid);
-                if (first >= 0 && HasOpcode(body, first, ScriptOpcode.Load) && body[first].Operand == body[index].Operand && IsNumber(body, first + 1, (int)ActionCode.ChangeAnimation) &&
+                int first = MatchUnitTest(body, i, out int vid);
+                if (first >= 0 && HasOpcode(body, first, ScriptOpcode.Load) && body[first].Operand == body[i].Operand && IsNumber(body, first + 1, (int)ActionCode.ChangeAnimation) &&
                     IsNumber(body, first + 2, (int)SpriteAnimation.Death) && _action.IsExternCallAt(body, first + 3))
                 {
                     kills.Add((KnownObject)vid);
@@ -377,10 +377,10 @@ public static class LevelScriptReader
 
         private bool LocksDoorsAtStart(ReadOnlySpan<ScriptInstruction> code)
         {
-            for (int index = 0; index + 1 < code.Length; index++)
+            for (int i = 0; i + 1 < code.Length; i++)
             {
-                if (IsNumber(code, index, 1) && HasOpcode(code, index + 1, ScriptOpcode.JumpIfFalseOnce))
-                    return AssignsNumber(GetBody(code, index + 1), _doorsOpen, 0);
+                if (IsNumber(code, i, 1) && HasOpcode(code, i + 1, ScriptOpcode.JumpIfFalseOnce))
+                    return AssignsNumber(GetBody(code, i + 1), _doorsOpen, 0);
             }
 
             return false;
@@ -388,9 +388,9 @@ public static class LevelScriptReader
 
         private bool ChecksSites(ReadOnlySpan<ScriptInstruction> code)
         {
-            for (int index = 0; index + 2 < code.Length; index++)
+            for (int i = 0; i + 2 < code.Length; i++)
             {
-                if (IsNumber(code, index, (int)KnownObject.DynamiteSite) && IsNumber(code, index + 1) && _getVidData.IsExternCallAt(code, index + 2))
+                if (IsNumber(code, i, (int)KnownObject.DynamiteSite) && IsNumber(code, i + 1) && _getVidData.IsExternCallAt(code, i + 2))
                     return true;
             }
 
@@ -401,16 +401,16 @@ public static class LevelScriptReader
         {
             var handlers = new List<ScriptHandler>();
             var objects = _script.Objects;
-            for (int index = 0; index < objects.Length; index++)
+            for (int i = 0; i < objects.Length; i++)
             {
-                var entry = objects[index];
+                var entry = objects[i];
                 var name = entry.Name.Span;
                 int separator = name.IndexOf((byte)'_');
                 if (entry.Kind != ScriptObjectKind.Function || entry.Count != 1 || !IsOwn(entry.Address) || separator < 2 || name[0] != 'F' ||
                     !int.TryParse(name[1..separator], out int id) || !(name[(separator + 1)..].SequenceEqual("15"u8) || name[(separator + 1)..].SequenceEqual("16"u8)))
                     continue;
 
-                var body = InlineCalls(index).Span;
+                var body = InlineCalls(i).Span;
                 var destroys = new List<KnownObject>();
                 for (int at = 0; at + 1 < body.Length; at++)
                 {
@@ -440,10 +440,10 @@ public static class LevelScriptReader
                 if (instruction.Opcode != ScriptOpcode.Call)
                     continue;
 
-                int index = _script.FindCalledFunction(instruction.Operand);
-                if (index >= 0 && IsOwn(objects[index].Address) && objects[index].Count == 0)
+                int i = _script.FindCalledFunction(instruction.Operand);
+                if (i >= 0 && IsOwn(objects[i].Address) && objects[i].Count == 0)
                 {
-                    body.AddRange(Decode(objects[index].Address, _script.GetFunctionEnd(index)).Span);
+                    body.AddRange(Decode(objects[i].Address, _script.GetFunctionEnd(i)).Span);
                 }
             }
 
@@ -504,18 +504,18 @@ public static class LevelScriptReader
         {
             var code = _code.Span;
             var own = new List<ScriptInstruction>();
-            int index = from;
+            int i = from;
             foreach (var statement in ifs)
             {
-                if (statement.Start < index || statement.Start >= to)
+                if (statement.Start < i || statement.Start >= to)
                     continue;
 
-                own.AddRange(code[index..statement.Start]);
+                own.AddRange(code[i..statement.Start]);
                 AddBlocks(blocks, conditions.Append(ReadCondition(code[statement.Start..statement.Jump])).ToArray(), statement.Jump + 1, statement.BodyEnd, ifs);
-                index = statement.End;
+                i = statement.End;
             }
 
-            own.AddRange(code[index..to]);
+            own.AddRange(code[i..to]);
             blocks.Add(ReadBlock(conditions, own.ToArray()));
         }
 
@@ -526,27 +526,27 @@ public static class LevelScriptReader
             string? variable = null;
             int value = 0;
             bool waitForSpace = false;
-            for (int index = 0; index < condition.Length; index++)
+            for (int i = 0; i < condition.Length; i++)
             {
-                if (area is null && IsPlayerWithin(condition, index, out var within, out _))
+                if (area is null && IsPlayerWithin(condition, i, out var within, out _))
                 {
                     area = within;
                 }
 
-                if (quest is null && IsNumber(condition, index, AlienShooter2GetQuestsState) && IsNumber(condition, index + 1) && IsNumber(condition, index + 2) &&
-                    condition[index + 1].Operand >= 0 && condition[index + 2].Operand >= 0)
+                if (quest is null && IsNumber(condition, i, AlienShooter2GetQuestsState) && IsNumber(condition, i + 1) && IsNumber(condition, i + 2) &&
+                    condition[i + 1].Operand >= 0 && condition[i + 2].Operand >= 0)
                 {
-                    quest = (condition[index + 1].Operand + 1, condition[index + 2].Operand);
+                    quest = (condition[i + 1].Operand + 1, condition[i + 2].Operand);
                 }
 
-                if (variable is null && HasOpcode(condition, index, ScriptOpcode.Load) && IsNumber(condition, index + 1) && condition[index + 1].Operand >= 0 &&
-                    HasOpcode(condition, index + 2, ScriptOpcode.Equal) && _variableNames.TryGetValue(condition[index].Operand, out string? compared))
+                if (variable is null && HasOpcode(condition, i, ScriptOpcode.Load) && IsNumber(condition, i + 1) && condition[i + 1].Operand >= 0 &&
+                    HasOpcode(condition, i + 2, ScriptOpcode.Equal) && _variableNames.TryGetValue(condition[i].Operand, out string? compared))
                 {
                     variable = compared;
-                    value = condition[index + 1].Operand;
+                    value = condition[i + 1].Operand;
                 }
 
-                waitForSpace |= _getKey.IsCallAt(condition, index) && IsNumber(condition, index + 1, SpaceKey) && HasOpcode(condition, index + 2, ScriptOpcode.Equal);
+                waitForSpace |= _getKey.IsCallAt(condition, i) && IsNumber(condition, i + 1, SpaceKey) && HasOpcode(condition, i + 2, ScriptOpcode.Equal);
             }
 
             string? flag = HasOpcode(condition, 0, ScriptOpcode.Load) && (condition.Length == 1 || HasOpcode(condition, 1, ScriptOpcode.AndJump)) &&
@@ -562,26 +562,26 @@ public static class LevelScriptReader
             bool losesLevel = _failCurrentQuest.IsCalledIn(code);
             Vector3? move = null;
             bool setsDeathTimer = false;
-            for (int index = 0; index < code.Length; index++)
+            for (int i = 0; i < code.Length; i++)
             {
-                if (IsNumber(code, index) && _genocide.IsExternCallAt(code, index + 1))
+                if (IsNumber(code, i) && _genocide.IsExternCallAt(code, i + 1))
                 {
-                    destroys.Add((KnownObject)code[index].Operand);
+                    destroys.Add((KnownObject)code[i].Operand);
                 }
 
-                losesLevel |= IsNumber(code, index, AlienShooter2MissionFailed) && HasOpcode(code, index + 1, ScriptOpcode.Assign) && code[index + 1].Operand == _gameState;
-                if (move is null && IsPlayer(code, index) && IsNumber(code, index + 2, (int)ActionCode.ChangeCoor) && IsNumber(code, index + 3) && IsNumber(code, index + 4) &&
-                    IsNumber(code, index + 5))
+                losesLevel |= IsNumber(code, i, AlienShooter2MissionFailed) && HasOpcode(code, i + 1, ScriptOpcode.Assign) && code[i + 1].Operand == _gameState;
+                if (move is null && IsPlayer(code, i) && IsNumber(code, i + 2, (int)ActionCode.ChangeCoor) && IsNumber(code, i + 3) && IsNumber(code, i + 4) &&
+                    IsNumber(code, i + 5))
                 {
-                    move = new Vector3(code[index + 3].Operand, code[index + 4].Operand, code[index + 5].Operand);
+                    move = new Vector3(code[i + 3].Operand, code[i + 4].Operand, code[i + 5].Operand);
                 }
 
-                setsDeathTimer |= IsPlayer(code, index) && IsNumber(code, index + 2, AlienShooter2SetDeathTimer);
-                if (HasOpcode(code, index, ScriptOpcode.Assign) && !HasOpcode(code, index + 1, ScriptOpcode.Pop) && !HasOpcode(code, index - 1, ScriptOpcode.SetIndex) &&
-                    _variableNames.TryGetValue(code[index].Operand, out string? name))
+                setsDeathTimer |= IsPlayer(code, i) && IsNumber(code, i + 2, AlienShooter2SetDeathTimer);
+                if (HasOpcode(code, i, ScriptOpcode.Assign) && !HasOpcode(code, i + 1, ScriptOpcode.Pop) && !HasOpcode(code, i - 1, ScriptOpcode.SetIndex) &&
+                    _variableNames.TryGetValue(code[i].Operand, out string? name))
                 {
-                    bool storesLiteral = IsNumber(code, index - 1) && (index == 1 || EndsStatement(code[index - 2].Opcode));
-                    assignments.Add(new ScriptAssignment(name, storesLiteral ? code[index - 1].Operand : 1));
+                    bool storesLiteral = IsNumber(code, i - 1) && (i == 1 || EndsStatement(code[i - 2].Opcode));
+                    assignments.Add(new ScriptAssignment(name, storesLiteral ? code[i - 1].Operand : 1));
                 }
             }
 
@@ -605,12 +605,12 @@ public static class LevelScriptReader
         private ScriptCrowdRule[] ReadCrowdRules(ReadOnlySpan<ScriptInstruction> code)
         {
             var rules = new List<ScriptCrowdRule>();
-            for (int index = 0; index < code.Length; index++)
+            for (int i = 0; i < code.Length; i++)
             {
-                if (!IsNumber(code, index) || !IsNumber(code, index + 1, (int)VidDataType.Count))
+                if (!IsNumber(code, i) || !IsNumber(code, i + 1, (int)VidDataType.Count))
                     continue;
 
-                int call = _getVidData.SkipDefaults(code, index + 2);
+                int call = _getVidData.SkipDefaults(code, i + 2);
                 if (!_getVidData.IsExternAt(code, call) || !IsNumber(code, call + 1) || !HasOpcode(code, call + 2, ScriptOpcode.Greater) || !HasOpcode(code, call + 3, ScriptOpcode.JumpIfFalse))
                     continue;
 
@@ -636,7 +636,7 @@ public static class LevelScriptReader
 
                 if (points.Count > 0)
                 {
-                    rules.Add(new ScriptCrowdRule((KnownObject)code[index].Operand, code[call + 1].Operand, placed, points.ToArray()));
+                    rules.Add(new ScriptCrowdRule((KnownObject)code[i].Operand, code[call + 1].Operand, placed, points.ToArray()));
                 }
             }
 

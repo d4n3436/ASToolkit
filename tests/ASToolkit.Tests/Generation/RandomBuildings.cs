@@ -204,9 +204,9 @@ internal static class RandomBuildings
 
         while (grown.Count < size && frontier.Count > 0)
         {
-            int index = rng?.Next(frontier.Count) ?? 0;
-            int room = frontier[index];
-            frontier.RemoveAt(index);
+            int i = rng?.Next(frontier.Count) ?? 0;
+            int room = frontier[i];
+            frontier.RemoveAt(i);
             if (grown.Add(room))
             {
                 frontier.AddRange(neighbors[room].Where(next => within.Contains(next) && !grown.Contains(next)));

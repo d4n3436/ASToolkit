@@ -67,9 +67,9 @@ public sealed class GameTable
                 continue;
 
             int[] values = new int[entry.Count];
-            for (int index = 0; index < values.Length; index++)
+            for (int i = 0; i < values.Length; i++)
             {
-                values[index] = script.GetSlot(entry.Address + index).Value;
+                values[i] = script.GetSlot(entry.Address + i).Value;
             }
 
             arrays[GameTextEncoding.Cyrillic.GetString(entry.Name.Span)] = values;

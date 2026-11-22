@@ -65,9 +65,9 @@ public sealed record BuildingPlan
     public BuildingPlan DropNecksWithoutDoors(IReadOnlyCollection<RoomPair> doors)
     {
         var rooms = Rooms.ToArray();
-        for (int index = 0; index < rooms.Length; index++)
+        for (int i = 0; i < rooms.Length; i++)
         {
-            var room = rooms[index];
+            var room = rooms[i];
             var kept = room.Necks
                 .Where(neck => rooms.Any(other => other.Id != room.Id && other.Rects.Any(rect => rect.GetSharedEdges(neck).Length > 0)
                     && doors.Contains(new RoomPair(room.Id, other.Id))))
@@ -75,7 +75,7 @@ public sealed record BuildingPlan
 
             if (room.Necks.Count > 0)
             {
-                rooms[index] = room with { Rects = room.Rects.Where(rect => !room.Necks.Contains(rect) || kept.Contains(rect)).ToArray(), Necks = kept };
+                rooms[i] = room with { Rects = room.Rects.Where(rect => !room.Necks.Contains(rect) || kept.Contains(rect)).ToArray(), Necks = kept };
             }
         }
 

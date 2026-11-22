@@ -58,9 +58,9 @@ internal sealed class EnemyStock
     private static int MeasureUnbuilt(ReadOnlySpan<Act> orders)
     {
         int count = 0;
-        for (int index = orders.Length - 1; index >= 0; index--)
+        for (int i = orders.Length - 1; i >= 0; i--)
         {
-            var order = orders[index];
+            var order = orders[i];
 
             switch (order.Code)
             {

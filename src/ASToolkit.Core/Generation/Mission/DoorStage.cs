@@ -95,11 +95,11 @@ public sealed class DoorStage
         int start = building.Start;
         var doors = new Dictionary<RoomPair, DoorKind>();
         var phaseOf = new Dictionary<int, int>();
-        for (int index = 0; index < phases.Length; index++)
+        for (int i = 0; i < phases.Length; i++)
         {
-            foreach (int room in phases[index])
+            foreach (int room in phases[i])
             {
-                phaseOf[room] = index;
+                phaseOf[room] = i;
             }
         }
 

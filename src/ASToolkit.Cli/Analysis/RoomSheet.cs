@@ -78,9 +78,9 @@ internal sealed class RoomSheet
         tile.Mutate(new DrawImageProcessor(crop, new Point(0, labelHeight), PixelColorBlendingMode.Normal, PixelAlphaCompositionMode.SrcOver, 1));
         tile.Mutate(context =>
         {
-            for (int index = 0; index < lines.Length; index++)
+            for (int i = 0; i < lines.Length; i++)
             {
-                context.DrawText(lines[index], _font, index == 0 ? Color.White : Color.LightGray, new PointF(4, 3 + index * FontSize * 1.3f));
+                context.DrawText(lines[i], _font, i == 0 ? Color.White : Color.LightGray, new PointF(4, 3 + i * FontSize * 1.3f));
             }
         });
         crop.Dispose();
@@ -117,12 +117,12 @@ internal sealed class RoomSheet
             pages.Add(page);
         }
 
-        for (int index = 0; index < pages.Count; index++)
+        for (int i = 0; i < pages.Count; i++)
         {
-            int width = pages[index].Max(entry => entry.At.X + entry.Tile.Width);
-            int height = pages[index].Max(entry => entry.At.Y + entry.Tile.Height);
+            int width = pages[i].Max(entry => entry.At.X + entry.Tile.Width);
+            int height = pages[i].Max(entry => entry.At.Y + entry.Tile.Height);
             using var sheet = new Image<Rgb24>(width, height, new Rgb24(60, 60, 60));
-            var entries = pages[index];
+            var entries = pages[i];
             sheet.Mutate(context =>
             {
                 foreach (var (tile, at) in entries)

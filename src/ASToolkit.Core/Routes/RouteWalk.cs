@@ -55,9 +55,9 @@ internal sealed class RouteWalk
                 continue;
             }
 
-            int index = PickNearest(next);
-            _done.Add(index);
-            WalkStep(_steps[index]);
+            int i = PickNearest(next);
+            _done.Add(i);
+            WalkStep(_steps[i]);
         }
 
         return new WalkedRoute { Segments = _segments, Steps = _order, WalkedPixels = (int)MathF.Round(_walked), UnreachedSteps = _unreached };
@@ -230,10 +230,10 @@ internal sealed class RouteWalk
     private List<ProgressionStep> MarkDestroyed(Vector3[] points)
     {
         var passed = new List<(int PointIndex, int StepIndex)>();
-        for (int index = 0; index < _steps.Count; index++)
+        for (int i = 0; i < _steps.Count; i++)
         {
-            var target = _steps[index];
-            if (!target.IsTarget || _done.Contains(index))
+            var target = _steps[i];
+            if (!target.IsTarget || _done.Contains(i))
             {
                 continue;
             }
@@ -241,8 +241,8 @@ internal sealed class RouteWalk
             int pointIndex = Array.FindIndex(points, point => GetDistance(point, target.Position) <= target.Radius);
             if (pointIndex >= 0)
             {
-                passed.Add((pointIndex, index));
-                _done.Add(index);
+                passed.Add((pointIndex, i));
+                _done.Add(i);
             }
         }
 
@@ -253,11 +253,11 @@ internal sealed class RouteWalk
     private int PickNearest(int next)
     {
         int best = next;
-        for (int index = next; index < _steps.Count && _steps[index].IsTarget && _steps[index].Label == _steps[next].Label; index++)
+        for (int i = next; i < _steps.Count && _steps[i].IsTarget && _steps[i].Label == _steps[next].Label; i++)
         {
-            if (!_done.Contains(index) && GetDistance(_steps[index].Position, _player.Position) < GetDistance(_steps[best].Position, _player.Position))
+            if (!_done.Contains(i) && GetDistance(_steps[i].Position, _player.Position) < GetDistance(_steps[best].Position, _player.Position))
             {
-                best = index;
+                best = i;
             }
         }
 
@@ -270,18 +270,18 @@ internal sealed class RouteWalk
 
     private static IEnumerable<Vector3> Densify(IReadOnlyList<Vector3> points)
     {
-        for (int index = 0; index < points.Count; index++)
+        for (int i = 0; i < points.Count; i++)
         {
-            yield return points[index];
-            if (index + 1 >= points.Count)
+            yield return points[i];
+            if (i + 1 >= points.Count)
             {
                 continue;
             }
 
-            int count = (int)(Vector3.Distance(points[index], points[index + 1]) / WalkGrid.CellSize);
+            int count = (int)(Vector3.Distance(points[i], points[i + 1]) / WalkGrid.CellSize);
             for (int part = 1; part < count; part++)
             {
-                yield return Vector3.Lerp(points[index], points[index + 1], (float)part / count);
+                yield return Vector3.Lerp(points[i], points[i + 1], (float)part / count);
             }
         }
     }
