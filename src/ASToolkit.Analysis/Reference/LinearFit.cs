@@ -1,4 +1,4 @@
-using MathNet.Numerics.Statistics;
+using System.Numerics;
 
 namespace ASToolkit.Analysis.Reference;
 
@@ -28,19 +28,57 @@ public readonly record struct LinearFit(float Intercept, float Slope, float Spre
     /// </summary>
     /// <param name="samples">The samples as x and y values.</param>
     /// <returns>The fitted line with the number of samples.</returns>
-    public static FittedValue<LinearFit> Fit(IReadOnlyList<(float X, float Y)> samples)
+    public static FittedValue<LinearFit> Fit(ReadOnlySpan<Vector2> samples)
     {
-        double[] xs = samples.Select(sample => (double)sample.X).ToArray();
-        double[] ys = samples.Select(sample => (double)sample.Y).ToArray();
-        if (samples.Count < MinSamples)
+        if (samples.Length < MinSamples)
         {
-            float mean = samples.Count == 0 ? 0 : (float)ys.Mean();
-            float spread = samples.Count < 2 ? 0 : (float)ys.StandardDeviation();
-            return new FittedValue<LinearFit>(new LinearFit(mean, 0, spread), samples.Count, IsBackedOff: true);
+            return new FittedValue<LinearFit>(FitFlat(samples), samples.Length, IsBackedOff: true);
         }
 
-        (double intercept, double slope) = MathNet.Numerics.Fit.Line(xs, ys);
-        double squares = xs.Zip(ys).Sum(pair => Math.Pow(pair.Second - intercept - slope * pair.First, 2));
-        return new FittedValue<LinearFit>(new LinearFit((float)intercept, (float)slope, (float)Math.Sqrt(squares / (samples.Count - 2))), samples.Count, IsBackedOff: false);
+        var mean = GetMean(samples);
+        var products = Vector2.Zero;
+        foreach (var sample in samples)
+        {
+            var offset = sample - mean;
+            products += offset.X * offset;
+        }
+
+        float slope = products.Y / products.X;
+        var line = new LinearFit(mean.Y - slope * mean.X, slope, 0);
+        return new FittedValue<LinearFit>(line with { Spread = line.MeasureSpread(samples, 2) }, samples.Length, IsBackedOff: false);
+    }
+
+    /// <summary>
+    /// Fits a flat line at the mean y value of samples, with their sample standard deviation as the spread.
+    /// </summary>
+    /// <param name="samples">The samples as x and y values.</param>
+    /// <returns>The flat line, at zero when there are no samples.</returns>
+    public static LinearFit FitFlat(ReadOnlySpan<Vector2> samples)
+    {
+        var line = new LinearFit(GetMean(samples).Y, 0, 0);
+        return samples.Length < 2 ? line : line with { Spread = line.MeasureSpread(samples, 1) };
+    }
+
+    private static Vector2 GetMean(ReadOnlySpan<Vector2> samples)
+    {
+        var sum = Vector2.Zero;
+        foreach (var sample in samples)
+        {
+            sum += sample;
+        }
+
+        return samples.Length == 0 ? sum : sum / samples.Length;
+    }
+
+    private float MeasureSpread(ReadOnlySpan<Vector2> samples, int terms)
+    {
+        float squares = 0;
+        foreach (var sample in samples)
+        {
+            float residual = sample.Y - Evaluate(sample.X);
+            squares += residual * residual;
+        }
+
+        return MathF.Sqrt(squares / (samples.Length - terms));
     }
 }

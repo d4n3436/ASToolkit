@@ -1,3 +1,4 @@
+using System.Numerics;
 using ASToolkit.Formats;
 using ASToolkit.Analysis.Levels;
 using ASToolkit.Analysis.Routes;
@@ -92,26 +93,26 @@ public sealed class CampaignFitter
             Style = style,
             LevelCount = levelCount,
             CashValue = CampaignMeasurer.CashValue,
-            HitPoints = LinearFit.Fit(indoor.Select(level => (X: MathF.Log(level.Level), Y: MathF.Log(Math.Max(1, level.HitPoints)))).ToArray()),
-            SpawnedShare = LinearFit.Fit(indoor.Select(level => (X: (float)level.Level, Y: GetLogOdds(level.SpawnedShare))).ToArray()),
-            FloorPixels = FitWallSetLine(indoor, indoor.Select(level => Math.Log(level.FloorPixels)).ToArray()),
+            HitPoints = LinearFit.Fit(indoor.Select(level => new Vector2(MathF.Log(level.Level), MathF.Log(Math.Max(1, level.HitPoints)))).ToArray()),
+            SpawnedShare = LinearFit.Fit(indoor.Select(level => new Vector2(level.Level, GetLogOdds(level.SpawnedShare))).ToArray()),
+            FloorPixels = FitWallSetLine(indoor, indoor.Select(level => MathF.Log(level.FloorPixels)).ToArray()),
             Rooms = FitRooms(references, buildings),
             RoomRates = buildings
                 .GroupBy(level => level.FloorSet)
-                .ToDictionary(group => group.Key, group => new ValueRange<float>((float)group.Min(level => GetRoomRate(references, level)), (float)group.Max(level => GetRoomRate(references, level)))),
+                .ToDictionary(group => group.Key, group => new ValueRange<float>(group.Min(level => GetRoomRate(references, level)), group.Max(level => GetRoomRate(references, level)))),
             MaxRooms = buildings
                 .GroupBy(level => level.FloorSet)
                 .ToDictionary(group => group.Key, group => group.Max(level => CountRooms(references, level))),
-            EndMoney = LinearFit.Fit(campaigns.SelectMany(levels => levels).Where(level => level.Level < levelCount).Select(level => (X: MathF.Log(level.Level), Y: MathF.Log(level.EndMoney))).ToArray()),
+            EndMoney = LinearFit.Fit(campaigns.SelectMany(levels => levels).Where(level => level.Level < levelCount).Select(level => new Vector2(MathF.Log(level.Level), MathF.Log(level.EndMoney))).ToArray()),
             Buildings = FitBuildings(style, excluded),
             Gates = FitGates(indoor),
             Weapons = weapons,
             WeaponPrices = weapons.ToDictionary(weapon => weapon, weapon => weaponPrices[GetSlot(weapon)]),
             WeaponLevels = LinearFit.Fit(FitWeaponLevels(campaigns, weapons, excluded)),
             Affordability = FitAffordability(campaigns, weaponPrices, excluded),
-            RepeatedWeapons = LinearFit.Fit(indoor.Select(level => (X: (float)level.Level, Y: (float)(level.Items.Where(item => item.Key.IsWeapon).Sum(item => item.Value) - level.NewWeapons.Count))).ToArray()),
+            RepeatedWeapons = LinearFit.Fit(indoor.Select(level => new Vector2(level.Level, (float)(level.Items.Where(item => item.Key.IsWeapon).Sum(item => item.Value) - level.NewWeapons.Count))).ToArray()),
             PickupRates = RatedCategories.ToDictionary(category => category, category => LinearFit.Fit(indoor
-                .Select(level => (X: (float)level.Level, Y: level.Pickups.GetValueOrDefault(category) * PixelsPerRate / level.FloorPixels))
+                .Select(level => new Vector2(level.Level, level.Pickups.GetValueOrDefault(category) * PixelsPerRate / level.FloorPixels))
                 .ToArray())),
             PickupShares = FitPickupShares(indoor),
             AmmoAges = FitAmmoAges(campaigns, weapons, excluded),
@@ -123,9 +124,9 @@ public sealed class CampaignFitter
             DynamiteSites = indoor
                 .GroupBy(level => references.GetSurvey(level.Map).Style)
                 .ToDictionary(group => group.Key, group => LinearFit.Fit(group
-                    .Select(level => (X: (float)level.Level, Y: references.GetLevel(level.Map).Analysis.Elements.Count(element => element.Kind == ElementKind.DynamiteSite) * PixelsPerRate / level.FloorPixels))
+                    .Select(level => new Vector2(level.Level, references.GetLevel(level.Map).Analysis.Elements.Count(element => element.Kind == ElementKind.DynamiteSite) * PixelsPerRate / level.FloorPixels))
                     .ToArray())),
-            SecretClosets = LinearFit.Fit(basements.Select(level => (X: (float)level.Level, Y: references.GetLevel(level.Map).Measures.SecretClosets.Count * PixelsPerRate / level.FloorPixels)).ToArray()),
+            SecretClosets = LinearFit.Fit(basements.Select(level => new Vector2(level.Level, references.GetLevel(level.Map).Measures.SecretClosets.Count * PixelsPerRate / level.FloorPixels)).ToArray()),
             Donors = Enumerable.Range(2, 9)
                 .Select(ReferenceLevelSet.GetCampaignName)
                 .Where(name => !excluded.Contains(name))
@@ -161,7 +162,7 @@ public sealed class CampaignFitter
             .ToArray();
 
         var line = LinearFit.Fit(counted
-            .Select(level => (X: (float)level.Level, Y: MathF.Log(level.Monsters.Sum(monster => (float)monster.HitPoints * monster.Count) / level.Monsters.Sum(monster => monster.Count))))
+            .Select(level => new Vector2(level.Level, MathF.Log(level.Monsters.Sum(monster => (float)monster.HitPoints * monster.Count) / level.Monsters.Sum(monster => monster.Count))))
             .ToArray());
 
         double squares = 0;
@@ -180,35 +181,61 @@ public sealed class CampaignFitter
     private static FittedValue<WallSetLine> FitRooms(ReferenceLevelSet references, IReadOnlyList<CampaignMeasurement> levels) =>
         FitWallSetLine(levels, levels.Select(level => GetRoomRate(references, level)).ToArray());
 
-    private static double GetRoomRate(ReferenceLevelSet references, CampaignMeasurement level) =>
-        Math.Log(CountRooms(references, level) / (double)level.FloorPixels * PixelsPerRate);
+    private static float GetRoomRate(ReferenceLevelSet references, CampaignMeasurement level) =>
+        MathF.Log(CountRooms(references, level) / (float)level.FloorPixels * PixelsPerRate);
 
     private static int CountRooms(ReferenceLevelSet references, CampaignMeasurement level) => references.GetLevel(level.Map).Atlas.CountRegularRooms();
 
-    private static FittedValue<WallSetLine> FitWallSetLine(IReadOnlyList<CampaignMeasurement> levels, double[] ys)
+    private static FittedValue<WallSetLine> FitWallSetLine(IReadOnlyList<CampaignMeasurement> levels, ReadOnlySpan<float> ys)
     {
-        double[][] xs = levels.Select(level => (double[])[level.Level, level.FloorSet == WallSet.Concrete ? 1 : 0]).ToArray();
+        Span<Vector2> samples = stackalloc Vector2[levels.Count];
+        for (int i = 0; i < levels.Count; i++)
+        {
+            samples[i] = new Vector2(levels[i].Level, ys[i]);
+        }
+
         if (levels.Count < LinearFit.MinSamples)
         {
-            double mean = ys.DefaultIfEmpty(0).Average();
-            double spread = ys.Length < 2 ? 0 : Math.Sqrt(ys.Sum(y => (y - mean) * (y - mean)) / (ys.Length - 1));
-            return new FittedValue<WallSetLine>(new WallSetLine((float)mean, 0, 0, (float)spread), levels.Count, IsBackedOff: true);
+            var flat = LinearFit.FitFlat(samples);
+            return new FittedValue<WallSetLine>(new WallSetLine(flat.Intercept, 0, 0, flat.Spread), levels.Count, IsBackedOff: true);
         }
 
-        double[] coefficients;
-        if (xs.Any(x => x[1] > 0) && xs.Any(x => x[1] < 1))
+        Span<Vector2> means = stackalloc Vector2[2];
+        Span<int> counts = stackalloc int[2];
+        for (int i = 0; i < levels.Count; i++)
         {
-            coefficients = MathNet.Numerics.Fit.MultiDim(xs, ys, intercept: true);
-        }
-        else
-        {
-            (double intercept, double slope) = MathNet.Numerics.Fit.Line(xs.Select(x => x[0]).ToArray(), ys);
-            coefficients = [intercept, slope, 0];
+            means[GetSet(levels[i])] += samples[i];
+            counts[GetSet(levels[i])]++;
         }
 
-        double squares = ys.Select((y, index) => Math.Pow(y - coefficients[0] - coefficients[1] * xs[index][0] - coefficients[2] * xs[index][1], 2)).Sum();
-        return new FittedValue<WallSetLine>(new WallSetLine((float)coefficients[0], (float)coefficients[1], (float)coefficients[2], (float)Math.Sqrt(squares / Math.Max(1, ys.Length - 3))), levels.Count, IsBackedOff: false);
+        for (int set = 0; set < 2; set++)
+        {
+            means[set] /= Math.Max(1, counts[set]);
+        }
+
+        var products = Vector2.Zero;
+        for (int i = 0; i < levels.Count; i++)
+        {
+            var offset = samples[i] - means[GetSet(levels[i])];
+            products += offset.X * offset;
+        }
+
+        float slope = products.Y / products.X;
+        var first = means[counts[0] > 0 ? 0 : 1];
+        float intercept = first.Y - slope * first.X;
+        float concreteTerm = counts[0] > 0 && counts[1] > 0 ? means[1].Y - slope * means[1].X - intercept : 0;
+        var line = new WallSetLine(intercept, slope, concreteTerm, 0);
+        float squares = 0;
+        for (int i = 0; i < levels.Count; i++)
+        {
+            float residual = ys[i] - line.Evaluate(levels[i].Level, GetSet(levels[i]) == 1);
+            squares += residual * residual;
+        }
+
+        return new FittedValue<WallSetLine>(line with { Spread = MathF.Sqrt(squares / Math.Max(1, levels.Count - 3)) }, levels.Count, IsBackedOff: false);
     }
+
+    private static int GetSet(CampaignMeasurement level) => level.FloorSet == WallSet.Concrete ? 1 : 0;
 
     private static FittedValue<IReadOnlyList<BuildingShare>> FitBuildings(GenerationStyle style, IReadOnlyCollection<string> excluded)
     {
@@ -254,10 +281,10 @@ public sealed class CampaignFitter
             .Select(gate => new GateShare(gate.Key, gate.Count() / (float)wallSet.Count()))
             .ToArray(), wallSet.Count(), IsBackedOff: false));
 
-    private static (float X, float Y)[] FitWeaponLevels(IReadOnlyList<CampaignMeasurement[]> campaigns, KnownObject[] weapons, IReadOnlyCollection<string> excluded) => campaigns
+    private static Vector2[] FitWeaponLevels(IReadOnlyList<CampaignMeasurement[]> campaigns, KnownObject[] weapons, IReadOnlyCollection<string> excluded) => campaigns
         .SelectMany(levels => levels)
         .Where(level => !excluded.Contains(level.Map))
-        .SelectMany(level => level.NewWeapons.Select(weapon => (X: (float)(Array.IndexOf(weapons, weapon) + 1), Y: (float)level.Level)))
+        .SelectMany(level => level.NewWeapons.Select(weapon => new Vector2(Array.IndexOf(weapons, weapon) + 1, level.Level)))
         .ToArray();
 
     // Measure the share of each new weapon's price that the money paid and picked up on the levels before its own covers
@@ -288,7 +315,7 @@ public sealed class CampaignFitter
         .Order()
         .ToDictionary(id => id, id => LinearFit.Fit(levels
             .Where(level => level.Pickups.GetValueOrDefault(id.PickupCategory!.Value) > 0)
-            .Select(level => (X: (float)level.Level, Y: level.Items.GetValueOrDefault(id) / (float)level.Pickups[id.PickupCategory!.Value]))
+            .Select(level => new Vector2(level.Level, level.Items.GetValueOrDefault(id) / (float)level.Pickups[id.PickupCategory!.Value]))
             .ToArray()));
 
     // Count each level's ammunition by the age of its weapon in the price order, alongside the newest weapon the campaign has brought so far
