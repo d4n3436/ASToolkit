@@ -666,6 +666,8 @@ public sealed partial class Map
         var code = (ActionCode)(act & byte.MaxValue);
         switch (code)
         {
+            case ActionCode.GetAmmo or ActionCode.AddAmmo:
+                return sprite.Owner is null ? 0 : SendAction(sprite.Owner, act, var1, var2, var3, target);
             case ActionCode.Salut:
                 if (sprite.Animation != SpriteAnimation.Fight)
                 {

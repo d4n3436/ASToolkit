@@ -371,7 +371,7 @@ public partial class SoftwareSpriteDefinition
 
         if (properties.HasFlag(ObjectProperties.Wave))
         {
-            int bob = (int)(new Angle((byte)(map.Time >> WaveTimeShift & WaveTableMask)).Sine * Object.StepHeight * HeightScale);
+            int bob = (int)(new Angle((byte)(map.Time >> WaveTimeShift & WaveTableMask)).Sine * Object.TopZ * HeightScale);
             depth += bob;
             origin.Y -= bob + (bob >> 31 & 7) >> 3;
         }

@@ -140,8 +140,8 @@ internal sealed class MonsterBrain
         if (range < bestDistance && distance <= range)
             return true;
 
-        bool candidateArmed = candidate.Definition.Object.SpriteType.HasFlag(SpriteType.Unit) && candidate.Rounds != 0;
-        bool bestArmed = best.Definition.Object.SpriteType.HasFlag(SpriteType.Unit) && best.Rounds != 0;
+        bool candidateArmed = candidate.Definition.Object.SpriteType.HasFlag(SpriteType.Unit) && sprite.Map!.Action(candidate, ActionCode.GetAmmo) != 0;
+        bool bestArmed = best.Definition.Object.SpriteType.HasFlag(SpriteType.Unit) && sprite.Map!.Action(best, ActionCode.GetAmmo) != 0;
 
         if (candidateArmed != bestArmed)
             return candidateArmed;

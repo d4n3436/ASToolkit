@@ -964,12 +964,12 @@ public class Sprite
             if (!aimed)
                 return AttackResult.Busy;
 
-            int cost = Math.Abs(Definition.ChildCounts[(int)SpriteAnimation.Fight]);
+            int count = Definition.ChildCounts[(int)SpriteAnimation.Fight];
 
-            if (GetAmmo() < cost)
+            if (Map!.Action(this, ActionCode.GetAmmo) < Math.Abs(count))
                 return AttackResult.NoAmmo;
 
-            AddAmmo(-cost);
+            Map.Action(this, ActionCode.AddAmmo, -count);
 
             ChangeAnimation(SpriteAnimation.Fight);
             Timer = Definition.ReloadTime + ReloadTimerOffset;
