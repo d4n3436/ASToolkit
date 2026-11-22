@@ -8,6 +8,7 @@ internal sealed class MessageWindow
     private const float ScreenDepth = 2000;
     private const float MarkerIndent = 10;
     private const int MessageSound = 0x6a;
+    private const int LineStep = -1;
 
     private static readonly Vector2 NoTarget = new(-999999f);
     private static readonly Vector2 Unset = new(-1);
@@ -17,7 +18,6 @@ internal sealed class MessageWindow
     private readonly Vector2 _origin;
     private readonly int _count;
     private readonly int _idleTime;
-    private readonly int _step;
     private readonly Sprite?[] _lines;
     private readonly Sprite?[] _markers;
     private readonly Vector2[] _targets;
@@ -32,7 +32,6 @@ internal sealed class MessageWindow
         _lineId = lineId;
         _markerId = markerId;
         _origin = origin;
-        _step = -1;
         _lines = new Sprite?[count + 1];
         _markers = new Sprite?[count + 1];
         _targets = new Vector2[count + 1];
@@ -60,10 +59,10 @@ internal sealed class MessageWindow
             Shift();
         }
 
-        double bottom = (double)_map.Session.View.Top + (_count - 1) * lineHeight;
+        float bottom = _map.Session.View.Top + (_count - 1) * lineHeight;
         if (_lines[_count] is null)
         {
-            var position = new Vector3(_origin.X, (float)(bottom + _origin.Y + ScreenDepth), ScreenDepth);
+            var position = new Vector3(_origin.X, bottom + _origin.Y + ScreenDepth, ScreenDepth);
             _lines[_count] = _map.CreateSprite(FindDefinition(_lineId), position, default);
         }
 
@@ -77,7 +76,7 @@ internal sealed class MessageWindow
         if (target != Unset)
         {
             int halfLine = lineHeight / 2;
-            var position = new Vector3((float)((double)_origin.X - MarkerIndent), (float)(bottom + halfLine + _origin.Y + ScreenDepth), ScreenDepth);
+            var position = new Vector3(_origin.X - MarkerIndent, bottom + halfLine + _origin.Y + ScreenDepth, ScreenDepth);
             _markers[_count] = _map.CreateSprite(FindDefinition(_markerId), position, default);
         }
 
@@ -100,7 +99,7 @@ internal sealed class MessageWindow
         if (clicked is null || (int)clicked.Definition.Id != _markerId)
             return;
 
-        int index = (int)((double)clicked.Position.Y - clicked.Position.Z - _map.Camera.Y - _map.Session.View.Top) / lineHeight + 1;
+        int i = (int)(clicked.Position.Y - clicked.Position.Z - _map.Camera.Y - _map.Session.View.Top) / lineHeight + 1;
 
         if (i < 0 || i > _count)
             return;
@@ -159,5 +158,5 @@ internal sealed class MessageWindow
     }
 
     private void MoveOneLine(Sprite sprite, int lineHeight) =>
-        sprite.ChangeCoor(sprite.Position with { Y = _step * lineHeight + sprite.Position.Y });
+        sprite.ChangeCoor(sprite.Position with { Y = LineStep * lineHeight + sprite.Position.Y });
 }

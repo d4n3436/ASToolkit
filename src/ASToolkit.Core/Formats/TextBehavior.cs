@@ -14,12 +14,12 @@ public enum TextBehavior
     /// <summary>
     /// Text centered across.
     /// </summary>
-    CenterX = 1,
+    CenterX = 1 << 0,
 
     /// <summary>
     /// Text aligned to the right.
     /// </summary>
-    Right = 2,
+    Right = 1 << 1,
 
     /// <summary>
     /// Text aligned to the top.
@@ -29,12 +29,12 @@ public enum TextBehavior
     /// <summary>
     /// Text aligned to the bottom.
     /// </summary>
-    Bottom = 4,
+    Bottom = 1 << 2,
 
     /// <summary>
     /// Text centered down.
     /// </summary>
-    CenterY = 8,
+    CenterY = 1 << 3,
 
     /// <summary>
     /// Text centered both ways.
@@ -44,7 +44,7 @@ public enum TextBehavior
     /// <summary>
     /// The mask of the text's source.
     /// </summary>
-    LoadFrom = 16 + 32 + 64,
+    LoadFrom = 7 << 4,
 
     /// <summary>
     /// Text shown as written.
@@ -54,35 +54,35 @@ public enum TextBehavior
     /// <summary>
     /// Text taken from strings.ini under the written keyword.
     /// </summary>
-    StringsIni = 1 * 16,
+    StringsIni = 1 << 4,
 
     /// <summary>
     /// Text loaded from the written file.
     /// </summary>
-    File = 2 * 16,
+    File = 2 << 4,
 
     /// <summary>
     /// Text taken from the script variable of the written name.
     /// </summary>
-    ScriptVariable = 3 * 16,
+    ScriptVariable = 3 << 4,
 
     /// <summary>
     /// Text loaded from the file a script variable of the written name holds.
     /// </summary>
-    ScriptFile = 4 * 16,
+    ScriptFile = 4 << 4,
 
     /// <summary>
     /// Text taken from strings.ini under the keyword a script variable of the written name holds.
     /// </summary>
-    ScriptStrings = 5 * 16,
+    ScriptStrings = 5 << 4,
 
     /// <summary>
     /// Text taken from the script variable of the written name on every draw.
     /// </summary>
-    ScriptUpdated = 6 * 16,
+    ScriptUpdated = 6 << 4,
 
     /// <summary>
     /// A blinking cursor follows the text.
     /// </summary>
-    Cursor = 256
+    Cursor = 1 << 8
 }

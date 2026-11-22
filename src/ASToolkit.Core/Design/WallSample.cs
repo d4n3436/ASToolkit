@@ -20,12 +20,12 @@ public readonly record struct WallSample(KnownObject Id, Angle Direction, WallSi
     /// <summary>
     /// Gets a value indicating whether only far walls touch the cell.
     /// </summary>
-    public bool FarOnly => Sides != WallSides.None && (Sides & WallSides.Near) == 0;
+    public bool FarOnly => Sides != WallSides.None && !Sides.HasFlag(WallSides.LowerBack) && !Sides.HasFlag(WallSides.LowerSlash);
 
     /// <summary>
     /// Gets a value indicating whether only near walls touch the cell.
     /// </summary>
-    public bool NearOnly => Sides != WallSides.None && (Sides & WallSides.Far) == 0;
+    public bool NearOnly => Sides != WallSides.None && !Sides.HasFlag(WallSides.UpperBack) && !Sides.HasFlag(WallSides.UpperSlash);
 
     /// <summary>
     /// Gets the single wall of the cell, or <see cref="WallSides.None"/> when the cell doesn't have a wall or has several.

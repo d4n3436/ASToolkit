@@ -84,7 +84,7 @@ public sealed class Sprite
     /// <summary>
     /// Gets the sprite number.
     /// </summary>
-    public int Number { get; private set; }
+    public int Number { get; }
 
     /// <summary>
     /// Gets or sets the handle the level script refers to the sprite by, or 0 if the sprite doesn't have one.
@@ -244,10 +244,7 @@ public sealed class Sprite
         get => HasExtra ? _lifetime : SpriteDefinition.Unlimited;
         set
         {
-            if (!HasExtra)
-            {
-                CreateExtra();
-            }
+            EnsureExtra();
 
             _lifetime = value;
         }
@@ -336,17 +333,14 @@ public sealed class Sprite
         get => HasExtra ? _maxSpeed : Definition.Speed;
         set
         {
-            if (!HasExtra)
-            {
-                CreateExtra();
-            }
+            EnsureExtra();
 
             _maxSpeed = value;
         }
     }
 
     /// <summary>
-    /// Gets or sets the sprite this sprite moves toward or attacks, holding a reference to it.
+    /// Gets or sets the sprite this sprite moves toward or attacks, and holds a reference to it.
     /// </summary>
     public Sprite? Goal
     {
@@ -477,10 +471,7 @@ public sealed class Sprite
     [EngineRoutine(0x00446760)]
     public void InsertItem(int item)
     {
-        if (!HasExtra)
-        {
-            CreateExtra();
-        }
+        EnsureExtra();
 
         Items.Add(item);
     }
@@ -502,7 +493,7 @@ public sealed class Sprite
     }
 
     /// <summary>
-    /// Returns the index of an item, searching from the end.
+    /// Returns the index of an item, found by searching from the end.
     /// </summary>
     /// <param name="item">The item.</param>
     /// <returns>The index, or -1 when the sprite does not hold the item.</returns>
@@ -602,22 +593,19 @@ public sealed class Sprite
     }
 
     /// <summary>
-    /// Sets the gamma that tints the sprite while it is drawn, creating the sprite's extra data if needed.
+    /// Sets the gamma that tints the sprite while it is drawn, and creates the sprite's extra data if needed.
     /// </summary>
     /// <param name="gamma">The gamma.</param>
     [EngineRoutine(0x00443070)]
     public void SetGammaOverride(Gamma gamma)
     {
-        if (!HasExtra)
-        {
-            CreateExtra();
-        }
+        EnsureExtra();
 
         Tint = gamma;
     }
 
     /// <summary>
-    /// Changes the sprite's definition, moves its count and resets the sprite to the first frame of the standing state, facing up.
+    /// Changes the sprite's definition, moves its count and resets the sprite to the first frame of the standing state, with the direction up.
     /// </summary>
     /// <param name="definition">The new definition.</param>
     public void ChangeVid(SpriteDefinition definition)
@@ -819,14 +807,32 @@ public sealed class Sprite
     /// Returns the rounds the sprite holds for its held weapon.
     /// </summary>
     /// <returns>The rounds.</returns>
-    public int GetAmmo() => GetOwnAmmo();
+    public int GetAmmo() => Rounds;
 
     /// <summary>
     /// Adds rounds to the sprite's held weapon.
     /// </summary>
     /// <param name="amount">The rounds to add, negative to spend.</param>
     /// <returns>The rounds held after the addition.</returns>
-    public int AddAmmo(int amount) => AddOwnAmmo(amount);
+    public int AddAmmo(int amount)
+    {
+        if (GetAmmoCapacity() == SpriteDefinition.Unlimited)
+        {
+            Ammo = SpriteDefinition.Unlimited * AmmoScale;
+
+            return SpriteDefinition.Unlimited;
+        }
+
+        int ammo = Ammo + amount * AmmoScale;
+        Ammo = Math.Max(0, ammo);
+
+        if (ShouldRefillAmmo)
+        {
+            Ammo = GetAmmoCapacity() * AmmoScale;
+        }
+
+        return ammo;
+    }
 
     /// <summary>
     /// Turns the sprite toward a direction, as far as its turn rate allows in the elapsed time.
@@ -840,17 +846,6 @@ public sealed class Sprite
         ChangeDirection(Direction.TurnToward(goal, Definition.Object.RotationPeriod, elapsed, out var remaining));
 
         return remaining;
-    }
-
-    /// <summary>
-    /// Returns the direction the sprite reaches when it turns toward a goal direction for one frame.
-    /// </summary>
-    /// <param name="goal">The goal direction.</param>
-    /// <param name="elapsed">The frame's length in milliseconds.</param>
-    /// <returns>The new direction.</returns>
-    public Angle TurnWhileMoving(Angle goal, int elapsed)
-    {
-        return Direction.TurnToward(goal, Definition.Object.RotationPeriod, elapsed, out _);
     }
 
     /// <summary>
@@ -1018,28 +1013,6 @@ public sealed class Sprite
             return direction;
 
         return Angle.FromOffset(new Vector2(direction.Vector.X * Speed * VelocityScale, -(direction.Vector.Y * Speed + VerticalSpeed) * VelocityScale));
-    }
-
-    private int GetOwnAmmo() => Ammo / AmmoScale;
-
-    private int AddOwnAmmo(int amount)
-    {
-        if (GetAmmoCapacity() == SpriteDefinition.Unlimited)
-        {
-            Ammo = SpriteDefinition.Unlimited * AmmoScale;
-
-            return SpriteDefinition.Unlimited;
-        }
-
-        int ammo = Ammo + amount * AmmoScale;
-        Ammo = Math.Max(0, ammo);
-
-        if (ShouldRefillAmmo)
-        {
-            Ammo = GetAmmoCapacity() * AmmoScale;
-        }
-
-        return ammo;
     }
 
     private void FaceOwner(int elapsed, bool idle)

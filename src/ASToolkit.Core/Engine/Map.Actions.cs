@@ -28,7 +28,7 @@ public sealed partial class Map
     private const KnownObject RelinkLimitId = KnownObject.Slug;
     private const KnownObject RelinkEffectId = (KnownObject)590;
     private const OldSpriteType BuiltSpriteType = OldSpriteType.Unit;
-    private const OldSpriteType AnySpriteType = (OldSpriteType)0xFFFFFF;
+    private const OldSpriteType AnySpriteType = (OldSpriteType)((1 << 24) - 1);
     private const int NoItem = -1;
     private const int RegionLayer = 10;
 
@@ -215,8 +215,7 @@ public sealed partial class Map
     [EngineRoutine(0x0044ca70)]
     private int BuildingAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target)
     {
-        var code = (ActionCode)act;
-        switch (code)
+        switch ((ActionCode)act)
         {
             case ActionCode.BackupCommand when sprite.Command == Command.Build && _builds.TryGetValue(sprite, out var building):
                 sprite.ActionStack.Push(new Act((int)ActionCode.BuildUnit, (int)building.Definition.Id, 0, 0));
@@ -298,8 +297,7 @@ public sealed partial class Map
     [EngineRoutine(0x00448950)]
     private int CannonAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target)
     {
-        var code = (ActionCode)act;
-        if (code != ActionCode.NextCommand)
+        if ((ActionCode)act != ActionCode.NextCommand)
             return SpriteAction(sprite, act, var1, var2, var3, target);
 
         var state = sprite.Animation;
@@ -598,8 +596,7 @@ public sealed partial class Map
     [EngineRoutine(0x0044bea0)]
     private int TerrainAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target)
     {
-        var code = (ActionCode)act;
-        if (code != ActionCode.Repair)
+        if ((ActionCode)act != ActionCode.Repair)
             return SpriteAction(sprite, act, var1, var2, var3, target);
 
         Repair(sprite, true);
@@ -694,14 +691,12 @@ public sealed partial class Map
 
                 if (armed.Targets == SpriteType.Unit)
                 {
-                    float ground = Movement.GetHeight(new Vector2(var1, (float)var2 + UnitAimLift));
-                    z = ground + UnitAimLift;
+                    z = Movement.GetHeight(new Vector2(var1, var2 + UnitAimLift)) + UnitAimLift;
                     y += (int)z;
                 }
                 else
                 {
-                    float ground = Movement.GetHeight(new Vector2(var1, var2));
-                    z = ground + GroundAimLift;
+                    z = Movement.GetHeight(new Vector2(var1, var2)) + GroundAimLift;
                     y += (int)z - (int)GroundAimLift;
                 }
 

@@ -14,22 +14,22 @@ public enum WallSides
     /// <summary>
     /// The upper <c>\</c> wall, toward +U.
     /// </summary>
-    UpperBack = 1,
+    UpperBack = 1 << 0,
 
     /// <summary>
     /// The upper <c>/</c> wall, toward −V.
     /// </summary>
-    UpperSlash = 2,
+    UpperSlash = 1 << 1,
 
     /// <summary>
     /// The lower <c>\</c> wall, toward −U.
     /// </summary>
-    LowerBack = 4,
+    LowerBack = 1 << 2,
 
     /// <summary>
     /// The lower <c>/</c> wall, toward +V.
     /// </summary>
-    LowerSlash = 8,
+    LowerSlash = 1 << 3,
 
     /// <summary>
     /// The two upper walls, the ones facing the camera.

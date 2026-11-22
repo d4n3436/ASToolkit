@@ -79,8 +79,8 @@ internal sealed class GameLogger : IDisposable
             return;
 
         Span<byte> buffer = stackalloc byte[BufferSize];
-        int length = PrintFormat.Format(buffer, ErrorPrefixFormat, [Encode(GetCurrentTime())]);
-        length += PrintFormat.Format(buffer[length..], tag, tagArguments);
+        int length = CRuntime.PrintFormat(buffer, ErrorPrefixFormat, [Encode(_time.GetLocalNow().ToString(TimeFormat, CultureInfo.InvariantCulture))]);
+        length += CRuntime.PrintFormat(buffer[length..], tag, tagArguments);
         length += Append(buffer[length..], TagSeparator);
         length += Append(buffer[length..], GetFormat(code));
         Write(buffer[..length], value, (ReadOnlyMemory<byte>)text.ToArray());
@@ -152,8 +152,6 @@ internal sealed class GameLogger : IDisposable
 
         return index < 0 ? text : string.Concat(text.AsSpan(0, index), new ReadOnlySpan<char>(in to), text.AsSpan(index + 1));
     }
-
-    private string GetCurrentTime() => _time.GetLocalNow().ToString(TimeFormat, CultureInfo.InvariantCulture);
 
     private void WriteText(ReadOnlySpan<byte> text)
     {

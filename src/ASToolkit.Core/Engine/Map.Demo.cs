@@ -25,7 +25,6 @@ public sealed partial class Map
     /// <summary>
     /// Gets the name of the map the level script requested next, or null if the script didn't request one.
     /// </summary>
-    /// <remarks>Pass it as the map name of the next level's template.</remarks>
     public byte[]? MapToLoad { get; private set; }
 
     /// <summary>
@@ -83,7 +82,7 @@ public sealed partial class Map
         if (_playedDemo is not null)
         {
             if (!_playedDemo.Value.TryReadFrame(ref _playedOffset, out var frame) || Input.Key != 0 ||
-                (Input.Flags & (InputFlags.LeftClick | InputFlags.RightClick)) != 0)
+                Input.Flags.HasFlag(InputFlags.LeftClick) || Input.Flags.HasFlag(InputFlags.RightClick))
             {
                 EndDemoPlayback();
 
@@ -116,8 +115,7 @@ public sealed partial class Map
 
         if (_recordedDemo is not null)
         {
-            var frame = new DemoFrame(Time, Input.Save());
-            _recordedDemo.Write(MemoryMarshal.AsBytes(new ReadOnlySpan<DemoFrame>(in frame)));
+            WriteDemo(_recordedDemo, new DemoFrame(Time, Input.Save()));
         }
 
         return shouldDraw;
@@ -138,6 +136,10 @@ public sealed partial class Map
 
         return container.Build();
     }
+
+    private static void WriteDemo<T>(MemoryStream stream, T value)
+        where T : unmanaged =>
+        stream.Write(MemoryMarshal.AsBytes(new ReadOnlySpan<T>(in value)));
 
     private void StartDemoRecording(ReadOnlySpan<byte> mapName, int seed)
     {

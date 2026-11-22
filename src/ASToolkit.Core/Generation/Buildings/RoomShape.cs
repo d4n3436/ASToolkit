@@ -116,10 +116,10 @@ internal enum ShapeTurn
 internal enum DoorSides
 {
     None = 0,
-    MinX = 1,
-    MaxX = 2,
-    MinY = 4,
-    MaxY = 8,
+    MinX = 1 << 0,
+    MaxX = 1 << 1,
+    MinY = 1 << 2,
+    MaxY = 1 << 3,
     All = MinX | MaxX | MinY | MaxY
 }
 

@@ -213,12 +213,12 @@ public class VidResourceTests
     }
 
     private static void Write<T>(byte[] data, int offset, T value) where T : unmanaged =>
-        MemoryMarshal.Write(data.AsSpan(offset), in value);
+        MemoryMarshal.Write(data.AsSpan(offset), value);
 
     private static void Write<T>(List<byte> buffer, int offset, T value) where T : unmanaged
     {
         Span<byte> bytes = stackalloc byte[Unsafe.SizeOf<T>()];
-        MemoryMarshal.Write(bytes, in value);
+        MemoryMarshal.Write(bytes, value);
         for (int i = 0; i < bytes.Length; i++)
         {
             buffer[offset + i] = bytes[i];

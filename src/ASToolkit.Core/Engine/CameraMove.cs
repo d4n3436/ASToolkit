@@ -4,6 +4,6 @@ namespace ASToolkit.Core.Engine;
 internal enum CameraMove
 {
     None = 0,
-    Smooth = 2,
-    Unclamped = 0x10000000
+    Smooth = 1 << 1,
+    Unclamped = 1 << 28
 }

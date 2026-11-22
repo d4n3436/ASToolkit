@@ -132,7 +132,7 @@ public struct GameClock
         uint step = Math.Min(firstRead - WallTime, MaxWallStep);
         WallTime = secondRead;
         int previous = Time;
-        Time += (int)(step * (double)Speed);
+        Time += (int)(step * Speed);
         FrameTime = Time - previous;
         Tick++;
         _framesThisSecond++;

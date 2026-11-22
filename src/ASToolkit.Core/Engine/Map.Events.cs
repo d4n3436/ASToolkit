@@ -175,6 +175,4 @@ public sealed partial class Map
         }
     }
 
-    private bool IsLevelWon() => ReadScriptNumber(GameStateVariable) == GameWon;
-
 }

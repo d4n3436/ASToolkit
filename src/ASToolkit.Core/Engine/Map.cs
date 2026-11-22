@@ -9,7 +9,7 @@ using ASToolkit.Core.Levels;
 namespace ASToolkit.Core.Engine;
 
 /// <summary>
-/// Represents the game world of a session, which holds one loaded level at a time and runs it frame by frame.
+/// Represents the game world of a session, holding one loaded level at a time and running it frame by frame.
 /// </summary>
 public sealed partial class Map : IDisposable
 {
@@ -860,7 +860,7 @@ public sealed partial class Map : IDisposable
         if (sprite == CursorSprite || definition.HeightPointCount == 0)
             return;
 
-        // TODO: Port the map flag 0xc mask 0x1 that moves built terrain heights to the temporary grid; the port treats it as clear.
+        // TODO: Port the map flag 0xc mask 0x1 that moves built terrain heights to the temporary grid; the port treats it as clear
         bool permanent = definition.Object.SpriteClass == SpriteClass.BuiltTerrain;
 
         foreach (var point in definition.GetHeightPoints(sprite.Frame))
@@ -916,7 +916,7 @@ public sealed partial class Map : IDisposable
             definition = again;
         }
 
-        // TODO: Port the Engine, Rail and Depo constructors (0x44e8b0, 0x44a140, 0x44c040); the port builds those classes through Effects.Create.
+        // TODO: Port the Engine, Rail and Depo constructors (0x44e8b0, 0x44a140, 0x44c040); the port builds those classes through Effects.Create
 
         var sprite = Effects.Create(definition, position, direction, Time, parent);
 

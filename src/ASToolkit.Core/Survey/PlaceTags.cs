@@ -14,40 +14,40 @@ public enum PlaceTags
     /// <summary>
     /// The place the player starts in.
     /// </summary>
-    Start = 1,
+    Start = 1 << 0,
 
     /// <summary>
     /// A place with one walkable neighbor.
     /// </summary>
-    DeadEnd = 2,
+    DeadEnd = 1 << 1,
 
     /// <summary>
     /// A place with four or more walkable neighbors.
     /// </summary>
-    Hub = 4,
+    Hub = 1 << 2,
 
     /// <summary>
     /// A place whose removal splits the walkable places.
     /// </summary>
-    ChokePoint = 8,
+    ChokePoint = 1 << 3,
 
     /// <summary>
     /// A place on a loop of walkable connections.
     /// </summary>
-    OnLoop = 16,
+    OnLoop = 1 << 4,
 
     /// <summary>
     /// A place the route never enters.
     /// </summary>
-    OffRoute = 32,
+    OffRoute = 1 << 5,
 
     /// <summary>
     /// A place with a jammed door that leads nowhere.
     /// </summary>
-    FakeDoor = 64,
+    FakeDoor = 1 << 6,
 
     /// <summary>
     /// The place of the route's last objective.
     /// </summary>
-    RouteEnd = 128
+    RouteEnd = 1 << 7
 }

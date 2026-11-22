@@ -4,6 +4,6 @@ namespace ASToolkit.Core.Engine;
 internal enum MenuClicks
 {
     None = 0,
-    Left = 1,
-    Right = 2
+    Left = 1 << 0,
+    Right = 1 << 1
 }

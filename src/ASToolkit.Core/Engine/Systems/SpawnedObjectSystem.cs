@@ -146,7 +146,7 @@ internal sealed class SpawnedObjectSystem
     {
         ref readonly var gameObject = ref definition.Object;
 
-        return !definition.Speed.IsExactlyZero() || !definition.ZSpeed.IsExactlyZero() || (gameObject.Properties & (ObjectProperties.Gravity | ObjectProperties.Gravity2 | ObjectProperties.Wind)) != 0;
+        return !definition.Speed.IsExactlyZero() || !definition.ZSpeed.IsExactlyZero() || gameObject.Properties.HasFlag(ObjectProperties.Gravity) || gameObject.Properties.HasFlag(ObjectProperties.Gravity2) || gameObject.Properties.HasFlag(ObjectProperties.Wind);
     }
 
     private static bool HitsGoal(Sprite sprite, Vector3 goal, Sprite target, float previousHeight)

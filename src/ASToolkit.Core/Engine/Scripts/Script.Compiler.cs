@@ -45,7 +45,7 @@ public sealed partial class Script
     /// <param name="fileSystem">The file system the script and its includes are read from.</param>
     /// <param name="path">The path of the script file.</param>
     /// <returns><see langword="true"/> when the file was opened; otherwise, <see langword="false"/>.</returns>
-    /// <exception cref="InvalidDataException">The source of an Alien Shooter script has an error the engine stops on.</exception>
+    /// <exception cref="InvalidDataException">The source doesn't compile and the game isn't Alien Shooter 2, which records the error in <see cref="CompileError"/> instead.</exception>
     [EngineRoutine(0x0041f7d0)]
     public bool Load(IGameFileSystem fileSystem, string path)
     {
@@ -1036,7 +1036,7 @@ public sealed partial class Script
         byte[]? index = null;
         if (TryToken("["u8))
         {
-            if ((_slots[variable].Flags & (StackObjectFlags.Text | StackObjectFlags.ArrayElement | StackObjectFlags.Pointer)) == 0)
+            if (!_slots[variable].Flags.HasFlag(StackObjectFlags.Text) && !_slots[variable].Flags.HasFlag(StackObjectFlags.ArrayElement) && !_slots[variable].Flags.HasFlag(StackObjectFlags.Pointer))
                 throw ReportError(10, "[] for not array");
 
             int indexStart = _codeSize;
@@ -1076,7 +1076,7 @@ public sealed partial class Script
             _codeSize += indexLength;
             ArrayPool<byte>.Shared.Return(index);
         }
-        else if ((_slots[variable].Flags & (StackObjectFlags.ArrayElement | StackObjectFlags.Pointer)) != 0)
+        else if (_slots[variable].Flags.HasFlag(StackObjectFlags.ArrayElement) || _slots[variable].Flags.HasFlag(StackObjectFlags.Pointer))
         {
             if (opcode is >= ScriptOpcode.PostIncrement and <= ScriptOpcode.PreDecrement)
                 throw ReportError(10, "Increment or decrement for array");
@@ -1240,9 +1240,8 @@ public sealed partial class Script
                     }
 
                     Push(new StackObject(StackObjectFlags.Number | flags, 0, default));
-                    ref var element = ref _slots[_count - 1];
                     int value = ParseConstInt();
-                    element = ref _slots[_count - 1];
+                    ref var element = ref _slots[_count - 1];
                     element.Value = value;
                     element.Flags |= StackObjectFlags.Initialized;
                     count++;

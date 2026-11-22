@@ -31,25 +31,32 @@ public sealed partial class Map
 
     private static ReadOnlySpan<byte> MapLogTag => "MAP"u8;
 
-    private static Size GetHalfSize(MenuHeader header) => new(header.Size.Width / 2, header.Size.Height / 2);
-
-    [EngineRoutine(0x0043e2b0)]
-    private void LoadMenu(ReadOnlySpan<byte> name)
+    private bool TryOpenMenu(ReadOnlySpan<byte> name, out Resource reader, out MenuHeader header)
     {
-        var reader = new Resource();
+        reader = new Resource();
+        header = default;
         if (reader.Open(_fileSystem, Session.Logger, name, MenuKind) != 0)
         {
             Session.Logger.Error(MenuLogTag, LogError.Open, 0, name);
-            return;
+            return false;
         }
 
         if (reader.FindChunk(HeadTag) != Resource.Found)
         {
             Session.Logger.Error(MenuLogTag, LogError.Section, 0, "'HEAD'in menu"u8);
-            return;
+            return false;
         }
 
-        var header = reader.Read<MenuHeader>();
+        header = reader.Read<MenuHeader>();
+        return true;
+    }
+
+    [EngineRoutine(0x0043e2b0)]
+    private void LoadMenu(ReadOnlySpan<byte> name)
+    {
+        if (!TryOpenMenu(name, out var reader, out var header))
+            return;
+
         if (reader.FindNextChunk(SpriteTag) == Resource.Found)
         {
             while (TryLoadSprite(ref reader, header.Version, out var sprite))
@@ -82,20 +89,9 @@ public sealed partial class Map
     [EngineRoutine(0x0043e5c0)]
     private void DeleteMenuFromFile(ReadOnlySpan<byte> name)
     {
-        var reader = new Resource();
-        if (reader.Open(_fileSystem, Session.Logger, name, MenuKind) != 0)
-        {
-            Session.Logger.Error(MenuLogTag, LogError.Open, 0, name);
+        if (!TryOpenMenu(name, out var reader, out var header))
             return;
-        }
 
-        if (reader.FindChunk(HeadTag) != Resource.Found)
-        {
-            Session.Logger.Error(MenuLogTag, LogError.Section, 0, "'HEAD'in menu"u8);
-            return;
-        }
-
-        var header = reader.Read<MenuHeader>();
         if (reader.FindNextChunk(SpriteTag) != Resource.Found)
         {
             Session.Logger.Error(MenuLogTag, LogError.Section, 0, "'SPR ' in MENU::DeleteFromFile"u8);
@@ -110,7 +106,7 @@ public sealed partial class Map
                 break;
 
             int id = reader.Read<int>();
-            var position = new Vector3(reader.Read<float>(), reader.Read<float>(), reader.Read<float>());
+            var position = reader.Read<Vector3>();
             for (int i = 0; i < _menuSprites.Count; i++)
             {
                 if (IsMenuElement(_menuSprites[i], header, id, position))

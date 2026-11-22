@@ -49,7 +49,7 @@ public class KeyframeTests
     private static WeaponRecord CreateWeapon(in WeaponRecord source)
     {
         byte[] bytes = new byte[Marshal.SizeOf<WeaponRecord>()];
-        MemoryMarshal.Write(bytes, in source);
+        MemoryMarshal.Write(bytes, source);
         MemoryMarshal.Write(bytes.AsSpan(92), Period);
         for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
         {

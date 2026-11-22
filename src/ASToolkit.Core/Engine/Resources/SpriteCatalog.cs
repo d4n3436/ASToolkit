@@ -18,7 +18,7 @@ public sealed class SpriteCatalog
     /// <summary>
     /// Represents the ID of the definition of the prerendered ground.
     /// </summary>
-    public const KnownObject HardwareGroundId = (KnownObject)0x400;
+    public const KnownObject HardwareGroundId = (KnownObject)1024;
 
     private const int DefaultSpriteSpeed = 71;
     private const KnownObject EmptyId = (KnownObject)(-1);

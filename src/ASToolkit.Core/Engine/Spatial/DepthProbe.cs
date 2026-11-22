@@ -22,7 +22,6 @@ internal sealed class DepthProbe
 
     public float MeasureHeight(Point pixel) => Math.Max(MeasureSceneryHeight(pixel), MeasureSpriteHeight(pixel));
 
-    // Walks down the screen column, where a scenery pixel of height h raises the height cell h below it
     private int MeasureSceneryHeight(Point pixel)
     {
         int found = ClearHeight;

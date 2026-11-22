@@ -94,7 +94,16 @@ public sealed record LevelTemplate
     public static LevelTemplate FromModel(LevelModel model, IGameFileSystem fileSystem, string scriptPath, SpriteCatalog definitions, IReadOnlyList<int> ammoBatches, string? mapName = null) =>
         FromMapData(MapData.FromModel(model), fileSystem, scriptPath, definitions, ammoBatches) with { MapName = mapName ?? Path.ChangeExtension(scriptPath, MapExtension) };
 
-    private static LevelTemplate FromMapData(MapData mapData, IGameFileSystem fileSystem, string scriptPath, SpriteCatalog definitions, IReadOnlyList<int> ammoBatches) => new()
+    /// <summary>
+    /// Creates a template from the data of a map and the path of its level script.
+    /// </summary>
+    /// <param name="mapData">The data of the map.</param>
+    /// <param name="fileSystem">The file system the level script and its includes are read from.</param>
+    /// <param name="scriptPath">The path of the level script, relative to the game folder.</param>
+    /// <param name="definitions">The sprite definitions.</param>
+    /// <param name="ammoBatches">The rounds an ammunition pickup gives per weapon slot.</param>
+    /// <returns>The template.</returns>
+    public static LevelTemplate FromMapData(MapData mapData, IGameFileSystem fileSystem, string scriptPath, SpriteCatalog definitions, IReadOnlyList<int> ammoBatches) => new()
     {
         MapData = mapData,
         Definitions = definitions,

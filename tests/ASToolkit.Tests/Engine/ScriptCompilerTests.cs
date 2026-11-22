@@ -33,7 +33,7 @@ public class ScriptCompilerTests
             var expected = recorded.GetSlot(i);
             var actual = compiled.GetSlot(i);
             Assert.Equal(expected.Flags & CompiledFlags, actual.Flags & CompiledFlags);
-            if ((expected.Flags & StackObjectFlags.Initialized) != 0)
+            if (expected.Flags.HasFlag(StackObjectFlags.Initialized))
             {
                 Assert.Equal(expected.Value, actual.Value);
                 Assert.Equal(expected.Text.ToArray(), actual.Text.ToArray());

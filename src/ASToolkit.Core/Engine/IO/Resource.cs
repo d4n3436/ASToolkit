@@ -73,11 +73,12 @@ internal ref struct Resource
         int any = BinaryPrimitives.ReadInt32LittleEndian(AnyTag);
         do
         {
-            _chunkOffset += (_chunkSize + 1 & ~1) + ChunkHeaderSize;
+            int chunkSpan = (_chunkSize + 1 & ~1) + ChunkHeaderSize;
+            _chunkOffset += chunkSpan;
             _position = _chunkOffset;
             if (_end <= _chunkOffset)
             {
-                _chunkOffset -= ChunkHeaderSize + (_chunkSize + 1 & ~1);
+                _chunkOffset -= chunkSpan;
                 _position = _isRes ? _chunkOffset + FirstRecordOffset : _chunkOffset + ChunkHeaderSize;
 
                 return NotFound;

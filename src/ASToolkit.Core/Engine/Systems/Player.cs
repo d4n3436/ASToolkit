@@ -72,17 +72,7 @@ internal sealed class Player
     }
 
     [EngineRoutine(0x00413440)]
-    public void Load(Sprite? flagman)
-    {
-        flagman?.AddRef();
-
-        if (Sprite is not null)
-        {
-            _map.Release(Sprite);
-        }
-
-        Sprite = flagman;
-    }
+    public void Load(Sprite? flagman) => SetFlagman(flagman);
 
     [EngineRoutine(0x0043e9f0)]
     public void Forget(Sprite removed) => ForgetSprite(removed);
@@ -111,7 +101,9 @@ internal sealed class Player
             _map.Action(player, ActionCode.Move, (int)point.X, (int)point.Y);
         }
 
-        if ((flags & InputFlags.Movement) != 0 && player.Command == Command.Move)
+        bool isSteering = flags.HasFlag(InputFlags.Left) || flags.HasFlag(InputFlags.Right) || flags.HasFlag(InputFlags.Down) || flags.HasFlag(InputFlags.Up);
+
+        if (isSteering && player.Command == Command.Move)
         {
             SpriteKinematics.SetCommandWithoutLink(player, Command.None);
         }
@@ -143,7 +135,7 @@ internal sealed class Player
             SpriteKinematics.Stop(player);
         }
 
-        if ((flags & InputFlags.Movement) != 0)
+        if (isSteering)
         {
             _map.Motion.StartMove(player);
         }

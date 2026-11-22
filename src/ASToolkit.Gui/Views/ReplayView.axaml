@@ -9,14 +9,8 @@
              x:CompileBindings="True">
 
     <DockPanel>
-        <Border DockPanel.Dock="Top" Padding="4,3" BorderThickness="0,0,0,1" Background="{StaticResource ToolbarBrush}" BorderBrush="{StaticResource FrameBrush}">
-            <WrapPanel Orientation="Horizontal">
-                <WrapPanel.Styles>
-                    <Style Selector="WrapPanel > :is(Control)">
-                        <Setter Property="Margin" Value="0,0,6,0" />
-                        <Setter Property="VerticalAlignment" Value="Center" />
-                    </Style>
-                </WrapPanel.Styles>
+        <Border Classes="toolbar" DockPanel.Dock="Top">
+            <WrapPanel>
                 <Button Content="run simulation" Command="{Binding RunCommand}" IsEnabled="{Binding !IsRunning}" />
                 <CheckBox Content="play" IsChecked="{Binding IsPlaying}" IsEnabled="{Binding IsReady}" />
                 <CheckBox Content="follow" IsChecked="{Binding IsFollowing}" IsEnabled="{Binding IsReady}" />
@@ -30,8 +24,8 @@
             </WrapPanel>
         </Border>
 
-        <Border DockPanel.Dock="Bottom" Padding="4,2" Background="{StaticResource WindowBrush}">
-            <SelectableTextBlock Text="{Binding Status}" TextTrimming="CharacterEllipsis" />
+        <Border Classes="status" DockPanel.Dock="Bottom">
+            <SelectableTextBlock Text="{Binding Status}" />
         </Border>
 
         <Slider DockPanel.Dock="Bottom" Minimum="0" Maximum="{Binding FrameCount}" Value="{Binding FrameIndex}" IsEnabled="{Binding IsReady}"

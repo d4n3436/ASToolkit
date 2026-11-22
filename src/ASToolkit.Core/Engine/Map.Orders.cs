@@ -47,12 +47,10 @@ public sealed partial class Map
             return ReadOnlyMemory<byte>.Empty;
 
         var text = new List<byte>();
-        Span<byte> number = stackalloc byte[11];
         foreach (int item in sprite.Items)
         {
             text.AddRange(ItemMark);
-            Utf8Formatter.TryFormat(item, number, out int length);
-            text.AddRange(number[..length]);
+            AppendNumber(text, item);
         }
 
         text.AddRange(ItemsEnd);
@@ -82,21 +80,24 @@ public sealed partial class Map
     }
 
     [EngineRoutine(0x004458a0)]
+    private static void AppendNumber(List<byte> text, int value)
+    {
+        Span<byte> number = stackalloc byte[11];
+        Utf8Formatter.TryFormat(value, number, out int length);
+        text.AddRange(number[..length]);
+    }
+
     private static ReadOnlyMemory<byte> GetCommands(Sprite sprite)
     {
         var text = new List<byte>();
-        Span<byte> number = stackalloc byte[11];
         foreach (var order in sprite.ActionStack.Orders)
         {
             text.Add(unchecked((byte)(order.Value + CommandBias)));
-            Utf8Formatter.TryFormat(order.Var1, number, out int length);
-            text.AddRange(number[..length]);
+            AppendNumber(text, order.Var1);
             text.Add((byte)',');
-            Utf8Formatter.TryFormat(order.Var2, number, out length);
-            text.AddRange(number[..length]);
+            AppendNumber(text, order.Var2);
             text.Add((byte)',');
-            Utf8Formatter.TryFormat(order.Var3, number, out length);
-            text.AddRange(number[..length]);
+            AppendNumber(text, order.Var3);
             text.AddRange(CommandEnd);
         }
 

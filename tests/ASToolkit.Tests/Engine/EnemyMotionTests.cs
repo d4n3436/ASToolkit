@@ -1,6 +1,6 @@
+using System.Runtime.CompilerServices;
 using ASToolkit.Core.Engine;
 using System.Numerics;
-using System.Runtime.InteropServices;
 using ASToolkit.Core.Formats;
 using Xunit;
 
@@ -62,19 +62,14 @@ public class EnemyMotionTests
 
     private static Sprite MakeUnit(Body body, int index, SpriteClass spriteClass)
     {
-        byte[] bytes = new byte[Marshal.SizeOf<GameObject>()];
-        MemoryMarshal.Write(bytes.AsSpan(4), in spriteClass);
-        var hittable = ObjectProperties.Hash;
-        MemoryMarshal.Write(bytes.AsSpan(8), in hittable);
-        int mask = body.Mask;
-        MemoryMarshal.Write(bytes.AsSpan(12), in mask);
-        var size = new Vector3(body.HalfX * 2, body.HalfY * 2, body.SizeZ);
-        MemoryMarshal.Write(bytes.AsSpan(16), in size);
-        var obj = MemoryMarshal.Read<GameObject>(bytes);
-        bytes = new byte[Marshal.SizeOf<WeaponRecord>()];
-        int flags = body.Push != 0 ? 64 : 0;
-        MemoryMarshal.Write(bytes.AsSpan(4), in flags);
-        var definition = new SpriteDefinition(KnownObject.Monster1 + index, obj, MemoryMarshal.Read<WeaponRecord>(bytes), 0);
+        var obj = default(GameObject);
+        Unsafe.AsRef(in obj.SpriteClass) = spriteClass;
+        Unsafe.AsRef(in obj.Properties) = ObjectProperties.Hash;
+        Unsafe.AsRef(in obj.MoveMask) = (CollisionLayers)body.Mask;
+        Unsafe.AsRef(in obj.Size) = new Vector3(body.HalfX * 2, body.HalfY * 2, body.SizeZ);
+        var weapon = default(WeaponRecord);
+        Unsafe.AsRef(in weapon.Flags) = body.Push != 0 ? WeaponFlags.Pushable : WeaponFlags.None;
+        var definition = new SpriteDefinition(KnownObject.Monster1 + index, obj, weapon, 0);
 
         return new Sprite(index, definition, new Vector3(body.X, body.Y, body.Z), Army.Monsters, 10) { Direction = body.Direction };
     }

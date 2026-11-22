@@ -33,7 +33,7 @@ public sealed partial class Map
     /// <summary>
     /// Gets a value indicating whether the level script declared the mission complete.
     /// </summary>
-    public bool HasWon => IsLevelWon();
+    public bool HasWon => ReadScriptNumber(GameStateVariable) == GameWon;
 
     /// <summary>
     /// Gets the dynamite sites still standing.
@@ -227,11 +227,13 @@ public sealed partial class Map
         MergedMapSprite? found = null;
         float foundX = float.MaxValue;
         float foundY = float.MaxValue;
+        var definition = Definitions.Find(id);
+        if (definition is null)
+            return null;
+
         foreach (var placement in _sprites)
         {
-            var definition = Definitions.Find(id);
-
-            if (placement.Id != id || _removed.Contains(placement) || definition is null)
+            if (placement.Id != id || _removed.Contains(placement))
                 continue;
 
             if (definition.GetCollisionVolume(GetPlacementPosition(placement)).Covers(point) && (found is null || definition.Object.Size.X < foundX || definition.Object.Size.Y < foundY))

@@ -1,6 +1,6 @@
+using System.Runtime.CompilerServices;
 using ASToolkit.Core.Engine;
 using System.Numerics;
-using System.Runtime.InteropServices;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Routes;
@@ -202,18 +202,15 @@ public class MovementTests
 
     private static GameObject Body(Vector3 size, int mask = 1, SpriteClass spriteClass = SpriteClass.Unit, Vector3? scale = null, float dropHeight = 55, ObjectProperties extra = 0, int maxHp = 0)
     {
-        byte[] bytes = new byte[Marshal.SizeOf<GameObject>()];
-        MemoryMarshal.Write(bytes.AsSpan(4), in spriteClass);
-        var flags = ObjectProperties.ZeroZ | ObjectProperties.Hash | extra;
-        MemoryMarshal.Write(bytes.AsSpan(8), in flags);
-        MemoryMarshal.Write(bytes.AsSpan(12), in mask);
-        MemoryMarshal.Write(bytes.AsSpan(16), in size);
-        MemoryMarshal.Write(bytes.AsSpan(28), in maxHp);
-        float climb = 10;
-        MemoryMarshal.Write(bytes.AsSpan(100), in climb);
-        MemoryMarshal.Write(bytes.AsSpan(104), in dropHeight);
-        var visualScale = scale ?? Vector3.One;
-        MemoryMarshal.Write(bytes.AsSpan(692), in visualScale);
-        return MemoryMarshal.Read<GameObject>(bytes);
+        var obj = default(GameObject);
+        Unsafe.AsRef(in obj.SpriteClass) = spriteClass;
+        Unsafe.AsRef(in obj.Properties) = ObjectProperties.ZeroZ | ObjectProperties.Hash | extra;
+        Unsafe.AsRef(in obj.MoveMask) = (CollisionLayers)mask;
+        Unsafe.AsRef(in obj.Size) = size;
+        Unsafe.AsRef(in obj.MaxHp) = maxHp;
+        Unsafe.AsRef(in obj.StepHeight) = 10;
+        Unsafe.AsRef(in obj.DropHeight) = dropHeight;
+        Unsafe.AsRef(in obj.Scale) = scale ?? Vector3.One;
+        return obj;
     }
 }

@@ -14,30 +14,30 @@ public enum ScrollType
     /// <summary>
     /// The camera scrolls while the cursor rests on a screen border.
     /// </summary>
-    FromBorder = 1,
+    FromBorder = 1 << 0,
 
     /// <summary>
     /// The camera scrolls with the mouse.
     /// </summary>
-    WithMouse = 2,
+    WithMouse = 1 << 1,
 
     /// <summary>
     /// The camera eases toward the player.
     /// </summary>
-    ToFlagman = 4,
+    ToFlagman = 1 << 2,
 
     /// <summary>
     /// The camera eases toward the player and leads toward the cursor.
     /// </summary>
-    ToFlagmanWithDirection = 8,
+    ToFlagmanWithDirection = 1 << 3,
 
     /// <summary>
     /// The camera keeps the player in the center of the screen.
     /// </summary>
-    FlagmanInCenter = 16,
+    FlagmanInCenter = 1 << 4,
 
     /// <summary>
     /// The camera scrolls with the movement keys.
     /// </summary>
-    WithArrows = 32
+    WithArrows = 1 << 5
 }

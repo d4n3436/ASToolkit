@@ -86,5 +86,25 @@
         <Setter Property="Background" Value="{StaticResource WindowBrush}" />
         <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
         </Style>
+        <Style Selector="Border.toolbar">
+            <Setter Property="Padding" Value="4,3" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Background" Value="{StaticResource ToolbarBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource FrameBrush}" />
+        </Style>
+        <Style Selector="Border.toolbar > WrapPanel">
+            <Setter Property="Orientation" Value="Horizontal" />
+        </Style>
+        <Style Selector="Border.toolbar > WrapPanel > :is(Control)">
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.status">
+            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="Background" Value="{StaticResource WindowBrush}" />
+        </Style>
+        <Style Selector="Border.status > SelectableTextBlock">
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
     </Application.Styles>
 </Application>

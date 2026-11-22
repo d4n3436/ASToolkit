@@ -14,7 +14,7 @@ public enum SpriteSearch
     /// <summary>
     /// The bits holding the object ID or the sprite class the search matches.
     /// </summary>
-    ValueMask = 0x7ff,
+    ValueMask = (1 << 11) - 1,
 
     /// <summary>
     /// Sprites of the object ID in the value bits.

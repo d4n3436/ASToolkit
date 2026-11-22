@@ -292,7 +292,7 @@ public sealed partial class Script
         while (programCounter < codeSize)
         {
             if (_count < frame)
-                throw new InvalidOperationException($"Script function {function} popped more values than it pushed, at address {programCounter}.");
+                throw new InvalidOperationException($"Script function {function} pops more values than it pushes, at address {programCounter}.");
 
             var opcode = (ScriptOpcode)code[programCounter];
             if (opcode is >= ScriptOpcode.Divide and <= ScriptOpcode.ShiftLeft)
@@ -387,25 +387,19 @@ public sealed partial class Script
                     break;
                 case ScriptOpcode.Return:
                     CheckStatementStack("return"u8, frame, programCounter + 1);
-                    if (_count > frame)
+                    bool hasValue = _count > frame;
+                    var returned = hasValue ? _slots[--_count] : default;
+                    _count = frame;
+                    programCounter = _slots[--_count].GetValue();
+                    frame = _slots[--_count].GetValue();
+                    statement = programCounter;
+                    if (hasValue)
                     {
-                        var value = _slots[--_count];
-                        _count = frame;
-                        programCounter = _slots[--_count].GetValue();
-                        frame = _slots[--_count].GetValue();
-                        statement = programCounter;
-                        Push(value);
+                        Push(returned);
                         if (programCounter >= codeSize && result == 0)
                         {
-                            result = value.GetValue();
+                            result = returned.GetValue();
                         }
-                    }
-                    else
-                    {
-                        _count = frame;
-                        programCounter = _slots[--_count].GetValue();
-                        frame = _slots[--_count].GetValue();
-                        statement = programCounter;
                     }
 
                     break;
@@ -434,7 +428,7 @@ public sealed partial class Script
     private static void Step(ref StackObject slot, int amount)
     {
         slot.Flags &= ~StackObjectFlags.Sprite;
-        if ((slot.Flags & (StackObjectFlags.Number | StackObjectFlags.Pointer)) != 0)
+        if (slot.Flags.HasFlag(StackObjectFlags.Number) || slot.Flags.HasFlag(StackObjectFlags.Pointer))
         {
             slot.Value = unchecked(slot.Value + amount);
         }
