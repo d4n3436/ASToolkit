@@ -3,6 +3,10 @@ namespace ASToolkit.Engine;
 /// <summary>
 /// Represents the game clock advancing by each frame's clamped real-time step.
 /// </summary>
+/// <remarks>
+/// The clock keeps two times in milliseconds. Wall time is real time, as read from the system clock, and keeps running regardless of what happens in the game.
+/// Game time advances from it frame by frame, with each frame adding the wall time that passed, capped and scaled by the game speed.
+/// </remarks>
 public struct GameClock
 {
     /// <summary>
@@ -14,6 +18,11 @@ public struct GameClock
     /// Represents the clock a level starts at.
     /// </summary>
     public const int LevelStartTime = 10;
+
+    /// <summary>
+    /// Represents the wall time a new clock starts at when none is given.
+    /// </summary>
+    public const uint StartWallTime = 1;
 
     /// <summary>
     /// Represents the milliseconds in a second.
@@ -40,7 +49,7 @@ public struct GameClock
     /// </summary>
     /// <param name="frameTimes">The frame lengths in milliseconds the harness feeds as wall time.</param>
     /// <param name="wallTime">The wall time of the level start in milliseconds.</param>
-    public GameClock(IReadOnlyList<int> frameTimes, uint wallTime = 0)
+    public GameClock(IReadOnlyList<int> frameTimes, uint wallTime = StartWallTime)
     {
         _frameTimes = frameTimes;
         Time = LevelStartTime;
