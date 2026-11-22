@@ -15,7 +15,6 @@ namespace ASToolkit.Cli.Analysis;
 
 internal static class RouteOverlay
 {
-    // Marker and line sizes are tuned for a quarter-scale map and grow with the scale
     private const float TunedScale = 0.25f;
     private const int ContentThreshold = 12;
 
@@ -72,7 +71,7 @@ internal static class RouteOverlay
             .Select(analysis.Grid.Lattice.GetCenter)
             .Select(p => map.ToImage(p.ToVector2()))
             .ToArray();
-        
+
         map.Image.Mutate(c =>
         {
             foreach (var run in analysis.GetTourRuns())
@@ -138,7 +137,6 @@ internal static class RouteOverlay
         float Size(float w) => Math.Max(1, MathF.Round(w * k));
     }
 
-    // Number sites, generators and dynamite in tour order, and label the breaker B and the exit E
     private static void DrawObjectiveLabels(IImageProcessingContext c, MapImage map, IReadOnlyList<RouteObjective> objectives, Func<float, float> size, Font font)
     {
         var counts = new Dictionary<char, int>();
@@ -157,11 +155,11 @@ internal static class RouteOverlay
         }
     }
 
-    // Bounding box of the pixels that differ from the background by more than the threshold
+    private static readonly Rgb24 Background = new(0, 0, 0);
+
     internal static Rectangle? FindContent(Image<Rgb24> image)
     {
         int x0 = int.MaxValue, y0 = int.MaxValue, x1 = -1, y1 = -1;
-        var b = MapRenderer.Background;
         image.ProcessPixelRows(rows =>
         {
             for (int y = 0; y < rows.Height; y++)
@@ -169,7 +167,7 @@ internal static class RouteOverlay
                 var row = rows.GetRowSpan(y);
                 for (int x = 0; x < row.Length; x++)
                 {
-                    if (Math.Abs(row[x].R - b.R) > ContentThreshold || Math.Abs(row[x].G - b.G) > ContentThreshold || Math.Abs(row[x].B - b.B) > ContentThreshold)
+                    if (Math.Abs(row[x].R - Background.R) > ContentThreshold || Math.Abs(row[x].G - Background.G) > ContentThreshold || Math.Abs(row[x].B - Background.B) > ContentThreshold)
                     {
                         (x0, x1, y0, y1) = (Math.Min(x0, x), Math.Max(x1, x), Math.Min(y0, y), Math.Max(y1, y));
                     }

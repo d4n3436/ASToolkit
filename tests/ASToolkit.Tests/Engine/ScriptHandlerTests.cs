@@ -1,5 +1,6 @@
 using System.Numerics;
 using ASToolkit.Core.Engine;
+using ASToolkit.Core.Engine.Scripts;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Simulation;
 using Xunit;
@@ -21,7 +22,7 @@ public class ScriptHandlerTests
         Assert.True(monster.IsAlive);
         Assert.Equal(WeaponBehavior.None, monster.Behavior);
         Assert.Equal(0, monster.Speed);
-        Assert.Equal(0x1010ff, map.ScreenFlash?.Color);
+        Assert.Equal(0x1010ff, map.Session.Graphics.EffectFirst[(int)ScreenEffect.Nuke]);
     }
 
     [Fact]
@@ -34,8 +35,8 @@ public class ScriptHandlerTests
         Step(calm, 1);
         Step(shaking, 1);
 
-        Assert.Null(calm.CameraShake);
-        Assert.NotNull(shaking.CameraShake);
+        Assert.False(calm.Session.Graphics.Environment.HasFlag(MapEnvironment.Earthquake));
+        Assert.True(shaking.Session.Graphics.Environment.HasFlag(MapEnvironment.Earthquake));
     }
 
     [Fact]
@@ -53,11 +54,9 @@ public class ScriptHandlerTests
         Assert.Equal(tank.MaxHp, monster.Hp);
         Assert.Contains(screen.Flashes, flash => flash.Color == 0xffffff);
         Assert.NotEmpty(screen.Shakes);
-        Assert.All(screen.Shakes, shake => Assert.InRange(Math.Abs(shake.Offset.X) + Math.Abs(shake.Offset.Y), 0, 8));
 
-        int started = screen.Shakes[0].Time;
         Step(map, 2600 / GameClock.DefaultFrameTime, screen);
-        Assert.InRange(screen.Shakes[^1].Time - started, 2400, 2600);
+        Assert.InRange(screen.Shakes[^1] - screen.Shakes[0], 2400, 2600);
     }
 
     [Fact]
@@ -225,24 +224,4 @@ public class ScriptHandlerTests
             screen?.Read(map);
         }
     }
-
-    private sealed class ScreenLog
-    {
-        public List<CameraShake> Shakes { get; } = [];
-
-        public List<ScreenFlash> Flashes { get; } = [];
-
-        public void Read(Map map)
-        {
-            if (map.CameraShake is not null && (Shakes.Count == 0 || Shakes[^1].Time != map.CameraShake.Value.Time))
-            {
-                Shakes.Add(map.CameraShake.Value);
-            }
-
-            if (map.ScreenFlash is not null && (Flashes.Count == 0 || Flashes[^1].Time != map.ScreenFlash.Value.Time))
-            {
-                Flashes.Add(map.ScreenFlash.Value);
-            }
-        }
-}
 }

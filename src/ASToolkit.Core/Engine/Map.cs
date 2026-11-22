@@ -1512,8 +1512,6 @@ public sealed partial class Map : IDisposable
         _mouseTip = null;
         _groups.Clear();
         Cursor = default;
-        CameraShake = null;
-        ScreenFlash = null;
         IsPlayerControlled = true;
         MapToLoad = null;
         IsQuitting = false;

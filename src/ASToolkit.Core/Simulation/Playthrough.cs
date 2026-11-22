@@ -1,3 +1,4 @@
+using System.Text;
 using System.Globalization;
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Engine.IO;
@@ -15,6 +16,10 @@ namespace ASToolkit.Core.Simulation;
 public sealed class Playthrough
 {
     private const int MaxAttempts = 3;
+    private const string MapsFolder = "maps";
+    private const string AmmoArray = "GettingAmmo";
+    private const string ScriptExtension = ".lgc";
+    private const int ViewSeed = 1;
     private const int SeedLevels = 64;
     private const string ConfigFile = "AlienShooter.cfg";
     private const int RegistryItemCount = 12;
@@ -26,7 +31,7 @@ public sealed class Playthrough
     private const int FlashlightItem = 8;
     private const int RescueKitItem = 10;
 
-    private const string DefaultLevelScript = """
+    internal const string DefaultLevelScript = """
         #define MUSIC0 "music\\mus01.ogg"
         #define MUSIC1 "music\\mus02.ogg"
         #include "maps\export.lgc"
@@ -52,6 +57,42 @@ public sealed class Playthrough
     private readonly Dictionary<RouteAnalysis, LevelSetup> _setups = [];
 
     /// <summary>
+    /// Loads a map file with the level script beside it, or the campaign's default script if it has none, and runs its first frame.
+    /// </summary>
+    /// <param name="gameFolder">The game folder, which holds the scripts the level script includes.</param>
+    /// <param name="definitions">The sprite definitions of the game.</param>
+    /// <param name="mapFile">The path of the map file, inside or outside the game folder.</param>
+    /// <returns>The map after its first frame.</returns>
+    /// <exception cref="FileNotFoundException">The map file does not exist.</exception>
+    public static Map LoadMap(string gameFolder, SpriteCatalog definitions, string mapFile)
+    {
+        if (!File.Exists(mapFile))
+            throw new FileNotFoundException($"Could not find map file '{mapFile}'.", mapFile);
+
+        var folder = new GameFolder(gameFolder);
+        string scriptFile = Path.ChangeExtension(mapFile, ScriptExtension);
+        string relative = Path.GetRelativePath(gameFolder, scriptFile);
+        bool isInside = !relative.StartsWith("..", StringComparison.Ordinal) && !Path.IsPathRooted(relative);
+        string scriptPath = isInside ? relative.Replace('/', '\\') : Path.Combine(MapsFolder, Path.GetFileName(scriptFile)).Replace('/', '\\');
+        IGameFileSystem fileSystem = (isInside, File.Exists(scriptFile)) switch
+        {
+            (true, true) => folder,
+            (false, true) => new ScriptOverlay(folder, scriptPath, File.ReadAllText(scriptFile, Encoding.Latin1)),
+            _ => new ScriptOverlay(folder, scriptPath, DefaultLevelScript)
+        };
+
+        string? tablePath = GamePath.Resolve(gameFolder, GameTable.CommonPath);
+        IReadOnlyList<int> ammo = tablePath is null ? [] : GameTable.Load(tablePath).GetArray(AmmoArray);
+        var template = LevelTemplate.FromMapData(MapData.FromMap(MapResourceBuilder.Load(mapFile)), fileSystem, scriptPath, definitions, ammo);
+        var map = new Map(definitions, fileSystem, registry: CreateProfile(gameFolder));
+        map.Load(template, ViewSeed);
+        map.AdvanceClock();
+        map.Step();
+
+        return map;
+    }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="Playthrough"/> class.
     /// </summary>
     /// <param name="gameFolder">The game folder that holds the sprites whose speed sets the animation times.</param>
@@ -63,7 +104,7 @@ public sealed class Playthrough
         _fileSystem = new GameFolder(gameFolder);
         _definitions = new SpriteCatalog(gameFolder, objects);
         _shop = new ShopBot(objects, _definitions, table);
-        _ammoBatches = table.GetArray("GettingAmmo");
+        _ammoBatches = table.GetArray(AmmoArray);
     }
 
     /// <summary>

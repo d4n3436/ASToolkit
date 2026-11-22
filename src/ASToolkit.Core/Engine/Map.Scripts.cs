@@ -69,16 +69,6 @@ public sealed partial class Map
     public int RemovedCount => _removed.Count;
 
     /// <summary>
-    /// Gets the camera shake of the frame.
-    /// </summary>
-    public CameraShake? CameraShake { get; private set; }
-
-    /// <summary>
-    /// Gets the screen flash in progress.
-    /// </summary>
-    public ScreenFlash? ScreenFlash { get; private set; }
-
-    /// <summary>
     /// Gets the gamma the frame is drawn with, meaning the channel reductions and additions applied to the whole screen.
     /// </summary>
     public Gamma Gamma => Session.Graphics.Gamma;

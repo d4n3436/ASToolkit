@@ -1,11 +1,8 @@
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
 
-namespace ASToolkit.Core.Simulation;
+namespace ASToolkit.Tests.Engine;
 
-/// <summary>
-/// Tracks the effects that were baked into the ground when they ended, by comparing the update lists of a map between frames.
-/// </summary>
 public sealed class MapObserver
 {
     private readonly Map _map;
@@ -13,10 +10,6 @@ public sealed class MapObserver
     private readonly List<EffectState> _baked = [];
     private readonly HashSet<Sprite> _alive = [];
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="MapObserver"/> class.
-    /// </summary>
-    /// <param name="map">The map to observe.</param>
     public MapObserver(Map map)
     {
         _map = map;
@@ -28,14 +21,8 @@ public sealed class MapObserver
         Observe();
     }
 
-    /// <summary>
-    /// Gets the effects that were baked into the ground when they ended, in the order the update loop removed them.
-    /// </summary>
     public IReadOnlyList<EffectState> BakedEffects => _baked;
 
-    /// <summary>
-    /// Compares the update lists with those of the previous call. Call it after every frame.
-    /// </summary>
     public void Observe()
     {
         for (int layer = 0; layer < _previous.Length; layer++)

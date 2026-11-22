@@ -3,7 +3,9 @@ using System.Globalization;
 using System.Text;
 using ASToolkit.Cli.Analysis;
 using ASToolkit.Core.Design;
+using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Simulation;
 using ASToolkit.Core.Generation.Campaign;
 using ASToolkit.Core.Generation.Output;
 using ASToolkit.Core.Generation;
@@ -50,15 +52,14 @@ internal sealed class InspectDesignCommand : LevelCommand<InspectDesignSettings>
         var (generated, provenance, layoutCounts) = references is null
             ? ([], [], new Dictionary<string, int>())
             : AnsiConsole.Status().Start("Generating the levels", _ => Generate(new LevelGenerator(settings.Game, objects, references, fitter.Fit(references, GenerationStyle.Campaign)), settings.Out, settings.Seeds, cancellationToken));
-        var renderer = settings.Images ? new MapRenderer(settings.Game, objects) : null;
 
         var all = campaign.Concat(addOns).Concat(generated).ToArray();
         var loader = new LevelLoader(objects);
-        var (levels, measures) = AnsiConsole.Status().Start("Measuring the levels", _ => Measure(all, loader, references, objects, level =>
+        var (levels, measures) = AnsiConsole.Status().Start("Measuring the levels", _ => Measure(all, loader, references, objects, (level, path) =>
         {
-            if (renderer is not null)
+            if (settings.Images)
             {
-                using var rendered = renderer.Render(level.Map.Sprites, settings.Scale, level.Map.Graphics);
+                using var rendered = MapImage.Render(Playthrough.LoadMap(settings.Game, new SpriteCatalog(settings.Game, objects), path), settings.Scale);
                 PlaceOverlay.Draw(rendered, level.Survey, level.Analysis);
                 rendered.Image.SaveAsPng(Path.Combine(settings.Out, GetFileName(level.Name) + "_places.png"));
             }
@@ -113,7 +114,7 @@ internal sealed class InspectDesignCommand : LevelCommand<InspectDesignSettings>
     }
 
     private static (ReferenceLevel?[] Levels, DesignMeasures?[] Measures) Measure((string Name, string Path)[] entries, LevelLoader loader, ReferenceLevelSet? references, ObjectTable objects,
-        Action<ReferenceLevel> onLoaded,
+        Action<ReferenceLevel, string> onLoaded,
         CancellationToken cancellationToken)
     {
         var levels = new ReferenceLevel?[entries.Length];
@@ -125,7 +126,7 @@ internal sealed class InspectDesignCommand : LevelCommand<InspectDesignSettings>
             {
                 levels[index] = level;
                 measures[index] = DesignMeasurer.Measure(level.Model, level.Analysis, level.Survey, objects);
-                onLoaded(level);
+                onLoaded(level, entries[index].Path);
             }
         });
 

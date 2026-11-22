@@ -15,13 +15,6 @@
             <WrapPanel>
                 <Button Content="open game folder" Command="{Binding SelectGameFolderCommand}" />
                 <ComboBox ItemsSource="{Binding Maps}" SelectedItem="{Binding SelectedMap}" MinWidth="200" IsEnabled="{Binding !IsLoading}" />
-                <CheckBox Content="game lighting" IsChecked="{Binding MatchGameLighting}" IsVisible="{Binding IsAlienShooter2}" />
-                <CheckBox Content="no ambient gamma" IsChecked="{Binding OmitAmbientGamma}" IsVisible="{Binding IsAlienShooter2}"
-                          IsEnabled="{Binding MatchGameLighting}" />
-                <CheckBox Content="hide covers" IsChecked="{Binding OmitCovers}" IsVisible="{Binding IsAlienShooter2}" />
-                <CheckBox Content="show hidden objects and helpers" IsChecked="{Binding ShowHiddenObjects}" />
-                <CheckBox Content="female player" IsChecked="{Binding ShowFemalePlayer}" IsVisible="{Binding !IsAlienShooter2}" />
-                <CheckBox Content="remove script groups" IsChecked="{Binding OmitRemovableGroups}" />
                 <CheckBox Content="helpers" IsChecked="{Binding ShowHelpers}" />
                 <CheckBox Content="script markers" IsChecked="{Binding ShowScriptMarkers}" />
                 <CheckBox Content="route" IsChecked="{Binding ShowRoute}" />
@@ -42,7 +35,7 @@
                 <StackPanel x:DataType="vm:SpriteViewModel" Spacing="6">
                     <SelectableTextBlock Text="{Binding Title}" TextWrapping="Wrap" />
                     <Border Background="#303030" Height="300">
-                        <Image Source="{Binding Frame}" Width="{Binding FrameWidth}" Height="{Binding FrameHeight}" Stretch="Fill"
+                        <Image Source="{Binding Frame}" Width="{Binding FrameSize.Width}" Height="{Binding FrameSize.Height}" Stretch="Fill"
                                RenderOptions.BitmapInterpolationMode="None" />
                     </Border>
                     <DockPanel>
@@ -66,7 +59,7 @@
         </DockPanel>
 
         <Panel>
-            <controls:MapCanvas x:Name="Map" Scene="{Binding Scene}" Animate="{Binding Animate}" Overlay="{Binding Overlay}"
+            <controls:MapCanvas x:Name="Map" Map="{Binding Map}" Animate="{Binding Animate}" Overlay="{Binding Overlay}"
                                 ShowHelpers="{Binding ShowHelpers}" ShowScriptMarkers="{Binding ShowScriptMarkers}" ShowRoute="{Binding ShowRoute}"
                                 HoverCommand="{Binding HoverCommand}" SelectCommand="{Binding SelectCommand}" />
             <TextBlock Text="Loading…" IsVisible="{Binding IsLoading}" HorizontalAlignment="Center" VerticalAlignment="Center"

@@ -1,4 +1,4 @@
-namespace ASToolkit.Core.Rendering;
+namespace ASToolkit.Gui.Models;
 
 /// <summary>
 /// Specifies the role of a helper (hidden) sprite.
@@ -6,27 +6,23 @@ namespace ASToolkit.Core.Rendering;
 public enum HelperKind
 {
     /// <summary>
-    /// A helper of no other kind.
+    /// A hidden sprite of another class.
     /// </summary>
     Other,
 
-    /// <summary>
-    /// A sprite whose object or sprite file is missing.
-    /// </summary>
-    Missing,
 
     /// <summary>
-    /// A block that stops movement or holds things up.
+    /// A hidden built terrain sprite, which blocks movement.
     /// </summary>
     Blocker,
 
     /// <summary>
-    /// A dummy that runs a script.
+    /// A hidden sprite-class sprite, which scripts use as a trigger.
     /// </summary>
     Trigger,
 
     /// <summary>
-    /// A monster generator.
+    /// A hidden building, which spawns monsters.
     /// </summary>
     Spawner
 }

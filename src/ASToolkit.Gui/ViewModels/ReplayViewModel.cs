@@ -1,6 +1,5 @@
 using System.Drawing;
 using System.Diagnostics;
-using System.Numerics;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Simulation;
 using ASToolkit.Gui.Core;
@@ -17,8 +16,6 @@ namespace ASToolkit.Gui.ViewModels;
 /// </summary>
 public partial class ReplayViewModel : ViewModelBase
 {
-    private static readonly Size DefaultViewport = new(1280, 720);
-
     private readonly DispatcherTimer _timer;
     private readonly Stopwatch _clock = new();
 
@@ -57,9 +54,6 @@ public partial class ReplayViewModel : ViewModelBase
     public partial bool IsPlaying { get; set; }
 
     [ObservableProperty]
-    public partial bool IsFollowing { get; set; } = true;
-
-    [ObservableProperty]
     public partial int FrameIndex { get; set; }
 
     [ObservableProperty]
@@ -69,20 +63,7 @@ public partial class ReplayViewModel : ViewModelBase
     public partial double Speed { get; set; } = 1;
 
     [ObservableProperty]
-    public partial double Zoom { get; set; } = 1;
-
-    [ObservableProperty]
     public partial Bitmap? Frame { get; set; }
-
-    /// <summary>
-    /// Gets or sets the size of the view in device pixels, filled edge to edge.
-    /// </summary>
-    public Size Viewport { get; set; } = DefaultViewport;
-
-    /// <summary>
-    /// Gets or sets the view's offset from the game's camera in map pixels, or null while the view follows the game's camera.
-    /// </summary>
-    public Vector2? CameraOffset { get; set; }
 
     [RelayCommand]
     public async Task RunAsync()
@@ -91,8 +72,7 @@ public partial class ReplayViewModel : ViewModelBase
         string? game = source?.GameFolder;
         string? map = source?.SelectedMap;
         var objects = source?.Objects;
-        var renderer = source?.Renderer;
-        if (game is null || map is null || objects is null || renderer is null)
+        if (game is null || map is null || objects is null)
         {
             Status = "Open a map in the viewer first";
             return;
@@ -107,7 +87,7 @@ public partial class ReplayViewModel : ViewModelBase
         Status = $"Simulating {map}...";
         try
         {
-            var playback = await Task.Run(() => ReplayPlayback.Run(game, map, objects, renderer));
+            var playback = await Task.Run(() => ReplayPlayback.Run(game, map, objects));
             if (version != _loadVersion)
             {
                 return;
@@ -119,9 +99,6 @@ public partial class ReplayViewModel : ViewModelBase
             FrameIndex = 0;
             _time = 0;
             _baseTime = 0;
-            Zoom = Math.Max(Viewport.Width / (float)DefaultViewport.Width, Viewport.Height / (float)DefaultViewport.Height);
-            CameraOffset = null;
-            IsFollowing = true;
             IsReady = true;
             IsPlaying = playback.FrameCount > 0;
             _clock.Restart();
@@ -162,34 +139,10 @@ public partial class ReplayViewModel : ViewModelBase
         DrawFrame();
     }
 
-    partial void OnZoomChanged(double value) => DrawFrame();
-
     partial void OnSpeedChanged(double value)
     {
         _baseTime = _time;
         _clock.Restart();
-    }
-
-    /// <summary>
-    /// Sets the view's offset from the game's camera by a screen drag, in device pixels, and stops it from following the camera.
-    /// </summary>
-    /// <param name="screenDelta">The drag distance, in device pixels.</param>
-    public void Pan(Vector2 screenDelta)
-    {
-        float scale = (float)Math.Min(1, Zoom);
-        var offset = CameraOffset ?? Vector2.Zero;
-        CameraOffset = offset - screenDelta / scale;
-        IsFollowing = false;
-        DrawFrame();
-    }
-
-    partial void OnIsFollowingChanged(bool value)
-    {
-        if (value)
-        {
-            CameraOffset = null;
-            DrawFrame();
-        }
     }
 
     private void Tick()
@@ -230,18 +183,17 @@ public partial class ReplayViewModel : ViewModelBase
             return;
         }
 
-        float renderScale = (float)Math.Min(1, Zoom);
-        var buffer = Zoom <= 1 ? Viewport : new Size((int)(Viewport.Width / Zoom), (int)(Viewport.Height / Zoom));
+        var buffer = playback.FrameSize;
+
         if (_pixels.Length != buffer.Width * buffer.Height)
         {
             _pixels = new Bgra32[buffer.Width * buffer.Height];
         }
 
-        playback.Render(_pixels, buffer, renderScale, _time, CameraOffset.GetValueOrDefault(), _cursor);
+        playback.Render(_pixels, _time, _cursor);
         Frame = Upload(buffer);
     }
 
-    // Alternates between two bitmaps to give the bound Frame property a new reference without allocating
     private WriteableBitmap Upload(Size size)
     {
         var bitmap = _back;

@@ -1,7 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Numerics;
+using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Rendering;
 using ASToolkit.Gui.Core;
 using ASToolkit.Gui.Models;
 using Avalonia.Media.Imaging;
@@ -12,21 +13,20 @@ using SixLabors.ImageSharp.PixelFormats;
 namespace ASToolkit.Gui.ViewModels;
 
 /// <summary>
-/// Represents the animation player of the selected object.
+/// Represents the inspector of a sprite picked on the map, which plays the frames of its states as the engine draws them.
 /// </summary>
 public partial class SpriteViewModel : ViewModelBase
 {
     private const int PreviewSize = 300;
-    private static readonly Rgb24 Backdrop = new(48, 48, 48);
+    private const uint Backdrop = 0xff303030;
     private static readonly TimeSpan TickInterval = TimeSpan.FromMilliseconds(30);
 
     private readonly DispatcherTimer _timer;
     private readonly Stopwatch _clock = new();
-    private MapRenderer? _renderer;
-    private GameObject _object;
-    private VidResource? _sprite;
-    private KnownObject _id;
+    private Map? _map;
+    private Sprite? _sprite;
     private int _step;
+    private bool _isStale;
 
     public SpriteViewModel()
     {
@@ -43,10 +43,7 @@ public partial class SpriteViewModel : ViewModelBase
     public partial Bitmap? Frame { get; set; }
 
     [ObservableProperty]
-    public partial double FrameWidth { get; set; }
-
-    [ObservableProperty]
-    public partial double FrameHeight { get; set; }
+    public partial Avalonia.Size FrameSize { get; set; }
 
     [ObservableProperty]
     public partial AnimationState? SelectedState { get; set; }
@@ -64,26 +61,19 @@ public partial class SpriteViewModel : ViewModelBase
     public partial string Info { get; set; } = "";
 
     /// <summary>
-    /// Shows an object of a scene, starting on its first state in the direction it faces.
+    /// Shows a sprite of a map.
     /// </summary>
-    /// <param name="renderer">The renderer that draws the object.</param>
-    /// <param name="objects">The game objects.</param>
-    /// <param name="source">The object of the scene to show.</param>
-    public void Show(MapRenderer renderer, ObjectTable objects, SceneObject source)
+    /// <param name="map">The map, which is locked while its sprite is drawn.</param>
+    /// <param name="objects">The object table of the game.</param>
+    /// <param name="sprite">The sprite.</param>
+    public void Show(Map map, ObjectTable objects, Sprite sprite)
     {
-        if (!objects.TryFind(source.Id, out var obj))
-        {
-            return;
-        }
-
-        _renderer = renderer;
-        _object = obj;
-        _id = source.Id;
-        _sprite = renderer.GetSprite(source.Id);
-        string sprite = _sprite.HasValue
-            ? $"{_sprite.Value.Type}  {_sprite.Value.FrameCount} frames  {_sprite.Value.Width}x{_sprite.Value.Height}  {_sprite.Value.Speed} ms"
-            : "missing";
-        Title = $"{(int)source.Id}  {objects.GetName(source.Id)}\n{objects.GetPath(source.Id)}  class {obj.SpriteClass}  flags 0x{(int)obj.Properties:x}\nsprite {sprite}";
+        var definition = sprite.Definition;
+        ref readonly var obj = ref definition.Object;
+        _map = map;
+        _sprite = sprite;
+        Title = $"{(int)definition.Id}  {objects.GetName(definition.Id)}\n{objects.GetPath(definition.Id)}  class {obj.SpriteClass}  flags 0x{(int)obj.Properties:x}\n" +
+                $"{definition.FileFrameCount} frames  {definition.FrameSize.Width}x{definition.FrameSize.Height}  {definition.SpriteSpeed} ms";
         States.Clear();
         for (int state = 0; state < GameObject.StateCount; state++)
         {
@@ -94,7 +84,7 @@ public partial class SpriteViewModel : ViewModelBase
         }
 
         MaxDirection = Math.Max(0, obj.Directions - 1);
-        Direction = source.Direction.GetDirectionIndex(obj.Directions);
+        Direction = sprite.Direction.GetDirectionIndex(obj.Directions);
         SelectedState = States.FirstOrDefault();
         Restart();
         _timer.Start();
@@ -113,12 +103,17 @@ public partial class SpriteViewModel : ViewModelBase
 
     private void Tick()
     {
+        if (_isStale)
+        {
+            ShowFrame();
+        }
+
         if (!IsPlaying || SelectedState is null || _sprite is null)
         {
             return;
         }
 
-        int duration = Math.Max(1, _object.GetFrameDuration(SelectedState.State, _sprite.Value.Speed));
+        int duration = Math.Max(1, _sprite.Definition.Object.GetFrameDuration(SelectedState.State, _sprite.Definition.SpriteSpeed));
         if (_clock.ElapsedMilliseconds >= duration)
         {
             _clock.Restart();
@@ -130,41 +125,50 @@ public partial class SpriteViewModel : ViewModelBase
     private void ShowFrame()
     {
         var state = SelectedState;
-        if (_renderer is null || state is null)
+        var map = _map;
+        var sprite = _sprite;
+        if (map is null || sprite is null || state is null)
         {
             ClearFrame();
             Info = "";
             return;
         }
 
-        if (_sprite is null)
-        {
-            ClearFrame();
-            Info = "The sprite file is missing";
-            return;
-        }
-
-        var sprite = _sprite.Value;
-
-        int frame = _object.GetStateStart(state.State) + Direction * state.FrameCount + _step % state.FrameCount;
-        if (frame >= sprite.FrameCount)
+        var definition = sprite.Definition;
+        int frame = definition.Object.GetStateStart(state.State) + Direction * state.FrameCount + _step % state.FrameCount;
+        if (frame >= definition.FileFrameCount)
         {
             ClearFrame();
             Info = $"Frame {frame} is out of range";
             return;
         }
 
-        using var image = _renderer.DrawFrame(_id, frame, Backdrop);
-        if (image is null)
-        {
-            ClearFrame();
-            Info = $"Frame {frame} cannot be decoded";
+        _isStale = !Monitor.TryEnter(map);
+        if (_isStale)
             return;
+
+        var size = new System.Drawing.Size(Math.Max(1, definition.FrameSize.Width * 2), Math.Max(1, definition.FrameSize.Height * 2));
+        var screen = new Screen(size, true);
+        var pixels = new Bgra32[size.Width * size.Height];
+        try
+        {
+            int saved = sprite.Frame;
+            var center = sprite.Position.ToDrawPosition();
+            Graphics.Clear(screen, Backdrop);
+            sprite.Frame = frame;
+            definition.Draw(screen, map, sprite, center - new Vector2(size.Width, size.Height) * 0.5f);
+            sprite.Frame = saved;
+        }
+        finally
+        {
+            Monitor.Exit(map);
         }
 
-        SetFrame(BitmapConversion.ToBitmap(image), image.Width, image.Height);
-        Info = sprite.Type.HasFlag(VidType.Light) ? $"Light frame {frame} of {sprite.FrameCount}, color #{sprite.GetLightColor(frame):x6}"
-            : $"Frame {frame} of {sprite.FrameCount}";
+        screen.CopyTo(pixels);
+        using var image = SixLabors.ImageSharp.Image.LoadPixelData(pixels, size.Width, size.Height);
+        using var opaque = image.CloneAs<Rgb24>();
+        SetFrame(BitmapConversion.ToBitmap(opaque), size);
+        Info = $"Frame {frame} of {definition.FileFrameCount}";
     }
 
     private void ClearFrame()
@@ -174,14 +178,13 @@ public partial class SpriteViewModel : ViewModelBase
         previous?.Dispose();
     }
 
-    private void SetFrame(Bitmap bitmap, int width, int height)
+    private void SetFrame(Bitmap bitmap, System.Drawing.Size size)
     {
-        double factor = width > PreviewSize || height > PreviewSize ? Math.Min(PreviewSize / (double)width, PreviewSize / (double)height)
-            : Math.Max(1, Math.Min(PreviewSize / width, PreviewSize / height));
+        double factor = size.Width > PreviewSize || size.Height > PreviewSize ? Math.Min(PreviewSize / (double)size.Width, PreviewSize / (double)size.Height)
+            : Math.Max(1, Math.Min(PreviewSize / size.Width, PreviewSize / size.Height));
         var previous = Frame;
         Frame = bitmap;
-        FrameWidth = width * factor;
-        FrameHeight = height * factor;
+        FrameSize = new Avalonia.Size(size.Width * factor, size.Height * factor);
         previous?.Dispose();
     }
 }

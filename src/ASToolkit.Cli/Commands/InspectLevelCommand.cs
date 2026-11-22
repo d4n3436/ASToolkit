@@ -1,8 +1,10 @@
 using ASToolkit.Cli.Analysis;
 using ASToolkit.Core.Survey;
+using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Rendering;
+using ASToolkit.Core.Simulation;
 using ASToolkit.Core.Reference;
+using ASToolkit.Core.Rendering;
 using SixLabors.ImageSharp;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -16,7 +18,6 @@ internal sealed class InspectLevelCommand : LevelCommand<InspectLevelSettings>
         var objects = ObjectTable.Load(Path.Combine(settings.Game, "objects.res"));
         string[] maps = GetMaps(settings.Maps, settings.Levels);
         Directory.CreateDirectory(settings.Out);
-        var renderer = settings.NoImages ? null : new MapRenderer(settings.Game, objects);
         string?[] problems = new string?[maps.Length];
         var surveys = new LevelSurvey?[maps.Length];
         var loader = new LevelLoader(objects);
@@ -39,12 +40,12 @@ internal sealed class InspectLevelCommand : LevelCommand<InspectLevelSettings>
 
             var survey = level.Survey;
             surveys[mapIndex] = survey;
-            if (renderer is not null)
+            if (!settings.NoImages)
             {
                 string name = (settings.Levels is null ? "" : "gen_") + Path.ChangeExtension(maps[mapIndex], null).Replace('/', '_').Replace('\\', '_');
-                using var rendered = renderer.Render(level.Map.Sprites, settings.Scale, level.Map.Graphics);
+                using var rendered = MapImage.Render(Playthrough.LoadMap(settings.Game, new SpriteCatalog(settings.Game, objects), mapPath), settings.Scale);
                 PlaceOverlay.Draw(rendered, survey, level.Analysis);
-                rendered.Image.SaveAsPng(Path.Combine(settings.Out, name + "_places.png"), PngOptions);
+                rendered.Image.SaveAsPng(Path.Combine(settings.Out, name + "_places.png"), PngOptions.Fast);
             }
         }));
 

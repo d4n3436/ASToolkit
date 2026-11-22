@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
 using System.Numerics;
+using ASToolkit.Core;
+using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Rendering;
 using ASToolkit.Core.Routes;
 using ASToolkit.Core.Scripting;
+using ASToolkit.Core.Simulation;
 using ASToolkit.Gui.Core;
 using ASToolkit.Gui.Models;
 using Avalonia.Platform.Storage;
@@ -20,6 +22,7 @@ public partial class MapViewerViewModel : ViewModelBase
     private const string ObjectsFile = "objects.res";
     private const string MapsFolder = "Maps";
     private const double HoverDistance = 6;
+    private const int LayerCount = 15;
 
     private readonly Dictionary<string, MapOverlay> _overlays = new(StringComparer.OrdinalIgnoreCase);
     private QuestBook _quests = QuestBook.Empty;
@@ -37,11 +40,6 @@ public partial class MapViewerViewModel : ViewModelBase
     /// </summary>
     public ObjectTable? Objects { get; private set; }
 
-    /// <summary>
-    /// Gets the renderer of the open game folder, or null before a map is loaded.
-    /// </summary>
-    public MapRenderer? Renderer { get; private set; }
-
     [ObservableProperty]
     public partial string? GameFolder { get; set; }
 
@@ -49,13 +47,10 @@ public partial class MapViewerViewModel : ViewModelBase
     public partial string? SelectedMap { get; set; }
 
     [ObservableProperty]
-    public partial MapScene? Scene { get; set; }
+    public partial Map? Map { get; set; }
 
     [ObservableProperty]
     public partial MapOverlay? Overlay { get; set; }
-
-    [ObservableProperty]
-    public partial bool IsAlienShooter2 { get; set; }
 
     [ObservableProperty]
     public partial bool IsLoading { get; set; }
@@ -65,24 +60,6 @@ public partial class MapViewerViewModel : ViewModelBase
 
     [ObservableProperty]
     public partial bool Animate { get; set; } = true;
-
-    [ObservableProperty]
-    public partial bool MatchGameLighting { get; set; } = true;
-
-    [ObservableProperty]
-    public partial bool OmitAmbientGamma { get; set; }
-
-    [ObservableProperty]
-    public partial bool OmitCovers { get; set; }
-
-    [ObservableProperty]
-    public partial bool ShowHiddenObjects { get; set; }
-
-    [ObservableProperty]
-    public partial bool ShowFemalePlayer { get; set; }
-
-    [ObservableProperty]
-    public partial bool OmitRemovableGroups { get; set; } = true;
 
     [ObservableProperty]
     public partial bool ShowHelpers { get; set; } = true;
@@ -96,7 +73,7 @@ public partial class MapViewerViewModel : ViewModelBase
     [RelayCommand]
     public async Task SelectGameFolderAsync()
     {
-        var folders = await SelectFolderInteraction.HandleAsync(new FolderPickerOpenOptions { Title = "Open the AS1/AS2 game folder" });
+        var folders = await SelectFolderInteraction.HandleAsync(new FolderPickerOpenOptions { Title = "Open the Alien Shooter game folder" });
         string? path = folders.Count >= 1 ? folders[0].TryGetLocalPath() : null;
         if (path is not null)
         {
@@ -118,12 +95,17 @@ public partial class MapViewerViewModel : ViewModelBase
             return;
         }
 
-        Objects = ObjectTable.Load(objectsPath);
+        var objects = ObjectTable.Load(objectsPath);
+        if (objects.IsAlienShooter2)
+        {
+            Status = $"{folder} is an Alien Shooter 2 folder. Only Alien Shooter maps can be viewed.";
+            return;
+        }
+
+        Objects = objects;
         _quests = QuestBook.Load(folder);
         _overlays.Clear();
-        Renderer = null;
         GameFolder = folder;
-        IsAlienShooter2 = Objects.IsAlienShooter2;
         string? mapsPath = GamePath.Resolve(folder, MapsFolder);
         Maps.Clear();
         if (mapsPath is not null)
@@ -137,33 +119,44 @@ public partial class MapViewerViewModel : ViewModelBase
         SelectedMap = Maps.FirstOrDefault(name => string.Equals(name, map, StringComparison.OrdinalIgnoreCase)) ?? Maps.FirstOrDefault();
         if (SelectedMap is null)
         {
-            Scene = null;
+            Map = null;
             Status = $"{folder} has no maps";
         }
     }
 
     [RelayCommand]
-    public void Hover(ScenePoint point)
+    public void Hover(MapPoint point)
     {
-        var scene = Scene;
-        if (scene is null || Objects is null)
+        if (Map is null || Objects is null)
         {
             return;
         }
 
-        string position = $"screen ({scene.Left + point.Position.X}, {scene.Top + point.Position.Y})";
-        string? overlay = DescribeOverlay(new Vector2(scene.Left + point.Position.X, scene.Top + point.Position.Y), point.Zoom);
+        string position = $"map ({point.Position.X}, {point.Position.Y})";
+        string? overlay = DescribeOverlay(new Vector2(point.Position.X, point.Position.Y), point.Zoom);
         if (overlay is not null)
         {
             Status = $"{position}    {overlay}";
             return;
         }
 
-        var found = scene.FindObject(point.Position, point.Time);
+        var found = FindSprite(Map, point.Position);
         Status = found is null ? $"{position}    {_summary}"
-            : $"{position}    object {(int)found.Id} {Objects.GetName(found.Id)} [{Objects.GetPath(found.Id)}]    " +
+            : $"{position}    object {(int)found.Definition.Id} {Objects.GetName(found.Definition.Id)} [{Objects.GetPath(found.Definition.Id)}]    " +
               $"position ({found.Position.X:0}, {found.Position.Y:0}, {found.Position.Z:0})    direction {found.Direction}";
     }
+
+    [RelayCommand]
+    public void Select(MapPoint point)
+    {
+        var found = Map is null ? null : FindSprite(Map, point.Position);
+        if (Map is not null && found is not null && Objects is not null)
+        {
+            Sprite.Show(Map, Objects, found);
+        }
+    }
+
+    partial void OnSelectedMapChanged(string? value) => LoadMap();
 
     private string? DescribeOverlay(Vector2 position, double zoom)
     {
@@ -176,19 +169,18 @@ public partial class MapViewerViewModel : ViewModelBase
         float reach = (float)(HoverDistance / zoom);
         if (ShowHelpers)
         {
-            var helper = overlay.Helpers.FirstOrDefault(helper =>
-                Vector2.Distance(ToScreen(helper.Sprite.Position), position) <= reach);
+            var helper = overlay.Helpers.FirstOrDefault(helper => Vector2.Distance(helper.Position.ToDrawPosition(), position) <= reach);
             if (helper is not null)
             {
-                string name = Objects.TryFind(helper.Sprite.Id, out _) ? Objects.GetName(helper.Sprite.Id) : "unknown object";
-                return $"{helper.Kind.ToString().ToLowerInvariant()} helper {(int)helper.Sprite.Id} {name}    army {helper.Sprite.Army}";
+                string name = Objects.TryFind(helper.Id, out _) ? Objects.GetName(helper.Id) : "unknown object";
+                return $"{helper.Kind.ToString().ToLowerInvariant()} helper {(int)helper.Id} {name}    army {helper.Army}";
             }
         }
 
         if (ShowRoute)
         {
-            var step = (overlay.Walk?.Steps ?? overlay.Logic.Progression).Select((step, index) => (Step: step, Index: index))
-                .FirstOrDefault(entry => Vector2.Distance(ToScreen(entry.Step.Position), position) <= reach);
+            var step = overlay.Logic.Progression.Select((step, index) => (Step: step, Index: index))
+                .FirstOrDefault(entry => Vector2.Distance(entry.Step.Position.ToDrawPosition(), position) <= reach);
             if (step.Step is not null)
             {
                 return $"step {step.Index + 1}: {step.Step.Label}";
@@ -201,95 +193,55 @@ public partial class MapViewerViewModel : ViewModelBase
         }
 
         var marker = overlay.Logic.Markers
-            .Where(marker => Vector2.Distance(ToScreen(marker.Position), position) <= Math.Max(reach, marker.Radius) || Vector2.Distance(ToScreen(marker.Source), position) <= reach)
+            .Where(marker => Vector2.Distance(marker.Position.ToDrawPosition(), position) <= Math.Max(reach, marker.Radius) || Vector2.Distance(marker.Source.ToDrawPosition(), position) <= reach)
             .OrderByDescending(marker => marker.Kind)
             .ThenBy(marker => marker.Radius)
             .FirstOrDefault();
         return marker is null ? null : $"{marker.Kind.ToString().ToLowerInvariant()}: {marker.Label}";
     }
 
-    [RelayCommand]
-    public void Select(ScenePoint point)
-    {
-        var found = Scene?.FindObject(point.Position, point.Time);
-        if (found is not null && Renderer is not null && Objects is not null)
-        {
-            Sprite.Show(Renderer, Objects, found);
-        }
-    }
-
-    partial void OnSelectedMapChanged(string? value) => LoadScene();
-
-    partial void OnMatchGameLightingChanged(bool value) => ResetRenderer();
-
-    partial void OnOmitAmbientGammaChanged(bool value) => ResetRenderer();
-
-    partial void OnOmitCoversChanged(bool value) => ResetRenderer();
-
-    partial void OnShowHiddenObjectsChanged(bool value) => ResetRenderer();
-
-    partial void OnShowFemalePlayerChanged(bool value) => ResetRenderer();
-
-    partial void OnOmitRemovableGroupsChanged(bool value) => ResetRenderer();
-
-    private void ResetRenderer()
-    {
-        Renderer = null;
-        LoadScene();
-    }
-
-    private async void LoadScene()
+    private async void LoadMap()
     {
         string? game = GameFolder;
-        string? map = SelectedMap;
+        string? name = SelectedMap;
         var objects = Objects;
         string? mapsPath = game is null ? null : GamePath.Resolve(game, MapsFolder);
-        if (game is null || map is null || objects is null || mapsPath is null)
+        if (game is null || name is null || objects is null || mapsPath is null)
         {
             return;
         }
 
         int version = ++_loadVersion;
-        var renderer = Renderer ??= new MapRenderer(game, objects)
-        {
-            MatchGameLighting = MatchGameLighting, OmitAmbientGamma = OmitAmbientGamma, OmitCovers = OmitCovers, OmitHiddenObjects = !ShowHiddenObjects,
-            ShowFemalePlayer = ShowFemalePlayer, OmitRemovableGroups = OmitRemovableGroups
-        };
         IsLoading = true;
-        Status = $"Loading {map}";
+        Status = $"Loading {name}";
         try
         {
-            string path = Path.Combine(mapsPath, map);
-            var (resource, scene) = await Task.Run(() =>
-            {
-                var loaded = MapResourceBuilder.Load(path);
-                return (loaded, renderer.CreateScene(loaded.Sprites, loaded.Graphics));
-            });
+            string path = Path.Combine(mapsPath, name);
+            var (resource, map) = await Task.Run(() => (MapResourceBuilder.Load(path), Playthrough.LoadMap(game, new SpriteCatalog(game, objects), path)));
             if (version != _loadVersion)
             {
                 return;
             }
 
-            _summary = scene.IsEmpty ? "This map has no sprites"
-                : $"{resource.Sprites.Count} sprites, {scene.ObjectCount} objects drawn, {scene.AnimatedCount} animated, {scene.Undrawn} sprite frames not decoded";
-            if (!_overlays.TryGetValue(map, out var overlay))
+            _summary = $"{resource.Sprites.Count} sprites placed";
+            if (!_overlays.TryGetValue(name, out var overlay))
             {
                 Overlay = null;
             }
 
-            Scene = scene;
+            Map = map;
             Status = _summary;
             IsLoading = false;
             if (overlay is null)
             {
                 var quests = _quests;
-                overlay = await Task.Run(() => CreateOverlay(game, map, path, resource, objects, quests, renderer));
+                overlay = await Task.Run(() => CreateOverlay(name, path, resource, objects, quests, map));
                 if (version != _loadVersion)
                 {
                     return;
                 }
 
-                _overlays[map] = overlay;
+                _overlays[name] = overlay;
             }
 
             Overlay = overlay;
@@ -298,9 +250,9 @@ public partial class MapViewerViewModel : ViewModelBase
         {
             if (version == _loadVersion)
             {
-                Scene = null;
+                Map = null;
                 Overlay = null;
-                Status = $"{map} cannot be opened: {ex.Message}";
+                Status = $"{name} cannot be opened: {ex.Message}";
             }
         }
         finally
@@ -312,18 +264,71 @@ public partial class MapViewerViewModel : ViewModelBase
         }
     }
 
-    private static Vector2 ToScreen(Vector3 point) => new(point.X, point.Y - point.Z);
+    private static Sprite? FindSprite(Map map, System.Drawing.Point point)
+    {
+        if (!Monitor.TryEnter(map))
+            return null;
 
-    private static MapOverlay CreateOverlay(string game, string map, string mapPath, MapResourceBuilder resource, ObjectTable objects, QuestBook quests,
-        MapRenderer renderer)
+        try
+        {
+            for (int layer = LayerCount - 1; layer >= 0; layer--)
+            {
+                foreach (var sprite in map.GetLayer(layer))
+                {
+                    if (sprite is null || IsHidden(sprite) || !IsPlaced(map, sprite))
+                        continue;
+
+                    var center = sprite.Position.ToDrawPosition();
+                    if (Math.Abs(point.X - center.X) <= sprite.Definition.FrameSize.Center.X && Math.Abs(point.Y - center.Y) <= sprite.Definition.FrameSize.Center.Y)
+                        return sprite;
+                }
+            }
+        }
+        finally
+        {
+            Monitor.Exit(map);
+        }
+
+        return null;
+    }
+
+    private static bool IsPlaced(Map map, Sprite sprite) => sprite != map.CursorSprite && !map.MenuSprites.Contains(sprite);
+
+    private static bool IsHidden(Sprite sprite) => sprite.IsInvisible || sprite.Definition.IsHidden;
+
+    private static IReadOnlyList<HelperMarker> GetHelpers(Map map)
+    {
+        var helpers = new List<HelperMarker>();
+        lock (map)
+        {
+            for (int layer = 0; layer < LayerCount; layer++)
+            {
+                foreach (var sprite in map.GetLayer(layer))
+                {
+                    if (sprite is not null && IsPlaced(map, sprite) && IsHidden(sprite))
+                    {
+                        helpers.Add(new HelperMarker(sprite.Definition.Id, sprite.Position, sprite.Army, GetHelperKind(sprite.Definition.Object.SpriteClass)));
+                    }
+                }
+            }
+        }
+
+        return helpers;
+    }
+
+    private static HelperKind GetHelperKind(SpriteClass spriteClass) => spriteClass switch
+    {
+        SpriteClass.Building => HelperKind.Spawner,
+        SpriteClass.Sprite => HelperKind.Trigger,
+        SpriteClass.BuiltTerrain => HelperKind.Blocker,
+        _ => HelperKind.Other
+    };
+
+    private static MapOverlay CreateOverlay(string name, string mapPath, MapResourceBuilder resource, ObjectTable objects, QuestBook quests, Map map)
     {
         string? scriptPath = LevelLogicReader.FindLevelScript(mapPath);
         var logic = LevelLogicReader.Read(mapPath, resource, objects, quests);
-        var route = RouteAnalyzer.Analyze(map, resource, scriptPath is null ? new LevelScriptSummary() : LevelScriptReader.Read(scriptPath, objects.ScriptVersion), objects);
-        return new MapOverlay
-        {
-            Logic = logic, Helpers = renderer.GetHelpers(resource.Sprites), Route = route, TourRuns = route?.GetTourRuns() ?? [],
-            Walk = objects.IsAlienShooter2 ? WalkedRouteBuilder.Build(game, resource, objects, logic) : null
-        };
+        var route = RouteAnalyzer.Analyze(name, resource, scriptPath is null ? new LevelScriptSummary() : LevelScriptReader.Read(scriptPath, objects.ScriptVersion), objects);
+        return new MapOverlay { Logic = logic, Helpers = GetHelpers(map), Route = route, TourRuns = route?.GetTourRuns() ?? [] };
     }
 }

@@ -6,6 +6,8 @@ using ASToolkit.Core.Rendering;
 using ASToolkit.Core.Routes;
 using ASToolkit.Core.Reference;
 using ASToolkit.Core.Scripting;
+using ASToolkit.Core.Simulation;
+using ASToolkit.Core.Engine;
 using ASToolkit.Cli.Analysis;
 using SixLabors.ImageSharp;
 using Spectre.Console;
@@ -32,11 +34,9 @@ internal sealed class AnalyzeCommand : LevelCommand<AnalyzeSettings>
 
         string[] maps = GetMaps(settings.Maps, settings.Levels);
         Directory.CreateDirectory(settings.Out);
-        var renderer = settings.NoImages ? null : new MapRenderer(settings.Game, objects) { MatchGameLighting = settings.GameLighting, OmitAmbientGamma = settings.NoAmbientGamma };
         var reports = new RouteReport?[maps.Length];
         string?[] problems = new string?[maps.Length];
         string?[] images = new string?[maps.Length];
-        int[] undrawn = new int[maps.Length];
         bool[] noScript = new bool[maps.Length];
         
         AnsiConsole.Status().Start("Analyzing the levels", _ => Parallel.For(0, maps.Length, CreateParallelOptions(cancellationToken), i =>
@@ -54,18 +54,17 @@ internal sealed class AnalyzeCommand : LevelCommand<AnalyzeSettings>
             var analysis = RouteAnalyzer.Analyze(maps[i], map, script, objects);
 
             string? image = null;
-            if (renderer is not null)
+            if (!settings.NoImages)
             {
                 image = (settings.Levels is null ? "" : "gen_") + Path.ChangeExtension(maps[i], null).Replace('/', '_').Replace('\\', '_') + ".png";
                 images[i] = image;
-                using var rendered = renderer.Render(map.Sprites, settings.Scale, map.Graphics);
+                using var rendered = MapImage.Render(Playthrough.LoadMap(settings.Game, new SpriteCatalog(settings.Game, objects), mapPath), settings.Scale);
                 if (analysis is not null)
                 {
                     RouteOverlay.Draw(rendered, analysis, script);
                 }
 
-                rendered.Image.SaveAsPng(Path.Combine(settings.Out, image), PngOptions);
-                undrawn[i] = rendered.Undrawn;
+                rendered.Image.SaveAsPng(Path.Combine(settings.Out, image), PngOptions.Fast);
             }
 
             if (analysis is null)
@@ -84,7 +83,7 @@ internal sealed class AnalyzeCommand : LevelCommand<AnalyzeSettings>
             string? image = images[mapIndex];
             table.AddRow(Markup.Escape(maps[mapIndex]), r?.WallSet.ToString() ?? "", r is null ? $"[red]{problems[mapIndex]}[/]" : $"{r.TourPixels} px",
                 r?.SpineShare.ToString("0.00", CultureInfo.InvariantCulture) ?? "", r?.Elongation.ToString("0.00", CultureInfo.InvariantCulture) ?? "",
-                image is null ? "" : Markup.Escape(image) + (undrawn[mapIndex] > 0 ? $" [grey]({undrawn[mapIndex]} sprites undrawn)[/]" : ""));
+                image is null ? "" : Markup.Escape(image));
         }
 
         AnsiConsole.Write(table);
@@ -107,7 +106,6 @@ internal sealed class AnalyzeCommand : LevelCommand<AnalyzeSettings>
                 .Where(name => !name.Contains("_temp", StringComparison.OrdinalIgnoreCase)).Order(StringComparer.OrdinalIgnoreCase).ToArray();
         Directory.CreateDirectory(settings.Out);
         var quests = QuestBook.Load(settings.Game);
-        var renderer = settings.NoImages ? null : new MapRenderer(settings.Game, objects) { MatchGameLighting = settings.GameLighting, OmitAmbientGamma = settings.NoAmbientGamma };
         var reports = new WalkReport?[maps.Length];
         AnsiConsole.Status().Start("Analyzing the levels", _ => Parallel.For(0, maps.Length, CreateParallelOptions(cancellationToken), i =>
         {
@@ -120,25 +118,16 @@ internal sealed class AnalyzeCommand : LevelCommand<AnalyzeSettings>
             var map = MapResourceBuilder.Load(mapPath);
             var logic = LevelLogicReader.Read(mapPath, map, objects, quests);
             var walk = WalkedRouteBuilder.Build(settings.Game, map, objects, logic);
-            string? image = null;
-            if (renderer is not null)
-            {
-                image = Path.ChangeExtension(maps[i], null).Replace('/', '_').Replace('\\', '_') + ".png";
-                using var rendered = renderer.Render(map.Sprites, settings.Scale, map.Graphics);
-                LogicOverlay.Draw(rendered, logic, walk);
-                rendered.Image.SaveAsPng(Path.Combine(settings.Out, image), PngOptions);
-            }
-
-            reports[i] = new WalkReport(maps[i], image, walk?.WalkedPixels ?? 0, walk?.UnreachedSteps ?? 0, (walk?.Steps ?? logic.Progression).Select(step => step.Label).ToArray(),
+            reports[i] = new WalkReport(maps[i], walk?.WalkedPixels ?? 0, walk?.UnreachedSteps ?? 0, (walk?.Steps ?? logic.Progression).Select(step => step.Label).ToArray(),
                 logic.Markers.Count);
         }));
 
-        var table = new Table().AddColumns("Map", "Quest steps", "Walked", "Unreached", "Script events", "Image");
+        var table = new Table().AddColumns("Map", "Quest steps", "Walked", "Unreached", "Script events");
         for (int mapIndex = 0; mapIndex < maps.Length; mapIndex++)
         {
             var report = reports[mapIndex];
             table.AddRow(Markup.Escape(maps[mapIndex]), report is null ? "[red]missing[/]" : report.Steps.Length.ToString(), report is null ? "" : $"{report.WalkedPixels} px",
-                report is null ? "" : report.UnreachedSteps > 0 ? $"[yellow]{report.UnreachedSteps}[/]" : "0", report?.Markers.ToString() ?? "", Markup.Escape(report?.Image ?? ""));
+                report is null ? "" : report.UnreachedSteps > 0 ? $"[yellow]{report.UnreachedSteps}[/]" : "0", report?.Markers.ToString() ?? "");
         }
 
         AnsiConsole.Write(table);

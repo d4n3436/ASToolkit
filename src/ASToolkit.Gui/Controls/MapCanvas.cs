@@ -1,5 +1,5 @@
-using System.Diagnostics;
 using System.Windows.Input;
+using ASToolkit.Core.Engine;
 using ASToolkit.Core.Rendering;
 using ASToolkit.Gui.Core;
 using ASToolkit.Gui.Models;
@@ -9,17 +9,15 @@ using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
-using SixLabors.ImageSharp.PixelFormats;
-using Rectangle = SixLabors.ImageSharp.Rectangle;
 
 namespace ASToolkit.Gui.Controls;
 
 /// <summary>
-/// Represents a control that shows a map scene with zoom, panning and animation.
+/// Shows an engine map that can be zoomed, dragged and animated, with the overlays of the level drawn over it.
 /// </summary>
 public sealed class MapCanvas : Control
 {
-    public static readonly StyledProperty<MapScene?> SceneProperty = AvaloniaProperty.Register<MapCanvas, MapScene?>(nameof(Scene));
+    public static readonly StyledProperty<Map?> MapProperty = AvaloniaProperty.Register<MapCanvas, Map?>(nameof(Map));
 
     public static readonly StyledProperty<bool> AnimateProperty = AvaloniaProperty.Register<MapCanvas, bool>(nameof(Animate), true);
 
@@ -35,26 +33,22 @@ public sealed class MapCanvas : Control
 
     public static readonly StyledProperty<ICommand?> SelectCommandProperty = AvaloniaProperty.Register<MapCanvas, ICommand?>(nameof(SelectCommand));
 
-    private const int TileSize = 512;
-    private const int MaxTiles = 160;
     private const double ZoomStep = 1.25;
     private const double MaxZoom = 16;
     private const double ClickDistance = 4;
-    private const double PatchShare = 0.4;
-    private const int MaxAnimatedLevel = 3;
     private static readonly TimeSpan TickInterval = TimeSpan.FromMilliseconds(40);
 
-    private readonly Dictionary<TileKey, Tile> _tiles = [];
-    private readonly Stopwatch _clock = Stopwatch.StartNew();
     private readonly DispatcherTimer _timer;
     private double _zoom = 1;
     private Point _offset;
     private Point? _pressed;
     private Point _lastPointer;
-    private bool _busy;
     private bool _attached;
-    private bool _tickDue;
-    private long _frameNumber;
+    private bool _busy;
+    private bool _isDue;
+    private bool _isTickDue;
+    private Bitmap? _image;
+    private Rect _imageArea;
 
     public MapCanvas()
     {
@@ -63,22 +57,22 @@ public sealed class MapCanvas : Control
         _timer = new DispatcherTimer { Interval = TickInterval };
         _timer.Tick += (_, _) =>
         {
-            _tickDue = true;
-            Pump();
+            _isTickDue = true;
+            RequestDraw();
         };
     }
 
     /// <summary>
-    /// Gets or sets the scene shown.
+    /// Gets or sets the map shown.
     /// </summary>
-    public MapScene? Scene
+    public Map? Map
     {
-        get => GetValue(SceneProperty);
-        set => SetValue(SceneProperty, value);
+        get => GetValue(MapProperty);
+        set => SetValue(MapProperty, value);
     }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the objects of the scene animate.
+    /// Gets or sets a value indicating whether the map steps while it is shown, so its sprites animate.
     /// </summary>
     public bool Animate
     {
@@ -87,7 +81,7 @@ public sealed class MapCanvas : Control
     }
 
     /// <summary>
-    /// Gets or sets what is drawn over the scene.
+    /// Gets or sets what is drawn over the map.
     /// </summary>
     public MapOverlay? Overlay
     {
@@ -123,7 +117,7 @@ public sealed class MapCanvas : Control
     }
 
     /// <summary>
-    /// Gets or sets the command run with the <see cref="ScenePoint"/> under the pointer when it moves.
+    /// Gets or sets the command run with the <see cref="MapPoint"/> under the pointer when it moves.
     /// </summary>
     public ICommand? HoverCommand
     {
@@ -132,7 +126,7 @@ public sealed class MapCanvas : Control
     }
 
     /// <summary>
-    /// Gets or sets the command run with the <see cref="ScenePoint"/> that is clicked.
+    /// Gets or sets the command run with the <see cref="MapPoint"/> that is clicked.
     /// </summary>
     public ICommand? SelectCommand
     {
@@ -140,64 +134,50 @@ public sealed class MapCanvas : Control
         set => SetValue(SelectCommandProperty, value);
     }
 
-    private int? Time => Animate ? (int)_clock.ElapsedMilliseconds : null;
-
     /// <summary>
-    /// Zooms and moves the view so the whole scene fits.
+    /// Zooms and moves the view so the whole map fits.
     /// </summary>
     public void Fit()
     {
-        var scene = Scene;
-        if (scene is null || scene.IsEmpty || Bounds.Width <= 0 || Bounds.Height <= 0)
+        if (Map is null || Bounds.Width <= 0 || Bounds.Height <= 0)
         {
             return;
         }
 
-        _zoom = Math.Min(Bounds.Width / scene.Width, Bounds.Height / scene.Height);
-        _offset = new Point((scene.Width - Bounds.Width / _zoom) / 2, (scene.Height - Bounds.Height / _zoom) / 2);
+        var size = Map.Size;
+
+        _zoom = Math.Min(Bounds.Width / size.Width, Bounds.Height / size.Height);
+        _offset = new Point((size.Width - Bounds.Width / _zoom) / 2, (size.Height - Bounds.Height / _zoom) / 2);
         OnViewChanged();
     }
 
     public override void Render(DrawingContext context)
     {
         context.FillRectangle(Brushes.Black, new Rect(Bounds.Size));
-        var scene = Scene;
-        if (scene is null || scene.IsEmpty)
+        if (Map is null)
         {
             return;
         }
 
-        _frameNumber++;
-        int level = GetLevel();
-        var mode = _zoom > GetScale(level) ? BitmapInterpolationMode.None : BitmapInterpolationMode.HighQuality;
-        using (context.PushRenderOptions(new RenderOptions { BitmapInterpolationMode = mode }))
+        if (_image is not null)
         {
-            for (int coarser = GetMaxLevel(scene); coarser >= level; coarser--)
+            using (context.PushRenderOptions(new RenderOptions { BitmapInterpolationMode = (_zoom > 1 ? BitmapInterpolationMode.None : BitmapInterpolationMode.HighQuality) }))
             {
-                foreach (var key in GetVisibleTiles(scene, coarser))
-                {
-                    if (_tiles.TryGetValue(key, out var tile) && tile.Bitmap is not null)
-                    {
-                        tile.LastDrawn = _frameNumber;
-                        context.DrawImage(tile.Bitmap, new Rect(0, 0, tile.Area.Width, tile.Area.Height), ToView(tile.Area, GetScale(coarser)));
-                    }
-                }
+                context.DrawImage(_image, new Rect(_image.Size), new Rect(ToView(_imageArea.TopLeft), ToView(_imageArea.BottomRight)));
             }
         }
 
-        DrawOverlay(context, scene);
+        DrawOverlay(context);
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
-        if (change.Property == SceneProperty)
+        if (change.Property == MapProperty)
         {
-            ClearTiles();
+            _image = null;
             Fit();
             UpdateTimer();
-            InvalidateVisual();
-            Pump();
         }
         else if (change.Property == OverlayProperty || change.Property == ShowHelpersProperty || change.Property == ShowScriptMarkersProperty
                  || change.Property == ShowRouteProperty)
@@ -206,10 +186,7 @@ public sealed class MapCanvas : Control
         }
         else if (change.Property == AnimateProperty)
         {
-            ClearTiles();
             UpdateTimer();
-            InvalidateVisual();
-            Pump();
         }
     }
 
@@ -241,16 +218,17 @@ public sealed class MapCanvas : Control
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         base.OnPointerWheelChanged(e);
-        if (Scene is null || e.Delta.Y == 0)
+        if (Map is null || e.Delta.Y == 0)
         {
             return;
         }
 
         var anchor = e.GetPosition(this);
-        var sceneAnchor = ToScene(anchor);
-        double fit = Math.Min(Bounds.Width / Math.Max(1, Scene.Width), Bounds.Height / Math.Max(1, Scene.Height));
+        var mapAnchor = ToMap(anchor);
+        var size = Map.Size;
+        double fit = Math.Min(Bounds.Width / Math.Max(1, size.Width), Bounds.Height / Math.Max(1, size.Height));
         _zoom = Math.Clamp(e.Delta.Y > 0 ? _zoom * ZoomStep : _zoom / ZoomStep, Math.Min(fit / 2, 1), MaxZoom);
-        _offset = new Point(sceneAnchor.X - anchor.X / _zoom, sceneAnchor.Y - anchor.Y / _zoom);
+        _offset = new Point(mapAnchor.X - anchor.X / _zoom, mapAnchor.Y - anchor.Y / _zoom);
         OnViewChanged();
         e.Handled = true;
     }
@@ -300,15 +278,15 @@ public sealed class MapCanvas : Control
 
     private void RunCommand(ICommand? command, Point position)
     {
-        var scenePosition = ToScene(position);
-        var point = new ScenePoint(new System.Drawing.Point((int)Math.Floor(scenePosition.X), (int)Math.Floor(scenePosition.Y)), Time, _zoom);
+        var mapPosition = ToMap(position);
+        var point = new MapPoint(new System.Drawing.Point((int)Math.Floor(mapPosition.X), (int)Math.Floor(mapPosition.Y)), _zoom);
         if (command?.CanExecute(point) == true)
         {
             command.Execute(point);
         }
     }
 
-    private void DrawOverlay(DrawingContext context, MapScene scene)
+    private void DrawOverlay(DrawingContext context)
     {
         var overlay = Overlay;
         if (overlay is null)
@@ -316,8 +294,7 @@ public sealed class MapCanvas : Control
             return;
         }
 
-        var painter = new OverlayPainter(context, point => new Point((point.X - scene.Left - _offset.X) * _zoom, (point.Y - scene.Top - _offset.Y) * _zoom),
-            new Rect(Bounds.Size), _zoom);
+        var painter = new OverlayPainter(context, point => ToView(new Point(point.X, point.Y)), new Rect(Bounds.Size), _zoom);
         if (ShowRoute)
         {
             painter.DrawRoute(overlay);
@@ -336,7 +313,7 @@ public sealed class MapCanvas : Control
 
     private void UpdateTimer()
     {
-        if (Animate && Scene?.IsAnimated == true && _attached)
+        if (Animate && Map is not null && _attached)
         {
             _timer.Start();
         }
@@ -349,302 +326,78 @@ public sealed class MapCanvas : Control
     private void OnViewChanged()
     {
         InvalidateVisual();
-        Pump();
+        RequestDraw();
     }
 
-    private async void Pump()
+    private async void RequestDraw()
     {
-        var scene = Scene;
-        if (_busy || scene is null || scene.IsEmpty)
-        {
-            return;
-        }
-
-        var job = GetNextJob(scene);
-        if (job is null)
+        _isDue = true;
+        if (_busy)
         {
             return;
         }
 
         _busy = true;
-        
-        var watch = Stopwatch.StartNew();
         try
         {
-            await Task.Run(job.Run);
-            Debug.WriteLine($"{job} took {watch.ElapsedMilliseconds} ms");
-            if (job.Scene == Scene)
+            while (_isDue)
             {
-                job.Apply();
-                EvictTiles(scene);
+                _isDue = false;
+                var map = Map;
+                if (map is null || Bounds.Width <= 0 || Bounds.Height <= 0)
+                {
+                    break;
+                }
+
+                bool tick = _isTickDue;
+                _isTickDue = false;
+                var size = map.Size;
+                var view = new Rect(_offset, Bounds.Size / _zoom).Intersect(new Rect(0, 0, size.Width, size.Height));
+                if (view.Width < 1 || view.Height < 1)
+                {
+                    _image = null;
+                    InvalidateVisual();
+                    break;
+                }
+
+                var area = new System.Drawing.Rectangle((int)Math.Floor(view.X), (int)Math.Floor(view.Y),
+                    (int)Math.Ceiling(view.Right) - (int)Math.Floor(view.X), (int)Math.Ceiling(view.Bottom) - (int)Math.Floor(view.Y));
+                float scale = (float)Math.Min(1, _zoom * (TopLevel.GetTopLevel(this)?.RenderScaling ?? 1));
+                var image = await Task.Run(() =>
+                {
+                    lock (map)
+                    {
+                        if (tick)
+                        {
+                            map.AdvanceClock();
+                            map.Step();
+                        }
+
+                        using var drawn = MapImage.Render(map, area, scale);
+                        return BitmapConversion.ToBitmap(drawn.Image);
+                    }
+                });
+
+                if (map != Map)
+                {
+                    image.Dispose();
+                    continue;
+                }
+
+                var previous = _image;
+                _image = image;
+                _imageArea = new Rect(area.X, area.Y, area.Width, area.Height);
+                previous?.Dispose();
+                InvalidateVisual();
             }
         }
         finally
         {
             _busy = false;
         }
-
-        InvalidateVisual();
-        Pump();
     }
 
-    private Job? GetNextJob(MapScene scene)
-    {
-        int level = GetLevel();
-        var visible = GetVisibleTiles(scene, level).ToList();
-        var center = new Point(Bounds.Width / 2, Bounds.Height / 2);
-        
-        var missing = visible
-            .Where(key => !_tiles.ContainsKey(key))
-            .OrderBy(key => GetDistance(ToView(GetTileArea(scene, key), GetScale(level)).Center, center))
-            .Cast<TileKey?>()
-            .FirstOrDefault();
-        
-        if (missing.HasValue)
-        {
-            var key = missing.Value;
-            var tile = new Tile(GetTileArea(scene, key), GetScale(level)) { LastDrawn = _frameNumber };
-            _tiles[key] = tile;
-            return new TileJob(scene, tile, Time);
-        }
+    private Point ToView(Point point) => new((point.X - _offset.X) * _zoom, (point.Y - _offset.Y) * _zoom);
 
-        if (!_tickDue || Time is null || level > MaxAnimatedLevel)
-        {
-            return null;
-        }
-
-        _tickDue = false;
-        var patched = visible.Select(visibleKey => _tiles[visibleKey]).Where(tile => tile.Bitmap is not null && tile.Time != Time.Value).ToArray();
-        return patched.Length > 0 ? new PatchJob(scene, patched, Time.Value) : null;
-    }
-
-    private void EvictTiles(MapScene scene)
-    {
-        if (_tiles.Count <= MaxTiles)
-        {
-            return;
-        }
-
-        var visible = GetVisibleTiles(scene, GetLevel()).ToHashSet();
-        foreach (var key in _tiles.Where(pair => pair.Value.Bitmap is not null && !visible.Contains(pair.Key)).OrderBy(pair => pair.Value.LastDrawn)
-                     .Take(_tiles.Count - MaxTiles).Select(pair => pair.Key).ToList())
-        {
-            _tiles[key].Bitmap?.Dispose();
-            _tiles.Remove(key);
-        }
-    }
-
-    private void ClearTiles()
-    {
-        foreach (var tile in _tiles.Values)
-        {
-            tile.Bitmap?.Dispose();
-        }
-
-        _tiles.Clear();
-    }
-
-    private IEnumerable<TileKey> GetVisibleTiles(MapScene scene, int level)
-    {
-        double scale = GetScale(level);
-        var topLeft = ToScene(default);
-        var bottomRight = ToScene(new Point(Bounds.Width, Bounds.Height));
-        int columns = (GetOutputSize(scene.Width, scale) + TileSize - 1) / TileSize;
-        int rows = (GetOutputSize(scene.Height, scale) + TileSize - 1) / TileSize;
-        int firstColumn = Math.Max(0, (int)Math.Floor(topLeft.X * scale / TileSize));
-        int lastColumn = Math.Min(columns - 1, (int)Math.Floor(bottomRight.X * scale / TileSize));
-        int firstRow = Math.Max(0, (int)Math.Floor(topLeft.Y * scale / TileSize));
-        int lastRow = Math.Min(rows - 1, (int)Math.Floor(bottomRight.Y * scale / TileSize));
-        for (int row = firstRow; row <= lastRow; row++)
-        {
-            for (int column = firstColumn; column <= lastColumn; column++)
-            {
-                yield return new TileKey(level, column, row);
-            }
-        }
-    }
-
-    private static Rectangle GetTileArea(MapScene scene, TileKey key)
-    {
-        double scale = GetScale(key.Level);
-        int left = key.Column * TileSize;
-        int top = key.Row * TileSize;
-        return new Rectangle(left, top, Math.Min(TileSize, GetOutputSize(scene.Width, scale) - left), Math.Min(TileSize, GetOutputSize(scene.Height, scale) - top));
-    }
-
-    private static int GetOutputSize(int size, double scale) => Math.Max(1, (int)Math.Ceiling(size * scale));
-
-    // Level n draws the scene at a scale of 1 / 2^n, the smallest one that is still at least the zoom
-    private int GetLevel() => Scene is null ? 0 : Math.Clamp((int)Math.Floor(-Math.Log2(_zoom)), 0, GetMaxLevel(Scene));
-
-    private static int GetMaxLevel(MapScene scene) => Math.Max(0, (int)Math.Ceiling(Math.Log2(Math.Max(scene.Width, scene.Height) / (double)TileSize)));
-
-    private static double GetScale(int level) => 1.0 / (1 << level);
-
-    private Point ToScene(Point view) => _offset + view / _zoom;
-
-    // Snap edges to whole pixels to keep blended seams out from between tiles
-    private Rect ToView(Rectangle area, double scale)
-    {
-        double left = Math.Round((area.Left / scale - _offset.X) * _zoom);
-        double top = Math.Round((area.Top / scale - _offset.Y) * _zoom);
-        double right = Math.Round((area.Right / scale - _offset.X) * _zoom);
-        double bottom = Math.Round((area.Bottom / scale - _offset.Y) * _zoom);
-        return new Rect(left, top, right - left, bottom - top);
-    }
-
-    private static double GetDistance(Point first, Point second) => Math.Abs(first.X - second.X) + Math.Abs(first.Y - second.Y);
-
-    private readonly record struct TileKey(int Level, int Column, int Row);
-
-    private sealed class Tile
-    {
-        public Tile(Rectangle area, double scale)
-        {
-            Area = area;
-            Scale = scale;
-            Pixels = new Bgra32[area.Width * area.Height];
-        }
-
-        public Rectangle Area { get; }
-
-        public double Scale { get; }
-
-        public Bgra32[] Pixels { get; }
-
-        public WriteableBitmap? Bitmap { get; set; }
-
-        public int? Time { get; set; }
-
-        public long LastDrawn { get; set; }
-
-        public void Upload()
-        {
-            Bitmap ??= BitmapConversion.CreateOpaque(new PixelSize(Area.Width, Area.Height));
-            BitmapConversion.Write(Bitmap, Pixels);
-        }
-    }
-
-    private abstract class Job
-    {
-        protected Job(MapScene scene)
-        {
-            Scene = scene;
-        }
-
-        public MapScene Scene { get; }
-
-        public abstract void Run();
-
-        public abstract void Apply();
-    }
-
-    private sealed class TileJob : Job
-    {
-        private readonly Tile _tile;
-        private readonly int? _time;
-
-        public TileJob(MapScene scene, Tile tile, int? time) : base(scene)
-        {
-            _tile = tile;
-            _time = time;
-        }
-
-        public override void Run() => Scene.Render(_tile.Pixels, _tile.Area.Width, _tile.Area, (float)_tile.Scale, _time);
-
-        public override string ToString() => $"Tile {_tile.Area} at scale {_tile.Scale}";
-
-        public override void Apply()
-        {
-            _tile.Time = _time;
-            _tile.Upload();
-        }
-    }
-
-    private sealed class PatchJob : Job
-    {
-        private readonly Tile[] _tiles;
-        private readonly int _time;
-        private readonly List<Tile> _changed = [];
-
-        public PatchJob(MapScene scene, Tile[] tiles, int time) : base(scene)
-        {
-            _tiles = tiles;
-            _time = time;
-        }
-
-        public override void Run()
-        {
-            var changes = new List<Rectangle>();
-            foreach (var tile in _tiles)
-            {
-                changes.Clear();
-                var sceneArea = Rectangle.FromLTRB((int)(tile.Area.Left / tile.Scale), (int)(tile.Area.Top / tile.Scale), (int)Math.Ceiling(tile.Area.Right / tile.Scale),
-                    (int)Math.Ceiling(tile.Area.Bottom / tile.Scale));
-                Scene.GetChangedAreas(tile.Time!.Value, _time, sceneArea, changes);
-                if (changes.Count > 0)
-                {
-                    Patch(tile, changes);
-                    _changed.Add(tile);
-                }
-
-                tile.Time = _time;
-            }
-        }
-
-        public override string ToString() => $"Patch of {_changed.Count} of {_tiles.Length} tiles";
-
-        public override void Apply()
-        {
-            foreach (var tile in _changed)
-            {
-                tile.Upload();
-            }
-        }
-
-        private void Patch(Tile tile, List<Rectangle> changes)
-        {
-            var areas = new List<Rectangle>();
-            long changedPixels = 0;
-            foreach (var change in changes)
-            {
-                var area = Rectangle.Intersect(tile.Area, Rectangle.FromLTRB((int)Math.Floor(change.Left * tile.Scale), (int)Math.Floor(change.Top * tile.Scale),
-                    (int)Math.Ceiling(change.Right * tile.Scale), (int)Math.Ceiling(change.Bottom * tile.Scale)));
-                if (!area.IsEmpty)
-                {
-                    areas.Add(area);
-                    changedPixels += (long)area.Width * area.Height;
-                }
-            }
-
-            if (changedPixels > PatchShare * tile.Area.Width * tile.Area.Height)
-            {
-                areas = [tile.Area];
-            }
-
-            MergeOverlapping(areas);
-
-            foreach (var area in areas)
-            {
-                int start = (area.Top - tile.Area.Top) * tile.Area.Width + area.Left - tile.Area.Left;
-                Scene.Render(tile.Pixels.AsMemory(start), tile.Area.Width, area, (float)tile.Scale, _time);
-            }
-        }
-
-        private static void MergeOverlapping(List<Rectangle> areas)
-        {
-            for (int first = 0; first < areas.Count; first++)
-            {
-                for (int second = first + 1; second < areas.Count; second++)
-                {
-                    if (areas[first].IntersectsWith(areas[second]))
-                    {
-                        areas[first] = Rectangle.Union(areas[first], areas[second]);
-                        areas.RemoveAt(second);
-                        second = first;
-                    }
-                }
-            }
-        }
-    }
+    private Point ToMap(Point point) => new(point.X / _zoom + _offset.X, point.Y / _zoom + _offset.Y);
 }

@@ -1,11 +1,13 @@
 using System.Globalization;
 using System.Text;
 using ASToolkit.Cli.Analysis;
+using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Simulation;
 using ASToolkit.Core.Levels;
+using ASToolkit.Core.Reference;
 using ASToolkit.Core.Rendering;
 using ASToolkit.Core.Rooms;
-using ASToolkit.Core.Reference;
 using SixLabors.ImageSharp;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -25,7 +27,6 @@ internal sealed class InspectRoomsCommand : LevelCommand<InspectRoomsSettings>
             Directory.CreateDirectory(crops);
         }
 
-        var renderer = new MapRenderer(settings.Game, objects);
         var atlases = new RoomAtlas?[maps.Length];
         var wallSets = new WallSet[maps.Length];
         var loader = new LevelLoader(objects);
@@ -47,7 +48,7 @@ internal sealed class InspectRoomsCommand : LevelCommand<InspectRoomsSettings>
             var atlas = settings.Levels is null ? level.Atlas : RoomAtlas.Read(survey, level.Analysis.Grid.Edges, level.Map.Sprites, objects, isOriginal: false);
             atlases[mapIndex] = atlas;
             wallSets[mapIndex] = survey.FloorSet;
-            using var rendered = renderer.Render(level.Map.Sprites, settings.Scale, level.Map.Graphics);
+            using var rendered = MapImage.Render(Playthrough.LoadMap(settings.Game, new SpriteCatalog(settings.Game, objects), mapPath), settings.Scale);
             var sheet = new RoomSheet();
             string name = Path.ChangeExtension(maps[mapIndex], null).Replace('/', '_');
             foreach (var room in atlas.Rooms.Where(room => room.IsRoom))

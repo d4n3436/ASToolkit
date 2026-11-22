@@ -23,14 +23,6 @@ internal sealed class AnalyzeSettings : GameSettings
     [DefaultValue(1.0f)]
     public float Scale { get; init; } = 1;
 
-    [CommandOption("--game-lighting")]
-    [Description("Lights Alien Shooter 2 levels with the ambient light of each map and the omni-lights of its objects.")]
-    public bool GameLighting { get; init; }
-
-    [CommandOption("--no-ambient-gamma")]
-    [Description("With --game-lighting, keeps the brightness of the ambient light but drops its hue.")]
-    public bool NoAmbientGamma { get; init; }
-
     [CommandOption("--no-images")]
     [Description("Writes routes.json only.")]
     public bool NoImages { get; init; }

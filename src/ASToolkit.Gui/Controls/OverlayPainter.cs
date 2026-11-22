@@ -1,6 +1,6 @@
+using ASToolkit.Core.Engine;
 using System.Globalization;
 using System.Numerics;
-using ASToolkit.Core.Rendering;
 using ASToolkit.Core.Routes;
 using ASToolkit.Core.Scripting;
 using ASToolkit.Gui.Models;
@@ -22,9 +22,6 @@ internal sealed class OverlayPainter
     private const byte AreaFillAlpha = 28;
     private const byte FaintAlpha = 110;
 
-    private static readonly Color TeleportColor = Color.FromRgb(80, 140, 255);
-    private static readonly Color ControlledColor = Color.FromRgb(255, 80, 255);
-    private static readonly Color UnreachedColor = Color.FromRgb(255, 60, 60);
     private static readonly Typeface LabelFace = new(FontFamily.Default, FontStyle.Normal, FontWeight.Bold);
     private static readonly IBrush LabelBack = new SolidColorBrush(Color.FromArgb(200, 0, 0, 0));
     private static readonly DashStyle Dashes = new([4, 3], 0);
@@ -32,7 +29,6 @@ internal sealed class OverlayPainter
     private static readonly Dictionary<HelperKind, Color> HelperColors = new()
     {
         [HelperKind.Other] = Color.FromRgb(255, 0, 255),
-        [HelperKind.Missing] = Color.FromRgb(255, 255, 255),
         [HelperKind.Blocker] = Color.FromRgb(200, 200, 200),
         [HelperKind.Trigger] = Color.FromRgb(80, 160, 255),
         [HelperKind.Spawner] = Color.FromRgb(255, 60, 60)
@@ -110,12 +106,7 @@ internal sealed class OverlayPainter
             DrawTour(overlay.Route, overlay.TourRuns);
         }
 
-        if (overlay.Walk is not null)
-        {
-            DrawWalk(overlay.Walk);
-        }
-
-        DrawProgression(overlay.Walk?.Steps ?? overlay.Logic.Progression, overlay.Walk is null);
+        DrawProgression(overlay.Logic.Progression);
     }
 
     public void DrawMarkers(IReadOnlyList<ScriptMarker> markers)
@@ -124,7 +115,7 @@ internal sealed class OverlayPainter
         {
             var color = MarkerColors[marker.Kind];
             byte alpha = marker.Kind == ScriptMarkerKind.Other ? FaintAlpha : (byte)230;
-            var pen = new Pen(new SolidColorBrush(color, alpha / 255.0), 1.5);
+            var pen = new Pen(Tint(color, alpha), 1.5);
             var center = ToView(marker.Position);
             if (Vector3.Distance(marker.Source, marker.Position) > MinSourceDistance)
             {
@@ -140,11 +131,11 @@ internal sealed class OverlayPainter
 
             if (marker.Radius > 0)
             {
-                DrawCircle(new SolidColorBrush(color, AreaFillAlpha / 255.0), pen, center, Math.Max(PointMarkerSize, marker.Radius * _zoom));
+                DrawCircle(Tint(color, AreaFillAlpha), pen, center, Math.Max(PointMarkerSize, marker.Radius * _zoom));
             }
             else if (IsVisible(center, PointMarkerSize))
             {
-                _context.DrawRectangle(new SolidColorBrush(color, alpha / 255.0), null,
+                _context.DrawRectangle(Tint(color, alpha), null,
                     new Rect(center.X - PointMarkerSize, center.Y - PointMarkerSize, 2 * PointMarkerSize, 2 * PointMarkerSize));
             }
         }
@@ -155,10 +146,8 @@ internal sealed class OverlayPainter
         foreach (var helper in helpers)
         {
             var color = HelperColors[helper.Kind];
-            var position = helper.Sprite.Position;
             bool blocker = helper.Kind == HelperKind.Blocker;
-            DrawCircle(new SolidColorBrush(color, 90 / 255.0), new Pen(new SolidColorBrush(color, blocker ? FaintAlpha / 255.0 : 1), blocker ? 1 : 2),
-                _toView(new Vector2(position.X, position.Y - position.Z)), blocker ? BlockerRadius : HelperRadius);
+            DrawCircle(Tint(color, 90), new Pen(Tint(color, blocker ? FaintAlpha : byte.MaxValue), blocker ? 1 : 2), ToView(helper.Position), blocker ? BlockerRadius : HelperRadius);
         }
     }
 
@@ -203,32 +192,14 @@ internal sealed class OverlayPainter
         DrawCircle(null, new Pen(Brushes.Red, 3), _toView(last is null ? start : new Vector2(last.X, last.Y)), EndRadius);
     }
 
-    private void DrawWalk(WalkedRoute walk)
-    {
-        foreach (var segment in walk.Segments)
-        {
-            var pen = segment.Kind switch
-            {
-                RouteSegmentKind.Walked => new Pen(new SolidColorBrush(PhaseColors[RoutePhase.Free]), 3),
-                RouteSegmentKind.Controlled => new Pen(new SolidColorBrush(ControlledColor), 3),
-                RouteSegmentKind.Teleport => new Pen(new SolidColorBrush(TeleportColor), 1.5, Dashes),
-                _ => new Pen(new SolidColorBrush(UnreachedColor), 2, Dashes)
-            };
-            DrawPolyline(pen, segment.Points.Select(ToScreen).ToArray());
-        }
-    }
-
-    private void DrawProgression(IReadOnlyList<ProgressionStep> steps, bool joins)
+    private void DrawProgression(IReadOnlyList<ProgressionStep> steps)
     {
         if (steps.Count == 0)
         {
             return;
         }
 
-        if (joins)
-        {
-            DrawPolyline(new Pen(new SolidColorBrush(Color.FromRgb(0, 255, 255)), 2.5, Dashes), steps.Select(step => ToScreen(step.Position)).ToArray());
-        }
+        DrawPolyline(new Pen(new SolidColorBrush(Color.FromRgb(0, 255, 255)), 2.5, Dashes), steps.Select(step => step.Position.ToDrawPosition()).ToArray());
 
         for (int stepIndex = 0; stepIndex < steps.Count; stepIndex++)
         {
@@ -238,9 +209,9 @@ internal sealed class OverlayPainter
         }
     }
 
-    private static Vector2 ToScreen(Vector3 point) => new(point.X, point.Y - point.Z);
+    private static SolidColorBrush Tint(Color color, int alpha) => new(color, alpha / 255.0);
 
-    private Point ToView(Vector3 point) => _toView(ToScreen(point));
+    private Point ToView(Vector3 point) => _toView(point.ToDrawPosition());
 
     private void DrawPolyline(IPen pen, IReadOnlyList<Vector2> points)
     {
