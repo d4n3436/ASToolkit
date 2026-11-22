@@ -9,6 +9,8 @@ internal sealed class WeaponSystem
     public const float MinBlastHeight = 20;
     private const float AimRise = 70;
     private const float AimRiseCap = 50;
+    private const int DepthShift = 3;
+    private const float DepthBias = 128;
     private const float UnitAimLift = 80;
     private const float GroundAimLift = 19;
     private const int LegSlack = 63;
@@ -33,9 +35,9 @@ internal sealed class WeaponSystem
 
     public ProjectileCollision Collision { get; }
 
-    // Raises the cursor to the height the depth buffer holds under it on screen, or to the terrain off screen
     public Vector3 GetCursorPoint(Sprite man, Vector2 cursor, SpriteDefinition weapon)
     {
+            var screen = _map.Session.Graphics.Screen;
         var player = man.Position;
         var pixel = cursor - _map.Camera;
         float y = cursor.Y;
@@ -43,7 +45,9 @@ internal sealed class WeaponSystem
 
         if (pixel.X >= _map.Session.View.Left && pixel.X < _map.Session.View.Right && pixel.Y >= _map.Session.View.Top && pixel.Y < _map.Session.View.Bottom)
         {
-            height = _depth.MeasureHeight(new Point((int)cursor.X, (int)cursor.Y));
+            height = screen is null
+                ? _depth.MeasureHeight(new Point((int)cursor.X, (int)cursor.Y))
+                : (screen.Depth[(int)pixel.Y * screen.DepthWidth + (int)pixel.X] >> DepthShift) - DepthBias;
 
             if (height > player.Z + AimRise)
             {

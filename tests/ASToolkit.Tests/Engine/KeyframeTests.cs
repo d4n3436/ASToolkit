@@ -18,6 +18,7 @@ public class KeyframeTests
         var map = EngineTestMap.CreateMap(definitions);
         var source = definitions.Find(KnownObject.RedMonster1)!;
         var definition = new SpriteDefinition(source.Id, source.Object, CreateWeapon(source.Weapon), source.SpriteSpeed) { HasTimers = true };
+        definitions.SetChildAndLink(definition, null);
         var sprite = map.AddMonster(definition, map.Player.Position + new Vector3(600, 0, 0));
         int start = map.Time;
 

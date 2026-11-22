@@ -467,7 +467,7 @@ internal sealed class WalkField
     {
         var definition = map.Definitions.Find(placement.Id);
         bool blocks = definition is not null && IsObstacle(definition) && definition.Object.IsHittable && definition.MoveMask != 0;
-        bool raises = definition is not null && definition.HeightPointCount != 0;
+        bool raises = definition is not null && definition.HeightPoints.Count != 0;
 
         if (blocks || raises)
         {

@@ -419,7 +419,7 @@ public sealed partial class Map
                 {
                     Motion.StartMove(sprite);
                 }
-                else if (sprite.Speed.IsExactlyZero() && _rng.Next() % 3 == 0 && (sprite.Definition.Object.FrameCounts[(int)SpriteAnimation.Unload] != 0 || sprite.Definition.Children[(int)SpriteAnimation.Unload] != 0 || sprite.Definition.Object.Sounds[(int)SpriteAnimation.Unload] != 0))
+                else if (sprite.Speed.IsExactlyZero() && _rng.Next() % 3 == 0 && (sprite.Definition.Object.FrameCounts[(int)SpriteAnimation.Unload] != 0 || sprite.Definition.Children[(int)SpriteAnimation.Unload] != 0 || sprite.Definition.Sounds[(int)SpriteAnimation.Unload] != 0))
                 {
                     sprite.ChangeAnimation(SpriteAnimation.Unload);
                 }
@@ -1007,7 +1007,7 @@ public sealed partial class Map
                 if (closeHandler >= 0 && CallScript(closeHandler, sprite, var2) != 0)
                     break;
 
-                int closeSound = sprite.Definition.Object.Sounds[(int)SpriteAnimation.Close];
+                int closeSound = sprite.Definition.Sounds[(int)SpriteAnimation.Close];
 
                 if (closeSound != 0)
                 {

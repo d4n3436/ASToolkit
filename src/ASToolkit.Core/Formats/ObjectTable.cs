@@ -50,6 +50,11 @@ public sealed class ObjectTable
     /// </summary>
     public IReadOnlyList<SfxRecord> Sounds => _sounds;
 
+    /// <summary>
+    /// Gets the number of weapon records.
+    /// </summary>
+    public int WeaponCount => _weapons.Length;
+
     internal float Gravitation { get; private init; }
 
     internal float Gravitation2 { get; private init; }

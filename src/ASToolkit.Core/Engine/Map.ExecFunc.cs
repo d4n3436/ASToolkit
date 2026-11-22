@@ -602,7 +602,7 @@ public sealed partial class Map : IScriptFunctionHost
                 Session.Logger.Write(script.PopText().Span);
                 break;
             case ScriptFunction.ReloadVid:
-                Definitions.ReloadRecords(Session.Logger);
+                Definitions.ReloadRecords(Session.Logger, Sound);
                 break;
             case ScriptFunction.OldStrlen:
             case ScriptFunction.Strlen:

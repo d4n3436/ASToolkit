@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+using System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace ASToolkit.Core.Formats;
@@ -14,6 +16,12 @@ public readonly struct WeaponRecord
     public const int KeyframeCount = 8;
 
     private const int NoDecisions = 999999;
+
+    /// <summary>
+    /// The sprite type mask of eligible targets.
+    /// </summary>
+    [FieldOffset(0)]
+    public readonly SpriteType Targets;
 
     /// <summary>
     /// The flags of the weapon.
@@ -213,12 +221,6 @@ public readonly struct WeaponRecord
     [FieldOffset(576)]
     public readonly KeyframeValues<float> SpeedKeys;
 
-    /// <summary>
-    /// The sprite type mask of eligible targets.
-    /// </summary>
-    [FieldOffset(0)]
-    internal readonly SpriteType Targets;
-
     internal WeaponRecord(AlienShooterWeaponRecord record)
     {
         Flags = record.Flags;
@@ -272,5 +274,29 @@ public readonly struct WeaponRecord
             return keys[KeyframeCount - 1];
 
         return (int)((keys[key + 1] - keys[key]) * (keyframe - key) + keys[key]);
+    }
+
+    internal float Interpolate<T>(in KeyframeValues<T> keys, float position)
+        where T : unmanaged, INumberBase<T>
+    {
+        int key = (int)position;
+        if (key >= KeyframeCount - 1)
+            return float.CreateTruncating(keys[KeyframeCount - 1]);
+
+        float low = float.CreateTruncating(ReadKey(keys, key));
+        float high = float.CreateTruncating(ReadKey(keys, key + 1));
+        return (high - low) * (position - key) + low;
+    }
+
+    private T ReadKey<T>(in KeyframeValues<T> keys, int index)
+        where T : unmanaged
+    {
+        if (index >= 0)
+            return keys[index];
+
+        var record = MemoryMarshal.AsBytes(new ReadOnlySpan<WeaponRecord>(in this));
+        ref byte first = ref Unsafe.As<KeyframeValues<T>, byte>(ref Unsafe.AsRef(in keys));
+        int offset = (int)Unsafe.ByteOffset(ref MemoryMarshal.GetReference(record), ref first) + index * Unsafe.SizeOf<T>();
+        return offset < 0 ? default : MemoryMarshal.Read<T>(record[offset..]);
     }
 }

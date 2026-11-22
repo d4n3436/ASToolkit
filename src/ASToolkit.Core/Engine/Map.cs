@@ -229,7 +229,7 @@ public sealed partial class Map : IDisposable
         LoadObjectRecords(true);
         Session.Logger.Write("CurrentTime   =%-15u   sizeof(SPRITE)=%-8i Map version   =%i"u8, GameClock.LevelStartTime, SpriteRecordSize, data.MapData.Version);
         var mapData = data.MapData;
-        Definitions.ReloadRecords();
+        Definitions.ReloadRecords(null, Sound);
         Definitions.ResetLevelState();
         _clock = new GameClock(data.FrameTimes);
         _sprites = mapData.Sprites.ToList();
@@ -611,7 +611,7 @@ public sealed partial class Map : IDisposable
             handler = sprite.Definition.StateHandlers[(int)state];
         }
 
-        int sound = sprite.Definition.Object.Sounds[(int)sprite.Animation];
+        int sound = sprite.Definition.Sounds[(int)sprite.Animation];
 
         if (sound != 0 && (!sprite.HasPlayedStateSound || Sound.IsLooped(sound)))
         {
@@ -739,7 +739,7 @@ public sealed partial class Map : IDisposable
             sprite.SetAnimationValue(previous);
         }
 
-        int sound = sprite.Definition.Object.Sounds[(int)state];
+        int sound = sprite.Definition.Sounds[(int)state];
 
         if (sound != 0)
         {
@@ -870,7 +870,7 @@ public sealed partial class Map : IDisposable
     [EngineRoutine(0x004145b0)]
     internal void RaiseHeights(SpriteDefinition definition, Sprite sprite)
     {
-        if (sprite == CursorSprite || definition.HeightPointCount == 0)
+        if (sprite == CursorSprite || definition.HeightPoints.Count == 0)
             return;
 
         // TODO: Port the map flag 0xc mask 0x1 that moves built terrain heights to the temporary grid; the port treats it as clear
@@ -894,7 +894,7 @@ public sealed partial class Map : IDisposable
     [EngineRoutine(0x004146b0)]
     internal void LowerHeights(SpriteDefinition definition, Sprite sprite)
     {
-        if (sprite == CursorSprite || definition.HeightPointCount == 0 || definition.Object.SpriteClass == SpriteClass.BuiltTerrain)
+        if (sprite == CursorSprite || definition.HeightPoints.Count == 0 || definition.Object.SpriteClass == SpriteClass.BuiltTerrain)
             return;
 
         foreach (var point in definition.GetHeightPoints(sprite.Frame))

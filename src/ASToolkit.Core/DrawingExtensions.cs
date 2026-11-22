@@ -4,7 +4,7 @@ using System.Numerics;
 namespace ASToolkit.Core;
 
 /// <summary>
-/// Provides extension methods for converting and deconstructing <see cref="Point"/> and <see cref="Size"/> types.
+/// Provides extension members for the points and sizes of <see cref="System.Drawing"/>.
 /// </summary>
 public static class DrawingExtensions
 {
@@ -58,6 +58,11 @@ public static class DrawingExtensions
 
     extension(Size size)
     {
+        /// <summary>
+        /// Gets the center of an area of this size, measured from its top left corner and rounded toward zero.
+        /// </summary>
+        public Point Center => new(size.Width / 2, size.Height / 2);
+
         /// <summary>
         /// Deconstructs the size into its width and height.
         /// </summary>

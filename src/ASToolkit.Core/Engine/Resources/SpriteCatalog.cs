@@ -1,3 +1,4 @@
+using System.Drawing;
 using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Formats;
 using System.Collections.Concurrent;
@@ -10,6 +11,8 @@ namespace ASToolkit.Core.Engine;
 /// </summary>
 public sealed class SpriteCatalog
 {
+    private static readonly ConcurrentDictionary<(string Path, bool IsText), Lazy<ReadOnlyMemory<byte>>> ConvertedPictures = new();
+
     /// <summary>
     /// Represents the deepest chain of child launches.
     /// </summary>
@@ -20,14 +23,22 @@ public sealed class SpriteCatalog
     /// </summary>
     public const KnownObject HardwareGroundId = (KnownObject)1024;
 
-    private const int DefaultSpriteSpeed = 71;
+    /// <summary>
+    /// Represents the largest texture width and height a catalog allows when it isn't given the device's limit.
+    /// </summary>
+    public const int DefaultMaxTextureSize = 32768;
+
+    private const int WeaponRecordSize = 612;
+    private const int DefinitionSize = 1156;
+    private const int OneBits = 0x3f800000;
+    internal const int DefaultSpriteSpeed = 71;
     private const KnownObject EmptyId = (KnownObject)(-1);
-    private const string SpriteFileExtension = ".vid";
-    private const string PictureFileExtension = ".bmp";
+    private const string FontExtension = ".fon";
+    private const string TrueTypeExtension = ".ttf";
+    private const string AnimationExtension = ".flc";
     private const string HardwareGroundName = "Self Created Hardware Prerendered Ground ";
 
     private static readonly Vector3 DefaultSize = new(24, 16, 20);
-    private static readonly Vector3 HardwareGroundSize = new(256, 256, 1);
     private readonly ObjectTable _objects;
     private readonly ConcurrentDictionary<(KnownObject Id, int Frame), FrameMask?> _masks = new();
     private SpriteDefinition?[] _definitions;
@@ -37,24 +48,42 @@ public sealed class SpriteCatalog
     /// </summary>
     /// <param name="gameFolder">The game folder.</param>
     /// <param name="objects">The object table.</param>
-    public SpriteCatalog(string gameFolder, ObjectTable objects)
+    /// <param name="session">The session whose sound system is loaded first and whose log takes the loading errors and summaries, or <see langword="null"/> to load silently.</param>
+    /// <param name="isTrueColor"><see langword="true"/> for a 32-bit back buffer, where only built terrain takes the 16-bit class; <see langword="false"/> for a 16-bit back buffer, where every software sprite takes the 16-bit class.</param>
+    /// <param name="format">The channel layout of the device's 16-bit textures, which 16-bit colors follow, or <see langword="null"/> for 5-6-5.</param>
+    /// <param name="maxTextureSize">The largest texture width and height the device accepts, which limits the textures of fonts.</param>
+    [EngineRoutine(0x00411510)]
+    public SpriteCatalog(string gameFolder, ObjectTable objects, GameSession? session = null, bool isTrueColor = true, HighColorFormat? format = null, int maxTextureSize = DefaultMaxTextureSize)
     {
         _objects = objects;
+        var logger = session?.Logger;
+        session?.Sound ??= new SoundSystem(objects.Sounds, new GameFolder(gameFolder), logger, isHighQuality: session.IsSoundHighQuality);
+
+        int start = Environment.TickCount;
+        if (objects.WeaponCount != 0)
+        {
+            logger?.Write("LoadWeapon::No=%-5i             sizeof(WEAPON)=%-4i"u8, objects.WeaponCount, WeaponRecordSize);
+        }
+
         Parts = new SpritePartReader(gameFolder, objects);
         Empty = CreateDefault();
         int length = objects.Ids.Max(id => (int)id) + 1;
         _definitions = new SpriteDefinition?[length];
+        int count = 0;
         foreach (var id in objects.Ids)
         {
             if (id < 0 || !objects.TryFind(id, out var gameObject))
                 continue;
 
-            objects.TryGetWeapon(gameObject, out var weapon);
-            var file = Parts.GetFile(objects.GetPath(id));
-            var definition = new SpriteDefinition(id, gameObject, weapon, file?.Speed ?? DefaultSpriteSpeed, Parts.CountFrames(objects.GetPath(id)), (int)GetLayer(id, gameObject, file))
+            var definition = CreateVid(gameFolder, id, gameObject, isTrueColor, format ?? HighColorFormat.Rgb565, maxTextureSize, logger, session?.Sound);
+            if (definition is null)
+                continue;
+
+            count = Math.Max(count, (int)id + 1);
+            if (gameObject.WeaponIndex >= objects.WeaponCount)
             {
-                FrameHeight = file?.Height ?? 0
-            };
+                definition.Report(logger, LogError.Text, gameObject.WeaponIndex, "nWeapon > noWeapon"u8);
+            }
 
             if (id == 0)
             {
@@ -63,16 +92,23 @@ public sealed class SpriteCatalog
             }
 
             _definitions[(int)id] = definition;
-
-            definition.Load(file);
-
             if (gameObject.Properties.HasFlag(ObjectProperties.Hash))
             {
                 LargestHashedSize = Vector2.Max(LargestHashedSize, gameObject.Size.AsVector2());
             }
         }
 
-        ResolveLinks(null);
+        ResolveLinks(logger, false);
+        var largest = Size.Empty;
+        foreach (var definition in _definitions.Prepend(LoadingScreen))
+        {
+            if (definition is not null)
+            {
+                largest = new Size(Math.Max(largest.Width, definition.FrameSize.Width), Math.Max(largest.Height, definition.FrameSize.Height));
+            }
+        }
+
+        logger?.Write("LoadVid::No   =%-15i   sizeof(VID)   =%-5i    load time     =%ims   MaxSizeX,Y=%i,%i"u8, count, DefinitionSize, Environment.TickCount - start, largest.Width, largest.Height);
     }
 
     /// <summary>
@@ -186,7 +222,7 @@ public sealed class SpriteCatalog
     /// <summary>
     /// Undoes the level script's exchanges and reloads every definition's record.
     /// </summary>
-    public void ReloadRecords() => ReloadRecords(null);
+    public void ReloadRecords() => ReloadRecords(null, null);
 
     /// <summary>
     /// Clears every definition's counts and script handlers for a new level.
@@ -232,7 +268,7 @@ public sealed class SpriteCatalog
     }
 
     [EngineRoutine(0x00411920)]
-    internal void ReloadRecords(GameLogger? logger)
+    internal void ReloadRecords(GameLogger? logger, SoundSystem? sound)
     {
         foreach (var definition in _definitions)
         {
@@ -242,23 +278,16 @@ public sealed class SpriteCatalog
             }
         }
 
-        if (logger is not null && LoadingScreen is not null)
-        {
-            LogRecordErrors(logger, LoadingScreen);
-        }
-
+        LoadingScreen?.LoadParameters(logger, sound);
         foreach (var definition in _definitions)
         {
-            definition?.LoadParameters();
-
-            if (definition is not null && logger is not null)
-            {
-                LogRecordErrors(logger, definition);
-            }
+            definition?.LoadParameters(logger, sound);
         }
 
-        ResolveLinks(logger);
+        ResolveLinks(logger, true);
     }
+
+    private static void LogUnopened(GameLogger? logger, string path) => logger?.Write("LOAD::Can't open file %s"u8, (ReadOnlyMemory<byte>)GameTextEncoding.Cyrillic.GetBytes(path));
 
     internal void LogCounts(GameLogger logger)
     {
@@ -279,31 +308,156 @@ public sealed class SpriteCatalog
         }
     }
 
-    [EngineRoutine(0x00419750)]
-    internal SpriteDefinition CreateHardwareGround()
+    /// <summary>
+    /// Puts a definition in the slot of an object ID, and grows the table when the ID is past its end.
+    /// </summary>
+    /// <param name="id">The object ID.</param>
+    /// <param name="definition">The definition.</param>
+    public void SetDefinition(KnownObject id, SpriteDefinition definition)
     {
-        var definition = new SpriteDefinition(HardwareGroundId, new GameObject(SpriteClass.Primitive, HardwareGroundSize), default, DefaultSpriteSpeed);
-
-        if (_definitions.Length <= (int)HardwareGroundId)
+        if (_definitions.Length <= (int)id)
         {
-            Array.Resize(ref _definitions, (int)HardwareGroundId + 1);
+            Array.Resize(ref _definitions, (int)id + 1);
         }
 
-        _definitions[(int)HardwareGroundId] = definition;
+        _definitions[(int)id] = definition;
+    }
 
+    /// <summary>
+    /// Gets the ambient gamma the palettes of the sprite files were last rebuilt with.
+    /// </summary>
+    public Gamma Ambient { get; private set; }
+
+    /// <summary>
+    /// Rebuilds the palettes of every sprite file with an ambient gamma.
+    /// </summary>
+    /// <param name="ambient">The ambient gamma.</param>
+    public void SetAmbient(Gamma ambient)
+    {
+        Ambient = ambient;
+        foreach (var definition in _definitions)
+        {
+            definition?.SetGamma(ambient, SpriteDefinition.AllArmies, ambient);
+        }
+    }
+
+    private ReadOnlyMemory<byte> GetBytes(string path)
+    {
+        lock (Parts)
+        {
+            return Parts.GetBytes(path);
+        }
+    }
+
+    [EngineRoutine(0x00411b50)]
+    private SpriteDefinition? CreateVid(string gameFolder, KnownObject id, in GameObject gameObject, bool isTrueColor, HighColorFormat format, int maxTextureSize, GameLogger? logger, SoundSystem? sound)
+    {
+        _objects.TryGetWeapon(gameObject, out var weapon);
+        string path = _objects.GetPath(id);
+        var file = Parts.GetFile(path);
+        ReadOnlyMemory<byte> data = default;
+        if (file is null)
+        {
+            if (path.Contains(FontExtension, StringComparison.Ordinal) || path.Contains(TrueTypeExtension, StringComparison.Ordinal))
+            {
+                var font = new FontSpriteDefinition(id, gameObject, weapon, maxTextureSize);
+                Prepare(font, logger, sound);
+                font.Load(default, default, logger);
+                font.SetLayer();
+                return font;
+            }
+            else if (path.Contains(TgaImage.Extension, StringComparison.Ordinal) || path.Contains(BmpImage.Extension, StringComparison.Ordinal) || path.Contains(AnimationExtension, StringComparison.Ordinal))
+            {
+                bool isText = gameObject.SpriteClass == SpriteClass.Text;
+                data = logger is not null
+                    ? ConvertPicture(gameFolder, path, isText, logger)
+                    : ConvertedPictures.GetOrAdd((Path.GetFullPath(Path.Combine(gameFolder, path)), isText), key => new(() => ConvertPicture(gameFolder, path, key.IsText, null))).Value;
+                if (data.IsEmpty)
+                {
+                    LogUnopened(logger, path);
+                }
+            }
+        }
+
+        if (!data.IsEmpty)
+        {
+            file = new VidResource(data);
+        }
+
+        if (file is not { } sprite)
+        {
+            if (logger is not null)
+            {
+                new Resource().Open(new GameFolder(gameFolder), logger, GameTextEncoding.Cyrillic.GetBytes(path), Resource.AnyTag);
+            }
+
+            LogUnopened(logger, path);
+            return null;
+        }
+
+        int totalFrames = data.IsEmpty ? Parts.CountFrames(path) : sprite.FrameCount;
+        var type = sprite.Type;
+        SpriteDefinition definition;
+        ReadOnlyMemory<byte> bytes = default;
+        if (type.HasFlag(VidType.HardwareLayer))
+        {
+            definition = new HardwareLayerSpriteDefinition(id, gameObject, weapon, sprite, totalFrames);
+        }
+        else if (type.HasFlag(VidType.Light))
+        {
+            definition = new LightSpriteDefinition(id, gameObject, weapon, sprite, totalFrames);
+        }
+        else if (type.HasFlag(VidType.Hardware) && !(type.HasFlag(VidType.Blended) && type.HasFlag(VidType.ZBuffer)))
+        {
+            definition = new HardwareSpriteDefinition(id, gameObject, weapon, sprite, totalFrames);
+        }
+        else
+        {
+            bytes = data.IsEmpty ? GetBytes(path) : data;
+            if (type.HasFlag(VidType.Hardware))
+            {
+                definition = new DepthFadedSpriteDefinition(id, gameObject, weapon, sprite, totalFrames, format);
+            }
+            else if (gameObject.SpriteClass == SpriteClass.BuiltTerrain || !isTrueColor)
+            {
+                definition = new HighColorSpriteDefinition(id, gameObject, weapon, sprite, totalFrames, format);
+            }
+            else
+            {
+                definition = new SoftwareSpriteDefinition(id, gameObject, weapon, sprite, totalFrames, format);
+            }
+        }
+
+        Prepare(definition, logger, sound);
+        definition.Load(sprite, bytes, logger);
+        definition.SetLayer();
         return definition;
     }
 
-    private static ObjectLayer GetLayer(KnownObject id, in GameObject gameObject, VidResource? sprite) => gameObject.GetLayer(id, sprite);
-
     [EngineRoutine(0x00413710)]
-    private static SpriteDefinition CreateDefault() => new(EmptyId, new GameObject(SpriteClass.Primitive, DefaultSize), default, DefaultSpriteSpeed, layer: (int)ObjectLayer.Menu);
+    private static SpriteDefinition CreateDefault() => new(EmptyId, new GameObject(SpriteClass.Primitive, DefaultSize), default, DefaultSpriteSpeed, layer: ObjectLayer.Menu);
 
-    private void ResolveLinks(GameLogger? logger)
+    private static ReadOnlyMemory<byte> ConvertPicture(string gameFolder, string path, bool isText, GameLogger? logger)
+    {
+        using var picture = isText ? new FontPicture(gameFolder, logger) : new Picture(gameFolder, logger);
+        return picture.Load(path, string.Empty, string.Empty) ? picture.Convert() : default;
+    }
+
+    private void Prepare(SpriteDefinition definition, GameLogger? logger, SoundSystem? sound)
+    {
+        definition.Name = GetName(definition);
+        definition.Path = GetPath(definition);
+        if (logger is not null || sound is not null)
+        {
+            definition.LoadParameters(logger, sound);
+        }
+    }
+
+    private void ResolveLinks(GameLogger? logger, bool isReload)
     {
         foreach (var definition in _definitions)
         {
-            if (definition is not null)
+            if (definition is not null && !(isReload && definition.FileType.HasFlag(VidType.FrameVector)))
             {
                 SetChildAndLink(definition, logger);
             }
@@ -314,51 +468,17 @@ public sealed class SpriteCatalog
 
     private string GetPath(KnownObject id) => id == HardwareGroundId ? string.Empty : _objects.GetPath(id);
 
-    private void LogRecordErrors(GameLogger logger, SpriteDefinition definition)
-    {
-        ref readonly var gameObject = ref definition.Object;
-        int directions = gameObject.Directions;
-        int frames = definition.Layout.TotalFrames;
-        string path = GetPath(definition);
-
-        if (!path.EndsWith(SpriteFileExtension, StringComparison.OrdinalIgnoreCase) && !path.EndsWith(PictureFileExtension, StringComparison.OrdinalIgnoreCase))
-            return;
-
-        if (directions == 0)
-        {
-            LogDefinitionError(logger, definition, LogError.Invalid, 0, "NoDir==0"u8);
-            return;
-        }
-
-        if (frames == 0)
-        {
-            LogDefinitionError(logger, definition, LogError.Invalid, 0, "noCadr==0"u8);
-        }
-        else if (frames < directions)
-        {
-            LogDefinitionError(logger, definition, LogError.Invalid, 0, "noCadr < noDir"u8);
-            directions = frames;
-        }
-
-        int needed = 0;
-        for (int state = 0; state <= (int)SpriteAnimation.Death2; state++)
-        {
-            needed += gameObject.FrameCounts[state] * directions;
-        }
-
-        if (frames < needed)
-        {
-            LogDefinitionError(logger, definition, LogError.Missing, 0, "noCadr for noAnimCadr and noDir"u8);
-        }
-    }
-
     [EngineRoutine(0x00413a60)]
-    private void SetChildAndLink(SpriteDefinition definition, GameLogger? logger)
+    internal void SetChildAndLink(SpriteDefinition definition, GameLogger? logger)
     {
         int link = (int)definition.Object.Link;
         definition.LinkDefinition = Find(definition.Object.Link);
+        ref readonly var weapon = ref definition.Weapon;
+        definition.HasKeyframes = GetHasKeyframes(weapon);
+        definition.HasScaleKeyframes = GetHasScaleKeyframes(weapon);
+        definition.HasOffsetKeyframes = GetHasOffsetKeyframes(weapon);
 
-        if (definition.Lifetime != SpriteDefinition.Unlimited || definition.HasKeyframes || (definition.Object.Properties & (ObjectProperties.Blur | ObjectProperties.RandomSpeed)) != 0)
+        if (definition.Lifetime != SpriteDefinition.Unlimited || definition.HasKeyframes || definition.Object.Properties.HasFlag(ObjectProperties.Blur) || definition.Object.Properties.HasFlag(ObjectProperties.RandomSpeed))
         {
             definition.HasTimers = true;
         }
@@ -376,21 +496,58 @@ public sealed class SpriteCatalog
 
         if (link != 0 && !IsDefined(link))
         {
-            LogDefinitionError(logger, definition, LogError.Invalid, link, "LinkVid"u8);
+            definition.Report(logger, LogError.Invalid, link, "LinkVid"u8);
         }
 
         foreach (int child in definition.Object.Children)
         {
             if (child != 0 && !IsDefined(Math.Abs(child)))
             {
-                LogDefinitionError(logger, definition, LogError.Invalid, child, "child"u8);
+                definition.Report(logger, LogError.Invalid, child, "child"u8);
             }
         }
     }
 
-    [EngineRoutine(0x00413a30)]
-    private void LogDefinitionError(GameLogger logger, SpriteDefinition definition, LogError code, int value, ReadOnlySpan<byte> text) =>
-        logger.Error("VID [%i-%s]"u8, code, value, text, (int)definition.Id, (ReadOnlyMemory<byte>)GameTextEncoding.Cyrillic.GetBytes(GetName(definition)));
+    private static bool IsScaleKey(in WeaponRecord weapon, int key) =>
+        BitConverter.SingleToInt32Bits(weapon.ScaleXKeys[key]) != OneBits || BitConverter.SingleToInt32Bits(weapon.ScaleYKeys[key]) != OneBits || BitConverter.SingleToInt32Bits(weapon.ScaleHeightKeys[key]) != OneBits;
 
+    private static bool IsOffsetKey(in WeaponRecord weapon, int key) =>
+        !weapon.OffsetXKeys[key].IsExactlyZero() || !weapon.OffsetYKeys[key].IsExactlyZero() || !weapon.OffsetZKeys[key].IsExactlyZero();
+
+    private static bool GetHasScaleKeyframes(in WeaponRecord weapon)
+    {
+        for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
+        {
+            if (IsScaleKey(weapon, key))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool GetHasOffsetKeyframes(in WeaponRecord weapon)
+    {
+        for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
+        {
+            if (IsOffsetKey(weapon, key))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool GetHasKeyframes(in WeaponRecord weapon)
+    {
+        for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
+        {
+            if (weapon.RedKeys[key] != 0 || weapon.GreenKeys[key] != 0 || weapon.BlueKeys[key] != 0 || weapon.AlphaKeys[key] != 0 || IsScaleKey(weapon, key) || IsOffsetKey(weapon, key) ||
+                weapon.RotationXKeys[key] != 0 || weapon.RotationYKeys[key] != 0 || weapon.RotationZKeys[key] != 0)
+                return true;
+        }
+
+        return false;
+    }
+
+    [EngineRoutine(0x00413a30)]
     private bool IsDefined(int id) => id >= 0 && id < _definitions.Length && _definitions[id] is not null;
 }

@@ -122,10 +122,8 @@ public sealed partial class Map
 
     private Vector3 GetMenuPosition(MenuHeader header, Vector3 position)
     {
-        var half = GetHalfSize(header);
-
-        return new Vector3(Session.ScreenSize.Width * HalfShare + (position.X - header.Origin.X - half.Width),
-            Session.ScreenSize.Height * HalfShare + (position.Y - header.Origin.Y - half.Height), position.Z);
+        return new Vector3(Session.ScreenSize.Width * HalfShare + (position.X - header.Origin.X - header.Size.Center.X),
+            Session.ScreenSize.Height * HalfShare + (position.Y - header.Origin.Y - header.Size.Center.Y), position.Z);
     }
 
     private bool IsMenuElement(Sprite sprite, MenuHeader header, int id, Vector3 position)

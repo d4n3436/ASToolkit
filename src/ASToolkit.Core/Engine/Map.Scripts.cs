@@ -29,6 +29,16 @@ public sealed partial class Map
     private SpriteDefinition? _hardwareGround;
 
     /// <summary>
+    /// Gets the definition of the hardware ground, or the empty definition if there isn't one.
+    /// </summary>
+    public SpriteDefinition HardwareGroundDefinition => _hardwareGround ?? Definitions.Empty;
+
+    /// <summary>
+    /// Gets a value indicating whether the map has a hardware ground.
+    /// </summary>
+    public bool HasHardwareGround => HardwareGroundDefinition != Definitions.Empty;
+
+    /// <summary>
     /// Gets a value indicating whether the level script declared the mission complete.
     /// </summary>
     public bool HasWon => ReadScriptNumber(GameStateVariable) == GameWon;
@@ -99,12 +109,13 @@ public sealed partial class Map
     [EngineRoutine(0x0040edf0)]
     internal void ConstructBuiltTerrain(Sprite sprite)
     {
-        if ((_hardwareGround ?? Definitions.Empty) == Definitions.Empty)
+        if (!HasHardwareGround)
         {
             CreateEmptyHardwareGround();
         }
 
-        // TODO: Port the hardware ground definition's vtable slot 2 call with the sprite; it bakes the sprite into the ground texture (rendering only)
+        HardwareGroundDefinition.AddVidToTextures(this, sprite);
+
         if (IsBaked(sprite.Definition))
         {
             sprite.ChangeAnimation(SpriteAnimation.Death);
@@ -152,7 +163,8 @@ public sealed partial class Map
     [EngineRoutine(0x00412a40)]
     private void CreateEmptyHardwareGround()
     {
-        var definition = Definitions.CreateHardwareGround();
+        var definition = new HardwareSpriteDefinition(SpriteCatalog.HardwareGroundId, System.Drawing.Size.Truncate(Movement.MapSize));
+        Definitions.SetDefinition(SpriteCatalog.HardwareGroundId, definition);
         _hardwareGround = definition;
         ConstructSprite(definition, new Vector3(Movement.MapSize.ToVector2() * HalfShare, 0), default, definition.Army, 0);
         Session.Logger.Write("Create Empty Hardware Ground"u8);

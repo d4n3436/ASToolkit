@@ -7,7 +7,7 @@ namespace ASToolkit.Core.Engine;
 /// <summary>
 /// Represents an object on the running map, such as a monster, a pickup, a door or an effect.
 /// </summary>
-public sealed class Sprite
+public class Sprite
 {
     /// <summary>
     /// Represents the object ID of the torso for weapon slot 0.
@@ -33,7 +33,7 @@ public sealed class Sprite
     private const int ReloadTimerOffset = 5000;
     private const int AmmoScale = 64;
     private const int MaxWeaponSlot = 9;
-    private const int ArmyMask = 3;
+    private const int GammaAlphaShift = 24;
     private const int MaxAnimation = 16;
     private const int HpShare = 0xff;
     private const float VelocityScale = 1e6f;
@@ -1025,4 +1025,34 @@ public sealed class Sprite
 
     [EngineRoutine(0x004463a0)]
     private Angle MeasureDirectionToGoal() => Angle.Aim((GoalPosition - Position).AsVector2());
+
+    /// <summary>
+    /// Draws the sprite with the frames of its definition.
+    /// </summary>
+    /// <param name="screen">The screen to draw to.</param>
+    /// <param name="map">The map.</param>
+    /// <param name="camera">The top left corner of the view, in map pixels.</param>
+    [EngineRoutine(0x0040ec40)]
+    public virtual void Draw(Screen screen, Map map, Vector2 camera) => Definition.Draw(screen, map, this, camera);
+
+    /// <summary>
+    /// Gets the gamma of the sprite, which is its own gamma or that of its army plus the gamma of the current keyframe.
+    /// </summary>
+    /// <returns>The gamma.</returns>
+    [EngineRoutine(0x004430b0)]
+    public Gamma GetGamma()
+    {
+        var definition = Definition;
+        var gamma = HasExtra && (Tint.Negative != 0 || Tint.Positive != 0) ? Tint : definition.Gammas[(int)Army & SpriteDefinition.ArmyMask];
+        if (!definition.HasKeyframes)
+            return gamma;
+
+        ref readonly var weapon = ref definition.Weapon;
+        int blue = (int)weapon.Interpolate(weapon.BlueKeys, KeyframePosition);
+        int green = (int)weapon.Interpolate(weapon.GreenKeys, KeyframePosition);
+        int red = (int)weapon.Interpolate(weapon.RedKeys, KeyframePosition);
+        int alpha = Math.Clamp((int)weapon.Interpolate(weapon.AlphaKeys, KeyframePosition), -byte.MaxValue, byte.MaxValue);
+        var keyframe = alpha < 0 ? new Gamma((uint)(alpha * -(1 << GammaAlphaShift)), 0) : new Gamma(0, (uint)alpha << GammaAlphaShift);
+        return gamma.Add(keyframe.WithRed(red).WithGreen(green).WithBlue(blue));
+    }
 }

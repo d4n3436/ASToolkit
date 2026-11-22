@@ -112,7 +112,7 @@ internal sealed class MessageWindow
 
     private SpriteDefinition FindDefinition(int id) => _map.Definitions.Find((KnownObject)id) ?? _map.Definitions.Empty;
 
-    private int GetLineHeight() => FindDefinition(_lineId).FrameHeight + 1;
+    private int GetLineHeight() => FindDefinition(_lineId).FrameSize.Height + 1;
 
     [EngineRoutine(0x0042e6a0)]
     private void Shift()

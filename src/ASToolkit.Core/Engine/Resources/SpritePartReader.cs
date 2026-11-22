@@ -10,12 +10,14 @@ namespace ASToolkit.Core.Engine;
 /// </summary>
 public sealed class SpritePartReader
 {
-    private const string PictureExtension = ".bmp";
+    internal const string SpriteFileExtension = ".vid";
     private const int MaxLinkDepth = 4;
     private const int FrameCells = 256;
     private const int MaxFramePixels = FrameCells * MovementMap.CellSize;
     private const int DepthShift = 3;
     private const int DepthBias = 0x80;
+
+    private static readonly ConcurrentDictionary<string, byte[]> FileBytes = new(StringComparer.Ordinal);
 
     private readonly string _gameFolder;
     private readonly ObjectTable _objects;
@@ -68,7 +70,6 @@ public sealed class SpritePartReader
         return points;
     }
 
-    [EngineRoutine(0x004284f0)]
     internal int CountFrames(string path)
     {
         var file = GetFile(path);
@@ -76,13 +77,13 @@ public sealed class SpritePartReader
         if (file is not null)
             return file.Value.FrameCount;
 
-        if (!path.EndsWith(PictureExtension, StringComparison.OrdinalIgnoreCase))
+        if (!path.EndsWith(BmpImage.Extension, StringComparison.OrdinalIgnoreCase))
             return 0;
 
         if (GamePath.Resolve(_gameFolder, path) is null)
             return 1;
 
-        string stem = path[..^PictureExtension.Length];
+        string stem = path[..^BmpImage.Extension.Length];
         int digits = stem.Length - stem.AsSpan().TrimEnd("0123456789").Length;
 
         if (digits == 0)
@@ -90,7 +91,7 @@ public sealed class SpritePartReader
 
         var prefix = stem.AsSpan()[..^digits];
         int frames = 1;
-        while (GamePath.Resolve(_gameFolder, $"{prefix}{frames}{PictureExtension}") is not null)
+        while (GamePath.Resolve(_gameFolder, $"{prefix}{frames}{BmpImage.Extension}") is not null)
         {
             frames++;
         }
@@ -98,12 +99,14 @@ public sealed class SpritePartReader
         return frames;
     }
 
+    internal ReadOnlyMemory<byte> GetBytes(string path) => GetFile(path)?.Data ?? ReadOnlyMemory<byte>.Empty;
+
     internal VidResource? GetFile(string path)
     {
         if (!_files.TryGetValue(path, out var file))
         {
             string? resolved = GamePath.Resolve(_gameFolder, path);
-            file = resolved is not null && resolved.EndsWith(".vid", StringComparison.OrdinalIgnoreCase) ? new VidResource(File.ReadAllBytes(resolved)) : null;
+            file = resolved is not null && resolved.EndsWith(SpriteFileExtension, StringComparison.OrdinalIgnoreCase) ? new VidResource(FileBytes.GetOrAdd(Path.GetFullPath(resolved), File.ReadAllBytes)) : null;
             _files[path] = file;
         }
 

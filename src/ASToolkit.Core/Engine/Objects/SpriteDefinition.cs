@@ -2,13 +2,17 @@ using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Numerics;
 using ASToolkit.Core.Formats;
+using ASToolkit.Core.Engine.IO;
 
 namespace ASToolkit.Core.Engine;
 
 /// <summary>
-/// Represents a sprite definition with its records, frame layout, script handlers and per-army counts.
+/// Represents a sprite definition.
 /// </summary>
-public sealed class SpriteDefinition
+/// <remarks>
+/// A definition holds its records, frame layout, script handlers and per-army counts. Definitions loaded from a sprite file are of one of the derived classes, chosen by the file's flags.
+/// </remarks>
+public class SpriteDefinition
 {
     /// <summary>
     /// Represents the value the game files use for an unlimited speed, lifetime or amount.
@@ -52,21 +56,20 @@ public sealed class SpriteDefinition
 
     private const float BallisticRise = 1.1f;
     private const float BallisticDrop = 0.9f;
-    private const int OneBits = 0x3f800000;
 
     private readonly GameObject _object;
     private readonly WeaponRecord _weapon;
     private readonly int[] _children = new int[StateCount];
     private readonly int[] _childCounts = new int[StateCount];
+    private readonly int[] _sounds = new int[StateCount];
     private readonly int[] _counts = new int[ArmyCount];
     private readonly int[] _killed = new int[ArmyCount];
     private readonly int[] _recolored = new int[ArmyCount];
     private readonly int[] _armyMaxHp = new int[ArmyCount];
     private readonly int[] _armyMaxUnits = new int[ArmyCount];
     private readonly Gamma[] _gammas = new Gamma[ArmyCount];
-    private readonly List<Vector3> _heightPoints = [];
     private readonly int _recordSpriteSpeed;
-    private int[]? _heightFrameStarts;
+    private ReadOnlyMemory<int> _heightFrameStarts;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SpriteDefinition"/> class from an object record.
@@ -77,7 +80,25 @@ public sealed class SpriteDefinition
     /// <param name="spriteSpeed">The frame duration of the definition's sprite.</param>
     /// <param name="totalFrames">The frame count of the definition's sprite.</param>
     /// <param name="layer">The update list of the definition.</param>
-    public SpriteDefinition(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, int spriteSpeed, int totalFrames = 0, int layer = 0)
+    public SpriteDefinition(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, int spriteSpeed, int totalFrames = 0, ObjectLayer layer = ObjectLayer.Ground)
+        : this(id, gameObject, weapon, spriteSpeed, totalFrames, layer, null)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SpriteDefinition"/> class from an object record and the header of its sprite file.
+    /// </summary>
+    /// <param name="id">The object ID.</param>
+    /// <param name="gameObject">The object record.</param>
+    /// <param name="weapon">The weapon record.</param>
+    /// <param name="file">The sprite file.</param>
+    /// <param name="totalFrames">The frame count of the definition's sprite.</param>
+    protected SpriteDefinition(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, in VidResource file, int totalFrames)
+        : this(id, gameObject, weapon, file.Speed, totalFrames, ObjectLayer.Ground, file)
+    {
+    }
+
+    private SpriteDefinition(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, int spriteSpeed, int totalFrames, ObjectLayer layer, VidResource? file)
     {
         Id = id;
         RecordId = id;
@@ -103,6 +124,13 @@ public sealed class SpriteDefinition
         MinRange = weapon.MinRange;
         ReloadTime = weapon.ReloadTime;
         AttackTime = Math.Max(weapon.ReloadTime, GetAnimationTime(gameObject, SpriteAnimation.Fight, spriteSpeed));
+        if (file is { } header)
+        {
+            FileType = header.Type;
+            FrameSize = header.Size;
+            FileFrameCount = header.FrameCount;
+        }
+
         LoadParameters();
         ResetLevelState();
     }
@@ -138,6 +166,21 @@ public sealed class SpriteDefinition
     public KnownObject RecordId { get; }
 
     /// <summary>
+    /// Gets the name of the object the definition was loaded from.
+    /// </summary>
+    public string Name { get; internal set; } = string.Empty;
+
+    /// <summary>
+    /// Gets the path of the sprite file the definition was loaded from.
+    /// </summary>
+    public string Path { get; internal set; } = string.Empty;
+
+    /// <summary>
+    /// Gets the sound ID of each animation state, which an invalid ID in the record turns into the first sound.
+    /// </summary>
+    public ReadOnlySpan<int> Sounds => _sounds;
+
+    /// <summary>
     /// Gets or sets the definition that sprites of this definition are created as.
     /// </summary>
     public SpriteDefinition Identity { get; set; }
@@ -169,6 +212,16 @@ public sealed class SpriteDefinition
     public bool HasKeyframes { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the weapon record animates the scale.
+    /// </summary>
+    public bool HasScaleKeyframes { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the weapon record animates the offset.
+    /// </summary>
+    public bool HasOffsetKeyframes { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether sprites of the definition carry a lifetime, a keyframe track, a stream period and a top speed of their own.
     /// </summary>
     public bool HasTimers { get; set; }
@@ -184,9 +237,14 @@ public sealed class SpriteDefinition
     public int SpriteSpeed { get; private set; }
 
     /// <summary>
-    /// Gets the frame height of the definition's sprite, 0 without a sprite file.
+    /// Gets the width and height of a frame of the sprite file, in pixels.
     /// </summary>
-    public short FrameHeight { get; init; }
+    public Size FrameSize { get; protected set; }
+
+    /// <summary>
+    /// Gets the number of frames in the definition's sprite file, 0 without a sprite file.
+    /// </summary>
+    public short FileFrameCount { get; protected set; }
 
     /// <summary>
     /// Gets the weapon flags of the definition.
@@ -427,15 +485,114 @@ public sealed class SpriteDefinition
     /// </summary>
     public SpriteDefinition? LinkDefinition { get; set; }
 
-    internal int HeightPointCount => _heightPoints.Count;
-
     internal FrameLayout Layout { get; }
+
+    /// <summary>
+    /// Gets the height points of the definition, those of the size grid followed by those of the sprite file's frames.
+    /// </summary>
+    public List<Vector3> HeightPoints { get; } = [];
+
+    /// <summary>
+    /// Sets where the height points of each frame of the sprite file start in <see cref="HeightPoints"/>.
+    /// </summary>
+    /// <param name="starts">The index of the first height point of each frame.</param>
+    public void SetHeightFrameStarts(ReadOnlyMemory<int> starts) => _heightFrameStarts = starts;
+
+    /// <summary>
+    /// Gets or sets the flags of the sprite file.
+    /// </summary>
+    public VidType FileType { get; set; }
+
+    /// <summary>
+    /// Loads the data of the sprite file into the definition.
+    /// </summary>
+    /// <param name="file">The sprite file.</param>
+    /// <param name="data">The bytes of the sprite file.</param>
+    public void Load(in VidResource file, ReadOnlyMemory<byte> data) => Load(file, data, null);
+
+    internal virtual void Load(in VidResource file, ReadOnlyMemory<byte> data, GameLogger? logger)
+    {
+    }
+
+    /// <summary>
+    /// Draws a sprite with the frames of this definition.
+    /// </summary>
+    /// <param name="screen">The screen to draw to.</param>
+    /// <param name="map">The map.</param>
+    /// <param name="sprite">The sprite that gives the position, frame and tint, which may be of another definition.</param>
+    /// <param name="camera">The top left corner of the view, in map pixels.</param>
+    public virtual void Draw(Screen screen, Map map, Sprite sprite, Vector2 camera)
+    {
+    }
+
+    /// <summary>
+    /// Draws a sprite of this definition into a texture of the hardware ground.
+    /// </summary>
+    /// <param name="target">The texture to draw into.</param>
+    /// <param name="map">The map.</param>
+    /// <param name="sprite">The sprite.</param>
+    /// <param name="tile">The tile of the hardware ground that <paramref name="target"/> belongs to.</param>
+    public virtual void DrawToVid(Screen target, Map map, Sprite sprite, HardwareTile tile)
+    {
+    }
+
+    /// <summary>
+    /// Draws a built terrain sprite into the textures of this definition.
+    /// </summary>
+    /// <param name="map">The map.</param>
+    /// <param name="sprite">The sprite.</param>
+    public virtual void AddVidToTextures(Map map, Sprite sprite)
+    {
+    }
+
+    /// <summary>
+    /// Sets the gamma of an army, or of every army.
+    /// </summary>
+    /// <param name="gamma">The gamma.</param>
+    /// <param name="army">The army, or <see cref="AllArmies"/> for every army.</param>
+    /// <param name="ambient">The ambient gamma of the level.</param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="army"/> is above <see cref="AllArmies"/>.</exception>
+    public virtual void SetGamma(Gamma gamma, int army, Gamma ambient) => StoreGamma(gamma, army);
+
+    /// <summary>
+    /// Sets the update list of the definition.
+    /// </summary>
+    [EngineRoutine(0x00413880)]
+    public virtual void SetLayer() => Layer = ObjectLayer.Ground;
+
+    /// <summary>
+    /// Stores the gamma of an army.
+    /// </summary>
+    /// <param name="gamma">The gamma.</param>
+    /// <param name="army">The army, or <see cref="AllArmies"/>, which stores nothing.</param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="army"/> is above <see cref="AllArmies"/>.</exception>
+    [EngineRoutine(0x00414570)]
+    protected void StoreGamma(Gamma gamma, int army)
+    {
+        if ((uint)army < ArmyCount)
+        {
+            _gammas[army] = gamma;
+            return;
+        }
+
+        if (army != AllArmies)
+            throw new ArgumentOutOfRangeException(nameof(army));
+    }
+
+    private protected Gamma GetTint(Map map, Sprite sprite)
+    {
+        var tint = Object.Gamma.Pack().Add(sprite.GetGamma());
+        return Object.Properties.HasFlag(ObjectProperties.Gamma) ? tint : tint.Add(map.Session.Graphics.Gamma);
+    }
 
     /// <summary>
     /// Reloads the values the level script can change from the records.
     /// </summary>
+    /// <exception cref="InvalidDataException">The record of a sprite file doesn't have any directions.</exception>
+    public void LoadParameters() => LoadParameters(null, null);
+
     [EngineRoutine(0x00413c30)]
-    public void LoadParameters()
+    internal void LoadParameters(GameLogger? logger, SoundSystem? sound)
     {
         MaxHp = _object.MaxHp;
         Speed = ScaleRate(_object.MaxSpeed, PerMillisecond);
@@ -447,22 +604,73 @@ public sealed class SpriteDefinition
         AmmoCapacity = _weapon.Ammo;
         BuildTime = _weapon.BuildTime;
         NotCreatedAsChild = 0;
-        HasKeyframes = GetHasKeyframes(_weapon);
         SpriteSpeed = _recordSpriteSpeed;
         Layout.LoadFrameDurations(_object, SpriteSpeed);
         for (int state = 0; state < StateCount; state++)
         {
             _children[state] = _object.Children[state];
             _childCounts[state] = _object.ChildCounts[state];
+            _sounds[state] = _object.Sounds[state];
+        }
+
+        bool isSpriteFile = Path.EndsWith(SpritePartReader.SpriteFileExtension, StringComparison.OrdinalIgnoreCase) || Path.EndsWith(BmpImage.Extension, StringComparison.OrdinalIgnoreCase);
+        int frames = Layout.TotalFrames;
+        if (isSpriteFile)
+        {
+            if (_object.Directions == 0)
+            {
+                Report(logger, LogError.Invalid, 0, "NoDir==0"u8);
+                throw new InvalidDataException($"The record of object {(int)Id} doesn't have any directions.");
+            }
+
+            if (frames == 0)
+            {
+                Report(logger, LogError.Invalid, 0, "noCadr==0"u8);
+            }
+            else if (frames < _object.Directions)
+            {
+                Report(logger, LogError.Invalid, 0, "noCadr < noDir"u8);
+            }
+
+            int needed = 0;
+            for (int state = 0; state < StateCount; state++)
+            {
+                needed += _object.FrameCounts[state] * Layout.Directions;
+            }
+
+            if (frames < needed)
+            {
+                Report(logger, LogError.Missing, 0, "noCadr for noAnimCadr and noDir"u8);
+            }
+        }
+
+        int start = 0;
+        for (int state = 0; state < StateCount; state++)
+        {
+            if (sound is not null && !sound.IsValid(_sounds[state]))
+            {
+                Report(logger, LogError.Invalid, _sounds[state], "sfx"u8);
+                _sounds[state] = 0;
+            }
+
+            start += Layout.GetFrameCount((SpriteAnimation)state) * Layout.Directions;
+            if (isSpriteFile && frames > 0 && frames < start)
+            {
+                Report(logger, LogError.Text, state, "noCadr and noAnimCadr and noDir"u8);
+            }
         }
 
         if (_object.Properties.HasFlag(ObjectProperties.BuildSizeToGridZ))
         {
-            _heightPoints.Clear();
-            _heightFrameStarts = null;
+            HeightPoints.Clear();
+            _heightFrameStarts = ReadOnlyMemory<int>.Empty;
             BuildHeightGrid();
         }
     }
+
+    [EngineRoutine(0x00413a30)]
+    internal void Report(GameLogger? logger, LogError code, int value, ReadOnlySpan<byte> text) =>
+        logger?.Error("VID [%i-%s]"u8, code, value, text, (int)Id, (ReadOnlyMemory<byte>)GameTextEncoding.Cyrillic.GetBytes(Name));
 
     /// <summary>
     /// Sets the frame duration of every state.
@@ -643,49 +851,22 @@ public sealed class SpriteDefinition
         }
     }
 
-    [EngineRoutine(0x004154b0)]
-    internal void Load(VidResource? file)
-    {
-        if (file is null || !_object.IsSolid)
-            return;
-
-        var resource = file.Value;
-        int[] starts = new int[resource.FrameCount];
-        var cells = new Size(resource.Width, resource.Height) / MovementMap.CellSize * MovementMap.CellSize;
-        var half = new Size(resource.Width, resource.Height) / 2;
-
-        for (int frame = 0; frame < resource.FrameCount; frame++)
-        {
-            starts[frame] = _heightPoints.Count;
-
-            foreach (var point in SpritePartReader.ReadHeightPoints(resource, frame))
-            {
-                if (point.X + half.Width < cells.Width && point.Y + half.Height < cells.Height)
-                {
-                    _heightPoints.Add(point);
-                }
-            }
-        }
-
-        _heightFrameStarts = starts;
-    }
-
     internal ReadOnlySpan<Vector3> GetHeightPoints(int frame)
     {
         int start = 0;
-        int end = _heightPoints.Count;
+        int end = HeightPoints.Count;
 
-        if (_heightFrameStarts is not null)
+        if (!_heightFrameStarts.IsEmpty)
         {
-            start = frame < Layout.TotalFrames ? _heightFrameStarts[frame] : 0;
+            start = frame < Layout.TotalFrames ? _heightFrameStarts.Span[frame] : 0;
 
             if (frame < Layout.TotalFrames - 1)
             {
-                end = _heightFrameStarts[frame + 1];
+                end = _heightFrameStarts.Span[frame + 1];
             }
         }
 
-        return start < end ? CollectionsMarshal.AsSpan(_heightPoints).Slice(start, end - start) : [];
+        return start < end ? CollectionsMarshal.AsSpan(HeightPoints)[start..end] : [];
     }
 
     internal CollisionVolume GetCollisionVolume(Vector3 position) => new(position, Half, Object.Size.Z, MoveMask);
@@ -693,28 +874,12 @@ public sealed class SpriteDefinition
     private static int GetAnimationTime(in GameObject gameObject, SpriteAnimation animation, int spriteSpeed) =>
         gameObject.FrameCounts[(int)animation] * gameObject.GetFrameDuration(animation, spriteSpeed);
 
-    private static bool GetHasKeyframes(in WeaponRecord weapon)
-    {
-        for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
-        {
-            if (weapon.RedKeys[key] != 0 || weapon.GreenKeys[key] != 0 || weapon.BlueKeys[key] != 0 || weapon.AlphaKeys[key] != 0 ||
-                BitConverter.SingleToInt32Bits(weapon.ScaleXKeys[key]) != OneBits || BitConverter.SingleToInt32Bits(weapon.ScaleYKeys[key]) != OneBits ||
-                BitConverter.SingleToInt32Bits(weapon.ScaleHeightKeys[key]) != OneBits ||
-                !weapon.OffsetXKeys[key].IsExactlyZero() || !weapon.OffsetYKeys[key].IsExactlyZero() || !weapon.OffsetZKeys[key].IsExactlyZero() ||
-                weapon.RotationXKeys[key] != 0 || weapon.RotationYKeys[key] != 0 || weapon.RotationZKeys[key] != 0)
-                return true;
-        }
-
-        return false;
-    }
-
     private static float ScaleRate(float rate, float scale) => rate.IsExactly(Unlimited) ? rate : rate * scale;
 
     private void BuildHeightGrid()
     {
         var size = _object.Size;
-        float halfX = size.X * 0.5f;
-        float halfY = size.Y * 0.5f;
+        var half = new Vector2(size.X, size.Y) * 0.5f;
         int row = 0;
         float y = 0;
 
@@ -730,14 +895,14 @@ public sealed class SpriteDefinition
                     do
                     {
                         column += 8;
-                        _heightPoints.Add(new Vector3(x - halfX, y - halfY, size.Z));
+                        HeightPoints.Add(new Vector3(x - half.X, y - half.Y, size.Z));
                         x = column;
                     }
                     while (x < size.X);
                 }
 
                 row += 8;
-                _heightPoints.Add(new Vector3(halfX, y - halfY, size.Z));
+                HeightPoints.Add(new Vector3(half.X, y - half.Y, size.Z));
                 y = row;
             }
             while (y < size.Y);
@@ -752,12 +917,12 @@ public sealed class SpriteDefinition
             do
             {
                 bottom += 8;
-                _heightPoints.Add(new Vector3(x - halfX, halfY, size.Z));
+                HeightPoints.Add(new Vector3(x - half.X, half.Y, size.Z));
                 x = bottom;
             }
             while (x < size.X);
         }
 
-        _heightPoints.Add(new Vector3(halfX, halfY, size.Z));
+        HeightPoints.Add(new Vector3(half.X, half.Y, size.Z));
     }
 }
