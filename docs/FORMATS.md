@@ -635,7 +635,7 @@ Most Alien Shooter sprites have a ten-byte record, and the others 18 or 22 bytes
  0x400  one palette per army; no shipped file sets it
  0x800  a variant of the surfaces: DXT1 or DXT3 with alpha and one-byte range coding in a SURF chunk, one more u16 after the index count in each CADR record header (14 bytes in all); no shipped file sets it
  0x1000 a separate sprite class, always drawn on layer 8 (`HARDWARE_LAYER`); no shipped file sets it
- 0x2000 Normal: a normal map under the image; the surface is twice as tall and each CADR pixel has one more byte; no shipped file sets it
+ 0x2000 Normals: a normal map under the image; the surface is twice as tall and each CADR pixel has one more byte; no shipped file sets it
  0x4000 text font the engine builds at run time from a system font, without frames; no shipped file sets it
  0x8000 Material: one more material byte per CADR pixel; with 0x2000 the two bytes make a 16-bit value under the image, alone the byte is skipped; no shipped file sets it
 ```

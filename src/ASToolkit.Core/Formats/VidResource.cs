@@ -410,7 +410,7 @@ public readonly struct VidResource
             return default;
         }
 
-        int stride = colorSize + (Type.HasFlag(VidType.Normal) ? 1 : 0) + (Type.HasFlag(VidType.Material) ? 1 : 0) + (HasZBuffer ? 2 : 0);
+        int stride = colorSize + (Type.HasFlag(VidType.Normals) ? 1 : 0) + (Type.HasFlag(VidType.Material) ? 1 : 0) + (HasZBuffer ? 2 : 0);
         int indexesStart = start + Unsafe.SizeOf<CadrData>();
         var mesh = new VidMesh(record.Slice(indexesStart, 2 * cadr.IndexCount), record.Slice(indexesStart + 2 * cadr.IndexCount, 4 * cadr.VertexCount));
         return new VidFrame(record[pixels..], new Rectangle(cadr.Origin, new Size(cadr.Size.Width, rowCount)), Size.Width, HasZBuffer, HasPalette, colorSize, stride, mesh);

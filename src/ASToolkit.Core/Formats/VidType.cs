@@ -79,7 +79,7 @@ public enum VidType : short
     /// <summary>
     /// The surface holds a normal map under the image, one more byte per pixel.
     /// </summary>
-    Normal = 1 << 13,
+    Normals = 1 << 13,
 
     /// <summary>
     /// The sprite is a text font the engine builds at run time. No file of the game sets it.
@@ -89,5 +89,5 @@ public enum VidType : short
     /// <summary>
     /// Each pixel has one more material byte. With the normal map the value under the image is 16 bits wide.
     /// </summary>
-    Material = short.MinValue
+    Material = unchecked((short)(1 << 15))
 }
