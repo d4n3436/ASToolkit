@@ -23,7 +23,8 @@ public static class MapExtensions
             var screen = map.Session.Graphics.Screen ??= new Screen(Size.Round(map.Session.ScreenSize), true);
             var fullClip = new Rectangle(Point.Empty, screen.Size);
             var pixel = map.Input.Cursor - map.Camera;
-            screen.Clip = Rectangle.Intersect(new Rectangle((int)pixel.X - AimWindow / 2, (int)pixel.Y - AimWindow / 2, AimWindow, AimWindow), fullClip);
+            var corner = new Point(Math.Clamp((int)pixel.X - AimWindow / 2, 0, screen.Size.Width - AimWindow), Math.Clamp((int)pixel.Y - AimWindow / 2, 0, screen.Size.Height - AimWindow));
+            screen.Clip = new Rectangle(corner, new Size(AimWindow, AimWindow));
             map.Step(drawFrame);
             screen.Clip = fullClip;
         }
