@@ -1,3 +1,4 @@
+using System.Runtime.Intrinsics;
 namespace ASToolkit.Core.Formats;
 
 /// <summary>
@@ -59,7 +60,12 @@ public readonly record struct Gamma(uint Negative, uint Positive)
     }
 
     [EngineRoutine(0x00414f80)]
-    internal Gamma Add(Gamma other) => new(AddBytes(Negative, other.Negative), AddBytes(Positive, other.Positive));
+    internal Gamma Add(Gamma other)
+    {
+        var sum = Vector64.AddSaturate(Vector64.Create(Negative, Positive).AsByte(), Vector64.Create(other.Negative, other.Positive).AsByte()).AsUInt32();
+
+        return new Gamma(sum[0], sum[1]);
+    }
 
     internal int GetNegative(int shift) => (int)(Negative >> shift & byte.MaxValue);
 
@@ -74,17 +80,6 @@ public readonly record struct Gamma(uint Negative, uint Positive)
     internal uint Apply(uint color) =>
         OpaqueAlpha | (uint)Apply((int)(color >> (2 * ChannelBits) & byte.MaxValue), 2 * ChannelBits) << (2 * ChannelBits) |
         (uint)Apply((int)(color >> ChannelBits & byte.MaxValue), ChannelBits) << ChannelBits | (uint)Apply((int)(color & byte.MaxValue), 0);
-
-    private static uint AddBytes(uint first, uint second)
-    {
-        uint sum = 0;
-        for (int shift = 0; shift < sizeof(uint) * ChannelBits; shift += ChannelBits)
-        {
-            sum |= Math.Min(byte.MaxValue, (first >> shift & byte.MaxValue) + (second >> shift & byte.MaxValue)) << shift;
-        }
-
-        return sum;
-    }
 
     [EngineRoutine(0x004432e0)]
     internal Gamma WithRed(int value) => WithChannel(value, 2 * ChannelBits);
