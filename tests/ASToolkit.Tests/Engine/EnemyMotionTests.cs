@@ -29,7 +29,7 @@ public class EnemyMotionTests
     [InlineData(SpriteClass.Man)]
     public void Move_BlockedDiagonal_SlidesAlongYFirst(SpriteClass mover)
     {
-        var map = EngineTestMap.CreateMap(new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects));
+        var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
         var sprite = MakeUnit(new Body(50, 50), 0, mover);
         var obstacle = MakeUnit(new Body(60, 60), 1, SpriteClass.Unit);
         map.Collector.InsertToHash(sprite);
@@ -42,7 +42,7 @@ public class EnemyMotionTests
     [Fact]
     public void Move_IntoAnotherBody_PushesItBeforeSliding()
     {
-        var map = EngineTestMap.CreateMap(new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects));
+        var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
         var sprite = MakeUnit(new Body(50, 50), 0, SpriteClass.Man);
         var pushed = MakeUnit(new Body(60, 50, Push: 1), 1, SpriteClass.Unit);
         map.Collector.InsertToHash(sprite);

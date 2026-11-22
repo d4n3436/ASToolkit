@@ -1,3 +1,4 @@
+using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Engine.Scripts;
 using ASToolkit.Core.Formats;
 
@@ -91,17 +92,6 @@ public sealed partial class Map
         return true;
     }
 
-    private static int ReadDigits(ReadOnlySpan<byte> text)
-    {
-        int value = 0;
-        foreach (byte digit in text)
-        {
-            value = value * 10 + digit - '0';
-        }
-
-        return value;
-    }
-
     private void ProcessScriptFunctions(ReadOnlySpan<byte> name, int function, int parameters)
     {
         if (name.Length < IdDigits + 2 || name[0] != FunctionPrefix || !IsDigits(name.Slice(1, IdDigits)))
@@ -110,7 +100,7 @@ public sealed partial class Map
         if (name[IdDigits + 1] == NameSeparator)
         {
             var rest = name[(IdDigits + 2)..];
-            var definition = Definitions.Find((KnownObject)ReadDigits(name.Slice(1, IdDigits)));
+            var definition = Definitions.Find((KnownObject)CRuntime.ParseInteger(name.Slice(1, IdDigits)));
 
             if (rest.StartsWith(DamageSuffix))
             {
@@ -149,7 +139,7 @@ public sealed partial class Map
 
         if (name.Length > LongIdDigits + 1 && IsDigits(name.Slice(1, LongIdDigits)) && name[LongIdDigits + 1] == NameSeparator)
         {
-            BindStateHandler(Definitions.Find((KnownObject)ReadDigits(name.Slice(1, LongIdDigits))), name[(LongIdDigits + 2)..], function, parameters);
+            BindStateHandler(Definitions.Find((KnownObject)CRuntime.ParseInteger(name.Slice(1, LongIdDigits))), name[(LongIdDigits + 2)..], function, parameters);
         }
     }
 

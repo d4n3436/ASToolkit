@@ -19,8 +19,8 @@ public sealed class CampaignFitter
 
     private static readonly ItemCategory[] RatedCategories = [ItemCategory.Health, ItemCategory.Armor, ItemCategory.Ammo, ItemCategory.Money, ItemCategory.Implant, ItemCategory.Bonus];
     private static readonly ItemCategory[] SharedCategories = [ItemCategory.Health, ItemCategory.Armor, ItemCategory.Implant, ItemCategory.Bonus];
-    private static readonly (string Folder, string Money)[] Campaign = [("", "LevelMoney")];
-    private static readonly (string Folder, string Money)[] AddOns = [("ADDON/", "LevelMoneyAddon"), ("ADDON2/", "LevelMoneyAddon2")];
+    private static readonly string[] Campaign = [""];
+    private static readonly string[] AddOns = ["ADDON/", "ADDON2/"];
 
     private readonly GameTable _table;
     private readonly ObjectTable _objects;
@@ -47,8 +47,8 @@ public sealed class CampaignFitter
     {
         int levelCount = style.LevelCount;
         var campaigns = (style == GenerationStyle.AddOn ? AddOns : Campaign)
-            .Select(campaign => new CampaignMeasurer(_table.GetArray(campaign.Money)).Measure(Enumerable.Range(1, levelCount)
-                .Select(number => references.GetSurvey(campaign.Folder + ReferenceLevelSet.GetCampaignName(number)))
+            .Select(campaign => new CampaignMeasurer(_table.GetArray(GameTable.GetLevelMoneyName(campaign))).Measure(Enumerable.Range(1, levelCount)
+                .Select(number => references.GetSurvey(campaign + ReferenceLevelSet.GetCampaignName(number)))
                 .ToArray()))
             .ToArray();
 
@@ -131,7 +131,7 @@ public sealed class CampaignFitter
                 .Select(name => CreateDonor(references.GetLevel(name)))
                 .ToArray(),
             FirstLevels = (style == GenerationStyle.AddOn ? AddOns : Campaign)
-                .Select(campaign => CreateDonor(references.GetLevel(campaign.Folder + ReferenceLevelSet.GetCampaignName(1))))
+                .Select(campaign => CreateDonor(references.GetLevel(campaign + ReferenceLevelSet.GetCampaignName(1))))
                 .ToArray()
         };
     }
@@ -216,8 +216,8 @@ public sealed class CampaignFitter
         var levels = campaigns
             .SelectMany(campaign =>
             {
-                int count = campaign.Folder.Length == 0 ? GenerationStyle.Campaign.LevelCount : GenerationStyle.AddOn.LevelCount;
-                return Enumerable.Range(2, count - 1).Select(number => (Name: campaign.Folder + ReferenceLevelSet.GetCampaignName(number), Position: (number - 2) / (float)(count - 2)));
+                int count = campaign.Length == 0 ? GenerationStyle.Campaign.LevelCount : GenerationStyle.AddOn.LevelCount;
+                return Enumerable.Range(2, count - 1).Select(number => (Name: campaign + ReferenceLevelSet.GetCampaignName(number), Position: (number - 2) / (float)(count - 2)));
             })
             .Where(level => !excluded.Contains(level.Name) && ReferenceLevelSet.GetBuilding(level.Name) != Building.Prison)
             .ToArray();

@@ -327,6 +327,4 @@ public sealed class Playthrough
 
         return new LevelSetup(level, isLocked);
     }
-
-    private sealed record LevelSetup(LevelTemplate Level, bool DoorsLocked);
 }

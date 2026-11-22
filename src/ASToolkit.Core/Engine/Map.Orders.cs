@@ -1,6 +1,6 @@
 using System.Buffers.Text;
 using System.Numerics;
-using ASToolkit.Core.Engine.Scripts;
+using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Engine;
@@ -34,8 +34,7 @@ public sealed partial class Map
     [EngineRoutine(0x00406e50)]
     private static ReadOnlyMemory<byte> GetAfter(ReadOnlyMemory<byte> text, ReadOnlySpan<byte> delimiter)
     {
-        int end = text.Span.IndexOf((byte)0);
-        var source = end < 0 ? text : text[..end];
+        var source = CRuntime.GetString(text);
         int index = source.Span.IndexOf(delimiter);
 
         return index < 0 ? ReadOnlyMemory<byte>.Empty : source[(index + delimiter.Length)..];
@@ -72,7 +71,7 @@ public sealed partial class Map
         int item = 0;
         while (!text.IsEmpty)
         {
-            if (StackObject.TryScanInteger(text.Span, out int scanned))
+            if (CRuntime.TryScanInteger(text.Span, out int scanned))
             {
                 item = scanned;
             }
@@ -112,16 +111,16 @@ public sealed partial class Map
         {
             var rest = text.Span;
             byte command = rest[0];
-            int index = 1;
-            if (StackObject.TryScanInteger(rest[index..], out int scanned, out int length))
+            int i = 1;
+            if (CRuntime.TryScanInteger(rest[i..], out int scanned, out int length))
             {
                 var1 = scanned;
-                index += length;
-                if (index < rest.Length && rest[index] == ',' && StackObject.TryScanInteger(rest[(index + 1)..], out scanned, out length))
+                i += length;
+                if (i < rest.Length && rest[i] == ',' && CRuntime.TryScanInteger(rest[(i + 1)..], out scanned, out length))
                 {
                     var2 = scanned;
-                    index += 1 + length;
-                    if (index < rest.Length && rest[index] == ',' && StackObject.TryScanInteger(rest[(index + 1)..], out scanned, out length))
+                    i += 1 + length;
+                    if (i < rest.Length && rest[i] == ',' && CRuntime.TryScanInteger(rest[(i + 1)..], out scanned))
                     {
                         var3 = scanned;
                     }

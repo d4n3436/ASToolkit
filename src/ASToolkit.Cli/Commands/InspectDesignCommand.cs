@@ -18,22 +18,16 @@ using Spectre.Console;
 
 namespace ASToolkit.Cli.Commands;
 
-internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
+internal sealed class InspectDesignCommand : LevelCommand<InspectDesignSettings>
 {
     private static readonly int MaxLevelsAtOnce = Environment.ProcessorCount;
     private const float RareFrameShare = 0.05f;
     private const int MinFrameSamples = 5;
     private const float MinWallShare = 0.3f;
 
-    private static readonly string[] AddOnLevels =
+    private static readonly (string Title, string Folder, int Levels)[] Campaigns =
     [
-        "ADDON/Level_02.map", "ADDON/Level_03.map", "ADDON/Level_04.map", "ADDON/Level_05.map",
-        "ADDON2/Level_02.map", "ADDON2/Level_03.map", "ADDON2/Level_04.map", "ADDON2/Level_05.map"
-    ];
-
-    private static readonly (string Title, string Folder, string Money, int Levels)[] Campaigns =
-    [
-        ("Campaign", "", "LevelMoney", 10), ("Add-on 1", "ADDON/", "LevelMoneyAddon", 5), ("Add-on 2", "ADDON2/", "LevelMoneyAddon2", 5)
+        ("Campaign", "", 10), ("Add-on 1", "ADDON/", 5), ("Add-on 2", "ADDON2/", 5)
     ];
 
     private const int PlannedCampaigns = 100;
@@ -52,7 +46,7 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         var references = settings.Seeds > 0 || settings.LeaveOneOut
             ? AnsiConsole.Status().Start("Analyzing the original levels", _ => ReferenceLevelSet.Load(settings.Game, objects))
             : null;
-        var fitter = new StyleFitter(objects, GameTable.Load(Path.Combine(settings.Game, "Maps", "common_table.lgc")));
+        var fitter = new StyleFitter(objects, GameTable.LoadCommon(settings.Game));
         var (generated, provenance, layoutCounts) = references is null
             ? ([], [], new Dictionary<string, int>())
             : AnsiConsole.Status().Start("Generating the levels", _ => Generate(new LevelGenerator(settings.Game, objects, references, fitter.Fit(references, GenerationStyle.Campaign)), settings.Out, settings.Seeds, cancellationToken));
@@ -124,8 +118,7 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
     {
         var levels = new ReferenceLevel?[entries.Length];
         var measures = new DesignMeasures?[entries.Length];
-        var options = new ParallelOptions { MaxDegreeOfParallelism = MaxLevelsAtOnce, CancellationToken = cancellationToken };
-        Parallel.For(0, entries.Length, options, index =>
+        Parallel.For(0, entries.Length, CreateParallelOptions(cancellationToken, MaxLevelsAtOnce), index =>
         {
             var level = references is not null && references.LevelNames.Contains(entries[index].Name) ? references.GetLevel(entries[index].Name) : loader.Load(entries[index].Name, entries[index].Path);
             if (level is not null)
@@ -159,7 +152,7 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
 
         var measures = new DesignMeasures?[jobs.Length];
         string?[] failures = new string?[jobs.Length];
-        var options = new ParallelOptions { MaxDegreeOfParallelism = MaxLevelsAtOnce, CancellationToken = cancellationToken };
+        var options = CreateParallelOptions(cancellationToken, MaxLevelsAtOnce);
         AnsiConsole.Status().Start("Leaving each original out", _ =>
         {
             Parallel.For(0, excludedLevels.Count, options, index =>
@@ -247,8 +240,7 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
 
         var provenance = new IReadOnlyDictionary<SpriteSource, int>[jobs.Length];
         var counts = new IReadOnlyDictionary<string, int>[jobs.Length];
-        var options = new ParallelOptions { MaxDegreeOfParallelism = MaxLevelsAtOnce, CancellationToken = cancellationToken };
-        Parallel.For(0, jobs.Length, options, index =>
+        Parallel.For(0, jobs.Length, CreateParallelOptions(cancellationToken, MaxLevelsAtOnce), index =>
         {
             File.Delete(levels[index].Path);
             var level = generator.Generate(jobs[index].Seed, jobs[index].Level);
@@ -451,7 +443,6 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
         return new MeasureShare(samples.Count(sample => rare[(id, sample.Single)].Contains(sample.Direction)), samples.Length);
     }
 
-    // Compare each relation the campaign shows with the same relation in the add-ons and the generated levels, then the door clearances
     private static void WriteRelations(InspectDesignSettings settings, ObjectRelationTable campaign, ObjectRelationTable addOns, ObjectRelationTable generated,
         (int Crowded, int Count)[] crowded)
     {
@@ -609,9 +600,9 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
 
     private static void WriteCampaigns(InspectDesignSettings settings, LevelLoader loader, Dictionary<string, LevelSurvey> surveys, IReadOnlyList<(GenerationStyle Style, CampaignModel Model)> styles)
     {
-        var table = GameTable.Load(Path.Combine(settings.Game, "Maps", "common_table.lgc"));
+        var table = GameTable.LoadCommon(settings.Game);
         var text = new StringBuilder();
-        foreach ((string title, string folder, string money, int count) in Campaigns)
+        foreach ((string title, string folder, int count) in Campaigns)
         {
             var levels = new List<LevelSurvey>();
             for (int number = 1; number <= count; number++)
@@ -635,7 +626,7 @@ internal sealed class InspectDesignCommand : Command<InspectDesignSettings>
             text.AppendLine();
             text.AppendLine("| level | floor set | gate | hit points | spawned share | monster kinds | new monster kinds | floor (px²) | tour (px) | phases | health | armor | ammo | cash | new weapons | new weapons before their ammo | end money |");
             text.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
-            foreach (var level in new CampaignMeasurer(table.GetArray(money)).Measure(levels))
+            foreach (var level in new CampaignMeasurer(table.GetArray(GameTable.GetLevelMoneyName(folder))).Measure(levels))
             {
                 text.AppendLine($"| {level.Level} | {level.FloorSet} | {level.GateStyle} | {Format(level.HitPoints)} | {Format(level.SpawnedShare)} | {level.MonsterKinds.Count} | "
                     + $"{string.Join(", ", level.NewMonsterKinds)} | {Format(level.FloorPixels)} | {Format(level.TourPixels)} | {level.Phases} | {Format(level.Pickups.GetValueOrDefault(ItemCategory.Health))} | "

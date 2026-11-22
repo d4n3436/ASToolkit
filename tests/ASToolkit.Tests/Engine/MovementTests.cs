@@ -132,7 +132,7 @@ public class MovementTests
     [Fact]
     public void Trace_TestsTerrainAndBodiesAtTheTravelHeight()
     {
-        var map = EngineTestMap.CreateMap(new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects));
+        var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
         map.Movement.RaiseTemporary(new Vector3(32, 0, 24));
         var walker = new SpriteDefinition(KnownObject.Monster1, Body(new Vector3(16, 16, 20)), default, 0);
         var bullet = new SpriteDefinition(KnownObject.PistolBullet, Body(new Vector3(4, 4, 2)), default, 0);
@@ -155,7 +155,7 @@ public class MovementTests
     [Fact]
     public void IsBlockedAt_TouchesCrushingSpritesOnOtherLayersAndKeepsScanning()
     {
-        var map = EngineTestMap.CreateMap(new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects));
+        var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
         var mover = new SpriteDefinition(KnownObject.PistolBullet, Body(new Vector3(4, 4, 2)), default, 0);
         var crusher = new SpriteDefinition(KnownObject.Barrel, Body(new Vector3(16, 16, 20), 2, extra: ObjectProperties.Crush, maxHp: 10), default, 0);
         var wall = new SpriteDefinition(KnownObject.Monster1, Body(new Vector3(16, 16, 20)), default, 0);

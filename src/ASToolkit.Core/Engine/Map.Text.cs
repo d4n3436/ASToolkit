@@ -9,7 +9,6 @@ public sealed partial class Map
     private const int FirstButtonAction = 6;
     private const int LineWait = 150;
     private const byte ElementStart = (byte)'[';
-    private const byte LineBreak = (byte)'\n';
     private const string StringsFile = "Strings.ini";
 
     private static ReadOnlySpan<byte> MenuSection => "menu"u8;
@@ -62,7 +61,7 @@ public sealed partial class Map
                 if (length <= next)
                     break;
 
-                if (shown[next] == LineBreak)
+                if (shown[next] == CRuntime.LineFeed)
                 {
                     isLineCrossed = true;
                 }
@@ -91,8 +90,7 @@ public sealed partial class Map
     private static void SetMenuAnimation(Sprite sprite, MenuAnimation state) => sprite.ChangeAnimation((SpriteAnimation)state);
 
     [EngineRoutine(0x0046d3fe)]
-    private static bool IsSpace(byte character) =>
-        character is (byte)' ' or >= (byte)'\t' and <= (byte)'\r' || character > sbyte.MaxValue && HighSpaces.Contains(character);
+    private static bool IsSpace(byte character) => CRuntime.IsWhiteSpace(character) || character > sbyte.MaxValue && HighSpaces.Contains(character);
 
     [EngineRoutine(0x004495d0)]
     private static void LayOutText(SpriteText text)
@@ -104,7 +102,7 @@ public sealed partial class Map
         int i = 0;
         for (; i < shown.Length; i++)
         {
-            if (shown[index] != LineBreak)
+            if (shown[i] != CRuntime.LineFeed)
                 continue;
 
             if (text.LineWidth < i - lineStart)
@@ -191,9 +189,7 @@ public sealed partial class Map
         if (name.IsEmpty || !_fileSystem.TryRead(GameTextEncoding.Cyrillic.GetString(name), out var data))
             return ReadOnlyMemory<byte>.Empty;
 
-        int end = data.Span.IndexOf((byte)0);
-
-        return end < 0 ? data : data[..end];
+        return CRuntime.GetString(data);
     }
 
     [EngineRoutine(0x004231c0)]

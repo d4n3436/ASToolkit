@@ -13,7 +13,7 @@ public class MapTests
     [Fact]
     public void Map_WithoutAPlacedMan_HasNoPlayerUntilTheScriptCreatesOne()
     {
-        var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var objects = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(objects, placesPlayer: false, script: """
             #include "maps\export.lgc"
             int man;
@@ -40,7 +40,7 @@ public class MapTests
     [Fact]
     public void Step_PlayerKilledWithALifeLeft_IsRebornWithTheSpaceKey()
     {
-        var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var objects = TestGameFolder.CreateCatalog();
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int> { [KnownObject.Shotgun] = 23 }, default)
         { Items = new Dictionary<KnownObject, int> { [KnownObject.ExtraLife] = 1 } };
         var map = EngineTestMap.CreateMap(objects, loadout: loadout);
@@ -72,7 +72,7 @@ public class MapTests
     [Fact]
     public void Damage_KillingAMonsterCarryingAnItem_DropsItThenItExpires()
     {
-        var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var objects = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(objects);
         map.Play(default);
         var position = map.Player.Position + new Vector3(500, 0, 0);
@@ -100,7 +100,7 @@ public class MapTests
     [Fact]
     public void Action_RepairOnAWoundedMonster_RestoresItsHp()
     {
-        var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var objects = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(objects);
         map.Play(default);
         var enemy = map.AddMonster(objects.Find(KnownObject.Monster1)!, map.Player.Position + new Vector3(500, 0, 0));
@@ -115,7 +115,7 @@ public class MapTests
     [Fact]
     public void Action_GetItemType_PicksACarriedItemOrNoneWithoutItems()
     {
-        var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var objects = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(objects);
         map.Play(default);
         var enemy = map.AddMonster(objects.Find(KnownObject.Monster1)!, map.Player.Position + new Vector3(500, 0, 0));
@@ -132,7 +132,7 @@ public class MapTests
     [Fact]
     public void Step_PlayerCommand_MovesThePlayerWithoutRouteOrBot()
     {
-        var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var objects = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(objects, camera: new Vector2(1000 - GameSession.DefaultScreenWidth / 2f, 1000 - GameSession.DefaultScreenHeight / 2f));
         map.Play(default);
         var destination = map.Player.Position.AsVector2() + new Vector2(300, 0);
@@ -156,7 +156,7 @@ public class MapTests
     [Fact]
     public void Step_MovesEnemiesWithoutAPlayerBot()
     {
-        var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var objects = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(objects);
         var start = map.Player.Position.AsVector2() + new Vector2(200, 0);
         var enemy = map.AddMonster(objects.Find(KnownObject.Monster1)!, new Vector3(start, map.Movement.GetHeight(start)), direction: new Angle(192));
@@ -174,7 +174,7 @@ public class MapTests
     [InlineData(16)]
     public void Step_HighFrameRates_LetTheTankAlienReachThePlayer(int frameTime)
     {
-        var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var objects = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(objects, frameTime: frameTime);
         var player = map.Player.Position.AsVector2();
         var start = player + new Vector2(350, 0);

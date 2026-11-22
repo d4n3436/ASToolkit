@@ -15,7 +15,7 @@ public class ParticleTests
     [InlineData(KnownObject.FlyingGreenGibs, KnownObject.LyingGreenGibs)]
     public void Spawn_FlyingParticles_SettleIntoTheirRestingObjects(KnownObject flying, KnownObject resting)
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(definitions);
         var observer = new MapObserver(map);
         var scenery = observer.BakedEffects;

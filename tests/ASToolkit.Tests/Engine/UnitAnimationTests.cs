@@ -38,7 +38,7 @@ public class UnitAnimationTests
     [Fact]
     public void Start_OneFrameStand_DrawsOnlyTheTickPhase()
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var definition = definitions.Find(KnownObject.Monster1)!;
         var random = new GameRandom(7);
         var expected = new GameRandom(7);
@@ -54,7 +54,7 @@ public class UnitAnimationTests
     [Fact]
     public void Damage_LethalHit_EndsTheDeathAtTheNextAnimationTickWithItsChild()
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(definitions);
         var position = map.Player.Position + new Vector3(600, 0, 0);
         var enemy = map.AddMonster(definitions.Find(KnownObject.Monster1)!, position, direction: new Angle(64));
@@ -86,7 +86,7 @@ public class UnitAnimationTests
 
     private static Sprite CreateMonster(Angle direction)
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var definition = definitions.Find(KnownObject.Monster1)!;
         var sprite = new Sprite(1, definition, Vector3.Zero, Army.Monsters, definition.MaxHp);
         sprite.Start(SpriteAnimation.Stand, direction, 0, new GameRandom(1));

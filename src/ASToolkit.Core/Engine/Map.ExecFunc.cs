@@ -1143,9 +1143,7 @@ public sealed partial class Map : IScriptFunctionHost
     [EngineRoutine(0x00439db0)]
     private static int ComputeChecksum(ReadOnlySpan<byte> text)
     {
-        int end = text.IndexOf((byte)0);
-
-        return unchecked((int)UpdateChecksum(0, end < 0 ? text : text[..end]));
+        return unchecked((int)UpdateChecksum(0, CRuntime.GetString(text)));
     }
 
     [EngineRoutine(0x00406160)]
@@ -1166,8 +1164,7 @@ public sealed partial class Map : IScriptFunctionHost
     [EngineRoutine(0x004072e0)]
     private static ReadOnlyMemory<byte> ToBase64(ReadOnlySpan<byte> text, int add)
     {
-        int end = text.IndexOf((byte)0);
-        var source = end < 0 ? text : text[..end];
+        var source = CRuntime.GetString(text);
         byte[] result = new byte[(source.Length + 2) / 3 * 4];
         Span<byte> chunk = stackalloc byte[Base64ChunkSize + 3];
         int written = 0;
@@ -1204,8 +1201,7 @@ public sealed partial class Map : IScriptFunctionHost
 
     private static ReadOnlyMemory<byte> ChangeCase(ReadOnlySpan<byte> text, byte first, byte last, int shift)
     {
-        int end = text.IndexOf((byte)0);
-        byte[] result = (end < 0 ? text : text[..end]).ToArray();
+        byte[] result = CRuntime.GetString(text).ToArray();
         for (int i = 0; i < result.Length; i++)
         {
             if (result[i] >= first && result[i] <= last)
@@ -1254,7 +1250,7 @@ public sealed partial class Map : IScriptFunctionHost
         FormatArgument argument = Script.IsTextOnTop ? PopText() : PopNumber();
         var format = PopText();
         Span<byte> buffer = stackalloc byte[PrintfBufferSize];
-        int length = PrintFormat.Format(buffer, format.Span, [argument]);
+        int length = CRuntime.PrintFormat(buffer, format.Span, [argument]);
 
         return buffer[..length].ToArray();
     }

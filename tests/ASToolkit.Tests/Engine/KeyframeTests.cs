@@ -14,7 +14,7 @@ public class KeyframeTests
     [Fact]
     public void Step_KeyframedSprite_AdvancesThroughItsKeysAndRestarts()
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(definitions);
         var source = definitions.Find(KnownObject.RedMonster1)!;
         var definition = new SpriteDefinition(source.Id, source.Object, CreateWeapon(source.Weapon), source.SpriteSpeed) { HasTimers = true };

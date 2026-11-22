@@ -1,3 +1,4 @@
+using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Reference;
 using ASToolkit.Core.Scripting;
@@ -10,7 +11,7 @@ internal static class TestGameFolder
     private const string EnvironmentVariable = "ALIEN_SHOOTER_TEST_GAME";
 
     private static readonly Lazy<ObjectTable> LoadedObjects = new(() => ObjectTable.Load(Path.Combine(RequireFolder(), "objects.res")));
-    private static readonly Lazy<GameTable> LoadedTable = new(() => GameTable.Load(Path.Combine(RequireFolder(), "Maps", "common_table.lgc")));
+    private static readonly Lazy<GameTable> LoadedTable = new(() => GameTable.LoadCommon(RequireFolder()));
     private static readonly Lazy<ReferenceLevelSet> LoadedReferences = new(() => ReferenceLevelSet.Load(RequireFolder(), LoadedObjects.Value));
 
     public static ObjectTable Objects
@@ -23,6 +24,8 @@ internal static class TestGameFolder
     }
 
     public static GameTable Table => LoadedTable.Value;
+
+    public static SpriteCatalog CreateCatalog() => new(RequireFolder(), Objects);
 
     public static ReferenceLevelSet References
     {

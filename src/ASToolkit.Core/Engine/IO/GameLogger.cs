@@ -45,8 +45,6 @@ internal sealed class GameLogger : IDisposable
 
     public bool IsOpen => _stream is not null;
 
-    private static ReadOnlySpan<byte> LineEnd => "\r\n"u8;
-
     private static ReadOnlySpan<byte> HeaderFormat => "----< %s %s >----< %s (%s) >----"u8;
 
     private static ReadOnlySpan<byte> ErrorPrefixFormat => "!!!ERROR %s!!!"u8;
@@ -56,7 +54,7 @@ internal sealed class GameLogger : IDisposable
     public static string FormatError(LogError code, int value, ReadOnlySpan<byte> text)
     {
         Span<byte> buffer = stackalloc byte[BufferSize];
-        int length = PrintFormat.Format(buffer, GetFormat(code), [value, (ReadOnlyMemory<byte>)text.ToArray()]);
+        int length = CRuntime.PrintFormat(buffer, GetFormat(code), [value, (ReadOnlyMemory<byte>)text.ToArray()]);
 
         return GameTextEncoding.Cyrillic.GetString(buffer[..length]);
     }
@@ -68,9 +66,9 @@ internal sealed class GameLogger : IDisposable
             return;
 
         Span<byte> buffer = stackalloc byte[BufferSize];
-        int length = PrintFormat.Format(buffer, format, arguments);
+        int length = CRuntime.PrintFormat(buffer, format, arguments);
         WriteText(buffer[..length]);
-        _stream.Write(LineEnd);
+        _stream.Write(CRuntime.LineEnd);
         _stream.Flush();
     }
 
@@ -171,7 +169,7 @@ internal sealed class GameLogger : IDisposable
             }
 
             _stream!.Write(text[..newline]);
-            _stream.Write(LineEnd);
+            _stream.Write(CRuntime.LineEnd);
             text = text[(newline + 1)..];
         }
     }

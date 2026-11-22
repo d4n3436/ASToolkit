@@ -106,8 +106,6 @@ public sealed partial class Script
 
     private static bool IsNameCharacter(byte character) => IsAlphanumeric(character) || character == '_';
 
-    private static bool IsSpace(byte character) => character == ' ' || character is >= 0x09 and <= 0x0d;
-
     private static string Decode(ReadOnlySpan<byte> text) => GameTextEncoding.Cyrillic.GetString(text);
 
     private static bool IsScriptEvent(ReadOnlySpan<byte> name) =>
@@ -251,7 +249,7 @@ public sealed partial class Script
                     if (character == '?')
                         throw ReportError(10, "?: not supported in this version");
 
-                    if (skip == 0 && !IsSpace(character) && character != 0)
+                    if (skip == 0 && !CRuntime.IsWhiteSpace(character) && character != 0)
                         return false;
                 }
             }
@@ -831,7 +829,7 @@ public sealed partial class Script
             byte character = GetCharAt(_position);
             if (char.IsAsciiDigit((char)character))
             {
-                int value = StackObject.TryScanInteger(ReadName(), out int scanned) ? scanned : (int)access;
+                int value = CRuntime.TryScanInteger(ReadName(), out int scanned) ? scanned : (int)access;
                 value = unary switch
                 {
                     ScriptOpcode.Negate => unchecked(-value),

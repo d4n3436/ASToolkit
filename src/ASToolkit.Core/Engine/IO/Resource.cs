@@ -12,8 +12,6 @@ internal ref struct Resource
     private const int TagSize = 4;
     private const int ChunkHeaderSize = 8;
     private const int FirstRecordOffset = 0x18;
-    private const byte LineFeed = (byte)'\n';
-    private const byte CarriageReturn = (byte)'\r';
 
     private ReadOnlySpan<byte> _data;
     private ReadOnlySpan<byte> _name;
@@ -160,26 +158,28 @@ internal ref struct Resource
         }
     }
 
+    public ReadOnlySpan<byte> ReadText() => ReadText(_data, ref _position);
+
     [EngineRoutine(0x00406590)]
-    public ReadOnlySpan<byte> ReadText()
+    public static ReadOnlySpan<byte> ReadText(ReadOnlySpan<byte> data, scoped ref int position)
     {
-        int start = Math.Min(_position, _data.Length);
-        var rest = _data[start..];
-        int length = rest.IndexOfAny((byte)0, LineFeed);
+        int start = Math.Min(position, data.Length);
+        var rest = data[start..];
+        int length = rest.IndexOfAny((byte)0, CRuntime.LineFeed);
         int consumed = length < 0 ? rest.Length : length + 1;
         var text = rest[..(length < 0 ? rest.Length : length)];
-        _position = start + consumed;
+        position = start + consumed;
 
-        if (!text.Contains(CarriageReturn))
+        if (!text.Contains(CRuntime.CarriageReturn))
             return text;
 
-        byte[] kept = new byte[text.Length - text.Count(CarriageReturn)];
-        int index = 0;
+        byte[] kept = new byte[text.Length - text.Count(CRuntime.CarriageReturn)];
+        int i = 0;
         foreach (byte character in text)
         {
-            if (character != CarriageReturn)
+            if (character != CRuntime.CarriageReturn)
             {
-                kept[index++] = character;
+                kept[i++] = character;
             }
         }
 

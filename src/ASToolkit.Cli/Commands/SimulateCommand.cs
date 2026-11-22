@@ -12,18 +12,18 @@ namespace ASToolkit.Cli.Commands;
 
 internal sealed class SimulateCommand : Command<SimulateSettings>
 {
-    private static readonly Campaign[] Campaigns =
+    private static readonly SimulatedCampaign[] Campaigns =
     [
-        new("original", "", 10, "LevelMoney"),
-        new("addon", "ADDON", 5, "LevelMoneyAddon"),
-        new("addon2", "ADDON2", 5, "LevelMoneyAddon2")
+        new("original", "", 10),
+        new("addon", "ADDON", 5),
+        new("addon2", "ADDON2", 5)
     ];
 
     public override int Execute(CommandContext context, SimulateSettings settings, CancellationToken cancellationToken)
     {
         var objects = ObjectTable.Load(Path.Combine(settings.Game, "objects.res"));
-        var table = GameTable.Load(Path.Combine(settings.Game, "Maps", "common_table.lgc"));
-        var reports = new List<Report>();
+        var table = GameTable.LoadCommon(settings.Game);
+        var reports = new List<SimulationReport>();
         var output = new Table().AddColumns("Campaign", "Completed levels", "Preparation", "Simulation", "Outcome");
         foreach (var campaign in Campaigns.Where(campaign => settings.Campaign == "all" || campaign.Name == settings.Campaign))
         {
@@ -39,14 +39,14 @@ internal sealed class SimulateCommand : Command<SimulateSettings>
                     ?? throw new InvalidDataException($"Could not find a route in level '{name}'."));
             }
 
-            var rewards = table.GetArray(campaign.Rewards);
+            var rewards = table.GetArray(GameTable.GetLevelMoneyName(campaign.Folder));
             int cash = settings.Money ?? CampaignState.StartingMoney + (settings.Start > 1 ? rewards[settings.Start - 1] : 0);
             var initial = CampaignState.CreateInitial(cash);
             double preparation = clock.Elapsed.TotalMilliseconds;
             clock.Restart();
             var result = new Playthrough(settings.Game, objects, table).PlayCampaign(levels, rewards.Skip(settings.Start).ToArray(), settings.Seed, initial);
             double simulation = clock.Elapsed.TotalMilliseconds;
-            reports.Add(new Report(campaign.Name, settings.Start, initial, preparation, simulation, result));
+            reports.Add(new SimulationReport(campaign.Name, settings.Start, initial, preparation, simulation, result));
             output.AddRow(campaign.Name, $"{result.Levels.Count(level => level.Survived)}/{levels.Count}", $"{preparation / 1000:F3}s",
                 $"{simulation / 1000:F3}s", result.IsCompleted ? "completed" : $"stopped at level {settings.Start + result.Levels.Count - 1}");
         }
@@ -61,9 +61,4 @@ internal sealed class SimulateCommand : Command<SimulateSettings>
 
         return reports.All(report => report.Result.IsCompleted) ? 0 : 1;
     }
-
-    private sealed record Campaign(string Name, string Folder, int LastLevel, string Rewards);
-    
-    private sealed record Report(string Campaign, int FirstLevel, CampaignState InitialState, double PreparationMilliseconds,
-        double SimulationMilliseconds, CampaignResult Result);
 }

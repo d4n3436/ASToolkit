@@ -10,7 +10,7 @@ public class DemoTests
     [Fact]
     public void FinishDemoRecording_RecordedFrames_ReadBackThroughDemoResource()
     {
-        var map = EngineTestMap.CreateMap(new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects), session: CreateRecordingSession());
+        var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog(), session: CreateRecordingSession());
         map.Input.Flags = InputFlags.Right | InputFlags.First;
         map.Input.Cursor = new Vector2(120.5f, -40.25f);
         map.Input.Key = 's';
@@ -40,7 +40,7 @@ public class DemoTests
     [Fact]
     public void StepDemo_PastTheLastFrame_QueuesTheDemosMap()
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var recorder = EngineTestMap.CreateMap(definitions, session: CreateRecordingSession());
         recorder.StepDemo(0, out _);
         var demo = new DemoResource(recorder.FinishDemoRecording());

@@ -80,7 +80,7 @@ public class GameLoggerTests
     public void Map_LoadAndEnd_LogTheScriptAndTheDefinitionsLeft()
     {
         var fileSystem = new MemoryWriteOverlay();
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var registry = new ScriptRegistry("");
         using (var session = new GameSession(registry, fileSystem, new FixedTime()))
         {

@@ -8,24 +8,13 @@ using ASToolkit.Core.Reference;
 using ASToolkit.Core.Scripting;
 using ASToolkit.Cli.Analysis;
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Png;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
 namespace ASToolkit.Cli.Commands;
 
-internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
+internal sealed class AnalyzeCommand : LevelCommand<AnalyzeSettings>
 {
-    private static readonly string[] AddOnLevels =
-    [
-        "ADDON/Level_02.map", "ADDON/Level_03.map", "ADDON/Level_04.map", "ADDON/Level_05.map",
-        "ADDON2/Level_02.map", "ADDON2/Level_03.map", "ADDON2/Level_04.map", "ADDON2/Level_05.map"
-    ];
-
-    private const int MaxLevelsAtOnce = 3;
-
-    private static readonly PngEncoder PngOptions = new() { CompressionLevel = PngCompressionLevel.BestSpeed };
-
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -41,7 +30,7 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
             return ExecuteSequel(settings, objects, cancellationToken);
         }
 
-        string[] maps = GetMaps(settings);
+        string[] maps = GetMaps(settings.Maps, settings.Levels);
         Directory.CreateDirectory(settings.Out);
         var renderer = settings.NoImages ? null : new MapRenderer(settings.Game, objects) { MatchGameLighting = settings.GameLighting, OmitAmbientGamma = settings.NoAmbientGamma };
         var reports = new RouteReport?[maps.Length];
@@ -50,8 +39,7 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
         int[] undrawn = new int[maps.Length];
         bool[] noScript = new bool[maps.Length];
         
-        var options = new ParallelOptions { MaxDegreeOfParallelism = MaxLevelsAtOnce, CancellationToken = cancellationToken };
-        AnsiConsole.Status().Start("Analyzing the levels", _ => Parallel.For(0, maps.Length, options, i =>
+        AnsiConsole.Status().Start("Analyzing the levels", _ => Parallel.For(0, maps.Length, CreateParallelOptions(cancellationToken), i =>
         {
             (string mapPath, string scriptPath) = Locate(settings, maps[i]);
             if (!File.Exists(mapPath))
@@ -121,8 +109,7 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
         var quests = QuestBook.Load(settings.Game);
         var renderer = settings.NoImages ? null : new MapRenderer(settings.Game, objects) { MatchGameLighting = settings.GameLighting, OmitAmbientGamma = settings.NoAmbientGamma };
         var reports = new WalkReport?[maps.Length];
-        var options = new ParallelOptions { MaxDegreeOfParallelism = MaxLevelsAtOnce, CancellationToken = cancellationToken };
-        AnsiConsole.Status().Start("Analyzing the levels", _ => Parallel.For(0, maps.Length, options, i =>
+        AnsiConsole.Status().Start("Analyzing the levels", _ => Parallel.For(0, maps.Length, CreateParallelOptions(cancellationToken), i =>
         {
             string mapPath = Path.Combine(folder, maps[i]);
             if (!File.Exists(mapPath))
@@ -159,19 +146,6 @@ internal sealed class AnalyzeCommand : Command<AnalyzeSettings>
         File.WriteAllText(json, JsonSerializer.Serialize(reports.OfType<WalkReport>(), JsonOptions));
         AnsiConsole.MarkupLine($"Wrote [green]{Markup.Escape(json)}[/].");
         return reports.All(report => report is not null) ? 0 : 1;
-    }
-
-    private static string[] GetMaps(AnalyzeSettings settings)
-    {
-        if (settings.Maps.Length > 0)
-        {
-            return settings.Maps;
-        }
-
-        var campaign = ReferenceLevelSet.CampaignLevels.Select(ReferenceLevelSet.GetCampaignName);
-        return settings.Levels is null
-            ? campaign.Concat(AddOnLevels).ToArray()
-            : campaign.Where(m => File.Exists(Path.Combine(settings.Levels, m))).ToArray();
     }
 
     private static (string Map, string Script) Locate(AnalyzeSettings settings, string map)

@@ -1,18 +1,18 @@
 namespace ASToolkit.Core.Engine.IO;
 
-internal static class PrintFormat
+public static partial class CRuntime
 {
     private const int MaxDigits = 32;
-    
+
     private static ReadOnlySpan<byte> LowerDigits => "0123456789abcdef"u8;
-    
+
     private static ReadOnlySpan<byte> UpperDigits => "0123456789ABCDEF"u8;
-    
+
     private static ReadOnlySpan<byte> NullText => "(null)"u8;
 
-    public static int Format(Span<byte> destination, ReadOnlySpan<byte> format, ReadOnlySpan<FormatArgument> arguments)
+    internal static int PrintFormat(Span<byte> destination, ReadOnlySpan<byte> format, ReadOnlySpan<FormatArgument> arguments)
     {
-        var output = new Output(destination);
+        var output = new PrintOutput(destination);
         int next = 0;
         int i = 0;
         while (i < format.Length && format[i] != 0)
@@ -40,7 +40,7 @@ internal static class PrintFormat
                 break;
             }
 
-            int width = 0;
+            int width;
             if (i < format.Length && format[i] == '*')
             {
                 width = Take(arguments, ref next).Number;
@@ -54,18 +54,13 @@ internal static class PrintFormat
             }
             else
             {
-                while (i < format.Length && char.IsAsciiDigit((char)format[i]))
-                {
-                    width = width * 10 + format[i++] - '0';
-                }
+                width = ReadDigits(format, ref i);
             }
 
             int precision = -1;
             if (i < format.Length && format[i] == '.')
             {
                 i++;
-                precision = 0;
-
                 if (i < format.Length && format[i] == '*')
                 {
                     precision = Math.Max(0, Take(arguments, ref next).Number);
@@ -73,10 +68,7 @@ internal static class PrintFormat
                 }
                 else
                 {
-                    while (i < format.Length && char.IsAsciiDigit((char)format[i]))
-                    {
-                        precision = precision * 10 + format[i++] - '0';
-                    }
+                    precision = ReadDigits(format, ref i);
                 }
             }
 
@@ -108,7 +100,7 @@ internal static class PrintFormat
                 {
                     uint value = unchecked((uint)Take(arguments, ref next).Number);
                     var digits = conversion == 'X' ? UpperDigits : LowerDigits;
-                    var prefix = alternate && value != 0 ? (conversion == 'X' ? "0X"u8 : "0x"u8) : default;
+                    var prefix = alternate && value != 0 ? conversion == 'X' ? "0X"u8 : "0x"u8 : default;
                     WriteNumber(ref output, value, 16, digits, 0, prefix, width, precision, left, zero);
                     break;
                 }
@@ -123,9 +115,7 @@ internal static class PrintFormat
                 case (byte)'s':
                 {
                     var argument = Take(arguments, ref next);
-                    var text = argument.IsText ? argument.Text.Span : NullText;
-                    int end = text.IndexOf((byte)0);
-                    text = end < 0 ? text : text[..end];
+                    var text = GetString(argument.IsText ? argument.Text.Span : NullText);
 
                     if (precision >= 0 && precision < text.Length)
                     {
@@ -149,9 +139,20 @@ internal static class PrintFormat
         return output.Length;
     }
 
+    private static int ReadDigits(ReadOnlySpan<byte> format, ref int index)
+    {
+        int value = 0;
+        while (index < format.Length && char.IsAsciiDigit((char)format[index]))
+        {
+            value = value * 10 + format[index++] - '0';
+        }
+
+        return value;
+    }
+
     private static FormatArgument Take(ReadOnlySpan<FormatArgument> arguments, ref int next) => next < arguments.Length ? arguments[next++] : default;
 
-    private static void WriteNumber(ref Output output, ulong value, int radix, ReadOnlySpan<byte> digits, byte sign, ReadOnlySpan<byte> prefix, int width, int precision, bool left, bool zero)
+    private static void WriteNumber(ref PrintOutput output, ulong value, int radix, ReadOnlySpan<byte> digits, byte sign, ReadOnlySpan<byte> prefix, int width, int precision, bool left, bool zero)
     {
         Span<byte> buffer = stackalloc byte[MaxDigits];
         int count = 0;
@@ -200,7 +201,7 @@ internal static class PrintFormat
         }
     }
 
-    private static void Pad(ref Output output, int count, bool skip, bool zeros)
+    private static void Pad(ref PrintOutput output, int count, bool skip, bool zeros)
     {
         if (skip)
             return;
@@ -208,34 +209,6 @@ internal static class PrintFormat
         for (int k = 0; k < count; k++)
         {
             output.Put(zeros ? (byte)'0' : (byte)' ');
-        }
-    }
-
-    private ref struct Output
-    {
-        private readonly Span<byte> _destination;
-
-        public Output(Span<byte> destination)
-        {
-            _destination = destination;
-        }
-
-        public int Length { get; private set; }
-
-        public void Put(byte value)
-        {
-            if (Length < _destination.Length)
-            {
-                _destination[Length++] = value;
-            }
-        }
-
-        public void Put(scoped ReadOnlySpan<byte> values)
-        {
-            foreach (byte value in values)
-            {
-                Put(value);
-            }
         }
     }
 }

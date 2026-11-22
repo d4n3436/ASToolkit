@@ -1,6 +1,5 @@
 using ASToolkit.Core.Simulation;
 using System.Numerics;
-using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using Xunit;
@@ -12,7 +11,7 @@ public class LinkTests
     [Fact]
     public void AddMonster_TankAliens_BuildAnArmedTurretThroughTheirLinks()
     {
-        var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var objects = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(objects);
 
         var yellow = map.AddMonster(objects.Find(KnownObject.YellowTankWeaponMonster)!, map.Player.Position + new Vector3(400, 0, 0));
@@ -30,7 +29,7 @@ public class LinkTests
     [Fact]
     public void CreateMap_PlacedTeleportPad_BuildsItsEndlessGenerator()
     {
-        var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var objects = TestGameFolder.CreateCatalog();
         var pad = new MergedMapSprite(1, KnownObject.TeleportPad, new Vector3(1000, 1000, 0), 0, 0, []);
 
         var map = EngineTestMap.CreateMap(objects, sprites: [pad]);
@@ -41,7 +40,7 @@ public class LinkTests
     [Fact]
     public void SpriteCatalog_PictureWithoutVidHeader_RunsAtTheDefaultFrameSpeed()
     {
-        var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var objects = TestGameFolder.CreateCatalog();
 
         Assert.Equal(71, objects.Find(KnownObject.PutDynamiteHere)!.Layout.GetFrameDuration(SpriteAnimation.Stand));
     }

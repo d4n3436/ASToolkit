@@ -271,7 +271,7 @@ public class ExecFuncTests
     [Fact]
     public void ExecFunc_ScreenPickMoneyAndTrains_FollowTheGame()
     {
-        var definition = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects).Find(KnownObject.RedMonster1)!;
+        var definition = TestGameFolder.CreateCatalog().Find(KnownObject.RedMonster1)!;
         int above = (int)(definition.Half.Y + definition.Object.Size.Z / 2);
         var (map, script) = Run($$"""
             int unit, picked, raised, footprint, below, money, other, train, property, engine;
@@ -347,7 +347,7 @@ public class ExecFuncTests
 
     private static (Map Map, Script Script) Run(string text)
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(definitions);
         var script = Compile(map, text);
         script.CallFunction(map, -1, 0, 0, 0);

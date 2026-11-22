@@ -11,7 +11,7 @@ public class ScriptHandlerTests
     [Fact]
     public void Step_FreezeBonusTaken_FreezesNearbyMonstersInPlace()
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(definitions);
         var monster = map.AddMonster(definitions.Find(KnownObject.RedMonster1)!, map.Player.Position + new Vector3(300, 0, 0));
         map.CreateSprite(definitions.Find(KnownObject.FreezeMonsters)!, map.Player.Position, default);
@@ -27,7 +27,7 @@ public class ScriptHandlerTests
     [Fact]
     public void Step_MapStartingWithAnEarthquake_ShakesTheScreenFromTheFirstTick()
     {
-        var objects = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var objects = TestGameFolder.CreateCatalog();
         var calm = EngineTestMap.CreateMap(objects);
         var shaking = EngineTestMap.CreateMap(objects, environment: MapEnvironment.Earthquake);
 
@@ -41,7 +41,7 @@ public class ScriptHandlerTests
     [Fact]
     public void Step_BombTaken_Deals300ToMonstersAndShakesTheScreen()
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(definitions);
         var screen = new ScreenLog();
         var tank = definitions.Find(KnownObject.RedTankMonster)!;
@@ -63,7 +63,7 @@ public class ScriptHandlerTests
     [Fact]
     public void Step_AdrenalineTaken_RaisesSpeedUntilTheNextScriptTick()
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(definitions);
         float speed = map.Player.MaxSpeed;
         map.CreateSprite(definitions.Find(KnownObject.Adrenaline)!, map.Player.Position, default);
@@ -84,7 +84,7 @@ public class ScriptHandlerTests
     [Fact]
     public void Step_DroneTaken_FollowsThePlayerAndRefusesASecond()
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(definitions);
         Step(map, 1);
         map.CreateSprite(definitions.Find(KnownObject.Drone)!, map.Player.Position, default);
@@ -109,7 +109,7 @@ public class ScriptHandlerTests
     [Fact]
     public void Constructor_DroneCarried_CreatesTheDroneAtTheStart()
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default, new Dictionary<KnownObject, int> { [KnownObject.Drone] = 1 });
         var map = EngineTestMap.CreateMap(definitions, loadout: loadout);
         Step(map, 1);
@@ -120,7 +120,7 @@ public class ScriptHandlerTests
     [Fact]
     public void Step_FreezeBulletKillsAMonster_FreezesItInsteadOfKillingIt()
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(definitions);
         Step(map, 1);
         var position = map.Player.Position + new Vector3(300, 0, 0);
@@ -140,7 +140,7 @@ public class ScriptHandlerTests
     {
         const int slot = KnownObject.FreezeRifle - KnownObject.Shotgun + 2;
         
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int> { [KnownObject.FreezeRifle] = 100 }, default);
         var map = EngineTestMap.CreateMap(definitions, loadout: loadout);
         Step(map, 1);
@@ -160,7 +160,7 @@ public class ScriptHandlerTests
     {
         const int slot = KnownObject.FlameThrower - KnownObject.Shotgun + 2;
 
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int> { [KnownObject.FlameThrower] = 1000 }, default);
         var map = EngineTestMap.CreateMap(definitions, loadout: loadout);
         Step(map, 1);
@@ -178,7 +178,7 @@ public class ScriptHandlerTests
     [Fact]
     public void Step_ElectricBallBorn_DrainsTenHealthFromThePlayer()
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(definitions);
         Step(map, 1);
         int health = map.Player.Hp;
@@ -191,7 +191,7 @@ public class ScriptHandlerTests
     [Fact]
     public void Step_RescueMedkitSavesThePlayer_ProtectsForThreeSeconds()
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default, new Dictionary<KnownObject, int> { [KnownObject.Medkit] = 1 });
         var map = EngineTestMap.CreateMap(definitions, loadout: loadout);
         Step(map, 1);
@@ -207,7 +207,7 @@ public class ScriptHandlerTests
     [Fact]
     public void Step_PlayerKilled_FlashesTheScreenRedOnce()
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(definitions);
         var screen = new ScreenLog();
         Step(map, 1);

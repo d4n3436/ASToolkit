@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Buffers.Text;
+using ASToolkit.Core.Engine.IO;
 
 namespace ASToolkit.Core.Engine.Scripts;
 
@@ -67,88 +68,8 @@ public struct StackObject
     /// <param name="text">The text.</param>
     /// <returns>The number, or 0 if <c>sscanf</c> doesn't read a number.</returns>
     [EngineRoutine(0x004242e0)]
-    public static int ParseNumber(ReadOnlySpan<byte> text)
-    {
-        if (text.Length > 1 && text[1] == 'x')
-            return ScanInteger(text);
-
-        int i = SkipSpace(text, 0);
-        bool negative = false;
-        if (i < text.Length && (text[i] == '-' || text[i] == '+'))
-        {
-            negative = text[i] == '-';
-            i++;
-        }
-
-        int total = 0;
-        for (; i < text.Length && char.IsAsciiDigit((char)text[i]); i++)
-        {
-            total = unchecked(total * 10 + (text[i] - '0'));
-        }
-
-        return negative ? unchecked(-total) : total;
-    }
-
-    /// <summary>
-    /// Reads a number as C's <c>sscanf("%i")</c>, hexadecimal after <c>0x</c>, octal after <c>0</c> and decimal otherwise.
-    /// </summary>
-    /// <param name="text">The text.</param>
-    /// <returns>The number, or 0 if the text doesn't start with a number.</returns>
-    public static int ScanInteger(ReadOnlySpan<byte> text) => TryScanInteger(text, out int value) ? value : 0;
-
-    /// <summary>
-    /// Attempts to read a number as C's <c>sscanf("%i")</c> does, which fails when the text holds <c>0x</c> without a hex digit.
-    /// </summary>
-    /// <param name="text">The text.</param>
-    /// <param name="value">The number, wrapped to 32 bits, when one was read; otherwise, 0.</param>
-    /// <returns><see langword="true"/> if a number was read; otherwise, <see langword="false"/>.</returns>
-    public static bool TryScanInteger(ReadOnlySpan<byte> text, out int value) => TryScanInteger(text, out value, out _);
-
-    /// <summary>
-    /// Attempts to parse a number as C's <c>sscanf("%i")</c> does and reports how many bytes it read.
-    /// </summary>
-    /// <param name="text">The text.</param>
-    /// <param name="value">The number, wrapped to 32 bits, when one was read; otherwise, 0.</param>
-    /// <param name="length">The number of bytes read, including leading white space, when a number was read; otherwise, 0.</param>
-    /// <returns><see langword="true"/> if a number was read; otherwise, <see langword="false"/>.</returns>
-    public static bool TryScanInteger(ReadOnlySpan<byte> text, out int value, out int length)
-    {
-        value = 0;
-        length = 0;
-        int i = SkipSpace(text, 0);
-        bool negative = false;
-        if (i < text.Length && (text[i] == '-' || text[i] == '+'))
-        {
-            negative = text[i] == '-';
-            i++;
-        }
-
-        int radix = 10;
-        if (i < text.Length && text[i] == '0')
-        {
-            radix = 8;
-            i++;
-            if (i < text.Length && (text[i] | 0x20) == 'x')
-            {
-                radix = 16;
-                i++;
-                if (i >= text.Length || GetDigit(text[i]) >= radix)
-                    return false;
-            }
-        }
-        else if (i >= text.Length || !char.IsAsciiDigit((char)text[i]))
-            return false;
-
-        int total = 0;
-        for (; i < text.Length && GetDigit(text[i]) < radix; i++)
-        {
-            total = unchecked(total * radix + GetDigit(text[i]));
-        }
-
-        value = unchecked(negative ? -total : total);
-        length = i;
-        return true;
-    }
+    public static int ParseNumber(ReadOnlySpan<byte> text) =>
+        text.Length > 1 && text[1] == 'x' ? CRuntime.ScanInteger(text) : CRuntime.ParseInteger(text);
 
     /// <summary>
     /// Writes a number as decimal text.
@@ -172,7 +93,7 @@ public struct StackObject
     public readonly ReadOnlyMemory<byte> GetText() => Flags.HasFlag(StackObjectFlags.Number) ? FormatNumber(Value) : Text;
 
     /// <summary>
-    /// Returns the value as a number, parsing a text.
+    /// Returns the value as a number, parsing the text when the value is text.
     /// </summary>
     /// <returns>The number.</returns>
     [EngineRoutine(0x00439df0)]
@@ -237,18 +158,5 @@ public struct StackObject
         }
 
         Text = text;
-    }
-
-    private static int GetDigit(byte character) => char.IsAsciiDigit((char)character) ? character - '0' :
-        char.IsAsciiHexDigit((char)character) ? (character | 0x20) - 'a' + 10 : 16;
-
-    private static int SkipSpace(ReadOnlySpan<byte> text, int index)
-    {
-        while (index < text.Length && (text[index] == ' ' || text[index] is >= 0x09 and <= 0x0d))
-        {
-            index++;
-        }
-
-        return index;
     }
 }

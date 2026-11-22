@@ -10,7 +10,7 @@ public class PlayerMovementTests
     [Fact]
     public void MoveTact_NoTarget_BrakesWithoutDiscardingMomentum()
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var definition = definitions.Find(KnownObject.PlayerStart)!;
         var map = EngineTestMap.CreateMap(definitions);
         var player = new Sprite(0, definition, new Vector3(1000, 1000, 0), 0, definition.MaxHp) { Direction = new Angle(64) };
@@ -34,7 +34,7 @@ public class PlayerMovementTests
     [Fact]
     public void MoveTact_DisplacesAlongTheDirectionFromBeforeTheTurn()
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var definition = definitions.Find(KnownObject.PlayerStart)!;
         var map = EngineTestMap.CreateMap(definitions);
         var player = new Sprite(0, definition, new Vector3(1000, 1000, 0), 0, definition.MaxHp);

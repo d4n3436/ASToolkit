@@ -10,7 +10,7 @@ public class ChildEmissionTests
     [Fact]
     public void CreateChild_PistolPulses_AlternateBetweenTheTwoHands()
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(definitions);
         var owner = definitions.Find(KnownObject.PistolsTorso)!;
         var origin = new Vector3(100, 200, 10);
@@ -34,7 +34,7 @@ public class ChildEmissionTests
     [Fact]
     public void CreateChild_HitBlood_StartsAtTheAlien()
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(definitions);
         var owner = definitions.Find(KnownObject.Monster1)!;
         var origin = new Vector3(100, 200, 10);

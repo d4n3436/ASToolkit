@@ -12,22 +12,12 @@ using Spectre.Console.Cli;
 
 namespace ASToolkit.Cli.Commands;
 
-internal sealed class InspectRoomsCommand : Command<InspectRoomsSettings>
+internal sealed class InspectRoomsCommand : LevelCommand<InspectRoomsSettings>
 {
-    private static readonly string[] AddOnLevels =
-    [
-        "ADDON/Level_02.map", "ADDON/Level_03.map", "ADDON/Level_04.map", "ADDON/Level_05.map",
-        "ADDON2/Level_02.map", "ADDON2/Level_03.map", "ADDON2/Level_04.map", "ADDON2/Level_05.map"
-    ];
-
-    private const int MaxLevelsAtOnce = 3;
-
     public override int Execute(CommandContext context, InspectRoomsSettings settings, CancellationToken cancellationToken)
     {
         var objects = ObjectTable.Load(Path.Combine(settings.Game, "objects.res"));
-        string[] maps = settings.Maps.Length > 0 ? settings.Maps
-            : settings.Levels is not null ? ReferenceLevelSet.CampaignLevels.Select(ReferenceLevelSet.GetCampaignName).Where(map => File.Exists(Path.Combine(settings.Levels, map))).ToArray()
-            : ReferenceLevelSet.CampaignLevels.Select(ReferenceLevelSet.GetCampaignName).Concat(AddOnLevels).ToArray();
+        string[] maps = GetMaps(settings.Maps, settings.Levels);
         Directory.CreateDirectory(settings.Out);
         string crops = Path.Combine(settings.Out, "crops");
         if (settings.Crops)
@@ -38,9 +28,8 @@ internal sealed class InspectRoomsCommand : Command<InspectRoomsSettings>
         var renderer = new MapRenderer(settings.Game, objects);
         var atlases = new RoomAtlas?[maps.Length];
         var wallSets = new WallSet[maps.Length];
-        var options = new ParallelOptions { MaxDegreeOfParallelism = MaxLevelsAtOnce, CancellationToken = cancellationToken };
         var loader = new LevelLoader(objects);
-        AnsiConsole.Status().Start("Reading the rooms", _ => Parallel.For(0, maps.Length, options, mapIndex =>
+        AnsiConsole.Status().Start("Reading the rooms", _ => Parallel.For(0, maps.Length, CreateParallelOptions(cancellationToken), mapIndex =>
         {
             string mapPath = Path.Combine(settings.Levels ?? Path.Combine(settings.Game, "Maps"), maps[mapIndex]);
             if (!File.Exists(mapPath))

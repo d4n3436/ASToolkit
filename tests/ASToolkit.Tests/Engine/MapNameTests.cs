@@ -8,7 +8,7 @@ public class MapNameTests
     [Fact]
     public void Load_SecondLevel_KeepsThePreviousName()
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var session = new GameSession(new ScriptRegistry(""));
 
         var map = EngineTestMap.CreateMap(definitions, session: session);

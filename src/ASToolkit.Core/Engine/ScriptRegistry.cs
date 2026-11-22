@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Text;
+using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Engine;
@@ -8,6 +10,8 @@ namespace ASToolkit.Core.Engine;
 /// </summary>
 public sealed class ScriptRegistry
 {
+    private const int MaxStackText = 256;
+
     private const string RegPathSetting = "RegPath=";
 
     private readonly Dictionary<string, string> _values = new(StringComparer.OrdinalIgnoreCase);
@@ -94,20 +98,7 @@ public sealed class ScriptRegistry
 
     private static int ParseLong(ReadOnlySpan<char> text)
     {
-        text = text.TrimStart();
-        bool isNegative = !text.IsEmpty && text[0] == '-';
-
-        if (!text.IsEmpty && text[0] is '-' or '+')
-        {
-            text = text[1..];
-        }
-
-        int total = 0;
-        for (int i = 0; i < text.Length && char.IsAsciiDigit(text[i]); i++)
-        {
-            total = unchecked(total * 10 + (text[i] - '0'));
-        }
-
-        return isNegative ? unchecked(-total) : total;
+        var bytes = text.Length <= MaxStackText ? stackalloc byte[text.Length] : new byte[text.Length];
+        return CRuntime.ParseInteger(bytes[..Encoding.Latin1.GetBytes(text, bytes)]);
     }
 }

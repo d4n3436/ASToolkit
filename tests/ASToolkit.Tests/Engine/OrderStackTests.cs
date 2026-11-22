@@ -67,7 +67,7 @@ public class OrderStackTests
 
     private static (Map Map, Sprite Spawner) CreateSpawner(params StackAction[] stack)
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var placement = new MergedMapSprite(1, KnownObject.Spawner, new Vector3(1000, 1600, 0), 0, Army.Monsters, []);
         var map = EngineTestMap.CreateMap(definitions, sprites: [placement]);
         var spawner = map.FindPlacementSprite(placement)!;

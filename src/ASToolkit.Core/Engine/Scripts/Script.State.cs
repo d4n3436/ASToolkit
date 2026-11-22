@@ -1,12 +1,12 @@
 using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using ASToolkit.Core.Engine.IO;
 
 namespace ASToolkit.Core.Engine.Scripts;
 
 public sealed partial class Script
 {
-
     /// <summary>
     /// Writes the variables and names of the script as demos and saves store them.
     /// </summary>
@@ -75,32 +75,11 @@ public sealed partial class Script
         return offset;
     }
 
-    [EngineRoutine(0x00406590)]
     internal static ReadOnlyMemory<byte> ReadString(ReadOnlyMemory<byte> data, ref int offset)
     {
-        var rest = data.Span[offset..];
-        int length = rest.IndexOfAny((byte)0, (byte)'\n');
-        if (length < 0)
-        {
-            length = rest.Length;
-        }
-
-        var text = data.Slice(offset, length);
-        offset += Math.Min(length + 1, rest.Length);
-        if (!text.Span.Contains((byte)'\r'))
-            return text;
-
-        byte[] kept = new byte[length - text.Span.Count((byte)'\r')];
-        int count = 0;
-        foreach (byte character in text.Span)
-        {
-            if (character != '\r')
-            {
-                kept[count++] = character;
-            }
-        }
-
-        return kept;
+        int start = offset;
+        var text = Resource.ReadText(data.Span, ref offset);
+        return text.Overlaps(data.Span) ? data.Slice(start, text.Length) : text.ToArray();
     }
 
     [EngineRoutine(0x00425080)]

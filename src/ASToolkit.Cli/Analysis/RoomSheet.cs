@@ -26,7 +26,6 @@ internal sealed class RoomSheet
 
     private static readonly DrawingOptions FloorTint = new() { GraphicsOptions = new GraphicsOptions { BlendPercentage = 0.15f } };
     private static readonly Lazy<FontFamily> LabelFamily = new(() => SystemFonts.Families.OrderBy(family => family.Name, StringComparer.Ordinal).First());
-    private static readonly PngEncoder PngOptions = new() { CompressionLevel = PngCompressionLevel.BestSpeed };
 
     private readonly List<Image<Rgb24>> _tiles = [];
     private readonly Font _font = LabelFamily.Value.CreateFont(FontSize, FontStyle.Bold);
@@ -130,7 +129,7 @@ internal sealed class RoomSheet
                     context.DrawImage(tile, at, 1);
                 }
             });
-            sheet.SaveAsPng($"{prefix}_{index + 1}.png", PngOptions);
+            sheet.SaveAsPng($"{prefix}_{i + 1}.png", PngOptions.Fast);
         }
 
         foreach (var tile in _tiles)

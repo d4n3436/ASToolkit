@@ -16,7 +16,7 @@ namespace ASToolkit.Core.Patching;
 public static class RandomAddOnInstaller
 {
     /// <summary>
-    /// The folder of the add-on's levels under Maps.
+    /// Represents the folder of the add-on's levels under Maps.
     /// </summary>
     public const string FolderName = "RANDOM";
 
@@ -54,8 +54,8 @@ public static class RandomAddOnInstaller
 
     /// <summary>
     /// Writes the levels, their briefings, the money table and level count, and the branches and menu button that start
-    /// the add-on. Campaign style has ten levels, every one a campaign level with the levels that weren't generated
-    /// copied from the campaign, and add-on style has five. Anything installed before is replaced.
+    /// the add-on. Campaign style has ten levels, each of them a campaign level, with the levels that weren't generated
+    /// copied from the campaign; add-on style has five. Anything installed before is replaced.
     /// </summary>
     /// <param name="gameFolder">The game folder.</param>
     /// <param name="style">The style of the levels.</param>
@@ -119,7 +119,7 @@ public static class RandomAddOnInstaller
             }
         }
 
-        string table = Path.Combine(maps, "common_table.lgc");
+        string table = Path.Combine(maps, GameTable.CommonFileName);
         if (File.Exists(table))
         {
             string text = Latin1.GetString(File.ReadAllBytes(table));
@@ -225,7 +225,7 @@ public static class RandomAddOnInstaller
     // Pay the given money at the end of each level but the last, using a table indexed by the number of the level that ends
     private static void WriteTable(string maps, GenerationStyle style, int count, IReadOnlyList<int> endMoney)
     {
-        string path = Path.Combine(maps, "common_table.lgc");
+        string path = Path.Combine(maps, GameTable.CommonFileName);
         string text = StripTable(Latin1.GetString(File.ReadAllBytes(path)));
         string newline = text.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
         int[] money = GameTable.Parse(text).GetArray(style == GenerationStyle.AddOn ? "LevelMoneyAddon" : "LevelMoney").ToArray();

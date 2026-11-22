@@ -12,7 +12,7 @@ public class DoorTests
     [InlineData(KnownObject.DoubleDoor, 2, 36)]
     public void Step_PlayerNearADoor_SinksItByItsScriptStepEachTick(KnownObject id, int step, int ticks)
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var door = new MergedMapSprite(1, id, new Vector3(1000, 1000, 0), 0, 0, []);
         var map = EngineTestMap.CreateMap(definitions, sprites: [door]);
         var body = map.FindPlacementSprite(door)!;
@@ -29,7 +29,7 @@ public class DoorTests
     [Fact]
     public void Move_DoorRisingAroundAUnit_LetsTheUnitMoveOut()
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var definition = definitions.Find(KnownObject.SmallDoor)!;
         var walker = definitions.Find(KnownObject.PlayerStart)!;
         var position = new Vector2(1000);
@@ -45,7 +45,7 @@ public class DoorTests
     [Fact]
     public void Step_OccupiedDoor_StaysOpenUntilTheDoorsLock()
     {
-        var definitions = new SpriteCatalog(TestGameFolder.RequireFolder(), TestGameFolder.Objects);
+        var definitions = TestGameFolder.CreateCatalog();
         var door = new MergedMapSprite(1, KnownObject.SmallDoor, new Vector3(1000, 1000, 0), 0, 0, []);
         var map = EngineTestMap.CreateMap(definitions, sprites: [door]);
         var body = map.FindPlacementSprite(door)!;
