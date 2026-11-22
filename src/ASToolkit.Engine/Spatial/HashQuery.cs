@@ -1,7 +1,7 @@
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Enumerates the sprites in the buckets of a box of a <see cref="SpriteCollector"/>, row by row.
+/// Enumerates, row by row, the sprites in the buckets of a <see cref="SpriteCollector"/> that a box covers.
 /// </summary>
 public struct HashQuery
 {

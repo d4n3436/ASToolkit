@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace ASToolkit.Formats;
 
 /// <summary>
-/// Represents the header of a layer frame of a sprite file, with its pixel format and size.
+/// Represents the header of a layer frame of a sprite file.
 /// </summary>
 [StructLayout(LayoutKind.Explicit, Size = 8)]
 public struct VidLayerHeader

@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace ASToolkit.Formats;
 
 /// <summary>
-/// Represents the header of a sprite file, with its type, animation speed, frame count and canvas size.
+/// Represents the header of a sprite file.
 /// </summary>
 [StructLayout(LayoutKind.Explicit)]
 public readonly struct VidHeader

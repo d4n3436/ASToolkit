@@ -3,7 +3,7 @@ using System.Buffers;
 namespace ASToolkit.Formats;
 
 /// <summary>
-/// Provides the adaptive range coder that compresses the bodies of RES records, one frequency model per preceding byte.
+/// Provides the adaptive range coder that compresses the bodies of RES records, with a frequency model for each value of the preceding byte.
 /// </summary>
 public sealed class RangeCoder
 {
@@ -15,7 +15,7 @@ public sealed class RangeCoder
     /// <summary>
     /// Initializes a new instance of the <see cref="RangeCoder"/> class.
     /// </summary>
-    /// <param name="bytesPerValue">The number of bytes of each value of the coded data, 2 to code the low bytes before the high bytes.</param>
+    /// <param name="bytesPerValue">The number of bytes of each value of the coded data. With 2, the low bytes of all the values are coded before the high bytes.</param>
     [EngineRoutine(0x00425690)]
     public RangeCoder(int bytesPerValue)
     {
@@ -33,7 +33,7 @@ public sealed class RangeCoder
     public int BytesPerValue { get; }
 
     /// <summary>
-    /// Compresses data and writes it to a buffer, copying data shorter than the shortest coded size unchanged.
+    /// Compresses data and writes it to a buffer. Data shorter than the shortest coded size is copied unchanged.
     /// </summary>
     /// <param name="input">The data to compress.</param>
     /// <param name="output">The buffer the compressed data is written to.</param>

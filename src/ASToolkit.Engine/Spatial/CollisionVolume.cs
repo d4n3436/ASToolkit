@@ -65,7 +65,7 @@ public readonly struct CollisionVolume
     }
 
     /// <summary>
-    /// Determines whether a point falls on the volume as drawn, raised by its height.
+    /// Determines whether a point falls on the volume as drawn, with the base box moved up by the height of the position and stretched up by the height of the box.
     /// </summary>
     /// <param name="point">The point, in map coordinates.</param>
     /// <returns><see langword="true"/> if the drawn volume covers the point; otherwise, <see langword="false"/>.</returns>

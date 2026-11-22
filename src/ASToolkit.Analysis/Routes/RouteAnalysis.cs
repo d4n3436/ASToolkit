@@ -17,7 +17,7 @@ public sealed class RouteAnalysis
     public bool ClearsMonsters { get; init; }
 
     /// <summary>
-    /// Gets the trigger area that ends the level, or null when the level has none.
+    /// Gets the trigger area that ends the level, or null if no trigger area ends it.
     /// </summary>
     public TriggerArea? Exit { get; init; }
 

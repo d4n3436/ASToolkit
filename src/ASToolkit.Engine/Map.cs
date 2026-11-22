@@ -14,7 +14,7 @@ namespace ASToolkit.Engine;
 public sealed partial class Map : IDisposable
 {
     /// <summary>
-    /// Represents the number of layers the sprites of a map are held in.
+    /// Represents the number of sprite layers of a map.
     /// </summary>
     public const int LayerCount = 17;
 

@@ -70,7 +70,7 @@ public readonly record struct Gamma(uint Negative, uint Positive)
     }
 
     /// <summary>
-    /// Adds another gamma to this gamma channel by channel, each sum saturating at 255.
+    /// Adds another gamma to this gamma channel by channel. Each sum saturates at 255.
     /// </summary>
     /// <param name="other">The gamma to add.</param>
     /// <returns>The sum of the gammas.</returns>
@@ -104,7 +104,7 @@ public readonly record struct Gamma(uint Negative, uint Positive)
     public int GetChannel(int shift) => GetNegative(shift) != 0 ? -GetNegative(shift) : GetPositive(shift);
 
     /// <summary>
-    /// Applies one channel to a color channel, scaling by 255 with rounding.
+    /// Applies one channel to a color channel. The reduction scales the color as a share of 255, rounded to the nearest value.
     /// </summary>
     /// <param name="color">The color channel, from 0 to 255.</param>
     /// <param name="shift">The bit position of the channel in the packed values.</param>
@@ -112,7 +112,7 @@ public readonly record struct Gamma(uint Negative, uint Positive)
     public int Modulate(int color, int shift) => Math.Min(byte.MaxValue, (color * (byte.MaxValue - GetNegative(shift)) + byte.MaxValue / 2) / byte.MaxValue + GetPositive(shift));
 
     /// <summary>
-    /// Applies one channel to a color channel, scaling by 256.
+    /// Applies one channel to a color channel. The reduction scales the color as a share of 256, rounded down.
     /// </summary>
     /// <param name="color">The color channel, from 0 to 255.</param>
     /// <param name="shift">The bit position of the channel in the packed values.</param>

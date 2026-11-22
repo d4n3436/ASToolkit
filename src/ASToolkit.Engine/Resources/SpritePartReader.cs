@@ -68,7 +68,7 @@ public sealed class SpritePartReader
     /// Reads the height points of the frame an object shows.
     /// </summary>
     /// <param name="part">The object.</param>
-    /// <returns>The height points of the frame, or an empty array when the object has no sprite file.</returns>
+    /// <returns>The height points of the frame, or an empty array when <see cref="SpritePart.File"/> is null.</returns>
     public Vector3[] GetHeightPoints(SpritePart part)
     {
         if (!_points.TryGetValue((part.Path, part.Frame), out var points))

@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace ASToolkit.Formats;
 
 /// <summary>
-/// Represents the header of a demo record after the map file name, with the random seed and the game time the level starts at.
+/// Represents the header of a demo record.
 /// </summary>
 [StructLayout(LayoutKind.Explicit, Size = 8)]
 public readonly struct DemoHeader
