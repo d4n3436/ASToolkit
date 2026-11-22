@@ -8,7 +8,7 @@ using ASToolkit.Core.Routes;
 using ASToolkit.Core.Scripting;
 using SixLabors.ImageSharp.PixelFormats;
 
-namespace ASToolkit.Core.Simulation;
+namespace ASToolkit.Core.Bot;
 
 /// <summary>
 /// Provides playback of a recorded playthrough of one level and shows the frames the engine draws as it replays the run.
@@ -65,12 +65,12 @@ public sealed class ReplayPlayback
     public Size FrameSize => _map.Session.Graphics.Screen!.Size;
 
     /// <summary>
-    /// Simulates a map of a game folder as the opening level of a campaign and records the run.
+    /// Plays a map of a game folder with the bot as the opening level of a campaign and records the run.
     /// </summary>
     /// <param name="game">The game folder.</param>
     /// <param name="map">The map path relative to the Maps folder.</param>
     /// <param name="objects">The object table of the game.</param>
-    /// <returns>The playback of the simulated level.</returns>
+    /// <returns>The playback of the recorded run.</returns>
     public static ReplayPlayback Run(string game, string map, ObjectTable objects)
     {
         string mapsPath = GamePath.Resolve(game, "Maps") ?? throw new InvalidDataException("Could not find the Maps folder.");
@@ -78,7 +78,7 @@ public sealed class ReplayPlayback
         var level = new LevelLoader(objects).Load(map, Path.Combine(mapsPath, map)) ?? throw new InvalidDataException($"Could not find a route through the map '{map}'.");
         var table = GameTable.Load(tablePath);
         var play = new Playthrough(game, objects, table);
-        var result = SimulateLevel(play, level.Analysis, map, table);
+        var result = PlayLevel(play, level.Analysis, map, table);
 
         return new ReplayPlayback(play, level.Analysis, result);
     }
@@ -115,7 +115,7 @@ public sealed class ReplayPlayback
         return true;
     }
 
-    private static PlaythroughResult SimulateLevel(Playthrough play, RouteAnalysis selected, string map, GameTable table)
+    private static PlaythroughResult PlayLevel(Playthrough play, RouteAnalysis selected, string map, GameTable table)
     {
         string stem = Path.GetFileNameWithoutExtension(map);
         int number = 1;

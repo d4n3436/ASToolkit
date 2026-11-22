@@ -1,7 +1,7 @@
 using System.Drawing;
 using System.Diagnostics;
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Simulation;
+using ASToolkit.Core.Bot;
 using ASToolkit.Gui.Core;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -11,7 +11,7 @@ using SixLabors.ImageSharp.PixelFormats;
 namespace ASToolkit.Gui.ViewModels;
 
 /// <summary>
-/// Represents the live playback of a playthrough simulation of the map open in the viewer, seen through the game's camera.
+/// Represents the live playback of the bot's run through the map open in the viewer, seen through the game's camera.
 /// </summary>
 public partial class ReplayViewModel : ViewModelBase
 {
@@ -31,12 +31,12 @@ public partial class ReplayViewModel : ViewModelBase
     private bool _isDrawPending;
 
     /// <summary>
-    /// Gets or sets the viewer whose open game and map are simulated.
+    /// Gets or sets the viewer whose open game and map the bot plays.
     /// </summary>
     public MapViewerViewModel? Source { get; set; }
 
     [ObservableProperty]
-    public partial string Status { get; set; } = "Open a map in the viewer, then run a simulation here";
+    public partial string Status { get; set; } = "Open a map in the viewer, then run the bot here";
 
     [ObservableProperty]
     public partial bool IsRunning { get; set; }
@@ -78,7 +78,7 @@ public partial class ReplayViewModel : ViewModelBase
         int version = ++_loadVersion;
         IsRunning = true;
         IsPlaying = false;
-        Status = $"Simulating {map}...";
+        Status = $"Playing {map}...";
         try
         {
             var playback = await Task.Run(() => ReplayPlayback.Run(game, map, objects));
@@ -103,7 +103,7 @@ public partial class ReplayViewModel : ViewModelBase
         {
             if (version == _loadVersion)
             {
-                Status = $"Simulation failed: {ex.Message}";
+                Status = $"Could not play the map: {ex.Message}";
             }
         }
         finally

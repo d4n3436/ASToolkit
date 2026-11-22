@@ -1,6 +1,6 @@
 using Xunit;
 
-namespace ASToolkit.Tests.Simulation;
+namespace ASToolkit.Tests.Bot;
 
 public class PlaythroughBlackoutTests
 {

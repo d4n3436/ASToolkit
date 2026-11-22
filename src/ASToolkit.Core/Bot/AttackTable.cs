@@ -1,7 +1,7 @@
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
 
-namespace ASToolkit.Core.Simulation;
+namespace ASToolkit.Core.Bot;
 
 internal sealed class AttackTable
 {

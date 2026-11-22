@@ -3,7 +3,7 @@ using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Generation.Content;
 
-namespace ASToolkit.Core.Simulation;
+namespace ASToolkit.Core.Bot;
 
 internal sealed class Gunnery
 {

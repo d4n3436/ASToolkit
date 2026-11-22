@@ -2,7 +2,7 @@ using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 
-namespace ASToolkit.Core.Simulation;
+namespace ASToolkit.Core.Bot;
 
 internal sealed class EnemyStock
 {

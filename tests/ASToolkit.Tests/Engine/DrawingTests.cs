@@ -1,7 +1,7 @@
 using System.Drawing;
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Rendering;
-using ASToolkit.Core.Simulation;
+using ASToolkit.Core.Bot;
 using Xunit;
 
 namespace ASToolkit.Tests.Engine;

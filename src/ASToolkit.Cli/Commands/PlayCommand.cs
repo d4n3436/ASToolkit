@@ -4,27 +4,27 @@ using System.Text.Json.Serialization;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Routes;
 using ASToolkit.Core.Scripting;
-using ASToolkit.Core.Simulation;
+using ASToolkit.Core.Bot;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
 namespace ASToolkit.Cli.Commands;
 
-internal sealed class SimulateCommand : Command<SimulateSettings>
+internal sealed class PlayCommand : Command<PlaySettings>
 {
-    private static readonly SimulatedCampaign[] Campaigns =
+    private static readonly PlayedCampaign[] Campaigns =
     [
         new("original", "", 10),
         new("addon", "ADDON", 5),
         new("addon2", "ADDON2", 5)
     ];
 
-    public override int Execute(CommandContext context, SimulateSettings settings, CancellationToken cancellationToken)
+    public override int Execute(CommandContext context, PlaySettings settings, CancellationToken cancellationToken)
     {
         var objects = ObjectTable.Load(Path.Combine(settings.Game, "objects.res"));
         var table = GameTable.LoadCommon(settings.Game);
-        var reports = new List<SimulationReport>();
-        var output = new Table().AddColumns("Campaign", "Completed levels", "Preparation", "Simulation", "Outcome");
+        var reports = new List<PlayReport>();
+        var output = new Table().AddColumns("Campaign", "Completed levels", "Preparation", "Play", "Outcome");
         foreach (var campaign in Campaigns.Where(campaign => settings.Campaign == "all" || campaign.Name == settings.Campaign))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -45,10 +45,10 @@ internal sealed class SimulateCommand : Command<SimulateSettings>
             double preparation = clock.Elapsed.TotalMilliseconds;
             clock.Restart();
             var result = new Playthrough(settings.Game, objects, table).PlayCampaign(levels, rewards.Skip(settings.Start).ToArray(), settings.Seed, initial);
-            double simulation = clock.Elapsed.TotalMilliseconds;
-            reports.Add(new SimulationReport(campaign.Name, settings.Start, initial, preparation, simulation, result));
+            double play = clock.Elapsed.TotalMilliseconds;
+            reports.Add(new PlayReport(campaign.Name, settings.Start, initial, preparation, play, result));
             output.AddRow(campaign.Name, $"{result.Levels.Count(level => level.Survived)}/{levels.Count}", $"{preparation / 1000:F3}s",
-                $"{simulation / 1000:F3}s", result.IsCompleted ? "completed" : $"stopped at level {settings.Start + result.Levels.Count - 1}");
+                $"{play / 1000:F3}s", result.IsCompleted ? "completed" : $"stopped at level {settings.Start + result.Levels.Count - 1}");
         }
 
         AnsiConsole.Write(output);

@@ -2,12 +2,12 @@ using System.Numerics;
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Reference;
-using ASToolkit.Core.Simulation;
+using ASToolkit.Core.Bot;
 using ASToolkit.Core.Routes;
 using ASToolkit.Tests.Engine;
 using Xunit;
 
-namespace ASToolkit.Tests.Simulation;
+namespace ASToolkit.Tests.Bot;
 
 public class PlaythroughTests
 {

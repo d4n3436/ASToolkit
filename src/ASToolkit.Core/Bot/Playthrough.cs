@@ -8,10 +8,10 @@ using ASToolkit.Core.Levels;
 using ASToolkit.Core.Routes;
 using ASToolkit.Core.Scripting;
 
-namespace ASToolkit.Core.Simulation;
+namespace ASToolkit.Core.Bot;
 
 /// <summary>
-/// Provides a tick simulation of a player bot playing a level with the game's combat rules.
+/// Provides a bot player's runs through levels and campaigns, played on the engine.
 /// </summary>
 public sealed class Playthrough
 {

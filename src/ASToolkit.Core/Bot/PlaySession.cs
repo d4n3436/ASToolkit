@@ -1,6 +1,6 @@
 using ASToolkit.Core.Engine;
 
-namespace ASToolkit.Core.Simulation;
+namespace ASToolkit.Core.Bot;
 
 internal sealed class PlaySession
 {

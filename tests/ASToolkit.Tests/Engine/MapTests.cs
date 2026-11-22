@@ -1,7 +1,7 @@
 using System.Numerics;
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Simulation;
+using ASToolkit.Core.Bot;
 using Xunit;
 
 namespace ASToolkit.Tests.Engine;

@@ -2,7 +2,7 @@ using System.Drawing;
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
 
-namespace ASToolkit.Core.Simulation;
+namespace ASToolkit.Core.Bot;
 
 /// <summary>
 /// Provides views of a map's update lists, derived from the engine state, and a faster way to step the map.

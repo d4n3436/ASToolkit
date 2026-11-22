@@ -3,7 +3,7 @@ using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 
-namespace ASToolkit.Core.Simulation;
+namespace ASToolkit.Core.Bot;
 
 /// <summary>
 /// Represents the sprites of a map that match a filter, in update order.

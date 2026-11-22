@@ -4,10 +4,10 @@ using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Routes;
 using ASToolkit.Core.Scripting;
-using ASToolkit.Core.Simulation;
+using ASToolkit.Core.Bot;
 using Xunit;
 
-namespace ASToolkit.Tests.Simulation;
+namespace ASToolkit.Tests.Bot;
 
 public class CampaignTests
 {

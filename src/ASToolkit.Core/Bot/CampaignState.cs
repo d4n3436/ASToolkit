@@ -2,7 +2,7 @@ using System.Collections.Frozen;
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
 
-namespace ASToolkit.Core.Simulation;
+namespace ASToolkit.Core.Bot;
 
 /// <summary>
 /// Represents the money and equipment carried between campaign levels.

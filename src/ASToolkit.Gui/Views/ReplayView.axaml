@@ -11,7 +11,7 @@
     <DockPanel>
         <Border Classes="toolbar" DockPanel.Dock="Top">
             <WrapPanel>
-                <Button Content="run simulation" Command="{Binding RunCommand}" IsEnabled="{Binding !IsRunning}" />
+                <Button Content="run bot" Command="{Binding RunCommand}" IsEnabled="{Binding !IsRunning}" />
                 <CheckBox Content="play" IsChecked="{Binding IsPlaying}" IsEnabled="{Binding IsReady}" />
                 <TextBlock Text="speed" />
                 <NumericUpDown Value="{Binding Speed}" Minimum="0.1" Maximum="8" Increment="0.5" FormatString="0.0" Width="110" />

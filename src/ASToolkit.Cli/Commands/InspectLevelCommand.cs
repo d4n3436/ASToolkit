@@ -2,7 +2,7 @@ using ASToolkit.Cli.Analysis;
 using ASToolkit.Core.Survey;
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Simulation;
+using ASToolkit.Core.Bot;
 using ASToolkit.Core.Reference;
 using ASToolkit.Core.Rendering;
 using SixLabors.ImageSharp;

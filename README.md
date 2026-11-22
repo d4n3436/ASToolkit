@@ -1,6 +1,6 @@
 # ASToolkit
 
-This repo provides a toolkit for Sigma Team's Alien Shooter (GOG version 1.2) with a level generator, a game simulator, a widescreen patch and level analysis tools, all in one command-line program called `ascli`.
+This repo provides a toolkit for Sigma Team's Alien Shooter (GOG version 1.2) with a level generator, a bot player, a widescreen patch and level analysis tools, all in one command-line program called `ascli`.
 
 It is written in C# on .NET 11 and works on an installed copy of the game.
 
@@ -28,7 +28,7 @@ dotnet run --project src/ASToolkit.Cli -- <command> --game <game folder>
 | `widescreen restore` | Removes the widescreen patch |
 | `preview` | Generates one level into a map file |
 | `analyze` | Draws the route through original or generated levels |
-| `simulate` | Plays the original campaigns with a bot player, in order, keeping equipment and shopping between levels |
+| `play` | Plays the original campaigns with a bot player, in order, keeping equipment and shopping between levels |
 | `inspect level` | Surveys levels into their places, connections and gates, with a render of the places |
 | `inspect design` | Measures furniture, pickups, walls and pacing in the original levels and in generated ones, and compares them |
 | `inspect object`, `sprites`, `stacks`, `vid` | Prints the objects, sprites, action stacks and sprite files of a game |
@@ -65,7 +65,7 @@ The repo includes a GUI for the toolkit (`ASToolkit.Gui` project). It has a RES 
 ## Project layout
 
 ```
-src/ASToolkit.Core    File formats, engine runtime, simulation, level generation, route analysis and patchers
+src/ASToolkit.Core    File formats, engine runtime, bot player, level generation, route analysis and patchers
   Formats/            Readers and writers of the game's files
   Engine/             Port of the Alien Shooter engine
     Objects/          Sprites and the sprite definitions that draw them
@@ -74,7 +74,7 @@ src/ASToolkit.Core    File formats, engine runtime, simulation, level generation
     Spatial/          Collision and spatial queries, also used by the route analysis
     Resources/        The sprite catalog and the geometry read from sprite files
     State/            Screen effect states and the 16-bit color layout
-  Simulation/         The player bot, navigation, campaign play, replay capture and results
+  Bot/                The bot player, navigation, campaign play, replay capture and results
   Scripting/          Level scripts and the common table
   Levels/             Cells, walls and objects of a level, shared by analysis and generation
   Routes/             Route analysis

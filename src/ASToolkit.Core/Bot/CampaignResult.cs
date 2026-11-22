@@ -1,4 +1,4 @@
-namespace ASToolkit.Core.Simulation;
+namespace ASToolkit.Core.Bot;
 
 /// <summary>
 /// Represents the results and remaining equipment of an ordered campaign run.

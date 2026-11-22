@@ -4,7 +4,7 @@ using Spectre.Console.Cli;
 
 namespace ASToolkit.Cli.Commands;
 
-internal sealed class SimulateSettings : GameSettings
+internal sealed class PlaySettings : GameSettings
 {
     [CommandOption("--campaign <NAME>")]
     [Description("The campaign to play, one of original, addon, addon2 or all.")]

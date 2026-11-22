@@ -3,7 +3,7 @@ using ASToolkit.Core.Engine;
 using ASToolkit.Core.Engine.IO;
 using ASToolkit.Core.Engine.Scripts;
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Simulation;
+using ASToolkit.Core.Bot;
 
 namespace ASToolkit.Tests.Engine;
 

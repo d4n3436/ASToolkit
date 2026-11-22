@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 using ASToolkit.Core.Engine;
-using ASToolkit.Core.Simulation;
+using ASToolkit.Core.Bot;
 
 namespace ASToolkit.Tests.Engine;
 

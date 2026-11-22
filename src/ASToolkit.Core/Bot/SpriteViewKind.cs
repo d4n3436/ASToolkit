@@ -1,4 +1,4 @@
-namespace ASToolkit.Core.Simulation;
+namespace ASToolkit.Core.Bot;
 
 /// <summary>
 /// Specifies the sprites a <see cref="SpriteView"/> walks.

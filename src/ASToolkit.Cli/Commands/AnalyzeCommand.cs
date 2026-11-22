@@ -6,7 +6,7 @@ using ASToolkit.Core.Rendering;
 using ASToolkit.Core.Routes;
 using ASToolkit.Core.Reference;
 using ASToolkit.Core.Scripting;
-using ASToolkit.Core.Simulation;
+using ASToolkit.Core.Bot;
 using ASToolkit.Core.Engine;
 using ASToolkit.Cli.Analysis;
 using SixLabors.ImageSharp;

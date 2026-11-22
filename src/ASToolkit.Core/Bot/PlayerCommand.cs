@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace ASToolkit.Core.Simulation;
+namespace ASToolkit.Core.Bot;
 
 internal readonly record struct PlayerCommand(Vector2? Destination, Vector2 Cursor, bool IsFiring, int Weapon)
 {

@@ -4,7 +4,7 @@ using System.Numerics;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Routes;
-using ASToolkit.Core.Simulation;
+using ASToolkit.Core.Bot;
 using Xunit;
 
 namespace ASToolkit.Tests.Engine;

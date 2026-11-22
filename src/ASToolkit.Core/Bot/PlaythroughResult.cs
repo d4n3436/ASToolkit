@@ -1,10 +1,10 @@
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
 
-namespace ASToolkit.Core.Simulation;
+namespace ASToolkit.Core.Bot;
 
 /// <summary>
-/// Represents the outcome of a player bot's playthrough of one level.
+/// Represents the outcome of a bot player's playthrough of one level.
 /// </summary>
 /// <param name="StartingLoadout">The equipment carried into the level after shopping.</param>
 /// <param name="Survived">Whether the player met the level's victory condition alive.</param>

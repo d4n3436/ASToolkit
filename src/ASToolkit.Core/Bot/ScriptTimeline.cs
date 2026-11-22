@@ -1,4 +1,4 @@
-namespace ASToolkit.Core.Simulation;
+namespace ASToolkit.Core.Bot;
 
 /// <summary>
 /// Represents when the level script's state changes happened in a playthrough, such as the breaker opening the doors or a generator dropping the fences.

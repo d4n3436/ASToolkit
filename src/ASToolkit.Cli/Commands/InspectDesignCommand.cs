@@ -5,7 +5,7 @@ using ASToolkit.Cli.Analysis;
 using ASToolkit.Core.Design;
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
-using ASToolkit.Core.Simulation;
+using ASToolkit.Core.Bot;
 using ASToolkit.Core.Generation.Campaign;
 using ASToolkit.Core.Generation.Output;
 using ASToolkit.Core.Generation;

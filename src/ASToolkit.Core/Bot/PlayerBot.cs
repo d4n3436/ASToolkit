@@ -4,7 +4,7 @@ using ASToolkit.Core.Formats;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Routes;
 
-namespace ASToolkit.Core.Simulation;
+namespace ASToolkit.Core.Bot;
 
 internal sealed class PlayerBot
 {
