@@ -4,9 +4,9 @@ using ASToolkit.Core.Formats;
 namespace ASToolkit.Core.Engine;
 
 /// <summary>
-/// Represents the screen effects, gamma and wind that persist across levels.
+/// Represents the graphics of the game, with the state that persists across levels.
 /// </summary>
-public sealed class Graphics
+public sealed partial class Graphics
 {
     /// <summary>
     /// Represents the number of screen effects.
@@ -51,6 +51,16 @@ public sealed class Graphics
     /// Gets or sets the gamma a gamma shift starts from.
     /// </summary>
     public Gamma GammaFrom { get; set; }
+
+    /// <summary>
+    /// Gets the snow, rain and ground snow.
+    /// </summary>
+    public Weather Weather { get; } = new();
+
+    /// <summary>
+    /// Gets or sets the screen that the frame is drawn into, or <see langword="null"/> to run without drawing.
+    /// </summary>
+    public Screen? Screen { get; set; }
 
     /// <summary>
     /// Gets the gamma the frame is drawn with.
@@ -106,7 +116,7 @@ public sealed class Graphics
                 elapsed = (uint)(_squallStart - time + SquallEnd);
             }
 
-            WindSpeed = (float)elapsed * _squallBaseSpeed * SquallGain + _squallBaseSpeed;
+            WindSpeed = elapsed * _squallBaseSpeed * SquallGain + _squallBaseSpeed;
 
             return;
         }
@@ -121,11 +131,19 @@ public sealed class Graphics
     }
 
     /// <summary>
-    /// Sets the gamma the frame is drawn with.
+    /// Sets the ambient gamma and, when it changes, rebuilds the palettes of every sprite file with it.
     /// </summary>
-    /// <param name="gamma">The gamma.</param>
+    /// <param name="gamma">The ambient gamma.</param>
+    /// <param name="definitions">The definitions whose sprite files take the ambient gamma.</param>
     [EngineRoutine(0x00431c50)]
-    public void SetGamma(Gamma gamma) => Gamma = gamma;
+    public void SetGamma(Gamma gamma, SpriteCatalog definitions)
+    {
+        Gamma = gamma;
+        if (definitions.Ambient != gamma)
+        {
+            definitions.SetAmbient(gamma);
+        }
+    }
 
     /// <summary>
     /// Sets the wind.
@@ -146,12 +164,40 @@ public sealed class Graphics
     /// <param name="ambient">The ambient gamma.</param>
     /// <param name="windDirection">The direction of the wind.</param>
     /// <param name="windSpeed">The speed of the wind in pixels per millisecond.</param>
+    /// <param name="definitions">The definitions whose sprite files take the ambient gamma.</param>
     [EngineRoutine(0x00433cd0)]
-    public void Load(MapEnvironment environment, Gamma ambient, Angle windDirection, float windSpeed)
+    public void Load(MapEnvironment environment, Gamma ambient, Angle windDirection, float windSpeed, SpriteCatalog definitions)
     {
         Environment = environment;
-        SetGamma(ambient);
+        SetGamma(ambient, definitions);
         WindDirection = windDirection;
         WindSpeed = windSpeed;
+    }
+
+    [EngineRoutine(0x00431cf0)]
+    internal void SetEnvironment(MapEnvironment environment)
+    {
+        if (environment.HasFlag(MapEnvironment.Stop))
+        {
+            Environment &= ~environment;
+            return;
+        }
+
+        if (environment is MapEnvironment.Shadow or MapEnvironment.LongShadow)
+        {
+            Environment &= ~(MapEnvironment.Shadow | MapEnvironment.LongShadow);
+        }
+
+        if (environment.HasFlag(MapEnvironment.StopRain) || environment.HasFlag(MapEnvironment.BornRain))
+        {
+            Environment &= ~MapEnvironment.Rain;
+        }
+
+        if (environment.HasFlag(MapEnvironment.StopSnow) || environment.HasFlag(MapEnvironment.BornSnow))
+        {
+            Environment &= ~MapEnvironment.Snow;
+        }
+
+        Environment |= environment;
     }
 }

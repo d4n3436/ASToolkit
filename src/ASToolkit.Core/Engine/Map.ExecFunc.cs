@@ -14,11 +14,6 @@ public sealed partial class Map : IScriptFunctionHost
     private const uint ChecksumPolynomial = 0xEDB88320;
     private const int AllArmies = 0xff;
     private const int EffectCount = Graphics.EffectCount;
-    private const int FlashDuration = 0x900;
-    private const int ScrollDuration = 0x200;
-    private const int FadeInDuration = 0x500;
-    private const int EffectDuration = 0x400;
-    private const int GammaChannels = 4;
     private const int FirstMouseClick = 0x400;
     private const int CursorOff = -1;
     private const int HardwareCursor = 0x100;
@@ -26,7 +21,6 @@ public sealed partial class Map : IScriptFunctionHost
     private const int LastCursorAnimation = 0x10;
     private const KnownObject SoftwareCursorId = (KnownObject)1;
     private const int SecondMouseClick = 0x800;
-    private const int GammaChannelBits = 8;
     private const int SignedGammaRange = 0xfe;
     private const int NoUnitDistance = 60000;
     private const float TrigonometryScale = 1024;
@@ -355,13 +349,13 @@ public sealed partial class Map : IScriptFunctionHost
                 int effectDuration = script.PopNumber();
                 int effectSecond = script.PopNumber();
                 int effectFirst = script.PopNumber();
-                ExecEffect(script.PopNumber(), effectFirst, effectSecond, effectDuration);
+                Session.Graphics.ExecEffect(this, script.PopNumber(), effectFirst, effectSecond, effectDuration);
                 break;
             case ScriptFunction.SetEnvironment:
-                SetEnvironment((MapEnvironment)script.PopNumber());
+                Session.Graphics.SetEnvironment((MapEnvironment)script.PopNumber());
                 break;
             case ScriptFunction.GetEffectState:
-                script.PushNumber(GetEffectState(script.PopNumber()));
+                script.PushNumber(Session.Graphics.GetEffectState(this, script.PopNumber()));
                 break;
             case ScriptFunction.Charat:
             {
@@ -493,8 +487,13 @@ public sealed partial class Map : IScriptFunctionHost
                         definition.MaxHp = value;
                         break;
                     case >= VidDataType.Gamma and < VidDataType.Properties:
-                        definition.Gammas[type - (int)VidDataType.Gamma] = Gamma.FromScript((uint)value);
+                    {
+                        int army = type - (int)VidDataType.Gamma;
+                        var gamma = Gamma.FromScript((uint)value);
+                        definition.Gammas[army] = gamma;
+                        definition.SetGamma(gamma, army, Session.Graphics.Gamma);
                         break;
+                    }
                     case VidDataType.Ammo:
                         GetAmmoOwner(definition).AmmoCapacity = value;
                         break;
@@ -779,7 +778,7 @@ public sealed partial class Map : IScriptFunctionHost
                 break;
 
             case ScriptFunction.SetGamma:
-                Session.Graphics.SetGamma(Gamma.FromScript((uint)script.PopNumber()));
+                Session.Graphics.SetGamma(Gamma.FromScript((uint)script.PopNumber()), Definitions);
                 break;
             case ScriptFunction.CountGamma:
             {
@@ -1203,13 +1202,11 @@ public sealed partial class Map : IScriptFunctionHost
 
     private static string ReadText(ReadOnlyMemory<byte> text) => GameTextEncoding.Cyrillic.GetString(text.Span);
 
-    private static int GetGammaChannel(Gamma gamma, int shift) => gamma.GetNegative(shift) != 0 ? -gamma.GetNegative(shift) : gamma.GetPositive(shift);
-
     [EngineRoutine(0x0043a950)]
     private static int BlendGamma(int first, int last, int share) =>
         (BlendGammaChannel(first & byte.MaxValue, last & byte.MaxValue, share) & byte.MaxValue) |
-        (BlendGammaChannel(first >> GammaChannelBits & byte.MaxValue, last >> GammaChannelBits & byte.MaxValue, share) & byte.MaxValue) << GammaChannelBits |
-        (BlendGammaChannel(first >> 2 * GammaChannelBits & byte.MaxValue, last >> 2 * GammaChannelBits & byte.MaxValue, share) & byte.MaxValue) << 2 * GammaChannelBits;
+        (BlendGammaChannel(first >> Gamma.ChannelBits & byte.MaxValue, last >> Gamma.ChannelBits & byte.MaxValue, share) & byte.MaxValue) << Gamma.ChannelBits |
+        (BlendGammaChannel(first >> 2 * Gamma.ChannelBits & byte.MaxValue, last >> 2 * Gamma.ChannelBits & byte.MaxValue, share) & byte.MaxValue) << 2 * Gamma.ChannelBits;
 
     [EngineRoutine(0x0043a9c0)]
     private static int BlendGammaChannel(int first, int last, int share)
@@ -1804,140 +1801,5 @@ public sealed partial class Map : IScriptFunctionHost
         }
 
         script.PushNumber(Action(sprite, code, first, second, third));
-    }
-
-    // TODO: Port the frame capture of the alpha appearance; AS1 also clears the three fade timers when the capture surface exists
-    [EngineRoutine(0x00402690)]
-    private void ExecEffect(int effect, int first, int second, int duration)
-    {
-        if (effect is < 0 or >= EffectCount)
-            return;
-
-        var screenEffect = (ScreenEffect)effect;
-
-        if (screenEffect is ScreenEffect.Fade or ScreenEffect.FadeIn or ScreenEffect.FadeOut)
-        {
-            Session.Graphics.EffectStartTimes[(int)ScreenEffect.FadeOut] = 0;
-            Session.Graphics.EffectStartTimes[(int)ScreenEffect.FadeIn] = 0;
-            Session.Graphics.EffectStartTimes[(int)ScreenEffect.Fade] = 0;
-        }
-
-        if (duration == 0)
-        {
-            duration = screenEffect switch
-            {
-                ScreenEffect.Nuke or ScreenEffect.Fade => FlashDuration,
-                ScreenEffect.Scroll => ScrollDuration,
-                ScreenEffect.FadeIn => FadeInDuration,
-                _ => EffectDuration
-            };
-        }
-
-        Session.Graphics.EffectStartTimes[effect] = _clock.WallTime;
-        Session.Graphics.EffectDurations[effect] = duration;
-        Session.Graphics.EffectFirst[effect] = first;
-        Session.Graphics.EffectSecond[effect] = second;
-        if (screenEffect == ScreenEffect.None)
-        {
-            Array.Clear(Session.Graphics.EffectStartTimes);
-            ScreenFlash = null;
-        }
-        else if (screenEffect == ScreenEffect.Nuke)
-        {
-            ScreenFlash = new ScreenFlash(Time, duration, first);
-        }
-        else if (screenEffect == ScreenEffect.Scroll)
-        {
-            Session.Graphics.ScrollFrom = new Vector2(Camera.Y);
-        }
-        else if (screenEffect == ScreenEffect.ShiftGamma)
-        {
-            Session.Graphics.GammaFrom = Gamma;
-        }
-    }
-
-    [EngineRoutine(0x004311a0)]
-    private void UpdateEffects(bool draw)
-    {
-        uint now = _clock.WallTime;
-        ExpireEffect(ScreenEffect.AlphaAppear, now);
-
-        const int scroll = (int)ScreenEffect.Scroll;
-        if (Session.Graphics.EffectStartTimes[scroll] != 0)
-        {
-            uint elapsed = now - Session.Graphics.EffectStartTimes[scroll];
-            int length = Session.Graphics.EffectDurations[scroll];
-            if ((uint)length < elapsed)
-            {
-                SetPosition(new Vector2(Session.Graphics.EffectFirst[scroll], Session.Graphics.EffectSecond[scroll]), CameraMove.None);
-                Session.Graphics.EffectStartTimes[scroll] = 0;
-            }
-            else
-            {
-                var from = Session.Graphics.ScrollFrom;
-                var position = new Vector2((Session.Graphics.EffectFirst[scroll] - from.X) * (int)elapsed / length + from.X,
-                    (Session.Graphics.EffectSecond[scroll] - from.Y) * (int)elapsed / length + from.Y);
-                SetPosition(position, CameraMove.None);
-            }
-        }
-
-        ExpireEffect(ScreenEffect.Nuke, now);
-        ExpireEffect(ScreenEffect.Fade, now);
-        ExpireEffect(ScreenEffect.FadeIn, now);
-        ExpireEffect(ScreenEffect.FadeOut, now);
-
-        const int shift = (int)ScreenEffect.ShiftGamma;
-        if (Session.Graphics.EffectStartTimes[shift] == 0)
-            return;
-
-        uint shifted = now - Session.Graphics.EffectStartTimes[shift];
-        var target = Gamma.FromScript((uint)Session.Graphics.EffectFirst[shift]);
-        if (shifted >= (uint)Session.Graphics.EffectDurations[shift])
-        {
-            Session.Graphics.SetGamma(target);
-            Session.Graphics.EffectStartTimes[shift] = 0;
-
-            return;
-        }
-
-        if (!draw)
-            return;
-
-        float share = (float)shifted / Session.Graphics.EffectDurations[shift];
-        uint negative = 0, positive = 0;
-        for (int channel = GammaChannelBits * (GammaChannels - 1); channel >= 0; channel -= GammaChannelBits)
-        {
-            int from = GetGammaChannel(Session.Graphics.GammaFrom, channel);
-            int value = Math.Clamp((int)((GetGammaChannel(target, channel) - from) * share + from), -byte.MaxValue, byte.MaxValue);
-            if (value < 0)
-            {
-                negative |= (uint)-value << channel;
-            }
-            else
-            {
-                positive |= (uint)value << channel;
-            }
-        }
-
-        Session.Graphics.SetGamma(new Gamma(negative, positive));
-    }
-
-    private void ExpireEffect(ScreenEffect effect, uint now)
-    {
-        int index = (int)effect;
-
-        if (Session.Graphics.EffectStartTimes[index] != 0 && now - Session.Graphics.EffectStartTimes[index] >= (uint)Session.Graphics.EffectDurations[index])
-        {
-            Session.Graphics.EffectStartTimes[index] = 0;
-        }
-    }
-
-    [EngineRoutine(0x00431c00)]
-    private int GetEffectState(int effect)
-    {
-        if (effect is <= (int)ScreenEffect.None or >= EffectCount || Session.Graphics.EffectStartTimes[effect] == 0)
-            return -1;
-
-        return (int)(unchecked(_clock.WallTime * 100 - Session.Graphics.EffectStartTimes[effect] * 100) / (uint)Session.Graphics.EffectDurations[effect]);
     }
 }

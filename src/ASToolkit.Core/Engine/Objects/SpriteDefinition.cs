@@ -45,6 +45,11 @@ public sealed class SpriteDefinition
     /// </summary>
     public const int StateCount = (int)SpriteAnimation.Death2 + 1;
 
+    /// <summary>
+    /// Represents the army value that sets the gamma of every army.
+    /// </summary>
+    public const int AllArmies = 4;
+
     private const float BallisticRise = 1.1f;
     private const float BallisticDrop = 0.9f;
     private const int OneBits = 0x3f800000;

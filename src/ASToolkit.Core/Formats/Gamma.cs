@@ -7,8 +7,8 @@ namespace ASToolkit.Core.Formats;
 /// <param name="Positive">The packed channel additions.</param>
 public readonly record struct Gamma(uint Negative, uint Positive)
 {
-    private const int ChannelBits = 8;
-    private const int ColorChannels = 3;
+    internal const uint OpaqueAlpha = 0xff000000;
+    internal const int ChannelBits = 8;
     private const uint ScriptMagnitudes = 0x7f7f7f7f;
     private const uint ScriptEvenBits = 0xfe;
     private const uint ScriptCarry = 0x100;
@@ -58,17 +58,22 @@ public readonly record struct Gamma(uint Negative, uint Positive)
         return gamma;
     }
 
+    [EngineRoutine(0x00414f80)]
     internal Gamma Add(Gamma other) => new(AddBytes(Negative, other.Negative), AddBytes(Positive, other.Positive));
-
-    internal Gamma ToGray() => new(GrayBytes(Negative), GrayBytes(Positive));
 
     internal int GetNegative(int shift) => (int)(Negative >> shift & byte.MaxValue);
 
     internal int GetPositive(int shift) => (int)(Positive >> shift & byte.MaxValue);
 
+    internal int GetChannel(int shift) => GetNegative(shift) != 0 ? -GetNegative(shift) : GetPositive(shift);
+
     internal int Modulate(int color, int shift) => Math.Min(byte.MaxValue, (color * (byte.MaxValue - GetNegative(shift)) + byte.MaxValue / 2) / byte.MaxValue + GetPositive(shift));
 
     internal int Apply(int color, int shift) => Math.Min(byte.MaxValue, (color * ((1 << ChannelBits) - GetNegative(shift)) >> ChannelBits) + GetPositive(shift));
+
+    internal uint Apply(uint color) =>
+        OpaqueAlpha | (uint)Apply((int)(color >> (2 * ChannelBits) & byte.MaxValue), 2 * ChannelBits) << (2 * ChannelBits) |
+        (uint)Apply((int)(color >> ChannelBits & byte.MaxValue), ChannelBits) << ChannelBits | (uint)Apply((int)(color & byte.MaxValue), 0);
 
     private static uint AddBytes(uint first, uint second)
     {
@@ -81,9 +86,21 @@ public readonly record struct Gamma(uint Negative, uint Positive)
         return sum;
     }
 
-    private static uint GrayBytes(uint value)
+    [EngineRoutine(0x004432e0)]
+    internal Gamma WithRed(int value) => WithChannel(value, 2 * ChannelBits);
+
+    [EngineRoutine(0x00443340)]
+    internal Gamma WithGreen(int value) => WithChannel(value, ChannelBits);
+
+    [EngineRoutine(0x004433a0)]
+    internal Gamma WithBlue(int value) => WithChannel(value, 0);
+
+    private Gamma WithChannel(int value, int shift)
     {
-        uint gray = ((value >> (2 * ChannelBits) & byte.MaxValue) + (value >> ChannelBits & byte.MaxValue) + (value & byte.MaxValue) + ColorChannels / 2) / ColorChannels;
-        return (value & 0xff000000) | gray << (2 * ChannelBits) | gray << ChannelBits | gray;
+        value = Math.Clamp(value, -byte.MaxValue, byte.MaxValue);
+        uint keep = ~((uint)byte.MaxValue << shift);
+        return value < 0
+            ? new Gamma(Negative & keep | (uint)-value << shift, Positive & keep)
+            : new Gamma(Negative & keep, Positive & keep | (uint)value << shift);
     }
 }

@@ -6,8 +6,6 @@ namespace ASToolkit.Core.Engine;
 
 public sealed partial class Map
 {
-    private const int ShakeReach = 4;
-
     private static readonly (InputFlags Raw, ScriptInput Script)[] InputStateBits =
     [
         (InputFlags.LeftClick, ScriptInput.LeftClick),
@@ -245,61 +243,5 @@ public sealed partial class Map
         }
 
         return found;
-    }
-
-    [EngineRoutine(0x00431cf0)]
-    private void SetEnvironment(MapEnvironment environment)
-    {
-        if (environment.HasFlag(MapEnvironment.Stop))
-        {
-            Session.Graphics.Environment &= ~environment;
-            return;
-        }
-
-        if (environment is MapEnvironment.Shadow or MapEnvironment.LongShadow)
-        {
-            Session.Graphics.Environment &= ~(MapEnvironment.Shadow | MapEnvironment.LongShadow);
-        }
-
-        if ((environment & MapEnvironment.Rain) != 0)
-        {
-            Session.Graphics.Environment &= ~MapEnvironment.Rain;
-        }
-
-        if ((environment & MapEnvironment.Snow) != 0)
-        {
-            Session.Graphics.Environment &= ~MapEnvironment.Snow;
-        }
-
-        Session.Graphics.Environment |= environment;
-    }
-
-    [EngineRoutine(0x00430870)]
-    private void UpdateScreen(bool drawFrame)
-    {
-        var screen = Session.ScreenSize;
-        float savedX = Camera.X;
-        float savedY = Camera.Y;
-
-        if (Session.Graphics.Environment.HasFlag(MapEnvironment.Earthquake) && !IsPaused)
-        {
-            int y = _rng.Next() % (ShakeReach * 2 + 1);
-            int x = _rng.Next() % (ShakeReach * 2 + 1);
-            SetPosition(new Vector2(screen.Width * HalfShare + savedX + ShakeReach - x, screen.Height * HalfShare + savedY + ShakeReach - y), CameraMove.None);
-            CameraShake = new CameraShake(Time, new Vector2(ShakeReach - x, ShakeReach - y));
-        }
-        else
-        {
-            CameraShake = null;
-        }
-
-        Session.Graphics.UpdateSquall(Time, IsPaused);
-
-        if (Session.Graphics.Environment.HasFlag(MapEnvironment.Earthquake) && !IsPaused)
-        {
-            SetPosition(new Vector2(screen.Width * HalfShare + savedX, screen.Height * HalfShare + savedY), CameraMove.None);
-        }
-
-        UpdateEffects(drawFrame);
     }
 }

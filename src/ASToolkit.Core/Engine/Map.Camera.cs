@@ -11,7 +11,7 @@ public sealed partial class Map
     private static readonly Vector2 ScrollAcceleration = new(0.04f, 0.03f);
     private const float FlagmanPace = 0.001f;
     private const float DirectionPace = -0.004f;
-    private const float HalfShare = 0.5f;
+    internal const float HalfShare = 0.5f;
 
     private static readonly Vector2 LeadReach = new(640, 480);
     private ScrollType _scrollType = ScrollType.FromBorder;
@@ -62,7 +62,7 @@ public sealed partial class Map
 
         if (move == CameraMove.Smooth)
         {
-            ExecEffect((int)ScreenEffect.Scroll, (int)center.X, (int)center.Y, 0);
+            Session.Graphics.ExecEffect(this, (int)ScreenEffect.Scroll, (int)center.X, (int)center.Y, 0);
 
             return;
         }

@@ -151,6 +151,8 @@ public sealed partial class Map : IDisposable
     /// </summary>
     public uint WallTime => _clock.WallTime;
 
+    internal GameRandom Random => _rng;
+
     /// <summary>
     /// Gets a value indicating whether the map is loading a level.
     /// </summary>
@@ -231,7 +233,7 @@ public sealed partial class Map : IDisposable
         Definitions.ResetLevelState();
         _clock = new GameClock(data.FrameTimes);
         _sprites = mapData.Sprites.ToList();
-        Session.Graphics.Load(mapData.Environment, mapData.Ambient, mapData.WindDirection, mapData.WindSpeed);
+        Session.Graphics.Load(mapData.Environment, mapData.Ambient, mapData.WindDirection, mapData.WindSpeed, Definitions);
         Movement = data.Movement.Clone();
         // TODO: Port the GRID chunk load (0x408080 into +0x220, then the size check against +0x228 x +0x22c x 2 that reinitializes on a mismatch); the 35 shipped maps that have the chunk hold an all-zero grid
         Collector = new SpriteCollector(Movement.MapSize, Definitions.LargestHashedSize);
@@ -394,7 +396,7 @@ public sealed partial class Map : IDisposable
         ProcessMenuInput(Input);
         Script.CallFunction(this, MainFunction, 0, 0, 0);
         SetTints(false);
-        UpdateScreen(drawFrame);
+        Session.Graphics.UpdateScreen(this, drawFrame);
         SetTints(true);
 
         if (IsPaused)
