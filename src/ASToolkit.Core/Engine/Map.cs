@@ -68,7 +68,7 @@ public sealed partial class Map : IDisposable
         _sprites = [];
         Movement = new MovementMap(StartMapSize);
         Collector = new SpriteCollector(StartMapSize, definitions.LargestHashedSize);
-        Sound = Session.Sound ??= new SoundSystem(definitions.Sounds, fileSystem) { Logger = Session.Logger };
+        Sound = Session.Sound ??= new SoundSystem(definitions.Sounds, fileSystem, Session.Logger, isHighQuality: Session.IsSoundHighQuality);
         CursorSprite = ConstructCursor();
         LoadObjectRecords(false);
         _controls = (controls ?? ControlSettings.Default).Clone();

@@ -14,6 +14,7 @@ public sealed class SoundSystem
     /// </summary>
     public const int FullLoudness = 0;
 
+    private const int SfxRecordSize = 72;
     private const int RequestCount = 32;
     private const int VoiceCount = 16;
     private const int NoSound = -1;
@@ -65,9 +66,17 @@ public sealed class SoundSystem
     /// <param name="fileSystem">The file system the samples and tracks are read from.</param>
     /// <param name="device">The device asked whether voices and music are playing, or <see langword="null"/> to time them from their lengths.</param>
     /// <param name="isDisabled"><see langword="true"/> for a session without a sound device, which loads nothing and ignores every request.</param>
-    [EngineRoutine(0x0041cba0)]
-    public SoundSystem(IReadOnlyList<SfxRecord> records, IGameFileSystem fileSystem, ISoundDevice? device = null, bool isDisabled = false)
+    /// <param name="isHighQuality"><see langword="true"/> when the player chose high-quality sound, which sets the format of the primary buffer.</param>
+    public SoundSystem(IReadOnlyList<SfxRecord> records, IGameFileSystem fileSystem, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false)
+        : this(records, fileSystem, null, device, isDisabled, isHighQuality)
     {
+    }
+
+    [EngineRoutine(0x0041cba0)]
+    internal SoundSystem(IReadOnlyList<SfxRecord> records, IGameFileSystem fileSystem, GameLogger? logger, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false)
+    {
+        Logger = logger;
+        IsHighQuality = isHighQuality;
         _fileSystem = fileSystem;
         _device = device;
         _isDisabled = isDisabled;
@@ -91,6 +100,11 @@ public sealed class SoundSystem
     }
 
     internal GameLogger? Logger { get; set; }
+
+    /// <summary>
+    /// Gets a value indicating whether the player chose high-quality sound.
+    /// </summary>
+    public bool IsHighQuality { get; }
 
     private static ReadOnlySpan<byte> OggExtensions => ".Ogg.OGG.ogg"u8;
 
@@ -465,7 +479,7 @@ public sealed class SoundSystem
         return false;
     }
 
-    private bool IsValid(int id) => id >= 0 && id < _variants.Length && _variants[id] > 0;
+    internal bool IsValid(int id) => id >= 0 && id < _variants.Length && _variants[id] > 0;
 
     private bool IsInvalid(int id)
     {
@@ -483,10 +497,13 @@ public sealed class SoundSystem
     [EngineRoutine(0x0041d110)]
     private void Load(IReadOnlyList<SfxRecord> records)
     {
+        int start = Environment.TickCount;
         for (int id = 0; id < records.Count; id++)
         {
             _variants[id] = LoadSfx(records[id], _buffers.AsSpan(id * SfxRecord.MaxSamples, SfxRecord.MaxSamples));
         }
+
+        Logger?.Write("LoadSFX::No   =%-15i   sizeof(SFX)   =%-5i    load time     =%ims Quality=%i"u8, records.Count, SfxRecordSize, Environment.TickCount - start, IsHighQuality ? 1 : 0);
     }
 
     [EngineRoutine(0x0041e810)]

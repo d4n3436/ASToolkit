@@ -21,6 +21,7 @@ public sealed class GameSession : IDisposable
 
     private const string ScreenWidthValue = "ScreenX";
     private const string ScreenHeightValue = "ScreenY";
+    private const string SoundHighQualityValue = "SoundHighQuality";
     private const string Program = "AlienShooter.exe";
 
     /// <summary>
@@ -33,7 +34,13 @@ public sealed class GameSession : IDisposable
     {
         Logger = new GameLogger(fileSystem, time ?? TimeProvider.System, Program);
         ScreenSize = new SizeF(registry.GetNumber(ScreenWidthValue, DefaultScreenWidth), registry.GetNumber(ScreenHeightValue, DefaultScreenHeight));
+        IsSoundHighQuality = registry.GetNumber(SoundHighQualityValue, 0) != 0;
     }
+
+    /// <summary>
+    /// Gets a value indicating whether the player chose high-quality sound in the start dialog.
+    /// </summary>
+    public bool IsSoundHighQuality { get; }
 
     /// <summary>
     /// Gets the size of the screen in pixels.
