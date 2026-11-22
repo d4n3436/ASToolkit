@@ -1,7 +1,7 @@
 namespace ASToolkit.Generation.Buildings;
 
 /// <summary>
-/// Provides the office block, which the layout solver lays out as one building from a level graph of the dark run and the rooms the breaker opens.
+/// Provides the office block, one mass split into rooms with the dark run drawn through them to the breaker.
 /// </summary>
 internal sealed class OfficeGrammar : BuildingGrammar
 {

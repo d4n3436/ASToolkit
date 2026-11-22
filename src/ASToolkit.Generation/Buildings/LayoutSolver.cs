@@ -1,451 +1,360 @@
 using System.Drawing;
-using System.Globalization;
-using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using ASToolkit.Analysis.Levels;
-using Google.OrTools.Sat;
 
 namespace ASToolkit.Generation.Buildings;
 
 internal sealed class LayoutSolver<T>
     where T : notnull
 {
-    private static readonly ConditionalWeakTable<RoomShape, Variant[]> TurnedShapes = new();
-
-    private const int Reach = 400;
-    private const float Seconds = 0.5f;
+    private const int CheckBudget = 400_000;
 
     private readonly LayoutProblem<T> _problem;
     private readonly Random _random;
-    private readonly CpModel _model = new();
-    private readonly Dictionary<T, Node> _nodes = [];
-    private readonly List<(BoolVar Literal, bool Value)> _hints = [];
-    private readonly Dictionary<T, List<BoolVar>> _contacts = [];
+    private readonly T[] _rooms;
+    private readonly ShapeVariant[][] _variants;
+    private readonly bool[,] _isJoined;
+    private readonly bool[,] _mayTouch;
+    private readonly int[,] _touchLength;
+    private readonly int[,] _beyondMargin;
+    private readonly bool[,] _keepsClear;
+    private readonly DoorSides[,] _doorSides;
+    private readonly DoorSides[] _anchorSides;
+    private readonly UnitRect[][] _obstacles;
+    private readonly int[] _placedVariant;
+    private readonly Point[] _placedAt;
+    private readonly UnitRect[][] _placedRects;
+    private readonly DoorLine[][] _placedLines;
+    private int _checks;
 
     public LayoutSolver(LayoutProblem<T> problem, int seed)
     {
         _problem = problem;
         _random = new Random(seed);
+        _rooms = problem.Rooms.Keys.ToArray();
+        int count = _rooms.Length;
+        var index = _rooms.Index().ToDictionary(pair => pair.Item, pair => pair.Index);
+
+        _variants = _rooms.Select(GetVariants).ToArray();
+        _isJoined = new bool[count, count];
+        _mayTouch = new bool[count, count];
+        _touchLength = new int[count, count];
+        _beyondMargin = new int[count, count];
+        _keepsClear = new bool[count, count];
+        _doorSides = new DoorSides[count, count];
+        _anchorSides = new DoorSides[count];
+        _placedVariant = new int[count];
+        _placedAt = new Point[count];
+        _placedRects = new UnitRect[count][];
+        _placedLines = new DoorLine[count][];
+        Array.Fill(_placedVariant, -1);
+        MemoryMarshal.CreateSpan(ref _beyondMargin[0, 0], _beyondMargin.Length).Fill(-1);
+
+        foreach (var (a, b) in problem.Joins)
+        {
+            _isJoined[index[a], index[b]] = _isJoined[index[b], index[a]] = true;
+        }
+
+        foreach (var (a, b) in problem.Joins.Concat(problem.TouchPairs).Concat(problem.MayTouchPairs))
+        {
+            _mayTouch[index[a], index[b]] = _mayTouch[index[b], index[a]] = true;
+        }
+
+        foreach (var (a, b) in problem.TouchPairs)
+        {
+            int length = Math.Max(_touchLength[index[a], index[b]], problem.TouchLengths.GetValueOrDefault((a, b), problem.TouchLength));
+            _touchLength[index[a], index[b]] = _touchLength[index[b], index[a]] = length;
+        }
+
+        foreach (var ((room, neighbor), sides) in problem.DoorSides)
+        {
+            _doorSides[index[room], index[neighbor]] = sides;
+            _anchorSides[index[room]] |= sides;
+        }
+
+        foreach (var (anchor, room) in problem.BeyondPairs)
+        {
+            _beyondMargin[index[anchor], index[room]] = _isJoined[index[anchor], index[room]] ? 0 : problem.BeyondMargin;
+        }
+
+        foreach (var (anchor, room) in problem.BeyondPairs.Concat(problem.ClearPairs))
+        {
+            _keepsClear[index[anchor], index[room]] = true;
+        }
+
+        _obstacles = _rooms.Select(room => problem.Obstacles.Where(obstacle => EqualityComparer<T>.Default.Equals(obstacle.Anchor, room)).SelectMany(obstacle => obstacle.Rects).ToArray())
+            .ToArray();
     }
+
+    private static ReadOnlySpan<DoorSides> FacingSides => [DoorSides.MaxX, DoorSides.MinX, DoorSides.MaxY, DoorSides.MinY];
 
     public Dictionary<T, PlacedRoom<T>> Solve()
     {
-        var rooms = _problem.Rooms.Keys.ToArray();
-        foreach (var room in rooms)
-        {
-            _nodes[room] = AddNode(room, _nodes.Count == 0);
-        }
-
-        var noOverlap = _model.AddNoOverlap2D();
-        foreach (var slot in _nodes.Values.SelectMany(node => node.Slots))
-        {
-            var uEnd = _model.NewIntVar(-Reach * 2, Reach * 2, "");
-            var vEnd = _model.NewIntVar(-Reach * 2, Reach * 2, "");
-            _model.Add(uEnd == slot.UMax);
-            _model.Add(vEnd == slot.VMax);
-            noOverlap.AddRectangle(_model.NewIntervalVar(slot.UMin, slot.W, uEnd, ""), _model.NewIntervalVar(slot.VMin, slot.H, vEnd, ""));
-        }
-
-        if (_problem.Band is not null)
-        {
-            var band = _problem.Band.Value;
-            var across = _model.NewIntVar(-Reach * 4, Reach * 4, "");
-            var down = _model.NewIntVar(-Reach * 4, Reach * 4, "");
-            foreach (var slot in _nodes.Values.SelectMany(node => node.Slots))
-            {
-                _model.Add(slot.UMin + slot.VMin >= across);
-                _model.Add(slot.UMax + slot.VMax <= across + band.Across);
-                _model.Add(slot.VMin - slot.UMax >= down);
-                _model.Add(slot.VMax - slot.UMin <= down + band.Down);
-            }
-        }
-
-        foreach (var room in rooms)
-        {
-            _contacts[room] = [];
-        }
-
-        var joined = _problem.Joins.SelectMany(join => new[] { join, (join.B, join.A) }).ToHashSet();
-        var touches = _problem.TouchPairs.SelectMany(pair => new[] { pair, (pair.B, pair.A) }).ToHashSet();
-        var mayTouch = _problem.MayTouchPairs.SelectMany(pair => new[] { pair, (pair.B, pair.A) }).ToHashSet();
-        for (int i = 0; i < rooms.Length; i++)
-        {
-            for (int j = i + 1; j < rooms.Length; j++)
-            {
-                var pair = (rooms[i], rooms[j]);
-                bool flush = joined.Contains(pair) || touches.Contains(pair) || mayTouch.Contains(pair);
-                int gap = flush ? Math.Max(_problem.MinimumDistance, 2) : _problem.MinimumDistance;
-                if (gap > 0)
-                {
-                    var contact = KeepApart(_nodes[rooms[i]].Slots, _nodes[rooms[j]].Slots, gap, flush);
-                    if (contact is not null)
-                    {
-                        _contacts[rooms[i]].Add(contact);
-                        _contacts[rooms[j]].Add(contact);
-                    }
-                }
-            }
-        }
-
-        if (_problem.MinContacts > 0)
-        {
-            foreach (var room in rooms)
-            {
-                _model.Add(LinearExpr.Sum(_contacts[room]) >= _problem.MinContacts);
-            }
-        }
-
-        foreach (var (a, b) in _problem.TouchPairs)
-        {
-            Touch(_nodes[a], _nodes[b], _problem.TouchLengths.TryGetValue((a, b), out int length) ? length : _problem.TouchLength);
-        }
-
-        foreach (var (a, b) in _problem.Joins)
-        {
-            Join(_nodes[a], _nodes[b], _problem.DoorSides.GetValueOrDefault((a, b)), _problem.DoorSides.GetValueOrDefault((b, a)));
-        }
-
-        foreach (var (anchor, room) in _problem.BeyondPairs)
-        {
-            StandBeyond(anchor, room, joined.Contains((anchor, room)));
-        }
-
-        foreach (var (anchor, room) in _problem.BeyondPairs.Concat(_problem.ClearPairs))
-        {
-            var anchorNode = _nodes[anchor];
-            var obstacles = _problem.Obstacles
-                .Where(obstacle => EqualityComparer<T>.Default.Equals(obstacle.Anchor, anchor))
-                .SelectMany(obstacle => obstacle.Rects)
-                .Select(rect => new Slot(anchorNode.U, anchorNode.V, rect.U, rect.V, LinearExpr.Constant(rect.W), LinearExpr.Constant(rect.H)))
-                .ToArray();
-
-            if (obstacles.Length > 0)
-            {
-                KeepApart(_nodes[room].Slots, obstacles, Math.Max(_problem.MinimumDistance, 1), false);
-            }
-        }
-
-        foreach ((var literal, bool value) in _hints)
-        {
-            _model.AddHint(literal, value);
-        }
-
-        // Skip presolve, probing, symmetry detection and, unless the problem keeps it, phase saving
-        using var solver = new CpSolver();
-        solver.StringParameters = "num_workers:1 linearization_level:0 cp_model_presolve:false cp_model_probing_level:0 symmetry_level:0 " + (_problem.SavesPhases ? "" : "use_phase_saving:false ") +
-                                  $"random_seed:{_random.Next(1_000_000)} max_deterministic_time:{Seconds.ToString(CultureInfo.InvariantCulture)}";
-
-        var status = solver.Solve(_model);
-        if (status is not (CpSolverStatus.Optimal or CpSolverStatus.Feasible))
+        if (!PlaceRemainingRooms(0))
         {
             return [];
         }
 
-        return rooms.ToDictionary(room => room, room =>
+        return Enumerable.Range(0, _rooms.Length).ToDictionary(room => _rooms[room], room =>
         {
-            var node = _nodes[room];
-            var variant = node.Variants[Array.FindIndex(node.Choices, solver.BooleanValue)];
-            var position = new Point((int)solver.Value(node.U), (int)solver.Value(node.V));
-            return new PlacedRoom<T>(room, variant.Turn, variant.Cells.Select(cell => new Cell(cell.U + position.X, cell.V + position.Y)).ToHashSet(),
-                _problem.Rooms[room].IsCorridor);
+            var variant = _variants[room][_placedVariant[room]];
+            var at = _placedAt[room];
+            return new PlacedRoom<T>(_rooms[room], variant.Turn, variant.Cells.Select(cell => new Cell(cell.U + at.X, cell.V + at.Y)).ToHashSet(),
+                _problem.Rooms[_rooms[room]].IsCorridor);
         });
     }
 
-    private Node AddNode(T room, bool isPinned)
+    private ShapeVariant[] GetVariants(T room)
     {
         bool readsSides = _problem.DoorSides.Keys.Any(key => EqualityComparer<T>.Default.Equals(key.Room, room));
         var variants = _problem.Rooms[room].Shapes
-            .SelectMany(shape => TurnedShapes.GetValue(shape, turned => turned.Turns.Distinct().Select(turn => TurnShape(turned, turn)).ToArray()))
-            .GroupBy(variant => readsSides ? variant.SidedKey : variant.PlainKey)
-            .Select(group => group.First())
+            .SelectMany(ShapeVariant.GetTurnedVariants)
             .ToArray();
 
-        var choices = variants.Select(_ => _model.NewBoolVar("")).ToArray();
-        _model.AddExactlyOne(choices);
-        bool placed = _problem.Hints.TryGetValue(room, out var hint);
-        int unturned = Array.FindIndex(variants, variant => variant.Turn == ShapeTurn.Identity);
-        int hinted = placed && unturned >= 0 ? unturned : _random.Next(choices.Length);
-        for (int i = 0; i < choices.Length; i++)
-        {
-            _hints.Add((choices[i], i == hinted));
-        }
-
-        var u = isPinned ? _model.NewConstant(0) : _model.NewIntVar(-Reach, Reach, "");
-        var v = isPinned ? _model.NewConstant(0) : _model.NewIntVar(-Reach, Reach, "");
-        if (placed && !isPinned)
-        {
-            _model.AddHint(u, hint.X);
-            _model.AddHint(v, hint.Y);
-        }
-
-        int count = variants.Max(variant => variant.Rects.Length);
-        var slots = new List<Slot>();
-        for (int k = 0; k < count; k++)
-        {
-            // Give a variant with fewer rectangles empty ones at its first rectangle's corner
-            var pick = variants.Select(variant => k < variant.Rects.Length ? variant.Rects[k] : new UnitRect(variant.Rects[0].U, variant.Rects[0].V, 0, 0)).ToArray();
-            if (variants.Length == 1)
-            {
-                slots.Add(new Slot(u, v, pick[0].U, pick[0].V, LinearExpr.Constant(pick[0].W), LinearExpr.Constant(pick[0].H)));
-                continue;
-            }
-
-            var su = _model.NewIntVar(-Reach * 2, Reach * 2, "");
-            var sv = _model.NewIntVar(-Reach * 2, Reach * 2, "");
-            var sw = _model.NewIntVar(0, Reach, "");
-            var sh = _model.NewIntVar(0, Reach, "");
-            _model.Add(su == u + LinearExpr.WeightedSum(choices, pick.Select(rect => (long)rect.U)));
-            _model.Add(sv == v + LinearExpr.WeightedSum(choices, pick.Select(rect => (long)rect.V)));
-            _model.Add(sw == LinearExpr.WeightedSum(choices, pick.Select(rect => (long)rect.W)));
-            _model.Add(sh == LinearExpr.WeightedSum(choices, pick.Select(rect => (long)rect.H)));
-            slots.Add(new Slot(su, sv, 0, 0, sw, sh));
-        }
-
-        return new Node(u, v, choices, variants, slots.ToArray());
+        return variants.Where((variant, i) => !variants.Take(i).Any(earlier => earlier.HasSameOutlineAndDoors(variant, readsSides))).ToArray();
     }
 
-    // Keeps every rectangle of one set the given gap away from every rectangle of the other, or flush against it when the pair may touch, and returns the contact literal of the pair when contacts are counted
-    private BoolVar? KeepApart(Slot[] first, Slot[] second, int gap, bool flush)
+    private bool PlaceRemainingRooms(int placed)
     {
-        var contact = flush && _problem.MinContacts > 0 ? _model.NewBoolVar("") : null;
-        var longs = new List<ILiteral>();
-        foreach (var a in first)
+        if (placed == _rooms.Length)
+            return true;
+
+        int room = -1;
+        List<LayoutCandidate>? fewest = null;
+        for (int next = 0; next < _rooms.Length; next++)
         {
-            foreach (var b in second)
+            if (_placedVariant[next] >= 0 || (placed == 0 ? next != 0 : FindPlacedNeighbor(next) < 0))
+                continue;
+
+            var fitting = new List<LayoutCandidate>();
+            foreach (var candidate in ListDoorAlignedCandidates(next, placed == 0))
             {
-                var options = new List<ILiteral>();
-                foreach (var (low, high, across) in new[]
+                if (++_checks > CheckBudget)
+                    return false;
+
+                if (FitsPlacedRooms(next, candidate))
                 {
-                    (a.UMax, b.UMin, (a.VMin, a.VMax, b.VMin, b.VMax)), (b.UMax, a.UMin, (a.VMin, a.VMax, b.VMin, b.VMax)),
-                    (a.VMax, b.VMin, (a.UMin, a.UMax, b.UMin, b.UMax)), (b.VMax, a.VMin, (a.UMin, a.UMax, b.UMin, b.UMax))
-                })
+                    fitting.Add(candidate);
+                }
+            }
+
+            if (fitting.Count == 0)
+                return false;
+
+            if (fewest is null || fitting.Count < fewest.Count)
+            {
+                room = next;
+                fewest = fitting;
+            }
+        }
+
+        if (fewest is null)
+        {
+            throw new InvalidOperationException($"Room {_rooms[Array.IndexOf(_placedVariant, -1)]} is not joined to any room placed before it.");
+        }
+
+        foreach (var candidate in fewest)
+        {
+            Place(room, candidate);
+            if (PlaceRemainingRooms(placed + 1))
+                return true;
+
+            _placedVariant[room] = -1;
+            if (_checks > CheckBudget)
+                return false;
+        }
+
+        return false;
+    }
+
+    private int FindPlacedNeighbor(int room)
+    {
+        for (int other = 0; other < _rooms.Length; other++)
+        {
+            if (_placedVariant[other] >= 0 && _isJoined[room, other])
+                return other;
+        }
+
+        return -1;
+    }
+
+    private List<LayoutCandidate> ListDoorAlignedCandidates(int room, bool isFirst)
+    {
+        var variants = _variants[room];
+        var candidates = new List<LayoutCandidate>();
+        if (isFirst)
+        {
+            candidates.AddRange(Enumerable.Range(0, variants.Length).Select(variant => new LayoutCandidate(variant, Point.Empty)));
+        }
+        else
+        {
+            int neighbor = FindPlacedNeighbor(room);
+            var seen = new HashSet<LayoutCandidate>();
+            for (int variant = 0; variant < variants.Length; variant++)
+            {
+                foreach (var own in variants[variant].Lines.Where(line => MayOpenToward(room, neighbor, line)))
                 {
-                    var far = _model.NewBoolVar("");
-                    _model.Add(low + gap <= high).OnlyEnforceIf(far);
-                    options.Add(far);
-                    if (flush)
+                    foreach (var other in _placedLines[neighbor].Where(line => line.Faces(own) && MayOpenToward(neighbor, room, line)))
                     {
-                        // Stand flush only where the two rectangles meet along the wall, never one unit apart past its end
-                        var against = _model.NewBoolVar("");
-                        _model.Add(low == high).OnlyEnforceIf(against);
-                        _model.Add(across.Item1 <= across.Item4).OnlyEnforceIf(against);
-                        _model.Add(across.Item3 <= across.Item2).OnlyEnforceIf(against);
-                        options.Add(against);
-                        if (contact is not null)
+                        for (int along = other.Low - own.High; along <= other.High - own.Low; along++)
                         {
-                            var along = _model.NewBoolVar("");
-                            _model.Add(low == high).OnlyEnforceIf(along);
-                            AddOverlap(across.Item1, across.Item2, across.Item3, across.Item4, 5, along);
-                            options.Add(along);
-                            longs.Add(along);
+                            var candidate = new LayoutCandidate(variant, own.RunsAlongV ? new Point(other.At - own.At, along) : new Point(along, other.At - own.At));
+                            if (seen.Add(candidate))
+                            {
+                                candidates.Add(candidate);
+                            }
                         }
                     }
                 }
-
-                _model.AddBoolOr(options);
             }
         }
 
-        if (contact is not null)
-        {
-            longs.Add(contact.Not());
-            _model.AddBoolOr(longs);
-        }
-
-        return contact;
+        _random.Shuffle(CollectionsMarshal.AsSpan(candidates));
+        return candidates;
     }
 
-    private void Touch(Node a, Node b, int length)
+    private bool MayOpenToward(int room, int neighbor, DoorLine line)
     {
-        var options = new List<ILiteral>();
-        foreach (var ra in a.Slots)
+        var sides = _doorSides[room, neighbor];
+        return sides == DoorSides.None || (sides & FacingSides[line.OwnFacing]) != 0;
+    }
+
+    private bool FitsPlacedRooms(int room, LayoutCandidate candidate)
+    {
+        var variant = _variants[room][candidate.Variant];
+        var at = candidate.Position;
+        Span<UnitRect> rects = stackalloc UnitRect[variant.Rects.Length];
+        for (int i = 0; i < rects.Length; i++)
         {
-            foreach (var rb in b.Slots)
+            rects[i] = Offset(variant.Rects[i], at);
+        }
+
+        for (int other = 0; other < _rooms.Length; other++)
+        {
+            if (_placedVariant[other] < 0)
+                continue;
+
+            var otherRects = _placedRects[other];
+            if (!KeepsWallGap(room, rects, other) ||
+                (_isJoined[room, other] && !LinesUpDoor(room, variant.Lines, at, other)) ||
+                (_touchLength[room, other] > 0 && !SharesWall(rects, otherRects, _touchLength[room, other])) ||
+                (_beyondMargin[other, room] >= 0 && !StandsPastAnchor(rects, otherRects, _anchorSides[other], _beyondMargin[other, room])) ||
+                (_beyondMargin[room, other] >= 0 && !StandsPastAnchor(otherRects, rects, _anchorSides[room], _beyondMargin[room, other])) ||
+                (_keepsClear[other, room] && !ClearsObstacles(rects, _obstacles[other], _placedAt[other])) ||
+                (_keepsClear[room, other] && !ClearsObstacles(otherRects, _obstacles[room], at)))
+                return false;
+        }
+
+        return true;
+    }
+
+    private bool KeepsWallGap(int room, ReadOnlySpan<UnitRect> rects, int other)
+    {
+        bool mayTouch = _mayTouch[room, other];
+        int gap = mayTouch ? Math.Max(_problem.MinimumDistance, 2) : _problem.MinimumDistance;
+        foreach (var rect in rects)
+        {
+            foreach (var otherRect in _placedRects[other])
             {
-                foreach (var (low, high, alongA, alongB) in new[]
-                {
-                    (ra.UMax, rb.UMin, (ra.VMin, ra.VMax), (rb.VMin, rb.VMax)), (rb.UMax, ra.UMin, (ra.VMin, ra.VMax), (rb.VMin, rb.VMax)),
-                    (ra.VMax, rb.VMin, (ra.UMin, ra.UMax), (rb.UMin, rb.UMax)), (rb.VMax, ra.VMin, (ra.UMin, ra.UMax), (rb.UMin, rb.UMax))
-                })
-                {
-                    var option = _model.NewBoolVar("");
-                    _model.Add(low == high).OnlyEnforceIf(option);
-                    AddOverlap(alongA.Item1, alongA.Item2, alongB.Item1, alongB.Item2, length, option);
-                    options.Add(option);
-                }
+                int distance = GetGap(rect, otherRect);
+                if (distance < 0 || (distance < gap && !(mayTouch && distance == 0)))
+                    return false;
             }
         }
 
-        _model.AddBoolOr(options);
+        return true;
     }
 
-    // Overlaps the spans [a0, a1) and [b0, b1) by at least the length when the literal holds, and requires each span to be at least that long
-    private void AddOverlap(LinearExpr a0, LinearExpr a1, LinearExpr b0, LinearExpr b1, int length, ILiteral literal)
+    private bool LinesUpDoor(int room, DoorLine[] lines, Point at, int other)
     {
-        _model.Add(a0 + length <= b1).OnlyEnforceIf(literal);
-        _model.Add(b0 + length <= a1).OnlyEnforceIf(literal);
-        _model.Add(a0 + length <= a1).OnlyEnforceIf(literal);
-        _model.Add(b0 + length <= b1).OnlyEnforceIf(literal);
-    }
-
-    // Stands a door of each room on one wall segment, with the doors facing each other and each on its given sides in the frame of its shape
-    private void Join(Node a, Node b, DoorSides sidesOfA, DoorSides sidesOfB)
-    {
-        var u = _model.NewIntVar(-Reach * 2, Reach * 2, "");
-        var v = _model.NewIntVar(-Reach * 2, Reach * 2, "");
-        var length = _model.NewIntVar(0, Reach, "");
-        var facing = _model.NewIntVar(0, 3, "");
-        foreach ((var node, var sides, bool flip) in new[] { (a, sidesOfA, false), (b, sidesOfB, true) })
+        foreach (var line in lines)
         {
-            var options = new List<ILiteral>();
-            for (int i = 0; i < node.Variants.Length; i++)
-            {
-                foreach (var line in node.Variants[i].Lines.Where(line => sides == DoorSides.None || (sides & SideOf(line.OwnFacing)) != 0))
-                {
-                    var option = _model.NewBoolVar("");
-                    _model.AddImplication(option, node.Choices[i]);
-                    // Fix the door's wall line and slide its start from Low to High along the line
-                    var (fixedAt, origin, along, alongOrigin) = line.Facing < 2 ? (u, node.U, v, node.V) : (v, node.V, u, node.U);
-                    _model.Add(fixedAt == origin + line.At).OnlyEnforceIf(option);
-                    _model.Add(along >= alongOrigin + line.Low).OnlyEnforceIf(option);
-                    _model.Add(along <= alongOrigin + line.High).OnlyEnforceIf(option);
-                    _model.Add(length == line.Length).OnlyEnforceIf(option);
-                    _model.Add(facing == (flip ? line.Facing ^ 1 : line.Facing)).OnlyEnforceIf(option);
-                    options.Add(option);
-                }
-            }
+            if (!MayOpenToward(room, other, line))
+                continue;
 
-            _model.AddExactlyOne(options);
-            int hinted = _random.Next(options.Count);
-            for (int i = 0; i < options.Count; i++)
+            var own = line.Offset(at);
+            foreach (var placed in _placedLines[other])
             {
-                _hints.Add(((BoolVar)options[i], i == hinted));
+                if (placed.Faces(own) && placed.At == own.At && own.Low <= placed.High && placed.Low <= own.High && MayOpenToward(other, room, placed))
+                    return true;
             }
         }
+
+        return false;
     }
 
-    // Stands a room past the door end of an unturned anchor, the margin past it unless the room opens onto the anchor
-    private void StandBeyond(T anchor, T room, bool opensOnto)
+    private static bool SharesWall(ReadOnlySpan<UnitRect> rects, ReadOnlySpan<UnitRect> otherRects, int length)
     {
-        var sides = _problem.DoorSides
-            .Where(pair => EqualityComparer<T>.Default.Equals(pair.Key.Room, anchor))
-            .Aggregate(DoorSides.None, (all, pair) => all | pair.Value);
-
-        int margin = opensOnto ? 0 : _problem.BeyondMargin;
-        var options = new List<ILiteral>();
-        foreach (var side in new[] { DoorSides.MaxX, DoorSides.MinX, DoorSides.MaxY, DoorSides.MinY }.Where(side => (sides & side) != 0))
+        foreach (var a in rects)
         {
-            var option = _model.NewBoolVar("");
-            foreach (var slot in _nodes[room].Slots)
+            foreach (var b in otherRects)
             {
-                foreach (var end in _nodes[anchor].Slots)
+                if (((a.EndU == b.U || b.EndU == a.U) && Math.Min(a.EndV, b.EndV) - Math.Max(a.V, b.V) >= length) ||
+                    ((a.EndV == b.V || b.EndV == a.V) && Math.Min(a.EndU, b.EndU) - Math.Max(a.U, b.U) >= length))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool StandsPastAnchor(ReadOnlySpan<UnitRect> rects, ReadOnlySpan<UnitRect> anchorRects, DoorSides sides, int margin)
+    {
+        if (sides == DoorSides.None)
+            return true;
+
+        foreach (var side in FacingSides)
+        {
+            if ((sides & side) == 0)
+                continue;
+
+            bool isPast = true;
+            foreach (var rect in rects)
+            {
+                foreach (var end in anchorRects)
                 {
-                    var rule = side switch
+                    isPast &= side switch
                     {
-                        DoorSides.MaxX => slot.UMin >= end.UMax + margin,
-                        DoorSides.MinX => slot.UMax <= end.UMin - margin,
-                        DoorSides.MaxY => slot.VMin >= end.VMax + margin,
-                        _ => slot.VMax <= end.VMin - margin
+                        DoorSides.MaxX => rect.U >= end.EndU + margin,
+                        DoorSides.MinX => rect.EndU <= end.U - margin,
+                        DoorSides.MaxY => rect.V >= end.EndV + margin,
+                        _ => rect.EndV <= end.V - margin
                     };
-
-                    _model.Add(rule).OnlyEnforceIf(option);
                 }
             }
 
-            options.Add(option);
+            if (isPast)
+                return true;
         }
 
-        if (options.Count > 0)
-        {
-            _model.AddBoolOr(options);
-        }
+        return false;
     }
 
-    private static DoorSides SideOf(int facing) => facing switch
+    private bool ClearsObstacles(ReadOnlySpan<UnitRect> rects, UnitRect[] obstacles, Point anchorAt)
     {
-        0 => DoorSides.MaxX,
-        1 => DoorSides.MinX,
-        2 => DoorSides.MaxY,
-        _ => DoorSides.MinY
-    };
-
-    // Turns a shape and its doors, keeping for each door the side it faces in the frame of the shape and merging the doors into sliding runs
-    private static Variant TurnShape(RoomShape shape, ShapeTurn turn)
-    {
-        var cells = shape.Cells.Select(cell => turn.Apply(cell)).ToHashSet();
-        var doors = new List<(int U, int V, int Length, int Facing, int OwnFacing)>();
-        foreach (var door in shape.Doors)
+        int gap = Math.Max(_problem.MinimumDistance, 1);
+        foreach (var rect in rects)
         {
-            var p = turn.Apply(door.From);
-            var q = turn.Apply(door.To);
-            (int u0, int v0, int u1, int v1) = (Math.Min(p.X, q.X), Math.Min(p.Y, q.Y), Math.Max(p.X, q.X), Math.Max(p.Y, q.Y));
-            doors.Add((u0, v0, Math.Max(u1 - u0, v1 - v0), FacingOf(cells, u0, v0, u1),
-                FacingOf(shape.Cells, Math.Min(door.From.X, door.To.X), Math.Min(door.From.Y, door.To.Y), Math.Max(door.From.X, door.To.X))));
-        }
-
-        var lines = new List<Line>();
-        foreach (var group in doors.GroupBy(door => (door.Facing, door.OwnFacing, door.Length, At: door.Facing < 2 ? door.U : door.V)))
-        {
-            int[] starts = group.Select(door => group.Key.Facing < 2 ? door.V : door.U).Distinct().Order().ToArray();
-            int low = starts[0];
-            for (int i = 1; i <= starts.Length; i++)
+            foreach (var obstacle in obstacles)
             {
-                if (i == starts.Length || starts[i] != starts[i - 1] + 1)
-                {
-                    lines.Add(new Line(group.Key.At, low, starts[i - 1], group.Key.Length, group.Key.Facing, group.Key.OwnFacing));
-                    if (i < starts.Length)
-                    {
-                        low = starts[i];
-                    }
-                }
+                if (GetGap(rect, Offset(obstacle, anchorAt)) < gap)
+                    return false;
             }
         }
 
-        return new Variant(shape, turn, cells, cells.ToRects(), lines);
+        return true;
     }
 
-    // Returns the way a door segment faces out of the cells, 0 to 3 for +u, -u, +v and -v
-    private static int FacingOf(HashSet<Cell> cells, int u0, int v0, int u1) => u0 == u1
-        ? cells.Contains(new Cell(u0 - 1, v0)) ? 0 : 1
-        : cells.Contains(new Cell(u0, v0 - 1)) ? 2 : 3;
-
-    private sealed record Node(IntVar U, IntVar V, BoolVar[] Choices, Variant[] Variants, Slot[] Slots);
-
-    private sealed record Variant(RoomShape Shape, ShapeTurn Turn, HashSet<Cell> Cells, UnitRect[] Rects, List<Line> Lines)
+    private void Place(int room, LayoutCandidate candidate)
     {
-        public string SidedKey => field ??= Key(true);
-
-        public string PlainKey => field ??= Key(false);
-
-        // Names the shape and doors a variant places wherever it stands, with the sides its doors face in its shape only where door sides are read
-        private string Key(bool withOwnSides)
-        {
-            int u0 = Rects.Min(rect => rect.U), v0 = Rects.Min(rect => rect.V);
-            var rects = Rects.Select(rect => (rect.U - u0, rect.V - v0, rect.W, rect.H)).Order();
-            var lines = Lines
-                .Select(line => line.Facing < 2
-                    ? line with { At = line.At - u0, Low = line.Low - v0, High = line.High - v0 }
-                    : line with { At = line.At - v0, Low = line.Low - u0, High = line.High - u0 })
-                .Select(line => withOwnSides ? line : line with { OwnFacing = 0 })
-                .Order();
-
-            return $"{string.Join(';', rects)}|{string.Join(';', lines)}";
-        }
+        var variant = _variants[room][candidate.Variant];
+        _placedVariant[room] = candidate.Variant;
+        _placedAt[room] = candidate.Position;
+        _placedRects[room] = Array.ConvertAll(variant.Rects, rect => Offset(rect, candidate.Position));
+        _placedLines[room] = Array.ConvertAll(variant.Lines, line => line.Offset(candidate.Position));
     }
 
-    private sealed record Slot(LinearExpr U, LinearExpr V, int OffsetU, int OffsetV, LinearExpr W, LinearExpr H)
-    {
-        public LinearExpr UMin => U + OffsetU;
+    private static int GetGap(UnitRect a, UnitRect b) => Math.Max(Math.Max(b.U - a.EndU, a.U - b.EndU), Math.Max(b.V - a.EndV, a.V - b.EndV));
 
-        public LinearExpr VMin => V + OffsetV;
-
-        public LinearExpr UMax => U + OffsetU + W;
-
-        public LinearExpr VMax => V + OffsetV + H;
-    }
-
-    private readonly record struct Line(int At, int Low, int High, int Length, int Facing, int OwnFacing) : IComparable<Line>
-    {
-        public int CompareTo(Line other) =>
-            (At, Low, High, Length, Facing, OwnFacing).CompareTo((other.At, other.Low, other.High, other.Length, other.Facing, other.OwnFacing));
-    }
+    private static UnitRect Offset(UnitRect rect, Point at) => rect with { U = rect.U + at.X, V = rect.V + at.Y };
 }

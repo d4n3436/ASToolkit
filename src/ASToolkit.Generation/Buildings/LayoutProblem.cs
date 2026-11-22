@@ -1,4 +1,3 @@
-using System.Drawing;
 using ASToolkit.Analysis.Levels;
 
 namespace ASToolkit.Generation.Buildings;
@@ -37,17 +36,6 @@ internal sealed class LayoutProblem<T>
 
     // Holds the rectangles, in the frame of an unturned anchor, that the rooms past it or clear of it keep away from
     public List<(T Anchor, IReadOnlyList<UnitRect> Rects)> Obstacles { get; } = [];
-
-    public bool SavesPhases { get; init; }
-
-    // Holds the number of rooms among the may-touch pairs that every room shares a wall of at least five units with
-    public int MinContacts { get; init; }
-
-    // Holds a starting place for rooms, unturned, in the first room's frame
-    public Dictionary<T, Point> Hints { get; } = [];
-
-    // Holds a band of the screen, this wide across (u + v) and this tall down it (v - u), that every room stays inside
-    public (int Across, int Down)? Band { get; init; }
 
     public void AddRoom(T room, IReadOnlyList<RoomShape> shapes, bool isCorridor = false) => Rooms.Add(room, (isCorridor, shapes));
 

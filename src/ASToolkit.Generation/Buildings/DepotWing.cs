@@ -16,12 +16,14 @@ internal sealed class DepotWing
 
     private readonly GrammarRandom _random;
     private readonly List<DepotRoom> _rooms = [];
+    private readonly RegionSplitter _splitter;
     private LabWing _kind;
 
     public DepotWing(GrammarRandom random)
     {
         _random = random;
         _solver = new BlockSolver(random);
+        _splitter = new RegionSplitter(random, MinDepot, MaxDepot, 5, 0.85f, 0.35f);
     }
 
     public static int GetMinSlots(LabWing kind) => kind switch
@@ -31,7 +33,7 @@ internal sealed class DepotWing
         _ => 0
     };
 
-    // Draws the wing in its own frame with the entry strip's outer end on v = 0, or returns null when the draw fails
+    // Draws the wing with the entry strip's outer end on v = 0
     public DepotWingLayout? Draw(LabWing kind, int slots, int nested, int entryWidth)
     {
         _rooms.Clear();
@@ -81,8 +83,6 @@ internal sealed class DepotWing
         level.DoorSides[("entry", "A")] = DoorSides.MaxY;
         level.AddRoom("B", Sections(countB, Side.West, 2, 1, false));
         level.AddRoom("arm", [Corridor(_random.Inclusive(4, 5), court)], isCorridor: true);
-        // Span the court with a short crossing's passage and office together, or run an L's passage on under B and up into B's underside through a
-        // tall office
         var links = lConnector
             ? Enumerable.Range(court + 8, 7).Select(length => GetPassage(length, Enumerable.Range(court + 2, length - court - 4).ToArray())).ToArray()
             : new[] { court - 5, court - 6 }.Where(length => length >= 3).Select(length => GetPassage(length, [])).ToArray();
@@ -171,10 +171,9 @@ internal sealed class DepotWing
         doors.Add((a.Route[^1], b.Route[0]));
         AddRun(b.Route, doors);
         run.AddRange(b.Route);
-        int source = a.Route.Concat(new[] { a.Passage }).Where(id => id >= 0).MaxBy(id => _rooms[id].Cells.GetLongestWall(placed["link"]).Length);
+        int source = a.Route.Concat([a.Passage]).Where(id => id >= 0).MaxBy(id => _rooms[id].Cells.GetLongestWall(placed["link"]).Length);
         int target = b.Route.MaxBy(id => _rooms[id].Cells.GetLongestWall(placed["office"]).Length);
         AddCrossing(source, target, placed["link"], placed["office"], doors);
-        // Take as the court every free unit between section A's east edge and section B's west edge on rows both reach
         var taken = Taken();
         var eastOfA = placed["A"].GroupBy(cell => cell.V).ToDictionary(row => row.Key, row => row.Max(cell => cell.U));
         var westOfB = placed["B"].GroupBy(cell => cell.V).ToDictionary(row => row.Key, row => row.Min(cell => cell.U));
@@ -192,7 +191,7 @@ internal sealed class DepotWing
         int entrance = envelope.GetLongestWall(wayIn).Length;
         for (int attempt = 0; attempt < 20; attempt++)
         {
-            var (regions, strip) = Partition(envelope, count, passage);
+            var (regions, strip) = _splitter.Partition(envelope, count, passage);
             if (regions.Count == 0)
             {
                 continue;
@@ -204,9 +203,8 @@ internal sealed class DepotWing
             }
 
             int inner = strip.Count == 0 ? -1 : regions.Count - 1;
-            var adjacency = Adjacency(regions);
-            // Enter the first section through one depot holding the entrance's whole end
-            var paths = Paths(adjacency, regions.Count, index => index != inner && (section == 0 ? regions[index].GetLongestWall(wayIn).Length >= entrance : Touches(regions[index], wayIn)),
+            var adjacency = RegionSplitter.GetAdjacency(regions, 3);
+            var paths = _splitter.FindPaths(adjacency, regions.Count, index => index != inner && (section == 0 ? regions[index].GetLongestWall(wayIn).Length >= entrance : Touches(regions[index], wayIn)),
                 index => index != inner && (wayOut.Count == 0 || Touches(regions[index], wayOut)), inner);
 
             if (wayOut.Count == 0)
@@ -244,7 +242,6 @@ internal sealed class DepotWing
         bool Touches(HashSet<Cell> region, HashSet<Cell> other) => region.GetLongestWall(other).Length >= 3;
     }
 
-    // Returns a passage three high open at its west end and on its top at the given offsets, at its east end when it has none on top
     private static RoomShape GetPassage(int length, int[] tops) => new(RoomShape.Rectangle(length, 3),
         tops.Select(at => new ShapeDoor(new Point(at, 3), new Point(at + 3, 3)))
             .Append(new ShapeDoor(new Point(0, 0), new Point(0, 3)))
@@ -283,7 +280,6 @@ internal sealed class DepotWing
         for (int attempt = 0; attempt < 60; attempt++)
         {
             _rooms.Clear();
-            // Shift the far row's walls one way by less than the end depots can give
             int[] widths = Enumerable.Range(0, k).Select(_ => _random.Inclusive(13, 16)).ToArray();
             int w = widths.Sum();
             int near = _random.Inclusive(11, 14);
@@ -396,7 +392,6 @@ internal sealed class DepotWing
             int dockHeight = _random.Inclusive(9, 11);
             int depth = _random.Inclusive(14, 18);
             int h = dockHeight + depth;
-            // Split the dock's length among its depots and keep each one narrow enough that its depth plus the dock's jog doesn't pass the largest depot
             int w = _random.Inclusive(13, 16) * k;
             int most = Math.Max(DockDepotMin, MaxDepot / (depth + DockJogMax));
             int[] widths = Enumerable.Repeat(DockDepotMin, k).ToArray();
@@ -415,7 +410,6 @@ internal sealed class DepotWing
                 continue;
             }
 
-            // Jog the dock's back wall only on a wall between two depots
             if (_random.Next() < 0.6f)
             {
                 int jog = _random.Choice(cuts);
@@ -464,14 +458,11 @@ internal sealed class DepotWing
         return null;
     }
 
-    // Lays the entry strip against the block with its door under the first depot's foot within maxU, and moves the wing so the strip's outer end
-    // stands on v = 0
     private int PlaceEntry(int first, int entryWidth, int maxU, List<(int, int)> doors)
     {
         var block = Solid(first);
         var firstCells = _rooms[first].Cells;
         int width = Math.Clamp(_random.Inclusive(5, 6), 3, Math.Max(3, entryWidth));
-        // Open the strip's whole width onto the first depot's foot, centered on each straight run of it, or anywhere within maxU when given
         var openings = firstCells
             .Where(cell => !block.Contains(cell with { V = cell.V - 1 }))
             .GroupBy(cell => cell.V)
@@ -592,7 +583,6 @@ internal sealed class DepotWing
                 continue;
             }
 
-            // Run a throat's gap along the whole wall between two depots on the route with its door at one end, and cut it from whichever of the two doesn't end up with a part under four wide
             foreach (var (from, to) in _random.Shuffled([(a, b), (b, a)]).Where(pair => pair.Item1.Role == DepotRole.Run))
             {
                 var wall = from.Cells.GetLongestWall(to.Cells);
@@ -629,7 +619,6 @@ internal sealed class DepotWing
         }
     }
 
-    // Keeps a cut only when its gap stays on the straight wall, doesn't leave a short gap piece or a new narrow part and keeps a door-wide wall for every door
     private bool Cut(DepotRoom from, DepotRoom to, ContactRun wall, int at, int width, int piece, List<(int, int)> needed, int depth = 1)
     {
         var face = from.Cells
@@ -644,7 +633,6 @@ internal sealed class DepotWing
         }
 
         var cut = face.Where(cell => !neck.Contains(cell)).ToHashSet();
-        // Stand the room further back on a deeper cut and make its neck a stem as long as the gap is deep
         var inward = Cell.Steps.First(step => face.Any(cell => to.Cells.Contains(cell + step)));
         for (int row = 1; row < depth; row++)
         {
@@ -810,167 +798,6 @@ internal sealed class DepotWing
         new[] { (0, 0), (0, 1), (1, 0), (1, 1) }
             .Where(corner => !(flat == Side.East && corner.Item1 == 1) && !(flat == Side.West && corner.Item1 == 0) && !(flat == Side.North && corner.Item2 == 0))
             .ToArray();
-
-    private List<HashSet<Cell>> Split(HashSet<Cell> region, bool strip)
-    {
-        var box = region.GetBounds();
-        (int u0, int v0, int u1, int v1) = (box.U, box.V, box.U + box.W - 1, box.V + box.H - 1);
-        bool vertical = u1 - u0 >= v1 - v0;
-        if (_random.Next() < 0.2f)
-        {
-            vertical = !vertical;
-        }
-
-        var cells = region.Select(T).ToHashSet();
-        var turned = cells.GetBounds();
-        (int a0, int b0, int a1, int b1) = (turned.U, turned.V, turned.U + turned.W - 1, turned.V + turned.H - 1);
-        if (a1 - a0 < 14)
-        {
-            return [];
-        }
-
-        int a = _random.Inclusive(a0 + 7, a1 - 6);
-        var steps = new List<(int At, int Shift)>();
-
-        if (b1 - b0 >= 12 && _random.Next() < 0.85f)
-        {
-            int first = Shift(a, 7);
-            if (first != 0)
-            {
-                steps.Add((_random.Inclusive(b0 + 5, b1 - 5), first));
-            }
-
-            if (steps.Count == 1 && b1 - b0 >= 22 && _random.Next() < 0.35f)
-            {
-                int second = _random.Inclusive(b0 + 5, b1 - 5);
-                int shift = Shift(a + first, 6);
-                if (Math.Abs(second - steps[0].At) >= 6 && shift != 0)
-                {
-                    steps.Add((second, shift));
-                }
-            }
-        }
-
-        int width = strip ? _random.Inclusive(5, 6) : 0;
-        int span = strip ? Math.Min(b1 - b0 + 1, _random.Inclusive(8, 12)) : 0;
-        int from = _random.Next() < 0.5f ? b0 : b1 - span + 1;
-        var low = new HashSet<Cell>();
-        var middle = new HashSet<Cell>();
-        var high = new HashSet<Cell>();
-        foreach (var cell in cells)
-        {
-            int cut = a;
-            foreach ((int at, int shift) in steps)
-            {
-                cut += cell.V >= at ? shift : 0;
-            }
-
-            (cell.U < cut ? low : cell.U < cut + width && cell.V >= from && cell.V < from + span ? middle : high).Add(cell);
-        }
-
-        var parts = strip ? new List<HashSet<Cell>> { low, high, middle } : [low, high];
-        if (Math.Min(low.Count, high.Count) < MinDepot || parts.Any(part => !part.IsThick(5) || !part.IsConnected()))
-        {
-            return [];
-        }
-
-        return parts.Select(part => part.Select(T).ToHashSet()).ToList();
-
-        // Keeps a step five units or more from the region's sides
-        int Shift(int at, int most)
-        {
-            int toward = _random.Next() < 0.5f ? -1 : 1;
-            int room = toward < 0 ? at - (a0 + 5) : a1 - 5 - (strip ? 6 : 0) - at;
-            return room >= 4 ? toward * _random.Inclusive(4, Math.Min(most, room)) : 0;
-        }
-
-        Cell T(Cell cell) => vertical ? cell : new Cell(cell.V, cell.U);
-    }
-
-    private (List<HashSet<Cell>> Regions, HashSet<Cell> Strip) Partition(HashSet<Cell> envelope, int count, bool passage)
-    {
-        for (int attempt = 0; attempt < 60; attempt++)
-        {
-            var regions = new List<HashSet<Cell>> { envelope };
-            HashSet<Cell> strip = [];
-            bool ok = true;
-            while (regions.Count < count)
-            {
-                bool wantStrip = passage && strip.Count == 0 && regions.Count == count - 1;
-                List<HashSet<Cell>> parts = [];
-                HashSet<Cell> source = [];
-                foreach (var region in wantStrip ? regions.OrderByDescending(region => region.Count).ToList() : [regions.MaxBy(region => region.Count)!])
-                {
-                    for (int tries = 0; tries < 30 && parts.Count == 0; tries++)
-                    {
-                        parts = Split(region, wantStrip);
-                    }
-
-                    if (parts.Count > 0)
-                    {
-                        source = region;
-                        break;
-                    }
-                }
-
-                if (parts.Count == 0)
-                {
-                    ok = false;
-                    break;
-                }
-
-                regions.Remove(source);
-                regions.Add(parts[0]);
-                regions.Add(parts[1]);
-                if (wantStrip)
-                {
-                    strip = parts[2];
-                }
-            }
-
-            if (ok && regions.All(region => region.Count <= MaxDepot))
-            {
-                return (regions, strip);
-            }
-        }
-
-        return ([], []);
-    }
-
-    private static List<HashSet<int>> Adjacency(List<HashSet<Cell>> regions) => regions
-        .Select((region, i) => Enumerable.Range(0, regions.Count).Where(j => j != i && region.GetLongestWall(regions[j]).Length >= 3).ToHashSet())
-        .ToList();
-
-    private static List<List<int>> Paths(List<HashSet<int>> adjacency, int count, Func<int, bool> isStart, Func<int, bool> isEnd, int inner)
-    {
-        var found = new List<List<int>>();
-        var stack = new Stack<List<int>>();
-        foreach (int start in Enumerable.Range(0, count).Where(isStart))
-        {
-            stack.Push([start]);
-        }
-
-        while (stack.Count > 0 && found.Count < 400)
-        {
-            var path = stack.Pop();
-            if (path.Count == count)
-            {
-                if (isEnd(path[^1]) && (inner < 0 || (path.IndexOf(inner) > 0 && path[^1] != inner)))
-                {
-                    found.Add(path);
-                }
-
-                continue;
-            }
-
-            foreach (int next in adjacency[path[^1]].Where(next => !path.Contains(next)))
-            {
-                stack.Push(path.Append(next).ToList());
-            }
-        }
-
-        return found;
-    }
 
     private int Add(DepotRole role, int section, HashSet<Cell> cells)
     {
