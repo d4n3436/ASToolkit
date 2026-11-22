@@ -341,7 +341,7 @@ public sealed class Playthrough
 
     private PlaythroughResult Run(RouteAnalysis analysis, PlayerLoadout loadout, int seed, bool record, ref Map? map)
     {
-        var play = Start(analysis, loadout, seed, record, map);
+        var play = Start(analysis, loadout, seed, record, record ? null : map);
         map = play.Map;
         play.Play();
 

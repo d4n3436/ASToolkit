@@ -23,7 +23,7 @@ internal sealed class PlaySession
 
     public Map Map { get; }
 
-    private const int PlayerDead = 2;
+    private const int GameLost = 3;
     private static ReadOnlySpan<byte> GameStateVariable => "GameState"u8;
 
     public PlayerBot Bot { get; }
@@ -54,7 +54,7 @@ internal sealed class PlaySession
         }
     }
 
-    public bool IsPlaying => (Map.HasPlayer ? Map.Player.IsAlive : !Bot.HasStarted) || Map.ReadScriptNumber(GameStateVariable) == PlayerDead;
+    public bool IsPlaying => Map.ReadScriptNumber(GameStateVariable) != GameLost;
 
     private bool HasWon() => Map.HasWon || (_winsAtTourEnd && Bot.HasFinished);
 
