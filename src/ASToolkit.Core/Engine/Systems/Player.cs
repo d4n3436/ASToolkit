@@ -12,8 +12,9 @@ internal sealed class Player
     private const int NoMarkerId = -1;
     private const int MessageLines = 5;
     private const int MessageLifetime = 5000;
+    private const float MessageRightMargin = 242;
+    private const float MessageBottomMargin = 92;
 
-    private static readonly Vector2 MessageOrigin = new(398, 388);
     private static readonly Angle HeadingUpRight = new(0x20 + 8);
     private static readonly Angle HeadingUpLeft = new(0xE0 - 8);
     private static readonly Angle HeadingDownRight = new(0x60 - 8);
@@ -27,7 +28,8 @@ internal sealed class Player
         _map = map;
         _settings = settings;
         Money = StartMoney;
-        Messages = new MessageWindow(map, MessageLineId, NoMarkerId, MessageOrigin, MessageLines, MessageLifetime);
+        var screen = map.Session.ScreenSize;
+        Messages = new MessageWindow(map, MessageLineId, NoMarkerId, new Vector2(screen.Width - MessageRightMargin, screen.Height - MessageBottomMargin), MessageLines, MessageLifetime);
     }
 
     public Sprite? Sprite { get; private set; }
