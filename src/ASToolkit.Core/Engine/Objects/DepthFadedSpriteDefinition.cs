@@ -150,10 +150,10 @@ public sealed class DepthFadedSpriteDefinition : SoftwareSpriteDefinition
             return;
 
         int z = GetDepth(map, sprite, ref origin);
-        if (!ReadFrame(Buffer, clip, FrameOffsets[sprite.Frame], origin.Y, out int top, out int rowCount, out int bottom, out int position))
+        if (!ReadFrame(Frames, clip, FrameOffsets[sprite.Frame], origin.Y, out int top, out int rowCount, out int bottom, out int position))
             return;
 
-        SkipRows(Buffer, ref position, ref top, ref rowCount, clip.Top, FadedPixelSize);
+        SkipRows(Frames, ref position, ref top, ref rowCount, clip.Top, FadedPixelSize);
         rowCount = bottom - top;
         screen.EnsureScratch(FrameSize with { Height = rowCount });
         int scratchWidth = screen.ScratchSize.Width;
@@ -167,17 +167,17 @@ public sealed class DepthFadedSpriteDefinition : SoftwareSpriteDefinition
             output.Clear();
             int depthRow = (top + row) * screen.DepthWidth;
             int x = origin.X;
-            while (!RunAt(Buffer, position).IsEnd)
+            while (!RunAt(Frames, position).IsEnd)
             {
-                var run = RunAt(Buffer, position);
+                ref readonly var run = ref RunAt(Frames, position);
                 x += run.Skip;
                 int count = run.Count;
                 position += RunHeader;
                 if (ClipRunToRow(clip, clipped, x, count, out int first, out int skip, out int length))
                 {
                     length = Math.Min(length, Math.Min(scratchWidth - (first - origin.X), screen.Depth.Length - depthRow - first));
-                    var offsets = MemoryMarshal.Cast<byte, short>(Buffer.Slice(position + skip * sizeof(short), length * sizeof(short)));
-                    var colors = MemoryMarshal.Cast<byte, ushort>(Buffer.Slice(position + (count + skip) * sizeof(short), length * sizeof(ushort)));
+                    var offsets = MemoryMarshal.Cast<byte, short>(Frames.Slice(position + skip * sizeof(short), length * sizeof(short)));
+                    var colors = MemoryMarshal.Cast<byte, ushort>(Frames.Slice(position + (count + skip) * sizeof(short), length * sizeof(ushort)));
                     var under = screen.Depth.Slice(depthRow + first, length);
                     var target = output.Slice(first - origin.X, length);
                     if (additive)

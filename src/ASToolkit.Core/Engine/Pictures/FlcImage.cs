@@ -107,7 +107,7 @@ public sealed class FlcImage : PictureImage
             var frame = buffer.AsSpan(0, length);
             int read = Math.Max(size - sizeof(int), 0);
             Input.ReadAtLeast(frame.Slice(sizeof(int), read), read, false);
-            var header = MemoryMarshal.Read<FlcFrameHeader>(frame);
+            ref readonly var header = ref MemoryMarshal.AsRef<FlcFrameHeader>(frame);
             if (header.Magic != FrameMagic)
             {
                 Report(LogError.Invalid, "chunk mark"u8, FrameIndex);
@@ -117,7 +117,7 @@ public sealed class FlcImage : PictureImage
             int offset = Unsafe.SizeOf<FlcFrameHeader>();
             for (int i = 0; i < header.ChunkCount; i++)
             {
-                var chunk = MemoryMarshal.Read<FlcChunkHeader>(frame[offset..]);
+                ref readonly var chunk = ref MemoryMarshal.AsRef<FlcChunkHeader>(frame[offset..]);
                 var data = frame[(offset + Unsafe.SizeOf<FlcChunkHeader>())..];
                 offset += chunk.Size;
                 switch (chunk.Type)

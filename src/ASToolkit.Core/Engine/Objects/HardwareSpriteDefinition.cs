@@ -79,11 +79,6 @@ public sealed class HardwareSpriteDefinition : SpriteDefinition
     /// </summary>
     public Size Size { get; private set; }
 
-    /// <summary>
-    /// Gets the tiles, in the order of the frames of the sprite file or row by row for the ground.
-    /// </summary>
-    public ReadOnlySpan<HardwareTile> Tiles => CollectionsMarshal.AsSpan(_tiles);
-
     [EngineRoutine(0x00419d20)]
     internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, GameLogger? logger)
     {

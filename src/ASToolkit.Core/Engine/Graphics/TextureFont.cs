@@ -77,11 +77,6 @@ public sealed class TextureFont
     public float Scale { get; private set; }
 
     /// <summary>
-    /// Gets the areas of the 256 glyphs in the texture.
-    /// </summary>
-    public ReadOnlySpan<GlyphBounds> Glyphs => _glyphs;
-
-    /// <summary>
     /// Renders the 256 glyphs into a texture, row by row from the top left, and records where each one lies.
     /// </summary>
     /// <param name="maxTextureSize">The largest texture width and height the device accepts.</param>

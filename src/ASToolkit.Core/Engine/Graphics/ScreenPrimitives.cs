@@ -1,56 +1,35 @@
 using System.Drawing;
+using System.Runtime.CompilerServices;
 
 namespace ASToolkit.Core.Engine;
 
 internal static class ScreenPrimitives
 {
     private const int MaxChannel = byte.MaxValue;
+    private const uint OpaqueAlpha = 0xff000000;
+    private const int AlphaShift = 24;
+    private const int RedShift = 16;
+    private const int GreenShift = 8;
 
-    public static Color GetPixel(Screen screen, Point point)
-    {
-        int i = point.Y * screen.Pitch + point.X;
-        uint color = screen.IsTrueColor ? screen.TrueColorPixels[i] : screen.Format.Expand(screen.HighColorPixels[i]);
-
-        return Color.FromArgb((int)(color | 0xff000000));
-    }
-
-    public static void SetPixel(Screen screen, Point point, Color color)
-    {
-        int i = point.Y * screen.Pitch + point.X;
-        uint packed = (uint)color.ToArgb() | 0xff000000;
-
-        if (screen.IsTrueColor)
-        {
-            screen.TrueColorPixels[i] = packed;
-
-            return;
-        }
-
-        screen.HighColorPixels[i] = screen.Format.Pack(packed);
-    }
-
-    public static void Blend(Screen screen, Point point, Color source, BlendFactor sourceFactor, BlendFactor destinationFactor)
+    public static void Blend(Screen screen, Point point, uint source, BlendFactor sourceFactor, BlendFactor destinationFactor)
     {
         if (!screen.Clip.Contains(point) || point.X < 0 || point.Y < 0 || point.X >= screen.Size.Width || point.Y >= screen.Size.Height)
             return;
 
-        var destination = GetPixel(screen, point);
-        SetPixel(screen, point, Color.FromArgb(
-            BlendChannel(source.R, source.A, destination.R, destination.A, sourceFactor, destinationFactor),
-            BlendChannel(source.G, source.A, destination.G, destination.A, sourceFactor, destinationFactor),
-            BlendChannel(source.B, source.A, destination.B, destination.A, sourceFactor, destinationFactor)));
+        new ScreenWriter(screen).Blend(point.Y * screen.Pitch + point.X, source, sourceFactor, destinationFactor);
     }
 
-    public static void FillRectangle(Screen screen, Rectangle rectangle, Color color, BlendFactor sourceFactor, BlendFactor destinationFactor)
+    public static void FillRectangle(Screen screen, Rectangle rectangle, uint color, BlendFactor sourceFactor, BlendFactor destinationFactor)
     {
         var area = Rectangle.Intersect(rectangle, screen.Clip);
         area.Intersect(new Rectangle(Point.Empty, screen.Size));
-
+        var writer = new ScreenWriter(screen);
         for (int y = area.Top; y < area.Bottom; y++)
         {
+            int row = y * screen.Pitch;
             for (int x = area.Left; x < area.Right; x++)
             {
-                Blend(screen, new Point(x, y), color, sourceFactor, destinationFactor);
+                writer.Blend(row + x, color, sourceFactor, destinationFactor);
             }
         }
     }
@@ -61,11 +40,11 @@ internal static class ScreenPrimitives
         {
             var start = vertices[i];
             var end = vertices[i + 1];
-            DrawLine(screen, new PointF(start.Position.X, start.Position.Y), Color.FromArgb((int)start.Color), new PointF(end.Position.X, end.Position.Y), Color.FromArgb((int)end.Color), BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
+            DrawLine(screen, new PointF(start.Position.X, start.Position.Y), start.Color, new PointF(end.Position.X, end.Position.Y), end.Color, BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
         }
     }
 
-    public static void DrawLine(Screen screen, PointF start, Color startColor, PointF end, Color endColor, BlendFactor sourceFactor, BlendFactor destinationFactor)
+    public static void DrawLine(Screen screen, PointF start, uint startColor, PointF end, uint endColor, BlendFactor sourceFactor, BlendFactor destinationFactor)
     {
         float deltaX = end.X - start.X;
         float deltaY = end.Y - start.Y;
@@ -75,26 +54,50 @@ internal static class ScreenPrimitives
         {
             float share = (float)step / steps;
             var point = new Point((int)MathF.Floor(start.X + deltaX * share + 0.5f), (int)MathF.Floor(start.Y + deltaY * share + 0.5f));
-            var color = Color.FromArgb(
-                Lerp(startColor.A, endColor.A, share),
-                Lerp(startColor.R, endColor.R, share),
-                Lerp(startColor.G, endColor.G, share),
-                Lerp(startColor.B, endColor.B, share));
+            uint color = (uint)Lerp(startColor, endColor, AlphaShift, share) << AlphaShift | (uint)Lerp(startColor, endColor, RedShift, share) << RedShift |
+                (uint)Lerp(startColor, endColor, GreenShift, share) << GreenShift | (uint)Lerp(startColor, endColor, 0, share);
             Blend(screen, point, color, sourceFactor, destinationFactor);
         }
     }
 
-    private static int Lerp(int from, int to, float share) => (int)(from + (to - from) * share + 0.5f);
-
-    public static int BlendChannel(int source, int sourceAlpha, int destination, int destinationAlpha, BlendFactor sourceFactor, BlendFactor destinationFactor)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static uint Combine(uint source, uint destination, BlendFactor sourceFactor, BlendFactor destinationFactor)
     {
-        int result = source * GetFactor(sourceFactor, source, sourceAlpha, destination, destinationAlpha)
-            + destination * GetFactor(destinationFactor, source, sourceAlpha, destination, destinationAlpha);
+        if (sourceFactor == BlendFactor.One && destinationFactor == BlendFactor.Zero)
+            return source | OpaqueAlpha;
+
+        if (sourceFactor == BlendFactor.DestinationColor && destinationFactor == BlendFactor.One)
+        {
+            return OpaqueAlpha | (uint)AddColor((int)(source >> RedShift & MaxChannel), (int)(destination >> RedShift & MaxChannel)) << RedShift |
+                (uint)AddColor((int)(source >> GreenShift & MaxChannel), (int)(destination >> GreenShift & MaxChannel)) << GreenShift |
+                (uint)AddColor((int)(source & MaxChannel), (int)(destination & MaxChannel));
+        }
+
+        int alpha = (int)(source >> AlphaShift);
+        return OpaqueAlpha | (uint)CombineChannel((int)(source >> RedShift & MaxChannel), alpha, (int)(destination >> RedShift & MaxChannel), sourceFactor, destinationFactor) << RedShift |
+            (uint)CombineChannel((int)(source >> GreenShift & MaxChannel), alpha, (int)(destination >> GreenShift & MaxChannel), sourceFactor, destinationFactor) << GreenShift |
+            (uint)CombineChannel((int)(source & MaxChannel), alpha, (int)(destination & MaxChannel), sourceFactor, destinationFactor);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int AddColor(int source, int destination) => Math.Clamp((source * destination + destination * MaxChannel + MaxChannel / 2) / MaxChannel, 0, MaxChannel);
+
+    private static int Lerp(uint from, uint to, int shift, float share)
+    {
+        int first = (int)(from >> shift & MaxChannel);
+        return (int)(first + ((int)(to >> shift & MaxChannel) - first) * share + 0.5f);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int CombineChannel(int source, int sourceAlpha, int destination, BlendFactor sourceFactor, BlendFactor destinationFactor)
+    {
+        int result = source * GetFactor(sourceFactor, source, sourceAlpha, destination) + destination * GetFactor(destinationFactor, source, sourceAlpha, destination);
 
         return Math.Clamp((result + MaxChannel / 2) / MaxChannel, 0, MaxChannel);
     }
 
-    private static int GetFactor(BlendFactor factor, int sourceChannel, int sourceAlpha, int destinationChannel, int destinationAlpha) => factor switch
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int GetFactor(BlendFactor factor, int sourceChannel, int sourceAlpha, int destinationChannel) => factor switch
     {
         BlendFactor.Zero => 0,
         BlendFactor.One => MaxChannel,
@@ -102,8 +105,8 @@ internal static class ScreenPrimitives
         BlendFactor.InverseSourceColor => MaxChannel - sourceChannel,
         BlendFactor.SourceAlpha => sourceAlpha,
         BlendFactor.InverseSourceAlpha => MaxChannel - sourceAlpha,
-        BlendFactor.DestinationAlpha => destinationAlpha,
-        BlendFactor.InverseDestinationAlpha => MaxChannel - destinationAlpha,
+        BlendFactor.DestinationAlpha => MaxChannel,
+        BlendFactor.InverseDestinationAlpha => 0,
         BlendFactor.DestinationColor => destinationChannel,
         BlendFactor.InverseDestinationColor => MaxChannel - destinationChannel,
         _ => throw new ArgumentOutOfRangeException(nameof(factor))

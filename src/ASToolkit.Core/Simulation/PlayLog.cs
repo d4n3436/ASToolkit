@@ -50,7 +50,7 @@ internal sealed class PlayLog
         }
 
         UpdateTimeline(map);
-        UpdatePickups(map);
+        UpdatePickups();
         foreach (var sprite in map.Monsters)
         {
             if (sprite.Placement is null && sprite.DiedAt >= 0 && _dead.Add(sprite))
@@ -77,7 +77,7 @@ internal sealed class PlayLog
         }
     }
 
-    private void UpdatePickups(Map map)
+    private void UpdatePickups()
     {
         foreach (var pickup in _pickups.Removed)
         {

@@ -26,7 +26,7 @@ public readonly ref partial struct Texture
                     return;
 
                 var block = source.Slice(offset, blockBytes);
-                var colorBlock = MemoryMarshal.Read<DxtColorBlock>(block[(blockBytes - Unsafe.SizeOf<DxtColorBlock>())..]);
+                ref readonly var colorBlock = ref MemoryMarshal.AsRef<DxtColorBlock>(block[(blockBytes - Unsafe.SizeOf<DxtColorBlock>())..]);
                 ReadAlphas(block, format, alphas);
                 BuildColors(colorBlock, format == VidPixelFormat.Dxt1, colors);
                 uint indexes = colorBlock.Indexes;

@@ -42,7 +42,7 @@ public struct VidFrameEnumerator
                 return false;
             }
 
-            var header = MemoryMarshal.Read<VidRunHeader>(stream[_position..]);
+            ref readonly var header = ref MemoryMarshal.AsRef<VidRunHeader>(stream[_position..]);
             byte count = header.Count;
             _position += 2;
             if (header.IsEnd)
@@ -90,7 +90,7 @@ public struct VidFrameEnumerator
                     return false;
                 }
 
-                var header = MemoryMarshal.Read<VidRunHeader>(stream[_position..]);
+                ref readonly var header = ref MemoryMarshal.AsRef<VidRunHeader>(stream[_position..]);
                 if (header.IsEnd)
                 {
                     return false;

@@ -120,13 +120,6 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     public static Angle operator -(Angle angle, int turn) => new(unchecked((byte)(angle.Value - turn)));
 
     /// <summary>
-    /// Creates a direction from the low byte of a stored value.
-    /// </summary>
-    /// <param name="value">The stored value.</param>
-    /// <returns>The direction.</returns>
-    public static Angle FromStored(long value) => new(unchecked((byte)value));
-
-    /// <summary>
     /// Returns the direction of an offset in map coordinates.
     /// </summary>
     /// <param name="offset">The offset.</param>

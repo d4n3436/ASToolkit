@@ -13,9 +13,10 @@ public sealed class Screen
     private const int LightBufferLength = LightBufferSize * LightBufferSize;
 
     private readonly byte[] _colors;
-    private readonly ushort[] _depth;
-    private readonly ushort[] _snowBuffer = new ushort[LightBufferLength];
-    private readonly ushort[][] _lightBuffers = [new ushort[LightBufferLength], new ushort[LightBufferLength]];
+    private ushort[]? _depth;
+    private ushort[]? _snowBuffer;
+    private ushort[]? _lightBuffer;
+    private ushort[]? _otherLightBuffer;
     private ushort[] _scratch = [];
 
     /// <summary>
@@ -34,7 +35,6 @@ public sealed class Screen
         Pitch = size.Width;
         DepthWidth = size.Width;
         _colors = new byte[Pitch * size.Height * (isTrueColor ? sizeof(uint) : sizeof(ushort))];
-        _depth = new ushort[DepthWidth * size.Height];
         Clip = new Rectangle(Point.Empty, size);
     }
 
@@ -97,7 +97,7 @@ public sealed class Screen
     /// <summary>
     /// Gets the software depth buffer, row by row from the top.
     /// </summary>
-    public Span<ushort> Depth => _depth;
+    public Span<ushort> Depth => _depth ??= new ushort[DepthWidth * Size.Height];
 
     /// <summary>
     /// Writes the back buffer as opaque pixels, row by row from the top.
@@ -158,12 +158,12 @@ public sealed class Screen
     /// <summary>
     /// Gets the snow buffer, the 256 by 256 texture that the ground snow is drawn from, with one texel for each 4 by 4 pixels of the screen.
     /// </summary>
-    public Span<ushort> SnowBuffer => _snowBuffer;
+    public Span<ushort> SnowBuffer => _snowBuffer ??= new ushort[LightBufferLength];
 
     /// <summary>
     /// Gets the light buffer that the next light draws its intensities to, one of two buffers that lights use in turns, in RGB565 and 256 pixels wide and tall.
     /// </summary>
-    public Span<ushort> LightBuffer => _lightBuffers[LightPhase];
+    public Span<ushort> LightBuffer => LightPhase == 0 ? _lightBuffer ??= new ushort[LightBufferLength] : _otherLightBuffer ??= new ushort[LightBufferLength];
 
     /// <summary>
     /// Gets or sets which of the two light buffers the next light draws to.

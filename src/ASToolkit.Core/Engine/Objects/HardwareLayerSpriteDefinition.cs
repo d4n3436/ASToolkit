@@ -56,19 +56,19 @@ public sealed class HardwareLayerSpriteDefinition : SpriteDefinition
         for (int frame = 0; frame < Frames.Length; frame++)
         {
             var record = records[frame].Span;
-            var header = MemoryMarshal.Read<VidLayerFrameHeader>(record);
+            ref readonly var header = ref MemoryMarshal.AsRef<VidLayerFrameHeader>(record);
             var size = new Size(header.Width & ushort.MaxValue, header.Height & ushort.MaxValue);
             int length = GetTexelSize(file.Format) * size.Width * size.Height / ByteBits;
             int position = Unsafe.SizeOf<VidLayerFrameHeader>();
             var texels = records[frame].Slice(position, Math.Min(length, record.Length - position));
             position += texels.Length;
 
-            var mesh = MemoryMarshal.Read<VidLayerMeshHeader>(record[position..]);
+            ref readonly var mesh = ref MemoryMarshal.AsRef<VidLayerMeshHeader>(record[position..]);
             position += Unsafe.SizeOf<VidLayerMeshHeader>();
             var vertices = new HardwareLayerVertex[Math.Max(mesh.VertexCount, 0)];
             for (int i = 0; i < vertices.Length; i++)
             {
-                var vertex = MemoryMarshal.Read<VidLayerVertex>(record[position..]);
+                ref readonly var vertex = ref MemoryMarshal.AsRef<VidLayerVertex>(record[position..]);
                 position += Unsafe.SizeOf<VidLayerVertex>();
                 vertices[i] = new HardwareLayerVertex(
                     new Vector3(vertex.X, vertex.Y * DepthScale, (vertex.Height - HeightBias) * HeightScale),

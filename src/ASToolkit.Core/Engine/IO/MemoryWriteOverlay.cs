@@ -18,11 +18,6 @@ public sealed class MemoryWriteOverlay : IGameFileSystem
         _fileSystem = fileSystem;
     }
 
-    /// <summary>
-    /// Gets the paths of the files that were written and haven't been deleted.
-    /// </summary>
-    public IEnumerable<string> WrittenPaths => _written.Keys;
-
     /// <inheritdoc/>
     public bool TryRead(string path, out ReadOnlyMemory<byte> data)
     {

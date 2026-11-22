@@ -23,7 +23,7 @@ public readonly struct DemoResource
         _record = new ResContainer(data).Chunks.First(x => x.Tag.Span.SequenceEqual("DEMO"u8)).Records.First();
         var record = _record.Span;
         _mapNameLength = record.IndexOf((byte)0);
-        var header = MemoryMarshal.Read<DemoHeader>(record[(_mapNameLength + 1)..]);
+        ref readonly var header = ref MemoryMarshal.AsRef<DemoHeader>(record[(_mapNameLength + 1)..]);
         Seed = header.Seed;
         StartTime = header.Time;
     }

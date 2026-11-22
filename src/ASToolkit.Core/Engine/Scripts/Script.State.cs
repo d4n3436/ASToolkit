@@ -59,7 +59,7 @@ public sealed partial class Script
         {
             ref var entry = ref _objects[i];
             entry.Name = ReadString(data, ref offset);
-            var record = MemoryMarshal.Read<ScriptNameRecord>(data.Span[offset..]);
+            ref readonly var record = ref MemoryMarshal.AsRef<ScriptNameRecord>(data.Span[offset..]);
             entry.Kind = record.Kind;
             entry.Address = record.Address;
             entry.FirstVariable = record.FirstVariable;

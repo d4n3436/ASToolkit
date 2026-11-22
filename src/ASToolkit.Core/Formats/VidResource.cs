@@ -91,11 +91,6 @@ public readonly struct VidResource
     public BlendProcedure BlendProcedure { get; }
 
     /// <summary>
-    /// Gets a value indicating whether the sprite blends with what lies under it instead of covering it.
-    /// </summary>
-    public bool IsBlended => Type.HasFlag(VidType.Blended);
-
-    /// <summary>
     /// Gets a value indicating whether the pixels of the sprite carry depth values for the depth buffer.
     /// </summary>
     public bool HasZBuffer => Type.HasFlag(VidType.ZBuffer);
@@ -179,13 +174,13 @@ public readonly struct VidResource
             return default;
         }
 
-        int position = MemoryMarshal.Read<VidFrameHeader>(body.Span).Size;
+        int position = MemoryMarshal.AsRef<VidFrameHeader>(body.Span).Size;
         if (position < 0 || position + Unsafe.SizeOf<VidRowsHeader>() > body.Length)
         {
             return default;
         }
 
-        var rows = MemoryMarshal.Read<VidRowsHeader>(body.Span[position..]);
+        ref readonly var rows = ref MemoryMarshal.AsRef<VidRowsHeader>(body.Span[position..]);
         return new VidFrame(body[(position + Unsafe.SizeOf<VidRowsHeader>())..], rows.First, rows.Count, HasZBuffer, HasPalette);
     }
 
@@ -266,7 +261,7 @@ public readonly struct VidResource
                 return [];
             }
 
-            var area = MemoryMarshal.Read<VidSurfaceSize>(data[position..]).Size;
+            var area = MemoryMarshal.AsRef<VidSurfaceSize>(data[position..]).Size;
             position += Unsafe.SizeOf<VidSurfaceSize>();
             if (area.Width <= 0 || area.Height <= 0)
             {
@@ -402,7 +397,7 @@ public readonly struct VidResource
             return default;
         }
 
-        var cadr = MemoryMarshal.Read<CadrData>(record.Span[start..]);
+        ref readonly var cadr = ref MemoryMarshal.AsRef<CadrData>(record.Span[start..]);
         int pixels = start + Unsafe.SizeOf<CadrData>() + 2 * cadr.IndexCount + 4 * cadr.VertexCount;
         int rowCount = Math.Min(cadr.Size.Height, Size.Height - cadr.Origin.Y);
         if (cadr.Size.Width == 0 || rowCount <= 0 || pixels > record.Length)

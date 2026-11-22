@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using ASToolkit.Core.Formats;
@@ -7,7 +6,7 @@ using ASToolkit.Core.Engine.IO;
 namespace ASToolkit.Core.Engine;
 
 /// <summary>
-/// Represents a definition drawn in software from runs of pixels into a 32-bit back buffer, whose buffer holds the palettes of the armies followed by the frame records.
+/// Represents a definition drawn in software from runs of pixels into a 32-bit back buffer.
 /// </summary>
 public partial class SoftwareSpriteDefinition : SpriteDefinition
 {
@@ -17,12 +16,12 @@ public partial class SoftwareSpriteDefinition : SpriteDefinition
     private protected const int ArmyPalettes = 4;
     private protected const int FrameHeader = 4;
     private protected const int AliasBody = sizeof(short);
+    private static readonly int MissingFramesLength = Unsafe.SizeOf<VidFrameHeader>() + Unsafe.SizeOf<VidRowsHeader>();
     private protected const ushort HighColorGreenMask = 0x7fe0;
     private protected const ushort HighColorBlueMask = 0x1f;
 
-    private static readonly ConditionalWeakTable<byte[], ConcurrentDictionary<(bool IsHighColor, HighColorFormat Format), DecodedSoftwareFile>> DecodedFiles = new();
-
-    private byte[] _buffer = [];
+    private byte[] _palettes = [];
+    private ReadOnlyMemory<byte> _frames;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SoftwareSpriteDefinition"/> class.
@@ -53,68 +52,58 @@ public partial class SoftwareSpriteDefinition : SpriteDefinition
             Report(logger, LogError.Load, 0, "DATA"u8);
         }
 
-        var decoded = MemoryMarshal.TryGetArray(data, out var source) && source.Array is not null && source.Offset == 0 && source.Count == source.Array.Length
-            ? DecodedFiles.GetValue(source.Array, _ => new ConcurrentDictionary<(bool IsHighColor, HighColorFormat Format), DecodedSoftwareFile>()) : null;
-        if (decoded is not null && decoded.TryGetValue((IsHighColor, Format), out var copy))
-        {
-            _buffer = copy.Buffer.ToArray();
-            FrameOffsets = copy.FrameOffsets.ToArray();
-            if (FileType.HasFlag(VidType.Palette))
-            {
-                Span<uint> colors = stackalloc uint[PaletteEntries];
-                ReadPalette(file.Palette.Span, colors);
-                StorePalette(colors, GetPaletteSize());
-            }
-        }
-        else
+        if (FileType.HasFlag(VidType.Palette))
         {
             int paletteSize = GetPaletteSize();
-            int start = 0;
-
             Span<uint> colors = stackalloc uint[PaletteEntries];
-            if (FileType.HasFlag(VidType.Palette))
-            {
-                ReadPalette(file.Palette.Span, colors);
-                start = paletteSize * 2;
-            }
+            ReadPalette(file.Palette.Span, colors);
+            _palettes = new byte[paletteSize * 2];
+            StorePalette(colors, paletteSize);
+        }
 
-            var records = file.FrameRecords;
-            int total = start;
+        var records = file.FrameRecords;
+        FrameOffsets = new int[FileFrameCount];
+        bool isConverted = !FileType.HasFlag(VidType.Palette) && Format.IsRgb555 && IsHighColor && !FileType.HasFlag(VidType.Blended);
+        byte[] converted = [];
+        if (isConverted)
+        {
+            int total = 0;
             foreach (var record in records)
             {
                 total += Math.Max(0, record.Length - FrameHeader);
             }
 
-            _buffer = new byte[total];
-            FrameOffsets = new int[FileFrameCount];
-            if (FileType.HasFlag(VidType.Palette))
+            converted = new byte[total];
+        }
+
+        var source = file.Data.Span;
+        int position = 0;
+        for (int frame = 0; frame < FileFrameCount && frame < records.Length; frame++)
+        {
+            var body = records[frame].Span[FrameHeader..];
+            if (body.Length == AliasBody)
             {
-                StorePalette(colors, paletteSize);
+                int target = MemoryMarshal.Read<short>(body);
+                // TODO: Port the unchecked alias read
+                FrameOffsets[frame] = target >= 0 && target < FileFrameCount ? FrameOffsets[target] : 0;
+                continue;
             }
 
-            int position = start;
-            for (int frame = 0; frame < FileFrameCount && frame < records.Length; frame++)
+            if (isConverted)
             {
-                var body = records[frame].Span[FrameHeader..];
-                if (body.Length == AliasBody)
-                {
-                    int target = MemoryMarshal.Read<short>(body);
-                    FrameOffsets[frame] = target >= 0 && target < FileFrameCount ? FrameOffsets[target] : 0;
-                    continue;
-                }
-
-                body.CopyTo(_buffer.AsSpan(position));
-                if (!FileType.HasFlag(VidType.Palette) && Format.IsRgb555 && IsHighColor && !FileType.HasFlag(VidType.Blended))
-                {
-                    ConvertRowsToRgb555(position);
-                }
-
+                body.CopyTo(converted.AsSpan(position));
+                ConvertRowsToRgb555(converted, position);
                 FrameOffsets[frame] = position;
                 position += body.Length;
             }
-
-            decoded?.TryAdd((IsHighColor, Format), new DecodedSoftwareFile(_buffer.ToArray(), FrameOffsets.ToArray()));
+            else
+            {
+                FrameOffsets[frame] = (int)Unsafe.ByteOffset(ref MemoryMarshal.GetReference(source), ref MemoryMarshal.GetReference(body));
+            }
         }
+
+        // TODO: Port the uninitialized frame buffer of a file without DATA
+        _frames = records.IsEmpty ? new byte[MissingFramesLength] : isConverted ? converted : file.Data;
 
         if (!Object.IsSolid || !FileType.HasFlag(VidType.Palette) || !FileType.HasFlag(VidType.Runs8Bit))
             return;
@@ -148,12 +137,17 @@ public partial class SoftwareSpriteDefinition : SpriteDefinition
     public HighColorFormat Format { get; }
 
     /// <summary>
-    /// Gets the palettes followed by the frame records.
+    /// Gets the palettes of the sprite file, holding the current palette or one palette per army, followed by the palette as the file stores it.
     /// </summary>
-    public ReadOnlySpan<byte> Buffer => _buffer;
+    public ReadOnlySpan<byte> Palettes => _palettes;
 
     /// <summary>
-    /// Gets the start of each frame record in <see cref="Buffer"/>.
+    /// Gets the data that holds the frame records.
+    /// </summary>
+    public ReadOnlySpan<byte> Frames => _frames.Span;
+
+    /// <summary>
+    /// Gets the start of each frame record in <see cref="Frames"/>.
     /// </summary>
     public int[] FrameOffsets { get; private set; } = [];
 
@@ -183,7 +177,7 @@ public partial class SoftwareSpriteDefinition : SpriteDefinition
     public override void SetGamma(Gamma gamma, int army, Gamma ambient)
     {
         int size = GetPaletteSize();
-        if (_buffer.Length == 0 || !FileType.HasFlag(VidType.Palette))
+        if (_palettes.Length == 0 || !FileType.HasFlag(VidType.Palette))
             return;
 
         if ((uint)army > AllArmies)
@@ -202,10 +196,10 @@ public partial class SoftwareSpriteDefinition : SpriteDefinition
                 return;
             }
 
-            _buffer.AsSpan(size, size).CopyTo(_buffer);
+            _palettes.AsSpan(size, size).CopyTo(_palettes);
             if (ambientApplies)
             {
-                ApplyGamma(_buffer.AsSpan(0, size), gamma);
+                ApplyGamma(_palettes.AsSpan(0, size), gamma);
             }
 
             return;
@@ -217,8 +211,8 @@ public partial class SoftwareSpriteDefinition : SpriteDefinition
             SplitPalettes(size);
         }
 
-        var slot = _buffer.AsSpan(size * army, size);
-        _buffer.AsSpan(size * ArmyPalettes, size).CopyTo(slot);
+        var slot = _palettes.AsSpan(size * army, size);
+        _palettes.AsSpan(size * ArmyPalettes, size).CopyTo(slot);
         ApplyGamma(slot, ambientApplies ? gamma.Add(ambient) : gamma);
     }
 
@@ -266,24 +260,18 @@ public partial class SoftwareSpriteDefinition : SpriteDefinition
 
     private void SplitPalettes(int size)
     {
-        int length = _buffer.Length + size * (ArmyPalettes - 1);
-        byte[] split = new byte[length];
-        _buffer.AsSpan(size).CopyTo(split.AsSpan(size * ArmyPalettes));
+        byte[] split = new byte[size * (ArmyPalettes + 1)];
+        _palettes.AsSpan(size, size).CopyTo(split.AsSpan(size * ArmyPalettes));
         split.AsSpan(size * ArmyPalettes, size).CopyTo(split.AsSpan(0, size));
         split.AsSpan(size * ArmyPalettes, size).CopyTo(split.AsSpan(size, size));
         split.AsSpan(0, size * 2).CopyTo(split.AsSpan(size * 2, size * 2));
-        _buffer = split;
-
-        for (int frame = 0; frame < FrameOffsets.Length; frame++)
-        {
-            FrameOffsets[frame] += size * (ArmyPalettes - 1);
-        }
+        _palettes = split;
 
         FileType |= VidType.PaletteVariants;
         for (var mirror = NextMirror; mirror != this; mirror = mirror.NextMirror)
         {
             mirror.FileType |= VidType.PaletteVariants;
-            mirror._buffer = _buffer;
+            mirror._palettes = _palettes;
         }
     }
 
@@ -316,25 +304,24 @@ public partial class SoftwareSpriteDefinition : SpriteDefinition
     {
         if (paletteSize == TrueColorPaletteSize)
         {
-            MemoryMarshal.Cast<uint, byte>(colors).CopyTo(_buffer);
+            MemoryMarshal.Cast<uint, byte>(colors).CopyTo(_palettes);
         }
         else
         {
-            var pixels = MemoryMarshal.Cast<byte, ushort>(_buffer.AsSpan(0, paletteSize));
+            var pixels = MemoryMarshal.Cast<byte, ushort>(_palettes.AsSpan(0, paletteSize));
             for (int i = 0; i < PaletteEntries; i++)
             {
                 pixels[i] = Format.Pack(colors[i]);
             }
         }
 
-        _buffer.AsSpan(0, paletteSize).CopyTo(_buffer.AsSpan(paletteSize));
+        _palettes.AsSpan(0, paletteSize).CopyTo(_palettes.AsSpan(paletteSize));
     }
 
-    private void ConvertRowsToRgb555(int record)
+    private static void ConvertRowsToRgb555(Span<byte> buffer, int record)
     {
-        var buffer = _buffer.AsSpan();
-        int rows = record + MemoryMarshal.Read<VidFrameHeader>(buffer[record..]).Size;
-        int count = MemoryMarshal.Read<VidRowsHeader>(buffer[rows..]).Count;
+        int rows = record + MemoryMarshal.AsRef<VidFrameHeader>(buffer[record..]).Size;
+        int count = MemoryMarshal.AsRef<VidRowsHeader>(buffer[rows..]).Count;
         int position = rows + Unsafe.SizeOf<VidRowsHeader>();
         for (int row = 0; row < count; row++)
         {

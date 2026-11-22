@@ -226,7 +226,7 @@ public class PictureImage : IDisposable
         {
             1 => Pixels[offset],
             2 => MemoryMarshal.Read<ushort>(Pixels[offset..]),
-            3 => MemoryMarshal.Read<Pixel24>(Pixels[offset..]).Value,
+            3 => MemoryMarshal.AsRef<Pixel24>(Pixels[offset..]).Value,
             4 => MemoryMarshal.Read<uint>(Pixels[offset..]),
             _ => 0
         };

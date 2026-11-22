@@ -35,13 +35,13 @@ public readonly struct CursorImage
         if (icon < 0 || icon + IconDirectory + Unsafe.SizeOf<CursorEntry>() > data.Length)
             return;
 
-        var entry = MemoryMarshal.Read<CursorEntry>(data.Span[(icon + IconDirectory)..]);
+        ref readonly var entry = ref MemoryMarshal.AsRef<CursorEntry>(data.Span[(icon + IconDirectory)..]);
         long offset = icon + entry.Offset;
 
         if (offset + Unsafe.SizeOf<BitmapHeader>() > data.Length)
             return;
 
-        var bitmap = MemoryMarshal.Read<BitmapHeader>(data.Span[(int)offset..]);
+        ref readonly var bitmap = ref MemoryMarshal.AsRef<BitmapHeader>(data.Span[(int)offset..]);
         int height = bitmap.Height / 2;
 
         if (bitmap.BitCount is not (24 or 32) || bitmap.Width <= 0 || height <= 0 || bitmap.Size < Unsafe.SizeOf<BitmapHeader>() ||

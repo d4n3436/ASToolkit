@@ -13,7 +13,6 @@ public sealed partial class Map : IScriptFunctionHost
     private const int Base64ChunkSize = 0x39;
     private const uint ChecksumPolynomial = 0xEDB88320;
     private const int AllArmies = 0xff;
-    private const int EffectCount = Graphics.EffectCount;
     private const int FirstMouseClick = 0x400;
     private const int CursorOff = -1;
     private const int HardwareCursor = 0x100;

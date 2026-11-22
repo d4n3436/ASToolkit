@@ -48,7 +48,7 @@ public partial class Picture
                 else
                 {
                     var bounds = GetBounds(true, true);
-                    var header = MemoryMarshal.Read<VidLayerHeader>(buffer);
+                    ref var header = ref MemoryMarshal.AsRef<VidLayerHeader>(buffer);
                     if (Flags.HasFlag(PictureFlags.Palette))
                     {
                         header.Format = VidPixelFormat.P8;
@@ -64,7 +64,6 @@ public partial class Picture
 
                     header.Width = (short)bounds.Width;
                     header.Height = (short)bounds.Height;
-                    MemoryMarshal.Write(buffer, header);
                     length = LayerHeaderSize;
                     for (int y = bounds.Top; y < bounds.Bottom; y++)
                     {

@@ -135,18 +135,21 @@ public sealed partial class Graphics
         int i = top * screen.DepthWidth + left;
         int sourceIndex = 0;
         int rowWidth = right - left;
+        var depth = screen.Depth;
         while (i < end)
         {
-            for (int column = left; column < right; column++)
+            int count = i < 0 || sourceIndex < 0 ? 0 : Math.Min(rowWidth, Math.Min(depth.Length - i, texture.Length - sourceIndex));
+            if (count > 0)
             {
-                if ((uint)i >= (uint)screen.Depth.Length || (uint)sourceIndex >= (uint)texture.Length)
-                    return;
-
-                screen.Depth[i++] = texture[sourceIndex++];
+                texture.Slice(sourceIndex, count).CopyTo(depth.Slice(i, count));
             }
 
-            i += screen.DepthWidth - rowWidth;
-            sourceIndex += texturePitch / sizeof(ushort) - rowWidth;
+            if (count < rowWidth)
+                return;
+
+            int copied = Math.Max(rowWidth, 0);
+            i += copied + screen.DepthWidth - rowWidth;
+            sourceIndex += copied + texturePitch / sizeof(ushort) - rowWidth;
         }
     }
 }

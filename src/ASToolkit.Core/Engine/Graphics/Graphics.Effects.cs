@@ -251,9 +251,9 @@ public sealed partial class Graphics
 
     [EngineRoutine(0x00434180)]
     private static void DrawFlash(Screen screen, uint color) =>
-        ScreenPrimitives.FillRectangle(screen, new Rectangle(Point.Empty, screen.Size), Color.FromArgb((int)color), BlendFactor.DestinationColor, BlendFactor.One);
+        ScreenPrimitives.FillRectangle(screen, new Rectangle(Point.Empty, screen.Size), color, BlendFactor.DestinationColor, BlendFactor.One);
 
     [EngineRoutine(0x00434060)]
     private static void DrawFade(Screen screen, uint color) =>
-        ScreenPrimitives.FillRectangle(screen, new Rectangle(Point.Empty, screen.Size), Color.FromArgb((int)color), BlendFactor.Zero, BlendFactor.InverseSourceColor);
+        ScreenPrimitives.FillRectangle(screen, new Rectangle(Point.Empty, screen.Size), color, BlendFactor.Zero, BlendFactor.InverseSourceColor);
 }

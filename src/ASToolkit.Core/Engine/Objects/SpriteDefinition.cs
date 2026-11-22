@@ -386,11 +386,6 @@ public class SpriteDefinition
     public Span<Gamma> Gammas => _gammas;
 
     /// <summary>
-    /// Gets the recolored sprites of the definition per army.
-    /// </summary>
-    public Span<int> Recolored => _recolored;
-
-    /// <summary>
     /// Gets the health of a new sprite of the definition per army.
     /// </summary>
     public Span<int> ArmyMaxHp => _armyMaxHp;

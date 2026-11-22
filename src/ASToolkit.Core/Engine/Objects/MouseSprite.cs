@@ -51,11 +51,6 @@ public sealed class MouseSprite : Sprite
     public bool IsCursorLoaded { get; private set; }
 
     /// <summary>
-    /// Gets the cursor file loaded for each animation while the system cursor is loaded; <see langword="null"/> stands for the standard arrow when the file couldn't be found.
-    /// </summary>
-    public ReadOnlySpan<string?> CursorFiles => _cursorFiles;
-
-    /// <summary>
     /// Gets the animation whose system cursor is showing, or -1 when no system cursor is set.
     /// </summary>
     public int ShownCursor { get; private set; } = NoCursor;

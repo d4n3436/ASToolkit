@@ -52,7 +52,7 @@ public sealed class HighColorSpriteDefinition : SoftwareSpriteDefinition
             return;
 
         Span<byte> scratch = stackalloc byte[PaletteScratchSize];
-        DrawRuns(screen, map, sprite, origin, SelectPalette(map, sprite, Buffer, scratch));
+        DrawRuns(screen, map, sprite, origin, SelectPalette(map, sprite, Palettes, scratch));
     }
 
     /// <summary>
@@ -78,14 +78,14 @@ public sealed class HighColorSpriteDefinition : SoftwareSpriteDefinition
         if (IsOutside(target.Clip, origin, FrameSize))
             return;
 
-        DrawRuns(target, map, sprite, origin, Buffer[GetPaletteOffset(sprite)..]);
+        DrawRuns(target, map, sprite, origin, Palettes[GetPaletteOffset(sprite)..]);
     }
 
     private void DrawRuns(Screen target, Map map, Sprite sprite, Point origin, ReadOnlySpan<byte> paletteBytes)
     {
         var clip = target.Clip;
         int depth = GetDepth(map, sprite, ref origin);
-        if (!ReadFrame(Buffer, clip, FrameOffsets[sprite.Frame], origin.Y, out int top, out int rowCount, out int end, out int position))
+        if (!ReadFrame(Frames, clip, FrameOffsets[sprite.Frame], origin.Y, out int top, out int rowCount, out int end, out int position))
             return;
 
         bool clipped = origin.X < clip.Left || clip.Right < origin.X + FrameSize.Width;
@@ -105,7 +105,7 @@ public sealed class HighColorSpriteDefinition : SoftwareSpriteDefinition
                 int pixelSize = isPalette ? sizeof(byte) : sizeof(ushort);
                 depth = BiasDepth(depth);
                 int step = 0;
-                SkipRows(Buffer, ref position, ref top, ref rowCount, clip.Top, pixelSize);
+                SkipRows(Frames, ref position, ref top, ref rowCount, clip.Top, pixelSize);
                 if (HasSlope())
                 {
                     depth += rowCount * Cell;
@@ -117,20 +117,20 @@ public sealed class HighColorSpriteDefinition : SoftwareSpriteDefinition
                 for (int row = top; row < end; row++)
                 {
                     int x = origin.X;
-                    while (!RunAt(Buffer, position).IsEnd)
+                    while (!RunAt(Frames, position).IsEnd)
                     {
-                        var run = RunAt(Buffer, position);
+                        ref readonly var run = ref RunAt(Frames, position);
                         int start = x + run.Skip;
                         int length = run.Count;
                         int pixels = position + RunHeader;
                         bool visible = ClipRunToRow(clip, clipped, start, length, out int first, out int offset, out int count);
-                        var words = MemoryMarshal.Cast<byte, ushort>(Buffer[pixels..]);
+                        var words = MemoryMarshal.Cast<byte, ushort>(Frames[pixels..]);
                         for (int i = 0; visible && i < count; i++)
                         {
                             if (depths[depthRow + first + i] <= depth)
                             {
                                 depths[depthRow + first + i] = (ushort)depth;
-                                colors[colorRow + first + i] = isPalette ? palette[Buffer[pixels + offset + i]] : words[offset + i];
+                                colors[colorRow + first + i] = isPalette ? palette[Frames[pixels + offset + i]] : words[offset + i];
                             }
                         }
 
@@ -146,12 +146,12 @@ public sealed class HighColorSpriteDefinition : SoftwareSpriteDefinition
             }
             else
             {
-                DrawDepthRuns(target, colors, palette, Buffer, origin, clipped, position, top, rowCount, end, (short)depth);
+                DrawDepthRuns(target, colors, palette, Frames, origin, clipped, position, top, rowCount, end, (short)depth);
             }
         }
         else
         {
-            DrawBlendedRuns(target, MemoryMarshal.Cast<byte, uint>(paletteBytes), Buffer, origin, clipped, position, top, rowCount, end, depth);
+            DrawBlendedRuns(target, MemoryMarshal.Cast<byte, uint>(paletteBytes), Frames, origin, clipped, position, top, rowCount, end, depth);
         }
     }
 

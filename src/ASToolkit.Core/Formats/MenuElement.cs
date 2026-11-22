@@ -29,7 +29,7 @@ public readonly struct MenuElement
     /// <summary>
     /// Gets the sprite of the element, in menu pixels.
     /// </summary>
-    public MapSprite Sprite => new(MemoryMarshal.Read<OldMapSprite>(_data.Span), _version < MapHeader.FloatVersion);
+    public MapSprite Sprite => new(MemoryMarshal.AsRef<OldMapSprite>(_data.Span), _version < MapHeader.FloatVersion);
 
     /// <summary>
     /// Gets the orders of the element's sprite, empty for packed elements.

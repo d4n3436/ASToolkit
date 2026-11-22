@@ -40,12 +40,12 @@ public partial class SoftwareSpriteDefinition
             return;
 
         int depth = GetDepth(map, sprite, ref origin);
-        if (!ReadFrame(Buffer, clip, FrameOffsets[sprite.Frame], origin.Y, out int top, out int rowCount, out int end, out int position))
+        if (!ReadFrame(Frames, clip, FrameOffsets[sprite.Frame], origin.Y, out int top, out int rowCount, out int end, out int position))
             return;
 
         bool clipped = origin.X < clip.Left || clip.Right < origin.X + FrameSize.Width;
         Span<byte> scratch = stackalloc byte[PaletteScratchSize];
-        var palette = MemoryMarshal.Cast<byte, uint>(SelectPalette(map, sprite, Buffer, scratch));
+        var palette = MemoryMarshal.Cast<byte, uint>(SelectPalette(map, sprite, Palettes, scratch));
         if (!(FileType.HasFlag(VidType.Blended) && FileType.HasFlag(VidType.Runs8Bit) && FileType.HasFlag(VidType.Palette)))
         {
             if (!FileType.HasFlag(VidType.Runs8Bit))
@@ -57,7 +57,7 @@ public partial class SoftwareSpriteDefinition
                 {
                     depth = BiasDepth(depth);
                     int step = 0;
-                    SkipRows(Buffer, ref position, ref top, ref rowCount, clip.Top, sizeof(ushort));
+                    SkipRows(Frames, ref position, ref top, ref rowCount, clip.Top, sizeof(ushort));
                     if (HasSlope())
                     {
                         depth += rowCount * Cell;
@@ -69,13 +69,13 @@ public partial class SoftwareSpriteDefinition
                     for (int row = top; row < end; row++)
                     {
                         int x = origin.X;
-                        while (!RunAt(Buffer, position).IsEnd)
+                        while (!RunAt(Frames, position).IsEnd)
                         {
-                            var run = RunAt(Buffer, position);
+                            ref readonly var run = ref RunAt(Frames, position);
                             int start = x + run.Skip;
                             int pixels = position + RunHeader;
                             bool visible = ClipRunToRow(clip, clipped, start, run.Count, out int first, out int offset, out int count);
-                            var words = MemoryMarshal.Cast<byte, ushort>(Buffer[pixels..]);
+                            var words = MemoryMarshal.Cast<byte, ushort>(Frames[pixels..]);
                             for (int i = 0; visible && i < count; i++)
                             {
                                 if (screen.Depth[depthRow + first + i] <= depth)
@@ -99,7 +99,7 @@ public partial class SoftwareSpriteDefinition
                 {
                     depth = BiasDepth(depth);
                     int step = 0;
-                    SkipRows(Buffer, ref position, ref top, ref rowCount, clip.Top, sizeof(byte));
+                    SkipRows(Frames, ref position, ref top, ref rowCount, clip.Top, sizeof(byte));
                     if (HasSlope())
                     {
                         depth += rowCount * Cell;
@@ -112,15 +112,15 @@ public partial class SoftwareSpriteDefinition
                     for (int row = top; row < end; row++)
                     {
                         int x = origin.X;
-                        while (!RunAt(Buffer, position).IsEnd)
+                        while (!RunAt(Frames, position).IsEnd)
                         {
-                            var run = RunAt(Buffer, position);
+                            ref readonly var run = ref RunAt(Frames, position);
                             int start = x + run.Skip;
                             int pixels = position + RunHeader;
                             bool visible = ClipRunToRow(clip, clipped, start, run.Count, out int first, out int offset, out int count);
                             if (visible && clipped)
                             {
-                                DrawPaletteRun(screen, palette, Buffer[(pixels + offset)..], depthRow + first, colorRow + first, count, key);
+                                DrawPaletteRun(screen, palette, Frames[(pixels + offset)..], depthRow + first, colorRow + first, count, key);
                             }
                             else if (visible)
                             {
@@ -129,7 +129,7 @@ public partial class SoftwareSpriteDefinition
                                     if (screen.Depth[depthRow + first + i] <= depth)
                                     {
                                         screen.Depth[depthRow + first + i] = (ushort)depth;
-                                        screen.TrueColorPixels[colorRow + first + i] = palette[Buffer[pixels + offset + i]];
+                                        screen.TrueColorPixels[colorRow + first + i] = palette[Frames[pixels + offset + i]];
                                     }
                                 }
                             }
@@ -148,12 +148,12 @@ public partial class SoftwareSpriteDefinition
             }
             else
             {
-                DrawDepthRuns(screen, screen.TrueColorPixels, palette, Buffer, origin, clipped, position, top, rowCount, end, (short)depth);
+                DrawDepthRuns(screen, screen.TrueColorPixels, palette, Frames, origin, clipped, position, top, rowCount, end, (short)depth);
             }
         }
         else
         {
-            DrawBlendedRuns(screen, palette, Buffer, origin, clipped, position, top, rowCount, end, depth);
+            DrawBlendedRuns(screen, palette, Frames, origin, clipped, position, top, rowCount, end, depth);
         }
     }
 
@@ -272,7 +272,7 @@ public partial class SoftwareSpriteDefinition
             int x = origin.X;
             while (!RunAt(data, position).IsEnd)
             {
-                var run = RunAt(data, position);
+                ref readonly var run = ref RunAt(data, position);
                 int start = x + run.Skip;
                 int pixels = position + RunHeader;
                 bool visible = ClipRunToRow(clip, clipped, start, run.Count, out int first, out int offset, out int count);
@@ -332,7 +332,7 @@ public partial class SoftwareSpriteDefinition
             int x = origin.X;
             while (!RunAt(data, position).IsEnd)
             {
-                var run = RunAt(data, position);
+                ref readonly var run = ref RunAt(data, position);
                 int start = x + run.Skip;
                 int pixels = position + RunHeader;
                 if (ClipRunToRow(clip, clipped, start, run.Count, out int first, out int offset, out int count))
@@ -380,8 +380,8 @@ public partial class SoftwareSpriteDefinition
 
     private protected static bool ReadFrame(ReadOnlySpan<byte> data, Rectangle clip, int record, int originY, out int top, out int rowCount, out int end, out int position)
     {
-        int rows = record + MemoryMarshal.Read<VidFrameHeader>(data[record..]).Size;
-        var header = MemoryMarshal.Read<VidRowsHeader>(data[rows..]);
+        int rows = record + MemoryMarshal.AsRef<VidFrameHeader>(data[record..]).Size;
+        ref readonly var header = ref MemoryMarshal.AsRef<VidRowsHeader>(data[rows..]);
         top = header.First + originY;
         rowCount = header.Count;
         end = rowCount + top;
@@ -468,5 +468,5 @@ public partial class SoftwareSpriteDefinition
 
     private protected static uint BlendChannel(int destination, int source, int inverse, int weight) => (uint)Math.Clamp(destination * inverse + source * weight >> Gamma.ChannelBits, 0, 0xff);
 
-    private protected static VidRunHeader RunAt(ReadOnlySpan<byte> data, int position) => MemoryMarshal.Read<VidRunHeader>(data[position..]);
+    private protected static ref readonly VidRunHeader RunAt(ReadOnlySpan<byte> data, int position) => ref MemoryMarshal.AsRef<VidRunHeader>(data[position..]);
 }
