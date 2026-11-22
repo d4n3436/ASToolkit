@@ -2,10 +2,10 @@ using System.Drawing;
 using System.Numerics;
 using ASToolkit.Engine;
 using ASToolkit.Formats;
-using ASToolkit.Core.Reference;
+using ASToolkit.Analysis.Reference;
 using ASToolkit.Bot.Rendering;
-using ASToolkit.Core.Routes;
-using ASToolkit.Core.Scripting;
+using ASToolkit.Analysis.Routes;
+using ASToolkit.Analysis.Scripting;
 using SixLabors.ImageSharp.PixelFormats;
 
 namespace ASToolkit.Bot;

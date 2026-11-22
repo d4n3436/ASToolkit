@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Buffers.Text;
 using ASToolkit.Engine.IO;
-using ASToolkit.Formats;
+using ASToolkit.Core;
 
 namespace ASToolkit.Engine.Scripts;
 

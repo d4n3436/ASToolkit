@@ -1,0 +1,59 @@
+using ASToolkit.Formats;
+using ASToolkit.Analysis.Levels;
+using ASToolkit.Analysis.Reference;
+
+namespace ASToolkit.Generation.Output;
+
+/// <summary>
+/// Provides the army that the original levels give each object.
+/// </summary>
+public sealed class ArmyTable
+{
+    private readonly Dictionary<KnownObject, Army> _armies;
+
+    private ArmyTable(Dictionary<KnownObject, Army> armies)
+    {
+        _armies = armies;
+    }
+
+    /// <summary>
+    /// Reads the most common army of every object ID from the given original maps.
+    /// </summary>
+    /// <param name="references">The original levels.</param>
+    /// <param name="levels">The names of the original maps to read.</param>
+    /// <returns>The table of armies.</returns>
+    public static ArmyTable Load(ReferenceLevelSet references, IEnumerable<string> levels)
+    {
+        var counts = new Dictionary<KnownObject, List<(Army Army, int Count)>>();
+        foreach (string level in levels)
+        {
+            foreach (var sprite in references.GetLevel(level).Map.Sprites)
+            {
+                if (!counts.TryGetValue(sprite.Id, out var list))
+                {
+                    list = [];
+                    counts[sprite.Id] = list;
+                }
+
+                int i = list.FindIndex(t => t.Army == sprite.Army);
+                if (i < 0)
+                {
+                    list.Add((sprite.Army, 1));
+                }
+                else
+                {
+                    list[i] = (sprite.Army, list[i].Count + 1);
+                }
+            }
+        }
+
+        return new ArmyTable(counts.ToDictionary(p => p.Key, p => p.Value.OrderByDescending(t => t.Count).First().Army));
+    }
+
+    /// <summary>
+    /// Returns the army for an object ID.
+    /// </summary>
+    /// <param name="id">The object ID.</param>
+    /// <returns>The army of the object.</returns>
+    public Army GetArmy(KnownObject id) => _armies.TryGetValue(id, out var army) ? army : KnownObject.Monsters.Contains(id) || KnownObject.Bosses.Contains(id) ? Army.Monsters : Army.Player;
+}

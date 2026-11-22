@@ -1,7 +1,7 @@
 using System.Drawing;
 using ASToolkit.Formats;
-using ASToolkit.Core.Levels;
-using ASToolkit.Core.Reference;
+using ASToolkit.Analysis.Levels;
+using ASToolkit.Analysis.Reference;
 using Xunit;
 
 namespace ASToolkit.Tests.Levels;

@@ -1,5 +1,5 @@
 using System.Collections.ObjectModel;
-using ASToolkit.Core.Levels;
+using ASToolkit.Analysis.Levels;
 using Xunit;
 
 namespace ASToolkit.Tests.Levels;

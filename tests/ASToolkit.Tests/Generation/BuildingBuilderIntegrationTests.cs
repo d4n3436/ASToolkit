@@ -1,8 +1,8 @@
-using ASToolkit.Core.Generation.Buildings;
-using ASToolkit.Core.Generation.Mission;
-using ASToolkit.Core.Levels;
-using ASToolkit.Core.Reference;
-using ASToolkit.Core.Survey;
+using ASToolkit.Generation.Buildings;
+using ASToolkit.Generation.Mission;
+using ASToolkit.Analysis.Levels;
+using ASToolkit.Analysis.Reference;
+using ASToolkit.Analysis.Survey;
 using Xunit;
 
 namespace ASToolkit.Tests.Generation;
@@ -28,7 +28,7 @@ public class BuildingBuilderIntegrationTests
     private static int CountWalledRooms(ReferenceLevel level)
     {
         int[] closets = level.Atlas.Rooms
-            .Where(room => room.Type == Core.Rooms.RoomType.Closet)
+            .Where(room => room.Type == Analysis.Rooms.RoomType.Closet)
             .Select(room => room.Place.Cells.Count)
             .Order()
             .ToArray();
@@ -53,7 +53,7 @@ public class BuildingBuilderIntegrationTests
                 : keys.Contains(LandmarkKind.BlackoutTrigger) ? LevelStyle.Blackout
                 : keys.Contains(LandmarkKind.Breaker) ? LevelStyle.LockedDoors
                 : LevelStyle.Ungated,
-            Rooms = original.Atlas.Rooms.Count(room => room.Type is not (Core.Rooms.RoomType.Hall or Core.Rooms.RoomType.Passage or Core.Rooms.RoomType.Closet)) + CountWalledRooms(original),
+            Rooms = original.Atlas.Rooms.Count(room => room.Type is not (Analysis.Rooms.RoomType.Hall or Analysis.Rooms.RoomType.Passage or Analysis.Rooms.RoomType.Closet)) + CountWalledRooms(original),
             Style = level.StartsWith("ADDON", StringComparison.Ordinal) ? GenerationStyle.AddOn : GenerationStyle.Campaign,
             IsIntro = level is "Level_02.map" or "ADDON/Level_02.map" or "ADDON2/Level_04.map",
             HasSites = false,
@@ -167,7 +167,7 @@ public class BuildingBuilderIntegrationTests
         }
 
         Assert.True(walkable.SetEquals(reached), $"{name}: rooms {string.Join(", ", walkable.Except(reached))} out of reach of the start");
-        int regular = building.Rooms.Count(room => room.Kind == BuildingRoomKind.Room && room.Type != Core.Rooms.RoomType.Passage);
+        int regular = building.Rooms.Count(room => room.Kind == BuildingRoomKind.Room && room.Type != Analysis.Rooms.RoomType.Passage);
         Assert.True(regular >= request.Rooms * 0.7, $"{name}: {regular} rooms built of {request.Rooms}");
         foreach (var room in building.Rooms.Where(room => room.Kind is BuildingRoomKind.SecretCloset or BuildingRoomKind.SpawnCloset or BuildingRoomKind.SecretRoom))
         {

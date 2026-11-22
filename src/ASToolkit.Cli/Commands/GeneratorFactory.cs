@@ -1,7 +1,7 @@
 using ASToolkit.Formats;
-using ASToolkit.Core.Generation;
-using ASToolkit.Core.Reference;
-using ASToolkit.Core.Scripting;
+using ASToolkit.Generation;
+using ASToolkit.Analysis.Reference;
+using ASToolkit.Analysis.Scripting;
 using Spectre.Console;
 
 namespace ASToolkit.Cli.Commands;

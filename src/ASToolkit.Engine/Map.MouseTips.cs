@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Text.Unicode;
 using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
+using ASToolkit.Core;
 
 namespace ASToolkit.Engine;
 

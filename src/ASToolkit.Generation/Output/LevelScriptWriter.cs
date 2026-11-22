@@ -1,0 +1,130 @@
+using ASToolkit.Formats;
+
+namespace ASToolkit.Generation.Output;
+
+/// <summary>
+/// Provides the writing of level scripts.
+/// </summary>
+public static class LevelScriptWriter
+{
+    /// <summary>
+    /// Returns the music definitions of an original script, or the first campaign tracks if the script doesn't define any.
+    /// </summary>
+    /// <param name="originalScriptPath">The path of the original script.</param>
+    /// <returns>The music definition lines.</returns>
+    public static IReadOnlyList<string> ReadMusicLines(string originalScriptPath)
+    {
+        if (File.Exists(originalScriptPath))
+        {
+            string[] lines = GameTextEncoding.Cyrillic.GetString(File.ReadAllBytes(originalScriptPath))
+                .Split('\n')
+                .Select(l => l.TrimEnd('\r'))
+                .Where(l => l.StartsWith("#define MUSIC", StringComparison.Ordinal))
+                .ToArray();
+            
+            if (lines.Length > 0)
+            {
+                return lines;
+            }
+        }
+
+        return ["#define MUSIC0 \"music\\\\mus01.ogg\"", "#define MUSIC1 \"music\\\\mus02.ogg\""];
+    }
+
+    /// <summary>
+    /// Writes a level script.
+    /// </summary>
+    /// <param name="path">The path of the script file to write.</param>
+    /// <param name="script">The script to write.</param>
+    public static void Write(string path, LevelScript script) => File.WriteAllBytes(path, Format(script));
+
+    /// <summary>
+    /// Returns the bytes of a level script.
+    /// </summary>
+    /// <param name="script">The script to format.</param>
+    /// <returns>The bytes of the script.</returns>
+    public static byte[] Format(LevelScript script)
+    {
+        var lines = new List<string>(script.MusicLines)
+        {
+            "",
+            "#include \"maps\\export.lgc\"",
+            "#include \"maps\\common.lgc\"",
+            "#include \"maps\\common_compaign.lgc\"",
+            "",
+            "main()",
+            "{",
+            "  int i;",
+            "  iff(1)",
+            "  {",
+            "    InitGame();"
+        };
+        if (script.Exit is not null)
+        {
+            lines.Add("    PlayMusicFile(\"music\\\\wind.ogg\",1);");
+        }
+
+        lines.AddRange(
+        [
+            $"    DoorsIsOpen = {(script.DoorsOpen ? 1 : 0)};",
+            "  }",
+            "  if( GameTact() )",
+            "    return;",
+            script.Exit is null ? "  CompaignGameTact();" : "//  CompaignGameTact();"
+        ]);
+        if (script.Exit is not null)
+        {
+            var exit = script.Exit.Value;
+            lines.AddRange(
+            [
+                $"  iff( SizeTo(Flagman(0),{exit.Center.X},{exit.Center.Y}) < {exit.Radius} )",
+                "  {",
+                "    Win();",
+                "    while( MenuFind(3,999999) )",
+                "      Destroy( MenuFind(3,999999) );",
+                "    LoadNextMap( \"maps\\\\shop.map\" );",
+                "  }"
+            ]);
+        }
+
+        if (script.Blackout is not null)
+        {
+            var blackout = script.Blackout.Value;
+            lines.AddRange(
+            [
+                $"  iff( SizeTo(Flagman(0),{blackout.Center.X},{blackout.Center.Y}) < {blackout.Radius} )",
+                "  {//blackout: lights off, doors locked until the breaker",
+                "    StartPlayerX=GetX(Flagman(0)); StartPlayerY=GetY(Flagman(0)); StartPlayerZ=GetZ(Flagman(0));",
+                "    DoorsIsOpen = 0;",
+                "    PlaySFX(44);",
+                "    EarthQuake(3000);",
+                "    LightOff(0x606060);",
+                "    for( i=FirstSprite(); i; i=NextSprite() )",
+                $"      if( GetUnitVid(i)=={(int)KnownObject.KeypadOn} )",
+                "      {",
+                $"        CreateSprite({(int)KnownObject.KeypadOff},GetX(i),GetY(i),GetZ(i),GetDirection(i));",
+                "        Destroy(i);",
+                "      }",
+                "  }"
+            ]);
+        }
+
+        if (script.Checkpoint is not null)
+        {
+            (int x, int y) = ((int)script.Checkpoint.Value.X, (int)script.Checkpoint.Value.Y);
+            lines.AddRange(
+            [
+                $"  iff( SizeTo(Flagman(0),{x},{y}) < 120 )",
+                "  {",
+                $"    StartPlayerX = {x};",
+                $"    StartPlayerY = {y};",
+                "    StartPlayerZ = 0;",
+                "  }"
+            ]);
+        }
+
+        lines.Add("}");
+        lines.Add("");
+        return GameTextEncoding.Cyrillic.GetBytes(string.Join("\r\n", lines));
+    }
+}

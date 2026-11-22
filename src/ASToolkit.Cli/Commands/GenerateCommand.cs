@@ -1,8 +1,8 @@
-using ASToolkit.Core.Generation;
+using ASToolkit.Generation;
 using Spectre.Console;
 using Spectre.Console.Cli;
-using ASToolkit.Core.Patching;
-using ASToolkit.Core.Reference;
+using ASToolkit.Generation.Patching;
+using ASToolkit.Analysis.Reference;
 
 namespace ASToolkit.Cli.Commands;
 

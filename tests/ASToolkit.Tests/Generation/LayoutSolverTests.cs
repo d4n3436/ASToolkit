@@ -1,6 +1,6 @@
 using System.Drawing;
-using ASToolkit.Core.Generation.Buildings;
-using ASToolkit.Core.Levels;
+using ASToolkit.Generation.Buildings;
+using ASToolkit.Analysis.Levels;
 using Xunit;
 
 namespace ASToolkit.Tests.Generation;

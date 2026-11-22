@@ -1,5 +1,5 @@
 using System.ComponentModel;
-using ASToolkit.Core.Reference;
+using ASToolkit.Analysis.Reference;
 using Spectre.Console;
 using Spectre.Console.Cli;
 

@@ -1,6 +1,6 @@
 using System.Numerics;
 using ASToolkit.Formats;
-using ASToolkit.Core.Scripting;
+using ASToolkit.Analysis.Scripting;
 
 namespace ASToolkit.Cli.Commands;
 

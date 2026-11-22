@@ -1,9 +1,9 @@
 using ASToolkit.Core;
 using ASToolkit.Formats;
-using ASToolkit.Core.Generation.Campaign;
-using ASToolkit.Core.Levels;
-using ASToolkit.Core.Reference;
-using ASToolkit.Core.Survey;
+using ASToolkit.Generation.Campaign;
+using ASToolkit.Analysis.Levels;
+using ASToolkit.Analysis.Reference;
+using ASToolkit.Analysis.Survey;
 using Xunit;
 
 namespace ASToolkit.Tests.Generation;

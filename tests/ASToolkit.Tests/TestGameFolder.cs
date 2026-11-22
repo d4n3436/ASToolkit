@@ -1,7 +1,7 @@
 using ASToolkit.Engine;
 using ASToolkit.Formats;
-using ASToolkit.Core.Reference;
-using ASToolkit.Core.Scripting;
+using ASToolkit.Analysis.Reference;
+using ASToolkit.Analysis.Scripting;
 using Xunit;
 
 namespace ASToolkit.Tests;

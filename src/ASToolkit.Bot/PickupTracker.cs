@@ -1,6 +1,6 @@
 using ASToolkit.Engine;
 using ASToolkit.Formats;
-using ASToolkit.Core.Levels;
+using ASToolkit.Analysis.Levels;
 
 namespace ASToolkit.Bot;
 

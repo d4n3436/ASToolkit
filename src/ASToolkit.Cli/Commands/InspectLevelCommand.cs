@@ -1,9 +1,9 @@
 using ASToolkit.Cli.Analysis;
-using ASToolkit.Core.Survey;
+using ASToolkit.Analysis.Survey;
 using ASToolkit.Engine;
 using ASToolkit.Formats;
 using ASToolkit.Bot;
-using ASToolkit.Core.Reference;
+using ASToolkit.Analysis.Reference;
 using ASToolkit.Bot.Rendering;
 using SixLabors.ImageSharp;
 using Spectre.Console;

@@ -3,8 +3,7 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../ASToolkit.Engine/ASToolkit.Engine.csproj" />
-    <ProjectReference Include="../ASToolkit.Core/ASToolkit.Core.csproj" />
+    <ProjectReference Include="../ASToolkit.Analysis/ASToolkit.Analysis.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="ASToolkit.Tests" />

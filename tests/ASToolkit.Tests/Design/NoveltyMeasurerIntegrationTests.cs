@@ -1,6 +1,6 @@
-using ASToolkit.Core.Design;
+using ASToolkit.Analysis.Design;
 using ASToolkit.Formats;
-using ASToolkit.Core.Reference;
+using ASToolkit.Analysis.Reference;
 using Xunit;
 
 namespace ASToolkit.Tests.Design;

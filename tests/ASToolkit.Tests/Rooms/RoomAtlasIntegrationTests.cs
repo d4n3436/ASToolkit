@@ -1,6 +1,6 @@
-using ASToolkit.Core.Levels;
-using ASToolkit.Core.Rooms;
-using ASToolkit.Core.Survey;
+using ASToolkit.Analysis.Levels;
+using ASToolkit.Analysis.Rooms;
+using ASToolkit.Analysis.Survey;
 using Xunit;
 
 namespace ASToolkit.Tests.Rooms;

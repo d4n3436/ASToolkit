@@ -1,9 +1,9 @@
 using System.Text;
 using ASToolkit.Formats;
-using ASToolkit.Core.Levels;
-using ASToolkit.Core.Routes;
+using ASToolkit.Analysis.Levels;
+using ASToolkit.Analysis.Routes;
 using Xunit;
-using ASToolkit.Core.Scripting;
+using ASToolkit.Analysis.Scripting;
 
 namespace ASToolkit.Tests.Routes;
 

@@ -11,6 +11,7 @@
     <None Include="Fixtures/*.dem" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="../../src/ASToolkit.Generation/ASToolkit.Generation.csproj" />
     <ProjectReference Include="../../src/ASToolkit.Bot/ASToolkit.Bot.csproj" />
   </ItemGroup>
 </Project>

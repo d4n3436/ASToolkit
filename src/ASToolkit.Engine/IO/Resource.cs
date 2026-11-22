@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using ASToolkit.Formats;
+using ASToolkit.Core;
 
 namespace ASToolkit.Engine.IO;
 

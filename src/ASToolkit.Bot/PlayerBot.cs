@@ -1,8 +1,9 @@
 using System.Numerics;
 using ASToolkit.Engine;
 using ASToolkit.Formats;
-using ASToolkit.Core.Levels;
-using ASToolkit.Core.Routes;
+using ASToolkit.Analysis.Levels;
+using ASToolkit.Analysis.Routes;
+using ASToolkit.Core;
 
 namespace ASToolkit.Bot;
 

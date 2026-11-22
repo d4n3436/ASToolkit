@@ -3,6 +3,7 @@ using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 using System.Collections.Concurrent;
 using System.Numerics;
+using ASToolkit.Core;
 
 namespace ASToolkit.Engine;
 

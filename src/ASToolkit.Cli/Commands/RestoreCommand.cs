@@ -1,6 +1,6 @@
 using Spectre.Console;
 using Spectre.Console.Cli;
-using ASToolkit.Core.Patching;
+using ASToolkit.Generation.Patching;
 
 namespace ASToolkit.Cli.Commands;
 

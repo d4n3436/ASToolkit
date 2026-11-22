@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Runtime.InteropServices;
+using ASToolkit.Core;
 
 namespace ASToolkit.Formats;
 

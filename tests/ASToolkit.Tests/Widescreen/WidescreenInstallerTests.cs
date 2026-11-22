@@ -1,6 +1,6 @@
 using System.Buffers.Binary;
 using System.Text;
-using ASToolkit.Core.Widescreen;
+using ASToolkit.Generation.Widescreen;
 using Xunit;
 
 namespace ASToolkit.Tests.Widescreen;

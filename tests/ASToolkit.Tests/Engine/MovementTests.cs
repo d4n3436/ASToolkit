@@ -2,8 +2,8 @@ using System.Runtime.CompilerServices;
 using ASToolkit.Engine;
 using System.Numerics;
 using ASToolkit.Formats;
-using ASToolkit.Core.Levels;
-using ASToolkit.Core.Routes;
+using ASToolkit.Analysis.Levels;
+using ASToolkit.Analysis.Routes;
 using ASToolkit.Bot;
 using Xunit;
 

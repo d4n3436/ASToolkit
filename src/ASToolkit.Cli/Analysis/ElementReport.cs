@@ -1,4 +1,4 @@
-using ASToolkit.Core.Routes;
+using ASToolkit.Analysis.Routes;
 
 namespace ASToolkit.Cli.Analysis;
 

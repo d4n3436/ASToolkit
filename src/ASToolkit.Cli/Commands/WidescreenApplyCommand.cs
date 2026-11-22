@@ -1,4 +1,4 @@
-using ASToolkit.Core.Widescreen;
+using ASToolkit.Generation.Widescreen;
 using Spectre.Console;
 using Spectre.Console.Cli;
 

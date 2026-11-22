@@ -1,7 +1,7 @@
-using ASToolkit.Core.Generation.Buildings;
-using ASToolkit.Core.Generation.Mission;
-using ASToolkit.Core.Levels;
-using ASToolkit.Core.Survey;
+using ASToolkit.Generation.Buildings;
+using ASToolkit.Generation.Mission;
+using ASToolkit.Analysis.Levels;
+using ASToolkit.Analysis.Survey;
 using Xunit;
 
 namespace ASToolkit.Tests.Generation;

@@ -3,15 +3,10 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Google.OrTools" Version="9.15.6755" />
-    <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="../ASToolkit.Formats/ASToolkit.Formats.csproj" />
-    <ProjectReference Include="../ASToolkit.Engine/ASToolkit.Engine.csproj" />
-  </ItemGroup>
-  <ItemGroup>
+    <InternalsVisibleTo Include="ASToolkit.Formats" />
+    <InternalsVisibleTo Include="ASToolkit.Engine" />
+    <InternalsVisibleTo Include="ASToolkit.Analysis" />
+    <InternalsVisibleTo Include="ASToolkit.Generation" />
     <InternalsVisibleTo Include="ASToolkit.Bot" />
     <InternalsVisibleTo Include="ASToolkit.Tests" />
   </ItemGroup>

@@ -1,9 +1,9 @@
 using System.Numerics;
 using ASToolkit.Engine;
 using ASToolkit.Formats;
-using ASToolkit.Core.Levels;
-using ASToolkit.Core.Routes;
-using ASToolkit.Core.Scripting;
+using ASToolkit.Analysis.Levels;
+using ASToolkit.Analysis.Routes;
+using ASToolkit.Analysis.Scripting;
 using ASToolkit.Bot;
 using Xunit;
 

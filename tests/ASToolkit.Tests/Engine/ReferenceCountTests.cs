@@ -1,7 +1,7 @@
 using System.Numerics;
 using ASToolkit.Engine;
 using ASToolkit.Formats;
-using ASToolkit.Core.Reference;
+using ASToolkit.Analysis.Reference;
 using ASToolkit.Bot;
 using Xunit;
 

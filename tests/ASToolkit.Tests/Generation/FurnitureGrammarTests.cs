@@ -1,7 +1,7 @@
 using ASToolkit.Formats;
-using ASToolkit.Core.Generation.Dressing;
-using ASToolkit.Core.Levels;
-using ASToolkit.Core.Rooms;
+using ASToolkit.Generation.Dressing;
+using ASToolkit.Analysis.Levels;
+using ASToolkit.Analysis.Rooms;
 using Xunit;
 
 namespace ASToolkit.Tests.Generation;

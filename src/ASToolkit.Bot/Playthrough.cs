@@ -4,9 +4,9 @@ using ASToolkit.Engine;
 using ASToolkit.Engine.IO;
 using ASToolkit.Engine.Scripts;
 using ASToolkit.Formats;
-using ASToolkit.Core.Levels;
-using ASToolkit.Core.Routes;
-using ASToolkit.Core.Scripting;
+using ASToolkit.Analysis.Levels;
+using ASToolkit.Analysis.Routes;
+using ASToolkit.Analysis.Scripting;
 
 namespace ASToolkit.Bot;
 

@@ -1,5 +1,5 @@
-using ASToolkit.Core.Generation.Buildings;
-using ASToolkit.Core.Survey;
+using ASToolkit.Generation.Buildings;
+using ASToolkit.Analysis.Survey;
 
 namespace ASToolkit.Tests.Generation;
 

@@ -1,6 +1,6 @@
 using ASToolkit.Formats;
-using ASToolkit.Core.Reference;
-using ASToolkit.Core.Survey;
+using ASToolkit.Analysis.Reference;
+using ASToolkit.Analysis.Survey;
 using Xunit;
 
 namespace ASToolkit.Tests.Survey;

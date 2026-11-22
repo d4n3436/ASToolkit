@@ -1,5 +1,5 @@
 using System.Globalization;
-using ASToolkit.Core.Scripting;
+using ASToolkit.Analysis.Scripting;
 using Spectre.Console;
 using Spectre.Console.Cli;
 

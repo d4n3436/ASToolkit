@@ -1,5 +1,6 @@
 using ASToolkit.Formats;
 using System.Numerics;
+using ASToolkit.Core;
 
 namespace ASToolkit.Engine;
 

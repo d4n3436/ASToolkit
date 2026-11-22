@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Numerics;
 using ASToolkit.Formats;
 using ASToolkit.Engine.IO;
+using ASToolkit.Core;
 
 namespace ASToolkit.Engine;
 

@@ -1,12 +1,12 @@
 using System.Collections.Concurrent;
 using System.Drawing;
 using ASToolkit.Formats;
-using ASToolkit.Core.Generation;
-using ASToolkit.Core.Generation.Layout;
-using ASToolkit.Core.Generation.Output;
-using ASToolkit.Core.Levels;
-using ASToolkit.Core.Routes;
-using ASToolkit.Core.Reference;
+using ASToolkit.Generation;
+using ASToolkit.Generation.Layout;
+using ASToolkit.Generation.Output;
+using ASToolkit.Analysis.Levels;
+using ASToolkit.Analysis.Routes;
+using ASToolkit.Analysis.Reference;
 using Xunit;
 
 namespace ASToolkit.Tests.Generation;
@@ -752,7 +752,7 @@ public class LevelGeneratorIntegrationTests
                 .OrderBy(pair => pair.Key)
                 .Select(pair => (style.Item1, pair.Key.Seed, pair.Key.Level, pair.Value, style.Item2.Model, style.Item2.Objects)));
 
-    private static bool WalksAround(ASToolkit.Core.Generation.Geometry.FineLayout layout, IEnumerable<Cell> start, HashSet<Cell> end, Func<Cell, bool> avoided)
+    private static bool WalksAround(ASToolkit.Generation.Geometry.FineLayout layout, IEnumerable<Cell> start, HashSet<Cell> end, Func<Cell, bool> avoided)
     {
         var queue = new Queue<Cell>(start.Where(cell => !avoided(cell)));
         var seen = queue.ToHashSet();

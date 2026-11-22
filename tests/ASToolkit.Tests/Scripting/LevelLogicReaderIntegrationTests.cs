@@ -1,7 +1,7 @@
 using System.Numerics;
 using ASToolkit.Formats;
-using ASToolkit.Core.Routes;
-using ASToolkit.Core.Scripting;
+using ASToolkit.Analysis.Routes;
+using ASToolkit.Analysis.Scripting;
 using Xunit;
 
 namespace ASToolkit.Tests.Scripting;

@@ -1,4 +1,4 @@
-using ASToolkit.Core.Design;
+using ASToolkit.Analysis.Design;
 using Xunit;
 
 namespace ASToolkit.Tests.Design;

@@ -1,11 +1,10 @@
-using ASToolkit.Core.Levels;
+using ASToolkit.Analysis.Levels;
 using ASToolkit.Bot.Rendering;
-using ASToolkit.Core.Rooms;
+using ASToolkit.Analysis.Rooms;
 using SixLabors.Fonts;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Drawing;
 using SixLabors.ImageSharp.Drawing.Processing;
-using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using SixLabors.ImageSharp.Processing.Processors.Drawing;
@@ -151,7 +150,7 @@ internal sealed class RoomSheet
     {
         var place = room.Place;
         string type = (room.Side is null ? room.Type.ToString() : $"{room.Type} + {room.Side} side") + (room.Type == room.ProposedType ? "" : $" (classifier: {room.ProposedType})");
-        string use = place.Use == Core.Survey.PlaceUse.None ? "" : $" {place.Use}";
+        string use = place.Use == ASToolkit.Analysis.Survey.PlaceUse.None ? "" : $" {place.Use}";
         string pieces = string.Join(" ", room.Pieces.OrderByDescending(pair => pair.Value).Take(6).Select(pair => $"{(int)pair.Key}x{pair.Value}"));
         return
         [

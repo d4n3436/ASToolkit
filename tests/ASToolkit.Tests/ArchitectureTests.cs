@@ -1,14 +1,19 @@
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
-using ASToolkit.Core.Generation;
+using ASToolkit.Analysis.Routes;
+using ASToolkit.Bot;
+using ASToolkit.Core;
+using ASToolkit.Engine;
+using ASToolkit.Formats;
+using ASToolkit.Generation;
 using Xunit;
 
 namespace ASToolkit.Tests;
 
 public sealed class ArchitectureTests
 {
-    private const string Root = "ASToolkit.Core";
+    private const string Root = "ASToolkit";
     private const BindingFlags Declared = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
 
     private static readonly Dictionary<short, OpCode> OpCodesByValue = typeof(OpCodes)
@@ -16,7 +21,8 @@ public sealed class ArchitectureTests
         .Select(field => (OpCode)field.GetValue(null)!)
         .ToDictionary(code => code.Value);
 
-    private static readonly Lazy<Dictionary<string, HashSet<string>>> Edges = new(() => GetNamespaceEdges(typeof(LevelGenerator).Assembly));
+    private static readonly Lazy<Dictionary<string, HashSet<string>>> Edges = new(() => GetNamespaceEdges([typeof(ValueRange<int>).Assembly, typeof(ObjectTable).Assembly, typeof(Map).Assembly,
+        typeof(RouteAnalysis).Assembly, typeof(LevelGenerator).Assembly, typeof(Playthrough).Assembly]));
 
     [Fact]
     public void NamespacesFormNoCycle()
@@ -63,10 +69,10 @@ public sealed class ArchitectureTests
         return reached;
     }
 
-    private static Dictionary<string, HashSet<string>> GetNamespaceEdges(Assembly assembly)
+    private static Dictionary<string, HashSet<string>> GetNamespaceEdges(IEnumerable<Assembly> assemblies)
     {
         var edges = new Dictionary<string, HashSet<string>>();
-        foreach (var type in assembly.GetTypes())
+        foreach (var type in assemblies.SelectMany(assembly => assembly.GetTypes()))
         {
             string from = type.Namespace ?? "";
             if (!from.StartsWith(Root, StringComparison.Ordinal))

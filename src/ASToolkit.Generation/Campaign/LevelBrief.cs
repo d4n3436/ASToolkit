@@ -1,0 +1,122 @@
+using ASToolkit.Formats;
+using ASToolkit.Generation.Buildings;
+using ASToolkit.Analysis.Levels;
+using ASToolkit.Analysis.Survey;
+
+namespace ASToolkit.Generation.Campaign;
+
+/// <summary>
+/// Represents the targets that the campaign planner draws for a generated level.
+/// </summary>
+public sealed record LevelBrief
+{
+    /// <summary>
+    /// Gets the number of the level in its campaign, from 1.
+    /// </summary>
+    public required int Level { get; init; }
+
+    /// <summary>
+    /// Gets the kind of building the level is.
+    /// </summary>
+    public required Building Building { get; init; }
+
+    /// <summary>
+    /// Gets the wall set of the level.
+    /// </summary>
+    public required WallSet WallSet { get; init; }
+
+    /// <summary>
+    /// Gets the gate style of the level.
+    /// </summary>
+    public required LevelStyle GateStyle { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the level is the first gated indoor level of its campaign, built small.
+    /// </summary>
+    public required bool IsIntro { get; init; }
+
+    /// <summary>
+    /// Gets the hit points of the standing and spawned monsters of the level.
+    /// </summary>
+    public required int HitPoints { get; init; }
+
+    /// <summary>
+    /// Gets the share of the level's hit points in spawned monsters.
+    /// </summary>
+    public required float SpawnedShare { get; init; }
+
+    /// <summary>
+    /// Gets the floor area of the level in square pixels.
+    /// </summary>
+    public required int FloorPixels { get; init; }
+
+    /// <summary>
+    /// Gets the rooms of the level.
+    /// </summary>
+    public required int Rooms { get; init; }
+
+    /// <summary>
+    /// Gets the number of secret closets of the level.
+    /// </summary>
+    public required int SecretClosets { get; init; }
+
+    /// <summary>
+    /// Gets the weapons the campaign has brought by the level, including the level's own new ones.
+    /// </summary>
+    public required IReadOnlyList<KnownObject> Arsenal { get; init; }
+
+    /// <summary>
+    /// Gets the weapons that no earlier level of the campaign has.
+    /// </summary>
+    public required IReadOnlyList<KnownObject> NewWeapons { get; init; }
+
+    /// <summary>
+    /// Gets the weapon pickups of the level.
+    /// </summary>
+    public required IReadOnlyList<KnownObject> Weapons { get; init; }
+
+    /// <summary>
+    /// Gets the health, armor, ammunition, cash, implant and bonus pickups of the level.
+    /// </summary>
+    public required IReadOnlyDictionary<KnownObject, int> Pickups { get; init; }
+
+    /// <summary>
+    /// Gets the monster kinds of the level's standing groups and ambushes, each with its weight in a draw of one monster.
+    /// </summary>
+    public required IReadOnlyDictionary<KnownObject, float> Monsters { get; init; }
+
+    /// <summary>
+    /// Gets the monster kinds that first appear on the level.
+    /// </summary>
+    public required IReadOnlyList<KnownObject> NewMonsters { get; init; }
+
+    /// <summary>
+    /// Gets the bosses of the level.
+    /// </summary>
+    public required IReadOnlyList<KnownObject> Bosses { get; init; }
+
+    /// <summary>
+    /// Gets the money the game pays at the end of the level.
+    /// </summary>
+    public required int EndMoney { get; init; }
+
+    /// <summary>
+    /// Gets the mounted cannons of the level.
+    /// </summary>
+    public required int MountedCannons { get; init; }
+
+    /// <summary>
+    /// Gets the dynamite sites of the level.
+    /// </summary>
+    public required int DynamiteSites { get; init; }
+
+    /// <summary>
+    /// Gets the second wing of a lab level, which the campaign never repeats, or <see langword="null"/> when the building draws it.
+    /// </summary>
+    public LabWing? SecondWing { get; init; }
+
+    /// <summary>
+    /// Gets the map name of the original level that the parts of the generator that don't have a model yet still read.
+    /// </summary>
+    public required string DonorLevel { get; init; }
+}

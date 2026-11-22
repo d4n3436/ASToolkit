@@ -1,4 +1,5 @@
 using System.Runtime.Intrinsics;
+using ASToolkit.Core;
 namespace ASToolkit.Formats;
 
 /// <summary>

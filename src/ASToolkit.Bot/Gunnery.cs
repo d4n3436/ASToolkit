@@ -1,7 +1,7 @@
 using System.Numerics;
 using ASToolkit.Engine;
 using ASToolkit.Formats;
-using ASToolkit.Core.Generation.Content;
+using ASToolkit.Analysis.Reference;
 
 namespace ASToolkit.Bot;
 
@@ -9,7 +9,7 @@ internal sealed class Gunnery
 {
     private const float VerticalProjection = 4096 * 0.00017262212f;
     private const float MaxUnitHalf = 65;
-    public static readonly Vector2 ScreenHalf = FightPlanner.Screen.ToVector2() / 2;
+    public static readonly Vector2 ScreenHalf = EncounterModel.Screen.ToVector2() / 2;
     private const float GroundAimHeight = 19;
     private const float WallSlack = 16;
     private const float FlightStep = 8;

@@ -1,0 +1,254 @@
+using System.Drawing;
+using ASToolkit.Formats;
+using ASToolkit.Generation.Geometry;
+using ASToolkit.Generation.Layout;
+using ASToolkit.Generation.Output;
+using ASToolkit.Analysis.Levels;
+using ASToolkit.Analysis.Reference;
+using ASToolkit.Analysis.Scripting;
+using ASToolkit.Core;
+
+namespace ASToolkit.Generation.Content;
+
+internal sealed class EncounterPlacer
+{
+    private const float StartGap = 681;
+    private const float CannonGap = 600;
+    private const int AnchorTries = 12;
+    private const int SpawnerTries = 8;
+    private const float GoldenAngle = 2.39996f;
+    private const int MaxClustered = 47;
+    private static readonly float[] SpotShares = [0.25f, 0.5f, 0.75f];
+
+    private readonly PlacementContext _ctx;
+    private readonly EncounterModel _model;
+    private readonly List<PointF> _spawners = [];
+    private readonly IReadOnlyDictionary<EdgeKey, int> _spawnWalls;
+    private readonly PointF _start;
+    private readonly PointF[] _cannons;
+    private readonly Dictionary<int, Cell[]> _floors = [];
+
+    public EncounterPlacer(PlacementContext ctx, EncounterModel model, IReadOnlyDictionary<EdgeKey, int> spawnWalls)
+    {
+        _ctx = ctx;
+        _model = model;
+        _spawnWalls = spawnWalls;
+        _start = ctx.Layout.Lattice.GetCenter(ctx.Start);
+        _cannons = ctx.Map.Sprites
+            .Where(sprite => sprite.Id == KnownObject.MountedCannon)
+            .Select(sprite => new PointF(sprite.Position.X, sprite.Position.Y))
+            .ToArray();
+    }
+
+    public void Place(IReadOnlyList<PlannedFight> fights)
+    {
+        foreach (var fight in fights.Where(fight => fight.Trigger is null || !Release(fight)))
+        {
+            Stand(fight.Monsters, fight.Trigger is null ? fight.Rooms : fight.Rooms.Concat(GetPhaseRooms(fight)).Distinct().ToArray());
+        }
+    }
+
+    private IEnumerable<int> GetPhaseRooms(PlannedFight fight)
+    {
+        int phase = _ctx.Plan.Regions[fight.Region].Phase;
+        return _ctx.Plan.Regions
+            .Where(region => region.Phase == phase && region.Kind is RegionKind.Station or RegionKind.SideRoom && _ctx.Plan.HoldsFights(region))
+            .OrderByDescending(region => _ctx.Layout.GetRegionCells(region.Id).Count)
+            .Select(region => region.Id);
+    }
+
+    private void Stand(IReadOnlyList<KnownObject> group, IReadOnlyList<int> rooms)
+    {
+        var left = group.ToList();
+        for (int i = 0; i < rooms.Count && left.Count > 0; i++)
+        {
+            var free = GetFloor(rooms[i]);
+            var placed = free.Length == 0 ? [] : PlaceCluster(left, rooms[i], free);
+            while (placed.Count > 0)
+            {
+                left = left.Where((_, member) => !placed.Contains(member)).ToList();
+                placed = left.Count == 0 ? [] : PlaceCluster(left, rooms[i], free);
+            }
+        }
+
+        int full = 0;
+        var floor = rooms.Count == 0 ? [] : _ctx.GetFreeCells(_ctx.Plan.Regions[rooms[0]]);
+        foreach (var id in left)
+        {
+            while (full < rooms.Count && _ctx.Place(floor, id, dir: null, MapBuilder.MonsterPayload, army: Army.Monsters, take: false) is null)
+            {
+                full++;
+                floor = full < rooms.Count ? _ctx.GetFreeCells(_ctx.Plan.Regions[rooms[full]]) : [];
+            }
+        }
+    }
+
+    private Cell[] GetFloor(int room)
+    {
+        if (_floors.TryGetValue(room, out var floor))
+            return floor;
+        
+        var cells = _ctx.GetFreeCells(_ctx.Plan.Regions[room]);
+        var clear = cells
+            .Where(cell => _ctx.Layout.Lattice.GetCenter(cell).DistanceTo(_start) >= StartGap
+                           && _cannons.All(cannon => _ctx.Layout.Lattice.GetCenter(cell).DistanceTo(cannon) >= CannonGap))
+            .ToArray();
+
+        floor = _floors[room] = clear.Length > 0 ? clear : cells;
+
+        return floor;
+    }
+
+    private HashSet<int> PlaceCluster(List<KnownObject> group, int room, Cell[] free)
+    {
+        var best = new List<(int Index, PointF Point)>();
+        for (int attempt = 0; attempt < AnchorTries && best.Count < Math.Min(group.Count, MaxClustered); attempt++)
+        {
+            var anchor = _ctx.Layout.Lattice.GetCenter(free[_ctx.Rng.Next(free.Length)]);
+            var placed = new List<(int Index, PointF Point)>(MaxClustered);
+            for (int i = 0; i < Math.Min(group.Count, MaxClustered); i++)
+            {
+                float radius = _model.Spacing.Value * 0.55f * MathF.Sqrt(i), angle = i * GoldenAngle;
+                var point = new PointF(anchor.X + radius * MathF.Cos(angle), anchor.Y + radius * MathF.Sin(angle));
+                var cell = _ctx.Layout.Lattice.GetCell(point);
+                if (_ctx.Layout.Cells.GetValueOrDefault(cell, -1) == room && _ctx.Distance.ContainsKey(cell) && IsApart(placed, point) && _ctx.IsVisible(point)
+                    && !_ctx.IsInWall(point, GetHalfSize(group[i])) && _ctx.Occupancy.Fits(group[i], point, 0))
+                {
+                    placed.Add((i, point));
+                }
+            }
+
+            best = placed.Count > best.Count ? placed : best;
+        }
+
+        foreach ((int i, var point) in best)
+        {
+            _ctx.Map.Add(group[i], point.X, point.Y, 0, _ctx.Rng.NextAngle(), MapBuilder.MonsterPayload, Army.Monsters, unique: false, source: SpriteSource.Model);
+            _ctx.Occupancy.Add(group[i], point, 0);
+        }
+
+        return best.Select(member => member.Index).ToHashSet();
+    }
+
+    private float GetHalfSize(KnownObject id) => _ctx.Objects.TryFind(id, out var obj) ? Math.Max(obj.Size.X, obj.Size.Y) / 2 : 0;
+
+    private static bool IsApart(List<(int Index, PointF Point)> placed, PointF point)
+    {
+        foreach (var (_, other) in placed)
+        {
+            float x = other.X - point.X, y = other.Y - point.Y;
+            if (x * x + y * y < LevelOccupancy.UnitGap * LevelOccupancy.UnitGap)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private bool Release(PlannedFight fight)
+    {
+        var trigger = fight.Trigger!.Value;
+        var center = _ctx.Layout.Lattice.GetCenter(_ctx.Layout.GetDoorwayCell(trigger.Link, trigger.Region));
+        int radius = (int)MathF.Ceiling(_ctx.Layout.LinkEdges[trigger.Link].Max(edge => GetMiddle(edge).DistanceTo(center)) + _ctx.Step);
+        if (fight.Closet is not null)
+        {
+            return ReleaseFromCloset(fight, center, radius);
+        }
+
+        var spots = fight.Rooms
+            .SelectMany(room => _ctx.GetFreeCells(_ctx.Plan.Regions[room], inner: true))
+            .Select(free => (Cell: free, Point: _ctx.Layout.Lattice.GetCenter(free)))
+            .Where(spot => MathF.Abs(spot.Point.X - center.X) >= EncounterModel.Screen.Width / 2 + radius + _ctx.Step || MathF.Abs(spot.Point.Y - center.Y) >= EncounterModel.Screen.Height / 2 + radius + _ctx.Step)
+            .OrderBy(spot => spot.Point.DistanceTo(center))
+            .ToArray();
+
+        if (spots.Length == 0)
+        {
+            return false;
+        }
+
+        var near = spots.Where(spot => spot.Point.DistanceTo(center) <= _model.SpawnerReach.Value).DefaultIfEmpty(spots[0]).ToArray();
+        foreach (var group in fight.Groups)
+        {
+            byte[] payload = SpawnerProgram.Create(group, new TriggerArea(Point.Truncate(center), radius), [center]).ToPayload();
+            PointF? point = null;
+            var clear = near
+                .Where(spot => _spawners.All(other => other.DistanceTo(spot.Point) >= _model.SpawnerSpacing.Value) && _ctx.Occupancy.HasRoomAround(spot.Point))
+                .Take(SpawnerTries)
+                .ToArray();
+
+            foreach (var spot in clear)
+            {
+                var placed = _ctx.Place([spot.Cell], KnownObject.Spawner, dir: 0, payload: payload, army: Army.Monsters, take: false);
+                if (placed is null) 
+                    continue;
+                
+                point = placed.Value.Point;
+                break;
+            }
+
+            if (point is null)
+            {
+                var ordered = near.OrderByDescending(spot => _ctx.Occupancy.HasRoomAround(spot.Point)).ToArray();
+                var placed = _ctx.Place(ordered.Select(spot => spot.Cell).ToArray(), KnownObject.Spawner, dir: 0, payload: payload, army: Army.Monsters, take: false);
+                point = placed?.Point ?? ordered[0].Point;
+                if (placed is null)
+                {
+                    _ctx.Map.Add(KnownObject.Spawner, point.Value.X, point.Value.Y, 0, 0, payload, Army.Monsters, unique: false, source: SpriteSource.Model);
+                }
+            }
+
+            _spawners.Add(point.Value);
+        }
+
+        return true;
+    }
+
+    private bool ReleaseFromCloset(PlannedFight fight, PointF center, int radius)
+    {
+        int closet = fight.Closet!.Value;
+        var link = _ctx.Plan.Links.FirstOrDefault(link => link.To == closet);
+        if (link is null || !_spawnWalls.TryGetValue(_ctx.Layout.LinkEdges[link.Id][0], out int wallIndex))
+        {
+            return false;
+        }
+
+        var edge = _ctx.Layout.LinkEdges[link.Id][0];
+        float margin = fight.Groups.SelectMany(group => group).Max(GetHalfSize);
+        var spots = _ctx.GetRegionCells(_ctx.Plan.Regions[closet])
+            .SelectMany(cell => SpotShares.SelectMany(u => SpotShares.Select(v => _ctx.Layout.Lattice.ToWorld(cell.U + u, cell.V + v))))
+            .Where(spot => !_ctx.IsInWall(spot, margin))
+            .OrderBy(spot => spot.DistanceTo(GetMiddle(edge)))
+            .ToArray();
+
+        if (spots.Length == 0)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < fight.Groups.Count; i++)
+        {
+            var point = spots[i % spots.Length];
+            _spawners.Add(point);
+            _ctx.Map.Add(KnownObject.Spawner, point.X, point.Y, 0, 0, SpawnerProgram.Create(fight.Groups[i], new TriggerArea(Point.Truncate(center), radius), [center]).ToPayload(), Army.Monsters, unique: false,
+                source: SpriteSource.Model);
+        }
+
+        // Break the wall when the player enters the trigger
+        var wall = new SpawnerProgram
+        {
+            Actions = [new StackAction((int)ActionCode.StopStack, 0, 0, 0), new StackAction(15, 0, 0, 0), new StackAction((int)ActionCode.FlagmanTrigger, (int)center.X, (int)center.Y, radius)],
+            Trailer = new byte[4]
+        };
+        _ctx.Map.Sprites[wallIndex] = _ctx.Map.Sprites[wallIndex] with { Payload = wall.ToPayload() };
+        return true;
+    }
+
+    private PointF GetMiddle(EdgeKey edge)
+    {
+        var (a, b) = edge.Cells;
+        var (first, second) = (_ctx.Layout.Lattice.GetCenter(a), _ctx.Layout.Lattice.GetCenter(b));
+        return new PointF((first.X + second.X) / 2, (first.Y + second.Y) / 2);
+    }
+}

@@ -1,6 +1,6 @@
 using System.Drawing;
 using ASToolkit.Formats;
-using ASToolkit.Core.Scripting;
+using ASToolkit.Analysis.Scripting;
 using Xunit;
 
 namespace ASToolkit.Tests.Scripting;

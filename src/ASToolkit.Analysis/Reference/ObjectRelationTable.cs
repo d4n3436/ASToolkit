@@ -1,0 +1,476 @@
+using System.Drawing;
+using ASToolkit.Formats;
+using ASToolkit.Analysis.Levels;
+using ASToolkit.Analysis.Survey;
+using ASToolkit.Core;
+
+namespace ASToolkit.Analysis.Reference;
+
+/// <summary>
+/// Represents how the objects of each wall set stand by other objects, walls and doorways in a set of levels.
+/// </summary>
+public sealed class ObjectRelationTable
+{
+    private const float Reach = 45;
+    private const float WallReach = 0.4f;
+    private const float FloorHeight = 5;
+    private const int PointsPerCell = 3;
+    private const int MinCount = 10;
+    private const float MinShare = 0.25f;
+    private const float MinLift = 3;
+    private const float LowQuantile = 0.05f;
+    private const int BucketSize = 80;
+    private const float TouchingShare = 0.5f;
+
+    private readonly Dictionary<(WallSet WallSet, KnownObject Id), ObjectRelations> _relations;
+    private readonly Dictionary<(WallSet WallSet, KnownObject Id, KnownObject Anchor), float> _anchorShares;
+    private readonly Dictionary<(WallSet WallSet, BlockingClass Blocking), float> _doorClearances;
+    private readonly Dictionary<(WallSet WallSet, KnownObject Anchor), ObjectCompanion[]> _companions;
+    private readonly Dictionary<(WallSet WallSet, KnownObject Anchor, KnownObject Id), float> _companionRates;
+    private readonly Dictionary<(WallSet WallSet, KnownObject Id, KnownObject Other, bool Raised), float> _spacings;
+
+    private ObjectRelationTable(Dictionary<(WallSet, KnownObject), ObjectRelations> relations, Dictionary<(WallSet, KnownObject, KnownObject), float> anchorShares,
+        Dictionary<(WallSet, BlockingClass), float> doorClearances, Dictionary<(WallSet, KnownObject), ObjectCompanion[]> companions,
+        Dictionary<(WallSet, KnownObject, KnownObject), float> companionRates, Dictionary<(WallSet, KnownObject, KnownObject, bool), float> spacings)
+    {
+        _spacings = spacings;
+        _companionRates = companionRates;
+        _relations = relations;
+        _anchorShares = anchorShares;
+        _doorClearances = doorClearances;
+        _companions = companions;
+    }
+
+    /// <summary>
+    /// Measures the relations of the objects of every basement and concrete level of a set.
+    /// </summary>
+    /// <param name="levels">The reference levels.</param>
+    /// <param name="objects">The object table.</param>
+    /// <returns>The table.</returns>
+    public static ObjectRelationTable Build(IEnumerable<ReferenceLevel> levels, ObjectTable objects)
+    {
+        var tallies = new Dictionary<WallSet, Tally>();
+        int levelIndex = 0;
+        foreach (var level in levels)
+        {
+            var wallSet = level.Model.WallSet;
+            if (wallSet == WallSet.Outdoor)
+            {
+                continue;
+            }
+
+            if (!tallies.TryGetValue(wallSet, out var tally))
+            {
+                tally = new Tally();
+                tallies[wallSet] = tally;
+            }
+
+            tally.Add(level, objects, new Random(levelIndex++));
+        }
+
+        var relations = new Dictionary<(WallSet, KnownObject), ObjectRelations>();
+        var anchorShares = new Dictionary<(WallSet, KnownObject, KnownObject), float>();
+        var doorClearances = new Dictionary<(WallSet, BlockingClass), float>();
+        var companions = new Dictionary<(WallSet, KnownObject), ObjectCompanion[]>();
+        var companionRates = new Dictionary<(WallSet, KnownObject, KnownObject), float>();
+        var spacings = new Dictionary<(WallSet, KnownObject, KnownObject, bool), float>();
+        foreach (var (wallSet, tally) in tallies)
+        {
+            foreach (((var id, var other, bool raised), float spacing) in tally.Spacings)
+            {
+                spacings[(wallSet, id, other, raised)] = spacing;
+            }
+
+            float randomShare = 1f / Math.Max(1, tally.RandomPoints);
+            foreach (var group in tally.Owned.GroupBy(pair => pair.Key.Anchor))
+            {
+                int anchorCount = tally.Counts[group.Key];
+                foreach (var pair in group)
+                {
+                    companionRates[(wallSet, group.Key, pair.Key.Id)] = pair.Value.Count / (float)anchorCount;
+                }
+
+                if (anchorCount < MinCount)
+                {
+                    continue;
+                }
+
+                var kept = group
+                    .Where(pair => IsCompanion(pair.Key.Id))
+                    .Select(pair => (pair.Key.Id, Samples: pair.Value, Share: tally.Near.GetValueOrDefault((group.Key, pair.Key.Id)) / (float)anchorCount,
+                        ByShare: tally.Near.GetValueOrDefault((pair.Key.Id, group.Key)) / (float)tally.Counts[pair.Key.Id]))
+                    .Where(entry => entry.Share >= MinShare && entry.Share / Math.Max(tally.RandomNear.GetValueOrDefault(entry.Id) * randomShare, randomShare) >= MinLift
+                                    || entry.ByShare >= MinShare && entry.ByShare / Math.Max(tally.RandomNear.GetValueOrDefault(group.Key) * randomShare, randomShare) >= MinLift)
+                    .OrderBy(entry => entry.Id)
+                    .Select(entry => new ObjectCompanion { Id = entry.Id, Rate = entry.Samples.Count / (float)anchorCount, Samples = entry.Samples.ToArray() })
+                    .ToArray();
+                if (kept.Length > 0)
+                {
+                    companions[(wallSet, group.Key)] = kept;
+                }
+            }
+
+            foreach ((var (id, anchor), int near) in tally.Near)
+            {
+                anchorShares[(wallSet, id, anchor)] = near / (float)tally.Counts[id];
+            }
+
+            foreach ((var id, int count) in tally.Counts.Where(pair => pair.Value >= MinCount))
+            {
+                var anchors = tally.Near
+                    .Where(pair => pair.Key.Id == id)
+                    .Select(pair => (pair.Key.Anchor, Share: pair.Value / (float)count,
+                        Lift: pair.Value / (float)count / Math.Max(tally.RandomNear.GetValueOrDefault(pair.Key.Anchor) / (float)tally.RandomPoints, 1f / tally.RandomPoints)))
+                    .Where(entry => entry is { Share: >= MinShare, Lift: >= MinLift })
+                    .OrderByDescending(entry => entry.Share)
+                    .ThenBy(entry => entry.Anchor)
+                    .Select(entry => new ObjectAnchor { Id = entry.Anchor, Share = entry.Share, Lift = entry.Lift, Samples = tally.Samples[(id, entry.Anchor)].ToArray() })
+                    .ToArray();
+                
+                relations[(wallSet, id)] = new ObjectRelations
+                {
+                    Id = id,
+                    WallSet = wallSet,
+                    Count = count,
+                    GroupShare = tally.Grouped.GetValueOrDefault(id) / (float)count,
+                    WallShare = tally.Walled.GetValueOrDefault(id) / (float)count,
+                    RandomWallShare = tally.RandomWalled / (float)Math.Max(1, tally.RandomPoints),
+                    Anchors = anchors
+                };
+            }
+
+            foreach (var (blocking, distances) in tally.DoorDistances.Where(pair => pair.Value.Count >= MinCount))
+            {
+                distances.Sort();
+                doorClearances[(wallSet, blocking)] = distances[(int)(LowQuantile * (distances.Count - 1))];
+            }
+        }
+
+        return new ObjectRelationTable(relations, anchorShares, doorClearances, companions, companionRates, spacings);
+    }
+
+    /// <summary>
+    /// Returns the relations of an object in the levels of a wall set.
+    /// </summary>
+    /// <param name="wallSet">The wall set.</param>
+    /// <param name="id">The object ID.</param>
+    /// <returns>The relations, or null if too few of the object stand in the levels.</returns>
+    public ObjectRelations? GetRelations(WallSet wallSet, KnownObject id) => _relations.GetValueOrDefault((wallSet, id));
+
+    /// <summary>
+    /// Returns the relations of every object measured in the levels of a wall set.
+    /// </summary>
+    /// <param name="wallSet">The wall set.</param>
+    /// <returns>The relations of the measured objects.</returns>
+    public ObjectRelations[] GetRelations(WallSet wallSet) => _relations.Values.Where(relations => relations.WallSet == wallSet).OrderBy(relations => relations.Id).ToArray();
+
+    /// <summary>
+    /// Returns the share of an object's pieces in the levels of a wall set that stand within reach of another object.
+    /// </summary>
+    /// <param name="wallSet">The wall set.</param>
+    /// <param name="id">The object ID.</param>
+    /// <param name="anchor">The ID of the other object.</param>
+    /// <returns>The share, or 0 if none of the pieces does.</returns>
+    public float GetAnchorShare(WallSet wallSet, KnownObject id, KnownObject anchor) => _anchorShares.GetValueOrDefault((wallSet, id, anchor));
+
+    /// <summary>
+    /// Returns the distance from a doorway that all but the closest 5% of the floor pieces of a blocking class keep in the levels of a wall set.
+    /// </summary>
+    /// <param name="wallSet">The wall set.</param>
+    /// <param name="blocking">The blocking class.</param>
+    /// <returns>The distance, or null if too few pieces of the class stand in the levels.</returns>
+    public float? GetDoorClearance(WallSet wallSet, BlockingClass blocking) =>
+        _doorClearances.TryGetValue((wallSet, blocking), out float distance) ? distance : null;
+
+    /// <summary>
+    /// Returns the objects that lie by an anchor object in the levels of a wall set far more often than chance would put them there.
+    /// </summary>
+    /// <param name="wallSet">The wall set.</param>
+    /// <param name="anchor">The ID of the anchor object.</param>
+    /// <returns>The companion objects.</returns>
+    public IReadOnlyList<ObjectCompanion> GetCompanions(WallSet wallSet, KnownObject anchor) => _companions.GetValueOrDefault((wallSet, anchor)) ?? [];
+
+    /// <summary>
+    /// Returns how many of an object lie by each anchor object in the levels of a wall set, on average.
+    /// </summary>
+    /// <param name="wallSet">The wall set.</param>
+    /// <param name="anchor">The ID of the anchor object.</param>
+    /// <param name="id">The ID of the object.</param>
+    /// <returns>The average number, or 0 if none of the object lies by an anchor object.</returns>
+    public float GetCompanionRate(WallSet wallSet, KnownObject anchor, KnownObject id) => _companionRates.GetValueOrDefault((wallSet, anchor, id));
+
+    /// <summary>
+    /// Returns how close the levels of a wall set stand two decor objects that block the player at the same height, as the share of their summed
+    /// sizes that their centers keep apart along the nearer axis, at most one half.
+    /// </summary>
+    /// <param name="wallSet">The wall set.</param>
+    /// <param name="id">The ID of the first object.</param>
+    /// <param name="other">The ID of the second object.</param>
+    /// <param name="raised">Whether the objects stand raised above the floor.</param>
+    /// <returns>The share of the summed sizes.</returns>
+    public float GetSpacing(WallSet wallSet, KnownObject id, KnownObject other, bool raised) =>
+        _spacings.GetValueOrDefault((wallSet, (KnownObject)Math.Min((int)id, (int)other), (KnownObject)Math.Max((int)id, (int)other), raised), TouchingShare);
+
+    /// <summary>
+    /// Counts the decor pieces of a set of levels that block the player and stand closer to another at the same height than the levels of this
+    /// table ever stand the pair.
+    /// </summary>
+    /// <param name="levels">The reference levels to count in.</param>
+    /// <param name="objects">The object table.</param>
+    /// <returns>The number of crowded pieces and the number of pieces counted.</returns>
+    public (int Crowded, int Count) CountCrowded(IEnumerable<ReferenceLevel> levels, ObjectTable objects)
+    {
+        int crowded = 0;
+        int count = 0;
+        foreach (var level in levels.Where(level => level.Model.WallSet != WallSet.Outdoor))
+        {
+            var pieces = level.Map.Sprites.Where(sprite => sprite.Id.IsDecor && objects.GetBlocking(sprite.Id) != BlockingClass.WalkThrough).ToArray();
+            foreach (var piece in pieces)
+            {
+                objects.TryFind(piece.Id, out var obj);
+                bool raised = piece.Position.Z >= FloorHeight;
+                count++;
+                if (pieces.Any(other => !ReferenceEquals(other, piece) && other.Position.Z >= FloorHeight == raised && IsCloser(piece, obj, other, level.Model.WallSet, raised, objects)))
+                {
+                    crowded++;
+                }
+            }
+        }
+
+        return (crowded, count);
+    }
+
+    /// <summary>
+    /// Returns a test of whether an object at a map point of a level of a wall set lies by the anchor object nearest it as one of that
+    /// anchor's companions.
+    /// </summary>
+    /// <param name="wallSet">The wall set.</param>
+    /// <param name="level">The level.</param>
+    /// <returns>A function that takes an object ID and a map point and returns whether the object is a companion of the nearest anchor object.</returns>
+    public Func<KnownObject, float, float, bool> GetCompanionTest(WallSet wallSet, ReferenceLevel level)
+    {
+        var anchors = level.Map.Sprites.Where(sprite => IsAnchor(sprite.Id)).ToArray();
+        return (id, x, y) =>
+        {
+            var owner = anchors
+                .Select(anchor => (anchor.Id, Distance: MathF.Sqrt((anchor.Position.X - x) * (anchor.Position.X - x) + (anchor.Position.Y - y) * (anchor.Position.Y - y))))
+                .Where(anchor => anchor.Distance <= Reach)
+                .OrderBy(anchor => anchor.Distance)
+                .Select(anchor => (KnownObject?)anchor.Id)
+                .FirstOrDefault();
+            return owner is not null && GetCompanions(wallSet, owner.Value).Any(companion => companion.Id == id);
+        };
+    }
+
+    private bool IsCloser(MergedMapSprite piece, GameObject obj, MergedMapSprite other, WallSet wallSet, bool raised, ObjectTable objects)
+    {
+        objects.TryFind(other.Id, out var otherObj);
+        float spacing = GetSpacing(wallSet, piece.Id, other.Id, raised);
+        return Math.Abs(other.Position.X - piece.Position.X) < spacing * (obj.Size.X + otherObj.Size.X)
+               && Math.Abs(other.Position.Y - piece.Position.Y) < spacing * (obj.Size.Y + otherObj.Size.Y);
+    }
+
+    private static bool IsAnchor(KnownObject id) => id.Family is not null || id == KnownObject.Spawner;
+
+    private static bool IsCompanion(KnownObject id) => id.Family is null && id is { IsDecor: true, IsBlood: false, IsCorpse: false } && id != KnownObject.FlyingGibs;
+
+    private static bool IsPiece(KnownObject id) =>
+        id != KnownObject.Earth && !KnownObject.Floors.Contains(id) && !KnownObject.BasementWalls.Contains(id) && !KnownObject.ConcreteWalls.Contains(id);
+
+    private sealed class Tally
+    {
+        public Dictionary<KnownObject, int> Counts { get; } = [];
+
+        public Dictionary<(KnownObject Id, KnownObject Anchor), int> Near { get; } = [];
+
+        public Dictionary<(KnownObject Id, KnownObject Anchor), List<AnchorSample>> Samples { get; } = [];
+
+        public Dictionary<KnownObject, int> Grouped { get; } = [];
+
+        public Dictionary<KnownObject, int> Walled { get; } = [];
+
+        public Dictionary<BlockingClass, List<float>> DoorDistances { get; } = [];
+
+        public Dictionary<(KnownObject Id, KnownObject Anchor), List<AnchorSample>> Owned { get; } = [];
+
+        public Dictionary<(KnownObject Id, KnownObject Other, bool Raised), float> Spacings { get; } = [];
+
+        public Dictionary<KnownObject, int> RandomNear { get; } = [];
+
+        public int RandomPoints { get; private set; }
+
+        public int RandomWalled { get; private set; }
+
+        public void Add(ReferenceLevel level, ObjectTable objects, Random rng)
+        {
+            var pieces = level.Map.Sprites.Where(sprite => IsPiece(sprite.Id)).ToArray();
+            var buckets = new Dictionary<Point, List<int>>();
+            for (int i = 0; i < pieces.Length; i++)
+            {
+                var key = GetBucket(pieces[i].Position.X, pieces[i].Position.Y);
+                if (!buckets.TryGetValue(key, out var bucket))
+                {
+                    bucket = [];
+                    buckets[key] = bucket;
+                }
+
+                bucket.Add(i);
+            }
+
+            var lattice = level.Model.Lattice;
+            var edges = level.Model.Edges;
+            var doorways = level.Survey.GetDoorways().Where(doorway => doorway.Kind.IsPassage).Select(doorway => doorway.Span).ToArray();
+            for (int i = 0; i < pieces.Length; i++)
+            {
+                var piece = pieces[i];
+                var position = piece.Position;
+                Counts[piece.Id] = Counts.GetValueOrDefault(piece.Id) + 1;
+                var nearest = new Dictionary<KnownObject, (float Distance, int Index)>();
+                bool grouped = false;
+                foreach (int otherIndex in GetNear(buckets, position.X, position.Y))
+                {
+                    var other = pieces[otherIndex];
+                    float distance = MathF.Sqrt((other.Position.X - position.X) * (other.Position.X - position.X) + (other.Position.Y - position.Y) * (other.Position.Y - position.Y));
+                    if (otherIndex == i || distance > Reach)
+                    {
+                        continue;
+                    }
+
+                    if (other.Id == piece.Id)
+                    {
+                        grouped = true;
+                    }
+                    else if (!nearest.TryGetValue(other.Id, out var best) || distance < best.Distance)
+                    {
+                        nearest[other.Id] = (distance, otherIndex);
+                    }
+                }
+
+                if (grouped)
+                {
+                    Grouped[piece.Id] = Grouped.GetValueOrDefault(piece.Id) + 1;
+                }
+
+                AddSpacings(pieces, buckets, i, objects);
+
+                var furniture = nearest.Where(pair => IsAnchor(pair.Key)).ToArray();
+                if (piece.Id.Family is null && furniture.Length > 0)
+                {
+                    var owner = pieces[furniture.MinBy(pair => pair.Value.Distance).Value.Index];
+                    if (!Owned.TryGetValue((piece.Id, owner.Id), out var owned))
+                    {
+                        owned = [];
+                        Owned[(piece.Id, owner.Id)] = owned;
+                    }
+
+                    owned.Add(new AnchorSample(owner.Direction, position.X - owner.Position.X, position.Y - owner.Position.Y, position.Z - owner.Position.Z, piece.Direction));
+                }
+
+                foreach ((var anchorId, (_, int anchorIndex)) in nearest)
+                {
+                    var anchor = pieces[anchorIndex];
+                    Near[(piece.Id, anchorId)] = Near.GetValueOrDefault((piece.Id, anchorId)) + 1;
+                    if (!Samples.TryGetValue((piece.Id, anchorId), out var samples))
+                    {
+                        samples = [];
+                        Samples[(piece.Id, anchorId)] = samples;
+                    }
+
+                    samples.Add(new AnchorSample(anchor.Direction, position.X - anchor.Position.X, position.Y - anchor.Position.Y, position.Z - anchor.Position.Z, piece.Direction));
+                }
+
+                (float u, float v) = lattice.ToLattice(position);
+                if (edges.FindNearestWall(u, v)?.Distance <= WallReach)
+                {
+                    Walled[piece.Id] = Walled.GetValueOrDefault(piece.Id) + 1;
+                }
+
+                var blocking = objects.GetBlocking(piece.Id);
+                if (position.Z < FloorHeight && blocking != BlockingClass.WalkThrough && doorways.Length > 0)
+                {
+                    if (!DoorDistances.TryGetValue(blocking, out var distances))
+                    {
+                        distances = [];
+                        DoorDistances[blocking] = distances;
+                    }
+
+                    distances.Add(doorways.Min(doorway => doorway.MeasureDistance(new PointF(position.X, position.Y))));
+                }
+            }
+
+            foreach (var cell in level.Model.Cells.OrderBy(cell => cell.U).ThenBy(cell => cell.V))
+            {
+                for (int point = 0; point < PointsPerCell; point++)
+                {
+                    float u = cell.U + rng.NextSingle();
+                    float v = cell.V + rng.NextSingle();
+                    var at = lattice.ToWorld(u, v);
+                    RandomPoints++;
+                    if (edges.FindNearestWall(u, v)?.Distance <= WallReach)
+                    {
+                        RandomWalled++;
+                    }
+
+                    var seen = new HashSet<KnownObject>();
+                    foreach (int otherIndex in GetNear(buckets, at.X, at.Y))
+                    {
+                        var other = pieces[otherIndex];
+                        if ((other.Position.X - at.X) * (other.Position.X - at.X) + (other.Position.Y - at.Y) * (other.Position.Y - at.Y) <= Reach * Reach && seen.Add(other.Id))
+                        {
+                            RandomNear[other.Id] = RandomNear.GetValueOrDefault(other.Id) + 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Keep, per pair of blocking objects at the same height, the smallest share of their summed sizes that their centers stood apart
+        private void AddSpacings(MergedMapSprite[] pieces, Dictionary<Point, List<int>> buckets, int index, ObjectTable objects)
+        {
+            var piece = pieces[index];
+            if (!piece.Id.IsDecor || objects.GetBlocking(piece.Id) == BlockingClass.WalkThrough || !objects.TryFind(piece.Id, out var obj))
+            {
+                return;
+            }
+
+            bool raised = piece.Position.Z >= FloorHeight;
+            foreach (int otherIndex in GetNear(buckets, piece.Position.X, piece.Position.Y))
+            {
+                var other = pieces[otherIndex];
+                if (otherIndex <= index || !other.Id.IsDecor || other.Position.Z >= FloorHeight != raised || objects.GetBlocking(other.Id) == BlockingClass.WalkThrough
+                    || !objects.TryFind(other.Id, out var otherObj))
+                {
+                    continue;
+                }
+
+                float spacing = Math.Max(Math.Abs(other.Position.X - piece.Position.X) / Math.Max(1, obj.Size.X + otherObj.Size.X),
+                    Math.Abs(other.Position.Y - piece.Position.Y) / Math.Max(1, obj.Size.Y + otherObj.Size.Y));
+                var key = ((KnownObject)Math.Min((int)piece.Id, (int)other.Id), (KnownObject)Math.Max((int)piece.Id, (int)other.Id), raised);
+                if (spacing < Spacings.GetValueOrDefault(key, TouchingShare))
+                {
+                    Spacings[key] = spacing;
+                }
+            }
+        }
+
+        private static Point GetBucket(float x, float y) => new((int)MathF.Floor(x / BucketSize), (int)MathF.Floor(y / BucketSize));
+
+        private static IEnumerable<int> GetNear(Dictionary<Point, List<int>> buckets, float x, float y)
+        {
+            (int bx, int by) = GetBucket(x, y);
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                for (int dy = -1; dy <= 1; dy++)
+                {
+                    if (buckets.TryGetValue(new Point(bx + dx, by + dy), out var bucket))
+                    {
+                        foreach (int index in bucket)
+                        {
+                            yield return index;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
