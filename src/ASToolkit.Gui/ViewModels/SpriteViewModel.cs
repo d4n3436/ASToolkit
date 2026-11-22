@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Numerics;
+using ASToolkit.Bot.Rendering;
 using ASToolkit.Engine;
 using ASToolkit.Formats;
 using ASToolkit.Gui.Core;
@@ -8,6 +9,7 @@ using ASToolkit.Gui.Models;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
 namespace ASToolkit.Gui.ViewModels;
@@ -165,7 +167,7 @@ public partial class SpriteViewModel : ViewModelBase
         }
 
         screen.CopyTo(pixels);
-        using var image = SixLabors.ImageSharp.Image.LoadPixelData(pixels, size.Width, size.Height);
+        using var image = Image.LoadPixelData(MapImage.PngConfiguration, pixels, size.Width, size.Height);
         using var opaque = image.CloneAs<Rgb24>();
         SetFrame(BitmapConversion.ToBitmap(opaque), size);
         Info = $"Frame {frame} of {definition.FileFrameCount}";

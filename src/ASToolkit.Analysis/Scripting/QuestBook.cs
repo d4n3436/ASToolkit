@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+using System.Text;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Analysis.Scripting;
@@ -6,7 +6,7 @@ namespace ASToolkit.Analysis.Scripting;
 /// <summary>
 /// Provides the quests of levels.cfg with their titles and the dialog texts of a game folder.
 /// </summary>
-public sealed partial class QuestBook
+public sealed class QuestBook
 {
     private const string QuestsFile = "levels.cfg";
     private const string MissionsFile = "Text/mission.txt";
@@ -53,15 +53,12 @@ public sealed partial class QuestBook
         var quests = new Dictionary<(int Line, int Sub), Quest>();
         foreach (var block in ReadBlocks(File.ReadAllText(questsPath, GameTextEncoding.Cyrillic)))
         {
-            var match = QuestName.Match(block.GetValueOrDefault("Quest", [""])[0]);
-            if (!match.Success)
+            string key = block.GetValueOrDefault("Quest", [""])[0];
+            if (!TryParseQuestName(key, out int line, out int sub))
             {
                 continue;
             }
 
-            int line = int.Parse(match.Groups[2].ValueSpan);
-            int sub = int.Parse(match.Groups[3].ValueSpan);
-            string key = match.Value;
             string title = titles.TryGetValue(key, out var titleLines) ? string.Join(" ", titleLines).Trim() : "";
             if (title.Length == 0)
             {
@@ -152,15 +149,14 @@ public sealed partial class QuestBook
         foreach (string rawLine in File.ReadAllLines(path, GameTextEncoding.Cyrillic))
         {
             string line = rawLine.Trim();
-            var header = SectionHeader.Match(line);
-            if (header.Success)
+            if (IsSectionHeader(line))
             {
-                current = header.Groups[1].Value;
+                current = line[1..^1];
                 sections.TryAdd(current, []);
                 continue;
             }
 
-            string text = Tag.Replace(line, "").Trim();
+            string text = RemoveTags(line).Trim();
             if (current is not null && text.Length > 0 && !line.StartsWith(';'))
             {
                 sections[current].Add(text);
@@ -170,12 +166,33 @@ public sealed partial class QuestBook
         return sections;
     }
 
-    [GeneratedRegex(@"^(\d+)_(\d+)_(\d+)$")]
-    private static partial Regex QuestName { get; }
+    private static bool TryParseQuestName(string name, out int line, out int sub)
+    {
+        string[] parts = name.Split('_');
+        line = 0;
+        sub = 0;
+        return parts.Length == 3 && parts.All(IsNumber) && int.TryParse(parts[1], out line) && int.TryParse(parts[2], out sub);
+    }
 
-    [GeneratedRegex("^<([0-9_]+)>$")]
-    private static partial Regex SectionHeader { get; }
+    private static bool IsNumber(string text) => text.Length > 0 && text.All(char.IsAsciiDigit);
 
-    [GeneratedRegex("<[^>]*>")]
-    private static partial Regex Tag { get; }
+    private static bool IsSectionHeader(string line) => line.Length > 2 && line[0] == '<' && line[^1] == '>' && line[1..^1].All(c => char.IsAsciiDigit(c) || c == '_');
+
+    private static string RemoveTags(string line)
+    {
+        var text = new StringBuilder(line.Length);
+        int start = 0;
+        while (true)
+        {
+            int open = line.IndexOf('<', start);
+            int close = open < 0 ? -1 : line.IndexOf('>', open + 1);
+            if (close < 0)
+            {
+                return text.Append(line, start, line.Length - start).ToString();
+            }
+
+            text.Append(line, start, open - start);
+            start = close + 1;
+        }
+    }
 }

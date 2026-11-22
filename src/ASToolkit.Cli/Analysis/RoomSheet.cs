@@ -71,7 +71,7 @@ internal sealed class RoomSheet
         }
 
         const int labelHeight = (int)(LabelLines * FontSize * 1.3f) + 6;
-        var tile = new Image<Rgb24>(Math.Max(MinTileWidth, crop.Width), crop.Height + labelHeight, new Rgb24(24, 24, 24));
+        var tile = new Image<Rgb24>(MapImage.PngConfiguration, Math.Max(MinTileWidth, crop.Width), crop.Height + labelHeight, new Rgb24(24, 24, 24));
         string[] lines = Describe(room);
         tile.Mutate(new DrawImageProcessor(crop, new Point(0, labelHeight), PixelColorBlendingMode.Normal, PixelAlphaCompositionMode.SrcOver, 1));
         tile.Mutate(context =>
@@ -119,7 +119,7 @@ internal sealed class RoomSheet
         {
             int width = pages[i].Max(entry => entry.At.X + entry.Tile.Width);
             int height = pages[i].Max(entry => entry.At.Y + entry.Tile.Height);
-            using var sheet = new Image<Rgb24>(width, height, new Rgb24(60, 60, 60));
+            using var sheet = new Image<Rgb24>(MapImage.PngConfiguration, width, height, new Rgb24(60, 60, 60));
             var entries = pages[i];
             sheet.Mutate(context =>
             {

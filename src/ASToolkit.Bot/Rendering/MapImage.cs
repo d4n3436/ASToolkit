@@ -2,6 +2,7 @@ using System.Numerics;
 using ASToolkit.Engine;
 using ASToolkit.Formats;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
@@ -12,6 +13,11 @@ namespace ASToolkit.Bot.Rendering;
 /// </summary>
 public sealed class MapImage : IDisposable
 {
+    /// <summary>
+    /// Gets the image configuration with only the PNG format.
+    /// </summary>
+    public static Configuration PngConfiguration { get; } = new(new PngConfigurationModule());
+
     private const uint Black = 0xff000000;
 
     /// <summary>
@@ -61,7 +67,7 @@ public sealed class MapImage : IDisposable
         var tile = System.Drawing.Size.Round(map.Session.ScreenSize);
         var screen = new Screen(tile, true);
         var pixels = new Bgra32[tile.Width * tile.Height];
-        var image = new Image<Rgb24>(Math.Max(1, (int)MathF.Ceiling(area.Width * scale)), Math.Max(1, (int)MathF.Ceiling(area.Height * scale)));
+        var image = new Image<Rgb24>(PngConfiguration, Math.Max(1, (int)MathF.Ceiling(area.Width * scale)), Math.Max(1, (int)MathF.Ceiling(area.Height * scale)));
 
         for (int top = bounds.Top / tile.Height * tile.Height; top < bounds.Bottom; top += tile.Height)
         {
@@ -85,7 +91,7 @@ public sealed class MapImage : IDisposable
                     Math.Max(1, (int)MathF.Round((part.Right - area.Left) * scale) - offset.X),
                     Math.Max(1, (int)MathF.Round((part.Bottom - area.Top) * scale) - offset.Y));
 
-                using var drawn = SixLabors.ImageSharp.Image.LoadPixelData<Bgra32>(pixels, tile.Width, tile.Height);
+                using var drawn = SixLabors.ImageSharp.Image.LoadPixelData(PngConfiguration, pixels, tile.Width, tile.Height);
                 drawn.Mutate(context =>
                 {
                     context.Crop(new Rectangle(part.Left - left, part.Top - top, part.Width, part.Height));
