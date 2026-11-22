@@ -55,7 +55,7 @@ internal sealed class AttackTable
             child.Speed * child.GetAnimationDuration(child.InitialAnimation), creator.FightCount, GetBlastHeight(carried));
     }
 
-    private static float GetBlastHeight(SpriteDefinition payload) => Math.Max(WeaponSystem.MinBlastHeight, payload.Object.Size.Z);
+    private static float GetBlastHeight(SpriteDefinition payload) => Math.Max(Map.MinBlastHeight, payload.Object.Size.Z);
 }
 
 internal readonly record struct AttackProfile(int Damage, float BlastRadius, bool HurtsOwnArmy, float Reach = float.MaxValue, int Rounds = 1, float BlastHeight = float.MaxValue);

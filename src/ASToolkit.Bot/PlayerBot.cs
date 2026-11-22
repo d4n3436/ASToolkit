@@ -383,7 +383,7 @@ internal sealed class PlayerBot
         _rubbleReach = (_map.Definitions.Find(KnownObject.RubblePile)?.Half ?? Vector2.Zero) + _player.Definition.Half;
     }
 
-    private bool HasReached(Vector2 target) => (_reachedGoal.HasValue && _reachedGoal.Value == target) || PlayerMovement.IsTouching(_map.Player, target, _map.Definitions.Empty.Half);
+    private bool HasReached(Vector2 target) => (_reachedGoal.HasValue && _reachedGoal.Value == target) || _map.Player.IsTouching(target, _map.Definitions.Empty.Half);
 
     private PlayerCommand PlanCommand()
     {

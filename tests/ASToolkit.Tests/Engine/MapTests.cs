@@ -143,7 +143,7 @@ public class MapTests
         }
 
         Assert.NotEqual(Command.Move, map.Player.Command);
-        Assert.True(PlayerMovement.IsTouching(map.Player, destination, map.Definitions.Empty.Half));
+        Assert.True(map.Player.IsTouching(destination, map.Definitions.Empty.Half));
         for (int tick = 0; tick < 50; tick++)
         {
             map.Play(default);

@@ -1,5 +1,5 @@
 using System.Runtime.Intrinsics;
-using ASToolkit.Core;
+
 namespace ASToolkit.Formats;
 
 /// <summary>
@@ -9,8 +9,17 @@ namespace ASToolkit.Formats;
 /// <param name="Positive">The packed channel additions.</param>
 public readonly record struct Gamma(uint Negative, uint Positive)
 {
-    internal const uint OpaqueAlpha = 0xff000000;
-    internal const int ChannelBits = 8;
+    /// <summary>
+    /// Represents the alpha byte of a packed color that is fully opaque.
+    /// </summary>
+    public const uint OpaqueAlpha = 0xff000000;
+
+    /// <summary>
+    /// Represents the number of bits of each channel of a packed color.
+    /// </summary>
+    public const int ChannelBits = 8;
+
+
     private const uint ScriptMagnitudes = 0x7f7f7f7f;
     private const uint ScriptEvenBits = 0xfe;
     private const uint ScriptCarry = 0x100;
@@ -60,36 +69,88 @@ public readonly record struct Gamma(uint Negative, uint Positive)
         return gamma;
     }
 
+    /// <summary>
+    /// Adds another gamma to this gamma channel by channel, each sum saturating at 255.
+    /// </summary>
+    /// <param name="other">The gamma to add.</param>
+    /// <returns>The sum of the gammas.</returns>
     [EngineRoutine(0x00414f80)]
-    internal Gamma Add(Gamma other)
+    public Gamma Add(Gamma other)
     {
         var sum = Vector64.AddSaturate(Vector64.Create(Negative, Positive).AsByte(), Vector64.Create(other.Negative, other.Positive).AsByte()).AsUInt32();
 
         return new Gamma(sum[0], sum[1]);
     }
 
-    internal int GetNegative(int shift) => (int)(Negative >> shift & byte.MaxValue);
+    /// <summary>
+    /// Gets the reduction of one channel.
+    /// </summary>
+    /// <param name="shift">The bit position of the channel in the packed values.</param>
+    /// <returns>The reduction of the channel, from 0 to 255.</returns>
+    public int GetNegative(int shift) => (int)(Negative >> shift & byte.MaxValue);
 
-    internal int GetPositive(int shift) => (int)(Positive >> shift & byte.MaxValue);
+    /// <summary>
+    /// Gets the addition of one channel.
+    /// </summary>
+    /// <param name="shift">The bit position of the channel in the packed values.</param>
+    /// <returns>The addition of the channel, from 0 to 255.</returns>
+    public int GetPositive(int shift) => (int)(Positive >> shift & byte.MaxValue);
 
-    internal int GetChannel(int shift) => GetNegative(shift) != 0 ? -GetNegative(shift) : GetPositive(shift);
+    /// <summary>
+    /// Gets one channel as a signed value, negative when the channel reduces.
+    /// </summary>
+    /// <param name="shift">The bit position of the channel in the packed values.</param>
+    /// <returns>The channel, from -255 to 255.</returns>
+    public int GetChannel(int shift) => GetNegative(shift) != 0 ? -GetNegative(shift) : GetPositive(shift);
 
-    internal int Modulate(int color, int shift) => Math.Min(byte.MaxValue, (color * (byte.MaxValue - GetNegative(shift)) + byte.MaxValue / 2) / byte.MaxValue + GetPositive(shift));
+    /// <summary>
+    /// Applies one channel to a color channel, scaling by 255 with rounding.
+    /// </summary>
+    /// <param name="color">The color channel, from 0 to 255.</param>
+    /// <param name="shift">The bit position of the channel in the packed values.</param>
+    /// <returns>The adjusted color channel, from 0 to 255.</returns>
+    public int Modulate(int color, int shift) => Math.Min(byte.MaxValue, (color * (byte.MaxValue - GetNegative(shift)) + byte.MaxValue / 2) / byte.MaxValue + GetPositive(shift));
 
-    internal int Apply(int color, int shift) => Math.Min(byte.MaxValue, (color * ((1 << ChannelBits) - GetNegative(shift)) >> ChannelBits) + GetPositive(shift));
+    /// <summary>
+    /// Applies one channel to a color channel, scaling by 256.
+    /// </summary>
+    /// <param name="color">The color channel, from 0 to 255.</param>
+    /// <param name="shift">The bit position of the channel in the packed values.</param>
+    /// <returns>The adjusted color channel, from 0 to 255.</returns>
+    public int Apply(int color, int shift) => Math.Min(byte.MaxValue, (color * ((1 << ChannelBits) - GetNegative(shift)) >> ChannelBits) + GetPositive(shift));
 
-    internal uint Apply(uint color) =>
+    /// <summary>
+    /// Applies the red, green and blue channels to a packed color and makes the color opaque.
+    /// </summary>
+    /// <param name="color">The packed color, alpha, red, green and blue from the high byte down.</param>
+    /// <returns>The adjusted color.</returns>
+    public uint Apply(uint color) =>
         OpaqueAlpha | (uint)Apply((int)(color >> (2 * ChannelBits) & byte.MaxValue), 2 * ChannelBits) << (2 * ChannelBits) |
         (uint)Apply((int)(color >> ChannelBits & byte.MaxValue), ChannelBits) << ChannelBits | (uint)Apply((int)(color & byte.MaxValue), 0);
 
+    /// <summary>
+    /// Returns this gamma with its red channel set to a value.
+    /// </summary>
+    /// <param name="value">The value of the channel, negative to reduce; clamped to the range from -255 to 255.</param>
+    /// <returns>The changed gamma.</returns>
     [EngineRoutine(0x004432e0)]
-    internal Gamma WithRed(int value) => WithChannel(value, 2 * ChannelBits);
+    public Gamma WithRed(int value) => WithChannel(value, 2 * ChannelBits);
 
+    /// <summary>
+    /// Returns this gamma with its green channel set to a value.
+    /// </summary>
+    /// <param name="value">The value of the channel, negative to reduce; clamped to the range from -255 to 255.</param>
+    /// <returns>The changed gamma.</returns>
     [EngineRoutine(0x00443340)]
-    internal Gamma WithGreen(int value) => WithChannel(value, ChannelBits);
+    public Gamma WithGreen(int value) => WithChannel(value, ChannelBits);
 
+    /// <summary>
+    /// Returns this gamma with its blue channel set to a value.
+    /// </summary>
+    /// <param name="value">The value of the channel, negative to reduce; clamped to the range from -255 to 255.</param>
+    /// <returns>The changed gamma.</returns>
     [EngineRoutine(0x004433a0)]
-    internal Gamma WithBlue(int value) => WithChannel(value, 0);
+    public Gamma WithBlue(int value) => WithChannel(value, 0);
 
     private Gamma WithChannel(int value, int shift)
     {

@@ -1,6 +1,5 @@
 using System.Numerics;
 using ASToolkit.Formats;
-using ASToolkit.Core;
 
 namespace ASToolkit.Engine;
 
@@ -129,7 +128,7 @@ public sealed partial class Map
 
     private Sprite? FindScripted(MergedMapSprite placement)
     {
-        for (int layer = 0; layer < UpdateOrder.LayerCount; layer++)
+        for (int layer = 0; layer < LayerCount; layer++)
         {
             var list = _updates.GetLayer(layer);
             for (int i = 0; i < list.Count; i++)
@@ -176,7 +175,7 @@ public sealed partial class Map
             DeleteSprite(body);
         }
 
-        for (int layer = 0; layer < UpdateOrder.LayerCount; layer++)
+        for (int layer = 0; layer < LayerCount; layer++)
         {
             var list = _updates.GetLayer(layer);
             for (int i = 0; i < list.Count; i++)

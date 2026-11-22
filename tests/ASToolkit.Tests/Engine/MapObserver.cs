@@ -6,7 +6,7 @@ namespace ASToolkit.Tests.Engine;
 public sealed class MapObserver
 {
     private readonly Map _map;
-    private readonly List<Sprite>[] _previous = new List<Sprite>[UpdateOrder.LayerCount];
+    private readonly List<Sprite>[] _previous = new List<Sprite>[Map.LayerCount];
     private readonly List<EffectState> _baked = [];
     private readonly HashSet<Sprite> _alive = [];
 

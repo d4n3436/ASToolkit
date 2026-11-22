@@ -1,5 +1,4 @@
 using System.Buffers;
-using ASToolkit.Core;
 
 namespace ASToolkit.Formats;
 

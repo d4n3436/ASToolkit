@@ -1,7 +1,6 @@
 using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 using ASToolkit.Formats;
-using ASToolkit.Core;
 
 namespace ASToolkit.Engine;
 

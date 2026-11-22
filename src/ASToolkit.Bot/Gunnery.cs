@@ -236,7 +236,7 @@ internal sealed class Gunnery
 
         var start = new Vector3(muzzle, height);
 
-        return bullet.Speed >= SpriteDefinition.Unlimited ? _map.Projectiles.HasClearTerrain(bullet, start, aim, half) : HasClearFlight(bullet, start, aim, half);
+        return bullet.Speed >= SpriteDefinition.Unlimited ? _map.HasClearTerrain(bullet, start, aim, half) : HasClearFlight(bullet, start, aim, half);
     }
 
     // Walks a round along its line in steps and treats a spot where the round can't stand as clear only when it lies inside the target

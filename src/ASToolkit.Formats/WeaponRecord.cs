@@ -276,7 +276,14 @@ public readonly struct WeaponRecord
         return (int)((keys[key + 1] - keys[key]) * (keyframe - key) + keys[key]);
     }
 
-    internal float Interpolate<T>(in KeyframeValues<T> keys, float position)
+    /// <summary>
+    /// Reads a value of the keyframe animation at a position.
+    /// </summary>
+    /// <typeparam name="T">The type of the values.</typeparam>
+    /// <param name="keys">The values of the keyframes, one of the key fields of this record.</param>
+    /// <param name="position">The position in the animation, in keyframes.</param>
+    /// <returns>The value between the keyframes around the position.</returns>
+    public float Interpolate<T>(in KeyframeValues<T> keys, float position)
         where T : unmanaged, INumberBase<T>
     {
         int key = (int)position;

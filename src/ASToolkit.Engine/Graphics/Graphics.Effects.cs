@@ -2,7 +2,6 @@ using System.Drawing;
 using System.Numerics;
 using ASToolkit.Engine.Scripts;
 using ASToolkit.Formats;
-using ASToolkit.Core;
 
 namespace ASToolkit.Engine;
 

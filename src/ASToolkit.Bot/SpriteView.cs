@@ -48,7 +48,7 @@ public struct SpriteView : IEnumerable<Sprite>, IEnumerator<Sprite>
         if (_kind == SpriteViewKind.Monsters)
             return MoveNextMonster();
 
-        while (_layer < UpdateOrder.LayerCount)
+        while (_layer < Map.LayerCount)
         {
             var list = _map.GetLayer(_layer);
 

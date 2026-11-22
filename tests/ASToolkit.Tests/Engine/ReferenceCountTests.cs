@@ -36,7 +36,7 @@ public class ReferenceCountTests
     private static void AssertCounts(Map map)
     {
         var expected = new Dictionary<Sprite, int>(ReferenceEqualityComparer.Instance);
-        for (int layer = 0; layer < UpdateOrder.LayerCount; layer++)
+        for (int layer = 0; layer < Map.LayerCount; layer++)
         {
             foreach (var entry in map.GetLayer(layer))
             {

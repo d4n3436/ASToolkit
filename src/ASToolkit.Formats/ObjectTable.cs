@@ -55,19 +55,40 @@ public sealed class ObjectTable
     /// </summary>
     public int WeaponCount => _weapons.Length;
 
-    internal float Gravitation { get; private init; }
+    /// <summary>
+    /// Gets the gravity of falling objects in pixels per second squared.
+    /// </summary>
+    public float Gravitation { get; private init; }
 
-    internal float Gravitation2 { get; private init; }
+    /// <summary>
+    /// Gets the second gravity in pixels per second squared.
+    /// </summary>
+    public float Gravitation2 { get; private init; }
 
-    internal Vector2 ScrollSpeed { get; private init; }
+    /// <summary>
+    /// Gets the fastest scroll speed of the camera along each axis in pixels per second.
+    /// </summary>
+    public Vector2 ScrollSpeed { get; private init; }
 
-    internal int HoverDelay { get; private init; }
+    /// <summary>
+    /// Gets the time in milliseconds the cursor must rest before a mouse tip shows.
+    /// </summary>
+    public int HoverDelay { get; private init; }
 
-    internal uint SelectedGamma { get; private init; }
+    /// <summary>
+    /// Gets the script gamma of the selected unit, or zero for none.
+    /// </summary>
+    public uint SelectedGamma { get; private init; }
 
-    internal uint HoveredEnemyGamma { get; private init; }
+    /// <summary>
+    /// Gets the script gamma of an army 1 object under the cursor, or zero for none.
+    /// </summary>
+    public uint HoveredEnemyGamma { get; private init; }
 
-    internal uint HoveredGamma { get; private init; }
+    /// <summary>
+    /// Gets the script gamma of any other object under the cursor, or zero for none.
+    /// </summary>
+    public uint HoveredGamma { get; private init; }
 
     /// <summary>
     /// Reads objects.res.

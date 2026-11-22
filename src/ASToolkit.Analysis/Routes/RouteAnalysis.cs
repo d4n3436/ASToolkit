@@ -11,11 +11,20 @@ public sealed class RouteAnalysis
 {
     internal IReadOnlyList<TriggerArea> RespawnTriggers { get; init; } = [];
 
-    internal bool ClearsMonsters { get; init; }
+    /// <summary>
+    /// Gets a value indicating whether the level ends once its monsters are cleared.
+    /// </summary>
+    public bool ClearsMonsters { get; init; }
 
-    internal TriggerArea? Exit { get; init; }
+    /// <summary>
+    /// Gets the trigger area that ends the level, or null when the level has none.
+    /// </summary>
+    public TriggerArea? Exit { get; init; }
 
-    internal bool? DoorsInitiallyLocked { get; init; }
+    /// <summary>
+    /// Gets a value indicating whether the doors of the level start locked, or null when the level script doesn't say.
+    /// </summary>
+    public bool? DoorsInitiallyLocked { get; init; }
 
     internal LevelScriptSummary Script { get; init; } = new();
 

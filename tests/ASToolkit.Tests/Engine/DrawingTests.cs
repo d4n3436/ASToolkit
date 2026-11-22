@@ -49,7 +49,7 @@ public class DrawingTests
     private static string Snapshot(Map map)
     {
         var lines = new List<string> { $"time {map.Time} random {map.RandomState} camera {map.Camera}" };
-        for (int layer = 0; layer < UpdateOrder.LayerCount; layer++)
+        for (int layer = 0; layer < Map.LayerCount; layer++)
         {
             foreach (var sprite in map.GetLayer(layer))
             {

@@ -7,8 +7,12 @@ namespace ASToolkit.Analysis.Survey;
 /// </summary>
 public sealed class BeatMeasurer
 {
+    /// <summary>
+    /// Represents the route distance in pixels within which encounters of the same phase count as one fight.
+    /// </summary>
+    public const int FightReach = 1000;
+
     private const int IntensityWindow = 1600;
-    internal const int FightReach = 1000;
     private const float MinFightShare = 0.02f;
 
     private readonly LevelSurvey _survey;

@@ -449,7 +449,10 @@ public class Sprite
 
     internal RegionSprite? Region { get; set; }
 
-    internal SpriteCollector? Collector { get; set; }
+    /// <summary>
+    /// Gets the spatial hash the sprite is in, or null when the sprite isn't hashed.
+    /// </summary>
+    public SpriteCollector? Collector { get; internal set; }
 
     /// <summary>
     /// Adds an item at the end of the sprite's items.
@@ -552,6 +555,19 @@ public class Sprite
     /// <returns>The direction.</returns>
     [EngineRoutine(0x004474b0)]
     public Angle MeasureDirectionTo(Sprite other) => Angle.FromOffset((other.Position - Position).AsVector2());
+
+    /// <summary>
+    /// Determines whether this sprite touches a target on the ground plane.
+    /// </summary>
+    /// <param name="target">The center of the target.</param>
+    /// <param name="targetHalf">Half the width and depth of the target.</param>
+    /// <returns><see langword="true"/> if this sprite touches the target; otherwise, <see langword="false"/>.</returns>
+    public bool IsTouching(Vector2 target, Vector2 targetHalf)
+    {
+        var reach = Definition.Half + targetHalf;
+
+        return Math.Abs(Position.X - target.X) < reach.X && Math.Abs(Position.Y - target.Y) < reach.Y;
+    }
 
     /// <summary>
     /// Creates the sprite's extra data if it does not exist yet.

@@ -13,6 +13,16 @@ namespace ASToolkit.Engine;
 /// </summary>
 public sealed partial class Map : IDisposable
 {
+    /// <summary>
+    /// Represents the number of layers the sprites of a map are held in.
+    /// </summary>
+    public const int LayerCount = 17;
+
+    /// <summary>
+    /// Represents the lowest height a blast reaches above its center.
+    /// </summary>
+    public const float MinBlastHeight = 20;
+
     private const int WindowMessageHitTest = 0x84;
     private const int SpriteRecordSize = 112;
     private const int MaxStreamPeriod = 30000;
@@ -179,9 +189,15 @@ public sealed partial class Map : IDisposable
     /// </summary>
     public SizeF Size => Movement.MapSize;
 
-    internal MovementMap Movement { get; private set; }
+    /// <summary>
+    /// Gets the movement map, with the ground heights of the map.
+    /// </summary>
+    public MovementMap Movement { get; private set; }
 
-    internal SpriteCollector Collector { get; private set; }
+    /// <summary>
+    /// Gets the spatial hash of the sprites of the map.
+    /// </summary>
+    public SpriteCollector Collector { get; private set; }
 
     internal SpriteCollision Collision { get; private set; }
 
@@ -304,7 +320,7 @@ public sealed partial class Map : IDisposable
             StartDemoRecording(GameTextEncoding.Cyrillic.GetBytes(data.MapName), seed);
         }
 
-        for (int layer = 0; layer < UpdateOrder.LayerCount; layer++)
+        for (int layer = 0; layer < LayerCount; layer++)
         {
             var list = _updates.GetLayer(layer);
             for (int i = list.Count - 1; i >= 0; i--)
@@ -889,6 +905,16 @@ public sealed partial class Map : IDisposable
     /// <returns>The sprites in the list's order, with <see langword="null"/> where a sprite was removed.</returns>
     public IReadOnlyList<Sprite?> GetLayer(int layer) => _updates.GetLayer(layer);
 
+    /// <summary>
+    /// Determines whether an instant projectile flies from one point to another without the terrain stopping it short of a target.
+    /// </summary>
+    /// <param name="definition">The definition of the projectile.</param>
+    /// <param name="from">The point the projectile starts at.</param>
+    /// <param name="to">The point the projectile flies to.</param>
+    /// <param name="targetHalf">Half the width and depth of the target at the end point.</param>
+    /// <returns><see langword="true"/> if the terrain doesn't stop the projectile or stops it on the target; otherwise, <see langword="false"/>.</returns>
+    public bool HasClearTerrain(SpriteDefinition definition, Vector3 from, Vector3 to, Vector2 targetHalf = default) => Projectiles.HasClearTerrain(definition, from, to, targetHalf);
+
     [EngineRoutine(0x004145b0)]
     internal void RaiseHeights(SpriteDefinition definition, Sprite sprite)
     {
@@ -1401,7 +1427,7 @@ public sealed partial class Map : IDisposable
         if (!IsPaused)
             return;
 
-        for (int layer = 0; layer < UpdateOrder.LayerCount; layer++)
+        for (int layer = 0; layer < LayerCount; layer++)
         {
             foreach (var entry in _updates.GetLayer(layer))
             {
@@ -1454,7 +1480,7 @@ public sealed partial class Map : IDisposable
             player.Messages.Clear();
         }
 
-        for (int layer = 0; layer < UpdateOrder.LayerCount; layer++)
+        for (int layer = 0; layer < LayerCount; layer++)
         {
             var list = _updates.GetLayer(layer);
             for (int i = list.Count - 1; i >= 0; i--)
@@ -1468,7 +1494,7 @@ public sealed partial class Map : IDisposable
             }
         }
 
-        for (int layer = 0; layer < UpdateOrder.LayerCount; layer++)
+        for (int layer = 0; layer < LayerCount; layer++)
         {
             if (_updates.HasSprites(layer))
             {
@@ -1554,7 +1580,7 @@ public sealed partial class Map : IDisposable
             index--;
         }
 
-        for (int layer = 0; layer < UpdateOrder.LayerCount; layer++)
+        for (int layer = 0; layer < LayerCount; layer++)
         {
             if (removed.ReferenceCount <= 1)
                 continue;

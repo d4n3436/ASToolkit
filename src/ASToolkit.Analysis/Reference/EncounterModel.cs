@@ -22,7 +22,10 @@ public sealed record EncounterModel
     private const float HighQuantile = 0.9f;
     private const float DefaultClimaxPosition = 0.3f;
 
-    internal static readonly SizeF Screen = new(1280, 720);
+    /// <summary>
+    /// Represents the size of the screen the fight measures are taken on, in pixels.
+    /// </summary>
+    public static readonly SizeF Screen = new(1280, 720);
 
     /// <summary>
     /// Gets the median spacing of the monsters of a standing group, in pixels.

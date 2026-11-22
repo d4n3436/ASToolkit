@@ -1,6 +1,5 @@
 using System.Globalization;
 using ASToolkit.Formats;
-using ASToolkit.Core;
 
 namespace ASToolkit.Engine.IO;
 

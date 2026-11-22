@@ -1,4 +1,4 @@
-namespace ASToolkit.Core;
+namespace ASToolkit.Engine;
 
 /// <summary>
 /// Annotates a method or constructor with the address in the Alien Shooter 1.2 GOG executable that its implementation is ported or transcribed from.

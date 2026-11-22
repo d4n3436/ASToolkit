@@ -14,7 +14,12 @@ public readonly record struct PlayerImplants(int Life, int Strength, int Speed, 
     /// </summary>
     public const int MaxCount = 3;
 
-    internal int ScaleAmmo(int ammo) => Repeat(ammo, Strength, 13, 10);
+    /// <summary>
+    /// Scales the rounds of an ammunition pickup by the strength implants, 13/10 for each one.
+    /// </summary>
+    /// <param name="ammo">The rounds of the pickup.</param>
+    /// <returns>The rounds the player gets.</returns>
+    public int ScaleAmmo(int ammo) => Repeat(ammo, Strength, 13, 10);
 
     private static int Repeat(int value, int count, int numerator, int denominator)
     {

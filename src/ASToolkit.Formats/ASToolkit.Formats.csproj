@@ -6,10 +6,6 @@
     <ProjectReference Include="../ASToolkit.Core/ASToolkit.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="ASToolkit.Engine" />
-    <InternalsVisibleTo Include="ASToolkit.Analysis" />
-    <InternalsVisibleTo Include="ASToolkit.Generation" />
-    <InternalsVisibleTo Include="ASToolkit.Bot" />
     <InternalsVisibleTo Include="ASToolkit.Tests" />
   </ItemGroup>
 </Project>

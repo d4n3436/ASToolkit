@@ -224,9 +224,14 @@ public readonly struct GameObject
     /// The highest and initial vertical speed of the object in milli-units.
     /// </summary>
     [FieldOffset(40)]
-    internal readonly float MaxZSpeed;
+    public readonly float MaxZSpeed;
 
-    internal GameObject(SpriteClass spriteClass, Vector3 size)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="GameObject"/> structure with a sprite class and size and the defaults of every other field.
+    /// </summary>
+    /// <param name="spriteClass">The sprite class of the object.</param>
+    /// <param name="size">The size of the object.</param>
+    public GameObject(SpriteClass spriteClass, Vector3 size)
     {
         SpriteClass = spriteClass;
         Size = size;

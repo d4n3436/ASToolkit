@@ -6,7 +6,6 @@ namespace ASToolkit.Engine;
 
 internal sealed class WeaponSystem
 {
-    public const float MinBlastHeight = 20;
     private const float AimRise = 70;
     private const float AimRiseCap = 50;
     private const int DepthShift = 3;
@@ -116,7 +115,7 @@ internal sealed class WeaponSystem
         var impact = blast.Position;
         var point = impact.AsVector2();
         var reach = payload.Half + new Vector2(payload.BlastRadius);
-        float heightReach = Math.Max(MinBlastHeight, payload.Object.Size.Z);
+        float heightReach = Math.Max(Map.MinBlastHeight, payload.Object.Size.Z);
         bool scales = payload.IsExplosive && !payload.BlastRadius.IsExactlyZero();
         int damage = payload.Damage;
         

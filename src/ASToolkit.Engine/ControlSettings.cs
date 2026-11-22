@@ -1,6 +1,5 @@
 using System.Collections.Frozen;
 using ASToolkit.Formats;
-using ASToolkit.Core;
 
 namespace ASToolkit.Engine;
 

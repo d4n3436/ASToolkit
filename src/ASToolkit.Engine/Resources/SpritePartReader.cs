@@ -35,7 +35,12 @@ public sealed class SpritePartReader
         _objects = objects;
     }
 
-    internal IEnumerable<SpritePart> GetParts(MergedMapSprite sprite)
+    /// <summary>
+    /// Reads the objects a placed sprite puts on the map, the sprite itself followed by the objects linked to it.
+    /// </summary>
+    /// <param name="sprite">The placed sprite.</param>
+    /// <returns>The objects of the sprite.</returns>
+    public IEnumerable<SpritePart> GetParts(MergedMapSprite sprite)
     {
         var id = sprite.Id;
         var position = sprite.Position;
@@ -59,7 +64,12 @@ public sealed class SpritePartReader
         }
     }
 
-    internal Vector3[] GetHeightPoints(SpritePart part)
+    /// <summary>
+    /// Reads the height points of the frame an object shows.
+    /// </summary>
+    /// <param name="part">The object.</param>
+    /// <returns>The height points of the frame, or an empty array when the object has no sprite file.</returns>
+    public Vector3[] GetHeightPoints(SpritePart part)
     {
         if (!_points.TryGetValue((part.Path, part.Frame), out var points))
         {

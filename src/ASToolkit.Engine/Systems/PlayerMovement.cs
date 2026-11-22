@@ -1,6 +1,5 @@
 using ASToolkit.Formats;
 using System.Numerics;
-using ASToolkit.Core;
 
 namespace ASToolkit.Engine;
 
@@ -13,13 +12,6 @@ internal sealed class PlayerMovement
     {
         _movement = movement;
         _motion = motion;
-    }
-
-    public static bool IsTouching(Sprite man, Vector2 target, Vector2 targetHalf)
-    {
-        var reach = man.Definition.Half + targetHalf;
-
-        return Math.Abs(man.Position.X - target.X) < reach.X && Math.Abs(man.Position.Y - target.Y) < reach.Y;
     }
 
     [EngineRoutine(0x00454670)]
@@ -40,7 +32,7 @@ internal sealed class PlayerMovement
         var direction = man.MeasureDirectionTo(goal) + (man.Speed < 0 ? Angle.HalfTurn : 0);
         man.RotateTact(_movement.RotateForGlide(direction, man), elapsed);
 
-        if (man is { HasReachedX: true, HasReachedY: true } || IsTouching(man, goal.Position.AsVector2(), goal.Definition.Half))
+        if (man is { HasReachedX: true, HasReachedY: true } || man.IsTouching(goal.Position.AsVector2(), goal.Definition.Half))
         {
             SpriteKinematics.Stop(man);
         }

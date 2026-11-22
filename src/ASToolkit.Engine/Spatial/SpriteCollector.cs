@@ -2,11 +2,13 @@ using System.Drawing;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using ASToolkit.Formats;
-using ASToolkit.Core;
 
 namespace ASToolkit.Engine;
 
-internal sealed class SpriteCollector
+/// <summary>
+/// Provides the spatial hash of the sprites of a map that collide, and the list of its units and flying units.
+/// </summary>
+public sealed class SpriteCollector
 {
     private const OldSpriteType ListedTypes = OldSpriteType.Unit | OldSpriteType.Avia;
 
@@ -25,7 +27,7 @@ internal sealed class SpriteCollector
 
     // Counts columns on the vertical cell scale
     [EngineRoutine(0x0042d380)]
-    public SpriteCollector(SizeF mapSize, Vector2 largestObject)
+    internal SpriteCollector(SizeF mapSize, Vector2 largestObject)
     {
         _cell = new Vector2(GetCellSize(largestObject.X), GetCellSize(largestObject.Y));
         LargestHalf = largestObject / 2;
@@ -45,16 +47,22 @@ internal sealed class SpriteCollector
         }
     }
 
+    /// <summary>
+    /// Gets the listed sprites, the units and flying units of the map.
+    /// </summary>
     public ReadOnlySpan<Sprite> Listed => CollectionsMarshal.AsSpan(_sprites);
 
+    /// <summary>
+    /// Gets half the width and depth of the largest object.
+    /// </summary>
     public Vector2 LargestHalf { get; }
 
-    public static bool IsHashed(SpriteDefinition definition) => definition.Object.Properties.HasFlag(ObjectProperties.Hash);
+    internal static bool IsHashed(SpriteDefinition definition) => definition.Object.Properties.HasFlag(ObjectProperties.Hash);
 
-    public static bool IsListed(SpriteDefinition definition) => (definition.Object.SpriteType.ToOldSpriteType() & ListedTypes) != 0;
+    internal static bool IsListed(SpriteDefinition definition) => (definition.Object.SpriteType.ToOldSpriteType() & ListedTypes) != 0;
 
     [EngineRoutine(0x0042d6a0)]
-    public void InsertToHash(Sprite sprite)
+    internal void InsertToHash(Sprite sprite)
     {
         if (IsHashed(sprite.Definition))
         {
@@ -70,7 +78,7 @@ internal sealed class SpriteCollector
     }
 
     [EngineRoutine(0x0042d770)]
-    public void DeleteFromHash(Sprite sprite)
+    internal void DeleteFromHash(Sprite sprite)
     {
         if (sprite.Slot >= 0)
         {
@@ -89,7 +97,7 @@ internal sealed class SpriteCollector
     }
 
     [EngineRoutine(0x0042d8c0)]
-    public void ChangeCoor(Sprite sprite)
+    internal void ChangeCoor(Sprite sprite)
     {
         if (sprite.Slot < 0)
             return;
@@ -101,7 +109,7 @@ internal sealed class SpriteCollector
         AddToBucket(sprite);
     }
 
-    public Sprite? First(Vector2 min, Vector2 max)
+    internal Sprite? First(Vector2 min, Vector2 max)
     {
         FirstHashInBox(min, max);
 
@@ -109,7 +117,7 @@ internal sealed class SpriteCollector
     }
 
     [EngineRoutine(0x0042dd60)]
-    public void FirstHashInBox(Vector2 min, Vector2 max)
+    internal void FirstHashInBox(Vector2 min, Vector2 max)
     {
         _firstColumn = GetColumn(min.X - _cell.X);
         _row = GetRow(min.Y - _cell.Y);
@@ -120,7 +128,7 @@ internal sealed class SpriteCollector
     }
 
     [EngineRoutine(0x0042deb0)]
-    public Sprite? NextHashInBox()
+    internal Sprite? NextHashInBox()
     {
         for (; _row <= _lastRow; _row++, _column = _firstColumn, _index = 0)
         {
@@ -137,7 +145,7 @@ internal sealed class SpriteCollector
     }
 
     [EngineRoutine(0x004433f0)]
-    public Sprite? FindOverlap(Sprite? mover, in CollisionVolume volume)
+    internal Sprite? FindOverlap(Sprite? mover, in CollisionVolume volume)
     {
         var center = volume.Position;
         var half = volume.Half;
@@ -177,6 +185,12 @@ internal sealed class SpriteCollector
         return null;
     }
 
+    /// <summary>
+    /// Gets the sprites in the buckets a box covers.
+    /// </summary>
+    /// <param name="min">The top left corner of the box.</param>
+    /// <param name="max">The bottom right corner of the box.</param>
+    /// <returns>A query over the sprites.</returns>
     public HashQuery GetNear(Vector2 min, Vector2 max) => new(_buckets, _columns, GetColumn(min.X), GetColumn(max.X), GetRow(min.Y), GetRow(max.Y));
 
     private static float GetCellSize(float size)
@@ -219,63 +233,4 @@ internal sealed class SpriteCollector
     private int GetColumn(float x) => GetCell(x * _scale.X, _columns);
 
     private int GetRow(float y) => GetCell(y * _scale.Y, _rows);
-}
-
-internal struct HashQuery
-{
-    private readonly List<GridEntry>[] _buckets;
-    private readonly int _columns;
-    private readonly int _firstColumn;
-    private readonly int _lastColumn;
-    private readonly int _lastRow;
-    private int _column;
-    private int _row;
-    private int _index;
-
-    public HashQuery(List<GridEntry>[] buckets, int columns, int firstColumn, int lastColumn, int firstRow, int lastRow)
-    {
-        _buckets = buckets;
-        _columns = columns;
-        _firstColumn = firstColumn;
-        _lastColumn = lastColumn;
-        _lastRow = lastRow;
-        _column = firstColumn;
-        _row = firstRow;
-        _index = -1;
-    }
-
-    public readonly Sprite Current => _buckets[_row * _columns + _column][_index].Sprite;
-
-    public readonly HashQuery GetEnumerator() => this;
-
-    public bool MoveNext()
-    {
-        while (_row <= _lastRow)
-        {
-            if (++_index < _buckets[_row * _columns + _column].Count)
-            {
-                return true;
-            }
-
-            _index = -1;
-
-            if (++_column > _lastColumn)
-            {
-                _column = _firstColumn;
-                _row++;
-            }
-        }
-
-        return false;
-    }
-}
-
-internal readonly struct GridEntry
-{
-    public GridEntry(Sprite sprite)
-    {
-        Sprite = sprite;
-    }
-
-    public Sprite Sprite { get; }
 }

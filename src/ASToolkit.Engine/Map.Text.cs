@@ -1,7 +1,6 @@
 using ASToolkit.Engine.IO;
 using ASToolkit.Engine.Scripts;
 using ASToolkit.Formats;
-using ASToolkit.Core;
 
 namespace ASToolkit.Engine;
 

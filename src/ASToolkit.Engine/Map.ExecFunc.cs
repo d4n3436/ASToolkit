@@ -3,7 +3,6 @@ using System.Numerics;
 using ASToolkit.Engine.IO;
 using ASToolkit.Engine.Scripts;
 using ASToolkit.Formats;
-using ASToolkit.Core;
 
 namespace ASToolkit.Engine;
 
@@ -1661,7 +1660,7 @@ public sealed partial class Map : IScriptFunctionHost
     private Sprite? GetNextSprite()
     {
         var sprite = FindListedSprite();
-        while (sprite is null && _spriteLayer < UpdateOrder.LayerCount - 1)
+        while (sprite is null && _spriteLayer < LayerCount - 1)
         {
             _spriteLayer++;
             _spriteIndex = _updates.GetLayer(_spriteLayer).Count;

@@ -1,5 +1,3 @@
-using ASToolkit.Core;
-
 namespace ASToolkit.Engine.IO;
 
 internal sealed class ScriptFile : IDisposable

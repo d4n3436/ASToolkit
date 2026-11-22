@@ -1,19 +1,17 @@
 using ASToolkit.Formats;
-using ASToolkit.Core;
 
 namespace ASToolkit.Engine;
 
 internal sealed class UpdateOrder
 {
-    public const int LayerCount = 17;
     public const int UpdatedLayerCount = 16;
     private const int CompactionPeriodMask = 3;
 
-    private readonly List<Sprite?>[] _layers = new List<Sprite?>[LayerCount];
+    private readonly List<Sprite?>[] _layers = new List<Sprite?>[Map.LayerCount];
 
     public UpdateOrder()
     {
-        for (int layer = 0; layer < LayerCount; layer++)
+        for (int layer = 0; layer < Map.LayerCount; layer++)
         {
             _layers[layer] = [];
         }

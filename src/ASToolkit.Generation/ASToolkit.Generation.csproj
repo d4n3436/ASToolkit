@@ -9,7 +9,6 @@
     <ProjectReference Include="../ASToolkit.Analysis/ASToolkit.Analysis.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="ASToolkit.Bot" />
     <InternalsVisibleTo Include="ASToolkit.Tests" />
   </ItemGroup>
 </Project>
