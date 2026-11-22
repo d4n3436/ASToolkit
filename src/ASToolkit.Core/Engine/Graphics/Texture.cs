@@ -19,7 +19,6 @@ public readonly ref partial struct Texture
     private const int AlphaShift = 24;
     private const uint OpaqueBlack = 0xff000000;
     private const int NibbleShift = 4;
-    private const int ChannelCount = 256;
 
     private readonly Span<ushort> _texels;
     private readonly ReadOnlySpan<uint> _palette;
@@ -63,36 +62,36 @@ public readonly ref partial struct Texture
     }
 
     /// <summary>
-    /// Draws a rectangle of the texture to the screen as a quad, tinted by a gamma.
+    /// Draws a rectangle of the texture to the screen as a quad, with a gamma applied.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="destination">The area of the screen.</param>
     /// <param name="source">The area of the texture.</param>
-    /// <param name="tint">The gamma that darkens the texels and then brightens them.</param>
+    /// <param name="gamma">The gamma that darkens the texels and then brightens them.</param>
     /// <param name="blend">How the quad combines with the colors underneath.</param>
-    /// <param name="isDoubled">Whether the tinted texels are doubled before they are blended.</param>
+    /// <param name="isDoubled">Whether the texels are doubled after the gamma and before they are blended.</param>
     [EngineRoutine(0x00403dd0)]
-    public void DrawQuad(Screen screen, Rectangle destination, Rectangle source, Gamma tint, QuadBlend blend, bool isDoubled = false)
+    public void DrawQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, QuadBlend blend, bool isDoubled = false)
     {
         screen.IsLinearFiltered = destination.Size != source.Size;
-        BlitQuad(screen, destination, source, tint, blend, isDoubled, false, 0);
+        BlitQuad(screen, destination, source, gamma, blend, isDoubled, false, 0);
     }
 
     /// <summary>
-    /// Draws a rectangle of the texture to the screen as a quad that lies in front of everything, tinted by a gamma.
+    /// Draws a rectangle of the texture to the screen as a quad that lies in front of everything, with a gamma applied.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="destination">The area of the screen.</param>
     /// <param name="source">The area of the texture.</param>
-    /// <param name="tint">The gamma that darkens the texels and then brightens them.</param>
+    /// <param name="gamma">The gamma that darkens the texels and then brightens them.</param>
     /// <param name="blend">How the quad combines with the colors underneath.</param>
-    /// <param name="isAlphaModulated">Whether the alpha of the texels is multiplied by the alpha of the tint's inverted reductions.</param>
+    /// <param name="isAlphaModulated">Whether the alpha of the texels is multiplied by the alpha of the gamma's inverted reductions.</param>
     /// <param name="minimumAlpha">The alpha that a texel needs to be drawn, after the modulation.</param>
     [EngineRoutine(0x00403ae0)]
-    public void DrawFlatQuad(Screen screen, Rectangle destination, Rectangle source, Gamma tint, QuadBlend blend, bool isAlphaModulated = false, int minimumAlpha = 0)
+    public void DrawFlatQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, QuadBlend blend, bool isAlphaModulated = false, int minimumAlpha = 0)
     {
         screen.IsLinearFiltered = destination.Size != source.Size;
-        BlitQuad(screen, destination, source, tint, blend, false, isAlphaModulated, minimumAlpha);
+        BlitQuad(screen, destination, source, gamma, blend, false, isAlphaModulated, minimumAlpha);
     }
 
     /// <summary>
@@ -294,7 +293,7 @@ public readonly ref partial struct Texture
 
     private static int Modulate(int texel, int factor) => (texel * factor + ChannelMax / 2) / ChannelMax;
 
-    internal void BlitQuad(Screen screen, Rectangle destination, Rectangle source, Gamma tint, QuadBlend blend, bool isDoubled, bool isAlphaModulated, int minimumAlpha)
+    internal void BlitQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, QuadBlend blend, bool isDoubled, bool isAlphaModulated, int minimumAlpha)
     {
         if (destination.Width <= 0 || destination.Height <= 0)
             return;
@@ -303,21 +302,13 @@ public readonly ref partial struct Texture
         if (area.IsEmpty)
             return;
 
-        bool isTinted = tint.Negative != 0 || tint.Positive != 0;
-        Span<byte> reds = stackalloc byte[ChannelCount];
-        Span<byte> greens = stackalloc byte[ChannelCount];
-        Span<byte> blues = stackalloc byte[ChannelCount];
-        if (isTinted)
-        {
-            for (int channel = 0; channel < ChannelCount; channel++)
-            {
-                reds[channel] = (byte)tint.Modulate(channel, RedShift);
-                greens[channel] = (byte)tint.Modulate(channel, GreenShift);
-                blues[channel] = (byte)tint.Modulate(channel, 0);
-            }
-        }
+        bool hasGamma = gamma.Negative != 0 || gamma.Positive != 0;
+        var table = hasGamma ? GammaTable.Get(gamma) : null;
+        var reds = table is null ? default : table.Reds;
+        var greens = table is null ? default : table.Greens;
+        var blues = table is null ? default : table.Blues;
 
-        int alphaScale = ChannelMax - tint.GetNegative(AlphaShift);
+        int alphaScale = ChannelMax - gamma.GetNegative(AlphaShift);
         bool isFiltered = screen.IsLinearFiltered;
         var writer = new ScreenWriter(screen);
         int lastColumn = Size.Width - 1;
@@ -335,7 +326,7 @@ public readonly ref partial struct Texture
                     int red = (int)(texel >> RedShift & ChannelMax);
                     int green = (int)(texel >> GreenShift & ChannelMax);
                     int blue = (int)(texel & ChannelMax);
-                    if (isTinted)
+                    if (hasGamma)
                     {
                         red = reds[red];
                         green = greens[green];
@@ -418,7 +409,7 @@ public readonly ref partial struct Texture
                 int red = (int)(texel >> RedShift & ChannelMax);
                 int green = (int)(texel >> GreenShift & ChannelMax);
                 int blue = (int)(texel & ChannelMax);
-                if (isTinted)
+                if (hasGamma)
                 {
                     red = reds[red];
                     green = greens[green];

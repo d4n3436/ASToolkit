@@ -94,10 +94,7 @@ internal sealed class SpriteCollector
             return;
 
         if (GetBucket(sprite.Position.AsVector2()) == sprite.Bucket)
-        {
-            CollectionsMarshal.AsSpan(_buckets[sprite.Bucket])[sprite.Slot] = new GridEntry(sprite);
             return;
-        }
 
         RemoveFromBucket(sprite);
         AddToBucket(sprite);
@@ -142,7 +139,10 @@ internal sealed class SpriteCollector
     public Sprite? FindOverlap(Sprite? mover, in CollisionVolume volume)
     {
         var center = volume.Position;
-        First(center.AsVector2() - volume.Half, center.AsVector2() + volume.Half);
+        var half = volume.Half;
+        float height = volume.Height;
+        var mask = volume.Mask;
+        First(center.AsVector2() - half, center.AsVector2() + half);
 
         for (int row = _row; row <= _lastRow; row++)
         {
@@ -152,11 +152,14 @@ internal sealed class SpriteCollector
                 for (int i = 0; i < bucket.Length; i++)
                 {
                     var other = bucket[i].Sprite;
-                    var definition = other.Definition;
+                    if (other == mover || other.Animation >= SpriteAnimation.Death)
+                        continue;
 
-                    if (other != mover && other.Animation < SpriteAnimation.Death && MathF.Abs(other.Position.X - center.X) < definition.Half.X + volume.Half.X &&
-                        MathF.Abs(other.Position.Y - center.Y) < definition.Half.Y + volume.Half.Y &&
-                        center.Z <= definition.Object.Size.Z + other.Position.Z && other.Position.Z <= center.Z + volume.Height && (volume.Mask & definition.MoveMask) != 0)
+                    var definition = other.Definition;
+                    var position = other.Position;
+                    var otherHalf = definition.Half;
+                    if (MathF.Abs(position.X - center.X) < otherHalf.X + half.X && MathF.Abs(position.Y - center.Y) < otherHalf.Y + half.Y &&
+                        center.Z <= definition.Object.Size.Z + position.Z && position.Z <= center.Z + height && (mask & definition.MoveMask) != 0)
                     {
                         _row = row;
                         _column = column;

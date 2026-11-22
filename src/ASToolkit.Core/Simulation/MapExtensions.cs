@@ -9,7 +9,7 @@ namespace ASToolkit.Core.Simulation;
 /// </summary>
 public static class MapExtensions
 {
-    private const int AimWindow = 64;
+    private const int AimWindow = 16;
 
     extension(Map map)
     {

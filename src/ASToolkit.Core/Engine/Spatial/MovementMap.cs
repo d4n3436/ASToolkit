@@ -176,28 +176,19 @@ public sealed class MovementMap
             return true;
         }
 
-        var half = walker.Size.AsVector2() / 2;
-        ground = GetSupportHeight(walker, point.AsVector2());
+        var center = point.AsVector2();
+        ground = GetSupportHeight(walker, center);
 
         if (!AllowsHeight(walker, ground, point.Z))
-        {
             return false;
-        }
 
-        if (walker.SpriteClass != SpriteClass.Man)
-        {
-            var inset = half - new Vector2(CornerInset);
-            ReadOnlySpan<Vector2> corners = [new(-inset.X, -inset.Y), inset with { Y = -inset.Y }, inset with { X = -inset.X }, inset];
-            foreach (var corner in corners)
-            {
-                if (!AllowsHeight(walker, GetHeight(point.AsVector2() + corner), point.Z))
-                {
-                    return false;
-                }
-            }
-        }
+        if (walker.SpriteClass == SpriteClass.Man)
+            return true;
 
-        return true;
+        var inset = walker.Size.AsVector2() / 2 - new Vector2(CornerInset);
+
+        return AllowsHeight(walker, GetHeight(center + new Vector2(-inset.X, -inset.Y)), point.Z) && AllowsHeight(walker, GetHeight(center + inset with { Y = -inset.Y }), point.Z) &&
+            AllowsHeight(walker, GetHeight(center + inset with { X = -inset.X }), point.Z) && AllowsHeight(walker, GetHeight(center + inset), point.Z);
     }
 
     /// <summary>
