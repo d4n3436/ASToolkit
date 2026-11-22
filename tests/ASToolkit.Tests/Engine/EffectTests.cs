@@ -9,9 +9,9 @@ namespace ASToolkit.Tests.Engine;
 public class EffectTests
 {
     [Theory]
-    [InlineData(null, 2)]
+    [InlineData("0", 2)]
     [InlineData("1", 1)]
-    public void Emit_Hit_CreatesBloodAndLeavesItsStains(string? blood, int stains)
+    public void Emit_Hit_CreatesBloodAndLeavesItsStains(string blood, int stains)
     {
         string game = TestGameFolder.RequireFolder();
         var definitions = new SpriteCatalog(game, TestGameFolder.Objects);

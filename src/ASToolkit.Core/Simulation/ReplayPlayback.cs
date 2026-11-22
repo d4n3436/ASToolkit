@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Numerics;
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
 using ASToolkit.Core.Reference;
@@ -15,6 +16,7 @@ namespace ASToolkit.Core.Simulation;
 public sealed class ReplayPlayback
 {
     private const int FrameInterval = 100;
+    private const int DrawnLead = 1100;
 
     private readonly Playthrough _play;
     private readonly RouteAnalysis _analysis;
@@ -26,6 +28,8 @@ public sealed class ReplayPlayback
     private bool _isStepped;
     private bool _isClockDue;
     private int _shownTime;
+    private Bgra32[]? _rendered;
+    private int _renderedTime;
 
     private ReplayPlayback(Playthrough play, RouteAnalysis analysis, PlaythroughResult result)
     {
@@ -92,16 +96,23 @@ public sealed class ReplayPlayback
     /// <param name="pixels">The pixels of the frame, row by row, at least <see cref="FrameSize"/> of them.</param>
     /// <param name="time">The time of the frame, in milliseconds.</param>
     /// <param name="cursor">The mouse cursor to draw at the game's cursor position.</param>
-    public void Render(Bgra32[] pixels, int time, CursorImage cursor)
+    /// <returns><see langword="true"/> if the pixels were written; <see langword="false"/> if <paramref name="pixels"/> already holds the frame for that time.</returns>
+    public bool Render(Bgra32[] pixels, int time, CursorImage cursor)
     {
         Seek(time);
+        if (_rendered == pixels && _renderedTime == _shownTime)
+            return false;
+
         var screen = _map.Session.Graphics.Screen!;
         screen.CopyTo(pixels);
 
         var size = screen.Size;
 
-        var point = _map.Cursor - _map.ViewCenter + new System.Numerics.Vector2(size.Width, size.Height) * 0.5f;
+        var point = _map.Cursor - _map.ViewCenter + new Vector2(size.Width, size.Height) * 0.5f;
         cursor.Draw(pixels.AsSpan(0, size.Width * size.Height), size, new Point((int)MathF.Round(point.X), (int)MathF.Round(point.Y)));
+        _rendered = pixels;
+        _renderedTime = _shownTime;
+        return true;
     }
 
     private static PlaythroughResult SimulateLevel(Playthrough play, RouteAnalysis selected, string map, GameTable table)
@@ -127,6 +138,7 @@ public sealed class ReplayPlayback
         _isStepped = false;
         _isClockDue = false;
         _shownTime = 0;
+        _rendered = null;
         var map = _play.LoadReplay(_analysis, _loadout, _demo);
         map.Session.Graphics.Screen = new Screen(Size.Round(map.Session.ScreenSize), true);
 
@@ -140,12 +152,12 @@ public sealed class ReplayPlayback
             _map = Load();
         }
 
-        while (_map.TryGetNextDemoTime(out int next) && next <= time && StepFrame())
+        while (_map.TryGetNextDemoTime(out int next) && next <= time && StepFrame(next < time - DrawnLead))
         {
         }
     }
 
-    private bool StepFrame()
+    private bool StepFrame(bool isAimOnly)
     {
         if (_isClockDue)
         {
@@ -164,7 +176,15 @@ public sealed class ReplayPlayback
         if (!_map.IsPlayingDemo)
             return false;
 
-        _map.Step(drawFrame);
+        if (isAimOnly)
+        {
+            _map.StepAimed(drawFrame);
+        }
+        else
+        {
+            _map.Step(drawFrame);
+        }
+
         _isStepped = true;
         _isClockDue = true;
         _shownTime = _map.Time;

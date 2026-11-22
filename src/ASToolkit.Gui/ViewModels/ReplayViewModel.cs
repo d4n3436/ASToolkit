@@ -4,7 +4,6 @@ using ASToolkit.Core.Formats;
 using ASToolkit.Core.Simulation;
 using ASToolkit.Gui.Core;
 using Avalonia.Media.Imaging;
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SixLabors.ImageSharp.PixelFormats;
@@ -16,7 +15,7 @@ namespace ASToolkit.Gui.ViewModels;
 /// </summary>
 public partial class ReplayViewModel : ViewModelBase
 {
-    private readonly DispatcherTimer _timer;
+    private static readonly TimeSpan SlowRender = TimeSpan.FromMilliseconds(100);
     private readonly Stopwatch _clock = new();
 
     private ReplayPlayback? _playback;
@@ -28,13 +27,8 @@ public partial class ReplayViewModel : ViewModelBase
     private int _baseTime;
     private bool _seeking;
     private int _loadVersion;
-
-    public ReplayViewModel()
-    {
-        _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
-        _timer.Tick += (_, _) => Tick();
-        _timer.Start();
-    }
+    private bool _isRendering;
+    private bool _isDrawPending;
 
     /// <summary>
     /// Gets or sets the viewer whose open game and map are simulated.
@@ -145,7 +139,10 @@ public partial class ReplayViewModel : ViewModelBase
         _clock.Restart();
     }
 
-    private void Tick()
+    /// <summary>
+    /// Shows the frame for the playback clock's current time.
+    /// </summary>
+    public void Tick()
     {
         var playback = _playback;
         if (!IsPlaying || playback is null || playback.FrameCount == 0)
@@ -175,11 +172,19 @@ public partial class ReplayViewModel : ViewModelBase
         }
     }
 
-    private void DrawFrame()
+    private void DrawFrame() => _ = DrawFrameAsync();
+
+    private async Task DrawFrameAsync()
     {
         var playback = _playback;
         if (playback is null || playback.FrameCount == 0)
         {
+            return;
+        }
+
+        if (_isRendering)
+        {
+            _isDrawPending = true;
             return;
         }
 
@@ -190,8 +195,38 @@ public partial class ReplayViewModel : ViewModelBase
             _pixels = new Bgra32[buffer.Width * buffer.Height];
         }
 
-        playback.Render(_pixels, _time, _cursor);
-        Frame = Upload(buffer);
+        var pixels = _pixels;
+        int time = _time;
+        var cursor = _cursor;
+        _isRendering = true;
+        bool isWritten;
+        long started = Stopwatch.GetTimestamp();
+        try
+        {
+            isWritten = await Task.Run(() => playback.Render(pixels, time, cursor));
+        }
+        finally
+        {
+            _isRendering = false;
+        }
+
+        if (Stopwatch.GetElapsedTime(started) > SlowRender && playback == _playback)
+        {
+            _time = time;
+            _baseTime = time;
+            _clock.Restart();
+        }
+
+        if (isWritten && playback == _playback)
+        {
+            Frame = Upload(buffer);
+        }
+
+        if (_isDrawPending)
+        {
+            _isDrawPending = false;
+            await DrawFrameAsync();
+        }
     }
 
     private WriteableBitmap Upload(Size size)

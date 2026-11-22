@@ -1,6 +1,5 @@
 using System.Numerics;
 using ASToolkit.Core.Formats;
-using System.Drawing;
 
 namespace ASToolkit.Core.Engine;
 
@@ -19,7 +18,6 @@ internal sealed class WeaponSystem
     private readonly Map _map;
     private readonly SpriteCatalog _definitions;
     private readonly SpriteCollector _collector;
-    private readonly DepthProbe _depth;
     private bool _isTurningLegs;
 
     public WeaponSystem(Map map, SpriteCatalog definitions)
@@ -28,7 +26,6 @@ internal sealed class WeaponSystem
         _definitions = definitions;
         _collector = map.Collector;
         Collision = new ProjectileCollision(map);
-        _depth = new DepthProbe(map);
     }
 
     public Sprite? Torso => _map.GetFlagman(0)?.Link;
@@ -37,17 +34,15 @@ internal sealed class WeaponSystem
 
     public Vector3 GetCursorPoint(Sprite man, Vector2 cursor, SpriteDefinition weapon)
     {
-            var screen = _map.Session.Graphics.Screen;
+        var screen = _map.Session.Graphics.Screen;
         var player = man.Position;
         var pixel = cursor - _map.Camera;
         float y = cursor.Y;
         float height;
 
-        if (pixel.X >= _map.Session.View.Left && pixel.X < _map.Session.View.Right && pixel.Y >= _map.Session.View.Top && pixel.Y < _map.Session.View.Bottom)
+        if (screen is not null && pixel.X >= _map.Session.View.Left && pixel.X < _map.Session.View.Right && pixel.Y >= _map.Session.View.Top && pixel.Y < _map.Session.View.Bottom)
         {
-            height = screen is null
-                ? _depth.MeasureHeight(new Point((int)cursor.X, (int)cursor.Y))
-                : (screen.Depth[(int)pixel.Y * screen.DepthWidth + (int)pixel.X] >> DepthShift) - DepthBias;
+            height = (screen.Depth[(int)pixel.Y * screen.DepthWidth + (int)pixel.X] >> DepthShift) - DepthBias;
 
             if (height > player.Z + AimRise)
             {

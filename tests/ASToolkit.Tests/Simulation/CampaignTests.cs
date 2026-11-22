@@ -58,7 +58,7 @@ public class CampaignTests
             if (!replay.IsPlayingDemo)
                 break;
 
-            replay.Step(drawFrame);
+            replay.StepAimed(drawFrame);
             frames++;
 
             if (replay.TryGetNextDemoTime(out int next))

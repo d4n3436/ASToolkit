@@ -127,6 +127,7 @@ public sealed class Playthrough
         registry.Set("PlayerSex", "male");
         registry.Set("StateBar", "1");
         registry.Set("DifficultyLevel", "1");
+        registry.Set("Blood", "1");
 
         return registry;
     }

@@ -210,7 +210,7 @@ internal sealed class PlayerBot
                 _input.Press(_command);
             }
 
-            _map.Step(_map.StepDemo(_map.WallTime, out _));
+            _map.StepAimed(_map.StepDemo(_map.WallTime, out _));
 
             return;
         }
@@ -242,7 +242,7 @@ internal sealed class PlayerBot
 
         var player = _map.Player;
         Vector2? goal = player is { Command: Command.Move, HasGoal: true } ? player.GoalPosition.AsVector2() : null;
-        _map.Step(_map.StepDemo(_map.WallTime, out _));
+        _map.StepAimed(_map.StepDemo(_map.WallTime, out _));
 
         if (!_map.HasPlayer)
             return;

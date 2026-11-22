@@ -1,15 +1,33 @@
+using System.Drawing;
 using ASToolkit.Core.Engine;
 using ASToolkit.Core.Formats;
 
 namespace ASToolkit.Core.Simulation;
 
 /// <summary>
-/// Provides views of a map's update lists, derived from the engine state.
+/// Provides views of a map's update lists, derived from the engine state, and a faster way to step the map.
 /// </summary>
 public static class MapExtensions
 {
+    private const int AimWindow = 64;
+
     extension(Map map)
     {
+        /// <summary>
+        /// Steps the map one frame and draws only a small area of its screen around the input cursor.
+        /// </summary>
+        /// <remarks>The frame plays as if the whole screen were drawn. A map without a screen gets one.</remarks>
+        /// <param name="drawFrame">Whether the engine should draw the frame.</param>
+        public void StepAimed(bool drawFrame)
+        {
+            var screen = map.Session.Graphics.Screen ??= new Screen(Size.Round(map.Session.ScreenSize), true);
+            var fullClip = new Rectangle(Point.Empty, screen.Size);
+            var pixel = map.Input.Cursor - map.Camera;
+            screen.Clip = Rectangle.Intersect(new Rectangle((int)pixel.X - AimWindow / 2, (int)pixel.Y - AimWindow / 2, AimWindow, AimWindow), fullClip);
+            map.Step(drawFrame);
+            screen.Clip = fullClip;
+        }
+
         /// <summary>
         /// Gets the sprites of the update lists, layer by layer, in update order.
         /// </summary>
