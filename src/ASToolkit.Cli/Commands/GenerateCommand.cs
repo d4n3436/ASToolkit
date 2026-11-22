@@ -1,6 +1,5 @@
 using ASToolkit.Generation;
 using Spectre.Console;
-using Spectre.Console.Cli;
 using ASToolkit.Generation.Patching;
 using ASToolkit.Analysis.Reference;
 
@@ -8,7 +7,7 @@ namespace ASToolkit.Cli.Commands;
 
 internal sealed class GenerateCommand : Command<GenerateSettings>
 {
-    public override int Execute(CommandContext context, GenerateSettings settings, CancellationToken cancellationToken)
+    public override int Execute(GenerateSettings settings, CancellationToken cancellationToken)
     {
         var (generator, _, _) = GeneratorFactory.Create(settings.Game, settings.Style);
         var table = new Table().AddColumns("Level", "Gate", "Tour", "Walked back", "Unreached");

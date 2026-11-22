@@ -1,23 +1,48 @@
-using System.ComponentModel;
-using Spectre.Console.Cli;
+using System.CommandLine;
 
 namespace ASToolkit.Cli.Commands;
 
-internal class SpriteSelectionSettings : GameSettings
+internal sealed class SpriteSelectionSettings : GameSettings, ICommandSettings<SpriteSelectionSettings>
 {
-    [CommandArgument(0, "<MAP>")]
-    [Description("The map to read, relative to the Maps folder or a path to a map file.")]
-    public string Map { get; init; } = "";
+    private static readonly Argument<string> MapArgument = new("MAP") { Description = "The map to read, relative to the Maps folder or a path to a map file." };
 
-    [CommandOption("--id <ID>")]
-    [Description("Keeps the sprites of one object ID.")]
-    public int? Id { get; init; }
+    private static readonly Option<int?> IdOption = new("--id") { Description = "Keeps the sprites of one object ID.", HelpName = "ID" };
 
-    [CommandOption("--name <TEXT>")]
-    [Description("Keeps the sprites whose object name or sprite name contains the text.")]
-    public string? Name { get; init; }
+    private static readonly Option<string?> NameOption = new("--name") { Description = "Keeps the sprites whose object name or sprite name contains the text.", HelpName = "TEXT" };
 
-    [CommandOption("--near <X,Y,R>")]
-    [Description("Keeps the sprites within a radius of a point, in map pixels.")]
-    public MapArea? Near { get; init; }
+    private static readonly Option<MapArea?> NearOption = new("--near")
+    {
+        Description = "Keeps the sprites within a radius of a point, in map pixels.",
+        HelpName = "X,Y,R",
+        CustomParser = result =>
+        {
+            if (MapArea.TryParse(result.Tokens[0].Value, out var area))
+            {
+                return area;
+            }
+
+            result.AddError("The area must be in the format x,y,r, such as 3200,4100,300.");
+            return null;
+        }
+    };
+
+    public SpriteSelectionSettings(ParseResult result) : base(result)
+    {
+        Map = result.GetRequiredValue(MapArgument);
+        Id = result.GetValue(IdOption);
+        Name = result.GetValue(NameOption);
+        Near = result.GetValue(NearOption);
+    }
+
+    public string Map { get; }
+
+    public int? Id { get; }
+
+    public string? Name { get; }
+
+    public MapArea? Near { get; }
+
+    static IReadOnlyList<Symbol> ICommandSettings<SpriteSelectionSettings>.Symbols => [GameOption, MapArgument, IdOption, NameOption, NearOption];
+
+    static SpriteSelectionSettings ICommandSettings<SpriteSelectionSettings>.Read(ParseResult result) => new(result);
 }

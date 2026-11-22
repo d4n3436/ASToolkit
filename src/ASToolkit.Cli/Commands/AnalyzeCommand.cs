@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using ASToolkit.Formats;
 using ASToolkit.Bot.Rendering;
 using ASToolkit.Analysis.Routes;
@@ -11,20 +10,12 @@ using ASToolkit.Engine;
 using ASToolkit.Cli.Analysis;
 using SixLabors.ImageSharp;
 using Spectre.Console;
-using Spectre.Console.Cli;
 
 namespace ASToolkit.Cli.Commands;
 
 internal sealed class AnalyzeCommand : LevelCommand<AnalyzeSettings>
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-        Converters = { new JsonStringEnumConverter() }
-    };
-
-    public override int Execute(CommandContext context, AnalyzeSettings settings, CancellationToken cancellationToken)
+    public override int Execute(AnalyzeSettings settings, CancellationToken cancellationToken)
     {
         var objects = ObjectTable.Load(Path.Combine(settings.Game, "objects.res"));
         if (objects.IsAlienShooter2)
@@ -93,7 +84,7 @@ internal sealed class AnalyzeCommand : LevelCommand<AnalyzeSettings>
         }
 
         string json = Path.Combine(settings.Out, settings.Levels is null ? "routes.json" : "routes_generated.json");
-        File.WriteAllText(json, JsonSerializer.Serialize(reports.OfType<RouteReport>(), JsonOptions));
+        File.WriteAllText(json, JsonSerializer.Serialize(reports.OfType<RouteReport>().ToArray(), AnalyzeJsonContext.Default.RouteReportArray));
         AnsiConsole.MarkupLine($"Wrote [green]{Markup.Escape(json)}[/].");
         return problems.All(p => p is null) ? 0 : 1;
     }
@@ -132,7 +123,7 @@ internal sealed class AnalyzeCommand : LevelCommand<AnalyzeSettings>
 
         AnsiConsole.Write(table);
         string json = Path.Combine(settings.Out, "routes.json");
-        File.WriteAllText(json, JsonSerializer.Serialize(reports.OfType<WalkReport>(), JsonOptions));
+        File.WriteAllText(json, JsonSerializer.Serialize(reports.OfType<WalkReport>().ToArray(), AnalyzeJsonContext.Default.WalkReportArray));
         AnsiConsole.MarkupLine($"Wrote [green]{Markup.Escape(json)}[/].");
         return reports.All(report => report is not null) ? 0 : 1;
     }

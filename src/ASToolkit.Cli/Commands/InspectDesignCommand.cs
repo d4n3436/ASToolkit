@@ -15,7 +15,6 @@ using ASToolkit.Bot.Rendering;
 using ASToolkit.Analysis.Scripting;
 using ASToolkit.Analysis.Survey;
 using SixLabors.ImageSharp;
-using Spectre.Console.Cli;
 using Spectre.Console;
 
 namespace ASToolkit.Cli.Commands;
@@ -39,7 +38,7 @@ internal sealed class InspectDesignCommand : LevelCommand<InspectDesignSettings>
     private static readonly KnownObject[] TallFurniture = [KnownObject.Cabinet, KnownObject.Table, KnownObject.Shelves, KnownObject.BigComputer];
     private static readonly KnownObject[] FacedFurniture = [KnownObject.Cabinet, KnownObject.Table, KnownObject.Container, KnownObject.Shelves];
 
-    public override int Execute(CommandContext context, InspectDesignSettings settings, CancellationToken cancellationToken)
+    public override int Execute(InspectDesignSettings settings, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(settings.Out);
         var objects = ObjectTable.Load(Path.Combine(settings.Game, "objects.res"));
@@ -262,10 +261,10 @@ internal sealed class InspectDesignCommand : LevelCommand<InspectDesignSettings>
     private static string GetFailure(Exception exception)
     {
         var site = new StackTrace(exception).GetFrames()
-            .Select(frame => frame.GetMethod())
-            .FirstOrDefault(method => method?.DeclaringType?.Namespace?.StartsWith("ASToolkit", StringComparison.Ordinal) == true);
+            .Select(DiagnosticMethodInfo.Create)
+            .FirstOrDefault(method => method?.DeclaringTypeName.StartsWith("ASToolkit.", StringComparison.Ordinal) == true);
 
-        return $"{exception.GetType().Name} in {site?.DeclaringType?.Name}.{site?.Name}";
+        return $"{exception.GetType().Name} in {site?.DeclaringTypeName[(site.DeclaringTypeName.LastIndexOf('.') + 1)..]}.{site?.Name}";
     }
 
     private static void WriteLevels(InspectDesignSettings settings, string[] names, DesignMeasures?[] measures)

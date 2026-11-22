@@ -1,6 +1,5 @@
 using ASToolkit.Formats;
 using Spectre.Console;
-using Spectre.Console.Cli;
 
 namespace ASToolkit.Cli.Commands;
 
@@ -8,7 +7,7 @@ internal sealed class InspectObjectCommand : Command<InspectObjectSettings>
 {
     private const int MaxLinkDepth = 8;
 
-    public override int Execute(CommandContext context, InspectObjectSettings settings, CancellationToken cancellationToken)
+    public override int Execute(InspectObjectSettings settings, CancellationToken cancellationToken)
     {
         var objects = ObjectTable.Load(Path.Combine(settings.Game, "objects.res"));
         var id = (KnownObject)settings.Id;

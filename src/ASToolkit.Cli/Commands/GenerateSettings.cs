@@ -1,40 +1,48 @@
-using System.ComponentModel;
+using System.CommandLine;
 using ASToolkit.Analysis.Reference;
-using Spectre.Console;
-using Spectre.Console.Cli;
 
 namespace ASToolkit.Cli.Commands;
 
-internal sealed class GenerateSettings : GameSettings
+internal sealed class GenerateSettings : GameSettings, ICommandSettings<GenerateSettings>
 {
-    [CommandOption("-s|--seed <SEED>", true)]
-    [Description("The seed.")]
-    public int Seed { get; init; }
+    private static readonly Option<int> SeedOption = new("--seed", "-s") { Description = "The seed.", HelpName = "SEED", Required = true };
 
-    [CommandOption("--first <LEVEL>")]
-    [Description("The first campaign level to generate; levels outside --first to --last are the campaign's own. Defaults to 1.")]
-    public int First { get; init; } = 1;
+    private static readonly Option<int> FirstOption = new("--first")
+    {
+        Description = "The first campaign level to generate; levels outside --first to --last are the campaign's own. Defaults to 1.",
+        HelpName = "LEVEL",
+        DefaultValueFactory = _ => 1
+    };
 
-    [CommandOption("--last <LEVEL>")]
-    [Description("The last campaign level to generate. Defaults to 10.")]
-    public int Last { get; init; } = 10;
+    private static readonly Option<int> LastOption = new("--last") { Description = "The last campaign level to generate. Defaults to 10.", HelpName = "LEVEL", DefaultValueFactory = _ => 10 };
 
-    [CommandOption("--addon-style")]
-    [Description("Generate the five levels of an add-on instead of the ten of the campaign; --first and --last are ignored. Either way the levels become the RANDOM add-on on the play menu.")]
-    public bool AddOnStyle { get; init; }
+    private static readonly Option<bool> AddOnStyleOption = new("--addon-style")
+    {
+        Description = "Generate the five levels of an add-on instead of the ten of the campaign; --first and --last are ignored. Either way the levels become the RANDOM add-on on the play menu."
+    };
+
+    public GenerateSettings(ParseResult result) : base(result)
+    {
+        Seed = result.GetRequiredValue(SeedOption);
+        First = result.GetValue(FirstOption);
+        Last = result.GetValue(LastOption);
+        AddOnStyle = result.GetValue(AddOnStyleOption);
+    }
+
+    public int Seed { get; }
+
+    public int First { get; }
+
+    public int Last { get; }
+
+    public bool AddOnStyle { get; }
 
     public GenerationStyle Style => AddOnStyle ? GenerationStyle.AddOn : GenerationStyle.Campaign;
 
-    public override ValidationResult Validate()
-    {
-        var game = base.Validate();
-        if (!game.Successful)
-        {
-            return game;
-        }
+    static IReadOnlyList<Symbol> ICommandSettings<GenerateSettings>.Symbols => [GameOption, SeedOption, FirstOption, LastOption, AddOnStyleOption];
 
-        return AddOnStyle || First >= 1 && Last <= GenerationStyle.Campaign.LevelCount && First <= Last
-            ? ValidationResult.Success()
-            : ValidationResult.Error("The levels must lie between 1 and 10.");
-    }
+    static GenerateSettings ICommandSettings<GenerateSettings>.Read(ParseResult result) => new(result);
+
+    public override string? GetValidationError() => base.GetValidationError()
+        ?? (AddOnStyle || First >= 1 && Last <= GenerationStyle.Campaign.LevelCount && First <= Last ? null : "The levels must lie between 1 and 10.");
 }

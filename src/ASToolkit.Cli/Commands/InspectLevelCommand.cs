@@ -7,13 +7,12 @@ using ASToolkit.Analysis.Reference;
 using ASToolkit.Bot.Rendering;
 using SixLabors.ImageSharp;
 using Spectre.Console;
-using Spectre.Console.Cli;
 
 namespace ASToolkit.Cli.Commands;
 
 internal sealed class InspectLevelCommand : LevelCommand<InspectLevelSettings>
 {
-    public override int Execute(CommandContext context, InspectLevelSettings settings, CancellationToken cancellationToken)
+    public override int Execute(InspectLevelSettings settings, CancellationToken cancellationToken)
     {
         var objects = ObjectTable.Load(Path.Combine(settings.Game, "objects.res"));
         string[] maps = GetMaps(settings.Maps, settings.Levels);

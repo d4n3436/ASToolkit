@@ -1,13 +1,12 @@
 using System.Globalization;
 using ASToolkit.Analysis.Scripting;
 using Spectre.Console;
-using Spectre.Console.Cli;
 
 namespace ASToolkit.Cli.Commands;
 
 internal sealed class InspectSpritesCommand : Command<SpriteSelectionSettings>
 {
-    public override int Execute(CommandContext context, SpriteSelectionSettings settings, CancellationToken cancellationToken)
+    public override int Execute(SpriteSelectionSettings settings, CancellationToken cancellationToken)
     {
         var selector = new SpriteSelector(settings);
         var logic = selector.Objects.IsAlienShooter2

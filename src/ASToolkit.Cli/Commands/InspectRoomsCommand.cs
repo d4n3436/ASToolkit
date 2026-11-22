@@ -10,13 +10,12 @@ using ASToolkit.Bot.Rendering;
 using ASToolkit.Analysis.Rooms;
 using SixLabors.ImageSharp;
 using Spectre.Console;
-using Spectre.Console.Cli;
 
 namespace ASToolkit.Cli.Commands;
 
 internal sealed class InspectRoomsCommand : LevelCommand<InspectRoomsSettings>
 {
-    public override int Execute(CommandContext context, InspectRoomsSettings settings, CancellationToken cancellationToken)
+    public override int Execute(InspectRoomsSettings settings, CancellationToken cancellationToken)
     {
         var objects = ObjectTable.Load(Path.Combine(settings.Game, "objects.res"));
         string[] maps = GetMaps(settings.Maps, settings.Levels);

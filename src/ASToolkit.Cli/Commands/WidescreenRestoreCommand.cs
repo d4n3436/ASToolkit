@@ -1,12 +1,11 @@
 using ASToolkit.Generation.Widescreen;
 using Spectre.Console;
-using Spectre.Console.Cli;
 
 namespace ASToolkit.Cli.Commands;
 
 internal sealed class WidescreenRestoreCommand : Command<GameSettings>
 {
-    public override int Execute(CommandContext context, GameSettings settings, CancellationToken cancellationToken)
+    public override int Execute(GameSettings settings, CancellationToken cancellationToken)
     {
         foreach (string file in WidescreenInstaller.Remove(settings.Game))
         {

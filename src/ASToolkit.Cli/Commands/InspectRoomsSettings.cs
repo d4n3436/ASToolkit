@@ -1,45 +1,56 @@
-using System.ComponentModel;
-using Spectre.Console;
-using Spectre.Console.Cli;
+using System.CommandLine;
 
 namespace ASToolkit.Cli.Commands;
 
-internal sealed class InspectRoomsSettings : GameSettings
+internal sealed class InspectRoomsSettings : GameSettings, ICommandSettings<InspectRoomsSettings>
 {
-    [CommandArgument(0, "[MAPS]")]
-    [Description("The original maps to read, relative to the Maps folder, such as Level_03.map or ADDON/Level_02.map. Defaults to campaign levels 2 to 10 and the levels 2 to 5 of both add-ons.")]
-    public string[] Maps { get; init; } = [];
-
-    [CommandOption("-o|--out <FOLDER>", true)]
-    [Description("The folder for the room sheets, rooms.tsv and rooms.md. It is created if it doesn't exist.")]
-    public string Out { get; init; } = "";
-
-    [CommandOption("-l|--levels <FOLDER>")]
-    [Description("A folder of generated maps and their .lgc scripts to read instead of the originals.")]
-    public string? Levels { get; init; }
-
-    [CommandOption("-s|--scale <SCALE>")]
-    [Description("Image pixels per map pixel of the room crops, above 0 and at most 1.")]
-    [DefaultValue(0.5f)]
-    public float Scale { get; init; } = 0.5f;
-
-    [CommandOption("--crops")]
-    [Description("Also writes the image of each room to its own file in a crops folder.")]
-    public bool Crops { get; init; }
-
-    public override ValidationResult Validate()
+    private static readonly Argument<string[]> MapsArgument = new("MAPS")
     {
-        var game = base.Validate();
-        if (!game.Successful)
-        {
-            return game;
-        }
+        Description = "The original maps to read, relative to the Maps folder, such as Level_03.map or ADDON/Level_02.map. Defaults to campaign levels 2 to 10 and the levels 2 to 5 of both add-ons.",
+        Arity = ArgumentArity.ZeroOrMore
+    };
 
-        if (Levels is not null && !Directory.Exists(Levels))
-        {
-            return ValidationResult.Error($"No folder {Levels}.");
-        }
+    private static readonly Option<string> OutOption = new("--out", "-o")
+    {
+        Description = "The folder for the room sheets, rooms.tsv and rooms.md. It is created if it doesn't exist.",
+        HelpName = "FOLDER",
+        Required = true
+    };
 
-        return Scale is > 0 and <= 1 ? ValidationResult.Success() : ValidationResult.Error("The scale must be above 0 and at most 1.");
+    private static readonly Option<string?> LevelsOption = new("--levels", "-l") { Description = "A folder of generated maps and their .lgc scripts to read instead of the originals.", HelpName = "FOLDER" };
+
+    private static readonly Option<float> ScaleOption = new("--scale", "-s")
+    {
+        Description = "Image pixels per map pixel of the room crops, above 0 and at most 1.",
+        HelpName = "SCALE",
+        DefaultValueFactory = _ => 0.5f
+    };
+
+    private static readonly Option<bool> CropsOption = new("--crops") { Description = "Also writes the image of each room to its own file in a crops folder." };
+
+    public InspectRoomsSettings(ParseResult result) : base(result)
+    {
+        Maps = result.GetValue(MapsArgument) ?? [];
+        Out = result.GetRequiredValue(OutOption);
+        Levels = result.GetValue(LevelsOption);
+        Scale = result.GetValue(ScaleOption);
+        Crops = result.GetValue(CropsOption);
     }
+
+    public string[] Maps { get; }
+
+    public string Out { get; }
+
+    public string? Levels { get; }
+
+    public float Scale { get; }
+
+    public bool Crops { get; }
+
+    static IReadOnlyList<Symbol> ICommandSettings<InspectRoomsSettings>.Symbols => [GameOption, MapsArgument, OutOption, LevelsOption, ScaleOption, CropsOption];
+
+    static InspectRoomsSettings ICommandSettings<InspectRoomsSettings>.Read(ParseResult result) => new(result);
+
+    public override string? GetValidationError() => base.GetValidationError()
+        ?? (Levels is not null && !Directory.Exists(Levels) ? $"No folder {Levels}." : Scale is > 0 and <= 1 ? null : "The scale must be above 0 and at most 1.");
 }

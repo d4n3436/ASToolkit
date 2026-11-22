@@ -1,11 +1,10 @@
 using Spectre.Console;
-using Spectre.Console.Cli;
 
 namespace ASToolkit.Cli.Commands;
 
 internal sealed class PreviewCommand : Command<PreviewSettings>
 {
-    public override int Execute(CommandContext context, PreviewSettings settings, CancellationToken cancellationToken)
+    public override int Execute(PreviewSettings settings, CancellationToken cancellationToken)
     {
         var (generator, _, _) = GeneratorFactory.Create(settings.Game, settings.Style);
         var level = generator.Generate(settings.Seed, settings.Level);

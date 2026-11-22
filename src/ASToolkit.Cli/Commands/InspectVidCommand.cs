@@ -1,7 +1,6 @@
 using ASToolkit.Engine;
 using ASToolkit.Formats;
 using Spectre.Console;
-using Spectre.Console.Cli;
 
 namespace ASToolkit.Cli.Commands;
 
@@ -10,7 +9,7 @@ internal sealed class InspectVidCommand : Command<InspectVidSettings>
     private const int DepthShift = 3;
     private const int DepthBias = 0x80;
 
-    public override int Execute(CommandContext context, InspectVidSettings settings, CancellationToken cancellationToken)
+    public override int Execute(InspectVidSettings settings, CancellationToken cancellationToken)
     {
         string? path = File.Exists(settings.File) ? settings.File : GamePath.Resolve(settings.Game, settings.File);
         if (path is null)

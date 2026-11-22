@@ -1,13 +1,12 @@
 using System.Globalization;
 using ASToolkit.Formats;
 using Spectre.Console;
-using Spectre.Console.Cli;
 
 namespace ASToolkit.Cli.Commands;
 
 internal sealed class InspectStacksCommand : Command<SpriteSelectionSettings>
 {
-    public override int Execute(CommandContext context, SpriteSelectionSettings settings, CancellationToken cancellationToken)
+    public override int Execute(SpriteSelectionSettings settings, CancellationToken cancellationToken)
     {
         var selector = new SpriteSelector(settings);
         foreach ((var sprite, string objectName, var program) in selector.Select())

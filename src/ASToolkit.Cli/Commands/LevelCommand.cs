@@ -1,17 +1,15 @@
 using ASToolkit.Analysis.Reference;
-using Spectre.Console.Cli;
 
 namespace ASToolkit.Cli.Commands;
 
 internal abstract class LevelCommand<TSettings> : Command<TSettings>
-    where TSettings : CommandSettings
+    where TSettings : GameSettings
 {
     protected static readonly string[] AddOnLevels =
     [
         "ADDON/Level_02.map", "ADDON/Level_03.map", "ADDON/Level_04.map", "ADDON/Level_05.map",
         "ADDON2/Level_02.map", "ADDON2/Level_03.map", "ADDON2/Level_04.map", "ADDON2/Level_05.map"
     ];
-
 
     private const int MaxLevelsAtOnce = 3;
 

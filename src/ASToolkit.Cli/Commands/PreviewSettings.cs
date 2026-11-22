@@ -1,40 +1,41 @@
-using System.ComponentModel;
+using System.CommandLine;
 using ASToolkit.Analysis.Reference;
-using Spectre.Console;
-using Spectre.Console.Cli;
 
 namespace ASToolkit.Cli.Commands;
 
-internal sealed class PreviewSettings : GameSettings
+internal sealed class PreviewSettings : GameSettings, ICommandSettings<PreviewSettings>
 {
-    [CommandOption("-s|--seed <SEED>", true)]
-    [Description("The seed.")]
-    public int Seed { get; init; }
+    private static readonly Option<int> SeedOption = new("--seed", "-s") { Description = "The seed.", HelpName = "SEED", Required = true };
 
-    [CommandOption("-l|--level <LEVEL>", true)]
-    [Description("The campaign level, 1 to 10, or the add-on level, 1 to 5.")]
-    public int Level { get; init; }
+    private static readonly Option<int> LevelOption = new("--level", "-l") { Description = "The campaign level, 1 to 10, or the add-on level, 1 to 5.", HelpName = "LEVEL", Required = true };
 
-    [CommandOption("--addon-style")]
-    [Description("Generate an add-on level, 1 to 5, instead of a campaign level.")]
-    public bool AddOnStyle { get; init; }
+    private static readonly Option<bool> AddOnStyleOption = new("--addon-style") { Description = "Generate an add-on level, 1 to 5, instead of a campaign level." };
+
+    private static readonly Option<string> OutOption = new("--out", "-o") { Description = "The map file to write; the script is written next to it.", HelpName = "MAP", Required = true };
+
+    public PreviewSettings(ParseResult result) : base(result)
+    {
+        Seed = result.GetRequiredValue(SeedOption);
+        Level = result.GetRequiredValue(LevelOption);
+        AddOnStyle = result.GetValue(AddOnStyleOption);
+        Out = result.GetRequiredValue(OutOption);
+    }
+
+    public int Seed { get; }
+
+    public int Level { get; }
+
+    public bool AddOnStyle { get; }
 
     public GenerationStyle Style => AddOnStyle ? GenerationStyle.AddOn : GenerationStyle.Campaign;
 
-    [CommandOption("-o|--out <MAP>", true)]
-    [Description("The map file to write; the script is written next to it.")]
-    public string Out { get; init; } = "";
+    public string Out { get; }
 
-    public override ValidationResult Validate()
-    {
-        var game = base.Validate();
-        if (!game.Successful)
-        {
-            return game;
-        }
+    static IReadOnlyList<Symbol> ICommandSettings<PreviewSettings>.Symbols => [GameOption, SeedOption, LevelOption, AddOnStyleOption, OutOption];
 
-        return AddOnStyle
-            ? Level >= 1 && Level <= GenerationStyle.AddOn.LevelCount ? ValidationResult.Success() : ValidationResult.Error("The add-on level must be between 1 and 5.")
-            : Level >= 1 && Level <= GenerationStyle.Campaign.LevelCount ? ValidationResult.Success() : ValidationResult.Error("The level must be between 1 and 10.");
-    }
+    static PreviewSettings ICommandSettings<PreviewSettings>.Read(ParseResult result) => new(result);
+
+    public override string? GetValidationError() => base.GetValidationError() ?? (AddOnStyle
+        ? Level >= 1 && Level <= GenerationStyle.AddOn.LevelCount ? null : "The add-on level must be between 1 and 5."
+        : Level >= 1 && Level <= GenerationStyle.Campaign.LevelCount ? null : "The level must be between 1 and 10.");
 }

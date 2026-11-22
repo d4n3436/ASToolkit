@@ -1,12 +1,10 @@
 using System.Diagnostics;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using ASToolkit.Formats;
 using ASToolkit.Analysis.Routes;
 using ASToolkit.Analysis.Scripting;
 using ASToolkit.Bot;
 using Spectre.Console;
-using Spectre.Console.Cli;
 
 namespace ASToolkit.Cli.Commands;
 
@@ -19,7 +17,7 @@ internal sealed class PlayCommand : Command<PlaySettings>
         new("addon2", "ADDON2", 5)
     ];
 
-    public override int Execute(CommandContext context, PlaySettings settings, CancellationToken cancellationToken)
+    public override int Execute(PlaySettings settings, CancellationToken cancellationToken)
     {
         var objects = ObjectTable.Load(Path.Combine(settings.Game, "objects.res"));
         var table = GameTable.LoadCommon(settings.Game);
@@ -46,7 +44,7 @@ internal sealed class PlayCommand : Command<PlaySettings>
             clock.Restart();
             var result = new Playthrough(settings.Game, objects, table).PlayCampaign(levels, rewards.Skip(settings.Start).ToArray(), settings.Seed, initial);
             double play = clock.Elapsed.TotalMilliseconds;
-            reports.Add(new PlayReport(campaign.Name, settings.Start, initial, preparation, play, result));
+            reports.Add(new PlayReport(campaign.Name, settings.Start, initial, preparation, play, result.Levels.Select(LevelReport.FromPlaythrough).ToArray(), result.State, result.IsCompleted));
             output.AddRow(campaign.Name, $"{result.Levels.Count(level => level.Survived)}/{levels.Count}", $"{preparation / 1000:F3}s",
                 $"{play / 1000:F3}s", result.IsCompleted ? "completed" : $"stopped at level {settings.Start + result.Levels.Count - 1}");
         }
@@ -55,10 +53,9 @@ internal sealed class PlayCommand : Command<PlaySettings>
 
         if (settings.Out is not null)
         {
-            var options = new JsonSerializerOptions { WriteIndented = true, Converters = { new JsonStringEnumConverter() } };
-            File.WriteAllText(settings.Out, JsonSerializer.Serialize(reports, options));
+            File.WriteAllText(settings.Out, JsonSerializer.Serialize(reports, PlayJsonContext.Default.ListPlayReport));
         }
 
-        return reports.All(report => report.Result.IsCompleted) ? 0 : 1;
+        return reports.All(report => report.IsCompleted) ? 0 : 1;
     }
 }

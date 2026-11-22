@@ -1,12 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <PublishAot>true</PublishAot>
     <RootNamespace>ASToolkit.Cli</RootNamespace>
     <AssemblyName>ascli</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.7" />
-    <PackageReference Include="Spectre.Console.Cli" Version="0.57.2" />
+    <PackageReference Include="Spectre.Console" Version="0.57.2" />
+    <PackageReference Include="System.CommandLine" Version="3.0.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../ASToolkit.Generation/ASToolkit.Generation.csproj" />

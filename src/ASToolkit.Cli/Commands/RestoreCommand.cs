@@ -1,12 +1,11 @@
 using Spectre.Console;
-using Spectre.Console.Cli;
 using ASToolkit.Generation.Patching;
 
 namespace ASToolkit.Cli.Commands;
 
 internal sealed class RestoreCommand : Command<GameSettings>
 {
-    public override int Execute(CommandContext context, GameSettings settings, CancellationToken cancellationToken)
+    public override int Execute(GameSettings settings, CancellationToken cancellationToken)
     {
         foreach (string part in RandomAddOnInstaller.Remove(settings.Game))
         {
