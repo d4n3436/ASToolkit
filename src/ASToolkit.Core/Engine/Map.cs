@@ -387,9 +387,9 @@ public sealed partial class Map : IDisposable
     {
         ProcessMenuInput(Input);
         Script.CallFunction(this, MainFunction, 0, 0, 0);
-        SetTints(false);
+        SetGammaOverrides(false);
         Session.Graphics.UpdateScreen(this, drawFrame);
-        SetTints(true);
+        SetGammaOverrides(true);
 
         if (IsPaused)
         {
@@ -1108,7 +1108,7 @@ public sealed partial class Map : IDisposable
         unit.FillAmmo();
     }
 
-    private static void Tint(Sprite sprite, Gamma gamma)
+    private static void OverrideGamma(Sprite sprite, Gamma gamma)
     {
         sprite.SetGammaOverride(gamma);
         var link = sprite.Link;
@@ -1367,13 +1367,13 @@ public sealed partial class Map : IDisposable
         sprite.Region = FindRegion(sprite.Position.AsVector2());
     }
 
-    private void SetTints(bool clear)
+    private void SetGammaOverrides(bool clear)
     {
         var flagman = GetFlagman(ControlledPlayer);
 
         if (flagman is { Army: Army.Player } && Definitions.SelectedGamma != 0)
         {
-            Tint(flagman, clear ? default : Gamma.FromScript(Definitions.SelectedGamma));
+            OverrideGamma(flagman, clear ? default : Gamma.FromScript(Definitions.SelectedGamma));
         }
 
         var hovered = _players[ControlledPlayer].Hovered;
@@ -1381,7 +1381,7 @@ public sealed partial class Map : IDisposable
         if (hovered is null || Definitions.HoveredGamma == 0 && Definitions.HoveredEnemyGamma == 0)
             return;
 
-        Tint(hovered, clear ? default : Gamma.FromScript(hovered.Army == Army.Monsters ? Definitions.HoveredEnemyGamma : Definitions.HoveredGamma));
+        OverrideGamma(hovered, clear ? default : Gamma.FromScript(hovered.Army == Army.Monsters ? Definitions.HoveredEnemyGamma : Definitions.HoveredGamma));
     }
 
     [EngineRoutine(0x0040f9e0)]

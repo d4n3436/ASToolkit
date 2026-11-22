@@ -102,7 +102,7 @@ public sealed partial class Graphics
 
         if (UpdateEffectTime(ScreenEffect.AlphaAppear, now, out uint appeared, out uint appearLength) && isShown && Capture is not null)
         {
-            var tint = new Gamma(~PackColor((int)((appeared << 8) / appearLength), byte.MaxValue, byte.MaxValue, byte.MaxValue), Gamma.OpaqueAlpha);
+            var gamma = new Gamma(~PackColor((int)((appeared << 8) / appearLength), byte.MaxValue, byte.MaxValue, byte.MaxValue), Gamma.OpaqueAlpha);
             var texture = new Texture(_captureTexels, new Size(CaptureTileSize, CaptureTileSize), VidPixelFormat.R5G6B5);
             var clip = Screen!.Clip;
             for (float top = clip.Top; top < clip.Bottom; top += CaptureTileSize)
@@ -114,7 +114,7 @@ public sealed partial class Graphics
                     var area = Rectangle.FromLTRB((int)(left - clip.Left), (int)(top - clip.Top), (int)(left + width - clip.Left), (int)(height + top - clip.Top));
                     if (texture.CopyFromSurface(Capture, area, Point.Empty) == 0)
                     {
-                        texture.DrawFlatQuad(Screen, area, new Rectangle(0, 0, (int)width, (int)height), tint, CaptureBlend, true);
+                        texture.DrawFlatQuad(Screen, area, new Rectangle(0, 0, (int)width, (int)height), gamma, CaptureBlend, true);
                     }
                 }
             }

@@ -141,10 +141,10 @@ public sealed class HardwareLayerSpriteDefinition : SpriteDefinition
             -0f, scaleY, 0f, 0f,
             0f, 0f, scaleZ, 0f,
             x, y, z, 1f);
-        var tint = new Gamma(seed, 0).Add(sprite.GetGamma());
+        var gamma = new Gamma(seed, 0).Add(sprite.GetGamma());
         if (!Object.Properties.HasFlag(ObjectProperties.Gamma))
         {
-            tint = tint.Add(map.Session.Graphics.Gamma);
+            gamma = gamma.Add(map.Session.Graphics.Gamma);
         }
 
         if (sprite.Frame < 0 || sprite.Frame >= Frames.Length)
@@ -152,7 +152,7 @@ public sealed class HardwareLayerSpriteDefinition : SpriteDefinition
 
         var blend = FileType.HasFlag(VidType.Blended) ? QuadBlend.Alpha : QuadBlend.None;
         var transform = world * Graphics.CreateView(camera, clip) * Graphics.CreateProjection(clip);
-        Frames[sprite.Frame].Draw(screen, transform, blend, ~tint.Negative);
+        Frames[sprite.Frame].Draw(screen, transform, blend, ~gamma.Negative);
     }
 
     /// <inheritdoc/>

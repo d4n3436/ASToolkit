@@ -197,9 +197,9 @@ public sealed class DepthFadedSpriteDefinition : SoftwareSpriteDefinition
             position += RunHeader;
         }
 
-        var tint = GetTint(map, sprite);
+        var gamma = GetGamma(map, sprite);
         var destination = Rectangle.FromLTRB(origin.X, top, origin.X + FrameSize.Width, bottom);
         var source = new Rectangle(0, 0, FrameSize.Width, rowCount);
-        new Texture(scratch, screen.ScratchSize, VidPixelFormat.A4R4G4B4).DrawFlatQuad(screen, destination, source, tint, additive ? QuadBlend.AlphaAdd : QuadBlend.Alpha);
+        new Texture(scratch, screen.ScratchSize, VidPixelFormat.A4R4G4B4).DrawFlatQuad(screen, destination, source, gamma, additive ? QuadBlend.AlphaAdd : QuadBlend.Alpha);
     }
 }

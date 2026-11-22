@@ -260,9 +260,9 @@ public class Sprite
     public uint PreviousPositionStamp { get; private set; }
 
     /// <summary>
-    /// Gets the gamma that tints the sprite while it is drawn, or the default gamma for no tint.
+    /// Gets the gamma applied to the sprite while it is drawn, or the default gamma when there isn't one.
     /// </summary>
-    public Gamma Tint { get; private set; }
+    public Gamma GammaOverride { get; private set; }
 
     /// <summary>
     /// Gets or sets the sprite's countdown timer in milliseconds.
@@ -579,7 +579,7 @@ public class Sprite
     }
 
     /// <summary>
-    /// Sets the gamma that tints the sprite while it is drawn, and creates the sprite's extra data if needed.
+    /// Sets the gamma applied to the sprite while it is drawn, and creates the sprite's extra data if needed.
     /// </summary>
     /// <param name="gamma">The gamma.</param>
     [EngineRoutine(0x00443070)]
@@ -587,7 +587,7 @@ public class Sprite
     {
         EnsureExtra();
 
-        Tint = gamma;
+        GammaOverride = gamma;
     }
 
     /// <summary>
@@ -1029,7 +1029,7 @@ public class Sprite
     public Gamma GetGamma()
     {
         var definition = Definition;
-        var gamma = HasExtra && (Tint.Negative != 0 || Tint.Positive != 0) ? Tint : definition.Gammas[(int)Army & SpriteDefinition.ArmyMask];
+        var gamma = HasExtra && (GammaOverride.Negative != 0 || GammaOverride.Positive != 0) ? GammaOverride : definition.Gammas[(int)Army & SpriteDefinition.ArmyMask];
         if (!definition.HasKeyframes)
             return gamma;
 

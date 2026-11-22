@@ -514,7 +514,7 @@ public class SpriteDefinition
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
-    /// <param name="sprite">The sprite that gives the position, frame and tint, which may be of another definition.</param>
+    /// <param name="sprite">The sprite that gives the position, frame and gamma, which may be of another definition.</param>
     /// <param name="camera">The top left corner of the view, in map pixels.</param>
     public virtual void Draw(Screen screen, Map map, Sprite sprite, Vector2 camera)
     {
@@ -574,10 +574,10 @@ public class SpriteDefinition
             throw new ArgumentOutOfRangeException(nameof(army));
     }
 
-    private protected Gamma GetTint(Map map, Sprite sprite)
+    private protected Gamma GetGamma(Map map, Sprite sprite)
     {
-        var tint = Object.Gamma.Pack().Add(sprite.GetGamma());
-        return Object.Properties.HasFlag(ObjectProperties.Gamma) ? tint : tint.Add(map.Session.Graphics.Gamma);
+        var gamma = Object.Gamma.Pack().Add(sprite.GetGamma());
+        return Object.Properties.HasFlag(ObjectProperties.Gamma) ? gamma : gamma.Add(map.Session.Graphics.Gamma);
     }
 
     /// <summary>

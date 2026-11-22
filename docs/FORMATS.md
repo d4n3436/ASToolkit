@@ -156,7 +156,7 @@ Body fields:
  +456   +472   f32 x17  ChildZ[17]: height offset of the object created in the state
  +524   +540   i32 x17  ChildVid[17]: object created in each state, mostly an effect or a projectile
  +592   +608   i32 x17  NoChild[17]: number of objects created in the state, 1 on most; 2 makes a mirrored pair, and the engine ignores the sign
- +660   +676   i32 x3   GammaRGBA[0..2]: red, green and blue tint; a negative value t scales the channel to (256 + t) / 256, a positive one adds t
+ +660   +676   i32 x3   GammaRGBA[0..2]: red, green and blue gamma; a negative value t scales the channel to (256 + t) / 256, a positive one adds t
  +672   +688   i32      GammaRGBA[3]: alpha; negative on smoke, steam and shadows
  +676   +692   f32 x3   ScaleXYZ[3]: scale along x, y and the height, 1.0 by default; on omni-lights, the radius of the light
 ```

@@ -157,7 +157,7 @@ public sealed class TextureFont
         bool wasLinearFiltered = screen.IsLinearFiltered;
         screen.IsLinearFiltered = flags.HasFlag(TextDrawFlags.Filtered);
         var texture = new Texture(_texels, TextureSize, VidPixelFormat.A4R4G4B4);
-        var tint = new Gamma(~color, 0);
+        var gamma = new Gamma(~color, 0);
         float startX = x;
         for (int i = 0; i < text.Length && text[i] != 0; i++)
         {
@@ -183,7 +183,7 @@ public sealed class TextureFont
                     (int)MathF.Round(bounds.Min.Y * TextureSize.Height),
                     (int)MathF.Round(bounds.Max.X * TextureSize.Width),
                     (int)MathF.Round(bounds.Max.Y * TextureSize.Height));
-                texture.BlitQuad(screen, destination, source, tint, _blend, false, true, _minimumAlpha);
+                texture.BlitQuad(screen, destination, source, gamma, _blend, false, true, _minimumAlpha);
             }
 
             x = glyphWidth + x;

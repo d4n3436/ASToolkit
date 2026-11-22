@@ -142,17 +142,17 @@ public sealed class SpriteCatalog
     public int HoverDelay => _objects.HoverDelay;
 
     /// <summary>
-    /// Gets the packed gamma that tints the player's sprite, or zero for no tint.
+    /// Gets the packed gamma applied to the player's sprite, or zero for none.
     /// </summary>
     public uint SelectedGamma => _objects.SelectedGamma;
 
     /// <summary>
-    /// Gets the packed gamma that tints an enemy under the cursor, or zero for no tint.
+    /// Gets the packed gamma applied to an enemy under the cursor, or zero for none.
     /// </summary>
     public uint HoveredEnemyGamma => _objects.HoveredEnemyGamma;
 
     /// <summary>
-    /// Gets the packed gamma that tints a sprite under the cursor, or zero for no tint.
+    /// Gets the packed gamma applied to a sprite under the cursor, or zero for none.
     /// </summary>
     public uint HoveredGamma => _objects.HoveredGamma;
 

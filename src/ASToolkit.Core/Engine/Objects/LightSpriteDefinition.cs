@@ -30,7 +30,7 @@ public sealed class LightSpriteDefinition : SpriteDefinition
     }
 
     /// <summary>
-    /// Draws the light of a sprite, tinted by the gamma of the sprite and the gamma of the level.
+    /// Draws the light of a sprite with the gamma of the sprite and the gamma of the level applied.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>

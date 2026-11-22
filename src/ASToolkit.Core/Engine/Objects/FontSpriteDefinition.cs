@@ -73,8 +73,8 @@ public sealed class FontSpriteDefinition : SpriteDefinition
 
         var position = sprite.Position;
 
-        var tint = sprite.GetGamma();
-        Font.Draw(screen, position.X - camera.X, position.Y - position.Z - camera.Y, ~tint.Negative, ""u8, TextDrawFlags.None);
+        var gamma = sprite.GetGamma();
+        Font.Draw(screen, position.X - camera.X, position.Y - position.Z - camera.Y, ~gamma.Negative, ""u8, TextDrawFlags.None);
     }
 
     /// <inheritdoc/>

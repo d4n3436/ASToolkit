@@ -395,7 +395,7 @@ public partial class SoftwareSpriteDefinition
 
     private protected ReadOnlySpan<byte> SelectPalette(Map map, Sprite sprite, ReadOnlySpan<byte> data, Span<byte> scratch)
     {
-        if (!sprite.HasExtra || sprite.Tint is { Negative: 0, Positive: 0 })
+        if (!sprite.HasExtra || sprite.GammaOverride is { Negative: 0, Positive: 0 })
             return data[GetPaletteOffset(sprite)..];
 
         int paletteSize = GetPaletteSize();

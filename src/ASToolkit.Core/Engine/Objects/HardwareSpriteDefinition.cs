@@ -229,7 +229,7 @@ public sealed class HardwareSpriteDefinition : SpriteDefinition
         }
 
         bool hasDepth = FileType.HasFlag(VidType.ZBuffer);
-        var tint = GetTint(map, sprite);
+        var gamma = GetGamma(map, sprite);
         var blend = FileType.HasFlag(VidType.Blended) ? FileType.HasFlag(VidType.Runs8Bit) ? QuadBlend.Alpha : QuadBlend.ColorAdd : QuadBlend.None;
         var format = FileType.HasFlag(VidType.Palette) ? VidPixelFormat.P8 : FileType.HasFlag(BlendedRuns) ? VidPixelFormat.A4R4G4B4 : VidPixelFormat.R5G6B5;
         for (int iteration = 0; iteration < iterations; iteration++)
@@ -268,7 +268,7 @@ public sealed class HardwareSpriteDefinition : SpriteDefinition
                         Graphics.CopyDepth(screen, destination, source, tile.Target.Depth, tile.Target.DepthWidth);
                     }
 
-                    new Texture(tile.Target.HighColorPixels, tile.Target.Size, format, tile.Target.Palette).DrawQuad(screen, destination, source, tint, blend);
+                    new Texture(tile.Target.HighColorPixels, tile.Target.Size, format, tile.Target.Palette).DrawQuad(screen, destination, source, gamma, blend);
                 }
 
                 if (tile.Next == 0)
