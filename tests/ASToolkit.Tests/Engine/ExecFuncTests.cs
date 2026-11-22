@@ -338,7 +338,7 @@ public class ExecFuncTests
             }
             """);
         var texts = Enumerable.Range(0, 17).SelectMany(layer => map.GetLayer(layer))
-            .Select(entry => entry?.Text?.Shown.ToArray()).Where(text => text is not null)
+            .Select(entry => (entry as TextSprite)?.Shown.ToArray()).Where(text => text is not null)
             .Select(text => Encoding.ASCII.GetString(text!)).ToList();
 
         Assert.Contains("BACK", texts);

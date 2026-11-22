@@ -85,7 +85,7 @@ public sealed partial class Map
 
         _mouseTip = CreateSprite(font, new Vector3(x, y, MouseTipDepth), default);
 
-        if (_mouseTip?.Text is null)
+        if (_mouseTip is not TextSprite)
             return;
 
         byte[] framed = new byte[length];

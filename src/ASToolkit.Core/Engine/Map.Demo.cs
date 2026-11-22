@@ -163,7 +163,7 @@ public sealed partial class Map
             return;
         }
 
-        LoadCursor();
+        CursorSprite.LoadCursor(_fileSystem);
         MapToLoad = mapName.ToArray();
     }
 

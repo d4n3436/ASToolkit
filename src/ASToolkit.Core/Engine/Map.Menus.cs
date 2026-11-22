@@ -10,8 +10,8 @@ public sealed partial class Map
     private const int EndHandle = -1;
     private const int NoHandle = 0;
     private const int ItemsVersion = 12;
-    private const int CoversMapFlag = 8;
-    private const int FogValueCount = 3;
+    private const int FogStepsPerUnit = 8;
+    private const int FogRampShift = 3;
     private const int FloatRegionSizeVersion = 10;
     private const int WordItemsVersion = 10;
     private const int IntItemsVersion = 11;
@@ -226,9 +226,9 @@ public sealed partial class Map
                 RestoreUnit(sprite, ref reader, version);
                 break;
             case SpriteClass.Region:
-                RestoreRegion(sprite, ref reader, version);
+                RestoreRegion((RegionSprite)sprite, ref reader, version);
                 break;
-            case SpriteClass.Text when sprite.Text is not null:
+            case SpriteClass.Text when sprite is TextSprite:
                 RestoreText(sprite, ref reader, version);
                 break;
             default:
@@ -256,42 +256,58 @@ public sealed partial class Map
         }
     }
 
+    [EngineRoutine(0x00449d00)]
+    private static void SetFogParameters(RegionSprite sprite, int near, int far, uint color, ReadOnlySpan<ushort> ramp)
+    {
+        sprite.FogFar = far;
+        sprite.FogNear = near;
+        sprite.FogColor = color;
+        sprite.FogTable = ReadOnlyMemory<ushort>.Empty;
+
+        if (near >= far)
+            return;
+
+        int span = far - near;
+        ushort[] table = new ushort[span * FogStepsPerUnit + 1];
+
+        for (int step = span * FogStepsPerUnit; step >= 0; step--)
+        {
+            table[step] = ramp[step * byte.MaxValue / span >> FogRampShift];
+        }
+
+        sprite.FogTable = table;
+    }
+
     [EngineRoutine(0x00449e20)]
-    private void RestoreRegion(Sprite sprite, ref Resource reader, int version)
+    private void RestoreRegion(RegionSprite sprite, ref Resource reader, int version)
     {
         RestoreSprite(sprite, ref reader, version);
-        int flags = 0;
-        reader.ReadInto(ref flags);
-        sprite.IsCoveringMap = (flags & CoversMapFlag) != 0;
-        reader.Read<int>(FogValueCount);
+        var fog = default(RegionFog);
+        reader.ReadInto(ref fog);
+        sprite.Flags = fog.Flags;
+        SetFogParameters(sprite, fog.Near, fog.Far, fog.Color, Session.Graphics.Weather.GroundSnowRamp);
         if (version < FloatRegionSizeVersion)
         {
-            int width = 0;
-            int height = 0;
-            reader.ReadInto(ref width);
-            reader.ReadInto(ref height);
-            sprite.RegionSize = new Vector2(width, height);
+            var size = default(Size);
+            reader.ReadInto(ref size);
+            sprite.Size = new Vector2(size.Width, size.Height);
         }
         else
         {
-            float width = 0;
-            float height = 0;
-            reader.ReadInto(ref width);
-            reader.ReadInto(ref height);
-            sprite.RegionSize = new Vector2(width, height);
+            var size = default(Vector2);
+            reader.ReadInto(ref size);
+            sprite.Size = size;
         }
 
         reader.Read<int>();
         reader.Read<int>();
-        for (int pair = 0; pair < Sprite.RegionPairs; pair++)
+        for (int pair = 0; pair < RegionSprite.Pairs; pair++)
         {
-            int from = -1;
-            int to = -1;
-            reader.ReadInto(ref from);
-            reader.ReadInto(ref to);
-            var fromDefinition = Definitions.Find((KnownObject)from);
-            sprite.RegionFrom[pair] = fromDefinition;
-            sprite.RegionTo[pair] = Definitions.Find((KnownObject)to);
+            var replacement = new RegionReplacement(-1, -1);
+            reader.ReadInto(ref replacement);
+            var fromDefinition = Definitions.Find((KnownObject)replacement.From);
+            sprite.From[pair] = fromDefinition;
+            sprite.To[pair] = Definitions.Find((KnownObject)replacement.To);
             fromDefinition?.IsRegionReplaced = true;
         }
     }
@@ -324,10 +340,10 @@ public sealed partial class Map
     private void RestoreText(Sprite sprite, ref Resource reader, int version)
     {
         RestoreSprite(sprite, ref reader, version);
-        var text = sprite.Text!;
-        int behavior = (int)text.Behavior;
+        var text = (TextSprite)sprite;
+        int behavior = (int)text.TextBehavior;
         reader.ReadInto(ref behavior);
-        text.Behavior = (TextBehavior)behavior;
+        text.TextBehavior = (TextBehavior)behavior;
         SetText(sprite, reader.ReadText().ToArray());
     }
 }

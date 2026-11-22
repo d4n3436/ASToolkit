@@ -18,8 +18,6 @@ public sealed partial class Map : IScriptFunctionHost
     private const int CursorOff = -1;
     private const int HardwareCursor = 0x100;
     private const int SoftwareCursor = 0x101;
-    private const int LastCursorAnimation = 0x10;
-    private const KnownObject SoftwareCursorId = (KnownObject)1;
     private const int SecondMouseClick = 0x800;
     private const int SignedGammaRange = 0xfe;
     private const int NoUnitDistance = 60000;
@@ -132,7 +130,7 @@ public sealed partial class Map : IScriptFunctionHost
 
         if (sprite is not null)
         {
-            RunCreationHook(sprite);
+            RunCreationHandler(sprite);
         }
 
         return sprite;
@@ -863,7 +861,7 @@ public sealed partial class Map : IScriptFunctionHost
                 if (script.PopNumber() != 0)
                 {
                     Pause();
-                    ShowCursor(0);
+                    CursorSprite.ShowCursor(0);
                 }
                 else
                 {
@@ -1330,69 +1328,23 @@ public sealed partial class Map : IScriptFunctionHost
         switch (type)
         {
             case CursorOff:
-                TurnCursorOff();
+                CursorSprite.TurnCursorOff();
                 break;
             case HardwareCursor:
-                UseHardwareCursor();
+                CursorSprite.UseHardwareCursor(Definitions.Empty, _fileSystem);
                 break;
             case SoftwareCursor:
-                UseSoftwareCursor();
+                CursorSprite.UseSoftwareCursor(Definitions.Find(KnownObject.Cursor) ?? Definitions.Empty, _fileSystem);
                 break;
             default:
-                if (!Session.IsCursorLoaded)
+                if (!CursorSprite.IsCursorLoaded)
                 {
-                    LoadCursor();
+                    CursorSprite.LoadCursor(_fileSystem);
                 }
 
-                ShowCursor(type);
+                CursorSprite.ShowCursor((SpriteAnimation)type);
                 break;
         }
-    }
-
-    [EngineRoutine(0x00446d90)]
-    private void LoadCursor() => Session.IsCursorLoaded = true;
-
-    [EngineRoutine(0x00446ef0)]
-    private void TurnCursorOff() => Session.IsCursorLoaded = false;
-
-    [EngineRoutine(0x00446f40)]
-    private void UseHardwareCursor()
-    {
-        if (Session.IsCursorHardware)
-            return;
-
-        TurnCursorOff();
-        CursorSprite.ReplaceDefinition(Definitions.Empty);
-        Session.IsCursorHardware = true;
-        LoadCursor();
-    }
-
-    [EngineRoutine(0x00446f70)]
-    private void UseSoftwareCursor()
-    {
-        if (!Session.IsCursorHardware)
-            return;
-
-        TurnCursorOff();
-        var cursor = CursorSprite;
-        var state = cursor.Animation;
-        cursor.ReplaceDefinition(Definitions.Find(SoftwareCursorId) ?? Definitions.Empty);
-        cursor.ChangeAnimation(state == SpriteAnimation.Stand ? SpriteAnimation.StopMove : SpriteAnimation.Stand);
-        cursor.ChangeAnimation(state);
-        Session.IsCursorHardware = false;
-        LoadCursor();
-    }
-
-    [EngineRoutine(0x00446fd0)]
-    private void ShowCursor(int type)
-    {
-        if (Session.IsCursorHardware && type > LastCursorAnimation)
-        {
-            CursorSprite.SetAnimationValue((SpriteAnimation)type);
-            return;
-        }
-
-        CursorSprite.ChangeAnimation((SpriteAnimation)type);
     }
 
     [EngineRoutine(0x0043dfe0)]
@@ -1790,8 +1742,8 @@ public sealed partial class Map : IScriptFunctionHost
                 script.PushSprite(Action(sprite, code, first, second, third));
                 return;
 
-            case ActionCode.GetTextDesc when sprite.Text is not null:
-                script.PushText(sprite.Text.Description);
+            case ActionCode.GetTextDesc when sprite is TextSprite text:
+                script.PushText(text.Description);
                 return;
 
             // TODO: Port the trains

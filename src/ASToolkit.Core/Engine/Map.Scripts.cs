@@ -98,12 +98,6 @@ public sealed partial class Map
     public Sprite? FindPlacementSprite(MergedMapSprite placement) =>
         _bodies.TryGetValue(placement, out var body) ? body : _statics.GetValueOrDefault(placement) ?? FindScripted(placement);
 
-    /// <summary>
-    /// Runs the creation handler of a sprite's definition.
-    /// </summary>
-    /// <param name="sprite">The sprite.</param>
-    public void RunCreationHook(Sprite sprite) => RunCreationHandler(sprite);
-
     internal static bool IsBaked(SpriteDefinition definition) => definition.Object.SpriteClass == SpriteClass.BuiltTerrain && !SpriteCollector.IsHashed(definition);
 
     [EngineRoutine(0x0040edf0)]

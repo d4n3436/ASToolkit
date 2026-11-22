@@ -11,7 +11,7 @@ public sealed partial class Map
         switch ((ActionCode)act)
         {
             case ActionCode.ChangeAnimation:
-                ShowCursor(var1);
+                CursorSprite.ShowCursor((SpriteAnimation)var1);
                 return 0;
             case ActionCode.ChangeVid:
                 if (Definitions.Find((KnownObject)var1) is null || (KnownObject)var1 == sprite.Definition.Id)

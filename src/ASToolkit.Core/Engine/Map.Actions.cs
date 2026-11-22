@@ -59,7 +59,7 @@ public sealed partial class Map
             SpriteClass.Avia => AviaAction(sprite, act, var1, var2, var3, target),
             SpriteClass.Man => ManAction(sprite, act, var1, var2, var3, target),
             SpriteClass.Frame => FrameAction(sprite, act, var1, var2, var3, target),
-            SpriteClass.Text when sprite.Text is not null => TextAction(sprite, act, var1, var2, var3, target),
+            SpriteClass.Text when sprite is TextSprite => TextAction(sprite, act, var1, var2, var3, target),
             _ => SpriteAction(sprite, act, var1, var2, var3, target),
         };
 
@@ -439,28 +439,25 @@ public sealed partial class Map
             sprite.ChangeAnimation(SpriteAnimation.Stand);
         }
 
-
         return 0;
     }
 
     [EngineRoutine(0x0044d7b0)]
-    private Sprite? FindRegion(Vector2 point)
+    private RegionSprite? FindRegion(Vector2 point)
     {
         var list = _updates.GetLayer(ObjectLayer.Region);
 
         for (int i = list.Count - 1; i >= 0; i--)
         {
-            var sprite = list[i];
-
-            if (sprite is null || (sprite.Definition.Object.SpriteType.ToOldSpriteType() & OldSpriteType.Region) == OldSpriteType.None || sprite.Definition.Object.SpriteClass != SpriteClass.Region)
+            if (list[i] is not RegionSprite sprite || !sprite.Definition.Object.SpriteType.ToOldSpriteType().HasFlag(OldSpriteType.Region) || sprite.Definition.Object.SpriteClass != SpriteClass.Region)
                 continue;
 
-            float halfWidth = sprite.RegionSize.X * 0.5f;
+            float halfWidth = sprite.Size.X * 0.5f;
 
             if (sprite.Position.X - halfWidth > point.X || point.X > halfWidth + sprite.Position.X)
                 continue;
 
-            float halfHeight = sprite.RegionSize.Y * 0.5f;
+            float halfHeight = sprite.Size.Y * 0.5f;
 
             if (sprite.Position.Y - halfHeight <= point.Y && point.Y <= halfHeight + sprite.Position.Y)
                 return sprite;

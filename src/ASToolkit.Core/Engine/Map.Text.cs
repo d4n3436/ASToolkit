@@ -17,9 +17,9 @@ public sealed partial class Map
 
     internal void SetText(Sprite sprite, ReadOnlyMemory<byte> description)
     {
-        var text = sprite.Text!;
+        var text = (TextSprite)sprite;
         text.Description = description;
-        text.Shown = (text.Behavior & TextBehavior.LoadFrom) switch
+        text.Shown = (text.TextBehavior & TextBehavior.LoadFrom) switch
         {
             TextBehavior.NotLoad => description,
             TextBehavior.StringsIni => ReadMenuString(description.Span),
@@ -31,7 +31,7 @@ public sealed partial class Map
         LayOutText(text);
     }
 
-    private static void ShowNextCharacter(Sprite sprite, SpriteText text)
+    private static void ShowNextCharacter(Sprite sprite, TextSprite text)
     {
         var shown = text.Shown.Span;
 
@@ -93,7 +93,7 @@ public sealed partial class Map
     private static bool IsSpace(byte character) => CRuntime.IsWhiteSpace(character) || character > sbyte.MaxValue && HighSpaces.Contains(character);
 
     [EngineRoutine(0x004495d0)]
-    private static void LayOutText(SpriteText text)
+    internal static void LayOutText(TextSprite text)
     {
         var shown = text.Shown.Span;
         text.LineCount = 1;
@@ -151,13 +151,13 @@ public sealed partial class Map
     private int TextAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target)
     {
         var code = (ActionCode)act;
-        var text = sprite.Text!;
+        var text = (TextSprite)sprite;
         switch (code)
         {
             case ActionCode.GetBehave:
-                return (int)text.Behavior;
+                return (int)text.TextBehavior;
             case ActionCode.SetBehave:
-                text.Behavior = (TextBehavior)var1;
+                text.TextBehavior = (TextBehavior)var1;
                 return 0;
             case ActionCode.SetText:
                 SetText(sprite, ReadTextAddress(var1));
@@ -193,7 +193,7 @@ public sealed partial class Map
     }
 
     [EngineRoutine(0x004231c0)]
-    private ReadOnlyMemory<byte> GetVariableString(ReadOnlySpan<byte> reference)
+    internal ReadOnlyMemory<byte> GetVariableString(ReadOnlySpan<byte> reference)
     {
         int bracket = reference.IndexOf(ElementStart);
         int index = Script.FindObject(bracket < 0 ? reference : reference[..bracket]);

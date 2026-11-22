@@ -143,21 +143,7 @@ public sealed partial class Map
         }
     }
 
-    [EngineRoutine(0x0040ec40)]
-    private void PostCreation(Sprite sprite) => RunCreationHandler(sprite);
-
-    [EngineRoutine(0x0040eed0)]
-    private void PostCreationBuiltTerrain(Sprite sprite)
-    {
-        var ground = _hardwareGround;
-
-        if (ground is not null && ground != Definitions.Empty && ground.Layout.Directions == 1)
-            return;
-
-        PostCreation(sprite);
-    }
-
-    private void RunCreationHandler(Sprite sprite)
+    internal void RunCreationHandler(Sprite sprite)
     {
         int handler = sprite.Definition.StateHandlers[(int)SpriteAnimation.Birth];
 

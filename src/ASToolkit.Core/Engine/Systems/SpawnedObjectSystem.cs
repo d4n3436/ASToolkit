@@ -83,7 +83,7 @@ internal sealed class SpawnedObjectSystem
 
             if (!_map.IsLoading)
             {
-                _map.RunCreationHook(unit);
+                _map.RunCreationHandler(unit);
             }
 
             return unit;
@@ -102,7 +102,7 @@ internal sealed class SpawnedObjectSystem
 
         if (!_map.IsLoading)
         {
-            _map.RunCreationHook(sprite);
+            _map.RunCreationHandler(sprite);
         }
 
         return sprite;

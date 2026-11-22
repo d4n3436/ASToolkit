@@ -18,7 +18,6 @@ public sealed partial class Map : IDisposable
     private const int MaxStreamPeriod = 30000;
     private const int ChildPairCount = 2;
     private const int AimAttempts = 5;
-    private const float ChildRandomScale = 3.0518509E-05f;
     private const float AimRandomScale = 6.1037019E-05f;
     private const float RescueEffectHeight = 22;
     private const int WornArmorShareCount = 3;
@@ -119,7 +118,7 @@ public sealed partial class Map : IDisposable
     /// <summary>
     /// Gets the sprite of the mouse cursor.
     /// </summary>
-    public Sprite CursorSprite { get; }
+    public MouseSprite CursorSprite { get; }
 
     /// <summary>
     /// Gets the game clock in milliseconds.
@@ -218,7 +217,7 @@ public sealed partial class Map : IDisposable
 
         IsLoading = true;
         Release();
-        TurnCursorOff();
+        CursorSprite.TurnCursorOff();
         Session.EnterMap(GameTextEncoding.Cyrillic.GetBytes(data.MapName));
         if (demo is not null)
         {
@@ -312,23 +311,16 @@ public sealed partial class Map : IDisposable
             {
                 var sprite = list[i];
 
-                if (sprite is null)
-                    continue;
-
-                if (sprite.Definition.Object.SpriteClass == SpriteClass.BuiltTerrain)
+                if (sprite is not null)
                 {
-                    PostCreationBuiltTerrain(sprite);
-                }
-                else
-                {
-                    PostCreation(sprite);
+                    RunCreationHandler(sprite);
                 }
             }
         }
 
         if (!IsPlayingDemo)
         {
-            LoadCursor();
+            CursorSprite.LoadCursor(_fileSystem);
         }
     }
 
@@ -540,8 +532,11 @@ public sealed partial class Map : IDisposable
 
         if (emitChild is not null && sprite.Definition.Object.SpriteClass == SpriteClass.Region && sprite.Definition.Object.ChildX[emitSlot].IsExactlyZero() && sprite.Definition.Object.ChildY[emitSlot].IsExactlyZero())
         {
-            float regionWidth = sprite.IsCoveringMap ? Movement.MapSize.Width : sprite.RegionSize.X;
-            float regionHeight = sprite.IsCoveringMap ? Movement.MapSize.Height : sprite.RegionSize.Y;
+            var region = sprite as RegionSprite;
+            bool coversMap = region is not null && region.Flags.HasFlag(RegionFlags.CoversMap);
+            var regionSize = region?.Size ?? Vector2.Zero;
+            float regionWidth = coversMap ? Movement.MapSize.Width : regionSize.X;
+            float regionHeight = coversMap ? Movement.MapSize.Height : regionSize.Y;
             float area = regionHeight * regionWidth / emitChild.Object.Size.X / emitChild.Object.Size.Y;
             int count = (int)area;
 
@@ -782,7 +777,7 @@ public sealed partial class Map : IDisposable
     }
 
     [EngineRoutine(0x0043f200)]
-    internal Sprite ConstructSprite(SpriteDefinition definition, Vector3 position, Angle direction, Army army, int hitPoints, int number = -1, Sprite? parent = null, Sprite? owner = null, Sprite? shooter = null, int? lifetime = null)
+    internal Sprite ConstructSprite(SpriteDefinition definition, Vector3 position, Angle direction, Army army, int hitPoints, int number = -1, Sprite? parent = null, Sprite? owner = null, Sprite? shooter = null, int? lifetime = null, bool isMouse = false)
     {
         bool isMenu = IsMenuClass(definition);
 
@@ -791,7 +786,12 @@ public sealed partial class Map : IDisposable
             position = new Vector3(position.AsVector2() + Camera, position.Z);
         }
 
-        var sprite = new Sprite(number, definition, position, army, hitPoints, map: this, parent: parent) { CreatedAt = Time, Logger = Session.Logger, Owner = owner, Shooter = shooter };
+        Sprite sprite = isMouse ? new MouseSprite(number, definition, position, army, hitPoints, map: this, parent: parent)
+            : (IsDedicatedClass(definition.Object.SpriteClass) ? null : ConstructByClass(definition, position, army, hitPoints, number, parent)) ?? new Sprite(number, definition, position, army, hitPoints, map: this, parent: parent);
+        sprite.CreatedAt = Time;
+        sprite.Logger = Session.Logger;
+        sprite.Owner = owner;
+        sprite.Shooter = shooter;
         var state = GetInitialAnimation(definition);
         sprite.Start(state, direction, Time, _rng);
 
@@ -822,15 +822,37 @@ public sealed partial class Map : IDisposable
             sprite.AddRef();
         }
 
-        if (definition.Object.SpriteClass == SpriteClass.Text)
-        {
-            sprite.Text = new SpriteText();
-        }
-
         RaiseHeights(definition, sprite);
         ConstructClass(sprite);
 
         return sprite;
+    }
+
+    [EngineRoutine(0x0040e870)]
+    private Sprite? ConstructByClass(SpriteDefinition definition, Vector3 position, Army army, int hitPoints, int number, Sprite? parent)
+    {
+        var spriteClass = definition.Object.SpriteClass;
+        switch (spriteClass)
+        {
+            case SpriteClass.Unit:
+            case SpriteClass.Avia:
+            case SpriteClass.Cannon:
+            case SpriteClass.Primitive:
+            case SpriteClass.Man:
+            case SpriteClass.Sprite:
+            case SpriteClass.Frame:
+            case SpriteClass.Linker:
+                return new Sprite(number, definition, position, army, hitPoints, map: this, parent: parent);
+            case SpriteClass.BuiltTerrain:
+                return new BuiltTerrainSprite(number, definition, position, army, hitPoints, map: this, parent: parent);
+            case SpriteClass.Text:
+                return new TextSprite(number, definition, position, army, hitPoints, map: this, parent: parent);
+            case SpriteClass.Region:
+                return new RegionSprite(number, definition, position, army, hitPoints, map: this, parent: parent);
+            default:
+                Session.Logger.Error(MapLogTag, LogError.Create, (int)spriteClass, "sprite - Behave is invalidate"u8);
+                return null;
+        }
     }
 
     internal void ConstructClass(Sprite sprite)
@@ -982,10 +1004,12 @@ public sealed partial class Map : IDisposable
             {
                 lateral = Vector2.Zero;
 
-                if (!sprite.IsCoveringMap)
+                var region = sprite as RegionSprite;
+                if (region is null || !region.Flags.HasFlag(RegionFlags.CoversMap))
                 {
-                    float spreadX = sprite.RegionSize.X * 0.5f - _rng.Next() * sprite.RegionSize.X * ChildRandomScale;
-                    float spreadY = sprite.RegionSize.Y * 0.5f - _rng.Next() * sprite.RegionSize.Y * ChildRandomScale + sprite.Position.Z;
+                    var regionSize = region?.Size ?? Vector2.Zero;
+                    float spreadX = regionSize.X * 0.5f - _rng.Next() * regionSize.X * GameRandom.UnitScale;
+                    float spreadY = regionSize.Y * 0.5f - _rng.Next() * regionSize.Y * GameRandom.UnitScale + sprite.Position.Z;
                     shift = new Vector2(spreadX, spreadY);
                 }
                 else
@@ -1288,10 +1312,9 @@ public sealed partial class Map : IDisposable
     }
 
     [EngineRoutine(0x00446c90)]
-    private Sprite ConstructCursor()
+    private MouseSprite ConstructCursor()
     {
-        // TODO: Port the cursor class vtable and the zeroing of its unit fields (0x74-0x103); the port tells the cursor apart by reference
-        var cursor = ConstructSprite(Definitions.Empty, new Vector3(Session.ScreenSize.ToVector2() * HalfShare, 0), default, Army.Player, 0);
+        var cursor = (MouseSprite)ConstructSprite(Definitions.Empty, new Vector3(Session.ScreenSize.ToVector2() * HalfShare, 0), default, Army.Player, 0, isMouse: true);
 
         if (cursor.Definition != Definitions.Empty)
         {
@@ -1408,7 +1431,7 @@ public sealed partial class Map : IDisposable
         _scrollType = ScrollType.FromBorder;
         if (IsPlayingDemo)
         {
-            LoadCursor();
+            CursorSprite.LoadCursor(_fileSystem);
         }
 
         _playedDemo = null;
@@ -1576,24 +1599,22 @@ public sealed partial class Map : IDisposable
 
         for (int i = list.Count - 1; i >= 0; i--)
         {
-            var region = list[i];
-
-            if (region is null || region.Definition.Object.SpriteClass != SpriteClass.Region || position.Z >= region.Position.Z + RegionReach)
+            if (list[i] is not RegionSprite region || region.Definition.Object.SpriteClass != SpriteClass.Region || position.Z >= region.Position.Z + RegionReach)
                 continue;
 
-            if (!region.IsCoveringMap)
+            if (!region.Flags.HasFlag(RegionFlags.CoversMap))
             {
-                var half = region.RegionSize * 0.5f;
+                var half = region.Size * 0.5f;
 
                 if (region.Position.X - half.X > position.X || position.X > half.X + region.Position.X ||
                     region.Position.Y - half.Y > position.Y || position.Y > half.Y + region.Position.Y)
                     continue;
             }
 
-            for (int pair = 0; pair < Sprite.RegionPairs; pair++)
+            for (int pair = 0; pair < RegionSprite.Pairs; pair++)
             {
-                if (region.RegionFrom[pair] == definition)
-                    return region.RegionTo[pair];
+                if (region.From[pair] == definition)
+                    return region.To[pair];
             }
         }
 

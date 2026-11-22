@@ -29,7 +29,6 @@ public class Sprite
     /// </summary>
     public const int WeaponItemBase = 260;
 
-    internal const int RegionPairs = 6;
     private const int ReloadTimerOffset = 5000;
     private const int AmmoScale = 64;
     private const int MaxWeaponSlot = 9;
@@ -120,11 +119,6 @@ public class Sprite
     /// Gets or sets the speed of the sprite in pixels per millisecond.
     /// </summary>
     public float Speed { get; set; }
-
-    /// <summary>
-    /// Gets or sets the width and height of a region sprite.
-    /// </summary>
-    public Vector2 RegionSize { get; set; }
 
     /// <summary>
     /// Gets or sets the frames the sprite has spent turning while stuck.
@@ -452,17 +446,9 @@ public class Sprite
 
     internal bool SeeksRegion { get; set; }
 
-    internal Sprite? Region { get; set; }
-
-    internal bool IsCoveringMap { get; set; }
-
-    internal SpriteDefinition?[] RegionFrom => field ??= new SpriteDefinition?[RegionPairs];
-
-    internal SpriteDefinition?[] RegionTo => field ??= new SpriteDefinition?[RegionPairs];
+    internal RegionSprite? Region { get; set; }
 
     internal SpriteCollector? Collector { get; set; }
-
-    internal SpriteText? Text { get; set; }
 
     /// <summary>
     /// Adds an item at the end of the sprite's items.
