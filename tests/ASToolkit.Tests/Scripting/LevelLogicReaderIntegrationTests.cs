@@ -1,5 +1,5 @@
 using System.Numerics;
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 using ASToolkit.Core.Routes;
 using ASToolkit.Core.Scripting;
 using Xunit;

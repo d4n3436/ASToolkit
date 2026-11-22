@@ -1,8 +1,8 @@
 using System.Drawing;
 using System.Numerics;
-using ASToolkit.Core.Engine.IO;
-using ASToolkit.Core.Engine.Scripts;
-using ASToolkit.Core.Formats;
+using ASToolkit.Engine.IO;
+using ASToolkit.Engine.Scripts;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Core.Scripting;
 

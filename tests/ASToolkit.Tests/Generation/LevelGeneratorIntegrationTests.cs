@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using System.Drawing;
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 using ASToolkit.Core.Generation;
 using ASToolkit.Core.Generation.Layout;
 using ASToolkit.Core.Generation.Output;

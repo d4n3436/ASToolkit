@@ -1,0 +1,70 @@
+using System.Numerics;
+using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
+
+namespace ASToolkit.Formats;
+
+/// <summary>
+/// Represents one placed object of a map.
+/// </summary>
+[StructLayout(LayoutKind.Explicit, Size = 48)]
+public readonly record struct MapSprite
+{
+    /// <summary>
+    /// Creates a new instance of the <see cref="MapSprite"/> structure from a sprite of a map before version 16, optionally
+    /// reinterpreting the position as integers.
+    /// </summary>
+    /// <param name="old">The sprite.</param>
+    /// <param name="reinterpret">Whether to reinterpret the position.</param>
+    internal MapSprite(OldMapSprite old, bool reinterpret)
+    {
+        Handle = old.Handle;
+        Id = old.Id;
+        Position = reinterpret ? Vector128.ConvertToSingle(old.Position.AsVector128().AsInt32()).AsVector3() : old.Position;
+        Direction = old.Direction;
+        Army = old.Army;
+        Scale = Vector3.One;
+    }
+    
+    /// <summary>
+    /// The sprite handle that links the entry to its payload.
+    /// </summary>
+    [FieldOffset(0)]
+    public readonly int Handle;
+
+    /// <summary>
+    /// The object ID in objects.res.
+    /// </summary>
+    [FieldOffset(4)]
+    public readonly KnownObject Id;
+
+    /// <summary>
+    /// The position in map pixels, with the height above the floor.
+    /// </summary>
+    [FieldOffset(8)]
+    public readonly Vector3 Position;
+
+    /// <summary>
+    /// The direction of the object.
+    /// </summary>
+    [FieldOffset(20)]
+    public readonly Angle Direction;
+
+    /// <summary>
+    /// The army of the object.
+    /// </summary>
+    [FieldOffset(24)]
+    public readonly Army Army;
+
+    /// <summary>
+    /// The gamma of the placed object. Alien Shooter 2 only.
+    /// </summary>
+    [FieldOffset(28)]
+    public readonly Gamma Gamma;
+
+    /// <summary>
+    /// The scale of the sprite along x, y and the height. Alien Shooter 2 only.
+    /// </summary>
+    [FieldOffset(36)]
+    public readonly Vector3 Scale;
+}

@@ -1,4 +1,4 @@
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 using ASToolkit.Core.Generation;
 using ASToolkit.Core.Reference;
 using ASToolkit.Core.Scripting;

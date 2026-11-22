@@ -1,8 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Numerics;
-using ASToolkit.Core.Engine;
-using ASToolkit.Core.Formats;
+using ASToolkit.Engine;
+using ASToolkit.Formats;
 using ASToolkit.Gui.Core;
 using ASToolkit.Gui.Models;
 using Avalonia.Media.Imaging;

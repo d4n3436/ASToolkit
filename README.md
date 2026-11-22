@@ -65,16 +65,15 @@ The repo includes a GUI for the toolkit (`ASToolkit.Gui` project). It has a RES 
 ## Project layout
 
 ```
-src/ASToolkit.Core    File formats, engine runtime, bot player, level generation, route analysis and patchers
-  Formats/            Readers and writers of the game's files
-  Engine/             Port of the Alien Shooter engine
-    Objects/          Sprites and the sprite definitions that draw them
-    Graphics/         Drawing a frame into the back buffer and depth buffer
-    Systems/          Movement, enemy AI, animation effects, doors and weapons
-    Spatial/          Collision and spatial queries, also used by the route analysis
-    Resources/        The sprite catalog and the geometry read from sprite files
-    State/            Screen effect states and the 16-bit color layout
-  Bot/                The bot player, navigation, campaign play, replay capture and results
+src/ASToolkit.Formats Readers and writers of the game's files
+src/ASToolkit.Engine  Port of the Alien Shooter engine
+  Objects/            Sprites and the sprite definitions that draw them
+  Graphics/           Drawing a frame into the back buffer and depth buffer
+  Systems/            Movement, enemy AI, animation effects, doors and weapons
+  Spatial/            Collision and spatial queries, also used by the route analysis
+  Resources/          The sprite catalog and the geometry read from sprite files
+  State/              Screen effect states and the 16-bit color layout
+src/ASToolkit.Core    Level generation, route analysis and patchers
   Scripting/          Level scripts and the common table
   Levels/             Cells, walls and objects of a level, shared by analysis and generation
   Routes/             Route analysis
@@ -85,6 +84,7 @@ src/ASToolkit.Core    File formats, engine runtime, bot player, level generation
   Generation/         The level generator
   Patching/           The RANDOM add-on installer and the play menu patch
   Widescreen/         The widescreen patch
+src/ASToolkit.Bot     The bot player, navigation, campaign play, replay capture and results
   Rendering/          Map images
 src/ASToolkit.Cli     The ascli program
 src/ASToolkit.Gui     A GUI for the toolkit

@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Text;
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 using ASToolkit.Gui.Core;
 using ASToolkit.Gui.Models;
 using Avalonia;

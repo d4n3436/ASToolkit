@@ -1,8 +1,8 @@
 using System.Numerics;
-using ASToolkit.Core.Engine;
-using ASToolkit.Core.Engine.Scripts;
-using ASToolkit.Core.Formats;
-using ASToolkit.Core.Bot;
+using ASToolkit.Engine;
+using ASToolkit.Engine.Scripts;
+using ASToolkit.Formats;
+using ASToolkit.Bot;
 using Xunit;
 
 namespace ASToolkit.Tests.Engine;

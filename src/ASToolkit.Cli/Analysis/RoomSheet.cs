@@ -1,5 +1,5 @@
 using ASToolkit.Core.Levels;
-using ASToolkit.Core.Rendering;
+using ASToolkit.Bot.Rendering;
 using ASToolkit.Core.Rooms;
 using SixLabors.Fonts;
 using SixLabors.ImageSharp;

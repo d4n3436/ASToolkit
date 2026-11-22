@@ -1,10 +1,10 @@
 using ASToolkit.Cli.Analysis;
 using ASToolkit.Core.Survey;
-using ASToolkit.Core.Engine;
-using ASToolkit.Core.Formats;
-using ASToolkit.Core.Bot;
+using ASToolkit.Engine;
+using ASToolkit.Formats;
+using ASToolkit.Bot;
 using ASToolkit.Core.Reference;
-using ASToolkit.Core.Rendering;
+using ASToolkit.Bot.Rendering;
 using SixLabors.ImageSharp;
 using Spectre.Console;
 using Spectre.Console.Cli;

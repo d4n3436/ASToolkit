@@ -1,4 +1,4 @@
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Routes;
 using ASToolkit.Core.Scripting;
@@ -85,7 +85,7 @@ public static class LevelMeasurer
         }
 
         var lattice = grid.Lattice;
-        var breakableWalls = LevelExtractor.OrderSprites(map.Sprites)
+        var breakableWalls = MergedMapSprite.OrderSprites(map.Sprites)
             .Where(s => s.Id is KnownObject.BreakableWall or KnownObject.BreakableWall2)
             .ToArray();
         

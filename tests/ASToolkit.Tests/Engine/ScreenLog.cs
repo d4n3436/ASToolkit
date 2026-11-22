@@ -1,6 +1,6 @@
-using ASToolkit.Core.Engine;
-using ASToolkit.Core.Engine.Scripts;
-using ASToolkit.Core.Formats;
+using ASToolkit.Engine;
+using ASToolkit.Engine.Scripts;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Tests.Engine;
 

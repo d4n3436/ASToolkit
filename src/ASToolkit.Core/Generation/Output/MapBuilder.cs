@@ -1,6 +1,6 @@
 using System.Drawing;
 using System.Numerics;
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 using ASToolkit.Core.Levels;
 
 namespace ASToolkit.Core.Generation.Output;

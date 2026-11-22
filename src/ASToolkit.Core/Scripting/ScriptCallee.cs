@@ -1,4 +1,4 @@
-using ASToolkit.Core.Engine.Scripts;
+using ASToolkit.Engine.Scripts;
 
 namespace ASToolkit.Core.Scripting;
 

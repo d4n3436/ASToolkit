@@ -1,12 +1,12 @@
 using System.Globalization;
 using System.Text;
 using ASToolkit.Cli.Analysis;
-using ASToolkit.Core.Engine;
-using ASToolkit.Core.Formats;
-using ASToolkit.Core.Bot;
+using ASToolkit.Engine;
+using ASToolkit.Formats;
+using ASToolkit.Bot;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Reference;
-using ASToolkit.Core.Rendering;
+using ASToolkit.Bot.Rendering;
 using ASToolkit.Core.Rooms;
 using SixLabors.ImageSharp;
 using Spectre.Console;

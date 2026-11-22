@@ -1,5 +1,5 @@
 using System.Drawing;
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 using ASToolkit.Core.Levels;
 
 namespace ASToolkit.Core.Survey;

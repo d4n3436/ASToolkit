@@ -2,7 +2,7 @@ using System.Drawing;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 using Xunit;
 
 namespace ASToolkit.Tests.Formats;

@@ -1,6 +1,6 @@
 using System.Buffers.Binary;
 using System.Text;
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Core.Patching;
 

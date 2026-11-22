@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../ASToolkit.Engine/ASToolkit.Engine.csproj" />
+    <ProjectReference Include="../ASToolkit.Core/ASToolkit.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ASToolkit.Tests" />
+  </ItemGroup>
+</Project>

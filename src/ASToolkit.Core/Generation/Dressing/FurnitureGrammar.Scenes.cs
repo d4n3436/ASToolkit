@@ -1,7 +1,7 @@
 using System.Drawing;
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 using ASToolkit.Core.Levels;
-using static ASToolkit.Core.Formats.KnownObject;
+using static ASToolkit.Formats.KnownObject;
 using A = ASToolkit.Core.Generation.Dressing.ArrangementKind;
 using F = ASToolkit.Core.Levels.PieceFamily;
 

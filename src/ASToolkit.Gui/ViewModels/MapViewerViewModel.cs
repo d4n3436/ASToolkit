@@ -1,11 +1,11 @@
 using System.Collections.ObjectModel;
 using System.Numerics;
 using ASToolkit.Core;
-using ASToolkit.Core.Engine;
-using ASToolkit.Core.Formats;
+using ASToolkit.Engine;
+using ASToolkit.Formats;
 using ASToolkit.Core.Routes;
 using ASToolkit.Core.Scripting;
-using ASToolkit.Core.Bot;
+using ASToolkit.Bot;
 using ASToolkit.Gui.Core;
 using ASToolkit.Gui.Models;
 using Avalonia.Platform.Storage;

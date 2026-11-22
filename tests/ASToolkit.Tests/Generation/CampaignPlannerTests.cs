@@ -1,5 +1,5 @@
 using ASToolkit.Core;
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 using ASToolkit.Core.Generation.Campaign;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Reference;

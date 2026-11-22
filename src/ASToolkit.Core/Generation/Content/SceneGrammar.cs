@@ -1,6 +1,6 @@
 using System.Drawing;
-using ASToolkit.Core.Formats;
-using static ASToolkit.Core.Formats.KnownObject;
+using ASToolkit.Formats;
+using static ASToolkit.Formats.KnownObject;
 
 namespace ASToolkit.Core.Generation.Content;
 

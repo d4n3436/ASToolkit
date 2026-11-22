@@ -2,7 +2,7 @@ using System.Numerics;
 using ASToolkit.Core;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Survey;
-using ASToolkit.Core.Rendering;
+using ASToolkit.Bot.Rendering;
 using ASToolkit.Core.Routes;
 using SixLabors.Fonts;
 using SixLabors.ImageSharp;
@@ -10,6 +10,7 @@ using SixLabors.ImageSharp.Drawing;
 using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Cli.Analysis;
 

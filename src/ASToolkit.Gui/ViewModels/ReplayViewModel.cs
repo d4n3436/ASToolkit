@@ -1,7 +1,7 @@
 using System.Drawing;
 using System.Diagnostics;
-using ASToolkit.Core.Formats;
-using ASToolkit.Core.Bot;
+using ASToolkit.Formats;
+using ASToolkit.Bot;
 using ASToolkit.Gui.Core;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;

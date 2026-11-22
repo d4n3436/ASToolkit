@@ -1,5 +1,5 @@
-using ASToolkit.Core.Engine.IO;
-using ASToolkit.Core.Engine.Scripts;
+using ASToolkit.Engine.IO;
+using ASToolkit.Engine.Scripts;
 using Xunit;
 
 namespace ASToolkit.Tests.Engine;

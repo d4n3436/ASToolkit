@@ -1,6 +1,6 @@
 using System.Text;
-using ASToolkit.Core.Engine.IO;
-using ASToolkit.Core.Engine.Scripts;
+using ASToolkit.Engine.IO;
+using ASToolkit.Engine.Scripts;
 
 namespace ASToolkit.Core.Scripting;
 

@@ -1,6 +1,6 @@
-using ASToolkit.Core.Bot;
+using ASToolkit.Bot;
 using System.Numerics;
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 using ASToolkit.Core.Levels;
 using Xunit;
 

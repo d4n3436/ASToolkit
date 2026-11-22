@@ -1,10 +1,10 @@
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 using ASToolkit.Core.Routes;
 using ASToolkit.Core.Scripting;
-using ASToolkit.Core.Bot;
+using ASToolkit.Bot;
 using Spectre.Console;
 using Spectre.Console.Cli;
 

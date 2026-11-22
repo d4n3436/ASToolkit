@@ -1,6 +1,6 @@
 using System.Numerics;
 using ASToolkit.Core;
-using ASToolkit.Core.Rendering;
+using ASToolkit.Bot.Rendering;
 using ASToolkit.Core.Routes;
 using SixLabors.Fonts;
 using SixLabors.Fonts.Unicode;
@@ -10,6 +10,7 @@ using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using ASToolkit.Core.Scripting;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Cli.Analysis;
 

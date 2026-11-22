@@ -1,5 +1,5 @@
 using System.Numerics;
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Gui.Models;
 

@@ -1,6 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
-using ASToolkit.Core.Engine.Scripts;
-using ASToolkit.Core.Formats;
+using ASToolkit.Engine.Scripts;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Core.Scripting;
 

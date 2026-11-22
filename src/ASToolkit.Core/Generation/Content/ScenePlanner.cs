@@ -1,6 +1,6 @@
 using System.Collections.Frozen;
 using System.Drawing;
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 using ASToolkit.Core.Generation.Campaign;
 using ASToolkit.Core.Generation.Dressing;
 using ASToolkit.Core.Generation.Geometry;

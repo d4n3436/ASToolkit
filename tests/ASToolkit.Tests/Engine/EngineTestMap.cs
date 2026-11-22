@@ -1,9 +1,9 @@
 using System.Numerics;
-using ASToolkit.Core.Engine;
-using ASToolkit.Core.Engine.IO;
-using ASToolkit.Core.Engine.Scripts;
-using ASToolkit.Core.Formats;
-using ASToolkit.Core.Bot;
+using ASToolkit.Engine;
+using ASToolkit.Engine.IO;
+using ASToolkit.Engine.Scripts;
+using ASToolkit.Formats;
+using ASToolkit.Bot;
 
 namespace ASToolkit.Tests.Engine;
 

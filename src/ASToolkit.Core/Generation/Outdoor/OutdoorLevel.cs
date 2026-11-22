@@ -1,4 +1,4 @@
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 using ASToolkit.Core.Generation.Output;
 
 namespace ASToolkit.Core.Generation.Outdoor;

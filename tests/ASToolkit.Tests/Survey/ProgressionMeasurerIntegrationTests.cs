@@ -1,4 +1,4 @@
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 using ASToolkit.Core.Reference;
 using ASToolkit.Core.Survey;
 using Xunit;

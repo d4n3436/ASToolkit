@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Collections.Frozen;
-using ASToolkit.Core.Formats;
-using static ASToolkit.Core.Formats.KnownObject;
+using ASToolkit.Formats;
+using static ASToolkit.Formats.KnownObject;
 
 namespace ASToolkit.Core.Levels;
 
@@ -120,12 +120,6 @@ public static class KnownObjectExtensions
 
         /// <summary>Gets the weapon slot an ammunition pickup fills, or -1 for any other ID.</summary>
         public int GetAmmoSlot() => id is >= ShotgunAmmo and <= MagmaMinigunAmmo ? (int)id - AmmoPickupBase : -1;
-
-        /// <summary>Gets a value indicating whether the ID is an endless monster generator.</summary>
-        public bool IsEndlessGenerator => id is >= FirstEndlessGenerator and <= LastEndlessGenerator;
-
-        /// <summary>Gets a value indicating whether the ID is a placed object the campaign scripts drive through its animation hooks.</summary>
-        public bool IsScripted => id is DynamiteSite or Breaker or SmallDoor or DoubleDoor or Fence or MountedCannon || id.IsEndlessGenerator;
 
         /// <summary>Gets the category of the pickup, or null if the ID isn't a pickup.</summary>
         public ItemCategory? PickupCategory => id switch

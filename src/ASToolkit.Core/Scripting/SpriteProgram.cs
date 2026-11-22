@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Core.Scripting;
 

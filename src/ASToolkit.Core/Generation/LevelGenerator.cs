@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.Drawing;
 using System.Numerics;
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 using ASToolkit.Core.Generation.Buildings;
 using ASToolkit.Core.Generation.Campaign;
 using ASToolkit.Core.Generation.Content;

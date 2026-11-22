@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Drawing;
 using System.Runtime.InteropServices;
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 using ASToolkit.Core.Scripting;
 
 namespace ASToolkit.Core.Levels;

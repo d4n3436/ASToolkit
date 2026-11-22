@@ -1,5 +1,5 @@
-using ASToolkit.Core.Engine;
-using ASToolkit.Core.Formats;
+using ASToolkit.Engine;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Tests.Engine;
 

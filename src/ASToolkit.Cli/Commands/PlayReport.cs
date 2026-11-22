@@ -1,5 +1,5 @@
 using ASToolkit.Core.Routes;
-using ASToolkit.Core.Bot;
+using ASToolkit.Bot;
 
 namespace ASToolkit.Cli.Commands;
 

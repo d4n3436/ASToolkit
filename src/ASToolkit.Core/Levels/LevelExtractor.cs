@@ -1,5 +1,5 @@
 using System.Drawing;
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Core.Levels;
 
@@ -21,7 +21,7 @@ public static class LevelExtractor
     /// <returns>The model, or null if the map doesn't have a floor.</returns>
     public static LevelModel? Extract(string name, MapResourceBuilder map, ObjectTable objects)
     {
-        var sp = OrderSprites(map.Sprites).ToList();
+        var sp = MergedMapSprite.OrderSprites(map.Sprites).ToList();
         if (sp.Any(s => s.Id is KnownObject.Grass or KnownObject.VolumetricGrass or KnownObject.FlatGrass))
         {
             return ExtractOutdoor(name, sp, map, objects);
@@ -77,19 +77,6 @@ public static class LevelExtractor
             Version = map.Version
         };
     }
-
-    /// <summary>
-    /// Returns sprites ordered by ID, row, column, height, direction and army.
-    /// </summary>
-    /// <param name="sprites">The sprites.</param>
-    /// <returns>The sprites in order.</returns>
-    public static IEnumerable<MergedMapSprite> OrderSprites(IEnumerable<MergedMapSprite> sprites) => sprites
-        .OrderBy(sprite => (int)sprite.Id)
-        .ThenBy(sprite => MathF.Round(sprite.Position.Y * 16))
-        .ThenBy(sprite => MathF.Round(sprite.Position.X * 16))
-        .ThenBy(sprite => sprite.Position.Z)
-        .ThenBy(sprite => sprite.Direction)
-        .ThenBy(sprite => sprite.Army);
 
     /// <summary>
     /// Returns the cell edges that the wall, door and frame pieces of a basement level cover, with their kinds.

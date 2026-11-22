@@ -1,13 +1,13 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using ASToolkit.Core.Formats;
-using ASToolkit.Core.Rendering;
+using ASToolkit.Formats;
+using ASToolkit.Bot.Rendering;
 using ASToolkit.Core.Routes;
 using ASToolkit.Core.Reference;
 using ASToolkit.Core.Scripting;
-using ASToolkit.Core.Bot;
-using ASToolkit.Core.Engine;
+using ASToolkit.Bot;
+using ASToolkit.Engine;
 using ASToolkit.Cli.Analysis;
 using SixLabors.ImageSharp;
 using Spectre.Console;

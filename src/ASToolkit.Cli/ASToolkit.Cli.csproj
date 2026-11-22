@@ -13,6 +13,6 @@
     <PackageReference Include="Spectre.Console.Cli" Version="0.57.2" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../ASToolkit.Core/ASToolkit.Core.csproj" />
+    <ProjectReference Include="../ASToolkit.Bot/ASToolkit.Bot.csproj" />
   </ItemGroup>
 </Project>

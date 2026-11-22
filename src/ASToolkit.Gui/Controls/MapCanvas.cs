@@ -1,6 +1,6 @@
 using System.Windows.Input;
-using ASToolkit.Core.Engine;
-using ASToolkit.Core.Rendering;
+using ASToolkit.Engine;
+using ASToolkit.Bot.Rendering;
 using ASToolkit.Gui.Core;
 using ASToolkit.Gui.Models;
 using Avalonia;

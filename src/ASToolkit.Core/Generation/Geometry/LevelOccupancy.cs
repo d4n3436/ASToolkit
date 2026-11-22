@@ -1,7 +1,7 @@
 using System.Drawing;
 using System.Numerics;
 using System.Runtime.InteropServices;
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 using ASToolkit.Core.Levels;
 
 namespace ASToolkit.Core.Generation.Geometry;

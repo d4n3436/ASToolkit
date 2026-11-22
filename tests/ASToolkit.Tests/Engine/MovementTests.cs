@@ -1,10 +1,10 @@
 using System.Runtime.CompilerServices;
-using ASToolkit.Core.Engine;
+using ASToolkit.Engine;
 using System.Numerics;
-using ASToolkit.Core.Formats;
+using ASToolkit.Formats;
 using ASToolkit.Core.Levels;
 using ASToolkit.Core.Routes;
-using ASToolkit.Core.Bot;
+using ASToolkit.Bot;
 using Xunit;
 
 namespace ASToolkit.Tests.Engine;
