@@ -10,7 +10,7 @@ It is written in C# on .NET 11 and works on an installed copy of the game.
 ## Features
 
 - **Level generation:** Builds new levels in the style of the originals and installs them as a new add-on called RANDOM, with a button on the play menu
-- **Map viewer:** Faithfully recreates the rendering engines of Alien Shooter 1 and 2 and supports both games plus spin-offs
+- **Map viewer:** Displays Alien Shooter levels using a faithful, direct port of Alien Shooter's engine.
 - **Widescreen patch:** Adds more resolutions, a borderless window mode and a HUD that fits wide screens
 - **Level analysis:** Works out the route a player takes through a level and draws it over an image of the map
 
@@ -28,6 +28,7 @@ dotnet run --project src/ASToolkit.Cli -- <command> --game <game folder>
 | `widescreen restore` | Removes the widescreen patch |
 | `preview` | Generates one level into a map file |
 | `analyze` | Draws the route through original or generated levels |
+| `simulate` | Plays the original campaigns with a bot player, in order, keeping equipment and shopping between levels |
 | `inspect level` | Surveys levels into their places, connections and gates, with a render of the places |
 | `inspect design` | Measures furniture, pickups, walls and pacing in the original levels and in generated ones, and compares them |
 | `inspect object`, `sprites`, `stacks`, `vid` | Prints the objects, sprites, action stacks and sprite files of a game |
@@ -59,19 +60,32 @@ The generator draws a whole campaign at random, builds each level as a building 
 
 ## Toolkit GUI
 
-The repo includes a GUI for the toolkit, the `ASToolkit.Gui` project. It has a RES file inspector, a map viewer and a simulation replay.
+The repo includes a GUI for the toolkit (`ASToolkit.Gui` project). It has a RES file inspector, a map viewer and bot replay.
 
 ## Project layout
 
 ```
 src/ASToolkit.Core    File formats, engine runtime, simulation, level generation, route analysis and patchers
-  Engine/             Port of Alien Shooter 1's engine
-    Objects/          Shared object definitions and mutable runtime objects
+  Formats/            Readers and writers of the game's files
+  Engine/             Port of the Alien Shooter engine
+    Objects/          Sprites and the sprite definitions that draw them
+    Graphics/         Drawing a frame into the back buffer and depth buffer
     Systems/          Movement, enemy AI, animation effects, doors and weapons
-    Spatial/          Collision and spatial queries, also used by routing
-    Resources/        Sprite geometry and object definitions
-    State/            Recorded values
+    Spatial/          Collision and spatial queries, also used by the route analysis
+    Resources/        The sprite catalog and the geometry read from sprite files
+    State/            Screen effect states and the 16-bit color layout
   Simulation/         The player bot, navigation, campaign play, replay capture and results
+  Scripting/          Level scripts and the common table
+  Levels/             Cells, walls and objects of a level, shared by analysis and generation
+  Routes/             Route analysis
+  Survey/             Surveys of levels into places, connections and gates
+  Design/             Design measures of furniture, pickups, walls and pacing
+  Reference/          Models fitted to the original levels and campaigns
+  Rooms/              The room atlas built from the original levels
+  Generation/         The level generator
+  Patching/           The RANDOM add-on installer and the play menu patch
+  Widescreen/         The widescreen patch
+  Rendering/          Map images
 src/ASToolkit.Cli     The ascli program
 src/ASToolkit.Gui     A GUI for the toolkit
 tests/                Unit tests
@@ -86,7 +100,7 @@ docs/                 Documentation
 
 ## Tests
 
-The tests run with the standard .NET test driver:
+The tests run using the standard .NET test driver:
 ```
 dotnet test
 ```
