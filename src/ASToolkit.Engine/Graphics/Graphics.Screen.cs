@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Numerics;
+using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
@@ -9,6 +10,11 @@ public sealed partial class Graphics
     internal const ushort ClearDepth = 0x3ff;
     private const int ShakeReach = 4;
     private const uint ClearColor = 0xff000000;
+    private const float LoadingDepth = 1;
+
+    private int _loadingFrame;
+
+    private static ReadOnlySpan<byte> GraphicsLogTag => "GRAPH"u8;
 
     /// <summary>
     /// Fills the screen with a color and the depth buffer with its cleared depth.
@@ -28,6 +34,49 @@ public sealed partial class Graphics
         }
 
         screen.Depth[..(screen.Size.Height * screen.DepthWidth)].Fill(ClearDepth);
+    }
+
+    [EngineRoutine(0x00430dd0)]
+    internal void DrawLoadingScreen(Map map, SpriteDefinition? definition, bool isRedrawDue)
+    {
+        if (definition is null || !isRedrawDue)
+            return;
+
+        if (Screen is not null)
+        {
+            Clear(Screen, ClearColor);
+        }
+
+        var screen = map.Session.ScreenSize;
+        DrawVid(map, definition, _loadingFrame, new Vector3(screen.Width * Map.HalfShare, screen.Height * Map.HalfShare + 1, LoadingDepth));
+        UpdateEffects(map, true);
+        _loadingFrame++;
+        if (_loadingFrame >= definition.FileFrameCount)
+        {
+            _loadingFrame = 0;
+        }
+    }
+
+    [EngineRoutine(0x004333d0)]
+    internal void DrawVid(Map map, SpriteDefinition definition, int frame, Vector3 position)
+    {
+        if (definition == map.Definitions.Empty)
+            return;
+
+        if (frame < 0 || frame >= definition.FileFrameCount)
+        {
+            map.Session.Logger.Error(GraphicsLogTag, LogError.Invalid, frame, "ncadr in DrawVid"u8);
+            return;
+        }
+
+        var sprite = map.ConstructSprite(definition, new Vector3(position.AsVector2() + map.Camera, position.Z), default, Army.Player, 0);
+        sprite.Frame = frame;
+        if (Screen is not null)
+        {
+            definition.Draw(Screen, map, sprite, map.Camera);
+        }
+
+        map.DestructSprite(sprite);
     }
 
     [EngineRoutine(0x00430870)]

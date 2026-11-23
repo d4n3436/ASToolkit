@@ -87,7 +87,7 @@ public sealed partial class Map
     }
 
     [EngineRoutine(0x0043f520)]
-    private void DestructSprite(Sprite sprite)
+    internal void DestructSprite(Sprite sprite)
     {
         RunDestroyHandler(sprite);
         LowerHeights(sprite.Definition, sprite);

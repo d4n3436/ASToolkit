@@ -258,7 +258,7 @@ public sealed partial class Map : IDisposable
         for (int record = 0; record < mapData.StoredSprites.Count; record++)
         {
             var placement = mapData.StoredSprites[record];
-            ConstructLoadingScreen(data.LoadingScreenRecords, record);
+            Session.Graphics.DrawLoadingScreen(this, Definitions.LoadingScreen, data.LoadingScreenRecords.Contains(record));
 
             var definition = Definitions.Find(placement.Id);
 
@@ -274,7 +274,7 @@ public sealed partial class Map : IDisposable
             }
         }
 
-        ConstructLoadingScreen(data.LoadingScreenRecords, mapData.StoredSprites.Count);
+        Session.Graphics.DrawLoadingScreen(this, Definitions.LoadingScreen, data.LoadingScreenRecords.Contains(mapData.StoredSprites.Count));
 
         foreach (var placement in mapData.StoredSprites)
         {
@@ -1355,22 +1355,6 @@ public sealed partial class Map : IDisposable
         }
 
         return cursor;
-    }
-
-    [EngineRoutine(0x004333d0)]
-    private void ConstructLoadingScreen(IReadOnlyList<int> redraws, int record)
-    {
-        bool isRedrawn = false;
-        for (int i = 0; i < redraws.Count && !isRedrawn; i++)
-        {
-            isRedrawn = redraws[i] == record;
-        }
-
-        if (!isRedrawn)
-            return;
-
-        var definition = Definitions.LoadingScreen ?? throw new InvalidOperationException("Could not find the loading screen definition.");
-        ConstructSprite(definition, Vector3.Zero, default, Army.Player, 0);
     }
 
     [EngineRoutine(0x0044ce60)]
