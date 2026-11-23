@@ -32,7 +32,7 @@ internal struct SoundBuffer
 
     public void Play(bool isLooping, uint wallTime)
     {
-        if (!IsPlaying)
+        if (!GetStatus(wallTime))
         {
             PlayedAt = wallTime - (uint)Position;
             IsPlaying = true;

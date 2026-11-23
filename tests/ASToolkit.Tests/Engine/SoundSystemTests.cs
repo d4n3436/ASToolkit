@@ -148,6 +148,23 @@ public class SoundSystemTests
     }
 
     [Fact]
+    public void Tact_SoundStoppedMidPlayThenRequestedAfterItsLength_StartsItAgain()
+    {
+        var records = TestGameFolder.Objects.Sounds;
+        int id = Enumerable.Range(0, records.Count).First(i => records[i].VoiceLimit is > 0 and < 100 && records[i].SampleCount == 1);
+        var sound = CreateSound();
+        var random = new GameRandom(7);
+
+        sound.Play(id, 0, SoundSystem.FullLoudness);
+        sound.Tact(random, 100, 100);
+        sound.Stop(id, 100);
+        sound.Play(id, 0, SoundSystem.FullLoudness);
+        sound.Tact(random, 60000, 60000);
+
+        Assert.Single(GetPlayingBuffers(sound), state => state.Sound == id && state.StartedAt == 60000);
+    }
+
+    [Fact]
     public void TryGetPlayingMusic_StartedTrack_ReportsItsPathAndStart()
     {
         var sound = CreateSound();
