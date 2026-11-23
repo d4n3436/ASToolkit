@@ -19,6 +19,11 @@ public readonly ref partial struct Texture
     private const int AlphaShift = 24;
     private const uint OpaqueBlack = 0xff000000;
     private const int NibbleShift = 4;
+    private const float HalfStep = 0.5f;
+
+    private static Vector4 MaxChannels => new(ChannelMax);
+
+    private static Vector4 Doubled => new(2, 2, 2, 1);
 
     private readonly Span<ushort> _texels;
     private readonly ReadOnlySpan<uint> _palette;
@@ -253,6 +258,7 @@ public readonly ref partial struct Texture
         var uvA = vertices[corners[0]].TextureCoordinate;
         var uvB = vertices[corners[1]].TextureCoordinate;
         var uvC = vertices[corners[2]].TextureCoordinate;
+        var modulation = ToChannels(factor) / ChannelMax;
         for (int y = top; y <= bottom; y++)
         {
             for (int x = left; x <= right; x++)
@@ -264,21 +270,18 @@ public readonly ref partial struct Texture
                     continue;
 
                 float depth = a.Z * weightA + b.Z * weightB + c.Z * weightC;
-                if (depth < 0f || depth > 1f)
+                if (depth is < 0f or > 1f)
                     continue;
 
                 var uv = uvA * weightA + uvB * weightB + uvC * weightC;
-                uint color = screen.IsLinearFiltered
+                var texel = screen.IsLinearFiltered
                     ? Sample(new PointF(uv.X * Size.Width - TexelCenter, uv.Y * Size.Height - TexelCenter), true)
-                    : Fetch(new Point(WrapTexel(uv.X * Size.Width, Size.Width), WrapTexel(uv.Y * Size.Height, Size.Height)));
-                int alpha = Modulate((int)(color >> AlphaShift), (int)(factor >> AlphaShift));
-                if (alpha <= alphaReference)
+                    : ToChannels(Fetch(new Point(WrapTexel(uv.X * Size.Width, Size.Width), WrapTexel(uv.Y * Size.Height, Size.Height))));
+                uint color = ToColor(texel * modulation);
+                if ((int)(color >> AlphaShift) <= alphaReference)
                     continue;
 
-                int red = Modulate((int)(color >> RedShift & ChannelMax), (int)(factor >> RedShift & ChannelMax));
-                int green = Modulate((int)(color >> GreenShift & ChannelMax), (int)(factor >> GreenShift & ChannelMax));
-                int blue = Modulate((int)(color & ChannelMax), (int)(factor & ChannelMax));
-                writer.Blend(y * screen.Pitch + x, (uint)alpha << AlphaShift | (uint)red << RedShift | (uint)green << GreenShift | (uint)blue, blend.Source, blend.Destination);
+                writer.Blend(y * screen.Pitch + x, color, blend.Source, blend.Destination);
             }
         }
     }
@@ -290,8 +293,6 @@ public readonly ref partial struct Texture
         int texel = (int)MathF.Floor(coordinate) % size;
         return texel < 0 ? texel + size : texel;
     }
-
-    private static int Modulate(int texel, int factor) => (texel * factor + ChannelMax / 2) / ChannelMax;
 
     internal void BlitQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, QuadBlend blend, bool isDoubled, bool isAlphaModulated, int minimumAlpha)
     {
@@ -308,12 +309,11 @@ public readonly ref partial struct Texture
         var greens = table is null ? default : table.Greens;
         var blues = table is null ? default : table.Blues;
 
-        int alphaScale = ChannelMax - gamma.GetNegative(AlphaShift);
         bool isFiltered = screen.IsLinearFiltered;
         var writer = new ScreenWriter(screen);
         int lastColumn = Size.Width - 1;
         int lastRow = Size.Height - 1;
-        if (!isFiltered && blend == QuadBlend.None && !isAlphaModulated && minimumAlpha <= 0 && screen.IsTrueColor)
+        if (!isFiltered && blend == QuadBlend.None && !isAlphaModulated && !isDoubled && minimumAlpha <= 0 && screen.IsTrueColor)
         {
             var pixels = screen.TrueColorPixels;
             for (int y = area.Top; y < area.Bottom; y++)
@@ -333,13 +333,6 @@ public readonly ref partial struct Texture
                         blue = blues[blue];
                     }
 
-                    if (isDoubled)
-                    {
-                        red = Math.Min(ChannelMax, red * 2);
-                        green = Math.Min(ChannelMax, green * 2);
-                        blue = Math.Min(ChannelMax, blue * 2);
-                    }
-
                     pixels[row + x] = OpaqueBlack | (uint)red << RedShift | (uint)green << GreenShift | (uint)blue;
                 }
             }
@@ -347,6 +340,10 @@ public readonly ref partial struct Texture
             return;
         }
 
+        var scale = new Vector4(ChannelMax - gamma.GetNegative(RedShift), ChannelMax - gamma.GetNegative(GreenShift), ChannelMax - gamma.GetNegative(0),
+            isAlphaModulated ? ChannelMax - gamma.GetNegative(AlphaShift) : ChannelMax) / ChannelMax;
+        var offset = new Vector4(gamma.GetPositive(RedShift), gamma.GetPositive(GreenShift), gamma.GetPositive(0), 0);
+        var doubling = isDoubled ? Doubled : Vector4.One;
         bool needsAlpha = isAlphaModulated || minimumAlpha > 0 || blend.Source is BlendFactor.SourceAlpha or BlendFactor.InverseSourceAlpha ||
             blend.Destination is BlendFactor.SourceAlpha or BlendFactor.InverseSourceAlpha;
         for (int y = area.Top; y < area.Bottom; y++)
@@ -354,14 +351,14 @@ public readonly ref partial struct Texture
             int row = y * screen.Pitch;
             int upperRow;
             int lowerRow = 0;
-            float shareY = 0;
+            float weightY = 0;
             int cachedCorner = int.MinValue;
             uint upperLeft = 0, upperRight = 0, lowerLeft = 0, lowerRight = 0;
             if (isFiltered)
             {
                 float sourceY = source.Top + (y - destination.Top) * (float)source.Height / destination.Height;
                 int cornerY = (int)MathF.Floor(sourceY);
-                shareY = sourceY - cornerY;
+                weightY = sourceY - cornerY;
                 upperRow = Math.Clamp(cornerY, 0, lastRow) * Size.Width;
                 lowerRow = Math.Clamp(cornerY + 1, 0, lastRow) * Size.Width;
             }
@@ -372,10 +369,10 @@ public readonly ref partial struct Texture
 
             for (int x = area.Left; x < area.Right; x++)
             {
-                uint texel;
+                Vector4 texel;
                 if (!isFiltered)
                 {
-                    texel = Decode(_texels[upperRow + Math.Clamp(source.Left + x - destination.Left, 0, lastColumn)]);
+                    texel = ToChannels(Decode(_texels[upperRow + Math.Clamp(source.Left + x - destination.Left, 0, lastColumn)]));
                 }
                 else
                 {
@@ -392,38 +389,18 @@ public readonly ref partial struct Texture
                         cachedCorner = cornerX;
                     }
 
-                    texel = needsAlpha
-                        ? Interpolate(upperLeft, upperRight, lowerLeft, lowerRight, sourceX - cornerX, shareY)
-                        : OpaqueBlack | InterpolateColor(upperLeft, upperRight, lowerLeft, lowerRight, sourceX - cornerX, shareY);
+                    texel = Filter(upperLeft, upperRight, lowerLeft, lowerRight, sourceX - cornerX, weightY);
+                    if (!needsAlpha)
+                    {
+                        texel.W = ChannelMax;
+                    }
                 }
 
-                int alpha = (int)(texel >> AlphaShift);
-                if (isAlphaModulated)
-                {
-                    alpha = (alpha * alphaScale + ChannelMax / 2) / ChannelMax;
-                }
-
-                if (alpha < minimumAlpha)
+                uint color = ToColor(Vector4.Min(MaxChannels, Vector4.Min(MaxChannels, texel * scale + offset) * doubling));
+                if ((int)(color >> AlphaShift) < minimumAlpha)
                     continue;
 
-                int red = (int)(texel >> RedShift & ChannelMax);
-                int green = (int)(texel >> GreenShift & ChannelMax);
-                int blue = (int)(texel & ChannelMax);
-                if (hasGamma)
-                {
-                    red = reds[red];
-                    green = greens[green];
-                    blue = blues[blue];
-                }
-
-                if (isDoubled)
-                {
-                    red = Math.Min(ChannelMax, red * 2);
-                    green = Math.Min(ChannelMax, green * 2);
-                    blue = Math.Min(ChannelMax, blue * 2);
-                }
-
-                writer.Blend(row + x, (uint)alpha << AlphaShift | (uint)red << RedShift | (uint)green << GreenShift | (uint)blue, blend.Source, blend.Destination);
+                writer.Blend(row + x, color, blend.Source, blend.Destination);
             }
         }
     }
@@ -445,43 +422,31 @@ public readonly ref partial struct Texture
         return 0xff000000u | (red << 3 | red >> 2) << RedShift | (green << 2 | green >> 4) << GreenShift | blue << 3 | blue >> 2;
     }
 
-    private uint Sample(PointF point, bool isWrapped = false)
+    private Vector4 Sample(PointF point, bool isWrapped)
     {
         var corner = new Point((int)MathF.Floor(point.X), (int)MathF.Floor(point.Y));
-        float fx = point.X - corner.X;
-        float fy = point.Y - corner.Y;
-        uint a = Fetch(isWrapped ? Wrap(corner) : corner);
-        uint b = Fetch(isWrapped ? Wrap(corner with { X = corner.X + 1 }) : corner with { X = corner.X + 1 });
-        uint c = Fetch(isWrapped ? Wrap(corner with { Y = corner.Y + 1 }) : corner with { Y = corner.Y + 1 });
-        uint d = Fetch(isWrapped ? Wrap(new Point(corner.X + 1, corner.Y + 1)) : new Point(corner.X + 1, corner.Y + 1));
-        return Interpolate(a, b, c, d, fx, fy);
+        uint upperLeft = Fetch(isWrapped ? Wrap(corner) : corner);
+        uint upperRight = Fetch(isWrapped ? Wrap(corner with { X = corner.X + 1 }) : corner with { X = corner.X + 1 });
+        uint lowerLeft = Fetch(isWrapped ? Wrap(corner with { Y = corner.Y + 1 }) : corner with { Y = corner.Y + 1 });
+        uint lowerRight = Fetch(isWrapped ? Wrap(new Point(corner.X + 1, corner.Y + 1)) : new Point(corner.X + 1, corner.Y + 1));
+        return Filter(upperLeft, upperRight, lowerLeft, lowerRight, point.X - corner.X, point.Y - corner.Y);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static uint InterpolateColor(uint a, uint b, uint c, uint d, float fx, float fy)
+    private static Vector4 Filter(uint upperLeft, uint upperRight, uint lowerLeft, uint lowerRight, float weightX, float weightY)
     {
-        uint result = 0;
-        for (int shift = 0; shift < AlphaShift; shift += 8)
-        {
-            float upper = (a >> shift & ChannelMax) * (1 - fx) + (b >> shift & ChannelMax) * fx;
-            float lower = (c >> shift & ChannelMax) * (1 - fx) + (d >> shift & ChannelMax) * fx;
-            result |= (uint)(upper * (1 - fy) + lower * fy + 0.5f) << shift;
-        }
-
-        return result;
+        var upper = ToChannels(upperLeft) * (1 - weightX) + ToChannels(upperRight) * weightX;
+        var lower = ToChannels(lowerLeft) * (1 - weightX) + ToChannels(lowerRight) * weightX;
+        return upper * (1 - weightY) + lower * weightY;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static uint Interpolate(uint a, uint b, uint c, uint d, float fx, float fy)
-    {
-        uint result = 0;
-        for (int shift = 0; shift < 32; shift += 8)
-        {
-            float upper = (a >> shift & ChannelMax) * (1 - fx) + (b >> shift & ChannelMax) * fx;
-            float lower = (c >> shift & ChannelMax) * (1 - fx) + (d >> shift & ChannelMax) * fx;
-            result |= (uint)(upper * (1 - fy) + lower * fy + 0.5f) << shift;
-        }
+    private static Vector4 ToChannels(uint color) => new(color >> RedShift & ChannelMax, color >> GreenShift & ChannelMax, color & ChannelMax, color >> AlphaShift);
 
-        return result;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static uint ToColor(Vector4 channels)
+    {
+        var rounded = channels + new Vector4(HalfStep);
+        return (uint)rounded.W << AlphaShift | (uint)rounded.X << RedShift | (uint)rounded.Y << GreenShift | (uint)rounded.Z;
     }
 }
