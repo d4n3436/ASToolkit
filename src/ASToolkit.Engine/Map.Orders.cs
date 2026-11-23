@@ -30,7 +30,7 @@ public sealed partial class Map
     /// </summary>
     /// <param name="position">The point.</param>
     /// <returns>The goal sprite.</returns>
-    public Sprite ConstructGoal(Vector3 position) => ConstructSprite(Definitions.Empty, position, default, Army.Player, 0);
+    public Sprite ConstructGoal(Vector3 position) => ConstructSpriteOfClass(Definitions.Empty, position, default, Army.Player, 0);
 
     [EngineRoutine(0x00406e50)]
     private static ReadOnlyMemory<byte> GetAfter(ReadOnlyMemory<byte> text, ReadOnlySpan<byte> delimiter)

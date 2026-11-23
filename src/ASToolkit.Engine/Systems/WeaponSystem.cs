@@ -40,7 +40,7 @@ internal sealed class WeaponSystem
         float y = cursor.Y;
         float height;
 
-        if (screen is not null && pixel.X >= _map.Session.Graphics.Clip.Left && pixel.X < _map.Session.Graphics.Clip.Right && pixel.Y >= _map.Session.Graphics.Clip.Top && pixel.Y < _map.Session.Graphics.Clip.Bottom)
+        if (screen is not null && pixel.X >= _map.Session.Graphics.Viewport.Left && pixel.X < _map.Session.Graphics.Viewport.Right && pixel.Y >= _map.Session.Graphics.Viewport.Top && pixel.Y < _map.Session.Graphics.Viewport.Bottom)
         {
             height = (screen.Depth[(int)pixel.Y * screen.DepthWidth + (int)pixel.X] >> DepthShift) - DepthBias;
 

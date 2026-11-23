@@ -113,7 +113,7 @@ public sealed partial class Map
         if (definition.Object.SpriteClass is SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man or SpriteClass.Cannon)
             return null;
 
-        var stand = ConstructSprite(definition, placement.Position, placement.Direction, Definitions.GetArmy(definition), 0);
+        var stand = ConstructSpriteOfClass(definition, placement.Position, placement.Direction, Definitions.GetArmy(definition), 0);
         ChangeArmy(stand, (int)placement.Army);
         stand.Placement = placement;
         _statics[placement] = stand;
@@ -149,13 +149,13 @@ public sealed partial class Map
         var definition = new HardwareSpriteDefinition(SpriteCatalog.HardwareGroundId, System.Drawing.Size.Truncate(Movement.MapSize));
         Definitions.SetDefinition(SpriteCatalog.HardwareGroundId, definition);
         _hardwareGround = definition;
-        ConstructSprite(definition, new Vector3(Movement.MapSize.ToVector2() * HalfShare, 0), default, definition.Army, 0);
+        ConstructSpriteOfClass(definition, new Vector3(Movement.MapSize.ToVector2() * HalfShare, 0), default, definition.Army, 0);
         Session.Logger.Write("Create Empty Hardware Ground"u8);
     }
 
     private Sprite AddScripted(SpriteDefinition definition, Vector3 position, Angle direction, Army? army = null, MergedMapSprite? placement = null)
     {
-        var sprite = ConstructSprite(definition, position, direction, Definitions.GetArmy(definition), 0);
+        var sprite = ConstructSpriteOfClass(definition, position, direction, Definitions.GetArmy(definition), 0);
 
         if (army is not null)
         {

@@ -68,25 +68,25 @@ public sealed partial class Graphics
         set
         {
             field = value;
-            value?.Clip = ToClipRectangle(Clip);
+            value?.Clip = ToClipRectangle(Viewport);
         }
     }
 
     /// <summary>
     /// Gets the area of the back buffer the frame is drawn into.
     /// </summary>
-    public RectangleF Clip { get; private set; }
+    public RectangleF Viewport { get; private set; }
 
     /// <summary>
     /// Sets the area of the back buffer the frame is drawn into.
     /// </summary>
-    /// <param name="clip">The clip rectangle.</param>
+    /// <param name="viewport">The viewport.</param>
     /// <remarks>The screen's clip is updated to match.</remarks>
     [EngineRoutine(0x00402400)]
-    public void SetClip(RectangleF clip)
+    public void SetViewport(RectangleF viewport)
     {
-        Clip = clip;
-        Screen?.Clip = ToClipRectangle(clip);
+        Viewport = viewport;
+        Screen?.Clip = ToClipRectangle(viewport);
     }
 
     private static Rectangle ToClipRectangle(RectangleF clip) => Rectangle.FromLTRB((int)clip.Left, (int)clip.Top, (int)clip.Right, (int)clip.Bottom);

@@ -34,8 +34,8 @@ public sealed partial class Map
 
         if (!move.HasFlag(CameraMove.Unclamped))
         {
-            var min = Vector2.Zero - Session.Graphics.Clip.Location.ToVector2();
-            var max = Movement.MapSize.ToVector2() - new Vector2(Session.Graphics.Clip.Right, Session.Graphics.Clip.Bottom);
+            var min = Vector2.Zero - Session.Graphics.Viewport.Location.ToVector2();
+            var max = Movement.MapSize.ToVector2() - new Vector2(Session.Graphics.Viewport.Right, Session.Graphics.Viewport.Bottom);
 
             if (corner.X < min.X)
             {

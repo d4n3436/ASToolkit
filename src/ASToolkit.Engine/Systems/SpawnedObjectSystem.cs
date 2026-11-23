@@ -90,7 +90,7 @@ internal sealed class SpawnedObjectSystem
             return unit;
         }
 
-        var sprite = _map.ConstructSprite(definition, position, direction, parent?.Army ?? _definitions.GetArmy(definition), definition.MaxHp, -1, parent, owner, parent?.Shooter ?? parent, lifetime);
+        var sprite = _map.ConstructSpriteOfClass(definition, position, direction, parent?.Army ?? _definitions.GetArmy(definition), definition.MaxHp, -1, parent, owner, parent?.Shooter ?? parent, lifetime);
 
         if (gameObject.SpriteClass == SpriteClass.Cannon)
         {

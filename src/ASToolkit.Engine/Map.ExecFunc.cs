@@ -117,7 +117,7 @@ public sealed partial class Map : IScriptFunctionHost
 
         if (sprite is null && definition.MaxHp == 0 && definition.Object.SpriteClass != SpriteClass.Cannon)
         {
-            sprite = ConstructSprite(definition, position, direction, Definitions.GetArmy(definition), 0);
+            sprite = ConstructSpriteOfClass(definition, position, direction, Definitions.GetArmy(definition), 0);
             ChangeArmy(sprite, (int)placement.Army);
             sprite.Placement = placement;
             _statics[placement] = sprite;

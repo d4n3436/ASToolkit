@@ -104,7 +104,7 @@ public sealed class GameSession : IDisposable
     [EngineRoutine(0x0042f4b0)]
     private void SetUpWindow(Size desktop)
     {
-        var clip = new RectangleF(PointF.Empty, ScreenSize);
+        var viewport = new RectangleF(PointF.Empty, ScreenSize);
 
         if (!IsFullScreen && desktop.Width < ScreenSize.Width)
         {
@@ -116,7 +116,7 @@ public sealed class GameSession : IDisposable
             ScreenSize = ScreenSize with { Height = desktop.Height };
         }
 
-        Graphics.SetClip(clip);
+        Graphics.SetViewport(viewport);
         Graphics.CreateDeviceFont(SetupFont, SetupFontWidth, SetupFontHeight, SpriteCatalog.DefaultMaxTextureSize);
     }
 

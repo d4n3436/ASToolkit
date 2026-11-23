@@ -77,8 +77,8 @@ public sealed partial class Graphics
     public void SetLoadingText(ReadOnlySpan<byte> text)
     {
         LoadingText = text.ToArray();
-        FillBox(RectangleF.FromLTRB(LoadingTextLeft, Clip.Top + LoadingTextTop, LoadingTextRight, Clip.Top + LoadingTextBottom), OpaqueBlack);
-        DrawText(new Vector2(LoadingTextLeft, Clip.Top + LoadingTextTop), LoadingText, TextColor);
+        FillBox(RectangleF.FromLTRB(LoadingTextLeft, Viewport.Top + LoadingTextTop, LoadingTextRight, Viewport.Top + LoadingTextBottom), OpaqueBlack);
+        DrawText(new Vector2(LoadingTextLeft, Viewport.Top + LoadingTextTop), LoadingText, TextColor);
     }
 
     [EngineRoutine(0x00430ed0)]
@@ -130,7 +130,7 @@ public sealed partial class Graphics
         var screen = map.Session.ScreenSize;
         DrawVid(map, definition, _loadingFrame, new Vector3(screen.Width * Map.HalfShare, screen.Height * Map.HalfShare + 1, LoadingDepth));
         UpdateEffects(map, true);
-        DrawText(new Vector2(LoadingTextLeft, Clip.Top + LoadingTextTop), LoadingText, TextColor);
+        DrawText(new Vector2(LoadingTextLeft, Viewport.Top + LoadingTextTop), LoadingText, TextColor);
         _loadingFrame++;
         if (_loadingFrame >= definition.FileFrameCount)
         {
@@ -151,7 +151,7 @@ public sealed partial class Graphics
         }
 
         var sprite = new Sprite(-1, definition, new Vector3(position.AsVector2() + map.Camera, position.Z), map.Definitions.GetArmy(definition), 0, map: map);
-        map.InitializeSprite(sprite, default);
+        map.ConstructSprite(sprite, default);
         sprite.Frame = frame;
         if (Screen is not null)
         {

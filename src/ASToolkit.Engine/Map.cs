@@ -809,7 +809,7 @@ public sealed partial class Map : IDisposable
     /// <returns>The sprite.</returns>
     public Sprite AddMonster(SpriteDefinition definition, Vector3 position, Angle direction = default, Army army = Army.Monsters, Sprite? parent = null)
     {
-        return ConstructSprite(definition, position, direction, army, definition.MaxHp, parent: parent);
+        return ConstructSpriteOfClass(definition, position, direction, army, definition.MaxHp, parent: parent);
     }
 
     [EngineRoutine(0x0043f200)]
@@ -832,7 +832,7 @@ public sealed partial class Map : IDisposable
         return position;
     }
 
-    internal Sprite ConstructSprite(SpriteDefinition definition, Vector3 position, Angle direction, Army army, int hitPoints, int number = -1, Sprite? parent = null, Sprite? owner = null, Sprite? shooter = null, int? lifetime = null, bool isMouse = false)
+    internal Sprite ConstructSpriteOfClass(SpriteDefinition definition, Vector3 position, Angle direction, Army army, int hitPoints, int number = -1, Sprite? parent = null, Sprite? owner = null, Sprite? shooter = null, int? lifetime = null, bool isMouse = false)
     {
         bool isMenu = IsMenuClass(definition);
 
@@ -843,14 +843,14 @@ public sealed partial class Map : IDisposable
 
         var sprite = isMouse ? new MouseSprite(number, definition, position, army, hitPoints, map: this, parent: parent)
             : (IsDedicatedClass(definition.Object.SpriteClass) ? null : ConstructByClass(definition, position, army, hitPoints, number, parent)) ?? new Sprite(number, definition, position, army, hitPoints, map: this, parent: parent);
-        InitializeSprite(sprite, direction, owner, shooter, lifetime);
+        ConstructSprite(sprite, direction, owner, shooter, lifetime);
         RaiseHeights(definition, sprite);
         ConstructClass(sprite);
         return sprite;
     }
 
     [EngineRoutine(0x0043f200)]
-    internal void InitializeSprite(Sprite sprite, Angle direction, Sprite? owner = null, Sprite? shooter = null, int? lifetime = null)
+    internal void ConstructSprite(Sprite sprite, Angle direction, Sprite? owner = null, Sprite? shooter = null, int? lifetime = null)
     {
         var definition = sprite.Definition;
         sprite.CreatedAt = Time;
@@ -1257,7 +1257,7 @@ public sealed partial class Map : IDisposable
                 return ConstructMan(definition, placement);
 
             var army = Definitions.GetArmy(definition);
-            var body = ConstructSprite(definition, placement.Position, placement.Direction, army, definition.ArmyMaxHp[(int)army & SpriteDefinition.ArmyMask]);
+            var body = ConstructSpriteOfClass(definition, placement.Position, placement.Direction, army, definition.ArmyMaxHp[(int)army & SpriteDefinition.ArmyMask]);
             ChangeArmy(body, (int)placement.Army);
             body.Placement = placement;
             _bodies.Add(placement, body);
@@ -1375,7 +1375,7 @@ public sealed partial class Map : IDisposable
     private Sprite ConstructMan(SpriteDefinition definition, MergedMapSprite placement)
     {
         var army = Definitions.GetArmy(definition);
-        var man = ConstructSprite(definition, placement.Position, placement.Direction, army, definition.ArmyMaxHp[(int)army & SpriteDefinition.ArmyMask]);
+        var man = ConstructSpriteOfClass(definition, placement.Position, placement.Direction, army, definition.ArmyMaxHp[(int)army & SpriteDefinition.ArmyMask]);
         ChangeArmy(man, (int)placement.Army);
 
         return man;
@@ -1384,7 +1384,7 @@ public sealed partial class Map : IDisposable
     [EngineRoutine(0x00446c90)]
     private MouseSprite ConstructCursor()
     {
-        var cursor = (MouseSprite)ConstructSprite(Definitions.Empty, new Vector3(Session.ScreenSize.ToVector2() * HalfShare, 0), default, Army.Player, 0, isMouse: true);
+        var cursor = (MouseSprite)ConstructSpriteOfClass(Definitions.Empty, new Vector3(Session.ScreenSize.ToVector2() * HalfShare, 0), default, Army.Player, 0, isMouse: true);
 
         if (cursor.Definition != Definitions.Empty)
         {
