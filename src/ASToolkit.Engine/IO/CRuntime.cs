@@ -1,7 +1,9 @@
+using System.Text;
+
 namespace ASToolkit.Engine.IO;
 
 /// <summary>
-/// Provides the C runtime routines the engine calls to read numbers from text and to format text.
+/// Provides the C runtime routines the engine uses to convert, read and format text.
 /// </summary>
 public static partial class CRuntime
 {
@@ -13,14 +15,56 @@ public static partial class CRuntime
     internal static ReadOnlySpan<byte> LineEnd => "\r\n"u8;
 
     /// <summary>
-    /// Returns whether a character is white space in the C locale: a space, a tab, a line feed, a vertical tab, a form feed or a carriage return.
+    /// Determines whether a character is a space, a tab, a line feed, a vertical tab, a form feed or a carriage return (<c>isspace</c>).
     /// </summary>
     /// <param name="character">The character.</param>
     /// <returns><see langword="true"/> if the character is white space; otherwise, <see langword="false"/>.</returns>
     public static bool IsWhiteSpace(byte character) => character == ' ' || character is >= 0x09 and <= 0x0d;
 
     /// <summary>
-    /// Reads a decimal number as C's <c>atoi</c>: white space, an optional sign, then digits up to the first other character.
+    /// Converts the uppercase ASCII letters of a text to lowercase in place (<c>_strlwr</c>).
+    /// </summary>
+    /// <param name="text">The text.</param>
+    [EngineRoutine(0x00479c60)]
+    public static void ToLowerInPlace(Span<byte> text)
+    {
+        while (!text.IsEmpty)
+        {
+            Ascii.ToLowerInPlace(text, out int converted);
+            text = text[Math.Min(converted + 1, text.Length)..];
+        }
+    }
+
+    /// <summary>
+    /// Converts the uppercase ASCII letters of a text to lowercase in place (<c>_strlwr</c>).
+    /// </summary>
+    /// <param name="text">The text.</param>
+    [EngineRoutine(0x00479c60)]
+    public static void ToLowerInPlace(Span<char> text)
+    {
+        while (!text.IsEmpty)
+        {
+            Ascii.ToLowerInPlace(text, out int converted);
+            text = text[Math.Min(converted + 1, text.Length)..];
+        }
+    }
+
+    /// <summary>
+    /// Converts the lowercase ASCII letters of a text to uppercase in place (<c>_strupr</c>).
+    /// </summary>
+    /// <param name="text">The text.</param>
+    [EngineRoutine(0x00479cfe)]
+    public static void ToUpperInPlace(Span<byte> text)
+    {
+        while (!text.IsEmpty)
+        {
+            Ascii.ToUpperInPlace(text, out int converted);
+            text = text[Math.Min(converted + 1, text.Length)..];
+        }
+    }
+
+    /// <summary>
+    /// Reads a decimal number after any leading white space and an optional sign (<c>atoi</c>).
     /// </summary>
     /// <param name="text">The text.</param>
     /// <returns>The number, wrapped to 32 bits, or 0 if the text doesn't start with one.</returns>
@@ -39,26 +83,26 @@ public static partial class CRuntime
     }
 
     /// <summary>
-    /// Reads a number as C's <c>sscanf("%i")</c>, hexadecimal after <c>0x</c>, octal after <c>0</c> and decimal otherwise.
+    /// Reads a number that is hexadecimal after <c>0x</c>, octal after <c>0</c> and decimal otherwise (<c>sscanf("%i")</c>).
     /// </summary>
     /// <param name="text">The text.</param>
     /// <returns>The number, or 0 if the text doesn't start with a number.</returns>
     public static int ScanInteger(ReadOnlySpan<byte> text) => TryScanInteger(text, out int value) ? value : 0;
 
     /// <summary>
-    /// Attempts to read a number as C's <c>sscanf("%i")</c> does, which fails when the text holds <c>0x</c> without a hex digit.
+    /// Attempts to read a number that is hexadecimal after <c>0x</c>, octal after <c>0</c> and decimal otherwise (<c>sscanf("%i")</c>).
     /// </summary>
     /// <param name="text">The text.</param>
-    /// <param name="value">The number, wrapped to 32 bits, when one was read; otherwise, 0.</param>
+    /// <param name="value">When this method returns, contains the number, wrapped to 32 bits, if one was read; otherwise, 0.</param>
     /// <returns><see langword="true"/> if a number was read; otherwise, <see langword="false"/>.</returns>
     public static bool TryScanInteger(ReadOnlySpan<byte> text, out int value) => TryScanInteger(text, out value, out _);
 
     /// <summary>
-    /// Attempts to read a number as C's <c>sscanf("%i")</c> does and reports how many bytes it read.
+    /// Attempts to read a number that is hexadecimal after <c>0x</c>, octal after <c>0</c> and decimal otherwise, and the number of bytes it takes up (<c>sscanf("%i")</c>).
     /// </summary>
     /// <param name="text">The text.</param>
-    /// <param name="value">The number, wrapped to 32 bits, when one was read; otherwise, 0.</param>
-    /// <param name="length">The number of bytes read, including leading white space, when a number was read; otherwise, 0.</param>
+    /// <param name="value">When this method returns, contains the number, wrapped to 32 bits, if one was read; otherwise, 0.</param>
+    /// <param name="length">When this method returns, contains the number of bytes read, including leading white space, if a number was read; otherwise, 0.</param>
     /// <returns><see langword="true"/> if a number was read; otherwise, <see langword="false"/>.</returns>
     public static bool TryScanInteger(ReadOnlySpan<byte> text, out int value, out int length)
     {

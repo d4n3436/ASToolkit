@@ -125,11 +125,11 @@ public class SpriteDefinition
         MinRange = weapon.MinRange;
         ReloadTime = weapon.ReloadTime;
         AttackTime = Math.Max(weapon.ReloadTime, GetAnimationTime(gameObject, SpriteAnimation.Fight, spriteSpeed));
-        if (file is { } header)
+        if (file is not null)
         {
-            FileType = header.Type;
-            FrameSize = header.Size;
-            FileFrameCount = header.FrameCount;
+            FileType = file.Value.Type;
+            FrameSize = file.Value.Size;
+            FileFrameCount = file.Value.FrameCount;
         }
 
         LoadParameters();

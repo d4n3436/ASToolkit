@@ -1,7 +1,7 @@
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents the engine's random source, the C runtime's LCG.
+/// Represents the engine's random source (C runtime's <c>rand</c>).
 /// </summary>
 public sealed class GameRandom : Random
 {

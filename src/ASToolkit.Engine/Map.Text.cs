@@ -1,3 +1,4 @@
+using System.Text;
 using ASToolkit.Engine.IO;
 using ASToolkit.Engine.Scripts;
 using ASToolkit.Formats;
@@ -186,7 +187,7 @@ public sealed partial class Map
     [EngineRoutine(0x00406630)]
     private ReadOnlyMemory<byte> LoadTextFile(ReadOnlySpan<byte> name)
     {
-        if (name.IsEmpty || !_fileSystem.TryRead(GameTextEncoding.Cyrillic.GetString(name), out var data))
+        if (name.IsEmpty || !_fileSystem.TryRead(Encoding.ASCII.GetString(name), out var data))
             return ReadOnlyMemory<byte>.Empty;
 
         return CRuntime.GetString(data);

@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine.IO;
@@ -40,7 +41,7 @@ internal ref struct Resource
     public int Open(IGameFileSystem fileSystem, GameLogger logger, ReadOnlySpan<byte> name, ReadOnlySpan<byte> kind)
     {
         _isOpen = false;
-        if (!name.IsEmpty && fileSystem.TryRead(GameTextEncoding.Cyrillic.GetString(name), out var data))
+        if (!name.IsEmpty && fileSystem.TryRead(Encoding.ASCII.GetString(name), out var data))
         {
             _name = name;
             return Open(logger, data.Span, kind);

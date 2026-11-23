@@ -1,5 +1,5 @@
+using System.Text;
 using ASToolkit.Engine.IO;
-using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
@@ -77,7 +77,7 @@ public sealed class PictureChannel : IDisposable
         {
             if (path.Length != 0)
             {
-                _logger?.Write("!!!ERROR!!!PICTURE '%s': Unknown format file"u8, (ReadOnlyMemory<byte>)GameTextEncoding.Cyrillic.GetBytes(path));
+                _logger?.Write("!!!ERROR!!!PICTURE '%s': Unknown format file"u8, (ReadOnlyMemory<byte>)Encoding.ASCII.GetBytes(path));
             }
 
             Format = PictureFormat.None;

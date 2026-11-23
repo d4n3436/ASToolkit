@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Numerics;
+using System.Text;
 using ASToolkit.Engine.IO;
 using ASToolkit.Engine.Scripts;
 using ASToolkit.Formats;
@@ -901,11 +902,19 @@ public sealed partial class Map : IScriptFunctionHost
                 PushText(Printf());
                 break;
             case ScriptFunction.ToLower:
-                PushText(ChangeCase(PopText().Span, (byte)'A', (byte)'Z', 'a' - 'A'));
+            {
+                byte[] text = CRuntime.GetString(PopText().Span).ToArray();
+                CRuntime.ToLowerInPlace(text);
+                PushText(text);
                 break;
+            }
             case ScriptFunction.ToUpper:
-                PushText(ChangeCase(PopText().Span, (byte)'a', (byte)'z', 'A' - 'a'));
+            {
+                byte[] text = CRuntime.GetString(PopText().Span).ToArray();
+                CRuntime.ToUpperInPlace(text);
+                PushText(text);
                 break;
+            }
             case ScriptFunction.FOpen:
             {
                 string name = ReadText(PopText());
@@ -918,7 +927,7 @@ public sealed partial class Map : IScriptFunctionHost
                 var file = name.Length != 0 && ScriptFiles.TryRead(name, out var data) ? new ScriptFile(data.Span, null) : null;
                 if (file is null)
                 {
-                    LogMapError(LogError.Open, GameTextEncoding.Cyrillic.GetBytes(name), 0);
+                    LogMapError(LogError.Open, Encoding.ASCII.GetBytes(name), 0);
                 }
 
                 PushNumber(AddScriptFile(file));
@@ -1173,20 +1182,6 @@ public sealed partial class Map : IScriptFunctionHost
         for (int padding = (3 - source.Length % 3) % 3; padding > 0; padding--)
         {
             result[written - padding] = (byte)'=';
-        }
-
-        return result;
-    }
-
-    private static ReadOnlyMemory<byte> ChangeCase(ReadOnlySpan<byte> text, byte first, byte last, int shift)
-    {
-        byte[] result = CRuntime.GetString(text).ToArray();
-        for (int i = 0; i < result.Length; i++)
-        {
-            if (result[i] >= first && result[i] <= last)
-            {
-                result[i] = (byte)(result[i] + shift);
-            }
         }
 
         return result;

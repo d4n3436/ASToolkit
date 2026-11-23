@@ -63,10 +63,10 @@ public struct StackObject
         new(handle == 0 ? StackObjectFlags.Number : StackObjectFlags.Number | StackObjectFlags.Sprite, handle, default);
 
     /// <summary>
-    /// Reads a text as a number, as C's <c>sscanf("%i")</c> when its second character is <c>x</c> and as <c>atoi</c> otherwise.
+    /// Reads a text as a hexadecimal number when its second character is <c>x</c> (<c>sscanf("%i")</c>), and as a decimal number otherwise (<c>atoi</c>).
     /// </summary>
     /// <param name="text">The text.</param>
-    /// <returns>The number, or 0 if <c>sscanf</c> doesn't read a number.</returns>
+    /// <returns>The number, or 0 if the text doesn't hold one.</returns>
     [EngineRoutine(0x004242e0)]
     public static int ParseNumber(ReadOnlySpan<byte> text) =>
         text.Length > 1 && text[1] == 'x' ? CRuntime.ScanInteger(text) : CRuntime.ParseInteger(text);

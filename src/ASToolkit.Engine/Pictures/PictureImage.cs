@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Text;
 using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 
@@ -56,7 +57,7 @@ public class PictureImage : IDisposable
     public string GameFolder { get; }
 
     /// <summary>
-    /// Gets the path of the first picture file.
+    /// Gets the path of the first picture file, in lower case.
     /// </summary>
     public string Name { get; private set; }
 
@@ -120,7 +121,7 @@ public class PictureImage : IDisposable
         Name = string.Empty;
     }
 
-    internal void Report(LogError code, ReadOnlySpan<byte> text, int value = 0) => Logger?.Error("PICTURE '%s'"u8, code, value, text, (ReadOnlyMemory<byte>)GameTextEncoding.Cyrillic.GetBytes(Name));
+    internal void Report(LogError code, ReadOnlySpan<byte> text, int value = 0) => Logger?.Error("PICTURE '%s'"u8, code, value, text, (ReadOnlyMemory<byte>)Encoding.ASCII.GetBytes(Name));
 
     /// <summary>
     /// Sets the dimensions of the picture and clears its pixels.
@@ -162,7 +163,9 @@ public class PictureImage : IDisposable
             return false;
         }
 
-        Name = name.ToLowerInvariant();
+        char[] lower = name.ToCharArray();
+        CRuntime.ToLowerInPlace(lower);
+        Name = new string(lower);
         Input = OpenFile(Name);
         if (Input is null)
         {

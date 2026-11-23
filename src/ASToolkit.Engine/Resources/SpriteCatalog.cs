@@ -3,6 +3,7 @@ using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 using System.Collections.Concurrent;
 using System.Numerics;
+using System.Text;
 using ASToolkit.Core;
 
 namespace ASToolkit.Engine;
@@ -288,7 +289,7 @@ public sealed class SpriteCatalog
         ResolveLinks(logger, true);
     }
 
-    private static void LogUnopened(GameLogger? logger, string path) => logger?.Write("LOAD::Can't open file %s"u8, (ReadOnlyMemory<byte>)GameTextEncoding.Cyrillic.GetBytes(path));
+    private static void LogUnopened(GameLogger? logger, string path) => logger?.Write("LOAD::Can't open file %s"u8, (ReadOnlyMemory<byte>)Encoding.ASCII.GetBytes(path));
 
     internal void LogCounts(GameLogger logger)
     {
@@ -304,7 +305,7 @@ public sealed class SpriteCatalog
                 continue;
 
             var name = (ReadOnlyMemory<byte>)GameTextEncoding.Cyrillic.GetBytes(GetName(definition));
-            var path = (ReadOnlyMemory<byte>)GameTextEncoding.Cyrillic.GetBytes(GetPath(definition));
+            var path = (ReadOnlyMemory<byte>)Encoding.ASCII.GetBytes(GetPath(definition));
             logger.Write("NoVid[%3i]=%i %i %i %i %s Layer=%i %s"u8, i, counts[0], counts[1], counts[2], counts[3], name, (int)definition.Layer, path);
         }
     }
@@ -385,16 +386,18 @@ public sealed class SpriteCatalog
             file = new VidResource(data);
         }
 
-        if (file is not { } sprite)
+        if (file is null)
         {
             if (logger is not null)
             {
-                new Resource().Open(new GameFolder(gameFolder), logger, GameTextEncoding.Cyrillic.GetBytes(path), Resource.AnyTag);
+                new Resource().Open(new GameFolder(gameFolder), logger, Encoding.ASCII.GetBytes(path), Resource.AnyTag);
             }
 
             LogUnopened(logger, path);
             return null;
         }
+
+        var sprite = file.Value;
 
         int totalFrames = data.IsEmpty ? Parts.CountFrames(path) : sprite.FrameCount;
         var type = sprite.Type;

@@ -130,7 +130,7 @@ public sealed class ObjectTable
             }
 
             entries[id] = new Entry(obj, GameTextEncoding.Cyrillic.GetString(record[4..nameEnd]),
-                Encoding.Latin1.GetString(record[pathStart..^1]));
+                Encoding.ASCII.GetString(record[pathStart..^1]));
         }
 
         var data = container.Chunks.First(chunk => chunk.Tag.Span.SequenceEqual("CNST"u8)).Records.First();

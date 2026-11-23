@@ -2,7 +2,7 @@
 
 This document describes how the games in the Alien Shooter series store their data, with enough detail to open the files by hand.
 
-All integers are little-endian. Text is cp1251 (Cyrillic) unless noted. Offsets are in bytes and written in decimal unless they start with `0x`.
+All integers are little-endian. Text is cp1251 (Cyrillic) unless noted, and file paths are ASCII. Offsets are in bytes and written in decimal unless they start with `0x`.
 
 ## Contents
 
@@ -109,7 +109,7 @@ Kind `DATA`. It defines every object the game knows by an ID. The names with the
 ```
  0    4                  4+n+1      +body         +body+m+1
  +----+------------------+----------+------------+-----------+
- | id | name, cp1251, 0  | body     | sprite path, 0         |
+ | id | name, cp1251, 0  | body     | sprite path, ASCII, 0  |
  +----+------------------+----------+------------+-----------+
                            see above   "vid\040.vid" or "font\..."
 ```

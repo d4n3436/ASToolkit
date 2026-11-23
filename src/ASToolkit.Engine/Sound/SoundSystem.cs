@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Text;
 using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 
@@ -579,7 +580,7 @@ public sealed class SoundSystem
     [EngineRoutine(0x0041e370)]
     private float LoadWaveLength(ReadOnlySpan<byte> path)
     {
-        if (!_fileSystem.TryRead(GameTextEncoding.Cyrillic.GetString(path), out var data))
+        if (!_fileSystem.TryRead(Encoding.ASCII.GetString(path), out var data))
             return -1;
 
         var wave = new WaveResource(data);
@@ -591,7 +592,7 @@ public sealed class SoundSystem
     [EngineRoutine(0x0041e1d0)]
     private float LoadOggLength(ReadOnlySpan<byte> path)
     {
-        if (!_fileSystem.TryRead(GameTextEncoding.Cyrillic.GetString(path), out var data))
+        if (!_fileSystem.TryRead(Encoding.ASCII.GetString(path), out var data))
             return -1;
 
         var track = new VorbisResource(data);
@@ -805,7 +806,7 @@ public sealed class SoundSystem
     private MusicStream CreateMusic(ReadOnlyMemory<byte> name)
     {
         // TODO: Port the DirectShow music class for tracks that are not ogg
-        string path = GameTextEncoding.Cyrillic.GetString(name.Span);
+        string path = Encoding.ASCII.GetString(name.Span);
 
         if (!_trackLengths.TryGetValue(path, out float length))
         {

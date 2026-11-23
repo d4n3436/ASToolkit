@@ -48,7 +48,7 @@ public readonly struct SfxRecord
     /// Returns the path of a sample, empty past the last one.
     /// </summary>
     /// <param name="index">The index of the sample.</param>
-    /// <returns>The path, in cp1251 encoding.</returns>
+    /// <returns>The path, in ASCII.</returns>
     public ReadOnlySpan<byte> GetSamplePath(int index)
     {
         var rest = _data.Span[1..];

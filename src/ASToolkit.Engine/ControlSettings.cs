@@ -1,4 +1,6 @@
 using System.Collections.Frozen;
+using System.Text;
+using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
@@ -126,17 +128,21 @@ public sealed class ControlSettings
     }
 
     /// <summary>
-    /// Returns the virtual key of a key name.
+    /// Returns the virtual key of a key name, ignoring case.
     /// </summary>
     /// <param name="name">The key name.</param>
-    /// <returns>The virtual key, or 0 for an unknown name.</returns>
+    /// <returns>The virtual key; for a name that isn't a key name, its first character in upper case, or 0 if the name is empty.</returns>
     [EngineRoutine(0x00426370)]
     public static int ParseKey(string name)
     {
-        string upper = name.ToUpperInvariant();
+        byte[] upper = GameTextEncoding.Cyrillic.GetBytes(name);
+        CRuntime.ToUpperInPlace(upper);
 
-        if (KeyNames.TryGetValue(upper, out int code))
-            return code;
+        foreach ((string key, int code) in KeyNames)
+        {
+            if (Ascii.Equals(upper, key))
+                return code;
+        }
 
         return upper.Length == 0 ? 0 : (sbyte)upper[0];
     }
