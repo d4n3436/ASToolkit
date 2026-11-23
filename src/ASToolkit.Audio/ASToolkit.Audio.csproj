@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="NVorbis" Version="0.10.5" />
+    <PackageReference Include="ppy.SDL3-CS" Version="2026.1002.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../ASToolkit.Engine/ASToolkit.Engine.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ASToolkit.Tests" />
+  </ItemGroup>
+</Project>

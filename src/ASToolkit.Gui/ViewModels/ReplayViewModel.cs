@@ -1,5 +1,7 @@
 using System.Drawing;
 using System.Diagnostics;
+using ASToolkit.Audio;
+using ASToolkit.Core;
 using ASToolkit.Bot;
 using ASToolkit.Gui.Core;
 using Avalonia.Media.Imaging;
@@ -12,7 +14,7 @@ namespace ASToolkit.Gui.ViewModels;
 /// <summary>
 /// Represents the live playback of the bot's run through the map open in the viewer, seen through the game's camera.
 /// </summary>
-public partial class ReplayViewModel : ViewModelBase
+public sealed partial class ReplayViewModel : ViewModelBase, IDisposable
 {
     private static readonly TimeSpan SlowRender = TimeSpan.FromMilliseconds(100);
     private readonly Stopwatch _clock = new();
@@ -27,6 +29,13 @@ public partial class ReplayViewModel : ViewModelBase
     private int _loadVersion;
     private bool _isRendering;
     private bool _isDrawPending;
+    private const int Inaudible = -1;
+
+    private SoundOutput? _sound;
+    private volatile int _audibleGeneration = Inaudible;
+    private int _generation;
+    private bool _isResyncDue;
+    private bool _isShown;
 
     /// <summary>
     /// Gets or sets the viewer whose open game and map the bot plays.
@@ -52,7 +61,7 @@ public partial class ReplayViewModel : ViewModelBase
     public partial int FrameCount { get; set; }
 
     [ObservableProperty]
-    public partial double Speed { get; set; } = 1;
+    public partial float Speed { get; set; } = 1;
 
     [ObservableProperty]
     public partial Bitmap? Frame { get; set; }
@@ -83,6 +92,9 @@ public partial class ReplayViewModel : ViewModelBase
             }
 
             _playback = playback;
+            _sound?.Dispose();
+            _sound = new SoundOutput(game, objects.Sounds);
+            BeginResync();
             var result = playback.Result;
             FrameCount = playback.FrameCount;
             FrameIndex = 0;
@@ -125,20 +137,25 @@ public partial class ReplayViewModel : ViewModelBase
             _clock.Restart();
         }
 
+        BeginResync();
         DrawFrame();
     }
 
-    partial void OnSpeedChanged(double value)
+    partial void OnSpeedChanged(float value)
     {
         _baseTime = _time;
         _clock.Restart();
+        BeginResync();
     }
+
+    partial void OnIsPlayingChanged(bool value) => BeginResync();
 
     /// <summary>
     /// Shows the frame for the playback clock's current time.
     /// </summary>
     public void Tick()
     {
+        _isShown = true;
         var playback = _playback;
         if (!IsPlaying || playback is null || playback.FrameCount == 0)
         {
@@ -167,7 +184,40 @@ public partial class ReplayViewModel : ViewModelBase
         }
     }
 
+    private bool IsAtNormalSpeed => Speed.IsExactly(1);
+
     private void DrawFrame() => _ = DrawFrameAsync();
+
+    /// <summary>
+    /// Stops the sound until the playback is shown again.
+    /// </summary>
+    public void SilenceSound()
+    {
+        _isShown = false;
+        BeginResync();
+    }
+
+    /// <summary>
+    /// Closes the audio device.
+    /// </summary>
+    public void Dispose()
+    {
+        _audibleGeneration = Inaudible;
+        _sound?.Dispose();
+        _sound = null;
+    }
+
+    private void BeginResync()
+    {
+        _audibleGeneration = Inaudible;
+        _isResyncDue = true;
+
+        if (_sound is not null)
+        {
+            _generation = _sound.Silence();
+        }
+    }
+
 
     private async Task DrawFrameAsync()
     {
@@ -192,12 +242,35 @@ public partial class ReplayViewModel : ViewModelBase
 
         var pixels = _pixels;
         int time = _time;
+        var sound = _sound;
+        int generation = _generation;
+        bool isResyncing = _isResyncDue && _isShown && IsPlaying && IsAtNormalSpeed;
         _isRendering = true;
         bool isWritten;
         long started = Stopwatch.GetTimestamp();
         try
         {
-            isWritten = await Task.Run(() => playback.Render(pixels, time));
+            isWritten = await Task.Run(() =>
+            {
+                while (playback.TryStepToward(time, out bool isFull))
+                {
+                    int audible = _audibleGeneration;
+
+                    if (isFull && audible != Inaudible)
+                    {
+                        sound?.Sync(playback.Sound, playback.WallTime, false, audible);
+                    }
+                }
+
+                bool written = playback.Render(pixels);
+
+                if (isResyncing)
+                {
+                    sound?.Sync(playback.Sound, playback.WallTime, true, generation);
+                }
+
+                return written;
+            });
         }
         finally
         {
@@ -214,6 +287,12 @@ public partial class ReplayViewModel : ViewModelBase
         if (isWritten && playback == _playback)
         {
             Frame = Upload(buffer);
+        }
+
+        if (isResyncing && generation == _generation && sound == _sound && playback == _playback)
+        {
+            _isResyncDue = false;
+            _audibleGeneration = generation;
         }
 
         if (_isDrawPending)

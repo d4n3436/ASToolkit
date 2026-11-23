@@ -13,5 +13,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/ASToolkit.Generation/ASToolkit.Generation.csproj" />
     <ProjectReference Include="../../src/ASToolkit.Bot/ASToolkit.Bot.csproj" />
+    <ProjectReference Include="../../src/ASToolkit.Audio/ASToolkit.Audio.csproj" />
   </ItemGroup>
 </Project>

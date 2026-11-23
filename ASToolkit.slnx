@@ -6,6 +6,7 @@
     <Project Path="src/ASToolkit.Analysis/ASToolkit.Analysis.csproj" />
     <Project Path="src/ASToolkit.Generation/ASToolkit.Generation.csproj" />
     <Project Path="src/ASToolkit.Bot/ASToolkit.Bot.csproj" />
+    <Project Path="src/ASToolkit.Audio/ASToolkit.Audio.csproj" />
     <Project Path="src/ASToolkit.Cli/ASToolkit.Cli.csproj" />
     <Project Path="src/ASToolkit.Gui/ASToolkit.Gui.csproj" />
   </Folder>

@@ -25,6 +25,7 @@ public class App : Application
             }
 
             desktop.MainWindow = new MainWindow { DataContext = viewModel };
+            desktop.Exit += (_, _) => viewModel.Replay.Dispose();
         }
 
         base.OnFrameworkInitializationCompleted();

@@ -25,5 +25,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ASToolkit.Bot\ASToolkit.Bot.csproj" />
+    <ProjectReference Include="..\ASToolkit.Audio\ASToolkit.Audio.csproj" />
   </ItemGroup>
 </Project>

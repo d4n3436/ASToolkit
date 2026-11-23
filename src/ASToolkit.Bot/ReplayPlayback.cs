@@ -65,6 +65,16 @@ public sealed class ReplayPlayback
     public Size FrameSize => _map.Session.Graphics.Screen!.Size;
 
     /// <summary>
+    /// Gets the sound state of the map.
+    /// </summary>
+    public SoundSystem Sound => _map.Sound;
+
+    /// <summary>
+    /// Gets the wall time of the map, in milliseconds.
+    /// </summary>
+    public uint WallTime => _map.WallTime;
+
+    /// <summary>
     /// Plays a map of a game folder with the bot as the opening level of a campaign and records the run.
     /// </summary>
     /// <param name="game">The game folder.</param>
@@ -91,14 +101,12 @@ public sealed class ReplayPlayback
     public int GetFrameTime(int index) => _frameTimes[Math.Clamp(index, 0, _frameTimes.Length - 1)];
 
     /// <summary>
-    /// Writes the last frame the engine had drawn by a given time of the run, with the system cursor the game shows drawn at the run's cursor position.
+    /// Writes the frame the run has reached, with the system cursor the game shows drawn at the run's cursor position.
     /// </summary>
     /// <param name="pixels">The pixels of the frame, row by row, at least <see cref="FrameSize"/> of them.</param>
-    /// <param name="time">The time of the frame, in milliseconds.</param>
-    /// <returns><see langword="true"/> if the pixels were written; <see langword="false"/> if <paramref name="pixels"/> already holds the frame for that time.</returns>
-    public bool Render(Bgra32[] pixels, int time)
+    /// <returns><see langword="true"/> if the pixels were written; <see langword="false"/> if <paramref name="pixels"/> already holds that frame.</returns>
+    public bool Render(Bgra32[] pixels)
     {
-        Seek(time);
         if (_rendered == pixels && _renderedTime == _shownTime)
             return false;
 
@@ -144,16 +152,27 @@ public sealed class ReplayPlayback
         return map;
     }
 
-    private void Seek(int time)
+    /// <summary>
+    /// Steps the run one frame toward a time, restarting the run if the time is earlier than the current one.
+    /// </summary>
+    /// <param name="time">The time to step toward, in milliseconds.</param>
+    /// <param name="isFull">When this method returns, <see langword="true"/> if the frame was stepped in full; <see langword="false"/> if it was stepped quickly because it is well before <paramref name="time"/>.</param>
+    /// <returns><see langword="true"/> if a frame was stepped; <see langword="false"/> if the run is already at <paramref name="time"/> or has ended.</returns>
+    public bool TryStepToward(int time, out bool isFull)
     {
+        isFull = false;
+
         if (_isStepped && _shownTime > time)
         {
             _map = Load();
         }
 
-        while (_map.TryGetNextDemoTime(out int next) && next <= time && StepFrame(next < time - DrawnLead))
-        {
-        }
+        if (!_map.TryGetNextDemoTime(out int next) || next > time)
+            return false;
+
+        isFull = next >= time - DrawnLead;
+
+        return StepFrame(!isFull);
     }
 
     private bool StepFrame(bool isAimOnly)

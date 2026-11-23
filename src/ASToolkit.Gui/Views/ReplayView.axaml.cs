@@ -23,6 +23,7 @@ public partial class ReplayView : UserControl
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         _isAttached = false;
+        (DataContext as ReplayViewModel)?.SilenceSound();
         base.OnDetachedFromVisualTree(e);
     }
 
