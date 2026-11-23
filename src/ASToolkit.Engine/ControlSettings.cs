@@ -1,7 +1,6 @@
-using System.Collections.Frozen;
+using System.Buffers;
 using System.Text;
 using ASToolkit.Engine.IO;
-using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
@@ -24,70 +23,35 @@ public sealed class ControlSettings
     private const int UpKey = 0x26;
     private const int RightKey = 0x27;
     private const int DownKey = 0x28;
-    private const int PrevKey = 0x5B;
-    private const int NextKey = 0x5D;
-    private const string Section = "control";
+    private const string ConfigFile = "AlienShooter.cfg";
 
-    private static readonly FrozenDictionary<string, int> KeyNames = new Dictionary<string, int>
+    private static ReadOnlySpan<byte> Section => "control"u8;
+
+    private ControlSettings()
     {
-        ["LBUTTON"] = LeftButton,
-        ["RBUTTON"] = RightButton,
-        ["["] = 0x5B,
-        ["]"] = 0x5C,
-        ["LEFT"] = LeftKey,
-        ["RIGHT"] = RightKey,
-        ["UP"] = UpKey,
-        ["DOWN"] = DownKey,
-        ["INSERT"] = 0x2D,
-        ["DELETE"] = 0x2E,
-        ["HOME"] = 0x24,
-        ["END"] = 0x23,
-        ["PGUP"] = 0x21,
-        ["PGDN"] = 0x22,
-        ["SHIFT"] = 0x10,
-        ["CTRL"] = 0x11,
-        ["F1"] = 0x70,
-        ["F2"] = 0x71,
-        ["F3"] = 0x72,
-        ["F4"] = 0x73,
-        ["F5"] = 0x74,
-        ["F6"] = 0x75,
-        ["F7"] = 0x76,
-        ["F8"] = 0x77,
-        ["F9"] = 0x78,
-        ["F10"] = 0x79,
-        ["F11"] = 0x7A,
-        ["F12"] = 0x7B
-    }.ToFrozenDictionary();
+    }
 
-    /// <summary>
-    /// Gets the executable's default controls.
-    /// </summary>
-    public static ControlSettings Default { get; } = new();
+    internal ControlBinding Left { get; private init; }
 
-    internal ControlSettings Clone() => (ControlSettings)MemberwiseClone();
+    internal ControlBinding Right { get; private init; }
 
-    internal ControlBinding Left { get; init; } = new(LeftKey, LeftKey);
+    internal ControlBinding Up { get; private init; }
 
-    internal ControlBinding Right { get; init; } = new(RightKey, RightKey);
+    internal ControlBinding Down { get; private init; }
 
-    internal ControlBinding Up { get; init; } = new(UpKey, UpKey);
+    internal ControlBinding First { get; set; }
 
-    internal ControlBinding Down { get; init; } = new(DownKey, DownKey);
-
-    internal ControlBinding First { get; set; } = new(LeftButton, LeftButton);
-
-    internal ControlBinding Second { get; set; } = new(RightButton, RightButton);
+    internal ControlBinding Second { get; set; }
 
     /// <summary>
     /// Gets the key that selects the previous weapon.
     /// </summary>
-    public int Prev { get; init; } = PrevKey;
+    public int Prev { get; private init; }
 
     /// <summary>
     /// Gets the key that selects the next weapon.
     /// </summary>
-    public int Next { get; init; } = NextKey;
+    public int Next { get; private init; }
 
     /// <summary>
     /// Gets a value indicating whether the first action repeats while held.
@@ -102,99 +66,81 @@ public sealed class ControlSettings
     /// <summary>
     /// Gets a value indicating whether the movement keys move relative to the cursor.
     /// </summary>
-    public bool IsMovementRelativeToCursor { get; init; }
+    public bool IsMovementRelativeToCursor { get; private init; }
 
     /// <summary>
-    /// Reads the controls from a configuration file, with the executable's defaults for missing keys.
+    /// Reads the controls from a game's AlienShooter.cfg, with the executable's defaults for missing keys.
     /// </summary>
-    /// <param name="path">The path of AlienShooter.cfg.</param>
+    /// <param name="fileSystem">The file system the game's files are read from.</param>
     /// <returns>The controls.</returns>
-    public static ControlSettings Read(string path)
+    public static ControlSettings Read(IGameFileSystem fileSystem)
     {
-        var values = ReadSection(File.ReadAllLines(path, GameTextEncoding.Cyrillic));
-
         return new ControlSettings
         {
-            Left = new ControlBinding(LeftKey, GetFirstCharacter(values, "Left", "%")),
-            Right = new ControlBinding(RightKey, GetFirstCharacter(values, "Right", "'")),
-            Up = new ControlBinding(UpKey, GetFirstCharacter(values, "Up", "&")),
-            Down = new ControlBinding(DownKey, GetFirstCharacter(values, "Down", "\u0004" + "8")),
-            IsMovementRelativeToCursor = GetInteger(values, "Relative", 0) != 0,
-            First = new ControlBinding(ParseKey(GetString(values, "First", "LBUTTON")), LeftButton),
-            Second = new ControlBinding(ParseKey(GetString(values, "Second", "RBUTTON")), RightButton),
-            Prev = ParseKey(GetString(values, "Prev", "[")),
-            Next = ParseKey(GetString(values, "Next", "]"))
+            Left = new ControlBinding(LeftKey, GetFirstCharacter(fileSystem, "Left"u8, "%"u8)),
+            Right = new ControlBinding(RightKey, GetFirstCharacter(fileSystem, "Right"u8, "'"u8)),
+            Up = new ControlBinding(UpKey, GetFirstCharacter(fileSystem, "Up"u8, "&"u8)),
+            Down = new ControlBinding(DownKey, GetFirstCharacter(fileSystem, "Down"u8, "\u00048"u8)),
+            IsMovementRelativeToCursor = ProfileFile.GetInteger(fileSystem, ConfigFile, Section, "Relative"u8, 0) != 0,
+            First = new ControlBinding(ParseKey(GetString(fileSystem, "First"u8, "LBUTTON"u8)), LeftButton),
+            Second = new ControlBinding(ParseKey(GetString(fileSystem, "Second"u8, "RBUTTON"u8)), RightButton),
+            Prev = ParseKey(GetString(fileSystem, "Prev"u8, "["u8)),
+            Next = ParseKey(GetString(fileSystem, "Next"u8, "]"u8))
         };
     }
 
-    /// <summary>
-    /// Returns the virtual key of a key name, ignoring case.
-    /// </summary>
-    /// <param name="name">The key name.</param>
-    /// <returns>The virtual key; for a name that isn't a key name, its first character in upper case, or 0 if the name is empty.</returns>
     [EngineRoutine(0x00426370)]
-    public static int ParseKey(string name)
+    private static int ParseKey(ReadOnlySpan<byte> name)
     {
-        byte[] upper = GameTextEncoding.Cyrillic.GetBytes(name);
+        Span<byte> upper = name.ToArray();
         CRuntime.ToUpperInPlace(upper);
 
-        foreach ((string key, int code) in KeyNames)
-        {
-            if (Ascii.Equals(upper, key))
-                return code;
-        }
+        Span<char> text = new char[upper.Length];
+        if (Ascii.ToUtf16(upper, text, out _) != OperationStatus.Done)
+            return (sbyte)upper[0];
 
-        return upper.Length == 0 ? 0 : (sbyte)upper[0];
+        return text switch
+        {
+            "LBUTTON" => LeftButton,
+            "RBUTTON" => RightButton,
+            "[" => 0x5B,
+            "]" => 0x5C,
+            "LEFT" => LeftKey,
+            "RIGHT" => RightKey,
+            "UP" => UpKey,
+            "DOWN" => DownKey,
+            "INSERT" => 0x2D,
+            "DELETE" => 0x2E,
+            "HOME" => 0x24,
+            "END" => 0x23,
+            "PGUP" => 0x21,
+            "PGDN" => 0x22,
+            "SHIFT" => 0x10,
+            "CTRL" => 0x11,
+            "F1" => 0x70,
+            "F2" => 0x71,
+            "F3" => 0x72,
+            "F4" => 0x73,
+            "F5" => 0x74,
+            "F6" => 0x75,
+            "F7" => 0x76,
+            "F8" => 0x77,
+            "F9" => 0x78,
+            "F10" => 0x79,
+            "F11" => 0x7A,
+            "F12" => 0x7B,
+            "" => 0,
+            _ => (sbyte)upper[0]
+        };
     }
 
-    private static Dictionary<string, string> ReadSection(string[] lines)
+    private static ReadOnlySpan<byte> GetString(IGameFileSystem fileSystem, ReadOnlySpan<byte> key, ReadOnlySpan<byte> defaultValue) =>
+        ProfileFile.TryGetString(fileSystem, ConfigFile, Section, key, out var value) ? value.Span : defaultValue;
+
+    private static int GetFirstCharacter(IGameFileSystem fileSystem, ReadOnlySpan<byte> key, ReadOnlySpan<byte> defaultValue)
     {
-        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        bool inSection = false;
-        foreach (string line in lines)
-        {
-            string text = line.Trim();
+        var value = GetString(fileSystem, key, defaultValue);
 
-            if (text.StartsWith('['))
-            {
-                int end = text.IndexOf(']');
-                inSection = end > 0 && text[1..end].Trim().Equals(Section, StringComparison.OrdinalIgnoreCase);
-
-                continue;
-            }
-
-            int separator = text.IndexOf('=');
-
-            if (!inSection || separator <= 0 || text.StartsWith(';'))
-                continue;
-
-            values.TryAdd(text[..separator].Trim(), text[(separator + 1)..].Trim());
-        }
-
-        return values;
-    }
-
-    private static string GetString(Dictionary<string, string> values, string key, string fallback) =>
-        values.GetValueOrDefault(key, fallback);
-
-    private static int GetFirstCharacter(Dictionary<string, string> values, string key, string fallback)
-    {
-        string value = GetString(values, key, fallback);
-
-        return value.Length == 0 ? 0 : (sbyte)GameTextEncoding.Cyrillic.GetBytes(value[..1])[0];
-    }
-
-    private static int GetInteger(Dictionary<string, string> values, string key, int fallback)
-    {
-        if (!values.TryGetValue(key, out string? value))
-            return fallback;
-
-        int length = 0;
-        while (length < value.Length && (char.IsAsciiDigit(value[length]) || length == 0 && value[0] == '-'))
-        {
-            length++;
-        }
-
-        return int.TryParse(value.AsSpan(0, length), out int number) ? number : 0;
+        return value.IsEmpty ? 0 : (sbyte)value[0];
     }
 }

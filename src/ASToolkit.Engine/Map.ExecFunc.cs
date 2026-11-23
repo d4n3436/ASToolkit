@@ -63,7 +63,7 @@ public sealed partial class Map : IScriptFunctionHost
 
     private Sprite? MenuRightClick => _menuClicks.HasFlag(MenuClicks.Right) ? _menuCurrent : null;
 
-    private IGameFileSystem ScriptFiles => _scriptFileSystem ??= _fileSystem as MemoryWriteOverlay ?? new MemoryWriteOverlay(_fileSystem);
+    private IGameFileSystem ScriptFiles => field ??= _fileSystem as MemoryWriteOverlay ?? new MemoryWriteOverlay(_fileSystem);
 
     /// <summary>
     /// Returns the handle the level script refers to a sprite by, and allocates one if the sprite doesn't have one yet.

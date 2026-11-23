@@ -15,11 +15,19 @@ internal static class ProfileFile
 
     private static ReadOnlySpan<byte> Quotes => "\"'"u8;
 
+    public static ReadOnlyMemory<byte> GetString(IGameFileSystem fileSystem, string path, ReadOnlySpan<byte> section, ReadOnlySpan<byte> key) =>
+        TryGetString(fileSystem, path, section, key, out var value) ? value : ReadOnlyMemory<byte>.Empty;
+
+    [EngineRoutine(0x00407680)]
+    public static int GetInteger(IGameFileSystem fileSystem, string path, ReadOnlySpan<byte> section, ReadOnlySpan<byte> key, int defaultValue) =>
+        TryGetString(fileSystem, path, section, key, out var value) && !value.IsEmpty ? CRuntime.ParseInteger(value.Span) : defaultValue;
+
     [EngineRoutine(0x004076a0)]
-    public static ReadOnlyMemory<byte> GetString(IGameFileSystem fileSystem, string path, ReadOnlySpan<byte> section, ReadOnlySpan<byte> key)
+    public static bool TryGetString(IGameFileSystem fileSystem, string path, ReadOnlySpan<byte> section, ReadOnlySpan<byte> key, out ReadOnlyMemory<byte> value)
     {
+        value = ReadOnlyMemory<byte>.Empty;
         if (!fileSystem.TryRead(path, out var data))
-            return ReadOnlyMemory<byte>.Empty;
+            return false;
 
         bool isInSection = false;
         int start = 0;
@@ -48,7 +56,7 @@ internal static class ProfileFile
             if (!isInSection || separator < 0 || !Ascii.EqualsIgnoreCase(line.Span[..separator].TrimEnd(SpaceTab), key))
                 continue;
 
-            var value = line[(separator + 1)..];
+            value = line[(separator + 1)..];
             value = value[^value.Span.TrimStart(SpaceTab).Length..];
             value = value[..value.Span.TrimEnd(SpaceTab).Length];
             if (value.Length >= 2 && Quotes.Contains(value.Span[0]) && value.Span[^1] == value.Span[0])
@@ -56,9 +64,14 @@ internal static class ProfileFile
                 value = value[1..^1];
             }
 
-            return value.Length < BufferSize ? value : value[..(BufferSize - 1)];
+            if (value.Length >= BufferSize)
+            {
+                value = value[..(BufferSize - 1)];
+            }
+
+            return true;
         }
 
-        return ReadOnlyMemory<byte>.Empty;
+        return false;
     }
 }

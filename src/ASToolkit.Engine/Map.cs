@@ -52,7 +52,6 @@ public sealed partial class Map : IDisposable
     private int _pausedAt;
     private MenuClicks _menuClicks;
     private Sprite? _menuCurrent;
-    private IGameFileSystem? _scriptFileSystem;
     private GameClock _clock;
 
     /// <summary>
@@ -60,11 +59,10 @@ public sealed partial class Map : IDisposable
     /// </summary>
     /// <param name="definitions">The sprite definitions of the game.</param>
     /// <param name="fileSystem">The file system the game's files are read from.</param>
-    /// <param name="controls">The control settings, or null for the executable's defaults.</param>
     /// <param name="registry">The registry the level scripts read and write, or null for an empty one.</param>
     /// <param name="session">The session the map belongs to, or null to create one.</param>
     [EngineRoutine(0x00408ff0)]
-    public Map(SpriteCatalog definitions, IGameFileSystem fileSystem, ControlSettings? controls = null, ScriptRegistry? registry = null, GameSession? session = null)
+    public Map(SpriteCatalog definitions, IGameFileSystem fileSystem, ScriptRegistry? registry = null, GameSession? session = null)
     {
         Registry = registry ?? new ScriptRegistry("");
         Session = session ?? new GameSession(Registry);
@@ -80,7 +78,7 @@ public sealed partial class Map : IDisposable
         Sound = Session.Sound ??= new SoundSystem(definitions.Sounds, fileSystem, Session.Logger, isHighQuality: Session.IsSoundHighQuality);
         CursorSprite = ConstructCursor();
         LoadObjectRecords(false);
-        _controls = (controls ?? ControlSettings.Default).Clone();
+        _controls = ControlSettings.Read(fileSystem);
         Input = new PlayerInput(_controls);
         BuildSystems();
         for (int slot = 0; slot < SpriteDefinition.ArmyCount; slot++)
