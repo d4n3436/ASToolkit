@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Numerics;
 using ASToolkit.Formats;
 using ASToolkit.Core;
@@ -61,7 +62,34 @@ public sealed partial class Graphics
     /// <summary>
     /// Gets or sets the screen that the frame is drawn into, or <see langword="null"/> to run without drawing.
     /// </summary>
-    public Screen? Screen { get; set; }
+    public Screen? Screen
+    {
+        get;
+        set
+        {
+            field = value;
+            value?.Clip = ToClipRectangle(Clip);
+        }
+    }
+
+    /// <summary>
+    /// Gets the area of the back buffer the frame is drawn into.
+    /// </summary>
+    public RectangleF Clip { get; private set; }
+
+    /// <summary>
+    /// Sets the area of the back buffer the frame is drawn into.
+    /// </summary>
+    /// <param name="clip">The clip rectangle.</param>
+    /// <remarks>The screen's clip is updated to match.</remarks>
+    [EngineRoutine(0x00402400)]
+    public void SetClip(RectangleF clip)
+    {
+        Clip = clip;
+        Screen?.Clip = ToClipRectangle(clip);
+    }
+
+    private static Rectangle ToClipRectangle(RectangleF clip) => Rectangle.FromLTRB((int)clip.Left, (int)clip.Top, (int)clip.Right, (int)clip.Bottom);
 
     /// <summary>
     /// Gets the gamma the frame is drawn with.

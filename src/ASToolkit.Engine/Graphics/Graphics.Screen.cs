@@ -11,6 +11,13 @@ public sealed partial class Graphics
     private const int ShakeReach = 4;
     private const uint ClearColor = 0xff000000;
     private const float LoadingDepth = 1;
+    private const float LoadingTextLeft = 200;
+    private const float LoadingTextRight = 800;
+    private const float LoadingTextTop = 5;
+    private const float LoadingTextBottom = 30;
+    private const uint OpaqueBlack = 0xff000000;
+    private const uint TextColor = 0xff00ff00;
+    private const float HalfPixel = 0.5f;
 
     private int _loadingFrame;
 
@@ -36,6 +43,79 @@ public sealed partial class Graphics
         screen.Depth[..(screen.Size.Height * screen.DepthWidth)].Fill(ClearDepth);
     }
 
+    /// <summary>
+    /// Gets the line of text displayed on the loading screen.
+    /// </summary>
+    /// <remarks>The text is empty unless the game is running in debug mode.</remarks>
+    public ReadOnlyMemory<byte> LoadingText { get; private set; }
+
+    /// <summary>
+    /// Gets the font that the device draws its own text with, or <see langword="null"/> if the font hasn't been created yet.
+    /// </summary>
+    public TextureFont? DeviceFont { get; private set; }
+
+    /// <summary>
+    /// Creates the device font, replacing the previous one.
+    /// </summary>
+    /// <param name="name">The name of the typeface.</param>
+    /// <param name="width">The width of a glyph, in points.</param>
+    /// <param name="height">The height of a glyph, in points.</param>
+    /// <param name="maxTextureSize">The maximum texture size supported by the device.</param>
+    [EngineRoutine(0x00402bc0)]
+    public void CreateDeviceFont(string name, int width, int height, int maxTextureSize)
+    {
+        DeviceFont = new TextureFont(name, width, height, TextureFontStyle.FixedPitch);
+        DeviceFont.Create(maxTextureSize);
+        DeviceFont.CreateStateBlocks();
+    }
+
+    /// <summary>
+    /// Immediately displays a line of text on the loading screen over a black box.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    [EngineRoutine(0x00430f10)]
+    public void SetLoadingText(ReadOnlySpan<byte> text)
+    {
+        LoadingText = text.ToArray();
+        FillBox(RectangleF.FromLTRB(LoadingTextLeft, Clip.Top + LoadingTextTop, LoadingTextRight, Clip.Top + LoadingTextBottom), OpaqueBlack);
+        DrawText(new Vector2(LoadingTextLeft, Clip.Top + LoadingTextTop), LoadingText, TextColor);
+    }
+
+    [EngineRoutine(0x00430ed0)]
+    private void DrawText(Vector2 position, ReadOnlyMemory<byte> text, uint color) => DrawDeviceText(position, color, text.Span);
+
+    [EngineRoutine(0x00402c40)]
+    private void DrawDeviceText(Vector2 position, uint color, ReadOnlySpan<byte> text)
+    {
+        if (DeviceFont is null || Screen is null)
+            return;
+
+        DeviceFont.Draw(Screen, position.X, position.Y, color, text, default);
+    }
+
+    /// <summary>
+    /// Fills a box with a color without writing to the depth buffer.
+    /// </summary>
+    /// <param name="box">The box, in screen pixels.</param>
+    /// <param name="color">The color, packed as 0xAARRGGBB.</param>
+    /// <remarks>Colors with full alpha are drawn opaque. Other colors are alpha-blended.</remarks>
+    [EngineRoutine(0x004342b0)]
+    public void FillBox(RectangleF box, uint color)
+    {
+        if (Screen is null)
+            return;
+
+        var area = Rectangle.FromLTRB((int)MathF.Ceiling(box.Left - HalfPixel), (int)MathF.Ceiling(box.Top - HalfPixel), (int)MathF.Ceiling(box.Right - HalfPixel), (int)MathF.Ceiling(box.Bottom - HalfPixel));
+        if ((color & OpaqueBlack) == OpaqueBlack)
+        {
+            ScreenPrimitives.FillRectangle(Screen, area, color, BlendFactor.One, BlendFactor.Zero);
+        }
+        else
+        {
+            ScreenPrimitives.FillRectangle(Screen, area, color, BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
+        }
+    }
+
     [EngineRoutine(0x00430dd0)]
     internal void DrawLoadingScreen(Map map, SpriteDefinition? definition, bool isRedrawDue)
     {
@@ -50,6 +130,7 @@ public sealed partial class Graphics
         var screen = map.Session.ScreenSize;
         DrawVid(map, definition, _loadingFrame, new Vector3(screen.Width * Map.HalfShare, screen.Height * Map.HalfShare + 1, LoadingDepth));
         UpdateEffects(map, true);
+        DrawText(new Vector2(LoadingTextLeft, Clip.Top + LoadingTextTop), LoadingText, TextColor);
         _loadingFrame++;
         if (_loadingFrame >= definition.FileFrameCount)
         {
@@ -69,7 +150,8 @@ public sealed partial class Graphics
             return;
         }
 
-        var sprite = map.ConstructSprite(definition, new Vector3(position.AsVector2() + map.Camera, position.Z), default, Army.Player, 0);
+        var sprite = new Sprite(-1, definition, new Vector3(position.AsVector2() + map.Camera, position.Z), map.Definitions.GetArmy(definition), 0, map: map);
+        map.InitializeSprite(sprite, default);
         sprite.Frame = frame;
         if (Screen is not null)
         {

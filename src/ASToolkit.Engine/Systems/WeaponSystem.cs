@@ -40,7 +40,7 @@ internal sealed class WeaponSystem
         float y = cursor.Y;
         float height;
 
-        if (screen is not null && pixel.X >= _map.Session.View.Left && pixel.X < _map.Session.View.Right && pixel.Y >= _map.Session.View.Top && pixel.Y < _map.Session.View.Bottom)
+        if (screen is not null && pixel.X >= _map.Session.Graphics.Clip.Left && pixel.X < _map.Session.Graphics.Clip.Right && pixel.Y >= _map.Session.Graphics.Clip.Top && pixel.Y < _map.Session.Graphics.Clip.Bottom)
         {
             height = (screen.Depth[(int)pixel.Y * screen.DepthWidth + (int)pixel.X] >> DepthShift) - DepthBias;
 
@@ -79,7 +79,7 @@ internal sealed class WeaponSystem
             return false;
 
         man.SlotAmmo[man.WeaponSlot] = man.GetAmmo();
-        _map.Action(man.Link, ActionCode.ChangeVid, slot + Sprite.WeaponIdBase, (int)SpriteAnimation.Stand);
+        _map.Action(man.Link, ActionCode.ChangeVid, slot + Sprite.WeaponIdBase);
         man.Definition.LinkDefinition = _definitions.Find((KnownObject)(slot + Sprite.WeaponIdBase));
         man.AddAmmo(man.SlotAmmo[slot] - man.GetAmmo());
 

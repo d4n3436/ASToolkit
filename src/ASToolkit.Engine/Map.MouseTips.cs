@@ -66,7 +66,7 @@ public sealed partial class Map
             return;
 
         var size = font.Object.Size;
-        var view = session.View;
+        var view = session.Graphics.Clip;
         float x = cursor.X + MouseTipOffsetX;
         float y = cursor.Y - size.Y + MouseTipDepth - MouseTipRaise;
         float half = size.Y * MouseTipHalf;

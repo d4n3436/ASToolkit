@@ -38,6 +38,6 @@ public sealed partial class Map
 
     private void MoveSystemCursor(Point target)
     {
-        MoveMouse(target + new Size(Input.WindowOrigin), Input.WindowOrigin, Session.View, Camera);
+        MoveMouse(target + new Size(Input.WindowOrigin), Input.WindowOrigin, Session.Graphics.Clip, Camera);
     }
 }

@@ -109,7 +109,7 @@ public sealed partial class Graphics
         if (map.IsPaused)
             return;
 
-        var view = map.Session.View;
+        var view = map.Session.Graphics.Clip;
         float screenRight = view.Right;
         float screenBottom = view.Bottom;
         var flakes = Weather.Snowflakes;
@@ -218,7 +218,7 @@ public sealed partial class Graphics
         if (map.IsPaused)
             return;
 
-        var view = map.Session.View;
+        var view = map.Session.Graphics.Clip;
         float screenWidth = map.Session.ScreenSize.Width;
         float screenBottom = view.Bottom;
         var drops = Weather.Raindrops;

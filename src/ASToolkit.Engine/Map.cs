@@ -66,6 +66,7 @@ public sealed partial class Map : IDisposable
     {
         Registry = registry ?? new ScriptRegistry("");
         Session = session ?? new GameSession(Registry);
+        Session.ReadConfig(fileSystem);
         _fileSystem = fileSystem;
         Definitions = definitions;
         _rng = new GameRandom(StartRandomState);
@@ -230,7 +231,13 @@ public sealed partial class Map : IDisposable
         }
 
         IsLoading = true;
-        Release();
+
+        if (!Movement.MapSize.IsEmpty)
+        {
+            ShowLoadingStep("Release previous map"u8);
+            Release();
+        }
+
         CursorSprite.TurnCursorOff();
         Session.EnterMap(GameTextEncoding.Cyrillic.GetBytes(data.MapName));
         if (demo is not null)
@@ -239,6 +246,7 @@ public sealed partial class Map : IDisposable
         }
 
         _rng.Seed(seed);
+        ShowLoadingStep("Load extra vid"u8);
         LoadObjectRecords(true);
         Session.Logger.Write("CurrentTime   =%-15u   sizeof(SPRITE)=%-8i Map version   =%i"u8, GameClock.LevelStartTime, SpriteRecordSize, data.MapData.Version);
         var mapData = data.MapData;
@@ -246,14 +254,19 @@ public sealed partial class Map : IDisposable
         Definitions.ResetLevelState();
         _clock = new GameClock(data.FrameTimes);
         _sprites = mapData.Sprites.ToList();
+        ShowLoadingStep("Load graph parameters"u8);
         Session.Graphics.Load(mapData.Environment, mapData.Ambient, mapData.WindDirection, mapData.WindSpeed, Definitions);
         Movement = data.Movement.Clone();
         // TODO: Port the GRID chunk load (0x408080 into +0x220, then the size check against +0x228 x +0x22c x 2 that reinitializes on a mismatch); the 35 shipped maps that have the chunk hold an all-zero grid
+        ShowLoadingStep("Create new hash table"u8);
         Collector = new SpriteCollector(Movement.MapSize, Definitions.LargestHashedSize);
         BuildSystems();
         SetPosition(Session.ScreenSize.ToVector2() * HalfShare + mapData.Camera, CameraMove.None);
+        ShowLoadingStep("Load gridZ"u8);
         // TODO: Port the trains; the loader builds the rail map (0x43c510) after the terrain and the sprite records, and the Engine links (0x454530) after the sprites
         var placedSprites = new Dictionary<int, Sprite>();
+        ShowLoadingStep("Load hardware terrain"u8);
+        var shownLayer = ObjectLayer.Ground;
 
         for (int record = 0; record < mapData.StoredSprites.Count; record++)
         {
@@ -267,6 +280,18 @@ public sealed partial class Map : IDisposable
 
             var sprite = PlaceSprite(placement, definition);
 
+            if (Session.IsDebugMode && definition.Layer != shownLayer)
+            {
+                Session.Graphics.SetLoadingText(definition.Layer switch
+                {
+                    ObjectLayer.Ground => "Load hardware terrain"u8,
+                    ObjectLayer.Built => "Build sprites in terrain"u8,
+                    ObjectLayer.BuiltAlpha => "Build sprites with alpha in terrain"u8,
+                    _ => "Load sprites"u8
+                });
+                shownLayer = definition.Layer;
+            }
+
             if (sprite is not null && placement.Handle != NoHandle)
             {
                 placedSprites[placement.Handle] = sprite;
@@ -275,6 +300,7 @@ public sealed partial class Map : IDisposable
         }
 
         Session.Graphics.DrawLoadingScreen(this, Definitions.LoadingScreen, data.LoadingScreenRecords.Contains(mapData.StoredSprites.Count));
+        ShowLoadingStep("Load data for sprite"u8);
 
         foreach (var placement in mapData.StoredSprites)
         {
@@ -285,16 +311,20 @@ public sealed partial class Map : IDisposable
             Restore(sprite, ref record, mapData.Version);
         }
 
+        ShowLoadingStep("Load players info"u8);
         LoadPlayers(mapData.PlayerHandles, placedSprites);
+        ShowLoadingStep("Load groups info"u8);
         LoadGroups(mapData.Groups, placedSprites);
         IsLoading = false;
         _spriteRelations.Clear();
         // TODO: Port the "Vid    release %i %i" log line (0x40d3f0), which writes the texture bytes the renderer holds and the bytes of the loaded definition data
+        ShowLoadingStep("Load script file"u8);
         if (!Script.Load(data.FileSystem, data.ScriptPath))
         {
             throw new InvalidDataException($"Could not compile the level script '{data.ScriptPath}'.");
         }
 
+        ShowLoadingStep("Connect script function with VID"u8);
         var objects = Script.Objects;
         for (int i = 0; i < objects.Length; i++)
         {
@@ -318,6 +348,8 @@ public sealed partial class Map : IDisposable
             StartDemoRecording(GameTextEncoding.Cyrillic.GetBytes(data.MapName), seed);
         }
 
+        ShowLoadingStep("Run scripts for create sprites"u8);
+
         for (int layer = 0; layer < LayerCount; layer++)
         {
             var list = _updates.GetLayer(layer);
@@ -335,6 +367,16 @@ public sealed partial class Map : IDisposable
         if (!IsPlayingDemo)
         {
             CursorSprite.LoadCursor(_fileSystem);
+        }
+
+        ShowLoadingStep([]);
+    }
+
+    private void ShowLoadingStep(ReadOnlySpan<byte> text)
+    {
+        if (Session.IsDebugMode)
+        {
+            Session.Graphics.SetLoadingText(text);
         }
     }
 
@@ -790,7 +832,6 @@ public sealed partial class Map : IDisposable
         return position;
     }
 
-    [EngineRoutine(0x0043f200)]
     internal Sprite ConstructSprite(SpriteDefinition definition, Vector3 position, Angle direction, Army army, int hitPoints, int number = -1, Sprite? parent = null, Sprite? owner = null, Sprite? shooter = null, int? lifetime = null, bool isMouse = false)
     {
         bool isMenu = IsMenuClass(definition);
@@ -800,8 +841,18 @@ public sealed partial class Map : IDisposable
             position = new Vector3(position.AsVector2() + Camera, position.Z);
         }
 
-        Sprite sprite = isMouse ? new MouseSprite(number, definition, position, army, hitPoints, map: this, parent: parent)
+        var sprite = isMouse ? new MouseSprite(number, definition, position, army, hitPoints, map: this, parent: parent)
             : (IsDedicatedClass(definition.Object.SpriteClass) ? null : ConstructByClass(definition, position, army, hitPoints, number, parent)) ?? new Sprite(number, definition, position, army, hitPoints, map: this, parent: parent);
+        InitializeSprite(sprite, direction, owner, shooter, lifetime);
+        RaiseHeights(definition, sprite);
+        ConstructClass(sprite);
+        return sprite;
+    }
+
+    [EngineRoutine(0x0043f200)]
+    internal void InitializeSprite(Sprite sprite, Angle direction, Sprite? owner = null, Sprite? shooter = null, int? lifetime = null)
+    {
+        var definition = sprite.Definition;
         sprite.CreatedAt = Time;
         sprite.Logger = Session.Logger;
         sprite.Owner = owner;
@@ -830,16 +881,11 @@ public sealed partial class Map : IDisposable
             CreateChildFor(sprite, SpriteAnimation.Birth);
         }
 
-        if (isMenu)
+        if (IsMenuClass(definition))
         {
             _menuSprites.Add(sprite);
             sprite.AddRef();
         }
-
-        RaiseHeights(definition, sprite);
-        ConstructClass(sprite);
-
-        return sprite;
     }
 
     [EngineRoutine(0x0040e870)]

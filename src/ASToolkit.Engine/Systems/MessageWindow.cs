@@ -63,7 +63,7 @@ internal sealed class MessageWindow
             Shift();
         }
 
-        float bottom = _map.Session.View.Top + (_count - 1) * lineHeight;
+        float bottom = _map.Session.Graphics.Clip.Top + (_count - 1) * lineHeight;
         if (_lines[_count] is null)
         {
             var position = new Vector3(Origin.X, bottom + Origin.Y + ScreenDepth, ScreenDepth);
@@ -103,7 +103,7 @@ internal sealed class MessageWindow
         if (clicked is null || (int)clicked.Definition.Id != _markerId)
             return;
 
-        int i = (int)(clicked.Position.Y - clicked.Position.Z - _map.Camera.Y - _map.Session.View.Top) / lineHeight + 1;
+        int i = (int)(clicked.Position.Y - clicked.Position.Z - _map.Camera.Y - _map.Session.Graphics.Clip.Top) / lineHeight + 1;
 
         if (i < 0 || i > _count)
             return;

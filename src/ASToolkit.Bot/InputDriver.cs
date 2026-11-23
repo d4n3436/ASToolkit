@@ -83,7 +83,7 @@ internal sealed class InputDriver
 
     private Vector2 GetMousePoint(Vector2 cursor)
     {
-        var view = _map.Session.View;
+        var view = _map.Session.Graphics.Clip;
         var point = cursor - _map.Camera;
 
         return new Vector2(Math.Clamp(point.X, view.Left + BorderMargin, view.Right - BorderMargin), Math.Clamp(point.Y, view.Top + BorderMargin, view.Bottom - BorderMargin));
