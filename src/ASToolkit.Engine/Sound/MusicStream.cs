@@ -2,19 +2,28 @@ namespace ASToolkit.Engine;
 
 internal sealed class MusicStream
 {
+    private const int NoSample = -1;
+
     private readonly ISoundDevice? _device;
     private SoundBuffer _buffer;
     private bool _isPlaying;
 
-    public MusicStream(ReadOnlyMemory<byte> name, float length, bool hasBuffer, ISoundDevice? device)
+    public MusicStream(ReadOnlyMemory<byte> name, string path, float length, bool hasBuffer, ISoundDevice? device)
     {
         Name = name;
+        Path = path;
         _device = device;
-        _buffer = new SoundBuffer(length, 1);
+        _buffer = new SoundBuffer(length, 1, NoSample, NoSample);
         HasBuffer = hasBuffer;
     }
 
     public ReadOnlyMemory<byte> Name { get; }
+
+    public string Path { get; }
+
+    public bool IsBufferPlaying => HasBuffer && _buffer.IsPlaying;
+
+    public uint PlayedAt => _buffer.PlayedAt;
 
     public bool HasBuffer { get; }
 

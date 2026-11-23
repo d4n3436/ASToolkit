@@ -115,6 +115,63 @@ public class SoundSystemTests
         Assert.True(sound.IsPlayMusic(200));
     }
 
+    [Fact]
+    public void TryGetPlayingBuffer_StartedSound_ReportsItsSampleVolumeAndPan()
+    {
+        var sound = CreateSound();
+        var random = new GameRandom(7);
+
+        sound.Play(MonsterHit, 3000, -500);
+        sound.Tact(random, 100, 100);
+
+        var states = GetPlayingBuffers(sound);
+        Assert.Equal([new SoundBufferState(MonsterHit, states[0].Variant, false, 100, -500, 3000)], states);
+    }
+
+    [Fact]
+    public void Stop_SoundOnTwoVoices_LeavesTheOriginalBufferPlaying()
+    {
+        var records = TestGameFolder.Objects.Sounds;
+        int id = Enumerable.Range(0, records.Count).First(i => records[i].VoiceLimit is >= 20 and < 100 && records[i].SampleCount == 1);
+        var sound = CreateSound();
+        var random = new GameRandom(7);
+
+        sound.Play(id, 0, SoundSystem.FullLoudness);
+        sound.Tact(random, 100, 100);
+        sound.Play(id, 0, SoundSystem.FullLoudness);
+        sound.Tact(random, 160, 160);
+        int bothPlaying = GetPlayingBuffers(sound).Count(state => state.Sound == id);
+        sound.Stop(id, 160);
+
+        Assert.Equal(2, bothPlaying);
+        Assert.Single(GetPlayingBuffers(sound), state => state.Sound == id && state.StartedAt == 100);
+    }
+
+    [Fact]
+    public void TryGetPlayingMusic_StartedTrack_ReportsItsPathAndStart()
+    {
+        var sound = CreateSound();
+
+        sound.PlayMusicFile(@"music\mus00.ogg"u8, 1, 100);
+
+        Assert.True(sound.TryGetPlayingMusic(out var state));
+        Assert.Equal(new MusicState(@"music\mus00.ogg", 100, 0), state);
+    }
+
+    private static List<SoundBufferState> GetPlayingBuffers(SoundSystem sound)
+    {
+        var states = new List<SoundBufferState>();
+        for (int buffer = 0; buffer < sound.BufferCount; buffer++)
+        {
+            if (sound.TryGetPlayingBuffer(buffer, out var state))
+            {
+                states.Add(state);
+            }
+        }
+
+        return states;
+    }
+
     private sealed class EndingDevice : ISoundDevice
     {
         public List<int> AskedVoices { get; } = [];

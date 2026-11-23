@@ -2,13 +2,23 @@ namespace ASToolkit.Engine;
 
 internal struct SoundBuffer
 {
-    public SoundBuffer(float length, int references)
+    public SoundBuffer(float length, int references, int sound, int variant)
     {
         Length = length;
         References = references;
+        Sound = sound;
+        Variant = variant;
     }
 
     public float Length { get; }
+
+    public int Sound { get; }
+
+    public int Variant { get; }
+
+    public int Volume { get; set; }
+
+    public int Pan { get; set; }
 
     public int References { get; set; }
 

@@ -109,11 +109,58 @@ public sealed class SoundSystem
     private static ReadOnlySpan<byte> OggExtensions => ".Ogg.OGG.ogg"u8;
 
     /// <summary>
+    /// Gets the number of sound buffers, including the duplicate buffer of each voice.
+    /// </summary>
+    public int BufferCount => _buffers.Length + VoiceCount;
+
+    /// <summary>
     /// Gets a value indicating whether a music track exists and plays or loops.
     /// </summary>
     /// <param name="wallTime">The wall time in milliseconds.</param>
     /// <returns><see langword="true"/> while music plays; otherwise, <see langword="false"/>.</returns>
     public bool IsPlayMusic(uint wallTime) => _music is not null && (_music.IsPlaying(wallTime) || _loop != 0);
+
+    /// <summary>
+    /// Attempts to get the state of a sound buffer that is playing.
+    /// </summary>
+    /// <param name="buffer">The buffer, from 0 to <see cref="BufferCount"/> - 1.</param>
+    /// <param name="state">When this method returns, contains the state of the buffer, if it is playing; otherwise, the default value.</param>
+    /// <returns><see langword="true"/> if the buffer is playing; otherwise, <see langword="false"/>.</returns>
+    public bool TryGetPlayingBuffer(int buffer, out SoundBufferState state)
+    {
+        state = default;
+
+        if (buffer < 0 || buffer >= BufferCount)
+            return false;
+
+        ref var source = ref GetBuffer(buffer);
+
+        if (!source.IsPlaying)
+            return false;
+
+        state = new SoundBufferState(source.Sound, source.Variant, source.IsLooping, source.PlayedAt, source.Volume, source.Pan);
+
+        return true;
+    }
+
+    /// <summary>
+    /// Attempts to get the state of the music track that is playing.
+    /// </summary>
+    /// <param name="state">When this method returns, contains the state of the track, if one is playing; otherwise, the default value.</param>
+    /// <returns><see langword="true"/> if a track is playing; otherwise, <see langword="false"/>.</returns>
+    public bool TryGetPlayingMusic(out MusicState state)
+    {
+        if (_music is null || !_music.IsBufferPlaying)
+        {
+            state = default;
+
+            return false;
+        }
+
+        state = new MusicState(_music.Path, _music.PlayedAt, _music.Volume);
+
+        return true;
+    }
 
     /// <summary>
     /// Determines whether a sound loops, keeping one voice alive while it is requested.
@@ -500,14 +547,14 @@ public sealed class SoundSystem
         int start = Environment.TickCount;
         for (int id = 0; id < records.Count; id++)
         {
-            _variants[id] = LoadSfx(records[id], _buffers.AsSpan(id * SfxRecord.MaxSamples, SfxRecord.MaxSamples));
+            _variants[id] = LoadSfx(id, records[id], _buffers.AsSpan(id * SfxRecord.MaxSamples, SfxRecord.MaxSamples));
         }
 
         Logger?.Write("LoadSFX::No   =%-15i   sizeof(SFX)   =%-5i    load time     =%ims Quality=%i"u8, records.Count, SfxRecordSize, Environment.TickCount - start, IsHighQuality ? 1 : 0);
     }
 
     [EngineRoutine(0x0041e810)]
-    private int LoadSfx(SfxRecord record, Span<SoundBuffer> buffers)
+    private int LoadSfx(int id, SfxRecord record, Span<SoundBuffer> buffers)
     {
         int variants = 0;
         for (int k = 0; k < SfxRecord.MaxSamples; k++)
@@ -522,7 +569,7 @@ public sealed class SoundSystem
             if (length < 0)
                 break;
 
-            buffers[k] = new SoundBuffer(length + MixLatency, 1);
+            buffers[k] = new SoundBuffer(length + MixLatency, 1, id, k);
             variants = k + 1;
         }
 
@@ -554,9 +601,15 @@ public sealed class SoundSystem
 
     private ref SoundBuffer GetBuffer(int handle) => ref handle < _buffers.Length ? ref _buffers[handle] : ref _duplicates[handle - _buffers.Length];
 
+    private bool IsDuplicate(int handle) => handle >= _buffers.Length;
+
     private void ReleaseBuffer(int handle)
     {
-        if (handle < _buffers.Length)
+        if (IsDuplicate(handle))
+        {
+            _duplicates[handle - _buffers.Length] = default;
+        }
+        else
         {
             _buffers[handle].References--;
         }
@@ -618,7 +671,7 @@ public sealed class SoundSystem
             return handle;
 
         original.References--;
-        _duplicates[voice] = new SoundBuffer(original.Length, 1);
+        _duplicates[voice] = new SoundBuffer(original.Length, 1, original.Sound, original.Variant);
 
         return _buffers.Length + voice;
     }
@@ -631,10 +684,13 @@ public sealed class SoundSystem
 
         voice.Volume = volume;
         voice.Pan = pan;
+        ref var buffer = ref GetBuffer(voice.Buffer);
+        buffer.Pan = pan;
+        buffer.Volume = volume;
 
         if (!voice.IsPlaying)
         {
-            GetBuffer(voice.Buffer).Play(IsLooped(voice.Id), wallTime);
+            buffer.Play(IsLooped(voice.Id), wallTime);
         }
 
         voice.IsPlaying = true;
@@ -689,7 +745,7 @@ public sealed class SoundSystem
     {
         voice.Id = id;
 
-        if (voice.Buffer != NoBuffer)
+        if (voice.Buffer != NoBuffer && !(IsDuplicate(buffer) && voice.Buffer == buffer))
         {
             ReleaseBuffer(voice.Buffer);
         }
@@ -769,7 +825,7 @@ public sealed class SoundSystem
             _trackLengths[path] = length;
         }
 
-        return new MusicStream(name, Math.Max(length, 0), length >= 0, _device);
+        return new MusicStream(name, path, Math.Max(length, 0), length >= 0, _device);
     }
 
     [EngineRoutine(0x0041d0a0)]
