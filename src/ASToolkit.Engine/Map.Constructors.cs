@@ -10,10 +10,40 @@ public sealed partial class Map
     private void LoadObjectRecords(bool isMap)
     {
         if (!isMap)
+        {
+            RedrawObjectRecords();
             return;
+        }
 
         // TODO: Port the extra definitions of a map's OBJ chunk (0x411510, 0x411440)
         Session.Logger.Error(MapLogTag, LogError.Section, 0, ObjectSectionText);
+    }
+
+    private void RedrawObjectRecords()
+    {
+        int redraw = 0;
+        SpriteDefinition? first = null;
+        bool isAnyLoaded = false;
+
+        foreach (var definition in Definitions.LoadOrder)
+        {
+            if (definition is HardwareSpriteDefinition hardware)
+            {
+                for (int surface = 0; surface < hardware.SurfaceCount; surface++)
+                {
+                    Session.Graphics.DrawLoadingScreen(this, isAnyLoaded && first is not null ? first : Definitions.Empty, Session.StartupLoadingRedraws.Contains(redraw++));
+                }
+            }
+
+            isAnyLoaded = true;
+
+            if (definition == Definitions.LoadingScreen)
+            {
+                first = definition;
+            }
+
+            Session.Graphics.DrawLoadingScreen(this, first, Session.StartupLoadingRedraws.Contains(redraw++));
+        }
     }
 
     [EngineRoutine(0x0044ca00)]

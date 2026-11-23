@@ -77,8 +77,8 @@ public sealed partial class Map : IDisposable
         Movement = new MovementMap(StartMapSize);
         Collector = new SpriteCollector(StartMapSize, definitions.LargestHashedSize);
         Sound = Session.Sound ??= new SoundSystem(definitions.Sounds, fileSystem, Session.Logger, isHighQuality: Session.IsSoundHighQuality);
-        CursorSprite = ConstructCursor();
         LoadObjectRecords(false);
+        CursorSprite = ConstructCursor();
         _controls = ControlSettings.Read(fileSystem);
         Input = new PlayerInput(_controls);
         BuildSystems();
@@ -832,7 +832,8 @@ public sealed partial class Map : IDisposable
         return position;
     }
 
-    internal Sprite ConstructSpriteOfClass(SpriteDefinition definition, Vector3 position, Angle direction, Army army, int hitPoints, int number = -1, Sprite? parent = null, Sprite? owner = null, Sprite? shooter = null, int? lifetime = null, bool isMouse = false)
+    internal Sprite ConstructSpriteOfClass(SpriteDefinition definition, Vector3 position, Angle direction, Army army, int hitPoints,
+        int number = -1, Sprite? parent = null, Sprite? owner = null, Sprite? shooter = null, int? lifetime = null, bool isMouse = false)
     {
         bool isMenu = IsMenuClass(definition);
 

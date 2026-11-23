@@ -68,6 +68,12 @@ public sealed class GameSession : IDisposable
     public bool IsDebugMode { get; private set; }
 
     /// <summary>
+    /// Gets the indexes of the loading screen redraws that a recording shows the game making while it loads its sprite definitions at startup.
+    /// </summary>
+    /// <remarks>The redraws are counted in load order: one for each surface of a hardware sprite file and one for each definition.</remarks>
+    public IReadOnlyList<int> StartupLoadingRedraws { get; init; } = [];
+
+    /// <summary>
     /// Gets a value indicating whether the game is running full screen.
     /// </summary>
     /// <remarks>When running in a window, the screen size is limited to the desktop size.</remarks>

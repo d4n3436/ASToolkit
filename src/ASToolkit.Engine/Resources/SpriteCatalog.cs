@@ -42,6 +42,7 @@ public sealed class SpriteCatalog
 
     private static readonly Vector3 DefaultSize = new(24, 16, 20);
     private readonly ObjectTable _objects;
+    private readonly List<SpriteDefinition> _loadOrder = [];
     private readonly ConcurrentDictionary<(KnownObject Id, int Frame), FrameMask?> _masks = new();
     private SpriteDefinition?[] _definitions;
 
@@ -82,6 +83,7 @@ public sealed class SpriteCatalog
                 continue;
 
             count = Math.Max(count, (int)id + 1);
+            _loadOrder.Add(definition);
             if (gameObject.WeaponIndex >= objects.WeaponCount)
             {
                 definition.Report(logger, LogError.Text, gameObject.WeaponIndex, "nWeapon > noWeapon"u8);
@@ -172,6 +174,8 @@ public sealed class SpriteCatalog
     /// Gets the definition in the first slot of the table, drawn by the loading screen.
     /// </summary>
     public SpriteDefinition? LoadingScreen { get; }
+
+    internal IReadOnlyList<SpriteDefinition> LoadOrder => _loadOrder;
 
     /// <summary>
     /// Returns the name of a definition's record.

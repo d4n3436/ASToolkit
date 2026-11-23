@@ -27,7 +27,6 @@ public sealed class HardwareSpriteDefinition : SpriteDefinition
     private static readonly ConditionalWeakTable<byte[], Screen?[]> DecodedTextures = new();
 
     private readonly List<HardwareTile> _tiles = [];
-    private int _surfaceCount;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="HardwareSpriteDefinition"/> class as the ground, which covers an area with tiles.
@@ -75,6 +74,8 @@ public sealed class HardwareSpriteDefinition : SpriteDefinition
     {
     }
 
+    internal int SurfaceCount { get; private set; }
+
     /// <summary>
     /// Gets the size of the sprite, in pixels.
     /// </summary>
@@ -84,7 +85,7 @@ public sealed class HardwareSpriteDefinition : SpriteDefinition
     internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, GameLogger? logger)
     {
         Size = file.Size;
-        _surfaceCount = file.SurfaceCount;
+        SurfaceCount = file.SurfaceCount;
         var textures = MemoryMarshal.TryGetArray(file.Data, out var source) && source.Array is not null ? DecodedTextures.GetValue(source.Array, _ => []) : [];
         if (textures.Length == 0)
         {
@@ -291,7 +292,7 @@ public sealed class HardwareSpriteDefinition : SpriteDefinition
         {
             Layer = ObjectLayer.Region;
         }
-        else if (_surfaceCount == 0)
+        else if (SurfaceCount == 0)
         {
             Layer = ObjectLayer.Menu;
         }

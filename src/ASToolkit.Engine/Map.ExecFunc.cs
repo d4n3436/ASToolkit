@@ -765,14 +765,14 @@ public sealed partial class Map : IScriptFunctionHost
                 script.PushNumber(Sound.IsPlayMusic(_clock.WallTime) ? 1 : 0);
                 break;
 
-            // TODO: Port the movies
             case ScriptFunction.PlayMovie:
-                script.Pop();
-                break;
-            case ScriptFunction.StopMovie:
+                Session.Graphics.PlayMovie(_fileSystem, script.PopText().Span, Session.Logger);
                 break;
             case ScriptFunction.IsPlayMovie:
-                script.PushNumber(0);
+                script.PushNumber(Session.Graphics.IsMovieOpen ? 1 : 0);
+                break;
+            case ScriptFunction.StopMovie:
+                Session.Graphics.StopMovie();
                 break;
 
             case ScriptFunction.SetGamma:
