@@ -8,14 +8,13 @@ internal sealed class MessageWindow
     private const float ScreenDepth = 2000;
     private const float MarkerIndent = 10;
     private const int MessageSound = 0x6a;
-    private const int LineStep = -1;
+    private const int DefaultLineStep = -1;
 
     private static readonly Vector2 NoTarget = new(-999999f);
     private static readonly Vector2 Unset = new(-1);
     private readonly Map _map;
     private readonly int _lineId;
     private readonly int _markerId;
-    private readonly Vector2 _origin;
     private readonly int _count;
     private readonly int _idleTime;
     private readonly Sprite?[] _lines;
@@ -31,11 +30,16 @@ internal sealed class MessageWindow
         _idleTime = idleTime;
         _lineId = lineId;
         _markerId = markerId;
-        _origin = origin;
+        Origin = origin;
+        LineStep = DefaultLineStep;
         _lines = new Sprite?[count + 1];
         _markers = new Sprite?[count + 1];
         _targets = new Vector2[count + 1];
     }
+
+    public Vector2 Origin { get; set; }
+
+    public int LineStep { get; set; }
 
     public void Clear()
     {
@@ -62,7 +66,7 @@ internal sealed class MessageWindow
         float bottom = _map.Session.View.Top + (_count - 1) * lineHeight;
         if (_lines[_count] is null)
         {
-            var position = new Vector3(_origin.X, bottom + _origin.Y + ScreenDepth, ScreenDepth);
+            var position = new Vector3(Origin.X, bottom + Origin.Y + ScreenDepth, ScreenDepth);
             _lines[_count] = _map.CreateSprite(FindDefinition(_lineId), position, default);
         }
 
@@ -76,7 +80,7 @@ internal sealed class MessageWindow
         if (target != Unset)
         {
             int halfLine = lineHeight / 2;
-            var position = new Vector3(_origin.X - MarkerIndent, bottom + halfLine + _origin.Y + ScreenDepth, ScreenDepth);
+            var position = new Vector3(Origin.X - MarkerIndent, bottom + halfLine + Origin.Y + ScreenDepth, ScreenDepth);
             _markers[_count] = _map.CreateSprite(FindDefinition(_markerId), position, default);
         }
 

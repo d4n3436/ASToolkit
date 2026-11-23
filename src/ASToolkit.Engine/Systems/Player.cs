@@ -14,7 +14,9 @@ internal sealed class Player
     private const int MessageLifetime = 5000;
     private const float MessageRightMargin = 242;
     private const float MessageBottomMargin = 92;
+    private const int MessageLineStep = 1;
 
+    private static readonly Vector2 MessageDefaultOrigin = new(398, 388);
     private static readonly Angle HeadingUpRight = new(0x20 + 8);
     private static readonly Angle HeadingUpLeft = new(0xE0 - 8);
     private static readonly Angle HeadingDownRight = new(0x60 - 8);
@@ -29,7 +31,11 @@ internal sealed class Player
         _settings = settings;
         Money = StartMoney;
         var screen = map.Session.ScreenSize;
-        Messages = new MessageWindow(map, MessageLineId, NoMarkerId, new Vector2(screen.Width - MessageRightMargin, screen.Height - MessageBottomMargin), MessageLines, MessageLifetime);
+        Messages = new MessageWindow(map, MessageLineId, NoMarkerId, MessageDefaultOrigin, MessageLines, MessageLifetime)
+        {
+            Origin = new Vector2(screen.Width - MessageRightMargin, screen.Height - MessageBottomMargin),
+            LineStep = MessageLineStep
+        };
     }
 
     public Sprite? Sprite { get; private set; }
@@ -155,7 +161,7 @@ internal sealed class Player
     }
 
     private static Angle GetCursorDirection(Sprite player, Vector2 cursor) =>
-        Angle.Aim(new Vector2(cursor.X - player.Position.X, player.Position.Z + cursor.Y - player.Position.Y));
+        Angle.FromOffset(new Vector2(cursor.X - player.Position.X, player.Position.Z + cursor.Y - player.Position.Y));
 
     [EngineRoutine(0x00413280)]
     private void ForgetSprite(Sprite removed)
