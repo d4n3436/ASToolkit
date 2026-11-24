@@ -27,12 +27,54 @@ public sealed class SpritePartReader
     /// <summary>
     /// Initializes a new instance of the <see cref="SpritePartReader"/> class.
     /// </summary>
-    /// <param name="gameFolder">The game folder, which holds the sprite files.</param>
+    /// <param name="gameFolder">The game folder.</param>
     /// <param name="objects">The object table of the game.</param>
     public SpritePartReader(string gameFolder, ObjectTable objects)
     {
         _gameFolder = gameFolder;
         _objects = objects;
+    }
+
+    /// <summary>
+    /// Reads the cells a frame raises.
+    /// </summary>
+    /// <param name="vid">The sprite file.</param>
+    /// <param name="frameIndex">The frame index.</param>
+    /// <returns>The offset of each raised cell from the center of the sprite, with its height.</returns>
+    public static Vector3[] ReadHeightPoints(VidResource vid, int frameIndex)
+    {
+        bool hasDepth = vid is { HasZBuffer: true, HasPalette: true } && vid.Type.HasFlag(VidType.Runs8Bit);
+        var frame = hasDepth ? vid.GetRunFrame(frameIndex) : vid.GetFrame(frameIndex);
+        float[] meshHeights = !hasDepth && frame.Mesh.TriangleCount > 0 ? frame.Mesh.RasterizeHeights(vid.Size) : [];
+        var cells = new Dictionary<int, short>();
+        foreach (var run in frame)
+        {
+            for (int i = 0; i < run.Count; i++)
+            {
+                int x = run.Position.X + i;
+                int height = hasDepth ? (run.GetDepth(i) >> DepthShift) - DepthBias : meshHeights.Length > 0 ? GetMeshHeight(meshHeights, vid.Size.Width, new Point(x, run.Position.Y)) : 0;
+                int row = run.Position.Y + height;
+
+                if (x is < 0 or >= MaxFramePixels || row is < 0 or >= MaxFramePixels)
+                {
+                    continue;
+                }
+
+                int cell = row / MovementMap.CellSize * FrameCells + x / MovementMap.CellSize;
+
+                if (!cells.TryGetValue(cell, out short current) || current < height)
+                {
+                    cells[cell] = (short)height;
+                }
+            }
+        }
+
+        var half = vid.Size / 2;
+        return cells.Select(pair =>
+        {
+            (int row, int column) = Math.DivRem(pair.Key, FrameCells);
+            return new Vector3(column * MovementMap.CellSize - half.Width, row * MovementMap.CellSize - half.Height, pair.Value);
+        }).ToArray();
     }
 
     /// <summary>
@@ -109,7 +151,7 @@ public sealed class SpritePartReader
         return frames;
     }
 
-    internal ReadOnlyMemory<byte> GetBytes(string path) => GetFile(path)?.Data ?? ReadOnlyMemory<byte>.Empty;
+    internal ReadOnlyMemory<byte> GetBytes(string path) => GetFile(path)?.Data ?? default;
 
     internal VidResource? GetFile(string path)
     {
@@ -121,48 +163,6 @@ public sealed class SpritePartReader
         }
 
         return file;
-    }
-
-    /// <summary>
-    /// Reads the cells a frame raises.
-    /// </summary>
-    /// <param name="vid">The sprite file.</param>
-    /// <param name="frameIndex">The frame index.</param>
-    /// <returns>The offset of each raised cell from the center of the sprite, with its height.</returns>
-    public static Vector3[] ReadHeightPoints(VidResource vid, int frameIndex)
-    {
-        bool usesDepth = vid is { HasZBuffer: true, HasPalette: true } && vid.Type.HasFlag(VidType.Runs8Bit);
-        var frame = usesDepth ? vid.GetRunFrame(frameIndex) : vid.GetFrame(frameIndex);
-        float[] meshHeights = !usesDepth && frame.Mesh.TriangleCount > 0 ? frame.Mesh.RasterizeHeights(vid.Size) : [];
-        var cells = new Dictionary<int, short>();
-        foreach (var run in frame)
-        {
-            for (int i = 0; i < run.Count; i++)
-            {
-                int x = run.Position.X + i;
-                int height = usesDepth ? (run.GetDepth(i) >> DepthShift) - DepthBias : meshHeights.Length > 0 ? GetMeshHeight(meshHeights, vid.Size.Width, new Point(x, run.Position.Y)) : 0;
-                int row = run.Position.Y + height;
-
-                if (x is < 0 or >= MaxFramePixels || row is < 0 or >= MaxFramePixels)
-                {
-                    continue;
-                }
-
-                int cell = row / MovementMap.CellSize * FrameCells + x / MovementMap.CellSize;
-
-                if (!cells.TryGetValue(cell, out short current) || current < height)
-                {
-                    cells[cell] = (short)height;
-                }
-            }
-        }
-
-        var half = vid.Size / 2;
-        return cells.Select(pair =>
-        {
-            (int row, int column) = Math.DivRem(pair.Key, FrameCells);
-            return new Vector3(column * MovementMap.CellSize - half.Width, row * MovementMap.CellSize - half.Height, pair.Value);
-        }).ToArray();
     }
 
     private static int GetMeshHeight(float[] heights, int width, Point pixel)

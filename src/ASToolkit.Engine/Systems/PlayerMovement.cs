@@ -1,5 +1,5 @@
-using ASToolkit.Formats;
 using System.Numerics;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
@@ -29,7 +29,7 @@ internal sealed class PlayerMovement
         if (goal is null || man.Command != Command.Move)
             return;
 
-        var direction = man.MeasureDirectionTo(goal) + (man.Speed < 0 ? Angle.HalfTurn : 0);
+        var direction = man.DirectionTo(goal) + (man.Speed < 0 ? Angle.HalfTurn : 0);
         man.RotateTact(_movement.RotateForGlide(direction, man), elapsed);
 
         if (man is { HasReachedX: true, HasReachedY: true } || man.IsTouching(goal.Position.AsVector2(), goal.Definition.Half))

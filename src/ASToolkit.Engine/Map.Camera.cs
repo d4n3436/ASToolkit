@@ -1,18 +1,19 @@
 using System.Drawing;
 using System.Numerics;
+using ASToolkit.Core;
 using ASToolkit.Engine.Scripts;
 using ASToolkit.Formats;
-using ASToolkit.Core;
 
 namespace ASToolkit.Engine;
 
 public sealed partial class Map
 {
+    internal const float HalfShare = 0.5f;
     private const float BorderScrollReach = 5;
-    private static readonly Vector2 ScrollAcceleration = new(0.04f, 0.03f);
     private const float FlagmanPace = 0.001f;
     private const float DirectionPace = -0.004f;
-    internal const float HalfShare = 0.5f;
+
+    private static readonly Vector2 ScrollAcceleration = new(0.04f, 0.03f);
 
     private static readonly Vector2 LeadReach = new(640, 480);
     private ScrollType _scrollType = ScrollType.FromBorder;
@@ -35,7 +36,7 @@ public sealed partial class Map
         if (!move.HasFlag(CameraMove.Unclamped))
         {
             var min = Vector2.Zero - Session.Graphics.Viewport.Location.ToVector2();
-            var max = Movement.MapSize.ToVector2() - new Vector2(Session.Graphics.Viewport.Right, Session.Graphics.Viewport.Bottom);
+            var max = Size.ToVector2() - new Vector2(Session.Graphics.Viewport.Right, Session.Graphics.Viewport.Bottom);
 
             if (corner.X < min.X)
             {
