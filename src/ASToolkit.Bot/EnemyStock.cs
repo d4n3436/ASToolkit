@@ -1,6 +1,6 @@
+using ASToolkit.Analysis.Levels;
 using ASToolkit.Engine;
 using ASToolkit.Formats;
-using ASToolkit.Analysis.Levels;
 
 namespace ASToolkit.Bot;
 
@@ -39,7 +39,7 @@ internal sealed class EnemyStock
     {
         foreach (var sprite in _map.Monsters)
         {
-            if (sprite.Placement is null && _seen.Add(sprite) && IsCounted(sprite))
+            if (!sprite.IsBody && _seen.Add(sprite) && IsCounted(sprite))
             {
                 _alive++;
             }

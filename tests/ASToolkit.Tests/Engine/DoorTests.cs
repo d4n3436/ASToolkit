@@ -1,5 +1,5 @@
-using ASToolkit.Engine;
 using System.Numerics;
+using ASToolkit.Engine;
 using ASToolkit.Formats;
 using Xunit;
 
@@ -15,8 +15,7 @@ public class DoorTests
         var definitions = TestGameFolder.CreateCatalog();
         var door = new MergedMapSprite(1, id, new Vector3(1000, 1000, 0), 0, 0, []);
         var map = EngineTestMap.CreateMap(definitions, sprites: [door]);
-        var body = map.FindPlacementSprite(door)!;
-        map.Play(default);
+        var body = map.FindFirstSprite(id);
 
         Assert.Equal(0f, body.Position.Z, 0f);
         for (int tick = 1; tick <= ticks + 1; tick++)
@@ -48,8 +47,8 @@ public class DoorTests
         var definitions = TestGameFolder.CreateCatalog();
         var door = new MergedMapSprite(1, KnownObject.SmallDoor, new Vector3(1000, 1000, 0), 0, 0, []);
         var map = EngineTestMap.CreateMap(definitions, sprites: [door]);
-        var body = map.FindPlacementSprite(door)!;
-        map.AddMonster(definitions.Find(KnownObject.Monster1)!, door.Position);
+        var body = map.FindFirstSprite(KnownObject.SmallDoor);
+        map.AddSprite(definitions.Find(KnownObject.Monster1), door.Position, default);
         for (int tick = 0; tick <= 16; tick++)
         {
             map.Play(default);

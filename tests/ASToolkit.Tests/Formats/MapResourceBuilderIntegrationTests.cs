@@ -40,5 +40,17 @@ public class MapResourceBuilderIntegrationTests
         }
     }
 
-    private sealed record MapRow(int Count, long Ids, float X, float Y, int PayloadBytes, long Side);
+    [Fact]
+    public void ToBytes_OriginalMaps_RebuildsTheFiles()
+    {
+        string game = TestGameFolder.RequireFolder();
+        string[] paths = Directory.GetFiles(Path.Combine(game, "Maps"), "*.map", SearchOption.AllDirectories);
+        Assert.NotEmpty(paths);
+        foreach (string path in paths)
+        {
+            byte[] original = File.ReadAllBytes(path);
+
+            Assert.True(original.AsSpan().SequenceEqual(MapResourceBuilder.Parse(original).ToBytes()), path);
+        }
+    }
 }

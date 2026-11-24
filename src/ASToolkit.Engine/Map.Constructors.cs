@@ -21,17 +21,16 @@ public sealed partial class Map
 
     private void RedrawObjectRecords()
     {
-        int redraw = 0;
         SpriteDefinition? first = null;
         bool isAnyLoaded = false;
 
         foreach (var definition in Definitions.LoadOrder)
         {
-            if (definition is HardwareSpriteDefinition hardware)
+            if (definition is HardwareSpriteDefinition hardware && !hardware.IsCopy)
             {
                 for (int surface = 0; surface < hardware.SurfaceCount; surface++)
                 {
-                    Session.Graphics.DrawLoadingScreen(this, isAnyLoaded && first is not null ? first : Definitions.Empty, Session.StartupLoadingRedraws.Contains(redraw++));
+                    Session.Graphics.DrawLoadBar(this, isAnyLoaded && first is not null ? first : Definitions.Empty);
                 }
             }
 
@@ -42,21 +41,7 @@ public sealed partial class Map
                 first = definition;
             }
 
-            Session.Graphics.DrawLoadingScreen(this, first, Session.StartupLoadingRedraws.Contains(redraw++));
+            Session.Graphics.DrawLoadBar(this, first);
         }
-    }
-
-    [EngineRoutine(0x0044ca00)]
-    private void ConstructBuilding(Sprite sprite)
-    {
-        ConstructUnit(sprite);
-        _builds.Remove(sprite);
-    }
-
-    // TODO: Port the CivRobot class vtable (0x47a994): its Tact and actions
-    [EngineRoutine(0x0044a590)]
-    private void ConstructCivRobot(Sprite sprite)
-    {
-        ConstructCreature(sprite);
     }
 }

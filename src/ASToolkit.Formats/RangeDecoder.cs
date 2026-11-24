@@ -24,12 +24,13 @@ internal ref struct RangeDecoder
         _range = InitialRange;
     }
 
-    public static bool TryDecode(ReadOnlySpan<byte> input, Span<byte> output, Span<FrequencyModel> models, int planes, out int used)
+    public static bool TryDecode(ReadOnlySpan<byte> input, Span<byte> output, Span<FrequencyModel> models, int planes, out int used, out int decoded)
     {
         if (output.Length < MinCodedSize)
         {
             used = output.Length;
-            return input.Length >= used && input[..used].TryCopyTo(output);
+            decoded = input.Length >= used && input[..used].TryCopyTo(output) ? used : 0;
+            return decoded == used;
         }
 
         var decoder = new RangeDecoder(input);
@@ -62,6 +63,7 @@ internal ref struct RangeDecoder
         }
 
         used = decoder._position;
+        decoded = count;
         return count == output.Length;
     }
 

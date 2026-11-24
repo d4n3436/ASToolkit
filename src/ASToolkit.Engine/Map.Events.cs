@@ -34,7 +34,7 @@ public sealed partial class Map
     /// <param name="third">The third argument.</param>
     /// <returns>The function's result.</returns>
     [EngineRoutine(0x0040f430)]
-    public int CallScript(int function, Sprite sprite, int second = 0, int third = 0) => Script.CallFunction(this, function, GetSpriteHandle(sprite), second, third);
+    public int CallScript(int function, Sprite? sprite, int second = 0, int third = 0) => _flags.HasFlag(MapFlags.ScriptsDisabled) ? 0 : Script.CallFunction(this, function, GetSpriteHandle(sprite), second, third);
 
     /// <summary>
     /// Writes a number into a script variable.
@@ -68,6 +68,16 @@ public sealed partial class Map
     internal int RunCollisionHandler(Sprite sprite, Sprite? other) =>
         sprite.Definition.CollisionHandler >= 0 ? CallScript(sprite.Definition.CollisionHandler, sprite, GetSpriteHandle(other)) : 0;
 
+    internal void RunCreationHandler(Sprite sprite)
+    {
+        int handler = sprite.Definition.StateHandlers[(int)SpriteAnimation.Birth];
+
+        if (handler >= 0)
+        {
+            CallScript(handler, sprite);
+        }
+    }
+
     private static void BindStateHandler(SpriteDefinition? definition, ReadOnlySpan<byte> state, int function, int parameters)
     {
         if (state.IsEmpty || parameters != StateHandlerParameters || definition is null)
@@ -85,7 +95,7 @@ public sealed partial class Map
     {
         foreach (byte value in text)
         {
-            if (!char.IsAsciiDigit((char)value))
+            if (!CRuntime.IsDigit(value))
                 return false;
         }
 
@@ -140,16 +150,6 @@ public sealed partial class Map
         if (name.Length > LongIdDigits + 1 && IsDigits(name.Slice(1, LongIdDigits)) && name[LongIdDigits + 1] == NameSeparator)
         {
             BindStateHandler(Definitions.Find((KnownObject)CRuntime.ParseInteger(name.Slice(1, LongIdDigits))), name[(LongIdDigits + 2)..], function, parameters);
-        }
-    }
-
-    internal void RunCreationHandler(Sprite sprite)
-    {
-        int handler = sprite.Definition.StateHandlers[(int)SpriteAnimation.Birth];
-
-        if (handler >= 0)
-        {
-            CallScript(handler, sprite);
         }
     }
 

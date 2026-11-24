@@ -1,26 +1,21 @@
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents the game clock advancing by each frame's clamped real-time step.
+/// Represents the game clock.
 /// </summary>
 /// <remarks>
-/// The clock keeps two times in milliseconds. Wall time is real time, as read from the system clock, and keeps running regardless of what happens in the game.
+/// The clock keeps two times in milliseconds. Wall time is real time and keeps running regardless of what happens in the game.
 /// Game time advances from it frame by frame, with each frame adding the wall time that passed, capped and scaled by the game speed.
 /// </remarks>
 public struct GameClock
 {
     /// <summary>
-    /// Represents the frame length of a 60 Hz display in milliseconds.
-    /// </summary>
-    public const int DefaultFrameTime = 16;
-
-    /// <summary>
-    /// Represents the clock a level starts at.
+    /// Represents the game time a level starts at.
     /// </summary>
     public const int LevelStartTime = 10;
 
     /// <summary>
-    /// Represents the wall time a new clock starts at when none is given.
+    /// Represents the default wall time of a new clock.
     /// </summary>
     public const uint StartWallTime = 1;
 
@@ -29,30 +24,26 @@ public struct GameClock
     /// </summary>
     public const int MillisecondsPerSecond = 1000;
 
-    private const int LevelStartPreviousTime = 1;
+    /// <summary>
+    /// Represents the game time of the frame before the one a level starts at.
+    /// </summary>
+    public const int LevelStartPreviousTime = 1;
     private const int ResumeFrameTime = 10;
     private const uint MaxWallStep = 71;
     private const uint FrameRateWindow = 1000;
     private const float NormalSpeed = 1;
 
-    /// <summary>
-    /// Represents the frame lengths of a 60 Hz display.
-    /// </summary>
-    public static readonly IReadOnlyList<int> DisplayFrameTimes = GetDisplayFrameTimes(60);
-
-    private readonly IReadOnlyList<int> _frameTimes;
     private int _framesThisSecond;
     private uint _secondStartedAt;
 
     /// <summary>
-    /// Creates a clock at the level start that cycles through frame lengths of wall time.
+    /// Initializes a new instance of the <see cref="GameClock"/> structure at the start of a level.
     /// </summary>
-    /// <param name="frameTimes">The frame lengths in milliseconds the harness feeds as wall time.</param>
-    /// <param name="wallTime">The wall time of the level start in milliseconds.</param>
-    public GameClock(IReadOnlyList<int> frameTimes, uint wallTime = StartWallTime)
+    /// <param name="wallTime">The wall time of the start in milliseconds.</param>
+    public GameClock(uint wallTime = StartWallTime)
     {
-        _frameTimes = frameTimes;
         Time = LevelStartTime;
+        PreviousTime = LevelStartPreviousTime;
         FrameTime = LevelStartTime - LevelStartPreviousTime;
         WallTime = wallTime;
         _secondStartedAt = wallTime;
@@ -65,9 +56,9 @@ public struct GameClock
     public int Time { get; private set; }
 
     /// <summary>
-    /// Gets the number of frames run.
+    /// Gets the game time in milliseconds of the previous frame.
     /// </summary>
-    public int Tick { get; private set; }
+    public int PreviousTime { get; private set; }
 
     /// <summary>
     /// Gets the length of the current frame in milliseconds.
@@ -75,7 +66,7 @@ public struct GameClock
     public int FrameTime { get; private set; }
 
     /// <summary>
-    /// Gets the frames counted in the last full window of wall time, 0 until the first window closes.
+    /// Gets the number of frames in the last full second of wall time, or 0 until the first second has passed.
     /// </summary>
     public int FramesPerSecond { get; private set; }
 
@@ -90,34 +81,12 @@ public struct GameClock
     public float Speed { get; private set; }
 
     /// <summary>
-    /// Returns the frame lengths of a display's refresh rate over one second.
-    /// </summary>
-    /// <param name="refreshRate">The refresh rate in hertz.</param>
-    /// <returns>The frame lengths in milliseconds.</returns>
-    public static int[] GetDisplayFrameTimes(int refreshRate)
-    {
-        int[] times = new int[refreshRate];
-        for (int frame = 0; frame < refreshRate; frame++)
-        {
-            times[frame] = (frame + 1) * MillisecondsPerSecond / refreshRate - frame * MillisecondsPerSecond / refreshRate;
-        }
-
-        return times;
-    }
-
-    /// <summary>
-    /// Returns the wall time of the next frame from the frame lengths.
-    /// </summary>
-    /// <returns>The wall time in milliseconds.</returns>
-    public readonly uint GetNextWallTime() => WallTime + (uint)_frameTimes[(Tick + 1) % _frameTimes.Count];
-
-    /// <summary>
     /// Sets the game time.
     /// </summary>
     /// <param name="time">The time in milliseconds.</param>
     public void SetTime(int time)
     {
-        FrameTime = time - (Time - FrameTime);
+        FrameTime = time - PreviousTime;
         Time = time;
     }
 
@@ -128,22 +97,22 @@ public struct GameClock
     public void Resume(int time)
     {
         Time = time;
+        PreviousTime = time - ResumeFrameTime;
         FrameTime = ResumeFrameTime;
     }
 
     /// <summary>
-    /// Advances the clock to a frame read from the wall clock.
+    /// Advances the clock by one frame.
     /// </summary>
-    /// <param name="firstRead">The first wall time read that differs from the current one, which sets the step.</param>
-    /// <param name="secondRead">The second wall time read, kept as the current one.</param>
+    /// <param name="firstRead">The wall time that ends the frame's step.</param>
+    /// <param name="secondRead">The wall time of the new frame.</param>
     public void StartTact(uint firstRead, uint secondRead)
     {
         uint step = Math.Min(firstRead - WallTime, MaxWallStep);
         WallTime = secondRead;
-        int previous = Time;
+        PreviousTime = Time;
         Time += (int)(step * Speed);
-        FrameTime = Time - previous;
-        Tick++;
+        FrameTime = Time - PreviousTime;
         _framesThisSecond++;
 
         if (WallTime - _secondStartedAt >= FrameRateWindow)
@@ -152,5 +121,26 @@ public struct GameClock
             FramesPerSecond = _framesThisSecond;
             _framesThisSecond = 0;
         }
+    }
+
+    internal void ResetRate()
+    {
+        Speed = NormalSpeed;
+        FramesPerSecond = 0;
+        _framesThisSecond = 0;
+    }
+
+    internal void SetTimes(int previousTime, int time)
+    {
+        PreviousTime = previousTime;
+        SetTime(time);
+    }
+
+    internal void SetWallTime(uint wallTime) => WallTime = wallTime;
+
+    internal void Rewind()
+    {
+        Time = PreviousTime;
+        FrameTime = 0;
     }
 }

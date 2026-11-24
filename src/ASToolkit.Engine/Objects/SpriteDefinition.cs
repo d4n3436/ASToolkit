@@ -1,9 +1,9 @@
 using System.Drawing;
-using System.Runtime.InteropServices;
 using System.Numerics;
-using ASToolkit.Formats;
-using ASToolkit.Engine.IO;
+using System.Runtime.InteropServices;
 using ASToolkit.Core;
+using ASToolkit.Engine.IO;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
@@ -11,7 +11,7 @@ namespace ASToolkit.Engine;
 /// Represents a sprite definition.
 /// </summary>
 /// <remarks>
-/// A definition holds its records, frame layout, script handlers and per-army counts. Definitions loaded from a sprite file are of one of the derived classes, chosen by the file's flags.
+/// Definitions loaded from a sprite file are of one of the derived classes, chosen by the file's flags.
 /// </remarks>
 public class SpriteDefinition
 {
@@ -54,26 +54,29 @@ public class SpriteDefinition
     /// Represents the army value that sets the gamma of every army.
     /// </summary>
     public const int AllArmies = 4;
-
     private const float BallisticRise = 1.1f;
     private const float BallisticDrop = 0.9f;
 
-    private readonly GameObject _object;
-    private readonly WeaponRecord _weapon;
     private readonly int[] _children = new int[StateCount];
     private readonly int[] _childCounts = new int[StateCount];
     private readonly int[] _sounds = new int[StateCount];
+    private readonly int[] _frameCounts = new int[StateCount];
+    private readonly int[] _firstFrames = new int[StateCount];
+    private readonly int[] _framesPerDirection = new int[StateCount];
+    private readonly int[] _durations = new int[StateCount];
     private readonly int[] _counts = new int[ArmyCount];
     private readonly int[] _killed = new int[ArmyCount];
     private readonly int[] _recolored = new int[ArmyCount];
     private readonly int[] _armyMaxHp = new int[ArmyCount];
     private readonly int[] _armyMaxUnits = new int[ArmyCount];
     private readonly Gamma[] _gammas = new Gamma[ArmyCount];
-    private readonly int _recordSpriteSpeed;
+
+    private GameObject _object;
+    private WeaponRecord _weapon;
     private ReadOnlyMemory<int> _heightFrameStarts;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="SpriteDefinition"/> class from an object record.
+    /// Initializes a new instance of the <see cref="SpriteDefinition"/> class from an object record and loads its parameters.
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
@@ -81,13 +84,15 @@ public class SpriteDefinition
     /// <param name="spriteSpeed">The frame duration of the definition's sprite.</param>
     /// <param name="totalFrames">The frame count of the definition's sprite.</param>
     /// <param name="layer">The update list of the definition.</param>
+    /// <exception cref="InvalidDataException">The record doesn't have any directions.</exception>
     public SpriteDefinition(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, int spriteSpeed, int totalFrames = 0, ObjectLayer layer = ObjectLayer.Ground)
         : this(id, gameObject, weapon, spriteSpeed, totalFrames, layer, null)
     {
+        LoadParameters();
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="SpriteDefinition"/> class from an object record and the header of its sprite file.
+    /// Initializes a new instance of the <see cref="SpriteDefinition"/> class from an object record and the header of its sprite file, without loading its parameters.
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
@@ -99,32 +104,30 @@ public class SpriteDefinition
     {
     }
 
-    private SpriteDefinition(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, int spriteSpeed, int totalFrames, ObjectLayer layer, VidResource? file)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SpriteDefinition"/> class from an object record without loading its parameters.
+    /// </summary>
+    /// <param name="id">The object ID.</param>
+    /// <param name="gameObject">The object record.</param>
+    /// <param name="weapon">The weapon record.</param>
+    /// <param name="spriteSpeed">The frame duration of the definition's sprite.</param>
+    /// <param name="totalFrames">The frame count of the definition's sprite.</param>
+    /// <param name="layer">The update list of the definition.</param>
+    /// <param name="file">The sprite file, or <see langword="null"/> without one.</param>
+    protected SpriteDefinition(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, int spriteSpeed, int totalFrames, ObjectLayer layer, VidResource? file)
     {
         Id = id;
         RecordId = id;
         Identity = this;
         _object = gameObject;
         _weapon = weapon;
-        Layout = new FrameLayout(gameObject, spriteSpeed, totalFrames);
-        ClearHandlers();
+        TotalFrames = totalFrames;
+        Directions = gameObject.Directions;
+        Class = gameObject.SpriteClass;
 
-        _recordSpriteSpeed = spriteSpeed;
         SpriteSpeed = spriteSpeed;
         Layer = layer;
-        ZSpeed = ScaleRate(gameObject.MaxZSpeed, PerMillisecond);
-        Acceleration = ScaleRate(gameObject.Acceleration, PerMillisecondSquared);
-        Deceleration = ScaleRate(gameObject.Deceleration, PerMillisecondSquared);
-        WeaponFlags = weapon.Flags;
-        Behavior = weapon.Behavior;
-        Army = weapon.Army;
-        Rank = weapon.Rank;
-        Targets = weapon.Targets;
-        Half = gameObject.Size.AsVector2() * 0.5f;
-        BattleRange = weapon.BattleRange;
-        MinRange = weapon.MinRange;
-        ReloadTime = weapon.ReloadTime;
-        AttackTime = Math.Max(weapon.ReloadTime, GetAnimationTime(gameObject, SpriteAnimation.Fight, spriteSpeed));
+        ApplyRecord(gameObject, weapon);
         if (file is not null)
         {
             FileType = file.Value.Type;
@@ -132,9 +135,18 @@ public class SpriteDefinition
             FileFrameCount = file.Value.FrameCount;
         }
 
-        LoadParameters();
         ResetLevelState();
     }
+
+    /// <summary>
+    /// Gets the object record of the definition.
+    /// </summary>
+    public ref readonly GameObject Object => ref _object;
+
+    /// <summary>
+    /// Gets the weapon record of the definition.
+    /// </summary>
+    public ref readonly WeaponRecord Weapon => ref _weapon;
 
     /// <summary>
     /// Gets the script function bound to each state, or NoHandler.
@@ -157,7 +169,7 @@ public class SpriteDefinition
     public int CollisionHandler { get; set; } = NoHandler;
 
     /// <summary>
-    /// Gets or sets the ID sprites of the definition report.
+    /// Gets or sets the object ID that sprites of the definition report.
     /// </summary>
     public KnownObject Id { get; set; }
 
@@ -177,7 +189,7 @@ public class SpriteDefinition
     public string Path { get; internal set; } = string.Empty;
 
     /// <summary>
-    /// Gets the sound ID of each animation state, which an invalid ID in the record turns into the first sound.
+    /// Gets the sound ID of each animation state, with an invalid ID in the record replaced by the first sound.
     /// </summary>
     public ReadOnlySpan<int> Sounds => _sounds;
 
@@ -193,24 +205,24 @@ public class SpriteDefinition
     public bool IsHidden { get; set; }
 
     /// <summary>
-    /// Gets the speed as the level script reads it, in pixels per second.
+    /// Gets the speed in pixels per second, the unit level scripts use.
     /// </summary>
     public int ScriptSpeed => Speed.IsExactly(Unlimited) ? Unlimited : (int)(Speed * 1000);
 
     /// <summary>
-    /// Gets the object record of the definition.
-    /// </summary>
-    public ref readonly GameObject Object => ref _object;
-
-    /// <summary>
-    /// Gets the weapon record of the definition.
-    /// </summary>
-    public ref readonly WeaponRecord Weapon => ref _weapon;
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the weapon record animates color, scale or offset.
+    /// Gets or sets a value indicating whether the weapon record animates color, scale, offset or rotation.
     /// </summary>
     public bool HasKeyframes { get; set; }
+
+    /// <summary>
+    /// Gets or sets the wall time at which a sprite of the definition was last created or recounted.
+    /// </summary>
+    public uint LastCreatedAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the weapon record animates the color.
+    /// </summary>
+    public bool HasColorKeyframes { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the weapon record animates the scale.
@@ -233,6 +245,26 @@ public class SpriteDefinition
     public bool IsRegionReplaced { get; set; }
 
     /// <summary>
+    /// Gets the sprite class of the definition.
+    /// </summary>
+    public SpriteClass Class { get; private set; }
+
+    /// <summary>
+    /// Gets the gamma that the definition applies to its sprites.
+    /// </summary>
+    public Gamma ObjectGamma { get; private set; }
+
+    /// <summary>
+    /// Gets the factors that scale the sprites of the definition.
+    /// </summary>
+    public Vector3 Scale { get; private set; }
+
+    /// <summary>
+    /// Gets the steps of a full turn that the sprites of the definition make per millisecond; 0 turns never and 999999 turns at once.
+    /// </summary>
+    public float RotationRate { get; private set; }
+
+    /// <summary>
     /// Gets the frame duration of the definition's sprite.
     /// </summary>
     public int SpriteSpeed { get; private set; }
@@ -243,34 +275,34 @@ public class SpriteDefinition
     public Size FrameSize { get; protected set; }
 
     /// <summary>
-    /// Gets the number of frames in the definition's sprite file, 0 without a sprite file.
+    /// Gets the number of frames in the definition's sprite file, or 0 if there isn't a sprite file.
     /// </summary>
     public short FileFrameCount { get; protected set; }
 
     /// <summary>
     /// Gets the weapon flags of the definition.
     /// </summary>
-    public WeaponFlags WeaponFlags { get; }
+    public WeaponFlags WeaponFlags { get; private set; }
 
     /// <summary>
     /// Gets the behavior bits of the definition.
     /// </summary>
-    public WeaponBehavior Behavior { get; }
+    public WeaponBehavior Behavior { get; private set; }
 
     /// <summary>
     /// Gets the army of the definition.
     /// </summary>
-    public Army Army { get; }
+    public Army Army { get; private set; }
 
     /// <summary>
     /// Gets the rank of the definition.
     /// </summary>
-    public int Rank { get; }
+    public int Rank { get; private set; }
 
     /// <summary>
     /// Gets the sprite types the definition attacks.
     /// </summary>
-    public SpriteType Targets { get; }
+    public SpriteType Targets { get; private set; }
 
     /// <summary>
     /// Gets a value indicating whether other sprites push sprites of the definition aside.
@@ -285,7 +317,7 @@ public class SpriteDefinition
     /// <summary>
     /// Gets a value indicating whether the definition attacks only targets ahead of it.
     /// </summary>
-    public bool NeedsForwardTarget => WeaponFlags.HasFlag(WeaponFlags.ForwardTargets);
+    public bool HasForwardTargets => WeaponFlags.HasFlag(WeaponFlags.ForwardTargets);
 
     /// <summary>
     /// Gets a value indicating whether the definition alternates the two children of a mirrored pair.
@@ -296,9 +328,9 @@ public class SpriteDefinition
     /// Gets the state a sprite of the definition starts in.
     /// </summary>
     public SpriteAnimation InitialAnimation =>
-        Layout.GetFrameCount(SpriteAnimation.Stand) == 0 && Layout.GetFrameCount(SpriteAnimation.Go) == 0 &&
-        Layout.GetFrameCount(SpriteAnimation.Death) != 0 ? SpriteAnimation.Death
-        : Layout.GetFrameCount(SpriteAnimation.Birth) != 0 ? SpriteAnimation.Birth : SpriteAnimation.Stand;
+        GetFrameCount(SpriteAnimation.Stand) == 0 && GetFrameCount(SpriteAnimation.Go) == 0 &&
+        GetFrameCount(SpriteAnimation.Death) != 0 ? SpriteAnimation.Death
+        : GetFrameCount(SpriteAnimation.Birth) != 0 ? SpriteAnimation.Birth : SpriteAnimation.Stand;
 
     /// <summary>
     /// Gets or sets the health of a new sprite of the definition.
@@ -318,22 +350,22 @@ public class SpriteDefinition
     /// <summary>
     /// Gets the vertical speed of the definition in pixels per millisecond.
     /// </summary>
-    public float ZSpeed { get; }
+    public float ZSpeed { get; private set; }
 
     /// <summary>
     /// Gets the acceleration of the definition.
     /// </summary>
-    public float Acceleration { get; }
+    public float Acceleration { get; private set; }
 
     /// <summary>
     /// Gets the deceleration of the definition.
     /// </summary>
-    public float Deceleration { get; }
+    public float Deceleration { get; private set; }
 
     /// <summary>
     /// Gets half the footprint of the definition.
     /// </summary>
-    public Vector2 Half { get; }
+    public Vector2 Half { get; private set; }
 
     /// <summary>
     /// Gets or sets the collision layers the definition moves through.
@@ -349,17 +381,6 @@ public class SpriteDefinition
     /// Gets or sets the lifetime of a sprite of the definition in milliseconds.
     /// </summary>
     public int Lifetime { get; set; }
-
-    /// <summary>
-    /// Gets or sets the flag that keeps the definition from being created as a child.
-    /// </summary>
-    public int NotCreatedAsChild
-    {
-        [EngineRoutine(0x0043a300)]
-        get;
-        [EngineRoutine(0x0043a310)]
-        set;
-    }
 
     /// <summary>
     /// Gets the child object of each state.
@@ -424,12 +445,12 @@ public class SpriteDefinition
     /// <summary>
     /// Gets the range at which the definition attacks.
     /// </summary>
-    public float BattleRange { get; }
+    public float BattleRange { get; private set; }
 
     /// <summary>
     /// Gets the range under which the definition doesn't attack.
     /// </summary>
-    public float MinRange { get; }
+    public float MinRange { get; private set; }
 
     /// <summary>
     /// Gets or sets the aim scatter of the definition.
@@ -449,12 +470,12 @@ public class SpriteDefinition
     /// <summary>
     /// Gets the time between the definition's attacks.
     /// </summary>
-    public int ReloadTime { get; }
+    public int ReloadTime { get; private set; }
 
     /// <summary>
     /// Gets the time an attack of the definition takes.
     /// </summary>
-    public int AttackTime { get; }
+    public int AttackTime { get; private set; }
 
     /// <summary>
     /// Gets the object the definition launches when it attacks.
@@ -481,12 +502,38 @@ public class SpriteDefinition
     /// </summary>
     public SpriteDefinition? LinkDefinition { get; set; }
 
-    internal FrameLayout Layout { get; }
-
     /// <summary>
     /// Gets the height points of the definition, those of the size grid followed by those of the sprite file's frames.
     /// </summary>
     public List<Vector3> HeightPoints { get; } = [];
+
+    /// <summary>
+    /// Gets or sets the flags of the sprite file.
+    /// </summary>
+    public VidType FileType { get; set; }
+
+    /// <summary>
+    /// Gets or sets the flag that keeps the definition from being created as a child.
+    /// </summary>
+    public int NotCreatedAsChild
+    {
+        [EngineRoutine(0x0043a300)]
+        get;
+        [EngineRoutine(0x0043a310)]
+        set;
+    }
+
+    internal bool IsBuiltTerrainClass { get; private set; }
+
+    internal bool CanMove { get; private set; }
+
+    internal bool IsCopy { get; set; }
+
+    internal int Directions { get; private set; }
+
+    internal int DirectionOffset { get; private set; }
+
+    internal int TotalFrames { get; }
 
     /// <summary>
     /// Sets where the height points of each frame of the sprite file start in <see cref="HeightPoints"/>.
@@ -495,40 +542,44 @@ public class SpriteDefinition
     public void SetHeightFrameStarts(ReadOnlyMemory<int> starts) => _heightFrameStarts = starts;
 
     /// <summary>
-    /// Gets or sets the flags of the sprite file.
-    /// </summary>
-    public VidType FileType { get; set; }
-
-    /// <summary>
     /// Loads the data of the sprite file into the definition.
     /// </summary>
     /// <param name="file">The sprite file.</param>
     /// <param name="data">The bytes of the sprite file.</param>
     public void Load(in VidResource file, ReadOnlyMemory<byte> data) => Load(file, data, null);
 
-    internal virtual void Load(in VidResource file, ReadOnlyMemory<byte> data, GameLogger? logger)
-    {
-    }
-
     /// <summary>
     /// Draws a sprite with the frames of this definition.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
-    /// <param name="sprite">The sprite that gives the position, frame and gamma, which may be of another definition.</param>
+    /// <param name="sprite">The sprite that gives the position, frame and gamma; it may belong to another definition.</param>
     /// <param name="camera">The top left corner of the view, in map pixels.</param>
     public virtual void Draw(Screen screen, Map map, Sprite sprite, Vector2 camera)
     {
     }
 
     /// <summary>
-    /// Draws a sprite of this definition into a texture of the hardware ground.
+    /// Draws the outline of the frame of a sprite, stored as points in the frame.
     /// </summary>
-    /// <param name="target">The texture to draw into.</param>
+    /// <param name="screen">The screen to draw to.</param>
+    /// <param name="map">The map.</param>
+    /// <param name="sprite">The sprite that gives the position and frame.</param>
+    /// <param name="camera">The top left corner of the view, in map pixels.</param>
+    public virtual void DrawOutline(Screen screen, Map map, Sprite sprite, Vector2 camera)
+    {
+    }
+
+    /// <summary>
+    /// Draws a sprite of this definition into the textures of a tile of the hardware ground.
+    /// </summary>
     /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite.</param>
-    /// <param name="tile">The tile of the hardware ground that <paramref name="target"/> belongs to.</param>
-    public virtual void DrawToVid(Screen target, Map map, Sprite sprite, HardwareTile tile)
+    /// <param name="tile">The tile of the hardware ground.</param>
+    /// <param name="colorTexture">The color texture of <paramref name="tile"/>.</param>
+    /// <param name="depthTexture">The depth texture of <paramref name="tile"/>.</param>
+    /// <param name="tileViewport">The area of the textures that is drawn to, in texels.</param>
+    public virtual void DrawToVid(Map map, Sprite sprite, HardwareTile tile, TextureData colorTexture, TextureData depthTexture, Rectangle tileViewport)
     {
     }
 
@@ -542,131 +593,16 @@ public class SpriteDefinition
     }
 
     /// <summary>
-    /// Sets the gamma of an army, or of every army.
-    /// </summary>
-    /// <param name="gamma">The gamma.</param>
-    /// <param name="army">The army, or <see cref="AllArmies"/> for every army.</param>
-    /// <param name="ambient">The ambient gamma of the level.</param>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="army"/> is above <see cref="AllArmies"/>.</exception>
-    public virtual void SetGamma(Gamma gamma, int army, Gamma ambient) => StoreGamma(gamma, army);
-
-    /// <summary>
     /// Sets the update list of the definition.
     /// </summary>
     [EngineRoutine(0x00413880)]
     public virtual void SetLayer() => Layer = ObjectLayer.Ground;
 
     /// <summary>
-    /// Stores the gamma of an army.
-    /// </summary>
-    /// <param name="gamma">The gamma.</param>
-    /// <param name="army">The army, or <see cref="AllArmies"/>, which stores nothing.</param>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="army"/> is above <see cref="AllArmies"/>.</exception>
-    [EngineRoutine(0x00414570)]
-    protected void StoreGamma(Gamma gamma, int army)
-    {
-        if ((uint)army < ArmyCount)
-        {
-            _gammas[army] = gamma;
-            return;
-        }
-
-        if (army != AllArmies)
-            throw new ArgumentOutOfRangeException(nameof(army));
-    }
-
-    private protected Gamma GetGamma(Map map, Sprite sprite)
-    {
-        var gamma = Object.Gamma.Pack().Add(sprite.GetGamma());
-        return Object.Properties.HasFlag(ObjectProperties.Gamma) ? gamma : gamma.Add(map.Session.Graphics.Gamma);
-    }
-
-    /// <summary>
     /// Reloads the values the level script can change from the records.
     /// </summary>
-    /// <exception cref="InvalidDataException">The record of a sprite file doesn't have any directions.</exception>
-    public void LoadParameters() => LoadParameters(null, null);
-
-    [EngineRoutine(0x00413c30)]
-    internal void LoadParameters(GameLogger? logger, SoundSystem? sound)
-    {
-        MaxHp = _object.MaxHp;
-        Speed = ScaleRate(_object.MaxSpeed, PerMillisecond);
-        MoveMask = _object.MoveMask;
-        Damage = _object.DeathDamage;
-        Lifetime = _object.Lifetime;
-        DetectRange = _weapon.DetectRange;
-        Aim = _weapon.Aim;
-        AmmoCapacity = _weapon.Ammo;
-        BuildTime = _weapon.BuildTime;
-        NotCreatedAsChild = 0;
-        SpriteSpeed = _recordSpriteSpeed;
-        Layout.LoadFrameDurations(_object, SpriteSpeed);
-        for (int state = 0; state < StateCount; state++)
-        {
-            _children[state] = _object.Children[state];
-            _childCounts[state] = _object.ChildCounts[state];
-            _sounds[state] = _object.Sounds[state];
-        }
-
-        bool isSpriteFile = Path.EndsWith(SpritePartReader.SpriteFileExtension, StringComparison.OrdinalIgnoreCase) || Path.EndsWith(BmpImage.Extension, StringComparison.OrdinalIgnoreCase);
-        int frames = Layout.TotalFrames;
-        if (isSpriteFile)
-        {
-            if (_object.Directions == 0)
-            {
-                Report(logger, LogError.Invalid, 0, "NoDir==0"u8);
-                throw new InvalidDataException($"The record of object {(int)Id} doesn't have any directions.");
-            }
-
-            if (frames == 0)
-            {
-                Report(logger, LogError.Invalid, 0, "noCadr==0"u8);
-            }
-            else if (frames < _object.Directions)
-            {
-                Report(logger, LogError.Invalid, 0, "noCadr < noDir"u8);
-            }
-
-            int needed = 0;
-            for (int state = 0; state < StateCount; state++)
-            {
-                needed += _object.FrameCounts[state] * Layout.Directions;
-            }
-
-            if (frames < needed)
-            {
-                Report(logger, LogError.Missing, 0, "noCadr for noAnimCadr and noDir"u8);
-            }
-        }
-
-        int start = 0;
-        for (int state = 0; state < StateCount; state++)
-        {
-            if (sound is not null && !sound.IsValid(_sounds[state]))
-            {
-                Report(logger, LogError.Invalid, _sounds[state], "sfx"u8);
-                _sounds[state] = 0;
-            }
-
-            start += Layout.GetFrameCount((SpriteAnimation)state) * Layout.Directions;
-            if (isSpriteFile && frames > 0 && frames < start)
-            {
-                Report(logger, LogError.Text, state, "noCadr and noAnimCadr and noDir"u8);
-            }
-        }
-
-        if (_object.Properties.HasFlag(ObjectProperties.BuildSizeToGridZ))
-        {
-            HeightPoints.Clear();
-            _heightFrameStarts = ReadOnlyMemory<int>.Empty;
-            BuildHeightGrid();
-        }
-    }
-
-    [EngineRoutine(0x00413a30)]
-    internal void Report(GameLogger? logger, LogError code, int value, ReadOnlySpan<byte> text) =>
-        logger?.Error("VID [%i-%s]"u8, code, value, text, (int)Id, (ReadOnlyMemory<byte>)GameTextEncoding.Cyrillic.GetBytes(Name));
+    /// <exception cref="InvalidDataException">The record doesn't have any directions.</exception>
+    public void LoadParameters() => LoadParameters(null, null, false);
 
     /// <summary>
     /// Sets the frame duration of every state.
@@ -675,32 +611,26 @@ public class SpriteDefinition
     public void SetFrameSpeed(int duration)
     {
         SpriteSpeed = (ushort)duration;
-        Layout.SetFrameDurations(duration);
+        Array.Fill(_durations, duration);
     }
 
     /// <summary>
-    /// Unbinds every script handler of the definition.
+    /// Resets the per-army counts and limits and unbinds every script handler for a new level.
     /// </summary>
-    public void ClearHandlers()
+    [EngineRoutine(0x00413980)]
+    public void ResetLevelState()
     {
         Array.Fill(StateHandlers, NoHandler);
         DestroyHandler = NoHandler;
         DamageHandler = NoHandler;
         CollisionHandler = NoHandler;
-    }
-
-    /// <summary>
-    /// Resets the per-army counts and limits for a new level.
-    /// </summary>
-    [EngineRoutine(0x00413980)]
-    public void ResetLevelState()
-    {
         Array.Clear(_counts);
         Array.Clear(_killed);
         Array.Clear(_recolored);
         Array.Fill(_armyMaxHp, MaxHp);
         Array.Fill(_armyMaxUnits, -1);
         MaxUnits = -1;
+        LastCreatedAt = 0;
         IsRegionReplaced = false;
     }
 
@@ -709,7 +639,7 @@ public class SpriteDefinition
     /// </summary>
     /// <param name="animation">The state.</param>
     /// <returns>The duration in milliseconds.</returns>
-    public int GetVisualFrameDuration(SpriteAnimation animation) => Layout.GetFrameDuration(animation);
+    public int GetVisualFrameDuration(SpriteAnimation animation) => _durations[(int)animation];
 
     /// <summary>
     /// Returns the length of a state's animation.
@@ -721,7 +651,7 @@ public class SpriteDefinition
     /// <summary>
     /// Returns the vertical speed that carries a launched sprite of this definition up or down a rise over a distance, within its vertical speed limit.
     /// </summary>
-    /// <param name="catalog">The catalog that holds the gravity constants.</param>
+    /// <param name="catalog">The sprite catalog.</param>
     /// <param name="rise">The height to climb, negative to drop.</param>
     /// <param name="distance">The horizontal distance to the goal.</param>
     /// <returns>The vertical speed in pixels per millisecond.</returns>
@@ -756,7 +686,7 @@ public class SpriteDefinition
     /// <param name="direction">The direction.</param>
     /// <returns>The frame's direction, or the direction itself if the definition does not use direction frames.</returns>
     [EngineRoutine(0x00442e00)]
-    public Angle GetFrameDirection(Angle direction) => Layout.Directions != 0 ? direction.GetFrameDirection(Layout.Directions) : direction;
+    public Angle GetFrameDirection(Angle direction) => Directions != 0 ? direction.GetFrameDirection(Directions) : direction;
 
     /// <summary>
     /// Returns where a link sits relative to a sprite of this definition facing a direction.
@@ -847,6 +777,91 @@ public class SpriteDefinition
         }
     }
 
+    [EngineRoutine(0x00413710)]
+    internal static SpriteDefinition CreateEmpty(KnownObject id, in GameObject gameObject, int spriteSpeed, ObjectLayer layer)
+    {
+        var definition = new SpriteDefinition(id, gameObject, default, spriteSpeed, 0, layer, null);
+        definition.Half = new Vector2(gameObject.Size.X * 0.5f, gameObject.Size.Y * 0.5f);
+        definition.Scale = Vector3.One;
+        Array.Fill(definition._durations, spriteSpeed);
+
+        return definition;
+    }
+
+    internal void ReplaceRecord(in GameObject gameObject, in WeaponRecord weapon)
+    {
+        _object = gameObject;
+        _weapon = weapon;
+        ApplyRecord(gameObject, weapon);
+    }
+
+    internal int GetDirectionIndex(Angle direction) => direction.GetDirectionIndex(Directions, DirectionOffset);
+
+    internal int GetFrameCount(SpriteAnimation state) => _frameCounts[(int)state];
+
+    internal int GetFirstFrame(SpriteAnimation state) => _firstFrames[(int)state];
+
+    internal int GetFramesPerDirection(SpriteAnimation state) => _framesPerDirection[(int)state];
+
+    internal virtual void Load(in VidResource file, ReadOnlyMemory<byte> data, GameLogger? logger)
+    {
+    }
+
+    internal virtual void SetGamma(Gamma gamma, int army, Gamma ambient, GameLogger? logger) => StoreGamma(gamma, army, logger);
+
+    [EngineRoutine(0x00413c30)]
+    internal void LoadParameters(GameLogger? logger, SoundSystem? sound, bool resetBuiltTerrain)
+    {
+        CopyRecordParameters();
+        if (Directions == 0)
+        {
+            Report(logger, LogError.Invalid, 0, "NoDir==0"u8);
+            throw new InvalidDataException($"The record of object {(int)Id} doesn't have any directions.");
+        }
+
+        for (int state = 0; state < StateCount; state++)
+        {
+            if (_durations[state] == 0)
+            {
+                _durations[state] = SpriteSpeed;
+            }
+        }
+
+        Half = _object.Size.AsVector2() * 0.5f;
+        DirectionOffset = Angle.HalfTurn / Directions;
+        int frames = (short)TotalFrames;
+        if (frames == 0)
+        {
+            Report(logger, LogError.Invalid, 0, "noCadr==0"u8);
+        }
+        else if (frames < Directions)
+        {
+            Report(logger, LogError.Invalid, 0, "noCadr < noDir"u8);
+            Directions = frames;
+        }
+
+        TrimFrameCounts(logger, frames);
+        AssignFirstFrames(logger, sound, frames);
+        if (Class == SpriteClass.BuiltTerrain)
+        {
+            IsBuiltTerrainClass = true;
+
+            if (resetBuiltTerrain)
+            {
+                Class = SpriteClass.Terrain;
+            }
+        }
+
+        if (_object.Properties.HasFlag(ObjectProperties.BuildSizeToGridZ))
+        {
+            BuildHeightPoints();
+        }
+    }
+
+    [EngineRoutine(0x00413a30)]
+    internal void Report(GameLogger? logger, LogError code, int value, ReadOnlySpan<byte> text) =>
+        logger?.Error($"VID [{(int)Id}-{Name}]", code, value, text);
+
     internal ReadOnlySpan<Vector3> GetHeightPoints(int frame)
     {
         int start = 0;
@@ -854,9 +869,9 @@ public class SpriteDefinition
 
         if (!_heightFrameStarts.IsEmpty)
         {
-            start = frame < Layout.TotalFrames ? _heightFrameStarts.Span[frame] : 0;
+            start = frame < TotalFrames ? _heightFrameStarts.Span[frame] : 0;
 
-            if (frame < Layout.TotalFrames - 1)
+            if (frame < TotalFrames - 1)
             {
                 end = _heightFrameStarts.Span[frame + 1];
             }
@@ -867,15 +882,166 @@ public class SpriteDefinition
 
     internal CollisionVolume GetCollisionVolume(Vector3 position) => new(position, Half, Object.Size.Z, MoveMask);
 
+    [EngineRoutine(0x00414570)]
+    private protected void StoreGamma(Gamma gamma, int army, GameLogger? logger)
+    {
+        if ((uint)army < ArmyCount)
+        {
+            _gammas[army] = gamma;
+            return;
+        }
+
+        if (army != AllArmies)
+        {
+            Report(logger, LogError.Invalid, army, "n_gamma in VID::SetGamma"u8);
+        }
+    }
+
+    private protected Gamma GetGamma(Map map, Sprite sprite)
+    {
+        var gamma = ObjectGamma.Add(sprite.GetGamma());
+        return Object.Properties.HasFlag(ObjectProperties.Gamma) ? gamma : gamma.Add(map.Session.Graphics.Gamma);
+    }
+
     private static int GetAnimationTime(in GameObject gameObject, SpriteAnimation animation, int spriteSpeed) =>
         gameObject.FrameCounts[(int)animation] * gameObject.GetFrameDuration(animation, spriteSpeed);
 
     private static float ScaleRate(float rate, float scale) => rate.IsExactly(Unlimited) ? rate : rate * scale;
 
-    private void BuildHeightGrid()
+    private void ApplyRecord(in GameObject gameObject, in WeaponRecord weapon)
+    {
+        WeaponFlags = weapon.Flags;
+        Behavior = weapon.Behavior;
+        Army = weapon.Army;
+        Rank = weapon.Rank;
+        Targets = weapon.Targets;
+        BattleRange = weapon.BattleRange;
+        MinRange = weapon.MinRange;
+        ReloadTime = weapon.ReloadTime;
+        AttackTime = Math.Max(weapon.ReloadTime, GetAnimationTime(gameObject, SpriteAnimation.Fight, SpriteSpeed));
+    }
+
+    private void CopyRecordParameters()
+    {
+        Class = _object.SpriteClass;
+        MaxHp = _object.MaxHp;
+        ObjectGamma = _object.Gamma.Pack();
+        Scale = FileType.HasFlag(VidType.ZBuffer) && FileType.HasFlag(VidType.Hardware) ? Vector3.One : _object.Scale;
+        RotationRate = _object.RotationPeriod.IsExactly(Unlimited) ? 0 : _object.RotationPeriod.IsExactlyZero() ? Unlimited : Angle.FullTurn / _object.RotationPeriod;
+        Speed = ScaleRate(_object.MaxSpeed, PerMillisecond);
+        ZSpeed = ScaleRate(_object.MaxZSpeed, PerMillisecond);
+        Acceleration = ScaleRate(_object.Acceleration, PerMillisecondSquared);
+        Deceleration = ScaleRate(_object.Deceleration, PerMillisecondSquared);
+        MoveMask = _object.MoveMask;
+        Damage = _object.DeathDamage;
+        Lifetime = _object.Lifetime;
+        DetectRange = _weapon.DetectRange;
+        Aim = _weapon.Aim;
+        AmmoCapacity = _weapon.Ammo;
+        BuildTime = _weapon.BuildTime;
+        NotCreatedAsChild = 0;
+        Directions = _object.Directions;
+        for (int state = 0; state < StateCount; state++)
+        {
+            _children[state] = _object.Children[state];
+            _childCounts[state] = _object.ChildCounts[state];
+            _sounds[state] = _object.Sounds[state];
+            _frameCounts[state] = _object.FrameCounts[state];
+            _durations[state] = _object.FrameDurations[state];
+        }
+
+        CanMove = !Speed.IsExactlyZero() || !ZSpeed.IsExactlyZero() || _object.Properties.HasFlag(ObjectProperties.Gravity) || _object.Properties.HasFlag(ObjectProperties.Gravity2) || _object.Properties.HasFlag(ObjectProperties.Wind);
+    }
+
+    private void TrimFrameCounts(GameLogger? logger, int frames)
+    {
+        int end = 0;
+        for (int state = 0; state < StateCount; state++)
+        {
+            end += _frameCounts[state] * Directions;
+        }
+
+        if (frames < end)
+        {
+            Report(logger, LogError.Missing, 0, "noCadr for noAnimCadr and noDir"u8);
+            for (int state = StateCount - 1; state >= 0; state--)
+            {
+                int before = end - Directions * _frameCounts[state];
+
+                if (before <= frames)
+                {
+                    _frameCounts[state] -= (end - frames) / Directions;
+                    break;
+                }
+
+                _frameCounts[state] = 0;
+                end = before;
+            }
+        }
+    }
+
+    private void AssignFirstFrames(GameLogger? logger, SoundSystem? sound, int frames)
+    {
+        int start = 0;
+        int firstPopulated = -1;
+        for (int state = 0; state < StateCount; state++)
+        {
+            if (sound is not null && !sound.IsValid(_sounds[state]) && Id != KnownObject.None)
+            {
+                Report(logger, LogError.Invalid, _sounds[state], "sfx"u8);
+                _sounds[state] = 0;
+            }
+
+            if (_frameCounts[state] == 0)
+            {
+                int borrowed = firstPopulated + 1;
+
+                if (Class == SpriteClass.Frame && (state & 1) != 0 && state < (int)SpriteAnimation.Fight && _frameCounts[borrowed] != 0)
+                {
+                    _firstFrames[state] = _firstFrames[borrowed];
+                    _framesPerDirection[state] = _framesPerDirection[borrowed];
+                }
+                else
+                {
+                    _firstFrames[state] = 0;
+                    _framesPerDirection[state] = firstPopulated < 0 ? _firstFrames[StateCount - 1] : _framesPerDirection[firstPopulated];
+                }
+            }
+            else
+            {
+                _firstFrames[state] = start;
+                _framesPerDirection[state] = _frameCounts[state];
+
+                if (firstPopulated < 0)
+                {
+                    firstPopulated = state;
+                    for (int previous = 0; previous < state; previous++)
+                    {
+                        if (_framesPerDirection[previous] == 0)
+                        {
+                            _framesPerDirection[previous] = _frameCounts[state];
+                        }
+                    }
+                }
+            }
+
+            start += _frameCounts[state] * Directions;
+
+            if (frames < start)
+            {
+                Report(logger, LogError.Text, state, "noCadr and noAnimCadr and noDir"u8);
+                _firstFrames[state] = 0;
+                _framesPerDirection[state] = firstPopulated < 0 ? _firstFrames[StateCount - 1] : _framesPerDirection[firstPopulated];
+            }
+        }
+    }
+
+    private void BuildHeightPoints()
     {
         var size = _object.Size;
         var half = new Vector2(size.X, size.Y) * 0.5f;
+        HeightPoints.Clear();
+        _heightFrameStarts = default;
         int row = 0;
         float y = 0;
 

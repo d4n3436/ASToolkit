@@ -1,6 +1,6 @@
 using System.Numerics;
-using ASToolkit.Formats;
 using ASToolkit.Core;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
@@ -12,13 +12,11 @@ internal sealed class WeaponSystem
     private const float DepthBias = 128;
     private const float UnitAimLift = 80;
     private const float GroundAimLift = 19;
-    private const int LegSlack = 63;
     private const int WeaponIdLimit = 21;
 
     private readonly Map _map;
     private readonly SpriteCatalog _definitions;
     private readonly SpriteCollector _collector;
-    private bool _isTurningLegs;
 
     public WeaponSystem(Map map, SpriteCatalog definitions)
     {
@@ -80,29 +78,10 @@ internal sealed class WeaponSystem
 
         man.SlotAmmo[man.WeaponSlot] = man.GetAmmo();
         _map.Action(man.Link, ActionCode.ChangeVid, slot + Sprite.WeaponIdBase);
-        man.Definition.LinkDefinition = _definitions.Find((KnownObject)(slot + Sprite.WeaponIdBase));
+        man.Definition.LinkDefinition = _definitions.Find((KnownObject)(slot + Sprite.WeaponIdBase)) ?? _definitions.Empty;
         man.AddAmmo(man.SlotAmmo[slot] - man.GetAmmo());
 
         return true;
-    }
-
-    public void TrackCursor(Sprite man, Angle direction, int elapsed)
-    {
-        var torso = man.Link!;
-
-        if (man is { Speed: 0, Definition.Id: KnownObject.PlayerStart })
-        {
-            if (!_isTurningLegs)
-            {
-                _isTurningLegs = man.Direction.MeasureTurnTo(torso.Direction) > LegSlack;
-            }
-            else
-            {
-                _isTurningLegs = man.RotateTact(torso.Direction, elapsed) != default;
-            }
-        }
-
-        torso.RotateTact(direction, elapsed);
     }
 
     public void ApplyBlast(Sprite blast)
@@ -116,7 +95,7 @@ internal sealed class WeaponSystem
         var point = impact.AsVector2();
         var reach = payload.Half + new Vector2(payload.BlastRadius);
         float heightReach = Math.Max(Map.MinBlastHeight, payload.Object.Size.Z);
-        bool scales = payload.IsExplosive && !payload.BlastRadius.IsExactlyZero();
+        bool isScaled = payload.IsExplosive && !payload.BlastRadius.IsExactlyZero();
         int damage = payload.Damage;
         
         for (var sprite = _collector.First(point - reach, point + reach); sprite is not null; sprite = _collector.NextHashInBox())
@@ -137,10 +116,10 @@ internal sealed class WeaponSystem
 
             float distance = victim.AsVector2().MeasureOctagonalDistance(point);
 
-            if (scales && distance > payload.BlastRadius)
+            if (isScaled && distance > payload.BlastRadius)
                 continue;
 
-            _map.Action(sprite, ActionCode.Damage, scales ? (int)(damage - damage * distance / payload.BlastRadius) : damage);
+            _map.Action(sprite, ActionCode.Damage, isScaled ? (int)(damage - damage * distance / payload.BlastRadius) : damage);
         }
     }
 

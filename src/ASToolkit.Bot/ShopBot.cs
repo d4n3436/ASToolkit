@@ -1,6 +1,6 @@
+using ASToolkit.Analysis.Scripting;
 using ASToolkit.Engine;
 using ASToolkit.Formats;
-using ASToolkit.Analysis.Scripting;
 
 namespace ASToolkit.Bot;
 
@@ -64,7 +64,7 @@ internal sealed class ShopBot
                 continue;
 
             float value = damage * GameClock.MillisecondsPerSecond /
-                (float)Math.Max(GameClock.DefaultFrameTime, torso.AttackTime) / _weaponPrices[slot];
+                (float)Math.Max(FramePacer.DefaultFrameTime, torso.AttackTime) / _weaponPrices[slot];
 
             if (money < cost)
             {
@@ -122,6 +122,8 @@ internal sealed class ShopBot
         return new PlayerLoadout(armor, ammo, upgraded) { Items = bag };
     }
 
+    private static KnownObject GetTorsoId(int slot) => (KnownObject)(TorsoBase + slot);
+
     private void BuyLives(ref int money, int saved, Dictionary<KnownObject, int> items, int count)
     {
         while (items.GetValueOrDefault(KnownObject.ExtraLife) < count && money - saved >= _itemPrices[ExtraLifeItem])
@@ -130,8 +132,6 @@ internal sealed class ShopBot
             items[KnownObject.ExtraLife] = items.GetValueOrDefault(KnownObject.ExtraLife) + 1;
         }
     }
-
-    private static KnownObject GetTorsoId(int slot) => (KnownObject)(TorsoBase + slot);
 
     private int GetHalfLoadCost(int weapon, PlayerImplants implants)
     {

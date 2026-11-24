@@ -101,8 +101,6 @@ public struct SpriteView : IEnumerable<Sprite>, IEnumerator<Sprite>
 
     private readonly bool Matches(Sprite sprite) => _kind switch
     {
-        SpriteViewKind.Active => (sprite.Placement is null || sprite.Definition.Id.IsScripted) && sprite.Definition.Object.SpriteClass is not (SpriteClass.Frame or SpriteClass.Text) &&
-            sprite.Definition.Id != SpriteCatalog.HardwareGroundId,
         SpriteViewKind.Scripted => sprite.Definition.Id.IsScripted,
         _ => true
     };

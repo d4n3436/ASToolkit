@@ -1,11 +1,11 @@
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Enumerates, row by row, the sprites in the buckets of a <see cref="SpriteCollector"/> that a box covers.
+/// Represents an enumeration, row by row, of the sprites in the buckets of a <see cref="SpriteCollector"/> that a box covers.
 /// </summary>
 public struct HashQuery
 {
-    private readonly List<GridEntry>[] _buckets;
+    private readonly SpriteList[] _buckets;
     private readonly int _columns;
     private readonly int _firstColumn;
     private readonly int _lastColumn;
@@ -14,7 +14,7 @@ public struct HashQuery
     private int _row;
     private int _index;
 
-    internal HashQuery(List<GridEntry>[] buckets, int columns, int firstColumn, int lastColumn, int firstRow, int lastRow)
+    internal HashQuery(SpriteList[] buckets, int columns, int firstColumn, int lastColumn, int firstRow, int lastRow)
     {
         _buckets = buckets;
         _columns = columns;
@@ -29,7 +29,7 @@ public struct HashQuery
     /// <summary>
     /// Gets the sprite at the current position of the enumerator.
     /// </summary>
-    public readonly Sprite Current => _buckets[_row * _columns + _column][_index].Sprite;
+    public readonly Sprite Current => _buckets[_row * _columns + _column][_index];
 
     /// <summary>
     /// Returns this query as its own enumerator.

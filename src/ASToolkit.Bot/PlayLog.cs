@@ -53,7 +53,7 @@ internal sealed class PlayLog
         UpdatePickups();
         foreach (var sprite in map.Monsters)
         {
-            if (sprite.Placement is null && sprite.DiedAt >= 0 && _dead.Add(sprite))
+            if (sprite is { IsBody: false, Animation: >= SpriteAnimation.Death } && _dead.Add(sprite))
             {
                 Kills++;
             }
@@ -81,10 +81,10 @@ internal sealed class PlayLog
     {
         foreach (var pickup in _pickups.Removed)
         {
-            if (!_pickups.WasTaken(pickup))
+            if (!PickupTracker.WasTaken(pickup))
                 continue;
 
-            _taken.Add(pickup.Id);
+            _taken.Add(pickup.Definition.Id);
         }
     }
 }

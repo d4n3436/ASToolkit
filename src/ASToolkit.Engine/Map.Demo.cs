@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 using ASToolkit.Formats;
 
@@ -16,56 +15,22 @@ public sealed partial class Map
     private uint _demoPacedAt;
     private MemoryStream? _recordedDemo;
     private MemoryStream? _endedDemo;
+    private ReadOnlyMemory<byte> _pendingMapName;
 
     /// <summary>
     /// Gets a value indicating whether a demo drives the input.
     /// </summary>
-    public bool IsPlayingDemo => _playedDemo is not null;
+    public bool IsPlayingDemo => _flags.HasFlag(MapFlags.PlayingDemo);
 
     /// <summary>
-    /// Gets the name of the map the level script requested next, or null if the script didn't request one.
+    /// Gets the demo being played.
     /// </summary>
-    public byte[]? MapToLoad { get; private set; }
+    public DemoResource? PlayedDemo => _playedDemo;
 
     /// <summary>
-    /// Gets a value indicating whether the game is quitting.
+    /// Gets the offset of the next frame in the played demo.
     /// </summary>
-    public bool IsQuitting { get; private set; }
-
-    /// <summary>
-    /// Attempts to get the game time of the next frame of the played demo.
-    /// </summary>
-    /// <param name="time">The game time of the next frame in milliseconds when the demo has one; otherwise, 0.</param>
-    /// <returns><see langword="true"/> when the demo has a next frame; otherwise, <see langword="false"/>.</returns>
-    public bool TryGetNextDemoTime(out int time)
-    {
-        int offset = _playedOffset;
-        time = 0;
-
-        if (_playedDemo is null || !_playedDemo.Value.TryReadFrame(ref offset, out var frame))
-            return false;
-
-        time = frame.Time;
-
-        return true;
-    }
-
-    /// <summary>
-    /// Returns the game time of every frame the played demo has left.
-    /// </summary>
-    /// <returns>The game times in milliseconds, in frame order.</returns>
-    public IEnumerable<int> EnumerateDemoFrameTimes()
-    {
-        if (_playedDemo is null)
-            yield break;
-
-        var demo = _playedDemo.Value;
-        int offset = _playedOffset;
-        while (demo.TryReadFrame(ref offset, out var frame))
-        {
-            yield return frame.Time;
-        }
-    }
+    public int PlayedDemoOffset => _playedOffset;
 
     /// <summary>
     /// Plays or records the input of the next demo frame.
@@ -145,26 +110,27 @@ public sealed partial class Map
     {
         _endedDemo = null;
         _recordedDemo = new MemoryStream();
+        _flags |= MapFlags.RecordingDemo;
         _recordedDemo.Write(mapName);
         _recordedDemo.WriteByte(0);
         WriteDemo(_recordedDemo, new DemoHeader(seed, Time));
-        Script.WriteState(_recordedDemo);
     }
 
     private void EndDemoPlayback()
     {
         var mapName = _playedDemo!.Value.MapName;
-        _playedDemo = null;
 
         if (mapName.IsEmpty)
         {
-            IsQuitting = true;
+            Input.PostMessage(WindowMessageId.Close, 0, 0);
 
             return;
         }
 
+        _playedDemo = null;
+        _flags &= ~MapFlags.PlayingDemo;
         CursorSprite.LoadCursor(_fileSystem);
-        MapToLoad = mapName.ToArray();
+        RequestLoad(mapName);
     }
 
     private void EndDemoRecording()
@@ -172,9 +138,7 @@ public sealed partial class Map
         if (_recordedDemo is null)
             return;
 
-        Span<byte> marker = stackalloc byte[sizeof(int)];
-        BinaryPrimitives.WriteInt32LittleEndian(marker, DemoEndMarker);
-        _recordedDemo.Write(marker);
+        WriteDemo(_recordedDemo, DemoEndMarker);
         _endedDemo = _recordedDemo;
         _recordedDemo = null;
     }

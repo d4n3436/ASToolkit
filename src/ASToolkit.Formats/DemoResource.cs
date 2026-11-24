@@ -17,9 +17,10 @@ public readonly struct DemoResource
     /// <summary>
     /// Initializes a new instance of the <see cref="DemoResource"/> structure.
     /// </summary>
-    /// <param name="data">The data.</param>
+    /// <param name="data">The bytes of the demo file.</param>
     public DemoResource(ReadOnlyMemory<byte> data)
     {
+        Data = data;
         _record = new ResContainer(data).Chunks.First(x => x.Tag.Span.SequenceEqual("DEMO"u8)).Records.First();
         var record = _record.Span;
         _mapNameLength = record.IndexOf((byte)0);
@@ -27,6 +28,11 @@ public readonly struct DemoResource
         Seed = header.Seed;
         StartTime = header.Time;
     }
+
+    /// <summary>
+    /// Gets the bytes of the demo file.
+    /// </summary>
+    public ReadOnlyMemory<byte> Data { get; }
 
     /// <summary>
     /// Gets the map file name the demo plays, relative to the game folder.

@@ -1,5 +1,5 @@
-using ASToolkit.Bot;
 using System.Numerics;
+using ASToolkit.Bot;
 using ASToolkit.Engine;
 using ASToolkit.Formats;
 using Xunit;
@@ -57,8 +57,8 @@ public class UnitAnimationTests
         var definitions = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(definitions);
         var position = map.Player.Position + new Vector3(600, 0, 0);
-        var enemy = map.AddMonster(definitions.Find(KnownObject.Monster1)!, position, direction: new Angle(64));
-        while (map.Time < GameClock.LevelStartTime + 96)
+        var enemy = map.AddSprite(definitions.Find(KnownObject.Monster1), position, new Angle(64))!;
+        while (map.Time + map.FrameTime < GameClock.LevelStartTime + 96)
         {
             map.Play(default);
         }

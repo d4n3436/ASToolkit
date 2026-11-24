@@ -1,10 +1,11 @@
+using System.Drawing;
 using System.Numerics;
-using ASToolkit.Engine;
-using ASToolkit.Formats;
 using ASToolkit.Analysis.Levels;
 using ASToolkit.Analysis.Routes;
 using ASToolkit.Analysis.Scripting;
 using ASToolkit.Bot;
+using ASToolkit.Engine;
+using ASToolkit.Formats;
 using Xunit;
 
 namespace ASToolkit.Tests.Bot;
@@ -51,20 +52,12 @@ public class CampaignTests
         var replay = playthrough.LoadReplay(level, loadout, new DemoResource(recorded.FinishDemoRecording()));
         uint now = 0;
         int frames = 0;
-        while (true)
+        while (replay.TryGetNextDemoTime(out int next))
         {
-            bool drawFrame = replay.StepDemo(now, out now);
-
-            if (!replay.IsPlayingDemo)
+            if (replay.StepAimed(replay.WallTime + (uint)(next - replay.Time), now, out now) || !replay.IsPlayingDemo)
                 break;
 
-            replay.StepAimed(drawFrame);
             frames++;
-
-            if (replay.TryGetNextDemoTime(out int next))
-            {
-                replay.AdvanceClock(replay.WallTime + (uint)(next - replay.Time));
-            }
         }
 
         Assert.True(frames > 1000);
@@ -84,7 +77,8 @@ public class CampaignTests
             new PlayerImplants(3, 3, 3, 3));
         var session = new Playthrough(game, objects, TestGameFolder.Table).Start(level, loadout, 1);
         int placed = level.Elements.Count(element => element.Kind == ElementKind.Monster);
-        
+        var walls = session.Map.UpdatedSprites.Where(sprite => sprite.Definition.Id is KnownObject.SpawnWallSlash or KnownObject.SpawnWallBack).ToArray();
+
         for (int time = 10000; time <= 240000 && !(session.Log.Kills > placed && Opened(KnownObject.SpawnWallSlash) && Opened(KnownObject.SpawnWallBack)); time += 10000)
         {
             session.PlayUntil(time);
@@ -95,7 +89,7 @@ public class CampaignTests
         Assert.True(Opened(KnownObject.SpawnWallBack));
         return;
         
-        bool Opened(KnownObject id) => session.Map.Sprites.Any(placement => placement.Id == id && session.Map.IsRemoved(placement));
+        bool Opened(KnownObject id) => walls.Any(wall => wall.Definition.Id == id && (wall.Animation >= SpriteAnimation.Death || wall.ReferenceCount <= 0));
     }
 
     [Fact]
@@ -137,7 +131,8 @@ public class CampaignTests
             Name = "Campaign test", WallSet = WallSet.Basement,
             Model = new LevelModel
             {
-                Name = "Campaign test", WallSet = WallSet.Basement, Lattice = lattice, Cells = cells, Edges = new Dictionary<EdgeKey, EdgeKind>(), Objects = [], Sprites = placed, StoredSprites = placed
+                Name = "Campaign test", WallSet = WallSet.Basement, Lattice = lattice, Cells = cells, Edges = new Dictionary<EdgeKey, EdgeKind>(), Objects = [], Sprites = placed, StoredSprites = placed,
+                MapSize = new SizeF(8192, 8192), Version = 12
             },
             Step = lattice.CellStep, ReachableCells = cells.Count, RoutePixels = (int)(lattice.CellStep * (tour.Length - 1)), SpinePixels = 0,
             RevisitShare = 0, Legs = [], Objectives = [], Elements = elements, Gating = new GateMeasurement(), Checkpoints = [],

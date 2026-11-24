@@ -1,4 +1,5 @@
-using System.Numerics;
+using System.Text;
+using ASToolkit.Bot;
 using ASToolkit.Engine;
 using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
@@ -14,9 +15,9 @@ public class DemoReplayTests
     [InlineData("level03-walk")]
     public void StepDemo_RecordedWalk_MatchesTheGameExactly(string fixture)
     {
-        var samples = FixtureReader.Read<Sample[]>(fixture + ".json");
-        var points = Replay(LoadDemo(fixture));
-        var stateBeforeFrame = new Dictionary<int, Point>();
+        var samples = FixtureReader.Read<WalkSample[]>(fixture + ".json");
+        var points = Replay(LoadDemo(fixture), LoadDemo(fixture, isRequested: false));
+        var stateBeforeFrame = new Dictionary<int, ReplayPoint>();
         for (int i = 1; i < points.Count; i++)
         {
             stateBeforeFrame.Add(points[i].Time, points[i - 1]);
@@ -43,7 +44,7 @@ public class DemoReplayTests
         var fixture = FixtureReader.Read<FightFixture>("level09-fire.json");
         var map = LoadDemo("level09-fire", fixture.LoadingScreenRecords);
         int seed = ReadDemo("level09-fire").Seed;
-        var points = Replay(map);
+        var points = Replay(map, LoadDemo("level09-fire", fixture.LoadingScreenRecords, isRequested: false));
 
         Assert.NotEmpty(fixture.Draws);
         Assert.NotEmpty(fixture.Samples);
@@ -52,7 +53,7 @@ public class DemoReplayTests
             Assert.Equal(fixture.Draws[frame - 1], CountDraws(seed, points[frame].RandomState));
         }
 
-        var stateBeforeFrame = new Dictionary<int, Point>();
+        var stateBeforeFrame = new Dictionary<int, ReplayPoint>();
         for (int i = 1; i < points.Count; i++)
         {
             stateBeforeFrame.Add(points[i].Time, points[i - 1]);
@@ -74,7 +75,7 @@ public class DemoReplayTests
     {
         int[][] sprites = FixtureReader.Read<int[][]>("addon2-level1-load.json");
         var demo = ReadDemo("addon2-level1-load");
-        var map = LoadDemo("addon2-level1-load");
+        var map = LoadDemo("addon2-level1-load", isRequested: false);
         var layer = map.GetLayer(1);
 
         Assert.Equal(10623 - 2, CountDraws(demo.Seed, map.RandomState));
@@ -91,52 +92,51 @@ public class DemoReplayTests
 
     private static DemoResource ReadDemo(string fixture) => new(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", fixture + ".dem")));
 
-    private static Map LoadDemo(string fixture, IReadOnlyList<int>? loadingScreenRecords = null)
+    private static Map LoadDemo(string fixture, IReadOnlyList<int>? loadingScreenRecords = null, bool isRequested = true)
     {
         string game = TestGameFolder.RequireFolder();
-        var demo = ReadDemo(fixture);
-        string mapPath = GameTextEncoding.Cyrillic.GetString(demo.MapName);
-        var template = LevelTemplate.FromMap(new GameFolder(game), mapPath, new SpriteCatalog(game, TestGameFolder.Objects),
-            TestGameFolder.Table.GetArray("GettingAmmo")) with { LoadingScreenRecords = loadingScreenRecords ?? [] };
+        string demoPath = "demos\\" + fixture + ".dem";
+        var files = new MemoryWriteOverlay(new GameFolder(game));
+        files.Set(demoPath, ReadDemo(fixture).Data);
 
-        var map = new Map(template.Definitions, template.FileSystem);
-        map.Load(template, demo.Seed, demo);
+        var clock = new LoadingRedrawClock();
+        var registry = new ScriptRegistry("");
+        var map = new Map(new SpriteCatalog(game, TestGameFolder.Objects), files, registry, new GameSession(registry, time: clock));
+        clock.Schedule(loadingScreenRecords ?? []);
+        map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
+        if (isRequested)
+        {
+            map.RequestLoad(Encoding.ASCII.GetBytes(demoPath));
+        }
+        else
+        {
+            map.Load(Encoding.ASCII.GetBytes(demoPath), GameClock.StartWallTime);
+        }
 
         return map;
     }
 
-    private static List<Point> Replay(Map map)
+    private static List<ReplayPoint> Replay(Map map, Map loaded)
     {
-        var points = new List<Point> { GetPoint(map) };
+        var points = new List<ReplayPoint> { GetPoint(loaded) };
         uint now = 0;
         while (true)
         {
-            bool drawFrame = map.StepDemo(now, out now);
-
-            if (!map.IsPlayingDemo)
+            uint wallTime = map.TryGetNextDemoTime(out int next) ? map.WallTime + (uint)(next - map.Time) : map.GetPacer().TakeNextWallTime(map);
+            if (map.Step(wallTime, now, out now) || !map.IsPlayingDemo)
                 break;
 
-            map.Step(drawFrame);
             points.Add(GetPoint(map));
-
-            if (map.TryGetNextDemoTime(out int next))
-            {
-                map.AdvanceClock(map.WallTime + (uint)(next - map.Time));
-            }
-            else
-            {
-                map.AdvanceClock();
-            }
         }
 
         return points;
     }
 
-    private static Point GetPoint(Map map)
+    private static ReplayPoint GetPoint(Map map)
     {
         var man = map.HasPlayer ? map.Player : EngineTestMap.FindPlacedMan(map);
 
-        return new Point(map.Time, man.Position, man.Speed, man.Hp, map.RandomState);
+        return new ReplayPoint(map.Time, man.Position, man.Speed, man.Hp, map.RandomState);
     }
 
     private static int CountDraws(int seed, int state)
@@ -151,12 +151,4 @@ public class DemoReplayTests
 
         return draws;
     }
-
-    private sealed record Point(int Time, Vector3 Position, float Speed, int Health, int RandomState);
-
-    private sealed record Sample(int Time, float X, float Y, float Speed);
-
-    private sealed record FightSample(int Time, float X, float Y, float Speed, int Health);
-
-    private sealed record FightFixture(int[] LoadingScreenRecords, int[] Draws, FightSample[] Samples);
 }

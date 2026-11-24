@@ -1,5 +1,5 @@
-using ASToolkit.Engine;
 using System.Numerics;
+using ASToolkit.Engine;
 using ASToolkit.Formats;
 using Xunit;
 
@@ -15,7 +15,7 @@ public class PlayerMovementTests
         var map = EngineTestMap.CreateMap(definitions);
         var player = new Sprite(0, definition, new Vector3(1000, 1000, 0), 0, definition.MaxHp) { Direction = new Angle(64) };
         map.Collector.InsertToHash(player);
-        var motion = new SpriteKinematics(definitions, null!);
+        var motion = new SpriteKinematics(definitions, map);
         var movement = new PlayerMovement(map.Collision, motion);
         motion.SetMoveTarget(player, new Sprite(-1, definitions.Empty, new Vector3(1400, 1000, 0), 0, 0));
         movement.MoveTact(player, 20);
@@ -39,7 +39,7 @@ public class PlayerMovementTests
         var map = EngineTestMap.CreateMap(definitions);
         var player = new Sprite(0, definition, new Vector3(1000, 1000, 0), 0, definition.MaxHp);
         map.Collector.InsertToHash(player);
-        var motion = new SpriteKinematics(definitions, null!);
+        var motion = new SpriteKinematics(definitions, map);
         var movement = new PlayerMovement(map.Collision, motion);
         motion.SetMoveTarget(player, new Sprite(-1, definitions.Empty, new Vector3(1400, 1000, 0), 0, 0));
         movement.MoveTact(player, 20);

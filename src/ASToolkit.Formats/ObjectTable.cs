@@ -18,17 +18,22 @@ public sealed class ObjectTable
     private static readonly int WeaponSize = Unsafe.SizeOf<WeaponRecord>();
     private static readonly int AlienShooterWeaponSize = Unsafe.SizeOf<AlienShooterWeaponRecord>();
     private static readonly int[] BodySizes = [AlienShooterBodySize, ZombieShooterBodySize, BodySize, ZombieShooter2BodySize];
-    private readonly Dictionary<KnownObject, Entry> _entries;
+    private readonly Dictionary<KnownObject, ObjectEntry> _entries;
     private readonly WeaponRecord[] _weapons;
     private readonly SfxRecord[] _sounds;
 
-    private ObjectTable(Dictionary<KnownObject, Entry> entries, bool isAlienShooter2, WeaponRecord[] weapons, SfxRecord[] sounds)
+    private ObjectTable(Dictionary<KnownObject, ObjectEntry> entries, bool isAlienShooter2, WeaponRecord[] weapons, SfxRecord[] sounds)
     {
         _weapons = weapons;
         _sounds = sounds;
         _entries = entries;
         IsAlienShooter2 = isAlienShooter2;
     }
+
+    /// <summary>
+    /// Gets the path of objects.res the table was read from.
+    /// </summary>
+    public string Path { get; private init; } = string.Empty;
 
     /// <summary>
     /// Gets a value indicating whether the table has the longer entries of Alien Shooter 2.
@@ -76,17 +81,17 @@ public sealed class ObjectTable
     public int HoverDelay { get; private init; }
 
     /// <summary>
-    /// Gets the script gamma of the selected unit, or zero for none.
+    /// Gets the script gamma of the selected unit, or zero if there isn't one.
     /// </summary>
     public uint SelectedGamma { get; private init; }
 
     /// <summary>
-    /// Gets the script gamma of an army 1 object under the cursor, or zero for none.
+    /// Gets the script gamma of an army 1 object under the cursor, or zero if there isn't one.
     /// </summary>
     public uint HoveredEnemyGamma { get; private init; }
 
     /// <summary>
-    /// Gets the script gamma of any other object under the cursor, or zero for none.
+    /// Gets the script gamma of any other object under the cursor, or zero if there isn't one.
     /// </summary>
     public uint HoveredGamma { get; private init; }
 
@@ -101,7 +106,7 @@ public sealed class ObjectTable
         var records = container.Chunks.First().Records;
         int bodySize = FindBodySize(records.First().Span);
         bool anyExtended = bodySize == BodySize || bodySize == ZombieShooter2BodySize;
-        var entries = new Dictionary<KnownObject, Entry>();
+        var entries = new Dictionary<KnownObject, ObjectEntry>();
         foreach (var memory in records)
         {
             var record = memory.Span;
@@ -129,7 +134,7 @@ public sealed class ObjectTable
                 obj = MemoryMarshal.Read<GameObject>(body);
             }
 
-            entries[id] = new Entry(obj, GameTextEncoding.Cyrillic.GetString(record[4..nameEnd]),
+            entries[id] = new ObjectEntry(obj, GameTextEncoding.Cyrillic.GetString(record[4..nameEnd]),
                 Encoding.ASCII.GetString(record[pathStart..^1]));
         }
 
@@ -138,6 +143,7 @@ public sealed class ObjectTable
         var sounds = bodySize == AlienShooterBodySize ? ReadRecords(container, "SFX "u8).Select(record => new SfxRecord(record)).ToArray() : [];
         return new ObjectTable(entries, anyExtended, ReadWeapons(container), sounds)
         {
+            Path = path,
             Gravitation = constants.Gravitation,
             Gravitation2 = constants.Gravitation2,
             ScrollSpeed = new Vector2(constants.ScrollSpeedX, constants.ScrollSpeedY),
@@ -248,6 +254,4 @@ public sealed class ObjectTable
 
         return true;
     }
-
-    private readonly record struct Entry(GameObject Object, string Name, string Path);
 }

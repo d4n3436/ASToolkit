@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
@@ -13,46 +14,23 @@ public sealed class MovementMap
     /// Represents the side of a cell in pixels.
     /// </summary>
     public const int CellSize = 8;
-
     private const float CellScale = 0.125f;
     private const float PlayerFootprintInset = 3;
     private const float CornerInset = 2;
-    private const float DefaultMapSize = 8192;
 
-    private readonly SizeF _mapSize;
-    private readonly int _columns;
-    private readonly int _rows;
-    private short[] _sceneryHeights;
-    private short[] _objectHeights;
-    private bool _isSharingObjectHeights;
-    private bool _isSharingSceneryHeights;
+    private SizeF _mapSize;
+    private int _columns;
+    private int _rows;
+    private short[] _sceneryHeights = [];
+    private short[] _objectHeights = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MovementMap"/> class as a flat map.
     /// </summary>
     /// <param name="mapSize">The size of the map.</param>
-    [EngineRoutine(0x00410d70)]
-    public MovementMap(SizeF mapSize = default)
+    public MovementMap(SizeF mapSize)
     {
-        _mapSize = mapSize.IsEmpty ? new SizeF(DefaultMapSize, DefaultMapSize) : mapSize;
-        _columns = (int)_mapSize.Width / CellSize;
-        _rows = (int)_mapSize.Height / CellSize;
-        int cells = _columns * _rows;
-        _sceneryHeights = new short[cells];
-        _objectHeights = new short[cells];
-    }
-
-    private MovementMap(MovementMap source)
-    {
-        _mapSize = source._mapSize;
-        _columns = source._columns;
-        _rows = source._rows;
-        _sceneryHeights = source._sceneryHeights;
-        _objectHeights = source._objectHeights;
-        _isSharingObjectHeights = true;
-        _isSharingSceneryHeights = true;
-        source._isSharingObjectHeights = true;
-        source._isSharingSceneryHeights = true;
+        Initialize(mapSize);
     }
 
     /// <summary>
@@ -60,11 +38,34 @@ public sealed class MovementMap
     /// </summary>
     public SizeF MapSize => _mapSize;
 
+    internal int Columns => _columns;
+
+    internal int Rows => _rows;
+
+    internal ReadOnlySpan<short> SceneryHeights => _sceneryHeights;
+
+    internal ReadOnlySpan<short> ObjectHeights => _objectHeights;
+
     /// <summary>
-    /// Returns a copy of the map.
+    /// Makes the map flat at a size, with every cell of both grids at height 0.
     /// </summary>
-    /// <returns>The copy.</returns>
-    public MovementMap Clone() => new(this);
+    /// <param name="mapSize">The size of the map.</param>
+    [EngineRoutine(0x00410d70)]
+    public void Initialize(SizeF mapSize)
+    {
+        _mapSize = mapSize;
+        _columns = (int)_mapSize.Width / CellSize;
+        _rows = (int)_mapSize.Height / CellSize;
+        int cells = _columns * _rows;
+        _sceneryHeights = new short[cells];
+        _objectHeights = new short[cells];
+    }
+
+    /// <summary>
+    /// Replaces the permanent grid, the one built terrain raises, with the heights of a map file's GRID chunk.
+    /// </summary>
+    /// <param name="block">The bytes of the chunk's record, two per cell in row order.</param>
+    public void SetSceneryHeights(ReadOnlySpan<byte> block) => _sceneryHeights = MemoryMarshal.Cast<byte, short>(block).ToArray();
 
     /// <summary>
     /// Raises a cell of the permanent grid, the one built terrain raises, to a height.
@@ -81,7 +82,7 @@ public sealed class MovementMap
 
         if (_sceneryHeights[index] < value)
         {
-            GetWritableSceneryHeights()[index] = (short)value;
+            _sceneryHeights[index] = (short)value;
         }
     }
 
@@ -100,7 +101,7 @@ public sealed class MovementMap
 
         if (_objectHeights[index] < value)
         {
-            GetWritableObjectHeights()[index] = (short)value;
+            _objectHeights[index] = (short)value;
         }
     }
 
@@ -118,7 +119,7 @@ public sealed class MovementMap
 
         if (_objectHeights[index] == (int)position.Z)
         {
-            GetWritableObjectHeights()[index] = 0;
+            _objectHeights[index] = 0;
         }
     }
 
@@ -127,7 +128,7 @@ public sealed class MovementMap
     /// </summary>
     /// <param name="point">The point.</param>
     /// <returns>The height.</returns>
-    public float GetHeight(Vector2 point) => GetCellHeight(point.X, point.Y);
+    public float GetHeight(Vector2 point) => GetCellHeight(point);
 
     /// <summary>
     /// Returns the height an object stands at over its footprint.
@@ -148,12 +149,12 @@ public sealed class MovementMap
         float right = ClampToMap(point.X + inset.X, _mapSize.Width) * CellScale;
         float top = ClampToMap(point.Y - inset.Y, _mapSize.Height) * CellScale;
         float bottom = ClampToMap(point.Y + inset.Y, _mapSize.Height) * CellScale;
-        short ground = 0;
+        int ground = -16383;
         for (float row = top; row <= bottom; row += 1)
         {
             for (float column = left; column <= right; column += 1)
             {
-                ground = Math.Max(ground, GetCell((int)row, (int)column));
+                ground = Math.Max(ground, (int)GetCell((int)row, (int)column));
             }
         }
 
@@ -213,40 +214,18 @@ public sealed class MovementMap
         ? ground - height <= walker.StepHeight && height - ground <= walker.DropHeight
         : ground <= height;
 
-    private short[] GetWritableObjectHeights()
-    {
-        if (_isSharingObjectHeights)
-        {
-            _objectHeights = (short[])_objectHeights.Clone();
-            _isSharingObjectHeights = false;
-        }
-
-        return _objectHeights;
-    }
-
-    private short[] GetWritableSceneryHeights()
-    {
-        if (_isSharingSceneryHeights)
-        {
-            _sceneryHeights = (short[])_sceneryHeights.Clone();
-            _isSharingSceneryHeights = false;
-        }
-
-        return _sceneryHeights;
-    }
-
     [EngineRoutine(0x00410e60)]
-    private float GetCellHeight(float x, float y)
+    private float GetCellHeight(Vector2 point)
     {
-        x = ClampToMap(x, _mapSize.Width);
-        y = ClampToMap(y, _mapSize.Height);
+        point.X = ClampToMap(point.X, _mapSize.Width);
+        point.Y = ClampToMap(point.Y, _mapSize.Height);
 
-        return GetCell((int)(y * CellScale), (int)(x * CellScale));
+        return GetCell((int)(point.Y * CellScale), (int)(point.X * CellScale));
     }
 
     private short GetCell(int row, int column)
     {
-        int index = Math.Min(row, _rows - 1) * _columns + Math.Min(column, _columns - 1);
+        int index = row * _columns + column;
 
         return Math.Max(_sceneryHeights[index], _objectHeights[index]);
     }

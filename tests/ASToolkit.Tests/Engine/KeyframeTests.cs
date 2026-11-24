@@ -19,7 +19,7 @@ public class KeyframeTests
         var source = definitions.Find(KnownObject.RedMonster1)!;
         var definition = new SpriteDefinition(source.Id, source.Object, CreateWeapon(source.Weapon), source.SpriteSpeed) { HasTimers = true };
         definitions.SetChildAndLink(definition, null);
-        var sprite = map.AddMonster(definition, map.Player.Position + new Vector3(600, 0, 0));
+        var sprite = map.AddSprite(definition, map.Player.Position + new Vector3(600, 0, 0), default)!;
         int start = map.Time;
 
         while (map.Time - start < Period / 2)
@@ -27,7 +27,7 @@ public class KeyframeTests
             map.Play(default);
         }
 
-        float expected = (map.Time - map.FrameTime - sprite.KeyframeStart) * (WeaponRecord.KeyframeCount - 1) / (float)Period;
+        float expected = (map.Time - sprite.KeyframeStart) * (WeaponRecord.KeyframeCount - 1) / (float)Period;
         Assert.InRange(sprite.KeyframePosition, expected - 0.01f, expected + 0.01f);
 
         while (map.Time - start <= Period + Period / 2)

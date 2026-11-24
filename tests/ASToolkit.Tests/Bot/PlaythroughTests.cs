@@ -1,9 +1,9 @@
 using System.Numerics;
+using ASToolkit.Analysis.Reference;
+using ASToolkit.Analysis.Routes;
+using ASToolkit.Bot;
 using ASToolkit.Engine;
 using ASToolkit.Formats;
-using ASToolkit.Analysis.Reference;
-using ASToolkit.Bot;
-using ASToolkit.Analysis.Routes;
 using ASToolkit.Tests.Engine;
 using Xunit;
 
@@ -11,13 +11,6 @@ namespace ASToolkit.Tests.Bot;
 
 public class PlaythroughTests
 {
-    [Fact]
-    public void Run_LevelThree_NavigatesOriginalTerrainWithThePlayersFootprint()
-    {
-        var result = RunOriginal(3);
-        Assert.True(result.Survived, $"Level_03.map: progress {result.Progress:P1}, time {result.Time} ms");
-    }
-
     public static PlaythroughResult RunOriginal(int number)
     {
         string game = TestGameFolder.RequireFolder();
@@ -29,6 +22,13 @@ public class PlaythroughTests
             [KnownObject.Shotgun] = 100, [KnownObject.Minigun] = 800, [KnownObject.RocketLauncher] = 80, [KnownObject.PlasmaRifle] = 50
         }, new PlayerImplants(3, 3, 3, 3));
         return new Playthrough(game, objects, TestGameFolder.Table).Run(level.Analysis, loadout, 1);
+    }
+
+    [Fact]
+    public void Run_LevelThree_NavigatesOriginalTerrainWithThePlayersFootprint()
+    {
+        var result = RunOriginal(3);
+        Assert.True(result.Survived, $"Level_03.map: progress {result.Progress:P1}, time {result.Time} ms");
     }
 
     [Fact]
@@ -114,18 +114,11 @@ public class PlaythroughTests
         uint now = 0;
         while (true)
         {
-            bool drawFrame = map.StepDemo(now, out now);
-
-            if (!map.IsPlayingDemo)
+            uint wallTime = map.TryGetNextDemoTime(out int next) ? map.WallTime + (uint)(next - map.Time) : map.GetPacer().TakeNextWallTime(map);
+            if (map.StepAimed(wallTime, now, out now) || !map.IsPlayingDemo)
                 yield break;
 
-            map.Step(drawFrame);
             yield return map;
-
-            if (map.TryGetNextDemoTime(out int next))
-            {
-                map.AdvanceClock(map.WallTime + (uint)(next - map.Time));
-            }
         }
     }
 }

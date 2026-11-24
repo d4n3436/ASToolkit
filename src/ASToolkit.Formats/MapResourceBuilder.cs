@@ -1,6 +1,7 @@
+using System.Drawing;
 using System.Numerics;
 using System.Runtime.InteropServices;
-using System.Drawing;
+using System.Runtime.Intrinsics;
 
 namespace ASToolkit.Formats;
 
@@ -10,6 +11,8 @@ namespace ASToolkit.Formats;
 public sealed class MapResourceBuilder
 {
     private const int EntrySize = 28;
+    private const int PlayerCount = 4;
+    private const int EndHandle = -1;
     private static readonly byte[] EndMarker = [0xff, 0xff, 0xff, 0xff];
 
     /// <summary>
@@ -28,12 +31,12 @@ public sealed class MapResourceBuilder
     public Vector2 Scroll { get; set; }
 
     /// <summary>
-    /// Gets the graphics record the map was read with.
+    /// Gets the graphics record of the map.
     /// </summary>
     public MapGraphics Graphics { get; init; }
 
     /// <summary>
-    /// Gets the groups of sprites the map was read with, each a list of sprite handles.
+    /// Gets the groups of sprites of the map, each a list of sprite handles.
     /// </summary>
     public IReadOnlyList<int[]> Groups { get; init; } = [];
 
@@ -48,9 +51,19 @@ public sealed class MapResourceBuilder
     public Gamma? Ambient { get; init; }
 
     /// <summary>
-    /// Gets the version of the map file's format, 0 for a map built from nothing.
+    /// Gets the version of the map file's format, or 0 for a new map.
     /// </summary>
     public int Version { get; init; }
+
+    /// <summary>
+    /// Gets the game time the map file was saved at.
+    /// </summary>
+    public int Tick { get; init; }
+
+    /// <summary>
+    /// Gets the painted height grid, one height per 8 by 8 pixel cell, or an empty grid when the map doesn't have one.
+    /// </summary>
+    public ReadOnlyMemory<short> HeightGrid { get; init; }
 
     /// <summary>
     /// Reads the placed objects of a map. Entries with non-finite or far-off coordinates are skipped.
@@ -80,7 +93,9 @@ public sealed class MapResourceBuilder
             Graphics = resource.Graphics,
             Groups = resource.Groups.ToArray(),
             PlayerHandles = resource.PlayerHandles.ToArray(),
-            Version = resource.Header.Version
+            Version = resource.Header.Version,
+            Tick = resource.Header.Tick,
+            HeightGrid = resource.HeightGrid.ToArray()
         };
         foreach (var sprite in resource.Sprites)
         {
@@ -95,6 +110,68 @@ public sealed class MapResourceBuilder
         }
 
         return map;
+    }
+
+    /// <summary>
+    /// Builds the bytes of a map file.
+    /// </summary>
+    /// <returns>The bytes of the map.</returns>
+    /// <remarks>
+    /// The chunks follow in the order GRPH, HEAD, GRID, SPR, SPRD, PLAY and GROU. The header and the objects keep integer coordinates for a version below 10.
+    /// </remarks>
+    public byte[] ToBytes()
+    {
+        bool isInteger = Version < MapHeader.FloatVersion;
+        var file = new ResContainerBuilder { Magic = "RES "u8.ToArray(), Kind = "MAP "u8.ToArray() };
+        var graphics = Ambient is null ? Graphics : new MapGraphics(Graphics.Environment, Ambient.Value, Graphics.Direction, Graphics.DirectionLength);
+        AddChunk(file, "GRPH", [MemoryMarshal.AsBytes(new ReadOnlySpan<MapGraphics>(in graphics)).ToArray()]);
+        var head = isInteger
+            ? new MapHeader(new Size((int)Size.Width, (int)Size.Height), new Point((int)Scroll.X, (int)Scroll.Y), Tick, Version)
+            : new MapHeader(Size, Scroll, Tick, Version);
+        AddChunk(file, "HEAD", [MemoryMarshal.AsBytes(new ReadOnlySpan<MapHeader>(in head)).ToArray()]);
+        if (!HeightGrid.IsEmpty)
+        {
+            AddChunk(file, "GRID", [MemoryMarshal.AsBytes(HeightGrid.Span).ToArray()]);
+        }
+
+        byte[] entries = new byte[Sprites.Count * EntrySize + sizeof(int)];
+        var payloads = new List<byte[]>(Sprites.Count + 1);
+        for (int i = 0; i < Sprites.Count; i++)
+        {
+            var sprite = Sprites[i];
+            var position = isInteger ? Vector128.ConvertToInt32(sprite.Position.AsVector128()).AsSingle().AsVector3() : sprite.Position;
+            MemoryMarshal.Write(entries.AsSpan(i * EntrySize), new OldMapSprite(sprite.Handle, sprite.Id, position, sprite.Direction, sprite.Army));
+            if (sprite.Payload.Length == 0)
+                continue;
+
+            byte[] payload = new byte[sizeof(int) + sprite.Payload.Length];
+            MemoryMarshal.Write(payload, sprite.Handle);
+            sprite.Payload.CopyTo(payload, sizeof(int));
+            payloads.Add(payload);
+        }
+
+        EndMarker.CopyTo(entries, entries.Length - sizeof(int));
+        payloads.Add(EndMarker);
+        AddChunk(file, "SPR ", [entries]);
+        AddChunk(file, "SPRD", payloads);
+        byte[] players = new byte[PlayerCount * sizeof(int)];
+        for (int i = 0; i < PlayerCount && i < PlayerHandles.Count; i++)
+        {
+            MemoryMarshal.Write(players.AsSpan(i * sizeof(int)), PlayerHandles[i]);
+        }
+
+        AddChunk(file, "PLAY", [players]);
+        var groups = new List<int>();
+        foreach (int[] group in Groups)
+        {
+            groups.AddRange(group);
+            groups.Add(EndHandle);
+        }
+
+        groups.Add(EndHandle);
+        AddChunk(file, "GROU", [MemoryMarshal.AsBytes(CollectionsMarshal.AsSpan(groups)).ToArray()]);
+
+        return file.Build();
     }
 
     /// <summary>
@@ -116,16 +193,11 @@ public sealed class MapResourceBuilder
         var payloads = new List<byte[]>(Sprites.Count + 1);
         for (int spriteIndex = 0; spriteIndex < Sprites.Count; spriteIndex++)
         {
-            var s = Sprites[spriteIndex];
-            var e = entries.AsSpan(spriteIndex * EntrySize, EntrySize); // TODO: Handle AS2 map sprites and avoid hardcoding the size
-            MemoryMarshal.Write(e, s.Handle);
-            MemoryMarshal.Write(e[4..], (int)s.Id);
-            MemoryMarshal.Write(e[8..], s.Position);
-            MemoryMarshal.Write(e[20..], (int)s.Direction.Value);
-            MemoryMarshal.Write(e[24..], (int)s.Army);
-            byte[] payload = new byte[4 + s.Payload.Length];
-            MemoryMarshal.Write(payload, s.Handle);
-            s.Payload.CopyTo(payload, 4);
+            var sprite = Sprites[spriteIndex];
+            MemoryMarshal.Write(entries.AsSpan(spriteIndex * EntrySize), new OldMapSprite(sprite.Handle, sprite.Id, sprite.Position, sprite.Direction, sprite.Army)); // TODO: Handle AS2 map sprites and avoid hardcoding the size
+            byte[] payload = new byte[4 + sprite.Payload.Length];
+            MemoryMarshal.Write(payload, sprite.Handle);
+            sprite.Payload.CopyTo(payload, 4);
             payloads.Add(payload);
         }
 
@@ -133,19 +205,14 @@ public sealed class MapResourceBuilder
         payloads.Add(EndMarker);
         file.GetChunk("SPR ").Records = [entries];
         file.GetChunk("SPRD").Records = payloads;
-        byte[] headArr = new byte[24];
-        var head = headArr.AsSpan();
-        MemoryMarshal.Write(head, Size.Width);
-        MemoryMarshal.Write(head[4..], Size.Height);
-        MemoryMarshal.Write(head[8..], Scroll);
-        MemoryMarshal.Write(head[16..], 1999);
-        MemoryMarshal.Write(head[20..], 12);
-        file.GetChunk("HEAD").Records = [headArr];
+        var head = new MapHeader(Size, Scroll, 1999, 12);
+        file.GetChunk("HEAD").Records = [MemoryMarshal.AsBytes(new ReadOnlySpan<MapHeader>(in head)).ToArray()];
         if (Ambient is not null)
         {
-            byte[] graphics = file.GetChunk("GRPH").Records[0].ToArray();
-            MemoryMarshal.Write(graphics.AsSpan(4), Ambient.Value);
-            file.GetChunk("GRPH").Records = [graphics];
+            byte[] record = file.GetChunk("GRPH").Records[0].ToArray();
+            ref readonly var graphics = ref MemoryMarshal.AsRef<MapGraphics>(record);
+            MemoryMarshal.Write(record, new MapGraphics(graphics.Environment, Ambient.Value, graphics.Direction, graphics.DirectionLength));
+            file.GetChunk("GRPH").Records = [record];
         }
 
         // Drop the template's groups since they reference its sprite handles
@@ -155,5 +222,8 @@ public sealed class MapResourceBuilder
         return file.Build();
     }
 
-    private static bool IsSane(float v) => float.IsFinite(v) && Math.Abs(v) < 1e6f;
+    private static void AddChunk(ResContainerBuilder file, string tag, List<byte[]> records) =>
+        file.Chunks.Add(new ResChunkBuilder { Tag = tag, Flags = ResChunkFlags.ExtendedHeader, Records = records });
+
+    private static bool IsSane(float value) => float.IsFinite(value) && Math.Abs(value) < 1e6f;
 }

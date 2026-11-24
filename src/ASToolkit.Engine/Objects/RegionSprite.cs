@@ -1,7 +1,7 @@
 using System.Drawing;
 using System.Numerics;
-using ASToolkit.Formats;
 using ASToolkit.Core;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
@@ -14,7 +14,6 @@ public sealed class RegionSprite : Sprite
     /// Represents the number of definition pairs a region changes.
     /// </summary>
     public const int Pairs = 6;
-
     private const int FogPhaseMask = 7;
     private const int FogFrameStep = 2;
     private const float Half = 0.5f;
@@ -29,10 +28,10 @@ public sealed class RegionSprite : Sprite
     /// <param name="hitPoints">The hit points of the sprite.</param>
     /// <param name="direction">The direction of the sprite.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    /// <param name="parent">The sprite that created this sprite.</param>
-    public RegionSprite(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Angle direction = default, Map? map = null, Sprite? parent = null)
-        : base(number, definition, position, army, hitPoints, direction, map, parent)
+    public RegionSprite(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Angle direction = default, Map? map = null)
+        : base(number, definition, position, army, hitPoints, direction, map)
     {
+        UnusedDefinition = map?.Definitions.Empty;
     }
 
     /// <summary>
@@ -41,6 +40,10 @@ public sealed class RegionSprite : Sprite
     public Vector2 Size { get; set; }
 
     internal RegionFlags Flags { get; set; }
+
+    internal int UnusedValue { get; set; }
+
+    internal SpriteDefinition? UnusedDefinition { get; set; }
 
     internal int FogFar { get; set; }
 
@@ -59,7 +62,7 @@ public sealed class RegionSprite : Sprite
     internal SpriteDefinition?[] To => field ??= new SpriteDefinition?[Pairs];
 
     /// <summary>
-    /// Draws the region's picture tiled over its area, then its fog, advancing the fog's level only when the frame is drawn into the graphics' screen.
+    /// Draws the region's picture tiled over its area, then its fog, and advances the fog's level.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
@@ -67,19 +70,18 @@ public sealed class RegionSprite : Sprite
     [EngineRoutine(0x00449810)]
     public override void Draw(Screen screen, Map map, Vector2 camera)
     {
-        bool isFrame = screen == map.Session.Graphics.Screen;
         var position = Position;
         int frame = Frame;
         var half = Size * Half;
 
         if (Definition != map.Definitions.Empty)
         {
-            var clip = screen.Clip;
+            var savedViewport = screen.Viewport;
 
             if (!Flags.HasFlag(RegionFlags.CoversMap))
             {
                 float groundY = position.Y - position.Z;
-                screen.Clip = Rectangle.FromLTRB(
+                screen.Viewport = Rectangle.FromLTRB(
                     (int)(position.X - half.X - camera.X),
                     (int)(groundY - half.Y - camera.Y),
                     (int)(half.X + position.X - camera.X),
@@ -110,7 +112,7 @@ public sealed class RegionSprite : Sprite
 
             if (!Flags.HasFlag(RegionFlags.CoversMap))
             {
-                screen.Clip = clip;
+                screen.Viewport = savedViewport;
             }
         }
 
@@ -119,51 +121,45 @@ public sealed class RegionSprite : Sprite
 
         if (FogFar <= FogNear)
         {
-            if (isFrame)
-            {
-                FogLevel = 0;
-            }
+            FogLevel = 0;
 
             return;
         }
 
-        if (isFrame)
+        if (!Flags.HasFlag(RegionFlags.AnimatedFog))
         {
-            if (!Flags.HasFlag(RegionFlags.AnimatedFog))
-            {
-                FogLevel = FogFar * Graphics.FogDepthPerLevel;
-            }
-            else
-            {
-                int phase = map.Time & FogPhaseMask;
+            FogLevel = FogFar * Graphics.FogDepthPerLevel;
+        }
+        else
+        {
+            int phase = map.Time & FogPhaseMask;
 
-                if ((uint)phase < (uint)FogPhase)
+            if ((uint)phase < (uint)FogPhase)
+            {
+                int target = FogFar * Graphics.FogDepthPerLevel;
+
+                if (FogLevel < target)
                 {
-                    int target = FogFar * Graphics.FogDepthPerLevel;
-
-                    if (FogLevel < target)
-                    {
-                        FogLevel += FogFrameStep;
-                    }
-                    else if (target < FogLevel)
-                    {
-                        FogLevel = 0;
-                    }
+                    FogLevel += FogFrameStep;
                 }
-
-                FogPhase = phase;
+                else if (target < FogLevel)
+                {
+                    FogLevel = 0;
+                }
             }
+
+            FogPhase = phase;
         }
 
         if (Flags.HasFlag(RegionFlags.CoversMap))
         {
-            Graphics.DrawFog(screen, new Vector2(screen.Clip.Left, screen.Clip.Top), new Vector2(screen.Clip.Right, screen.Clip.Bottom), FogNear, FogFar, FogColor, FogTable.Span, FogLevel, Flags.HasFlag(RegionFlags.LightFog));
+            map.Session.Graphics.DrawFog(screen, new Vector2(screen.Viewport.Left, screen.Viewport.Top), new Vector2(screen.Viewport.Right, screen.Viewport.Bottom), FogNear, FogFar, FogColor, FogTable.Span, FogLevel, Flags.HasFlag(RegionFlags.LightFog));
             return;
         }
 
         float centerY = position.Y - position.Z;
         var topLeft = new Vector2(position.X - half.X - camera.X, centerY - half.Y - camera.Y);
         var bottomRight = new Vector2(half.X + position.X - camera.X, half.Y + centerY - camera.Y);
-        Graphics.DrawFog(screen, topLeft, bottomRight, FogNear, FogFar, FogColor, FogTable.Span, FogLevel, Flags.HasFlag(RegionFlags.LightFog));
+        map.Session.Graphics.DrawFog(screen, topLeft, bottomRight, FogNear, FogFar, FogColor, FogTable.Span, FogLevel, Flags.HasFlag(RegionFlags.LightFog));
     }
 }

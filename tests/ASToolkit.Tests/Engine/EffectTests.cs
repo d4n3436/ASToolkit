@@ -1,6 +1,6 @@
+using System.Numerics;
 using ASToolkit.Bot;
 using ASToolkit.Engine;
-using System.Numerics;
 using ASToolkit.Formats;
 using Xunit;
 
@@ -75,7 +75,7 @@ public class EffectTests
 
         Assert.Empty(map.Monsters);
         int duration = definitions.Find(KnownObject.WeaponMonsterDeath)!.GetAnimationDuration(SpriteAnimation.Death);
-        while (map.Time <= start + duration + 2 * GameClock.DefaultFrameTime)
+        while (map.Time <= start + duration + 2 * FramePacer.DefaultFrameTime)
         {
             map.Play(default);
         }

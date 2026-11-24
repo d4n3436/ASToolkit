@@ -6,13 +6,13 @@ namespace ASToolkit.Engine;
 public sealed partial class Map
 {
     /// <summary>
-    /// Deletes a sprite through the destructor of its class.
+    /// Deletes a sprite.
     /// </summary>
     /// <param name="sprite">The sprite.</param>
     public void DeleteSprite(Sprite sprite)
     {
         // TODO: Port the CivRobot (0x44a650), Engine (0x44e9d0), Rail (0x44a1a0) and Depo (0x44c0d0) destructors
-        switch (sprite.Definition.Object.SpriteClass)
+        switch (sprite.Definition.Class)
         {
             case SpriteClass.Man:
                 DestructMan(sprite);
@@ -33,6 +33,65 @@ public sealed partial class Map
                 DestructSprite(sprite);
                 break;
         }
+    }
+
+    [EngineRoutine(0x0043f520)]
+    internal void DestructSprite(Sprite sprite)
+    {
+        RunDestroyHandler(sprite);
+        LowerHeights(sprite.Definition, sprite);
+
+        bool isEmpty = sprite.Definition == Definitions.Empty;
+
+        if (isEmpty && sprite.ReferenceCount != 0)
+        {
+            Session.Logger.Error("SPRITE 0"u8, LogError.Invalid, 0);
+        }
+
+        if (sprite.ReferenceCount > 1)
+        {
+            Collector.DeleteFromHash(sprite);
+
+            if (sprite.ReferenceCount > 1)
+            {
+                DeletePointerToSprite(sprite);
+            }
+        }
+
+        int army = (int)sprite.Army & 3;
+
+        if (sprite.Definition.Counts[army] != 0)
+        {
+            sprite.Definition.Counts[army]--;
+        }
+
+        sprite.Goal = null;
+
+        while (sprite.Link is not null)
+        {
+            DeleteSprite(sprite.Link);
+        }
+
+        sprite.Owner?.Link = null;
+
+        if (!isEmpty)
+        {
+            RemoveFromUpdates(sprite);
+            sprite.Release();
+        }
+
+        if (sprite.ReferenceCount != 0)
+        {
+            Session.Logger.Error("SPRITE 0"u8, LogError.Text, 0);
+        }
+
+        _builds.Remove(sprite);
+
+        if (sprite.Handle == 0)
+            return;
+
+        _handles.Remove(sprite.Handle);
+        sprite.Handle = 0;
     }
 
     [EngineRoutine(0x00444a00)]
@@ -67,7 +126,7 @@ public sealed partial class Map
             _menuCurrent = null;
         }
 
-        RemoveMenuSprite(sprite);
+        RemoveSprite(_menuSprites, sprite);
         DeletePointerToSprite(sprite);
         DestructSprite(sprite);
     }
@@ -84,90 +143,5 @@ public sealed partial class Map
     {
         DeletePointerToSprite(region);
         DestructSprite(region);
-    }
-
-    [EngineRoutine(0x0043f520)]
-    internal void DestructSprite(Sprite sprite)
-    {
-        RunDestroyHandler(sprite);
-        LowerHeights(sprite.Definition, sprite);
-
-        bool isEmpty = sprite.Definition == Definitions.Empty;
-
-        if (isEmpty && sprite.ReferenceCount != 0)
-        {
-            Session.Logger.Error(SpriteLogTag, LogError.Invalid, 0, default);
-        }
-
-        if (sprite.ReferenceCount > 1)
-        {
-            Collector.DeleteFromHash(sprite);
-
-            if (sprite.ReferenceCount > 1)
-            {
-                DeletePointerToSprite(sprite);
-            }
-        }
-
-        if (sprite.IsCounted)
-        {
-            sprite.IsCounted = false;
-            int army = (int)sprite.Army & 3;
-
-            if (sprite.Definition.Counts[army] != 0)
-            {
-                sprite.Definition.Counts[army]--;
-            }
-        }
-
-        sprite.Goal = null;
-
-        while (sprite.Link is not null)
-        {
-            DeleteSprite(sprite.Link);
-        }
-
-        sprite.Owner?.Link = null;
-
-        if (!isEmpty)
-        {
-            RemoveFromUpdates(sprite);
-            ForgetPlacement(sprite);
-            sprite.Release();
-        }
-
-        if (sprite.ReferenceCount != 0)
-        {
-            Session.Logger.Error(SpriteLogTag, LogError.Text, 0, default);
-        }
-
-        if (sprite.Handle == 0)
-            return;
-
-        _handles.Remove(sprite.Handle);
-        sprite.Handle = 0;
-    }
-
-    private void ForgetPlacement(Sprite sprite)
-    {
-        var placement = sprite.Placement;
-
-        if (placement is null)
-            return;
-
-        if (_statics.TryGetValue(placement, out var stand) && stand == sprite)
-        {
-            _statics.Remove(placement);
-        }
-
-        if (_bodies.TryGetValue(placement, out var body) && body == sprite)
-        {
-            _bodies.Remove(placement);
-        }
-
-        if (!IsBaked(sprite.Definition))
-        {
-            RemoveSprite(placement);
-        }
     }
 }

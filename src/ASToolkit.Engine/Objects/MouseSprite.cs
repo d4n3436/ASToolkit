@@ -34,14 +34,13 @@ public sealed class MouseSprite : Sprite
     /// <param name="hitPoints">The hit points of the sprite.</param>
     /// <param name="direction">The direction of the sprite.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    /// <param name="parent">The sprite that created this sprite.</param>
-    public MouseSprite(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Angle direction = default, Map? map = null, Sprite? parent = null)
-        : base(number, definition, position, army, hitPoints, direction, map, parent)
+    public MouseSprite(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Angle direction = default, Map? map = null)
+        : base(number, definition, position, army, hitPoints, direction, map)
     {
     }
 
     /// <summary>
-    /// Gets a value indicating whether the system draws the cursor rather than this sprite.
+    /// Gets a value indicating whether the cursor is a system cursor.
     /// </summary>
     public bool IsHardwareCursor { get; private set; } = true;
 
@@ -51,17 +50,17 @@ public sealed class MouseSprite : Sprite
     public bool IsCursorLoaded { get; private set; }
 
     /// <summary>
-    /// Gets the animation whose system cursor is showing, or -1 when no system cursor is set.
+    /// Gets the animation of the system cursor that is showing, or -1 if no system cursor is set.
     /// </summary>
     public int ShownCursor { get; private set; } = NoCursor;
 
     /// <summary>
-    /// Gets the system cursor that is showing, or an invalid image when none is set or its file is missing.
+    /// Gets the system cursor that is showing, or an invalid image when no system cursor is set or its file is missing.
     /// </summary>
     public CursorImage ShownCursorImage => ShownCursor >= 0 && ShownCursor < _cursors.Length ? _cursors[ShownCursor] : default;
 
     /// <summary>
-    /// Draws the cursor when it is drawn in software and loaded.
+    /// Draws the cursor if it's loaded and isn't a system cursor.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
@@ -76,9 +75,9 @@ public sealed class MouseSprite : Sprite
     }
 
     /// <summary>
-    /// Loads the cursor, reading a system cursor for each animation from the cursor folder when the system draws the cursor.
+    /// Loads the cursor and, if it's a system cursor, the system cursor of each animation.
     /// </summary>
-    /// <param name="fileSystem">The file system the cursor files are read from.</param>
+    /// <param name="fileSystem">The file system that holds the cursor files.</param>
     [EngineRoutine(0x00446d90)]
     public void LoadCursor(IGameFileSystem fileSystem)
     {
@@ -120,7 +119,7 @@ public sealed class MouseSprite : Sprite
     /// Switches to the system cursor.
     /// </summary>
     /// <param name="empty">The empty definition the sprite takes.</param>
-    /// <param name="fileSystem">The file system the cursor files are read from.</param>
+    /// <param name="fileSystem">The file system that holds the cursor files.</param>
     [EngineRoutine(0x00446f40)]
     public void UseHardwareCursor(SpriteDefinition empty, IGameFileSystem fileSystem)
     {
@@ -137,7 +136,7 @@ public sealed class MouseSprite : Sprite
     /// Switches to drawing the cursor as this sprite.
     /// </summary>
     /// <param name="definition">The definition of the software cursor.</param>
-    /// <param name="fileSystem">The file system the cursor files are read from.</param>
+    /// <param name="fileSystem">The file system that holds the cursor files.</param>
     [EngineRoutine(0x00446f70)]
     public void UseSoftwareCursor(SpriteDefinition definition, IGameFileSystem fileSystem)
     {
@@ -154,7 +153,7 @@ public sealed class MouseSprite : Sprite
     }
 
     /// <summary>
-    /// Changes the cursor to an animation, setting its system cursor when the system draws the cursor.
+    /// Changes the cursor to an animation, showing the animation's system cursor if the cursor is a system cursor.
     /// </summary>
     /// <param name="type">The animation of the cursor.</param>
     [EngineRoutine(0x00446fd0)]

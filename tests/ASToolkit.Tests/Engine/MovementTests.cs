@@ -1,10 +1,11 @@
-using System.Runtime.CompilerServices;
-using ASToolkit.Engine;
+using System.Drawing;
 using System.Numerics;
-using ASToolkit.Formats;
+using System.Runtime.CompilerServices;
 using ASToolkit.Analysis.Levels;
 using ASToolkit.Analysis.Routes;
 using ASToolkit.Bot;
+using ASToolkit.Engine;
+using ASToolkit.Formats;
 using Xunit;
 
 namespace ASToolkit.Tests.Engine;
@@ -16,7 +17,7 @@ public class MovementTests
     {
         var lattice = new Lattice(10, 7);
         var middle = lattice.ToWorld(22, 30.5f);
-        var terrain = new MovementMap();
+        var terrain = new MovementMap(new SizeF(8192, 8192));
         var sprites = CreateSprites(terrain);
         var wall = Place(sprites, Body(new Vector3(10, 10, 40)), new Vector3(middle.X, middle.Y, 0), KnownObject.SpawnWallSlash);
         var grid = new RouteGrid
@@ -42,7 +43,7 @@ public class MovementTests
             Lattice = new Lattice(10, 7), Cells = Enumerable.Range(0, 4).SelectMany(u => Enumerable.Range(0, 4).Select(v => new Cell(u, v))).ToHashSet(),
             Edges = [], FenceEdges = [], BlockedCells = []
         };
-        var terrain = new MovementMap();
+        var terrain = new MovementMap(new SizeF(8192, 8192));
         var field = new WalkField(grid, false, terrain, CreateSprites(terrain), Body(new Vector3(24, 18, 40), spriteClass: SpriteClass.Man));
         var outside = new Vector2(-120, 0);
         int start = field.FindStart(outside.AsVector3());
@@ -74,7 +75,7 @@ public class MovementTests
     [Fact]
     public void GetSupportHeight_PlayerFootprint_SamplesWholeCellStepsFromItsLeftEdge()
     {
-        var movement = new MovementMap();
+        var movement = new MovementMap(new SizeF(8192, 8192));
         var player = Body(new Vector3(24, 24, 40), spriteClass: SpriteClass.Man);
         movement.RaiseTemporary(new Vector3(24, 16, 40));
         Assert.Equal(0, movement.GetSupportHeight(player, new Vector2(16, 20)));
@@ -99,7 +100,7 @@ public class MovementTests
     [Fact]
     public void CanMove_AlongATerrainBoundary_KeepsTheStationaryAxisExact()
     {
-        var terrain = new MovementMap();
+        var terrain = new MovementMap(new SizeF(8192, 8192));
         var player = Body(new Vector3(24, 18, 40), spriteClass: SpriteClass.Man);
         var field = CreateField(player, terrain);
         terrain.RaiseTemporary(new Vector3(1336, 3136, 73));
@@ -111,7 +112,7 @@ public class MovementTests
     {
         var narrow = Body(new Vector3(8, 8, 40));
         var wide = Body(new Vector3(24, 18, 40));
-        var terrain = new MovementMap();
+        var terrain = new MovementMap(new SizeF(8192, 8192));
         var sprites = CreateSprites(terrain);
         Place(sprites, Body(new Vector3(6, 200, 40)), new Vector3(30, 0, 0));
         Place(sprites, Body(new Vector3(6, 200, 40)), new Vector3(50, 0, 0));
@@ -141,14 +142,17 @@ public class MovementTests
         map.Collector.InsertToHash(new Sprite(1, walker, new Vector3(64, 0, 30), Army.Monsters, 10));
         var collision = map.Projectiles;
 
-        Assert.Equal(new Vector3(32, 0, 10), collision.Trace(bullet, new Vector3(0, 0, 10),
-            new Vector3(128, 0, 10), out bool wall));
+        var wallImpact = new Vector3(128, 0, 10);
+        bool wall = collision.Trace(new Sprite(9, bullet, new Vector3(0, 0, 10), 0, 10), ref wallImpact);
+        Assert.Equal(new Vector3(32, 0, 10), wallImpact);
         Assert.True(wall);
-        Assert.Equal(new Vector3(64, 0, 40), collision.Trace(bullet, new Vector3(0, 0, 40),
-            new Vector3(128, 0, 40), out bool target));
+        var targetImpact = new Vector3(128, 0, 40);
+        bool target = collision.Trace(new Sprite(9, bullet, new Vector3(0, 0, 40), 0, 10), ref targetImpact);
+        Assert.Equal(new Vector3(64, 0, 40), targetImpact);
         Assert.True(target);
-        Assert.Equal(new Vector3(128, 0, 60), collision.Trace(bullet, new Vector3(0, 0, 60),
-            new Vector3(128, 0, 60), out bool clear));
+        var clearImpact = new Vector3(128, 0, 60);
+        bool clear = collision.Trace(new Sprite(9, bullet, new Vector3(0, 0, 60), 0, 10), ref clearImpact);
+        Assert.Equal(new Vector3(128, 0, 60), clearImpact);
         Assert.False(clear);
     }
 
@@ -163,11 +167,11 @@ public class MovementTests
         map.Collector.InsertToHash(crushed);
         map.Collector.InsertToHash(new Sprite(2, wall, new Vector3(52, 50, 0), Army.Monsters, 10));
 
-        Assert.True(map.Projectiles.IsBlockedAt(mover, new Vector3(50, 50, 0)));
+        Assert.NotNull(map.Projectiles.FindBlocker(new Sprite(3, mover, new Vector3(50, 50, 0), Army.Monsters, 10), new Vector3(50, 50, 0)));
         Assert.Equal(5, crushed.Hp);
     }
 
-    private static SpriteCollector CreateSprites(MovementMap terrain) => new(terrain.MapSize, new Vector2(256));
+    private static SpriteCollector CreateSprites(MovementMap terrain) => new(terrain.MapSize, new SpriteDefinition?[] { new(KnownObject.Barrel, Body(new Vector3(256, 256, 0)), default, 0) });
 
     private static Sprite Place(SpriteCollector sprites, GameObject obj, Vector3 position, KnownObject id = KnownObject.Barrel)
     {
@@ -179,7 +183,7 @@ public class MovementTests
 
     private static WalkField CreateField(GameObject walker, params (GameObject Obj, Vector3 Position)[] obstacles)
     {
-        var terrain = new MovementMap();
+        var terrain = new MovementMap(new SizeF(8192, 8192));
         var sprites = CreateSprites(terrain);
         foreach (var (obj, position) in obstacles)
         {
@@ -204,6 +208,7 @@ public class MovementTests
     {
         var obj = default(GameObject);
         Unsafe.AsRef(in obj.SpriteClass) = spriteClass;
+        Unsafe.AsRef(in obj.Directions) = 1;
         Unsafe.AsRef(in obj.Properties) = ObjectProperties.ZeroZ | ObjectProperties.Hash | extra;
         Unsafe.AsRef(in obj.MoveMask) = (CollisionLayers)mask;
         Unsafe.AsRef(in obj.Size) = size;

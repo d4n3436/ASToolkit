@@ -26,11 +26,11 @@ public sealed partial class Map
     public SpriteDefinition? GetPendingBuild(Sprite building) => _builds.TryGetValue(building, out var pending) ? pending.Definition : null;
 
     /// <summary>
-    /// Creates a sprite of the default definition at a point, the goal of an order on that point.
+    /// Creates the goal sprite of an order on a point.
     /// </summary>
     /// <param name="position">The point.</param>
     /// <returns>The goal sprite.</returns>
-    public Sprite ConstructGoal(Vector3 position) => ConstructSpriteOfClass(Definitions.Empty, position, default, Army.Player, 0);
+    public Sprite ConstructGoal(Vector3 position) => ConstructPlain(Definitions.Empty, position, default, null);
 
     [EngineRoutine(0x00406e50)]
     private static ReadOnlyMemory<byte> GetAfter(ReadOnlyMemory<byte> text, ReadOnlySpan<byte> delimiter)
@@ -38,14 +38,14 @@ public sealed partial class Map
         var source = CRuntime.GetString(text);
         int index = source.Span.IndexOf(delimiter);
 
-        return index < 0 ? ReadOnlyMemory<byte>.Empty : source[(index + delimiter.Length)..];
+        return index < 0 ? default : source[(index + delimiter.Length)..];
     }
 
     [EngineRoutine(0x00446480)]
     private static ReadOnlyMemory<byte> GetTextItems(Sprite sprite)
     {
         if (sprite.Items.Count == 0)
-            return ReadOnlyMemory<byte>.Empty;
+            return default;
 
         var text = new List<byte>();
         foreach (int item in sprite.Items)
@@ -80,7 +80,6 @@ public sealed partial class Map
         }
     }
 
-    [EngineRoutine(0x004458a0)]
     private static void AppendNumber(List<byte> text, int value)
     {
         Span<byte> number = stackalloc byte[11];
@@ -88,6 +87,7 @@ public sealed partial class Map
         text.AddRange(number[..length]);
     }
 
+    [EngineRoutine(0x004458a0)]
     private static ReadOnlyMemory<byte> GetCommands(Sprite sprite)
     {
         var text = new List<byte>();

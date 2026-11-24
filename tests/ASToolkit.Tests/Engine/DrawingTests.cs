@@ -1,7 +1,7 @@
 using System.Drawing;
-using ASToolkit.Engine;
-using ASToolkit.Bot.Rendering;
 using ASToolkit.Bot;
+using ASToolkit.Bot.Rendering;
+using ASToolkit.Engine;
 using Xunit;
 
 namespace ASToolkit.Tests.Engine;
@@ -41,7 +41,6 @@ public class DrawingTests
     {
         for (int frame = 0; frame < frames; frame++)
         {
-            map.AdvanceClock();
             map.Step();
         }
     }

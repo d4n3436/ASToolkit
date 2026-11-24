@@ -44,7 +44,7 @@ public sealed class MapObserver
             {
                 var sprite = previous[i];
 
-                if (!_alive.Contains(sprite) && sprite.Animation == SpriteAnimation.Death && sprite.Placement is null && Map.IsBaked(sprite.Definition))
+                if (!_alive.Contains(sprite) && sprite.Animation == SpriteAnimation.Death && Map.IsBaked(sprite.Definition))
                 {
                     _baked.Add(SpawnedObjectSystem.GetState(sprite));
                 }

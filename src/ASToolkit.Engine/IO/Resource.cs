@@ -29,16 +29,42 @@ internal ref struct Resource
 
     public static ReadOnlySpan<byte> AnyTag => "ANY "u8;
 
+    public readonly int ChunkSize => _chunkSize;
+
     private static ReadOnlySpan<byte> ResSignature => "RES "u8;
 
     private static ReadOnlySpan<byte> RiffSignature => "RIFF"u8;
 
-    private static ReadOnlySpan<byte> LogTag => "RES '%s' '%.4s'"u8;
-
     public static Resource FromRecord(ReadOnlySpan<byte> data) => new() { _data = data, _isOpen = true };
 
+    [EngineRoutine(0x00406590)]
+    public static ReadOnlySpan<byte> ReadText(ReadOnlySpan<byte> data, scoped ref int position)
+    {
+        int start = Math.Min(position, data.Length);
+        var rest = data[start..];
+        int length = rest.IndexOfAny((byte)0, CRuntime.LineFeed);
+        int consumed = length < 0 ? rest.Length : length + 1;
+        var text = rest[..(length < 0 ? rest.Length : length)];
+        position = start + consumed;
+
+        if (!text.Contains(CRuntime.CarriageReturn))
+            return text;
+
+        byte[] kept = new byte[text.Length - text.Count(CRuntime.CarriageReturn)];
+        int i = 0;
+        foreach (byte character in text)
+        {
+            if (character != CRuntime.CarriageReturn)
+            {
+                kept[i++] = character;
+            }
+        }
+
+        return kept;
+    }
+
     [EngineRoutine(0x00407a40)]
-    public int Open(IGameFileSystem fileSystem, GameLogger logger, ReadOnlySpan<byte> name, ReadOnlySpan<byte> kind)
+    public int Open(IGameFileSystem fileSystem, GameLogger? logger, ReadOnlySpan<byte> name, ReadOnlySpan<byte> kind)
     {
         _isOpen = false;
         if (!name.IsEmpty && fileSystem.TryRead(Encoding.ASCII.GetString(name), out var data))
@@ -70,6 +96,7 @@ internal ref struct Resource
         if (!_isOpen)
             return 1;
 
+        Span<byte> skipped = stackalloc byte[sizeof(int) * 2];
         int wanted = BinaryPrimitives.ReadInt32LittleEndian(tag);
         int any = BinaryPrimitives.ReadInt32LittleEndian(AnyTag);
         do
@@ -92,7 +119,7 @@ internal ref struct Resource
                 var flags = Read<ResChunkFlags>();
                 if (flags.HasFlag(ResChunkFlags.ExtendedHeader))
                 {
-                    Read(sizeof(int) * 2);
+                    Read(skipped);
                 }
 
                 _recordOffset = _position;
@@ -120,35 +147,70 @@ internal ref struct Resource
         return Found;
     }
 
-    [EngineRoutine(0x00407b90)]
-    public ReadOnlySpan<byte> Read(int length)
+    [EngineRoutine(0x00408080)]
+    public int Load(GameLogger? logger, out byte[] block)
     {
-        if (!_isOpen || length <= 0)
-            return [];
+        block = [];
+        if (!_isOpen)
+        {
+            Log(logger, LogError.Load, 0, "file not opened"u8);
+            return 0;
+        }
 
-        int count = Math.Clamp(_data.Length - _position, 0, length);
-        var read = _data.Slice(_position, count);
+        if (_recordLength < 1)
+        {
+            Log(logger, LogError.Section, 0, "SubLoad"u8);
+            return 0;
+        }
+
+        block = new byte[_recordLength];
+        if (Read(block) != 0)
+        {
+            Log(logger, LogError.Load, 0, "Subload"u8);
+        }
+
+        return _recordLength;
+    }
+
+    [EngineRoutine(0x00407b90)]
+    public int Read(scoped Span<byte> destination)
+    {
+        if (!_isOpen || destination.IsEmpty)
+            return destination.Length;
+
+        int count = Math.Clamp(_data.Length - _position, 0, destination.Length);
+        _data.Slice(_position, count).CopyTo(destination);
         _position += count;
 
-        return read;
+        return destination.Length - count;
     }
 
     public T Read<T>()
-        where T : unmanaged =>
-        TryRead(out T value) ? value : throw new EndOfStreamException();
+        where T : unmanaged
+    {
+        T value = default;
+
+        return Read(MemoryMarshal.AsBytes(new Span<T>(ref value))) == 0 ? value : throw new EndOfStreamException();
+    }
 
     public ReadOnlySpan<T> Read<T>(int count)
-        where T : unmanaged =>
-        MemoryMarshal.Cast<byte, T>(Read(count * Unsafe.SizeOf<T>()));
+        where T : unmanaged
+    {
+        if (count <= 0)
+            return [];
+
+        T[] values = new T[count];
+        int missing = Read(MemoryMarshal.AsBytes(values.AsSpan()));
+
+        return values.AsSpan(0, count - (missing + Unsafe.SizeOf<T>() - 1) / Unsafe.SizeOf<T>());
+    }
 
     public bool TryRead<T>(out T value)
         where T : unmanaged
     {
-        var read = Read(Unsafe.SizeOf<T>());
-        bool isComplete = read.Length == Unsafe.SizeOf<T>();
-        value = isComplete ? MemoryMarshal.Read<T>(read) : default;
+        value = default;
 
-        return isComplete;
+        return Read(MemoryMarshal.AsBytes(new Span<T>(ref value))) == 0;
     }
 
     public void ReadInto<T>(ref T value)
@@ -162,41 +224,15 @@ internal ref struct Resource
 
     public ReadOnlySpan<byte> ReadText() => ReadText(_data, ref _position);
 
-    [EngineRoutine(0x00406590)]
-    public static ReadOnlySpan<byte> ReadText(ReadOnlySpan<byte> data, scoped ref int position)
-    {
-        int start = Math.Min(position, data.Length);
-        var rest = data[start..];
-        int length = rest.IndexOfAny((byte)0, CRuntime.LineFeed);
-        int consumed = length < 0 ? rest.Length : length + 1;
-        var text = rest[..(length < 0 ? rest.Length : length)];
-        position = start + consumed;
-
-        if (!text.Contains(CRuntime.CarriageReturn))
-            return text;
-
-        byte[] kept = new byte[text.Length - text.Count(CRuntime.CarriageReturn)];
-        int i = 0;
-        foreach (byte character in text)
-        {
-            if (character != CRuntime.CarriageReturn)
-            {
-                kept[i++] = character;
-            }
-        }
-
-        return kept;
-    }
-
     [EngineRoutine(0x00407870)]
-    private int Open(GameLogger logger, ReadOnlySpan<byte> data, ReadOnlySpan<byte> kind)
+    private int Open(GameLogger? logger, ReadOnlySpan<byte> data, ReadOnlySpan<byte> kind)
     {
         _data = data;
         _isOpen = true;
         _position = 0;
         _start = _position;
-        var signature = Read(TagSize);
-        if (signature.Length < TagSize)
+        Span<byte> signature = stackalloc byte[TagSize];
+        if (Read(signature) != 0)
         {
             Log(logger, LogError.Load, 0, "empty file"u8);
             _isOpen = false;
@@ -218,7 +254,8 @@ internal ref struct Resource
             Log(logger, LogError.Text, _data.Length - _end, "Invalid filelength"u8);
         }
 
-        var type = Read(TagSize);
+        Span<byte> type = stackalloc byte[TagSize];
+        Read(type);
         if (!type.SequenceEqual(kind) && !kind.SequenceEqual(AnyTag))
         {
             _chunkTag = BinaryPrimitives.ReadInt32LittleEndian(type);
@@ -232,10 +269,8 @@ internal ref struct Resource
         return 0;
     }
 
-    private readonly void Log(GameLogger logger, LogError code, int value, ReadOnlySpan<byte> text)
+    private readonly void Log(GameLogger? logger, LogError code, int value, ReadOnlySpan<byte> text)
     {
-        byte[] tag = new byte[TagSize];
-        BinaryPrimitives.WriteInt32LittleEndian(tag, _chunkTag);
-        logger.Error(LogTag, code, value, text, (ReadOnlyMemory<byte>)_name.ToArray(), (ReadOnlyMemory<byte>)tag);
+        logger?.Error($"RES '{GameLogger.Decode(_name)}' '{GameLogger.Decode(MemoryMarshal.AsBytes(new ReadOnlySpan<int>(in _chunkTag)))}'", code, value, text);
     }
 }

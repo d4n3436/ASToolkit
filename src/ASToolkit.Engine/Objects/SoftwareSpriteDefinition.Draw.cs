@@ -1,9 +1,8 @@
 using System.Drawing;
 using System.Numerics;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using ASToolkit.Formats;
 using ASToolkit.Core;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
@@ -17,10 +16,111 @@ public partial class SoftwareSpriteDefinition
     private protected const int SlopeStep = -8;
     private protected const int WaveTableMask = 0xff;
     private protected const int WaveTimeShift = 3;
-    private protected const int RunHeader = 2;
     private protected const int PaletteScratchSize = 1024;
     private protected const int AlphaShift = 24;
     private protected const int Cell = 8;
+
+    private bool HasSlope => Object.Size.Y < Object.Size.Z;
+
+    /// <summary>
+    /// Blends a color over another with the alpha of the source.
+    /// </summary>
+    /// <param name="destination">The color underneath, with blue in the lowest byte.</param>
+    /// <param name="source">The color on top.</param>
+    /// <param name="alpha">The alpha of the source, from 0 to 255.</param>
+    /// <returns>The blended color with an opaque top byte.</returns>
+    [EngineRoutine(0x00416680)]
+    public static uint BlendColor(uint destination, uint source, int alpha)
+    {
+        int weight = alpha + 1;
+        int inverse = 0x100 - weight;
+        uint blue = (uint)Math.Clamp((int)(destination & 0xff) * inverse + (int)(source & 0xff) * weight >> Gamma.ChannelBits, 0, 0xff);
+        uint green = (uint)Math.Clamp((int)(destination >> Gamma.ChannelBits & 0xff) * inverse + (int)(source >> Gamma.ChannelBits & 0xff) * weight >> Gamma.ChannelBits, 0, 0xff);
+        uint red = (uint)Math.Clamp((int)(destination >> (2 * Gamma.ChannelBits) & 0xff) * inverse + (int)(source >> (2 * Gamma.ChannelBits) & 0xff) * weight >> Gamma.ChannelBits, 0, 0xff);
+
+        return Gamma.OpaqueAlpha | red << (2 * Gamma.ChannelBits) | green << Gamma.ChannelBits | blue;
+    }
+
+    /// <summary>
+    /// Blends a run of palette entries over 16-bit pixels where the depth buffer does not exceed the key, without changing the depth buffer.
+    /// </summary>
+    /// <param name="colors">The 16-bit pixels to draw to.</param>
+    /// <param name="depths">The depth buffer of <paramref name="colors"/>.</param>
+    /// <param name="format">The layout of <paramref name="colors"/>.</param>
+    /// <param name="palette">The palette, with 32-bit entries.</param>
+    /// <param name="indexes">The palette indexes of the run.</param>
+    /// <param name="depthIndex">The index of the run's first depth value.</param>
+    /// <param name="colorIndex">The index of the run's first pixel.</param>
+    /// <param name="count">The number of pixels.</param>
+    /// <param name="key">The depth of the sprite.</param>
+    [EngineRoutine(0x00416740)]
+    public static void BlendRun16(Span<ushort> colors, ReadOnlySpan<ushort> depths, HighColorFormat format, ReadOnlySpan<uint> palette, ReadOnlySpan<byte> indexes, int depthIndex, int colorIndex, int count, ushort key)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            if (depths[depthIndex + i] <= key)
+            {
+                uint entry = palette[indexes[i]];
+                uint color = BlendColor(format.Expand(colors[colorIndex + i]), entry, (int)(entry >> AlphaShift));
+                colors[colorIndex + i] = format.Pack(color);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Blends a run of palette entries over 32-bit pixels where the depth buffer does not exceed the key, without changing the depth buffer.
+    /// </summary>
+    /// <param name="colors">The 32-bit pixels to draw to.</param>
+    /// <param name="depths">The depth buffer of <paramref name="colors"/>.</param>
+    /// <param name="palette">The palette, with 32-bit entries.</param>
+    /// <param name="indexes">The palette indexes of the run.</param>
+    /// <param name="depthIndex">The index of the run's first depth value.</param>
+    /// <param name="colorIndex">The index of the run's first pixel.</param>
+    /// <param name="count">The number of pixels.</param>
+    /// <param name="key">The depth of the sprite.</param>
+    [EngineRoutine(0x00416600)]
+    public static void BlendRun32(Span<uint> colors, ReadOnlySpan<ushort> depths, ReadOnlySpan<uint> palette, ReadOnlySpan<byte> indexes, int depthIndex, int colorIndex, int count, ushort key)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            if (depths[depthIndex + i] <= key)
+            {
+                uint entry = palette[indexes[i]];
+                colors[colorIndex + i] = BlendColor(colors[colorIndex + i], entry, (int)(entry >> AlphaShift));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Draws a run of palette entries to 32-bit pixels where the depth buffer is below the key.
+    /// </summary>
+    /// <param name="colors">The 32-bit pixels to draw to.</param>
+    /// <param name="depths">The depth buffer of <paramref name="colors"/>.</param>
+    /// <param name="palette">The palette, with 32-bit entries.</param>
+    /// <param name="indexes">The palette indexes of the run.</param>
+    /// <param name="depthIndex">The index of the run's first depth value.</param>
+    /// <param name="colorIndex">The index of the run's first pixel.</param>
+    /// <param name="count">The number of pixels; a run of zero pixels still draws one.</param>
+    /// <param name="key">The depth of the sprite.</param>
+    [EngineRoutine(0x004165c0)]
+    public static void DrawPaletteRun(Span<uint> colors, Span<ushort> depths, ReadOnlySpan<uint> palette, ReadOnlySpan<byte> indexes, int depthIndex, int colorIndex, int count, short key)
+    {
+        int i = 0;
+        bool more;
+        do
+        {
+            if ((short)depths[depthIndex + i] < key)
+            {
+                depths[depthIndex + i] = (ushort)key;
+                colors[colorIndex + i] = palette[indexes[i]];
+            }
+
+            i++;
+            more = 0 < count;
+            count--;
+        }
+        while (count != 0 && more);
+    }
 
     /// <summary>
     /// Draws a sprite with 32-bit pixels from its runs.
@@ -35,439 +135,211 @@ public partial class SoftwareSpriteDefinition
         if (IsHidden)
             return;
 
-        var origin = new Point((int)sprite.Position.X - (int)camera.X - FrameSize.Center.X, (int)(sprite.Position.Y - sprite.Position.Z) - (int)camera.Y - FrameSize.Center.Y);
-        var clip = screen.Clip;
-        if (IsOutside(clip, origin, FrameSize))
+        var origin = GetScreenOrigin(sprite, camera);
+        if (!TryLocateFrame(map, sprite, screen.Viewport, ref origin, out int depth, out var rows))
             return;
 
-        int depth = GetDepth(map, sprite, ref origin);
-        if (!ReadFrame(Frames, clip, FrameOffsets[sprite.Frame], origin.Y, out int top, out int rowCount, out int end, out int position))
-            return;
-
-        bool clipped = origin.X < clip.Left || clip.Right < origin.X + FrameSize.Width;
         Span<byte> scratch = stackalloc byte[PaletteScratchSize];
-        var palette = MemoryMarshal.Cast<byte, uint>(SelectPalette(map, sprite, Palettes, scratch));
-        if (!(FileType.HasFlag(VidType.Blended) && FileType.HasFlag(VidType.Runs8Bit) && FileType.HasFlag(VidType.Palette)))
-        {
-            if (!FileType.HasFlag(VidType.Runs8Bit))
-                return;
-
-            if (!FileType.HasFlag(VidType.Palette) || !FileType.HasFlag(VidType.ZBuffer))
-            {
-                if (!FileType.HasFlag(VidType.Palette))
-                {
-                    depth = BiasDepth(depth);
-                    int step = 0;
-                    SkipRows(Frames, ref position, ref top, ref rowCount, clip.Top, sizeof(ushort));
-                    if (HasSlope())
-                    {
-                        depth += rowCount * Cell;
-                        step = SlopeStep;
-                    }
-
-                    int colorRow = top * screen.Pitch;
-                    int depthRow = top * screen.DepthWidth;
-                    for (int row = top; row < end; row++)
-                    {
-                        int x = origin.X;
-                        while (!RunAt(Frames, position).IsEnd)
-                        {
-                            ref readonly var run = ref RunAt(Frames, position);
-                            int start = x + run.Skip;
-                            int pixels = position + RunHeader;
-                            bool visible = ClipRunToRow(clip, clipped, start, run.Count, out int first, out int offset, out int count);
-                            var words = MemoryMarshal.Cast<byte, ushort>(Frames[pixels..]);
-                            for (int i = 0; visible && i < count; i++)
-                            {
-                                if (screen.Depth[depthRow + first + i] <= depth)
-                                {
-                                    screen.Depth[depthRow + first + i] = (ushort)depth;
-                                    screen.TrueColorPixels[colorRow + first + i] = screen.Format.Expand(words[offset + i]);
-                                }
-                            }
-
-                            position = pixels + run.Count * sizeof(ushort);
-                            x = start + run.Count;
-                        }
-
-                        position += RunHeader;
-                        colorRow += screen.Pitch;
-                        depthRow += screen.DepthWidth;
-                        depth += step;
-                    }
-                }
-                else
-                {
-                    depth = BiasDepth(depth);
-                    int step = 0;
-                    SkipRows(Frames, ref position, ref top, ref rowCount, clip.Top, sizeof(byte));
-                    if (HasSlope())
-                    {
-                        depth += rowCount * Cell;
-                        step = SlopeStep;
-                    }
-
-                    short key = (short)depth;
-                    int colorRow = top * screen.Pitch;
-                    int depthRow = top * screen.DepthWidth;
-                    for (int row = top; row < end; row++)
-                    {
-                        int x = origin.X;
-                        while (!RunAt(Frames, position).IsEnd)
-                        {
-                            ref readonly var run = ref RunAt(Frames, position);
-                            int start = x + run.Skip;
-                            int pixels = position + RunHeader;
-                            bool visible = ClipRunToRow(clip, clipped, start, run.Count, out int first, out int offset, out int count);
-                            if (visible && clipped)
-                            {
-                                DrawPaletteRun(screen, palette, Frames[(pixels + offset)..], depthRow + first, colorRow + first, count, key);
-                            }
-                            else if (visible)
-                            {
-                                for (int i = 0; i < count; i++)
-                                {
-                                    if (screen.Depth[depthRow + first + i] <= depth)
-                                    {
-                                        screen.Depth[depthRow + first + i] = (ushort)depth;
-                                        screen.TrueColorPixels[colorRow + first + i] = palette[Frames[pixels + offset + i]];
-                                    }
-                                }
-                            }
-
-                            position = pixels + run.Count;
-                            x = start + run.Count;
-                        }
-
-                        position += RunHeader;
-                        colorRow += screen.Pitch;
-                        depthRow += screen.DepthWidth;
-                        depth += step;
-                        key = (short)(key + step);
-                    }
-                }
-            }
-            else
-            {
-                DrawDepthRuns(screen, screen.TrueColorPixels, palette, Frames, origin, clipped, position, top, rowCount, end, (short)depth);
-            }
-        }
-        else
-        {
-            DrawBlendedRuns(screen, palette, Frames, origin, clipped, position, top, rowCount, end, depth);
-        }
+        var target = new RunTarget<uint>(screen.TrueColorPixels, screen.Pitch, screen.Depth, screen.DepthWidth, screen.Viewport, screen.Format);
+        DrawRuns(target, SelectPalette(map, sprite, scratch), origin, depth, rows);
     }
 
-    /// <summary>
-    /// Blends a color over another with the alpha of the source.
-    /// </summary>
-    /// <param name="destination">The color underneath, with blue in the lowest byte.</param>
-    /// <param name="source">The color on top.</param>
-    /// <param name="alpha">The alpha of the source, from 0 to 255.</param>
-    /// <returns>The blended color with an opaque top byte.</returns>
-    [EngineRoutine(0x00416680)]
-    public static uint BlendColor(uint destination, uint source, int alpha)
-    {
-        int weight = alpha + 1;
-        int inverse = 0x100 - weight;
-        uint blue = BlendChannel((int)(destination & 0xff), (int)(source & 0xff), inverse, weight);
-        uint green = BlendChannel((int)(destination >> Gamma.ChannelBits & 0xff), (int)(source >> Gamma.ChannelBits & 0xff), inverse, weight);
-        uint red = BlendChannel((int)(destination >> (2 * Gamma.ChannelBits) & 0xff), (int)(source >> (2 * Gamma.ChannelBits) & 0xff), inverse, weight);
+    private protected Point GetScreenOrigin(Sprite sprite, Vector2 camera) =>
+        new((int)sprite.Position.X - (int)camera.X - FrameSize.Center.X, (int)(sprite.Position.Y - sprite.Position.Z) - (int)camera.Y - FrameSize.Center.Y);
 
-        return Gamma.OpaqueAlpha | red << (2 * Gamma.ChannelBits) | green << Gamma.ChannelBits | blue;
-    }
-
-    /// <summary>
-    /// Blends a run of palette entries over 16-bit pixels where the depth buffer does not exceed the key, without changing the depth buffer.
-    /// </summary>
-    /// <param name="screen">The screen to draw to.</param>
-    /// <param name="palette">The palette, with 32-bit entries.</param>
-    /// <param name="indexes">The palette indexes of the run.</param>
-    /// <param name="depthIndex">The index of the run's first depth value.</param>
-    /// <param name="colorIndex">The index of the run's first pixel.</param>
-    /// <param name="count">The number of pixels.</param>
-    /// <param name="key">The depth of the sprite.</param>
-    [EngineRoutine(0x00416740)]
-    public static void BlendRun16(Screen screen, ReadOnlySpan<uint> palette, ReadOnlySpan<byte> indexes, int depthIndex, int colorIndex, int count, ushort key)
+    private protected bool TryLocateFrame(Map map, Sprite sprite, Rectangle viewport, ref Point origin, out int depth, out FrameRows rows)
     {
-        for (int i = 0; i < count; i++)
+        depth = 0;
+        rows = default;
+        if (viewport.Left > origin.X + FrameSize.Width || origin.X >= viewport.Right || viewport.Top > origin.Y + FrameSize.Height || origin.Y >= viewport.Bottom)
+            return false;
+
+        depth = (int)(sprite.Position.Z * HeightScale);
+        if (Object.Properties.HasFlag(ObjectProperties.AlwaysTop) && depth <= LiftedLimit)
         {
-            var depths = screen.Depth;
-            if (depths[depthIndex + i] <= key)
-            {
-                uint entry = palette[indexes[i]];
-                var colors = screen.HighColorPixels;
-                uint color = BlendColor(screen.Format.Expand(colors[colorIndex + i]), entry, (int)(entry >> AlphaShift));
-                colors[colorIndex + i] = screen.Format.Pack(color);
-            }
+            depth += LiftedDepth;
         }
-    }
-
-    /// <summary>
-    /// Blends a run of palette entries over 32-bit pixels where the depth buffer does not exceed the key, without changing the depth buffer.
-    /// </summary>
-    /// <param name="screen">The screen to draw to.</param>
-    /// <param name="palette">The palette, with 32-bit entries.</param>
-    /// <param name="indexes">The palette indexes of the run.</param>
-    /// <param name="depthIndex">The index of the run's first depth value.</param>
-    /// <param name="colorIndex">The index of the run's first pixel.</param>
-    /// <param name="count">The number of pixels.</param>
-    /// <param name="key">The depth of the sprite.</param>
-    [EngineRoutine(0x00416600)]
-    public static void BlendRun32(Screen screen, ReadOnlySpan<uint> palette, ReadOnlySpan<byte> indexes, int depthIndex, int colorIndex, int count, ushort key)
-    {
-        for (int i = 0; i < count; i++)
-        {
-            var depths = screen.Depth;
-            if (depths[depthIndex + i] <= key)
-            {
-                uint entry = palette[indexes[i]];
-                var colors = screen.TrueColorPixels;
-                colors[colorIndex + i] = BlendColor(colors[colorIndex + i], entry, (int)(entry >> AlphaShift));
-            }
-        }
-    }
-
-    /// <summary>
-    /// Draws a run of palette entries to 32-bit pixels where the depth buffer is below the key.
-    /// </summary>
-    /// <param name="screen">The screen to draw to.</param>
-    /// <param name="palette">The palette, with 32-bit entries.</param>
-    /// <param name="indexes">The palette indexes of the run.</param>
-    /// <param name="depthIndex">The index of the run's first depth value.</param>
-    /// <param name="colorIndex">The index of the run's first pixel.</param>
-    /// <param name="count">The number of pixels; a run of none still draws one.</param>
-    /// <param name="key">The depth of the sprite.</param>
-    [EngineRoutine(0x004165c0)]
-    public static void DrawPaletteRun(Screen screen, ReadOnlySpan<uint> palette, ReadOnlySpan<byte> indexes, int depthIndex, int colorIndex, int count, short key)
-    {
-        int i = 0;
-        bool more;
-        do
-        {
-            var depths = screen.Depth;
-            if ((short)depths[depthIndex + i] < key)
-            {
-                depths[depthIndex + i] = (ushort)key;
-                var colors = screen.TrueColorPixels;
-                colors[colorIndex + i] = palette[indexes[i]];
-            }
-
-            i++;
-            more = 0 < count;
-            count--;
-        }
-        while (count != 0 && more);
-    }
-
-    private protected static void DrawDepthRuns<TColor>(Screen target, Span<TColor> colors, ReadOnlySpan<TColor> palette, ReadOnlySpan<byte> data, Point origin, bool clipped, int position, int top, int rowCount, int end, short key)
-    {
-        var clip = target.Clip;
-        SkipRows(data, ref position, ref top, ref rowCount, clip.Top, 3);
-        int pitch = target.Pitch;
-        int colorRow = top * pitch;
-        int depthPitch = target.DepthWidth;
-        int depthRow = top * depthPitch;
-        for (int row = top; row < end; row++)
-        {
-            int x = origin.X;
-            while (!RunAt(data, position).IsEnd)
-            {
-                ref readonly var run = ref RunAt(data, position);
-                int start = x + run.Skip;
-                int pixels = position + RunHeader;
-                bool visible = ClipRunToRow(clip, clipped, start, run.Count, out int first, out int offset, out int count);
-                if (visible)
-                {
-                    var depthValues = MemoryMarshal.Cast<byte, short>(data[pixels..]);
-                    var zIndexes = data[(pixels + run.Count * sizeof(short))..];
-                    int remaining = count;
-                    int i = 0;
-                    bool more;
-                    do
-                    {
-                        short value = (short)(key + depthValues[offset + i]);
-                        var depths = target.Depth;
-                        if ((short)depths[depthRow + first + i] < value)
-                        {
-                            depths[depthRow + first + i] = (ushort)value;
-                            colors[colorRow + first + i] = palette[zIndexes[offset + i]];
-                        }
-
-                        i++;
-                        more = 0 < remaining;
-                        remaining--;
-                    }
-                    while (remaining != 0 && more);
-                }
-
-                position = pixels + run.Count * 3;
-                x = start + run.Count;
-            }
-
-            position += RunHeader;
-            colorRow += pitch;
-            depthRow += depthPitch;
-        }
-    }
-
-    private protected void DrawBlendedRuns(Screen target, ReadOnlySpan<uint> palette, ReadOnlySpan<byte> data, Point origin, bool clipped, int position, int top, int rowCount, int end, int depth)
-    {
-        depth = BiasDepth(depth);
-        int step = 0;
-        var clip = target.Clip;
-        SkipRows(data, ref position, ref top, ref rowCount, clip.Top, sizeof(byte));
-        short key = (short)depth;
-        if (HasSlope())
-        {
-            key = (short)(key + (short)rowCount * Cell);
-            step = SlopeStep;
-        }
-
-        int pitch = target.Pitch;
-        int colorRow = top * pitch;
-        int depthPitch = target.DepthWidth;
-        int depthRow = top * depthPitch;
-        for (int row = top; row < end; row++)
-        {
-            int x = origin.X;
-            while (!RunAt(data, position).IsEnd)
-            {
-                ref readonly var run = ref RunAt(data, position);
-                int start = x + run.Skip;
-                int pixels = position + RunHeader;
-                if (ClipRunToRow(clip, clipped, start, run.Count, out int first, out int offset, out int count))
-                {
-                    if (IsHighColor)
-                    {
-                        BlendRun16(target, palette, data[(pixels + offset)..], depthRow + first, colorRow + first, count, (ushort)key);
-                    }
-                    else
-                    {
-                        BlendRun32(target, palette, data[(pixels + offset)..], depthRow + first, colorRow + first, count, (ushort)key);
-                    }
-                }
-
-                position = pixels + run.Count;
-                x = start + run.Count;
-            }
-
-            position += RunHeader;
-            colorRow += pitch;
-            depthRow += depthPitch;
-            key = (short)(key + step);
-        }
-    }
-
-    private protected static bool IsOutside(Rectangle clip, Point origin, Size size) =>
-        clip.Left > origin.X + size.Width || origin.X >= clip.Right || clip.Top > origin.Y + size.Height || origin.Y >= clip.Bottom;
-
-    private protected int GetDepth(Map map, Sprite sprite, ref Point origin)
-    {
-        int depth = (int)(sprite.Position.Z * HeightScale);
-        var properties = Object.Properties;
-        if (properties.HasFlag(ObjectProperties.AlwaysTop) && depth <= LiftedLimit)
-            return depth + LiftedDepth;
-
-        if (properties.HasFlag(ObjectProperties.Wave))
+        else if (Object.Properties.HasFlag(ObjectProperties.Wave))
         {
             int bob = (int)(new Angle((byte)(map.Time >> WaveTimeShift & WaveTableMask)).Sine * Object.TopZ * HeightScale);
             depth += bob;
             origin.Y -= bob + (bob >> 31 & 7) >> 3;
         }
 
-        return depth;
-    }
-
-    private protected static bool ReadFrame(ReadOnlySpan<byte> data, Rectangle clip, int record, int originY, out int top, out int rowCount, out int end, out int position)
-    {
-        int rows = record + MemoryMarshal.AsRef<VidFrameHeader>(data[record..]).Size;
-        ref readonly var header = ref MemoryMarshal.AsRef<VidRowsHeader>(data[rows..]);
-        top = header.First + originY;
-        rowCount = header.Count;
-        end = rowCount + top;
-        position = rows + Unsafe.SizeOf<VidRowsHeader>();
-        if (top >= clip.Bottom || clip.Top > end)
+        var frame = FrameRows.Read(Frames, FrameOffsets[sprite.Frame]);
+        int top = frame.Top + origin.Y;
+        if (top >= viewport.Bottom || viewport.Top > frame.Count + top)
             return false;
 
-        end = Math.Min(end, clip.Bottom);
+        rows = frame with { Top = top };
         return true;
-    }
-
-    private protected ReadOnlySpan<byte> SelectPalette(Map map, Sprite sprite, ReadOnlySpan<byte> data, Span<byte> scratch)
-    {
-        if (!sprite.HasExtra || sprite.GammaOverride is { Negative: 0, Positive: 0 })
-            return data[GetPaletteOffset(sprite)..];
-
-        int paletteSize = GetPaletteSize();
-        int offset = FileType.HasFlag(VidType.PaletteVariants) ? paletteSize * 4 : 0;
-        var copy = scratch[..paletteSize];
-        data.Slice(offset, paletteSize).CopyTo(copy);
-        var gamma = sprite.GetGamma();
-        ApplyGamma(copy, Object.Properties.HasFlag(ObjectProperties.Gamma) ? gamma : gamma.Add(map.Session.Graphics.Gamma));
-        return scratch;
     }
 
     private protected int GetPaletteOffset(Sprite sprite) => FileType.HasFlag(VidType.PaletteVariants) ? GetPaletteSize() * ((int)sprite.Army & ArmyMask) : 0;
 
-    private protected static int BiasDepth(int depth) => Math.Min(depth + DepthBias, DepthLimit);
-
-    private protected bool HasSlope() => Object.Size.Y < Object.Size.Z;
-
-    private protected static void SkipRows(ReadOnlySpan<byte> data, ref int position, ref int top, ref int rowCount, int clipTop, int pixelSize)
+    private protected ReadOnlySpan<byte> SelectPalette(Map map, Sprite sprite, Span<byte> scratch)
     {
-        if (top >= clipTop)
-            return;
+        if (!sprite.HasExtra || sprite.GammaOverride is { Negative: 0, Positive: 0 })
+            return Palettes[GetPaletteOffset(sprite)..];
 
-        int skipped = clipTop - top;
-        top += skipped;
-        rowCount -= skipped;
-        do
-        {
-            while (!RunAt(data, position).IsEnd)
-            {
-                position += RunAt(data, position).Count * pixelSize + RunHeader;
-            }
-
-            position += RunHeader;
-            skipped--;
-        }
-        while (skipped != 0);
+        int paletteSize = GetPaletteSize();
+        int variant = FileType.HasFlag(VidType.PaletteVariants) ? paletteSize * 4 : 0;
+        Palettes.Slice(variant, paletteSize).CopyTo(scratch);
+        var gamma = sprite.GetGamma();
+        ApplyGamma(scratch[..paletteSize], Object.Properties.HasFlag(ObjectProperties.Gamma) ? gamma : gamma.Add(map.Session.Graphics.Gamma));
+        return scratch;
     }
 
-    private protected static bool ClipRunToRow(Rectangle clip, bool clipped, int start, int length, out int first, out int offset, out int count)
+    private protected void DrawRuns<TColor>(in RunTarget<TColor> target, ReadOnlySpan<byte> palette, Point origin, int depth, FrameRows rows)
+        where TColor : unmanaged
     {
-        first = start;
-        offset = 0;
-        count = length;
-        if (!clipped)
-            return true;
-
-        int end = start + length;
-        if (start < clip.Left)
+        if (FileType.HasFlag(VidType.Blended) && FileType.HasFlag(VidType.Runs8Bit) && FileType.HasFlag(VidType.Palette))
         {
-            first = clip.Left;
-            offset = clip.Left - start;
-            if (clip.Right < end)
-            {
-                count = clip.Right - clip.Left;
-                return true;
-            }
-
-            count = end - clip.Left;
-            return clip.Left < end;
+            DrawBlendedRuns(target, MemoryMarshal.Cast<byte, uint>(palette), origin, depth, rows);
         }
-
-        if (clip.Right < end)
+        else if (FileType.HasFlag(VidType.Runs8Bit) && !FileType.HasFlag(VidType.Palette))
         {
-            count = clip.Right - start;
-            return start < clip.Right;
+            DrawColorRuns(target, origin, depth, rows);
         }
-
-        return true;
+        else if (FileType.HasFlag(VidType.Runs8Bit) && FileType.HasFlag(VidType.ZBuffer))
+        {
+            DrawDepthRuns(target, MemoryMarshal.Cast<byte, TColor>(palette), origin, (short)depth, rows);
+        }
+        else if (FileType.HasFlag(VidType.Runs8Bit))
+        {
+            DrawPaletteRuns(target, MemoryMarshal.Cast<byte, TColor>(palette), origin, depth, rows);
+        }
     }
 
-    private protected static uint BlendChannel(int destination, int source, int inverse, int weight) => (uint)Math.Clamp(destination * inverse + source * weight >> Gamma.ChannelBits, 0, 0xff);
+    private void DrawColorRuns<TColor>(in RunTarget<TColor> target, Point origin, int depth, FrameRows rows)
+        where TColor : unmanaged
+    {
+        var runs = new RunWalker(Frames, rows, origin.X, FrameSize.Width, target.Viewport, sizeof(ushort));
+        depth = Math.Min(depth + DepthBias, DepthLimit);
+        int step = GetSlope(runs.RowCount, ref depth);
+        while (runs.MoveNext())
+        {
+            if (!runs.IsVisible)
+                continue;
 
-    private protected static ref readonly VidRunHeader RunAt(ReadOnlySpan<byte> data, int position) => ref MemoryMarshal.AsRef<VidRunHeader>(data[position..]);
+            int rowDepth = depth + (runs.Row - runs.Top) * step;
+            var pixels = MemoryMarshal.Cast<byte, ushort>(Frames[(runs.Pixels + runs.Offset * sizeof(ushort))..]);
+            int depthIndex = runs.Row * target.DepthPitch + runs.First;
+            int colorIndex = runs.Row * target.Pitch + runs.First;
+            for (int i = 0; i < runs.Count; i++)
+            {
+                if (target.Depths[depthIndex + i] <= rowDepth)
+                {
+                    target.Depths[depthIndex + i] = (ushort)rowDepth;
+                    target.Colors[colorIndex + i] = target.ToColor(pixels[i]);
+                }
+            }
+        }
+    }
+
+    private void DrawPaletteRuns<TColor>(in RunTarget<TColor> target, ReadOnlySpan<TColor> palette, Point origin, int depth, FrameRows rows)
+        where TColor : unmanaged
+    {
+        var runs = new RunWalker(Frames, rows, origin.X, FrameSize.Width, target.Viewport, sizeof(byte));
+        depth = Math.Min(depth + DepthBias, DepthLimit);
+        int step = GetSlope(runs.RowCount, ref depth);
+        while (runs.MoveNext())
+        {
+            if (!runs.IsVisible)
+                continue;
+
+            int rowDepth = depth + (runs.Row - runs.Top) * step;
+            var indexes = Frames[(runs.Pixels + runs.Offset)..];
+            int depthIndex = runs.Row * target.DepthPitch + runs.First;
+            int colorIndex = runs.Row * target.Pitch + runs.First;
+            if (target.IsTrueColor && runs.IsClipped)
+            {
+                DrawPaletteRun(MemoryMarshal.Cast<TColor, uint>(target.Colors), target.Depths, MemoryMarshal.Cast<TColor, uint>(palette), indexes, depthIndex, colorIndex, runs.Count, (short)rowDepth);
+                continue;
+            }
+
+            for (int i = 0; i < runs.Count; i++)
+            {
+                if (target.Depths[depthIndex + i] <= rowDepth)
+                {
+                    target.Depths[depthIndex + i] = (ushort)rowDepth;
+                    target.Colors[colorIndex + i] = palette[indexes[i]];
+                }
+            }
+        }
+    }
+
+    private void DrawDepthRuns<TColor>(in RunTarget<TColor> target, ReadOnlySpan<TColor> palette, Point origin, short key, FrameRows rows)
+        where TColor : unmanaged
+    {
+        var runs = new RunWalker(Frames, rows, origin.X, FrameSize.Width, target.Viewport, sizeof(short) + sizeof(byte));
+        while (runs.MoveNext())
+        {
+            if (!runs.IsVisible)
+                continue;
+
+            var offsets = MemoryMarshal.Cast<byte, short>(Frames[(runs.Pixels + runs.Offset * sizeof(short))..]);
+            var indexes = Frames[(runs.Pixels + runs.Length * sizeof(short) + runs.Offset)..];
+            int depthIndex = runs.Row * target.DepthPitch + runs.First;
+            int colorIndex = runs.Row * target.Pitch + runs.First;
+            int remaining = runs.Count;
+            int i = 0;
+            bool more;
+            do
+            {
+                short value = (short)(key + offsets[i]);
+                if ((short)target.Depths[depthIndex + i] < value)
+                {
+                    target.Depths[depthIndex + i] = (ushort)value;
+                    target.Colors[colorIndex + i] = palette[indexes[i]];
+                }
+
+                i++;
+                more = 0 < remaining;
+                remaining--;
+            }
+            while (remaining != 0 && more);
+        }
+    }
+
+    private void DrawBlendedRuns<TColor>(in RunTarget<TColor> target, ReadOnlySpan<uint> palette, Point origin, int depth, FrameRows rows)
+        where TColor : unmanaged
+    {
+        var runs = new RunWalker(Frames, rows, origin.X, FrameSize.Width, target.Viewport, sizeof(byte));
+        short key = (short)Math.Min(depth + DepthBias, DepthLimit);
+        int step = 0;
+        if (HasSlope)
+        {
+            key = (short)(key + (short)runs.RowCount * Cell);
+            step = SlopeStep;
+        }
+
+        while (runs.MoveNext())
+        {
+            if (!runs.IsVisible)
+                continue;
+
+            var rowKey = (ushort)(short)(key + (runs.Row - runs.Top) * step);
+            var indexes = Frames[(runs.Pixels + runs.Offset)..];
+            int depthIndex = runs.Row * target.DepthPitch + runs.First;
+            int colorIndex = runs.Row * target.Pitch + runs.First;
+            if (target.IsTrueColor)
+            {
+                BlendRun32(MemoryMarshal.Cast<TColor, uint>(target.Colors), target.Depths, palette, indexes, depthIndex, colorIndex, runs.Count, rowKey);
+            }
+            else
+            {
+                BlendRun16(MemoryMarshal.Cast<TColor, ushort>(target.Colors), target.Depths, target.Format, palette, indexes, depthIndex, colorIndex, runs.Count, rowKey);
+            }
+        }
+    }
+
+    private int GetSlope(int rowCount, ref int depth)
+    {
+        if (!HasSlope)
+            return 0;
+
+        depth += rowCount * Cell;
+        return SlopeStep;
+    }
 }

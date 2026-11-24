@@ -6,12 +6,11 @@ using ASToolkit.Formats;
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents the registry values the game's scripts read and write to carry the player between levels.
+/// Represents the registry values that carry the player's state between levels.
 /// </summary>
 public sealed class ScriptRegistry
 {
     private const int MaxStackText = 256;
-
     private const string RegPathSetting = "RegPath=";
 
     private readonly Dictionary<string, string> _values = new(StringComparer.OrdinalIgnoreCase);
@@ -19,14 +18,14 @@ public sealed class ScriptRegistry
     /// <summary>
     /// Initializes a new instance of the <see cref="ScriptRegistry"/> class as an empty registry.
     /// </summary>
-    /// <param name="defaultPath">The registry path the game's configuration names.</param>
+    /// <param name="defaultPath">The registry path named in the game's configuration.</param>
     public ScriptRegistry(string defaultPath)
     {
         DefaultPath = defaultPath;
     }
 
     /// <summary>
-    /// Gets the registry path the game's configuration names.
+    /// Gets the registry path named in the game's configuration.
     /// </summary>
     public string DefaultPath { get; }
 
@@ -78,6 +77,14 @@ public sealed class ScriptRegistry
     public void Set(string name, string value) => Set(DefaultPath, name, value);
 
     /// <summary>
+    /// Stores a number under a name of the default path.
+    /// </summary>
+    /// <param name="name">The value name.</param>
+    /// <param name="value">The number to store.</param>
+    [EngineRoutine(0x0042d280)]
+    public void SetNumber(string name, int value) => Set(name, value.ToString(CultureInfo.InvariantCulture));
+
+    /// <summary>
     /// Stores a value under a name of a path.
     /// </summary>
     /// <param name="path">The registry path.</param>
@@ -99,6 +106,6 @@ public sealed class ScriptRegistry
     private static int ParseLong(ReadOnlySpan<char> text)
     {
         var bytes = text.Length <= MaxStackText ? stackalloc byte[text.Length] : new byte[text.Length];
-        return CRuntime.ParseInteger(bytes[..Encoding.Latin1.GetBytes(text, bytes)]);
+        return CRuntime.ParseInteger(bytes[..Encoding.ASCII.GetBytes(text, bytes)]);
     }
 }

@@ -1,5 +1,5 @@
-using ASToolkit.Bot;
 using System.Numerics;
+using ASToolkit.Bot;
 using ASToolkit.Formats;
 using Xunit;
 
@@ -8,13 +8,13 @@ namespace ASToolkit.Tests.Engine;
 public class LinkTests
 {
     [Fact]
-    public void AddMonster_TankAliens_BuildAnArmedTurretThroughTheirLinks()
+    public void AddSprite_TankAliens_BuildAnArmedTurretThroughTheirLinks()
     {
         var objects = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(objects);
 
-        var yellow = map.AddMonster(objects.Find(KnownObject.YellowTankWeaponMonster)!, map.Player.Position + new Vector3(400, 0, 0));
-        var red = map.AddMonster(objects.Find(KnownObject.RedTankWeaponMonster)!, map.Player.Position + new Vector3(0, 400, 0));
+        var yellow = map.AddSprite(objects.Find(KnownObject.YellowTankWeaponMonster), map.Player.Position + new Vector3(400, 0, 0), default)!;
+        var red = map.AddSprite(objects.Find(KnownObject.RedTankWeaponMonster), map.Player.Position + new Vector3(0, 400, 0), default)!;
 
         Assert.Equal(KnownObject.Monster4Weapon2, yellow.Link!.Definition.Id);
         Assert.Equal(KnownObject.MonsterMachineGunDummy, yellow.Link.Link!.Definition.Id);
@@ -41,6 +41,6 @@ public class LinkTests
     {
         var objects = TestGameFolder.CreateCatalog();
 
-        Assert.Equal(71, objects.Find(KnownObject.PutDynamiteHere)!.Layout.GetFrameDuration(SpriteAnimation.Stand));
+        Assert.Equal(71, objects.Find(KnownObject.PutDynamiteHere)!.GetVisualFrameDuration(SpriteAnimation.Stand));
     }
 }

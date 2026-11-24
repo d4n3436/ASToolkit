@@ -1,24 +1,28 @@
+using ASToolkit.Analysis.Levels;
 using ASToolkit.Engine;
 using ASToolkit.Formats;
-using ASToolkit.Analysis.Levels;
 
 namespace ASToolkit.Bot;
 
 internal sealed class PickupTracker
 {
     private readonly Map _map;
-    private readonly List<MergedMapSprite> _pickups = [];
-    private readonly List<MergedMapSprite> _removed = [];
-    private readonly Dictionary<MergedMapSprite, Sprite?> _sprites = new(ReferenceEqualityComparer.Instance);
-    private int _scanned;
+    private readonly List<Sprite> _pickups = [];
+    private readonly List<Sprite> _removed = [];
+    private readonly HashSet<Sprite> _seen = new(ReferenceEqualityComparer.Instance);
+    private readonly HashSet<Sprite> _placed = new(ReferenceEqualityComparer.Instance);
+    private int _population;
     private int _checkedAt = -1;
 
     public PickupTracker(Map map)
     {
         _map = map;
+        _population = GetPopulation();
+        Scan();
+        _placed.UnionWith(_pickups);
     }
 
-    public IReadOnlyList<MergedMapSprite> Pickups
+    public IReadOnlyList<Sprite> Pickups
     {
         get
         {
@@ -27,7 +31,7 @@ internal sealed class PickupTracker
         }
     }
 
-    public IReadOnlyList<MergedMapSprite> Removed
+    public IReadOnlyList<Sprite> Removed
     {
         get
         {
@@ -36,16 +40,33 @@ internal sealed class PickupTracker
         }
     }
 
-    public static bool IsDropped(MergedMapSprite pickup) => pickup.Handle == 0;
+    public static bool WasTaken(Sprite pickup) => pickup.Animation == SpriteAnimation.Death2;
 
-    public bool WasTaken(MergedMapSprite pickup)
-    {
-        var sprite = _sprites.GetValueOrDefault(pickup);
-
-        return sprite is not null && sprite.Placement == pickup && sprite.Animation == SpriteAnimation.Death2;
-    }
+    public bool IsDropped(Sprite pickup) => !_placed.Contains(pickup);
 
     private static bool IsPickup(KnownObject id) => id.IsPickup && id is not (>= KnownObject.WornGreenArmor and <= KnownObject.InvulnerabilityEffect);
+
+    private int GetPopulation()
+    {
+        int total = 0;
+        for (int layer = 0; layer < Map.LayerCount; layer++)
+        {
+            total += _map.GetLayer(layer).Count;
+        }
+
+        return total;
+    }
+
+    private void Scan()
+    {
+        foreach (var sprite in _map.UpdatedSprites)
+        {
+            if (IsPickup(sprite.Definition.Id) && _seen.Add(sprite))
+            {
+                _pickups.Add(sprite);
+            }
+        }
+    }
 
     private void Update()
     {
@@ -54,27 +75,23 @@ internal sealed class PickupTracker
 
         _checkedAt = _map.Time;
         _removed.Clear();
-        var sprites = _map.Sprites;
-        for (; _scanned < sprites.Count; _scanned++)
+        int population = GetPopulation();
+
+        if (population != _population)
         {
-            if (IsPickup(sprites[_scanned].Id))
-            {
-                _pickups.Add(sprites[_scanned]);
-            }
+            _population = population;
+            Scan();
         }
 
         for (int i = _pickups.Count - 1; i >= 0; i--)
         {
             var pickup = _pickups[i];
 
-            if (_map.IsRemoved(pickup))
+            if (pickup.Animation >= SpriteAnimation.Death || pickup.ReferenceCount <= 0)
             {
                 _removed.Add(pickup);
                 _pickups.RemoveAt(i);
-                continue;
             }
-
-            _sprites[pickup] = _map.FindPlacementSprite(pickup);
         }
     }
 }

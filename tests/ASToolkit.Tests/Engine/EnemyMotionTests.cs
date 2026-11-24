@@ -1,6 +1,6 @@
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using ASToolkit.Engine;
-using System.Numerics;
 using ASToolkit.Formats;
 using Xunit;
 
@@ -16,11 +16,18 @@ public class EnemyMotionTests
     [InlineData(0, 40, 1000, 1, 0, 40)]
     [InlineData(0, 64, 5000, 10, 1, 63)]
     [InlineData(0, 64, 5000, 9, 0, 64)]
-    public void TurnToward_HandlesWrappingAndImmediateOrDisabledRotation(byte direction, byte goal, float period, int elapsed, byte expected, byte left)
+    public void RotateTact_HandlesWrappingAndImmediateOrDisabledRotation(byte direction, byte goal, float period, int elapsed, byte expected, byte left)
     {
-        byte result = new Angle(direction).TurnToward(new Angle(goal), period, elapsed, out var remaining).Value;
+        var obj = default(GameObject);
+        Unsafe.AsRef(in obj.SpriteClass) = SpriteClass.Unit;
+        Unsafe.AsRef(in obj.Directions) = 1;
+        Unsafe.AsRef(in obj.RotationPeriod) = period;
+        Unsafe.AsRef(in obj.Size) = new Vector3(10, 10, 40);
+        var sprite = new Sprite(0, new SpriteDefinition(KnownObject.Monster1, obj, default, 0), Vector3.Zero, Army.Monsters, 10) { Direction = new Angle(direction) };
 
-        Assert.Equal(expected, result);
+        var remaining = sprite.RotateTact(new Angle(goal), elapsed);
+
+        Assert.Equal(expected, sprite.Direction.Value);
         Assert.Equal(left, remaining.Value);
     }
 
@@ -30,8 +37,8 @@ public class EnemyMotionTests
     public void Move_BlockedDiagonal_SlidesAlongYFirst(SpriteClass mover)
     {
         var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
-        var sprite = MakeUnit(new Body(50, 50), 0, mover);
-        var obstacle = MakeUnit(new Body(60, 60), 1, SpriteClass.Unit);
+        var sprite = MakeUnit(new UnitBody(50, 50), 0, mover);
+        var obstacle = MakeUnit(new UnitBody(60, 60), 1, SpriteClass.Unit);
         map.Collector.InsertToHash(sprite);
         map.Collector.InsertToHash(obstacle);
 
@@ -43,8 +50,8 @@ public class EnemyMotionTests
     public void Move_IntoAnotherBody_PushesItBeforeSliding()
     {
         var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
-        var sprite = MakeUnit(new Body(50, 50), 0, SpriteClass.Man);
-        var pushed = MakeUnit(new Body(60, 50, Push: 1), 1, SpriteClass.Unit);
+        var sprite = MakeUnit(new UnitBody(50, 50), 0, SpriteClass.Man);
+        var pushed = MakeUnit(new UnitBody(60, 50, Push: 1), 1, SpriteClass.Unit);
         map.Collector.InsertToHash(sprite);
         map.Collector.InsertToHash(pushed);
 
@@ -60,10 +67,11 @@ public class EnemyMotionTests
         Assert.Equal([41, 18467, 6334, 26500, 19169, 15724, 11478, 29358], Enumerable.Range(0, 8).Select(_ => random.Next()).ToArray());
     }
 
-    private static Sprite MakeUnit(Body body, int index, SpriteClass spriteClass)
+    private static Sprite MakeUnit(UnitBody body, int index, SpriteClass spriteClass)
     {
         var obj = default(GameObject);
         Unsafe.AsRef(in obj.SpriteClass) = spriteClass;
+        Unsafe.AsRef(in obj.Directions) = 1;
         Unsafe.AsRef(in obj.Properties) = ObjectProperties.Hash;
         Unsafe.AsRef(in obj.MoveMask) = (CollisionLayers)body.Mask;
         Unsafe.AsRef(in obj.Size) = new Vector3(body.HalfX * 2, body.HalfY * 2, body.SizeZ);
@@ -73,6 +81,4 @@ public class EnemyMotionTests
 
         return new Sprite(index, definition, new Vector3(body.X, body.Y, body.Z), Army.Monsters, 10) { Direction = body.Direction };
     }
-
-    public sealed record Body(float X, float Y, float Z = 0, byte Direction = 64, int Push = 0, int Mask = 1, float HalfX = 5, float HalfY = 5, float SizeZ = 40);
 }

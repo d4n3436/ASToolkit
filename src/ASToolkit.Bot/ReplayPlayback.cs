@@ -1,17 +1,17 @@
 using System.Drawing;
 using System.Numerics;
-using ASToolkit.Engine;
-using ASToolkit.Formats;
 using ASToolkit.Analysis.Reference;
-using ASToolkit.Bot.Rendering;
 using ASToolkit.Analysis.Routes;
 using ASToolkit.Analysis.Scripting;
+using ASToolkit.Bot.Rendering;
+using ASToolkit.Engine;
+using ASToolkit.Formats;
 using SixLabors.ImageSharp.PixelFormats;
 
 namespace ASToolkit.Bot;
 
 /// <summary>
-/// Provides playback of a recorded playthrough of one level and shows the frames the engine draws as it replays the run.
+/// Provides the playback of a recorded playthrough of one level, with the frames drawn as it replays.
 /// </summary>
 public sealed class ReplayPlayback
 {
@@ -23,10 +23,10 @@ public sealed class ReplayPlayback
     private readonly PlayerLoadout _loadout;
     private readonly DemoResource _demo;
     private readonly int[] _frameTimes;
+    private readonly FramePacer _pacer;
     private Map _map;
     private uint _now;
     private bool _isStepped;
-    private bool _isClockDue;
     private int _shownTime;
     private Bgra32[]? _rendered;
     private int _renderedTime;
@@ -34,6 +34,7 @@ public sealed class ReplayPlayback
     private ReplayPlayback(Playthrough play, RouteAnalysis analysis, PlaythroughResult result)
     {
         _play = play;
+        _pacer = new FramePacer(play.FrameTimes);
         _analysis = analysis;
         Result = result;
         _loadout = result.StartingLoadout ?? throw new ArgumentException("The playthrough does not include a starting loadout.", nameof(result));
@@ -60,7 +61,7 @@ public sealed class ReplayPlayback
     public int FrameCount => _frameTimes.Length;
 
     /// <summary>
-    /// Gets the size of the frames, the game's screen size.
+    /// Gets the size of the frames, equal to the screen size.
     /// </summary>
     public Size FrameSize => _map.Session.Graphics.Screen!.Size;
 
@@ -101,7 +102,7 @@ public sealed class ReplayPlayback
     public int GetFrameTime(int index) => _frameTimes[Math.Clamp(index, 0, _frameTimes.Length - 1)];
 
     /// <summary>
-    /// Writes the frame the run has reached, with the system cursor the game shows drawn at the run's cursor position.
+    /// Writes the current frame of the run, with the system cursor drawn at the run's cursor position.
     /// </summary>
     /// <param name="pixels">The pixels of the frame, row by row, at least <see cref="FrameSize"/> of them.</param>
     /// <returns><see langword="true"/> if the pixels were written; <see langword="false"/> if <paramref name="pixels"/> already holds that frame.</returns>
@@ -120,6 +121,29 @@ public sealed class ReplayPlayback
         _rendered = pixels;
         _renderedTime = _shownTime;
         return true;
+    }
+
+    /// <summary>
+    /// Attempts to step the run one frame toward a time, restarting the run first if the time is earlier than the current one.
+    /// </summary>
+    /// <param name="time">The time to step toward, in milliseconds.</param>
+    /// <param name="isFull">When this method returns, <see langword="true"/> if the frame was stepped in full; <see langword="false"/> if it was stepped quickly because it is well before <paramref name="time"/>.</param>
+    /// <returns><see langword="true"/> if a frame was stepped; <see langword="false"/> if the run is already at <paramref name="time"/> or has ended.</returns>
+    public bool TryStepToward(int time, out bool isFull)
+    {
+        isFull = false;
+
+        if (_isStepped && _shownTime > time)
+        {
+            _map = Load();
+        }
+
+        if (!_map.TryGetNextDemoTime(out int next) || next > time)
+            return false;
+
+        isFull = next >= time - DrawnLead;
+
+        return StepFrame(!isFull);
     }
 
     private static PlaythroughResult PlayLevel(Playthrough play, RouteAnalysis selected, string map, GameTable table)
@@ -143,68 +167,35 @@ public sealed class ReplayPlayback
     {
         _now = 0;
         _isStepped = false;
-        _isClockDue = false;
         _shownTime = 0;
         _rendered = null;
         var map = _play.LoadReplay(_analysis, _loadout, _demo);
+        _pacer.Restart();
         map.Session.Graphics.Screen = new Screen(Size.Round(map.Session.ScreenSize), true);
 
         return map;
     }
 
-    /// <summary>
-    /// Steps the run one frame toward a time, restarting the run if the time is earlier than the current one.
-    /// </summary>
-    /// <param name="time">The time to step toward, in milliseconds.</param>
-    /// <param name="isFull">When this method returns, <see langword="true"/> if the frame was stepped in full; <see langword="false"/> if it was stepped quickly because it is well before <paramref name="time"/>.</param>
-    /// <returns><see langword="true"/> if a frame was stepped; <see langword="false"/> if the run is already at <paramref name="time"/> or has ended.</returns>
-    public bool TryStepToward(int time, out bool isFull)
-    {
-        isFull = false;
-
-        if (_isStepped && _shownTime > time)
-        {
-            _map = Load();
-        }
-
-        if (!_map.TryGetNextDemoTime(out int next) || next > time)
-            return false;
-
-        isFull = next >= time - DrawnLead;
-
-        return StepFrame(!isFull);
-    }
-
     private bool StepFrame(bool isAimOnly)
     {
-        if (_isClockDue)
-        {
-            if (_map.TryGetNextDemoTime(out int next))
-            {
-                _map.AdvanceClock(_map.WallTime + (uint)(next - _map.Time));
-            }
-            else
-            {
-                _map.AdvanceClock();
-            }
-        }
+        uint wallTime = _map.TryGetNextDemoTime(out int next) ? _map.WallTime + (uint)(next - _map.Time) : _pacer.TakeNextWallTime(_map);
 
-        bool drawFrame = _map.StepDemo(_now, out _now);
-
-        if (!_map.IsPlayingDemo)
-            return false;
+        bool isQuitting;
 
         if (isAimOnly)
         {
-            _map.StepAimed(drawFrame);
+            isQuitting = _map.StepAimed(wallTime, _now, out _now);
         }
         else
         {
-            _map.Step(drawFrame);
+            _map.PostNextDemoMouse(out _);
+            isQuitting = _map.Step(wallTime, _now, out _now);
         }
 
+        if (isQuitting || !_map.IsPlayingDemo)
+            return false;
+
         _isStepped = true;
-        _isClockDue = true;
         _shownTime = _map.Time;
 
         return true;

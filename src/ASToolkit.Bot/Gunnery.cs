@@ -1,18 +1,20 @@
+using System.Drawing;
 using System.Numerics;
+using ASToolkit.Analysis.Reference;
 using ASToolkit.Engine;
 using ASToolkit.Formats;
-using ASToolkit.Analysis.Reference;
 
 namespace ASToolkit.Bot;
 
 internal sealed class Gunnery
 {
+    public static readonly Vector2 ScreenHalf = EncounterModel.Screen.ToVector2() / 2;
     private const float VerticalProjection = 4096 * 0.00017262212f;
     private const float MaxUnitHalf = 65;
-    public static readonly Vector2 ScreenHalf = EncounterModel.Screen.ToVector2() / 2;
     private const float GroundAimHeight = 19;
     private const float WallSlack = 16;
     private const float FlightStep = 8;
+    private const int BeamStep = 16;
     private const int PistolKillTime = 1000;
     private const float CalmReach = 250;
 
@@ -43,8 +45,6 @@ internal sealed class Gunnery
         return false;
     }
 
-    private float GetDistance(Sprite target) => _map.Player.Position.AsVector2().MeasureOctagonalDistance(target.Position.AsVector2());
-
     public int SelectWeapon(Sprite target)
     {
         int best = Sprite.Pistols;
@@ -66,7 +66,7 @@ internal sealed class Gunnery
             if (distance > profile.Reach + radius)
                 continue;
 
-            if (profile.HurtsOwnArmy && radius > 0 && distance <= radius + _map.Player.Definition.Half.Length())
+            if (profile.CanHurtOwnArmy && radius > 0 && distance <= radius + _map.Player.Definition.Half.Length())
                 continue;
 
             if (radius > 0 && !IsInBlastHeight(target, profile))
@@ -93,6 +93,70 @@ internal sealed class Gunnery
         return best != Sprite.Pistols && pistolRate > 0 && target.Hp * GameClock.MillisecondsPerSecond <= PistolKillTime * pistolRate &&
             IsCalm(target) ? Sprite.Pistols : best;
     }
+
+    public Vector3 GetAimPoint(Sprite target, int slot)
+    {
+        var point = target.Position with { Z = target.Position.Z + Math.Min(GroundAimHeight, target.Definition.Object.Size.Z / 2) };
+        var torso = _state.GetWeapon(slot);
+
+        if (torso is null || target.IsBody)
+            return point;
+
+        float spread = GetSpread(torso, out var payload);
+        var offset = target.Position.AsVector2() - _map.Player.Position.AsVector2();
+
+        if (payload is null || payload.Damage <= 0 || payload.IsExplosive || spread <= 0 || offset.LengthSquared() < 1)
+            return point;
+
+        float room = torso.BattleRange - GetDistance(target);
+        float overshoot = MathF.Min(spread * MathF.Sqrt(2), room - 1);
+
+        if (overshoot <= 0)
+            return point;
+
+        var ground = target.Position.AsVector2() + Vector2.Normalize(offset) * overshoot;
+
+        return new Vector3(ground, _map.Movement.GetHeight(ground));
+    }
+
+    public bool HasClearAim(Sprite target) => HasClearAim(target, _map.Player.Position.AsVector2());
+
+    public bool HasClearAim(Sprite target, Vector2 from, int slot = Sprite.Pistols)
+    {
+        var torso = _state.GetWeapon(slot);
+        var launch = Vector3.Zero;
+        var bullet = torso is null ? null : FindBullet(torso, out launch);
+
+        if (bullet is null)
+        {
+            return true;
+        }
+
+        var toward = target.Position.AsVector2() - from;
+        var forward = toward.LengthSquared() < 1 ? Vector2.Zero : Vector2.Normalize(toward);
+
+        if (launch.Y * launch.Y >= toward.LengthSquared())
+            return true;
+
+        var muzzle = from + new Vector2(forward.X * launch.Y, forward.Y * launch.Y * VerticalProjection);
+        float height = _map.Player.Position.Z + _map.Player.Definition.Object.LinkOffset.Z + launch.Z;
+
+        var aim = target.Position with { Z = target.Position.Z + Math.Min(GroundAimHeight, target.Definition.Object.Size.Z / 2) };
+        var half = target.Definition.Id is KnownObject.BreakableWall or KnownObject.BreakableWall2 ? target.Definition.Half + new Vector2(WallSlack) : target.Definition.Half;
+
+        var start = new Vector3(muzzle, height);
+
+        return bullet.Speed >= SpriteDefinition.Unlimited ? HasClearBeam(bullet, start, aim, half) : HasClearFlight(bullet, start, aim, half);
+    }
+
+    public bool IsOnScreen(Vector2 point)
+    {
+        var offset = Vector2.Abs(point - _map.Player.Position.AsVector2());
+
+        return offset.X <= ScreenHalf.X && offset.Y <= ScreenHalf.Y;
+    }
+
+    private float GetDistance(Sprite target) => _map.Player.Position.AsVector2().MeasureOctagonalDistance(target.Position.AsVector2());
 
     private bool IsCalm(Sprite target)
     {
@@ -156,7 +220,7 @@ internal sealed class Gunnery
         return spread * distance / Math.Max(1, distance + overshoot);
     }
 
-    // Returns the share of rounds whose scatter across the line of fire stays within the target, with the scatter shrunk by the overshoot past the target
+    // Returns the share of rounds whose scatter across the line of fire stays within the target, using the scatter reduced for the overshoot past the target
     private float MeasureHitChance(Sprite target, SpriteDefinition torso, AttackProfile profile)
     {
         float spread = GetSpread(torso, out _);
@@ -168,31 +232,6 @@ internal sealed class Gunnery
         float reach = (target.Definition.Half.X + target.Definition.Half.Y) / 2 + profile.BlastRadius;
 
         return Math.Min(1, reach / Math.Max(1, scatter));
-    }
-
-    public Vector3 GetAimPoint(Sprite target, int slot)
-    {
-        var point = target.Position with { Z = target.Position.Z + Math.Min(GroundAimHeight, target.Definition.Object.Size.Z / 2) };
-        var torso = _state.GetWeapon(slot);
-
-        if (torso is null || target.Placement is not null)
-            return point;
-
-        float spread = GetSpread(torso, out var payload);
-        var offset = target.Position.AsVector2() - _map.Player.Position.AsVector2();
-
-        if (payload is null || payload.Damage <= 0 || payload.IsExplosive || spread <= 0 || offset.LengthSquared() < 1)
-            return point;
-
-        float room = torso.BattleRange - GetDistance(target);
-        float overshoot = MathF.Min(spread * MathF.Sqrt(2), room - 1);
-
-        if (overshoot <= 0)
-            return point;
-
-        var ground = target.Position.AsVector2() + Vector2.Normalize(offset) * overshoot;
-
-        return new Vector3(ground, _map.Movement.GetHeight(ground));
     }
 
     private float GetSpread(SpriteDefinition torso, out SpriteDefinition? payload)
@@ -208,38 +247,63 @@ internal sealed class Gunnery
         return spread;
     }
 
-    public bool HasClearAim(Sprite target) => HasClearAim(target, _map.Player.Position.AsVector2());
-
-    public bool HasClearAim(Sprite target, Vector2 from, int slot = Sprite.Pistols)
+    private bool HasClearBeam(SpriteDefinition bullet, Vector3 from, Vector3 to, Vector2 targetHalf)
     {
-        var torso = _state.GetWeapon(slot);
-        var launch = Vector3.Zero;
-        var bullet = torso is null ? null : FindBullet(torso, out launch);
+        var position = new Point((int)from.X, (int)from.Y);
+        int z = (int)from.Z;
+        var distance = new Size((int)to.X - position.X, (int)to.Y - position.Y);
+        var sign = new Size(Math.Sign(distance.Width), Math.Sign(distance.Height));
+        distance = new Size(Math.Abs(distance.Width), Math.Abs(distance.Height));
+        bool isXMajor = distance.Width >= distance.Height;
+        int major = isXMajor ? distance.Width : distance.Height;
+        int minor = isXMajor ? distance.Height : distance.Width;
+        int error = -major;
+        int heightStep = major == 0 ? 0 : ((int)to.Z - z) * BeamStep / major;
 
-        if (bullet is null)
+        for (int step = 0; step < major; step++)
         {
-            return true;
+            error += 2 * minor;
+
+            if (step > 0 && step % BeamStep == 0)
+            {
+                z += heightStep;
+
+                if (!_map.Movement.IsAboveGround(bullet.Object, new Vector3(position.X, position.Y, z)))
+                {
+                    var offset = Vector2.Abs(new Vector2(position.X, position.Y) - to.AsVector2());
+
+                    return offset.X < targetHalf.X + bullet.Half.X && offset.Y < targetHalf.Y + bullet.Half.Y;
+                }
+            }
+
+            if (error >= 0)
+            {
+                if (isXMajor)
+                {
+                    position.Y += sign.Height;
+                }
+                else
+                {
+                    position.X += sign.Width;
+                }
+
+                error -= 2 * major;
+            }
+
+            if (isXMajor)
+            {
+                position.X += sign.Width;
+            }
+            else
+            {
+                position.Y += sign.Height;
+            }
         }
 
-        var toward = target.Position.AsVector2() - from;
-        var forward = toward.LengthSquared() < 1 ? Vector2.Zero : Vector2.Normalize(toward);
-
-        if (launch.Y * launch.Y >= toward.LengthSquared())
-            return true;
-
-        var muzzle = from + new Vector2(forward.X * launch.Y, forward.Y * launch.Y * VerticalProjection);
-        float height = _map.Player.Position.Z + _map.Player.Definition.Object.LinkOffset.Z + launch.Z;
-
-        var aim = target.Position with { Z = target.Position.Z + Math.Min(GroundAimHeight, target.Definition.Object.Size.Z / 2) };
-
-        var half = target.Definition.Id is KnownObject.BreakableWall or KnownObject.BreakableWall2 ? target.Definition.Half + new Vector2(WallSlack) : target.Definition.Half;
-
-        var start = new Vector3(muzzle, height);
-
-        return bullet.Speed >= SpriteDefinition.Unlimited ? _map.HasClearTerrain(bullet, start, aim, half) : HasClearFlight(bullet, start, aim, half);
+        return true;
     }
 
-    // Walks a round along its line in steps and treats a spot where the round can't stand as clear only when it lies inside the target
+    // Steps a round along its line and, at the first spot where the round can't stand, treats the line as clear only if that spot lies inside the target
     private bool HasClearFlight(SpriteDefinition bullet, Vector3 start, Vector3 aim, Vector2 targetHalf)
     {
         float length = start.AsVector2().MeasureOctagonalDistance(aim.AsVector2());
@@ -269,12 +333,5 @@ internal sealed class Gunnery
         }
 
         return bullet;
-    }
-
-    public bool IsOnScreen(Vector2 point)
-    {
-        var offset = Vector2.Abs(point - _map.Player.Position.AsVector2());
-
-        return offset.X <= ScreenHalf.X && offset.Y <= ScreenHalf.Y;
     }
 }

@@ -1,6 +1,6 @@
 using System.Drawing;
 using System.Numerics;
-using System.Runtime.InteropServices;
+using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
@@ -16,8 +16,8 @@ public sealed class SpriteCollector
     private readonly Vector2 _cell;
     private readonly int _columns;
     private readonly int _rows;
-    private readonly List<GridEntry>[] _buckets;
-    private readonly List<Sprite> _sprites = [];
+    private readonly SpriteList[] _buckets;
+    private readonly SpriteList _listed = new();
     private int _firstColumn;
     private int _lastColumn;
     private int _lastRow;
@@ -25,10 +25,18 @@ public sealed class SpriteCollector
     private int _row;
     private int _index;
 
-    // Counts columns on the vertical cell scale
     [EngineRoutine(0x0042d380)]
-    internal SpriteCollector(SizeF mapSize, Vector2 largestObject)
+    internal SpriteCollector(SizeF mapSize, ReadOnlySpan<SpriteDefinition?> definitions)
     {
+        var largestObject = Vector2.Zero;
+        foreach (var definition in definitions)
+        {
+            if (definition is not null && IsHashed(definition))
+            {
+                largestObject = Vector2.Max(largestObject, definition.Object.Size.AsVector2());
+            }
+        }
+
         _cell = new Vector2(GetCellSize(largestObject.X), GetCellSize(largestObject.Y));
         LargestHalf = largestObject / 2;
         _scale = Vector2.One / _cell;
@@ -40,22 +48,30 @@ public sealed class SpriteCollector
 
         _columns = 1 << shift;
         _rows = (int)((mapSize.Height - 1) * _scale.Y + 3);
-        _buckets = new List<GridEntry>[_columns * _rows];
+        _buckets = new SpriteList[_columns * _rows];
         for (int bucket = 0; bucket < _buckets.Length; bucket++)
         {
-            _buckets[bucket] = [];
+            _buckets[bucket] = new SpriteList();
         }
     }
 
     /// <summary>
     /// Gets the listed sprites, the units and flying units of the map.
     /// </summary>
-    public ReadOnlySpan<Sprite> Listed => CollectionsMarshal.AsSpan(_sprites);
+    public ReadOnlySpan<Sprite> Listed => _listed.AsSpan();
 
     /// <summary>
     /// Gets half the width and depth of the largest object.
     /// </summary>
     public Vector2 LargestHalf { get; }
+
+    /// <summary>
+    /// Gets the sprites in the buckets a box covers.
+    /// </summary>
+    /// <param name="min">The top left corner of the box.</param>
+    /// <param name="max">The bottom right corner of the box.</param>
+    /// <returns>The query over the sprites.</returns>
+    public HashQuery GetNear(Vector2 min, Vector2 max) => new(_buckets, _columns, GetColumn(min.X), GetColumn(max.X), GetRow(min.Y), GetRow(max.Y));
 
     internal static bool IsHashed(SpriteDefinition definition) => definition.Object.Properties.HasFlag(ObjectProperties.Hash);
 
@@ -66,47 +82,61 @@ public sealed class SpriteCollector
     {
         if (IsHashed(sprite.Definition))
         {
-            AddToBucket(sprite);
+            _buckets[GetBucket(sprite.Position.AsVector2())].Add(sprite);
         }
 
         if (IsListed(sprite.Definition))
         {
-            sprite.ListIndex = _sprites.Count;
-            _sprites.Add(sprite);
-            sprite.AddRef();
+            _listed.Add(sprite);
         }
     }
 
     [EngineRoutine(0x0042d770)]
-    internal void DeleteFromHash(Sprite sprite)
+    internal int DeleteFromHash(Sprite sprite)
     {
-        if (sprite.Slot >= 0)
+        int failed = 0;
+
+        if (IsHashed(sprite.Definition))
         {
-            RemoveFromBucket(sprite);
+            int column = GetColumn(sprite.Position.X);
+            int row = GetRow(sprite.Position.Y);
+            var bucket = _buckets[row * _columns + column];
+
+            if (column == _column && row == _row && _index > 0 && _index < bucket.Count && bucket[_index - 1] == sprite)
+            {
+                _index--;
+            }
+
+            failed = bucket.Remove(sprite) ? 0 : 1;
         }
 
-        if (sprite.ListIndex < 0)
-            return;
+        if (IsListed(sprite.Definition))
+        {
+            failed |= (_listed.Remove(sprite) ? 0 : 1) << 1;
+        }
 
-        var last = _sprites[^1];
-        _sprites[sprite.ListIndex] = last;
-        last.ListIndex = sprite.ListIndex;
-        _sprites.RemoveAt(_sprites.Count - 1);
-        sprite.ListIndex = -1;
-        sprite.Release();
+        var cursor = sprite.Map?.CursorSprite;
+
+        if (failed != 0 && sprite != cursor && sprite != cursor?.Link)
+        {
+            sprite.Logger?.Error($"SPRITE {(int)sprite.Definition.Id}", LogError.Text, failed, "hash can't delete"u8);
+        }
+
+        return failed;
     }
 
     [EngineRoutine(0x0042d8c0)]
-    internal void ChangeCoor(Sprite sprite)
+    internal void ChangeCoor(Sprite sprite, Vector2 position)
     {
-        if (sprite.Slot < 0)
-            return;
+        int oldColumn = GetColumn(sprite.Position.X);
+        int oldRow = GetRow(sprite.Position.Y);
+        int newColumn = GetColumn(position.X);
+        int newRow = GetRow(position.Y);
 
-        if (GetBucket(sprite.Position.AsVector2()) == sprite.Bucket)
-            return;
-
-        RemoveFromBucket(sprite);
-        AddToBucket(sprite);
+        if ((oldColumn != newColumn || oldRow != newRow) && _buckets[oldRow * _columns + oldColumn].Remove(sprite))
+        {
+            _buckets[newRow * _columns + newColumn].Add(sprite);
+        }
     }
 
     internal Sprite? First(Vector2 min, Vector2 max)
@@ -137,61 +167,12 @@ public sealed class SpriteCollector
                 var bucket = _buckets[(_row * _columns) + _column];
 
                 if (_index < bucket.Count)
-                    return bucket[_index++].Sprite;
+                    return bucket[_index++];
             }
         }
 
         return null;
     }
-
-    [EngineRoutine(0x004433f0)]
-    internal Sprite? FindOverlap(Sprite? mover, in CollisionVolume volume)
-    {
-        var center = volume.Position;
-        var half = volume.Half;
-        float height = volume.Height;
-        var mask = volume.Mask;
-        First(center.AsVector2() - half, center.AsVector2() + half);
-
-        for (int row = _row; row <= _lastRow; row++)
-        {
-            for (int column = _firstColumn; column <= _lastColumn; column++)
-            {
-                var bucket = CollectionsMarshal.AsSpan(_buckets[(row * _columns) + column]);
-                for (int i = 0; i < bucket.Length; i++)
-                {
-                    var other = bucket[i].Sprite;
-                    if (other == mover || other.Animation >= SpriteAnimation.Death)
-                        continue;
-
-                    var definition = other.Definition;
-                    var position = other.Position;
-                    var otherHalf = definition.Half;
-                    if (MathF.Abs(position.X - center.X) < otherHalf.X + half.X && MathF.Abs(position.Y - center.Y) < otherHalf.Y + half.Y &&
-                        center.Z <= definition.Object.Size.Z + position.Z && position.Z <= center.Z + height && (mask & definition.MoveMask) != 0)
-                    {
-                        _row = row;
-                        _column = column;
-                        _index = i + 1;
-
-                        return other;
-                    }
-                }
-            }
-        }
-
-        _row = _lastRow + 1;
-
-        return null;
-    }
-
-    /// <summary>
-    /// Gets the sprites in the buckets a box covers.
-    /// </summary>
-    /// <param name="min">The top left corner of the box.</param>
-    /// <param name="max">The bottom right corner of the box.</param>
-    /// <returns>A query over the sprites.</returns>
-    public HashQuery GetNear(Vector2 min, Vector2 max) => new(_buckets, _columns, GetColumn(min.X), GetColumn(max.X), GetRow(min.Y), GetRow(max.Y));
 
     private static float GetCellSize(float size)
     {
@@ -205,28 +186,6 @@ public sealed class SpriteCollector
     }
 
     private static int GetCell(float scaled, int count) => scaled < 0 ? 0 : scaled < count ? (int)scaled : count - 1;
-
-    private void AddToBucket(Sprite sprite)
-    {
-        sprite.Bucket = GetBucket(sprite.Position.AsVector2());
-        var bucket = _buckets[sprite.Bucket];
-        sprite.Slot = bucket.Count;
-        sprite.Collector = this;
-        bucket.Add(new GridEntry(sprite));
-        sprite.AddRef();
-    }
-
-    private void RemoveFromBucket(Sprite sprite)
-    {
-        var bucket = _buckets[sprite.Bucket];
-        var last = bucket[^1];
-        bucket[sprite.Slot] = last;
-        last.Sprite.Slot = sprite.Slot;
-        bucket.RemoveAt(bucket.Count - 1);
-        sprite.Slot = -1;
-        sprite.Collector = null;
-        sprite.Release();
-    }
 
     private int GetBucket(Vector2 point) => (GetRow(point.Y) * _columns) + GetColumn(point.X);
 

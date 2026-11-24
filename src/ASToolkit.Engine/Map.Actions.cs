@@ -1,8 +1,8 @@
 using System.Drawing;
 using System.Numerics;
+using ASToolkit.Core;
 using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
-using ASToolkit.Core;
 
 namespace ASToolkit.Engine;
 
@@ -30,11 +30,10 @@ public sealed partial class Map
     private const KnownObject RelinkLimitId = KnownObject.Slug;
     private const KnownObject RelinkEffectId = (KnownObject)590;
     private const OldSpriteType BuiltSpriteType = OldSpriteType.Unit;
-    private const OldSpriteType AnySpriteType = (OldSpriteType)((1 << 24) - 1);
     private const int NoItem = -1;
 
     /// <summary>
-    /// Sends an action to a sprite through the handler of its sprite class.
+    /// Sends an action to a sprite.
     /// </summary>
     /// <param name="sprite">The sprite.</param>
     /// <param name="code">The action.</param>
@@ -46,11 +45,52 @@ public sealed partial class Map
     public int Action(Sprite sprite, ActionCode code, int var1 = 0, int var2 = 0, int var3 = 0, Sprite? target = null) =>
         SendAction(sprite, (int)code, var1, var2, var3, target);
 
+    private static void SetInvisible(Sprite sprite, bool isInvisible)
+    {
+        sprite.IsInvisible = isInvisible;
+
+        if (isInvisible)
+        {
+            sprite.Link?.InvisibleOn();
+        }
+        else
+        {
+            sprite.Link?.InvisibleOff();
+        }
+    }
+
+    private static int SpriteGetBattleRange(Sprite sprite)
+    {
+        var armedLink = sprite.ArmedLink;
+
+        return (int)(sprite.Definition.BattleRange.IsExactlyZero() && armedLink is not null ? armedLink.Definition.BattleRange : sprite.Definition.BattleRange);
+    }
+
+    private static void SpriteNextCommand(Sprite sprite)
+    {
+        var state = sprite.Animation;
+
+        if (state >= SpriteAnimation.Death)
+            return;
+
+        if (sprite.Speed.IsExactlyZero())
+        {
+            if (state > SpriteAnimation.RRotate && state != SpriteAnimation.StandOpen)
+            {
+                sprite.ChangeAnimation(SpriteAnimation.Stand);
+            }
+        }
+        else if (state != SpriteAnimation.Go)
+        {
+            sprite.ChangeAnimation(SpriteAnimation.Go);
+        }
+    }
+
     private int SendAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target) =>
         sprite == CursorSprite ? CursorAction(sprite, act, var1, var2, var3, target) : DispatchClassAction(sprite, act, var1, var2, var3, target);
 
     private int DispatchClassAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target) =>
-        sprite.Definition.Object.SpriteClass switch
+        sprite.Definition.Class switch
         {
             SpriteClass.Terrain or SpriteClass.Object => TerrainAction(sprite, act, var1, var2, var3, target),
             SpriteClass.Unit => UnitAction(sprite, act, var1, var2, var3, target),
@@ -70,116 +110,16 @@ public sealed partial class Map
         switch ((ActionCode)act)
         {
             case ActionCode.CoorAttack:
-            {
-                var weapon = sprite.Definition.LinkDefinition;
-                var torso = sprite.Link;
-
-                if (torso is null || torso.Definition != weapon || weapon.FightChild == 0 || weapon.Object.WeaponIndex == 0 || (uint)torso.Timer > ReloadTimerLimit ||
-                    torso.Animation == SpriteAnimation.Fight && torso.Frame <= torso.LastFrame)
-                    return 0;
-
-                var goal = ConstructGoal(Weapons.GetCursorPoint(sprite, new Vector2(var1, var2), weapon));
-                SpriteKinematics.SetCommand(torso, Command.OneAttack, goal);
-
+                ManCoorAttack(sprite, new Vector2(var1, var2));
                 return 0;
-            }
             case ActionCode.ChangeVid:
-            {
-                if ((int)sprite.Definition.Id < PlayerIdLimit)
-                {
-                    sprite.SlotAmmo[sprite.WeaponSlot] = UnitAction(sprite, (int)ActionCode.GetAmmo, 0, 0, 0, null);
-                }
-
-                UnitAction(sprite, act, var1, var2, var3, target);
-
-                if ((int)sprite.Definition.Id > PlayerIdLimit)
-                {
-                    var armed = sprite.Definition.LinkDefinition;
-                    int capacity = armed is not null && armed.FightChild != 0 && armed.Object.WeaponIndex != 0 ? armed.AmmoCapacity : sprite.Definition.AmmoCapacity;
-                    UnitAction(sprite, (int)ActionCode.AddAmmo, capacity - UnitAction(sprite, (int)ActionCode.GetAmmo, 0, 0, 0, null), 0, 0, null);
-
-                    return 0;
-                }
-
-                var armorItem = sprite.GetItemNumber(WornArmorItemBase) >= 0 ? WornArmorItemBase
-                    : sprite.GetItemNumber(WornArmorItemBase + 1) >= 0 ? WornArmorItemBase + 1
-                    : sprite.GetItemNumber(WornArmorItemBase + 2) >= 0 ? WornArmorItemBase + 2
-                    : 0;
-
-                if (armorItem != 0)
-                {
-                    var position = new Vector3(sprite.Position.X, sprite.Position.Y, sprite.Position.Z + sprite.Definition.Object.LinkOffset.Z);
-                    var armor = AddSprite(Definitions.Find((KnownObject)(armorItem - WornArmorItemBase + (int)KnownObject.WornGreenArmor))!, position, sprite.Direction, null);
-                    AddLink(sprite.Link!, armor);
-                }
-
-                UnitAction(sprite, (int)ActionCode.AddAmmo, sprite.SlotAmmo[sprite.WeaponSlot] - UnitAction(sprite, (int)ActionCode.GetAmmo, 0, 0, 0, null), 0, 0, null);
-
+                ManChangeVid(sprite, var1, var2, var3, target);
                 return 0;
-            }
             case ActionCode.AddItem:
-            {
-                if ((KnownObject)var1 is KnownObject.Dynamite or KnownObject.ExtraLife)
-                {
-                    sprite.InsertItem(var1);
-
-                    return 0;
-                }
-
-                if (!sprite.InsertUniqueItem(var1))
-                    return 0;
-
-                int slot = var1 - Sprite.WeaponItemBase;
-
-                if (slot is < 0 or >= Sprite.WeaponSlots)
-                    return 0;
-
-                if (UnitAction(sprite, (int)ActionCode.GetAmmo, 0, 0, 0, null) == 0 || sprite.WeaponSlot < slot || slot == 0)
-                {
-                    Weapons.ChangeWeapon(sprite, slot);
-                }
-
+                ManAddItem(sprite, var1);
                 return 0;
-            }
             case ActionCode.Damage:
-            {
-                int damage = var1;
-
-                if (damage > 0)
-                {
-                    if (sprite.Definition.Id != KnownObject.MannedCannon)
-                    {
-                        foreach (var link in sprite.EnumerateLinks())
-                        {
-                            if (link.Definition.Id is KnownObject.InvulnerabilityEffect or KnownObject.RescueMedkitEffect)
-                                return 0;
-                        }
-
-                        foreach (var link in sprite.EnumerateLinks())
-                        {
-                            int armor = link.Definition.Id - KnownObject.WornGreenArmor;
-
-                            if (armor is < 0 or >= WornArmorShareCount)
-                                continue;
-
-                            int share = WornArmorShares[armor];
-                            Action(link, ActionCode.Damage, (share * damage + ArmorRounding) / Percent, var2, var3);
-                            damage -= share * damage / Percent;
-                        }
-                    }
-
-                    if (damage >= sprite.Hp && Action(sprite, ActionCode.HaveItem, (int)KnownObject.Medkit) != 0)
-                    {
-                        Action(sprite, ActionCode.DeleteItem, (int)KnownObject.Medkit);
-                        ChangeHp(sprite, sprite.Definition.ArmyMaxHp[(int)sprite.Army & SpriteDefinition.ArmyMask]);
-                        AddSprite(Definitions.Find(KnownObject.RescueMedkitEffect)!, sprite.Position + Vector3.UnitZ * RescueEffectHeight, default, sprite);
-
-                        return 0;
-                    }
-                }
-
-                return SpriteAction(sprite, act, damage, var2, var3, target);
-            }
+                return ManDamage(sprite, var1, var2, var3, target);
             case ActionCode.GetAmmo:
                 if (var1 != 0 && var1 != sprite.WeaponSlot)
                     return (uint)var1 < (uint)sprite.SlotAmmo.Length ? sprite.SlotAmmo[var1] : 0;
@@ -195,19 +135,17 @@ public sealed partial class Map
 
                 return UnitAction(sprite, act, var1, 0, 0, null);
             case ActionCode.NextCommand:
-            {
                 if (sprite.Animation >= SpriteAnimation.Death)
                     return 0;
 
                 if (sprite.HasGoal || sprite.Link is { HasGoal: true })
                 {
-                    sprite.AttackResult = sprite.AttackTact(Math.Max(FrameTime, sprite.Definition.Layout.GetFrameDuration(sprite.Animation)));
+                    sprite.AttackResult = sprite.AttackTact(Math.Max(FrameTime, sprite.Definition.GetVisualFrameDuration(sprite.Animation)));
                 }
 
                 sprite.ChangeAnimation(!sprite.Speed.IsExactlyZero() ? SpriteAnimation.Go : SpriteAnimation.Stand);
 
                 return 0;
-            }
         }
 
         return UnitAction(sprite, act, var1, var2, var3, target);
@@ -216,6 +154,10 @@ public sealed partial class Map
     [EngineRoutine(0x0044ca70)]
     private int BuildingAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target)
     {
+        bool noItem;
+        SpriteDefinition? definition;
+        bool isBuilding;
+        Vector3 position;
         switch ((ActionCode)act)
         {
             case ActionCode.BackupCommand when sprite.Command == Command.Build && _builds.TryGetValue(sprite, out var building):
@@ -224,8 +166,7 @@ public sealed partial class Map
 
                 return 0;
             case ActionCode.BuildUnit:
-            {
-                bool noItem = false;
+                noItem = false;
 
                 if (var1 == 0)
                 {
@@ -233,7 +174,7 @@ public sealed partial class Map
                     noItem = var1 == 0;
                 }
 
-                var definition = var1 >= 0 ? Definitions.Find((KnownObject)var1) : null;
+                definition = var1 >= 0 ? Definitions.Find((KnownObject)var1) : null;
 
                 if (!(noItem || sprite.Command == Command.None) || definition is null)
                     return 0;
@@ -248,13 +189,11 @@ public sealed partial class Map
                 }
 
                 return 0;
-            }
             case ActionCode.NextCommand:
-            {
                 if (sprite.Animation >= SpriteAnimation.Death)
                     return 0;
 
-                bool isBuilding = sprite.Command == Command.Build;
+                isBuilding = sprite.Command == Command.Build;
 
                 if (isBuilding)
                 {
@@ -268,24 +207,17 @@ public sealed partial class Map
                 if (!isBuilding || sprite.Timer != 0 || !_builds.TryGetValue(sprite, out var pending))
                     return 0;
 
-                var position = GetBuildPosition(sprite, pending.Offset);
+                position = GetBuildPosition(sprite, pending.Offset);
 
                 if (!IsFree(pending.Definition, position))
                     return 0;
 
                 SpriteKinematics.SetCommand(sprite, Command.None);
-                var built = AddSprite(pending.Definition, position, sprite.Direction, null);
-
-                if (built is not null)
-                {
-                    Action(sprite, ActionCode.CopyStackTo, target: built);
-                }
-
+                AddBuiltUnit(sprite, pending.Definition, position);
                 _builds.Remove(sprite);
                 sprite.ChangeAnimation(SpriteAnimation.Stand);
 
                 return 0;
-            }
         }
 
         return UnitAction(sprite, act, var1, var2, var3, target);
@@ -332,15 +264,7 @@ public sealed partial class Map
         var code = (ActionCode)act;
         if (code == ActionCode.Damage && var1 > 0)
         {
-            var center = sprite.Position.AsVector2();
-            var reach = new Vector2(CreatureAlertReach);
-            for (var other = Collector.First(center - reach, center + reach); other is not null; other = Collector.NextHashInBox())
-            {
-                if (other.Definition.Object.SpriteClass == SpriteClass.Creature && center.MeasureOctagonalDistance(other.Position.AsVector2()) < CreatureAlertReach)
-                {
-                    Motion.StartMove(other);
-                }
-            }
+            AlertCreatures(sprite);
         }
 
         if (code != ActionCode.NextCommand)
@@ -354,9 +278,9 @@ public sealed partial class Map
             sprite.ChangeAnimation(SpriteAnimation.Stand);
         }
 
-        if (sprite is { SeeksRegion: true, Region: null })
+        if (sprite is { IsSeekingRegion: true, Region: null })
         {
-            sprite.SeeksRegion = false;
+            sprite.IsSeekingRegion = false;
             sprite.Region = FindRegion(sprite.Position.AsVector2());
         }
 
@@ -381,58 +305,14 @@ public sealed partial class Map
 
         if (sprite.Command is Command.Attack or Command.OneAttack || newPeriod)
         {
-            var result = sprite.AttackTact(Math.Max(FrameTime, sprite.Definition.Layout.GetFrameDuration(sprite.Animation)));
-            sprite.AttackResult = result;
-
-            if (result == AttackResult.Approach && sprite.Speed.IsExactlyZero() && (sprite.ArmedLink is { HasGoal: true } || sprite.HasGoal))
-            {
-                SpriteKinematics.SetCommand(sprite, Command.None);
-            }
-
-            if (result is AttackResult.Pursue or AttackResult.NoTarget && sprite.IsAggressive && sprite.Command is Command.None or Command.Move)
-            {
-                var enemy = _brain.SeekEnemy(sprite, GetFlagman(0));
-
-                if (enemy is not null)
-                {
-                    SpriteKinematics.SetCommand(sprite, Command.OneAttack, enemy);
-                }
-            }
+            TactCreatureAttack(sprite);
         }
 
-        int frameTime = (byte)sprite.Definition.Layout.GetFrameDuration(sprite.Animation);
+        int frameTime = (byte)sprite.Definition.GetVisualFrameDuration(sprite.Animation);
 
         if (sprite.Command is not (Command.Move or Command.Attack or Command.OneAttack))
         {
-            if (sprite.Animation == SpriteAnimation.LRotate && _rng.Next() % 3 != 0)
-            {
-                sprite.RotateTact(sprite.Direction - CreatureTurn, frameTime);
-            }
-
-            if (sprite.Animation == SpriteAnimation.RRotate && _rng.Next() % 3 != 0)
-            {
-                sprite.RotateTact(sprite.Direction + CreatureTurn, frameTime);
-            }
-
-            if (newPeriod)
-            {
-                if ((_rng.Next() & 3) == 0)
-                {
-                    Motion.StartMove(sprite);
-                }
-                else if (sprite.Speed.IsExactlyZero() && _rng.Next() % 3 == 0 && (sprite.Definition.Object.FrameCounts[(int)SpriteAnimation.Unload] != 0 || sprite.Definition.Children[(int)SpriteAnimation.Unload] != 0 || sprite.Definition.Sounds[(int)SpriteAnimation.Unload] != 0))
-                {
-                    sprite.ChangeAnimation(SpriteAnimation.Unload);
-                }
-                else if ((_rng.Next() & 3) == 0)
-                {
-                    sprite.RotateTact(sprite.Direction + ((_rng.Next() & 1) == 0 ? CreatureTurn : -CreatureTurn), frameTime);
-                }
-                else
-                {
-                    SpriteKinematics.Stop(sprite);
-                }
-            }
+            WanderCreature(sprite, frameTime, newPeriod);
         }
 
         if (sprite.Animation is SpriteAnimation.Wound or SpriteAnimation.Salut)
@@ -450,7 +330,7 @@ public sealed partial class Map
 
         for (int i = list.Count - 1; i >= 0; i--)
         {
-            if (list[i] is not RegionSprite sprite || !sprite.Definition.Object.SpriteType.ToOldSpriteType().HasFlag(OldSpriteType.Region) || sprite.Definition.Object.SpriteClass != SpriteClass.Region)
+            if (list[i] is not RegionSprite sprite || !sprite.Definition.Object.SpriteType.ToOldSpriteType().HasFlag(OldSpriteType.Region) || sprite.Definition.Class != SpriteClass.Region)
                 continue;
 
             float halfWidth = sprite.Size.X * 0.5f;
@@ -474,99 +354,10 @@ public sealed partial class Map
         switch (code)
         {
             case ActionCode.Damage:
-            {
-                int result = TerrainAction(sprite, act, var1, var2, var3, target);
-
-                if (var1 >= 0 && sprite.Command == Command.None && !sprite.Definition.Speed.IsExactlyZero())
-                {
-                    var wander = sprite.Position.AsVector2() + new Angle((byte)_rng.Next()).Vector * WanderReach;
-                    _brain.MoveTo(sprite, ConstructGoal(new Vector3(wander, sprite.Position.Z)));
-                }
-
-                return result;
-            }
+                return UnitDamage(sprite, var1, var2, var3, target);
             case ActionCode.NextCommand:
-            {
-                if (sprite.Animation >= SpriteAnimation.Death)
-                    return 0;
-
-                if (sprite.Speed.IsExactlyZero())
-                {
-                    sprite.ChangeAnimation(SpriteAnimation.Stand);
-                }
-                else if (sprite.Animation != SpriteAnimation.Go)
-                {
-                    sprite.ChangeAnimation(SpriteAnimation.Go);
-                }
-
-                var definition = sprite.Definition;
-                var link = sprite.ArmedLink;
-                var result = AttackResult.Pursue;
-
-                if (link is not null && sprite.Command is Command.Attack or Command.OneAttack && sprite.Goal is not null && link.Goal is null)
-                {
-                    SpriteKinematics.SetCommand(link, sprite.Command, sprite.Goal);
-                }
-
-                if (link is not null || sprite.TurnTicks == 0)
-                {
-                    result = sprite.AttackTact(Math.Max(FrameTime, definition.Layout.GetFrameDuration(sprite.Animation)));
-
-                    switch (result)
-                    {
-                        case AttackResult.NoAmmo or AttackResult.GiveUp:
-                            SpriteKinematics.SetCommand(sprite, Command.None);
-                            break;
-                        case AttackResult.Approach when definition.Speed.IsExactlyZero():
-                            if (link is not null && link.HasGoal || sprite.HasGoal)
-                            {
-                                SpriteKinematics.SetCommand(sprite, Command.None);
-                            }
-                            break;
-                        case AttackResult.Approach when sprite.Speed.IsExactlyZero():
-                            Motion.StartMove(sprite);
-                            break;
-                        case AttackResult.Attacked when !sprite.Speed.IsExactlyZero() && (link is null || sprite.Goal == link.Goal):
-                            SpriteKinematics.Stop(sprite);
-                            break;
-                    }
-
-                    if (result == AttackResult.Approach && link is not null && sprite.Command is Command.Attack or Command.OneAttack &&
-                        sprite.IsAggressive && (link.Timer != 0 || _rng.Next() % LinkScanOdds == 0))
-                    {
-                        var enemy = _brain.SeekEnemy(sprite, GetFlagman(0));
-
-                        if (enemy is not null)
-                        {
-                            SpriteKinematics.SetCommand(link, Command.OneAttack, enemy);
-                        }
-                    }
-                }
-
-                if (result == AttackResult.Pursue && sprite.IsActive && sprite.Speed.IsExactlyZero())
-                {
-                    Motion.StartMove(sprite);
-                }
-
-                if (result == AttackResult.NoOrder && sprite is { IsAggressive: true, IsActive: true } ||
-                    result is AttackResult.Pursue or AttackResult.NoTarget && sprite is { IsAggressive: true, Command: Command.None or Command.Move or Command.OneAttack } &&
-                    (sprite.LastFrame > sprite.FirstFrame || sprite.Timer != 0 || _rng.Next(IdleScanOdds) == 0))
-                {
-                    var enemy = _brain.SeekEnemy(sprite, GetFlagman(0));
-
-                    if (enemy is not null)
-                    {
-                        SpriteKinematics.SetCommand(sprite, Command.OneAttack, enemy);
-                    }
-                }
-
-                if (sprite is { Command: Command.None, HasGoal: false, Timer: 0 })
-                {
-                    SpriteKinematics.Stop(sprite);
-                }
-
+                UnitNextCommand(sprite);
                 return 0;
-            }
             case ActionCode.Repair:
                 sprite.FillAmmo();
 
@@ -605,7 +396,7 @@ public sealed partial class Map
     [EngineRoutine(0x0044bf10)]
     private void Repair(Sprite sprite, bool relink)
     {
-        var army = (int)sprite.Army & SpriteDefinition.ArmyMask;
+        int army = (int)sprite.Army & SpriteDefinition.ArmyMask;
         ChangeHp(sprite, sprite.Definition.ArmyMaxHp[army]);
         var linkDefinition = sprite.Definition.LinkDefinition;
 
@@ -618,12 +409,7 @@ public sealed partial class Map
             if (!atLimit)
             {
                 CreateLink(sprite);
-                var effect = Definitions.Find(RelinkEffectId);
-
-                if (effect is not null)
-                {
-                    CreateSprite(effect, sprite.Position, default);
-                }
+                AddSprite(LookupDefinition((int)RelinkEffectId), sprite.Position, default);
 
                 return;
             }
@@ -640,7 +426,7 @@ public sealed partial class Map
     {
         var definition = sprite.Definition;
 
-        if (definition.Object.SpriteClass == SpriteClass.Linker && definition.FightChild != 0)
+        if (definition.Class == SpriteClass.Linker && definition.FightChild != 0)
         {
             var state = sprite.Animation;
             sprite.SetAnimationValue(SpriteAnimation.Fight);
@@ -653,7 +439,7 @@ public sealed partial class Map
         }
 
         // TODO: Port the trains; the IsTrain action of the attack test answers for every class
-        if (target is null || target.Definition == Definitions.Empty || sprite.CanAttackThisSprite(target) || definition.Object.SpriteClass == SpriteClass.Cannon ||
+        if (target is null || target.Definition == Definitions.Empty || sprite.CanAttackThisSprite(target) || definition.Class == SpriteClass.Cannon ||
             Action(sprite, ActionCode.IsTrain) != 0)
         {
             SpriteKinematics.SetCommand(sprite, Command.Attack, target);
@@ -684,63 +470,18 @@ public sealed partial class Map
 
                 break;
             case ActionCode.CoorAttack:
-            {
-                var armed = (sprite.ArmedLink ?? sprite).Definition;
-                int y = var2;
-                float z;
-
-                if (armed.Targets == SpriteType.Unit)
-                {
-                    z = Movement.GetHeight(new Vector2(var1, var2 + UnitAimLift)) + UnitAimLift;
-                    y += (int)z;
-                }
-                else
-                {
-                    z = Movement.GetHeight(new Vector2(var1, var2)) + GroundAimLift;
-                    y += (int)z - (int)GroundAimLift;
-                }
-
-                SpriteKinematics.SetCommand(sprite, Command.OneAttack, ConstructGoal(new Vector3(var1, y, z)));
+                SpriteCoorAttack(sprite, new Point(var1, var2));
                 break;
-            }
             case ActionCode.Random:
-            {
-                int duration = (byte)sprite.Definition.Layout.GetFrameDuration(sprite.Animation);
-
-                if (_rng.Next() % 5 == 0)
-                {
-                    sprite.ChangeAnimation(SpriteAnimation.Stand);
-                }
-                else if (_rng.Next() % 5 == 0)
-                {
-                    sprite.ChangeAnimation(SpriteAnimation.Unload);
-                }
-                else if (sprite.Animation == SpriteAnimation.LRotate && _rng.Next() % 3 != 0)
-                {
-                    sprite.RotateTact(sprite.Direction - QuarterTurn, duration);
-                }
-                else if (sprite.Animation == SpriteAnimation.RRotate && _rng.Next() % 3 != 0)
-                {
-                    sprite.RotateTact(sprite.Direction + QuarterTurn, duration);
-                }
-                else if (_rng.Next() % 4 == 0)
-                {
-                    sprite.RotateTact(_rng.Next() % 2 == 0 ? sprite.Direction + QuarterTurn : sprite.Direction - QuarterTurn, duration);
-                }
-
+                SpriteRandom(sprite);
                 break;
-            }
             case ActionCode.GetGoal:
                 return GetSpriteHandle(sprite.Goal);
             case ActionCode.SetGoalCoor:
                 sprite.Goal = ConstructGoal(new Vector3(var1, var2, var3));
                 break;
             case ActionCode.GetBattleRange:
-            {
-                var armedLink = sprite.ArmedLink;
-
-                return (int)(sprite.Definition.BattleRange.IsExactlyZero() && armedLink is not null ? armedLink.Definition.BattleRange : sprite.Definition.BattleRange);
-            }
+                return SpriteGetBattleRange(sprite);
             case ActionCode.GetLink:
                 return GetSpriteHandle(sprite.Link);
             case ActionCode.GetUplink:
@@ -759,26 +500,8 @@ public sealed partial class Map
                 Motion.SetMoveTarget(sprite, target);
                 break;
             case ActionCode.BuildUnit:
-            {
-                int id = var1 != 0 ? var1 : Action(sprite, ActionCode.GetItemType, (int)BuiltSpriteType);
-
-                if (id <= 0)
-                    break;
-
-                var definition = Definitions.Find((KnownObject)id);
-
-                if (definition is null)
-                    break;
-
-                var built = AddSprite(definition, GetBuildPosition(sprite, new Point(var2, var3)), sprite.Direction, null);
-
-                if (built is not null)
-                {
-                    Action(sprite, ActionCode.CopyStackTo, target: built);
-                }
-
+                SpriteBuildUnit(sprite, var1, new Point(var2, var3));
                 break;
-            }
             case ActionCode.PlaySfx:
                 PlaySfx(sprite, var1);
                 break;
@@ -792,55 +515,20 @@ public sealed partial class Map
 
                 break;
             case ActionCode.Pause:
-            {
-                if (!sprite.Speed.IsExactlyZero())
-                {
-                    SpriteKinematics.Stop(sprite);
-                }
-
-                int time = var1 + _rng.Next() % (var2 + 1);
-                sprite.Timer = time;
-                SpriteKinematics.SetCommand(sprite, time != 0 ? Command.Pause : Command.None);
+                SpritePause(sprite, var1, var2);
                 break;
-            }
             case ActionCode.Turn:
-                sprite.RotateTact(new Angle(unchecked((byte)var1)), sprite.Definition.Layout.GetFrameDuration(sprite.Animation));
+                sprite.RotateTact(new Angle(unchecked((byte)var1)), sprite.Definition.GetVisualFrameDuration(sprite.Animation));
                 break;
             case ActionCode.ClearCommand:
                 SpriteKinematics.SetCommand(sprite, Command.None);
                 break;
             case ActionCode.FlagmanTrigger:
-            {
-                var flagman = GetFlagman(ControlledPlayer);
-
-                if (flagman is null || flagman.Position.AsVector2().MeasureOctagonalDistance(new Vector2(var1, var2)) >= var3)
-                {
-                    sprite.ActionStack.Push(new Act((int)code, var1, var2, var3));
-                }
-
+                SpriteFlagmanTrigger(sprite, new Point(var1, var2), var3);
                 break;
-            }
             case ActionCode.ChangeVid:
-            {
-                var definition = Definitions.Find((KnownObject)var1);
-
-                if (definition is null || definition == sprite.Definition)
-                    break;
-
-                DropLinks(sprite);
-                RemoveFromUpdates(sprite);
-                var state = var2 < 0 ? sprite.Animation : (SpriteAnimation)var2;
-                var direction = sprite.Direction;
-                sprite.ChangeVid(definition);
-                Collector.ChangeCoor(sprite);
-                AddToUpdates(sprite);
-
-                CreateLink(sprite);
-
-                sprite.ChangeAnimation(state);
-                sprite.ChangeDirection(direction);
+                SpriteChangeVid(sprite, var1, var2);
                 break;
-            }
             case ActionCode.ChangeCoor:
                 sprite.ChangeCoor(new Vector3(var1, var2, var3));
                 break;
@@ -875,55 +563,18 @@ public sealed partial class Map
             case ActionCode.GetPercentHp:
                 return sprite.GetPercentHp() * 100 / 0xff;
             case ActionCode.CopyStackTo:
-                if (target is null || target == sprite)
-                    break;
-
-                ClearOrders(target);
-                foreach (var order in sprite.ActionStack.Orders)
-                {
-                    if (order.Value == Act.StopMarker)
-                        break;
-
-                    target.ActionStack.Push(order);
-                }
-
+                SpriteCopyStackTo(sprite, target);
                 break;
             case ActionCode.StopStack:
                 sprite.ActionStack.Push(new Act((int)code, var1, var2, var3));
                 Action(sprite, ActionCode.NextCommand);
                 break;
             case ActionCode.NextCommand:
-            {
-                var state = sprite.Animation;
-
-                if (state >= SpriteAnimation.Death)
-                    break;
-
-                if (sprite.Speed.IsExactlyZero())
-                {
-                    if (state > SpriteAnimation.RRotate && state != SpriteAnimation.StandOpen)
-                    {
-                        sprite.ChangeAnimation(SpriteAnimation.Stand);
-                    }
-                }
-                else if (state != SpriteAnimation.Go)
-                {
-                    sprite.ChangeAnimation(SpriteAnimation.Go);
-                }
-
+                SpriteNextCommand(sprite);
                 break;
-            }
             case ActionCode.DestroyUnit:
-            {
-                var placement = FindSprite((KnownObject)var1, new Vector2(var2, var3));
-
-                if (placement is not null)
-                {
-                    Destroy(placement);
-                }
-
+                SpriteDestroyUnit(var1, new Vector2(var2, var3));
                 break;
-            }
             case ActionCode.AddItem:
                 sprite.InsertItem(var1);
                 break;
@@ -940,111 +591,16 @@ public sealed partial class Map
             case ActionCode.GetItem:
                 return var1 >= 0 && var1 < sprite.Items.Count ? sprite.Items[var1] : 0;
             case ActionCode.GetItemType:
-            {
-                if (sprite.Items.Count == 0)
-                    return NoItem;
-
-                var mask = var1 != 0 ? (OldSpriteType)var1 : AnySpriteType;
-                int matching = 0;
-                foreach (int item in sprite.Items)
-                {
-                    if ((GetItemType(item) & mask) != OldSpriteType.None)
-                    {
-                        matching++;
-                    }
-                }
-
-                int pick = _rng.Next();
-
-                if (matching == 0)
-                    return NoItem;
-
-                pick %= matching;
-                foreach (int item in sprite.Items)
-                {
-                    if ((GetItemType(item) & mask) != OldSpriteType.None && --pick < 0)
-                        return item;
-                }
-
-                return NoItem;
-            }
+                return SpriteGetItemType(sprite, var1);
             case ActionCode.Damage:
-            {
-                int maxHp = sprite.Definition.ArmyMaxHp[(int)sprite.Army & SpriteDefinition.ArmyMask];
-
-                if (maxHp <= sprite.Hp && var1 < 0)
-                    return 1;
-
-                if (sprite.Animation >= SpriteAnimation.Death)
-                    break;
-
-                int handler = sprite.Definition.DamageHandler;
-
-                if (handler >= 0 && CallScript(handler, sprite, var2, var1) != 0)
-                    break;
-
-                if (sprite.Definition.MaxHp != 0)
-                {
-                    ChangeHp(sprite, sprite.Hp - var1);
-                }
-
-                if (maxHp < sprite.Hp && var1 < 0)
-                {
-                    sprite.Hp = maxHp;
-                }
-
-                if (var1 <= 0)
-                    break;
-
-                if (sprite.Definition.Layout.GetFrameCount(SpriteAnimation.Close) != 0 && sprite.Animation is SpriteAnimation.Stand or SpriteAnimation.Go)
-                {
-                    sprite.ChangeAnimation(SpriteAnimation.Close);
-                    break;
-                }
-
-                int closeHandler = sprite.Definition.StateHandlers[(int)SpriteAnimation.Close];
-
-                if (closeHandler >= 0 && CallScript(closeHandler, sprite, var2) != 0)
-                    break;
-
-                int closeSound = sprite.Definition.Sounds[(int)SpriteAnimation.Close];
-
-                if (closeSound != 0)
-                {
-                    PlaySfx(sprite, closeSound);
-                }
-
-                if (sprite.Definition.Children[(int)SpriteAnimation.Close] != 0)
-                {
-                    var previous = sprite.Animation;
-                    sprite.SetAnimationValue(SpriteAnimation.Close);
-                    CreateChild(sprite);
-                    sprite.SetAnimationValue(previous);
-                }
-
-                break;
-            }
+                return SpriteDamage(sprite, var1, var2);
             case ActionCode.Repair:
-            {
-                DestroyLink(sprite, Definitions.Find((KnownObject)Math.Abs(sprite.Definition.Children[(int)SpriteAnimation.Wound])));
-                sprite.Hp = sprite.Definition.ArmyMaxHp[(int)sprite.Army & SpriteDefinition.ArmyMask];
-                var link = sprite.Link;
-
-                if (link is not null && link.Definition == sprite.Definition.LinkDefinition)
-                {
-                    Action(link, ActionCode.Repair);
-                }
-                else
-                {
-                    CreateLink(sprite);
-                }
-
+                SpriteRepair(sprite);
                 break;
-            }
             case ActionCode.GetHp:
                 return sprite.Hp;
             case ActionCode.SetHp:
-                ChangeHp(sprite, var1 != 0 ? var1 : sprite.Definition.ArmyMaxHp[(int)sprite.Army & SpriteDefinition.ArmyMask] * var2 / Percent);
+                ChangeHp(sprite, var1 != 0 ? var1 : sprite.Definition.GetArmyMaxHp((int)sprite.Army) * var2 / Percent);
                 break;
             case ActionCode.SetBehave:
                 break;
@@ -1054,16 +610,7 @@ public sealed partial class Map
                 ChangeArmy(sprite, var1);
                 break;
             case ActionCode.SetInvisible:
-                sprite.IsInvisible = var1 != 0;
-
-                if (var1 == 0)
-                {
-                    sprite.Link?.InvisibleOff();
-                }
-                else
-                {
-                    sprite.Link?.InvisibleOn();
-                }
+                SetInvisible(sprite, var1 != 0);
                 break;
             case ActionCode.GetTimer:
                 return sprite.Timer;
@@ -1085,11 +632,527 @@ public sealed partial class Map
                 ActionCode.SetFile or ActionCode.Select or ActionCode.ChangeCoorZ:
                 break;
             default:
-                Session.Logger.Error(SpriteLogTag, LogError.Text, 10, default, (int)sprite.Definition.Id);
+                Session.Logger.Error($"SPRITE {(int)sprite.Definition.Id}", LogError.Text, 10);
                 break;
         }
 
         return 0;
+    }
+
+    private void ManCoorAttack(Sprite sprite, Vector2 point)
+    {
+        var weapon = sprite.Definition.LinkDefinition;
+        var torso = sprite.Link;
+
+        if (torso is null || torso.Definition != weapon || weapon.FightChild == 0 || weapon.Object.WeaponIndex == 0 || (uint)torso.Timer > ReloadTimerLimit ||
+            torso.Animation == SpriteAnimation.Fight && torso.Frame <= torso.LastFrame)
+            return;
+
+        var goal = ConstructGoal(Weapons.GetCursorPoint(sprite, point, weapon));
+        SpriteKinematics.SetCommand(torso, Command.OneAttack, goal);
+    }
+
+    private void ManChangeVid(Sprite sprite, int var1, int var2, int var3, Sprite? target)
+    {
+        if ((int)sprite.Definition.Id < PlayerIdLimit)
+        {
+            sprite.SlotAmmo[sprite.WeaponSlot] = UnitAction(sprite, (int)ActionCode.GetAmmo, 0, 0, 0, null);
+        }
+
+        UnitAction(sprite, (int)ActionCode.ChangeVid, var1, var2, var3, target);
+
+        if ((int)sprite.Definition.Id > PlayerIdLimit)
+        {
+            var armed = sprite.Definition.LinkDefinition;
+            int capacity = armed is not null && armed.FightChild != 0 && armed.Object.WeaponIndex != 0 ? armed.AmmoCapacity : sprite.Definition.AmmoCapacity;
+            UnitAction(sprite, (int)ActionCode.AddAmmo, capacity - UnitAction(sprite, (int)ActionCode.GetAmmo, 0, 0, 0, null), 0, 0, null);
+
+            return;
+        }
+
+        int armorItem = sprite.GetItemNumber(WornArmorItemBase) >= 0 ? WornArmorItemBase
+            : sprite.GetItemNumber(WornArmorItemBase + 1) >= 0 ? WornArmorItemBase + 1
+            : sprite.GetItemNumber(WornArmorItemBase + 2) >= 0 ? WornArmorItemBase + 2
+            : 0;
+
+        if (armorItem != 0)
+        {
+            var position = new Vector3(sprite.Position.X, sprite.Position.Y, sprite.Position.Z + sprite.Definition.Object.LinkOffset.Z);
+            var armor = AddSprite(Definitions.Find((KnownObject)(armorItem - WornArmorItemBase + (int)KnownObject.WornGreenArmor))!, position, sprite.Direction);
+            AddLink(sprite.Link!, armor);
+        }
+
+        UnitAction(sprite, (int)ActionCode.AddAmmo, sprite.SlotAmmo[sprite.WeaponSlot] - UnitAction(sprite, (int)ActionCode.GetAmmo, 0, 0, 0, null), 0, 0, null);
+    }
+
+    private void ManAddItem(Sprite sprite, int item)
+    {
+        if ((KnownObject)item is KnownObject.Dynamite or KnownObject.ExtraLife)
+        {
+            sprite.InsertItem(item);
+
+            return;
+        }
+
+        if (!sprite.InsertUniqueItem(item))
+            return;
+
+        int slot = item - Sprite.WeaponItemBase;
+
+        if (slot is < 0 or >= Sprite.WeaponSlots)
+            return;
+
+        if (UnitAction(sprite, (int)ActionCode.GetAmmo, 0, 0, 0, null) == 0 || sprite.WeaponSlot < slot || slot == 0)
+        {
+            Weapons.ChangeWeapon(sprite, slot);
+        }
+    }
+
+    private int ManDamage(Sprite sprite, int damage, int var2, int var3, Sprite? target)
+    {
+        if (damage > 0)
+        {
+            if (sprite.Definition.Id != KnownObject.MannedCannon)
+            {
+                foreach (var link in sprite.EnumerateLinks())
+                {
+                    if (link.Definition.Id is KnownObject.InvulnerabilityEffect or KnownObject.RescueMedkitEffect)
+                        return 0;
+                }
+
+                foreach (var link in sprite.EnumerateLinks())
+                {
+                    int armor = link.Definition.Id - KnownObject.WornGreenArmor;
+
+                    if (armor is < 0 or >= WornArmorShareCount)
+                        continue;
+
+                    int share = WornArmorShares[armor];
+                    Action(link, ActionCode.Damage, (share * damage + ArmorRounding) / Percent, var2, var3);
+                    damage -= share * damage / Percent;
+                }
+            }
+
+            if (damage >= sprite.Hp && Action(sprite, ActionCode.HaveItem, (int)KnownObject.Medkit) != 0)
+            {
+                Action(sprite, ActionCode.DeleteItem, (int)KnownObject.Medkit);
+                ChangeHp(sprite, sprite.Definition.GetArmyMaxHp((int)sprite.Army));
+                AddSprite(Definitions.Find(KnownObject.RescueMedkitEffect)!, sprite.Position + Vector3.UnitZ * RescueEffectHeight, default, sprite);
+
+                return 0;
+            }
+        }
+
+        return SpriteAction(sprite, (int)ActionCode.Damage, damage, var2, var3, target);
+    }
+
+    private void AlertCreatures(Sprite sprite)
+    {
+        var center = sprite.Position.AsVector2();
+        var reach = new Vector2(CreatureAlertReach);
+        for (var other = Collector.First(center - reach, center + reach); other is not null; other = Collector.NextHashInBox())
+        {
+            if (other.Definition.Class == SpriteClass.Creature && center.MeasureOctagonalDistance(other.Position.AsVector2()) < CreatureAlertReach)
+            {
+                Motion.StartMove(other);
+            }
+        }
+    }
+
+    private void TactCreatureAttack(Sprite sprite)
+    {
+        var result = sprite.AttackTact(Math.Max(FrameTime, sprite.Definition.GetVisualFrameDuration(sprite.Animation)));
+        sprite.AttackResult = result;
+
+        if (result == AttackResult.Approach && sprite.Speed.IsExactlyZero() && (sprite.ArmedLink is { HasGoal: true } || sprite.HasGoal))
+        {
+            SpriteKinematics.SetCommand(sprite, Command.None);
+        }
+
+        if (result is AttackResult.Pursue or AttackResult.NoTarget && sprite.IsAggressive && sprite.Command is Command.None or Command.Move)
+        {
+            AttackSeenEnemy(sprite, sprite);
+        }
+    }
+
+    private void WanderCreature(Sprite sprite, int frameTime, bool newPeriod)
+    {
+        if (sprite.Animation == SpriteAnimation.LRotate && _rng.Next() % 3 != 0)
+        {
+            sprite.RotateTact(sprite.Direction - CreatureTurn, frameTime);
+        }
+
+        if (sprite.Animation == SpriteAnimation.RRotate && _rng.Next() % 3 != 0)
+        {
+            sprite.RotateTact(sprite.Direction + CreatureTurn, frameTime);
+        }
+
+        if (!newPeriod)
+            return;
+
+        if ((_rng.Next() & 3) == 0)
+        {
+            Motion.StartMove(sprite);
+        }
+        else if (sprite.Speed.IsExactlyZero() && _rng.Next() % 3 == 0 && (sprite.Definition.Object.FrameCounts[(int)SpriteAnimation.Unload] != 0 || sprite.Definition.Children[(int)SpriteAnimation.Unload] != 0 || sprite.Definition.Sounds[(int)SpriteAnimation.Unload] != 0))
+        {
+            sprite.ChangeAnimation(SpriteAnimation.Unload);
+        }
+        else if ((_rng.Next() & 3) == 0)
+        {
+            sprite.RotateTact(sprite.Direction + ((_rng.Next() & 1) == 0 ? CreatureTurn : -CreatureTurn), frameTime);
+        }
+        else
+        {
+            SpriteKinematics.Stop(sprite);
+        }
+    }
+
+    private void AttackSeenEnemy(Sprite seeker, Sprite attacker)
+    {
+        var enemy = _brain.SeekEnemy(seeker, GetFlagman(0));
+
+        if (enemy is not null)
+        {
+            SpriteKinematics.SetCommand(attacker, Command.OneAttack, enemy);
+        }
+    }
+
+    private int UnitDamage(Sprite sprite, int damage, int var2, int var3, Sprite? target)
+    {
+        int result = TerrainAction(sprite, (int)ActionCode.Damage, damage, var2, var3, target);
+
+        if (damage >= 0 && sprite.Command == Command.None && !sprite.Definition.Speed.IsExactlyZero())
+        {
+            var wander = sprite.Position.AsVector2() + new Angle((byte)_rng.Next()).Vector * WanderReach;
+            _brain.MoveTo(sprite, ConstructGoal(new Vector3(wander, sprite.Position.Z)));
+        }
+
+        return result;
+    }
+
+    private void UnitNextCommand(Sprite sprite)
+    {
+        if (sprite.Animation >= SpriteAnimation.Death)
+            return;
+
+        if (sprite.Speed.IsExactlyZero())
+        {
+            sprite.ChangeAnimation(SpriteAnimation.Stand);
+        }
+        else if (sprite.Animation != SpriteAnimation.Go)
+        {
+            sprite.ChangeAnimation(SpriteAnimation.Go);
+        }
+
+        var link = sprite.ArmedLink;
+        var result = AttackResult.Pursue;
+
+        if (link is not null && sprite.Command is Command.Attack or Command.OneAttack && sprite.Goal is not null && link.Goal is null)
+        {
+            SpriteKinematics.SetCommand(link, sprite.Command, sprite.Goal);
+        }
+
+        if (link is not null || sprite.TurnTicks == 0)
+        {
+            result = TactUnitAttack(sprite, link);
+        }
+
+        if (result == AttackResult.Pursue && sprite.IsActive && sprite.Speed.IsExactlyZero())
+        {
+            Motion.StartMove(sprite);
+        }
+
+        if (result == AttackResult.NoOrder && sprite is { IsAggressive: true, IsActive: true } ||
+            result is AttackResult.Pursue or AttackResult.NoTarget && sprite is { IsAggressive: true, Command: Command.None or Command.Move or Command.OneAttack } &&
+            (sprite.LastFrame > sprite.FirstFrame || sprite.Timer != 0 || _rng.Next(IdleScanOdds) == 0))
+        {
+            AttackSeenEnemy(sprite, sprite);
+        }
+
+        if (sprite is { Command: Command.None, HasGoal: false, Timer: 0 })
+        {
+            SpriteKinematics.Stop(sprite);
+        }
+    }
+
+    private AttackResult TactUnitAttack(Sprite sprite, Sprite? link)
+    {
+        var definition = sprite.Definition;
+        var result = sprite.AttackTact(Math.Max(FrameTime, definition.GetVisualFrameDuration(sprite.Animation)));
+
+        switch (result)
+        {
+            case AttackResult.NoAmmo or AttackResult.GiveUp:
+                SpriteKinematics.SetCommand(sprite, Command.None);
+                break;
+            case AttackResult.Approach when definition.Speed.IsExactlyZero():
+                if (link is not null && link.HasGoal || sprite.HasGoal)
+                {
+                    SpriteKinematics.SetCommand(sprite, Command.None);
+                }
+                break;
+            case AttackResult.Approach when sprite.Speed.IsExactlyZero():
+                Motion.StartMove(sprite);
+                break;
+            case AttackResult.Attacked when !sprite.Speed.IsExactlyZero() && (link is null || sprite.Goal == link.Goal):
+                SpriteKinematics.Stop(sprite);
+                break;
+        }
+
+        if (result == AttackResult.Approach && link is not null && sprite.Command is Command.Attack or Command.OneAttack &&
+            sprite.IsAggressive && (link.Timer != 0 || _rng.Next() % LinkScanOdds == 0))
+        {
+            AttackSeenEnemy(sprite, link);
+        }
+
+        return result;
+    }
+
+    private void SpriteCoorAttack(Sprite sprite, Point point)
+    {
+        var armed = (sprite.ArmedLink ?? sprite).Definition;
+        int y = point.Y;
+        float z;
+
+        if (armed.Targets == SpriteType.Unit)
+        {
+            z = Movement.GetHeight(new Vector2(point.X, point.Y + UnitAimLift)) + UnitAimLift;
+            y += (int)z;
+        }
+        else
+        {
+            z = Movement.GetHeight(new Vector2(point.X, point.Y)) + GroundAimLift;
+            y += (int)z - (int)GroundAimLift;
+        }
+
+        SpriteKinematics.SetCommand(sprite, Command.OneAttack, ConstructGoal(new Vector3(point.X, y, z)));
+    }
+
+    private void SpriteRandom(Sprite sprite)
+    {
+        int duration = (byte)sprite.Definition.GetVisualFrameDuration(sprite.Animation);
+
+        if (_rng.Next() % 5 == 0)
+        {
+            sprite.ChangeAnimation(SpriteAnimation.Stand);
+        }
+        else if (_rng.Next() % 5 == 0)
+        {
+            sprite.ChangeAnimation(SpriteAnimation.Unload);
+        }
+        else if (sprite.Animation == SpriteAnimation.LRotate && _rng.Next() % 3 != 0)
+        {
+            sprite.RotateTact(sprite.Direction - QuarterTurn, duration);
+        }
+        else if (sprite.Animation == SpriteAnimation.RRotate && _rng.Next() % 3 != 0)
+        {
+            sprite.RotateTact(sprite.Direction + QuarterTurn, duration);
+        }
+        else if (_rng.Next() % 4 == 0)
+        {
+            sprite.RotateTact(_rng.Next() % 2 == 0 ? sprite.Direction + QuarterTurn : sprite.Direction - QuarterTurn, duration);
+        }
+    }
+
+    private void SpriteBuildUnit(Sprite sprite, int id, Point offset)
+    {
+        if (id == 0)
+        {
+            id = Action(sprite, ActionCode.GetItemType, (int)BuiltSpriteType);
+        }
+
+        if (id <= 0)
+            return;
+
+        var definition = Definitions.Find((KnownObject)id);
+
+        if (definition is null)
+            return;
+
+        AddBuiltUnit(sprite, definition, GetBuildPosition(sprite, offset));
+    }
+
+    private void AddBuiltUnit(Sprite builder, SpriteDefinition definition, Vector3 position)
+    {
+        var built = AddSprite(definition, position, builder.Direction);
+
+        if (built is not null)
+        {
+            Action(builder, ActionCode.CopyStackTo, target: built);
+        }
+    }
+
+    private void SpritePause(Sprite sprite, int time, int spread)
+    {
+        if (!sprite.Speed.IsExactlyZero())
+        {
+            SpriteKinematics.Stop(sprite);
+        }
+
+        int pause = time + _rng.Next() % (spread + 1);
+        sprite.Timer = pause;
+        SpriteKinematics.SetCommand(sprite, pause != 0 ? Command.Pause : Command.None);
+    }
+
+    private void SpriteFlagmanTrigger(Sprite sprite, Point point, int range)
+    {
+        var flagman = GetFlagman(ControlledPlayer);
+
+        if (flagman is null || flagman.Position.AsVector2().MeasureOctagonalDistance(new Vector2(point.X, point.Y)) >= range)
+        {
+            sprite.ActionStack.Push(new Act((int)ActionCode.FlagmanTrigger, point.X, point.Y, range));
+        }
+    }
+
+    private void SpriteChangeVid(Sprite sprite, int id, int animation)
+    {
+        var definition = Definitions.Find((KnownObject)id);
+
+        if (definition is null || definition == sprite.Definition)
+            return;
+
+        DropLinks(sprite);
+        Collector.DeleteFromHash(sprite);
+        RemoveFromUpdates(sprite);
+        var state = animation < 0 ? sprite.Animation : (SpriteAnimation)animation;
+        var direction = sprite.Direction;
+        sprite.ChangeVid(definition);
+        AddToUpdates(sprite);
+        Collector.InsertToHash(sprite);
+
+        CreateLink(sprite);
+
+        sprite.ChangeAnimation(state);
+        sprite.ChangeDirection(direction);
+    }
+
+    private void SpriteCopyStackTo(Sprite sprite, Sprite? target)
+    {
+        if (target is null || target == sprite)
+            return;
+
+        ClearOrders(target);
+        foreach (var order in sprite.ActionStack.Orders)
+        {
+            if (order.Value == Act.StopMarker)
+                break;
+
+            target.ActionStack.Push(order);
+        }
+    }
+
+    private void SpriteDestroyUnit(int id, Vector2 point)
+    {
+        if (id <= -1 || Definitions.Find((KnownObject)id) is null)
+            return;
+
+        var found = GetSpriteScr(SpriteSearch.Id + id, point);
+
+        if (found is not null)
+        {
+            DeleteSprite(found);
+        }
+    }
+
+    private int SpriteGetItemType(Sprite sprite, int type)
+    {
+        if (sprite.Items.Count == 0)
+            return NoItem;
+
+        var mask = type != 0 ? (OldSpriteType)type : OldSpriteType.All;
+        int matching = 0;
+        foreach (int item in sprite.Items)
+        {
+            if ((GetItemType(item) & mask) != OldSpriteType.None)
+            {
+                matching++;
+            }
+        }
+
+        int pick = _rng.Next();
+
+        if (matching == 0)
+            return NoItem;
+
+        pick %= matching;
+        foreach (int item in sprite.Items)
+        {
+            if ((GetItemType(item) & mask) != OldSpriteType.None && --pick < 0)
+                return item;
+        }
+
+        return NoItem;
+    }
+
+    private int SpriteDamage(Sprite sprite, int damage, int var2)
+    {
+        int maxHp = sprite.Definition.GetArmyMaxHp((int)sprite.Army);
+
+        if (maxHp <= sprite.Hp && damage < 0)
+            return 1;
+
+        if (sprite.Animation >= SpriteAnimation.Death)
+            return 0;
+
+        int handler = sprite.Definition.DamageHandler;
+
+        if (handler >= 0 && CallScript(handler, sprite, var2, damage) != 0)
+            return 0;
+
+        if (sprite.Definition.MaxHp != 0)
+        {
+            ChangeHp(sprite, sprite.Hp - damage);
+        }
+
+        if (maxHp < sprite.Hp && damage < 0)
+        {
+            sprite.Hp = maxHp;
+        }
+
+        if (damage <= 0)
+            return 0;
+
+        if (sprite.Definition.GetFrameCount(SpriteAnimation.Close) != 0 && sprite.Animation is SpriteAnimation.Stand or SpriteAnimation.Go)
+        {
+            sprite.ChangeAnimation(SpriteAnimation.Close);
+            return 0;
+        }
+
+        int closeHandler = sprite.Definition.StateHandlers[(int)SpriteAnimation.Close];
+
+        if (closeHandler >= 0 && CallScript(closeHandler, sprite, var2) != 0)
+            return 0;
+
+        int closeSound = sprite.Definition.Sounds[(int)SpriteAnimation.Close];
+
+        if (closeSound != 0)
+        {
+            PlaySfx(sprite, closeSound);
+        }
+
+        if (sprite.Definition.Children[(int)SpriteAnimation.Close] != 0)
+        {
+            CreateChildAs(sprite, SpriteAnimation.Close);
+        }
+
+        return 0;
+    }
+
+    private void SpriteRepair(Sprite sprite)
+    {
+        DestroyLink(sprite, Definitions.Find((KnownObject)Math.Abs(sprite.Definition.Children[(int)SpriteAnimation.Wound])));
+        sprite.Hp = sprite.Definition.GetArmyMaxHp((int)sprite.Army);
+        var link = sprite.Link;
+
+        if (link is not null && link.Definition == sprite.Definition.LinkDefinition)
+        {
+            Action(link, ActionCode.Repair);
+        }
+        else
+        {
+            CreateLink(sprite);
+        }
     }
 
     private OldSpriteType GetItemType(int item) => Definitions.Find((KnownObject)item)?.Object.SpriteType.ToOldSpriteType() ?? OldSpriteType.None;
@@ -1156,26 +1219,15 @@ public sealed partial class Map
 
         if (definition.Object.Properties.HasFlag(ObjectProperties.InvisibleForEnemy))
         {
-            sprite.IsInvisible = current != ControlledPlayer;
-
-            if (current == ControlledPlayer)
-            {
-                sprite.Link?.InvisibleOff();
-            }
-            else
-            {
-                sprite.Link?.InvisibleOn();
-            }
+            SetInvisible(sprite, current != ControlledPlayer);
         }
 
-        if (sprite.IsCounted)
+        if (definition.Counts[previous] != 0)
         {
-            if (definition.Counts[previous] != 0)
-            {
-                definition.Counts[previous]--;
-            }
-
-            definition.Counts[current]++;
+            definition.Counts[previous]--;
         }
+
+        definition.LastCreatedAt = WallTime;
+        definition.Counts[current]++;
     }
 }

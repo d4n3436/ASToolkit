@@ -1,9 +1,9 @@
 using System.Numerics;
-using ASToolkit.Engine;
-using ASToolkit.Formats;
 using ASToolkit.Analysis.Levels;
 using ASToolkit.Analysis.Routes;
 using ASToolkit.Core;
+using ASToolkit.Engine;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Bot;
 
@@ -67,6 +67,7 @@ internal sealed class PlayerBot
     private const int SecretInterval = 1000;
     private const float GunnerKeep = 0.6f;
 
+    private readonly FramePacer _pacer;
     private readonly Map _map;
     private readonly RouteAnalysis _analysis;
     private readonly WalkField _field;
@@ -75,8 +76,8 @@ internal sealed class PlayerBot
     private readonly List<Sprite> _explosives = [];
     private readonly List<Sprite> _chained = [];
     private readonly List<Sprite> _cluster = [];
-    private readonly Dictionary<MergedMapSprite, (Vector2 Position, int Cell, int Collected)> _pickupCells = [];
-    private readonly HashSet<MergedMapSprite> _unreachablePickups = [];
+    private readonly Dictionary<Sprite, (Vector2 Position, int Cell, int Collected)> _pickupCells = [];
+    private readonly HashSet<Sprite> _unreachablePickups = [];
     private readonly HashSet<Sprite> _unreachableCrates = [];
     private readonly List<Vector2> _way = [];
     private readonly Queue<Vector2> _path = [];
@@ -89,7 +90,7 @@ internal sealed class PlayerBot
     private readonly List<Sprite> _incoming = [];
     private readonly List<(int Slot, Vector2 Position)> _caches = [];
     private readonly InputDriver _input;
-    private MergedMapSprite? _detourTarget;
+    private Sprite? _detourTarget;
     private int _detourCell = -1;
     private Vector2 _detourEnd;
     private int _weapon = Pistols;
@@ -103,7 +104,7 @@ internal sealed class PlayerBot
     private Vector2? _playerGoal;
     private Vector2 _rubbleReach;
     private int _cannonIdleSince;
-    private bool _seeksCannon;
+    private bool _isSeekingCannon;
     private bool _planting;
     private Vector2 _aimCursor;
     private int _pathEnds;
@@ -125,9 +126,10 @@ internal sealed class PlayerBot
     private PlayerCommand _command;
     private Vector2? _reachedGoal;
 
-    public PlayerBot(Map map, RouteAnalysis analysis, WalkField field)
+    public PlayerBot(Map map, FramePacer pacer, RouteAnalysis analysis, WalkField field)
     {
         _map = map;
+        _pacer = pacer;
         _state = new PlayerState(map);
         _pickups = new PickupTracker(map);
         _analysis = analysis;
@@ -136,8 +138,8 @@ internal sealed class PlayerBot
         _input = new InputDriver(map);
         _lastDoorsLocked = map.AreDoorsLocked;
         _lastFencesUp = map.AreFencesUp;
-        _holes = map.Sprites
-            .Where(sprite => sprite.Id is KnownObject.SmallMonsterHole or KnownObject.BigMonsterHole)
+        _holes = map.UpdatedSprites
+            .Where(sprite => sprite.Definition.Id is KnownObject.SmallMonsterHole or KnownObject.BigMonsterHole)
             .Select(sprite => sprite.Position.AsVector2())
             .ToArray();
 
@@ -165,13 +167,6 @@ internal sealed class PlayerBot
                 _tour[i] = _field.GetCenter(free);
             }
         }
-    }
-
-    private enum CellScore
-    {
-        AwayFrom,
-        Escape,
-        Forward
     }
 
     public bool HasFinished => _tour.Length > 1 && _cursor == _tour.Length - 1;
@@ -211,7 +206,7 @@ internal sealed class PlayerBot
                 _input.Press(_command);
             }
 
-            _map.StepAimed(_map.StepDemo(_map.WallTime, out _));
+            _map.StepAimed(_pacer, _input.Cursor);
 
             return;
         }
@@ -227,7 +222,7 @@ internal sealed class PlayerBot
         }
 
         var command = _command;
-        var dodge = IsInCannon ? null : FindDodge(command.Destination) ?? (_seeksCannon ? null : SkirtCannon(command.Destination));
+        var dodge = IsInCannon ? null : FindDodge(command.Destination) ?? (_isSeekingCannon ? null : SkirtCannon(command.Destination));
 
         if (dodge is not null)
         {
@@ -243,7 +238,7 @@ internal sealed class PlayerBot
 
         var player = _map.Player;
         Vector2? goal = player is { Command: Command.Move, HasGoal: true } ? player.GoalPosition.AsVector2() : null;
-        _map.StepAimed(_map.StepDemo(_map.WallTime, out _));
+        _map.StepAimed(_pacer, _input.Cursor);
 
         if (!_map.HasPlayer)
             return;
@@ -354,16 +349,16 @@ internal sealed class PlayerBot
         }
     }
 
-    private (Vector2 Position, int Cell, int Collected) GetPickupSpot(MergedMapSprite pickup)
+    private (Vector2 Position, int Cell, int Collected) GetPickupSpot(Sprite pickup)
     {
         if (!_pickupCells.TryGetValue(pickup, out var cached) ||
-            PickupTracker.IsDropped(pickup) && Vector2.DistanceSquared(cached.Position, pickup.Position.AsVector2()) >= _field.CellStep * _field.CellStep)
+            _pickups.IsDropped(pickup) && Vector2.DistanceSquared(cached.Position, pickup.Position.AsVector2()) >= _field.CellStep * _field.CellStep)
         {
             var position = pickup.Position.AsVector2();
             int collected = -1;
             for (int i = 0; i < _tour.Length; i++)
             {
-                if (_tour[i].MeasureOctagonalDistance(position) < GetPickupReach(pickup.Id))
+                if (_tour[i].MeasureOctagonalDistance(position) < GetPickupReach(pickup.Definition.Id))
                 {
                     collected = i;
                 }
@@ -423,7 +418,7 @@ internal sealed class PlayerBot
 
         if (IsInCannon)
         {
-            _seeksCannon = false;
+            _isSeekingCannon = false;
             ManCannon();
         }
         else if (danger is not null)
@@ -577,13 +572,13 @@ internal sealed class PlayerBot
             bool onScreen = _gunnery.IsOnScreen(monster.Position.AsVector2());
             float priority = MeasurePriority(monster, distance);
             bool isCloser = onScreen && priority > targetPriority;
-            bool threatens = monster.Goal == _map.Player && intrusion > worstIntrusion - StandOffMargin && CanReach(monster);
+            bool isThreat = monster.Goal == _map.Player && intrusion > worstIntrusion - StandOffMargin && CanReach(monster);
 
             bool isGenerator = _map.AreFencesUp && monster.Definition.Id == KnownObject.Generator && monster.IsAlive;
 
-            // Count off-screen attackers as threats only when they are within battle range and threaten the player
-            if (monster == _map.Player || (monster.Army != Army.Monsters && !isGenerator) || (monster.Placement is not null && !isGenerator) ||
-                !onScreen && (distance > monster.Definition.BattleRange + StandOffMargin || !threatens) || (!isCloser && !threatens) || !_gunnery.HasClearAim(monster))
+            // Keep an off-screen attacker only when it is within battle range and threatens the player
+            if (monster == _map.Player || (monster.Army != Army.Monsters && !isGenerator) || (monster.IsBody && !isGenerator) ||
+                !onScreen && (distance > monster.Definition.BattleRange + StandOffMargin || !isThreat) || (!isCloser && !isThreat) || !_gunnery.HasClearAim(monster))
                 continue;
 
             if (isCloser)
@@ -763,7 +758,7 @@ internal sealed class PlayerBot
             i++;
         }
 
-        // Rejoin the route at the reachable tour point with the shortest walking distance among the next stretch of the route, leaving the remaining points to the hunt
+        // Rejoin the route at the reachable tour point with the shortest walking distance within the next stretch of the route, and leave the other points to the hunt
         int bestIndex = -1;
         int bestGoal = -1;
         float covered = 0;
@@ -854,9 +849,9 @@ internal sealed class PlayerBot
     private bool IsNewWeapon(KnownObject id) =>
         id is >= KnownObject.Shotgun and <= KnownObject.MagmaMinigun && !_state.HoldsWeapon((int)id - Sprite.WeaponItemBase);
 
-    private bool IsCached(MergedMapSprite pickup)
+    private bool IsCached(Sprite pickup)
     {
-        int slot = pickup.Id.GetAmmoSlot();
+        int slot = pickup.Definition.Id.GetAmmoSlot();
         foreach ((int weapon, var position) in _caches)
         {
             if (weapon == slot && position.MeasureOctagonalDistance(pickup.Position.AsVector2()) <= CacheReach)
@@ -924,13 +919,13 @@ internal sealed class PlayerBot
 
     private bool PlanDynamite()
     {
-        bool waits = false;
+        bool isWaiting = false;
         foreach (var site in _map.DynamiteSites)
         {
-            waits |= IsReachedOnTour(site.Position.AsVector2());
+            isWaiting |= IsReachedOnTour(site.Position.AsVector2());
         }
 
-        if (!waits)
+        if (!isWaiting)
             return false;
 
         if (HasDynamite)
@@ -948,7 +943,7 @@ internal sealed class PlayerBot
 
         foreach (var pickup in _pickups.Pickups)
         {
-            int cell = pickup.Id == KnownObject.Dynamite ? GetPickupSpot(pickup).Cell : -1;
+            int cell = pickup.Definition.Id == KnownObject.Dynamite ? GetPickupSpot(pickup).Cell : -1;
 
             if (cell >= 0 && _field.GetDistance(cell) >= 0 && QueuePath(cell, pickup.Position.AsVector2()))
                 return true;
@@ -983,7 +978,7 @@ internal sealed class PlayerBot
             {
                 foreach (var pickup in _pickups.Pickups)
                 {
-                    if (pickup.Id == KnownObject.Dynamite)
+                    if (pickup.Definition.Id == KnownObject.Dynamite)
                     {
                         Consider(GetPickupSpot(pickup).Cell, pickup.Position.AsVector2());
                     }
@@ -1029,7 +1024,7 @@ internal sealed class PlayerBot
 
         foreach (var pickup in _pickups.Pickups)
         {
-            if (pickup.Id == KnownObject.Dynamite && player.MeasureOctagonalDistance(pickup.Position.AsVector2()) < PlantSightReach)
+            if (pickup.Definition.Id == KnownObject.Dynamite && player.MeasureOctagonalDistance(pickup.Position.AsVector2()) < PlantSightReach)
                 return true;
         }
 
@@ -1096,7 +1091,7 @@ internal sealed class PlayerBot
         chain.Clear();
         foreach (var body in _map.Collector.GetNear(point - Gunnery.ScreenHalf, point + Gunnery.ScreenHalf))
         {
-            if (body.Placement is not null && body is { IsAlive: true, Definition.Damage: > 0 })
+            if (body.IsBody && body is { IsAlive: true, Definition.Damage: > 0 })
             {
                 _explosives.Add(body);
             }
@@ -1161,7 +1156,7 @@ internal sealed class PlayerBot
         float bestScore = 0;
         foreach (var pickup in _pickups.Pickups)
         {
-            if (!IsWanted(pickup.Id) || _unreachablePickups.Contains(pickup))
+            if (!IsWanted(pickup.Definition.Id) || _unreachablePickups.Contains(pickup))
                 continue;
 
             int cell = _field.Find(pickup.Position.AsVector2());
@@ -1210,9 +1205,9 @@ internal sealed class PlayerBot
     {
         _incoming.Clear();
         var center = _map.Player.Position.AsVector2();
-        foreach (var round in _map.ActiveSprites)
+        foreach (var round in _map.UpdatedSprites)
         {
-            if (round.Shooter is null || round.Shooter.Army == _map.Player.Army || round.Speed <= 0 || round.Speed >= SpriteDefinition.Unlimited ||
+            if (round.Army == _map.Player.Army || round.Speed <= 0 || round.Speed >= SpriteDefinition.Unlimited ||
                 round.Definition.Damage <= 0 || center.MeasureOctagonalDistance(round.Position.AsVector2()) > DodgeReach)
                 continue;
 
@@ -1278,12 +1273,12 @@ internal sealed class PlayerBot
     {
         if (_aimTarget is null || _aimTarget.Army != Army.Monsters || _map.Time - _cannonIdleSince < CannonRest || CountMonstersOnScreen() < CrowdSize)
         {
-            _seeksCannon = false;
+            _isSeekingCannon = false;
 
             return false;
         }
 
-        if (_seeksCannon && _path.Count > 0)
+        if (_isSeekingCannon && _path.Count > 0)
             return true;
 
         var center = _map.Player.Position.AsVector2();
@@ -1297,10 +1292,10 @@ internal sealed class PlayerBot
             FloodWithin(CannonSeekReach * 2);
 
             if (QueueTrigger(position, CannonApproach))
-                return _seeksCannon = true;
+                return _isSeekingCannon = true;
         }
 
-        return _seeksCannon = false;
+        return _isSeekingCannon = false;
     }
 
     private void ManCannon()
@@ -1321,7 +1316,7 @@ internal sealed class PlayerBot
         var center = _map.Player.Position.AsVector2();
         foreach (var sprite in _map.Collector.GetNear(center - Gunnery.ScreenHalf, center + Gunnery.ScreenHalf))
         {
-            if (sprite is { IsAlive: true, Army: Army.Monsters, Placement: null })
+            if (sprite is { IsAlive: true, Army: Army.Monsters, IsBody: false })
             {
                 count++;
             }
@@ -1410,7 +1405,7 @@ internal sealed class PlayerBot
             Sprite? body = null;
             foreach (var candidate in _map.Collector.GetNear(point - new Vector2(SideStep), point + new Vector2(SideStep)))
             {
-                if (candidate.Placement is not null && candidate is { IsAlive: true, Definition.Id: KnownObject.BreakableWall })
+                if (candidate.IsBody && candidate is { IsAlive: true, Definition.Id: KnownObject.BreakableWall })
                 {
                     body = candidate;
                 }
@@ -1454,7 +1449,7 @@ internal sealed class PlayerBot
         {
             foreach (var pickup in _pickups.Pickups)
             {
-                if (Vector2.Distance(pickup.Position.AsVector2(), point) < SecretReach && IsNewWeapon(pickup.Id))
+                if (Vector2.Distance(pickup.Position.AsVector2(), point) < SecretReach && IsNewWeapon(pickup.Definition.Id))
                     return true;
             }
 
@@ -1465,7 +1460,7 @@ internal sealed class PlayerBot
         {
             foreach (var pickup in _pickups.Pickups)
             {
-                if (Vector2.Distance(pickup.Position.AsVector2(), point) < SecretReach && IsWanted(pickup.Id) &&
+                if (Vector2.Distance(pickup.Position.AsVector2(), point) < SecretReach && IsWanted(pickup.Definition.Id) &&
                     _field.FindFree(pickup.Position.AsVector2(), reachedOnly: true) < 0)
                     return true;
             }
@@ -1490,22 +1485,22 @@ internal sealed class PlayerBot
 
             (_, int cell, int collected) = GetPickupSpot(pickup);
             bool cached = IsCached(pickup);
-            bool counts = cell >= 0 && (collected <= _cursor || PickupTracker.IsDropped(pickup) || IsNewWeapon(pickup.Id) || cached);
+            bool isCounted = cell >= 0 && (collected <= _cursor || _pickups.IsDropped(pickup) || IsNewWeapon(pickup.Definition.Id) || cached);
 
-            if (counts && _field.GetDistance(cell) < 0)
+            if (isCounted && _field.GetDistance(cell) < 0)
             {
-                cell = _field.FindFree(pickup.Position.AsVector2(), GetPickupReach(pickup.Id) * 2, reachedOnly: true);
+                cell = _field.FindFree(pickup.Position.AsVector2(), GetPickupReach(pickup.Definition.Id) * 2, reachedOnly: true);
             }
 
-            int steps = counts && cell >= 0 ? _field.GetDistance(cell) : -1;
+            int steps = isCounted && cell >= 0 ? _field.GetDistance(cell) : -1;
 
-            if (IsNewWeapon(pickup.Id) || cached)
+            if (IsNewWeapon(pickup.Definition.Id) || cached)
             {
                 steps = DiscountWeapon(steps);
             }
 
-            if (steps > 0 && steps <= bestSteps && _field.GetCenter(cell).MeasureOctagonalDistance(pickup.Position.AsVector2()) < GetPickupReach(pickup.Id) * 2 &&
-                IsWanted(pickup.Id))
+            if (steps > 0 && steps <= bestSteps && _field.GetCenter(cell).MeasureOctagonalDistance(pickup.Position.AsVector2()) < GetPickupReach(pickup.Definition.Id) * 2 &&
+                IsWanted(pickup.Definition.Id))
             {
                 best = i;
                 bestCell = cell;
@@ -1568,7 +1563,7 @@ internal sealed class PlayerBot
         foreach (var pickup in _pickups.Pickups)
         {
             if (pickup == _detourTarget)
-                return IsWanted(pickup.Id);
+                return IsWanted(pickup.Definition.Id);
         }
 
         return false;
@@ -1580,9 +1575,9 @@ internal sealed class PlayerBot
         {
             _unreachablePickups.Add(_detourTarget);
         }
-        else if (_detourTarget is not null && IsWeapon(_detourTarget.Id))
+        else if (_detourTarget is not null && IsWeapon(_detourTarget.Definition.Id))
         {
-            _caches.Add(((int)_detourTarget.Id - Sprite.WeaponItemBase, _detourTarget.Position.AsVector2()));
+            _caches.Add(((int)_detourTarget.Definition.Id - Sprite.WeaponItemBase, _detourTarget.Position.AsVector2()));
         }
 
         if (_detourCrate is not null && _detourCrate.IsAlive)

@@ -1,6 +1,6 @@
+using System.Numerics;
 using ASToolkit.Bot;
 using ASToolkit.Engine;
-using System.Numerics;
 using ASToolkit.Formats;
 using Xunit;
 
@@ -45,11 +45,10 @@ public class OrderStackTests
 
             built.Add(map.Time);
             var sprite = map.Monsters.Last();
-            sprite.Position += new Vector3(500, 500, 0);
-            map.Collector.ChangeCoor(sprite);
+            sprite.ChangeCoor(sprite.Position + new Vector3(500, 500, 0));
         }
 
-        Assert.Equal([170, 810, 1450], built);
+        Assert.Equal([154, 794, 1434], built);
     }
 
     [Fact]
@@ -70,7 +69,7 @@ public class OrderStackTests
         var definitions = TestGameFolder.CreateCatalog();
         var placement = new MergedMapSprite(1, KnownObject.Spawner, new Vector3(1000, 1600, 0), 0, Army.Monsters, []);
         var map = EngineTestMap.CreateMap(definitions, sprites: [placement]);
-        var spawner = map.FindPlacementSprite(placement)!;
+        var spawner = map.FindFirstSprite(KnownObject.Spawner);
         spawner.ActionStack.Load(stack.Select(Act.FromAction).ToArray());
 
         return (map, spawner);

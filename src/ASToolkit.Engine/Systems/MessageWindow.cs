@@ -20,6 +20,7 @@ internal sealed class MessageWindow
     private readonly Sprite?[] _lines;
     private readonly Sprite?[] _markers;
     private readonly Vector2[] _targets;
+    private readonly List<PendingMessage> _pending = [];
     private int _shownAt;
 
     [EngineRoutine(0x0042e120)]
@@ -41,12 +42,25 @@ internal sealed class MessageWindow
 
     public int LineStep { get; set; }
 
+    [EngineRoutine(0x0042e230)]
     public void Clear()
     {
-        Array.Clear(_lines);
-        Array.Clear(_markers);
-        Array.Clear(_targets);
-        _shownAt = 0;
+        for (int i = 1; i <= _count; i++)
+        {
+            if (_markers[i] is not null)
+            {
+                _map.DeleteSprite(_markers[i]!);
+            }
+
+            _markers[i] = null;
+
+            if (_lines[i] is not null)
+            {
+                _map.DeleteSprite(_lines[i]!);
+            }
+
+            _lines[i] = null;
+        }
     }
 
     [EngineRoutine(0x0042e4a0)]
@@ -67,7 +81,7 @@ internal sealed class MessageWindow
         if (_lines[_count] is null)
         {
             var position = new Vector3(Origin.X, bottom + Origin.Y + ScreenDepth, ScreenDepth);
-            _lines[_count] = _map.CreateSprite(FindDefinition(_lineId), position, default);
+            _lines[_count] = _map.AddSprite(FindDefinition(_lineId), position, default);
         }
 
         var line = _lines[_count];
@@ -81,7 +95,7 @@ internal sealed class MessageWindow
         {
             int halfLine = lineHeight / 2;
             var position = new Vector3(Origin.X - MarkerIndent, bottom + halfLine + Origin.Y + ScreenDepth, ScreenDepth);
-            _markers[_count] = _map.CreateSprite(FindDefinition(_markerId), position, default);
+            _markers[_count] = _map.AddSprite(FindDefinition(_markerId), position, default);
         }
 
         _map.Sound.Play(MessageSound, 0, SoundSystem.FullLoudness);
@@ -91,6 +105,21 @@ internal sealed class MessageWindow
     public void Tact()
     {
         int lineHeight = GetLineHeight();
+
+        for (int index = 0; index < _pending.Count; index++)
+        {
+            var message = _pending[index];
+
+            if ((uint)(_map.Time - _map.FrameTime) < (uint)message.Time)
+            {
+                _pending[index] = message with { Time = message.Time - _map.Time + _map.FrameTime };
+                continue;
+            }
+
+            Put(message.Text, message.Target);
+            _pending.RemoveAt(index);
+            index--;
+        }
 
         if ((uint)(_map.Time - _shownAt) > (uint)_idleTime)
         {
@@ -104,9 +133,6 @@ internal sealed class MessageWindow
             return;
 
         int i = (int)(clicked.Position.Y - clicked.Position.Z - _map.Camera.Y - _map.Session.Graphics.Viewport.Top) / lineHeight + 1;
-
-        if (i < 0 || i > _count)
-            return;
 
         if (_targets[i] != NoTarget)
         {

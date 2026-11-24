@@ -26,18 +26,17 @@ public sealed partial class Map
     [EngineRoutine(0x0043da80)]
     private void TactMouseTip(PlayerInput input)
     {
-        var session = Session;
         uint now = WallTime;
         var cursor = input.ScreenCursor;
 
-        if (session.MouseTipCursor != cursor)
+        if (Session.MouseTipCursor != cursor)
         {
-            session.MouseTipMovedAt = now;
-            session.MouseTipCursor = cursor;
+            Session.MouseTipMovedAt = now;
+            Session.MouseTipCursor = cursor;
         }
 
-        bool isResting = now - session.MouseTipMovedAt > (uint)Definitions.HoverDelay && !input.Flags.HasFlag(InputFlags.LeftClick) && input.Key == 0 &&
-            !_menuClicks.HasFlag(MenuClicks.Left);
+        bool isResting = now - Session.MouseTipMovedAt > (uint)Definitions.HoverDelay && !input.Flags.HasFlag(InputFlags.LeftClick) && input.Key == 0 &&
+            !_menuClicks.HasFlag(MenuClicks.Left) && _flags.HasFlag(MapFlags.MouseTips);
 
         if (!isResting)
         {
@@ -47,12 +46,12 @@ public sealed partial class Map
 
         if (_mouseTip is not null)
         {
-            if (now - session.MouseTipMovedAt <= (uint)Definitions.HoverDelay + MouseTipRecheck)
+            if (now - Session.MouseTipMovedAt <= (uint)Definitions.HoverDelay + MouseTipRecheck)
                 return;
 
-            session.MouseTipMovedAt += MouseTipRecheck;
+            Session.MouseTipMovedAt += MouseTipRecheck;
 
-            if (GetMouseTipText().Span.SequenceEqual(session.MouseTipText.Span))
+            if (GetMouseTipText().Span.SequenceEqual(Session.MouseTipText.Span))
                 return;
 
             DeleteMouseTip();
@@ -60,37 +59,36 @@ public sealed partial class Map
         }
 
         var font = Definitions.Find(MouseTipFont) ?? Definitions.Empty;
-        session.MouseTipText = GetMouseTipText();
+        Session.MouseTipText = GetMouseTipText();
 
-        if (font == Definitions.Empty || session.MouseTipText.IsEmpty)
+        if (font == Definitions.Empty || Session.MouseTipText.IsEmpty)
             return;
 
         var size = font.Object.Size;
-        var view = session.Graphics.Viewport;
-        float x = cursor.X + MouseTipOffsetX;
-        float y = cursor.Y - size.Y + MouseTipDepth - MouseTipRaise;
+        var view = Session.Graphics.Viewport;
+        var position = new Vector2(cursor.X + MouseTipOffsetX, cursor.Y - size.Y + MouseTipDepth - MouseTipRaise);
         float half = size.Y * MouseTipHalf;
 
-        if (view.Top >= half + y - MouseTipDepth)
+        if (view.Top >= half + position.Y - MouseTipDepth)
         {
-            y = half + cursor.Y + MouseTipDrop;
+            position.Y = half + cursor.Y + MouseTipDrop;
         }
 
-        int length = session.MouseTipText.Length + MouseTipFrameLength;
+        int length = Session.MouseTipText.Length + MouseTipFrameLength;
 
-        if (!(view.Right > length * size.X + x))
+        if (!(view.Right > length * size.X + position.X))
         {
-            x = view.Right - length * size.X;
+            position.X = view.Right - length * size.X;
         }
 
-        _mouseTip = CreateSprite(font, new Vector3(x, y, MouseTipDepth), default);
+        _mouseTip = AddSprite(font, new Vector3(position, MouseTipDepth), default);
 
         if (_mouseTip is not TextSprite)
             return;
 
         byte[] framed = new byte[length];
         framed[0] = MouseTipOpen;
-        session.MouseTipText.Span.CopyTo(framed.AsSpan(1));
+        Session.MouseTipText.Span.CopyTo(framed.AsSpan(1));
         framed[^1] = MouseTipClose;
         SetText(_mouseTip, framed);
     }
@@ -99,7 +97,7 @@ public sealed partial class Map
     private ReadOnlyMemory<byte> GetMouseTipText()
     {
         if (_menuCurrent is null)
-            return ReadOnlyMemory<byte>.Empty;
+            return default;
 
         int id = GetMenuIdUnderCursor();
         Span<byte> key = stackalloc byte[MouseTipKeyLength];

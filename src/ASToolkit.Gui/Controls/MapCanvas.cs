@@ -1,6 +1,8 @@
+using System.Runtime.CompilerServices;
 using System.Windows.Input;
-using ASToolkit.Engine;
+using ASToolkit.Bot;
 using ASToolkit.Bot.Rendering;
+using ASToolkit.Engine;
 using ASToolkit.Gui.Core;
 using ASToolkit.Gui.Models;
 using Avalonia;
@@ -13,7 +15,7 @@ using Avalonia.Threading;
 namespace ASToolkit.Gui.Controls;
 
 /// <summary>
-/// Shows an engine map that can be zoomed, dragged and animated, with the overlays of the level drawn over it.
+/// Represents a control showing an engine map that can be zoomed, dragged and animated, with the overlays of the level drawn over it.
 /// </summary>
 public sealed class MapCanvas : Control
 {
@@ -32,13 +34,13 @@ public sealed class MapCanvas : Control
     public static readonly StyledProperty<ICommand?> HoverCommandProperty = AvaloniaProperty.Register<MapCanvas, ICommand?>(nameof(HoverCommand));
 
     public static readonly StyledProperty<ICommand?> SelectCommandProperty = AvaloniaProperty.Register<MapCanvas, ICommand?>(nameof(SelectCommand));
-
     private const double ZoomStep = 1.25;
     private const double MaxZoom = 16;
     private const double ClickDistance = 4;
     private static readonly TimeSpan TickInterval = TimeSpan.FromMilliseconds(40);
 
     private readonly DispatcherTimer _timer;
+    private readonly ConditionalWeakTable<Map, FramePacer> _pacers = [];
     private double _zoom = 1;
     private Point _offset;
     private Point? _pressed;
@@ -72,7 +74,7 @@ public sealed class MapCanvas : Control
     }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the map steps while it is shown, so its sprites animate.
+    /// Gets or sets a value indicating whether the map is animated while it's shown.
     /// </summary>
     public bool Animate
     {
@@ -369,8 +371,7 @@ public sealed class MapCanvas : Control
                     {
                         if (tick)
                         {
-                            map.AdvanceClock();
-                            map.Step();
+                            _pacers.GetValue(map, _ => new FramePacer(FramePacer.DisplayFrameTimes)).Step(map);
                         }
 
                         using var drawn = MapImage.Render(map, area, scale);

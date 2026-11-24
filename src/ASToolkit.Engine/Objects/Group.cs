@@ -8,17 +8,37 @@ namespace ASToolkit.Engine;
 public sealed class Group
 {
     private const float CenterBlend = 0.5f;
+
     private readonly List<Sprite> _members = [];
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Group"/> class with its first member.
+    /// Initializes a new instance of the <see cref="Group"/> class and links it into the circle of groups after another group.
     /// </summary>
-    /// <param name="first">The first member.</param>
+    /// <param name="previous">The group the new group follows, or <see langword="null"/> to start a circle of its own.</param>
+    /// <param name="first">The first member, or <see langword="null"/> to start the group without one.</param>
     [EngineRoutine(0x0043ab90)]
-    public Group(Sprite first)
+    public Group(Group? previous, Sprite? first)
     {
-        Add(first);
+        if (previous is null)
+        {
+            Next = this;
+        }
+        else
+        {
+            Next = previous.Next;
+            previous.Next = this;
+        }
+
+        if (first is not null)
+        {
+            Add(first);
+        }
     }
+
+    /// <summary>
+    /// Gets the group that follows this group in the circle of groups.
+    /// </summary>
+    public Group Next { get; private set; }
 
     /// <summary>
     /// Gets the members of the group.
@@ -29,6 +49,24 @@ public sealed class Group
     /// Gets the center of the group's members.
     /// </summary>
     public Vector2 Center { get; private set; }
+
+    /// <summary>
+    /// Takes the group out of the circle of groups and releases its member list.
+    /// </summary>
+    [EngineRoutine(0x0043abf0)]
+    public void Unlink()
+    {
+        var next = Next;
+        var previous = next;
+
+        for (var group = next.Next; group != this; group = group.Next)
+        {
+            previous = group;
+        }
+
+        previous.Next = next;
+        _members.Clear();
+    }
 
     /// <summary>
     /// Adds a member.

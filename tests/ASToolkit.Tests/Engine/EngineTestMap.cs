@@ -1,15 +1,20 @@
+using System.Drawing;
 using System.Numerics;
+using System.Text;
+using ASToolkit.Bot;
 using ASToolkit.Engine;
 using ASToolkit.Engine.IO;
-using ASToolkit.Engine.Scripts;
 using ASToolkit.Formats;
-using ASToolkit.Bot;
 
 namespace ASToolkit.Tests.Engine;
 
 internal static class EngineTestMap
 {
+    public const string MapPath = "maps\\engine_test.map";
     private const string ScriptPath = "maps\\engine_test.lgc";
+    private const string DemoPath = "maps\\engine_test.dem";
+    private const int MapVersion = 12;
+    private const float MapSide = 8192;
     private const int StartHandle = int.MaxValue;
 
     private const string Script = """
@@ -28,13 +33,16 @@ internal static class EngineTestMap
         }
         """;
 
-    public static IEnumerable<Sprite> GetEffects(this Map map) => map.ActiveSprites.Where(sprite =>
-        sprite.Definition.Object.SpriteClass != SpriteClass.Man && !SpriteCollector.IsListed(sprite.Definition) && sprite.Owner?.Definition.Object.SpriteClass != SpriteClass.Man);
+    public static ReadOnlySpan<byte> MapName => "maps\\engine_test.map"u8;
 
-    public static Map CreateMap(SpriteCatalog definitions, PlayerLoadout? loadout = null, IReadOnlyList<MergedMapSprite>? sprites = null, int frameTime = GameClock.DefaultFrameTime,
-        MapEnvironment environment = MapEnvironment.None, DemoResource? demo = null, string? blood = null, GameSession? session = null, string script = Script, Gamma ambient = default, bool placesPlayer = true, Vector2 camera = default)
+    public static IEnumerable<Sprite> GetEffects(this Map map) => map.UpdatedSprites.Where(sprite =>
+        sprite.Definition.Class is not (SpriteClass.Man or SpriteClass.Frame or SpriteClass.Text) && sprite.Definition.Id is not (SpriteCatalog.HardwareGroundId or KnownObject.SmallShadow) &&
+        !SpriteCollector.IsListed(sprite.Definition) && sprite.Owner?.Definition.Class != SpriteClass.Man);
+
+    public static Map CreateMap(SpriteCatalog definitions, PlayerLoadout? loadout = null, IReadOnlyList<MergedMapSprite>? sprites = null, int frameTime = FramePacer.DefaultFrameTime,
+        MapEnvironment environment = MapEnvironment.None, DemoResource? demo = null, string? blood = null, GameSession? session = null, string script = Script, Gamma ambient = default, bool placePlayer = true, Vector2 camera = default)
     {
-        var level = CreateLevel(definitions, sprites, frameTime, environment, script, ambient, placesPlayer, camera);
+        var files = CreateFiles(sprites, environment, script, ambient, placePlayer, camera);
 
         loadout ??= new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default);
 
@@ -44,9 +52,20 @@ internal static class EngineTestMap
             registry.Set("Blood", blood);
         }
 
-        var map = new Map(definitions, level.FileSystem, registry: registry, session: session);
-        map.Load(level, 1, demo);
-        if (placesPlayer)
+        var map = new Map(definitions, files, registry: registry, session: session ?? new GameSession(registry, time: new LoadingRedrawClock()));
+        map.Pace([frameTime]);
+        map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
+        if (demo is null)
+        {
+            map.Load(MapName, GameClock.StartWallTime);
+        }
+        else
+        {
+            files.Set(DemoPath, demo.Value.Data);
+            map.Load(Encoding.ASCII.GetBytes(DemoPath), GameClock.StartWallTime);
+        }
+
+        if (placePlayer)
         {
             map.SetFlagman(0, FindPlacedMan(map));
         }
@@ -54,52 +73,40 @@ internal static class EngineTestMap
         return map;
     }
 
-    public static LevelTemplate CreateLevel(SpriteCatalog definitions, IReadOnlyList<MergedMapSprite>? sprites = null, int frameTime = GameClock.DefaultFrameTime,
-        MapEnvironment environment = MapEnvironment.None, string script = Script, Gamma ambient = default, bool placesPlayer = true, Vector2 camera = default)
+    public static MemoryWriteOverlay CreateFiles(IReadOnlyList<MergedMapSprite>? sprites = null, MapEnvironment environment = MapEnvironment.None, string script = Script, Gamma ambient = default,
+        bool placePlayer = true, Vector2 camera = default)
     {
         var placed = new List<MergedMapSprite>();
-        if (placesPlayer)
+        if (placePlayer)
         {
             placed.Add(new MergedMapSprite(StartHandle, KnownObject.PlayerStart, new Vector3(1000, 1000, 0), default, Army.Player, []));
         }
 
         placed.AddRange(sprites ?? []);
-        var mapData = new MapData
+        var map = new MapResourceBuilder
         {
             Sprites = placed,
-            StoredSprites = placed,
-            Environment = environment,
-            Ambient = ambient,
-            Camera = camera
+            Size = new SizeF(MapSide, MapSide),
+            Scroll = camera,
+            Graphics = new MapGraphics(environment, ambient, default, 0),
+            Version = MapVersion
         };
 
-        var level = new LevelTemplate
-        {
-            MapData = mapData,
-            Definitions = definitions,
-            Movement = new MovementMap(),
-            AmmoBatches = new int[10],
-            FrameTimes = [frameTime],
-            FileSystem = new ScriptOverlay(new GameFolder(TestGameFolder.RequireFolder()), ScriptPath, script),
-            ScriptPath = ScriptPath
-        };
+        var files = new MemoryWriteOverlay(new GameFolder(TestGameFolder.RequireFolder()));
+        files.Set(MapPath, map.ToBytes());
+        files.Set(ScriptPath, Encoding.ASCII.GetBytes(script));
 
-        return level;
+        return files;
     }
+
+    public static Sprite FindFirstSprite(this Map map, KnownObject id) => map.UpdatedSprites.First(sprite => sprite.Definition.Id == id);
 
     public static Sprite FindPlacedMan(Map map)
     {
-        foreach (var placement in map.Sprites)
+        foreach (var sprite in map.Collector.Listed)
         {
-            if (map.Definitions.Find(placement.Id)?.Object.SpriteClass != SpriteClass.Man)
-                continue;
-
-            var point = placement.Position.AsVector2();
-            foreach (var sprite in map.Collector.GetNear(point, point))
-            {
-                if (sprite.Definition.Object.SpriteClass == SpriteClass.Man)
-                    return sprite;
-            }
+            if (sprite.Definition.Object.SpriteClass == SpriteClass.Man)
+                return sprite;
         }
 
         throw new InvalidOperationException("Could not find a player in the level.");

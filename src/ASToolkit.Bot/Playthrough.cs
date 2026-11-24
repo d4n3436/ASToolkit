@@ -1,24 +1,22 @@
-using System.Text;
 using System.Globalization;
-using ASToolkit.Engine;
-using ASToolkit.Engine.IO;
-using ASToolkit.Engine.Scripts;
-using ASToolkit.Formats;
 using ASToolkit.Analysis.Levels;
 using ASToolkit.Analysis.Routes;
 using ASToolkit.Analysis.Scripting;
+using ASToolkit.Engine;
+using ASToolkit.Engine.IO;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Bot;
 
 /// <summary>
-/// Provides a bot player's runs through levels and campaigns, played on the engine.
+/// Provides the bot's playthroughs of levels and campaigns.
 /// </summary>
 public sealed class Playthrough
 {
     private const int MaxAttempts = 3;
     private const string MapsFolder = "maps";
-    private const string AmmoArray = "GettingAmmo";
     private const string ScriptExtension = ".lgc";
+    private const string DemoExtension = ".dem";
     private const int ViewSeed = 1;
     private const int SeedLevels = 64;
     private const string ConfigFile = "AlienShooter.cfg";
@@ -30,8 +28,36 @@ public sealed class Playthrough
     private const int LivesItem = 7;
     private const int FlashlightItem = 8;
     private const int RescueKitItem = 10;
+    private const int DroneItem = 11;
 
-    internal const string DefaultLevelScript = """
+    private readonly ShopBot _shop;
+    private readonly string _gameFolder;
+    private readonly GameFolder _fileSystem;
+    private readonly MemoryWriteOverlay _files;
+    private readonly SpriteCatalog _definitions;
+    private readonly Dictionary<RouteAnalysis, LevelSetup> _setups = [];
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="Playthrough"/> class.
+    /// </summary>
+    /// <param name="gameFolder">The game folder.</param>
+    /// <param name="objects">The object table of the game.</param>
+    /// <param name="table">The common table of the game.</param>
+    public Playthrough(string gameFolder, ObjectTable objects, GameTable table)
+    {
+        _gameFolder = gameFolder;
+        _fileSystem = new GameFolder(gameFolder);
+        _files = new MemoryWriteOverlay(_fileSystem);
+        _definitions = new SpriteCatalog(gameFolder, objects);
+        _shop = new ShopBot(objects, _definitions, table);
+    }
+
+    /// <summary>
+    /// Gets the frame lengths in milliseconds, repeated in order.
+    /// </summary>
+    public IReadOnlyList<int> FrameTimes { get; init; } = FramePacer.DisplayFrameTimes;
+
+    private static ReadOnlySpan<byte> DefaultLevelScript => """
         #define MUSIC0 "music\\mus01.ogg"
         #define MUSIC1 "music\\mus02.ogg"
         #include "maps\export.lgc"
@@ -45,21 +71,17 @@ public sealed class Playthrough
             return;
           CompaignGameTact();
         }
-        """;
+        """u8;
 
-    private const int DroneItem = 11;
 
-    private readonly ShopBot _shop;
-    private readonly string _gameFolder;
-    private readonly GameFolder _fileSystem;
-    private readonly SpriteCatalog _definitions;
-    private readonly IReadOnlyList<int> _ammoBatches;
-    private readonly Dictionary<RouteAnalysis, LevelSetup> _setups = [];
+    private static ReadOnlySpan<byte> ItemsVariable => "PlayerItem"u8;
+
+    private static ReadOnlySpan<byte> MoneyVariable => "PlayerMoney"u8;
 
     /// <summary>
-    /// Loads a map file with the level script beside it, or the campaign's default script if it has none, and runs its first frame.
+    /// Loads a map file with the level script beside it, or the campaign's default script if there isn't one, and runs its first frame.
     /// </summary>
-    /// <param name="gameFolder">The game folder, which holds the scripts the level script includes.</param>
+    /// <param name="gameFolder">The game folder.</param>
     /// <param name="definitions">The sprite definitions of the game.</param>
     /// <param name="mapFile">The path of the map file, inside or outside the game folder.</param>
     /// <returns>The map after its first frame.</returns>
@@ -69,57 +91,27 @@ public sealed class Playthrough
         if (!File.Exists(mapFile))
             throw new FileNotFoundException($"Could not find map file '{mapFile}'.", mapFile);
 
-        var folder = new GameFolder(gameFolder);
-        string scriptFile = Path.ChangeExtension(mapFile, ScriptExtension);
-        string relative = Path.GetRelativePath(gameFolder, scriptFile);
+        var files = new MemoryWriteOverlay(new GameFolder(gameFolder));
+        string relative = Path.GetRelativePath(gameFolder, mapFile);
         bool isInside = !relative.StartsWith("..", StringComparison.Ordinal) && !Path.IsPathRooted(relative);
-        string scriptPath = isInside ? relative.Replace('/', '\\') : Path.Combine(MapsFolder, Path.GetFileName(scriptFile)).Replace('/', '\\');
-        IGameFileSystem fileSystem = (isInside, File.Exists(scriptFile)) switch
-        {
-            (true, true) => folder,
-            (false, true) => new ScriptOverlay(folder, scriptPath, File.ReadAllText(scriptFile, Encoding.Latin1)),
-            _ => new ScriptOverlay(folder, scriptPath, DefaultLevelScript)
-        };
-
-        string? tablePath = GamePath.Resolve(gameFolder, GameTable.CommonPath);
-        IReadOnlyList<int> ammo = tablePath is null ? [] : GameTable.Load(tablePath).GetArray(AmmoArray);
-        var template = LevelTemplate.FromMapData(MapData.FromMap(MapResourceBuilder.Load(mapFile)), fileSystem, scriptPath, definitions, ammo);
-        var map = new Map(definitions, fileSystem, registry: CreateProfile(gameFolder));
-        map.Load(template, ViewSeed);
-        map.AdvanceClock();
-        map.Step();
+        string mapPath = (isInside ? relative : Path.Combine(MapsFolder, Path.GetFileName(mapFile))).Replace('/', '\\');
+        string scriptFile = Path.ChangeExtension(mapFile, ScriptExtension);
+        string scriptPath = Path.ChangeExtension(mapPath, ScriptExtension);
+        files.Set(mapPath, File.ReadAllBytes(mapFile));
+        files.Set(scriptPath, File.Exists(scriptFile) ? File.ReadAllBytes(scriptFile) : DefaultLevelScript.ToArray());
+        var profile = CreateProfile(gameFolder);
+        var map = new Map(definitions, files, profile, new GameSession(profile, time: new LoadingRedrawClock()));
+        map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
+        map.RequestLoad(GameTextEncoding.Cyrillic.GetBytes(mapPath));
+        map.Step(ViewSeed, ViewSeed, out _);
 
         return map;
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Playthrough"/> class.
-    /// </summary>
-    /// <param name="gameFolder">The game folder that holds the sprites whose speed sets the animation times.</param>
-    /// <param name="objects">The object table of the game.</param>
-    /// <param name="table">The common table of the game, which holds the ammunition batch of each weapon.</param>
-    public Playthrough(string gameFolder, ObjectTable objects, GameTable table)
-    {
-        _gameFolder = gameFolder;
-        _fileSystem = new GameFolder(gameFolder);
-        _definitions = new SpriteCatalog(gameFolder, objects);
-        _shop = new ShopBot(objects, _definitions, table);
-        _ammoBatches = table.GetArray(AmmoArray);
-    }
-
-    /// <summary>
-    /// Gets the times in milliseconds the game clock advances by on successive frames, repeated in order.
-    /// </summary>
-    public IReadOnlyList<int> FrameTimes { get; init; } = GameClock.DisplayFrameTimes;
-
-    private static ReadOnlySpan<byte> ItemsVariable => "PlayerItem"u8;
-
-    private static ReadOnlySpan<byte> MoneyVariable => "PlayerMoney"u8;
-
-    /// <summary>
     /// Creates the registry of the bot's player profile.
     /// </summary>
-    /// <param name="gameFolder">The game folder holding the game's configuration.</param>
+    /// <param name="gameFolder">The game folder.</param>
     /// <returns>The registry.</returns>
     public static ScriptRegistry CreateProfile(string gameFolder)
     {
@@ -133,10 +125,10 @@ public sealed class Playthrough
     }
 
     /// <summary>
-    /// Creates the registry a level's script reads the player's state from at the start of a level.
+    /// Creates the registry that holds the player's state at the start of a level.
     /// </summary>
-    /// <param name="gameFolder">The game folder holding the game's configuration.</param>
-    /// <param name="mapName">The map's name relative to the maps folder, which sets the game type and level number.</param>
+    /// <param name="gameFolder">The game folder.</param>
+    /// <param name="mapName">The name of the map relative to the maps folder.</param>
     /// <param name="loadout">The equipment the player carries into the level.</param>
     /// <returns>The registry.</returns>
     public static ScriptRegistry CreateRegistry(string gameFolder, string mapName, PlayerLoadout loadout)
@@ -163,17 +155,22 @@ public sealed class Playthrough
     }
 
     /// <summary>
-    /// Creates the map of a recorded playthrough, set to play its demo from the start of the level.
+    /// Creates the map of a recorded playthrough, loads the level its demo names and plays the demo's first frame.
     /// </summary>
     /// <param name="analysis">The route analysis of the level.</param>
     /// <param name="loadout">The equipment the player carried into the level.</param>
     /// <param name="demo">The demo the playthrough recorded.</param>
-    /// <returns>The map, which plays the demo as it steps.</returns>
+    /// <returns>The map after the level's load and the demo's first frame; stepping it plays the rest of the demo.</returns>
     public Map LoadReplay(RouteAnalysis analysis, PlayerLoadout loadout, DemoResource demo)
     {
-        var setup = GetSetup(analysis);
-        var map = new Map(_definitions, _fileSystem, registry: CreateRegistry(_gameFolder, analysis.Name, loadout));
-        map.Load(setup.Level, demo.Seed, demo);
+        GetSetup(analysis);
+        string demoPath = Path.ChangeExtension(GetMapPath(analysis.Name), DemoExtension);
+        _files.Set(demoPath, demo.Data);
+        var registry = CreateRegistry(_gameFolder, analysis.Name, loadout);
+        var map = new Map(_definitions, _files, registry, new GameSession(registry, time: new LoadingRedrawClock()));
+        map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
+        map.RequestLoad(GameTextEncoding.Cyrillic.GetBytes(demoPath));
+        map.Step(GameClock.StartWallTime, 0, out _);
 
         return map;
     }
@@ -193,14 +190,14 @@ public sealed class Playthrough
     {
         var results = new List<PlaythroughResult>();
         Map? map = null;
-        bool shopsFirst = state is not null;
+        bool shouldShopFirst = state is not null;
         state ??= CampaignState.CreateInitial();
         for (int level = 0; level < levels.Count; level++)
         {
             int money = state.Money;
             int reward = level < endMoney.Count ? endMoney[level] : 0;
             int firstSeed = (seed * SeedLevels + level) * MaxAttempts;
-            var loadout = level > 0 || shopsFirst
+            var loadout = level > 0 || shouldShopFirst
                 ? _shop.Shop(ref money, state.Loadout.Ammo, state.Loadout.Implants, state.Loadout.Items, reward)
                 : state.Loadout;
             bool recordLevel = record && (recordedLevel is null || recordedLevel == level);
@@ -242,7 +239,9 @@ public sealed class Playthrough
 
         if (map is null)
         {
-            map = new Map(_definitions, _fileSystem, registry: CreateRegistry(_gameFolder, analysis.Name, loadout));
+            var registry = CreateRegistry(_gameFolder, analysis.Name, loadout);
+            map = new Map(_definitions, _files, registry, new GameSession(registry, time: new LoadingRedrawClock()));
+            map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         }
         else
         {
@@ -254,18 +253,19 @@ public sealed class Playthrough
             map.Session.IsRecordingNextMap = true;
         }
 
-        map.Load(setup.Level, seed);
-        var field = new WalkField(analysis.Grid, setup.DoorsLocked, map.Movement, map.Collector, _definitions.Find(KnownObject.PlayerStart)!.Object, analysis.Model.Sprites.Count);
-        var bot = new PlayerBot(map, analysis, field);
+        map.RequestLoad(setup.MapName);
+        map.Step((uint)seed, (uint)seed, out _);
+        var field = new WalkField(analysis.Grid, setup.DoorsLocked, map.Movement, map.Collector, _definitions.Find(KnownObject.PlayerStart)!.Object);
+        var bot = new PlayerBot(map, new FramePacer(FrameTimes), analysis, field);
 
-        return new PlaySession(map, bot, analysis.Exit is null && !analysis.ClearsMonsters);
+        return new PlaySession(map, bot, analysis.Exit is null && !analysis.ShouldClearMonsters);
     }
 
     private static PlaythroughResult CreateResult(PlaySession session, PlayerLoadout loadout, bool record)
     {
         var map = session.Map;
 
-        return new PlaythroughResult(loadout, map is { HasPlayer: true, Player.IsAlive: true } && session.Won, map.Time, session.Bot.FarthestProgress, session.Log.Kills, session.Log.Respawns, session.Log.MinHealth,
+        return new PlaythroughResult(loadout, map is { HasPlayer: true, Player.IsAlive: true } && session.HasWon, map.Time, session.Bot.FarthestProgress, session.Log.Kills, session.Log.Respawns, session.Log.MinHealth,
             map.ReadScriptNumber(MoneyVariable), ReadImplants(map), session.Log.TakenPickups, ReadItems(map), map.HasPlayer ? new PlayerState(map).GetRemainingAmmo() : [],
             session.Log.Timeline, record ? new DemoResource(map.FinishDemoRecording()) : null);
     }
@@ -303,7 +303,7 @@ public sealed class Playthrough
         return items;
     }
 
-    private static string GetScriptPath(string mapName) => Path.ChangeExtension("maps\\" + mapName.Replace('/', '\\'), ".lgc");
+    private static string GetMapPath(string mapName) => MapsFolder + "\\" + mapName.Replace('/', '\\');
 
     private static void ApplyLoadout(ScriptRegistry registry, string mapName, PlayerLoadout loadout)
     {
@@ -363,22 +363,24 @@ public sealed class Playthrough
     {
         bool isLocked = analysis.DoorsInitiallyLocked ?? (analysis.Objectives.All(objective => objective.Kind != ObjectiveKind.Blackout) &&
             analysis.Objectives.Any(objective => objective.Kind == ObjectiveKind.Breaker) && analysis.Grid.Edges.Values.Any(kind => kind == EdgeKind.Door));
-        string scriptPath = GetScriptPath(analysis.Name);
-        IGameFileSystem fileSystem = _fileSystem.TryRead(scriptPath, out _) ? _fileSystem : new ScriptOverlay(_fileSystem, scriptPath, DefaultLevelScript);
-        var level = LevelTemplate.FromMapData(CreateMapData(analysis.Model), fileSystem, scriptPath, _definitions, _ammoBatches) with { FrameTimes = FrameTimes };
+        string mapPath = GetMapPath(analysis.Name);
+        string scriptPath = Path.ChangeExtension(mapPath, ScriptExtension);
+        var model = analysis.Model;
+        var file = new MapResourceBuilder
+        {
+            Sprites = model.StoredSprites.ToList(),
+            Size = model.MapSize,
+            Scroll = model.Camera,
+            Graphics = new MapGraphics(model.Environment, model.Ambient, default, 0),
+            Groups = model.Groups.Select(group => group.ToArray()).ToArray(),
+            Version = model.Version
+        };
+        _files.Set(mapPath, file.ToBytes());
+        if (!_fileSystem.TryRead(scriptPath, out _))
+        {
+            _files.Set(scriptPath, DefaultLevelScript.ToArray());
+        }
 
-        return new LevelSetup(level, isLocked);
+        return new LevelSetup(GameTextEncoding.Cyrillic.GetBytes(mapPath), isLocked);
     }
-
-    private static MapData CreateMapData(LevelModel model) => new()
-    {
-        Sprites = model.Sprites,
-        StoredSprites = model.StoredSprites,
-        Size = model.MapSize,
-        Camera = model.Camera,
-        Environment = model.Environment,
-        Ambient = model.Ambient,
-        Groups = model.Groups,
-        Version = model.Version
-    };
 }

@@ -1,7 +1,7 @@
 using System.Numerics;
+using ASToolkit.Bot;
 using ASToolkit.Engine;
 using ASToolkit.Formats;
-using ASToolkit.Bot;
 using Xunit;
 
 namespace ASToolkit.Tests.Engine;
@@ -14,7 +14,7 @@ public class MapTests
     public void Map_WithoutAPlacedMan_HasNoPlayerUntilTheScriptCreatesOne()
     {
         var objects = TestGameFolder.CreateCatalog();
-        var map = EngineTestMap.CreateMap(objects, placesPlayer: false, script: """
+        var map = EngineTestMap.CreateMap(objects, placePlayer: false, script: """
             #include "maps\export.lgc"
             int man;
             main()
@@ -76,15 +76,15 @@ public class MapTests
         var map = EngineTestMap.CreateMap(objects);
         map.Play(default);
         var position = map.Player.Position + new Vector3(500, 0, 0);
-        var enemy = map.AddMonster(objects.Find(KnownObject.Monster1)!, position);
+        var enemy = map.AddSprite(objects.Find(KnownObject.Monster1), position, default)!;
         enemy.Items.Clear();
         map.Action(enemy, ActionCode.AddItem, (int)KnownObject.Money);
         map.Action(enemy, ActionCode.Damage, enemy.Hp);
-        MergedMapSprite? dropped = null;
+        Sprite? dropped = null;
         for (int tick = 0; tick < 100 && dropped is null; tick++)
         {
             map.Play(default);
-            dropped = map.Sprites.FirstOrDefault(sprite => sprite.Id == KnownObject.Money);
+            dropped = map.UpdatedSprites.FirstOrDefault(sprite => sprite.Definition.Id == KnownObject.Money);
         }
 
         Assert.NotNull(dropped);
@@ -94,7 +94,7 @@ public class MapTests
             map.Play(default);
         }
 
-        Assert.True(map.IsRemoved(dropped));
+        Assert.True(dropped.Animation >= SpriteAnimation.Death || dropped.ReferenceCount <= 0);
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public class MapTests
         var objects = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(objects);
         map.Play(default);
-        var enemy = map.AddMonster(objects.Find(KnownObject.Monster1)!, map.Player.Position + new Vector3(500, 0, 0));
+        var enemy = map.AddSprite(objects.Find(KnownObject.Monster1), map.Player.Position + new Vector3(500, 0, 0), default)!;
         int maxHp = enemy.Hp;
         map.Action(enemy, ActionCode.Damage, maxHp / 2);
 
@@ -118,7 +118,7 @@ public class MapTests
         var objects = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(objects);
         map.Play(default);
-        var enemy = map.AddMonster(objects.Find(KnownObject.Monster1)!, map.Player.Position + new Vector3(500, 0, 0));
+        var enemy = map.AddSprite(objects.Find(KnownObject.Monster1), map.Player.Position + new Vector3(500, 0, 0), default)!;
         enemy.Items.Clear();
 
         Assert.Equal(-1, map.Action(enemy, ActionCode.GetItemType));
@@ -150,7 +150,7 @@ public class MapTests
         }
 
         Assert.Equal(0, map.Player.Speed);
-        Assert.Equal(GameClock.LevelStartTime + 301 * GameClock.DefaultFrameTime, map.Time);
+        Assert.Equal(GameClock.LevelStartTime + 301 * FramePacer.DefaultFrameTime, map.Time);
     }
 
     [Fact]
@@ -159,7 +159,7 @@ public class MapTests
         var objects = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(objects);
         var start = map.Player.Position.AsVector2() + new Vector2(200, 0);
-        var enemy = map.AddMonster(objects.Find(KnownObject.Monster1)!, new Vector3(start, map.Movement.GetHeight(start)), direction: new Angle(192));
+        var enemy = map.AddSprite(objects.Find(KnownObject.Monster1), new Vector3(start, map.Movement.GetHeight(start)), new Angle(192))!;
         int health = map.Player.Hp;
         for (int tick = 0; tick < 300; tick++)
         {
@@ -178,7 +178,7 @@ public class MapTests
         var map = EngineTestMap.CreateMap(objects, frameTime: frameTime);
         var player = map.Player.Position.AsVector2();
         var start = player + new Vector2(350, 0);
-        var tank = map.AddMonster(objects.Find(KnownObject.TankMonster)!, new Vector3(start, 0), Angle.FromOffset(player - start) + 64);
+        var tank = map.AddSprite(objects.Find(KnownObject.TankMonster), new Vector3(start, 0), Angle.FromOffset(player - start) + 64)!;
 
         while (map.Time < 6000)
         {
@@ -191,9 +191,9 @@ public class MapTests
     [Fact]
     public void GetDisplayFrameTimes_FillOneSecond()
     {
-        Assert.Equal([16, 17, 17], GameClock.GetDisplayFrameTimes(60).Take(3));
-        Assert.Equal(1000, GameClock.GetDisplayFrameTimes(60).Sum());
-        Assert.Equal(1000, GameClock.GetDisplayFrameTimes(144).Sum());
-        Assert.All(GameClock.GetDisplayFrameTimes(144), time => Assert.InRange(time, 6, 7));
+        Assert.Equal([16, 17, 17], FramePacer.GetDisplayFrameTimes(60).Take(3));
+        Assert.Equal(1000, FramePacer.GetDisplayFrameTimes(60).Sum());
+        Assert.Equal(1000, FramePacer.GetDisplayFrameTimes(144).Sum());
+        Assert.All(FramePacer.GetDisplayFrameTimes(144), time => Assert.InRange(time, 6, 7));
     }
 }

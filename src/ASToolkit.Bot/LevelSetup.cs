@@ -1,5 +1,3 @@
-using ASToolkit.Engine;
-
 namespace ASToolkit.Bot;
 
-internal readonly record struct LevelSetup(LevelTemplate Level, bool DoorsLocked);
+internal readonly record struct LevelSetup(byte[] MapName, bool DoorsLocked);

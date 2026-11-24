@@ -1,6 +1,6 @@
 using System.Numerics;
-using ASToolkit.Formats;
 using ASToolkit.Core;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
@@ -9,7 +9,6 @@ internal sealed class SpawnedObjectSystem
     private const int MaxSteeringTurn = 100;
     private const int RocketTurnLimit = 0x47;
     private const int FallTurn = 0x20;
-    private static readonly Vector2 ExitMargin = new(220, 200);
     private const float RocketClimbRate = 0.1f;
     private const float RocketHitHeight = 20;
     private const float RocketHitReach = 10;
@@ -19,6 +18,8 @@ internal sealed class SpawnedObjectSystem
     private const float MinimumLift = 0.005f;
     private const float BounceRetention = 0.5f;
     private const float SteeringReach = 100;
+
+    private static readonly Vector2 ExitMargin = new(220, 200);
 
     private readonly SpriteCatalog _definitions;
     private readonly MovementMap _movement;
@@ -44,12 +45,12 @@ internal sealed class SpawnedObjectSystem
         if (parent is null)
             return;
 
-        AppendLink(parent, linker);
+        AddLinkToLast(parent, linker);
         linker.LinkerOffset = position - parent.Position;
     }
 
     [EngineRoutine(0x004449c0)]
-    public static void AppendLink(Sprite parent, Sprite link)
+    public static void AddLinkToLast(Sprite parent, Sprite link)
     {
         if (link.Owner is not null)
             return;
@@ -67,51 +68,9 @@ internal sealed class SpawnedObjectSystem
     public static EffectState GetState(Sprite sprite) =>
         new(sprite.Definition.Id, sprite.Position, sprite.Direction, sprite.Animation, sprite.CreatedAt, sprite.Frame, sprite.KeyframePosition);
 
-    public Sprite? Spawn(KnownObject id, Vector3 position, Angle direction, Sprite? owner = null, int? lifetime = null)
-    {
-        var definition = _definitions.Find(id);
-
-        return definition is null ? null : Create(definition, position, direction, null, owner, lifetime);
-    }
-
-    public Sprite Create(SpriteDefinition definition, Vector3 position, Angle direction, Sprite? parent, Sprite? owner = null, int? lifetime = null)
-    {
-        ref readonly var gameObject = ref definition.Object;
-
-        if (gameObject.SpriteClass is SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Balloon or SpriteClass.Creature)
-        {
-            var unit = _map.AddMonster(definition, position, direction, parent?.Army ?? _definitions.GetArmy(definition), parent);
-
-            if (!_map.IsLoading)
-            {
-                _map.RunCreationHandler(unit);
-            }
-
-            return unit;
-        }
-
-        var sprite = _map.ConstructSpriteOfClass(definition, position, direction, parent?.Army ?? _definitions.GetArmy(definition), definition.MaxHp, -1, parent, owner, parent?.Shooter ?? parent, lifetime);
-
-        if (gameObject.SpriteClass == SpriteClass.Cannon)
-        {
-            ConstructCannon(sprite, parent);
-        }
-        else if (gameObject.SpriteClass == SpriteClass.BuiltTerrain)
-        {
-            _map.ConstructBuiltTerrain(sprite);
-        }
-
-        if (!_map.IsLoading)
-        {
-            _map.RunCreationHandler(sprite);
-        }
-
-        return sprite;
-    }
-
     public void Move(Sprite sprite, int elapsed)
     {
-        if (sprite.Definition.Object.SpriteClass == SpriteClass.Cannon)
+        if (sprite.Definition.Class == SpriteClass.Cannon)
         {
             RunCannon(sprite, elapsed);
         }
@@ -121,50 +80,8 @@ internal sealed class SpawnedObjectSystem
         }
     }
 
-    private static float KeepHover(Sprite sprite, float height, float ground)
-    {
-        ref readonly var gameObject = ref sprite.Definition.Object;
-        float hover = ground + gameObject.TopZ;
-
-        if (sprite.Position.Z.IsExactly(height) || gameObject.Properties.HasFlag(ObjectProperties.Gravity) || hover.IsExactlyZero())
-            return height;
-
-        if (hover > sprite.Position.Z ? hover <= height : hover < sprite.Position.Z ? height < hover : !gameObject.Properties.HasFlag(ObjectProperties.SelfMoving))
-        {
-            sprite.VerticalSpeed = 0;
-
-            return hover > sprite.Position.Z || hover < sprite.Position.Z ? hover : height;
-        }
-
-        return height;
-    }
-
-    private static Vector3 KeepGround(Vector3 next, Sprite sprite) => next with { X = sprite.Position.X, Y = sprite.Position.Y };
-
-    private static bool CanMove(SpriteDefinition definition)
-    {
-        ref readonly var gameObject = ref definition.Object;
-
-        return !definition.Speed.IsExactlyZero() || !definition.ZSpeed.IsExactlyZero() || gameObject.Properties.HasFlag(ObjectProperties.Gravity) || gameObject.Properties.HasFlag(ObjectProperties.Gravity2) || gameObject.Properties.HasFlag(ObjectProperties.Wind);
-    }
-
-    private static bool HitsGoal(Sprite sprite, Vector3 goal, Sprite target, float previousHeight)
-    {
-        var offset = Vector2.Abs(sprite.Position.AsVector2() - goal.AsVector2());
-
-        if (sprite is { HasReachedX: true, HasReachedY: true } || offset.X < sprite.Definition.Half.X + target.Definition.Half.X && offset.Y < sprite.Definition.Half.Y + target.Definition.Half.Y)
-        {
-            if (goal.Z <= sprite.Definition.Object.Size.Z + sprite.Position.Z && sprite.Position.Z <= goal.Z + target.Definition.Object.Size.Z ||
-                Math.Min(previousHeight, sprite.Position.Z) <= goal.Z && goal.Z <= Math.Max(previousHeight, sprite.Position.Z))
-                return true;
-        }
-
-        return sprite.Definition.Object.Properties.HasFlag(ObjectProperties.SelfMoving) && MathF.Abs(goal.Z - sprite.Position.Z) < RocketHitHeight &&
-               offset is { X: < RocketHitReach, Y: < RocketHitReach };
-    }
-
     [EngineRoutine(0x00447fe0)]
-    private void ConstructCannon(Sprite sprite, Sprite? parent)
+    public void ConstructCannon(Sprite sprite, Sprite? parent)
     {
         ref readonly var gameObject = ref sprite.Definition.Object;
 
@@ -193,16 +110,49 @@ internal sealed class SpawnedObjectSystem
         _motion.StartMove(sprite);
     }
 
+    private static void KeepHoverHeight(Sprite sprite, in GameObject gameObject, float hover, ref Vector3 next)
+    {
+        if (sprite.Position.Z.IsExactly(next.Z) || gameObject.Properties.HasFlag(ObjectProperties.Gravity) || hover.IsExactlyZero())
+            return;
+
+        float height = hover;
+
+        if (hover <= sprite.Position.Z)
+        {
+            if (sprite.Position.Z <= hover)
+            {
+                height = next.Z;
+
+                if (!gameObject.Properties.HasFlag(ObjectProperties.SelfMoving))
+                {
+                    next.Z = height;
+                    sprite.VerticalSpeed = 0;
+                }
+            }
+            else if (next.Z < hover)
+            {
+                next.Z = height;
+                sprite.VerticalSpeed = 0;
+            }
+        }
+        else if (hover <= next.Z)
+        {
+            next.Z = height;
+            sprite.VerticalSpeed = 0;
+        }
+    }
+
     [EngineRoutine(0x0043f820)]
     private void RunGeneric(Sprite sprite, int elapsed)
     {
-        if (!CanMove(sprite.Definition))
+        if (!sprite.Definition.CanMove)
             return;
 
         ref readonly var gameObject = ref sprite.Definition.Object;
         var next = _motion.CalculateNewCoordinates(sprite, elapsed);
         float current = _movement.GetHeight(sprite.Position.AsVector2());
         float ground = _movement.GetHeight(next.AsVector2());
+        float hover = ground + gameObject.TopZ;
 
         if (gameObject.SpriteType.HasFlag(SpriteType.Cannon) && gameObject.Properties.HasFlag(ObjectProperties.Gravity) && ground >= next.Z && sprite.Position.Z >= current)
         {
@@ -210,7 +160,7 @@ internal sealed class SpawnedObjectSystem
         }
         else
         {
-            next.Z = KeepHover(sprite, next.Z, ground);
+            KeepHoverHeight(sprite, gameObject, hover, ref next);
         }
 
         if (sprite.HasGoal && !sprite.Speed.IsExactlyZero() && sprite is { HasReachedX: true, HasReachedY: true })
@@ -220,7 +170,7 @@ internal sealed class SpawnedObjectSystem
 
         if (next.AsVector2() != sprite.Position.AsVector2())
         {
-            if (_map.Projectiles.IsBlockedAt(sprite.Definition, next, sprite))
+            if (_map.Projectiles.FindBlocker(sprite, next) is not null)
             {
                 sprite.VerticalSpeed = 0;
                 sprite.Speed = 0;
@@ -241,7 +191,7 @@ internal sealed class SpawnedObjectSystem
     [EngineRoutine(0x00448130)]
     private void RunCannon(Sprite sprite, int elapsed)
     {
-        if (!CanMove(sprite.Definition))
+        if (!sprite.Definition.CanMove)
             return;
 
         ref readonly var gameObject = ref sprite.Definition.Object;
@@ -254,105 +204,23 @@ internal sealed class SpawnedObjectSystem
 
         float current = _movement.GetHeight(sprite.Position.AsVector2());
         float ground = _movement.GetHeight(next.AsVector2());
+        float hover = ground + gameObject.TopZ;
+        float previousHeight = sprite.Position.Z;
 
         if (ground < next.Z || sprite.Position.Z < current)
         {
-            next.Z = KeepHover(sprite, next.Z, ground);
+            KeepHoverHeight(sprite, gameObject, hover, ref next);
         }
         else
         {
-            next.Z = sprite.Position.Z;
-            Land(sprite, ref next, current, ground);
+            HitGround(sprite, gameObject, ground, current, ref next);
         }
 
-        float previousHeight = sprite.Position.Z;
-
-        if (next.AsVector2() != sprite.Position.AsVector2())
-        {
-            if (_map.Projectiles.IsBlockedAt(sprite.Definition, next, sprite))
-            {
-                if (sprite.Animation < SpriteAnimation.Death)
-                {
-                    sprite.ChangeAnimation(SpriteAnimation.Death);
-                }
-            }
-            else
-            {
-                sprite.ChangeCoor(next);
-
-                if (sprite.Animation < SpriteAnimation.Death && !gameObject.Properties.HasFlag(ObjectProperties.Gravity) && IsFarOutside(sprite.Position.AsVector2()))
-                {
-                    sprite.ChangeAnimation(SpriteAnimation.Death);
-                }
-            }
-        }
-
+        MoveCannon(sprite, gameObject, next);
         if (!sprite.Position.Z.IsExactly(next.Z))
         {
             sprite.ChangeCoor(sprite.Position with { Z = next.Z });
         }
-
-        Steer(sprite, elapsed, previousHeight);
-    }
-
-    private void Land(Sprite sprite, ref Vector3 next, float current, float ground)
-    {
-        ref readonly var gameObject = ref sprite.Definition.Object;
-        bool climbs = ground > current;
-
-        if (sprite.Animation >= SpriteAnimation.Death)
-        {
-            SpriteKinematics.Stop(sprite);
-
-            if (climbs)
-            {
-                _map.CreateChildFor(sprite, SpriteAnimation.Load);
-            }
-
-            next = KeepGround(next, sprite);
-
-            return;
-        }
-
-        if (!gameObject.Properties.HasFlag(ObjectProperties.Bouncing))
-        {
-            SpriteKinematics.Stop(sprite);
-            next.Z = current;
-            _map.CreateChildFor(sprite, climbs ? SpriteAnimation.Load : SpriteAnimation.Unload);
-            sprite.ChangeAnimation(SpriteAnimation.Death);
-            next = KeepGround(next, sprite);
-
-            return;
-        }
-
-        if (climbs)
-        {
-            sprite.ChangeAnimation(SpriteAnimation.Load);
-            sprite.ChangeDirection(sprite.Direction.Opposite);
-        }
-        else if (sprite.VerticalSpeed < -MinimumBounceSpeed)
-        {
-            sprite.ChangeAnimation(SpriteAnimation.Unload);
-            sprite.VerticalSpeed *= -BounceRetention;
-        }
-        else if (sprite.VerticalSpeed <= MinimumLift)
-        {
-            sprite.VerticalSpeed = 0;
-            sprite.ChangeAnimation(SpriteAnimation.Death);
-        }
-        else
-        {
-            sprite.VerticalSpeed *= BounceRetention;
-            sprite.Speed *= BounceRetention;
-            sprite.ChangeDirection(sprite.Direction.Opposite);
-        }
-
-        next = KeepGround(next, sprite);
-    }
-
-    private void Steer(Sprite sprite, int elapsed, float previousHeight)
-    {
-        ref readonly var gameObject = ref sprite.Definition.Object;
 
         if (!sprite.HasGoal)
         {
@@ -364,10 +232,94 @@ internal sealed class SpawnedObjectSystem
             return;
         }
 
+        SteerToGoal(sprite, gameObject, previousHeight, elapsed);
+    }
+
+    private void HitGround(Sprite sprite, in GameObject gameObject, float ground, float current, ref Vector3 next)
+    {
+        next.Z = sprite.Position.Z;
+
+        if (sprite.Animation < SpriteAnimation.Death)
+        {
+            if (!gameObject.Properties.HasFlag(ObjectProperties.Bouncing))
+            {
+                SpriteKinematics.Stop(sprite);
+                next.Z = current;
+                _map.CreateChildFor(sprite, ground <= current ? SpriteAnimation.Unload : SpriteAnimation.Load);
+                sprite.ChangeAnimation(SpriteAnimation.Death);
+            }
+            else if (ground <= current)
+            {
+                if (-MinimumBounceSpeed <= sprite.VerticalSpeed)
+                {
+                    if (sprite.VerticalSpeed <= MinimumLift)
+                    {
+                        sprite.VerticalSpeed = 0;
+                        sprite.ChangeAnimation(SpriteAnimation.Death);
+                    }
+                    else
+                    {
+                        sprite.VerticalSpeed *= BounceRetention;
+                        sprite.Speed *= BounceRetention;
+                        sprite.ChangeDirection(sprite.Direction.Opposite);
+                    }
+                }
+                else
+                {
+                    sprite.ChangeAnimation(SpriteAnimation.Unload);
+                    sprite.VerticalSpeed *= -BounceRetention;
+                }
+            }
+            else
+            {
+                sprite.ChangeAnimation(SpriteAnimation.Load);
+                sprite.ChangeDirection(sprite.Direction.Opposite);
+            }
+        }
+        else
+        {
+            SpriteKinematics.Stop(sprite);
+
+            if (ground > current)
+            {
+                _map.CreateChildFor(sprite, SpriteAnimation.Load);
+            }
+        }
+
+        next = next with { X = sprite.Position.X, Y = sprite.Position.Y };
+    }
+
+    private void MoveCannon(Sprite sprite, in GameObject gameObject, Vector3 next)
+    {
+        if (next.AsVector2() == sprite.Position.AsVector2())
+            return;
+
+        if (_map.Projectiles.FindBlocker(sprite, next) is not null)
+        {
+            if (sprite.Animation < SpriteAnimation.Death)
+            {
+                sprite.ChangeAnimation(SpriteAnimation.Death);
+            }
+        }
+        else
+        {
+            sprite.ChangeCoor(next);
+
+            if (sprite.Animation < SpriteAnimation.Death && !gameObject.Properties.HasFlag(ObjectProperties.Gravity) &&
+                (sprite.Position.X < -ExitMargin.X || sprite.Position.Y < -ExitMargin.Y ||
+                 sprite.Position.X > _movement.MapSize.Width + ExitMargin.X || sprite.Position.Y > _movement.MapSize.Height + ExitMargin.Y))
+            {
+                sprite.ChangeAnimation(SpriteAnimation.Death);
+            }
+        }
+    }
+
+    private void SteerToGoal(Sprite sprite, in GameObject gameObject, float previousHeight, int elapsed)
+    {
         var goal = sprite.GoalPosition;
         var target = sprite.Goal!;
         float distance = sprite.Position.AsVector2().MeasureOctagonalDistance(goal.AsVector2());
-        var aim = sprite.MeasureDirectionTo(target) + (sprite.Speed < 0 ? Angle.HalfTurn : 0);
+        var aim = sprite.DirectionTo(target) + (sprite.Speed < 0 ? Angle.HalfTurn : 0);
 
         if (!gameObject.Properties.HasFlag(ObjectProperties.SelfMoving))
         {
@@ -407,14 +359,19 @@ internal sealed class SpawnedObjectSystem
             sprite.VerticalSpeed -= elapsed * _definitions.Gravitation;
         }
 
-        if (HitsGoal(sprite, goal, target, previousHeight))
+        var offset = Vector2.Abs(sprite.Position.AsVector2() - goal.AsVector2());
+        bool isHit = false;
+
+        if (sprite is { HasReachedX: true, HasReachedY: true } || offset.X < sprite.Definition.Half.X + target.Definition.Half.X && offset.Y < sprite.Definition.Half.Y + target.Definition.Half.Y)
+        {
+            isHit = goal.Z <= sprite.Definition.Object.Size.Z + sprite.Position.Z && sprite.Position.Z <= goal.Z + target.Definition.Object.Size.Z ||
+                Math.Min(previousHeight, sprite.Position.Z) <= goal.Z && goal.Z <= Math.Max(previousHeight, sprite.Position.Z);
+        }
+
+        if (isHit || gameObject.Properties.HasFlag(ObjectProperties.SelfMoving) && MathF.Abs(goal.Z - sprite.Position.Z) < RocketHitHeight && offset is { X: < RocketHitReach, Y: < RocketHitReach })
         {
             SpriteKinematics.Stop(sprite);
             sprite.ChangeAnimation(SpriteAnimation.Death);
         }
     }
-
-    private bool IsFarOutside(Vector2 point) =>
-        point.X < -ExitMargin.X || point.Y < -ExitMargin.Y ||
-        point.X > _movement.MapSize.Width + ExitMargin.X || point.Y > _movement.MapSize.Height + ExitMargin.Y;
 }
