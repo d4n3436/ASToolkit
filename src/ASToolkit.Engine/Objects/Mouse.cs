@@ -7,7 +7,7 @@ namespace ASToolkit.Engine;
 /// <summary>
 /// Represents the mouse cursor sprite.
 /// </summary>
-public sealed class MouseSprite : Sprite
+public sealed class Mouse : Sprite
 {
     private const string CursorFolder = "cursores\\";
     private const string CursorExtension = ".ani";
@@ -25,7 +25,7 @@ public sealed class MouseSprite : Sprite
     private readonly CursorImage[] _cursors = new CursorImage[CursorNames.Length];
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="MouseSprite"/> class, with the system cursor in use and no cursor loaded.
+    /// Initializes a new instance of the <see cref="Mouse"/> class, with the system cursor in use and no cursor loaded.
     /// </summary>
     /// <param name="number">The number of the sprite.</param>
     /// <param name="definition">The definition of the sprite.</param>
@@ -34,7 +34,7 @@ public sealed class MouseSprite : Sprite
     /// <param name="hitPoints">The hit points of the sprite.</param>
     /// <param name="direction">The direction of the sprite.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    public MouseSprite(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Angle direction = default, Map? map = null)
+    public Mouse(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Angle direction = default, Map? map = null)
         : base(number, definition, position, army, hitPoints, direction, map)
     {
     }
@@ -178,4 +178,6 @@ public sealed class MouseSprite : Sprite
 
         SetAnimationValue(type);
     }
+
+    internal override int Action(Map map, int act, int var1, int var2, int var3, Sprite? target) => map.CursorAction(this, act, var1, var2, var3, target);
 }

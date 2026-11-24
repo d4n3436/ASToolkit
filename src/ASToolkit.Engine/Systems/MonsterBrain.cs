@@ -25,7 +25,7 @@ internal sealed class MonsterBrain
     }
 
     [EngineRoutine(0x00447260)]
-    public void Move(Sprite sprite, int elapsed, int framesPerSecond)
+    public void Move(Unit sprite, int elapsed, int framesPerSecond)
     {
         var next = _motion.CalculateNewCoordinates(sprite, elapsed);
 

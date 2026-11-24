@@ -11,28 +11,7 @@ public sealed partial class Map
     /// <param name="sprite">The sprite.</param>
     public void DeleteSprite(Sprite sprite)
     {
-        // TODO: Port the CivRobot (0x44a650), Engine (0x44e9d0), Rail (0x44a1a0) and Depo (0x44c0d0) destructors
-        switch (sprite.Definition.Class)
-        {
-            case SpriteClass.Man:
-                DestructMan(sprite);
-                break;
-            case SpriteClass.Unit or SpriteClass.Building or SpriteClass.Avia or SpriteClass.CivRobot or SpriteClass.Creature or SpriteClass.Balloon:
-                DestructUnit(sprite);
-                break;
-            case SpriteClass.Frame or SpriteClass.Text:
-                DestructFrame(sprite);
-                break;
-            case SpriteClass.Linker:
-                DestructLinker(sprite);
-                break;
-            case SpriteClass.Region:
-                DestructRegion(sprite);
-                break;
-            default:
-                DestructSprite(sprite);
-                break;
-        }
+        sprite.Destruct(this);
     }
 
     [EngineRoutine(0x0043f520)]
@@ -94,32 +73,18 @@ public sealed partial class Map
         sprite.Handle = 0;
     }
 
-    [EngineRoutine(0x00444a00)]
-    private static void Unlink(Sprite sprite)
-    {
-        sprite.Link?.Owner = sprite.Owner;
-
-        if (sprite.Owner is not null)
-        {
-            sprite.Owner.Link = sprite.Link;
-            sprite.Owner = null;
-        }
-
-        sprite.Link = null;
-    }
-
     [EngineRoutine(0x00454660)]
-    private void DestructMan(Sprite man) => DestructUnit(man);
+    internal void DestructMan(Man man) => DestructUnit(man);
 
     [EngineRoutine(0x00447240)]
-    private void DestructUnit(Sprite unit)
+    internal void DestructUnit(Unit unit)
     {
         DeletePointerToSprite(unit);
         DestructSprite(unit);
     }
 
     [EngineRoutine(0x00448af0)]
-    private void DestructFrame(Sprite sprite)
+    internal void DestructFrame(Frame sprite)
     {
         if (_menuCurrent == sprite)
         {
@@ -132,16 +97,30 @@ public sealed partial class Map
     }
 
     [EngineRoutine(0x0040ed10)]
-    private void DestructLinker(Sprite linker)
+    internal void DestructLinker(Linker linker)
     {
         Unlink(linker);
         DestructSprite(linker);
     }
 
     [EngineRoutine(0x00449700)]
-    private void DestructRegion(Sprite region)
+    internal void DestructRegion(Region region)
     {
         DeletePointerToSprite(region);
         DestructSprite(region);
+    }
+
+    [EngineRoutine(0x00444a00)]
+    private static void Unlink(Sprite sprite)
+    {
+        sprite.Link?.Owner = sprite.Owner;
+
+        if (sprite.Owner is not null)
+        {
+            sprite.Owner.Link = sprite.Link;
+            sprite.Owner = null;
+        }
+
+        sprite.Link = null;
     }
 }

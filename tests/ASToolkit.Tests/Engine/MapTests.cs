@@ -63,7 +63,8 @@ public class MapTests
         Assert.Same(map.Player, map.GetFlagman(0));
         Assert.True(map.Player.IsAlive);
         Assert.Equal(start, map.Player.Position);
-        Assert.Equal(23, map.Player.SlotAmmo[KnownObject.Shotgun - KnownObject.Shotgun + 2] + (map.Player.WeaponSlot == 2 ? map.Player.GetAmmo() : 0));
+        var player = (Man)map.Player;
+        Assert.Equal(23, player.SlotAmmo[KnownObject.Shotgun - KnownObject.Shotgun + 2] + (player.WeaponSlot == 2 ? player.GetAmmo() : 0));
 
         map.Action(map.Player, ActionCode.Damage, map.Player.Hp);
         Assert.True(map.Player.IsAlive);

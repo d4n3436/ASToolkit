@@ -28,7 +28,7 @@ internal sealed class PlayerState
 
     public bool HoldsWeapon(int slot) => slot is >= 0 and < Sprite.WeaponSlots && _map.Player.Items.Contains(Sprite.WeaponItemBase + slot);
 
-    public int GetAmmo(int slot) => slot == _map.Player.WeaponSlot ? _map.Player.GetAmmo() : _map.Player.SlotAmmo[slot];
+    public int GetAmmo(int slot) => slot == _map.Player.WeaponSlot ? ((Man)_map.Player).GetAmmo() : ((Man)_map.Player).SlotAmmo[slot];
 
     public bool HasAmmo(int slot) => HoldsWeapon(slot) && GetAmmo(slot) > 0;
 

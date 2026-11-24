@@ -7,7 +7,7 @@ namespace ASToolkit.Engine;
 /// <summary>
 /// Represents a sprite that shows a text letter by letter.
 /// </summary>
-public sealed class TextSprite : Sprite
+public sealed class Text : Frame
 {
     private const int MinDirections = 0x7f;
     private const byte FontSwitch = 0x1b;
@@ -19,7 +19,7 @@ public sealed class TextSprite : Sprite
     private const float Half = 0.5f;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="TextSprite"/> class.
+    /// Initializes a new instance of the <see cref="Text"/> class.
     /// </summary>
     /// <param name="number">The number of the sprite.</param>
     /// <param name="definition">The definition of the sprite.</param>
@@ -28,7 +28,7 @@ public sealed class TextSprite : Sprite
     /// <param name="hitPoints">The hit points of the sprite.</param>
     /// <param name="direction">The direction of the sprite.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    public TextSprite(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Angle direction = default, Map? map = null)
+    public Text(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Angle direction = default, Map? map = null)
         : base(number, definition, position, army, hitPoints, direction, map)
     {
     }
@@ -155,6 +155,8 @@ public sealed class TextSprite : Sprite
         Position = savedPosition;
         Frame = savedFrame;
     }
+
+    internal override int Action(Map map, int act, int var1, int var2, int var3, Sprite? target) => map.TextAction(this, act, var1, var2, var3, target);
 
     private static byte GetCharacter(ReadOnlySpan<byte> text, int index) => (uint)index < (uint)text.Length ? text[index] : (byte)0;
 }

@@ -129,7 +129,7 @@ public sealed class PlayerInput
     }
 
     [EngineRoutine(0x00425d80)]
-    internal bool WindowProc(WindowMessageId message, int wParam, int lParam, Point windowOrigin, RectangleF view, Vector2 camera, MouseSprite cursorSprite)
+    internal bool WindowProc(WindowMessageId message, int wParam, int lParam, Point windowOrigin, RectangleF view, Vector2 camera, Mouse cursorSprite)
     {
         InputFlags flag;
         switch (message)
@@ -232,7 +232,7 @@ public sealed class PlayerInput
         }
     }
 
-    private bool MoveCursor(int lParam, Point windowOrigin, RectangleF view, Vector2 camera, MouseSprite cursorSprite)
+    private bool MoveCursor(int lParam, Point windowOrigin, RectangleF view, Vector2 camera, Mouse cursorSprite)
     {
         WindowOrigin = windowOrigin;
         var point = new Vector2((lParam & 0xFFFF) - windowOrigin.X, ((lParam >> 16) & 0xFFFF) - windowOrigin.Y);

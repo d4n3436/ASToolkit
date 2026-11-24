@@ -15,7 +15,7 @@ public sealed partial class Map
     private static ReadOnlySpan<byte> MenuSection => "menu"u8;
 
     [EngineRoutine(0x004495d0)]
-    internal static void LayOutText(TextSprite text)
+    internal static void LayOutText(Text text)
     {
         var shown = text.Shown.Span;
         text.LineCount = 1;
@@ -43,9 +43,8 @@ public sealed partial class Map
         }
     }
 
-    internal void SetText(Sprite sprite, ReadOnlyMemory<byte> description)
+    internal void SetText(Text text, ReadOnlyMemory<byte> description)
     {
-        var text = (TextSprite)sprite;
         text.Description = description;
         text.Shown = (text.TextBehavior & TextBehavior.LoadFrom) switch
         {
@@ -81,7 +80,7 @@ public sealed partial class Map
     }
 
     [EngineRoutine(0x00448b30)]
-    private int FrameAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target)
+    internal int FrameAction(Frame sprite, int act, int var1, int var2, int var3, Sprite? target)
     {
         var code = (ActionCode)act;
         if ((int)code < 0 || (int)code >= FirstButtonAction && code != ActionCode.NextCommand)
@@ -107,10 +106,9 @@ public sealed partial class Map
 
     // TODO: Port saving and loading the text (ACT_SAVE, ACT_LOAD) and the text address GetTextDesc and GetText return
     [EngineRoutine(0x00448ff0)]
-    private int TextAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target)
+    internal int TextAction(Text text, int act, int var1, int var2, int var3, Sprite? target)
     {
         var code = (ActionCode)act;
-        var text = (TextSprite)sprite;
         ReadOnlySpan<byte> shown;
         int length;
         int shownCount;
@@ -122,7 +120,7 @@ public sealed partial class Map
                 text.TextBehavior = (TextBehavior)var1;
                 return 0;
             case ActionCode.SetText:
-                SetText(sprite, ReadTextAddress(var1));
+                SetText(text, ReadTextAddress(var1));
                 return 0;
             case ActionCode.SetTextCount:
                 text.VisibleCount = var1;
@@ -135,15 +133,15 @@ public sealed partial class Map
                 return 0;
             case ActionCode.NextCommand:
                 shown = text.Shown.Span;
-                if (shown.IsEmpty || sprite.Timer != 0)
+                if (shown.IsEmpty || text.Timer != 0)
                     return 0;
 
                 length = (short)shown.Length;
                 if (text.VisibleCount >= length)
                 {
-                    if (sprite.Animation != SpriteAnimation.Stand)
+                    if (text.Animation != SpriteAnimation.Stand)
                     {
-                        sprite.ChangeAnimation(SpriteAnimation.Stand);
+                        text.ChangeAnimation(SpriteAnimation.Stand);
                     }
 
                     return 0;
@@ -177,17 +175,17 @@ public sealed partial class Map
                             text.VisibleCount--;
                         }
 
-                        sprite.Timer = LineWait;
-                        sprite.ChangeAnimation((SpriteAnimation)MenuAnimation.SelectDown);
+                        text.Timer = LineWait;
+                        text.ChangeAnimation((SpriteAnimation)MenuAnimation.SelectDown);
                         return 0;
                     }
                 }
 
-                sprite.ChangeAnimation((SpriteAnimation)MenuAnimation.StandUp);
-                sprite.HasPlayedStateSound = false;
+                text.ChangeAnimation((SpriteAnimation)MenuAnimation.StandUp);
+                text.HasPlayedStateSound = false;
                 return 0;
             default:
-                return FrameAction(sprite, act, var1, var2, var3, target);
+                return FrameAction(text, act, var1, var2, var3, target);
         }
     }
 

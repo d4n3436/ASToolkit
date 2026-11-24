@@ -14,7 +14,7 @@ public class ScriptHandlerTests
     {
         var definitions = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(definitions);
-        var monster = map.AddSprite(definitions.Find(KnownObject.RedMonster1), map.Player.Position + new Vector3(300, 0, 0), default)!;
+        var monster = (Unit)map.AddSprite(definitions.Find(KnownObject.RedMonster1), map.Player.Position + new Vector3(300, 0, 0), default)!;
         map.AddSprite(definitions.Find(KnownObject.FreezeMonsters), map.Player.Position, default);
         Step(map, 10);
 

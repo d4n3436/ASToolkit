@@ -23,30 +23,15 @@ internal sealed class SpawnedObjectSystem
 
     private readonly SpriteCatalog _definitions;
     private readonly MovementMap _movement;
-    private readonly Random _random;
     private readonly Map _map;
     private readonly SpriteKinematics _motion;
 
-    public SpawnedObjectSystem(SpriteCatalog definitions, MovementMap movement, Random random, Map map)
+    public SpawnedObjectSystem(SpriteCatalog definitions, MovementMap movement, Map map)
     {
         _definitions = definitions;
         _movement = movement;
-        _random = random;
         _map = map;
         _motion = map.Motion;
-    }
-
-    [EngineRoutine(0x0040ec60)]
-    public static void ConstructLinker(Sprite linker, Sprite? parent, Vector3 position, Angle direction)
-    {
-        linker.LinkerBase = parent;
-        linker.LinkerDirection = direction;
-
-        if (parent is null)
-            return;
-
-        AddLinkToLast(parent, linker);
-        linker.LinkerOffset = position - parent.Position;
     }
 
     [EngineRoutine(0x004449c0)]
@@ -68,82 +53,8 @@ internal sealed class SpawnedObjectSystem
     public static EffectState GetState(Sprite sprite) =>
         new(sprite.Definition.Id, sprite.Position, sprite.Direction, sprite.Animation, sprite.CreatedAt, sprite.Frame, sprite.KeyframePosition);
 
-    public void Move(Sprite sprite, int elapsed)
-    {
-        if (sprite.Definition.Class == SpriteClass.Cannon)
-        {
-            RunCannon(sprite, elapsed);
-        }
-        else
-        {
-            RunGeneric(sprite, elapsed);
-        }
-    }
-
-    [EngineRoutine(0x00447fe0)]
-    public void ConstructCannon(Sprite sprite, Sprite? parent)
-    {
-        ref readonly var gameObject = ref sprite.Definition.Object;
-
-        if (gameObject.Properties.HasFlag(ObjectProperties.RandomZSpeed) && !sprite.Definition.ZSpeed.IsExactlyZero())
-        {
-            bool downward = (_random.Next() & 1) == 0;
-            float lift = _random.Next() * sprite.Definition.ZSpeed;
-            sprite.VerticalSpeed = downward ? lift * -GameRandom.UnitScale : lift * GameRandom.UnitScale;
-        }
-        else if (parent is not null && parent.Animation >= SpriteAnimation.Death && gameObject.TopZ < 0)
-        {
-            sprite.VerticalSpeed = sprite.Definition.ZSpeed;
-            sprite.Speed = sprite.MaxSpeed + parent.Speed;
-        }
-        else
-        {
-            sprite.VerticalSpeed = sprite.Definition.ZSpeed;
-        }
-
-        if (gameObject.Properties.HasFlag(ObjectProperties.RandomSpeed) && !sprite.Definition.Speed.IsExactlyZero())
-        {
-            sprite.MaxSpeed = _random.Next() * sprite.Definition.Speed * GameRandom.UnitScale;
-        }
-
-        sprite.IsClimbing = true;
-        _motion.StartMove(sprite);
-    }
-
-    private static void KeepHoverHeight(Sprite sprite, in GameObject gameObject, float hover, ref Vector3 next)
-    {
-        if (sprite.Position.Z.IsExactly(next.Z) || gameObject.Properties.HasFlag(ObjectProperties.Gravity) || hover.IsExactlyZero())
-            return;
-
-        float height = hover;
-
-        if (hover <= sprite.Position.Z)
-        {
-            if (sprite.Position.Z <= hover)
-            {
-                height = next.Z;
-
-                if (!gameObject.Properties.HasFlag(ObjectProperties.SelfMoving))
-                {
-                    next.Z = height;
-                    sprite.VerticalSpeed = 0;
-                }
-            }
-            else if (next.Z < hover)
-            {
-                next.Z = height;
-                sprite.VerticalSpeed = 0;
-            }
-        }
-        else if (hover <= next.Z)
-        {
-            next.Z = height;
-            sprite.VerticalSpeed = 0;
-        }
-    }
-
     [EngineRoutine(0x0043f820)]
-    private void RunGeneric(Sprite sprite, int elapsed)
+    public void RunGeneric(Sprite sprite, int elapsed)
     {
         if (!sprite.Definition.CanMove)
             return;
@@ -189,7 +100,7 @@ internal sealed class SpawnedObjectSystem
     }
 
     [EngineRoutine(0x00448130)]
-    private void RunCannon(Sprite sprite, int elapsed)
+    public void RunCannon(Cannon sprite, int elapsed)
     {
         if (!sprite.Definition.CanMove)
             return;
@@ -235,7 +146,39 @@ internal sealed class SpawnedObjectSystem
         SteerToGoal(sprite, gameObject, previousHeight, elapsed);
     }
 
-    private void HitGround(Sprite sprite, in GameObject gameObject, float ground, float current, ref Vector3 next)
+    private static void KeepHoverHeight(Sprite sprite, in GameObject gameObject, float hover, ref Vector3 next)
+    {
+        if (sprite.Position.Z.IsExactly(next.Z) || gameObject.Properties.HasFlag(ObjectProperties.Gravity) || hover.IsExactlyZero())
+            return;
+
+        float height = hover;
+
+        if (hover <= sprite.Position.Z)
+        {
+            if (sprite.Position.Z <= hover)
+            {
+                height = next.Z;
+
+                if (!gameObject.Properties.HasFlag(ObjectProperties.SelfMoving))
+                {
+                    next.Z = height;
+                    sprite.VerticalSpeed = 0;
+                }
+            }
+            else if (next.Z < hover)
+            {
+                next.Z = height;
+                sprite.VerticalSpeed = 0;
+            }
+        }
+        else if (hover <= next.Z)
+        {
+            next.Z = height;
+            sprite.VerticalSpeed = 0;
+        }
+    }
+
+    private void HitGround(Cannon sprite, in GameObject gameObject, float ground, float current, ref Vector3 next)
     {
         next.Z = sprite.Position.Z;
 
@@ -289,7 +232,7 @@ internal sealed class SpawnedObjectSystem
         next = next with { X = sprite.Position.X, Y = sprite.Position.Y };
     }
 
-    private void MoveCannon(Sprite sprite, in GameObject gameObject, Vector3 next)
+    private void MoveCannon(Cannon sprite, in GameObject gameObject, Vector3 next)
     {
         if (next.AsVector2() == sprite.Position.AsVector2())
             return;
@@ -314,7 +257,7 @@ internal sealed class SpawnedObjectSystem
         }
     }
 
-    private void SteerToGoal(Sprite sprite, in GameObject gameObject, float previousHeight, int elapsed)
+    private void SteerToGoal(Cannon sprite, in GameObject gameObject, float previousHeight, int elapsed)
     {
         var goal = sprite.GoalPosition;
         var target = sprite.Goal!;

@@ -83,14 +83,14 @@ public sealed partial class Map
 
         _mouseTip = AddSprite(font, new Vector3(position, MouseTipDepth), default);
 
-        if (_mouseTip is not TextSprite)
+        if (_mouseTip is not Text)
             return;
 
         byte[] framed = new byte[length];
         framed[0] = MouseTipOpen;
         Session.MouseTipText.Span.CopyTo(framed.AsSpan(1));
         framed[^1] = MouseTipClose;
-        SetText(_mouseTip, framed);
+        SetText((Text)_mouseTip, framed);
     }
 
     [EngineRoutine(0x0040f460)]

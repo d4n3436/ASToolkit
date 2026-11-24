@@ -122,24 +122,8 @@ internal sealed class SpriteKinematics
         }
     }
 
-    public void DeletePointerToSprite(Sprite sprite, Sprite removed)
-    {
-        if (sprite.Definition.Class == SpriteClass.Cannon)
-        {
-            ForgetCannonGoal(sprite, removed);
-        }
-        else if (sprite.Definition.Class == SpriteClass.Creature)
-        {
-            ForgetCreatureRegion(sprite, removed);
-        }
-        else
-        {
-            ForgetObject(sprite, removed);
-        }
-    }
-
     [EngineRoutine(0x0044d460)]
-    public void ForgetCreatureRegion(Sprite creature, Sprite removed)
+    public void ForgetCreatureRegion(Creature creature, Sprite removed)
     {
         if (creature.Region == removed)
         {
@@ -154,7 +138,7 @@ internal sealed class SpriteKinematics
     {
         if (sprite.Link is not null)
         {
-            DeletePointerToSprite(sprite.Link, removed);
+            sprite.Link.DeletePointerToSprite(_map, removed);
         }
 
         if (sprite.Goal == removed)
@@ -182,7 +166,7 @@ internal sealed class SpriteKinematics
     }
 
     [EngineRoutine(0x004489e0)]
-    public void ForgetCannonGoal(Sprite cannon, Sprite removed)
+    public void ForgetCannonGoal(Cannon cannon, Sprite removed)
     {
         if (cannon.Goal == removed)
         {

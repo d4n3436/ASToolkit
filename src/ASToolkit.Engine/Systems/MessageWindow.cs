@@ -87,7 +87,7 @@ internal sealed class MessageWindow
         var line = _lines[_count];
         if (line is not null)
         {
-            _map.SetText(line, text);
+            _map.SetText((Text)line, text);
         }
 
         _targets[_count] = target;

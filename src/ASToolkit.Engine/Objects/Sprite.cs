@@ -31,8 +31,6 @@ public class Sprite
     /// </summary>
     public const int WeaponItemBase = 260;
     private const int ReloadTimerOffset = 5000;
-    private const int AmmoScale = 64;
-    private const int MaxWeaponSlot = 9;
     private const int GammaAlphaShift = 24;
     private const int MaxAnimation = 16;
     private const int HpShare = 0xff;
@@ -61,7 +59,6 @@ public class Sprite
         _direction = direction;
         Number = number;
         Definition = definition;
-        Behavior = definition.Behavior;
         Army = army;
         Position = position;
         Hp = hitPoints;
@@ -69,7 +66,6 @@ public class Sprite
         Frame = FirstFrame;
         LastFrame = FirstFrame + definition.GetFramesPerDirection(SpriteAnimation.Stand) - 1;
         CreatedAt = -1;
-        FillAmmo();
 
         if (definition.HasTimers)
         {
@@ -106,11 +102,6 @@ public class Sprite
     /// Gets or sets the speed of the sprite in pixels per millisecond.
     /// </summary>
     public float Speed { get; set; }
-
-    /// <summary>
-    /// Gets or sets the frames the sprite has spent turning while stuck.
-    /// </summary>
-    public int TurnTicks { get; set; }
 
     /// <summary>
     /// Gets or sets the command the sprite carries out.
@@ -223,49 +214,14 @@ public class Sprite
     public int Timer { get; set; }
 
     /// <summary>
-    /// Gets the ammunition the sprite holds, in 1/64 rounds.
-    /// </summary>
-    public int Ammo { get; private set; }
-
-    /// <summary>
-    /// Gets the whole rounds the sprite holds.
-    /// </summary>
-    public int Rounds => Ammo / AmmoScale;
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the sprite refills its ammunition.
-    /// </summary>
-    public bool ShouldRefillAmmo { get; set; }
-
-    /// <summary>
     /// Gets the weapon slot of the torso linked by the sprite's definition.
     /// </summary>
     public int WeaponSlot => (int)(Definition.LinkDefinition?.Id ?? 0) - WeaponIdBase;
 
     /// <summary>
-    /// Gets the ammunition the sprite keeps for the slots it does not hold.
-    /// </summary>
-    public int[] SlotAmmo => field ??= new int[MaxWeaponSlot + 1];
-
-    /// <summary>
-    /// Gets or sets the behavior bits of the sprite.
-    /// </summary>
-    public WeaponBehavior Behavior { get; set; }
-
-    /// <summary>
     /// Gets or sets the period of the sprite's stream children.
     /// </summary>
     public int StreamPeriod { get; set; }
-
-    /// <summary>
-    /// Gets a value indicating whether the sprite attacks enemies in weapon range.
-    /// </summary>
-    public bool IsAggressive => Behavior.HasFlag(WeaponBehavior.Aggressive);
-
-    /// <summary>
-    /// Gets a value indicating whether the sprite moves toward enemies it sees.
-    /// </summary>
-    public bool IsActive => Behavior.HasFlag(WeaponBehavior.Active);
 
     /// <summary>
     /// Gets or sets the vertical speed of the sprite.
@@ -283,21 +239,6 @@ public class Sprite
     public Sprite? Owner { get; set; }
 
     /// <summary>
-    /// Gets or sets the sprite a linker turns around, the parent it was created with.
-    /// </summary>
-    public Sprite? LinkerBase { get; set; }
-
-    /// <summary>
-    /// Gets or sets a linker's offset from its base when it was created.
-    /// </summary>
-    public Vector3 LinkerOffset { get; set; }
-
-    /// <summary>
-    /// Gets or sets the direction a linker faced when it was created.
-    /// </summary>
-    public Angle LinkerDirection { get; set; }
-
-    /// <summary>
     /// Gets or sets the next sprite of this sprite's link chain.
     /// </summary>
     public Sprite? Link { get; set; }
@@ -306,11 +247,6 @@ public class Sprite
     /// Gets or sets a value indicating whether the sprite's last move was blocked.
     /// </summary>
     public bool IsBlocked { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the sprite climbs onto higher ground.
-    /// </summary>
-    public bool IsClimbing { get; set; }
 
     /// <summary>
     /// Gets a value indicating whether the sprite has a goal.
@@ -428,10 +364,6 @@ public class Sprite
     internal Map? Map { get; set; }
 
     internal AttackResult AttackResult { get; set; }
-
-    internal bool IsSeekingRegion { get; set; }
-
-    internal RegionSprite? Region { get; set; }
 
     /// <summary>
     /// Adds an item at the end of the sprite's items.
@@ -722,7 +654,7 @@ public class Sprite
             }
             else if (linked.SpriteClass == SpriteClass.Linker && !fixedOffset)
             {
-                link.LinkRotate(Definition.GetFrameDirection(shown));
+                ((Linker)link).LinkRotate(Definition.GetFrameDirection(shown));
             }
 
             if (link.Definition.RotationRate.IsExactlyZero())
@@ -764,54 +696,6 @@ public class Sprite
         IsMoving = false;
         HasReachedX = false;
         HasReachedY = false;
-    }
-
-    /// <summary>
-    /// Returns the ammunition the sprite holds when full.
-    /// </summary>
-    /// <returns>The capacity in rounds.</returns>
-    [EngineRoutine(0x0043a200)]
-    public int GetAmmoCapacity()
-    {
-        var link = Definition.LinkDefinition;
-
-        return link is not null && link.HasFightWeapon() ? link.AmmoCapacity : Definition.AmmoCapacity;
-    }
-
-    /// <summary>
-    /// Fills the sprite's ammunition.
-    /// </summary>
-    public void FillAmmo() => Ammo = GetAmmoCapacity() * AmmoScale;
-
-    /// <summary>
-    /// Returns the rounds the sprite holds for its held weapon.
-    /// </summary>
-    /// <returns>The rounds.</returns>
-    public int GetAmmo() => Rounds;
-
-    /// <summary>
-    /// Adds rounds to the sprite's held weapon.
-    /// </summary>
-    /// <param name="amount">The rounds to add, negative to spend.</param>
-    /// <returns>The rounds held after the addition.</returns>
-    public int AddAmmo(int amount)
-    {
-        if (GetAmmoCapacity() == SpriteDefinition.Unlimited)
-        {
-            Ammo = SpriteDefinition.Unlimited * AmmoScale;
-
-            return SpriteDefinition.Unlimited;
-        }
-
-        int ammo = Ammo + amount * AmmoScale;
-        Ammo = Math.Max(0, ammo);
-
-        if (ShouldRefillAmmo)
-        {
-            Ammo = GetAmmoCapacity() * AmmoScale;
-        }
-
-        return ammo;
     }
 
     /// <summary>
@@ -1053,6 +937,16 @@ public class Sprite
         return distance < Definition.DetectRange * 2 ? AttackResult.Pursue : AttackResult.GiveUp;
     }
 
+    internal virtual void Destruct(Map map) => map.DestructSprite(this);
+
+    internal virtual int Action(Map map, int act, int var1, int var2, int var3, Sprite? target) => map.SpriteAction(this, act, var1, var2, var3, target);
+
+    internal virtual void MoveTact(Map map) => map.Effects.RunGeneric(this, map.FrameTime);
+
+    internal virtual void DeletePointerToSprite(Map map, Sprite removed) => map.Motion.ForgetObject(this, removed);
+
+    internal virtual void DrawInfo(Map map) => map.DrawSpriteInfo(this);
+
     private void Shift(Vector3 delta)
     {
         if (SpriteCollector.IsHashed(Definition))
@@ -1069,19 +963,6 @@ public class Sprite
         }
 
         Position += delta;
-    }
-
-    [EngineRoutine(0x00442e50)]
-    private void LinkRotate(Angle direction)
-    {
-        var origin = LinkerBase ?? Owner;
-
-        if (origin is null)
-            return;
-
-        var turn = new Angle(unchecked((byte)(direction.Value - LinkerDirection.Value)));
-        var turned = new Vector2(turn.Cosine, turn.ProjectedSine) * LinkerOffset.X + new Vector2(-turn.Sine, turn.ProjectedCosine) * LinkerOffset.Y;
-        ChangeCoor(new Vector3(origin.Position.AsVector2() + turned, Position.Z));
     }
 
     private Angle GetShownDirection(Angle direction)

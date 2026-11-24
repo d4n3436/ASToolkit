@@ -54,6 +54,54 @@ public sealed partial class Map
         }
     }
 
+    [EngineRoutine(0x00442660)]
+    internal void DrawSpriteInfo(Sprite sprite)
+    {
+        var graphics = Session.Graphics;
+        var view = graphics.Viewport;
+        float y = view.Top;
+        var position = sprite.Position;
+        int ammo = Action(sprite, ActionCode.GetAmmo);
+        graphics.DrawFormattedText(new Vector2(view.Left + InfoTextLeft, y), $"Ref={sprite.ReferenceCount,-3} cmd={(int)sprite.Command,1} ani={(int)sprite.Animation,-2} hp={sprite.Hp,-3} AT={(int)sprite.AttackResult} goal={GetDefinitionId(sprite.Goal),-3} spd={(int)(sprite.Speed * SpeedScale),-3},{(int)(sprite.VerticalSpeed * SpeedScale),-3} timer={sprite.Timer} ammo={ammo} mvE={(sprite.HasReachedX ? 1 : 0),1}{(sprite.HasReachedY ? 1 : 0),1} {(int)position.X},{(int)position.Y},{(int)position.Z}");
+
+        var link = sprite.Link;
+        if (link is not null && link.Definition == sprite.Definition.LinkDefinition)
+        {
+            y += InfoLineHeight;
+            int linkAmmo = Action(link, ActionCode.GetAmmo);
+            graphics.DrawFormattedText(new Vector2(view.Left + InfoTextLeft, y), $"Ref={link.ReferenceCount,-3} cmd={(int)link.Command,1} ani={(int)link.Animation,-2} hp={link.Hp,-3} AT={(int)link.AttackResult} goal={GetDefinitionId(link.Goal),-3} timer={link.Timer} ammo={linkAmmo}");
+        }
+
+        var orders = sprite.ActionStack;
+        if (orders.Count != 0)
+        {
+            y += InfoLineHeight;
+            var text = new StringBuilder();
+            text.Append(CultureInfo.InvariantCulture, $"{orders.Count} - ");
+            for (int i = orders.Count - 1; i >= 0; i--)
+            {
+                var order = orders[i];
+                text.Append(CultureInfo.InvariantCulture, $"{order.Value}({order.Var1},{order.Var2},{order.Var3}) ");
+            }
+
+            graphics.DrawText(new Vector2(view.Left + OrdersTextLeft, y), GameTextEncoding.Cyrillic.GetBytes(text.ToString()), White);
+        }
+
+        DrawGoalLines(sprite);
+    }
+
+    [EngineRoutine(0x00449730)]
+    internal void DrawRegionInfo(Region region)
+    {
+        var position = region.Position;
+        var size = region.Size;
+        float left = position.X - size.X * HalfShare - Camera.X;
+        float top = position.Y - position.Z - size.Y * HalfShare - Camera.Y;
+        float right = size.X * HalfShare + position.X - Camera.X;
+        float bottom = size.Y * HalfShare + (position.Y - position.Z) - Camera.Y;
+        Session.Graphics.DrawRectangle(this, new Vector2(left - RegionBoxMargin, top - RegionBoxMargin), new Vector2(right + RegionBoxMargin, bottom + RegionBoxMargin), White);
+    }
+
     private static bool IsInViewport(Rectangle viewport, Vector2 point) => viewport.Left <= point.X && point.X < viewport.Right && viewport.Top <= point.Y && point.Y < viewport.Bottom;
 
     private static int GetDefinitionId(Sprite? sprite) => sprite is null ? 0 : (int)sprite.Definition.Id;
@@ -107,7 +155,7 @@ public sealed partial class Map
             var drawn = flagman ?? hovered ?? _menuCurrent;
             if (drawn is not null)
             {
-                DrawInfo(drawn);
+                drawn.DrawInfo(this);
             }
         }
 
@@ -154,7 +202,7 @@ public sealed partial class Map
 
         if (definition.Class == SpriteClass.Region)
         {
-            DrawInfo(sprite);
+            sprite.DrawInfo(this);
 
             return;
         }
@@ -215,66 +263,6 @@ public sealed partial class Map
         }
 
         Session.Graphics.DrawFormattedText(new Vector2(position.X - Camera.X + TextLineOffset, position.Y - position.Z - Camera.Y), $"{(int)definition.Id}");
-    }
-
-    private void DrawInfo(Sprite sprite)
-    {
-        if (sprite is RegionSprite region)
-        {
-            DrawRegionInfo(region);
-        }
-        else if (sprite.Definition.Class != SpriteClass.Primitive)
-        {
-            DrawSpriteInfo(sprite);
-        }
-    }
-
-    [EngineRoutine(0x00442660)]
-    private void DrawSpriteInfo(Sprite sprite)
-    {
-        var graphics = Session.Graphics;
-        var view = graphics.Viewport;
-        float y = view.Top;
-        var position = sprite.Position;
-        int ammo = Action(sprite, ActionCode.GetAmmo);
-        graphics.DrawFormattedText(new Vector2(view.Left + InfoTextLeft, y), $"Ref={sprite.ReferenceCount,-3} cmd={(int)sprite.Command,1} ani={(int)sprite.Animation,-2} hp={sprite.Hp,-3} AT={(int)sprite.AttackResult} goal={GetDefinitionId(sprite.Goal),-3} spd={(int)(sprite.Speed * SpeedScale),-3},{(int)(sprite.VerticalSpeed * SpeedScale),-3} timer={sprite.Timer} ammo={ammo} mvE={(sprite.HasReachedX ? 1 : 0),1}{(sprite.HasReachedY ? 1 : 0),1} {(int)position.X},{(int)position.Y},{(int)position.Z}");
-
-        var link = sprite.Link;
-        if (link is not null && link.Definition == sprite.Definition.LinkDefinition)
-        {
-            y += InfoLineHeight;
-            int linkAmmo = Action(link, ActionCode.GetAmmo);
-            graphics.DrawFormattedText(new Vector2(view.Left + InfoTextLeft, y), $"Ref={link.ReferenceCount,-3} cmd={(int)link.Command,1} ani={(int)link.Animation,-2} hp={link.Hp,-3} AT={(int)link.AttackResult} goal={GetDefinitionId(link.Goal),-3} timer={link.Timer} ammo={linkAmmo}");
-        }
-
-        var orders = sprite.ActionStack;
-        if (orders.Count != 0)
-        {
-            y += InfoLineHeight;
-            var text = new StringBuilder();
-            text.Append(CultureInfo.InvariantCulture, $"{orders.Count} - ");
-            for (int i = orders.Count - 1; i >= 0; i--)
-            {
-                var order = orders[i];
-                text.Append(CultureInfo.InvariantCulture, $"{order.Value}({order.Var1},{order.Var2},{order.Var3}) ");
-            }
-
-            graphics.DrawText(new Vector2(view.Left + OrdersTextLeft, y), GameTextEncoding.Cyrillic.GetBytes(text.ToString()), White);
-        }
-
-        DrawGoalLines(sprite);
-    }
-
-    [EngineRoutine(0x00449730)]
-    private void DrawRegionInfo(RegionSprite region)
-    {
-        var position = region.Position;
-        var size = region.Size;
-        float left = position.X - size.X * HalfShare - Camera.X;
-        float top = position.Y - position.Z - size.Y * HalfShare - Camera.Y;
-        float right = size.X * HalfShare + position.X - Camera.X;
-        float bottom = size.Y * HalfShare + (position.Y - position.Z) - Camera.Y;
-        Session.Graphics.DrawRectangle(this, new Vector2(left - RegionBoxMargin, top - RegionBoxMargin), new Vector2(right + RegionBoxMargin, bottom + RegionBoxMargin), White);
     }
 
     private void DrawGroups()

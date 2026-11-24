@@ -66,7 +66,6 @@ public sealed partial class Map : IDisposable
     private readonly LivingSet _livingSites = new();
     private readonly LivingSet _livingCharges = new();
     private readonly int[] _scriptHooks = new int[ScriptHookCount];
-    private MonsterBrain _brain;
     private UpdateOrder _updates;
     private int _pausedAt;
     private MenuClicks _menuClicks;
@@ -163,7 +162,7 @@ public sealed partial class Map : IDisposable
     /// <summary>
     /// Gets the sprite of the mouse cursor.
     /// </summary>
-    public MouseSprite CursorSprite { get; }
+    public Mouse CursorSprite { get; }
 
     /// <summary>
     /// Gets the game time in milliseconds.
@@ -245,6 +244,10 @@ public sealed partial class Map : IDisposable
     internal SpawnedObjectSystem Effects { get; private set; }
 
     internal SpriteKinematics Motion { get; private set; }
+
+    internal MonsterBrain Brain { get; private set; }
+
+    internal int FramesPerSecond => _clock.FramesPerSecond;
 
     private static ReadOnlySpan<int> WornArmorShares => [50, 70, 90];
 
@@ -596,7 +599,7 @@ public sealed partial class Map : IDisposable
         {
             int lastTickTime = sprite.LastTickTime;
             sprite.LastTickTime = _clock.PreviousTime;
-            MoveByClass(sprite);
+            sprite.MoveTact(this);
             sprite.LastTickTime = lastTickTime;
         }
 
@@ -716,28 +719,28 @@ public sealed partial class Map : IDisposable
         switch (definition.Class)
         {
             case SpriteClass.Terrain or SpriteClass.Object:
-                sprite = ConstructTerrain(definition, position, direction, parent);
+                sprite = ConstructTerrain(new Terrain(-1, definition, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Building:
-                sprite = ConstructBuilding(definition, position, direction, parent);
+                sprite = ConstructBuilding(new Building(-1, definition, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.CivRobot:
-                sprite = ConstructCivRobot(definition, position, direction, parent);
+                sprite = ConstructCivRobot(new CivRobot(-1, definition, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Engine:
-                sprite = ConstructEngine(definition, position, direction, parent);
+                sprite = ConstructEngine(new Engine(-1, definition, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Rail:
-                sprite = ConstructRail(definition, position, direction, parent);
+                sprite = ConstructRail(new Rail(-1, definition, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Depo:
-                sprite = ConstructDepo(definition, position, direction, parent);
+                sprite = ConstructDepo(new Depo(-1, definition, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Creature:
-                sprite = ConstructCreature(definition, position, direction, parent);
+                sprite = ConstructCreature(new Creature(-1, definition, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Balloon:
-                sprite = ConstructBalloon(definition, position, direction, parent);
+                sprite = ConstructBalloon(new Balloon(-1, definition, position, default, 0, map: this), direction, parent);
                 break;
             default:
                 return CreateSprite(definition, position, direction, parent);
@@ -1276,31 +1279,27 @@ public sealed partial class Map : IDisposable
         banner.ActionStack.Insert(0, new Act((int)SpriteAnimation.Death, 0, 0, 0));
     }
 
-    private Sprite ConstructPlain(SpriteDefinition definition, Vector3 position, Angle direction, Sprite? parent)
-    {
-        var sprite = new Sprite(-1, definition, position, default, 0, map: this);
-        ConstructSprite(sprite, direction, parent);
-
-        return sprite;
-    }
-
     [EngineRoutine(0x0044bd60)]
-    private Sprite ConstructTerrain(SpriteDefinition definition, Vector3 position, Angle direction, Sprite? parent)
+    private Sprite ConstructTerrain(Terrain sprite, Angle direction, Sprite? parent)
     {
-        var sprite = ConstructPlain(definition, position, direction, parent);
+        ConstructSprite(sprite, direction, parent);
         sprite.ShouldRefillAmmo = false;
 
         return sprite;
     }
 
     [EngineRoutine(0x0040ec00)]
-    private Sprite ConstructPrimitive(SpriteDefinition definition, Vector3 position, Angle direction, Sprite? parent) =>
-        ConstructPlain(definition, position, direction, parent);
+    private Sprite ConstructPrimitive(Primitive sprite, Angle direction, Sprite? parent)
+    {
+        ConstructSprite(sprite, direction, parent);
+
+        return sprite;
+    }
 
     [EngineRoutine(0x00447130)]
-    private Sprite ConstructUnit(SpriteDefinition definition, Vector3 position, Angle direction, Sprite? parent)
+    private Sprite ConstructUnit(Unit unit, Angle direction, Sprite? parent)
     {
-        var unit = ConstructTerrain(definition, position, direction, parent);
+        ConstructTerrain(unit, direction, parent);
         unit.TurnTicks = 0;
         unit.Behavior = (unit.ArmedLink ?? unit).Definition.Behavior;
         unit.FillAmmo();
@@ -1309,9 +1308,9 @@ public sealed partial class Map : IDisposable
     }
 
     [EngineRoutine(0x0044ce60)]
-    private Sprite ConstructAvia(SpriteDefinition definition, Vector3 position, Angle direction, Sprite? parent)
+    private Sprite ConstructAvia(Avia sprite, Angle direction, Sprite? parent)
     {
-        var sprite = ConstructUnit(definition, position, direction, parent);
+        ConstructUnit(sprite, direction, parent);
         Motion.StartMove(sprite);
         sprite.VerticalSpeed = sprite.Definition.ZSpeed;
 
@@ -1319,13 +1318,12 @@ public sealed partial class Map : IDisposable
     }
 
     [EngineRoutine(0x0044dd80)]
-    private Sprite ConstructBalloon(SpriteDefinition definition, Vector3 position, Angle direction, Sprite? parent) =>
-        ConstructAvia(definition, position, direction, parent);
+    private Sprite ConstructBalloon(Balloon sprite, Angle direction, Sprite? parent) => ConstructAvia(sprite, direction, parent);
 
     [EngineRoutine(0x0044d3e0)]
-    private Sprite ConstructCreature(SpriteDefinition definition, Vector3 position, Angle direction, Sprite? parent)
+    private Sprite ConstructCreature(Creature sprite, Angle direction, Sprite? parent)
     {
-        var sprite = ConstructUnit(definition, position, direction, parent);
+        ConstructUnit(sprite, direction, parent);
         sprite.IsSeekingRegion = true;
         sprite.VerticalSpeed = sprite.Definition.ZSpeed;
         Motion.StartMove(sprite);
@@ -1335,65 +1333,95 @@ public sealed partial class Map : IDisposable
     }
 
     [EngineRoutine(0x0044ca00)]
-    private Sprite ConstructBuilding(SpriteDefinition definition, Vector3 position, Angle direction, Sprite? parent)
+    private Sprite ConstructBuilding(Building sprite, Angle direction, Sprite? parent)
     {
-        var sprite = ConstructUnit(definition, position, direction, parent);
+        ConstructUnit(sprite, direction, parent);
         _builds.Remove(sprite);
 
         return sprite;
     }
 
     [EngineRoutine(0x0044a590)]
-    private Sprite ConstructCivRobot(SpriteDefinition definition, Vector3 position, Angle direction, Sprite? parent)
+    private Sprite ConstructCivRobot(CivRobot sprite, Angle direction, Sprite? parent)
     {
-        // TODO: Port the CivRobot class vtable (0x47a994): its Tact and actions
-        return ConstructCreature(definition, position, direction, parent);
+        // TODO: Port the rest of the CivRobot constructor (0x44a590)
+        return ConstructCreature(sprite, direction, parent);
     }
 
     [EngineRoutine(0x0044e8b0)]
-    private Sprite ConstructEngine(SpriteDefinition definition, Vector3 position, Angle direction, Sprite? parent)
+    private Sprite ConstructEngine(Engine sprite, Angle direction, Sprite? parent)
     {
         // TODO: Port the Engine, Rail and Depo class tails (0x44e8b0, 0x44a140, 0x44c040); the port builds those classes with their base constructors
-        return ConstructUnit(definition, position, direction, parent);
+        return ConstructUnit(sprite, direction, parent);
     }
 
     [EngineRoutine(0x0044a140)]
-    private Sprite ConstructRail(SpriteDefinition definition, Vector3 position, Angle direction, Sprite? parent) =>
-        ConstructTerrain(definition, position, direction, parent);
+    private Sprite ConstructRail(Rail sprite, Angle direction, Sprite? parent) => ConstructTerrain(sprite, direction, parent);
 
     [EngineRoutine(0x0044c040)]
-    private Sprite ConstructDepo(SpriteDefinition definition, Vector3 position, Angle direction, Sprite? parent) =>
-        ConstructUnit(definition, position, direction, parent);
+    private Sprite ConstructDepo(Depo sprite, Angle direction, Sprite? parent) => ConstructUnit(sprite, direction, parent);
 
     [EngineRoutine(0x004545e0)]
-    private Sprite ConstructMan(SpriteDefinition definition, Vector3 position, Angle direction, Sprite? parent)
+    private Sprite ConstructMan(Man sprite, Angle direction, Sprite? parent)
     {
-        var sprite = ConstructUnit(definition, position, direction, parent);
+        ConstructUnit(sprite, direction, parent);
         sprite.InsertUniqueItem(Sprite.WeaponItemBase + Sprite.Pistols);
 
         return sprite;
     }
 
     [EngineRoutine(0x00447fe0)]
-    private Sprite ConstructCannon(SpriteDefinition definition, Vector3 position, Angle direction, Sprite? parent)
+    private Sprite ConstructCannon(Cannon sprite, Angle direction, Sprite? parent)
     {
-        var sprite = ConstructPlain(definition, position, direction, parent);
-        Effects.ConstructCannon(sprite, parent);
+        ConstructSprite(sprite, direction, parent);
+        ref readonly var gameObject = ref sprite.Definition.Object;
+
+        if (gameObject.Properties.HasFlag(ObjectProperties.RandomZSpeed) && !sprite.Definition.ZSpeed.IsExactlyZero())
+        {
+            bool downward = (_rng.Next() & 1) == 0;
+            float lift = _rng.Next() * sprite.Definition.ZSpeed;
+            sprite.VerticalSpeed = downward ? lift * -GameRandom.UnitScale : lift * GameRandom.UnitScale;
+        }
+        else if (parent is not null && parent.Animation >= SpriteAnimation.Death && gameObject.TopZ < 0)
+        {
+            sprite.VerticalSpeed = sprite.Definition.ZSpeed;
+            sprite.Speed = sprite.MaxSpeed + parent.Speed;
+        }
+        else
+        {
+            sprite.VerticalSpeed = sprite.Definition.ZSpeed;
+        }
+
+        if (gameObject.Properties.HasFlag(ObjectProperties.RandomSpeed) && !sprite.Definition.Speed.IsExactlyZero())
+        {
+            sprite.MaxSpeed = _rng.Next() * sprite.Definition.Speed * GameRandom.UnitScale;
+        }
+
+        sprite.IsClimbing = true;
+        Motion.StartMove(sprite);
 
         return sprite;
     }
 
     [EngineRoutine(0x0040ec60)]
-    private Sprite ConstructLinker(SpriteDefinition definition, Vector3 position, Angle direction, Sprite? parent)
+    private Sprite ConstructLinker(Linker linker, Angle direction, Sprite? parent)
     {
-        var sprite = ConstructPlain(definition, position, direction, parent);
-        SpawnedObjectSystem.ConstructLinker(sprite, parent, position, direction);
+        var position = linker.Position;
+        ConstructSprite(linker, direction, parent);
+        linker.Base = parent;
+        linker.StartDirection = direction;
 
-        return sprite;
+        if (parent is null)
+            return linker;
+
+        SpawnedObjectSystem.AddLinkToLast(parent, linker);
+        linker.Offset = position - parent.Position;
+
+        return linker;
     }
 
     [EngineRoutine(0x00448a60)]
-    private Sprite ConstructFrame(Sprite frame, Angle direction, Sprite? parent)
+    private Sprite ConstructFrame(Frame frame, Angle direction, Sprite? parent)
     {
         frame.Position = new Vector3(frame.Position.AsVector2() + Camera, frame.Position.Z);
         ConstructSprite(frame, direction, parent);
@@ -1404,13 +1432,11 @@ public sealed partial class Map : IDisposable
     }
 
     [EngineRoutine(0x0040ed40)]
-    private Sprite ConstructText(SpriteDefinition definition, Vector3 position, Angle direction, Sprite? parent) =>
-        ConstructFrame(new TextSprite(-1, definition, position, default, 0, map: this), direction, parent);
+    private Sprite ConstructText(Text text, Angle direction, Sprite? parent) => ConstructFrame(text, direction, parent);
 
     [EngineRoutine(0x00449640)]
-    private Sprite ConstructRegion(SpriteDefinition definition, Vector3 position, Angle direction, Sprite? parent)
+    private Sprite ConstructRegion(Region sprite, Angle direction, Sprite? parent)
     {
-        var sprite = new RegionSprite(-1, definition, position, default, 0, map: this);
         ConstructSprite(sprite, direction, parent);
 
         return sprite;
@@ -1432,37 +1458,38 @@ public sealed partial class Map : IDisposable
         switch (definition.Class)
         {
             case SpriteClass.Unit:
-                sprite = ConstructUnit(definition, position, direction, parent);
+                sprite = ConstructUnit(new Unit(-1, definition, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Avia:
-                sprite = ConstructAvia(definition, position, direction, parent);
+                sprite = ConstructAvia(new Avia(-1, definition, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Cannon:
-                sprite = ConstructCannon(definition, position, direction, parent);
+                sprite = ConstructCannon(new Cannon(-1, definition, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Primitive:
-                sprite = ConstructPrimitive(definition, position, direction, parent);
+                sprite = ConstructPrimitive(new Primitive(-1, definition, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Man:
-                sprite = ConstructMan(definition, position, direction, parent);
+                sprite = ConstructMan(new Man(-1, definition, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.BuiltTerrain:
-                sprite = ConstructBuiltTerrain(definition, position, direction, parent);
+                sprite = ConstructBuiltTerrain(new BuiltTerrain(-1, definition, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Sprite:
-                sprite = ConstructPlain(definition, position, direction, parent);
+                sprite = new Sprite(-1, definition, position, default, 0, map: this);
+                ConstructSprite(sprite, direction, parent);
                 break;
             case SpriteClass.Frame:
-                sprite = ConstructFrame(new Sprite(-1, definition, position, default, 0, map: this), direction, parent);
+                sprite = ConstructFrame(new Frame(-1, definition, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Linker:
-                sprite = ConstructLinker(definition, position, direction, parent);
+                sprite = ConstructLinker(new Linker(-1, definition, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Text:
-                sprite = ConstructText(definition, position, direction, parent);
+                sprite = ConstructText(new Text(-1, definition, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Region:
-                sprite = ConstructRegion(definition, position, direction, parent);
+                sprite = ConstructRegion(new Region(-1, definition, position, default, 0, map: this), direction, parent);
                 break;
             default:
                 Session.Logger.Error(MapLogTag, LogError.Create, (int)definition.Class, "sprite - Behave is invalidate"u8);
@@ -1478,15 +1505,15 @@ public sealed partial class Map : IDisposable
         return sprite;
     }
 
-    [MemberNotNull(nameof(Motion), nameof(Effects), nameof(Weapons), nameof(Collision), nameof(PlayerMovement), nameof(_brain))]
+    [MemberNotNull(nameof(Motion), nameof(Effects), nameof(Weapons), nameof(Collision), nameof(PlayerMovement), nameof(Brain))]
     private void BuildSystems()
     {
         Motion = new SpriteKinematics(Definitions, this);
-        Effects = new SpawnedObjectSystem(Definitions, Movement, _rng, this);
+        Effects = new SpawnedObjectSystem(Definitions, Movement, this);
         Weapons = new WeaponSystem(this, Definitions);
         Collision = new SpriteCollision(this);
         PlayerMovement = new PlayerMovement(Collision, Motion);
-        _brain = new MonsterBrain(Motion, Collision, _rng, Collector, this);
+        Brain = new MonsterBrain(Motion, Collision, _rng, Collector, this);
     }
 
     private void LoadOrders(Sprite sprite, ReadOnlySpan<StackAction> stack)
@@ -1616,7 +1643,7 @@ public sealed partial class Map : IDisposable
 
         if (emitChild is not null && sprite.Definition.Class == SpriteClass.Region && sprite.Definition.Object.ChildX[emitSlot].IsExactlyZero() && sprite.Definition.Object.ChildY[emitSlot].IsExactlyZero())
         {
-            var region = sprite as RegionSprite;
+            var region = sprite as Region;
             bool isMapCovered = region is not null && region.Flags.HasFlag(RegionFlags.CoversMap);
             var regionSize = region?.Size ?? Vector2.Zero;
             float regionWidth = isMapCovered ? Movement.MapSize.Width : regionSize.X;
@@ -1740,7 +1767,7 @@ public sealed partial class Map : IDisposable
                     }
                     else
                     {
-                        SendAction(sprite, order.Value, order.Var1, order.Var2, order.Var3, order.Target);
+                        sprite.Action(this, order.Value, order.Var1, order.Var2, order.Var3, order.Target);
                     }
                 }
             }
@@ -1776,7 +1803,7 @@ public sealed partial class Map : IDisposable
         {
             lateral = Vector2.Zero;
 
-            var region = sprite as RegionSprite;
+            var region = sprite as Region;
             if (region is null || !region.Flags.HasFlag(RegionFlags.CoversMap))
             {
                 var regionSize = region?.Size ?? Vector2.Zero;
@@ -1860,9 +1887,9 @@ public sealed partial class Map : IDisposable
     }
 
     [EngineRoutine(0x00446c90)]
-    private MouseSprite ConstructCursor()
+    private Mouse ConstructCursor()
     {
-        var cursor = new MouseSprite(-1, Definitions.Empty, new Vector3(Session.ScreenSize.ToVector2() * HalfShare, 0), default, 0, map: this);
+        var cursor = new Mouse(-1, Definitions.Empty, new Vector3(Session.ScreenSize.ToVector2() * HalfShare, 0), default, 0, map: this);
         ConstructSprite(cursor, default, null);
 
         if (cursor.Definition != Definitions.Empty)
@@ -2105,7 +2132,7 @@ public sealed partial class Map : IDisposable
         int index = removed.ReferenceCount > 1 ? Collector.Listed.Length - 1 : -1;
         while (index >= 0)
         {
-            Motion.DeletePointerToSprite(Collector.Listed[index], removed);
+            Collector.Listed[index].DeletePointerToSprite(this, removed);
 
             if (Collector.Listed.Length < index)
             {
@@ -2127,27 +2154,9 @@ public sealed partial class Map : IDisposable
 
                 if (sprite is not null)
                 {
-                    Motion.DeletePointerToSprite(sprite, removed);
+                    sprite.DeletePointerToSprite(this, removed);
                 }
             }
-        }
-    }
-
-    private void MoveByClass(Sprite sprite)
-    {
-        switch (sprite.Definition.Class)
-        {
-            case SpriteClass.Man:
-                PlayerMovement.MoveTact(sprite, FrameTime);
-                break;
-            case SpriteClass.Unit or SpriteClass.Avia:
-                _brain.Move(sprite, FrameTime, _clock.FramesPerSecond);
-                break;
-            case SpriteClass.Building:
-                break;
-            default:
-                Effects.Move(sprite, FrameTime);
-                break;
         }
     }
 
@@ -2158,7 +2167,7 @@ public sealed partial class Map : IDisposable
 
         for (int i = list.Count - 1; i >= 0; i--)
         {
-            if (list[i] is not RegionSprite region || region.Definition.Class != SpriteClass.Region || position.Z >= region.Position.Z + RegionReach)
+            if (list[i] is not Region region || region.Definition.Class != SpriteClass.Region || position.Z >= region.Position.Z + RegionReach)
                 continue;
 
             if (!region.Flags.HasFlag(RegionFlags.CoversMap))
@@ -2170,7 +2179,7 @@ public sealed partial class Map : IDisposable
                     continue;
             }
 
-            for (int pair = 0; pair < RegionSprite.Pairs; pair++)
+            for (int pair = 0; pair < Region.Pairs; pair++)
             {
                 if (region.From[pair] == definition)
                     return region.To[pair]!;

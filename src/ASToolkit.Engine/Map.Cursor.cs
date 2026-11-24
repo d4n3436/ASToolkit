@@ -6,7 +6,7 @@ namespace ASToolkit.Engine;
 public sealed partial class Map
 {
     [EngineRoutine(0x00447030)]
-    private int CursorAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target)
+    internal int CursorAction(Mouse sprite, int act, int var1, int var2, int var3, Sprite? target)
     {
         switch ((ActionCode)act)
         {
@@ -18,7 +18,7 @@ public sealed partial class Map
                     return 0;
 
                 AddToUpdates(sprite);
-                UnitAction(sprite, act, var1, var2, var3, target);
+                SpriteAction(sprite, act, var1, var2, var3, target);
                 Collector.DeleteFromHash(sprite);
                 foreach (var link in sprite.EnumerateLinks())
                 {
@@ -32,7 +32,7 @@ public sealed partial class Map
                 MoveSystemCursor(new Point(var1, var2));
                 return 0;
             default:
-                return UnitAction(sprite, act, var1, var2, var3, target);
+                return SpriteAction(sprite, act, var1, var2, var3, target);
         }
     }
 

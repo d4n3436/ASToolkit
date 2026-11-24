@@ -61,7 +61,7 @@ internal sealed class WeaponSystem
     }
 
     [EngineRoutine(0x00455070)]
-    public bool ChangeWeapon(Sprite man, int slot)
+    public bool ChangeWeapon(Man man, int slot)
     {
         var held = man.Definition.LinkDefinition;
 

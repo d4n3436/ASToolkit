@@ -203,7 +203,7 @@ internal sealed class Player
 
         if (flags.HasFlag(InputFlags.First))
         {
-            var sprite = Sprite!;
+            var sprite = (Man)Sprite!;
 
             if (sprite.Definition.Class == SpriteClass.Man && sprite.Rounds < sprite.Definition.ChildCounts[(int)SpriteAnimation.Fight])
             {
@@ -217,7 +217,7 @@ internal sealed class Player
 
         if (input.Key is >= FirstWeaponKey and <= LastWeaponKey && Sprite!.Definition.Class == SpriteClass.Man)
         {
-            weapons.ChangeWeapon(Sprite, input.Key - FirstWeaponKey);
+            weapons.ChangeWeapon((Man)Sprite!, input.Key - FirstWeaponKey);
         }
     }
 
@@ -246,7 +246,7 @@ internal sealed class Player
                 {
                     weaponSlot++;
 
-                    if (weapons.ChangeWeapon(Sprite, weaponSlot))
+                    if (weapons.ChangeWeapon((Man)Sprite!, weaponSlot))
                         break;
                 }
 
@@ -260,7 +260,7 @@ internal sealed class Player
             {
                 weaponSlot--;
 
-                if (weapons.ChangeWeapon(Sprite, weaponSlot))
+                if (weapons.ChangeWeapon((Man)Sprite!, weaponSlot))
                     break;
             }
         }

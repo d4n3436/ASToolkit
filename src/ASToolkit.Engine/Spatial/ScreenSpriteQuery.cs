@@ -30,7 +30,7 @@ internal struct ScreenSpriteQuery : ISpriteQuery
         if (!listed && !_filter.Search.HasFlag(SpriteSearch.Hash) && _filter.Types.HasFlag(OldSpriteType.Region) &&
             definition.Class == SpriteClass.Region)
         {
-            half = sprite is RegionSprite region ? region.Size * 0.5f : Vector2.Zero;
+            half = sprite is Region region ? region.Size * 0.5f : Vector2.Zero;
         }
 
         TakeIfHit(sprite, half, size, top);

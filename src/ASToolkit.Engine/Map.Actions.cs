@@ -43,69 +43,10 @@ public sealed partial class Map
     /// <param name="target">The sprite argument.</param>
     /// <returns>The action's result.</returns>
     public int Action(Sprite sprite, ActionCode code, int var1 = 0, int var2 = 0, int var3 = 0, Sprite? target = null) =>
-        SendAction(sprite, (int)code, var1, var2, var3, target);
-
-    private static void SetInvisible(Sprite sprite, bool isInvisible)
-    {
-        sprite.IsInvisible = isInvisible;
-
-        if (isInvisible)
-        {
-            sprite.Link?.InvisibleOn();
-        }
-        else
-        {
-            sprite.Link?.InvisibleOff();
-        }
-    }
-
-    private static int SpriteGetBattleRange(Sprite sprite)
-    {
-        var armedLink = sprite.ArmedLink;
-
-        return (int)(sprite.Definition.BattleRange.IsExactlyZero() && armedLink is not null ? armedLink.Definition.BattleRange : sprite.Definition.BattleRange);
-    }
-
-    private static void SpriteNextCommand(Sprite sprite)
-    {
-        var state = sprite.Animation;
-
-        if (state >= SpriteAnimation.Death)
-            return;
-
-        if (sprite.Speed.IsExactlyZero())
-        {
-            if (state > SpriteAnimation.RRotate && state != SpriteAnimation.StandOpen)
-            {
-                sprite.ChangeAnimation(SpriteAnimation.Stand);
-            }
-        }
-        else if (state != SpriteAnimation.Go)
-        {
-            sprite.ChangeAnimation(SpriteAnimation.Go);
-        }
-    }
-
-    private int SendAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target) =>
-        sprite == CursorSprite ? CursorAction(sprite, act, var1, var2, var3, target) : DispatchClassAction(sprite, act, var1, var2, var3, target);
-
-    private int DispatchClassAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target) =>
-        sprite.Definition.Class switch
-        {
-            SpriteClass.Terrain or SpriteClass.Object => TerrainAction(sprite, act, var1, var2, var3, target),
-            SpriteClass.Unit => UnitAction(sprite, act, var1, var2, var3, target),
-            SpriteClass.Creature => CreatureAction(sprite, act, var1, var2, var3, target),
-            SpriteClass.Cannon => CannonAction(sprite, act, var1, var2, var3, target),
-            SpriteClass.Building => BuildingAction(sprite, act, var1, var2, var3, target),
-            SpriteClass.Avia => AviaAction(sprite, act, var1, var2, var3, target),
-            SpriteClass.Man => ManAction(sprite, act, var1, var2, var3, target),
-            SpriteClass.Frame => FrameAction(sprite, act, var1, var2, var3, target),
-            SpriteClass.Text when sprite is TextSprite => TextAction(sprite, act, var1, var2, var3, target),
-            _ => SpriteAction(sprite, act, var1, var2, var3, target),
-        };
+        sprite.Action(this, (int)code, var1, var2, var3, target);
 
     [EngineRoutine(0x00454800)]
-    private int ManAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target)
+    internal int ManAction(Man sprite, int act, int var1, int var2, int var3, Sprite? target)
     {
         switch ((ActionCode)act)
         {
@@ -152,7 +93,7 @@ public sealed partial class Map
     }
 
     [EngineRoutine(0x0044ca70)]
-    private int BuildingAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target)
+    internal int BuildingAction(Building sprite, int act, int var1, int var2, int var3, Sprite? target)
     {
         bool noItem;
         SpriteDefinition? definition;
@@ -224,11 +165,11 @@ public sealed partial class Map
     }
 
     [EngineRoutine(0x0044ceb0)]
-    private int AviaAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target) =>
+    internal int AviaAction(Avia sprite, int act, int var1, int var2, int var3, Sprite? target) =>
         UnitAction(sprite, act, var1, var2, var3, target);
 
     [EngineRoutine(0x00448950)]
-    private int CannonAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target)
+    internal int CannonAction(Cannon sprite, int act, int var1, int var2, int var3, Sprite? target)
     {
         if ((ActionCode)act != ActionCode.NextCommand)
             return SpriteAction(sprite, act, var1, var2, var3, target);
@@ -259,7 +200,7 @@ public sealed partial class Map
     }
 
     [EngineRoutine(0x0044d880)]
-    private int CreatureAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target)
+    internal int CreatureAction(Creature sprite, int act, int var1, int var2, int var3, Sprite? target)
     {
         var code = (ActionCode)act;
         if (code == ActionCode.Damage && var1 > 0)
@@ -323,32 +264,8 @@ public sealed partial class Map
         return 0;
     }
 
-    [EngineRoutine(0x0044d7b0)]
-    private RegionSprite? FindRegion(Vector2 point)
-    {
-        var list = _updates.GetLayer(ObjectLayer.Region);
-
-        for (int i = list.Count - 1; i >= 0; i--)
-        {
-            if (list[i] is not RegionSprite sprite || !sprite.Definition.Object.SpriteType.ToOldSpriteType().HasFlag(OldSpriteType.Region) || sprite.Definition.Class != SpriteClass.Region)
-                continue;
-
-            float halfWidth = sprite.Size.X * 0.5f;
-
-            if (sprite.Position.X - halfWidth > point.X || point.X > halfWidth + sprite.Position.X)
-                continue;
-
-            float halfHeight = sprite.Size.Y * 0.5f;
-
-            if (sprite.Position.Y - halfHeight <= point.Y && point.Y <= halfHeight + sprite.Position.Y)
-                return sprite;
-        }
-
-        return null;
-    }
-
     [EngineRoutine(0x00447500)]
-    private int UnitAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target)
+    internal int UnitAction(Unit sprite, int act, int var1, int var2, int var3, Sprite? target)
     {
         var code = (ActionCode)act;
         switch (code)
@@ -383,7 +300,7 @@ public sealed partial class Map
     }
 
     [EngineRoutine(0x0044bea0)]
-    private int TerrainAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target)
+    internal int TerrainAction(Terrain sprite, int act, int var1, int var2, int var3, Sprite? target)
     {
         if ((ActionCode)act != ActionCode.Repair)
             return SpriteAction(sprite, act, var1, var2, var3, target);
@@ -393,67 +310,14 @@ public sealed partial class Map
         return 0;
     }
 
-    [EngineRoutine(0x0044bf10)]
-    private void Repair(Sprite sprite, bool relink)
-    {
-        int army = (int)sprite.Army & SpriteDefinition.ArmyMask;
-        ChangeHp(sprite, sprite.Definition.ArmyMaxHp[army]);
-        var linkDefinition = sprite.Definition.LinkDefinition;
-
-        if (linkDefinition is not null && sprite.Link?.Definition != linkDefinition && relink)
-        {
-            var counted = Definitions.Find(RelinkCountedId);
-            var limit = Definitions.Find(RelinkLimitId);
-            bool atLimit = sprite.Definition.Id == RelinkCountedId && (counted?.Counts[army] ?? 0) <= (limit?.Counts[army] ?? 0);
-
-            if (!atLimit)
-            {
-                CreateLink(sprite);
-                AddSprite(LookupDefinition((int)RelinkEffectId), sprite.Position, default);
-
-                return;
-            }
-        }
-
-        if (sprite.Link is not null && sprite.Link.Definition == linkDefinition)
-        {
-            Action(sprite.Link, ActionCode.Repair);
-        }
-    }
-
-    [EngineRoutine(0x00445fb0)]
-    private void Attack(Sprite sprite, Sprite? target)
-    {
-        var definition = sprite.Definition;
-
-        if (definition.Class == SpriteClass.Linker && definition.FightChild != 0)
-        {
-            var state = sprite.Animation;
-            sprite.SetAnimationValue(SpriteAnimation.Fight);
-            SpriteKinematics.SetCommand(sprite, Command.OneAttack, target);
-            CreateChild(sprite);
-            sprite.SetAnimationValue(state);
-            SpriteKinematics.SetCommand(sprite, Command.None);
-
-            return;
-        }
-
-        // TODO: Port the trains; the IsTrain action of the attack test answers for every class
-        if (target is null || target.Definition == Definitions.Empty || sprite.CanAttackThisSprite(target) || definition.Class == SpriteClass.Cannon ||
-            Action(sprite, ActionCode.IsTrain) != 0)
-        {
-            SpriteKinematics.SetCommand(sprite, Command.Attack, target);
-        }
-    }
-
     [EngineRoutine(0x00440830)]
-    private int SpriteAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target)
+    internal int SpriteAction(Sprite sprite, int act, int var1, int var2, int var3, Sprite? target)
     {
         var code = (ActionCode)(act & byte.MaxValue);
         switch (code)
         {
             case ActionCode.GetAmmo or ActionCode.AddAmmo:
-                return sprite.Owner is null ? 0 : SendAction(sprite.Owner, act, var1, var2, var3, target);
+                return sprite.Owner is null ? 0 : sprite.Owner.Action(this, act, var1, var2, var3, target);
             case ActionCode.Salut:
                 if (sprite.Animation != SpriteAnimation.Fight)
                 {
@@ -639,7 +503,125 @@ public sealed partial class Map
         return 0;
     }
 
-    private void ManCoorAttack(Sprite sprite, Vector2 point)
+    private static void SetInvisible(Sprite sprite, bool isInvisible)
+    {
+        sprite.IsInvisible = isInvisible;
+
+        if (isInvisible)
+        {
+            sprite.Link?.InvisibleOn();
+        }
+        else
+        {
+            sprite.Link?.InvisibleOff();
+        }
+    }
+
+    private static int SpriteGetBattleRange(Sprite sprite)
+    {
+        var armedLink = sprite.ArmedLink;
+
+        return (int)(sprite.Definition.BattleRange.IsExactlyZero() && armedLink is not null ? armedLink.Definition.BattleRange : sprite.Definition.BattleRange);
+    }
+
+    private static void SpriteNextCommand(Sprite sprite)
+    {
+        var state = sprite.Animation;
+
+        if (state >= SpriteAnimation.Death)
+            return;
+
+        if (sprite.Speed.IsExactlyZero())
+        {
+            if (state > SpriteAnimation.RRotate && state != SpriteAnimation.StandOpen)
+            {
+                sprite.ChangeAnimation(SpriteAnimation.Stand);
+            }
+        }
+        else if (state != SpriteAnimation.Go)
+        {
+            sprite.ChangeAnimation(SpriteAnimation.Go);
+        }
+    }
+
+    [EngineRoutine(0x0044d7b0)]
+    private Region? FindRegion(Vector2 point)
+    {
+        var list = _updates.GetLayer(ObjectLayer.Region);
+
+        for (int i = list.Count - 1; i >= 0; i--)
+        {
+            if (list[i] is not Region sprite || !sprite.Definition.Object.SpriteType.ToOldSpriteType().HasFlag(OldSpriteType.Region) || sprite.Definition.Class != SpriteClass.Region)
+                continue;
+
+            float halfWidth = sprite.Size.X * 0.5f;
+
+            if (sprite.Position.X - halfWidth > point.X || point.X > halfWidth + sprite.Position.X)
+                continue;
+
+            float halfHeight = sprite.Size.Y * 0.5f;
+
+            if (sprite.Position.Y - halfHeight <= point.Y && point.Y <= halfHeight + sprite.Position.Y)
+                return sprite;
+        }
+
+        return null;
+    }
+
+    [EngineRoutine(0x0044bf10)]
+    private void Repair(Sprite sprite, bool relink)
+    {
+        int army = (int)sprite.Army & SpriteDefinition.ArmyMask;
+        ChangeHp(sprite, sprite.Definition.ArmyMaxHp[army]);
+        var linkDefinition = sprite.Definition.LinkDefinition;
+
+        if (linkDefinition is not null && sprite.Link?.Definition != linkDefinition && relink)
+        {
+            var counted = Definitions.Find(RelinkCountedId);
+            var limit = Definitions.Find(RelinkLimitId);
+            bool atLimit = sprite.Definition.Id == RelinkCountedId && (counted?.Counts[army] ?? 0) <= (limit?.Counts[army] ?? 0);
+
+            if (!atLimit)
+            {
+                CreateLink(sprite);
+                AddSprite(LookupDefinition((int)RelinkEffectId), sprite.Position, default);
+
+                return;
+            }
+        }
+
+        if (sprite.Link is not null && sprite.Link.Definition == linkDefinition)
+        {
+            Action(sprite.Link, ActionCode.Repair);
+        }
+    }
+
+    [EngineRoutine(0x00445fb0)]
+    private void Attack(Sprite sprite, Sprite? target)
+    {
+        var definition = sprite.Definition;
+
+        if (definition.Class == SpriteClass.Linker && definition.FightChild != 0)
+        {
+            var state = sprite.Animation;
+            sprite.SetAnimationValue(SpriteAnimation.Fight);
+            SpriteKinematics.SetCommand(sprite, Command.OneAttack, target);
+            CreateChild(sprite);
+            sprite.SetAnimationValue(state);
+            SpriteKinematics.SetCommand(sprite, Command.None);
+
+            return;
+        }
+
+        // TODO: Port the trains; the IsTrain action of the attack test answers for every class
+        if (target is null || target.Definition == Definitions.Empty || sprite.CanAttackThisSprite(target) || definition.Class == SpriteClass.Cannon ||
+            Action(sprite, ActionCode.IsTrain) != 0)
+        {
+            SpriteKinematics.SetCommand(sprite, Command.Attack, target);
+        }
+    }
+
+    private void ManCoorAttack(Man sprite, Vector2 point)
     {
         var weapon = sprite.Definition.LinkDefinition;
         var torso = sprite.Link;
@@ -652,7 +634,7 @@ public sealed partial class Map
         SpriteKinematics.SetCommand(torso, Command.OneAttack, goal);
     }
 
-    private void ManChangeVid(Sprite sprite, int var1, int var2, int var3, Sprite? target)
+    private void ManChangeVid(Man sprite, int var1, int var2, int var3, Sprite? target)
     {
         if ((int)sprite.Definition.Id < PlayerIdLimit)
         {
@@ -685,7 +667,7 @@ public sealed partial class Map
         UnitAction(sprite, (int)ActionCode.AddAmmo, sprite.SlotAmmo[sprite.WeaponSlot] - UnitAction(sprite, (int)ActionCode.GetAmmo, 0, 0, 0, null), 0, 0, null);
     }
 
-    private void ManAddItem(Sprite sprite, int item)
+    private void ManAddItem(Man sprite, int item)
     {
         if ((KnownObject)item is KnownObject.Dynamite or KnownObject.ExtraLife)
         {
@@ -708,7 +690,7 @@ public sealed partial class Map
         }
     }
 
-    private int ManDamage(Sprite sprite, int damage, int var2, int var3, Sprite? target)
+    private int ManDamage(Man sprite, int damage, int var2, int var3, Sprite? target)
     {
         if (damage > 0)
         {
@@ -746,7 +728,7 @@ public sealed partial class Map
         return SpriteAction(sprite, (int)ActionCode.Damage, damage, var2, var3, target);
     }
 
-    private void AlertCreatures(Sprite sprite)
+    private void AlertCreatures(Creature sprite)
     {
         var center = sprite.Position.AsVector2();
         var reach = new Vector2(CreatureAlertReach);
@@ -759,7 +741,7 @@ public sealed partial class Map
         }
     }
 
-    private void TactCreatureAttack(Sprite sprite)
+    private void TactCreatureAttack(Creature sprite)
     {
         var result = sprite.AttackTact(Math.Max(FrameTime, sprite.Definition.GetVisualFrameDuration(sprite.Animation)));
         sprite.AttackResult = result;
@@ -775,7 +757,7 @@ public sealed partial class Map
         }
     }
 
-    private void WanderCreature(Sprite sprite, int frameTime, bool newPeriod)
+    private void WanderCreature(Creature sprite, int frameTime, bool newPeriod)
     {
         if (sprite.Animation == SpriteAnimation.LRotate && _rng.Next() % 3 != 0)
         {
@@ -810,7 +792,7 @@ public sealed partial class Map
 
     private void AttackSeenEnemy(Sprite seeker, Sprite attacker)
     {
-        var enemy = _brain.SeekEnemy(seeker, GetFlagman(0));
+        var enemy = Brain.SeekEnemy(seeker, GetFlagman(0));
 
         if (enemy is not null)
         {
@@ -818,20 +800,20 @@ public sealed partial class Map
         }
     }
 
-    private int UnitDamage(Sprite sprite, int damage, int var2, int var3, Sprite? target)
+    private int UnitDamage(Unit sprite, int damage, int var2, int var3, Sprite? target)
     {
         int result = TerrainAction(sprite, (int)ActionCode.Damage, damage, var2, var3, target);
 
         if (damage >= 0 && sprite.Command == Command.None && !sprite.Definition.Speed.IsExactlyZero())
         {
             var wander = sprite.Position.AsVector2() + new Angle((byte)_rng.Next()).Vector * WanderReach;
-            _brain.MoveTo(sprite, ConstructGoal(new Vector3(wander, sprite.Position.Z)));
+            Brain.MoveTo(sprite, ConstructGoal(new Vector3(wander, sprite.Position.Z)));
         }
 
         return result;
     }
 
-    private void UnitNextCommand(Sprite sprite)
+    private void UnitNextCommand(Unit sprite)
     {
         if (sprite.Animation >= SpriteAnimation.Death)
             return;
@@ -876,7 +858,7 @@ public sealed partial class Map
         }
     }
 
-    private AttackResult TactUnitAttack(Sprite sprite, Sprite? link)
+    private AttackResult TactUnitAttack(Unit sprite, Sprite? link)
     {
         var definition = sprite.Definition;
         var result = sprite.AttackTact(Math.Max(FrameTime, definition.GetVisualFrameDuration(sprite.Animation)));

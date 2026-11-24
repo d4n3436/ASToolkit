@@ -52,7 +52,7 @@ public sealed partial class Map
     }
 
     [EngineRoutine(0x00449d00)]
-    private static void SetFogParameters(RegionSprite sprite, int near, int far, uint color, ReadOnlySpan<ushort> ramp, bool isPalettized)
+    private static void SetFogParameters(Region sprite, int near, int far, uint color, ReadOnlySpan<ushort> ramp, bool isPalettized)
     {
         sprite.FogFar = far;
         sprite.FogNear = near;
@@ -306,16 +306,16 @@ public sealed partial class Map
 
     private void Restore(Sprite sprite, ref Resource reader, int version)
     {
-        switch (sprite.Definition.Class)
+        switch (sprite)
         {
-            case SpriteClass.Unit or SpriteClass.Creature or SpriteClass.Building or SpriteClass.Avia or SpriteClass.Man:
-                RestoreUnit(sprite, ref reader, version);
+            case Unit unit when unit is not (CivRobot or Depo or Engine):
+                RestoreUnit(unit, ref reader, version);
                 break;
-            case SpriteClass.Region:
-                RestoreRegion((RegionSprite)sprite, ActionCode.Restore, ref reader, version);
+            case Region region:
+                RestoreRegion(region, ActionCode.Restore, ref reader, version);
                 break;
-            case SpriteClass.Text when sprite is TextSprite:
-                RestoreText(sprite, ref reader, version);
+            case Text text:
+                RestoreText(text, ref reader, version);
                 break;
             default:
                 RestoreSprite(sprite, ref reader, version);
@@ -325,16 +325,16 @@ public sealed partial class Map
 
     private void RestoreOld(Sprite sprite, ref Resource reader, int version)
     {
-        switch (sprite.Definition.Class)
+        switch (sprite)
         {
-            case SpriteClass.Unit or SpriteClass.Creature or SpriteClass.Building or SpriteClass.Avia or SpriteClass.Man:
-                RestoreOldUnit(sprite, ref reader, version);
+            case Unit unit when unit is not (CivRobot or Depo or Engine):
+                RestoreOldUnit(unit, ref reader, version);
                 break;
-            case SpriteClass.Terrain or SpriteClass.Object:
+            case Terrain and not (Rail or Unit):
                 RestoreOldTerrain(sprite, ref reader, version);
                 break;
-            case SpriteClass.Region:
-                RestoreRegion((RegionSprite)sprite, ActionCode.RestoreOld, ref reader, version);
+            case Region region:
+                RestoreRegion(region, ActionCode.RestoreOld, ref reader, version);
                 break;
             default:
                 RestoreOldSprite(sprite, ref reader, version);
@@ -342,7 +342,7 @@ public sealed partial class Map
         }
     }
 
-    private void RestoreOldUnit(Sprite sprite, ref Resource reader, int version)
+    private void RestoreOldUnit(Unit sprite, ref Resource reader, int version)
     {
         RestoreOldTerrain(sprite, ref reader, version);
         if (version < OldArmyVersion)
@@ -435,7 +435,7 @@ public sealed partial class Map
     }
 
     [EngineRoutine(0x00449e20)]
-    private void RestoreRegion(RegionSprite sprite, ActionCode code, ref Resource reader, int version)
+    private void RestoreRegion(Region sprite, ActionCode code, ref Resource reader, int version)
     {
         if (code == ActionCode.Restore)
         {
@@ -465,7 +465,7 @@ public sealed partial class Map
 
         sprite.UnusedValue = reader.Read<int>();
         sprite.UnusedDefinition = Definitions.Find((KnownObject)reader.Read<int>()) ?? Definitions.Empty;
-        for (int pair = 0; pair < RegionSprite.Pairs; pair++)
+        for (int pair = 0; pair < Region.Pairs; pair++)
         {
             var replacement = new RegionReplacement(-1, -1);
             reader.ReadInto(ref replacement);
@@ -476,7 +476,7 @@ public sealed partial class Map
         }
     }
 
-    private void RestoreUnit(Sprite sprite, ref Resource reader, int version)
+    private void RestoreUnit(Unit sprite, ref Resource reader, int version)
     {
         RestoreSprite(sprite, ref reader, version);
         int behavior = (int)sprite.Behavior;
@@ -501,13 +501,12 @@ public sealed partial class Map
         }
     }
 
-    private void RestoreText(Sprite sprite, ref Resource reader, int version)
+    private void RestoreText(Text text, ref Resource reader, int version)
     {
-        RestoreSprite(sprite, ref reader, version);
-        var text = (TextSprite)sprite;
+        RestoreSprite(text, ref reader, version);
         int behavior = (int)text.TextBehavior;
         reader.ReadInto(ref behavior);
         text.TextBehavior = (TextBehavior)behavior;
-        SetText(sprite, reader.ReadText().ToArray());
+        SetText(text, reader.ReadText().ToArray());
     }
 }

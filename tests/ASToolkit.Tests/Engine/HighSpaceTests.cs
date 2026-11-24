@@ -78,7 +78,7 @@ public class HighSpaceTests
         source.Set(ScriptPath, "#include \"maps\\export.lgc\"\nmain() { MenuLoad(\"maps\\\\gamemenu.men\"); }"u8.ToArray());
         Assert.True(map.Script.Load(source, ScriptPath));
         map.Script.CallFunction(map, -1, 0, 0, 0);
-        var text = Enumerable.Range(0, 17).SelectMany(map.GetLayer).OfType<TextSprite>().First();
+        var text = Enumerable.Range(0, 17).SelectMany(map.GetLayer).OfType<Text>().First();
         text.Shown = new byte[] { (byte)'a', character, (byte)'b', (byte)'c' };
         text.VisibleCount = 0;
         text.Timer = 0;

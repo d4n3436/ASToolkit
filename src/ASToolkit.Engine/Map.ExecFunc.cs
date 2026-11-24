@@ -1232,7 +1232,7 @@ public sealed partial class Map : IScriptFunctionHost
                 script.PushSprite(Action(sprite, code, first, second, third));
                 return;
 
-            case ActionCode.GetTextDesc when sprite is TextSprite text:
+            case ActionCode.GetTextDesc when sprite is Text text:
                 script.PushText(text.Description);
                 return;
 

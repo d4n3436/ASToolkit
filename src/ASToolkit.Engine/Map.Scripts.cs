@@ -56,9 +56,8 @@ public sealed partial class Map
     internal static bool IsBaked(SpriteDefinition definition) => definition.Class == SpriteClass.BuiltTerrain && !SpriteCollector.IsHashed(definition);
 
     [EngineRoutine(0x0040edf0)]
-    private Sprite ConstructBuiltTerrain(SpriteDefinition definition, Vector3 position, Angle direction, Sprite? parent)
+    private Sprite ConstructBuiltTerrain(BuiltTerrain sprite, Angle direction, Sprite? parent)
     {
-        var sprite = new BuiltTerrainSprite(-1, definition, position, default, 0, map: this);
         ConstructSprite(sprite, direction, parent);
 
         if (!HasHardwareGround)

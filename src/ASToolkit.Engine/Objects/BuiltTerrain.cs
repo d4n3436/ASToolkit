@@ -6,10 +6,10 @@ namespace ASToolkit.Engine;
 /// <summary>
 /// Represents a built terrain sprite that is drawn into the textures of the hardware ground when the map has one.
 /// </summary>
-public sealed class BuiltTerrainSprite : Sprite
+public sealed class BuiltTerrain : Sprite
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="BuiltTerrainSprite"/> class.
+    /// Initializes a new instance of the <see cref="BuiltTerrain"/> class.
     /// </summary>
     /// <param name="number">The number of the sprite.</param>
     /// <param name="definition">The definition of the sprite.</param>
@@ -18,7 +18,7 @@ public sealed class BuiltTerrainSprite : Sprite
     /// <param name="hitPoints">The hit points of the sprite.</param>
     /// <param name="direction">The direction of the sprite.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    public BuiltTerrainSprite(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Angle direction = default, Map? map = null)
+    public BuiltTerrain(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Angle direction = default, Map? map = null)
         : base(number, definition, position, army, hitPoints, direction, map)
     {
     }

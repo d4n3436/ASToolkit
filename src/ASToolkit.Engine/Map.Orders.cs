@@ -30,7 +30,13 @@ public sealed partial class Map
     /// </summary>
     /// <param name="position">The point.</param>
     /// <returns>The goal sprite.</returns>
-    public Sprite ConstructGoal(Vector3 position) => ConstructPlain(Definitions.Empty, position, default, null);
+    public Sprite ConstructGoal(Vector3 position)
+    {
+        var goal = new Sprite(-1, Definitions.Empty, position, default, 0, map: this);
+        ConstructSprite(goal, default, null);
+
+        return goal;
+    }
 
     [EngineRoutine(0x00406e50)]
     private static ReadOnlyMemory<byte> GetAfter(ReadOnlyMemory<byte> text, ReadOnlySpan<byte> delimiter)

@@ -8,7 +8,7 @@ namespace ASToolkit.Engine;
 /// <summary>
 /// Represents a region sprite, an area that tiles a picture, draws fog and changes the definitions of the sprites inside it.
 /// </summary>
-public sealed class RegionSprite : Sprite
+public sealed class Region : Sprite
 {
     /// <summary>
     /// Represents the number of definition pairs a region changes.
@@ -19,7 +19,7 @@ public sealed class RegionSprite : Sprite
     private const float Half = 0.5f;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="RegionSprite"/> class.
+    /// Initializes a new instance of the <see cref="Region"/> class.
     /// </summary>
     /// <param name="number">The number of the sprite.</param>
     /// <param name="definition">The definition of the sprite.</param>
@@ -28,7 +28,7 @@ public sealed class RegionSprite : Sprite
     /// <param name="hitPoints">The hit points of the sprite.</param>
     /// <param name="direction">The direction of the sprite.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    public RegionSprite(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Angle direction = default, Map? map = null)
+    public Region(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Angle direction = default, Map? map = null)
         : base(number, definition, position, army, hitPoints, direction, map)
     {
         UnusedDefinition = map?.Definitions.Empty;
@@ -162,4 +162,8 @@ public sealed class RegionSprite : Sprite
         var bottomRight = new Vector2(half.X + position.X - camera.X, half.Y + centerY - camera.Y);
         map.Session.Graphics.DrawFog(screen, topLeft, bottomRight, FogNear, FogFar, FogColor, FogTable.Span, FogLevel, Flags.HasFlag(RegionFlags.LightFog));
     }
+
+    internal override void Destruct(Map map) => map.DestructRegion(this);
+
+    internal override void DrawInfo(Map map) => map.DrawRegionInfo(this);
 }
