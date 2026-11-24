@@ -44,7 +44,7 @@ public sealed class MapObserver
             {
                 var sprite = previous[i];
 
-                if (!_alive.Contains(sprite) && sprite.Animation == SpriteAnimation.Death && Map.IsBaked(sprite.Definition))
+                if (!_alive.Contains(sprite) && sprite.Animation == SpriteAnimation.Death && Map.IsBaked(sprite.Vid))
                 {
                     _baked.Add(GetState(sprite));
                 }
@@ -64,5 +64,5 @@ public sealed class MapObserver
     }
 
     private static EffectState GetState(Sprite sprite) =>
-        new(sprite.Definition.Id, sprite.Position, sprite.Direction, sprite.Animation, sprite.CreatedAt, sprite.Frame, sprite.KeyframePosition);
+        new(sprite.Vid.Id, sprite.Position, sprite.Direction, sprite.Animation, sprite.CreatedAt, sprite.Frame, sprite.KeyframePosition);
 }

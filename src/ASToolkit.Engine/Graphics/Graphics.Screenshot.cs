@@ -52,7 +52,7 @@ public sealed partial class Graphics
     {
         if (picture.Length == 0)
         {
-            Logger?.Error("PICTURE ''"u8, LogError.Text, 0, SaveNoPictureText);
+            Error?.Error("PICTURE ''"u8, LogError.Text, 0, SaveNoPictureText);
             return;
         }
 
@@ -68,7 +68,7 @@ public sealed partial class Graphics
 
         if (area.X + area.Width > pictureSize.Width || area.Y + area.Height > pictureSize.Height)
         {
-            Logger?.Error("PICTURE ''"u8, LogError.Invalid, 0, SaveSizeText);
+            Error?.Error("PICTURE ''"u8, LogError.Invalid, 0, SaveSizeText);
             return;
         }
 
@@ -76,7 +76,7 @@ public sealed partial class Graphics
 
         if (file is null)
         {
-            Logger?.Error("PICTURE ''"u8, LogError.Open, 0, Encoding.ASCII.GetBytes(path));
+            Error?.Error("PICTURE ''"u8, LogError.Open, 0, Encoding.ASCII.GetBytes(path));
             return;
         }
 

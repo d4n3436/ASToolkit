@@ -26,8 +26,8 @@ public sealed class TgaImage : PictureImage
     {
     }
 
-    internal TgaImage(string gameFolder, GameLogger? logger)
-        : base(gameFolder, logger)
+    internal TgaImage(string gameFolder, MyError? error)
+        : base(gameFolder, error)
     {
     }
 

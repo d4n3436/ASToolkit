@@ -8,9 +8,9 @@ using ASToolkit.Formats;
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents the definition of a sprite drawn from textures, loaded either from the surfaces of a sprite file or from the prerendered ground that built terrain sprites are drawn into.
+/// Represents the shared data and frames of an object ID whose sprites are drawn from textures, loaded either from the surfaces of a sprite file or from the prerendered ground that built terrain sprites are drawn into.
 /// </summary>
-public sealed class HardwareSpriteDefinition : SpriteDefinition
+public sealed class VidHardware : Vid
 {
     /// <summary>
     /// Represents the sprite file flags of the built hardware ground.
@@ -38,22 +38,22 @@ public sealed class HardwareSpriteDefinition : SpriteDefinition
     private TextureData[] _surfaces = [];
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="HardwareSpriteDefinition"/> class.
+    /// Initializes a new instance of the <see cref="VidHardware"/> class.
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
     /// <param name="weapon">The weapon record.</param>
     /// <param name="file">The sprite file.</param>
-    /// <param name="totalFrames">The frame count of the definition's sprite.</param>
+    /// <param name="totalFrames">The frame count of the sprite file.</param>
     /// <param name="format">The layout of the 16-bit colors that palette surfaces are converted to.</param>
-    public HardwareSpriteDefinition(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, in VidResource file, int totalFrames, HighColorFormat format)
+    public VidHardware(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, in VidResource file, int totalFrames, HighColorFormat format)
         : base(id, gameObject, weapon, file, totalFrames)
     {
         _format = format;
     }
 
     [EngineRoutine(0x00419750)]
-    internal HardwareSpriteDefinition(KnownObject id, Size size, in WeaponRecord weapon, GameLogger? logger)
+    internal VidHardware(KnownObject id, Size size, in WeaponRecord weapon, MyError? error)
         : base(id, new GameObject(SpriteClass.Primitive, GroundObjectSize), weapon, SpriteCatalog.DefaultSpriteSpeed)
     {
         FileType = GroundType;
@@ -84,10 +84,10 @@ public sealed class HardwareSpriteDefinition : SpriteDefinition
         {
             var tileSize = _tiles[surface / 2].Size;
             var colorSize = tileSize;
-            ushort[] colors = Texture.Allocate(ref colorSize, VidPixelFormat.R5G6B5, TextureFlags.None, logger, out _, out var colorFormat);
+            ushort[] colors = Texture.Allocate(ref colorSize, VidPixelFormat.R5G6B5, TextureFlags.None, error, out _, out var colorFormat);
             _surfaces[surface] = new TextureData(colors, colorSize, colorFormat, []);
             var depthSize = tileSize;
-            ushort[] depths = Texture.Allocate(ref depthSize, VidPixelFormat.D16, TextureFlags.SystemMemory, logger, out _, out var depthFormat);
+            ushort[] depths = Texture.Allocate(ref depthSize, VidPixelFormat.D16, TextureFlags.SystemMemory, error, out _, out var depthFormat);
             depths.AsSpan().Fill(EmptyDepth);
             _surfaces[surface + 1] = new TextureData(depths, depthSize, depthFormat, []);
         }
@@ -120,7 +120,7 @@ public sealed class HardwareSpriteDefinition : SpriteDefinition
     [EngineRoutine(0x00419b80)]
     public override void AddVidToTextures(Map map, Sprite sprite)
     {
-        var vid = sprite.Definition;
+        var vid = sprite.Vid;
         if (!FileType.HasFlag(VidType.Runs8Bit) || !FileType.HasFlag(VidType.ZBuffer) || Directions != 1 || vid.Object.Properties.HasFlag(ObjectProperties.InvisibleForEnemy))
             return;
 
@@ -248,13 +248,13 @@ public sealed class HardwareSpriteDefinition : SpriteDefinition
     }
 
     [EngineRoutine(0x00419d20)]
-    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, GameLogger? logger)
+    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, MyError? error)
     {
         Size = file.Size;
         SurfaceCount = file.SurfaceCount;
         if (!file.HasSurfaceChunk)
         {
-            Report(logger, LogError.Load, 0, "SURF"u8);
+            Report(error, LogError.Load, 0, "SURF"u8);
         }
 
         if (SurfaceCount == 0)
@@ -269,12 +269,12 @@ public sealed class HardwareSpriteDefinition : SpriteDefinition
         {
             if (i >= surfaces.Length)
             {
-                Report(logger, LogError.Create, 0, TextureText);
+                Report(error, LogError.Create, 0, TextureText);
                 return;
             }
 
             var surface = surfaces[i];
-            if (!TryLoadSurface(surface, i, ref buffer, paletteBytes, logger, out var texture))
+            if (!TryLoadSurface(surface, i, ref buffer, paletteBytes, error, out var texture))
                 return;
 
             _surfaces[i] = texture;
@@ -285,18 +285,18 @@ public sealed class HardwareSpriteDefinition : SpriteDefinition
                 if (i >= surfaces.Length)
                     continue;
 
-                LoadDepthSurface(surfaces[i], surface.Size, i, logger);
+                LoadDepthSurface(surfaces[i], surface.Size, i, error);
             }
         }
 
         if (file.FrameRecords.Length == 0)
         {
-            Report(logger, LogError.Load, 0, "DATA"u8);
+            Report(error, LogError.Load, 0, "DATA"u8);
         }
 
         if (file.Type.HasFlag(VidType.CurrentVersion) && file.TextureFrameCount == 0)
         {
-            Report(logger, LogError.Load, 0, "tex_coor"u8);
+            Report(error, LogError.Load, 0, "tex_coor"u8);
         }
 
         LoadTiles(file);
@@ -310,11 +310,11 @@ public sealed class HardwareSpriteDefinition : SpriteDefinition
         }
         else if (FileType.HasFlag(VidType.Runs8Bit))
         {
-            graphics.SetBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
+            graphics.SetAlphaBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
         }
         else
         {
-            graphics.SetBlend(BlendFactor.DestinationColor, BlendFactor.One);
+            graphics.SetAlphaBlend(BlendFactor.DestinationColor, BlendFactor.One);
         }
     }
 
@@ -381,7 +381,7 @@ public sealed class HardwareSpriteDefinition : SpriteDefinition
         _surfaces[tile.Texture].View.DrawQuad(screen, destination, source, gamma, map.Session.Graphics.Blend, false, topDepth, bottomDepth);
     }
 
-    private bool TryLoadSurface(in VidTexture surface, int index, ref byte[] buffer, Span<byte> paletteBytes, GameLogger? logger, out TextureData texture)
+    private bool TryLoadSurface(in VidTexture surface, int index, ref byte[] buffer, Span<byte> paletteBytes, MyError? error, out TextureData texture)
     {
         texture = default;
         bool hasPalette = FileType.HasFlag(VidType.Palette);
@@ -400,10 +400,10 @@ public sealed class HardwareSpriteDefinition : SpriteDefinition
         }
 
         var size = surface.Size;
-        ushort[] texels = Texture.Allocate(ref size, format, TextureFlags.None, logger, out _, out format);
+        ushort[] texels = Texture.Allocate(ref size, format, TextureFlags.None, error, out _, out format);
         if (texels.Length == 0)
         {
-            Report(logger, LogError.Create, 0, TextureText);
+            Report(error, LogError.Create, 0, TextureText);
             return false;
         }
 
@@ -412,7 +412,7 @@ public sealed class HardwareSpriteDefinition : SpriteDefinition
         var colors = MemoryMarshal.Cast<byte, VidPackedColor>(paletteBytes);
         if (hasPalette)
         {
-            Report(logger, LogError.Text, format == VidPixelFormat.P8 ? 1 : 0, PaletteText);
+            Report(error, LogError.Text, format == VidPixelFormat.P8 ? 1 : 0, PaletteText);
             if (format == VidPixelFormat.P8)
             {
                 palette = new uint[colors.Length];
@@ -425,14 +425,14 @@ public sealed class HardwareSpriteDefinition : SpriteDefinition
 
         if (surface.Failure == VidSurfaceFailure.Decode)
         {
-            Report(logger, LogError.Load, index, CannotDecodeText);
+            Report(error, LogError.Load, index, CannotDecodeText);
         }
 
         int area = surface.Size.Width * surface.Size.Height;
         var stream = surface.Data.Span;
         if (!hasPalette && surface.StreamSize < area * sizeof(ushort))
         {
-            Report(logger, LogError.Text, 0, LoadDxtText);
+            Report(error, LogError.Text, 0, LoadDxtText);
             stream.CopyTo(MemoryMarshal.AsBytes(texels.AsSpan()));
         }
         else
@@ -496,23 +496,23 @@ public sealed class HardwareSpriteDefinition : SpriteDefinition
         }
     }
 
-    private void LoadDepthSurface(in VidTexture depthSurface, Size size, int index, GameLogger? logger)
+    private void LoadDepthSurface(in VidTexture depthSurface, Size size, int index, MyError? error)
     {
         var depthSize = size;
-        ushort[] depths = Texture.Allocate(ref depthSize, VidPixelFormat.D16, TextureFlags.SystemMemory, logger, out _, out var depthFormat);
+        ushort[] depths = Texture.Allocate(ref depthSize, VidPixelFormat.D16, TextureFlags.SystemMemory, error, out _, out var depthFormat);
         if (depths.Length == 0)
         {
-            Report(logger, LogError.Create, 0, TextureText);
+            Report(error, LogError.Create, 0, TextureText);
         }
         else if (depthSurface.StreamSize != size.Height * depthSize.Width * sizeof(ushort))
         {
-            Report(logger, LogError.Load, depthSurface.StreamSize, InvalidDepthSizeText);
+            Report(error, LogError.Load, depthSurface.StreamSize, InvalidDepthSizeText);
         }
         else
         {
             if (depthSurface.Failure == VidSurfaceFailure.DepthDecode)
             {
-                Report(logger, LogError.Load, depthSurface.DecodedSize, CannotDecodeDepthText);
+                Report(error, LogError.Load, depthSurface.DecodedSize, CannotDecodeDepthText);
             }
 
             depthSurface.Data.Span.CopyTo(MemoryMarshal.AsBytes(depths.AsSpan()));

@@ -2,4 +2,4 @@ using System.Drawing;
 
 namespace ASToolkit.Engine;
 
-internal readonly record struct PendingBuild(SpriteDefinition Definition, Point Offset);
+internal readonly record struct PendingBuild(Vid Vid, Point Offset);

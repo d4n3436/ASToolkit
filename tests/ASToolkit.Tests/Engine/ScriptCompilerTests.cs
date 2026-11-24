@@ -7,8 +7,8 @@ namespace ASToolkit.Tests.Engine;
 
 public class ScriptCompilerTests
 {
-    private const StackObjectFlags CompiledFlags = StackObjectFlags.Text | StackObjectFlags.Number | StackObjectFlags.ArrayElement |
-        StackObjectFlags.Initialized | StackObjectFlags.NotInitialized;
+    private const ScriptStackFlags CompiledFlags = ScriptStackFlags.Text | ScriptStackFlags.Number | ScriptStackFlags.ArrayElement |
+        ScriptStackFlags.Initialized | ScriptStackFlags.NotInitialized;
 
     [Fact]
     public void Load_RecordedLevelScript_MatchesTheScriptStateOfTheDemo()
@@ -33,7 +33,7 @@ public class ScriptCompilerTests
             var expected = recorded.GetSlot(i);
             var actual = compiled.GetSlot(i);
             Assert.Equal(expected.Flags & CompiledFlags, actual.Flags & CompiledFlags);
-            if (expected.Flags.HasFlag(StackObjectFlags.Initialized))
+            if (expected.Flags.HasFlag(ScriptStackFlags.Initialized))
             {
                 Assert.Equal(expected.Value, actual.Value);
                 Assert.Equal(expected.Text.ToArray(), actual.Text.ToArray());

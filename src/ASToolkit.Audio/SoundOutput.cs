@@ -80,7 +80,7 @@ public sealed unsafe class SoundOutput : IDisposable
     /// <param name="wallTime">The session's wall time in milliseconds.</param>
     /// <param name="isQuiet"><see langword="true"/> to resume only looping sounds and music, such as after a seek; <see langword="false"/> to also start sounds that play once.</param>
     /// <param name="generation">The playback number that <see cref="Silence"/> returned. Calls with an older number are ignored.</param>
-    public void Sync(SoundSystem sound, uint wallTime, bool isQuiet, int generation)
+    public void Sync(Sound sound, uint wallTime, bool isQuiet, int generation)
     {
         lock (_syncGate)
         {

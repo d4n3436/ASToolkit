@@ -17,10 +17,10 @@ public enum KnownObject
     /// <summary>The menu text label.</summary>
     MenuLabel = 3,
 
-    /// <summary>An editor leftover without a definition that only tmp.map places.</summary>
+    /// <summary>An editor leftover without an object record that only tmp.map places.</summary>
     UndefinedObject7 = 7,
 
-    /// <summary>An editor leftover without a definition that only tmp.map places.</summary>
+    /// <summary>An editor leftover without an object record that only tmp.map places.</summary>
     UndefinedObject8 = 8,
 
     /// <summary>The player start marker.</summary>

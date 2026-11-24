@@ -6,7 +6,7 @@ using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
-public partial class SoftwareSpriteDefinition
+public partial class VidSoftware
 {
     private const uint OutlineShadeColor = 0xa4a4a4;
     private const uint OutlineLightColor = 0x8f8f8f;
@@ -57,9 +57,9 @@ public partial class SoftwareSpriteDefinition
         vertices[count * 2 + 1] = vertices[1];
         var graphics = map.Session.Graphics;
         graphics.SetRenderState(RenderState.SpecularEnable, 0);
-        graphics.SetBlend(BlendFactor.Zero, BlendFactor.SourceColor);
+        graphics.SetAlphaBlend(BlendFactor.Zero, BlendFactor.SourceColor);
         ScreenPrimitives.FillTriangleStrip(screen, vertices, OutlineShadeColor, graphics.Blend.Source, graphics.Blend.Destination, CullMode.CounterClockwise);
-        graphics.SetBlend(BlendFactor.DestinationColor, BlendFactor.One);
+        graphics.SetAlphaBlend(BlendFactor.DestinationColor, BlendFactor.One);
         ScreenPrimitives.FillTriangleStrip(screen, vertices, OutlineLightColor, graphics.Blend.Source, graphics.Blend.Destination, CullMode.Clockwise);
     }
 }

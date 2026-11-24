@@ -8,7 +8,7 @@ namespace ASToolkit.Engine;
 public sealed class PictureChannel : IDisposable
 {
     private readonly string _gameFolder;
-    private readonly GameLogger? _logger;
+    private readonly MyError? _error;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PictureChannel"/> class with an empty image.
@@ -20,11 +20,11 @@ public sealed class PictureChannel : IDisposable
     }
 
     [EngineRoutine(0x00428a80)]
-    internal PictureChannel(string gameFolder, GameLogger? logger)
+    internal PictureChannel(string gameFolder, MyError? error)
     {
         _gameFolder = gameFolder;
-        _logger = logger;
-        Image = new PictureImage(gameFolder, logger);
+        _error = error;
+        Image = new PictureImage(gameFolder, error);
     }
 
     /// <summary>
@@ -55,32 +55,32 @@ public sealed class PictureChannel : IDisposable
         if (HasExtension(path, TgaImage.Extension))
         {
             Format = PictureFormat.Tga;
-            Image = new TgaImage(_gameFolder, _logger);
+            Image = new TgaImage(_gameFolder, _error);
         }
         else if (HasExtension(path, ZImage.Extension))
         {
             Format = PictureFormat.Z;
-            Image = new ZImage(_gameFolder, _logger);
+            Image = new ZImage(_gameFolder, _error);
         }
         else if (HasExtension(path, FlcImage.Extension))
         {
             Format = PictureFormat.Flc;
-            Image = new FlcImage(_gameFolder, _logger);
+            Image = new FlcImage(_gameFolder, _error);
         }
         else if (HasExtension(path, BmpImage.Extension))
         {
             Format = PictureFormat.Bmp;
-            Image = new BmpImage(_gameFolder, _logger);
+            Image = new BmpImage(_gameFolder, _error);
         }
         else
         {
             if (path.Length != 0)
             {
-                _logger?.Write($"!!!ERROR!!!PICTURE '{path}': Unknown format file");
+                _error?.Write($"!!!ERROR!!!PICTURE '{path}': Unknown format file");
             }
 
             Format = PictureFormat.None;
-            Image = new PictureImage(_gameFolder, _logger);
+            Image = new PictureImage(_gameFolder, _error);
         }
 
         return Format != PictureFormat.None && Image.Load(path);

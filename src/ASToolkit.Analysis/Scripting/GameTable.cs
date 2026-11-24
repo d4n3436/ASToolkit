@@ -99,8 +99,8 @@ public sealed class GameTable
         var arrays = new Dictionary<string, int[]>(StringComparer.Ordinal);
         foreach (var entry in script.Objects)
         {
-            if (entry.Kind != ScriptObjectKind.Variable || (script.GetSlot(entry.Address).Flags & (StackObjectFlags.ArrayElement | StackObjectFlags.Text)) !=
-                StackObjectFlags.ArrayElement)
+            if (entry.Kind != ScriptObjectKind.Variable || (script.GetSlot(entry.Address).Flags & (ScriptStackFlags.ArrayElement | ScriptStackFlags.Text)) !=
+                ScriptStackFlags.ArrayElement)
                 continue;
 
             int[] values = new int[entry.Count];

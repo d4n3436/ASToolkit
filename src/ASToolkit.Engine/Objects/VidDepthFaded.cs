@@ -8,9 +8,9 @@ using ASToolkit.Formats;
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents the definition of a sprite with a depth and an ARGB4444 color for each pixel, faded against the depth buffer when drawn.
+/// Represents the shared data and frames of an object ID whose frames have a depth and an ARGB4444 color for each pixel, faded against the depth buffer when drawn.
 /// </summary>
-public sealed class DepthFadedSpriteDefinition : SoftwareSpriteDefinition
+public sealed class VidDepthFaded : VidSoftware
 {
     private const int FadeRange = 0x7f;
     private const int FadeShift = 7;
@@ -21,15 +21,15 @@ public sealed class DepthFadedSpriteDefinition : SoftwareSpriteDefinition
     private const int FadedPixelSize = 4;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="DepthFadedSpriteDefinition"/> class.
+    /// Initializes a new instance of the <see cref="VidDepthFaded"/> class.
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
     /// <param name="weapon">The weapon record.</param>
     /// <param name="file">The sprite file.</param>
-    /// <param name="totalFrames">The frame count of the definition's sprite.</param>
+    /// <param name="totalFrames">The frame count of the sprite file.</param>
     /// <param name="format">The channel layout of the 16-bit back buffer.</param>
-    public DepthFadedSpriteDefinition(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, in VidResource file, int totalFrames, HighColorFormat format)
+    public VidDepthFaded(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, in VidResource file, int totalFrames, HighColorFormat format)
         : base(id, gameObject, weapon, file, totalFrames, format)
     {
     }
@@ -170,10 +170,10 @@ public sealed class DepthFadedSpriteDefinition : SoftwareSpriteDefinition
         var destination = Rectangle.FromLTRB(origin.X, runs.Top, origin.X + FrameSize.Width, runs.End);
         var source = new Rectangle(0, 0, FrameSize.Width, rowCount);
         var graphics = map.Session.Graphics;
-        graphics.SetBlend(BlendFactor.SourceAlpha, BlendFactor.One);
+        graphics.SetAlphaBlend(BlendFactor.SourceAlpha, BlendFactor.One);
         new Texture(scratch, screen.ScratchSize, VidPixelFormat.A4R4G4B4).DrawFlatQuad(screen, destination, source, gamma, graphics.Blend);
     }
 
     [EngineRoutine(0x004127e0)]
-    internal override void SetGamma(Gamma gamma, int army, Gamma ambient, GameLogger? logger) => StoreGamma(gamma, army, logger);
+    internal override void SetGamma(Gamma gamma, int army, Gamma ambient, MyError? error) => StoreGamma(gamma, army, error);
 }

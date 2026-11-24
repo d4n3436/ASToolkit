@@ -26,8 +26,8 @@ public sealed class BmpImage : PictureImage
     {
     }
 
-    internal BmpImage(string gameFolder, GameLogger? logger)
-        : base(gameFolder, logger)
+    internal BmpImage(string gameFolder, MyError? error)
+        : base(gameFolder, error)
     {
     }
 

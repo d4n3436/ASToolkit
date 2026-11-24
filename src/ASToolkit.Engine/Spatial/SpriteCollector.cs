@@ -28,15 +28,15 @@ public sealed class SpriteCollector
     private int _index;
 
     [EngineRoutine(0x0042d380)]
-    internal SpriteCollector(SizeF mapSize, ReadOnlySpan<SpriteDefinition?> definitions, Map map)
+    internal SpriteCollector(SizeF mapSize, ReadOnlySpan<Vid?> vids, Map map)
     {
         _map = map;
         var largestObject = Vector2.Zero;
-        foreach (var definition in definitions)
+        foreach (var vid in vids)
         {
-            if (definition is not null && IsHashed(definition))
+            if (vid is not null && IsHashed(vid))
             {
-                largestObject = Vector2.Max(largestObject, definition.Object.Size.AsVector2());
+                largestObject = Vector2.Max(largestObject, vid.Object.Size.AsVector2());
             }
         }
 
@@ -76,19 +76,19 @@ public sealed class SpriteCollector
     /// <returns>The query over the sprites.</returns>
     public HashQuery GetNear(Vector2 min, Vector2 max) => new(_buckets, _columns, GetColumn(min.X), GetColumn(max.X), GetRow(min.Y), GetRow(max.Y));
 
-    internal static bool IsHashed(SpriteDefinition definition) => definition.Object.Properties.HasFlag(ObjectProperties.Hash);
+    internal static bool IsHashed(Vid vid) => vid.Object.Properties.HasFlag(ObjectProperties.Hash);
 
-    internal static bool IsListed(SpriteDefinition definition) => (definition.Object.SpriteType.ToOldSpriteType() & ListedTypes) != 0;
+    internal static bool IsListed(Vid vid) => (vid.Object.SpriteType.ToOldSpriteType() & ListedTypes) != 0;
 
     [EngineRoutine(0x0042d6a0)]
     internal void InsertToHash(Sprite sprite)
     {
-        if (IsHashed(sprite.Definition))
+        if (IsHashed(sprite.Vid))
         {
             _buckets[GetBucket(sprite.Position.AsVector2())].Add(sprite);
         }
 
-        if (IsListed(sprite.Definition))
+        if (IsListed(sprite.Vid))
         {
             _listed.Add(sprite);
         }
@@ -99,7 +99,7 @@ public sealed class SpriteCollector
     {
         int failed = 0;
 
-        if (IsHashed(sprite.Definition))
+        if (IsHashed(sprite.Vid))
         {
             int column = GetColumn(sprite.Position.X);
             int row = GetRow(sprite.Position.Y);
@@ -113,7 +113,7 @@ public sealed class SpriteCollector
             failed = bucket.Remove(sprite) ? 0 : 1;
         }
 
-        if (IsListed(sprite.Definition))
+        if (IsListed(sprite.Vid))
         {
             failed |= (_listed.Remove(sprite) ? 0 : 1) << 1;
         }
@@ -122,7 +122,7 @@ public sealed class SpriteCollector
 
         if (failed != 0 && sprite != cursor && sprite != cursor.Link)
         {
-            sprite.Logger?.Error($"SPRITE {(int)sprite.Definition.Id}", LogError.Text, failed, "hash can't delete"u8);
+            sprite.Error?.Error($"SPRITE {(int)sprite.Vid.Id}", LogError.Text, failed, "hash can't delete"u8);
         }
 
         return failed;
@@ -178,23 +178,23 @@ public sealed class SpriteCollector
     }
 
     [EngineRoutine(0x0042da30)]
-    internal Sprite? CanPlace(SpriteDefinition definition, Vector3 point)
+    internal Sprite? CanPlace(Vid vid, Vector3 point)
     {
-        if (_map.GetGroundZForMoveTo(definition.Object, point.AsVector2()) > point.Z)
+        if (_map.GetGroundZForMoveTo(vid.Object, point.AsVector2()) > point.Z)
             return _map.CursorSprite;
 
-        if (definition.MoveMask == 0)
+        if (vid.MoveMask == 0)
             return null;
 
-        var half = definition.Half;
-        float height = definition.Object.Size.Z;
+        var half = vid.Half;
+        float height = vid.Object.Size.Z;
         FirstHashInBox(point.AsVector2() - half, point.AsVector2() + half);
         for (var other = NextHashInBox(); other is not null; other = NextHashInBox())
         {
-            var otherDefinition = other.Definition;
-            if (other.Animation < SpriteAnimation.Death && MathF.Abs(other.Position.X - point.X) < otherDefinition.Half.X + half.X &&
-                MathF.Abs(other.Position.Y - point.Y) < otherDefinition.Half.Y + half.Y && point.Z <= otherDefinition.Object.Size.Z + other.Position.Z &&
-                other.Position.Z <= point.Z + height && (definition.MoveMask & otherDefinition.MoveMask) != 0)
+            var otherVid = other.Vid;
+            if (other.Animation < SpriteAnimation.Death && MathF.Abs(other.Position.X - point.X) < otherVid.Half.X + half.X &&
+                MathF.Abs(other.Position.Y - point.Y) < otherVid.Half.Y + half.Y && point.Z <= otherVid.Object.Size.Z + other.Position.Z &&
+                other.Position.Z <= point.Z + height && (vid.MoveMask & otherVid.MoveMask) != 0)
             {
                 return other;
             }
@@ -204,9 +204,9 @@ public sealed class SpriteCollector
     }
 
     [EngineRoutine(0x0042db40)]
-    internal bool CheckLine(SpriteDefinition definition, Vector3 from, ref Vector3 to)
+    internal bool CheckLine(Vid vid, Vector3 from, ref Vector3 to)
     {
-        if (definition.MoveMask == 0)
+        if (vid.MoveMask == 0)
             return false;
 
         var position = new Point((int)from.X, (int)from.Y);
@@ -228,7 +228,7 @@ public sealed class SpriteCollector
                 z += heightStep;
                 var point = new Vector3(position.X, position.Y, z);
 
-                if (CanPlace(definition, point) is not null)
+                if (CanPlace(vid, point) is not null)
                 {
                     to = point;
 

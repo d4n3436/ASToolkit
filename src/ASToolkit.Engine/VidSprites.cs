@@ -1,29 +1,29 @@
 namespace ASToolkit.Engine;
 
-internal ref struct DefinitionSprites
+internal ref struct VidSprites
 {
     private readonly List<Sprite?> _list;
-    private readonly SpriteDefinition _definition;
+    private readonly Vid _vid;
     private int _index;
 
-    public DefinitionSprites(List<Sprite?> list, SpriteDefinition definition)
+    public VidSprites(List<Sprite?> list, Vid vid)
     {
         _list = list;
-        _definition = definition;
+        _vid = vid;
         _index = list.Count;
         Current = null!;
     }
 
     public Sprite Current { get; private set; }
 
-    public readonly DefinitionSprites GetEnumerator() => this;
+    public readonly VidSprites GetEnumerator() => this;
 
     public bool MoveNext()
     {
         while (--_index >= 0)
         {
             var sprite = _list[_index];
-            if (sprite is not null && sprite.Definition == _definition)
+            if (sprite is not null && sprite.Vid == _vid)
             {
                 Current = sprite;
                 return true;

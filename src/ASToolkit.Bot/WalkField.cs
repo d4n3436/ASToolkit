@@ -38,7 +38,7 @@ internal sealed class WalkField
     private readonly Dictionary<Sprite, float> _gateHeights = new(ReferenceEqualityComparer.Instance);
     private readonly HashSet<Sprite> _seen = new(ReferenceEqualityComparer.Instance);
     private readonly List<TrackedSprite> _tracked = [];
-    private readonly Dictionary<SpriteDefinition, bool> _relevant = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<Vid, bool> _relevant = new(ReferenceEqualityComparer.Instance);
     private bool _isStarted;
     private int _population;
     private bool _moved;
@@ -94,7 +94,7 @@ internal sealed class WalkField
         _doorsLocked = doorsLocked;
         foreach (var sprite in sprites.GetNear(Vector2.Zero, map.Size.ToVector2()))
         {
-            if (IsGate(sprite.Definition.Id))
+            if (IsGate(sprite.Vid.Id))
             {
                 _gates.Add(sprite);
                 _gateHeights[sprite] = sprite.Position.Z;
@@ -108,7 +108,7 @@ internal sealed class WalkField
 
     public int ReachedCount { get; private set; }
 
-    public static bool IsSolid(Sprite sprite) => sprite.Definition.Object.Properties.HasFlag(ObjectProperties.Hash) && sprite.Animation < SpriteAnimation.Death;
+    public static bool IsSolid(Sprite sprite) => sprite.Vid.Object.Properties.HasFlag(ObjectProperties.Hash) && sprite.Animation < SpriteAnimation.Death;
 
     public void SetDoorsLocked(bool doorsLocked)
     {
@@ -123,9 +123,9 @@ internal sealed class WalkField
             Version++;
             foreach (var gate in _gates)
             {
-                if (gate.Definition.Id != KnownObject.Fence)
+                if (gate.Vid.Id != KnownObject.Fence)
                 {
-                    RefreshCells(gate.Position.AsVector2(), gate.Definition.Half);
+                    RefreshCells(gate.Position.AsVector2(), gate.Vid.Half);
                 }
             }
         }
@@ -160,14 +160,14 @@ internal sealed class WalkField
         {
             var sprite = tracked.Sprite;
 
-            if (sprite.Definition.Id == KnownObject.Fence)
+            if (sprite.Vid.Id == KnownObject.Fence)
             {
                 bool isSolid = IsSolid(sprite);
 
                 if (isSolid != tracked.WasSolid)
                 {
                     tracked.WasSolid = isSolid;
-                    RefreshCells(sprite.Position.AsVector2(), sprite.Definition.Half);
+                    RefreshCells(sprite.Position.AsVector2(), sprite.Vid.Half);
                     Version++;
                     changed = true;
                 }
@@ -183,7 +183,7 @@ internal sealed class WalkField
                 continue;
 
             tracked.IsGone = true;
-            changed |= Refresh(map, sprite.Definition, tracked.Position, sprite.Definition.Id is KnownObject.SpawnWallSlash or KnownObject.SpawnWallBack or KnownObject.BreakableWall);
+            changed |= Refresh(map, sprite.Vid, tracked.Position, sprite.Vid.Id is KnownObject.SpawnWallSlash or KnownObject.SpawnWallBack or KnownObject.BreakableWall);
         }
 
         int population = GetPopulation(map);
@@ -232,7 +232,7 @@ internal sealed class WalkField
     {
         foreach (var gate in _gates)
         {
-            if (IsSolid(gate) && (gate.Definition.Id == KnownObject.Fence || _doorsLocked) && Crosses(from, to, gate.Position.AsVector2(), gate.Definition.Half))
+            if (IsSolid(gate) && (gate.Vid.Id == KnownObject.Fence || _doorsLocked) && Crosses(from, to, gate.Position.AsVector2(), gate.Vid.Half))
                 return true;
         }
 
@@ -423,11 +423,11 @@ internal sealed class WalkField
 
     private static bool IsGate(KnownObject id) => id is KnownObject.SmallDoor or KnownObject.DoubleDoor or KnownObject.Fence;
 
-    private static bool IsObstacle(SpriteDefinition definition)
+    private static bool IsObstacle(Vid vid)
     {
-        ref readonly var obj = ref definition.Object;
+        ref readonly var obj = ref vid.Object;
 
-        return definition.Id == KnownObject.Crate || !(obj.SpriteType.HasFlag(SpriteType.Unit) || obj.SpriteType.HasFlag(SpriteType.Avia) ||
+        return vid.Id == KnownObject.Crate || !(obj.SpriteType.HasFlag(SpriteType.Unit) || obj.SpriteType.HasFlag(SpriteType.Avia) ||
             obj.SpriteType.HasFlag(SpriteType.Cannon) || obj.SpriteClass == SpriteClass.Man);
     }
 
@@ -454,7 +454,7 @@ internal sealed class WalkField
         return cells;
     }
 
-    private static bool Blocks(SpriteDefinition definition) => IsObstacle(definition) && definition.Object.IsHittable && definition.MoveMask != 0;
+    private static bool Blocks(Vid vid) => IsObstacle(vid) && vid.Object.IsHittable && vid.MoveMask != 0;
 
     private bool AddNew(Map map, bool refresh)
     {
@@ -462,34 +462,34 @@ internal sealed class WalkField
 
         foreach (var sprite in map.UpdatedSprites)
         {
-            var definition = sprite.Definition;
+            var vid = sprite.Vid;
 
-            if (!_relevant.TryGetValue(definition, out bool isRelevant))
+            if (!_relevant.TryGetValue(vid, out bool isRelevant))
             {
-                isRelevant = definition.CanBePushed || IsGate(definition.Id) || Blocks(definition) || definition.HeightPoints.Count != 0;
-                _relevant[definition] = isRelevant;
+                isRelevant = vid.CanBePushed || IsGate(vid.Id) || Blocks(vid) || vid.HeightPoints.Count != 0;
+                _relevant[vid] = isRelevant;
             }
 
             if (!isRelevant || !_seen.Add(sprite))
                 continue;
 
-            var tracked = new TrackedSprite(sprite, definition.CanBePushed || IsGate(definition.Id));
+            var tracked = new TrackedSprite(sprite, vid.CanBePushed || IsGate(vid.Id));
             tracked.IsGone = sprite.Animation >= SpriteAnimation.Death;
             _tracked.Add(tracked);
 
             if (refresh)
             {
-                changed |= Refresh(map, definition, sprite.Position, false);
+                changed |= Refresh(map, vid, sprite.Position, false);
             }
         }
 
         return changed;
     }
 
-    private bool Refresh(Map map, SpriteDefinition definition, Vector3 position, bool force)
+    private bool Refresh(Map map, Vid vid, Vector3 position, bool force)
     {
-        bool isBlocking = Blocks(definition);
-        bool isRaised = definition.HeightPoints.Count != 0;
+        bool isBlocking = Blocks(vid);
+        bool isRaised = vid.HeightPoints.Count != 0;
 
         if (isBlocking || isRaised)
         {
@@ -499,7 +499,7 @@ internal sealed class WalkField
         if (!isBlocking && !isRaised && !force)
             return false;
 
-        RefreshCells(position.AsVector2(), definition.Half);
+        RefreshCells(position.AsVector2(), vid.Half);
 
         return true;
     }
@@ -552,9 +552,9 @@ internal sealed class WalkField
         var reach = volume.Half + _sprites.LargestHalf;
         foreach (var sprite in _sprites.GetNear(point.AsVector2() - reach, point.AsVector2() + reach))
         {
-            var definition = sprite.Definition;
+            var vid = sprite.Vid;
             var position = sprite.Position;
-            bool isDoor = anticipateDoors && definition.Id is KnownObject.SmallDoor or KnownObject.DoubleDoor;
+            bool isDoor = anticipateDoors && vid.Id is KnownObject.SmallDoor or KnownObject.DoubleDoor;
             if (isDoor)
             {
                 if (!_doorsLocked)
@@ -563,8 +563,8 @@ internal sealed class WalkField
                 position.Z = _gateHeights.GetValueOrDefault(sprite, position.Z);
             }
 
-            if (volume.Overlaps(new CollisionVolume(position, definition.Half, definition.Object.Size.Z, definition.MoveMask)) &&
-                sprite.Animation < SpriteAnimation.Death && IsObstacle(definition))
+            if (volume.Overlaps(new CollisionVolume(position, vid.Half, vid.Object.Size.Z, vid.MoveMask)) &&
+                sprite.Animation < SpriteAnimation.Death && IsObstacle(vid))
                 return true;
         }
 

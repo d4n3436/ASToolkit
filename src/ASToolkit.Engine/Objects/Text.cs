@@ -23,14 +23,14 @@ public sealed class Text : Frame
     /// Initializes a new instance of the <see cref="Text"/> class.
     /// </summary>
     /// <param name="number">The number of the sprite.</param>
-    /// <param name="definition">The definition of the sprite.</param>
+    /// <param name="vid">The shared data and frames of the sprite's object ID.</param>
     /// <param name="position">The position of the sprite.</param>
     /// <param name="army">The army of the sprite.</param>
     /// <param name="hitPoints">The hit points of the sprite.</param>
     /// <param name="map">The map the sprite belongs to.</param>
     /// <param name="direction">The direction of the sprite.</param>
-    public Text(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
-        : base(number, definition, position, army, hitPoints, map, direction)
+    public Text(int number, Vid vid, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
+        : base(number, vid, position, army, hitPoints, map, direction)
     {
     }
 
@@ -67,7 +67,7 @@ public sealed class Text : Frame
     private static ReadOnlySpan<byte> FontTag => "<Font="u8;
 
     /// <summary>
-    /// Draws the shown text with the frames of the font definition.
+    /// Draws the shown text with the frames of the font's object ID.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
@@ -75,7 +75,7 @@ public sealed class Text : Frame
     [EngineRoutine(0x00448ba0)]
     public override void Draw(Screen screen, Map map, Vector2 camera)
     {
-        if (Definition == map.Definitions.Empty || Definition.Directions < MinDirections)
+        if (Vid == map.Vids.Empty || Vid.Directions < MinDirections)
         {
             map.Session.Graphics.DrawDeviceText(new Vector2(Position.X, Position.Y), uint.MaxValue, Shown.Span);
             return;
@@ -94,8 +94,8 @@ public sealed class Text : Frame
 
         if (!shown.IsEmpty && shown[0] != 0)
         {
-            var size = Definition.Object.Size.AsVector2();
-            var half = Definition.Half;
+            var size = Vid.Object.Size.AsVector2();
+            var half = Vid.Half;
             var pen = new Vector2(
                 TextBehavior.HasFlag(TextBehavior.CenterX)
                     ? savedPosition.X - (LineWidth - 1) * size.X * Half
@@ -104,7 +104,7 @@ public sealed class Text : Frame
                     ? savedPosition.Y - (LineCount - 1) * size.Y * Half
                     : TextBehavior.HasFlag(TextBehavior.Bottom) ? savedPosition.Y - ((LineCount - 1) * size.Y + half.Y) : half.Y + savedPosition.Y);
             float lineStart = pen.X - size.X;
-            var current = Definition;
+            var current = Vid;
             int i = 0;
 
             while (GetCharacter(shown, i) != 0 && i < VisibleCount)
@@ -129,16 +129,16 @@ public sealed class Text : Frame
                 {
                     var identifier = shown[FontTag.Length..];
                     int id = identifier.Length > 1 && identifier[1] == (byte)'x' ? CRuntime.ScanInteger(identifier) : CRuntime.ParseInteger(identifier);
-                    current = map.Definitions.Find((KnownObject)id) ?? map.Definitions.Empty;
+                    current = map.Vids.Find((KnownObject)id) ?? map.Vids.Empty;
                     pen.X -= current.Object.Size.X;
                     int end = shown.IndexOf(TagEnd);
                     i += end < 0 ? shown.Length : end;
                 }
-                else if (character == FontSwitch && i + 1 < VisibleCount && map.Definitions.Find((KnownObject)shown[i + 1]) is not null)
+                else if (character == FontSwitch && i + 1 < VisibleCount && map.Vids.Find((KnownObject)shown[i + 1]) is not null)
                 {
                     int id = (sbyte)shown[i + 1];
                     i++;
-                    current = map.Definitions.Find((KnownObject)id) ?? map.Definitions.Empty;
+                    current = map.Vids.Find((KnownObject)id) ?? map.Vids.Empty;
                     pen.X -= current.Object.Size.X;
                 }
                 else if (character >= FirstPrintable)
@@ -157,14 +157,11 @@ public sealed class Text : Frame
         Frame = savedFrame;
     }
 
-    // TODO: Port saving and loading the text (ACT_SAVE, ACT_LOAD) and the text address GetTextDesc and GetText return
+    // TODO: Port saving the text (ACT_SAVE) and the text address GetTextDesc and GetText return
     [EngineRoutine(0x00448ff0)]
     internal override int Action(int act, int var1, int var2, int var3, Sprite? target)
     {
         var code = (ActionCode)act;
-        ReadOnlySpan<byte> shown;
-        int length;
-        int shownCount;
         switch (code)
         {
             case ActionCode.GetBehave:
@@ -185,11 +182,11 @@ public sealed class Text : Frame
             case ActionCode.GetTextDesc or ActionCode.GetText:
                 return 0;
             case ActionCode.NextCommand:
-                shown = Shown.Span;
+                var shown = Shown.Span;
                 if (shown.IsEmpty || Timer != 0)
                     return 0;
 
-                length = (short)shown.Length;
+                int length = (short)shown.Length;
                 if (VisibleCount >= length)
                 {
                     if (Animation != SpriteAnimation.Stand)
@@ -200,7 +197,7 @@ public sealed class Text : Frame
                     return 0;
                 }
 
-                shownCount = VisibleCount++;
+                int shownCount = VisibleCount++;
                 if (CRuntime.IsSpace(shown[shownCount]))
                 {
                     bool isLineCrossed = false;
@@ -240,6 +237,21 @@ public sealed class Text : Frame
             default:
                 return base.Action(act, var1, var2, var3, target);
         }
+    }
+
+    [EngineRoutine(0x00448ff0)]
+    internal override int Action(int act, ref Resource stream, int version)
+    {
+        if ((ActionCode)act != ActionCode.Restore)
+            return base.Action(act, ref stream, version);
+
+        base.Action(act, ref stream, version);
+        var behavior = TextBehavior;
+        stream.ReadInto(ref behavior);
+        TextBehavior = behavior;
+        Map.SetText(this, stream.ReadText().ToArray());
+
+        return 0;
     }
 
     private static byte GetCharacter(ReadOnlySpan<byte> text, int index) => (uint)index < (uint)text.Length ? text[index] : (byte)0;

@@ -29,14 +29,14 @@ public sealed class Mouse : Sprite
     /// Initializes a new instance of the <see cref="Mouse"/> class, with the system cursor in use and no cursor loaded.
     /// </summary>
     /// <param name="number">The number of the sprite.</param>
-    /// <param name="definition">The definition of the sprite.</param>
+    /// <param name="vid">The shared data and frames of the sprite's object ID.</param>
     /// <param name="position">The position of the sprite.</param>
     /// <param name="army">The army of the sprite.</param>
     /// <param name="hitPoints">The hit points of the sprite.</param>
     /// <param name="map">The map the sprite belongs to.</param>
     /// <param name="direction">The direction of the sprite.</param>
-    public Mouse(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
-        : base(number, definition, position, army, hitPoints, map, direction)
+    public Mouse(int number, Vid vid, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
+        : base(number, vid, position, army, hitPoints, map, direction)
     {
     }
 
@@ -80,7 +80,7 @@ public sealed class Mouse : Sprite
     /// </summary>
     /// <param name="fileSystem">The file system that holds the cursor files.</param>
     [EngineRoutine(0x00446d90)]
-    public void LoadCursor(IGameFileSystem fileSystem)
+    public void Enable(IGameFileSystem fileSystem)
     {
         if (IsCursorLoaded)
             return;
@@ -103,7 +103,7 @@ public sealed class Mouse : Sprite
     /// Hides the cursor and releases the system cursors.
     /// </summary>
     [EngineRoutine(0x00446ef0)]
-    public void TurnCursorOff()
+    public void Disable()
     {
         if (!IsCursorLoaded)
             return;
@@ -119,38 +119,38 @@ public sealed class Mouse : Sprite
     /// <summary>
     /// Switches to the system cursor.
     /// </summary>
-    /// <param name="empty">The empty definition the sprite takes.</param>
+    /// <param name="empty">The shared data, without frames, that the sprite takes.</param>
     /// <param name="fileSystem">The file system that holds the cursor files.</param>
     [EngineRoutine(0x00446f40)]
-    public void UseHardwareCursor(SpriteDefinition empty, IGameFileSystem fileSystem)
+    public void HardwareOn(Vid empty, IGameFileSystem fileSystem)
     {
         if (IsHardwareCursor)
             return;
 
-        TurnCursorOff();
-        ReplaceDefinition(empty);
+        Disable();
+        ReplaceVid(empty);
         IsHardwareCursor = true;
-        LoadCursor(fileSystem);
+        Enable(fileSystem);
     }
 
     /// <summary>
     /// Switches to drawing the cursor as this sprite.
     /// </summary>
-    /// <param name="definition">The definition of the software cursor.</param>
+    /// <param name="vid">The shared data and frames of the software cursor's object ID.</param>
     /// <param name="fileSystem">The file system that holds the cursor files.</param>
     [EngineRoutine(0x00446f70)]
-    public void UseSoftwareCursor(SpriteDefinition definition, IGameFileSystem fileSystem)
+    public void HardwareOff(Vid vid, IGameFileSystem fileSystem)
     {
         if (!IsHardwareCursor)
             return;
 
-        TurnCursorOff();
+        Disable();
         var state = Animation;
-        ReplaceDefinition(definition);
-        ChangeAnimation(state == SpriteAnimation.Stand ? SpriteAnimation.StopMove : SpriteAnimation.Stand);
-        ChangeAnimation(state);
+        ReplaceVid(vid);
+        base.ChangeAnimation(state == SpriteAnimation.Stand ? SpriteAnimation.StopMove : SpriteAnimation.Stand);
+        base.ChangeAnimation(state);
         IsHardwareCursor = false;
-        LoadCursor(fileSystem);
+        Enable(fileSystem);
     }
 
     /// <summary>
@@ -158,11 +158,11 @@ public sealed class Mouse : Sprite
     /// </summary>
     /// <param name="type">The animation of the cursor.</param>
     [EngineRoutine(0x00446fd0)]
-    public void ShowCursor(SpriteAnimation type)
+    public new void ChangeAnimation(SpriteAnimation type)
     {
         if (!IsHardwareCursor)
         {
-            ChangeAnimation(type);
+            base.ChangeAnimation(type);
             return;
         }
 
@@ -173,7 +173,7 @@ public sealed class Mouse : Sprite
 
         if ((int)type <= LastAnimation)
         {
-            ChangeAnimation(type);
+            base.ChangeAnimation(type);
             return;
         }
 
@@ -186,10 +186,10 @@ public sealed class Mouse : Sprite
         switch ((ActionCode)act)
         {
             case ActionCode.ChangeAnimation:
-                Map.CursorSprite.ShowCursor((SpriteAnimation)var1);
+                Map.CursorSprite.ChangeAnimation((SpriteAnimation)var1);
                 return 0;
             case ActionCode.ChangeVid:
-                if (Map.Definitions.Find((KnownObject)var1) is null || (KnownObject)var1 == Definition.Id)
+                if (Map.Vids.Find((KnownObject)var1) is null || (KnownObject)var1 == Vid.Id)
                     return 0;
 
                 Map.AddToUpdates(this);

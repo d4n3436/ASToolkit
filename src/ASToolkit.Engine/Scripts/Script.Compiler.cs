@@ -62,7 +62,7 @@ public sealed partial class Script
         file.Span[..Math.Min(file.Length, head.Length)].CopyTo(head);
         if (head[^1] != 0)
         {
-            Compile(fileSystem, path, file.Span);
+            LoadLgc(fileSystem, path, file.Span);
             return true;
         }
 
@@ -116,7 +116,7 @@ public sealed partial class Script
     private bool IsNameCharacter(byte character) => IsAlphanumeric(character) || character == '_';
 
     [EngineRoutine(0x0041f450)]
-    private void Compile(IGameFileSystem fileSystem, string path, ReadOnlySpan<byte> file)
+    private void LoadLgc(IGameFileSystem fileSystem, string path, ReadOnlySpan<byte> file)
     {
         FileName = path;
         _fileSystem = fileSystem;
@@ -140,7 +140,7 @@ public sealed partial class Script
                 _text = [];
             }
 
-            Logger?.Write($"LoadScript::ByteCode={_codeSize} varNo={_objectCount} DefineNo={_defines.Count} stackNo={_count}");
+            Error?.Write($"LoadScript::ByteCode={_codeSize} varNo={_objectCount} DefineNo={_defines.Count} stackNo={_count}");
             _defines.Clear();
             if (_codeSize == 0)
             {
@@ -186,18 +186,18 @@ public sealed partial class Script
     {
         LogScriptError(code, text, extra);
 
-        return new InvalidDataException($"'{FileName}' line {_line + 1}: {GameLogger.FormatError((LogError)code, extra, GameTextEncoding.Cyrillic.GetBytes(text))}");
+        return new InvalidDataException($"'{FileName}' line {_line + 1}: {MyError.FormatError((LogError)code, extra, GameTextEncoding.Cyrillic.GetBytes(text))}");
     }
 
     [EngineRoutine(0x0041fbe0)]
     private void LogScriptError(int code, string text, int extra = 0)
     {
         byte[] message = GameTextEncoding.Cyrillic.GetBytes(text);
-        var logger = Logger;
+        var error = Error;
 
-        if (logger is not null)
+        if (error is not null)
         {
-            logger.Error($"LOGIC '{FileName}' line {_line + 1}", (LogError)code, extra, message);
+            error.Error($"LOGIC '{FileName}' line {_line + 1}", (LogError)code, extra, message);
 
             if (_text.Length > 0)
             {
@@ -210,10 +210,10 @@ public sealed partial class Script
                 }
 
                 int terminator = context.IndexOf((byte)0);
-                logger.Error("LOGIC"u8, LogError.Text, 0, terminator < 0 ? context : context[..terminator]);
+                error.Error("LOGIC"u8, LogError.Text, 0, terminator < 0 ? context : context[..terminator]);
                 context.Fill((byte)' ');
                 context[ErrorContextLength / 2] = (byte)'^';
-                logger.Error("LOGIC"u8, LogError.Text, 0, context);
+                error.Error("LOGIC"u8, LogError.Text, 0, context);
             }
         }
     }
@@ -367,7 +367,7 @@ public sealed partial class Script
     }
 
     [EngineRoutine(0x00420460)]
-    private bool TryToken(ReadOnlySpan<byte> token)
+    private bool TryWord(ReadOnlySpan<byte> token)
     {
         SkipOrFailAtEnd();
         if (!_text.AsSpan(_position).StartsWith(token))
@@ -388,7 +388,7 @@ public sealed partial class Script
     [EngineRoutine(0x004204f0)]
     private void ExpectToken(ReadOnlySpan<byte> token)
     {
-        if (!TryToken(token))
+        if (!TryWord(token))
             throw ReportError(13, Decode(token));
     }
 
@@ -612,27 +612,27 @@ public sealed partial class Script
         ParseComparison();
         while (true)
         {
-            if (TryToken("^"u8))
+            if (TryWord("^"u8))
             {
                 ParseComparison();
                 EmitBinaryOp(start, ScriptOpcode.Xor);
             }
-            else if (TryToken("&&"u8))
+            else if (TryWord("&&"u8))
             {
                 ParseComparison();
                 Emit(ScriptOpcode.LogicalAnd);
             }
-            else if (TryToken("&"u8))
+            else if (TryWord("&"u8))
             {
                 ParseComparison();
                 EmitBinaryOp(start, ScriptOpcode.And);
             }
-            else if (TryToken("||"u8))
+            else if (TryWord("||"u8))
             {
                 ParseComparison();
                 Emit(ScriptOpcode.LogicalOr);
             }
-            else if (TryToken("|"u8))
+            else if (TryWord("|"u8))
             {
                 ParseComparison();
                 EmitBinaryOp(start, ScriptOpcode.Or);
@@ -645,7 +645,7 @@ public sealed partial class Script
     private void ParseLogicalOr()
     {
         ParseLogicalAnd();
-        while (TryToken("||"u8))
+        while (TryWord("||"u8))
         {
             Emit(ScriptOpcode.OrJump);
             int skip = ReserveInt();
@@ -658,7 +658,7 @@ public sealed partial class Script
     private void ParseLogicalAnd()
     {
         ParseBitwiseOr();
-        while (TryToken("&&"u8))
+        while (TryWord("&&"u8))
         {
             Emit(ScriptOpcode.AndJump);
             int skip = ReserveInt();
@@ -672,7 +672,7 @@ public sealed partial class Script
     {
         int start = _codeSize;
         ParseBitwiseXor();
-        while (TryToken("|"u8))
+        while (TryWord("|"u8))
         {
             ParseBitwiseXor();
             EmitBinaryOp(start, ScriptOpcode.Or);
@@ -683,7 +683,7 @@ public sealed partial class Script
     {
         int start = _codeSize;
         ParseBitwiseAnd();
-        while (TryToken("^"u8))
+        while (TryWord("^"u8))
         {
             ParseBitwiseAnd();
             EmitBinaryOp(start, ScriptOpcode.Xor);
@@ -694,7 +694,7 @@ public sealed partial class Script
     {
         int start = _codeSize;
         ParseComparison();
-        while (TryToken("&"u8))
+        while (TryWord("&"u8))
         {
             ParseComparison();
             EmitBinaryOp(start, ScriptOpcode.And);
@@ -708,42 +708,42 @@ public sealed partial class Script
         ParseAdditive();
         while (true)
         {
-            if (TryToken(">="u8))
+            if (TryWord(">="u8))
             {
                 ParseAdditive();
                 Emit(ScriptOpcode.GreaterOrEqual);
             }
-            else if (TryToken(">>"u8))
+            else if (TryWord(">>"u8))
             {
                 ParseAdditive();
                 EmitBinaryOp(start, ScriptOpcode.ShiftRight);
             }
-            else if (TryToken(">"u8))
+            else if (TryWord(">"u8))
             {
                 ParseAdditive();
                 Emit(ScriptOpcode.Greater);
             }
-            else if (TryToken("<="u8))
+            else if (TryWord("<="u8))
             {
                 ParseAdditive();
                 Emit(ScriptOpcode.LessOrEqual);
             }
-            else if (TryToken("<<"u8))
+            else if (TryWord("<<"u8))
             {
                 ParseAdditive();
                 EmitBinaryOp(start, ScriptOpcode.ShiftLeft);
             }
-            else if (TryToken("<"u8))
+            else if (TryWord("<"u8))
             {
                 ParseAdditive();
                 Emit(ScriptOpcode.Less);
             }
-            else if (TryToken("=="u8))
+            else if (TryWord("=="u8))
             {
                 ParseAdditive();
                 Emit(ScriptOpcode.Equal);
             }
-            else if (TryToken("!="u8))
+            else if (TryWord("!="u8))
             {
                 ParseAdditive();
                 Emit(ScriptOpcode.NotEqual);
@@ -760,12 +760,12 @@ public sealed partial class Script
         ParseMultiplicative();
         while (true)
         {
-            if (TryToken("+"u8))
+            if (TryWord("+"u8))
             {
                 ParseMultiplicative();
                 EmitBinaryOp(start, ScriptOpcode.Add);
             }
-            else if (TryToken("-"u8))
+            else if (TryWord("-"u8))
             {
                 ParseMultiplicative();
                 EmitBinaryOp(start, ScriptOpcode.Subtract);
@@ -782,17 +782,17 @@ public sealed partial class Script
         ParseTerm();
         while (true)
         {
-            if (TryToken("*"u8))
+            if (TryWord("*"u8))
             {
                 ParseTerm();
                 EmitBinaryOp(start, ScriptOpcode.Multiply);
             }
-            else if (TryToken("/"u8))
+            else if (TryWord("/"u8))
             {
                 ParseTerm();
                 EmitBinaryOp(start, ScriptOpcode.Divide);
             }
-            else if (TryToken("%"u8))
+            else if (TryWord("%"u8))
             {
                 ParseTerm();
                 EmitBinaryOp(start, ScriptOpcode.Modulo);
@@ -815,15 +815,15 @@ public sealed partial class Script
             }
 
             var unary = ParseUnary();
-            if (TryToken("--"u8))
+            if (TryWord("--"u8))
             {
                 access = ScriptOpcode.PreDecrement;
             }
-            else if (TryToken("++"u8))
+            else if (TryWord("++"u8))
             {
                 access = ScriptOpcode.PreIncrement;
             }
-            else if (TryToken("&"u8))
+            else if (TryWord("&"u8))
             {
                 access = ScriptOpcode.LoadTextAddress;
             }
@@ -859,28 +859,28 @@ public sealed partial class Script
 
                 _position++;
             }
-            else if (TryToken("sizeof"u8))
+            else if (TryWord("sizeof"u8))
             {
                 ParseSizeof();
             }
-            else if (TryToken("static"u8))
+            else if (TryWord("static"u8))
             {
                 ParseStaticDeclarators();
             }
-            else if (TryToken("int"u8))
+            else if (TryWord("int"u8))
             {
                 ParseIntDeclarators(IsAlienShooter2);
             }
-            else if (TryToken("string"u8))
+            else if (TryWord("string"u8))
             {
                 ParseStringDeclarators(IsAlienShooter2);
             }
-            else if (TryToken("return"u8))
+            else if (TryWord("return"u8))
             {
                 ParseExpression();
                 Emit(ScriptOpcode.Return);
             }
-            else if (TryToken("("u8))
+            else if (TryWord("("u8))
             {
                 ParseExpression();
                 ExpectToken(")"u8);
@@ -906,13 +906,13 @@ public sealed partial class Script
 
     private ScriptOpcode ParseCast(ScriptOpcode cast)
     {
-        if (TryToken("(int)"u8))
+        if (TryWord("(int)"u8))
             return ScriptOpcode.CastInt;
 
-        if (TryToken("(string)"u8))
+        if (TryWord("(string)"u8))
             return ScriptOpcode.CastString;
 
-        if (TryToken("(sprite)"u8))
+        if (TryWord("(sprite)"u8))
             return ScriptOpcode.CastSprite;
 
         return cast;
@@ -920,16 +920,16 @@ public sealed partial class Script
 
     private ScriptOpcode ParseUnary()
     {
-        if (IsAlienShooter2 ? TryToken("-"u8) : _text[_position + 1] != '-' && TryToken("-"u8))
+        if (IsAlienShooter2 ? TryWord("-"u8) : _text[_position + 1] != '-' && TryWord("-"u8))
             return ScriptOpcode.Negate;
 
-        if (IsAlienShooter2 && TryToken("+"u8))
+        if (IsAlienShooter2 && TryWord("+"u8))
             return ScriptOpcode.None;
 
-        if (TryToken("~"u8))
+        if (TryWord("~"u8))
             return ScriptOpcode.BitwiseNot;
 
-        if (TryToken("!"u8))
+        if (TryWord("!"u8))
             return ScriptOpcode.LogicalNot;
 
         return ScriptOpcode.None;
@@ -953,11 +953,11 @@ public sealed partial class Script
 
     private void ParseSizeof()
     {
-        if (!TryToken("("u8))
+        if (!TryWord("("u8))
             throw ReportError(13, "'(' for sizeof");
 
         Emit(ScriptOpcode.PushNumber);
-        if (TryToken("int"u8) || TryToken("string"u8))
+        if (TryWord("int"u8) || TryWord("string"u8))
         {
             EmitInt(sizeof(int));
         }
@@ -975,11 +975,11 @@ public sealed partial class Script
 
     private void ParseStaticDeclarators()
     {
-        if (TryToken("int"u8))
+        if (TryWord("int"u8))
         {
             ParseIntDeclarators(false);
         }
-        else if (TryToken("string"u8))
+        else if (TryWord("string"u8))
         {
             ParseStringDeclarators(false);
         }
@@ -993,7 +993,7 @@ public sealed partial class Script
         {
             ParseIntDeclarator(initializeAtRunTime);
         }
-        while (TryToken(","u8));
+        while (TryWord(","u8));
     }
 
     private void ParseStringDeclarators(bool initializeAtRunTime)
@@ -1002,7 +1002,7 @@ public sealed partial class Script
         {
             ParseStringDeclarator(initializeAtRunTime);
         }
-        while (TryToken(","u8));
+        while (TryWord(","u8));
     }
 
     private bool ParseName(ScriptOpcode access)
@@ -1057,9 +1057,9 @@ public sealed partial class Script
     {
         int indexLength = 0;
         byte[]? index = null;
-        if (TryToken("["u8))
+        if (TryWord("["u8))
         {
-            if (!_slots[variable].Flags.HasFlag(StackObjectFlags.Text) && !_slots[variable].Flags.HasFlag(StackObjectFlags.ArrayElement) && !_slots[variable].Flags.HasFlag(StackObjectFlags.Pointer))
+            if (!_slots[variable].Flags.HasFlag(ScriptStackFlags.Text) && !_slots[variable].Flags.HasFlag(ScriptStackFlags.ArrayElement) && !_slots[variable].Flags.HasFlag(ScriptStackFlags.Pointer))
                 throw ReportError(10, "[] for not array");
 
             int indexStart = _codeSize;
@@ -1074,7 +1074,7 @@ public sealed partial class Script
 
         var opcode = access;
         var compound = ScriptOpcode.None;
-        if (_text[_position + 1] != '=' && TryToken("="u8))
+        if (_text[_position + 1] != '=' && TryWord("="u8))
         {
             ParseExpression();
             opcode = ScriptOpcode.Assign;
@@ -1087,11 +1087,11 @@ public sealed partial class Script
                 ParseExpression();
                 opcode = ScriptOpcode.CompoundAssign;
             }
-            else if (TryToken("++"u8))
+            else if (TryWord("++"u8))
             {
                 opcode = ScriptOpcode.PostIncrement;
             }
-            else if (TryToken("--"u8))
+            else if (TryWord("--"u8))
             {
                 opcode = ScriptOpcode.PostDecrement;
             }
@@ -1103,7 +1103,7 @@ public sealed partial class Script
             _codeSize += indexLength;
             ArrayPool<byte>.Shared.Return(index);
         }
-        else if (_slots[variable].Flags.HasFlag(StackObjectFlags.ArrayElement) || _slots[variable].Flags.HasFlag(StackObjectFlags.Pointer))
+        else if (_slots[variable].Flags.HasFlag(ScriptStackFlags.ArrayElement) || _slots[variable].Flags.HasFlag(ScriptStackFlags.Pointer))
         {
             if (opcode is >= ScriptOpcode.PostIncrement and <= ScriptOpcode.PreDecrement)
                 throw ReportError(10, "Increment or decrement for array");
@@ -1121,34 +1121,34 @@ public sealed partial class Script
 
     private ScriptOpcode ParseCompoundOperator()
     {
-        if (TryToken("+="u8))
+        if (TryWord("+="u8))
             return ScriptOpcode.Add;
 
-        if (TryToken("-="u8))
+        if (TryWord("-="u8))
             return ScriptOpcode.Subtract;
 
-        if (TryToken("/="u8))
+        if (TryWord("/="u8))
             return ScriptOpcode.Divide;
 
-        if (TryToken("*="u8))
+        if (TryWord("*="u8))
             return ScriptOpcode.Multiply;
 
-        if (TryToken("%="u8))
+        if (TryWord("%="u8))
             return ScriptOpcode.Modulo;
 
-        if (TryToken("&="u8))
+        if (TryWord("&="u8))
             return ScriptOpcode.And;
 
-        if (TryToken("|="u8))
+        if (TryWord("|="u8))
             return ScriptOpcode.Or;
 
-        if (TryToken("^="u8))
+        if (TryWord("^="u8))
             return ScriptOpcode.Xor;
 
-        if (TryToken("<<="u8))
+        if (TryWord("<<="u8))
             return ScriptOpcode.ShiftLeft;
 
-        if (TryToken(">>="u8))
+        if (TryWord(">>="u8))
             return ScriptOpcode.ShiftRight;
 
         return ScriptOpcode.None;
@@ -1159,14 +1159,14 @@ public sealed partial class Script
         var target = _objects[found];
         ExpectToken("("u8);
         int count = 0;
-        while (!TryToken(")"u8))
+        while (!TryWord(")"u8))
         {
             ParseExpression();
-            TryToken(","u8);
+            TryWord(","u8);
             count++;
         }
 
-        for (; count < target.Count && _slots[target.FirstVariable + count].Flags.HasFlag(StackObjectFlags.Initialized); count++)
+        for (; count < target.Count && _slots[target.FirstVariable + count].Flags.HasFlag(ScriptStackFlags.Initialized); count++)
         {
             Emit(ScriptOpcode.Load, target.FirstVariable + count);
         }
@@ -1182,17 +1182,17 @@ public sealed partial class Script
         var target = _objects[found];
         ExpectToken("("u8);
         int count = 0;
-        while (!TryToken(")"u8))
+        while (!TryWord(")"u8))
         {
             ParseExpression();
-            TryToken(","u8);
+            TryWord(","u8);
             EmitArgumentStore(target.FirstVariable + count++);
         }
 
-        for (; count < target.Count && _slots[target.FirstVariable + count].Flags.HasFlag(StackObjectFlags.Initialized); count++)
+        for (; count < target.Count && _slots[target.FirstVariable + count].Flags.HasFlag(ScriptStackFlags.Initialized); count++)
         {
             ref readonly var parameter = ref _slots[target.FirstVariable + count];
-            if (!parameter.Flags.HasFlag(StackObjectFlags.Text))
+            if (!parameter.Flags.HasFlag(ScriptStackFlags.Text))
             {
                 Emit(ScriptOpcode.PushNumber, parameter.Value);
             }
@@ -1219,11 +1219,11 @@ public sealed partial class Script
     [EngineRoutine(0x00420720)]
     private void ParseIntDeclarator(bool initializeAtRunTime = false)
     {
-        var flags = StackObjectFlags.None;
+        var flags = ScriptStackFlags.None;
         SkipOrFailAtEnd();
         if (_text[_position] == '*')
         {
-            flags = StackObjectFlags.Pointer;
+            flags = ScriptStackFlags.Pointer;
             _position++;
         }
 
@@ -1233,13 +1233,13 @@ public sealed partial class Script
 
         int symbol = AddObject(new ScriptObject(name.ToArray(), ScriptObjectKind.Variable, _count));
         int size;
-        if (TryToken("["u8))
+        if (TryWord("["u8))
         {
-            flags |= StackObjectFlags.ArrayElement;
+            flags |= ScriptStackFlags.ArrayElement;
             if (_text[_position] == ']')
             {
                 _position++;
-                if (!TryToken("="u8))
+                if (!TryWord("="u8))
                     throw ReportError(10, "for [] need initialisation");
 
                 int count = ParseUnsizedArrayInitializer(flags, initializeAtRunTime);
@@ -1257,12 +1257,12 @@ public sealed partial class Script
 
         for (int element = 0; element < size; element++)
         {
-            Push(new StackObject(StackObjectFlags.Number | flags | StackObjectFlags.NotInitialized, 0));
+            Push(new ScriptStack(ScriptStackFlags.Number | flags | ScriptStackFlags.NotInitialized, 0));
         }
 
-        if (TryToken("="u8))
+        if (TryWord("="u8))
         {
-            if (flags.HasFlag(StackObjectFlags.ArrayElement))
+            if (flags.HasFlag(ScriptStackFlags.ArrayElement))
             {
                 ParseArrayInitializer(size, initializeAtRunTime);
             }
@@ -1275,14 +1275,14 @@ public sealed partial class Script
                 int value = ParseConstInt();
                 ref var variable = ref _slots[_count - 1];
                 variable.Value = value;
-                variable.Flags = (variable.Flags | StackObjectFlags.Initialized) & ~StackObjectFlags.NotInitialized;
+                variable.Flags = (variable.Flags | ScriptStackFlags.Initialized) & ~ScriptStackFlags.NotInitialized;
             }
         }
 
         _objects[symbol].Count = size;
     }
 
-    private int ParseUnsizedArrayInitializer(StackObjectFlags flags, bool initializeAtRunTime)
+    private int ParseUnsizedArrayInitializer(ScriptStackFlags flags, bool initializeAtRunTime)
     {
         ExpectToken("{"u8);
         int count = 0;
@@ -1290,20 +1290,20 @@ public sealed partial class Script
         {
             if (initializeAtRunTime)
             {
-                Push(new StackObject(StackObjectFlags.Number | flags | StackObjectFlags.NotInitialized, 0));
+                Push(new ScriptStack(ScriptStackFlags.Number | flags | ScriptStackFlags.NotInitialized, 0));
                 EmitInitializer(_count - 1);
                 count++;
                 continue;
             }
 
-            Push(new StackObject(StackObjectFlags.Number | flags, 0));
+            Push(new ScriptStack(ScriptStackFlags.Number | flags, 0));
             int value = ParseConstInt();
             ref var element = ref _slots[_count - 1];
             element.Value = value;
-            element.Flags |= StackObjectFlags.Initialized;
+            element.Flags |= ScriptStackFlags.Initialized;
             count++;
         }
-        while (TryToken(","u8));
+        while (TryWord(","u8));
 
         ExpectToken("}"u8);
 
@@ -1319,7 +1319,7 @@ public sealed partial class Script
             if (initializeAtRunTime)
             {
                 EmitInitializer(_count - size + element);
-                if (!TryToken(","u8))
+                if (!TryWord(","u8))
                 {
                     ExpectToken("}"u8);
                     break;
@@ -1330,9 +1330,9 @@ public sealed partial class Script
 
             int value = ParseConstInt();
             ref var variable = ref _slots[_count - size + element];
-            variable.Flags = (variable.Flags & ~StackObjectFlags.NotInitialized) | StackObjectFlags.Initialized;
+            variable.Flags = (variable.Flags & ~ScriptStackFlags.NotInitialized) | ScriptStackFlags.Initialized;
             variable.Value = value;
-            if (!TryToken(","u8))
+            if (!TryWord(","u8))
             {
                 ExpectToken("}"u8);
                 break;
@@ -1367,11 +1367,11 @@ public sealed partial class Script
             throw ReportError(10, $"string redifinition '{Decode(name)}'");
 
         byte[] symbolName = name.ToArray();
-        var flags = StackObjectFlags.None;
+        var flags = ScriptStackFlags.None;
         int size = 1;
-        if (TryToken("["u8))
+        if (TryWord("["u8))
         {
-            flags = StackObjectFlags.ArrayElement;
+            flags = ScriptStackFlags.ArrayElement;
             size = IsAlienShooter2 && _text[_position] == ']' ? UnsizedArray : ParseConstInt();
             ExpectToken("]"u8);
         }
@@ -1379,9 +1379,9 @@ public sealed partial class Script
         int symbol = AddObject(new ScriptObject(symbolName, ScriptObjectKind.Variable, _count));
         Span<byte> literal = stackalloc byte[MaxNameLength + 1];
         int count = 0;
-        if (TryToken("="u8))
+        if (TryWord("="u8))
         {
-            bool braced = IsAlienShooter2 && flags.HasFlag(StackObjectFlags.ArrayElement);
+            bool braced = IsAlienShooter2 && flags.HasFlag(ScriptStackFlags.ArrayElement);
             if (braced)
             {
                 ExpectToken("{"u8);
@@ -1389,7 +1389,7 @@ public sealed partial class Script
 
             for (; !IsAlienShooter2 && count < size - 1; count++)
             {
-                Push(new StackObject(StackObjectFlags.Text | flags, 0));
+                Push(new ScriptStack(ScriptStackFlags.Text | flags, 0));
             }
 
             do
@@ -1399,7 +1399,7 @@ public sealed partial class Script
 
                 if (initializeAtRunTime)
                 {
-                    Push(new StackObject(StackObjectFlags.Text | flags | StackObjectFlags.NotInitialized, 0));
+                    Push(new ScriptStack(ScriptStackFlags.Text | flags | ScriptStackFlags.NotInitialized, 0));
                     EmitInitializer(_count - 1);
                 }
                 else
@@ -1415,12 +1415,12 @@ public sealed partial class Script
                         text = length > 0 ? literal[..(length - 1)].ToArray() : [];
                     }
 
-                    Push(new StackObject(StackObjectFlags.Text | flags | StackObjectFlags.Initialized, 0, text));
+                    Push(new ScriptStack(ScriptStackFlags.Text | flags | ScriptStackFlags.Initialized, 0, text));
                 }
 
                 count++;
             }
-            while (braced && TryToken(","u8));
+            while (braced && TryWord(","u8));
 
             if (braced)
             {
@@ -1437,7 +1437,7 @@ public sealed partial class Script
 
         for (; count < size; count++)
         {
-            Push(new StackObject(StackObjectFlags.Text | flags, 0));
+            Push(new ScriptStack(ScriptStackFlags.Text | flags, 0));
         }
 
         _objects[symbol].Count = size;
@@ -1478,38 +1478,38 @@ public sealed partial class Script
             ParseExpression();
             Emit(ScriptOpcode.EndStatement, IsAlienShooter2 ? _line + 1 : _line);
         }
-        while (TryToken(","u8));
+        while (TryWord(","u8));
     }
 
     [EngineRoutine(0x00422080)]
     private void ParseStatement(List<int>? breaks)
     {
-        bool once = TryToken("iff"u8);
-        if (once || TryToken("if"u8))
+        bool once = TryWord("iff"u8);
+        if (once || TryWord("if"u8))
         {
             ParseIf(once, breaks);
         }
-        else if (TryToken("while"u8))
+        else if (TryWord("while"u8))
         {
             ParseWhile();
         }
-        else if (TryToken("do"u8))
+        else if (TryWord("do"u8))
         {
             ParseDo();
         }
-        else if (TryToken("for"u8))
+        else if (TryWord("for"u8))
         {
             ParseFor();
         }
-        else if (TryToken("break"u8))
+        else if (TryWord("break"u8))
         {
             ParseBreak(breaks);
         }
-        else if (TryToken("goto"u8))
+        else if (TryWord("goto"u8))
         {
             ParseGoto();
         }
-        else if (TryToken("{"u8))
+        else if (TryWord("{"u8))
         {
             ParseBlock(breaks);
         }
@@ -1529,7 +1529,7 @@ public sealed partial class Script
         int skip = ReserveInt();
         ParseStatement(breaks);
         PatchHere(skip);
-        if (TryToken("else"u8))
+        if (TryWord("else"u8))
         {
             WriteCode(skip, ReadCode(skip) + 5);
             Emit(ScriptOpcode.Jump);
@@ -1632,7 +1632,7 @@ public sealed partial class Script
     private void ParseBlock(List<int>? breaks)
     {
         int saved = _objectCount;
-        while (!TryToken("}"u8))
+        while (!TryWord("}"u8))
         {
             ParseStatement(breaks);
         }
@@ -1667,25 +1667,25 @@ public sealed partial class Script
         {
             ParseUndef();
         }
-        else if (TryToken("#include"u8))
+        else if (TryWord("#include"u8))
         {
             ParseInclude();
         }
-        else if (TryToken("extern"u8))
+        else if (TryWord("extern"u8))
         {
             ParseExtern();
         }
-        else if (TryToken("static"u8))
+        else if (TryWord("static"u8))
         {
             ParseStaticDeclarators();
             ExpectToken(";"u8);
         }
-        else if (TryToken("int"u8))
+        else if (TryWord("int"u8))
         {
             ParseIntDeclarators(false);
             ExpectToken(";"u8);
         }
-        else if (TryToken("string"u8))
+        else if (TryWord("string"u8))
         {
             ParseStringDeclarators(false);
             ExpectToken(";"u8);
@@ -1766,16 +1766,16 @@ public sealed partial class Script
         ExpectToken("("u8);
         do
         {
-            if (TryToken("int"u8))
+            if (TryWord("int"u8))
             {
                 ParseIntDeclarator();
             }
-            else if (TryToken("string"u8))
+            else if (TryWord("string"u8))
             {
                 ParseStringDeclarator();
             }
         }
-        while (TryToken(","u8));
+        while (TryWord(","u8));
 
         ExpectToken(")"u8);
         int id = ParseConstInt();
@@ -1801,11 +1801,11 @@ public sealed partial class Script
         int parameter = 0;
         do
         {
-            if (TryToken("int"u8))
+            if (TryWord("int"u8))
             {
                 ParseIntDeclarator();
             }
-            else if (TryToken("string"u8))
+            else if (TryWord("string"u8))
             {
                 ParseStringDeclarator();
             }
@@ -1819,7 +1819,7 @@ public sealed partial class Script
 
             parameter++;
         }
-        while (TryToken(","u8));
+        while (TryWord(","u8));
 
         ExpectToken(")"u8);
         int parameterCount = _count - firstParameter;
@@ -1832,7 +1832,7 @@ public sealed partial class Script
         }
 
         int address = -1;
-        if (!IsAlienShooter2 || !TryToken(";"u8))
+        if (!IsAlienShooter2 || !TryWord(";"u8))
         {
             address = codeStart;
             if (prototype >= 0)
@@ -1841,7 +1841,7 @@ public sealed partial class Script
             }
 
             ExpectToken("{"u8);
-            while (!TryToken("}"u8))
+            while (!TryWord("}"u8))
             {
                 ParseStatement(null);
             }

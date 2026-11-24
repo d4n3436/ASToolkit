@@ -57,8 +57,6 @@ public sealed partial class Map
             return;
         }
 
-        DateTimeOffset now;
-        string path;
         switch ((MenuCommand)(message.WParam & CommandIdMask))
         {
             case MenuCommand.Load when Session.IsDebugMode:
@@ -68,9 +66,9 @@ public sealed partial class Map
                 Input.PostMessage(WindowMessageId.Close, 0, 0);
                 break;
             case MenuCommand.Screenshot:
-                now = Session.Time.GetLocalNow();
-                path = $"{ScreenshotFolder}{now.ToString(ScreenshotDateFormat, CultureInfo.InvariantCulture)} {now.ToString(ScreenshotTimeFormat, CultureInfo.InvariantCulture)}{ScreenshotExtension}";
-                path = GameLogger.ReplaceFirst(GameLogger.ReplaceFirst(GameLogger.ReplaceFirst(path, ':', 'h'), ':', 'm'), ':', 's');
+                var now = Session.Time.GetLocalNow();
+                string path = $"{ScreenshotFolder}{now.ToString(ScreenshotDateFormat, CultureInfo.InvariantCulture)} {now.ToString(ScreenshotTimeFormat, CultureInfo.InvariantCulture)}{ScreenshotExtension}";
+                path = MyError.ReplaceFirst(MyError.ReplaceFirst(MyError.ReplaceFirst(path, ':', 'h'), ':', 'm'), ':', 's');
                 Session.Graphics.SaveScreen(_fileSystem, path, new Rectangle(Point.Empty, System.Drawing.Size.Truncate(Session.ScreenSize)));
                 break;
         }
@@ -115,12 +113,12 @@ public sealed partial class Map
                 if (_flags.HasFlag(MapFlags.WindowActive))
                 {
                     Sound.Resume(WallTime);
-                    CursorSprite.LoadCursor(_fileSystem);
+                    CursorSprite.Enable(_fileSystem);
                 }
                 else
                 {
                     Sound.Pause(WallTime);
-                    CursorSprite.TurnCursorOff();
+                    CursorSprite.Disable();
                 }
 
                 break;
@@ -136,7 +134,7 @@ public sealed partial class Map
                 Input.PostQuitMessage();
                 break;
             case WindowMessageId.Paint:
-                Session.Logger.Write(PaintText);
+                Session.Error.Write(PaintText);
                 break;
             case WindowMessageId.SysCommand when (SystemCommand)message.WParam is SystemCommand.Size or SystemCommand.Move or SystemCommand.Maximize or SystemCommand.MonitorPower:
                 return Session.Graphics.Flags.HasFlag(GraphicsFlags.FullScreen);

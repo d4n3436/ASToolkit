@@ -68,7 +68,7 @@ public sealed class ReplayPlayback
     /// <summary>
     /// Gets the sound state of the map.
     /// </summary>
-    public SoundSystem Sound => _map.Sound;
+    public Sound Sound => _map.Sound;
 
     /// <summary>
     /// Gets the wall time of the map, in milliseconds.

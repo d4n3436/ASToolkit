@@ -12,14 +12,14 @@ public sealed class BuiltTerrain : Sprite
     /// Initializes a new instance of the <see cref="BuiltTerrain"/> class.
     /// </summary>
     /// <param name="number">The number of the sprite.</param>
-    /// <param name="definition">The definition of the sprite.</param>
+    /// <param name="vid">The shared data and frames of the sprite's object ID.</param>
     /// <param name="position">The position of the sprite.</param>
     /// <param name="army">The army of the sprite.</param>
     /// <param name="hitPoints">The hit points of the sprite.</param>
     /// <param name="map">The map the sprite belongs to.</param>
     /// <param name="direction">The direction of the sprite.</param>
-    public BuiltTerrain(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
-        : base(number, definition, position, army, hitPoints, map, direction)
+    public BuiltTerrain(int number, Vid vid, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
+        : base(number, vid, position, army, hitPoints, map, direction)
     {
     }
 
@@ -32,8 +32,8 @@ public sealed class BuiltTerrain : Sprite
     [EngineRoutine(0x0040eed0)]
     public override void Draw(Screen screen, Map map, Vector2 camera)
     {
-        var ground = map.HardwareGroundDefinition;
-        if (ground != map.Definitions.Empty && ground.Directions == 1)
+        var ground = map.HardwareGroundVid;
+        if (ground != map.Vids.Empty && ground.Directions == 1)
             return;
 
         base.Draw(screen, map, camera);

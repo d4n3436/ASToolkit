@@ -15,30 +15,30 @@ public sealed partial class Map
             return;
         }
 
-        // TODO: Port the extra definitions of a map's OBJ chunk (0x411510, 0x411440)
-        Session.Logger.Error(MapLogTag, LogError.Section, 0, ObjectSectionText);
+        // TODO: Port the extra VIDs of a map's OBJ chunk (0x411510, 0x411440)
+        Session.Error.Error(MapLogTag, LogError.Section, 0, ObjectSectionText);
     }
 
     private void RedrawObjectRecords()
     {
-        SpriteDefinition? first = null;
+        Vid? first = null;
         bool isAnyLoaded = false;
 
-        foreach (var definition in Definitions.LoadOrder)
+        foreach (var vid in Vids.LoadOrder)
         {
-            if (definition is HardwareSpriteDefinition hardware && !hardware.IsCopy)
+            if (vid is VidHardware hardware && !hardware.IsCopy)
             {
                 for (int surface = 0; surface < hardware.SurfaceCount; surface++)
                 {
-                    Session.Graphics.DrawLoadBar(this, isAnyLoaded && first is not null ? first : Definitions.Empty);
+                    Session.Graphics.DrawLoadBar(this, isAnyLoaded && first is not null ? first : Vids.Empty);
                 }
             }
 
             isAnyLoaded = true;
 
-            if (definition == Definitions.LoadingScreen)
+            if (vid == Vids.LoadingScreen)
             {
-                first = definition;
+                first = vid;
             }
 
             Session.Graphics.DrawLoadBar(this, first);

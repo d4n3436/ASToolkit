@@ -29,14 +29,14 @@ public sealed class Cannon : Sprite
     /// Initializes a new instance of the <see cref="Cannon"/> class.
     /// </summary>
     /// <param name="number">The number of the sprite.</param>
-    /// <param name="definition">The definition of the sprite.</param>
+    /// <param name="vid">The shared data and frames of the sprite's object ID.</param>
     /// <param name="position">The position of the sprite.</param>
     /// <param name="army">The army of the sprite.</param>
     /// <param name="hitPoints">The hit points of the sprite.</param>
     /// <param name="map">The map the sprite belongs to.</param>
     /// <param name="direction">The direction of the sprite.</param>
-    public Cannon(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
-        : base(number, definition, position, army, hitPoints, map, direction)
+    public Cannon(int number, Vid vid, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
+        : base(number, vid, position, army, hitPoints, map, direction)
     {
     }
 
@@ -90,10 +90,10 @@ public sealed class Cannon : Sprite
     [EngineRoutine(0x00448130)]
     internal override void MoveTact()
     {
-        if (!Definition.CanMove)
+        if (!Vid.CanMove)
             return;
 
-        ref readonly var gameObject = ref Definition.Object;
+        ref readonly var gameObject = ref Vid.Object;
         int elapsed = Map.FrameTime;
         var next = CalculateNewCoordinates(elapsed);
 
@@ -242,7 +242,7 @@ public sealed class Cannon : Sprite
             if (distance <= RocketCloseReach || distance >= RocketFarReach || remaining.Value < RocketTurnLimit)
             {
                 VerticalSpeed = Position.Z <= goal.Z || distance.IsExactlyZero() ? 0
-                    : Math.Max((goal.Z - Position.Z) / distance * RocketClimbRate, -Definition.ZSpeed);
+                    : Math.Max((goal.Z - Position.Z) / distance * RocketClimbRate, -Vid.ZSpeed);
             }
             else
             {
@@ -256,15 +256,15 @@ public sealed class Cannon : Sprite
         }
         else
         {
-            VerticalSpeed -= elapsed * Map.Definitions.Gravitation;
+            VerticalSpeed -= elapsed * Map.Vids.Gravitation;
         }
 
         var offset = Vector2.Abs(Position.AsVector2() - goal.AsVector2());
         bool isHit = false;
 
-        if (this is { HasReachedX: true, HasReachedY: true } || offset.X < Definition.Half.X + target.Definition.Half.X && offset.Y < Definition.Half.Y + target.Definition.Half.Y)
+        if (this is { HasReachedX: true, HasReachedY: true } || offset.X < Vid.Half.X + target.Vid.Half.X && offset.Y < Vid.Half.Y + target.Vid.Half.Y)
         {
-            isHit = goal.Z <= Definition.Object.Size.Z + Position.Z && Position.Z <= goal.Z + target.Definition.Object.Size.Z ||
+            isHit = goal.Z <= Vid.Object.Size.Z + Position.Z && Position.Z <= goal.Z + target.Vid.Object.Size.Z ||
                 Math.Min(previousHeight, Position.Z) <= goal.Z && goal.Z <= Math.Max(previousHeight, Position.Z);
         }
 

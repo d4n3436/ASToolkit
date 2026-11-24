@@ -20,11 +20,11 @@ public partial class Picture : IDisposable
     }
 
     [EngineRoutine(0x004125b0)]
-    internal Picture(string gameFolder, GameLogger? logger)
+    internal Picture(string gameFolder, MyError? error)
     {
-        Colors = new PictureChannel(gameFolder, logger);
-        Alpha = new PictureChannel(gameFolder, logger);
-        Depth = new PictureChannel(gameFolder, logger);
+        Colors = new PictureChannel(gameFolder, error);
+        Alpha = new PictureChannel(gameFolder, error);
+        Depth = new PictureChannel(gameFolder, error);
     }
 
     /// <summary>

@@ -18,11 +18,11 @@ public sealed partial class Map
     private static ReadOnlySpan<byte> CommandEnd => ";"u8;
 
     /// <summary>
-    /// Returns the definition a building is building.
+    /// Returns the shared data of the object ID a building is building.
     /// </summary>
     /// <param name="building">The building.</param>
-    /// <returns>The definition, or null when the building is idle.</returns>
-    public SpriteDefinition? GetPendingBuild(Sprite building) => building is Building pending && pending.PendingBuild.HasValue ? pending.PendingBuild.Value.Definition : null;
+    /// <returns>The shared data of the object ID, or null when the building is idle.</returns>
+    public Vid? GetPendingBuild(Sprite building) => building is Building pending && pending.PendingBuild.HasValue ? pending.PendingBuild.Value.Vid : null;
 
     /// <summary>
     /// Creates the goal sprite of an order on a point.
@@ -31,7 +31,7 @@ public sealed partial class Map
     /// <returns>The goal sprite.</returns>
     public Sprite ConstructGoal(Vector3 position)
     {
-        var goal = new Sprite(-1, Definitions.Empty, position, default, 0, map: this);
+        var goal = new Sprite(-1, Vids.Empty, position, default, 0, map: this);
         ConstructSprite(goal, default, null);
 
         return goal;

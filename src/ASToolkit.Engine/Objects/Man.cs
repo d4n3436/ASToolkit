@@ -28,14 +28,14 @@ public sealed class Man : Unit
     /// Initializes a new instance of the <see cref="Man"/> class.
     /// </summary>
     /// <param name="number">The number of the sprite.</param>
-    /// <param name="definition">The definition of the sprite.</param>
+    /// <param name="vid">The shared data and frames of the sprite's object ID.</param>
     /// <param name="position">The position of the sprite.</param>
     /// <param name="army">The army of the sprite.</param>
     /// <param name="hitPoints">The hit points of the sprite.</param>
     /// <param name="map">The map the sprite belongs to.</param>
     /// <param name="direction">The direction of the sprite.</param>
-    public Man(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
-        : base(number, definition, position, army, hitPoints, map, direction)
+    public Man(int number, Vid vid, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
+        : base(number, vid, position, army, hitPoints, map, direction)
     {
     }
 
@@ -85,7 +85,7 @@ public sealed class Man : Unit
 
                 if (HasGoal || Link is { HasGoal: true })
                 {
-                    AttackResult = AttackTact(Math.Max(Map.FrameTime, Definition.GetVisualFrameDuration(Animation)));
+                    AttackResult = AttackTact(Math.Max(Map.FrameTime, Vid.GetVisualFrameDuration(Animation)));
                 }
 
                 ChangeAnimation(!Speed.IsExactlyZero() ? SpriteAnimation.Go : SpriteAnimation.Stand);
@@ -118,7 +118,7 @@ public sealed class Man : Unit
         var direction = DirectionTo(goal) + (Speed < 0 ? Angle.HalfTurn : 0);
         RotateTact(RotateForGlide(direction), elapsed);
 
-        if (this is { HasReachedX: true, HasReachedY: true } || IsTouching(goal.Position.AsVector2(), goal.Definition.Half))
+        if (this is { HasReachedX: true, HasReachedY: true } || IsTouching(goal.Position.AsVector2(), goal.Vid.Half))
         {
             Stop();
         }
@@ -127,7 +127,7 @@ public sealed class Man : Unit
     [EngineRoutine(0x00455070)]
     internal bool ChangeWeapon(int slot)
     {
-        var held = Definition.LinkDefinition;
+        var held = Vid.LinkVid;
 
         if (held is null || (int)held.Id >= WeaponIdLimit)
             return false;
@@ -137,12 +137,12 @@ public sealed class Man : Unit
             slot = 0;
         }
 
-        if (!Items.Contains(Sprite.WeaponItemBase + slot) || Link is null || Link.Definition != held)
+        if (!Items.Contains(Sprite.WeaponItemBase + slot) || Link is null || Link.Vid != held)
             return false;
 
         SlotAmmo[WeaponSlot] = GetAmmo();
         Map.Action(Link, ActionCode.ChangeVid, slot + Sprite.WeaponIdBase);
-        Definition.LinkDefinition = Map.Definitions.Find((KnownObject)(slot + Sprite.WeaponIdBase)) ?? Map.Definitions.Empty;
+        Vid.LinkVid = Map.Vids.Find((KnownObject)(slot + Sprite.WeaponIdBase)) ?? Map.Vids.Empty;
         AddAmmo(SlotAmmo[slot] - GetAmmo());
 
         return true;
@@ -150,10 +150,10 @@ public sealed class Man : Unit
 
     private void CoorAttackCase(Vector2 point)
     {
-        var weapon = Definition.LinkDefinition;
+        var weapon = Vid.LinkVid;
         var torso = Link;
 
-        if (torso is null || torso.Definition != weapon || weapon.FightChild == 0 || weapon.Object.WeaponIndex == 0 || (uint)torso.Timer > ReloadTimerLimit ||
+        if (torso is null || torso.Vid != weapon || weapon.FightChild == 0 || weapon.Object.WeaponIndex == 0 || (uint)torso.Timer > ReloadTimerLimit ||
             torso.Animation == SpriteAnimation.Fight && torso.Frame <= torso.LastFrame)
             return;
 
@@ -163,17 +163,17 @@ public sealed class Man : Unit
 
     private void ChangeVidCase(int var1, int var2, int var3, Sprite? target)
     {
-        if ((int)Definition.Id < PlayerIdLimit)
+        if ((int)Vid.Id < PlayerIdLimit)
         {
             SlotAmmo[WeaponSlot] = base.Action((int)ActionCode.GetAmmo, 0, 0, 0, null);
         }
 
         base.Action((int)ActionCode.ChangeVid, var1, var2, var3, target);
 
-        if ((int)Definition.Id > PlayerIdLimit)
+        if ((int)Vid.Id > PlayerIdLimit)
         {
-            var armed = Definition.LinkDefinition;
-            int capacity = armed is not null && armed.FightChild != 0 && armed.Object.WeaponIndex != 0 ? armed.AmmoCapacity : Definition.AmmoCapacity;
+            var armed = Vid.LinkVid;
+            int capacity = armed is not null && armed.FightChild != 0 && armed.Object.WeaponIndex != 0 ? armed.AmmoCapacity : Vid.AmmoCapacity;
             base.Action((int)ActionCode.AddAmmo, capacity - base.Action((int)ActionCode.GetAmmo, 0, 0, 0, null), 0, 0, null);
 
             return;
@@ -186,8 +186,8 @@ public sealed class Man : Unit
 
         if (armorItem != 0)
         {
-            var position = new Vector3(Position.X, Position.Y, Position.Z + Definition.Object.LinkOffset.Z);
-            var armor = Map.AddSprite(Map.Definitions.Find((KnownObject)(armorItem - WornArmorItemBase + (int)KnownObject.WornGreenArmor))!, position, Direction);
+            var position = new Vector3(Position.X, Position.Y, Position.Z + Vid.Object.LinkOffset.Z);
+            var armor = Map.AddSprite(Map.Vids.Find((KnownObject)(armorItem - WornArmorItemBase + (int)KnownObject.WornGreenArmor))!, position, Direction);
             Map.AddLink(Link!, armor);
         }
 
@@ -221,17 +221,17 @@ public sealed class Man : Unit
     {
         if (damage > 0)
         {
-            if (Definition.Id != KnownObject.MannedCannon)
+            if (Vid.Id != KnownObject.MannedCannon)
             {
                 foreach (var link in EnumerateLinks())
                 {
-                    if (link.Definition.Id is KnownObject.InvulnerabilityEffect or KnownObject.RescueMedkitEffect)
+                    if (link.Vid.Id is KnownObject.InvulnerabilityEffect or KnownObject.RescueMedkitEffect)
                         return 0;
                 }
 
                 foreach (var link in EnumerateLinks())
                 {
-                    int armor = link.Definition.Id - KnownObject.WornGreenArmor;
+                    int armor = link.Vid.Id - KnownObject.WornGreenArmor;
 
                     if (armor is < 0 or >= WornArmorShareCount)
                         continue;
@@ -245,8 +245,8 @@ public sealed class Man : Unit
             if (damage >= Hp && Map.Action(this, ActionCode.HaveItem, (int)KnownObject.Medkit) != 0)
             {
                 Map.Action(this, ActionCode.DeleteItem, (int)KnownObject.Medkit);
-                Map.ChangeHp(this, Definition.GetArmyMaxHp((int)Army));
-                Map.AddSprite(Map.Definitions.Find(KnownObject.RescueMedkitEffect)!, Position + Vector3.UnitZ * RescueEffectHeight, default, this);
+                Map.ChangeHp(this, Vid.GetArmyMaxHp((int)Army));
+                Map.AddSprite(Map.Vids.Find(KnownObject.RescueMedkitEffect)!, Position + Vector3.UnitZ * RescueEffectHeight, default, this);
 
                 return 0;
             }
@@ -257,7 +257,7 @@ public sealed class Man : Unit
 
     private bool IsInsideMap(Vector2 point) => point is { X: >= 0, Y: >= 0 } && point.X < Map.Size.Width && point.Y < Map.Size.Height;
 
-    private Vector3 GetCursorPoint(Vector2 cursor, SpriteDefinition weapon)
+    private Vector3 GetCursorPoint(Vector2 cursor, Vid weapon)
     {
         var screen = Map.Session.Graphics.Screen;
         var player = Position;

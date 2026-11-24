@@ -69,7 +69,7 @@ public class ReferenceCountTests
 
         for (int army = 0; army < PlayerSlots; army++)
         {
-            Hold(expected, map.GetFlagman(army));
+            Hold(expected, map.Flagman(army));
         }
 
         Hold(expected, map.CursorSprite);
@@ -81,7 +81,7 @@ public class ReferenceCountTests
 
         foreach ((var sprite, int count) in expected)
         {
-            Assert.True(sprite.ReferenceCount == count, $"time {map.Time}: {sprite.Definition.Id} #{sprite.Number} holds {sprite.ReferenceCount} references, expected {count}");
+            Assert.True(sprite.ReferenceCount == count, $"time {map.Time}: {sprite.Vid.Id} #{sprite.Number} holds {sprite.ReferenceCount} references, expected {count}");
         }
     }
 

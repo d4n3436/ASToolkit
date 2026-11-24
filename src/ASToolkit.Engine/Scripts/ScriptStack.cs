@@ -7,17 +7,17 @@ namespace ASToolkit.Engine.Scripts;
 /// <summary>
 /// Represents a value of a script, held in a variable or on the stack.
 /// </summary>
-public struct StackObject
+public struct ScriptStack
 {
     private const byte TextMask = 0x17;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="StackObject"/> structure as a script value.
+    /// Initializes a new instance of the <see cref="ScriptStack"/> structure as a script value.
     /// </summary>
     /// <param name="flags">The type flags of the value.</param>
     /// <param name="value">The number.</param>
     /// <param name="text">The text.</param>
-    public StackObject(StackObjectFlags flags, int value, ReadOnlyMemory<byte> text = default)
+    public ScriptStack(ScriptStackFlags flags, int value, ReadOnlyMemory<byte> text = default)
     {
         Flags = flags;
         Value = value;
@@ -27,7 +27,7 @@ public struct StackObject
     /// <summary>
     /// Gets or sets the type flags of the value.
     /// </summary>
-    public StackObjectFlags Flags { get; set; }
+    public ScriptStackFlags Flags { get; set; }
 
     /// <summary>
     /// Gets or sets the number of the value.
@@ -44,14 +44,14 @@ public struct StackObject
     /// </summary>
     /// <param name="value">The number.</param>
     /// <returns>The value.</returns>
-    public static StackObject FromNumber(int value) => new(StackObjectFlags.Number, value);
+    public static ScriptStack FromNumber(int value) => new(ScriptStackFlags.Number, value);
 
     /// <summary>
     /// Creates a text value.
     /// </summary>
     /// <param name="text">The text.</param>
     /// <returns>The value.</returns>
-    public static StackObject FromText(ReadOnlyMemory<byte> text) => new(StackObjectFlags.Text, 0, text);
+    public static ScriptStack FromText(ReadOnlyMemory<byte> text) => new(ScriptStackFlags.Text, 0, text);
 
     /// <summary>
     /// Creates a sprite handle value.
@@ -59,8 +59,8 @@ public struct StackObject
     /// <param name="handle">The handle, or 0 if there isn't one.</param>
     /// <returns>The value.</returns>
     [EngineRoutine(0x00439dd0)]
-    public static StackObject FromHandle(int handle) =>
-        new(handle == 0 ? StackObjectFlags.Number : StackObjectFlags.Number | StackObjectFlags.Sprite, handle);
+    public static ScriptStack FromHandle(int handle) =>
+        new(handle == 0 ? ScriptStackFlags.Number : ScriptStackFlags.Number | ScriptStackFlags.Sprite, handle);
 
     /// <summary>
     /// Reads a text as a hexadecimal number when its second character is <c>x</c> (<c>sscanf("%i")</c>), and as a decimal number otherwise (<c>atoi</c>).
@@ -90,14 +90,14 @@ public struct StackObject
     /// </summary>
     /// <returns>The text.</returns>
     [EngineRoutine(0x00439e30)]
-    public readonly ReadOnlyMemory<byte> GetText() => Flags.HasFlag(StackObjectFlags.Number) ? FormatNumber(Value) : Text;
+    public readonly ReadOnlyMemory<byte> GetText() => Flags.HasFlag(ScriptStackFlags.Number) ? FormatNumber(Value) : Text;
 
     /// <summary>
     /// Returns the value as a number, parsing the text when the value is text.
     /// </summary>
     /// <returns>The number.</returns>
     [EngineRoutine(0x00439df0)]
-    public readonly int GetValue() => Flags.HasFlag(StackObjectFlags.Text) ? ParseNumber(Text.Span) : Value;
+    public readonly int GetValue() => Flags.HasFlag(ScriptStackFlags.Text) ? ParseNumber(Text.Span) : Value;
 
     /// <summary>
     /// Determines whether the value is nonzero as a number.
@@ -114,10 +114,10 @@ public struct StackObject
     public readonly void Write(Stream stream, Span<byte> number)
     {
         stream.WriteByte((byte)Flags);
-        if (!Flags.HasFlag(StackObjectFlags.Initialized))
+        if (!Flags.HasFlag(ScriptStackFlags.Initialized))
             return;
 
-        if (!Flags.HasFlag(StackObjectFlags.Text))
+        if (!Flags.HasFlag(ScriptStackFlags.Text))
         {
             BinaryPrimitives.WriteInt32LittleEndian(number, Value);
             stream.Write(number);
@@ -140,11 +140,11 @@ public struct StackObject
     [EngineRoutine(0x004244b0)]
     public void Read(ReadOnlyMemory<byte> data, ref int offset)
     {
-        Flags = (StackObjectFlags)data.Span[offset++];
-        if (!Flags.HasFlag(StackObjectFlags.Initialized))
+        Flags = (ScriptStackFlags)data.Span[offset++];
+        if (!Flags.HasFlag(ScriptStackFlags.Initialized))
             return;
 
-        if (!Flags.HasFlag(StackObjectFlags.Text))
+        if (!Flags.HasFlag(ScriptStackFlags.Text))
         {
             Value = BinaryPrimitives.ReadInt32LittleEndian(data.Span[offset..]);
             offset += sizeof(int);

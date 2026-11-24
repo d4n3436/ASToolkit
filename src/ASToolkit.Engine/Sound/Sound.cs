@@ -11,7 +11,7 @@ namespace ASToolkit.Engine;
 /// <summary>
 /// Represents the sound effects and music of a game session.
 /// </summary>
-public sealed class SoundSystem
+public sealed class Sound
 {
     /// <summary>
     /// Represents the volume of a sound heard at full loudness, in hundredths of a decibel.
@@ -69,14 +69,14 @@ public sealed class SoundSystem
     private int _fade;
     private int _loop;
     private ReadOnlyMemory<byte> _trackName;
-    private MusicStream? _music;
+    private OggMusic? _music;
     private uint _fadeStartedAt;
     private int _deviceState = DeviceReleased;
     private int _loadedCount;
 
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="SoundSystem"/> class and loads the samples of every sound.
+    /// Initializes a new instance of the <see cref="Sound"/> class and loads the samples of every sound.
     /// </summary>
     /// <param name="records">The sounds of the object table.</param>
     /// <param name="fileSystem">The file system that holds the samples and tracks.</param>
@@ -84,16 +84,16 @@ public sealed class SoundSystem
     /// <param name="isDisabled"><see langword="true"/> to load nothing and ignore every request; otherwise, <see langword="false"/>.</param>
     /// <param name="isHighQuality"><see langword="true"/> for high-quality sound; otherwise, <see langword="false"/>.</param>
     /// <param name="window">The window handle to notify when a track ends.</param>
-    public SoundSystem(IReadOnlyList<SfxRecord> records, IGameFileSystem fileSystem, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false, nint window = 0)
+    public Sound(IReadOnlyList<SfxRecord> records, IGameFileSystem fileSystem, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false, nint window = 0)
         : this(records, fileSystem, null, device, isDisabled, isHighQuality, window)
     {
     }
 
     [EngineRoutine(0x0041cba0)]
-    internal SoundSystem(IReadOnlyList<SfxRecord> records, IGameFileSystem fileSystem, GameLogger? logger, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false, nint window = 0)
+    internal Sound(IReadOnlyList<SfxRecord> records, IGameFileSystem fileSystem, MyError? error, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false, nint window = 0)
     {
         _window = window;
-        Logger = logger;
+        Error = error;
         IsHighQuality = isHighQuality;
         _fileSystem = fileSystem;
         _device = device;
@@ -127,7 +127,7 @@ public sealed class SoundSystem
     /// </summary>
     public int BufferCount => _buffers.Length + VoiceCount;
 
-    internal GameLogger? Logger { get; set; }
+    internal MyError? Error { get; set; }
 
     [EngineRoutine(0x0041d020)]
     internal int PlayingCount
@@ -447,7 +447,7 @@ public sealed class SoundSystem
     /// Releases the sound device.
     /// </summary>
     [EngineRoutine(0x0041d050)]
-    public void CloseWaveOut()
+    public void DisableSound()
     {
         if (_deviceState != DeviceReady)
             return;
@@ -459,10 +459,10 @@ public sealed class SoundSystem
     /// Stops the music, releases the sound device and restores the volume of the auxiliary and wave output devices.
     /// </summary>
     [EngineRoutine(0x0041d080)]
-    public void CloseSound()
+    public void Disable()
     {
         DestroyMusic();
-        CloseWaveOut();
+        DisableSound();
     }
 
     /// <summary>
@@ -473,7 +473,7 @@ public sealed class SoundSystem
     public void Pause(uint wallTime)
     {
         PauseMusic(wallTime);
-        PauseVoices(wallTime);
+        PauseSound(wallTime);
     }
 
     /// <summary>
@@ -484,7 +484,7 @@ public sealed class SoundSystem
     public void Resume(uint wallTime)
     {
         ResumeMusic(wallTime);
-        ResumeVoices(wallTime);
+        ResumeSound(wallTime);
     }
 
     internal bool IsValid(int id) => id >= 0 && id < _variants.Length && _variants[id] > 0;
@@ -514,7 +514,7 @@ public sealed class SoundSystem
 
         if (_records.Count > 0)
         {
-            Logger?.Error("SOUND"u8, LogError.Invalid, 0);
+            Error?.Error("SOUND"u8, LogError.Invalid, 0);
         }
 
         return true;
@@ -533,7 +533,7 @@ public sealed class SoundSystem
             _variants[id] = LoadSfx(id, records[id], _buffers.AsSpan(id * SfxRecord.MaxSamples, SfxRecord.MaxSamples));
         }
 
-        Logger?.Write($"LoadSFX::No   ={records.Count,-15}   sizeof(SFX)   ={SfxRecordSize,-5}    load time     ={Environment.TickCount - start}ms Quality={(IsHighQuality ? 1 : 0)}");
+        Error?.Write($"LoadSFX::No   ={records.Count,-15}   sizeof(SFX)   ={SfxRecordSize,-5}    load time     ={Environment.TickCount - start}ms Quality={(IsHighQuality ? 1 : 0)}");
     }
 
     [EngineRoutine(0x0041cd30)]
@@ -547,7 +547,7 @@ public sealed class SoundSystem
         if (result < 0)
         {
             _deviceState = DeviceCreateFailed;
-            Logger?.Error("SOUND"u8, LogError.Create, result, "DirectSound"u8);
+            Error?.Error("SOUND"u8, LogError.Create, result, "DirectSound"u8);
 
             return;
         }
@@ -559,7 +559,7 @@ public sealed class SoundSystem
             if (result < 0)
             {
                 IsHighQuality = false;
-                Logger?.Error("SOUND"u8, LogError.Set, result, "PriorityLevel"u8);
+                Error?.Error("SOUND"u8, LogError.Set, result, "PriorityLevel"u8);
             }
         }
 
@@ -572,7 +572,7 @@ public sealed class SoundSystem
         {
             _device?.ReleaseDevice();
             _deviceState = DeviceLevelFailed;
-            Logger?.Error("SOUND"u8, LogError.Set, result, "CooperativeLevel"u8);
+            Error?.Error("SOUND"u8, LogError.Set, result, "CooperativeLevel"u8);
 
             return;
         }
@@ -581,7 +581,7 @@ public sealed class SoundSystem
 
         if (result < 0)
         {
-            Logger?.Error("SOUND"u8, LogError.Create, result, "Primary sound buffer"u8);
+            Error?.Error("SOUND"u8, LogError.Create, result, "Primary sound buffer"u8);
         }
         else
         {
@@ -589,7 +589,7 @@ public sealed class SoundSystem
 
             if (result < 0)
             {
-                Logger?.Error("SOUND"u8, LogError.Invalid, result, "unable play Primary"u8);
+                Error?.Error("SOUND"u8, LogError.Invalid, result, "unable play Primary"u8);
             }
 
             if (IsHighQuality)
@@ -598,7 +598,7 @@ public sealed class SoundSystem
 
                 if (result < 0)
                 {
-                    Logger?.Error("SOUND"u8, LogError.Set, result, "format primary buffer"u8);
+                    Error?.Error("SOUND"u8, LogError.Set, result, "format primary buffer"u8);
                 }
             }
 
@@ -634,7 +634,7 @@ public sealed class SoundSystem
 
         if (result != 0)
         {
-            Logger?.Error("SOUND"u8, LogError.Text, result);
+            Error?.Error("SOUND"u8, LogError.Text, result);
         }
 
         _variants.AsSpan().Fill(NoSound);
@@ -660,7 +660,7 @@ public sealed class SoundSystem
     }
 
     [EngineRoutine(0x0041dd10)]
-    private void PauseVoices(uint wallTime)
+    private void PauseSound(uint wallTime)
     {
         if (_deviceState != DeviceReady)
             return;
@@ -679,7 +679,7 @@ public sealed class SoundSystem
     }
 
     [EngineRoutine(0x0041dd50)]
-    private void ResumeVoices(uint wallTime)
+    private void ResumeSound(uint wallTime)
     {
         if (_deviceState != DeviceReady)
             return;
@@ -701,8 +701,8 @@ public sealed class SoundSystem
 
         if (_device?.PlayVoice(index, isLooping) ?? false)
         {
-            Logger?.Write("!!!ERROR!!! SFXBUFFER::buffer is lost"u8);
-            RestoreBuffers();
+            Error?.Write("!!!ERROR!!! SFXBUFFER::buffer is lost"u8);
+            ReloadBuffers();
         }
         else
         {
@@ -711,7 +711,7 @@ public sealed class SoundSystem
     }
 
     [EngineRoutine(0x0041e190)]
-    private void RestoreBuffers()
+    private void ReloadBuffers()
     {
         for (int id = 0; id < _records.Count; id++)
         {
@@ -748,7 +748,7 @@ public sealed class SoundSystem
 
                         if (count < 0)
                         {
-                            Logger?.Error("SFX"u8, LogError.Text, count, "decode ogg"u8);
+                            Error?.Error("SFX"u8, LogError.Text, count, "decode ogg"u8);
                         }
                         else
                         {
@@ -787,19 +787,19 @@ public sealed class SoundSystem
         if (_deviceState != DeviceReady)
             return default;
 
-        if (resource.Open(_fileSystem, Logger, path, Resource.AnyTag) != 0)
+        if (resource.Open(_fileSystem, Error, path, Resource.AnyTag) != 0)
             return default;
 
-        if (resource.FindChunk("fmt "u8) != 0)
+        if (resource.GoBegin("fmt "u8) != 0)
         {
-            Logger?.Write($"!!!ERROR!!!SFX:'{GameLogger.Decode(path)}' 'fmt ' not found");
+            Error?.Write($"!!!ERROR!!!SFX:'{MyError.Decode(path)}' 'fmt ' not found");
 
             return default;
         }
 
         if (resource.ChunkSize < FormatMinimumSize)
         {
-            Logger?.Write($"!!!ERROR!!!SFX:'{GameLogger.Decode(path)}' incorrect size {resource.ChunkSize}");
+            Error?.Write($"!!!ERROR!!!SFX:'{MyError.Decode(path)}' incorrect size {resource.ChunkSize}");
 
             return default;
         }
@@ -808,9 +808,9 @@ public sealed class SoundSystem
         resource.Read(header);
         var format = MemoryMarshal.Read<WaveFormat>(header);
 
-        if (resource.FindNextChunk("data"u8) != 0 && resource.FindChunk("data"u8) != 0)
+        if (resource.GoNext("data"u8) != 0 && resource.GoBegin("data"u8) != 0)
         {
-            Logger?.Write($"!!!ERROR!!!SFX:'{GameLogger.Decode(path)}' 'data' not found");
+            Error?.Write($"!!!ERROR!!!SFX:'{MyError.Decode(path)}' 'data' not found");
 
             return default;
         }
@@ -819,7 +819,7 @@ public sealed class SoundSystem
 
         if (result < 0)
         {
-            Logger?.Error("SOUND"u8, LogError.Create, result, "SoundBuffer"u8);
+            Error?.Error("SOUND"u8, LogError.Create, result, "SoundBuffer"u8);
 
             return default;
         }
@@ -839,7 +839,7 @@ public sealed class SoundSystem
 
         if (path.IsEmpty || !_fileSystem.TryRead(Encoding.ASCII.GetString(path), out file))
         {
-            Logger?.Error("SOUND"u8, LogError.Open, 0, path);
+            Error?.Error("SOUND"u8, LogError.Open, 0, path);
 
             return default;
         }
@@ -848,7 +848,7 @@ public sealed class SoundSystem
 
         if (track.SampleRate <= 0 || track.Channels <= 0)
         {
-            Logger?.Error("SOUND"u8, LogError.Invalid, 0, path);
+            Error?.Error("SOUND"u8, LogError.Invalid, 0, path);
 
             return default;
         }
@@ -865,7 +865,7 @@ public sealed class SoundSystem
 
         if (result < 0)
         {
-            Logger?.Error("SOUND"u8, LogError.Create, result, "SoundBuffer for ogg"u8);
+            Error?.Error("SOUND"u8, LogError.Create, result, "SoundBuffer for ogg"u8);
 
             return default;
         }
@@ -970,8 +970,8 @@ public sealed class SoundSystem
 
             if (_device?.PlayVoice(index, isLooping) ?? false)
             {
-                Logger?.Error($"SFXBUFFER[{voice.Id}]", LogError.Text, 0, "buffer is lost"u8);
-                RestoreBuffers();
+                Error?.Error($"SFXBUFFER[{voice.Id}]", LogError.Text, 0, "buffer is lost"u8);
+                ReloadBuffers();
             }
             else
             {
@@ -1082,7 +1082,7 @@ public sealed class SoundSystem
     }
 
     [EngineRoutine(0x0041c310)]
-    private MusicStream CreateMusic(ReadOnlyMemory<byte> name)
+    private OggMusic CreateMusic(ReadOnlyMemory<byte> name)
     {
         // TODO: Port the DirectShow music class for tracks that are not ogg
         string path = Encoding.ASCII.GetString(name.Span);
@@ -1098,7 +1098,7 @@ public sealed class SoundSystem
             _trackFormats[path] = format;
         }
 
-        return new MusicStream(name, path, format, _device, Logger);
+        return new OggMusic(name, path, format, _device, Error);
     }
 
     [EngineRoutine(0x0041d0a0)]
@@ -1112,7 +1112,7 @@ public sealed class SoundSystem
         PlayToPosition = NoSound;
     }
 
-    private void UpdateMusic(MusicStream music, GameRandom random, uint wallTime)
+    private void UpdateMusic(OggMusic music, GameRandom random, uint wallTime)
     {
         music.Update(wallTime);
         bool isNextTrack;

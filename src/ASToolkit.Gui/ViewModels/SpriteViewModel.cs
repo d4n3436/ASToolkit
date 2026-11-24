@@ -70,12 +70,12 @@ public partial class SpriteViewModel : ViewModelBase
     /// <param name="sprite">The sprite.</param>
     public void Show(Map map, ObjectTable objects, Sprite sprite)
     {
-        var definition = sprite.Definition;
-        ref readonly var obj = ref definition.Object;
+        var vid = sprite.Vid;
+        ref readonly var obj = ref vid.Object;
         _map = map;
         _sprite = sprite;
-        Title = $"{(int)definition.Id}  {objects.GetName(definition.Id)}\n{objects.GetPath(definition.Id)}  class {obj.SpriteClass}  flags 0x{(int)obj.Properties:x}\n" +
-                $"{definition.FileFrameCount} frames  {definition.FrameSize.Width}x{definition.FrameSize.Height}  {definition.SpriteSpeed} ms";
+        Title = $"{(int)vid.Id}  {objects.GetName(vid.Id)}\n{objects.GetPath(vid.Id)}  class {obj.SpriteClass}  flags 0x{(int)obj.Properties:x}\n" +
+                $"{vid.FileFrameCount} frames  {vid.FrameSize.Width}x{vid.FrameSize.Height}  {vid.SpriteSpeed} ms";
         States.Clear();
         for (int state = 0; state < GameObject.StateCount; state++)
         {
@@ -115,7 +115,7 @@ public partial class SpriteViewModel : ViewModelBase
             return;
         }
 
-        int duration = Math.Max(1, _sprite.Definition.Object.GetFrameDuration(SelectedState.State, _sprite.Definition.SpriteSpeed));
+        int duration = Math.Max(1, _sprite.Vid.Object.GetFrameDuration(SelectedState.State, _sprite.Vid.SpriteSpeed));
         if (_clock.ElapsedMilliseconds >= duration)
         {
             _clock.Restart();
@@ -136,9 +136,9 @@ public partial class SpriteViewModel : ViewModelBase
             return;
         }
 
-        var definition = sprite.Definition;
-        int frame = definition.Object.GetStateStart(state.State) + Direction * state.FrameCount + _step % state.FrameCount;
-        if (frame >= definition.FileFrameCount)
+        var vid = sprite.Vid;
+        int frame = vid.Object.GetStateStart(state.State) + Direction * state.FrameCount + _step % state.FrameCount;
+        if (frame >= vid.FileFrameCount)
         {
             ClearFrame();
             Info = $"Frame {frame} is out of range";
@@ -149,7 +149,7 @@ public partial class SpriteViewModel : ViewModelBase
         if (_isStale)
             return;
 
-        var size = new System.Drawing.Size(Math.Max(1, definition.FrameSize.Width * 2), Math.Max(1, definition.FrameSize.Height * 2));
+        var size = new System.Drawing.Size(Math.Max(1, vid.FrameSize.Width * 2), Math.Max(1, vid.FrameSize.Height * 2));
         var screen = new Screen(size, true);
         var pixels = new Bgra32[size.Width * size.Height];
         try
@@ -158,7 +158,7 @@ public partial class SpriteViewModel : ViewModelBase
             var center = sprite.Position.ToDrawPosition();
             Graphics.Clear(screen, Backdrop);
             sprite.Frame = frame;
-            definition.Draw(screen, map, sprite, center - new Vector2(size.Width, size.Height) * 0.5f);
+            vid.Draw(screen, map, sprite, center - new Vector2(size.Width, size.Height) * 0.5f);
             sprite.Frame = saved;
         }
         finally
@@ -170,7 +170,7 @@ public partial class SpriteViewModel : ViewModelBase
         using var image = Image.LoadPixelData(MapImage.PngConfiguration, pixels, size.Width, size.Height);
         using var opaque = image.CloneAs<Rgb24>();
         SetFrame(BitmapConversion.ToBitmap(opaque), size);
-        Info = $"Frame {frame} of {definition.FileFrameCount}";
+        Info = $"Frame {frame} of {vid.FileFrameCount}";
     }
 
     private void ClearFrame()

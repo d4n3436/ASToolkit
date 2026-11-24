@@ -21,17 +21,17 @@ public sealed partial class Map
         (InputFlags.Second, ScriptInput.Second)
     ];
 
-    private SpriteDefinition? _hardwareGround;
+    private Vid? _hardwareGround;
 
     /// <summary>
-    /// Gets the definition of the hardware ground, or the empty definition if there isn't one.
+    /// Gets the shared data and frames of the hardware ground, or shared data without frames if there isn't a hardware ground.
     /// </summary>
-    public SpriteDefinition HardwareGroundDefinition => _hardwareGround ?? Definitions.Empty;
+    public Vid HardwareGroundVid => _hardwareGround ?? Vids.Empty;
 
     /// <summary>
     /// Gets a value indicating whether the map has a hardware ground.
     /// </summary>
-    public bool HasHardwareGround => HardwareGroundDefinition != Definitions.Empty;
+    public bool HasHardwareGround => HardwareGroundVid != Vids.Empty;
 
     /// <summary>
     /// Gets a value indicating whether the level script declared the mission complete.
@@ -53,7 +53,7 @@ public sealed partial class Map
     /// </summary>
     public Gamma Gamma => Session.Graphics.Gamma;
 
-    internal static bool IsBaked(SpriteDefinition definition) => definition.Class == SpriteClass.BuiltTerrain && !SpriteCollector.IsHashed(definition);
+    internal static bool IsBaked(Vid vid) => vid.Class == SpriteClass.BuiltTerrain && !SpriteCollector.IsHashed(vid);
 
     [EngineRoutine(0x0040edf0)]
     private Sprite ConstructBuiltTerrain(BuiltTerrain sprite, Angle direction, Sprite? parent)
@@ -65,9 +65,9 @@ public sealed partial class Map
             CreateEmptyHardwareGround();
         }
 
-        HardwareGroundDefinition.AddVidToTextures(this, sprite);
+        HardwareGroundVid.AddVidToTextures(this, sprite);
 
-        if (IsBaked(sprite.Definition))
+        if (IsBaked(sprite.Vid))
         {
             sprite.ChangeAnimation(SpriteAnimation.Death);
         }
@@ -78,11 +78,11 @@ public sealed partial class Map
     [EngineRoutine(0x00412a40)]
     private void CreateEmptyHardwareGround()
     {
-        var definition = new HardwareSpriteDefinition(SpriteCatalog.HardwareGroundId, System.Drawing.Size.Truncate(Size), Definitions.FirstWeapon, Session.Logger);
-        Definitions.SetDefinition(SpriteCatalog.HardwareGroundId, definition);
-        _hardwareGround = definition;
-        AddSprite(definition, new Vector3(Size.ToVector2() * HalfShare, 0), default);
-        Session.Logger.Write("Create Empty Hardware Ground"u8);
+        var vid = new VidHardware(SpriteCatalog.HardwareGroundId, System.Drawing.Size.Truncate(Size), Vids.FirstWeapon, Session.Error);
+        Vids.SetVid(SpriteCatalog.HardwareGroundId, vid);
+        _hardwareGround = vid;
+        AddSprite(vid, new Vector3(Size.ToVector2() * HalfShare, 0), default);
+        Session.Error.Write("Create Empty Hardware Ground"u8);
     }
 
     private ScriptInput GetInputState()

@@ -17,7 +17,7 @@ public static class MapExtensions
         /// <summary>
         /// Gets a value indicating whether the sprite is a placed object, such as a wall, a crate or a generator, and isn't a mobile unit.
         /// </summary>
-        public bool IsBody => sprite.Definition.Class is not (SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man) || sprite.Definition.Id == KnownObject.Crate;
+        public bool IsBody => sprite.Vid.Class is not (SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man) || sprite.Vid.Id == KnownObject.Crate;
     }
 
     extension(Map map)
@@ -36,7 +36,7 @@ public static class MapExtensions
         /// <summary>
         /// Gets the bodies in the update lists that can take damage.
         /// </summary>
-        public IEnumerable<Sprite> Bodies => map.UpdatedSprites.Where(sprite => sprite.IsBody && sprite.Definition.MaxHp > 0);
+        public IEnumerable<Sprite> Bodies => map.UpdatedSprites.Where(sprite => sprite.IsBody && sprite.Vid.MaxHp > 0);
 
         /// <summary>
         /// Gets the scripted sprites in the update lists.
@@ -149,7 +149,7 @@ public static class MapExtensions
         {
             foreach (var sprite in map.Monsters)
             {
-                if (sprite.Definition.Id == id && sprite.IsAlive)
+                if (sprite.Vid.Id == id && sprite.IsAlive)
                     return true;
             }
 

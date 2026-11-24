@@ -86,9 +86,9 @@ public struct SpriteView : IEnumerable<Sprite>, IEnumerator<Sprite>
         while (++_index < _map.Collector.Listed.Length)
         {
             var sprite = _map.Collector.Listed[_index];
-            var spriteClass = sprite.Definition.Object.SpriteClass;
+            var spriteClass = sprite.Vid.Object.SpriteClass;
 
-            if (!sprite.Definition.Id.IsScripted && spriteClass != SpriteClass.Man && spriteClass != SpriteClass.Building && sprite.Owner?.Definition.Object.SpriteClass != SpriteClass.Man)
+            if (!sprite.Vid.Id.IsScripted && spriteClass != SpriteClass.Man && spriteClass != SpriteClass.Building && sprite.Owner?.Vid.Object.SpriteClass != SpriteClass.Man)
             {
                 Current = sprite;
 
@@ -101,7 +101,7 @@ public struct SpriteView : IEnumerable<Sprite>, IEnumerator<Sprite>
 
     private readonly bool Matches(Sprite sprite) => _kind switch
     {
-        SpriteViewKind.Scripted => sprite.Definition.Id.IsScripted,
+        SpriteViewKind.Scripted => sprite.Vid.Id.IsScripted,
         _ => true
     };
 }

@@ -41,7 +41,7 @@ public sealed partial class Map
         {
             for (int index = Collector.Listed.Length - 1; index >= 0; index = Math.Min(Collector.Listed.Length, index) - 1)
             {
-                Collector.Listed[index].DrawGoalLines();
+                Collector.Listed[index].DrawGoalLine();
             }
         }
     }
@@ -94,12 +94,12 @@ public sealed partial class Map
 
         if (_flags.HasFlag(MapFlags.DrawFlagman))
         {
-            var flagman = GetFlagman(ControlledPlayer);
+            var flagman = Flagman(ControlledPlayer);
             var hovered = _players[ControlledPlayer].Hovered;
             var drawn = flagman ?? hovered ?? MenuCurrent;
             if (drawn is not null)
             {
-                drawn.DrawInfo();
+                drawn.DrawSecondaryInfo();
             }
         }
 
@@ -141,12 +141,12 @@ public sealed partial class Map
     [EngineRoutine(0x004455c0)]
     private void DrawSpriteBox(Sprite sprite)
     {
-        var definition = sprite.Definition;
-        var gameObject = definition.Object;
+        var vid = sprite.Vid;
+        var gameObject = vid.Object;
 
-        if (definition.Class == SpriteClass.Region)
+        if (vid.Class == SpriteClass.Region)
         {
-            sprite.DrawInfo();
+            sprite.DrawSecondaryInfo();
 
             return;
         }
@@ -158,7 +158,7 @@ public sealed partial class Map
         {
             color = Black;
         }
-        else if (definition.Layer == ObjectLayer.Alpha)
+        else if (vid.Layer == ObjectLayer.Alpha)
         {
             color = White;
         }
@@ -182,7 +182,7 @@ public sealed partial class Map
         {
             color = Gray;
         }
-        else if (definition.Class == SpriteClass.Frame)
+        else if (vid.Class == SpriteClass.Frame)
         {
             color = White;
         }
@@ -192,10 +192,10 @@ public sealed partial class Map
         }
 
         var position = sprite.Position;
-        float bottom = position.Y - position.Z + definition.Half.Y - Camera.Y;
-        float right = definition.Half.X + position.X - Camera.X;
-        float top = position.Y - position.Z - definition.Half.Y - Camera.Y;
-        float left = position.X - definition.Half.X - Camera.X;
+        float bottom = position.Y - position.Z + vid.Half.Y - Camera.Y;
+        float right = vid.Half.X + position.X - Camera.X;
+        float top = position.Y - position.Z - vid.Half.Y - Camera.Y;
+        float left = position.X - vid.Half.X - Camera.X;
         Session.Graphics.DrawRectangle(this, new Vector2(left, top), new Vector2(right, bottom), color);
 
         if ((type & (OldSpriteType.Object | OldSpriteType.Unit)) != 0)
@@ -206,7 +206,7 @@ public sealed partial class Map
             Session.Graphics.DrawLine(this, new Vector2(x, roof), new Vector2(x, feet), Blue);
         }
 
-        Session.Graphics.DrawFormattedText(new Vector2(position.X - Camera.X + TextLineOffset, position.Y - position.Z - Camera.Y), $"{(int)definition.Id}");
+        Session.Graphics.DrawFormattedText(new Vector2(position.X - Camera.X + TextLineOffset, position.Y - position.Z - Camera.Y), $"{(int)vid.Id}");
     }
 
     private void DrawGroups()

@@ -8,9 +8,9 @@ using ASToolkit.Formats;
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents the definition of a sprite whose file has the hardware layer flag.
+/// Represents the shared data and frames of an object ID whose sprite file has the hardware layer flag.
 /// </summary>
-public sealed class HardwareLayerSpriteDefinition : SpriteDefinition
+public sealed class VidHardwareLayer : Vid
 {
     private const float TexelCenter = 0.5f;
     private const int ByteBits = 8;
@@ -20,14 +20,14 @@ public sealed class HardwareLayerSpriteDefinition : SpriteDefinition
     private const int DepthBias = 0x400;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="HardwareLayerSpriteDefinition"/> class from a sprite file.
+    /// Initializes a new instance of the <see cref="VidHardwareLayer"/> class from a sprite file.
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
     /// <param name="weapon">The weapon record.</param>
     /// <param name="file">The sprite file.</param>
-    /// <param name="totalFrames">The frame count of the definition's sprite.</param>
-    public HardwareLayerSpriteDefinition(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, in VidResource file, int totalFrames)
+    /// <param name="totalFrames">The frame count of the sprite file.</param>
+    public VidHardwareLayer(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, in VidResource file, int totalFrames)
         : base(id, gameObject, weapon, file, totalFrames)
     {
     }
@@ -43,7 +43,7 @@ public sealed class HardwareLayerSpriteDefinition : SpriteDefinition
     public ReadOnlyMemory<byte> Palette { get; private set; }
 
     /// <summary>
-    /// Draws a sprite with the frames of this definition as meshes placed by the position, scale and offset of the sprite.
+    /// Draws a sprite with the frames of this object ID as meshes placed by the position, scale and offset of the sprite.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
@@ -110,7 +110,7 @@ public sealed class HardwareLayerSpriteDefinition : SpriteDefinition
         var graphics = map.Session.Graphics;
         if (FileType.HasFlag(VidType.Blended))
         {
-            graphics.SetBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
+            graphics.SetAlphaBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
         }
         else
         {
@@ -126,13 +126,13 @@ public sealed class HardwareLayerSpriteDefinition : SpriteDefinition
     public override void SetLayer() => Layer = ObjectLayer.Hardware;
 
     [EngineRoutine(0x0041baf0)]
-    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, GameLogger? logger)
+    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, MyError? error)
     {
         if (FileType.HasFlag(VidType.Palette))
         {
             if (file.Palette.IsEmpty)
             {
-                Report(logger, LogError.Load, 0, "PAL "u8);
+                Report(error, LogError.Load, 0, "PAL "u8);
             }
 
             Palette = file.Palette;
@@ -141,7 +141,7 @@ public sealed class HardwareLayerSpriteDefinition : SpriteDefinition
         var records = file.FrameRecords;
         if (records.IsEmpty)
         {
-            Report(logger, LogError.Load, 0, "DATA"u8);
+            Report(error, LogError.Load, 0, "DATA"u8);
         }
 
         Frames = new HardwareLayerFrame[Math.Min(FileFrameCount, records.Length)];
@@ -161,7 +161,7 @@ public sealed class HardwareLayerSpriteDefinition : SpriteDefinition
                 flags |= TextureFlags.AlphaPalette;
             }
 
-            ushort[] textures = Texture.Create(texels.Span, size, file.Format, flags, logger, out size, out var textureFormat);
+            ushort[] textures = Texture.Create(texels.Span, size, file.Format, flags, error, out size, out var textureFormat);
             ref readonly var mesh = ref MemoryMarshal.AsRef<VidLayerMeshHeader>(record[position..]);
             position += Unsafe.SizeOf<VidLayerMeshHeader>();
             var vertices = new HardwareLayerVertex[Math.Max(mesh.VertexCount, 0)];

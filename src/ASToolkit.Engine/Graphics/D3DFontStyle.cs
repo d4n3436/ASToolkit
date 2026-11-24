@@ -1,10 +1,10 @@
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Specifies how the glyphs of a <see cref="TextureFont"/> are rendered and drawn.
+/// Specifies how the glyphs of a <see cref="D3DFont"/> are rendered and drawn.
 /// </summary>
 [Flags]
-public enum TextureFontStyle
+public enum D3DFontStyle
 {
     /// <summary>
     /// Regular glyphs of a variable-pitch font, drawn without the depth test.

@@ -6,7 +6,7 @@ using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
-public partial class SoftwareSpriteDefinition
+public partial class VidSoftware
 {
     private protected const float HeightScale = 8f;
     private protected const int LiftedDepth = 0x3fff;

@@ -19,7 +19,7 @@ public partial class Sprite
         Goal = target;
         var link = ArmedLink;
 
-        if (link is not null && link.Definition.FightChild != 0)
+        if (link is not null && link.Vid.FightChild != 0)
         {
             link.SetCommand(command, target);
         }
@@ -69,7 +69,7 @@ public partial class Sprite
         ClearMove();
         VerticalSpeed = 0;
 
-        if (Definition.Object.Deceleration.IsExactly(SpriteDefinition.Unlimited))
+        if (Vid.Object.Deceleration.IsExactly(Vid.Unlimited))
         {
             Speed = 0;
         }
@@ -87,7 +87,7 @@ public partial class Sprite
 
         var link = Link;
 
-        if (link is not null && link.Definition == Definition.LinkDefinition && link.Definition.FightChild != 0 && link.Definition.Object.WeaponIndex != 0 &&
+        if (link is not null && link.Vid == Vid.LinkVid && link.Vid.FightChild != 0 && link.Vid.Object.WeaponIndex != 0 &&
             link.Command is not (Command.None or Command.OneAttack))
         {
             link.SetCommand(Command.None);
@@ -100,7 +100,7 @@ public partial class Sprite
         if (MaxSpeed.IsExactlyZero())
             return false;
 
-        ref readonly var gameObject = ref Definition.Object;
+        ref readonly var gameObject = ref Vid.Object;
 
         if (HasGoal)
         {
@@ -111,14 +111,14 @@ public partial class Sprite
 
             int distance = 0;
 
-            if (Definition.Directions == 1 || gameObject.Properties.HasFlag(ObjectProperties.RandomBirth))
+            if (Vid.Directions == 1 || gameObject.Properties.HasFlag(ObjectProperties.RandomBirth))
             {
                 ChangeDirection(Angle.Aim(new Point((int)offset.X, (int)offset.Y), out distance));
             }
 
-            if (!gameObject.SpriteType.HasFlag(SpriteType.Cannon) && Definition.Class != SpriteClass.Cannon)
+            if (!gameObject.SpriteType.HasFlag(SpriteType.Cannon) && Vid.Class != SpriteClass.Cannon)
             {
-                VerticalSpeed = offset.Z > 0 ? Definition.ZSpeed : offset.Z < 0 ? -Definition.ZSpeed : 0;
+                VerticalSpeed = offset.Z > 0 ? Vid.ZSpeed : offset.Z < 0 ? -Vid.ZSpeed : 0;
             }
             else
             {
@@ -130,7 +130,7 @@ public partial class Sprite
                 if (distance == 0)
                     return false;
 
-                VerticalSpeed = Definition.CalculateZSpeed(Map.Definitions, offset.Z, distance);
+                VerticalSpeed = Vid.CalculateZSpeed(Map.Vids, offset.Z, distance);
             }
         }
 
@@ -143,7 +143,7 @@ public partial class Sprite
             ChangeAnimation(Speed.IsExactlyZero() ? SpriteAnimation.StartMove : SpriteAnimation.Go);
         }
 
-        if (gameObject.Acceleration.IsExactly(SpriteDefinition.Unlimited))
+        if (gameObject.Acceleration.IsExactly(Vid.Unlimited))
         {
             Speed = MaxSpeed;
         }
@@ -154,25 +154,25 @@ public partial class Sprite
     [EngineRoutine(0x0043fb10)]
     internal Vector3 CalculateNewCoordinates(int elapsed)
     {
-        ref readonly var gameObject = ref Definition.Object;
+        ref readonly var gameObject = ref Vid.Object;
         var next = Position;
         IsBlocked = false;
 
         if (this is { Command: Command.Move, IsMoving: false })
         {
-            Map.Session.Logger.Error($"SPRITE {(int)Definition.Id}", LogError.Text, 0, "Move without ().StartMove()"u8);
+            Map.Session.Error.Error($"SPRITE {(int)Vid.Id}", LogError.Text, 0, "Move without ().StartMove()"u8);
             StartMove();
         }
 
         if (this is { Command: Command.Move, HasGoal: false })
         {
-            Map.Session.Logger.Error($"SPRITE {(int)Definition.Id}", LogError.Text, 0, "Move without goal"u8);
+            Map.Session.Error.Error($"SPRITE {(int)Vid.Id}", LogError.Text, 0, "Move without goal"u8);
             Stop();
         }
 
-        Speed = Accelerate(Definition, Speed, MaxSpeed, IsMoving, elapsed);
+        Speed = Accelerate(Vid, Speed, MaxSpeed, IsMoving, elapsed);
 
-        if (Speed >= SpriteDefinition.Unlimited)
+        if (Speed >= Vid.Unlimited)
         {
             if (HasGoal && this is not { HasReachedX: true, HasReachedY: true })
             {
@@ -203,11 +203,11 @@ public partial class Sprite
 
         if (gameObject.Properties.HasFlag(ObjectProperties.Gravity))
         {
-            VerticalSpeed -= elapsed * Map.Definitions.Gravitation;
+            VerticalSpeed -= elapsed * Map.Vids.Gravitation;
         }
         else if (gameObject.Properties.HasFlag(ObjectProperties.Gravity2))
         {
-            VerticalSpeed -= elapsed * Map.Definitions.Gravitation2;
+            VerticalSpeed -= elapsed * Map.Vids.Gravitation2;
         }
 
         next.Z = elapsed * VerticalSpeed + next.Z;
@@ -220,19 +220,19 @@ public partial class Sprite
         return next;
     }
 
-    private static float Accelerate(SpriteDefinition definition, float speed, float maxSpeed, bool moving, int elapsed)
+    private static float Accelerate(Vid vid, float speed, float maxSpeed, bool moving, int elapsed)
     {
-        ref readonly var gameObject = ref definition.Object;
+        ref readonly var gameObject = ref vid.Object;
 
         if (!moving)
         {
             if (speed <= 0)
                 return speed;
 
-            if (gameObject.Deceleration.IsExactly(SpriteDefinition.Unlimited))
+            if (gameObject.Deceleration.IsExactly(Vid.Unlimited))
                 return 0;
 
-            float slowed = speed - elapsed * definition.Deceleration;
+            float slowed = speed - elapsed * vid.Deceleration;
 
             return slowed < 0 ? 0 : slowed;
         }
@@ -240,10 +240,10 @@ public partial class Sprite
         if (speed >= maxSpeed)
             return speed;
 
-        if (gameObject.Acceleration.IsExactly(SpriteDefinition.Unlimited))
+        if (gameObject.Acceleration.IsExactly(Vid.Unlimited))
             return maxSpeed;
 
-        float faster = elapsed * definition.Acceleration + speed;
+        float faster = elapsed * vid.Acceleration + speed;
 
         return faster < maxSpeed ? faster : maxSpeed;
     }

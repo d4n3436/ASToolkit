@@ -45,11 +45,11 @@ public class DemoTests
     [Fact]
     public void StepDemo_PastTheLastFrame_QueuesTheDemosMap()
     {
-        var definitions = TestGameFolder.CreateCatalog();
-        var recorder = EngineTestMap.CreateMap(definitions, session: CreateRecordingSession());
+        var vids = TestGameFolder.CreateCatalog();
+        var recorder = EngineTestMap.CreateMap(vids, session: CreateRecordingSession());
         recorder.StepDemo(0, out _);
         var demo = new DemoResource(recorder.FinishDemoRecording());
-        var player = EngineTestMap.CreateMap(definitions, demo: demo);
+        var player = EngineTestMap.CreateMap(vids, demo: demo);
 
         player.StepDemo(0, out _);
         player.AdvanceClock();
@@ -62,5 +62,5 @@ public class DemoTests
         Assert.Equal("maps\\engine_test.map"u8.ToArray(), player.Session.PreviousMapName.ToArray());
     }
 
-    private static GameSession CreateRecordingSession() => new(new ScriptRegistry("")) { IsRecordingNextMap = true };
+    private static GameSession CreateRecordingSession() => new(new Registry("")) { IsRecordingNextMap = true };
 }

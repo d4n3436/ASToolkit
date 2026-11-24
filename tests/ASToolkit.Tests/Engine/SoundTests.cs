@@ -5,14 +5,14 @@ using Xunit;
 
 namespace ASToolkit.Tests.Engine;
 
-public class SoundSystemTests
+public class SoundTests
 {
     private const int MonsterHit = 37;
     private const int Footsteps = 10;
     private const int FrameTime = 17;
     private const int MaxDraws = 1000;
 
-    private static SoundSystem CreateSound() => new(TestGameFolder.Objects.Sounds, new GameFolder(TestGameFolder.RequireFolder()));
+    private static Sound CreateSound() => new(TestGameFolder.Objects.Sounds, new GameFolder(TestGameFolder.RequireFolder()));
 
     private static int CountDraws(GameRandom random, int startState)
     {
@@ -31,10 +31,10 @@ public class SoundSystemTests
     public void Tact_DeviceEndsAVoice_StopsAskingAboutIt()
     {
         var device = new EndingDevice();
-        var sound = new SoundSystem(TestGameFolder.Objects.Sounds, new GameFolder(TestGameFolder.RequireFolder()), device);
+        var sound = new Sound(TestGameFolder.Objects.Sounds, new GameFolder(TestGameFolder.RequireFolder()), device);
         var random = new GameRandom(7);
 
-        sound.Play(MonsterHit, 0, SoundSystem.FullLoudness);
+        sound.Play(MonsterHit, 0, Sound.FullLoudness);
         sound.Tact(random, 100, 100);
         sound.Tact(random, 100 + FrameTime, 100 + FrameTime);
         sound.Tact(random, 100 + FrameTime * 2, 100 + FrameTime * 2);
@@ -48,7 +48,7 @@ public class SoundSystemTests
         var sound = CreateSound();
         var random = new GameRandom(7);
 
-        sound.Play(MonsterHit, 0, SoundSystem.FullLoudness);
+        sound.Play(MonsterHit, 0, Sound.FullLoudness);
         sound.Tact(random, 100, 100);
 
         Assert.Equal(1, CountDraws(random, 7));
@@ -72,9 +72,9 @@ public class SoundSystemTests
         var sound = CreateSound();
         var random = new GameRandom(7);
 
-        sound.Play(MonsterHit, 0, SoundSystem.FullLoudness);
+        sound.Play(MonsterHit, 0, Sound.FullLoudness);
         sound.Tact(random, 100, 100);
-        sound.Play(MonsterHit, 0, SoundSystem.FullLoudness);
+        sound.Play(MonsterHit, 0, Sound.FullLoudness);
         sound.Tact(random, 100 + FrameTime, 100 + FrameTime);
 
         Assert.Equal(1, CountDraws(random, 7));
@@ -88,7 +88,7 @@ public class SoundSystemTests
 
         for (int frame = 0; frame < 30; frame++)
         {
-            sound.Play(Footsteps, 0, SoundSystem.FullLoudness);
+            sound.Play(Footsteps, 0, Sound.FullLoudness);
             sound.Tact(random, 100 + frame * FrameTime, (uint)(100 + frame * FrameTime));
         }
 
@@ -136,9 +136,9 @@ public class SoundSystemTests
         var sound = CreateSound();
         var random = new GameRandom(7);
 
-        sound.Play(id, 0, SoundSystem.FullLoudness);
+        sound.Play(id, 0, Sound.FullLoudness);
         sound.Tact(random, 100, 100);
-        sound.Play(id, 0, SoundSystem.FullLoudness);
+        sound.Play(id, 0, Sound.FullLoudness);
         sound.Tact(random, 160, 160);
         int bothPlaying = GetPlayingBuffers(sound).Count(state => state.Sound == id);
         sound.Stop(id, 160);
@@ -155,10 +155,10 @@ public class SoundSystemTests
         var sound = CreateSound();
         var random = new GameRandom(7);
 
-        sound.Play(id, 0, SoundSystem.FullLoudness);
+        sound.Play(id, 0, Sound.FullLoudness);
         sound.Tact(random, 100, 100);
         sound.Stop(id, 100);
-        sound.Play(id, 0, SoundSystem.FullLoudness);
+        sound.Play(id, 0, Sound.FullLoudness);
         sound.Tact(random, 60000, 60000);
 
         Assert.Single(GetPlayingBuffers(sound), state => state.Sound == id && state.StartedAt == 60000);
@@ -175,7 +175,7 @@ public class SoundSystemTests
         Assert.Equal(new MusicState(@"music\mus00.ogg", 100, 0), state);
     }
 
-    private static List<SoundBufferState> GetPlayingBuffers(SoundSystem sound)
+    private static List<SoundBufferState> GetPlayingBuffers(Sound sound)
     {
         var states = new List<SoundBufferState>();
         for (int buffer = 0; buffer < sound.BufferCount; buffer++)

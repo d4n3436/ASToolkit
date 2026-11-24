@@ -9,12 +9,12 @@ public sealed class ActionStack
 {
     private const int GrowthStep = 4;
 
-    private readonly GameLogger? _logger;
+    private readonly MyError? _error;
     private Act[] _orders = [];
 
-    internal ActionStack(GameLogger? logger)
+    internal ActionStack(MyError? error)
     {
-        _logger = logger;
+        _error = error;
     }
 
     /// <summary>
@@ -154,7 +154,7 @@ public sealed class ActionStack
         }
         catch (OutOfMemoryException)
         {
-            _logger?.Fatal($"!!!ERROR!!!::LIST: Not enough memory {capacity}");
+            _error?.Fatal($"!!!ERROR!!!::LIST: Not enough memory {capacity}");
             throw;
         }
     }

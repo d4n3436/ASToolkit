@@ -7,7 +7,7 @@ namespace ASToolkit.Engine;
 /// <summary>
 /// Represents a font with its 256 glyphs rendered into a texture.
 /// </summary>
-public sealed class TextureFont
+public sealed class D3DFont
 {
     private const int GlyphCount = 256;
     private const uint TallLimit = 0x28;
@@ -31,13 +31,13 @@ public sealed class TextureFont
     private int _minimumAlpha;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="TextureFont"/> class without a texture.
+    /// Initializes a new instance of the <see cref="D3DFont"/> class without a texture.
     /// </summary>
     /// <param name="name">The name of the font face.</param>
     /// <param name="glyphSize">The average width and the height of the glyphs, in points.</param>
     /// <param name="style">How the glyphs are rendered and drawn.</param>
     [EngineRoutine(0x00434940)]
-    public TextureFont(string name, Size glyphSize, TextureFontStyle style)
+    public D3DFont(string name, Size glyphSize, D3DFontStyle style)
     {
         Name = name;
         GlyphSize = glyphSize;
@@ -57,7 +57,7 @@ public sealed class TextureFont
     /// <summary>
     /// Gets how the glyphs are rendered and drawn.
     /// </summary>
-    public TextureFontStyle Style { get; }
+    public D3DFontStyle Style { get; }
 
     /// <summary>
     /// Gets the size of the texture of glyphs, in texels, or zero before the texture is created.

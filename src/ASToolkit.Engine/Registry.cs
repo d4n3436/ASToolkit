@@ -8,7 +8,7 @@ namespace ASToolkit.Engine;
 /// <summary>
 /// Represents the registry values that carry the player's state between levels.
 /// </summary>
-public sealed class ScriptRegistry
+public sealed class Registry
 {
     private const int MaxStackText = 256;
     private const string RegPathSetting = "RegPath=";
@@ -16,10 +16,10 @@ public sealed class ScriptRegistry
     private readonly Dictionary<string, string> _values = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="ScriptRegistry"/> class as an empty registry.
+    /// Initializes a new instance of the <see cref="Registry"/> class as an empty registry.
     /// </summary>
     /// <param name="defaultPath">The registry path named in the game's configuration.</param>
-    public ScriptRegistry(string defaultPath)
+    public Registry(string defaultPath)
     {
         DefaultPath = defaultPath;
     }
@@ -54,7 +54,7 @@ public sealed class ScriptRegistry
     /// <param name="fallback">The number when the value is missing.</param>
     /// <returns>The number.</returns>
     [EngineRoutine(0x0042d130)]
-    public int GetNumber(string name, int fallback)
+    public int GetInt(string name, int fallback)
     {
         return ParseLong(Get(DefaultPath, name, fallback.ToString(CultureInfo.InvariantCulture)));
     }
@@ -99,7 +99,7 @@ public sealed class ScriptRegistry
     /// <param name="path">The registry path.</param>
     /// <param name="name">The value name.</param>
     [EngineRoutine(0x0042d310)]
-    public void Delete(string path, string name) => _values.Remove(GetKey(path, name));
+    public void DeleteKey(string path, string name) => _values.Remove(GetKey(path, name));
 
     private static string GetKey(string path, string name) => $"{path}\\{name}";
 

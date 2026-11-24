@@ -84,7 +84,7 @@ public class DemoReplayTests
             var sprite = layer[slot]!;
             int[] expected = sprites[slot];
 
-            int[] actual = [(int)sprite.Definition.Id, sprite.LastTickTime, sprite.FirstFrame, sprite.Frame, sprite.LastFrame, (int)sprite.Animation, sprite.Direction.Value];
+            int[] actual = [(int)sprite.Vid.Id, sprite.LastTickTime, sprite.FirstFrame, sprite.Frame, sprite.LastFrame, (int)sprite.Animation, sprite.Direction.Value];
 
             Assert.Equal(expected, actual);
         }
@@ -100,7 +100,7 @@ public class DemoReplayTests
         files.Set(demoPath, ReadDemo(fixture).Data);
 
         var clock = new LoadingRedrawClock();
-        var registry = new ScriptRegistry("");
+        var registry = new Registry("");
         var map = new Map(new SpriteCatalog(game, TestGameFolder.Objects), files, registry, new GameSession(registry, time: clock));
         clock.Schedule(loadingScreenRecords ?? []);
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);

@@ -34,9 +34,9 @@ public sealed partial class Map
     [EngineRoutine(0x00445fb0)]
     internal void Attack(Sprite sprite, Sprite? target)
     {
-        var definition = sprite.Definition;
+        var vid = sprite.Vid;
 
-        if (definition.Class == SpriteClass.Linker && definition.FightChild != 0)
+        if (vid.Class == SpriteClass.Linker && vid.FightChild != 0)
         {
             var state = sprite.Animation;
             sprite.SetAnimationValue(SpriteAnimation.Fight);
@@ -49,7 +49,7 @@ public sealed partial class Map
         }
 
         // TODO: Port the trains; the IsTrain action of the attack test answers for every class
-        if (target is null || target.Definition == Definitions.Empty || sprite.CanAttackThisSprite(target) || definition.Class == SpriteClass.Cannon ||
+        if (target is null || target.Vid == Vids.Empty || sprite.CanAttackThisSprite(target) || vid.Class == SpriteClass.Cannon ||
             Action(sprite, ActionCode.IsTrain) != 0)
         {
             sprite.SetCommand(Command.Attack, target);
@@ -64,7 +64,7 @@ public sealed partial class Map
             RemoveFromUpdates(sprite.Link);
         }
 
-        return _updates.Remove(sprite.Definition.Layer, sprite);
+        return _updates.Remove(sprite.Vid.Layer, sprite);
     }
 
 }

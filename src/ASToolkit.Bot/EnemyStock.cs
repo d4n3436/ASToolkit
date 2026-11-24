@@ -53,7 +53,7 @@ internal sealed class EnemyStock
 
     private static bool IsCountedObject(KnownObject id) => KnownObject.Monsters.Contains(id) || KnownObject.Bosses.Contains(id);
 
-    private static bool IsCounted(Sprite sprite) => sprite.Army == Army.Monsters && IsCountedObject(sprite.Definition.Id);
+    private static bool IsCounted(Sprite sprite) => sprite.Army == Army.Monsters && IsCountedObject(sprite.Vid.Id);
 
     private static int MeasureUnbuilt(ReadOnlySpan<Act> orders)
     {

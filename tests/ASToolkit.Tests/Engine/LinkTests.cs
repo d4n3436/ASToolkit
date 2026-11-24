@@ -16,13 +16,13 @@ public class LinkTests
         var yellow = map.AddSprite(objects.Find(KnownObject.YellowTankWeaponMonster), map.Player.Position + new Vector3(400, 0, 0), default)!;
         var red = map.AddSprite(objects.Find(KnownObject.RedTankWeaponMonster), map.Player.Position + new Vector3(0, 400, 0), default)!;
 
-        Assert.Equal(KnownObject.Monster4Weapon2, yellow.Link!.Definition.Id);
-        Assert.Equal(KnownObject.MonsterMachineGunDummy, yellow.Link.Link!.Definition.Id);
+        Assert.Equal(KnownObject.Monster4Weapon2, yellow.Link!.Vid.Id);
+        Assert.Equal(KnownObject.MonsterMachineGunDummy, yellow.Link.Link!.Vid.Id);
         Assert.Contains(yellow.Link.Link, map.UpdatedSprites);
-        Assert.Equal(KnownObject.Monster4Weapon3, red.Link!.Definition.Id);
-        var turret = Assert.Single(map.UpdatedSprites, sprite => sprite.Definition.Id == KnownObject.MonsterMachineGunDummy && sprite.Owner == red.Link);
+        Assert.Equal(KnownObject.Monster4Weapon3, red.Link!.Vid.Id);
+        var turret = Assert.Single(map.UpdatedSprites, sprite => sprite.Vid.Id == KnownObject.MonsterMachineGunDummy && sprite.Owner == red.Link);
         Assert.Equal(red.Army, turret.Army);
-        Assert.NotEqual(0, turret.Definition.Object.WeaponIndex);
+        Assert.NotEqual(0, turret.Vid.Object.WeaponIndex);
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public class LinkTests
 
         var map = EngineTestMap.CreateMap(objects, sprites: [pad]);
 
-        Assert.Contains(map.ScriptedSprites, sprite => sprite.Definition.Id.IsEndlessGenerator && sprite.Owner is not null);
+        Assert.Contains(map.ScriptedSprites, sprite => sprite.Vid.Id.IsEndlessGenerator && sprite.Owner is not null);
     }
 
     [Fact]

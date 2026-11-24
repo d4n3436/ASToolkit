@@ -2,7 +2,7 @@ using System.Text;
 
 namespace ASToolkit.Engine.IO;
 
-internal static class ProfileFile
+internal static class Profile
 {
     private const int BufferSize = 0x7fff;
     private const byte SectionStart = (byte)'[';

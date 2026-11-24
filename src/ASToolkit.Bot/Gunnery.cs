@@ -27,7 +27,7 @@ internal sealed class Gunnery
         _field = field;
         _map = map;
         _state = new PlayerState(map);
-        Attacks = new AttackTable(map.Definitions);
+        Attacks = new AttackTable(map.Vids);
     }
 
     public AttackTable Attacks { get; }
@@ -66,14 +66,14 @@ internal sealed class Gunnery
             if (distance > profile.Reach + radius)
                 continue;
 
-            if (profile.CanHurtOwnArmy && radius > 0 && distance <= radius + _map.Player.Definition.Half.Length())
+            if (profile.CanHurtOwnArmy && radius > 0 && distance <= radius + _map.Player.Vid.Half.Length())
                 continue;
 
             if (radius > 0 && !IsInBlastHeight(target, profile))
                 continue;
 
             float chance = MeasureHitChance(target, weapon, profile);
-            float harm = profile.BlastRadius > _map.Player.Definition.Half.Length() ? MeasureHarm(target, profile) * chance
+            float harm = profile.BlastRadius > _map.Player.Vid.Half.Length() ? MeasureHarm(target, profile) * chance
                 : profile.Rounds > 1 ? MeasureSpreadHarm(target, weapon, profile)
                 : Math.Min(target.Hp, profile.Damage * chance);
             float rate = harm * GameClock.MillisecondsPerSecond / Math.Max(_map.FrameTime, weapon.AttackTime);
@@ -96,7 +96,7 @@ internal sealed class Gunnery
 
     public Vector3 GetAimPoint(Sprite target, int slot)
     {
-        var point = target.Position with { Z = target.Position.Z + Math.Min(GroundAimHeight, target.Definition.Object.Size.Z / 2) };
+        var point = target.Position with { Z = target.Position.Z + Math.Min(GroundAimHeight, target.Vid.Object.Size.Z / 2) };
         var torso = _state.GetWeapon(slot);
 
         if (torso is null || target.IsBody)
@@ -139,14 +139,14 @@ internal sealed class Gunnery
             return true;
 
         var muzzle = from + new Vector2(forward.X * launch.Y, forward.Y * launch.Y * VerticalProjection);
-        float height = _map.Player.Position.Z + _map.Player.Definition.Object.LinkOffset.Z + launch.Z;
+        float height = _map.Player.Position.Z + _map.Player.Vid.Object.LinkOffset.Z + launch.Z;
 
-        var aim = target.Position with { Z = target.Position.Z + Math.Min(GroundAimHeight, target.Definition.Object.Size.Z / 2) };
-        var half = target.Definition.Id is KnownObject.BreakableWall or KnownObject.BreakableWall2 ? target.Definition.Half + new Vector2(WallSlack) : target.Definition.Half;
+        var aim = target.Position with { Z = target.Position.Z + Math.Min(GroundAimHeight, target.Vid.Object.Size.Z / 2) };
+        var half = target.Vid.Id is KnownObject.BreakableWall or KnownObject.BreakableWall2 ? target.Vid.Half + new Vector2(WallSlack) : target.Vid.Half;
 
         var start = new Vector3(muzzle, height);
 
-        return bullet.Speed >= SpriteDefinition.Unlimited ? HasClearBeam(bullet, start, aim, half) : HasClearFlight(bullet, start, aim, half);
+        return bullet.Speed >= Vid.Unlimited ? HasClearBeam(bullet, start, aim, half) : HasClearFlight(bullet, start, aim, half);
     }
 
     public bool IsOnScreen(Vector2 point)
@@ -172,7 +172,7 @@ internal sealed class Gunnery
     }
 
     private bool IsInBlastHeight(Sprite sprite, AttackProfile profile) =>
-        sprite.Position.Z - _map.GetGroundZ(sprite.Position.AsVector2()) < profile.BlastHeight + sprite.Definition.Object.Size.Z;
+        sprite.Position.Z - _map.GetGroundZ(sprite.Position.AsVector2()) < profile.BlastHeight + sprite.Vid.Object.Size.Z;
 
     private float MeasureHarm(Sprite target, AttackProfile profile)
     {
@@ -190,7 +190,7 @@ internal sealed class Gunnery
         return Math.Max(harm, Math.Min(profile.Damage, target.Hp));
     }
 
-    private float MeasureSpreadHarm(Sprite target, SpriteDefinition torso, AttackProfile profile)
+    private float MeasureSpreadHarm(Sprite target, Vid torso, AttackProfile profile)
     {
         float scatter = Math.Max(1, MeasureScatter(target, torso));
         float roundDamage = (float)profile.Damage / profile.Rounds;
@@ -199,7 +199,7 @@ internal sealed class Gunnery
         float harm = 0;
         foreach (var sprite in _map.Collector.GetNear(center - reach, center + reach))
         {
-            float unitReach = (sprite.Definition.Half.X + sprite.Definition.Half.Y) / 2;
+            float unitReach = (sprite.Vid.Half.X + sprite.Vid.Half.Y) / 2;
 
             if (sprite.Army != target.Army || !sprite.IsAlive || center.MeasureOctagonalDistance(sprite.Position.AsVector2()) > scatter + unitReach)
                 continue;
@@ -211,7 +211,7 @@ internal sealed class Gunnery
         return Math.Max(harm, Math.Min(target.Hp, profile.Damage * MeasureHitChance(target, torso, profile)));
     }
 
-    private float MeasureScatter(Sprite target, SpriteDefinition torso)
+    private float MeasureScatter(Sprite target, Vid torso)
     {
         float spread = GetSpread(torso, out _);
         float distance = GetDistance(target);
@@ -221,7 +221,7 @@ internal sealed class Gunnery
     }
 
     // Returns the share of rounds whose scatter across the line of fire stays within the target, using the scatter reduced for the overshoot past the target
-    private float MeasureHitChance(Sprite target, SpriteDefinition torso, AttackProfile profile)
+    private float MeasureHitChance(Sprite target, Vid torso, AttackProfile profile)
     {
         float spread = GetSpread(torso, out _);
 
@@ -229,25 +229,25 @@ internal sealed class Gunnery
             return 1;
 
         float scatter = MeasureScatter(target, torso);
-        float reach = (target.Definition.Half.X + target.Definition.Half.Y) / 2 + profile.BlastRadius;
+        float reach = (target.Vid.Half.X + target.Vid.Half.Y) / 2 + profile.BlastRadius;
 
         return Math.Min(1, reach / Math.Max(1, scatter));
     }
 
-    private float GetSpread(SpriteDefinition torso, out SpriteDefinition? payload)
+    private float GetSpread(Vid torso, out Vid? payload)
     {
         float spread = torso.Aim;
-        payload = _map.Definitions.Find((KnownObject)Math.Abs((int)torso.FightChild));
+        payload = _map.Vids.Find((KnownObject)Math.Abs((int)torso.FightChild));
         while (payload is not null && payload.Damage <= 0 && payload.FightChild != 0)
         {
             spread += payload.Aim;
-            payload = _map.Definitions.Find((KnownObject)Math.Abs((int)payload.FightChild));
+            payload = _map.Vids.Find((KnownObject)Math.Abs((int)payload.FightChild));
         }
 
         return spread;
     }
 
-    private bool HasClearBeam(SpriteDefinition bullet, Vector3 from, Vector3 to, Vector2 targetHalf)
+    private bool HasClearBeam(Vid bullet, Vector3 from, Vector3 to, Vector2 targetHalf)
     {
         var position = new Point((int)from.X, (int)from.Y);
         int z = (int)from.Z;
@@ -304,7 +304,7 @@ internal sealed class Gunnery
     }
 
     // Steps a round along its line and, at the first spot where the round can't stand, treats the line as clear only if that spot lies inside the target
-    private bool HasClearFlight(SpriteDefinition bullet, Vector3 start, Vector3 aim, Vector2 targetHalf)
+    private bool HasClearFlight(Vid bullet, Vector3 start, Vector3 aim, Vector2 targetHalf)
     {
         float length = start.AsVector2().MeasureOctagonalDistance(aim.AsVector2());
         for (float distance = FlightStep; distance < length; distance += FlightStep)
@@ -322,14 +322,14 @@ internal sealed class Gunnery
         return true;
     }
 
-    private SpriteDefinition? FindBullet(SpriteDefinition torso, out Vector3 launch)
+    private Vid? FindBullet(Vid torso, out Vector3 launch)
     {
         launch = Vector3.Zero;
         var bullet = torso;
         while (bullet is not null && bullet.Object.SpriteClass != SpriteClass.Cannon)
         {
             launch += new Vector3(0, bullet.Object.ChildY[(int)SpriteAnimation.Fight], bullet.Object.ChildZ[(int)SpriteAnimation.Fight]);
-            bullet = bullet.FightChild == 0 ? null : _map.Definitions.Find((KnownObject)Math.Abs((int)bullet.FightChild));
+            bullet = bullet.FightChild == 0 ? null : _map.Vids.Find((KnownObject)Math.Abs((int)bullet.FightChild));
         }
 
         return bullet;

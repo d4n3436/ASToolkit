@@ -416,7 +416,7 @@ public enum ScriptFunction
     Random = 155,
 
     /// <summary>
-    /// Change the height of every sprite of a definition.
+    /// Change the height of every sprite of an object ID.
     /// </summary>
     ChangeZUnit = 156,
 
@@ -441,17 +441,17 @@ public enum ScriptFunction
     SetFlagman = 160,
 
     /// <summary>
-    /// Return the sprite that keeps a definition from standing at a point.
+    /// Return the sprite that keeps a sprite of an object ID from standing at a point.
     /// </summary>
     CanPlace = 161,
 
     /// <summary>
-    /// Return a field of a definition.
+    /// Return a field of an object ID.
     /// </summary>
     GetVidData = 162,
 
     /// <summary>
-    /// Change a field of a definition.
+    /// Change a field of an object ID.
     /// </summary>
     SetVidData = 163,
 
@@ -481,12 +481,12 @@ public enum ScriptFunction
     MapSizeY = 168,
 
     /// <summary>
-    /// Destroy every sprite of a definition.
+    /// Destroy every sprite of an object ID.
     /// </summary>
     Genocide = 169,
 
     /// <summary>
-    /// Replace every sprite of a definition with another definition.
+    /// Replace every sprite of an object ID with a sprite of another object ID.
     /// </summary>
     ReplaceUnit = 170,
 
@@ -501,7 +501,7 @@ public enum ScriptFunction
     Printf = 172,
 
     /// <summary>
-    /// Reload every definition's fields from the records.
+    /// Reload the fields of every object ID from the records.
     /// </summary>
     ReloadVid = 173,
 
@@ -631,7 +631,7 @@ public enum ScriptFunction
     SetAutoReBirth = 247,
 
     /// <summary>
-    /// Set the limit of sprites of a definition on the map.
+    /// Set the limit of sprites of an object ID on the map.
     /// </summary>
     AddUnitLimit = 249,
 

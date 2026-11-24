@@ -18,14 +18,14 @@ public class Creature : Unit
     /// Initializes a new instance of the <see cref="Creature"/> class.
     /// </summary>
     /// <param name="number">The number of the sprite.</param>
-    /// <param name="definition">The definition of the sprite.</param>
+    /// <param name="vid">The shared data and frames of the sprite's object ID.</param>
     /// <param name="position">The position of the sprite.</param>
     /// <param name="army">The army of the sprite.</param>
     /// <param name="hitPoints">The hit points of the sprite.</param>
     /// <param name="map">The map the sprite belongs to.</param>
     /// <param name="direction">The direction of the sprite.</param>
-    public Creature(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
-        : base(number, definition, position, army, hitPoints, map, direction)
+    public Creature(int number, Vid vid, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
+        : base(number, vid, position, army, hitPoints, map, direction)
     {
     }
 
@@ -83,7 +83,7 @@ public class Creature : Unit
             TactCreatureAttack();
         }
 
-        int frameTime = (byte)Definition.GetVisualFrameDuration(Animation);
+        int frameTime = (byte)Vid.GetVisualFrameDuration(Animation);
 
         if (Command is not (Command.Move or Command.Attack or Command.OneAttack))
         {
@@ -137,9 +137,9 @@ public class Creature : Unit
             }
         }
 
-        if (Definition.Object.Properties.HasFlag(ObjectProperties.ZeroZ))
+        if (Vid.Object.Properties.HasFlag(ObjectProperties.ZeroZ))
         {
-            next.Z = Map.GetGroundZForMoveTo(Definition.Object, next.AsVector2());
+            next.Z = Map.GetGroundZForMoveTo(Vid.Object, next.AsVector2());
         }
 
         if (CanPlace(next) is null && StaysInRegion(next.AsVector2()))
@@ -176,7 +176,7 @@ public class Creature : Unit
 
         for (int i = list.Count - 1; i >= 0; i--)
         {
-            if (list[i] is not Region sprite || !sprite.Definition.Object.SpriteType.ToOldSpriteType().HasFlag(OldSpriteType.Region) || sprite.Definition.Class != SpriteClass.Region)
+            if (list[i] is not Region sprite || !sprite.Vid.Object.SpriteType.ToOldSpriteType().HasFlag(OldSpriteType.Region) || sprite.Vid.Class != SpriteClass.Region)
                 continue;
 
             float halfWidth = sprite.Size.X * 0.5f;
@@ -205,7 +205,7 @@ public class Creature : Unit
 
         var other = FindRegion(point);
 
-        if (other is null || Region.Definition != other.Definition)
+        if (other is null || Region.Vid != other.Vid)
             return false;
 
         Region = other;
@@ -219,7 +219,7 @@ public class Creature : Unit
         var reach = new Vector2(CreatureAlertReach);
         for (var other = Map.Collector.First(center - reach, center + reach); other is not null; other = Map.Collector.NextHashInBox())
         {
-            if (other.Definition.Class == SpriteClass.Creature && center.MeasureOctagonalDistance(other.Position.AsVector2()) < CreatureAlertReach)
+            if (other.Vid.Class == SpriteClass.Creature && center.MeasureOctagonalDistance(other.Position.AsVector2()) < CreatureAlertReach)
             {
                 other.StartMove();
             }
@@ -228,7 +228,7 @@ public class Creature : Unit
 
     private void TactCreatureAttack()
     {
-        var result = AttackTact(Math.Max(Map.FrameTime, Definition.GetVisualFrameDuration(Animation)));
+        var result = AttackTact(Math.Max(Map.FrameTime, Vid.GetVisualFrameDuration(Animation)));
         AttackResult = result;
 
         if (result == AttackResult.Approach && Speed.IsExactlyZero() && (ArmedLink is { HasGoal: true } || HasGoal))
@@ -261,7 +261,7 @@ public class Creature : Unit
         {
             StartMove();
         }
-        else if (Speed.IsExactlyZero() && Map.Random.Next() % 3 == 0 && (Definition.Object.FrameCounts[(int)SpriteAnimation.Unload] != 0 || Definition.Children[(int)SpriteAnimation.Unload] != 0 || Definition.Sounds[(int)SpriteAnimation.Unload] != 0))
+        else if (Speed.IsExactlyZero() && Map.Random.Next() % 3 == 0 && (Vid.Object.FrameCounts[(int)SpriteAnimation.Unload] != 0 || Vid.Children[(int)SpriteAnimation.Unload] != 0 || Vid.Sounds[(int)SpriteAnimation.Unload] != 0))
         {
             ChangeAnimation(SpriteAnimation.Unload);
         }

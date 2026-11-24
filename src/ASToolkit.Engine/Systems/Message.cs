@@ -3,7 +3,7 @@ using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
-internal sealed class MessageWindow
+internal sealed class Message
 {
     private const float ScreenDepth = 2000;
     private const float MarkerIndent = 10;
@@ -24,7 +24,7 @@ internal sealed class MessageWindow
     private int _shownAt;
 
     [EngineRoutine(0x0042e120)]
-    public MessageWindow(Map map, int lineId, int markerId, Vector2 origin, int count, int idleTime)
+    public Message(Map map, int lineId, int markerId, Vector2 origin, int count, int idleTime)
     {
         _map = map;
         _count = count;
@@ -81,7 +81,7 @@ internal sealed class MessageWindow
         if (_lines[_count] is null)
         {
             var position = new Vector3(Origin.X, bottom + Origin.Y + ScreenDepth, ScreenDepth);
-            _lines[_count] = _map.AddSprite(FindDefinition(_lineId), position, default);
+            _lines[_count] = _map.AddSprite(FindVid(_lineId), position, default);
         }
 
         var line = _lines[_count];
@@ -95,10 +95,10 @@ internal sealed class MessageWindow
         {
             int halfLine = lineHeight / 2;
             var position = new Vector3(Origin.X - MarkerIndent, bottom + halfLine + Origin.Y + ScreenDepth, ScreenDepth);
-            _markers[_count] = _map.AddSprite(FindDefinition(_markerId), position, default);
+            _markers[_count] = _map.AddSprite(FindVid(_markerId), position, default);
         }
 
-        _map.Sound.Play(MessageSound, 0, SoundSystem.FullLoudness);
+        _map.Sound.Play(MessageSound, 0, Sound.FullLoudness);
     }
 
     [EngineRoutine(0x0042e2c0)]
@@ -129,7 +129,7 @@ internal sealed class MessageWindow
 
         var clicked = _map.MenuLeftClick;
 
-        if (clicked is null || (int)clicked.Definition.Id != _markerId)
+        if (clicked is null || (int)clicked.Vid.Id != _markerId)
             return;
 
         int i = (int)(clicked.Position.Y - clicked.Position.Z - _map.Camera.Y - _map.Session.Graphics.Viewport.Top) / lineHeight + 1;
@@ -140,9 +140,9 @@ internal sealed class MessageWindow
         }
     }
 
-    private SpriteDefinition FindDefinition(int id) => _map.Definitions.Find((KnownObject)id) ?? _map.Definitions.Empty;
+    private Vid FindVid(int id) => _map.Vids.Find((KnownObject)id) ?? _map.Vids.Empty;
 
-    private int GetLineHeight() => FindDefinition(_lineId).FrameSize.Height + 1;
+    private int GetLineHeight() => FindVid(_lineId).FrameSize.Height + 1;
 
     [EngineRoutine(0x0042e6a0)]
     private void Shift()

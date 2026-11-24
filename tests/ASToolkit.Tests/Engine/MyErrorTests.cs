@@ -7,7 +7,7 @@ using Xunit;
 
 namespace ASToolkit.Tests.Engine;
 
-public class GameLoggerTests
+public class MyErrorTests
 {
     private const string DatedPath = "logs\\error2026-01-01 12h00m00.log";
     private static readonly DateTimeOffset StartTime = new(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
@@ -17,7 +17,7 @@ public class GameLoggerTests
     {
         var fileSystem = new MemoryWriteOverlay();
 
-        using (new GameLogger(fileSystem, new FakeTimeProvider(StartTime), "AlienShooter.exe"))
+        using (new MyError(fileSystem, new FakeTimeProvider(StartTime), "AlienShooter.exe"))
         {
             Assert.Equal("----< 2026-01-01 12:00:00 >----< AlienShooter.exe (Cr-1601-01-01 12:00:00 La-1601-01-01 12:00:00 Lw-1601-01-01 12:00:00) >----\r\n", Read(fileSystem, DatedPath));
         }
@@ -27,11 +27,11 @@ public class GameLoggerTests
     public void Error_FormatsTheValueAndTextAfterTheTag()
     {
         var fileSystem = new MemoryWriteOverlay();
-        var logger = new GameLogger(fileSystem, new FakeTimeProvider(StartTime), "AlienShooter.exe");
+        var error = new MyError(fileSystem, new FakeTimeProvider(StartTime), "AlienShooter.exe");
         string name = "смерть 1 Spawn ЛЕТУН";
-        logger.Error($"VID [881-{name}]", LogError.Invalid, 0x520, "child"u8);
-        logger.Error("SPRITE -1", LogError.Invalid, 1, "noRef at Release"u8);
-        logger.Error($"VID [881-{name}]", LogError.Invalid, -1311, "child"u8);
+        error.Error($"VID [881-{name}]", LogError.Invalid, 0x520, "child"u8);
+        error.Error("SPRITE -1", LogError.Invalid, 1, "noRef at Release"u8);
+        error.Error($"VID [881-{name}]", LogError.Invalid, -1311, "child"u8);
 
         string[] lines = Read(fileSystem, DatedPath).Split("\r\n");
         Assert.Equal("!!!ERROR 12:00:00!!!VID [881-смерть 1 Spawn ЛЕТУН]: 0x520 Invalid child", lines[1]);
@@ -43,9 +43,9 @@ public class GameLoggerTests
     public void Write_Widths_PadTheNumbers()
     {
         var fileSystem = new MemoryWriteOverlay();
-        var logger = new GameLogger(fileSystem, new FakeTimeProvider(StartTime), "AlienShooter.exe");
-        logger.Write($"LoadVid::No   ={1001,-15}   sizeof(VID)   ={1156,-8}");
-        logger.Write($"NoVid[{3,3}]={1} Layer={13}");
+        var error = new MyError(fileSystem, new FakeTimeProvider(StartTime), "AlienShooter.exe");
+        error.Write($"LoadVid::No   ={1001,-15}   sizeof(VID)   ={1156,-8}");
+        error.Write($"NoVid[{3,3}]={1} Layer={13}");
 
         string[] lines = Read(fileSystem, DatedPath).Split("\r\n");
         Assert.Equal("LoadVid::No   =1001              sizeof(VID)   =1156    ", lines[1]);
@@ -61,7 +61,7 @@ public class GameLoggerTests
             stale.Write("old"u8);
         }
 
-        new GameLogger(fileSystem, new FakeTimeProvider(StartTime), "AlienShooter.exe").Dispose();
+        new MyError(fileSystem, new FakeTimeProvider(StartTime), "AlienShooter.exe").Dispose();
 
         Assert.False(fileSystem.TryRead(DatedPath, out _));
         Assert.StartsWith("----< 2026-01-01", Read(fileSystem, "logs\\error.log"));
@@ -70,21 +70,21 @@ public class GameLoggerTests
     [Fact]
     public void Write_WithoutFiles_WritesNothing()
     {
-        var logger = new GameLogger(null, new FakeTimeProvider(StartTime), "AlienShooter.exe");
-        logger.Write("x"u8);
+        var error = new MyError(null, new FakeTimeProvider(StartTime), "AlienShooter.exe");
+        error.Write("x"u8);
 
-        Assert.False(logger.IsOpen);
+        Assert.False(error.IsOpen);
     }
 
     [Fact]
     public void Map_LoadAndEnd_LogTheScriptAndTheDefinitionsLeft()
     {
         var fileSystem = new MemoryWriteOverlay();
-        var definitions = TestGameFolder.CreateCatalog();
-        var registry = new ScriptRegistry("");
+        var vids = TestGameFolder.CreateCatalog();
+        var registry = new Registry("");
         using (var session = new GameSession(registry, fileSystem, new LoadingRedrawClock(new FakeTimeProvider(StartTime))))
         {
-            using var map = EngineTestMap.CreateMap(definitions, session: session);
+            using var map = EngineTestMap.CreateMap(vids, session: session);
             var scriptFileSystem = new MemoryWriteOverlay(new GameFolder(TestGameFolder.RequireFolder()));
             scriptFileSystem.Set("maps\\log.lgc", "#include \"maps\\export.lgc\"\nmain()\n{\n  Log(\"from the script\");\n}\n"u8.ToArray());
             Assert.True(map.Script.Load(scriptFileSystem, "maps\\log.lgc"));

@@ -58,8 +58,8 @@ public class MovementTests
     public void Half_IgnoresTheVisualScale()
     {
         var obj = Body(new Vector3(40, 28, 73), scale: new Vector3(3, 2, 4));
-        var definition = new SpriteDefinition(KnownObject.Monster1, obj, default, 0);
-        Assert.Equal(new Vector2(20, 14), definition.Half);
+        var vid = new Vid(KnownObject.Monster1, obj, default, 0);
+        Assert.Equal(new Vector2(20, 14), vid.Half);
     }
 
     [Fact]
@@ -137,8 +137,8 @@ public class MovementTests
     {
         var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
         map.SetTempGroundZ(new Vector3(32, 0, 24));
-        var walker = new SpriteDefinition(KnownObject.Monster1, Body(new Vector3(16, 16, 20)), default, 0);
-        var bullet = new SpriteDefinition(KnownObject.PistolBullet, Body(new Vector3(4, 4, 2)), default, 0);
+        var walker = new Vid(KnownObject.Monster1, Body(new Vector3(16, 16, 20)), default, 0);
+        var bullet = new Vid(KnownObject.PistolBullet, Body(new Vector3(4, 4, 2)), default, 0);
         var shooter = new Sprite(0, walker, Vector3.Zero, 0, 10, map);
         map.Collector.InsertToHash(shooter);
         map.Collector.InsertToHash(new Sprite(1, walker, new Vector3(64, 0, 30), Army.Monsters, 10, map));
@@ -161,9 +161,9 @@ public class MovementTests
     public void IsBlockedAt_TouchesCrushingSpritesOnOtherLayersAndKeepsScanning()
     {
         var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
-        var mover = new SpriteDefinition(KnownObject.PistolBullet, Body(new Vector3(4, 4, 2)), default, 0);
-        var crusher = new SpriteDefinition(KnownObject.Barrel, Body(new Vector3(16, 16, 20), 2, extra: ObjectProperties.Crush, maxHp: 10), default, 0);
-        var wall = new SpriteDefinition(KnownObject.Monster1, Body(new Vector3(16, 16, 20)), default, 0);
+        var mover = new Vid(KnownObject.PistolBullet, Body(new Vector3(4, 4, 2)), default, 0);
+        var crusher = new Vid(KnownObject.Barrel, Body(new Vector3(16, 16, 20), 2, extra: ObjectProperties.Crush, maxHp: 10), default, 0);
+        var wall = new Vid(KnownObject.Monster1, Body(new Vector3(16, 16, 20)), default, 0);
         var crushed = new Sprite(1, crusher, new Vector3(50, 50, 0), Army.Monsters, 10, map);
         map.Collector.InsertToHash(crushed);
         map.Collector.InsertToHash(new Sprite(2, wall, new Vector3(52, 50, 0), Army.Monsters, 10, map));
@@ -172,11 +172,11 @@ public class MovementTests
         Assert.Equal(5, crushed.Hp);
     }
 
-    private static SpriteCollector CreateSprites(Map map) => new(map.Size, new SpriteDefinition?[] { new(KnownObject.Barrel, Body(new Vector3(256, 256, 0)), default, 0) }, map);
+    private static SpriteCollector CreateSprites(Map map) => new(map.Size, new Vid?[] { new(KnownObject.Barrel, Body(new Vector3(256, 256, 0)), default, 0) }, map);
 
     private static Sprite Place(SpriteCollector sprites, GameObject obj, Vector3 position, KnownObject id = KnownObject.Barrel)
     {
-        var sprite = new Sprite(0, new SpriteDefinition(id, obj, default, 0), position, Army.Neutral, 10, HostMap);
+        var sprite = new Sprite(0, new Vid(id, obj, default, 0), position, Army.Neutral, 10, HostMap);
         sprites.InsertToHash(sprite);
 
         return sprite;

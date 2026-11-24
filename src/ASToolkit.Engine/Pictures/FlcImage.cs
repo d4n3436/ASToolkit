@@ -38,8 +38,8 @@ public sealed class FlcImage : PictureImage
     {
     }
 
-    internal FlcImage(string gameFolder, GameLogger? logger)
-        : base(gameFolder, logger)
+    internal FlcImage(string gameFolder, MyError? error)
+        : base(gameFolder, error)
     {
     }
 

@@ -19,7 +19,7 @@ public partial class Sprite
     [EngineRoutine(0x00443c40)]
     internal Sprite? CanPlaceWithCrush(ref Vector3 next, int depth = 0)
     {
-        if (Definition.MoveMask == 0)
+        if (Vid.MoveMask == 0)
             return null;
 
         var start = Position;
@@ -35,13 +35,13 @@ public partial class Sprite
                 return null;
             }
 
-            if (!isGround && other.Definition.CanBePushed && depth < MaxPushDepth)
+            if (!isGround && other.Vid.CanBePushed && depth < MaxPushDepth)
             {
                 var pushed = new Vector3(other.Position.X + next.X - start.X, other.Position.Y + next.Y - start.Y, other.Position.Z);
 
                 if (other.CanPlaceWithCrush(ref pushed, depth + 1) is null)
                 {
-                    bool opposite = Definition.CanBePushed && other.Direction.MeasureTurnTo(Direction.Opposite) < OppositeDirectionTolerance;
+                    bool opposite = Vid.CanBePushed && other.Direction.MeasureTurnTo(Direction.Opposite) < OppositeDirectionTolerance;
 
                     if (!opposite || Direction.Value < Angle.HalfTurn)
                     {
@@ -66,9 +66,9 @@ public partial class Sprite
             }
         }
 
-        if (Definition.Object.Properties.HasFlag(ObjectProperties.ZeroZ))
+        if (Vid.Object.Properties.HasFlag(ObjectProperties.ZeroZ))
         {
-            next.Z = Map.GetGroundZForMoveTo(Definition.Object, next.AsVector2());
+            next.Z = Map.GetGroundZForMoveTo(Vid.Object, next.AsVector2());
         }
 
         return null;
@@ -78,7 +78,7 @@ public partial class Sprite
     internal Angle RotateForGlide(Angle direction)
     {
         var center = Position.AsVector2();
-        var half = Definition.Half;
+        var half = Vid.Half;
 
         if (direction.Value is <= SouthEastBoundary or >= SouthWestBoundary)
         {
@@ -141,34 +141,34 @@ public partial class Sprite
     }
 
     [EngineRoutine(0x00444620)]
-    internal bool DirectRouteIntersection(ref Vector3 target) => Map.Collector.CheckLine(Definition, Position, ref target);
+    internal bool DirectRouteIntersection(ref Vector3 target) => Map.Collector.CheckLine(Vid, Position, ref target);
 
     [EngineRoutine(0x00443810)]
     internal Sprite? CanPlace(Vector3 point)
     {
-        var definition = Definition;
+        var vid = Vid;
 
-        if (definition.MoveMask == 0)
+        if (vid.MoveMask == 0)
             return null;
 
-        if (!Map.CanStandOnGround(definition.Object, point))
+        if (!Map.CanStandOnGround(vid.Object, point))
             return Map.CursorSprite;
 
-        var half = definition.Half;
-        float height = definition.Object.Size.Z;
+        var half = vid.Half;
+        float height = vid.Object.Size.Z;
         Map.Collector.FirstHashInBox(point.AsVector2() - half, point.AsVector2() + half);
         for (var other = Map.Collector.NextHashInBox(); other is not null; other = Map.Collector.NextHashInBox())
         {
-            var otherDefinition = other.Definition;
-            if (other == this || other.Animation >= SpriteAnimation.Death || MathF.Abs(other.Position.X - point.X) >= otherDefinition.Half.X + half.X ||
-                MathF.Abs(other.Position.Y - point.Y) >= otherDefinition.Half.Y + half.Y || point.Z > otherDefinition.Object.Size.Z + other.Position.Z ||
+            var otherVid = other.Vid;
+            if (other == this || other.Animation >= SpriteAnimation.Death || MathF.Abs(other.Position.X - point.X) >= otherVid.Half.X + half.X ||
+                MathF.Abs(other.Position.Y - point.Y) >= otherVid.Half.Y + half.Y || point.Z > otherVid.Object.Size.Z + other.Position.Z ||
                 other.Position.Z > point.Z + height)
                 continue;
 
-            if ((definition.MoveMask & otherDefinition.MoveMask) != 0)
+            if ((vid.MoveMask & otherVid.MoveMask) != 0)
                 return other;
 
-            if (otherDefinition.Object.Properties.HasFlag(ObjectProperties.Crush))
+            if (otherVid.Object.Properties.HasFlag(ObjectProperties.Crush))
             {
                 Map.Action(other, ActionCode.Damage, CrushDamage);
             }
@@ -180,10 +180,10 @@ public partial class Sprite
     private bool IsInsideIgnoringLayers(Vector3 start, Sprite other)
     {
         var offset = Vector2.Abs(other.Position.AsVector2() - start.AsVector2());
-        var reach = other.Definition.Half + Definition.Half;
+        var reach = other.Vid.Half + Vid.Half;
 
         return other.Animation < SpriteAnimation.Death && offset.X < reach.X && offset.Y < reach.Y &&
-            start.Z <= other.Definition.Object.Size.Z + other.Position.Z && other.Position.Z <= start.Z + Definition.Object.Size.Z;
+            start.Z <= other.Vid.Object.Size.Z + other.Position.Z && other.Position.Z <= start.Z + Vid.Object.Size.Z;
     }
 
     private bool FindCollision(Vector3 position, [NotNullWhen(true)] out Sprite? collision)
@@ -196,28 +196,28 @@ public partial class Sprite
     [EngineRoutine(0x004433f0)]
     private Sprite? FindOverlap(Vector3 position)
     {
-        var definition = Definition;
+        var vid = Vid;
 
-        if (definition.MoveMask == 0)
+        if (vid.MoveMask == 0)
         {
             return null;
         }
 
-        if (!Map.CanStandOnGround(definition.Object, position))
+        if (!Map.CanStandOnGround(vid.Object, position))
         {
             return Map.CursorSprite;
         }
 
         var collector = Map.Collector;
-        var half = definition.Half;
-        float height = definition.Object.Size.Z;
+        var half = vid.Half;
+        float height = vid.Object.Size.Z;
         collector.FirstHashInBox(position.AsVector2() - half, position.AsVector2() + half);
         for (var other = collector.NextHashInBox(); other is not null; other = collector.NextHashInBox())
         {
-            var otherDefinition = other.Definition;
-            if (other != this && other.Animation < SpriteAnimation.Death && MathF.Abs(other.Position.X - position.X) < otherDefinition.Half.X + half.X &&
-                MathF.Abs(other.Position.Y - position.Y) < otherDefinition.Half.Y + half.Y && position.Z <= otherDefinition.Object.Size.Z + other.Position.Z &&
-                other.Position.Z <= position.Z + height && (definition.MoveMask & otherDefinition.MoveMask) != 0)
+            var otherVid = other.Vid;
+            if (other != this && other.Animation < SpriteAnimation.Death && MathF.Abs(other.Position.X - position.X) < otherVid.Half.X + half.X &&
+                MathF.Abs(other.Position.Y - position.Y) < otherVid.Half.Y + half.Y && position.Z <= otherVid.Object.Size.Z + other.Position.Z &&
+                other.Position.Z <= position.Z + height && (vid.MoveMask & otherVid.MoveMask) != 0)
             {
                 return other;
             }

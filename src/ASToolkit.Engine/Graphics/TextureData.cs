@@ -4,7 +4,7 @@ using ASToolkit.Formats;
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents a texture of a definition, with its texels in the allocated layout.
+/// Represents a texture of an object ID's frames, with its texels in the allocated layout.
 /// </summary>
 /// <param name="Texels">The texels, where a texel of a 32-bit layout takes two elements and the blocks of a compressed layout are packed.</param>
 /// <param name="Size">The allocated size of the texture, in texels.</param>

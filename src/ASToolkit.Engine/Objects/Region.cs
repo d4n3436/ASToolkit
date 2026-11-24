@@ -1,20 +1,24 @@
 using System.Drawing;
 using System.Numerics;
 using ASToolkit.Core;
+using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents a region sprite, an area that tiles a picture, draws fog and changes the definitions of the sprites inside it.
+/// Represents a region sprite, an area that tiles a picture, draws fog and changes the object IDs of the sprites inside it.
 /// </summary>
 public sealed class Region : Sprite
 {
     /// <summary>
-    /// Represents the number of definition pairs a region changes.
+    /// Represents the number of object ID pairs a region changes.
     /// </summary>
     public const int Pairs = 6;
+    private const int FloatRegionSizeVersion = 10;
     private const int FogPhaseMask = 7;
+    private const int FogRampShift = 3;
+    private const int FogStepsPerUnit = 8;
     private const int FogFrameStep = 2;
     private const float Half = 0.5f;
     private const float RegionBoxMargin = 1;
@@ -23,16 +27,16 @@ public sealed class Region : Sprite
     /// Initializes a new instance of the <see cref="Region"/> class.
     /// </summary>
     /// <param name="number">The number of the sprite.</param>
-    /// <param name="definition">The definition of the sprite.</param>
+    /// <param name="vid">The shared data and frames of the sprite's object ID.</param>
     /// <param name="position">The position of the sprite.</param>
     /// <param name="army">The army of the sprite.</param>
     /// <param name="hitPoints">The hit points of the sprite.</param>
     /// <param name="map">The map the sprite belongs to.</param>
     /// <param name="direction">The direction of the sprite.</param>
-    public Region(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
-        : base(number, definition, position, army, hitPoints, map, direction)
+    public Region(int number, Vid vid, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
+        : base(number, vid, position, army, hitPoints, map, direction)
     {
-        UnusedDefinition = map?.Definitions.Empty;
+        UnusedVid = map.Vids.Empty;
     }
 
     /// <summary>
@@ -44,7 +48,7 @@ public sealed class Region : Sprite
 
     internal int UnusedValue { get; set; }
 
-    internal SpriteDefinition? UnusedDefinition { get; set; }
+    internal Vid? UnusedVid { get; set; }
 
     internal int FogFar { get; set; }
 
@@ -58,9 +62,9 @@ public sealed class Region : Sprite
 
     internal ReadOnlyMemory<ushort> FogTable { get; set; }
 
-    internal SpriteDefinition?[] From => field ??= new SpriteDefinition?[Pairs];
+    internal Vid?[] From => field ??= new Vid?[Pairs];
 
-    internal SpriteDefinition?[] To => field ??= new SpriteDefinition?[Pairs];
+    internal Vid?[] To => field ??= new Vid?[Pairs];
 
     /// <summary>
     /// Draws the region's picture tiled over its area, then its fog, and advances the fog's level.
@@ -75,7 +79,7 @@ public sealed class Region : Sprite
         int frame = Frame;
         var half = Size * Half;
 
-        if (Definition != map.Definitions.Empty)
+        if (Vid != map.Vids.Empty)
         {
             var savedViewport = screen.Viewport;
 
@@ -90,7 +94,7 @@ public sealed class Region : Sprite
             }
 
             int tile = 0;
-            var frameSize = Definition.FrameSize;
+            var frameSize = Vid.FrameSize;
 
             if (frameSize is { Width: > 0, Height: > 0 })
             {
@@ -98,15 +102,15 @@ public sealed class Region : Sprite
                 {
                     for (float left = position.X - half.X; left < half.X + position.X; left += frameSize.Width)
                     {
-                        if (!Definition.Object.Properties.HasFlag(ObjectProperties.OnePhase))
+                        if (!Vid.Object.Properties.HasFlag(ObjectProperties.OnePhase))
                         {
                             Frame += tile * FogFrameStep;
                             tile++;
-                            Frame %= Math.Max(1, (int)Definition.FileFrameCount);
+                            Frame %= Math.Max(1, (int)Vid.FileFrameCount);
                         }
 
                         Position = position with { X = frameSize.Center.X + left, Y = frameSize.Center.Y + top };
-                        Definition.Draw(screen, map, this, camera);
+                        Vid.Draw(screen, map, this, camera);
                     }
                 }
             }
@@ -172,7 +176,7 @@ public sealed class Region : Sprite
     }
 
     [EngineRoutine(0x00449730)]
-    internal override void DrawInfo()
+    internal override void DrawSecondaryInfo()
     {
         var position = Position;
         var size = Size;
@@ -181,5 +185,67 @@ public sealed class Region : Sprite
         float right = size.X * Map.HalfShare + position.X - Map.Camera.X;
         float bottom = size.Y * Map.HalfShare + (position.Y - position.Z) - Map.Camera.Y;
         Map.Session.Graphics.DrawRectangle(Map, new Vector2(left - RegionBoxMargin, top - RegionBoxMargin), new Vector2(right + RegionBoxMargin, bottom + RegionBoxMargin), Map.White);
+    }
+
+    [EngineRoutine(0x00449d00)]
+    private void SetFogParameters(int near, int far, uint color, ReadOnlySpan<ushort> ramp, bool isPalettized)
+    {
+        FogFar = far;
+        FogNear = near;
+        FogColor = color;
+        FogTable = default;
+
+        if (near >= far)
+            return;
+
+        int span = far - near;
+        ushort[] table = new ushort[span * FogStepsPerUnit + 1];
+
+        for (int step = span * FogStepsPerUnit; step >= 0; step--)
+        {
+            int index = step * byte.MaxValue / span >> FogRampShift;
+            table[step] = isPalettized ? (ushort)index : ramp[index];
+        }
+
+        FogTable = table;
+    }
+
+    [EngineRoutine(0x00449e20)]
+    internal override int Action(int act, ref Resource stream, int version)
+    {
+        if ((ActionCode)act is not (ActionCode.Restore or ActionCode.RestoreOld))
+            return base.Action(act, ref stream, version);
+
+        base.Action(act, ref stream, version);
+        var fog = default(RegionFog);
+        stream.ReadInto(ref fog);
+        Flags = fog.Flags;
+        SetFogParameters(fog.Near, fog.Far, fog.Color, Map.Session.Graphics.ColorTable, (Map.Session.Graphics.Screen?.TextureFormat ?? Map.Session.Graphics.Buffers.LightFormat) == VidPixelFormat.P8);
+        if (version < FloatRegionSizeVersion)
+        {
+            var size = default(Size);
+            stream.ReadInto(ref size);
+            Size = new Vector2(size.Width, size.Height);
+        }
+        else
+        {
+            var size = default(Vector2);
+            stream.ReadInto(ref size);
+            Size = size;
+        }
+
+        UnusedValue = stream.Read<int>();
+        UnusedVid = Map.Vids.Find((KnownObject)stream.Read<int>()) ?? Map.Vids.Empty;
+        for (int pair = 0; pair < Pairs; pair++)
+        {
+            var replacement = new RegionReplacement(-1, -1);
+            stream.ReadInto(ref replacement);
+            var fromVid = Map.Vids.Find((KnownObject)replacement.From);
+            From[pair] = fromVid;
+            To[pair] = Map.Vids.Find((KnownObject)replacement.To);
+            fromVid?.IsRegionReplaced = true;
+        }
+
+        return 0;
     }
 }

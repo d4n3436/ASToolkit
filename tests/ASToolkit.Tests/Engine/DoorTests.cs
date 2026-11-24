@@ -12,9 +12,9 @@ public class DoorTests
     [InlineData(KnownObject.DoubleDoor, 2, 36)]
     public void Step_PlayerNearADoor_SinksItByItsScriptStepEachTick(KnownObject id, int step, int ticks)
     {
-        var definitions = TestGameFolder.CreateCatalog();
+        var vids = TestGameFolder.CreateCatalog();
         var door = new MergedMapSprite(1, id, new Vector3(1000, 1000, 0), 0, 0, []);
-        var map = EngineTestMap.CreateMap(definitions, sprites: [door]);
+        var map = EngineTestMap.CreateMap(vids, sprites: [door]);
         var body = map.FindFirstSprite(id);
 
         Assert.Equal(0f, body.Position.Z, 0f);
@@ -28,13 +28,13 @@ public class DoorTests
     [Fact]
     public void Move_DoorRisingAroundAUnit_LetsTheUnitMoveOut()
     {
-        var definitions = TestGameFolder.CreateCatalog();
-        var definition = definitions.Find(KnownObject.SmallDoor)!;
-        var walker = definitions.Find(KnownObject.PlayerStart)!;
+        var vids = TestGameFolder.CreateCatalog();
+        var vid = vids.Find(KnownObject.SmallDoor)!;
+        var walker = vids.Find(KnownObject.PlayerStart)!;
         var position = new Vector2(1000);
-        var map = EngineTestMap.CreateMap(definitions);
+        var map = EngineTestMap.CreateMap(vids);
         var sprite = new Sprite(0, walker, position.AsVector3(), 0, walker.MaxHp, map);
-        map.Collector.InsertToHash(new Sprite(1, definition, position.AsVector3(), 0, definition.MaxHp, map));
+        map.Collector.InsertToHash(new Sprite(1, vid, position.AsVector3(), 0, vid.MaxHp, map));
         map.Collector.InsertToHash(sprite);
 
         var next = (position + Vector2.UnitX).AsVector3();
@@ -46,11 +46,11 @@ public class DoorTests
     [Fact]
     public void Step_OccupiedDoor_StaysOpenUntilTheDoorsLock()
     {
-        var definitions = TestGameFolder.CreateCatalog();
+        var vids = TestGameFolder.CreateCatalog();
         var door = new MergedMapSprite(1, KnownObject.SmallDoor, new Vector3(1000, 1000, 0), 0, 0, []);
-        var map = EngineTestMap.CreateMap(definitions, sprites: [door]);
+        var map = EngineTestMap.CreateMap(vids, sprites: [door]);
         var body = map.FindFirstSprite(KnownObject.SmallDoor);
-        map.AddSprite(definitions.Find(KnownObject.Monster1), door.Position, default);
+        map.AddSprite(vids.Find(KnownObject.Monster1), door.Position, default);
         for (int tick = 0; tick <= 16; tick++)
         {
             map.Play(default);

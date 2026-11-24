@@ -11,7 +11,7 @@ public enum ActionCode
     Salut = 9,
 
     /// <summary>
-    /// Die, and hurt the sprites around if the definition has death damage.
+    /// Die, and hurt the sprites around if the object ID has death damage.
     /// </summary>
     Death = 15,
 

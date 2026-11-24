@@ -97,7 +97,7 @@ public sealed partial class Graphics
 
         var source = Rectangle.FromLTRB(1, 1, width / 2 - 1, height / 2 - 1);
         SetRenderState(RenderState.SpecularEnable, 0);
-        SetBlend(BlendFactor.DestinationColor, BlendFactor.One);
+        SetAlphaBlend(BlendFactor.DestinationColor, BlendFactor.One);
         new Texture(texture, new Size(pitch, pitch), format, screen.TexturePalette).DrawQuad(screen, destination, source, new Gamma(~color, 0xff000000), Blend, isDoubled, (position.Z + size.X + LightDepthBias) * LightDepthScale + LightDepthBase, (position.Z + size.X + LightDepthBias) * LightDepthScale + LightDepthBase);
     }
 

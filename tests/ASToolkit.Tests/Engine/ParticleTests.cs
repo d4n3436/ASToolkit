@@ -13,18 +13,18 @@ public class ParticleTests
     [InlineData(KnownObject.FlyingGreenGibs, KnownObject.LyingGreenGibs)]
     public void Spawn_FlyingParticles_SettleIntoTheirRestingObjects(KnownObject flying, KnownObject resting)
     {
-        var definitions = TestGameFolder.CreateCatalog();
-        var map = EngineTestMap.CreateMap(definitions);
+        var vids = TestGameFolder.CreateCatalog();
+        var map = EngineTestMap.CreateMap(vids);
         var observer = new MapObserver(map);
         var scenery = observer.BakedEffects;
-        map.AddSprite(definitions.Find(flying), new Vector3(100, 200, 22), new Angle(64));
+        map.AddSprite(vids.Find(flying), new Vector3(100, 200, 22), new Angle(64));
         while (map.Time <= 4000)
         {
             map.Play(default);
             observer.Observe();
         }
 
-        Assert.DoesNotContain(map.GetEffects(), particle => particle.Definition.Id == flying);
+        Assert.DoesNotContain(map.GetEffects(), particle => particle.Vid.Id == flying);
         var settled = Assert.Single(scenery, particle => particle.Id == resting);
         Assert.True(settled.StartedAt > 0);
         Assert.True(settled.Position.Z >= 0);

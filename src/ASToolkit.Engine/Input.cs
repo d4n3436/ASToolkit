@@ -7,7 +7,7 @@ namespace ASToolkit.Engine;
 /// <summary>
 /// Represents the keyboard and mouse input of a frame.
 /// </summary>
-public sealed class PlayerInput
+public sealed class Input
 {
     private const InputFlags FrameFlags = InputFlags.LeftClick | InputFlags.MiddleClick | InputFlags.RightClick | InputFlags.LeftClickRelease | InputFlags.RightClickRelease;
     private const InputFlags LostFocusFlags = InputFlags.Shift | InputFlags.Ctrl | InputFlags.Alt;
@@ -21,10 +21,10 @@ public sealed class PlayerInput
     private bool _isQuitPosted;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="PlayerInput"/> class for a set of controls.
+    /// Initializes a new instance of the <see cref="Input"/> class for a set of controls.
     /// </summary>
     /// <param name="settings">The controls.</param>
-    public PlayerInput(ControlSettings settings)
+    public Input(ControlSettings settings)
     {
         _settings = settings;
     }

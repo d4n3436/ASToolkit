@@ -6,20 +6,20 @@ using ASToolkit.Formats;
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents the definition of a sprite that draws text with a font.
+/// Represents the shared data of an object ID whose sprites draw text with a font.
 /// </summary>
-public sealed class FontSpriteDefinition : SpriteDefinition
+public sealed class VidFont : Vid
 {
     private const int GlyphCount = 256;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="FontSpriteDefinition"/> class.
+    /// Initializes a new instance of the <see cref="VidFont"/> class.
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
     /// <param name="weapon">The weapon record.</param>
     /// <param name="maxTextureSize">The largest texture width and height the device accepts.</param>
-    public FontSpriteDefinition(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, int maxTextureSize)
+    public VidFont(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, int maxTextureSize)
         : base(id, gameObject, weapon, SpriteCatalog.DefaultSpriteSpeed, GlyphCount, ObjectLayer.Ground, null)
     {
         MaxTextureSize = maxTextureSize;
@@ -38,12 +38,12 @@ public sealed class FontSpriteDefinition : SpriteDefinition
     /// <summary>
     /// Gets how the glyphs are rendered and drawn.
     /// </summary>
-    public TextureFontStyle Style { get; private set; }
+    public D3DFontStyle Style { get; private set; }
 
     /// <summary>
-    /// Gets the font of the definition, or <see langword="null"/> before the definition loads.
+    /// Gets the font of this object ID, or <see langword="null"/> before the sprite file loads.
     /// </summary>
-    public TextureFont? Font { get; private set; }
+    public D3DFont? Font { get; private set; }
 
     /// <summary>
     /// Draws the text of a sprite with the glyphs of the font.
@@ -69,14 +69,14 @@ public sealed class FontSpriteDefinition : SpriteDefinition
     public override void SetLayer() => Layer = ObjectLayer.Cursor;
 
     [EngineRoutine(0x00415140)]
-    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, GameLogger? logger)
+    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, MyError? error)
     {
         FileFrameCount = GlyphCount;
         FrameSize = new Size((short)(int)Object.Size.X, (short)(int)Object.Size.Y);
         FileType = VidType.Font;
         GlyphSize = new Size((int)Object.Size.X, (int)Object.Size.Y);
-        Style = TextureFontStyle.FixedPitch;
-        Font = new TextureFont(Path, GlyphSize, Style);
+        Style = D3DFontStyle.FixedPitch;
+        Font = new D3DFont(Path, GlyphSize, Style);
         Font.Create(MaxTextureSize);
         Font.CreateStateBlocks();
     }

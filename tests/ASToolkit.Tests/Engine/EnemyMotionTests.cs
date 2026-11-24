@@ -24,7 +24,7 @@ public class EnemyMotionTests
         Unsafe.AsRef(in obj.RotationPeriod) = period;
         Unsafe.AsRef(in obj.Size) = new Vector3(10, 10, 40);
         var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
-        var sprite = new Sprite(0, new SpriteDefinition(KnownObject.Monster1, obj, default, 0), Vector3.Zero, Army.Monsters, 10, map) { Direction = new Angle(direction) };
+        var sprite = new Sprite(0, new Vid(KnownObject.Monster1, obj, default, 0), Vector3.Zero, Army.Monsters, 10, map) { Direction = new Angle(direction) };
 
         var remaining = sprite.RotateTact(new Angle(goal), elapsed);
 
@@ -82,8 +82,8 @@ public class EnemyMotionTests
         Unsafe.AsRef(in obj.Size) = new Vector3(body.HalfX * 2, body.HalfY * 2, body.SizeZ);
         var weapon = default(WeaponRecord);
         Unsafe.AsRef(in weapon.Flags) = body.Push != 0 ? WeaponFlags.Pushable : WeaponFlags.None;
-        var definition = new SpriteDefinition(KnownObject.Monster1 + index, obj, weapon, 0);
+        var vid = new Vid(KnownObject.Monster1 + index, obj, weapon, 0);
 
-        return new Sprite(index, definition, new Vector3(body.X, body.Y, body.Z), Army.Monsters, 10, map) { Direction = body.Direction };
+        return new Sprite(index, vid, new Vector3(body.X, body.Y, body.Z), Army.Monsters, 10, map) { Direction = body.Direction };
     }
 }

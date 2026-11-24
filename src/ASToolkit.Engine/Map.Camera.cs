@@ -64,7 +64,7 @@ public sealed partial class Map
 
         if (move == CameraMove.Smooth)
         {
-            Session.Graphics.ExecEffect(this, (int)ScreenEffect.Scroll, (int)center.X, (int)center.Y, 0);
+            Session.Graphics.Effect(this, (int)ScreenEffect.Scroll, (int)center.X, (int)center.Y, 0);
 
             return;
         }
@@ -117,11 +117,11 @@ public sealed partial class Map
                 : flags.HasFlag(InputFlags.Up) && withArrows ? -1
                 : flags.HasFlag(InputFlags.Down) && withArrows ? 1 : 0);
 
-            speed.X = Accelerate(speed.X, Definitions.ScrollSpeed.X, direction.X, ScrollAcceleration.X);
-            speed.Y = Accelerate(speed.Y, Definitions.ScrollSpeed.Y, direction.Y, ScrollAcceleration.Y);
+            speed.X = Accelerate(speed.X, Vids.ScrollSpeed.X, direction.X, ScrollAcceleration.X);
+            speed.Y = Accelerate(speed.Y, Vids.ScrollSpeed.Y, direction.Y, ScrollAcceleration.Y);
         }
 
-        var flagman = GetFlagman(ControlledPlayer);
+        var flagman = Flagman(ControlledPlayer);
 
         bool isStill = speed.X.IsExactlyZero() && speed.Y.IsExactlyZero();
 

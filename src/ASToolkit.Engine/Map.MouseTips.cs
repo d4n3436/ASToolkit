@@ -24,7 +24,7 @@ public sealed partial class Map
     private static ReadOnlySpan<byte> MouseTipsSection => "MouseTips"u8;
 
     [EngineRoutine(0x0043da80)]
-    private void TactMouseTip(PlayerInput input)
+    private void TactMouseTip(Input input)
     {
         uint now = WallTime;
         var cursor = input.ScreenCursor;
@@ -35,7 +35,7 @@ public sealed partial class Map
             Session.MouseTipCursor = cursor;
         }
 
-        bool isResting = now - Session.MouseTipMovedAt > (uint)Definitions.HoverDelay && !input.Flags.HasFlag(InputFlags.LeftClick) && input.Key == 0 &&
+        bool isResting = now - Session.MouseTipMovedAt > (uint)Vids.HoverDelay && !input.Flags.HasFlag(InputFlags.LeftClick) && input.Key == 0 &&
             !_menuClicks.HasFlag(MenuClicks.Left) && _flags.HasFlag(MapFlags.MouseTips);
 
         if (!isResting)
@@ -46,7 +46,7 @@ public sealed partial class Map
 
         if (_mouseTip is not null)
         {
-            if (now - Session.MouseTipMovedAt <= (uint)Definitions.HoverDelay + MouseTipRecheck)
+            if (now - Session.MouseTipMovedAt <= (uint)Vids.HoverDelay + MouseTipRecheck)
                 return;
 
             Session.MouseTipMovedAt += MouseTipRecheck;
@@ -58,10 +58,10 @@ public sealed partial class Map
             return;
         }
 
-        var font = Definitions.Find(MouseTipFont) ?? Definitions.Empty;
+        var font = Vids.Find(MouseTipFont) ?? Vids.Empty;
         Session.MouseTipText = GetMouseTipText();
 
-        if (font == Definitions.Empty || Session.MouseTipText.IsEmpty)
+        if (font == Vids.Empty || Session.MouseTipText.IsEmpty)
             return;
 
         var size = font.Object.Size;
@@ -102,14 +102,14 @@ public sealed partial class Map
         int id = GetMenuIdUnderCursor();
         Span<byte> key = stackalloc byte[MouseTipKeyLength];
         Utf8.TryWrite(key, $"MenuVid{id}AllDir", out int written);
-        var text = ProfileFile.GetString(_fileSystem, StringsFile, MouseTipsSection, key[..written]);
+        var text = Profile.GetString(_fileSystem, StringsFile, MouseTipsSection, key[..written]);
 
         if (!text.IsEmpty)
             return text;
 
         Utf8.TryWrite(key, $"MenuVid{id}Dir{GetMenuDirectionUnderCursor()}", out written);
 
-        return ProfileFile.GetString(_fileSystem, StringsFile, MouseTipsSection, key[..written]);
+        return Profile.GetString(_fileSystem, StringsFile, MouseTipsSection, key[..written]);
     }
 
     [EngineRoutine(0x0043dde0)]

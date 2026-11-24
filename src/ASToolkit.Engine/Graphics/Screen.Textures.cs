@@ -81,7 +81,7 @@ public sealed partial class Screen
 
     internal static ReadOnlySpan<ushort> DefaultColorTable => DefaultTable;
 
-    internal GameLogger? Logger { get; set; }
+    internal MyError? Error { get; set; }
 
     internal Graphics? Owner { get; set; }
 
@@ -146,10 +146,10 @@ public sealed partial class Screen
 
     private ushort[] CreateTexture(VidPixelFormat format, ReadOnlySpan<byte> name, out VidPixelFormat result)
     {
-        ushort[] texels = Graphics.CreateTexture(Logger, format, out result);
+        ushort[] texels = Graphics.CreateTexture(Error, format, out result);
         if (texels.Length == 0)
         {
-            Logger?.Error("GRAPH"u8, LogError.Create, 0, name);
+            Error?.Error("GRAPH"u8, LogError.Create, 0, name);
         }
 
         return texels;

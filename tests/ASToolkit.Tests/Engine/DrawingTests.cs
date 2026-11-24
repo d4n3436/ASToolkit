@@ -54,7 +54,7 @@ public class DrawingTests
             {
                 if (sprite is not null)
                 {
-                    lines.Add($"{layer} {(int)sprite.Definition.Id} {sprite.Position} {sprite.Frame} {sprite.Hp} {sprite.Animation} {sprite.IsInvisible}");
+                    lines.Add($"{layer} {(int)sprite.Vid.Id} {sprite.Position} {sprite.Frame} {sprite.Hp} {sprite.Animation} {sprite.IsInvisible}");
                 }
             }
         }

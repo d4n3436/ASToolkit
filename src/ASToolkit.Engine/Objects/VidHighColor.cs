@@ -7,20 +7,20 @@ using ASToolkit.Formats;
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents the definition of built terrain that is drawn in software into a 16-bit back buffer and into the textures of the hardware ground.
+/// Represents the shared data and frames of a built terrain object ID whose sprites are drawn in software into a 16-bit back buffer and into the textures of the hardware ground.
 /// </summary>
-public sealed class HighColorSpriteDefinition : SoftwareSpriteDefinition
+public sealed class VidHighColor : VidSoftware
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="HighColorSpriteDefinition"/> class.
+    /// Initializes a new instance of the <see cref="VidHighColor"/> class.
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
     /// <param name="weapon">The weapon record.</param>
     /// <param name="file">The sprite file.</param>
-    /// <param name="totalFrames">The frame count of the definition's sprite.</param>
+    /// <param name="totalFrames">The frame count of the sprite file.</param>
     /// <param name="format">The channel layout of the 16-bit back buffer.</param>
-    public HighColorSpriteDefinition(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, in VidResource file, int totalFrames, HighColorFormat format)
+    public VidHighColor(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, in VidResource file, int totalFrames, HighColorFormat format)
         : base(id, gameObject, weapon, file, totalFrames, format)
     {
     }

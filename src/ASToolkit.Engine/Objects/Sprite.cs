@@ -48,32 +48,32 @@ public partial class Sprite
     private Angle _direction;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Sprite"/> class from a definition.
+    /// Initializes a new instance of the <see cref="Sprite"/> class for an object ID.
     /// </summary>
     /// <param name="number">The sprite number.</param>
-    /// <param name="definition">The definition.</param>
+    /// <param name="vid">The shared data of the object ID.</param>
     /// <param name="position">The position.</param>
     /// <param name="army">The army.</param>
     /// <param name="hitPoints">The health.</param>
     /// <param name="map">The map the sprite belongs to.</param>
     /// <param name="direction">The direction.</param>
-    public Sprite(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
+    public Sprite(int number, Vid vid, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
     {
         Map = map;
-        ActionStack = new ActionStack(Map.Session.Logger);
+        ActionStack = new ActionStack(Map.Session.Error);
         StreamPeriod = 1;
         _direction = direction;
         Number = number;
-        Definition = definition;
+        Vid = vid;
         Army = army;
         Position = position;
         Hp = hitPoints;
-        FirstFrame = definition.GetFirstFrame(SpriteAnimation.Stand);
+        FirstFrame = vid.GetFirstFrame(SpriteAnimation.Stand);
         Frame = FirstFrame;
-        LastFrame = FirstFrame + definition.GetFramesPerDirection(SpriteAnimation.Stand) - 1;
+        LastFrame = FirstFrame + vid.GetFramesPerDirection(SpriteAnimation.Stand) - 1;
         CreatedAt = -1;
 
-        if (definition.HasTimers)
+        if (vid.HasTimers)
         {
             CreateExtra();
         }
@@ -90,9 +90,9 @@ public partial class Sprite
     public int Handle { get; set; }
 
     /// <summary>
-    /// Gets the definition of the sprite.
+    /// Gets the shared data and frames of the sprite's object ID.
     /// </summary>
-    public SpriteDefinition Definition { get; private set; }
+    public Vid Vid { get; private set; }
 
     /// <summary>
     /// Gets or sets the army of the sprite.
@@ -220,9 +220,9 @@ public partial class Sprite
     public int Timer { get; set; }
 
     /// <summary>
-    /// Gets the weapon slot of the torso linked by the sprite's definition.
+    /// Gets the weapon slot of the torso linked by the sprite's object ID.
     /// </summary>
-    public int WeaponSlot => (int)(Definition.LinkDefinition?.Id ?? 0) - WeaponIdBase;
+    public int WeaponSlot => (int)(Vid.LinkVid?.Id ?? 0) - WeaponIdBase;
 
     /// <summary>
     /// Gets or sets the period of the sprite's stream children.
@@ -294,7 +294,7 @@ public partial class Sprite
     /// </summary>
     public int Lifetime
     {
-        get => HasExtra ? _lifetime : SpriteDefinition.Unlimited;
+        get => HasExtra ? _lifetime : Vid.Unlimited;
         set
         {
             EnsureExtra();
@@ -308,7 +308,7 @@ public partial class Sprite
     /// </summary>
     public float MaxSpeed
     {
-        get => HasExtra ? _maxSpeed : Definition.Speed;
+        get => HasExtra ? _maxSpeed : Vid.Speed;
         set
         {
             EnsureExtra();
@@ -339,7 +339,7 @@ public partial class Sprite
                 {
                     if (count < 0)
                     {
-                        Logger?.Error($"SPRITE {(int)previous.Definition.Id}", LogError.Invalid, count, "noRef at Release"u8);
+                        Error?.Error($"SPRITE {(int)previous.Vid.Id}", LogError.Invalid, count, "noRef at Release"u8);
                     }
                     else
                     {
@@ -354,18 +354,18 @@ public partial class Sprite
     }
 
     /// <summary>
-    /// Gets this sprite's link if it's the armed object linked by the sprite's definition; otherwise, <see langword="null"/>.
+    /// Gets this sprite's link if it's the armed object linked by the sprite's object ID; otherwise, <see langword="null"/>.
     /// </summary>
     public Sprite? ArmedLink
     {
         get
         {
             var link = Link;
-            return link is not null && link.Definition == Definition.LinkDefinition && link.Definition.HasFightWeapon() ? link : null;
+            return link is not null && link.Vid == Vid.LinkVid && link.Vid.CanFight() ? link : null;
         }
     }
 
-    internal GameLogger? Logger { get; set; }
+    internal MyError? Error { get; set; }
 
     internal Map Map { get; }
 
@@ -435,13 +435,13 @@ public partial class Sprite
 
         if (link is not null)
         {
-            int linkMax = link.Definition.ArmyMaxHp[(int)link.Army & SpriteDefinition.ArmyMask];
+            int linkMax = link.Vid.ArmyMaxHp[(int)link.Army & Vid.ArmyMask];
 
             if (linkMax != 0)
                 return link.Hp * HpShare / linkMax;
         }
 
-        int max = Definition.ArmyMaxHp[(int)Army & SpriteDefinition.ArmyMask];
+        int max = Vid.ArmyMaxHp[(int)Army & Vid.ArmyMask];
 
         return max != 0 ? Hp * HpShare / max : 0;
     }
@@ -457,12 +457,12 @@ public partial class Sprite
         if (target is null)
             return false;
 
-        if (Definition.FightChild != 0 && Definition.Object.WeaponIndex != 0 && (Definition.Targets & target.Definition.Object.SpriteType) != 0)
+        if (Vid.FightChild != 0 && Vid.Object.WeaponIndex != 0 && (Vid.Targets & target.Vid.Object.SpriteType) != 0)
             return true;
 
         var link = ArmedLink;
 
-        return link is not null && (link.Definition.Targets & target.Definition.Object.SpriteType) != 0;
+        return link is not null && (link.Vid.Targets & target.Vid.Object.SpriteType) != 0;
     }
 
     /// <summary>
@@ -481,7 +481,7 @@ public partial class Sprite
     /// <returns><see langword="true"/> if this sprite touches the target; otherwise, <see langword="false"/>.</returns>
     public bool IsTouching(Vector2 target, Vector2 targetHalf)
     {
-        var reach = Definition.Half + targetHalf;
+        var reach = Vid.Half + targetHalf;
 
         return Math.Abs(Position.X - target.X) < reach.X && Math.Abs(Position.Y - target.Y) < reach.Y;
     }
@@ -505,10 +505,10 @@ public partial class Sprite
     {
         HasExtra = true;
         StreamPeriod = 1;
-        _lifetime = Definition.Lifetime;
+        _lifetime = Vid.Lifetime;
         KeyframePosition = 0;
         KeyframeStart = Map.Time;
-        _maxSpeed = Definition.Speed;
+        _maxSpeed = Vid.Speed;
         PreviousPosition = Position;
     }
 
@@ -525,27 +525,27 @@ public partial class Sprite
     }
 
     /// <summary>
-    /// Changes the sprite's definition, moving the sprite from the old definition's count to the new one's, and resets the sprite to the first frame of the standing state with its direction up.
+    /// Changes the sprite's object ID, moving the sprite from the old object ID's count to the new one's, and resets the sprite to the first frame of the standing state with its direction up.
     /// </summary>
-    /// <param name="definition">The new definition.</param>
-    public void ChangeVid(SpriteDefinition definition)
+    /// <param name="vid">The shared data and frames of the new object ID.</param>
+    public void ChangeVid(Vid vid)
     {
-        int army = (int)Army & SpriteDefinition.ArmyMask;
-        if (Definition.Counts[army] != 0)
+        int army = (int)Army & Vid.ArmyMask;
+        if (Vid.Counts[army] != 0)
         {
-            Definition.Counts[army]--;
+            Vid.Counts[army]--;
         }
 
-        definition.LastCreatedAt = Map.WallTime;
-        definition.Counts[army]++;
+        vid.LastCreatedAt = Map.WallTime;
+        vid.Counts[army]++;
 
-        Definition = definition;
+        Vid = vid;
 
-        if (definition.HasTimers)
+        if (vid.HasTimers)
         {
             if (HasExtra)
             {
-                _lifetime = definition.Lifetime;
+                _lifetime = vid.Lifetime;
             }
             else
             {
@@ -557,7 +557,7 @@ public partial class Sprite
         _direction = default;
         FirstFrame = 0;
         Frame = 0;
-        LastFrame = definition.GetFramesPerDirection(SpriteAnimation.Stand) - 1;
+        LastFrame = vid.GetFramesPerDirection(SpriteAnimation.Stand) - 1;
     }
 
     /// <summary>
@@ -580,9 +580,9 @@ public partial class Sprite
     /// <param name="random">The random number generator.</param>
     public void Start(SpriteAnimation state, Angle direction, int time, Random random)
     {
-        var layout = Definition;
-        bool firstFrame = Definition.Object.Properties.HasFlag(ObjectProperties.OnePhase);
-        LastTickTime = time - (firstFrame ? 0 : random.Next(Definition.SpriteSpeed + 1));
+        var layout = Vid;
+        bool firstFrame = Vid.Object.Properties.HasFlag(ObjectProperties.OnePhase);
+        LastTickTime = time - (firstFrame ? 0 : random.Next(Vid.SpriteSpeed + 1));
         _direction = default;
         Animation = state;
         FirstFrame = layout.GetFirstFrame(state);
@@ -606,15 +606,15 @@ public partial class Sprite
     {
         if ((int)state > MaxAnimation)
         {
-            Logger?.Error($"SPRITE {(int)Definition.Id}", LogError.Invalid, (int)state, "new_animation in ChangeAnimation"u8);
+            Error?.Error($"SPRITE {(int)Vid.Id}", LogError.Invalid, (int)state, "new_animation in ChangeAnimation"u8);
 
             return;
         }
 
         var link = Link;
 
-        if (link is not null && link.Definition == Definition.LinkDefinition && (state >= SpriteAnimation.Death || link.Definition.Object.WeaponIndex == 0 &&
-            !link.Definition.Object.Properties.HasFlag(ObjectProperties.Wind) && link.Animation is not SpriteAnimation.Fight and < SpriteAnimation.Death))
+        if (link is not null && link.Vid == Vid.LinkVid && (state >= SpriteAnimation.Death || link.Vid.Object.WeaponIndex == 0 &&
+            !link.Vid.Object.Properties.HasFlag(ObjectProperties.Wind) && link.Animation is not SpriteAnimation.Fight and < SpriteAnimation.Death))
         {
             link.ChangeAnimation(state);
         }
@@ -623,7 +623,7 @@ public partial class Sprite
             return;
 
         HasPlayedStateSound = false;
-        var layout = Definition;
+        var layout = Vid;
         var direction = GetShownDirection(_direction);
 
         FirstFrame = layout.GetFirstFrame(state) + layout.GetDirectionIndex(direction) * layout.GetFramesPerDirection(state);
@@ -649,27 +649,27 @@ public partial class Sprite
 
         if (link is not null)
         {
-            ref readonly var linked = ref link.Definition.Object;
+            ref readonly var linked = ref link.Vid.Object;
             bool fixedOffset = linked.Properties.HasFlag(ObjectProperties.FixedOffset);
-            var offset = Definition.Object.LinkOffset;
+            var offset = Vid.Object.LinkOffset;
 
-            if (link.Definition == Definition.LinkDefinition && !fixedOffset && (!offset.X.IsExactlyZero() || !offset.Y.IsExactlyZero()))
+            if (link.Vid == Vid.LinkVid && !fixedOffset && (!offset.X.IsExactlyZero() || !offset.Y.IsExactlyZero()))
             {
-                var linkOffset = Definition.GetLinkOffset(link.Definition, Definition.GetFrameDirection(shown));
+                var linkOffset = Vid.GetLinkOffset(link.Vid, Vid.GetFrameDirection(shown));
                 link.ChangeCoor(new Vector3(linkOffset.AsVector2() + Position.AsVector2(), link.Position.Z));
             }
             else if (linked.SpriteClass == SpriteClass.Linker && !fixedOffset)
             {
-                ((Linker)link).LinkRotate(Definition.GetFrameDirection(shown));
+                ((Linker)link).LinkRotate(Vid.GetFrameDirection(shown));
             }
 
-            if (link.Definition.RotationRate.IsExactlyZero())
+            if (link.Vid.RotationRate.IsExactlyZero())
             {
                 link.ChangeDirection(direction);
             }
         }
 
-        var layout = Definition;
+        var layout = Vid;
 
         if (layout.Directions != 1)
         {
@@ -717,8 +717,8 @@ public partial class Sprite
         if (goal == current)
             return default;
 
-        float rate = Definition.RotationRate;
-        if (rate.IsExactly(SpriteDefinition.Unlimited))
+        float rate = Vid.RotationRate;
+        if (rate.IsExactly(Vid.Unlimited))
         {
             ChangeDirection(goal);
 
@@ -822,13 +822,13 @@ public partial class Sprite
     }
 
     /// <summary>
-    /// Draws the sprite with the frames of its definition.
+    /// Draws the sprite with the frames of its object ID.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
     /// <param name="camera">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x0040ec40)]
-    public virtual void Draw(Screen screen, Map map, Vector2 camera) => Definition.Draw(screen, map, this, camera);
+    public virtual void Draw(Screen screen, Map map, Vector2 camera) => Vid.Draw(screen, map, this, camera);
 
     /// <summary>
     /// Returns the gamma of the sprite, made of its own gamma or its army's, plus the gamma of the current keyframe.
@@ -837,12 +837,12 @@ public partial class Sprite
     [EngineRoutine(0x004430b0)]
     public Gamma GetGamma()
     {
-        var definition = Definition;
-        var gamma = HasExtra && (GammaOverride.Negative != 0 || GammaOverride.Positive != 0) ? GammaOverride : definition.Gammas[(int)Army & SpriteDefinition.ArmyMask];
-        if (!definition.HasColorKeyframes)
+        var vid = Vid;
+        var gamma = HasExtra && (GammaOverride.Negative != 0 || GammaOverride.Positive != 0) ? GammaOverride : vid.Gammas[(int)Army & Vid.ArmyMask];
+        if (!vid.HasColorKeyframes)
             return gamma;
 
-        ref readonly var weapon = ref definition.Weapon;
+        ref readonly var weapon = ref vid.Weapon;
         int blue = (int)weapon.Interpolate(weapon.BlueKeys, (int)KeyframePosition, KeyframePosition);
         int green = (int)weapon.Interpolate(weapon.GreenKeys, (int)KeyframePosition, KeyframePosition);
         int red = (int)weapon.Interpolate(weapon.RedKeys, (int)KeyframePosition, KeyframePosition);
@@ -851,7 +851,7 @@ public partial class Sprite
         return gamma.Add(keyframe.WithRed(red).WithGreen(green).WithBlue(blue));
     }
 
-    internal void ReplaceDefinition(SpriteDefinition definition) => Definition = definition;
+    internal void ReplaceVid(Vid vid) => Vid = vid;
 
     internal void SetAnimationValue(SpriteAnimation state) => Animation = state;
 
@@ -859,15 +859,15 @@ public partial class Sprite
     internal void ChangeCoor(Vector3 position)
     {
         var delta = position - Position;
-        Map.LowerHeights(Definition, this);
+        Map.LowerHeights(Vid, this);
         Shift(delta);
-        Map.RaiseHeights(Definition, this);
+        Map.RaiseHeights(Vid, this);
 
         foreach (var link in EnumerateLinks())
         {
-            Map.LowerHeights(link.Definition, this);
+            Map.LowerHeights(link.Vid, this);
             link.Shift(delta);
-            Map.RaiseHeights(link.Definition, this);
+            Map.RaiseHeights(link.Vid, this);
         }
     }
 
@@ -886,7 +886,7 @@ public partial class Sprite
             return HasGoal ? AttackResult.NoOrder : AttackResult.NoTarget;
         }
 
-        if (Definition.FightChild == 0 || Definition.Object.WeaponIndex == 0)
+        if (Vid.FightChild == 0 || Vid.Object.WeaponIndex == 0)
             return AttackResult.Unarmed;
 
         if (!HasGoal)
@@ -911,20 +911,20 @@ public partial class Sprite
         }
 
         float distance = Position.AsVector2().MeasureOctagonalDistance(GoalPosition.AsVector2());
-        bool inRange = Owner is null || Command == Command.DistAttack || distance < Definition.BattleRange && distance > Definition.MinRange;
-        bool aimed = inRange && (RotateTact(MeasureDirectionToGoal(), elapsed) == default || Definition.CanAttackWhileTurning);
+        bool inRange = Owner is null || Command == Command.DistAttack || distance < Vid.BattleRange && distance > Vid.MinRange;
+        bool aimed = inRange && (RotateTact(MeasureDirectionToGoal(), elapsed) == default || Vid.CanAttackWhileTurning);
 
         if (!inRange)
         {
             FaceOwner(elapsed, true);
         }
 
-        if (distance <= Definition.BattleRange)
+        if (distance <= Vid.BattleRange)
         {
             if (!aimed)
                 return AttackResult.Busy;
 
-            int count = Definition.ChildCounts[(int)SpriteAnimation.Fight];
+            int count = Vid.ChildCounts[(int)SpriteAnimation.Fight];
 
             if (Map.Action(this, ActionCode.GetAmmo) < Math.Abs(count))
                 return AttackResult.NoAmmo;
@@ -932,7 +932,7 @@ public partial class Sprite
             Map.Action(this, ActionCode.AddAmmo, -count);
 
             ChangeAnimation(SpriteAnimation.Fight);
-            Timer = Definition.ReloadTime + ReloadTimerOffset;
+            Timer = Vid.ReloadTime + ReloadTimerOffset;
 
             return AttackResult.Attacked;
         }
@@ -940,7 +940,7 @@ public partial class Sprite
         if (Command == Command.Attack)
             return AttackResult.Approach;
 
-        return distance < Definition.DetectRange * 2 ? AttackResult.Pursue : AttackResult.GiveUp;
+        return distance < Vid.DetectRange * 2 ? AttackResult.Pursue : AttackResult.GiveUp;
     }
 
     [EngineRoutine(0x0043fa00)]
@@ -983,13 +983,13 @@ public partial class Sprite
     internal virtual void Destruct()
     {
         Map.RunDestroyHandler(this);
-        Map.LowerHeights(Definition, this);
+        Map.LowerHeights(Vid, this);
 
-        bool isEmpty = Definition == Map.Definitions.Empty;
+        bool isEmpty = Vid == Map.Vids.Empty;
 
         if (isEmpty && ReferenceCount != 0)
         {
-            Map.Session.Logger.Error("SPRITE 0"u8, LogError.Invalid, 0);
+            Map.Session.Error.Error("SPRITE 0"u8, LogError.Invalid, 0);
         }
 
         if (ReferenceCount > 1)
@@ -1004,9 +1004,9 @@ public partial class Sprite
 
         int army = (int)Army & 3;
 
-        if (Definition.Counts[army] != 0)
+        if (Vid.Counts[army] != 0)
         {
-            Definition.Counts[army]--;
+            Vid.Counts[army]--;
         }
 
         Goal = null;
@@ -1026,7 +1026,7 @@ public partial class Sprite
 
         if (ReferenceCount != 0)
         {
-            Map.Session.Logger.Error("SPRITE 0"u8, LogError.Text, 0);
+            Map.Session.Error.Error("SPRITE 0"u8, LogError.Text, 0);
         }
 
         if (Handle == 0)
@@ -1041,10 +1041,10 @@ public partial class Sprite
     [EngineRoutine(0x0043f820)]
     internal virtual void MoveTact()
     {
-        if (!Definition.CanMove)
+        if (!Vid.CanMove)
             return;
 
-        ref readonly var gameObject = ref Definition.Object;
+        ref readonly var gameObject = ref Vid.Object;
         int elapsed = Map.FrameTime;
         var next = CalculateNewCoordinates(elapsed);
         float current = Map.GetGroundZ(Position.AsVector2());
@@ -1114,21 +1114,21 @@ public partial class Sprite
     }
 
     [EngineRoutine(0x00442660)]
-    internal virtual void DrawInfo()
+    internal virtual void DrawSecondaryInfo()
     {
         var graphics = Map.Session.Graphics;
         var view = graphics.Viewport;
         float y = view.Top;
         var position = Position;
         int ammo = Map.Action(this, ActionCode.GetAmmo);
-        graphics.DrawFormattedText(new Vector2(view.Left + InfoTextLeft, y), $"Ref={ReferenceCount,-3} cmd={(int)Command,1} ani={(int)Animation,-2} hp={Hp,-3} AT={(int)AttackResult} goal={GetDefinitionId(Goal),-3} spd={(int)(Speed * SpeedScale),-3},{(int)(VerticalSpeed * SpeedScale),-3} timer={Timer} ammo={ammo} mvE={(HasReachedX ? 1 : 0),1}{(HasReachedY ? 1 : 0),1} {(int)position.X},{(int)position.Y},{(int)position.Z}");
+        graphics.DrawFormattedText(new Vector2(view.Left + InfoTextLeft, y), $"Ref={ReferenceCount,-3} cmd={(int)Command,1} ani={(int)Animation,-2} hp={Hp,-3} AT={(int)AttackResult} goal={GetVidId(Goal),-3} spd={(int)(Speed * SpeedScale),-3},{(int)(VerticalSpeed * SpeedScale),-3} timer={Timer} ammo={ammo} mvE={(HasReachedX ? 1 : 0),1}{(HasReachedY ? 1 : 0),1} {(int)position.X},{(int)position.Y},{(int)position.Z}");
 
         var link = Link;
-        if (link is not null && link.Definition == Definition.LinkDefinition)
+        if (link is not null && link.Vid == Vid.LinkVid)
         {
             y += InfoLineHeight;
             int linkAmmo = Map.Action(link, ActionCode.GetAmmo);
-            graphics.DrawFormattedText(new Vector2(view.Left + InfoTextLeft, y), $"Ref={link.ReferenceCount,-3} cmd={(int)link.Command,1} ani={(int)link.Animation,-2} hp={link.Hp,-3} AT={(int)link.AttackResult} goal={GetDefinitionId(link.Goal),-3} timer={link.Timer} ammo={linkAmmo}");
+            graphics.DrawFormattedText(new Vector2(view.Left + InfoTextLeft, y), $"Ref={link.ReferenceCount,-3} cmd={(int)link.Command,1} ani={(int)link.Animation,-2} hp={link.Hp,-3} AT={(int)link.AttackResult} goal={GetVidId(link.Goal),-3} timer={link.Timer} ammo={linkAmmo}");
         }
 
         if (ActionStack.Count != 0)
@@ -1145,11 +1145,11 @@ public partial class Sprite
             graphics.DrawText(new Vector2(view.Left + OrdersTextLeft, y), GameTextEncoding.Cyrillic.GetBytes(text.ToString()), Map.White);
         }
 
-        DrawGoalLines();
+        DrawGoalLine();
     }
 
     [EngineRoutine(0x00442900)]
-    internal virtual void DrawGoalLines()
+    internal virtual void DrawGoalLine()
     {
         var graphics = Map.Session.Graphics;
 
@@ -1201,7 +1201,7 @@ public partial class Sprite
     }
 
     [EngineRoutine(0x00444a00)]
-    private protected void Unlink()
+    private protected void BreakLink()
     {
         Link?.Owner = Owner;
 
@@ -1214,7 +1214,7 @@ public partial class Sprite
         Link = null;
     }
 
-    private static int GetDefinitionId(Sprite? sprite) => sprite is null ? 0 : (int)sprite.Definition.Id;
+    private static int GetVidId(Sprite? sprite) => sprite is null ? 0 : (int)sprite.Vid.Id;
 
     [EngineRoutine(0x004449c0)]
     internal void AddLinkToLast(Sprite link)
@@ -1234,7 +1234,7 @@ public partial class Sprite
 
     private void Shift(Vector3 delta)
     {
-        if (SpriteCollector.IsHashed(Definition))
+        if (SpriteCollector.IsHashed(Vid))
         {
             Map.Collector.ChangeCoor(this, Position.AsVector2() + delta.AsVector2());
         }
@@ -1252,7 +1252,7 @@ public partial class Sprite
 
     private Angle GetShownDirection(Angle direction)
     {
-        if (VerticalSpeed.IsExactlyZero() || !Definition.Object.Properties.HasFlag(ObjectProperties.VerticalDirection))
+        if (VerticalSpeed.IsExactlyZero() || !Vid.Object.Properties.HasFlag(ObjectProperties.VerticalDirection))
             return direction;
 
         return Angle.FromOffset(new Vector2(direction.Vector.X * Speed * VelocityScale, -(direction.Vector.Y * Speed + VerticalSpeed) * VelocityScale));

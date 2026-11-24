@@ -51,7 +51,7 @@ public readonly ref partial struct Texture
     private static ReadOnlySpan<byte> Dxt5Text => "DXT5 "u8;
 
     [EngineRoutine(0x004036b0)]
-    internal static ushort[] Allocate(ref Size size, VidPixelFormat format, TextureFlags flags, GameLogger? logger, out TextureFlags stored, out VidPixelFormat result)
+    internal static ushort[] Allocate(ref Size size, VidPixelFormat format, TextureFlags flags, MyError? error, out TextureFlags stored, out VidPixelFormat result)
     {
         result = VidPixelFormat.None;
         stored = default;
@@ -60,7 +60,7 @@ public readonly ref partial struct Texture
             flags &= ~TextureFlags.Dynamic;
         }
 
-        if (!TryFitSize(size, logger, out var fitted))
+        if (!TryFitSize(size, error, out var fitted))
             return [];
 
         size = fitted;
@@ -85,7 +85,7 @@ public readonly ref partial struct Texture
             if (!TryGetFallbackFormat(format, stored, out var fallback))
             {
                 result = format;
-                logger?.Error(TextureLogTag, LogError.Create, InvalidCall);
+                error?.Error(TextureLogTag, LogError.Create, InvalidCall);
 
                 return [];
             }
@@ -183,7 +183,7 @@ public readonly ref partial struct Texture
         }
 
         text.AddRange(Encoding.ASCII.GetBytes($"MAXSIZE={_maxSize.Width},{_maxSize.Height}"));
-        string line = $"TextureCaps={GameLogger.Decode(CollectionsMarshal.AsSpan(text))}";
+        string line = $"TextureCaps={MyError.Decode(CollectionsMarshal.AsSpan(text))}";
         _isPowerOfTwoRequired = true;
         return line;
     }
@@ -200,7 +200,7 @@ public readonly ref partial struct Texture
 
     private static bool IsSupported(VidPixelFormat format) => Graphics.DeviceTextureFormats.Contains(format);
 
-    private static bool TryFitSize(Size size, GameLogger? logger, out Size fitted)
+    private static bool TryFitSize(Size size, MyError? error, out Size fitted)
     {
         int width = size.Width;
         int height = size.Height;
@@ -219,14 +219,14 @@ public readonly ref partial struct Texture
         fitted = new Size(width, height);
         if (width > _maxSize.Width || width < 1)
         {
-            logger?.Error(TextureLogTag, LogError.Invalid, width, "initial sizeX"u8);
+            error?.Error(TextureLogTag, LogError.Invalid, width, "initial sizeX"u8);
 
             return false;
         }
 
         if (height > _maxSize.Height || height < 1)
         {
-            logger?.Error(TextureLogTag, LogError.Invalid, height, "initial sizeY"u8);
+            error?.Error(TextureLogTag, LogError.Invalid, height, "initial sizeY"u8);
 
             return false;
         }

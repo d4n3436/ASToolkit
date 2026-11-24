@@ -4,7 +4,7 @@ namespace ASToolkit.Engine.Scripts;
 /// Specifies the type flags of a script value.
 /// </summary>
 [Flags]
-public enum StackObjectFlags : byte
+public enum ScriptStackFlags : byte
 {
     /// <summary>
     /// No flag.

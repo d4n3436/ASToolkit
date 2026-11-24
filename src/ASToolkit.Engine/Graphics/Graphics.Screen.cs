@@ -35,7 +35,7 @@ public sealed partial class Graphics
     /// <summary>
     /// Gets the font that the device draws text with, or <see langword="null"/> if the font hasn't been created yet.
     /// </summary>
-    public TextureFont? DeviceFont { get; private set; }
+    public D3DFont? DeviceFont { get; private set; }
 
     internal bool IsDepthLocked { get; private set; }
 
@@ -134,7 +134,7 @@ public sealed partial class Graphics
     [EngineRoutine(0x00402bc0)]
     public void CreateDeviceFont(string name, Size glyphSize, int maxTextureSize)
     {
-        DeviceFont = new TextureFont(name, glyphSize, TextureFontStyle.FixedPitch);
+        DeviceFont = new D3DFont(name, glyphSize, D3DFontStyle.FixedPitch);
         DeviceFont.Create(maxTextureSize);
         DeviceFont.CreateStateBlocks();
     }
@@ -158,7 +158,7 @@ public sealed partial class Graphics
         }
         else
         {
-            SetBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
+            SetAlphaBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
         }
 
         ScreenPrimitives.FillRectangle(Screen, area, color, Blend.Source, Blend.Destination);
@@ -183,7 +183,7 @@ public sealed partial class Graphics
         int begun = Device?.BeginScene() ?? 0;
         if (begun != 0)
         {
-            Logger?.Error(GraphicsLogTag, LogError.Text, begun, "3dBeginScene for PreTact"u8);
+            Error?.Error(GraphicsLogTag, LogError.Text, begun, "3dBeginScene for PreTact"u8);
             return 4;
         }
 
@@ -202,7 +202,7 @@ public sealed partial class Graphics
         int ended = Device?.EndScene() ?? 0;
         if (ended != 0)
         {
-            Logger?.Error(GraphicsLogTag, LogError.Text, ended, "3dEndScene for PostTact"u8);
+            Error?.Error(GraphicsLogTag, LogError.Text, ended, "3dEndScene for PostTact"u8);
         }
 
         if (present && EffectStartTimes[(int)ScreenEffect.PixelAppear] == 0 && EffectStartTimes[(int)ScreenEffect.LineShift] == 0)
@@ -217,7 +217,7 @@ public sealed partial class Graphics
             int presented = Device?.Present(source, destination) ?? 0;
             if (presented != 0)
             {
-                Logger?.Error(GraphicsLogTag, LogError.Invalid, presented, "Present"u8);
+                Error?.Error(GraphicsLogTag, LogError.Invalid, presented, "Present"u8);
             }
         }
 
@@ -238,10 +238,10 @@ public sealed partial class Graphics
     }
 
     [EngineRoutine(0x00430dd0)]
-    internal void DrawLoadBar(Map map, SpriteDefinition? definition)
+    internal void DrawLoadBar(Map map, Vid? vid)
     {
         uint now = map.Session.GetWallTime();
-        if (definition is null || (uint)definition.SpriteSpeed >= now - _loadingDrawnAt)
+        if (vid is null || (uint)vid.SpriteSpeed >= now - _loadingDrawnAt)
             return;
 
         PreTact();
@@ -251,37 +251,37 @@ public sealed partial class Graphics
         }
 
         var screen = map.Session.ScreenSize;
-        DrawVid(map, definition, _loadingFrame, new Vector3(screen.Width * Map.HalfShare, screen.Height * Map.HalfShare + 1, LoadingDepth));
+        DrawVid(map, vid, _loadingFrame, new Vector3(screen.Width * Map.HalfShare, screen.Height * Map.HalfShare + 1, LoadingDepth));
         UpdateEffects(map, true);
         DrawText(new Vector2(LoadingTextLeft, Viewport.Top + LoadingTextTop), LoadingText, TextColor);
         PostTact(true);
         _loadingDrawnAt = now;
         _loadingFrame++;
-        if (_loadingFrame >= definition.FileFrameCount)
+        if (_loadingFrame >= vid.FileFrameCount)
         {
             _loadingFrame = 0;
         }
     }
 
     [EngineRoutine(0x004333d0)]
-    internal void DrawVid(Map map, SpriteDefinition definition, int frame, Vector3 position)
+    internal void DrawVid(Map map, Vid vid, int frame, Vector3 position)
     {
-        if (definition == map.Definitions.Empty)
+        if (vid == map.Vids.Empty)
             return;
 
-        if (frame < 0 || frame >= definition.FileFrameCount)
+        if (frame < 0 || frame >= vid.FileFrameCount)
         {
-            map.Session.Logger.Error(GraphicsLogTag, LogError.Invalid, frame, "ncadr in DrawVid"u8);
+            map.Session.Error.Error(GraphicsLogTag, LogError.Invalid, frame, "ncadr in DrawVid"u8);
             return;
         }
 
-        SetRenderState(RenderState.AlphaBlendEnable, definition.Layer < ObjectLayer.AlphaGround ? 0u : 1u);
-        var sprite = new Sprite(-1, definition, new Vector3(position.AsVector2() + map.Camera, position.Z), default, 0, map: map);
+        SetRenderState(RenderState.AlphaBlendEnable, vid.Layer < ObjectLayer.AlphaGround ? 0u : 1u);
+        var sprite = new Sprite(-1, vid, new Vector3(position.AsVector2() + map.Camera, position.Z), default, 0, map: map);
         map.ConstructSprite(sprite, default, null);
         sprite.Frame = frame;
         if (Screen is not null)
         {
-            definition.Draw(Screen, map, sprite, map.Camera);
+            vid.Draw(Screen, map, sprite, map.Camera);
         }
 
         sprite.Destruct();
@@ -304,7 +304,7 @@ public sealed partial class Graphics
         {
             if (Screen is not null)
             {
-                if (map.Definitions.Find(SpriteCatalog.HardwareGroundId) is null || map.Camera.X < 0f || map.Size.Width < Viewport.Right + map.Camera.X - Viewport.Left || map.Camera.Y < 0f || map.Size.Height < Viewport.Bottom + map.Camera.Y - Viewport.Top)
+                if (map.Vids.Find(SpriteCatalog.HardwareGroundId) is null || map.Camera.X < 0f || map.Size.Width < Viewport.Right + map.Camera.X - Viewport.Left || map.Camera.Y < 0f || map.Size.Height < Viewport.Bottom + map.Camera.Y - Viewport.Top)
                 {
                     Clear(Screen, ClearColor);
                 }
@@ -343,7 +343,7 @@ public sealed partial class Graphics
             IsDepthLocked = false;
             DrawLayers(map, ObjectLayer.Cursor, ObjectLayer.Cursor);
 
-            if (Screen is not null && !map.CursorSprite.IsHardwareCursor && map.CursorSprite.Definition.Object.Properties.HasFlag(ObjectProperties.AlwaysTop))
+            if (Screen is not null && !map.CursorSprite.IsHardwareCursor && map.CursorSprite.Vid.Object.Properties.HasFlag(ObjectProperties.AlwaysTop))
             {
                 map.DrawCursorChain(Screen, map.Camera, null);
             }
@@ -391,7 +391,7 @@ public sealed partial class Graphics
     }
 
     [EngineRoutine(0x00430780)]
-    internal void SetBlend(BlendFactor source, BlendFactor destination)
+    internal void SetAlphaBlend(BlendFactor source, BlendFactor destination)
     {
         if (!Flags.HasFlag(GraphicsFlags.AlphaBlendEnabled))
         {

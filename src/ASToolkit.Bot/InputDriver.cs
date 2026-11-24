@@ -62,7 +62,7 @@ internal sealed class InputDriver
             }
         }
 
-        if (_map.GetFlagman(0) is null)
+        if (_map.Flagman(0) is null)
         {
             input.PostKey(VirtualKey.Space, ' ');
         }

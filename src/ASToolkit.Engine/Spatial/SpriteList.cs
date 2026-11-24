@@ -68,7 +68,7 @@ public sealed class SpriteList
             {
                 if (references < 0)
                 {
-                    sprite.Logger?.Error($"SPRITE {(int)sprite.Definition.Id}", LogError.Invalid, references, "noRef at Release"u8);
+                    sprite.Error?.Error($"SPRITE {(int)sprite.Vid.Id}", LogError.Invalid, references, "noRef at Release"u8);
                 }
                 else
                 {

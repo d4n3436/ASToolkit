@@ -142,7 +142,7 @@ public partial class MapViewerViewModel : ViewModelBase
 
         var found = FindSprite(Map, point.Position);
         Status = found is null ? $"{position}    {_summary}"
-            : $"{position}    object {(int)found.Definition.Id} {Objects.GetName(found.Definition.Id)} [{Objects.GetPath(found.Definition.Id)}]    " +
+            : $"{position}    object {(int)found.Vid.Id} {Objects.GetName(found.Vid.Id)} [{Objects.GetPath(found.Vid.Id)}]    " +
               $"position ({found.Position.X:0}, {found.Position.Y:0}, {found.Position.Z:0})    direction {found.Direction}";
     }
 
@@ -279,7 +279,7 @@ public partial class MapViewerViewModel : ViewModelBase
                         continue;
 
                     var center = sprite.Position.ToDrawPosition();
-                    if (Math.Abs(point.X - center.X) <= sprite.Definition.FrameSize.Center.X && Math.Abs(point.Y - center.Y) <= sprite.Definition.FrameSize.Center.Y)
+                    if (Math.Abs(point.X - center.X) <= sprite.Vid.FrameSize.Center.X && Math.Abs(point.Y - center.Y) <= sprite.Vid.FrameSize.Center.Y)
                         return sprite;
                 }
             }
@@ -294,7 +294,7 @@ public partial class MapViewerViewModel : ViewModelBase
 
     private static bool IsPlaced(Map map, Sprite sprite) => sprite != map.CursorSprite && !map.MenuSprites.Contains(sprite);
 
-    private static bool IsHidden(Sprite sprite) => sprite.IsInvisible || sprite.Definition.IsHidden;
+    private static bool IsHidden(Sprite sprite) => sprite.IsInvisible || sprite.Vid.IsHidden;
 
     private static IReadOnlyList<HelperMarker> GetHelpers(Map map)
     {
@@ -307,7 +307,7 @@ public partial class MapViewerViewModel : ViewModelBase
                 {
                     if (sprite is not null && IsPlaced(map, sprite) && IsHidden(sprite))
                     {
-                        helpers.Add(new HelperMarker(sprite.Definition.Id, sprite.Position, sprite.Army, GetHelperKind(sprite.Definition.Object.SpriteClass)));
+                        helpers.Add(new HelperMarker(sprite.Vid.Id, sprite.Position, sprite.Army, GetHelperKind(sprite.Vid.Object.SpriteClass)));
                     }
                 }
             }

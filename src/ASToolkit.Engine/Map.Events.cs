@@ -34,7 +34,7 @@ public sealed partial class Map
     /// <param name="third">The third argument.</param>
     /// <returns>The function's result.</returns>
     [EngineRoutine(0x0040f430)]
-    public int CallScript(int function, Sprite? sprite, int second = 0, int third = 0) => _flags.HasFlag(MapFlags.ScriptsDisabled) ? 0 : Script.CallFunction(this, function, GetSpriteHandle(sprite), second, third);
+    public int ScriptRun(int function, Sprite? sprite, int second = 0, int third = 0) => _flags.HasFlag(MapFlags.ScriptsDisabled) ? 0 : Script.CallFunction(this, function, GetSpriteHandle(sprite), second, third);
 
     /// <summary>
     /// Writes a number into a script variable.
@@ -48,7 +48,7 @@ public sealed partial class Map
 
         if (index >= 0)
         {
-            Script.GetSlot(Script.Objects[index].Address + element) = StackObject.FromNumber(value);
+            Script.GetSlot(Script.Objects[index].Address + element) = ScriptStack.FromNumber(value);
         }
     }
 
@@ -66,36 +66,36 @@ public sealed partial class Map
     }
 
     internal int RunCollisionHandler(Sprite sprite, Sprite? other) =>
-        sprite.Definition.CollisionHandler >= 0 ? CallScript(sprite.Definition.CollisionHandler, sprite, GetSpriteHandle(other)) : 0;
+        sprite.Vid.CollisionHandler >= 0 ? ScriptRun(sprite.Vid.CollisionHandler, sprite, GetSpriteHandle(other)) : 0;
 
     internal void RunCreationHandler(Sprite sprite)
     {
-        int handler = sprite.Definition.StateHandlers[(int)SpriteAnimation.Birth];
+        int handler = sprite.Vid.StateHandlers[(int)SpriteAnimation.Birth];
 
         if (handler >= 0)
         {
-            CallScript(handler, sprite);
+            ScriptRun(handler, sprite);
         }
     }
 
     internal void RunDestroyHandler(Sprite sprite)
     {
-        if (sprite.Definition.DestroyHandler >= 0)
+        if (sprite.Vid.DestroyHandler >= 0)
         {
-            CallScript(sprite.Definition.DestroyHandler, sprite);
+            ScriptRun(sprite.Vid.DestroyHandler, sprite);
         }
     }
 
-    private static void BindStateHandler(SpriteDefinition? definition, ReadOnlySpan<byte> state, int function, int parameters)
+    private static void BindStateHandler(Vid? vid, ReadOnlySpan<byte> state, int function, int parameters)
     {
-        if (state.IsEmpty || parameters != StateHandlerParameters || definition is null)
+        if (state.IsEmpty || parameters != StateHandlerParameters || vid is null)
             return;
 
         int value = state.Length == 1 ? state[0] - '0' : (state[0] - '0') * 10 + state[1] - '0';
 
-        if (value is >= 0 and < SpriteDefinition.StateCount)
+        if (value is >= 0 and < ASToolkit.Engine.Vid.StateCount)
         {
-            definition.StateHandlers[value] = function;
+            vid.StateHandlers[value] = function;
         }
     }
 
@@ -118,13 +118,13 @@ public sealed partial class Map
         if (name[IdDigits + 1] == NameSeparator)
         {
             var rest = name[(IdDigits + 2)..];
-            var definition = Definitions.Find((KnownObject)CRuntime.ParseInteger(name.Slice(1, IdDigits)));
+            var vid = Vids.Find((KnownObject)CRuntime.ParseInteger(name.Slice(1, IdDigits)));
 
             if (rest.StartsWith(DamageSuffix))
             {
-                if (parameters == DamageParameters && definition is not null)
+                if (parameters == DamageParameters && vid is not null)
                 {
-                    definition.DamageHandler = function;
+                    vid.DamageHandler = function;
                 }
 
                 return;
@@ -132,9 +132,9 @@ public sealed partial class Map
 
             if (rest.StartsWith(DestroySuffix))
             {
-                if (parameters == DestroyParameters && definition is not null)
+                if (parameters == DestroyParameters && vid is not null)
                 {
-                    definition.DestroyHandler = function;
+                    vid.DestroyHandler = function;
                 }
 
                 return;
@@ -142,22 +142,22 @@ public sealed partial class Map
 
             if (rest.StartsWith(CollisionSuffix))
             {
-                if (parameters == CollisionParameters && definition is not null)
+                if (parameters == CollisionParameters && vid is not null)
                 {
-                    definition.CollisionHandler = function;
+                    vid.CollisionHandler = function;
                 }
 
                 return;
             }
 
-            BindStateHandler(definition, rest, function, parameters);
+            BindStateHandler(vid, rest, function, parameters);
 
             return;
         }
 
         if (name.Length > LongIdDigits + 1 && IsDigits(name.Slice(1, LongIdDigits)) && name[LongIdDigits + 1] == NameSeparator)
         {
-            BindStateHandler(Definitions.Find((KnownObject)CRuntime.ParseInteger(name.Slice(1, LongIdDigits))), name[(LongIdDigits + 2)..], function, parameters);
+            BindStateHandler(Vids.Find((KnownObject)CRuntime.ParseInteger(name.Slice(1, LongIdDigits))), name[(LongIdDigits + 2)..], function, parameters);
         }
     }
 

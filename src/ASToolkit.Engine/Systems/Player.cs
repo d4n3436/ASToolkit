@@ -35,7 +35,7 @@ internal sealed class Player
         _settings = settings;
         Money = StartMoney;
         var screen = map.Session.ScreenSize;
-        Messages = new MessageWindow(map, MessageLineId, NoMarkerId, MessageDefaultOrigin, MessageLines, MessageLifetime)
+        Messages = new Message(map, MessageLineId, NoMarkerId, MessageDefaultOrigin, MessageLines, MessageLifetime)
         {
             Origin = new Vector2(screen.Width - MessageRightMargin, screen.Height - MessageBottomMargin),
             LineStep = MessageLineStep
@@ -46,7 +46,7 @@ internal sealed class Player
 
     public Sprite? Hovered { get; set; }
 
-    public MessageWindow Messages { get; }
+    public Message Messages { get; }
 
     [EngineRoutine(0x0043a8b0)]
     public int Money { get; set; }
@@ -89,7 +89,7 @@ internal sealed class Player
     [EngineRoutine(0x00413440)]
     public void Load(ref Resource reader)
     {
-        _map.TryReadRelatedSprite(ref reader, out var flagman);
+        _map.TryReadPointer(ref reader, out var flagman);
         SetFlagman(flagman);
     }
 
@@ -97,7 +97,7 @@ internal sealed class Player
     public void Forget(Sprite removed) => ForgetSprite(removed);
 
     [EngineRoutine(0x0043ea10)]
-    public void Control(PlayerInput input)
+    public void Control(Input input)
     {
         ShareGroupAttacks();
         Messages.Tact();
@@ -107,7 +107,7 @@ internal sealed class Player
         if (player is null)
             return;
 
-        if (player.Definition.Class != SpriteClass.Man)
+        if (player.Vid.Class != SpriteClass.Man)
             return;
 
         var flags = input.Flags;
@@ -122,7 +122,7 @@ internal sealed class Player
         }
 
         TurnTorso(player, cursorDirection);
-        if (Hovered is not null && Hovered.Definition.Object.SpriteType.HasFlag(SpriteType.Terrain))
+        if (Hovered is not null && Hovered.Vid.Object.SpriteType.HasFlag(SpriteType.Terrain))
         {
             _map.Release(Hovered);
             Hovered = null;
@@ -186,7 +186,7 @@ internal sealed class Player
         }
     }
 
-    private void ApplyButtons(PlayerInput input, Sprite player)
+    private void ApplyButtons(Input input, Sprite player)
     {
         var flags = input.Flags;
         if (flags.HasFlag(InputFlags.Second))
@@ -204,9 +204,9 @@ internal sealed class Player
         {
             var sprite = (Man)Sprite!;
 
-            if (sprite.Definition.Class == SpriteClass.Man && sprite.Rounds < sprite.Definition.ChildCounts[(int)SpriteAnimation.Fight])
+            if (sprite.Vid.Class == SpriteClass.Man && sprite.Rounds < sprite.Vid.ChildCounts[(int)SpriteAnimation.Fight])
             {
-                for (int slot = (int)sprite.Link!.Definition.Id - Sprite.WeaponIdBase - 1; !sprite.ChangeWeapon(slot); slot--)
+                for (int slot = (int)sprite.Link!.Vid.Id - Sprite.WeaponIdBase - 1; !sprite.ChangeWeapon(slot); slot--)
                 {
                 }
             }
@@ -214,13 +214,13 @@ internal sealed class Player
             Map.Action(Sprite!, ActionCode.CoorAttack, (int)input.Cursor.X, (int)input.Cursor.Y);
         }
 
-        if (input.Key is >= FirstWeaponKey and <= LastWeaponKey && Sprite!.Definition.Class == SpriteClass.Man)
+        if (input.Key is >= FirstWeaponKey and <= LastWeaponKey && Sprite!.Vid.Class == SpriteClass.Man)
         {
             ((Man)Sprite!).ChangeWeapon(input.Key - FirstWeaponKey);
         }
     }
 
-    private void ScrollWeapons(PlayerInput input)
+    private void ScrollWeapons(Input input)
     {
         int weaponSlot = Sprite!.WeaponSlot;
         int notches = input.Wheel;
@@ -314,9 +314,9 @@ internal sealed class Player
     {
         var torso = player.Link;
 
-        if (torso is not null && torso.Definition == player.Definition.LinkDefinition)
+        if (torso is not null && torso.Vid == player.Vid.LinkVid)
         {
-            if (player.Speed == 0 && player.Definition.Id == KnownObject.PlayerStart)
+            if (player.Speed == 0 && player.Vid.Id == KnownObject.PlayerStart)
             {
                 if (!_isTurningLegs)
                 {

@@ -8,12 +8,9 @@ using ASToolkit.Formats;
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents a sprite definition.
+/// Represents the data and frames shared by every sprite of one object ID.
 /// </summary>
-/// <remarks>
-/// Definitions loaded from a sprite file are of one of the derived classes, chosen by the file's flags.
-/// </remarks>
-public class SpriteDefinition
+public class Vid
 {
     /// <summary>
     /// Represents the value the game files use for an unlimited speed, lifetime or amount.
@@ -76,45 +73,45 @@ public class SpriteDefinition
     private ReadOnlyMemory<int> _heightFrameStarts;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="SpriteDefinition"/> class from an object record and loads its parameters.
+    /// Initializes a new instance of the <see cref="Vid"/> class from an object record and loads its parameters.
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
     /// <param name="weapon">The weapon record.</param>
-    /// <param name="spriteSpeed">The frame duration of the definition's sprite.</param>
-    /// <param name="totalFrames">The frame count of the definition's sprite.</param>
-    /// <param name="layer">The update list of the definition.</param>
+    /// <param name="spriteSpeed">The frame duration of the sprite file.</param>
+    /// <param name="totalFrames">The frame count of the sprite file.</param>
+    /// <param name="layer">The update list of sprites of the object ID.</param>
     /// <exception cref="InvalidDataException">The record doesn't have any directions.</exception>
-    public SpriteDefinition(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, int spriteSpeed, int totalFrames = 0, ObjectLayer layer = ObjectLayer.Ground)
+    public Vid(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, int spriteSpeed, int totalFrames = 0, ObjectLayer layer = ObjectLayer.Ground)
         : this(id, gameObject, weapon, spriteSpeed, totalFrames, layer, null)
     {
         LoadParameters();
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="SpriteDefinition"/> class from an object record and the header of its sprite file, without loading its parameters.
+    /// Initializes a new instance of the <see cref="Vid"/> class from an object record and the header of its sprite file, without loading its parameters.
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
     /// <param name="weapon">The weapon record.</param>
     /// <param name="file">The sprite file.</param>
-    /// <param name="totalFrames">The frame count of the definition's sprite.</param>
-    protected SpriteDefinition(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, in VidResource file, int totalFrames)
+    /// <param name="totalFrames">The frame count of the sprite file.</param>
+    protected Vid(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, in VidResource file, int totalFrames)
         : this(id, gameObject, weapon, file.Speed, totalFrames, ObjectLayer.Ground, file)
     {
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="SpriteDefinition"/> class from an object record without loading its parameters.
+    /// Initializes a new instance of the <see cref="Vid"/> class from an object record without loading its parameters.
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
     /// <param name="weapon">The weapon record.</param>
-    /// <param name="spriteSpeed">The frame duration of the definition's sprite.</param>
-    /// <param name="totalFrames">The frame count of the definition's sprite.</param>
-    /// <param name="layer">The update list of the definition.</param>
+    /// <param name="spriteSpeed">The frame duration of the sprite file.</param>
+    /// <param name="totalFrames">The frame count of the sprite file.</param>
+    /// <param name="layer">The update list of sprites of the object ID.</param>
     /// <param name="file">The sprite file, or <see langword="null"/> without one.</param>
-    protected SpriteDefinition(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, int spriteSpeed, int totalFrames, ObjectLayer layer, VidResource? file)
+    protected Vid(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, int spriteSpeed, int totalFrames, ObjectLayer layer, VidResource? file)
     {
         Id = id;
         RecordId = id;
@@ -139,12 +136,12 @@ public class SpriteDefinition
     }
 
     /// <summary>
-    /// Gets the object record of the definition.
+    /// Gets the object record of this object ID.
     /// </summary>
     public ref readonly GameObject Object => ref _object;
 
     /// <summary>
-    /// Gets the weapon record of the definition.
+    /// Gets the weapon record of this object ID.
     /// </summary>
     public ref readonly WeaponRecord Weapon => ref _weapon;
 
@@ -154,37 +151,37 @@ public class SpriteDefinition
     public int[] StateHandlers { get; } = new int[StateCount];
 
     /// <summary>
-    /// Gets or sets the script function run when a sprite of the definition is destroyed.
+    /// Gets or sets the script function run when a sprite of this object ID is destroyed.
     /// </summary>
     public int DestroyHandler { get; set; } = NoHandler;
 
     /// <summary>
-    /// Gets or sets the script function run when a sprite of the definition is damaged.
+    /// Gets or sets the script function run when a sprite of this object ID is damaged.
     /// </summary>
     public int DamageHandler { get; set; } = NoHandler;
 
     /// <summary>
-    /// Gets or sets the script function run when a sprite of the definition collides.
+    /// Gets or sets the script function run when a sprite of this object ID collides.
     /// </summary>
     public int CollisionHandler { get; set; } = NoHandler;
 
     /// <summary>
-    /// Gets or sets the object ID that sprites of the definition report.
+    /// Gets or sets the object ID that sprites of this object ID report.
     /// </summary>
     public KnownObject Id { get; set; }
 
     /// <summary>
-    /// Gets the ID of the record the definition was loaded from.
+    /// Gets the ID of the record this data was loaded from.
     /// </summary>
     public KnownObject RecordId { get; }
 
     /// <summary>
-    /// Gets the name of the object the definition was loaded from.
+    /// Gets the name of the object this data was loaded from.
     /// </summary>
     public string Name { get; internal set; } = string.Empty;
 
     /// <summary>
-    /// Gets the path of the sprite file the definition was loaded from.
+    /// Gets the path of the sprite file the frames were loaded from.
     /// </summary>
     public string Path { get; internal set; } = string.Empty;
 
@@ -194,12 +191,12 @@ public class SpriteDefinition
     public ReadOnlySpan<int> Sounds => _sounds;
 
     /// <summary>
-    /// Gets or sets the definition that sprites of this definition are created as.
+    /// Gets or sets the shared data that sprites of this object ID are created with.
     /// </summary>
-    public SpriteDefinition Identity { get; set; }
+    public Vid Identity { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether sprites of the definition are hidden.
+    /// Gets or sets a value indicating whether sprites of this object ID are hidden.
     /// </summary>
     [EngineRoutine(0x0043a1b0)]
     public bool IsHidden { get; set; }
@@ -215,7 +212,7 @@ public class SpriteDefinition
     public bool HasKeyframes { get; set; }
 
     /// <summary>
-    /// Gets or sets the wall time at which a sprite of the definition was last created or recounted.
+    /// Gets or sets the wall time at which a sprite of this object ID was last created or recounted.
     /// </summary>
     public uint LastCreatedAt { get; set; }
 
@@ -235,37 +232,37 @@ public class SpriteDefinition
     public bool HasOffsetKeyframes { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether sprites of the definition carry a lifetime, a keyframe track, a stream period and a top speed of their own.
+    /// Gets or sets a value indicating whether sprites of this object ID carry a lifetime, a keyframe track, a stream period and a top speed of their own.
     /// </summary>
     public bool HasTimers { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether a region can replace the definition of sprites created from it.
+    /// Gets or sets a value indicating whether a region can replace the object ID of sprites created from it.
     /// </summary>
     public bool IsRegionReplaced { get; set; }
 
     /// <summary>
-    /// Gets the sprite class of the definition.
+    /// Gets the sprite class of sprites of this object ID.
     /// </summary>
     public SpriteClass Class { get; private set; }
 
     /// <summary>
-    /// Gets the gamma that the definition applies to its sprites.
+    /// Gets the gamma applied to sprites of this object ID.
     /// </summary>
     public Gamma ObjectGamma { get; private set; }
 
     /// <summary>
-    /// Gets the factors that scale the sprites of the definition.
+    /// Gets the factors that scale sprites of this object ID.
     /// </summary>
     public Vector3 Scale { get; private set; }
 
     /// <summary>
-    /// Gets the steps of a full turn that the sprites of the definition make per millisecond; 0 turns never and 999999 turns at once.
+    /// Gets the steps of a full turn that sprites of this object ID make per millisecond; 0 turns never and 999999 turns at once.
     /// </summary>
     public float RotationRate { get; private set; }
 
     /// <summary>
-    /// Gets the frame duration of the definition's sprite.
+    /// Gets the frame duration of the sprite file.
     /// </summary>
     public int SpriteSpeed { get; private set; }
 
@@ -275,57 +272,57 @@ public class SpriteDefinition
     public Size FrameSize { get; protected set; }
 
     /// <summary>
-    /// Gets the number of frames in the definition's sprite file, or 0 if there isn't a sprite file.
+    /// Gets the number of frames in the sprite file, or 0 if there isn't a sprite file.
     /// </summary>
     public short FileFrameCount { get; protected set; }
 
     /// <summary>
-    /// Gets the weapon flags of the definition.
+    /// Gets the weapon flags of sprites of this object ID.
     /// </summary>
     public WeaponFlags WeaponFlags { get; private set; }
 
     /// <summary>
-    /// Gets the behavior bits of the definition.
+    /// Gets the behavior bits of sprites of this object ID.
     /// </summary>
     public WeaponBehavior Behavior { get; private set; }
 
     /// <summary>
-    /// Gets the army of the definition.
+    /// Gets the army of sprites of this object ID.
     /// </summary>
     public Army Army { get; private set; }
 
     /// <summary>
-    /// Gets the rank of the definition.
+    /// Gets the rank of sprites of this object ID.
     /// </summary>
     public int Rank { get; private set; }
 
     /// <summary>
-    /// Gets the sprite types the definition attacks.
+    /// Gets the sprite types sprites of this object ID attack.
     /// </summary>
     public SpriteType Targets { get; private set; }
 
     /// <summary>
-    /// Gets a value indicating whether other sprites push sprites of the definition aside.
+    /// Gets a value indicating whether other sprites push sprites of this object ID aside.
     /// </summary>
     public bool CanBePushed => WeaponFlags.HasFlag(WeaponFlags.Pushable);
 
     /// <summary>
-    /// Gets a value indicating whether the definition attacks before it faces its target.
+    /// Gets a value indicating whether sprites of this object ID attack before they face their target.
     /// </summary>
     public bool CanAttackWhileTurning => WeaponFlags.HasFlag(WeaponFlags.AttacksWhileTurning);
 
     /// <summary>
-    /// Gets a value indicating whether the definition attacks only targets ahead of it.
+    /// Gets a value indicating whether sprites of this object ID attack only targets ahead of them.
     /// </summary>
     public bool HasForwardTargets => WeaponFlags.HasFlag(WeaponFlags.ForwardTargets);
 
     /// <summary>
-    /// Gets a value indicating whether the definition alternates the two children of a mirrored pair.
+    /// Gets a value indicating whether sprites of this object ID alternate the two children of a mirrored pair.
     /// </summary>
     public bool HasDoubleAttack => WeaponFlags.HasFlag(WeaponFlags.DoubleAttack);
 
     /// <summary>
-    /// Gets the state a sprite of the definition starts in.
+    /// Gets the state a sprite of this object ID starts in.
     /// </summary>
     public SpriteAnimation InitialAnimation =>
         GetFrameCount(SpriteAnimation.Stand) == 0 && GetFrameCount(SpriteAnimation.Go) == 0 &&
@@ -333,52 +330,52 @@ public class SpriteDefinition
         : GetFrameCount(SpriteAnimation.Birth) != 0 ? SpriteAnimation.Birth : SpriteAnimation.Stand;
 
     /// <summary>
-    /// Gets or sets the health of a new sprite of the definition.
+    /// Gets or sets the health of a new sprite of this object ID.
     /// </summary>
     public int MaxHp { get; set; }
 
     /// <summary>
-    /// Gets or sets the top speed of the definition in pixels per millisecond.
+    /// Gets or sets the top speed of sprites of this object ID in pixels per millisecond.
     /// </summary>
     public float Speed { get; set; }
 
     /// <summary>
-    /// Gets the update list of the definition.
+    /// Gets the update list of sprites of this object ID.
     /// </summary>
     public ObjectLayer Layer { get; protected set; }
 
     /// <summary>
-    /// Gets the vertical speed of the definition in pixels per millisecond.
+    /// Gets the vertical speed of sprites of this object ID in pixels per millisecond.
     /// </summary>
     public float ZSpeed { get; private set; }
 
     /// <summary>
-    /// Gets the acceleration of the definition.
+    /// Gets the acceleration of sprites of this object ID.
     /// </summary>
     public float Acceleration { get; private set; }
 
     /// <summary>
-    /// Gets the deceleration of the definition.
+    /// Gets the deceleration of sprites of this object ID.
     /// </summary>
     public float Deceleration { get; private set; }
 
     /// <summary>
-    /// Gets half the footprint of the definition.
+    /// Gets half the footprint of sprites of this object ID.
     /// </summary>
     public Vector2 Half { get; private set; }
 
     /// <summary>
-    /// Gets or sets the collision layers the definition moves through.
+    /// Gets or sets the collision layers sprites of this object ID move through.
     /// </summary>
     public CollisionLayers MoveMask { get; set; }
 
     /// <summary>
-    /// Gets or sets the damage a sprite of the definition deals when it dies.
+    /// Gets or sets the damage a sprite of this object ID deals when it dies.
     /// </summary>
     public int Damage { get; set; }
 
     /// <summary>
-    /// Gets or sets the lifetime of a sprite of the definition in milliseconds.
+    /// Gets or sets the lifetime of a sprite of this object ID in milliseconds.
     /// </summary>
     public int Lifetime { get; set; }
 
@@ -393,117 +390,117 @@ public class SpriteDefinition
     public Span<int> ChildCounts => _childCounts;
 
     /// <summary>
-    /// Gets the living sprites of the definition per army.
+    /// Gets the living sprites of this object ID per army.
     /// </summary>
     public Span<int> Counts => _counts;
 
     /// <summary>
-    /// Gets the killed sprites of the definition per army.
+    /// Gets the killed sprites of this object ID per army.
     /// </summary>
     public Span<int> Killed => _killed;
 
     /// <summary>
-    /// Gets the gamma the definition's sprites are drawn with per army.
+    /// Gets the gamma sprites of this object ID are drawn with per army.
     /// </summary>
     public Span<Gamma> Gammas => _gammas;
 
     /// <summary>
-    /// Gets the health of a new sprite of the definition per army.
+    /// Gets the health of a new sprite of this object ID per army.
     /// </summary>
     public Span<int> ArmyMaxHp => _armyMaxHp;
 
     /// <summary>
-    /// Gets the sprite limit of the definition per army, negative when unlimited.
+    /// Gets the sprite limit of this object ID per army, negative when unlimited.
     /// </summary>
     public Span<int> ArmyMaxUnits => _armyMaxUnits;
 
     /// <summary>
-    /// Gets or sets the sprite limit of the definition, negative when unlimited.
+    /// Gets or sets the sprite limit of this object ID, negative when unlimited.
     /// </summary>
     public int MaxUnits { get; set; }
 
     /// <summary>
-    /// Gets the radius of the definition's death blast.
+    /// Gets the radius of the death blast of sprites of this object ID.
     /// </summary>
     public float BlastRadius => Object.DeathRange;
 
     /// <summary>
-    /// Gets a value indicating whether the definition's death blast damages everything in its radius.
+    /// Gets a value indicating whether the death blast of sprites of this object ID damages everything in its radius.
     /// </summary>
     public bool IsExplosive => Object.Properties.HasFlag(ObjectProperties.RadialDamage);
 
     /// <summary>
-    /// Gets a value indicating whether the definition's damage spares its own army.
+    /// Gets a value indicating whether the damage of sprites of this object ID spares their own army.
     /// </summary>
     public bool ShouldSkipOwnArmy => Object.Properties.HasFlag(ObjectProperties.NoFriendlyDamage);
 
     /// <summary>
-    /// Gets or sets the range at which the definition sees enemies.
+    /// Gets or sets the range at which sprites of this object ID see enemies.
     /// </summary>
     public float DetectRange { get; set; }
 
     /// <summary>
-    /// Gets the range at which the definition attacks.
+    /// Gets the range at which sprites of this object ID attack.
     /// </summary>
     public float BattleRange { get; private set; }
 
     /// <summary>
-    /// Gets the range under which the definition doesn't attack.
+    /// Gets the range under which sprites of this object ID don't attack.
     /// </summary>
     public float MinRange { get; private set; }
 
     /// <summary>
-    /// Gets or sets the aim scatter of the definition.
+    /// Gets or sets the aim scatter of sprites of this object ID.
     /// </summary>
     public float Aim { get; set; }
 
     /// <summary>
-    /// Gets or sets the ammunition the definition holds when full.
+    /// Gets or sets the ammunition sprites of this object ID hold when full.
     /// </summary>
     public int AmmoCapacity { get; set; }
 
     /// <summary>
-    /// Gets or sets the time a building takes to build the definition.
+    /// Gets or sets the time a building takes to build a sprite of this object ID.
     /// </summary>
     public int BuildTime { get; set; }
 
     /// <summary>
-    /// Gets the time between the definition's attacks.
+    /// Gets the time between attacks of sprites of this object ID.
     /// </summary>
     public int ReloadTime { get; private set; }
 
     /// <summary>
-    /// Gets the time an attack of the definition takes.
+    /// Gets the time an attack of sprites of this object ID takes.
     /// </summary>
     public int AttackTime { get; private set; }
 
     /// <summary>
-    /// Gets the object the definition launches when it attacks.
+    /// Gets the object sprites of this object ID launch when they attack.
     /// </summary>
     public KnownObject FightChild => (KnownObject)_children[(int)SpriteAnimation.Fight];
 
     /// <summary>
-    /// Gets the number of objects the definition launches per attack.
+    /// Gets the number of objects sprites of this object ID launch per attack.
     /// </summary>
     public int FightCount => Math.Max(1, _childCounts[(int)SpriteAnimation.Fight]);
 
     /// <summary>
-    /// Gets the object the definition leaves when it dies.
+    /// Gets the object a sprite of this object ID leaves when it dies.
     /// </summary>
     public KnownObject DeathChild => (KnownObject)_children[(int)SpriteAnimation.Death];
 
     /// <summary>
-    /// Gets a value indicating whether the definition attacks.
+    /// Gets a value indicating whether sprites of this object ID attack.
     /// </summary>
     public bool IsArmed => BattleRange > 0;
 
     /// <summary>
-    /// Gets or sets the definition linked to this definition.
+    /// Gets or sets the shared data of the object ID linked to this one.
     /// </summary>
-    public SpriteDefinition? LinkDefinition { get; set; }
+    public Vid? LinkVid { get; set; }
 
     /// <summary>
-    /// Gets the height points of the definition, those of the size grid followed by those of the sprite file's frames.
+    /// Gets the height points of this object ID, those of the size grid followed by those of the sprite file's frames.
     /// </summary>
     public List<Vector3> HeightPoints { get; } = [];
 
@@ -513,7 +510,7 @@ public class SpriteDefinition
     public VidType FileType { get; set; }
 
     /// <summary>
-    /// Gets or sets the flag that keeps the definition from being created as a child.
+    /// Gets or sets the flag that keeps sprites of this object ID from being created as children.
     /// </summary>
     public int NotCreatedAsChild
     {
@@ -542,18 +539,18 @@ public class SpriteDefinition
     public void SetHeightFrameStarts(ReadOnlyMemory<int> starts) => _heightFrameStarts = starts;
 
     /// <summary>
-    /// Loads the data of the sprite file into the definition.
+    /// Loads the frames of the sprite file.
     /// </summary>
     /// <param name="file">The sprite file.</param>
     /// <param name="data">The bytes of the sprite file.</param>
     public void Load(in VidResource file, ReadOnlyMemory<byte> data) => Load(file, data, null);
 
     /// <summary>
-    /// Draws a sprite with the frames of this definition.
+    /// Draws a sprite with the frames of this object ID.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
-    /// <param name="sprite">The sprite that gives the position, frame and gamma; it may belong to another definition.</param>
+    /// <param name="sprite">The sprite that gives the position, frame and gamma; it may be of another object ID.</param>
     /// <param name="camera">The top left corner of the view, in map pixels.</param>
     public virtual void Draw(Screen screen, Map map, Sprite sprite, Vector2 camera)
     {
@@ -571,7 +568,7 @@ public class SpriteDefinition
     }
 
     /// <summary>
-    /// Draws a sprite of this definition into the textures of a tile of the hardware ground.
+    /// Draws a sprite of this object ID into the textures of a tile of the hardware ground.
     /// </summary>
     /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite.</param>
@@ -584,7 +581,7 @@ public class SpriteDefinition
     }
 
     /// <summary>
-    /// Draws a built terrain sprite into the textures of this definition.
+    /// Draws a built terrain sprite into the textures of this object ID.
     /// </summary>
     /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite.</param>
@@ -593,7 +590,7 @@ public class SpriteDefinition
     }
 
     /// <summary>
-    /// Sets the update list of the definition.
+    /// Sets the update list of sprites of this object ID.
     /// </summary>
     [EngineRoutine(0x00413880)]
     public virtual void SetLayer() => Layer = ObjectLayer.Ground;
@@ -649,7 +646,7 @@ public class SpriteDefinition
     public int GetAnimationDuration(SpriteAnimation animation) => Math.Max(1, Object.FrameCounts[(int)animation]) * GetVisualFrameDuration(animation);
 
     /// <summary>
-    /// Returns the vertical speed that carries a launched sprite of this definition up or down a rise over a distance, within its vertical speed limit.
+    /// Returns the vertical speed that carries a launched sprite of this object ID up or down a rise over a distance, within its vertical speed limit.
     /// </summary>
     /// <param name="catalog">The sprite catalog.</param>
     /// <param name="rise">The height to climb, negative to drop.</param>
@@ -681,23 +678,23 @@ public class SpriteDefinition
     }
 
     /// <summary>
-    /// Returns the direction of the direction frame a sprite of this definition shows for a direction.
+    /// Returns the direction of the direction frame a sprite of this object ID shows for a direction.
     /// </summary>
     /// <param name="direction">The direction.</param>
-    /// <returns>The frame's direction, or the direction itself if the definition does not use direction frames.</returns>
+    /// <returns>The frame's direction, or the direction itself if sprites of this object ID don't use direction frames.</returns>
     [EngineRoutine(0x00442e00)]
     public Angle GetFrameDirection(Angle direction) => Directions != 0 ? direction.GetFrameDirection(Directions) : direction;
 
     /// <summary>
-    /// Returns where a link sits relative to a sprite of this definition facing a direction.
+    /// Returns where a link sits relative to a sprite of this object ID facing a direction.
     /// </summary>
-    /// <param name="link">The link's definition.</param>
+    /// <param name="link">The shared data of the link's object ID.</param>
     /// <param name="direction">The direction of the sprite.</param>
     /// <returns>The offset from the sprite's position.</returns>
-    public Vector3 GetLinkOffset(SpriteDefinition link, Angle direction) => Object.GetLinkOffset(link.Object, null, 0, direction);
+    public Vector3 GetLinkOffset(Vid link, Angle direction) => Object.GetLinkOffset(link.Object, null, 0, direction);
 
     /// <summary>
-    /// Returns the number of living sprites of the definition in an army.
+    /// Returns the number of living sprites of this object ID in an army.
     /// </summary>
     /// <param name="army">The army, from 0 to 3.</param>
     /// <returns>The count.</returns>
@@ -705,14 +702,14 @@ public class SpriteDefinition
     public int GetCount(int army) => _counts[army];
 
     /// <summary>
-    /// Returns the number of living sprites of the definition in all armies.
+    /// Returns the number of living sprites of this object ID in all armies.
     /// </summary>
     /// <returns>The count.</returns>
     [EngineRoutine(0x0043a260)]
     public int GetTotalCount() => _counts[3] + _counts[2] + _counts[1] + _counts[0];
 
     /// <summary>
-    /// Returns the number of killed sprites of the definition in an army.
+    /// Returns the number of killed sprites of this object ID in an army.
     /// </summary>
     /// <param name="army">The army, masked to 0 to 3.</param>
     /// <returns>The count.</returns>
@@ -720,14 +717,14 @@ public class SpriteDefinition
     public int GetKilled(int army) => _killed[army & ArmyMask];
 
     /// <summary>
-    /// Returns the number of killed sprites of the definition in all armies.
+    /// Returns the number of killed sprites of this object ID in all armies.
     /// </summary>
     /// <returns>The count.</returns>
     [EngineRoutine(0x0043a2a0)]
     public int GetTotalKilled() => _killed[3] + _killed[2] + _killed[1] + _killed[0];
 
     /// <summary>
-    /// Returns the number of recolored sprites of the definition in an army.
+    /// Returns the number of recolored sprites of this object ID in an army.
     /// </summary>
     /// <param name="army">The army, masked to 0 to 3.</param>
     /// <returns>The count.</returns>
@@ -735,14 +732,14 @@ public class SpriteDefinition
     public int GetRecolored(int army) => _recolored[army & ArmyMask];
 
     /// <summary>
-    /// Returns the number of recolored sprites of the definition in all armies.
+    /// Returns the number of recolored sprites of this object ID in all armies.
     /// </summary>
     /// <returns>The count.</returns>
     [EngineRoutine(0x0043a2e0)]
     public int GetTotalRecolored() => _recolored[3] + _recolored[2] + _recolored[1] + _recolored[0];
 
     /// <summary>
-    /// Returns the health of a new sprite of the definition for an army.
+    /// Returns the health of a new sprite of this object ID for an army.
     /// </summary>
     /// <param name="army">The army, masked to 0 to 3.</param>
     /// <returns>The health.</returns>
@@ -750,42 +747,42 @@ public class SpriteDefinition
     public int GetArmyMaxHp(int army) => _armyMaxHp[army & ArmyMask];
 
     /// <summary>
-    /// Determines whether the definition has a fight child and a weapon.
+    /// Determines whether sprites of this object ID have a fight child and a weapon.
     /// </summary>
-    /// <returns><see langword="true"/> if the definition is armed with a weapon of its own; otherwise, <see langword="false"/>.</returns>
+    /// <returns><see langword="true"/> if sprites of this object ID are armed with a weapon of their own; otherwise, <see langword="false"/>.</returns>
     [EngineRoutine(0x0043a1e0)]
-    public bool HasFightWeapon() => FightChild != 0 && Object.WeaponIndex != 0;
+    public bool CanFight() => FightChild != 0 && Object.WeaponIndex != 0;
 
     /// <summary>
-    /// Determines whether the object of the definition is born as smoke.
+    /// Determines whether sprites of this object ID are born as smoke.
     /// </summary>
     /// <returns><see langword="true"/> if the object is born as smoke; otherwise, <see langword="false"/>.</returns>
     [EngineRoutine(0x0043a320)]
     public bool IsBirthAsSmoke() => Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke);
 
     /// <summary>
-    /// Hides or shows the sprites of the definition and of every definition linked to it.
+    /// Hides or shows the sprites of this object ID and of every object ID linked to it.
     /// </summary>
     /// <param name="hidden"><see langword="true"/> to hide the sprites.</param>
     [EngineRoutine(0x00414840)]
     public void SetPropHide(bool hidden)
     {
         IsHidden = hidden;
-        for (var link = LinkDefinition; link is not null; link = link.LinkDefinition)
+        for (var link = LinkVid; link is not null; link = link.LinkVid)
         {
             link.IsHidden = hidden;
         }
     }
 
     [EngineRoutine(0x00413710)]
-    internal static SpriteDefinition CreateEmpty(KnownObject id, in GameObject gameObject, int spriteSpeed, ObjectLayer layer)
+    internal static Vid CreateEmpty(KnownObject id, in GameObject gameObject, int spriteSpeed, ObjectLayer layer)
     {
-        var definition = new SpriteDefinition(id, gameObject, default, spriteSpeed, 0, layer, null);
-        definition.Half = new Vector2(gameObject.Size.X * 0.5f, gameObject.Size.Y * 0.5f);
-        definition.Scale = Vector3.One;
-        Array.Fill(definition._durations, spriteSpeed);
+        var vid = new Vid(id, gameObject, default, spriteSpeed, 0, layer, null);
+        vid.Half = new Vector2(gameObject.Size.X * 0.5f, gameObject.Size.Y * 0.5f);
+        vid.Scale = Vector3.One;
+        Array.Fill(vid._durations, spriteSpeed);
 
-        return definition;
+        return vid;
     }
 
     internal void ReplaceRecord(in GameObject gameObject, in WeaponRecord weapon)
@@ -803,19 +800,19 @@ public class SpriteDefinition
 
     internal int GetFramesPerDirection(SpriteAnimation state) => _framesPerDirection[(int)state];
 
-    internal virtual void Load(in VidResource file, ReadOnlyMemory<byte> data, GameLogger? logger)
+    internal virtual void Load(in VidResource file, ReadOnlyMemory<byte> data, MyError? error)
     {
     }
 
-    internal virtual void SetGamma(Gamma gamma, int army, Gamma ambient, GameLogger? logger) => StoreGamma(gamma, army, logger);
+    internal virtual void SetGamma(Gamma gamma, int army, Gamma ambient, MyError? error) => StoreGamma(gamma, army, error);
 
     [EngineRoutine(0x00413c30)]
-    internal void LoadParameters(GameLogger? logger, SoundSystem? sound, bool resetBuiltTerrain)
+    internal void LoadParameters(MyError? error, Sound? sound, bool resetBuiltTerrain)
     {
         CopyRecordParameters();
         if (Directions == 0)
         {
-            Report(logger, LogError.Invalid, 0, "NoDir==0"u8);
+            Report(error, LogError.Invalid, 0, "NoDir==0"u8);
             throw new InvalidDataException($"The record of object {(int)Id} doesn't have any directions.");
         }
 
@@ -832,16 +829,16 @@ public class SpriteDefinition
         int frames = (short)TotalFrames;
         if (frames == 0)
         {
-            Report(logger, LogError.Invalid, 0, "noCadr==0"u8);
+            Report(error, LogError.Invalid, 0, "noCadr==0"u8);
         }
         else if (frames < Directions)
         {
-            Report(logger, LogError.Invalid, 0, "noCadr < noDir"u8);
+            Report(error, LogError.Invalid, 0, "noCadr < noDir"u8);
             Directions = frames;
         }
 
-        TrimFrameCounts(logger, frames);
-        AssignFirstFrames(logger, sound, frames);
+        TrimFrameCounts(error, frames);
+        AssignFirstFrames(error, sound, frames);
         if (Class == SpriteClass.BuiltTerrain)
         {
             IsBuiltTerrainClass = true;
@@ -859,8 +856,8 @@ public class SpriteDefinition
     }
 
     [EngineRoutine(0x00413a30)]
-    internal void Report(GameLogger? logger, LogError code, int value, ReadOnlySpan<byte> text) =>
-        logger?.Error($"VID [{(int)Id}-{Name}]", code, value, text);
+    internal void Report(MyError? error, LogError code, int value, ReadOnlySpan<byte> text) =>
+        error?.Error($"VID [{(int)Id}-{Name}]", code, value, text);
 
     internal ReadOnlySpan<Vector3> GetHeightPoints(int frame)
     {
@@ -881,7 +878,7 @@ public class SpriteDefinition
     }
 
     [EngineRoutine(0x00414570)]
-    private protected void StoreGamma(Gamma gamma, int army, GameLogger? logger)
+    private protected void StoreGamma(Gamma gamma, int army, MyError? error)
     {
         if ((uint)army < ArmyCount)
         {
@@ -891,7 +888,7 @@ public class SpriteDefinition
 
         if (army != AllArmies)
         {
-            Report(logger, LogError.Invalid, army, "n_gamma in VID::SetGamma"u8);
+            Report(error, LogError.Invalid, army, "n_gamma in VID::SetGamma"u8);
         }
     }
 
@@ -951,7 +948,7 @@ public class SpriteDefinition
         CanMove = !Speed.IsExactlyZero() || !ZSpeed.IsExactlyZero() || _object.Properties.HasFlag(ObjectProperties.Gravity) || _object.Properties.HasFlag(ObjectProperties.Gravity2) || _object.Properties.HasFlag(ObjectProperties.Wind);
     }
 
-    private void TrimFrameCounts(GameLogger? logger, int frames)
+    private void TrimFrameCounts(MyError? error, int frames)
     {
         int end = 0;
         for (int state = 0; state < StateCount; state++)
@@ -961,7 +958,7 @@ public class SpriteDefinition
 
         if (frames < end)
         {
-            Report(logger, LogError.Missing, 0, "noCadr for noAnimCadr and noDir"u8);
+            Report(error, LogError.Missing, 0, "noCadr for noAnimCadr and noDir"u8);
             for (int state = StateCount - 1; state >= 0; state--)
             {
                 int before = end - Directions * _frameCounts[state];
@@ -978,7 +975,7 @@ public class SpriteDefinition
         }
     }
 
-    private void AssignFirstFrames(GameLogger? logger, SoundSystem? sound, int frames)
+    private void AssignFirstFrames(MyError? error, Sound? sound, int frames)
     {
         int start = 0;
         int firstPopulated = -1;
@@ -986,7 +983,7 @@ public class SpriteDefinition
         {
             if (sound is not null && !sound.IsValid(_sounds[state]) && Id != KnownObject.None)
             {
-                Report(logger, LogError.Invalid, _sounds[state], "sfx"u8);
+                Report(error, LogError.Invalid, _sounds[state], "sfx"u8);
                 _sounds[state] = 0;
             }
 
@@ -1027,7 +1024,7 @@ public class SpriteDefinition
 
             if (frames < start)
             {
-                Report(logger, LogError.Text, state, "noCadr and noAnimCadr and noDir"u8);
+                Report(error, LogError.Text, state, "noCadr and noAnimCadr and noDir"u8);
                 _firstFrames[state] = 0;
                 _framesPerDirection[state] = firstPopulated < 0 ? _firstFrames[StateCount - 1] : _framesPerDirection[firstPopulated];
             }

@@ -2,7 +2,7 @@ using ASToolkit.Engine.IO;
 
 namespace ASToolkit.Engine;
 
-internal sealed class MusicStream
+internal sealed class OggMusic
 {
     private const int NoSample = -1;
     private const int RingSize = 0x40000;
@@ -15,7 +15,7 @@ internal sealed class MusicStream
     private const int Wrapped = 2;
 
     private readonly ISoundDevice? _device;
-    private readonly GameLogger? _logger;
+    private readonly MyError? _error;
     private readonly MusicTrackFormat _format;
     private SoundBuffer _buffer;
     private bool _isPlaying;
@@ -23,9 +23,9 @@ internal sealed class MusicStream
     private int _writeOffset;
     private int _endState;
 
-    public MusicStream(ReadOnlyMemory<byte> name, string path, MusicTrackFormat format, ISoundDevice? device, GameLogger? logger)
+    public OggMusic(ReadOnlyMemory<byte> name, string path, MusicTrackFormat format, ISoundDevice? device, MyError? error)
     {
-        _logger = logger;
+        _error = error;
         Name = name;
         Path = path;
         _device = device;
@@ -135,7 +135,7 @@ internal sealed class MusicStream
             }
             else if (count < 0)
             {
-                _logger?.Error($"MUSIC '{GameLogger.Decode(Name.Span)}'", LogError.Text, 0, "decode"u8);
+                _error?.Error($"MUSIC '{MyError.Decode(Name.Span)}'", LogError.Text, 0, "decode"u8);
             }
             else
             {

@@ -84,7 +84,7 @@ internal sealed class PlayLog
             if (!PickupTracker.WasTaken(pickup))
                 continue;
 
-            _taken.Add(pickup.Definition.Id);
+            _taken.Add(pickup.Vid.Id);
         }
     }
 }

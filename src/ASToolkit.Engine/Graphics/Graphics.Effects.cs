@@ -35,7 +35,7 @@ public sealed partial class Graphics
     public Screen? Capture { get; private set; }
 
     [EngineRoutine(0x00402690)]
-    internal void ExecEffect(Map map, int effect, int first, int second, int duration)
+    internal void Effect(Map map, int effect, int first, int second, int duration)
     {
         if (effect is < 0 or >= EffectCount)
             return;
@@ -165,14 +165,14 @@ public sealed partial class Graphics
     private void DrawFlash(Screen screen, uint color)
     {
         SetRenderState(RenderState.SpecularEnable, 0);
-        SetBlend(BlendFactor.DestinationColor, BlendFactor.One);
+        SetAlphaBlend(BlendFactor.DestinationColor, BlendFactor.One);
         ScreenPrimitives.FillRectangle(screen, new Rectangle(Point.Empty, screen.Size), color, Blend.Source, Blend.Destination);
     }
 
     [EngineRoutine(0x00434060)]
     private void DrawFade(Screen screen, uint color)
     {
-        SetBlend(BlendFactor.Zero, BlendFactor.InverseSourceColor);
+        SetAlphaBlend(BlendFactor.Zero, BlendFactor.InverseSourceColor);
         ScreenPrimitives.FillRectangle(screen, new Rectangle(Point.Empty, screen.Size), color, Blend.Source, Blend.Destination);
     }
 
@@ -202,7 +202,7 @@ public sealed partial class Graphics
         var gamma = new Gamma(~PackColor((int)((appeared << 8) / length), byte.MaxValue, byte.MaxValue, byte.MaxValue), Gamma.OpaqueAlpha);
         var texture = new Texture(_captureTexels, new Size(CaptureTileSize, CaptureTileSize), VidPixelFormat.R5G6B5);
         var viewport = Screen!.Viewport;
-        SetBlend(BlendFactor.InverseSourceAlpha, BlendFactor.SourceAlpha);
+        SetAlphaBlend(BlendFactor.InverseSourceAlpha, BlendFactor.SourceAlpha);
         for (float top = viewport.Top; top < viewport.Bottom; top += CaptureTileSize)
         {
             for (float left = viewport.Left; left < viewport.Right; left += CaptureTileSize)
@@ -210,7 +210,7 @@ public sealed partial class Graphics
                 float width = left + CaptureTileSize < viewport.Right ? CaptureTileSize : viewport.Right - left;
                 float height = top + CaptureTileSize < viewport.Bottom ? CaptureTileSize : viewport.Bottom - top;
                 var area = Rectangle.FromLTRB((int)(left - viewport.Left), (int)(top - viewport.Top), (int)(left + width - viewport.Left), (int)(height + top - viewport.Top));
-                if (texture.CopyFromSurface(capture, area, Point.Empty, Logger) == 0)
+                if (texture.CopyFromSurface(capture, area, Point.Empty, Error) == 0)
                 {
                     texture.DrawFlatQuad(Screen, area, new Rectangle(0, 0, (int)width, (int)height), gamma, Blend, true);
                 }
@@ -257,7 +257,7 @@ public sealed partial class Graphics
         var target = Gamma.FromScript((uint)EffectFirst[(int)ScreenEffect.ShiftGamma]);
         if (shifted >= (uint)EffectDurations[(int)ScreenEffect.ShiftGamma])
         {
-            SetGamma(target, map.Definitions);
+            SetGamma(target, map.Vids);
             EffectStartTimes[(int)ScreenEffect.ShiftGamma] = 0;
             return;
         }
@@ -281,7 +281,7 @@ public sealed partial class Graphics
             }
         }
 
-        SetGamma(new Gamma(negative, positive), map.Definitions);
+        SetGamma(new Gamma(negative, positive), map.Vids);
     }
 
 }

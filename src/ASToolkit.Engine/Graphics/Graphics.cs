@@ -108,13 +108,13 @@ public sealed partial class Graphics
             if (value is null)
                 return;
 
-            value.Logger = Logger;
+            value.Error = Error;
             value.Owner = this;
             value.Viewport = ToViewportRectangle(Viewport);
         }
     }
 
-    internal GameLogger? Logger { get; set; }
+    internal MyError? Error { get; set; }
 
     internal GraphicsFlags Flags { get; set; }
 
@@ -189,15 +189,15 @@ public sealed partial class Graphics
     /// Sets the ambient gamma and, when it changes, applies it to the palettes of every sprite file.
     /// </summary>
     /// <param name="gamma">The ambient gamma.</param>
-    /// <param name="definitions">The sprite definitions.</param>
+    /// <param name="vids">The shared data and frames of the object IDs.</param>
     [EngineRoutine(0x00431c50)]
-    public void SetGamma(Gamma gamma, SpriteCatalog definitions)
+    public void SetGamma(Gamma gamma, SpriteCatalog vids)
     {
         if (Gamma == gamma)
             return;
 
         Gamma = gamma;
-        definitions.SetAmbient(gamma);
+        vids.SetAmbient(gamma);
     }
 
     /// <summary>
@@ -213,14 +213,14 @@ public sealed partial class Graphics
     }
 
     [EngineRoutine(0x00433cd0)]
-    internal void Load(ref Resource reader, SpriteCatalog definitions)
+    internal void Load(ref Resource reader, SpriteCatalog vids)
     {
         var environment = Environment;
         reader.ReadInto(ref environment);
         Environment = environment;
         var gamma = default(Gamma);
         reader.ReadInto(ref gamma);
-        SetGamma(gamma, definitions);
+        SetGamma(gamma, vids);
         int direction = 0;
         reader.ReadInto(ref direction);
         WindDirection = new Angle((byte)direction);
@@ -230,14 +230,14 @@ public sealed partial class Graphics
     }
 
     [EngineRoutine(0x00433bb0)]
-    internal void LoadOld(ref Resource reader, SpriteCatalog definitions)
+    internal void OldLoadParameters(ref Resource reader, SpriteCatalog vids)
     {
         var environment = Environment;
         reader.ReadInto(ref environment);
         Environment = environment;
         uint gamma = 0;
         reader.ReadInto(ref gamma);
-        SetGamma(Gamma.FromScript(gamma), definitions);
+        SetGamma(Gamma.FromScript(gamma), vids);
         byte direction = 0;
         reader.ReadInto(ref direction);
         short speed = 0;

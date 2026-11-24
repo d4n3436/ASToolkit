@@ -18,7 +18,7 @@ internal sealed class PlayerState
         _map = map;
     }
 
-    public float Speed => _map.Player.MaxSpeed / SpriteDefinition.PerMillisecond;
+    public float Speed => _map.Player.MaxSpeed / Vid.PerMillisecond;
 
     public bool HasDynamite => _map.ReadScriptNumber(ExplosivesVariable) > 0;
 
@@ -32,7 +32,7 @@ internal sealed class PlayerState
 
     public bool HasAmmo(int slot) => HoldsWeapon(slot) && GetAmmo(slot) > 0;
 
-    public SpriteDefinition? GetWeapon(int slot) => slot is >= 0 and < Sprite.WeaponSlots ? _map.Definitions.Find(KnownObject.SecretWeaponTorso + slot) : null;
+    public Vid? GetWeapon(int slot) => slot is >= 0 and < Sprite.WeaponSlots ? _map.Vids.Find(KnownObject.SecretWeaponTorso + slot) : null;
 
     public Dictionary<KnownObject, int> GetRemainingAmmo()
     {
@@ -51,13 +51,13 @@ internal sealed class PlayerState
     public bool CanTakePickup(KnownObject id)
     {
         var player = _map.Player;
-        int maxHealth = player.Definition.ArmyMaxHp[(int)player.Army & 3];
+        int maxHealth = player.Vid.ArmyMaxHp[(int)player.Army & 3];
 
         return id switch
         {
             KnownObject.Health or KnownObject.BigHealth => player.Hp < maxHealth,
             KnownObject.MegaHealth => player.Hp < maxHealth + MegaHealthBonus,
-            >= KnownObject.GreenArmor and <= KnownObject.RedArmor => GetArmorHp() < (_map.Definitions.Find(id - ArmorIdOffset)?.MaxHp ?? 0),
+            >= KnownObject.GreenArmor and <= KnownObject.RedArmor => GetArmorHp() < (_map.Vids.Find(id - ArmorIdOffset)?.MaxHp ?? 0),
             >= KnownObject.LifeImplant and <= KnownObject.AccuracyImplant =>
                 _map.ReadScriptNumber(ItemsVariable, id - KnownObject.LifeImplant) < PlayerImplants.MaxCount,
             >= KnownObject.ShotgunAmmo and <= KnownObject.MagmaMinigunAmmo => CanTakeAmmo(id.GetAmmoSlot()),
@@ -76,7 +76,7 @@ internal sealed class PlayerState
     {
         foreach (var link in _map.Player.EnumerateLinks())
         {
-            if (link.Definition.Id is >= KnownObject.WornGreenArmor and <= KnownObject.WornRedArmor)
+            if (link.Vid.Id is >= KnownObject.WornGreenArmor and <= KnownObject.WornRedArmor)
                 return link.Hp;
         }
 

@@ -143,14 +143,14 @@ public readonly ref partial struct Texture
     }
 
     [EngineRoutine(0x00403970)]
-    internal int CopyFromSurface(Screen surface, Rectangle source, Point destination, GameLogger? logger)
+    internal int CopyFromSurface(Screen surface, Rectangle source, Point destination, MyError? error)
     {
         int result = surface.IsTrueColor
             ? LoadTexels(new Rectangle(destination, source.Size), MemoryMarshal.AsBytes(surface.TrueColorPixels), VidPixelFormat.X8R8G8B8, surface.Pitch * sizeof(uint), surface.Size, source, DefaultFilter, 0)
             : LoadTexels(new Rectangle(destination, source.Size), MemoryMarshal.AsBytes(surface.HighColorPixels), surface.Format.IsRgb555 ? VidPixelFormat.X1R5G5B5 : VidPixelFormat.R5G6B5, surface.Pitch * sizeof(ushort), surface.Size, source, DefaultFilter, 0);
         if (result != 0)
         {
-            logger?.Error(TextureLogTag, LogError.Copy, result);
+            error?.Error(TextureLogTag, LogError.Copy, result);
         }
 
         return result;

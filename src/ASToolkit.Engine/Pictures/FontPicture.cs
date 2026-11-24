@@ -20,10 +20,10 @@ public sealed class FontPicture : Picture
     {
     }
 
-    internal FontPicture(string gameFolder, GameLogger? logger)
-        : base(gameFolder, logger)
+    internal FontPicture(string gameFolder, MyError? error)
+        : base(gameFolder, error)
     {
-        Source = new Picture(gameFolder, logger);
+        Source = new Picture(gameFolder, error);
     }
 
     /// <summary>

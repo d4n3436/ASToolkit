@@ -18,7 +18,7 @@ public class MapLoadTests
     public void Load_MissingFile_LogsTheInvalidMapAndStaysLoading()
     {
         var logs = new MemoryWriteOverlay();
-        using (var session = new GameSession(new ScriptRegistry(""), logs, new LoadingRedrawClock()))
+        using (var session = new GameSession(new Registry(""), logs, new LoadingRedrawClock()))
         {
             var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog(), session: session);
             map.Load("maps\\missing.map"u8, GameClock.StartWallTime);
@@ -37,7 +37,7 @@ public class MapLoadTests
         Assert.True(files.TryRead("maps\\engine_test.lgc", out var script));
         files.Set("maps\\old.lgc", script);
         files.Set(OldMapPath, CreateOldMap());
-        var registry = new ScriptRegistry("");
+        var registry = new Registry("");
         var map = new Map(TestGameFolder.CreateCatalog(), files, registry, new GameSession(registry, time: new LoadingRedrawClock()));
 
         map.Load("maps\\old.map"u8, GameClock.StartWallTime);

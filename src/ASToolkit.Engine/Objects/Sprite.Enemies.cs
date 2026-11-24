@@ -14,18 +14,18 @@ public partial class Sprite
     {
         var seeker = this;
 
-        for (var next = seeker.Link; next is not null && next.Definition == seeker.Definition.LinkDefinition && next.Definition.FightChild != 0 && next.Definition.Object.WeaponIndex != 0; next = seeker.Link)
+        for (var next = seeker.Link; next is not null && next.Vid == seeker.Vid.LinkVid && next.Vid.FightChild != 0 && next.Vid.Object.WeaponIndex != 0; next = seeker.Link)
         {
             seeker = next;
         }
 
-        var definition = seeker.Definition;
+        var vid = seeker.Vid;
 
-        if (definition.DetectRange.IsExactlyZero() || definition.Targets == 0)
+        if (vid.DetectRange.IsExactlyZero() || vid.Targets == 0)
             return null;
 
         Sprite? best = null;
-        float bestDistance = definition.DetectRange + 1;
+        float bestDistance = vid.DetectRange + 1;
 
         if (seeker.Army == Army.Monsters)
             return flagman is not null && seeker.TryTake(flagman, ref best, ref bestDistance) ? flagman : best;
@@ -51,7 +51,7 @@ public partial class Sprite
         if (best is null)
             return true;
 
-        if (Definition.WeaponFlags.HasFlag(WeaponFlags.PrefersNearest))
+        if (Vid.WeaponFlags.HasFlag(WeaponFlags.PrefersNearest))
             return distance < bestDistance;
 
         if (Shooter == best)
@@ -63,80 +63,80 @@ public partial class Sprite
         if (candidate.Army == Army.Neutral && best.Army != Army.Neutral)
             return false;
 
-        bool bestFlies = best.Definition.Object.SpriteType.HasFlag(SpriteType.Avia);
-        bool candidateFlies = candidate.Definition.Object.SpriteType.HasFlag(SpriteType.Avia);
+        bool bestFlies = best.Vid.Object.SpriteType.HasFlag(SpriteType.Avia);
+        bool candidateFlies = candidate.Vid.Object.SpriteType.HasFlag(SpriteType.Avia);
 
         if (bestFlies != candidateFlies)
             return candidateFlies;
 
-        float range = (ArmedLink?.Definition ?? Definition).BattleRange;
+        float range = (ArmedLink?.Vid ?? Vid).BattleRange;
 
         if (range < bestDistance && distance <= range)
             return true;
 
-        bool candidateArmed = candidate.Definition.Object.SpriteType.HasFlag(SpriteType.Unit) && Map.Action(candidate, ActionCode.GetAmmo) != 0;
-        bool bestArmed = best.Definition.Object.SpriteType.HasFlag(SpriteType.Unit) && Map.Action(best, ActionCode.GetAmmo) != 0;
+        bool candidateArmed = candidate.Vid.Object.SpriteType.HasFlag(SpriteType.Unit) && Map.Action(candidate, ActionCode.GetAmmo) != 0;
+        bool bestArmed = best.Vid.Object.SpriteType.HasFlag(SpriteType.Unit) && Map.Action(best, ActionCode.GetAmmo) != 0;
 
         if (candidateArmed != bestArmed)
             return candidateArmed;
 
-        int candidateRank = (candidate.ArmedLink?.Definition ?? candidate.Definition).Rank;
-        int bestRank = (best.ArmedLink?.Definition ?? best.Definition).Rank;
+        int candidateRank = (candidate.ArmedLink?.Vid ?? candidate.Vid).Rank;
+        int bestRank = (best.ArmedLink?.Vid ?? best.Vid).Rank;
 
         return bestRank < candidateRank || bestRank <= candidateRank && distance < bestDistance;
     }
 
     private bool TryTake(Sprite candidate, ref Sprite? best, ref float bestDistance)
     {
-        var definition = Definition;
+        var vid = Vid;
 
-        if ((definition.Targets & candidate.Definition.Object.SpriteType) == 0 || candidate.Definition.MaxHp == 0 || !IsEnemy(candidate) ||
-            (candidate.Definition.Object.SpriteType.HasFlag(SpriteType.Avia) && candidate.Owner is not null))
+        if ((vid.Targets & candidate.Vid.Object.SpriteType) == 0 || candidate.Vid.MaxHp == 0 || !IsEnemy(candidate) ||
+            (candidate.Vid.Object.SpriteType.HasFlag(SpriteType.Avia) && candidate.Owner is not null))
             return false;
 
-        if (definition.HasForwardTargets &&
+        if (vid.HasForwardTargets &&
             Direction.MeasureTurnTo(DirectionTo(candidate)) > ForwardCone)
             return false;
 
         float distance = Position.AsVector2().MeasureOctagonalDistance(candidate.Position.AsVector2());
 
-        if (distance > definition.DetectRange || distance < definition.MinRange)
+        if (distance > vid.DetectRange || distance < vid.MinRange)
             return false;
 
         bool isAccepted;
 
-        if (definition.Object.SpriteType.HasFlag(SpriteType.Avia) && Shooter is null)
+        if (vid.Object.SpriteType.HasFlag(SpriteType.Avia) && Shooter is null)
         {
             isAccepted = distance < bestDistance;
         }
-        else if (candidate.Definition.Id == KnownObject.PistolMuzzleFlash)
+        else if (candidate.Vid.Id == KnownObject.PistolMuzzleFlash)
         {
             isAccepted = false;
         }
-        else if (bestDistance <= definition.BattleRange)
+        else if (bestDistance <= vid.BattleRange)
         {
-            isAccepted = distance <= definition.BattleRange && IsBetter(distance, bestDistance, candidate, best);
+            isAccepted = distance <= vid.BattleRange && IsBetter(distance, bestDistance, candidate, best);
         }
         else
         {
-            isAccepted = distance <= definition.BattleRange || IsBetter(distance, bestDistance, candidate, best);
+            isAccepted = distance <= vid.BattleRange || IsBetter(distance, bestDistance, candidate, best);
         }
 
-        if (!isAccepted || (Army == Army.Player && candidate.Definition.Class == SpriteClass.Engine && HasCarOfArmy(candidate, Army.Player)))
+        if (!isAccepted || (Army == Army.Player && candidate.Vid.Class == SpriteClass.Engine && HasCarOfArmy(candidate, Army.Player)))
             return false;
 
         best = candidate;
         bestDistance = distance;
 
-        return definition.WeaponFlags.HasFlag(WeaponFlags.RandomTarget) && Map.Random.Next() % RepeatTargetOdds == 0;
+        return vid.WeaponFlags.HasFlag(WeaponFlags.RandomTarget) && Map.Random.Next() % RepeatTargetOdds == 0;
     }
 
     private bool IsEnemy(Sprite target)
     {
-        bool ownArmy = Definition.WeaponFlags.HasFlag(WeaponFlags.TargetsOwnArmy);
+        bool ownArmy = Vid.WeaponFlags.HasFlag(WeaponFlags.TargetsOwnArmy);
 
-        return (target.Army != Army || ownArmy) && !target.Definition.Object.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) &&
+        return (target.Army != Army || ownArmy) && !target.Vid.Object.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) &&
             (target.Army != Army.Neutral || ownArmy ||
-                (Map.CanMonstersAttackNeutralTrains && Army == Army.Monsters && target.Definition.Class == SpriteClass.Engine));
+                (Map.CanMonstersAttackNeutralTrains && Army == Army.Monsters && target.Vid.Class == SpriteClass.Engine));
     }
 }

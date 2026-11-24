@@ -112,7 +112,7 @@ public class ScriptMachineTests
         Assert.Equal([7, 77], host.Notes);
         var copy = script.GetSlot(script.Objects[handler].FirstVariable + 1);
         Assert.Equal(77, copy.Value);
-        Assert.True(copy.Flags.HasFlag(StackObjectFlags.Sprite));
+        Assert.True(copy.Flags.HasFlag(ScriptStackFlags.Sprite));
     }
 
     [Fact]
@@ -158,7 +158,7 @@ public class ScriptMachineTests
                 case NoteFunction:
                 case DestroyFunction:
                     Notes.Add(script.PopNumber());
-                    script.PushNumber(0);
+                    script.PushInt(0);
                     break;
                 default:
                     throw new InvalidOperationException($"Unexpected function {function}.");

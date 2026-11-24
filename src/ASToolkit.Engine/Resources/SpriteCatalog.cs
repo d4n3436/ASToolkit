@@ -9,7 +9,7 @@ using ASToolkit.Formats;
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents the sprite definitions of a game folder, with the changes the level script makes to them.
+/// Represents the shared data and frames of the object IDs of a game folder, with the changes the level script makes to them.
 /// </summary>
 public sealed class SpriteCatalog
 {
@@ -19,7 +19,7 @@ public sealed class SpriteCatalog
     public const int MaxLaunchDepth = 3;
 
     /// <summary>
-    /// Represents the ID of the definition of the prerendered ground.
+    /// Represents the object ID of the prerendered ground.
     /// </summary>
     public const KnownObject HardwareGroundId = (KnownObject)1024;
 
@@ -29,7 +29,7 @@ public sealed class SpriteCatalog
     public const int DefaultMaxTextureSize = 32768;
     internal const int DefaultSpriteSpeed = 71;
     private const int WeaponRecordSize = 612;
-    private const int DefinitionSize = 1156;
+    private const int VidSize = 1156;
     private const int OneBits = 0x3f800000;
     private const int MaxId = 0x7ff;
     private const string FontExtension = ".fon";
@@ -40,42 +40,42 @@ public sealed class SpriteCatalog
     private static readonly ConcurrentDictionary<(string Path, bool IsText), Lazy<ReadOnlyMemory<byte>>> ConvertedPictures = new();
 
     private static readonly Vector3 DefaultSize = new(24, 16, 20);
-    private readonly GameLogger? _logger;
-    private readonly List<SpriteDefinition> _loadOrder = [];
+    private readonly MyError? _error;
+    private readonly List<Vid> _loadOrder = [];
     private readonly ConcurrentDictionary<(KnownObject Id, int Frame), FrameMask?> _masks = new();
 
     private ObjectTable _objects;
-    private SpriteDefinition?[] _definitions;
+    private Vid?[] _vids;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="SpriteCatalog"/> class with the definitions of a game folder.
+    /// Initializes a new instance of the <see cref="SpriteCatalog"/> class with the object IDs of a game folder.
     /// </summary>
     /// <param name="gameFolder">The game folder.</param>
     /// <param name="objects">The object table.</param>
     /// <param name="session">The session that logs the loading errors and summaries and gets a sound system if it doesn't have one, or <see langword="null"/> to load silently.</param>
-    /// <param name="isTrueColor"><see langword="true"/> for a 32-bit back buffer, where only built terrain uses <see cref="HighColorSpriteDefinition"/>; <see langword="false"/> for a 16-bit back buffer, where every software sprite uses it.</param>
+    /// <param name="isTrueColor"><see langword="true"/> for a 32-bit back buffer, where only built terrain uses <see cref="VidHighColor"/>; <see langword="false"/> for a 16-bit back buffer, where every software sprite uses it.</param>
     /// <param name="format">The channel layout of 16-bit colors, or <see langword="null"/> for 5-6-5.</param>
     /// <param name="maxTextureSize">The largest texture width and height the device accepts.</param>
-    /// <param name="resetBuiltTerrain"><see langword="true"/> to load definitions of the built terrain class as terrain; otherwise, <see langword="false"/>.</param>
+    /// <param name="resetBuiltTerrain"><see langword="true"/> to load object IDs of the built terrain class as terrain; otherwise, <see langword="false"/>.</param>
     [EngineRoutine(0x00411510)]
     public SpriteCatalog(string gameFolder, ObjectTable objects, GameSession? session = null, bool isTrueColor = true, HighColorFormat? format = null, int maxTextureSize = DefaultMaxTextureSize, bool resetBuiltTerrain = false)
     {
         _objects = objects;
         ShouldResetBuiltTerrain = resetBuiltTerrain || session?.HasAppMenu == true;
-        var logger = session?.Logger;
-        _logger = logger;
-        session?.Sound ??= new SoundSystem(objects.Sounds, new GameFolder(gameFolder), logger, isHighQuality: session.IsSoundHighQuality);
+        var error = session?.Error;
+        _error = error;
+        session?.Sound ??= new Sound(objects.Sounds, new GameFolder(gameFolder), error, isHighQuality: session.IsSoundHighQuality);
 
         int start = Environment.TickCount;
         if (objects.WeaponCount != 0)
         {
-            logger?.Write($"LoadWeapon::No={objects.WeaponCount,-5}             sizeof(WEAPON)={WeaponRecordSize,-4}");
+            error?.Write($"LoadWeapon::No={objects.WeaponCount,-5}             sizeof(WEAPON)={WeaponRecordSize,-4}");
         }
 
         Parts = new SpritePartReader(gameFolder, objects);
         Empty = CreateDefault();
         int length = objects.Ids.Max(id => (int)id) + 1;
-        _definitions = new SpriteDefinition?[length];
+        _vids = new Vid?[length];
         int count = 0;
         bool isAddition = count != 0;
         foreach (var id in objects.Ids)
@@ -85,62 +85,62 @@ public sealed class SpriteCatalog
 
             if ((int)id > MaxId)
             {
-                logger?.Error(Map.MapLogTag, LogError.Invalid, 0);
-                throw new InvalidDataException($"The object ID {(int)id} is past the end of the definition table.");
+                error?.Error(Map.MapLogTag, LogError.Invalid, 0);
+                throw new InvalidDataException($"The object ID {(int)id} is past the end of the VID table.");
             }
 
-            var previous = id == 0 ? LoadingScreen : _definitions[(int)id];
+            var previous = id == 0 ? LoadingScreen : _vids[(int)id];
             if (previous is not null)
             {
                 _loadOrder.Remove(previous);
-                logger?.Error(Map.MapLogTag, LogError.Load, 0);
+                error?.Error(Map.MapLogTag, LogError.Load, 0);
             }
 
-            var definition = CreateVid(gameFolder, id, gameObject, isTrueColor, format ?? HighColorFormat.Rgb565, maxTextureSize, logger, session?.Sound);
-            if (definition is null)
+            var vid = CreateVid(gameFolder, id, gameObject, isTrueColor, format ?? HighColorFormat.Rgb565, maxTextureSize, error, session?.Sound);
+            if (vid is null)
                 continue;
 
             count = Math.Max(count, (int)id + 1);
             if (isAddition)
             {
-                definition.FileType |= VidType.FrameVector;
+                vid.FileType |= VidType.FrameVector;
             }
 
-            _loadOrder.Add(definition);
+            _loadOrder.Add(vid);
             if (gameObject.WeaponIndex >= objects.WeaponCount)
             {
-                definition.Report(logger, LogError.Text, gameObject.WeaponIndex, "nWeapon > noWeapon"u8);
+                vid.Report(error, LogError.Text, gameObject.WeaponIndex, "nWeapon > noWeapon"u8);
             }
 
             if (id == 0)
             {
-                LoadingScreen = definition;
+                LoadingScreen = vid;
                 continue;
             }
 
-            _definitions[(int)id] = definition;
+            _vids[(int)id] = vid;
         }
 
-        ResolveLinks(logger, false);
+        ResolveLinks(error, false);
         var largest = Size.Empty;
-        foreach (var definition in _definitions.Prepend(LoadingScreen))
+        foreach (var vid in _vids.Prepend(LoadingScreen))
         {
-            if (definition is not null)
+            if (vid is not null)
             {
-                largest = new Size(Math.Max(largest.Width, definition.FrameSize.Width), Math.Max(largest.Height, definition.FrameSize.Height));
+                largest = new Size(Math.Max(largest.Width, vid.FrameSize.Width), Math.Max(largest.Height, vid.FrameSize.Height));
             }
         }
 
-        logger?.Write($"LoadVid::No   ={count,-15}   sizeof(VID)   ={DefinitionSize,-5}    load time     ={Environment.TickCount - start}ms   MaxSizeX,Y={largest.Width},{largest.Height}");
+        error?.Write($"LoadVid::No   ={count,-15}   sizeof(VID)   ={VidSize,-5}    load time     ={Environment.TickCount - start}ms   MaxSizeX,Y={largest.Width},{largest.Height}");
     }
 
     /// <summary>
-    /// Gets a value indicating whether definitions of the built terrain class are loaded as terrain.
+    /// Gets a value indicating whether object IDs of the built terrain class are loaded as terrain.
     /// </summary>
     public bool ShouldResetBuiltTerrain { get; }
 
     /// <summary>
-    /// Gets the sprite parts of the definitions.
+    /// Gets the sprite parts of the object IDs.
     /// </summary>
     public SpritePartReader Parts { get; }
 
@@ -159,12 +159,12 @@ public sealed class SpriteCatalog
     /// <summary>
     /// Gets the gravity of falling objects in pixels per millisecond squared.
     /// </summary>
-    public float Gravitation => _objects.Gravitation * SpriteDefinition.PerMillisecondSquared;
+    public float Gravitation => _objects.Gravitation * Vid.PerMillisecondSquared;
 
     /// <summary>
     /// Gets the second gravity in pixels per millisecond squared.
     /// </summary>
-    public float Gravitation2 => _objects.Gravitation2 * SpriteDefinition.PerMillisecondSquared;
+    public float Gravitation2 => _objects.Gravitation2 * Vid.PerMillisecondSquared;
 
     /// <summary>
     /// Gets the sounds of the object table.
@@ -174,7 +174,7 @@ public sealed class SpriteCatalog
     /// <summary>
     /// Gets the fastest scroll speed of the camera along each axis in pixels per millisecond.
     /// </summary>
-    public Vector2 ScrollSpeed => _objects.ScrollSpeed * SpriteDefinition.PerMillisecond;
+    public Vector2 ScrollSpeed => _objects.ScrollSpeed * Vid.PerMillisecond;
 
     /// <summary>
     /// Gets the time in milliseconds the cursor must rest before a mouse tip shows.
@@ -197,56 +197,56 @@ public sealed class SpriteCatalog
     public uint HoveredGamma => _objects.HoveredGamma;
 
     /// <summary>
-    /// Gets the empty definition of the cursor and goal sprites.
+    /// Gets the shared data, without frames, of the cursor and goal sprites.
     /// </summary>
-    public SpriteDefinition Empty { get; }
+    public Vid Empty { get; }
 
     /// <summary>
-    /// Gets the definition of the loading screen, in the first slot of the table.
+    /// Gets the shared data and frames of the loading screen, in the first slot of the table.
     /// </summary>
-    public SpriteDefinition? LoadingScreen { get; private set; }
+    public Vid? LoadingScreen { get; private set; }
 
-    internal ReadOnlySpan<SpriteDefinition?> Table => _definitions;
+    internal ReadOnlySpan<Vid?> Table => _vids;
 
-    internal IReadOnlyList<SpriteDefinition> LoadOrder => _loadOrder;
+    internal IReadOnlyList<Vid> LoadOrder => _loadOrder;
 
     private static ReadOnlySpan<byte> ObjectChunkTag => "OBJ "u8;
 
     /// <summary>
-    /// Returns the name of a definition's record.
+    /// Returns the name of an object ID's record.
     /// </summary>
-    /// <param name="definition">The definition.</param>
+    /// <param name="vid">The shared data of the object ID.</param>
     /// <returns>The name.</returns>
-    public string GetName(SpriteDefinition definition) => definition.RecordId == HardwareGroundId ? HardwareGroundName : _objects.GetName(definition.RecordId);
+    public string GetName(Vid vid) => vid.RecordId == HardwareGroundId ? HardwareGroundName : _objects.GetName(vid.RecordId);
 
     /// <summary>
-    /// Exchanges the identities of two definitions.
+    /// Exchanges the identities of two object IDs.
     /// </summary>
-    /// <param name="first">The first definition.</param>
-    /// <param name="second">The second definition.</param>
+    /// <param name="first">The shared data of the first object ID.</param>
+    /// <param name="second">The shared data of the second object ID.</param>
     [EngineRoutine(0x00411790)]
-    public void Exchange(SpriteDefinition first, SpriteDefinition second)
+    public void Exchange(Vid first, Vid second)
     {
         if (first == second)
             return;
 
-        foreach (var definition in _definitions)
+        foreach (var vid in _vids)
         {
-            if (definition is null)
+            if (vid is null)
                 continue;
 
-            if (definition.LinkDefinition == first)
+            if (vid.LinkVid == first)
             {
-                definition.LinkDefinition = second;
+                vid.LinkVid = second;
             }
-            else if (definition.LinkDefinition == second)
+            else if (vid.LinkVid == second)
             {
-                definition.LinkDefinition = first;
+                vid.LinkVid = first;
             }
         }
 
-        _definitions[(int)first.Id] = second;
-        _definitions[(int)second.Id] = first;
+        _vids[(int)first.Id] = second;
+        _vids[(int)second.Id] = first;
         (first.Identity, second.Identity) = (second.Identity, first.Identity);
         (first.Id, second.Id) = (second.Id, first.Id);
 
@@ -261,41 +261,41 @@ public sealed class SpriteCatalog
     }
 
     /// <summary>
-    /// Undoes the level script's exchanges and reloads every definition's record.
+    /// Undoes the level script's exchanges and reloads the record of every object ID.
     /// </summary>
     public void ReloadRecords() => ReloadRecords(null, null);
 
     /// <summary>
-    /// Clears every definition's counts and script handlers for a new level.
+    /// Clears the counts and script handlers of every object ID for a new level.
     /// </summary>
     public void ResetLevelState()
     {
-        foreach (var definition in _definitions)
+        foreach (var vid in _vids)
         {
-            definition?.ResetLevelState();
+            vid?.ResetLevelState();
         }
     }
 
     /// <summary>
-    /// Returns the definition of an object ID.
+    /// Returns the shared data of an object ID.
     /// </summary>
     /// <param name="id">The object ID.</param>
-    /// <returns>The definition, or null if no definition has that ID.</returns>
-    public SpriteDefinition? Find(KnownObject id) => id >= 0 && (int)id < _definitions.Length ? _definitions[(int)id] : null;
+    /// <returns>The shared data of the object ID, or null if the ID isn't loaded.</returns>
+    public Vid? Find(KnownObject id) => id >= 0 && (int)id < _vids.Length ? _vids[(int)id] : null;
 
     /// <summary>
-    /// Puts a definition in the slot of an object ID, and grows the table when the ID is past its end.
+    /// Puts shared data in the slot of an object ID, and grows the table when the ID is past its end.
     /// </summary>
     /// <param name="id">The object ID.</param>
-    /// <param name="definition">The definition.</param>
-    public void SetDefinition(KnownObject id, SpriteDefinition definition)
+    /// <param name="vid">The shared data of the object ID.</param>
+    public void SetVid(KnownObject id, Vid vid)
     {
-        if (_definitions.Length <= (int)id)
+        if (_vids.Length <= (int)id)
         {
-            Array.Resize(ref _definitions, (int)id + 1);
+            Array.Resize(ref _vids, (int)id + 1);
         }
 
-        _definitions[(int)id] = definition;
+        _vids[(int)id] = vid;
     }
 
     /// <summary>
@@ -304,58 +304,58 @@ public sealed class SpriteCatalog
     /// <param name="ambient">The ambient gamma.</param>
     public void SetAmbient(Gamma ambient)
     {
-        foreach (var definition in _definitions)
+        foreach (var vid in _vids)
         {
-            definition?.SetGamma(ambient, SpriteDefinition.AllArmies, ambient, _logger);
+            vid?.SetGamma(ambient, Vid.AllArmies, ambient, _error);
         }
     }
 
     internal void ReleaseAdditionalLoads()
     {
-        for (int i = _definitions.Length - 1; i >= 0; i--)
+        for (int i = _vids.Length - 1; i >= 0; i--)
         {
-            var definition = _definitions[i];
+            var vid = _vids[i];
 
-            if (definition is not null && definition.FileType.HasFlag(VidType.FrameVector))
+            if (vid is not null && vid.FileType.HasFlag(VidType.FrameVector))
             {
-                _loadOrder.Remove(definition);
-                _definitions[i] = null;
+                _loadOrder.Remove(vid);
+                _vids[i] = null;
             }
         }
 
-        int count = _definitions.Length;
-        while (count > 0 && _definitions[count - 1] is null)
+        int count = _vids.Length;
+        while (count > 0 && _vids[count - 1] is null)
         {
             count--;
         }
 
-        Array.Resize(ref _definitions, count);
+        Array.Resize(ref _vids, count);
     }
 
-    internal FrameMask? GetFrameMask(SpriteDefinition definition, int frame)
+    internal FrameMask? GetFrameMask(Vid vid, int frame)
     {
-        if (_masks.TryGetValue((definition.Id, frame), out var mask))
+        if (_masks.TryGetValue((vid.Id, frame), out var mask))
             return mask;
 
         VidResource? file;
         lock (Parts)
         {
-            file = Parts.GetFile(GetPath(definition.Id));
+            file = Parts.GetFile(GetPath(vid.Id));
         }
 
         mask = file is null || frame < 0 || frame >= file.Value.FrameCount ? null : FrameMask.Read(file.Value, frame);
 
-        return _masks.GetOrAdd((definition.Id, frame), mask);
+        return _masks.GetOrAdd((vid.Id, frame), mask);
     }
 
     [EngineRoutine(0x00411920)]
-    internal void ReloadRecords(GameLogger? logger, SoundSystem? sound)
+    internal void ReloadRecords(MyError? error, Sound? sound)
     {
-        foreach (var definition in _definitions)
+        foreach (var vid in _vids)
         {
-            if (definition is not null && definition.Identity != definition)
+            if (vid is not null && vid.Identity != vid)
             {
-                Exchange(definition.Identity, definition);
+                Exchange(vid.Identity, vid);
             }
         }
 
@@ -366,13 +366,13 @@ public sealed class SpriteCatalog
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            logger?.Error(Map.MapLogTag, LogError.Open, 0);
+            error?.Error(Map.MapLogTag, LogError.Open, 0);
             return;
         }
 
         if (!container.TryGetChunk(ObjectChunkTag, out _))
         {
-            logger?.Error(Map.MapLogTag, LogError.Section, 0);
+            error?.Error(Map.MapLogTag, LogError.Section, 0);
             return;
         }
 
@@ -382,11 +382,11 @@ public sealed class SpriteCatalog
         {
             if ((int)id > MaxId)
             {
-                logger?.Error(Map.MapLogTag, LogError.Invalid, 0);
+                error?.Error(Map.MapLogTag, LogError.Invalid, 0);
                 continue;
             }
 
-            var slot = id == 0 ? LoadingScreen : _definitions[(int)id];
+            var slot = id == 0 ? LoadingScreen : _vids[(int)id];
 
             if (slot is null)
                 continue;
@@ -396,85 +396,85 @@ public sealed class SpriteCatalog
             _objects.TryGetWeapon(gameObject, out var weapon);
             target.ReplaceRecord(gameObject, weapon);
             target.Name = GetName(target);
-            target.LoadParameters(logger, sound, ShouldResetBuiltTerrain);
+            target.LoadParameters(error, sound, ShouldResetBuiltTerrain);
         }
 
-        ResolveLinks(logger, true);
+        ResolveLinks(error, true);
     }
 
-    internal void LogCounts(GameLogger logger)
+    internal void LogCounts(MyError error)
     {
-        for (int i = 0; i < _definitions.Length; i++)
+        for (int i = 0; i < _vids.Length; i++)
         {
-            var definition = _definitions[i];
+            var vid = _vids[i];
 
-            if (definition is null)
+            if (vid is null)
                 continue;
 
-            var counts = definition.Counts;
+            var counts = vid.Counts;
             if (counts[0] + counts[1] + counts[2] + counts[3] == 0)
                 continue;
 
-            logger.Write($"NoVid[{i,3}]={counts[0]} {counts[1]} {counts[2]} {counts[3]} {GetName(definition)} Layer={(int)definition.Layer} {GetPath(definition)}");
+            error.Write($"NoVid[{i,3}]={counts[0]} {counts[1]} {counts[2]} {counts[3]} {GetName(vid)} Layer={(int)vid.Layer} {GetPath(vid)}");
         }
     }
 
     [EngineRoutine(0x00413a60)]
-    internal void SetChildAndLink(SpriteDefinition definition, GameLogger? logger)
+    internal void SetChildAndLink(Vid vid, MyError? error)
     {
-        int link = (int)definition.Object.Link;
+        int link = (int)vid.Object.Link;
         if (link != 0)
         {
-            var linked = Find(definition.Object.Link);
+            var linked = Find(vid.Object.Link);
             if (linked is not null)
             {
-                definition.LinkDefinition = linked;
+                vid.LinkVid = linked;
             }
         }
 
-        ref readonly var weapon = ref definition.Weapon;
-        definition.HasColorKeyframes = GetHasColorKeyframes(weapon);
-        definition.HasKeyframes = GetHasKeyframes(weapon);
-        definition.HasScaleKeyframes = GetHasScaleKeyframes(weapon);
-        definition.HasOffsetKeyframes = GetHasOffsetKeyframes(weapon);
+        ref readonly var weapon = ref vid.Weapon;
+        vid.HasColorKeyframes = GetHasColorKeyframes(weapon);
+        vid.HasKeyframes = GetHasKeyframes(weapon);
+        vid.HasScaleKeyframes = GetHasScaleKeyframes(weapon);
+        vid.HasOffsetKeyframes = GetHasOffsetKeyframes(weapon);
 
-        if (definition.Lifetime != SpriteDefinition.Unlimited || definition.HasKeyframes || definition.Object.Properties.HasFlag(ObjectProperties.Blur) || definition.Object.Properties.HasFlag(ObjectProperties.RandomSpeed))
+        if (vid.Lifetime != Vid.Unlimited || vid.HasKeyframes || vid.Object.Properties.HasFlag(ObjectProperties.Blur) || vid.Object.Properties.HasFlag(ObjectProperties.RandomSpeed))
         {
-            definition.HasTimers = true;
+            vid.HasTimers = true;
         }
 
-        foreach (int child in definition.Children)
+        foreach (int child in vid.Children)
         {
             if (child != 0 && Find((KnownObject)Math.Abs(child))?.IsBirthAsSmoke() == true)
             {
-                definition.HasTimers = true;
+                vid.HasTimers = true;
             }
         }
 
-        if (logger is null)
+        if (error is null)
             return;
 
         if (link != 0 && !IsDefined(link))
         {
-            definition.Report(logger, LogError.Invalid, link, "LinkVid"u8);
+            vid.Report(error, LogError.Invalid, link, "LinkVid"u8);
         }
 
-        foreach (int child in definition.Object.Children)
+        foreach (int child in vid.Object.Children)
         {
             if (child != 0 && !IsDefined(Math.Abs(child)))
             {
-                definition.Report(logger, LogError.Invalid, child, "child"u8);
+                vid.Report(error, LogError.Invalid, child, "child"u8);
             }
         }
     }
 
-    private static void LogUnopened(GameLogger? logger, string path) => logger?.Write($"LOAD::Can't open file {path}");
+    private static void LogUnopened(MyError? error, string path) => error?.Write($"LOAD::Can't open file {path}");
 
-    private static SpriteDefinition CreateDefault() => SpriteDefinition.CreateEmpty(KnownObject.None, new GameObject(SpriteClass.Primitive, DefaultSize), DefaultSpriteSpeed, ObjectLayer.Menu);
+    private static Vid CreateDefault() => Vid.CreateEmpty(KnownObject.None, new GameObject(SpriteClass.Primitive, DefaultSize), DefaultSpriteSpeed, ObjectLayer.Menu);
 
-    private static ReadOnlyMemory<byte> ConvertPicture(string gameFolder, string path, bool isText, GameLogger? logger)
+    private static ReadOnlyMemory<byte> ConvertPicture(string gameFolder, string path, bool isText, MyError? error)
     {
-        using var picture = isText ? new FontPicture(gameFolder, logger) : new Picture(gameFolder, logger);
+        using var picture = isText ? new FontPicture(gameFolder, error) : new Picture(gameFolder, error);
         return picture.Load(path, string.Empty, string.Empty) ? picture.Convert() : default;
     }
 
@@ -538,17 +538,17 @@ public sealed class SpriteCatalog
     }
 
     [EngineRoutine(0x00411b50)]
-    private SpriteDefinition? CreateVid(string gameFolder, KnownObject id, in GameObject gameObject, bool isTrueColor, HighColorFormat format, int maxTextureSize, GameLogger? logger, SoundSystem? sound)
+    private Vid? CreateVid(string gameFolder, KnownObject id, in GameObject gameObject, bool isTrueColor, HighColorFormat format, int maxTextureSize, MyError? error, Sound? sound)
     {
         _objects.TryGetWeapon(gameObject, out var weapon);
         string path = _objects.GetPath(id);
-        var temporary = SpriteDefinition.CreateEmpty(KnownObject.None, gameObject, DefaultSpriteSpeed, ObjectLayer.Menu);
-        temporary.LoadParameters(logger, sound, ShouldResetBuiltTerrain);
+        var temporary = Vid.CreateEmpty(KnownObject.None, gameObject, DefaultSpriteSpeed, ObjectLayer.Menu);
+        temporary.LoadParameters(error, sound, ShouldResetBuiltTerrain);
         bool isCopy = FindCopySource(path, temporary) is not null;
-        var parametersLogger = logger;
+        var parametersError = error;
         if (isCopy)
         {
-            logger = null;
+            error = null;
         }
 
         var file = Parts.GetFile(path);
@@ -557,21 +557,21 @@ public sealed class SpriteCatalog
         {
             if (path.Contains(FontExtension, StringComparison.Ordinal) || path.Contains(TrueTypeExtension, StringComparison.Ordinal))
             {
-                var font = new FontSpriteDefinition(id, gameObject, weapon, maxTextureSize);
-                Prepare(font, parametersLogger, sound);
-                font.Load(default, default, logger);
+                var font = new VidFont(id, gameObject, weapon, maxTextureSize);
+                Prepare(font, parametersError, sound);
+                font.Load(default, default, error);
                 font.SetLayer();
                 return font;
             }
             else if (path.Contains(TgaImage.Extension, StringComparison.Ordinal) || path.Contains(BmpImage.Extension, StringComparison.Ordinal) || path.Contains(AnimationExtension, StringComparison.Ordinal))
             {
                 bool isText = gameObject.SpriteClass == SpriteClass.Text;
-                data = logger is not null
-                    ? ConvertPicture(gameFolder, path, isText, logger)
+                data = error is not null
+                    ? ConvertPicture(gameFolder, path, isText, error)
                     : ConvertedPictures.GetOrAdd((Path.GetFullPath(Path.Combine(gameFolder, path)), isText), key => new(() => ConvertPicture(gameFolder, path, key.IsText, null))).Value;
                 if (data.IsEmpty)
                 {
-                    LogUnopened(logger, path);
+                    LogUnopened(error, path);
                 }
             }
         }
@@ -583,12 +583,12 @@ public sealed class SpriteCatalog
 
         if (file is null)
         {
-            if (logger is not null)
+            if (error is not null)
             {
-                new Resource().Open(new GameFolder(gameFolder), logger, Encoding.ASCII.GetBytes(path), Resource.AnyTag);
+                new Resource().Open(new GameFolder(gameFolder), error, Encoding.ASCII.GetBytes(path), Resource.AnyTag);
             }
 
-            LogUnopened(logger, path);
+            LogUnopened(error, path);
             return null;
         }
 
@@ -596,48 +596,48 @@ public sealed class SpriteCatalog
 
         int totalFrames = data.IsEmpty ? Parts.CountFrames(path) : sprite.FrameCount;
         var type = sprite.Type;
-        SpriteDefinition definition;
+        Vid vid;
         ReadOnlyMemory<byte> bytes = default;
         if (type.HasFlag(VidType.HardwareLayer))
         {
-            definition = new HardwareLayerSpriteDefinition(id, gameObject, weapon, sprite, totalFrames);
+            vid = new VidHardwareLayer(id, gameObject, weapon, sprite, totalFrames);
         }
         else if (type.HasFlag(VidType.Light))
         {
-            definition = new LightSpriteDefinition(id, gameObject, weapon, sprite, totalFrames);
+            vid = new VidLight(id, gameObject, weapon, sprite, totalFrames);
         }
         else if (type.HasFlag(VidType.Hardware) && !(type.HasFlag(VidType.Blended) && type.HasFlag(VidType.ZBuffer)))
         {
-            definition = new HardwareSpriteDefinition(id, gameObject, weapon, sprite, totalFrames, format);
+            vid = new VidHardware(id, gameObject, weapon, sprite, totalFrames, format);
         }
         else
         {
             bytes = data.IsEmpty ? GetBytes(path) : data;
             if (type.HasFlag(VidType.Hardware))
             {
-                definition = new DepthFadedSpriteDefinition(id, gameObject, weapon, sprite, totalFrames, format);
+                vid = new VidDepthFaded(id, gameObject, weapon, sprite, totalFrames, format);
             }
             else if (gameObject.SpriteClass == SpriteClass.BuiltTerrain || !isTrueColor)
             {
-                definition = new HighColorSpriteDefinition(id, gameObject, weapon, sprite, totalFrames, format);
+                vid = new VidHighColor(id, gameObject, weapon, sprite, totalFrames, format);
             }
             else
             {
-                definition = new SoftwareSpriteDefinition(id, gameObject, weapon, sprite, totalFrames, format);
+                vid = new VidSoftware(id, gameObject, weapon, sprite, totalFrames, format);
             }
         }
 
-        Prepare(definition, parametersLogger, sound);
-        definition.Load(sprite, bytes, logger);
-        definition.SetLayer();
-        definition.IsCopy = isCopy;
-        return definition;
+        Prepare(vid, parametersError, sound);
+        vid.Load(sprite, bytes, error);
+        vid.SetLayer();
+        vid.IsCopy = isCopy;
+        return vid;
     }
 
-    private SpriteDefinition? FindCopySource(string path, SpriteDefinition temporary)
+    private Vid? FindCopySource(string path, Vid temporary)
     {
         bool isBuiltTerrain = temporary.Class == SpriteClass.BuiltTerrain;
-        var table = _definitions;
+        var table = _vids;
         for (int slot = 0; slot < table.Length; slot++)
         {
             var existing = slot == 0 ? LoadingScreen : table[slot];
@@ -655,27 +655,27 @@ public sealed class SpriteCatalog
         return null;
     }
 
-    private void Prepare(SpriteDefinition definition, GameLogger? logger, SoundSystem? sound)
+    private void Prepare(Vid vid, MyError? error, Sound? sound)
     {
-        definition.Name = GetName(definition);
-        definition.Path = GetPath(definition);
-        definition.LoadParameters(logger, sound, ShouldResetBuiltTerrain);
+        vid.Name = GetName(vid);
+        vid.Path = GetPath(vid);
+        vid.LoadParameters(error, sound, ShouldResetBuiltTerrain);
     }
 
-    private void ResolveLinks(GameLogger? logger, bool isReload)
+    private void ResolveLinks(MyError? error, bool isReload)
     {
-        foreach (var definition in _definitions)
+        foreach (var vid in _vids)
         {
-            if (definition is not null && !(isReload && definition.FileType.HasFlag(VidType.FrameVector)))
+            if (vid is not null && !(isReload && vid.FileType.HasFlag(VidType.FrameVector)))
             {
-                SetChildAndLink(definition, logger);
+                SetChildAndLink(vid, error);
             }
         }
     }
 
-    private string GetPath(SpriteDefinition definition) => GetPath(definition.RecordId);
+    private string GetPath(Vid vid) => GetPath(vid.RecordId);
 
     private string GetPath(KnownObject id) => id == HardwareGroundId ? string.Empty : _objects.GetPath(id);
 
-    private bool IsDefined(int id) => id >= 0 && id < _definitions.Length && _definitions[id] is not null;
+    private bool IsDefined(int id) => id >= 0 && id < _vids.Length && _vids[id] is not null;
 }

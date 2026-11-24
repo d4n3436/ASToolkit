@@ -38,10 +38,10 @@ public class PictureImage : IDisposable
     }
 
     [EngineRoutine(0x00426dd0)]
-    internal PictureImage(string gameFolder, GameLogger? logger)
+    internal PictureImage(string gameFolder, MyError? error)
     {
         GameFolder = gameFolder;
-        Logger = logger;
+        Error = error;
         Name = string.Empty;
         Speed = DefaultSpeed;
     }
@@ -96,7 +96,7 @@ public class PictureImage : IDisposable
     /// </summary>
     public Span<uint> Palette => _palette;
 
-    internal GameLogger? Logger { get; }
+    internal MyError? Error { get; }
 
     /// <summary>
     /// Gets or sets the open picture file.
@@ -290,7 +290,7 @@ public class PictureImage : IDisposable
         };
     }
 
-    internal void Report(LogError code, ReadOnlySpan<byte> text = default, int value = 0) => Logger?.Error($"PICTURE '{Name}'", code, value, text);
+    internal void Report(LogError code, ReadOnlySpan<byte> text = default, int value = 0) => Error?.Error($"PICTURE '{Name}'", code, value, text);
 
     /// <summary>
     /// Returns the path of the file of a frame, made from the path of the first file with its number replaced.

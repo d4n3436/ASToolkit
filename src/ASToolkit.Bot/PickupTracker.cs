@@ -61,7 +61,7 @@ internal sealed class PickupTracker
     {
         foreach (var sprite in _map.UpdatedSprites)
         {
-            if (IsPickup(sprite.Definition.Id) && _seen.Add(sprite))
+            if (IsPickup(sprite.Vid.Id) && _seen.Add(sprite))
             {
                 _pickups.Add(sprite);
             }

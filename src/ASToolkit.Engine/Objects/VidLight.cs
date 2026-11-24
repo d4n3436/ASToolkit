@@ -5,24 +5,24 @@ using ASToolkit.Formats;
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents the definition of an omni-light that lights the area around a sprite in the color of its frame.
+/// Represents the shared data and frames of an omni-light object ID whose sprites light the area around them in the color of their frame.
 /// </summary>
-public sealed class LightSpriteDefinition : SpriteDefinition
+public sealed class VidLight : Vid
 {
     private const uint BlackColor = 0xff000000;
 
     private readonly VidResource _file;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="LightSpriteDefinition"/> class.
+    /// Initializes a new instance of the <see cref="VidLight"/> class.
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
     /// <param name="weapon">The weapon record.</param>
     /// <param name="file">The sprite file.</param>
-    /// <param name="totalFrames">The frame count of the definition's sprite.</param>
+    /// <param name="totalFrames">The frame count of the sprite file.</param>
     [EngineRoutine(0x00414c60)]
-    public LightSpriteDefinition(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, in VidResource file, int totalFrames)
+    public VidLight(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, in VidResource file, int totalFrames)
         : base(id, gameObject, weapon, file, totalFrames)
     {
         _file = file;

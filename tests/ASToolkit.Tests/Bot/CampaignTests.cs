@@ -77,7 +77,7 @@ public class CampaignTests
             new PlayerImplants(3, 3, 3, 3));
         var session = new Playthrough(game, objects, TestGameFolder.Table).Start(level, loadout, 1);
         int placed = level.Elements.Count(element => element.Kind == ElementKind.Monster);
-        var walls = session.Map.UpdatedSprites.Where(sprite => sprite.Definition.Id is KnownObject.SpawnWallSlash or KnownObject.SpawnWallBack).ToArray();
+        var walls = session.Map.UpdatedSprites.Where(sprite => sprite.Vid.Id is KnownObject.SpawnWallSlash or KnownObject.SpawnWallBack).ToArray();
 
         for (int time = 10000; time <= 240000 && !(session.Log.Kills > placed && Opened(KnownObject.SpawnWallSlash) && Opened(KnownObject.SpawnWallBack)); time += 10000)
         {
@@ -89,7 +89,7 @@ public class CampaignTests
         Assert.True(Opened(KnownObject.SpawnWallBack));
         return;
         
-        bool Opened(KnownObject id) => walls.Any(wall => wall.Definition.Id == id && (wall.Animation >= SpriteAnimation.Death || wall.ReferenceCount <= 0));
+        bool Opened(KnownObject id) => walls.Any(wall => wall.Vid.Id == id && (wall.Animation >= SpriteAnimation.Death || wall.ReferenceCount <= 0));
     }
 
     [Fact]
@@ -104,12 +104,12 @@ public class CampaignTests
         var weapons = Enumerable.Range(Sprite.WeaponIdBase, Sprite.WeaponSlots).Select(id => (KnownObject)id).ToArray();
         var plain = play.Start(level, new PlayerLoadout(0, new Dictionary<KnownObject, int>(), new PlayerImplants(0, 0, 0, 0)), 1);
         plain.PlayUntil(100);
-        int[] aims = weapons.Select(id => (int)plain.Map.Definitions.Find(id)!.Aim).ToArray();
+        int[] aims = weapons.Select(id => (int)plain.Map.Vids.Find(id)!.Aim).ToArray();
         var implanted = play.Start(level, new PlayerLoadout(0, new Dictionary<KnownObject, int>(), new PlayerImplants(0, 0, 0, accuracyImplants)), 1);
         implanted.PlayUntil(100);
 
         Assert.Contains(aims, aim => aim > 0);
-        Assert.Equal(aims.Select(aim => Enumerable.Range(0, accuracyImplants).Aggregate(aim, (scaled, _) => scaled * 6 / 10)), weapons.Select(id => (int)implanted.Map.Definitions.Find(id)!.Aim));
+        Assert.Equal(aims.Select(aim => Enumerable.Range(0, accuracyImplants).Aggregate(aim, (scaled, _) => scaled * 6 / 10)), weapons.Select(id => (int)implanted.Map.Vids.Find(id)!.Aim));
     }
 
     private static RouteAnalysis EmptyLevel(params KnownObject[] pickups)

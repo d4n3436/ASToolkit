@@ -91,7 +91,7 @@ public sealed partial class Graphics
             }
         }
 
-        SetBlend(isLight ? BlendFactor.Zero : BlendFactor.One, BlendFactor.InverseSourceColor);
+        SetAlphaBlend(isLight ? BlendFactor.Zero : BlendFactor.One, BlendFactor.InverseSourceColor);
         new Texture(buffer, new Size(FogBufferSize, FogBufferSize), format, screen.TexturePalette).DrawQuad(screen, new Rectangle(left, top, width, height), new Rectangle(0, 0, columns, rows), new Gamma(~color, Gamma.OpaqueAlpha), Blend, topDepth: (level + FogDepthOffset) * FogDepthScale, bottomDepth: (level + FogDepthOffset) * FogDepthScale);
     }
 }

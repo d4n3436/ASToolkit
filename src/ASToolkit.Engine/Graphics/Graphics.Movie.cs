@@ -32,22 +32,22 @@ public sealed partial class Graphics
     internal bool HasMovieEnded() => true;
 
     [EngineRoutine(0x004343e0)]
-    internal void PlayMovie(IGameFileSystem fileSystem, ReadOnlySpan<byte> path, GameLogger logger) => OpenMovie(fileSystem, path, logger);
+    internal void PlayMovie(IGameFileSystem fileSystem, ReadOnlySpan<byte> path, MyError error) => OpenMovie(fileSystem, path, error);
 
     [EngineRoutine(0x00434480)]
-    private void OpenMovie(IGameFileSystem fileSystem, ReadOnlySpan<byte> path, GameLogger logger)
+    private void OpenMovie(IGameFileSystem fileSystem, ReadOnlySpan<byte> path, MyError error)
     {
         StopMovie();
 
         if (GraphBuilderResult < 0)
         {
-            logger.Error(MovieLogTag, LogError.Create, GraphBuilderResult, "GraphBuilder"u8);
+            error.Error(MovieLogTag, LogError.Create, GraphBuilderResult, "GraphBuilder"u8);
             return;
         }
 
         if (MediaControlResult < 0)
         {
-            logger.Error(MovieLogTag, LogError.Create, MediaControlResult, "MediaControl"u8);
+            error.Error(MovieLogTag, LogError.Create, MediaControlResult, "MediaControl"u8);
             StopMovie();
             return;
         }
@@ -55,7 +55,7 @@ public sealed partial class Graphics
         int rendered = fileSystem.TryRead(Encoding.ASCII.GetString(path), out _) ? RenderFileResult : FileNotFound;
         if (rendered < 0)
         {
-            logger.Error(MovieLogTag, LogError.Invalid, rendered, "RenderFile"u8);
+            error.Error(MovieLogTag, LogError.Invalid, rendered, "RenderFile"u8);
             StopMovie();
             return;
         }

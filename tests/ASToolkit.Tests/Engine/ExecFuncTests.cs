@@ -30,7 +30,7 @@ public class ExecFuncTests
 
         Assert.Equal((int)player.X, Read(script, "x"));
         Assert.Equal((int)player.AsVector2().MeasureOctagonalDistance(new Vector2((int)player.X + 30, (int)player.Y + 40)), Read(script, "distance"));
-        Assert.Equal((int)map.Player.Definition.Id, Read(script, "vid"));
+        Assert.Equal((int)map.Player.Vid.Id, Read(script, "vid"));
         Assert.Equal(0, Read(script, "nobody"));
     }
 
@@ -176,17 +176,17 @@ public class ExecFuncTests
               restored = GetVidData(56, VID_DAMAGE);
             }
             """);
-        var definition = map.Definitions.Find(KnownObject.RedMonster1)!;
+        var vid = map.Vids.Find(KnownObject.RedMonster1)!;
         var monster = map.FindSprite(Read(script, "first"))!;
 
         Assert.Equal(1, Read(script, "count"));
         Assert.Equal(1, Read(script, "armyCount"));
         Assert.Equal(77, Read(script, "damage"));
-        Assert.Equal(definition.MaxHp * 2, Read(script, "max"));
-        Assert.Equal(definition.MaxHp * 2, monster.Hp);
+        Assert.Equal(vid.MaxHp * 2, Read(script, "max"));
+        Assert.Equal(vid.MaxHp * 2, monster.Hp);
         Assert.Equal(50, Read(script, "exchanged"));
         Assert.Equal(56, Read(script, "reloaded"));
-        Assert.Equal(definition.Object.DeathDamage, Read(script, "restored"));
+        Assert.Equal(vid.Object.DeathDamage, Read(script, "restored"));
     }
 
     [Fact]
@@ -258,7 +258,7 @@ public class ExecFuncTests
         Assert.Equal(Read(script, "unit"), Read(script, "found"));
         Assert.Equal(Read(script, "unit"), Read(script, "near"));
         Assert.Equal(Enumerable.Range(0, 17).Sum(layer => map.GetLayer(layer).Count(entry => entry is not null)), Read(script, "counted"));
-        Assert.Equal(sprite.Definition.MaxHp / 2, Read(script, "hp"));
+        Assert.Equal(sprite.Vid.MaxHp / 2, Read(script, "hp"));
         Assert.Equal(2, Read(script, "army"));
         Assert.Equal(242, Read(script, "item"));
         Assert.Equal(1, Read(script, "have"));
@@ -267,14 +267,14 @@ public class ExecFuncTests
         Assert.Equal(sprite.Link is null ? 0 : 1, Read(script, "link") == 0 ? 0 : 1);
         Assert.Equal(ActionCode.Stop, sprite.ActionStack.Top.Code);
         Assert.Equal(Read(script, "unit"), Read(script, "swapped"));
-        Assert.Equal(map.Player, map.GetFlagman(0));
+        Assert.Equal(map.Player, map.Flagman(0));
     }
 
     [Fact]
     public void ExecFunc_ScreenPickMoneyAndTrains_FollowTheGame()
     {
-        var definition = TestGameFolder.CreateCatalog().Find(KnownObject.RedMonster1)!;
-        int above = (int)(definition.Half.Y + definition.Object.Size.Z / 2);
+        var vid = TestGameFolder.CreateCatalog().Find(KnownObject.RedMonster1)!;
+        int above = (int)(vid.Half.Y + vid.Object.Size.Z / 2);
         var (map, script) = Run($$"""
             int unit, picked, raised, footprint, below, money, other, train, property, engine;
             main()
@@ -349,8 +349,8 @@ public class ExecFuncTests
 
     private static (Map Map, Script Script) Run(string text)
     {
-        var definitions = TestGameFolder.CreateCatalog();
-        var map = EngineTestMap.CreateMap(definitions);
+        var vids = TestGameFolder.CreateCatalog();
+        var map = EngineTestMap.CreateMap(vids);
         var script = Compile(map, text);
         script.CallFunction(map, -1, 0, 0, 0);
 

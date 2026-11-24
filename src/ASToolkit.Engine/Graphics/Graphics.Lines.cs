@@ -106,7 +106,7 @@ public sealed partial class Graphics
         if (!(MathF.Abs(value) > MaxLineCoordinate))
             return value;
 
-        map.Session.Logger.Error(GraphicsLogTag, LogError.Invalid, 0, name);
+        map.Session.Error.Error(GraphicsLogTag, LogError.Invalid, 0, name);
 
         return 0;
     }

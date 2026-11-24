@@ -1,7 +1,7 @@
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Specifies how <see cref="TextureFont.Draw"/> draws text.
+/// Specifies how <see cref="D3DFont.Draw"/> draws text.
 /// </summary>
 [Flags]
 public enum TextDrawFlags

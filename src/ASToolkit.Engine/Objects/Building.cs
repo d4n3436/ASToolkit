@@ -13,14 +13,14 @@ public sealed class Building : Unit
     /// Initializes a new instance of the <see cref="Building"/> class.
     /// </summary>
     /// <param name="number">The number of the sprite.</param>
-    /// <param name="definition">The definition of the sprite.</param>
+    /// <param name="vid">The shared data and frames of the sprite's object ID.</param>
     /// <param name="position">The position of the sprite.</param>
     /// <param name="army">The army of the sprite.</param>
     /// <param name="hitPoints">The hit points of the sprite.</param>
     /// <param name="map">The map the sprite belongs to.</param>
     /// <param name="direction">The direction of the sprite.</param>
-    public Building(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
-        : base(number, definition, position, army, hitPoints, map, direction)
+    public Building(int number, Vid vid, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
+        : base(number, vid, position, army, hitPoints, map, direction)
     {
     }
 
@@ -32,7 +32,7 @@ public sealed class Building : Unit
         switch ((ActionCode)act)
         {
             case ActionCode.BackupCommand when Command == Command.Build && PendingBuild.HasValue:
-                ActionStack.Push(new Act((int)ActionCode.BuildUnit, (int)PendingBuild.Value.Definition.Id, 0, 0));
+                ActionStack.Push(new Act((int)ActionCode.BuildUnit, (int)PendingBuild.Value.Vid.Id, 0, 0));
                 SetCommand(Command.None);
 
                 return 0;
@@ -45,13 +45,13 @@ public sealed class Building : Unit
                     noItem = var1 == 0;
                 }
 
-                var definition = var1 >= 0 ? Map.Definitions.Find((KnownObject)var1) : null;
+                var vid = var1 >= 0 ? Map.Vids.Find((KnownObject)var1) : null;
 
-                if (!(noItem || Command == Command.None) || definition is null)
+                if (!(noItem || Command == Command.None) || vid is null)
                     return 0;
 
-                PendingBuild = new PendingBuild(definition, new Point(var2, var3));
-                Timer = definition.BuildTime;
+                PendingBuild = new PendingBuild(vid, new Point(var2, var3));
+                Timer = vid.BuildTime;
                 SetCommand(Command.Build);
 
                 if (Animation < SpriteAnimation.Death)
@@ -82,11 +82,11 @@ public sealed class Building : Unit
 
                 var position = Map.GetBuildPosition(this, pending.Offset);
 
-                if (!Map.IsFree(pending.Definition, position))
+                if (!Map.IsFree(pending.Vid, position))
                     return 0;
 
                 SetCommand(Command.None);
-                AddBuiltUnit(pending.Definition, position);
+                AddBuiltUnit(pending.Vid, position);
                 PendingBuild = null;
                 ChangeAnimation(SpriteAnimation.Stand);
 

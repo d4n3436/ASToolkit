@@ -36,10 +36,10 @@ internal static class EngineTestMap
     public static ReadOnlySpan<byte> MapName => "maps\\engine_test.map"u8;
 
     public static IEnumerable<Sprite> GetEffects(this Map map) => map.UpdatedSprites.Where(sprite =>
-        sprite.Definition.Class is not (SpriteClass.Man or SpriteClass.Frame or SpriteClass.Text) && sprite.Definition.Id is not (SpriteCatalog.HardwareGroundId or KnownObject.SmallShadow) &&
-        !SpriteCollector.IsListed(sprite.Definition) && sprite.Owner?.Definition.Class != SpriteClass.Man);
+        sprite.Vid.Class is not (SpriteClass.Man or SpriteClass.Frame or SpriteClass.Text) && sprite.Vid.Id is not (SpriteCatalog.HardwareGroundId or KnownObject.SmallShadow) &&
+        !SpriteCollector.IsListed(sprite.Vid) && sprite.Owner?.Vid.Class != SpriteClass.Man);
 
-    public static Map CreateMap(SpriteCatalog definitions, PlayerLoadout? loadout = null, IReadOnlyList<MergedMapSprite>? sprites = null, int frameTime = FramePacer.DefaultFrameTime,
+    public static Map CreateMap(SpriteCatalog vids, PlayerLoadout? loadout = null, IReadOnlyList<MergedMapSprite>? sprites = null, int frameTime = FramePacer.DefaultFrameTime,
         MapEnvironment environment = MapEnvironment.None, DemoResource? demo = null, string? blood = null, GameSession? session = null, string script = Script, Gamma ambient = default, bool placePlayer = true, Vector2 camera = default)
     {
         var files = CreateFiles(sprites, environment, script, ambient, placePlayer, camera);
@@ -52,7 +52,7 @@ internal static class EngineTestMap
             registry.Set("Blood", blood);
         }
 
-        var map = new Map(definitions, files, registry: registry, session: session ?? new GameSession(registry, time: new LoadingRedrawClock()));
+        var map = new Map(vids, files, registry: registry, session: session ?? new GameSession(registry, time: new LoadingRedrawClock()));
         map.Pace([frameTime]);
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         if (demo is null)
@@ -99,13 +99,13 @@ internal static class EngineTestMap
         return files;
     }
 
-    public static Sprite FindFirstSprite(this Map map, KnownObject id) => map.UpdatedSprites.First(sprite => sprite.Definition.Id == id);
+    public static Sprite FindFirstSprite(this Map map, KnownObject id) => map.UpdatedSprites.First(sprite => sprite.Vid.Id == id);
 
     public static Sprite FindPlacedMan(Map map)
     {
         foreach (var sprite in map.Collector.Listed)
         {
-            if (sprite.Definition.Object.SpriteClass == SpriteClass.Man)
+            if (sprite.Vid.Object.SpriteClass == SpriteClass.Man)
                 return sprite;
         }
 

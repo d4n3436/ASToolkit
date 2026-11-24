@@ -1,5 +1,6 @@
 using System.Numerics;
 using ASToolkit.Core;
+using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
@@ -11,21 +12,23 @@ public class Unit : Terrain
 {
     private const int AmmoScale = 64;
     private const int IdleScanOdds = 11;
+    private const int IntItemsVersion = 11;
     private const int LinkScanOdds = 4;
     private const float WanderReach = 64;
+    private const int WordItemsVersion = 10;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Unit"/> class.
     /// </summary>
     /// <param name="number">The number of the sprite.</param>
-    /// <param name="definition">The definition of the sprite.</param>
+    /// <param name="vid">The shared data and frames of the sprite's object ID.</param>
     /// <param name="position">The position of the sprite.</param>
     /// <param name="army">The army of the sprite.</param>
     /// <param name="hitPoints">The hit points of the sprite.</param>
     /// <param name="map">The map the sprite belongs to.</param>
     /// <param name="direction">The direction of the sprite.</param>
-    public Unit(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
-        : base(number, definition, position, army, hitPoints, map, direction)
+    public Unit(int number, Vid vid, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
+        : base(number, vid, position, army, hitPoints, map, direction)
     {
     }
 
@@ -66,9 +69,9 @@ public class Unit : Terrain
     [EngineRoutine(0x0043a200)]
     public int GetAmmoCapacity()
     {
-        var link = Definition.LinkDefinition;
+        var link = Vid.LinkVid;
 
-        return link is not null && link.HasFightWeapon() ? link.AmmoCapacity : Definition.AmmoCapacity;
+        return link is not null && link.CanFight() ? link.AmmoCapacity : Vid.AmmoCapacity;
     }
 
     /// <summary>
@@ -89,11 +92,11 @@ public class Unit : Terrain
     /// <returns>The rounds held after the addition.</returns>
     public int AddAmmo(int amount)
     {
-        if (GetAmmoCapacity() == SpriteDefinition.Unlimited)
+        if (GetAmmoCapacity() == Vid.Unlimited)
         {
-            Ammo = SpriteDefinition.Unlimited * AmmoScale;
+            Ammo = Vid.Unlimited * AmmoScale;
 
-            return SpriteDefinition.Unlimited;
+            return Vid.Unlimited;
         }
 
         int ammo = Ammo + amount * AmmoScale;
@@ -149,6 +152,53 @@ public class Unit : Terrain
         return base.Action(act, var1, var2, var3, target);
     }
 
+    [EngineRoutine(0x00447500)]
+    internal override int Action(int act, ref Resource stream, int version)
+    {
+        switch ((ActionCode)act)
+        {
+            case ActionCode.Restore:
+                base.Action(act, ref stream, version);
+                var behavior = Behavior;
+                stream.ReadInto(ref behavior);
+                Behavior = behavior;
+                if (version == IntItemsVersion)
+                {
+                    int count = 0;
+                    stream.ReadInto(ref count);
+                    Items.AddRange(stream.Read<int>(count));
+                    return 0;
+                }
+
+                if (version > WordItemsVersion)
+                    return 0;
+
+                int wordCount = 0;
+                stream.ReadInto(ref wordCount);
+                foreach (short item in stream.Read<short>(wordCount))
+                {
+                    Items.Add(item);
+                }
+
+                return 0;
+            case ActionCode.RestoreOld:
+                base.Action(act, ref stream, version);
+                if (version < OldArmyVersion)
+                {
+                    byte army = 0;
+                    stream.ReadInto(ref army);
+                    ChangeArmy(army);
+                }
+
+                byte oldBehavior = (byte)Behavior;
+                stream.ReadInto(ref oldBehavior);
+                Behavior = (WeaponBehavior)((int)Behavior & ~byte.MaxValue | oldBehavior);
+                return 0;
+            default:
+                return base.Action(act, ref stream, version);
+        }
+    }
+
     [EngineRoutine(0x00447260)]
     internal override void MoveTact()
     {
@@ -202,7 +252,7 @@ public class Unit : Terrain
 
     private protected void AttackSeenEnemy(Sprite attacker)
     {
-        var enemy = this.SeekEnemy(Map.GetFlagman(0));
+        var enemy = this.SeekEnemy(Map.Flagman(0));
 
         if (enemy is not null)
         {
@@ -214,7 +264,7 @@ public class Unit : Terrain
     {
         int result = base.Action((int)ActionCode.Damage, damage, var2, var3, target);
 
-        if (damage >= 0 && Command == Command.None && !Definition.Speed.IsExactlyZero())
+        if (damage >= 0 && Command == Command.None && !Vid.Speed.IsExactlyZero())
         {
             var wander = Position.AsVector2() + new Angle((byte)Map.Random.Next()).Vector * WanderReach;
             var goal = Map.ConstructGoal(new Vector3(wander, Position.Z));
@@ -275,15 +325,15 @@ public class Unit : Terrain
 
     private AttackResult TactUnitAttack(Sprite? link)
     {
-        var definition = Definition;
-        var result = AttackTact(Math.Max(Map.FrameTime, definition.GetVisualFrameDuration(Animation)));
+        var vid = Vid;
+        var result = AttackTact(Math.Max(Map.FrameTime, vid.GetVisualFrameDuration(Animation)));
 
         switch (result)
         {
             case AttackResult.NoAmmo or AttackResult.GiveUp:
                 SetCommand(Command.None);
                 break;
-            case AttackResult.Approach when definition.Speed.IsExactlyZero():
+            case AttackResult.Approach when vid.Speed.IsExactlyZero():
                 if (link is not null && link.HasGoal || HasGoal)
                 {
                     SetCommand(Command.None);

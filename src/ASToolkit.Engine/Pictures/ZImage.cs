@@ -28,8 +28,8 @@ public sealed class ZImage : PictureImage
     {
     }
 
-    internal ZImage(string gameFolder, GameLogger? logger)
-        : base(gameFolder, logger)
+    internal ZImage(string gameFolder, MyError? error)
+        : base(gameFolder, error)
     {
     }
 

@@ -67,7 +67,7 @@ public sealed class ControlSettings
             Right = new ControlBinding(VirtualKey.Right, GetFirstCharacter(fileSystem, "Right"u8, "'"u8)),
             Up = new ControlBinding(VirtualKey.Up, GetFirstCharacter(fileSystem, "Up"u8, "&"u8)),
             Down = new ControlBinding(VirtualKey.Down, GetFirstCharacter(fileSystem, "Down"u8, "\u00048"u8)),
-            IsMovementRelativeToCursor = ProfileFile.GetInteger(fileSystem, ConfigFile, Section, "Relative"u8, 0) != 0,
+            IsMovementRelativeToCursor = Profile.GetInteger(fileSystem, ConfigFile, Section, "Relative"u8, 0) != 0,
             First = new ControlBinding(ParseKey(GetString(fileSystem, "First"u8, "LBUTTON"u8)), VirtualKey.LeftButton),
             Second = new ControlBinding(ParseKey(GetString(fileSystem, "Second"u8, "RBUTTON"u8)), VirtualKey.RightButton),
             Prev = ParseKey(GetString(fileSystem, "Prev"u8, "["u8)),
@@ -120,7 +120,7 @@ public sealed class ControlSettings
     }
 
     private static ReadOnlySpan<byte> GetString(IGameFileSystem fileSystem, ReadOnlySpan<byte> key, ReadOnlySpan<byte> defaultValue) =>
-        ProfileFile.TryGetString(fileSystem, ConfigFile, Section, key, out var value) ? value.Span : defaultValue;
+        Profile.TryGetString(fileSystem, ConfigFile, Section, key, out var value) ? value.Span : defaultValue;
 
     private static VirtualKey GetFirstCharacter(IGameFileSystem fileSystem, ReadOnlySpan<byte> key, ReadOnlySpan<byte> defaultValue)
     {

@@ -26,7 +26,6 @@ public sealed partial class Map : IDisposable
     public const float MinBlastHeight = 20;
     private const int SpriteRecordSize = 112;
     private const float OldGridRounding = 7;
-    private const int MaxStreamPeriod = 30000;
     private const int ChildPairCount = 2;
     private const int AimAttempts = 5;
     private const float AimRandomScale = 6.1037019E-05f;
@@ -58,7 +57,7 @@ public sealed partial class Map : IDisposable
     private readonly Dictionary<int, ScriptFile> _scriptFiles = [];
     private readonly ControlSettings _controls;
     private readonly Group _groupHead = new(null, null);
-    private readonly Player[] _players = new Player[SpriteDefinition.ArmyCount];
+    private readonly Player[] _players = new Player[ASToolkit.Engine.Vid.ArmyCount];
     private readonly LivingSet _livingFences = new();
     private readonly LivingSet _livingSites = new();
     private readonly LivingSet _livingCharges = new();
@@ -77,14 +76,14 @@ public sealed partial class Map : IDisposable
     /// <summary>
     /// Initializes a new instance of the <see cref="Map"/> class with no level loaded.
     /// </summary>
-    /// <param name="definitions">The sprite definitions of the game.</param>
+    /// <param name="vids">The shared data and frames of the game's object IDs.</param>
     /// <param name="fileSystem">The file system that holds the game's files.</param>
     /// <param name="registry">The registry of the level scripts, or null for an empty one.</param>
     /// <param name="session">The session the map belongs to, or null to create one.</param>
     [EngineRoutine(0x00408ff0)]
-    public Map(SpriteCatalog definitions, IGameFileSystem fileSystem, ScriptRegistry? registry = null, GameSession? session = null)
+    public Map(SpriteCatalog vids, IGameFileSystem fileSystem, Registry? registry = null, GameSession? session = null)
     {
-        Registry = registry ?? new ScriptRegistry("");
+        Registry = registry ?? new Registry("");
         Session = session ?? new GameSession(Registry);
         SetFlag(MapFlags.AppMenu, Session.HasAppMenu);
         _flags |= MapFlags.PlayerControlled | MapFlags.DrawFlagman | MapFlags.DrawSoundCount | MapFlags.MouseTips;
@@ -93,20 +92,20 @@ public sealed partial class Map : IDisposable
         SetFlag(MapFlags.DrawPresentation, Session.ShouldDrawPresentation);
         _hasWindow = true;
         _fileSystem = fileSystem;
-        Definitions = definitions;
+        Vids = vids;
         _rng = new GameRandom(StartRandomState);
-        Script.Logger = Session.Logger;
+        Script.Error = Session.Error;
         _updates = new UpdateOrder();
         _clock = new GameClock();
         Size = StartMapSize;
         ResetGroundZ();
-        Collector = new SpriteCollector(Size, definitions.Table, this);
-        Sound = Session.Sound ??= new SoundSystem(definitions.Sounds, fileSystem, Session.Logger, isHighQuality: Session.IsSoundHighQuality);
+        Collector = new SpriteCollector(Size, vids.Table, this);
+        Sound = Session.Sound ??= new Sound(vids.Sounds, fileSystem, Session.Error, isHighQuality: Session.IsSoundHighQuality);
         LoadObjectRecords(false);
         CursorSprite = ConstructCursor();
         _controls = ControlSettings.Read(fileSystem);
-        Input = new PlayerInput(_controls);
-        for (int slot = 0; slot < SpriteDefinition.ArmyCount; slot++)
+        Input = new Input(_controls);
+        for (int slot = 0; slot < ASToolkit.Engine.Vid.ArmyCount; slot++)
         {
             _players[slot] = new Player(this, _controls);
         }
@@ -118,17 +117,17 @@ public sealed partial class Map : IDisposable
     /// Gets the player the first player slot controls.
     /// </summary>
     /// <exception cref="InvalidOperationException">There is no player in the first player slot.</exception>
-    public Sprite Player => GetFlagman(0) ?? throw new InvalidOperationException("There is no player in the first player slot.");
+    public Sprite Player => Flagman(0) ?? throw new InvalidOperationException("There is no player in the first player slot.");
 
     /// <summary>
     /// Gets a value indicating whether the first player slot has a player.
     /// </summary>
-    public bool HasPlayer => GetFlagman(0) is not null;
+    public bool HasPlayer => Flagman(0) is not null;
 
     /// <summary>
     /// Gets the input of the current frame.
     /// </summary>
-    public PlayerInput Input { get; }
+    public Input Input { get; }
 
     /// <summary>
     /// Gets the sprite groups of the map.
@@ -150,9 +149,9 @@ public sealed partial class Map : IDisposable
     public bool IsPlayerControlled => _flags.HasFlag(MapFlags.PlayerControlled);
 
     /// <summary>
-    /// Gets the sprite definitions of the game.
+    /// Gets the shared data and frames of the game's object IDs.
     /// </summary>
-    public SpriteCatalog Definitions { get; }
+    public SpriteCatalog Vids { get; }
 
     /// <summary>
     /// Gets the sprite of the mouse cursor.
@@ -173,6 +172,8 @@ public sealed partial class Map : IDisposable
     /// Gets the length of the current frame in milliseconds.
     /// </summary>
     public int FrameTime => _clock.FrameTime;
+
+    internal int PreviousTime => _clock.PreviousTime;
 
     /// <summary>
     /// Gets a value indicating whether the level script has locked the doors.
@@ -202,7 +203,7 @@ public sealed partial class Map : IDisposable
     /// <summary>
     /// Gets the sound effects and music of the session.
     /// </summary>
-    public SoundSystem Sound { get; }
+    public Sound Sound { get; }
 
     /// <summary>
     /// Gets the menu sprites that keep their place on the screen as the camera moves.
@@ -299,7 +300,7 @@ public sealed partial class Map : IDisposable
         if (!Session.IsRecordingNextMap)
         {
             var demo = new Resource();
-            if (demo.Open(_fileSystem, Session.Logger, name, DemoKind) == 0)
+            if (demo.Open(_fileSystem, Session.Error, name, DemoKind) == 0)
             {
                 _fileSystem.TryRead(Encoding.ASCII.GetString(name), out var data);
                 name = demo.ReadText();
@@ -309,19 +310,19 @@ public sealed partial class Map : IDisposable
         }
 
         var reader = new Resource();
-        if (reader.Open(_fileSystem, Session.Logger, name, MapKind) != 0)
+        if (reader.Open(_fileSystem, Session.Error, name, MapKind) != 0)
         {
-            Session.Logger.Alert($"!!!ERROR!!!LOAD: Invalid map file {GameLogger.Decode(name)}");
+            Session.Error.Alert($"!!!ERROR!!!LOAD: Invalid map file {MyError.Decode(name)}");
             return;
         }
 
-        CursorSprite.TurnCursorOff();
+        CursorSprite.Disable();
         Session.EnterMap(name.ToArray());
         int seed = IsPlayingDemo ? _playedDemo!.Value.Seed : (int)wallTime;
         _rng.Seed(seed);
         ShowLoadingStep("Load extra vid"u8);
         LoadObjectRecords(true);
-        if (reader.FindChunk(GraphicsTag) != Resource.Found)
+        if (reader.GoBegin(GraphicsTag) != Resource.Found)
         {
             if (!LoadOldTypeMap(ref reader))
                 return;
@@ -331,7 +332,7 @@ public sealed partial class Map : IDisposable
 
         _flags &= ~MapFlags.Loading;
         _spriteRelations.Clear();
-        // TODO: Port the "Vid    release %i %i" log line (0x40d3f0) that writes the texture bytes the renderer holds and the bytes of the loaded definition data
+        // TODO: Port the "Vid    release %i %i" log line (0x40d3f0) that writes the texture bytes the renderer holds and the bytes of the loaded VID data
         LoadScript(name);
         if (IsPlayingDemo)
         {
@@ -351,7 +352,7 @@ public sealed partial class Map : IDisposable
 
         if (!IsPlayingDemo)
         {
-            CursorSprite.LoadCursor(_fileSystem);
+            CursorSprite.Enable(_fileSystem);
         }
 
         ShowLoadingStep([]);
@@ -376,7 +377,7 @@ public sealed partial class Map : IDisposable
 
         if (count < 0)
         {
-            Session.Logger.Error($"SPRITE {(int)sprite.Definition.Id}", LogError.Invalid, count, "noRef at Release"u8);
+            Session.Error.Error($"SPRITE {(int)sprite.Vid.Id}", LogError.Invalid, count, "noRef at Release"u8);
             return;
         }
 
@@ -384,13 +385,13 @@ public sealed partial class Map : IDisposable
     }
 
     /// <summary>
-    /// Returns the state a new sprite of a definition starts in.
+    /// Returns the state a new sprite of an object ID starts in.
     /// </summary>
-    /// <param name="definition">The definition.</param>
+    /// <param name="vid">The shared data of the object ID.</param>
     /// <returns>The starting state.</returns>
-    public SpriteAnimation GetInitialAnimation(SpriteDefinition definition)
+    public SpriteAnimation GetInitialAnimation(Vid vid)
     {
-        return IsLoading && definition.InitialAnimation == SpriteAnimation.Birth ? SpriteAnimation.Stand : definition.InitialAnimation;
+        return IsLoading && vid.InitialAnimation == SpriteAnimation.Birth ? SpriteAnimation.Stand : vid.InitialAnimation;
     }
 
     /// <summary>
@@ -439,7 +440,7 @@ public sealed partial class Map : IDisposable
 
         bool draw = demoResult != 0 && canDraw;
         ProcessMenuInput(Input);
-        CallScript(MainFunction, null);
+        ScriptRun(MainFunction, null);
 
         if (draw && Session.Graphics.IsMovieOpen)
         {
@@ -521,7 +522,7 @@ public sealed partial class Map : IDisposable
     /// <param name="army">The player slot.</param>
     /// <returns>The player, or null if the slot is empty.</returns>
     [EngineRoutine(0x0040e620)]
-    public Sprite? GetFlagman(int army) => _players[army & SpriteDefinition.ArmyMask].Sprite;
+    public Sprite? Flagman(int army) => _players[army & ASToolkit.Engine.Vid.ArmyMask].Sprite;
 
     /// <summary>
     /// Sets the player a player slot controls.
@@ -529,7 +530,7 @@ public sealed partial class Map : IDisposable
     /// <param name="army">The player slot.</param>
     /// <param name="sprite">The player, or null to clear the slot.</param>
     [EngineRoutine(0x0040e600)]
-    public void SetFlagman(int army, Sprite? sprite) => _players[army & SpriteDefinition.ArmyMask].SetFlagman(sprite);
+    public void SetFlagman(int army, Sprite? sprite) => _players[army & ASToolkit.Engine.Vid.ArmyMask].SetFlagman(sprite);
 
     /// <summary>
     /// Advances the game clock to a wall time, compacts the update lists, loads a map if one was requested and processes the window messages.
@@ -563,100 +564,19 @@ public sealed partial class Map : IDisposable
     }
 
     /// <summary>
-    /// Updates a sprite for one frame.
-    /// </summary>
-    /// <param name="sprite">The sprite.</param>
-    /// <returns><see langword="true"/> if the sprite stays in the map; otherwise, <see langword="false"/>.</returns>
-    [EngineRoutine(0x00440110)]
-    public bool Tact(Sprite sprite)
-    {
-        if (sprite.Definition.HasKeyframes)
-        {
-            AdvanceKeyframes(sprite);
-        }
-
-        if (sprite.Owner is null)
-        {
-            int lastTickTime = sprite.LastTickTime;
-            sprite.LastTickTime = _clock.PreviousTime;
-            sprite.MoveTact();
-            sprite.LastTickTime = lastTickTime;
-        }
-
-        RaiseHeights(sprite.Definition, sprite);
-        EmitStreamChild(sprite);
-        var state = sprite.Animation;
-
-        if (sprite.CreatedAt == Time || Time - Time % sprite.Definition.GetVisualFrameDuration(state) <= Time - FrameTime)
-            return true;
-
-        if (sprite.Command is not Command.None && sprite is { Command: < Command.Build, HasGoal: false })
-        {
-            Session.Logger.Error($"SPRITE {(int)sprite.Definition.Id}", LogError.Text, (int)sprite.Command, "command need goal, but goal==NULL"u8);
-            sprite.SetCommand(Command.None);
-        }
-
-        if (sprite.Timer != 0)
-        {
-            sprite.Timer = (uint)(Time - sprite.LastTickTime) < (uint)sprite.Timer ? sprite.Timer - (Time - sprite.LastTickTime) : 0;
-
-            if (sprite is { Timer: 0, Command: Command.Pause })
-            {
-                sprite.SetCommand(Command.None);
-            }
-        }
-
-        bool everyFrame = sprite.Definition.Object.Properties.HasFlag(ObjectProperties.Track);
-
-        if (CallStateHandlers(sprite, everyFrame))
-            return true;
-
-        int sound = sprite.Definition.Sounds[(int)sprite.Animation];
-
-        if (sound != 0 && (!sprite.HasPlayedStateSound || Sound.IsLooped(sound)))
-        {
-            sprite.HasPlayedStateSound = true;
-            PlaySfx(sprite, sound);
-        }
-
-        CreateFrameChild(sprite);
-        sprite.Frame++;
-
-        if (sprite.Animation >= SpriteAnimation.Death && (sprite.Frame > sprite.LastFrame || sprite.Definition.GetFrameCount(sprite.Animation) == 0))
-        {
-            sprite.Frame = sprite.LastFrame;
-
-            Action(sprite, ActionCode.Death);
-
-            return false;
-        }
-
-        AdvanceOrders(sprite, everyFrame);
-        TickLifetime(sprite);
-        sprite.LastTickTime = Time;
-
-        if (sprite.Frame > sprite.LastFrame)
-        {
-            sprite.Frame = sprite.FirstFrame;
-        }
-
-        return true;
-    }
-
-    /// <summary>
-    /// Creates the child objects a sprite's definition lists for a state.
+    /// Creates the child objects that the sprite's object ID lists for a state.
     /// </summary>
     /// <param name="sprite">The sprite.</param>
     /// <param name="state">The state whose children to create.</param>
     [EngineRoutine(0x00446430)]
     public void CreateChildFor(Sprite sprite, SpriteAnimation state)
     {
-        if (Definitions.Find((KnownObject)Math.Abs(sprite.Definition.Children[(int)state])) is not null)
+        if (Vids.Find((KnownObject)Math.Abs(sprite.Vid.Children[(int)state])) is not null)
         {
             CreateChildAs(sprite, state);
         }
 
-        int sound = sprite.Definition.Sounds[(int)state];
+        int sound = sprite.Vid.Sounds[(int)state];
 
         if (sound != 0)
         {
@@ -672,58 +592,58 @@ public sealed partial class Map : IDisposable
     public IReadOnlyList<Sprite?> GetLayer(int layer) => _updates.GetLayer(layer);
 
     /// <summary>
-    /// Creates a sprite of a definition, or of the definition that a region at the position replaces it with, and runs the creation handler of
-    /// the sprite's definition.
+    /// Creates a sprite of an object ID, or of the object ID that a region at the position replaces it with, and runs the creation handler of
+    /// the sprite's object ID.
     /// </summary>
-    /// <param name="definition">The definition.</param>
+    /// <param name="vid">The shared data of the object ID.</param>
     /// <param name="position">The position.</param>
     /// <param name="direction">The direction.</param>
     /// <param name="parent">The sprite that the new sprite takes its army and height from, and links to if the new sprite is a linker.</param>
-    /// <returns>The sprite, or <see langword="null"/> if <paramref name="definition"/> is null, its limit is reached or its class isn't valid.</returns>
+    /// <returns>The sprite, or <see langword="null"/> if <paramref name="vid"/> is null, its limit is reached or its class isn't valid.</returns>
     [EngineRoutine(0x00405bd0)]
-    public Sprite? AddSprite(SpriteDefinition? definition, Vector3 position, Angle direction, Sprite? parent = null)
+    public Sprite? AddSprite(Vid? vid, Vector3 position, Angle direction, Sprite? parent = null)
     {
-        if (definition is null)
+        if (vid is null)
             return null;
 
-        if (definition.IsRegionReplaced)
+        if (vid.IsRegionReplaced)
         {
-            definition = ReplaceDefinition(definition, position);
+            vid = ReplaceVid(vid, position);
         }
 
-        if (definition.MaxUnits >= 0 && definition.MaxUnits <= Sum(definition.Counts))
+        if (vid.MaxUnits >= 0 && vid.MaxUnits <= Sum(vid.Counts))
             return null;
 
         Sprite sprite;
 
-        switch (definition.Class)
+        switch (vid.Class)
         {
             case SpriteClass.Terrain or SpriteClass.Object:
-                sprite = ConstructTerrain(new Terrain(-1, definition, position, default, 0, map: this), direction, parent);
+                sprite = ConstructTerrain(new Terrain(-1, vid, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Building:
-                sprite = ConstructBuilding(new Building(-1, definition, position, default, 0, map: this), direction, parent);
+                sprite = ConstructBuilding(new Building(-1, vid, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.CivRobot:
-                sprite = ConstructCivRobot(new CivRobot(-1, definition, position, default, 0, map: this), direction, parent);
+                sprite = ConstructCivRobot(new CivRobot(-1, vid, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Engine:
-                sprite = ConstructEngine(new Engine(-1, definition, position, default, 0, map: this), direction, parent);
+                sprite = ConstructEngine(new Engine(-1, vid, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Rail:
-                sprite = ConstructRail(new Rail(-1, definition, position, default, 0, map: this), direction, parent);
+                sprite = ConstructRail(new Rail(-1, vid, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Depo:
-                sprite = ConstructDepo(new Depo(-1, definition, position, default, 0, map: this), direction, parent);
+                sprite = ConstructDepo(new Depo(-1, vid, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Creature:
-                sprite = ConstructCreature(new Creature(-1, definition, position, default, 0, map: this), direction, parent);
+                sprite = ConstructCreature(new Creature(-1, vid, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Balloon:
-                sprite = ConstructBalloon(new Balloon(-1, definition, position, default, 0, map: this), direction, parent);
+                sprite = ConstructBalloon(new Balloon(-1, vid, position, default, 0, map: this), direction, parent);
                 break;
             default:
-                return CreateSprite(definition, position, direction, parent);
+                return CreateSprite(vid, position, direction, parent);
         }
 
         if (!_flags.HasFlag(MapFlags.Loading))
@@ -739,8 +659,8 @@ public sealed partial class Map : IDisposable
     [EngineRoutine(0x0043f200)]
     internal void ConstructSprite(Sprite sprite, Angle direction, Sprite? parent)
     {
-        var definition = sprite.Definition;
-        ref readonly var gameObject = ref definition.Object;
+        var vid = sprite.Vid;
+        ref readonly var gameObject = ref vid.Object;
         var position = sprite.Position;
 
         if (gameObject.Properties.HasFlag(ObjectProperties.Noise))
@@ -763,18 +683,18 @@ public sealed partial class Map : IDisposable
         }
         else
         {
-            var link = definition.LinkDefinition;
-            sprite.Army = gameObject.WeaponIndex == 0 && link is not null ? link.Army : definition.Army;
+            var link = vid.LinkVid;
+            sprite.Army = gameObject.WeaponIndex == 0 && link is not null ? link.Army : vid.Army;
         }
 
         sprite.CreatedAt = Time;
         sprite.IsInvisible = gameObject.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) && (int)sprite.Army != ControlledPlayer;
-        sprite.Hp = definition.ArmyMaxHp[(int)sprite.Army & SpriteDefinition.ArmyMask];
-        sprite.Logger = Session.Logger;
-        var state = GetInitialAnimation(definition);
+        sprite.Hp = vid.ArmyMaxHp[(int)sprite.Army & ASToolkit.Engine.Vid.ArmyMask];
+        sprite.Error = Session.Error;
+        var state = GetInitialAnimation(vid);
         sprite.Start(state, direction, Time, _rng);
 
-        if (definition != Definitions.Empty)
+        if (vid != Vids.Empty)
         {
             sprite.AddRef();
             AddToUpdates(sprite);
@@ -782,26 +702,26 @@ public sealed partial class Map : IDisposable
 
         CreateLink(sprite);
         Collector.InsertToHash(sprite);
-        definition.LastCreatedAt = WallTime;
-        definition.Counts[(int)sprite.Army & 3]++;
+        vid.LastCreatedAt = WallTime;
+        vid.Counts[(int)sprite.Army & 3]++;
 
         if (state != SpriteAnimation.Birth && !IsLoading)
         {
             CreateChildFor(sprite, SpriteAnimation.Birth);
         }
 
-        RaiseHeights(definition, sprite);
+        RaiseHeights(vid, sprite);
     }
 
     [EngineRoutine(0x004145b0)]
-    internal void RaiseHeights(SpriteDefinition definition, Sprite sprite)
+    internal void RaiseHeights(Vid vid, Sprite sprite)
     {
-        if (sprite == CursorSprite || definition.HeightPoints.Count == 0)
+        if (sprite == CursorSprite || vid.HeightPoints.Count == 0)
             return;
 
-        bool permanent = !_flags.HasFlag(MapFlags.AppMenu) && definition.Class == SpriteClass.BuiltTerrain;
+        bool permanent = !_flags.HasFlag(MapFlags.AppMenu) && vid.Class == SpriteClass.BuiltTerrain;
 
-        foreach (var point in definition.GetHeightPoints(sprite.Frame))
+        foreach (var point in vid.GetHeightPoints(sprite.Frame))
         {
             var cell = new Vector3(sprite.Position.X + point.X, sprite.Position.Y + point.Y, sprite.Position.Z + point.Z);
 
@@ -817,12 +737,12 @@ public sealed partial class Map : IDisposable
     }
 
     [EngineRoutine(0x004146b0)]
-    internal void LowerHeights(SpriteDefinition definition, Sprite sprite)
+    internal void LowerHeights(Vid vid, Sprite sprite)
     {
-        if (sprite == CursorSprite || definition.HeightPoints.Count == 0 || !_flags.HasFlag(MapFlags.AppMenu) && definition.Class == SpriteClass.BuiltTerrain)
+        if (sprite == CursorSprite || vid.HeightPoints.Count == 0 || !_flags.HasFlag(MapFlags.AppMenu) && vid.Class == SpriteClass.BuiltTerrain)
             return;
 
-        foreach (var point in definition.GetHeightPoints(sprite.Frame))
+        foreach (var point in vid.GetHeightPoints(sprite.Frame))
         {
             ClearTempGroundZ(new Vector3(sprite.Position.X + point.X, sprite.Position.Y + point.Y, sprite.Position.Z + point.Z));
         }
@@ -831,19 +751,19 @@ public sealed partial class Map : IDisposable
     [EngineRoutine(0x00444dd0)]
     internal void CreateChild(Sprite sprite)
     {
-        var definition = sprite.Definition;
+        var vid = sprite.Vid;
         var state = sprite.Animation;
         int slot = (int)state;
-        var child = Definitions.Find((KnownObject)Math.Abs(definition.Children[slot]));
-        int count = Math.Abs(definition.ChildCounts[slot]);
+        var child = Vids.Find((KnownObject)Math.Abs(vid.Children[slot]));
+        int count = Math.Abs(vid.ChildCounts[slot]);
         int i = 0;
 
         if (child is null || child.NotCreatedAsChild != 0)
             return;
 
-        var offsetDirection = child.Object.Properties.HasFlag(ObjectProperties.FixedOffset) ? default : definition.GetFrameDirection(sprite.Direction);
+        var offsetDirection = child.Object.Properties.HasFlag(ObjectProperties.FixedOffset) ? default : vid.GetFrameDirection(sprite.Direction);
 
-        if (count == ChildPairCount && definition.HasDoubleAttack)
+        if (count == ChildPairCount && vid.HasDoubleAttack)
         {
             if (sprite.IsAwaitingSecondPulse)
             {
@@ -860,8 +780,8 @@ public sealed partial class Map : IDisposable
 
         for (; i < count; i++)
         {
-            var shift = GetChildShift(sprite, definition, slot, i, offsetDirection, out var lateral);
-            var childPosition = new Vector3(shift.X + sprite.Position.X, shift.Y + sprite.Position.Y, definition.Object.ChildZ[slot] + sprite.Position.Z);
+            var shift = GetChildShift(sprite, vid, slot, i, offsetDirection, out var lateral);
+            var childPosition = new Vector3(shift.X + sprite.Position.X, shift.Y + sprite.Position.Y, vid.Object.ChildZ[slot] + sprite.Position.Z);
 
             if (child.Class == SpriteClass.Unit && Collector.CanPlace(child, childPosition) is not null || state == SpriteAnimation.Fight && sprite.Goal is null)
                 continue;
@@ -874,11 +794,11 @@ public sealed partial class Map : IDisposable
             if (created is null || goal is null || state != SpriteAnimation.Fight)
                 continue;
 
-            LaunchChild(created, goal, definition, lateral);
+            LaunchChild(created, goal, vid, lateral);
         }
 
         if (state == SpriteAnimation.Fight && !sprite.IsAwaitingSecondPulse && sprite.Command is Command.OneAttack or Command.DistAttack &&
-            (!definition.Object.Properties.HasFlag(ObjectProperties.Track) && !child.Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke) || sprite.Frame == sprite.LastFrame))
+            (!vid.Object.Properties.HasFlag(ObjectProperties.Track) && !child.Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke) || sprite.Frame == sprite.LastFrame))
         {
             var owner = sprite.Owner;
 
@@ -927,18 +847,18 @@ public sealed partial class Map : IDisposable
     [EngineRoutine(0x00445770)]
     internal void CreateLink(Sprite sprite)
     {
-        var definition = sprite.Definition.LinkDefinition;
+        var vid = sprite.Vid.LinkVid;
 
-        if (definition is null || sprite.Link?.Definition == definition || definition.NotCreatedAsChild != 0)
+        if (vid is null || sprite.Link?.Vid == vid || vid.NotCreatedAsChild != 0)
             return;
 
-        var position = sprite.Position + sprite.Definition.GetLinkOffset(definition, sprite.Direction);
-        var link = AddSprite(definition, position, sprite.Direction);
+        var position = sprite.Position + sprite.Vid.GetLinkOffset(vid, sprite.Direction);
+        var link = AddSprite(vid, position, sprite.Direction);
         AddLink(sprite, link);
 
         if (sprite.Link is null)
         {
-            Session.Logger.Error($"SPRITE {(int)sprite.Definition.Id}", LogError.Create, 0, "link"u8);
+            Session.Error.Error($"SPRITE {(int)sprite.Vid.Id}", LogError.Create, 0, "link"u8);
 
             return;
         }
@@ -946,13 +866,13 @@ public sealed partial class Map : IDisposable
         sprite.Link.ChangeArmy((int)sprite.Army);
     }
 
-    internal bool IsFree(SpriteDefinition definition, Vector3 position) => Collector.CanPlace(definition, position) is null;
+    internal bool IsFree(Vid vid, Vector3 position) => Collector.CanPlace(vid, position) is null;
 
     [EngineRoutine(0x0040c570)]
     internal void Release()
     {
-        var logger = Session.Logger;
-        Definitions.LogCounts(logger);
+        var error = Session.Error;
+        Vids.LogCounts(error);
         _spriteRelations.Clear();
         _clock.ResetRate();
         Session.Graphics.StopMovie();
@@ -960,7 +880,7 @@ public sealed partial class Map : IDisposable
         Session.Graphics.SetEnvironment((MapEnvironment)(-1));
         if (IsPlayingDemo)
         {
-            CursorSprite.LoadCursor(_fileSystem);
+            CursorSprite.Enable(_fileSystem);
         }
 
         _playedDemo = null;
@@ -970,13 +890,13 @@ public sealed partial class Map : IDisposable
         EndDemoRecording();
         _flags &= ~(MapFlags.RecordingDemo | MapFlags.PlayingDemo);
         _scrollType = ScrollType.FromBorder;
-        logger.Write("Player release"u8);
+        error.Write("Player release"u8);
         foreach (var player in _players)
         {
             player.Reset();
         }
 
-        logger.Write("Sprite release"u8);
+        error.Write("Sprite release"u8);
         // TODO: Port the trains; the release sets the flag (DAT_005da58c) that makes the Engine destructors (0x44e9f0, 0x450e20) skip their scripts while it destroys the sprites
         foreach (var player in _players)
         {
@@ -984,16 +904,16 @@ public sealed partial class Map : IDisposable
         }
 
         DeleteAll();
-        logger.Write("Menu   release"u8);
+        error.Write("Menu   release"u8);
         if (MenuList.Count != 0)
         {
-            logger.Error($"SPRITE {(int)MenuList[0].Definition.Id}", LogError.Text, 0, MenuSpriteExistsText);
+            error.Error($"SPRITE {(int)MenuList[0].Vid.Id}", LogError.Text, 0, MenuSpriteExistsText);
             MenuList.Clear();
         }
 
         int elapsed = Time - _levelStartTime;
-        logger.Write($"Average fps={(elapsed == 0 ? 0 : (int)((uint)(_stepCount * 1000) / (uint)elapsed))}");
-        logger.Write("Script release"u8);
+        error.Write($"Average fps={(elapsed == 0 ? 0 : (int)((uint)(_stepCount * 1000) / (uint)elapsed))}");
+        error.Write("Script release"u8);
         foreach (var file in _scriptFiles.Values)
         {
             file.Dispose();
@@ -1003,7 +923,7 @@ public sealed partial class Map : IDisposable
         Script.Reset();
         _stepCount = 0;
         ReleaseAdditionalLoads();
-        Definitions.ResetLevelState();
+        Vids.ResetLevelState();
         for (int i = 0; i < _scriptHooks.Length; i++)
         {
             _scriptHooks[i] = i + NoHookBase;
@@ -1060,19 +980,15 @@ public sealed partial class Map : IDisposable
         sprite.SetGammaOverride(gamma);
         var link = sprite.Link;
 
-        if (link is not null && link.Definition == sprite.Definition.LinkDefinition)
+        if (link is not null && link.Vid == sprite.Vid.LinkVid)
         {
             link.SetGammaOverride(gamma);
         }
     }
 
-    private static float GetKeyTime(in WeaponRecord weapon, int key) =>
-        key < 0 ? BitConverter.Int32BitsToSingle(weapon.AnimationPeriod)
-        : key < WeaponRecord.KeyframeCount ? weapon.KeyTimes[key] : BitConverter.Int32BitsToSingle(weapon.RedKeys[0]);
-
     private bool LoadOldTypeMap(ref Resource reader)
     {
-        if (reader.FindChunk(HeadTag) != Resource.Found)
+        if (reader.GoBegin(HeadTag) != Resource.Found)
         {
             LogMissingSection(HeadTag);
             return false;
@@ -1093,8 +1009,8 @@ public sealed partial class Map : IDisposable
         _clock.SetTimes(time, time);
         int version = 0;
         reader.ReadInto(ref version);
-        Session.Graphics.LoadOld(ref reader, Definitions);
-        Collector = new SpriteCollector(Size, Definitions.Table, this);
+        Session.Graphics.OldLoadParameters(ref reader, Vids);
+        Collector = new SpriteCollector(Size, Vids.Table, this);
         ResetGroundZ();
         LoadGridZ(ref reader, (int)(Size.Height + OldGridRounding) / GridZCellSize * ((int)(Size.Width + OldGridRounding) / GridZCellSize) * sizeof(short));
         if (!FindSection(ref reader, SpriteTag))
@@ -1107,14 +1023,14 @@ public sealed partial class Map : IDisposable
         if (!FindSection(ref reader, SpriteDataTag))
             return false;
 
-        while (TryReadRelatedSprite(ref reader, out var sprite))
+        while (TryReadPointer(ref reader, out var sprite))
         {
             if (sprite is not null)
             {
-                RestoreOld(sprite, ref reader, version);
+                sprite.Action((int)ActionCode.RestoreOld, ref reader, version);
             }
 
-            reader.NextRecord(SpriteDataTag);
+            reader.GoNextSub(SpriteDataTag);
         }
 
         return true;
@@ -1123,14 +1039,14 @@ public sealed partial class Map : IDisposable
     private bool LoadNewTypeMap(ref Resource reader, ReadOnlySpan<byte> name, int seed)
     {
         ShowLoadingStep("Load graph parameters"u8);
-        Session.Graphics.Load(ref reader, Definitions);
+        Session.Graphics.Load(ref reader, Vids);
         if (!FindSection(ref reader, HeadTag))
             return false;
 
         int version = LoadHead(ref reader, name, seed, out var scroll);
-        Session.Logger.Write($"CurrentTime   ={(uint)Time,-15}   sizeof(SPRITE)={SpriteRecordSize,-8} Map version   ={version}");
+        Session.Error.Write($"CurrentTime   ={(uint)Time,-15}   sizeof(SPRITE)={SpriteRecordSize,-8} Map version   ={version}");
         ShowLoadingStep("Create new hash table"u8);
-        Collector = new SpriteCollector(Size, Definitions.Table, this);
+        Collector = new SpriteCollector(Size, Vids.Table, this);
         SetPosition(Session.ScreenSize.ToVector2() * HalfShare + scroll, CameraMove.None);
         ShowLoadingStep("Load gridZ"u8);
         ResetGroundZ();
@@ -1203,19 +1119,19 @@ public sealed partial class Map : IDisposable
 
     private void LoadGridZ(ref Resource reader, int expectedSize)
     {
-        if (reader.FindNextChunk(GridTag) == Resource.Found)
+        if (reader.GoNext(GridTag) == Resource.Found)
         {
-            int count = reader.Load(Session.Logger, out byte[] grid);
+            int count = reader.Load(Session.Error, out byte[] grid);
             _sceneryHeights = MemoryMarshal.Cast<byte, short>(grid).ToArray();
             if (count != expectedSize)
             {
-                Session.Logger.Error(MapLogTag, LogError.Invalid, count, GridText);
+                Session.Error.Error(MapLogTag, LogError.Invalid, count, GridText);
                 ResetGroundZ();
             }
         }
         else
         {
-            reader.FindChunk(Resource.AnyTag);
+            reader.GoBegin(Resource.AnyTag);
         }
     }
 
@@ -1224,9 +1140,9 @@ public sealed partial class Map : IDisposable
         var shownLayer = ObjectLayer.Ground;
         while (TryLoadSprite(ref reader, version, out var sprite))
         {
-            if (Session.IsDebugMode && sprite!.Definition.Layer != shownLayer)
+            if (Session.IsDebugMode && sprite!.Vid.Layer != shownLayer)
             {
-                shownLayer = sprite.Definition.Layer;
+                shownLayer = sprite.Vid.Layer;
                 Session.Graphics.SetLoadingText(shownLayer switch
                 {
                     ObjectLayer.Ground => "Load hardware terrain"u8,
@@ -1236,27 +1152,27 @@ public sealed partial class Map : IDisposable
                 });
             }
 
-            Session.Graphics.DrawLoadBar(this, Definitions.LoadingScreen);
+            Session.Graphics.DrawLoadBar(this, Vids.LoadingScreen);
         }
     }
 
     private void LoadSpriteData(ref Resource reader, int version)
     {
-        while (TryReadRelatedSprite(ref reader, out var sprite))
+        while (TryReadPointer(ref reader, out var sprite))
         {
-            Session.Graphics.DrawLoadBar(this, Definitions.LoadingScreen);
+            Session.Graphics.DrawLoadBar(this, Vids.LoadingScreen);
             if (sprite is not null)
             {
-                Restore(sprite, ref reader, version);
+                sprite.Action((int)ActionCode.Restore, ref reader, version);
             }
 
-            reader.NextRecord(SpriteDataTag);
+            reader.GoNextSub(SpriteDataTag);
         }
     }
 
     private bool FindSection(ref Resource reader, ReadOnlySpan<byte> tag)
     {
-        if (reader.FindNextChunk(tag) == Resource.Found)
+        if (reader.GoNext(tag) == Resource.Found)
             return true;
 
         LogMissingSection(tag);
@@ -1315,7 +1231,7 @@ public sealed partial class Map : IDisposable
         }
     }
 
-    private void LogMissingSection(ReadOnlySpan<byte> tag) => Session.Logger.Error(MapLogTag, LogError.Section, 0, tag);
+    private void LogMissingSection(ReadOnlySpan<byte> tag) => Session.Error.Error(MapLogTag, LogError.Section, 0, tag);
 
     [EngineRoutine(0x00411440)]
     private void ReleaseAdditionalLoads()
@@ -1327,14 +1243,14 @@ public sealed partial class Map : IDisposable
             {
                 var sprite = list[i];
 
-                if (sprite is not null && sprite.Definition.FileType.HasFlag(VidType.FrameVector))
+                if (sprite is not null && sprite.Vid.FileType.HasFlag(VidType.FrameVector))
                 {
                     DeleteSprite(sprite);
                 }
             }
         }
 
-        Definitions.ReleaseAdditionalLoads();
+        Vids.ReleaseAdditionalLoads();
     }
 
     private void ShowLoadingStep(ReadOnlySpan<byte> text)
@@ -1349,8 +1265,8 @@ public sealed partial class Map : IDisposable
 
     private void ShowPresentation()
     {
-        var definition = Definitions.Find(KnownObject.Font) ?? Definitions.Empty;
-        var banner = AddSprite(definition, new Vector3(Session.ScreenSize.Width * HalfShare, PresentationTop, 0), default)!;
+        var vid = Vids.Find(KnownObject.Font) ?? Vids.Empty;
+        var banner = AddSprite(vid, new Vector3(Session.ScreenSize.Width * HalfShare, PresentationTop, 0), default)!;
         _presentationShownAt = _clock.WallTime;
         Action(banner, ActionCode.SetBehave, 1);
         SetTextItems(banner, PresentationText.ToArray());
@@ -1380,18 +1296,18 @@ public sealed partial class Map : IDisposable
     {
         ConstructTerrain(unit, direction, parent);
         unit.TurnTicks = 0;
-        unit.Behavior = (unit.ArmedLink ?? unit).Definition.Behavior;
+        unit.Behavior = (unit.ArmedLink ?? unit).Vid.Behavior;
         unit.FillAmmo();
 
         return unit;
     }
 
     [EngineRoutine(0x0044ce60)]
-    private Sprite ConstructAvia(Avia sprite, Angle direction, Sprite? parent)
+    private Sprite ConstructPlane(Plane sprite, Angle direction, Sprite? parent)
     {
         ConstructUnit(sprite, direction, parent);
         sprite.StartMove();
-        sprite.VerticalSpeed = sprite.Definition.ZSpeed;
+        sprite.VerticalSpeed = sprite.Vid.ZSpeed;
 
         return sprite;
     }
@@ -1400,7 +1316,7 @@ public sealed partial class Map : IDisposable
     private Sprite ConstructBalloon(Balloon sprite, Angle direction, Sprite? parent)
     {
         // TODO: Port the balloon move tact (0x44e6f0)
-        return ConstructAvia(sprite, direction, parent);
+        return ConstructPlane(sprite, direction, parent);
     }
 
     [EngineRoutine(0x0044d3e0)]
@@ -1408,7 +1324,7 @@ public sealed partial class Map : IDisposable
     {
         ConstructUnit(sprite, direction, parent);
         sprite.IsSeekingRegion = true;
-        sprite.VerticalSpeed = sprite.Definition.ZSpeed;
+        sprite.VerticalSpeed = sprite.Vid.ZSpeed;
         sprite.StartMove();
         sprite.Region = sprite.FindRegion(sprite.Position.AsVector2());
 
@@ -1458,27 +1374,27 @@ public sealed partial class Map : IDisposable
     private Sprite ConstructCannon(Cannon sprite, Angle direction, Sprite? parent)
     {
         ConstructSprite(sprite, direction, parent);
-        ref readonly var gameObject = ref sprite.Definition.Object;
+        ref readonly var gameObject = ref sprite.Vid.Object;
 
-        if (gameObject.Properties.HasFlag(ObjectProperties.RandomZSpeed) && !sprite.Definition.ZSpeed.IsExactlyZero())
+        if (gameObject.Properties.HasFlag(ObjectProperties.RandomZSpeed) && !sprite.Vid.ZSpeed.IsExactlyZero())
         {
             bool downward = (_rng.Next() & 1) == 0;
-            float lift = _rng.Next() * sprite.Definition.ZSpeed;
+            float lift = _rng.Next() * sprite.Vid.ZSpeed;
             sprite.VerticalSpeed = downward ? lift * -GameRandom.UnitScale : lift * GameRandom.UnitScale;
         }
         else if (parent is not null && parent.Animation >= SpriteAnimation.Death && gameObject.TopZ < 0)
         {
-            sprite.VerticalSpeed = sprite.Definition.ZSpeed;
+            sprite.VerticalSpeed = sprite.Vid.ZSpeed;
             sprite.Speed = sprite.MaxSpeed + parent.Speed;
         }
         else
         {
-            sprite.VerticalSpeed = sprite.Definition.ZSpeed;
+            sprite.VerticalSpeed = sprite.Vid.ZSpeed;
         }
 
-        if (gameObject.Properties.HasFlag(ObjectProperties.RandomSpeed) && !sprite.Definition.Speed.IsExactlyZero())
+        if (gameObject.Properties.HasFlag(ObjectProperties.RandomSpeed) && !sprite.Vid.Speed.IsExactlyZero())
         {
-            sprite.MaxSpeed = _rng.Next() * sprite.Definition.Speed * GameRandom.UnitScale;
+            sprite.MaxSpeed = _rng.Next() * sprite.Vid.Speed * GameRandom.UnitScale;
         }
 
         sprite.IsClimbing = true;
@@ -1527,56 +1443,56 @@ public sealed partial class Map : IDisposable
     }
 
     [EngineRoutine(0x0040e870)]
-    private Sprite? CreateSprite(SpriteDefinition? definition, Vector3 position, Angle direction, Sprite? parent)
+    private Sprite? CreateSprite(Vid? vid, Vector3 position, Angle direction, Sprite? parent)
     {
-        if (definition is null)
+        if (vid is null)
             return null;
 
-        if (definition.IsRegionReplaced)
+        if (vid.IsRegionReplaced)
         {
-            definition = ReplaceDefinition(definition, position);
+            vid = ReplaceVid(vid, position);
         }
 
         Sprite sprite;
 
-        switch (definition.Class)
+        switch (vid.Class)
         {
             case SpriteClass.Unit:
-                sprite = ConstructUnit(new Unit(-1, definition, position, default, 0, map: this), direction, parent);
+                sprite = ConstructUnit(new Unit(-1, vid, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Avia:
-                sprite = ConstructAvia(new Avia(-1, definition, position, default, 0, map: this), direction, parent);
+                sprite = ConstructPlane(new Plane(-1, vid, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Cannon:
-                sprite = ConstructCannon(new Cannon(-1, definition, position, default, 0, map: this), direction, parent);
+                sprite = ConstructCannon(new Cannon(-1, vid, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Primitive:
-                sprite = ConstructPrimitive(new Primitive(-1, definition, position, default, 0, map: this), direction, parent);
+                sprite = ConstructPrimitive(new Primitive(-1, vid, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Man:
-                sprite = ConstructMan(new Man(-1, definition, position, default, 0, map: this), direction, parent);
+                sprite = ConstructMan(new Man(-1, vid, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.BuiltTerrain:
-                sprite = ConstructBuiltTerrain(new BuiltTerrain(-1, definition, position, default, 0, map: this), direction, parent);
+                sprite = ConstructBuiltTerrain(new BuiltTerrain(-1, vid, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Sprite:
-                sprite = new Sprite(-1, definition, position, default, 0, map: this);
+                sprite = new Sprite(-1, vid, position, default, 0, map: this);
                 ConstructSprite(sprite, direction, parent);
                 break;
             case SpriteClass.Frame:
-                sprite = ConstructFrame(new Frame(-1, definition, position, default, 0, map: this), direction, parent);
+                sprite = ConstructFrame(new Frame(-1, vid, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Linker:
-                sprite = ConstructLinker(new Linker(-1, definition, position, default, 0, map: this), direction, parent);
+                sprite = ConstructLinker(new Linker(-1, vid, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Text:
-                sprite = ConstructText(new Text(-1, definition, position, default, 0, map: this), direction, parent);
+                sprite = ConstructText(new Text(-1, vid, position, default, 0, map: this), direction, parent);
                 break;
             case SpriteClass.Region:
-                sprite = ConstructRegion(new Region(-1, definition, position, default, 0, map: this), direction, parent);
+                sprite = ConstructRegion(new Region(-1, vid, position, default, 0, map: this), direction, parent);
                 break;
             default:
-                Session.Logger.Error(MapLogTag, LogError.Create, (int)definition.Class, "sprite - Behave is invalidate"u8);
+                Session.Error.Error(MapLogTag, LogError.Create, (int)vid.Class, "sprite - Behave is invalidate"u8);
 
                 return null;
         }
@@ -1589,20 +1505,6 @@ public sealed partial class Map : IDisposable
         return sprite;
     }
 
-    private void LoadOrders(Sprite sprite, ReadOnlySpan<StackAction> stack)
-    {
-        var orders = new Act[stack.Length];
-        for (int i = 0; i < stack.Length; i++)
-        {
-            var action = stack[i];
-            orders[i] = Act.HasSpriteTarget(action.Code)
-                ? new Act(action.Act, action.Var1, action.Var2, action.Var3, GetRelatedSprite(action.Var1))
-                : Act.FromAction(action);
-        }
-
-        sprite.ActionStack.Load(orders);
-    }
-
     private List<Sprite> GetLiving(KnownObject id, LivingSet set)
     {
         if (set.CheckedAt == Time)
@@ -1610,14 +1512,14 @@ public sealed partial class Map : IDisposable
 
         set.CheckedAt = Time;
         set.Sprites.Clear();
-        var definition = Definitions.Find(id);
+        var vid = Vids.Find(id);
 
-        if (definition is null)
+        if (vid is null)
             return set.Sprites;
 
-        foreach (var sprite in _updates.GetLayer(definition.Layer))
+        foreach (var sprite in _updates.GetLayer(vid.Layer))
         {
-            if (sprite is not null && sprite.Definition == definition && sprite.Animation < SpriteAnimation.Death)
+            if (sprite is not null && sprite.Vid == vid && sprite.Animation < SpriteAnimation.Death)
             {
                 set.Sprites.Add(sprite);
             }
@@ -1631,10 +1533,10 @@ public sealed partial class Map : IDisposable
     [EngineRoutine(0x0043ad70)]
     private void LoadGroups(ref Resource reader)
     {
-        while (TryReadRelatedSprite(ref reader, out var first))
+        while (TryReadPointer(ref reader, out var first))
         {
             var group = new Group(_groupHead, first);
-            while (TryReadRelatedSprite(ref reader, out var sprite))
+            while (TryReadPointer(ref reader, out var sprite))
             {
                 group.Add(sprite!);
             }
@@ -1664,215 +1566,12 @@ public sealed partial class Map : IDisposable
         }
     }
 
-    private void TickEntry(Sprite sprite)
+    private Vector2 GetChildShift(Sprite sprite, Vid vid, int slot, int index, Angle offsetDirection, out Vector2 lateral)
     {
-        if (!Tact(sprite))
-        {
-            DeleteSprite(sprite);
-        }
-    }
+        float childX = vid.Object.ChildX[slot];
+        float childY = vid.Object.ChildY[slot];
 
-    private void AdvanceKeyframes(Sprite sprite)
-    {
-        ref readonly var weapon = ref sprite.Definition.Weapon;
-        int elapsed = Time - sprite.KeyframeStart;
-        int keyPeriod = weapon.AnimationPeriod;
-        bool timed = true;
-
-        if (keyPeriod == SpriteDefinition.Unlimited)
-        {
-            if (sprite.Animation > SpriteAnimation.Birth && sprite.LastFrame != sprite.FirstFrame)
-            {
-                keyPeriod = sprite.Definition.GetVisualFrameDuration(sprite.Animation) * (sprite.LastFrame - sprite.FirstFrame);
-            }
-            else if (sprite.Lifetime == SpriteDefinition.Unlimited)
-            {
-                timed = false;
-            }
-            else
-            {
-                keyPeriod = sprite.Lifetime + elapsed;
-            }
-        }
-
-        if (timed && keyPeriod != 0)
-        {
-            int key = (int)sprite.KeyframePosition + 1;
-            while (key < WeaponRecord.KeyframeCount - 1 && keyPeriod * GetKeyTime(weapon, key) <= elapsed)
-            {
-                key++;
-            }
-
-            key--;
-            float start = keyPeriod * GetKeyTime(weapon, key);
-            sprite.KeyframePosition = (elapsed - start) / ((GetKeyTime(weapon, key + 1) - GetKeyTime(weapon, key)) * keyPeriod) + key;
-        }
-    }
-
-    private void EmitStreamChild(Sprite sprite)
-    {
-        int emitSlot = (int)sprite.Animation;
-        var emitChild = Definitions.Find((KnownObject)Math.Abs(sprite.Definition.Children[emitSlot]));
-
-        if (emitChild is not null && sprite.Definition.Class == SpriteClass.Region && sprite.Definition.Object.ChildX[emitSlot].IsExactlyZero() && sprite.Definition.Object.ChildY[emitSlot].IsExactlyZero())
-        {
-            var region = sprite as Region;
-            bool isMapCovered = region is not null && region.Flags.HasFlag(RegionFlags.CoversMap);
-            var regionSize = region?.Size ?? Vector2.Zero;
-            float regionWidth = isMapCovered ? Size.Width : regionSize.X;
-            float regionHeight = isMapCovered ? Size.Height : regionSize.Y;
-            float area = regionHeight * regionWidth / emitChild.Object.Size.X / emitChild.Object.Size.Y;
-            int count = (int)area;
-
-            if (count != 0 && FrameTime != 0 && _rng.Next() % (int)(1000u / (uint)FrameTime / (uint)count + 1) == 0)
-            {
-                CreateChild(sprite);
-            }
-        }
-        else if (emitChild is not null && emitChild.Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke) && (uint)(Time - (int)((uint)Time % (uint)sprite.StreamPeriod)) > (uint)(Time - FrameTime))
-        {
-            float across = sprite.Direction.Sine * sprite.Speed;
-            float down = sprite.Direction.Cosine * sprite.Speed + (sprite.VerticalSpeed - emitChild.ZSpeed);
-
-            if (emitChild.Object.Properties.HasFlag(ObjectProperties.Wind))
-            {
-                across -= Session.Graphics.WindDirection.Sine * Session.Graphics.WindSpeed;
-                down -= Session.Graphics.WindDirection.Cosine * Session.Graphics.WindSpeed;
-            }
-
-            float acrossPeriod = across.IsExactlyZero() ? MaxStreamPeriod : emitChild.Object.Size.X / Math.Abs(across);
-            float downPeriod = down.IsExactlyZero() ? MaxStreamPeriod : emitChild.Object.Size.Y / Math.Abs(down);
-            uint streamPeriod = (uint)CRuntime.Ftol(Math.Min(acrossPeriod, downPeriod));
-
-            if ((SpriteAnimation)emitSlot == SpriteAnimation.Fight && sprite.Definition.HasDoubleAttack)
-            {
-                streamPeriod >>= 1;
-            }
-
-            sprite.StreamPeriod = (int)(streamPeriod > MaxStreamPeriod ? MaxStreamPeriod : streamPeriod == 0 ? 1 : streamPeriod);
-            CreateChild(sprite);
-        }
-    }
-
-    private bool CallStateHandlers(Sprite sprite, bool everyFrame)
-    {
-        var state = sprite.Animation;
-        int handler = sprite.Definition.StateHandlers[(int)state];
-        while (handler >= 0 && (sprite.Frame == sprite.FirstFrame || everyFrame))
-        {
-            if (CallScript(handler, sprite) != 0)
-                return true;
-
-            if (sprite.Animation == state)
-                break;
-
-            state = sprite.Animation;
-            handler = sprite.Definition.StateHandlers[(int)state];
-        }
-
-        return false;
-    }
-
-    private void CreateFrameChild(Sprite sprite)
-    {
-        var tactChild = Definitions.Find((KnownObject)Math.Abs(sprite.Definition.Children[(int)sprite.Animation]));
-
-        if (tactChild is null || tactChild.Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke))
-            return;
-
-        int emissionFrame = sprite.Definition.Object.Properties.HasFlag(ObjectProperties.CreateChildEnd) ? sprite.LastFrame : sprite.FirstFrame;
-
-        if (sprite.Animation == SpriteAnimation.Fight && sprite.Definition.HasDoubleAttack
-            ? sprite.Frame == (sprite.LastFrame + 1 + sprite.FirstFrame) / 2 || sprite.Frame == emissionFrame
-            : sprite.Definition.Object.Properties.HasFlag(ObjectProperties.Track) || sprite.Frame == emissionFrame)
-        {
-            CreateChild(sprite);
-        }
-    }
-
-    private void AdvanceOrders(Sprite sprite, bool everyFrame)
-    {
-        SpriteAnimation state;
-
-        if (sprite.Command is Command.Passive or Command.Pause)
-        {
-            state = sprite.Animation;
-
-            if (state < SpriteAnimation.Death && state != SpriteAnimation.StandOpen && sprite.Frame > sprite.LastFrame)
-            {
-                if (sprite.Speed.IsExactlyZero())
-                {
-                    if (state is SpriteAnimation.Go or > SpriteAnimation.Open)
-                    {
-                        sprite.ChangeAnimation(SpriteAnimation.Stand);
-                    }
-                }
-                else if (state != SpriteAnimation.Go)
-                {
-                    sprite.ChangeAnimation(SpriteAnimation.Go);
-                }
-            }
-        }
-        else if (sprite.Frame > sprite.LastFrame || everyFrame)
-        {
-            if (sprite.ActionStack.Count == 0 || sprite.Command != Command.None)
-            {
-                Action(sprite, ActionCode.NextCommand);
-            }
-            else
-            {
-                var order = sprite.ActionStack.Top;
-                state = sprite.Animation;
-
-                if (order.Value > Act.LastState &&
-                    (state is > SpriteAnimation.Open and < SpriteAnimation.Death and not SpriteAnimation.StandOpen || state == SpriteAnimation.Go && sprite.Speed.IsExactlyZero()))
-                {
-                    sprite.ChangeAnimation(SpriteAnimation.Stand);
-                }
-
-                if (order.Value != Act.StopMarker)
-                {
-                    sprite.ActionStack.Pop();
-
-                    if (order.Value <= Act.LastState)
-                    {
-                        sprite.ChangeAnimation((SpriteAnimation)order.Value);
-                    }
-                    else
-                    {
-                        sprite.Action(order.Value, order.Var1, order.Var2, order.Var3, order.Target);
-                    }
-                }
-            }
-        }
-    }
-
-    private void TickLifetime(Sprite sprite)
-    {
-        if (sprite.HasExtra && sprite.Lifetime != SpriteDefinition.Unlimited && sprite.Animation < SpriteAnimation.Death)
-        {
-            if ((uint)(Time - sprite.LastTickTime) < (uint)sprite.Lifetime)
-            {
-                sprite.Lifetime -= Time - sprite.LastTickTime;
-            }
-            else
-            {
-                sprite.ChangeAnimation(SpriteAnimation.Death);
-            }
-        }
-
-        if (sprite.HasExtra && sprite.Definition.Weapon.AnimationPeriod != SpriteDefinition.Unlimited && (uint)sprite.Definition.Weapon.AnimationPeriod < (uint)(Time - sprite.KeyframeStart))
-        {
-            sprite.KeyframeStart = Time;
-        }
-    }
-
-    private Vector2 GetChildShift(Sprite sprite, SpriteDefinition definition, int slot, int index, Angle offsetDirection, out Vector2 lateral)
-    {
-        float childX = definition.Object.ChildX[slot];
-        float childY = definition.Object.ChildY[slot];
-
-        if (definition.Children[slot] < 0 && definition.Class == SpriteClass.Region && childX.IsExactlyZero() && childY.IsExactlyZero())
+        if (vid.Children[slot] < 0 && vid.Class == SpriteClass.Region && childX.IsExactlyZero() && childY.IsExactlyZero())
         {
             lateral = Vector2.Zero;
 
@@ -1890,7 +1589,7 @@ public sealed partial class Map : IDisposable
             return new Vector2(mapX, mapY);
         }
 
-        if (definition.Children[slot] < 0)
+        if (vid.Children[slot] < 0)
         {
             float spreadX = childX + childX;
             spreadX = childX - _rng.Next() * spreadX * GameRandom.UnitScale;
@@ -1916,9 +1615,9 @@ public sealed partial class Map : IDisposable
         return new Vector2(offsetDirection.Sine * childY + lateral.X, lateral.Y - offsetDirection.ProjectedCosine * childY);
     }
 
-    private void LaunchChild(Sprite created, Sprite goal, SpriteDefinition definition, Vector2 lateral)
+    private void LaunchChild(Sprite created, Sprite goal, Vid vid, Vector2 lateral)
     {
-        if (definition.WeaponFlags.HasFlag(WeaponFlags.NoSpread) && goal.Definition != Definitions.Empty)
+        if (vid.WeaponFlags.HasFlag(WeaponFlags.NoSpread) && goal.Vid != Vids.Empty)
         {
             Attack(created, goal);
             created.StartMove();
@@ -1930,8 +1629,8 @@ public sealed partial class Map : IDisposable
 
         for (int attempt = 0; attempt < AimAttempts; attempt++)
         {
-            float pointX = definition.Aim + goal.Position.X + lateral.X - _rng.Next() * definition.Aim * AimRandomScale;
-            float pointY = definition.Aim + goal.Position.Y + lateral.Y - _rng.Next() * definition.Aim * AimRandomScale;
+            float pointX = vid.Aim + goal.Position.X + lateral.X - _rng.Next() * vid.Aim * AimRandomScale;
+            float pointY = vid.Aim + goal.Position.Y + lateral.Y - _rng.Next() * vid.Aim * AimRandomScale;
             point = new Vector3(pointX, pointY, goal.Position.Z);
 
             if (GetGroundZ(new Vector2(pointX, pointY)) < goal.Position.Z && GetGroundZ((goal.Position.AsVector2() + point.AsVector2()) * 0.5f) < goal.Position.Z)
@@ -1946,7 +1645,7 @@ public sealed partial class Map : IDisposable
     [EngineRoutine(0x0040fad0)]
     private void AddToLayer(Sprite sprite)
     {
-        _updates.Add(sprite.Definition.Layer, sprite);
+        _updates.Add(sprite.Vid.Layer, sprite);
         sprite.AddRef();
         Release(sprite);
     }
@@ -1954,10 +1653,10 @@ public sealed partial class Map : IDisposable
     [EngineRoutine(0x00446c90)]
     private Mouse ConstructCursor()
     {
-        var cursor = new Mouse(-1, Definitions.Empty, new Vector3(Session.ScreenSize.ToVector2() * HalfShare, 0), default, 0, map: this);
+        var cursor = new Mouse(-1, Vids.Empty, new Vector3(Session.ScreenSize.ToVector2() * HalfShare, 0), default, 0, map: this);
         ConstructSprite(cursor, default, null);
 
-        if (cursor.Definition != Definitions.Empty)
+        if (cursor.Vid != Vids.Empty)
         {
             RemoveFromUpdates(cursor);
         }
@@ -1966,7 +1665,7 @@ public sealed partial class Map : IDisposable
             RemoveFromUpdates(cursor.Link);
         }
 
-        if (cursor.Definition == Definitions.Empty)
+        if (cursor.Vid == Vids.Empty)
         {
             cursor.AddRef();
         }
@@ -1976,19 +1675,19 @@ public sealed partial class Map : IDisposable
 
     private void SetGammaOverrides(bool clear)
     {
-        var flagman = GetFlagman(ControlledPlayer);
+        var flagman = Flagman(ControlledPlayer);
 
-        if (flagman is { Army: Army.Player } && Definitions.SelectedGamma != 0)
+        if (flagman is { Army: Army.Player } && Vids.SelectedGamma != 0)
         {
-            OverrideGamma(flagman, clear ? default : Gamma.FromScript(Definitions.SelectedGamma));
+            OverrideGamma(flagman, clear ? default : Gamma.FromScript(Vids.SelectedGamma));
         }
 
         var hovered = _players[ControlledPlayer].Hovered;
 
-        if (hovered is null || Definitions.HoveredGamma == 0 && Definitions.HoveredEnemyGamma == 0 || !clear && !_flags.HasFlag(MapFlags.MouseTips))
+        if (hovered is null || Vids.HoveredGamma == 0 && Vids.HoveredEnemyGamma == 0 || !clear && !_flags.HasFlag(MapFlags.MouseTips))
             return;
 
-        OverrideGamma(hovered, clear ? default : Gamma.FromScript(hovered.Army == Army.Monsters ? Definitions.HoveredEnemyGamma : Definitions.HoveredGamma));
+        OverrideGamma(hovered, clear ? default : Gamma.FromScript(hovered.Army == Army.Monsters ? Vids.HoveredEnemyGamma : Vids.HoveredGamma));
     }
 
     [EngineRoutine(0x0040f9e0)]
@@ -2024,7 +1723,7 @@ public sealed partial class Map : IDisposable
     {
         for (int i = MenuList.Count - 1; i >= 0; i--)
         {
-            TickEntry(MenuList[i]);
+            MenuList[i].Tact();
         }
     }
 
@@ -2039,7 +1738,7 @@ public sealed partial class Map : IDisposable
 
                 if (sprite is not null)
                 {
-                    TickEntry(sprite);
+                    sprite.Tact();
                 }
             }
         }
@@ -2068,7 +1767,7 @@ public sealed partial class Map : IDisposable
                 _flags ^= MapFlags.DrawRails;
                 break;
             case ReloadKey:
-                Definitions.ReloadRecords(Session.Logger, Sound);
+                Vids.ReloadRecords(Session.Error, Sound);
                 break;
         }
     }
@@ -2100,13 +1799,13 @@ public sealed partial class Map : IDisposable
 
             if (top >= 0)
             {
-                Session.Logger.Error($"SPRITE {(int)list[top]!.Definition.Id}", LogError.Text, top, SpriteExistsText);
+                Session.Error.Error($"SPRITE {(int)list[top]!.Vid.Id}", LogError.Text, top, SpriteExistsText);
             }
         }
 
         if (_groupHead.Next != _groupHead)
         {
-            Session.Logger.Error(MapLogTag, LogError.Text, 0, IncorrectGroupsText);
+            Session.Error.Error(MapLogTag, LogError.Text, 0, IncorrectGroupsText);
         }
     }
 
@@ -2120,7 +1819,7 @@ public sealed partial class Map : IDisposable
 
         if (removed.Handle != 0)
         {
-            Script.ClearSpriteHandle(removed.Handle);
+            Script.DeletePointerToObject(removed.Handle);
         }
 
         RemoveFromGroups(removed);
@@ -2157,13 +1856,13 @@ public sealed partial class Map : IDisposable
     }
 
     [EngineRoutine(0x00449be0)]
-    private SpriteDefinition ReplaceDefinition(SpriteDefinition definition, Vector3 position)
+    private Vid ReplaceVid(Vid vid, Vector3 position)
     {
         var list = _updates.GetLayer(ObjectLayer.Region);
 
         for (int i = list.Count - 1; i >= 0; i--)
         {
-            if (list[i] is not Region region || region.Definition.Class != SpriteClass.Region || position.Z >= region.Position.Z + RegionReach)
+            if (list[i] is not Region region || region.Vid.Class != SpriteClass.Region || position.Z >= region.Position.Z + RegionReach)
                 continue;
 
             if (!region.Flags.HasFlag(RegionFlags.CoversMap))
@@ -2177,12 +1876,12 @@ public sealed partial class Map : IDisposable
 
             for (int pair = 0; pair < Region.Pairs; pair++)
             {
-                if (region.From[pair] == definition)
+                if (region.From[pair] == vid)
                     return region.To[pair]!;
             }
         }
 
-        return definition;
+        return vid;
     }
 
 }

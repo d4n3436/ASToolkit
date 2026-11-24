@@ -79,10 +79,10 @@ public sealed partial class Graphics
     private static ReadOnlySpan<byte> UnsupportedResolution => "Unsupported resolution"u8;
 
     [EngineRoutine(0x00403290)]
-    internal static ushort[] CreateTexture(GameLogger? logger, VidPixelFormat format, out VidPixelFormat result)
+    internal static ushort[] CreateTexture(MyError? error, VidPixelFormat format, out VidPixelFormat result)
     {
         var size = new Size(Screen.TextureSide, Screen.TextureSide);
-        return Texture.Allocate(ref size, format, TextureFlags.None, logger, out _, out result);
+        return Texture.Allocate(ref size, format, TextureFlags.None, error, out _, out result);
     }
 
     internal static int GetDisplayBits(VidPixelFormat format) => format switch
@@ -128,8 +128,8 @@ public sealed partial class Graphics
             int index = FindDisplayMode(Size.Truncate(screenSize), bits);
             if (index < 0)
             {
-                Logger?.Write($"Selected display mode {screenSize.Width:F0}x{screenSize.Height:F0}");
-                Logger?.Error(GraphicsLogTag, LogError.Text, 0, UnsupportedResolution);
+                Error?.Write($"Selected display mode {screenSize.Width:F0}x{screenSize.Height:F0}");
+                Error?.Error(GraphicsLogTag, LogError.Text, 0, UnsupportedResolution);
                 return DeviceFailure;
             }
 
@@ -137,7 +137,7 @@ public sealed partial class Graphics
         }
 
         DisplayFormat = format;
-        Logger?.Write($"Selected display mode {screenSize.Width:F0}x{screenSize.Height:F0} {GameLogger.Decode(GetFormatName(format))} desktop {GameLogger.Decode(GetFormatName(DesktopFormat))} zbuffer {GameLogger.Decode(GetFormatName(VidPixelFormat.None))}");
+        Error?.Write($"Selected display mode {screenSize.Width:F0}x{screenSize.Height:F0} {MyError.Decode(GetFormatName(format))} desktop {MyError.Decode(GetFormatName(DesktopFormat))} zbuffer {MyError.Decode(GetFormatName(VidPixelFormat.None))}");
         Flags &= ~deviceMask;
         if (IsDotProduct3Supported)
         {
@@ -189,14 +189,14 @@ public sealed partial class Graphics
             return;
 
         Texture.Release(new Size(Screen.TextureSide, Screen.TextureSide), Buffers.LightFormat);
-        Buffers.Light = CreateTexture(Logger, VidPixelFormat.P8, out var format);
+        Buffers.Light = CreateTexture(Error, VidPixelFormat.P8, out var format);
         Buffers.LightFormat = format;
         if (Buffers.Light.Length == 0)
         {
-            Logger?.Error(GraphicsLogTag, LogError.Create, 0, "Light at RelodPalette"u8);
+            Error?.Error(GraphicsLogTag, LogError.Create, 0, "Light at RelodPalette"u8);
         }
 
-        Logger?.Write("ReloadPalettes"u8);
+        Error?.Write("ReloadPalettes"u8);
     }
 
     [EngineRoutine(0x0042eb10)]

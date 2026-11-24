@@ -28,13 +28,13 @@ public class MapTests
             """);
 
         Assert.False(map.HasPlayer);
-        Assert.Null(map.GetFlagman(0));
+        Assert.Null(map.Flagman(0));
 
         map.Step();
 
         Assert.True(map.HasPlayer);
-        Assert.Equal(map.Player, map.GetFlagman(0));
-        Assert.Equal(map.Player, map.GetFlagman(0)?.Link?.Owner);
+        Assert.Equal(map.Player, map.Flagman(0));
+        Assert.Equal(map.Player, map.Flagman(0)?.Link?.Owner);
     }
 
     [Fact]
@@ -48,19 +48,19 @@ public class MapTests
         var first = map.Player;
         var start = first.Position;
         Map.Action(first, ActionCode.Damage, first.Hp);
-        for (int tick = 0; tick < 200 && map.GetFlagman(0) is not null; tick++)
+        for (int tick = 0; tick < 200 && map.Flagman(0) is not null; tick++)
         {
             map.Play(default);
         }
 
-        Assert.Null(map.GetFlagman(0));
+        Assert.Null(map.Flagman(0));
         for (int tick = 0; tick < 5 && (!map.HasPlayer || map.Player == first); tick++)
         {
             map.Play(default);
         }
 
         Assert.NotSame(first, map.Player);
-        Assert.Same(map.Player, map.GetFlagman(0));
+        Assert.Same(map.Player, map.Flagman(0));
         Assert.True(map.Player.IsAlive);
         Assert.Equal(start, map.Player.Position);
         var player = (Man)map.Player;
@@ -85,7 +85,7 @@ public class MapTests
         for (int tick = 0; tick < 100 && dropped is null; tick++)
         {
             map.Play(default);
-            dropped = map.UpdatedSprites.FirstOrDefault(sprite => sprite.Definition.Id == KnownObject.Money);
+            dropped = map.UpdatedSprites.FirstOrDefault(sprite => sprite.Vid.Id == KnownObject.Money);
         }
 
         Assert.NotNull(dropped);
@@ -144,7 +144,7 @@ public class MapTests
         }
 
         Assert.NotEqual(Command.Move, map.Player.Command);
-        Assert.True(map.Player.IsTouching(destination, map.Definitions.Empty.Half));
+        Assert.True(map.Player.IsTouching(destination, map.Vids.Empty.Half));
         for (int tick = 0; tick < 50; tick++)
         {
             map.Play(default);

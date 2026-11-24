@@ -92,7 +92,7 @@ public sealed partial class Graphics
         }
 
         SetRenderState(RenderState.SpecularEnable, 0);
-        SetBlend(BlendFactor.One, BlendFactor.InverseSourceColor);
+        SetAlphaBlend(BlendFactor.One, BlendFactor.InverseSourceColor);
         new Texture(texture, new Size(SnowTextureSize, SnowTextureSize), format, Screen.TexturePalette).DrawFlatQuad(Screen, new Rectangle(Point.Empty, Screen.Size),
             new Rectangle(0, 0, size.Width / SnowCell, size.Height / SnowCell), default, Blend);
     }
@@ -202,7 +202,7 @@ public sealed partial class Graphics
 
         if (Weather.SnowflakeCount > 0)
         {
-            SetBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
+            SetAlphaBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
         }
 
         if (Screen is not null)
@@ -291,7 +291,7 @@ public sealed partial class Graphics
 
         if (Weather.RaindropCount > 0)
         {
-            SetBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
+            SetAlphaBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
         }
 
         if (Screen is not null)

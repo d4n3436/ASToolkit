@@ -129,7 +129,7 @@ public sealed partial class Map
 
         _playedDemo = null;
         _flags &= ~MapFlags.PlayingDemo;
-        CursorSprite.LoadCursor(_fileSystem);
+        CursorSprite.Enable(_fileSystem);
         RequestLoad(mapName);
     }
 

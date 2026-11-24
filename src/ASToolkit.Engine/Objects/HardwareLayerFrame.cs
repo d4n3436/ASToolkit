@@ -5,7 +5,7 @@ using ASToolkit.Formats;
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents one frame of a hardware layer definition, a texture with the triangle mesh that draws it.
+/// Represents one frame of a hardware layer object ID, a texture with the triangle mesh that draws it.
 /// </summary>
 /// <param name="Size">The size of the texture, in texels.</param>
 /// <param name="Format">The layout of the texels, R5G6B5 or A4R4G4B4.</param>

@@ -7,9 +7,9 @@ using ASToolkit.Formats;
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents the definition of a sprite drawn in software into a 32-bit back buffer.
+/// Represents the shared data and frames of an object ID whose sprites are drawn in software into a 32-bit back buffer.
 /// </summary>
-public partial class SoftwareSpriteDefinition : SpriteDefinition
+public partial class VidSoftware : Vid
 {
     private protected const int PaletteEntries = 256;
     private protected const int TrueColorPaletteSize = PaletteEntries * sizeof(uint);
@@ -35,15 +35,15 @@ public partial class SoftwareSpriteDefinition : SpriteDefinition
     private ReadOnlyMemory<byte> _frames;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="SoftwareSpriteDefinition"/> class.
+    /// Initializes a new instance of the <see cref="VidSoftware"/> class.
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
     /// <param name="weapon">The weapon record.</param>
     /// <param name="file">The sprite file.</param>
-    /// <param name="totalFrames">The frame count of the definition's sprite.</param>
+    /// <param name="totalFrames">The frame count of the sprite file.</param>
     /// <param name="format">The channel layout of the 16-bit back buffer.</param>
-    public SoftwareSpriteDefinition(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, in VidResource file, int totalFrames, HighColorFormat format)
+    public VidSoftware(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, in VidResource file, int totalFrames, HighColorFormat format)
         : base(id, gameObject, weapon, file, totalFrames)
     {
         Format = format;
@@ -73,7 +73,7 @@ public partial class SoftwareSpriteDefinition : SpriteDefinition
     /// <summary>
     /// Gets or sets the next sprite file in the ring of files that share one buffer.
     /// </summary>
-    public SoftwareSpriteDefinition NextMirror { get; set; }
+    public VidSoftware NextMirror { get; set; }
 
     /// <summary>
     /// Gets a value indicating whether the sprite file draws to the 16-bit back buffer.
@@ -109,16 +109,16 @@ public partial class SoftwareSpriteDefinition : SpriteDefinition
     }
 
     [EngineRoutine(0x004154b0)]
-    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, GameLogger? logger)
+    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, MyError? error)
     {
         if (FileType.HasFlag(VidType.Palette) && file.Palette.IsEmpty)
         {
-            Report(logger, LogError.Load, 0, "PAL "u8);
+            Report(error, LogError.Load, 0, "PAL "u8);
         }
 
         if (file.FrameRecords.IsEmpty)
         {
-            Report(logger, LogError.Load, 0, "DATA"u8);
+            Report(error, LogError.Load, 0, "DATA"u8);
         }
 
         if (FileType.HasFlag(VidType.Palette))
@@ -157,7 +157,7 @@ public partial class SoftwareSpriteDefinition : SpriteDefinition
     }
 
     [EngineRoutine(0x004162b0)]
-    internal override void SetGamma(Gamma gamma, int army, Gamma ambient, GameLogger? logger)
+    internal override void SetGamma(Gamma gamma, int army, Gamma ambient, MyError? error)
     {
         int size = GetPaletteSize();
         if (_palettes.Length == 0 || !FileType.HasFlag(VidType.Palette))
@@ -165,7 +165,7 @@ public partial class SoftwareSpriteDefinition : SpriteDefinition
 
         if ((uint)army > AllArmies)
         {
-            Report(logger, LogError.Invalid, army, "n_gamma in VID_SOFTWARE::SetGamma"u8);
+            Report(error, LogError.Invalid, army, "n_gamma in VID_SOFTWARE::SetGamma"u8);
 
             return;
         }
@@ -177,7 +177,7 @@ public partial class SoftwareSpriteDefinition : SpriteDefinition
             {
                 for (int i = 0; i < ArmyPalettes; i++)
                 {
-                    SetGamma(Gammas[i], i, ambient, logger);
+                    SetGamma(Gammas[i], i, ambient, error);
                 }
 
                 return;

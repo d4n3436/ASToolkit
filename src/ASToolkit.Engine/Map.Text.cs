@@ -63,15 +63,15 @@ public sealed partial class Map
         int index = Script.FindObject(bracket < 0 ? reference : reference[..bracket]);
         if (index < 0)
         {
-            Session.Logger.Write($"!!!ERROR!!! SCRIPT Can't find variable '{GameLogger.Decode(reference)}' in GetVariableString");
+            Session.Error.Write($"!!!ERROR!!! SCRIPT Can't find variable '{MyError.Decode(reference)}' in GetVariableString");
             return default;
         }
 
-        int element = StackObject.ParseNumber(bracket < 0 ? default : reference[(bracket + 1)..]);
+        int element = ScriptStack.ParseNumber(bracket < 0 ? default : reference[(bracket + 1)..]);
         ref var slot = ref Script.GetSlot(Script.Objects[index].Address + element);
-        if (slot.Flags.HasFlag(StackObjectFlags.Number))
+        if (slot.Flags.HasFlag(ScriptStackFlags.Number))
         {
-            slot.Text = StackObject.FormatNumber(slot.Value);
+            slot.Text = ScriptStack.FormatNumber(slot.Value);
         }
 
         return slot.Text;
@@ -86,6 +86,6 @@ public sealed partial class Map
         return CRuntime.GetString(data);
     }
 
-    private ReadOnlyMemory<byte> ReadMenuString(ReadOnlySpan<byte> key) => ProfileFile.GetString(_fileSystem, StringsFile, MenuSection, key);
+    private ReadOnlyMemory<byte> ReadMenuString(ReadOnlySpan<byte> key) => Profile.GetString(_fileSystem, StringsFile, MenuSection, key);
 
 }

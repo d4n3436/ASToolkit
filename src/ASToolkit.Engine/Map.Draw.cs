@@ -55,7 +55,7 @@ public sealed partial class Map
             }
         }
 
-        if (!CursorSprite.IsHardwareCursor && !CursorSprite.Definition.Object.Properties.HasFlag(ObjectProperties.AlwaysTop))
+        if (!CursorSprite.IsHardwareCursor && !CursorSprite.Vid.Object.Properties.HasFlag(ObjectProperties.AlwaysTop))
         {
             DrawCursorChain(screen, camera, layer);
         }
@@ -79,7 +79,7 @@ public sealed partial class Map
 
     private void DrawChainSprite(Screen screen, Vector2 camera, Sprite sprite, ObjectLayer? layer)
     {
-        if ((layer is null || sprite.Definition.Layer == layer) && !sprite.IsInvisible)
+        if ((layer is null || sprite.Vid.Layer == layer) && !sprite.IsInvisible)
         {
             DrawSprite(screen, sprite, camera);
         }

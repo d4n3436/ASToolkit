@@ -3,7 +3,7 @@ using ASToolkit.Formats;
 
 namespace ASToolkit.Engine.IO;
 
-internal sealed class GameLogger : IDisposable
+internal sealed class MyError : IDisposable
 {
     private const string NamePrefix = "logs\\error";
     private const string FolderPrefix = "logs\\";
@@ -22,7 +22,7 @@ internal sealed class GameLogger : IDisposable
     private Stream? _stream;
 
     [EngineRoutine(0x004084a0)]
-    public GameLogger(IGameFileSystem? fileSystem, TimeProvider time, string program, bool isTimestamped = true)
+    public MyError(IGameFileSystem? fileSystem, TimeProvider time, string program, bool isTimestamped = true)
     {
         _fileSystem = fileSystem;
         _time = time;

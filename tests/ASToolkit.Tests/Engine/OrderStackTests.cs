@@ -19,11 +19,11 @@ public class OrderStackTests
             new StackAction((int)ActionCode.FlagmanTrigger, 1000, 1000, 50));
         Step(map, 60);
 
-        Assert.Equal([KnownObject.YellowMonster1], map.Monsters.Select(sprite => sprite.Definition.Id));
+        Assert.Equal([KnownObject.YellowMonster1], map.Monsters.Select(sprite => sprite.Vid.Id));
         map.Player.Position = new Vector3(2000, 1000, 0);
         Step(map, 60);
 
-        Assert.Equal([KnownObject.YellowMonster1, KnownObject.Monster1], map.Monsters.Select(sprite => sprite.Definition.Id));
+        Assert.Equal([KnownObject.YellowMonster1, KnownObject.Monster1], map.Monsters.Select(sprite => sprite.Vid.Id));
         Assert.Equal(Act.StopMarker, spawner.ActionStack.Top.Value);
     }
 
@@ -66,9 +66,9 @@ public class OrderStackTests
 
     private static (Map Map, Sprite Spawner) CreateSpawner(params StackAction[] stack)
     {
-        var definitions = TestGameFolder.CreateCatalog();
+        var vids = TestGameFolder.CreateCatalog();
         var placement = new MergedMapSprite(1, KnownObject.Spawner, new Vector3(1000, 1600, 0), 0, Army.Monsters, []);
-        var map = EngineTestMap.CreateMap(definitions, sprites: [placement]);
+        var map = EngineTestMap.CreateMap(vids, sprites: [placement]);
         var spawner = map.FindFirstSprite(KnownObject.Spawner);
         spawner.ActionStack.Load(stack.Select(Act.FromAction).ToArray());
 

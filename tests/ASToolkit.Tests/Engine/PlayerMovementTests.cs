@@ -10,12 +10,12 @@ public class PlayerMovementTests
     [Fact]
     public void MoveTact_NoTarget_BrakesWithoutDiscardingMomentum()
     {
-        var definitions = TestGameFolder.CreateCatalog();
-        var definition = definitions.Find(KnownObject.PlayerStart)!;
-        var map = EngineTestMap.CreateMap(definitions, frameTime: 20);
-        var player = new Man(0, definition, new Vector3(1000, 1000, 0), 0, definition.MaxHp, map) { Direction = new Angle(64) };
+        var vids = TestGameFolder.CreateCatalog();
+        var vid = vids.Find(KnownObject.PlayerStart)!;
+        var map = EngineTestMap.CreateMap(vids, frameTime: 20);
+        var player = new Man(0, vid, new Vector3(1000, 1000, 0), 0, vid.MaxHp, map) { Direction = new Angle(64) };
         map.Collector.InsertToHash(player);
-        player.Move(new Sprite(-1, definitions.Empty, new Vector3(1400, 1000, 0), 0, 0, map));
+        player.Move(new Sprite(-1, vids.Empty, new Vector3(1400, 1000, 0), 0, 0, map));
         map.AdvanceClock();
         player.MoveTact();
         Assert.Equal(0.018f, player.Speed, 5);
@@ -35,12 +35,12 @@ public class PlayerMovementTests
     [Fact]
     public void MoveTact_DisplacesAlongTheDirectionFromBeforeTheTurn()
     {
-        var definitions = TestGameFolder.CreateCatalog();
-        var definition = definitions.Find(KnownObject.PlayerStart)!;
-        var map = EngineTestMap.CreateMap(definitions, frameTime: 20);
-        var player = new Man(0, definition, new Vector3(1000, 1000, 0), 0, definition.MaxHp, map);
+        var vids = TestGameFolder.CreateCatalog();
+        var vid = vids.Find(KnownObject.PlayerStart)!;
+        var map = EngineTestMap.CreateMap(vids, frameTime: 20);
+        var player = new Man(0, vid, new Vector3(1000, 1000, 0), 0, vid.MaxHp, map);
         map.Collector.InsertToHash(player);
-        player.Move(new Sprite(-1, definitions.Empty, new Vector3(1400, 1000, 0), 0, 0, map));
+        player.Move(new Sprite(-1, vids.Empty, new Vector3(1400, 1000, 0), 0, 0, map));
         map.AdvanceClock();
         player.MoveTact();
 

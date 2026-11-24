@@ -7,7 +7,7 @@ namespace ASToolkit.Engine;
 /// Represents one of the objects a placed sprite puts on the map, the sprite itself or an object linked to it.
 /// </summary>
 /// <param name="Id">The object ID.</param>
-/// <param name="Object">The definition of the object in the object table.</param>
+/// <param name="Object">The record of the object in the object table.</param>
 /// <param name="Path">The path of the sprite file of the object.</param>
 /// <param name="File">The sprite file of the object, or null when the file can't be read or doesn't contain any frames.</param>
 /// <param name="Frame">The frame of the sprite file the object shows.</param>
