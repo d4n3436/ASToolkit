@@ -1,3 +1,5 @@
+using System.Collections;
+
 namespace ASToolkit.Engine.IO;
 
 // Mirrors LIST<T>
@@ -6,7 +8,7 @@ namespace ASToolkit.Engine.IO;
 /// Represents a growable array whose entries past its count stay in place until they're overwritten.
 /// </summary>
 /// <typeparam name="T">The type of the entries.</typeparam>
-public class MyList<T>
+public class MyList<T> : IReadOnlyList<T>
 {
     private const int GrowthStep = 4;
 
@@ -23,7 +25,7 @@ public class MyList<T>
     public int Count { get; internal set; }
 
     /// <summary>
-    /// Gets the entries, from the first.
+    /// Gets the entries.
     /// </summary>
     public ReadOnlySpan<T> Items => _items.AsSpan(0, Count);
 
@@ -37,11 +39,14 @@ public class MyList<T>
     /// <param name="index">The index.</param>
     public ref T this[int index] => ref _items[index];
 
+    T IReadOnlyList<T>.this[int index] => _items[index];
+
     /// <summary>
     /// Adds an entry after the last one.
     /// </summary>
     /// <param name="item">The entry.</param>
     [EngineRoutine(0x00446930)]
+    [EngineRoutine(0x00424e60)]
     public void Insert(T item)
     {
         if (Count >= _items.Length)
@@ -99,6 +104,7 @@ public class MyList<T>
     /// Removes the last entry and returns it.
     /// </summary>
     /// <returns>The entry.</returns>
+    [EngineRoutine(0x0043ab70)]
     public T Pop() => _items[--Count];
 
     /// <summary>
@@ -154,4 +160,18 @@ public class MyList<T>
             throw;
         }
     }
+
+    /// <summary>
+    /// Returns an enumerator over the entries.
+    /// </summary>
+    /// <returns>The enumerator.</returns>
+    public IEnumerator<T> GetEnumerator()
+    {
+        for (int i = 0; i < Count; i++)
+        {
+            yield return _items[i];
+        }
+    }
+
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }

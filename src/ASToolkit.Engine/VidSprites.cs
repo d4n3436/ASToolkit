@@ -1,12 +1,14 @@
+using ASToolkit.Engine.IO;
+
 namespace ASToolkit.Engine;
 
 internal ref struct VidSprites
 {
-    private readonly List<Sprite?> _list;
+    private readonly MyList<Sprite?> _list;
     private readonly Vid _vid;
     private int _index;
 
-    public VidSprites(List<Sprite?> list, Vid vid)
+    public VidSprites(MyList<Sprite?> list, Vid vid)
     {
         _list = list;
         _vid = vid;

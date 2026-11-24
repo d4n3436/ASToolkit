@@ -22,6 +22,9 @@ public partial class Map : IDisposable
     /// Represents the lowest height a blast reaches above its center.
     /// </summary>
     public const float MinBlastHeight = 20;
+ 
+    internal const int UpdatedLayerCount = 16;
+    private const int CompactionPeriodMask = 3;
     private const int SpriteRecordSize = 112;
     private const float OldGridRounding = 7;
     private const int StartRandomState = 1;
@@ -42,7 +45,7 @@ public partial class Map : IDisposable
     private readonly LivingSet _livingSites = new();
     private readonly LivingSet _livingCharges = new();
     private readonly int[] _scriptHooks = new int[ScriptHookCount];
-    private protected UpdateOrder _updates;
+    private protected readonly MyList<Sprite?>[] _layers = new MyList<Sprite?>[LayerCount];
     private int _pausedAt;
     private protected GameClock _clock;
     private protected MapFlags _flags;
@@ -78,7 +81,10 @@ public partial class Map : IDisposable
         Parts = new SpritePartReader(gameFolder, objects);
         _rng = new GameRandom(StartRandomState);
         Script.Error = Session.Error;
-        _updates = new UpdateOrder();
+        for (int layer = 0; layer < LayerCount; layer++)
+        {
+            _layers[layer] = new MyList<Sprite?>();
+        }
         _clock = new GameClock();
         Size = StartMapSize;
         ResetGroundZ();
@@ -421,7 +427,30 @@ public partial class Map : IDisposable
     {
         _clock.StartTact(wallTime, wallTime);
         Input.ResetFrame();
-        _updates.Compact(Time);
+        if ((Time & CompactionPeriodMask) == 0)
+        {
+            foreach (var list in _layers)
+            {
+                int kept = 0;
+                for (int i = 0; i < list.Count; i++)
+                {
+                    if (list[i] is not null)
+                    {
+                        list[kept++] = list[i];
+                    }
+                }
+
+                if (kept < 1)
+                {
+                    list.Release();
+                }
+                else
+                {
+                    list.Count = kept;
+                }
+            }
+        }
+
         if (_flags.HasFlag(MapFlags.LoadPending))
         {
             _flags &= ~MapFlags.LoadPending;
@@ -466,7 +495,7 @@ public partial class Map : IDisposable
     /// </summary>
     /// <param name="layer">The layer, from 0 to 16.</param>
     /// <returns>The sprites in the list's order, with <see langword="null"/> where a sprite was removed.</returns>
-    public IReadOnlyList<Sprite?> GetLayer(int layer) => _updates.GetLayer(layer);
+    public MyList<Sprite?> GetLayer(int layer) => _layers[layer];
 
     internal void SetMonstersAttackNeutralTrains(bool attack) => SetFlag(MapFlags.MonstersAttackNeutralTrains, attack);
 
@@ -844,7 +873,7 @@ public partial class Map : IDisposable
     {
         for (int layer = 0; layer < LayerCount; layer++)
         {
-            var list = _updates.GetLayer(layer);
+            var list = _layers[layer];
             for (int i = list.Count - 1; i >= 0; i--)
             {
                 var sprite = list[i];
@@ -871,7 +900,7 @@ public partial class Map : IDisposable
     {
         for (int layer = 0; layer < LayerCount; layer++)
         {
-            var list = _updates.GetLayer(layer);
+            var list = _layers[layer];
             for (int i = list.Count - 1; i >= 0; i--)
             {
                 var sprite = list[i];
@@ -991,7 +1020,7 @@ public partial class Map : IDisposable
         if (vid is null)
             return set.Sprites;
 
-        foreach (var sprite in _updates.GetLayer(vid.Layer))
+        foreach (var sprite in _layers[(int)vid.Layer].Items)
         {
             if (sprite is not null && sprite.Vid == vid && sprite.Animation < SpriteAnimation.Death)
             {
@@ -1043,13 +1072,27 @@ public partial class Map : IDisposable
     [EngineRoutine(0x0040fad0)]
     internal void AddToLayer(Sprite sprite)
     {
-        _updates.Add(sprite.Vid.Layer, sprite);
+        _layers[(int)sprite.Vid.Layer].Insert(sprite);
         sprite.AddRef();
         Release(sprite);
     }
 
     [EngineRoutine(0x0040fa90)]
-    internal bool RemoveFromLayer(Sprite sprite) => _updates.Remove(sprite.Vid.Layer, sprite);
+    internal bool RemoveFromLayer(Sprite sprite)
+    {
+        var list = _layers[(int)sprite.Vid.Layer];
+        for (int i = list.Count - 1; i >= 0; i--)
+        {
+            if (list[i] != sprite)
+                continue;
+
+            list[i] = null;
+
+            return true;
+        }
+
+        return false;
+    }
 
     [EngineRoutine(0x0040f9e0)]
     internal void Pause()
@@ -1070,7 +1113,7 @@ public partial class Map : IDisposable
 
         for (int layer = 0; layer < LayerCount; layer++)
         {
-            foreach (var entry in _updates.GetLayer(layer))
+            foreach (var entry in _layers[layer].Items)
             {
                 entry?.LastTickTime = _pausedAt;
             }
@@ -1084,7 +1127,7 @@ public partial class Map : IDisposable
     {
         for (int layer = 0; layer < LayerCount; layer++)
         {
-            var list = _updates.GetLayer(layer);
+            var list = _layers[layer];
             for (int i = list.Count - 1; i >= 0; i--)
             {
                 var sprite = list[i];
@@ -1098,7 +1141,7 @@ public partial class Map : IDisposable
 
         for (int layer = 0; layer < LayerCount; layer++)
         {
-            var list = _updates.GetLayer(layer);
+            var list = _layers[layer];
             int top = list.Count - 1;
             while (top >= 0 && list[top] is null)
             {
@@ -1150,7 +1193,7 @@ public partial class Map : IDisposable
             if (removed.ReferenceCount <= 1)
                 continue;
 
-            var list = _updates.GetLayer(layer);
+            var list = _layers[layer];
             for (int i = list.Count - 1; i >= 0; i--)
             {
                 var sprite = list[i];

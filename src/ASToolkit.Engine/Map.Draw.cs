@@ -20,7 +20,7 @@ public partial class Map
     [EngineRoutine(0x0040f7f0)]
     public void DrawLayer(Screen screen, Vector2 camera, ObjectLayer layer)
     {
-        var sprites = _updates.GetLayer(layer);
+        var sprites = _layers[(int)layer];
 
         if (layer is ObjectLayer.Ground or ObjectLayer.Region)
         {

@@ -48,9 +48,9 @@ public partial class Map
 
         if (_flags.HasFlag(MapFlags.DrawSpriteBoxes))
         {
-            for (int layer = 0; layer < UpdateOrder.UpdatedLayerCount; layer++)
+            for (int layer = 0; layer < UpdatedLayerCount; layer++)
             {
-                var sprites = _updates.GetLayer(layer);
+                var sprites = _layers[layer];
 
                 for (int i = sprites.Count - 1; i >= 0; i--)
                 {

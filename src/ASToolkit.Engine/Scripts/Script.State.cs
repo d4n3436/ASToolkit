@@ -15,9 +15,9 @@ public sealed partial class Script
     public void WriteState(Stream stream)
     {
         Span<byte> number = stackalloc byte[sizeof(int)];
-        for (int i = 0; i < _count; i++)
+        for (int i = 0; i < _stack.Count; i++)
         {
-            _slots[i].Write(stream, number);
+            _stack[i].Write(stream, number);
         }
 
         BinaryPrimitives.WriteInt32LittleEndian(number, _objects.Count);
@@ -47,9 +47,9 @@ public sealed partial class Script
     public int ReadState(ReadOnlyMemory<byte> data)
     {
         int offset = 0;
-        for (int i = 0; i < _count; i++)
+        for (int i = 0; i < _stack.Count; i++)
         {
-            _slots[i].Read(data, ref offset);
+            _stack[i].Read(data, ref offset);
         }
 
         _objects.Count = BinaryPrimitives.ReadInt32LittleEndian(data.Span[offset..]);

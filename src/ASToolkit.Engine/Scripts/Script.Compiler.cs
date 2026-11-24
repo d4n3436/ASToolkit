@@ -66,8 +66,8 @@ public sealed partial class Script
         }
 
         int count = BinaryPrimitives.ReadInt32LittleEndian(head);
-        EnsureSlotCapacity(Math.Max(count, MinCapacity));
-        _count = count;
+        _stack.Expand(Math.Max(count, MinCapacity));
+        _stack.Count = count;
         int offset = sizeof(int) + ReadState(file[sizeof(int)..]);
         int size = BinaryPrimitives.ReadInt32LittleEndian(file.Span[offset..]);
         offset += sizeof(int);
@@ -87,9 +87,8 @@ public sealed partial class Script
     internal void Reset()
     {
         _code = null;
-        Array.Clear(_slots);
+        _stack.Release();
         _objects.Release();
-        _count = 0;
         _defines.Release();
         _codeSize = 0;
         _ifDepth = 0;
@@ -120,7 +119,7 @@ public sealed partial class Script
         _fileSystem = fileSystem;
         _codeBuffer = ArrayPool<byte>.Shared.Rent(CodeCapacity);
         _codeSize = 0;
-        EnsureSlotCapacity(MinCapacity);
+        _stack.Expand(MinCapacity);
         _objects.Expand(MinCapacity);
         _line = 0;
         try
@@ -138,7 +137,7 @@ public sealed partial class Script
                 _text = [];
             }
 
-            Error?.Write($"LoadScript::ByteCode={_codeSize} varNo={_objects.Count} DefineNo={_defines.Count} stackNo={_count}");
+            Error?.Write($"LoadScript::ByteCode={_codeSize} varNo={_objects.Count} DefineNo={_defines.Count} stackNo={_stack.Count}");
             _defines.Release();
             if (_codeSize == 0)
             {
@@ -172,14 +171,6 @@ public sealed partial class Script
     }
 
     [EngineRoutine(0x00424f70)]
-    private void EnsureSlotCapacity(int count)
-    {
-        if (_slots.Length < count)
-        {
-            Array.Resize(ref _slots, count);
-        }
-    }
-
     private InvalidDataException ReportError(int code, string text, int extra = 0)
     {
         LogScriptError(code, text, extra);
@@ -1058,7 +1049,7 @@ public sealed partial class Script
         byte[]? index = null;
         if (TryWord("["u8))
         {
-            if (!_slots[variable].Flags.HasFlag(ScriptStackFlags.Text) && !_slots[variable].Flags.HasFlag(ScriptStackFlags.ArrayElement) && !_slots[variable].Flags.HasFlag(ScriptStackFlags.Pointer))
+            if (!_stack[variable].Flags.HasFlag(ScriptStackFlags.Text) && !_stack[variable].Flags.HasFlag(ScriptStackFlags.ArrayElement) && !_stack[variable].Flags.HasFlag(ScriptStackFlags.Pointer))
                 throw ReportError(10, "[] for not array");
 
             int indexStart = _codeSize;
@@ -1102,7 +1093,7 @@ public sealed partial class Script
             _codeSize += indexLength;
             ArrayPool<byte>.Shared.Return(index);
         }
-        else if (_slots[variable].Flags.HasFlag(ScriptStackFlags.ArrayElement) || _slots[variable].Flags.HasFlag(ScriptStackFlags.Pointer))
+        else if (_stack[variable].Flags.HasFlag(ScriptStackFlags.ArrayElement) || _stack[variable].Flags.HasFlag(ScriptStackFlags.Pointer))
         {
             if (opcode is >= ScriptOpcode.PostIncrement and <= ScriptOpcode.PreDecrement)
                 throw ReportError(10, "Increment or decrement for array");
@@ -1165,7 +1156,7 @@ public sealed partial class Script
             count++;
         }
 
-        for (; count < target.Count && _slots[target.FirstVariable + count].Flags.HasFlag(ScriptStackFlags.Initialized); count++)
+        for (; count < target.Count && _stack[target.FirstVariable + count].Flags.HasFlag(ScriptStackFlags.Initialized); count++)
         {
             Emit(ScriptOpcode.Load, target.FirstVariable + count);
         }
@@ -1188,9 +1179,9 @@ public sealed partial class Script
             EmitArgumentStore(target.FirstVariable + count++);
         }
 
-        for (; count < target.Count && _slots[target.FirstVariable + count].Flags.HasFlag(ScriptStackFlags.Initialized); count++)
+        for (; count < target.Count && _stack[target.FirstVariable + count].Flags.HasFlag(ScriptStackFlags.Initialized); count++)
         {
-            ref readonly var parameter = ref _slots[target.FirstVariable + count];
+            ref readonly var parameter = ref _stack[target.FirstVariable + count];
             if (!parameter.Flags.HasFlag(ScriptStackFlags.Text))
             {
                 Emit(ScriptOpcode.PushNumber, parameter.Value);
@@ -1230,7 +1221,7 @@ public sealed partial class Script
         if (_objects.Location(name) >= 0)
             throw ReportError(10, $"int redefinition '{Decode(name)}'");
 
-        int symbol = _objects.Insert(name.ToArray(), new ScriptObject(ScriptObjectKind.Variable, _count));
+        int symbol = _objects.Insert(name.ToArray(), new ScriptObject(ScriptObjectKind.Variable, _stack.Count));
         int size;
         if (TryWord("["u8))
         {
@@ -1256,7 +1247,7 @@ public sealed partial class Script
 
         for (int element = 0; element < size; element++)
         {
-            Push(new ScriptStack(ScriptStackFlags.Number | flags | ScriptStackFlags.NotInitialized, 0));
+            _stack.Insert(new ScriptStack(ScriptStackFlags.Number | flags | ScriptStackFlags.NotInitialized, 0));
         }
 
         if (TryWord("="u8))
@@ -1267,12 +1258,12 @@ public sealed partial class Script
             }
             else if (initializeAtRunTime)
             {
-                EmitInitializer(_count - 1);
+                EmitInitializer(_stack.Count - 1);
             }
             else
             {
                 int value = ParseConstInt();
-                ref var variable = ref _slots[_count - 1];
+                ref var variable = ref _stack[_stack.Count - 1];
                 variable.Value = value;
                 variable.Flags = (variable.Flags | ScriptStackFlags.Initialized) & ~ScriptStackFlags.NotInitialized;
             }
@@ -1289,15 +1280,15 @@ public sealed partial class Script
         {
             if (initializeAtRunTime)
             {
-                Push(new ScriptStack(ScriptStackFlags.Number | flags | ScriptStackFlags.NotInitialized, 0));
-                EmitInitializer(_count - 1);
+                _stack.Insert(new ScriptStack(ScriptStackFlags.Number | flags | ScriptStackFlags.NotInitialized, 0));
+                EmitInitializer(_stack.Count - 1);
                 count++;
                 continue;
             }
 
-            Push(new ScriptStack(ScriptStackFlags.Number | flags, 0));
+            _stack.Insert(new ScriptStack(ScriptStackFlags.Number | flags, 0));
             int value = ParseConstInt();
-            ref var element = ref _slots[_count - 1];
+            ref var element = ref _stack[_stack.Count - 1];
             element.Value = value;
             element.Flags |= ScriptStackFlags.Initialized;
             count++;
@@ -1317,7 +1308,7 @@ public sealed partial class Script
         {
             if (initializeAtRunTime)
             {
-                EmitInitializer(_count - size + element);
+                EmitInitializer(_stack.Count - size + element);
                 if (!TryWord(","u8))
                 {
                     ExpectToken("}"u8);
@@ -1328,7 +1319,7 @@ public sealed partial class Script
             }
 
             int value = ParseConstInt();
-            ref var variable = ref _slots[_count - size + element];
+            ref var variable = ref _stack[_stack.Count - size + element];
             variable.Flags = (variable.Flags & ~ScriptStackFlags.NotInitialized) | ScriptStackFlags.Initialized;
             variable.Value = value;
             if (!TryWord(","u8))
@@ -1375,7 +1366,7 @@ public sealed partial class Script
             ExpectToken("]"u8);
         }
 
-        int symbol = _objects.Insert(symbolName, new ScriptObject(ScriptObjectKind.Variable, _count));
+        int symbol = _objects.Insert(symbolName, new ScriptObject(ScriptObjectKind.Variable, _stack.Count));
         Span<byte> literal = stackalloc byte[MaxNameLength + 1];
         int count = 0;
         if (TryWord("="u8))
@@ -1388,7 +1379,7 @@ public sealed partial class Script
 
             for (; !IsAlienShooter2 && count < size - 1; count++)
             {
-                Push(new ScriptStack(ScriptStackFlags.Text | flags, 0));
+                _stack.Insert(new ScriptStack(ScriptStackFlags.Text | flags, 0));
             }
 
             do
@@ -1398,8 +1389,8 @@ public sealed partial class Script
 
                 if (initializeAtRunTime)
                 {
-                    Push(new ScriptStack(ScriptStackFlags.Text | flags | ScriptStackFlags.NotInitialized, 0));
-                    EmitInitializer(_count - 1);
+                    _stack.Insert(new ScriptStack(ScriptStackFlags.Text | flags | ScriptStackFlags.NotInitialized, 0));
+                    EmitInitializer(_stack.Count - 1);
                 }
                 else
                 {
@@ -1414,7 +1405,7 @@ public sealed partial class Script
                         text = length > 0 ? literal[..(length - 1)].ToArray() : [];
                     }
 
-                    Push(new ScriptStack(ScriptStackFlags.Text | flags | ScriptStackFlags.Initialized, 0, text));
+                    _stack.Insert(new ScriptStack(ScriptStackFlags.Text | flags | ScriptStackFlags.Initialized, 0, text));
                 }
 
                 count++;
@@ -1436,7 +1427,7 @@ public sealed partial class Script
 
         for (; count < size; count++)
         {
-            Push(new ScriptStack(ScriptStackFlags.Text | flags, 0));
+            _stack.Insert(new ScriptStack(ScriptStackFlags.Text | flags, 0));
         }
 
         _objects[symbol].Count = size;
@@ -1760,7 +1751,7 @@ public sealed partial class Script
         if (_objects.Location(name) >= 0)
             throw ReportError(10, "function redefinition");
 
-        int firstVariable = _count;
+        int firstVariable = _stack.Count;
         ExpectToken("("u8);
         do
         {
@@ -1781,7 +1772,7 @@ public sealed partial class Script
             throw ReportError(13, "extern function code");
 
         TruncateObjects(saved);
-        _objects.Insert(name, new ScriptObject(ScriptObjectKind.Extern, id, firstVariable, _count - firstVariable));
+        _objects.Insert(name, new ScriptObject(ScriptObjectKind.Extern, id, firstVariable, _stack.Count - firstVariable));
         ExpectToken(";"u8);
     }
 
@@ -1794,7 +1785,7 @@ public sealed partial class Script
             throw ReportError(10, "function redefinition");
 
         int codeStart = _codeSize;
-        int firstParameter = _count;
+        int firstParameter = _stack.Count;
         ExpectToken("("u8);
         int parameter = 0;
         do
@@ -1820,13 +1811,13 @@ public sealed partial class Script
         while (TryWord(","u8));
 
         ExpectToken(")"u8);
-        int parameterCount = _count - firstParameter;
+        int parameterCount = _stack.Count - firstParameter;
         if (prototype >= 0)
         {
             if (_objects[prototype].Kind != ScriptObjectKind.Function || _objects[prototype].Count != parameterCount || _objects[prototype].Address != -1)
                 throw ReportError(10, "function redefinition");
 
-            _count = firstParameter;
+            _stack.Count = firstParameter;
         }
 
         int address = -1;

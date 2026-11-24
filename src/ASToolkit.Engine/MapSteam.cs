@@ -138,9 +138,9 @@ public sealed class MapSteam : Map
         }
         else
         {
-            for (int layer = 0; layer < UpdateOrder.UpdatedLayerCount; layer++)
+            for (int layer = 0; layer < UpdatedLayerCount; layer++)
             {
-                var list = _updates.GetLayer(layer);
+                var list = _layers[layer];
                 for (int i = list.Count - 1; i >= 0; i--)
                 {
                     list[i]?.Tact();

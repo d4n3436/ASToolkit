@@ -8,7 +8,7 @@ namespace ASToolkit.Engine;
 public class SpriteList : MyList<Sprite>
 {
     /// <summary>
-    /// Adds a sprite after the last one and takes a reference to it.
+    /// Adds a sprite and takes a reference to it.
     /// </summary>
     /// <param name="sprite">The sprite.</param>
     [EngineRoutine(0x0043de20)]
@@ -19,7 +19,7 @@ public class SpriteList : MyList<Sprite>
     }
 
     /// <summary>
-    /// Removes the last entry of a sprite, moving the last entry into its place, and drops the reference to it.
+    /// Removes a sprite and drops the reference to it.
     /// </summary>
     /// <param name="sprite">The sprite.</param>
     /// <returns><see langword="true"/> if the list held the sprite; otherwise, <see langword="false"/>.</returns>
@@ -42,7 +42,7 @@ public class SpriteList : MyList<Sprite>
     }
 
     /// <summary>
-    /// Removes the entry at an index, moving the last entry into its place, and destroys its sprite.
+    /// Removes the sprite at an index and destroys it.
     /// </summary>
     /// <param name="index">The index.</param>
     /// <returns>1 if the index is outside the list; otherwise, 0.</returns>
@@ -69,7 +69,7 @@ public class SpriteList : MyList<Sprite>
     }
 
     /// <summary>
-    /// Drops the extra references of sprites listed more than once, then removes and destroys every sprite.
+    /// Removes and destroys every sprite.
     /// </summary>
     [EngineRoutine(0x0043dfe0)]
     public void DeleteAll()
@@ -100,7 +100,7 @@ public class SpriteList : MyList<Sprite>
     }
 
     /// <summary>
-    /// Drops the reference to every sprite, removing the sprites that other holders still reference.
+    /// Drops the reference to every sprite.
     /// </summary>
     [EngineRoutine(0x0043e0a0)]
     public new void Release()

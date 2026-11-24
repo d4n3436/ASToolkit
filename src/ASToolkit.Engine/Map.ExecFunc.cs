@@ -241,7 +241,7 @@ public partial class Map : IScriptFunctionHost
                 PushInt((int)Input.ScreenCursor.Y);
                 break;
             case ScriptFunction.SetAutoReBirth:
-                script.Pop();
+                script.Stack.Pop();
                 break;
             case ScriptFunction.CanMoveEngineTo:
                 PopValues(3);
@@ -282,10 +282,10 @@ public partial class Map : IScriptFunctionHost
                 SetCursor(script.PopNumber());
                 break;
             case ScriptFunction.SetStateBar:
-                script.Pop();
+                script.Stack.Pop();
                 break;
             case ScriptFunction.SetGraphDetail:
-                script.Pop();
+                script.Stack.Pop();
                 break;
             case ScriptFunction.MessageText:
                 MessageText(script);
@@ -376,7 +376,7 @@ public partial class Map : IScriptFunctionHost
             case ScriptFunction.SaveDemo:
                 if (!IsPlayingDemo)
                 {
-                    script.Pop();
+                    script.Stack.Pop();
                     Session.IsRecordingNextMap = true;
                 }
 
@@ -463,7 +463,7 @@ public partial class Map : IScriptFunctionHost
                 break;
             case ScriptFunction.FirstSprite:
                 _spriteLayer = 0;
-                _spriteIndex = _updates.GetLayer(0).Count;
+                _spriteIndex = _layers[0].Count;
                 PushSprite(script, FindListedSprite());
                 break;
             case ScriptFunction.NextSprite:
@@ -595,10 +595,10 @@ public partial class Map : IScriptFunctionHost
 
         bool regions = types.HasFlag(OldSpriteType.Region);
         int first = vid is null ? 0 : (int)vid.Layer;
-        int last = vid is null ? UpdateOrder.UpdatedLayerCount : (int)vid.Layer + 1;
+        int last = vid is null ? UpdatedLayerCount : (int)vid.Layer + 1;
         for (int layer = first; layer < last; layer++)
         {
-            var list = _updates.GetLayer(layer);
+            var list = _layers[layer];
             for (int i = list.Count - 1; i >= 0; i--)
             {
                 var sprite = list[i];
@@ -1020,10 +1020,10 @@ public partial class Map : IScriptFunctionHost
         }
 
         int first = vid is null ? 0 : (int)vid.Layer;
-        int last = vid is null ? UpdateOrder.UpdatedLayerCount : (int)vid.Layer + 1;
+        int last = vid is null ? UpdatedLayerCount : (int)vid.Layer + 1;
         for (int layer = first; layer < last; layer++)
         {
-            var list = _updates.GetLayer(layer);
+            var list = _layers[layer];
             for (int i = list.Count - 1; i >= 0; i--)
             {
                 var sprite = list[i];
@@ -1111,12 +1111,12 @@ public partial class Map : IScriptFunctionHost
         return true;
     }
 
-    private VidSprites EnumerateSprites(Vid vid) => new(_updates.GetLayer(vid.Layer), vid);
+    private VidSprites EnumerateSprites(Vid vid) => new(_layers[(int)vid.Layer], vid);
 
     [EngineRoutine(0x0040f9a0)]
     private Sprite? FindListedSprite()
     {
-        var list = _updates.GetLayer(_spriteLayer);
+        var list = _layers[_spriteLayer];
         for (_spriteIndex--; _spriteIndex >= 0; _spriteIndex--)
         {
             var sprite = list[_spriteIndex];
@@ -1134,7 +1134,7 @@ public partial class Map : IScriptFunctionHost
         while (sprite is null && _spriteLayer < LayerCount - 1)
         {
             _spriteLayer++;
-            _spriteIndex = _updates.GetLayer(_spriteLayer).Count;
+            _spriteIndex = _layers[_spriteLayer].Count;
             sprite = FindListedSprite();
         }
 
@@ -1516,7 +1516,7 @@ public partial class Map : IScriptFunctionHost
     private void SetVidSpeed(Vid vid, int value)
     {
         vid.Speed = value == ASToolkit.Engine.Vid.Unlimited ? ASToolkit.Engine.Vid.Unlimited : value * ASToolkit.Engine.Vid.PerMillisecond;
-        foreach (var entry in _updates.GetLayer(vid.Layer))
+        foreach (var entry in _layers[(int)vid.Layer].Items)
         {
             if (entry is not null && entry.Vid == vid && entry.HasExtra)
             {
