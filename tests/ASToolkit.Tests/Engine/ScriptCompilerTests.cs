@@ -40,12 +40,12 @@ public class ScriptCompilerTests
             }
         }
 
-        Assert.Equal(recorded.Objects.Length, compiled.Objects.Length);
-        for (int i = 0; i < compiled.Objects.Length; i++)
+        Assert.Equal(recorded.Objects.Count, compiled.Objects.Count);
+        for (int i = 0; i < compiled.Objects.Count; i++)
         {
             var expected = recorded.Objects[i];
             var actual = compiled.Objects[i];
-            Assert.Equal(expected.Name.ToArray(), actual.Name.ToArray());
+            Assert.Equal(recorded.Objects.Name(i).ToArray(), compiled.Objects.Name(i).ToArray());
             Assert.Equal(expected.Kind, actual.Kind);
             Assert.Equal(expected.Address, actual.Address);
             Assert.Equal(expected.Count, actual.Count);

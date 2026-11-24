@@ -40,7 +40,7 @@ public class AlienShooter2CompilerTests
         var call = Assert.Single(Decode(script, "main"), instruction => instruction.Opcode == ScriptOpcode.Call);
         int function = script.FindCalledFunction(call.Operand);
 
-        Assert.Equal(script.FindObject("f"u8), function);
+        Assert.Equal(script.Objects.Location("f"u8), function);
         Assert.True(script.Objects[function].Address > script.Objects[script.MainIndex].Address);
         Assert.Equal(1, script.Objects[function].Count);
     }
@@ -129,7 +129,7 @@ public class AlienShooter2CompilerTests
 
     private static ScriptInstruction[] Decode(Script script, string function)
     {
-        int index = script.FindObject(Encoding.ASCII.GetBytes(function));
+        int index = script.Objects.Location(Encoding.ASCII.GetBytes(function));
         var instructions = new List<ScriptInstruction>();
         for (int offset = script.Objects[index].Address; offset < script.GetFunctionEnd(index);)
         {

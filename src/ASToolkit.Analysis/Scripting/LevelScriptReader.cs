@@ -117,11 +117,11 @@ public static class LevelScriptReader
             _failCurrentQuest = ScriptCallee.Find(_script, "FailCurQuest"u8);
             _wins = [_win, ScriptCallee.Find(_script, "InstantWin"u8), ScriptCallee.Find(_script, "GoToNextMap"u8)];
             _lights = [ScriptCallee.Find(_script, "ChangeLight"u8), _lightOff, ScriptCallee.Find(_script, "SetGamma"u8)];
-            foreach (var entry in script.Objects)
+            foreach (var (entryName, entry) in script.Objects.Items)
             {
                 if (entry.Kind == ScriptObjectKind.Variable)
                 {
-                    _variableNames[entry.Address] = GameTextEncoding.Cyrillic.GetString(entry.Name.Span);
+                    _variableNames[entry.Address] = GameTextEncoding.Cyrillic.GetString(entryName.Span);
                 }
             }
         }
@@ -191,7 +191,7 @@ public static class LevelScriptReader
 
         private int GetVariable(ReadOnlySpan<byte> name)
         {
-            int found = _script.FindObject(name);
+            int found = _script.Objects.Location(name);
 
             return found >= 0 && _script.Objects[found].Kind == ScriptObjectKind.Variable ? _script.Objects[found].Address : -1;
         }
@@ -401,10 +401,10 @@ public static class LevelScriptReader
         {
             var handlers = new List<ScriptHandler>();
             var objects = _script.Objects;
-            for (int i = 0; i < objects.Length; i++)
+            for (int i = 0; i < objects.Count; i++)
             {
                 var entry = objects[i];
-                var name = entry.Name.Span;
+                var name = objects.Name(i).Span;
                 int separator = name.IndexOf((byte)'_');
                 if (entry.Kind != ScriptObjectKind.Function || entry.Count != 1 || !IsOwn(entry.Address) || separator < 2 || name[0] != 'F' ||
                     !int.TryParse(name[1..separator], out int id) || !(name[(separator + 1)..].SequenceEqual("15"u8) || name[(separator + 1)..].SequenceEqual("16"u8)))

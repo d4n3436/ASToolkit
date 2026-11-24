@@ -51,16 +51,16 @@ internal sealed class MarkedScriptSource : IGameFileSystem
     {
         int start = 0;
         int end = script.Code.Length;
-        foreach (var entry in script.Objects)
+        foreach (var (entryName, entry) in script.Objects.Items)
         {
             if (entry.Kind != ScriptObjectKind.Function)
                 continue;
 
-            if (entry.Name.Span.SequenceEqual(RootMarker))
+            if (entryName.Span.SequenceEqual(RootMarker))
             {
                 end = entry.Address;
             }
-            else if (entry.Name.Span.StartsWith("_IncludeEnd"u8))
+            else if (entryName.Span.StartsWith("_IncludeEnd"u8))
             {
                 start = Math.Max(start, entry.Address + 1);
             }

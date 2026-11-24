@@ -8,24 +8,18 @@ public struct ScriptObject
     /// <summary>
     /// Initializes a new instance of the <see cref="ScriptObject"/> class as a name of a compiled script.
     /// </summary>
-    /// <param name="name">The name.</param>
     /// <param name="kind">The kind of the name.</param>
     /// <param name="address">The first slot, built-in ID or code offset.</param>
     /// <param name="firstVariable">The slot of the first parameter.</param>
     /// <param name="count">The number of parameters or elements.</param>
-    public ScriptObject(ReadOnlyMemory<byte> name, ScriptObjectKind kind, int address, int firstVariable = 0, int count = 0)
+    public ScriptObject(ScriptObjectKind kind, int address, int firstVariable = 0, int count = 0)
     {
-        Name = name;
         Kind = kind;
         Address = address;
         FirstVariable = firstVariable;
         Count = count;
     }
 
-    /// <summary>
-    /// Gets or sets the name of the object.
-    /// </summary>
-    public ReadOnlyMemory<byte> Name { get; set; }
 
     /// <summary>
     /// Gets or sets the kind of the name, such as a variable, an engine function or a script function.

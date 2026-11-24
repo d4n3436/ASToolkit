@@ -1256,18 +1256,18 @@ public partial class Map : IScriptFunctionHost
     private void AddCommand(Sprite sprite, int act, int var1, int var2, int var3)
     {
         var order = CreateAct(act, var1, var2, var3);
-        var orders = sprite.ActionStack.Orders;
+        var orders = sprite.ActionStack.Items;
         for (int i = orders.Length - 1; i >= 0; i--)
         {
             if (orders[i] is { Value: Act.StopMarker, Var1: 0, Var2: 0, Var3: 0 })
             {
-                sprite.ActionStack.Insert(i + 1, order);
+                sprite.ActionStack.InsertBefore(i + 1, order);
 
                 return;
             }
         }
 
-        sprite.ActionStack.Insert(0, order);
+        sprite.ActionStack.InsertFirst(order);
     }
 
     [EngineRoutine(0x00412e80)]

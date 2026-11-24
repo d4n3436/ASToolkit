@@ -60,7 +60,7 @@ public partial class Map
     internal ReadOnlyMemory<byte> GetVariableString(ReadOnlySpan<byte> reference)
     {
         int bracket = reference.IndexOf(ElementStart);
-        int index = Script.FindObject(bracket < 0 ? reference : reference[..bracket]);
+        int index = Script.Objects.Location(bracket < 0 ? reference : reference[..bracket]);
         if (index < 0)
         {
             Session.Error.Write($"!!!ERROR!!! SCRIPT Can't find variable '{MyError.Decode(reference)}' in GetVariableString");

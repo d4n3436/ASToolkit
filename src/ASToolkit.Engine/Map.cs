@@ -807,20 +807,20 @@ public partial class Map : IDisposable
         Script.Load(_fileSystem, scriptPath);
         ShowLoadingStep("Connect script function with VID"u8);
         var objects = Script.Objects;
-        for (int i = 0; i < objects.Length; i++)
+        for (int i = 0; i < objects.Count; i++)
         {
             ref readonly var entry = ref objects[i];
 
             if (entry.Kind == ScriptObjectKind.Function)
             {
-                int hook = GetScriptHook(entry.Name.Span);
+                int hook = GetScriptHook(objects.Name(i).Span);
 
                 if (hook >= 0)
                 {
                     _scriptHooks[hook] = i;
                 }
 
-                ProcessScriptFunctions(entry.Name.Span, i, entry.Count);
+                ProcessScriptFunctions(objects.Name(i).Span, i, entry.Count);
             }
         }
     }

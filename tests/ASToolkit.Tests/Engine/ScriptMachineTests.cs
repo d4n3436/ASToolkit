@@ -104,7 +104,7 @@ public class ScriptMachineTests
               Destroy(copy);
             }
             """);
-        int handler = script.FindObject("F001_14"u8);
+        int handler = script.Objects.Location("F001_14"u8);
 
         int result = script.CallFunction(host, handler, 77, 0, 0);
 
@@ -125,8 +125,8 @@ public class ScriptMachineTests
             """);
         var state = new MemoryStream();
         script.WriteState(state);
-        int name = script.Objects[script.FindObject("name"u8)].Address;
-        int money = script.Objects[script.FindObject("money"u8)].Address;
+        int name = script.Objects[script.Objects.Location("name"u8)].Address;
+        int money = script.Objects[script.Objects.Location("money"u8)].Address;
         script.GetSlot(name).Text = "changed"u8.ToArray();
         script.GetSlot(money).Value = 0;
 

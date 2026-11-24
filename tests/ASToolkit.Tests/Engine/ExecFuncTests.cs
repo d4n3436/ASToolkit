@@ -265,7 +265,7 @@ public class ExecFuncTests
         Assert.Equal(1, Read(script, "deleted"));
         Assert.Equal([242], sprite.Items);
         Assert.Equal(sprite.Link is null ? 0 : 1, Read(script, "link") == 0 ? 0 : 1);
-        Assert.Equal(ActionCode.Stop, sprite.ActionStack.Top.Code);
+        Assert.Equal(ActionCode.Stop, sprite.ActionStack[sprite.ActionStack.Count - 1].Code);
         Assert.Equal(Read(script, "unit"), Read(script, "swapped"));
         Assert.Equal(map.Player, map.Flagman(0));
     }
@@ -366,5 +366,5 @@ public class ExecFuncTests
         return map.Script;
     }
 
-    private static int Read(Script script, string name) => script.GetSlot(script.Objects[script.FindObject(Encoding.ASCII.GetBytes(name))].Address).GetValue();
+    private static int Read(Script script, string name) => script.GetSlot(script.Objects[script.Objects.Location(Encoding.ASCII.GetBytes(name))].Address).GetValue();
 }

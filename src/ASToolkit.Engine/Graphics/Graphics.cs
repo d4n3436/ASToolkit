@@ -57,14 +57,9 @@ public sealed partial class Graphics
     public Gamma GammaFrom { get; set; }
 
     /// <summary>
-    /// Gets the snow, rain and ground snow.
-    /// </summary>
-    public Weather Weather { get; } = new();
-
-    /// <summary>
     /// Gets the 16-bit colors of the brightness levels, in the layout of the device's textures.
     /// </summary>
-    public ReadOnlySpan<ushort> ColorTable => Screen is not null ? Screen.ColorTable : Buffers.IsCreated ? Buffers.ColorTable : Screen.DefaultColorTable;
+    public ReadOnlySpan<ushort> ColorTable => Screen is not null ? EnsureBuffers().ColorTable : Buffers.IsCreated ? Buffers.ColorTable : DefaultColorTable;
 
     /// <summary>
     /// Gets the area of the back buffer the frame is drawn into.
@@ -108,8 +103,6 @@ public sealed partial class Graphics
             if (value is null)
                 return;
 
-            value.Error = Error;
-            value.Owner = this;
             value.Viewport = ToViewportRectangle(Viewport);
         }
     }

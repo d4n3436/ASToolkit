@@ -13,8 +13,7 @@ public sealed partial class Script
 
     private ScriptStack[] _slots = [];
     private int _count;
-    private ScriptObject[] _objects = [];
-    private int _objectCount;
+    private readonly NamedList<ScriptObject> _objects = new();
     private byte[]? _code;
 
     /// <summary>
@@ -31,7 +30,6 @@ public sealed partial class Script
     public Script(ScriptVersion version)
     {
         Version = version;
-        _defineLookup = _defines.GetAlternateLookup<ReadOnlySpan<byte>>();
     }
 
     /// <summary>
@@ -52,7 +50,7 @@ public sealed partial class Script
     /// <summary>
     /// Gets the names of the script.
     /// </summary>
-    public ReadOnlySpan<ScriptObject> Objects => _objects.AsSpan(0, _objectCount);
+    public NamedList<ScriptObject> Objects => _objects;
 
     /// <summary>
     /// Gets the compiled code.
@@ -68,7 +66,16 @@ public sealed partial class Script
         get => _slots[_count - 1].Flags.HasFlag(ScriptStackFlags.Text);
     }
 
-    internal MyError? Error { get; set; }
+    internal MyError? Error
+    {
+        get;
+        set
+        {
+            field = value;
+            _objects.Error = value;
+            _defines.Error = value;
+        }
+    }
 
     private bool IsAlienShooter2 => Version == ScriptVersion.AlienShooter2;
 
@@ -86,21 +93,6 @@ public sealed partial class Script
     /// <returns>The slot.</returns>
     public ref ScriptStack GetSlot(int index) => ref _slots[index];
 
-    /// <summary>
-    /// Finds the last object with the given name.
-    /// </summary>
-    /// <param name="name">The name.</param>
-    /// <returns>The index of the object, or -1 if there isn't one.</returns>
-    public int FindObject(ReadOnlySpan<byte> name)
-    {
-        for (int i = _objectCount - 1; i >= 0; i--)
-        {
-            if (_objects[i].Name.Span.SequenceEqual(name))
-                return i;
-        }
-
-        return -1;
-    }
 
     /// <summary>
     /// Returns the code offset where a function's code ends, at the next function's start.
@@ -111,7 +103,7 @@ public sealed partial class Script
     {
         int start = _objects[index].Address;
         int end = _code?.Length ?? 0;
-        for (int other = 0; other < _objectCount; other++)
+        for (int other = 0; other < _objects.Count; other++)
         {
             ref readonly var entry = ref _objects[other];
             if (entry.Kind == ScriptObjectKind.Function && entry.Address > start && entry.Address < end)
@@ -138,9 +130,9 @@ public sealed partial class Script
     public int FindCalledFunction(int operand)
     {
         if (IsAlienShooter2)
-            return operand >= 0 && operand < _objectCount && _objects[operand].Kind == ScriptObjectKind.Function ? operand : -1;
+            return operand >= 0 && operand < _objects.Count && _objects[operand].Kind == ScriptObjectKind.Function ? operand : -1;
 
-        for (int i = 0; i < _objectCount; i++)
+        for (int i = 0; i < _objects.Count; i++)
         {
             if (_objects[i].Kind == ScriptObjectKind.Function && _objects[i].Address == operand)
                 return i;
@@ -312,7 +304,7 @@ public sealed partial class Script
 
     private bool CanCallFunction(int function)
     {
-        if (function >= _objectCount || function < 0)
+        if (function >= _objects.Count || function < 0)
         {
             Error?.Write($"!!!ERROR!!! SCRIPT Call unexisted function {function}");
 
@@ -322,7 +314,7 @@ public sealed partial class Script
         ref readonly var entry = ref _objects[function];
         if (entry.Kind != ScriptObjectKind.Function)
         {
-            Error?.Write($"!!!ERROR!!!LOGIC: Call unexisted function {MyError.Decode(entry.Name.Span)}()");
+            Error?.Write($"!!!ERROR!!!LOGIC: Call unexisted function {MyError.Decode(_objects.Name(function).Span)}()");
 
             return false;
         }

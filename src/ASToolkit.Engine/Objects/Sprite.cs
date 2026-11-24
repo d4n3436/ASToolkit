@@ -69,7 +69,7 @@ public partial class Sprite
     public Sprite(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
     {
         Map = map;
-        ActionStack = new ActionStack(Map.Session.Error);
+        ActionStack = new MyList<Act>(Map.Session.Error);
         StreamPeriod = 1;
         _direction = direction;
         Vid = vid;
@@ -197,7 +197,7 @@ public partial class Sprite
     /// <summary>
     /// Gets the order stack of the sprite.
     /// </summary>
-    public ActionStack ActionStack { get; }
+    public MyList<Act> ActionStack { get; }
 
     /// <summary>
     /// Gets the direction the sprite faces.
@@ -1158,7 +1158,7 @@ public partial class Sprite
 
             if (order.Target == removed && Act.HasSpriteTarget((ActionCode)order.Value))
             {
-                ActionStack.Replace(i, order with { Value = Act.ForgottenOrder, Var1 = 0, Target = null });
+                ActionStack[i] = order with { Value = Act.ForgottenOrder, Var1 = 0, Target = null };
             }
         }
     }
@@ -1668,7 +1668,7 @@ public partial class Sprite
     internal ReadOnlyMemory<byte> GetTextActions()
     {
         var text = new List<byte>();
-        foreach (var order in ActionStack.Orders)
+        foreach (var order in ActionStack.Items)
         {
             text.Add(unchecked((byte)(order.Value + CommandBias)));
             AppendNumber(text, order.Var1);
@@ -1706,7 +1706,7 @@ public partial class Sprite
                 }
             }
 
-            ActionStack.Push(Map.CreateAct(command - CommandBias, var1, var2, var3));
+            ActionStack.Insert(Map.CreateAct(command - CommandBias, var1, var2, var3));
             text = Map.GetAfter(text, CommandEnd);
         }
     }

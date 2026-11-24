@@ -32,7 +32,7 @@ public sealed class Building : Unit
         switch (act)
         {
             case ActionCode.BackupCommand when Command == Command.Build && PendingBuild.HasValue:
-                ActionStack.Push(new Act((int)ActionCode.BuildUnit, (int)PendingBuild.Value.Vid.Id, 0, 0));
+                ActionStack.Insert(new Act((int)ActionCode.BuildUnit, (int)PendingBuild.Value.Vid.Id, 0, 0));
                 SetCommand(Command.None);
 
                 return 0;

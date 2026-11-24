@@ -20,18 +20,18 @@ public sealed partial class Script
             _slots[i].Write(stream, number);
         }
 
-        BinaryPrimitives.WriteInt32LittleEndian(number, _objectCount);
+        BinaryPrimitives.WriteInt32LittleEndian(number, _objects.Count);
         stream.Write(number);
-        for (int i = 0; i < _objectCount; i++)
+        for (int i = 0; i < _objects.Count; i++)
         {
             ref readonly var entry = ref _objects[i];
-            stream.Write(entry.Name.Span);
+            stream.Write(_objects.Name(i).Span);
             stream.WriteByte(0);
             var record = new ScriptNameRecord(entry.Kind, entry.Address, entry.FirstVariable, entry.Count);
             stream.Write(MemoryMarshal.AsBytes(new ReadOnlySpan<ScriptNameRecord>(in record)));
         }
 
-        for (int i = 0; i < _objectCount; i++)
+        for (int i = 0; i < _objects.Count; i++)
         {
             stream.Write(_objects[i].Text.Span);
             stream.WriteByte(0);
@@ -52,13 +52,13 @@ public sealed partial class Script
             _slots[i].Read(data, ref offset);
         }
 
-        _objectCount = BinaryPrimitives.ReadInt32LittleEndian(data.Span[offset..]);
+        _objects.Count = BinaryPrimitives.ReadInt32LittleEndian(data.Span[offset..]);
         offset += sizeof(int);
-        EnsureObjectCapacity(_objectCount);
-        for (int i = 0; i < _objectCount; i++)
+        _objects.Expand(_objects.Count);
+        for (int i = 0; i < _objects.Count; i++)
         {
+            _objects.Entry(i).Name = ReadString(data, ref offset);
             ref var entry = ref _objects[i];
-            entry.Name = ReadString(data, ref offset);
             ref readonly var record = ref MemoryMarshal.AsRef<ScriptNameRecord>(data.Span[offset..]);
             entry.Kind = record.Kind;
             entry.Address = record.Address;
@@ -67,7 +67,7 @@ public sealed partial class Script
             offset += Unsafe.SizeOf<ScriptNameRecord>();
         }
 
-        for (int i = 0; i < _objectCount; i++)
+        for (int i = 0; i < _objects.Count; i++)
         {
             _objects[i].Text = ReadString(data, ref offset);
         }
@@ -80,14 +80,5 @@ public sealed partial class Script
         int start = offset;
         var text = Resource.ReadText(data.Span, ref offset);
         return text.Overlaps(data.Span) ? data.Slice(start, text.Length) : text.ToArray();
-    }
-
-    [EngineRoutine(0x00425080)]
-    private void EnsureObjectCapacity(int count)
-    {
-        if (_objects.Length < count)
-        {
-            Array.Resize(ref _objects, count);
-        }
     }
 }

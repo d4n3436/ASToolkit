@@ -15,8 +15,7 @@ public sealed partial class Script
     private const int UnsizedArray = 999999;
     private const int ErrorContextLength = 60;
 
-    private readonly Dictionary<byte[], byte[]> _defines = new(ScriptNameComparer.Instance);
-    private readonly Dictionary<byte[], byte[]>.AlternateLookup<ReadOnlySpan<byte>> _defineLookup;
+    private readonly NamedList<ReadOnlyMemory<byte>> _defines = new();
     private readonly byte[] _name = new byte[MaxNameLength + 1];
     private IGameFileSystem? _fileSystem;
     private byte[] _text = [];
@@ -73,9 +72,9 @@ public sealed partial class Script
         int size = BinaryPrimitives.ReadInt32LittleEndian(file.Span[offset..]);
         offset += sizeof(int);
         _code = file.Slice(offset, size).ToArray();
-        for (int i = 0; i < _objectCount; i++)
+        for (int i = 0; i < _objects.Count; i++)
         {
-            if (_objects[i].Name.Span.SequenceEqual("main"u8))
+            if (_objects.Name(i).Span.SequenceEqual("main"u8))
             {
                 MainIndex = i;
             }
@@ -89,10 +88,9 @@ public sealed partial class Script
     {
         _code = null;
         Array.Clear(_slots);
-        Array.Clear(_objects);
+        _objects.Release();
         _count = 0;
-        _objectCount = 0;
-        _defines.Clear();
+        _defines.Release();
         _codeSize = 0;
         _ifDepth = 0;
         _isSubstitutionOff = false;
@@ -123,7 +121,7 @@ public sealed partial class Script
         _codeBuffer = ArrayPool<byte>.Shared.Rent(CodeCapacity);
         _codeSize = 0;
         EnsureSlotCapacity(MinCapacity);
-        EnsureObjectCapacity(MinCapacity);
+        _objects.Expand(MinCapacity);
         _line = 0;
         try
         {
@@ -140,8 +138,8 @@ public sealed partial class Script
                 _text = [];
             }
 
-            Error?.Write($"LoadScript::ByteCode={_codeSize} varNo={_objectCount} DefineNo={_defines.Count} stackNo={_count}");
-            _defines.Clear();
+            Error?.Write($"LoadScript::ByteCode={_codeSize} varNo={_objects.Count} DefineNo={_defines.Count} stackNo={_count}");
+            _defines.Release();
             if (_codeSize == 0)
             {
                 Reset();
@@ -293,9 +291,10 @@ public sealed partial class Script
             length++;
         }
 
-        if (_defineLookup.TryGetValue(_text.AsSpan(_position, length), out byte[]? found))
+        int found = _defines.Location(_text.AsSpan(_position, length));
+        if (found >= 0)
         {
-            var value = found.AsSpan();
+            var value = _defines[found].Span;
             _position = _position + length - value.Length;
             value.CopyTo(_text.AsSpan(_position));
         }
@@ -314,7 +313,7 @@ public sealed partial class Script
                 _isSubstitutionOff = true;
                 var name = ReadName();
                 _isSubstitutionOff = false;
-                bool defined = FindObject(name) >= 0 || _defineLookup.ContainsKey(name);
+                bool defined = _objects.Location(name) >= 0 || _defines.Location(name) >= 0;
                 if (defined == negated)
                 {
                     skip = _ifDepth;
@@ -963,7 +962,7 @@ public sealed partial class Script
         }
         else
         {
-            int sized = FindObject(ReadName());
+            int sized = _objects.Location(ReadName());
             if (sized < 0 || _objects[sized].Kind != ScriptObjectKind.Variable)
                 throw ReportError(4, "sizeof parameter");
 
@@ -1008,7 +1007,7 @@ public sealed partial class Script
     private bool ParseName(ScriptOpcode access)
     {
         var name = ReadName();
-        int found = FindObject(name);
+        int found = _objects.Location(name);
         if (found < 0)
         {
             if (_text[_position] != ':')
@@ -1016,7 +1015,7 @@ public sealed partial class Script
 
             byte[] label = name.ToArray();
             _position++;
-            AddObject(new ScriptObject(label, ScriptObjectKind.Label, _codeSize));
+            _objects.Insert(label, new ScriptObject(ScriptObjectKind.Label, _codeSize));
             return false;
         }
 
@@ -1228,10 +1227,10 @@ public sealed partial class Script
         }
 
         var name = ReadName();
-        if (FindObject(name) >= 0)
+        if (_objects.Location(name) >= 0)
             throw ReportError(10, $"int redefinition '{Decode(name)}'");
 
-        int symbol = AddObject(new ScriptObject(name.ToArray(), ScriptObjectKind.Variable, _count));
+        int symbol = _objects.Insert(name.ToArray(), new ScriptObject(ScriptObjectKind.Variable, _count));
         int size;
         if (TryWord("["u8))
         {
@@ -1363,7 +1362,7 @@ public sealed partial class Script
         }
 
         var name = ReadName();
-        if (FindObject(name) >= 0)
+        if (_objects.Location(name) >= 0)
             throw ReportError(10, $"string redifinition '{Decode(name)}'");
 
         byte[] symbolName = name.ToArray();
@@ -1376,7 +1375,7 @@ public sealed partial class Script
             ExpectToken("]"u8);
         }
 
-        int symbol = AddObject(new ScriptObject(symbolName, ScriptObjectKind.Variable, _count));
+        int symbol = _objects.Insert(symbolName, new ScriptObject(ScriptObjectKind.Variable, _count));
         Span<byte> literal = stackalloc byte[MaxNameLength + 1];
         int count = 0;
         if (TryWord("="u8))
@@ -1457,18 +1456,6 @@ public sealed partial class Script
         return _codeBuffer.AsSpan(start + 1, length).ToArray();
     }
 
-    [EngineRoutine(0x00424a20)]
-    private int AddObject(ScriptObject entry)
-    {
-        if (_objectCount >= _objects.Length)
-        {
-            Array.Resize(ref _objects, _objects.Length * 2 + 4);
-        }
-
-        _objects[_objectCount] = entry;
-
-        return _objectCount++;
-    }
 
     [EngineRoutine(0x00422030)]
     private void ParseExpressionList()
@@ -1616,10 +1603,10 @@ public sealed partial class Script
     private void ParseGoto()
     {
         var name = ReadName();
-        int found = FindObject(name);
+        int found = _objects.Location(name);
         if (found < 0)
         {
-            found = AddObject(new ScriptObject(name.ToArray(), ScriptObjectKind.PendingLabel, _codeSize + 1));
+            found = _objects.Insert(name.ToArray(), new ScriptObject(ScriptObjectKind.PendingLabel, _codeSize + 1));
         }
         else if (_objects[found].Kind == ScriptObjectKind.PendingLabel)
             throw ReportError(10, $"second use undefined label '{Decode(name)}'");
@@ -1631,7 +1618,7 @@ public sealed partial class Script
 
     private void ParseBlock(List<int>? breaks)
     {
-        int saved = _objectCount;
+        int saved = _objects.Count;
         while (!TryWord("}"u8))
         {
             ParseStatement(breaks);
@@ -1644,11 +1631,11 @@ public sealed partial class Script
     {
         if (count < 1)
         {
-            _objectCount = 0;
+            _objects.Count = 0;
         }
-        else if (count < _objectCount)
+        else if (count < _objects.Count)
         {
-            _objectCount = count;
+            _objects.Count = count;
         }
     }
 
@@ -1704,17 +1691,28 @@ public sealed partial class Script
         _isSubstitutionOff = true;
         byte[] name = ReadName().ToArray();
         _isSubstitutionOff = false;
-        _defines[name] = ReadDefineLine();
+        var value = ReadDefineLine();
+        int found = _defines.Location(name);
+        if (found >= 0)
+        {
+            _defines[found] = value;
+        }
+        else
+        {
+            _defines.Insert(name, value);
+        }
     }
 
     private void ParseUndef()
     {
         _position += 6;
         _isSubstitutionOff = true;
-        bool found = _defineLookup.Remove(ReadName());
+        int found = _defines.Location(ReadName());
         _isSubstitutionOff = false;
-        if (!found)
+        if (found < 0)
             throw ReportError(4, "#undef parameters");
+
+        _defines.DeleteNumber(found);
     }
 
     private void ParseInclude()
@@ -1757,9 +1755,9 @@ public sealed partial class Script
 
     private void ParseExtern()
     {
-        int saved = _objectCount;
+        int saved = _objects.Count;
         byte[] name = ReadName().ToArray();
-        if (FindObject(name) >= 0)
+        if (_objects.Location(name) >= 0)
             throw ReportError(10, "function redefinition");
 
         int firstVariable = _count;
@@ -1783,15 +1781,15 @@ public sealed partial class Script
             throw ReportError(13, "extern function code");
 
         TruncateObjects(saved);
-        AddObject(new ScriptObject(name, ScriptObjectKind.Extern, id, firstVariable, _count - firstVariable));
+        _objects.Insert(name, new ScriptObject(ScriptObjectKind.Extern, id, firstVariable, _count - firstVariable));
         ExpectToken(";"u8);
     }
 
     private void ParseFunction()
     {
-        int objectCount = _objectCount;
+        int objectCount = _objects.Count;
         byte[] functionName = ReadName().ToArray();
-        int prototype = FindObject(functionName);
+        int prototype = _objects.Location(functionName);
         if (prototype >= 0 && !IsAlienShooter2)
             throw ReportError(10, "function redefinition");
 
@@ -1814,7 +1812,7 @@ public sealed partial class Script
 
             if (prototype >= 0)
             {
-                _objects[_objectCount - 1].Address = _objects[prototype].FirstVariable + parameter;
+                _objects[_objects.Count - 1].Address = _objects[prototype].FirstVariable + parameter;
             }
 
             parameter++;
@@ -1852,7 +1850,7 @@ public sealed partial class Script
         TruncateObjects(objectCount);
         if (prototype < 0)
         {
-            int index = AddObject(new ScriptObject(functionName, ScriptObjectKind.Function, address, firstParameter, parameterCount));
+            int index = _objects.Insert(functionName, new ScriptObject(ScriptObjectKind.Function, address, firstParameter, parameterCount));
             if (functionName.AsSpan().SequenceEqual("main"u8))
             {
                 MainIndex = index;

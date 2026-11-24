@@ -199,7 +199,7 @@ public partial class Sprite
             }
             else
             {
-                var order = ActionStack.Top;
+                var order = ActionStack[ActionStack.Count - 1];
                 state = Animation;
 
                 if (order.Value > Act.LastState &&

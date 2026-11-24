@@ -7,7 +7,7 @@ namespace ASToolkit.Engine;
 /// <summary>
 /// Represents the back buffer and the software depth buffer that a frame is drawn into.
 /// </summary>
-public sealed partial class Screen
+public sealed class Screen
 {
     private const int DepthSlackRows = 4;
 
@@ -94,10 +94,6 @@ public sealed partial class Screen
     /// </summary>
     public Span<ushort> Depth => _depth ??= new ushort[DepthWidth * (Size.Height + DepthSlackRows)];
 
-    /// <summary>
-    /// Gets or sets which of the two light buffers the next light draws to.
-    /// </summary>
-    public int LightPhase { get; set; }
 
     /// <summary>
     /// Writes the back buffer as opaque pixels, row by row from the top.

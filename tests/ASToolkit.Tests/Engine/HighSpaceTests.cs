@@ -20,7 +20,7 @@ public class HighSpaceTests
         var script = new Script();
 
         Assert.True(script.Load(CreateSource(HighSpace), ScriptPath));
-        Assert.True(script.FindObject("b"u8) >= 0);
+        Assert.True(script.Objects.Location("b"u8) >= 0);
     }
 
     [Theory]
@@ -43,7 +43,7 @@ public class HighSpaceTests
         var fileSystem = new MemoryWriteOverlay(new GameFolder(AppContext.BaseDirectory));
         fileSystem.Set(ScriptPath, Join("int a"u8, letter, ";\nmain() { }"u8));
         Assert.True(script.Load(fileSystem, ScriptPath));
-        Assert.True(script.FindObject([(byte)'a', letter]) >= 0);
+        Assert.True(script.Objects.Location([(byte)'a', letter]) >= 0);
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class HighSpaceTests
         var fileSystem = new MemoryWriteOverlay(new GameFolder(AppContext.BaseDirectory));
         fileSystem.Set(ScriptPath, Join("string s = \"\\1"u8, ElLetter, "3\";\nmain() { }"u8));
         Assert.True(script.Load(fileSystem, ScriptPath));
-        Assert.Equal([0x1b], script.GetSlot(script.Objects[script.FindObject("s"u8)].Address).Text.ToArray());
+        Assert.Equal([0x1b], script.GetSlot(script.Objects[script.Objects.Location("s"u8)].Address).Text.ToArray());
     }
 
     [Fact]

@@ -19,11 +19,11 @@ public class ExportDeclarationTests
         fileSystem.Set(scriptPath, "#include \"maps\\export.lgc\"\nmain()\n{\n}\n"u8.ToArray());
         Assert.True(script.Load(fileSystem, scriptPath));
         var externs = new Dictionary<int, string>();
-        foreach (var name in script.Objects)
+        foreach (var (nameName, name) in script.Objects.Items)
         {
             if (name.Kind == ScriptObjectKind.Extern)
             {
-                externs[name.Address] = Encoding.ASCII.GetString(name.Name.Span);
+                externs[name.Address] = Encoding.ASCII.GetString(nameName.Span);
             }
         }
 

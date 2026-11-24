@@ -157,7 +157,7 @@ public sealed class MapSteam : Map
                 Action(banner, ActionCode.SetBehave, 1);
                 banner.SetTextItems(PresentationText.ToArray());
                 Action(banner, ActionCode.Pause, PresentationDuration);
-                banner.ActionStack.Insert(0, new Act((int)SpriteAnimation.Death, 0, 0, 0));
+                banner.ActionStack.InsertFirst(new Act((int)SpriteAnimation.Death, 0, 0, 0));
             }
 
             foreach (var controller in _players)

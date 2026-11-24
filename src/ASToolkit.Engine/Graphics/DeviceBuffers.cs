@@ -14,7 +14,7 @@ internal sealed class DeviceBuffers
 
     public ushort[] Alpha { get; set; } = [];
 
-    public ushort[] ColorTable { get; set; } = new ushort[Screen.ColorTableLength];
+    public ushort[] ColorTable { get; set; } = new ushort[Graphics.ColorTableLength];
 
     public bool IsCreated { get; set; }
 }

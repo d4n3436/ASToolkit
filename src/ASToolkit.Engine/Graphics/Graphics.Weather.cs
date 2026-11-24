@@ -7,10 +7,13 @@ namespace ASToolkit.Engine;
 
 public sealed partial class Graphics
 {
+    private const int MaxSnowflakes = 1000;
+    private const int SnowflakeVertexCount = 6;
+    private const int MaxRaindrops = 250;
+    private const int RaindropVertexCount = 2;
+    private const float NoWind = 99999;
     private const int SnowGrowthShift = 7;
     private const int SnowAgeLimit = 0x100;
-    private const int FullSnow = Weather.MaxSnowflakes;
-    private const int FullRain = Weather.MaxRaindrops;
     private const int SnowfallSpawnRows = 0x32;
     private const uint SnowflakeColor = 0xffffffff;
     private const uint RainHeadColor = 0x70e0e0ff;
@@ -36,6 +39,20 @@ public sealed partial class Graphics
     private const int SnowEdgeReach = 6;
     private const int SnowAgeShift = 3;
 
+    private readonly WeatherVertex[] _snowflakes = new WeatherVertex[MaxSnowflakes * SnowflakeVertexCount];
+    private readonly WeatherVertex[] _raindrops = new WeatherVertex[MaxRaindrops * RaindropVertexCount];
+    private int _snowflakeCount;
+    private int _raindropCount;
+    private int _groundSnowStart;
+    private int _groundSnowAge;
+    private float _snowWind;
+    private Vector2 _snowCamera;
+    private byte _snowWindDirection;
+    private float _snowWindSpeed = NoWind;
+    private float _rainWind;
+    private byte _rainWindDirection;
+    private float _rainWindSpeed = NoWind;
+
     [EngineRoutine(0x004322a0)]
     private void UpdateGroundSnow(Map map)
     {
@@ -44,14 +61,14 @@ public sealed partial class Graphics
 
         if (!Environment.HasFlag(MapEnvironment.GroundSnow))
         {
-            Weather.GroundSnowStart = map.Time;
-            Weather.GroundSnowAge = 0;
+            _groundSnowStart = map.Time;
+            _groundSnowAge = 0;
             return;
         }
 
-        if (Weather.GroundSnowAge < SnowAgeLimit)
+        if (_groundSnowAge < SnowAgeLimit)
         {
-            Weather.GroundSnowAge = (map.Time - Weather.GroundSnowStart) >>> SnowGrowthShift;
+            _groundSnowAge = (map.Time - _groundSnowStart) >>> SnowGrowthShift;
         }
 
         if (Screen is null)
@@ -59,9 +76,9 @@ public sealed partial class Graphics
 
         var size = Screen.Size;
         var start = new Point(-(int)map.Camera.X & SnowCellMask, -(int)map.Camera.Y & SnowCellMask);
-        var ramp = Screen.ColorTable;
-        var texture = Screen.TextureBuffer;
-        var format = Screen.TextureFormat;
+        var ramp = EnsureBuffers().ColorTable;
+        var texture = TextureBuffer;
+        var format = TextureFormat;
         bool isPalette = format == VidPixelFormat.P8;
         var depth = Screen.Depth;
         int depthWidth = Screen.DepthWidth;
@@ -77,11 +94,11 @@ public sealed partial class Graphics
                 if (up > SnowEdgeReach)
                 {
                     int down = Math.Abs(depth[index] - depth[index + SnowCell * depthWidth]);
-                    level = down < SnowEdgeReach + 1 ? (SnowEdgeReach - down) * Weather.GroundSnowAge >> SnowAgeShift : -1;
+                    level = down < SnowEdgeReach + 1 ? (SnowEdgeReach - down) * _groundSnowAge >> SnowAgeShift : -1;
                 }
                 else
                 {
-                    level = (SnowEdgeReach - up) * Weather.GroundSnowAge >> SnowAgeShift;
+                    level = (SnowEdgeReach - up) * _groundSnowAge >> SnowAgeShift;
                 }
 
                 int column = x >> 2;
@@ -93,7 +110,7 @@ public sealed partial class Graphics
 
         SetRenderState(RenderState.SpecularEnable, 0);
         SetAlphaBlend(BlendFactor.One, BlendFactor.InverseSourceColor);
-        new Texture(texture, new Size(SnowTextureSize, SnowTextureSize), format, Screen.TexturePalette).DrawFlatQuad(Screen, new Rectangle(Point.Empty, Screen.Size),
+        new Texture(texture, new Size(SnowTextureSize, SnowTextureSize), format, TexturePalette).DrawFlatQuad(Screen, new Rectangle(Point.Empty, Screen.Size),
             new Rectangle(0, 0, size.Width / SnowCell, size.Height / SnowCell), default, Blend);
     }
 
@@ -102,7 +119,7 @@ public sealed partial class Graphics
     {
         if (!Environment.HasFlag(MapEnvironment.StopSnow) && !Environment.HasFlag(MapEnvironment.BornSnow))
         {
-            Weather.SnowflakeCount = 0;
+            _snowflakeCount = 0;
 
             return;
         }
@@ -113,21 +130,21 @@ public sealed partial class Graphics
         var view = map.Session.Graphics.Viewport;
         float screenRight = view.Right;
         float screenBottom = view.Bottom;
-        var flakes = Weather.Snowflakes;
+        var flakes = _snowflakes.AsSpan();
 
-        if (Weather.SnowWindDirection != WindDirection.Value || !Weather.SnowWindSpeed.IsExactly(WindSpeed))
+        if (_snowWindDirection != WindDirection.Value || !_snowWindSpeed.IsExactly(WindSpeed))
         {
-            Weather.SnowWind = WindDirection.Sine * WindSpeed * WindScale;
-            Weather.SnowWindDirection = WindDirection.Value;
-            Weather.SnowWindSpeed = WindSpeed;
+            _snowWind = WindDirection.Sine * WindSpeed * WindScale;
+            _snowWindDirection = WindDirection.Value;
+            _snowWindSpeed = WindSpeed;
         }
 
-        Weather.SnowflakeCount = StepCount(Weather.SnowflakeCount, FullSnow, MapEnvironment.Snow, MapEnvironment.BornSnow, MapEnvironment.StopSnow);
+        _snowflakeCount = StepCount(_snowflakeCount, MaxSnowflakes, MapEnvironment.Snow, MapEnvironment.BornSnow, MapEnvironment.StopSnow);
 
         int spawned = 0;
-        for (int i = 0; i < Weather.SnowflakeCount; i++)
+        for (int i = 0; i < _snowflakeCount; i++)
         {
-            var flake = flakes.Slice(i * Weather.SnowflakeVertexCount, Weather.SnowflakeVertexCount);
+            var flake = flakes.Slice(i * SnowflakeVertexCount, SnowflakeVertexCount);
 
             if (flake[0].Color == 0 || flake[0].Position.Z < MinDepth)
             {
@@ -150,7 +167,7 @@ public sealed partial class Graphics
             }
 
             float fall = (flake[1].Position.Z - flake[0].Position.Z - DepthPerLength) * map.FrameTime * SnowFallRate;
-            var offset = new Vector2((Weather.SnowWind * fall + 50f - map.Random.Next() % DriftRange) * SnowDrift, fall) - (Weather.SnowCamera + map.Camera);
+            var offset = new Vector2((_snowWind * fall + 50f - map.Random.Next() % DriftRange) * SnowDrift, fall) - (_snowCamera + map.Camera);
             float dz = fall * DepthPerLength;
 
             if (offset.X + flake[0].Position.X < view.Left - WrapMargin)
@@ -174,24 +191,24 @@ public sealed partial class Graphics
             }
 
             var step = new Vector3(offset, -dz);
-            for (int vertex = 0; vertex < Weather.SnowflakeVertexCount; vertex++)
+            for (int vertex = 0; vertex < SnowflakeVertexCount; vertex++)
             {
                 flake[vertex].Position += step;
             }
         }
 
-        Weather.SnowCamera = -map.Camera;
+        _snowCamera = -map.Camera;
 
         int slot = 0;
-        for (int i = 0; i < Weather.SnowflakeCount; i++)
+        for (int i = 0; i < _snowflakeCount; i++)
         {
             if (map.Random.Next() % TwinkleOdds != 0)
                 continue;
 
-            var flake = flakes.Slice(slot * Weather.SnowflakeVertexCount, Weather.SnowflakeVertexCount);
+            var flake = flakes.Slice(slot * SnowflakeVertexCount, SnowflakeVertexCount);
             float centerX = (flake[1].Position.X + flake[0].Position.X) * 0.5f;
             float centerY = (flake[1].Position.Y + flake[0].Position.Y) * 0.5f;
-            for (int vertex = 0; vertex < Weather.SnowflakeVertexCount; vertex++)
+            for (int vertex = 0; vertex < SnowflakeVertexCount; vertex++)
             {
                 var position = flake[vertex].Position;
                 flake[vertex].Position = position with { X = centerX + position.Y - centerY, Y = position.X + centerY - centerX };
@@ -200,14 +217,14 @@ public sealed partial class Graphics
             slot++;
         }
 
-        if (Weather.SnowflakeCount > 0)
+        if (_snowflakeCount > 0)
         {
             SetAlphaBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
         }
 
         if (Screen is not null)
         {
-            ScreenPrimitives.DrawLines(Screen, Weather.SnowLines);
+            ScreenPrimitives.DrawLines(Screen, _snowflakes.AsSpan(0, _snowflakeCount * 2));
         }
     }
 
@@ -216,7 +233,7 @@ public sealed partial class Graphics
     {
         if (!Environment.HasFlag(MapEnvironment.StopRain) && !Environment.HasFlag(MapEnvironment.BornRain))
         {
-            Weather.RaindropCount = 0;
+            _raindropCount = 0;
 
             return;
         }
@@ -227,39 +244,39 @@ public sealed partial class Graphics
         var view = map.Session.Graphics.Viewport;
         float screenWidth = map.Session.ScreenSize.Width;
         float screenBottom = view.Bottom;
-        var drops = Weather.Raindrops;
+        var drops = _raindrops.AsSpan();
 
-        if (Weather.RainWindDirection != WindDirection.Value || !Weather.RainWindSpeed.IsExactly(WindSpeed))
+        if (_rainWindDirection != WindDirection.Value || !_rainWindSpeed.IsExactly(WindSpeed))
         {
             float wind = WindDirection.Sine * WindSpeed * WindScale;
-            if (0 < Weather.RaindropCount)
+            if (0 < _raindropCount)
             {
-                float change = wind - Weather.RainWind;
-                for (int i = 0; i < Weather.RaindropCount; i++)
+                float change = wind - _rainWind;
+                for (int i = 0; i < _raindropCount; i++)
                 {
-                    var drop = drops.Slice(i * Weather.RaindropVertexCount, Weather.RaindropVertexCount);
+                    var drop = drops.Slice(i * RaindropVertexCount, RaindropVertexCount);
                     var tail = drop[1].Position;
                     drop[1].Position = tail with { X = (tail.Y - drop[0].Position.Y) * change * RainSlant + tail.X };
                 }
             }
 
-            Weather.RainWind = wind;
-            Weather.RainWindDirection = WindDirection.Value;
-            Weather.RainWindSpeed = WindSpeed;
+            _rainWind = wind;
+            _rainWindDirection = WindDirection.Value;
+            _rainWindSpeed = WindSpeed;
         }
 
-        Weather.RaindropCount = StepCount(Weather.RaindropCount, FullRain, MapEnvironment.Rain, MapEnvironment.BornRain, MapEnvironment.StopRain);
+        _raindropCount = StepCount(_raindropCount, MaxRaindrops, MapEnvironment.Rain, MapEnvironment.BornRain, MapEnvironment.StopRain);
 
         int spawned = 0;
-        for (int i = 0; i < Weather.RaindropCount; i++)
+        for (int i = 0; i < _raindropCount; i++)
         {
-            var drop = drops.Slice(i * Weather.RaindropVertexCount, Weather.RaindropVertexCount);
+            var drop = drops.Slice(i * RaindropVertexCount, RaindropVertexCount);
 
             if (drop[0].Color == 0 || drop[0].Position.X < view.Left || view.Right <= drop[0].Position.X || drop[0].Position.Y < view.Top || screenBottom <= drop[0].Position.Y || drop[0].Position.Z < MinDepth)
             {
                 spawned++;
                 float length = map.Random.Next() % RaindropLengthRange + 15f;
-                float slant = Weather.RainWind * length;
+                float slant = _rainWind * length;
                 float x = map.Random.Next() * (view.Right - 1f) * GameRandom.UnitScale;
                 float reach = spawned < SnowfallSpawnRows ? SpawnBand : screenBottom;
                 float y = map.Random.Next() * reach * GameRandom.UnitScale;
@@ -271,7 +288,7 @@ public sealed partial class Graphics
             }
 
             float fall = (drop[1].Position.Z - drop[0].Position.Z) * map.FrameTime * RainFallRate;
-            float shift = Weather.RainWind * fall * RainSlant;
+            float shift = _rainWind * fall * RainSlant;
             if (shift + drop[0].Position.X < 0f)
             {
                 shift += screenWidth;
@@ -283,20 +300,20 @@ public sealed partial class Graphics
             }
 
             var step = new Vector3(shift, fall, -(fall * DepthPerLength));
-            for (int vertex = 0; vertex < Weather.RaindropVertexCount; vertex++)
+            for (int vertex = 0; vertex < RaindropVertexCount; vertex++)
             {
                 drop[vertex].Position += step;
             }
         }
 
-        if (Weather.RaindropCount > 0)
+        if (_raindropCount > 0)
         {
             SetAlphaBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
         }
 
         if (Screen is not null)
         {
-            ScreenPrimitives.DrawLines(Screen, Weather.RainLines);
+            ScreenPrimitives.DrawLines(Screen, _raindrops.AsSpan(0, _raindropCount * RaindropVertexCount));
         }
     }
 

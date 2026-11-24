@@ -83,7 +83,7 @@ internal sealed class EnemyStock
         if (_unbuilt.TryGetValue(builder, out var cached) && cached.Key == key)
             return cached.Count;
 
-        int count = (pending is not null && IsCountedObject(pending.Id) ? 1 : 0) + MeasureUnbuilt(builder.ActionStack.Orders);
+        int count = (pending is not null && IsCountedObject(pending.Id) ? 1 : 0) + MeasureUnbuilt(builder.ActionStack.Items);
         _unbuilt[builder] = (key, count);
 
         return count;

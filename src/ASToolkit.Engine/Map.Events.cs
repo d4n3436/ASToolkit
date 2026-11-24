@@ -43,7 +43,7 @@ public partial class Map
     /// <param name="element">The element of an array variable.</param>
     public void WriteScriptNumber(ReadOnlySpan<byte> variable, int value, int element = 0)
     {
-        int index = Script.FindObject(variable);
+        int index = Script.Objects.Location(variable);
 
         if (index >= 0)
         {
@@ -59,7 +59,7 @@ public partial class Map
     /// <returns>The number, or 0 if the variable does not exist.</returns>
     public int ReadScriptNumber(ReadOnlySpan<byte> variable, int element = 0)
     {
-        int index = Script.FindObject(variable);
+        int index = Script.Objects.Location(variable);
 
         return index < 0 ? 0 : Script.GetSlot(Script.Objects[index].Address + element).GetValue();
     }

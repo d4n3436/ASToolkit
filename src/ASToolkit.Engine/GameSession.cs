@@ -211,13 +211,13 @@ public sealed class GameSession : IDisposable
     {
         var highColor = textures.HighFormat == VidPixelFormat.R5G6B5 ? HighColorFormat.Rgb565 : HighColorFormat.Rgb555;
         int index = 0;
-        for (int top = Screen.ColorTableGroup; top <= byte.MaxValue + 1; top += Screen.ColorTableGroup)
+        for (int top = Graphics.ColorTableGroup; top <= byte.MaxValue + 1; top += Graphics.ColorTableGroup)
         {
-            for (int i = 0; i < Screen.ColorTableGroup; i++)
+            for (int i = 0; i < Graphics.ColorTableGroup; i++)
             {
-                int red = Math.Clamp(top + Screen.ColorTableOffsets[i * 3], 0, byte.MaxValue);
-                int green = Math.Clamp(top + Screen.ColorTableOffsets[i * 3 + 1], 0, byte.MaxValue);
-                int blue = Math.Clamp(top + Screen.ColorTableOffsets[i * 3 + 2], 0, byte.MaxValue);
+                int red = Math.Clamp(top + Graphics.ColorTableOffsets[i * 3], 0, byte.MaxValue);
+                int green = Math.Clamp(top + Graphics.ColorTableOffsets[i * 3 + 1], 0, byte.MaxValue);
+                int blue = Math.Clamp(top + Graphics.ColorTableOffsets[i * 3 + 2], 0, byte.MaxValue);
                 textures.ColorTable[index++] = highColor.Pack((uint)(red << 16 | green << 8 | blue));
             }
         }

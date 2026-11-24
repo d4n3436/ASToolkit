@@ -6,6 +6,10 @@ namespace ASToolkit.Engine;
 
 public sealed partial class Graphics
 {
+    internal const int ColorTableLength = 256;
+    internal const int TextureSide = 256;
+    internal const int ColorTableGroup = 8;
+    private const int GrayLength = 256;
     internal const int VideoMemory = 8000000;
     internal const VidPixelFormat DesktopFormat = VidPixelFormat.X8R8G8B8;
     internal const bool IsPowerOfTwoRequired = false;
@@ -15,6 +19,8 @@ public sealed partial class Graphics
     internal const bool IsModulate2XSupported = true;
     internal const bool IsDotProduct3Supported = true;
     internal const int DevicePixelShaderVersion = unchecked((int)0xffff0104);
+
+    private static readonly ushort[] DefaultTable = CreateColorTable(HighColorFormat.Rgb565);
 
     internal static readonly bool CanRenderWindowed = true;
     internal static readonly bool IsNonGdiDevice = false;
@@ -74,14 +80,62 @@ public sealed partial class Graphics
 
     internal DeviceBuffers Buffers { get; } = new();
 
+    internal static ReadOnlySpan<ushort> DefaultColorTable => DefaultTable;
+
+    internal Size ScratchSize => new(TextureSide, TextureSide);
+
+    internal Span<ushort> Scratch => EnsureBuffers().Alpha;
+
+    internal Span<ushort> TextureBuffer => EnsureBuffers().Light;
+
+    internal VidPixelFormat TextureFormat => EnsureBuffers().LightFormat;
+
+    internal ReadOnlySpan<uint> TexturePalette => EnsureBuffers().LightFormat == VidPixelFormat.P8 ? GrayPalette : default;
+
+    internal Span<ushort> LightBuffer
+    {
+        get
+        {
+            var textures = EnsureBuffers();
+
+            return LightPhase == 0 ? textures.Light : textures.High;
+        }
+    }
+
+    internal VidPixelFormat LightFormat
+    {
+        get
+        {
+            var textures = EnsureBuffers();
+
+            return LightPhase == 0 ? textures.LightFormat : textures.HighFormat;
+        }
+    }
+
+    internal int LightPhase { get; set; }
+
+    private static uint[] GrayPalette { get; } = CreateGrayPalette();
+
     internal TextureStage DeviceStage { get; private set; } = DefaultStage;
 
     private static ReadOnlySpan<byte> UnsupportedResolution => "Unsupported resolution"u8;
 
+    internal static ReadOnlySpan<int> ColorTableOffsets =>
+    [
+        -8, -8, -8,
+        -7, -7, 0,
+        0, -6, -6,
+        0, -5, 0,
+        -4, 0, -4,
+        -3, 0, 0,
+        0, 0, -2,
+        0, 0, 0
+    ];
+
     [EngineRoutine(0x00403290)]
     internal static ushort[] CreateTexture(MyError? error, VidPixelFormat format, out VidPixelFormat result)
     {
-        var size = new Size(Screen.TextureSide, Screen.TextureSide);
+        var size = new Size(TextureSide, TextureSide);
         return Texture.Allocate(ref size, format, TextureFlags.None, error, out _, out result);
     }
 
@@ -188,7 +242,7 @@ public sealed partial class Graphics
         if (Buffers.Light.Length == 0 || Buffers.LightFormat != VidPixelFormat.P8)
             return;
 
-        Texture.Release(new Size(Screen.TextureSide, Screen.TextureSide), Buffers.LightFormat);
+        Texture.Release(new Size(TextureSide, TextureSide), Buffers.LightFormat);
         Buffers.Light = CreateTexture(Error, VidPixelFormat.P8, out var format);
         Buffers.LightFormat = format;
         if (Buffers.Light.Length == 0)
@@ -298,5 +352,70 @@ public sealed partial class Graphics
         }
 
         return -1;
+    }
+
+    private static uint[] CreateGrayPalette()
+    {
+        uint[] palette = new uint[GrayLength];
+        for (int i = 0; i < palette.Length; i++)
+        {
+            int level = Math.Clamp(i, 0, byte.MaxValue);
+            palette[i] = 0xff000000 | (uint)(level << 16 | level << 8 | level);
+        }
+
+        return palette;
+    }
+
+    private static ushort[] CreateColorTable(HighColorFormat format)
+    {
+        ushort[] table = new ushort[ColorTableLength];
+        int index = 0;
+        for (int top = ColorTableGroup; top <= byte.MaxValue + 1; top += ColorTableGroup)
+        {
+            for (int i = 0; i < ColorTableGroup; i++)
+            {
+                int red = Math.Clamp(top + ColorTableOffsets[i * 3], 0, byte.MaxValue);
+                int green = Math.Clamp(top + ColorTableOffsets[i * 3 + 1], 0, byte.MaxValue);
+                int blue = Math.Clamp(top + ColorTableOffsets[i * 3 + 2], 0, byte.MaxValue);
+                table[index++] = format.Pack((uint)(red << 16 | green << 8 | blue));
+            }
+        }
+
+        return table;
+    }
+
+    private DeviceBuffers EnsureBuffers()
+    {
+        if (Buffers.IsCreated)
+            return Buffers;
+
+        Buffers.IsCreated = true;
+        Buffers.Light = CreateBufferTexture(VidPixelFormat.P8, "light buffer"u8, out var format);
+        Buffers.LightFormat = format;
+        if (Buffers.Light.Length == 0)
+            return Buffers;
+
+        Buffers.High = CreateBufferTexture(VidPixelFormat.R5G6B5, "hiBuffer"u8, out format);
+        Buffers.HighFormat = format;
+        if (Buffers.High.Length == 0)
+            return Buffers;
+
+        Buffers.Alpha = CreateBufferTexture(VidPixelFormat.A4R4G4B4, "alphaBuffer"u8, out _);
+        if (Buffers.Alpha.Length == 0)
+            return Buffers;
+
+        Buffers.ColorTable = CreateColorTable(Buffers.HighFormat == VidPixelFormat.R5G6B5 ? HighColorFormat.Rgb565 : HighColorFormat.Rgb555);
+        return Buffers;
+    }
+
+    private ushort[] CreateBufferTexture(VidPixelFormat format, ReadOnlySpan<byte> name, out VidPixelFormat result)
+    {
+        ushort[] texels = CreateTexture(Error, format, out result);
+        if (texels.Length == 0)
+        {
+            Error?.Error("GRAPH"u8, LogError.Create, 0, name);
+        }
+
+        return texels;
     }
 }

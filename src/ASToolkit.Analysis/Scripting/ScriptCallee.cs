@@ -8,7 +8,7 @@ internal readonly record struct ScriptCallee(int Id, int CallOperand, int FirstV
 
     public static ScriptCallee Find(Script script, ReadOnlySpan<byte> name)
     {
-        int found = script.FindObject(name);
+        int found = script.Objects.Location(name);
         if (found < 0)
             return None;
 

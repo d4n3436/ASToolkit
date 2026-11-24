@@ -118,11 +118,12 @@ public partial class Sprite
                 ChangeAnimation((SpriteAnimation)var1);
                 break;
             case ActionCode.GotoStack:
-                ActionStack.SetCount(var1 + 1);
+                ActionStack.Count = var1 + 1;
+                ActionStack.Expand(var1 + 1);
                 Frame = LastFrame;
                 break;
             case ActionCode.BackupCommand:
-                ActionStack.Push(new Act((int)Command << 8 | (int)ActionCode.RestoreCommand, Map.GetSpriteHandle(Goal), 0, 0, Goal));
+                ActionStack.Insert(new Act((int)Command << 8 | (int)ActionCode.RestoreCommand, Map.GetSpriteHandle(Goal), 0, 0, Goal));
                 Goal?.AddRef();
                 break;
             case ActionCode.RestoreCommand:
@@ -135,7 +136,7 @@ public partial class Sprite
 
                 break;
             case ActionCode.ClearStack:
-                ActionStack.Clear();
+                ActionStack.Release();
                 break;
             case ActionCode.GetStackCount:
                 return ActionStack.Count;
@@ -145,7 +146,7 @@ public partial class Sprite
                 CopyStackToCase(target);
                 break;
             case ActionCode.StopStack:
-                ActionStack.Push(new Act((int)code, var1, var2, var3));
+                ActionStack.Insert(new Act((int)code, var1, var2, var3));
                 Map.Action(this, ActionCode.NextCommand);
                 break;
             case ActionCode.NextCommand:
@@ -297,16 +298,21 @@ public partial class Sprite
 
     private void LoadOrders(ReadOnlySpan<StackAction> stack)
     {
-        var orders = new Act[stack.Length];
-        for (int i = 0; i < stack.Length; i++)
+        ActionStack.Release();
+        foreach (var action in stack)
         {
-            var action = stack[i];
-            orders[i] = Act.HasSpriteTarget(action.Code)
+            ActionStack.Insert(Act.HasSpriteTarget(action.Code)
                 ? new Act(action.Act, action.Var1, action.Var2, action.Var3, Map.GetRelatedSprite(action.Var1))
-                : Act.FromAction(action);
+                : Act.FromAction(action));
         }
 
-        ActionStack.Load(orders);
+        for (int i = ActionStack.Count - 1; i >= 0; i--)
+        {
+            if (i != 0 && ActionStack[i].Value == Act.StopMarker && ActionStack[i - 1].Value == Act.StopMarker)
+            {
+                ActionStack[i] = ActionStack[--ActionStack.Count];
+            }
+        }
     }
 
     [EngineRoutine(0x00442ad0)]
@@ -475,7 +481,7 @@ public partial class Sprite
 
         if (flagman is null || flagman.Position.AsVector2().MeasureOctagonalDistance(new Vector2(point.X, point.Y)) >= range)
         {
-            ActionStack.Push(new Act((int)ActionCode.FlagmanTrigger, point.X, point.Y, range));
+            ActionStack.Insert(new Act((int)ActionCode.FlagmanTrigger, point.X, point.Y, range));
         }
     }
 
@@ -507,12 +513,12 @@ public partial class Sprite
             return;
 
         target.ClearOrders();
-        foreach (var order in ActionStack.Orders)
+        foreach (var order in ActionStack.Items)
         {
             if (order.Value == Act.StopMarker)
                 break;
 
-            target.ActionStack.Push(order);
+            target.ActionStack.Insert(order);
         }
     }
 
@@ -645,7 +651,7 @@ public partial class Sprite
             }
         }
 
-        ActionStack.Clear();
+        ActionStack.Release();
     }
 
     private void ApplyBlast()

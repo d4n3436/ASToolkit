@@ -31,7 +31,7 @@ public sealed partial class Graphics
     [EngineRoutine(0x00433670)]
     public void DrawLightSource(Screen screen, Vector3 position, Vector2 size, uint color, bool isDoubled)
     {
-        screen.LightPhase ^= 1;
+        LightPhase ^= 1;
         if ((color & ColorMask) == 0)
             return;
 
@@ -61,10 +61,10 @@ public sealed partial class Graphics
         var destination = Rectangle.FromLTRB((int)(x - width), (int)(y - height), (int)(width + x), (int)(height + y));
         int depthPitch = screen.DepthWidth;
         var depth = screen.Depth;
-        int pitch = screen.ScratchSize.Width;
-        var texture = screen.LightBuffer;
-        var format = screen.LightFormat;
-        var colors = screen.ColorTable;
+        int pitch = ScratchSize.Width;
+        var texture = LightBuffer;
+        var format = LightFormat;
+        var colors = EnsureBuffers().ColorTable;
         bool isPalette = format == VidPixelFormat.P8;
         int originX = (int)x;
         int originY = (int)y;
@@ -98,7 +98,7 @@ public sealed partial class Graphics
         var source = Rectangle.FromLTRB(1, 1, width / 2 - 1, height / 2 - 1);
         SetRenderState(RenderState.SpecularEnable, 0);
         SetAlphaBlend(BlendFactor.DestinationColor, BlendFactor.One);
-        new Texture(texture, new Size(pitch, pitch), format, screen.TexturePalette).DrawQuad(screen, destination, source, new Gamma(~color, 0xff000000), Blend, isDoubled, (position.Z + size.X + LightDepthBias) * LightDepthScale + LightDepthBase, (position.Z + size.X + LightDepthBias) * LightDepthScale + LightDepthBase);
+        new Texture(texture, new Size(pitch, pitch), format, TexturePalette).DrawQuad(screen, destination, source, new Gamma(~color, 0xff000000), Blend, isDoubled, (position.Z + size.X + LightDepthBias) * LightDepthScale + LightDepthBase, (position.Z + size.X + LightDepthBias) * LightDepthScale + LightDepthBase);
     }
 
     private static int SampleLightDepth(RectangleF viewport, ReadOnlySpan<ushort> depth, PointF point, int index)

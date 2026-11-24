@@ -97,7 +97,7 @@ public sealed class GameTable
         var script = new Script();
         script.Load(new MarkedScriptSource(null, text), TableName);
         var arrays = new Dictionary<string, int[]>(StringComparer.Ordinal);
-        foreach (var entry in script.Objects)
+        foreach (var (entryName, entry) in script.Objects.Items)
         {
             if (entry.Kind != ScriptObjectKind.Variable || (script.GetSlot(entry.Address).Flags & (ScriptStackFlags.ArrayElement | ScriptStackFlags.Text)) !=
                 ScriptStackFlags.ArrayElement)
@@ -109,7 +109,7 @@ public sealed class GameTable
                 values[i] = script.GetSlot(entry.Address + i).Value;
             }
 
-            arrays[GameTextEncoding.Cyrillic.GetString(entry.Name.Span)] = values;
+            arrays[GameTextEncoding.Cyrillic.GetString(entryName.Span)] = values;
         }
 
         return new GameTable(arrays);
