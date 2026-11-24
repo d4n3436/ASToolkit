@@ -57,6 +57,7 @@ public class Vid
     private const int HpScale = 256;
 
     private readonly int[] _children = new int[StateCount];
+    private readonly Vid?[] _childVids = new Vid?[StateCount];
     private readonly int[] _childCounts = new int[StateCount];
     private readonly int[] _sounds = new int[StateCount];
     private readonly int[] _frameCounts = new int[StateCount];
@@ -387,6 +388,11 @@ public class Vid
     public Span<int> Children => _children;
 
     /// <summary>
+    /// Gets the shared data of the child object of each state, or <see langword="null"/> where the state has none.
+    /// </summary>
+    public Span<Vid?> ChildVids => _childVids;
+
+    /// <summary>
     /// Gets the child count of each state.
     /// </summary>
     public Span<int> ChildCounts => _childCounts;
@@ -650,12 +656,12 @@ public class Vid
     /// <summary>
     /// Returns the vertical speed that carries a launched sprite of this object ID up or down a rise over a distance, within its vertical speed limit.
     /// </summary>
-    /// <param name="catalog">The sprite catalog.</param>
+    /// <param name="map">The map.</param>
     /// <param name="rise">The height to climb, negative to drop.</param>
     /// <param name="distance">The horizontal distance to the goal.</param>
     /// <returns>The vertical speed in pixels per millisecond.</returns>
     [EngineRoutine(0x00414a80)]
-    public float CalculateZSpeed(SpriteCatalog catalog, float rise, float distance)
+    public float CalculateZSpeed(Map map, float rise, float distance)
     {
         ref readonly var gameObject = ref Object;
         bool hasGravity = gameObject.Properties.HasFlag(ObjectProperties.Gravity);
@@ -664,7 +670,7 @@ public class Vid
 
         if (hasGravity || hasGravity2)
         {
-            float gravity = hasGravity ? catalog.Gravitation : catalog.Gravitation2;
+            float gravity = hasGravity ? map.Gravitation : map.Gravitation2;
             speed = rise * Speed / distance + distance * gravity / Speed * 0.5f;
             speed *= speed > 0 ? BallisticRise : BallisticDrop;
         }
@@ -840,6 +846,8 @@ public class Vid
 
         return vid;
     }
+
+    internal void SetWeapon(in WeaponRecord weapon) => _weapon = weapon;
 
     internal void ReplaceRecord(in GameObject gameObject, in WeaponRecord weapon)
     {

@@ -80,11 +80,10 @@ public class MyErrorTests
     public void Map_LoadAndEnd_LogTheScriptAndTheDefinitionsLeft()
     {
         var fileSystem = new MemoryWriteOverlay();
-        var vids = TestGameFolder.CreateCatalog();
         var registry = new Registry("");
         using (var session = new GameSession(registry, fileSystem, new LoadingRedrawClock(new FakeTimeProvider(StartTime))))
         {
-            using var map = EngineTestMap.CreateMap(vids, session: session);
+            using var map = EngineTestMap.CreateMap(session: session);
             var scriptFileSystem = new MemoryWriteOverlay(new GameFolder(TestGameFolder.RequireFolder()));
             scriptFileSystem.Set("maps\\log.lgc", "#include \"maps\\export.lgc\"\nmain()\n{\n  Log(\"from the script\");\n}\n"u8.ToArray());
             Assert.True(map.Script.Load(scriptFileSystem, "maps\\log.lgc"));

@@ -66,9 +66,8 @@ public class OrderStackTests
 
     private static (Map Map, Sprite Spawner) CreateSpawner(params StackAction[] stack)
     {
-        var vids = TestGameFolder.CreateCatalog();
         var placement = new MergedMapSprite(1, KnownObject.Spawner, new Vector3(1000, 1600, 0), 0, Army.Monsters, []);
-        var map = EngineTestMap.CreateMap(vids, sprites: [placement]);
+        var map = EngineTestMap.CreateMap(sprites: [placement]);
         var spawner = map.FindFirstSprite(KnownObject.Spawner);
         spawner.ActionStack.Release();
         foreach (var action in stack)

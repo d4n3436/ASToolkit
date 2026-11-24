@@ -28,7 +28,7 @@ public sealed class GameSession : IDisposable
     private const string FullScreenValue = "FullScreen";
     private const int DefaultFullScreen = 1;
     private const string Program = "AlienShooter.exe";
-    private const string ConfigFile = "AlienShooter.cfg";
+    internal const string ConfigFile = "AlienShooter.cfg";
     private const string SetupFont = "Courier";
     private const string DefaultFont = "Arial";
     private const int DefaultFontWidth = 0;
@@ -161,7 +161,7 @@ public sealed class GameSession : IDisposable
 
     private static ReadOnlySpan<byte> AlphaBufferName => "alphaBuffer"u8;
 
-    private static ReadOnlySpan<byte> GameSection => "game"u8;
+    internal static ReadOnlySpan<byte> GameSection => "game"u8;
 
     private static ReadOnlySpan<byte> GraphSection => "graph"u8;
 
@@ -179,7 +179,7 @@ public sealed class GameSession : IDisposable
         int height = Profile.GetInteger(fileSystem, ConfigFile, GraphSection, "FontSizeY"u8, DefaultFontHeight);
         int width = Profile.GetInteger(fileSystem, ConfigFile, GraphSection, "FontSizeX"u8, DefaultFontWidth);
         string font = Profile.TryGetString(fileSystem, ConfigFile, GraphSection, "Font"u8, out var name) ? Encoding.ASCII.GetString(name.Span) : DefaultFont;
-        Graphics.CreateDeviceFont(font, new Size(width, height), SpriteCatalog.DefaultMaxTextureSize);
+        Graphics.CreateDeviceFont(font, new Size(width, height), Map.DefaultMaxTextureSize);
         IsDebugMode = Profile.GetInteger(fileSystem, ConfigFile, GameSection, "DebugMode"u8, 0) != 0;
         ShouldDrawFps = Profile.GetInteger(fileSystem, ConfigFile, GameSection, "DrawFPS"u8, 0) != 0;
         ShouldDrawPresentation = Profile.GetInteger(fileSystem, ConfigFile, GameSection, "DrawPresentation"u8, 1) != 0;
@@ -254,7 +254,7 @@ public sealed class GameSession : IDisposable
             Graphics.Clear(Graphics.Screen, 0xff000000);
         }
 
-        Graphics.CreateDeviceFont(SetupFont, SetupFontSize, SpriteCatalog.DefaultMaxTextureSize);
+        Graphics.CreateDeviceFont(SetupFont, SetupFontSize, Map.DefaultMaxTextureSize);
         FillColorTable(textures);
         LogCaps();
         int bytesPerPixel = Graphics.Flags.HasFlag(GraphicsFlags.Color32) ? sizeof(uint) : sizeof(ushort);

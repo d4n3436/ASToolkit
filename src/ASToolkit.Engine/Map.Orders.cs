@@ -24,7 +24,7 @@ public partial class Map
     /// <returns>The goal sprite.</returns>
     public Sprite ConstructGoal(Vector3 position)
     {
-        return new Sprite(Vids.Empty, position, default, null, this);
+        return new Sprite(EmptyVid, position, default, null, this);
     }
 
     internal Vector3 GetBuildPosition(Sprite builder, Point offset)

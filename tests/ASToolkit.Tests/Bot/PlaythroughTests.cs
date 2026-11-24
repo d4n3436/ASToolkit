@@ -52,7 +52,7 @@ public class PlaythroughTests
         Assert.Equal(first.Pickups, second.Pickups);
 
         var replay = playthrough.LoadReplay(level.Analysis, loadout, first.Demo.Value);
-        var field = new WalkField(level.Analysis.Grid, true, replay, replay.Collector, replay.Vids.Find(KnownObject.PlayerStart)!.Object);
+        var field = new WalkField(level.Analysis.Grid, true, replay, replay.Collector, replay.FindVid(KnownObject.PlayerStart)!.Object);
         var effects = new HashSet<KnownObject>();
         var previous = new Dictionary<Sprite, Vector3>();
         int checkedAt = -1;

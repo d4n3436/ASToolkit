@@ -140,7 +140,7 @@ internal sealed class Message
         }
     }
 
-    private Vid FindVid(int id) => _map.Vids.Find((KnownObject)id) ?? _map.Vids.Empty;
+    private Vid FindVid(int id) => _map.FindVid((KnownObject)id) ?? _map.EmptyVid;
 
     private int GetLineHeight() => FindVid(_lineId).FrameSize.Height + 1;
 

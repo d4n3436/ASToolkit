@@ -455,7 +455,7 @@ public partial class Sprite
         if (id <= 0)
             return;
 
-        var vid = Map.Vids.Find((KnownObject)id);
+        var vid = Map.FindVid((KnownObject)id);
 
         if (vid is null)
             return;
@@ -487,18 +487,18 @@ public partial class Sprite
 
     private void ChangeVidCase(int id, int animation)
     {
-        var vid = Map.Vids.Find((KnownObject)id);
+        var vid = Map.FindVid((KnownObject)id);
 
         if (vid is null || vid == Vid)
             return;
 
         Map.DropLinks(this);
         Map.Collector.DeleteFromHash(this);
-        Map.RemoveFromUpdates(this);
+        RemoveFromUpdates();
         var state = animation < 0 ? Animation : (SpriteAnimation)animation;
         var direction = Direction;
         ChangeVid(vid);
-        Map.AddToUpdates(this);
+        AddToUpdates();
         Map.Collector.InsertToHash(this);
 
         CreateLink();
@@ -524,7 +524,7 @@ public partial class Sprite
 
     private void DestroyUnitCase(int id, Vector2 point)
     {
-        if (id <= -1 || Map.Vids.Find((KnownObject)id) is null)
+        if (id <= -1 || Map.FindVid((KnownObject)id) is null)
             return;
 
         var found = Map.GetSpriteScr(SpriteSearch.Id + id, point);
@@ -621,7 +621,7 @@ public partial class Sprite
 
     private void RepairCase()
     {
-        DestroyLink(Map.Vids.Find((KnownObject)Math.Abs(Vid.Children[(int)SpriteAnimation.Wound])));
+        DestroyLink(Vid.ChildVids[(int)SpriteAnimation.Wound]);
         Hp = Vid.GetArmyMaxHp((int)Army);
         var link = Link;
 
@@ -635,7 +635,7 @@ public partial class Sprite
         }
     }
 
-    private OldSpriteType GetItemType(int item) => Map.Vids.Find((KnownObject)item)?.Object.SpriteType.ToOldSpriteType() ?? OldSpriteType.None;
+    private OldSpriteType GetItemType(int item) => Map.FindVid((KnownObject)item)?.Object.SpriteType.ToOldSpriteType() ?? OldSpriteType.None;
 
 
     [EngineRoutine(0x00445be0)]

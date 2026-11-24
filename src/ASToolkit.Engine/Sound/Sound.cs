@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -17,12 +16,12 @@ public sealed class Sound
     /// Represents the volume of a sound heard at full loudness, in hundredths of a decibel.
     /// </summary>
     public const int FullLoudness = 0;
-    private const int OggReadSize = 0x1000;
+    internal const int OggReadSize = 0x1000;
     private const int SfxRecordSize = 72;
     private const int RequestCount = 32;
     private const int VoiceCount = 16;
-    private const int NoSound = -1;
-    private const int NoBuffer = -1;
+    internal const int NoSound = -1;
+    internal const int NoBuffer = -1;
     private const int PriorityLevel = 2;
     private const int NormalLevel = 1;
     private const int DeviceReady = 0;
@@ -41,11 +40,11 @@ public sealed class Sound
     private const int LoudnessScale = 2;
     private const int MergeReach = 100;
     private const int RepeatWindow = 50;
-    private const int LoopHold = 100;
+    internal const int LoopHold = 100;
     private const int TrackCheckMask = 15;
     private const uint FadeWindow = 1000;
     private const int FadeStart = -1;
-    private const int MixLatency = 10;
+    internal const int MixLatency = 10;
     private const int PcmSampleSize = 2;
     private const int FormatMinimumSize = 14;
     private const int WaveBufferFlags = 0xc2;
@@ -57,8 +56,7 @@ public sealed class Sound
     private readonly IGameFileSystem _fileSystem;
     private readonly ISoundDevice? _device;
     private readonly IReadOnlyList<SfxRecord> _records;
-    private readonly int[] _variants;
-    private readonly SoundBuffer[] _buffers;
+    private readonly Sfx[] _sfx;
     private readonly SoundBuffer[] _duplicates = new SoundBuffer[VoiceCount];
     private readonly SfxRequest[] _requests = new SfxRequest[RequestCount];
     private readonly SfxBuffer[] _voices = new SfxBuffer[VoiceCount];
@@ -73,7 +71,6 @@ public sealed class Sound
     private uint _fadeStartedAt;
     private int _deviceState = DeviceReleased;
     private int _loadedCount;
-
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Sound"/> class and loads the samples of every sound.
@@ -98,8 +95,12 @@ public sealed class Sound
         _fileSystem = fileSystem;
         _device = device;
         _records = records;
-        _variants = new int[records.Count];
-        _buffers = new SoundBuffer[records.Count * SfxRecord.MaxSamples];
+        _sfx = new Sfx[records.Count];
+        for (int id = 0; id < _sfx.Length; id++)
+        {
+            _sfx[id] = new Sfx();
+        }
+
         for (int i = 0; i < RequestCount; i++)
         {
             _requests[i].Id = NoSound;
@@ -125,9 +126,13 @@ public sealed class Sound
     /// <summary>
     /// Gets the number of sound buffers, including the duplicate buffer of each voice.
     /// </summary>
-    public int BufferCount => _buffers.Length + VoiceCount;
+    public int BufferCount => SoundBufferCount + VoiceCount;
 
     internal MyError? Error { get; set; }
+
+    internal ISoundDevice? Device => _device;
+
+    internal bool IsLoaded => _deviceState == DeviceReady && _loadedCount > 0;
 
     [EngineRoutine(0x0041d020)]
     internal int PlayingCount
@@ -309,7 +314,7 @@ public sealed class Sound
         int free = 0;
         for (int v = 0; v < voices.Length; v++)
         {
-            if (!GetVoiceStatus(ref voices[v], v, time, wallTime))
+            if (!voices[v].CheckPlay(this, v, time, wallTime))
             {
                 free++;
             }
@@ -328,7 +333,7 @@ public sealed class Sound
 
             if (picked >= 0)
             {
-                PlayVoice(ref voices[picked], picked, request.Pan, request.Volume, time, wallTime);
+                voices[picked].Play(this, picked, request.Pan, request.Volume, time, wallTime);
             }
 
             request.Id = NoSound;
@@ -358,7 +363,7 @@ public sealed class Sound
         {
             if (voices[v].Id == id)
             {
-                ReleaseVoice(ref voices[v]);
+                voices[v].Destroy(this);
             }
         }
     }
@@ -487,7 +492,7 @@ public sealed class Sound
         ResumeSound(wallTime);
     }
 
-    internal bool IsValid(int id) => id >= 0 && id < _variants.Length && _variants[id] > 0;
+    internal bool IsValid(int id) => id >= 0 && id < _sfx.Length && _sfx[id].Count > 0;
 
     private static int GetMagnitude(int value)
     {
@@ -496,7 +501,7 @@ public sealed class Sound
         return unchecked((value ^ sign) - sign);
     }
 
-    private static bool IsOgg(ReadOnlySpan<byte> path)
+    internal static bool IsOgg(ReadOnlySpan<byte> path)
     {
         for (int i = 0; i < OggExtensions.Length; i += ExtensionLength)
         {
@@ -530,7 +535,7 @@ public sealed class Sound
         int start = Environment.TickCount;
         for (int id = 0; id < records.Count; id++)
         {
-            _variants[id] = LoadSfx(id, records[id], _buffers.AsSpan(id * SfxRecord.MaxSamples, SfxRecord.MaxSamples));
+            _sfx[id].Load(this, id, records[id]);
         }
 
         Error?.Write($"LoadSFX::No   ={records.Count,-15}   sizeof(SFX)   ={SfxRecordSize,-5}    load time     ={Environment.TickCount - start}ms Quality={(IsHighQuality ? 1 : 0)}");
@@ -609,7 +614,7 @@ public sealed class Sound
 
         for (int id = 0; id < _loadedCount; id++)
         {
-            _variants[id] = LoadSfx(id, _records[id], _buffers.AsSpan(id * SfxRecord.MaxSamples, SfxRecord.MaxSamples));
+            _sfx[id].Load(this, id, _records[id]);
         }
     }
 
@@ -622,12 +627,12 @@ public sealed class Sound
         var voices = _voices.AsSpan();
         for (int v = 0; v < voices.Length; v++)
         {
-            ReleaseVoice(ref voices[v]);
+            voices[v].Destroy(this);
         }
 
         for (int id = 0; id < _loadedCount; id++)
         {
-            _buffers.AsSpan(id * SfxRecord.MaxSamples, SfxRecord.MaxSamples).Clear();
+            _sfx[id].Buffers.AsSpan().Clear();
         }
 
         int result = _device?.ReleaseDevice() ?? 0;
@@ -637,7 +642,10 @@ public sealed class Sound
             Error?.Error("SOUND"u8, LogError.Text, result);
         }
 
-        _variants.AsSpan().Fill(NoSound);
+        foreach (var sfx in _sfx)
+        {
+            sfx.Count = NoSound;
+        }
         _deviceState = DeviceReleased;
     }
 
@@ -687,102 +695,21 @@ public sealed class Sound
         var voices = _voices.AsSpan();
         for (int v = 0; v < voices.Length; v++)
         {
-            ResumeVoice(ref voices[v], v, wallTime);
-        }
-    }
-
-    [EngineRoutine(0x0041e650)]
-    private void ResumeVoice(ref SfxBuffer voice, int index, uint wallTime)
-    {
-        if (voice.Id < 0 || voice.Buffer == NoBuffer || !voice.IsPlaying)
-            return;
-
-        bool isLooping = IsLooped(voice.Id);
-
-        if (_device?.PlayVoice(index, isLooping) ?? false)
-        {
-            Error?.Write("!!!ERROR!!! SFXBUFFER::buffer is lost"u8);
-            ReloadBuffers();
-        }
-        else
-        {
-            GetBuffer(voice.Buffer).Play(isLooping, wallTime);
+            voices[v].Resume(this, v, wallTime);
         }
     }
 
     [EngineRoutine(0x0041e190)]
-    private void ReloadBuffers()
+    internal void ReloadBuffers()
     {
         for (int id = 0; id < _records.Count; id++)
         {
-            _variants[id] = LoadSfx(id, _records[id], _buffers.AsSpan(id * SfxRecord.MaxSamples, SfxRecord.MaxSamples));
+            _sfx[id].Load(this, id, _records[id]);
         }
-    }
-
-    [EngineRoutine(0x0041e810)]
-    private int LoadSfx(int id, SfxRecord record, Span<SoundBuffer> buffers)
-    {
-        int variants = 0;
-        for (int k = 0; k < SfxRecord.MaxSamples; k++)
-        {
-            var path = record.GetSamplePath(k);
-
-            if (path.IsEmpty)
-                break;
-
-            SoundBuffer buffer;
-            if (IsOgg(path))
-            {
-                int size = 0;
-                buffer = LoadOgg(path, id, k, ref size, out var file);
-
-                if (buffer.IsCreated)
-                {
-                    int decoded = 0;
-                    while (true)
-                    {
-                        int count = _device?.ReadSampleChunk(id, k, file, decoded, OggReadSize) ?? Math.Min(OggReadSize, size - decoded);
-
-                        if (count == 0)
-                            break;
-
-                        if (count < 0)
-                        {
-                            Error?.Error("SFX"u8, LogError.Text, count, "decode ogg"u8);
-                        }
-                        else
-                        {
-                            decoded += count;
-                        }
-                    }
-                }
-            }
-            else
-            {
-                var resource = new Resource();
-                buffer = LoadWave(ref resource, path, id, k);
-
-                if (buffer.IsCreated)
-                {
-                    byte[] samples = ArrayPool<byte>.Shared.Rent(resource.ChunkSize);
-                    resource.Read(samples.AsSpan(0, resource.ChunkSize));
-                    _device?.FillWaveSampleBuffer(id, k, samples.AsSpan(0, resource.ChunkSize));
-                    ArrayPool<byte>.Shared.Return(samples);
-                }
-            }
-
-            if (!buffer.IsCreated)
-                break;
-
-            buffers[k] = new SoundBuffer(buffer.Length + MixLatency, 1, id, k);
-            variants = k + 1;
-        }
-
-        return variants;
     }
 
     [EngineRoutine(0x0041e370)]
-    private SoundBuffer LoadWave(ref Resource resource, ReadOnlySpan<byte> path, int sound, int variant)
+    internal SoundBuffer LoadWave(ref Resource resource, ReadOnlySpan<byte> path, int sound, int variant)
     {
         if (_deviceState != DeviceReady)
             return default;
@@ -830,7 +757,7 @@ public sealed class Sound
     }
 
     [EngineRoutine(0x0041e1d0)]
-    private SoundBuffer LoadOgg(ReadOnlySpan<byte> path, int sound, int variant, ref int size, out ReadOnlyMemory<byte> file)
+    internal SoundBuffer LoadOgg(ReadOnlySpan<byte> path, int sound, int variant, ref int size, out ReadOnlyMemory<byte> file)
     {
         file = default;
 
@@ -873,19 +800,23 @@ public sealed class Sound
         return new SoundBuffer(track.SampleCount * MillisecondsPerSecond / track.SampleRate, 1, sound, variant);
     }
 
-    private ref SoundBuffer GetBuffer(int handle) => ref handle < _buffers.Length ? ref _buffers[handle] : ref _duplicates[handle - _buffers.Length];
+    internal int SoundBufferCount => _sfx.Length * SfxRecord.MaxSamples;
 
-    private bool IsDuplicate(int handle) => handle >= _buffers.Length;
+    internal Span<SoundBuffer> Duplicates => _duplicates;
 
-    private void ReleaseBuffer(int handle)
+    internal ref SoundBuffer GetBuffer(int handle) => ref handle < SoundBufferCount ? ref _sfx[handle / SfxRecord.MaxSamples].Buffers[handle % SfxRecord.MaxSamples] : ref _duplicates[handle - SoundBufferCount];
+
+    internal bool IsDuplicate(int handle) => handle >= SoundBufferCount;
+
+    internal void ReleaseBuffer(int handle)
     {
         if (IsDuplicate(handle))
         {
-            _duplicates[handle - _buffers.Length] = default;
+            _duplicates[handle - SoundBufferCount] = default;
         }
         else
         {
-            _buffers[handle].References--;
+            GetBuffer(handle).References--;
         }
     }
 
@@ -904,7 +835,7 @@ public sealed class Sound
             if ((uint)(time - voices[v].Start) <= RepeatWindow)
                 return -1;
 
-            if (_variants[id] == 1 && !voices[v].IsPlaying)
+            if (_sfx[id].Count == 1 && !voices[v].IsPlaying)
                 return v;
         }
 
@@ -925,120 +856,13 @@ public sealed class Sound
                     return -1;
             }
 
-            ReleaseVoice(ref voices[picked]);
+            voices[picked].Destroy(this);
         }
 
-        int buffer = CloneSample(id, picked, random);
-        AssignVoice(ref voices[picked], id, buffer);
+        int buffer = _sfx[id].Duplicate(this, id, picked, random);
+        voices[picked].Load(this, id, buffer);
 
         return picked;
-    }
-
-    [EngineRoutine(0x0041eb30)]
-    private int CloneSample(int id, int voice, GameRandom random)
-    {
-        int handle = id * SfxRecord.MaxSamples + random.Next() % _variants[id];
-        ref var original = ref _buffers[handle];
-        original.References++;
-
-        if (original.References <= 2)
-            return handle;
-
-        original.References--;
-        _duplicates[voice] = new SoundBuffer(original.Length, 1, original.Sound, original.Variant);
-
-        return _buffers.Length + voice;
-    }
-
-    [EngineRoutine(0x0041e560)]
-    private void PlayVoice(ref SfxBuffer voice, int index, int pan, int volume, int time, uint wallTime)
-    {
-        if (voice.Id < 0 || voice.Buffer == NoBuffer)
-            return;
-
-        voice.Volume = volume;
-        voice.Pan = pan;
-        ref var buffer = ref GetBuffer(voice.Buffer);
-        _device?.SetVoicePan(index, pan);
-        buffer.Pan = pan;
-        _device?.SetVoiceVolume(index, volume);
-        buffer.Volume = volume;
-
-        if (!voice.IsPlaying)
-        {
-            bool isLooping = IsLooped(voice.Id);
-
-            if (_device?.PlayVoice(index, isLooping) ?? false)
-            {
-                Error?.Error($"SFXBUFFER[{voice.Id}]", LogError.Text, 0, "buffer is lost"u8);
-                ReloadBuffers();
-            }
-            else
-            {
-                buffer.Play(isLooping, wallTime);
-            }
-        }
-
-        voice.IsPlaying = true;
-        voice.Start = time;
-    }
-
-    [EngineRoutine(0x0041e6e0)]
-    private bool GetVoiceStatus(ref SfxBuffer voice, int index, int time, uint wallTime)
-    {
-        if (voice.Id < 0 || voice.Buffer == NoBuffer || !voice.IsPlaying)
-            return false;
-
-        ref var buffer = ref GetBuffer(voice.Buffer);
-
-        bool isTimedPlaying = buffer.GetStatus(wallTime);
-
-        if (!(_device?.IsVoicePlaying(index) ?? isTimedPlaying))
-        {
-            voice.IsPlaying = false;
-
-            if (isTimedPlaying)
-            {
-                buffer.Stop(wallTime);
-            }
-        }
-
-        if (IsLooped(voice.Id) && (uint)(time - voice.Start) > LoopHold)
-        {
-            voice.IsPlaying = false;
-            buffer.Stop(wallTime);
-        }
-
-        return voice.IsPlaying;
-    }
-
-    [EngineRoutine(0x0041e530)]
-    private void ReleaseVoice(ref SfxBuffer voice)
-    {
-        if (voice.Buffer != NoBuffer)
-        {
-            ReleaseBuffer(voice.Buffer);
-        }
-
-        voice.Buffer = NoBuffer;
-        voice.IsPlaying = false;
-        voice.Start = 0;
-        voice.Id = NoSound;
-    }
-
-    [EngineRoutine(0x0041e780)]
-    private void AssignVoice(ref SfxBuffer voice, int id, int buffer)
-    {
-        voice.Id = id;
-
-        if (voice.Buffer != NoBuffer && !(IsDuplicate(buffer) && voice.Buffer == buffer))
-        {
-            ReleaseBuffer(voice.Buffer);
-        }
-
-        voice.Buffer = buffer;
-        voice.IsPlaying = false;
-        voice.Start = 0;
     }
 
     [EngineRoutine(0x0041dcd0)]
@@ -1174,7 +998,7 @@ public sealed class Sound
                 if (IsLooped(id) && Math.Abs(voice.Volume - request.Volume) < MergeReach && Math.Abs(voice.Pan - request.Pan) < MergeReach)
                 {
                     request.Id = NoSound;
-                    PlayVoice(ref voice, v, request.Pan, request.Volume, time, wallTime);
+                    voice.Play(this, v, request.Pan, request.Volume, time, wallTime);
 
                     break;
                 }

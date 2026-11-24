@@ -36,7 +36,6 @@ internal sealed class UpdateOrder
         return false;
     }
 
-    [EngineRoutine(0x0040fa90)]
     public bool Remove(ObjectLayer layer, Sprite sprite)
     {
         var list = _layers[(int)layer];

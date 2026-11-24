@@ -12,14 +12,14 @@ namespace ASToolkit.Tests.Engine;
 
 public class MovementTests
 {
-    private static Map HostMap => field ??= EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
+    private static Map HostMap => field ??= EngineTestMap.CreateMap();
 
     [Fact]
     public void Remove_AmbushWall_RefreshesWalkingLocally()
     {
         var lattice = new Lattice(10, 7);
         var middle = lattice.ToWorld(22, 30.5f);
-        var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
+        var map = EngineTestMap.CreateMap();
         var sprites = CreateSprites(map);
         var wall = Place(sprites, Body(new Vector3(10, 10, 40)), new Vector3(middle.X, middle.Y, 0), KnownObject.SpawnWallSlash);
         var grid = new RouteGrid
@@ -45,7 +45,7 @@ public class MovementTests
             Lattice = new Lattice(10, 7), Cells = Enumerable.Range(0, 4).SelectMany(u => Enumerable.Range(0, 4).Select(v => new Cell(u, v))).ToHashSet(),
             Edges = [], FenceEdges = [], BlockedCells = []
         };
-        var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
+        var map = EngineTestMap.CreateMap();
         var field = new WalkField(grid, false, map, CreateSprites(map), Body(new Vector3(24, 18, 40), spriteClass: SpriteClass.Man));
         var outside = new Vector2(-120, 0);
         int start = field.FindStart(outside.AsVector3());
@@ -77,7 +77,7 @@ public class MovementTests
     [Fact]
     public void GetSupportHeight_PlayerFootprint_SamplesWholeCellStepsFromItsLeftEdge()
     {
-        var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
+        var map = EngineTestMap.CreateMap();
         var player = Body(new Vector3(24, 24, 40), spriteClass: SpriteClass.Man);
         map.SetTempGroundZ(new Vector3(24, 16, 40));
         Assert.Equal(0, map.GetGroundZForMoveTo(player, new Vector2(16, 20)));
@@ -102,7 +102,7 @@ public class MovementTests
     [Fact]
     public void CanMove_AlongATerrainBoundary_KeepsTheStationaryAxisExact()
     {
-        var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
+        var map = EngineTestMap.CreateMap();
         var player = Body(new Vector3(24, 18, 40), spriteClass: SpriteClass.Man);
         var field = CreateField(player, map);
         map.SetTempGroundZ(new Vector3(1336, 3136, 73));
@@ -114,7 +114,7 @@ public class MovementTests
     {
         var narrow = Body(new Vector3(8, 8, 40));
         var wide = Body(new Vector3(24, 18, 40));
-        var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
+        var map = EngineTestMap.CreateMap();
         var sprites = CreateSprites(map);
         Place(sprites, Body(new Vector3(6, 200, 40)), new Vector3(30, 0, 0));
         Place(sprites, Body(new Vector3(6, 200, 40)), new Vector3(50, 0, 0));
@@ -135,7 +135,7 @@ public class MovementTests
     [Fact]
     public void Trace_TestsTerrainAndBodiesAtTheTravelHeight()
     {
-        var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
+        var map = EngineTestMap.CreateMap();
         map.SetTempGroundZ(new Vector3(32, 0, 24));
         var walker = new Vid(KnownObject.Monster1, Body(new Vector3(16, 16, 20)), default, 0);
         var bullet = new Vid(KnownObject.PistolBullet, Body(new Vector3(4, 4, 2)), default, 0);
@@ -159,7 +159,7 @@ public class MovementTests
     [Fact]
     public void IsBlockedAt_TouchesCrushingSpritesOnOtherLayersAndKeepsScanning()
     {
-        var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
+        var map = EngineTestMap.CreateMap();
         var mover = new Vid(KnownObject.PistolBullet, Body(new Vector3(4, 4, 2)), default, 0);
         var crusher = new Vid(KnownObject.Barrel, Body(new Vector3(16, 16, 20), 2, extra: ObjectProperties.Crush, maxHp: 10), default, 0);
         var wall = new Vid(KnownObject.Monster1, Body(new Vector3(16, 16, 20)), default, 0);
@@ -182,7 +182,7 @@ public class MovementTests
 
     private static WalkField CreateField(GameObject walker, params (GameObject Obj, Vector3 Position)[] obstacles)
     {
-        var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
+        var map = EngineTestMap.CreateMap();
         var sprites = CreateSprites(map);
         foreach (var (obj, position) in obstacles)
         {

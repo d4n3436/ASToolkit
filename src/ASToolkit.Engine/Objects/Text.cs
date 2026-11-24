@@ -74,7 +74,7 @@ public sealed class Text : Frame
     [EngineRoutine(0x00448ba0)]
     public override void Draw(Screen screen, Map map, Vector2 camera)
     {
-        if (Vid == map.Vids.Empty || Vid.Directions < MinDirections)
+        if (Vid == map.EmptyVid || Vid.Directions < MinDirections)
         {
             map.Session.Graphics.DrawDeviceText(new Vector2(Position.X, Position.Y), uint.MaxValue, Shown.Span);
             return;
@@ -128,16 +128,16 @@ public sealed class Text : Frame
                 {
                     var identifier = shown[FontTag.Length..];
                     int id = identifier.Length > 1 && identifier[1] == (byte)'x' ? CRuntime.ScanInteger(identifier) : CRuntime.ParseInteger(identifier);
-                    current = map.Vids.Find((KnownObject)id) ?? map.Vids.Empty;
+                    current = map.FindVid((KnownObject)id) ?? map.EmptyVid;
                     pen.X -= current.Object.Size.X;
                     int end = shown.IndexOf(TagEnd);
                     i += end < 0 ? shown.Length : end;
                 }
-                else if (character == FontSwitch && i + 1 < VisibleCount && map.Vids.Find((KnownObject)shown[i + 1]) is not null)
+                else if (character == FontSwitch && i + 1 < VisibleCount && map.FindVid((KnownObject)shown[i + 1]) is not null)
                 {
                     int id = (sbyte)shown[i + 1];
                     i++;
-                    current = map.Vids.Find((KnownObject)id) ?? map.Vids.Empty;
+                    current = map.FindVid((KnownObject)id) ?? map.EmptyVid;
                     pen.X -= current.Object.Size.X;
                 }
                 else if (character >= FirstPrintable)

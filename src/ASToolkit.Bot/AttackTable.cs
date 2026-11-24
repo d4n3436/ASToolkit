@@ -5,12 +5,12 @@ namespace ASToolkit.Bot;
 
 internal sealed class AttackTable
 {
-    private readonly SpriteCatalog _vids;
+    private readonly Map _map;
     private readonly Dictionary<KnownObject, AttackProfile> _profiles = [];
 
-    public AttackTable(SpriteCatalog vids)
+    public AttackTable(Map map)
     {
-        _vids = vids;
+        _map = map;
     }
 
     public AttackProfile Get(Vid creator)
@@ -26,10 +26,10 @@ internal sealed class AttackTable
 
     private AttackProfile Measure(Vid creator, int depth)
     {
-        if (depth >= SpriteCatalog.MaxLaunchDepth)
+        if (depth >= Map.MaxLaunchDepth)
             return default;
 
-        var child = _vids.Find((KnownObject)Math.Abs((int)creator.FightChild));
+        var child = FindChild((KnownObject)Math.Abs((int)creator.FightChild));
 
         if (child is null)
             return default;
@@ -44,16 +44,18 @@ internal sealed class AttackTable
             return profile with { Damage = creator.FightCount * profile.Damage, Rounds = creator.FightCount * profile.Rounds };
         }
 
-        var payload = _vids.Find(child.DeathChild);
+        var payload = FindChild(child.DeathChild);
 
         if (payload is not null)
             return new AttackProfile(creator.FightCount * payload.Damage, payload.BlastRadius, !payload.ShouldSkipOwnArmy, Rounds: creator.FightCount, BlastHeight: GetBlastHeight(payload));
 
-        var carried = _vids.Find(child.Object.Link);
+        var carried = FindChild(child.Object.Link);
 
         return carried is null ? default : new AttackProfile(creator.FightCount * carried.Damage, carried.BlastRadius, !carried.ShouldSkipOwnArmy,
             child.Speed * child.GetAnimationDuration(child.InitialAnimation), creator.FightCount, GetBlastHeight(carried));
     }
+
+    private Vid? FindChild(KnownObject id) => id == KnownObject.None ? null : _map.FindVid(id);
 
     private static float GetBlastHeight(Vid payload) => Math.Max(Map.MinBlastHeight, payload.Object.Size.Z);
 }

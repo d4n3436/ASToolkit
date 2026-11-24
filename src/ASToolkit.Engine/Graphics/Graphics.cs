@@ -100,10 +100,7 @@ public sealed partial class Graphics
         set
         {
             field = value;
-            if (value is null)
-                return;
-
-            value.Viewport = ToViewportRectangle(Viewport);
+            value?.Viewport = ToViewportRectangle(Viewport);
         }
     }
 
@@ -179,18 +176,18 @@ public sealed partial class Graphics
     }
 
     /// <summary>
-    /// Sets the ambient gamma and, when it changes, applies it to the palettes of every sprite file.
+    /// Sets the ambient gamma and when it changes, applies it to the palettes of every sprite file.
     /// </summary>
     /// <param name="gamma">The ambient gamma.</param>
-    /// <param name="vids">The shared data and frames of the object IDs.</param>
+    /// <param name="map">The map whose object IDs take the gamma.</param>
     [EngineRoutine(0x00431c50)]
-    public void SetGamma(Gamma gamma, SpriteCatalog vids)
+    public void SetGamma(Gamma gamma, Map map)
     {
         if (Gamma == gamma)
             return;
 
         Gamma = gamma;
-        vids.SetAmbient(gamma);
+        map.SetAmbient(gamma);
     }
 
     /// <summary>
@@ -206,14 +203,14 @@ public sealed partial class Graphics
     }
 
     [EngineRoutine(0x00433cd0)]
-    internal void Load(ref Resource reader, SpriteCatalog vids)
+    internal void Load(ref Resource reader, Map map)
     {
         var environment = Environment;
         reader.ReadInto(ref environment);
         Environment = environment;
         var gamma = default(Gamma);
         reader.ReadInto(ref gamma);
-        SetGamma(gamma, vids);
+        SetGamma(gamma, map);
         int direction = 0;
         reader.ReadInto(ref direction);
         WindDirection = new Angle((byte)direction);
@@ -223,14 +220,14 @@ public sealed partial class Graphics
     }
 
     [EngineRoutine(0x00433bb0)]
-    internal void OldLoadParameters(ref Resource reader, SpriteCatalog vids)
+    internal void OldLoadParameters(ref Resource reader, Map map)
     {
         var environment = Environment;
         reader.ReadInto(ref environment);
         Environment = environment;
         uint gamma = 0;
         reader.ReadInto(ref gamma);
-        SetGamma(Gamma.FromScript(gamma), vids);
+        SetGamma(Gamma.FromScript(gamma), map);
         byte direction = 0;
         reader.ReadInto(ref direction);
         short speed = 0;

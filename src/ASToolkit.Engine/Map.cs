@@ -27,7 +27,6 @@ public partial class Map : IDisposable
     private const int StartRandomState = 1;
     private const string ScriptExtension = ".lgc";
     private const string CompiledScriptExtension = ".lgd";
-    private const float RegionReach = 25f;
     private const int ScriptHookCount = 64;
     private const int NoHookBase = 1000000;
     private const int ReleaseWindSpeed = 0x19;
@@ -58,12 +57,13 @@ public partial class Map : IDisposable
     /// <summary>
     /// Initializes a new instance of the <see cref="Map"/> class with no level loaded.
     /// </summary>
-    /// <param name="vids">The shared data and frames of the game's object IDs.</param>
+    /// <param name="gameFolder">The game folder that holds the sprite files of the object IDs.</param>
+    /// <param name="objects">The object table.</param>
     /// <param name="fileSystem">The file system that holds the game's files.</param>
     /// <param name="registry">The registry of the level scripts, or null for an empty one.</param>
     /// <param name="session">The session the map belongs to, or null to create one.</param>
     [EngineRoutine(0x00408ff0)]
-    protected Map(SpriteCatalog vids, IGameFileSystem fileSystem, Registry? registry = null, GameSession? session = null)
+    protected Map(string gameFolder, ObjectTable objects, IGameFileSystem fileSystem, Registry? registry = null, GameSession? session = null)
     {
         Registry = registry ?? new Registry("");
         Session = session ?? new GameSession(Registry);
@@ -74,17 +74,27 @@ public partial class Map : IDisposable
         SetFlag(MapFlags.DrawPresentation, Session.ShouldDrawPresentation);
         _hasWindow = true;
         _fileSystem = fileSystem;
-        Vids = vids;
+        _gameFolder = gameFolder;
+        _objects = objects;
+        Parts = new SpritePartReader(gameFolder, objects);
         _rng = new GameRandom(StartRandomState);
         Script.Error = Session.Error;
         _updates = new UpdateOrder();
         _clock = new GameClock();
         Size = StartMapSize;
         ResetGroundZ();
-        Collector = new SpriteCollector(Size, vids.Table, this);
-        Sound = Session.Sound ??= new Sound(vids.Sounds, fileSystem, Session.Error, isHighQuality: Session.IsSoundHighQuality);
-        LoadObjectRecords(false);
-        CursorSprite = new Mouse(Vids.Empty, new Vector3(Session.ScreenSize.ToVector2() * HalfShare, 0), default, null, this);
+        Sound = Session.Sound ??= new Sound(objects.Sounds, fileSystem, Session.Error, isHighQuality: Session.IsSoundHighQuality);
+        Collector = new SpriteCollector(this);
+        var objectsName = Profile.TryGetString(fileSystem, GameSession.ConfigFile, GameSession.GameSection, ResourceKey, out var configured) ? configured.Span : DefaultObjectsFile;
+        var objectsFile = new Resource();
+        if (objectsFile.Open(fileSystem, Session.Error, objectsName, ObjectsKind) == 0)
+        {
+            LoadVid(ref objectsFile);
+        }
+
+        EmptyVid.SetWeapon(FirstWeapon);
+        Collector = new SpriteCollector(Size, Vids, this);
+        CursorSprite = new Mouse(EmptyVid, new Vector3(Session.ScreenSize.ToVector2() * HalfShare, 0), default, null, this);
         _controls = ControlSettings.Read(fileSystem);
         Input = new Input(_controls);
         for (int slot = 0; slot < ASToolkit.Engine.Vid.ArmyCount; slot++)
@@ -130,10 +140,6 @@ public partial class Map : IDisposable
     /// </summary>
     public bool IsPlayerControlled => _flags.HasFlag(MapFlags.PlayerControlled);
 
-    /// <summary>
-    /// Gets the shared data and frames of the game's object IDs.
-    /// </summary>
-    public SpriteCatalog Vids { get; }
 
     /// <summary>
     /// Gets the sprite of the mouse cursor.
@@ -224,6 +230,12 @@ public partial class Map : IDisposable
 
     private static ReadOnlySpan<byte> MapKind => "MAP "u8;
 
+    private static ReadOnlySpan<byte> DefaultObjectsFile => "objects.res"u8;
+
+    private static ReadOnlySpan<byte> ResourceKey => "Resource"u8;
+
+    private static ReadOnlySpan<byte> ObjectsKind => "DATA"u8;
+
     private static ReadOnlySpan<byte> DemoKind => "DEMO"u8;
 
     private static ReadOnlySpan<byte> GraphicsTag => "GRPH"u8;
@@ -301,7 +313,7 @@ public partial class Map : IDisposable
         int seed = IsPlayingDemo ? _playedDemo!.Value.Seed : (int)wallTime;
         _rng.Seed(seed);
         ShowLoadingStep("Load extra vid"u8);
-        LoadObjectRecords(true);
+        LoadVid(ref reader);
         if (reader.GoBegin(GraphicsTag) != Resource.Found)
         {
             if (!LoadOldTypeMap(ref reader))
@@ -490,7 +502,7 @@ public partial class Map : IDisposable
     internal virtual void Release()
     {
         var error = Session.Error;
-        Vids.LogCounts(error);
+        LogCounts(error);
         _spriteRelations.Clear();
         _clock.ResetRate();
         Session.Graphics.StopMovie();
@@ -540,8 +552,8 @@ public partial class Map : IDisposable
         _scriptFiles.Clear();
         Script.Reset();
         _stepCount = 0;
-        ReleaseAdditionalLoads();
-        Vids.ResetLevelState();
+        DeleteExtraVid();
+        ResetVidLevelState();
         for (int i = 0; i < _scriptHooks.Length; i++)
         {
             _scriptHooks[i] = i + NoHookBase;
@@ -620,8 +632,8 @@ public partial class Map : IDisposable
         _clock.SetTimes(time, time);
         int version = 0;
         reader.ReadInto(ref version);
-        Session.Graphics.OldLoadParameters(ref reader, Vids);
-        Collector = new SpriteCollector(Size, Vids.Table, this);
+        Session.Graphics.OldLoadParameters(ref reader, this);
+        Collector = new SpriteCollector(Size, Vids, this);
         ResetGroundZ();
         LoadGridZ(ref reader, (int)(Size.Height + OldGridRounding) / GridZCellSize * ((int)(Size.Width + OldGridRounding) / GridZCellSize) * sizeof(short));
         if (!FindSection(ref reader, SpriteTag))
@@ -636,10 +648,7 @@ public partial class Map : IDisposable
 
         while (TryReadPointer(ref reader, out var sprite))
         {
-            if (sprite is not null)
-            {
-                sprite.Action(ActionCode.RestoreOld, ref reader, version);
-            }
+            sprite?.Action(ActionCode.RestoreOld, ref reader, version);
 
             reader.GoNextSub(SpriteDataTag);
         }
@@ -650,14 +659,14 @@ public partial class Map : IDisposable
     private bool LoadNewTypeMap(ref Resource reader, ReadOnlySpan<byte> name, int seed)
     {
         ShowLoadingStep("Load graph parameters"u8);
-        Session.Graphics.Load(ref reader, Vids);
+        Session.Graphics.Load(ref reader, this);
         if (!FindSection(ref reader, HeadTag))
             return false;
 
         int version = LoadHead(ref reader, name, seed, out var scroll);
         Session.Error.Write($"CurrentTime   ={(uint)Time,-15}   sizeof(SPRITE)={SpriteRecordSize,-8} Map version   ={version}");
         ShowLoadingStep("Create new hash table"u8);
-        Collector = new SpriteCollector(Size, Vids.Table, this);
+        Collector = new SpriteCollector(Size, Vids, this);
         SetPosition(Session.ScreenSize.ToVector2() * HalfShare + scroll, CameraMove.None);
         ShowLoadingStep("Load gridZ"u8);
         ResetGroundZ();
@@ -763,7 +772,7 @@ public partial class Map : IDisposable
                 });
             }
 
-            Session.Graphics.DrawLoadBar(this, Vids.LoadingScreen);
+            Session.Graphics.DrawLoadBar(this, _vids[0]);
         }
     }
 
@@ -771,11 +780,8 @@ public partial class Map : IDisposable
     {
         while (TryReadPointer(ref reader, out var sprite))
         {
-            Session.Graphics.DrawLoadBar(this, Vids.LoadingScreen);
-            if (sprite is not null)
-            {
-                sprite.Action(ActionCode.Restore, ref reader, version);
-            }
+            Session.Graphics.DrawLoadBar(this, _vids[0]);
+            sprite?.Action(ActionCode.Restore, ref reader, version);
 
             reader.GoNextSub(SpriteDataTag);
         }
@@ -845,7 +851,7 @@ public partial class Map : IDisposable
     private void LogMissingSection(ReadOnlySpan<byte> tag) => Session.Error.Error(MapLogTag, LogError.Section, 0, tag);
 
     [EngineRoutine(0x00411440)]
-    private void ReleaseAdditionalLoads()
+    private void DeleteExtraVid()
     {
         for (int layer = 0; layer < LayerCount; layer++)
         {
@@ -861,7 +867,18 @@ public partial class Map : IDisposable
             }
         }
 
-        Vids.ReleaseAdditionalLoads();
+        for (int i = _vidCount - 1; i >= 0; i--)
+        {
+            if (_vids[i] is not null && _vids[i]!.FileType.HasFlag(VidType.FrameVector))
+            {
+                _vids[i] = null;
+            }
+        }
+
+        while (_vidCount > 0 && _vids[_vidCount - 1] is null)
+        {
+            _vidCount--;
+        }
     }
 
     private void ShowLoadingStep(ReadOnlySpan<byte> text)
@@ -891,7 +908,7 @@ public partial class Map : IDisposable
 
         if (vid.IsRegionReplaced)
         {
-            vid = ReplaceVid(vid, position);
+            vid = Region.ReplaceVid(this, vid, position);
         }
 
         Sprite sprite;
@@ -952,7 +969,7 @@ public partial class Map : IDisposable
 
         set.CheckedAt = Time;
         set.Sprites.Clear();
-        var vid = Vids.Find(id);
+        var vid = FindVid(id);
 
         if (vid is null)
             return set.Sprites;
@@ -1007,12 +1024,15 @@ public partial class Map : IDisposable
     }
 
     [EngineRoutine(0x0040fad0)]
-    private void AddToLayer(Sprite sprite)
+    internal void AddToLayer(Sprite sprite)
     {
         _updates.Add(sprite.Vid.Layer, sprite);
         sprite.AddRef();
         Release(sprite);
     }
+
+    [EngineRoutine(0x0040fa90)]
+    internal bool RemoveFromLayer(Sprite sprite) => _updates.Remove(sprite.Vid.Layer, sprite);
 
     [EngineRoutine(0x0040f9e0)]
     private void Pause()
@@ -1118,41 +1138,9 @@ public partial class Map : IDisposable
             {
                 var sprite = list[i];
 
-                if (sprite is not null)
-                {
-                    sprite.DeletePointerToSprite(removed);
-                }
+                sprite?.DeletePointerToSprite(removed);
             }
         }
-    }
-
-    [EngineRoutine(0x00449be0)]
-    private protected Vid ReplaceVid(Vid vid, Vector3 position)
-    {
-        var list = _updates.GetLayer(ObjectLayer.Region);
-
-        for (int i = list.Count - 1; i >= 0; i--)
-        {
-            if (list[i] is not Region region || region.Vid.Class != SpriteClass.Region || position.Z >= region.Position.Z + RegionReach)
-                continue;
-
-            if (!region.Flags.HasFlag(RegionFlags.CoversMap))
-            {
-                var half = region.Size * 0.5f;
-
-                if (region.Position.X - half.X > position.X || position.X > half.X + region.Position.X ||
-                    region.Position.Y - half.Y > position.Y || position.Y > half.Y + region.Position.Y)
-                    continue;
-            }
-
-            for (int pair = 0; pair < Region.Pairs; pair++)
-            {
-                if (region.From[pair] == vid)
-                    return region.To[pair]!;
-            }
-        }
-
-        return vid;
     }
 
 }

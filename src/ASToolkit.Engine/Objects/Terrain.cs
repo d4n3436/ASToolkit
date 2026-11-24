@@ -66,8 +66,8 @@ public class Terrain : Sprite
 
         if (linkVid is not null && Link?.Vid != linkVid && relink)
         {
-            var counted = Map.Vids.Find(RelinkCountedId);
-            var limit = Map.Vids.Find(RelinkLimitId);
+            var counted = Map.FindVid(RelinkCountedId);
+            var limit = Map.FindVid(RelinkLimitId);
             bool atLimit = Vid.Id == RelinkCountedId && (counted?.Counts[army] ?? 0) <= (limit?.Counts[army] ?? 0);
 
             if (!atLimit)

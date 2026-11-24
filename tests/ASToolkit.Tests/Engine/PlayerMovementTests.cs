@@ -10,11 +10,10 @@ public class PlayerMovementTests
     [Fact]
     public void MoveTact_NoTarget_BrakesWithoutDiscardingMomentum()
     {
-        var vids = TestGameFolder.CreateCatalog();
-        var vid = vids.Find(KnownObject.PlayerStart)!;
-        var map = EngineTestMap.CreateMap(vids, frameTime: 20);
+        var map = EngineTestMap.CreateMap(frameTime: 20);
+        var vid = map.FindVid(KnownObject.PlayerStart)!;
         var player = new Man(vid, new Vector3(1000, 1000, 0), default, null, map) { Direction = new Angle(64) };
-        player.Move(new Sprite(vids.Empty, new Vector3(1400, 1000, 0), default, null, map));
+        player.Move(new Sprite(map.EmptyVid, new Vector3(1400, 1000, 0), default, null, map));
         map.AdvanceClock();
         player.MoveTact();
         Assert.Equal(0.018f, player.Speed, 5);
@@ -34,11 +33,10 @@ public class PlayerMovementTests
     [Fact]
     public void MoveTact_DisplacesAlongTheDirectionFromBeforeTheTurn()
     {
-        var vids = TestGameFolder.CreateCatalog();
-        var vid = vids.Find(KnownObject.PlayerStart)!;
-        var map = EngineTestMap.CreateMap(vids, frameTime: 20);
+        var map = EngineTestMap.CreateMap(frameTime: 20);
+        var vid = map.FindVid(KnownObject.PlayerStart)!;
         var player = new Man(vid, new Vector3(1000, 1000, 0), default, null, map);
-        player.Move(new Sprite(vids.Empty, new Vector3(1400, 1000, 0), default, null, map));
+        player.Move(new Sprite(map.EmptyVid, new Vector3(1400, 1000, 0), default, null, map));
         map.AdvanceClock();
         player.MoveTact();
 

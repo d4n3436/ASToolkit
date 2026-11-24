@@ -375,10 +375,10 @@ internal sealed class PlayerBot
     {
         _player = _map.Player;
         _aimCursor = PlayerCommand.GetCursor(_player.Position);
-        _rubbleReach = (_map.Vids.Find(KnownObject.RubblePile)?.Half ?? Vector2.Zero) + _player.Vid.Half;
+        _rubbleReach = (_map.FindVid(KnownObject.RubblePile)?.Half ?? Vector2.Zero) + _player.Vid.Half;
     }
 
-    private bool HasReached(Vector2 target) => (_reachedGoal.HasValue && _reachedGoal.Value == target) || _map.Player.IsTouching(target, _map.Vids.Empty.Half);
+    private bool HasReached(Vector2 target) => (_reachedGoal.HasValue && _reachedGoal.Value == target) || _map.Player.IsTouching(target, _map.EmptyVid.Half);
 
     private PlayerCommand PlanCommand()
     {
@@ -736,7 +736,7 @@ internal sealed class PlayerBot
         // Step toward the nearest standable cell outside the player's pocket when the player can reach too few cells to walk out of it
         if (_field.ReachedCount < MinPocketCells)
         {
-            int nearest = _field.FindFree(_map.Player.Position.AsVector2(), StuckReach, skipReached: true, skippedHalf: _map.Player.Vid.Half + _map.Vids.Empty.Half);
+            int nearest = _field.FindFree(_map.Player.Position.AsVector2(), StuckReach, skipReached: true, skippedHalf: _map.Player.Vid.Half + _map.EmptyVid.Half);
 
             if (nearest >= 0)
             {

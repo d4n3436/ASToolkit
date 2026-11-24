@@ -130,7 +130,7 @@ public partial class Sprite
                 if (distance == 0)
                     return false;
 
-                VerticalSpeed = Vid.CalculateZSpeed(Map.Vids, offset.Z, distance);
+                VerticalSpeed = Vid.CalculateZSpeed(Map, offset.Z, distance);
             }
         }
 
@@ -203,11 +203,11 @@ public partial class Sprite
 
         if (gameObject.Properties.HasFlag(ObjectProperties.Gravity))
         {
-            VerticalSpeed -= elapsed * Map.Vids.Gravitation;
+            VerticalSpeed -= elapsed * Map.Gravitation;
         }
         else if (gameObject.Properties.HasFlag(ObjectProperties.Gravity2))
         {
-            VerticalSpeed -= elapsed * Map.Vids.Gravitation2;
+            VerticalSpeed -= elapsed * Map.Gravitation2;
         }
 
         next.Z = elapsed * VerticalSpeed + next.Z;

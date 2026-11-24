@@ -42,7 +42,7 @@ internal sealed class InspectLevelCommand : LevelCommand<InspectLevelSettings>
             if (!settings.NoImages)
             {
                 string name = (settings.Levels is null ? "" : "gen_") + Path.ChangeExtension(maps[mapIndex], null).Replace('/', '_').Replace('\\', '_');
-                using var rendered = MapImage.Render(Playthrough.LoadMap(settings.Game, new SpriteCatalog(settings.Game, objects), mapPath), settings.Scale);
+                using var rendered = MapImage.Render(Playthrough.LoadMap(settings.Game, objects, mapPath), settings.Scale);
                 PlaceOverlay.Draw(rendered, survey, level.Analysis);
                 rendered.Image.SaveAsPng(Path.Combine(settings.Out, name + "_places.png"), PngOptions.Fast);
             }

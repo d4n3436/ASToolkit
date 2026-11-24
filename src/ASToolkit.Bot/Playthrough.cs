@@ -34,7 +34,8 @@ public sealed class Playthrough
     private readonly string _gameFolder;
     private readonly GameFolder _fileSystem;
     private readonly MemoryWriteOverlay _files;
-    private readonly SpriteCatalog _vids;
+    private readonly ObjectTable _objects;
+    private readonly Map _map;
     private readonly Dictionary<RouteAnalysis, LevelSetup> _setups = [];
 
     /// <summary>
@@ -48,8 +49,9 @@ public sealed class Playthrough
         _gameFolder = gameFolder;
         _fileSystem = new GameFolder(gameFolder);
         _files = new MemoryWriteOverlay(_fileSystem);
-        _vids = new SpriteCatalog(gameFolder, objects);
-        _shop = new ShopBot(objects, _vids, table);
+        _objects = objects;
+        _map = new MapSteam(gameFolder, objects, _fileSystem);
+        _shop = new ShopBot(objects, _map, table);
     }
 
     /// <summary>
@@ -82,11 +84,11 @@ public sealed class Playthrough
     /// Loads a map file with the level script beside it, or the campaign's default script if there isn't one, and runs its first frame.
     /// </summary>
     /// <param name="gameFolder">The game folder.</param>
-    /// <param name="vids">The shared data and frames of the game's object IDs.</param>
+    /// <param name="objects">The object table of the game.</param>
     /// <param name="mapFile">The path of the map file, inside or outside the game folder.</param>
     /// <returns>The map after its first frame.</returns>
     /// <exception cref="FileNotFoundException">The map file does not exist.</exception>
-    public static Map LoadMap(string gameFolder, SpriteCatalog vids, string mapFile)
+    public static Map LoadMap(string gameFolder, ObjectTable objects, string mapFile)
     {
         if (!File.Exists(mapFile))
             throw new FileNotFoundException($"Could not find map file '{mapFile}'.", mapFile);
@@ -100,7 +102,7 @@ public sealed class Playthrough
         files.Set(mapPath, File.ReadAllBytes(mapFile));
         files.Set(scriptPath, File.Exists(scriptFile) ? File.ReadAllBytes(scriptFile) : DefaultLevelScript.ToArray());
         var profile = CreateProfile(gameFolder);
-        var map = new MapSteam(vids, files, profile, new GameSession(profile, time: new LoadingRedrawClock()));
+        var map = new MapSteam(gameFolder, objects, files, profile, new GameSession(profile, time: new LoadingRedrawClock()));
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         map.RequestLoad(GameTextEncoding.Cyrillic.GetBytes(mapPath));
         map.Tact(ViewSeed, ViewSeed, out _);
@@ -167,7 +169,7 @@ public sealed class Playthrough
         string demoPath = Path.ChangeExtension(GetMapPath(analysis.Name), DemoExtension);
         _files.Set(demoPath, demo.Data);
         var registry = CreateRegistry(_gameFolder, analysis.Name, loadout);
-        var map = new MapSteam(_vids, _files, registry, new GameSession(registry, time: new LoadingRedrawClock()));
+        var map = new MapSteam(_gameFolder, _objects, _files, registry, new GameSession(registry, time: new LoadingRedrawClock()));
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         map.RequestLoad(GameTextEncoding.Cyrillic.GetBytes(demoPath));
         map.Tact(GameClock.StartWallTime, 0, out _);
@@ -240,7 +242,7 @@ public sealed class Playthrough
         if (map is null)
         {
             var registry = CreateRegistry(_gameFolder, analysis.Name, loadout);
-            map = new MapSteam(_vids, _files, registry, new GameSession(registry, time: new LoadingRedrawClock()));
+            map = new MapSteam(_gameFolder, _objects, _files, registry, new GameSession(registry, time: new LoadingRedrawClock()));
             map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         }
         else
@@ -255,7 +257,7 @@ public sealed class Playthrough
 
         map.RequestLoad(setup.MapName);
         map.Tact((uint)seed, (uint)seed, out _);
-        var field = new WalkField(analysis.Grid, setup.DoorsLocked, map, map.Collector, _vids.Find(KnownObject.PlayerStart)!.Object);
+        var field = new WalkField(analysis.Grid, setup.DoorsLocked, map, map.Collector, map.FindVid(KnownObject.PlayerStart)!.Object);
         var bot = new PlayerBot(map, new FramePacer(FrameTimes), analysis, field);
 
         return new PlaySession(map, bot, analysis.Exit is null && !analysis.ShouldClearMonsters);

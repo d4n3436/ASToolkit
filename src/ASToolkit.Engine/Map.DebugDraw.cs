@@ -1,6 +1,5 @@
 using System.Drawing;
 using System.Numerics;
-using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
@@ -9,12 +8,12 @@ public partial class Map
     internal const uint White = 0xffffffff;
     internal const uint Green = 0xff00ff00;
     internal const uint Red = 0xffff0000;
-    private const uint Black = 0xff000000;
-    private const uint Gray = 0xff808080;
-    private const uint Blue = 0xff0000ff;
-    private const uint LightBlue = 0xff8080ff;
-    private const uint Yellow = 0xffffff00;
-    private const float TextLineOffset = 1;
+    internal const uint Black = 0xff000000;
+    internal const uint Gray = 0xff808080;
+    internal const uint Blue = 0xff0000ff;
+    internal const uint LightBlue = 0xff8080ff;
+    internal const uint Yellow = 0xffffff00;
+    internal const float TextLineOffset = 1;
     private const float SoundCountInset = 20;
     private const int GridFirstColumnX = 12;
     private const int GridCellCenter = 4;
@@ -57,10 +56,7 @@ public partial class Map
                 {
                     var sprite = sprites[i];
 
-                    if (sprite is not null)
-                    {
-                        DrawSpriteBox(sprite);
-                    }
+                    sprite?.DrawSpriteBox();
                 }
             }
         }
@@ -70,10 +66,7 @@ public partial class Map
             var flagman = Flagman(ControlledPlayer);
             var hovered = _players[ControlledPlayer].Hovered;
             var drawn = flagman ?? hovered ?? MenuCurrent;
-            if (drawn is not null)
-            {
-                drawn.DrawSecondaryInfo();
-            }
+            drawn?.DrawSecondaryInfo();
         }
 
         if (_flags.HasFlag(MapFlags.DrawGroups))
@@ -109,77 +102,6 @@ public partial class Map
                 Session.Graphics.DrawLine(this, start, end, Gray);
             }
         }
-    }
-
-    [EngineRoutine(0x004455c0)]
-    private void DrawSpriteBox(Sprite sprite)
-    {
-        var vid = sprite.Vid;
-        var gameObject = vid.Object;
-
-        if (vid.Class == SpriteClass.Region)
-        {
-            sprite.DrawSecondaryInfo();
-
-            return;
-        }
-
-        var type = gameObject.SpriteType.ToOldSpriteType();
-        uint color;
-
-        if (type.HasFlag(OldSpriteType.Terrain) && gameObject.Properties.HasFlag(ObjectProperties.Hash))
-        {
-            color = Black;
-        }
-        else if (vid.Layer == ObjectLayer.Alpha)
-        {
-            color = White;
-        }
-        else if (type.HasFlag(OldSpriteType.Unit))
-        {
-            color = Green;
-        }
-        else if (type.HasFlag(OldSpriteType.Avia))
-        {
-            color = LightBlue;
-        }
-        else if (type.HasFlag(OldSpriteType.Object))
-        {
-            color = Yellow;
-        }
-        else if (type.HasFlag(OldSpriteType.Railway))
-        {
-            color = Red;
-        }
-        else if (type.HasFlag(OldSpriteType.Cannon))
-        {
-            color = Gray;
-        }
-        else if (vid.Class == SpriteClass.Frame)
-        {
-            color = White;
-        }
-        else
-        {
-            color = Red;
-        }
-
-        var position = sprite.Position;
-        float bottom = position.Y - position.Z + vid.Half.Y - Camera.Y;
-        float right = vid.Half.X + position.X - Camera.X;
-        float top = position.Y - position.Z - vid.Half.Y - Camera.Y;
-        float left = position.X - vid.Half.X - Camera.X;
-        Session.Graphics.DrawRectangle(this, new Vector2(left, top), new Vector2(right, bottom), color);
-
-        if ((type & (OldSpriteType.Object | OldSpriteType.Unit)) != 0)
-        {
-            float feet = position.Y - position.Z - Camera.Y;
-            float roof = position.Y - position.Z - gameObject.Size.Z - Camera.Y;
-            float x = position.X - Camera.X;
-            Session.Graphics.DrawLine(this, new Vector2(x, roof), new Vector2(x, feet), Blue);
-        }
-
-        Session.Graphics.DrawFormattedText(new Vector2(position.X - Camera.X + TextLineOffset, position.Y - position.Z - Camera.Y), $"{(int)vid.Id}");
     }
 
     private void DrawGroups()

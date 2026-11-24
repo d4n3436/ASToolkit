@@ -14,14 +14,13 @@ public class EffectTests
     public void Emit_Hit_CreatesBloodAndLeavesItsStains(string blood, int stains)
     {
         string game = TestGameFolder.RequireFolder();
-        var vids = new SpriteCatalog(game, TestGameFolder.Objects);
-        var map = EngineTestMap.CreateMap(vids, blood: blood);
+        var map = EngineTestMap.CreateMap(blood: blood);
         var observer = new MapObserver(map);
         var scenery = observer.BakedEffects;
         map.Play(default);
         observer.Observe();
         int start = map.Time;
-        Emit(map, vids.Find(KnownObject.Monster1)!, SpriteAnimation.Close, new Vector3(100, 100, 0), new Angle(64));
+        Emit(map, map.FindVid(KnownObject.Monster1)!, SpriteAnimation.Close, new Vector3(100, 100, 0), new Angle(64));
 
         Assert.Contains(map.GetEffects(), effect => effect.Vid.Id == KnownObject.RedBloodSpray && effect.CreatedAt == start);
         Assert.Contains(map.GetEffects(), effect => effect is { Vid.Id: KnownObject.SmallBloodPool, Animation: SpriteAnimation.Death });
@@ -40,13 +39,12 @@ public class EffectTests
     public void Emit_Death_LeavesBloodBeforeTheCorpseArrives()
     {
         string game = TestGameFolder.RequireFolder();
-        var vids = new SpriteCatalog(game, TestGameFolder.Objects);
-        var map = EngineTestMap.CreateMap(vids);
+        var map = EngineTestMap.CreateMap();
         var observer = new MapObserver(map);
         var scenery = observer.BakedEffects;
         map.Play(default);
         observer.Observe();
-        Emit(map, vids.Find(KnownObject.Monster1)!, SpriteAnimation.Death, new Vector3(100, 100, 0), default);
+        Emit(map, map.FindVid(KnownObject.Monster1)!, SpriteAnimation.Death, new Vector3(100, 100, 0), default);
 
         Assert.Contains(map.GetEffects(), effect => effect.Vid.Id == KnownObject.Monster1Death);
         Assert.Contains(map.GetEffects(), effect => effect.Vid.Id == KnownObject.LargeBloodPool);
@@ -67,14 +65,13 @@ public class EffectTests
     public void Emit_ArmoredMonsterDeath_BringsTheBodyAfterTheEffect()
     {
         string game = TestGameFolder.RequireFolder();
-        var vids = new SpriteCatalog(game, TestGameFolder.Objects);
-        var map = EngineTestMap.CreateMap(vids);
+        var map = EngineTestMap.CreateMap();
 
         int start = map.Time;
-        Emit(map, vids.Find(KnownObject.WeaponMonster)!, SpriteAnimation.Death, new Vector3(100, 100, 0), default);
+        Emit(map, map.FindVid(KnownObject.WeaponMonster)!, SpriteAnimation.Death, new Vector3(100, 100, 0), default);
 
         Assert.Empty(map.Monsters);
-        int duration = vids.Find(KnownObject.WeaponMonsterDeath)!.GetAnimationDuration(SpriteAnimation.Death);
+        int duration = map.FindVid(KnownObject.WeaponMonsterDeath)!.GetAnimationDuration(SpriteAnimation.Death);
         while (map.Time <= start + duration + 2 * FramePacer.DefaultFrameTime)
         {
             map.Play(default);

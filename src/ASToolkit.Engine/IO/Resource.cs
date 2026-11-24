@@ -199,7 +199,7 @@ internal ref struct Resource
         if (count <= 0)
             return [];
 
-        T[] values = new T[count];
+        var values = new T[count];
         int missing = Read(MemoryMarshal.AsBytes(values.AsSpan()));
 
         return values.AsSpan(0, count - (missing + Unsafe.SizeOf<T>() - 1) / Unsafe.SizeOf<T>());

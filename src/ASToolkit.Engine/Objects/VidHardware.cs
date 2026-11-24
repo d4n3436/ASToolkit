@@ -54,7 +54,7 @@ public sealed class VidHardware : Vid
 
     [EngineRoutine(0x00419750)]
     internal VidHardware(KnownObject id, Size size, in WeaponRecord weapon, MyError? error)
-        : base(id, new GameObject(SpriteClass.Primitive, GroundObjectSize), weapon, SpriteCatalog.DefaultSpriteSpeed)
+        : base(id, new GameObject(SpriteClass.Primitive, GroundObjectSize), weapon, Map.DefaultSpriteSpeed)
     {
         FileType = GroundType;
         FrameSize = size;

@@ -20,26 +20,4 @@ public partial class Map
     public static int Action(Sprite sprite, ActionCode code, int var1 = 0, int var2 = 0, int var3 = 0, Sprite? target = null) =>
         sprite.Action(code, var1, var2, var3, target);
 
-    [EngineRoutine(0x00442a10)]
-    internal void AddToUpdates(Sprite sprite)
-    {
-        if (sprite.Link is not null)
-        {
-            AddToUpdates(sprite.Link);
-        }
-
-        AddToLayer(sprite);
-    }
-
-    [EngineRoutine(0x004429f0)]
-    internal bool RemoveFromUpdates(Sprite sprite)
-    {
-        if (sprite.Link is not null)
-        {
-            RemoveFromUpdates(sprite.Link);
-        }
-
-        return _updates.Remove(sprite.Vid.Layer, sprite);
-    }
-
 }

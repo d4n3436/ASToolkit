@@ -63,7 +63,7 @@ public partial class Sprite
         Map.RaiseHeights(Vid, this);
 
         int emitSlot = (int)Animation;
-        var emitChild = Map.Vids.Find((KnownObject)Math.Abs(Vid.Children[emitSlot]));
+        var emitChild = Vid.ChildVids[emitSlot];
 
         if (emitChild is not null && Vid.Class == SpriteClass.Region && Vid.Object.ChildX[emitSlot].IsExactlyZero() && Vid.Object.ChildY[emitSlot].IsExactlyZero())
         {
@@ -148,7 +148,7 @@ public partial class Sprite
             PlaySfx(sound);
         }
 
-        var tactChild = Map.Vids.Find((KnownObject)Math.Abs(Vid.Children[(int)Animation]));
+        var tactChild = Vid.ChildVids[(int)Animation];
 
         if (tactChild is not null && !tactChild.Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke))
         {

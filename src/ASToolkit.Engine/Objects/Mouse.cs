@@ -37,16 +37,16 @@ public sealed class Mouse : Sprite
     public Mouse(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
         : base(vid, position, direction, parent, map)
     {
-        if (Vid != Map.Vids.Empty)
+        if (Vid != Map.EmptyVid)
         {
-            Map.RemoveFromUpdates(this);
+            RemoveFromUpdates();
         }
-        else if (Link is not null)
+        else
         {
-            Map.RemoveFromUpdates(Link);
+            Link?.RemoveFromUpdates();
         }
 
-        if (Vid == Map.Vids.Empty)
+        if (Vid == Map.EmptyVid)
         {
             AddRef();
         }
@@ -201,10 +201,10 @@ public sealed class Mouse : Sprite
                 Map.CursorSprite.ChangeAnimation((SpriteAnimation)var1);
                 return 0;
             case ActionCode.ChangeVid:
-                if (Map.Vids.Find((KnownObject)var1) is null || (KnownObject)var1 == Vid.Id)
+                if (Map.FindVid((KnownObject)var1) is null || (KnownObject)var1 == Vid.Id)
                     return 0;
 
-                Map.AddToUpdates(this);
+                AddToUpdates();
                 base.Action(act, var1, var2, var3, target);
                 Map.Collector.DeleteFromHash(this);
                 foreach (var link in EnumerateLinks())
@@ -212,7 +212,7 @@ public sealed class Mouse : Sprite
                     Map.Collector.DeleteFromHash(link);
                 }
 
-                Map.RemoveFromUpdates(this);
+                RemoveFromUpdates();
 
                 return 0;
             case ActionCode.ChangeCoor:

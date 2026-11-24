@@ -110,15 +110,15 @@ public partial class Sprite
 
         CreatedAt = Map.Time;
         IsInvisible = gameObject.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) && (int)Army != Map.ControlledPlayer;
-        Hp = vid.ArmyMaxHp[(int)Army & ASToolkit.Engine.Vid.ArmyMask];
+        Hp = vid.ArmyMaxHp[(int)Army & Vid.ArmyMask];
         Error = Map.Session.Error;
         var state = Map.GetInitialAnimation(vid);
         Start(state, direction, Map.Time, Map.Random);
 
-        if (vid != Map.Vids.Empty)
+        if (vid != Map.EmptyVid)
         {
             AddRef();
-            Map.AddToUpdates(this);
+            AddToUpdates();
         }
 
         CreateLink();
@@ -1035,7 +1035,7 @@ public partial class Sprite
         Map.RunDestroyHandler(this);
         Map.LowerHeights(Vid, this);
 
-        bool isEmpty = Vid == Map.Vids.Empty;
+        bool isEmpty = Vid == Map.EmptyVid;
 
         if (isEmpty && ReferenceCount != 0)
         {
@@ -1070,7 +1070,7 @@ public partial class Sprite
 
         if (!isEmpty)
         {
-            Map.RemoveFromUpdates(this);
+            RemoveFromUpdates();
             Release();
         }
 
@@ -1332,7 +1332,7 @@ public partial class Sprite
             {
                 int army = (int)Army & 3;
                 Vid.Killed[army]++;
-                ChangeAnimation(Vid.ArmyMaxHp[army] < Hp - hp && Map.Vids.Find((KnownObject)Math.Abs(Vid.Children[(int)SpriteAnimation.Death2])) is not null ? SpriteAnimation.Death2 : SpriteAnimation.Death);
+                ChangeAnimation(Vid.ArmyMaxHp[army] < Hp - hp && Vid.ChildVids[(int)SpriteAnimation.Death2] is not null ? SpriteAnimation.Death2 : SpriteAnimation.Death);
             }
 
             return;
@@ -1341,7 +1341,7 @@ public partial class Sprite
         int half = Vid.ArmyMaxHp[(int)Army & 3] / 2;
         if (half < hp && Hp <= half)
         {
-            DestroyLink(Map.Vids.Find((KnownObject)Math.Abs(Vid.Children[(int)SpriteAnimation.Wound])));
+            DestroyLink(Vid.ChildVids[(int)SpriteAnimation.Wound]);
         }
 
         if (hp <= half && half < Hp)
@@ -1402,7 +1402,7 @@ public partial class Sprite
         var vid = Vid;
         var state = Animation;
         int slot = (int)state;
-        var child = Map.Vids.Find((KnownObject)Math.Abs(vid.Children[slot]));
+        var child = vid.ChildVids[slot];
         int count = Math.Abs(vid.ChildCounts[slot]);
         int i = 0;
 
@@ -1515,7 +1515,7 @@ public partial class Sprite
 
     private void LaunchChild(Sprite goal, Vid vid, Vector2 lateral)
     {
-        if (vid.WeaponFlags.HasFlag(WeaponFlags.NoSpread) && goal.Vid != Map.Vids.Empty)
+        if (vid.WeaponFlags.HasFlag(WeaponFlags.NoSpread) && goal.Vid != Map.EmptyVid)
         {
             Attack(goal);
             StartMove();
@@ -1598,7 +1598,7 @@ public partial class Sprite
         }
 
         // TODO: Port the trains; the IsTrain action of the attack test answers for every class
-        if (target is null || target.Vid == Map.Vids.Empty || CanAttackThisSprite(target) || vid.Class == SpriteClass.Cannon ||
+        if (target is null || target.Vid == Map.EmptyVid || CanAttackThisSprite(target) || vid.Class == SpriteClass.Cannon ||
             Map.Action(this, ActionCode.IsTrain) != 0)
         {
             SetCommand(Command.Attack, target);
@@ -1612,7 +1612,7 @@ public partial class Sprite
     [EngineRoutine(0x00446430)]
     public void CreateChildFor(SpriteAnimation state)
     {
-        if (Map.Vids.Find((KnownObject)Math.Abs(Vid.Children[(int)state])) is not null)
+        if (Vid.ChildVids[(int)state] is not null)
         {
             CreateChildAs(state);
         }
@@ -1716,6 +1716,111 @@ public partial class Sprite
         Span<byte> number = stackalloc byte[11];
         Utf8Formatter.TryFormat(value, number, out int length);
         text.AddRange(number[..length]);
+    }
+
+    [EngineRoutine(0x004455c0)]
+    internal void DrawSpriteBox()
+    {
+        var vid = Vid;
+        var gameObject = vid.Object;
+
+        if (vid.Class == SpriteClass.Region)
+        {
+            DrawSecondaryInfo();
+
+            return;
+        }
+
+        var type = gameObject.SpriteType.ToOldSpriteType();
+        uint color;
+
+        if (type.HasFlag(OldSpriteType.Terrain) && gameObject.Properties.HasFlag(ObjectProperties.Hash))
+        {
+            color = Map.Black;
+        }
+        else if (vid.Layer == ObjectLayer.Alpha)
+        {
+            color = Map.White;
+        }
+        else if (type.HasFlag(OldSpriteType.Unit))
+        {
+            color = Map.Green;
+        }
+        else if (type.HasFlag(OldSpriteType.Avia))
+        {
+            color = Map.LightBlue;
+        }
+        else if (type.HasFlag(OldSpriteType.Object))
+        {
+            color = Map.Yellow;
+        }
+        else if (type.HasFlag(OldSpriteType.Railway))
+        {
+            color = Map.Red;
+        }
+        else if (type.HasFlag(OldSpriteType.Cannon))
+        {
+            color = Map.Gray;
+        }
+        else if (vid.Class == SpriteClass.Frame)
+        {
+            color = Map.White;
+        }
+        else
+        {
+            color = Map.Red;
+        }
+
+        var position = Position;
+        float bottom = position.Y - position.Z + vid.Half.Y - Map.Camera.Y;
+        float right = vid.Half.X + position.X - Map.Camera.X;
+        float top = position.Y - position.Z - vid.Half.Y - Map.Camera.Y;
+        float left = position.X - vid.Half.X - Map.Camera.X;
+        Map.Session.Graphics.DrawRectangle(Map, new Vector2(left, top), new Vector2(right, bottom), color);
+
+        if (type.HasFlag(OldSpriteType.Object) || type.HasFlag(OldSpriteType.Unit))
+        {
+            float feet = position.Y - position.Z - Map.Camera.Y;
+            float roof = position.Y - position.Z - gameObject.Size.Z - Map.Camera.Y;
+            float x = position.X - Map.Camera.X;
+            Map.Session.Graphics.DrawLine(Map, new Vector2(x, roof), new Vector2(x, feet), Map.Blue);
+        }
+
+        Map.Session.Graphics.DrawFormattedText(new Vector2(position.X - Map.Camera.X + Map.TextLineOffset, position.Y - position.Z - Map.Camera.Y), $"{(int)vid.Id}");
+    }
+
+    [EngineRoutine(0x00442a10)]
+    internal void AddToUpdates()
+    {
+        Link?.AddToUpdates();
+
+        Map.AddToLayer(this);
+    }
+
+    [EngineRoutine(0x004429f0)]
+    internal bool RemoveFromUpdates()
+    {
+        Link?.RemoveFromUpdates();
+
+        return Map.RemoveFromLayer(this);
+    }
+
+    [EngineRoutine(0x00445b10)]
+    internal void AddCommand(int act, int var1, int var2, int var3)
+    {
+        var order = Map.CreateAct(act, var1, var2, var3);
+        var orders = ActionStack.Items;
+        for (int i = orders.Length - 1; i >= 0; i--)
+        {
+            if (orders[i] is { Value: Act.StopMarker, Var1: 0, Var2: 0, Var3: 0 })
+            {
+                ActionStack.InsertBefore(i + 1, order);
+
+                return;
+            }
+        }
+
+        ActionStack.InsertFirst(order);
     }
 
 }

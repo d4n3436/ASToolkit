@@ -16,6 +16,7 @@ public sealed class Region : Sprite
     /// </summary>
     public const int Pairs = 6;
     private const int FloatRegionSizeVersion = 10;
+    private const float RegionReach = 25f;
     private const int FogPhaseMask = 7;
     private const int FogRampShift = 3;
     private const int FogStepsPerUnit = 8;
@@ -35,7 +36,7 @@ public sealed class Region : Sprite
     public Region(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
         : base(vid, position, direction, parent, map)
     {
-        UnusedVid = map.Vids.Empty;
+        UnusedVid = map.EmptyVid;
     }
 
     /// <summary>
@@ -78,7 +79,7 @@ public sealed class Region : Sprite
         int frame = Frame;
         var half = Size * Half;
 
-        if (Vid != map.Vids.Empty)
+        if (Vid != map.EmptyVid)
         {
             var savedViewport = screen.Viewport;
 
@@ -186,6 +187,35 @@ public sealed class Region : Sprite
         Map.Session.Graphics.DrawRectangle(Map, new Vector2(left - RegionBoxMargin, top - RegionBoxMargin), new Vector2(right + RegionBoxMargin, bottom + RegionBoxMargin), Map.White);
     }
 
+    [EngineRoutine(0x00449be0)]
+    internal static Vid ReplaceVid(Map map, Vid vid, Vector3 position)
+    {
+        var list = map.GetLayer((int)ObjectLayer.Region);
+
+        for (int i = list.Count - 1; i >= 0; i--)
+        {
+            if (list[i] is not Region region || region.Vid.Class != SpriteClass.Region || position.Z >= region.Position.Z + RegionReach)
+                continue;
+
+            if (!region.Flags.HasFlag(RegionFlags.CoversMap))
+            {
+                var half = region.Size * 0.5f;
+
+                if (region.Position.X - half.X > position.X || position.X > half.X + region.Position.X ||
+                    region.Position.Y - half.Y > position.Y || position.Y > half.Y + region.Position.Y)
+                    continue;
+            }
+
+            for (int pair = 0; pair < Pairs; pair++)
+            {
+                if (region.From[pair] == vid)
+                    return region.To[pair]!;
+            }
+        }
+
+        return vid;
+    }
+
     [EngineRoutine(0x00449d00)]
     private void SetFogParameters(int near, int far, uint color, ReadOnlySpan<ushort> ramp, bool isPalettized)
     {
@@ -234,14 +264,14 @@ public sealed class Region : Sprite
         }
 
         UnusedValue = stream.Read<int>();
-        UnusedVid = Map.Vids.Find((KnownObject)stream.Read<int>()) ?? Map.Vids.Empty;
+        UnusedVid = Map.FindVid((KnownObject)stream.Read<int>()) ?? Map.EmptyVid;
         for (int pair = 0; pair < Pairs; pair++)
         {
             var replacement = new RegionReplacement(-1, -1);
             stream.ReadInto(ref replacement);
-            var fromVid = Map.Vids.Find((KnownObject)replacement.From);
+            var fromVid = Map.FindVid((KnownObject)replacement.From);
             From[pair] = fromVid;
-            To[pair] = Map.Vids.Find((KnownObject)replacement.To);
+            To[pair] = Map.FindVid((KnownObject)replacement.To);
             fromVid?.IsRegionReplaced = true;
         }
 

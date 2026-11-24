@@ -73,7 +73,7 @@ public class HighSpaceTests
     [InlineData(EnLetter, 2)]
     public void Action_NextCommand_SkipsOnlyHighSpaces(byte character, int visibleCount)
     {
-        var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
+        var map = EngineTestMap.CreateMap();
         var source = new MemoryWriteOverlay(new GameFolder(TestGameFolder.RequireFolder()));
         source.Set(ScriptPath, "#include \"maps\\export.lgc\"\nmain() { MenuLoad(\"maps\\\\gamemenu.men\"); }"u8.ToArray());
         Assert.True(map.Script.Load(source, ScriptPath));

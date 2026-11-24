@@ -32,7 +32,7 @@ internal sealed class PlayerState
 
     public bool HasAmmo(int slot) => HoldsWeapon(slot) && GetAmmo(slot) > 0;
 
-    public Vid? GetWeapon(int slot) => slot is >= 0 and < Sprite.WeaponSlots ? _map.Vids.Find(KnownObject.SecretWeaponTorso + slot) : null;
+    public Vid? GetWeapon(int slot) => slot is >= 0 and < Sprite.WeaponSlots ? _map.FindVid(KnownObject.SecretWeaponTorso + slot) : null;
 
     public Dictionary<KnownObject, int> GetRemainingAmmo()
     {
@@ -57,7 +57,7 @@ internal sealed class PlayerState
         {
             KnownObject.Health or KnownObject.BigHealth => player.Hp < maxHealth,
             KnownObject.MegaHealth => player.Hp < maxHealth + MegaHealthBonus,
-            >= KnownObject.GreenArmor and <= KnownObject.RedArmor => GetArmorHp() < (_map.Vids.Find(id - ArmorIdOffset)?.MaxHp ?? 0),
+            >= KnownObject.GreenArmor and <= KnownObject.RedArmor => GetArmorHp() < (_map.FindVid(id - ArmorIdOffset)?.MaxHp ?? 0),
             >= KnownObject.LifeImplant and <= KnownObject.AccuracyImplant =>
                 _map.ReadScriptNumber(ItemsVariable, id - KnownObject.LifeImplant) < PlayerImplants.MaxCount,
             >= KnownObject.ShotgunAmmo and <= KnownObject.MagmaMinigunAmmo => CanTakeAmmo(id.GetAmmoSlot()),

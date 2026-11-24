@@ -176,7 +176,7 @@ public class ExecFuncTests
               restored = GetVidData(56, VID_DAMAGE);
             }
             """);
-        var vid = map.Vids.Find(KnownObject.RedMonster1)!;
+        var vid = map.FindVid(KnownObject.RedMonster1)!;
         var monster = map.FindSprite(Read(script, "first"))!;
 
         Assert.Equal(1, Read(script, "count"));
@@ -273,7 +273,7 @@ public class ExecFuncTests
     [Fact]
     public void ExecFunc_ScreenPickMoneyAndTrains_FollowTheGame()
     {
-        var vid = TestGameFolder.CreateCatalog().Find(KnownObject.RedMonster1)!;
+        var vid = EngineTestMap.CreateMap().FindVid(KnownObject.RedMonster1)!;
         int above = (int)(vid.Half.Y + vid.Object.Size.Z / 2);
         var (map, script) = Run($$"""
             int unit, picked, raised, footprint, below, money, other, train, property, engine;
@@ -349,8 +349,7 @@ public class ExecFuncTests
 
     private static (Map Map, Script Script) Run(string text)
     {
-        var vids = TestGameFolder.CreateCatalog();
-        var map = EngineTestMap.CreateMap(vids);
+        var map = EngineTestMap.CreateMap();
         var script = Compile(map, text);
         script.CallFunction(map, -1, 0, 0, 0);
 

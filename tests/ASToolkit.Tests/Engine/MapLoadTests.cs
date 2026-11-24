@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Drawing;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -12,6 +13,8 @@ namespace ASToolkit.Tests.Engine;
 public class MapLoadTests
 {
     private const string OldMapPath = "maps\\old.map";
+    private const string ExtraMapPath = "maps\\extra.map";
+    private const KnownObject ExtraId = (KnownObject)2000;
     private const int EndHandle = -1;
 
     [Fact]
@@ -20,7 +23,7 @@ public class MapLoadTests
         var logs = new MemoryWriteOverlay();
         using (var session = new GameSession(new Registry(""), logs, new LoadingRedrawClock()))
         {
-            var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog(), session: session);
+            var map = EngineTestMap.CreateMap(session: session);
             map.Load("maps\\missing.map"u8, GameClock.StartWallTime);
 
             Assert.True(map.IsLoading);
@@ -38,7 +41,7 @@ public class MapLoadTests
         files.Set("maps\\old.lgc", script);
         files.Set(OldMapPath, CreateOldMap());
         var registry = new Registry("");
-        var map = new MapSteam(TestGameFolder.CreateCatalog(), files, registry, new GameSession(registry, time: new LoadingRedrawClock()));
+        var map = new MapSteam(TestGameFolder.RequireFolder(), TestGameFolder.Objects, files, registry, new GameSession(registry, time: new LoadingRedrawClock()));
 
         map.Load("maps\\old.map"u8, GameClock.StartWallTime);
 
@@ -48,9 +51,37 @@ public class MapLoadTests
     }
 
     [Fact]
+    public void Load_MapWithAnObjChunk_AddsItsVidsUntilTheNextLoad()
+    {
+        Assert.DoesNotContain(ExtraId, TestGameFolder.Objects.Ids);
+        var files = EngineTestMap.CreateFiles();
+        Assert.True(files.TryRead(EngineTestMap.MapPath, out var plain));
+        Assert.True(files.TryRead("maps\\engine_test.lgc", out var script));
+        var objects = new ResContainer(File.ReadAllBytes(TestGameFolder.Objects.Path));
+        byte[] record = objects.Chunks.First().Records.First(entry => BinaryPrimitives.ReadInt32LittleEndian(entry.Span) == (int)KnownObject.Crate).ToArray();
+        BinaryPrimitives.WriteInt32LittleEndian(record, (int)ExtraId);
+        var map = ResContainerBuilder.Parse(plain);
+        map.Chunks.Add(new ResChunkBuilder { Tag = "OBJ ", Records = [record] });
+        files.Set(ExtraMapPath, map.Build());
+        files.Set("maps\\extra.lgc", script);
+        var registry = new Registry("");
+        var steam = new MapSteam(TestGameFolder.RequireFolder(), TestGameFolder.Objects, files, registry, new GameSession(registry, time: new LoadingRedrawClock()));
+
+        steam.Load("maps\\extra.map"u8, GameClock.StartWallTime);
+        var extra = steam.FindVid(ExtraId);
+        steam.Load(EngineTestMap.MapName, GameClock.StartWallTime);
+
+        Assert.NotNull(extra);
+        Assert.True(extra.FileType.HasFlag(VidType.FrameVector));
+        Assert.Equal(steam.FindVid(KnownObject.Crate)!.Path, extra.Path);
+        Assert.False(steam.FindVid(KnownObject.Crate)!.FileType.HasFlag(VidType.FrameVector));
+        Assert.Null(steam.FindVid(ExtraId));
+    }
+
+    [Fact]
     public void Load_InDebugMode_PresentsAFrameForEveryLoadingText()
     {
-        var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
+        var map = EngineTestMap.CreateMap();
         var device = new RecordingGraphicsDevice();
         map.Session.Graphics.Device = device;
 
@@ -65,7 +96,7 @@ public class MapLoadTests
     [Fact]
     public void Step_ActiveWindow_PresentsTheFrame()
     {
-        var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
+        var map = EngineTestMap.CreateMap();
         var device = new RecordingGraphicsDevice();
         map.Session.Graphics.Device = device;
 

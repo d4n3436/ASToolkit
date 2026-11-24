@@ -36,7 +36,7 @@ public sealed class Man : Unit
     public Man(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
         : base(vid, position, direction, parent, map)
     {
-        InsertUniqueItem(Sprite.WeaponItemBase + Sprite.Pistols);
+        InsertUniqueItem(WeaponItemBase + Pistols);
     }
 
     /// <summary>
@@ -132,17 +132,17 @@ public sealed class Man : Unit
         if (held is null || (int)held.Id >= WeaponIdLimit)
             return false;
 
-        if (slot == Sprite.WeaponSlots)
+        if (slot == WeaponSlots)
         {
             slot = 0;
         }
 
-        if (!Items.Contains(Sprite.WeaponItemBase + slot) || Link is null || Link.Vid != held)
+        if (!Items.Contains(WeaponItemBase + slot) || Link is null || Link.Vid != held)
             return false;
 
         SlotAmmo[WeaponSlot] = GetAmmo();
-        Map.Action(Link, ActionCode.ChangeVid, slot + Sprite.WeaponIdBase);
-        Vid.LinkVid = Map.Vids.Find((KnownObject)(slot + Sprite.WeaponIdBase)) ?? Map.Vids.Empty;
+        Map.Action(Link, ActionCode.ChangeVid, slot + WeaponIdBase);
+        Vid.LinkVid = Map.FindVid((KnownObject)(slot + WeaponIdBase)) ?? Map.EmptyVid;
         AddAmmo(SlotAmmo[slot] - GetAmmo());
 
         return true;
@@ -187,7 +187,7 @@ public sealed class Man : Unit
         if (armorItem != 0)
         {
             var position = new Vector3(Position.X, Position.Y, Position.Z + Vid.Object.LinkOffset.Z);
-            var armor = Map.CreateSprite(Map.Vids.Find((KnownObject)(armorItem - WornArmorItemBase + (int)KnownObject.WornGreenArmor))!, position, Direction);
+            var armor = Map.CreateSprite(Map.FindVid((KnownObject)(armorItem - WornArmorItemBase + (int)KnownObject.WornGreenArmor))!, position, Direction);
             Link!.AddLink(armor);
         }
 
@@ -246,7 +246,7 @@ public sealed class Man : Unit
             {
                 Map.Action(this, ActionCode.DeleteItem, (int)KnownObject.Medkit);
                 ChangeHp(Vid.GetArmyMaxHp((int)Army));
-                Map.CreateSprite(Map.Vids.Find(KnownObject.RescueMedkitEffect)!, Position + Vector3.UnitZ * RescueEffectHeight, default, this);
+                Map.CreateSprite(Map.FindVid(KnownObject.RescueMedkitEffect)!, Position + Vector3.UnitZ * RescueEffectHeight, default, this);
 
                 return 0;
             }

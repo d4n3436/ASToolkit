@@ -10,9 +10,8 @@ public class ChildEmissionTests
     [Fact]
     public void CreateChild_PistolPulses_AlternateBetweenTheTwoHands()
     {
-        var vids = TestGameFolder.CreateCatalog();
-        var map = EngineTestMap.CreateMap(vids);
-        var owner = vids.Find(KnownObject.PistolsTorso)!;
+        var map = EngineTestMap.CreateMap();
+        var owner = map.FindVid(KnownObject.PistolsTorso)!;
         var origin = new Vector3(100, 200, 10);
         var torso = new Sprite(owner, origin, default, null, map);
         torso.SetAnimationValue(SpriteAnimation.Fight);
@@ -34,9 +33,8 @@ public class ChildEmissionTests
     [Fact]
     public void CreateChild_HitBlood_StartsAtTheAlien()
     {
-        var vids = TestGameFolder.CreateCatalog();
-        var map = EngineTestMap.CreateMap(vids);
-        var owner = vids.Find(KnownObject.Monster1)!;
+        var map = EngineTestMap.CreateMap();
+        var owner = map.FindVid(KnownObject.Monster1)!;
         var origin = new Vector3(100, 200, 10);
         var alien = new Sprite(owner, origin, default, null, map);
         var before = map.GetEffects().ToHashSet();

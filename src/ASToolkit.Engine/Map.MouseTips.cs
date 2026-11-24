@@ -35,7 +35,7 @@ public partial class Map
             Session.MouseTipCursor = cursor;
         }
 
-        bool isResting = now - Session.MouseTipMovedAt > (uint)Vids.HoverDelay && !input.Flags.HasFlag(InputFlags.LeftClick) && input.Key == 0 &&
+        bool isResting = now - Session.MouseTipMovedAt > (uint)HoverDelay && !input.Flags.HasFlag(InputFlags.LeftClick) && input.Key == 0 &&
             !_menuClicks.HasFlag(MenuClicks.Left) && _flags.HasFlag(MapFlags.MouseTips);
 
         if (!isResting)
@@ -46,7 +46,7 @@ public partial class Map
 
         if (_mouseTip is not null)
         {
-            if (now - Session.MouseTipMovedAt <= (uint)Vids.HoverDelay + MouseTipRecheck)
+            if (now - Session.MouseTipMovedAt <= (uint)HoverDelay + MouseTipRecheck)
                 return;
 
             Session.MouseTipMovedAt += MouseTipRecheck;
@@ -58,10 +58,10 @@ public partial class Map
             return;
         }
 
-        var font = Vids.Find(MouseTipFont) ?? Vids.Empty;
+        var font = FindVid(MouseTipFont) ?? EmptyVid;
         Session.MouseTipText = GetMouseTipText();
 
-        if (font == Vids.Empty || Session.MouseTipText.IsEmpty)
+        if (font == EmptyVid || Session.MouseTipText.IsEmpty)
             return;
 
         var size = font.Object.Size;

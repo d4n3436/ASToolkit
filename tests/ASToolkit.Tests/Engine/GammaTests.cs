@@ -54,8 +54,7 @@ public class GammaTests
     [Fact]
     public void Step_GammaBuiltIns_SetReadAndBlendTheScreenGamma()
     {
-        var vids = TestGameFolder.CreateCatalog();
-        var map = EngineTestMap.CreateMap(vids, script: BuiltInScript);
+        var map = EngineTestMap.CreateMap(script: BuiltInScript);
 
         map.Step();
 
@@ -68,10 +67,9 @@ public class GammaTests
     [Fact]
     public void Constructor_MapAmbient_StartsTheScreenGamma()
     {
-        var vids = TestGameFolder.CreateCatalog();
         var ambient = new Gamma(0x113355, 0);
 
-        var map = EngineTestMap.CreateMap(vids, ambient: ambient);
+        var map = EngineTestMap.CreateMap(ambient: ambient);
 
         Assert.Equal(ambient, map.Gamma);
     }
@@ -79,8 +77,7 @@ public class GammaTests
     [Fact]
     public void Step_ShiftGammaEffect_MovesTheScreenGammaToItsTargetOverItsDuration()
     {
-        var vids = TestGameFolder.CreateCatalog();
-        var map = EngineTestMap.CreateMap(vids, script: ShiftScript);
+        var map = EngineTestMap.CreateMap(script: ShiftScript);
         var target = Gamma.FromScript(0x606060);
 
         while (map.Time < 100)

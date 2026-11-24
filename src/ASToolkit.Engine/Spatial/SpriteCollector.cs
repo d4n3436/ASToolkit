@@ -27,6 +27,12 @@ public sealed class SpriteCollector
     private int _row;
     private int _index;
 
+    internal SpriteCollector(Map map)
+    {
+        _map = map;
+        _buckets = [];
+    }
+
     [EngineRoutine(0x0042d380)]
     internal SpriteCollector(SizeF mapSize, ReadOnlySpan<Vid?> vids, Map map)
     {

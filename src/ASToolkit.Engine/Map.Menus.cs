@@ -195,7 +195,7 @@ public partial class Map
             army = body.Army;
         }
 
-        var vid = Vids.Find((KnownObject)id);
+        var vid = FindVid((KnownObject)id);
         if (vid is null)
         {
             Session.Error.Error(MapLogTag, LogError.Create, id, "sprite, this vid not exist"u8);
@@ -210,10 +210,7 @@ public partial class Map
             _spriteRelations.Add((handle, sprite));
         }
 
-        if (sprite is not null)
-        {
-            sprite.ChangeArmy(army);
-        }
+        sprite?.ChangeArmy(army);
 
         return true;
     }
@@ -238,7 +235,7 @@ public partial class Map
         reader.ReadInto(ref direction);
         byte army = 0;
         reader.ReadInto(ref army);
-        var vid = Vids.Find((KnownObject)id);
+        var vid = FindVid((KnownObject)id);
         if (vid is null)
         {
             Session.Error.Error(MapLogTag, LogError.Create, id, "sprite, this vid not exist"u8);

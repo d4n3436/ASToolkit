@@ -117,7 +117,7 @@ public partial class Map
         if (name[IdDigits + 1] == NameSeparator)
         {
             var rest = name[(IdDigits + 2)..];
-            var vid = Vids.Find((KnownObject)CRuntime.ParseInteger(name.Slice(1, IdDigits)));
+            var vid = FindVid((KnownObject)CRuntime.ParseInteger(name.Slice(1, IdDigits)));
 
             if (rest.StartsWith(DamageSuffix))
             {
@@ -156,7 +156,7 @@ public partial class Map
 
         if (name.Length > LongIdDigits + 1 && IsDigits(name.Slice(1, LongIdDigits)) && name[LongIdDigits + 1] == NameSeparator)
         {
-            BindStateHandler(Vids.Find((KnownObject)CRuntime.ParseInteger(name.Slice(1, LongIdDigits))), name[(LongIdDigits + 2)..], function, parameters);
+            BindStateHandler(FindVid((KnownObject)CRuntime.ParseInteger(name.Slice(1, LongIdDigits))), name[(LongIdDigits + 2)..], function, parameters);
         }
     }
 

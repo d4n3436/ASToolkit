@@ -14,11 +14,10 @@ public class KeyframeTests
     [Fact]
     public void Step_KeyframedSprite_AdvancesThroughItsKeysAndRestarts()
     {
-        var vids = TestGameFolder.CreateCatalog();
-        var map = EngineTestMap.CreateMap(vids);
-        var source = vids.Find(KnownObject.RedMonster1)!;
+        var map = EngineTestMap.CreateMap();
+        var source = map.FindVid(KnownObject.RedMonster1)!;
         var vid = new Vid(source.Id, source.Object, CreateWeapon(source.Weapon), source.SpriteSpeed) { HasTimers = true };
-        vids.SetChildAndLink(vid, null);
+        map.SetChildAndLink(vid, null);
         var sprite = map.CreateSprite(vid, map.Player.Position + new Vector3(600, 0, 0), default)!;
         int start = map.Time;
 

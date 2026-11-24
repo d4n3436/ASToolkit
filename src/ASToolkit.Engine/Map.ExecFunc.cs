@@ -223,7 +223,7 @@ public partial class Map : IScriptFunctionHost
                 Session.Error.Write(script.PopText().Span);
                 break;
             case ScriptFunction.ReloadVid:
-                Vids.ReloadRecords(Session.Error, Sound);
+                ReloadVid(Session.Error, Sound);
                 break;
             case ScriptFunction.OldStrlen:
             case ScriptFunction.Strlen:
@@ -355,7 +355,7 @@ public partial class Map : IScriptFunctionHost
                 break;
 
             case ScriptFunction.SetGamma:
-                Session.Graphics.SetGamma(Gamma.FromScript((uint)script.PopNumber()), Vids);
+                Session.Graphics.SetGamma(Gamma.FromScript((uint)script.PopNumber()), this);
                 break;
             case ScriptFunction.CountGamma:
                 script.PushInt(CountGamma(script));
@@ -641,7 +641,7 @@ public partial class Map : IScriptFunctionHost
     }
 
     [EngineRoutine(0x00405a90)]
-    internal Vid Vid(int id) => Vids.Find((KnownObject)id) ?? Vids.Empty;
+    internal Vid Vid(int id) => FindVid((KnownObject)id) ?? EmptyVid;
 
     [EngineRoutine(0x00439db0)]
     private static int ComputeChecksum(ReadOnlySpan<byte> text)
@@ -919,10 +919,10 @@ public partial class Map : IScriptFunctionHost
                 CursorSprite.Disable();
                 break;
             case HardwareCursor:
-                CursorSprite.HardwareOn(Vids.Empty, _fileSystem);
+                CursorSprite.HardwareOn(EmptyVid, _fileSystem);
                 break;
             case SoftwareCursor:
-                CursorSprite.HardwareOff(Vids.Find(KnownObject.Cursor) ?? Vids.Empty, _fileSystem);
+                CursorSprite.HardwareOff(FindVid(KnownObject.Cursor) ?? EmptyVid, _fileSystem);
                 break;
             default:
                 if (!CursorSprite.IsCursorLoaded)
@@ -1044,7 +1044,7 @@ public partial class Map : IScriptFunctionHost
     private bool TryLookupVid(int id, ReadOnlySpan<byte> function, out Vid vid)
     {
         vid = Vid(id);
-        if (vid != Vids.Empty)
+        if (vid != EmptyVid)
             return true;
 
         LogInvalidVid(function, id);
@@ -1056,7 +1056,7 @@ public partial class Map : IScriptFunctionHost
     {
         var vid = Vid(script.PopNumber());
 
-        if (vid == Vids.Empty)
+        if (vid == EmptyVid)
         {
             LogInvalidVid(default, 0);
         }
@@ -1207,7 +1207,7 @@ public partial class Map : IScriptFunctionHost
         }
 
         types = 0;
-        vid = Vids.Find((KnownObject)(search & SpriteSearch.ValueMask));
+        vid = FindVid((KnownObject)(search & SpriteSearch.ValueMask));
 
         if (vid is null || Sum(vid.Counts) == 0)
             return false;
@@ -1250,24 +1250,6 @@ public partial class Map : IScriptFunctionHost
         }
 
         return sprite;
-    }
-
-    [EngineRoutine(0x00445b10)]
-    private void AddCommand(Sprite sprite, int act, int var1, int var2, int var3)
-    {
-        var order = CreateAct(act, var1, var2, var3);
-        var orders = sprite.ActionStack.Items;
-        for (int i = orders.Length - 1; i >= 0; i--)
-        {
-            if (orders[i] is { Value: Act.StopMarker, Var1: 0, Var2: 0, Var3: 0 })
-            {
-                sprite.ActionStack.InsertBefore(i + 1, order);
-
-                return;
-            }
-        }
-
-        sprite.ActionStack.InsertFirst(order);
     }
 
     [EngineRoutine(0x00412e80)]
@@ -1376,7 +1358,7 @@ public partial class Map : IScriptFunctionHost
     {
         int z = script.PopNumber();
         int id = script.PopNumber();
-        var vid = Vids.Find((KnownObject)id);
+        var vid = FindVid((KnownObject)id);
         if (vid is null)
         {
             LogInvalidVid("for ChangeZUnit"u8, id);
@@ -1393,19 +1375,19 @@ public partial class Map : IScriptFunctionHost
     {
         var position = PopPosition(script);
         int id = script.PopNumber();
-        var vid = Vids.Find((KnownObject)id);
+        var vid = FindVid((KnownObject)id);
         if (vid is null)
         {
             LogInvalidVid("for CanPlace"u8, id);
         }
 
-        return Collector.CanPlace(vid ?? Vids.Empty, position);
+        return Collector.CanPlace(vid ?? EmptyVid, position);
     }
 
     private void Genocide(Script script)
     {
         var vid = PopVid(script);
-        if (vid == Vids.Empty)
+        if (vid == EmptyVid)
             return;
 
         foreach (var sprite in EnumerateSprites(vid))
@@ -1418,7 +1400,7 @@ public partial class Map : IScriptFunctionHost
     {
         var replacement = PopVid(script);
         var vid = PopVid(script);
-        if (vid == Vids.Empty || replacement == Vids.Empty)
+        if (vid == EmptyVid || replacement == EmptyVid)
             return;
 
         foreach (var sprite in EnumerateSprites(vid))
@@ -1456,7 +1438,7 @@ public partial class Map : IScriptFunctionHost
     {
         int type = PopNumber();
         var vid = PopVid(script);
-        if (vid == Vids.Empty)
+        if (vid == EmptyVid)
         {
             PushInt(0);
             return;
@@ -1516,7 +1498,7 @@ public partial class Map : IScriptFunctionHost
                 PushInt((int)(vid.LinkVid?.Id ?? 0));
                 break;
             case >= VidDataType.Child and < VidDataType.Child + ASToolkit.Engine.Vid.StateCount:
-                PushInt((int)(Vids.Find((KnownObject)Math.Abs(vid.Children[type - (int)VidDataType.Child]))?.Id ?? 0));
+                PushInt((int)(vid.ChildVids[type - (int)VidDataType.Child]?.Id ?? 0));
                 break;
             case >= VidDataType.ChildCounts and < VidDataType.ChildCounts + ASToolkit.Engine.Vid.StateCount:
                 PushInt(vid.ChildCounts[type - (int)VidDataType.ChildCounts]);
@@ -1531,7 +1513,7 @@ public partial class Map : IScriptFunctionHost
                 PushInt(vid.GetRecolored(type - (int)VidDataType.RecolorUnit0));
                 break;
             case VidDataType.Name:
-                PushText(GameTextEncoding.Cyrillic.GetBytes(Vids.GetName(vid)));
+                PushText(GameTextEncoding.Cyrillic.GetBytes(GetVidName(vid)));
                 break;
             case VidDataType.SpriteType:
                 PushInt((int)vid.Object.SpriteType.ToOldSpriteType());
@@ -1556,7 +1538,7 @@ public partial class Map : IScriptFunctionHost
         int value = PopNumber();
         int type = PopNumber();
         var vid = PopVid(script);
-        if (vid == Vids.Empty)
+        if (vid == EmptyVid)
             return;
 
         switch ((VidDataType)type)
@@ -1656,10 +1638,10 @@ public partial class Map : IScriptFunctionHost
 
     private void ExchangeVid(Vid vid, int value)
     {
-        var other = Vids.Find((KnownObject)value);
+        var other = FindVid((KnownObject)value);
         if (other is not null)
         {
-            Vids.Exchange(vid, other);
+            ExchangeVid(vid, other);
         }
         else
         {
@@ -1672,11 +1654,12 @@ public partial class Map : IScriptFunctionHost
         if (value == 0)
         {
             vid.Children[state] = 0;
+            vid.ChildVids[state] = null;
             return;
         }
 
         int sign = value >> 31;
-        var child = Vids.Find((KnownObject)unchecked((value ^ sign) - sign));
+        var child = FindVid((KnownObject)unchecked((value ^ sign) - sign));
         if (child is null)
         {
             LogMapError(LogError.Invalid, "SetVid child"u8, value);
@@ -1684,6 +1667,7 @@ public partial class Map : IScriptFunctionHost
         }
 
         vid.Children[state] = value;
+        vid.ChildVids[state] = child;
 
         if (child.IsBirthAsSmoke())
         {
@@ -1933,10 +1917,7 @@ public partial class Map : IScriptFunctionHost
         int act = script.PopNumber();
         var sprite = PopSprite(script);
 
-        if (sprite is not null)
-        {
-            AddCommand(sprite, act, first, second, third);
-        }
+        sprite?.AddCommand(act,first,second,third);
     }
 
     private void ExecSetFlagman(Script script)
@@ -1950,7 +1931,7 @@ public partial class Map : IScriptFunctionHost
         int army = PopNumber();
         var vid = PopVid(script);
         int value = PopNumber();
-        if (vid == Vids.Empty)
+        if (vid == EmptyVid)
             return;
 
         if (army == AllArmies)

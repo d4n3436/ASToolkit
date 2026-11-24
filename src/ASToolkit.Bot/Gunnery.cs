@@ -27,7 +27,7 @@ internal sealed class Gunnery
         _field = field;
         _map = map;
         _state = new PlayerState(map);
-        Attacks = new AttackTable(map.Vids);
+        Attacks = new AttackTable(map);
     }
 
     public AttackTable Attacks { get; }
@@ -237,11 +237,11 @@ internal sealed class Gunnery
     private float GetSpread(Vid torso, out Vid? payload)
     {
         float spread = torso.Aim;
-        payload = _map.Vids.Find((KnownObject)Math.Abs((int)torso.FightChild));
+        payload = torso.FightChild == 0 ? null : _map.FindVid((KnownObject)Math.Abs((int)torso.FightChild));
         while (payload is not null && payload.Damage <= 0 && payload.FightChild != 0)
         {
             spread += payload.Aim;
-            payload = _map.Vids.Find((KnownObject)Math.Abs((int)payload.FightChild));
+            payload = _map.FindVid((KnownObject)Math.Abs((int)payload.FightChild));
         }
 
         return spread;
@@ -329,7 +329,7 @@ internal sealed class Gunnery
         while (bullet is not null && bullet.Object.SpriteClass != SpriteClass.Cannon)
         {
             launch += new Vector3(0, bullet.Object.ChildY[(int)SpriteAnimation.Fight], bullet.Object.ChildZ[(int)SpriteAnimation.Fight]);
-            bullet = bullet.FightChild == 0 ? null : _map.Vids.Find((KnownObject)Math.Abs((int)bullet.FightChild));
+            bullet = bullet.FightChild == 0 ? null : _map.FindVid((KnownObject)Math.Abs((int)bullet.FightChild));
         }
 
         return bullet;

@@ -13,11 +13,10 @@ public class ParticleTests
     [InlineData(KnownObject.FlyingGreenGibs, KnownObject.LyingGreenGibs)]
     public void Spawn_FlyingParticles_SettleIntoTheirRestingObjects(KnownObject flying, KnownObject resting)
     {
-        var vids = TestGameFolder.CreateCatalog();
-        var map = EngineTestMap.CreateMap(vids);
+        var map = EngineTestMap.CreateMap();
         var observer = new MapObserver(map);
         var scenery = observer.BakedEffects;
-        map.CreateSprite(vids.Find(flying), new Vector3(100, 200, 22), new Angle(64));
+        map.CreateSprite(map.FindVid(flying), new Vector3(100, 200, 22), new Angle(64));
         while (map.Time <= 4000)
         {
             map.Play(default);

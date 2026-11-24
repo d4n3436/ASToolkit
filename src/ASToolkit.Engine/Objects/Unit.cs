@@ -253,7 +253,7 @@ public class Unit : Terrain
 
     private protected void AttackSeenEnemy(Sprite attacker)
     {
-        var enemy = this.SeekEnemy(Map.Flagman(0));
+        var enemy = SeekEnemy(Map.Flagman(0));
 
         if (enemy is not null)
         {

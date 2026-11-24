@@ -20,7 +20,7 @@ public sealed class VidFont : Vid
     /// <param name="weapon">The weapon record.</param>
     /// <param name="maxTextureSize">The largest texture width and height the device accepts.</param>
     public VidFont(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, int maxTextureSize)
-        : base(id, gameObject, weapon, SpriteCatalog.DefaultSpriteSpeed, GlyphCount, ObjectLayer.Ground, null)
+        : base(id, gameObject, weapon, Map.DefaultSpriteSpeed, GlyphCount, ObjectLayer.Ground, null)
     {
         MaxTextureSize = maxTextureSize;
     }

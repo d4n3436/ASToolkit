@@ -12,9 +12,8 @@ public class DoorTests
     [InlineData(KnownObject.DoubleDoor, 2, 36)]
     public void Step_PlayerNearADoor_SinksItByItsScriptStepEachTick(KnownObject id, int step, int ticks)
     {
-        var vids = TestGameFolder.CreateCatalog();
         var door = new MergedMapSprite(1, id, new Vector3(1000, 1000, 0), 0, 0, []);
-        var map = EngineTestMap.CreateMap(vids, sprites: [door]);
+        var map = EngineTestMap.CreateMap(sprites: [door]);
         var body = map.FindFirstSprite(id);
 
         Assert.Equal(0f, body.Position.Z, 0f);
@@ -28,11 +27,10 @@ public class DoorTests
     [Fact]
     public void Move_DoorRisingAroundAUnit_LetsTheUnitMoveOut()
     {
-        var vids = TestGameFolder.CreateCatalog();
-        var vid = vids.Find(KnownObject.SmallDoor)!;
-        var walker = vids.Find(KnownObject.PlayerStart)!;
+        var map = EngineTestMap.CreateMap();
+        var vid = map.FindVid(KnownObject.SmallDoor)!;
+        var walker = map.FindVid(KnownObject.PlayerStart)!;
         var position = new Vector2(1000);
-        var map = EngineTestMap.CreateMap(vids);
         var sprite = new Sprite(walker, position.AsVector3(), default, null, map);
         _ = new Sprite(vid, position.AsVector3(), default, null, map);
 
@@ -45,11 +43,10 @@ public class DoorTests
     [Fact]
     public void Step_OccupiedDoor_StaysOpenUntilTheDoorsLock()
     {
-        var vids = TestGameFolder.CreateCatalog();
         var door = new MergedMapSprite(1, KnownObject.SmallDoor, new Vector3(1000, 1000, 0), 0, 0, []);
-        var map = EngineTestMap.CreateMap(vids, sprites: [door]);
+        var map = EngineTestMap.CreateMap(sprites: [door]);
         var body = map.FindFirstSprite(KnownObject.SmallDoor);
-        map.CreateSprite(vids.Find(KnownObject.Monster1), door.Position, default);
+        map.CreateSprite(map.FindVid(KnownObject.Monster1), door.Position, default);
         for (int tick = 0; tick <= 16; tick++)
         {
             map.Play(default);

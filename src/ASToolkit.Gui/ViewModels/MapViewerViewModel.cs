@@ -217,7 +217,7 @@ public partial class MapViewerViewModel : ViewModelBase
         try
         {
             string path = Path.Combine(mapsPath, name);
-            var (resource, map) = await Task.Run(() => (MapResourceBuilder.Load(path), Playthrough.LoadMap(game, new SpriteCatalog(game, objects), path)));
+            var (resource, map) = await Task.Run(() => (MapResourceBuilder.Load(path), Playthrough.LoadMap(game, objects, path)));
             if (version != _loadVersion)
             {
                 return;

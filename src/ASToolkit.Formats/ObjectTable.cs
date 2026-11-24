@@ -22,13 +22,19 @@ public sealed class ObjectTable
     private readonly WeaponRecord[] _weapons;
     private readonly SfxRecord[] _sounds;
 
-    private ObjectTable(Dictionary<KnownObject, ObjectEntry> entries, bool isAlienShooter2, WeaponRecord[] weapons, SfxRecord[] sounds)
+    private ObjectTable(Dictionary<KnownObject, ObjectEntry> entries, int objectSize, bool isAlienShooter2, WeaponRecord[] weapons, SfxRecord[] sounds)
     {
+        ObjectSize = objectSize;
         _weapons = weapons;
         _sounds = sounds;
         _entries = entries;
         IsAlienShooter2 = isAlienShooter2;
     }
+
+    /// <summary>
+    /// Gets the size in bytes of the object record that follows each entry's name.
+    /// </summary>
+    public int ObjectSize { get; }
 
     /// <summary>
     /// Gets the path of objects.res the table was read from.
@@ -116,24 +122,7 @@ public sealed class ObjectTable
             int pathStart = bodyStart + bodySize;
             var body = record[bodyStart..pathStart];
 
-            GameObject obj;
-            if (bodySize == AlienShooterBodySize)
-            {
-                obj = new GameObject(MemoryMarshal.Read<AlienShooterGameObject>(body));
-            }
-            else if (bodySize == ZombieShooterBodySize)
-            {
-                obj = new GameObject(MemoryMarshal.Read<ZombieShooterGameObject>(body));
-            }
-            else if (bodySize == ZombieShooter2BodySize)
-            {
-                obj = new GameObject(MemoryMarshal.Read<ZombieShooter2GameObject>(body));
-            }
-            else
-            {
-                obj = MemoryMarshal.Read<GameObject>(body);
-            }
-
+            var obj = ReadObject(body, bodySize);
             entries[id] = new ObjectEntry(obj, GameTextEncoding.Cyrillic.GetString(record[4..nameEnd]),
                 Encoding.ASCII.GetString(record[pathStart..^1]));
         }
@@ -141,7 +130,7 @@ public sealed class ObjectTable
         var data = container.Chunks.First(chunk => chunk.Tag.Span.SequenceEqual("CNST"u8)).Records.First();
         var constants = MemoryMarshal.Read<ObjectConstants>(data.Span);
         var sounds = bodySize == AlienShooterBodySize ? ReadRecords(container, "SFX "u8).Select(record => new SfxRecord(record)).ToArray() : [];
-        return new ObjectTable(entries, anyExtended, ReadWeapons(container), sounds)
+        return new ObjectTable(entries, bodySize, anyExtended, ReadWeapons(container), sounds)
         {
             Path = path,
             Gravitation = constants.Gravitation,
@@ -191,6 +180,27 @@ public sealed class ObjectTable
     {
         weapon = _weapons.Length == 0 ? default : _weapons[obj.WeaponIndex >= 0 && obj.WeaponIndex < _weapons.Length ? obj.WeaponIndex : 0];
         return _weapons.Length > 0;
+    }
+
+    /// <summary>
+    /// Reads an object record of this table's size.
+    /// </summary>
+    /// <param name="body">The bytes of the record, <see cref="ObjectSize"/> long.</param>
+    /// <returns>The object record.</returns>
+    public GameObject ReadObject(ReadOnlySpan<byte> body) => ReadObject(body, ObjectSize);
+
+    private static GameObject ReadObject(ReadOnlySpan<byte> body, int bodySize)
+    {
+        if (bodySize == AlienShooterBodySize)
+            return new GameObject(MemoryMarshal.Read<AlienShooterGameObject>(body));
+
+        if (bodySize == ZombieShooterBodySize)
+            return new GameObject(MemoryMarshal.Read<ZombieShooterGameObject>(body));
+
+        if (bodySize == ZombieShooter2BodySize)
+            return new GameObject(MemoryMarshal.Read<ZombieShooter2GameObject>(body));
+
+        return MemoryMarshal.Read<GameObject>(body);
     }
 
     private static List<ReadOnlyMemory<byte>> ReadRecords(ResContainer container, ReadOnlySpan<byte> tag)

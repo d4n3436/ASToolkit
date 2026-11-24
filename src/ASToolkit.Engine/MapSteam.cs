@@ -28,12 +28,13 @@ public sealed class MapSteam : Map
     /// <summary>
     /// Initializes a new instance of the <see cref="MapSteam"/> class with no level loaded.
     /// </summary>
-    /// <param name="vids">The shared data and frames of the game's object IDs.</param>
+    /// <param name="gameFolder">The game folder that holds the sprite files of the object IDs.</param>
+    /// <param name="objects">The object table.</param>
     /// <param name="fileSystem">The file system that holds the game's files.</param>
     /// <param name="registry">The registry of the level scripts, or null for an empty one.</param>
     /// <param name="session">The session the map belongs to, or null to create one.</param>
-    public MapSteam(SpriteCatalog vids, IGameFileSystem fileSystem, Registry? registry = null, GameSession? session = null)
-        : base(vids, fileSystem, registry, session)
+    public MapSteam(string gameFolder, ObjectTable objects, IGameFileSystem fileSystem, Registry? registry = null, GameSession? session = null)
+        : base(gameFolder, objects, fileSystem, registry, session)
     {
     }
 
@@ -83,7 +84,7 @@ public sealed class MapSteam : Map
                     _flags ^= MapFlags.DrawRails;
                     break;
                 case ReloadKey:
-                    Vids.ReloadRecords(Session.Error, Sound);
+                    ReloadVid(Session.Error, Sound);
                     break;
             }
         }
@@ -151,7 +152,7 @@ public sealed class MapSteam : Map
         {
             if (_flags.HasFlag(MapFlags.DrawPresentation) && _clock.WallTime - _presentationShownAt > PresentationPeriod)
             {
-                var vid = Vids.Find(KnownObject.Font) ?? Vids.Empty;
+                var vid = FindVid(KnownObject.Font) ?? EmptyVid;
                 var banner = CreateSprite(vid, new Vector3(Session.ScreenSize.Width * HalfShare, PresentationTop, 0), default)!;
                 _presentationShownAt = _clock.WallTime;
                 Action(banner, ActionCode.SetBehave, 1);
@@ -233,7 +234,7 @@ public sealed class MapSteam : Map
 
         if (vid.IsRegionReplaced)
         {
-            vid = ReplaceVid(vid, position);
+            vid = Region.ReplaceVid(this, vid, position);
         }
 
         if (vid.MaxUnits >= 0 && vid.MaxUnits <= Sum(vid.Counts))
@@ -283,16 +284,16 @@ public sealed class MapSteam : Map
     {
         var flagman = Flagman(ControlledPlayer);
 
-        if (flagman is { Army: Army.Player } && Vids.SelectedGamma != 0)
+        if (flagman is { Army: Army.Player } && SelectedGamma != 0)
         {
-            OverrideGamma(flagman, clear ? default : Gamma.FromScript(Vids.SelectedGamma));
+            OverrideGamma(flagman, clear ? default : Gamma.FromScript(SelectedGamma));
         }
 
         var hovered = _players[ControlledPlayer].Hovered;
 
-        if (hovered is null || Vids is { HoveredGamma: 0, HoveredEnemyGamma: 0 } || !clear && !_flags.HasFlag(MapFlags.MouseTips))
+        if (hovered is null || HoveredGamma == 0 && HoveredEnemyGamma == 0 || !clear && !_flags.HasFlag(MapFlags.MouseTips))
             return;
 
-        OverrideGamma(hovered, clear ? default : Gamma.FromScript(hovered.Army == Army.Monsters ? Vids.HoveredEnemyGamma : Vids.HoveredGamma));
+        OverrideGamma(hovered, clear ? default : Gamma.FromScript(hovered.Army == Army.Monsters ? HoveredEnemyGamma : HoveredGamma));
     }
 }

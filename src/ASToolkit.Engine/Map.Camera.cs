@@ -117,8 +117,8 @@ public partial class Map
                 : flags.HasFlag(InputFlags.Up) && withArrows ? -1
                 : flags.HasFlag(InputFlags.Down) && withArrows ? 1 : 0);
 
-            speed.X = Accelerate(speed.X, Vids.ScrollSpeed.X, direction.X, ScrollAcceleration.X);
-            speed.Y = Accelerate(speed.Y, Vids.ScrollSpeed.Y, direction.Y, ScrollAcceleration.Y);
+            speed.X = Accelerate(speed.X, ScrollSpeed.X, direction.X, ScrollAcceleration.X);
+            speed.Y = Accelerate(speed.Y, ScrollSpeed.Y, direction.Y, ScrollAcceleration.Y);
         }
 
         var flagman = Flagman(ControlledPlayer);

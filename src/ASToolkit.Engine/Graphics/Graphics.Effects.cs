@@ -257,7 +257,7 @@ public sealed partial class Graphics
         var target = Gamma.FromScript((uint)EffectFirst[(int)ScreenEffect.ShiftGamma]);
         if (shifted >= (uint)EffectDurations[(int)ScreenEffect.ShiftGamma])
         {
-            SetGamma(target, map.Vids);
+            SetGamma(target, map);
             EffectStartTimes[(int)ScreenEffect.ShiftGamma] = 0;
             return;
         }
@@ -281,7 +281,7 @@ public sealed partial class Graphics
             }
         }
 
-        SetGamma(new Gamma(negative, positive), map.Vids);
+        SetGamma(new Gamma(negative, positive), map);
     }
 
 }

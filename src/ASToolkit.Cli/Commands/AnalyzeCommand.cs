@@ -49,7 +49,7 @@ internal sealed class AnalyzeCommand : LevelCommand<AnalyzeSettings>
             {
                 image = (settings.Levels is null ? "" : "gen_") + Path.ChangeExtension(maps[i], null).Replace('/', '_').Replace('\\', '_') + ".png";
                 images[i] = image;
-                using var rendered = MapImage.Render(Playthrough.LoadMap(settings.Game, new SpriteCatalog(settings.Game, objects), mapPath), settings.Scale);
+                using var rendered = MapImage.Render(Playthrough.LoadMap(settings.Game, objects, mapPath), settings.Scale);
                 if (analysis is not null)
                 {
                     RouteOverlay.Draw(rendered, analysis, script);

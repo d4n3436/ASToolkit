@@ -170,7 +170,7 @@ public partial class Picture
             var frames = new List<byte[]>();
             int savings = 0;
             int frameCount = Colors.Image.FrameCount;
-            Span<uint> checksums = frameCount <= StackChecksumCount ? stackalloc uint[StackChecksumCount] : new uint[frameCount];
+            var checksums = frameCount <= StackChecksumCount ? stackalloc uint[StackChecksumCount] : new uint[frameCount];
             checksums = checksums[..frameCount];
             for (int frame = 0; frame < frameCount; frame++)
             {

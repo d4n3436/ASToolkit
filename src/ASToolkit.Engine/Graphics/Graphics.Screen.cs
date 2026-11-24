@@ -266,7 +266,7 @@ public sealed partial class Graphics
     [EngineRoutine(0x004333d0)]
     internal void DrawVid(Map map, Vid vid, int frame, Vector3 position)
     {
-        if (vid == map.Vids.Empty)
+        if (vid == map.EmptyVid)
             return;
 
         if (frame < 0 || frame >= vid.FileFrameCount)
@@ -303,7 +303,7 @@ public sealed partial class Graphics
         {
             if (Screen is not null)
             {
-                if (map.Vids.Find(SpriteCatalog.HardwareGroundId) is null || map.Camera.X < 0f || map.Size.Width < Viewport.Right + map.Camera.X - Viewport.Left || map.Camera.Y < 0f || map.Size.Height < Viewport.Bottom + map.Camera.Y - Viewport.Top)
+                if (map.FindVid(Map.HardwareGroundId) is null || map.Camera.X < 0f || map.Size.Width < Viewport.Right + map.Camera.X - Viewport.Left || map.Camera.Y < 0f || map.Size.Height < Viewport.Bottom + map.Camera.Y - Viewport.Top)
                 {
                     Clear(Screen, ClearColor);
                 }

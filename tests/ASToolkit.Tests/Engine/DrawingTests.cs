@@ -34,7 +34,7 @@ public class DrawingTests
     private static Map Load()
     {
         string game = TestGameFolder.RequireFolder();
-        return Playthrough.LoadMap(game, new SpriteCatalog(game, TestGameFolder.Objects), Path.Combine(game, "Maps", MapName));
+        return Playthrough.LoadMap(game, TestGameFolder.Objects, Path.Combine(game, "Maps", MapName));
     }
 
     private static void Step(Map map, int frames)

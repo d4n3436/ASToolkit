@@ -21,18 +21,18 @@ internal sealed class ShopBot
     private const int InitialAmmoDivisor = 2;
 
     private readonly ObjectTable _objects;
-    private readonly SpriteCatalog _vids;
+    private readonly Map _map;
     private readonly AttackTable _attacks;
     private readonly IReadOnlyList<int> _weaponPrices;
     private readonly IReadOnlyList<int> _ammoPrices;
     private readonly IReadOnlyList<int> _ammoBatches;
     private readonly IReadOnlyList<int> _itemPrices;
 
-    public ShopBot(ObjectTable objects, SpriteCatalog vids, GameTable table)
+    public ShopBot(ObjectTable objects, Map map, GameTable table)
     {
         _objects = objects;
-        _vids = vids;
-        _attacks = new AttackTable(vids);
+        _map = map;
+        _attacks = new AttackTable(map);
         _weaponPrices = table.GetArray("WeaponPrice");
         _ammoPrices = table.GetArray("AmmoPrice");
         _ammoBatches = table.GetArray("GettingAmmo");
@@ -55,7 +55,7 @@ internal sealed class ShopBot
             if (ammo.ContainsKey(pickup))
                 break;
 
-            var torso = _vids.Find(GetTorsoId(slot));
+            var torso = _map.FindVid(GetTorsoId(slot));
             int cost = _weaponPrices[slot] + GetHalfLoadCost(slot, implants);
 
             int damage = torso is null ? 0 : _attacks.Get(torso).Damage;
@@ -155,7 +155,7 @@ internal sealed class ShopBot
                 continue;
             }
 
-            var vid = _vids.Find(GetTorsoId(weapon));
+            var vid = _map.FindVid(GetTorsoId(weapon));
 
             if (vid is null || _attacks.Get(vid).Damage <= 0)
                 continue;

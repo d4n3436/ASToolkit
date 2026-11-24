@@ -47,7 +47,7 @@ internal sealed class InspectRoomsCommand : LevelCommand<InspectRoomsSettings>
             var atlas = settings.Levels is null ? level.Atlas : RoomAtlas.Read(survey, level.Analysis.Grid.Edges, level.Map.Sprites, objects, isOriginal: false);
             atlases[mapIndex] = atlas;
             wallSets[mapIndex] = survey.FloorSet;
-            using var rendered = MapImage.Render(Playthrough.LoadMap(settings.Game, new SpriteCatalog(settings.Game, objects), mapPath), settings.Scale);
+            using var rendered = MapImage.Render(Playthrough.LoadMap(settings.Game, objects, mapPath), settings.Scale);
             var sheet = new RoomSheet();
             string name = Path.ChangeExtension(maps[mapIndex], null).Replace('/', '_');
             foreach (var room in atlas.Rooms.Where(room => room.IsRoom))

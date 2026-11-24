@@ -10,7 +10,7 @@ public class DemoTests
     [Fact]
     public void FinishDemoRecording_RecordedFrames_ReadBackThroughDemoResource()
     {
-        var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog(), session: CreateRecordingSession());
+        var map = EngineTestMap.CreateMap(session: CreateRecordingSession());
         map.Input.PostMessage(WindowMessageId.KeyDown, (int)VirtualKey.Right, 0);
         map.Input.PostMessage(WindowMessageId.HitTest, 0, 40 << 16 | 120);
         map.Input.PostMessage(WindowMessageId.LeftButtonDown, 0, 0);
@@ -45,11 +45,10 @@ public class DemoTests
     [Fact]
     public void StepDemo_PastTheLastFrame_QueuesTheDemosMap()
     {
-        var vids = TestGameFolder.CreateCatalog();
-        var recorder = EngineTestMap.CreateMap(vids, session: CreateRecordingSession());
+        var recorder = EngineTestMap.CreateMap(session: CreateRecordingSession());
         recorder.StepDemo(0, out _);
         var demo = new DemoResource(recorder.FinishDemoRecording());
-        var player = EngineTestMap.CreateMap(vids, demo: demo);
+        var player = EngineTestMap.CreateMap(demo: demo);
 
         player.StepDemo(0, out _);
         player.AdvanceClock();

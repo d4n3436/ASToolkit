@@ -23,7 +23,7 @@ public class EnemyMotionTests
         Unsafe.AsRef(in obj.Directions) = 1;
         Unsafe.AsRef(in obj.RotationPeriod) = period;
         Unsafe.AsRef(in obj.Size) = new Vector3(10, 10, 40);
-        var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
+        var map = EngineTestMap.CreateMap();
         var sprite = new Sprite(new Vid(KnownObject.Monster1, obj, default, 0), Vector3.Zero, default, null, map) { Army = Army.Monsters, Hp = 10, Direction = new Angle(direction) };
 
         var remaining = sprite.RotateTact(new Angle(goal), elapsed);
@@ -37,7 +37,7 @@ public class EnemyMotionTests
     [InlineData(SpriteClass.Man)]
     public void Move_BlockedDiagonal_SlidesAlongYFirst(SpriteClass mover)
     {
-        var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
+        var map = EngineTestMap.CreateMap();
         var sprite = MakeUnit(map, new UnitBody(50, 50), 0, mover);
         var obstacle = MakeUnit(map, new UnitBody(60, 60), 1, SpriteClass.Unit);
 
@@ -50,7 +50,7 @@ public class EnemyMotionTests
     [Fact]
     public void Move_IntoAnotherBody_PushesItBeforeSliding()
     {
-        var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
+        var map = EngineTestMap.CreateMap();
         var sprite = MakeUnit(map, new UnitBody(50, 50), 0, SpriteClass.Man);
         var pushed = MakeUnit(map, new UnitBody(60, 50, Push: 1), 1, SpriteClass.Unit);
 

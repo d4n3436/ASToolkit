@@ -25,8 +25,6 @@ internal static class TestGameFolder
 
     public static GameTable Table => LoadedTable.Value;
 
-    public static SpriteCatalog CreateCatalog() => new(RequireFolder(), Objects);
-
     public static ReferenceLevelSet References
     {
         get

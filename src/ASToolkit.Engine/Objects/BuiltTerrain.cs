@@ -43,7 +43,7 @@ public sealed class BuiltTerrain : Sprite
     public override void Draw(Screen screen, Map map, Vector2 camera)
     {
         var ground = map.HardwareGroundVid;
-        if (ground != map.Vids.Empty && ground.Directions == 1)
+        if (ground != map.EmptyVid && ground.Directions == 1)
             return;
 
         base.Draw(screen, map, camera);

@@ -58,7 +58,7 @@ internal sealed class InspectDesignCommand : LevelCommand<InspectDesignSettings>
         {
             if (settings.ShouldWriteImages)
             {
-                using var rendered = MapImage.Render(Playthrough.LoadMap(settings.Game, new SpriteCatalog(settings.Game, objects), path), settings.Scale);
+                using var rendered = MapImage.Render(Playthrough.LoadMap(settings.Game, objects, path), settings.Scale);
                 PlaceOverlay.Draw(rendered, level.Survey, level.Analysis);
                 rendered.Image.SaveAsPng(Path.Combine(settings.Out, GetFileName(level.Name) + "_places.png"));
             }

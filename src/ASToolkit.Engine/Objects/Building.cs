@@ -45,7 +45,7 @@ public sealed class Building : Unit
                     noItem = var1 == 0;
                 }
 
-                var vid = var1 >= 0 ? Map.Vids.Find((KnownObject)var1) : null;
+                var vid = var1 >= 0 ? Map.FindVid((KnownObject)var1) : null;
 
                 if (!(noItem || Command == Command.None) || vid is null)
                     return 0;

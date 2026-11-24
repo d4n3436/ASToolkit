@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Drawing;
 using System.Numerics;
 using System.Text;
 using ASToolkit.Core;
@@ -8,10 +7,7 @@ using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
-/// <summary>
-/// Represents the shared data and frames of the object IDs of a game folder, with the changes the level script makes to them.
-/// </summary>
-public sealed class SpriteCatalog
+public partial class Map
 {
     /// <summary>
     /// Represents the deepest chain of child launches.
@@ -32,112 +28,26 @@ public sealed class SpriteCatalog
     private const int VidSize = 1156;
     private const int OneBits = 0x3f800000;
     private const int MaxId = 0x7ff;
+    private const int VidTableSize = MaxId + 1;
     private const string FontExtension = ".fon";
     private const string TrueTypeExtension = ".ttf";
     private const string AnimationExtension = ".flc";
     private const string HardwareGroundName = "Self Created Hardware Prerendered Ground ";
 
     private static readonly ConcurrentDictionary<(string Path, bool IsText), Lazy<ReadOnlyMemory<byte>>> ConvertedPictures = new();
-
-    private static readonly Vector3 DefaultSize = new(24, 16, 20);
-    private readonly MyError? _error;
-    private readonly List<Vid> _loadOrder = [];
+    private static readonly Vector3 DefaultVidSize = new(24, 16, 20);
+    
     private readonly ConcurrentDictionary<(KnownObject Id, int Frame), FrameMask?> _masks = new();
-
+    private readonly string _gameFolder;
+    private readonly Vid?[] _vids = new Vid?[VidTableSize];
     private ObjectTable _objects;
-    private Vid?[] _vids;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="SpriteCatalog"/> class with the object IDs of a game folder.
-    /// </summary>
-    /// <param name="gameFolder">The game folder.</param>
-    /// <param name="objects">The object table.</param>
-    /// <param name="session">The session that logs the loading errors and summaries and gets a sound system if it doesn't have one, or <see langword="null"/> to load silently.</param>
-    /// <param name="isTrueColor"><see langword="true"/> for a 32-bit back buffer, where only built terrain uses <see cref="VidHighColor"/>; <see langword="false"/> for a 16-bit back buffer, where every software sprite uses it.</param>
-    /// <param name="format">The channel layout of 16-bit colors, or <see langword="null"/> for 5-6-5.</param>
-    /// <param name="maxTextureSize">The largest texture width and height the device accepts.</param>
-    /// <param name="resetBuiltTerrain"><see langword="true"/> to load object IDs of the built terrain class as terrain; otherwise, <see langword="false"/>.</param>
-    [EngineRoutine(0x00411510)]
-    public SpriteCatalog(string gameFolder, ObjectTable objects, GameSession? session = null, bool isTrueColor = true, HighColorFormat? format = null, int maxTextureSize = DefaultMaxTextureSize, bool resetBuiltTerrain = false)
-    {
-        _objects = objects;
-        ShouldResetBuiltTerrain = resetBuiltTerrain || session?.HasAppMenu == true;
-        var error = session?.Error;
-        _error = error;
-        session?.Sound ??= new Sound(objects.Sounds, new GameFolder(gameFolder), error, isHighQuality: session.IsSoundHighQuality);
-
-        int start = Environment.TickCount;
-        if (objects.WeaponCount != 0)
-        {
-            error?.Write($"LoadWeapon::No={objects.WeaponCount,-5}             sizeof(WEAPON)={WeaponRecordSize,-4}");
-        }
-
-        Parts = new SpritePartReader(gameFolder, objects);
-        Empty = CreateDefault();
-        int length = objects.Ids.Max(id => (int)id) + 1;
-        _vids = new Vid?[length];
-        int count = 0;
-        bool isAddition = count != 0;
-        foreach (var id in objects.Ids)
-        {
-            if (id < 0 || !objects.TryFind(id, out var gameObject))
-                continue;
-
-            if ((int)id > MaxId)
-            {
-                error?.Error(Map.MapLogTag, LogError.Invalid, 0);
-                throw new InvalidDataException($"The object ID {(int)id} is past the end of the VID table.");
-            }
-
-            var previous = id == 0 ? LoadingScreen : _vids[(int)id];
-            if (previous is not null)
-            {
-                _loadOrder.Remove(previous);
-                error?.Error(Map.MapLogTag, LogError.Load, 0);
-            }
-
-            var vid = CreateVid(gameFolder, id, gameObject, isTrueColor, format ?? HighColorFormat.Rgb565, maxTextureSize, error, session?.Sound);
-            if (vid is null)
-                continue;
-
-            count = Math.Max(count, (int)id + 1);
-            if (isAddition)
-            {
-                vid.FileType |= VidType.FrameVector;
-            }
-
-            _loadOrder.Add(vid);
-            if (gameObject.WeaponIndex >= objects.WeaponCount)
-            {
-                vid.Report(error, LogError.Text, gameObject.WeaponIndex, "nWeapon > noWeapon"u8);
-            }
-
-            if (id == 0)
-            {
-                LoadingScreen = vid;
-                continue;
-            }
-
-            _vids[(int)id] = vid;
-        }
-
-        ResolveLinks(error, false);
-        var largest = Size.Empty;
-        foreach (var vid in _vids.Prepend(LoadingScreen))
-        {
-            if (vid is not null)
-            {
-                largest = new Size(Math.Max(largest.Width, vid.FrameSize.Width), Math.Max(largest.Height, vid.FrameSize.Height));
-            }
-        }
-
-        error?.Write($"LoadVid::No   ={count,-15}   sizeof(VID)   ={VidSize,-5}    load time     ={Environment.TickCount - start}ms   MaxSizeX,Y={largest.Width},{largest.Height}");
-    }
+    private int _vidCount;
+    private int _weaponCount;
 
     /// <summary>
     /// Gets a value indicating whether object IDs of the built terrain class are loaded as terrain.
     /// </summary>
-    public bool ShouldResetBuiltTerrain { get; }
+    public bool ShouldResetBuiltTerrain => Session.HasAppMenu;
 
     /// <summary>
     /// Gets the sprite parts of the object IDs.
@@ -159,22 +69,22 @@ public sealed class SpriteCatalog
     /// <summary>
     /// Gets the gravity of falling objects in pixels per millisecond squared.
     /// </summary>
-    public float Gravitation => _objects.Gravitation * Vid.PerMillisecondSquared;
+    public float Gravitation => _objects.Gravitation * ASToolkit.Engine.Vid.PerMillisecondSquared;
 
     /// <summary>
     /// Gets the second gravity in pixels per millisecond squared.
     /// </summary>
-    public float Gravitation2 => _objects.Gravitation2 * Vid.PerMillisecondSquared;
+    public float Gravitation2 => _objects.Gravitation2 * ASToolkit.Engine.Vid.PerMillisecondSquared;
 
     /// <summary>
     /// Gets the sounds of the object table.
     /// </summary>
-    public IReadOnlyList<SfxRecord> Sounds => _objects.Sounds;
+    public IReadOnlyList<SfxRecord> SfxRecords => _objects.Sounds;
 
     /// <summary>
     /// Gets the fastest scroll speed of the camera along each axis in pixels per millisecond.
     /// </summary>
-    public Vector2 ScrollSpeed => _objects.ScrollSpeed * Vid.PerMillisecond;
+    public Vector2 ScrollSpeed => _objects.ScrollSpeed * ASToolkit.Engine.Vid.PerMillisecond;
 
     /// <summary>
     /// Gets the time in milliseconds the cursor must rest before a mouse tip shows.
@@ -199,25 +109,97 @@ public sealed class SpriteCatalog
     /// <summary>
     /// Gets the shared data, without frames, of the cursor and goal sprites.
     /// </summary>
-    public Vid Empty { get; }
+    public Vid EmptyVid { get; } = CreateDefault();
 
-    /// <summary>
-    /// Gets the shared data and frames of the loading screen, in the first slot of the table.
-    /// </summary>
-    public Vid? LoadingScreen { get; private set; }
-
-    internal ReadOnlySpan<Vid?> Table => _vids;
-
-    internal IReadOnlyList<Vid> LoadOrder => _loadOrder;
+    internal ReadOnlySpan<Vid?> Vids => _vids.AsSpan(0, _vidCount);
 
     private static ReadOnlySpan<byte> ObjectChunkTag => "OBJ "u8;
+
+    private static ReadOnlySpan<byte> ObjectSectionText => "load 'VID'"u8;
 
     /// <summary>
     /// Returns the name of an object ID's record.
     /// </summary>
     /// <param name="vid">The shared data of the object ID.</param>
     /// <returns>The name.</returns>
-    public string GetName(Vid vid) => vid.RecordId == HardwareGroundId ? HardwareGroundName : _objects.GetName(vid.RecordId);
+    public string GetVidName(Vid vid) => vid.RecordId == HardwareGroundId ? HardwareGroundName : _objects.GetName(vid.RecordId);
+
+    [EngineRoutine(0x00411510)]
+    private void LoadVid(ref Resource resource)
+    {
+        var error = Session.Error;
+        int start = Environment.TickCount;
+        if (_weaponCount == 0)
+        {
+            _weaponCount = _objects.WeaponCount;
+            if (_weaponCount != 0)
+            {
+                error.Write($"LoadWeapon::No={_weaponCount,-5}             sizeof(WEAPON)={WeaponRecordSize,-4}");
+            }
+        }
+
+        if (resource.GoBegin(ObjectChunkTag) != Resource.Found)
+        {
+            error.Error(MapLogTag, LogError.Section, 0, ObjectSectionText);
+            return;
+        }
+
+        int existing = _vidCount;
+        var sound = Sound.IsLoaded ? Sound : null;
+        var screen = Session.Graphics.Screen;
+        bool isTrueColor = screen?.IsTrueColor ?? true;
+        var format = screen?.Format ?? HighColorFormat.Rgb565;
+        do
+        {
+            int id = resource.Read<int>();
+            if (id > MaxId)
+            {
+                error.Error(MapLogTag, LogError.Invalid, id, "nvid > MAX_VID"u8);
+                throw new InvalidDataException($"The object ID {id} is past the end of the VID table.");
+            }
+
+            if (_vids[id] is not null)
+            {
+                _vids[id] = null;
+                error.Error(MapLogTag, LogError.Load, id, "this VID already loaded"u8);
+            }
+
+            var vid = CreateVid(ref resource, (KnownObject)id, isTrueColor, format, error, sound);
+            _vids[id] = vid;
+            if (vid is null)
+                continue;
+
+            if (_vidCount <= id)
+            {
+                _vidCount = id + 1;
+            }
+
+            if (existing != 0)
+            {
+                vid.FileType |= VidType.FrameVector;
+            }
+
+            if (vid.Object.WeaponIndex >= _weaponCount)
+            {
+                vid.Report(error, LogError.Text, vid.Object.WeaponIndex, "nWeapon > noWeapon"u8);
+            }
+
+            Session.Graphics.DrawLoadBar(this, _vids[0]);
+        }
+        while (resource.GoNextSub(ObjectChunkTag) == Resource.Found);
+
+        var largest = System.Drawing.Size.Empty;
+        foreach (var vid in Vids)
+        {
+            if (vid is not null)
+            {
+                SetChildAndLink(vid, error);
+                largest = new System.Drawing.Size(Math.Max(largest.Width, vid.FrameSize.Width), Math.Max(largest.Height, vid.FrameSize.Height));
+            }
+        }
+
+        error.Write($"LoadVid::No   ={_vidCount,-15}   sizeof(VID)   ={VidSize,-5}    load time     ={Environment.TickCount - start}ms   MaxSizeX,Y={largest.Width},{largest.Height}");
+    }
 
     /// <summary>
     /// Exchanges the identities of two object IDs.
@@ -225,12 +207,12 @@ public sealed class SpriteCatalog
     /// <param name="first">The shared data of the first object ID.</param>
     /// <param name="second">The shared data of the second object ID.</param>
     [EngineRoutine(0x00411790)]
-    public void Exchange(Vid first, Vid second)
+    public void ExchangeVid(Vid first, Vid second)
     {
         if (first == second)
             return;
 
-        foreach (var vid in _vids)
+        foreach (var vid in Vids)
         {
             if (vid is null)
                 continue;
@@ -242,6 +224,19 @@ public sealed class SpriteCatalog
             else if (vid.LinkVid == second)
             {
                 vid.LinkVid = first;
+            }
+
+            var children = vid.ChildVids;
+            for (int state = 0; state < children.Length; state++)
+            {
+                if (children[state] == first)
+                {
+                    children[state] = second;
+                }
+                else if (children[state] == second)
+                {
+                    children[state] = first;
+                }
             }
         }
 
@@ -263,14 +258,14 @@ public sealed class SpriteCatalog
     /// <summary>
     /// Undoes the level script's exchanges and reloads the record of every object ID.
     /// </summary>
-    public void ReloadRecords() => ReloadRecords(null, null);
+    public void ReloadVid() => ReloadVid(null, null);
 
     /// <summary>
     /// Clears the counts and script handlers of every object ID for a new level.
     /// </summary>
-    public void ResetLevelState()
+    public void ResetVidLevelState()
     {
-        foreach (var vid in _vids)
+        foreach (var vid in Vids)
         {
             vid?.ResetLevelState();
         }
@@ -281,22 +276,7 @@ public sealed class SpriteCatalog
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <returns>The shared data of the object ID, or null if the ID isn't loaded.</returns>
-    public Vid? Find(KnownObject id) => id >= 0 && (int)id < _vids.Length ? _vids[(int)id] : null;
-
-    /// <summary>
-    /// Puts shared data in the slot of an object ID, and grows the table when the ID is past its end.
-    /// </summary>
-    /// <param name="id">The object ID.</param>
-    /// <param name="vid">The shared data of the object ID.</param>
-    public void SetVid(KnownObject id, Vid vid)
-    {
-        if (_vids.Length <= (int)id)
-        {
-            Array.Resize(ref _vids, (int)id + 1);
-        }
-
-        _vids[(int)id] = vid;
-    }
+    public Vid? FindVid(KnownObject id) => id >= 0 && (int)id < _vidCount ? _vids[(int)id] : null;
 
     /// <summary>
     /// Applies an ambient gamma to the palettes of every sprite file.
@@ -304,32 +284,10 @@ public sealed class SpriteCatalog
     /// <param name="ambient">The ambient gamma.</param>
     public void SetAmbient(Gamma ambient)
     {
-        foreach (var vid in _vids)
+        foreach (var vid in Vids)
         {
-            vid?.SetGamma(ambient, Vid.AllArmies, ambient, _error);
+            vid?.SetGamma(ambient, ASToolkit.Engine.Vid.AllArmies, ambient, Session.Error);
         }
-    }
-
-    internal void ReleaseAdditionalLoads()
-    {
-        for (int i = _vids.Length - 1; i >= 0; i--)
-        {
-            var vid = _vids[i];
-
-            if (vid is not null && vid.FileType.HasFlag(VidType.FrameVector))
-            {
-                _loadOrder.Remove(vid);
-                _vids[i] = null;
-            }
-        }
-
-        int count = _vids.Length;
-        while (count > 0 && _vids[count - 1] is null)
-        {
-            count--;
-        }
-
-        Array.Resize(ref _vids, count);
     }
 
     internal FrameMask? GetFrameMask(Vid vid, int frame)
@@ -340,7 +298,7 @@ public sealed class SpriteCatalog
         VidResource? file;
         lock (Parts)
         {
-            file = Parts.GetFile(GetPath(vid.Id));
+            file = Parts.GetFile(vid.Path);
         }
 
         mask = file is null || frame < 0 || frame >= file.Value.FrameCount ? null : FrameMask.Read(file.Value, frame);
@@ -349,13 +307,13 @@ public sealed class SpriteCatalog
     }
 
     [EngineRoutine(0x00411920)]
-    internal void ReloadRecords(MyError? error, Sound? sound)
+    internal void ReloadVid(MyError? error, Sound? sound)
     {
-        foreach (var vid in _vids)
+        foreach (var vid in Vids)
         {
             if (vid is not null && vid.Identity != vid)
             {
-                Exchange(vid.Identity, vid);
+                ExchangeVid(vid.Identity, vid);
             }
         }
 
@@ -366,13 +324,13 @@ public sealed class SpriteCatalog
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            error?.Error(Map.MapLogTag, LogError.Open, 0);
+            error?.Error(MapLogTag, LogError.Open, 0);
             return;
         }
 
         if (!container.TryGetChunk(ObjectChunkTag, out _))
         {
-            error?.Error(Map.MapLogTag, LogError.Section, 0);
+            error?.Error(MapLogTag, LogError.Section, 0);
             return;
         }
 
@@ -382,11 +340,11 @@ public sealed class SpriteCatalog
         {
             if ((int)id > MaxId)
             {
-                error?.Error(Map.MapLogTag, LogError.Invalid, 0);
+                error?.Error(MapLogTag, LogError.Invalid, 0);
                 continue;
             }
 
-            var slot = id == 0 ? LoadingScreen : _vids[(int)id];
+            var slot = (int)id < _vidCount ? _vids[(int)id] : null;
 
             if (slot is null)
                 continue;
@@ -395,7 +353,7 @@ public sealed class SpriteCatalog
             _objects.TryFind(id, out var gameObject);
             _objects.TryGetWeapon(gameObject, out var weapon);
             target.ReplaceRecord(gameObject, weapon);
-            target.Name = GetName(target);
+            target.Name = GetVidName(target);
             target.LoadParameters(error, sound, ShouldResetBuiltTerrain);
         }
 
@@ -404,7 +362,7 @@ public sealed class SpriteCatalog
 
     internal void LogCounts(MyError error)
     {
-        for (int i = 0; i < _vids.Length; i++)
+        for (int i = 0; i < _vidCount; i++)
         {
             var vid = _vids[i];
 
@@ -415,7 +373,7 @@ public sealed class SpriteCatalog
             if (counts[0] + counts[1] + counts[2] + counts[3] == 0)
                 continue;
 
-            error.Write($"NoVid[{i,3}]={counts[0]} {counts[1]} {counts[2]} {counts[3]} {GetName(vid)} Layer={(int)vid.Layer} {GetPath(vid)}");
+            error.Write($"NoVid[{i,3}]={counts[0]} {counts[1]} {counts[2]} {counts[3]} {vid.Name} Layer={(int)vid.Layer} {vid.Path}");
         }
     }
 
@@ -425,10 +383,10 @@ public sealed class SpriteCatalog
         int link = (int)vid.Object.Link;
         if (link != 0)
         {
-            var linked = Find(vid.Object.Link);
+            var linked = FindVid(vid.Object.Link);
             if (linked is not null)
             {
-                vid.LinkVid = linked;
+                vid.LinkVid = linked.Identity;
             }
         }
 
@@ -438,14 +396,25 @@ public sealed class SpriteCatalog
         vid.HasScaleKeyframes = GetHasScaleKeyframes(weapon);
         vid.HasOffsetKeyframes = GetHasOffsetKeyframes(weapon);
 
-        if (vid.Lifetime != Vid.Unlimited || vid.HasKeyframes || vid.Object.Properties.HasFlag(ObjectProperties.Blur) || vid.Object.Properties.HasFlag(ObjectProperties.RandomSpeed))
+        if (vid.Lifetime != ASToolkit.Engine.Vid.Unlimited || vid.HasKeyframes || vid.Object.Properties.HasFlag(ObjectProperties.Blur) || vid.Object.Properties.HasFlag(ObjectProperties.RandomSpeed))
         {
             vid.HasTimers = true;
         }
 
-        foreach (int child in vid.Children)
+        var children = vid.Children;
+        for (int state = 0; state < children.Length; state++)
         {
-            if (child != 0 && Find((KnownObject)Math.Abs(child))?.IsBirthAsSmoke() == true)
+            int child = children[state];
+            if (child == 0)
+                continue;
+
+            int sign = child >> 31;
+            var target = FindVid((KnownObject)unchecked((child ^ sign) - sign));
+            if (target is null)
+                continue;
+
+            vid.ChildVids[state] = target.Identity;
+            if (target.Identity.IsBirthAsSmoke())
             {
                 vid.HasTimers = true;
             }
@@ -454,14 +423,14 @@ public sealed class SpriteCatalog
         if (error is null)
             return;
 
-        if (link != 0 && !IsDefined(link))
+        if (link != 0 && !IsVidDefined(link))
         {
             vid.Report(error, LogError.Invalid, link, "LinkVid"u8);
         }
 
         foreach (int child in vid.Object.Children)
         {
-            if (child != 0 && !IsDefined(Math.Abs(child)))
+            if (child != 0 && !IsVidDefined(Math.Abs(child)))
             {
                 vid.Report(error, LogError.Invalid, child, "child"u8);
             }
@@ -470,7 +439,7 @@ public sealed class SpriteCatalog
 
     private static void LogUnopened(MyError? error, string path) => error?.Write($"LOAD::Can't open file {path}");
 
-    private static Vid CreateDefault() => Vid.CreateEmpty(KnownObject.None, new GameObject(SpriteClass.Primitive, DefaultSize), DefaultSpriteSpeed, ObjectLayer.Menu);
+    private static Vid CreateDefault() => ASToolkit.Engine.Vid.CreateEmpty(KnownObject.None, new GameObject(SpriteClass.Primitive, DefaultVidSize), DefaultSpriteSpeed, ObjectLayer.Menu);
 
     private static ReadOnlyMemory<byte> ConvertPicture(string gameFolder, string path, bool isText, MyError? error)
     {
@@ -529,7 +498,7 @@ public sealed class SpriteCatalog
         return false;
     }
 
-    private ReadOnlyMemory<byte> GetBytes(string path)
+    private ReadOnlyMemory<byte> GetVidBytes(string path)
     {
         lock (Parts)
         {
@@ -538,11 +507,14 @@ public sealed class SpriteCatalog
     }
 
     [EngineRoutine(0x00411b50)]
-    private Vid? CreateVid(string gameFolder, KnownObject id, in GameObject gameObject, bool isTrueColor, HighColorFormat format, int maxTextureSize, MyError? error, Sound? sound)
+    private Vid? CreateVid(ref Resource resource, KnownObject id, bool isTrueColor, HighColorFormat format, MyError? error, Sound? sound)
     {
+        string name = GameTextEncoding.Cyrillic.GetString(resource.ReadText());
+        var gameObject = _objects.ReadObject(resource.Read<byte>(_objects.ObjectSize));
+        string path = Encoding.ASCII.GetString(resource.ReadText());
+        string gameFolder = _gameFolder;
         _objects.TryGetWeapon(gameObject, out var weapon);
-        string path = _objects.GetPath(id);
-        var temporary = Vid.CreateEmpty(KnownObject.None, gameObject, DefaultSpriteSpeed, ObjectLayer.Menu);
+        var temporary = ASToolkit.Engine.Vid.CreateEmpty(KnownObject.None, gameObject, DefaultSpriteSpeed, ObjectLayer.Menu);
         temporary.LoadParameters(error, sound, ShouldResetBuiltTerrain);
         bool isCopy = FindCopySource(path, temporary) is not null;
         var parametersError = error;
@@ -557,8 +529,8 @@ public sealed class SpriteCatalog
         {
             if (path.Contains(FontExtension, StringComparison.Ordinal) || path.Contains(TrueTypeExtension, StringComparison.Ordinal))
             {
-                var font = new VidFont(id, gameObject, weapon, maxTextureSize);
-                Prepare(font, parametersError, sound);
+                var font = new VidFont(id, gameObject, weapon, DefaultMaxTextureSize);
+                PrepareVid(font, name, path, parametersError, sound);
                 font.Load(default, default, error);
                 font.SetLayer();
                 return font;
@@ -566,9 +538,12 @@ public sealed class SpriteCatalog
             else if (path.Contains(TgaImage.Extension, StringComparison.Ordinal) || path.Contains(BmpImage.Extension, StringComparison.Ordinal) || path.Contains(AnimationExtension, StringComparison.Ordinal))
             {
                 bool isText = gameObject.SpriteClass == SpriteClass.Text;
-                data = error is not null
-                    ? ConvertPicture(gameFolder, path, isText, error)
-                    : ConvertedPictures.GetOrAdd((Path.GetFullPath(Path.Combine(gameFolder, path)), isText), key => new(() => ConvertPicture(gameFolder, path, key.IsText, null))).Value;
+                data = ConvertedPictures.GetOrAdd((Path.GetFullPath(Path.Combine(gameFolder, path)), isText), key => new(() => ConvertPicture(gameFolder, path, key.IsText, null))).Value;
+                if (data.IsEmpty && error is not null)
+                {
+                    ConvertPicture(gameFolder, path, isText, error);
+                }
+
                 if (data.IsEmpty)
                 {
                     LogUnopened(error, path);
@@ -612,7 +587,7 @@ public sealed class SpriteCatalog
         }
         else
         {
-            bytes = data.IsEmpty ? GetBytes(path) : data;
+            bytes = data.IsEmpty ? GetVidBytes(path) : data;
             if (type.HasFlag(VidType.Hardware))
             {
                 vid = new VidDepthFaded(id, gameObject, weapon, sprite, totalFrames, format);
@@ -627,8 +602,16 @@ public sealed class SpriteCatalog
             }
         }
 
-        Prepare(vid, parametersError, sound);
+        PrepareVid(vid, name, path, parametersError, sound);
         vid.Load(sprite, bytes, error);
+        if (!isCopy && vid is VidHardware hardware)
+        {
+            for (int surface = 0; surface < hardware.SurfaceCount; surface++)
+            {
+                Session.Graphics.DrawLoadBar(this, Vid(0));
+            }
+        }
+
         vid.SetLayer();
         vid.IsCopy = isCopy;
         return vid;
@@ -637,10 +620,8 @@ public sealed class SpriteCatalog
     private Vid? FindCopySource(string path, Vid temporary)
     {
         bool isBuiltTerrain = temporary.Class == SpriteClass.BuiltTerrain;
-        var table = _vids;
-        for (int slot = 0; slot < table.Length; slot++)
+        foreach (var existing in Vids)
         {
-            var existing = slot == 0 ? LoadingScreen : table[slot];
             if (existing is null || !string.Equals(existing.Path, path, StringComparison.Ordinal))
                 continue;
 
@@ -655,16 +636,16 @@ public sealed class SpriteCatalog
         return null;
     }
 
-    private void Prepare(Vid vid, MyError? error, Sound? sound)
+    private void PrepareVid(Vid vid, string name, string path, MyError? error, Sound? sound)
     {
-        vid.Name = GetName(vid);
-        vid.Path = GetPath(vid);
+        vid.Name = name;
+        vid.Path = path;
         vid.LoadParameters(error, sound, ShouldResetBuiltTerrain);
     }
 
     private void ResolveLinks(MyError? error, bool isReload)
     {
-        foreach (var vid in _vids)
+        foreach (var vid in Vids)
         {
             if (vid is not null && !(isReload && vid.FileType.HasFlag(VidType.FrameVector)))
             {
@@ -673,9 +654,5 @@ public sealed class SpriteCatalog
         }
     }
 
-    private string GetPath(Vid vid) => GetPath(vid.RecordId);
-
-    private string GetPath(KnownObject id) => id == HardwareGroundId ? string.Empty : _objects.GetPath(id);
-
-    private bool IsDefined(int id) => id >= 0 && id < _vids.Length && _vids[id] is not null;
+    private bool IsVidDefined(int id) => id >= 0 && id < _vidCount && _vids[id] is not null;
 }

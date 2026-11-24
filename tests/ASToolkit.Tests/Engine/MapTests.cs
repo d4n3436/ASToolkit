@@ -13,8 +13,7 @@ public class MapTests
     [Fact]
     public void Map_WithoutAPlacedMan_HasNoPlayerUntilTheScriptCreatesOne()
     {
-        var objects = TestGameFolder.CreateCatalog();
-        var map = EngineTestMap.CreateMap(objects, placePlayer: false, script: """
+        var map = EngineTestMap.CreateMap(placePlayer: false, script: """
             #include "maps\export.lgc"
             int man;
             main()
@@ -40,10 +39,9 @@ public class MapTests
     [Fact]
     public void Step_PlayerKilledWithALifeLeft_IsRebornWithTheSpaceKey()
     {
-        var objects = TestGameFolder.CreateCatalog();
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int> { [KnownObject.Shotgun] = 23 }, default)
         { Items = new Dictionary<KnownObject, int> { [KnownObject.ExtraLife] = 1 } };
-        var map = EngineTestMap.CreateMap(objects, loadout: loadout);
+        var map = EngineTestMap.CreateMap(loadout: loadout);
         map.Play(default);
         var first = map.Player;
         var start = first.Position;
@@ -73,11 +71,10 @@ public class MapTests
     [Fact]
     public void Damage_KillingAMonsterCarryingAnItem_DropsItThenItExpires()
     {
-        var objects = TestGameFolder.CreateCatalog();
-        var map = EngineTestMap.CreateMap(objects);
+        var map = EngineTestMap.CreateMap();
         map.Play(default);
         var position = map.Player.Position + new Vector3(500, 0, 0);
-        var enemy = map.CreateSprite(objects.Find(KnownObject.Monster1), position, default)!;
+        var enemy = map.CreateSprite(map.FindVid(KnownObject.Monster1), position, default)!;
         enemy.Items.Clear();
         Map.Action(enemy, ActionCode.AddItem, (int)KnownObject.Money);
         Map.Action(enemy, ActionCode.Damage, enemy.Hp);
@@ -101,10 +98,9 @@ public class MapTests
     [Fact]
     public void Action_RepairOnAWoundedMonster_RestoresItsHp()
     {
-        var objects = TestGameFolder.CreateCatalog();
-        var map = EngineTestMap.CreateMap(objects);
+        var map = EngineTestMap.CreateMap();
         map.Play(default);
-        var enemy = map.CreateSprite(objects.Find(KnownObject.Monster1), map.Player.Position + new Vector3(500, 0, 0), default)!;
+        var enemy = map.CreateSprite(map.FindVid(KnownObject.Monster1), map.Player.Position + new Vector3(500, 0, 0), default)!;
         int maxHp = enemy.Hp;
         Map.Action(enemy, ActionCode.Damage, maxHp / 2);
 
@@ -116,10 +112,9 @@ public class MapTests
     [Fact]
     public void Action_GetItemType_PicksACarriedItemOrNoneWithoutItems()
     {
-        var objects = TestGameFolder.CreateCatalog();
-        var map = EngineTestMap.CreateMap(objects);
+        var map = EngineTestMap.CreateMap();
         map.Play(default);
-        var enemy = map.CreateSprite(objects.Find(KnownObject.Monster1), map.Player.Position + new Vector3(500, 0, 0), default)!;
+        var enemy = map.CreateSprite(map.FindVid(KnownObject.Monster1), map.Player.Position + new Vector3(500, 0, 0), default)!;
         enemy.Items.Clear();
 
         Assert.Equal(-1, Map.Action(enemy, ActionCode.GetItemType));
@@ -133,8 +128,7 @@ public class MapTests
     [Fact]
     public void Step_PlayerCommand_MovesThePlayerWithoutRouteOrBot()
     {
-        var objects = TestGameFolder.CreateCatalog();
-        var map = EngineTestMap.CreateMap(objects, camera: new Vector2(1000 - GameSession.DefaultScreenWidth / 2f, 1000 - GameSession.DefaultScreenHeight / 2f));
+        var map = EngineTestMap.CreateMap(camera: new Vector2(1000 - GameSession.DefaultScreenWidth / 2f, 1000 - GameSession.DefaultScreenHeight / 2f));
         map.Play(default);
         var destination = map.Player.Position.AsVector2() + new Vector2(300, 0);
         var command = new PlayerCommand(destination, PlayerCommand.GetCursor(map.Player.Position), false, Sprite.Pistols);
@@ -144,7 +138,7 @@ public class MapTests
         }
 
         Assert.NotEqual(Command.Move, map.Player.Command);
-        Assert.True(map.Player.IsTouching(destination, map.Vids.Empty.Half));
+        Assert.True(map.Player.IsTouching(destination, map.EmptyVid.Half));
         for (int tick = 0; tick < 50; tick++)
         {
             map.Play(default);
@@ -157,10 +151,9 @@ public class MapTests
     [Fact]
     public void Step_MovesEnemiesWithoutAPlayerBot()
     {
-        var objects = TestGameFolder.CreateCatalog();
-        var map = EngineTestMap.CreateMap(objects);
+        var map = EngineTestMap.CreateMap();
         var start = map.Player.Position.AsVector2() + new Vector2(200, 0);
-        var enemy = map.CreateSprite(objects.Find(KnownObject.Monster1), new Vector3(start, map.GetGroundZ(start)), new Angle(192))!;
+        var enemy = map.CreateSprite(map.FindVid(KnownObject.Monster1), new Vector3(start, map.GetGroundZ(start)), new Angle(192))!;
         int health = map.Player.Hp;
         for (int tick = 0; tick < 300; tick++)
         {
@@ -175,11 +168,10 @@ public class MapTests
     [InlineData(16)]
     public void Step_HighFrameRates_LetTheTankAlienReachThePlayer(int frameTime)
     {
-        var objects = TestGameFolder.CreateCatalog();
-        var map = EngineTestMap.CreateMap(objects, frameTime: frameTime);
+        var map = EngineTestMap.CreateMap(frameTime: frameTime);
         var player = map.Player.Position.AsVector2();
         var start = player + new Vector2(350, 0);
-        var tank = map.CreateSprite(objects.Find(KnownObject.TankMonster), new Vector3(start, 0), Angle.FromOffset(player - start) + 64)!;
+        var tank = map.CreateSprite(map.FindVid(KnownObject.TankMonster), new Vector3(start, 0), Angle.FromOffset(player - start) + 64)!;
 
         while (map.Time < 6000)
         {
