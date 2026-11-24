@@ -32,12 +32,13 @@ public sealed partial class Map
                 MoveSystemCursor(new Point(var1, var2));
                 return 0;
             default:
-                return DispatchClassAction(sprite, act, var1, var2, var3, target);
+                return UnitAction(sprite, act, var1, var2, var3, target);
         }
     }
 
     private void MoveSystemCursor(Point target)
     {
-        MoveMouse(target + new Size(Input.WindowOrigin), Input.WindowOrigin, Session.Graphics.Viewport, Camera);
+        var screen = target + new Size(Session.Graphics.WindowPosition);
+        Input.PostMessage(WindowMessageId.HitTest, 0, (screen.Y & 0xFFFF) << 16 | (screen.X & 0xFFFF));
     }
 }

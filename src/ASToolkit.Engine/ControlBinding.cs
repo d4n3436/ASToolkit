@@ -1,6 +1,6 @@
 namespace ASToolkit.Engine;
 
-internal readonly record struct ControlBinding(int Primary, int Secondary)
+internal readonly record struct ControlBinding(VirtualKey Primary, VirtualKey Secondary)
 {
-    public bool Matches(int code) => code == Primary || code == Secondary;
+    public bool Matches(VirtualKey key) => key == Primary || key == Secondary;
 }

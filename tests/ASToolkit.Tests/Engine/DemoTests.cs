@@ -11,12 +11,17 @@ public class DemoTests
     public void FinishDemoRecording_RecordedFrames_ReadBackThroughDemoResource()
     {
         var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog(), session: CreateRecordingSession());
-        map.Input.Flags = InputFlags.Right | InputFlags.First;
-        map.Input.Cursor = new Vector2(120.5f, -40.25f);
-        map.Input.Key = 's';
-        map.StepDemo(0, out _);
+        map.Input.PostMessage(WindowMessageId.KeyDown, (int)VirtualKey.Right, 0);
+        map.Input.PostMessage(WindowMessageId.HitTest, 0, 40 << 16 | 120);
+        map.Input.PostMessage(WindowMessageId.LeftButtonDown, 0, 0);
+        map.Input.PostKey(VirtualKey.X, 'x');
         map.AdvanceClock();
-        map.Input.Flags = InputFlags.None;
+        int firstTime = map.Time;
+        var cursor = new Vector2(120, 40) + map.Camera;
+        map.StepDemo(0, out _);
+        map.Input.PostMessage(WindowMessageId.KeyUp, (int)VirtualKey.Right, 0);
+        map.Input.PostMessage(WindowMessageId.LeftButtonUp, 0, 0);
+        map.AdvanceClock();
         map.StepDemo(0, out _);
 
         var demo = new DemoResource(map.FinishDemoRecording());
@@ -28,12 +33,12 @@ public class DemoTests
         Assert.True(demo.TryReadFrame(ref offset, out var first));
         Assert.True(demo.TryReadFrame(ref offset, out var second));
         Assert.False(demo.TryReadFrame(ref offset, out _));
-        Assert.Equal(GameClock.LevelStartTime, first.Time);
-        Assert.Equal(InputFlags.Right | InputFlags.First, first.Input.Flags);
-        Assert.Equal(new Vector2(120.5f, -40.25f), first.Input.Cursor);
-        Assert.Equal('s', first.Input.Key);
+        Assert.Equal(firstTime, first.Time);
+        Assert.Equal(InputFlags.Right | InputFlags.First | InputFlags.LeftClick | InputFlags.LeftDown, first.Input.Flags);
+        Assert.Equal(cursor, first.Input.Cursor);
+        Assert.Equal('x', first.Input.Key);
         Assert.Equal(map.Time, second.Time);
-        Assert.Equal(InputFlags.None, second.Input.Flags);
+        Assert.Equal(InputFlags.LeftClickRelease, second.Input.Flags);
         Assert.Equal(demo.Body.Length, offset);
     }
 
@@ -52,8 +57,9 @@ public class DemoTests
 
         Assert.False(drawn);
         Assert.False(player.IsPlayingDemo);
-        Assert.False(player.IsQuitting);
-        Assert.Equal("maps\\engine_test.map"u8.ToArray(), player.MapToLoad);
+        Assert.Empty(player.Session.PreviousMapName.ToArray());
+        Assert.False(player.AdvanceClock());
+        Assert.Equal("maps\\engine_test.map"u8.ToArray(), player.Session.PreviousMapName.ToArray());
     }
 
     private static GameSession CreateRecordingSession() => new(new ScriptRegistry("")) { IsRecordingNextMap = true };
