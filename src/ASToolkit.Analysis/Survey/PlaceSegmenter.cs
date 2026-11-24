@@ -185,7 +185,7 @@ internal sealed class PlaceSegmenter
 
         bool IsClosed(EdgeKey edge) => edges.TryGetValue(edge, out var kind) && kind.IsClosed;
 
-        bool IsWall(EdgeKey edge) => edges.TryGetValue(edge, out var kind) && kind.BlocksWalking;
+        bool IsWall(EdgeKey edge) => edges.TryGetValue(edge, out var kind) && kind.IsBlocking;
     }
 
     // Give each small patch of floor that no place holds to the place it opens onto most
@@ -940,26 +940,26 @@ internal sealed class PlaceSegmenter
     private static bool TryMoveEnd(HashSet<Cell> place, int index, Dictionary<Cell, int> placeOf, HashSet<Cell> floor, Dictionary<EdgeKey, EdgeKind> edges, SortedDictionary<int, (int Low, int High)> runs,
         (int First, int Last, int End) segment, int target, bool alongU, bool lowSide)
     {
-        bool grows = lowSide ? target < segment.End : target > segment.End;
+        bool isGrowing = lowSide ? target < segment.End : target > segment.End;
         var cells = new List<Cell>();
         for (int line = segment.First; line <= segment.Last; line++)
         {
             for (int position = Math.Min(segment.End, target); position <= Math.Max(segment.End, target); position++)
             {
-                if (position != (grows ? segment.End : target))
+                if (position != (isGrowing ? segment.End : target))
                 {
                     cells.Add(alongU ? new Cell(position, line) : new Cell(line, position));
                 }
             }
 
             var run = runs[line];
-            if (!grows && (lowSide ? run.High - target : target - run.Low) + 1 < OutlineCells)
+            if (!isGrowing && (lowSide ? run.High - target : target - run.Low) + 1 < OutlineCells)
             {
                 return false;
             }
         }
 
-        if (grows)
+        if (isGrowing)
         {
             if (cells.Any(cell => (placeOf.TryGetValue(cell, out int owner) && owner != index)
                                   || GetRing(cell).Any(neighbor => placeOf.TryGetValue(neighbor, out int other) && other != index)))
@@ -1129,7 +1129,7 @@ internal sealed class PlaceSegmenter
         {
             foreach (var (neighbor, edge) in EdgeKey.GetNeighbors(cell))
             {
-                if (placeOf.TryGetValue(neighbor, out int other) && other != i && !(edges.TryGetValue(edge, out var kind) && kind.BlocksWalking))
+                if (placeOf.TryGetValue(neighbor, out int other) && other != i && !(edges.TryGetValue(edge, out var kind) && kind.IsBlocking))
                 {
                     links[i].Add(other);
                 }

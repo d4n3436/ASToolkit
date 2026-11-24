@@ -385,14 +385,14 @@ internal abstract partial class BuildingGrammar
     private Area? PocketArea(int w, int d, WarehouseArea spec)
     {
         int rooms = Math.Min(spec.Rooms, Math.Max(1, d / 3));
-        var parts = rooms > 1 ? Partition(Box(0, 0, w, d), rooms, spec.Interlocks) : [Box(0, 0, w, d)];
+        var parts = rooms > 1 ? Partition(Box(0, 0, w, d), rooms, spec.IsInterlocked) : [Box(0, 0, w, d)];
         parts = rooms == 1 ? parts : Walk(parts, part => part.Any(c => c.V == 0), _ => true);
         if (parts.Count == 0)
         {
             return null;
         }
 
-        parts = spec.Interlocks ? Interlock(parts, parts.Count, 2) : parts;
+        parts = spec.IsInterlocked ? Interlock(parts, parts.Count, 2) : parts;
         if (parts[0].All(c => c.V != 0) || !IsChained(parts))
         {
             return null;
@@ -743,7 +743,7 @@ internal sealed record WarehouseArea(string Name, WarehouseShape Shape, ValueRan
 
     public int Rooms { get; init; } = 1;
 
-    public bool Interlocks { get; init; } = true;
+    public bool IsInterlocked { get; init; } = true;
 
     public int Arms { get; init; }
 

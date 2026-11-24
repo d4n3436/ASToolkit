@@ -110,8 +110,8 @@ public sealed class DirectionTable
 
                 var key = (levelObject.Id, obj.GetFrame(levelObject.Direction, int.MaxValue));
                 (int total, int near) = counts.GetValueOrDefault(key);
-                bool leans = model.Edges.FindNearestWall(levelObject.U, levelObject.V) is { Distance: < LeanDistance };
-                counts[key] = (total + 1, near + (leans ? 1 : 0));
+                bool isLeaning = model.Edges.FindNearestWall(levelObject.U, levelObject.V) is { Distance: < LeanDistance };
+                counts[key] = (total + 1, near + (isLeaning ? 1 : 0));
             }
         }
 

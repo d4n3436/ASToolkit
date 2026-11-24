@@ -135,12 +135,12 @@ internal abstract partial class BuildingGrammar
         var options = new List<(UnitRect Arm, bool AlongU, int? Target)>();
         foreach (var side in Enum.GetValues<Side>())
         {
-            int span = side.RunsAlongU ? rect.W : rect.H;
+            int span = side.IsAlongU ? rect.W : rect.H;
             for (int offset = 0; offset <= Math.Max(0, span - 3); offset++)
             {
                 foreach (int depth in (int[])[2, 1])
                 {
-                    var arm = rect.Beside(side, 3, depth, (side.RunsAlongU ? rect.U : rect.V) + offset);
+                    var arm = rect.Beside(side, 3, depth, (side.IsAlongU ? rect.U : rect.V) + offset);
                     if (!Grid.IsNeckFree(arm, Grid[room].Group) || avoid.Any(other => other.IntersectsWith(arm)))
                     {
                         continue;
@@ -152,7 +152,7 @@ internal abstract partial class BuildingGrammar
                         .Select(other => (int?)other.Id)
                         .FirstOrDefault();
 
-                    options.Add((arm, side.RunsAlongU, target));
+                    options.Add((arm, side.IsAlongU, target));
                 }
             }
         }
@@ -373,12 +373,12 @@ internal abstract partial class BuildingGrammar
             done.Add(i);
             int size = pods[i].Rooms;
             int phase = plan.Locked.Contains(i) ? lockedPhase : openPhase;
-            bool jams = i == plan.JammedAt;
+            bool isJammed = i == plan.JammedAt;
             var pod = new List<int>();
             // Shrink a ring that finds no layout to a clump, and retry a failed clump once at half its rooms
             for (; size >= 1 && pod.Count == 0; size = pods[i].IsRing ? size > 3 ? size - 1 : 0 : size > 1 && size == pods[i].Rooms ? size / 2 : 0)
             {
-                pod = LayOfficePod(hub, pods[i].Side, size, pods[i].IsRing && size >= 3, phase, packed, jams, i == keyAt);
+                pod = LayOfficePod(hub, pods[i].Side, size, pods[i].IsRing && size >= 3, phase, packed, isJammed, i == keyAt);
             }
 
             for (size = 3; pod.Count == 0 && pods[i].IsRing && size >= 1; size -= 2)
@@ -502,7 +502,7 @@ internal abstract partial class BuildingGrammar
 
     private readonly record struct OfficePlan(IReadOnlyList<OfficePod> Pods, int KeyAt, IReadOnlySet<int> Locked, int JammedAt, int Length);
 
-    private List<int> LayOfficePod(int hub, DoorSides side, int rooms, bool isRing, int phase, bool packed, bool jams, bool isKey)
+    private List<int> LayOfficePod(int hub, DoorSides side, int rooms, bool isRing, int phase, bool packed, bool jam, bool isKey)
     {
         int group = NewGroup();
         var via = packed && Random.Next() < 0.5f ? JoinVia.Door : JoinVia.Neck;
@@ -519,7 +519,7 @@ internal abstract partial class BuildingGrammar
             foreach (int end in (int[])[ids[0], ids[^1]])
             {
                 // Stand the jammed end flush with the hall and make its whole front a wall for the jammed door
-                bool isJammed = jams && end == ids[^1];
+                bool isJammed = jam && end == ids[^1];
                 wing.Join(WingSolver.Anchor, end, isJammed ? JoinVia.Door : via, isJammed ? JoinMark.Contact : hallMark);
                 wing.SetSides(WingSolver.Anchor, end, side, null);
             }
@@ -538,7 +538,7 @@ internal abstract partial class BuildingGrammar
 
             built.AddRange(ids.Select(id => map[id]));
             open.UnionWith(built.Zip(built.Skip(1), (a, b) => new RoomPair(a, b)).Append(new RoomPair(hub, built[0])));
-            if (jams)
+            if (jam)
             {
                 JammedWalls.Add(new RoomPair(hub, built[^1]));
             }
@@ -552,7 +552,7 @@ internal abstract partial class BuildingGrammar
             // Try the breaker's clump folded first, then as a plain chain
             for (int attempt = isKey ? 0 : 1; attempt < 2 && built.Count == 0; attempt++)
             {
-                bool folds = attempt == 0;
+                bool isFolded = attempt == 0;
                 var wing = new GraphWing(this);
                 var ids = new List<int> { WingSolver.Anchor };
                 var hosts = new List<int>();
@@ -570,7 +570,7 @@ internal abstract partial class BuildingGrammar
                     {
                         wing.Snug(host, room);
                         // Fold the clump by having each room past the second, other than the breaker, also touch the one of the last two rooms that isn't its host
-                        int? fold = folds && i >= 2 && i < rooms - 1 ? host == ids[^1] ? ids[^2] : ids[^1] : null;
+                        int? fold = isFolded && i >= 2 && i < rooms - 1 ? host == ids[^1] ? ids[^2] : ids[^1] : null;
                         if (fold is not null)
                         {
                             wing.Touch(fold.Value, room);
@@ -586,10 +586,10 @@ internal abstract partial class BuildingGrammar
                     hosts.Add(host);
                 }
 
-                var map = wing.Lay(hub, [EndStrip(hub)], folds ? 1 : 2);
+                var map = wing.Lay(hub, [EndStrip(hub)], isFolded ? 1 : 2);
                 if (map.Count == 0)
                 {
-                    Count(folds ? BuildingTally.OfficeFoldUnsolved : BuildingTally.OfficeClumpUnsolved);
+                    Count(isFolded ? BuildingTally.OfficeFoldUnsolved : BuildingTally.OfficeClumpUnsolved);
                     continue;
                 }
 
@@ -661,9 +661,9 @@ internal abstract partial class BuildingGrammar
             var neck = room.Neck is null ? [] : room.Neck.Value.Units.ToHashSet();
             var body = room.Cells.Where(cell => !neck.Contains(cell)).Select(place).ToHashSet();
             // Grow the entry strip out of the gate's passage into one entrance depot
-            bool joinsGate = room.Id == layout.Run[0] && Grid[from].IsJoint && room.Neck is null;
-            int id = joinsGate ? from : AddDepot(body.ToRects(), type, roomPhase, group);
-            if (joinsGate)
+            bool isJoiningGate = room.Id == layout.Run[0] && Grid[from].IsJoint && room.Neck is null;
+            int id = isJoiningGate ? from : AddDepot(body.ToRects(), type, roomPhase, group);
+            if (isJoiningGate)
             {
                 foreach (var rect in body.ToRects())
                 {
@@ -891,9 +891,9 @@ internal abstract partial class BuildingGrammar
         {
             foreach (var other in others.Where(other => other.Id != room && (!members.Contains(other.Id) || other.Id > room)))
             {
-                bool touches = Shapes(room).Any(rect => Shapes(other.Id).Any(part => rect.SharesWall(part)));
+                bool isTouching = Shapes(room).Any(rect => Shapes(other.Id).Any(part => rect.SharesWall(part)));
                 bool isKept = kept.Contains(room) && kept.Contains(other.Id) && other.Kind == GridKind.Room;
-                if (touches && !isKept && !open.Contains(new RoomPair(room, other.Id)))
+                if (isTouching && !isKept && !open.Contains(new RoomPair(room, other.Id)))
                 {
                     ClosedWalls.Add(new RoomPair(room, other.Id));
                 }

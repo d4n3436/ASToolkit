@@ -1,8 +1,8 @@
 using System.Text;
-using ASToolkit.Formats;
 using ASToolkit.Analysis.Levels;
 using ASToolkit.Analysis.Reference;
 using ASToolkit.Analysis.Scripting;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Generation.Patching;
 
@@ -19,12 +19,9 @@ public static class RandomAddOnInstaller
     /// Represents the folder of the add-on's levels under Maps.
     /// </summary>
     public const string FolderName = "RANDOM";
-
     private const string LabelKey = "Addon3";
     private const string TableStart = "// >>> generator: random add-on";
     private const string TableEnd = "// <<< generator";
-
-    private static readonly Encoding Latin1 = Encoding.Latin1;
 
     // Add a game type 4 branch next to each add-on 2 branch
     private static readonly ScriptEdit[] Edits =
@@ -122,11 +119,11 @@ public static class RandomAddOnInstaller
         string table = Path.Combine(maps, GameTable.CommonFileName);
         if (File.Exists(table))
         {
-            string text = Latin1.GetString(File.ReadAllBytes(table));
-            string stripped = StripTable(text);
-            if (stripped != text)
+            byte[] text = File.ReadAllBytes(table);
+            byte[] stripped = StripTable(text);
+            if (!stripped.AsSpan().SequenceEqual(text))
             {
-                File.WriteAllBytes(table, Latin1.GetBytes(stripped));
+                File.WriteAllBytes(table, stripped);
                 done.Add("Maps/common_table.lgc table");
             }
         }
@@ -226,8 +223,8 @@ public static class RandomAddOnInstaller
     private static void WriteTable(string maps, GenerationStyle style, int count, IReadOnlyList<int> endMoney)
     {
         string path = Path.Combine(maps, GameTable.CommonFileName);
-        string text = StripTable(Latin1.GetString(File.ReadAllBytes(path)));
-        string newline = text.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+        byte[] text = StripTable(File.ReadAllBytes(path));
+        string newline = text.AsSpan().IndexOf("\r\n"u8) >= 0 ? "\r\n" : "\n";
         int[] money = GameTable.Parse(text).GetArray(style == GenerationStyle.AddOn ? "LevelMoneyAddon" : "LevelMoney").ToArray();
         for (int level = 1; level < Math.Min(count, money.Length); level++)
         {
@@ -235,24 +232,35 @@ public static class RandomAddOnInstaller
         }
 
         string block = string.Join(newline, TableStart, $"#define RANDOM_LEVELS {count}", $"static int LevelMoneyRandom[] = {{ {string.Join(" ,", money)} }};", TableEnd, "");
-        if (!text.EndsWith('\n'))
+        using var file = File.Create(path);
+        file.Write(text);
+        if (text.Length != 0 && text[^1] != (byte)'\n')
         {
-            text += newline;
+            file.Write(Encoding.ASCII.GetBytes(newline));
         }
 
-        File.WriteAllBytes(path, Latin1.GetBytes(text + block));
+        file.Write(Encoding.ASCII.GetBytes(block));
     }
 
-    private static string StripTable(string text)
+    private static byte[] StripTable(byte[] text)
     {
-        int start = text.IndexOf(TableStart, StringComparison.Ordinal);
-        int end = text.IndexOf(TableEnd, StringComparison.Ordinal);
+        int start = text.AsSpan().IndexOf(Encoding.ASCII.GetBytes(TableStart));
+        int end = text.AsSpan().IndexOf(Encoding.ASCII.GetBytes(TableEnd));
         if (start < 0 || end < start)
         {
             return text;
         }
 
-        end = text.IndexOf('\n', end);
-        return text[..start] + (end < 0 ? "" : text[(end + 1)..]);
+        int lineEnd = text.AsSpan(end).IndexOf((byte)'\n');
+        end = lineEnd < 0 ? -1 : end + lineEnd;
+
+        var result = new List<byte>(text.Length);
+        result.AddRange(text.AsSpan(0, start));
+        if (end >= 0)
+        {
+            result.AddRange(text.AsSpan(end + 1));
+        }
+
+        return result.ToArray();
     }
 }

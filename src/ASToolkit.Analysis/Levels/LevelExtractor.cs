@@ -236,10 +236,10 @@ public static class LevelExtractor
             }
 
             (float u, float v) = lattice.ToLattice(sprite.Position);
-            bool fits = slash
+            bool isFitting = slash
                 ? Lattice.IsNearInteger(u - 0.25f) && Lattice.IsNearInteger(v - 0.25f)
                 : Lattice.IsNearInteger(u + 0.25f) && Lattice.IsNearInteger(v - 0.75f);
-            if (fits)
+            if (isFitting)
             {
                 n++;
             }

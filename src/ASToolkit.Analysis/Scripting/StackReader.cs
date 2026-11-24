@@ -158,7 +158,7 @@ internal sealed class StackReader
     {
         var quest = _context.Quests.GetQuest(line, sub);
         string started = quest is null ? $"start quest {line}_{sub}"
-            : quest.WinsOnBegin ? $"start quest {quest.Key} and win the level: {quest.Title}" : $"start quest {quest.Key}: {quest.Title}";
+            : quest.ShouldWinOnBegin ? $"start quest {quest.Key} and win the level: {quest.Title}" : $"start quest {quest.Key}: {quest.Title}";
         AddEffect(ScriptMarkerKind.Quest, started);
         if (quest is not null)
         {
@@ -232,9 +232,9 @@ internal sealed class StackReader
         }
 
         var target = _context.FindNearest((KnownObject)action.Var1, new Vector2(action.Var2, action.Var3), 0);
-        bool opens = _context.Blocks((KnownObject)action.Var1);
-        AddEffect(opens ? ScriptMarkerKind.Opening : ScriptMarkerKind.Other, $"destroy {_context.GetObjectName(action.Var1)} near ({action.Var2}, {action.Var3})");
-        if (opens && target is not null)
+        bool isOpening = _context.Blocks((KnownObject)action.Var1);
+        AddEffect(isOpening ? ScriptMarkerKind.Opening : ScriptMarkerKind.Other, $"destroy {_context.GetObjectName(action.Var1)} near ({action.Var2}, {action.Var3})");
+        if (isOpening && target is not null)
         {
             Open(target.Handle);
         }
@@ -264,13 +264,13 @@ internal sealed class StackReader
             : _context.FindNearest((KnownObject)action.Var1, nearby ? _sprite.Position.AsVector2() : new Vector2(action.Var2, action.Var3),
                 _sprite.Handle);
         string subject = !other ? "" : nearby ? $" {_context.GetObjectName(action.Var1)} nearby" : $" {_context.GetObjectName(action.Var1)} near ({action.Var2}, {action.Var3})";
-        bool dies = animation is SpriteAnimation.Death or SpriteAnimation.Death2;
+        bool isDying = animation is SpriteAnimation.Death or SpriteAnimation.Death2;
         var targetId = other ? (KnownObject)action.Var1 : _sprite.Id;
-        if (targetId == KnownObject.RespawnPost && dies)
+        if (targetId == KnownObject.RespawnPost && isDying)
         {
             AddEffect(ScriptMarkerKind.Checkpoint, "set the respawn point");
         }
-        else if ((dies || animation == SpriteAnimation.Open) && _context.Blocks(targetId))
+        else if ((isDying || animation == SpriteAnimation.Open) && _context.Blocks(targetId))
         {
             AddEffect(ScriptMarkerKind.Opening, (animation == SpriteAnimation.Open ? "open" : "break") + subject);
             if (target is not null)

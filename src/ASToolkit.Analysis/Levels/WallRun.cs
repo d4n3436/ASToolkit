@@ -5,9 +5,9 @@ namespace ASToolkit.Analysis.Levels;
 /// </summary>
 /// <param name="Before">The number of wall edges before the edge along the run.</param>
 /// <param name="After">The number of wall edges after the edge along the run.</param>
-/// <param name="StartsAtCorner">A value indicating whether another wall or door meets the start of the run.</param>
-/// <param name="EndsAtCorner">A value indicating whether another wall or door meets the end of the run.</param>
-public sealed record WallRun(int Before, int After, bool StartsAtCorner, bool EndsAtCorner)
+/// <param name="HasCornerAtStart">A value indicating whether another wall or door meets the start of the run.</param>
+/// <param name="HasCornerAtEnd">A value indicating whether another wall or door meets the end of the run.</param>
+public sealed record WallRun(int Before, int After, bool HasCornerAtStart, bool HasCornerAtEnd)
 {
     /// <summary>
     /// Finds the run of wall edges that an edge belongs to.
@@ -31,9 +31,9 @@ public sealed record WallRun(int Before, int After, bool StartsAtCorner, bool En
 
         var first = Step(edge, -before);
         var last = Step(edge, after);
-        bool ends = edge.Axis == 'u' ? IsCorner(last.A, last.B + 1) : IsCorner(last.A + 1, last.B);
+        bool hasCornerAtEnd = edge.Axis == 'u' ? IsCorner(last.A, last.B + 1) : IsCorner(last.A + 1, last.B);
         
-        return new WallRun(before, after, IsCorner(first.A, first.B), ends);
+        return new WallRun(before, after, IsCorner(first.A, first.B), hasCornerAtEnd);
 
         bool IsCorner(int a, int b) => edge.Axis == 'u'
             ? edges.ContainsKey(new EdgeKey('v', a - 1, b)) || edges.ContainsKey(new EdgeKey('v', a, b))
@@ -50,7 +50,7 @@ public sealed record WallRun(int Before, int After, bool StartsAtCorner, bool En
     /// </summary>
     /// <param name="openEndDistance">The number of edges an end must lie away if it doesn't meet a corner.</param>
     /// <returns><see langword="true"/> if both ends of the run meet a corner or lie far enough away; otherwise, <see langword="false"/>.</returns>
-    public bool IsEnclosed(int openEndDistance) => (StartsAtCorner || Before >= openEndDistance) && (EndsAtCorner || After >= openEndDistance);
+    public bool IsEnclosed(int openEndDistance) => (HasCornerAtStart || Before >= openEndDistance) && (HasCornerAtEnd || After >= openEndDistance);
     
     private static bool IsWall(EdgeKey k, IReadOnlyDictionary<EdgeKey, EdgeKind> edges) => edges.TryGetValue(k, out var kind) && kind == EdgeKind.Wall;
     

@@ -357,9 +357,9 @@ public sealed class CampaignPlanner
     private LevelStyle[] DrawGates(Random rng, WallSet[] wallSets)
     {
         var gates = new LevelStyle[wallSets.Length];
-        bool opens = _model.Style == GenerationStyle.Campaign && wallSets.Skip(FirstIndoorLevel).Take(OpeningGates.Length).All(wallSet => wallSet == WallSet.Basement);
-        int past = opens ? FirstIndoorLevel + OpeningGates.Length : FirstIndoorLevel;
-        if (opens)
+        bool isOpening = _model.Style == GenerationStyle.Campaign && wallSets.Skip(FirstIndoorLevel).Take(OpeningGates.Length).All(wallSet => wallSet == WallSet.Basement);
+        int past = isOpening ? FirstIndoorLevel + OpeningGates.Length : FirstIndoorLevel;
+        if (isOpening)
         {
             OpeningGates.CopyTo(gates, FirstIndoorLevel);
         }

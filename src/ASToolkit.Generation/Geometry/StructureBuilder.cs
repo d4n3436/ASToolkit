@@ -531,10 +531,10 @@ public static class StructureBuilder
     {
         foreach ((int a, int b) in k.Axis == 'u' ? new[] { (k.A, k.B), (k.A, k.B + 1) } : new[] { (k.A, k.B), (k.A + 1, k.B) })
         {
-            bool meets = k.Axis == 'u'
+            bool isMeeting = k.Axis == 'u'
                 ? edges.ContainsKey(new EdgeKey('v', a - 1, b)) || edges.ContainsKey(new EdgeKey('v', a, b))
                 : edges.ContainsKey(new EdgeKey('u', a, b - 1)) || edges.ContainsKey(new EdgeKey('u', a, b));
-            if (meets)
+            if (isMeeting)
             {
                 return true;
             }

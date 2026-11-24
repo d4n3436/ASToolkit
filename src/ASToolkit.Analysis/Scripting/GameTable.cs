@@ -9,13 +9,13 @@ namespace ASToolkit.Analysis.Scripting;
 /// </summary>
 public sealed class GameTable
 {
-    private const string TableName = "table.lgc";
-    private readonly Dictionary<string, int[]> _arrays;
-
     /// <summary>
     /// Represents the file name of the script in the maps folder that declares the prices and the level money.
     /// </summary>
     public const string CommonFileName = "common_table.lgc";
+    private const string TableName = "table.lgc";
+
+    private readonly Dictionary<string, int[]> _arrays;
 
     private GameTable(Dictionary<string, int[]> arrays) => _arrays = arrays;
 
@@ -62,6 +62,13 @@ public sealed class GameTable
     /// <param name="text">The text of the game script.</param>
     /// <returns>The table of the arrays the script declares.</returns>
     public static GameTable Parse(string text) => Read(GameTextEncoding.Cyrillic.GetBytes(text));
+
+    /// <summary>
+    /// Reads the arrays of a game script from its bytes.
+    /// </summary>
+    /// <param name="text">The bytes of the game script.</param>
+    /// <returns>The table of the arrays the script declares.</returns>
+    public static GameTable Parse(ReadOnlyMemory<byte> text) => Read(text);
 
     /// <summary>
     /// Gets an array with the given name.

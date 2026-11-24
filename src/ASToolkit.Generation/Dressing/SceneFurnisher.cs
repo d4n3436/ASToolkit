@@ -374,7 +374,7 @@ internal sealed class SceneFurnisher
             || (first.Faces | second.Faces) is (PlusU | MinusU) or (MinusV | PlusV) && MathF.Abs(first.Along - second.Along) < MiddleSlack;
     }
 
-    private LinedSpot[] GetLinedSpots(KnownObject id, Lining lining, bool middles)
+    private LinedSpot[] GetLinedSpots(KnownObject id, Lining lining, bool includeMiddles)
     {
         var sides = new[] { PlusU, MinusV, MinusU, PlusV }
             .SelectMany(face => _room.Cells
@@ -394,9 +394,9 @@ internal sealed class SceneFurnisher
         {
             int[] walls = new[] { mask & (PlusU | MinusU), mask & (MinusV | PlusV) }.Where(wall => wall != 0).ToArray();
             var places = walls.Length == 2
-                ? _room.Cells.Where(cell => (_room.Faces[cell] & mask) == mask && walls.All(wall => !_room.Pillars.Contains(GetBeyond(cell, wall))) && walls.All(wall => IsEnd(wall, cell)) == middles)
+                ? _room.Cells.Where(cell => (_room.Faces[cell] & mask) == mask && walls.All(wall => !_room.Pillars.Contains(GetBeyond(cell, wall))) && walls.All(wall => IsEnd(wall, cell)) == includeMiddles)
                     .Select(cell => (Cell: cell, Along: 0f))
-                : sides.Where(side => side.Face == mask && IsEnd(mask, side.Cells[0])).SelectMany(side => GetPlaces(side, middles));
+                : sides.Where(side => side.Face == mask && IsEnd(mask, side.Cells[0])).SelectMany(side => GetPlaces(side, includeMiddles));
 
             foreach ((var cell, float along) in places)
             {
@@ -622,7 +622,7 @@ internal sealed class SceneFurnisher
     private float GetWallReach(PointF point, WallSides side)
     {
         var hit = _layout.Edges.CastRay(point.X, point.Y, side, _layout.Cells.ContainsKey, 3);
-        return hit is not null && hit.Value.Kind.ShowsWall ? hit.Value.Distance : float.PositiveInfinity;
+        return hit is not null && hit.Value.Kind.HasWall ? hit.Value.Distance : float.PositiveInfinity;
     }
 
     private bool IsFree(RectangleF box) => _floor.All(piece => !Overlaps(piece.Box, box));
@@ -911,7 +911,7 @@ internal sealed class SceneFurnisher
         {
             foreach (var (next, edge) in EdgeKey.GetNeighbors(cell))
             {
-                if (_room.Cells.Contains(next) && !_blocked.Contains(next) && !footprint.Contains(next) && !(_layout.Edges.TryGetValue(edge, out var kind) && kind.BlocksWalking)
+                if (_room.Cells.Contains(next) && !_blocked.Contains(next) && !footprint.Contains(next) && !(_layout.Edges.TryGetValue(edge, out var kind) && kind.IsBlocking)
                     && reached.Add(next))
                 {
                     queue.Enqueue(next);
@@ -934,8 +934,8 @@ internal sealed class SceneFurnisher
         // Keep pieces apart by their frames' measured spacing, companions only from pieces of their own object
         var otherFrames = _grammar.FrameSpacing.GetValueOrDefault(other.Id);
         var frames = _grammar.FrameSpacing.GetValueOrDefault(id);
-        bool anchors = anchor && !other.Box.IsEmpty;
-        if ((other.Id == id || anchors) && otherFrames is not null && frames is not null && otherFrames.TryGetValue(other.Direction, out float first) && frames.TryGetValue(dir, out float second))
+        bool isAnchored = anchor && !other.Box.IsEmpty;
+        if ((other.Id == id || isAnchored) && otherFrames is not null && frames is not null && otherFrames.TryGetValue(other.Direction, out float first) && frames.TryGetValue(dir, out float second))
         {
             closest = MathF.Max(closest, (first + second) / 2);
         }

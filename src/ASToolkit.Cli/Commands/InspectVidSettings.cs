@@ -14,14 +14,14 @@ internal sealed class InspectVidSettings : GameSettings, ICommandSettings<Inspec
     {
         File = result.GetRequiredValue(FileArgument);
         Frame = result.GetValue(FrameOption);
-        Points = result.GetValue(PointsOption);
+        ShouldListPoints = result.GetValue(PointsOption);
     }
 
     public string File { get; }
 
     public int Frame { get; }
 
-    public bool Points { get; }
+    public bool ShouldListPoints { get; }
 
     static IReadOnlyList<Symbol> ICommandSettings<InspectVidSettings>.Symbols => [GameOption, FileArgument, FrameOption, PointsOption];
 

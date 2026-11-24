@@ -312,8 +312,8 @@ public static class RouteAnalyzer
                     }
 
                     int? hit = FindHit(probes, objective);
-                    bool needsReach = objective.Kind is ObjectiveKind.DynamiteSite or ObjectiveKind.Breaker or ObjectiveKind.Generator or ObjectiveKind.Dynamite;
-                    if (hit is not null && (!needsReach || fromCurrent.ContainsKey(objective.Cell)))
+                    bool isReachNeeded = objective.Kind is ObjectiveKind.DynamiteSite or ObjectiveKind.Breaker or ObjectiveKind.Generator or ObjectiveKind.Dynamite;
+                    if (hit is not null && (!isReachNeeded || fromCurrent.ContainsKey(objective.Cell)))
                     {
                         passed.Add((hit.Value, objective));
                     }
@@ -456,7 +456,7 @@ public static class RouteAnalyzer
             {
                 DoorsInitiallyLocked = doorsInitiallyLocked,
                 Script = _script,
-                ClearsMonsters = _script.ClearsMonsters,
+                ShouldClearMonsters = _script.ShouldClearMonsters,
                 RespawnTriggers = _script.Checkpoints,
                 Exit = _script.Exit,
                 Name = _model.Name,
@@ -517,7 +517,7 @@ public static class RouteAnalyzer
                 return false;
             }
 
-            return kind.BlocksWalking || (gates.SecretsClosed && kind == EdgeKind.SecretWall) || (gates.DoorsLocked && kind == EdgeKind.Door);
+            return kind.IsBlocking || (gates.SecretsClosed && kind == EdgeKind.SecretWall) || (gates.DoorsLocked && kind == EdgeKind.Door);
         }
 
         private DistanceMap Search(IEnumerable<Cell> sources, Gates gates)
@@ -589,7 +589,7 @@ public static class RouteAnalyzer
                 var c = queue.Dequeue();
                 foreach (var (n, k) in EdgeKey.GetNeighbors(c))
                 {
-                    if (_grid.Cells.Contains(n) && !projection.ContainsKey(n) && !(_grid.Edges.TryGetValue(k, out var kind) && kind.BlocksWalking))
+                    if (_grid.Cells.Contains(n) && !projection.ContainsKey(n) && !(_grid.Edges.TryGetValue(k, out var kind) && kind.IsBlocking))
                     {
                         projection[n] = projection[c];
                         queue.Enqueue(n);

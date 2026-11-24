@@ -91,7 +91,7 @@ public sealed class FineLayout
             {
                 if (!Cells.ContainsKey(next) ||
                     distance.ContainsKey(next) ||
-                    Edges.TryGetValue(edge, out var kind) && kind.BlocksWalking ||
+                    Edges.TryGetValue(edge, out var kind) && kind.IsBlocking ||
                     blocked.Contains(next))
                     continue;
                 

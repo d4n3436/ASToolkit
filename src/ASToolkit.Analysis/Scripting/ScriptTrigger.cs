@@ -9,11 +9,11 @@ namespace ASToolkit.Analysis.Scripting;
 /// <param name="Area">The area the player enters.</param>
 /// <param name="Respawn">Where the block moves the respawn point.</param>
 /// <param name="RespawnPoint">The respawn point the block names when it names one.</param>
-/// <param name="LocksDoors">A value indicating whether the block locks the doors.</param>
+/// <param name="ShouldLockDoors">A value indicating whether the block locks the doors.</param>
 /// <param name="LightOff">The script gamma the block turns the lights off to, or null.</param>
 /// <param name="Quake">The length in milliseconds of the earthquake the block starts, or 0.</param>
-/// <param name="SwapsKeypads">A value indicating whether the block turns the lit keypads off.</param>
-/// <param name="WinsLevel">A value indicating whether the block wins the level.</param>
+/// <param name="ShouldSwapKeypads">A value indicating whether the block turns the lit keypads off.</param>
+/// <param name="ShouldWinLevel">A value indicating whether the block wins the level.</param>
 /// <param name="Kills">The objects the block puts into their death state.</param>
-public sealed record ScriptTrigger(TriggerArea Area, ScriptRespawn Respawn, Point RespawnPoint, bool LocksDoors, uint? LightOff, int Quake,
-    bool SwapsKeypads, bool WinsLevel, IReadOnlyList<KnownObject> Kills);
+public sealed record ScriptTrigger(TriggerArea Area, ScriptRespawn Respawn, Point RespawnPoint, bool ShouldLockDoors, uint? LightOff, int Quake,
+    bool ShouldSwapKeypads, bool ShouldWinLevel, IReadOnlyList<KnownObject> Kills);

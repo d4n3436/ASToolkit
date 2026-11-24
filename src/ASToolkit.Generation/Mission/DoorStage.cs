@@ -187,7 +187,7 @@ public sealed class DoorStage
             {
                 returnPass = walkBack.Rooms;
             }
-            else if (walkBack.Recrosses)
+            else if (walkBack.IsRecrossing)
             {
                 Count(BuildingFault.CrossedBackWithoutSites);
             }

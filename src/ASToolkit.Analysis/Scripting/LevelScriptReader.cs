@@ -150,22 +150,22 @@ public static class LevelScriptReader
                     checkpoints.Add(area);
                 }
 
-                bool wins = Calls(body, _win);
-                if (wins)
+                bool shouldWin = Calls(body, _win);
+                if (shouldWin)
                 {
                     exit = area;
                 }
 
-                triggers.Add(ReadTrigger(area, body, lightOff, wins));
+                triggers.Add(ReadTrigger(area, body, lightOff, shouldWin));
             }
 
             return new LevelScriptSummary
             {
-                ClearsMonsters = Calls(code, _campaignTact),
+                ShouldClearMonsters = Calls(code, _campaignTact),
                 DoorsLocked = LocksDoorsAtStart(code),
                 Blackout = blackout,
                 Checkpoints = checkpoints,
-                WinsAfterSites = ChecksSites(code),
+                IsWonAfterSites = ChecksSites(code),
                 Exit = exit,
                 Triggers = triggers,
                 Handlers = ReadHandlers(),
@@ -291,7 +291,7 @@ public static class LevelScriptReader
             return false;
         }
 
-        private ScriptTrigger ReadTrigger(TriggerArea area, ReadOnlySpan<ScriptInstruction> body, uint? lightOff, bool wins)
+        private ScriptTrigger ReadTrigger(TriggerArea area, ReadOnlySpan<ScriptInstruction> body, uint? lightOff, bool shouldWin)
         {
             int? fixedX = FindAssignedNumber(body, _startX);
             int? fixedY = FindAssignedNumber(body, _startY);
@@ -299,7 +299,7 @@ public static class LevelScriptReader
             var point = respawn == ScriptRespawn.Fixed ? new Point(fixedX!.Value, fixedY!.Value) : Point.Empty;
 
             return new ScriptTrigger(area, respawn, point, AssignsNumber(body, _doorsOpen, 0), lightOff, Math.Max(FindFirstArgument(body, _earthQuake) ?? 0, 0),
-                SwapsKeypads(body), wins, ReadKills(body));
+                ShouldSwapKeypads(body), shouldWin, ReadKills(body));
         }
 
         private static int? FindAssignedNumber(ReadOnlySpan<ScriptInstruction> body, int variable)
@@ -347,7 +347,7 @@ public static class LevelScriptReader
             return index + 5;
         }
 
-        private bool SwapsKeypads(ReadOnlySpan<ScriptInstruction> body)
+        private bool ShouldSwapKeypads(ReadOnlySpan<ScriptInstruction> body)
         {
             for (int i = 0; i < body.Length; i++)
             {
@@ -559,9 +559,9 @@ public static class LevelScriptReader
         {
             var destroys = new List<KnownObject>();
             var assignments = new List<ScriptAssignment>();
-            bool losesLevel = _failCurrentQuest.IsCalledIn(code);
+            bool shouldLoseLevel = _failCurrentQuest.IsCalledIn(code);
             Vector3? move = null;
-            bool setsDeathTimer = false;
+            bool shouldSetDeathTimer = false;
             for (int i = 0; i < code.Length; i++)
             {
                 if (IsNumber(code, i) && _genocide.IsExternCallAt(code, i + 1))
@@ -569,23 +569,23 @@ public static class LevelScriptReader
                     destroys.Add((KnownObject)code[i].Operand);
                 }
 
-                losesLevel |= IsNumber(code, i, AlienShooter2MissionFailed) && HasOpcode(code, i + 1, ScriptOpcode.Assign) && code[i + 1].Operand == _gameState;
+                shouldLoseLevel |= IsNumber(code, i, AlienShooter2MissionFailed) && HasOpcode(code, i + 1, ScriptOpcode.Assign) && code[i + 1].Operand == _gameState;
                 if (move is null && IsPlayer(code, i) && IsNumber(code, i + 2, (int)ActionCode.ChangeCoor) && IsNumber(code, i + 3) && IsNumber(code, i + 4) &&
                     IsNumber(code, i + 5))
                 {
                     move = new Vector3(code[i + 3].Operand, code[i + 4].Operand, code[i + 5].Operand);
                 }
 
-                setsDeathTimer |= IsPlayer(code, i) && IsNumber(code, i + 2, AlienShooter2SetDeathTimer);
+                shouldSetDeathTimer |= IsPlayer(code, i) && IsNumber(code, i + 2, AlienShooter2SetDeathTimer);
                 if (HasOpcode(code, i, ScriptOpcode.Assign) && !HasOpcode(code, i + 1, ScriptOpcode.Pop) && !HasOpcode(code, i - 1, ScriptOpcode.SetIndex) &&
                     _variableNames.TryGetValue(code[i].Operand, out string? name))
                 {
-                    bool storesLiteral = IsNumber(code, i - 1) && (i == 1 || EndsStatement(code[i - 2].Opcode));
-                    assignments.Add(new ScriptAssignment(name, storesLiteral ? code[i - 1].Operand : 1));
+                    bool isLiteralStored = IsNumber(code, i - 1) && (i == 1 || EndsStatement(code[i - 2].Opcode));
+                    assignments.Add(new ScriptAssignment(name, isLiteralStored ? code[i - 1].Operand : 1));
                 }
             }
 
-            return new ScriptBlock(conditions, destroys.ToArray(), losesLevel, IsAnyCalledIn(_wins, code), move, setsDeathTimer, IsAnyCalledIn(_lights, code),
+            return new ScriptBlock(conditions, destroys.ToArray(), shouldLoseLevel, IsAnyCalledIn(_wins, code), move, shouldSetDeathTimer, IsAnyCalledIn(_lights, code),
                 assignments.ToArray());
         }
 

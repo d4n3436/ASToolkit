@@ -8,8 +8,8 @@ namespace ASToolkit.Analysis.Scripting;
 /// <param name="TimeLine">The position of the quest in the story.</param>
 /// <param name="Title">The title the game shows, or the designer comment when the quest doesn't have a title.</param>
 /// <param name="Items">The object events the quest reacts to.</param>
-/// <param name="WinsOnBegin">A value indicating whether starting the quest wins the level.</param>
-public sealed record Quest(int Line, int Sub, int TimeLine, string Title, IReadOnlyList<QuestItem> Items, bool WinsOnBegin)
+/// <param name="ShouldWinOnBegin">A value indicating whether starting the quest wins the level.</param>
+public sealed record Quest(int Line, int Sub, int TimeLine, string Title, IReadOnlyList<QuestItem> Items, bool ShouldWinOnBegin)
 {
     /// <summary>
     /// Gets the short name of the quest.

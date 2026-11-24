@@ -201,9 +201,9 @@ internal sealed class ResearchWing
     private static void Add(List<ResearchPiece> pieces, ResearchPart part, UnitRect[] nominal) => pieces.Add(new ResearchPiece(part, nominal));
 
     // Moves each edge of a nominal rectangle out by up to two units or in by one, moves it in only for a piece that keeps its size and never moves the edge of the hall
-    private UnitRect Jitter(UnitRect rect, int hallWidth, int minSide, bool keepsSize)
+    private UnitRect Jitter(UnitRect rect, int hallWidth, int minSide, bool keepSize)
     {
-        int grow = keepsSize ? 0 : 2;
+        int grow = keepSize ? 0 : 2;
         for (int attempt = 0; attempt < 10; attempt++)
         {
             int u0 = rect.U == hallWidth ? rect.U : rect.U + _random.Inclusive(-grow, 1);

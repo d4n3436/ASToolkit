@@ -15,7 +15,7 @@ internal abstract partial class BuildingGrammar
                 new WarehouseArea("annex", WarehouseShape.Depot, (6, 8), (5, 7)) { IsWide = true, Host = "hall", HostSide = "A", Role = "loot" },
                 new WarehouseArea("suite", WarehouseShape.Pocket, (6, 8), (7, 9))
                 {
-                    Host = "hall", HostSide = "B", Phase = 1, Rooms = 3, Interlocks = false, First = RoomType.Office, Second = RoomType.ComputerRoom, Role = "arena"
+                    Host = "hall", HostSide = "B", Phase = 1, Rooms = 3, IsInterlocked = false, First = RoomType.Office, Second = RoomType.ComputerRoom, Role = "arena"
                 },
                 new WarehouseArea("reward", WarehouseShape.Small, (3, 3), (3, 3)) { Host = "hall", Phase = 1, First = RoomType.Storage, Role = "reward" },
                 new WarehouseArea("store", WarehouseShape.Small, (3, 4), (3, 4)) { Host = "cluster", Phase = 1, First = RoomType.Storage, Role = "reward" }
@@ -56,7 +56,7 @@ internal abstract partial class BuildingGrammar
     };
 
     // Returns the chain of level 8, whose last leg turns north or south off the bays into the arena
-    private static WarehouseArea[] Legs(bool hasSecondBay, bool turnsNorth)
+    private static WarehouseArea[] Legs(bool hasSecondBay, bool turnNorth)
     {
         var areas = new List<WarehouseArea>
         {
@@ -72,10 +72,10 @@ internal abstract partial class BuildingGrammar
 
         areas.AddRange(
         [
-            new WarehouseArea("leg2", WarehouseShape.Leg, (3, 4), (8, 12)) { IsWide = true, Ends = turnsNorth ? "N" : "S", Host = hasSecondBay ? "bay2" : "bay1", HostSide = turnsNorth ? "MinY" : "MaxY" },
+            new WarehouseArea("leg2", WarehouseShape.Leg, (3, 4), (8, 12)) { IsWide = true, Ends = turnNorth ? "N" : "S", Host = hasSecondBay ? "bay2" : "bay1", HostSide = turnNorth ? "MinY" : "MaxY" },
             new WarehouseArea("arena", WarehouseShape.Depot, (16, 20), (11, 14))
             {
-                Host = "leg2", In = turnsNorth ? "MaxY" : "MinY", Faces = turnsNorth ? "SE" : "NE", DoorLengths = [3, 4], Phase = 1, Pillars = 3, Role = "arena"
+                Host = "leg2", In = turnNorth ? "MaxY" : "MinY", Faces = turnNorth ? "SE" : "NE", DoorLengths = [3, 4], Phase = 1, Pillars = 3, Role = "arena"
             },
             new WarehouseArea("dead", WarehouseShape.Strip, (3, 4), (6, 9)) { IsWide = true, Ends = "W", Host = "arena", Phase = 1, Role = "end" }
         ]);

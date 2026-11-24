@@ -37,7 +37,7 @@ internal sealed class InspectDesignSettings : GameSettings, ICommandSettings<Ins
         Out = result.GetRequiredValue(OutOption);
         Seeds = result.GetValue(SeedsOption);
         LeaveOneOut = result.GetValue(LeaveOneOutOption);
-        Images = result.GetValue(ImagesOption);
+        ShouldWriteImages = result.GetValue(ImagesOption);
         Scale = result.GetValue(ScaleOption);
     }
 
@@ -47,7 +47,7 @@ internal sealed class InspectDesignSettings : GameSettings, ICommandSettings<Ins
 
     public bool LeaveOneOut { get; }
 
-    public bool Images { get; }
+    public bool ShouldWriteImages { get; }
 
     public float Scale { get; }
 

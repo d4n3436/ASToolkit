@@ -280,12 +280,12 @@ public static class LevelLogicReader
             }
         }
 
-        if (block.LosesLevel)
+        if (block.ShouldLoseLevel)
         {
             effects.Add((ScriptMarkerKind.Failure, "lose the level"));
         }
 
-        if (block.WinsLevel)
+        if (block.ShouldWinLevel)
         {
             effects.Add((ScriptMarkerKind.Exit, "win the level"));
         }
@@ -296,12 +296,12 @@ public static class LevelLogicReader
             effects.Add((ScriptMarkerKind.Teleport, $"move the player to ({move.X:0}, {move.Y:0})"));
         }
 
-        if (block.SetsDeathTimer)
+        if (block.ShouldSetDeathTimer)
         {
             effects.Add((ScriptMarkerKind.Other, "set a death timer on the player"));
         }
 
-        if (block.ChangesLight)
+        if (block.ShouldChangeLight)
         {
             effects.Add((ScriptMarkerKind.Other, "change the light"));
         }

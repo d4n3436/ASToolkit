@@ -56,7 +56,7 @@ internal sealed class InspectDesignCommand : LevelCommand<InspectDesignSettings>
         var loader = new LevelLoader(objects);
         var (levels, measures) = AnsiConsole.Status().Start("Measuring the levels", _ => Measure(all, loader, references, objects, (level, path) =>
         {
-            if (settings.Images)
+            if (settings.ShouldWriteImages)
             {
                 using var rendered = MapImage.Render(Playthrough.LoadMap(settings.Game, new SpriteCatalog(settings.Game, objects), path), settings.Scale);
                 PlaceOverlay.Draw(rendered, level.Survey, level.Analysis);

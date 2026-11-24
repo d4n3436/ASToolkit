@@ -230,8 +230,8 @@ public sealed class ProgressionMeasurer
                 .ToHashSet();
 
             int host = Find(from);
-            bool closes = zone[part.Min()] == GateZone.Blackout;
-            if (around.Count != 1 || !around.Contains(host) || (!closes && !(part.Sum(place => GetPlace(place).Cells.Count) / (float)floor < MaxDeadEndShare)))
+            bool isClosing = zone[part.Min()] == GateZone.Blackout;
+            if (around.Count != 1 || !around.Contains(host) || (!isClosing && !(part.Sum(place => GetPlace(place).Cells.Count) / (float)floor < MaxDeadEndShare)))
                 continue;
             
             merged[host].UnionWith(part);
@@ -351,7 +351,7 @@ public sealed class ProgressionMeasurer
     private LevelPhase BuildPhase(int index, List<PhaseDraft> passes, int end, PhaseKey[] keys)
     {
         var part = passes[index].Places;
-        bool returnsNext = index + 1 < passes.Count && passes[index + 1].IsReturnPass;
+        bool isNextReturn = index + 1 < passes.Count && passes[index + 1].IsReturnPass;
         int entrance = _route.Where(part.Contains).Select(place => (int?)place).FirstOrDefault() ?? part.Min();
 
         var ownKeys = keys
@@ -363,9 +363,9 @@ public sealed class ProgressionMeasurer
             .ToList();
 
         var targets = new List<int>(ownKeys);
-        if (part.Contains(end) || returnsNext)
+        if (part.Contains(end) || isNextReturn)
         {
-            if (part.Contains(end) && !returnsNext)
+            if (part.Contains(end) && !isNextReturn)
             {
                 targets.Add(end);
             }

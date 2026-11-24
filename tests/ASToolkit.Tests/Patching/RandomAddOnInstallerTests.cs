@@ -1,8 +1,8 @@
 using System.Text;
 using ASToolkit.Analysis.Reference;
-using Xunit;
-using ASToolkit.Generation.Patching;
 using ASToolkit.Analysis.Scripting;
+using ASToolkit.Generation.Patching;
+using Xunit;
 
 namespace ASToolkit.Tests.Patching;
 
@@ -33,17 +33,17 @@ public sealed class RandomAddOnInstallerTests : IDisposable
 
         RandomAddOnInstaller.Install(game, GenerationStyle.AddOn, seed: 1, [], [700, 3000, 9000, 15000, 0]);
 
-        string common = Encoding.Latin1.GetString(File.ReadAllBytes(Path.Combine(game, "Maps/COMMON.LGC")));
+        string common = Encoding.ASCII.GetString(File.ReadAllBytes(Path.Combine(game, "Maps/COMMON.LGC")));
         Assert.Contains("GAME_TYPE_RANDOM", common);
-        Assert.Contains("#define RANDOM_LEVELS 5", File.ReadAllText(Path.Combine(game, "Maps/common_table.lgc"), Encoding.Latin1));
+        Assert.Contains("#define RANDOM_LEVELS 5", File.ReadAllText(Path.Combine(game, "Maps/common_table.lgc"), Encoding.ASCII));
         Assert.Equal([100, 700, 3000, 9000, 15000], GameTable.Load(Path.Combine(game, "Maps/common_table.lgc")).GetArray("LevelMoneyRandom").Take(5));
-        Assert.Contains("Addon3=GENERATED", File.ReadAllText(Path.Combine(game, "strings.ini"), Encoding.Latin1));
-        Assert.Contains("Addon3", Encoding.Latin1.GetString(File.ReadAllBytes(Path.Combine(game, "Maps/PlayWithAddon1.men"))));
+        Assert.Contains("Addon3=GENERATED", File.ReadAllText(Path.Combine(game, "strings.ini"), Encoding.ASCII));
+        Assert.Contains("Addon3", Encoding.ASCII.GetString(File.ReadAllBytes(Path.Combine(game, "Maps/PlayWithAddon1.men"))));
         Assert.True(File.Exists(Path.Combine(game, "Maps", RandomAddOnInstaller.FolderName, "Level_05.map")));
         Assert.False(File.Exists(Path.Combine(game, "Maps", RandomAddOnInstaller.FolderName, "Level_06.map")));
 
         RandomAddOnInstaller.Install(game, GenerationStyle.Campaign, seed: 1, [], []);
-        Assert.Contains("#define RANDOM_LEVELS 10", File.ReadAllText(Path.Combine(game, "Maps/common_table.lgc"), Encoding.Latin1));
+        Assert.Contains("#define RANDOM_LEVELS 10", File.ReadAllText(Path.Combine(game, "Maps/common_table.lgc"), Encoding.ASCII));
         Assert.True(File.Exists(Path.Combine(game, "Maps", RandomAddOnInstaller.FolderName, "Level_10.map")));
 
         RandomAddOnInstaller.Remove(game);
@@ -53,6 +53,27 @@ public sealed class RandomAddOnInstallerTests : IDisposable
         }
 
         Assert.False(Directory.Exists(Path.Combine(game, "Maps", RandomAddOnInstaller.FolderName)));
+    }
+
+    [Fact]
+    public void InstallAndRemove_TableWithHighBytes_KeepsEveryByteAroundTheBlock()
+    {
+        string game = CopyGame();
+        RandomAddOnInstaller.Remove(game);
+        string table = Path.Combine(game, "Maps/common_table.lgc");
+        byte[] high = Enumerable.Range(0x80, 0x80).Select(value => (byte)value).ToArray();
+        byte[] original = Concat(File.ReadAllBytes(table), "\n//"u8.ToArray(), high, "\n"u8.ToArray());
+        File.WriteAllBytes(table, original);
+
+        RandomAddOnInstaller.Install(game, GenerationStyle.AddOn, seed: 1, [], [700, 3000, 9000, 15000, 0]);
+
+        byte[] installed = File.ReadAllBytes(table);
+        Assert.True(installed.AsSpan().StartsWith(original));
+        Assert.True(installed.AsSpan(original.Length).IndexOf("#define RANDOM_LEVELS 5"u8) >= 0);
+
+        RandomAddOnInstaller.Remove(game);
+
+        Assert.True(original.AsSpan().SequenceEqual(File.ReadAllBytes(table)));
     }
 
     [Fact]
@@ -72,6 +93,8 @@ public sealed class RandomAddOnInstallerTests : IDisposable
         Assert.Equal(table, File.ReadAllBytes(Path.Combine(game, "Maps/common_table.lgc")));
         Assert.False(Directory.Exists(Path.Combine(game, "Maps", RandomAddOnInstaller.FolderName)));
     }
+
+    private static byte[] Concat(params byte[][] parts) => parts.SelectMany(part => part).ToArray();
 
     private string CopyGame()
     {

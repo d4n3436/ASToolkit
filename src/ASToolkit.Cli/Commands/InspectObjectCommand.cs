@@ -42,13 +42,13 @@ internal sealed class InspectObjectCommand : Command<InspectObjectSettings>
         AnsiConsole.MarkupLine("[bold]link chain[/]");
         var current = obj;
         var currentId = id;
-        bool blocks = false;
+        bool isBlocking = false;
         objects.TryFind(KnownObject.SequelPlayer, out var player);
         for (int depth = 0; depth < MaxLinkDepth; depth++)
         {
-            bool blocksHere = current.IsSolid || (objects.IsAlienShooter2 && current.Blocks(player));
-            blocks |= blocksHere;
-            AnsiConsole.MarkupLine($"  {(int)currentId} {Markup.Escape(objects.GetName(currentId))}{(blocksHere ? " [yellow]blocks[/]" : "")}");
+            bool isBlockingHere = current.IsSolid || (objects.IsAlienShooter2 && current.Blocks(player));
+            isBlocking |= isBlockingHere;
+            AnsiConsole.MarkupLine($"  {(int)currentId} {Markup.Escape(objects.GetName(currentId))}{(isBlockingHere ? " [yellow]blocks[/]" : "")}");
             if (current.Link == 0 || !objects.TryFind(current.Link, out var next))
             {
                 break;
@@ -59,7 +59,7 @@ internal sealed class InspectObjectCommand : Command<InspectObjectSettings>
             current = next;
         }
 
-        AnsiConsole.MarkupLine($"blocks the player: {(blocks ? "[yellow]yes[/]" : "no")}");
+        AnsiConsole.MarkupLine($"blocks the player: {(isBlocking ? "[yellow]yes[/]" : "no")}");
         return 0;
     }
 }

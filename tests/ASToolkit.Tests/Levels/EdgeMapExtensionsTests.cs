@@ -82,7 +82,7 @@ public class EdgeMapExtensionsTests
     {
         var edges = Enumerable.Range(0, 3).ToDictionary(v => new EdgeKey('u', 1, v), _ => EdgeKind.Wall);
 
-        var reached = Room.Flood([new Cell(0, 0)], edge => edges.TryGetValue(edge, out var kind) && kind.BlocksWalking);
+        var reached = Room.Flood([new Cell(0, 0)], edge => edges.TryGetValue(edge, out var kind) && kind.IsBlocking);
 
         Assert.Equal(3, reached.Count);
         Assert.All(reached, cell => Assert.Equal(0, cell.U));
@@ -96,11 +96,11 @@ public class EdgeMapExtensionsTests
     [InlineData(EdgeKind.Door, false, false, false)]
     [InlineData(EdgeKind.Doorway, false, false, false)]
     [InlineData(EdgeKind.BrokenWall, false, false, false)]
-    public void EdgeKind_Classes_MatchTheirKinds(EdgeKind kind, bool blocksWalking, bool isClosed, bool showsWall)
+    public void EdgeKind_Classes_MatchTheirKinds(EdgeKind kind, bool isBlocking, bool isClosed, bool hasWall)
     {
-        Assert.Equal(blocksWalking, kind.BlocksWalking);
+        Assert.Equal(isBlocking, kind.IsBlocking);
         Assert.Equal(isClosed, kind.IsClosed);
-        Assert.Equal(showsWall, kind.ShowsWall);
+        Assert.Equal(hasWall, kind.HasWall);
     }
 
     [Theory]

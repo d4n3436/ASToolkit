@@ -54,7 +54,7 @@ internal sealed class InspectVidCommand : Command<InspectVidSettings>
             AnsiConsole.MarkupLine($"  height {group.Key,5}: {group.Count()} cells");
         }
 
-        if (settings.Points)
+        if (settings.ShouldListPoints)
         {
             foreach (var point in points.OrderBy(point => point.Y).ThenBy(point => point.X))
             {

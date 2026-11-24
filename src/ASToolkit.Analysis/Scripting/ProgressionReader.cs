@@ -83,7 +83,7 @@ internal static class ProgressionReader
             if (hasStart)
             {
                 var place = steps.Count == 0 ? places[0] : places.MinBy(start => Vector3.Distance(start.Position, steps[^1].Position));
-                if (quest.WinsOnBegin)
+                if (quest.ShouldWinOnBegin)
                 {
                     steps.Add(new ProgressionStep(place.Position, place.Radius, $"start quest {quest.Key} and win the level: {quest.Title}", quest.TimeLine - 1));
                     return true;
@@ -94,7 +94,7 @@ internal static class ProgressionReader
 
             hasStart = AddItemSteps(context, quest, steps, hasStart);
             if (hasStart && context.FollowingQuests.Any(follow => follow.After == (quest.Line, quest.Sub)
-                    && context.Quests.GetQuest(follow.Quest.Line, follow.Quest.Sub)?.WinsOnBegin == true))
+                    && context.Quests.GetQuest(follow.Quest.Line, follow.Quest.Sub)?.ShouldWinOnBegin == true))
             {
                 return true;
             }
@@ -119,10 +119,10 @@ internal static class ProgressionReader
             }
 
             bool isTarget = item.Event == DeathEvent;
-            bool startsQuest = !hasStart && item.State == BegunState;
+            bool isQuestStarted = !hasStart && item.State == BegunState;
             string action = EventActions.TryGetValue(item.Event, out string? verb) ? string.Format(verb, item.Name) : $"wait for {item.Event} of {item.Name}";
-            string label = startsQuest ? $"{action} to start quest {quest.Key}: {quest.Title}" : $"{action} for quest {quest.Key}: {quest.Title}";
-            int timeLine = startsQuest ? quest.TimeLine - 1 : quest.TimeLine;
+            string label = isQuestStarted ? $"{action} to start quest {quest.Key}: {quest.Title}" : $"{action} for quest {quest.Key}: {quest.Title}";
+            int timeLine = isQuestStarted ? quest.TimeLine - 1 : quest.TimeLine;
             int count = isTarget ? remaining.Count : 1;
             for (int added = 0; added < count; added++)
             {
@@ -132,7 +132,7 @@ internal static class ProgressionReader
                 steps.Add(new ProgressionStep(place, isTarget ? ShotReach : 0, label, timeLine, isTarget));
             }
 
-            hasStart |= startsQuest;
+            hasStart |= isQuestStarted;
         }
 
         return hasStart;
@@ -141,7 +141,7 @@ internal static class ProgressionReader
     // Adds a step for each download and returns whether the story ends with one of them
     private static bool AddDownloadSteps(ScriptContext context, Quest[] involved, List<ProgressionStep> steps)
     {
-        var winning = involved.FirstOrDefault(quest => quest.WinsOnBegin);
+        var winning = involved.FirstOrDefault(quest => quest.ShouldWinOnBegin);
         int timeLine = (winning is null ? null : context.Quests.FindPrevious(winning))?.TimeLine ?? int.MaxValue - 1;
         foreach (var download in context.Downloads.OrderBy(download => download.Order))
         {

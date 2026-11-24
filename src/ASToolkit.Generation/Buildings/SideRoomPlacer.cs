@@ -56,13 +56,13 @@ internal sealed class SideRoomPlacer
             {
                 int width = _draft.Random.Range(2, 4);
                 int height = _draft.Random.Range(2, 4);
-                bool wantsHall = _draft.Random.Next() < offHall;
+                bool shouldUseHall = _draft.Random.Next() < offHall;
                 var hosts = _draft.Grid.Rooms
                     .Where(room => room.Kind is GridKind.Room or GridKind.Hall && !room.IsJoint)
                     .ToArray();
 
-                var ordered = _draft.Random.Shuffled(hosts).OrderBy(room => room.Kind == GridKind.Hall != wantsHall);
-                if (!TryPlaceBeside(ordered, kind, side => side.RunsAlongU ? (width, height) : (height, width), () => null))
+                var ordered = _draft.Random.Shuffled(hosts).OrderBy(room => room.Kind == GridKind.Hall != shouldUseHall);
+                if (!TryPlaceBeside(ordered, kind, side => side.IsAlongU ? (width, height) : (height, width), () => null))
                 {
                     _draft.Count(BuildingTally.ClosetUnplaced);
                 }

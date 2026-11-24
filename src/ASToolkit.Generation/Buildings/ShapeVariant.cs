@@ -62,7 +62,7 @@ internal readonly struct ShapeVariant
         ? cells.Contains(new Cell(u0 - 1, v0)) ? 0 : 1
         : cells.Contains(new Cell(u0, v0 - 1)) ? 2 : 3;
 
-    public bool HasSameOutlineAndDoors(ShapeVariant other, bool comparesOwnSides) =>
+    public bool HasSameOutlineAndDoors(ShapeVariant other, bool compareOwnSides) =>
         _originRects.AsSpan().SequenceEqual(other._originRects) &&
-        (comparesOwnSides ? _originLines.AsSpan().SequenceEqual(other._originLines) : _originLinesAnySide.AsSpan().SequenceEqual(other._originLinesAnySide));
+        (compareOwnSides ? _originLines.AsSpan().SequenceEqual(other._originLines) : _originLinesAnySide.AsSpan().SequenceEqual(other._originLinesAnySide));
 }

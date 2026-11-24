@@ -72,7 +72,7 @@ public sealed class QuestBook
                 .ToArray();
             
             int timeLine = int.TryParse(block.GetValueOrDefault("TimeLine", ["0"])[0], out int parsed) ? parsed : 0;
-            bool winsOnBegin = int.TryParse(block.GetValueOrDefault("WinOnBegin", ["0"])[0], out int win) && win != 0;
+            bool shouldWinOnBegin = int.TryParse(block.GetValueOrDefault("WinOnBegin", ["0"])[0], out int win) && win != 0;
             
             var next = block.GetValueOrDefault("NextQuests", [])
                 .SelectMany(value => value.Split(' ', StringSplitOptions.RemoveEmptyEntries))
@@ -81,7 +81,7 @@ public sealed class QuestBook
                 .Select(number => (number / QuestLineSize, number % QuestLineSize))
                 .ToArray();
             
-            quests.TryAdd((line, sub), new Quest(line, sub, timeLine, title, items, winsOnBegin) { NextQuests = next });
+            quests.TryAdd((line, sub), new Quest(line, sub, timeLine, title, items, shouldWinOnBegin) { NextQuests = next });
         }
 
         return new QuestBook(quests, dialogs);

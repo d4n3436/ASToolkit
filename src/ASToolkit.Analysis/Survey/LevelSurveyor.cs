@@ -259,7 +259,7 @@ public sealed class LevelSurveyor
 
     private bool Is(EdgeKey edge, EdgeKind kind) => _grid.Edges.TryGetValue(edge, out var found) && found == kind;
 
-    private bool IsWall(EdgeKey edge) => _grid.Edges.TryGetValue(edge, out var kind) && kind.BlocksWalking;
+    private bool IsWall(EdgeKey edge) => _grid.Edges.TryGetValue(edge, out var kind) && kind.IsBlocking;
 
     private void BuildPlaces(Dictionary<Cell, GateZone> zones)
     {
@@ -360,9 +360,9 @@ public sealed class LevelSurveyor
     {
         if (zone == GateZone.Secret && area < 4 * NookPixels)
         {
-            bool spawns = _analysis.Elements.Any(element => (element.Kind is ElementKind.Spawner or ElementKind.EndlessGenerator && cells.Contains(element.Cell))
+            bool isSpawning = _analysis.Elements.Any(element => (element.Kind is ElementKind.Spawner or ElementKind.EndlessGenerator && cells.Contains(element.Cell))
                                                             || (element.Kind is ElementKind.SpawnWall or ElementKind.MonsterHole && IsBeside(element, cells)));
-            return spawns ? PlaceKind.SpawnCloset : PlaceKind.SecretCloset;
+            return isSpawning ? PlaceKind.SpawnCloset : PlaceKind.SecretCloset;
         }
 
         if (area < NookPixels)
@@ -810,12 +810,12 @@ public sealed class LevelSurveyor
 
         foreach (var breaker in elements.Where(element => element.Kind == ElementKind.Breaker))
         {
-            bool opens = style is LevelStyle.LockedDoors or LevelStyle.Blackout;
+            bool isOpening = style is LevelStyle.LockedDoors or LevelStyle.Blackout;
             int transformers = _map.Sprites.Count(sprite => sprite.Id == KnownObject.Transformer && GetDistance(sprite.Position.X, sprite.Position.Y, breaker.X, breaker.Y) <= NearReach);
             int traps = triggers.Count(trigger => GetDistance(trigger.Center.X, trigger.Center.Y, breaker.X, breaker.Y) <= NearReach);
             int beside = charges.Count(charge => GetPlaceId(charge.Cell) == GetPlaceId(breaker.Cell));
             landmarks.Add(CreateLandmark(LandmarkKind.Breaker, breaker.X, breaker.Y, GetRoute(ObjectiveKind.Breaker, breaker),
-                ("key-to-gate", opens ? gating.KeyToGatePixels : null), ("opens-nothing", opens ? null : 1), ("transformers", transformers),
+                ("key-to-gate", isOpening ? gating.KeyToGatePixels : null), ("opens-nothing", isOpening ? null : 1), ("transformers", transformers),
                 ("traps", traps == 0 ? null : traps), ("charges", beside == 0 ? null : beside)));
         }
 
@@ -978,7 +978,7 @@ public sealed class LevelSurveyor
             var anchor = members[0];
             var trigger = anchor.Program!.Trigger;
             var monsters = members.SelectMany(member => member.Program!.Monsters).ToArray();
-            bool builds = monsters.Length > 0 && monsters.All(monster => monster.IsEndlessGenerator);
+            bool isBuilding = monsters.Length > 0 && monsters.All(monster => monster.IsEndlessGenerator);
             int route;
             int? triggerPlace = null;
             SpawnSource? source = null;
@@ -1008,7 +1008,7 @@ public sealed class LevelSurveyor
             encounters.Add(new LevelEncounter
             {
                 Id = 0,
-                Kind = builds ? EncounterKind.EndlessGenerators : trigger is null ? EncounterKind.Spawner : EncounterKind.Ambush,
+                Kind = isBuilding ? EncounterKind.EndlessGenerators : trigger is null ? EncounterKind.Spawner : EncounterKind.Ambush,
                 Place = members.GroupBy(member => GetPlaceId(member.Cell)).MaxBy(places => places.Count())!.Key,
                 Route = route,
                 Count = monsters.Length,

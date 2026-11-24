@@ -322,7 +322,7 @@ public sealed class LevelOccupancy
 
     private bool IsUnit(KnownObject id) => !id.IsDecor && _objects.TryFind(id, out var obj) && obj.SpriteType.HasFlag(SpriteType.Unit);
 
-    private bool IsWall(EdgeKey edge) => _edges.TryGetValue(edge, out var kind) && kind.BlocksWalking;
+    private bool IsWall(EdgeKey edge) => _edges.TryGetValue(edge, out var kind) && kind.IsBlocking;
 
     private readonly record struct StandingPiece(KnownObject Id, Vector3 Size, bool IsSolid, float X, float Y);
 

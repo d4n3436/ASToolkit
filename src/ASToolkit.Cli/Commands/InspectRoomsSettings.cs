@@ -34,7 +34,7 @@ internal sealed class InspectRoomsSettings : GameSettings, ICommandSettings<Insp
         Out = result.GetRequiredValue(OutOption);
         Levels = result.GetValue(LevelsOption);
         Scale = result.GetValue(ScaleOption);
-        Crops = result.GetValue(CropsOption);
+        ShouldWriteCrops = result.GetValue(CropsOption);
     }
 
     public string[] Maps { get; }
@@ -45,7 +45,7 @@ internal sealed class InspectRoomsSettings : GameSettings, ICommandSettings<Insp
 
     public float Scale { get; }
 
-    public bool Crops { get; }
+    public bool ShouldWriteCrops { get; }
 
     static IReadOnlyList<Symbol> ICommandSettings<InspectRoomsSettings>.Symbols => [GameOption, MapsArgument, OutOption, LevelsOption, ScaleOption, CropsOption];
 

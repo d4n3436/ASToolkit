@@ -765,7 +765,7 @@ public class LevelGeneratorIntegrationTests
 
             foreach (var (next, edge) in EdgeKey.GetNeighbors(cell))
             {
-                bool closed = layout.Edges.TryGetValue(edge, out var kind) && (kind.BlocksWalking || kind is EdgeKind.SecretWall or EdgeKind.SpawnWall);
+                bool closed = layout.Edges.TryGetValue(edge, out var kind) && (kind.IsBlocking || kind is EdgeKind.SecretWall or EdgeKind.SpawnWall);
                 if (layout.Cells.ContainsKey(next) && !closed && !avoided(next) && seen.Add(next))
                 {
                     queue.Enqueue(next);
@@ -787,7 +787,7 @@ public class LevelGeneratorIntegrationTests
         {
             foreach (var (next, edge) in EdgeKey.GetNeighbors(cell))
             {
-                if (layout.Cells.ContainsKey(next) && !(layout.Edges.TryGetValue(edge, out var kind) && kind.BlocksWalking) && walk.TryAdd(next, walk[cell] + 1))
+                if (layout.Cells.ContainsKey(next) && !(layout.Edges.TryGetValue(edge, out var kind) && kind.IsBlocking) && walk.TryAdd(next, walk[cell] + 1))
                 {
                     queue.Enqueue(next);
                 }

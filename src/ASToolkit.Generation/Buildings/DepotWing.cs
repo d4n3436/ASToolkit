@@ -119,7 +119,7 @@ internal sealed class DepotWing
         int left = parts.Values.SelectMany(cells => cells).Min(cell => cell.U);
         return parts.ToDictionary(pair => pair.Key, pair => pair.Value.Select(cell => new Cell(cell.U - left, cell.V - foot)).ToHashSet());
 
-        IReadOnlyList<RoomShape> Sections(int depots, Side? flat, float weightL, float weightT, bool takesEntry) => Enumerable.Range(0, 4)
+        IReadOnlyList<RoomShape> Sections(int depots, Side? flat, float weightL, float weightT, bool takeEntry) => Enumerable.Range(0, 4)
             .Select(_ =>
             {
                 var kind = _random.Weighted([(EnvelopeKind.Plain, 10 - weightL - weightT), (EnvelopeKind.L, weightL), (EnvelopeKind.T, weightT)]);
@@ -134,12 +134,12 @@ internal sealed class DepotWing
                     (w, h) = (w * 6 / 5, h * 6 / 5);
                 }
 
-                return Shape(Envelope(w, h, flat, kind), takesEntry);
+                return Shape(Envelope(w, h, flat, kind), takeEntry);
             })
             .ToArray();
 
-        RoomShape Shape(HashSet<Cell> cells, bool takesEntry) =>
-            new(cells, takesEntry ? SolverDoors.Place(cells).Concat(CenteredDoors(cells, entryWidth)).ToArray() : SolverDoors.Place(cells), turns);
+        RoomShape Shape(HashSet<Cell> cells, bool takeEntry) =>
+            new(cells, takeEntry ? SolverDoors.Place(cells).Concat(CenteredDoors(cells, entryWidth)).ToArray() : SolverDoors.Place(cells), turns);
     }
 
     private DepotWingLayout? Subdivide(Dictionary<string, HashSet<Cell>> placed, int countA, int countB, bool passage, int left)
@@ -722,8 +722,8 @@ internal sealed class DepotWing
                 break;
             }
 
-            bool charges = hasCharges && _rooms.All(room => room.Role != DepotRole.Charges);
-            int nook = Outside(host, _random.Inclusive(5, 8), _random.Inclusive(5, 7), banned, charges ? DepotRole.Charges : DepotRole.Nook);
+            bool isChargesRoomMissing = hasCharges && _rooms.All(room => room.Role != DepotRole.Charges);
+            int nook = Outside(host, _random.Inclusive(5, 8), _random.Inclusive(5, 7), banned, isChargesRoomMissing ? DepotRole.Charges : DepotRole.Nook);
             if (nook >= 0)
             {
                 doors.Add((host, nook));

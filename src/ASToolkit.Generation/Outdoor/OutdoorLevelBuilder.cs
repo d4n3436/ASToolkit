@@ -126,8 +126,8 @@ public sealed class OutdoorLevelBuilder
         var (wall, _) = StructureBuilder.GetBasementPosition(site.Lattice, breach);
         site.Reserve(wall, BreachReach);
         var originalBreach = original.Sprites.FirstOrDefault(sprite => sprite.Id == KnownObject.BreakableWall2);
-        bool copiesBreach = style == OutdoorStyle.Campaign && originalBreach is not null && originalExit is not null;
-        if (copiesBreach)
+        bool shouldCopyBreach = style == OutdoorStyle.Campaign && originalBreach is not null && originalExit is not null;
+        if (shouldCopyBreach)
         {
             // Copy the original's explosives at the breakable wall and its exit point just behind the wall
             var origin = new PointF(originalBreach!.Position.X, originalBreach.Position.Y);
@@ -146,7 +146,7 @@ public sealed class OutdoorLevelBuilder
         }
 
         site.Road = (start, site.Gate ?? start);
-        site.AddYardScenes(yard, original, copiesBreach ? new PointF(originalBreach!.Position.X, originalBreach.Position.Y) : null);
+        site.AddYardScenes(yard, original, shouldCopyBreach ? new PointF(originalBreach!.Position.X, originalBreach.Position.Y) : null);
         site.AddLamps();
         site.Map.Source = SpriteSource.Model;
         if (style == OutdoorStyle.Campaign)

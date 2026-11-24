@@ -9,7 +9,7 @@ internal static class UnitRectExtensions
 {
     extension(Side side)
     {
-        public bool RunsAlongU => side is Side.North or Side.South;
+        public bool IsAlongU => side is Side.North or Side.South;
     }
 
     extension(UnitRect rect)
@@ -32,7 +32,7 @@ internal static class UnitRectExtensions
             _ => new UnitRect(rect.U + rect.W - depth, at, depth, along)
         };
 
-        public (int Low, int High) GetSpan(Side side) => side.RunsAlongU ? (rect.U, rect.U + rect.W) : (rect.V, rect.V + rect.H);
+        public (int Low, int High) GetSpan(Side side) => side.IsAlongU ? (rect.U, rect.U + rect.W) : (rect.V, rect.V + rect.H);
 
         public bool SharesWall(UnitRect other) =>
             ((rect.U == other.U + other.W || other.U == rect.U + rect.W) && rect.V < other.V + other.H && other.V < rect.V + rect.H)

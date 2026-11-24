@@ -14,7 +14,7 @@ public sealed class RouteAnalysis
     /// <summary>
     /// Gets a value indicating whether the level ends once its monsters are cleared.
     /// </summary>
-    public bool ClearsMonsters { get; init; }
+    public bool ShouldClearMonsters { get; init; }
 
     /// <summary>
     /// Gets the trigger area that ends the level, or null if no trigger area ends it.

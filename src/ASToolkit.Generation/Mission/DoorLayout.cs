@@ -181,7 +181,7 @@ internal sealed class DoorLayout
             .Where(room => room != key)
             .ToHashSet();
 
-        bool recrosses = rooms.Length > 1 && rooms[1..^1].Any(forward.Contains);
-        return new WalkBack(fromKey[gateRoom], rooms, recrosses);
+        bool isRecrossing = rooms.Length > 1 && rooms[1..^1].Any(forward.Contains);
+        return new WalkBack(fromKey[gateRoom], rooms, isRecrossing);
     }
 }

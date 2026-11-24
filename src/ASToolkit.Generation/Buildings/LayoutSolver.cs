@@ -106,12 +106,12 @@ internal sealed class LayoutSolver<T>
 
     private ShapeVariant[] GetVariants(T room)
     {
-        bool readsSides = _problem.DoorSides.Keys.Any(key => EqualityComparer<T>.Default.Equals(key.Room, room));
+        bool shouldReadSides = _problem.DoorSides.Keys.Any(key => EqualityComparer<T>.Default.Equals(key.Room, room));
         var variants = _problem.Rooms[room].Shapes
             .SelectMany(ShapeVariant.GetTurnedVariants)
             .ToArray();
 
-        return variants.Where((variant, i) => !variants.Take(i).Any(earlier => earlier.HasSameOutlineAndDoors(variant, readsSides))).ToArray();
+        return variants.Where((variant, i) => !variants.Take(i).Any(earlier => earlier.HasSameOutlineAndDoors(variant, shouldReadSides))).ToArray();
     }
 
     private bool PlaceRemainingRooms(int placed)
@@ -198,7 +198,7 @@ internal sealed class LayoutSolver<T>
                     {
                         for (int along = other.Low - own.High; along <= other.High - own.Low; along++)
                         {
-                            var candidate = new LayoutCandidate(variant, own.RunsAlongV ? new Point(other.At - own.At, along) : new Point(along, other.At - own.At));
+                            var candidate = new LayoutCandidate(variant, own.IsAlongV ? new Point(other.At - own.At, along) : new Point(along, other.At - own.At));
                             if (seen.Add(candidate))
                             {
                                 candidates.Add(candidate);

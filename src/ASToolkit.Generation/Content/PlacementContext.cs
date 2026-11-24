@@ -414,14 +414,14 @@ public sealed class PlacementContext
         {
             if (next == neighbor)
             {
-                return Layout.Edges.TryGetValue(edge, out var kind) && kind.ShowsWall;
+                return Layout.Edges.TryGetValue(edge, out var kind) && kind.HasWall;
             }
         }
 
         return true;
     }
 
-    private bool IsBlockingEdge(EdgeKey k) => Layout.Edges.TryGetValue(k, out var kind) && kind.BlocksWalking;
+    private bool IsBlockingEdge(EdgeKey k) => Layout.Edges.TryGetValue(k, out var kind) && kind.IsBlocking;
 
     /// <summary>
     /// Returns the cells from a cell back to the start by following the walking distances down.

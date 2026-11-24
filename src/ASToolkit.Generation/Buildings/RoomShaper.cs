@@ -126,7 +126,7 @@ internal sealed class RoomShaper
         var b = yielder.Rect;
         var side = b.V == a.V + a.H ? Side.North : b.V + b.H == a.V ? Side.South : b.U == a.U + a.W ? Side.West : Side.East;
         (int low, int high) = (Math.Max(a.GetSpan(side).Low, b.GetSpan(side).Low), Math.Min(a.GetSpan(side).High, b.GetSpan(side).High));
-        int across = side.RunsAlongU ? b.H : b.W;
+        int across = side.IsAlongU ? b.H : b.W;
         var tabs = Enumerable.Range(3, Math.Max(0, Math.Min(6, high - low) - 2))
             .SelectMany(length => Enumerable.Range(2, 2).Where(depth => across - depth >= 3).Select(depth => (Length: length, Depth: depth)))
             .SelectMany(size => Enumerable.Range(low, high - size.Length - low + 1).Select(at => (size.Length, size.Depth, At: at)))
@@ -145,7 +145,7 @@ internal sealed class RoomShaper
                 }
             }
 
-            bool touchesOther = tab.Units
+            bool isTouchingOther = tab.Units
                 .SelectMany(near => near.GetAdjacent())
                 .Where(near => !tab.Contains(near))
                 .Select(near => _draft.Grid.GetOwner(near))
@@ -155,7 +155,7 @@ internal sealed class RoomShaper
                 .Concat(tab.Units)
                 .ToArray();
 
-            if (touchesOther || HasOneUnitFeature(mask) || HasOneUnitFeature(MaskOf(grown, out _)) || !KeepsWalls(yielder, mask, pusher.Id))
+            if (isTouchingOther || HasOneUnitFeature(mask) || HasOneUnitFeature(MaskOf(grown, out _)) || !KeepsWalls(yielder, mask, pusher.Id))
             {
                 continue;
             }
@@ -525,17 +525,17 @@ internal sealed class RoomShaper
                 continue;
             }
 
-            bool pullsNear = pulls.Any(pull => pull.Side is Side.North or Side.West);
-            bool pullsFar = pulls.Any(pull => pull.Side is Side.South or Side.East);
+            bool isPullingNear = pulls.Any(pull => pull.Side is Side.North or Side.West);
+            bool isPullingFar = pulls.Any(pull => pull.Side is Side.South or Side.East);
             var core = alongU
-                ? new UnitRect(rect.U, rect.V + (pullsNear ? 1 : 0), rect.W, rect.H - (pullsNear ? 1 : 0) - (pullsFar ? 1 : 0))
-                : new UnitRect(rect.U + (pullsNear ? 1 : 0), rect.V, rect.W - (pullsNear ? 1 : 0) - (pullsFar ? 1 : 0), rect.H);
+                ? new UnitRect(rect.U, rect.V + (isPullingNear ? 1 : 0), rect.W, rect.H - (isPullingNear ? 1 : 0) - (isPullingFar ? 1 : 0))
+                : new UnitRect(rect.U + (isPullingNear ? 1 : 0), rect.V, rect.W - (isPullingNear ? 1 : 0) - (isPullingFar ? 1 : 0), rect.H);
 
             _draft.Grid.Shrink(hall.Id, core);
             _draft.Shapes[hall.Id] = [core];
             foreach (var side in alongU ? (Side[])[Side.North, Side.South] : [Side.West, Side.East])
             {
-                if (side is Side.North or Side.West ? !pullsNear : !pullsFar)
+                if (side is Side.North or Side.West ? !isPullingNear : !isPullingFar)
                 {
                     continue;
                 }

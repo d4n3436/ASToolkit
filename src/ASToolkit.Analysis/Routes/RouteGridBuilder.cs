@@ -132,11 +132,11 @@ public static class RouteGridBuilder
             EdgeKey[] keys = sprite.Direction.Value is >= 64 and < 192
                 ? [new EdgeKey('v', a - 1, b), new EdgeKey('v', a, b)]
                 : [new EdgeKey('u', a, b - 1), new EdgeKey('u', a, b)];
-            bool holdsFence = fences.Any(f => MathF.Sqrt((f.Position.X - sprite.Position.X) * (f.Position.X - sprite.Position.X) + (f.Position.Y - sprite.Position.Y) * (f.Position.Y - sprite.Position.Y)) < 40);
+            bool hasFence = fences.Any(f => MathF.Sqrt((f.Position.X - sprite.Position.X) * (f.Position.X - sprite.Position.X) + (f.Position.Y - sprite.Position.Y) * (f.Position.Y - sprite.Position.Y)) < 40);
             foreach (var key in keys)
             {
                 coarse[key] = EdgeKind.FenceFrame;
-                if (holdsFence)
+                if (hasFence)
                 {
                     coarseFences.Add(key);
                 }

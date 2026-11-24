@@ -43,7 +43,7 @@ internal abstract partial class BuildingGrammar
     // "previous" names the instance before (the hall for the first), "name#" the instance of the same index and "name^" the last instance (the first room of the wing if there isn't one).
     private sealed record WingNode(string Name, RoomType Type, IReadOnlyList<IReadOnlyList<WingShape>> Variants)
     {
-        public bool DrawsBackType { get; init; }
+        public bool ShouldDrawBackType { get; init; }
 
         public IReadOnlyList<(RoomType Type, float Weight)> Types { get; init; } = [];
 
@@ -121,8 +121,8 @@ internal abstract partial class BuildingGrammar
         new WingNode("passageA", RoomType.Passage, [SmallPassage]),
         new WingNode("passageB", RoomType.Passage, [SmallPassage]),
         new WingNode("control", RoomType.Lab, [[Box(1.3f, 1.6f, 1.0f, 1.25f, 6)]]) { IsPiece = true, Hosts = ["service"], Sides = [WingSides.Far] },
-        new WingNode("widest", RoomType.Storage, [[Box(1.2f, 1.45f, 0.85f, 1.0f, 5)]]) { DrawsBackType = true, IsPiece = true, Hosts = ["service"], Sides = [WingSides.Near] },
-        new WingNode("cell", RoomType.Storage, [[Box(0.85f, 1.0f, 0.85f, 1.0f, 5)]]) { DrawsBackType = true, Count = "cells", CountShift = -1, InSolve = 0, Hosts = ["service"], Beside = ["control"] },
+        new WingNode("widest", RoomType.Storage, [[Box(1.2f, 1.45f, 0.85f, 1.0f, 5)]]) { ShouldDrawBackType = true, IsPiece = true, Hosts = ["service"], Sides = [WingSides.Near] },
+        new WingNode("cell", RoomType.Storage, [[Box(0.85f, 1.0f, 0.85f, 1.0f, 5)]]) { ShouldDrawBackType = true, Count = "cells", CountShift = -1, InSolve = 0, Hosts = ["service"], Beside = ["control"] },
         new WingNode("pocket", RoomType.Storage, [[Box(0.6f, 0.8f, 0.6f, 0.8f, 4)]]) { Count = "pocket", InSolve = 0, Hosts = ["passageA"], Beside = ["passageB"] }
     ])
     {
@@ -152,7 +152,7 @@ internal abstract partial class BuildingGrammar
         new WingNode("core", RoomType.Lab, [[Box(1.45f, 1.7f, 1.3f, 1.55f, 8)]]) { IsPiece = true },
         new WingNode("legA", RoomType.Passage, [AirlockLeg]),
         new WingNode("legB", RoomType.Passage, [AirlockLeg]),
-        new WingNode("pod", RoomType.Lab, [[Box(0.75f, 0.95f, 0.65f, 0.85f, 5)]]) { DrawsBackType = true, Count = "pods", InSolve = 2, Hosts = ["legA", "legB"], Beside = ["legA", "legB", "core"] }
+        new WingNode("pod", RoomType.Lab, [[Box(0.75f, 0.95f, 0.65f, 0.85f, 5)]]) { ShouldDrawBackType = true, Count = "pods", InSolve = 2, Hosts = ["legA", "legB"], Beside = ["legA", "legB", "core"] }
     ])
     {
         Counts = [new WingCount("pods", IsRest: true, Min: 2, Max: 6)],
@@ -246,7 +246,7 @@ internal abstract partial class BuildingGrammar
 
                 var variant = Random.Choice(node.Variants.ToArray());
                 var templates = variant.Select(shape => DrawShape(shape, counts)).ToArray();
-                var type = node.Types.Count > 0 ? DrawType(node.Types, node.Type) : node.DrawsBackType ? DrawType(BackTypes, node.Type) : node.Type;
+                var type = node.Types.Count > 0 ? DrawType(node.Types, node.Type) : node.ShouldDrawBackType ? DrawType(BackTypes, node.Type) : node.Type;
                 int room = node.IsHall
                     ? wing.AddHall(phase, [WingSolver.Box(DrawHallLength(variant[0].Length, counts), DrawExtent(variant[0].Width, counts))])
                     : wing.AddRoom(type, phase, NewGroup(), templates, node.IsPiece);
@@ -309,7 +309,7 @@ internal abstract partial class BuildingGrammar
 
             var shape = Random.Choice(node.Variants.ToArray())[0];
             int count = built.Count;
-            AddBeside(built, hosts, phase, node.DrawsBackType ? DrawType(BackTypes, node.Type) : node.Type, DrawExtent(shape.Width, counts), DrawExtent(shape.Length, counts));
+            AddBeside(built, hosts, phase, node.ShouldDrawBackType ? DrawType(BackTypes, node.Type) : node.Type, DrawExtent(shape.Width, counts), DrawExtent(shape.Length, counts));
             if (built.Count > count)
             {
                 placed[node.Name].Add(built[^1]);

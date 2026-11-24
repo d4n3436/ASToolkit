@@ -50,7 +50,7 @@ internal sealed class RoomSheet
                 foreach (var (neighbor, edge) in EdgeKey.GetNeighbors(cell))
                 {
                     bool inside = cells.Contains(neighbor);
-                    if (inside && !(edges.TryGetValue(edge, out var kind) && kind.BlocksWalking))
+                    if (inside && !(edges.TryGetValue(edge, out var kind) && kind.IsBlocking))
                     {
                         continue;
                     }

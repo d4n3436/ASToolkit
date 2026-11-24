@@ -21,7 +21,7 @@ internal sealed class InspectRoomsCommand : LevelCommand<InspectRoomsSettings>
         string[] maps = GetMaps(settings.Maps, settings.Levels);
         Directory.CreateDirectory(settings.Out);
         string crops = Path.Combine(settings.Out, "crops");
-        if (settings.Crops)
+        if (settings.ShouldWriteCrops)
         {
             Directory.CreateDirectory(crops);
         }
@@ -53,7 +53,7 @@ internal sealed class InspectRoomsCommand : LevelCommand<InspectRoomsSettings>
             foreach (var room in atlas.Rooms.Where(room => room.IsRoom))
             {
                 var tile = sheet.Add(rendered, survey.Lattice, level.Analysis.Grid.Edges, room);
-                if (settings.Crops)
+                if (settings.ShouldWriteCrops)
                 {
                     tile.SaveAsPng(Path.Combine(crops, $"{name}_P{room.Place.Id}.png"));
                 }

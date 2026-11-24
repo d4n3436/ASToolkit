@@ -18,7 +18,7 @@ public class LevelScriptReaderIntegrationTests
 
         var blackout = Assert.Single(script.Triggers, trigger => trigger.LightOff is not null);
         Assert.Equal(ScriptRespawn.None, blackout.Respawn);
-        Assert.False(blackout.SwapsKeypads);
+        Assert.False(blackout.ShouldSwapKeypads);
         Assert.Equal(3000, blackout.Quake);
     }
 
@@ -31,7 +31,7 @@ public class LevelScriptReaderIntegrationTests
         Assert.All(script.Handlers, handler =>
         {
             Assert.Equal(KnownObject.DiverBoss, handler.Id);
-            Assert.True(handler.WinsLevel);
+            Assert.True(handler.ShouldWinLevel);
             Assert.Equal([KnownObject.Spawner], handler.Destroys);
             Assert.Equal([KnownObject.Diver], handler.Kills);
         });
@@ -50,10 +50,10 @@ public class LevelScriptReaderIntegrationTests
     [Fact]
     public void Read_AddOnLevelsWinningAfterTheSites_SetWinsAfterSites()
     {
-        Assert.True(Read("ADDON", "Level_02.lgc").WinsAfterSites);
-        Assert.True(Read("ADDON", "Level_04.lgc").WinsAfterSites);
-        Assert.False(Read("ADDON", "Level_05.lgc").WinsAfterSites);
-        Assert.False(Read("", "Level_02.lgc").WinsAfterSites);
+        Assert.True(Read("ADDON", "Level_02.lgc").IsWonAfterSites);
+        Assert.True(Read("ADDON", "Level_04.lgc").IsWonAfterSites);
+        Assert.False(Read("ADDON", "Level_05.lgc").IsWonAfterSites);
+        Assert.False(Read("", "Level_02.lgc").IsWonAfterSites);
     }
 
     private static LevelScriptSummary Read(string folder, string file) => LevelScriptReader.Read(Path.Combine(TestGameFolder.RequireFolder(), "Maps", folder, file), TestGameFolder.Objects.ScriptVersion);

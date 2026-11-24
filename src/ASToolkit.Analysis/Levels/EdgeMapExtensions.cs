@@ -59,7 +59,7 @@ public static class EdgeMapExtensions
                 foreach (var (next, edge) in EdgeKey.GetNeighbors(from))
                 {
                     if (next == to)
-                        return edges.TryGetValue(edge, out var kind) && kind.BlocksWalking;
+                        return edges.TryGetValue(edge, out var kind) && kind.IsBlocking;
                 }
 
                 return false;
@@ -73,7 +73,7 @@ public static class EdgeMapExtensions
         /// <param name="v">The v coordinate of the lattice point.</param>
         /// <returns>The side and the distance of the edge, or null if there isn't one.</returns>
         public (WallSides Side, float Distance)? FindNearestWall(float u, float v) =>
-            FindNearest(edges, u, v, NearSearch, NearReach, static kind => kind.ShowsWall);
+            FindNearest(edges, u, v, NearSearch, NearReach, static kind => kind.HasWall);
 
         /// <summary>
         /// Returns the nearest edge of any kind within one and a half cells of a lattice point, with the side it stands on, or null if there isn't one.

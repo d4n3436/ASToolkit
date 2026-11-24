@@ -8,7 +8,7 @@ public sealed class LevelScriptSummary
     /// <summary>
     /// Gets a value indicating whether the level ends after its monsters and dynamite sites are cleared.
     /// </summary>
-    public bool ClearsMonsters { get; init; }
+    public bool ShouldClearMonsters { get; init; }
 
     /// <summary>
     /// Gets a value indicating whether the doors are locked from the start.
@@ -28,7 +28,7 @@ public sealed class LevelScriptSummary
     /// <summary>
     /// Gets a value indicating whether the level is won once its dynamite sites are gone.
     /// </summary>
-    public bool WinsAfterSites { get; init; }
+    public bool IsWonAfterSites { get; init; }
 
     /// <summary>
     /// Gets the trigger that wins the level, or null.

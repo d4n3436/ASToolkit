@@ -117,7 +117,7 @@ internal sealed class OfficeBlock
 
         var opener = _random.Choice(openers);
         var hops = MeasureHops(rest, adjacency, path.Contains(opener.A) ? opener.B : opener.A);
-        int suiteAt = rest.Where(room => regions[room].Count >= SuiteMin).OrderByDescending(room => hops.GetValueOrDefault(room)).Cast<int?>().FirstOrDefault() ?? -1;
+        int suiteAt = rest.Where(room => regions[room].Count >= SuiteMin).OrderByDescending(hops.GetValueOrDefault).Cast<int?>().FirstOrDefault() ?? -1;
         var hosts = _random.Shuffled(rest.Where(room => room != suiteAt && regions[room].Count >= HostMin)).Take(_random.Inclusive(1, 2)).ToHashSet();
         int gateAt = _random.Next() < 0.7f ? path[_random.Inclusive(2, path.Count - 3)] : -1;
         var rows = new Dictionary<int, OfficeRow>
