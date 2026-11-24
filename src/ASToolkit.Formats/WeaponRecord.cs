@@ -1,11 +1,11 @@
-using System.Runtime.CompilerServices;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace ASToolkit.Formats;
 
 /// <summary>
-/// Represents a record of the WEAP chunk of objects.res in the Alien Shooter 2 layout, which Zombie Shooter and Zombie Shooter 2 share.
+/// Represents a record of the WEAP chunk of objects.res in the Alien Shooter 2 layout that Zombie Shooter and Zombie Shooter 2 share.
 /// </summary>
 [StructLayout(LayoutKind.Explicit, Size = 640)]
 public readonly struct WeaponRecord
@@ -14,8 +14,6 @@ public readonly struct WeaponRecord
     /// Represents the number of keyframes of a weapon animation.
     /// </summary>
     public const int KeyframeCount = 8;
-
-    private const int NoDecisions = 999999;
 
     /// <summary>
     /// The sprite type mask of eligible targets.
@@ -48,7 +46,7 @@ public readonly struct WeaponRecord
     public readonly float Power;
 
     /// <summary>
-    /// The time in milliseconds between the target decisions of a unit with the weapon; 999999 for none. Absent from Alien Shooter records.
+    /// The time in milliseconds between the target decisions of a unit with the weapon, or 999999 if there aren't any. Absent from Alien Shooter records.
     /// </summary>
     [FieldOffset(20)]
     public readonly int DecisionPeriod;
@@ -221,6 +219,8 @@ public readonly struct WeaponRecord
     [FieldOffset(576)]
     public readonly KeyframeValues<float> SpeedKeys;
 
+    private const int NoDecisions = 999999;
+
     internal WeaponRecord(AlienShooterWeaponRecord record)
     {
         Flags = record.Flags;
@@ -260,12 +260,31 @@ public readonly struct WeaponRecord
     }
 
     /// <summary>
-    /// Reads the gamma of the keyframe animation at a position.
+    /// Interpolates the gamma of the keyframe animation at a position.
     /// </summary>
     /// <param name="keyframe">The position in the animation, in keyframes.</param>
     /// <returns>The gamma between the keyframes around the position.</returns>
     public VidGamma GetGamma(float keyframe) =>
         new(GetKeyframeValue(RedKeys, keyframe), GetKeyframeValue(GreenKeys, keyframe), GetKeyframeValue(BlueKeys, keyframe), GetKeyframeValue(AlphaKeys, keyframe));
+
+    /// <summary>
+    /// Interpolates a value of the keyframe animation at a position.
+    /// </summary>
+    /// <typeparam name="T">The type of the values.</typeparam>
+    /// <param name="keys">The values of the keyframes, one of the key fields of this record.</param>
+    /// <param name="key">The position converted to a whole keyframe index.</param>
+    /// <param name="position">The position in the animation, in keyframes.</param>
+    /// <returns>The value between the keyframes around the position.</returns>
+    public float Interpolate<T>(in KeyframeValues<T> keys, int key, float position)
+        where T : unmanaged, INumberBase<T>
+    {
+        if (key >= KeyframeCount - 1)
+            return float.CreateTruncating(keys[KeyframeCount - 1]);
+
+        float low = float.CreateTruncating(ReadKey(keys, key));
+        float high = float.CreateTruncating(ReadKey(keys, key + 1));
+        return (high - low) * (position - key) + low;
+    }
 
     private static int GetKeyframeValue(in KeyframeValues<int> keys, float keyframe)
     {
@@ -274,25 +293,6 @@ public readonly struct WeaponRecord
             return keys[KeyframeCount - 1];
 
         return (int)((keys[key + 1] - keys[key]) * (keyframe - key) + keys[key]);
-    }
-
-    /// <summary>
-    /// Reads a value of the keyframe animation at a position.
-    /// </summary>
-    /// <typeparam name="T">The type of the values.</typeparam>
-    /// <param name="keys">The values of the keyframes, one of the key fields of this record.</param>
-    /// <param name="position">The position in the animation, in keyframes.</param>
-    /// <returns>The value between the keyframes around the position.</returns>
-    public float Interpolate<T>(in KeyframeValues<T> keys, float position)
-        where T : unmanaged, INumberBase<T>
-    {
-        int key = (int)position;
-        if (key >= KeyframeCount - 1)
-            return float.CreateTruncating(keys[KeyframeCount - 1]);
-
-        float low = float.CreateTruncating(ReadKey(keys, key));
-        float high = float.CreateTruncating(ReadKey(keys, key + 1));
-        return (high - low) * (position - key) + low;
     }
 
     private T ReadKey<T>(in KeyframeValues<T> keys, int index)

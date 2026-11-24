@@ -1,13 +1,21 @@
+using ASToolkit.Engine.IO;
+
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents a sprite's order stack, whose popped entries stay for stack jumps.
+/// Represents a sprite's order stack, where popped entries can be brought back.
 /// </summary>
 public sealed class ActionStack
 {
     private const int GrowthStep = 4;
 
+    private readonly GameLogger? _logger;
     private Act[] _orders = [];
+
+    internal ActionStack(GameLogger? logger)
+    {
+        _logger = logger;
+    }
 
     /// <summary>
     /// Gets the number of entries on the stack.
@@ -24,6 +32,10 @@ public sealed class ActionStack
     /// </summary>
     public ReadOnlySpan<Act> Orders => _orders.AsSpan(0, Count);
 
+    internal ReadOnlySpan<Act> Buffer => _orders;
+
+    private static ReadOnlySpan<byte> NotEnoughMemoryText => "!!!ERROR!!!::LIST: Not enough memory %i"u8;
+
     /// <summary>
     /// Gets the entry at an index, counted from the bottom.
     /// </summary>
@@ -39,7 +51,7 @@ public sealed class ActionStack
     {
         if (Count >= _orders.Length)
         {
-            Array.Resize(ref _orders, _orders.Length * 2 + GrowthStep);
+            Grow(_orders.Length * 2 + GrowthStep);
         }
 
         _orders[Count++] = order;
@@ -53,8 +65,12 @@ public sealed class ActionStack
     [EngineRoutine(0x00446a10)]
     public void Insert(int index, Act order)
     {
-        int count = Count;
-        Push(order);
+        if (Count >= _orders.Length)
+        {
+            Grow(_orders.Length * 2 + GrowthStep);
+        }
+
+        int count = Count++;
 
         if (index < count)
         {
@@ -126,7 +142,20 @@ public sealed class ActionStack
     {
         if (_orders.Length < capacity)
         {
+            Grow(capacity);
+        }
+    }
+
+    private void Grow(int capacity)
+    {
+        try
+        {
             Array.Resize(ref _orders, capacity);
+        }
+        catch (OutOfMemoryException)
+        {
+            _logger?.Fatal($"!!!ERROR!!!::LIST: Not enough memory {capacity}");
+            throw;
         }
     }
 }

@@ -1,6 +1,6 @@
 using System.Numerics;
-using ASToolkit.Formats;
 using ASToolkit.Core;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
@@ -13,15 +13,15 @@ internal sealed class MonsterBrain
     private readonly SpriteCollision _movement;
     private readonly Random _random;
     private readonly SpriteCollector _collector;
-    private readonly GameSession _session;
+    private readonly Map _map;
 
-    public MonsterBrain(SpriteKinematics motion, SpriteCollision movement, Random random, SpriteCollector collector, GameSession session)
+    public MonsterBrain(SpriteKinematics motion, SpriteCollision movement, Random random, SpriteCollector collector, Map map)
     {
         _motion = motion;
         _movement = movement;
         _random = random;
         _collector = collector;
-        _session = session;
+        _map = map;
     }
 
     [EngineRoutine(0x00447260)]
@@ -33,7 +33,7 @@ internal sealed class MonsterBrain
         {
             if (sprite.HasGoal && !sprite.Speed.IsExactlyZero())
             {
-                var goal = sprite.MeasureDirectionTo(sprite.Goal!);
+                var goal = sprite.DirectionTo(sprite.Goal!);
 
                 if (sprite.Speed < 0)
                 {
@@ -62,9 +62,9 @@ internal sealed class MonsterBrain
         if (next == sprite.Position)
             return;
 
-        if (_movement.Move(sprite, ref next))
+        if (_movement.Move(sprite, ref next) is null)
         {
-            RepelFromMapEdge(sprite, next, elapsed);
+            MoveTactMapLimit(sprite, next.AsVector2(), elapsed);
             sprite.ChangeCoor(next);
         }
         else if (sprite.TurnTicks == 0)
@@ -84,7 +84,14 @@ internal sealed class MonsterBrain
     [EngineRoutine(0x00444a80)]
     public Sprite? SeekEnemy(Sprite sprite, Sprite? flagman)
     {
-        var definition = sprite.Definition;
+        var seeker = sprite;
+
+        for (var next = seeker.Link; next is not null && next.Definition == seeker.Definition.LinkDefinition && next.Definition.FightChild != 0 && next.Definition.Object.WeaponIndex != 0; next = seeker.Link)
+        {
+            seeker = next;
+        }
+
+        var definition = seeker.Definition;
 
         if (definition.DetectRange.IsExactlyZero() || definition.Targets == 0)
             return null;
@@ -92,16 +99,15 @@ internal sealed class MonsterBrain
         Sprite? best = null;
         float bestDistance = definition.DetectRange + 1;
 
-        if (sprite.Army == Army.Monsters)
-            return flagman is not null && TryTake(sprite, flagman, ref best, ref bestDistance) ? flagman : best;
+        if (seeker.Army == Army.Monsters)
+            return flagman is not null && TryTake(seeker, flagman, ref best, ref bestDistance) ? flagman : best;
 
-        if (flagman is not null && TryTake(sprite, flagman, ref best, ref bestDistance))
-            return flagman;
+        var listed = _collector.Listed;
 
-        foreach (var candidate in _collector.Listed)
+        for (int i = listed.Length - 1; i >= 0; i--)
         {
-            if (candidate != sprite && TryTake(sprite, candidate, ref best, ref bestDistance))
-                return candidate;
+            if (TryTake(seeker, listed[i], ref best, ref bestDistance))
+                return listed[i];
         }
 
         return best;
@@ -120,10 +126,10 @@ internal sealed class MonsterBrain
         if (sprite.Definition.WeaponFlags.HasFlag(WeaponFlags.PrefersNearest))
             return distance < bestDistance;
 
-        if (sprite.Goal == best)
+        if (sprite.Shooter == best)
             return false;
 
-        if (sprite.Goal == candidate)
+        if (sprite.Shooter == candidate)
             return true;
 
         if (candidate.Army == Army.Neutral && best.Army != Army.Neutral)
@@ -160,8 +166,8 @@ internal sealed class MonsterBrain
             (candidate.Definition.Object.SpriteType.HasFlag(SpriteType.Avia) && candidate.Owner is not null))
             return false;
 
-        if (definition.NeedsForwardTarget &&
-            sprite.Direction.MeasureTurnTo(sprite.MeasureDirectionTo(candidate)) > ForwardCone)
+        if (definition.HasForwardTargets &&
+            sprite.Direction.MeasureTurnTo(sprite.DirectionTo(candidate)) > ForwardCone)
             return false;
 
         float distance = sprite.Position.AsVector2().MeasureOctagonalDistance(candidate.Position.AsVector2());
@@ -169,26 +175,26 @@ internal sealed class MonsterBrain
         if (distance > definition.DetectRange || distance < definition.MinRange)
             return false;
 
-        bool accepts;
+        bool isAccepted;
 
-        if (definition.Object.SpriteType.HasFlag(SpriteType.Avia) && sprite.Goal is null)
+        if (definition.Object.SpriteType.HasFlag(SpriteType.Avia) && sprite.Shooter is null)
         {
-            accepts = distance < bestDistance;
+            isAccepted = distance < bestDistance;
         }
         else if (candidate.Definition.Id == KnownObject.PistolMuzzleFlash)
         {
-            accepts = false;
+            isAccepted = false;
         }
         else if (bestDistance <= definition.BattleRange)
         {
-            accepts = distance <= definition.BattleRange && IsBetter(sprite, distance, bestDistance, candidate, best);
+            isAccepted = distance <= definition.BattleRange && IsBetter(sprite, distance, bestDistance, candidate, best);
         }
         else
         {
-            accepts = distance <= definition.BattleRange || IsBetter(sprite, distance, bestDistance, candidate, best);
+            isAccepted = distance <= definition.BattleRange || IsBetter(sprite, distance, bestDistance, candidate, best);
         }
 
-        if (!accepts || (sprite.Army == Army.Player && candidate.Definition.Object.SpriteClass == SpriteClass.Engine && HasCarOfArmy(candidate, Army.Player)))
+        if (!isAccepted || (sprite.Army == Army.Player && candidate.Definition.Class == SpriteClass.Engine && HasCarOfArmy(candidate, Army.Player)))
             return false;
 
         best = candidate;
@@ -203,18 +209,42 @@ internal sealed class MonsterBrain
 
         return (target.Army != sprite.Army || ownArmy) && !target.Definition.Object.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) &&
             (target.Army != Army.Neutral || ownArmy ||
-                (_session.CanMonstersAttackNeutralTrains && sprite.Army == Army.Monsters && target.Definition.Object.SpriteClass == SpriteClass.Engine));
+                (_map.CanMonstersAttackNeutralTrains && sprite.Army == Army.Monsters && target.Definition.Class == SpriteClass.Engine));
     }
 
     [EngineRoutine(0x0043fa00)]
-    private void RepelFromMapEdge(Sprite sprite, Vector3 position, int elapsed)
+    private bool MoveTactMapLimit(Sprite sprite, Vector2 position, int elapsed)
     {
         var size = _movement.MapSize;
-        int goal = position.X < 0 ? Angle.QuarterTurn : position.Y < 0 ? Angle.HalfTurn : position.X >= size.Width ? Angle.HalfTurn + Angle.QuarterTurn : position.Y >= size.Height ? 0 : -1;
 
-        if (goal >= 0)
+        if (!(position.X >= 0))
         {
-            sprite.RotateTact(new Angle((byte)goal), elapsed);
+            sprite.RotateTact(Angle.East, elapsed);
+
+            return true;
         }
+
+        if (!(position.Y >= 0))
+        {
+            sprite.RotateTact(Angle.South, elapsed);
+
+            return true;
+        }
+
+        if (!(position.X < size.Width))
+        {
+            sprite.RotateTact(Angle.West, elapsed);
+
+            return true;
+        }
+
+        if (!(position.Y < size.Height))
+        {
+            sprite.RotateTact(Angle.North, elapsed);
+
+            return true;
+        }
+
+        return false;
     }
 }

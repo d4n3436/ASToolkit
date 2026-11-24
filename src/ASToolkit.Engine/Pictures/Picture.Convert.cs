@@ -15,9 +15,6 @@ public partial class Picture
     private const int CrcTableSize = 256;
     private const int StackChecksumCount = 256;
     private const int MaxRecordSize = 0x200000;
-    private const int PackedPaletteSize = 3 * PaletteSize;
-    private const int RedShift = 16;
-    private const int GreenShift = 8;
 
     private static readonly uint[] CrcTable = BuildCrcTable();
 
@@ -25,7 +22,7 @@ public partial class Picture
     /// Converts the picture into the bytes of a sprite file with a frame for every frame of the picture.
     /// </summary>
     /// <param name="options">How the sprite file is made.</param>
-    /// <returns>The sprite file, or an empty memory if the picture has no colors or the sprite file isn't one that is converted.</returns>
+    /// <returns>The sprite file, or an empty memory if the picture doesn't have colors or alpha values, or if a hardware layer sprite file is asked for without depth values.</returns>
     [EngineRoutine(0x0042c8c0)]
     public ReadOnlyMemory<byte> Convert(PictureConvertOptions options = PictureConvertOptions.None)
     {
@@ -77,14 +74,8 @@ public partial class Picture
 
         var builder = new ResContainerBuilder { Magic = "RES "u8.ToArray(), Kind = "VID "u8.ToArray() };
         Flags |= PictureFlags.CurrentVersion;
-        byte[] head = new byte[Unsafe.SizeOf<VidHeader>()];
-        var fields = MemoryMarshal.Cast<byte, short>(head);
-        fields[0] = (short)Flags;
-        fields[1] = (short)Colors.Image.Speed;
-        fields[2] = (short)Colors.Image.FrameCount;
-        fields[3] = (short)Colors.Image.Size.Width;
-        fields[4] = (short)Colors.Image.Size.Height;
-        builder.Chunks.Add(CreateChunk("HEAD", [head]));
+        var head = new VidHeader((VidType)(short)Flags, (short)Colors.Image.Speed, (short)Colors.Image.FrameCount, Colors.Image.Size);
+        builder.Chunks.Add(CreateChunk("HEAD", [MemoryMarshal.AsBytes(new ReadOnlySpan<VidHeader>(in head)).ToArray()]));
         if (options.HasFlag(PictureConvertOptions.CoarseOutline))
         {
             Flags |= PictureFlags.CoarseOutline;
@@ -115,6 +106,41 @@ public partial class Picture
         return builder.Build();
     }
 
+    private static ResChunkBuilder CreateChunk(string tag, List<byte[]> records, int savings = 0) => new() { Tag = tag, Flags = ResChunkFlags.ExtendedHeader, Records = records, CompressionSavings = savings };
+
+    private static void Append<T>(byte[] buffer, ref int length, T value)
+        where T : unmanaged
+    {
+        MemoryMarshal.Write(buffer.AsSpan(length), in value);
+        length += Unsafe.SizeOf<T>();
+    }
+
+    private static void AddFrame(List<byte[]> frames, ref int savings, ReadOnlySpan<byte> body, RangeCoder? coder)
+    {
+        var record = new ResRecordBuilder();
+        record.Write(body.Length);
+        record.WriteBody(body, coder);
+        frames.Add(record.Bytes.ToArray());
+        savings += record.CompressionSavings;
+    }
+
+    private static uint[] BuildCrcTable()
+    {
+        uint[] table = new uint[CrcTableSize];
+        for (uint i = 0; i < table.Length; i++)
+        {
+            uint value = i;
+            for (int bit = 0; bit < BitsPerByte; bit++)
+            {
+                value = (value & 1) != 0 ? value >> 1 ^ CrcPolynomial : value >> 1;
+            }
+
+            table[i] = value;
+        }
+
+        return table;
+    }
+
     [EngineRoutine(0x0042c730)]
     private byte[] ConvertLight()
     {
@@ -138,31 +164,7 @@ public partial class Picture
         {
             if (Flags.HasFlag(PictureFlags.Palette))
             {
-                var record = new ResRecordBuilder();
-                if (!Flags.HasFlag(PictureFlags.CurrentVersion))
-                {
-                    Span<byte> packed = stackalloc byte[PackedPaletteSize];
-                    for (int i = 0; i < PaletteSize; i++)
-                    {
-                        uint color = Colors.Image.Palette[i];
-                        packed[3 * i] = (byte)(color >> RedShift);
-                        packed[3 * i + 1] = (byte)(color >> GreenShift);
-                        packed[3 * i + 2] = (byte)color;
-                    }
-
-                    record.Write(packed);
-                }
-                else if (!Flags.HasFlag(PictureFlags.Alpha))
-                {
-                    record.Write(MemoryMarshal.AsBytes(Colors.Image.Palette));
-                }
-                else
-                {
-                    QuantizePalette();
-                    record.Write(MemoryMarshal.AsBytes(new ReadOnlySpan<uint>(_palette)));
-                }
-
-                builder.Chunks.Add(CreateChunk("PAL ", [record.Bytes.ToArray()]));
+                WriteSoftwarePalette(builder);
             }
 
             var frames = new List<byte[]>();
@@ -172,103 +174,18 @@ public partial class Picture
             checksums = checksums[..frameCount];
             for (int frame = 0; frame < frameCount; frame++)
             {
-                var record = new ResRecordBuilder();
                 int length = 0;
-                checksums[frame] = GetChecksum();
-                int match = checksums[..frame].IndexOf(checksums[frame]);
+                int match = FindRepeatedFrame(checksums, frame);
                 if (match >= 0)
                 {
-                    AddShort(buffer, ref length, match);
+                    Append(buffer, ref length, (short)match);
                 }
                 else
                 {
-                    length = ConvertOutline(buffer);
-                    var bounds = GetBounds(true, false);
-                    int top = bounds.Top;
-                    int bottom = bounds.Bottom;
-                    if (Flags.HasFlag(PictureFlags.OutlineOnly))
-                    {
-                        top = 0;
-                        bottom = 0;
-                    }
-
-                    AddShort(buffer, ref length, top);
-                    AddShort(buffer, ref length, bottom - top);
-                    bool isDepth = Flags.HasFlag(PictureFlags.Depth);
-                    bool isPalette = Flags.HasFlag(PictureFlags.Palette);
-                    for (int y = top; y < bottom; y++)
-                    {
-                        int x = 0;
-                        while (true)
-                        {
-                            int start = x;
-                            while (!IsOpaque(new Point(x, y)))
-                            {
-                                x++;
-                                if (x >= Colors.Image.Size.Width)
-                                    break;
-                            }
-
-                            if (x >= Colors.Image.Size.Width)
-                                break;
-
-                            for (; x - start > MaxRunLength; start += MaxRunLength)
-                            {
-                                buffer[length++] = MaxRunLength;
-                                buffer[length++] = 0;
-                            }
-
-                            buffer[length++] = (byte)(x - start);
-                            int runStart = x;
-                            int lookahead = x + 2;
-                            do
-                            {
-                                if (isDepth)
-                                {
-                                    if (!IsOpaque(new Point(x, y)) && !IsOpaque(new Point(lookahead - 1, y)) && !IsOpaque(new Point(lookahead, y)))
-                                        break;
-                                }
-                                else if (!IsOpaque(new Point(x, y)))
-                                {
-                                    break;
-                                }
-
-                                x++;
-                                lookahead++;
-                            }
-                            while (x - runStart < MaxRunLength);
-
-                            buffer[length++] = (byte)(x - runStart);
-                            if (isDepth)
-                            {
-                                for (int i = runStart; i < x; i++)
-                                {
-                                    AddShort(buffer, ref length, (int)GetDepth(new Point(i, y)));
-                                }
-                            }
-
-                            for (int i = runStart; i < x; i++)
-                            {
-                                if (isPalette)
-                                {
-                                    buffer[length++] = (byte)GetHighColor(new Point(i, y));
-                                }
-                                else
-                                {
-                                    AddShort(buffer, ref length, (int)GetHighColor(new Point(i, y)));
-                                }
-                            }
-                        }
-
-                        buffer[length++] = 0;
-                        buffer[length++] = 0;
-                    }
+                    length = ConvertRuns(buffer);
                 }
 
-                record.Write(length);
-                record.WriteBody(buffer.AsSpan(0, length), coder);
-                frames.Add(record.Bytes.ToArray());
-                savings += record.CompressionSavings;
+                AddFrame(frames, ref savings, buffer.AsSpan(0, length), coder);
                 Advance();
             }
 
@@ -292,7 +209,26 @@ public partial class Picture
         {
             for (int y = 0; y < size.Height; y++)
             {
-                uint value = GetHighColor(new Point(x, y));
+                var point = new Point(x, y);
+                uint value;
+                if (Flags.HasFlag(PictureFlags.Depth))
+                {
+                    value = (uint)(short)GetDepth(point);
+                    crc = CrcTable[(crc & 0xff) ^ (byte)value] ^ crc >> BitsPerByte;
+                    crc = CrcTable[(crc & 0xff) ^ (byte)(value >> BitsPerByte)] ^ crc >> BitsPerByte;
+                }
+
+                if (Flags.HasFlag(PictureFlags.Palette))
+                {
+                    Flags &= ~PictureFlags.Palette;
+                    value = GetHighColor(point);
+                    Flags |= PictureFlags.Palette;
+                }
+                else
+                {
+                    value = GetHighColor(point);
+                }
+
                 crc = CrcTable[(crc & 0xff) ^ (byte)value] ^ crc >> BitsPerByte;
                 crc = CrcTable[(crc & 0xff) ^ (byte)(value >> BitsPerByte)] ^ crc >> BitsPerByte;
             }
@@ -301,28 +237,129 @@ public partial class Picture
         return crc;
     }
 
-    private static void AddShort(Span<byte> body, ref int length, int value)
+    private int FindRepeatedFrame(Span<uint> checksums, int frame)
     {
-        MemoryMarshal.Write(body[length..], (short)value);
-        length += sizeof(short);
+        checksums[frame] = GetChecksum();
+        return checksums[..frame].IndexOf(checksums[frame]);
     }
 
-    private static ResChunkBuilder CreateChunk(string tag, List<byte[]> records, int savings = 0) => new() { Tag = tag, Flags = ResChunkFlags.ExtendedHeader, Records = records, CompressionSavings = savings };
-
-    private static uint[] BuildCrcTable()
+    private void WriteSoftwarePalette(ResContainerBuilder builder)
     {
-        uint[] table = new uint[CrcTableSize];
-        for (uint i = 0; i < table.Length; i++)
+        var record = new ResRecordBuilder();
+        if (!Flags.HasFlag(PictureFlags.CurrentVersion))
         {
-            uint value = i;
-            for (int bit = 0; bit < BitsPerByte; bit++)
+            Span<VidPackedColor> packed = stackalloc VidPackedColor[PaletteSize];
+            for (int i = 0; i < PaletteSize; i++)
             {
-                value = (value & 1) != 0 ? value >> 1 ^ CrcPolynomial : value >> 1;
+                packed[i] = new VidPackedColor(Colors.Image.Palette[i]);
             }
 
-            table[i] = value;
+            record.Write(MemoryMarshal.AsBytes(packed));
+        }
+        else if (!Flags.HasFlag(PictureFlags.Alpha))
+        {
+            record.Write(MemoryMarshal.AsBytes(Colors.Image.Palette));
+        }
+        else
+        {
+            QuantizePalette();
+            record.Write(MemoryMarshal.AsBytes(new ReadOnlySpan<uint>(_palette)));
         }
 
-        return table;
+        builder.Chunks.Add(CreateChunk("PAL ", [record.Bytes.ToArray()]));
+    }
+
+    private int ConvertRuns(byte[] buffer)
+    {
+        int length = ConvertOutline(buffer);
+        var bounds = GetBounds(true, false);
+        int top = bounds.Top;
+        int bottom = bounds.Bottom;
+        if (Flags.HasFlag(PictureFlags.OutlineOnly))
+        {
+            top = 0;
+            bottom = 0;
+        }
+
+        Append(buffer, ref length, new VidRowsHeader((short)top, (short)(bottom - top)));
+        bool isDepth = Flags.HasFlag(PictureFlags.Depth);
+        bool isPalette = Flags.HasFlag(PictureFlags.Palette);
+        for (int y = top; y < bottom; y++)
+        {
+            AppendRow(buffer, ref length, y, isDepth, isPalette);
+        }
+
+        return length;
+    }
+
+    private void AppendRow(byte[] buffer, ref int length, int y, bool isDepth, bool isPalette)
+    {
+        int x = 0;
+        while (true)
+        {
+            int start = x;
+            while (!IsOpaque(new Point(x, y)))
+            {
+                x++;
+                if (x >= Colors.Image.Size.Width)
+                    break;
+            }
+
+            if (x >= Colors.Image.Size.Width)
+                break;
+
+            for (; x - start > MaxRunLength; start += MaxRunLength)
+            {
+                Append(buffer, ref length, new VidRunHeader(MaxRunLength, 0));
+            }
+
+            byte skip = (byte)(x - start);
+            int runStart = x;
+            int lookahead = x + 2;
+            do
+            {
+                if (isDepth)
+                {
+                    if (!IsOpaque(new Point(x, y)) && !IsOpaque(new Point(lookahead - 1, y)) && !IsOpaque(new Point(lookahead, y)))
+                        break;
+                }
+                else if (!IsOpaque(new Point(x, y)))
+                {
+                    break;
+                }
+
+                x++;
+                lookahead++;
+            }
+            while (x - runStart < MaxRunLength);
+
+            Append(buffer, ref length, new VidRunHeader(skip, (byte)(x - runStart)));
+            AppendRunPixels(buffer, ref length, y, runStart, x, isDepth, isPalette);
+        }
+
+        Append(buffer, ref length, new VidRunHeader(0, 0));
+    }
+
+    private void AppendRunPixels(byte[] buffer, ref int length, int y, int start, int end, bool isDepth, bool isPalette)
+    {
+        if (isDepth)
+        {
+            for (int i = start; i < end; i++)
+            {
+                Append(buffer, ref length, (short)GetDepth(new Point(i, y)));
+            }
+        }
+
+        for (int i = start; i < end; i++)
+        {
+            if (isPalette)
+            {
+                buffer[length++] = (byte)GetHighColor(new Point(i, y));
+            }
+            else
+            {
+                Append(buffer, ref length, (short)GetHighColor(new Point(i, y)));
+            }
+        }
     }
 }

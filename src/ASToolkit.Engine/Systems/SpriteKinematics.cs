@@ -1,14 +1,13 @@
+using System.Drawing;
 using System.Numerics;
+using ASToolkit.Core;
 using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
-using ASToolkit.Core;
 
 namespace ASToolkit.Engine;
 
 internal sealed class SpriteKinematics
 {
-    private const Command FirstTargetlessCommand = (Command)0x10;
-
     private readonly SpriteCatalog _definitions;
     private readonly Map _map;
 
@@ -17,8 +16,6 @@ internal sealed class SpriteKinematics
         _definitions = definitions;
         _map = map;
     }
-
-    private static ReadOnlySpan<byte> SpriteLogTag => "SPRITE %i"u8;
 
     [EngineRoutine(0x004446c0)]
     public static bool SetCommand(Sprite sprite, Command command, Sprite? target = null)
@@ -36,7 +33,7 @@ internal sealed class SpriteKinematics
             SetCommand(link, command, target);
         }
 
-        if (command < FirstTargetlessCommand && !sprite.HasGoal)
+        if (command < Command.Build && !sprite.HasGoal)
         {
             sprite.Command = Command.None;
 
@@ -58,7 +55,7 @@ internal sealed class SpriteKinematics
 
         sprite.Goal = target;
 
-        if (command < FirstTargetlessCommand && !sprite.HasGoal)
+        if (command < Command.Build && !sprite.HasGoal)
         {
             sprite.Command = Command.None;
 
@@ -127,11 +124,11 @@ internal sealed class SpriteKinematics
 
     public void DeletePointerToSprite(Sprite sprite, Sprite removed)
     {
-        if (sprite.Definition.Object.SpriteClass == SpriteClass.Cannon)
+        if (sprite.Definition.Class == SpriteClass.Cannon)
         {
             ForgetCannonGoal(sprite, removed);
         }
-        else if (sprite.Definition.Object.SpriteClass == SpriteClass.Creature)
+        else if (sprite.Definition.Class == SpriteClass.Creature)
         {
             ForgetCreatureRegion(sprite, removed);
         }
@@ -231,12 +228,12 @@ internal sealed class SpriteKinematics
 
             int distance = 0;
 
-            if (sprite.Definition.Layout.Directions == 1 || gameObject.Properties.HasFlag(ObjectProperties.RandomBirth))
+            if (sprite.Definition.Directions == 1 || gameObject.Properties.HasFlag(ObjectProperties.RandomBirth))
             {
-                sprite.ChangeDirection(Angle.Aim(offset.AsVector2(), out distance));
+                sprite.ChangeDirection(Angle.Aim(new Point((int)offset.X, (int)offset.Y), out distance));
             }
 
-            if (!gameObject.SpriteType.HasFlag(SpriteType.Cannon) && gameObject.SpriteClass != SpriteClass.Cannon)
+            if (!gameObject.SpriteType.HasFlag(SpriteType.Cannon) && sprite.Definition.Class != SpriteClass.Cannon)
             {
                 sprite.VerticalSpeed = offset.Z > 0 ? sprite.Definition.ZSpeed : offset.Z < 0 ? -sprite.Definition.ZSpeed : 0;
             }
@@ -244,7 +241,7 @@ internal sealed class SpriteKinematics
             {
                 if (distance == 0)
                 {
-                    Angle.Aim(offset.AsVector2(), out distance);
+                    Angle.Aim(new Point((int)offset.X, (int)offset.Y), out distance);
                 }
 
                 if (distance == 0)
@@ -280,13 +277,13 @@ internal sealed class SpriteKinematics
 
         if (sprite is { Command: Command.Move, IsMoving: false })
         {
-            _map.Session.Logger.Error(SpriteLogTag, LogError.Text, 0, "Move without StartMove()"u8, (int)sprite.Definition.Id);
+            _map.Session.Logger.Error($"SPRITE {(int)sprite.Definition.Id}", LogError.Text, 0, "Move without StartMove()"u8);
             StartMove(sprite);
         }
 
         if (sprite is { Command: Command.Move, HasGoal: false })
         {
-            _map.Session.Logger.Error(SpriteLogTag, LogError.Text, 0, "Move without goal"u8, (int)sprite.Definition.Id);
+            _map.Session.Logger.Error($"SPRITE {(int)sprite.Definition.Id}", LogError.Text, 0, "Move without goal"u8);
             Stop(sprite);
         }
 
@@ -296,7 +293,8 @@ internal sealed class SpriteKinematics
         {
             if (sprite.HasGoal && sprite is not { HasReachedX: true, HasReachedY: true })
             {
-                var impact = _map.Projectiles.Trace(sprite.Definition, sprite.Position, sprite.GoalPosition, out bool hit);
+                var impact = sprite.GoalPosition;
+                bool hit = _map.Projectiles.Trace(sprite, ref impact);
                 sprite.ChangeCoor(impact);
                 sprite.IsBlocked = hit;
                 sprite.HasReachedX = true;
@@ -308,11 +306,16 @@ internal sealed class SpriteKinematics
             sprite.HasReachedX = true;
             sprite.HasReachedY = true;
         }
-        else if (!sprite.Speed.IsExactlyZero())
+        else if (!sprite.Speed.IsExactlyZero() || !_map.Session.Graphics.WindSpeed.IsExactlyZero() && gameObject.Properties.HasFlag(ObjectProperties.Wind))
         {
             var direction = gameObject.Properties.HasFlag(ObjectProperties.Homing) && sprite.HasGoal
                 ? Angle.FromOffset((sprite.GoalPosition - sprite.Position).AsVector2()) : sprite.Direction;
             next = Displace(next, direction, sprite.Speed, elapsed);
+
+            if (gameObject.Properties.HasFlag(ObjectProperties.Wind))
+            {
+                next = Displace(next, _map.Session.Graphics.WindDirection, _map.Session.Graphics.WindSpeed, elapsed);
+            }
         }
 
         if (gameObject.Properties.HasFlag(ObjectProperties.Gravity))

@@ -4,7 +4,7 @@ using ASToolkit.Engine.IO;
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents a picture loaded from up to three image files, which are the colors and the optional alpha and depth, and read frame by frame.
+/// Represents a picture loaded from up to three image files, for the colors and the optional alpha and depth, and read frame by frame.
 /// </summary>
 public partial class Picture : IDisposable
 {
@@ -68,6 +68,7 @@ public partial class Picture : IDisposable
     [EngineRoutine(0x00428ce0)]
     public virtual bool Load(string colors, string alpha, string depth)
     {
+        _paletteMap = [];
         if (alpha.Length != 0)
         {
             Flags |= PictureFlags.Alpha;

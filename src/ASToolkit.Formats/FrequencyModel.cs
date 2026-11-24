@@ -1,6 +1,5 @@
 namespace ASToolkit.Formats;
 
-// Adaptive frequencies of the 256 byte values and the end symbol, rescaled in growing steps as symbols are counted
 internal struct FrequencyModel
 {
     public const int SymbolCount = 257;
@@ -14,6 +13,7 @@ internal struct FrequencyModel
     private int _left;
     private int _increment;
 
+    [EngineRoutine(0x00425820)]
     public void Reset()
     {
         this = default;
@@ -32,7 +32,7 @@ internal struct FrequencyModel
 
     public readonly int GetFrequency(int symbol) => _cumulative[symbol + 1] - _cumulative[symbol];
 
-    // The last symbol whose cumulative frequency is at most the target
+    // Returns the last symbol whose cumulative frequency is at most the target
     public readonly int FindSymbol(int target)
     {
         int low = 0;
@@ -64,6 +64,7 @@ internal struct FrequencyModel
         _pending[symbol] = (_pending[symbol] + _increment) & 0xffff;
     }
 
+    [EngineRoutine(0x00425710)]
     private void Rescale()
     {
         if (_nextLeft != 0)
@@ -90,6 +91,9 @@ internal struct FrequencyModel
             missing -= frequency;
             _pending[symbol] = frequency;
         }
+
+        if (cumulative != _pending[0])
+            throw new InvalidDataException($"The rescaled frequencies add up to {cumulative} instead of {_pending[0]}.");
 
         _pending[0] = (_pending[0] >> 1) | 1;
         missing -= _pending[0];

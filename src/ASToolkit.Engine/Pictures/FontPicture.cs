@@ -1,5 +1,5 @@
-using ASToolkit.Engine.IO;
 using System.Drawing;
+using ASToolkit.Engine.IO;
 
 namespace ASToolkit.Engine;
 
@@ -68,6 +68,7 @@ public sealed class FontPicture : Picture
         }
 
         Rewind();
+        glyphs.Name = colors;
         return true;
     }
 

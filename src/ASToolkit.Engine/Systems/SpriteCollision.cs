@@ -1,6 +1,7 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Drawing;
 using System.Numerics;
 using ASToolkit.Formats;
-using System.Drawing;
 
 namespace ASToolkit.Engine;
 
@@ -30,7 +31,7 @@ internal sealed class SpriteCollision
 
     public bool Move(Sprite sprite, Vector3 position)
     {
-        if (!Move(sprite, ref position))
+        if (Move(sprite, ref position) is not null)
             return false;
 
         sprite.ChangeCoor(position);
@@ -39,27 +40,29 @@ internal sealed class SpriteCollision
     }
 
     [EngineRoutine(0x00443c40)]
-    public bool Move(Sprite sprite, ref Vector3 next, int depth = 0)
+    public Sprite? Move(Sprite sprite, ref Vector3 next, int depth = 0)
     {
         if (sprite.Definition.MoveMask == 0)
-            return true;
+            return null;
 
         var start = sprite.Position;
 
         if (FindCollision(sprite, next, out var other))
         {
-            if (_map.RunCollisionHandler(sprite, other) != 0)
+            bool isGround = other == _map.CursorSprite;
+
+            if (_map.RunCollisionHandler(sprite, isGround ? null : other) != 0)
             {
                 next = start;
 
-                return true;
+                return null;
             }
 
-            if (other is not null && other.Definition.CanBePushed && depth < MaxPushDepth)
+            if (!isGround && other.Definition.CanBePushed && depth < MaxPushDepth)
             {
                 var pushed = new Vector3(other.Position.X + next.X - start.X, other.Position.Y + next.Y - start.Y, other.Position.Z);
 
-                if (Move(other, ref pushed, depth + 1))
+                if (Move(other, ref pushed, depth + 1) is null)
                 {
                     bool opposite = sprite.Definition.CanBePushed && other.Direction.MeasureTurnTo(sprite.Direction.Opposite) < OppositeDirectionTolerance;
 
@@ -78,11 +81,11 @@ internal sealed class SpriteCollision
             {
                 next.Y = start.Y;
             }
-            else if (other is null || !IsInsideIgnoringLayers(sprite, start, other))
+            else if (isGround || !IsInsideIgnoringLayers(sprite, start, other))
             {
                 next = start;
 
-                return false;
+                return other;
             }
         }
 
@@ -91,7 +94,7 @@ internal sealed class SpriteCollision
             next.Z = _map.Movement.GetSupportHeight(sprite.Definition.Object, next.AsVector2());
         }
 
-        return true;
+        return null;
     }
 
     [EngineRoutine(0x00443ed0)]
@@ -169,22 +172,43 @@ internal sealed class SpriteCollision
             start.Z <= other.Definition.Object.Size.Z + other.Position.Z && other.Position.Z <= start.Z + sprite.Definition.Object.Size.Z;
     }
 
-    private bool FindCollision(Sprite sprite, Vector3 position, out Sprite? collision)
+    private bool FindCollision(Sprite sprite, Vector3 position, [NotNullWhen(true)] out Sprite? collision)
     {
-        collision = null;
-
-        if (sprite.Definition.MoveMask == 0)
-        {
-            return false;
-        }
-
-        if (!_map.Movement.CanStandOnGround(sprite.Definition.Object, position))
-        {
-            return true;
-        }
-
-        collision = _map.Collector.FindOverlap(sprite, sprite.Definition.GetCollisionVolume(position));
+        collision = FindOverlap(sprite, position);
 
         return collision is not null;
+    }
+
+    [EngineRoutine(0x004433f0)]
+    private Sprite? FindOverlap(Sprite sprite, Vector3 position)
+    {
+        var definition = sprite.Definition;
+
+        if (definition.MoveMask == 0)
+        {
+            return null;
+        }
+
+        if (!_map.Movement.CanStandOnGround(definition.Object, position))
+        {
+            return _map.CursorSprite;
+        }
+
+        var collector = _map.Collector;
+        var half = definition.Half;
+        float height = definition.Object.Size.Z;
+        collector.FirstHashInBox(position.AsVector2() - half, position.AsVector2() + half);
+        for (var other = collector.NextHashInBox(); other is not null; other = collector.NextHashInBox())
+        {
+            var otherDefinition = other.Definition;
+            if (other != sprite && other.Animation < SpriteAnimation.Death && MathF.Abs(other.Position.X - position.X) < otherDefinition.Half.X + half.X &&
+                MathF.Abs(other.Position.Y - position.Y) < otherDefinition.Half.Y + half.Y && position.Z <= otherDefinition.Object.Size.Z + other.Position.Z &&
+                other.Position.Z <= position.Z + height && (definition.MoveMask & otherDefinition.MoveMask) != 0)
+            {
+                return other;
+            }
+        }
+
+        return null;
     }
 }

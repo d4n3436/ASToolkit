@@ -1,31 +1,28 @@
 using System.Drawing;
 using System.Globalization;
 using System.Runtime.InteropServices;
-using System.Text;
 using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents the pixels of one picture, which a picture file reader refills with the next frame of the file when it advances.
+/// Represents the pixels of the current frame of a picture file.
 /// </summary>
 public class PictureImage : IDisposable
 {
-    private const int FirstDigitScanOffset = 2;
-    private const int MaxNumberLength = 11;
-    private const int StackNameLength = 256;
-
     /// <summary>
-    /// Represents the number of bits in a byte, the unit that a picture file counts the depth of a pixel in.
+    /// Represents the number of bits in a byte.
     /// </summary>
     protected const int BitsPerByte = 8;
 
     /// <summary>
-    /// Represents the playback speed of a picture whose file doesn't hold one.
+    /// Represents the playback speed of a picture if its file doesn't specify one.
     /// </summary>
     protected const int DefaultSpeed = 0x47;
-
+    private const int FirstDigitScanOffset = 2;
+    private const int MaxNumberLength = 11;
+    private const int StackNameLength = 256;
     private const int PaletteSize = 256;
 
     private readonly uint[] _palette = new uint[PaletteSize];
@@ -49,8 +46,6 @@ public class PictureImage : IDisposable
         Speed = DefaultSpeed;
     }
 
-    internal GameLogger? Logger { get; }
-
     /// <summary>
     /// Gets the game folder the picture files are in.
     /// </summary>
@@ -59,7 +54,7 @@ public class PictureImage : IDisposable
     /// <summary>
     /// Gets the path of the first picture file, in lower case.
     /// </summary>
-    public string Name { get; private set; }
+    public string Name { get; internal set; }
 
     /// <summary>
     /// Gets or sets the number of frames.
@@ -72,7 +67,7 @@ public class PictureImage : IDisposable
     public int FrameIndex { get; set; }
 
     /// <summary>
-    /// Gets the playback speed the picture gets when it becomes a sprite file.
+    /// Gets the playback speed of the picture, used when it's converted to a sprite file.
     /// </summary>
     public int Speed { get; protected set; }
 
@@ -92,7 +87,7 @@ public class PictureImage : IDisposable
     public bool HasPixels => _pixels.Length != 0;
 
     /// <summary>
-    /// Gets the pixels row by row from the top, or an empty span if the picture has none.
+    /// Gets the pixels row by row from the top, or an empty span if the picture doesn't have any.
     /// </summary>
     public Span<byte> Pixels => _pixels;
 
@@ -100,6 +95,8 @@ public class PictureImage : IDisposable
     /// Gets the palette of a picture with palette indexes, packed as red, green and blue.
     /// </summary>
     public Span<uint> Palette => _palette;
+
+    internal GameLogger? Logger { get; }
 
     /// <summary>
     /// Gets or sets the open picture file.
@@ -121,8 +118,6 @@ public class PictureImage : IDisposable
         Name = string.Empty;
     }
 
-    internal void Report(LogError code, ReadOnlySpan<byte> text, int value = 0) => Logger?.Error("PICTURE '%s'"u8, code, value, text, (ReadOnlyMemory<byte>)Encoding.ASCII.GetBytes(Name));
-
     /// <summary>
     /// Sets the dimensions of the picture and clears its pixels.
     /// </summary>
@@ -133,7 +128,15 @@ public class PictureImage : IDisposable
     {
         Size = size;
         BytesPerPixel = bytesPerPixel;
-        _pixels = new byte[size.Height * bytesPerPixel * size.Width];
+        try
+        {
+            _pixels = new byte[size.Height * bytesPerPixel * size.Width];
+        }
+        catch (OutOfMemoryException)
+        {
+            _pixels = [];
+            Report(LogError.Memory, "picture buffer"u8, size.Height * bytesPerPixel * size.Width);
+        }
     }
 
     /// <summary>
@@ -166,10 +169,10 @@ public class PictureImage : IDisposable
         char[] lower = name.ToCharArray();
         CRuntime.ToLowerInPlace(lower);
         Name = new string(lower);
-        Input = OpenFile(Name);
+        Input = OpenFile(name);
         if (Input is null)
         {
-            Report(LogError.Open, default);
+            Report(LogError.Open);
             return false;
         }
 
@@ -193,7 +196,7 @@ public class PictureImage : IDisposable
     }
 
     /// <summary>
-    /// Goes back to before the first frame and then to the first frame.
+    /// Goes back to the first frame.
     /// </summary>
     [EngineRoutine(0x004275b0)]
     public virtual void Rewind()
@@ -247,9 +250,22 @@ public class PictureImage : IDisposable
             return;
 
         int offset = (point.Y * Size.Width + point.X) * BytesPerPixel;
-        for (int i = 0; i < BytesPerPixel; i++)
+        switch (BytesPerPixel)
         {
-            Pixels[offset + i] = (byte)(value >> i * 8);
+            case 1:
+                Pixels[offset] = (byte)value;
+                break;
+            case 2:
+                MemoryMarshal.Write(Pixels[offset..], (ushort)value);
+                break;
+            case 3:
+                Pixels[offset] = (byte)value;
+                Pixels[offset + 1] = (byte)(value >> 8);
+                Pixels[offset + 2] = (byte)(value >> 16);
+                break;
+            case 4:
+                MemoryMarshal.Write(Pixels[offset..], value);
+                break;
         }
     }
 
@@ -269,8 +285,85 @@ public class PictureImage : IDisposable
         {
             1 => _palette[pixel],
             2 => ((((pixel & 0xffffff80 | 0xffff8000) << 3 | pixel & 0x3fc) << 3) | pixel & 0x1f) << 3,
-            _ => pixel
+            3 or 4 => pixel,
+            _ => 0xff000000
         };
+    }
+
+    internal void Report(LogError code, ReadOnlySpan<byte> text = default, int value = 0) => Logger?.Error($"PICTURE '{Name}'", code, value, text);
+
+    /// <summary>
+    /// Returns the path of the file of a frame, made from the path of the first file with its number replaced.
+    /// </summary>
+    /// <param name="name">The path of the first file.</param>
+    /// <param name="index">The index of the frame.</param>
+    /// <returns>The path of the file, or an empty string if the path doesn't have a number.</returns>
+    [EngineRoutine(0x004070a0)]
+    protected static string GetFrameName(string name, int index)
+    {
+        if (index == 0)
+            return name;
+
+        int last = name.Length - FirstDigitScanOffset;
+        while (last >= 0 && !IsDigit(name[last]))
+        {
+            last--;
+        }
+
+        if (last < 0)
+            return string.Empty;
+
+        int first = last;
+        while (first - 1 >= 0 && IsDigit(name[first - 1]))
+        {
+            first--;
+        }
+
+        if (first - 1 >= 0 && name[first - 1] == '-')
+        {
+            first--;
+        }
+
+        int width = last - first + 1;
+        int value = 0;
+        bool isNegative = name[first] == '-';
+        for (int position = isNegative ? first + 1 : first; position < name.Length && char.IsAsciiDigit(name[position]); position++)
+        {
+            value = unchecked(value * 10 + (name[position] - '0'));
+        }
+
+        value = unchecked((isNegative ? -value : value) + index);
+        Span<char> number = stackalloc char[Math.Max(width, MaxNumberLength)];
+        value.TryFormat(number, out int numberLength, default, CultureInfo.InvariantCulture);
+        var digits = number[..numberLength];
+        bool isMinus = digits[0] == '-';
+        if (isMinus)
+        {
+            digits = digits[1..];
+        }
+
+        var buffer = name.Length <= StackNameLength ? stackalloc char[StackNameLength] : new char[name.Length];
+        buffer = buffer[..name.Length];
+        name.CopyTo(buffer);
+        int zeros = Math.Max(width - digits.Length - (isMinus ? 1 : 0), 0);
+        for (int position = 0; position < width; position++)
+        {
+            char character;
+            if (isMinus && position == 0)
+            {
+                character = '-';
+            }
+            else
+            {
+                int digit = position - (isMinus ? 1 : 0) - zeros;
+                character = digit < 0 ? '0' : digit < digits.Length ? digits[digit] : '\0';
+            }
+
+            buffer[first + position] = character;
+        }
+
+        int end = buffer.IndexOf('\0');
+        return new string(end < 0 ? buffer : buffer[..end]);
     }
 
     /// <summary>
@@ -293,92 +386,5 @@ public class PictureImage : IDisposable
         Input = null;
     }
 
-    /// <summary>
-    /// Determines whether the size and depth of a picture file header fit the pixels the picture already has, which is always the case for a picture without pixels.
-    /// </summary>
-    /// <param name="size">The size of the picture file, in pixels.</param>
-    /// <param name="depth">The number of bits of a pixel in the picture file.</param>
-    /// <returns><see langword="true"/> if the picture has no pixels or its dimensions are the ones of the file; otherwise, <see langword="false"/>.</returns>
-    protected bool FitsPixels(Size size, int depth) => !HasPixels || Size == size && BytesPerPixel == depth / BitsPerByte;
-
-    /// <summary>
-    /// Reads the pixel rows of the open picture file into the pixels, from the bottom row up.
-    /// </summary>
-    /// <param name="padding">The number of bytes after each row in the file.</param>
-    protected void ReadRows(int padding)
-    {
-        int rowSize = Size.Width * BytesPerPixel;
-        for (int y = Size.Height - 1; y >= 0; y--)
-        {
-            Input!.ReadAtLeast(Pixels.Slice(y * rowSize, rowSize), rowSize, false);
-            if (padding != 0)
-            {
-                Input.Seek(padding, SeekOrigin.Current);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Counts the frames of a picture whose files are numbered, as the files after the first one that exist.
-    /// </summary>
-    /// <param name="name">The path of the first file.</param>
-    /// <param name="extension">The extension of the picture files, with the dot.</param>
-    protected void CountFrames(string name, string extension)
-    {
-        FrameCount = 1;
-        string stem = name.EndsWith(extension, StringComparison.Ordinal) ? name[..^extension.Length] : name;
-        if (stem.Length == 0 || !char.IsAsciiDigit(stem[^1]))
-            return;
-
-        while (GamePath.Resolve(GameFolder, GetFrameName(name, FrameCount)) is not null)
-        {
-            FrameCount++;
-        }
-    }
-
-    /// <summary>
-    /// Gets the path of the file of a frame, which is the path of the first file with its number replaced.
-    /// </summary>
-    /// <param name="name">The path of the first file.</param>
-    /// <param name="index">The index of the frame.</param>
-    /// <returns>The path of the file, or an empty string if the path has no number.</returns>
-    [EngineRoutine(0x004070a0)]
-    protected static string GetFrameName(string name, int index)
-    {
-        if (index == 0)
-            return name;
-
-        int last = name.Length - FirstDigitScanOffset;
-        while (last >= 0 && !char.IsAsciiDigit(name[last]))
-        {
-            last--;
-        }
-
-        if (last < 0)
-            return string.Empty;
-
-        int first = last;
-        while (first - 1 >= 0 && char.IsAsciiDigit(name[first - 1]))
-        {
-            first--;
-        }
-
-        if (first - 1 >= 0 && name[first - 1] == '-')
-        {
-            first--;
-        }
-
-        Span<char> number = stackalloc char[MaxNumberLength];
-        index.TryFormat(number, out int numberLength, default, CultureInfo.InvariantCulture);
-        var buffer = name.Length <= StackNameLength ? stackalloc char[StackNameLength] : new char[name.Length];
-        buffer = buffer[..name.Length];
-        name.CopyTo(buffer);
-        for (int position = first; position <= last; position++)
-        {
-            buffer[position] = position - first < numberLength ? number[position - first] : '\0';
-        }
-
-        int end = buffer.IndexOf('\0');
-        return new string(end < 0 ? buffer : buffer[..end]);
-    }
+    private protected static bool IsDigit(char character) => character <= byte.MaxValue && CRuntime.IsDigit((byte)character);
 }

@@ -3,16 +3,35 @@ using System.Text;
 namespace ASToolkit.Engine.IO;
 
 /// <summary>
-/// Provides the C runtime routines the engine uses to convert, read and format text.
+/// Provides C runtime routines that convert, read and format text.
 /// </summary>
 public static partial class CRuntime
 {
     internal const byte LineFeed = (byte)'\n';
     internal const byte CarriageReturn = (byte)'\r';
-
     private const int NoDigit = 16;
 
     internal static ReadOnlySpan<byte> LineEnd => "\r\n"u8;
+
+    private static ReadOnlySpan<byte> HighSpaces => [0xcf, 0xdb, 0xe4, 0xe7, 0xe9, 0xef, 0xf1, 0xf3, 0xf4, 0xf7, 0xf9, 0xfb, 0xfc, 0xfd, 0xfe];
+
+    private static ReadOnlySpan<byte> HighDigits =>
+    [
+        0xcb, 0xcc, 0xcf, 0xd8, 0xdb, 0xe4, 0xe8, 0xe9, 0xea, 0xeb, 0xec,
+        0xed, 0xee, 0xef, 0xf0, 0xf2, 0xf3, 0xf4, 0xf7, 0xf8, 0xf9, 0xfa
+    ];
+
+    private static ReadOnlySpan<byte> HighLetters =>
+    [
+        0xcb, 0xcc, 0xcd, 0xcf, 0xd6, 0xd7, 0xd8, 0xdb, 0xe3, 0xe4, 0xe7, 0xe8, 0xe9, 0xea, 0xec,
+        0xed, 0xee, 0xef, 0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf7, 0xf8, 0xf9, 0xfa, 0xfb, 0xfd
+    ];
+
+    private static ReadOnlySpan<byte> HighLettersOrDigits =>
+    [
+        0xcb, 0xcc, 0xcd, 0xcf, 0xd6, 0xd7, 0xd8, 0xdb, 0xe3, 0xe4, 0xe7, 0xe8, 0xe9, 0xea, 0xeb,
+        0xec, 0xed, 0xee, 0xef, 0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf7, 0xf8, 0xf9, 0xfa, 0xfb, 0xfd
+    ];
 
     /// <summary>
     /// Determines whether a character is a space, a tab, a line feed, a vertical tab, a form feed or a carriage return (<c>isspace</c>).
@@ -138,6 +157,18 @@ public static partial class CRuntime
         length = i;
         return true;
     }
+
+    [EngineRoutine(0x0046d3fe)]
+    internal static bool IsSpace(byte character) => IsWhiteSpace(character) || character > sbyte.MaxValue && HighSpaces.Contains(character);
+
+    [EngineRoutine(0x0046d3d6)]
+    internal static bool IsDigit(byte character) => char.IsAsciiDigit((char)character) || character > sbyte.MaxValue && HighDigits.Contains(character);
+
+    [EngineRoutine(0x0046d3a8)]
+    internal static bool IsAlpha(byte character) => char.IsAsciiLetter((char)character) || character > sbyte.MaxValue && HighLetters.Contains(character);
+
+    [EngineRoutine(0x0046d426)]
+    internal static bool IsAlphanumeric(byte character) => char.IsAsciiLetterOrDigit((char)character) || character > sbyte.MaxValue && HighLettersOrDigits.Contains(character);
 
     internal static ReadOnlySpan<byte> GetString(ReadOnlySpan<byte> text)
     {
