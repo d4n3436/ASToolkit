@@ -56,24 +56,26 @@ public class Vid
     private const int CoefficientScale = 16;
     private const int HpScale = 256;
 
+    private readonly int[] _frameCounts = new int[StateCount];
+    private readonly int[] _sounds = new int[StateCount];
+    private readonly int[] _durations = new int[StateCount];
+    private readonly float[] _childX = new float[StateCount];
+    private readonly float[] _childY = new float[StateCount];
+    private readonly float[] _childZ = new float[StateCount];
     private readonly int[] _children = new int[StateCount];
     private readonly Vid?[] _childVids = new Vid?[StateCount];
     private readonly int[] _childCounts = new int[StateCount];
-    private readonly int[] _sounds = new int[StateCount];
-    private readonly int[] _frameCounts = new int[StateCount];
     private readonly int[] _firstFrames = new int[StateCount];
     private readonly int[] _framesPerDirection = new int[StateCount];
-    private readonly int[] _durations = new int[StateCount];
+    private readonly int[] _armyMaxUnits = new int[ArmyCount];
     private readonly int[] _counts = new int[ArmyCount];
     private readonly int[] _killed = new int[ArmyCount];
     private readonly int[] _recolored = new int[ArmyCount];
     private readonly int[] _armyMaxHp = new int[ArmyCount];
-    private readonly int[] _armyMaxUnits = new int[ArmyCount];
     private readonly Gamma[] _gammas = new Gamma[ArmyCount];
-
-    private GameObject _object;
     private WeaponRecord _weapon;
     private ReadOnlyMemory<int> _heightFrameStarts;
+    private VidFlags _flags;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Vid"/> class from an object record and loads its parameters.
@@ -88,7 +90,7 @@ public class Vid
     public Vid(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, int spriteSpeed, int totalFrames = 0, ObjectLayer layer = ObjectLayer.Ground)
         : this(id, gameObject, weapon, spriteSpeed, totalFrames, layer, null)
     {
-        LoadParameters();
+        LoadParameters(gameObject, null, null, false);
     }
 
     /// <summary>
@@ -119,15 +121,13 @@ public class Vid
         Id = id;
         RecordId = id;
         Identity = this;
-        _object = gameObject;
         _weapon = weapon;
         TotalFrames = totalFrames;
-        Directions = gameObject.Directions;
-        Class = gameObject.SpriteClass;
+        CopyRecord(gameObject);
 
         SpriteSpeed = spriteSpeed;
         Layer = layer;
-        ApplyRecord(gameObject, weapon);
+        ApplyWeapon(weapon);
         if (file is not null)
         {
             FileType = file.Value.Type;
@@ -139,14 +139,234 @@ public class Vid
     }
 
     /// <summary>
-    /// Gets the object record of this object ID.
+    /// Gets or sets the object ID that sprites of this object ID report.
     /// </summary>
-    public ref readonly GameObject Object => ref _object;
+    public KnownObject Id { get; set; }
 
     /// <summary>
-    /// Gets the weapon record of this object ID.
+    /// Gets the name of the object this data was loaded from.
     /// </summary>
-    public ref readonly WeaponRecord Weapon => ref _weapon;
+    public string Name { get; internal set; } = string.Empty;
+
+    /// <summary>
+    /// Gets the sprite type bits of this object ID.
+    /// </summary>
+    public OldSpriteType SpriteType { get; private set; }
+
+    /// <summary>
+    /// Gets the sprite class of sprites of this object ID.
+    /// </summary>
+    public SpriteClass Class { get; private set; }
+
+    /// <summary>
+    /// Gets the properties of this object ID.
+    /// </summary>
+    public ObjectProperties Properties { get; private set; }
+
+    /// <summary>
+    /// Gets or sets the collision layers sprites of this object ID move through.
+    /// </summary>
+    public CollisionLayers MoveMask { get; set; }
+
+    /// <summary>
+    /// Gets the size of a sprite of this object ID.
+    /// </summary>
+    public Vector3 Size { get; private set; }
+
+    /// <summary>
+    /// Gets or sets the health of a new sprite of this object ID.
+    /// </summary>
+    public int MaxHp { get; set; }
+
+    /// <summary>
+    /// Gets or sets the top speed of sprites of this object ID in pixels per millisecond.
+    /// </summary>
+    public float Speed { get; set; }
+
+    /// <summary>
+    /// Gets the vertical speed of sprites of this object ID in pixels per millisecond.
+    /// </summary>
+    public float ZSpeed { get; private set; }
+
+    /// <summary>
+    /// Gets the acceleration of sprites of this object ID.
+    /// </summary>
+    public float Acceleration { get; private set; }
+
+    /// <summary>
+    /// Gets the deceleration of sprites of this object ID.
+    /// </summary>
+    public float Deceleration { get; private set; }
+
+    /// <summary>
+    /// Gets the steps of a full turn that sprites of this object ID make per millisecond; 0 turns never and 999999 turns at once.
+    /// </summary>
+    public float RotationRate { get; private set; }
+
+    /// <summary>
+    /// Gets the index of the weapon record of this object ID, or 0 if it doesn't have one.
+    /// </summary>
+    public int WeaponIndex { get; private set; }
+
+    /// <summary>
+    /// Gets the radius of the damage a sprite of this object ID deals when it is destroyed.
+    /// </summary>
+    public float DeathRange { get; private set; }
+
+    /// <summary>
+    /// Gets or sets the damage a sprite of this object ID deals when it dies.
+    /// </summary>
+    public int Damage { get; set; }
+
+    /// <summary>
+    /// Gets the offset of the link from a sprite of this object ID.
+    /// </summary>
+    public Vector3 LinkOffset { get; private set; }
+
+    /// <summary>
+    /// Gets the object ID of the link, or <see cref="KnownObject.None"/> if there isn't one.
+    /// </summary>
+    public KnownObject Link { get; private set; }
+
+    /// <summary>
+    /// Gets or sets the shared data of the object ID linked to this one.
+    /// </summary>
+    public Vid? LinkVid { get; set; }
+
+    /// <summary>
+    /// Gets the height of the top of a sprite of this object ID.
+    /// </summary>
+    public float TopZ { get; private set; }
+
+    /// <summary>
+    /// Gets the highest step a sprite of this object ID climbs.
+    /// </summary>
+    public float StepHeight { get; private set; }
+
+    /// <summary>
+    /// Gets the highest drop a sprite of this object ID steps down.
+    /// </summary>
+    public float DropHeight { get; private set; }
+
+    /// <summary>
+    /// Gets or sets the lifetime of a sprite of this object ID in milliseconds.
+    /// </summary>
+    public int Lifetime { get; set; }
+
+    /// <summary>
+    /// Gets the frame count of each state.
+    /// </summary>
+    public ReadOnlySpan<int> FrameCounts => _frameCounts;
+
+    /// <summary>
+    /// Gets the sound ID of each animation state.
+    /// </summary>
+    public ReadOnlySpan<int> Sounds => _sounds;
+
+    /// <summary>
+    /// Gets the horizontal offset of the child of each state.
+    /// </summary>
+    public ReadOnlySpan<float> ChildX => _childX;
+
+    /// <summary>
+    /// Gets the vertical offset of the child of each state.
+    /// </summary>
+    public ReadOnlySpan<float> ChildY => _childY;
+
+    /// <summary>
+    /// Gets the height offset of the child of each state.
+    /// </summary>
+    public ReadOnlySpan<float> ChildZ => _childZ;
+
+    /// <summary>
+    /// Gets the child object of each state.
+    /// </summary>
+    public Span<int> Children => _children;
+
+    /// <summary>
+    /// Gets the shared data of the child object of each state, or <see langword="null"/> where the state has none.
+    /// </summary>
+    public Span<Vid?> ChildVids => _childVids;
+
+    /// <summary>
+    /// Gets the child count of each state.
+    /// </summary>
+    public Span<int> ChildCounts => _childCounts;
+
+    /// <summary>
+    /// Gets the gamma applied to sprites of this object ID.
+    /// </summary>
+    public Gamma ObjectGamma { get; private set; }
+
+    /// <summary>
+    /// Gets the factors that scale sprites of this object ID.
+    /// </summary>
+    public Vector3 Scale { get; private set; }
+
+    /// <summary>
+    /// Gets the path of the sprite file the frames were loaded from.
+    /// </summary>
+    public string Path { get; internal set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the flags of the sprite file.
+    /// </summary>
+    public VidType FileType { get; set; }
+
+    /// <summary>
+    /// Gets the frame duration of the sprite file.
+    /// </summary>
+    public int SpriteSpeed { get; private set; }
+
+    /// <summary>
+    /// Gets the number of frames in the sprite file, or 0 if there isn't a sprite file.
+    /// </summary>
+    public short FileFrameCount { get; protected set; }
+
+    /// <summary>
+    /// Gets the width and height of a frame of the sprite file, in pixels.
+    /// </summary>
+    public Size FrameSize { get; protected set; }
+
+    /// <summary>
+    /// Gets half the footprint of sprites of this object ID.
+    /// </summary>
+    public Vector2 Half { get; private set; }
+
+    /// <summary>
+    /// Gets the update list of sprites of this object ID.
+    /// </summary>
+    public ObjectLayer Layer { get; protected set; }
+
+    /// <summary>
+    /// Gets or sets the sprite limit of this object ID, negative when unlimited.
+    /// </summary>
+    public int MaxUnits { get; set; }
+
+    /// <summary>
+    /// Gets the sprite limit of this object ID per army, negative when unlimited.
+    /// </summary>
+    public Span<int> ArmyMaxUnits => _armyMaxUnits;
+
+    /// <summary>
+    /// Gets the living sprites of this object ID per army.
+    /// </summary>
+    public Span<int> Counts => _counts;
+
+    /// <summary>
+    /// Gets the killed sprites of this object ID per army.
+    /// </summary>
+    public Span<int> Killed => _killed;
+
+    /// <summary>
+    /// Gets the health of a new sprite of this object ID per army.
+    /// </summary>
+    public Span<int> ArmyMaxHp => _armyMaxHp;
+
+    /// <summary>
+    /// Gets the gamma sprites of this object ID are drawn with per army.
+    /// </summary>
+    public Span<Gamma> Gammas => _gammas;
 
     /// <summary>
     /// Gets the script function bound to each state, or NoHandler.
@@ -169,29 +389,14 @@ public class Vid
     public int CollisionHandler { get; set; } = NoHandler;
 
     /// <summary>
-    /// Gets or sets the object ID that sprites of this object ID report.
+    /// Gets or sets the wall time at which a sprite of this object ID was last created or recounted.
     /// </summary>
-    public KnownObject Id { get; set; }
+    public uint LastCreatedAt { get; set; }
 
     /// <summary>
-    /// Gets the ID of the record this data was loaded from.
+    /// Gets the weapon record of this object ID.
     /// </summary>
-    public KnownObject RecordId { get; }
-
-    /// <summary>
-    /// Gets the name of the object this data was loaded from.
-    /// </summary>
-    public string Name { get; internal set; } = string.Empty;
-
-    /// <summary>
-    /// Gets the path of the sprite file the frames were loaded from.
-    /// </summary>
-    public string Path { get; internal set; } = string.Empty;
-
-    /// <summary>
-    /// Gets the sound ID of each animation state, with an invalid ID in the record replaced by the first sound.
-    /// </summary>
-    public ReadOnlySpan<int> Sounds => _sounds;
+    public ref readonly WeaponRecord Weapon => ref _weapon;
 
     /// <summary>
     /// Gets or sets the shared data that sprites of this object ID are created with.
@@ -199,40 +404,9 @@ public class Vid
     public Vid Identity { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether sprites of this object ID are hidden.
+    /// Gets the height points of this object ID.
     /// </summary>
-    [EngineRoutine(0x0043a1b0)]
-    public bool IsHidden { get; set; }
-
-    /// <summary>
-    /// Gets the speed in pixels per second, the unit level scripts use.
-    /// </summary>
-    public int ScriptSpeed => Speed.IsExactly(Unlimited) ? Unlimited : (int)(Speed * 1000);
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the weapon record animates color, scale, offset or rotation.
-    /// </summary>
-    public bool HasKeyframes { get; set; }
-
-    /// <summary>
-    /// Gets or sets the wall time at which a sprite of this object ID was last created or recounted.
-    /// </summary>
-    public uint LastCreatedAt { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the weapon record animates the color.
-    /// </summary>
-    public bool HasColorKeyframes { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the weapon record animates the scale.
-    /// </summary>
-    public bool HasScaleKeyframes { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the weapon record animates the offset.
-    /// </summary>
-    public bool HasOffsetKeyframes { get; set; }
+    public List<Vector3> HeightPoints { get; } = [];
 
     /// <summary>
     /// Gets or sets a value indicating whether sprites of this object ID carry a lifetime, a keyframe track, a stream period and a top speed of their own.
@@ -240,44 +414,94 @@ public class Vid
     public bool HasTimers { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the weapon record animates the color.
+    /// </summary>
+    public bool HasColorKeyframes
+    {
+        get => _flags.HasFlag(VidFlags.ColorKeyframes);
+        set => SetFlag(VidFlags.ColorKeyframes, value);
+    }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the weapon record animates the scale.
+    /// </summary>
+    public bool HasScaleKeyframes
+    {
+        get => _flags.HasFlag(VidFlags.ScaleKeyframes);
+        set => SetFlag(VidFlags.ScaleKeyframes, value);
+    }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the weapon record animates the offset.
+    /// </summary>
+    public bool HasOffsetKeyframes
+    {
+        get => _flags.HasFlag(VidFlags.OffsetKeyframes);
+        set => SetFlag(VidFlags.OffsetKeyframes, value);
+    }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the weapon record animates the rotation.
+    /// </summary>
+    public bool HasRotationKeyframes
+    {
+        get => _flags.HasFlag(VidFlags.RotationKeyframes);
+        set => SetFlag(VidFlags.RotationKeyframes, value);
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether the weapon record animates color, scale, offset or rotation.
+    /// </summary>
+    public bool HasKeyframes => (_flags & VidFlags.Keyframes) != 0;
+
+    /// <summary>
     /// Gets or sets a value indicating whether a region can replace the object ID of sprites created from it.
     /// </summary>
-    public bool IsRegionReplaced { get; set; }
+    public bool IsRegionReplaced
+    {
+        get => _flags.HasFlag(VidFlags.RegionReplaced);
+        set => SetFlag(VidFlags.RegionReplaced, value);
+    }
 
     /// <summary>
-    /// Gets the sprite class of sprites of this object ID.
+    /// Gets a value indicating whether the record of this object ID has the built terrain class.
     /// </summary>
-    public SpriteClass Class { get; private set; }
+    public bool IsBuiltTerrainClass
+    {
+        get => _flags.HasFlag(VidFlags.BuiltTerrain);
+        private set => SetFlag(VidFlags.BuiltTerrain, value);
+    }
 
     /// <summary>
-    /// Gets the gamma applied to sprites of this object ID.
+    /// Gets or sets a value indicating whether sprites of this object ID are hidden.
     /// </summary>
-    public Gamma ObjectGamma { get; private set; }
+    public bool IsHidden
+    {
+        [EngineRoutine(0x0043a1b0)]
+        get => _flags.HasFlag(VidFlags.Hidden);
+        set => SetFlag(VidFlags.Hidden, value);
+    }
 
     /// <summary>
-    /// Gets the factors that scale sprites of this object ID.
+    /// Gets or sets the flag that keeps sprites of this object ID from being created as children.
     /// </summary>
-    public Vector3 Scale { get; private set; }
+    public int NotCreatedAsChild
+    {
+        [EngineRoutine(0x0043a300)]
+        get;
+        [EngineRoutine(0x0043a310)]
+        set;
+    }
 
     /// <summary>
-    /// Gets the steps of a full turn that sprites of this object ID make per millisecond; 0 turns never and 999999 turns at once.
+    /// Gets the ID of the record this data was loaded from.
     /// </summary>
-    public float RotationRate { get; private set; }
+    public KnownObject RecordId { get; }
 
     /// <summary>
-    /// Gets the frame duration of the sprite file.
+    /// Gets the speed in pixels per second.
     /// </summary>
-    public int SpriteSpeed { get; private set; }
-
-    /// <summary>
-    /// Gets the width and height of a frame of the sprite file, in pixels.
-    /// </summary>
-    public Size FrameSize { get; protected set; }
-
-    /// <summary>
-    /// Gets the number of frames in the sprite file, or 0 if there isn't a sprite file.
-    /// </summary>
-    public short FileFrameCount { get; protected set; }
+    public int ScriptSpeed => Speed.IsExactly(Unlimited) ? Unlimited : (int)(Speed * 1000);
 
     /// <summary>
     /// Gets the weapon flags of sprites of this object ID.
@@ -302,7 +526,7 @@ public class Vid
     /// <summary>
     /// Gets the sprite types sprites of this object ID attack.
     /// </summary>
-    public SpriteType Targets { get; private set; }
+    public OldSpriteType Targets { get; private set; }
 
     /// <summary>
     /// Gets a value indicating whether other sprites push sprites of this object ID aside.
@@ -333,114 +557,14 @@ public class Vid
         : GetFrameCount(SpriteAnimation.Birth) != 0 ? SpriteAnimation.Birth : SpriteAnimation.Stand;
 
     /// <summary>
-    /// Gets or sets the health of a new sprite of this object ID.
-    /// </summary>
-    public int MaxHp { get; set; }
-
-    /// <summary>
-    /// Gets or sets the top speed of sprites of this object ID in pixels per millisecond.
-    /// </summary>
-    public float Speed { get; set; }
-
-    /// <summary>
-    /// Gets the update list of sprites of this object ID.
-    /// </summary>
-    public ObjectLayer Layer { get; protected set; }
-
-    /// <summary>
-    /// Gets the vertical speed of sprites of this object ID in pixels per millisecond.
-    /// </summary>
-    public float ZSpeed { get; private set; }
-
-    /// <summary>
-    /// Gets the acceleration of sprites of this object ID.
-    /// </summary>
-    public float Acceleration { get; private set; }
-
-    /// <summary>
-    /// Gets the deceleration of sprites of this object ID.
-    /// </summary>
-    public float Deceleration { get; private set; }
-
-    /// <summary>
-    /// Gets half the footprint of sprites of this object ID.
-    /// </summary>
-    public Vector2 Half { get; private set; }
-
-    /// <summary>
-    /// Gets or sets the collision layers sprites of this object ID move through.
-    /// </summary>
-    public CollisionLayers MoveMask { get; set; }
-
-    /// <summary>
-    /// Gets or sets the damage a sprite of this object ID deals when it dies.
-    /// </summary>
-    public int Damage { get; set; }
-
-    /// <summary>
-    /// Gets or sets the lifetime of a sprite of this object ID in milliseconds.
-    /// </summary>
-    public int Lifetime { get; set; }
-
-    /// <summary>
-    /// Gets the child object of each state.
-    /// </summary>
-    public Span<int> Children => _children;
-
-    /// <summary>
-    /// Gets the shared data of the child object of each state, or <see langword="null"/> where the state has none.
-    /// </summary>
-    public Span<Vid?> ChildVids => _childVids;
-
-    /// <summary>
-    /// Gets the child count of each state.
-    /// </summary>
-    public Span<int> ChildCounts => _childCounts;
-
-    /// <summary>
-    /// Gets the living sprites of this object ID per army.
-    /// </summary>
-    public Span<int> Counts => _counts;
-
-    /// <summary>
-    /// Gets the killed sprites of this object ID per army.
-    /// </summary>
-    public Span<int> Killed => _killed;
-
-    /// <summary>
-    /// Gets the gamma sprites of this object ID are drawn with per army.
-    /// </summary>
-    public Span<Gamma> Gammas => _gammas;
-
-    /// <summary>
-    /// Gets the health of a new sprite of this object ID per army.
-    /// </summary>
-    public Span<int> ArmyMaxHp => _armyMaxHp;
-
-    /// <summary>
-    /// Gets the sprite limit of this object ID per army, negative when unlimited.
-    /// </summary>
-    public Span<int> ArmyMaxUnits => _armyMaxUnits;
-
-    /// <summary>
-    /// Gets or sets the sprite limit of this object ID, negative when unlimited.
-    /// </summary>
-    public int MaxUnits { get; set; }
-
-    /// <summary>
-    /// Gets the radius of the death blast of sprites of this object ID.
-    /// </summary>
-    public float BlastRadius => Object.DeathRange;
-
-    /// <summary>
     /// Gets a value indicating whether the death blast of sprites of this object ID damages everything in its radius.
     /// </summary>
-    public bool IsExplosive => Object.Properties.HasFlag(ObjectProperties.RadialDamage);
+    public bool IsExplosive => Properties.HasFlag(ObjectProperties.RadialDamage);
 
     /// <summary>
     /// Gets a value indicating whether the damage of sprites of this object ID spares their own army.
     /// </summary>
-    public bool ShouldSkipOwnArmy => Object.Properties.HasFlag(ObjectProperties.NoFriendlyDamage);
+    public bool ShouldSkipOwnArmy => Properties.HasFlag(ObjectProperties.NoFriendlyDamage);
 
     /// <summary>
     /// Gets or sets the range at which sprites of this object ID see enemies.
@@ -502,43 +626,13 @@ public class Vid
     /// </summary>
     public bool IsArmed => BattleRange > 0;
 
-    /// <summary>
-    /// Gets or sets the shared data of the object ID linked to this one.
-    /// </summary>
-    public Vid? LinkVid { get; set; }
-
-    /// <summary>
-    /// Gets the height points of this object ID, those of the size grid followed by those of the sprite file's frames.
-    /// </summary>
-    public List<Vector3> HeightPoints { get; } = [];
-
-    /// <summary>
-    /// Gets or sets the flags of the sprite file.
-    /// </summary>
-    public VidType FileType { get; set; }
-
-    /// <summary>
-    /// Gets or sets the flag that keeps sprites of this object ID from being created as children.
-    /// </summary>
-    public int NotCreatedAsChild
-    {
-        [EngineRoutine(0x0043a300)]
-        get;
-        [EngineRoutine(0x0043a310)]
-        set;
-    }
-
-    internal bool IsBuiltTerrainClass { get; private set; }
-
-    internal bool CanMove { get; private set; }
-
-    internal bool IsCopy { get; set; }
-
     internal int Directions { get; private set; }
+
+    internal int TotalFrames { get; }
 
     internal int DirectionOffset { get; private set; }
 
-    internal int TotalFrames { get; }
+    internal bool CanMove { get; private set; }
 
     /// <summary>
     /// Sets where the height points of each frame of the sprite file start in <see cref="HeightPoints"/>.
@@ -604,12 +698,6 @@ public class Vid
     public virtual void SetLayer() => Layer = ObjectLayer.Ground;
 
     /// <summary>
-    /// Reloads the values the level script can change from the records.
-    /// </summary>
-    /// <exception cref="InvalidDataException">The record doesn't have any directions.</exception>
-    public void LoadParameters() => LoadParameters(null, null, false);
-
-    /// <summary>
     /// Sets the frame duration of every state.
     /// </summary>
     /// <param name="duration">The frame duration in milliseconds.</param>
@@ -651,7 +739,7 @@ public class Vid
     /// </summary>
     /// <param name="animation">The state.</param>
     /// <returns>The length in milliseconds.</returns>
-    public int GetAnimationDuration(SpriteAnimation animation) => Math.Max(1, Object.FrameCounts[(int)animation]) * GetVisualFrameDuration(animation);
+    public int GetAnimationDuration(SpriteAnimation animation) => Math.Max(1, _frameCounts[(int)animation]) * GetVisualFrameDuration(animation);
 
     /// <summary>
     /// Returns the vertical speed that carries a launched sprite of this object ID up or down a rise over a distance, within its vertical speed limit.
@@ -663,9 +751,8 @@ public class Vid
     [EngineRoutine(0x00414a80)]
     public float CalculateZSpeed(Map map, float rise, float distance)
     {
-        ref readonly var gameObject = ref Object;
-        bool hasGravity = gameObject.Properties.HasFlag(ObjectProperties.Gravity);
-        bool hasGravity2 = !hasGravity && gameObject.Properties.HasFlag(ObjectProperties.Gravity2);
+        bool hasGravity = Properties.HasFlag(ObjectProperties.Gravity);
+        bool hasGravity2 = !hasGravity && Properties.HasFlag(ObjectProperties.Gravity2);
         float speed;
 
         if (hasGravity || hasGravity2)
@@ -676,7 +763,7 @@ public class Vid
         }
         else
         {
-            speed = gameObject.Properties.HasFlag(ObjectProperties.SelfMoving) ? ZSpeed : gameObject.TopZ.IsExactlyZero() ? rise * Speed / distance : 0;
+            speed = Properties.HasFlag(ObjectProperties.SelfMoving) ? ZSpeed : TopZ.IsExactlyZero() ? rise * Speed / distance : 0;
         }
 
         if (speed > ZSpeed)
@@ -699,7 +786,13 @@ public class Vid
     /// <param name="link">The shared data of the link's object ID.</param>
     /// <param name="direction">The direction of the sprite.</param>
     /// <returns>The offset from the sprite's position.</returns>
-    public Vector3 GetLinkOffset(Vid link, Angle direction) => Object.GetLinkOffset(link.Object, null, 0, direction);
+    public Vector3 GetLinkOffset(Vid link, Angle direction)
+    {
+        if (link.Properties.HasFlag(ObjectProperties.FixedOffset))
+            return LinkOffset with { Y = -LinkOffset.Y };
+
+        return new Vector3(direction.Cosine * LinkOffset.X + direction.Sine * LinkOffset.Y, direction.ProjectedSine * LinkOffset.X - direction.ProjectedCosine * LinkOffset.Y, LinkOffset.Z);
+    }
 
     /// <summary>
     /// Returns the number of living sprites of this object ID in an army.
@@ -759,14 +852,14 @@ public class Vid
     /// </summary>
     /// <returns><see langword="true"/> if sprites of this object ID are armed with a weapon of their own; otherwise, <see langword="false"/>.</returns>
     [EngineRoutine(0x0043a1e0)]
-    public bool CanFight() => FightChild != 0 && Object.WeaponIndex != 0;
+    public bool CanFight() => FightChild != 0 && WeaponIndex != 0;
 
     /// <summary>
     /// Determines whether sprites of this object ID are born as smoke.
     /// </summary>
     /// <returns><see langword="true"/> if the object is born as smoke; otherwise, <see langword="false"/>.</returns>
     [EngineRoutine(0x0043a320)]
-    public bool IsBirthAsSmoke() => Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke);
+    public bool IsBirthAsSmoke() => Properties.HasFlag(ObjectProperties.BirthAsSmoke);
 
     /// <summary>
     /// Hides or shows the sprites of this object ID and of every object ID linked to it.
@@ -849,11 +942,10 @@ public class Vid
 
     internal void SetWeapon(in WeaponRecord weapon) => _weapon = weapon;
 
-    internal void ReplaceRecord(in GameObject gameObject, in WeaponRecord weapon)
+    internal void ReplaceWeapon(in WeaponRecord weapon)
     {
-        _object = gameObject;
         _weapon = weapon;
-        ApplyRecord(gameObject, weapon);
+        ApplyWeapon(weapon);
     }
 
     internal int GetDirectionIndex(Angle direction) => direction.GetDirectionIndex(Directions, DirectionOffset);
@@ -871,9 +963,10 @@ public class Vid
     internal virtual void SetGamma(Gamma gamma, int army, Gamma ambient, MyError? error) => StoreGamma(gamma, army, error);
 
     [EngineRoutine(0x00413c30)]
-    internal void LoadParameters(MyError? error, Sound? sound, bool resetBuiltTerrain)
+    internal void LoadParameters(in GameObject record, MyError? error, Sound? sound, bool resetBuiltTerrain)
     {
-        CopyRecordParameters();
+        CopyRecord(record);
+        ConvertRecord(record.Gamma);
         if (Directions == 0)
         {
             Report(error, LogError.Invalid, 0, "NoDir==0"u8);
@@ -888,7 +981,7 @@ public class Vid
             }
         }
 
-        Half = _object.Size.AsVector2() * 0.5f;
+        Half = Size.AsVector2() * 0.5f;
         DirectionOffset = Angle.HalfTurn / Directions;
         int frames = (short)TotalFrames;
         if (frames == 0)
@@ -913,7 +1006,7 @@ public class Vid
             }
         }
 
-        if (_object.Properties.HasFlag(ObjectProperties.BuildSizeToGridZ))
+        if (Properties.HasFlag(ObjectProperties.BuildSizeToGridZ))
         {
             BuildHeightPoints();
         }
@@ -959,57 +1052,84 @@ public class Vid
     private protected Gamma GetGamma(Map map, Sprite sprite)
     {
         var gamma = ObjectGamma.Add(sprite.GetGamma());
-        return Object.Properties.HasFlag(ObjectProperties.Gamma) ? gamma : gamma.Add(map.Session.Graphics.Gamma);
+        return Properties.HasFlag(ObjectProperties.Gamma) ? gamma : gamma.Add(map.Session.Graphics.Gamma);
     }
 
-    private static int GetAnimationTime(in GameObject gameObject, SpriteAnimation animation, int spriteSpeed) =>
-        gameObject.FrameCounts[(int)animation] * gameObject.GetFrameDuration(animation, spriteSpeed);
+    private int GetAnimationTime(SpriteAnimation animation) =>
+        _frameCounts[(int)animation] * (_durations[(int)animation] == 0 ? SpriteSpeed : _durations[(int)animation]);
 
     private static float ScaleRate(float rate, float scale) => rate.IsExactly(Unlimited) ? rate : rate * scale;
 
-    private void ApplyRecord(in GameObject gameObject, in WeaponRecord weapon)
+    private void ApplyWeapon(in WeaponRecord weapon)
     {
         WeaponFlags = weapon.Flags;
         Behavior = weapon.Behavior;
         Army = weapon.Army;
         Rank = weapon.Rank;
-        Targets = weapon.Targets;
+        Targets = weapon.Targets.ToOldSpriteType();
         BattleRange = weapon.BattleRange;
         MinRange = weapon.MinRange;
         ReloadTime = weapon.ReloadTime;
-        AttackTime = Math.Max(weapon.ReloadTime, GetAnimationTime(gameObject, SpriteAnimation.Fight, SpriteSpeed));
     }
 
-    private void CopyRecordParameters()
+    private void CopyRecord(in GameObject record)
     {
-        Class = _object.SpriteClass;
-        MaxHp = _object.MaxHp;
-        ObjectGamma = _object.Gamma.Pack();
-        Scale = FileType.HasFlag(VidType.ZBuffer) && FileType.HasFlag(VidType.Hardware) ? Vector3.One : _object.Scale;
-        RotationRate = _object.RotationPeriod.IsExactly(Unlimited) ? 0 : _object.RotationPeriod.IsExactlyZero() ? Unlimited : Angle.FullTurn / _object.RotationPeriod;
-        Speed = ScaleRate(_object.MaxSpeed, PerMillisecond);
-        ZSpeed = ScaleRate(_object.MaxZSpeed, PerMillisecond);
-        Acceleration = ScaleRate(_object.Acceleration, PerMillisecondSquared);
-        Deceleration = ScaleRate(_object.Deceleration, PerMillisecondSquared);
-        MoveMask = _object.MoveMask;
-        Damage = _object.DeathDamage;
-        Lifetime = _object.Lifetime;
+        SpriteType = record.SpriteType.ToOldSpriteType();
+        Class = record.SpriteClass;
+        Properties = record.Properties;
+        MoveMask = record.MoveMask;
+        Size = record.Size;
+        MaxHp = record.MaxHp;
+        Speed = record.MaxSpeed;
+        ZSpeed = record.MaxZSpeed;
+        Acceleration = record.Acceleration;
+        Deceleration = record.Deceleration;
+        RotationRate = record.RotationPeriod;
+        WeaponIndex = record.WeaponIndex;
+        DeathRange = record.DeathRange;
+        Damage = record.DeathDamage;
+        LinkOffset = record.LinkOffset;
+        Link = record.Link;
+        TopZ = record.TopZ;
+        StepHeight = record.StepHeight;
+        DropHeight = record.DropHeight;
+        Lifetime = record.Lifetime;
+        Directions = record.Directions;
+        for (int state = 0; state < StateCount; state++)
+        {
+            _frameCounts[state] = record.FrameCounts[state];
+            _sounds[state] = record.Sounds[state];
+            _durations[state] = record.FrameDurations[state];
+            _childX[state] = record.ChildX[state];
+            _childY[state] = record.ChildY[state];
+            _childZ[state] = record.ChildZ[state];
+            _children[state] = record.Children[state];
+            _childCounts[state] = record.ChildCounts[state];
+        }
+
+        Scale = record.Scale;
+    }
+
+    private void ConvertRecord(in VidGamma gamma)
+    {
+        ObjectGamma = gamma.Pack();
+        if (FileType.HasFlag(VidType.ZBuffer) && FileType.HasFlag(VidType.Hardware))
+        {
+            Scale = Vector3.One;
+        }
+
+        RotationRate = RotationRate.IsExactly(Unlimited) ? 0 : RotationRate.IsExactlyZero() ? Unlimited : Angle.FullTurn / RotationRate;
+        Speed = ScaleRate(Speed, PerMillisecond);
+        ZSpeed = ScaleRate(ZSpeed, PerMillisecond);
+        Acceleration = ScaleRate(Acceleration, PerMillisecondSquared);
+        Deceleration = ScaleRate(Deceleration, PerMillisecondSquared);
         DetectRange = _weapon.DetectRange;
         Aim = _weapon.Aim;
         AmmoCapacity = _weapon.Ammo;
         BuildTime = _weapon.BuildTime;
+        AttackTime = Math.Max(_weapon.ReloadTime, GetAnimationTime(SpriteAnimation.Fight));
         NotCreatedAsChild = 0;
-        Directions = _object.Directions;
-        for (int state = 0; state < StateCount; state++)
-        {
-            _children[state] = _object.Children[state];
-            _childCounts[state] = _object.ChildCounts[state];
-            _sounds[state] = _object.Sounds[state];
-            _frameCounts[state] = _object.FrameCounts[state];
-            _durations[state] = _object.FrameDurations[state];
-        }
-
-        CanMove = !Speed.IsExactlyZero() || !ZSpeed.IsExactlyZero() || _object.Properties.HasFlag(ObjectProperties.Gravity) || _object.Properties.HasFlag(ObjectProperties.Gravity2) || _object.Properties.HasFlag(ObjectProperties.Wind);
+        CanMove = !Speed.IsExactlyZero() || !ZSpeed.IsExactlyZero() || Properties.HasFlag(ObjectProperties.Gravity) || Properties.HasFlag(ObjectProperties.Gravity2) || Properties.HasFlag(ObjectProperties.Wind);
     }
 
     private void TrimFrameCounts(MyError? error, int frames)
@@ -1097,7 +1217,7 @@ public class Vid
 
     private void BuildHeightPoints()
     {
-        var size = _object.Size;
+        var size = Size;
         var half = new Vector2(size.X, size.Y) * 0.5f;
         HeightPoints.Clear();
         _heightFrameStarts = default;
@@ -1146,4 +1266,6 @@ public class Vid
 
         HeightPoints.Add(new Vector3(half.X, half.Y, size.Z));
     }
+
+    private void SetFlag(VidFlags flag, bool isSet) => _flags = (isSet ? flag : VidFlags.None) | _flags & ~flag;
 }

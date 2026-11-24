@@ -131,7 +131,7 @@ public partial class VidSoftware : Vid
         }
 
         LoadFrameRecords(file);
-        if (!Object.IsSolid || !FileType.HasFlag(VidType.Palette) || !FileType.HasFlag(VidType.Runs8Bit))
+        if (!Properties.HasFlag(ObjectProperties.BuildVidZToGridZ) || !FileType.HasFlag(VidType.Palette) || !FileType.HasFlag(VidType.Runs8Bit))
             return;
 
         int[] starts = new int[FileFrameCount];
@@ -170,7 +170,7 @@ public partial class VidSoftware : Vid
             return;
         }
 
-        bool ambientApplies = Class != SpriteClass.BuiltTerrain && !Object.Properties.HasFlag(ObjectProperties.Gamma);
+        bool ambientApplies = Class != SpriteClass.BuiltTerrain && !Properties.HasFlag(ObjectProperties.Gamma);
         if (army == AllArmies)
         {
             if (FileType.HasFlag(VidType.PaletteVariants))
@@ -209,16 +209,16 @@ public partial class VidSoftware : Vid
         if (IsBuiltTerrainClass)
             return FileType.HasFlag(VidType.Blended) ? ObjectLayer.BuiltAlpha : ObjectLayer.Built;
 
-        if (Object.Properties.HasFlag(ObjectProperties.Ground))
+        if (Properties.HasFlag(ObjectProperties.Ground))
             return ObjectLayer.SoftwareGround;
 
-        if (Object.Properties.HasFlag(ObjectProperties.AlwaysTop))
+        if (Properties.HasFlag(ObjectProperties.AlwaysTop))
             return ObjectLayer.SoftwareTop;
 
         if (FileType.HasFlag(VidType.Blended))
             return ObjectLayer.SoftwareAlpha;
 
-        return !Object.Properties.HasFlag(ObjectProperties.BuildSizeToGridZ) && !Object.Properties.HasFlag(ObjectProperties.BuildVidZToGridZ) ? ObjectLayer.Software : ObjectLayer.SoftwareGrid;
+        return !Properties.HasFlag(ObjectProperties.BuildSizeToGridZ) && !Properties.HasFlag(ObjectProperties.BuildVidZToGridZ) ? ObjectLayer.Software : ObjectLayer.SoftwareGrid;
     }
 
     private static void ConvertRowsToRgb555(Span<byte> buffer, int record)

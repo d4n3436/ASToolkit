@@ -122,7 +122,7 @@ public class MyList<T> : IReadOnlyList<T>
     }
 
     /// <summary>
-    /// Removes the entry at an index by moving the last entry into its place.
+    /// Removes the entry at an index.
     /// </summary>
     /// <param name="index">The index.</param>
     /// <returns>1 if the index is outside the list; otherwise, 0.</returns>

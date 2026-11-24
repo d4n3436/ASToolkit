@@ -35,11 +35,6 @@ public class Unit : Terrain
     }
 
     /// <summary>
-    /// Gets or sets the frames the unit has spent turning while stuck.
-    /// </summary>
-    public int TurnTicks { get; set; }
-
-    /// <summary>
     /// Gets the ammunition the unit holds, in 1/64 rounds.
     /// </summary>
     public int Ammo { get; private set; }
@@ -48,6 +43,11 @@ public class Unit : Terrain
     /// Gets the whole rounds the unit holds.
     /// </summary>
     public int Rounds => Ammo / AmmoScale;
+
+    /// <summary>
+    /// Gets or sets the frames the unit has spent turning while stuck.
+    /// </summary>
+    public int TurnTicks { get; set; }
 
     /// <summary>
     /// Gets or sets the behavior bits of the unit.

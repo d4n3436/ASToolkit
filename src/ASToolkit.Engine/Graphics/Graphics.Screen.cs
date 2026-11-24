@@ -342,7 +342,7 @@ public sealed partial class Graphics
             IsDepthLocked = false;
             DrawLayers(map, ObjectLayer.Cursor, ObjectLayer.Cursor);
 
-            if (Screen is not null && !map.CursorSprite.IsHardwareCursor && map.CursorSprite.Vid.Object.Properties.HasFlag(ObjectProperties.AlwaysTop))
+            if (Screen is not null && !map.CursorSprite.IsHardwareCursor && map.CursorSprite.Vid.Properties.HasFlag(ObjectProperties.AlwaysTop))
             {
                 map.DrawCursorChain(Screen, map.Camera, null);
             }

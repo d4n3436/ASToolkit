@@ -103,12 +103,12 @@ public sealed class VidDepthFaded : VidSoftware
     [EngineRoutine(0x0041b880)]
     public override void SetLayer()
     {
-        var properties = Object.Properties;
+        var properties = Properties;
         if (properties.HasFlag(ObjectProperties.Ground))
         {
             Layer = ObjectLayer.Ground2;
         }
-        else if (Object.SpriteType == SpriteType.Region)
+        else if (SpriteType == OldSpriteType.Region)
         {
             Layer = ObjectLayer.Region;
         }

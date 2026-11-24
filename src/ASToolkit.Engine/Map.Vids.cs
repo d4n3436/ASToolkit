@@ -38,11 +38,6 @@ public partial class Map
     private static readonly Vector3 DefaultVidSize = new(24, 16, 20);
     
     private readonly ConcurrentDictionary<(KnownObject Id, int Frame), FrameMask?> _masks = new();
-    private readonly string _gameFolder;
-    private readonly Vid?[] _vids = new Vid?[VidTableSize];
-    private ObjectTable _objects;
-    private int _vidCount;
-    private int _weaponCount;
 
     /// <summary>
     /// Gets a value indicating whether object IDs of the built terrain class are loaded as terrain.
@@ -139,9 +134,9 @@ public partial class Map
                 vid.FileType |= VidType.FrameVector;
             }
 
-            if (vid.Object.WeaponIndex >= _weaponCount)
+            if (vid.WeaponIndex >= _weaponCount)
             {
-                vid.Report(error, LogError.Text, vid.Object.WeaponIndex, "nWeapon > noWeapon"u8);
+                vid.Report(error, LogError.Text, vid.WeaponIndex, "nWeapon > noWeapon"u8);
             }
 
             Session.Graphics.DrawLoadBar(this, _vids[0]);
@@ -312,9 +307,9 @@ public partial class Map
             var target = slot.Identity;
             _objects.TryFind(id, out var gameObject);
             _objects.TryGetWeapon(gameObject, out var weapon);
-            target.ReplaceRecord(gameObject, weapon);
+            target.ReplaceWeapon(weapon);
             target.Name = GetVidName(target);
-            target.LoadParameters(error, sound, ShouldResetBuiltTerrain);
+            target.LoadParameters(gameObject, error, sound, ShouldResetBuiltTerrain);
         }
 
         ResolveLinks(error, true);
@@ -340,10 +335,10 @@ public partial class Map
     [EngineRoutine(0x00413a60)]
     internal void SetChildAndLink(Vid vid, MyError? error)
     {
-        int link = (int)vid.Object.Link;
+        int link = (int)vid.Link;
         if (link != 0)
         {
-            var linked = FindVid(vid.Object.Link);
+            var linked = FindVid(vid.Link);
             if (linked is not null)
             {
                 vid.LinkVid = linked.Identity;
@@ -352,11 +347,11 @@ public partial class Map
 
         ref readonly var weapon = ref vid.Weapon;
         vid.HasColorKeyframes = GetHasColorKeyframes(weapon);
-        vid.HasKeyframes = GetHasKeyframes(weapon);
         vid.HasScaleKeyframes = GetHasScaleKeyframes(weapon);
         vid.HasOffsetKeyframes = GetHasOffsetKeyframes(weapon);
+        vid.HasRotationKeyframes = GetHasRotationKeyframes(weapon);
 
-        if (vid.Lifetime != ASToolkit.Engine.Vid.Unlimited || vid.HasKeyframes || vid.Object.Properties.HasFlag(ObjectProperties.Blur) || vid.Object.Properties.HasFlag(ObjectProperties.RandomSpeed))
+        if (vid.Lifetime != ASToolkit.Engine.Vid.Unlimited || vid.HasKeyframes || vid.Properties.HasFlag(ObjectProperties.Blur) || vid.Properties.HasFlag(ObjectProperties.RandomSpeed))
         {
             vid.HasTimers = true;
         }
@@ -388,7 +383,7 @@ public partial class Map
             vid.Report(error, LogError.Invalid, link, "LinkVid"u8);
         }
 
-        foreach (int child in vid.Object.Children)
+        foreach (int child in vid.Children)
         {
             if (child != 0 && !IsVidDefined(Math.Abs(child)))
             {
@@ -446,12 +441,11 @@ public partial class Map
         return false;
     }
 
-    private static bool GetHasKeyframes(in WeaponRecord weapon)
+    private static bool GetHasRotationKeyframes(in WeaponRecord weapon)
     {
         for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
         {
-            if (weapon.RedKeys[key] != 0 || weapon.GreenKeys[key] != 0 || weapon.BlueKeys[key] != 0 || weapon.AlphaKeys[key] != 0 || IsScaleKey(weapon, key) || IsOffsetKey(weapon, key) ||
-                weapon.RotationXKeys[key] != 0 || weapon.RotationYKeys[key] != 0 || weapon.RotationZKeys[key] != 0)
+            if (weapon.RotationXKeys[key] != 0 || weapon.RotationYKeys[key] != 0 || weapon.RotationZKeys[key] != 0)
                 return true;
         }
 
@@ -475,7 +469,7 @@ public partial class Map
         string gameFolder = _gameFolder;
         _objects.TryGetWeapon(gameObject, out var weapon);
         var temporary = ASToolkit.Engine.Vid.CreateEmpty(KnownObject.None, gameObject, DefaultSpriteSpeed, ObjectLayer.Menu);
-        temporary.LoadParameters(error, sound, ShouldResetBuiltTerrain);
+        temporary.LoadParameters(gameObject, error, sound, ShouldResetBuiltTerrain);
         bool isCopy = FindCopySource(path, temporary) is not null;
         var parametersError = error;
         if (isCopy)
@@ -490,7 +484,7 @@ public partial class Map
             if (path.Contains(FontExtension, StringComparison.Ordinal) || path.Contains(TrueTypeExtension, StringComparison.Ordinal))
             {
                 var font = new VidFont(id, gameObject, weapon, DefaultMaxTextureSize);
-                PrepareVid(font, name, path, parametersError, sound);
+                PrepareVid(font, gameObject, name, path, parametersError, sound);
                 font.Load(default, default, error);
                 font.SetLayer();
                 return font;
@@ -562,7 +556,7 @@ public partial class Map
             }
         }
 
-        PrepareVid(vid, name, path, parametersError, sound);
+        PrepareVid(vid, gameObject, name, path, parametersError, sound);
         vid.Load(sprite, bytes, error);
         if (!isCopy && vid is VidHardware hardware)
         {
@@ -573,7 +567,6 @@ public partial class Map
         }
 
         vid.SetLayer();
-        vid.IsCopy = isCopy;
         return vid;
     }
 
@@ -589,18 +582,18 @@ public partial class Map
                 continue;
 
             bool isHardware = existing.FileType.HasFlag(VidType.Hardware);
-            if ((isHardware || existing.ObjectGamma == temporary.ObjectGamma) && (isHardware || existing.Object.Properties.HasFlag(ObjectProperties.Gamma) == temporary.Object.Properties.HasFlag(ObjectProperties.Gamma)))
+            if ((isHardware || existing.ObjectGamma == temporary.ObjectGamma) && (isHardware || existing.Properties.HasFlag(ObjectProperties.Gamma) == temporary.Properties.HasFlag(ObjectProperties.Gamma)))
                 return existing;
         }
 
         return null;
     }
 
-    private void PrepareVid(Vid vid, string name, string path, MyError? error, Sound? sound)
+    private void PrepareVid(Vid vid, in GameObject record, string name, string path, MyError? error, Sound? sound)
     {
         vid.Name = name;
         vid.Path = path;
-        vid.LoadParameters(error, sound, ShouldResetBuiltTerrain);
+        vid.LoadParameters(record, error, sound, ShouldResetBuiltTerrain);
     }
 
     private void ResolveLinks(MyError? error, bool isReload)

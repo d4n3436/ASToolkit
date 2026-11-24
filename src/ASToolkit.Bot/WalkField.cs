@@ -27,7 +27,7 @@ internal sealed class WalkField
     private readonly int[] _cells;
     private readonly Cell[] _places;
     private readonly Vector2[] _centers;
-    private readonly GameObject _walker;
+    private readonly Vid _walker;
     private readonly Map _map;
     private readonly SpriteCollector _sprites;
     private readonly int[] _neighbors;
@@ -51,7 +51,7 @@ internal sealed class WalkField
     private int _floodLimit = -1;
     private int _floodCount;
 
-    public WalkField(RouteGrid grid, bool doorsLocked, Map map, SpriteCollector sprites, GameObject walker)
+    public WalkField(RouteGrid grid, bool doorsLocked, Map map, SpriteCollector sprites, Vid walker)
     {
         _map = map;
         _sprites = sprites;
@@ -108,7 +108,7 @@ internal sealed class WalkField
 
     public int ReachedCount { get; private set; }
 
-    public static bool IsSolid(Sprite sprite) => sprite.Vid.Object.Properties.HasFlag(ObjectProperties.Hash) && sprite.Animation < SpriteAnimation.Death;
+    public static bool IsSolid(Sprite sprite) => sprite.Vid.Properties.HasFlag(ObjectProperties.Hash) && sprite.Animation < SpriteAnimation.Death;
 
     public void SetDoorsLocked(bool doorsLocked)
     {
@@ -203,10 +203,10 @@ internal sealed class WalkField
         return changed;
     }
 
-    public bool CanStand(in GameObject walker, Vector3 point, bool anticipateDoors = false) =>
+    public bool CanStand(Vid walker, Vector3 point, bool anticipateDoors = false) =>
         _map.CanStandOnGround(walker, point) && !IsBlocked(walker, point, anticipateDoors);
 
-    public bool CanMove(in GameObject walker, Vector3 from, Vector2 to, bool anticipateDoors = false)
+    public bool CanMove(Vid walker, Vector3 from, Vector2 to, bool anticipateDoors = false)
     {
         int steps = Math.Max(1, (int)MathF.Ceiling(Vector2.Distance(from.AsVector2(), to) / SweepStep));
         var point = from;
@@ -425,10 +425,9 @@ internal sealed class WalkField
 
     private static bool IsObstacle(Vid vid)
     {
-        ref readonly var obj = ref vid.Object;
 
-        return vid.Id == KnownObject.Crate || !(obj.SpriteType.HasFlag(SpriteType.Unit) || obj.SpriteType.HasFlag(SpriteType.Avia) ||
-            obj.SpriteType.HasFlag(SpriteType.Cannon) || obj.SpriteClass == SpriteClass.Man);
+        return vid.Id == KnownObject.Crate || !(vid.SpriteType.HasFlag(OldSpriteType.Unit) || vid.SpriteType.HasFlag(OldSpriteType.Avia) ||
+            vid.SpriteType.HasFlag(OldSpriteType.Cannon) || vid.Class == SpriteClass.Man);
     }
 
     private static HashSet<Cell> GetCellsInMap(RouteGrid grid, Lattice lattice, SizeF mapSize)
@@ -454,7 +453,7 @@ internal sealed class WalkField
         return cells;
     }
 
-    private static bool Blocks(Vid vid) => IsObstacle(vid) && vid.Object.IsHittable && vid.MoveMask != 0;
+    private static bool Blocks(Vid vid) => IsObstacle(vid) && vid.Properties.HasFlag(ObjectProperties.Hash) && vid.MoveMask != 0;
 
     private bool AddNew(Map map, bool refresh)
     {
@@ -546,7 +545,7 @@ internal sealed class WalkField
         }
     }
 
-    private bool IsBlocked(in GameObject walker, Vector3 point, bool anticipateDoors)
+    private bool IsBlocked(Vid walker, Vector3 point, bool anticipateDoors)
     {
         var volume = new CollisionVolume(point, walker.Size.AsVector2() / 2, walker.Size.Z, walker.MoveMask);
         var reach = volume.Half + _sprites.LargestHalf;
@@ -563,7 +562,7 @@ internal sealed class WalkField
                 position.Z = _gateHeights.GetValueOrDefault(sprite, position.Z);
             }
 
-            if (volume.Overlaps(new CollisionVolume(position, vid.Half, vid.Object.Size.Z, vid.MoveMask)) &&
+            if (volume.Overlaps(new CollisionVolume(position, vid.Half, vid.Size.Z, vid.MoveMask)) &&
                 sprite.Animation < SpriteAnimation.Death && IsObstacle(vid))
                 return true;
         }

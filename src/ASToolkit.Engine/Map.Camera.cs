@@ -16,12 +16,6 @@ public partial class Map
     private static readonly Vector2 ScrollAcceleration = new(0.04f, 0.03f);
 
     private static readonly Vector2 LeadReach = new(640, 480);
-    private ScrollType _scrollType = ScrollType.FromBorder;
-
-    /// <summary>
-    /// Gets the top-left corner of the screen on the map.
-    /// </summary>
-    public Vector2 Camera { get; private set; }
 
     /// <summary>
     /// Gets the center of the screen on the map.

@@ -37,15 +37,13 @@ public sealed class Cannon : Sprite
     public Cannon(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
         : base(vid, position, direction, parent, map)
     {
-        ref readonly var gameObject = ref Vid.Object;
-
-        if (gameObject.Properties.HasFlag(ObjectProperties.RandomZSpeed) && !Vid.ZSpeed.IsExactlyZero())
+        if (vid.Properties.HasFlag(ObjectProperties.RandomZSpeed) && !Vid.ZSpeed.IsExactlyZero())
         {
             bool downward = (Map.Random.Next() & 1) == 0;
             float lift = Map.Random.Next() * Vid.ZSpeed;
             VerticalSpeed = downward ? lift * -GameRandom.UnitScale : lift * GameRandom.UnitScale;
         }
-        else if (parent is not null && parent.Animation >= SpriteAnimation.Death && gameObject.TopZ < 0)
+        else if (parent is not null && parent.Animation >= SpriteAnimation.Death && vid.TopZ < 0)
         {
             VerticalSpeed = Vid.ZSpeed;
             Speed = MaxSpeed + parent.Speed;
@@ -55,7 +53,7 @@ public sealed class Cannon : Sprite
             VerticalSpeed = Vid.ZSpeed;
         }
 
-        if (gameObject.Properties.HasFlag(ObjectProperties.RandomSpeed) && !Vid.Speed.IsExactlyZero())
+        if (vid.Properties.HasFlag(ObjectProperties.RandomSpeed) && !Vid.Speed.IsExactlyZero())
         {
             MaxSpeed = Map.Random.Next() * Vid.Speed * GameRandom.UnitScale;
         }
@@ -117,7 +115,7 @@ public sealed class Cannon : Sprite
         if (!Vid.CanMove)
             return;
 
-        ref readonly var gameObject = ref Vid.Object;
+        var vid = Vid;
         int elapsed = Map.FrameTime;
         var next = CalculateNewCoordinates(elapsed);
 
@@ -128,19 +126,19 @@ public sealed class Cannon : Sprite
 
         float current = Map.GetGroundZ(Position.AsVector2());
         float ground = Map.GetGroundZ(next.AsVector2());
-        float hover = ground + gameObject.TopZ;
+        float hover = ground + vid.TopZ;
         float previousHeight = Position.Z;
 
         if (ground < next.Z || Position.Z < current)
         {
-            KeepHoverHeight(this, gameObject, hover, ref next);
+            KeepHoverHeight(this, vid, hover, ref next);
         }
         else
         {
-            HitGround(gameObject, ground, current, ref next);
+            HitGround(vid, ground, current, ref next);
         }
 
-        MoveCannon(gameObject, next);
+        MoveCannon(vid, next);
         if (!Position.Z.IsExactly(next.Z))
         {
             ChangeCoor(Position with { Z = next.Z });
@@ -148,7 +146,7 @@ public sealed class Cannon : Sprite
 
         if (!HasGoal)
         {
-            if (gameObject.TopZ < 0 && VerticalSpeed < 0)
+            if (vid.TopZ < 0 && VerticalSpeed < 0)
             {
                 RotateTact(Direction + FallTurn, elapsed);
             }
@@ -156,16 +154,16 @@ public sealed class Cannon : Sprite
             return;
         }
 
-        SteerToGoal(gameObject, previousHeight, elapsed);
+        SteerToGoal(vid, previousHeight, elapsed);
     }
 
-    private void HitGround(in GameObject gameObject, float ground, float current, ref Vector3 next)
+    private void HitGround(Vid vid, float ground, float current, ref Vector3 next)
     {
         next.Z = Position.Z;
 
         if (Animation < SpriteAnimation.Death)
         {
-            if (!gameObject.Properties.HasFlag(ObjectProperties.Bouncing))
+            if (!vid.Properties.HasFlag(ObjectProperties.Bouncing))
             {
                 Stop();
                 next.Z = current;
@@ -213,7 +211,7 @@ public sealed class Cannon : Sprite
         next = next with { X = Position.X, Y = Position.Y };
     }
 
-    private void MoveCannon(in GameObject gameObject, Vector3 next)
+    private void MoveCannon(Vid vid, Vector3 next)
     {
         if (next.AsVector2() == Position.AsVector2())
             return;
@@ -229,7 +227,7 @@ public sealed class Cannon : Sprite
         {
             ChangeCoor(next);
 
-            if (Animation < SpriteAnimation.Death && !gameObject.Properties.HasFlag(ObjectProperties.Gravity) &&
+            if (Animation < SpriteAnimation.Death && !vid.Properties.HasFlag(ObjectProperties.Gravity) &&
                 (Position.X < -ExitMargin.X || Position.Y < -ExitMargin.Y ||
                  Position.X > Map.Size.Width + ExitMargin.X || Position.Y > Map.Size.Height + ExitMargin.Y))
             {
@@ -238,14 +236,14 @@ public sealed class Cannon : Sprite
         }
     }
 
-    private void SteerToGoal(in GameObject gameObject, float previousHeight, int elapsed)
+    private void SteerToGoal(Vid vid, float previousHeight, int elapsed)
     {
         var goal = GoalPosition;
         var target = Goal!;
         float distance = Position.AsVector2().MeasureOctagonalDistance(goal.AsVector2());
         var aim = DirectionTo(target) + (Speed < 0 ? Angle.HalfTurn : 0);
 
-        if (!gameObject.Properties.HasFlag(ObjectProperties.SelfMoving))
+        if (!vid.Properties.HasFlag(ObjectProperties.SelfMoving))
         {
             if (distance > SteeringReach)
             {
@@ -274,7 +272,7 @@ public sealed class Cannon : Sprite
                 StartMove();
             }
         }
-        else if (Map.GetGroundZ(Position.AsVector2()) + gameObject.TopZ <= Position.Z && goal.Z <= Position.Z || VerticalSpeed <= 0)
+        else if (Map.GetGroundZ(Position.AsVector2()) + vid.TopZ <= Position.Z && goal.Z <= Position.Z || VerticalSpeed <= 0)
         {
             IsClimbing = false;
         }
@@ -288,11 +286,11 @@ public sealed class Cannon : Sprite
 
         if (this is { HasReachedX: true, HasReachedY: true } || offset.X < Vid.Half.X + target.Vid.Half.X && offset.Y < Vid.Half.Y + target.Vid.Half.Y)
         {
-            isHit = goal.Z <= Vid.Object.Size.Z + Position.Z && Position.Z <= goal.Z + target.Vid.Object.Size.Z ||
+            isHit = goal.Z <= Vid.Size.Z + Position.Z && Position.Z <= goal.Z + target.Vid.Size.Z ||
                 Math.Min(previousHeight, Position.Z) <= goal.Z && goal.Z <= Math.Max(previousHeight, Position.Z);
         }
 
-        if (isHit || gameObject.Properties.HasFlag(ObjectProperties.SelfMoving) && MathF.Abs(goal.Z - Position.Z) < RocketHitHeight && offset is { X: < RocketHitReach, Y: < RocketHitReach })
+        if (isHit || vid.Properties.HasFlag(ObjectProperties.SelfMoving) && MathF.Abs(goal.Z - Position.Z) < RocketHitHeight && offset is { X: < RocketHitReach, Y: < RocketHitReach })
         {
             Stop();
             ChangeAnimation(SpriteAnimation.Death);

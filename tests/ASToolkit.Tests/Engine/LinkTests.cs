@@ -21,7 +21,7 @@ public class LinkTests
         Assert.Equal(KnownObject.Monster4Weapon3, red.Link!.Vid.Id);
         var turret = Assert.Single(map.UpdatedSprites, sprite => sprite.Vid.Id == KnownObject.MonsterMachineGunDummy && sprite.Owner == red.Link);
         Assert.Equal(red.Army, turret.Army);
-        Assert.NotEqual(0, turret.Vid.Object.WeaponIndex);
+        Assert.NotEqual(0, turret.Vid.WeaponIndex);
     }
 
     [Fact]

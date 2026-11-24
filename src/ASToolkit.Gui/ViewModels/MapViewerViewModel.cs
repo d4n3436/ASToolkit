@@ -307,7 +307,7 @@ public partial class MapViewerViewModel : ViewModelBase
                 {
                     if (sprite is not null && IsPlaced(map, sprite) && IsHidden(sprite))
                     {
-                        helpers.Add(new HelperMarker(sprite.Vid.Id, sprite.Position, sprite.Army, GetHelperKind(sprite.Vid.Object.SpriteClass)));
+                        helpers.Add(new HelperMarker(sprite.Vid.Id, sprite.Position, sprite.Army, GetHelperKind(sprite.Vid)));
                     }
                 }
             }
@@ -316,11 +316,10 @@ public partial class MapViewerViewModel : ViewModelBase
         return helpers;
     }
 
-    private static HelperKind GetHelperKind(SpriteClass spriteClass) => spriteClass switch
+    private static HelperKind GetHelperKind(Vid vid) => vid.IsBuiltTerrainClass ? HelperKind.Blocker : vid.Class switch
     {
         SpriteClass.Building => HelperKind.Spawner,
         SpriteClass.Sprite => HelperKind.Trigger,
-        SpriteClass.BuiltTerrain => HelperKind.Blocker,
         _ => HelperKind.Other
     };
 

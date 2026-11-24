@@ -9,14 +9,6 @@ public partial class Map
     private const int DemoDrawLag = 21;
     private const int DemoEndMarker = -1;
 
-    private DemoResource? _playedDemo;
-    private int _playedOffset;
-    private int _demoPacedTime;
-    private uint _demoPacedAt;
-    private MemoryStream? _recordedDemo;
-    private MemoryStream? _endedDemo;
-    private ReadOnlyMemory<byte> _pendingMapName;
-
     /// <summary>
     /// Gets a value indicating whether a demo drives the input.
     /// </summary>

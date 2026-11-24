@@ -96,7 +96,7 @@ internal sealed class Gunnery
 
     public Vector3 GetAimPoint(Sprite target, int slot)
     {
-        var point = target.Position with { Z = target.Position.Z + Math.Min(GroundAimHeight, target.Vid.Object.Size.Z / 2) };
+        var point = target.Position with { Z = target.Position.Z + Math.Min(GroundAimHeight, target.Vid.Size.Z / 2) };
         var torso = _state.GetWeapon(slot);
 
         if (torso is null || target.IsBody)
@@ -139,9 +139,9 @@ internal sealed class Gunnery
             return true;
 
         var muzzle = from + new Vector2(forward.X * launch.Y, forward.Y * launch.Y * VerticalProjection);
-        float height = _map.Player.Position.Z + _map.Player.Vid.Object.LinkOffset.Z + launch.Z;
+        float height = _map.Player.Position.Z + _map.Player.Vid.LinkOffset.Z + launch.Z;
 
-        var aim = target.Position with { Z = target.Position.Z + Math.Min(GroundAimHeight, target.Vid.Object.Size.Z / 2) };
+        var aim = target.Position with { Z = target.Position.Z + Math.Min(GroundAimHeight, target.Vid.Size.Z / 2) };
         var half = target.Vid.Id is KnownObject.BreakableWall or KnownObject.BreakableWall2 ? target.Vid.Half + new Vector2(WallSlack) : target.Vid.Half;
 
         var start = new Vector3(muzzle, height);
@@ -172,7 +172,7 @@ internal sealed class Gunnery
     }
 
     private bool IsInBlastHeight(Sprite sprite, AttackProfile profile) =>
-        sprite.Position.Z - _map.GetGroundZ(sprite.Position.AsVector2()) < profile.BlastHeight + sprite.Vid.Object.Size.Z;
+        sprite.Position.Z - _map.GetGroundZ(sprite.Position.AsVector2()) < profile.BlastHeight + sprite.Vid.Size.Z;
 
     private float MeasureHarm(Sprite target, AttackProfile profile)
     {
@@ -268,7 +268,7 @@ internal sealed class Gunnery
             {
                 z += heightStep;
 
-                if (!_map.IsAboveGround(bullet.Object, new Vector3(position.X, position.Y, z)))
+                if (!_map.IsAboveGround(bullet, new Vector3(position.X, position.Y, z)))
                 {
                     var offset = Vector2.Abs(new Vector2(position.X, position.Y) - to.AsVector2());
 
@@ -311,7 +311,7 @@ internal sealed class Gunnery
         {
             var point = Vector3.Lerp(start, aim, distance / length);
 
-            if (_field.CanStand(bullet.Object, point))
+            if (_field.CanStand(bullet, point))
                 continue;
             
             var offset = Vector2.Abs(point.AsVector2() - aim.AsVector2());
@@ -326,9 +326,9 @@ internal sealed class Gunnery
     {
         launch = Vector3.Zero;
         var bullet = torso;
-        while (bullet is not null && bullet.Object.SpriteClass != SpriteClass.Cannon)
+        while (bullet is not null && bullet.Class != SpriteClass.Cannon)
         {
-            launch += new Vector3(0, bullet.Object.ChildY[(int)SpriteAnimation.Fight], bullet.Object.ChildZ[(int)SpriteAnimation.Fight]);
+            launch += new Vector3(0, bullet.ChildY[(int)SpriteAnimation.Fight], bullet.ChildZ[(int)SpriteAnimation.Fight]);
             bullet = bullet.FightChild == 0 ? null : _map.FindVid((KnownObject)Math.Abs((int)bullet.FightChild));
         }
 

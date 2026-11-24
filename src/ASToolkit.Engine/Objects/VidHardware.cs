@@ -58,7 +58,6 @@ public sealed class VidHardware : Vid
     {
         FileType = GroundType;
         FrameSize = size;
-        Size = size;
         _format = HighColorFormat.Rgb565;
 
         int i = 0;
@@ -93,11 +92,6 @@ public sealed class VidHardware : Vid
         }
     }
 
-    /// <summary>
-    /// Gets the size of the sprite, in pixels.
-    /// </summary>
-    public Size Size { get; private set; }
-
     internal int SurfaceCount { get; private set; }
 
     private static ReadOnlySpan<byte> PaletteText => "palette %i"u8;
@@ -121,7 +115,7 @@ public sealed class VidHardware : Vid
     public override void AddVidToTextures(Map map, Sprite sprite)
     {
         var vid = sprite.Vid;
-        if (!FileType.HasFlag(VidType.Runs8Bit) || !FileType.HasFlag(VidType.ZBuffer) || Directions != 1 || vid.Object.Properties.HasFlag(ObjectProperties.InvisibleForEnemy))
+        if (!FileType.HasFlag(VidType.Runs8Bit) || !FileType.HasFlag(VidType.ZBuffer) || Directions != 1 || vid.Properties.HasFlag(ObjectProperties.InvisibleForEnemy))
             return;
 
         var center = new Point((int)sprite.Position.X, (int)(sprite.Position.Y - sprite.Position.Z));
@@ -181,7 +175,7 @@ public sealed class VidHardware : Vid
         }
 
         int iterations = 1;
-        var properties = Object.Properties;
+        var properties = Properties;
         if (properties.HasFlag(ObjectProperties.Blur) && first.Size.Width != 0)
         {
             int columns = Math.Abs((int)(sprite.PreviousPosition.X - position.X)) / first.Size.Width;
@@ -216,12 +210,12 @@ public sealed class VidHardware : Vid
     [EngineRoutine(0x0041a730)]
     public override void SetLayer()
     {
-        var properties = Object.Properties;
+        var properties = Properties;
         if (properties.HasFlag(ObjectProperties.Ground))
         {
             Layer = ObjectLayer.Ground2;
         }
-        else if (Object.SpriteType == SpriteType.Region)
+        else if (SpriteType == OldSpriteType.Region)
         {
             Layer = ObjectLayer.Region;
         }
@@ -250,7 +244,7 @@ public sealed class VidHardware : Vid
     [EngineRoutine(0x00419d20)]
     internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, MyError? error)
     {
-        Size = file.Size;
+        FrameSize = file.Size;
         SurfaceCount = file.SurfaceCount;
         if (!file.HasSurfaceChunk)
         {
@@ -322,8 +316,8 @@ public sealed class VidHardware : Vid
     {
         for (var tile = first; ; tile = _tiles[tile.Next])
         {
-            int left = (int)((tile.Origin.X - Size.Center.X) * scale.X) + origin.X;
-            int top = (int)((tile.Origin.Y - Size.Center.Y) * scale.Y) + origin.Y;
+            int left = (int)((tile.Origin.X - FrameSize.Center.X) * scale.X) + origin.X;
+            int top = (int)((tile.Origin.Y - FrameSize.Center.Y) * scale.Y) + origin.Y;
             if (left + tile.Size.Width >= screen.Viewport.Left && left < screen.Viewport.Right && top + tile.Size.Height >= screen.Viewport.Top && top < screen.Viewport.Bottom)
             {
                 DrawTile(screen, map, tile, new Point(left, top), z, scale, gamma, hasDepth);
@@ -352,17 +346,17 @@ public sealed class VidHardware : Vid
             Graphics.CopyDepth(screen, destination, source, depth.Texels, depth.Size.Width);
         }
 
-        var properties = Object.Properties;
+        var properties = Properties;
         float topDepth = z * DepthUnit + DepthBase;
-        if (properties.HasFlag(ObjectProperties.Wave) && !Object.TopZ.IsExactlyZero())
+        if (properties.HasFlag(ObjectProperties.Wave) && !TopZ.IsExactlyZero())
         {
-            topDepth = new Angle((byte)(map.Time >> WaveTimeShift & WaveTableMask)).Sine * Object.TopZ * DepthUnit * 0.5f + topDepth;
+            topDepth = new Angle((byte)(map.Time >> WaveTimeShift & WaveTableMask)).Sine * TopZ * DepthUnit * 0.5f + topDepth;
         }
 
         float bottomDepth;
         if (!properties.HasFlag(ObjectProperties.AlwaysTop) && !hasDepth)
         {
-            if (Object.Size.Z <= Object.Size.Y)
+            if (Size.Z <= Size.Y)
             {
                 bottomDepth = topDepth;
             }

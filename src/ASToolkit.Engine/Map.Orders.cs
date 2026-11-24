@@ -15,7 +15,7 @@ public partial class Map
     /// </summary>
     /// <param name="building">The building.</param>
     /// <returns>The shared data of the object ID, or null when the building is idle.</returns>
-    public Vid? GetPendingBuild(Sprite building) => building is Building { PendingBuild: not null } pending ? pending.PendingBuild.Value.Vid : null;
+    public Vid? GetPendingBuild(Sprite building) => (building as Building)?.PendingVid;
 
     /// <summary>
     /// Creates the goal sprite of an order on a point.

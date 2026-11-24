@@ -52,7 +52,7 @@ public class PlaythroughTests
         Assert.Equal(first.Pickups, second.Pickups);
 
         var replay = playthrough.LoadReplay(level.Analysis, loadout, first.Demo.Value);
-        var field = new WalkField(level.Analysis.Grid, true, replay, replay.Collector, replay.FindVid(KnownObject.PlayerStart)!.Object);
+        var field = new WalkField(level.Analysis.Grid, true, replay, replay.Collector, replay.FindVid(KnownObject.PlayerStart)!);
         var effects = new HashSet<KnownObject>();
         var previous = new Dictionary<Sprite, Vector3>();
         int checkedAt = -1;
@@ -73,13 +73,12 @@ public class PlaythroughTests
             checkedAt = time;
             foreach (var unit in map.Monsters.Append(map.Player))
             {
-                ref readonly var obj = ref unit.Vid.Object;
 
-                if (unit.Owner?.Link == unit || obj.SpriteClass is not (SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man) || unit.Animation >= SpriteAnimation.Death)
+                if (unit.Owner?.Link == unit || unit.Vid.Class is not (SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man) || unit.Animation >= SpriteAnimation.Death)
                     continue;
 
                 bool walkedIn = unit.Animation == SpriteAnimation.Go && previous.TryGetValue(unit, out var from) &&
-                    field.CanStand(obj, from) && !field.CanStand(obj, unit.Position) && !TouchesPushedSprite(map, unit);
+                    field.CanStand(unit.Vid, from) && !field.CanStand(unit.Vid, unit.Position) && !TouchesPushedSprite(map, unit);
                 Assert.False(walkedIn, $"{unit.Vid.Id} walked into terrain or a static obstacle at {unit.Position}, height {unit.Position.Z}, time {time}");
                 previous[unit] = unit.Position;
             }
@@ -101,7 +100,7 @@ public class PlaythroughTests
             var vid = sprite.Vid;
             var offset = Vector2.Abs(sprite.Position.AsVector2() - point);
 
-            if (sprite != unit && vid.CanBePushed && (vid.Id == KnownObject.Crate || vid.Object.SpriteClass is not (SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man)) &&
+            if (sprite != unit && vid.CanBePushed && (vid.Id == KnownObject.Crate || vid.Class is not (SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man)) &&
                 offset.X < vid.Half.X + half.X && offset.Y < vid.Half.Y + half.Y)
                 return true;
         }

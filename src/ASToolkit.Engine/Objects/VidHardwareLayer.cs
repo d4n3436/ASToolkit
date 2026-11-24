@@ -60,7 +60,7 @@ public sealed class VidHardwareLayer : Vid
 
         uint seed = 0;
         bool hasDepth = FileType.HasFlag(VidType.ZBuffer);
-        if (!Object.Properties.HasFlag(ObjectProperties.AlwaysTop) && !hasDepth)
+        if (!Properties.HasFlag(ObjectProperties.AlwaysTop) && !hasDepth)
         {
             seed = (uint)BitConverter.SingleToInt32Bits(position.Z);
             float screenX = position.X - camera.X;
@@ -102,7 +102,7 @@ public sealed class VidHardwareLayer : Vid
             0f, 0f, scaleZ, 0f,
             x, y, z, 1f);
         var gamma = new Gamma(seed, 0).Add(sprite.GetGamma());
-        if (!Object.Properties.HasFlag(ObjectProperties.Gamma))
+        if (!Properties.HasFlag(ObjectProperties.Gamma))
         {
             gamma = gamma.Add(map.Session.Graphics.Gamma);
         }

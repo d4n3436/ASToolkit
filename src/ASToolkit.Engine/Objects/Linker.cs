@@ -31,11 +31,6 @@ public sealed class Linker : Sprite
     }
 
     /// <summary>
-    /// Gets or sets the sprite the linker turns around, the parent it was created with.
-    /// </summary>
-    public Sprite? Base { get; set; }
-
-    /// <summary>
     /// Gets or sets the linker's offset from its base when it was created.
     /// </summary>
     public Vector3 Offset { get; set; }
@@ -44,6 +39,11 @@ public sealed class Linker : Sprite
     /// Gets or sets the direction the linker faced when it was created.
     /// </summary>
     public Angle StartDirection { get; set; }
+
+    /// <summary>
+    /// Gets or sets the sprite the linker turns around.
+    /// </summary>
+    public Sprite? Base { get; set; }
 
     [EngineRoutine(0x0040ed10)]
     internal override void Destruct()

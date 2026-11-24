@@ -24,6 +24,8 @@ public sealed class Man : Unit
     private const float GroundAimLift = 19;
     private const int WeaponIdLimit = 21;
 
+    private readonly int[] _slotAmmo = new int[MaxWeaponSlot + 1];
+
     /// <summary>
     /// Initializes a new instance of the <see cref="Man"/> class on a map.
     /// </summary>
@@ -42,7 +44,7 @@ public sealed class Man : Unit
     /// <summary>
     /// Gets the ammunition the player's body keeps for the slots it does not hold.
     /// </summary>
-    public int[] SlotAmmo => field ??= new int[MaxWeaponSlot + 1];
+    public Span<int> SlotAmmo => _slotAmmo;
 
     private static ReadOnlySpan<int> WornArmorShares => [50, 70, 90];
 
@@ -153,7 +155,7 @@ public sealed class Man : Unit
         var weapon = Vid.LinkVid;
         var torso = Link;
 
-        if (torso is null || torso.Vid != weapon || weapon.FightChild == 0 || weapon.Object.WeaponIndex == 0 || (uint)torso.Timer > ReloadTimerLimit ||
+        if (torso is null || torso.Vid != weapon || weapon.FightChild == 0 || weapon.WeaponIndex == 0 || (uint)torso.Timer > ReloadTimerLimit ||
             torso.Animation == SpriteAnimation.Fight && torso.Frame <= torso.LastFrame)
             return;
 
@@ -173,7 +175,7 @@ public sealed class Man : Unit
         if ((int)Vid.Id > PlayerIdLimit)
         {
             var armed = Vid.LinkVid;
-            int capacity = armed is not null && armed.FightChild != 0 && armed.Object.WeaponIndex != 0 ? armed.AmmoCapacity : Vid.AmmoCapacity;
+            int capacity = armed is not null && armed.FightChild != 0 && armed.WeaponIndex != 0 ? armed.AmmoCapacity : Vid.AmmoCapacity;
             base.Action(ActionCode.AddAmmo, capacity - base.Action(ActionCode.GetAmmo, 0, 0, 0, null), 0, 0, null);
 
             return;
@@ -186,7 +188,7 @@ public sealed class Man : Unit
 
         if (armorItem != 0)
         {
-            var position = new Vector3(Position.X, Position.Y, Position.Z + Vid.Object.LinkOffset.Z);
+            var position = new Vector3(Position.X, Position.Y, Position.Z + Vid.LinkOffset.Z);
             var armor = Map.CreateSprite(Map.FindVid((KnownObject)(armorItem - WornArmorItemBase + (int)KnownObject.WornGreenArmor))!, position, Direction);
             Link!.AddLink(armor);
         }
@@ -274,7 +276,7 @@ public sealed class Man : Unit
                 height = player.Z + AimRiseCap;
             }
         }
-        else if (weapon.Targets == SpriteType.Unit)
+        else if (weapon.Targets == OldSpriteType.Unit)
         {
             height = Map.GetGroundZ(cursor with { Y = cursor.Y + UnitAimLift }) + UnitAimLift;
         }

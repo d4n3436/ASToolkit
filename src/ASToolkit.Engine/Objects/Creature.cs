@@ -139,9 +139,9 @@ public class Creature : Unit
             }
         }
 
-        if (Vid.Object.Properties.HasFlag(ObjectProperties.ZeroZ))
+        if (Vid.Properties.HasFlag(ObjectProperties.ZeroZ))
         {
-            next.Z = Map.GetGroundZForMoveTo(Vid.Object, next.AsVector2());
+            next.Z = Map.GetGroundZForMoveTo(Vid, next.AsVector2());
         }
 
         if (CanPlace(next) is null && StaysInRegion(next.AsVector2()))
@@ -178,7 +178,7 @@ public class Creature : Unit
 
         for (int i = list.Count - 1; i >= 0; i--)
         {
-            if (list[i] is not Region sprite || !sprite.Vid.Object.SpriteType.ToOldSpriteType().HasFlag(OldSpriteType.Region) || sprite.Vid.Class != SpriteClass.Region)
+            if (list[i] is not Region sprite || !sprite.Vid.SpriteType.HasFlag(OldSpriteType.Region) || sprite.Vid.Class != SpriteClass.Region)
                 continue;
 
             float halfWidth = sprite.Size.X * 0.5f;
@@ -263,7 +263,7 @@ public class Creature : Unit
         {
             StartMove();
         }
-        else if (Speed.IsExactlyZero() && Map.Random.Next() % 3 == 0 && (Vid.Object.FrameCounts[(int)SpriteAnimation.Unload] != 0 || Vid.Children[(int)SpriteAnimation.Unload] != 0 || Vid.Sounds[(int)SpriteAnimation.Unload] != 0))
+        else if (Speed.IsExactlyZero() && Map.Random.Next() % 3 == 0 && (Vid.FrameCounts[(int)SpriteAnimation.Unload] != 0 || Vid.Children[(int)SpriteAnimation.Unload] != 0 || Vid.Sounds[(int)SpriteAnimation.Unload] != 0))
         {
             ChangeAnimation(SpriteAnimation.Unload);
         }

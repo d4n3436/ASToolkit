@@ -66,9 +66,9 @@ public partial class Sprite
             }
         }
 
-        if (Vid.Object.Properties.HasFlag(ObjectProperties.ZeroZ))
+        if (Vid.Properties.HasFlag(ObjectProperties.ZeroZ))
         {
-            next.Z = Map.GetGroundZForMoveTo(Vid.Object, next.AsVector2());
+            next.Z = Map.GetGroundZForMoveTo(Vid, next.AsVector2());
         }
 
         return null;
@@ -151,24 +151,24 @@ public partial class Sprite
         if (vid.MoveMask == 0)
             return null;
 
-        if (!Map.CanStandOnGround(vid.Object, point))
+        if (!Map.CanStandOnGround(vid, point))
             return Map.CursorSprite;
 
         var half = vid.Half;
-        float height = vid.Object.Size.Z;
+        float height = vid.Size.Z;
         Map.Collector.FirstHashInBox(point.AsVector2() - half, point.AsVector2() + half);
         for (var other = Map.Collector.NextHashInBox(); other is not null; other = Map.Collector.NextHashInBox())
         {
             var otherVid = other.Vid;
             if (other == this || other.Animation >= SpriteAnimation.Death || MathF.Abs(other.Position.X - point.X) >= otherVid.Half.X + half.X ||
-                MathF.Abs(other.Position.Y - point.Y) >= otherVid.Half.Y + half.Y || point.Z > otherVid.Object.Size.Z + other.Position.Z ||
+                MathF.Abs(other.Position.Y - point.Y) >= otherVid.Half.Y + half.Y || point.Z > otherVid.Size.Z + other.Position.Z ||
                 other.Position.Z > point.Z + height)
                 continue;
 
             if ((vid.MoveMask & otherVid.MoveMask) != 0)
                 return other;
 
-            if (otherVid.Object.Properties.HasFlag(ObjectProperties.Crush))
+            if (otherVid.Properties.HasFlag(ObjectProperties.Crush))
             {
                 Map.Action(other, ActionCode.Damage, CrushDamage);
             }
@@ -183,7 +183,7 @@ public partial class Sprite
         var reach = other.Vid.Half + Vid.Half;
 
         return other.Animation < SpriteAnimation.Death && offset.X < reach.X && offset.Y < reach.Y &&
-            start.Z <= other.Vid.Object.Size.Z + other.Position.Z && other.Position.Z <= start.Z + Vid.Object.Size.Z;
+            start.Z <= other.Vid.Size.Z + other.Position.Z && other.Position.Z <= start.Z + Vid.Size.Z;
     }
 
     private bool FindCollision(Vector3 position, [NotNullWhen(true)] out Sprite? collision)
@@ -203,20 +203,20 @@ public partial class Sprite
             return null;
         }
 
-        if (!Map.CanStandOnGround(vid.Object, position))
+        if (!Map.CanStandOnGround(vid, position))
         {
             return Map.CursorSprite;
         }
 
         var collector = Map.Collector;
         var half = vid.Half;
-        float height = vid.Object.Size.Z;
+        float height = vid.Size.Z;
         collector.FirstHashInBox(position.AsVector2() - half, position.AsVector2() + half);
         for (var other = collector.NextHashInBox(); other is not null; other = collector.NextHashInBox())
         {
             var otherVid = other.Vid;
             if (other != this && other.Animation < SpriteAnimation.Death && MathF.Abs(other.Position.X - position.X) < otherVid.Half.X + half.X &&
-                MathF.Abs(other.Position.Y - position.Y) < otherVid.Half.Y + half.Y && position.Z <= otherVid.Object.Size.Z + other.Position.Z &&
+                MathF.Abs(other.Position.Y - position.Y) < otherVid.Half.Y + half.Y && position.Z <= otherVid.Size.Z + other.Position.Z &&
                 other.Position.Z <= position.Z + height && (vid.MoveMask & otherVid.MoveMask) != 0)
             {
                 return other;

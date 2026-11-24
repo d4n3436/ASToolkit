@@ -72,9 +72,9 @@ public sealed class VidFont : Vid
     internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, MyError? error)
     {
         FileFrameCount = GlyphCount;
-        FrameSize = new Size((short)(int)Object.Size.X, (short)(int)Object.Size.Y);
+        FrameSize = new Size((short)(int)Size.X, (short)(int)Size.Y);
         FileType = VidType.Font;
-        GlyphSize = new Size((int)Object.Size.X, (int)Object.Size.Y);
+        GlyphSize = new Size((int)Size.X, (int)Size.Y);
         Style = D3DFontStyle.FixedPitch;
         Font = new D3DFont(Path, GlyphSize, Style);
         Font.Create(MaxTextureSize);

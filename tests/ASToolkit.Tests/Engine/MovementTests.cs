@@ -21,7 +21,7 @@ public class MovementTests
         var middle = lattice.ToWorld(22, 30.5f);
         var map = EngineTestMap.CreateMap();
         var sprites = CreateSprites(map);
-        var wall = Place(sprites, Body(new Vector3(10, 10, 40)), new Vector3(middle.X, middle.Y, 0), KnownObject.SpawnWallSlash);
+        var wall = Place(sprites, Record(new Vector3(10, 10, 40)), new Vector3(middle.X, middle.Y, 0), KnownObject.SpawnWallSlash);
         var grid = new RouteGrid
         {
             Lattice = lattice, Cells = Enumerable.Range(20, 4).Select(u => new Cell(u, 30)).ToHashSet(), Edges = [], FenceEdges = [], BlockedCells = []
@@ -57,7 +57,7 @@ public class MovementTests
     [Fact]
     public void Half_IgnoresTheVisualScale()
     {
-        var obj = Body(new Vector3(40, 28, 73), scale: new Vector3(3, 2, 4));
+        var obj = Record(new Vector3(40, 28, 73), scale: new Vector3(3, 2, 4));
         var vid = new Vid(KnownObject.Monster1, obj, default, 0);
         Assert.Equal(new Vector2(20, 14), vid.Half);
     }
@@ -66,7 +66,7 @@ public class MovementTests
     public void CanStand_StaticBox_UsesFullHalfExtentsMasksAndHeight()
     {
         var walker = Body(new Vector3(24, 18, 40), dropHeight: 100);
-        var field = CreateField(walker, (Body(new Vector3(40, 28, 73)), new Vector3(50, 50, 0)));
+        var field = CreateField(walker, (Record(new Vector3(40, 28, 73)), new Vector3(50, 50, 0)));
         Assert.True(field.CanStand(walker, new Vector2(18, 50).AsVector3()));
         Assert.False(field.CanStand(walker, new Vector2(18.1f, 50).AsVector3()));
         Assert.True(field.CanStand(Body(walker.Size, mask: 2), new Vector2(50, 50).AsVector3()));
@@ -93,7 +93,7 @@ public class MovementTests
     public void CanMove_FastMovement_CannotTunnelThroughAThinObject()
     {
         var walker = Body(new Vector3(2, 2, 40));
-        var field = CreateField(walker, (Body(new Vector3(1, 10, 40)), new Vector3(10, 0, 0)));
+        var field = CreateField(walker, (Record(new Vector3(1, 10, 40)), new Vector3(10, 0, 0)));
         Assert.True(field.CanStand(walker, Vector3.Zero));
         Assert.True(field.CanStand(walker, new Vector2(20, 0).AsVector3()));
         Assert.False(field.CanMove(walker, Vector3.Zero, new Vector2(20, 0)));
@@ -116,8 +116,8 @@ public class MovementTests
         var wide = Body(new Vector3(24, 18, 40));
         var map = EngineTestMap.CreateMap();
         var sprites = CreateSprites(map);
-        Place(sprites, Body(new Vector3(6, 200, 40)), new Vector3(30, 0, 0));
-        Place(sprites, Body(new Vector3(6, 200, 40)), new Vector3(50, 0, 0));
+        Place(sprites, Record(new Vector3(6, 200, 40)), new Vector3(30, 0, 0));
+        Place(sprites, Record(new Vector3(6, 200, 40)), new Vector3(50, 0, 0));
         var field = CreateField(narrow, map, sprites);
         Assert.True(field.CanMove(narrow, new Vector2(40, -50).AsVector3(), new Vector2(40, 50)));
         Assert.False(field.CanMove(wide, new Vector2(40, -50).AsVector3(), new Vector2(40, 50)));
@@ -137,8 +137,8 @@ public class MovementTests
     {
         var map = EngineTestMap.CreateMap();
         map.SetTempGroundZ(new Vector3(32, 0, 24));
-        var walker = new Vid(KnownObject.Monster1, Body(new Vector3(16, 16, 20)), default, 0);
-        var bullet = new Vid(KnownObject.PistolBullet, Body(new Vector3(4, 4, 2)), default, 0);
+        var walker = new Vid(KnownObject.Monster1, Record(new Vector3(16, 16, 20)), default, 0);
+        var bullet = new Vid(KnownObject.PistolBullet, Record(new Vector3(4, 4, 2)), default, 0);
         var shooter = new Sprite(walker, Vector3.Zero, default, null, map) { Hp = 10 };
         _ = new Sprite(walker, new Vector3(64, 0, 30), default, null, map) { Army = Army.Monsters, Hp = 10, Position = new Vector3(64, 0, 30) };
 
@@ -160,9 +160,9 @@ public class MovementTests
     public void IsBlockedAt_TouchesCrushingSpritesOnOtherLayersAndKeepsScanning()
     {
         var map = EngineTestMap.CreateMap();
-        var mover = new Vid(KnownObject.PistolBullet, Body(new Vector3(4, 4, 2)), default, 0);
-        var crusher = new Vid(KnownObject.Barrel, Body(new Vector3(16, 16, 20), 2, extra: ObjectProperties.Crush, maxHp: 10), default, 0);
-        var wall = new Vid(KnownObject.Monster1, Body(new Vector3(16, 16, 20)), default, 0);
+        var mover = new Vid(KnownObject.PistolBullet, Record(new Vector3(4, 4, 2)), default, 0);
+        var crusher = new Vid(KnownObject.Barrel, Record(new Vector3(16, 16, 20), 2, extra: ObjectProperties.Crush, maxHp: 10), default, 0);
+        var wall = new Vid(KnownObject.Monster1, Record(new Vector3(16, 16, 20)), default, 0);
         var crushed = new Sprite(crusher, new Vector3(50, 50, 0), default, null, map) { Army = Army.Monsters, Hp = 10 };
         _ = new Sprite(wall, new Vector3(52, 50, 0), default, null, map) { Army = Army.Monsters, Hp = 10 };
 
@@ -170,7 +170,7 @@ public class MovementTests
         Assert.Equal(5, crushed.Hp);
     }
 
-    private static SpriteCollector CreateSprites(Map map) => new(map.Size, new Vid?[] { new(KnownObject.Barrel, Body(new Vector3(256, 256, 0)), default, 0) }, map);
+    private static SpriteCollector CreateSprites(Map map) => new(map.Size, new Vid?[] { new(KnownObject.Barrel, Record(new Vector3(256, 256, 0)), default, 0) }, map);
 
     private static Sprite Place(SpriteCollector sprites, GameObject obj, Vector3 position, KnownObject id = KnownObject.Barrel)
     {
@@ -180,7 +180,7 @@ public class MovementTests
         return sprite;
     }
 
-    private static WalkField CreateField(GameObject walker, params (GameObject Obj, Vector3 Position)[] obstacles)
+    private static WalkField CreateField(Vid walker, params (GameObject Obj, Vector3 Position)[] obstacles)
     {
         var map = EngineTestMap.CreateMap();
         var sprites = CreateSprites(map);
@@ -192,7 +192,7 @@ public class MovementTests
         return CreateField(walker, map, sprites);
     }
 
-    private static WalkField CreateField(GameObject walker, Map map, SpriteCollector? sprites = null)
+    private static WalkField CreateField(Vid walker, Map map, SpriteCollector? sprites = null)
     {
         var grid = new RouteGrid
         {
@@ -203,7 +203,10 @@ public class MovementTests
         return new WalkField(grid, false, map, sprites ?? CreateSprites(map), walker);
     }
 
-    private static GameObject Body(Vector3 size, int mask = 1, SpriteClass spriteClass = SpriteClass.Unit, Vector3? scale = null, float dropHeight = 55, ObjectProperties extra = 0, int maxHp = 0)
+    private static Vid Body(Vector3 size, int mask = 1, SpriteClass spriteClass = SpriteClass.Unit, float dropHeight = 55) =>
+        new(KnownObject.Monster1, Record(size, mask, spriteClass, dropHeight: dropHeight), default, 0);
+
+    private static GameObject Record(Vector3 size, int mask = 1, SpriteClass spriteClass = SpriteClass.Unit, Vector3? scale = null, float dropHeight = 55, ObjectProperties extra = 0, int maxHp = 0)
     {
         var obj = default(GameObject);
         Unsafe.AsRef(in obj.SpriteClass) = spriteClass;

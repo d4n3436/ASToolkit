@@ -27,6 +27,7 @@ public partial class SpriteViewModel : ViewModelBase
     private readonly Stopwatch _clock = new();
     private Map? _map;
     private Sprite? _sprite;
+    private GameObject _record;
     private int _step;
     private bool _isStale;
 
@@ -71,12 +72,19 @@ public partial class SpriteViewModel : ViewModelBase
     public void Show(Map map, ObjectTable objects, Sprite sprite)
     {
         var vid = sprite.Vid;
-        ref readonly var obj = ref vid.Object;
+        bool hasRecord = objects.TryFind(vid.RecordId, out _record);
+        ref readonly var obj = ref _record;
         _map = map;
         _sprite = sprite;
         Title = $"{(int)vid.Id}  {objects.GetName(vid.Id)}\n{objects.GetPath(vid.Id)}  class {obj.SpriteClass}  flags 0x{(int)obj.Properties:x}\n" +
                 $"{vid.FileFrameCount} frames  {vid.FrameSize.Width}x{vid.FrameSize.Height}  {vid.SpriteSpeed} ms";
         States.Clear();
+        if (!hasRecord)
+        {
+            ClearFrame();
+            return;
+        }
+
         for (int state = 0; state < GameObject.StateCount; state++)
         {
             if (obj.FrameCounts[state] > 0)
@@ -115,7 +123,7 @@ public partial class SpriteViewModel : ViewModelBase
             return;
         }
 
-        int duration = Math.Max(1, _sprite.Vid.Object.GetFrameDuration(SelectedState.State, _sprite.Vid.SpriteSpeed));
+        int duration = Math.Max(1, _record.GetFrameDuration(SelectedState.State, _sprite.Vid.SpriteSpeed));
         if (_clock.ElapsedMilliseconds >= duration)
         {
             _clock.Restart();
@@ -137,7 +145,7 @@ public partial class SpriteViewModel : ViewModelBase
         }
 
         var vid = sprite.Vid;
-        int frame = vid.Object.GetStateStart(state.State) + Direction * state.FrameCount + _step % state.FrameCount;
+        int frame = _record.GetStateStart(state.State) + Direction * state.FrameCount + _step % state.FrameCount;
         if (frame >= vid.FileFrameCount)
         {
             ClearFrame();

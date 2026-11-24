@@ -14,11 +14,6 @@ public partial class Map
     private const float PlayerFootprintInset = 3;
     private const float CornerInset = 2;
 
-    private int _gridColumns;
-    private int _gridRows;
-    private short[] _sceneryHeights = [];
-    private short[] _objectHeights = [];
-
     /// <summary>
     /// Returns the ground height of the cell under a point.
     /// </summary>
@@ -36,13 +31,13 @@ public partial class Map
     /// <summary>
     /// Returns the ground height an object stands at over its footprint.
     /// </summary>
-    /// <param name="walker">The object.</param>
+    /// <param name="walker">The shared data of the walker's object ID.</param>
     /// <param name="point">The point.</param>
     /// <returns>The height.</returns>
     [EngineRoutine(0x00411050)]
-    public float GetGroundZForMoveTo(in GameObject walker, Vector2 point)
+    public float GetGroundZForMoveTo(Vid walker, Vector2 point)
     {
-        if (walker.SpriteClass != SpriteClass.Man)
+        if (walker.Class != SpriteClass.Man)
         {
             return GetGroundZ(point);
         }
@@ -67,11 +62,11 @@ public partial class Map
     /// <summary>
     /// Determines whether an object can stand at a point.
     /// </summary>
-    /// <param name="walker">The object.</param>
+    /// <param name="walker">The shared data of the walker's object ID.</param>
     /// <param name="point">The point.</param>
     /// <param name="ground">The height it stands at.</param>
     /// <returns><see langword="true"/> if it can stand there; otherwise, <see langword="false"/>.</returns>
-    public bool CanStandOnGround(in GameObject walker, Vector3 point, out float ground)
+    public bool CanStandOnGround(Vid walker, Vector3 point, out float ground)
     {
         ground = float.NaN;
 
@@ -86,7 +81,7 @@ public partial class Map
         if (!AllowsHeight(walker, ground, point.Z))
             return false;
 
-        if (walker.SpriteClass == SpriteClass.Man)
+        if (walker.Class == SpriteClass.Man)
             return true;
 
         var inset = walker.Size.AsVector2() / 2 - new Vector2(CornerInset);
@@ -98,18 +93,18 @@ public partial class Map
     /// <summary>
     /// Determines whether an object can stand at a point.
     /// </summary>
-    /// <param name="walker">The object.</param>
+    /// <param name="walker">The shared data of the walker's object ID.</param>
     /// <param name="point">The point.</param>
     /// <returns><see langword="true"/> if it can stand there; otherwise, <see langword="false"/>.</returns>
-    public bool CanStandOnGround(in GameObject walker, Vector3 point) => CanStandOnGround(walker, point, out _);
+    public bool CanStandOnGround(Vid walker, Vector3 point) => CanStandOnGround(walker, point, out _);
 
     /// <summary>
     /// Determines whether a point is at or above the ground an object stands on.
     /// </summary>
-    /// <param name="gameObject">The object.</param>
+    /// <param name="walker">The shared data of the walker's object ID.</param>
     /// <param name="point">The point.</param>
     /// <returns><see langword="true"/> if the point is above the ground; otherwise, <see langword="false"/>.</returns>
-    public bool IsAboveGround(in GameObject gameObject, Vector3 point) => point.Z >= GetGroundZForMoveTo(gameObject, point.AsVector2());
+    public bool IsAboveGround(Vid walker, Vector3 point) => point.Z >= GetGroundZForMoveTo(walker, point.AsVector2());
 
     [EngineRoutine(0x00411260)]
     internal void SetGroundZ(Vector3 position)
@@ -157,7 +152,7 @@ public partial class Map
 
     private static float ClampToMap(float value, float size) => value < 0 ? 0 : value >= size ? size - 1 : value;
 
-    private static bool AllowsHeight(in GameObject walker, float ground, float height) => walker.Properties.HasFlag(ObjectProperties.ZeroZ)
+    private static bool AllowsHeight(Vid walker, float ground, float height) => walker.Properties.HasFlag(ObjectProperties.ZeroZ)
         ? ground - height <= walker.StepHeight && height - ground <= walker.DropHeight
         : ground <= height;
 

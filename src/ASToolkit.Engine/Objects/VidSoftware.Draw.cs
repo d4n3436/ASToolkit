@@ -20,7 +20,7 @@ public partial class VidSoftware
     private protected const int AlphaShift = 24;
     private protected const int Cell = 8;
 
-    private bool HasSlope => Object.Size.Y < Object.Size.Z;
+    private bool HasSlope => Size.Y < Size.Z;
 
     /// <summary>
     /// Blends a color over another with the alpha of the source.
@@ -155,13 +155,13 @@ public partial class VidSoftware
             return false;
 
         depth = (int)(sprite.Position.Z * HeightScale);
-        if (Object.Properties.HasFlag(ObjectProperties.AlwaysTop) && depth <= LiftedLimit)
+        if (Properties.HasFlag(ObjectProperties.AlwaysTop) && depth <= LiftedLimit)
         {
             depth += LiftedDepth;
         }
-        else if (Object.Properties.HasFlag(ObjectProperties.Wave))
+        else if (Properties.HasFlag(ObjectProperties.Wave))
         {
-            int bob = (int)(new Angle((byte)(map.Time >> WaveTimeShift & WaveTableMask)).Sine * Object.TopZ * HeightScale);
+            int bob = (int)(new Angle((byte)(map.Time >> WaveTimeShift & WaveTableMask)).Sine * TopZ * HeightScale);
             depth += bob;
             origin.Y -= bob + (bob >> 31 & 7) >> 3;
         }
@@ -186,7 +186,7 @@ public partial class VidSoftware
         int variant = FileType.HasFlag(VidType.PaletteVariants) ? paletteSize * 4 : 0;
         Palettes.Slice(variant, paletteSize).CopyTo(scratch);
         var gamma = sprite.GetGamma();
-        ApplyGamma(scratch[..paletteSize], Object.Properties.HasFlag(ObjectProperties.Gamma) ? gamma : gamma.Add(map.Session.Graphics.Gamma));
+        ApplyGamma(scratch[..paletteSize], Properties.HasFlag(ObjectProperties.Gamma) ? gamma : gamma.Add(map.Session.Graphics.Gamma));
         return scratch;
     }
 

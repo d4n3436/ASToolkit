@@ -31,9 +31,9 @@ public partial class VidSoftware
 
         origin.Y += sprite.Position.Z;
         float z = sprite.Position.Z;
-        if (Object.Properties.HasFlag(ObjectProperties.Wave))
+        if (Properties.HasFlag(ObjectProperties.Wave))
         {
-            z = new Angle((byte)(map.Time >> WaveTimeShift & WaveTableMask)).Sine * Object.TopZ + z;
+            z = new Angle((byte)(map.Time >> WaveTimeShift & WaveTableMask)).Sine * TopZ + z;
         }
 
         int record = FrameOffsets[sprite.Frame];

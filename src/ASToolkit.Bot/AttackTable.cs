@@ -35,7 +35,7 @@ internal sealed class AttackTable
             return default;
 
         if (child.Damage > 0)
-            return new AttackProfile(creator.FightCount * child.Damage, child.BlastRadius, !child.ShouldSkipOwnArmy, Rounds: creator.FightCount, BlastHeight: GetBlastHeight(child));
+            return new AttackProfile(creator.FightCount * child.Damage, child.DeathRange, !child.ShouldSkipOwnArmy, Rounds: creator.FightCount, BlastHeight: GetBlastHeight(child));
 
         if (child.FightChild != 0)
         {
@@ -47,17 +47,17 @@ internal sealed class AttackTable
         var payload = FindChild(child.DeathChild);
 
         if (payload is not null)
-            return new AttackProfile(creator.FightCount * payload.Damage, payload.BlastRadius, !payload.ShouldSkipOwnArmy, Rounds: creator.FightCount, BlastHeight: GetBlastHeight(payload));
+            return new AttackProfile(creator.FightCount * payload.Damage, payload.DeathRange, !payload.ShouldSkipOwnArmy, Rounds: creator.FightCount, BlastHeight: GetBlastHeight(payload));
 
-        var carried = FindChild(child.Object.Link);
+        var carried = FindChild(child.Link);
 
-        return carried is null ? default : new AttackProfile(creator.FightCount * carried.Damage, carried.BlastRadius, !carried.ShouldSkipOwnArmy,
+        return carried is null ? default : new AttackProfile(creator.FightCount * carried.Damage, carried.DeathRange, !carried.ShouldSkipOwnArmy,
             child.Speed * child.GetAnimationDuration(child.InitialAnimation), creator.FightCount, GetBlastHeight(carried));
     }
 
     private Vid? FindChild(KnownObject id) => id == KnownObject.None ? null : _map.FindVid(id);
 
-    private static float GetBlastHeight(Vid payload) => Math.Max(Map.MinBlastHeight, payload.Object.Size.Z);
+    private static float GetBlastHeight(Vid payload) => Math.Max(Map.MinBlastHeight, payload.Size.Z);
 }
 
 internal readonly record struct AttackProfile(int Damage, float BlastRadius, bool CanHurtOwnArmy, float Reach = float.MaxValue, int Rounds = 1, float BlastHeight = float.MaxValue);

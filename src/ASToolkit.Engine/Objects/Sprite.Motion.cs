@@ -69,7 +69,7 @@ public partial class Sprite
         ClearMove();
         VerticalSpeed = 0;
 
-        if (Vid.Object.Deceleration.IsExactly(Vid.Unlimited))
+        if (Vid.Deceleration.IsExactly(Vid.Unlimited))
         {
             Speed = 0;
         }
@@ -87,7 +87,7 @@ public partial class Sprite
 
         var link = Link;
 
-        if (link is not null && link.Vid == Vid.LinkVid && link.Vid.FightChild != 0 && link.Vid.Object.WeaponIndex != 0 &&
+        if (link is not null && link.Vid == Vid.LinkVid && link.Vid.FightChild != 0 && link.Vid.WeaponIndex != 0 &&
             link.Command is not (Command.None or Command.OneAttack))
         {
             link.SetCommand(Command.None);
@@ -100,7 +100,7 @@ public partial class Sprite
         if (MaxSpeed.IsExactlyZero())
             return false;
 
-        ref readonly var gameObject = ref Vid.Object;
+        var vid = Vid;
 
         if (HasGoal)
         {
@@ -111,12 +111,12 @@ public partial class Sprite
 
             int distance = 0;
 
-            if (Vid.Directions == 1 || gameObject.Properties.HasFlag(ObjectProperties.RandomBirth))
+            if (Vid.Directions == 1 || vid.Properties.HasFlag(ObjectProperties.RandomBirth))
             {
                 ChangeDirection(Angle.Aim(new Point((int)offset.X, (int)offset.Y), out distance));
             }
 
-            if (!gameObject.SpriteType.HasFlag(SpriteType.Cannon) && Vid.Class != SpriteClass.Cannon)
+            if (!vid.SpriteType.HasFlag(OldSpriteType.Cannon) && Vid.Class != SpriteClass.Cannon)
             {
                 VerticalSpeed = offset.Z > 0 ? Vid.ZSpeed : offset.Z < 0 ? -Vid.ZSpeed : 0;
             }
@@ -143,7 +143,7 @@ public partial class Sprite
             ChangeAnimation(Speed.IsExactlyZero() ? SpriteAnimation.StartMove : SpriteAnimation.Go);
         }
 
-        if (gameObject.Acceleration.IsExactly(Vid.Unlimited))
+        if (vid.Acceleration.IsExactly(Vid.Unlimited))
         {
             Speed = MaxSpeed;
         }
@@ -154,7 +154,7 @@ public partial class Sprite
     [EngineRoutine(0x0043fb10)]
     internal Vector3 CalculateNewCoordinates(int elapsed)
     {
-        ref readonly var gameObject = ref Vid.Object;
+        var vid = Vid;
         var next = Position;
         IsBlocked = false;
 
@@ -189,23 +189,23 @@ public partial class Sprite
             HasReachedX = true;
             HasReachedY = true;
         }
-        else if (!Speed.IsExactlyZero() || !Map.Session.Graphics.WindSpeed.IsExactlyZero() && gameObject.Properties.HasFlag(ObjectProperties.Wind))
+        else if (!Speed.IsExactlyZero() || !Map.Session.Graphics.WindSpeed.IsExactlyZero() && vid.Properties.HasFlag(ObjectProperties.Wind))
         {
-            var direction = gameObject.Properties.HasFlag(ObjectProperties.Homing) && HasGoal
+            var direction = vid.Properties.HasFlag(ObjectProperties.Homing) && HasGoal
                 ? Angle.FromOffset((GoalPosition - Position).AsVector2()) : Direction;
             next = Displace(next, direction, Speed, elapsed);
 
-            if (gameObject.Properties.HasFlag(ObjectProperties.Wind))
+            if (vid.Properties.HasFlag(ObjectProperties.Wind))
             {
                 next = Displace(next, Map.Session.Graphics.WindDirection, Map.Session.Graphics.WindSpeed, elapsed);
             }
         }
 
-        if (gameObject.Properties.HasFlag(ObjectProperties.Gravity))
+        if (vid.Properties.HasFlag(ObjectProperties.Gravity))
         {
             VerticalSpeed -= elapsed * Map.Constant.Gravitation;
         }
-        else if (gameObject.Properties.HasFlag(ObjectProperties.Gravity2))
+        else if (vid.Properties.HasFlag(ObjectProperties.Gravity2))
         {
             VerticalSpeed -= elapsed * Map.Constant.Gravitation2;
         }
@@ -222,14 +222,13 @@ public partial class Sprite
 
     private static float Accelerate(Vid vid, float speed, float maxSpeed, bool moving, int elapsed)
     {
-        ref readonly var gameObject = ref vid.Object;
 
         if (!moving)
         {
             if (speed <= 0)
                 return speed;
 
-            if (gameObject.Deceleration.IsExactly(Vid.Unlimited))
+            if (vid.Deceleration.IsExactly(Vid.Unlimited))
                 return 0;
 
             float slowed = speed - elapsed * vid.Deceleration;
@@ -240,7 +239,7 @@ public partial class Sprite
         if (speed >= maxSpeed)
             return speed;
 
-        if (gameObject.Acceleration.IsExactly(Vid.Unlimited))
+        if (vid.Acceleration.IsExactly(Vid.Unlimited))
             return maxSpeed;
 
         float faster = elapsed * vid.Acceleration + speed;

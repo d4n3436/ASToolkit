@@ -36,24 +36,45 @@ public partial class Map : IDisposable
     private const int ReleaseWindDirection = 200;
 
     private static readonly SizeF StartMapSize = new(640, 480);
+    private protected GameClock _clock;
+    private protected MapFlags _flags;
+    private ReadOnlyMemory<byte> _pendingMapName;
+    private readonly string _gameFolder;
+    private protected int _stepCount;
+    private int _levelStartTime;
+    private ScrollType _scrollType = ScrollType.FromBorder;
+    private protected readonly MyList<Sprite?>[] _layers = new MyList<Sprite?>[LayerCount];
+    private DemoResource? _playedDemo;
+    private int _playedOffset;
+    private MemoryStream? _recordedDemo;
+    private short[] _sceneryHeights = [];
+    private short[] _objectHeights = [];
+    private int _gridColumns;
+    private int _gridRows;
+    private bool _hasWindow;
+    private protected readonly Player[] _players = new Player[ASToolkit.Engine.Vid.ArmyCount];
+    private readonly Group _groupHead = new(null, null);
+    private int _weaponCount;
+    private int _vidCount;
+    private readonly Vid?[] _vids = new Vid?[VidTableSize];
+
     private protected readonly GameRandom _rng;
     private readonly Dictionary<int, ScriptFile> _scriptFiles = [];
     private readonly ControlSettings _controls;
-    private readonly Group _groupHead = new(null, null);
-    private protected readonly Player[] _players = new Player[ASToolkit.Engine.Vid.ArmyCount];
     private readonly LivingSet _livingFences = new();
     private readonly LivingSet _livingSites = new();
     private readonly LivingSet _livingCharges = new();
     private readonly int[] _scriptHooks = new int[ScriptHookCount];
-    private protected readonly MyList<Sprite?>[] _layers = new MyList<Sprite?>[LayerCount];
     private int _pausedAt;
-    private protected GameClock _clock;
-    private protected MapFlags _flags;
-    private protected StepFlags _debug;
-    private protected uint _presentationShownAt;
-    private protected int _stepCount;
-    private bool _hasWindow;
-    private int _levelStartTime;
+    private int _demoPacedTime;
+    private uint _demoPacedAt;
+    private MemoryStream? _endedDemo;
+    private ObjectTable _objects;
+    private int _lastHandle;
+    private int _unitIndex;
+    private OldSpriteType _unitMask;
+    private int _spriteLayer;
+    private int _spriteIndex;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Map"/> class with no level loaded.
@@ -123,11 +144,6 @@ public partial class Map : IDisposable
     /// Gets a value indicating whether the first player slot has a player.
     /// </summary>
     public bool HasPlayer => Flagman(0) is not null;
-
-    /// <summary>
-    /// Gets the input of the current frame.
-    /// </summary>
-    public Input Input { get; }
 
     /// <summary>
     /// Gets the sprite groups of the map.
@@ -211,16 +227,31 @@ public partial class Map : IDisposable
     /// </summary>
     public ReadOnlySpan<Sprite> MenuSprites => Menu.Items;
 
+    internal Relation Relation { get; } = new();
+
     internal Menu Menu { get; }
 
     internal IGameFileSystem FileSystem { get; }
-
-    internal Relation Relation { get; } = new();
 
     /// <summary>
     /// Gets the size of the map, in map pixels.
     /// </summary>
     public SizeF Size { get; private set; }
+
+    /// <summary>
+    /// Gets the top-left corner of the screen on the map.
+    /// </summary>
+    public Vector2 Camera { get; private set; }
+
+    /// <summary>
+    /// Gets the level script.
+    /// </summary>
+    public Script Script { get; } = new();
+
+    /// <summary>
+    /// Gets the input of the current frame.
+    /// </summary>
+    public Input Input { get; }
 
     /// <summary>
     /// Gets the spatial hash of the sprites of the map.
@@ -303,7 +334,6 @@ public partial class Map : IDisposable
         _livingFences.Clear();
         _livingSites.Clear();
         _livingCharges.Clear();
-        _hardwareGround = null;
         if (!Session.IsRecordingNextMap)
         {
             var demo = new Resource();

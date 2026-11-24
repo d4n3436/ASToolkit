@@ -83,17 +83,16 @@ public partial class Sprite
             CreateExtra();
         }
 
-        ref readonly var gameObject = ref vid.Object;
 
-        if (gameObject.Properties.HasFlag(ObjectProperties.Noise))
+        if (vid.Properties.HasFlag(ObjectProperties.Noise))
         {
             position.X += SpawnScatter - Map.Random.Next() % (SpawnScatter * 2 + 1);
             position.Y += SpawnScatter - Map.Random.Next() % (SpawnScatter * 2 + 1);
         }
 
-        if (gameObject.Properties.HasFlag(ObjectProperties.ZeroZ))
+        if (vid.Properties.HasFlag(ObjectProperties.ZeroZ))
         {
-            float ground = Map.GetGroundZForMoveTo(gameObject, position.AsVector2());
+            float ground = Map.GetGroundZForMoveTo(vid, position.AsVector2());
             position.Z = parent is null ? ground : position.Z - parent.Position.Z + ground;
         }
 
@@ -106,11 +105,11 @@ public partial class Sprite
         else
         {
             var link = vid.LinkVid;
-            Army = gameObject.WeaponIndex == 0 && link is not null ? link.Army : vid.Army;
+            Army = vid.WeaponIndex == 0 && link is not null ? link.Army : vid.Army;
         }
 
         CreatedAt = Map.Time;
-        IsInvisible = gameObject.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) && (int)Army != Map.ControlledPlayer;
+        IsInvisible = vid.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) && (int)Army != Map.ControlledPlayer;
         Hp = vid.ArmyMaxHp[(int)Army & Vid.ArmyMask];
         Error = Map.Session.Error;
         var state = Map.GetInitialAnimation(vid);
@@ -180,8 +179,8 @@ public partial class Sprite
     /// </summary>
     public Command Command
     {
-        get => (Command)((uint)(_flags & SpriteFlags.Command) >> CommandShift);
-        set => _flags = _flags & ~SpriteFlags.Command | (SpriteFlags)((uint)value << CommandShift) & SpriteFlags.Command;
+        get => (Command)((int)(_flags & SpriteFlags.Command) >> CommandShift);
+        set => _flags = _flags & ~SpriteFlags.Command | (SpriteFlags)((int)value << CommandShift) & SpriteFlags.Command;
     }
 
     /// <summary>
@@ -216,8 +215,8 @@ public partial class Sprite
     /// </summary>
     public Army Army
     {
-        get => (Army)((uint)(_flags & SpriteFlags.Army) >> ArmyShift);
-        set => _flags = _flags & ~SpriteFlags.Army | (SpriteFlags)((uint)value << ArmyShift) & SpriteFlags.Army;
+        get => (Army)((int)(_flags & SpriteFlags.Army) >> ArmyShift);
+        set => _flags = _flags & ~SpriteFlags.Army | (SpriteFlags)((int)value << ArmyShift) & SpriteFlags.Army;
     }
 
     /// <summary>
@@ -537,12 +536,12 @@ public partial class Sprite
         if (target is null)
             return false;
 
-        if (Vid.FightChild != 0 && Vid.Object.WeaponIndex != 0 && (Vid.Targets & target.Vid.Object.SpriteType) != 0)
+        if (Vid.FightChild != 0 && Vid.WeaponIndex != 0 && (Vid.Targets & target.Vid.SpriteType) != 0)
             return true;
 
         var link = ArmedLink;
 
-        return link is not null && (link.Vid.Targets & target.Vid.Object.SpriteType) != 0;
+        return link is not null && (link.Vid.Targets & target.Vid.SpriteType) != 0;
     }
 
     /// <summary>
@@ -650,7 +649,7 @@ public partial class Sprite
     public void Start(SpriteAnimation state, Angle direction, int time, Random random)
     {
         var layout = Vid;
-        bool firstFrame = Vid.Object.Properties.HasFlag(ObjectProperties.OnePhase);
+        bool firstFrame = Vid.Properties.HasFlag(ObjectProperties.OnePhase);
         LastTickTime = time - (firstFrame ? 0 : random.Next(Vid.SpriteSpeed + 1));
         _direction = default;
         Animation = state;
@@ -682,8 +681,8 @@ public partial class Sprite
 
         var link = Link;
 
-        if (link is not null && link.Vid == Vid.LinkVid && (state >= SpriteAnimation.Death || link.Vid.Object.WeaponIndex == 0 &&
-            !link.Vid.Object.Properties.HasFlag(ObjectProperties.Wind) && link.Animation is not SpriteAnimation.Fight and < SpriteAnimation.Death))
+        if (link is not null && link.Vid == Vid.LinkVid && (state >= SpriteAnimation.Death || link.Vid.WeaponIndex == 0 &&
+            !link.Vid.Properties.HasFlag(ObjectProperties.Wind) && link.Animation is not SpriteAnimation.Fight and < SpriteAnimation.Death))
         {
             link.ChangeAnimation(state);
         }
@@ -718,16 +717,16 @@ public partial class Sprite
 
         if (link is not null)
         {
-            ref readonly var linked = ref link.Vid.Object;
-            bool fixedOffset = linked.Properties.HasFlag(ObjectProperties.FixedOffset);
-            var offset = Vid.Object.LinkOffset;
+            var linkVid = link.Vid;
+            bool fixedOffset = linkVid.Properties.HasFlag(ObjectProperties.FixedOffset);
+            var offset = Vid.LinkOffset;
 
             if (link.Vid == Vid.LinkVid && !fixedOffset && (!offset.X.IsExactlyZero() || !offset.Y.IsExactlyZero()))
             {
                 var linkOffset = Vid.GetLinkOffset(link.Vid, Vid.GetFrameDirection(shown));
                 link.ChangeCoor(new Vector3(linkOffset.AsVector2() + Position.AsVector2(), link.Position.Z));
             }
-            else if (linked.SpriteClass == SpriteClass.Linker && !fixedOffset)
+            else if (linkVid.Class == SpriteClass.Linker && !fixedOffset)
             {
                 ((Linker)link).LinkRotate(Vid.GetFrameDirection(shown));
             }
@@ -954,7 +953,7 @@ public partial class Sprite
             return HasGoal ? AttackResult.NoOrder : AttackResult.NoTarget;
         }
 
-        if (Vid.FightChild == 0 || Vid.Object.WeaponIndex == 0)
+        if (Vid.FightChild == 0 || Vid.WeaponIndex == 0)
             return AttackResult.Unarmed;
 
         if (!HasGoal)
@@ -1112,20 +1111,20 @@ public partial class Sprite
         if (!Vid.CanMove)
             return;
 
-        ref readonly var gameObject = ref Vid.Object;
+        var vid = Vid;
         int elapsed = Map.FrameTime;
         var next = CalculateNewCoordinates(elapsed);
         float current = Map.GetGroundZ(Position.AsVector2());
         float ground = Map.GetGroundZ(next.AsVector2());
-        float hover = ground + gameObject.TopZ;
+        float hover = ground + vid.TopZ;
 
-        if (gameObject.SpriteType.HasFlag(SpriteType.Cannon) && gameObject.Properties.HasFlag(ObjectProperties.Gravity) && ground >= next.Z && Position.Z >= current)
+        if (vid.SpriteType.HasFlag(OldSpriteType.Cannon) && vid.Properties.HasFlag(ObjectProperties.Gravity) && ground >= next.Z && Position.Z >= current)
         {
             next.Z = Position.Z;
         }
         else
         {
-            KeepHoverHeight(this, gameObject, hover, ref next);
+            KeepHoverHeight(this, vid, hover, ref next);
         }
 
         if (HasGoal && !Speed.IsExactlyZero() && this is { HasReachedX: true, HasReachedY: true })
@@ -1236,9 +1235,9 @@ public partial class Sprite
         }
     }
 
-    private protected static void KeepHoverHeight(Sprite sprite, in GameObject gameObject, float hover, ref Vector3 next)
+    private protected static void KeepHoverHeight(Sprite sprite, Vid vid, float hover, ref Vector3 next)
     {
-        if (sprite.Position.Z.IsExactly(next.Z) || gameObject.Properties.HasFlag(ObjectProperties.Gravity) || hover.IsExactlyZero())
+        if (sprite.Position.Z.IsExactly(next.Z) || vid.Properties.HasFlag(ObjectProperties.Gravity) || hover.IsExactlyZero())
             return;
 
         float height = hover;
@@ -1249,7 +1248,7 @@ public partial class Sprite
             {
                 height = next.Z;
 
-                if (!gameObject.Properties.HasFlag(ObjectProperties.SelfMoving))
+                if (!vid.Properties.HasFlag(ObjectProperties.SelfMoving))
                 {
                     next.Z = height;
                     sprite.VerticalSpeed = 0;
@@ -1320,7 +1319,7 @@ public partial class Sprite
 
     private Angle GetShownDirection(Angle direction)
     {
-        if (VerticalSpeed.IsExactlyZero() || !Vid.Object.Properties.HasFlag(ObjectProperties.VerticalDirection))
+        if (VerticalSpeed.IsExactlyZero() || !Vid.Properties.HasFlag(ObjectProperties.VerticalDirection))
             return direction;
 
         return Angle.FromOffset(new Vector2(direction.Vector.X * Speed * VelocityScale, -(direction.Vector.Y * Speed + VerticalSpeed) * VelocityScale));
@@ -1427,7 +1426,7 @@ public partial class Sprite
         if (child is null || child.NotCreatedAsChild != 0)
             return;
 
-        var offsetDirection = child.Object.Properties.HasFlag(ObjectProperties.FixedOffset) ? default : vid.GetFrameDirection(Direction);
+        var offsetDirection = child.Properties.HasFlag(ObjectProperties.FixedOffset) ? default : vid.GetFrameDirection(Direction);
 
         if (count == ChildPairCount && vid.HasDoubleAttack)
         {
@@ -1447,12 +1446,12 @@ public partial class Sprite
         for (; i < count; i++)
         {
             var shift = GetChildShift(vid,slot,i,offsetDirection,out var lateral);
-            var childPosition = new Vector3(shift.X + Position.X, shift.Y + Position.Y, vid.Object.ChildZ[slot] + Position.Z);
+            var childPosition = new Vector3(shift.X + Position.X, shift.Y + Position.Y, vid.ChildZ[slot] + Position.Z);
 
             if (child.Class == SpriteClass.Unit && Map.Collector.CanPlace(child, childPosition) is not null || state == SpriteAnimation.Fight && Goal is null)
                 continue;
 
-            var childDirection = child.Object.Properties.HasFlag(ObjectProperties.RandomBirth) ? new Angle((byte)(Map.Random.Next() & byte.MaxValue)) : Direction;
+            var childDirection = child.Properties.HasFlag(ObjectProperties.RandomBirth) ? new Angle((byte)(Map.Random.Next() & byte.MaxValue)) : Direction;
             var created = Map.CreateSprite(child, childPosition, childDirection, this);
 
             var goal = Goal;
@@ -1464,7 +1463,7 @@ public partial class Sprite
         }
 
         if (state == SpriteAnimation.Fight && !IsAwaitingSecondPulse && Command is Command.OneAttack or Command.DistAttack &&
-            (!vid.Object.Properties.HasFlag(ObjectProperties.Track) && !child.Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke) || Frame == LastFrame))
+            (!vid.Properties.HasFlag(ObjectProperties.Track) && !child.Properties.HasFlag(ObjectProperties.BirthAsSmoke) || Frame == LastFrame))
         {
             var owner = Owner;
 
@@ -1484,8 +1483,8 @@ public partial class Sprite
 
     private Vector2 GetChildShift(Vid vid, int slot, int index, Angle offsetDirection, out Vector2 lateral)
     {
-        float childX = vid.Object.ChildX[slot];
-        float childY = vid.Object.ChildY[slot];
+        float childX = vid.ChildX[slot];
+        float childY = vid.ChildY[slot];
 
         if (vid.Children[slot] < 0 && vid.Class == SpriteClass.Region && childX.IsExactlyZero() && childY.IsExactlyZero())
         {
@@ -1740,7 +1739,6 @@ public partial class Sprite
     internal void DrawSpriteBox()
     {
         var vid = Vid;
-        var gameObject = vid.Object;
 
         if (vid.Class == SpriteClass.Region)
         {
@@ -1749,10 +1747,10 @@ public partial class Sprite
             return;
         }
 
-        var type = gameObject.SpriteType.ToOldSpriteType();
+        var type = vid.SpriteType;
         uint color;
 
-        if (type.HasFlag(OldSpriteType.Terrain) && gameObject.Properties.HasFlag(ObjectProperties.Hash))
+        if (type.HasFlag(OldSpriteType.Terrain) && vid.Properties.HasFlag(ObjectProperties.Hash))
         {
             color = Map.Black;
         }
@@ -1799,7 +1797,7 @@ public partial class Sprite
         if (type.HasFlag(OldSpriteType.Object) || type.HasFlag(OldSpriteType.Unit))
         {
             float feet = position.Y - position.Z - Map.Camera.Y;
-            float roof = position.Y - position.Z - gameObject.Size.Z - Map.Camera.Y;
+            float roof = position.Y - position.Z - vid.Size.Z - Map.Camera.Y;
             float x = position.X - Map.Camera.X;
             Map.Session.Graphics.DrawLine(Map, new Vector2(x, roof), new Vector2(x, feet), Map.Blue);
         }

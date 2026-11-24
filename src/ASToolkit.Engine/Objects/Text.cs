@@ -65,6 +65,8 @@ public sealed class Text : Frame
 
     private static ReadOnlySpan<byte> FontTag => "<Font="u8;
 
+    private static ReadOnlySpan<byte> MenuSection => "menu"u8;
+
     /// <summary>
     /// Draws the shown text with the frames of the font's object ID.
     /// </summary>
@@ -86,14 +88,14 @@ public sealed class Text : Frame
         if ((TextBehavior & TextBehavior.LoadFrom) == TextBehavior.ScriptUpdated)
         {
             Shown = map.GetVariableString(Description.Span);
-            Map.LayOutText(this);
+            LayOutText();
         }
 
         var shown = Shown.Span;
 
         if (!shown.IsEmpty && shown[0] != 0)
         {
-            var size = Vid.Object.Size.AsVector2();
+            var size = Vid.Size.AsVector2();
             var half = Vid.Half;
             var pen = new Vector2(
                 TextBehavior.HasFlag(TextBehavior.CenterX)
@@ -109,7 +111,7 @@ public sealed class Text : Frame
             while (GetCharacter(shown, i) != 0 && i < VisibleCount)
             {
                 byte character = shown[i];
-                var currentSize = current.Object.Size.AsVector2();
+                var currentSize = current.Size.AsVector2();
 
                 if (character == CRuntime.LineFeed)
                 {
@@ -129,7 +131,7 @@ public sealed class Text : Frame
                     var identifier = shown[FontTag.Length..];
                     int id = identifier.Length > 1 && identifier[1] == (byte)'x' ? CRuntime.ScanInteger(identifier) : CRuntime.ParseInteger(identifier);
                     current = map.FindVid((KnownObject)id) ?? map.EmptyVid;
-                    pen.X -= current.Object.Size.X;
+                    pen.X -= current.Size.X;
                     int end = shown.IndexOf(TagEnd);
                     i += end < 0 ? shown.Length : end;
                 }
@@ -138,7 +140,7 @@ public sealed class Text : Frame
                     int id = (sbyte)shown[i + 1];
                     i++;
                     current = map.FindVid((KnownObject)id) ?? map.EmptyVid;
-                    pen.X -= current.Object.Size.X;
+                    pen.X -= current.Size.X;
                 }
                 else if (character >= FirstPrintable)
                 {
@@ -148,7 +150,7 @@ public sealed class Text : Frame
                 }
 
                 i++;
-                pen.X += current.Object.Size.X;
+                pen.X += current.Size.X;
             }
         }
 
@@ -168,7 +170,7 @@ public sealed class Text : Frame
                 TextBehavior = (TextBehavior)var1;
                 return 0;
             case ActionCode.SetText:
-                Map.SetText(this, ReadTextAddress(var1));
+                SetText(ReadTextAddress(var1));
                 return 0;
             case ActionCode.SetTextCount:
                 VisibleCount = var1;
@@ -247,12 +249,58 @@ public sealed class Text : Frame
         var behavior = TextBehavior;
         stream.ReadInto(ref behavior);
         TextBehavior = behavior;
-        Map.SetText(this, stream.ReadText().ToArray());
+        SetText(stream.ReadText().ToArray());
 
         return 0;
     }
 
+    internal void SetText(ReadOnlyMemory<byte> description)
+    {
+        Description = description;
+        Shown = (TextBehavior & TextBehavior.LoadFrom) switch
+        {
+            TextBehavior.NotLoad => description,
+            TextBehavior.StringsIni => ReadMenuString(description.Span),
+            TextBehavior.File => Map.LoadTextFile(description.Span),
+            TextBehavior.ScriptFile => Map.LoadTextFile(Map.GetVariableString(description.Span).Span),
+            TextBehavior.ScriptStrings => ReadMenuString(Map.GetVariableString(description.Span).Span),
+            _ => Map.GetVariableString(description.Span)
+        };
+        LayOutText();
+    }
+
+    [EngineRoutine(0x004495d0)]
+    internal void LayOutText()
+    {
+        var shown = Shown.Span;
+        LineCount = 1;
+        LineWidth = 0;
+        int lineStart = 0;
+        int i = 0;
+        for (; i < shown.Length; i++)
+        {
+            if (shown[i] != CRuntime.LineFeed)
+                continue;
+
+            if (LineWidth < i - lineStart)
+            {
+                LineWidth = i - lineStart;
+            }
+
+            lineStart = i + 1;
+            LineCount++;
+        }
+
+        VisibleCount = i;
+        if (LineWidth == 0)
+        {
+            LineWidth = i;
+        }
+    }
+
     private static byte GetCharacter(ReadOnlySpan<byte> text, int index) => (uint)index < (uint)text.Length ? text[index] : (byte)0;
+
+    private ReadOnlyMemory<byte> ReadMenuString(ReadOnlySpan<byte> key) => Profile.GetString(Map.FileSystem, Map.StringsFile, MenuSection, key);
 
     private ReadOnlyMemory<byte> ReadTextAddress(int address) => address == 0 ? default : Map.Script.GetSlot(address - 1).Text;
 }

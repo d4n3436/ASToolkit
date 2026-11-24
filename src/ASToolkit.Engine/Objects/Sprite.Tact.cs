@@ -65,14 +65,14 @@ public partial class Sprite
         int emitSlot = (int)Animation;
         var emitChild = Vid.ChildVids[emitSlot];
 
-        if (emitChild is not null && Vid.Class == SpriteClass.Region && Vid.Object.ChildX[emitSlot].IsExactlyZero() && Vid.Object.ChildY[emitSlot].IsExactlyZero())
+        if (emitChild is not null && Vid.Class == SpriteClass.Region && Vid.ChildX[emitSlot].IsExactlyZero() && Vid.ChildY[emitSlot].IsExactlyZero())
         {
             var region = this as Region;
             bool isMapCovered = region is not null && region.Flags.HasFlag(RegionFlags.CoversMap);
             var regionSize = region?.Size ?? Vector2.Zero;
             float regionWidth = isMapCovered ? Map.Size.Width : regionSize.X;
             float regionHeight = isMapCovered ? Map.Size.Height : regionSize.Y;
-            float area = regionHeight * regionWidth / emitChild.Object.Size.X / emitChild.Object.Size.Y;
+            float area = regionHeight * regionWidth / emitChild.Size.X / emitChild.Size.Y;
             int count = (int)area;
 
             if (count != 0 && Map.FrameTime != 0 && Map.Random.Next() % (int)(1000u / (uint)Map.FrameTime / (uint)count + 1) == 0)
@@ -80,19 +80,19 @@ public partial class Sprite
                 CreateChild();
             }
         }
-        else if (emitChild is not null && emitChild.Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke) && (uint)(Map.Time - (int)((uint)Map.Time % (uint)StreamPeriod)) > (uint)(Map.Time - Map.FrameTime))
+        else if (emitChild is not null && emitChild.Properties.HasFlag(ObjectProperties.BirthAsSmoke) && (uint)(Map.Time - (int)((uint)Map.Time % (uint)StreamPeriod)) > (uint)(Map.Time - Map.FrameTime))
         {
             float across = Direction.Sine * Speed;
             float down = Direction.Cosine * Speed + (VerticalSpeed - emitChild.ZSpeed);
 
-            if (emitChild.Object.Properties.HasFlag(ObjectProperties.Wind))
+            if (emitChild.Properties.HasFlag(ObjectProperties.Wind))
             {
                 across -= Map.Session.Graphics.WindDirection.Sine * Map.Session.Graphics.WindSpeed;
                 down -= Map.Session.Graphics.WindDirection.Cosine * Map.Session.Graphics.WindSpeed;
             }
 
-            float acrossPeriod = across.IsExactlyZero() ? MaxStreamPeriod : emitChild.Object.Size.X / Math.Abs(across);
-            float downPeriod = down.IsExactlyZero() ? MaxStreamPeriod : emitChild.Object.Size.Y / Math.Abs(down);
+            float acrossPeriod = across.IsExactlyZero() ? MaxStreamPeriod : emitChild.Size.X / Math.Abs(across);
+            float downPeriod = down.IsExactlyZero() ? MaxStreamPeriod : emitChild.Size.Y / Math.Abs(down);
             uint streamPeriod = (uint)CRuntime.Ftol(Math.Min(acrossPeriod, downPeriod));
 
             if ((SpriteAnimation)emitSlot == SpriteAnimation.Fight && Vid.HasDoubleAttack)
@@ -125,7 +125,7 @@ public partial class Sprite
             }
         }
 
-        bool everyFrame = Vid.Object.Properties.HasFlag(ObjectProperties.Track);
+        bool everyFrame = Vid.Properties.HasFlag(ObjectProperties.Track);
         int handler = Vid.StateHandlers[(int)state];
 
         while (handler >= 0 && (Frame == FirstFrame || everyFrame))
@@ -150,13 +150,13 @@ public partial class Sprite
 
         var tactChild = Vid.ChildVids[(int)Animation];
 
-        if (tactChild is not null && !tactChild.Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke))
+        if (tactChild is not null && !tactChild.Properties.HasFlag(ObjectProperties.BirthAsSmoke))
         {
-            int emissionFrame = Vid.Object.Properties.HasFlag(ObjectProperties.CreateChildEnd) ? LastFrame : FirstFrame;
+            int emissionFrame = Vid.Properties.HasFlag(ObjectProperties.CreateChildEnd) ? LastFrame : FirstFrame;
 
             if (Animation == SpriteAnimation.Fight && Vid.HasDoubleAttack
                 ? Frame == (LastFrame + 1 + FirstFrame) / 2 || Frame == emissionFrame
-                : Vid.Object.Properties.HasFlag(ObjectProperties.Track) || Frame == emissionFrame)
+                : Vid.Properties.HasFlag(ObjectProperties.Track) || Frame == emissionFrame)
             {
                 CreateChild();
             }

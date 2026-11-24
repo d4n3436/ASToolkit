@@ -24,6 +24,9 @@ public sealed class Region : Sprite
     private const float Half = 0.5f;
     private const float RegionBoxMargin = 1;
 
+    private readonly Vid?[] _from = new Vid?[Pairs];
+    private readonly Vid?[] _to = new Vid?[Pairs];
+
     /// <summary>
     /// Initializes a new instance of the <see cref="Region"/> class on a map.
     /// </summary>
@@ -39,16 +42,13 @@ public sealed class Region : Sprite
         UnusedVid = map.EmptyVid;
     }
 
-    /// <summary>
-    /// Gets or sets the width and height of the region.
-    /// </summary>
-    public Vector2 Size { get; set; }
+    internal int FogLevel { get; set; }
+
+    internal int FogPhase { get; set; }
+
+    internal ReadOnlyMemory<ushort> FogTable { get; set; }
 
     internal RegionFlags Flags { get; set; }
-
-    internal int UnusedValue { get; set; }
-
-    internal Vid? UnusedVid { get; set; }
 
     internal int FogFar { get; set; }
 
@@ -56,15 +56,18 @@ public sealed class Region : Sprite
 
     internal uint FogColor { get; set; }
 
-    internal int FogLevel { get; set; }
+    /// <summary>
+    /// Gets or sets the width and height of the region.
+    /// </summary>
+    public Vector2 Size { get; set; }
 
-    internal int FogPhase { get; set; }
+    internal Vid? UnusedVid { get; set; }
 
-    internal ReadOnlyMemory<ushort> FogTable { get; set; }
+    internal int UnusedValue { get; set; }
 
-    internal Vid?[] From => field ??= new Vid?[Pairs];
+    internal Span<Vid?> From => _from;
 
-    internal Vid?[] To => field ??= new Vid?[Pairs];
+    internal Span<Vid?> To => _to;
 
     /// <summary>
     /// Draws the region's picture tiled over its area, then its fog, and advances the fog's level.
@@ -102,7 +105,7 @@ public sealed class Region : Sprite
                 {
                     for (float left = position.X - half.X; left < half.X + position.X; left += frameSize.Width)
                     {
-                        if (!Vid.Object.Properties.HasFlag(ObjectProperties.OnePhase))
+                        if (!Vid.Properties.HasFlag(ObjectProperties.OnePhase))
                         {
                             Frame += tile * FogFrameStep;
                             tile++;

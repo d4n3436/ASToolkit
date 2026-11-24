@@ -1,7 +1,7 @@
 namespace ASToolkit.Engine;
 
 [Flags]
-internal enum SpriteFlags : uint
+internal enum SpriteFlags
 {
     None = 0,
     Command = ((1 << 5) - 1) << 2,

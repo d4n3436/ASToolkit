@@ -105,7 +105,7 @@ internal static class EngineTestMap
     {
         foreach (var sprite in map.Collector.Listed)
         {
-            if (sprite.Vid.Object.SpriteClass == SpriteClass.Man)
+            if (sprite.Vid.Class == SpriteClass.Man)
                 return sprite;
         }
 

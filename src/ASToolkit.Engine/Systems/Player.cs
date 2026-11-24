@@ -126,7 +126,7 @@ internal sealed class Player
         }
 
         TurnTorso(player, cursorDirection);
-        if (Hovered is not null && Hovered.Vid.Object.SpriteType.HasFlag(SpriteType.Terrain))
+        if (Hovered is not null && Hovered.Vid.SpriteType.HasFlag(OldSpriteType.Terrain))
         {
             _map.Release(Hovered);
             Hovered = null;

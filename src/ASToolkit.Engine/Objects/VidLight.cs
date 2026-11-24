@@ -43,7 +43,7 @@ public sealed class VidLight : Vid
         if (IsHidden || color == 0 || color == BlackColor)
             return;
 
-        var properties = Object.Properties;
+        var properties = Properties;
 
         var gamma = sprite.GetGamma().Add(ObjectGamma);
         if (!properties.HasFlag(ObjectProperties.Gamma))
@@ -59,7 +59,7 @@ public sealed class VidLight : Vid
         }
 
         var origin = new Vector2(position.X - camera.X, position.Y - position.Z - camera.Y);
-        map.Session.Graphics.DrawLightSource(screen, new Vector3(origin, position.Z), Object.Size.AsVector2(), color, properties.HasFlag(ObjectProperties.DoubleLight));
+        map.Session.Graphics.DrawLightSource(screen, new Vector3(origin, position.Z), Size.AsVector2(), color, properties.HasFlag(ObjectProperties.DoubleLight));
     }
 
     /// <inheritdoc/>

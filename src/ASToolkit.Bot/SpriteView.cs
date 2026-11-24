@@ -86,9 +86,9 @@ public struct SpriteView : IEnumerable<Sprite>, IEnumerator<Sprite>
         while (++_index < _map.Collector.Listed.Length)
         {
             var sprite = _map.Collector.Listed[_index];
-            var spriteClass = sprite.Vid.Object.SpriteClass;
+            var spriteClass = sprite.Vid.Class;
 
-            if (!sprite.Vid.Id.IsScripted && spriteClass != SpriteClass.Man && spriteClass != SpriteClass.Building && sprite.Owner?.Vid.Object.SpriteClass != SpriteClass.Man)
+            if (!sprite.Vid.Id.IsScripted && spriteClass != SpriteClass.Man && spriteClass != SpriteClass.Building && sprite.Owner?.Vid.Class != SpriteClass.Man)
             {
                 Current = sprite;
 

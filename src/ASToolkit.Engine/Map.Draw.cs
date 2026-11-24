@@ -55,7 +55,7 @@ public partial class Map
             }
         }
 
-        if (!CursorSprite.IsHardwareCursor && !CursorSprite.Vid.Object.Properties.HasFlag(ObjectProperties.AlwaysTop))
+        if (!CursorSprite.IsHardwareCursor && !CursorSprite.Vid.Properties.HasFlag(ObjectProperties.AlwaysTop))
         {
             DrawCursorChain(screen, camera, layer);
         }

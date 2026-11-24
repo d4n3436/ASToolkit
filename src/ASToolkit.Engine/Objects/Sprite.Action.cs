@@ -348,7 +348,7 @@ public partial class Sprite
             ChangeHp((scaled + (scaled >> 31 & HpRounding)) >> HpShift);
         }
 
-        if (vid.Object.Properties.HasFlag(ObjectProperties.InvisibleForEnemy))
+        if (vid.Properties.HasFlag(ObjectProperties.InvisibleForEnemy))
         {
             SetInvisible(current != Map.ControlledPlayer);
         }
@@ -419,7 +419,7 @@ public partial class Sprite
         int y = point.Y;
         float z;
 
-        if (armed.Targets == SpriteType.Unit)
+        if (armed.Targets == OldSpriteType.Unit)
         {
             z = Map.GetGroundZ(new Vector2(point.X, point.Y + UnitAimLift)) + UnitAimLift;
             y += (int)z;
@@ -649,7 +649,7 @@ public partial class Sprite
         }
     }
 
-    private OldSpriteType GetItemType(int item) => Map.FindVid((KnownObject)item)?.Object.SpriteType.ToOldSpriteType() ?? OldSpriteType.None;
+    private OldSpriteType GetItemType(int item) => Map.FindVid((KnownObject)item)?.SpriteType ?? OldSpriteType.None;
 
 
     [EngineRoutine(0x00445be0)]
@@ -677,9 +677,9 @@ public partial class Sprite
 
         var impact = Position;
         var point = impact.AsVector2();
-        var reach = payload.Half + new Vector2(payload.BlastRadius);
-        float heightReach = Math.Max(Map.MinBlastHeight, payload.Object.Size.Z);
-        bool isScaled = payload.IsExplosive && !payload.BlastRadius.IsExactlyZero();
+        var reach = payload.Half + new Vector2(payload.DeathRange);
+        float heightReach = Math.Max(Map.MinBlastHeight, payload.Size.Z);
+        bool isScaled = payload.IsExplosive && !payload.DeathRange.IsExactlyZero();
         int damage = payload.Damage;
         
         for (var sprite = Map.Collector.First(point - reach, point + reach); sprite is not null; sprite = Map.Collector.NextHashInBox())
@@ -689,10 +689,10 @@ public partial class Sprite
 
             var victim = sprite.Position;
             var offset = Vector2.Abs(victim.AsVector2() - point);
-            float top = victim.Z + sprite.Vid.Object.Size.Z;
+            float top = victim.Z + sprite.Vid.Size.Z;
 
             if (offset.X >= reach.X + sprite.Vid.Half.X || offset.Y >= reach.Y + sprite.Vid.Half.Y ||
-                MathF.Abs(impact.Z - victim.Z) >= heightReach + sprite.Vid.Object.Size.Z ||
+                MathF.Abs(impact.Z - victim.Z) >= heightReach + sprite.Vid.Size.Z ||
                 top < Map.GetGroundZ((victim.AsVector2() + point) * 0.5f) ||
                 top < Map.GetGroundZ((point * 3 + victim.AsVector2()) * 0.25f) ||
                 top < Map.GetGroundZ((victim.AsVector2() * 3 + point) * 0.25f))
@@ -700,10 +700,10 @@ public partial class Sprite
 
             float distance = victim.AsVector2().MeasureOctagonalDistance(point);
 
-            if (isScaled && distance > payload.BlastRadius)
+            if (isScaled && distance > payload.DeathRange)
                 continue;
 
-            Map.Action(sprite, ActionCode.Damage, isScaled ? (int)(damage - damage * distance / payload.BlastRadius) : damage);
+            Map.Action(sprite, ActionCode.Damage, isScaled ? (int)(damage - damage * distance / payload.DeathRange) : damage);
         }
     }
 }

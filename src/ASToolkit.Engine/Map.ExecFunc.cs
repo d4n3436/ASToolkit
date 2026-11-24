@@ -33,17 +33,6 @@ public partial class Map : IScriptFunctionHost
     private const OldSpriteType GridListTypes = OldSpriteType.Unit | OldSpriteType.Avia;
     private const int EndOfFileFlag = 0x10;
 
-    private int _lastHandle;
-    private int _unitIndex;
-    private OldSpriteType _unitMask;
-    private int _spriteLayer;
-    private int _spriteIndex;
-
-    /// <summary>
-    /// Gets the level script.
-    /// </summary>
-    public Script Script { get; } = new();
-
     /// <summary>
     /// Gets the registry of the level script.
     /// </summary>
@@ -1059,7 +1048,7 @@ public partial class Map : IScriptFunctionHost
     {
         var vid = sprite.Vid;
 
-        if ((vid.Object.SpriteType.ToOldSpriteType() & types) == 0 || (armies & (SpriteSearch)((int)SpriteSearch.Army0 << ((int)sprite.Army & 3))) == 0)
+        if ((vid.SpriteType & types) == 0 || (armies & (SpriteSearch)((int)SpriteSearch.Army0 << ((int)sprite.Army & 3))) == 0)
             return false;
 
         if (search.HasFlag(SpriteSearch.Free) && sprite.Command != Command.None)
@@ -1073,12 +1062,12 @@ public partial class Map : IScriptFunctionHost
 
     private static bool IsScreenHit(Sprite sprite, Vector2 half, Vector2 point, Sprite? best)
     {
-        var size = sprite.Vid.Object.Size;
+        var size = sprite.Vid.Size;
         float top = sprite.Position.Y - sprite.Position.Z;
 
         return sprite.Position.X - half.X <= point.X && point.X <= sprite.Position.X + half.X &&
             top - size.Z - half.Y < point.Y && point.Y < top + half.Y &&
-            (best is null || size.X < best.Vid.Object.Size.X || size.Y < best.Vid.Object.Size.Y);
+            (best is null || size.X < best.Vid.Size.X || size.Y < best.Vid.Size.Y);
     }
 
     private bool TryGetSearchedTypes(ref SpriteSearch search, out OldSpriteType types, out SpriteSearch armies, out Vid? vid)
@@ -1101,12 +1090,12 @@ public partial class Map : IScriptFunctionHost
         if (vid is null || Sum(vid.Counts) == 0)
             return false;
 
-        if (vid.Object.Properties.HasFlag(ObjectProperties.Hash))
+        if (vid.Properties.HasFlag(ObjectProperties.Hash))
         {
             search |= SpriteSearch.Hash;
         }
 
-        types = vid.Object.SpriteType.ToOldSpriteType();
+        types = vid.SpriteType;
 
         return true;
     }
@@ -1151,7 +1140,7 @@ public partial class Map : IScriptFunctionHost
 
     private Sprite? FindUnitOfMask(Sprite? sprite)
     {
-        while (sprite is not null && (sprite.Vid.Object.SpriteType.ToOldSpriteType() & _unitMask) == 0)
+        while (sprite is not null && (sprite.Vid.SpriteType & _unitMask) == 0)
         {
             sprite = GetNextUnit();
         }
@@ -1405,10 +1394,10 @@ public partial class Map : IScriptFunctionHost
                 PushText(GameTextEncoding.Cyrillic.GetBytes(GetVidName(vid)));
                 break;
             case VidDataType.SpriteType:
-                PushInt((int)vid.Object.SpriteType.ToOldSpriteType());
+                PushInt((int)vid.SpriteType);
                 break;
             case VidDataType.Directions:
-                PushInt(vid.Object.Directions);
+                PushInt(vid.Directions);
                 break;
             case VidDataType.Hide:
                 PushInt(vid.IsHidden ? 1 : 0);

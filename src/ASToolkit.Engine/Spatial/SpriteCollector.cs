@@ -42,7 +42,7 @@ public sealed class SpriteCollector
         {
             if (vid is not null && IsHashed(vid))
             {
-                largestObject = Vector2.Max(largestObject, vid.Object.Size.AsVector2());
+                largestObject = Vector2.Max(largestObject, vid.Size.AsVector2());
             }
         }
 
@@ -82,9 +82,9 @@ public sealed class SpriteCollector
     /// <returns>The query over the sprites.</returns>
     public HashQuery GetNear(Vector2 min, Vector2 max) => new(_buckets, _columns, GetColumn(min.X), GetColumn(max.X), GetRow(min.Y), GetRow(max.Y));
 
-    internal static bool IsHashed(Vid vid) => vid.Object.Properties.HasFlag(ObjectProperties.Hash);
+    internal static bool IsHashed(Vid vid) => vid.Properties.HasFlag(ObjectProperties.Hash);
 
-    internal static bool IsListed(Vid vid) => (vid.Object.SpriteType.ToOldSpriteType() & ListedTypes) != 0;
+    internal static bool IsListed(Vid vid) => (vid.SpriteType & ListedTypes) != 0;
 
     [EngineRoutine(0x0042d6a0)]
     internal void InsertToHash(Sprite sprite)
@@ -186,20 +186,20 @@ public sealed class SpriteCollector
     [EngineRoutine(0x0042da30)]
     internal Sprite? CanPlace(Vid vid, Vector3 point)
     {
-        if (_map.GetGroundZForMoveTo(vid.Object, point.AsVector2()) > point.Z)
+        if (_map.GetGroundZForMoveTo(vid, point.AsVector2()) > point.Z)
             return _map.CursorSprite;
 
         if (vid.MoveMask == 0)
             return null;
 
         var half = vid.Half;
-        float height = vid.Object.Size.Z;
+        float height = vid.Size.Z;
         FirstHashInBox(point.AsVector2() - half, point.AsVector2() + half);
         for (var other = NextHashInBox(); other is not null; other = NextHashInBox())
         {
             var otherVid = other.Vid;
             if (other.Animation < SpriteAnimation.Death && MathF.Abs(other.Position.X - point.X) < otherVid.Half.X + half.X &&
-                MathF.Abs(other.Position.Y - point.Y) < otherVid.Half.Y + half.Y && point.Z <= otherVid.Object.Size.Z + other.Position.Z &&
+                MathF.Abs(other.Position.Y - point.Y) < otherVid.Half.Y + half.Y && point.Z <= otherVid.Size.Z + other.Position.Z &&
                 other.Position.Z <= point.Z + height && (vid.MoveMask & otherVid.MoveMask) != 0)
             {
                 return other;

@@ -186,7 +186,9 @@ public class ExecFuncTests
         Assert.Equal(vid.MaxHp * 2, monster.Hp);
         Assert.Equal(50, Read(script, "exchanged"));
         Assert.Equal(56, Read(script, "reloaded"));
-        Assert.Equal(vid.Object.DeathDamage, Read(script, "restored"));
+        TestGameFolder.Objects.TryFind((KnownObject)56, out var record);
+        Assert.NotEqual(77, record.DeathDamage);
+        Assert.Equal(record.DeathDamage, Read(script, "restored"));
     }
 
     [Fact]
@@ -274,7 +276,7 @@ public class ExecFuncTests
     public void ExecFunc_ScreenPickMoneyAndTrains_FollowTheGame()
     {
         var vid = EngineTestMap.CreateMap().FindVid(KnownObject.RedMonster1)!;
-        int above = (int)(vid.Half.Y + vid.Object.Size.Z / 2);
+        int above = (int)(vid.Half.Y + vid.Size.Z / 2);
         var (map, script) = Run($$"""
             int unit, picked, raised, footprint, below, money, other, train, property, engine;
             main()

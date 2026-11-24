@@ -21,18 +21,20 @@ public sealed class Building : Unit
     public Building(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
         : base(vid, position, direction, parent, map)
     {
-        PendingBuild = null;
+        PendingVid = null;
     }
 
-    internal PendingBuild? PendingBuild { get; set; }
+    internal Vid? PendingVid { get; set; }
+
+    internal Point PendingOffset { get; set; }
 
     [EngineRoutine(0x0044ca70)]
     internal override int Action(ActionCode act, int var1, int var2, int var3, Sprite? target)
     {
         switch (act)
         {
-            case ActionCode.BackupCommand when Command == Command.Build && PendingBuild.HasValue:
-                ActionStack.Insert(new Act((int)ActionCode.BuildUnit, (int)PendingBuild.Value.Vid.Id, 0, 0));
+            case ActionCode.BackupCommand when Command == Command.Build && PendingVid is not null:
+                ActionStack.Insert(new Act((int)ActionCode.BuildUnit, (int)PendingVid.Id, 0, 0));
                 SetCommand(Command.None);
 
                 return 0;
@@ -50,7 +52,8 @@ public sealed class Building : Unit
                 if (!(noItem || Command == Command.None) || vid is null)
                     return 0;
 
-                PendingBuild = new PendingBuild(vid, new Point(var2, var3));
+                PendingVid = vid;
+                PendingOffset = new Point(var2, var3);
                 Timer = vid.BuildTime;
                 SetCommand(Command.Build);
 
@@ -75,19 +78,18 @@ public sealed class Building : Unit
                     ChangeAnimation(SpriteAnimation.Stand);
                 }
 
-                if (!isBuilding || Timer != 0 || !PendingBuild.HasValue)
+                if (!isBuilding || Timer != 0 || PendingVid is null)
                     return 0;
 
-                var pending = PendingBuild.Value;
+                var pending = PendingVid;
+                var position = Map.GetBuildPosition(this, PendingOffset);
 
-                var position = Map.GetBuildPosition(this, pending.Offset);
-
-                if (!Map.IsFree(pending.Vid, position))
+                if (!Map.IsFree(pending, position))
                     return 0;
 
                 SetCommand(Command.None);
-                AddBuiltUnit(pending.Vid, position);
-                PendingBuild = null;
+                AddBuiltUnit(pending, position);
+                PendingVid = null;
                 ChangeAnimation(SpriteAnimation.Stand);
 
                 return 0;

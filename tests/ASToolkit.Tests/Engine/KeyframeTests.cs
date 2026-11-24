@@ -16,7 +16,8 @@ public class KeyframeTests
     {
         var map = EngineTestMap.CreateMap();
         var source = map.FindVid(KnownObject.RedMonster1)!;
-        var vid = new Vid(source.Id, source.Object, CreateWeapon(source.Weapon), source.SpriteSpeed) { HasTimers = true };
+        TestGameFolder.Objects.TryFind(source.Id, out var record);
+        var vid = new Vid(source.Id, record, CreateWeapon(source.Weapon), source.SpriteSpeed) { HasTimers = true };
         map.SetChildAndLink(vid, null);
         var sprite = map.CreateSprite(vid, map.Player.Position + new Vector3(600, 0, 0), default)!;
         int start = map.Time;

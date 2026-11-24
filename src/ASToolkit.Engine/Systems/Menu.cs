@@ -47,7 +47,7 @@ internal sealed class Menu : SpriteList
             var cursor = input.Cursor;
             float left = sprite.Position.X - vid.Half.X;
             float right = sprite.Position.X + vid.Half.X;
-            float above = top - vid.Object.Size.Z;
+            float above = top - vid.Size.Z;
             float high = above - vid.Half.Y;
             float low = top + vid.Half.Y;
             bool isMissed = cursor.X < left || right < cursor.X || cursor.Y <= high || low <= cursor.Y ||

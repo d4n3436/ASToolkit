@@ -24,6 +24,8 @@ public sealed class MapSteam : Map
     private const int StepKey = 'p';
 
     private readonly MouseTips _mouseTips;
+    private StepFlags _debug;
+    private uint _presentationShownAt;
 
     private static ReadOnlySpan<byte> PresentationText => "Presentation version. Not for sale!"u8;
 

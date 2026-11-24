@@ -277,7 +277,7 @@ internal sealed class PlayerBot
 
     private static bool Reaches(Sprite body, Vector2 point, Vector2 half)
     {
-        var reach = body.Vid.Half + new Vector2(body.Vid.BlastRadius) + half;
+        var reach = body.Vid.Half + new Vector2(body.Vid.DeathRange) + half;
         var offset = Vector2.Abs(body.Position.AsVector2() - point);
 
         return offset.X < reach.X && offset.Y < reach.Y;
@@ -509,13 +509,13 @@ internal sealed class PlayerBot
     {
         _blockedMovementTime = _playerGoal is not null && _map.Player.Position.AsVector2() == previous ? _blockedMovementTime + _map.FrameTime : 0;
 
-        if (_playerGoal is null || Vector2.DistanceSquared(_map.Player.Position.AsVector2(), _navigationPosition) >= _map.Player.Vid.Object.Size.X * _map.Player.Vid.Object.Size.X)
+        if (_playerGoal is null || Vector2.DistanceSquared(_map.Player.Position.AsVector2(), _navigationPosition) >= _map.Player.Vid.Size.X * _map.Player.Vid.Size.X)
         {
             _navigationPosition = _map.Player.Position.AsVector2();
             _navigationTime = _map.Time;
         }
 
-        if (_playerGoal is null || Vector2.DistanceSquared(_map.Player.Position.AsVector2(), _progressPosition) >= _map.Player.Vid.Object.Size.X * _map.Player.Vid.Object.Size.X)
+        if (_playerGoal is null || Vector2.DistanceSquared(_map.Player.Position.AsVector2(), _progressPosition) >= _map.Player.Vid.Size.X * _map.Player.Vid.Size.X)
         {
             _progressPosition = _map.Player.Position.AsVector2();
             _progressTime = _map.Time;
@@ -1062,9 +1062,9 @@ internal sealed class PlayerBot
     private float MeasureForward(Vector2 center)
     {
         var offset = center - _map.Player.Position.AsVector2();
-        float reach = _map.Player.Vid.Object.Size.X * 2;
+        float reach = _map.Player.Vid.Size.X * 2;
 
-        return offset.LengthSquared() <= reach * reach && _field.CanMove(_map.Player.Vid.Object, _map.Player.Position, center)
+        return offset.LengthSquared() <= reach * reach && _field.CanMove(_map.Player.Vid, _map.Player.Position, center)
             ? Vector2.Dot(offset, _map.Player.Direction.Vector) : float.MinValue;
     }
 
@@ -1072,7 +1072,7 @@ internal sealed class PlayerBot
     {
         for (float distance = SideStepGrain; distance <= SideStepClearance; distance += SideStepGrain)
         {
-            if (!_field.CanStand(_map.Player.Vid.Object, start + (step * distance).AsVector3()))
+            if (!_field.CanStand(_map.Player.Vid, start + (step * distance).AsVector3()))
                 return false;
         }
 
@@ -1080,7 +1080,7 @@ internal sealed class PlayerBot
     }
 
     private bool MovesClear(Vector3 start, Vector2 step, float length) =>
-        _field.CanMove(_map.Player.Vid.Object, start, start.AsVector2() + step * length);
+        _field.CanMove(_map.Player.Vid, start, start.AsVector2() + step * length);
 
     private void FindChainedExplosives() =>
         CollectChain(_map.Player.Position.AsVector2(), _map.Player.Vid.Half + new Vector2(BlastMargin), _chained);
@@ -1253,7 +1253,7 @@ internal sealed class PlayerBot
         foreach (var round in _incoming)
         {
             var velocity = round.Direction.Vector * round.Speed;
-            var reach = _map.Player.Vid.Half + round.Vid.Half + new Vector2(round.Vid.BlastRadius);
+            var reach = _map.Player.Vid.Half + round.Vid.Half + new Vector2(round.Vid.DeathRange);
             for (float time = 0; time < first; time += DodgeStep)
             {
                 var offset = Vector2.Abs(start + vector * speed * time - (round.Position.AsVector2() + velocity * time));
@@ -1621,7 +1621,7 @@ internal sealed class PlayerBot
         }
 
         var last = _field.GetCenter(goal);
-        _path.Enqueue(approachEnd || _field.CanMove(new Vector3(last, _map.GetGroundZForMoveTo(_map.Player.Vid.Object, last)), end) ? end : last);
+        _path.Enqueue(approachEnd || _field.CanMove(new Vector3(last, _map.GetGroundZForMoveTo(_map.Player.Vid, last)), end) ? end : last);
 
         _pathEnds = _map.Time + (int)(_path.Count * _field.CellStep * 1000 / _state.Speed) + DetourSlack;
 

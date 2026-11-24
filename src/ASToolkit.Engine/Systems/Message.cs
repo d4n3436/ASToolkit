@@ -87,7 +87,7 @@ internal sealed class Message
         var line = _lines[_count];
         if (line is not null)
         {
-            _map.SetText((Text)line, text);
+            ((Text)line).SetText(text);
         }
 
         _targets[_count] = target;

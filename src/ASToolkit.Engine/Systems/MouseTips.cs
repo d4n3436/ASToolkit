@@ -65,7 +65,7 @@ internal sealed class MouseTips
         if (font == _map.EmptyVid || _map.Session.MouseTipText.IsEmpty)
             return;
 
-        var size = font.Object.Size;
+        var size = font.Size;
         var view = _map.Session.Graphics.Viewport;
         var position = new Vector2(cursor.X + OffsetX, cursor.Y - size.Y + Depth - Raise);
         float half = size.Y * Half;
@@ -91,7 +91,7 @@ internal sealed class MouseTips
         framed[0] = Open;
         _map.Session.MouseTipText.Span.CopyTo(framed.AsSpan(1));
         framed[^1] = Close;
-        _map.SetText(text, framed);
+        text.SetText(framed);
     }
 
     [EngineRoutine(0x0043dde0)]
