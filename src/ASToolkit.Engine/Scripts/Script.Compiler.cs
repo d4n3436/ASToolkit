@@ -1703,7 +1703,16 @@ public sealed partial class Script
         if (found < 0)
             throw ReportError(4, "#undef parameters");
 
-        _defines.DeleteNumber(found);
+        for (int i = found; i < _defines.Count - 1; i++)
+        {
+            _defines.Entry(i) = _defines.Entry(i + 1);
+        }
+
+        _defines.Count--;
+        if (_defines.Count == 0)
+        {
+            _defines.Release();
+        }
     }
 
     private void ParseInclude()

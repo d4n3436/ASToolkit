@@ -167,7 +167,10 @@ public class Unit : Terrain
                 {
                     int count = 0;
                     stream.ReadInto(ref count);
-                    Items.AddRange(stream.Read<int>(count));
+                    foreach (int item in stream.Read<int>(count))
+                    {
+                        InsertItem(item);
+                    }
                     return 0;
                 }
 
@@ -178,7 +181,7 @@ public class Unit : Terrain
                 stream.ReadInto(ref wordCount);
                 foreach (short item in stream.Read<short>(wordCount))
                 {
-                    Items.Add(item);
+                    InsertItem(item);
                 }
 
                 return 0;

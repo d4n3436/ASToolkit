@@ -33,6 +33,7 @@ public partial class Sprite
     /// Represents the item of weapon slot 0.
     /// </summary>
     public const int WeaponItemBase = 260;
+
     private const int ChildPairCount = 2;
     private const int SpawnScatter = 8;
     private const int CommandBias = 0x3c;
@@ -48,9 +49,10 @@ public partial class Sprite
     private const float InfoTextLeft = 22;
     private const float InfoLineHeight = 12;
     private const float OrdersTextLeft = 30;
+    private const int CommandShift = 2;
+    private const int ArmyShift = 11;
 
-    private int _lifetime;
-    private float _maxSpeed;
+    private SpriteFlags _flags;
     private Angle _direction;
 
     private static ReadOnlySpan<byte> ItemMark => [1];
@@ -70,7 +72,6 @@ public partial class Sprite
     {
         Map = map;
         ActionStack = new MyList<Act>(Map.Session.Error);
-        StreamPeriod = 1;
         _direction = direction;
         Vid = vid;
         FirstFrame = vid.GetFirstFrame(SpriteAnimation.Stand);
@@ -135,81 +136,6 @@ public partial class Sprite
     }
 
     /// <summary>
-    /// Gets or sets the script handle of the sprite, or 0 if the sprite doesn't have one.
-    /// </summary>
-    public int Handle { get; set; }
-
-    /// <summary>
-    /// Gets the shared data and frames of the sprite's object ID.
-    /// </summary>
-    public Vid Vid { get; private set; }
-
-    /// <summary>
-    /// Gets or sets the army of the sprite.
-    /// </summary>
-    public Army Army { get; set; }
-
-    /// <summary>
-    /// Gets or sets the position of the sprite.
-    /// </summary>
-    public Vector3 Position { get; set; }
-
-    /// <summary>
-    /// Gets or sets the speed of the sprite in pixels per millisecond.
-    /// </summary>
-    public float Speed { get; set; }
-
-    /// <summary>
-    /// Gets or sets the command the sprite carries out.
-    /// </summary>
-    public Command Command { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the sprite moves toward its goal.
-    /// </summary>
-    public bool IsMoving { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the sprite has passed its goal's x coordinate.
-    /// </summary>
-    public bool HasReachedX { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the sprite has passed its goal's y coordinate.
-    /// </summary>
-    public bool HasReachedY { get; set; }
-
-    /// <summary>
-    /// Gets or sets the health of the sprite.
-    /// </summary>
-    public int Hp { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the sprite is hidden.
-    /// </summary>
-    public bool IsInvisible { get; set; }
-
-    /// <summary>
-    /// Gets the items the sprite carries.
-    /// </summary>
-    public List<int> Items { get; } = [];
-
-    /// <summary>
-    /// Gets the order stack of the sprite.
-    /// </summary>
-    public MyList<Act> ActionStack { get; }
-
-    /// <summary>
-    /// Gets the direction the sprite faces.
-    /// </summary>
-    public Angle Direction { get => _direction; init => _direction = value; }
-
-    /// <summary>
-    /// Gets the state of the sprite.
-    /// </summary>
-    public SpriteAnimation Animation { get; private set; }
-
-    /// <summary>
     /// Gets the first frame of the state.
     /// </summary>
     public int FirstFrame { get; private set; }
@@ -235,49 +161,14 @@ public partial class Sprite
     public int CreatedAt { get; set; }
 
     /// <summary>
-    /// Gets or sets the time the sprite's keyframe track started.
+    /// Gets the shared data and frames of the sprite's object ID.
     /// </summary>
-    public int KeyframeStart { get; set; }
+    public Vid Vid { get; private set; }
 
     /// <summary>
-    /// Gets or sets the position along the sprite's keyframe track.
+    /// Gets or sets the speed of the sprite in pixels per millisecond.
     /// </summary>
-    public float KeyframePosition { get; set; }
-
-    /// <summary>
-    /// Gets a value indicating whether the sprite carries a lifetime, a keyframe track, a stream period and a top speed of its own.
-    /// </summary>
-    public bool HasExtra { get; private set; }
-
-    /// <summary>
-    /// Gets the position the sprite had before its first move of the frame.
-    /// </summary>
-    public Vector3 PreviousPosition { get; private set; }
-
-    /// <summary>
-    /// Gets the clock stamp of the frame when <see cref="PreviousPosition"/> was saved.
-    /// </summary>
-    public uint PreviousPositionStamp { get; private set; }
-
-    /// <summary>
-    /// Gets the gamma applied to the sprite while it is drawn, or the default gamma when there isn't one.
-    /// </summary>
-    public Gamma GammaOverride { get; private set; }
-
-    /// <summary>
-    /// Gets or sets the sprite's countdown timer in milliseconds.
-    /// </summary>
-    public int Timer { get; set; }
-
-    /// <summary>
-    /// Gets the weapon slot of the torso linked by the sprite's object ID.
-    /// </summary>
-    public int WeaponSlot => (int)(Vid.LinkVid?.Id ?? 0) - WeaponIdBase;
-
-    /// <summary>
-    /// Gets or sets the period of the sprite's stream children.
-    /// </summary>
-    public int StreamPeriod { get; set; }
+    public float Speed { get; set; }
 
     /// <summary>
     /// Gets or sets the vertical speed of the sprite.
@@ -285,39 +176,85 @@ public partial class Sprite
     public float VerticalSpeed { get; set; }
 
     /// <summary>
-    /// Gets or sets the sprite that fired this sprite.
+    /// Gets or sets the command the sprite carries out.
     /// </summary>
-    public Sprite? Shooter { get; set; }
+    public Command Command
+    {
+        get => (Command)((uint)(_flags & SpriteFlags.Command) >> CommandShift);
+        set => _flags = _flags & ~SpriteFlags.Command | (SpriteFlags)((uint)value << CommandShift) & SpriteFlags.Command;
+    }
 
     /// <summary>
-    /// Gets or sets the sprite this sprite is linked to.
+    /// Gets or sets a value indicating whether the sprite moves toward its goal.
     /// </summary>
-    public Sprite? Owner { get; set; }
+    public bool IsMoving
+    {
+        get => _flags.HasFlag(SpriteFlags.Moving);
+        set => SetFlag(SpriteFlags.Moving, value);
+    }
 
     /// <summary>
-    /// Gets or sets the next sprite of this sprite's link chain.
+    /// Gets or sets a value indicating whether the sound of the current state was requested.
     /// </summary>
-    public Sprite? Link { get; set; }
+    public bool HasPlayedStateSound
+    {
+        get => _flags.HasFlag(SpriteFlags.PlayedStateSound);
+        set => SetFlag(SpriteFlags.PlayedStateSound, value);
+    }
 
     /// <summary>
     /// Gets or sets a value indicating whether the sprite's last move was blocked.
     /// </summary>
-    public bool IsBlocked { get; set; }
+    public bool IsBlocked
+    {
+        get => _flags.HasFlag(SpriteFlags.Blocked);
+        set => SetFlag(SpriteFlags.Blocked, value);
+    }
 
     /// <summary>
-    /// Gets a value indicating whether the sprite has a goal.
+    /// Gets or sets the army of the sprite.
     /// </summary>
-    public bool HasGoal => Goal is not null;
+    public Army Army
+    {
+        get => (Army)((uint)(_flags & SpriteFlags.Army) >> ArmyShift);
+        set => _flags = _flags & ~SpriteFlags.Army | (SpriteFlags)((uint)value << ArmyShift) & SpriteFlags.Army;
+    }
 
     /// <summary>
-    /// Gets the position of the sprite's goal.
+    /// Gets or sets a value indicating whether the first of a mirrored pair of children launched and the second is still due.
     /// </summary>
-    public Vector3 GoalPosition => Goal?.Position ?? default;
+    public bool IsAwaitingSecondPulse
+    {
+        get => _flags.HasFlag(SpriteFlags.AwaitingSecondPulse);
+        set => SetFlag(SpriteFlags.AwaitingSecondPulse, value);
+    }
 
     /// <summary>
-    /// Gets a value indicating whether the sprite has health left and hasn't entered a death state.
+    /// Gets or sets a value indicating whether the sprite has passed its goal's x coordinate.
     /// </summary>
-    public bool IsAlive => Hp > 0 && Animation < SpriteAnimation.Death;
+    public bool HasReachedX
+    {
+        get => _flags.HasFlag(SpriteFlags.ReachedX);
+        set => SetFlag(SpriteFlags.ReachedX, value);
+    }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the sprite has passed its goal's y coordinate.
+    /// </summary>
+    public bool HasReachedY
+    {
+        get => _flags.HasFlag(SpriteFlags.ReachedY);
+        set => SetFlag(SpriteFlags.ReachedY, value);
+    }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the sprite is hidden.
+    /// </summary>
+    public bool IsInvisible
+    {
+        get => _flags.HasFlag(SpriteFlags.Invisible);
+        set => SetFlag(SpriteFlags.Invisible, value);
+    }
 
     /// <summary>
     /// Gets the number of lists and sprites that hold this sprite.
@@ -325,47 +262,9 @@ public partial class Sprite
     public int ReferenceCount { get; private set; }
 
     /// <summary>
-    /// Gets a value indicating whether the sprite is between attacks.
+    /// Gets or sets the position of the sprite.
     /// </summary>
-    public bool IsReloading => Timer > ReloadTimerOffset || Animation == SpriteAnimation.Fight && Frame <= LastFrame;
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the sound of the current state was requested.
-    /// </summary>
-    public bool HasPlayedStateSound { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the first of a mirrored pair of children launched and the second is still due.
-    /// </summary>
-    public bool IsAwaitingSecondPulse { get; set; }
-
-    /// <summary>
-    /// Gets or sets the time the sprite has left before it dies.
-    /// </summary>
-    public int Lifetime
-    {
-        get => HasExtra ? _lifetime : Vid.Unlimited;
-        set
-        {
-            EnsureExtra();
-
-            _lifetime = value;
-        }
-    }
-
-    /// <summary>
-    /// Gets or sets the top speed of the sprite in pixels per millisecond.
-    /// </summary>
-    public float MaxSpeed
-    {
-        get => HasExtra ? _maxSpeed : Vid.Speed;
-        set
-        {
-            EnsureExtra();
-
-            _maxSpeed = value;
-        }
-    }
+    public Vector3 Position { get; set; }
 
     /// <summary>
     /// Gets or sets the sprite this sprite moves toward or attacks, and holds a reference to it.
@@ -380,7 +279,6 @@ public partial class Sprite
                 return;
 
             var previous = field;
-
             if (previous is not null)
             {
                 int count = previous.Release();
@@ -404,16 +302,159 @@ public partial class Sprite
     }
 
     /// <summary>
-    /// Gets this sprite's link if it's the armed object linked by the sprite's object ID; otherwise, <see langword="null"/>.
+    /// Gets or sets the next sprite of this sprite's link chain.
     /// </summary>
-    public Sprite? ArmedLink
+    public Sprite? Link { get; set; }
+
+    /// <summary>
+    /// Gets or sets the sprite this sprite is linked to.
+    /// </summary>
+    public Sprite? Owner { get; set; }
+
+    /// <summary>
+    /// Gets the state of the sprite.
+    /// </summary>
+    public SpriteAnimation Animation { get; private set; }
+
+    /// <summary>
+    /// Gets the direction the sprite faces.
+    /// </summary>
+    public Angle Direction { get => _direction; init => _direction = value; }
+
+    /// <summary>
+    /// Gets or sets the sprite's countdown timer in milliseconds.
+    /// </summary>
+    public int Timer { get; set; }
+
+    /// <summary>
+    /// Gets or sets the health of the sprite.
+    /// </summary>
+    public int Hp { get; set; }
+
+    /// <summary>
+    /// Gets the order stack of the sprite.
+    /// </summary>
+    public MyList<Act> ActionStack { get; }
+
+    internal ExtraSpriteData? Extra { get; private set; }
+
+    /// <summary>
+    /// Gets a value indicating whether the sprite carries extra data (lifetime, keyframe track, stream period and top speed of its own).
+    /// </summary>
+    public bool HasExtra => Extra is not null;
+
+    /// <summary>
+    /// Gets the position the sprite had before its first move of the frame.
+    /// </summary>
+    public Vector3 PreviousPosition => Extra?.PreviousPosition ?? default;
+
+    /// <summary>
+    /// Gets the clock stamp of the frame when <see cref="PreviousPosition"/> was saved.
+    /// </summary>
+    public uint PreviousPositionStamp => Extra?.PreviousPositionStamp ?? 0;
+
+    /// <summary>
+    /// Gets or sets the time the sprite has left before it dies.
+    /// </summary>
+    public int Lifetime
     {
-        get
+        get => Extra?.Lifetime ?? Vid.Unlimited;
+        set
         {
-            var link = Link;
-            return link is not null && link.Vid == Vid.LinkVid && link.Vid.CanFight() ? link : null;
+            EnsureExtra();
+            Extra!.Lifetime = value;
         }
     }
+
+    /// <summary>
+    /// Gets or sets the period of the sprite's stream children.
+    /// </summary>
+    public int StreamPeriod
+    {
+        get => Extra?.StreamPeriod ?? 1;
+        set => Extra!.StreamPeriod = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the time the sprite's keyframe track started.
+    /// </summary>
+    public int KeyframeStart
+    {
+        get => Extra?.KeyframeStart ?? 0;
+        set => Extra!.KeyframeStart = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the position along the sprite's keyframe track.
+    /// </summary>
+    public float KeyframePosition
+    {
+        get => Extra?.KeyframePosition ?? 0;
+        set => Extra!.KeyframePosition = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the top speed of the sprite in pixels per millisecond.
+    /// </summary>
+    public float MaxSpeed
+    {
+        get => Extra?.MaxSpeed ?? Vid.Speed;
+        set
+        {
+            EnsureExtra();
+            Extra!.MaxSpeed = value;
+        }
+    }
+
+    /// <summary>
+    /// Gets the gamma applied to the sprite while it is drawn, or the default gamma when there isn't one.
+    /// </summary>
+    public Gamma GammaOverride => Extra?.GammaOverride ?? default;
+
+    /// <summary>
+    /// Gets the items the sprite carries.
+    /// </summary>
+    public IReadOnlyList<int> Items => Extra?.Items ?? [];
+
+    /// <summary>
+    /// Gets or sets the sprite that fired this sprite.
+    /// </summary>
+    public Sprite? Shooter { get; set; }
+
+    /// <summary>
+    /// Gets or sets the script handle of the sprite, or 0 if the sprite doesn't have one.
+    /// </summary>
+    public int Handle { get; set; }
+
+    /// <summary>
+    /// Gets the weapon slot of the torso linked by the sprite's object ID.
+    /// </summary>
+    public int WeaponSlot => (int)(Vid.LinkVid?.Id ?? 0) - WeaponIdBase;
+
+    /// <summary>
+    /// Gets a value indicating whether the sprite has a goal.
+    /// </summary>
+    public bool HasGoal => Goal is not null;
+
+    /// <summary>
+    /// Gets the position of the sprite's goal.
+    /// </summary>
+    public Vector3 GoalPosition => Goal?.Position ?? default;
+
+    /// <summary>
+    /// Gets a value indicating whether the sprite has health left and hasn't entered a death state.
+    /// </summary>
+    public bool IsAlive => Hp > 0 && Animation < SpriteAnimation.Death;
+
+    /// <summary>
+    /// Gets a value indicating whether the sprite is between attacks.
+    /// </summary>
+    public bool IsReloading => Timer > ReloadTimerOffset || Animation == SpriteAnimation.Fight && Frame <= LastFrame;
+
+    /// <summary>
+    /// Gets this sprite's link if it's the armed object linked by the sprite's object ID; otherwise, <see langword="null"/>.
+    /// </summary>
+    public Sprite? ArmedLink => Link is not null && Link.Vid == Vid.LinkVid && Link.Vid.CanFight() ? Link : null;
 
     internal MyError? Error { get; set; }
 
@@ -430,7 +471,7 @@ public partial class Sprite
     {
         EnsureExtra();
 
-        Items.Add(item);
+        Extra!.Items.Insert(item);
     }
 
     /// <summary>
@@ -454,25 +495,14 @@ public partial class Sprite
     /// </summary>
     /// <param name="item">The item.</param>
     /// <returns>The index, or -1 when the sprite does not hold the item.</returns>
-    [EngineRoutine(0x00446900)]
-    public int GetItemNumber(int item) => Items.LastIndexOf(item);
+    public int GetItemNumber(int item) => Extra?.Items.Location(item) ?? -1;
 
     /// <summary>
     /// Removes the item at an index by moving the last item into its place.
     /// </summary>
     /// <param name="index">The index.</param>
     /// <returns><see langword="true"/> if the index named an item; otherwise, <see langword="false"/>.</returns>
-    [EngineRoutine(0x00446bb0)]
-    public bool RemoveItemAt(int index)
-    {
-        if (index < 0 || index >= Items.Count)
-            return false;
-
-        Items[index] = Items[^1];
-        Items.RemoveAt(Items.Count - 1);
-
-        return true;
-    }
+    public bool RemoveItemAt(int index) => Extra is not null && Extra.Items.DeleteNumber(index) == 0;
 
     /// <summary>
     /// Returns the health of this sprite, or of its armed link, scaled from 0 to 255 of the maximum.
@@ -548,19 +578,9 @@ public partial class Sprite
     }
 
     /// <summary>
-    /// Gives the sprite its own lifetime, keyframe track, stream period and top speed.
+    /// Creates the sprite's extra data, giving it its own lifetime, keyframe track, stream period and top speed.
     /// </summary>
-    [EngineRoutine(0x0043f1a0)]
-    public void CreateExtra()
-    {
-        HasExtra = true;
-        StreamPeriod = 1;
-        _lifetime = Vid.Lifetime;
-        KeyframePosition = 0;
-        KeyframeStart = Map.Time;
-        _maxSpeed = Vid.Speed;
-        PreviousPosition = Position;
-    }
+    public void CreateExtra() => Extra = new ExtraSpriteData(this);
 
     /// <summary>
     /// Sets the gamma applied to the sprite while it is drawn.
@@ -570,8 +590,7 @@ public partial class Sprite
     public void SetGammaOverride(Gamma gamma)
     {
         EnsureExtra();
-
-        GammaOverride = gamma;
+        Extra!.GammaOverride = gamma;
     }
 
     /// <summary>
@@ -593,9 +612,9 @@ public partial class Sprite
 
         if (vid.HasTimers)
         {
-            if (HasExtra)
+            if (Extra is not null)
             {
-                _lifetime = vid.Lifetime;
+                Extra.Lifetime = vid.Lifetime;
             }
             else
             {
@@ -887,12 +906,11 @@ public partial class Sprite
     [EngineRoutine(0x004430b0)]
     public Gamma GetGamma()
     {
-        var vid = Vid;
-        var gamma = HasExtra && (GammaOverride.Negative != 0 || GammaOverride.Positive != 0) ? GammaOverride : vid.Gammas[(int)Army & Vid.ArmyMask];
-        if (!vid.HasColorKeyframes)
+        var gamma = HasExtra && (GammaOverride.Negative != 0 || GammaOverride.Positive != 0) ? GammaOverride : Vid.Gammas[(int)Army & Vid.ArmyMask];
+        if (!Vid.HasColorKeyframes)
             return gamma;
 
-        ref readonly var weapon = ref vid.Weapon;
+        ref readonly var weapon = ref Vid.Weapon;
         int blue = (int)weapon.Interpolate(weapon.BlueKeys, (int)KeyframePosition, KeyframePosition);
         int green = (int)weapon.Interpolate(weapon.GreenKeys, (int)KeyframePosition, KeyframePosition);
         int red = (int)weapon.Interpolate(weapon.RedKeys, (int)KeyframePosition, KeyframePosition);
@@ -1291,10 +1309,10 @@ public partial class Sprite
 
         uint stamp = Map.WallTime;
 
-        if (HasExtra && PreviousPositionStamp != stamp)
+        if (Extra is not null && Extra.PreviousPositionStamp != stamp)
         {
-            PreviousPositionStamp = stamp;
-            PreviousPosition = Position;
+            Extra.PreviousPositionStamp = stamp;
+            Extra.PreviousPosition = Position;
         }
 
         Position += delta;
@@ -1659,7 +1677,7 @@ public partial class Sprite
                 item = scanned;
             }
 
-            Items.Add(item);
+            Extra!.Items.Insert(item);
             text = Map.GetAfter(text, ItemMark);
         }
     }
@@ -1823,4 +1841,5 @@ public partial class Sprite
         ActionStack.InsertFirst(order);
     }
 
+    private void SetFlag(SpriteFlags flag, bool isSet) => _flags = (isSet ? flag : SpriteFlags.None) | _flags & ~flag;
 }

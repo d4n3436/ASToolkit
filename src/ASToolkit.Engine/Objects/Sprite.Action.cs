@@ -152,6 +152,16 @@ public partial class Sprite
             case ActionCode.NextCommand:
                 NextCommandCase();
                 break;
+            case ActionCode.UndoRemove:
+                SetFlag(SpriteFlags.Removed, true);
+                Map.Collector.DeleteFromHash(this);
+                RemoveFromUpdates();
+                return 0;
+            case ActionCode.UndoInsert:
+                SetFlag(SpriteFlags.Removed, false);
+                Map.Collector.InsertToHash(this);
+                AddToUpdates();
+                return 0;
             case ActionCode.DestroyUnit:
                 DestroyUnitCase(var1, new Vector2(var2, var3));
                 break;
@@ -166,7 +176,7 @@ public partial class Sprite
             case ActionCode.HaveItem:
                 return GetItemNumber(var1) >= 0 ? 1 : 0;
             case ActionCode.DeleteAllItems:
-                Items.Clear();
+                Extra?.Items.Release();
                 break;
             case ActionCode.GetItem:
                 return var1 >= 0 && var1 < Items.Count ? Items[var1] : 0;
@@ -237,8 +247,12 @@ public partial class Sprite
                 var items = stream.Read<int>(itemCount);
                 if (itemCount != 0)
                 {
-                    Items.Clear();
-                    Items.AddRange(items);
+                    EnsureExtra();
+                    Extra!.Items.Release();
+                    foreach (int item in items)
+                    {
+                        Extra.Items.Insert(item);
+                    }
                 }
 
                 break;

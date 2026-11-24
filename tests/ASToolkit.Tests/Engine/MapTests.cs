@@ -75,7 +75,7 @@ public class MapTests
         map.Play(default);
         var position = map.Player.Position + new Vector3(500, 0, 0);
         var enemy = map.CreateSprite(map.FindVid(KnownObject.Monster1), position, default)!;
-        enemy.Items.Clear();
+        Map.Action(enemy, ActionCode.DeleteAllItems);
         Map.Action(enemy, ActionCode.AddItem, (int)KnownObject.Money);
         Map.Action(enemy, ActionCode.Damage, enemy.Hp);
         Sprite? dropped = null;
@@ -115,7 +115,7 @@ public class MapTests
         var map = EngineTestMap.CreateMap();
         map.Play(default);
         var enemy = map.CreateSprite(map.FindVid(KnownObject.Monster1), map.Player.Position + new Vector3(500, 0, 0), default)!;
-        enemy.Items.Clear();
+        Map.Action(enemy, ActionCode.DeleteAllItems);
 
         Assert.Equal(-1, Map.Action(enemy, ActionCode.GetItemType));
 

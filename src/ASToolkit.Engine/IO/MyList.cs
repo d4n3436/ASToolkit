@@ -74,7 +74,7 @@ public class MyList<T> : IReadOnlyList<T>
     }
 
     /// <summary>
-    /// Inserts an entry at an index and moves the entries after it up.
+    /// Inserts an entry at an index and moves up the entries after it.
     /// </summary>
     /// <param name="index">The index.</param>
     /// <param name="item">The entry.</param>
@@ -101,7 +101,7 @@ public class MyList<T> : IReadOnlyList<T>
     }
 
     /// <summary>
-    /// Removes the last entry and returns it.
+    /// Removes and returns the last entry.
     /// </summary>
     /// <returns>The entry.</returns>
     [EngineRoutine(0x0043ab70)]
@@ -122,21 +122,37 @@ public class MyList<T> : IReadOnlyList<T>
     }
 
     /// <summary>
-    /// Removes the entry at an index and moves the entries after it down, and frees the array when no entries are left.
+    /// Removes the entry at an index by moving the last entry into its place.
     /// </summary>
     /// <param name="index">The index.</param>
-    public void DeleteNumber(int index)
+    /// <returns>1 if the index is outside the list; otherwise, 0.</returns>
+    [EngineRoutine(0x00446bb0)]
+    public int DeleteNumber(int index)
     {
-        if (index >= Count)
-            return;
+        if (index < 0 || index >= Count)
+            return 1;
 
         Count--;
-        Array.Copy(_items, index + 1, _items, index, Count - index);
+        _items[index] = _items[Count];
 
-        if (Count == 0)
+        return 0;
+    }
+
+    /// <summary>
+    /// Returns the index of the last entry equal to a value.
+    /// </summary>
+    /// <param name="item">The value.</param>
+    /// <returns>The index, or -1 if no entry equals the value.</returns>
+    [EngineRoutine(0x00446900)]
+    public int Location(T item)
+    {
+        for (int i = Count - 1; i >= 0; i--)
         {
-            Release();
+            if (EqualityComparer<T>.Default.Equals(_items[i], item))
+                return i;
         }
+
+        return -1;
     }
 
     /// <summary>
