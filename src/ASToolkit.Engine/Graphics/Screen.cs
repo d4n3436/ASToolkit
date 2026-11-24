@@ -7,24 +7,19 @@ namespace ASToolkit.Engine;
 /// <summary>
 /// Represents the back buffer and the software depth buffer that a frame is drawn into.
 /// </summary>
-public sealed class Screen
+public sealed partial class Screen
 {
-    internal const int LightBufferSize = 256;
-    private const int LightBufferLength = LightBufferSize * LightBufferSize;
+    private const int DepthSlackRows = 4;
 
     private readonly byte[] _colors;
     private ushort[]? _depth;
-    private ushort[]? _snowBuffer;
-    private ushort[]? _lightBuffer;
-    private ushort[]? _otherLightBuffer;
-    private ushort[] _scratch = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Screen"/> class.
     /// </summary>
     /// <param name="size">The size of the screen, in pixels.</param>
     /// <param name="isTrueColor"><see langword="true"/> for 32-bit pixels; <see langword="false"/> for 16-bit pixels.</param>
-    /// <param name="format">The channel layout of the device's 16-bit textures, which 16-bit colors follow, or <see langword="null"/> for 5-6-5.</param>
+    /// <param name="format">The channel layout of 16-bit colors, or <see langword="null"/> for 5-6-5.</param>
     public Screen(Size size, bool isTrueColor, HighColorFormat? format = null)
     {
         Format = format ?? HighColorFormat.Rgb565;
@@ -35,21 +30,21 @@ public sealed class Screen
         Pitch = size.Width;
         DepthWidth = size.Width;
         _colors = new byte[Pitch * size.Height * (isTrueColor ? sizeof(uint) : sizeof(ushort))];
-        Clip = new Rectangle(Point.Empty, size);
+        Viewport = new Rectangle(Point.Empty, size);
     }
 
     /// <summary>
-    /// Gets or sets the area that drawing is limited to, in screen pixels.
+    /// Gets or sets the area of the screen that drawing is limited to, in pixels.
     /// </summary>
-    public Rectangle Clip { get; set; }
+    public Rectangle Viewport { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether textures are sampled with linear filtering, the state the last quad drawn leaves for the meshes after it: linear when the quad was scaled.
+    /// Gets or sets a value indicating whether textures are sampled with linear filtering.
     /// </summary>
     public bool IsLinearFiltered { get; set; }
 
     /// <summary>
-    /// Gets or sets the colors, packed as 0xAARRGGBB, of a screen used as a P8 texture, whose 16-bit pixels then hold palette indexes; empty for other screens.
+    /// Gets or sets the palette of a screen used as a P8 texture, with colors packed as 0xAARRGGBB, or empty for other screens.
     /// </summary>
     public uint[] Palette { get; set; } = [];
 
@@ -97,7 +92,12 @@ public sealed class Screen
     /// <summary>
     /// Gets the software depth buffer, row by row from the top.
     /// </summary>
-    public Span<ushort> Depth => _depth ??= new ushort[DepthWidth * Size.Height];
+    public Span<ushort> Depth => _depth ??= new ushort[DepthWidth * (Size.Height + DepthSlackRows)];
+
+    /// <summary>
+    /// Gets or sets which of the two light buffers the next light draws to.
+    /// </summary>
+    public int LightPhase { get; set; }
 
     /// <summary>
     /// Writes the back buffer as opaque pixels, row by row from the top.
@@ -128,45 +128,7 @@ public sealed class Screen
         }
     }
 
-    private static Bgra32 ToBgra(uint color) => new((byte)(color >> 16), (byte)(color >> 8), (byte)color, byte.MaxValue);
-
     internal void CopyColorsTo(Screen target) => _colors.CopyTo(target._colors, 0);
 
-    /// <summary>
-    /// Gets the size of the scratch texture, in pixels.
-    /// </summary>
-    public Size ScratchSize { get; private set; }
-
-    /// <summary>
-    /// Gets the pixels of the scratch texture that sprites draw their frames to before the frames are blended onto the back buffer, in ARGB4444 and row by row from the top.
-    /// </summary>
-    public Span<ushort> Scratch => _scratch;
-
-    /// <summary>
-    /// Makes the scratch texture at least as large as an area.
-    /// </summary>
-    /// <param name="size">The size of the area, in pixels.</param>
-    public void EnsureScratch(Size size)
-    {
-        if (size.Width <= ScratchSize.Width && size.Height <= ScratchSize.Height)
-            return;
-
-        ScratchSize = new Size(Math.Max(ScratchSize.Width, size.Width), Math.Max(ScratchSize.Height, size.Height));
-        _scratch = new ushort[ScratchSize.Width * ScratchSize.Height];
-    }
-
-    /// <summary>
-    /// Gets the snow buffer, the 256 by 256 texture that the ground snow is drawn from, with one texel for each 4 by 4 pixels of the screen.
-    /// </summary>
-    public Span<ushort> SnowBuffer => _snowBuffer ??= new ushort[LightBufferLength];
-
-    /// <summary>
-    /// Gets the light buffer that the next light draws its intensities to, one of two buffers that lights use in turns, in RGB565 and 256 pixels wide and tall.
-    /// </summary>
-    public Span<ushort> LightBuffer => LightPhase == 0 ? _lightBuffer ??= new ushort[LightBufferLength] : _otherLightBuffer ??= new ushort[LightBufferLength];
-
-    /// <summary>
-    /// Gets or sets which of the two light buffers the next light draws to.
-    /// </summary>
-    public int LightPhase { get; set; }
+    private static Bgra32 ToBgra(uint color) => new((byte)(color >> 16), (byte)(color >> 8), (byte)color, byte.MaxValue);
 }

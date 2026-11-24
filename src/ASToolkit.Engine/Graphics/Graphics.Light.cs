@@ -15,11 +15,13 @@ public sealed partial class Graphics
     private const int LightNoDepth = 0x7fff;
     private const int LightIntensities = 256;
     private const int DepthShift = 3;
+    private const float LightDepthBias = 50;
+    private const float LightDepthScale = 0.00012207031f;
+    private const float LightDepthBase = 0.015625f;
     private const int DepthBase = 0x80;
-    private static readonly ushort[] LightTable = BuildLightTable();
 
     /// <summary>
-    /// Draws an omni-light as a quad whose intensities are measured against the depth buffer, blended over the colors underneath.
+    /// Draws an omni-light, blended over the colors underneath.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="position">The position of the light relative to the view, with the height in the third component.</param>
@@ -27,7 +29,7 @@ public sealed partial class Graphics
     /// <param name="color">The color of the light, packed as red, green and blue.</param>
     /// <param name="isDoubled">Whether the intensity is doubled before it is blended.</param>
     [EngineRoutine(0x00433670)]
-    public static void DrawLightSource(Screen screen, Vector3 position, Vector2 size, uint color, bool isDoubled)
+    public void DrawLightSource(Screen screen, Vector3 position, Vector2 size, uint color, bool isDoubled)
     {
         screen.LightPhase ^= 1;
         if ((color & ColorMask) == 0)
@@ -52,15 +54,18 @@ public sealed partial class Graphics
         int lift = z * 2 / LightCells + LightLift;
         float x = position.X;
         float y = position.Y - (lift - position.Z);
-        var clip = screen.Clip;
-        if (clip.Left > width + x || !(x - width < clip.Right) || clip.Top > height + y || !(y - height < clip.Bottom))
+        var viewport = Viewport;
+        if (viewport.Left > width + x || !(x - width < viewport.Right) || viewport.Top > height + y || !(y - height < viewport.Bottom))
             return;
 
         var destination = Rectangle.FromLTRB((int)(x - width), (int)(y - height), (int)(width + x), (int)(height + y));
         int depthPitch = screen.DepthWidth;
         var depth = screen.Depth;
-        int pitch = Screen.LightBufferSize;
+        int pitch = screen.ScratchSize.Width;
         var texture = screen.LightBuffer;
+        var format = screen.LightFormat;
+        var colors = screen.ColorTable;
+        bool isPalette = format == VidPixelFormat.P8;
         int originX = (int)x;
         int originY = (int)y;
         int row = 0;
@@ -71,8 +76,8 @@ public sealed partial class Graphics
             {
                 float lineY = offsetY + y;
                 float lineX = offsetX + x;
-                int near = SampleLightDepth(screen, depth, new PointF(lineX, lineY), (originY + offsetY) * depthPitch + originX + offsetX);
-                int far = SampleLightDepth(screen, depth, new PointF(lineX + LightFarOffset, lineY + LightFarOffset), (originY + LightFarOffset + offsetY) * depthPitch + originX + offsetX + LightFarOffset);
+                int near = SampleLightDepth(viewport, depth, new PointF(lineX, lineY), (originY + offsetY) * depthPitch + originX + offsetX);
+                int far = SampleLightDepth(viewport, depth, new PointF(lineX + LightFarOffset, lineY + LightFarOffset), (originY + LightFarOffset + offsetY) * depthPitch + originX + offsetX + LightFarOffset);
                 int sampled = Math.Min(near, far);
                 if (sampled == LightNoDepth)
                     continue;
@@ -85,34 +90,22 @@ public sealed partial class Graphics
                     distance /= area;
                 }
 
-                texture[row / LightStep * pitch + col / LightStep] = LightTable[Math.Clamp(LightIntensities - distance, 0, byte.MaxValue)];
+                int intensity = Math.Clamp(LightIntensities - distance, 0, byte.MaxValue);
+                texture[row / LightStep * pitch + col / LightStep] = isPalette ? (ushort)intensity : colors[intensity];
             }
         }
 
         var source = Rectangle.FromLTRB(1, 1, width / 2 - 1, height / 2 - 1);
-        new Texture(texture, new Size(pitch, pitch), VidPixelFormat.R5G6B5).DrawQuad(screen, destination, source, new Gamma(~color, 0xff000000), QuadBlend.ColorAdd, isDoubled);
+        SetRenderState(RenderState.SpecularEnable, 0);
+        SetBlend(BlendFactor.DestinationColor, BlendFactor.One);
+        new Texture(texture, new Size(pitch, pitch), format, screen.TexturePalette).DrawQuad(screen, destination, source, new Gamma(~color, 0xff000000), Blend, isDoubled, (position.Z + size.X + LightDepthBias) * LightDepthScale + LightDepthBase, (position.Z + size.X + LightDepthBias) * LightDepthScale + LightDepthBase);
     }
 
-    private static int SampleLightDepth(Screen screen, ReadOnlySpan<ushort> depth, PointF point, int index)
+    private static int SampleLightDepth(RectangleF viewport, ReadOnlySpan<ushort> depth, PointF point, int index)
     {
-        if (point.X < screen.Clip.Left || point.X >= screen.Clip.Right || point.Y < screen.Clip.Top || point.Y >= screen.Clip.Bottom || (uint)index >= (uint)depth.Length)
+        if (point.X < viewport.Left || point.X >= viewport.Right || point.Y < viewport.Top || point.Y >= viewport.Bottom)
             return LightNoDepth;
 
         return (depth[index] >> DepthShift) - DepthBase;
-    }
-
-    private static ushort[] BuildLightTable()
-    {
-        ushort[] table = new ushort[LightIntensities];
-        for (int intensity = 0; intensity < table.Length; intensity++)
-        {
-            int baseValue = intensity & ~(LightStep * 2 - 1);
-            int red = Math.Min(byte.MaxValue, baseValue + ((intensity >> 1 & 1) << 3));
-            int green = Math.Min(byte.MaxValue, baseValue + ((intensity >> 2 & 1) << 3));
-            int blue = Math.Min(byte.MaxValue, baseValue + ((intensity & 1) << 3));
-            table[intensity] = HighColorFormat.Rgb565.Pack((uint)(red << 16 | green << 8 | blue));
-        }
-
-        return table;
     }
 }

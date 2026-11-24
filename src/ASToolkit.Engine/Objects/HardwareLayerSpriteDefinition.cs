@@ -2,13 +2,13 @@ using System.Drawing;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using ASToolkit.Formats;
 using ASToolkit.Engine.IO;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents a definition whose sprite file has the hardware layer flag, which no shipped object uses.
+/// Represents the definition of a sprite whose file has the hardware layer flag.
 /// </summary>
 public sealed class HardwareLayerSpriteDefinition : SpriteDefinition
 {
@@ -42,46 +42,6 @@ public sealed class HardwareLayerSpriteDefinition : SpriteDefinition
     /// </summary>
     public ReadOnlyMemory<byte> Palette { get; private set; }
 
-    [EngineRoutine(0x0041baf0)]
-    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, GameLogger? logger)
-    {
-        if (FileType.HasFlag(VidType.Palette))
-        {
-            Palette = file.Palette;
-        }
-
-        var records = file.FrameRecords;
-
-        Frames = new HardwareLayerFrame[Math.Min(FileFrameCount, records.Length)];
-        for (int frame = 0; frame < Frames.Length; frame++)
-        {
-            var record = records[frame].Span;
-            ref readonly var header = ref MemoryMarshal.AsRef<VidLayerFrameHeader>(record);
-            var size = new Size(header.Width & ushort.MaxValue, header.Height & ushort.MaxValue);
-            int length = GetTexelSize(file.Format) * size.Width * size.Height / ByteBits;
-            int position = Unsafe.SizeOf<VidLayerFrameHeader>();
-            var texels = records[frame].Slice(position, Math.Min(length, record.Length - position));
-            position += texels.Length;
-
-            ref readonly var mesh = ref MemoryMarshal.AsRef<VidLayerMeshHeader>(record[position..]);
-            position += Unsafe.SizeOf<VidLayerMeshHeader>();
-            var vertices = new HardwareLayerVertex[Math.Max(mesh.VertexCount, 0)];
-            for (int i = 0; i < vertices.Length; i++)
-            {
-                ref readonly var vertex = ref MemoryMarshal.AsRef<VidLayerVertex>(record[position..]);
-                position += Unsafe.SizeOf<VidLayerVertex>();
-                vertices[i] = new HardwareLayerVertex(
-                    new Vector3(vertex.X, vertex.Y * DepthScale, (vertex.Height - HeightBias) * HeightScale),
-                    new Vector2((vertex.TextureX + TexelCenter) / size.Width, (vertex.TextureY + TexelCenter) / size.Height));
-            }
-
-            ushort[] indexes = new ushort[Math.Max(mesh.IndexCount, 0)];
-            MemoryMarshal.Cast<byte, ushort>(record[position..])[..indexes.Length].CopyTo(indexes);
-            ushort[] textures = Texture.Create(texels.Span, size, file.Format, Palette.Span, out var textureFormat);
-            Frames[frame] = new HardwareLayerFrame(size, textureFormat, textures, vertices, indexes);
-        }
-    }
-
     /// <summary>
     /// Draws a sprite with the frames of this definition as meshes placed by the position, scale and offset of the sprite.
     /// </summary>
@@ -96,7 +56,7 @@ public sealed class HardwareLayerSpriteDefinition : SpriteDefinition
             return;
         var position = sprite.Position;
 
-        var clip = screen.Clip;
+        var viewport = screen.Viewport;
 
         uint seed = 0;
         bool hasDepth = FileType.HasFlag(VidType.ZBuffer);
@@ -105,13 +65,13 @@ public sealed class HardwareLayerSpriteDefinition : SpriteDefinition
             seed = (uint)BitConverter.SingleToInt32Bits(position.Z);
             float screenX = position.X - camera.X;
             float screenY = position.Y - position.Z - camera.Y;
-            if (screenX < clip.Left || screenX >= clip.Right || screenY < clip.Top || screenY >= clip.Bottom || screen.Depth[screen.DepthWidth * (int)screenY + (int)screenX] > (int)position.Z * 8 + DepthBias)
+            if (screenX < viewport.Left || screenX >= viewport.Right || screenY < viewport.Top || screenY >= viewport.Bottom || screen.Depth[screen.DepthWidth * (int)screenY + (int)screenX] > (int)position.Z * 8 + DepthBias)
                 return;
         }
 
-        float scaleX = Object.Scale.X;
-        float scaleY = Object.Scale.Y;
-        float scaleZ = Object.Scale.Z;
+        float scaleX = Scale.X;
+        float scaleY = Scale.Y;
+        float scaleZ = Scale.Z;
         float x = position.X;
         float y = position.Y;
         float z = position.Z;
@@ -124,16 +84,16 @@ public sealed class HardwareLayerSpriteDefinition : SpriteDefinition
 
         if (HasScaleKeyframes)
         {
-            scaleX *= weapon.Interpolate(weapon.ScaleXKeys, keyframe);
-            scaleY *= weapon.Interpolate(weapon.ScaleYKeys, keyframe);
-            scaleZ *= weapon.Interpolate(weapon.ScaleHeightKeys, keyframe);
+            scaleX *= weapon.Interpolate(weapon.ScaleXKeys, (int)keyframe, keyframe);
+            scaleY *= weapon.Interpolate(weapon.ScaleYKeys, (int)keyframe, keyframe);
+            scaleZ *= weapon.Interpolate(weapon.ScaleHeightKeys, (int)keyframe, keyframe);
         }
 
         if (HasOffsetKeyframes)
         {
-            x += weapon.Interpolate(weapon.OffsetXKeys, keyframe);
-            y += weapon.Interpolate(weapon.OffsetYKeys, keyframe);
-            z += weapon.Interpolate(weapon.OffsetZKeys, keyframe);
+            x += weapon.Interpolate(weapon.OffsetXKeys, (int)keyframe, keyframe);
+            y += weapon.Interpolate(weapon.OffsetYKeys, (int)keyframe, keyframe);
+            z += weapon.Interpolate(weapon.OffsetZKeys, (int)keyframe, keyframe);
         }
 
         var world = new Matrix4x4(
@@ -147,17 +107,78 @@ public sealed class HardwareLayerSpriteDefinition : SpriteDefinition
             gamma = gamma.Add(map.Session.Graphics.Gamma);
         }
 
-        if (sprite.Frame < 0 || sprite.Frame >= Frames.Length)
-            return;
+        var graphics = map.Session.Graphics;
+        if (FileType.HasFlag(VidType.Blended))
+        {
+            graphics.SetBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
+        }
+        else
+        {
+            graphics.SetRenderState(RenderState.AlphaBlendEnable, 0);
+        }
 
-        var blend = FileType.HasFlag(VidType.Blended) ? QuadBlend.Alpha : QuadBlend.None;
-        var transform = world * Graphics.CreateView(camera, clip) * Graphics.CreateProjection(clip);
-        Frames[sprite.Frame].Draw(screen, transform, blend, ~gamma.Negative);
+        var transform = world * Graphics.CreateView(camera, viewport) * map.Session.Graphics.Projection;
+        Frames[sprite.Frame].Draw(screen, transform, graphics.Blend, ~gamma.Negative);
     }
 
     /// <inheritdoc/>
     [EngineRoutine(0x0041bde0)]
     public override void SetLayer() => Layer = ObjectLayer.Hardware;
+
+    [EngineRoutine(0x0041baf0)]
+    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, GameLogger? logger)
+    {
+        if (FileType.HasFlag(VidType.Palette))
+        {
+            if (file.Palette.IsEmpty)
+            {
+                Report(logger, LogError.Load, 0, "PAL "u8);
+            }
+
+            Palette = file.Palette;
+        }
+
+        var records = file.FrameRecords;
+        if (records.IsEmpty)
+        {
+            Report(logger, LogError.Load, 0, "DATA"u8);
+        }
+
+        Frames = new HardwareLayerFrame[Math.Min(FileFrameCount, records.Length)];
+        for (int frame = 0; frame < Frames.Length; frame++)
+        {
+            var record = records[frame].Span;
+            ref readonly var header = ref MemoryMarshal.AsRef<VidLayerFrameHeader>(record);
+            var size = new Size(header.Width & ushort.MaxValue, header.Height & ushort.MaxValue);
+            int length = GetTexelSize(file.Format) * size.Width * size.Height / ByteBits;
+            int position = Unsafe.SizeOf<VidLayerFrameHeader>();
+            var texels = records[frame].Slice(position, Math.Min(length, record.Length - position));
+            position += texels.Length;
+
+            var flags = TextureFlags.HasAlpha;
+            if (FileType.HasFlag(VidType.Blended))
+            {
+                flags |= TextureFlags.AlphaPalette;
+            }
+
+            ushort[] textures = Texture.Create(texels.Span, size, file.Format, flags, logger, out size, out var textureFormat);
+            ref readonly var mesh = ref MemoryMarshal.AsRef<VidLayerMeshHeader>(record[position..]);
+            position += Unsafe.SizeOf<VidLayerMeshHeader>();
+            var vertices = new HardwareLayerVertex[Math.Max(mesh.VertexCount, 0)];
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                ref readonly var vertex = ref MemoryMarshal.AsRef<VidLayerVertex>(record[position..]);
+                position += Unsafe.SizeOf<VidLayerVertex>();
+                vertices[i] = new HardwareLayerVertex(
+                    new Vector3(vertex.X, vertex.Y * DepthScale, (vertex.Height - HeightBias) * HeightScale),
+                    new Vector2((vertex.TextureX + TexelCenter) / size.Width, (vertex.TextureY + TexelCenter) / size.Height));
+            }
+
+            ushort[] indexes = new ushort[Math.Max(mesh.IndexCount, 0)];
+            MemoryMarshal.Cast<byte, ushort>(record[position..])[..indexes.Length].CopyTo(indexes);
+            Frames[frame] = new HardwareLayerFrame(size, textureFormat, textures, vertices, indexes);
+        }
+    }
 
     private static int GetTexelSize(VidPixelFormat format) => format switch
     {

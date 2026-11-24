@@ -1,13 +1,14 @@
 using System.Drawing;
 using System.Numerics;
 using System.Runtime.InteropServices;
-using ASToolkit.Formats;
 using ASToolkit.Core;
+using ASToolkit.Engine.IO;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents a definition whose blended, depth-buffered sprite file holds a depth and an ARGB4444 color for each pixel and is drawn as one quad faded against the depth buffer.
+/// Represents the definition of a sprite with a depth and an ARGB4444 color for each pixel, faded against the depth buffer when drawn.
 /// </summary>
 public sealed class DepthFadedSpriteDefinition : SoftwareSpriteDefinition
 {
@@ -31,39 +32,6 @@ public sealed class DepthFadedSpriteDefinition : SoftwareSpriteDefinition
     public DepthFadedSpriteDefinition(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, in VidResource file, int totalFrames, HighColorFormat format)
         : base(id, gameObject, weapon, file, totalFrames, format)
     {
-    }
-
-    /// <summary>
-    /// Sets the gamma of an army and leaves the colors of the sprite file as they are.
-    /// </summary>
-    /// <param name="gamma">The gamma.</param>
-    /// <param name="army">The army, or <see cref="SpriteDefinition.AllArmies"/> for every army.</param>
-    /// <param name="ambient">The ambient gamma of the level.</param>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="army"/> is above <see cref="SpriteDefinition.AllArmies"/>.</exception>
-    [EngineRoutine(0x004127e0)]
-    public override void SetGamma(Gamma gamma, int army, Gamma ambient) => StoreGamma(gamma, army);
-
-    /// <inheritdoc/>
-    [EngineRoutine(0x0041b880)]
-    public override void SetLayer()
-    {
-        var properties = Object.Properties;
-        if (properties.HasFlag(ObjectProperties.Ground))
-        {
-            Layer = ObjectLayer.Ground2;
-        }
-        else if (Object.SpriteType == SpriteType.Region)
-        {
-            Layer = ObjectLayer.Region;
-        }
-        else if (!FileType.HasFlag(VidType.Blended))
-        {
-            Layer = ObjectLayer.Hardware;
-        }
-        else
-        {
-            Layer = !FileType.HasFlag(VidType.ZBuffer) && properties.HasFlag(ObjectProperties.Wave) ? ObjectLayer.AlphaGround : ObjectLayer.Alpha;
-        }
     }
 
     /// <summary>
@@ -131,8 +99,31 @@ public sealed class DepthFadedSpriteDefinition : SoftwareSpriteDefinition
         }
     }
 
+    /// <inheritdoc/>
+    [EngineRoutine(0x0041b880)]
+    public override void SetLayer()
+    {
+        var properties = Object.Properties;
+        if (properties.HasFlag(ObjectProperties.Ground))
+        {
+            Layer = ObjectLayer.Ground2;
+        }
+        else if (Object.SpriteType == SpriteType.Region)
+        {
+            Layer = ObjectLayer.Region;
+        }
+        else if (!FileType.HasFlag(VidType.Blended))
+        {
+            Layer = ObjectLayer.Hardware;
+        }
+        else
+        {
+            Layer = !FileType.HasFlag(VidType.ZBuffer) && properties.HasFlag(ObjectProperties.Wave) ? ObjectLayer.AlphaGround : ObjectLayer.Alpha;
+        }
+    }
+
     /// <summary>
-    /// Draws a sprite whose runs hold a depth and an ARGB4444 color for each pixel, faded by the depth buffer.
+    /// Draws a sprite, faded by the depth buffer.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
@@ -144,63 +135,45 @@ public sealed class DepthFadedSpriteDefinition : SoftwareSpriteDefinition
         if (IsHidden)
             return;
 
-        var clip = screen.Clip;
-
+        var viewport = screen.Viewport;
         var origin = new Point((int)(sprite.Position.X - camera.X - FrameSize.Center.X), (int)(sprite.Position.Y - sprite.Position.Z - camera.Y - FrameSize.Center.Y));
-        if (IsOutside(clip, origin, FrameSize))
+        if (!TryLocateFrame(map, sprite, viewport, ref origin, out int z, out var rows))
             return;
 
-        int z = GetDepth(map, sprite, ref origin);
-        if (!ReadFrame(Frames, clip, FrameOffsets[sprite.Frame], origin.Y, out int top, out int rowCount, out int bottom, out int position))
-            return;
-
-        SkipRows(Frames, ref position, ref top, ref rowCount, clip.Top, FadedPixelSize);
-        rowCount = bottom - top;
-        screen.EnsureScratch(FrameSize with { Height = rowCount });
+        var runs = new RunWalker(Frames, rows, origin.X, FrameSize.Width, viewport, FadedPixelSize);
+        int rowCount = runs.End - runs.Top;
         int scratchWidth = screen.ScratchSize.Width;
         var scratch = screen.Scratch;
+        scratch[..(rowCount * scratchWidth)].Clear();
         short key = (short)z;
         bool additive = !FileType.HasFlag(VidType.Blended) || !FileType.HasFlag(VidType.Runs8Bit);
-        bool clipped = origin.X < clip.Left || origin.X + FrameSize.Width > clip.Right;
-        for (int row = 0; row < rowCount; row++)
+        while (runs.MoveNext())
         {
-            var output = scratch.Slice(row * scratchWidth, scratchWidth);
-            output.Clear();
-            int depthRow = (top + row) * screen.DepthWidth;
-            int x = origin.X;
-            while (!RunAt(Frames, position).IsEnd)
+            if (!runs.IsVisible)
+                continue;
+
+            var offsets = MemoryMarshal.Cast<byte, short>(Frames.Slice(runs.Pixels + runs.Offset * sizeof(short), runs.Count * sizeof(short)));
+            var colors = MemoryMarshal.Cast<byte, ushort>(Frames.Slice(runs.Pixels + (runs.Length + runs.Offset) * sizeof(short), runs.Count * sizeof(ushort)));
+            var under = screen.Depth.Slice(runs.Row * screen.DepthWidth + runs.First, runs.Count);
+            var target = scratch.Slice((runs.Row - runs.Top) * scratchWidth, scratchWidth).Slice(runs.First - origin.X, runs.Count);
+            if (additive)
             {
-                ref readonly var run = ref RunAt(Frames, position);
-                x += run.Skip;
-                int count = run.Count;
-                position += RunHeader;
-                if (ClipRunToRow(clip, clipped, x, count, out int first, out int skip, out int length))
-                {
-                    length = Math.Min(length, Math.Min(scratchWidth - (first - origin.X), screen.Depth.Length - depthRow - first));
-                    var offsets = MemoryMarshal.Cast<byte, short>(Frames.Slice(position + skip * sizeof(short), length * sizeof(short)));
-                    var colors = MemoryMarshal.Cast<byte, ushort>(Frames.Slice(position + (count + skip) * sizeof(short), length * sizeof(ushort)));
-                    var under = screen.Depth.Slice(depthRow + first, length);
-                    var target = output.Slice(first - origin.X, length);
-                    if (additive)
-                    {
-                        FadeOpaque(offsets, colors, under, target, length, key);
-                    }
-                    else
-                    {
-                        FadeColors(offsets, colors, under, target, length, key);
-                    }
-                }
-
-                position += count * FadedPixelSize;
-                x += count;
+                FadeOpaque(offsets, colors, under, target, runs.Count, key);
             }
-
-            position += RunHeader;
+            else
+            {
+                FadeColors(offsets, colors, under, target, runs.Count, key);
+            }
         }
 
         var gamma = GetGamma(map, sprite);
-        var destination = Rectangle.FromLTRB(origin.X, top, origin.X + FrameSize.Width, bottom);
+        var destination = Rectangle.FromLTRB(origin.X, runs.Top, origin.X + FrameSize.Width, runs.End);
         var source = new Rectangle(0, 0, FrameSize.Width, rowCount);
-        new Texture(scratch, screen.ScratchSize, VidPixelFormat.A4R4G4B4).DrawFlatQuad(screen, destination, source, gamma, additive ? QuadBlend.AlphaAdd : QuadBlend.Alpha);
+        var graphics = map.Session.Graphics;
+        graphics.SetBlend(BlendFactor.SourceAlpha, BlendFactor.One);
+        new Texture(scratch, screen.ScratchSize, VidPixelFormat.A4R4G4B4).DrawFlatQuad(screen, destination, source, gamma, graphics.Blend);
     }
+
+    [EngineRoutine(0x004127e0)]
+    internal override void SetGamma(Gamma gamma, int army, Gamma ambient, GameLogger? logger) => StoreGamma(gamma, army, logger);
 }

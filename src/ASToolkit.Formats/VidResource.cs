@@ -1,5 +1,5 @@
-using System.Drawing;
 using System.Buffers;
+using System.Drawing;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -27,7 +27,7 @@ public readonly struct VidResource
     /// <summary>
     /// Initializes a new instance of the <see cref="VidResource"/> structure.
     /// </summary>
-    /// <param name="data">The data.</param>
+    /// <param name="data">The bytes of the sprite file.</param>
     public VidResource(ReadOnlyMemory<byte> data)
     {
         Data = data;
@@ -76,17 +76,17 @@ public readonly struct VidResource
     public Size Size => _header.Size;
 
     /// <summary>
-    /// Gets the pixel format of the sprite, or none for sprites whose header does not carry one.
+    /// Gets the pixel format of the sprite, or none if the header of the sprite doesn't carry one.
     /// </summary>
     public VidPixelFormat Format { get; }
 
     /// <summary>
-    /// Gets the mesh type of the sprite, or upright for sprites whose header does not carry one.
+    /// Gets the mesh type of the sprite, or upright if the header of the sprite doesn't carry one.
     /// </summary>
     public MeshType MeshType { get; }
 
     /// <summary>
-    /// Gets the blend procedure of the sprite, or alpha for sprites whose header does not carry one.
+    /// Gets the blend procedure of the sprite, or alpha if the header of the sprite doesn't carry one.
     /// </summary>
     public BlendProcedure BlendProcedure { get; }
 
@@ -116,7 +116,7 @@ public readonly struct VidResource
     public ReadOnlyMemory<byte> Data { get; }
 
     /// <summary>
-    /// Gets the records of the <c>DATA</c> chunk, one for each frame, whose records that repeat another frame hold only its index.
+    /// Gets the records of the <c>DATA</c> chunk, one for each frame, where a record that repeats another frame holds only that frame's index.
     /// </summary>
     public ReadOnlySpan<ReadOnlyMemory<byte>> FrameRecords => _frames;
 
@@ -126,7 +126,12 @@ public readonly struct VidResource
     public ReadOnlyMemory<byte> Palette { get; }
 
     /// <summary>
-    /// Returns the pixels of a frame and follows frames that repeat another one.
+    /// Gets the number of frames of a sprite with surfaces that the <c>DATA</c> chunk locates in its textures.
+    /// </summary>
+    public int TextureFrameCount => !HasSurfaceChunk || _frames.Length == 0 ? 0 : _frames[0].Length / GetTextureFrameSize();
+
+    /// <summary>
+    /// Returns the pixels of a frame, following frames that repeat another one.
     /// </summary>
     /// <param name="index">The frame index.</param>
     /// <returns>The pixels of the frame.</returns>
@@ -139,8 +144,8 @@ public readonly struct VidResource
     }
 
     /// <summary>
-    /// Returns the run-length pixels of a frame from the <c>DATA</c> records, which sprites with <c>CADR</c> records keep as well,
-    /// and follows frames that repeat another one.
+    /// Returns the run-length pixels of a frame from its <c>DATA</c> record, also kept by sprites with <c>CADR</c> records,
+    /// following frames that repeat another one.
     /// </summary>
     /// <param name="index">The frame index.</param>
     /// <returns>The run-length pixels of the frame.</returns>
@@ -185,7 +190,7 @@ public readonly struct VidResource
     }
 
     /// <summary>
-    /// Returns the vector a frame stores ahead of its pixels, which places the object attached to the object that shows the frame.
+    /// Returns the vector stored ahead of a frame's pixels that places the attached object relative to the object showing the frame.
     /// </summary>
     /// <param name="index">The frame index.</param>
     /// <returns>The vector of the frame, or zero if the sprite doesn't store one.</returns>
@@ -206,9 +211,9 @@ public readonly struct VidResource
     }
 
     /// <summary>
-    /// Returns the textures of a sprite with surfaces and decompresses range coded ones. Sprites with a depth buffer list the depth of each texture right after it.
+    /// Returns the textures of a sprite with surfaces, decompressing the range-coded ones. A sprite with a depth buffer lists the depth of each texture right after it.
     /// </summary>
-    /// <returns>The textures, or an empty array if the sprite doesn't have any or they can't be read.</returns>
+    /// <returns>The textures up to the first one whose size can't be read, each with the failure of its stream, or an empty array if the sprite doesn't have any.</returns>
     public VidTexture[] DecodeSurfaces()
     {
         if (!Type.HasFlag(VidType.Hardware) || _surfaces.Length < sizeof(short))
@@ -246,106 +251,6 @@ public readonly struct VidResource
         }
     }
 
-    private VidTexture[] ReadSurfaces(Span<FrequencyModel> colorModels, Span<FrequencyModel> depthModels)
-    {
-        var data = _surfaces.Span;
-        var surfaces = new VidTexture[MemoryMarshal.Read<short>(data)];
-        int position = sizeof(short);
-        bool hasPalette = Type.HasFlag(VidType.Palette);
-        bool hasDepth = Type.HasFlag(VidType.ZBuffer);
-        int planes = Type.HasFlag(VidType.SurfaceVariant) ? 1 : 2;
-        for (int index = 0; index < surfaces.Length; index++)
-        {
-            if (position + Unsafe.SizeOf<VidSurfaceSize>() > data.Length)
-            {
-                return [];
-            }
-
-            var area = MemoryMarshal.AsRef<VidSurfaceSize>(data[position..]).Size;
-            position += Unsafe.SizeOf<VidSurfaceSize>();
-            if (area.Width <= 0 || area.Height <= 0)
-            {
-                return [];
-            }
-
-            ReadOnlyMemory<byte> palette = default;
-            if (hasPalette)
-            {
-                if (position + PalettePixelSize > data.Length)
-                {
-                    return [];
-                }
-
-                palette = _surfaces.Slice(position, PalettePixelSize);
-                position += PalettePixelSize;
-            }
-
-            var color = ReadSurface(ref position, colorModels, planes);
-            if (color.IsEmpty || hasPalette && color.Length < area.Width * area.Height)
-            {
-                return [];
-            }
-
-            surfaces[index] = new VidTexture(area, color, palette);
-            if (!hasDepth || index + 1 >= surfaces.Length)
-            {
-                continue;
-            }
-
-            index++;
-            var depth = ReadSurface(ref position, depthModels, 2);
-            if (depth.Length != area.Width * area.Height * sizeof(ushort))
-            {
-                return [];
-            }
-
-            surfaces[index] = new VidTexture(area, depth);
-        }
-
-        return surfaces;
-    }
-
-    private ReadOnlyMemory<byte> ReadSurface(ref int position, Span<FrequencyModel> models, int planes)
-    {
-        if (position + sizeof(int) > _surfaces.Span.Length)
-        {
-            return default;
-        }
-
-        int size = MemoryMarshal.Read<int>(_surfaces.Span[position..]);
-        position += sizeof(int);
-        if (size <= 0)
-        {
-            return default;
-        }
-
-        if (models.IsEmpty)
-        {
-            if (position + size > _surfaces.Span.Length)
-            {
-                return default;
-            }
-
-            var raw = _surfaces.Slice(position, size);
-            position += size;
-            return raw;
-        }
-
-        byte[] pixels = new byte[size];
-        if (!RangeDecoder.TryDecode(_surfaces.Span[position..], pixels, models, planes, out int used))
-        {
-            return default;
-        }
-
-        position += used;
-        return pixels;
-    }
-
-    /// <summary>
-    /// Gets how many frames of a sprite with surfaces the data chunk locates in its textures.
-    /// </summary>
-    public int TextureFrameCount => !HasSurfaceChunk || _frames.Length == 0 ? 0 : _frames[0].Length / GetTextureFrameSize();
-
     /// <summary>
     /// Attempts to get where a frame of a sprite with surfaces lies in its textures.
     /// </summary>
@@ -366,8 +271,6 @@ public readonly struct VidResource
         return true;
     }
 
-    private int GetTextureFrameSize() => Type.HasFlag(VidType.CurrentVersion) ? Unsafe.SizeOf<VidTextureFrame>() : Unsafe.SizeOf<OldVidTextureFrame>();
-
     /// <summary>
     /// Returns the color of an omni-light frame as a packed red, green and blue value.
     /// </summary>
@@ -382,6 +285,130 @@ public readonly struct VidResource
 
         return MemoryMarshal.Read<uint>(_frames[0].Span[(index * sizeof(uint))..]) & 0xffffff;
     }
+
+    private static int GetColorSize(VidPixelFormat format) => format switch
+    {
+        VidPixelFormat.A8R8G8B8 or VidPixelFormat.X8R8G8B8 => 4,
+        VidPixelFormat.R5G6B5 or VidPixelFormat.X1R5G5B5 or VidPixelFormat.A1R5G5B5 or VidPixelFormat.A4R4G4B4 => 2,
+        _ => 0
+    };
+
+    private static bool IsAlias(ReadOnlyMemory<byte> record) => record.Length == FrameHeader + 2;
+
+    private static ReadOnlyMemory<byte>[] ReadRecords(ResChunk chunk)
+    {
+        var records = new ReadOnlyMemory<byte>[chunk.Count];
+        int i = 0;
+        foreach (var record in chunk.Records)
+        {
+            records[i++] = record;
+        }
+
+        return records;
+    }
+
+    private static ReadOnlyMemory<byte> GetFirstRecord(ResContainer container, ReadOnlySpan<byte> tag)
+    {
+        foreach (var chunk in container.Chunks)
+        {
+            if (!chunk.Tag.Span.SequenceEqual(tag))
+                continue;
+
+            foreach (var record in chunk.Records)
+            {
+                return record;
+            }
+        }
+
+        return default;
+    }
+
+    private VidTexture[] ReadSurfaces(Span<FrequencyModel> colorModels, Span<FrequencyModel> depthModels)
+    {
+        var data = _surfaces.Span;
+        var surfaces = new VidTexture[MemoryMarshal.Read<short>(data)];
+        int position = sizeof(short);
+        bool hasPalette = Type.HasFlag(VidType.Palette);
+        bool hasDepth = Type.HasFlag(VidType.ZBuffer);
+        int planes = Type.HasFlag(VidType.SurfaceVariant) ? 1 : 2;
+        for (int index = 0; index < surfaces.Length; index++)
+        {
+            if (position + Unsafe.SizeOf<VidSurfaceSize>() > data.Length)
+                return surfaces[..index];
+
+            var area = MemoryMarshal.AsRef<VidSurfaceSize>(data[position..]).Size;
+            position += Unsafe.SizeOf<VidSurfaceSize>();
+            if (area.Width <= 0 || area.Height <= 0)
+                return surfaces[..index];
+
+            ReadOnlyMemory<byte> palette = default;
+            var failure = VidSurfaceFailure.None;
+            if (hasPalette)
+            {
+                int length = Math.Min(PalettePixelSize, data.Length - position);
+                palette = _surfaces.Slice(position, length);
+                position += length;
+                if (length < PalettePixelSize)
+                {
+                    failure = VidSurfaceFailure.Decode;
+                }
+            }
+
+            if (!TryReadSurface(ref position, colorModels, planes, out var color, out int colorSize, out int colorDecoded) || hasPalette && color.Length < area.Width * area.Height)
+            {
+                failure = VidSurfaceFailure.Decode;
+            }
+
+            surfaces[index] = new VidTexture(area, color, palette, colorSize, colorDecoded, failure);
+            if (!hasDepth || index + 1 >= surfaces.Length)
+                continue;
+
+            index++;
+            failure = VidSurfaceFailure.None;
+            if (!TryReadSurface(ref position, depthModels, 2, out var depth, out int depthSize, out int depthDecoded))
+            {
+                failure = VidSurfaceFailure.DepthDecode;
+            }
+            else if (depth.Length != area.Width * area.Height * sizeof(ushort))
+            {
+                failure = VidSurfaceFailure.DepthSize;
+            }
+
+            surfaces[index] = new VidTexture(area, depth, default, depthSize, depthDecoded, failure);
+        }
+
+        return surfaces;
+    }
+
+    private bool TryReadSurface(ref int position, Span<FrequencyModel> models, int planes, out ReadOnlyMemory<byte> data, out int size, out int decoded)
+    {
+        data = default;
+        size = 0;
+        decoded = 0;
+        if (position + sizeof(int) > _surfaces.Span.Length)
+            return false;
+
+        size = MemoryMarshal.Read<int>(_surfaces.Span[position..]);
+        position += sizeof(int);
+        if (size <= 0)
+            return false;
+
+        if (models.IsEmpty)
+        {
+            decoded = Math.Min(size, _surfaces.Length - position);
+            data = _surfaces.Slice(position, decoded);
+            position += decoded;
+            return decoded == size;
+        }
+
+        byte[] pixels = new byte[size];
+        bool isDecoded = RangeDecoder.TryDecode(_surfaces.Span[position..], pixels, models, planes, out int used, out decoded);
+        position += used;
+        data = pixels;
+        return isDecoded;
+    }
+
+    private int GetTextureFrameSize() => Type.HasFlag(VidType.CurrentVersion) ? Unsafe.SizeOf<VidTextureFrame>() : Unsafe.SizeOf<OldVidTextureFrame>();
 
     private VidFrame GetCadrFrame(ReadOnlyMemory<byte> record)
     {
@@ -411,27 +438,6 @@ public readonly struct VidResource
         return new VidFrame(record[pixels..], new Rectangle(cadr.Origin, new Size(cadr.Size.Width, rowCount)), Size.Width, HasZBuffer, HasPalette, colorSize, stride, mesh);
     }
 
-    private static int GetColorSize(VidPixelFormat format) => format switch
-    {
-        VidPixelFormat.A8R8G8B8 or VidPixelFormat.X8R8G8B8 => 4,
-        VidPixelFormat.R5G6B5 or VidPixelFormat.X1R5G5B5 or VidPixelFormat.A1R5G5B5 or VidPixelFormat.A4R4G4B4 => 2,
-        _ => 0
-    };
-
-    private static bool IsAlias(ReadOnlyMemory<byte> record) => record.Length == FrameHeader + 2;
-
-    private static ReadOnlyMemory<byte>[] ReadRecords(ResChunk chunk)
-    {
-        var records = new ReadOnlyMemory<byte>[chunk.Count];
-        int i = 0;
-        foreach (var record in chunk.Records)
-        {
-            records[i++] = record;
-        }
-
-        return records;
-    }
-
     private bool TryGetCadrRecord(int index, out ReadOnlyMemory<byte> record)
     {
         record = default;
@@ -448,21 +454,5 @@ public readonly struct VidResource
         }
 
         return false;
-    }
-
-    private static ReadOnlyMemory<byte> GetFirstRecord(ResContainer container, ReadOnlySpan<byte> tag)
-    {
-        foreach (var chunk in container.Chunks)
-        {
-            if (!chunk.Tag.Span.SequenceEqual(tag))
-                continue;
-
-            foreach (var record in chunk.Records)
-            {
-                return record;
-            }
-        }
-
-        return default;
     }
 }

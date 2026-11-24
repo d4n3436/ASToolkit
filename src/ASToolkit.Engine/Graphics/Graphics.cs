@@ -1,7 +1,8 @@
 using System.Drawing;
 using System.Numerics;
-using ASToolkit.Formats;
 using ASToolkit.Core;
+using ASToolkit.Engine.IO;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
@@ -14,7 +15,8 @@ public sealed partial class Graphics
     /// Represents the number of screen effects.
     /// </summary>
     public const int EffectCount = 16;
-
+    private const float ProjectionDepthScale = 0.001f;
+    private const float ProjectionRange = 2f;
     private const float WindPerSecond = 0.001f;
     private const float NoSquall = -1;
     private const float SquallGain = 0.001953125f;
@@ -60,17 +62,9 @@ public sealed partial class Graphics
     public Weather Weather { get; } = new();
 
     /// <summary>
-    /// Gets or sets the screen that the frame is drawn into, or <see langword="null"/> to run without drawing.
+    /// Gets the 16-bit colors of the brightness levels, in the layout of the device's textures.
     /// </summary>
-    public Screen? Screen
-    {
-        get;
-        set
-        {
-            field = value;
-            value?.Clip = ToClipRectangle(Viewport);
-        }
-    }
+    public ReadOnlySpan<ushort> ColorTable => Screen is not null ? Screen.ColorTable : Buffers.IsCreated ? Buffers.ColorTable : Screen.DefaultColorTable;
 
     /// <summary>
     /// Gets the area of the back buffer the frame is drawn into.
@@ -78,18 +72,9 @@ public sealed partial class Graphics
     public RectangleF Viewport { get; private set; }
 
     /// <summary>
-    /// Sets the area of the back buffer the frame is drawn into.
+    /// Gets the matrix that maps the view onto the viewport.
     /// </summary>
-    /// <param name="viewport">The viewport.</param>
-    /// <remarks>The screen's clip is updated to match.</remarks>
-    [EngineRoutine(0x00402400)]
-    public void SetViewport(RectangleF viewport)
-    {
-        Viewport = viewport;
-        Screen?.Clip = ToClipRectangle(viewport);
-    }
-
-    private static Rectangle ToClipRectangle(RectangleF clip) => Rectangle.FromLTRB((int)clip.Left, (int)clip.Top, (int)clip.Right, (int)clip.Bottom);
+    public Matrix4x4 Projection { get; private set; }
 
     /// <summary>
     /// Gets the gamma the frame is drawn with.
@@ -112,12 +97,53 @@ public sealed partial class Graphics
     public MapEnvironment Environment { get; set; }
 
     /// <summary>
+    /// Gets or sets the screen that the frame is drawn into, or <see langword="null"/> to run without drawing.
+    /// </summary>
+    public Screen? Screen
+    {
+        get;
+        set
+        {
+            field = value;
+            if (value is null)
+                return;
+
+            value.Logger = Logger;
+            value.Owner = this;
+            value.Viewport = ToViewportRectangle(Viewport);
+        }
+    }
+
+    internal GameLogger? Logger { get; set; }
+
+    internal GraphicsFlags Flags { get; set; }
+
+    /// <summary>
+    /// Sets the area of the back buffer the frame is drawn into.
+    /// </summary>
+    /// <param name="viewport">The viewport.</param>
+    /// <remarks>The screen's viewport and <see cref="Projection"/> are updated to match.</remarks>
+    [EngineRoutine(0x00402400)]
+    public void SetViewport(RectangleF viewport)
+    {
+        Viewport = viewport;
+        Screen?.Viewport = ToViewportRectangle(viewport);
+        int width = (int)(viewport.Right - viewport.Left);
+        int height = (int)(viewport.Bottom - viewport.Top);
+        Projection = new Matrix4x4(
+            ProjectionRange / width, 0f, 0f, 0f,
+            0f, -ProjectionRange / height, 0f, 0f,
+            0f, 0f, ProjectionDepthScale, 0f,
+            0f, 0f, 0f, 1f);
+    }
+
+    /// <summary>
     /// Runs one frame of the squall, a gust that ramps the wind up and back down over about four seconds.
     /// </summary>
     /// <param name="time">The game time in milliseconds.</param>
     /// <param name="isPaused"><see langword="true"/> while the level is paused.</param>
     [EngineRoutine(0x00431d50)]
-    public void UpdateSquall(int time, bool isPaused)
+    public void DrawSquall(int time, bool isPaused)
     {
         if (isPaused)
             return;
@@ -160,18 +186,18 @@ public sealed partial class Graphics
     }
 
     /// <summary>
-    /// Sets the ambient gamma and, when it changes, rebuilds the palettes of every sprite file with it.
+    /// Sets the ambient gamma and, when it changes, applies it to the palettes of every sprite file.
     /// </summary>
     /// <param name="gamma">The ambient gamma.</param>
-    /// <param name="definitions">The definitions whose sprite files take the ambient gamma.</param>
+    /// <param name="definitions">The sprite definitions.</param>
     [EngineRoutine(0x00431c50)]
     public void SetGamma(Gamma gamma, SpriteCatalog definitions)
     {
+        if (Gamma == gamma)
+            return;
+
         Gamma = gamma;
-        if (definitions.Ambient != gamma)
-        {
-            definitions.SetAmbient(gamma);
-        }
+        definitions.SetAmbient(gamma);
     }
 
     /// <summary>
@@ -186,21 +212,37 @@ public sealed partial class Graphics
         WindDirection = direction;
     }
 
-    /// <summary>
-    /// Loads the environment, the gamma and the wind a map starts with.
-    /// </summary>
-    /// <param name="environment">The environment effects.</param>
-    /// <param name="ambient">The ambient gamma.</param>
-    /// <param name="windDirection">The direction of the wind.</param>
-    /// <param name="windSpeed">The speed of the wind in pixels per millisecond.</param>
-    /// <param name="definitions">The definitions whose sprite files take the ambient gamma.</param>
     [EngineRoutine(0x00433cd0)]
-    public void Load(MapEnvironment environment, Gamma ambient, Angle windDirection, float windSpeed, SpriteCatalog definitions)
+    internal void Load(ref Resource reader, SpriteCatalog definitions)
     {
+        var environment = Environment;
+        reader.ReadInto(ref environment);
         Environment = environment;
-        SetGamma(ambient, definitions);
-        WindDirection = windDirection;
-        WindSpeed = windSpeed;
+        var gamma = default(Gamma);
+        reader.ReadInto(ref gamma);
+        SetGamma(gamma, definitions);
+        int direction = 0;
+        reader.ReadInto(ref direction);
+        WindDirection = new Angle((byte)direction);
+        float speed = WindSpeed;
+        reader.ReadInto(ref speed);
+        WindSpeed = speed;
+    }
+
+    [EngineRoutine(0x00433bb0)]
+    internal void LoadOld(ref Resource reader, SpriteCatalog definitions)
+    {
+        var environment = Environment;
+        reader.ReadInto(ref environment);
+        Environment = environment;
+        uint gamma = 0;
+        reader.ReadInto(ref gamma);
+        SetGamma(Gamma.FromScript(gamma), definitions);
+        byte direction = 0;
+        reader.ReadInto(ref direction);
+        short speed = 0;
+        reader.ReadInto(ref speed);
+        SetWind(speed, new Angle(direction));
     }
 
     [EngineRoutine(0x00431cf0)]
@@ -229,4 +271,6 @@ public sealed partial class Graphics
 
         Environment |= environment;
     }
+
+    private static Rectangle ToViewportRectangle(RectangleF viewport) => Rectangle.FromLTRB((int)viewport.Left, (int)viewport.Top, (int)viewport.Right, (int)viewport.Bottom);
 }

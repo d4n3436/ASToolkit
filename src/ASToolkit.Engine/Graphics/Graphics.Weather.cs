@@ -1,7 +1,7 @@
 using System.Drawing;
 using System.Numerics;
-using ASToolkit.Formats;
 using ASToolkit.Core;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
@@ -39,7 +39,7 @@ public sealed partial class Graphics
     [EngineRoutine(0x004322a0)]
     private void UpdateGroundSnow(Map map)
     {
-        if (map.IsPaused)
+        if (map.IsPaused || Flags.HasFlag(GraphicsFlags.Software))
             return;
 
         if (!Environment.HasFlag(MapEnvironment.GroundSnow))
@@ -59,8 +59,10 @@ public sealed partial class Graphics
 
         var size = Screen.Size;
         var start = new Point(-(int)map.Camera.X & SnowCellMask, -(int)map.Camera.Y & SnowCellMask);
-        var ramp = Weather.GroundSnowRamp;
-        var texture = Screen.SnowBuffer;
+        var ramp = Screen.ColorTable;
+        var texture = Screen.TextureBuffer;
+        var format = Screen.TextureFormat;
+        bool isPalette = format == VidPixelFormat.P8;
         var depth = Screen.Depth;
         int depthWidth = Screen.DepthWidth;
 
@@ -70,11 +72,11 @@ public sealed partial class Graphics
             {
                 int index = y * depthWidth + x;
                 int level;
-                int up = y < SnowCell ? int.MaxValue : Math.Abs(GetDepth(depth, index) - GetDepth(depth, index - SnowCell * depthWidth));
+                int up = y < SnowCell ? int.MaxValue : Math.Abs(depth[index] - depth[index - SnowCell * depthWidth]);
 
                 if (up > SnowEdgeReach)
                 {
-                    int down = Math.Abs(GetDepth(depth, index) - GetDepth(depth, index + SnowCell * depthWidth));
+                    int down = Math.Abs(depth[index] - depth[index + SnowCell * depthWidth]);
                     level = down < SnowEdgeReach + 1 ? (SnowEdgeReach - down) * Weather.GroundSnowAge >> SnowAgeShift : -1;
                 }
                 else
@@ -85,15 +87,14 @@ public sealed partial class Graphics
                 int column = x >> 2;
                 int row = y >> 2;
 
-                if (column < SnowTextureSize && row < SnowTextureSize)
-                {
-                    texture[row * SnowTextureSize + column] = level < 0 ? (ushort)0 : ramp[Math.Min(level, ramp.Length - 1)];
-                }
+                texture[row * SnowTextureSize + column] = level < 0 ? (ushort)0 : isPalette ? (ushort)(byte)level : ramp[level];
             }
         }
 
-        new Texture(texture, new Size(SnowTextureSize, SnowTextureSize), VidPixelFormat.R5G6B5).DrawFlatQuad(Screen, new Rectangle(Point.Empty, Screen.Size),
-            new Rectangle(0, 0, size.Width / SnowCell, size.Height / SnowCell), default, new QuadBlend(BlendFactor.One, BlendFactor.InverseSourceColor));
+        SetRenderState(RenderState.SpecularEnable, 0);
+        SetBlend(BlendFactor.One, BlendFactor.InverseSourceColor);
+        new Texture(texture, new Size(SnowTextureSize, SnowTextureSize), format, Screen.TexturePalette).DrawFlatQuad(Screen, new Rectangle(Point.Empty, Screen.Size),
+            new Rectangle(0, 0, size.Width / SnowCell, size.Height / SnowCell), default, Blend);
     }
 
     [EngineRoutine(0x00432c10)]
@@ -106,7 +107,7 @@ public sealed partial class Graphics
             return;
         }
 
-        if (map.IsPaused)
+        if (map.IsPaused || Flags.HasFlag(GraphicsFlags.Software))
             return;
 
         var view = map.Session.Graphics.Viewport;
@@ -199,6 +200,11 @@ public sealed partial class Graphics
             slot++;
         }
 
+        if (Weather.SnowflakeCount > 0)
+        {
+            SetBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
+        }
+
         if (Screen is not null)
         {
             ScreenPrimitives.DrawLines(Screen, Weather.SnowLines);
@@ -215,7 +221,7 @@ public sealed partial class Graphics
             return;
         }
 
-        if (map.IsPaused)
+        if (map.IsPaused || Flags.HasFlag(GraphicsFlags.Software))
             return;
 
         var view = map.Session.Graphics.Viewport;
@@ -281,6 +287,11 @@ public sealed partial class Graphics
             {
                 drop[vertex].Position += step;
             }
+        }
+
+        if (Weather.RaindropCount > 0)
+        {
+            SetBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
         }
 
         if (Screen is not null)

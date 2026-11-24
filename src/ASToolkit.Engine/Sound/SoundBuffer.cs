@@ -8,7 +8,10 @@ internal struct SoundBuffer
         References = references;
         Sound = sound;
         Variant = variant;
+        IsCreated = true;
     }
+
+    public bool IsCreated { get; }
 
     public float Length { get; }
 
@@ -37,11 +40,17 @@ internal struct SoundBuffer
             PlayedAt = wallTime - (uint)Position;
             IsPlaying = true;
         }
+        else if (IsLooping && !isLooping && Length > 0)
+        {
+            PlayedAt = wallTime - (uint)((wallTime - PlayedAt) % Length);
+        }
 
         IsLooping = isLooping;
     }
 
     public void Rewind() => Position = 0;
+
+    public uint GetPosition(uint wallTime) => IsPlaying ? wallTime - PlayedAt : (uint)Position;
 
     public void Stop(uint wallTime)
     {

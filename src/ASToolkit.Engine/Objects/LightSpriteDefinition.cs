@@ -5,7 +5,7 @@ using ASToolkit.Formats;
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents an omni-light definition, whose frames are colors that light the area around the sprite.
+/// Represents the definition of an omni-light that lights the area around a sprite in the color of its frame.
 /// </summary>
 public sealed class LightSpriteDefinition : SpriteDefinition
 {
@@ -14,7 +14,7 @@ public sealed class LightSpriteDefinition : SpriteDefinition
     private readonly VidResource _file;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="LightSpriteDefinition"/> class from the colors of a sprite file, sized by the object record.
+    /// Initializes a new instance of the <see cref="LightSpriteDefinition"/> class.
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
@@ -45,7 +45,7 @@ public sealed class LightSpriteDefinition : SpriteDefinition
 
         var properties = Object.Properties;
 
-        var gamma = sprite.GetGamma().Add(Object.Gamma.Pack());
+        var gamma = sprite.GetGamma().Add(ObjectGamma);
         if (!properties.HasFlag(ObjectProperties.Gamma))
         {
             gamma = map.Session.Graphics.Gamma.Add(gamma);
@@ -59,7 +59,7 @@ public sealed class LightSpriteDefinition : SpriteDefinition
         }
 
         var origin = new Vector2(position.X - camera.X, position.Y - position.Z - camera.Y);
-        Graphics.DrawLightSource(screen, new Vector3(origin, position.Z), Object.Size.AsVector2(), color, properties.HasFlag(ObjectProperties.DoubleLight));
+        map.Session.Graphics.DrawLightSource(screen, new Vector3(origin, position.Z), Object.Size.AsVector2(), color, properties.HasFlag(ObjectProperties.DoubleLight));
     }
 
     /// <inheritdoc/>

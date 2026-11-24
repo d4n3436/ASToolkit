@@ -3,7 +3,7 @@ using System.Drawing;
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents one rectangle of a texture that a hardware sprite draws as a quad.
+/// Represents one rectangle of a texture of a hardware sprite.
 /// </summary>
 public struct HardwareTile
 {
@@ -13,19 +13,17 @@ public struct HardwareTile
     /// <param name="texture">The index of the tile's texture.</param>
     /// <param name="size">The size of the tile, in pixels.</param>
     /// <param name="origin">The position of the tile on the map.</param>
-    /// <param name="target">The colors and depths of the texture.</param>
     /// <param name="offset">The offset of the tile in the texture.</param>
-    public HardwareTile(int texture, Size size, Point origin, Screen target, Point offset = default)
+    public HardwareTile(int texture, Size size, Point origin, Point offset = default)
     {
         Offset = offset;
         Texture = texture;
         Size = size;
         Origin = origin;
-        Target = target;
     }
 
     /// <summary>
-    /// Gets the index of the tile's texture.
+    /// Gets the index of the tile's texture; the depths of a sprite with a depth buffer are in the texture after it.
     /// </summary>
     public int Texture { get; }
 
@@ -48,9 +46,4 @@ public struct HardwareTile
     /// Gets or sets the index of the next tile, or 0 for the last tile.
     /// </summary>
     public int Next { get; set; }
-
-    /// <summary>
-    /// Gets the colors and depths of the texture.
-    /// </summary>
-    public Screen Target { get; }
 }

@@ -1,0 +1,302 @@
+using System.Drawing;
+using ASToolkit.Engine.IO;
+using ASToolkit.Formats;
+
+namespace ASToolkit.Engine;
+
+public sealed partial class Graphics
+{
+    internal const int VideoMemory = 8000000;
+    internal const VidPixelFormat DesktopFormat = VidPixelFormat.X8R8G8B8;
+    internal const bool IsPowerOfTwoRequired = false;
+    internal const bool AreSquareTexturesRequired = false;
+    internal const bool IsAlphaPaletteSupported = true;
+    internal const bool IsConditionalNonPowerOfTwoSupported = false;
+    internal const bool IsModulate2XSupported = true;
+    internal const bool IsDotProduct3Supported = true;
+    internal const int DevicePixelShaderVersion = unchecked((int)0xffff0104);
+
+    internal static readonly bool CanRenderWindowed = true;
+    internal static readonly bool IsNonGdiDevice = false;
+    internal static readonly bool CanTextureFromNonLocalVideoMemory = false;
+    private const int DeviceFailure = 1;
+
+    private static readonly TextureStage DefaultStage = new(TextureOperation.Modulate, TextureArgument.Texture, TextureArgument.Current, TextureOperation.SelectFirst, TextureArgument.Texture, TextureArgument.Current);
+
+    private static readonly DisplayMode[] DeviceDisplayModes =
+    [
+        new(new Size(320, 200), VidPixelFormat.X8R8G8B8),
+        new(new Size(320, 240), VidPixelFormat.X8R8G8B8),
+        new(new Size(640, 350), VidPixelFormat.X8R8G8B8),
+        new(new Size(640, 400), VidPixelFormat.X8R8G8B8),
+        new(new Size(640, 480), VidPixelFormat.X8R8G8B8),
+        new(new Size(720, 400), VidPixelFormat.X8R8G8B8),
+        new(new Size(720, 480), VidPixelFormat.X8R8G8B8),
+        new(new Size(768, 480), VidPixelFormat.X8R8G8B8),
+        new(new Size(800, 500), VidPixelFormat.X8R8G8B8),
+        new(new Size(800, 600), VidPixelFormat.X8R8G8B8),
+        new(new Size(864, 486), VidPixelFormat.X8R8G8B8),
+        new(new Size(928, 580), VidPixelFormat.X8R8G8B8),
+        new(new Size(960, 600), VidPixelFormat.X8R8G8B8),
+        new(new Size(1024, 576), VidPixelFormat.X8R8G8B8),
+        new(new Size(1024, 768), VidPixelFormat.X8R8G8B8),
+        new(new Size(320, 200), VidPixelFormat.R5G6B5),
+        new(new Size(320, 240), VidPixelFormat.R5G6B5),
+        new(new Size(640, 350), VidPixelFormat.R5G6B5),
+        new(new Size(640, 400), VidPixelFormat.R5G6B5),
+        new(new Size(640, 480), VidPixelFormat.R5G6B5),
+        new(new Size(720, 400), VidPixelFormat.R5G6B5),
+        new(new Size(720, 480), VidPixelFormat.R5G6B5),
+        new(new Size(768, 480), VidPixelFormat.R5G6B5),
+        new(new Size(800, 500), VidPixelFormat.R5G6B5),
+        new(new Size(800, 600), VidPixelFormat.R5G6B5),
+        new(new Size(864, 486), VidPixelFormat.R5G6B5),
+        new(new Size(928, 580), VidPixelFormat.R5G6B5),
+        new(new Size(960, 600), VidPixelFormat.R5G6B5),
+        new(new Size(1024, 576), VidPixelFormat.R5G6B5),
+        new(new Size(1024, 768), VidPixelFormat.R5G6B5)
+    ];
+
+    internal static Size DeviceMaxTextureSize => new(0x8000, 0x8000);
+
+    internal static ReadOnlySpan<VidPixelFormat> DeviceTextureFormats =>
+    [
+        VidPixelFormat.A8R8G8B8, VidPixelFormat.X8R8G8B8, VidPixelFormat.R5G6B5, VidPixelFormat.X1R5G5B5, VidPixelFormat.A1R5G5B5, VidPixelFormat.A4R4G4B4,
+        VidPixelFormat.A8, VidPixelFormat.L8, VidPixelFormat.A8L8, VidPixelFormat.V8U8, VidPixelFormat.L6V5U5, VidPixelFormat.X8L8V8U8, VidPixelFormat.Q8W8V8U8,
+        VidPixelFormat.V16U16, VidPixelFormat.Dxt1, VidPixelFormat.Dxt2, VidPixelFormat.Dxt3, VidPixelFormat.Dxt4, VidPixelFormat.Dxt5
+    ];
+
+    internal int PixelShaderVersion { get; set; }
+
+    internal VidPixelFormat DisplayFormat { get; private set; }
+
+    internal int DepthWidth { get; private set; }
+
+    internal DeviceBuffers Buffers { get; } = new();
+
+    internal TextureStage DeviceStage { get; private set; } = DefaultStage;
+
+    private static ReadOnlySpan<byte> UnsupportedResolution => "Unsupported resolution"u8;
+
+    [EngineRoutine(0x00403290)]
+    internal static ushort[] CreateTexture(GameLogger? logger, VidPixelFormat format, out VidPixelFormat result)
+    {
+        var size = new Size(Screen.TextureSide, Screen.TextureSide);
+        return Texture.Allocate(ref size, format, TextureFlags.None, logger, out _, out result);
+    }
+
+    internal static int GetDisplayBits(VidPixelFormat format) => format switch
+    {
+        VidPixelFormat.P8 => 8,
+        VidPixelFormat.R8G8B8 => 24,
+        VidPixelFormat.A8R8G8B8 or VidPixelFormat.X8R8G8B8 => 32,
+        VidPixelFormat.R5G6B5 or VidPixelFormat.X1R5G5B5 or VidPixelFormat.A1R5G5B5 or VidPixelFormat.A4R4G4B4 => 16,
+        VidPixelFormat.Dxt1 => 4,
+        VidPixelFormat.Dxt3 or VidPixelFormat.Dxt5 => 8,
+        _ => 0
+    };
+
+    internal void SetUpSettings(bool isColor32, bool isFullScreen)
+    {
+        Flags &= ~(GraphicsFlags.WindowViewport | GraphicsFlags.Color32 | GraphicsFlags.FullScreen);
+        if (isColor32)
+        {
+            Flags |= GraphicsFlags.Color32;
+        }
+
+        if (isFullScreen)
+        {
+            Flags |= GraphicsFlags.FullScreen;
+        }
+    }
+
+    internal void SetVSync(bool isVSync) => Flags = isVSync ? Flags | GraphicsFlags.VSync : Flags & ~GraphicsFlags.VSync;
+
+    [EngineRoutine(0x00401c80)]
+    internal int SetUpDevice(SizeF screenSize)
+    {
+        const GraphicsFlags deviceMask = GraphicsFlags.AlphaPalette | GraphicsFlags.Agp | GraphicsFlags.DotProduct3 | GraphicsFlags.ModulateX2;
+
+        VidPixelFormat format;
+        if (!Flags.HasFlag(GraphicsFlags.FullScreen))
+        {
+            format = DesktopFormat;
+        }
+        else
+        {
+            int bits = Flags.HasFlag(GraphicsFlags.Color32) ? 0x20 : 0x10;
+            int index = FindDisplayMode(Size.Truncate(screenSize), bits);
+            if (index < 0)
+            {
+                Logger?.Write($"Selected display mode {screenSize.Width:F0}x{screenSize.Height:F0}");
+                Logger?.Error(GraphicsLogTag, LogError.Text, 0, UnsupportedResolution);
+                return DeviceFailure;
+            }
+
+            format = DeviceDisplayModes[index].Format;
+        }
+
+        DisplayFormat = format;
+        Logger?.Write($"Selected display mode {screenSize.Width:F0}x{screenSize.Height:F0} {GameLogger.Decode(GetFormatName(format))} desktop {GameLogger.Decode(GetFormatName(DesktopFormat))} zbuffer {GameLogger.Decode(GetFormatName(VidPixelFormat.None))}");
+        Flags &= ~deviceMask;
+        if (IsDotProduct3Supported)
+        {
+            Flags |= GraphicsFlags.DotProduct3;
+        }
+
+        if (CanTextureFromNonLocalVideoMemory)
+        {
+            Flags |= GraphicsFlags.Agp;
+        }
+
+        if (IsAlphaPaletteSupported)
+        {
+            Flags |= GraphicsFlags.AlphaPalette;
+        }
+
+        if (IsModulate2XSupported)
+        {
+            Flags |= GraphicsFlags.ModulateX2;
+        }
+
+        PixelShaderVersion = DevicePixelShaderVersion;
+        DepthWidth = (int)screenSize.Width;
+        return 0;
+    }
+
+    internal void SetTextureStageState(int stage, TextureStageState state, int value)
+    {
+        if (stage != 0)
+            return;
+
+        var current = DeviceStage;
+        DeviceStage = state switch
+        {
+            TextureStageState.ColorOperation => current with { ColorOperation = (TextureOperation)value },
+            TextureStageState.ColorArgument1 => current with { ColorArgument1 = (TextureArgument)value },
+            TextureStageState.ColorArgument2 => current with { ColorArgument2 = (TextureArgument)value },
+            TextureStageState.AlphaOperation => current with { AlphaOperation = (TextureOperation)value },
+            TextureStageState.AlphaArgument1 => current with { AlphaArgument1 = (TextureArgument)value },
+            TextureStageState.AlphaArgument2 => current with { AlphaArgument2 = (TextureArgument)value },
+            _ => current
+        };
+    }
+
+    [EngineRoutine(0x00430650)]
+    internal void ReloadPalettes()
+    {
+        if (Buffers.Light.Length == 0 || Buffers.LightFormat != VidPixelFormat.P8)
+            return;
+
+        Texture.Release(new Size(Screen.TextureSide, Screen.TextureSide), Buffers.LightFormat);
+        Buffers.Light = CreateTexture(Logger, VidPixelFormat.P8, out var format);
+        Buffers.LightFormat = format;
+        if (Buffers.Light.Length == 0)
+        {
+            Logger?.Error(GraphicsLogTag, LogError.Create, 0, "Light at RelodPalette"u8);
+        }
+
+        Logger?.Write("ReloadPalettes"u8);
+    }
+
+    [EngineRoutine(0x0042eb10)]
+    internal byte[] DescribeTextureStage()
+    {
+        var stage = DeviceStage;
+        List<byte> text = [];
+        text.AddRange("Op="u8);
+        text.AddRange(GetOperationName(stage.ColorOperation));
+        text.AddRange(" Arg1="u8);
+        AppendArgument(text, stage.ColorArgument1);
+        text.AddRange(" Arg2="u8);
+        AppendArgument(text, stage.ColorArgument2);
+        text.AddRange(" AOp="u8);
+        text.AddRange(GetOperationName(stage.AlphaOperation));
+        text.AddRange(" Arg1="u8);
+        AppendArgument(text, stage.AlphaArgument1);
+        text.AddRange(" Arg2="u8);
+        AppendArgument(text, stage.AlphaArgument2);
+        return text.ToArray();
+    }
+
+    [EngineRoutine(0x00401070)]
+    private static ReadOnlySpan<byte> GetFormatName(VidPixelFormat format) => format switch
+    {
+        VidPixelFormat.R8G8B8 => "R8G8B8"u8,
+        VidPixelFormat.A8R8G8B8 => "A8R8G8B8"u8,
+        VidPixelFormat.X8R8G8B8 => "X8R8G8B8"u8,
+        VidPixelFormat.R5G6B5 => "R5G6B5"u8,
+        VidPixelFormat.X1R5G5B5 => "X1R5G5B5"u8,
+        VidPixelFormat.A1R5G5B5 => "A1R5G5B5"u8,
+        VidPixelFormat.A4R4G4B4 => "A4R4G4B4"u8,
+        VidPixelFormat.A8 => "A8"u8,
+        VidPixelFormat.A8P8 => "A8P8"u8,
+        VidPixelFormat.P8 => "P8"u8,
+        VidPixelFormat.L8 => "L8"u8,
+        VidPixelFormat.A8L8 => "A8L8"u8,
+        VidPixelFormat.A4L4 => "A4L4"u8,
+        VidPixelFormat.V8U8 => "V8U8"u8,
+        VidPixelFormat.Dxt1 => "DXT1"u8,
+        VidPixelFormat.Dxt2 => "DXT2"u8,
+        VidPixelFormat.Dxt3 => "DXT3"u8,
+        VidPixelFormat.Dxt4 => "DXT4"u8,
+        VidPixelFormat.Dxt5 => "DXT5"u8,
+        _ => "Unknown"u8
+    };
+
+    [EngineRoutine(0x0042ea30)]
+    private static void AppendArgument(List<byte> text, TextureArgument argument)
+    {
+        if (argument.HasFlag(TextureArgument.AlphaReplicate))
+        {
+            text.AddRange("alp-"u8);
+        }
+
+        if (argument.HasFlag(TextureArgument.Complement))
+        {
+            text.AddRange("inv-"u8);
+        }
+
+        switch (argument & TextureArgument.SelectorMask)
+        {
+            case TextureArgument.Texture:
+                text.AddRange("tex"u8);
+                break;
+            case TextureArgument.Diffuse:
+                text.AddRange("dif"u8);
+                break;
+            case TextureArgument.Specular:
+                text.AddRange("spec"u8);
+                break;
+            case TextureArgument.Current:
+                text.AddRange("cur"u8);
+                break;
+            case TextureArgument.Factor:
+                text.AddRange("tfac"u8);
+                break;
+        }
+    }
+
+    private static ReadOnlySpan<byte> GetOperationName(TextureOperation operation) => operation switch
+    {
+        TextureOperation.Disable => "dis"u8,
+        TextureOperation.SelectFirst => "sel1"u8,
+        TextureOperation.SelectSecond => "sel2"u8,
+        TextureOperation.Modulate => "mod"u8,
+        TextureOperation.BlendTextureAlpha => "tex_alpha"u8,
+        _ => "unknown"u8
+    };
+
+    [EngineRoutine(0x00434720)]
+    private int FindDisplayMode(Size size, int bits)
+    {
+        var modes = DeviceDisplayModes;
+        for (int i = 0; i < modes.Length; i++)
+        {
+            if (modes[i].Size == size && GetDisplayBits(modes[i].Format) == bits)
+                return i;
+        }
+
+        return -1;
+    }
+}

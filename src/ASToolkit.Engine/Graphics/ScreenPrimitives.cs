@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 
 namespace ASToolkit.Engine;
@@ -13,7 +14,7 @@ internal static class ScreenPrimitives
 
     public static void Blend(Screen screen, Point point, uint source, BlendFactor sourceFactor, BlendFactor destinationFactor)
     {
-        if (!screen.Clip.Contains(point) || point.X < 0 || point.Y < 0 || point.X >= screen.Size.Width || point.Y >= screen.Size.Height)
+        if (!screen.Viewport.Contains(point) || point.X < 0 || point.Y < 0 || point.X >= screen.Size.Width || point.Y >= screen.Size.Height)
             return;
 
         new ScreenWriter(screen).Blend(point.Y * screen.Pitch + point.X, source, sourceFactor, destinationFactor);
@@ -21,7 +22,7 @@ internal static class ScreenPrimitives
 
     public static void FillRectangle(Screen screen, Rectangle rectangle, uint color, BlendFactor sourceFactor, BlendFactor destinationFactor)
     {
-        var area = Rectangle.Intersect(rectangle, screen.Clip);
+        var area = Rectangle.Intersect(rectangle, screen.Viewport);
         area.Intersect(new Rectangle(Point.Empty, screen.Size));
         var writer = new ScreenWriter(screen);
         for (int y = area.Top; y < area.Bottom; y++)
@@ -30,6 +31,47 @@ internal static class ScreenPrimitives
             for (int x = area.Left; x < area.Right; x++)
             {
                 writer.Blend(row + x, color, sourceFactor, destinationFactor);
+            }
+        }
+    }
+
+    public static void FillTriangleStrip(Screen screen, ReadOnlySpan<Vector2> vertices, uint color, BlendFactor sourceFactor, BlendFactor destinationFactor, CullMode cull)
+    {
+        var bounds = Rectangle.Intersect(screen.Viewport, new Rectangle(Point.Empty, screen.Size));
+        var writer = new ScreenWriter(screen);
+        for (int i = 0; i + 2 < vertices.Length; i++)
+        {
+            var a = vertices[i];
+            var b = vertices[i + 1];
+            var c = vertices[i + 2];
+            if ((i & 1) != 0)
+            {
+                (a, b) = (b, a);
+            }
+
+            float area = (b.X - a.X) * (c.Y - a.Y) - (c.X - a.X) * (b.Y - a.Y);
+            if (area == 0 || cull == CullMode.Clockwise && area > 0 || cull == CullMode.CounterClockwise && area < 0)
+                continue;
+
+            if (area < 0)
+            {
+                (b, c) = (c, b);
+            }
+
+            int left = Math.Max(bounds.Left, (int)MathF.Ceiling(MathF.Min(a.X, MathF.Min(b.X, c.X))));
+            int right = Math.Min(bounds.Right - 1, (int)MathF.Floor(MathF.Max(a.X, MathF.Max(b.X, c.X))));
+            int top = Math.Max(bounds.Top, (int)MathF.Ceiling(MathF.Min(a.Y, MathF.Min(b.Y, c.Y))));
+            int bottom = Math.Min(bounds.Bottom - 1, (int)MathF.Floor(MathF.Max(a.Y, MathF.Max(b.Y, c.Y))));
+            for (int y = top; y <= bottom; y++)
+            {
+                for (int x = left; x <= right; x++)
+                {
+                    var point = new Vector2(x, y);
+                    if (Covers(b, c, point) && Covers(c, a, point) && Covers(a, b, point))
+                    {
+                        writer.Blend(y * screen.Pitch + x, color, sourceFactor, destinationFactor);
+                    }
+                }
             }
         }
     }
@@ -77,6 +119,17 @@ internal static class ScreenPrimitives
         return OpaqueAlpha | (uint)CombineChannel((int)(source >> RedShift & MaxChannel), alpha, (int)(destination >> RedShift & MaxChannel), sourceFactor, destinationFactor) << RedShift |
             (uint)CombineChannel((int)(source >> GreenShift & MaxChannel), alpha, (int)(destination >> GreenShift & MaxChannel), sourceFactor, destinationFactor) << GreenShift |
             (uint)CombineChannel((int)(source & MaxChannel), alpha, (int)(destination & MaxChannel), sourceFactor, destinationFactor);
+    }
+
+    private static bool Covers(Vector2 start, Vector2 end, Vector2 point)
+    {
+        float edge = (end.X - start.X) * (point.Y - start.Y) - (end.Y - start.Y) * (point.X - start.X);
+        if (edge != 0)
+            return edge > 0;
+
+        float deltaX = end.X - start.X;
+        float deltaY = end.Y - start.Y;
+        return deltaY == 0 ? deltaX > 0 : deltaY < 0;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

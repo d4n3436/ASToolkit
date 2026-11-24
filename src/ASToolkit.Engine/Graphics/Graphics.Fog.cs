@@ -14,27 +14,51 @@ public sealed partial class Graphics
     private const int FogDepthSpan = 3;
     private const int FogCellMask = 3;
     private const int FogBufferSize = 256;
+    private const int FogDepthOffset = 0x3fe;
+    private const float FogDepthScale = 1.5258789e-05f;
 
     [EngineRoutine(0x00431e40)]
-    internal static void DrawFog(Screen screen, Vector2 topLeft, Vector2 bottomRight, int near, int far, uint color, ReadOnlySpan<ushort> table, int level, bool isLight)
+    internal void DrawFog(Screen screen, Vector2 topLeft, Vector2 bottomRight, int near, int far, uint color, ReadOnlySpan<ushort> table, int level, bool isLight)
     {
-        var clip = screen.Clip;
-        if (table.IsEmpty || topLeft.X >= clip.Right || bottomRight.X < clip.Left || topLeft.Y >= clip.Bottom || bottomRight.Y < clip.Top)
+        var viewport = Viewport;
+        int left = (int)topLeft.X;
+        int top = (int)topLeft.Y;
+        int right = (int)bottomRight.X;
+        int bottom = (int)bottomRight.Y;
+        if (Flags.HasFlag(GraphicsFlags.Software) || table.IsEmpty || viewport.Left > bottomRight.X || !(topLeft.X < viewport.Right) || viewport.Top > bottomRight.Y || !(topLeft.Y < viewport.Bottom))
             return;
 
-        int left = topLeft.X < clip.Left ? clip.Left : (int)topLeft.X;
-        int top = topLeft.Y < clip.Top ? clip.Top : (int)topLeft.Y;
-        int right = clip.Right <= bottomRight.X ? clip.Right : (int)bottomRight.X;
-        int width = right - left;
-        int height = (clip.Bottom <= bottomRight.Y ? clip.Bottom : (int)bottomRight.Y) - top;
+        if (topLeft.X < viewport.Left)
+        {
+            left = (int)viewport.Left;
+        }
 
+        if (topLeft.Y < viewport.Top)
+        {
+            top = (int)viewport.Top;
+        }
+
+        if (viewport.Right <= bottomRight.X)
+        {
+            right = (int)viewport.Right;
+        }
+
+        if (viewport.Bottom <= bottomRight.Y)
+        {
+            bottom = (int)viewport.Bottom;
+        }
+
+        int width = right - left;
+        int height = bottom - top;
         if (width <= FogCellMask || height <= FogCellMask)
             return;
 
         int nearLevel = level + (near - far) * FogDepthPerLevel;
-        int columns = Math.Min(width + FogCellMask >> 2, FogBufferSize);
-        int rows = Math.Min(height + FogCellMask >> 2, FogBufferSize);
-        ushort[] buffer = new ushort[FogBufferSize * FogBufferSize];
+        int columns = width + FogCellMask >> 2;
+        int rows = height + FogCellMask >> 2;
+        var buffer = screen.TextureBuffer;
+        var format = screen.TextureFormat;
+        bool isPalette = format == VidPixelFormat.P8;
         var depth = screen.Depth;
         ushort last = 0;
 
@@ -44,7 +68,7 @@ public sealed partial class Graphics
 
             for (int column = 0; column < columns; column++)
             {
-                int distance = Math.Min(GetDepth(depth, index), GetDepth(depth, index + FogDepthSpan)) - FogDepthBias;
+                int distance = Math.Min(depth[index], depth[index + FogDepthSpan]) - FogDepthBias;
 
                 if (level < distance)
                 {
@@ -55,11 +79,11 @@ public sealed partial class Graphics
                 }
                 else if (nearLevel < distance)
                 {
-                    last = table[level - distance];
+                    last = isPalette ? (byte)table[level - distance] : table[level - distance];
                 }
                 else
                 {
-                    last = table[level - nearLevel];
+                    last = isPalette ? byte.MaxValue : table[level - nearLevel];
                 }
 
                 buffer[row * FogBufferSize + column] = last;
@@ -67,14 +91,7 @@ public sealed partial class Graphics
             }
         }
 
-        new Texture(buffer, new Size(FogBufferSize, FogBufferSize), VidPixelFormat.R5G6B5).DrawQuad(screen, new Rectangle(left, top, width, height), new Rectangle(0, 0, columns, rows), new Gamma(color & ColorMask, 0), new QuadBlend(isLight ? BlendFactor.One : BlendFactor.Zero, BlendFactor.InverseSourceColor));
+        SetBlend(isLight ? BlendFactor.Zero : BlendFactor.One, BlendFactor.InverseSourceColor);
+        new Texture(buffer, new Size(FogBufferSize, FogBufferSize), format, screen.TexturePalette).DrawQuad(screen, new Rectangle(left, top, width, height), new Rectangle(0, 0, columns, rows), new Gamma(~color, Gamma.OpaqueAlpha), Blend, topDepth: (level + FogDepthOffset) * FogDepthScale, bottomDepth: (level + FogDepthOffset) * FogDepthScale);
     }
-
-    /// <summary>
-    /// Reads the depth of a pixel from a depth buffer.
-    /// </summary>
-    /// <param name="depth">The depth buffer.</param>
-    /// <param name="index">The index of the pixel.</param>
-    /// <returns>The depth of the pixel, or 0 outside the buffer.</returns>
-    public static int GetDepth(Span<ushort> depth, int index) => (uint)index < (uint)depth.Length ? depth[index] : 0;
 }

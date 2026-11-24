@@ -2,12 +2,13 @@ using System.Drawing;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents a texture whose quads are drawn into the back buffer in software.
+/// Represents a texture that is drawn to the back buffer in software.
 /// </summary>
 public readonly ref partial struct Texture
 {
@@ -21,15 +22,12 @@ public readonly ref partial struct Texture
     private const int NibbleShift = 4;
     private const float HalfStep = 0.5f;
 
-    private static Vector4 MaxChannels => new(ChannelMax);
-
-    private static Vector4 Doubled => new(2, 2, 2, 1);
-
     private readonly Span<ushort> _texels;
+    private readonly Span<uint> _texels32;
     private readonly ReadOnlySpan<uint> _palette;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Texture"/> structure over the texels of a texture and the palette its P8 texels index.
+    /// Initializes a new instance of the <see cref="Texture"/> structure.
     /// </summary>
     /// <param name="texels">The texels of the texture.</param>
     /// <param name="size">The size of the texture, in texels.</param>
@@ -38,6 +36,7 @@ public readonly ref partial struct Texture
     public Texture(Span<ushort> texels, Size size, VidPixelFormat format, ReadOnlySpan<uint> palette = default)
     {
         _texels = texels;
+        _texels32 = Is32Bit(format) ? MemoryMarshal.Cast<ushort, uint>(texels) : default;
         _palette = palette;
         Size = size;
         Format = format;
@@ -53,8 +52,12 @@ public readonly ref partial struct Texture
     /// </summary>
     public VidPixelFormat Format { get; }
 
+    private static Vector4 MaxChannels => new(ChannelMax);
+
+    private static Vector4 Doubled => new(2, 2, 2, 1);
+
     /// <summary>
-    /// Returns the area of the texture that a lock covers.
+    /// Returns the texels of the texture from a given texel to its end.
     /// </summary>
     /// <param name="origin">The first texel of the area, or <see langword="null"/> for the whole texture.</param>
     /// <param name="pitch">The number of bytes from the start of one row to the next.</param>
@@ -63,7 +66,7 @@ public readonly ref partial struct Texture
     public Span<ushort> Lock(Point? origin, out int pitch)
     {
         pitch = Size.Width * sizeof(ushort);
-        return origin.HasValue ? _texels[Math.Clamp(origin.Value.Y * Size.Width + origin.Value.X, 0, _texels.Length)..] : _texels;
+        return origin.HasValue ? _texels[(origin.Value.Y * Size.Width + origin.Value.X)..] : _texels;
     }
 
     /// <summary>
@@ -75,8 +78,11 @@ public readonly ref partial struct Texture
     /// <param name="gamma">The gamma that darkens the texels and then brightens them.</param>
     /// <param name="blend">How the quad combines with the colors underneath.</param>
     /// <param name="isDoubled">Whether the texels are doubled after the gamma and before they are blended.</param>
+    /// <param name="topDepth">The depth of the vertices on the top edge of the quad.</param>
+    /// <param name="bottomDepth">The depth of the vertices on the bottom edge of the quad.</param>
+    /// <exception cref="NotSupportedException">The texture is DXT-compressed.</exception>
     [EngineRoutine(0x00403dd0)]
-    public void DrawQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, QuadBlend blend, bool isDoubled = false)
+    public void DrawQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, QuadBlend blend, bool isDoubled = false, float topDepth = 0, float bottomDepth = 0)
     {
         screen.IsLinearFiltered = destination.Size != source.Size;
         BlitQuad(screen, destination, source, gamma, blend, isDoubled, false, 0);
@@ -92,6 +98,7 @@ public readonly ref partial struct Texture
     /// <param name="blend">How the quad combines with the colors underneath.</param>
     /// <param name="isAlphaModulated">Whether the alpha of the texels is multiplied by the alpha of the gamma's inverted reductions.</param>
     /// <param name="minimumAlpha">The alpha that a texel needs to be drawn, after the modulation.</param>
+    /// <exception cref="NotSupportedException">The texture is DXT-compressed.</exception>
     [EngineRoutine(0x00403ae0)]
     public void DrawFlatQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, QuadBlend blend, bool isAlphaModulated = false, int minimumAlpha = 0)
     {
@@ -100,84 +107,29 @@ public readonly ref partial struct Texture
     }
 
     /// <summary>
-    /// Copies an area of a surface into the texture and converts the colors to the layout of the texture.
-    /// </summary>
-    /// <param name="surface">The surface to copy from.</param>
-    /// <param name="source">The area of the surface.</param>
-    /// <param name="destination">The first texel to write.</param>
-    /// <returns>Zero if the area was copied; otherwise, a nonzero error code.</returns>
-    [EngineRoutine(0x00403970)]
-    public int CopyFromSurface(Screen surface, Rectangle source, Point destination) => LoadSurfaceFromSurface(surface, source, destination);
-
-    /// <summary>
-    /// Converts the texels of a sprite file to the layout of textures that keep the colors in 16 bits.
-    /// </summary>
-    /// <param name="source">The texels as the sprite file stores them.</param>
-    /// <param name="size">The size of the texture, in texels.</param>
-    /// <param name="format">The layout of the stored texels.</param>
-    /// <param name="palette">The palette of the texels as 256 entries of blue, green, red and alpha bytes.</param>
-    /// <param name="result">The layout of the returned texels: R5G6B5, or A4R4G4B4 when the stored texels have an alpha channel.</param>
-    /// <returns>The texels row by row.</returns>
-    [EngineRoutine(0x004032e0)]
-    public static ushort[] Create(ReadOnlySpan<byte> source, Size size, VidPixelFormat format, ReadOnlySpan<byte> palette, out VidPixelFormat result)
-    {
-        int count = Math.Max(size.Width * size.Height, 0);
-        ushort[] texels = new ushort[count];
-        result = format == VidPixelFormat.A4R4G4B4 ? VidPixelFormat.A4R4G4B4 : VidPixelFormat.R5G6B5;
-        if (format is VidPixelFormat.R5G6B5 or VidPixelFormat.A4R4G4B4)
-        {
-            MemoryMarshal.Cast<byte, ushort>(source[..Math.Min(source.Length / 2 * 2, count * 2)]).CopyTo(texels);
-            return texels;
-        }
-
-        uint[] colors = new uint[count];
-        if (format is VidPixelFormat.Dxt1 or VidPixelFormat.Dxt3 or VidPixelFormat.Dxt5)
-        {
-            DecodeCompressed(source, size, format, colors);
-        }
-        else
-        {
-            int stride = GetStride(format);
-            for (int i = 0; stride != 0 && (i + 1) * stride <= source.Length && i < count; i++)
-            {
-                colors[i] = ReadColor(source.Slice(i * stride, stride), format, palette);
-            }
-        }
-
-        bool hasAlpha = format is VidPixelFormat.A1R5G5B5 or VidPixelFormat.A8R8G8B8 or VidPixelFormat.A8 or VidPixelFormat.Dxt3 or VidPixelFormat.Dxt5 ||
-            format == VidPixelFormat.P8 && HasAlpha(palette);
-        result = hasAlpha ? VidPixelFormat.A4R4G4B4 : VidPixelFormat.R5G6B5;
-        for (int i = 0; i < count; i++)
-        {
-            uint color = colors[i];
-            texels[i] = hasAlpha
-                ? (ushort)((color >> (AlphaShift + NibbleShift)) << 12 | (color >> (RedShift + NibbleShift) & 0xf) << 8 | (color >> (GreenShift + NibbleShift) & 0xf) << 4 | color >> NibbleShift & 0xf)
-                : HighColorFormat.Rgb565.Pack(color);
-        }
-
-        return texels;
-    }
-
-    /// <summary>
-    /// Draws a list of triangles to the screen, textured, with the transform of the device and without a depth test.
+    /// Draws a list of textured triangles to the screen with a transform and without a depth test.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="vertices">The vertices.</param>
     /// <param name="indexes">The vertex indexes, three for each triangle.</param>
-    /// <param name="transform">The world, view and projection transforms of the device multiplied in this order.</param>
+    /// <param name="transform">The world, view and projection transforms, multiplied in this order.</param>
     /// <param name="blend">How the triangles combine with the colors underneath.</param>
     /// <param name="factor">The texture factor, a color multiplied with the texels.</param>
     /// <param name="alphaReference">The alpha that a texel must exceed to be drawn.</param>
+    /// <exception cref="NotSupportedException">The texture is DXT-compressed.</exception>
     public void DrawTriangles(Screen screen, ReadOnlySpan<HardwareLayerVertex> vertices, ReadOnlySpan<ushort> indexes, in Matrix4x4 transform, QuadBlend blend, uint factor, int alphaReference)
     {
-        var clip = screen.Clip;
+        if (IsDxt(Format))
+            throw new NotSupportedException($"Could not draw a {Format} texture.");
+
+        var viewport = screen.Viewport;
         var projected = vertices.Length <= 256 ? stackalloc Vector3[vertices.Length] : new Vector3[vertices.Length];
         for (int i = 0; i < vertices.Length; i++)
         {
             var position = Vector4.Transform(new Vector4(vertices[i].Position, 1f), transform);
             projected[i] = new Vector3(
-                clip.Left + (position.X / position.W + 1f) * clip.Width * 0.5f,
-                clip.Top + (1f - position.Y / position.W) * clip.Height * 0.5f,
+                viewport.Left + (position.X / position.W + 1f) * viewport.Width * 0.5f,
+                viewport.Top + (1f - position.Y / position.W) * viewport.Height * 0.5f,
                 position.Z / position.W);
         }
 
@@ -190,54 +142,156 @@ public readonly ref partial struct Texture
         }
     }
 
-    private static int GetStride(VidPixelFormat format) => format switch
+    [EngineRoutine(0x00403970)]
+    internal int CopyFromSurface(Screen surface, Rectangle source, Point destination, GameLogger? logger)
     {
-        VidPixelFormat.R8G8B8 => 3,
-        VidPixelFormat.A8R8G8B8 or VidPixelFormat.X8R8G8B8 => 4,
-        VidPixelFormat.X1R5G5B5 or VidPixelFormat.A1R5G5B5 => 2,
-        VidPixelFormat.P8 or VidPixelFormat.L8 or VidPixelFormat.A8 => 1,
-        _ => 0
-    };
-
-    private static uint ReadColor(ReadOnlySpan<byte> texel, VidPixelFormat format, ReadOnlySpan<byte> palette)
-    {
-        switch (format)
+        int result = surface.IsTrueColor
+            ? LoadTexels(new Rectangle(destination, source.Size), MemoryMarshal.AsBytes(surface.TrueColorPixels), VidPixelFormat.X8R8G8B8, surface.Pitch * sizeof(uint), surface.Size, source, DefaultFilter, 0)
+            : LoadTexels(new Rectangle(destination, source.Size), MemoryMarshal.AsBytes(surface.HighColorPixels), surface.Format.IsRgb555 ? VidPixelFormat.X1R5G5B5 : VidPixelFormat.R5G6B5, surface.Pitch * sizeof(ushort), surface.Size, source, DefaultFilter, 0);
+        if (result != 0)
         {
-            case VidPixelFormat.R8G8B8:
-                return OpaqueBlack | MemoryMarshal.AsRef<Pixel24>(texel).Value;
-            case VidPixelFormat.A8R8G8B8:
-                return MemoryMarshal.Read<uint>(texel);
-            case VidPixelFormat.X8R8G8B8:
-                return OpaqueBlack | MemoryMarshal.Read<uint>(texel);
-            case VidPixelFormat.X1R5G5B5:
-            case VidPixelFormat.A1R5G5B5:
+            logger?.Error(TextureLogTag, LogError.Copy, result);
+        }
+
+        return result;
+    }
+
+    internal void BlitQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, QuadBlend blend, bool isDoubled, bool isAlphaModulated, int minimumAlpha)
+    {
+        if (IsDxt(Format))
+            throw new NotSupportedException($"Could not draw a {Format} texture.");
+
+        if (destination.Width <= 0 || destination.Height <= 0)
+            return;
+
+        var area = Rectangle.Intersect(Rectangle.Intersect(destination, screen.Viewport), new Rectangle(Point.Empty, screen.Size));
+        if (area.IsEmpty)
+            return;
+
+        bool hasGamma = gamma.Negative != 0 || gamma.Positive != 0;
+        var table = hasGamma ? GammaTable.Get(gamma) : null;
+        var reds = table is null ? default : table.Reds;
+        var greens = table is null ? default : table.Greens;
+        var blues = table is null ? default : table.Blues;
+
+        bool isFiltered = screen.IsLinearFiltered;
+        var writer = new ScreenWriter(screen);
+        int lastColumn = Size.Width - 1;
+        int lastRow = Size.Height - 1;
+        if (!isFiltered && blend == QuadBlend.None && !isAlphaModulated && !isDoubled && minimumAlpha <= 0 && screen.IsTrueColor)
+        {
+            var pixels = screen.TrueColorPixels;
+            for (int y = area.Top; y < area.Bottom; y++)
             {
-                uint value = MemoryMarshal.Read<ushort>(texel);
-                uint red = value >> 10 & 0x1f;
-                uint green = value >> 5 & 0x1f;
-                uint blue = value & 0x1f;
-                uint alpha = format == VidPixelFormat.A1R5G5B5 && (value & 0x8000) == 0 ? 0u : 0xffu;
-                return alpha << AlphaShift | (red << 3 | red >> 2) << RedShift | (green << 3 | green >> 2) << GreenShift | blue << 3 | blue >> 2;
+                int row = y * screen.Pitch;
+                int sourceRow = Math.Clamp(source.Top + y - destination.Top, 0, lastRow) * Size.Width;
+                for (int x = area.Left; x < area.Right; x++)
+                {
+                    uint texel = Load(sourceRow + Math.Clamp(source.Left + x - destination.Left, 0, lastColumn));
+                    int red = (int)(texel >> RedShift & ChannelMax);
+                    int green = (int)(texel >> GreenShift & ChannelMax);
+                    int blue = (int)(texel & ChannelMax);
+                    if (hasGamma)
+                    {
+                        red = reds[red];
+                        green = greens[green];
+                        blue = blues[blue];
+                    }
+
+                    pixels[row + x] = OpaqueBlack | (uint)red << RedShift | (uint)green << GreenShift | (uint)blue;
+                }
             }
 
-            case VidPixelFormat.P8:
-                return texel[0] < MemoryMarshal.Cast<byte, uint>(palette).Length ? MemoryMarshal.Cast<byte, uint>(palette)[texel[0]] : OpaqueBlack;
-            case VidPixelFormat.L8:
-                return 0xff000000 | (uint)texel[0] * 0x010101;
-            default:
-                return (uint)texel[0] << AlphaShift | 0xffffff;
+            return;
+        }
+
+        var scale = new Vector4(ChannelMax - gamma.GetNegative(RedShift), ChannelMax - gamma.GetNegative(GreenShift), ChannelMax - gamma.GetNegative(0),
+            isAlphaModulated ? ChannelMax - gamma.GetNegative(AlphaShift) : ChannelMax) / ChannelMax;
+        var offset = new Vector4(gamma.GetPositive(RedShift), gamma.GetPositive(GreenShift), gamma.GetPositive(0), 0);
+        var doubling = isDoubled ? Doubled : Vector4.One;
+        bool isAlphaNeeded = isAlphaModulated || minimumAlpha > 0 || blend.Source is BlendFactor.SourceAlpha or BlendFactor.InverseSourceAlpha ||
+            blend.Destination is BlendFactor.SourceAlpha or BlendFactor.InverseSourceAlpha;
+        for (int y = area.Top; y < area.Bottom; y++)
+        {
+            int row = y * screen.Pitch;
+            int upperRow;
+            int lowerRow = 0;
+            float weightY = 0;
+            int cachedCorner = int.MinValue;
+            uint upperLeft = 0, upperRight = 0, lowerLeft = 0, lowerRight = 0;
+            if (isFiltered)
+            {
+                float sourceY = source.Top + (y - destination.Top) * (float)source.Height / destination.Height;
+                int cornerY = (int)MathF.Floor(sourceY);
+                weightY = sourceY - cornerY;
+                upperRow = Math.Clamp(cornerY, 0, lastRow) * Size.Width;
+                lowerRow = Math.Clamp(cornerY + 1, 0, lastRow) * Size.Width;
+            }
+            else
+            {
+                upperRow = Math.Clamp(source.Top + y - destination.Top, 0, lastRow) * Size.Width;
+            }
+
+            for (int x = area.Left; x < area.Right; x++)
+            {
+                Vector4 texel;
+                if (!isFiltered)
+                {
+                    texel = ToChannels(Load(upperRow + Math.Clamp(source.Left + x - destination.Left, 0, lastColumn)));
+                }
+                else
+                {
+                    float sourceX = source.Left + (x - destination.Left) * (float)source.Width / destination.Width;
+                    int cornerX = (int)MathF.Floor(sourceX);
+                    if (cornerX != cachedCorner)
+                    {
+                        int left = Math.Clamp(cornerX, 0, lastColumn);
+                        int right = Math.Clamp(cornerX + 1, 0, lastColumn);
+                        upperLeft = Load(upperRow + left);
+                        upperRight = Load(upperRow + right);
+                        lowerLeft = Load(lowerRow + left);
+                        lowerRight = Load(lowerRow + right);
+                        cachedCorner = cornerX;
+                    }
+
+                    texel = Filter(upperLeft, upperRight, lowerLeft, lowerRight, sourceX - cornerX, weightY);
+                    if (!isAlphaNeeded)
+                    {
+                        texel.W = ChannelMax;
+                    }
+                }
+
+                uint color = ToColor(Vector4.Min(MaxChannels, Vector4.Min(MaxChannels, texel * scale + offset) * doubling));
+                if ((int)(color >> AlphaShift) < minimumAlpha)
+                    continue;
+
+                writer.Blend(row + x, color, blend.Source, blend.Destination);
+            }
         }
     }
 
-    private static bool HasAlpha(ReadOnlySpan<byte> palette)
+    private static int WrapTexel(float coordinate, int size)
     {
-        for (int i = 3; i < palette.Length; i += 4)
-        {
-            if (palette[i] != ChannelMax)
-                return true;
-        }
+        int texel = (int)MathF.Floor(coordinate) % size;
+        return texel < 0 ? texel + size : texel;
+    }
 
-        return false;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static Vector4 Filter(uint upperLeft, uint upperRight, uint lowerLeft, uint lowerRight, float weightX, float weightY)
+    {
+        var upper = ToChannels(upperLeft) * (1 - weightX) + ToChannels(upperRight) * weightX;
+        var lower = ToChannels(lowerLeft) * (1 - weightX) + ToChannels(lowerRight) * weightX;
+        return upper * (1 - weightY) + lower * weightY;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static Vector4 ToChannels(uint color) => new(color >> RedShift & ChannelMax, color >> GreenShift & ChannelMax, color & ChannelMax, color >> AlphaShift);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static uint ToColor(Vector4 channels)
+    {
+        var rounded = channels + new Vector4(HalfStep);
+        return (uint)rounded.W << AlphaShift | (uint)rounded.X << RedShift | (uint)rounded.Y << GreenShift | (uint)rounded.Z;
     }
 
     private void RasterizeTriangle(Screen screen, ReadOnlySpan<HardwareLayerVertex> vertices, ReadOnlySpan<Vector3> projected, ReadOnlySpan<ushort> corners, QuadBlend blend, uint factor, int alphaReference)
@@ -249,11 +303,11 @@ public readonly ref partial struct Texture
         if (area == 0f || float.IsNaN(area))
             return;
 
-        var clip = Rectangle.Intersect(screen.Clip, new Rectangle(Point.Empty, screen.Size));
-        int left = Math.Max(clip.Left, (int)MathF.Ceiling(MathF.Min(a.X, MathF.Min(b.X, c.X))));
-        int right = Math.Min(clip.Right - 1, (int)MathF.Floor(MathF.Max(a.X, MathF.Max(b.X, c.X))));
-        int top = Math.Max(clip.Top, (int)MathF.Ceiling(MathF.Min(a.Y, MathF.Min(b.Y, c.Y))));
-        int bottom = Math.Min(clip.Bottom - 1, (int)MathF.Floor(MathF.Max(a.Y, MathF.Max(b.Y, c.Y))));
+        var viewport = Rectangle.Intersect(screen.Viewport, new Rectangle(Point.Empty, screen.Size));
+        int left = Math.Max(viewport.Left, (int)MathF.Ceiling(MathF.Min(a.X, MathF.Min(b.X, c.X))));
+        int right = Math.Min(viewport.Right - 1, (int)MathF.Floor(MathF.Max(a.X, MathF.Max(b.X, c.X))));
+        int top = Math.Max(viewport.Top, (int)MathF.Ceiling(MathF.Min(a.Y, MathF.Min(b.Y, c.Y))));
+        int bottom = Math.Min(viewport.Bottom - 1, (int)MathF.Floor(MathF.Max(a.Y, MathF.Max(b.Y, c.Y))));
         var writer = new ScreenWriter(screen);
         var uvA = vertices[corners[0]].TextureCoordinate;
         var uvB = vertices[corners[1]].TextureCoordinate;
@@ -288,128 +342,29 @@ public readonly ref partial struct Texture
 
     private Point Wrap(Point texel) => new(WrapTexel(texel.X, Size.Width), WrapTexel(texel.Y, Size.Height));
 
-    private static int WrapTexel(float coordinate, int size)
+    private uint Fetch(Point texel) => Load(Math.Clamp(texel.Y, 0, Size.Height - 1) * Size.Width + Math.Clamp(texel.X, 0, Size.Width - 1));
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private uint Load(int index)
     {
-        int texel = (int)MathF.Floor(coordinate) % size;
-        return texel < 0 ? texel + size : texel;
+        if (_texels32.Length != 0)
+            return Format == VidPixelFormat.X8R8G8B8 ? OpaqueBlack | _texels32[index] : _texels32[index];
+
+        return Decode(_texels[index]);
     }
-
-    internal void BlitQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, QuadBlend blend, bool isDoubled, bool isAlphaModulated, int minimumAlpha)
-    {
-        if (destination.Width <= 0 || destination.Height <= 0)
-            return;
-
-        var area = Rectangle.Intersect(Rectangle.Intersect(destination, screen.Clip), new Rectangle(Point.Empty, screen.Size));
-        if (area.IsEmpty)
-            return;
-
-        bool hasGamma = gamma.Negative != 0 || gamma.Positive != 0;
-        var table = hasGamma ? GammaTable.Get(gamma) : null;
-        var reds = table is null ? default : table.Reds;
-        var greens = table is null ? default : table.Greens;
-        var blues = table is null ? default : table.Blues;
-
-        bool isFiltered = screen.IsLinearFiltered;
-        var writer = new ScreenWriter(screen);
-        int lastColumn = Size.Width - 1;
-        int lastRow = Size.Height - 1;
-        if (!isFiltered && blend == QuadBlend.None && !isAlphaModulated && !isDoubled && minimumAlpha <= 0 && screen.IsTrueColor)
-        {
-            var pixels = screen.TrueColorPixels;
-            for (int y = area.Top; y < area.Bottom; y++)
-            {
-                int row = y * screen.Pitch;
-                int sourceRow = Math.Clamp(source.Top + y - destination.Top, 0, lastRow) * Size.Width;
-                for (int x = area.Left; x < area.Right; x++)
-                {
-                    uint texel = Decode(_texels[sourceRow + Math.Clamp(source.Left + x - destination.Left, 0, lastColumn)]);
-                    int red = (int)(texel >> RedShift & ChannelMax);
-                    int green = (int)(texel >> GreenShift & ChannelMax);
-                    int blue = (int)(texel & ChannelMax);
-                    if (hasGamma)
-                    {
-                        red = reds[red];
-                        green = greens[green];
-                        blue = blues[blue];
-                    }
-
-                    pixels[row + x] = OpaqueBlack | (uint)red << RedShift | (uint)green << GreenShift | (uint)blue;
-                }
-            }
-
-            return;
-        }
-
-        var scale = new Vector4(ChannelMax - gamma.GetNegative(RedShift), ChannelMax - gamma.GetNegative(GreenShift), ChannelMax - gamma.GetNegative(0),
-            isAlphaModulated ? ChannelMax - gamma.GetNegative(AlphaShift) : ChannelMax) / ChannelMax;
-        var offset = new Vector4(gamma.GetPositive(RedShift), gamma.GetPositive(GreenShift), gamma.GetPositive(0), 0);
-        var doubling = isDoubled ? Doubled : Vector4.One;
-        bool needsAlpha = isAlphaModulated || minimumAlpha > 0 || blend.Source is BlendFactor.SourceAlpha or BlendFactor.InverseSourceAlpha ||
-            blend.Destination is BlendFactor.SourceAlpha or BlendFactor.InverseSourceAlpha;
-        for (int y = area.Top; y < area.Bottom; y++)
-        {
-            int row = y * screen.Pitch;
-            int upperRow;
-            int lowerRow = 0;
-            float weightY = 0;
-            int cachedCorner = int.MinValue;
-            uint upperLeft = 0, upperRight = 0, lowerLeft = 0, lowerRight = 0;
-            if (isFiltered)
-            {
-                float sourceY = source.Top + (y - destination.Top) * (float)source.Height / destination.Height;
-                int cornerY = (int)MathF.Floor(sourceY);
-                weightY = sourceY - cornerY;
-                upperRow = Math.Clamp(cornerY, 0, lastRow) * Size.Width;
-                lowerRow = Math.Clamp(cornerY + 1, 0, lastRow) * Size.Width;
-            }
-            else
-            {
-                upperRow = Math.Clamp(source.Top + y - destination.Top, 0, lastRow) * Size.Width;
-            }
-
-            for (int x = area.Left; x < area.Right; x++)
-            {
-                Vector4 texel;
-                if (!isFiltered)
-                {
-                    texel = ToChannels(Decode(_texels[upperRow + Math.Clamp(source.Left + x - destination.Left, 0, lastColumn)]));
-                }
-                else
-                {
-                    float sourceX = source.Left + (x - destination.Left) * (float)source.Width / destination.Width;
-                    int cornerX = (int)MathF.Floor(sourceX);
-                    if (cornerX != cachedCorner)
-                    {
-                        int left = Math.Clamp(cornerX, 0, lastColumn);
-                        int right = Math.Clamp(cornerX + 1, 0, lastColumn);
-                        upperLeft = Decode(_texels[upperRow + left]);
-                        upperRight = Decode(_texels[upperRow + right]);
-                        lowerLeft = Decode(_texels[lowerRow + left]);
-                        lowerRight = Decode(_texels[lowerRow + right]);
-                        cachedCorner = cornerX;
-                    }
-
-                    texel = Filter(upperLeft, upperRight, lowerLeft, lowerRight, sourceX - cornerX, weightY);
-                    if (!needsAlpha)
-                    {
-                        texel.W = ChannelMax;
-                    }
-                }
-
-                uint color = ToColor(Vector4.Min(MaxChannels, Vector4.Min(MaxChannels, texel * scale + offset) * doubling));
-                if ((int)(color >> AlphaShift) < minimumAlpha)
-                    continue;
-
-                writer.Blend(row + x, color, blend.Source, blend.Destination);
-            }
-        }
-    }
-
-    private uint Fetch(Point texel) => Decode(_texels[Math.Clamp(texel.Y, 0, Size.Height - 1) * Size.Width + Math.Clamp(texel.X, 0, Size.Width - 1)]);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private uint Decode(ushort value)
     {
+        if (Format is VidPixelFormat.A1R5G5B5 or VidPixelFormat.X1R5G5B5)
+        {
+            uint red5 = (uint)(value >> 10 & 0x1f);
+            uint green5 = (uint)(value >> 5 & 0x1f);
+            uint blue5 = (uint)(value & 0x1f);
+            uint alpha = Format == VidPixelFormat.A1R5G5B5 && (value & 0x8000) == 0 ? 0u : 0xffu;
+            return alpha << AlphaShift | (red5 << 3 | red5 >> 2) << RedShift | (green5 << 3 | green5 >> 2) << GreenShift | blue5 << 3 | blue5 >> 2;
+        }
+
         if (Format == VidPixelFormat.P8)
             return value < _palette.Length ? _palette[value] : OpaqueBlack;
 
@@ -430,23 +385,5 @@ public readonly ref partial struct Texture
         uint lowerLeft = Fetch(isWrapped ? Wrap(corner with { Y = corner.Y + 1 }) : corner with { Y = corner.Y + 1 });
         uint lowerRight = Fetch(isWrapped ? Wrap(new Point(corner.X + 1, corner.Y + 1)) : new Point(corner.X + 1, corner.Y + 1));
         return Filter(upperLeft, upperRight, lowerLeft, lowerRight, point.X - corner.X, point.Y - corner.Y);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static Vector4 Filter(uint upperLeft, uint upperRight, uint lowerLeft, uint lowerRight, float weightX, float weightY)
-    {
-        var upper = ToChannels(upperLeft) * (1 - weightX) + ToChannels(upperRight) * weightX;
-        var lower = ToChannels(lowerLeft) * (1 - weightX) + ToChannels(lowerRight) * weightX;
-        return upper * (1 - weightY) + lower * weightY;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static Vector4 ToChannels(uint color) => new(color >> RedShift & ChannelMax, color >> GreenShift & ChannelMax, color & ChannelMax, color >> AlphaShift);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static uint ToColor(Vector4 channels)
-    {
-        var rounded = channels + new Vector4(HalfStep);
-        return (uint)rounded.W << AlphaShift | (uint)rounded.X << RedShift | (uint)rounded.Y << GreenShift | (uint)rounded.Z;
     }
 }

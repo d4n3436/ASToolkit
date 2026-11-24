@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Numerics;
 using ASToolkit.Engine.IO;
+using ASToolkit.Engine.Scripts;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
@@ -17,31 +18,13 @@ public sealed partial class Graphics
     private const float LoadingTextBottom = 30;
     private const uint OpaqueBlack = 0xff000000;
     private const uint TextColor = 0xff00ff00;
-    private const float HalfPixel = 0.5f;
 
     private int _loadingFrame;
+    private uint _loadingDrawnAt;
 
-    private static ReadOnlySpan<byte> GraphicsLogTag => "GRAPH"u8;
+    private bool _isBlendEnabled;
 
-    /// <summary>
-    /// Fills the screen with a color and the depth buffer with its cleared depth.
-    /// </summary>
-    /// <param name="screen">The screen.</param>
-    /// <param name="color">The color, packed as 0xAARRGGBB.</param>
-    [EngineRoutine(0x00402600)]
-    public static void Clear(Screen screen, uint color)
-    {
-        if (screen.IsTrueColor)
-        {
-            screen.TrueColorPixels.Fill(color);
-        }
-        else
-        {
-            screen.HighColorPixels.Fill(screen.Format.Pack(color));
-        }
-
-        screen.Depth[..(screen.Size.Height * screen.DepthWidth)].Fill(ClearDepth);
-    }
+    private QuadBlend _blendFactors = QuadBlend.None;
 
     /// <summary>
     /// Gets the line of text displayed on the loading screen.
@@ -50,47 +33,110 @@ public sealed partial class Graphics
     public ReadOnlyMemory<byte> LoadingText { get; private set; }
 
     /// <summary>
-    /// Gets the font that the device draws its own text with, or <see langword="null"/> if the font hasn't been created yet.
+    /// Gets the font that the device draws text with, or <see langword="null"/> if the font hasn't been created yet.
     /// </summary>
     public TextureFont? DeviceFont { get; private set; }
 
+    internal bool IsDepthLocked { get; private set; }
+
+    internal QuadBlend Blend => _isBlendEnabled ? _blendFactors : QuadBlend.None;
+
+    private static ReadOnlySpan<byte> GraphicsLogTag => "GRAPH"u8;
+
     /// <summary>
-    /// Creates the device font, replacing the previous one.
+    /// Fills the viewport of the screen with a color and clears the depth buffer.
     /// </summary>
-    /// <param name="name">The name of the typeface.</param>
-    /// <param name="width">The width of a glyph, in points.</param>
-    /// <param name="height">The height of a glyph, in points.</param>
-    /// <param name="maxTextureSize">The maximum texture size supported by the device.</param>
-    [EngineRoutine(0x00402bc0)]
-    public void CreateDeviceFont(string name, int width, int height, int maxTextureSize)
+    /// <param name="screen">The screen.</param>
+    /// <param name="color">The color, packed as 0xAARRGGBB.</param>
+    [EngineRoutine(0x00402600)]
+    public static void Clear(Screen screen, uint color)
     {
-        DeviceFont = new TextureFont(name, width, height, TextureFontStyle.FixedPitch);
-        DeviceFont.Create(maxTextureSize);
-        DeviceFont.CreateStateBlocks();
+        var area = Rectangle.Intersect(screen.Viewport, new Rectangle(Point.Empty, screen.Size));
+        ushort packed = screen.IsTrueColor ? default : screen.Format.Pack(color);
+        for (int y = area.Top; y < area.Bottom; y++)
+        {
+            if (screen.IsTrueColor)
+            {
+                screen.TrueColorPixels.Slice(y * screen.Pitch + area.Left, area.Width).Fill(color);
+            }
+            else
+            {
+                screen.HighColorPixels.Slice(y * screen.Pitch + area.Left, area.Width).Fill(packed);
+            }
+        }
+
+        screen.Depth[..(screen.Size.Height * screen.DepthWidth)].Fill(ClearDepth);
     }
 
     /// <summary>
-    /// Immediately displays a line of text on the loading screen over a black box.
+    /// Copies an area of a depth texture into the depth buffer, clipped to the screen.
     /// </summary>
-    /// <param name="text">The text.</param>
-    [EngineRoutine(0x00430f10)]
-    public void SetLoadingText(ReadOnlySpan<byte> text)
+    /// <param name="screen">The screen to write to.</param>
+    /// <param name="destination">The area of the depth buffer.</param>
+    /// <param name="source">The area of the texture.</param>
+    /// <param name="texels">The depth values of the texture.</param>
+    /// <param name="width">The width of the texture, in texels.</param>
+    [EngineRoutine(0x00402820)]
+    public static void CopyDepth(Screen screen, Rectangle destination, Rectangle source, Span<ushort> texels, int width)
     {
-        LoadingText = text.ToArray();
-        FillBox(RectangleF.FromLTRB(LoadingTextLeft, Viewport.Top + LoadingTextTop, LoadingTextRight, Viewport.Top + LoadingTextBottom), OpaqueBlack);
-        DrawText(new Vector2(LoadingTextLeft, Viewport.Top + LoadingTextTop), LoadingText, TextColor);
-    }
-
-    [EngineRoutine(0x00430ed0)]
-    private void DrawText(Vector2 position, ReadOnlyMemory<byte> text, uint color) => DrawDeviceText(position, color, text.Span);
-
-    [EngineRoutine(0x00402c40)]
-    private void DrawDeviceText(Vector2 position, uint color, ReadOnlySpan<byte> text)
-    {
-        if (DeviceFont is null || Screen is null)
+        if (screen.Viewport.Left > destination.Right || destination.Left >= screen.Viewport.Right || screen.Viewport.Top > destination.Bottom || destination.Top >= screen.Viewport.Bottom)
             return;
 
-        DeviceFont.Draw(Screen, position.X, position.Y, color, text, default);
+        int left = destination.Left;
+        int top = destination.Top;
+        int right = destination.Right;
+        int bottom = destination.Bottom;
+        int sourceLeft = source.Left;
+        int sourceTop = source.Top;
+        if (destination.Left < screen.Viewport.Left)
+        {
+            left = screen.Viewport.Left;
+            sourceLeft += left - destination.Left;
+        }
+
+        if (destination.Top < screen.Viewport.Top)
+        {
+            top = screen.Viewport.Top;
+            sourceTop += top - destination.Top;
+        }
+
+        if (screen.Viewport.Right < destination.Right)
+        {
+            right = screen.Viewport.Right;
+        }
+
+        if (screen.Viewport.Bottom < destination.Bottom)
+        {
+            bottom = screen.Viewport.Bottom;
+        }
+
+        var texture = new Texture(texels, new Size(width, texels.Length / width), VidPixelFormat.R5G6B5).Lock(null, out int texturePitch);
+        int end = (bottom - 1) * screen.DepthWidth + right;
+        int i = top * screen.DepthWidth + left;
+        int sourceIndex = sourceTop * (texturePitch / sizeof(ushort)) + sourceLeft;
+        int rowWidth = right - left;
+        var depth = screen.Depth;
+        while (i < end)
+        {
+            int copied = Math.Max(rowWidth, 0);
+            texture.Slice(sourceIndex, copied).CopyTo(depth.Slice(i));
+            i += copied + screen.DepthWidth - rowWidth;
+            sourceIndex += copied + texturePitch / sizeof(ushort) - rowWidth;
+        }
+    }
+
+    /// <summary>
+    /// Creates the device font and replaces the previous one.
+    /// </summary>
+    /// <param name="name">The name of the typeface.</param>
+    /// <param name="glyphSize">The size of a glyph, in points.</param>
+    /// <param name="maxTextureSize">The maximum texture size supported by the device.</param>
+    [EngineRoutine(0x00402bc0)]
+    public void CreateDeviceFont(string name, Size glyphSize, int maxTextureSize)
+    {
+        DeviceFont = new TextureFont(name, glyphSize, TextureFontStyle.FixedPitch);
+        DeviceFont.Create(maxTextureSize);
+        DeviceFont.CreateStateBlocks();
     }
 
     /// <summary>
@@ -105,23 +151,100 @@ public sealed partial class Graphics
         if (Screen is null)
             return;
 
-        var area = Rectangle.FromLTRB((int)MathF.Ceiling(box.Left - HalfPixel), (int)MathF.Ceiling(box.Top - HalfPixel), (int)MathF.Ceiling(box.Right - HalfPixel), (int)MathF.Ceiling(box.Bottom - HalfPixel));
+        var area = Rectangle.FromLTRB((int)MathF.Ceiling(box.Left), (int)MathF.Ceiling(box.Top), (int)MathF.Ceiling(box.Right), (int)MathF.Ceiling(box.Bottom));
         if ((color & OpaqueBlack) == OpaqueBlack)
         {
-            ScreenPrimitives.FillRectangle(Screen, area, color, BlendFactor.One, BlendFactor.Zero);
+            SetRenderState(RenderState.AlphaBlendEnable, 0);
         }
         else
         {
-            ScreenPrimitives.FillRectangle(Screen, area, color, BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
+            SetBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
         }
+
+        ScreenPrimitives.FillRectangle(Screen, area, color, Blend.Source, Blend.Destination);
+    }
+
+    [EngineRoutine(0x00430f10)]
+    internal void SetLoadingText(ReadOnlySpan<byte> text)
+    {
+        LoadingText = text.ToArray();
+        PreTact();
+        FillBox(RectangleF.FromLTRB(LoadingTextLeft, Viewport.Top + LoadingTextTop, LoadingTextRight, Viewport.Top + LoadingTextBottom), OpaqueBlack);
+        DrawText(new Vector2(LoadingTextLeft, Viewport.Top + LoadingTextTop), LoadingText, TextColor);
+        PostTact(true);
+    }
+
+    [EngineRoutine(0x00402090)]
+    internal int PreTact()
+    {
+        if (Flags.HasFlag(GraphicsFlags.PreTact))
+            return 0;
+
+        int begun = Device?.BeginScene() ?? 0;
+        if (begun != 0)
+        {
+            Logger?.Error(GraphicsLogTag, LogError.Text, begun, "3dBeginScene for PreTact"u8);
+            return 4;
+        }
+
+        Flags |= GraphicsFlags.PreTact;
+
+        return 0;
+    }
+
+    [EngineRoutine(0x00402250)]
+    internal void PostTact(bool present)
+    {
+        if (!Flags.HasFlag(GraphicsFlags.PreTact))
+            return;
+
+        IsDepthLocked = false;
+        int ended = Device?.EndScene() ?? 0;
+        if (ended != 0)
+        {
+            Logger?.Error(GraphicsLogTag, LogError.Text, ended, "3dEndScene for PostTact"u8);
+        }
+
+        if (present && EffectStartTimes[(int)ScreenEffect.PixelAppear] == 0 && EffectStartTimes[(int)ScreenEffect.LineShift] == 0)
+        {
+            var source = Rectangle.FromLTRB((int)Viewport.Left, (int)Viewport.Top, (int)Viewport.Right, (int)Viewport.Bottom);
+            var destination = source;
+            if (!Flags.HasFlag(GraphicsFlags.FullScreen))
+            {
+                destination.Offset(WindowPosition.X - ClientPosition.X, WindowPosition.Y - ClientPosition.Y);
+            }
+
+            int presented = Device?.Present(source, destination) ?? 0;
+            if (presented != 0)
+            {
+                Logger?.Error(GraphicsLogTag, LogError.Invalid, presented, "Present"u8);
+            }
+        }
+
+        Flags &= ~GraphicsFlags.PreTact;
+    }
+
+    [EngineRoutine(0x00430ed0)]
+    internal void DrawText(Vector2 position, ReadOnlyMemory<byte> text, uint color) => DrawDeviceText(position, color, text.Span);
+
+    [EngineRoutine(0x00402c40)]
+    internal void DrawDeviceText(Vector2 position, uint color, ReadOnlySpan<byte> text)
+    {
+        IsDepthLocked = false;
+        if (DeviceFont is null || Screen is null)
+            return;
+
+        DeviceFont.Draw(Screen, position, color, text);
     }
 
     [EngineRoutine(0x00430dd0)]
-    internal void DrawLoadingScreen(Map map, SpriteDefinition? definition, bool isRedrawDue)
+    internal void DrawLoadBar(Map map, SpriteDefinition? definition)
     {
-        if (definition is null || !isRedrawDue)
+        uint now = map.Session.GetWallTime();
+        if (definition is null || (uint)definition.SpriteSpeed >= now - _loadingDrawnAt)
             return;
 
+        PreTact();
         if (Screen is not null)
         {
             Clear(Screen, ClearColor);
@@ -131,6 +254,8 @@ public sealed partial class Graphics
         DrawVid(map, definition, _loadingFrame, new Vector3(screen.Width * Map.HalfShare, screen.Height * Map.HalfShare + 1, LoadingDepth));
         UpdateEffects(map, true);
         DrawText(new Vector2(LoadingTextLeft, Viewport.Top + LoadingTextTop), LoadingText, TextColor);
+        PostTact(true);
+        _loadingDrawnAt = now;
         _loadingFrame++;
         if (_loadingFrame >= definition.FileFrameCount)
         {
@@ -150,8 +275,9 @@ public sealed partial class Graphics
             return;
         }
 
-        var sprite = new Sprite(-1, definition, new Vector3(position.AsVector2() + map.Camera, position.Z), map.Definitions.GetArmy(definition), 0, map: map);
-        map.ConstructSprite(sprite, default);
+        SetRenderState(RenderState.AlphaBlendEnable, definition.Layer < ObjectLayer.AlphaGround ? 0u : 1u);
+        var sprite = new Sprite(-1, definition, new Vector3(position.AsVector2() + map.Camera, position.Z), default, 0, map: map);
+        map.ConstructSprite(sprite, default, null);
         sprite.Frame = frame;
         if (Screen is not null)
         {
@@ -166,8 +292,7 @@ public sealed partial class Graphics
     {
         var screen = map.Session.ScreenSize;
         var saved = map.Camera;
-        Screen?.IsLinearFiltered = false;
-        
+
         if (Environment.HasFlag(MapEnvironment.Earthquake) && !map.IsPaused)
         {
             int y = map.Random.Next() % (ShakeReach * 2 + 1);
@@ -179,33 +304,111 @@ public sealed partial class Graphics
         {
             if (Screen is not null)
             {
-                if (!map.HasHardwareGround || map.Camera.X < 0f || map.Movement.MapSize.Width < Screen.Clip.Right + map.Camera.X - Screen.Clip.Left || map.Camera.Y < 0f || map.Movement.MapSize.Height < Screen.Clip.Bottom + map.Camera.Y - Screen.Clip.Top)
+                if (map.Definitions.Find(SpriteCatalog.HardwareGroundId) is null || map.Camera.X < 0f || map.Movement.MapSize.Width < Viewport.Right + map.Camera.X - Viewport.Left || map.Camera.Y < 0f || map.Movement.MapSize.Height < Viewport.Bottom + map.Camera.Y - Viewport.Top)
                 {
                     Clear(Screen, ClearColor);
                 }
             }
 
-            DrawLayers(map, ObjectLayer.Ground, ObjectLayer.Light);
+            SetRenderState(RenderState.AlphaBlendEnable, 0);
+            SetRenderState(RenderState.DepthFunction, 8);
+            SetRenderState(RenderState.DepthWrite, 1);
+            Screen?.IsLinearFiltered = false;
+            IsDepthLocked = false;
+            DrawLayers(map, ObjectLayer.Ground, ObjectLayer.Ground);
+            LockDepth();
+            DrawLayers(map, ObjectLayer.Built, ObjectLayer.SoftwareGround);
+            IsDepthLocked = false;
+            DrawLayers(map, ObjectLayer.Ground2, ObjectLayer.Ground2);
+            LockDepth();
+            DrawLayers(map, ObjectLayer.SoftwareGrid, ObjectLayer.SoftwareAlpha);
+            IsDepthLocked = false;
+            SetRenderState(RenderState.DepthFunction, 7);
+            DrawLayers(map, ObjectLayer.Hardware, ObjectLayer.Hardware);
+            SetRenderState(RenderState.DepthWrite, 0);
+            SetRenderState(RenderState.AlphaBlendEnable, 1);
+            Screen?.IsLinearFiltered = false;
+            DrawLayers(map, ObjectLayer.AlphaGround, ObjectLayer.Region);
+            Screen?.IsLinearFiltered = true;
+            DrawLayers(map, ObjectLayer.Light, ObjectLayer.Light);
             UpdateGroundSnow(map);
             UpdateSnow(map);
+            Screen?.IsLinearFiltered = false;
             DrawLayers(map, ObjectLayer.Alpha, ObjectLayer.Alpha);
             UpdateRain(map);
-            DrawLayers(map, ObjectLayer.SoftwareTop, ObjectLayer.Cursor);
+            SetRenderState(RenderState.DepthWrite, 1);
+            Screen?.IsLinearFiltered = false;
+            LockDepth();
+            DrawLayers(map, ObjectLayer.SoftwareTop, ObjectLayer.SoftwareTop);
+            IsDepthLocked = false;
+            DrawLayers(map, ObjectLayer.Cursor, ObjectLayer.Cursor);
 
             if (Screen is not null && !map.CursorSprite.IsHardwareCursor && map.CursorSprite.Definition.Object.Properties.HasFlag(ObjectProperties.AlwaysTop))
             {
-                map.DrawCursorChain(Screen, map.Camera, null, true);
+                map.DrawCursorChain(Screen, map.Camera, null);
             }
         }
 
-        UpdateSquall(map.Time, map.IsPaused);
+        DrawSquall(map.Time, map.IsPaused);
 
         if (Environment.HasFlag(MapEnvironment.Earthquake) && !map.IsPaused)
         {
             map.SetPosition(new Vector2(screen.Width * Map.HalfShare + saved.X, screen.Height * Map.HalfShare + saved.Y), CameraMove.None);
         }
 
+        IsDepthLocked = false;
+        if (IsMovieOpen && HasMovieEnded())
+        {
+            StopMovie();
+        }
+
+        SetRenderState(RenderState.SpecularEnable, 0);
         UpdateEffects(map, drawFrame);
+        IsDepthLocked = false;
+    }
+
+    [EngineRoutine(0x004307e0)]
+    internal void SetRenderState(RenderState state, uint value)
+    {
+        if (state is RenderState.DepthFunction or RenderState.DepthWrite or RenderState.DepthEnable)
+            return;
+
+        if (state == RenderState.SpecularEnable)
+        {
+            if ((Flags.HasFlag(GraphicsFlags.SpecularEnabled) ? 1u : 0u) == value)
+                return;
+
+            Flags = value != 0 ? Flags | GraphicsFlags.SpecularEnabled : Flags & ~GraphicsFlags.SpecularEnabled;
+        }
+        else if (state == RenderState.AlphaBlendEnable)
+        {
+            if ((Flags.HasFlag(GraphicsFlags.AlphaBlendEnabled) ? 1u : 0u) == value)
+                return;
+
+            Flags = value != 0 ? Flags | GraphicsFlags.AlphaBlendEnabled : Flags & ~GraphicsFlags.AlphaBlendEnabled;
+            _isBlendEnabled = value != 0;
+        }
+    }
+
+    [EngineRoutine(0x00430780)]
+    internal void SetBlend(BlendFactor source, BlendFactor destination)
+    {
+        if (!Flags.HasFlag(GraphicsFlags.AlphaBlendEnabled))
+        {
+            _isBlendEnabled = true;
+            Flags |= GraphicsFlags.AlphaBlendEnabled;
+        }
+
+        _blendFactors = new QuadBlend(source, destination);
+    }
+
+    [EngineRoutine(0x00430d20)]
+    private void LockDepth()
+    {
+        if (!IsDepthLocked)
+        {
+            IsDepthLocked = true;
+        }
     }
 
     private void DrawLayers(Map map, ObjectLayer first, ObjectLayer last)
@@ -216,71 +419,6 @@ public sealed partial class Graphics
         for (var layer = first; layer <= last; layer++)
         {
             map.DrawLayer(Screen, map.Camera, layer);
-        }
-    }
-
-    /// <summary>
-    /// Copies an area of a depth texture into the depth buffer, clipped to the screen.
-    /// </summary>
-    /// <param name="screen">The screen whose depth buffer is written.</param>
-    /// <param name="destination">The area of the depth buffer.</param>
-    /// <param name="source">The area of the texture.</param>
-    /// <param name="texels">The depth values of the texture.</param>
-    /// <param name="width">The width of the texture, in texels.</param>
-    [EngineRoutine(0x00402820)]
-    public static void CopyDepth(Screen screen, Rectangle destination, Rectangle source, Span<ushort> texels, int width)
-    {
-        if (screen.Clip.Left > destination.Right || destination.Left >= screen.Clip.Right || screen.Clip.Top > destination.Bottom || destination.Top >= screen.Clip.Bottom)
-            return;
-
-        int left = destination.Left;
-        int top = destination.Top;
-        int right = destination.Right;
-        int bottom = destination.Bottom;
-        int sourceLeft = source.Left;
-        int sourceTop = source.Top;
-        if (destination.Left < screen.Clip.Left)
-        {
-            left = screen.Clip.Left;
-            sourceLeft += left - destination.Left;
-        }
-
-        if (destination.Top < screen.Clip.Top)
-        {
-            top = screen.Clip.Top;
-            sourceTop += top - destination.Top;
-        }
-
-        if (screen.Clip.Right < destination.Right)
-        {
-            right = screen.Clip.Right;
-        }
-
-        if (screen.Clip.Bottom < destination.Bottom)
-        {
-            bottom = screen.Clip.Bottom;
-        }
-
-        var texture = new Texture(texels, new Size(width, texels.Length / width), VidPixelFormat.R5G6B5).Lock(new Point(sourceLeft, sourceTop), out int texturePitch);
-        int end = (bottom - 1) * screen.DepthWidth + right;
-        int i = top * screen.DepthWidth + left;
-        int sourceIndex = 0;
-        int rowWidth = right - left;
-        var depth = screen.Depth;
-        while (i < end)
-        {
-            int count = i < 0 || sourceIndex < 0 ? 0 : Math.Min(rowWidth, Math.Min(depth.Length - i, texture.Length - sourceIndex));
-            if (count > 0)
-            {
-                texture.Slice(sourceIndex, count).CopyTo(depth.Slice(i, count));
-            }
-
-            if (count < rowWidth)
-                return;
-
-            int copied = Math.Max(rowWidth, 0);
-            i += copied + screen.DepthWidth - rowWidth;
-            sourceIndex += copied + texturePitch / sizeof(ushort) - rowWidth;
         }
     }
 }

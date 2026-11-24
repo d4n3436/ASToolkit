@@ -5,11 +5,11 @@ using ASToolkit.Formats;
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents a sprite that shows a text, letter by letter, in the frames of its font definition.
+/// Represents a sprite that shows a text letter by letter.
 /// </summary>
 public sealed class TextSprite : Sprite
 {
-    private const int FirstFontFrameCount = 0x7f;
+    private const int MinDirections = 0x7f;
     private const byte FontSwitch = 0x1b;
     private const byte Tab = (byte)'\t';
     private const byte TagStart = (byte)'<';
@@ -17,8 +17,6 @@ public sealed class TextSprite : Sprite
     private const byte FirstPrintable = 0x20;
     private const int TabStops = 7;
     private const float Half = 0.5f;
-    private static ReadOnlySpan<byte> FontTag => "<Font="u8;
-    private static byte GetCharacter(ReadOnlySpan<byte> text, int index) => (uint)index < (uint)text.Length ? text[index] : (byte)0;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TextSprite"/> class.
@@ -30,9 +28,8 @@ public sealed class TextSprite : Sprite
     /// <param name="hitPoints">The hit points of the sprite.</param>
     /// <param name="direction">The direction of the sprite.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    /// <param name="parent">The sprite that created this sprite.</param>
-    public TextSprite(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Angle direction = default, Map? map = null, Sprite? parent = null)
-        : base(number, definition, position, army, hitPoints, direction, map, parent)
+    public TextSprite(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Angle direction = default, Map? map = null)
+        : base(number, definition, position, army, hitPoints, direction, map)
     {
     }
 
@@ -66,8 +63,10 @@ public sealed class TextSprite : Sprite
     /// </summary>
     public int LineWidth { get; set; }
 
+    private static ReadOnlySpan<byte> FontTag => "<Font="u8;
+
     /// <summary>
-    /// Draws the shown text letter by letter, each letter a frame of the font definition.
+    /// Draws the shown text with the frames of the font definition.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
@@ -75,8 +74,11 @@ public sealed class TextSprite : Sprite
     [EngineRoutine(0x00448ba0)]
     public override void Draw(Screen screen, Map map, Vector2 camera)
     {
-        if (Definition == map.Definitions.Empty || Definition.Layout.TotalFrames < FirstFontFrameCount)
+        if (Definition == map.Definitions.Empty || Definition.Directions < MinDirections)
+        {
+            map.Session.Graphics.DrawDeviceText(new Vector2(Position.X, Position.Y), uint.MaxValue, Shown.Span);
             return;
+        }
 
         var savedPosition = Position;
         int savedFrame = Frame;
@@ -153,4 +155,6 @@ public sealed class TextSprite : Sprite
         Position = savedPosition;
         Frame = savedFrame;
     }
+
+    private static byte GetCharacter(ReadOnlySpan<byte> text, int index) => (uint)index < (uint)text.Length ? text[index] : (byte)0;
 }

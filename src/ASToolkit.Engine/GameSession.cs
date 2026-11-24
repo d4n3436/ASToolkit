@@ -1,25 +1,27 @@
 using System.Drawing;
+using System.Globalization;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using System.Text;
 using ASToolkit.Engine.IO;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents one run of the game from startup to exit, holding the state that persists while levels are loaded and released.
+/// Represents one run of the game from startup to exit and the state that persists while levels are loaded and released.
 /// </summary>
 public sealed class GameSession : IDisposable
 {
     /// <summary>
-    /// Represents the screen width used when the registry doesn't hold one, in which case the game asks the player in its start dialog.
+    /// Represents the screen width used when the registry doesn't hold one.
     /// </summary>
     public const int DefaultScreenWidth = 1024;
 
     /// <summary>
-    /// Represents the screen height used when the registry doesn't hold one, in which case the game asks the player in its start dialog.
+    /// Represents the screen height used when the registry doesn't hold one.
     /// </summary>
     public const int DefaultScreenHeight = 768;
-
     private const string ScreenWidthValue = "ScreenX";
     private const string ScreenHeightValue = "ScreenY";
     private const string SoundHighQualityValue = "SoundHighQuality";
@@ -28,32 +30,43 @@ public sealed class GameSession : IDisposable
     private const string Program = "AlienShooter.exe";
     private const string ConfigFile = "AlienShooter.cfg";
     private const string SetupFont = "Courier";
-    private const int SetupFontWidth = 7;
-    private const int SetupFontHeight = 8;
     private const string DefaultFont = "Arial";
     private const int DefaultFontWidth = 0;
     private const int DefaultFontHeight = 8;
-    
+    private const string LowDetailValue = "LowDetail";
+    private const string TripleBufferValue = "TripleBuffer";
+    private const string BitsPerPixelValue = "BPP";
+    private const string DeviceValue = "Device";
+    private const int DefaultBitsPerPixel = 32;
+    private const int DefaultTripleBuffer = 1;
+    private const int DefaultVSync = 1;
+
+    private static readonly Size SetupFontSize = new(7, 8);
+
+    private readonly ScriptRegistry _registry;
     private bool _isConfigRead;
-    
-    private static ReadOnlySpan<byte> GameSection => "game"u8;
-    
-    private static ReadOnlySpan<byte> GraphSection => "graph"u8;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GameSession"/> class that reads the screen size from the registry and uses the default size if the registry doesn't hold one.
     /// </summary>
-    /// <param name="registry">The registry the game reads its settings from.</param>
+    /// <param name="registry">The registry that holds the game's settings.</param>
     /// <param name="fileSystem">The file system to write the log to and read the configuration file from, or <see langword="null"/> to not write logs and read the configuration later with <see cref="ReadConfig"/>.</param>
-    /// <param name="time">The clock of the log's file name and timestamps, or <see langword="null"/> for the system clock.</param>
+    /// <param name="time">The clock used for the log's file name and timestamps, or <see langword="null"/> for the system clock.</param>
     /// <param name="desktop">The size of the desktop, or <see langword="null"/> if it is at least as large as the screen.</param>
-    public GameSession(ScriptRegistry registry, IGameFileSystem? fileSystem = null, TimeProvider? time = null, Size? desktop = null)
+    /// <param name="windowRect">The bounds of the game window on the desktop, or <see langword="null"/> if it covers the screen.</param>
+    /// <param name="clientRect">The bounds of the client area of the game window on the desktop, or <see langword="null"/> if it covers the screen.</param>
+    public GameSession(ScriptRegistry registry, IGameFileSystem? fileSystem = null, TimeProvider? time = null, Size? desktop = null, Rectangle? windowRect = null, Rectangle? clientRect = null)
     {
-        Logger = new GameLogger(fileSystem, time ?? TimeProvider.System, Program);
+        Time = time ?? TimeProvider.System;
+        Logger = new GameLogger(fileSystem, Time, Program);
+        Graphics.Logger = Logger;
         ScreenSize = new SizeF(registry.GetNumber(ScreenWidthValue, DefaultScreenWidth), registry.GetNumber(ScreenHeightValue, DefaultScreenHeight));
         IsFullScreen = registry.GetNumber(FullScreenValue, DefaultFullScreen) != 0;
         IsSoundHighQuality = registry.GetNumber(SoundHighQualityValue, 0) != 0;
-        SetUpWindow(desktop ?? Size.Ceiling(ScreenSize));
+        _registry = registry;
+        Graphics.SetUpSettings(registry.GetNumber(BitsPerPixelValue, DefaultBitsPerPixel) == 32, IsFullScreen);
+        var screen = Size.Ceiling(ScreenSize);
+        SetUpWindow(desktop ?? screen, windowRect ?? new Rectangle(Point.Empty, screen), clientRect ?? new Rectangle(Point.Empty, screen));
 
         if (fileSystem is not null)
         {
@@ -68,10 +81,19 @@ public sealed class GameSession : IDisposable
     public bool IsDebugMode { get; private set; }
 
     /// <summary>
-    /// Gets the indexes of the loading screen redraws that a recording shows the game making while it loads its sprite definitions at startup.
+    /// Gets a value indicating whether the map draws its frame rate.
     /// </summary>
-    /// <remarks>The redraws are counted in load order: one for each surface of a hardware sprite file and one for each definition.</remarks>
-    public IReadOnlyList<int> StartupLoadingRedraws { get; init; } = [];
+    public bool ShouldDrawFps { get; private set; }
+
+    /// <summary>
+    /// Gets a value indicating whether the map draws the presentation banner.
+    /// </summary>
+    public bool ShouldDrawPresentation { get; private set; }
+
+    /// <summary>
+    /// Gets a value indicating whether the game window has the application menu.
+    /// </summary>
+    public bool HasAppMenu { get; init; }
 
     /// <summary>
     /// Gets a value indicating whether the game is running full screen.
@@ -80,25 +102,7 @@ public sealed class GameSession : IDisposable
     public bool IsFullScreen { get; }
 
     /// <summary>
-    /// Reads the session's settings from the game's configuration file.
-    /// </summary>
-    /// <param name="fileSystem">The file system that holds the configuration file.</param>
-    /// <remarks>Calls after the first one have no effect.</remarks>
-    public void ReadConfig(IGameFileSystem fileSystem)
-    {
-        if (_isConfigRead)
-            return;
-
-        _isConfigRead = true;
-        int height = ProfileFile.GetInteger(fileSystem, ConfigFile, GraphSection, "FontSizeY"u8, DefaultFontHeight);
-        int width = ProfileFile.GetInteger(fileSystem, ConfigFile, GraphSection, "FontSizeX"u8, DefaultFontWidth);
-        string font = ProfileFile.TryGetString(fileSystem, ConfigFile, GraphSection, "Font"u8, out var name) ? Encoding.ASCII.GetString(name.Span) : DefaultFont;
-        Graphics.CreateDeviceFont(font, width, height, SpriteCatalog.DefaultMaxTextureSize);
-        IsDebugMode = ProfileFile.GetInteger(fileSystem, ConfigFile, GameSection, "DebugMode"u8, 0) != 0;
-    }
-
-    /// <summary>
-    /// Gets a value indicating whether the player chose high-quality sound in the start dialog.
+    /// Gets a value indicating whether sound is played in high quality.
     /// </summary>
     public bool IsSoundHighQuality { get; }
 
@@ -107,34 +111,10 @@ public sealed class GameSession : IDisposable
     /// </summary>
     public SizeF ScreenSize { get; private set; }
 
-    [EngineRoutine(0x0042f4b0)]
-    private void SetUpWindow(Size desktop)
-    {
-        var viewport = new RectangleF(PointF.Empty, ScreenSize);
-
-        if (!IsFullScreen && desktop.Width < ScreenSize.Width)
-        {
-            ScreenSize = ScreenSize with { Width = desktop.Width };
-        }
-
-        if (!IsFullScreen && desktop.Height < ScreenSize.Height)
-        {
-            ScreenSize = ScreenSize with { Height = desktop.Height };
-        }
-
-        Graphics.SetViewport(viewport);
-        Graphics.CreateDeviceFont(SetupFont, SetupFontWidth, SetupFontHeight, SpriteCatalog.DefaultMaxTextureSize);
-    }
-
     /// <summary>
     /// Gets or sets the speed the camera scrolls at along each axis in pixels per millisecond.
     /// </summary>
     public Vector2 ScrollSpeed { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether monster units may target neutral trains.
-    /// </summary>
-    public bool CanMonstersAttackNeutralTrains { get; set; }
 
     /// <summary>
     /// Gets or sets the sound effects and music of the session.
@@ -157,9 +137,11 @@ public sealed class GameSession : IDisposable
     public ReadOnlyMemory<byte> PreviousMapName { get; private set; }
 
     /// <summary>
-    /// Gets the screen effects, gamma and wind that persist across levels.
+    /// Gets the graphics state that persists across levels.
     /// </summary>
     public Graphics Graphics { get; } = new();
+
+    internal TimeProvider Time { get; }
 
     internal GameLogger Logger { get; }
 
@@ -169,14 +151,230 @@ public sealed class GameSession : IDisposable
 
     internal ReadOnlyMemory<byte> MouseTipText { get; set; }
 
+    private static ReadOnlySpan<byte> NonGdiLog => "zm_nongdi"u8;
+
+    private static ReadOnlySpan<byte> GraphicsTag => "GRAPH"u8;
+
+    private static ReadOnlySpan<byte> LightBufferName => "light buffer"u8;
+
+    private static ReadOnlySpan<byte> HighBufferName => "hiBuffer"u8;
+
+    private static ReadOnlySpan<byte> AlphaBufferName => "alphaBuffer"u8;
+
+    private static ReadOnlySpan<byte> GameSection => "game"u8;
+
+    private static ReadOnlySpan<byte> GraphSection => "graph"u8;
+
+    /// <summary>
+    /// Reads the session's settings from the game's configuration file.
+    /// </summary>
+    /// <param name="fileSystem">The file system that holds the configuration file.</param>
+    /// <remarks>Calls after the first one do nothing.</remarks>
+    public void ReadConfig(IGameFileSystem fileSystem)
+    {
+        if (_isConfigRead)
+            return;
+
+        _isConfigRead = true;
+        int height = ProfileFile.GetInteger(fileSystem, ConfigFile, GraphSection, "FontSizeY"u8, DefaultFontHeight);
+        int width = ProfileFile.GetInteger(fileSystem, ConfigFile, GraphSection, "FontSizeX"u8, DefaultFontWidth);
+        string font = ProfileFile.TryGetString(fileSystem, ConfigFile, GraphSection, "Font"u8, out var name) ? Encoding.ASCII.GetString(name.Span) : DefaultFont;
+        Graphics.CreateDeviceFont(font, new Size(width, height), SpriteCatalog.DefaultMaxTextureSize);
+        IsDebugMode = ProfileFile.GetInteger(fileSystem, ConfigFile, GameSection, "DebugMode"u8, 0) != 0;
+        ShouldDrawFps = ProfileFile.GetInteger(fileSystem, ConfigFile, GameSection, "DrawFPS"u8, 0) != 0;
+        ShouldDrawPresentation = ProfileFile.GetInteger(fileSystem, ConfigFile, GameSection, "DrawPresentation"u8, 1) != 0;
+        Graphics.SetVSync(ProfileFile.GetInteger(fileSystem, ConfigFile, GraphSection, "VSync"u8, DefaultVSync) != 0);
+    }
+
     /// <summary>
     /// Closes the session's log and keeps it as the last run's log.
     /// </summary>
     public void Dispose() => Logger.Dispose();
 
+    internal uint GetWallTime() => (uint)(Time.GetElapsedTime(0).Ticks / TimeSpan.TicksPerMillisecond);
+
     internal void EnterMap(ReadOnlyMemory<byte> name)
     {
         PreviousMapName = MapName;
         MapName = name;
+    }
+
+    private static void AddCap(List<byte> caps, bool isSet, ReadOnlySpan<byte> name)
+    {
+        if (isSet)
+        {
+            caps.AddRange(name);
+        }
+    }
+
+    private static void FillColorTable(DeviceBuffers textures)
+    {
+        var highColor = textures.HighFormat == VidPixelFormat.R5G6B5 ? HighColorFormat.Rgb565 : HighColorFormat.Rgb555;
+        int index = 0;
+        for (int top = Screen.ColorTableGroup; top <= byte.MaxValue + 1; top += Screen.ColorTableGroup)
+        {
+            for (int i = 0; i < Screen.ColorTableGroup; i++)
+            {
+                int red = Math.Clamp(top + Screen.ColorTableOffsets[i * 3], 0, byte.MaxValue);
+                int green = Math.Clamp(top + Screen.ColorTableOffsets[i * 3 + 1], 0, byte.MaxValue);
+                int blue = Math.Clamp(top + Screen.ColorTableOffsets[i * 3 + 2], 0, byte.MaxValue);
+                textures.ColorTable[index++] = highColor.Pack((uint)(red << 16 | green << 8 | blue));
+            }
+        }
+    }
+
+    [EngineRoutine(0x0042f4b0)]
+    private int SetUpWindow(Size desktop, Rectangle windowRect, Rectangle clientRect)
+    {
+        ApplyDisplaySettings(desktop);
+        int result = Graphics.SetUpDevice(ScreenSize);
+        if (result != 0)
+            return result;
+
+        if (!Graphics.Flags.HasFlag(GraphicsFlags.FullScreen) || Graphics.Flags.HasFlag(GraphicsFlags.WindowViewport))
+        {
+            Graphics.SetViewport(RectangleF.FromLTRB(clientRect.Left - windowRect.Left, clientRect.Top - windowRect.Top, clientRect.Right - windowRect.Left, clientRect.Bottom - windowRect.Top));
+        }
+        else
+        {
+            Graphics.SetViewport(RectangleF.FromLTRB(0, 0, ScreenSize.Width, ScreenSize.Height));
+        }
+
+        Logger.Write($"SetViewPort ({Graphics.Viewport.Left:F0},{Graphics.Viewport.Top:F0}) - ({Graphics.Viewport.Right:F0},{Graphics.Viewport.Bottom:F0})");
+        Logger.Write(Graphics.DescribeTextureStage());
+        SetDefaultRenderStates();
+        Logger.Write(Graphics.DescribeTextureStage());
+        Logger.Write(Texture.CapabilitiesText);
+        var textures = Graphics.Buffers;
+        if (!CreateBuffers(textures))
+            return 1;
+
+        if (Graphics.Screen is not null)
+        {
+            Graphics.Clear(Graphics.Screen, 0xff000000);
+        }
+
+        Graphics.CreateDeviceFont(SetupFont, SetupFontSize, SpriteCatalog.DefaultMaxTextureSize);
+        FillColorTable(textures);
+        LogCaps();
+        int bytesPerPixel = Graphics.Flags.HasFlag(GraphicsFlags.Color32) ? sizeof(uint) : sizeof(ushort);
+        int lockPitch = (int)ScreenSize.Width * bytesPerPixel;
+        int pitch = lockPitch / bytesPerPixel;
+        Logger.Write($"Pitch={bytesPerPixel * pitch} zPitch={Graphics.DepthWidth * sizeof(ushort)}");
+        Graphics.ReloadPalettes();
+        return 0;
+    }
+
+    private void ApplyDisplaySettings(Size desktop)
+    {
+        _registry.SetNumber(ScreenWidthValue, (int)ScreenSize.Width);
+        _registry.SetNumber(ScreenHeightValue, (int)ScreenSize.Height);
+        _registry.SetNumber(BitsPerPixelValue, ((Graphics.Flags.HasFlag(GraphicsFlags.Color32) ? 2 : 0) + 2) << 3);
+        _registry.SetNumber(DeviceValue, 0);
+        _registry.SetNumber(FullScreenValue, Graphics.Flags.HasFlag(GraphicsFlags.FullScreen) ? 1 : 0);
+        Graphics.Flags = (_registry.GetNumber(LowDetailValue, 0) & 1) != 0 ? Graphics.Flags | GraphicsFlags.LowDetail : Graphics.Flags & ~GraphicsFlags.LowDetail;
+        Graphics.Flags &= ~GraphicsFlags.Software;
+        Graphics.Flags = Graphics.IsNonGdiDevice ? Graphics.Flags | GraphicsFlags.NonGdi : Graphics.Flags & ~GraphicsFlags.NonGdi;
+        if (Graphics.IsNonGdiDevice)
+        {
+            Logger.Write(NonGdiLog);
+        }
+
+        Graphics.Flags &= ~GraphicsFlags.NonGdi;
+        bool isTripleBuffer = _registry.GetNumber(TripleBufferValue, DefaultTripleBuffer) != 0 && Graphics.Flags.HasFlag(GraphicsFlags.FullScreen) && !Graphics.Flags.HasFlag(GraphicsFlags.WindowViewport);
+        Graphics.Flags = isTripleBuffer ? Graphics.Flags | GraphicsFlags.TripleBuffer : Graphics.Flags & ~GraphicsFlags.TripleBuffer;
+        if (!Graphics.CanRenderWindowed)
+        {
+            Graphics.Flags |= GraphicsFlags.FullScreen;
+        }
+
+        var screenSize = ScreenSize;
+        if (!Graphics.Flags.HasFlag(GraphicsFlags.FullScreen) && desktop.Width < screenSize.Width)
+        {
+            screenSize = screenSize with { Width = desktop.Width };
+        }
+
+        if (!Graphics.Flags.HasFlag(GraphicsFlags.FullScreen) && desktop.Height < screenSize.Height)
+        {
+            screenSize = screenSize with { Height = desktop.Height };
+        }
+
+        ScreenSize = screenSize;
+        if (!Graphics.Flags.HasFlag(GraphicsFlags.FullScreen) && Graphics.Flags.HasFlag(GraphicsFlags.Color32) != (Graphics.GetDisplayBits(Graphics.DesktopFormat) == 32))
+        {
+            Graphics.Flags = Graphics.GetDisplayBits(Graphics.DesktopFormat) == 32 ? Graphics.Flags | GraphicsFlags.Color32 : Graphics.Flags & ~GraphicsFlags.Color32;
+        }
+
+        if ((float)(Graphics.VideoMemory / 2) <= (ScreenSize.Width * ScreenSize.Height + ScreenSize.Width * ScreenSize.Height) * 3.0f)
+        {
+            Graphics.Flags &= ~GraphicsFlags.TripleBuffer;
+        }
+
+        Graphics.Flags &= ~GraphicsFlags.TripleBuffer;
+    }
+
+    private void SetDefaultRenderStates()
+    {
+        Graphics.SetTextureStageState(0, TextureStageState.ColorArgument1, (int)TextureArgument.Texture);
+        Graphics.SetTextureStageState(0, TextureStageState.ColorArgument2, (int)TextureArgument.Diffuse);
+        Graphics.SetTextureStageState(0, TextureStageState.ColorOperation, (int)TextureOperation.Modulate);
+        Graphics.SetTextureStageState(0, TextureStageState.AlphaArgument1, (int)TextureArgument.Texture);
+        Graphics.SetTextureStageState(0, TextureStageState.AlphaArgument2, (int)TextureArgument.Diffuse);
+        Graphics.SetTextureStageState(0, TextureStageState.AlphaOperation, (int)TextureOperation.Modulate);
+        Graphics.SetTextureStageState(0, TextureStageState.MinFilter, 1);
+        Graphics.SetTextureStageState(0, TextureStageState.MagFilter, 1);
+        Graphics.Flags &= ~GraphicsFlags.SpecularEnabled;
+        Graphics.Flags &= ~GraphicsFlags.AlphaBlendEnabled;
+        Graphics.SetRenderState(RenderState.DitherEnable, 1);
+        Graphics.SetRenderState(RenderState.LocalViewer, 0);
+        Graphics.SetRenderState(RenderState.Lighting, 0);
+        Graphics.SetRenderState(RenderState.AlphaTestEnable, 0);
+        Graphics.SetRenderState(RenderState.DepthEnable, 1);
+        Graphics.SetRenderState(RenderState.DepthFunction, 7);
+    }
+
+    private bool CreateBuffers(DeviceBuffers textures)
+    {
+        textures.IsCreated = true;
+        textures.Light = Graphics.CreateTexture(Logger, VidPixelFormat.P8, out var format);
+        textures.LightFormat = format;
+        if (!HasBuffer(textures.Light, LightBufferName))
+            return false;
+
+        textures.High = Graphics.CreateTexture(Logger, VidPixelFormat.R5G6B5, out format);
+        textures.HighFormat = format;
+        if (!HasBuffer(textures.High, HighBufferName))
+            return false;
+
+        textures.Alpha = Graphics.CreateTexture(Logger, VidPixelFormat.A4R4G4B4, out _);
+        return HasBuffer(textures.Alpha, AlphaBufferName);
+    }
+
+    private bool HasBuffer(ReadOnlySpan<ushort> buffer, ReadOnlySpan<byte> name)
+    {
+        if (buffer.Length != 0)
+            return true;
+
+        Logger.Error(GraphicsTag, LogError.Create, 0, name);
+        return false;
+    }
+
+    private void LogCaps()
+    {
+        var caps = new List<byte>();
+        AddCap(caps, Graphics.Flags.HasFlag(GraphicsFlags.AlphaPalette), "ALPHAPALETTE "u8);
+        AddCap(caps, Graphics.Flags.HasFlag(GraphicsFlags.NonGdi), "NONGDI "u8);
+        caps.AddRange(Graphics.Flags.HasFlag(GraphicsFlags.Software) ? "SOFTWARE "u8 : "HARDWARE "u8);
+        AddCap(caps, Graphics.Flags.HasFlag(GraphicsFlags.LowDetail), "LOWDETAIL "u8);
+        AddCap(caps, Graphics.Flags.HasFlag(GraphicsFlags.Agp), "AGP "u8);
+        AddCap(caps, !Graphics.Flags.HasFlag(GraphicsFlags.FullScreen), "WINDOWED "u8);
+        caps.AddRange(Graphics.Flags.HasFlag(GraphicsFlags.TripleBuffer) ? "TRIPLEBUFFER "u8 : "DOUBLEBUFFER "u8);
+        AddCap(caps, Graphics.Flags.HasFlag(GraphicsFlags.DotProduct3), "DOTPRODUCT3 "u8);
+        AddCap(caps, !Graphics.Flags.HasFlag(GraphicsFlags.ModulateX2), "NOTMODULATE2X "u8);
+        AddCap(caps, !Graphics.Flags.HasFlag(GraphicsFlags.CanZBlt), "CAN'T_Z_BLT "u8);
+        AddCap(caps, Graphics.Flags.HasFlag(GraphicsFlags.Color32), "COLOR32 "u8);
+        AddCap(caps, Graphics.Flags.HasFlag(GraphicsFlags.VSync), "VSYNC "u8);
+        caps.AddRange(Encoding.ASCII.GetBytes(string.Create(CultureInfo.InvariantCulture, $"PIXELSHADER={Graphics.PixelShaderVersion}")));
+        Logger.Write($"caps={GameLogger.Decode(CollectionsMarshal.AsSpan(caps))}");
     }
 }
