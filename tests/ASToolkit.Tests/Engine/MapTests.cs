@@ -47,7 +47,7 @@ public class MapTests
         map.Play(default);
         var first = map.Player;
         var start = first.Position;
-        map.Action(first, ActionCode.Damage, first.Hp);
+        Map.Action(first, ActionCode.Damage, first.Hp);
         for (int tick = 0; tick < 200 && map.GetFlagman(0) is not null; tick++)
         {
             map.Play(default);
@@ -66,7 +66,7 @@ public class MapTests
         var player = (Man)map.Player;
         Assert.Equal(23, player.SlotAmmo[KnownObject.Shotgun - KnownObject.Shotgun + 2] + (player.WeaponSlot == 2 ? player.GetAmmo() : 0));
 
-        map.Action(map.Player, ActionCode.Damage, map.Player.Hp);
+        Map.Action(map.Player, ActionCode.Damage, map.Player.Hp);
         Assert.True(map.Player.IsAlive);
     }
 
@@ -79,8 +79,8 @@ public class MapTests
         var position = map.Player.Position + new Vector3(500, 0, 0);
         var enemy = map.AddSprite(objects.Find(KnownObject.Monster1), position, default)!;
         enemy.Items.Clear();
-        map.Action(enemy, ActionCode.AddItem, (int)KnownObject.Money);
-        map.Action(enemy, ActionCode.Damage, enemy.Hp);
+        Map.Action(enemy, ActionCode.AddItem, (int)KnownObject.Money);
+        Map.Action(enemy, ActionCode.Damage, enemy.Hp);
         Sprite? dropped = null;
         for (int tick = 0; tick < 100 && dropped is null; tick++)
         {
@@ -106,9 +106,9 @@ public class MapTests
         map.Play(default);
         var enemy = map.AddSprite(objects.Find(KnownObject.Monster1), map.Player.Position + new Vector3(500, 0, 0), default)!;
         int maxHp = enemy.Hp;
-        map.Action(enemy, ActionCode.Damage, maxHp / 2);
+        Map.Action(enemy, ActionCode.Damage, maxHp / 2);
 
-        map.Action(enemy, ActionCode.Repair);
+        Map.Action(enemy, ActionCode.Repair);
 
         Assert.Equal(maxHp, enemy.Hp);
     }
@@ -122,12 +122,12 @@ public class MapTests
         var enemy = map.AddSprite(objects.Find(KnownObject.Monster1), map.Player.Position + new Vector3(500, 0, 0), default)!;
         enemy.Items.Clear();
 
-        Assert.Equal(-1, map.Action(enemy, ActionCode.GetItemType));
+        Assert.Equal(-1, Map.Action(enemy, ActionCode.GetItemType));
 
-        map.Action(enemy, ActionCode.AddItem, (int)KnownObject.Money);
-        map.Action(enemy, ActionCode.AddItem, (int)KnownObject.Medkit);
+        Map.Action(enemy, ActionCode.AddItem, (int)KnownObject.Money);
+        Map.Action(enemy, ActionCode.AddItem, (int)KnownObject.Medkit);
 
-        Assert.Contains(map.Action(enemy, ActionCode.GetItemType), new[] { (int)KnownObject.Money, (int)KnownObject.Medkit });
+        Assert.Contains(Map.Action(enemy, ActionCode.GetItemType), new[] { (int)KnownObject.Money, (int)KnownObject.Medkit });
     }
 
     [Fact]

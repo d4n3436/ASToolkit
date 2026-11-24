@@ -122,60 +122,6 @@ internal sealed class SpriteKinematics
         }
     }
 
-    [EngineRoutine(0x0044d460)]
-    public void ForgetCreatureRegion(Creature creature, Sprite removed)
-    {
-        if (creature.Region == removed)
-        {
-            creature.Region = null;
-        }
-
-        ForgetObject(creature, removed);
-    }
-
-    [EngineRoutine(0x0043f720)]
-    public void ForgetObject(Sprite sprite, Sprite removed)
-    {
-        if (sprite.Link is not null)
-        {
-            sprite.Link.DeletePointerToSprite(_map, removed);
-        }
-
-        if (sprite.Goal == removed)
-        {
-            if (sprite.Animation == SpriteAnimation.Fight)
-            {
-                SetCommand(sprite, Command.OneAttack, _map.ConstructGoal(removed.Position));
-            }
-            else
-            {
-                SetCommand(sprite, Command.None);
-            }
-        }
-
-        var orders = sprite.ActionStack;
-        for (int i = 0; i < orders.Count; i++)
-        {
-            var order = orders[i];
-
-            if (order.Target == removed && Act.HasSpriteTarget((ActionCode)order.Value))
-            {
-                orders.Replace(i, order with { Value = Act.ForgottenOrder, Var1 = 0, Target = null });
-            }
-        }
-    }
-
-    [EngineRoutine(0x004489e0)]
-    public void ForgetCannonGoal(Cannon cannon, Sprite removed)
-    {
-        if (cannon.Goal == removed)
-        {
-            cannon.Goal = _map.ConstructGoal(removed.Position);
-        }
-
-        ForgetObject(cannon, removed);
-    }
-
     [EngineRoutine(0x004447b0)]
     public void SetMoveTarget(Sprite sprite, Sprite? target)
     {

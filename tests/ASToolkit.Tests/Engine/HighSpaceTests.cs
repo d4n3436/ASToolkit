@@ -83,8 +83,8 @@ public class HighSpaceTests
         text.VisibleCount = 0;
         text.Timer = 0;
 
-        map.Action(text, ActionCode.NextCommand);
-        map.Action(text, ActionCode.NextCommand);
+        Map.Action(text, ActionCode.NextCommand);
+        Map.Action(text, ActionCode.NextCommand);
 
         Assert.Equal(visibleCount, text.VisibleCount);
     }

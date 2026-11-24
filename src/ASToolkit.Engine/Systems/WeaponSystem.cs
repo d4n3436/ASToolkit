@@ -77,7 +77,7 @@ internal sealed class WeaponSystem
             return false;
 
         man.SlotAmmo[man.WeaponSlot] = man.GetAmmo();
-        _map.Action(man.Link, ActionCode.ChangeVid, slot + Sprite.WeaponIdBase);
+        Map.Action(man.Link, ActionCode.ChangeVid, slot + Sprite.WeaponIdBase);
         man.Definition.LinkDefinition = _definitions.Find((KnownObject)(slot + Sprite.WeaponIdBase)) ?? _definitions.Empty;
         man.AddAmmo(man.SlotAmmo[slot] - man.GetAmmo());
 
@@ -119,7 +119,7 @@ internal sealed class WeaponSystem
             if (isScaled && distance > payload.BlastRadius)
                 continue;
 
-            _map.Action(sprite, ActionCode.Damage, isScaled ? (int)(damage - damage * distance / payload.BlastRadius) : damage);
+            Map.Action(sprite, ActionCode.Damage, isScaled ? (int)(damage - damage * distance / payload.BlastRadius) : damage);
         }
     }
 

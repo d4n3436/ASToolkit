@@ -100,7 +100,7 @@ public class ScriptHandlerTests
         Step(map, 100);
         Assert.True(Vector2.Distance(drone.Position.AsVector2(), map.Player.Position.AsVector2()) < before);
 
-        map.Action(drone, ActionCode.Damage, drone.Hp);
+        Map.Action(drone, ActionCode.Damage, drone.Hp);
         Step(map, 100);
         Assert.DoesNotContain(map.Monsters, sprite => sprite.Definition.Id == KnownObject.FlyingDrone && sprite.IsAlive);
     }
@@ -195,10 +195,10 @@ public class ScriptHandlerTests
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default, new Dictionary<KnownObject, int> { [KnownObject.Medkit] = 1 });
         var map = EngineTestMap.CreateMap(definitions, loadout: loadout);
         Step(map, 1);
-        map.Action(map.Player, ActionCode.Damage, map.Player.Hp);
+        Map.Action(map.Player, ActionCode.Damage, map.Player.Hp);
         Step(map, 2500 / FramePacer.DefaultFrameTime);
         int health = map.Player.Hp;
-        map.Action(map.Player, ActionCode.Damage, 5);
+        Map.Action(map.Player, ActionCode.Damage, 5);
 
         Assert.True(map.Player.IsAlive);
         Assert.Equal(health, map.Player.Hp);
@@ -211,7 +211,7 @@ public class ScriptHandlerTests
         var map = EngineTestMap.CreateMap(definitions);
         var screen = new ScreenLog();
         Step(map, 1);
-        map.Action(map.Player, ActionCode.Damage, map.Player.Hp);
+        Map.Action(map.Player, ActionCode.Damage, map.Player.Hp);
         Step(map, 40, screen);
 
         Assert.Single(screen.Flashes, flash => flash.Color == 0xff0000);

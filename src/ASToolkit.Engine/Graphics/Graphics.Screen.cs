@@ -284,7 +284,7 @@ public sealed partial class Graphics
             definition.Draw(Screen, map, sprite, map.Camera);
         }
 
-        map.DestructSprite(sprite);
+        sprite.Destruct();
     }
 
     [EngineRoutine(0x00430870)]

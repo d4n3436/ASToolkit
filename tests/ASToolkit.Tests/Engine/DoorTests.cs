@@ -33,8 +33,8 @@ public class DoorTests
         var walker = definitions.Find(KnownObject.PlayerStart)!;
         var position = new Vector2(1000);
         var map = EngineTestMap.CreateMap(definitions);
-        var sprite = new Sprite(0, walker, position.AsVector3(), 0, walker.MaxHp);
-        map.Collector.InsertToHash(new Sprite(1, definition, position.AsVector3(), 0, definition.MaxHp));
+        var sprite = new Sprite(0, walker, position.AsVector3(), 0, walker.MaxHp, map);
+        map.Collector.InsertToHash(new Sprite(1, definition, position.AsVector3(), 0, definition.MaxHp, map));
         map.Collector.InsertToHash(sprite);
 
         Assert.True(map.Collision.Move(sprite, (position + Vector2.UnitX).AsVector3()));

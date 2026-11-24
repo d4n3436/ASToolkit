@@ -24,55 +24,6 @@ internal sealed class MonsterBrain
         _map = map;
     }
 
-    [EngineRoutine(0x00447260)]
-    public void Move(Unit sprite, int elapsed, int framesPerSecond)
-    {
-        var next = _motion.CalculateNewCoordinates(sprite, elapsed);
-
-        if (sprite.TurnTicks == 0)
-        {
-            if (sprite.HasGoal && !sprite.Speed.IsExactlyZero())
-            {
-                var goal = sprite.DirectionTo(sprite.Goal!);
-
-                if (sprite.Speed < 0)
-                {
-                    goal = goal.Opposite;
-                }
-                goal = _movement.RotateForGlide(goal, sprite);
-                sprite.RotateTact(goal, elapsed);
-
-                if (sprite is { HasReachedX: true, HasReachedY: true })
-                {
-                    SpriteKinematics.Stop(sprite);
-                }
-            }
-        }
-        else
-        {
-            if (Math.Abs(sprite.TurnTicks) > framesPerSecond)
-            {
-                sprite.TurnTicks = Math.Sign(sprite.TurnTicks) * framesPerSecond / 2;
-            }
-            var goal = sprite.Direction + (sprite.TurnTicks > 0 ? Angle.QuarterTurn : -Angle.QuarterTurn);
-            sprite.RotateTact(goal, elapsed);
-            sprite.TurnTicks -= Math.Sign(sprite.TurnTicks);
-        }
-
-        if (next == sprite.Position)
-            return;
-
-        if (_movement.Move(sprite, ref next) is null)
-        {
-            MoveTactMapLimit(sprite, next.AsVector2(), elapsed);
-            sprite.ChangeCoor(next);
-        }
-        else if (sprite.TurnTicks == 0)
-        {
-            sprite.TurnTicks = (_random.Next(2) == 0 ? -1 : 1) * framesPerSecond / 2;
-        }
-    }
-
     public void MoveTo(Sprite sprite, Sprite goal)
     {
         if (!SpriteKinematics.SetCommand(sprite, Command.Move, goal) && !_motion.StartMove(sprite))
@@ -146,8 +97,8 @@ internal sealed class MonsterBrain
         if (range < bestDistance && distance <= range)
             return true;
 
-        bool candidateArmed = candidate.Definition.Object.SpriteType.HasFlag(SpriteType.Unit) && sprite.Map!.Action(candidate, ActionCode.GetAmmo) != 0;
-        bool bestArmed = best.Definition.Object.SpriteType.HasFlag(SpriteType.Unit) && sprite.Map!.Action(best, ActionCode.GetAmmo) != 0;
+        bool candidateArmed = candidate.Definition.Object.SpriteType.HasFlag(SpriteType.Unit) && Map.Action(candidate, ActionCode.GetAmmo) != 0;
+        bool bestArmed = best.Definition.Object.SpriteType.HasFlag(SpriteType.Unit) && Map.Action(best, ActionCode.GetAmmo) != 0;
 
         if (candidateArmed != bestArmed)
             return candidateArmed;
@@ -210,41 +161,5 @@ internal sealed class MonsterBrain
         return (target.Army != sprite.Army || ownArmy) && !target.Definition.Object.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) &&
             (target.Army != Army.Neutral || ownArmy ||
                 (_map.CanMonstersAttackNeutralTrains && sprite.Army == Army.Monsters && target.Definition.Class == SpriteClass.Engine));
-    }
-
-    [EngineRoutine(0x0043fa00)]
-    private bool MoveTactMapLimit(Sprite sprite, Vector2 position, int elapsed)
-    {
-        var size = _movement.MapSize;
-
-        if (!(position.X >= 0))
-        {
-            sprite.RotateTact(Angle.East, elapsed);
-
-            return true;
-        }
-
-        if (!(position.Y >= 0))
-        {
-            sprite.RotateTact(Angle.South, elapsed);
-
-            return true;
-        }
-
-        if (!(position.X < size.Width))
-        {
-            sprite.RotateTact(Angle.West, elapsed);
-
-            return true;
-        }
-
-        if (!(position.Y < size.Height))
-        {
-            sprite.RotateTact(Angle.North, elapsed);
-
-            return true;
-        }
-
-        return false;
     }
 }

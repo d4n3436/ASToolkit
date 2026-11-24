@@ -193,7 +193,7 @@ internal sealed class Player
         if (flags.HasFlag(InputFlags.Second))
         {
             var point = input.Cursor with { Y = input.Cursor.Y + _map.Movement.GetHeight(input.Cursor) };
-            _map.Action(player, ActionCode.Move, (int)point.X, (int)point.Y);
+            Map.Action(player, ActionCode.Move, (int)point.X, (int)point.Y);
         }
 
         if ((flags.HasFlag(InputFlags.Left) || flags.HasFlag(InputFlags.Right) || flags.HasFlag(InputFlags.Down) || flags.HasFlag(InputFlags.Up)) && Sprite!.Command == Command.Move)
@@ -212,7 +212,7 @@ internal sealed class Player
                 }
             }
 
-            _map.Action(Sprite!, ActionCode.CoorAttack, (int)input.Cursor.X, (int)input.Cursor.Y);
+            Map.Action(Sprite!, ActionCode.CoorAttack, (int)input.Cursor.X, (int)input.Cursor.Y);
         }
 
         if (input.Key is >= FirstWeaponKey and <= LastWeaponKey && Sprite!.Definition.Class == SpriteClass.Man)

@@ -1,5 +1,7 @@
 using System.Drawing;
+using System.Globalization;
 using System.Numerics;
+using System.Text;
 using ASToolkit.Core;
 using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
@@ -9,7 +11,7 @@ namespace ASToolkit.Engine;
 /// <summary>
 /// Represents an object on the running map, such as a monster, a pickup, a door or an effect.
 /// </summary>
-public class Sprite
+public partial class Sprite
 {
     /// <summary>
     /// Represents the object ID of the torso for weapon slot 0.
@@ -36,6 +38,10 @@ public class Sprite
     private const int HpShare = 0xff;
     private const float VelocityScale = 1e6f;
     private const float ReachTolerance = 0.5f;
+    private const float SpeedScale = 1000;
+    private const float InfoTextLeft = 22;
+    private const float InfoLineHeight = 12;
+    private const float OrdersTextLeft = 30;
 
     private int _lifetime;
     private float _maxSpeed;
@@ -49,12 +55,12 @@ public class Sprite
     /// <param name="position">The position.</param>
     /// <param name="army">The army.</param>
     /// <param name="hitPoints">The health.</param>
-    /// <param name="direction">The direction.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    public Sprite(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Angle direction = default, Map? map = null)
+    /// <param name="direction">The direction.</param>
+    public Sprite(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
     {
         Map = map;
-        ActionStack = new ActionStack(map?.Session.Logger);
+        ActionStack = new ActionStack(Map.Session.Logger);
         StreamPeriod = 1;
         _direction = direction;
         Number = number;
@@ -337,7 +343,7 @@ public class Sprite
                     }
                     else
                     {
-                        Map?.DeleteSprite(previous);
+                        Map.DeleteSprite(previous);
                     }
                 }
             }
@@ -361,7 +367,7 @@ public class Sprite
 
     internal GameLogger? Logger { get; set; }
 
-    internal Map? Map { get; set; }
+    internal Map Map { get; }
 
     internal AttackResult AttackResult { get; set; }
 
@@ -501,7 +507,7 @@ public class Sprite
         StreamPeriod = 1;
         _lifetime = Definition.Lifetime;
         KeyframePosition = 0;
-        KeyframeStart = Map?.Time ?? 0;
+        KeyframeStart = Map.Time;
         _maxSpeed = Definition.Speed;
         PreviousPosition = Position;
     }
@@ -530,7 +536,7 @@ public class Sprite
             Definition.Counts[army]--;
         }
 
-        definition.LastCreatedAt = Map?.WallTime ?? 0;
+        definition.LastCreatedAt = Map.WallTime;
         definition.Counts[army]++;
 
         Definition = definition;
@@ -853,15 +859,15 @@ public class Sprite
     internal void ChangeCoor(Vector3 position)
     {
         var delta = position - Position;
-        Map?.LowerHeights(Definition, this);
+        Map.LowerHeights(Definition, this);
         Shift(delta);
-        Map?.RaiseHeights(Definition, this);
+        Map.RaiseHeights(Definition, this);
 
         foreach (var link in EnumerateLinks())
         {
-            Map?.LowerHeights(link.Definition, this);
+            Map.LowerHeights(link.Definition, this);
             link.Shift(delta);
-            Map?.RaiseHeights(link.Definition, this);
+            Map.RaiseHeights(link.Definition, this);
         }
     }
 
@@ -920,7 +926,7 @@ public class Sprite
 
             int count = Definition.ChildCounts[(int)SpriteAnimation.Fight];
 
-            if (Map!.Action(this, ActionCode.GetAmmo) < Math.Abs(count))
+            if (Map.Action(this, ActionCode.GetAmmo) < Math.Abs(count))
                 return AttackResult.NoAmmo;
 
             Map.Action(this, ActionCode.AddAmmo, -count);
@@ -937,24 +943,287 @@ public class Sprite
         return distance < Definition.DetectRange * 2 ? AttackResult.Pursue : AttackResult.GiveUp;
     }
 
-    internal virtual void Destruct(Map map) => map.DestructSprite(this);
+    [EngineRoutine(0x0043fa00)]
+    internal bool MoveTactMapLimit(Vector2 position, int elapsed)
+    {
+        var size = Map.Movement.MapSize;
 
-    internal virtual int Action(Map map, int act, int var1, int var2, int var3, Sprite? target) => map.SpriteAction(this, act, var1, var2, var3, target);
+        if (!(position.X >= 0))
+        {
+            RotateTact(Angle.East, elapsed);
 
-    internal virtual void MoveTact(Map map) => map.Effects.RunGeneric(this, map.FrameTime);
+            return true;
+        }
 
-    internal virtual void DeletePointerToSprite(Map map, Sprite removed) => map.Motion.ForgetObject(this, removed);
+        if (!(position.Y >= 0))
+        {
+            RotateTact(Angle.South, elapsed);
 
-    internal virtual void DrawInfo(Map map) => map.DrawSpriteInfo(this);
+            return true;
+        }
+
+        if (!(position.X < size.Width))
+        {
+            RotateTact(Angle.West, elapsed);
+
+            return true;
+        }
+
+        if (!(position.Y < size.Height))
+        {
+            RotateTact(Angle.North, elapsed);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    [EngineRoutine(0x0043f520)]
+    internal virtual void Destruct()
+    {
+        Map.RunDestroyHandler(this);
+        Map.LowerHeights(Definition, this);
+
+        bool isEmpty = Definition == Map.Definitions.Empty;
+
+        if (isEmpty && ReferenceCount != 0)
+        {
+            Map.Session.Logger.Error("SPRITE 0"u8, LogError.Invalid, 0);
+        }
+
+        if (ReferenceCount > 1)
+        {
+            Map.Collector.DeleteFromHash(this);
+
+            if (ReferenceCount > 1)
+            {
+                Map.DeletePointerToSprite(this);
+            }
+        }
+
+        int army = (int)Army & 3;
+
+        if (Definition.Counts[army] != 0)
+        {
+            Definition.Counts[army]--;
+        }
+
+        Goal = null;
+
+        while (Link is not null)
+        {
+            Map.DeleteSprite(Link);
+        }
+
+        Owner?.Link = null;
+
+        if (!isEmpty)
+        {
+            Map.RemoveFromUpdates(this);
+            Release();
+        }
+
+        if (ReferenceCount != 0)
+        {
+            Map.Session.Logger.Error("SPRITE 0"u8, LogError.Text, 0);
+        }
+
+        if (Handle == 0)
+            return;
+
+        Map.Handles.Remove(Handle);
+        Handle = 0;
+    }
+
+    internal virtual int Action(int act, int var1, int var2, int var3, Sprite? target) => SpriteAction(act, var1, var2, var3, target);
+
+    [EngineRoutine(0x0043f820)]
+    internal virtual void MoveTact()
+    {
+        if (!Definition.CanMove)
+            return;
+
+        ref readonly var gameObject = ref Definition.Object;
+        int elapsed = Map.FrameTime;
+        var next = Map.Motion.CalculateNewCoordinates(this, elapsed);
+        float current = Map.Movement.GetHeight(Position.AsVector2());
+        float ground = Map.Movement.GetHeight(next.AsVector2());
+        float hover = ground + gameObject.TopZ;
+
+        if (gameObject.SpriteType.HasFlag(SpriteType.Cannon) && gameObject.Properties.HasFlag(ObjectProperties.Gravity) && ground >= next.Z && Position.Z >= current)
+        {
+            next.Z = Position.Z;
+        }
+        else
+        {
+            KeepHoverHeight(this, gameObject, hover, ref next);
+        }
+
+        if (HasGoal && !Speed.IsExactlyZero() && this is { HasReachedX: true, HasReachedY: true })
+        {
+            SpriteKinematics.Stop(this);
+        }
+
+        if (next.AsVector2() != Position.AsVector2())
+        {
+            if (Map.Projectiles.FindBlocker(this, next) is not null)
+            {
+                VerticalSpeed = 0;
+                Speed = 0;
+                IsBlocked = true;
+            }
+            else
+            {
+                ChangeCoor(next);
+            }
+        }
+
+        if (!Position.Z.IsExactly(next.Z))
+        {
+            ChangeCoor(Position with { Z = next.Z });
+        }
+    }
+
+    [EngineRoutine(0x0043f720)]
+    internal virtual void DeletePointerToSprite(Sprite removed)
+    {
+        Link?.DeletePointerToSprite(removed);
+
+        if (Goal == removed)
+        {
+            if (Animation == SpriteAnimation.Fight)
+            {
+                SpriteKinematics.SetCommand(this, Command.OneAttack, Map.ConstructGoal(removed.Position));
+            }
+            else
+            {
+                SpriteKinematics.SetCommand(this, Command.None);
+            }
+        }
+
+        for (int i = 0; i < ActionStack.Count; i++)
+        {
+            var order = ActionStack[i];
+
+            if (order.Target == removed && Act.HasSpriteTarget((ActionCode)order.Value))
+            {
+                ActionStack.Replace(i, order with { Value = Act.ForgottenOrder, Var1 = 0, Target = null });
+            }
+        }
+    }
+
+    [EngineRoutine(0x00442660)]
+    internal virtual void DrawInfo()
+    {
+        var graphics = Map.Session.Graphics;
+        var view = graphics.Viewport;
+        float y = view.Top;
+        var position = Position;
+        int ammo = Map.Action(this, ActionCode.GetAmmo);
+        graphics.DrawFormattedText(new Vector2(view.Left + InfoTextLeft, y), $"Ref={ReferenceCount,-3} cmd={(int)Command,1} ani={(int)Animation,-2} hp={Hp,-3} AT={(int)AttackResult} goal={GetDefinitionId(Goal),-3} spd={(int)(Speed * SpeedScale),-3},{(int)(VerticalSpeed * SpeedScale),-3} timer={Timer} ammo={ammo} mvE={(HasReachedX ? 1 : 0),1}{(HasReachedY ? 1 : 0),1} {(int)position.X},{(int)position.Y},{(int)position.Z}");
+
+        var link = Link;
+        if (link is not null && link.Definition == Definition.LinkDefinition)
+        {
+            y += InfoLineHeight;
+            int linkAmmo = Map.Action(link, ActionCode.GetAmmo);
+            graphics.DrawFormattedText(new Vector2(view.Left + InfoTextLeft, y), $"Ref={link.ReferenceCount,-3} cmd={(int)link.Command,1} ani={(int)link.Animation,-2} hp={link.Hp,-3} AT={(int)link.AttackResult} goal={GetDefinitionId(link.Goal),-3} timer={link.Timer} ammo={linkAmmo}");
+        }
+
+        if (ActionStack.Count != 0)
+        {
+            y += InfoLineHeight;
+            var text = new StringBuilder();
+            text.Append(CultureInfo.InvariantCulture, $"{ActionStack.Count} - ");
+            for (int i = ActionStack.Count - 1; i >= 0; i--)
+            {
+                var order = ActionStack[i];
+                text.Append(CultureInfo.InvariantCulture, $"{order.Value}({order.Var1},{order.Var2},{order.Var3}) ");
+            }
+
+            graphics.DrawText(new Vector2(view.Left + OrdersTextLeft, y), GameTextEncoding.Cyrillic.GetBytes(text.ToString()), Map.White);
+        }
+
+        DrawGoalLines();
+    }
+
+    [EngineRoutine(0x00442900)]
+    internal virtual void DrawGoalLines()
+    {
+        var graphics = Map.Session.Graphics;
+
+        if (Goal is not null)
+        {
+            var start = Map.GetScreenPoint(this);
+            var end = Map.GetScreenPoint(Goal);
+            graphics.DrawLine(Map, start, end, Map.Green);
+        }
+
+        if (Link?.Goal is not null)
+        {
+            var start = Map.GetScreenPoint(Link);
+            var end = Map.GetScreenPoint(Link.Goal);
+            graphics.DrawLine(Map, start, end, Map.Red);
+        }
+    }
+
+    private protected static void KeepHoverHeight(Sprite sprite, in GameObject gameObject, float hover, ref Vector3 next)
+    {
+        if (sprite.Position.Z.IsExactly(next.Z) || gameObject.Properties.HasFlag(ObjectProperties.Gravity) || hover.IsExactlyZero())
+            return;
+
+        float height = hover;
+
+        if (hover <= sprite.Position.Z)
+        {
+            if (sprite.Position.Z <= hover)
+            {
+                height = next.Z;
+
+                if (!gameObject.Properties.HasFlag(ObjectProperties.SelfMoving))
+                {
+                    next.Z = height;
+                    sprite.VerticalSpeed = 0;
+                }
+            }
+            else if (next.Z < hover)
+            {
+                next.Z = height;
+                sprite.VerticalSpeed = 0;
+            }
+        }
+        else if (hover <= next.Z)
+        {
+            next.Z = height;
+            sprite.VerticalSpeed = 0;
+        }
+    }
+
+    [EngineRoutine(0x00444a00)]
+    private protected void Unlink()
+    {
+        Link?.Owner = Owner;
+
+        if (Owner is not null)
+        {
+            Owner.Link = Link;
+            Owner = null;
+        }
+
+        Link = null;
+    }
+
+    private static int GetDefinitionId(Sprite? sprite) => sprite is null ? 0 : (int)sprite.Definition.Id;
 
     private void Shift(Vector3 delta)
     {
         if (SpriteCollector.IsHashed(Definition))
         {
-            Map?.Collector.ChangeCoor(this, Position.AsVector2() + delta.AsVector2());
+            Map.Collector.ChangeCoor(this, Position.AsVector2() + delta.AsVector2());
         }
 
-        uint stamp = Map?.WallTime ?? 0;
+        uint stamp = Map.WallTime;
 
         if (HasExtra && PreviousPositionStamp != stamp)
         {

@@ -72,7 +72,7 @@ public sealed partial class Map
         var delta = corner - Camera;
         Camera = corner;
 
-        foreach (var menuSprite in _menuSprites)
+        foreach (var menuSprite in MenuList)
         {
             menuSprite.ChangeCoor(new Vector3(menuSprite.Position.X + delta.X, menuSprite.Position.Y + delta.Y, menuSprite.Position.Z));
         }

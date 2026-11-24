@@ -12,21 +12,22 @@ public class PlayerMovementTests
     {
         var definitions = TestGameFolder.CreateCatalog();
         var definition = definitions.Find(KnownObject.PlayerStart)!;
-        var map = EngineTestMap.CreateMap(definitions);
-        var player = new Sprite(0, definition, new Vector3(1000, 1000, 0), 0, definition.MaxHp) { Direction = new Angle(64) };
+        var map = EngineTestMap.CreateMap(definitions, frameTime: 20);
+        var player = new Man(0, definition, new Vector3(1000, 1000, 0), 0, definition.MaxHp, map) { Direction = new Angle(64) };
         map.Collector.InsertToHash(player);
-        var motion = new SpriteKinematics(definitions, map);
-        var movement = new PlayerMovement(map.Collision, motion);
-        motion.SetMoveTarget(player, new Sprite(-1, definitions.Empty, new Vector3(1400, 1000, 0), 0, 0));
-        movement.MoveTact(player, 20);
+        map.Motion.SetMoveTarget(player, new Sprite(-1, definitions.Empty, new Vector3(1400, 1000, 0), 0, 0, map));
+        map.AdvanceClock();
+        player.MoveTact();
         Assert.Equal(0.018f, player.Speed, 5);
         Assert.InRange(Vector2.Distance(player.Position.AsVector2(), new Vector2(1000.36f, 1000)), 0, 0.0001f);
         SpriteKinematics.Stop(player);
-        movement.MoveTact(player, 20);
+        map.AdvanceClock();
+        player.MoveTact();
         Assert.Equal(0.009f, player.Speed, 5);
         Assert.InRange(Vector2.Distance(player.Position.AsVector2(), new Vector2(1000.54f, 1000)), 0, 0.0001f);
         var stopped = player.Position.AsVector2();
-        movement.MoveTact(player, 20);
+        map.AdvanceClock();
+        player.MoveTact();
         Assert.Equal(0, player.Speed);
         Assert.Equal(stopped, player.Position.AsVector2());
     }
@@ -36,13 +37,12 @@ public class PlayerMovementTests
     {
         var definitions = TestGameFolder.CreateCatalog();
         var definition = definitions.Find(KnownObject.PlayerStart)!;
-        var map = EngineTestMap.CreateMap(definitions);
-        var player = new Sprite(0, definition, new Vector3(1000, 1000, 0), 0, definition.MaxHp);
+        var map = EngineTestMap.CreateMap(definitions, frameTime: 20);
+        var player = new Man(0, definition, new Vector3(1000, 1000, 0), 0, definition.MaxHp, map);
         map.Collector.InsertToHash(player);
-        var motion = new SpriteKinematics(definitions, map);
-        var movement = new PlayerMovement(map.Collision, motion);
-        motion.SetMoveTarget(player, new Sprite(-1, definitions.Empty, new Vector3(1400, 1000, 0), 0, 0));
-        movement.MoveTact(player, 20);
+        map.Motion.SetMoveTarget(player, new Sprite(-1, definitions.Empty, new Vector3(1400, 1000, 0), 0, 0, map));
+        map.AdvanceClock();
+        player.MoveTact();
 
         Assert.Equal(1000f, player.Position.X, 0f);
         Assert.Equal(999.64f, player.Position.Y, 3);

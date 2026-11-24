@@ -17,6 +17,7 @@ public sealed class Text : Frame
     private const byte FirstPrintable = 0x20;
     private const int TabStops = 7;
     private const float Half = 0.5f;
+    private const int LineWait = 150;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Text"/> class.
@@ -26,10 +27,10 @@ public sealed class Text : Frame
     /// <param name="position">The position of the sprite.</param>
     /// <param name="army">The army of the sprite.</param>
     /// <param name="hitPoints">The hit points of the sprite.</param>
-    /// <param name="direction">The direction of the sprite.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    public Text(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Angle direction = default, Map? map = null)
-        : base(number, definition, position, army, hitPoints, direction, map)
+    /// <param name="direction">The direction of the sprite.</param>
+    public Text(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
+        : base(number, definition, position, army, hitPoints, map, direction)
     {
     }
 
@@ -156,7 +157,92 @@ public sealed class Text : Frame
         Frame = savedFrame;
     }
 
-    internal override int Action(Map map, int act, int var1, int var2, int var3, Sprite? target) => map.TextAction(this, act, var1, var2, var3, target);
+    // TODO: Port saving and loading the text (ACT_SAVE, ACT_LOAD) and the text address GetTextDesc and GetText return
+    [EngineRoutine(0x00448ff0)]
+    internal override int Action(int act, int var1, int var2, int var3, Sprite? target)
+    {
+        var code = (ActionCode)act;
+        ReadOnlySpan<byte> shown;
+        int length;
+        int shownCount;
+        switch (code)
+        {
+            case ActionCode.GetBehave:
+                return (int)TextBehavior;
+            case ActionCode.SetBehave:
+                TextBehavior = (TextBehavior)var1;
+                return 0;
+            case ActionCode.SetText:
+                Map.SetText(this, ReadTextAddress(var1));
+                return 0;
+            case ActionCode.SetTextCount:
+                VisibleCount = var1;
+                return 0;
+            case ActionCode.SetFile:
+                Shown = Map.LoadTextFile(ReadTextAddress(var1).Span);
+                VisibleCount = Shown.Length;
+                return 0;
+            case ActionCode.GetTextDesc or ActionCode.GetText:
+                return 0;
+            case ActionCode.NextCommand:
+                shown = Shown.Span;
+                if (shown.IsEmpty || Timer != 0)
+                    return 0;
+
+                length = (short)shown.Length;
+                if (VisibleCount >= length)
+                {
+                    if (Animation != SpriteAnimation.Stand)
+                    {
+                        ChangeAnimation(SpriteAnimation.Stand);
+                    }
+
+                    return 0;
+                }
+
+                shownCount = VisibleCount++;
+                if (CRuntime.IsSpace(shown[shownCount]))
+                {
+                    bool isLineCrossed = false;
+                    int next;
+                    do
+                    {
+                        next = VisibleCount;
+
+                        if (length <= next)
+                            break;
+
+                        if (shown[next] == CRuntime.LineFeed)
+                        {
+                            isLineCrossed = true;
+                        }
+
+                        VisibleCount = next + 1;
+                    }
+                    while (CRuntime.IsSpace(shown[next]));
+
+                    if (isLineCrossed)
+                    {
+                        if (VisibleCount < length)
+                        {
+                            VisibleCount--;
+                        }
+
+                        Timer = LineWait;
+                        ChangeAnimation((SpriteAnimation)MenuAnimation.SelectDown);
+                        return 0;
+                    }
+                }
+
+                ChangeAnimation((SpriteAnimation)MenuAnimation.StandUp);
+                HasPlayedStateSound = false;
+                return 0;
+            default:
+                return base.Action(act, var1, var2, var3, target);
+        }
+    }
 
     private static byte GetCharacter(ReadOnlySpan<byte> text, int index) => (uint)index < (uint)text.Length ? text[index] : (byte)0;
+
+    private ReadOnlyMemory<byte> ReadTextAddress(int address) => address == 0 ? default : Map.Script.GetSlot(address - 1).Text;
 }

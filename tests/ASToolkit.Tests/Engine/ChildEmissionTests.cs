@@ -14,7 +14,7 @@ public class ChildEmissionTests
         var map = EngineTestMap.CreateMap(definitions);
         var owner = definitions.Find(KnownObject.PistolsTorso)!;
         var origin = new Vector3(100, 200, 10);
-        var torso = new Sprite(-1, owner, origin, 0, owner.MaxHp);
+        var torso = new Sprite(-1, owner, origin, 0, owner.MaxHp, map);
         torso.SetAnimationValue(SpriteAnimation.Fight);
         torso.Goal = map.ConstructGoal(new Vector3(300, 200, 10));
         var before = map.GetEffects().ToHashSet();
@@ -38,7 +38,7 @@ public class ChildEmissionTests
         var map = EngineTestMap.CreateMap(definitions);
         var owner = definitions.Find(KnownObject.Monster1)!;
         var origin = new Vector3(100, 200, 10);
-        var alien = new Sprite(-1, owner, origin, 0, owner.MaxHp);
+        var alien = new Sprite(-1, owner, origin, 0, owner.MaxHp, map);
         var before = map.GetEffects().ToHashSet();
 
         map.CreateChildFor(alien, SpriteAnimation.Close);

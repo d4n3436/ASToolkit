@@ -17,6 +17,7 @@ public sealed class Region : Sprite
     private const int FogPhaseMask = 7;
     private const int FogFrameStep = 2;
     private const float Half = 0.5f;
+    private const float RegionBoxMargin = 1;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Region"/> class.
@@ -26,10 +27,10 @@ public sealed class Region : Sprite
     /// <param name="position">The position of the sprite.</param>
     /// <param name="army">The army of the sprite.</param>
     /// <param name="hitPoints">The hit points of the sprite.</param>
-    /// <param name="direction">The direction of the sprite.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    public Region(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Angle direction = default, Map? map = null)
-        : base(number, definition, position, army, hitPoints, direction, map)
+    /// <param name="direction">The direction of the sprite.</param>
+    public Region(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
+        : base(number, definition, position, army, hitPoints, map, direction)
     {
         UnusedDefinition = map?.Definitions.Empty;
     }
@@ -163,7 +164,22 @@ public sealed class Region : Sprite
         map.Session.Graphics.DrawFog(screen, topLeft, bottomRight, FogNear, FogFar, FogColor, FogTable.Span, FogLevel, Flags.HasFlag(RegionFlags.LightFog));
     }
 
-    internal override void Destruct(Map map) => map.DestructRegion(this);
+    [EngineRoutine(0x00449700)]
+    internal override void Destruct()
+    {
+        Map.DeletePointerToSprite(this);
+        base.Destruct();
+    }
 
-    internal override void DrawInfo(Map map) => map.DrawRegionInfo(this);
+    [EngineRoutine(0x00449730)]
+    internal override void DrawInfo()
+    {
+        var position = Position;
+        var size = Size;
+        float left = position.X - size.X * Map.HalfShare - Map.Camera.X;
+        float top = position.Y - position.Z - size.Y * Map.HalfShare - Map.Camera.Y;
+        float right = size.X * Map.HalfShare + position.X - Map.Camera.X;
+        float bottom = size.Y * Map.HalfShare + (position.Y - position.Z) - Map.Camera.Y;
+        Map.Session.Graphics.DrawRectangle(Map, new Vector2(left - RegionBoxMargin, top - RegionBoxMargin), new Vector2(right + RegionBoxMargin, bottom + RegionBoxMargin), Map.White);
+    }
 }

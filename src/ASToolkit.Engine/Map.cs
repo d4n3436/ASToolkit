@@ -29,9 +29,6 @@ public sealed partial class Map : IDisposable
     private const int ChildPairCount = 2;
     private const int AimAttempts = 5;
     private const float AimRandomScale = 6.1037019E-05f;
-    private const float RescueEffectHeight = 22;
-    private const int WornArmorShareCount = 3;
-    private const int ArmorRounding = 50;
     private const int StartRandomState = 1;
     private const string ScriptExtension = ".lgc";
     private const string CompiledScriptExtension = ".lgd";
@@ -56,7 +53,6 @@ public sealed partial class Map : IDisposable
 
     private static readonly SizeF StartMapSize = new(640, 480);
     private readonly GameRandom _rng;
-    private readonly List<Sprite> _menuSprites = [];
     private readonly IGameFileSystem _fileSystem;
     private readonly Dictionary<int, ScriptFile> _scriptFiles = [];
     private readonly ControlSettings _controls;
@@ -69,7 +65,6 @@ public sealed partial class Map : IDisposable
     private UpdateOrder _updates;
     private int _pausedAt;
     private MenuClicks _menuClicks;
-    private Sprite? _menuCurrent;
     private GameClock _clock;
     private MapFlags _flags;
     private StepFlags _debug;
@@ -212,7 +207,7 @@ public sealed partial class Map : IDisposable
     /// <summary>
     /// Gets the menu sprites that keep their place on the screen as the camera moves.
     /// </summary>
-    public IReadOnlyList<Sprite> MenuSprites => _menuSprites;
+    public IReadOnlyList<Sprite> MenuSprites => MenuList;
 
     /// <summary>
     /// Gets the size of the map, in map pixels.
@@ -237,8 +232,6 @@ public sealed partial class Map : IDisposable
 
     internal SpriteCollision Collision { get; private set; }
 
-    internal PlayerMovement PlayerMovement { get; private set; }
-
     internal ProjectileCollision Projectiles => Weapons.Collision;
 
     internal SpawnedObjectSystem Effects { get; private set; }
@@ -247,9 +240,13 @@ public sealed partial class Map : IDisposable
 
     internal MonsterBrain Brain { get; private set; }
 
-    internal int FramesPerSecond => _clock.FramesPerSecond;
+    internal List<Sprite> MenuList { get; } = [];
 
-    private static ReadOnlySpan<int> WornArmorShares => [50, 70, 90];
+    internal Sprite? MenuCurrent { get; set; }
+
+    internal Dictionary<int, Sprite> Handles { get; } = [];
+
+    internal int FramesPerSecond => _clock.FramesPerSecond;
 
     private static ReadOnlySpan<byte> PresentationText => "Presentation version. Not for sale!"u8;
 
@@ -599,7 +596,7 @@ public sealed partial class Map : IDisposable
         {
             int lastTickTime = sprite.LastTickTime;
             sprite.LastTickTime = _clock.PreviousTime;
-            sprite.MoveTact(this);
+            sprite.MoveTact();
             sprite.LastTickTime = lastTickTime;
         }
 
@@ -916,6 +913,127 @@ public sealed partial class Map : IDisposable
         }
     }
 
+    [EngineRoutine(0x00444970)]
+    internal static int AddLink(Sprite owner, Sprite? link)
+    {
+        if (link is null || link.Owner is not null)
+            return 1;
+
+        var previous = owner.Link;
+
+        if (previous is not null)
+        {
+            previous.Owner = null;
+            SpawnedObjectSystem.AddLinkToLast(link, previous);
+        }
+
+        owner.Link = link;
+        link.Owner = owner;
+
+        return 0;
+    }
+
+    internal void CreateChildAs(Sprite sprite, SpriteAnimation state)
+    {
+        var previous = sprite.Animation;
+        sprite.SetAnimationValue(state);
+        CreateChild(sprite);
+        sprite.SetAnimationValue(previous);
+    }
+
+    [EngineRoutine(0x00445770)]
+    internal void CreateLink(Sprite sprite)
+    {
+        var definition = sprite.Definition.LinkDefinition;
+
+        if (definition is null || sprite.Link?.Definition == definition || definition.NotCreatedAsChild != 0)
+            return;
+
+        var position = sprite.Position + sprite.Definition.GetLinkOffset(definition, sprite.Direction);
+        var link = AddSprite(definition, position, sprite.Direction);
+        AddLink(sprite, link);
+
+        if (sprite.Link is null)
+        {
+            Session.Logger.Error($"SPRITE {(int)sprite.Definition.Id}", LogError.Create, 0, "link"u8);
+
+            return;
+        }
+
+        sprite.Link.ChangeArmy((int)sprite.Army);
+    }
+
+    internal bool IsFree(SpriteDefinition definition, Vector3 position) => FindPlacementBlocker(definition, position) is null;
+
+    [EngineRoutine(0x0040c570)]
+    internal void Release()
+    {
+        var logger = Session.Logger;
+        Definitions.LogCounts(logger);
+        _spriteRelations.Clear();
+        _clock.ResetRate();
+        Session.Graphics.StopMovie();
+        Session.Graphics.SetWind(ReleaseWindSpeed, new Angle(ReleaseWindDirection));
+        Session.Graphics.SetEnvironment((MapEnvironment)(-1));
+        if (IsPlayingDemo)
+        {
+            CursorSprite.LoadCursor(_fileSystem);
+        }
+
+        _playedDemo = null;
+        _playedOffset = 0;
+        _demoPacedTime = 0;
+        _demoPacedAt = 0;
+        EndDemoRecording();
+        _flags &= ~(MapFlags.RecordingDemo | MapFlags.PlayingDemo);
+        _scrollType = ScrollType.FromBorder;
+        logger.Write("Player release"u8);
+        foreach (var player in _players)
+        {
+            player.Reset();
+        }
+
+        logger.Write("Sprite release"u8);
+        // TODO: Port the trains; the release sets the flag (DAT_005da58c) that makes the Engine destructors (0x44e9f0, 0x450e20) skip their scripts while it destroys the sprites
+        foreach (var player in _players)
+        {
+            player.Messages.Clear();
+        }
+
+        DeleteAll();
+        logger.Write("Menu   release"u8);
+        if (MenuList.Count != 0)
+        {
+            logger.Error($"SPRITE {(int)MenuList[0].Definition.Id}", LogError.Text, 0, MenuSpriteExistsText);
+            MenuList.Clear();
+        }
+
+        int elapsed = Time - _levelStartTime;
+        logger.Write($"Average fps={(elapsed == 0 ? 0 : (int)((uint)(_stepCount * 1000) / (uint)elapsed))}");
+        logger.Write("Script release"u8);
+        foreach (var file in _scriptFiles.Values)
+        {
+            file.Dispose();
+        }
+
+        _scriptFiles.Clear();
+        Script.Reset();
+        _stepCount = 0;
+        ReleaseAdditionalLoads();
+        Definitions.ResetLevelState();
+        for (int i = 0; i < _scriptHooks.Length; i++)
+        {
+            _scriptHooks[i] = i + NoHookBase;
+        }
+    }
+
+    [EngineRoutine(0x00405160)]
+    internal void DeletePointerToSprite(Sprite removed)
+    {
+        ForgetMouseTip(removed);
+        DeleteBasePointerToSprite(removed);
+    }
+
     [EngineRoutine(0x00406f20)]
     private static ReadOnlySpan<byte> GetBeforeLast(ReadOnlySpan<byte> text, ReadOnlySpan<byte> delimiter)
     {
@@ -968,26 +1086,6 @@ public sealed partial class Map : IDisposable
     private static float GetKeyTime(in WeaponRecord weapon, int key) =>
         key < 0 ? BitConverter.Int32BitsToSingle(weapon.AnimationPeriod)
         : key < WeaponRecord.KeyframeCount ? weapon.KeyTimes[key] : BitConverter.Int32BitsToSingle(weapon.RedKeys[0]);
-
-    [EngineRoutine(0x00444970)]
-    private static int AddLink(Sprite owner, Sprite? link)
-    {
-        if (link is null || link.Owner is not null)
-            return 1;
-
-        var previous = owner.Link;
-
-        if (previous is not null)
-        {
-            previous.Owner = null;
-            SpawnedObjectSystem.AddLinkToLast(link, previous);
-        }
-
-        owner.Link = link;
-        link.Owner = owner;
-
-        return 0;
-    }
 
     private bool LoadOldTypeMap(ref Resource reader)
     {
@@ -1318,7 +1416,11 @@ public sealed partial class Map : IDisposable
     }
 
     [EngineRoutine(0x0044dd80)]
-    private Sprite ConstructBalloon(Balloon sprite, Angle direction, Sprite? parent) => ConstructAvia(sprite, direction, parent);
+    private Sprite ConstructBalloon(Balloon sprite, Angle direction, Sprite? parent)
+    {
+        // TODO: Port the balloon move tact (0x44e6f0)
+        return ConstructAvia(sprite, direction, parent);
+    }
 
     [EngineRoutine(0x0044d3e0)]
     private Sprite ConstructCreature(Creature sprite, Angle direction, Sprite? parent)
@@ -1327,7 +1429,7 @@ public sealed partial class Map : IDisposable
         sprite.IsSeekingRegion = true;
         sprite.VerticalSpeed = sprite.Definition.ZSpeed;
         Motion.StartMove(sprite);
-        sprite.Region = FindRegion(sprite.Position.AsVector2());
+        sprite.Region = sprite.FindRegion(sprite.Position.AsVector2());
 
         return sprite;
     }
@@ -1336,7 +1438,7 @@ public sealed partial class Map : IDisposable
     private Sprite ConstructBuilding(Building sprite, Angle direction, Sprite? parent)
     {
         ConstructUnit(sprite, direction, parent);
-        _builds.Remove(sprite);
+        sprite.PendingBuild = null;
 
         return sprite;
     }
@@ -1344,7 +1446,7 @@ public sealed partial class Map : IDisposable
     [EngineRoutine(0x0044a590)]
     private Sprite ConstructCivRobot(CivRobot sprite, Angle direction, Sprite? parent)
     {
-        // TODO: Port the rest of the CivRobot constructor (0x44a590)
+        // TODO: Port the rest of the CivRobot constructor (0x44a590) and its destructor (0x44a650), action (0x44ac50), move tact (0x44a840) and forget (0x44ab40)
         return ConstructCreature(sprite, direction, parent);
     }
 
@@ -1352,6 +1454,7 @@ public sealed partial class Map : IDisposable
     private Sprite ConstructEngine(Engine sprite, Angle direction, Sprite? parent)
     {
         // TODO: Port the Engine, Rail and Depo class tails (0x44e8b0, 0x44a140, 0x44c040); the port builds those classes with their base constructors
+        // TODO: Port their slots: Engine destructor 0x44e9d0, action 0x44f320, move tact 0x44ec20, forget 0x44ed10, info 0x44ed90 and goal lines 0x44f0f0; Rail destructor 0x44a1a0 and action 0x44a240; Depo destructor 0x44c0d0, action 0x44c130 and move tact 0x44c100
         return ConstructUnit(sprite, direction, parent);
     }
 
@@ -1425,7 +1528,7 @@ public sealed partial class Map : IDisposable
     {
         frame.Position = new Vector3(frame.Position.AsVector2() + Camera, frame.Position.Z);
         ConstructSprite(frame, direction, parent);
-        _menuSprites.Add(frame);
+        MenuList.Add(frame);
         frame.AddRef();
 
         return frame;
@@ -1505,14 +1608,13 @@ public sealed partial class Map : IDisposable
         return sprite;
     }
 
-    [MemberNotNull(nameof(Motion), nameof(Effects), nameof(Weapons), nameof(Collision), nameof(PlayerMovement), nameof(Brain))]
+    [MemberNotNull(nameof(Motion), nameof(Effects), nameof(Weapons), nameof(Collision), nameof(Brain))]
     private void BuildSystems()
     {
         Motion = new SpriteKinematics(Definitions, this);
         Effects = new SpawnedObjectSystem(Definitions, Movement, this);
         Weapons = new WeaponSystem(this, Definitions);
         Collision = new SpriteCollision(this);
-        PlayerMovement = new PlayerMovement(Collision, Motion);
         Brain = new MonsterBrain(Motion, Collision, _rng, Collector, this);
     }
 
@@ -1767,7 +1869,7 @@ public sealed partial class Map : IDisposable
                     }
                     else
                     {
-                        sprite.Action(this, order.Value, order.Var1, order.Var2, order.Var3, order.Target);
+                        sprite.Action(order.Value, order.Var1, order.Var2, order.Var3, order.Target);
                     }
                 }
             }
@@ -1841,14 +1943,6 @@ public sealed partial class Map : IDisposable
 
         lateral = new Vector2(offsetDirection.Cosine * childX, offsetDirection.ProjectedSine * childX);
         return new Vector2(offsetDirection.Sine * childY + lateral.X, lateral.Y - offsetDirection.ProjectedCosine * childY);
-    }
-
-    private void CreateChildAs(Sprite sprite, SpriteAnimation state)
-    {
-        var previous = sprite.Animation;
-        sprite.SetAnimationValue(state);
-        CreateChild(sprite);
-        sprite.SetAnimationValue(previous);
     }
 
     private void LaunchChild(Sprite created, Sprite goal, SpriteDefinition definition, Vector2 lateral)
@@ -1957,9 +2051,9 @@ public sealed partial class Map : IDisposable
 
     private void TickMenuSprites()
     {
-        for (int i = _menuSprites.Count - 1; i >= 0; i--)
+        for (int i = MenuList.Count - 1; i >= 0; i--)
         {
-            TickEntry(_menuSprites[i]);
+            TickEntry(MenuList[i]);
         }
     }
 
@@ -2008,68 +2102,6 @@ public sealed partial class Map : IDisposable
         }
     }
 
-    [EngineRoutine(0x0040c570)]
-    private void Release()
-    {
-        var logger = Session.Logger;
-        Definitions.LogCounts(logger);
-        _spriteRelations.Clear();
-        _clock.ResetRate();
-        Session.Graphics.StopMovie();
-        Session.Graphics.SetWind(ReleaseWindSpeed, new Angle(ReleaseWindDirection));
-        Session.Graphics.SetEnvironment((MapEnvironment)(-1));
-        if (IsPlayingDemo)
-        {
-            CursorSprite.LoadCursor(_fileSystem);
-        }
-
-        _playedDemo = null;
-        _playedOffset = 0;
-        _demoPacedTime = 0;
-        _demoPacedAt = 0;
-        EndDemoRecording();
-        _flags &= ~(MapFlags.RecordingDemo | MapFlags.PlayingDemo);
-        _scrollType = ScrollType.FromBorder;
-        logger.Write("Player release"u8);
-        foreach (var player in _players)
-        {
-            player.Reset();
-        }
-
-        logger.Write("Sprite release"u8);
-        // TODO: Port the trains; the release sets the flag (DAT_005da58c) that makes the Engine destructors (0x44e9f0, 0x450e20) skip their scripts while it destroys the sprites
-        foreach (var player in _players)
-        {
-            player.Messages.Clear();
-        }
-
-        DeleteAll();
-        logger.Write("Menu   release"u8);
-        if (_menuSprites.Count != 0)
-        {
-            logger.Error($"SPRITE {(int)_menuSprites[0].Definition.Id}", LogError.Text, 0, MenuSpriteExistsText);
-            _menuSprites.Clear();
-        }
-
-        int elapsed = Time - _levelStartTime;
-        logger.Write($"Average fps={(elapsed == 0 ? 0 : (int)((uint)(_stepCount * 1000) / (uint)elapsed))}");
-        logger.Write("Script release"u8);
-        foreach (var file in _scriptFiles.Values)
-        {
-            file.Dispose();
-        }
-
-        _scriptFiles.Clear();
-        Script.Reset();
-        _stepCount = 0;
-        ReleaseAdditionalLoads();
-        Definitions.ResetLevelState();
-        for (int i = 0; i < _scriptHooks.Length; i++)
-        {
-            _scriptHooks[i] = i + NoHookBase;
-        }
-    }
-
     private void DeleteAll()
     {
         for (int layer = 0; layer < LayerCount; layer++)
@@ -2107,13 +2139,6 @@ public sealed partial class Map : IDisposable
         }
     }
 
-    [EngineRoutine(0x00405160)]
-    private void DeletePointerToSprite(Sprite removed)
-    {
-        ForgetMouseTip(removed);
-        DeleteBasePointerToSprite(removed);
-    }
-
     [EngineRoutine(0x0040b4b0)]
     private void DeleteBasePointerToSprite(Sprite removed)
     {
@@ -2132,7 +2157,7 @@ public sealed partial class Map : IDisposable
         int index = removed.ReferenceCount > 1 ? Collector.Listed.Length - 1 : -1;
         while (index >= 0)
         {
-            Collector.Listed[index].DeletePointerToSprite(this, removed);
+            Collector.Listed[index].DeletePointerToSprite(removed);
 
             if (Collector.Listed.Length < index)
             {
@@ -2154,7 +2179,7 @@ public sealed partial class Map : IDisposable
 
                 if (sprite is not null)
                 {
-                    sprite.DeletePointerToSprite(this, removed);
+                    sprite.DeletePointerToSprite(removed);
                 }
             }
         }
@@ -2189,27 +2214,4 @@ public sealed partial class Map : IDisposable
         return definition;
     }
 
-    [EngineRoutine(0x00445770)]
-    private void CreateLink(Sprite sprite)
-    {
-        var definition = sprite.Definition.LinkDefinition;
-
-        if (definition is null || sprite.Link?.Definition == definition || definition.NotCreatedAsChild != 0)
-            return;
-
-        var position = sprite.Position + sprite.Definition.GetLinkOffset(definition, sprite.Direction);
-        var link = AddSprite(definition, position, sprite.Direction);
-        AddLink(sprite, link);
-
-        if (sprite.Link is null)
-        {
-            Session.Logger.Error($"SPRITE {(int)sprite.Definition.Id}", LogError.Create, 0, "link"u8);
-
-            return;
-        }
-
-        ChangeArmy(sprite.Link, (int)sprite.Army);
-    }
-
-    private bool IsFree(SpriteDefinition definition, Vector3 position) => FindPlacementBlocker(definition, position) is null;
 }

@@ -150,9 +150,9 @@ public sealed partial class Map
 
             int id = reader.Read<int>();
             var position = reader.Read<Vector3>();
-            for (int i = 0; i < _menuSprites.Count; i++)
+            for (int i = 0; i < MenuList.Count; i++)
             {
-                if (IsMenuElement(_menuSprites[i], header, id, position))
+                if (IsMenuElement(MenuList[i], header, id, position))
                 {
                     DeleteMenuSpriteAt(i);
                     i--;
@@ -182,13 +182,13 @@ public sealed partial class Map
     [EngineRoutine(0x0043df50)]
     private void DeleteMenuSpriteAt(int index)
     {
-        if (index < 0 || index >= _menuSprites.Count)
+        if (index < 0 || index >= MenuList.Count)
             return;
 
-        var sprite = _menuSprites[index];
-        int last = _menuSprites.Count - 1;
-        _menuSprites[index] = _menuSprites[last];
-        _menuSprites.RemoveAt(last);
+        var sprite = MenuList[index];
+        int last = MenuList.Count - 1;
+        MenuList[index] = MenuList[last];
+        MenuList.RemoveAt(last);
 
         int count = sprite.Release();
 
@@ -248,7 +248,7 @@ public sealed partial class Map
 
         if (sprite is not null)
         {
-            ChangeArmy(sprite, army);
+            sprite.ChangeArmy(army);
         }
 
         return true;
@@ -349,7 +349,7 @@ public sealed partial class Map
         {
             byte army = 0;
             reader.ReadInto(ref army);
-            ChangeArmy(sprite, army);
+            sprite.ChangeArmy(army);
         }
 
         byte behavior = (byte)sprite.Behavior;
@@ -412,7 +412,7 @@ public sealed partial class Map
 
         byte army = 0;
         reader.ReadInto(ref army);
-        ChangeArmy(sprite, army);
+        sprite.ChangeArmy(army);
     }
 
     private void RestoreSprite(Sprite sprite, ref Resource reader, int version)

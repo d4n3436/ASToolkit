@@ -78,6 +78,14 @@ public sealed partial class Map
         }
     }
 
+    internal void RunDestroyHandler(Sprite sprite)
+    {
+        if (sprite.Definition.DestroyHandler >= 0)
+        {
+            CallScript(sprite.Definition.DestroyHandler, sprite);
+        }
+    }
+
     private static void BindStateHandler(SpriteDefinition? definition, ReadOnlySpan<byte> state, int function, int parameters)
     {
         if (state.IsEmpty || parameters != StateHandlerParameters || definition is null)
@@ -150,14 +158,6 @@ public sealed partial class Map
         if (name.Length > LongIdDigits + 1 && IsDigits(name.Slice(1, LongIdDigits)) && name[LongIdDigits + 1] == NameSeparator)
         {
             BindStateHandler(Definitions.Find((KnownObject)CRuntime.ParseInteger(name.Slice(1, LongIdDigits))), name[(LongIdDigits + 2)..], function, parameters);
-        }
-    }
-
-    private void RunDestroyHandler(Sprite sprite)
-    {
-        if (sprite.Definition.DestroyHandler >= 0)
-        {
-            CallScript(sprite.Definition.DestroyHandler, sprite);
         }
     }
 

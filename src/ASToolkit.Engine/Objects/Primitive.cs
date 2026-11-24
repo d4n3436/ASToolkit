@@ -16,22 +16,22 @@ public sealed class Primitive : Sprite
     /// <param name="position">The position of the sprite.</param>
     /// <param name="army">The army of the sprite.</param>
     /// <param name="hitPoints">The hit points of the sprite.</param>
-    /// <param name="direction">The direction of the sprite.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    public Primitive(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Angle direction = default, Map? map = null)
-        : base(number, definition, position, army, hitPoints, direction, map)
+    /// <param name="direction">The direction of the sprite.</param>
+    public Primitive(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
+        : base(number, definition, position, army, hitPoints, map, direction)
     {
     }
 
-    internal override void MoveTact(Map map)
+    internal override void MoveTact()
     {
     }
 
-    internal override void DeletePointerToSprite(Map map, Sprite removed)
+    internal override void DeletePointerToSprite(Sprite removed)
     {
     }
 
-    internal override void DrawInfo(Map map)
+    internal override void DrawInfo()
     {
     }
 }

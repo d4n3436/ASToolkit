@@ -1,4 +1,5 @@
 using System.Numerics;
+using ASToolkit.Core;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
@@ -9,6 +10,12 @@ namespace ASToolkit.Engine;
 public sealed class Man : Unit
 {
     private const int MaxWeaponSlot = 9;
+    private const int ArmorRounding = 50;
+    private const int PlayerIdLimit = 20;
+    private const uint ReloadTimerLimit = 5000;
+    private const float RescueEffectHeight = 22;
+    private const int WornArmorItemBase = 204;
+    private const int WornArmorShareCount = 3;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Man"/> class.
@@ -18,10 +25,10 @@ public sealed class Man : Unit
     /// <param name="position">The position of the sprite.</param>
     /// <param name="army">The army of the sprite.</param>
     /// <param name="hitPoints">The hit points of the sprite.</param>
-    /// <param name="direction">The direction of the sprite.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    public Man(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Angle direction = default, Map? map = null)
-        : base(number, definition, position, army, hitPoints, direction, map)
+    /// <param name="direction">The direction of the sprite.</param>
+    public Man(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
+        : base(number, definition, position, army, hitPoints, map, direction)
     {
     }
 
@@ -30,9 +37,187 @@ public sealed class Man : Unit
     /// </summary>
     public int[] SlotAmmo => field ??= new int[MaxWeaponSlot + 1];
 
-    internal override void Destruct(Map map) => map.DestructMan(this);
+    private static ReadOnlySpan<int> WornArmorShares => [50, 70, 90];
 
-    internal override int Action(Map map, int act, int var1, int var2, int var3, Sprite? target) => map.ManAction(this, act, var1, var2, var3, target);
+    [EngineRoutine(0x00454660)]
+    internal override void Destruct() => base.Destruct();
 
-    internal override void MoveTact(Map map) => map.PlayerMovement.MoveTact(this, map.FrameTime);
+    [EngineRoutine(0x00454800)]
+    internal override int Action(int act, int var1, int var2, int var3, Sprite? target)
+    {
+        switch ((ActionCode)act)
+        {
+            case ActionCode.CoorAttack:
+                CoorAttackCase(new Vector2(var1, var2));
+                return 0;
+            case ActionCode.ChangeVid:
+                ChangeVidCase(var1, var2, var3, target);
+                return 0;
+            case ActionCode.AddItem:
+                AddItemCase(var1);
+                return 0;
+            case ActionCode.Damage:
+                return ActionDamage(var1, var2, var3, target);
+            case ActionCode.GetAmmo:
+                if (var1 != 0 && var1 != WeaponSlot)
+                    return (uint)var1 < (uint)SlotAmmo.Length ? SlotAmmo[var1] : 0;
+
+                return base.Action(act, 0, 0, 0, null);
+            case ActionCode.AddAmmo:
+                // TODO: Port AS1's write before the slot array for a negative slot; the port returns 0
+                if ((uint)var2 >= (uint)SlotAmmo.Length)
+                    return 0;
+
+                if (var2 != 0 && var2 != WeaponSlot)
+                    return SlotAmmo[var2] += var1;
+
+                return base.Action(act, var1, 0, 0, null);
+            case ActionCode.NextCommand:
+                if (Animation >= SpriteAnimation.Death)
+                    return 0;
+
+                if (HasGoal || Link is { HasGoal: true })
+                {
+                    AttackResult = AttackTact(Math.Max(Map.FrameTime, Definition.GetVisualFrameDuration(Animation)));
+                }
+
+                ChangeAnimation(!Speed.IsExactlyZero() ? SpriteAnimation.Go : SpriteAnimation.Stand);
+
+                return 0;
+        }
+
+        return base.Action(act, var1, var2, var3, target);
+    }
+
+    [EngineRoutine(0x00454670)]
+    internal override void MoveTact()
+    {
+        int elapsed = Map.FrameTime;
+        var next = Map.Motion.CalculateNewCoordinates(this, elapsed);
+
+        if (Position.AsVector2() != next.AsVector2() && Map.Collision.IsInsideMap(next.AsVector2()))
+        {
+            Map.Collision.Move(this, next);
+        }
+
+        var goal = Goal;
+
+        if (goal is null || Command != Command.Move)
+            return;
+
+        var direction = DirectionTo(goal) + (Speed < 0 ? Angle.HalfTurn : 0);
+        RotateTact(Map.Collision.RotateForGlide(direction, this), elapsed);
+
+        if (this is { HasReachedX: true, HasReachedY: true } || IsTouching(goal.Position.AsVector2(), goal.Definition.Half))
+        {
+            SpriteKinematics.Stop(this);
+        }
+    }
+
+    private void CoorAttackCase(Vector2 point)
+    {
+        var weapon = Definition.LinkDefinition;
+        var torso = Link;
+
+        if (torso is null || torso.Definition != weapon || weapon.FightChild == 0 || weapon.Object.WeaponIndex == 0 || (uint)torso.Timer > ReloadTimerLimit ||
+            torso.Animation == SpriteAnimation.Fight && torso.Frame <= torso.LastFrame)
+            return;
+
+        var goal = Map.ConstructGoal(Map.Weapons.GetCursorPoint(this, point, weapon));
+        SpriteKinematics.SetCommand(torso, Command.OneAttack, goal);
+    }
+
+    private void ChangeVidCase(int var1, int var2, int var3, Sprite? target)
+    {
+        if ((int)Definition.Id < PlayerIdLimit)
+        {
+            SlotAmmo[WeaponSlot] = base.Action((int)ActionCode.GetAmmo, 0, 0, 0, null);
+        }
+
+        base.Action((int)ActionCode.ChangeVid, var1, var2, var3, target);
+
+        if ((int)Definition.Id > PlayerIdLimit)
+        {
+            var armed = Definition.LinkDefinition;
+            int capacity = armed is not null && armed.FightChild != 0 && armed.Object.WeaponIndex != 0 ? armed.AmmoCapacity : Definition.AmmoCapacity;
+            base.Action((int)ActionCode.AddAmmo, capacity - base.Action((int)ActionCode.GetAmmo, 0, 0, 0, null), 0, 0, null);
+
+            return;
+        }
+
+        int armorItem = GetItemNumber(WornArmorItemBase) >= 0 ? WornArmorItemBase
+            : GetItemNumber(WornArmorItemBase + 1) >= 0 ? WornArmorItemBase + 1
+            : GetItemNumber(WornArmorItemBase + 2) >= 0 ? WornArmorItemBase + 2
+            : 0;
+
+        if (armorItem != 0)
+        {
+            var position = new Vector3(Position.X, Position.Y, Position.Z + Definition.Object.LinkOffset.Z);
+            var armor = Map.AddSprite(Map.Definitions.Find((KnownObject)(armorItem - WornArmorItemBase + (int)KnownObject.WornGreenArmor))!, position, Direction);
+            Map.AddLink(Link!, armor);
+        }
+
+        base.Action((int)ActionCode.AddAmmo, SlotAmmo[WeaponSlot] - base.Action((int)ActionCode.GetAmmo, 0, 0, 0, null), 0, 0, null);
+    }
+
+    private void AddItemCase(int item)
+    {
+        if ((KnownObject)item is KnownObject.Dynamite or KnownObject.ExtraLife)
+        {
+            InsertItem(item);
+
+            return;
+        }
+
+        if (!InsertUniqueItem(item))
+            return;
+
+        int slot = item - WeaponItemBase;
+
+        if (slot is < 0 or >= WeaponSlots)
+            return;
+
+        if (base.Action((int)ActionCode.GetAmmo, 0, 0, 0, null) == 0 || WeaponSlot < slot || slot == 0)
+        {
+            Map.Weapons.ChangeWeapon(this, slot);
+        }
+    }
+
+    private int ActionDamage(int damage, int var2, int var3, Sprite? target)
+    {
+        if (damage > 0)
+        {
+            if (Definition.Id != KnownObject.MannedCannon)
+            {
+                foreach (var link in EnumerateLinks())
+                {
+                    if (link.Definition.Id is KnownObject.InvulnerabilityEffect or KnownObject.RescueMedkitEffect)
+                        return 0;
+                }
+
+                foreach (var link in EnumerateLinks())
+                {
+                    int armor = link.Definition.Id - KnownObject.WornGreenArmor;
+
+                    if (armor is < 0 or >= WornArmorShareCount)
+                        continue;
+
+                    int share = WornArmorShares[armor];
+                    Map.Action(link, ActionCode.Damage, (share * damage + ArmorRounding) / Map.Percent, var2, var3);
+                    damage -= share * damage / Map.Percent;
+                }
+            }
+
+            if (damage >= Hp && Map.Action(this, ActionCode.HaveItem, (int)KnownObject.Medkit) != 0)
+            {
+                Map.Action(this, ActionCode.DeleteItem, (int)KnownObject.Medkit);
+                Map.ChangeHp(this, Definition.GetArmyMaxHp((int)Army));
+                Map.AddSprite(Map.Definitions.Find(KnownObject.RescueMedkitEffect)!, Position + Vector3.UnitZ * RescueEffectHeight, default, this);
+
+                return 0;
+            }
+        }
+
+        return SpriteAction((int)ActionCode.Damage, damage, var2, var3, target);
+    }
 }

@@ -23,7 +23,8 @@ public class EnemyMotionTests
         Unsafe.AsRef(in obj.Directions) = 1;
         Unsafe.AsRef(in obj.RotationPeriod) = period;
         Unsafe.AsRef(in obj.Size) = new Vector3(10, 10, 40);
-        var sprite = new Sprite(0, new SpriteDefinition(KnownObject.Monster1, obj, default, 0), Vector3.Zero, Army.Monsters, 10) { Direction = new Angle(direction) };
+        var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
+        var sprite = new Sprite(0, new SpriteDefinition(KnownObject.Monster1, obj, default, 0), Vector3.Zero, Army.Monsters, 10, map) { Direction = new Angle(direction) };
 
         var remaining = sprite.RotateTact(new Angle(goal), elapsed);
 
@@ -37,8 +38,8 @@ public class EnemyMotionTests
     public void Move_BlockedDiagonal_SlidesAlongYFirst(SpriteClass mover)
     {
         var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
-        var sprite = MakeUnit(new UnitBody(50, 50), 0, mover);
-        var obstacle = MakeUnit(new UnitBody(60, 60), 1, SpriteClass.Unit);
+        var sprite = MakeUnit(map, new UnitBody(50, 50), 0, mover);
+        var obstacle = MakeUnit(map, new UnitBody(60, 60), 1, SpriteClass.Unit);
         map.Collector.InsertToHash(sprite);
         map.Collector.InsertToHash(obstacle);
 
@@ -50,8 +51,8 @@ public class EnemyMotionTests
     public void Move_IntoAnotherBody_PushesItBeforeSliding()
     {
         var map = EngineTestMap.CreateMap(TestGameFolder.CreateCatalog());
-        var sprite = MakeUnit(new UnitBody(50, 50), 0, SpriteClass.Man);
-        var pushed = MakeUnit(new UnitBody(60, 50, Push: 1), 1, SpriteClass.Unit);
+        var sprite = MakeUnit(map, new UnitBody(50, 50), 0, SpriteClass.Man);
+        var pushed = MakeUnit(map, new UnitBody(60, 50, Push: 1), 1, SpriteClass.Unit);
         map.Collector.InsertToHash(sprite);
         map.Collector.InsertToHash(pushed);
 
@@ -67,7 +68,7 @@ public class EnemyMotionTests
         Assert.Equal([41, 18467, 6334, 26500, 19169, 15724, 11478, 29358], Enumerable.Range(0, 8).Select(_ => random.Next()).ToArray());
     }
 
-    private static Sprite MakeUnit(UnitBody body, int index, SpriteClass spriteClass)
+    private static Sprite MakeUnit(Map map, UnitBody body, int index, SpriteClass spriteClass)
     {
         var obj = default(GameObject);
         Unsafe.AsRef(in obj.SpriteClass) = spriteClass;
@@ -79,6 +80,6 @@ public class EnemyMotionTests
         Unsafe.AsRef(in weapon.Flags) = body.Push != 0 ? WeaponFlags.Pushable : WeaponFlags.None;
         var definition = new SpriteDefinition(KnownObject.Monster1 + index, obj, weapon, 0);
 
-        return new Sprite(index, definition, new Vector3(body.X, body.Y, body.Z), Army.Monsters, 10) { Direction = body.Direction };
+        return new Sprite(index, definition, new Vector3(body.X, body.Y, body.Z), Army.Monsters, 10, map) { Direction = body.Direction };
     }
 }

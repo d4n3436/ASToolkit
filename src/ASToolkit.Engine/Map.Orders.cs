@@ -10,7 +10,6 @@ public sealed partial class Map
 {
     private const int CommandBias = 0x3c;
 
-    private readonly Dictionary<Sprite, PendingBuild> _builds = new(ReferenceEqualityComparer.Instance);
 
     private static ReadOnlySpan<byte> ItemMark => [1];
 
@@ -23,7 +22,7 @@ public sealed partial class Map
     /// </summary>
     /// <param name="building">The building.</param>
     /// <returns>The definition, or null when the building is idle.</returns>
-    public SpriteDefinition? GetPendingBuild(Sprite building) => _builds.TryGetValue(building, out var pending) ? pending.Definition : null;
+    public SpriteDefinition? GetPendingBuild(Sprite building) => building is Building pending && pending.PendingBuild.HasValue ? pending.PendingBuild.Value.Definition : null;
 
     /// <summary>
     /// Creates the goal sprite of an order on a point.
@@ -36,6 +35,24 @@ public sealed partial class Map
         ConstructSprite(goal, default, null);
 
         return goal;
+    }
+
+    internal Vector3 GetBuildPosition(Sprite builder, Point offset)
+    {
+        var position = builder.Position;
+        var at = offset == Point.Empty ? position.AsVector2() : new Vector2(offset.X, offset.Y);
+
+        if (offset.X < 0)
+        {
+            at.X = position.X - offset.X - _rng.Next() % (1 - offset.X) * 2;
+        }
+
+        if (offset.Y < 0)
+        {
+            at.Y = position.Y - offset.Y - _rng.Next() % (1 - offset.Y) * 2;
+        }
+
+        return new Vector3(at, position.Z);
     }
 
     [EngineRoutine(0x00406e50)]
@@ -143,21 +160,4 @@ public sealed partial class Map
     private Act CreateAct(int act, int var1, int var2, int var3) =>
         new(act, var1, var2, var3, Act.HasSpriteTarget((ActionCode)(act & byte.MaxValue)) ? FindSprite(var1) : null);
 
-    private Vector3 GetBuildPosition(Sprite builder, Point offset)
-    {
-        var position = builder.Position;
-        var at = offset == Point.Empty ? position.AsVector2() : new Vector2(offset.X, offset.Y);
-
-        if (offset.X < 0)
-        {
-            at.X = position.X - offset.X - _rng.Next() % (1 - offset.X) * 2;
-        }
-
-        if (offset.Y < 0)
-        {
-            at.Y = position.Y - offset.Y - _rng.Next() % (1 - offset.Y) * 2;
-        }
-
-        return new Vector3(at, position.Z);
-    }
 }

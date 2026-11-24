@@ -33,7 +33,6 @@ public sealed partial class Map : IScriptFunctionHost
     private const OldSpriteType GridListTypes = OldSpriteType.Unit | OldSpriteType.Avia;
     private const int EndOfFileFlag = 0x10;
 
-    private readonly Dictionary<int, Sprite> _handles = [];
     private int _lastHandle;
     private int _unitIndex;
     private OldSpriteType _unitMask;
@@ -55,11 +54,11 @@ public sealed partial class Map : IScriptFunctionHost
     /// </summary>
     public GameSession Session { get; }
 
-    internal Sprite? MenuLeftClick => _menuClicks.HasFlag(MenuClicks.Left) ? _menuCurrent : null;
+    internal Sprite? MenuLeftClick => _menuClicks.HasFlag(MenuClicks.Left) ? MenuCurrent : null;
 
     private static ReadOnlySpan<byte> Base64Alphabet => "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"u8;
 
-    private Sprite? MenuRightClick => _menuClicks.HasFlag(MenuClicks.Right) ? _menuCurrent : null;
+    private Sprite? MenuRightClick => _menuClicks.HasFlag(MenuClicks.Right) ? MenuCurrent : null;
 
     private IGameFileSystem ScriptFiles => field ??= _fileSystem as MemoryWriteOverlay ?? new MemoryWriteOverlay(_fileSystem);
 
@@ -76,7 +75,7 @@ public sealed partial class Map : IScriptFunctionHost
         if (sprite.Handle == 0)
         {
             sprite.Handle = ++_lastHandle;
-            _handles[sprite.Handle] = sprite;
+            Handles[sprite.Handle] = sprite;
         }
 
         return sprite.Handle;
@@ -87,7 +86,7 @@ public sealed partial class Map : IScriptFunctionHost
     /// </summary>
     /// <param name="handle">The handle.</param>
     /// <returns>The sprite, or null when the handle is stale.</returns>
-    public Sprite? FindSprite(int handle) => _handles.TryGetValue(handle, out var sprite) && sprite.Handle == handle ? sprite : null;
+    public Sprite? FindSprite(int handle) => Handles.TryGetValue(handle, out var sprite) && sprite.Handle == handle ? sprite : null;
 
     /// <summary>
     /// Runs a built-in function of the script language.
@@ -583,6 +582,23 @@ public sealed partial class Map : IScriptFunctionHost
         return null;
     }
 
+    [EngineRoutine(0x0040fc40)]
+    internal Sprite? GetSpriteScr(SpriteSearch search, Vector2 point)
+    {
+        if (!TryGetSearchedTypes(ref search, out var types, out var armies, out var definition))
+            return null;
+
+        var query = new ScreenSpriteQuery(new SpriteFilter(search, types, armies), point);
+        var reach = new Vector2(ScreenSpriteReach);
+        float ground = Movement.GetHeight(point);
+        ScanSprites(ref query, search, types, definition, point - reach, new Vector2(point.X + ScreenSpriteReach, ground + point.Y + ScreenSpriteReach), false);
+
+        return query.Found;
+    }
+
+    [EngineRoutine(0x00405a90)]
+    internal SpriteDefinition LookupDefinition(int id) => Definitions.Find((KnownObject)id) ?? Definitions.Empty;
+
     [EngineRoutine(0x00439db0)]
     private static int ComputeChecksum(ReadOnlySpan<byte> text)
     {
@@ -777,9 +793,9 @@ public sealed partial class Map : IScriptFunctionHost
     [EngineRoutine(0x0043e140)]
     private bool ProcessMenuInput(PlayerInput input)
     {
-        _menuCurrent = null;
+        MenuCurrent = null;
         _menuClicks = MenuClicks.None;
-        foreach (var sprite in _menuSprites)
+        foreach (var sprite in MenuList)
         {
             var definition = sprite.Definition;
 
@@ -794,25 +810,25 @@ public sealed partial class Map : IScriptFunctionHost
             float high = above - definition.Half.Y;
             float low = top + definition.Half.Y;
             bool isMissed = cursor.X < left || right < cursor.X || cursor.Y <= high || low <= cursor.Y ||
-                _menuCurrent is not null && sprite.Position.Z <= _menuCurrent.Position.Z;
+                MenuCurrent is not null && sprite.Position.Z <= MenuCurrent.Position.Z;
             if (isMissed)
             {
                 sprite.ChangeAnimation((SpriteAnimation)((int)sprite.Animation & 1));
             }
             else
             {
-                _menuCurrent = sprite;
+                MenuCurrent = sprite;
             }
         }
 
-        if (_menuCurrent is null)
+        if (MenuCurrent is null)
             return false;
 
         if (input.Flags.HasFlag(InputFlags.LeftClick))
         {
             _menuClicks |= MenuClicks.Left;
             input.ClearLeftClick();
-            _menuCurrent.ChangeAnimation((SpriteAnimation)((int)_menuCurrent.Animation & 1 | (int)MenuAnimation.PressDown));
+            MenuCurrent.ChangeAnimation((SpriteAnimation)((int)MenuCurrent.Animation & 1 | (int)MenuAnimation.PressDown));
 
             return true;
         }
@@ -823,21 +839,21 @@ public sealed partial class Map : IScriptFunctionHost
             input.ClearRightClick();
         }
 
-        int current = (int)_menuCurrent.Animation;
+        int current = (int)MenuCurrent.Animation;
         if ((current & ~1) != (int)MenuAnimation.PressDown)
         {
-            _menuCurrent.ChangeAnimation((SpriteAnimation)(current & 1 | (int)MenuAnimation.SelectDown));
+            MenuCurrent.ChangeAnimation((SpriteAnimation)(current & 1 | (int)MenuAnimation.SelectDown));
         }
 
         return false;
     }
 
     [EngineRoutine(0x0043e880)]
-    private int GetMenuIdUnderCursor() => _menuCurrent is null ? 0 : (int)_menuCurrent.Definition.Id;
+    private int GetMenuIdUnderCursor() => MenuCurrent is null ? 0 : (int)MenuCurrent.Definition.Id;
 
     [EngineRoutine(0x0043e8a0)]
     private int GetMenuDirectionUnderCursor() =>
-        _menuCurrent is null ? 0 : _menuCurrent.Definition.GetDirectionIndex(_menuCurrent.Direction);
+        MenuCurrent is null ? 0 : MenuCurrent.Definition.GetDirectionIndex(MenuCurrent.Direction);
 
     private void SetMouseClick(int key, int button)
     {
@@ -878,26 +894,26 @@ public sealed partial class Map : IScriptFunctionHost
     [EngineRoutine(0x0043dfe0)]
     private void DeleteAllMenuSprites()
     {
-        for (int i = 0; i < _menuSprites.Count; i++)
+        for (int i = 0; i < MenuList.Count; i++)
         {
-            for (int j = _menuSprites.Count - 1; i < j; j--)
+            for (int j = MenuList.Count - 1; i < j; j--)
             {
-                if (_menuSprites[i] != _menuSprites[j])
+                if (MenuList[i] != MenuList[j])
                     continue;
 
-                Release(_menuSprites[j]);
-                if (j < _menuSprites.Count)
+                Release(MenuList[j]);
+                if (j < MenuList.Count)
                 {
-                    int last = _menuSprites.Count - 1;
-                    _menuSprites[j] = _menuSprites[last];
-                    _menuSprites.RemoveAt(last);
+                    int last = MenuList.Count - 1;
+                    MenuList[j] = MenuList[last];
+                    MenuList.RemoveAt(last);
                 }
             }
         }
 
-        for (int i = _menuSprites.Count - 1; i >= 0; i--)
+        for (int i = MenuList.Count - 1; i >= 0; i--)
         {
-            if (i < _menuSprites.Count)
+            if (i < MenuList.Count)
             {
                 DeleteMenuSpriteAt(i);
             }
@@ -913,7 +929,7 @@ public sealed partial class Map : IScriptFunctionHost
         if (Sum(definition.Counts) == 0)
             return null;
 
-        foreach (var sprite in _menuSprites)
+        foreach (var sprite in MenuList)
         {
             if (IsMenuMatch(sprite, definition, direction))
                 return sprite;
@@ -932,9 +948,9 @@ public sealed partial class Map : IScriptFunctionHost
         if (!TryLookupDefinition(script.PopNumber(), "for MenuAction"u8, out var definition))
             return;
 
-        for (int i = 0; i < _menuSprites.Count; i++)
+        for (int i = 0; i < MenuList.Count; i++)
         {
-            var sprite = _menuSprites[i];
+            var sprite = MenuList[i];
 
             if (!IsMenuMatch(sprite, definition, direction))
                 continue;
@@ -980,9 +996,6 @@ public sealed partial class Map : IScriptFunctionHost
     {
         return FindSprite(PopHandle());
     }
-
-    [EngineRoutine(0x00405a90)]
-    private SpriteDefinition LookupDefinition(int id) => Definitions.Find((KnownObject)id) ?? Definitions.Empty;
 
     private bool TryLookupDefinition(int id, ReadOnlySpan<byte> function, out SpriteDefinition definition)
     {
@@ -1044,20 +1057,6 @@ public sealed partial class Map : IScriptFunctionHost
         return query.Found;
     }
 
-    [EngineRoutine(0x0040fc40)]
-    private Sprite? GetSpriteScr(SpriteSearch search, Vector2 point)
-    {
-        if (!TryGetSearchedTypes(ref search, out var types, out var armies, out var definition))
-            return null;
-
-        var query = new ScreenSpriteQuery(new SpriteFilter(search, types, armies), point);
-        var reach = new Vector2(ScreenSpriteReach);
-        float ground = Movement.GetHeight(point);
-        ScanSprites(ref query, search, types, definition, point - reach, new Vector2(point.X + ScreenSpriteReach, ground + point.Y + ScreenSpriteReach), false);
-
-        return query.Found;
-    }
-
     private bool TryGetSearchedTypes(ref SpriteSearch search, out OldSpriteType types, out SpriteSearch armies, out SpriteDefinition? definition)
     {
         armies = search & SpriteSearch.AnyArmy;
@@ -1115,9 +1114,9 @@ public sealed partial class Map : IScriptFunctionHost
 
         if (definition is not null && (definition.Class == SpriteClass.Frame || (textInMenu && definition.Class == SpriteClass.Text)))
         {
-            for (int i = _menuSprites.Count - 1; i >= 0; i--)
+            for (int i = MenuList.Count - 1; i >= 0; i--)
             {
-                query.ConsiderMenu(_menuSprites[i]);
+                query.ConsiderMenu(MenuList[i]);
             }
 
             return;

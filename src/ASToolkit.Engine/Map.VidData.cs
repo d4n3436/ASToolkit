@@ -4,7 +4,7 @@ namespace ASToolkit.Engine;
 
 public sealed partial class Map
 {
-    private const int Percent = 100;
+    internal const int Percent = 100;
     private const int HpScale = 256;
     private const int CoefficientScale = 16;
 
@@ -14,6 +14,59 @@ public sealed partial class Map
         {
             DestroyLink(owner, definition);
         }
+    }
+
+    [EngineRoutine(0x004454d0)]
+    internal void ChangeHp(Sprite sprite, int hp)
+    {
+        if (hp < 1 && sprite.Definition.MaxHp != 0)
+        {
+            if (sprite.Animation < SpriteAnimation.Death)
+            {
+                int army = (int)sprite.Army & 3;
+                sprite.Definition.Killed[army]++;
+                sprite.ChangeAnimation(sprite.Definition.ArmyMaxHp[army] < sprite.Hp - hp && Definitions.Find((KnownObject)Math.Abs(sprite.Definition.Children[(int)SpriteAnimation.Death2])) is not null ? SpriteAnimation.Death2 : SpriteAnimation.Death);
+            }
+
+            return;
+        }
+
+        int half = sprite.Definition.ArmyMaxHp[(int)sprite.Army & 3] / 2;
+        if (half < hp && sprite.Hp <= half)
+        {
+            DestroyLink(sprite, Definitions.Find((KnownObject)Math.Abs(sprite.Definition.Children[(int)SpriteAnimation.Wound])));
+        }
+
+        if (hp <= half && half < sprite.Hp)
+        {
+            sprite.ChangeAnimation(SpriteAnimation.Wound);
+        }
+
+        sprite.Hp = hp;
+    }
+
+    [EngineRoutine(0x00444a30)]
+    internal void DestroyLink(Sprite owner, SpriteDefinition? definition)
+    {
+        var previous = owner;
+        var link = owner.Link;
+        while (link is not null && link.Definition != definition)
+        {
+            previous = link;
+            link = link.Link;
+        }
+
+        if (link is null)
+            return;
+
+        var next = link.Link;
+        previous.Link = next;
+
+        next?.Owner = previous;
+
+        link.Link = null;
+        link.Owner = null;
+        DeleteSprite(link);
     }
 
     private static SpriteDefinition GetAmmoOwner(SpriteDefinition definition)
@@ -88,56 +141,4 @@ public sealed partial class Map
         }
     }
 
-    [EngineRoutine(0x004454d0)]
-    private void ChangeHp(Sprite sprite, int hp)
-    {
-        if (hp < 1 && sprite.Definition.MaxHp != 0)
-        {
-            if (sprite.Animation < SpriteAnimation.Death)
-            {
-                int army = (int)sprite.Army & 3;
-                sprite.Definition.Killed[army]++;
-                sprite.ChangeAnimation(sprite.Definition.ArmyMaxHp[army] < sprite.Hp - hp && Definitions.Find((KnownObject)Math.Abs(sprite.Definition.Children[(int)SpriteAnimation.Death2])) is not null ? SpriteAnimation.Death2 : SpriteAnimation.Death);
-            }
-
-            return;
-        }
-
-        int half = sprite.Definition.ArmyMaxHp[(int)sprite.Army & 3] / 2;
-        if (half < hp && sprite.Hp <= half)
-        {
-            DestroyLink(sprite, Definitions.Find((KnownObject)Math.Abs(sprite.Definition.Children[(int)SpriteAnimation.Wound])));
-        }
-
-        if (hp <= half && half < sprite.Hp)
-        {
-            sprite.ChangeAnimation(SpriteAnimation.Wound);
-        }
-
-        sprite.Hp = hp;
-    }
-
-    [EngineRoutine(0x00444a30)]
-    private void DestroyLink(Sprite owner, SpriteDefinition? definition)
-    {
-        var previous = owner;
-        var link = owner.Link;
-        while (link is not null && link.Definition != definition)
-        {
-            previous = link;
-            link = link.Link;
-        }
-
-        if (link is null)
-            return;
-
-        var next = link.Link;
-        previous.Link = next;
-
-        next?.Owner = previous;
-
-        link.Link = null;
-        link.Owner = null;
-        DeleteSprite(link);
-    }
 }

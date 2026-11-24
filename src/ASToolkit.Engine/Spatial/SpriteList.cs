@@ -72,7 +72,7 @@ public sealed class SpriteList
                 }
                 else
                 {
-                    sprite.Map?.DeleteSprite(sprite);
+                    sprite.Map.DeleteSprite(sprite);
                 }
             }
 

@@ -1,31 +1,24 @@
 using System.Drawing;
-using System.Globalization;
 using System.Numerics;
-using System.Text;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
 public sealed partial class Map
 {
+    internal const uint White = 0xffffffff;
+    internal const uint Green = 0xff00ff00;
+    internal const uint Red = 0xffff0000;
     private const uint Black = 0xff000000;
-    private const uint White = 0xffffffff;
     private const uint Gray = 0xff808080;
     private const uint Blue = 0xff0000ff;
     private const uint LightBlue = 0xff8080ff;
-    private const uint Green = 0xff00ff00;
-    private const uint Red = 0xffff0000;
     private const uint Yellow = 0xffffff00;
     private const float TextLineOffset = 1;
     private const float SoundCountInset = 20;
     private const int GridCellSize = 8;
     private const int GridFirstColumnX = 12;
     private const int GridCellCenter = 4;
-    private const float InfoTextLeft = 22;
-    private const float InfoLineHeight = 12;
-    private const float OrdersTextLeft = 30;
-    private const float SpeedScale = 1000;
-    private const float RegionBoxMargin = 1;
 
     [EngineRoutine(0x00405af0)]
     internal void DrawOverlay()
@@ -49,62 +42,14 @@ public sealed partial class Map
         {
             for (int index = Collector.Listed.Length - 1; index >= 0; index = Math.Min(Collector.Listed.Length, index) - 1)
             {
-                DrawGoalLines(Collector.Listed[index]);
+                Collector.Listed[index].DrawGoalLines();
             }
         }
     }
 
-    [EngineRoutine(0x00442660)]
-    internal void DrawSpriteInfo(Sprite sprite)
-    {
-        var graphics = Session.Graphics;
-        var view = graphics.Viewport;
-        float y = view.Top;
-        var position = sprite.Position;
-        int ammo = Action(sprite, ActionCode.GetAmmo);
-        graphics.DrawFormattedText(new Vector2(view.Left + InfoTextLeft, y), $"Ref={sprite.ReferenceCount,-3} cmd={(int)sprite.Command,1} ani={(int)sprite.Animation,-2} hp={sprite.Hp,-3} AT={(int)sprite.AttackResult} goal={GetDefinitionId(sprite.Goal),-3} spd={(int)(sprite.Speed * SpeedScale),-3},{(int)(sprite.VerticalSpeed * SpeedScale),-3} timer={sprite.Timer} ammo={ammo} mvE={(sprite.HasReachedX ? 1 : 0),1}{(sprite.HasReachedY ? 1 : 0),1} {(int)position.X},{(int)position.Y},{(int)position.Z}");
-
-        var link = sprite.Link;
-        if (link is not null && link.Definition == sprite.Definition.LinkDefinition)
-        {
-            y += InfoLineHeight;
-            int linkAmmo = Action(link, ActionCode.GetAmmo);
-            graphics.DrawFormattedText(new Vector2(view.Left + InfoTextLeft, y), $"Ref={link.ReferenceCount,-3} cmd={(int)link.Command,1} ani={(int)link.Animation,-2} hp={link.Hp,-3} AT={(int)link.AttackResult} goal={GetDefinitionId(link.Goal),-3} timer={link.Timer} ammo={linkAmmo}");
-        }
-
-        var orders = sprite.ActionStack;
-        if (orders.Count != 0)
-        {
-            y += InfoLineHeight;
-            var text = new StringBuilder();
-            text.Append(CultureInfo.InvariantCulture, $"{orders.Count} - ");
-            for (int i = orders.Count - 1; i >= 0; i--)
-            {
-                var order = orders[i];
-                text.Append(CultureInfo.InvariantCulture, $"{order.Value}({order.Var1},{order.Var2},{order.Var3}) ");
-            }
-
-            graphics.DrawText(new Vector2(view.Left + OrdersTextLeft, y), GameTextEncoding.Cyrillic.GetBytes(text.ToString()), White);
-        }
-
-        DrawGoalLines(sprite);
-    }
-
-    [EngineRoutine(0x00449730)]
-    internal void DrawRegionInfo(Region region)
-    {
-        var position = region.Position;
-        var size = region.Size;
-        float left = position.X - size.X * HalfShare - Camera.X;
-        float top = position.Y - position.Z - size.Y * HalfShare - Camera.Y;
-        float right = size.X * HalfShare + position.X - Camera.X;
-        float bottom = size.Y * HalfShare + (position.Y - position.Z) - Camera.Y;
-        Session.Graphics.DrawRectangle(this, new Vector2(left - RegionBoxMargin, top - RegionBoxMargin), new Vector2(right + RegionBoxMargin, bottom + RegionBoxMargin), White);
-    }
+    internal Vector2 GetScreenPoint(Sprite sprite) => new(sprite.Position.X - Camera.X, sprite.Position.Y - sprite.Position.Z - Camera.Y);
 
     private static bool IsInViewport(Rectangle viewport, Vector2 point) => viewport.Left <= point.X && point.X < viewport.Right && viewport.Top <= point.Y && point.Y < viewport.Bottom;
-
-    private static int GetDefinitionId(Sprite? sprite) => sprite is null ? 0 : (int)sprite.Definition.Id;
 
     [EngineRoutine(0x0040b590)]
     private void DrawDebugInfo()
@@ -152,10 +97,10 @@ public sealed partial class Map
         {
             var flagman = GetFlagman(ControlledPlayer);
             var hovered = _players[ControlledPlayer].Hovered;
-            var drawn = flagman ?? hovered ?? _menuCurrent;
+            var drawn = flagman ?? hovered ?? MenuCurrent;
             if (drawn is not null)
             {
-                drawn.DrawInfo(this);
+                drawn.DrawInfo();
             }
         }
 
@@ -202,7 +147,7 @@ public sealed partial class Map
 
         if (definition.Class == SpriteClass.Region)
         {
-            sprite.DrawInfo(this);
+            sprite.DrawInfo();
 
             return;
         }
@@ -283,25 +228,4 @@ public sealed partial class Map
         }
     }
 
-    [EngineRoutine(0x00442900)]
-    private void DrawGoalLines(Sprite sprite)
-    {
-        var graphics = Session.Graphics;
-
-        if (sprite.Goal is not null)
-        {
-            var start = GetScreenPoint(sprite);
-            var end = GetScreenPoint(sprite.Goal);
-            graphics.DrawLine(this, start, end, Green);
-        }
-
-        if (sprite.Link?.Goal is not null)
-        {
-            var start = GetScreenPoint(sprite.Link);
-            var end = GetScreenPoint(sprite.Link.Goal);
-            graphics.DrawLine(this, start, end, Red);
-        }
-    }
-
-    private Vector2 GetScreenPoint(Sprite sprite) => new(sprite.Position.X - Camera.X, sprite.Position.Y - sprite.Position.Z - Camera.Y);
 }

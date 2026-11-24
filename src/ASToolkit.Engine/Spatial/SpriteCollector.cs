@@ -115,7 +115,7 @@ public sealed class SpriteCollector
             failed |= (_listed.Remove(sprite) ? 0 : 1) << 1;
         }
 
-        var cursor = sprite.Map?.CursorSprite;
+        var cursor = sprite.Map.CursorSprite;
 
         if (failed != 0 && sprite != cursor && sprite != cursor?.Link)
         {

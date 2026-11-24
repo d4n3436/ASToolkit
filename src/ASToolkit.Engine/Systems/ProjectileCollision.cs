@@ -45,7 +45,7 @@ internal sealed class ProjectileCollision
 
             if (otherDefinition.Object.Properties.HasFlag(ObjectProperties.Crush))
             {
-                _map.Action(other, ActionCode.Damage, CrushDamage);
+                Map.Action(other, ActionCode.Damage, CrushDamage);
             }
         }
 

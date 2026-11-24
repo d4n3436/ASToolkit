@@ -42,7 +42,7 @@ public class UnitAnimationTests
         var definition = definitions.Find(KnownObject.Monster1)!;
         var random = new GameRandom(7);
         var expected = new GameRandom(7);
-        var sprite = new Sprite(1, definition, Vector3.Zero, Army.Monsters, definition.MaxHp);
+        var sprite = new Sprite(1, definition, Vector3.Zero, Army.Monsters, definition.MaxHp, EngineTestMap.CreateMap(definitions));
 
         sprite.Start(SpriteAnimation.Stand, new Angle(64), 1000, random);
 
@@ -63,7 +63,7 @@ public class UnitAnimationTests
             map.Play(default);
         }
 
-        map.Action(enemy, ActionCode.Damage, enemy.Hp);
+        Map.Action(enemy, ActionCode.Damage, enemy.Hp);
         map.Play(default);
         int steps = 1;
         while (map.Monsters.Contains(enemy) && steps < 20)
@@ -88,7 +88,7 @@ public class UnitAnimationTests
     {
         var definitions = TestGameFolder.CreateCatalog();
         var definition = definitions.Find(KnownObject.Monster1)!;
-        var sprite = new Sprite(1, definition, Vector3.Zero, Army.Monsters, definition.MaxHp);
+        var sprite = new Sprite(1, definition, Vector3.Zero, Army.Monsters, definition.MaxHp, EngineTestMap.CreateMap(definitions));
         sprite.Start(SpriteAnimation.Stand, direction, 0, new GameRandom(1));
 
         return sprite;

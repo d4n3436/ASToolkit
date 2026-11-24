@@ -96,7 +96,7 @@ public sealed partial class Map
     [EngineRoutine(0x0040f460)]
     private ReadOnlyMemory<byte> GetMouseTipText()
     {
-        if (_menuCurrent is null)
+        if (MenuCurrent is null)
             return default;
 
         int id = GetMenuIdUnderCursor();

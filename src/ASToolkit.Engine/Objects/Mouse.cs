@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Numerics;
 using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
@@ -32,10 +33,10 @@ public sealed class Mouse : Sprite
     /// <param name="position">The position of the sprite.</param>
     /// <param name="army">The army of the sprite.</param>
     /// <param name="hitPoints">The hit points of the sprite.</param>
-    /// <param name="direction">The direction of the sprite.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    public Mouse(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Angle direction = default, Map? map = null)
-        : base(number, definition, position, army, hitPoints, direction, map)
+    /// <param name="direction">The direction of the sprite.</param>
+    public Mouse(int number, SpriteDefinition definition, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
+        : base(number, definition, position, army, hitPoints, map, direction)
     {
     }
 
@@ -179,5 +180,40 @@ public sealed class Mouse : Sprite
         SetAnimationValue(type);
     }
 
-    internal override int Action(Map map, int act, int var1, int var2, int var3, Sprite? target) => map.CursorAction(this, act, var1, var2, var3, target);
+    [EngineRoutine(0x00447030)]
+    internal override int Action(int act, int var1, int var2, int var3, Sprite? target)
+    {
+        switch ((ActionCode)act)
+        {
+            case ActionCode.ChangeAnimation:
+                Map.CursorSprite.ShowCursor((SpriteAnimation)var1);
+                return 0;
+            case ActionCode.ChangeVid:
+                if (Map.Definitions.Find((KnownObject)var1) is null || (KnownObject)var1 == Definition.Id)
+                    return 0;
+
+                Map.AddToUpdates(this);
+                base.Action(act, var1, var2, var3, target);
+                Map.Collector.DeleteFromHash(this);
+                foreach (var link in EnumerateLinks())
+                {
+                    Map.Collector.DeleteFromHash(link);
+                }
+
+                Map.RemoveFromUpdates(this);
+
+                return 0;
+            case ActionCode.ChangeCoor:
+                MoveSystemCursor(new Point(var1, var2));
+                return 0;
+            default:
+                return base.Action(act, var1, var2, var3, target);
+        }
+    }
+
+    private void MoveSystemCursor(Point target)
+    {
+        var screen = target + new Size(Map.Session.Graphics.WindowPosition);
+        Map.Input.PostMessage(WindowMessageId.HitTest, 0, (screen.Y & 0xFFFF) << 16 | (screen.X & 0xFFFF));
+    }
 }
