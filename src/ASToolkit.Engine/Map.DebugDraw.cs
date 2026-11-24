@@ -65,7 +65,7 @@ public partial class Map
         {
             var flagman = Flagman(ControlledPlayer);
             var hovered = _players[ControlledPlayer].Hovered;
-            var drawn = flagman ?? hovered ?? MenuCurrent;
+            var drawn = flagman ?? hovered ?? Menu.Current;
             drawn?.DrawSecondaryInfo();
         }
 

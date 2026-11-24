@@ -67,7 +67,7 @@ public sealed class SpriteCollector
     /// <summary>
     /// Gets the listed sprites, the units and flying units of the map.
     /// </summary>
-    public ReadOnlySpan<Sprite> Listed => _listed.AsSpan();
+    public ReadOnlySpan<Sprite> Listed => _listed.Items;
 
     /// <summary>
     /// Gets half the width and depth of the largest object.
@@ -91,12 +91,12 @@ public sealed class SpriteCollector
     {
         if (IsHashed(sprite.Vid))
         {
-            _buckets[GetBucket(sprite.Position.AsVector2())].Add(sprite);
+            _buckets[GetBucket(sprite.Position.AsVector2())].Insert(sprite);
         }
 
         if (IsListed(sprite.Vid))
         {
-            _listed.Add(sprite);
+            _listed.Insert(sprite);
         }
     }
 
@@ -116,12 +116,12 @@ public sealed class SpriteCollector
                 _index--;
             }
 
-            failed = bucket.Remove(sprite) ? 0 : 1;
+            failed = bucket.Delete(sprite) ? 0 : 1;
         }
 
         if (IsListed(sprite.Vid))
         {
-            failed |= (_listed.Remove(sprite) ? 0 : 1) << 1;
+            failed |= (_listed.Delete(sprite) ? 0 : 1) << 1;
         }
 
         var cursor = sprite.Map.CursorSprite;
@@ -142,9 +142,9 @@ public sealed class SpriteCollector
         int newColumn = GetColumn(position.X);
         int newRow = GetRow(position.Y);
 
-        if ((oldColumn != newColumn || oldRow != newRow) && _buckets[oldRow * _columns + oldColumn].Remove(sprite))
+        if ((oldColumn != newColumn || oldRow != newRow) && _buckets[oldRow * _columns + oldColumn].Delete(sprite))
         {
-            _buckets[newRow * _columns + newColumn].Add(sprite);
+            _buckets[newRow * _columns + newColumn].Insert(sprite);
         }
     }
 

@@ -356,9 +356,9 @@ public sealed partial class Graphics
         }
 
         IsDepthLocked = false;
-        if (IsMovieOpen && HasMovieEnded())
+        if (Movie.IsOpen && Movie.Update())
         {
-            StopMovie();
+            Movie.Release();
         }
 
         SetRenderState(RenderState.SpecularEnable, 0);

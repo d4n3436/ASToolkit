@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Numerics;
 using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
@@ -17,6 +18,7 @@ internal sealed class Player
     private const float MessageBottomMargin = 92;
     private const int MessageLineStep = 1;
     private const int LegSlack = 63;
+    private const int UnitKeyLength = 16;
 
     private static readonly Vector2 MessageDefaultOrigin = new(398, 388);
     private static readonly Angle HeadingUpRight = new(0x20 + 8);
@@ -25,8 +27,10 @@ internal sealed class Player
     private static readonly Angle HeadingDownLeft = new(0xA0 + 8);
     private readonly Map _map;
     private readonly ControlSettings _settings;
-    private readonly List<Sprite> _sprites = [];
+    private readonly SpriteList _sprites = new();
     private bool _isTurningLegs;
+
+    private static ReadOnlySpan<byte> UnitsSection => "Units"u8;
 
     [EngineRoutine(0x00413060)]
     public Player(Map map, ControlSettings settings)
@@ -132,7 +136,7 @@ internal sealed class Player
     [EngineRoutine(0x00413280)]
     private void ForgetSprite(Sprite removed)
     {
-        _map.RemoveSprite(_sprites, removed);
+        _sprites.Delete(removed);
 
         if (Sprite == removed)
         {
@@ -314,22 +318,33 @@ internal sealed class Player
     {
         var torso = player.Link;
 
-        if (torso is not null && torso.Vid == player.Vid.LinkVid)
+        if (torso is null || torso.Vid != player.Vid.LinkVid)
+            return;
+        
+        if (player is { Speed: 0, Vid.Id: KnownObject.PlayerStart })
         {
-            if (player is { Speed: 0, Vid.Id: KnownObject.PlayerStart })
+            if (!_isTurningLegs)
             {
-                if (!_isTurningLegs)
-                {
-                    _isTurningLegs = player.Direction.MeasureTurnTo(torso.Direction) > LegSlack;
-                }
-                else
-                {
-                    _isTurningLegs = player.RotateTact(torso.Direction, _map.FrameTime) != default;
-                }
+                _isTurningLegs = player.Direction.MeasureTurnTo(torso.Direction) > LegSlack;
             }
-
-            torso.RotateTact(cursorDirection, _map.FrameTime);
+            else
+            {
+                _isTurningLegs = player.RotateTact(torso.Direction, _map.FrameTime) != default;
+            }
         }
+
+        torso.RotateTact(cursorDirection, _map.FrameTime);
     }
 
+    [EngineRoutine(0x004134c0)]
+    public ReadOnlyMemory<byte> GetMouseTipsString()
+    {
+        if (Hovered is null)
+            return default;
+
+        Span<byte> key = stackalloc byte[UnitKeyLength];
+        ((int)Hovered.Vid.Id).TryFormat(key, out int written, provider: CultureInfo.InvariantCulture);
+
+        return Profile.GetString(_map.FileSystem, Map.StringsFile, UnitsSection, key[..written]);
+    }
 }

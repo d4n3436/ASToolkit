@@ -69,7 +69,7 @@ public partial class Map
                 var now = Session.Time.GetLocalNow();
                 string path = $"{ScreenshotFolder}{now.ToString(ScreenshotDateFormat, CultureInfo.InvariantCulture)} {now.ToString(ScreenshotTimeFormat, CultureInfo.InvariantCulture)}{ScreenshotExtension}";
                 path = MyError.ReplaceFirst(MyError.ReplaceFirst(MyError.ReplaceFirst(path, ':', 'h'), ':', 'm'), ':', 's');
-                Session.Graphics.SaveScreen(_fileSystem, path, new Rectangle(Point.Empty, System.Drawing.Size.Truncate(Session.ScreenSize)));
+                Session.Graphics.SaveScreen(FileSystem, path, new Rectangle(Point.Empty, System.Drawing.Size.Truncate(Session.ScreenSize)));
                 break;
         }
     }
@@ -113,7 +113,7 @@ public partial class Map
                 if (_flags.HasFlag(MapFlags.WindowActive))
                 {
                     Sound.Resume(WallTime);
-                    CursorSprite.Enable(_fileSystem);
+                    CursorSprite.Enable(FileSystem);
                 }
                 else
                 {

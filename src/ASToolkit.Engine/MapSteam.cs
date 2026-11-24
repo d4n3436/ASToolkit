@@ -23,6 +23,8 @@ public sealed class MapSteam : Map
     private const int SingleStepKey = 'P';
     private const int StepKey = 'p';
 
+    private readonly MouseTips _mouseTips;
+
     private static ReadOnlySpan<byte> PresentationText => "Presentation version. Not for sale!"u8;
 
     /// <summary>
@@ -36,12 +38,13 @@ public sealed class MapSteam : Map
     public MapSteam(string gameFolder, ObjectTable objects, IGameFileSystem fileSystem, Registry? registry = null, GameSession? session = null)
         : base(gameFolder, objects, fileSystem, registry, session)
     {
+        _mouseTips = new MouseTips(this);
     }
 
     [EngineRoutine(0x00405160)]
     internal override void DeletePointerToSprite(Sprite removed)
     {
-        ForgetMouseTip(removed);
+        _mouseTips.DeletePointerToSprite(removed);
         base.DeletePointerToSprite(removed);
     }
 
@@ -97,7 +100,7 @@ public sealed class MapSteam : Map
             return false;
         }
 
-        bool canDraw = !(!isActive && Session.IsFullScreen || Session.Graphics.IsMovieOpen);
+        bool canDraw = !(!isActive && Session.IsFullScreen || Session.Graphics.Movie.IsOpen);
         if (canDraw && Session.Graphics.PreTact() != 0)
             return false;
 
@@ -111,10 +114,10 @@ public sealed class MapSteam : Map
         }
 
         bool draw = demoResult != 0 && canDraw;
-        ProcessMenuInput(Input);
+        Menu.Control(Input);
         ScriptRun(MainFunction, null);
 
-        if (draw && Session.Graphics.IsMovieOpen)
+        if (draw && Session.Graphics.Movie.IsOpen)
         {
             draw = false;
             canDraw = false;
@@ -128,9 +131,9 @@ public sealed class MapSteam : Map
 
         if (isPaused)
         {
-            for (int i = MenuList.Count - 1; i >= 0; i--)
+            for (int i = Menu.Count - 1; i >= 0; i--)
             {
-                MenuList[i].Tact();
+                Menu[i].Tact();
             }
         }
         else
@@ -145,7 +148,7 @@ public sealed class MapSteam : Map
             }
         }
 
-        TactMouseTip(Input);
+        _mouseTips.Tact(Input);
         Scroll();
 
         if (!isPaused && _flags.HasFlag(MapFlags.PlayerControlled))
@@ -186,7 +189,7 @@ public sealed class MapSteam : Map
     internal override void Release()
     {
         _flags &= ~MapFlags.MonstersAttackNeutralTrains;
-        DeleteMouseTip();
+        _mouseTips.Clear();
         base.Release();
     }
 

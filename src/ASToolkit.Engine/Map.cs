@@ -34,7 +34,6 @@ public partial class Map : IDisposable
 
     private static readonly SizeF StartMapSize = new(640, 480);
     private protected readonly GameRandom _rng;
-    private readonly IGameFileSystem _fileSystem;
     private readonly Dictionary<int, ScriptFile> _scriptFiles = [];
     private readonly ControlSettings _controls;
     private readonly Group _groupHead = new(null, null);
@@ -45,7 +44,6 @@ public partial class Map : IDisposable
     private readonly int[] _scriptHooks = new int[ScriptHookCount];
     private protected UpdateOrder _updates;
     private int _pausedAt;
-    private MenuClicks _menuClicks;
     private protected GameClock _clock;
     private protected MapFlags _flags;
     private protected StepFlags _debug;
@@ -66,6 +64,7 @@ public partial class Map : IDisposable
     protected Map(string gameFolder, ObjectTable objects, IGameFileSystem fileSystem, Registry? registry = null, GameSession? session = null)
     {
         Registry = registry ?? new Registry("");
+        Menu = new Menu(this);
         Session = session ?? new GameSession(Registry);
         SetFlag(MapFlags.AppMenu, Session.HasAppMenu);
         _flags |= MapFlags.PlayerControlled | MapFlags.DrawFlagman | MapFlags.DrawSoundCount | MapFlags.MouseTips;
@@ -73,7 +72,7 @@ public partial class Map : IDisposable
         SetFlag(MapFlags.DrawFps, Session.ShouldDrawFps);
         SetFlag(MapFlags.DrawPresentation, Session.ShouldDrawPresentation);
         _hasWindow = true;
-        _fileSystem = fileSystem;
+        FileSystem = fileSystem;
         _gameFolder = gameFolder;
         _objects = objects;
         Parts = new SpritePartReader(gameFolder, objects);
@@ -204,7 +203,13 @@ public partial class Map : IDisposable
     /// <summary>
     /// Gets the menu sprites that keep their place on the screen as the camera moves.
     /// </summary>
-    public IReadOnlyList<Sprite> MenuSprites => MenuList;
+    public ReadOnlySpan<Sprite> MenuSprites => Menu.Items;
+
+    internal Menu Menu { get; }
+
+    internal IGameFileSystem FileSystem { get; }
+
+    internal Relation Relation { get; } = new();
 
     /// <summary>
     /// Gets the size of the map, in map pixels.
@@ -219,10 +224,6 @@ public partial class Map : IDisposable
     internal GameRandom Random => _rng;
 
     internal bool CanMonstersAttackNeutralTrains => _flags.HasFlag(MapFlags.MonstersAttackNeutralTrains);
-
-    internal List<Sprite> MenuList { get; } = [];
-
-    internal Sprite? MenuCurrent { get; set; }
 
     internal Dictionary<int, Sprite> Handles { get; } = [];
 
@@ -292,7 +293,7 @@ public partial class Map : IDisposable
         }
 
         _lastHandle = 0;
-        _menuClicks = default;
+        Menu.Clicks = default;
         _livingFences.Clear();
         _livingSites.Clear();
         _livingCharges.Clear();
@@ -300,9 +301,9 @@ public partial class Map : IDisposable
         if (!Session.IsRecordingNextMap)
         {
             var demo = new Resource();
-            if (demo.Open(_fileSystem, Session.Error, name, DemoKind) == 0)
+            if (demo.Open(FileSystem, Session.Error, name, DemoKind) == 0)
             {
-                _fileSystem.TryRead(Encoding.ASCII.GetString(name), out var data);
+                FileSystem.TryRead(Encoding.ASCII.GetString(name), out var data);
                 name = demo.ReadText();
                 _playedDemo = new DemoResource(data);
                 _flags |= MapFlags.PlayingDemo;
@@ -310,7 +311,7 @@ public partial class Map : IDisposable
         }
 
         var reader = new Resource();
-        if (reader.Open(_fileSystem, Session.Error, name, MapKind) != 0)
+        if (reader.Open(FileSystem, Session.Error, name, MapKind) != 0)
         {
             Session.Error.Alert($"!!!ERROR!!!LOAD: Invalid map file {MyError.Decode(name)}");
             return;
@@ -331,7 +332,7 @@ public partial class Map : IDisposable
             return;
 
         _flags &= ~MapFlags.Loading;
-        _spriteRelations.Clear();
+        Relation.Release();
         // TODO: Port the "Vid    release %i %i" log line (0x40d3f0) that writes the texture bytes the renderer holds and the bytes of the loaded VID data
         LoadScript(name);
         if (IsPlayingDemo)
@@ -352,7 +353,7 @@ public partial class Map : IDisposable
 
         if (!IsPlayingDemo)
         {
-            CursorSprite.Enable(_fileSystem);
+            CursorSprite.Enable(FileSystem);
         }
 
         ShowLoadingStep([]);
@@ -511,14 +512,14 @@ public partial class Map : IDisposable
     {
         var error = Session.Error;
         LogCounts(error);
-        _spriteRelations.Clear();
+        Relation.Release();
         _clock.ResetRate();
-        Session.Graphics.StopMovie();
+        Session.Graphics.Movie.Release();
         Session.Graphics.SetWind(ReleaseWindSpeed, new Angle(ReleaseWindDirection));
         Session.Graphics.SetEnvironment((MapEnvironment)(-1));
         if (IsPlayingDemo)
         {
-            CursorSprite.Enable(_fileSystem);
+            CursorSprite.Enable(FileSystem);
         }
 
         _playedDemo = null;
@@ -543,10 +544,10 @@ public partial class Map : IDisposable
 
         DeleteAll();
         error.Write("Menu   release"u8);
-        if (MenuList.Count != 0)
+        if (Menu.Count != 0)
         {
-            error.Error($"SPRITE {(int)MenuList[0].Vid.Id}", LogError.Text, 0, MenuSpriteExistsText);
-            MenuList.Clear();
+            error.Error($"SPRITE {(int)Menu[0].Vid.Id}", LogError.Text, 0, MenuSpriteExistsText);
+            Menu.DeleteAll();
         }
 
         int elapsed = Time - _levelStartTime;
@@ -809,16 +810,16 @@ public partial class Map : IDisposable
         ShowLoadingStep("Load script file"u8);
         string stem = GameTextEncoding.Cyrillic.GetString(GetBeforeLast(name, ExtensionMark));
         string scriptPath = stem + ScriptExtension;
-        if (!_fileSystem.TryRead(scriptPath, out _))
+        if (!FileSystem.TryRead(scriptPath, out _))
         {
             string compiledPath = stem + CompiledScriptExtension;
-            if (_fileSystem.TryRead(compiledPath, out _))
+            if (FileSystem.TryRead(compiledPath, out _))
             {
                 scriptPath = compiledPath;
             }
         }
 
-        Script.Load(_fileSystem, scriptPath);
+        Script.Load(FileSystem, scriptPath);
         ShowLoadingStep("Connect script function with VID"u8);
         var objects = Script.Objects;
         for (int i = 0; i < objects.Count; i++)
@@ -904,6 +905,8 @@ public partial class Map : IDisposable
         }
     }
 
+    internal bool HasFlag(MapFlags flag) => _flags.HasFlag(flag);
+
     private void SetFlag(MapFlags flag, bool isSet) => _flags = (isSet ? flag : MapFlags.None) | _flags & ~flag;
 
     /// <summary>
@@ -927,7 +930,6 @@ public partial class Map : IDisposable
         }
 
         Sprite sprite;
-
         switch (vid.Class)
         {
             case SpriteClass.Unit:
@@ -1050,7 +1052,7 @@ public partial class Map : IDisposable
     internal bool RemoveFromLayer(Sprite sprite) => _updates.Remove(sprite.Vid.Layer, sprite);
 
     [EngineRoutine(0x0040f9e0)]
-    private void Pause()
+    internal void Pause()
     {
         if (!IsPaused)
         {

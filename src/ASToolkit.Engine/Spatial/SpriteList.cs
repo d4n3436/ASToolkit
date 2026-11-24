@@ -3,78 +3,37 @@ using ASToolkit.Engine.IO;
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents a list of sprites that holds a reference to each of its sprites.
+/// Represents a growable array of <see cref="Sprite"/>.
 /// </summary>
-public sealed class SpriteList
+public class SpriteList : MyList<Sprite>
 {
-    private const int GrowthStep = 4;
-
-    private Sprite[] _items = [];
-
     /// <summary>
-    /// Gets the number of sprites in the list.
-    /// </summary>
-    public int Count { get; private set; }
-
-    /// <summary>
-    /// Gets the sprite at an index.
-    /// </summary>
-    /// <param name="index">The index.</param>
-    public Sprite this[int index] => _items[index];
-
-    /// <summary>
-    /// Returns the sprites of the list.
-    /// </summary>
-    /// <returns>The sprites, in the order the list holds them.</returns>
-    public ReadOnlySpan<Sprite> AsSpan() => _items.AsSpan(0, Count);
-
-    /// <summary>
-    /// Adds a sprite at the end of the list and holds a reference to it.
+    /// Adds a sprite after the last one and takes a reference to it.
     /// </summary>
     /// <param name="sprite">The sprite.</param>
     [EngineRoutine(0x0043de20)]
-    public void Add(Sprite sprite)
+    public new void Insert(Sprite sprite)
     {
         sprite.AddRef();
-
-        if (Count >= _items.Length)
-        {
-            Array.Resize(ref _items, _items.Length * 2 + GrowthStep);
-        }
-
-        _items[Count++] = sprite;
+        base.Insert(sprite);
     }
 
     /// <summary>
-    /// Removes the last occurrence of a sprite, moves the last sprite into its place and releases the reference to the removed sprite.
-    /// Sprites left without references are deleted.
+    /// Removes the last entry of a sprite, moving the last entry into its place, and drops the reference to it.
     /// </summary>
     /// <param name="sprite">The sprite.</param>
     /// <returns><see langword="true"/> if the list held the sprite; otherwise, <see langword="false"/>.</returns>
     [EngineRoutine(0x0043deb0)]
-    public bool Remove(Sprite sprite)
+    public bool Delete(Sprite sprite)
     {
         for (int index = Count - 1; index >= 0; index--)
         {
-            if (_items[index] != sprite)
+            if (this[index] != sprite)
                 continue;
 
             Count--;
-            _items[index] = _items[Count];
-
-            int references = sprite.Release();
-
-            if (references < 1)
-            {
-                if (references < 0)
-                {
-                    sprite.Error?.Error($"SPRITE {(int)sprite.Vid.Id}", LogError.Invalid, references, "noRef at Release"u8);
-                }
-                else
-                {
-                    sprite.Map.DeleteSprite(sprite);
-                }
-            }
+            this[index] = this[Count];
+            sprite.Map.Release(sprite);
 
             return true;
         }
@@ -83,11 +42,86 @@ public sealed class SpriteList
     }
 
     /// <summary>
-    /// Empties the list without releasing its sprites.
+    /// Removes the entry at an index, moving the last entry into its place, and destroys its sprite.
     /// </summary>
-    public void Clear()
+    /// <param name="index">The index.</param>
+    /// <returns>1 if the index is outside the list; otherwise, 0.</returns>
+    [EngineRoutine(0x0043df50)]
+    public int DeleteSpriteNumber(int index)
     {
-        _items = [];
-        Count = 0;
+        if (index < 0 || index >= Count)
+            return 1;
+
+        var sprite = this[index];
+        Count--;
+        this[index] = this[Count];
+        int references = sprite.Release();
+        if (references < 0)
+        {
+            sprite.Error?.Error($"SPRITE {(int)sprite.Vid.Id}", LogError.Invalid, references, "noRef at Release"u8);
+
+            return 0;
+        }
+
+        sprite.Map.DeleteSprite(sprite);
+
+        return 0;
+    }
+
+    /// <summary>
+    /// Drops the extra references of sprites listed more than once, then removes and destroys every sprite.
+    /// </summary>
+    [EngineRoutine(0x0043dfe0)]
+    public void DeleteAll()
+    {
+        for (int i = 0; i < Count; i++)
+        {
+            for (int j = Count - 1; i < j; j--)
+            {
+                if (this[i] != this[j])
+                    continue;
+
+                this[j].Map.Release(this[j]);
+                if (j < Count)
+                {
+                    Count--;
+                    this[j] = this[Count];
+                }
+            }
+        }
+
+        for (int i = Count - 1; i >= 0; i--)
+        {
+            if (i < Count)
+            {
+                DeleteSpriteNumber(i);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Drops the reference to every sprite, removing the sprites that other holders still reference.
+    /// </summary>
+    [EngineRoutine(0x0043e0a0)]
+    public new void Release()
+    {
+        for (int i = Count - 1; i >= 0; i--)
+        {
+            var sprite = this[i];
+            int references = sprite.Release();
+            if (references < 0)
+            {
+                sprite.Error?.Error($"SPRITE {(int)sprite.Vid.Id}", LogError.Invalid, references, "noRef at Release"u8);
+            }
+            else if (references == 0)
+            {
+                sprite.Map.DeleteSprite(sprite);
+            }
+            else if (i < Count)
+            {
+                Count--;
+                this[i] = this[Count];
+            }
+        }
     }
 }

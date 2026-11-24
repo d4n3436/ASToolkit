@@ -22,19 +22,18 @@ public class Frame : Sprite
     public Frame(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
         : base(vid, new Vector3(position.AsVector2() + map.Camera, position.Z), direction, parent, map)
     {
-        Map.MenuList.Add(this);
-        AddRef();
+        Map.Menu.Insert(this);
     }
 
     [EngineRoutine(0x00448af0)]
     internal override void Destruct()
     {
-        if (Map.MenuCurrent == this)
+        if (Map.Menu.Current == this)
         {
-            Map.MenuCurrent = null;
+            Map.Menu.Current = null;
         }
 
-        Map.RemoveSprite(Map.MenuList, this);
+        Map.Menu.Delete(this);
         Map.DeletePointerToSprite(this);
         base.Destruct();
     }

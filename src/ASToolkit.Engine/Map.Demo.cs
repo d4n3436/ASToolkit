@@ -129,7 +129,7 @@ public partial class Map
 
         _playedDemo = null;
         _flags &= ~MapFlags.PlayingDemo;
-        CursorSprite.Enable(_fileSystem);
+        CursorSprite.Enable(FileSystem);
         RequestLoad(mapName);
     }
 

@@ -127,7 +127,7 @@ internal sealed class Message
             _shownAt = _map.Time;
         }
 
-        var clicked = _map.MenuLeftClick;
+        var clicked = _map.Menu.LeftClick;
 
         if (clicked is null || (int)clicked.Vid.Id != _markerId)
             return;

@@ -302,7 +302,7 @@ public partial class Sprite
         foreach (var action in stack)
         {
             ActionStack.Insert(Act.HasSpriteTarget(action.Code)
-                ? new Act(action.Act, action.Var1, action.Var2, action.Var3, Map.GetRelatedSprite(action.Var1))
+                ? new Act(action.Act, action.Var1, action.Var2, action.Var3, Map.Relation.Decode(action.Var1))
                 : Act.FromAction(action));
         }
 

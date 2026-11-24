@@ -8,7 +8,7 @@ namespace ASToolkit.Engine;
 public partial class Map
 {
     private const byte ElementStart = (byte)'[';
-    private const string StringsFile = "Strings.ini";
+    internal const string StringsFile = "Strings.ini";
 
     private static ReadOnlySpan<byte> MenuSection => "menu"u8;
 
@@ -80,12 +80,12 @@ public partial class Map
     [EngineRoutine(0x00406630)]
     internal ReadOnlyMemory<byte> LoadTextFile(ReadOnlySpan<byte> name)
     {
-        if (name.IsEmpty || !_fileSystem.TryRead(Encoding.ASCII.GetString(name), out var data))
+        if (name.IsEmpty || !FileSystem.TryRead(Encoding.ASCII.GetString(name), out var data))
             return default;
 
         return CRuntime.GetString(data);
     }
 
-    private ReadOnlyMemory<byte> ReadMenuString(ReadOnlySpan<byte> key) => Profile.GetString(_fileSystem, StringsFile, MenuSection, key);
+    private ReadOnlyMemory<byte> ReadMenuString(ReadOnlySpan<byte> key) => Profile.GetString(FileSystem, StringsFile, MenuSection, key);
 
 }

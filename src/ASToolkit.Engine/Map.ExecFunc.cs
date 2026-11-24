@@ -54,13 +54,9 @@ public partial class Map : IScriptFunctionHost
     /// </summary>
     public GameSession Session { get; }
 
-    internal Sprite? MenuLeftClick => _menuClicks.HasFlag(MenuClicks.Left) ? MenuCurrent : null;
-
     private static ReadOnlySpan<byte> Base64Alphabet => "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"u8;
 
-    private Sprite? MenuRightClick => _menuClicks.HasFlag(MenuClicks.Right) ? MenuCurrent : null;
-
-    private IGameFileSystem ScriptFiles => field ??= _fileSystem as MemoryWriteOverlay ?? new MemoryWriteOverlay(_fileSystem);
+    private IGameFileSystem ScriptFiles => field ??= FileSystem as MemoryWriteOverlay ?? new MemoryWriteOverlay(FileSystem);
 
     /// <summary>
     /// Returns the script handle of a sprite, allocating one if the sprite doesn't have one yet.
@@ -258,16 +254,16 @@ public partial class Map : IScriptFunctionHost
                 PushSprite(script, MenuFind(script));
                 break;
             case ScriptFunction.MenuLoad:
-                LoadMenu(script.PopText().Span);
+                Menu.Load(script.PopText().Span);
                 break;
             case ScriptFunction.MenuRelease:
                 MenuRelease(script);
                 break;
             case ScriptFunction.MenuNVidUnderCursor:
-                script.PushInt(GetMenuIdUnderCursor());
+                script.PushInt(Menu.GetIdUnderCursor());
                 break;
             case ScriptFunction.MenuNDirUnderCursor:
-                script.PushInt(GetMenuDirectionUnderCursor());
+                script.PushInt(Menu.GetDirectionUnderCursor());
                 break;
             case ScriptFunction.MenuAction:
                 MenuAction(script);
@@ -276,10 +272,10 @@ public partial class Map : IScriptFunctionHost
                 MenuCreate(script);
                 break;
             case ScriptFunction.MenuLClick:
-                PushSprite(script, MenuLeftClick);
+                PushSprite(script, Menu.LeftClick);
                 break;
             case ScriptFunction.MenuRClick:
-                PushSprite(script, MenuRightClick);
+                PushSprite(script, Menu.RightClick);
                 break;
 
             case ScriptFunction.SetCursor:
@@ -345,13 +341,13 @@ public partial class Map : IScriptFunctionHost
                 break;
 
             case ScriptFunction.PlayMovie:
-                Session.Graphics.PlayMovie(_fileSystem, script.PopText().Span, Session.Error);
+                Session.Graphics.PlayMovie(FileSystem, script.PopText().Span, Session.Error);
                 break;
             case ScriptFunction.IsPlayMovie:
-                script.PushInt(Session.Graphics.IsMovieOpen ? 1 : 0);
+                script.PushInt(Session.Graphics.Movie.IsOpen ? 1 : 0);
                 break;
             case ScriptFunction.StopMovie:
-                Session.Graphics.StopMovie();
+                Session.Graphics.Movie.Release();
                 break;
 
             case ScriptFunction.SetGamma:
@@ -543,19 +539,6 @@ public partial class Map : IScriptFunctionHost
     [EngineRoutine(0x0043a720)]
     internal void PushSprite(int value) => Script.PushSprite(value);
 
-    [EngineRoutine(0x0043deb0)]
-    internal void RemoveSprite(List<Sprite> sprites, Sprite sprite)
-    {
-        int i = sprites.LastIndexOf(sprite);
-        if (i < 0)
-            return;
-
-        int last = sprites.Count - 1;
-        sprites[i] = sprites[last];
-        sprites.RemoveAt(last);
-        Release(sprite);
-    }
-
     [EngineRoutine(0x0040fc40)]
     internal Sprite? GetSpriteScr(SpriteSearch search, Vector2 point)
     {
@@ -597,9 +580,9 @@ public partial class Map : IScriptFunctionHost
 
         if (vid is not null && vid.Class == SpriteClass.Frame)
         {
-            for (int i = MenuList.Count - 1; i >= 0; i--)
+            for (int i = Menu.Count - 1; i >= 0; i--)
             {
-                var sprite = MenuList[i];
+                var sprite = Menu[i];
 
                 if (sprite.Owner is null && IsSearched(sprite, search, types, armies) && IsScreenHit(sprite, sprite.Vid.Half, point, found))
                 {
@@ -834,71 +817,6 @@ public partial class Map : IScriptFunctionHost
     private void LogInvalidVid(ReadOnlySpan<byte> function, int id) =>
         Session.Error.Write($"!!!ERROR!!!SCRIPT: Invalid nvid {MyError.Decode(function)} {id}");
 
-    [EngineRoutine(0x0043e140)]
-    private protected bool ProcessMenuInput(Input input)
-    {
-        MenuCurrent = null;
-        _menuClicks = MenuClicks.None;
-        foreach (var sprite in MenuList)
-        {
-            var vid = sprite.Vid;
-
-            if (vid.MoveMask == 0 || sprite.Animation is SpriteAnimation.Birth or >= SpriteAnimation.Death or SpriteAnimation.Close or SpriteAnimation.Open)
-                continue;
-
-            float top = sprite.Position.Y - sprite.Position.Z;
-            var cursor = input.Cursor;
-            float left = sprite.Position.X - vid.Half.X;
-            float right = sprite.Position.X + vid.Half.X;
-            float above = top - vid.Object.Size.Z;
-            float high = above - vid.Half.Y;
-            float low = top + vid.Half.Y;
-            bool isMissed = cursor.X < left || right < cursor.X || cursor.Y <= high || low <= cursor.Y ||
-                MenuCurrent is not null && sprite.Position.Z <= MenuCurrent.Position.Z;
-            if (isMissed)
-            {
-                sprite.ChangeAnimation((SpriteAnimation)((int)sprite.Animation & 1));
-            }
-            else
-            {
-                MenuCurrent = sprite;
-            }
-        }
-
-        if (MenuCurrent is null)
-            return false;
-
-        if (input.Flags.HasFlag(InputFlags.LeftClick))
-        {
-            _menuClicks |= MenuClicks.Left;
-            input.ClearLeftClick();
-            MenuCurrent.ChangeAnimation((SpriteAnimation)((int)MenuCurrent.Animation & 1 | (int)MenuAnimation.PressDown));
-
-            return true;
-        }
-
-        if (input.Flags.HasFlag(InputFlags.RightClick))
-        {
-            _menuClicks |= MenuClicks.Right;
-            input.ClearRightClick();
-        }
-
-        int current = (int)MenuCurrent.Animation;
-        if ((current & ~1) != (int)MenuAnimation.PressDown)
-        {
-            MenuCurrent.ChangeAnimation((SpriteAnimation)(current & 1 | (int)MenuAnimation.SelectDown));
-        }
-
-        return false;
-    }
-
-    [EngineRoutine(0x0043e880)]
-    private int GetMenuIdUnderCursor() => MenuCurrent is null ? 0 : (int)MenuCurrent.Vid.Id;
-
-    [EngineRoutine(0x0043e8a0)]
-    private int GetMenuDirectionUnderCursor() =>
-        MenuCurrent is null ? 0 : MenuCurrent.Vid.GetDirectionIndex(MenuCurrent.Direction);
-
     private void SetMouseClick(int key, int button)
     {
         if (button == FirstMouseClick)
@@ -919,48 +837,19 @@ public partial class Map : IScriptFunctionHost
                 CursorSprite.Disable();
                 break;
             case HardwareCursor:
-                CursorSprite.HardwareOn(EmptyVid, _fileSystem);
+                CursorSprite.HardwareOn(EmptyVid, FileSystem);
                 break;
             case SoftwareCursor:
-                CursorSprite.HardwareOff(FindVid(KnownObject.Cursor) ?? EmptyVid, _fileSystem);
+                CursorSprite.HardwareOff(FindVid(KnownObject.Cursor) ?? EmptyVid, FileSystem);
                 break;
             default:
                 if (!CursorSprite.IsCursorLoaded)
                 {
-                    CursorSprite.Enable(_fileSystem);
+                    CursorSprite.Enable(FileSystem);
                 }
 
                 CursorSprite.ChangeAnimation((SpriteAnimation)type);
                 break;
-        }
-    }
-
-    [EngineRoutine(0x0043dfe0)]
-    private void DeleteAllMenuSprites()
-    {
-        for (int i = 0; i < MenuList.Count; i++)
-        {
-            for (int j = MenuList.Count - 1; i < j; j--)
-            {
-                if (MenuList[i] != MenuList[j])
-                    continue;
-
-                Release(MenuList[j]);
-                if (j < MenuList.Count)
-                {
-                    int last = MenuList.Count - 1;
-                    MenuList[j] = MenuList[last];
-                    MenuList.RemoveAt(last);
-                }
-            }
-        }
-
-        for (int i = MenuList.Count - 1; i >= 0; i--)
-        {
-            if (i < MenuList.Count)
-            {
-                DeleteMenuSpriteAt(i);
-            }
         }
     }
 
@@ -973,7 +862,7 @@ public partial class Map : IScriptFunctionHost
         if (Sum(vid.Counts) == 0)
             return null;
 
-        foreach (var sprite in MenuList)
+        foreach (var sprite in Menu.Items)
         {
             if (IsMenuMatch(sprite, vid, direction))
                 return sprite;
@@ -992,9 +881,9 @@ public partial class Map : IScriptFunctionHost
         if (!TryLookupVid(script.PopNumber(), "for MenuAction"u8, out var vid))
             return;
 
-        for (int i = 0; i < MenuList.Count; i++)
+        for (int i = 0; i < Menu.Count; i++)
         {
-            var sprite = MenuList[i];
+            var sprite = Menu[i];
 
             if (!IsMenuMatch(sprite, vid, direction))
                 continue;
@@ -1065,7 +954,7 @@ public partial class Map : IScriptFunctionHost
     }
 
     [EngineRoutine(0x0043a7e0)]
-    private Player GetPlayer(int army) => _players[army & ASToolkit.Engine.Vid.ArmyMask];
+    internal Player GetPlayer(int army) => _players[army & ASToolkit.Engine.Vid.ArmyMask];
 
     [EngineRoutine(0x0043a7b0)]
     private void LogMapError(LogError code, ReadOnlySpan<byte> text, int value) => Session.Error.Error(MapLogTag, code, value, text);
@@ -1122,9 +1011,9 @@ public partial class Map : IScriptFunctionHost
 
         if (vid is not null && vid.Class is SpriteClass.Frame or SpriteClass.Text)
         {
-            for (int i = MenuList.Count - 1; i >= 0; i--)
+            for (int i = Menu.Count - 1; i >= 0; i--)
             {
-                TakeNearer(MenuList[i]);
+                TakeNearer(Menu[i]);
             }
 
             return found;
@@ -1680,11 +1569,11 @@ public partial class Map : IScriptFunctionHost
         var name = script.PopText();
         if (name.IsEmpty)
         {
-            DeleteAllMenuSprites();
+            Menu.DeleteAll();
         }
         else
         {
-            DeleteMenuFromFile(name.Span);
+            Menu.DeleteFromFile(name.Span);
         }
     }
 
@@ -1805,7 +1694,7 @@ public partial class Map : IScriptFunctionHost
     private void GetString(Script script)
     {
         var keyword = script.PopText();
-        script.PushText(Profile.GetString(_fileSystem, StringsFile, script.PopText().Span, keyword.Span));
+        script.PushText(Profile.GetString(FileSystem, StringsFile, script.PopText().Span, keyword.Span));
     }
 
     private void FClose()
