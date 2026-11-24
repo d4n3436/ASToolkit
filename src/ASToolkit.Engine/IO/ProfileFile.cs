@@ -16,7 +16,7 @@ internal static class ProfileFile
     private static ReadOnlySpan<byte> Quotes => "\"'"u8;
 
     public static ReadOnlyMemory<byte> GetString(IGameFileSystem fileSystem, string path, ReadOnlySpan<byte> section, ReadOnlySpan<byte> key) =>
-        TryGetString(fileSystem, path, section, key, out var value) ? value : ReadOnlyMemory<byte>.Empty;
+        TryGetString(fileSystem, path, section, key, out var value) ? value : default;
 
     [EngineRoutine(0x00407680)]
     public static int GetInteger(IGameFileSystem fileSystem, string path, ReadOnlySpan<byte> section, ReadOnlySpan<byte> key, int defaultValue) =>
@@ -25,7 +25,7 @@ internal static class ProfileFile
     [EngineRoutine(0x004076a0)]
     public static bool TryGetString(IGameFileSystem fileSystem, string path, ReadOnlySpan<byte> section, ReadOnlySpan<byte> key, out ReadOnlyMemory<byte> value)
     {
-        value = ReadOnlyMemory<byte>.Empty;
+        value = default;
         if (!fileSystem.TryRead(path, out var data))
             return false;
 

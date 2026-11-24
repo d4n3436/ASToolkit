@@ -1,6 +1,5 @@
 using System.Drawing;
 using System.Numerics;
-using ASToolkit.Core;
 
 namespace ASToolkit.Formats;
 
@@ -25,11 +24,9 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     /// Represents the number of steps in a quarter turn.
     /// </summary>
     public const int QuarterTurn = FullTurn / 4;
-
     private const float AngleUnitsPerRadian = 40.74366760253906f;
     private const int AimGain = 0x9b74e;
     private const int AimGainShift = 20;
-    private const int NeverTurns = 999999;
 
     private static readonly Vector2[] Vectors = CreateVectors();
 
@@ -128,12 +125,12 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     [EngineRoutine(0x00406080)]
     public static Angle FromOffset(Vector2 offset)
     {
-        if (offset.Y.IsExactlyZero())
+        if (!(offset.Y < 0 || offset.Y > 0))
         {
             return offset.X > 0 ? East : offset.X < 0 ? West : default;
         }
 
-        float angle = (float)Math.Atan(-(offset.X / offset.Y)) * AngleUnitsPerRadian;
+        float angle = (float)(Math.Atan(-(offset.X / offset.Y)) * AngleUnitsPerRadian);
 
         if (offset.Y > 0)
         {
@@ -150,20 +147,20 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     /// <summary>
     /// Returns the direction of an offset by an integer approximation.
     /// </summary>
-    /// <param name="offset">The offset.</param>
+    /// <param name="offset">The offset, in whole units.</param>
     /// <returns>The direction of the offset.</returns>
-    public static Angle Aim(Vector2 offset) => Aim(offset, out _);
+    public static Angle Aim(Point offset) => Aim(offset, out _);
 
     /// <summary>
     /// Returns the direction of an offset by an integer approximation, with its length.
     /// </summary>
-    /// <param name="offset">The offset.</param>
+    /// <param name="offset">The offset, in whole units.</param>
     /// <param name="distance">The approximate length of the offset.</param>
     /// <returns>The direction of the offset.</returns>
     [EngineRoutine(0x00406000)]
-    public static Angle Aim(Vector2 offset, out int distance)
+    public static Angle Aim(Point offset, out int distance)
     {
-        var point = new Point((int)offset.X, (int)offset.Y);
+        var point = offset;
         int direction = HalfTurn;
 
         if (point.X < 0)
@@ -191,7 +188,7 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     public int CompareTo(Angle other) => Value.CompareTo(other.Value);
 
     /// <summary>
-    /// Returns the index of the direction frame the engine shows for this direction, out of a number of direction frames.
+    /// Returns the index of the direction frame shown for this direction, out of a number of direction frames.
     /// </summary>
     /// <param name="directions">The number of direction frames.</param>
     /// <returns>The index of the direction frame.</returns>
@@ -219,66 +216,6 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     /// <param name="other">The other direction.</param>
     /// <returns>The number of steps of the shorter turn.</returns>
     public int MeasureTurnTo(Angle other) => Math.Min((byte)(Value - other.Value), (byte)(other.Value - Value));
-
-    /// <summary>
-    /// Returns the direction after turning toward a goal for a time, at the rate of a full turn per period.
-    /// </summary>
-    /// <param name="goal">The goal direction.</param>
-    /// <param name="period">The milliseconds of a full turn; 0 turns at once and 999999 never turns.</param>
-    /// <param name="elapsed">The milliseconds to turn for.</param>
-    /// <param name="remaining">The turn left to the goal.</param>
-    /// <returns>The direction after the turn.</returns>
-    public Angle TurnToward(Angle goal, float period, int elapsed, out Angle remaining)
-    {
-        if (this == goal)
-        {
-            remaining = default;
-
-            return this;
-        }
-
-        if (period.IsExactlyZero())
-        {
-            remaining = 1;
-
-            return goal;
-        }
-
-        int step = period.IsExactly(NeverTurns) ? 0 : (int)(elapsed * (FullTurn / period) + 0.5f);
-
-        return StepToward(goal, step, out remaining);
-    }
-
-    /// <summary>
-    /// Returns the direction after turning toward a goal by a number of steps.
-    /// </summary>
-    /// <param name="goal">The goal direction.</param>
-    /// <param name="step">The steps to turn by.</param>
-    /// <param name="remaining">The turn left to the goal.</param>
-    /// <returns>The direction after the turn.</returns>
-    public Angle StepToward(Angle goal, int step, out Angle remaining)
-    {
-        int difference = MeasureTurnTo(goal);
-
-        if (step == 0)
-        {
-            remaining = (byte)difference;
-
-            return this;
-        }
-
-        if (difference <= step)
-        {
-            remaining = default;
-
-            return goal;
-        }
-
-        var angle = this + ((byte)(goal.Value - Value) <= HalfTurn ? step : -step);
-        remaining = (byte)angle.MeasureTurnTo(goal);
-
-        return angle;
-    }
 
     private static Vector2[] CreateVectors()
     {

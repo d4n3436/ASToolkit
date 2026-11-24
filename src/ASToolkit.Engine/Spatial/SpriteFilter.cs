@@ -14,7 +14,7 @@ internal readonly record struct SpriteFilter(SpriteSearch Search, OldSpriteType 
         if (Search.HasFlag(SpriteSearch.Free) && sprite.Command != Command.None)
             return false;
 
-        if (Search.HasFlag(SpriteSearch.Class) && (int)definition.Object.SpriteClass != (int)(Search & SpriteSearch.ValueMask))
+        if (Search.HasFlag(SpriteSearch.Class) && (int)definition.Class != (int)(Search & SpriteSearch.ValueMask))
             return false;
 
         return !Search.HasFlag(SpriteSearch.Id) || (int)definition.Id == (int)(Search & SpriteSearch.ValueMask);

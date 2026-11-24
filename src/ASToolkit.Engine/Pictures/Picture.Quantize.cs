@@ -30,74 +30,10 @@ public partial class Picture
                             continue;
 
                         uint color = GetColor(point);
-                        if (_paletteMap[GetPaletteMapIndex(color)] != 0)
+                        if (_paletteMap[(int)((((color & 0xfc00 | color >> 3 & 0x1f0000) >> 2 | color & 0xf8) >> 3) * 0x10 + (color >> 28))] != 0)
                             continue;
 
-                        int nearest = 0;
-                        bool isExact = false;
-                        for (int entry = 0; entry < count; entry++)
-                        {
-                            int distance = GetColorDistance(_palette[entry], color);
-                            distances[entry] = distance;
-                            if (distance == 0)
-                            {
-                                SetPaletteIndex(color, (byte)entry);
-                                isExact = true;
-                                break;
-                            }
-
-                            if (distance < distances[nearest])
-                            {
-                                nearest = entry;
-                            }
-                        }
-
-                        if (isExact)
-                            continue;
-
-                        if (count < PaletteSize)
-                        {
-                            for (int entry = 0; entry < count; entry++)
-                            {
-                                matrix[count * PaletteSize + entry] = distances[entry];
-                                matrix[entry * PaletteSize + count] = distances[entry];
-                            }
-
-                            _palette[count] = color;
-                            SetPaletteIndex(color, (byte)count);
-                            count++;
-                            continue;
-                        }
-
-                        int row = 1;
-                        int column = 0;
-                        for (int first = 1; first < PaletteSize; first++)
-                        {
-                            for (int second = 0; second < first; second++)
-                            {
-                                if (matrix[first * PaletteSize + second] < matrix[row * PaletteSize + column])
-                                {
-                                    row = first;
-                                    column = second;
-                                }
-                            }
-                        }
-
-                        if (matrix[row * PaletteSize + column] < distances[nearest])
-                        {
-                            SetPaletteIndex(_palette[column], (byte)nearest);
-                            _palette[column] = color;
-                            SetPaletteIndex(color, (byte)column);
-                            for (int entry = 0; entry < PaletteSize; entry++)
-                            {
-                                matrix[column * PaletteSize + entry] = distances[entry];
-                                matrix[entry * PaletteSize + column] = distances[entry];
-                            }
-                        }
-                        else
-                        {
-                            SetPaletteIndex(color, (byte)nearest);
-                        }
+                        count = AddPaletteColor(color, count, distances, matrix);
                     }
                 }
 
@@ -110,6 +46,89 @@ public partial class Picture
         }
 
         Rewind();
+        AverageMappedColors();
+        if (!Flags.HasFlag(PictureFlags.Alpha))
+            return;
+
+        NormalizePaletteAlpha(count);
+    }
+
+    private int AddPaletteColor(uint color, int count, Span<int> distances, Span<int> matrix)
+    {
+        int nearest = 0;
+        for (int entry = 0; entry < count; entry++)
+        {
+            uint other = _palette[entry];
+            int red = (int)(other >> 19 & 0x1f) - (int)(color >> 19 & 0x1f);
+            int blue = (int)(other >> 3 & 0x1f) - (int)(color >> 3 & 0x1f);
+            int alpha = (int)(other / 0xf000000) - (int)(color / 0xf000000);
+            int green = (int)(other >> 10 & 0x3f) - (int)(color >> 10 & 0x3f);
+            int distance = red * red * 0x36640 + blue * blue * 0x790 + alpha * alpha * 0x1a5e + green * green * 0x3840;
+            distances[entry] = distance;
+            if (distance == 0)
+            {
+                SetPaletteIndex(color, (byte)entry);
+                return count;
+            }
+
+            if (distance < distances[nearest])
+            {
+                nearest = entry;
+            }
+        }
+
+        if (count < PaletteSize)
+        {
+            for (int entry = 0; entry < count; entry++)
+            {
+                matrix[count * PaletteSize + entry] = distances[entry];
+                matrix[entry * PaletteSize + count] = distances[entry];
+            }
+
+            _palette[count] = color;
+            SetPaletteIndex(color, (byte)count);
+            return count + 1;
+        }
+
+        ReplaceClosestPair(color, nearest, distances, matrix);
+        return count;
+    }
+
+    private void ReplaceClosestPair(uint color, int nearest, ReadOnlySpan<int> distances, Span<int> matrix)
+    {
+        int row = 1;
+        int column = 0;
+        for (int first = 1; first < PaletteSize; first++)
+        {
+            for (int second = 0; second < first; second++)
+            {
+                if (matrix[first * PaletteSize + second] < matrix[row * PaletteSize + column])
+                {
+                    row = first;
+                    column = second;
+                }
+            }
+        }
+
+        if (matrix[row * PaletteSize + column] < distances[nearest])
+        {
+            SetPaletteIndex(_palette[column], (byte)nearest);
+            _palette[column] = color;
+            SetPaletteIndex(color, (byte)column);
+            for (int entry = 0; entry < PaletteSize; entry++)
+            {
+                matrix[column * PaletteSize + entry] = distances[entry];
+                matrix[entry * PaletteSize + column] = distances[entry];
+            }
+        }
+        else
+        {
+            SetPaletteIndex(color, (byte)nearest);
+        }
+    }
+
+    private void AverageMappedColors()
+    {
         Span<int> counts = stackalloc int[PaletteSize];
         Span<int> reds = stackalloc int[PaletteSize];
         Span<int> greens = stackalloc int[PaletteSize];
@@ -140,10 +159,10 @@ public partial class Picture
             int alpha = Math.Clamp(alphas[i] / counts[i], 0, (int)MaxChannel);
             _palette[i] = (uint)(((alpha << 8 | red) << 8 | green) << 8 | blue);
         }
+    }
 
-        if (!Flags.HasFlag(PictureFlags.Alpha))
-            return;
-
+    private void NormalizePaletteAlpha(int count)
+    {
         for (int i = 0; i < count; i++)
         {
             uint color = _palette[i];

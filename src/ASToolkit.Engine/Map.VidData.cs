@@ -97,7 +97,7 @@ public sealed partial class Map
             {
                 int army = (int)sprite.Army & 3;
                 sprite.Definition.Killed[army]++;
-                CompleteDeath(sprite, sprite.Definition.ArmyMaxHp[army] < sprite.Hp - hp ? SpriteAnimation.Death2 : SpriteAnimation.Death);
+                sprite.ChangeAnimation(sprite.Definition.ArmyMaxHp[army] < sprite.Hp - hp && Definitions.Find((KnownObject)Math.Abs(sprite.Definition.Children[(int)SpriteAnimation.Death2])) is not null ? SpriteAnimation.Death2 : SpriteAnimation.Death);
             }
 
             return;

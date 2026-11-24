@@ -15,7 +15,8 @@ public class ExportDeclarationTests
     {
         const string scriptPath = "Maps\\export_test.lgc";
         var script = new Script();
-        var fileSystem = new ScriptOverlay(new GameFolder(TestGameFolder.RequireFolder()), scriptPath, "#include \"maps\\export.lgc\"\nmain()\n{\n}\n");
+        var fileSystem = new MemoryWriteOverlay(new GameFolder(TestGameFolder.RequireFolder()));
+        fileSystem.Set(scriptPath, "#include \"maps\\export.lgc\"\nmain()\n{\n}\n"u8.ToArray());
         Assert.True(script.Load(fileSystem, scriptPath));
         var externs = new Dictionary<int, string>();
         foreach (var name in script.Objects)

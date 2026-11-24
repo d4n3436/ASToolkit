@@ -33,7 +33,38 @@ internal ref struct RangeEncoder
     [EngineRoutine(0x004252a0)]
     public void Encode(int start, int frequency, int bits)
     {
-        Normalize();
+        while (_range < NormalizeLimit + 1)
+        {
+            if (_low < CarryThreshold)
+            {
+                _output.Write([_buffer]);
+                for (; _pending != 0; _pending--)
+                {
+                    _output.Write([(byte)0xff]);
+                }
+
+                _buffer = (byte)(_low >> LowShift);
+            }
+            else if ((_low & CarryBit) == 0)
+            {
+                _pending++;
+            }
+            else
+            {
+                _output.Write([(byte)(_buffer + 1)]);
+                for (; _pending != 0; _pending--)
+                {
+                    _output.Write([(byte)0]);
+                }
+
+                _buffer = (byte)(_low >> LowShift);
+            }
+
+            _range <<= 8;
+            _low = (_low & LowMask) << 8;
+            _count++;
+        }
+
         uint step = _range >> bits;
         uint offset = step * (uint)start;
         _low += offset;
@@ -43,29 +74,19 @@ internal ref struct RangeEncoder
     [EngineRoutine(0x004253b0)]
     public int Finish()
     {
-        Normalize();
-        _count += TrailerSize;
-        uint carry = (_low & LowMask) < ((uint)_count >> 1 & LowMask) ? _low >> LowShift : (_low >> LowShift) + 1;
-        if (carry < 0x100)
-        {
-            WriteBuffer(_buffer, 0xff);
-        }
-        else
-        {
-            WriteBuffer((byte)(_buffer + 1), 0);
-        }
+        if (_output is null)
+            return -1;
 
-        _output.Write([(byte)carry, (byte)(_count >> 16), (byte)(_count >> 8), (byte)_count]);
-        return _count;
-    }
-
-    private void Normalize()
-    {
         while (_range < NormalizeLimit + 1)
         {
             if (_low < CarryThreshold)
             {
-                WriteBuffer(_buffer, 0xff);
+                _output.Write([_buffer]);
+                for (; _pending != 0; _pending--)
+                {
+                    _output.Write([(byte)0xff]);
+                }
+
                 _buffer = (byte)(_low >> LowShift);
             }
             else if ((_low & CarryBit) == 0)
@@ -74,7 +95,12 @@ internal ref struct RangeEncoder
             }
             else
             {
-                WriteBuffer((byte)(_buffer + 1), 0);
+                _output.Write([(byte)(_buffer + 1)]);
+                for (; _pending != 0; _pending--)
+                {
+                    _output.Write([(byte)0]);
+                }
+
                 _buffer = (byte)(_low >> LowShift);
             }
 
@@ -82,14 +108,28 @@ internal ref struct RangeEncoder
             _low = (_low & LowMask) << 8;
             _count++;
         }
-    }
 
-    private void WriteBuffer(byte value, byte filler)
-    {
-        _output.Write([value]);
-        for (; _pending != 0; _pending--)
+        _count += TrailerSize;
+        uint carry = (_low & LowMask) < ((uint)_count >> 1 & LowMask) ? _low >> LowShift : (_low >> LowShift) + 1;
+        if (carry < 0x100)
         {
-            _output.Write([filler]);
+            _output.Write([_buffer]);
+            for (; _pending != 0; _pending--)
+            {
+                _output.Write([(byte)0xff]);
+            }
         }
+        else
+        {
+            _output.Write([(byte)(_buffer + 1)]);
+            for (; _pending != 0; _pending--)
+            {
+                _output.Write([(byte)0]);
+            }
+        }
+
+        _output.Write([(byte)carry, (byte)(_count >> 16), (byte)(_count >> 8), (byte)_count]);
+
+        return _count;
     }
 }

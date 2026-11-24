@@ -1,3 +1,4 @@
+using System.Text;
 using ASToolkit.Engine.IO;
 using ASToolkit.Engine.Scripts;
 using Xunit;
@@ -139,7 +140,9 @@ public class ScriptMachineTests
     private static (Script Script, NoteHost Host) Compile(string text)
     {
         var script = new Script();
-        Assert.True(script.Load(new ScriptOverlay(new GameFolder(AppContext.BaseDirectory), ScriptPath, text), ScriptPath));
+        var fileSystem = new MemoryWriteOverlay(new GameFolder(AppContext.BaseDirectory));
+        fileSystem.Set(ScriptPath, Encoding.ASCII.GetBytes(text));
+        Assert.True(script.Load(fileSystem, ScriptPath));
 
         return (script, new NoteHost());
     }

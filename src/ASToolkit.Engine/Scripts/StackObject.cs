@@ -17,7 +17,7 @@ public struct StackObject
     /// <param name="flags">The type flags of the value.</param>
     /// <param name="value">The number.</param>
     /// <param name="text">The text.</param>
-    public StackObject(StackObjectFlags flags, int value, ReadOnlyMemory<byte> text)
+    public StackObject(StackObjectFlags flags, int value, ReadOnlyMemory<byte> text = default)
     {
         Flags = flags;
         Value = value;
@@ -44,7 +44,7 @@ public struct StackObject
     /// </summary>
     /// <param name="value">The number.</param>
     /// <returns>The value.</returns>
-    public static StackObject FromNumber(int value) => new(StackObjectFlags.Number, value, default);
+    public static StackObject FromNumber(int value) => new(StackObjectFlags.Number, value);
 
     /// <summary>
     /// Creates a text value.
@@ -60,7 +60,7 @@ public struct StackObject
     /// <returns>The value.</returns>
     [EngineRoutine(0x00439dd0)]
     public static StackObject FromHandle(int handle) =>
-        new(handle == 0 ? StackObjectFlags.Number : StackObjectFlags.Number | StackObjectFlags.Sprite, handle, default);
+        new(handle == 0 ? StackObjectFlags.Number : StackObjectFlags.Number | StackObjectFlags.Sprite, handle);
 
     /// <summary>
     /// Reads a text as a hexadecimal number when its second character is <c>x</c> (<c>sscanf("%i")</c>), and as a decimal number otherwise (<c>atoi</c>).
@@ -136,7 +136,7 @@ public struct StackObject
     /// Reads the value from a demo or save.
     /// </summary>
     /// <param name="data">The stored state.</param>
-    /// <param name="offset">The offset of the value, which is moved past the value.</param>
+    /// <param name="offset">The offset of the value, moved past the value when this method returns.</param>
     [EngineRoutine(0x004244b0)]
     public void Read(ReadOnlyMemory<byte> data, ref int offset)
     {

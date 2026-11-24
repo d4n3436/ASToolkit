@@ -18,6 +18,20 @@ public sealed class MemoryWriteOverlay : IGameFileSystem
         _fileSystem = fileSystem;
     }
 
+    /// <summary>
+    /// Serves the bytes of a file at a path, in place of the inner file system's file and of the bytes written there before.
+    /// </summary>
+    /// <param name="path">The path of the file, relative to the game folder.</param>
+    /// <param name="data">The bytes of the file.</param>
+    public void Set(string path, ReadOnlyMemory<byte> data)
+    {
+        var stream = new MemoryStream();
+        stream.Write(data.Span);
+        string key = Normalize(path);
+        _written[key] = stream;
+        _deleted.Remove(key);
+    }
+
     /// <inheritdoc/>
     public bool TryRead(string path, out ReadOnlyMemory<byte> data)
     {
@@ -74,12 +88,8 @@ public sealed class MemoryWriteOverlay : IGameFileSystem
         if (TryRead(destination, out _) || !TryRead(source, out var data))
             return false;
 
-        var stream = new MemoryStream();
-        stream.Write(data.Span);
         Delete(source);
-        string key = Normalize(destination);
-        _written[key] = stream;
-        _deleted.Remove(key);
+        Set(destination, data);
 
         return true;
     }

@@ -1,6 +1,6 @@
-using ASToolkit.Bot;
 using System.Numerics;
 using System.Text;
+using ASToolkit.Bot;
 using ASToolkit.Engine;
 using ASToolkit.Engine.IO;
 using ASToolkit.Engine.Scripts;
@@ -51,7 +51,9 @@ public class ExecFuncTests
         Assert.True(map.IsPaused);
         Assert.True(map.Time > pausedAt);
 
-        Assert.True(script.Load(new ScriptOverlay(new GameFolder(TestGameFolder.RequireFolder()), ScriptPath, "#include \"maps\\export.lgc\"\nmain()\n{\n  Pause(0);\n}\n"), ScriptPath));
+        var fileSystem = new MemoryWriteOverlay(new GameFolder(TestGameFolder.RequireFolder()));
+        fileSystem.Set(ScriptPath, "#include \"maps\\export.lgc\"\nmain()\n{\n  Pause(0);\n}\n"u8.ToArray());
+        Assert.True(script.Load(fileSystem, ScriptPath));
         script.CallFunction(map, -1, 0, 0, 0);
 
         Assert.False(map.IsPaused);
@@ -63,11 +65,11 @@ public class ExecFuncTests
     public void ExecFunc_TextBuiltIns_FormatAndConvertAsTheCRuntime()
     {
         var (_, script) = Run("""
-            int padded, hex, lower, upper, unchanged, checksum;
+            int padded, spaced, lower, upper, unchanged, checksum;
             main()
             {
               padded = strlen(Printf("%05i", 42));
-              hex = charat(Printf("%X", 255), 1);
+              spaced = charat(Printf("%3i", 7), 1);
               lower = charat(ToLower("AbC"), 2);
               upper = charat(ToUpper("abc"), 0);
               unchanged = charat(ToUpper("1z"), 0);
@@ -76,7 +78,7 @@ public class ExecFuncTests
             """);
 
         Assert.Equal(5, Read(script, "padded"));
-        Assert.Equal('F', Read(script, "hex"));
+        Assert.Equal(' ', Read(script, "spaced"));
         Assert.Equal('c', Read(script, "lower"));
         Assert.Equal('A', Read(script, "upper"));
         Assert.Equal('1', Read(script, "unchanged"));
@@ -357,7 +359,8 @@ public class ExecFuncTests
 
     private static Script Compile(Map map, string text)
     {
-        var fileSystem = new ScriptOverlay(new GameFolder(TestGameFolder.RequireFolder()), ScriptPath, "#include \"maps\\export.lgc\"\n" + text);
+        var fileSystem = new MemoryWriteOverlay(new GameFolder(TestGameFolder.RequireFolder()));
+        fileSystem.Set(ScriptPath, Encoding.ASCII.GetBytes("#include \"maps\\export.lgc\"\n" + text));
         Assert.True(map.Script.Load(fileSystem, ScriptPath));
 
         return map.Script;

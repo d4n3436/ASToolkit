@@ -1,12 +1,12 @@
 using System.Drawing;
 using System.Numerics;
-using ASToolkit.Formats;
 using ASToolkit.Engine.IO;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents a definition whose object file names a font, which the engine uses to draw text from a texture of glyphs rendered at run time.
+/// Represents the definition of a sprite that draws text with a font.
 /// </summary>
 public sealed class FontSpriteDefinition : SpriteDefinition
 {
@@ -18,9 +18,9 @@ public sealed class FontSpriteDefinition : SpriteDefinition
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
     /// <param name="weapon">The weapon record.</param>
-    /// <param name="maxTextureSize">The largest texture width and height the device accepts, which limits the texture of glyphs.</param>
+    /// <param name="maxTextureSize">The largest texture width and height the device accepts.</param>
     public FontSpriteDefinition(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, int maxTextureSize)
-        : base(id, gameObject, weapon, SpriteCatalog.DefaultSpriteSpeed)
+        : base(id, gameObject, weapon, SpriteCatalog.DefaultSpriteSpeed, GlyphCount, ObjectLayer.Ground, null)
     {
         MaxTextureSize = maxTextureSize;
     }
@@ -41,22 +41,9 @@ public sealed class FontSpriteDefinition : SpriteDefinition
     public TextureFontStyle Style { get; private set; }
 
     /// <summary>
-    /// Gets the font that draws the text of the definition, which is created when the definition loads.
+    /// Gets the font of the definition, or <see langword="null"/> before the definition loads.
     /// </summary>
     public TextureFont? Font { get; private set; }
-
-    [EngineRoutine(0x00415140)]
-    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, GameLogger? logger)
-    {
-        FileFrameCount = GlyphCount;
-        FrameSize = new Size((short)(int)Object.Size.X, (short)(int)Object.Size.Y);
-        FileType = VidType.Font;
-        GlyphSize = new Size((int)Object.Size.X, (int)Object.Size.Y);
-        Style = TextureFontStyle.FixedPitch;
-        Font = new TextureFont(Path, GlyphSize.Width, GlyphSize.Height, Style);
-        Font.Create(MaxTextureSize);
-        Font.CreateStateBlocks();
-    }
 
     /// <summary>
     /// Draws the text of a sprite with the glyphs of the font.
@@ -74,10 +61,23 @@ public sealed class FontSpriteDefinition : SpriteDefinition
         var position = sprite.Position;
 
         var gamma = sprite.GetGamma();
-        Font.Draw(screen, position.X - camera.X, position.Y - position.Z - camera.Y, ~gamma.Negative, ""u8, TextDrawFlags.None);
+        Font.Draw(screen, new Vector2(position.X - camera.X, position.Y - position.Z - camera.Y), ~gamma.Negative, ""u8);
     }
 
     /// <inheritdoc/>
     [EngineRoutine(0x004151f0)]
     public override void SetLayer() => Layer = ObjectLayer.Cursor;
+
+    [EngineRoutine(0x00415140)]
+    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, GameLogger? logger)
+    {
+        FileFrameCount = GlyphCount;
+        FrameSize = new Size((short)(int)Object.Size.X, (short)(int)Object.Size.Y);
+        FileType = VidType.Font;
+        GlyphSize = new Size((int)Object.Size.X, (int)Object.Size.Y);
+        Style = TextureFontStyle.FixedPitch;
+        Font = new TextureFont(Path, GlyphSize, Style);
+        Font.Create(MaxTextureSize);
+        Font.CreateStateBlocks();
+    }
 }

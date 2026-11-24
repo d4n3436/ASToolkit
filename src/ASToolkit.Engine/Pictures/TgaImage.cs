@@ -2,11 +2,12 @@ using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using ASToolkit.Engine.IO;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents a picture read from TGA files, which hold uncompressed or run-length encoded images without a color map, with one frame in each file.
+/// Represents a picture read from TGA files that hold uncompressed or run-length encoded images without a color map, with one frame in each file.
 /// </summary>
 public sealed class TgaImage : PictureImage
 {
@@ -49,14 +50,22 @@ public sealed class TgaImage : PictureImage
         if (!ReadHeader(out var tga))
             return false;
 
-        CountFrames(Name, Extension);
+        FrameCount = 1;
+        string stem = Name.EndsWith(Extension, StringComparison.Ordinal) ? Name[..^Extension.Length] : Name;
+        if (stem.Length != 0 && IsDigit(stem[^1]))
+        {
+            while (GamePath.Resolve(GameFolder, GetFrameName(Name, FrameCount)) is not null)
+            {
+                FrameCount++;
+            }
+        }
         Resize(tga.Size, tga.Depth / BitsPerByte);
         Rewind();
         return true;
     }
 
     /// <summary>
-    /// Goes to the next frame, which is read from the next numbered file, and back to the first frame after the last one.
+    /// Goes to the next frame, read from the next numbered file, and back to the first frame after the last one.
     /// </summary>
     [EngineRoutine(0x004281d0)]
     public override void Advance()
@@ -86,7 +95,11 @@ public sealed class TgaImage : PictureImage
         }
         else
         {
-            ReadRows(0);
+            int rowSize = Size.Width * BytesPerPixel;
+            for (int y = Size.Height - 1; y >= 0; y--)
+            {
+                Input!.ReadAtLeast(Pixels.Slice(y * rowSize, rowSize), rowSize, false);
+            }
         }
     }
 
@@ -143,7 +156,7 @@ public sealed class TgaImage : PictureImage
             return false;
         }
 
-        if (!FitsPixels(tga.Size, tga.Depth))
+        if (HasPixels && (Size != tga.Size || BytesPerPixel != tga.Depth / BitsPerByte))
         {
             Report(LogError.Text, "TGA parameters different from first cadr"u8, FrameIndex);
             return false;

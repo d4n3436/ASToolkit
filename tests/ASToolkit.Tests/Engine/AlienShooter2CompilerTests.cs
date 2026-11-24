@@ -111,7 +111,13 @@ public class AlienShooter2CompilerTests
         }
     }
 
-    private static ScriptOverlay CreateSource(string text) => new(new GameFolder(AppContext.BaseDirectory), ScriptPath, text);
+    private static MemoryWriteOverlay CreateSource(string text)
+    {
+        var fileSystem = new MemoryWriteOverlay(new GameFolder(AppContext.BaseDirectory));
+        fileSystem.Set(ScriptPath, Encoding.ASCII.GetBytes(text));
+
+        return fileSystem;
+    }
 
     private static Script Compile(string text)
     {

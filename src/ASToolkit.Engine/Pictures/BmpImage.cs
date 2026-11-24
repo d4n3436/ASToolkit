@@ -1,11 +1,12 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using ASToolkit.Engine.IO;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents a picture read from BMP files, which hold uncompressed images with at least 8 bits for each pixel, with one frame in each file.
+/// Represents a picture read from BMP files that hold uncompressed images with at least 8 bits for each pixel, with one frame in each file.
 /// </summary>
 public sealed class BmpImage : PictureImage
 {
@@ -44,14 +45,22 @@ public sealed class BmpImage : PictureImage
         if (!ReadHeader(out var bmp))
             return false;
 
-        CountFrames(name, Extension);
+        FrameCount = 1;
+        string stem = name.EndsWith(Extension, StringComparison.Ordinal) ? name[..^Extension.Length] : name;
+        if (stem.Length != 0 && IsDigit(stem[^1]))
+        {
+            while (GamePath.Resolve(GameFolder, GetFrameName(name, FrameCount)) is not null)
+            {
+                FrameCount++;
+            }
+        }
         Resize(bmp.Size, bmp.Depth / BitsPerByte);
         Rewind();
         return true;
     }
 
     /// <summary>
-    /// Goes to the next frame, which is read from the next numbered file, and back to the first frame after the last one.
+    /// Goes to the next frame, read from the next numbered file, and back to the first frame after the last one.
     /// </summary>
     [EngineRoutine(0x004286a0)]
     public override void Advance()
@@ -82,7 +91,16 @@ public sealed class BmpImage : PictureImage
         }
 
         Input.Seek(DataOffset, SeekOrigin.Begin);
-        ReadRows(-(Size.Width * BytesPerPixel) & RowAlignment - 1);
+        int rowSize = Size.Width * BytesPerPixel;
+        for (int y = Size.Height - 1; y >= 0; y--)
+        {
+            Input!.ReadAtLeast(Pixels.Slice(y * rowSize, rowSize), rowSize, false);
+            int padding = -(Size.Width * BytesPerPixel) & RowAlignment - 1;
+            if (padding != 0)
+            {
+                Input.Seek(padding, SeekOrigin.Current);
+            }
+        }
     }
 
     /// <summary>
@@ -118,19 +136,19 @@ public sealed class BmpImage : PictureImage
         if (bmp.Compression != 0)
         {
             Reset();
-            Report(LogError.Invalid, "not supported bmp compression type"u8);
+            Report(LogError.Text, "not supported bmp compression type"u8);
             return false;
         }
 
         if (bmp.Depth < MinDepth)
         {
             Reset();
-            Report(LogError.Invalid, "not supported bmp 2 and 4 bit type"u8);
+            Report(LogError.Text, "not supported bmp 2 and 4 bit type"u8);
             return false;
         }
 
         DataOffset = bmp.DataOffset;
-        if (!FitsPixels(bmp.Size, bmp.Depth))
+        if (HasPixels && (Size != bmp.Size || BytesPerPixel != bmp.Depth / BitsPerByte))
         {
             Report(LogError.Text, "BMP parameters different from first cadr"u8, FrameIndex);
             return false;

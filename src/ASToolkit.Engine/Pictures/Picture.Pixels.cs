@@ -149,7 +149,12 @@ public partial class Picture
             int nearest = 9999999;
             for (uint entry = 0; entry < PaletteSize; entry++)
             {
-                int distance = GetColorDistance(color, _palette[entry]);
+                uint other = _palette[entry];
+                int red = (int)(color >> 19 & 0x1f) - (int)(other >> 19 & 0x1f);
+                int blue = (int)(color >> 3 & 0x1f) - (int)(other >> 3 & 0x1f);
+                int alpha = (int)(color / 0xf000000) - (int)(other / 0xf000000);
+                int green = (int)(color >> 10 & 0x3f) - (int)(other >> 10 & 0x3f);
+                int distance = red * red * 0x36640 + blue * blue * 0x790 + alpha * alpha * 0x1a5e + green * green * 0x3840;
                 if (distance < nearest)
                 {
                     index = entry;
@@ -160,7 +165,7 @@ public partial class Picture
             return index;
         }
 
-        return _paletteMap[GetPaletteMapIndex(color)];
+        return _paletteMap[(int)((((color & 0xfc00 | color >> 3 & 0x1f0000) >> 2 | color & 0xf8) >> 3) * 0x10 + (color >> 28))];
     }
 
     [EngineRoutine(0x004293f0)]
@@ -169,7 +174,7 @@ public partial class Picture
         if (_paletteMap.Length == 0)
             return;
 
-        int position = GetPaletteMapIndex(color);
+        int position = (int)((((color & 0xfc00 | color >> 3 & 0x1f0000) >> 2 | color & 0xf8) >> 3) * 0x10 + (color >> 28));
         byte current = _paletteMap[position];
         if (current != 0 && current != index)
         {
@@ -309,16 +314,5 @@ public partial class Picture
         }
 
         return result & 0xffff0000;
-    }
-
-    private static int GetPaletteMapIndex(uint color) => (int)((((color & 0xfc00 | color >> 3 & 0x1f0000) >> 2 | color & 0xf8) >> 3) * 0x10 + (color >> 28));
-
-    private static int GetColorDistance(uint first, uint second)
-    {
-        int red = (int)(first >> 19 & 0x1f) - (int)(second >> 19 & 0x1f);
-        int blue = (int)(first >> 3 & 0x1f) - (int)(second >> 3 & 0x1f);
-        int alpha = (int)(first / 0xf000000) - (int)(second / 0xf000000);
-        int green = (int)(first >> 10 & 0x3f) - (int)(second >> 10 & 0x3f);
-        return red * red * 0x36640 + blue * blue * 0x790 + alpha * alpha * 0x1a5e + green * green * 0x3840;
     }
 }

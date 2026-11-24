@@ -20,7 +20,6 @@ public sealed partial class Map
     [EngineRoutine(0x0040f7f0)]
     public void DrawLayer(Screen screen, Vector2 camera, ObjectLayer layer)
     {
-        bool isFrame = screen == Session.Graphics.Screen;
         var sprites = _updates.GetLayer(layer);
 
         if (layer is ObjectLayer.Ground or ObjectLayer.Region)
@@ -31,7 +30,7 @@ public sealed partial class Map
 
                 if (sprite is not null && !sprite.IsInvisible)
                 {
-                    DrawSprite(screen, sprite, camera, isFrame);
+                    DrawSprite(screen, sprite, camera);
                 }
             }
         }
@@ -51,14 +50,14 @@ public sealed partial class Map
 
                 if (isNear || (int)sprite.Position.Y - center.Y >= CullHalfSize.Height)
                 {
-                    DrawSprite(screen, sprite, camera, isFrame);
+                    DrawSprite(screen, sprite, camera);
                 }
             }
         }
 
-        if (isFrame && !CursorSprite.IsHardwareCursor && !CursorSprite.Definition.Object.Properties.HasFlag(ObjectProperties.AlwaysTop))
+        if (!CursorSprite.IsHardwareCursor && !CursorSprite.Definition.Object.Properties.HasFlag(ObjectProperties.AlwaysTop))
         {
-            DrawCursorChain(screen, camera, layer, isFrame);
+            DrawCursorChain(screen, camera, layer);
         }
     }
 
@@ -68,30 +67,23 @@ public sealed partial class Map
     /// <param name="screen">The screen.</param>
     /// <param name="camera">The top-left corner of the view on the map.</param>
     /// <param name="layer">The layer whose chain sprites are drawn, or null to draw the whole chain.</param>
-    /// <param name="isFrame"><see langword="true"/> when the engine draws its frame; <see langword="false"/> for any other view of the map.</param>
-    public void DrawCursorChain(Screen screen, Vector2 camera, ObjectLayer? layer, bool isFrame)
+    public void DrawCursorChain(Screen screen, Vector2 camera, ObjectLayer? layer)
     {
-        DrawChainSprite(screen, camera, CursorSprite, layer, isFrame);
+        DrawChainSprite(screen, camera, CursorSprite, layer);
 
         foreach (var link in CursorSprite.EnumerateLinks())
         {
-            DrawChainSprite(screen, camera, link, layer, isFrame);
+            DrawChainSprite(screen, camera, link, layer);
         }
     }
 
-    private void DrawChainSprite(Screen screen, Vector2 camera, Sprite sprite, ObjectLayer? layer, bool isFrame)
+    private void DrawChainSprite(Screen screen, Vector2 camera, Sprite sprite, ObjectLayer? layer)
     {
         if ((layer is null || sprite.Definition.Layer == layer) && !sprite.IsInvisible)
         {
-            DrawSprite(screen, sprite, camera, isFrame);
+            DrawSprite(screen, sprite, camera);
         }
     }
 
-    private void DrawSprite(Screen screen, Sprite sprite, Vector2 camera, bool isFrame)
-    {
-        if (!isFrame && MenuSprites.Contains(sprite))
-            return;
-
-        sprite.Draw(screen, this, camera);
-    }
+    private void DrawSprite(Screen screen, Sprite sprite, Vector2 camera) => sprite.Draw(screen, this, camera);
 }

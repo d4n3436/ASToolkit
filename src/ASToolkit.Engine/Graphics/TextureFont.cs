@@ -5,7 +5,7 @@ using ASToolkit.Formats;
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents a font whose 256 glyphs are rendered once into a texture, from which text is drawn as one quad for each glyph.
+/// Represents a font with its 256 glyphs rendered into a texture.
 /// </summary>
 public sealed class TextureFont
 {
@@ -34,15 +34,13 @@ public sealed class TextureFont
     /// Initializes a new instance of the <see cref="TextureFont"/> class without a texture.
     /// </summary>
     /// <param name="name">The name of the font face.</param>
-    /// <param name="width">The average width of the glyphs, in points.</param>
-    /// <param name="height">The height of the glyphs, in points.</param>
+    /// <param name="glyphSize">The average width and the height of the glyphs, in points.</param>
     /// <param name="style">How the glyphs are rendered and drawn.</param>
     [EngineRoutine(0x00434940)]
-    public TextureFont(string name, int width, int height, TextureFontStyle style)
+    public TextureFont(string name, Size glyphSize, TextureFontStyle style)
     {
         Name = name;
-        Height = height;
-        Width = width;
+        GlyphSize = glyphSize;
         Style = style;
     }
 
@@ -52,14 +50,9 @@ public sealed class TextureFont
     public string Name { get; }
 
     /// <summary>
-    /// Gets the height of the glyphs, in points.
+    /// Gets the average width and the height of the glyphs, in points.
     /// </summary>
-    public int Height { get; }
-
-    /// <summary>
-    /// Gets the average width of the glyphs, in points.
-    /// </summary>
-    public int Width { get; }
+    public Size GlyphSize { get; }
 
     /// <summary>
     /// Gets how the glyphs are rendered and drawn.
@@ -67,17 +60,17 @@ public sealed class TextureFont
     public TextureFontStyle Style { get; }
 
     /// <summary>
-    /// Gets the size of the texture of glyphs, in texels, which is zero before the texture is created.
+    /// Gets the size of the texture of glyphs, in texels, or zero before the texture is created.
     /// </summary>
     public Size TextureSize { get; private set; }
 
     /// <summary>
-    /// Gets the ratio of the texture size that was created to the size the font asked for.
+    /// Gets the ratio of the created texture size to the requested size.
     /// </summary>
     public float Scale { get; private set; }
 
     /// <summary>
-    /// Renders the 256 glyphs into a texture, row by row from the top left, and records where each one lies.
+    /// Renders the 256 glyphs into a texture.
     /// </summary>
     /// <param name="maxTextureSize">The largest texture width and height the device accepts.</param>
     /// <returns>Zero if the texture was created; otherwise, a nonzero error code.</returns>
@@ -85,7 +78,7 @@ public sealed class TextureFont
     public int Create(int maxTextureSize)
     {
         Scale = 1f;
-        int size = (uint)Height > TallLimit ? LargeTextureSize : (uint)Height > ShortLimit ? MediumTextureSize : SmallTextureSize;
+        int size = (uint)GlyphSize.Height > TallLimit ? LargeTextureSize : (uint)GlyphSize.Height > ShortLimit ? MediumTextureSize : SmallTextureSize;
         if (maxTextureSize < size)
         {
             Scale = (float)maxTextureSize / size;
@@ -95,7 +88,7 @@ public sealed class TextureFont
         TextureSize = new Size(size, size);
         ushort[] texels = new ushort[size * size];
         uint[] bitmapBits = new uint[size * size];
-        // TODO: Port the GDI glyph rendering: CreateFontA with the height -MulDiv(Height, (int)(LOGPIXELSY * Scale), 72), the width -MulDiv(Width, (int)(LOGPIXELSX * Scale), 72),
+        // TODO: Port the GDI glyph rendering: CreateFontA with the height -MulDiv(GlyphSize.Height, (int)(LOGPIXELSY * Scale), 72), the width -MulDiv(GlyphSize.Width, (int)(LOGPIXELSX * Scale), 72),
         // weight 700 for Bold (else 400), italic for Italic, DEFAULT_CHARSET, ANTIALIASED_QUALITY and FIXED_PITCH for FixedPitch (else VARIABLE_PITCH); GetTextExtentPoint32A into extent
         // for each glyph; white ExtTextOutA ETO_OPAQUE text on black into bitmapBits
         int x = 0;
@@ -129,7 +122,7 @@ public sealed class TextureFont
     }
 
     /// <summary>
-    /// Sets the states that drawing text uses, which are alpha blending and an alpha test.
+    /// Sets the alpha blending and alpha test states that drawing text uses.
     /// </summary>
     [EngineRoutine(0x00434d90)]
     public void CreateStateBlocks()
@@ -142,14 +135,13 @@ public sealed class TextureFont
     /// Draws text to the screen, one quad for each glyph.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
-    /// <param name="x">The horizontal position of the first glyph, in screen pixels.</param>
-    /// <param name="y">The vertical position of the first line, in screen pixels.</param>
+    /// <param name="position">The position of the first glyph of the first line, in screen pixels.</param>
     /// <param name="color">The color that the glyphs are multiplied with, packed as 0xAARRGGBB.</param>
-    /// <param name="text">The bytes of the text, which ends at the first zero byte.</param>
+    /// <param name="text">The bytes of the text, up to the first zero byte.</param>
     /// <param name="flags">How the text is drawn.</param>
     /// <returns>Zero if the text was drawn; otherwise, a nonzero error code.</returns>
     [EngineRoutine(0x004350b0)]
-    public int Draw(Screen screen, float x, float y, uint color, ReadOnlySpan<byte> text, TextDrawFlags flags)
+    public int Draw(Screen screen, Vector2 position, uint color, ReadOnlySpan<byte> text, TextDrawFlags flags = TextDrawFlags.None)
     {
         if (_texels.Length == 0)
             return Failure;
@@ -158,14 +150,14 @@ public sealed class TextureFont
         screen.IsLinearFiltered = flags.HasFlag(TextDrawFlags.Filtered);
         var texture = new Texture(_texels, TextureSize, VidPixelFormat.A4R4G4B4);
         var gamma = new Gamma(~color, 0);
-        float startX = x;
+        float startX = position.X;
         for (int i = 0; i < text.Length && text[i] != 0; i++)
         {
             int glyph = text[i];
             if (glyph == NewLine)
             {
-                x = startX;
-                y = (_glyphs[0].Max.Y - _glyphs[0].Min.Y) * TextureSize.Height + y;
+                position.X = startX;
+                position.Y = (_glyphs[0].Max.Y - _glyphs[0].Min.Y) * TextureSize.Height + position.Y;
             }
 
             var bounds = _glyphs[glyph];
@@ -173,10 +165,10 @@ public sealed class TextureFont
             float glyphHeight = (bounds.Max.Y - bounds.Min.Y) * TextureSize.Height / Scale;
             if (glyph != Space)
             {
-                float left = x - PixelCenter;
-                float bottom = glyphHeight + y - PixelCenter;
-                float top = y - PixelCenter;
-                float right = glyphWidth + x - PixelCenter;
+                float left = position.X - PixelCenter;
+                float bottom = glyphHeight + position.Y - PixelCenter;
+                float top = position.Y - PixelCenter;
+                float right = glyphWidth + position.X - PixelCenter;
                 var destination = Rectangle.FromLTRB((int)MathF.Ceiling(left), (int)MathF.Ceiling(top), (int)MathF.Ceiling(right), (int)MathF.Ceiling(bottom));
                 var source = Rectangle.FromLTRB(
                     (int)MathF.Round(bounds.Min.X * TextureSize.Width),
@@ -186,7 +178,7 @@ public sealed class TextureFont
                 texture.BlitQuad(screen, destination, source, gamma, _blend, false, true, _minimumAlpha);
             }
 
-            x = glyphWidth + x;
+            position.X = glyphWidth + position.X;
         }
 
         screen.IsLinearFiltered = wasLinearFiltered;

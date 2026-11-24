@@ -28,7 +28,7 @@ internal struct ScreenSpriteQuery : ISpriteQuery
         float top = sprite.Position.Y - sprite.Position.Z;
 
         if (!listed && !_filter.Search.HasFlag(SpriteSearch.Hash) && _filter.Types.HasFlag(OldSpriteType.Region) &&
-            definition.Object.SpriteClass == SpriteClass.Region)
+            definition.Class == SpriteClass.Region)
         {
             half = sprite is RegionSprite region ? region.Size * 0.5f : Vector2.Zero;
         }
