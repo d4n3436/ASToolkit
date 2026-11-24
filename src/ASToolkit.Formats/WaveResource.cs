@@ -12,7 +12,7 @@ public readonly struct WaveResource
     private readonly ReadOnlyMemory<byte> _data;
 
     /// <summary>
-    /// Creates a sample over the bytes of its file.
+    /// Initializes a new instance of the <see cref="WaveResource"/> structure.
     /// </summary>
     /// <param name="data">The bytes of the file.</param>
     public WaveResource(ReadOnlyMemory<byte> data)
@@ -37,7 +37,7 @@ public readonly struct WaveResource
     }
 
     /// <summary>
-    /// Gets the sample data, empty when the file doesn't have a data chunk.
+    /// Gets the sample data, or empty if the file doesn't have a data chunk.
     /// </summary>
-    public ReadOnlyMemory<byte> Samples => new ResContainer(_data).TryGetChunk("data"u8, out var chunk) ? chunk.Body : ReadOnlyMemory<byte>.Empty;
+    public ReadOnlyMemory<byte> Samples => new ResContainer(_data).TryGetChunk("data"u8, out var chunk) ? chunk.Body : default;
 }

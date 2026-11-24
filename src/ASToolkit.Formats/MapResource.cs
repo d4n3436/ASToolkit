@@ -41,33 +41,33 @@ public readonly struct MapResource
     public MapGraphics Graphics { get; }
 
     /// <summary>
-    /// Gets the size (in bytes) of the sprites on <see cref="Sprites"/>.
+    /// Gets the size of each record in <see cref="Sprites"/>, in bytes.
     /// </summary>
     /// <remarks>The size varies by map version.</remarks>
     public int SpriteSize => Header.Version >= 16 ? Unsafe.SizeOf<MapSprite>() : Unsafe.SizeOf<OldMapSprite>();
 
     /// <summary>
-    /// Enumerates over the placed sprites.
+    /// Gets the placed sprites.
     /// </summary>
     public IEnumerable<MapSprite> Sprites => EnumerateSprites();
 
     /// <summary>
-    /// Enumerates over the sprite data.
+    /// Gets the sprite data records.
     /// </summary>
     public IEnumerable<MapSpriteData> SpriteData => EnumerateSpriteData();
 
     /// <summary>
-    /// Enumerates over the groups of sprites, each a span of sprite handles.
+    /// Gets the groups of sprites, each a span of sprite handles.
     /// </summary>
     public MapGroupEnumerator Groups => new(MemoryMarshal.Cast<byte, int>(GetRecord("GROU"u8).Span));
 
     /// <summary>
-    /// Gets the sprite handle of each player, empty when the map doesn't have a PLAY chunk.
+    /// Gets the sprite handle of each player, or empty if the map doesn't have a PLAY chunk.
     /// </summary>
     public ReadOnlySpan<int> PlayerHandles => MemoryMarshal.Cast<byte, int>(GetRecord("PLAY"u8).Span);
 
     /// <summary>
-    /// Gets the painted height grid, empty when the map doesn't have a GRID chunk.
+    /// Gets the painted height grid, or empty if the map doesn't have a GRID chunk.
     /// </summary>
     public ReadOnlySpan<short> HeightGrid => MemoryMarshal.Cast<byte, short>(GetRecord("GRID"u8).Span);
 
@@ -82,7 +82,7 @@ public readonly struct MapResource
         }
     }
     
-    private ReadOnlyMemory<byte> GetRecord(ReadOnlySpan<byte> tag) => _container.TryGetChunk(tag, out var chunk) ? chunk.Records.First() : ReadOnlyMemory<byte>.Empty;
+    private ReadOnlyMemory<byte> GetRecord(ReadOnlySpan<byte> tag) => _container.TryGetChunk(tag, out var chunk) ? chunk.Records.First() : default;
 
     private IEnumerable<MapSpriteData> EnumerateSpriteData()
     {

@@ -10,4 +10,10 @@ internal readonly struct VidLayerMeshHeader
 
     [FieldOffset(4)]
     public readonly int IndexCount;
+
+    public VidLayerMeshHeader(int vertexCount, int indexCount)
+    {
+        VertexCount = vertexCount;
+        IndexCount = indexCount;
+    }
 }

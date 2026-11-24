@@ -40,6 +40,22 @@ public readonly struct VidHeader
     public readonly short Height;
 
     /// <summary>
+    /// Initializes a new instance of the <see cref="VidHeader"/> structure.
+    /// </summary>
+    /// <param name="type">The type flags of the sprite.</param>
+    /// <param name="speed">The milliseconds each frame of an animation lasts.</param>
+    /// <param name="frames">The number of frames.</param>
+    /// <param name="size">The size of the canvas, in pixels.</param>
+    public VidHeader(VidType type, short speed, short frames, Size size)
+    {
+        Type = type;
+        Speed = speed;
+        Frames = frames;
+        Width = (short)size.Width;
+        Height = (short)size.Height;
+    }
+
+    /// <summary>
     /// Gets the size of the canvas, in pixels.
     /// </summary>
     public Size Size => new(Width, Height);

@@ -7,7 +7,7 @@ namespace ASToolkit.Formats;
 /// Represents one placed object of a map before version 16.
 /// </summary>
 [StructLayout(LayoutKind.Explicit, Size = 28)]
-internal readonly struct OldMapSprite
+public readonly struct OldMapSprite
 {
     /// <summary>
     /// The sprite handle that links the entry to its payload.
@@ -38,4 +38,21 @@ internal readonly struct OldMapSprite
     /// </summary>
     [FieldOffset(24)]
     public readonly Army Army;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="OldMapSprite"/> structure.
+    /// </summary>
+    /// <param name="handle">The sprite handle that links the entry to its payload.</param>
+    /// <param name="id">The object ID in objects.res.</param>
+    /// <param name="position">The position in map pixels, with the height above the floor.</param>
+    /// <param name="direction">The direction of the object.</param>
+    /// <param name="army">The army of the object.</param>
+    public OldMapSprite(int handle, KnownObject id, Vector3 position, Angle direction, Army army)
+    {
+        Handle = handle;
+        Id = id;
+        Position = position;
+        Direction = direction;
+        Army = army;
+    }
 }

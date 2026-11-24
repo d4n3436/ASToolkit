@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Drawing;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using ASToolkit.Formats;
 
@@ -9,7 +10,6 @@ public partial class Picture
 {
     private const int TileSize = 8;
     private const int TileNeighborhood = TileSize + 1;
-    private const int LayerHeaderSize = 8;
 
     [EngineRoutine(0x0042c070)]
     private void ConvertHardwareLayer(ResContainerBuilder builder)
@@ -37,106 +37,18 @@ public partial class Picture
             int savings = 0;
             for (int frame = 0; frame < frameCount; frame++)
             {
-                var record = new ResRecordBuilder();
                 int length = 0;
-                checksums[frame] = GetChecksum();
-                int match = checksums[..frame].IndexOf(checksums[frame]);
+                int match = FindRepeatedFrame(checksums, frame);
                 if (match >= 0)
                 {
-                    AddInt(buffer, ref length, match);
+                    Append(buffer, ref length, match);
                 }
                 else
                 {
-                    var bounds = GetBounds(true, true);
-                    ref var header = ref MemoryMarshal.AsRef<VidLayerHeader>(buffer);
-                    if (Flags.HasFlag(PictureFlags.Palette))
-                    {
-                        header.Format = VidPixelFormat.P8;
-                    }
-                    else if (Flags.HasFlag(PictureFlags.Alpha))
-                    {
-                        header.Format = VidPixelFormat.A8R8G8B8;
-                    }
-                    else
-                    {
-                        header.Format = VidPixelFormat.A1R5G5B5;
-                    }
-
-                    header.Width = (short)bounds.Width;
-                    header.Height = (short)bounds.Height;
-                    length = LayerHeaderSize;
-                    for (int y = bounds.Top; y < bounds.Bottom; y++)
-                    {
-                        for (int x = bounds.Left; x < bounds.Right; x++)
-                        {
-                            if (Flags.HasFlag(PictureFlags.Palette))
-                            {
-                                buffer[length++] = (byte)GetHighColor(new Point(x, y));
-                            }
-                            else if (Flags.HasFlag(PictureFlags.Alpha))
-                            {
-                                AddInt(buffer, ref length, (int)GetHighColor(new Point(x, y)));
-                            }
-                            else
-                            {
-                                AddShort(buffer, ref length, (int)GetHighColor(new Point(x, y)));
-                            }
-                        }
-                    }
-
-                    int tileStart = length;
-                    AddInt(buffer, ref length, 0);
-                    AddInt(buffer, ref length, 0);
-                    int tileCount = 0;
-                    int indexCount = 0;
-                    int stride = bounds.Width + TileNeighborhood;
-                    short[] grid = new short[stride * (bounds.Height + TileNeighborhood)];
-                    for (int y = bounds.Top; y < bounds.Bottom + TileSize; y += TileSize)
-                    {
-                        for (int x = bounds.Left; x < bounds.Right + TileSize; x += TileSize)
-                        {
-                            var area = new Rectangle(x - TileSize, y - TileSize, TileNeighborhood, TileNeighborhood);
-                            if (!HasOpaque(area))
-                                continue;
-
-                            uint depth = GetRegionDepth(area);
-                            AddShort(buffer, ref length, x);
-                            AddShort(buffer, ref length, y);
-                            AddShort(buffer, ref length, (int)depth);
-                            AddShort(buffer, ref length, x - bounds.Left);
-                            AddShort(buffer, ref length, y - bounds.Top);
-                            grid[(y - bounds.Top) * stride - bounds.Left + x] = (short)tileCount;
-                            tileCount++;
-                        }
-                    }
-
-                    MemoryMarshal.Write(buffer.AsSpan(tileStart), tileCount);
-                    for (int y = bounds.Top; y < bounds.Bottom + TileSize; y += TileSize)
-                    {
-                        for (int x = bounds.Left; x < bounds.Right + TileSize; x += TileSize)
-                        {
-                            if (!HasOpaque(new Rectangle(x, y, TileSize, TileSize)))
-                                continue;
-
-                            int upper = (y - bounds.Top) * stride - bounds.Left + x;
-                            int lower = (y - bounds.Top + TileSize) * stride - bounds.Left + x;
-                            AddShort(buffer, ref length, grid[upper]);
-                            AddShort(buffer, ref length, grid[upper + TileSize]);
-                            AddShort(buffer, ref length, grid[lower]);
-                            AddShort(buffer, ref length, grid[lower + TileSize]);
-                            AddShort(buffer, ref length, grid[upper + TileSize]);
-                            AddShort(buffer, ref length, grid[lower]);
-                            indexCount += 6;
-                        }
-                    }
-
-                    MemoryMarshal.Write(buffer.AsSpan(tileStart + sizeof(int)), indexCount);
+                    length = ConvertLayer(buffer);
                 }
 
-                record.Write(length);
-                record.WriteBody(buffer.AsSpan(0, length), coder);
-                frames.Add(record.Bytes.ToArray());
-                savings += record.CompressionSavings;
+                AddFrame(frames, ref savings, buffer.AsSpan(0, length), coder);
                 Advance();
             }
 
@@ -151,9 +63,87 @@ public partial class Picture
         }
     }
 
-    private static void AddInt(Span<byte> body, ref int length, int value)
+    private int ConvertLayer(byte[] buffer)
     {
-        MemoryMarshal.Write(body[length..], value);
-        length += sizeof(int);
+        var bounds = GetBounds(true, true);
+        VidPixelFormat format;
+        if (Flags.HasFlag(PictureFlags.Palette))
+        {
+            format = VidPixelFormat.P8;
+        }
+        else if (Flags.HasFlag(PictureFlags.Alpha))
+        {
+            format = VidPixelFormat.A8R8G8B8;
+        }
+        else
+        {
+            format = VidPixelFormat.A1R5G5B5;
+        }
+
+        MemoryMarshal.Write(buffer, new VidLayerHeader(format, (short)bounds.Width, (short)bounds.Height));
+        int length = Unsafe.SizeOf<VidLayerHeader>();
+        for (int y = bounds.Top; y < bounds.Bottom; y++)
+        {
+            for (int x = bounds.Left; x < bounds.Right; x++)
+            {
+                if (Flags.HasFlag(PictureFlags.Palette))
+                {
+                    buffer[length++] = (byte)GetHighColor(new Point(x, y));
+                }
+                else if (Flags.HasFlag(PictureFlags.Alpha))
+                {
+                    Append(buffer, ref length, (int)GetHighColor(new Point(x, y)));
+                }
+                else
+                {
+                    Append(buffer, ref length, (short)GetHighColor(new Point(x, y)));
+                }
+            }
+        }
+
+        AppendLayerMesh(buffer, ref length, bounds);
+        return length;
+    }
+
+    private void AppendLayerMesh(byte[] buffer, ref int length, Rectangle bounds)
+    {
+        int meshStart = length;
+        length += Unsafe.SizeOf<VidLayerMeshHeader>();
+        int tileCount = 0;
+        int indexCount = 0;
+        int stride = bounds.Width + TileNeighborhood;
+        short[] grid = new short[stride * (bounds.Height + TileNeighborhood)];
+        for (int y = bounds.Top; y < bounds.Bottom + TileSize; y += TileSize)
+        {
+            for (int x = bounds.Left; x < bounds.Right + TileSize; x += TileSize)
+            {
+                var area = new Rectangle(x - TileSize, y - TileSize, TileNeighborhood, TileNeighborhood);
+                if (!HasOpaque(area))
+                    continue;
+
+                uint depth = GetRegionDepth(area);
+                Append(buffer, ref length, new VidLayerVertex((short)x, (short)y, (short)depth, (short)(x - bounds.Left), (short)(y - bounds.Top)));
+                grid[(y - bounds.Top) * stride - bounds.Left + x] = (short)tileCount;
+                tileCount++;
+            }
+        }
+
+        for (int y = bounds.Top; y < bounds.Bottom + TileSize; y += TileSize)
+        {
+            for (int x = bounds.Left; x < bounds.Right + TileSize; x += TileSize)
+            {
+                if (!HasOpaque(new Rectangle(x, y, TileSize, TileSize)))
+                    continue;
+
+                int upper = (y - bounds.Top) * stride - bounds.Left + x;
+                int lower = (y - bounds.Top + TileSize) * stride - bounds.Left + x;
+                ReadOnlySpan<short> corners = [grid[upper], grid[upper + TileSize], grid[lower], grid[lower + TileSize], grid[upper + TileSize], grid[lower]];
+                MemoryMarshal.AsBytes(corners).CopyTo(buffer.AsSpan(length));
+                length += corners.Length * sizeof(short);
+                indexCount += corners.Length;
+            }
+        }
+
+        MemoryMarshal.Write(buffer.AsSpan(meshStart), new VidLayerMeshHeader(tileCount, indexCount));
     }
 }

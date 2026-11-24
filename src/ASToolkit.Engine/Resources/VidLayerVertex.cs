@@ -19,4 +19,13 @@ internal readonly struct VidLayerVertex
 
     [FieldOffset(8)]
     public readonly short TextureY;
+
+    public VidLayerVertex(short x, short y, short height, short textureX, short textureY)
+    {
+        X = x;
+        Y = y;
+        Height = height;
+        TextureX = textureX;
+        TextureY = textureY;
+    }
 }

@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace ASToolkit.Formats;
 
 /// <summary>
-/// Represents the start of a frame record of a sprite file that holds runs, which its extra data and then its rows follow.
+/// Represents the start of a frame record of a sprite file with runs, followed by its extra data and then its rows.
 /// </summary>
 [StructLayout(LayoutKind.Explicit, Size = 2)]
 public readonly struct VidFrameHeader
@@ -20,7 +20,16 @@ public readonly struct VidFrameHeader
     public readonly short ExtraCount;
 
     /// <summary>
-    /// Gets the size of this header and its extra data, in bytes, which is where the rows start.
+    /// Initializes a new instance of the <see cref="VidFrameHeader"/> structure.
+    /// </summary>
+    /// <param name="extraCount">The number of entries of extra data.</param>
+    public VidFrameHeader(short extraCount)
+    {
+        ExtraCount = extraCount;
+    }
+
+    /// <summary>
+    /// Gets the size of this header and its extra data in bytes, the offset where the rows start.
     /// </summary>
     public int Size => sizeof(short) + ExtraCount * ExtraSize;
 }

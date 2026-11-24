@@ -13,19 +13,6 @@ namespace ASToolkit.Formats;
 public struct VidTextureFrame
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="VidTextureFrame"/> struct from a texture frame of a sprite file without the current version flag.
-    /// </summary>
-    /// <param name="frame">The texture frame with 16-bit fields.</param>
-    public VidTextureFrame(in OldVidTextureFrame frame)
-    {
-        Checksum = frame.Checksum;
-        Surface = frame.Surface;
-        Source = frame.Source;
-        Origin = frame.Origin;
-        Next = frame.Next;
-    }
-
-    /// <summary>
     /// The checksum of the texels of the texture frame.
     /// </summary>
     [FieldOffset(0)]
@@ -54,4 +41,17 @@ public struct VidTextureFrame
     /// </summary>
     [FieldOffset(32)]
     public int Next;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="VidTextureFrame"/> structure from a texture frame of a sprite file without the current version flag.
+    /// </summary>
+    /// <param name="frame">The texture frame with 16-bit fields.</param>
+    public VidTextureFrame(in OldVidTextureFrame frame)
+    {
+        Checksum = frame.Checksum;
+        Surface = frame.Surface;
+        Source = frame.Source;
+        Origin = frame.Origin;
+        Next = frame.Next;
+    }
 }

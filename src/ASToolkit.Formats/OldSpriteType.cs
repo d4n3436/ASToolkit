@@ -59,5 +59,10 @@ public enum OldSpriteType
     /// <summary>
     /// A sprite that is mostly linked to other objects.
     /// </summary>
-    Sprite = 1 << 10
+    Sprite = 1 << 10,
+
+    /// <summary>
+    /// All of the 24 type bits.
+    /// </summary>
+    All = (1 << 24) - 1
 }

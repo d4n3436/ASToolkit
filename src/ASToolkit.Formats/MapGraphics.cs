@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace ASToolkit.Formats;
 
 /// <summary>
-/// Represents the graphics record of a map, which holds its ambient light.
+/// Represents the graphics record of a map that stores its environment and ambient light.
 /// </summary>
 [StructLayout(LayoutKind.Explicit, Size = 20)]
 public readonly struct MapGraphics
@@ -31,4 +31,19 @@ public readonly struct MapGraphics
     /// </summary>
     [FieldOffset(16)]
     public readonly float DirectionLength;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MapGraphics"/> structure.
+    /// </summary>
+    /// <param name="environment">The environment the map starts with.</param>
+    /// <param name="ambient">The gamma of the ambient light.</param>
+    /// <param name="direction">The angle of the direction vector.</param>
+    /// <param name="directionLength">The length of the direction vector.</param>
+    public MapGraphics(MapEnvironment environment, Gamma ambient, Angle direction, float directionLength)
+    {
+        Environment = environment;
+        Ambient = ambient;
+        Direction = direction;
+        DirectionLength = directionLength;
+    }
 }

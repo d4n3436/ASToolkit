@@ -40,7 +40,7 @@ public readonly struct MapHeader
     public readonly Point IntegerCamera;
 
     /// <summary>
-    /// The tick value.
+    /// The game time the map was saved at.
     /// </summary>
     [FieldOffset(16)]
     public readonly int Tick;
@@ -50,6 +50,36 @@ public readonly struct MapHeader
     /// </summary>
     [FieldOffset(20)]
     public readonly int Version;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MapHeader"/> structure with integer coordinates, for a version below <see cref="FloatVersion"/>.
+    /// </summary>
+    /// <param name="mapSize">The size of the map.</param>
+    /// <param name="camera">The camera position.</param>
+    /// <param name="tick">The game time the map was saved at.</param>
+    /// <param name="version">The map version.</param>
+    public MapHeader(Size mapSize, Point camera, int tick, int version)
+    {
+        IntegerMapSize = mapSize;
+        IntegerCamera = camera;
+        Tick = tick;
+        Version = version;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MapHeader"/> structure with float coordinates, for version <see cref="FloatVersion"/> and later.
+    /// </summary>
+    /// <param name="mapSize">The size of the map.</param>
+    /// <param name="camera">The camera position.</param>
+    /// <param name="tick">The game time the map was saved at.</param>
+    /// <param name="version">The map version.</param>
+    public MapHeader(SizeF mapSize, Vector2 camera, int tick, int version)
+    {
+        FloatMapSize = mapSize;
+        FloatCamera = camera;
+        Tick = tick;
+        Version = version;
+    }
 
     /// <summary>
     /// Gets the map width in pixels.

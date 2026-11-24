@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace ASToolkit.Formats;
 
 /// <summary>
-/// Represents a palette entry of three bytes, the form older sprite files store their palettes in.
+/// Represents a three-byte palette entry of older sprite files.
 /// </summary>
 [StructLayout(LayoutKind.Explicit, Size = 3)]
 public readonly struct VidPackedColor
@@ -25,6 +25,17 @@ public readonly struct VidPackedColor
     /// </summary>
     [FieldOffset(2)]
     public readonly byte Blue;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="VidPackedColor"/> structure from a color.
+    /// </summary>
+    /// <param name="rgb">The color, packed as 0xRRGGBB. Bits above the red channel are ignored.</param>
+    public VidPackedColor(uint rgb)
+    {
+        Red = (byte)(rgb >> 16);
+        Green = (byte)(rgb >> 8);
+        Blue = (byte)rgb;
+    }
 
     /// <summary>
     /// Gets the color packed as 0xRRGGBB.

@@ -24,5 +24,17 @@ internal readonly struct TgaHeader
     [FieldOffset(16)]
     public readonly byte Depth;
 
+    [FieldOffset(17)]
+    public readonly byte Descriptor;
+
+    public TgaHeader(TgaImageType imageType, Size size, byte depth, byte descriptor)
+    {
+        ImageType = imageType;
+        Width = (ushort)size.Width;
+        Height = (ushort)size.Height;
+        Depth = depth;
+        Descriptor = descriptor;
+    }
+
     public Size Size => new(Width, Height);
 }

@@ -5,6 +5,9 @@ namespace ASToolkit.Formats;
 /// </summary>
 public enum KnownObject
 {
+    /// <summary>No object.</summary>
+    None = -1,
+
     /// <summary>The cursor sprite.</summary>
     Cursor = 1,
 
