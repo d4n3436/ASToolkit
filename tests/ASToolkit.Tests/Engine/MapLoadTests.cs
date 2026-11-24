@@ -87,7 +87,7 @@ public class MapLoadTests
 
         map.Load(EngineTestMap.MapName, GameClock.StartWallTime);
 
-        Assert.True(map.Session.IsDebugMode);
+        Assert.True(map.Constant.IsDebugMode);
         Assert.Equal(14, device.Presented.Count);
         Assert.Equal(device.Scenes, device.EndedScenes);
         Assert.Empty(map.Session.Graphics.LoadingText.ToArray());

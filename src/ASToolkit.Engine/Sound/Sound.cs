@@ -55,8 +55,7 @@ public sealed class Sound
 
     private readonly IGameFileSystem _fileSystem;
     private readonly ISoundDevice? _device;
-    private readonly IReadOnlyList<SfxRecord> _records;
-    private readonly Sfx[] _sfx;
+    private Sfx[] _sfx = [];
     private readonly SoundBuffer[] _duplicates = new SoundBuffer[VoiceCount];
     private readonly SfxRequest[] _requests = new SfxRequest[RequestCount];
     private readonly SfxBuffer[] _voices = new SfxBuffer[VoiceCount];
@@ -70,37 +69,32 @@ public sealed class Sound
     private OggMusic? _music;
     private uint _fadeStartedAt;
     private int _deviceState = DeviceReleased;
-    private int _loadedCount;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Sound"/> class and loads the samples of every sound.
+    /// Creates the sound system with the sounds of the game's object resource and loads the samples of every sound.
     /// </summary>
-    /// <param name="records">The sounds of the object table.</param>
     /// <param name="fileSystem">The file system that holds the samples and tracks.</param>
     /// <param name="device">The sound device, or <see langword="null"/> to time voices and music from their lengths.</param>
     /// <param name="isDisabled"><see langword="true"/> to load nothing and ignore every request; otherwise, <see langword="false"/>.</param>
     /// <param name="isHighQuality"><see langword="true"/> for high-quality sound; otherwise, <see langword="false"/>.</param>
     /// <param name="window">The window handle to notify when a track ends.</param>
-    public Sound(IReadOnlyList<SfxRecord> records, IGameFileSystem fileSystem, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false, nint window = 0)
-        : this(records, fileSystem, null, device, isDisabled, isHighQuality, window)
+    /// <returns>The sound system.</returns>
+    public static Sound Create(IGameFileSystem fileSystem, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false, nint window = 0)
     {
+        var resource = new Resource();
+        Map.OpenObjects(fileSystem, null, ref resource);
+
+        return new Sound(ref resource, fileSystem, null, device, isDisabled, isHighQuality, window);
     }
 
     [EngineRoutine(0x0041cba0)]
-    internal Sound(IReadOnlyList<SfxRecord> records, IGameFileSystem fileSystem, MyError? error, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false, nint window = 0)
+    internal Sound(ref Resource resource, IGameFileSystem fileSystem, MyError? error, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false, nint window = 0)
     {
         _window = window;
         Error = error;
         IsHighQuality = isHighQuality;
         _fileSystem = fileSystem;
         _device = device;
-        _records = records;
-        _sfx = new Sfx[records.Count];
-        for (int id = 0; id < _sfx.Length; id++)
-        {
-            _sfx[id] = new Sfx();
-        }
-
         for (int i = 0; i < RequestCount; i++)
         {
             _requests[i].Id = NoSound;
@@ -114,7 +108,7 @@ public sealed class Sound
         if (!isDisabled)
         {
             InitializeDevice();
-            Load(records);
+            LoadSfx(ref resource);
         }
     }
 
@@ -132,7 +126,7 @@ public sealed class Sound
 
     internal ISoundDevice? Device => _device;
 
-    internal bool IsLoaded => _deviceState == DeviceReady && _loadedCount > 0;
+    internal bool IsLoaded => _deviceState == DeviceReady && _sfx.Length > 0;
 
     [EngineRoutine(0x0041d020)]
     internal int PlayingCount
@@ -156,6 +150,8 @@ public sealed class Sound
     }
 
     private static ReadOnlySpan<byte> OggExtensions => ".Ogg.OGG.ogg"u8;
+
+    private static ReadOnlySpan<byte> SfxTag => "SFX "u8;
 
     private int PlayToState { get; set; } = NoSound;
 
@@ -215,7 +211,7 @@ public sealed class Sound
     /// </summary>
     /// <param name="id">The sound.</param>
     /// <returns><see langword="true"/> for a loaded looping sound; otherwise, <see langword="false"/>.</returns>
-    public bool IsLooped(int id) => IsValid(id) && _records[id].VoiceLimit == LoopedLimit;
+    public bool IsLooped(int id) => IsValid(id) && _sfx[id].Record.VoiceLimit == LoopedLimit;
 
     /// <summary>
     /// Requests a sound for the end of the frame.
@@ -237,7 +233,7 @@ public sealed class Sound
 
         pan = Math.Clamp(pan, -MaxPan, MaxPan);
 
-        if (_records[id].VoiceLimit == GlobalLimit)
+        if (_sfx[id].Record.VoiceLimit == GlobalLimit)
         {
             level = adjustment;
         }
@@ -262,7 +258,7 @@ public sealed class Sound
                 isRequested = true;
             }
 
-            if (_records[requests[i].Id].VoiceLimit < _records[requests[replaced].Id].VoiceLimit)
+            if (_sfx[requests[i].Id].Record.VoiceLimit < _sfx[requests[replaced].Id].Record.VoiceLimit)
             {
                 replaced = i;
             }
@@ -517,7 +513,7 @@ public sealed class Sound
         if (IsValid(id))
             return false;
 
-        if (_records.Count > 0)
+        if (_sfx.Length > 0)
         {
             Error?.Error("SOUND"u8, LogError.Invalid, 0);
         }
@@ -526,19 +522,39 @@ public sealed class Sound
     }
 
     [EngineRoutine(0x0041d110)]
-    private void Load(IReadOnlyList<SfxRecord> records)
+    private void LoadSfx(ref Resource resource)
     {
+        int start = Environment.TickCount;
         if (_deviceState != DeviceReady)
             return;
 
-        _loadedCount = records.Count;
-        int start = Environment.TickCount;
-        for (int id = 0; id < records.Count; id++)
+        if (!resource.IsOpen)
         {
-            _sfx[id].Load(this, id, records[id]);
+            Error?.Error("SOUND"u8, LogError.Open, 0, "res"u8);
+            return;
         }
 
-        Error?.Write($"LoadSFX::No   ={records.Count,-15}   sizeof(SFX)   ={SfxRecordSize,-5}    load time     ={Environment.TickCount - start}ms Quality={(IsHighQuality ? 1 : 0)}");
+        int count = resource.CountRecords(SfxTag);
+        if (count == 0)
+        {
+            Error?.Error("SOUND"u8, LogError.Section, 0, SfxTag);
+            return;
+        }
+
+        _sfx = new Sfx[count];
+        if (resource.GoBegin(SfxTag) != Resource.Found)
+            return;
+
+        int id = 0;
+        do
+        {
+            _sfx[id] = new Sfx();
+            _sfx[id].Load(this, id, new SfxRecord(resource.Record.ToArray()));
+            id++;
+        }
+        while (resource.GoNextSub(SfxTag) == Resource.Found);
+
+        Error?.Write($"LoadSFX::No   ={count,-15}   sizeof(SFX)   ={SfxRecordSize,-5}    load time     ={Environment.TickCount - start}ms Quality={(IsHighQuality ? 1 : 0)}");
     }
 
     [EngineRoutine(0x0041cd30)]
@@ -612,9 +628,9 @@ public sealed class Sound
 
         _deviceState = DeviceReady;
 
-        for (int id = 0; id < _loadedCount; id++)
+        for (int id = 0; id < _sfx.Length; id++)
         {
-            _sfx[id].Load(this, id, _records[id]);
+            _sfx[id].Load(this, id, _sfx[id].Record);
         }
     }
 
@@ -630,7 +646,7 @@ public sealed class Sound
             voices[v].Destroy(this);
         }
 
-        for (int id = 0; id < _loadedCount; id++)
+        for (int id = 0; id < _sfx.Length; id++)
         {
             _sfx[id].Buffers.AsSpan().Clear();
         }
@@ -702,9 +718,9 @@ public sealed class Sound
     [EngineRoutine(0x0041e190)]
     internal void ReloadBuffers()
     {
-        for (int id = 0; id < _records.Count; id++)
+        for (int id = 0; id < _sfx.Length; id++)
         {
-            _sfx[id].Load(this, id, _records[id]);
+            _sfx[id].Load(this, id, _sfx[id].Record);
         }
     }
 
@@ -1004,7 +1020,7 @@ public sealed class Sound
                 }
 
                 playing++;
-                byte limit = _records[id].VoiceLimit;
+                byte limit = _sfx[id].Record.VoiceLimit;
                 int voiceLimit = limit == GlobalLimit ? UnlimitedVoices : limit == LoopedLimit ? 1 : limit / VoicesPerLimitStep;
 
                 if (voiceLimit < playing)
@@ -1037,7 +1053,7 @@ public sealed class Sound
             int quietest = 0;
             for (int r = 0; r < requests.Length; r++)
             {
-                if (requests[r].Id >= 0 && _records[requests[r].Id].VoiceLimit != GlobalLimit && requests[r].Volume <= requests[quietest].Volume)
+                if (requests[r].Id >= 0 && _sfx[requests[r].Id].Record.VoiceLimit != GlobalLimit && requests[r].Volume <= requests[quietest].Volume)
                 {
                     isFound = true;
                     quietest = r;
@@ -1059,7 +1075,7 @@ public sealed class Sound
         {
             ref var voice = ref voices[v];
 
-            if (voice.IsPlaying && _records[voice.Id].VoiceLimit != GlobalLimit)
+            if (voice.IsPlaying && _sfx[voice.Id].Record.VoiceLimit != GlobalLimit)
             {
                 StopVoice(ref voice, wallTime);
                 free++;

@@ -280,7 +280,7 @@ public sealed class Cannon : Sprite
         }
         else
         {
-            VerticalSpeed -= elapsed * Map.Gravitation;
+            VerticalSpeed -= elapsed * Map.Constant.Gravitation;
         }
 
         var offset = Vector2.Abs(Position.AsVector2() - goal.AsVector2());

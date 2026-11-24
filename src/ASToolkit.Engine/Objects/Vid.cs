@@ -670,7 +670,7 @@ public class Vid
 
         if (hasGravity || hasGravity2)
         {
-            float gravity = hasGravity ? map.Gravitation : map.Gravitation2;
+            float gravity = hasGravity ? map.Constant.Gravitation : map.Constant.Gravitation2;
             speed = rise * Speed / distance + distance * gravity / Speed * 0.5f;
             speed *= speed > 0 ? BallisticRise : BallisticDrop;
         }

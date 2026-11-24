@@ -61,7 +61,7 @@ public sealed class MapSteam : Map
         if (AdvanceClock(wallTime))
             return true;
 
-        if (Session.IsDebugMode)
+        if (Constant.IsDebugMode)
         {
             switch (Input.Key)
             {
@@ -91,7 +91,7 @@ public sealed class MapSteam : Map
 
         bool isActive = _flags.HasFlag(MapFlags.WindowActive);
 
-        if (!isActive && !_debug.HasFlag(StepFlags.RunInBackground) || Session.Graphics.IsMenuLoopActive || Session.IsDebugMode && _debug.HasFlag(StepFlags.SingleStep) && Input.Key != StepKey)
+        if (!isActive && !_debug.HasFlag(StepFlags.RunInBackground) || Session.Graphics.IsMenuLoopActive || Constant.IsDebugMode && _debug.HasFlag(StepFlags.SingleStep) && Input.Key != StepKey)
         {
             _clock.Rewind();
             return false;
@@ -284,16 +284,16 @@ public sealed class MapSteam : Map
     {
         var flagman = Flagman(ControlledPlayer);
 
-        if (flagman is { Army: Army.Player } && SelectedGamma != 0)
+        if (flagman is { Army: Army.Player } && Constant.SelectedGamma != 0)
         {
-            OverrideGamma(flagman, clear ? default : Gamma.FromScript(SelectedGamma));
+            OverrideGamma(flagman, clear ? default : Gamma.FromScript(Constant.SelectedGamma));
         }
 
         var hovered = _players[ControlledPlayer].Hovered;
 
-        if (hovered is null || HoveredGamma == 0 && HoveredEnemyGamma == 0 || !clear && !_flags.HasFlag(MapFlags.MouseTips))
+        if (hovered is null || Constant.HoveredGamma == 0 && Constant.HoveredEnemyGamma == 0 || !clear && !_flags.HasFlag(MapFlags.MouseTips))
             return;
 
-        OverrideGamma(hovered, clear ? default : Gamma.FromScript(hovered.Army == Army.Monsters ? HoveredEnemyGamma : HoveredGamma));
+        OverrideGamma(hovered, clear ? default : Gamma.FromScript(hovered.Army == Army.Monsters ? Constant.HoveredEnemyGamma : Constant.HoveredGamma));
     }
 }

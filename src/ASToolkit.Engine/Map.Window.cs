@@ -59,7 +59,7 @@ public partial class Map
 
         switch ((MenuCommand)(message.WParam & CommandIdMask))
         {
-            case MenuCommand.Load when Session.IsDebugMode:
+            case MenuCommand.Load when Constant.IsDebugMode:
                 Load(GetOpenFileName().Span, WallTime);
                 break;
             case MenuCommand.Exit:

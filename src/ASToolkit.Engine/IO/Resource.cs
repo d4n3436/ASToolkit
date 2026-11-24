@@ -26,10 +26,15 @@ internal ref struct Resource
     private int _end;
     private int _recordOffset;
     private int _recordLength;
+    private int _recordCount;
 
     public static ReadOnlySpan<byte> AnyTag => "ANY "u8;
 
     public readonly int ChunkSize => _chunkSize;
+
+    public readonly bool IsOpen => _isOpen;
+
+    public readonly ReadOnlySpan<byte> Record => _data.Slice(_recordOffset + sizeof(int), _recordLength);
 
     private static ReadOnlySpan<byte> ResSignature => "RES "u8;
 
@@ -120,6 +125,11 @@ internal ref struct Resource
                 if (flags.HasFlag(ResChunkFlags.ExtendedHeader))
                 {
                     Read(skipped);
+                    _recordCount = BinaryPrimitives.ReadInt32LittleEndian(skipped[sizeof(int)..]);
+                }
+                else
+                {
+                    _recordCount = (int)flags;
                 }
 
                 _recordOffset = _position;
@@ -145,6 +155,21 @@ internal ref struct Resource
         _recordLength = Read<int>();
 
         return Found;
+    }
+
+    [EngineRoutine(0x00408280)]
+    public int CountRecords(ReadOnlySpan<byte> tag)
+    {
+        if (!_isOpen)
+            return 0;
+
+        int count = 0;
+        for (int found = GoBegin(tag); found == Found; found = GoNext(tag))
+        {
+            count += _recordCount;
+        }
+
+        return count;
     }
 
     [EngineRoutine(0x00408080)]

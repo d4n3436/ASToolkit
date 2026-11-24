@@ -35,7 +35,7 @@ public partial class Map
             Session.MouseTipCursor = cursor;
         }
 
-        bool isResting = now - Session.MouseTipMovedAt > (uint)HoverDelay && !input.Flags.HasFlag(InputFlags.LeftClick) && input.Key == 0 &&
+        bool isResting = now - Session.MouseTipMovedAt > (uint)Constant.HoverDelay && !input.Flags.HasFlag(InputFlags.LeftClick) && input.Key == 0 &&
             !_menuClicks.HasFlag(MenuClicks.Left) && _flags.HasFlag(MapFlags.MouseTips);
 
         if (!isResting)
@@ -46,7 +46,7 @@ public partial class Map
 
         if (_mouseTip is not null)
         {
-            if (now - Session.MouseTipMovedAt <= (uint)HoverDelay + MouseTipRecheck)
+            if (now - Session.MouseTipMovedAt <= (uint)Constant.HoverDelay + MouseTipRecheck)
                 return;
 
             Session.MouseTipMovedAt += MouseTipRecheck;

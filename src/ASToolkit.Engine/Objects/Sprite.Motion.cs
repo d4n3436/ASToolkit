@@ -203,11 +203,11 @@ public partial class Sprite
 
         if (gameObject.Properties.HasFlag(ObjectProperties.Gravity))
         {
-            VerticalSpeed -= elapsed * Map.Gravitation;
+            VerticalSpeed -= elapsed * Map.Constant.Gravitation;
         }
         else if (gameObject.Properties.HasFlag(ObjectProperties.Gravity2))
         {
-            VerticalSpeed -= elapsed * Map.Gravitation2;
+            VerticalSpeed -= elapsed * Map.Constant.Gravitation2;
         }
 
         next.Z = elapsed * VerticalSpeed + next.Z;

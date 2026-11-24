@@ -135,7 +135,7 @@ public sealed class ObjectTable
             Path = path,
             Gravitation = constants.Gravitation,
             Gravitation2 = constants.Gravitation2,
-            ScrollSpeed = new Vector2(constants.ScrollSpeedX, constants.ScrollSpeedY),
+            ScrollSpeed = constants.ScrollSpeed,
             HoverDelay = constants.HoverDelay,
             SelectedGamma = constants.SelectedGamma,
             HoveredEnemyGamma = constants.HoveredEnemyGamma,

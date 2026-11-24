@@ -83,14 +83,17 @@ public partial class Map : IDisposable
         _clock = new GameClock();
         Size = StartMapSize;
         ResetGroundZ();
-        Sound = Session.Sound ??= new Sound(objects.Sounds, fileSystem, Session.Error, isHighQuality: Session.IsSoundHighQuality);
-        Collector = new SpriteCollector(this);
-        var objectsName = Profile.TryGetString(fileSystem, GameSession.ConfigFile, GameSession.GameSection, ResourceKey, out var configured) ? configured.Span : DefaultObjectsFile;
         var objectsFile = new Resource();
-        if (objectsFile.Open(fileSystem, Session.Error, objectsName, ObjectsKind) == 0)
+        if (OpenObjects(fileSystem, Session.Error, ref objectsFile) != 0)
         {
-            LoadVid(ref objectsFile);
+            Session.Error.Error(MapLogTag, LogError.Open, 0, "resource file"u8);
         }
+
+        Sound = Session.Sound ??= new Sound(ref objectsFile, fileSystem, Session.Error, isHighQuality: Session.IsSoundHighQuality);
+        Constant = Session.Constant ??= new Constant(ref objectsFile, Session.Error);
+        Constant.IsDebugMode = Profile.GetInteger(fileSystem, GameSession.ConfigFile, GameSession.GameSection, "DebugMode"u8, 0) != 0;
+        Collector = new SpriteCollector(this);
+        LoadVid(ref objectsFile);
 
         EmptyVid.SetWeapon(FirstWeapon);
         Collector = new SpriteCollector(Size, Vids, this);
@@ -192,6 +195,11 @@ public partial class Map : IDisposable
     /// Gets the sound effects and music of the session.
     /// </summary>
     public Sound Sound { get; }
+
+    /// <summary>
+    /// Gets the tuning values of the session.
+    /// </summary>
+    public Constant Constant { get; }
 
     /// <summary>
     /// Gets the menu sprites that keep their place on the screen as the camera moves.
@@ -760,7 +768,7 @@ public partial class Map : IDisposable
         var shownLayer = ObjectLayer.Ground;
         while (TryLoadSprite(ref reader, version, out var sprite))
         {
-            if (Session.IsDebugMode && sprite!.Vid.Layer != shownLayer)
+            if (Constant.IsDebugMode && sprite!.Vid.Layer != shownLayer)
             {
                 shownLayer = sprite.Vid.Layer;
                 Session.Graphics.SetLoadingText(shownLayer switch
@@ -848,6 +856,13 @@ public partial class Map : IDisposable
         }
     }
 
+    internal static int OpenObjects(IGameFileSystem fileSystem, MyError? error, ref Resource resource)
+    {
+        var name = Profile.TryGetString(fileSystem, GameSession.ConfigFile, GameSession.GameSection, ResourceKey, out var configured) ? configured.Span : DefaultObjectsFile;
+
+        return resource.Open(fileSystem, error, name, ObjectsKind);
+    }
+
     private void LogMissingSection(ReadOnlySpan<byte> tag) => Session.Error.Error(MapLogTag, LogError.Section, 0, tag);
 
     [EngineRoutine(0x00411440)]
@@ -883,7 +898,7 @@ public partial class Map : IDisposable
 
     private void ShowLoadingStep(ReadOnlySpan<byte> text)
     {
-        if (Session.IsDebugMode)
+        if (Constant.IsDebugMode)
         {
             Session.Graphics.SetLoadingText(text);
         }

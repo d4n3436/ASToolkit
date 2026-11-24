@@ -33,7 +33,7 @@ public partial class Map
             graphics.DrawFormattedText(new Vector2(screen.Viewport.Left, screen.Viewport.Top + TextLineOffset), $"{_clock.FramesPerSecond}");
         }
 
-        if (!Session.IsDebugMode || screen is null)
+        if (!Constant.IsDebugMode || screen is null)
             return;
 
         if (_flags.HasFlag(MapFlags.DrawSoundCount))

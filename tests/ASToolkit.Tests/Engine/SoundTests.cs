@@ -12,7 +12,7 @@ public class SoundTests
     private const int FrameTime = 17;
     private const int MaxDraws = 1000;
 
-    private static Sound CreateSound() => new(TestGameFolder.Objects.Sounds, new GameFolder(TestGameFolder.RequireFolder()));
+    private static Sound CreateSound() => Sound.Create(new GameFolder(TestGameFolder.RequireFolder()));
 
     private static int CountDraws(GameRandom random, int startState)
     {
@@ -31,7 +31,7 @@ public class SoundTests
     public void Tact_DeviceEndsAVoice_StopsAskingAboutIt()
     {
         var device = new EndingDevice();
-        var sound = new Sound(TestGameFolder.Objects.Sounds, new GameFolder(TestGameFolder.RequireFolder()), device);
+        var sound = Sound.Create(new GameFolder(TestGameFolder.RequireFolder()), device);
         var random = new GameRandom(7);
 
         sound.Play(MonsterHit, 0, Sound.FullLoudness);

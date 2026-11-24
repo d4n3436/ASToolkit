@@ -10,9 +10,12 @@ internal sealed class Sfx
 
     public int Count { get; set; }
 
+    public SfxRecord Record { get; private set; }
+
     [EngineRoutine(0x0041e810)]
     public void Load(Sound sound, int id, SfxRecord record)
     {
+        Record = record;
         int variants = 0;
         for (int k = 0; k < SfxRecord.MaxSamples; k++)
         {

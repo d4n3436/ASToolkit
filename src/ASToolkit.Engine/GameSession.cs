@@ -74,11 +74,6 @@ public sealed class GameSession : IDisposable
         }
     }
 
-    /// <summary>
-    /// Gets a value indicating whether the game is running in debug mode.
-    /// </summary>
-    /// <remarks>In debug mode, the loading screen displays each step of a map load.</remarks>
-    public bool IsDebugMode { get; private set; }
 
     /// <summary>
     /// Gets a value indicating whether the map draws its frame rate.
@@ -120,6 +115,11 @@ public sealed class GameSession : IDisposable
     /// Gets or sets the sound effects and music of the session.
     /// </summary>
     public Sound? Sound { get; set; }
+
+    /// <summary>
+    /// Gets or sets the tuning values of the session.
+    /// </summary>
+    public Constant? Constant { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the next map load records the input of every frame into a demo kept in memory.
@@ -180,7 +180,6 @@ public sealed class GameSession : IDisposable
         int width = Profile.GetInteger(fileSystem, ConfigFile, GraphSection, "FontSizeX"u8, DefaultFontWidth);
         string font = Profile.TryGetString(fileSystem, ConfigFile, GraphSection, "Font"u8, out var name) ? Encoding.ASCII.GetString(name.Span) : DefaultFont;
         Graphics.CreateDeviceFont(font, new Size(width, height), Map.DefaultMaxTextureSize);
-        IsDebugMode = Profile.GetInteger(fileSystem, ConfigFile, GameSection, "DebugMode"u8, 0) != 0;
         ShouldDrawFps = Profile.GetInteger(fileSystem, ConfigFile, GameSection, "DrawFPS"u8, 0) != 0;
         ShouldDrawPresentation = Profile.GetInteger(fileSystem, ConfigFile, GameSection, "DrawPresentation"u8, 1) != 0;
         Graphics.SetVSync(Profile.GetInteger(fileSystem, ConfigFile, GraphSection, "VSync"u8, DefaultVSync) != 0);

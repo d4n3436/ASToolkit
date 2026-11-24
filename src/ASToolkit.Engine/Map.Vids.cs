@@ -67,46 +67,6 @@ public partial class Map
     }
 
     /// <summary>
-    /// Gets the gravity of falling objects in pixels per millisecond squared.
-    /// </summary>
-    public float Gravitation => _objects.Gravitation * ASToolkit.Engine.Vid.PerMillisecondSquared;
-
-    /// <summary>
-    /// Gets the second gravity in pixels per millisecond squared.
-    /// </summary>
-    public float Gravitation2 => _objects.Gravitation2 * ASToolkit.Engine.Vid.PerMillisecondSquared;
-
-    /// <summary>
-    /// Gets the sounds of the object table.
-    /// </summary>
-    public IReadOnlyList<SfxRecord> SfxRecords => _objects.Sounds;
-
-    /// <summary>
-    /// Gets the fastest scroll speed of the camera along each axis in pixels per millisecond.
-    /// </summary>
-    public Vector2 ScrollSpeed => _objects.ScrollSpeed * ASToolkit.Engine.Vid.PerMillisecond;
-
-    /// <summary>
-    /// Gets the time in milliseconds the cursor must rest before a mouse tip shows.
-    /// </summary>
-    public int HoverDelay => _objects.HoverDelay;
-
-    /// <summary>
-    /// Gets the packed gamma applied to the player's sprite, or zero if there isn't one.
-    /// </summary>
-    public uint SelectedGamma => _objects.SelectedGamma;
-
-    /// <summary>
-    /// Gets the packed gamma applied to an enemy under the cursor, or zero if there isn't one.
-    /// </summary>
-    public uint HoveredEnemyGamma => _objects.HoveredEnemyGamma;
-
-    /// <summary>
-    /// Gets the packed gamma applied to a sprite under the cursor, or zero if there isn't one.
-    /// </summary>
-    public uint HoveredGamma => _objects.HoveredGamma;
-
-    /// <summary>
     /// Gets the shared data, without frames, of the cursor and goal sprites.
     /// </summary>
     public Vid EmptyVid { get; } = CreateDefault();
