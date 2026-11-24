@@ -108,7 +108,7 @@ public class Creature : Unit
         }
 
         int elapsed = Map.FrameTime;
-        var next = Map.Motion.CalculateNewCoordinates(this, elapsed);
+        var next = CalculateNewCoordinates(elapsed);
 
         if (TurnTicks != 0)
         {
@@ -129,11 +129,11 @@ public class Creature : Unit
                 goal = goal.Opposite;
             }
 
-            RotateTact(Map.Collision.RotateForGlide(goal, this), elapsed);
+            RotateTact(RotateForGlide(goal), elapsed);
 
             if (HasReachedX && HasReachedY)
             {
-                SpriteKinematics.Stop(this);
+                Stop();
             }
         }
 
@@ -142,7 +142,7 @@ public class Creature : Unit
             next.Z = Map.Movement.GetSupportHeight(Definition.Object, next.AsVector2());
         }
 
-        if (Map.Projectiles.FindBlocker(this, next) is null && StaysInRegion(next.AsVector2()))
+        if (CanPlace(next) is null && StaysInRegion(next.AsVector2()))
         {
             MoveTactMapLimit(next.AsVector2(), elapsed);
             ChangeCoor(next);
@@ -221,7 +221,7 @@ public class Creature : Unit
         {
             if (other.Definition.Class == SpriteClass.Creature && center.MeasureOctagonalDistance(other.Position.AsVector2()) < CreatureAlertReach)
             {
-                Map.Motion.StartMove(other);
+                other.StartMove();
             }
         }
     }
@@ -233,7 +233,7 @@ public class Creature : Unit
 
         if (result == AttackResult.Approach && Speed.IsExactlyZero() && (ArmedLink is { HasGoal: true } || HasGoal))
         {
-            SpriteKinematics.SetCommand(this, Command.None);
+            SetCommand(Command.None);
         }
 
         if (result is AttackResult.Pursue or AttackResult.NoTarget && IsAggressive && Command is Command.None or Command.Move)
@@ -259,7 +259,7 @@ public class Creature : Unit
 
         if ((Map.Random.Next() & 3) == 0)
         {
-            Map.Motion.StartMove(this);
+            StartMove();
         }
         else if (Speed.IsExactlyZero() && Map.Random.Next() % 3 == 0 && (Definition.Object.FrameCounts[(int)SpriteAnimation.Unload] != 0 || Definition.Children[(int)SpriteAnimation.Unload] != 0 || Definition.Sounds[(int)SpriteAnimation.Unload] != 0))
         {
@@ -271,7 +271,7 @@ public class Creature : Unit
         }
         else
         {
-            SpriteKinematics.Stop(this);
+            Stop();
         }
     }
 }

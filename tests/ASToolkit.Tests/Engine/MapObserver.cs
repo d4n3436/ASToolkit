@@ -46,7 +46,7 @@ public sealed class MapObserver
 
                 if (!_alive.Contains(sprite) && sprite.Animation == SpriteAnimation.Death && Map.IsBaked(sprite.Definition))
                 {
-                    _baked.Add(SpawnedObjectSystem.GetState(sprite));
+                    _baked.Add(GetState(sprite));
                 }
             }
 
@@ -62,4 +62,7 @@ public sealed class MapObserver
             }
         }
     }
+
+    private static EffectState GetState(Sprite sprite) =>
+        new(sprite.Definition.Id, sprite.Position, sprite.Direction, sprite.Animation, sprite.CreatedAt, sprite.Frame, sprite.KeyframePosition);
 }

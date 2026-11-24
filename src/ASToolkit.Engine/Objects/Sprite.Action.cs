@@ -37,7 +37,7 @@ public partial class Sprite
                 if (Definition.Damage != 0)
                 {
                     Hp = 0;
-                    Map.Weapons.ApplyBlast(this);
+                    ApplyBlast();
                 }
 
                 break;
@@ -66,10 +66,10 @@ public partial class Sprite
                 Map.Attack(this, target);
                 break;
             case ActionCode.Move:
-                Map.Motion.SetMoveTarget(this, Map.ConstructGoal(new Vector3(var1, var2, var3)));
+                Move(Map.ConstructGoal(new Vector3(var1, var2, var3)));
                 break;
             case ActionCode.MoveTo:
-                Map.Motion.SetMoveTarget(this, target);
+                Move(target);
                 break;
             case ActionCode.BuildUnit:
                 BuildUnitCase(var1, new Point(var2, var3));
@@ -78,7 +78,7 @@ public partial class Sprite
                 Map.PlaySfx(this, var1);
                 break;
             case ActionCode.Stop:
-                SpriteKinematics.Stop(this);
+                Stop();
 
                 if (var1 != 0)
                 {
@@ -93,7 +93,7 @@ public partial class Sprite
                 RotateTact(new Angle(unchecked((byte)var1)), Definition.GetVisualFrameDuration(Animation));
                 break;
             case ActionCode.ClearCommand:
-                SpriteKinematics.SetCommand(this, Command.None);
+                SetCommand(Command.None);
                 break;
             case ActionCode.FlagmanTrigger:
                 FlagmanTriggerCase(new Point(var1, var2), var3);
@@ -119,7 +119,7 @@ public partial class Sprite
                 Goal?.AddRef();
                 break;
             case ActionCode.RestoreCommand:
-                SpriteKinematics.SetCommand(this, (Command)(act >> 8 & byte.MaxValue), target);
+                SetCommand((Command)(act >> 8 & byte.MaxValue), target);
 
                 if (target is not null)
                 {
@@ -312,7 +312,7 @@ public partial class Sprite
             y += (int)z - (int)GroundAimLift;
         }
 
-        SpriteKinematics.SetCommand(this, Command.OneAttack, Map.ConstructGoal(new Vector3(point.X, y, z)));
+        SetCommand(Command.OneAttack, Map.ConstructGoal(new Vector3(point.X, y, z)));
     }
 
     private void RandomCase()
@@ -363,12 +363,12 @@ public partial class Sprite
     {
         if (!Speed.IsExactlyZero())
         {
-            SpriteKinematics.Stop(this);
+            Stop();
         }
 
         int pause = time + Map.Random.Next() % (spread + 1);
         Timer = pause;
-        SpriteKinematics.SetCommand(this, pause != 0 ? Command.Pause : Command.None);
+        SetCommand(pause != 0 ? Command.Pause : Command.None);
     }
 
     private void FlagmanTriggerCase(Point point, int range)
@@ -548,5 +548,44 @@ public partial class Sprite
         }
 
         ActionStack.Clear();
+    }
+
+    private void ApplyBlast()
+    {
+        var payload = Definition;
+
+        if (payload.Damage == 0)
+            return;
+
+        var impact = Position;
+        var point = impact.AsVector2();
+        var reach = payload.Half + new Vector2(payload.BlastRadius);
+        float heightReach = Math.Max(Map.MinBlastHeight, payload.Object.Size.Z);
+        bool isScaled = payload.IsExplosive && !payload.BlastRadius.IsExactlyZero();
+        int damage = payload.Damage;
+        
+        for (var sprite = Map.Collector.First(point - reach, point + reach); sprite is not null; sprite = Map.Collector.NextHashInBox())
+        {
+            if (sprite == this || sprite.Definition.MaxHp == 0 || payload.ShouldSkipOwnArmy && sprite.Army == Army)
+                continue;
+
+            var victim = sprite.Position;
+            var offset = Vector2.Abs(victim.AsVector2() - point);
+            float top = victim.Z + sprite.Definition.Object.Size.Z;
+
+            if (offset.X >= reach.X + sprite.Definition.Half.X || offset.Y >= reach.Y + sprite.Definition.Half.Y ||
+                MathF.Abs(impact.Z - victim.Z) >= heightReach + sprite.Definition.Object.Size.Z ||
+                top < Map.Movement.GetHeight((victim.AsVector2() + point) * 0.5f) ||
+                top < Map.Movement.GetHeight((point * 3 + victim.AsVector2()) * 0.25f) ||
+                top < Map.Movement.GetHeight((victim.AsVector2() * 3 + point) * 0.25f))
+                continue;
+
+            float distance = victim.AsVector2().MeasureOctagonalDistance(point);
+
+            if (isScaled && distance > payload.BlastRadius)
+                continue;
+
+            Map.Action(sprite, ActionCode.Damage, isScaled ? (int)(damage - damage * distance / payload.BlastRadius) : damage);
+        }
     }
 }

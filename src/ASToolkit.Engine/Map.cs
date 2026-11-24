@@ -99,13 +99,12 @@ public sealed partial class Map : IDisposable
         _clock = new GameClock();
         Size = StartMapSize;
         Movement = new MovementMap(Size);
-        Collector = new SpriteCollector(Size, definitions.Table);
+        Collector = new SpriteCollector(Size, definitions.Table, this);
         Sound = Session.Sound ??= new SoundSystem(definitions.Sounds, fileSystem, Session.Logger, isHighQuality: Session.IsSoundHighQuality);
         LoadObjectRecords(false);
         CursorSprite = ConstructCursor();
         _controls = ControlSettings.Read(fileSystem);
         Input = new PlayerInput(_controls);
-        BuildSystems();
         for (int slot = 0; slot < SpriteDefinition.ArmyCount; slot++)
         {
             _players[slot] = new Player(this, _controls);
@@ -227,18 +226,6 @@ public sealed partial class Map : IDisposable
     internal GameRandom Random => _rng;
 
     internal bool CanMonstersAttackNeutralTrains => _flags.HasFlag(MapFlags.MonstersAttackNeutralTrains);
-
-    internal WeaponSystem Weapons { get; private set; }
-
-    internal SpriteCollision Collision { get; private set; }
-
-    internal ProjectileCollision Projectiles => Weapons.Collision;
-
-    internal SpawnedObjectSystem Effects { get; private set; }
-
-    internal SpriteKinematics Motion { get; private set; }
-
-    internal MonsterBrain Brain { get; private set; }
 
     internal List<Sprite> MenuList { get; } = [];
 
@@ -610,7 +597,7 @@ public sealed partial class Map : IDisposable
         if (sprite.Command is not Command.None && sprite is { Command: < Command.Build, HasGoal: false })
         {
             Session.Logger.Error($"SPRITE {(int)sprite.Definition.Id}", LogError.Text, (int)sprite.Command, "command need goal, but goal==NULL"u8);
-            SpriteKinematics.SetCommand(sprite, Command.None);
+            sprite.SetCommand(Command.None);
         }
 
         if (sprite.Timer != 0)
@@ -619,7 +606,7 @@ public sealed partial class Map : IDisposable
 
             if (sprite is { Timer: 0, Command: Command.Pause })
             {
-                SpriteKinematics.SetCommand(sprite, Command.None);
+                sprite.SetCommand(Command.None);
             }
         }
 
@@ -880,7 +867,7 @@ public sealed partial class Map : IDisposable
             var shift = GetChildShift(sprite, definition, slot, i, offsetDirection, out var lateral);
             var childPosition = new Vector3(shift.X + sprite.Position.X, shift.Y + sprite.Position.Y, definition.Object.ChildZ[slot] + sprite.Position.Z);
 
-            if (child.Class == SpriteClass.Unit && FindPlacementBlocker(child, childPosition) is not null || state == SpriteAnimation.Fight && sprite.Goal is null)
+            if (child.Class == SpriteClass.Unit && Collector.CanPlace(child, childPosition) is not null || state == SpriteAnimation.Fight && sprite.Goal is null)
                 continue;
 
             var childDirection = child.Object.Properties.HasFlag(ObjectProperties.RandomBirth) ? new Angle((byte)(_rng.Next() & byte.MaxValue)) : sprite.Direction;
@@ -903,13 +890,13 @@ public sealed partial class Map : IDisposable
             {
                 if (owner.Command is Command.OneAttack or Command.DistAttack)
                 {
-                    SpriteKinematics.SetCommand(owner, Command.None);
+                    owner.SetCommand(Command.None);
                 }
 
                 // TODO: Port the trains; the engine owner with command 0x1d takes action 0x1e
             }
 
-            SpriteKinematics.SetCommand(sprite, Command.None);
+            sprite.SetCommand(Command.None);
         }
     }
 
@@ -924,7 +911,7 @@ public sealed partial class Map : IDisposable
         if (previous is not null)
         {
             previous.Owner = null;
-            SpawnedObjectSystem.AddLinkToLast(link, previous);
+            link.AddLinkToLast(previous);
         }
 
         owner.Link = link;
@@ -963,7 +950,7 @@ public sealed partial class Map : IDisposable
         sprite.Link.ChangeArmy((int)sprite.Army);
     }
 
-    internal bool IsFree(SpriteDefinition definition, Vector3 position) => FindPlacementBlocker(definition, position) is null;
+    internal bool IsFree(SpriteDefinition definition, Vector3 position) => Collector.CanPlace(definition, position) is null;
 
     [EngineRoutine(0x0040c570)]
     internal void Release()
@@ -1111,8 +1098,7 @@ public sealed partial class Map : IDisposable
         int version = 0;
         reader.ReadInto(ref version);
         Session.Graphics.LoadOld(ref reader, Definitions);
-        Collector = new SpriteCollector(Size, Definitions.Table);
-        BuildSystems();
+        Collector = new SpriteCollector(Size, Definitions.Table, this);
         Movement.Initialize(Size);
         LoadGridZ(ref reader, (int)(Size.Height + OldGridRounding) / MovementMap.CellSize * ((int)(Size.Width + OldGridRounding) / MovementMap.CellSize) * sizeof(short));
         if (!FindSection(ref reader, SpriteTag))
@@ -1148,8 +1134,7 @@ public sealed partial class Map : IDisposable
         int version = LoadHead(ref reader, name, seed, out var scroll);
         Session.Logger.Write($"CurrentTime   ={(uint)Time,-15}   sizeof(SPRITE)={SpriteRecordSize,-8} Map version   ={version}");
         ShowLoadingStep("Create new hash table"u8);
-        Collector = new SpriteCollector(Size, Definitions.Table);
-        BuildSystems();
+        Collector = new SpriteCollector(Size, Definitions.Table, this);
         SetPosition(Session.ScreenSize.ToVector2() * HalfShare + scroll, CameraMove.None);
         ShowLoadingStep("Load gridZ"u8);
         Movement.Initialize(Size);
@@ -1409,7 +1394,7 @@ public sealed partial class Map : IDisposable
     private Sprite ConstructAvia(Avia sprite, Angle direction, Sprite? parent)
     {
         ConstructUnit(sprite, direction, parent);
-        Motion.StartMove(sprite);
+        sprite.StartMove();
         sprite.VerticalSpeed = sprite.Definition.ZSpeed;
 
         return sprite;
@@ -1428,7 +1413,7 @@ public sealed partial class Map : IDisposable
         ConstructUnit(sprite, direction, parent);
         sprite.IsSeekingRegion = true;
         sprite.VerticalSpeed = sprite.Definition.ZSpeed;
-        Motion.StartMove(sprite);
+        sprite.StartMove();
         sprite.Region = sprite.FindRegion(sprite.Position.AsVector2());
 
         return sprite;
@@ -1501,7 +1486,7 @@ public sealed partial class Map : IDisposable
         }
 
         sprite.IsClimbing = true;
-        Motion.StartMove(sprite);
+        sprite.StartMove();
 
         return sprite;
     }
@@ -1517,7 +1502,7 @@ public sealed partial class Map : IDisposable
         if (parent is null)
             return linker;
 
-        SpawnedObjectSystem.AddLinkToLast(parent, linker);
+        parent.AddLinkToLast(linker);
         linker.Offset = position - parent.Position;
 
         return linker;
@@ -1606,16 +1591,6 @@ public sealed partial class Map : IDisposable
         }
 
         return sprite;
-    }
-
-    [MemberNotNull(nameof(Motion), nameof(Effects), nameof(Weapons), nameof(Collision), nameof(Brain))]
-    private void BuildSystems()
-    {
-        Motion = new SpriteKinematics(Definitions, this);
-        Effects = new SpawnedObjectSystem(Definitions, Movement, this);
-        Weapons = new WeaponSystem(this, Definitions);
-        Collision = new SpriteCollision(this);
-        Brain = new MonsterBrain(Motion, Collision, _rng, Collector, this);
     }
 
     private void LoadOrders(Sprite sprite, ReadOnlySpan<StackAction> stack)
@@ -1950,7 +1925,7 @@ public sealed partial class Map : IDisposable
         if (definition.WeaponFlags.HasFlag(WeaponFlags.NoSpread) && goal.Definition != Definitions.Empty)
         {
             Attack(created, goal);
-            Motion.StartMove(created);
+            created.StartMove();
 
             return;
         }
@@ -1969,7 +1944,7 @@ public sealed partial class Map : IDisposable
 
         var aimed = ConstructGoal(point);
         Attack(created, aimed);
-        Motion.StartMove(created);
+        created.StartMove();
     }
 
     [EngineRoutine(0x0040fad0)]

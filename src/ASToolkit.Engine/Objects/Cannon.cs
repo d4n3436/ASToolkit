@@ -95,7 +95,7 @@ public sealed class Cannon : Sprite
 
         ref readonly var gameObject = ref Definition.Object;
         int elapsed = Map.FrameTime;
-        var next = Map.Motion.CalculateNewCoordinates(this, elapsed);
+        var next = CalculateNewCoordinates(elapsed);
 
         if (this is { IsBlocked: true, Animation: < SpriteAnimation.Death })
         {
@@ -143,7 +143,7 @@ public sealed class Cannon : Sprite
         {
             if (!gameObject.Properties.HasFlag(ObjectProperties.Bouncing))
             {
-                SpriteKinematics.Stop(this);
+                Stop();
                 next.Z = current;
                 Map.CreateChildFor(this, ground <= current ? SpriteAnimation.Unload : SpriteAnimation.Load);
                 ChangeAnimation(SpriteAnimation.Death);
@@ -178,7 +178,7 @@ public sealed class Cannon : Sprite
         }
         else
         {
-            SpriteKinematics.Stop(this);
+            Stop();
 
             if (ground > current)
             {
@@ -194,7 +194,7 @@ public sealed class Cannon : Sprite
         if (next.AsVector2() == Position.AsVector2())
             return;
 
-        if (Map.Projectiles.FindBlocker(this, next) is not null)
+        if (CanPlace(next) is not null)
         {
             if (Animation < SpriteAnimation.Death)
             {
@@ -230,7 +230,7 @@ public sealed class Cannon : Sprite
 
                 if (before.MeasureTurnTo(Direction) > MaxSteeringTurn)
                 {
-                    SpriteKinematics.Stop(this);
+                    Stop();
                     ChangeAnimation(SpriteAnimation.Death);
                 }
             }
@@ -247,7 +247,7 @@ public sealed class Cannon : Sprite
             else
             {
                 IsClimbing = true;
-                Map.Motion.StartMove(this);
+                StartMove();
             }
         }
         else if (Map.Movement.GetHeight(Position.AsVector2()) + gameObject.TopZ <= Position.Z && goal.Z <= Position.Z || VerticalSpeed <= 0)
@@ -270,7 +270,7 @@ public sealed class Cannon : Sprite
 
         if (isHit || gameObject.Properties.HasFlag(ObjectProperties.SelfMoving) && MathF.Abs(goal.Z - Position.Z) < RocketHitHeight && offset is { X: < RocketHitReach, Y: < RocketHitReach })
         {
-            SpriteKinematics.Stop(this);
+            Stop();
             ChangeAnimation(SpriteAnimation.Death);
         }
     }

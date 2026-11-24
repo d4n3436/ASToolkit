@@ -111,15 +111,14 @@ internal sealed class Player
             return;
 
         var flags = input.Flags;
-        var weapons = _map.Weapons;
-        ApplyButtons(input, player, weapons);
-        ScrollWeapons(input, weapons);
+        ApplyButtons(input, player);
+        ScrollWeapons(input);
         player = Sprite!;
         var cursorDirection = Angle.FromOffset(new Vector2(input.Cursor.X - player.Position.X, player.Position.Z + input.Cursor.Y - player.Position.Y));
         Steer(player, flags, _settings.IsMovementRelativeToCursor ? cursorDirection : default);
         if (flags.HasFlag(InputFlags.Left) || flags.HasFlag(InputFlags.Right) || flags.HasFlag(InputFlags.Down) || flags.HasFlag(InputFlags.Up))
         {
-            _map.Motion.StartMove(player);
+            player.StartMove();
         }
 
         TurnTorso(player, cursorDirection);
@@ -181,13 +180,13 @@ internal sealed class Player
             {
                 if (members[j].Command == Command.None)
                 {
-                    SpriteKinematics.SetCommand(members[j], command, target);
+                    members[j].SetCommand(command, target);
                 }
             }
         }
     }
 
-    private void ApplyButtons(PlayerInput input, Sprite player, WeaponSystem weapons)
+    private void ApplyButtons(PlayerInput input, Sprite player)
     {
         var flags = input.Flags;
         if (flags.HasFlag(InputFlags.Second))
@@ -198,7 +197,7 @@ internal sealed class Player
 
         if ((flags.HasFlag(InputFlags.Left) || flags.HasFlag(InputFlags.Right) || flags.HasFlag(InputFlags.Down) || flags.HasFlag(InputFlags.Up)) && Sprite!.Command == Command.Move)
         {
-            SpriteKinematics.SetCommandWithoutLink(Sprite, Command.None);
+            Sprite.SetCommandWithoutLink(Command.None);
         }
 
         if (flags.HasFlag(InputFlags.First))
@@ -207,7 +206,7 @@ internal sealed class Player
 
             if (sprite.Definition.Class == SpriteClass.Man && sprite.Rounds < sprite.Definition.ChildCounts[(int)SpriteAnimation.Fight])
             {
-                for (int slot = (int)sprite.Link!.Definition.Id - Sprite.WeaponIdBase - 1; !weapons.ChangeWeapon(sprite, slot); slot--)
+                for (int slot = (int)sprite.Link!.Definition.Id - Sprite.WeaponIdBase - 1; !sprite.ChangeWeapon(slot); slot--)
                 {
                 }
             }
@@ -217,11 +216,11 @@ internal sealed class Player
 
         if (input.Key is >= FirstWeaponKey and <= LastWeaponKey && Sprite!.Definition.Class == SpriteClass.Man)
         {
-            weapons.ChangeWeapon((Man)Sprite!, input.Key - FirstWeaponKey);
+            ((Man)Sprite!).ChangeWeapon(input.Key - FirstWeaponKey);
         }
     }
 
-    private void ScrollWeapons(PlayerInput input, WeaponSystem weapons)
+    private void ScrollWeapons(PlayerInput input)
     {
         int weaponSlot = Sprite!.WeaponSlot;
         int notches = input.Wheel;
@@ -246,7 +245,7 @@ internal sealed class Player
                 {
                     weaponSlot++;
 
-                    if (weapons.ChangeWeapon((Man)Sprite!, weaponSlot))
+                    if (((Man)Sprite!).ChangeWeapon(weaponSlot))
                         break;
                 }
 
@@ -260,7 +259,7 @@ internal sealed class Player
             {
                 weaponSlot--;
 
-                if (weapons.ChangeWeapon((Man)Sprite!, weaponSlot))
+                if (((Man)Sprite!).ChangeWeapon(weaponSlot))
                     break;
             }
         }
@@ -291,23 +290,23 @@ internal sealed class Player
         }
         else if (left)
         {
-            player.RotateTact(_map.Collision.RotateForGlide(origin + Angle.West.Value, player), _map.FrameTime);
+            player.RotateTact(player.RotateForGlide(origin + Angle.West.Value), _map.FrameTime);
         }
         else if (right)
         {
-            player.RotateTact(_map.Collision.RotateForGlide(origin + Angle.East.Value, player), _map.FrameTime);
+            player.RotateTact(player.RotateForGlide(origin + Angle.East.Value), _map.FrameTime);
         }
         else if (down)
         {
-            player.RotateTact(_map.Collision.RotateForGlide(origin + Angle.South.Value, player), _map.FrameTime);
+            player.RotateTact(player.RotateForGlide(origin + Angle.South.Value), _map.FrameTime);
         }
         else if (up)
         {
-            player.RotateTact(_map.Collision.RotateForGlide(origin + Angle.North.Value, player), _map.FrameTime);
+            player.RotateTact(player.RotateForGlide(origin + Angle.North.Value), _map.FrameTime);
         }
         else if (player.Command != Command.Move)
         {
-            SpriteKinematics.Stop(player);
+            player.Stop();
         }
     }
 

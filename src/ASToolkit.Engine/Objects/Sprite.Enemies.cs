@@ -4,38 +4,15 @@ using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
-internal sealed class MonsterBrain
+public partial class Sprite
 {
     private const int RepeatTargetOdds = 3;
     private const int ForwardCone = 0x1f;
 
-    private readonly SpriteKinematics _motion;
-    private readonly SpriteCollision _movement;
-    private readonly Random _random;
-    private readonly SpriteCollector _collector;
-    private readonly Map _map;
-
-    public MonsterBrain(SpriteKinematics motion, SpriteCollision movement, Random random, SpriteCollector collector, Map map)
-    {
-        _motion = motion;
-        _movement = movement;
-        _random = random;
-        _collector = collector;
-        _map = map;
-    }
-
-    public void MoveTo(Sprite sprite, Sprite goal)
-    {
-        if (!SpriteKinematics.SetCommand(sprite, Command.Move, goal) && !_motion.StartMove(sprite))
-        {
-            SpriteKinematics.SetCommand(sprite, Command.None);
-        }
-    }
-
     [EngineRoutine(0x00444a80)]
-    public Sprite? SeekEnemy(Sprite sprite, Sprite? flagman)
+    internal Sprite? SeekEnemy(Sprite? flagman)
     {
-        var seeker = sprite;
+        var seeker = this;
 
         for (var next = seeker.Link; next is not null && next.Definition == seeker.Definition.LinkDefinition && next.Definition.FightChild != 0 && next.Definition.Object.WeaponIndex != 0; next = seeker.Link)
         {
@@ -51,13 +28,13 @@ internal sealed class MonsterBrain
         float bestDistance = definition.DetectRange + 1;
 
         if (seeker.Army == Army.Monsters)
-            return flagman is not null && TryTake(seeker, flagman, ref best, ref bestDistance) ? flagman : best;
+            return flagman is not null && seeker.TryTake(flagman, ref best, ref bestDistance) ? flagman : best;
 
-        var listed = _collector.Listed;
+        var listed = Map.Collector.Listed;
 
         for (int i = listed.Length - 1; i >= 0; i--)
         {
-            if (TryTake(seeker, listed[i], ref best, ref bestDistance))
+            if (seeker.TryTake(listed[i], ref best, ref bestDistance))
                 return listed[i];
         }
 
@@ -69,18 +46,18 @@ internal sealed class MonsterBrain
     private static bool HasCarOfArmy(Sprite engine, Army army) => engine.Army == army;
 
     [EngineRoutine(0x00445c80)]
-    private static bool IsBetter(Sprite sprite, float distance, float bestDistance, Sprite candidate, Sprite? best)
+    private bool IsBetter(float distance, float bestDistance, Sprite candidate, Sprite? best)
     {
         if (best is null)
             return true;
 
-        if (sprite.Definition.WeaponFlags.HasFlag(WeaponFlags.PrefersNearest))
+        if (Definition.WeaponFlags.HasFlag(WeaponFlags.PrefersNearest))
             return distance < bestDistance;
 
-        if (sprite.Shooter == best)
+        if (Shooter == best)
             return false;
 
-        if (sprite.Shooter == candidate)
+        if (Shooter == candidate)
             return true;
 
         if (candidate.Army == Army.Neutral && best.Army != Army.Neutral)
@@ -92,7 +69,7 @@ internal sealed class MonsterBrain
         if (bestFlies != candidateFlies)
             return candidateFlies;
 
-        float range = (sprite.ArmedLink?.Definition ?? sprite.Definition).BattleRange;
+        float range = (ArmedLink?.Definition ?? Definition).BattleRange;
 
         if (range < bestDistance && distance <= range)
             return true;
@@ -109,26 +86,26 @@ internal sealed class MonsterBrain
         return bestRank < candidateRank || bestRank <= candidateRank && distance < bestDistance;
     }
 
-    private bool TryTake(Sprite sprite, Sprite candidate, ref Sprite? best, ref float bestDistance)
+    private bool TryTake(Sprite candidate, ref Sprite? best, ref float bestDistance)
     {
-        var definition = sprite.Definition;
+        var definition = Definition;
 
-        if ((definition.Targets & candidate.Definition.Object.SpriteType) == 0 || candidate.Definition.MaxHp == 0 || !IsEnemy(sprite, candidate) ||
+        if ((definition.Targets & candidate.Definition.Object.SpriteType) == 0 || candidate.Definition.MaxHp == 0 || !IsEnemy(candidate) ||
             (candidate.Definition.Object.SpriteType.HasFlag(SpriteType.Avia) && candidate.Owner is not null))
             return false;
 
         if (definition.HasForwardTargets &&
-            sprite.Direction.MeasureTurnTo(sprite.DirectionTo(candidate)) > ForwardCone)
+            Direction.MeasureTurnTo(DirectionTo(candidate)) > ForwardCone)
             return false;
 
-        float distance = sprite.Position.AsVector2().MeasureOctagonalDistance(candidate.Position.AsVector2());
+        float distance = Position.AsVector2().MeasureOctagonalDistance(candidate.Position.AsVector2());
 
         if (distance > definition.DetectRange || distance < definition.MinRange)
             return false;
 
         bool isAccepted;
 
-        if (definition.Object.SpriteType.HasFlag(SpriteType.Avia) && sprite.Shooter is null)
+        if (definition.Object.SpriteType.HasFlag(SpriteType.Avia) && Shooter is null)
         {
             isAccepted = distance < bestDistance;
         }
@@ -138,28 +115,28 @@ internal sealed class MonsterBrain
         }
         else if (bestDistance <= definition.BattleRange)
         {
-            isAccepted = distance <= definition.BattleRange && IsBetter(sprite, distance, bestDistance, candidate, best);
+            isAccepted = distance <= definition.BattleRange && IsBetter(distance, bestDistance, candidate, best);
         }
         else
         {
-            isAccepted = distance <= definition.BattleRange || IsBetter(sprite, distance, bestDistance, candidate, best);
+            isAccepted = distance <= definition.BattleRange || IsBetter(distance, bestDistance, candidate, best);
         }
 
-        if (!isAccepted || (sprite.Army == Army.Player && candidate.Definition.Class == SpriteClass.Engine && HasCarOfArmy(candidate, Army.Player)))
+        if (!isAccepted || (Army == Army.Player && candidate.Definition.Class == SpriteClass.Engine && HasCarOfArmy(candidate, Army.Player)))
             return false;
 
         best = candidate;
         bestDistance = distance;
 
-        return definition.WeaponFlags.HasFlag(WeaponFlags.RandomTarget) && _random.Next() % RepeatTargetOdds == 0;
+        return definition.WeaponFlags.HasFlag(WeaponFlags.RandomTarget) && Map.Random.Next() % RepeatTargetOdds == 0;
     }
 
-    private bool IsEnemy(Sprite sprite, Sprite target)
+    private bool IsEnemy(Sprite target)
     {
-        bool ownArmy = sprite.Definition.WeaponFlags.HasFlag(WeaponFlags.TargetsOwnArmy);
+        bool ownArmy = Definition.WeaponFlags.HasFlag(WeaponFlags.TargetsOwnArmy);
 
-        return (target.Army != sprite.Army || ownArmy) && !target.Definition.Object.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) &&
+        return (target.Army != Army || ownArmy) && !target.Definition.Object.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) &&
             (target.Army != Army.Neutral || ownArmy ||
-                (_map.CanMonstersAttackNeutralTrains && sprite.Army == Army.Monsters && target.Definition.Class == SpriteClass.Engine));
+                (Map.CanMonstersAttackNeutralTrains && Army == Army.Monsters && target.Definition.Class == SpriteClass.Engine));
     }
 }

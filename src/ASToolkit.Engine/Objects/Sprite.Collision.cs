@@ -1,57 +1,34 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Drawing;
 using System.Numerics;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
-internal sealed class SpriteCollision
+public partial class Sprite
 {
     private const int NorthEastBoundary = Angle.QuarterTurn / 2;
     private const int NorthWestBoundary = Angle.FullTurn - NorthEastBoundary;
     private const int SouthEastBoundary = Angle.HalfTurn - NorthEastBoundary;
     private const int SouthWestBoundary = Angle.HalfTurn + NorthEastBoundary;
     private const int CardinalHalfWidth = 16;
+    private const int CrushDamage = 5;
     private const int AvoidanceOffset = 24;
     private const int MaxPushDepth = 4;
     private const int OppositeDirectionTolerance = 16;
 
-    private readonly Map _map;
-
-    public SpriteCollision(Map map)
-    {
-        _map = map;
-    }
-
-    public SizeF MapSize => _map.Movement.MapSize;
-
-    public bool IsInsideMap(Vector2 point) => point is { X: >= 0, Y: >= 0 } && point.X < _map.Movement.MapSize.Width && point.Y < _map.Movement.MapSize.Height;
-
-    public bool IsBlocked(Sprite sprite, Vector3 position) => FindCollision(sprite, position, out _);
-
-    public bool Move(Sprite sprite, Vector3 position)
-    {
-        if (Move(sprite, ref position) is not null)
-            return false;
-
-        sprite.ChangeCoor(position);
-
-        return true;
-    }
-
     [EngineRoutine(0x00443c40)]
-    public Sprite? Move(Sprite sprite, ref Vector3 next, int depth = 0)
+    internal Sprite? CanPlaceWithCrush(ref Vector3 next, int depth = 0)
     {
-        if (sprite.Definition.MoveMask == 0)
+        if (Definition.MoveMask == 0)
             return null;
 
-        var start = sprite.Position;
+        var start = Position;
 
-        if (FindCollision(sprite, next, out var other))
+        if (FindCollision(next, out var other))
         {
-            bool isGround = other == _map.CursorSprite;
+            bool isGround = other == Map.CursorSprite;
 
-            if (_map.RunCollisionHandler(sprite, isGround ? null : other) != 0)
+            if (Map.RunCollisionHandler(this, isGround ? null : other) != 0)
             {
                 next = start;
 
@@ -62,26 +39,26 @@ internal sealed class SpriteCollision
             {
                 var pushed = new Vector3(other.Position.X + next.X - start.X, other.Position.Y + next.Y - start.Y, other.Position.Z);
 
-                if (Move(other, ref pushed, depth + 1) is null)
+                if (other.CanPlaceWithCrush(ref pushed, depth + 1) is null)
                 {
-                    bool opposite = sprite.Definition.CanBePushed && other.Direction.MeasureTurnTo(sprite.Direction.Opposite) < OppositeDirectionTolerance;
+                    bool opposite = Definition.CanBePushed && other.Direction.MeasureTurnTo(Direction.Opposite) < OppositeDirectionTolerance;
 
-                    if (!opposite || sprite.Direction.Value < Angle.HalfTurn)
+                    if (!opposite || Direction.Value < Angle.HalfTurn)
                     {
                         other.ChangeCoor(pushed);
                     }
                 }
             }
 
-            if (!FindCollision(sprite, next with { X = start.X }, out _))
+            if (!FindCollision(next with { X = start.X }, out _))
             {
                 next.X = start.X;
             }
-            else if (!FindCollision(sprite, next with { Y = start.Y }, out _))
+            else if (!FindCollision(next with { Y = start.Y }, out _))
             {
                 next.Y = start.Y;
             }
-            else if (isGround || !IsInsideIgnoringLayers(sprite, start, other))
+            else if (isGround || !IsInsideIgnoringLayers(start, other))
             {
                 next = start;
 
@@ -89,19 +66,19 @@ internal sealed class SpriteCollision
             }
         }
 
-        if (sprite.Definition.Object.Properties.HasFlag(ObjectProperties.ZeroZ))
+        if (Definition.Object.Properties.HasFlag(ObjectProperties.ZeroZ))
         {
-            next.Z = _map.Movement.GetSupportHeight(sprite.Definition.Object, next.AsVector2());
+            next.Z = Map.Movement.GetSupportHeight(Definition.Object, next.AsVector2());
         }
 
         return null;
     }
 
     [EngineRoutine(0x00443ed0)]
-    public Angle RotateForGlide(Angle direction, Sprite sprite)
+    internal Angle RotateForGlide(Angle direction)
     {
-        var center = sprite.Position.AsVector2();
-        var half = sprite.Definition.Half;
+        var center = Position.AsVector2();
+        var half = Definition.Half;
 
         if (direction.Value is <= SouthEastBoundary or >= SouthWestBoundary)
         {
@@ -160,48 +137,84 @@ internal sealed class SpriteCollision
 
         return direction;
 
-        bool IsBlockedAt(Vector2 point) => IsBlocked(sprite, new Vector3(point, sprite.Position.Z));
+        bool IsBlockedAt(Vector2 point) => FindCollision(new Vector3(point, Position.Z), out _);
     }
 
-    private static bool IsInsideIgnoringLayers(Sprite sprite, Vector3 start, Sprite other)
+    [EngineRoutine(0x00444620)]
+    internal bool DirectRouteIntersection(ref Vector3 target) => Map.Collector.CheckLine(Definition, Position, ref target);
+
+    [EngineRoutine(0x00443810)]
+    internal Sprite? CanPlace(Vector3 point)
+    {
+        var definition = this.Definition;
+
+        if (definition.MoveMask == 0)
+            return null;
+
+        if (!Map.Movement.CanStandOnGround(definition.Object, point))
+            return Map.CursorSprite;
+
+        var volume = definition.GetCollisionVolume(point);
+        Map.Collector.FirstHashInBox(point.AsVector2() - volume.Half, point.AsVector2() + volume.Half);
+        for (var other = Map.Collector.NextHashInBox(); other is not null; other = Map.Collector.NextHashInBox())
+        {
+            var otherDefinition = other.Definition;
+            if (other == this || other.Animation >= SpriteAnimation.Death || MathF.Abs(other.Position.X - point.X) >= otherDefinition.Half.X + volume.Half.X ||
+                MathF.Abs(other.Position.Y - point.Y) >= otherDefinition.Half.Y + volume.Half.Y || point.Z > otherDefinition.Object.Size.Z + other.Position.Z ||
+                other.Position.Z > point.Z + volume.Height)
+                continue;
+
+            if ((volume.Mask & otherDefinition.MoveMask) != 0)
+                return other;
+
+            if (otherDefinition.Object.Properties.HasFlag(ObjectProperties.Crush))
+            {
+                Map.Action(other, ActionCode.Damage, CrushDamage);
+            }
+        }
+
+        return null;
+    }
+
+    private bool IsInsideIgnoringLayers(Vector3 start, Sprite other)
     {
         var offset = Vector2.Abs(other.Position.AsVector2() - start.AsVector2());
-        var reach = other.Definition.Half + sprite.Definition.Half;
+        var reach = other.Definition.Half + Definition.Half;
 
         return other.Animation < SpriteAnimation.Death && offset.X < reach.X && offset.Y < reach.Y &&
-            start.Z <= other.Definition.Object.Size.Z + other.Position.Z && other.Position.Z <= start.Z + sprite.Definition.Object.Size.Z;
+            start.Z <= other.Definition.Object.Size.Z + other.Position.Z && other.Position.Z <= start.Z + Definition.Object.Size.Z;
     }
 
-    private bool FindCollision(Sprite sprite, Vector3 position, [NotNullWhen(true)] out Sprite? collision)
+    private bool FindCollision(Vector3 position, [NotNullWhen(true)] out Sprite? collision)
     {
-        collision = FindOverlap(sprite, position);
+        collision = FindOverlap(position);
 
         return collision is not null;
     }
 
     [EngineRoutine(0x004433f0)]
-    private Sprite? FindOverlap(Sprite sprite, Vector3 position)
+    private Sprite? FindOverlap(Vector3 position)
     {
-        var definition = sprite.Definition;
+        var definition = Definition;
 
         if (definition.MoveMask == 0)
         {
             return null;
         }
 
-        if (!_map.Movement.CanStandOnGround(definition.Object, position))
+        if (!Map.Movement.CanStandOnGround(definition.Object, position))
         {
-            return _map.CursorSprite;
+            return Map.CursorSprite;
         }
 
-        var collector = _map.Collector;
+        var collector = Map.Collector;
         var half = definition.Half;
         float height = definition.Object.Size.Z;
         collector.FirstHashInBox(position.AsVector2() - half, position.AsVector2() + half);
         for (var other = collector.NextHashInBox(); other is not null; other = collector.NextHashInBox())
         {
             var otherDefinition = other.Definition;
-            if (other != sprite && other.Animation < SpriteAnimation.Death && MathF.Abs(other.Position.X - position.X) < otherDefinition.Half.X + half.X &&
+            if (other != this && other.Animation < SpriteAnimation.Death && MathF.Abs(other.Position.X - position.X) < otherDefinition.Half.X + half.X &&
                 MathF.Abs(other.Position.Y - position.Y) < otherDefinition.Half.Y + half.Y && position.Z <= otherDefinition.Object.Size.Z + other.Position.Z &&
                 other.Position.Z <= position.Z + height && (definition.MoveMask & otherDefinition.MoveMask) != 0)
             {

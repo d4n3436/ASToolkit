@@ -1046,7 +1046,7 @@ public partial class Sprite
 
         ref readonly var gameObject = ref Definition.Object;
         int elapsed = Map.FrameTime;
-        var next = Map.Motion.CalculateNewCoordinates(this, elapsed);
+        var next = CalculateNewCoordinates(elapsed);
         float current = Map.Movement.GetHeight(Position.AsVector2());
         float ground = Map.Movement.GetHeight(next.AsVector2());
         float hover = ground + gameObject.TopZ;
@@ -1062,12 +1062,12 @@ public partial class Sprite
 
         if (HasGoal && !Speed.IsExactlyZero() && this is { HasReachedX: true, HasReachedY: true })
         {
-            SpriteKinematics.Stop(this);
+            Stop();
         }
 
         if (next.AsVector2() != Position.AsVector2())
         {
-            if (Map.Projectiles.FindBlocker(this, next) is not null)
+            if (CanPlace(next) is not null)
             {
                 VerticalSpeed = 0;
                 Speed = 0;
@@ -1094,11 +1094,11 @@ public partial class Sprite
         {
             if (Animation == SpriteAnimation.Fight)
             {
-                SpriteKinematics.SetCommand(this, Command.OneAttack, Map.ConstructGoal(removed.Position));
+                SetCommand(Command.OneAttack, Map.ConstructGoal(removed.Position));
             }
             else
             {
-                SpriteKinematics.SetCommand(this, Command.None);
+                SetCommand(Command.None);
             }
         }
 
@@ -1215,6 +1215,22 @@ public partial class Sprite
     }
 
     private static int GetDefinitionId(Sprite? sprite) => sprite is null ? 0 : (int)sprite.Definition.Id;
+
+    [EngineRoutine(0x004449c0)]
+    internal void AddLinkToLast(Sprite link)
+    {
+        if (link.Owner is not null)
+            return;
+
+        var last = this;
+        while (last.Link is not null)
+        {
+            last = last.Link;
+        }
+
+        last.Link = link;
+        link.Owner = last;
+    }
 
     private void Shift(Vector3 delta)
     {

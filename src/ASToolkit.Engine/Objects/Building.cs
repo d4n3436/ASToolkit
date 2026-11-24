@@ -33,7 +33,7 @@ public sealed class Building : Unit
         {
             case ActionCode.BackupCommand when Command == Command.Build && PendingBuild.HasValue:
                 ActionStack.Push(new Act((int)ActionCode.BuildUnit, (int)PendingBuild.Value.Definition.Id, 0, 0));
-                SpriteKinematics.SetCommand(this, Command.None);
+                SetCommand(Command.None);
 
                 return 0;
             case ActionCode.BuildUnit:
@@ -52,7 +52,7 @@ public sealed class Building : Unit
 
                 PendingBuild = new PendingBuild(definition, new Point(var2, var3));
                 Timer = definition.BuildTime;
-                SpriteKinematics.SetCommand(this, Command.Build);
+                SetCommand(Command.Build);
 
                 if (Animation < SpriteAnimation.Death)
                 {
@@ -85,7 +85,7 @@ public sealed class Building : Unit
                 if (!Map.IsFree(pending.Definition, position))
                     return 0;
 
-                SpriteKinematics.SetCommand(this, Command.None);
+                SetCommand(Command.None);
                 AddBuiltUnit(pending.Definition, position);
                 PendingBuild = null;
                 ChangeAnimation(SpriteAnimation.Stand);

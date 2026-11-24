@@ -11,7 +11,9 @@ namespace ASToolkit.Engine;
 public sealed class SpriteCollector
 {
     private const OldSpriteType ListedTypes = OldSpriteType.Unit | OldSpriteType.Avia;
+    private const int InstantRayStep = 16;
 
+    private readonly Map _map;
     private readonly Vector2 _scale;
     private readonly Vector2 _cell;
     private readonly int _columns;
@@ -26,8 +28,9 @@ public sealed class SpriteCollector
     private int _index;
 
     [EngineRoutine(0x0042d380)]
-    internal SpriteCollector(SizeF mapSize, ReadOnlySpan<SpriteDefinition?> definitions)
+    internal SpriteCollector(SizeF mapSize, ReadOnlySpan<SpriteDefinition?> definitions, Map map)
     {
+        _map = map;
         var largestObject = Vector2.Zero;
         foreach (var definition in definitions)
         {
@@ -117,7 +120,7 @@ public sealed class SpriteCollector
 
         var cursor = sprite.Map.CursorSprite;
 
-        if (failed != 0 && sprite != cursor && sprite != cursor?.Link)
+        if (failed != 0 && sprite != cursor && sprite != cursor.Link)
         {
             sprite.Logger?.Error($"SPRITE {(int)sprite.Definition.Id}", LogError.Text, failed, "hash can't delete"u8);
         }
@@ -172,6 +175,92 @@ public sealed class SpriteCollector
         }
 
         return null;
+    }
+
+    [EngineRoutine(0x0042da30)]
+    internal Sprite? CanPlace(SpriteDefinition definition, Vector3 point)
+    {
+        if (_map.Movement.GetSupportHeight(definition.Object, point.AsVector2()) > point.Z)
+            return _map.CursorSprite;
+
+        if (definition.MoveMask == 0)
+            return null;
+
+        var half = definition.Half;
+        float height = definition.Object.Size.Z;
+        FirstHashInBox(point.AsVector2() - half, point.AsVector2() + half);
+        for (var other = NextHashInBox(); other is not null; other = NextHashInBox())
+        {
+            var otherDefinition = other.Definition;
+            if (other.Animation < SpriteAnimation.Death && MathF.Abs(other.Position.X - point.X) < otherDefinition.Half.X + half.X &&
+                MathF.Abs(other.Position.Y - point.Y) < otherDefinition.Half.Y + half.Y && point.Z <= otherDefinition.Object.Size.Z + other.Position.Z &&
+                other.Position.Z <= point.Z + height && (definition.MoveMask & otherDefinition.MoveMask) != 0)
+            {
+                return other;
+            }
+        }
+
+        return null;
+    }
+
+    [EngineRoutine(0x0042db40)]
+    internal bool CheckLine(SpriteDefinition definition, Vector3 from, ref Vector3 to)
+    {
+        if (definition.MoveMask == 0)
+            return false;
+
+        var position = new Point((int)from.X, (int)from.Y);
+        int z = (int)from.Z;
+        var distance = new Size((int)to.X - position.X, (int)to.Y - position.Y);
+        var sign = new Size(Math.Sign(distance.Width), Math.Sign(distance.Height));
+        distance = new Size(Math.Abs(distance.Width), Math.Abs(distance.Height));
+        bool isXMajor = distance.Width >= distance.Height;
+        int major = isXMajor ? distance.Width : distance.Height;
+        int minor = isXMajor ? distance.Height : distance.Width;
+        int error = -major;
+        int heightStep = major == 0 ? 0 : ((int)to.Z - z) * InstantRayStep / major;
+        for (int step = 0; step < major; step++)
+        {
+            error += 2 * minor;
+
+            if (step > 0 && step % InstantRayStep == 0)
+            {
+                z += heightStep;
+                var point = new Vector3(position.X, position.Y, z);
+
+                if (CanPlace(definition, point) is not null)
+                {
+                    to = point;
+
+                    return true;
+                }
+            }
+
+            if (error >= 0)
+            {
+                if (isXMajor)
+                {
+                    position.Y += sign.Height;
+                }
+                else
+                {
+                    position.X += sign.Width;
+                }
+
+                error -= 2 * major;
+            }
+
+            if (isXMajor)
+            {
+                position.X += sign.Width;
+            }
+            else
+            {
+                position.Y += sign.Height;
+            }
+        }
+
+        return false;
     }
 
     private static float GetCellSize(float size)

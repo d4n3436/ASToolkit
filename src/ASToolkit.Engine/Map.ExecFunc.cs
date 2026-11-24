@@ -556,32 +556,6 @@ public sealed partial class Map : IScriptFunctionHost
         Release(sprite);
     }
 
-    [EngineRoutine(0x0042da30)]
-    internal Sprite? FindPlacementBlocker(SpriteDefinition definition, Vector3 point)
-    {
-        if (Movement.GetSupportHeight(definition.Object, point.AsVector2()) > point.Z)
-            return CursorSprite;
-
-        if (definition.MoveMask == 0)
-            return null;
-
-        var half = definition.Half;
-        float height = definition.Object.Size.Z;
-        Collector.FirstHashInBox(point.AsVector2() - half, point.AsVector2() + half);
-        for (var other = Collector.NextHashInBox(); other is not null; other = Collector.NextHashInBox())
-        {
-            var otherDefinition = other.Definition;
-            if (other.Animation < SpriteAnimation.Death && MathF.Abs(other.Position.X - point.X) < otherDefinition.Half.X + half.X &&
-                MathF.Abs(other.Position.Y - point.Y) < otherDefinition.Half.Y + half.Y && point.Z <= otherDefinition.Object.Size.Z + other.Position.Z &&
-                other.Position.Z <= point.Z + height && (definition.MoveMask & otherDefinition.MoveMask) != 0)
-            {
-                return other;
-            }
-        }
-
-        return null;
-    }
-
     [EngineRoutine(0x0040fc40)]
     internal Sprite? GetSpriteScr(SpriteSearch search, Vector2 point)
     {
@@ -1316,7 +1290,7 @@ public sealed partial class Map : IScriptFunctionHost
             LogInvalidDefinition("for CanPlace"u8, id);
         }
 
-        return FindPlacementBlocker(definition ?? Definitions.Empty, position);
+        return Collector.CanPlace(definition ?? Definitions.Empty, position);
     }
 
     private void Genocide(Script script)

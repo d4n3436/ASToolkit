@@ -37,7 +37,9 @@ public class DoorTests
         map.Collector.InsertToHash(new Sprite(1, definition, position.AsVector3(), 0, definition.MaxHp, map));
         map.Collector.InsertToHash(sprite);
 
-        Assert.True(map.Collision.Move(sprite, (position + Vector2.UnitX).AsVector3()));
+        var next = (position + Vector2.UnitX).AsVector3();
+        Assert.Null(sprite.CanPlaceWithCrush(ref next));
+        sprite.ChangeCoor(next);
         Assert.Equal(position + Vector2.UnitX, sprite.Position.AsVector2());
     }
 

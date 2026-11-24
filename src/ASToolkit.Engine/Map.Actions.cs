@@ -40,10 +40,10 @@ public sealed partial class Map
         {
             var state = sprite.Animation;
             sprite.SetAnimationValue(SpriteAnimation.Fight);
-            SpriteKinematics.SetCommand(sprite, Command.OneAttack, target);
+            sprite.SetCommand(Command.OneAttack, target);
             CreateChild(sprite);
             sprite.SetAnimationValue(state);
-            SpriteKinematics.SetCommand(sprite, Command.None);
+            sprite.SetCommand(Command.None);
 
             return;
         }
@@ -52,7 +52,7 @@ public sealed partial class Map
         if (target is null || target.Definition == Definitions.Empty || sprite.CanAttackThisSprite(target) || definition.Class == SpriteClass.Cannon ||
             Action(sprite, ActionCode.IsTrain) != 0)
         {
-            SpriteKinematics.SetCommand(sprite, Command.Attack, target);
+            sprite.SetCommand(Command.Attack, target);
         }
     }
 

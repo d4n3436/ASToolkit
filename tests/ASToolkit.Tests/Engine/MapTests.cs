@@ -34,7 +34,7 @@ public class MapTests
 
         Assert.True(map.HasPlayer);
         Assert.Equal(map.Player, map.GetFlagman(0));
-        Assert.Equal(map.Player, map.Weapons.Torso?.Owner);
+        Assert.Equal(map.Player, map.GetFlagman(0)?.Link?.Owner);
     }
 
     [Fact]

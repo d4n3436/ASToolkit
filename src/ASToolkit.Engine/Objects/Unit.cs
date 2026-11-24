@@ -154,7 +154,7 @@ public class Unit : Terrain
     {
         int elapsed = Map.FrameTime;
         int framesPerSecond = Map.FramesPerSecond;
-        var next = Map.Motion.CalculateNewCoordinates(this, elapsed);
+        var next = CalculateNewCoordinates(elapsed);
 
         if (TurnTicks == 0)
         {
@@ -166,12 +166,12 @@ public class Unit : Terrain
                 {
                     goal = goal.Opposite;
                 }
-                goal = Map.Collision.RotateForGlide(goal, this);
+                goal = RotateForGlide(goal);
                 RotateTact(goal, elapsed);
 
                 if (this is { HasReachedX: true, HasReachedY: true })
                 {
-                    SpriteKinematics.Stop(this);
+                    Stop();
                 }
             }
         }
@@ -189,7 +189,7 @@ public class Unit : Terrain
         if (next == Position)
             return;
 
-        if (Map.Collision.Move(this, ref next) is null)
+        if (CanPlaceWithCrush(ref next) is null)
         {
             MoveTactMapLimit(next.AsVector2(), elapsed);
             ChangeCoor(next);
@@ -202,11 +202,11 @@ public class Unit : Terrain
 
     private protected void AttackSeenEnemy(Sprite attacker)
     {
-        var enemy = Map.Brain.SeekEnemy(this, Map.GetFlagman(0));
+        var enemy = this.SeekEnemy(Map.GetFlagman(0));
 
         if (enemy is not null)
         {
-            SpriteKinematics.SetCommand(attacker, Command.OneAttack, enemy);
+            attacker.SetCommand(Command.OneAttack, enemy);
         }
     }
 
@@ -217,7 +217,12 @@ public class Unit : Terrain
         if (damage >= 0 && Command == Command.None && !Definition.Speed.IsExactlyZero())
         {
             var wander = Position.AsVector2() + new Angle((byte)Map.Random.Next()).Vector * WanderReach;
-            Map.Brain.MoveTo(this, Map.ConstructGoal(new Vector3(wander, Position.Z)));
+            var goal = Map.ConstructGoal(new Vector3(wander, Position.Z));
+
+            if (!SetCommand(Command.Move, goal) && !StartMove())
+            {
+                SetCommand(Command.None);
+            }
         }
 
         return result;
@@ -242,7 +247,7 @@ public class Unit : Terrain
 
         if (link is not null && Command is Command.Attack or Command.OneAttack && Goal is not null && link.Goal is null)
         {
-            SpriteKinematics.SetCommand(link, Command, Goal);
+            link.SetCommand(Command, Goal);
         }
 
         if (link is not null || TurnTicks == 0)
@@ -252,7 +257,7 @@ public class Unit : Terrain
 
         if (result == AttackResult.Pursue && IsActive && Speed.IsExactlyZero())
         {
-            Map.Motion.StartMove(this);
+            StartMove();
         }
 
         if (result == AttackResult.NoOrder && this is { IsAggressive: true, IsActive: true } ||
@@ -264,7 +269,7 @@ public class Unit : Terrain
 
         if (this is { Command: Command.None, HasGoal: false, Timer: 0 })
         {
-            SpriteKinematics.Stop(this);
+            Stop();
         }
     }
 
@@ -276,19 +281,19 @@ public class Unit : Terrain
         switch (result)
         {
             case AttackResult.NoAmmo or AttackResult.GiveUp:
-                SpriteKinematics.SetCommand(this, Command.None);
+                SetCommand(Command.None);
                 break;
             case AttackResult.Approach when definition.Speed.IsExactlyZero():
                 if (link is not null && link.HasGoal || HasGoal)
                 {
-                    SpriteKinematics.SetCommand(this, Command.None);
+                    SetCommand(Command.None);
                 }
                 break;
             case AttackResult.Approach when Speed.IsExactlyZero():
-                Map.Motion.StartMove(this);
+                StartMove();
                 break;
             case AttackResult.Attacked when !Speed.IsExactlyZero() && (link is null || Goal == link.Goal):
-                SpriteKinematics.Stop(this);
+                Stop();
                 break;
         }
 

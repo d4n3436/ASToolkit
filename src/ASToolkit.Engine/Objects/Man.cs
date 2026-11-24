@@ -16,6 +16,13 @@ public sealed class Man : Unit
     private const float RescueEffectHeight = 22;
     private const int WornArmorItemBase = 204;
     private const int WornArmorShareCount = 3;
+    private const float AimRise = 70;
+    private const float AimRiseCap = 50;
+    private const int DepthShift = 3;
+    private const float DepthBias = 128;
+    private const float UnitAimLift = 80;
+    private const float GroundAimLift = 19;
+    private const int WeaponIdLimit = 21;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Man"/> class.
@@ -93,11 +100,14 @@ public sealed class Man : Unit
     internal override void MoveTact()
     {
         int elapsed = Map.FrameTime;
-        var next = Map.Motion.CalculateNewCoordinates(this, elapsed);
+        var next = CalculateNewCoordinates(elapsed);
 
-        if (Position.AsVector2() != next.AsVector2() && Map.Collision.IsInsideMap(next.AsVector2()))
+        if (Position.AsVector2() != next.AsVector2() && IsInsideMap(next.AsVector2()))
         {
-            Map.Collision.Move(this, next);
+            if (CanPlaceWithCrush(ref next) is null)
+            {
+                ChangeCoor(next);
+            }
         }
 
         var goal = Goal;
@@ -106,12 +116,36 @@ public sealed class Man : Unit
             return;
 
         var direction = DirectionTo(goal) + (Speed < 0 ? Angle.HalfTurn : 0);
-        RotateTact(Map.Collision.RotateForGlide(direction, this), elapsed);
+        RotateTact(RotateForGlide(direction), elapsed);
 
         if (this is { HasReachedX: true, HasReachedY: true } || IsTouching(goal.Position.AsVector2(), goal.Definition.Half))
         {
-            SpriteKinematics.Stop(this);
+            Stop();
         }
+    }
+
+    [EngineRoutine(0x00455070)]
+    internal bool ChangeWeapon(int slot)
+    {
+        var held = Definition.LinkDefinition;
+
+        if (held is null || (int)held.Id >= WeaponIdLimit)
+            return false;
+
+        if (slot == Sprite.WeaponSlots)
+        {
+            slot = 0;
+        }
+
+        if (!Items.Contains(Sprite.WeaponItemBase + slot) || Link is null || Link.Definition != held)
+            return false;
+
+        SlotAmmo[WeaponSlot] = GetAmmo();
+        Map.Action(Link, ActionCode.ChangeVid, slot + Sprite.WeaponIdBase);
+        Definition.LinkDefinition = Map.Definitions.Find((KnownObject)(slot + Sprite.WeaponIdBase)) ?? Map.Definitions.Empty;
+        AddAmmo(SlotAmmo[slot] - GetAmmo());
+
+        return true;
     }
 
     private void CoorAttackCase(Vector2 point)
@@ -123,8 +157,8 @@ public sealed class Man : Unit
             torso.Animation == SpriteAnimation.Fight && torso.Frame <= torso.LastFrame)
             return;
 
-        var goal = Map.ConstructGoal(Map.Weapons.GetCursorPoint(this, point, weapon));
-        SpriteKinematics.SetCommand(torso, Command.OneAttack, goal);
+        var goal = Map.ConstructGoal(GetCursorPoint(point, weapon));
+        torso.SetCommand(Command.OneAttack, goal);
     }
 
     private void ChangeVidCase(int var1, int var2, int var3, Sprite? target)
@@ -179,7 +213,7 @@ public sealed class Man : Unit
 
         if (base.Action((int)ActionCode.GetAmmo, 0, 0, 0, null) == 0 || WeaponSlot < slot || slot == 0)
         {
-            Map.Weapons.ChangeWeapon(this, slot);
+            ChangeWeapon(slot);
         }
     }
 
@@ -219,5 +253,37 @@ public sealed class Man : Unit
         }
 
         return SpriteAction((int)ActionCode.Damage, damage, var2, var3, target);
+    }
+
+    private bool IsInsideMap(Vector2 point) => point is { X: >= 0, Y: >= 0 } && point.X < Map.Movement.MapSize.Width && point.Y < Map.Movement.MapSize.Height;
+
+    private Vector3 GetCursorPoint(Vector2 cursor, SpriteDefinition weapon)
+    {
+        var screen = Map.Session.Graphics.Screen;
+        var player = Position;
+        var pixel = cursor - Map.Camera;
+        float y = cursor.Y;
+        float height;
+
+        if (screen is not null && pixel.X >= Map.Session.Graphics.Viewport.Left && pixel.X < Map.Session.Graphics.Viewport.Right && pixel.Y >= Map.Session.Graphics.Viewport.Top && pixel.Y < Map.Session.Graphics.Viewport.Bottom)
+        {
+            height = (screen.Depth[(int)pixel.Y * screen.DepthWidth + (int)pixel.X] >> DepthShift) - DepthBias;
+
+            if (height > player.Z + AimRise)
+            {
+                height = player.Z + AimRiseCap;
+            }
+        }
+        else if (weapon.Targets == SpriteType.Unit)
+        {
+            height = Map.Movement.GetHeight(cursor with { Y = cursor.Y + UnitAimLift }) + UnitAimLift;
+        }
+        else
+        {
+            height = Map.Movement.GetHeight(cursor) + GroundAimLift;
+            y -= GroundAimLift;
+        }
+
+        return new Vector3(cursor.X, y + height, height);
     }
 }

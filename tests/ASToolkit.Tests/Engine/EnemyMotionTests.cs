@@ -43,7 +43,9 @@ public class EnemyMotionTests
         map.Collector.InsertToHash(sprite);
         map.Collector.InsertToHash(obstacle);
 
-        Assert.True(map.Collision.Move(sprite, new Vector3(51, 51, 0)));
+        var next = new Vector3(51, 51, 0);
+        Assert.Null(sprite.CanPlaceWithCrush(ref next));
+        sprite.ChangeCoor(next);
         Assert.Equal(new Vector2(50, 51), sprite.Position.AsVector2());
     }
 
@@ -56,7 +58,9 @@ public class EnemyMotionTests
         map.Collector.InsertToHash(sprite);
         map.Collector.InsertToHash(pushed);
 
-        Assert.True(map.Collision.Move(sprite, new Vector3(51, 50, 0)));
+        var next = new Vector3(51, 50, 0);
+        Assert.Null(sprite.CanPlaceWithCrush(ref next));
+        sprite.ChangeCoor(next);
         Assert.Equal(new Vector2(61, 50), pushed.Position.AsVector2());
         Assert.Equal(new Vector2(50, 50), sprite.Position.AsVector2());
     }

@@ -142,18 +142,17 @@ public class MovementTests
         var shooter = new Sprite(0, walker, Vector3.Zero, 0, 10, map);
         map.Collector.InsertToHash(shooter);
         map.Collector.InsertToHash(new Sprite(1, walker, new Vector3(64, 0, 30), Army.Monsters, 10, map));
-        var collision = map.Projectiles;
 
         var wallImpact = new Vector3(128, 0, 10);
-        bool wall = collision.Trace(new Sprite(9, bullet, new Vector3(0, 0, 10), 0, 10, map), ref wallImpact);
+        bool wall = new Sprite(9, bullet, new Vector3(0, 0, 10), 0, 10, map).DirectRouteIntersection(ref wallImpact);
         Assert.Equal(new Vector3(32, 0, 10), wallImpact);
         Assert.True(wall);
         var targetImpact = new Vector3(128, 0, 40);
-        bool target = collision.Trace(new Sprite(9, bullet, new Vector3(0, 0, 40), 0, 10, map), ref targetImpact);
+        bool target = new Sprite(9, bullet, new Vector3(0, 0, 40), 0, 10, map).DirectRouteIntersection(ref targetImpact);
         Assert.Equal(new Vector3(64, 0, 40), targetImpact);
         Assert.True(target);
         var clearImpact = new Vector3(128, 0, 60);
-        bool clear = collision.Trace(new Sprite(9, bullet, new Vector3(0, 0, 60), 0, 10, map), ref clearImpact);
+        bool clear = new Sprite(9, bullet, new Vector3(0, 0, 60), 0, 10, map).DirectRouteIntersection(ref clearImpact);
         Assert.Equal(new Vector3(128, 0, 60), clearImpact);
         Assert.False(clear);
     }
@@ -169,11 +168,11 @@ public class MovementTests
         map.Collector.InsertToHash(crushed);
         map.Collector.InsertToHash(new Sprite(2, wall, new Vector3(52, 50, 0), Army.Monsters, 10, map));
 
-        Assert.NotNull(map.Projectiles.FindBlocker(new Sprite(3, mover, new Vector3(50, 50, 0), Army.Monsters, 10, map), new Vector3(50, 50, 0)));
+        Assert.NotNull(new Sprite(3, mover, new Vector3(50, 50, 0), Army.Monsters, 10, map).CanPlace(new Vector3(50, 50, 0)));
         Assert.Equal(5, crushed.Hp);
     }
 
-    private static SpriteCollector CreateSprites(MovementMap terrain) => new(terrain.MapSize, new SpriteDefinition?[] { new(KnownObject.Barrel, Body(new Vector3(256, 256, 0)), default, 0) });
+    private static SpriteCollector CreateSprites(MovementMap terrain) => new(terrain.MapSize, new SpriteDefinition?[] { new(KnownObject.Barrel, Body(new Vector3(256, 256, 0)), default, 0) }, HostMap);
 
     private static Sprite Place(SpriteCollector sprites, GameObject obj, Vector3 position, KnownObject id = KnownObject.Barrel)
     {
