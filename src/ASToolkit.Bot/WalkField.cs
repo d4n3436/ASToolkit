@@ -28,7 +28,7 @@ internal sealed class WalkField
     private readonly Cell[] _places;
     private readonly Vector2[] _centers;
     private readonly GameObject _walker;
-    private readonly MovementMap _terrain;
+    private readonly Map _map;
     private readonly SpriteCollector _sprites;
     private readonly int[] _neighbors;
     private readonly bool[] _computed;
@@ -51,13 +51,13 @@ internal sealed class WalkField
     private int _floodLimit = -1;
     private int _floodCount;
 
-    public WalkField(RouteGrid grid, bool doorsLocked, MovementMap terrain, SpriteCollector sprites, GameObject walker)
+    public WalkField(RouteGrid grid, bool doorsLocked, Map map, SpriteCollector sprites, GameObject walker)
     {
-        _terrain = terrain;
+        _map = map;
         _sprites = sprites;
         _walker = walker;
         _lattice = grid.Lattice.Halve();
-        var cells = GetCellsInMap(grid, _lattice, terrain.MapSize);
+        var cells = GetCellsInMap(grid, _lattice, map.Size);
         int minU = int.MaxValue;
         int minV = int.MaxValue;
         int maxU = int.MinValue;
@@ -92,7 +92,7 @@ internal sealed class WalkField
         _queue = new int[cells.Count];
         Array.Fill(_distance, -1);
         _doorsLocked = doorsLocked;
-        foreach (var sprite in sprites.GetNear(Vector2.Zero, terrain.MapSize.ToVector2()))
+        foreach (var sprite in sprites.GetNear(Vector2.Zero, map.Size.ToVector2()))
         {
             if (IsGate(sprite.Definition.Id))
             {
@@ -204,7 +204,7 @@ internal sealed class WalkField
     }
 
     public bool CanStand(in GameObject walker, Vector3 point, bool anticipateDoors = false) =>
-        _terrain.CanStandOnGround(walker, point) && !IsBlocked(walker, point, anticipateDoors);
+        _map.CanStandOnGround(walker, point) && !IsBlocked(walker, point, anticipateDoors);
 
     public bool CanMove(in GameObject walker, Vector3 from, Vector2 to, bool anticipateDoors = false)
     {
@@ -216,12 +216,12 @@ internal sealed class WalkField
         {
             point = new Vector3(start + delta * (step / (float)steps), point.Z);
 
-            if (!_terrain.CanStandOnGround(walker, point, out float ground) || IsBlocked(walker, point, anticipateDoors))
+            if (!_map.CanStandOnGround(walker, point, out float ground) || IsBlocked(walker, point, anticipateDoors))
                 return false;
 
             if (walker.Properties.HasFlag(ObjectProperties.ZeroZ))
             {
-                point.Z = float.IsNaN(ground) ? _terrain.GetSupportHeight(walker, point.AsVector2()) : ground;
+                point.Z = float.IsNaN(ground) ? _map.GetGroundZForMoveTo(walker, point.AsVector2()) : ground;
             }
         }
 
@@ -538,7 +538,7 @@ internal sealed class WalkField
     private void UpdateNeighbors(int index)
     {
         var cell = _places[index];
-        var from = new Vector3(_centers[index], _terrain.GetSupportHeight(_walker, _centers[index]));
+        var from = new Vector3(_centers[index], _map.GetGroundZForMoveTo(_walker, _centers[index]));
         for (int side = 0; side < Sides; side++)
         {
             int target = Find(new Cell(cell.U + SideSteps[side].U, cell.V + SideSteps[side].V));

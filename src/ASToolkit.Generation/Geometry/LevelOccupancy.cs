@@ -326,7 +326,7 @@ public sealed class LevelOccupancy
 
     private readonly record struct StandingPiece(KnownObject Id, Vector3 Size, bool IsSolid, float X, float Y);
 
-    // Mirror the engine's movement map, where solid and outlined pieces raise the terrain and hittable ones stand as boxes
+    // Mirror the engine's ground-height grids, where solid and outlined pieces raise the terrain and hittable ones stand as boxes
     private static bool StopsUnits(KnownObject id, in GameObject obj) =>
         (id == KnownObject.Crate || !(obj.SpriteType.HasFlag(SpriteType.Unit) || obj.SpriteType.HasFlag(SpriteType.Avia) || obj.SpriteType.HasFlag(SpriteType.Cannon)
                                       || obj.SpriteClass == SpriteClass.Man))

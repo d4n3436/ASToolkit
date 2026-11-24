@@ -68,7 +68,7 @@ public partial class Sprite
 
         if (Definition.Object.Properties.HasFlag(ObjectProperties.ZeroZ))
         {
-            next.Z = Map.Movement.GetSupportHeight(Definition.Object, next.AsVector2());
+            next.Z = Map.GetGroundZForMoveTo(Definition.Object, next.AsVector2());
         }
 
         return null;
@@ -146,25 +146,26 @@ public partial class Sprite
     [EngineRoutine(0x00443810)]
     internal Sprite? CanPlace(Vector3 point)
     {
-        var definition = this.Definition;
+        var definition = Definition;
 
         if (definition.MoveMask == 0)
             return null;
 
-        if (!Map.Movement.CanStandOnGround(definition.Object, point))
+        if (!Map.CanStandOnGround(definition.Object, point))
             return Map.CursorSprite;
 
-        var volume = definition.GetCollisionVolume(point);
-        Map.Collector.FirstHashInBox(point.AsVector2() - volume.Half, point.AsVector2() + volume.Half);
+        var half = definition.Half;
+        float height = definition.Object.Size.Z;
+        Map.Collector.FirstHashInBox(point.AsVector2() - half, point.AsVector2() + half);
         for (var other = Map.Collector.NextHashInBox(); other is not null; other = Map.Collector.NextHashInBox())
         {
             var otherDefinition = other.Definition;
-            if (other == this || other.Animation >= SpriteAnimation.Death || MathF.Abs(other.Position.X - point.X) >= otherDefinition.Half.X + volume.Half.X ||
-                MathF.Abs(other.Position.Y - point.Y) >= otherDefinition.Half.Y + volume.Half.Y || point.Z > otherDefinition.Object.Size.Z + other.Position.Z ||
-                other.Position.Z > point.Z + volume.Height)
+            if (other == this || other.Animation >= SpriteAnimation.Death || MathF.Abs(other.Position.X - point.X) >= otherDefinition.Half.X + half.X ||
+                MathF.Abs(other.Position.Y - point.Y) >= otherDefinition.Half.Y + half.Y || point.Z > otherDefinition.Object.Size.Z + other.Position.Z ||
+                other.Position.Z > point.Z + height)
                 continue;
 
-            if ((volume.Mask & otherDefinition.MoveMask) != 0)
+            if ((definition.MoveMask & otherDefinition.MoveMask) != 0)
                 return other;
 
             if (otherDefinition.Object.Properties.HasFlag(ObjectProperties.Crush))
@@ -202,7 +203,7 @@ public partial class Sprite
             return null;
         }
 
-        if (!Map.Movement.CanStandOnGround(definition.Object, position))
+        if (!Map.CanStandOnGround(definition.Object, position))
         {
             return Map.CursorSprite;
         }

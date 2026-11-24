@@ -303,12 +303,12 @@ public partial class Sprite
 
         if (armed.Targets == SpriteType.Unit)
         {
-            z = Map.Movement.GetHeight(new Vector2(point.X, point.Y + UnitAimLift)) + UnitAimLift;
+            z = Map.GetGroundZ(new Vector2(point.X, point.Y + UnitAimLift)) + UnitAimLift;
             y += (int)z;
         }
         else
         {
-            z = Map.Movement.GetHeight(new Vector2(point.X, point.Y)) + GroundAimLift;
+            z = Map.GetGroundZ(new Vector2(point.X, point.Y)) + GroundAimLift;
             y += (int)z - (int)GroundAimLift;
         }
 
@@ -575,9 +575,9 @@ public partial class Sprite
 
             if (offset.X >= reach.X + sprite.Definition.Half.X || offset.Y >= reach.Y + sprite.Definition.Half.Y ||
                 MathF.Abs(impact.Z - victim.Z) >= heightReach + sprite.Definition.Object.Size.Z ||
-                top < Map.Movement.GetHeight((victim.AsVector2() + point) * 0.5f) ||
-                top < Map.Movement.GetHeight((point * 3 + victim.AsVector2()) * 0.25f) ||
-                top < Map.Movement.GetHeight((victim.AsVector2() * 3 + point) * 0.25f))
+                top < Map.GetGroundZ((victim.AsVector2() + point) * 0.5f) ||
+                top < Map.GetGroundZ((point * 3 + victim.AsVector2()) * 0.25f) ||
+                top < Map.GetGroundZ((victim.AsVector2() * 3 + point) * 0.25f))
                 continue;
 
             float distance = victim.AsVector2().MeasureOctagonalDistance(point);

@@ -215,8 +215,8 @@ public class ExecFuncTests
 
         Assert.InRange(Read(script, "units"), 3, map.Collector.Listed.Length + 2);
         Assert.Equal(Angle.East.Value, Read(script, "direction"));
-        Assert.Equal((int)map.Movement.MapSize.Width, Read(script, "width"));
-        Assert.Equal((int)map.Movement.GetHeight(new Vector2((int)player.X, (int)player.Y)), Read(script, "ground"));
+        Assert.Equal((int)map.Size.Width, Read(script, "width"));
+        Assert.Equal((int)map.GetGroundZ(new Vector2((int)player.X, (int)player.Y)), Read(script, "ground"));
         Assert.Equal(0, Read(script, "free"));
         Assert.Equal(2, Read(script, "replaced"));
         Assert.Equal(0, Read(script, "removed"));

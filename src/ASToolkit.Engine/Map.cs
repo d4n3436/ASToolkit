@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using System.Text;
 using ASToolkit.Core;
 using ASToolkit.Engine.IO;
@@ -98,7 +99,7 @@ public sealed partial class Map : IDisposable
         _updates = new UpdateOrder();
         _clock = new GameClock();
         Size = StartMapSize;
-        Movement = new MovementMap(Size);
+        ResetGroundZ();
         Collector = new SpriteCollector(Size, definitions.Table, this);
         Sound = Session.Sound ??= new SoundSystem(definitions.Sounds, fileSystem, Session.Logger, isHighQuality: Session.IsSoundHighQuality);
         LoadObjectRecords(false);
@@ -212,11 +213,6 @@ public sealed partial class Map : IDisposable
     /// Gets the size of the map, in map pixels.
     /// </summary>
     public SizeF Size { get; private set; }
-
-    /// <summary>
-    /// Gets the movement map, with the ground heights of the map.
-    /// </summary>
-    public MovementMap Movement { get; }
 
     /// <summary>
     /// Gets the spatial hash of the sprites of the map.
@@ -755,7 +751,7 @@ public sealed partial class Map : IDisposable
 
         if (gameObject.Properties.HasFlag(ObjectProperties.ZeroZ))
         {
-            float ground = Movement.GetSupportHeight(gameObject, position.AsVector2());
+            float ground = GetGroundZForMoveTo(gameObject, position.AsVector2());
             position.Z = parent is null ? ground : position.Z - parent.Position.Z + ground;
         }
 
@@ -811,11 +807,11 @@ public sealed partial class Map : IDisposable
 
             if (permanent)
             {
-                Movement.RaisePermanent(cell);
+                SetGroundZ(cell);
             }
             else
             {
-                Movement.RaiseTemporary(cell);
+                SetTempGroundZ(cell);
             }
         }
     }
@@ -828,7 +824,7 @@ public sealed partial class Map : IDisposable
 
         foreach (var point in definition.GetHeightPoints(sprite.Frame))
         {
-            Movement.Lower(new Vector3(sprite.Position.X + point.X, sprite.Position.Y + point.Y, sprite.Position.Z + point.Z));
+            ClearTempGroundZ(new Vector3(sprite.Position.X + point.X, sprite.Position.Y + point.Y, sprite.Position.Z + point.Z));
         }
     }
 
@@ -1099,8 +1095,8 @@ public sealed partial class Map : IDisposable
         reader.ReadInto(ref version);
         Session.Graphics.LoadOld(ref reader, Definitions);
         Collector = new SpriteCollector(Size, Definitions.Table, this);
-        Movement.Initialize(Size);
-        LoadGridZ(ref reader, (int)(Size.Height + OldGridRounding) / MovementMap.CellSize * ((int)(Size.Width + OldGridRounding) / MovementMap.CellSize) * sizeof(short));
+        ResetGroundZ();
+        LoadGridZ(ref reader, (int)(Size.Height + OldGridRounding) / GridZCellSize * ((int)(Size.Width + OldGridRounding) / GridZCellSize) * sizeof(short));
         if (!FindSection(ref reader, SpriteTag))
             return false;
 
@@ -1137,8 +1133,8 @@ public sealed partial class Map : IDisposable
         Collector = new SpriteCollector(Size, Definitions.Table, this);
         SetPosition(Session.ScreenSize.ToVector2() * HalfShare + scroll, CameraMove.None);
         ShowLoadingStep("Load gridZ"u8);
-        Movement.Initialize(Size);
-        LoadGridZ(ref reader, Movement.Columns * Movement.Rows * sizeof(short));
+        ResetGroundZ();
+        LoadGridZ(ref reader, _gridColumns * _gridRows * sizeof(short));
         if (!FindSection(ref reader, SpriteTag))
             return false;
 
@@ -1210,11 +1206,11 @@ public sealed partial class Map : IDisposable
         if (reader.FindNextChunk(GridTag) == Resource.Found)
         {
             int count = reader.Load(Session.Logger, out byte[] grid);
-            Movement.SetSceneryHeights(grid);
+            _sceneryHeights = MemoryMarshal.Cast<byte, short>(grid).ToArray();
             if (count != expectedSize)
             {
                 Session.Logger.Error(MapLogTag, LogError.Invalid, count, GridText);
-                Movement.Initialize(Size);
+                ResetGroundZ();
             }
         }
         else
@@ -1723,8 +1719,8 @@ public sealed partial class Map : IDisposable
             var region = sprite as Region;
             bool isMapCovered = region is not null && region.Flags.HasFlag(RegionFlags.CoversMap);
             var regionSize = region?.Size ?? Vector2.Zero;
-            float regionWidth = isMapCovered ? Movement.MapSize.Width : regionSize.X;
-            float regionHeight = isMapCovered ? Movement.MapSize.Height : regionSize.Y;
+            float regionWidth = isMapCovered ? Size.Width : regionSize.X;
+            float regionHeight = isMapCovered ? Size.Height : regionSize.Y;
             float area = regionHeight * regionWidth / emitChild.Object.Size.X / emitChild.Object.Size.Y;
             int count = (int)area;
 
@@ -1889,8 +1885,8 @@ public sealed partial class Map : IDisposable
                 return new Vector2(spreadX, spreadY);
             }
 
-            float mapX = _rng.Next() * Movement.MapSize.Width * GameRandom.UnitScale - sprite.Position.X;
-            float mapY = _rng.Next() * Movement.MapSize.Height * GameRandom.UnitScale - sprite.Position.Y + sprite.Position.Z;
+            float mapX = _rng.Next() * Size.Width * GameRandom.UnitScale - sprite.Position.X;
+            float mapY = _rng.Next() * Size.Height * GameRandom.UnitScale - sprite.Position.Y + sprite.Position.Z;
             return new Vector2(mapX, mapY);
         }
 
@@ -1938,7 +1934,7 @@ public sealed partial class Map : IDisposable
             float pointY = definition.Aim + goal.Position.Y + lateral.Y - _rng.Next() * definition.Aim * AimRandomScale;
             point = new Vector3(pointX, pointY, goal.Position.Z);
 
-            if (Movement.GetHeight(new Vector2(pointX, pointY)) < goal.Position.Z && Movement.GetHeight((goal.Position.AsVector2() + point.AsVector2()) * 0.5f) < goal.Position.Z)
+            if (GetGroundZ(new Vector2(pointX, pointY)) < goal.Position.Z && GetGroundZ((goal.Position.AsVector2() + point.AsVector2()) * 0.5f) < goal.Position.Z)
                 break;
         }
 

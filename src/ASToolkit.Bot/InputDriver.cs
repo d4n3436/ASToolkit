@@ -108,7 +108,7 @@ internal sealed class InputDriver
         var cursor = point;
         for (int pass = 0; pass < CursorPasses; pass++)
         {
-            cursor = point with { Y = point.Y - _map.Movement.GetHeight(cursor) };
+            cursor = point with { Y = point.Y - _map.GetGroundZ(cursor) };
         }
 
         return cursor;

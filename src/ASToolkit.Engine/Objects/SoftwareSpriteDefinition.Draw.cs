@@ -319,7 +319,7 @@ public partial class SoftwareSpriteDefinition
             if (!runs.IsVisible)
                 continue;
 
-            var rowKey = (ushort)(short)(key + (runs.Row - runs.Top) * step);
+            ushort rowKey = (ushort)(short)(key + (runs.Row - runs.Top) * step);
             var indexes = Frames[(runs.Pixels + runs.Offset)..];
             int depthIndex = runs.Row * target.DepthPitch + runs.First;
             int colorIndex = runs.Row * target.Pitch + runs.First;

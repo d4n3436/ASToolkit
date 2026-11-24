@@ -160,7 +160,7 @@ public class MapTests
         var objects = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(objects);
         var start = map.Player.Position.AsVector2() + new Vector2(200, 0);
-        var enemy = map.AddSprite(objects.Find(KnownObject.Monster1), new Vector3(start, map.Movement.GetHeight(start)), new Angle(192))!;
+        var enemy = map.AddSprite(objects.Find(KnownObject.Monster1), new Vector3(start, map.GetGroundZ(start)), new Angle(192))!;
         int health = map.Player.Hp;
         for (int tick = 0; tick < 300; tick++)
         {

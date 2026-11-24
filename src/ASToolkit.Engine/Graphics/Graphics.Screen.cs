@@ -304,7 +304,7 @@ public sealed partial class Graphics
         {
             if (Screen is not null)
             {
-                if (map.Definitions.Find(SpriteCatalog.HardwareGroundId) is null || map.Camera.X < 0f || map.Movement.MapSize.Width < Viewport.Right + map.Camera.X - Viewport.Left || map.Camera.Y < 0f || map.Movement.MapSize.Height < Viewport.Bottom + map.Camera.Y - Viewport.Top)
+                if (map.Definitions.Find(SpriteCatalog.HardwareGroundId) is null || map.Camera.X < 0f || map.Size.Width < Viewport.Right + map.Camera.X - Viewport.Left || map.Camera.Y < 0f || map.Size.Height < Viewport.Bottom + map.Camera.Y - Viewport.Top)
                 {
                     Clear(Screen, ClearColor);
                 }

@@ -191,7 +191,7 @@ internal sealed class Player
         var flags = input.Flags;
         if (flags.HasFlag(InputFlags.Second))
         {
-            var point = input.Cursor with { Y = input.Cursor.Y + _map.Movement.GetHeight(input.Cursor) };
+            var point = input.Cursor with { Y = input.Cursor.Y + _map.GetGroundZ(input.Cursor) };
             Map.Action(player, ActionCode.Move, (int)point.X, (int)point.Y);
         }
 

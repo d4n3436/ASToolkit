@@ -880,8 +880,6 @@ public class SpriteDefinition
         return start < end ? CollectionsMarshal.AsSpan(HeightPoints)[start..end] : [];
     }
 
-    internal CollisionVolume GetCollisionVolume(Vector3 position) => new(position, Half, Object.Size.Z, MoveMask);
-
     [EngineRoutine(0x00414570)]
     private protected void StoreGamma(Gamma gamma, int army, GameLogger? logger)
     {

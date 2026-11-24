@@ -255,7 +255,7 @@ public sealed class Man : Unit
         return SpriteAction((int)ActionCode.Damage, damage, var2, var3, target);
     }
 
-    private bool IsInsideMap(Vector2 point) => point is { X: >= 0, Y: >= 0 } && point.X < Map.Movement.MapSize.Width && point.Y < Map.Movement.MapSize.Height;
+    private bool IsInsideMap(Vector2 point) => point is { X: >= 0, Y: >= 0 } && point.X < Map.Size.Width && point.Y < Map.Size.Height;
 
     private Vector3 GetCursorPoint(Vector2 cursor, SpriteDefinition weapon)
     {
@@ -276,11 +276,11 @@ public sealed class Man : Unit
         }
         else if (weapon.Targets == SpriteType.Unit)
         {
-            height = Map.Movement.GetHeight(cursor with { Y = cursor.Y + UnitAimLift }) + UnitAimLift;
+            height = Map.GetGroundZ(cursor with { Y = cursor.Y + UnitAimLift }) + UnitAimLift;
         }
         else
         {
-            height = Map.Movement.GetHeight(cursor) + GroundAimLift;
+            height = Map.GetGroundZ(cursor) + GroundAimLift;
             y -= GroundAimLift;
         }
 

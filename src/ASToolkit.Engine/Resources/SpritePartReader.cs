@@ -13,7 +13,7 @@ public sealed class SpritePartReader
     internal const string SpriteFileExtension = ".vid";
     private const int MaxLinkDepth = 4;
     private const int FrameCells = 256;
-    private const int MaxFramePixels = FrameCells * MovementMap.CellSize;
+    private const int MaxFramePixels = FrameCells * Map.GridZCellSize;
     private const int DepthShift = 3;
     private const int DepthBias = 0x80;
 
@@ -60,7 +60,7 @@ public sealed class SpritePartReader
                     continue;
                 }
 
-                int cell = row / MovementMap.CellSize * FrameCells + x / MovementMap.CellSize;
+                int cell = row / Map.GridZCellSize * FrameCells + x / Map.GridZCellSize;
 
                 if (!cells.TryGetValue(cell, out short current) || current < height)
                 {
@@ -73,7 +73,7 @@ public sealed class SpritePartReader
         return cells.Select(pair =>
         {
             (int row, int column) = Math.DivRem(pair.Key, FrameCells);
-            return new Vector3(column * MovementMap.CellSize - half.Width, row * MovementMap.CellSize - half.Height, pair.Value);
+            return new Vector3(column * Map.GridZCellSize - half.Width, row * Map.GridZCellSize - half.Height, pair.Value);
         }).ToArray();
     }
 

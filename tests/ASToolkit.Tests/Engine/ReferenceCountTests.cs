@@ -44,7 +44,7 @@ public class ReferenceCountTests
             }
         }
 
-        foreach (var sprite in map.Collector.GetNear(Vector2.Zero, map.Movement.MapSize.ToVector2()))
+        foreach (var sprite in map.Collector.GetNear(Vector2.Zero, map.Size.ToVector2()))
         {
             Hold(expected, sprite);
         }

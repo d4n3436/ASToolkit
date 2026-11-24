@@ -946,7 +946,7 @@ public partial class Sprite
     [EngineRoutine(0x0043fa00)]
     internal bool MoveTactMapLimit(Vector2 position, int elapsed)
     {
-        var size = Map.Movement.MapSize;
+        var size = Map.Size;
 
         if (!(position.X >= 0))
         {
@@ -1047,8 +1047,8 @@ public partial class Sprite
         ref readonly var gameObject = ref Definition.Object;
         int elapsed = Map.FrameTime;
         var next = CalculateNewCoordinates(elapsed);
-        float current = Map.Movement.GetHeight(Position.AsVector2());
-        float ground = Map.Movement.GetHeight(next.AsVector2());
+        float current = Map.GetGroundZ(Position.AsVector2());
+        float ground = Map.GetGroundZ(next.AsVector2());
         float hover = ground + gameObject.TopZ;
 
         if (gameObject.SpriteType.HasFlag(SpriteType.Cannon) && gameObject.Properties.HasFlag(ObjectProperties.Gravity) && ground >= next.Z && Position.Z >= current)

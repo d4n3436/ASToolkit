@@ -1621,7 +1621,7 @@ internal sealed class PlayerBot
         }
 
         var last = _field.GetCenter(goal);
-        _path.Enqueue(approachEnd || _field.CanMove(new Vector3(last, _map.Movement.GetSupportHeight(_map.Player.Definition.Object, last)), end) ? end : last);
+        _path.Enqueue(approachEnd || _field.CanMove(new Vector3(last, _map.GetGroundZForMoveTo(_map.Player.Definition.Object, last)), end) ? end : last);
 
         _pathEnds = _map.Time + (int)(_path.Count * _field.CellStep * 1000 / _state.Speed) + DetourSlack;
 

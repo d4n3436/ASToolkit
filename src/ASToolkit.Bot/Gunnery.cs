@@ -116,7 +116,7 @@ internal sealed class Gunnery
 
         var ground = target.Position.AsVector2() + Vector2.Normalize(offset) * overshoot;
 
-        return new Vector3(ground, _map.Movement.GetHeight(ground));
+        return new Vector3(ground, _map.GetGroundZ(ground));
     }
 
     public bool HasClearAim(Sprite target) => HasClearAim(target, _map.Player.Position.AsVector2());
@@ -172,7 +172,7 @@ internal sealed class Gunnery
     }
 
     private bool IsInBlastHeight(Sprite sprite, AttackProfile profile) =>
-        sprite.Position.Z - _map.Movement.GetHeight(sprite.Position.AsVector2()) < profile.BlastHeight + sprite.Definition.Object.Size.Z;
+        sprite.Position.Z - _map.GetGroundZ(sprite.Position.AsVector2()) < profile.BlastHeight + sprite.Definition.Object.Size.Z;
 
     private float MeasureHarm(Sprite target, AttackProfile profile)
     {
@@ -268,7 +268,7 @@ internal sealed class Gunnery
             {
                 z += heightStep;
 
-                if (!_map.Movement.IsAboveGround(bullet.Object, new Vector3(position.X, position.Y, z)))
+                if (!_map.IsAboveGround(bullet.Object, new Vector3(position.X, position.Y, z)))
                 {
                     var offset = Vector2.Abs(new Vector2(position.X, position.Y) - to.AsVector2());
 

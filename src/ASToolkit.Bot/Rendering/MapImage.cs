@@ -118,7 +118,7 @@ public sealed class MapImage : IDisposable
 
     private static System.Drawing.Rectangle GetMapBounds(Map map)
     {
-        var size = map.Movement.MapSize;
+        var size = map.Size;
         return new System.Drawing.Rectangle(0, 0, (int)MathF.Ceiling(size.Width), (int)MathF.Ceiling(size.Height));
     }
 

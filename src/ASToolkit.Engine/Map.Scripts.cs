@@ -78,10 +78,10 @@ public sealed partial class Map
     [EngineRoutine(0x00412a40)]
     private void CreateEmptyHardwareGround()
     {
-        var definition = new HardwareSpriteDefinition(SpriteCatalog.HardwareGroundId, System.Drawing.Size.Truncate(Movement.MapSize), Definitions.FirstWeapon, Session.Logger);
+        var definition = new HardwareSpriteDefinition(SpriteCatalog.HardwareGroundId, System.Drawing.Size.Truncate(Size), Definitions.FirstWeapon, Session.Logger);
         Definitions.SetDefinition(SpriteCatalog.HardwareGroundId, definition);
         _hardwareGround = definition;
-        AddSprite(definition, new Vector3(Movement.MapSize.ToVector2() * HalfShare, 0), default);
+        AddSprite(definition, new Vector3(Size.ToVector2() * HalfShare, 0), default);
         Session.Logger.Write("Create Empty Hardware Ground"u8);
     }
 

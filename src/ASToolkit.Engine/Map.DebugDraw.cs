@@ -16,7 +16,6 @@ public sealed partial class Map
     private const uint Yellow = 0xffffff00;
     private const float TextLineOffset = 1;
     private const float SoundCountInset = 20;
-    private const int GridCellSize = 8;
     private const int GridFirstColumnX = 12;
     private const int GridCellCenter = 4;
 
@@ -112,24 +111,24 @@ public sealed partial class Map
 
     private void DrawGridZ(Screen screen)
     {
-        var scenery = Movement.SceneryHeights;
-        var objects = Movement.ObjectHeights;
-        int columns = Movement.Columns;
-        int rows = Movement.Rows;
+        short[] scenery = _sceneryHeights;
+        short[] objects = _objectHeights;
+        int columns = _gridColumns;
+        int rows = _gridRows;
         var viewport = screen.Viewport;
 
         for (int row = 1; row < rows; row++)
         {
             int x = GridFirstColumnX;
 
-            for (int column = 1; column < columns; column++, x += GridCellSize)
+            for (int column = 1; column < columns; column++, x += GridZCellSize)
             {
                 int index = row * columns + column;
                 short height = Math.Max(scenery[index], objects[index]);
                 short previousHeight = Math.Max(scenery[index - 1], objects[index - 1]);
-                int top = row * GridCellSize;
+                int top = row * GridZCellSize;
                 var start = new Vector2(x - Camera.X, top - height + GridCellCenter - Camera.Y);
-                var end = new Vector2(x - GridCellSize - Camera.X, top - previousHeight + GridCellCenter - Camera.Y);
+                var end = new Vector2(x - GridZCellSize - Camera.X, top - previousHeight + GridCellCenter - Camera.Y);
 
                 if (!IsInViewport(viewport, start) && !IsInViewport(viewport, end))
                     continue;

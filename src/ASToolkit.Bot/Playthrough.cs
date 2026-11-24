@@ -255,7 +255,7 @@ public sealed class Playthrough
 
         map.RequestLoad(setup.MapName);
         map.Step((uint)seed, (uint)seed, out _);
-        var field = new WalkField(analysis.Grid, setup.DoorsLocked, map.Movement, map.Collector, _definitions.Find(KnownObject.PlayerStart)!.Object);
+        var field = new WalkField(analysis.Grid, setup.DoorsLocked, map, map.Collector, _definitions.Find(KnownObject.PlayerStart)!.Object);
         var bot = new PlayerBot(map, new FramePacer(FrameTimes), analysis, field);
 
         return new PlaySession(map, bot, analysis.Exit is null && !analysis.ShouldClearMonsters);

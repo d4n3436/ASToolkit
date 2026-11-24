@@ -139,7 +139,7 @@ public class Creature : Unit
 
         if (Definition.Object.Properties.HasFlag(ObjectProperties.ZeroZ))
         {
-            next.Z = Map.Movement.GetSupportHeight(Definition.Object, next.AsVector2());
+            next.Z = Map.GetGroundZForMoveTo(Definition.Object, next.AsVector2());
         }
 
         if (CanPlace(next) is null && StaysInRegion(next.AsVector2()))

@@ -126,16 +126,16 @@ public sealed partial class Map : IScriptFunctionHost
                 ChangeZUnit(script);
                 break;
             case ScriptFunction.GetGroundZ:
-                script.PushNumber((int)Movement.GetHeight(PopPoint(script)));
+                script.PushNumber((int)GetGroundZ(PopPoint(script)));
                 break;
             case ScriptFunction.CanPlace:
                 PushSprite(script, CanPlace(script));
                 break;
             case ScriptFunction.MapSizeX:
-                PushNumber((int)Movement.MapSize.Width);
+                PushNumber((int)Size.Width);
                 break;
             case ScriptFunction.MapSizeY:
-                PushNumber((int)Movement.MapSize.Height);
+                PushNumber((int)Size.Height);
                 break;
             case ScriptFunction.Genocide:
                 Genocide(script);
@@ -562,12 +562,82 @@ public sealed partial class Map : IScriptFunctionHost
         if (!TryGetSearchedTypes(ref search, out var types, out var armies, out var definition))
             return null;
 
-        var query = new ScreenSpriteQuery(new SpriteFilter(search, types, armies), point);
-        var reach = new Vector2(ScreenSpriteReach);
-        float ground = Movement.GetHeight(point);
-        ScanSprites(ref query, search, types, definition, point - reach, new Vector2(point.X + ScreenSpriteReach, ground + point.Y + ScreenSpriteReach), false);
+        Sprite? found = null;
 
-        return query.Found;
+        if (search.HasFlag(SpriteSearch.Hash))
+        {
+            float ground = GetGroundZ(point);
+            Collector.FirstHashInBox(point - new Vector2(ScreenSpriteReach), new Vector2(point.X + ScreenSpriteReach, ground + point.Y + ScreenSpriteReach));
+            for (var sprite = Collector.NextHashInBox(); sprite is not null; sprite = Collector.NextHashInBox())
+            {
+                if (sprite.Owner is null && IsSearched(sprite, search, types, armies) && IsScreenHit(sprite, sprite.Definition.Half, point, found))
+                {
+                    found = sprite;
+                }
+            }
+
+            return found;
+        }
+
+        if (IsListedSearch(types))
+        {
+            var listed = Collector.Listed;
+            for (int i = listed.Length - 1; i >= 0; i--)
+            {
+                var sprite = listed[i];
+
+                if (IsSearched(sprite, search, types, armies) && IsScreenHit(sprite, sprite.Definition.Half, point, found))
+                {
+                    found = sprite;
+                }
+            }
+
+            return found;
+        }
+
+        if (definition is not null && definition.Class == SpriteClass.Frame)
+        {
+            for (int i = MenuList.Count - 1; i >= 0; i--)
+            {
+                var sprite = MenuList[i];
+
+                if (sprite.Owner is null && IsSearched(sprite, search, types, armies) && IsScreenHit(sprite, sprite.Definition.Half, point, found))
+                {
+                    found = sprite;
+                }
+            }
+
+            return found;
+        }
+
+        bool regions = types.HasFlag(OldSpriteType.Region);
+        int first = definition is null ? 0 : (int)definition.Layer;
+        int last = definition is null ? UpdateOrder.UpdatedLayerCount : (int)definition.Layer + 1;
+        for (int layer = first; layer < last; layer++)
+        {
+            var list = _updates.GetLayer(layer);
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                var sprite = list[i];
+
+                if (sprite is null || sprite.Owner is not null || !IsSearched(sprite, search, types, armies))
+                    continue;
+
+                var half = sprite.Definition.Half;
+
+                if (regions && sprite.Definition.Class == SpriteClass.Region)
+                {
+                    half = sprite is Region region ? region.Size * 0.5f : Vector2.Zero;
+                }
+
+                if (IsScreenHit(sprite, half, point, found))
+                {
+                    found = sprite;
+                }
+            }
+        }
+
+        return found;
     }
 
     [EngineRoutine(0x00405a90)]
@@ -1025,10 +1095,101 @@ public sealed partial class Map : IScriptFunctionHost
             return null;
 
         float previousDistance = previous is null ? -1 : point.MeasureOctagonalDistance(previous.Position.AsVector2());
-        var query = new SpriteQuery(new SpriteFilter(search, types, armies), point, previousDistance, radius);
-        ScanSprites(ref query, search, types, definition, point - new Vector2(radius), point + new Vector2(radius), true);
+        float reach = radius;
+        Sprite? found = null;
 
-        return query.Found;
+        if (search.HasFlag(SpriteSearch.Hash))
+        {
+            Collector.FirstHashInBox(point - new Vector2(radius), point + new Vector2(radius));
+            for (var sprite = Collector.NextHashInBox(); sprite is not null; sprite = Collector.NextHashInBox())
+            {
+                TakeNearer(sprite);
+            }
+
+            return found;
+        }
+
+        if (IsListedSearch(types))
+        {
+            var listed = Collector.Listed;
+            for (int i = listed.Length - 1; i >= 0; i--)
+            {
+                TakeNearer(listed[i]);
+            }
+
+            return found;
+        }
+
+        if (definition is not null && definition.Class is SpriteClass.Frame or SpriteClass.Text)
+        {
+            for (int i = MenuList.Count - 1; i >= 0; i--)
+            {
+                TakeNearer(MenuList[i]);
+            }
+
+            return found;
+        }
+
+        int first = definition is null ? 0 : (int)definition.Layer;
+        int last = definition is null ? UpdateOrder.UpdatedLayerCount : (int)definition.Layer + 1;
+        for (int layer = first; layer < last; layer++)
+        {
+            var list = _updates.GetLayer(layer);
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                var sprite = list[i];
+
+                if (sprite is not null)
+                {
+                    TakeNearer(sprite);
+                }
+            }
+        }
+
+        return found;
+
+        void TakeNearer(Sprite sprite)
+        {
+            if (sprite.Owner is not null || !IsSearched(sprite, search, types, armies))
+                return;
+
+            float distance = point.MeasureOctagonalDistance(sprite.Position.AsVector2());
+
+            if (distance < reach && previousDistance < distance)
+            {
+                reach = distance;
+                found = sprite;
+            }
+        }
+    }
+
+    private static bool IsListedSearch(OldSpriteType types) =>
+        (types.HasFlag(OldSpriteType.Unit) || types.HasFlag(OldSpriteType.Avia)) && (types & SearchedTypes & ~GridListTypes) == OldSpriteType.None;
+
+    private static bool IsSearched(Sprite sprite, SpriteSearch search, OldSpriteType types, SpriteSearch armies)
+    {
+        var definition = sprite.Definition;
+
+        if ((definition.Object.SpriteType.ToOldSpriteType() & types) == 0 || (armies & (SpriteSearch)((int)SpriteSearch.Army0 << ((int)sprite.Army & 3))) == 0)
+            return false;
+
+        if (search.HasFlag(SpriteSearch.Free) && sprite.Command != Command.None)
+            return false;
+
+        if (search.HasFlag(SpriteSearch.Class) && (int)definition.Class != (int)(search & SpriteSearch.ValueMask))
+            return false;
+
+        return !search.HasFlag(SpriteSearch.Id) || (int)definition.Id == (int)(search & SpriteSearch.ValueMask);
+    }
+
+    private static bool IsScreenHit(Sprite sprite, Vector2 half, Vector2 point, Sprite? best)
+    {
+        var size = sprite.Definition.Object.Size;
+        float top = sprite.Position.Y - sprite.Position.Z;
+
+        return sprite.Position.X - half.X <= point.X && point.X <= sprite.Position.X + half.X &&
+            top - size.Z - half.Y < point.Y && point.Y < top + half.Y &&
+            (best is null || size.X < best.Definition.Object.Size.X || size.Y < best.Definition.Object.Size.Y);
     }
 
     private bool TryGetSearchedTypes(ref SpriteSearch search, out OldSpriteType types, out SpriteSearch armies, out SpriteDefinition? definition)
@@ -1059,58 +1220,6 @@ public sealed partial class Map : IScriptFunctionHost
         types = definition.Object.SpriteType.ToOldSpriteType();
 
         return true;
-    }
-
-    private void ScanSprites<TQuery>(ref TQuery query, SpriteSearch search, OldSpriteType types, SpriteDefinition? definition, Vector2 min, Vector2 max, bool textInMenu)
-        where TQuery : struct, ISpriteQuery
-    {
-        if (search.HasFlag(SpriteSearch.Hash))
-        {
-            Collector.FirstHashInBox(min, max);
-            for (var sprite = Collector.NextHashInBox(); sprite is not null; sprite = Collector.NextHashInBox())
-            {
-                query.Consider(sprite, false);
-            }
-
-            return;
-        }
-
-        if ((types.HasFlag(OldSpriteType.Unit) || types.HasFlag(OldSpriteType.Avia)) && (types & SearchedTypes & ~GridListTypes) == OldSpriteType.None)
-        {
-            var listed = Collector.Listed;
-            for (int i = listed.Length - 1; i >= 0; i--)
-            {
-                query.Consider(listed[i], true);
-            }
-
-            return;
-        }
-
-        if (definition is not null && (definition.Class == SpriteClass.Frame || (textInMenu && definition.Class == SpriteClass.Text)))
-        {
-            for (int i = MenuList.Count - 1; i >= 0; i--)
-            {
-                query.ConsiderMenu(MenuList[i]);
-            }
-
-            return;
-        }
-
-        int first = definition is null ? 0 : (int)definition.Layer;
-        int last = definition is null ? UpdateOrder.UpdatedLayerCount : (int)definition.Layer + 1;
-        for (int layer = first; layer < last; layer++)
-        {
-            var list = _updates.GetLayer(layer);
-            for (int i = list.Count - 1; i >= 0; i--)
-            {
-                var sprite = list[i];
-
-                if (sprite is not null)
-                {
-                    query.Consider(sprite, false);
-                }
-            }
-        }
     }
 
     private DefinitionSprites EnumerateSprites(SpriteDefinition definition) => new(_updates.GetLayer(definition.Layer), definition);
@@ -1621,7 +1730,7 @@ public sealed partial class Map : IScriptFunctionHost
     {
         int y = script.PopNumber();
         var target = new Point(script.PopNumber(), y);
-        Action(CursorSprite, ActionCode.ChangeCoor, target.X, target.Y, 0);
+        Action(CursorSprite, ActionCode.ChangeCoor, target.X, target.Y);
     }
 
     private void SetWind(Script script)

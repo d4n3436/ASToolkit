@@ -1,7 +1,7 @@
 using System.Numerics;
 using ASToolkit.Formats;
 
-namespace ASToolkit.Engine;
+namespace ASToolkit.Bot;
 
 /// <summary>
 /// Represents the box a sprite occupies for collisions, with the collision layers it moves on.

@@ -102,8 +102,8 @@ public sealed class Cannon : Sprite
             ChangeAnimation(SpriteAnimation.Death);
         }
 
-        float current = Map.Movement.GetHeight(Position.AsVector2());
-        float ground = Map.Movement.GetHeight(next.AsVector2());
+        float current = Map.GetGroundZ(Position.AsVector2());
+        float ground = Map.GetGroundZ(next.AsVector2());
         float hover = ground + gameObject.TopZ;
         float previousHeight = Position.Z;
 
@@ -207,7 +207,7 @@ public sealed class Cannon : Sprite
 
             if (Animation < SpriteAnimation.Death && !gameObject.Properties.HasFlag(ObjectProperties.Gravity) &&
                 (Position.X < -ExitMargin.X || Position.Y < -ExitMargin.Y ||
-                 Position.X > Map.Movement.MapSize.Width + ExitMargin.X || Position.Y > Map.Movement.MapSize.Height + ExitMargin.Y))
+                 Position.X > Map.Size.Width + ExitMargin.X || Position.Y > Map.Size.Height + ExitMargin.Y))
             {
                 ChangeAnimation(SpriteAnimation.Death);
             }
@@ -250,7 +250,7 @@ public sealed class Cannon : Sprite
                 StartMove();
             }
         }
-        else if (Map.Movement.GetHeight(Position.AsVector2()) + gameObject.TopZ <= Position.Z && goal.Z <= Position.Z || VerticalSpeed <= 0)
+        else if (Map.GetGroundZ(Position.AsVector2()) + gameObject.TopZ <= Position.Z && goal.Z <= Position.Z || VerticalSpeed <= 0)
         {
             IsClimbing = false;
         }

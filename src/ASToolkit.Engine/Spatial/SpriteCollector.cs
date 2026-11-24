@@ -180,7 +180,7 @@ public sealed class SpriteCollector
     [EngineRoutine(0x0042da30)]
     internal Sprite? CanPlace(SpriteDefinition definition, Vector3 point)
     {
-        if (_map.Movement.GetSupportHeight(definition.Object, point.AsVector2()) > point.Z)
+        if (_map.GetGroundZForMoveTo(definition.Object, point.AsVector2()) > point.Z)
             return _map.CursorSprite;
 
         if (definition.MoveMask == 0)
