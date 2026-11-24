@@ -20,7 +20,7 @@ public class MenuResourceTests
         var play = elements[5];
         Assert.Equal(KnownObject.MenuLabel, play.Sprite.Id);
         Assert.Equal(TextBehavior.Center | TextBehavior.StringsIni, play.TextBehavior);
-        Assert.Equal("Play", Encoding.Latin1.GetString(play.Text));
+        Assert.Equal("Play", Encoding.ASCII.GetString(play.Text));
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public class MenuResourceTests
 
         Assert.Equal(0, menu.Header.Version);
         Assert.All(menu.Elements, element => Assert.InRange(element.Sprite.Position.X, 0, 640));
-        Assert.Contains(texts, text => text.TextBehavior == (TextBehavior.Center | TextBehavior.ScriptVariable) && Encoding.Latin1.GetString(text.Text) == "SaveName[0]");
+        Assert.Contains(texts, text => text.TextBehavior == (TextBehavior.Center | TextBehavior.ScriptVariable) && Encoding.ASCII.GetString(text.Text) == "SaveName[0]");
     }
 
     [Fact]
@@ -42,6 +42,6 @@ public class MenuResourceTests
         Assert.Equal(12, menu.Header.Version);
         Assert.All(menu.Elements, element => Assert.True(element.Items.IsEmpty));
         Assert.Contains(menu.Elements, element => element.Orders.Length > 0);
-        Assert.Contains(menu.Elements, element => Encoding.Latin1.GetString(element.Text) == "CAMPAIGN");
+        Assert.Contains(menu.Elements, element => Encoding.ASCII.GetString(element.Text) == "CAMPAIGN");
     }
 }

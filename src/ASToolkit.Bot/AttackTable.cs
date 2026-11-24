@@ -58,4 +58,4 @@ internal sealed class AttackTable
     private static float GetBlastHeight(SpriteDefinition payload) => Math.Max(Map.MinBlastHeight, payload.Object.Size.Z);
 }
 
-internal readonly record struct AttackProfile(int Damage, float BlastRadius, bool HurtsOwnArmy, float Reach = float.MaxValue, int Rounds = 1, float BlastHeight = float.MaxValue);
+internal readonly record struct AttackProfile(int Damage, float BlastRadius, bool CanHurtOwnArmy, float Reach = float.MaxValue, int Rounds = 1, float BlastHeight = float.MaxValue);

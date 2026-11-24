@@ -1,8 +1,8 @@
 using System.Numerics;
-using ASToolkit.Engine;
-using ASToolkit.Formats;
 using ASToolkit.Analysis.Reference;
 using ASToolkit.Bot;
+using ASToolkit.Engine;
+using ASToolkit.Formats;
 using Xunit;
 
 namespace ASToolkit.Tests.Engine;
@@ -22,7 +22,7 @@ public class ReferenceCountTests
         var map = session.Map;
 
         AssertCounts(map);
-        while (session is { IsPlaying: true, Won: false } && map.Time < PlaySession.MaxTime)
+        while (session is { IsPlaying: true, HasWon: false } && map.Time < PlaySession.MaxTime)
         {
             int time = map.Time;
             session.PlayUntil(time + 1);

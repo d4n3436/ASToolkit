@@ -192,7 +192,7 @@ public class ObjectTableTests
         for (int i = 0; i < records.Length; i++)
         {
             names[i] = WithNull(Encoding.ASCII.GetBytes(records[i].Name));
-            paths[i] = WithNull(Encoding.Latin1.GetBytes(records[i].Path));
+            paths[i] = WithNull(Encoding.ASCII.GetBytes(records[i].Path));
             total += 8 + names[i].Length + records[i].Body.Length + paths[i].Length;
         }
 
