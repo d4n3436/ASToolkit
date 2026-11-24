@@ -77,7 +77,7 @@ public class MapTests
         var map = EngineTestMap.CreateMap(objects);
         map.Play(default);
         var position = map.Player.Position + new Vector3(500, 0, 0);
-        var enemy = map.AddSprite(objects.Find(KnownObject.Monster1), position, default)!;
+        var enemy = map.CreateSprite(objects.Find(KnownObject.Monster1), position, default)!;
         enemy.Items.Clear();
         Map.Action(enemy, ActionCode.AddItem, (int)KnownObject.Money);
         Map.Action(enemy, ActionCode.Damage, enemy.Hp);
@@ -104,7 +104,7 @@ public class MapTests
         var objects = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(objects);
         map.Play(default);
-        var enemy = map.AddSprite(objects.Find(KnownObject.Monster1), map.Player.Position + new Vector3(500, 0, 0), default)!;
+        var enemy = map.CreateSprite(objects.Find(KnownObject.Monster1), map.Player.Position + new Vector3(500, 0, 0), default)!;
         int maxHp = enemy.Hp;
         Map.Action(enemy, ActionCode.Damage, maxHp / 2);
 
@@ -119,7 +119,7 @@ public class MapTests
         var objects = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(objects);
         map.Play(default);
-        var enemy = map.AddSprite(objects.Find(KnownObject.Monster1), map.Player.Position + new Vector3(500, 0, 0), default)!;
+        var enemy = map.CreateSprite(objects.Find(KnownObject.Monster1), map.Player.Position + new Vector3(500, 0, 0), default)!;
         enemy.Items.Clear();
 
         Assert.Equal(-1, Map.Action(enemy, ActionCode.GetItemType));
@@ -160,7 +160,7 @@ public class MapTests
         var objects = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(objects);
         var start = map.Player.Position.AsVector2() + new Vector2(200, 0);
-        var enemy = map.AddSprite(objects.Find(KnownObject.Monster1), new Vector3(start, map.GetGroundZ(start)), new Angle(192))!;
+        var enemy = map.CreateSprite(objects.Find(KnownObject.Monster1), new Vector3(start, map.GetGroundZ(start)), new Angle(192))!;
         int health = map.Player.Hp;
         for (int tick = 0; tick < 300; tick++)
         {
@@ -179,7 +179,7 @@ public class MapTests
         var map = EngineTestMap.CreateMap(objects, frameTime: frameTime);
         var player = map.Player.Position.AsVector2();
         var start = player + new Vector2(350, 0);
-        var tank = map.AddSprite(objects.Find(KnownObject.TankMonster), new Vector3(start, 0), Angle.FromOffset(player - start) + 64)!;
+        var tank = map.CreateSprite(objects.Find(KnownObject.TankMonster), new Vector3(start, 0), Angle.FromOffset(player - start) + 64)!;
 
         while (map.Time < 6000)
         {

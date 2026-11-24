@@ -77,7 +77,7 @@ public partial class Sprite
 
             if (count != 0 && Map.FrameTime != 0 && Map.Random.Next() % (int)(1000u / (uint)Map.FrameTime / (uint)count + 1) == 0)
             {
-                Map.CreateChild(this);
+                CreateChild();
             }
         }
         else if (emitChild is not null && emitChild.Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke) && (uint)(Map.Time - (int)((uint)Map.Time % (uint)StreamPeriod)) > (uint)(Map.Time - Map.FrameTime))
@@ -101,7 +101,7 @@ public partial class Sprite
             }
 
             StreamPeriod = (int)(streamPeriod > MaxStreamPeriod ? MaxStreamPeriod : streamPeriod == 0 ? 1 : streamPeriod);
-            Map.CreateChild(this);
+            CreateChild();
         }
 
         var state = Animation;
@@ -145,7 +145,7 @@ public partial class Sprite
         if (sound != 0 && (!HasPlayedStateSound || Map.Sound.IsLooped(sound)))
         {
             HasPlayedStateSound = true;
-            Map.PlaySfx(this, sound);
+            PlaySfx(sound);
         }
 
         var tactChild = Map.Vids.Find((KnownObject)Math.Abs(Vid.Children[(int)Animation]));
@@ -158,7 +158,7 @@ public partial class Sprite
                 ? Frame == (LastFrame + 1 + FirstFrame) / 2 || Frame == emissionFrame
                 : Vid.Object.Properties.HasFlag(ObjectProperties.Track) || Frame == emissionFrame)
             {
-                Map.CreateChild(this);
+                CreateChild();
             }
         }
 
@@ -167,7 +167,7 @@ public partial class Sprite
         if (Animation >= SpriteAnimation.Death && (Frame > LastFrame || Vid.GetFrameCount(Animation) == 0))
         {
             Frame = LastFrame;
-            Action((int)ActionCode.Death, 0, 0, 0, null);
+            Action(ActionCode.Death, 0, 0, 0, null);
             Map.DeleteSprite(this);
             return;
         }
@@ -195,7 +195,7 @@ public partial class Sprite
         {
             if (ActionStack.Count == 0 || Command != Command.None)
             {
-                Action((int)ActionCode.NextCommand, 0, 0, 0, null);
+                Action(ActionCode.NextCommand, 0, 0, 0, null);
             }
             else
             {
@@ -218,7 +218,7 @@ public partial class Sprite
                     }
                     else
                     {
-                        Action(order.Value, order.Var1, order.Var2, order.Var3, order.Target);
+                        Action((ActionCode)order.Value, order.Var1, order.Var2, order.Var3, order.Target);
                     }
                 }
             }

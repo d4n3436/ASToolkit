@@ -6,7 +6,7 @@ using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
-public sealed partial class Map
+public partial class Map
 {
     internal const float HalfShare = 0.5f;
     private const float BorderScrollReach = 5;
@@ -92,7 +92,7 @@ public sealed partial class Map
     };
 
     [EngineRoutine(0x0040bed0)]
-    private void Scroll()
+    private protected void Scroll()
     {
         var screen = Session.ScreenSize.ToVector2();
         var cursor = Input.ScreenCursor;

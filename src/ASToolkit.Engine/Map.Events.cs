@@ -4,7 +4,7 @@ using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
-public sealed partial class Map
+public partial class Map
 {
     private const byte FunctionPrefix = (byte)'F';
     private const byte NameSeparator = (byte)'_';
@@ -14,7 +14,6 @@ public sealed partial class Map
     private const int DamageParameters = 3;
     private const int IdDigits = 3;
     private const int LongIdDigits = 4;
-    private const int MainFunction = -1;
     private const int GameWon = 1;
 
     private static ReadOnlySpan<byte> GameStateVariable => "GameState"u8;

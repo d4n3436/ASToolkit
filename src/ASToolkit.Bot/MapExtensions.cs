@@ -84,7 +84,7 @@ public static class MapExtensions
             var pixel = cursor - map.Camera;
             var corner = new Point(Math.Clamp((int)pixel.X - AimWindow / 2, 0, screen.Size.Width - AimWindow), Math.Clamp((int)pixel.Y - AimWindow / 2, 0, screen.Size.Height - AimWindow));
             screen.Viewport = new Rectangle(corner, new Size(AimWindow, AimWindow));
-            bool isQuitting = map.Step(wallTime, now, out waitUntil);
+            bool isQuitting = map.Tact(wallTime, now, out waitUntil);
             screen.Viewport = fullViewport;
 
             return isQuitting;

@@ -11,18 +11,19 @@ public class Frame : Sprite
     private const int FirstButtonAction = 6;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Frame"/> class.
+    /// Initializes a new instance of the <see cref="Frame"/> class on a map.
     /// </summary>
-    /// <param name="number">The number of the sprite.</param>
     /// <param name="vid">The shared data and frames of the sprite's object ID.</param>
-    /// <param name="position">The position of the sprite.</param>
-    /// <param name="army">The army of the sprite.</param>
-    /// <param name="hitPoints">The hit points of the sprite.</param>
+    /// <param name="position">The position.</param>
+    /// <param name="direction">The direction.</param>
+    /// <param name="parent">The sprite that the new sprite takes its army and height from, or null.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    /// <param name="direction">The direction of the sprite.</param>
-    public Frame(int number, Vid vid, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
-        : base(number, vid, position, army, hitPoints, map, direction)
+    [EngineRoutine(0x00448a60)]
+    public Frame(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
+        : base(vid, new Vector3(position.AsVector2() + map.Camera, position.Z), direction, parent, map)
     {
+        Map.MenuList.Add(this);
+        AddRef();
     }
 
     [EngineRoutine(0x00448af0)]
@@ -39,13 +40,12 @@ public class Frame : Sprite
     }
 
     [EngineRoutine(0x00448b30)]
-    internal override int Action(int act, int var1, int var2, int var3, Sprite? target)
+    internal override int Action(ActionCode act, int var1, int var2, int var3, Sprite? target)
     {
-        var code = (ActionCode)act;
-        if ((int)code < 0 || (int)code >= FirstButtonAction && code != ActionCode.NextCommand)
+        if ((int)act < 0 || (int)act >= FirstButtonAction && act != ActionCode.NextCommand)
             return base.Action(act, var1, var2, var3, target);
 
-        if ((int)code < FirstButtonAction || Animation > SpriteAnimation.Birth)
+        if ((int)act < FirstButtonAction || Animation > SpriteAnimation.Birth)
             return 0;
 
         var state = (MenuAnimation)Animation;

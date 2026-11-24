@@ -74,7 +74,7 @@ public sealed class FramePacer
     {
         uint wallTime = TakeNextWallTime(map);
 
-        return map.Step(wallTime, wallTime, out _);
+        return map.Tact(wallTime, wallTime, out _);
     }
 
     /// <summary>

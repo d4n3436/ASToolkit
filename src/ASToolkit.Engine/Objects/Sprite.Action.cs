@@ -26,9 +26,9 @@ public partial class Sprite
     private const float UnitAimLift = 80;
 
     [EngineRoutine(0x00440830)]
-    internal int SpriteAction(int act, int var1, int var2, int var3, Sprite? target)
+    internal int SpriteAction(ActionCode act, int var1, int var2, int var3, Sprite? target)
     {
-        var code = (ActionCode)(act & byte.MaxValue);
+        var code = (ActionCode)((int)act & byte.MaxValue);
         switch (code)
         {
             case ActionCode.GetAmmo or ActionCode.AddAmmo:
@@ -70,7 +70,7 @@ public partial class Sprite
             case ActionCode.GetSpeed:
                 return (int)(Speed * ScriptSpeedScale);
             case ActionCode.Attack:
-                Map.Attack(this, target);
+                Attack(target);
                 break;
             case ActionCode.Move:
                 Move(Map.ConstructGoal(new Vector3(var1, var2, var3)));
@@ -82,7 +82,7 @@ public partial class Sprite
                 BuildUnitCase(var1, new Point(var2, var3));
                 break;
             case ActionCode.PlaySfx:
-                Map.PlaySfx(this, var1);
+                PlaySfx(var1);
                 break;
             case ActionCode.Stop:
                 Stop();
@@ -126,7 +126,7 @@ public partial class Sprite
                 Goal?.AddRef();
                 break;
             case ActionCode.RestoreCommand:
-                SetCommand((Command)(act >> 8 & byte.MaxValue), target);
+                SetCommand((Command)((int)act >> 8 & byte.MaxValue), target);
 
                 if (target is not null)
                 {
@@ -179,7 +179,7 @@ public partial class Sprite
             case ActionCode.GetHp:
                 return Hp;
             case ActionCode.SetHp:
-                Map.ChangeHp(this, var1 != 0 ? var1 : Vid.GetArmyMaxHp((int)Army) * var2 / Map.Percent);
+                ChangeHp(var1 != 0 ? var1 : Vid.GetArmyMaxHp((int)Army) * var2 / Map.Percent);
                 break;
             case ActionCode.SetBehave:
                 break;
@@ -219,9 +219,9 @@ public partial class Sprite
     }
 
     [EngineRoutine(0x00440830)]
-    internal virtual int Action(int act, ref Resource stream, int version)
+    internal virtual int Action(ActionCode act, ref Resource stream, int version)
     {
-        switch ((ActionCode)act)
+        switch (act)
         {
             case ActionCode.Restore:
                 int count = ActionStack.Count;
@@ -325,7 +325,7 @@ public partial class Sprite
         if (newMax != oldMax)
         {
             int scaled = (Hp << HpShift) / oldMax * newMax;
-            Map.ChangeHp(this, (scaled + (scaled >> 31 & HpRounding)) >> HpShift);
+            ChangeHp((scaled + (scaled >> 31 & HpRounding)) >> HpShift);
         }
 
         if (vid.Object.Properties.HasFlag(ObjectProperties.InvisibleForEnemy))
@@ -344,7 +344,7 @@ public partial class Sprite
 
     private protected void AddBuiltUnit(Vid vid, Vector3 position)
     {
-        var built = Map.AddSprite(vid, position, Direction);
+        var built = Map.CreateSprite(vid, position, Direction);
 
         if (built is not null)
         {
@@ -495,7 +495,7 @@ public partial class Sprite
         Map.AddToUpdates(this);
         Map.Collector.InsertToHash(this);
 
-        Map.CreateLink(this);
+        CreateLink();
 
         ChangeAnimation(state);
         ChangeDirection(direction);
@@ -576,7 +576,7 @@ public partial class Sprite
 
         if (Vid.MaxHp != 0)
         {
-            Map.ChangeHp(this, Hp - damage);
+            ChangeHp(Hp - damage);
         }
 
         if (maxHp < Hp && damage < 0)
@@ -602,12 +602,12 @@ public partial class Sprite
 
         if (closeSound != 0)
         {
-            Map.PlaySfx(this, closeSound);
+            PlaySfx(closeSound);
         }
 
         if (Vid.Children[(int)SpriteAnimation.Close] != 0)
         {
-            Map.CreateChildAs(this, SpriteAnimation.Close);
+            CreateChildAs(SpriteAnimation.Close);
         }
 
         return 0;
@@ -615,7 +615,7 @@ public partial class Sprite
 
     private void RepairCase()
     {
-        Map.DestroyLink(this, Map.Vids.Find((KnownObject)Math.Abs(Vid.Children[(int)SpriteAnimation.Wound])));
+        DestroyLink(Map.Vids.Find((KnownObject)Math.Abs(Vid.Children[(int)SpriteAnimation.Wound])));
         Hp = Vid.GetArmyMaxHp((int)Army);
         var link = Link;
 
@@ -625,7 +625,7 @@ public partial class Sprite
         }
         else
         {
-            Map.CreateLink(this);
+            CreateLink();
         }
     }
 

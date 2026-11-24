@@ -15,18 +15,21 @@ public class Creature : Unit
     private const int CreatureTurn = 0x20;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Creature"/> class.
+    /// Initializes a new instance of the <see cref="Creature"/> class on a map.
     /// </summary>
-    /// <param name="number">The number of the sprite.</param>
     /// <param name="vid">The shared data and frames of the sprite's object ID.</param>
-    /// <param name="position">The position of the sprite.</param>
-    /// <param name="army">The army of the sprite.</param>
-    /// <param name="hitPoints">The hit points of the sprite.</param>
+    /// <param name="position">The position.</param>
+    /// <param name="direction">The direction.</param>
+    /// <param name="parent">The sprite that the new sprite takes its army and height from, or null.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    /// <param name="direction">The direction of the sprite.</param>
-    public Creature(int number, Vid vid, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
-        : base(number, vid, position, army, hitPoints, map, direction)
+    [EngineRoutine(0x0044d3e0)]
+    public Creature(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
+        : base(vid, position, direction, parent, map)
     {
+        IsSeekingRegion = true;
+        VerticalSpeed = Vid.ZSpeed;
+        StartMove();
+        Region = FindRegion(Position.AsVector2());
     }
 
     internal bool IsSeekingRegion { get; set; }
@@ -34,15 +37,14 @@ public class Creature : Unit
     internal Region? Region { get; set; }
 
     [EngineRoutine(0x0044d880)]
-    internal override int Action(int act, int var1, int var2, int var3, Sprite? target)
+    internal override int Action(ActionCode act, int var1, int var2, int var3, Sprite? target)
     {
-        var code = (ActionCode)act;
-        if (code == ActionCode.Damage && var1 > 0)
+        if (act == ActionCode.Damage && var1 > 0)
         {
             AlertCreatures();
         }
 
-        if (code != ActionCode.NextCommand)
+        if (act != ActionCode.NextCommand)
             return base.Action(act, var1, var2, var3, target);
 
         if (Animation >= SpriteAnimation.Death)

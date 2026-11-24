@@ -5,7 +5,7 @@ using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
-public sealed partial class Map
+public partial class Map
 {
     private const int EndHandle = -1;
     private const int NoHandle = 0;
@@ -71,7 +71,7 @@ public sealed partial class Map
                 if (sprite is not null)
                 {
                     sprite.ChangeCoor(GetMenuPosition(header, sprite.Position));
-                    sprite.Action((int)ActionCode.Restore, ref reader, header.Version);
+                    sprite.Action(ActionCode.Restore, ref reader, header.Version);
                 }
 
                 reader.GoNextSub(SpriteTag);
@@ -202,7 +202,7 @@ public sealed partial class Map
         }
         else
         {
-            sprite = AddSprite(vid, position, unchecked((byte)direction));
+            sprite = CreateSprite(vid, position, unchecked((byte)direction));
         }
 
         if (handle != NoHandle)
@@ -245,7 +245,7 @@ public sealed partial class Map
         }
         else
         {
-            sprite = AddSprite(vid, new Vector3(x, y, z), new Angle(direction));
+            sprite = CreateSprite(vid, new Vector3(x, y, z), new Angle(direction));
         }
 
         if (handle != NoHandle)

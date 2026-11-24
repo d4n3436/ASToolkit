@@ -1,6 +1,6 @@
 namespace ASToolkit.Engine;
 
-public sealed partial class Map
+public partial class Map
 {
     /// <summary>
     /// Deletes a sprite.

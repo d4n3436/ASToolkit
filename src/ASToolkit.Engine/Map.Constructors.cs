@@ -2,7 +2,7 @@ using ASToolkit.Engine.IO;
 
 namespace ASToolkit.Engine;
 
-public sealed partial class Map
+public partial class Map
 {
     private static ReadOnlySpan<byte> ObjectSectionText => "load 'VID'"u8;
 
@@ -26,7 +26,7 @@ public sealed partial class Map
 
         foreach (var vid in Vids.LoadOrder)
         {
-            if (vid is VidHardware hardware && !hardware.IsCopy)
+            if (vid is VidHardware { IsCopy: false } hardware)
             {
                 for (int surface = 0; surface < hardware.SurfaceCount; surface++)
                 {

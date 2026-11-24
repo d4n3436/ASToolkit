@@ -9,18 +9,28 @@ namespace ASToolkit.Engine;
 public sealed class BuiltTerrain : Sprite
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="BuiltTerrain"/> class.
+    /// Initializes a new instance of the <see cref="BuiltTerrain"/> class on a map.
     /// </summary>
-    /// <param name="number">The number of the sprite.</param>
     /// <param name="vid">The shared data and frames of the sprite's object ID.</param>
-    /// <param name="position">The position of the sprite.</param>
-    /// <param name="army">The army of the sprite.</param>
-    /// <param name="hitPoints">The hit points of the sprite.</param>
+    /// <param name="position">The position.</param>
+    /// <param name="direction">The direction.</param>
+    /// <param name="parent">The sprite that the new sprite takes its army and height from, or null.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    /// <param name="direction">The direction of the sprite.</param>
-    public BuiltTerrain(int number, Vid vid, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
-        : base(number, vid, position, army, hitPoints, map, direction)
+    [EngineRoutine(0x0040edf0)]
+    public BuiltTerrain(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
+        : base(vid, position, direction, parent, map)
     {
+        if (!Map.HasHardwareGround)
+        {
+            Map.CreateEmptyHardwareGround();
+        }
+
+        Map.HardwareGroundVid.AddVidToTextures(Map, this);
+
+        if (Map.IsBaked(Vid))
+        {
+            ChangeAnimation(SpriteAnimation.Death);
+        }
     }
 
     /// <summary>

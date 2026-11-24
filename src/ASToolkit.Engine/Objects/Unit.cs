@@ -18,18 +18,20 @@ public class Unit : Terrain
     private const int WordItemsVersion = 10;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Unit"/> class.
+    /// Initializes a new instance of the <see cref="Unit"/> class on a map.
     /// </summary>
-    /// <param name="number">The number of the sprite.</param>
     /// <param name="vid">The shared data and frames of the sprite's object ID.</param>
-    /// <param name="position">The position of the sprite.</param>
-    /// <param name="army">The army of the sprite.</param>
-    /// <param name="hitPoints">The hit points of the sprite.</param>
+    /// <param name="position">The position.</param>
+    /// <param name="direction">The direction.</param>
+    /// <param name="parent">The sprite that the new sprite takes its army and height from, or null.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    /// <param name="direction">The direction of the sprite.</param>
-    public Unit(int number, Vid vid, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
-        : base(number, vid, position, army, hitPoints, map, direction)
+    [EngineRoutine(0x00447130)]
+    public Unit(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
+        : base(vid, position, direction, parent, map)
     {
+        TurnTicks = 0;
+        Behavior = (ArmedLink ?? this).Vid.Behavior;
+        FillAmmo();
     }
 
     /// <summary>
@@ -118,10 +120,9 @@ public class Unit : Terrain
     }
 
     [EngineRoutine(0x00447500)]
-    internal override int Action(int act, int var1, int var2, int var3, Sprite? target)
+    internal override int Action(ActionCode act, int var1, int var2, int var3, Sprite? target)
     {
-        var code = (ActionCode)act;
-        switch (code)
+        switch (act)
         {
             case ActionCode.Damage:
                 return ActionDamage(var1, var2, var3, target);
@@ -143,7 +144,7 @@ public class Unit : Terrain
 
                 if (Link is not null)
                 {
-                    Map.Action(Link, code, var1);
+                    Map.Action(Link, act, var1);
                 }
 
                 return 0;
@@ -153,9 +154,9 @@ public class Unit : Terrain
     }
 
     [EngineRoutine(0x00447500)]
-    internal override int Action(int act, ref Resource stream, int version)
+    internal override int Action(ActionCode act, ref Resource stream, int version)
     {
-        switch ((ActionCode)act)
+        switch (act)
         {
             case ActionCode.Restore:
                 base.Action(act, ref stream, version);
@@ -262,7 +263,7 @@ public class Unit : Terrain
 
     private int ActionDamage(int damage, int var2, int var3, Sprite? target)
     {
-        int result = base.Action((int)ActionCode.Damage, damage, var2, var3, target);
+        int result = base.Action(ActionCode.Damage, damage, var2, var3, target);
 
         if (damage >= 0 && Command == Command.None && !Vid.Speed.IsExactlyZero())
         {

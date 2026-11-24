@@ -184,7 +184,7 @@ public partial class Picture
     {
         var bounds = GetBounds(true, true);
         parts[frame].Surface = 0;
-        if (bounds.Width <= PageSide && bounds.Height <= PageSide)
+        if (bounds is { Width: <= PageSide, Height: <= PageSide })
         {
             SetPart(ref parts[frame], 0, bounds.Location, bounds);
         }

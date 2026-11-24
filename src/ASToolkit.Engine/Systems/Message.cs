@@ -81,7 +81,7 @@ internal sealed class Message
         if (_lines[_count] is null)
         {
             var position = new Vector3(Origin.X, bottom + Origin.Y + ScreenDepth, ScreenDepth);
-            _lines[_count] = _map.AddSprite(FindVid(_lineId), position, default);
+            _lines[_count] = _map.CreateSprite(FindVid(_lineId), position, default);
         }
 
         var line = _lines[_count];
@@ -95,7 +95,7 @@ internal sealed class Message
         {
             int halfLine = lineHeight / 2;
             var position = new Vector3(Origin.X - MarkerIndent, bottom + halfLine + Origin.Y + ScreenDepth, ScreenDepth);
-            _markers[_count] = _map.AddSprite(FindVid(_markerId), position, default);
+            _markers[_count] = _map.CreateSprite(FindVid(_markerId), position, default);
         }
 
         _map.Sound.Play(MessageSound, 0, Sound.FullLoudness);

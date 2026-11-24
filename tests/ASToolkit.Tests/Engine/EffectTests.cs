@@ -84,7 +84,8 @@ public class EffectTests
 
     private static void Emit(Map map, Vid owner, SpriteAnimation state, Vector3 position, Angle direction)
     {
-        var sprite = new Sprite(-1, owner, position, 0, owner.MaxHp, map, direction);
-        map.CreateChildFor(sprite, state);
+        var sprite = new Sprite(owner, position, direction, null, map);
+        sprite.CreateChildFor(state);
+        map.DeleteSprite(sprite);
     }
 }

@@ -5,7 +5,7 @@ using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
-public sealed partial class Map
+public partial class Map
 {
     private const KnownObject MouseTipFont = (KnownObject)6;
     private const int MouseTipRecheck = 500;
@@ -24,7 +24,7 @@ public sealed partial class Map
     private static ReadOnlySpan<byte> MouseTipsSection => "MouseTips"u8;
 
     [EngineRoutine(0x0043da80)]
-    private void TactMouseTip(Input input)
+    private protected void TactMouseTip(Input input)
     {
         uint now = WallTime;
         var cursor = input.ScreenCursor;
@@ -81,7 +81,7 @@ public sealed partial class Map
             position.X = view.Right - length * size.X;
         }
 
-        _mouseTip = AddSprite(font, new Vector3(position, MouseTipDepth), default);
+        _mouseTip = CreateSprite(font, new Vector3(position, MouseTipDepth), default);
 
         if (_mouseTip is not Text)
             return;
@@ -113,7 +113,7 @@ public sealed partial class Map
     }
 
     [EngineRoutine(0x0043dde0)]
-    private void DeleteMouseTip()
+    private protected void DeleteMouseTip()
     {
         if (_mouseTip is not null)
         {
@@ -124,7 +124,7 @@ public sealed partial class Map
     }
 
     [EngineRoutine(0x0043de00)]
-    private void ForgetMouseTip(Sprite removed)
+    private protected void ForgetMouseTip(Sprite removed)
     {
         if (_mouseTip == removed)
         {

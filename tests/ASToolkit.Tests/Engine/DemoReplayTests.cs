@@ -101,7 +101,7 @@ public class DemoReplayTests
 
         var clock = new LoadingRedrawClock();
         var registry = new Registry("");
-        var map = new Map(new SpriteCatalog(game, TestGameFolder.Objects), files, registry, new GameSession(registry, time: clock));
+        var map = new MapSteam(new SpriteCatalog(game, TestGameFolder.Objects), files, registry, new GameSession(registry, time: clock));
         clock.Schedule(loadingScreenRecords ?? []);
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         if (isRequested)
@@ -123,7 +123,7 @@ public class DemoReplayTests
         while (true)
         {
             uint wallTime = map.TryGetNextDemoTime(out int next) ? map.WallTime + (uint)(next - map.Time) : map.GetPacer().TakeNextWallTime(map);
-            if (map.Step(wallTime, now, out now) || !map.IsPlayingDemo)
+            if (map.Tact(wallTime, now, out now) || !map.IsPlayingDemo)
                 break;
 
             points.Add(GetPoint(map));

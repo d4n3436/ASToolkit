@@ -3,7 +3,7 @@ using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
-public sealed partial class Map
+public partial class Map
 {
     private const int DemoMaxLag = 71;
     private const int DemoDrawLag = 21;

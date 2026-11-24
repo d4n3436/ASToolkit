@@ -139,20 +139,19 @@ public class MovementTests
         map.SetTempGroundZ(new Vector3(32, 0, 24));
         var walker = new Vid(KnownObject.Monster1, Body(new Vector3(16, 16, 20)), default, 0);
         var bullet = new Vid(KnownObject.PistolBullet, Body(new Vector3(4, 4, 2)), default, 0);
-        var shooter = new Sprite(0, walker, Vector3.Zero, 0, 10, map);
-        map.Collector.InsertToHash(shooter);
-        map.Collector.InsertToHash(new Sprite(1, walker, new Vector3(64, 0, 30), Army.Monsters, 10, map));
+        var shooter = new Sprite(walker, Vector3.Zero, default, null, map) { Hp = 10 };
+        _ = new Sprite(walker, new Vector3(64, 0, 30), default, null, map) { Army = Army.Monsters, Hp = 10, Position = new Vector3(64, 0, 30) };
 
         var wallImpact = new Vector3(128, 0, 10);
-        bool wall = new Sprite(9, bullet, new Vector3(0, 0, 10), 0, 10, map).DirectRouteIntersection(ref wallImpact);
+        bool wall = new Sprite(bullet, new Vector3(0, 0, 10), default, null, map) { Hp = 10, Position = new Vector3(0, 0, 10) }.DirectRouteIntersection(ref wallImpact);
         Assert.Equal(new Vector3(32, 0, 10), wallImpact);
         Assert.True(wall);
         var targetImpact = new Vector3(128, 0, 40);
-        bool target = new Sprite(9, bullet, new Vector3(0, 0, 40), 0, 10, map).DirectRouteIntersection(ref targetImpact);
+        bool target = new Sprite(bullet, new Vector3(0, 0, 40), default, null, map) { Hp = 10, Position = new Vector3(0, 0, 40) }.DirectRouteIntersection(ref targetImpact);
         Assert.Equal(new Vector3(64, 0, 40), targetImpact);
         Assert.True(target);
         var clearImpact = new Vector3(128, 0, 60);
-        bool clear = new Sprite(9, bullet, new Vector3(0, 0, 60), 0, 10, map).DirectRouteIntersection(ref clearImpact);
+        bool clear = new Sprite(bullet, new Vector3(0, 0, 60), default, null, map) { Hp = 10, Position = new Vector3(0, 0, 60) }.DirectRouteIntersection(ref clearImpact);
         Assert.Equal(new Vector3(128, 0, 60), clearImpact);
         Assert.False(clear);
     }
@@ -164,11 +163,10 @@ public class MovementTests
         var mover = new Vid(KnownObject.PistolBullet, Body(new Vector3(4, 4, 2)), default, 0);
         var crusher = new Vid(KnownObject.Barrel, Body(new Vector3(16, 16, 20), 2, extra: ObjectProperties.Crush, maxHp: 10), default, 0);
         var wall = new Vid(KnownObject.Monster1, Body(new Vector3(16, 16, 20)), default, 0);
-        var crushed = new Sprite(1, crusher, new Vector3(50, 50, 0), Army.Monsters, 10, map);
-        map.Collector.InsertToHash(crushed);
-        map.Collector.InsertToHash(new Sprite(2, wall, new Vector3(52, 50, 0), Army.Monsters, 10, map));
+        var crushed = new Sprite(crusher, new Vector3(50, 50, 0), default, null, map) { Army = Army.Monsters, Hp = 10 };
+        _ = new Sprite(wall, new Vector3(52, 50, 0), default, null, map) { Army = Army.Monsters, Hp = 10 };
 
-        Assert.NotNull(new Sprite(3, mover, new Vector3(50, 50, 0), Army.Monsters, 10, map).CanPlace(new Vector3(50, 50, 0)));
+        Assert.NotNull(new Sprite(mover, new Vector3(50, 50, 0), default, null, map) { Army = Army.Monsters, Hp = 10 }.CanPlace(new Vector3(50, 50, 0)));
         Assert.Equal(5, crushed.Hp);
     }
 
@@ -176,7 +174,7 @@ public class MovementTests
 
     private static Sprite Place(SpriteCollector sprites, GameObject obj, Vector3 position, KnownObject id = KnownObject.Barrel)
     {
-        var sprite = new Sprite(0, new Vid(id, obj, default, 0), position, Army.Neutral, 10, HostMap);
+        var sprite = new Sprite(new Vid(id, obj, default, 0), position, default, null, HostMap) { Army = Army.Neutral, Hp = 10 };
         sprites.InsertToHash(sprite);
 
         return sprite;

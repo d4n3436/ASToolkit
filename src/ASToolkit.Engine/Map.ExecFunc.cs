@@ -8,7 +8,7 @@ using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
-public sealed partial class Map : IScriptFunctionHost
+public partial class Map : IScriptFunctionHost
 {
     private const int AnyDirection = 999999;
     private const int Base64ChunkSize = 0x39;
@@ -835,7 +835,7 @@ public sealed partial class Map : IScriptFunctionHost
         Session.Error.Write($"!!!ERROR!!!SCRIPT: Invalid nvid {MyError.Decode(function)} {id}");
 
     [EngineRoutine(0x0043e140)]
-    private bool ProcessMenuInput(Input input)
+    private protected bool ProcessMenuInput(Input input)
     {
         MenuCurrent = null;
         _menuClicks = MenuClicks.None;
@@ -1339,7 +1339,7 @@ public sealed partial class Map : IScriptFunctionHost
             return;
         }
 
-        PushSprite(script, AddSprite(vid, position, direction, parent));
+        PushSprite(script, CreateSprite(vid, position, direction, parent));
     }
 
     private void Destroy(Script script)
@@ -1423,7 +1423,7 @@ public sealed partial class Map : IScriptFunctionHost
 
         foreach (var sprite in EnumerateSprites(vid))
         {
-            AddSprite(replacement, sprite.Position, sprite.Direction);
+            CreateSprite(replacement, sprite.Position, sprite.Direction);
             DeleteSprite(sprite);
         }
     }
@@ -1577,10 +1577,10 @@ public sealed partial class Map : IScriptFunctionHost
                 vid.Killed[type - (int)VidDataType.KilledUnit0] = value;
                 break;
             case >= VidDataType.MaxHp0 and <= VidDataType.MaxHp3:
-                SetMaxHp(vid, type - (int)VidDataType.MaxHp0, value);
+                vid.SetMaxHp(this, type - (int)VidDataType.MaxHp0, value);
                 break;
             case >= VidDataType.HpCoefficient0 and <= VidDataType.HpCoefficient3:
-                SetHpCoeff(vid, type - (int)VidDataType.HpCoefficient0, value);
+                vid.SetHpCoeff(this, type - (int)VidDataType.HpCoefficient0, value);
                 break;
             case VidDataType.Speed:
                 SetVidSpeed(vid, value);
@@ -1717,7 +1717,7 @@ public sealed partial class Map : IScriptFunctionHost
         }
 
         var heading = new Angle(unchecked((byte)((direction << 8) / vid.Directions)));
-        PushSprite(script, AddSprite(vid, position, heading));
+        PushSprite(script, CreateSprite(vid, position, heading));
     }
 
     private void MessageText(Script script)
@@ -1774,8 +1774,8 @@ public sealed partial class Map : IScriptFunctionHost
             return;
         }
 
-        var items = GetTextItems(sprite);
-        var commands = GetCommands(sprite);
+        var items = sprite.GetTextItems();
+        var commands = sprite.GetTextActions();
         byte[] both = new byte[items.Length + commands.Length];
         items.CopyTo(both);
         commands.CopyTo(both.AsMemory(items.Length));
@@ -1789,13 +1789,13 @@ public sealed partial class Map : IScriptFunctionHost
         if (sprite is null)
             return;
 
-        SetTextItems(sprite, text);
+        sprite.SetTextItems(text);
         if (text.Span.IndexOf(ItemsEnd) >= 0)
         {
             text = GetAfter(text, ItemsEnd);
         }
 
-        SetCommands(sprite, text);
+        sprite.SetTextActions(text);
     }
 
     private void FRead()

@@ -38,7 +38,7 @@ public class MapLoadTests
         files.Set("maps\\old.lgc", script);
         files.Set(OldMapPath, CreateOldMap());
         var registry = new Registry("");
-        var map = new Map(TestGameFolder.CreateCatalog(), files, registry, new GameSession(registry, time: new LoadingRedrawClock()));
+        var map = new MapSteam(TestGameFolder.CreateCatalog(), files, registry, new GameSession(registry, time: new LoadingRedrawClock()));
 
         map.Load("maps\\old.map"u8, GameClock.StartWallTime);
 

@@ -3,7 +3,7 @@ using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
-public sealed partial class Map
+public partial class Map
 {
     private static readonly (InputFlags Raw, ScriptInput Script)[] InputStateBits =
     [
@@ -55,33 +55,13 @@ public sealed partial class Map
 
     internal static bool IsBaked(Vid vid) => vid.Class == SpriteClass.BuiltTerrain && !SpriteCollector.IsHashed(vid);
 
-    [EngineRoutine(0x0040edf0)]
-    private Sprite ConstructBuiltTerrain(BuiltTerrain sprite, Angle direction, Sprite? parent)
-    {
-        ConstructSprite(sprite, direction, parent);
-
-        if (!HasHardwareGround)
-        {
-            CreateEmptyHardwareGround();
-        }
-
-        HardwareGroundVid.AddVidToTextures(this, sprite);
-
-        if (IsBaked(sprite.Vid))
-        {
-            sprite.ChangeAnimation(SpriteAnimation.Death);
-        }
-
-        return sprite;
-    }
-
     [EngineRoutine(0x00412a40)]
-    private void CreateEmptyHardwareGround()
+    internal void CreateEmptyHardwareGround()
     {
         var vid = new VidHardware(SpriteCatalog.HardwareGroundId, System.Drawing.Size.Truncate(Size), Vids.FirstWeapon, Session.Error);
         Vids.SetVid(SpriteCatalog.HardwareGroundId, vid);
         _hardwareGround = vid;
-        AddSprite(vid, new Vector3(Size.ToVector2() * HalfShare, 0), default);
+        CreateSprite(vid, new Vector3(Size.ToVector2() * HalfShare, 0), default);
         Session.Error.Write("Create Empty Hardware Ground"u8);
     }
 

@@ -1,3 +1,4 @@
+using System.Buffers.Text;
 using System.Drawing;
 using System.Globalization;
 using System.Numerics;
@@ -32,6 +33,11 @@ public partial class Sprite
     /// Represents the item of weapon slot 0.
     /// </summary>
     public const int WeaponItemBase = 260;
+    private const int ChildPairCount = 2;
+    private const int SpawnScatter = 8;
+    private const int CommandBias = 0x3c;
+    private const int AimAttempts = 5;
+    private const float AimRandomScale = 6.1037019E-05f;
     private const int ReloadTimerOffset = 5000;
     private const int GammaAlphaShift = 24;
     private const int MaxAnimation = 16;
@@ -47,42 +53,86 @@ public partial class Sprite
     private float _maxSpeed;
     private Angle _direction;
 
+    private static ReadOnlySpan<byte> ItemMark => [1];
+
+    private static ReadOnlySpan<byte> CommandEnd => ";"u8;
+
     /// <summary>
-    /// Initializes a new instance of the <see cref="Sprite"/> class for an object ID.
+    /// Initializes a new instance of the <see cref="Sprite"/> class on a map, placing it, giving it its army, health and first state, and adding it to the map's update lists and spatial hash.
     /// </summary>
-    /// <param name="number">The sprite number.</param>
-    /// <param name="vid">The shared data of the object ID.</param>
+    /// <param name="vid">The shared data and frames of the sprite's object ID.</param>
     /// <param name="position">The position.</param>
-    /// <param name="army">The army.</param>
-    /// <param name="hitPoints">The health.</param>
-    /// <param name="map">The map the sprite belongs to.</param>
     /// <param name="direction">The direction.</param>
-    public Sprite(int number, Vid vid, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
+    /// <param name="parent">The sprite that the new sprite takes its army and height from, or null.</param>
+    /// <param name="map">The map the sprite belongs to.</param>
+    [EngineRoutine(0x0043f200)]
+    public Sprite(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
     {
         Map = map;
         ActionStack = new ActionStack(Map.Session.Error);
         StreamPeriod = 1;
         _direction = direction;
-        Number = number;
         Vid = vid;
-        Army = army;
-        Position = position;
-        Hp = hitPoints;
         FirstFrame = vid.GetFirstFrame(SpriteAnimation.Stand);
         Frame = FirstFrame;
         LastFrame = FirstFrame + vid.GetFramesPerDirection(SpriteAnimation.Stand) - 1;
-        CreatedAt = -1;
 
         if (vid.HasTimers)
         {
             CreateExtra();
         }
-    }
 
-    /// <summary>
-    /// Gets the sprite number.
-    /// </summary>
-    public int Number { get; }
+        ref readonly var gameObject = ref vid.Object;
+
+        if (gameObject.Properties.HasFlag(ObjectProperties.Noise))
+        {
+            position.X += SpawnScatter - Map.Random.Next() % (SpawnScatter * 2 + 1);
+            position.Y += SpawnScatter - Map.Random.Next() % (SpawnScatter * 2 + 1);
+        }
+
+        if (gameObject.Properties.HasFlag(ObjectProperties.ZeroZ))
+        {
+            float ground = Map.GetGroundZForMoveTo(gameObject, position.AsVector2());
+            position.Z = parent is null ? ground : position.Z - parent.Position.Z + ground;
+        }
+
+        Position = position;
+
+        if (parent is not null)
+        {
+            Army = parent.Army;
+        }
+        else
+        {
+            var link = vid.LinkVid;
+            Army = gameObject.WeaponIndex == 0 && link is not null ? link.Army : vid.Army;
+        }
+
+        CreatedAt = Map.Time;
+        IsInvisible = gameObject.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) && (int)Army != Map.ControlledPlayer;
+        Hp = vid.ArmyMaxHp[(int)Army & ASToolkit.Engine.Vid.ArmyMask];
+        Error = Map.Session.Error;
+        var state = Map.GetInitialAnimation(vid);
+        Start(state, direction, Map.Time, Map.Random);
+
+        if (vid != Map.Vids.Empty)
+        {
+            AddRef();
+            Map.AddToUpdates(this);
+        }
+
+        CreateLink();
+        Map.Collector.InsertToHash(this);
+        vid.LastCreatedAt = Map.WallTime;
+        vid.Counts[(int)Army & 3]++;
+
+        if (state != SpriteAnimation.Birth && !Map.IsLoading)
+        {
+            CreateChildFor(SpriteAnimation.Birth);
+        }
+
+        Map.RaiseHeights(vid, this);
+    }
 
     /// <summary>
     /// Gets or sets the script handle of the sprite, or 0 if the sprite doesn't have one.
@@ -1036,7 +1086,7 @@ public partial class Sprite
         Handle = 0;
     }
 
-    internal virtual int Action(int act, int var1, int var2, int var3, Sprite? target) => SpriteAction(act, var1, var2, var3, target);
+    internal virtual int Action(ActionCode act, int var1, int var2, int var3, Sprite? target) => SpriteAction(act, var1, var2, var3, target);
 
     [EngineRoutine(0x0043f820)]
     internal virtual void MoveTact()
@@ -1272,4 +1322,400 @@ public partial class Sprite
         var offset = GoalPosition - Position;
         return Angle.Aim(new Point((int)offset.X, (int)offset.Y));
     }
+
+    [EngineRoutine(0x004454d0)]
+    internal void ChangeHp(int hp)
+    {
+        if (hp < 1 && Vid.MaxHp != 0)
+        {
+            if (Animation < SpriteAnimation.Death)
+            {
+                int army = (int)Army & 3;
+                Vid.Killed[army]++;
+                ChangeAnimation(Vid.ArmyMaxHp[army] < Hp - hp && Map.Vids.Find((KnownObject)Math.Abs(Vid.Children[(int)SpriteAnimation.Death2])) is not null ? SpriteAnimation.Death2 : SpriteAnimation.Death);
+            }
+
+            return;
+        }
+
+        int half = Vid.ArmyMaxHp[(int)Army & 3] / 2;
+        if (half < hp && Hp <= half)
+        {
+            DestroyLink(Map.Vids.Find((KnownObject)Math.Abs(Vid.Children[(int)SpriteAnimation.Wound])));
+        }
+
+        if (hp <= half && half < Hp)
+        {
+            ChangeAnimation(SpriteAnimation.Wound);
+        }
+
+        Hp = hp;
+    }
+
+    [EngineRoutine(0x00444a30)]
+    internal void DestroyLink(Vid? vid)
+    {
+        var previous = this;
+        var link = Link;
+        while (link is not null && link.Vid != vid)
+        {
+            previous = link;
+            link = link.Link;
+        }
+
+        if (link is null)
+            return;
+
+        var next = link.Link;
+        previous.Link = next;
+
+        next?.Owner = previous;
+
+        link.Link = null;
+        link.Owner = null;
+        Map.DeleteSprite(link);
+    }
+
+    [EngineRoutine(0x00444970)]
+    internal int AddLink(Sprite? link)
+    {
+        if (link is null || link.Owner is not null)
+            return 1;
+
+        var previous = Link;
+
+        if (previous is not null)
+        {
+            previous.Owner = null;
+            link.AddLinkToLast(previous);
+        }
+
+        Link = link;
+        link.Owner = this;
+
+        return 0;
+    }
+
+    [EngineRoutine(0x00444dd0)]
+    internal void CreateChild()
+    {
+        var vid = Vid;
+        var state = Animation;
+        int slot = (int)state;
+        var child = Map.Vids.Find((KnownObject)Math.Abs(vid.Children[slot]));
+        int count = Math.Abs(vid.ChildCounts[slot]);
+        int i = 0;
+
+        if (child is null || child.NotCreatedAsChild != 0)
+            return;
+
+        var offsetDirection = child.Object.Properties.HasFlag(ObjectProperties.FixedOffset) ? default : vid.GetFrameDirection(Direction);
+
+        if (count == ChildPairCount && vid.HasDoubleAttack)
+        {
+            if (IsAwaitingSecondPulse)
+            {
+                i = 1;
+                HasPlayedStateSound = false;
+            }
+            else
+            {
+                count = 1;
+            }
+
+            IsAwaitingSecondPulse = !IsAwaitingSecondPulse;
+        }
+
+        for (; i < count; i++)
+        {
+            var shift = GetChildShift(vid,slot,i,offsetDirection,out var lateral);
+            var childPosition = new Vector3(shift.X + Position.X, shift.Y + Position.Y, vid.Object.ChildZ[slot] + Position.Z);
+
+            if (child.Class == SpriteClass.Unit && Map.Collector.CanPlace(child, childPosition) is not null || state == SpriteAnimation.Fight && Goal is null)
+                continue;
+
+            var childDirection = child.Object.Properties.HasFlag(ObjectProperties.RandomBirth) ? new Angle((byte)(Map.Random.Next() & byte.MaxValue)) : Direction;
+            var created = Map.CreateSprite(child, childPosition, childDirection, this);
+
+            var goal = Goal;
+
+            if (created is null || goal is null || state != SpriteAnimation.Fight)
+                continue;
+
+            created.LaunchChild(goal,vid,lateral);
+        }
+
+        if (state == SpriteAnimation.Fight && !IsAwaitingSecondPulse && Command is Command.OneAttack or Command.DistAttack &&
+            (!vid.Object.Properties.HasFlag(ObjectProperties.Track) && !child.Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke) || Frame == LastFrame))
+        {
+            var owner = Owner;
+
+            if (Goal is not null && owner is not null && owner.Goal == Goal)
+            {
+                if (owner.Command is Command.OneAttack or Command.DistAttack)
+                {
+                    owner.SetCommand(Command.None);
+                }
+
+                // TODO: Port the trains; the engine owner with command 0x1d takes action 0x1e
+            }
+
+            SetCommand(Command.None);
+        }
+    }
+
+    private Vector2 GetChildShift(Vid vid, int slot, int index, Angle offsetDirection, out Vector2 lateral)
+    {
+        float childX = vid.Object.ChildX[slot];
+        float childY = vid.Object.ChildY[slot];
+
+        if (vid.Children[slot] < 0 && vid.Class == SpriteClass.Region && childX.IsExactlyZero() && childY.IsExactlyZero())
+        {
+            lateral = Vector2.Zero;
+
+            var region = this as Region;
+            if (region is null || !region.Flags.HasFlag(RegionFlags.CoversMap))
+            {
+                var regionSize = region?.Size ?? Vector2.Zero;
+                float spreadX = regionSize.X * 0.5f - Map.Random.Next() * regionSize.X * GameRandom.UnitScale;
+                float spreadY = regionSize.Y * 0.5f - Map.Random.Next() * regionSize.Y * GameRandom.UnitScale + Position.Z;
+                return new Vector2(spreadX, spreadY);
+            }
+
+            float mapX = Map.Random.Next() * Map.Size.Width * GameRandom.UnitScale - Position.X;
+            float mapY = Map.Random.Next() * Map.Size.Height * GameRandom.UnitScale - Position.Y + Position.Z;
+            return new Vector2(mapX, mapY);
+        }
+
+        if (vid.Children[slot] < 0)
+        {
+            float spreadX = childX + childX;
+            spreadX = childX - Map.Random.Next() * spreadX * GameRandom.UnitScale;
+            float spreadY = childY + childY;
+            spreadY = childY - Map.Random.Next() * spreadY * GameRandom.UnitScale;
+            lateral = new Vector2(-(offsetDirection.Cosine * spreadX), -(offsetDirection.ProjectedSine * spreadX));
+            return new Vector2(offsetDirection.Sine * spreadY + lateral.X, lateral.Y - offsetDirection.ProjectedCosine * spreadY);
+        }
+
+        if (index == 1)
+        {
+            lateral = new Vector2(-(offsetDirection.Cosine * childX), -(offsetDirection.ProjectedSine * childX));
+            return new Vector2(offsetDirection.Sine * childY + lateral.X, lateral.Y - offsetDirection.ProjectedCosine * childY);
+        }
+
+        if (index == 2)
+        {
+            lateral = Vector2.Zero;
+            return new Vector2(offsetDirection.Sine * childY, offsetDirection.ProjectedCosine * childY);
+        }
+
+        lateral = new Vector2(offsetDirection.Cosine * childX, offsetDirection.ProjectedSine * childX);
+        return new Vector2(offsetDirection.Sine * childY + lateral.X, lateral.Y - offsetDirection.ProjectedCosine * childY);
+    }
+
+    private void LaunchChild(Sprite goal, Vid vid, Vector2 lateral)
+    {
+        if (vid.WeaponFlags.HasFlag(WeaponFlags.NoSpread) && goal.Vid != Map.Vids.Empty)
+        {
+            Attack(goal);
+            StartMove();
+
+            return;
+        }
+
+        var point = goal.Position;
+
+        for (int attempt = 0; attempt < AimAttempts; attempt++)
+        {
+            float pointX = vid.Aim + goal.Position.X + lateral.X - Map.Random.Next() * vid.Aim * AimRandomScale;
+            float pointY = vid.Aim + goal.Position.Y + lateral.Y - Map.Random.Next() * vid.Aim * AimRandomScale;
+            point = new Vector3(pointX, pointY, goal.Position.Z);
+
+            if (Map.GetGroundZ(new Vector2(pointX, pointY)) < goal.Position.Z && Map.GetGroundZ((goal.Position.AsVector2() + point.AsVector2()) * 0.5f) < goal.Position.Z)
+                break;
+        }
+
+        var aimed = Map.ConstructGoal(point);
+        Attack(aimed);
+        StartMove();
+    }
+
+    internal void CreateChildAs(SpriteAnimation state)
+    {
+        var previous = Animation;
+        SetAnimationValue(state);
+        CreateChild();
+        SetAnimationValue(previous);
+    }
+
+    [EngineRoutine(0x00445770)]
+    internal void CreateLink()
+    {
+        var vid = Vid.LinkVid;
+
+        if (vid is null || Link?.Vid == vid || vid.NotCreatedAsChild != 0)
+            return;
+
+        var position = Position + Vid.GetLinkOffset(vid, Direction);
+        var link = Map.CreateSprite(vid, position, Direction);
+        AddLink(link);
+
+        if (Link is null)
+        {
+            Map.Session.Error.Error($"SPRITE {(int)Vid.Id}", LogError.Create, 0, "link"u8);
+
+            return;
+        }
+
+        Link.ChangeArmy((int)Army);
+    }
+
+    /// <summary>
+    /// Plays a sound from a sprite's position on the screen.
+    /// </summary>
+    /// <param name="id">The sound ID.</param>
+    [EngineRoutine(0x00445470)]
+    public void PlaySfx(int id)
+    {
+        Map.Sound.PlayAt(id, Position.ToDrawPosition() - Map.Camera - Map.Session.ScreenSize.ToVector2() * Map.HalfShare);
+    }
+
+    [EngineRoutine(0x00445fb0)]
+    internal void Attack(Sprite? target)
+    {
+        var vid = Vid;
+
+        if (vid.Class == SpriteClass.Linker && vid.FightChild != 0)
+        {
+            var state = Animation;
+            SetAnimationValue(SpriteAnimation.Fight);
+            SetCommand(Command.OneAttack, target);
+            CreateChild();
+            SetAnimationValue(state);
+            SetCommand(Command.None);
+
+            return;
+        }
+
+        // TODO: Port the trains; the IsTrain action of the attack test answers for every class
+        if (target is null || target.Vid == Map.Vids.Empty || CanAttackThisSprite(target) || vid.Class == SpriteClass.Cannon ||
+            Map.Action(this, ActionCode.IsTrain) != 0)
+        {
+            SetCommand(Command.Attack, target);
+        }
+    }
+
+    /// <summary>
+    /// Creates the child objects that the sprite's object ID lists for a state.
+    /// </summary>
+    /// <param name="state">The state whose children to create.</param>
+    [EngineRoutine(0x00446430)]
+    public void CreateChildFor(SpriteAnimation state)
+    {
+        if (Map.Vids.Find((KnownObject)Math.Abs(Vid.Children[(int)state])) is not null)
+        {
+            CreateChildAs(state);
+        }
+
+        int sound = Vid.Sounds[(int)state];
+
+        if (sound != 0)
+        {
+            PlaySfx(sound);
+        }
+    }
+
+    [EngineRoutine(0x00446480)]
+    internal ReadOnlyMemory<byte> GetTextItems()
+    {
+        if (Items.Count == 0)
+            return default;
+
+        var text = new List<byte>();
+        foreach (int item in Items)
+        {
+            text.AddRange(ItemMark);
+            AppendNumber(text, item);
+        }
+
+        text.AddRange(Map.ItemsEnd);
+
+        return text.ToArray();
+    }
+
+    [EngineRoutine(0x00446570)]
+    internal void SetTextItems(ReadOnlyMemory<byte> text)
+    {
+        if (text.IsEmpty)
+            return;
+
+        EnsureExtra();
+        text = Map.GetAfter(text, ItemMark);
+        int item = 0;
+        while (!text.IsEmpty)
+        {
+            if (CRuntime.TryScanInteger(text.Span, out int scanned))
+            {
+                item = scanned;
+            }
+
+            Items.Add(item);
+            text = Map.GetAfter(text, ItemMark);
+        }
+    }
+
+    [EngineRoutine(0x004458a0)]
+    internal ReadOnlyMemory<byte> GetTextActions()
+    {
+        var text = new List<byte>();
+        foreach (var order in ActionStack.Orders)
+        {
+            text.Add(unchecked((byte)(order.Value + CommandBias)));
+            AppendNumber(text, order.Var1);
+            text.Add((byte)',');
+            AppendNumber(text, order.Var2);
+            text.Add((byte)',');
+            AppendNumber(text, order.Var3);
+            text.AddRange(CommandEnd);
+        }
+
+        return text.ToArray();
+    }
+
+    [EngineRoutine(0x00445990)]
+    internal void SetTextActions(ReadOnlyMemory<byte> text)
+    {
+        int var1 = 0, var2 = 0, var3 = 0;
+        while (!text.IsEmpty)
+        {
+            var rest = text.Span;
+            byte command = rest[0];
+            int i = 1;
+            if (CRuntime.TryScanInteger(rest[i..], out int scanned, out int length))
+            {
+                var1 = scanned;
+                i += length;
+                if (i < rest.Length && rest[i] == ',' && CRuntime.TryScanInteger(rest[(i + 1)..], out scanned, out length))
+                {
+                    var2 = scanned;
+                    i += 1 + length;
+                    if (i < rest.Length && rest[i] == ',' && CRuntime.TryScanInteger(rest[(i + 1)..], out scanned))
+                    {
+                        var3 = scanned;
+                    }
+                }
+            }
+
+            ActionStack.Push(Map.CreateAct(command - CommandBias, var1, var2, var3));
+            text = Map.GetAfter(text, CommandEnd);
+        }
+    }
+
+    private static void AppendNumber(List<byte> text, int value)
+    {
+        Span<byte> number = stackalloc byte[11];
+        Utf8Formatter.TryFormat(value, number, out int length);
+        text.AddRange(number[..length]);
+    }
+
 }

@@ -52,7 +52,7 @@ internal static class EngineTestMap
             registry.Set("Blood", blood);
         }
 
-        var map = new Map(vids, files, registry: registry, session: session ?? new GameSession(registry, time: new LoadingRedrawClock()));
+        var map = new MapSteam(vids, files, registry: registry, session: session ?? new GameSession(registry, time: new LoadingRedrawClock()));
         map.Pace([frameTime]);
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         if (demo is null)

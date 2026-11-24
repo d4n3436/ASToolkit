@@ -5,7 +5,7 @@ using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
-public sealed partial class Map
+public partial class Map
 {
     private const byte ElementStart = (byte)'[';
     private const string StringsFile = "Strings.ini";

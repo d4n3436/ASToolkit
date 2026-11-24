@@ -2,7 +2,7 @@ using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
-public sealed partial class Map
+public partial class Map
 {
     internal const int ControlledPlayer = 0;
 
@@ -18,7 +18,7 @@ public sealed partial class Map
     /// <param name="target">The sprite argument.</param>
     /// <returns>The action's result.</returns>
     public static int Action(Sprite sprite, ActionCode code, int var1 = 0, int var2 = 0, int var3 = 0, Sprite? target = null) =>
-        sprite.Action((int)code, var1, var2, var3, target);
+        sprite.Action(code, var1, var2, var3, target);
 
     [EngineRoutine(0x00442a10)]
     internal void AddToUpdates(Sprite sprite)
@@ -29,31 +29,6 @@ public sealed partial class Map
         }
 
         AddToLayer(sprite);
-    }
-
-    [EngineRoutine(0x00445fb0)]
-    internal void Attack(Sprite sprite, Sprite? target)
-    {
-        var vid = sprite.Vid;
-
-        if (vid.Class == SpriteClass.Linker && vid.FightChild != 0)
-        {
-            var state = sprite.Animation;
-            sprite.SetAnimationValue(SpriteAnimation.Fight);
-            sprite.SetCommand(Command.OneAttack, target);
-            CreateChild(sprite);
-            sprite.SetAnimationValue(state);
-            sprite.SetCommand(Command.None);
-
-            return;
-        }
-
-        // TODO: Port the trains; the IsTrain action of the attack test answers for every class
-        if (target is null || target.Vid == Vids.Empty || sprite.CanAttackThisSprite(target) || vid.Class == SpriteClass.Cannon ||
-            Action(sprite, ActionCode.IsTrain) != 0)
-        {
-            sprite.SetCommand(Command.Attack, target);
-        }
     }
 
     [EngineRoutine(0x004429f0)]

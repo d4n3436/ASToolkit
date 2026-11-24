@@ -1,9 +1,7 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
-using ASToolkit.Core;
 using ASToolkit.Engine.IO;
 using ASToolkit.Engine.Scripts;
 using ASToolkit.Formats;
@@ -11,9 +9,9 @@ using ASToolkit.Formats;
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents the game world, holding one loaded level at a time and running it frame by frame.
+/// Represents the game world, holding one loaded level at a time.
 /// </summary>
-public sealed partial class Map : IDisposable
+public partial class Map : IDisposable
 {
     /// <summary>
     /// Represents the number of sprite layers of a map.
@@ -26,50 +24,34 @@ public sealed partial class Map : IDisposable
     public const float MinBlastHeight = 20;
     private const int SpriteRecordSize = 112;
     private const float OldGridRounding = 7;
-    private const int ChildPairCount = 2;
-    private const int AimAttempts = 5;
-    private const float AimRandomScale = 6.1037019E-05f;
     private const int StartRandomState = 1;
     private const string ScriptExtension = ".lgc";
     private const string CompiledScriptExtension = ".lgd";
-    private const int SpawnScatter = 8;
     private const float RegionReach = 25f;
-    private const int HashedSpritesKey = 'G';
-    private const int HashedNumbersKey = 'H';
-    private const int FlagmanKey = 'I';
-    private const int GridKey = 'O';
-    private const int SingleStepKey = 'P';
-    private const int RailsKey = 'R';
-    private const int ReloadKey = '~';
-    private const int StepKey = 'p';
-    private const uint PresentationPeriod = 2000;
-    private const int DemoStopResult = 999999;
-    private const float PresentationTop = 32;
-    private const int PresentationDuration = 1000;
     private const int ScriptHookCount = 64;
     private const int NoHookBase = 1000000;
     private const int ReleaseWindSpeed = 0x19;
     private const int ReleaseWindDirection = 200;
 
     private static readonly SizeF StartMapSize = new(640, 480);
-    private readonly GameRandom _rng;
+    private protected readonly GameRandom _rng;
     private readonly IGameFileSystem _fileSystem;
     private readonly Dictionary<int, ScriptFile> _scriptFiles = [];
     private readonly ControlSettings _controls;
     private readonly Group _groupHead = new(null, null);
-    private readonly Player[] _players = new Player[ASToolkit.Engine.Vid.ArmyCount];
+    private protected readonly Player[] _players = new Player[ASToolkit.Engine.Vid.ArmyCount];
     private readonly LivingSet _livingFences = new();
     private readonly LivingSet _livingSites = new();
     private readonly LivingSet _livingCharges = new();
     private readonly int[] _scriptHooks = new int[ScriptHookCount];
-    private UpdateOrder _updates;
+    private protected UpdateOrder _updates;
     private int _pausedAt;
     private MenuClicks _menuClicks;
-    private GameClock _clock;
-    private MapFlags _flags;
-    private StepFlags _debug;
-    private uint _presentationShownAt;
-    private int _stepCount;
+    private protected GameClock _clock;
+    private protected MapFlags _flags;
+    private protected StepFlags _debug;
+    private protected uint _presentationShownAt;
+    private protected int _stepCount;
     private bool _hasWindow;
     private int _levelStartTime;
 
@@ -81,7 +63,7 @@ public sealed partial class Map : IDisposable
     /// <param name="registry">The registry of the level scripts, or null for an empty one.</param>
     /// <param name="session">The session the map belongs to, or null to create one.</param>
     [EngineRoutine(0x00408ff0)]
-    public Map(SpriteCatalog vids, IGameFileSystem fileSystem, Registry? registry = null, GameSession? session = null)
+    protected Map(SpriteCatalog vids, IGameFileSystem fileSystem, Registry? registry = null, GameSession? session = null)
     {
         Registry = registry ?? new Registry("");
         Session = session ?? new GameSession(Registry);
@@ -102,7 +84,7 @@ public sealed partial class Map : IDisposable
         Collector = new SpriteCollector(Size, vids.Table, this);
         Sound = Session.Sound ??= new Sound(vids.Sounds, fileSystem, Session.Error, isHighQuality: Session.IsSoundHighQuality);
         LoadObjectRecords(false);
-        CursorSprite = ConstructCursor();
+        CursorSprite = new Mouse(Vids.Empty, new Vector3(Session.ScreenSize.ToVector2() * HalfShare, 0), default, null, this);
         _controls = ControlSettings.Read(fileSystem);
         Input = new Input(_controls);
         for (int slot = 0; slot < ASToolkit.Engine.Vid.ArmyCount; slot++)
@@ -231,8 +213,6 @@ public sealed partial class Map : IDisposable
     internal Dictionary<int, Sprite> Handles { get; } = [];
 
     internal int FramesPerSecond => _clock.FramesPerSecond;
-
-    private static ReadOnlySpan<byte> PresentationText => "Presentation version. Not for sale!"u8;
 
     private static ReadOnlySpan<byte> DoorsOpenVariable => "DoorsIsOpen"u8;
 
@@ -395,128 +375,6 @@ public sealed partial class Map : IDisposable
     }
 
     /// <summary>
-    /// Runs one frame of the level, advancing the clock and playing or recording the demo frame first.
-    /// </summary>
-    /// <param name="wallTime">The wall time of the frame in milliseconds.</param>
-    /// <param name="now">The real time in milliseconds that paces a played demo.</param>
-    /// <param name="waitUntil">The real time to wait for before the frame, or <paramref name="now"/> when the frame is due.</param>
-    /// <returns><see langword="true"/> when the game is quitting; otherwise, <see langword="false"/>.</returns>
-    /// <remarks>The frame doesn't run while the window is inactive or a menu is open, unless the debug keys allow it.</remarks>
-    [EngineRoutine(0x00405190)]
-    public bool Step(uint wallTime, uint now, out uint waitUntil)
-    {
-        waitUntil = now;
-
-        if (AdvanceClock(wallTime))
-            return true;
-
-        if (Session.IsDebugMode)
-        {
-            HandleDebugKey(Input.Key);
-        }
-
-        bool isActive = _flags.HasFlag(MapFlags.WindowActive);
-
-        if (!isActive && !_debug.HasFlag(StepFlags.RunInBackground) || Session.Graphics.IsMenuLoopActive || Session.IsDebugMode && _debug.HasFlag(StepFlags.SingleStep) && Input.Key != StepKey)
-        {
-            _clock.Rewind();
-
-            return false;
-        }
-
-        bool canDraw = !(!isActive && Session.IsFullScreen || Session.Graphics.IsMovieOpen);
-        if (canDraw && Session.Graphics.PreTact() != 0)
-            return false;
-
-        _stepCount++;
-        int demoResult = StepDemo(now, out waitUntil) ? 1 : 0;
-
-        if (demoResult == DemoStopResult)
-        {
-            Session.Graphics.PostTact(true);
-
-            return false;
-        }
-
-        bool draw = demoResult != 0 && canDraw;
-        ProcessMenuInput(Input);
-        ScriptRun(MainFunction, null);
-
-        if (draw && Session.Graphics.IsMovieOpen)
-        {
-            draw = false;
-            canDraw = false;
-        }
-
-        SetGammaOverrides(false);
-        Session.Graphics.UpdateScreen(this, draw);
-        SetGammaOverrides(true);
-
-        bool isPaused = _flags.HasFlag(MapFlags.Paused);
-
-        if (isPaused)
-        {
-            TickMenuSprites();
-        }
-        else
-        {
-            TickUpdatedSprites();
-        }
-
-        TactMouseTip(Input);
-        Scroll();
-
-        if (!isPaused && _flags.HasFlag(MapFlags.PlayerControlled))
-        {
-            if (_flags.HasFlag(MapFlags.DrawPresentation) && _clock.WallTime - _presentationShownAt > PresentationPeriod)
-            {
-                ShowPresentation();
-            }
-
-            foreach (var controller in _players)
-            {
-                controller.Control(Input);
-            }
-        }
-
-        if (draw)
-        {
-            DrawOverlay();
-        }
-
-        if (canDraw)
-        {
-            Session.Graphics.PostTact(true);
-        }
-
-        Sound.Tact(_rng, Time, _clock.WallTime);
-
-        return false;
-    }
-
-    /// <summary>
-    /// Releases the loaded level.
-    /// </summary>
-    [EngineRoutine(0x00405ac0)]
-    public void Dispose()
-    {
-        _flags &= ~MapFlags.MonstersAttackNeutralTrains;
-        DeleteMouseTip();
-        Release();
-    }
-
-    /// <summary>
-    /// Plays a sound from a sprite's position on the screen.
-    /// </summary>
-    /// <param name="sprite">The sprite.</param>
-    /// <param name="id">The sound ID.</param>
-    [EngineRoutine(0x00445470)]
-    public void PlaySfx(Sprite sprite, int id)
-    {
-        Sound.PlayAt(id, sprite.Position.ToDrawPosition() - Camera - Session.ScreenSize.ToVector2() * HalfShare);
-    }
-
-    /// <summary>
     /// Returns the player a player slot controls.
     /// </summary>
     /// <param name="army">The player slot.</param>
@@ -564,25 +422,23 @@ public sealed partial class Map : IDisposable
     }
 
     /// <summary>
-    /// Creates the child objects that the sprite's object ID lists for a state.
+    /// Runs one frame of the map.
     /// </summary>
-    /// <param name="sprite">The sprite.</param>
-    /// <param name="state">The state whose children to create.</param>
-    [EngineRoutine(0x00446430)]
-    public void CreateChildFor(Sprite sprite, SpriteAnimation state)
+    /// <param name="wallTime">The wall time of the frame in milliseconds.</param>
+    /// <param name="now">The real time in milliseconds that paces a played demo.</param>
+    /// <param name="waitUntil">The real time to wait for before the frame, or <paramref name="now"/> when the frame is due.</param>
+    /// <returns><see langword="true"/> when the game is quitting; otherwise, <see langword="false"/>.</returns>
+    [EngineRoutine(0x0041f0e0)]
+    public virtual bool Tact(uint wallTime, uint now, out uint waitUntil)
     {
-        if (Vids.Find((KnownObject)Math.Abs(sprite.Vid.Children[(int)state])) is not null)
-        {
-            CreateChildAs(sprite, state);
-        }
-
-        int sound = sprite.Vid.Sounds[(int)state];
-
-        if (sound != 0)
-        {
-            PlaySfx(sprite, sound);
-        }
+        waitUntil = now;
+        return false;
     }
+
+    /// <summary>
+    /// Releases the loaded level.
+    /// </summary>
+    public void Dispose() => Release();
 
     /// <summary>
     /// Gets the sprites of the update list of a layer.
@@ -591,127 +447,7 @@ public sealed partial class Map : IDisposable
     /// <returns>The sprites in the list's order, with <see langword="null"/> where a sprite was removed.</returns>
     public IReadOnlyList<Sprite?> GetLayer(int layer) => _updates.GetLayer(layer);
 
-    /// <summary>
-    /// Creates a sprite of an object ID, or of the object ID that a region at the position replaces it with, and runs the creation handler of
-    /// the sprite's object ID.
-    /// </summary>
-    /// <param name="vid">The shared data of the object ID.</param>
-    /// <param name="position">The position.</param>
-    /// <param name="direction">The direction.</param>
-    /// <param name="parent">The sprite that the new sprite takes its army and height from, and links to if the new sprite is a linker.</param>
-    /// <returns>The sprite, or <see langword="null"/> if <paramref name="vid"/> is null, its limit is reached or its class isn't valid.</returns>
-    [EngineRoutine(0x00405bd0)]
-    public Sprite? AddSprite(Vid? vid, Vector3 position, Angle direction, Sprite? parent = null)
-    {
-        if (vid is null)
-            return null;
-
-        if (vid.IsRegionReplaced)
-        {
-            vid = ReplaceVid(vid, position);
-        }
-
-        if (vid.MaxUnits >= 0 && vid.MaxUnits <= Sum(vid.Counts))
-            return null;
-
-        Sprite sprite;
-
-        switch (vid.Class)
-        {
-            case SpriteClass.Terrain or SpriteClass.Object:
-                sprite = ConstructTerrain(new Terrain(-1, vid, position, default, 0, map: this), direction, parent);
-                break;
-            case SpriteClass.Building:
-                sprite = ConstructBuilding(new Building(-1, vid, position, default, 0, map: this), direction, parent);
-                break;
-            case SpriteClass.CivRobot:
-                sprite = ConstructCivRobot(new CivRobot(-1, vid, position, default, 0, map: this), direction, parent);
-                break;
-            case SpriteClass.Engine:
-                sprite = ConstructEngine(new Engine(-1, vid, position, default, 0, map: this), direction, parent);
-                break;
-            case SpriteClass.Rail:
-                sprite = ConstructRail(new Rail(-1, vid, position, default, 0, map: this), direction, parent);
-                break;
-            case SpriteClass.Depo:
-                sprite = ConstructDepo(new Depo(-1, vid, position, default, 0, map: this), direction, parent);
-                break;
-            case SpriteClass.Creature:
-                sprite = ConstructCreature(new Creature(-1, vid, position, default, 0, map: this), direction, parent);
-                break;
-            case SpriteClass.Balloon:
-                sprite = ConstructBalloon(new Balloon(-1, vid, position, default, 0, map: this), direction, parent);
-                break;
-            default:
-                return CreateSprite(vid, position, direction, parent);
-        }
-
-        if (!_flags.HasFlag(MapFlags.Loading))
-        {
-            RunCreationHandler(sprite);
-        }
-
-        return sprite;
-    }
-
     internal void SetMonstersAttackNeutralTrains(bool attack) => SetFlag(MapFlags.MonstersAttackNeutralTrains, attack);
-
-    [EngineRoutine(0x0043f200)]
-    internal void ConstructSprite(Sprite sprite, Angle direction, Sprite? parent)
-    {
-        var vid = sprite.Vid;
-        ref readonly var gameObject = ref vid.Object;
-        var position = sprite.Position;
-
-        if (gameObject.Properties.HasFlag(ObjectProperties.Noise))
-        {
-            position.X += SpawnScatter - _rng.Next() % (SpawnScatter * 2 + 1);
-            position.Y += SpawnScatter - _rng.Next() % (SpawnScatter * 2 + 1);
-        }
-
-        if (gameObject.Properties.HasFlag(ObjectProperties.ZeroZ))
-        {
-            float ground = GetGroundZForMoveTo(gameObject, position.AsVector2());
-            position.Z = parent is null ? ground : position.Z - parent.Position.Z + ground;
-        }
-
-        sprite.Position = position;
-
-        if (parent is not null)
-        {
-            sprite.Army = parent.Army;
-        }
-        else
-        {
-            var link = vid.LinkVid;
-            sprite.Army = gameObject.WeaponIndex == 0 && link is not null ? link.Army : vid.Army;
-        }
-
-        sprite.CreatedAt = Time;
-        sprite.IsInvisible = gameObject.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) && (int)sprite.Army != ControlledPlayer;
-        sprite.Hp = vid.ArmyMaxHp[(int)sprite.Army & ASToolkit.Engine.Vid.ArmyMask];
-        sprite.Error = Session.Error;
-        var state = GetInitialAnimation(vid);
-        sprite.Start(state, direction, Time, _rng);
-
-        if (vid != Vids.Empty)
-        {
-            sprite.AddRef();
-            AddToUpdates(sprite);
-        }
-
-        CreateLink(sprite);
-        Collector.InsertToHash(sprite);
-        vid.LastCreatedAt = WallTime;
-        vid.Counts[(int)sprite.Army & 3]++;
-
-        if (state != SpriteAnimation.Birth && !IsLoading)
-        {
-            CreateChildFor(sprite, SpriteAnimation.Birth);
-        }
-
-        RaiseHeights(vid, sprite);
-    }
 
     [EngineRoutine(0x004145b0)]
     internal void RaiseHeights(Vid vid, Sprite sprite)
@@ -748,128 +484,10 @@ public sealed partial class Map : IDisposable
         }
     }
 
-    [EngineRoutine(0x00444dd0)]
-    internal void CreateChild(Sprite sprite)
-    {
-        var vid = sprite.Vid;
-        var state = sprite.Animation;
-        int slot = (int)state;
-        var child = Vids.Find((KnownObject)Math.Abs(vid.Children[slot]));
-        int count = Math.Abs(vid.ChildCounts[slot]);
-        int i = 0;
-
-        if (child is null || child.NotCreatedAsChild != 0)
-            return;
-
-        var offsetDirection = child.Object.Properties.HasFlag(ObjectProperties.FixedOffset) ? default : vid.GetFrameDirection(sprite.Direction);
-
-        if (count == ChildPairCount && vid.HasDoubleAttack)
-        {
-            if (sprite.IsAwaitingSecondPulse)
-            {
-                i = 1;
-                sprite.HasPlayedStateSound = false;
-            }
-            else
-            {
-                count = 1;
-            }
-
-            sprite.IsAwaitingSecondPulse = !sprite.IsAwaitingSecondPulse;
-        }
-
-        for (; i < count; i++)
-        {
-            var shift = GetChildShift(sprite, vid, slot, i, offsetDirection, out var lateral);
-            var childPosition = new Vector3(shift.X + sprite.Position.X, shift.Y + sprite.Position.Y, vid.Object.ChildZ[slot] + sprite.Position.Z);
-
-            if (child.Class == SpriteClass.Unit && Collector.CanPlace(child, childPosition) is not null || state == SpriteAnimation.Fight && sprite.Goal is null)
-                continue;
-
-            var childDirection = child.Object.Properties.HasFlag(ObjectProperties.RandomBirth) ? new Angle((byte)(_rng.Next() & byte.MaxValue)) : sprite.Direction;
-            var created = AddSprite(child, childPosition, childDirection, sprite);
-
-            var goal = sprite.Goal;
-
-            if (created is null || goal is null || state != SpriteAnimation.Fight)
-                continue;
-
-            LaunchChild(created, goal, vid, lateral);
-        }
-
-        if (state == SpriteAnimation.Fight && !sprite.IsAwaitingSecondPulse && sprite.Command is Command.OneAttack or Command.DistAttack &&
-            (!vid.Object.Properties.HasFlag(ObjectProperties.Track) && !child.Object.Properties.HasFlag(ObjectProperties.BirthAsSmoke) || sprite.Frame == sprite.LastFrame))
-        {
-            var owner = sprite.Owner;
-
-            if (sprite.Goal is not null && owner is not null && owner.Goal == sprite.Goal)
-            {
-                if (owner.Command is Command.OneAttack or Command.DistAttack)
-                {
-                    owner.SetCommand(Command.None);
-                }
-
-                // TODO: Port the trains; the engine owner with command 0x1d takes action 0x1e
-            }
-
-            sprite.SetCommand(Command.None);
-        }
-    }
-
-    [EngineRoutine(0x00444970)]
-    internal static int AddLink(Sprite owner, Sprite? link)
-    {
-        if (link is null || link.Owner is not null)
-            return 1;
-
-        var previous = owner.Link;
-
-        if (previous is not null)
-        {
-            previous.Owner = null;
-            link.AddLinkToLast(previous);
-        }
-
-        owner.Link = link;
-        link.Owner = owner;
-
-        return 0;
-    }
-
-    internal void CreateChildAs(Sprite sprite, SpriteAnimation state)
-    {
-        var previous = sprite.Animation;
-        sprite.SetAnimationValue(state);
-        CreateChild(sprite);
-        sprite.SetAnimationValue(previous);
-    }
-
-    [EngineRoutine(0x00445770)]
-    internal void CreateLink(Sprite sprite)
-    {
-        var vid = sprite.Vid.LinkVid;
-
-        if (vid is null || sprite.Link?.Vid == vid || vid.NotCreatedAsChild != 0)
-            return;
-
-        var position = sprite.Position + sprite.Vid.GetLinkOffset(vid, sprite.Direction);
-        var link = AddSprite(vid, position, sprite.Direction);
-        AddLink(sprite, link);
-
-        if (sprite.Link is null)
-        {
-            Session.Error.Error($"SPRITE {(int)sprite.Vid.Id}", LogError.Create, 0, "link"u8);
-
-            return;
-        }
-
-        sprite.Link.ChangeArmy((int)sprite.Army);
-    }
-
     internal bool IsFree(Vid vid, Vector3 position) => Collector.CanPlace(vid, position) is null;
 
     [EngineRoutine(0x0040c570)]
-    internal void Release()
+    internal virtual void Release()
     {
         var error = Session.Error;
         Vids.LogCounts(error);
@@ -930,13 +548,6 @@ public sealed partial class Map : IDisposable
         }
     }
 
-    [EngineRoutine(0x00405160)]
-    internal void DeletePointerToSprite(Sprite removed)
-    {
-        ForgetMouseTip(removed);
-        DeleteBasePointerToSprite(removed);
-    }
-
     [EngineRoutine(0x00406f20)]
     private static ReadOnlySpan<byte> GetBeforeLast(ReadOnlySpan<byte> text, ReadOnlySpan<byte> delimiter)
     {
@@ -975,7 +586,7 @@ public sealed partial class Map : IDisposable
         _ => -1
     };
 
-    private static void OverrideGamma(Sprite sprite, Gamma gamma)
+    private protected static void OverrideGamma(Sprite sprite, Gamma gamma)
     {
         sprite.SetGammaOverride(gamma);
         var link = sprite.Link;
@@ -1027,7 +638,7 @@ public sealed partial class Map : IDisposable
         {
             if (sprite is not null)
             {
-                sprite.Action((int)ActionCode.RestoreOld, ref reader, version);
+                sprite.Action(ActionCode.RestoreOld, ref reader, version);
             }
 
             reader.GoNextSub(SpriteDataTag);
@@ -1163,7 +774,7 @@ public sealed partial class Map : IDisposable
             Session.Graphics.DrawLoadBar(this, Vids.LoadingScreen);
             if (sprite is not null)
             {
-                sprite.Action((int)ActionCode.Restore, ref reader, version);
+                sprite.Action(ActionCode.Restore, ref reader, version);
             }
 
             reader.GoNextSub(SpriteDataTag);
@@ -1263,187 +874,17 @@ public sealed partial class Map : IDisposable
 
     private void SetFlag(MapFlags flag, bool isSet) => _flags = (isSet ? flag : MapFlags.None) | _flags & ~flag;
 
-    private void ShowPresentation()
-    {
-        var vid = Vids.Find(KnownObject.Font) ?? Vids.Empty;
-        var banner = AddSprite(vid, new Vector3(Session.ScreenSize.Width * HalfShare, PresentationTop, 0), default)!;
-        _presentationShownAt = _clock.WallTime;
-        Action(banner, ActionCode.SetBehave, 1);
-        SetTextItems(banner, PresentationText.ToArray());
-        Action(banner, ActionCode.Pause, PresentationDuration);
-        banner.ActionStack.Insert(0, new Act((int)SpriteAnimation.Death, 0, 0, 0));
-    }
-
-    [EngineRoutine(0x0044bd60)]
-    private Sprite ConstructTerrain(Terrain sprite, Angle direction, Sprite? parent)
-    {
-        ConstructSprite(sprite, direction, parent);
-        sprite.ShouldRefillAmmo = false;
-
-        return sprite;
-    }
-
-    [EngineRoutine(0x0040ec00)]
-    private Sprite ConstructPrimitive(Primitive sprite, Angle direction, Sprite? parent)
-    {
-        ConstructSprite(sprite, direction, parent);
-
-        return sprite;
-    }
-
-    [EngineRoutine(0x00447130)]
-    private Sprite ConstructUnit(Unit unit, Angle direction, Sprite? parent)
-    {
-        ConstructTerrain(unit, direction, parent);
-        unit.TurnTicks = 0;
-        unit.Behavior = (unit.ArmedLink ?? unit).Vid.Behavior;
-        unit.FillAmmo();
-
-        return unit;
-    }
-
-    [EngineRoutine(0x0044ce60)]
-    private Sprite ConstructPlane(Plane sprite, Angle direction, Sprite? parent)
-    {
-        ConstructUnit(sprite, direction, parent);
-        sprite.StartMove();
-        sprite.VerticalSpeed = sprite.Vid.ZSpeed;
-
-        return sprite;
-    }
-
-    [EngineRoutine(0x0044dd80)]
-    private Sprite ConstructBalloon(Balloon sprite, Angle direction, Sprite? parent)
-    {
-        // TODO: Port the balloon move tact (0x44e6f0)
-        return ConstructPlane(sprite, direction, parent);
-    }
-
-    [EngineRoutine(0x0044d3e0)]
-    private Sprite ConstructCreature(Creature sprite, Angle direction, Sprite? parent)
-    {
-        ConstructUnit(sprite, direction, parent);
-        sprite.IsSeekingRegion = true;
-        sprite.VerticalSpeed = sprite.Vid.ZSpeed;
-        sprite.StartMove();
-        sprite.Region = sprite.FindRegion(sprite.Position.AsVector2());
-
-        return sprite;
-    }
-
-    [EngineRoutine(0x0044ca00)]
-    private Sprite ConstructBuilding(Building sprite, Angle direction, Sprite? parent)
-    {
-        ConstructUnit(sprite, direction, parent);
-        sprite.PendingBuild = null;
-
-        return sprite;
-    }
-
-    [EngineRoutine(0x0044a590)]
-    private Sprite ConstructCivRobot(CivRobot sprite, Angle direction, Sprite? parent)
-    {
-        // TODO: Port the rest of the CivRobot constructor (0x44a590) and its destructor (0x44a650), action (0x44ac50), move tact (0x44a840) and forget (0x44ab40)
-        return ConstructCreature(sprite, direction, parent);
-    }
-
-    [EngineRoutine(0x0044e8b0)]
-    private Sprite ConstructEngine(Engine sprite, Angle direction, Sprite? parent)
-    {
-        // TODO: Port the Engine, Rail and Depo class tails (0x44e8b0, 0x44a140, 0x44c040); the port builds those classes with their base constructors
-        // TODO: Port their slots: Engine destructor 0x44e9d0, action 0x44f320, move tact 0x44ec20, forget 0x44ed10, info 0x44ed90 and goal lines 0x44f0f0; Rail destructor 0x44a1a0 and action 0x44a240; Depo destructor 0x44c0d0, action 0x44c130 and move tact 0x44c100
-        return ConstructUnit(sprite, direction, parent);
-    }
-
-    [EngineRoutine(0x0044a140)]
-    private Sprite ConstructRail(Rail sprite, Angle direction, Sprite? parent) => ConstructTerrain(sprite, direction, parent);
-
-    [EngineRoutine(0x0044c040)]
-    private Sprite ConstructDepo(Depo sprite, Angle direction, Sprite? parent) => ConstructUnit(sprite, direction, parent);
-
-    [EngineRoutine(0x004545e0)]
-    private Sprite ConstructMan(Man sprite, Angle direction, Sprite? parent)
-    {
-        ConstructUnit(sprite, direction, parent);
-        sprite.InsertUniqueItem(Sprite.WeaponItemBase + Sprite.Pistols);
-
-        return sprite;
-    }
-
-    [EngineRoutine(0x00447fe0)]
-    private Sprite ConstructCannon(Cannon sprite, Angle direction, Sprite? parent)
-    {
-        ConstructSprite(sprite, direction, parent);
-        ref readonly var gameObject = ref sprite.Vid.Object;
-
-        if (gameObject.Properties.HasFlag(ObjectProperties.RandomZSpeed) && !sprite.Vid.ZSpeed.IsExactlyZero())
-        {
-            bool downward = (_rng.Next() & 1) == 0;
-            float lift = _rng.Next() * sprite.Vid.ZSpeed;
-            sprite.VerticalSpeed = downward ? lift * -GameRandom.UnitScale : lift * GameRandom.UnitScale;
-        }
-        else if (parent is not null && parent.Animation >= SpriteAnimation.Death && gameObject.TopZ < 0)
-        {
-            sprite.VerticalSpeed = sprite.Vid.ZSpeed;
-            sprite.Speed = sprite.MaxSpeed + parent.Speed;
-        }
-        else
-        {
-            sprite.VerticalSpeed = sprite.Vid.ZSpeed;
-        }
-
-        if (gameObject.Properties.HasFlag(ObjectProperties.RandomSpeed) && !sprite.Vid.Speed.IsExactlyZero())
-        {
-            sprite.MaxSpeed = _rng.Next() * sprite.Vid.Speed * GameRandom.UnitScale;
-        }
-
-        sprite.IsClimbing = true;
-        sprite.StartMove();
-
-        return sprite;
-    }
-
-    [EngineRoutine(0x0040ec60)]
-    private Sprite ConstructLinker(Linker linker, Angle direction, Sprite? parent)
-    {
-        var position = linker.Position;
-        ConstructSprite(linker, direction, parent);
-        linker.Base = parent;
-        linker.StartDirection = direction;
-
-        if (parent is null)
-            return linker;
-
-        parent.AddLinkToLast(linker);
-        linker.Offset = position - parent.Position;
-
-        return linker;
-    }
-
-    [EngineRoutine(0x00448a60)]
-    private Sprite ConstructFrame(Frame frame, Angle direction, Sprite? parent)
-    {
-        frame.Position = new Vector3(frame.Position.AsVector2() + Camera, frame.Position.Z);
-        ConstructSprite(frame, direction, parent);
-        MenuList.Add(frame);
-        frame.AddRef();
-
-        return frame;
-    }
-
-    [EngineRoutine(0x0040ed40)]
-    private Sprite ConstructText(Text text, Angle direction, Sprite? parent) => ConstructFrame(text, direction, parent);
-
-    [EngineRoutine(0x00449640)]
-    private Sprite ConstructRegion(Region sprite, Angle direction, Sprite? parent)
-    {
-        ConstructSprite(sprite, direction, parent);
-
-        return sprite;
-    }
-
+    /// <summary>
+    /// Creates a sprite of an object ID, or of the object ID that a region at the position replaces it with, and runs the creation handler of
+    /// the sprite's object ID unless the map is loading or is the application menu.
+    /// </summary>
+    /// <param name="vid">The shared data of the object ID.</param>
+    /// <param name="position">The position.</param>
+    /// <param name="direction">The direction.</param>
+    /// <param name="parent">The sprite that the new sprite takes its army and height from, and links to if the new sprite is a linker.</param>
+    /// <returns>The sprite, or <see langword="null"/> if <paramref name="vid"/> is null, or its class isn't valid.</returns>
     [EngineRoutine(0x0040e870)]
-    private Sprite? CreateSprite(Vid? vid, Vector3 position, Angle direction, Sprite? parent)
+    public virtual Sprite? CreateSprite(Vid? vid, Vector3 position, Angle direction, Sprite? parent = null)
     {
         if (vid is null)
             return null;
@@ -1458,38 +899,37 @@ public sealed partial class Map : IDisposable
         switch (vid.Class)
         {
             case SpriteClass.Unit:
-                sprite = ConstructUnit(new Unit(-1, vid, position, default, 0, map: this), direction, parent);
+                sprite = new Unit(vid, position, direction, parent, this);
                 break;
             case SpriteClass.Avia:
-                sprite = ConstructPlane(new Plane(-1, vid, position, default, 0, map: this), direction, parent);
+                sprite = new Plane(vid, position, direction, parent, this);
                 break;
             case SpriteClass.Cannon:
-                sprite = ConstructCannon(new Cannon(-1, vid, position, default, 0, map: this), direction, parent);
+                sprite = new Cannon(vid, position, direction, parent, this);
                 break;
             case SpriteClass.Primitive:
-                sprite = ConstructPrimitive(new Primitive(-1, vid, position, default, 0, map: this), direction, parent);
+                sprite = new Primitive(vid, position, direction, parent, this);
                 break;
             case SpriteClass.Man:
-                sprite = ConstructMan(new Man(-1, vid, position, default, 0, map: this), direction, parent);
+                sprite = new Man(vid, position, direction, parent, this);
                 break;
             case SpriteClass.BuiltTerrain:
-                sprite = ConstructBuiltTerrain(new BuiltTerrain(-1, vid, position, default, 0, map: this), direction, parent);
+                sprite = new BuiltTerrain(vid, position, direction, parent, this);
                 break;
             case SpriteClass.Sprite:
-                sprite = new Sprite(-1, vid, position, default, 0, map: this);
-                ConstructSprite(sprite, direction, parent);
+                sprite = new Sprite(vid, position, direction, parent, this);
                 break;
             case SpriteClass.Frame:
-                sprite = ConstructFrame(new Frame(-1, vid, position, default, 0, map: this), direction, parent);
+                sprite = new Frame(vid, position, direction, parent, this);
                 break;
             case SpriteClass.Linker:
-                sprite = ConstructLinker(new Linker(-1, vid, position, default, 0, map: this), direction, parent);
+                sprite = new Linker(vid, position, direction, parent, this);
                 break;
             case SpriteClass.Text:
-                sprite = ConstructText(new Text(-1, vid, position, default, 0, map: this), direction, parent);
+                sprite = new Text(vid, position, direction, parent, this);
                 break;
             case SpriteClass.Region:
-                sprite = ConstructRegion(new Region(-1, vid, position, default, 0, map: this), direction, parent);
+                sprite = new Region(vid, position, direction, parent, this);
                 break;
             default:
                 Session.Error.Error(MapLogTag, LogError.Create, (int)vid.Class, "sprite - Behave is invalidate"u8);
@@ -1566,128 +1006,12 @@ public sealed partial class Map : IDisposable
         }
     }
 
-    private Vector2 GetChildShift(Sprite sprite, Vid vid, int slot, int index, Angle offsetDirection, out Vector2 lateral)
-    {
-        float childX = vid.Object.ChildX[slot];
-        float childY = vid.Object.ChildY[slot];
-
-        if (vid.Children[slot] < 0 && vid.Class == SpriteClass.Region && childX.IsExactlyZero() && childY.IsExactlyZero())
-        {
-            lateral = Vector2.Zero;
-
-            var region = sprite as Region;
-            if (region is null || !region.Flags.HasFlag(RegionFlags.CoversMap))
-            {
-                var regionSize = region?.Size ?? Vector2.Zero;
-                float spreadX = regionSize.X * 0.5f - _rng.Next() * regionSize.X * GameRandom.UnitScale;
-                float spreadY = regionSize.Y * 0.5f - _rng.Next() * regionSize.Y * GameRandom.UnitScale + sprite.Position.Z;
-                return new Vector2(spreadX, spreadY);
-            }
-
-            float mapX = _rng.Next() * Size.Width * GameRandom.UnitScale - sprite.Position.X;
-            float mapY = _rng.Next() * Size.Height * GameRandom.UnitScale - sprite.Position.Y + sprite.Position.Z;
-            return new Vector2(mapX, mapY);
-        }
-
-        if (vid.Children[slot] < 0)
-        {
-            float spreadX = childX + childX;
-            spreadX = childX - _rng.Next() * spreadX * GameRandom.UnitScale;
-            float spreadY = childY + childY;
-            spreadY = childY - _rng.Next() * spreadY * GameRandom.UnitScale;
-            lateral = new Vector2(-(offsetDirection.Cosine * spreadX), -(offsetDirection.ProjectedSine * spreadX));
-            return new Vector2(offsetDirection.Sine * spreadY + lateral.X, lateral.Y - offsetDirection.ProjectedCosine * spreadY);
-        }
-
-        if (index == 1)
-        {
-            lateral = new Vector2(-(offsetDirection.Cosine * childX), -(offsetDirection.ProjectedSine * childX));
-            return new Vector2(offsetDirection.Sine * childY + lateral.X, lateral.Y - offsetDirection.ProjectedCosine * childY);
-        }
-
-        if (index == 2)
-        {
-            lateral = Vector2.Zero;
-            return new Vector2(offsetDirection.Sine * childY, offsetDirection.ProjectedCosine * childY);
-        }
-
-        lateral = new Vector2(offsetDirection.Cosine * childX, offsetDirection.ProjectedSine * childX);
-        return new Vector2(offsetDirection.Sine * childY + lateral.X, lateral.Y - offsetDirection.ProjectedCosine * childY);
-    }
-
-    private void LaunchChild(Sprite created, Sprite goal, Vid vid, Vector2 lateral)
-    {
-        if (vid.WeaponFlags.HasFlag(WeaponFlags.NoSpread) && goal.Vid != Vids.Empty)
-        {
-            Attack(created, goal);
-            created.StartMove();
-
-            return;
-        }
-
-        var point = goal.Position;
-
-        for (int attempt = 0; attempt < AimAttempts; attempt++)
-        {
-            float pointX = vid.Aim + goal.Position.X + lateral.X - _rng.Next() * vid.Aim * AimRandomScale;
-            float pointY = vid.Aim + goal.Position.Y + lateral.Y - _rng.Next() * vid.Aim * AimRandomScale;
-            point = new Vector3(pointX, pointY, goal.Position.Z);
-
-            if (GetGroundZ(new Vector2(pointX, pointY)) < goal.Position.Z && GetGroundZ((goal.Position.AsVector2() + point.AsVector2()) * 0.5f) < goal.Position.Z)
-                break;
-        }
-
-        var aimed = ConstructGoal(point);
-        Attack(created, aimed);
-        created.StartMove();
-    }
-
     [EngineRoutine(0x0040fad0)]
     private void AddToLayer(Sprite sprite)
     {
         _updates.Add(sprite.Vid.Layer, sprite);
         sprite.AddRef();
         Release(sprite);
-    }
-
-    [EngineRoutine(0x00446c90)]
-    private Mouse ConstructCursor()
-    {
-        var cursor = new Mouse(-1, Vids.Empty, new Vector3(Session.ScreenSize.ToVector2() * HalfShare, 0), default, 0, map: this);
-        ConstructSprite(cursor, default, null);
-
-        if (cursor.Vid != Vids.Empty)
-        {
-            RemoveFromUpdates(cursor);
-        }
-        else if (cursor.Link is not null)
-        {
-            RemoveFromUpdates(cursor.Link);
-        }
-
-        if (cursor.Vid == Vids.Empty)
-        {
-            cursor.AddRef();
-        }
-
-        return cursor;
-    }
-
-    private void SetGammaOverrides(bool clear)
-    {
-        var flagman = Flagman(ControlledPlayer);
-
-        if (flagman is { Army: Army.Player } && Vids.SelectedGamma != 0)
-        {
-            OverrideGamma(flagman, clear ? default : Gamma.FromScript(Vids.SelectedGamma));
-        }
-
-        var hovered = _players[ControlledPlayer].Hovered;
-
-        if (hovered is null || Vids.HoveredGamma == 0 && Vids.HoveredEnemyGamma == 0 || !clear && !_flags.HasFlag(MapFlags.MouseTips))
-            return;
-
-        OverrideGamma(hovered, clear ? default : Gamma.FromScript(hovered.Army == Army.Monsters ? Vids.HoveredEnemyGamma : Vids.HoveredGamma));
     }
 
     [EngineRoutine(0x0040f9e0)]
@@ -1717,59 +1041,6 @@ public sealed partial class Map : IDisposable
 
         _clock.Resume(_pausedAt);
         _flags &= ~MapFlags.Paused;
-    }
-
-    private void TickMenuSprites()
-    {
-        for (int i = MenuList.Count - 1; i >= 0; i--)
-        {
-            MenuList[i].Tact();
-        }
-    }
-
-    private void TickUpdatedSprites()
-    {
-        for (int layer = 0; layer < UpdateOrder.UpdatedLayerCount; layer++)
-        {
-            var list = _updates.GetLayer(layer);
-            for (int i = list.Count - 1; i >= 0; i--)
-            {
-                var sprite = list[i];
-
-                if (sprite is not null)
-                {
-                    sprite.Tact();
-                }
-            }
-        }
-    }
-
-    private void HandleDebugKey(int key)
-    {
-        switch (key)
-        {
-            case HashedSpritesKey:
-                _debug ^= StepFlags.DrawHashedSprites;
-                break;
-            case HashedNumbersKey:
-                _debug ^= StepFlags.DrawHashedNumbers;
-                break;
-            case FlagmanKey:
-                _flags ^= MapFlags.DrawFlagman;
-                break;
-            case GridKey:
-                _flags ^= MapFlags.DrawGridZ | MapFlags.DrawSpriteBoxes;
-                break;
-            case SingleStepKey:
-                _debug ^= StepFlags.SingleStep;
-                break;
-            case RailsKey:
-                _flags ^= MapFlags.DrawRails;
-                break;
-            case ReloadKey:
-                Vids.ReloadRecords(Session.Error, Sound);
-                break;
-        }
     }
 
     private void DeleteAll()
@@ -1810,7 +1081,7 @@ public sealed partial class Map : IDisposable
     }
 
     [EngineRoutine(0x0040b4b0)]
-    private void DeleteBasePointerToSprite(Sprite removed)
+    internal virtual void DeletePointerToSprite(Sprite removed)
     {
         foreach (var controller in _players)
         {
@@ -1856,7 +1127,7 @@ public sealed partial class Map : IDisposable
     }
 
     [EngineRoutine(0x00449be0)]
-    private Vid ReplaceVid(Vid vid, Vector3 position)
+    private protected Vid ReplaceVid(Vid vid, Vector3 position)
     {
         var list = _updates.GetLayer(ObjectLayer.Region);
 

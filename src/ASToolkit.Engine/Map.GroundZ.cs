@@ -3,7 +3,7 @@ using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
-public sealed partial class Map
+public partial class Map
 {
     /// <summary>
     /// Represents the side of a ground-height cell in pixels.

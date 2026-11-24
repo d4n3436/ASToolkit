@@ -10,26 +10,26 @@ namespace ASToolkit.Engine;
 public sealed class Building : Unit
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="Building"/> class.
+    /// Initializes a new instance of the <see cref="Building"/> class on a map.
     /// </summary>
-    /// <param name="number">The number of the sprite.</param>
     /// <param name="vid">The shared data and frames of the sprite's object ID.</param>
-    /// <param name="position">The position of the sprite.</param>
-    /// <param name="army">The army of the sprite.</param>
-    /// <param name="hitPoints">The hit points of the sprite.</param>
+    /// <param name="position">The position.</param>
+    /// <param name="direction">The direction.</param>
+    /// <param name="parent">The sprite that the new sprite takes its army and height from, or null.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    /// <param name="direction">The direction of the sprite.</param>
-    public Building(int number, Vid vid, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
-        : base(number, vid, position, army, hitPoints, map, direction)
+    [EngineRoutine(0x0044ca00)]
+    public Building(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
+        : base(vid, position, direction, parent, map)
     {
+        PendingBuild = null;
     }
 
     internal PendingBuild? PendingBuild { get; set; }
 
     [EngineRoutine(0x0044ca70)]
-    internal override int Action(int act, int var1, int var2, int var3, Sprite? target)
+    internal override int Action(ActionCode act, int var1, int var2, int var3, Sprite? target)
     {
-        switch ((ActionCode)act)
+        switch (act)
         {
             case ActionCode.BackupCommand when Command == Command.Build && PendingBuild.HasValue:
                 ActionStack.Push(new Act((int)ActionCode.BuildUnit, (int)PendingBuild.Value.Vid.Id, 0, 0));

@@ -9,17 +9,18 @@ namespace ASToolkit.Engine;
 public sealed class Engine : Unit
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="Engine"/> class.
+    /// Initializes a new instance of the <see cref="Engine"/> class on a map.
     /// </summary>
-    /// <param name="number">The number of the sprite.</param>
     /// <param name="vid">The shared data and frames of the sprite's object ID.</param>
-    /// <param name="position">The position of the sprite.</param>
-    /// <param name="army">The army of the sprite.</param>
-    /// <param name="hitPoints">The hit points of the sprite.</param>
+    /// <param name="position">The position.</param>
+    /// <param name="direction">The direction.</param>
+    /// <param name="parent">The sprite that the new sprite takes its army and height from, or null.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    /// <param name="direction">The direction of the sprite.</param>
-    public Engine(int number, Vid vid, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
-        : base(number, vid, position, army, hitPoints, map, direction)
+    // TODO: Port the Engine, Rail and Depo class tails (0x44e8b0, 0x44a140, 0x44c040); the port builds those classes with their base constructors
+    // TODO: Port their slots: Engine destructor 0x44e9d0, action 0x44f320, move tact 0x44ec20, forget 0x44ed10, info 0x44ed90 and goal lines 0x44f0f0; Rail destructor 0x44a1a0 and action 0x44a240; Depo destructor 0x44c0d0, action 0x44c130 and move tact 0x44c100
+    [EngineRoutine(0x0044e8b0)]
+    public Engine(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
+        : base(vid, position, direction, parent, map)
     {
     }
 }

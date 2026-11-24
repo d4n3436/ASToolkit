@@ -14,18 +14,18 @@ public class Terrain : Sprite
     private const KnownObject RelinkLimitId = KnownObject.Slug;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Terrain"/> class.
+    /// Initializes a new instance of the <see cref="Terrain"/> class on a map.
     /// </summary>
-    /// <param name="number">The number of the sprite.</param>
     /// <param name="vid">The shared data and frames of the sprite's object ID.</param>
-    /// <param name="position">The position of the sprite.</param>
-    /// <param name="army">The army of the sprite.</param>
-    /// <param name="hitPoints">The hit points of the sprite.</param>
+    /// <param name="position">The position.</param>
+    /// <param name="direction">The direction.</param>
+    /// <param name="parent">The sprite that the new sprite takes its army and height from, or null.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    /// <param name="direction">The direction of the sprite.</param>
-    public Terrain(int number, Vid vid, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
-        : base(number, vid, position, army, hitPoints, map, direction)
+    [EngineRoutine(0x0044bd60)]
+    public Terrain(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
+        : base(vid, position, direction, parent, map)
     {
+        ShouldRefillAmmo = false;
     }
 
     /// <summary>
@@ -34,9 +34,9 @@ public class Terrain : Sprite
     public bool ShouldRefillAmmo { get; set; }
 
     [EngineRoutine(0x0044bea0)]
-    internal override int Action(int act, int var1, int var2, int var3, Sprite? target)
+    internal override int Action(ActionCode act, int var1, int var2, int var3, Sprite? target)
     {
-        if ((ActionCode)act != ActionCode.Repair)
+        if (act != ActionCode.Repair)
             return base.Action(act, var1, var2, var3, target);
 
         Repair(true);
@@ -45,9 +45,9 @@ public class Terrain : Sprite
     }
 
     [EngineRoutine(0x0044bea0)]
-    internal override int Action(int act, ref Resource stream, int version)
+    internal override int Action(ActionCode act, ref Resource stream, int version)
     {
-        if ((ActionCode)act != ActionCode.RestoreOld)
+        if (act != ActionCode.RestoreOld)
             return base.Action(act, ref stream, version);
 
         base.Action(act, ref stream, version);
@@ -61,7 +61,7 @@ public class Terrain : Sprite
     private void Repair(bool relink)
     {
         int army = (int)Army & Vid.ArmyMask;
-        Map.ChangeHp(this, Vid.ArmyMaxHp[army]);
+        ChangeHp(Vid.ArmyMaxHp[army]);
         var linkVid = Vid.LinkVid;
 
         if (linkVid is not null && Link?.Vid != linkVid && relink)
@@ -72,8 +72,8 @@ public class Terrain : Sprite
 
             if (!atLimit)
             {
-                Map.CreateLink(this);
-                Map.AddSprite(Map.Vid((int)RelinkEffectId), Position, default);
+                CreateLink();
+                Map.CreateSprite(Map.Vid((int)RelinkEffectId), Position, default);
 
                 return;
             }

@@ -53,6 +53,8 @@ public class Vid
     public const int AllArmies = 4;
     private const float BallisticRise = 1.1f;
     private const float BallisticDrop = 0.9f;
+    private const int CoefficientScale = 16;
+    private const int HpScale = 256;
 
     private readonly int[] _children = new int[StateCount];
     private readonly int[] _childCounts = new int[StateCount];
@@ -771,6 +773,60 @@ public class Vid
         for (var link = LinkVid; link is not null; link = link.LinkVid)
         {
             link.IsHidden = hidden;
+        }
+    }
+
+    [EngineRoutine(0x00414890)]
+    internal void SetHpCoeff(Map map, int army, int percent)
+    {
+        army &= 3;
+        for (var vid = this; vid is not null; vid = vid.LinkVid)
+        {
+            int previous = vid.ArmyMaxHp[army];
+            if (percent >= 0)
+            {
+                vid.ArmyMaxHp[army] = vid.MaxHp * percent / Map.Percent;
+            }
+
+            if (vid.MaxHp == 0)
+                continue;
+
+            var list = map.GetLayer((int)vid.Layer);
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                var sprite = list[i];
+                if (sprite is not null && sprite.Vid == vid && ((int)sprite.Army & 3) == army)
+                {
+                    sprite.ChangeHp(sprite.Hp * vid.ArmyMaxHp[army] * CoefficientScale / previous / CoefficientScale);
+                }
+            }
+        }
+    }
+
+    [EngineRoutine(0x00414990)]
+    internal void SetMaxHp(Map map, int army, int maxHp)
+    {
+        army &= 3;
+        for (var vid = this; vid is not null; vid = vid.LinkVid)
+        {
+            int previous = vid.ArmyMaxHp[army];
+            if (maxHp >= 0)
+            {
+                vid.ArmyMaxHp[army] = maxHp;
+            }
+
+            if (vid.MaxHp == 0)
+                continue;
+
+            var list = map.GetLayer((int)vid.Layer);
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                var sprite = list[i];
+                if (sprite is not null && sprite.Vid == vid && ((int)sprite.Army & 3) == army)
+                {
+                    sprite.ChangeHp(sprite.Hp * vid.ArmyMaxHp[army] * HpScale / previous / HpScale);
+                }
+            }
         }
     }
 

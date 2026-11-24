@@ -316,7 +316,7 @@ internal sealed class Player
 
         if (torso is not null && torso.Vid == player.Vid.LinkVid)
         {
-            if (player.Speed == 0 && player.Vid.Id == KnownObject.PlayerStart)
+            if (player is { Speed: 0, Vid.Id: KnownObject.PlayerStart })
             {
                 if (!_isTurningLegs)
                 {

@@ -349,7 +349,7 @@ public partial class VidSoftware : Vid
             int row = runs.Row;
             for (int pixel = runs.Start; pixel < runs.Start + runs.Length; pixel++)
             {
-                if (row >= 0 && row < HeightGridLimit && pixel >= 0 && pixel < HeightGridLimit)
+                if (row is >= 0 and < HeightGridLimit && pixel is >= 0 and < HeightGridLimit)
                 {
                     grid[(row >> HeightCellShift) * HeightGridSide + (pixel >> HeightCellShift)] = 0;
                 }
@@ -367,7 +367,7 @@ public partial class VidSoftware : Vid
                 int height = (MemoryMarshal.Read<ushort>(Frames[(runs.Pixels + i * DepthSampleSize)..]) >> HeightDepthShift) - HeightDepthBias;
                 int cellRow = runs.Row + height;
                 int pixel = runs.Start + i;
-                if (cellRow >= 0 && cellRow < HeightGridLimit && pixel >= 0 && pixel < HeightGridLimit)
+                if (cellRow is >= 0 and < HeightGridLimit && pixel is >= 0 and < HeightGridLimit)
                 {
                     int cell = (cellRow >> HeightCellShift) * HeightGridSide + (pixel >> HeightCellShift);
                     if (grid[cell] < height)

@@ -26,18 +26,30 @@ public sealed class Mouse : Sprite
     private readonly CursorImage[] _cursors = new CursorImage[CursorNames.Length];
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Mouse"/> class, with the system cursor in use and no cursor loaded.
+    /// Initializes a new instance of the <see cref="Mouse"/> class on a map, kept out of the map's update lists, with the system cursor in use and no cursor loaded.
     /// </summary>
-    /// <param name="number">The number of the sprite.</param>
-    /// <param name="vid">The shared data and frames of the sprite's object ID.</param>
-    /// <param name="position">The position of the sprite.</param>
-    /// <param name="army">The army of the sprite.</param>
-    /// <param name="hitPoints">The hit points of the sprite.</param>
-    /// <param name="map">The map the sprite belongs to.</param>
-    /// <param name="direction">The direction of the sprite.</param>
-    public Mouse(int number, Vid vid, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
-        : base(number, vid, position, army, hitPoints, map, direction)
+    /// <param name="vid">The shared data and frames of the cursor's object ID.</param>
+    /// <param name="position">The position.</param>
+    /// <param name="direction">The direction.</param>
+    /// <param name="parent">The sprite that the cursor takes its army and height from, or null.</param>
+    /// <param name="map">The map the cursor belongs to.</param>
+    [EngineRoutine(0x00446c90)]
+    public Mouse(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
+        : base(vid, position, direction, parent, map)
     {
+        if (Vid != Map.Vids.Empty)
+        {
+            Map.RemoveFromUpdates(this);
+        }
+        else if (Link is not null)
+        {
+            Map.RemoveFromUpdates(Link);
+        }
+
+        if (Vid == Map.Vids.Empty)
+        {
+            AddRef();
+        }
     }
 
     /// <summary>
@@ -181,9 +193,9 @@ public sealed class Mouse : Sprite
     }
 
     [EngineRoutine(0x00447030)]
-    internal override int Action(int act, int var1, int var2, int var3, Sprite? target)
+    internal override int Action(ActionCode act, int var1, int var2, int var3, Sprite? target)
     {
-        switch ((ActionCode)act)
+        switch (act)
         {
             case ActionCode.ChangeAnimation:
                 Map.CursorSprite.ChangeAnimation((SpriteAnimation)var1);

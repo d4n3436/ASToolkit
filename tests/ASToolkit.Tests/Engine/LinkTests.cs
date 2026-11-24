@@ -13,8 +13,8 @@ public class LinkTests
         var objects = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(objects);
 
-        var yellow = map.AddSprite(objects.Find(KnownObject.YellowTankWeaponMonster), map.Player.Position + new Vector3(400, 0, 0), default)!;
-        var red = map.AddSprite(objects.Find(KnownObject.RedTankWeaponMonster), map.Player.Position + new Vector3(0, 400, 0), default)!;
+        var yellow = map.CreateSprite(objects.Find(KnownObject.YellowTankWeaponMonster), map.Player.Position + new Vector3(400, 0, 0), default)!;
+        var red = map.CreateSprite(objects.Find(KnownObject.RedTankWeaponMonster), map.Player.Position + new Vector3(0, 400, 0), default)!;
 
         Assert.Equal(KnownObject.Monster4Weapon2, yellow.Link!.Vid.Id);
         Assert.Equal(KnownObject.MonsterMachineGunDummy, yellow.Link.Link!.Vid.Id);

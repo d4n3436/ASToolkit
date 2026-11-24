@@ -9,17 +9,17 @@ namespace ASToolkit.Engine;
 public sealed class CivRobot : Creature
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="CivRobot"/> class.
+    /// Initializes a new instance of the <see cref="CivRobot"/> class on a map.
     /// </summary>
-    /// <param name="number">The number of the sprite.</param>
     /// <param name="vid">The shared data and frames of the sprite's object ID.</param>
-    /// <param name="position">The position of the sprite.</param>
-    /// <param name="army">The army of the sprite.</param>
-    /// <param name="hitPoints">The hit points of the sprite.</param>
+    /// <param name="position">The position.</param>
+    /// <param name="direction">The direction.</param>
+    /// <param name="parent">The sprite that the new sprite takes its army and height from, or null.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    /// <param name="direction">The direction of the sprite.</param>
-    public CivRobot(int number, Vid vid, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
-        : base(number, vid, position, army, hitPoints, map, direction)
+    // TODO: Port the rest of the CivRobot constructor (0x44a590) and its destructor (0x44a650), action (0x44ac50), move tact (0x44a840) and forget (0x44ab40)
+    [EngineRoutine(0x0044a590)]
+    public CivRobot(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
+        : base(vid, position, direction, parent, map)
     {
     }
 }

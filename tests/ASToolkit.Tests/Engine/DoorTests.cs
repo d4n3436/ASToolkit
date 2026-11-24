@@ -33,9 +33,8 @@ public class DoorTests
         var walker = vids.Find(KnownObject.PlayerStart)!;
         var position = new Vector2(1000);
         var map = EngineTestMap.CreateMap(vids);
-        var sprite = new Sprite(0, walker, position.AsVector3(), 0, walker.MaxHp, map);
-        map.Collector.InsertToHash(new Sprite(1, vid, position.AsVector3(), 0, vid.MaxHp, map));
-        map.Collector.InsertToHash(sprite);
+        var sprite = new Sprite(walker, position.AsVector3(), default, null, map);
+        _ = new Sprite(vid, position.AsVector3(), default, null, map);
 
         var next = (position + Vector2.UnitX).AsVector3();
         Assert.Null(sprite.CanPlaceWithCrush(ref next));
@@ -50,7 +49,7 @@ public class DoorTests
         var door = new MergedMapSprite(1, KnownObject.SmallDoor, new Vector3(1000, 1000, 0), 0, 0, []);
         var map = EngineTestMap.CreateMap(vids, sprites: [door]);
         var body = map.FindFirstSprite(KnownObject.SmallDoor);
-        map.AddSprite(vids.Find(KnownObject.Monster1), door.Position, default);
+        map.CreateSprite(vids.Find(KnownObject.Monster1), door.Position, default);
         for (int tick = 0; tick <= 16; tick++)
         {
             map.Play(default);

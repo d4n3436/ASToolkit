@@ -4,7 +4,7 @@ using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
-public sealed partial class Map
+public partial class Map
 {
     private const float LayerHalf = 0.5f;
     private const int CullWidthMask = unchecked((int)0xfffff800);

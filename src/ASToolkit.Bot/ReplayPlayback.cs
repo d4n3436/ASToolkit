@@ -189,7 +189,7 @@ public sealed class ReplayPlayback
         else
         {
             _map.PostNextDemoMouse(out _);
-            isQuitting = _map.Step(wallTime, _now, out _now);
+            isQuitting = _map.Tact(wallTime, _now, out _now);
         }
 
         if (isQuitting || !_map.IsPlayingDemo)

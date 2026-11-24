@@ -4,7 +4,7 @@ using ASToolkit.Engine.IO;
 
 namespace ASToolkit.Engine;
 
-public sealed partial class Map
+public partial class Map
 {
     private const int CommandIdMask = 0xFFFF;
     private const int AcceleratorSource = 1 << 16;

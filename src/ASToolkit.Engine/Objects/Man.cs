@@ -25,18 +25,18 @@ public sealed class Man : Unit
     private const int WeaponIdLimit = 21;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Man"/> class.
+    /// Initializes a new instance of the <see cref="Man"/> class on a map.
     /// </summary>
-    /// <param name="number">The number of the sprite.</param>
     /// <param name="vid">The shared data and frames of the sprite's object ID.</param>
-    /// <param name="position">The position of the sprite.</param>
-    /// <param name="army">The army of the sprite.</param>
-    /// <param name="hitPoints">The hit points of the sprite.</param>
+    /// <param name="position">The position.</param>
+    /// <param name="direction">The direction.</param>
+    /// <param name="parent">The sprite that the new sprite takes its army and height from, or null.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    /// <param name="direction">The direction of the sprite.</param>
-    public Man(int number, Vid vid, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
-        : base(number, vid, position, army, hitPoints, map, direction)
+    [EngineRoutine(0x004545e0)]
+    public Man(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
+        : base(vid, position, direction, parent, map)
     {
+        InsertUniqueItem(Sprite.WeaponItemBase + Sprite.Pistols);
     }
 
     /// <summary>
@@ -50,9 +50,9 @@ public sealed class Man : Unit
     internal override void Destruct() => base.Destruct();
 
     [EngineRoutine(0x00454800)]
-    internal override int Action(int act, int var1, int var2, int var3, Sprite? target)
+    internal override int Action(ActionCode act, int var1, int var2, int var3, Sprite? target)
     {
-        switch ((ActionCode)act)
+        switch (act)
         {
             case ActionCode.CoorAttack:
                 CoorAttackCase(new Vector2(var1, var2));
@@ -165,16 +165,16 @@ public sealed class Man : Unit
     {
         if ((int)Vid.Id < PlayerIdLimit)
         {
-            SlotAmmo[WeaponSlot] = base.Action((int)ActionCode.GetAmmo, 0, 0, 0, null);
+            SlotAmmo[WeaponSlot] = base.Action(ActionCode.GetAmmo, 0, 0, 0, null);
         }
 
-        base.Action((int)ActionCode.ChangeVid, var1, var2, var3, target);
+        base.Action(ActionCode.ChangeVid, var1, var2, var3, target);
 
         if ((int)Vid.Id > PlayerIdLimit)
         {
             var armed = Vid.LinkVid;
             int capacity = armed is not null && armed.FightChild != 0 && armed.Object.WeaponIndex != 0 ? armed.AmmoCapacity : Vid.AmmoCapacity;
-            base.Action((int)ActionCode.AddAmmo, capacity - base.Action((int)ActionCode.GetAmmo, 0, 0, 0, null), 0, 0, null);
+            base.Action(ActionCode.AddAmmo, capacity - base.Action(ActionCode.GetAmmo, 0, 0, 0, null), 0, 0, null);
 
             return;
         }
@@ -187,11 +187,11 @@ public sealed class Man : Unit
         if (armorItem != 0)
         {
             var position = new Vector3(Position.X, Position.Y, Position.Z + Vid.Object.LinkOffset.Z);
-            var armor = Map.AddSprite(Map.Vids.Find((KnownObject)(armorItem - WornArmorItemBase + (int)KnownObject.WornGreenArmor))!, position, Direction);
-            Map.AddLink(Link!, armor);
+            var armor = Map.CreateSprite(Map.Vids.Find((KnownObject)(armorItem - WornArmorItemBase + (int)KnownObject.WornGreenArmor))!, position, Direction);
+            Link!.AddLink(armor);
         }
 
-        base.Action((int)ActionCode.AddAmmo, SlotAmmo[WeaponSlot] - base.Action((int)ActionCode.GetAmmo, 0, 0, 0, null), 0, 0, null);
+        base.Action(ActionCode.AddAmmo, SlotAmmo[WeaponSlot] - base.Action(ActionCode.GetAmmo, 0, 0, 0, null), 0, 0, null);
     }
 
     private void AddItemCase(int item)
@@ -211,7 +211,7 @@ public sealed class Man : Unit
         if (slot is < 0 or >= WeaponSlots)
             return;
 
-        if (base.Action((int)ActionCode.GetAmmo, 0, 0, 0, null) == 0 || WeaponSlot < slot || slot == 0)
+        if (base.Action(ActionCode.GetAmmo, 0, 0, 0, null) == 0 || WeaponSlot < slot || slot == 0)
         {
             ChangeWeapon(slot);
         }
@@ -245,14 +245,14 @@ public sealed class Man : Unit
             if (damage >= Hp && Map.Action(this, ActionCode.HaveItem, (int)KnownObject.Medkit) != 0)
             {
                 Map.Action(this, ActionCode.DeleteItem, (int)KnownObject.Medkit);
-                Map.ChangeHp(this, Vid.GetArmyMaxHp((int)Army));
-                Map.AddSprite(Map.Vids.Find(KnownObject.RescueMedkitEffect)!, Position + Vector3.UnitZ * RescueEffectHeight, default, this);
+                ChangeHp(Vid.GetArmyMaxHp((int)Army));
+                Map.CreateSprite(Map.Vids.Find(KnownObject.RescueMedkitEffect)!, Position + Vector3.UnitZ * RescueEffectHeight, default, this);
 
                 return 0;
             }
         }
 
-        return SpriteAction((int)ActionCode.Damage, damage, var2, var3, target);
+        return SpriteAction(ActionCode.Damage, damage, var2, var3, target);
     }
 
     private bool IsInsideMap(Vector2 point) => point is { X: >= 0, Y: >= 0 } && point.X < Map.Size.Width && point.Y < Map.Size.Height;

@@ -81,7 +81,7 @@ public class ReferenceCountTests
 
         foreach ((var sprite, int count) in expected)
         {
-            Assert.True(sprite.ReferenceCount == count, $"time {map.Time}: {sprite.Vid.Id} #{sprite.Number} holds {sprite.ReferenceCount} references, expected {count}");
+            Assert.True(sprite.ReferenceCount == count, $"time {map.Time}: {sprite.Vid.Id} holds {sprite.ReferenceCount} references, expected {count}");
         }
     }
 

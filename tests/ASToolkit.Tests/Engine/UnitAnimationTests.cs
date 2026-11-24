@@ -42,7 +42,7 @@ public class UnitAnimationTests
         var vid = vids.Find(KnownObject.Monster1)!;
         var random = new GameRandom(7);
         var expected = new GameRandom(7);
-        var sprite = new Sprite(1, vid, Vector3.Zero, Army.Monsters, vid.MaxHp, EngineTestMap.CreateMap(vids));
+        var sprite = new Sprite(vid, Vector3.Zero, default, null, EngineTestMap.CreateMap(vids)) { Army = Army.Monsters };
 
         sprite.Start(SpriteAnimation.Stand, new Angle(64), 1000, random);
 
@@ -57,7 +57,7 @@ public class UnitAnimationTests
         var vids = TestGameFolder.CreateCatalog();
         var map = EngineTestMap.CreateMap(vids);
         var position = map.Player.Position + new Vector3(600, 0, 0);
-        var enemy = map.AddSprite(vids.Find(KnownObject.Monster1), position, new Angle(64))!;
+        var enemy = map.CreateSprite(vids.Find(KnownObject.Monster1), position, new Angle(64))!;
         while (map.Time + map.FrameTime < GameClock.LevelStartTime + 96)
         {
             map.Play(default);
@@ -88,7 +88,7 @@ public class UnitAnimationTests
     {
         var vids = TestGameFolder.CreateCatalog();
         var vid = vids.Find(KnownObject.Monster1)!;
-        var sprite = new Sprite(1, vid, Vector3.Zero, Army.Monsters, vid.MaxHp, EngineTestMap.CreateMap(vids));
+        var sprite = new Sprite(vid, Vector3.Zero, default, null, EngineTestMap.CreateMap(vids)) { Army = Army.Monsters };
         sprite.Start(SpriteAnimation.Stand, direction, 0, new GameRandom(1));
 
         return sprite;

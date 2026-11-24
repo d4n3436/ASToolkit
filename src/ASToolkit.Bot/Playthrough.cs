@@ -100,10 +100,10 @@ public sealed class Playthrough
         files.Set(mapPath, File.ReadAllBytes(mapFile));
         files.Set(scriptPath, File.Exists(scriptFile) ? File.ReadAllBytes(scriptFile) : DefaultLevelScript.ToArray());
         var profile = CreateProfile(gameFolder);
-        var map = new Map(vids, files, profile, new GameSession(profile, time: new LoadingRedrawClock()));
+        var map = new MapSteam(vids, files, profile, new GameSession(profile, time: new LoadingRedrawClock()));
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         map.RequestLoad(GameTextEncoding.Cyrillic.GetBytes(mapPath));
-        map.Step(ViewSeed, ViewSeed, out _);
+        map.Tact(ViewSeed, ViewSeed, out _);
 
         return map;
     }
@@ -167,10 +167,10 @@ public sealed class Playthrough
         string demoPath = Path.ChangeExtension(GetMapPath(analysis.Name), DemoExtension);
         _files.Set(demoPath, demo.Data);
         var registry = CreateRegistry(_gameFolder, analysis.Name, loadout);
-        var map = new Map(_vids, _files, registry, new GameSession(registry, time: new LoadingRedrawClock()));
+        var map = new MapSteam(_vids, _files, registry, new GameSession(registry, time: new LoadingRedrawClock()));
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         map.RequestLoad(GameTextEncoding.Cyrillic.GetBytes(demoPath));
-        map.Step(GameClock.StartWallTime, 0, out _);
+        map.Tact(GameClock.StartWallTime, 0, out _);
 
         return map;
     }
@@ -240,7 +240,7 @@ public sealed class Playthrough
         if (map is null)
         {
             var registry = CreateRegistry(_gameFolder, analysis.Name, loadout);
-            map = new Map(_vids, _files, registry, new GameSession(registry, time: new LoadingRedrawClock()));
+            map = new MapSteam(_vids, _files, registry, new GameSession(registry, time: new LoadingRedrawClock()));
             map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         }
         else
@@ -254,7 +254,7 @@ public sealed class Playthrough
         }
 
         map.RequestLoad(setup.MapName);
-        map.Step((uint)seed, (uint)seed, out _);
+        map.Tact((uint)seed, (uint)seed, out _);
         var field = new WalkField(analysis.Grid, setup.DoorsLocked, map, map.Collector, _vids.Find(KnownObject.PlayerStart)!.Object);
         var bot = new PlayerBot(map, new FramePacer(FrameTimes), analysis, field);
 

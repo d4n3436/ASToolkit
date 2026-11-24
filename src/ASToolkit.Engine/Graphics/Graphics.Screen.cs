@@ -276,8 +276,7 @@ public sealed partial class Graphics
         }
 
         SetRenderState(RenderState.AlphaBlendEnable, vid.Layer < ObjectLayer.AlphaGround ? 0u : 1u);
-        var sprite = new Sprite(-1, vid, new Vector3(position.AsVector2() + map.Camera, position.Z), default, 0, map: map);
-        map.ConstructSprite(sprite, default, null);
+        var sprite = new Sprite(vid, new Vector3(position.AsVector2() + map.Camera, position.Z), default, null, map);
         sprite.Frame = frame;
         if (Screen is not null)
         {

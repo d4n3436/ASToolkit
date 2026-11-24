@@ -26,18 +26,42 @@ public sealed class Cannon : Sprite
     private static readonly Vector2 ExitMargin = new(220, 200);
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Cannon"/> class.
+    /// Initializes a new instance of the <see cref="Cannon"/> class on a map.
     /// </summary>
-    /// <param name="number">The number of the sprite.</param>
     /// <param name="vid">The shared data and frames of the sprite's object ID.</param>
-    /// <param name="position">The position of the sprite.</param>
-    /// <param name="army">The army of the sprite.</param>
-    /// <param name="hitPoints">The hit points of the sprite.</param>
+    /// <param name="position">The position.</param>
+    /// <param name="direction">The direction.</param>
+    /// <param name="parent">The sprite that the new sprite takes its army and height from, or null.</param>
     /// <param name="map">The map the sprite belongs to.</param>
-    /// <param name="direction">The direction of the sprite.</param>
-    public Cannon(int number, Vid vid, Vector3 position, Army army, int hitPoints, Map map, Angle direction = default)
-        : base(number, vid, position, army, hitPoints, map, direction)
+    [EngineRoutine(0x00447fe0)]
+    public Cannon(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
+        : base(vid, position, direction, parent, map)
     {
+        ref readonly var gameObject = ref Vid.Object;
+
+        if (gameObject.Properties.HasFlag(ObjectProperties.RandomZSpeed) && !Vid.ZSpeed.IsExactlyZero())
+        {
+            bool downward = (Map.Random.Next() & 1) == 0;
+            float lift = Map.Random.Next() * Vid.ZSpeed;
+            VerticalSpeed = downward ? lift * -GameRandom.UnitScale : lift * GameRandom.UnitScale;
+        }
+        else if (parent is not null && parent.Animation >= SpriteAnimation.Death && gameObject.TopZ < 0)
+        {
+            VerticalSpeed = Vid.ZSpeed;
+            Speed = MaxSpeed + parent.Speed;
+        }
+        else
+        {
+            VerticalSpeed = Vid.ZSpeed;
+        }
+
+        if (gameObject.Properties.HasFlag(ObjectProperties.RandomSpeed) && !Vid.Speed.IsExactlyZero())
+        {
+            MaxSpeed = Map.Random.Next() * Vid.Speed * GameRandom.UnitScale;
+        }
+
+        IsClimbing = true;
+        StartMove();
     }
 
     /// <summary>
@@ -46,9 +70,9 @@ public sealed class Cannon : Sprite
     public bool IsClimbing { get; set; }
 
     [EngineRoutine(0x00448950)]
-    internal override int Action(int act, int var1, int var2, int var3, Sprite? target)
+    internal override int Action(ActionCode act, int var1, int var2, int var3, Sprite? target)
     {
-        if ((ActionCode)act != ActionCode.NextCommand)
+        if (act != ActionCode.NextCommand)
             return base.Action(act, var1, var2, var3, target);
 
         var state = Animation;
@@ -145,7 +169,7 @@ public sealed class Cannon : Sprite
             {
                 Stop();
                 next.Z = current;
-                Map.CreateChildFor(this, ground <= current ? SpriteAnimation.Unload : SpriteAnimation.Load);
+                CreateChildFor(ground <= current ? SpriteAnimation.Unload : SpriteAnimation.Load);
                 ChangeAnimation(SpriteAnimation.Death);
             }
             else if (ground <= current)
@@ -182,7 +206,7 @@ public sealed class Cannon : Sprite
 
             if (ground > current)
             {
-                Map.CreateChildFor(this, SpriteAnimation.Load);
+                CreateChildFor(SpriteAnimation.Load);
             }
         }
 

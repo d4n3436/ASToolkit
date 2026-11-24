@@ -1,4 +1,3 @@
-using System.Buffers.Text;
 using System.Drawing;
 using System.Numerics;
 using ASToolkit.Engine.IO;
@@ -6,23 +5,17 @@ using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
-public sealed partial class Map
+public partial class Map
 {
-    private const int CommandBias = 0x3c;
 
-
-    private static ReadOnlySpan<byte> ItemMark => [1];
-
-    private static ReadOnlySpan<byte> ItemsEnd => [2];
-
-    private static ReadOnlySpan<byte> CommandEnd => ";"u8;
+    internal static ReadOnlySpan<byte> ItemsEnd => [2];
 
     /// <summary>
     /// Returns the shared data of the object ID a building is building.
     /// </summary>
     /// <param name="building">The building.</param>
     /// <returns>The shared data of the object ID, or null when the building is idle.</returns>
-    public Vid? GetPendingBuild(Sprite building) => building is Building pending && pending.PendingBuild.HasValue ? pending.PendingBuild.Value.Vid : null;
+    public Vid? GetPendingBuild(Sprite building) => building is Building { PendingBuild: not null } pending ? pending.PendingBuild.Value.Vid : null;
 
     /// <summary>
     /// Creates the goal sprite of an order on a point.
@@ -31,10 +24,7 @@ public sealed partial class Map
     /// <returns>The goal sprite.</returns>
     public Sprite ConstructGoal(Vector3 position)
     {
-        var goal = new Sprite(-1, Vids.Empty, position, default, 0, map: this);
-        ConstructSprite(goal, default, null);
-
-        return goal;
+        return new Sprite(Vids.Empty, position, default, null, this);
     }
 
     internal Vector3 GetBuildPosition(Sprite builder, Point offset)
@@ -56,7 +46,7 @@ public sealed partial class Map
     }
 
     [EngineRoutine(0x00406e50)]
-    private static ReadOnlyMemory<byte> GetAfter(ReadOnlyMemory<byte> text, ReadOnlySpan<byte> delimiter)
+    internal static ReadOnlyMemory<byte> GetAfter(ReadOnlyMemory<byte> text, ReadOnlySpan<byte> delimiter)
     {
         var source = CRuntime.GetString(text);
         int index = source.Span.IndexOf(delimiter);
@@ -64,100 +54,7 @@ public sealed partial class Map
         return index < 0 ? default : source[(index + delimiter.Length)..];
     }
 
-    [EngineRoutine(0x00446480)]
-    private static ReadOnlyMemory<byte> GetTextItems(Sprite sprite)
-    {
-        if (sprite.Items.Count == 0)
-            return default;
-
-        var text = new List<byte>();
-        foreach (int item in sprite.Items)
-        {
-            text.AddRange(ItemMark);
-            AppendNumber(text, item);
-        }
-
-        text.AddRange(ItemsEnd);
-
-        return text.ToArray();
-    }
-
-    [EngineRoutine(0x00446570)]
-    private static void SetTextItems(Sprite sprite, ReadOnlyMemory<byte> text)
-    {
-        if (text.IsEmpty)
-            return;
-
-        sprite.EnsureExtra();
-        text = GetAfter(text, ItemMark);
-        int item = 0;
-        while (!text.IsEmpty)
-        {
-            if (CRuntime.TryScanInteger(text.Span, out int scanned))
-            {
-                item = scanned;
-            }
-
-            sprite.Items.Add(item);
-            text = GetAfter(text, ItemMark);
-        }
-    }
-
-    private static void AppendNumber(List<byte> text, int value)
-    {
-        Span<byte> number = stackalloc byte[11];
-        Utf8Formatter.TryFormat(value, number, out int length);
-        text.AddRange(number[..length]);
-    }
-
-    [EngineRoutine(0x004458a0)]
-    private static ReadOnlyMemory<byte> GetCommands(Sprite sprite)
-    {
-        var text = new List<byte>();
-        foreach (var order in sprite.ActionStack.Orders)
-        {
-            text.Add(unchecked((byte)(order.Value + CommandBias)));
-            AppendNumber(text, order.Var1);
-            text.Add((byte)',');
-            AppendNumber(text, order.Var2);
-            text.Add((byte)',');
-            AppendNumber(text, order.Var3);
-            text.AddRange(CommandEnd);
-        }
-
-        return text.ToArray();
-    }
-
-    [EngineRoutine(0x00445990)]
-    private void SetCommands(Sprite sprite, ReadOnlyMemory<byte> text)
-    {
-        int var1 = 0, var2 = 0, var3 = 0;
-        while (!text.IsEmpty)
-        {
-            var rest = text.Span;
-            byte command = rest[0];
-            int i = 1;
-            if (CRuntime.TryScanInteger(rest[i..], out int scanned, out int length))
-            {
-                var1 = scanned;
-                i += length;
-                if (i < rest.Length && rest[i] == ',' && CRuntime.TryScanInteger(rest[(i + 1)..], out scanned, out length))
-                {
-                    var2 = scanned;
-                    i += 1 + length;
-                    if (i < rest.Length && rest[i] == ',' && CRuntime.TryScanInteger(rest[(i + 1)..], out scanned))
-                    {
-                        var3 = scanned;
-                    }
-                }
-            }
-
-            sprite.ActionStack.Push(CreateAct(command - CommandBias, var1, var2, var3));
-            text = GetAfter(text, CommandEnd);
-        }
-    }
-
-    private Act CreateAct(int act, int var1, int var2, int var3) =>
+    internal Act CreateAct(int act, int var1, int var2, int var3) =>
         new(act, var1, var2, var3, Act.HasSpriteTarget((ActionCode)(act & byte.MaxValue)) ? FindSprite(var1) : null);
 
 }

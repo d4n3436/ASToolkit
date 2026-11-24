@@ -4,7 +4,7 @@ using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
-public sealed partial class Map
+public partial class Map
 {
     internal const uint White = 0xffffffff;
     internal const uint Green = 0xff00ff00;
@@ -19,39 +19,12 @@ public sealed partial class Map
     private const int GridFirstColumnX = 12;
     private const int GridCellCenter = 4;
 
-    [EngineRoutine(0x00405af0)]
-    internal void DrawOverlay()
-    {
-        DrawDebugInfo();
-
-        if (_debug.HasFlag(StepFlags.DrawHashedNumbers))
-        {
-            for (int index = Collector.Listed.Length - 1; index >= 0; index = Math.Min(Collector.Listed.Length, index) - 1)
-            {
-                var sprite = Collector.Listed[index];
-
-                if (sprite.Owner is null)
-                {
-                    Session.Graphics.DrawFormattedText(GetScreenPoint(sprite), $"{sprite.Hp}");
-                }
-            }
-        }
-
-        if (_debug.HasFlag(StepFlags.DrawHashedSprites))
-        {
-            for (int index = Collector.Listed.Length - 1; index >= 0; index = Math.Min(Collector.Listed.Length, index) - 1)
-            {
-                Collector.Listed[index].DrawGoalLine();
-            }
-        }
-    }
-
     internal Vector2 GetScreenPoint(Sprite sprite) => new(sprite.Position.X - Camera.X, sprite.Position.Y - sprite.Position.Z - Camera.Y);
 
     private static bool IsInViewport(Rectangle viewport, Vector2 point) => viewport.Left <= point.X && point.X < viewport.Right && viewport.Top <= point.Y && point.Y < viewport.Bottom;
 
     [EngineRoutine(0x0040b590)]
-    private void DrawDebugInfo()
+    internal virtual void DrawSecondaryInfo()
     {
         var graphics = Session.Graphics;
         var screen = graphics.Screen;
