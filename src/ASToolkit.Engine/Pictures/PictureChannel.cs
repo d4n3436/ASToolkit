@@ -1,10 +1,9 @@
-using System.Text;
 using ASToolkit.Engine.IO;
 
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents one image of a picture, whose image is of the type that fits the extension of the file it is loaded from.
+/// Represents one image of a picture, read with the image type that fits the extension of its file.
 /// </summary>
 public sealed class PictureChannel : IDisposable
 {
@@ -77,7 +76,7 @@ public sealed class PictureChannel : IDisposable
         {
             if (path.Length != 0)
             {
-                _logger?.Write("!!!ERROR!!!PICTURE '%s': Unknown format file"u8, (ReadOnlyMemory<byte>)Encoding.ASCII.GetBytes(path));
+                _logger?.Write($"!!!ERROR!!!PICTURE '{path}': Unknown format file");
             }
 
             Format = PictureFormat.None;
@@ -86,8 +85,6 @@ public sealed class PictureChannel : IDisposable
 
         return Format != PictureFormat.None && Image.Load(path);
     }
-
-    private static bool HasExtension(string path, string extension) => path.Contains(extension, StringComparison.Ordinal) || path.Contains(extension.ToUpperInvariant(), StringComparison.Ordinal);
 
     /// <summary>
     /// Goes to the next frame of the image.
@@ -100,4 +97,6 @@ public sealed class PictureChannel : IDisposable
     /// </summary>
     [EngineRoutine(0x00412670)]
     public void Rewind() => Image.Rewind();
+
+    private static bool HasExtension(string path, string extension) => path.Contains(extension, StringComparison.Ordinal) || path.Contains(extension.ToUpperInvariant(), StringComparison.Ordinal);
 }
